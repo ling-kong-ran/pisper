@@ -196,7 +196,7 @@ function SessionModelSelect({
     ? `${currentModel.providerName} · ${currentModel.label}`
     : value.split('/').at(-1)
   return (
-    <label
+    <div
       className={`session-model-select icon-only ${compact ? 'compact' : ''}`}
       title={
         disabled
@@ -222,7 +222,7 @@ function SessionModelSelect({
           </option>
         ))}
       </AppSelect>
-    </label>
+    </div>
   )
 }
 
