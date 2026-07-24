@@ -708,8 +708,16 @@ export class AgentRuntimeService {
     return normalizeExecutionMode(this.sessionMeta[sessionId]?.executionMode, DEFAULT_EXECUTION_MODE)
   }
 
+  listStoredSessions() {
+    return SessionManager.listAll(this.sessionDir)
+  }
+
+  openStoredSession(path) {
+    return SessionManager.open(path, this.sessionDir)
+  }
+
   async migrateSessionExecutionModes() {
-    const sessions = await SessionManager.list(this.cwd, this.sessionDir)
+    const sessions = await this.listStoredSessions()
     let changed = false
     for (const session of sessions) {
       const current = this.sessionMeta[session.id] || {}
@@ -886,11 +894,11 @@ export class AgentRuntimeService {
 
   async getTodayUsage() {
     const day = localDayKey()
-    const sessions = await SessionManager.list(this.cwd, this.sessionDir)
+    const sessions = await this.listStoredSessions()
     let changed = false
     for (const info of sessions) {
       if (localDayKey(info.modified) !== day) continue
-      const manager = SessionManager.open(info.path, this.sessionDir, this.cwd)
+      const manager = this.openStoredSession(info.path)
       for (const entry of manager.getEntries()) {
         if (entry.type !== 'message' || entry.message?.role !== 'assistant' || !entry.message.usage) continue
         const timestamp = entry.message.timestamp || entry.timestamp
@@ -1076,7 +1084,7 @@ export class AgentRuntimeService {
   }
 
   async listSessions() {
-    const sessions = await SessionManager.list(this.cwd, this.sessionDir)
+    const sessions = await this.listStoredSessions()
     const settings = this.settingsManager.getGlobalSettings()
     const defaultModel = settings.defaultProvider && settings.defaultModel
       ? `${settings.defaultProvider}/${settings.defaultModel}`
@@ -1085,7 +1093,7 @@ export class AgentRuntimeService {
       const active = this.sessions.get(session.id)
       const contextModel = active?.session.model
         ? { provider: active.session.model.provider, modelId: active.session.model.id }
-        : SessionManager.open(session.path, this.sessionDir, this.cwd).buildSessionContext().model
+        : this.openStoredSession(session.path).buildSessionContext().model
       return {
         id: session.id,
         name: session.name || session.firstMessage || DEFAULT_SESSION_NAME,
@@ -1156,7 +1164,7 @@ export class AgentRuntimeService {
   }
 
   async findSessionInfo(id) {
-    const sessions = await SessionManager.list(this.cwd, this.sessionDir)
+    const sessions = await this.listStoredSessions()
     return sessions.find((session) => session.id === id)
   }
 
@@ -1168,7 +1176,7 @@ export class AgentRuntimeService {
     } else {
       const info = await this.findSessionInfo(id)
       if (!info) return []
-      const manager = SessionManager.open(info.path, this.sessionDir, this.cwd)
+      const manager = this.openStoredSession(info.path)
       messages = manager.buildSessionContext().messages.map(serializeMessage).filter(Boolean)
     }
     const assets = this.assetIndex.assets
@@ -1298,7 +1306,7 @@ export class AgentRuntimeService {
     if (active) return this.compactionAwareContextUsage(active.session, compaction || this.liveSessions.get(id)?.compaction)
     const info = await this.findSessionInfo(id)
     if (!info) return undefined
-    const manager = SessionManager.open(info.path, this.sessionDir, this.cwd)
+    const manager = this.openStoredSession(info.path)
     const context = manager.buildSessionContext()
     const globalSettings = this.settingsManager?.getGlobalSettings?.() || {}
     const provider = context.model?.provider || globalSettings.defaultProvider
@@ -1328,6 +1336,7 @@ export class AgentRuntimeService {
 
   async getSessionLive(id) {
     const active = this.sessions.get(id)
+    const persisted = active ? null : await this.findSessionInfo(id)
     const live = this.liveSessions.get(id)
     const page = await this.getSessionMessagePage(id, { limit: LIVE_MESSAGE_PAGE_SIZE })
     const messages = page.messages
@@ -1355,7 +1364,7 @@ export class AgentRuntimeService {
       lastActivityAt: live?.lastActivityAt || null,
       finishedAt: live?.finishedAt || null,
       model: active?.session.model ? `${active.session.model.provider}/${active.session.model.id}` : '',
-      cwd: active?.cwd || this.sessionMeta[id]?.cwd || this.cwd,
+      cwd: active?.cwd || this.sessionMeta[id]?.cwd || persisted?.cwd || this.cwd,
       permissionMode: this.sessionMeta[id]?.permissionMode || permissionModeForExecutionMode(this.getSessionExecutionMode(id)),
       executionMode: this.getSessionExecutionMode(id),
       goal: live?.goal ?? this.goals.get(id),
@@ -1383,7 +1392,7 @@ export class AgentRuntimeService {
     } else {
       const info = await this.findSessionInfo(id)
       if (!info) return null
-      const manager = SessionManager.open(info.path, this.sessionDir, this.cwd)
+      const manager = this.openStoredSession(info.path)
       manager.appendSessionInfo(title)
     }
     await this.markSessionTitle(id, title, manual)
@@ -1476,7 +1485,7 @@ export class AgentRuntimeService {
     await this.saveSessionMeta()
 
     const manager = info?.path
-      ? SessionManager.open(info.path, this.sessionDir, this.cwd)
+      ? this.openStoredSession(info.path)
       : SessionManager.create(this.cwd, this.sessionDir, { id })
     const next = await this.createSessionRuntime(manager, name)
     if (!info?.path) next.session.setSessionName(name)
@@ -1507,7 +1516,7 @@ export class AgentRuntimeService {
     }
     if (id) {
       const info = await this.findSessionInfo(id)
-      if (info) return this.createSessionRuntime(SessionManager.open(info.path, this.sessionDir, this.cwd))
+      if (info) return this.createSessionRuntime(this.openStoredSession(info.path))
     }
     return this.createSessionRuntime(SessionManager.create(this.cwd, this.sessionDir))
   }
