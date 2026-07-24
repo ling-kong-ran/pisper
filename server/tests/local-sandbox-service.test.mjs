@@ -344,25 +344,28 @@ test('disposing the sandbox terminates active process trees and rejects future c
     isSupportedPlatform: () => true,
     isSandboxingEnabled: () => enabled,
     initialize: async () => { enabled = true },
+    // Keep the command payload offline of Windows Git-Bash wrapping so this test only
+    // exercises process-tree disposal and reject-after-dispose behavior.
     wrapWithSandboxArgv: async () => ({ argv: [process.execPath, '-e', 'setInterval(() => {}, 1000)'], env: {} }),
     cleanupAfterCommand: () => {},
     reset: async () => { enabled = false; resetCount += 1 },
   }
   const service = new LocalSandboxService({
-    dataDir: resolve('sandbox-dispose-data'),
-    platform: process.platform,
+    dataDir: join(tmpdir(), 'vesper-sandbox-dispose-data'),
+    platform: 'linux',
     manager,
-    disposeGraceMs: 2_000,
+    disposeGraceMs: 1_000,
   })
   const operations = service.createBashOperations()
   const running = operations.exec('long-running', workspace, { onData: () => {} })
-  for (let attempt = 0; attempt < 40 && service.activeCommands < 1; attempt += 1) await delay(10)
+  for (let attempt = 0; attempt < 80 && service.activeChildren.size < 1; attempt += 1) await delay(10)
+  assert.equal(service.activeChildren.size, 1)
 
   const startedAt = Date.now()
   await service.dispose()
   await running.catch(() => {})
 
-  assert.ok(Date.now() - startedAt < 2_500)
+  assert.ok(Date.now() - startedAt < 1_500)
   assert.equal(service.activeCommands, 0)
   assert.equal(service.activeChildren.size, 0)
   assert.equal(resetCount, 1)

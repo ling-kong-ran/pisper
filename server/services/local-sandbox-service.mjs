@@ -394,17 +394,18 @@ export class LocalSandboxService {
     for (const child of this.activeChildren) terminateProcessTree(child, this.platform)
     await this.withLock(async () => {
       for (const child of this.activeChildren) terminateProcessTree(child, this.platform)
-      if (this.activeCommands > 0) {
+      // Briefly wait for tracked children to exit, but never block dispose for the full grace
+      // period when kill is slow or a command is still between acquire() and spawn().
+      if (this.activeCommands > 0 && this.activeChildren.size > 0) {
         await Promise.race([
           this.waitForIdle(),
-          unrefDelay(this.disposeGraceMs),
+          unrefDelay(Math.min(this.disposeGraceMs, 250)),
         ])
       }
       for (const child of [...this.activeChildren]) {
         terminateProcessTree(child, this.platform)
         this.activeChildren.delete(child)
       }
-      // Dispose must not hang on commands that race spawn after termination starts.
       if (this.activeCommands > 0) {
         this.activeCommands = 0
         for (const waiter of this.idleWaiters.splice(0)) waiter.resolve()
