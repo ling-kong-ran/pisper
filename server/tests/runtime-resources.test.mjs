@@ -64,6 +64,30 @@ test('main runtime keeps cold MCP tools dormant until explicitly requested while
   assert.ok(childLoader.getAppendSystemPrompt().includes('CHILD AGENT PROMPT'))
 })
 
+test('background prompts apply their explicit execution mode before the Agent starts', async () => {
+  const runtime = new AgentRuntimeService({ cwd: process.cwd(), dataDir: process.cwd() })
+  const calls = []
+  runtime.createSession = async () => {
+    runtime.sessions.set('scheduled-session', { cwd: process.cwd(), session: { model: null } })
+    return { id: 'scheduled-session' }
+  }
+  runtime.setSessionCwd = async (_id, cwd) => { calls.push(['cwd', cwd]) }
+  runtime.setSessionExecutionMode = async (_id, mode) => { calls.push(['executionMode', mode]) }
+  runtime.streamPrompt = async ({ sessionId, send }) => {
+    calls.push(['stream', sessionId])
+    send('meta', { sessionId })
+    send('text_delta', { delta: 'done' })
+  }
+
+  const result = await runtime.promptFromChannel({
+    sessionId: '', message: 'run', cwd: process.cwd(), title: 'Scheduled task', executionMode: 'full-access',
+  })
+
+  assert.deepEqual(calls.map(([type]) => type), ['cwd', 'executionMode', 'stream'])
+  assert.equal(result.sessionId, 'scheduled-session')
+  assert.equal(result.text, 'done')
+})
+
 test('saving plugin tools keeps the current streaming session alive and invalidates idle runtimes', async () => {
   const runtime = new AgentRuntimeService({ cwd: process.cwd(), dataDir: process.cwd() })
   let streamingDisposed = 0

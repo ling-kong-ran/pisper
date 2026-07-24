@@ -3,7 +3,7 @@ import { mkdtemp, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import test from 'node:test'
-import { calculateNextRun, ScheduleService } from '../services/schedule-service.mjs'
+import { calculateNextRun, DEFAULT_SCHEDULE_EXECUTION_MODE, ScheduleService } from '../services/schedule-service.mjs'
 
 async function waitFor(predicate, timeoutMs = 1500) {
   const started = Date.now()
@@ -69,10 +69,30 @@ test('scheduled tasks persist, execute with the selected model and notify multip
   const state = service.getState()
   assert.equal(state.tasks[0].lastStatus, 'completed')
   assert.equal(state.runs[0].status, 'completed')
+  assert.equal(state.tasks[0].executionMode, DEFAULT_SCHEDULE_EXECUTION_MODE)
+  assert.equal(prompts[0].executionMode, 'full-access')
   assert.deepEqual(prompts[0].model, { provider: 'openai', model: 'gpt-5.4' })
   assert.deepEqual(notifications[0][2], { platforms: ['browser', 'feishu', 'weixin'] })
   assert.equal(notifications[0][0], 'schedule.completed')
   assert.match(notifications[0][1].task.summary, /检查完成/)
+})
+
+test('scheduled tasks preserve an explicit sandboxed execution mode', async (t) => {
+  const directory = await mkdtemp(join(tmpdir(), 'vesper-schedules-execution-mode-'))
+  t.after(() => rm(directory, { recursive: true, force: true }))
+  const prompts = []
+  const service = new ScheduleService({
+    path: join(directory, 'schedules.json'), cwd: directory, tickMs: 60_000,
+    agent: { validateDirectory: async () => directory, prompt: async (input) => { prompts.push(input); return { text: 'ok' } } },
+    notifications: { notify: async () => {} },
+  })
+  await service.init()
+  t.after(() => service.dispose())
+  const task = await service.create({ name: '沙箱任务', prompt: 'test', frequency: 'daily', time: '09:00', timezone: 'UTC', executionMode: 'workspace' })
+  await service.runNow(task.id)
+  await waitFor(() => service.executions.size === 0)
+  assert.equal(service.getState().tasks[0].executionMode, 'workspace')
+  assert.equal(prompts[0].executionMode, 'workspace')
 })
 
 test('failure-only tasks suppress success notifications and send failure templates', async (t) => {

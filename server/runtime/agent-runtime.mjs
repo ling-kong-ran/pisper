@@ -2094,7 +2094,7 @@ export class AgentRuntimeService {
     return this.webSearch.test(input)
   }
 
-  async promptFromChannel({ sessionId, message, attachments = [], cwd, title, model, onSession }) {
+  async promptFromChannel({ sessionId, message, attachments = [], cwd, title, model, executionMode, onSession }) {
     let id = String(sessionId || '')
     if (id && !this.sessions.has(id) && !(await this.findSessionInfo(id))) id = ''
     if (!id) {
@@ -2102,6 +2102,7 @@ export class AgentRuntimeService {
       id = created.id
       if (cwd) await this.setSessionCwd(id, cwd)
     }
+    if (executionMode) await this.setSessionExecutionMode(id, executionMode)
     if (model?.provider && model?.model) {
       const active = await this.getOrCreateSession(id)
       if (active.session.model?.provider !== model.provider || active.session.model?.id !== model.model) await this.setSessionModel(id, model.provider, model.model)

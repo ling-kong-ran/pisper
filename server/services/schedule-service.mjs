@@ -1,5 +1,8 @@
 import { randomUUID } from 'node:crypto'
 import { readJson, writeJsonAtomic } from '../storage/json-file.mjs'
+import { normalizeExecutionMode } from '../security/execution-mode.mjs'
+
+export const DEFAULT_SCHEDULE_EXECUTION_MODE = 'full-access'
 
 const FREQUENCIES = new Set(['interval', 'daily', 'weekly', 'monthly'])
 const INTERVAL_UNITS = new Set(['minutes', 'hours', 'days'])
@@ -85,6 +88,7 @@ function normalizeStoredTask(task, cwd) {
     dayOfWeek: Math.min(6, Math.max(0, Number.isInteger(Number(task.dayOfWeek)) ? Number(task.dayOfWeek) : 1)),
     dayOfMonth: Math.min(28, Math.max(1, Number(task.dayOfMonth) || 1)),
     cwd: String(task.cwd || cwd),
+    executionMode: normalizeExecutionMode(task.executionMode, DEFAULT_SCHEDULE_EXECUTION_MODE),
     model: task.model?.provider && task.model?.model ? { provider: String(task.model.provider), model: String(task.model.model) } : null,
     notifications: [...new Set((Array.isArray(task.notifications) ? task.notifications : []).filter((target) => NOTIFICATION_TARGETS.has(target)))],
     notifyOn: task.notifyOn === 'failure' ? 'failure' : 'always',
@@ -234,7 +238,7 @@ export class ScheduleService {
     let event = 'schedule.completed'
     let data
     try {
-      const result = await this.agent.prompt({ message: task.prompt, cwd: task.cwd, title: `定时任务 · ${task.name}`, model: task.model })
+      const result = await this.agent.prompt({ message: task.prompt, cwd: task.cwd, title: `定时任务 · ${task.name}`, model: task.model, executionMode: task.executionMode })
       const summary = String(result.text || '任务已完成。').trim().slice(0, 1200)
       run.status = 'completed'
       run.summary = summary
