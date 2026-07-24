@@ -1,4 +1,7 @@
 import assert from 'node:assert/strict'
+import { mkdtemp, rm } from 'node:fs/promises'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
 import test from 'node:test'
 import { createApiHandler } from '../http/api-handler.mjs'
 import { AgentRuntimeService } from '../runtime/agent-runtime.mjs'
@@ -21,7 +24,9 @@ function response() {
   }
 }
 
-test('running sessions accept steering and follow-up user messages through the Pi queue', async () => {
+test('running sessions accept steering and follow-up user messages through the Pi queue', async (t) => {
+  const directory = await mkdtemp(join(tmpdir(), 'vesper-session-input-'))
+  t.after(() => rm(directory, { recursive: true, force: true }))
   const calls = []
   const steering = []
   const followUp = []
@@ -36,7 +41,7 @@ test('running sessions accept steering and follow-up user messages through the P
       else steering.push(message)
     },
   }
-  const runtime = new AgentRuntimeService({ cwd: process.cwd(), dataDir: process.cwd() })
+  const runtime = new AgentRuntimeService({ cwd: directory, dataDir: directory })
   const selections = []
   runtime.selectToolsForMessage = (_value, message, options) => { selections.push({ message, options }) }
   runtime.sessions.set('session-1', { session, modified: '' })

@@ -70,11 +70,13 @@ test('main runtime keeps cold MCP tools dormant until explicitly requested while
   assert.ok(childLoader.getAppendSystemPrompt().includes('CHILD AGENT PROMPT'))
 })
 
-test('background prompts apply their explicit execution mode before the Agent starts', async () => {
-  const runtime = new AgentRuntimeService({ cwd: process.cwd(), dataDir: process.cwd() })
+test('background prompts apply their explicit execution mode before the Agent starts', async (t) => {
+  const directory = await mkdtemp(join(tmpdir(), 'vesper-background-prompt-'))
+  t.after(() => rm(directory, { recursive: true, force: true }))
+  const runtime = new AgentRuntimeService({ cwd: directory, dataDir: directory })
   const calls = []
   runtime.createSession = async () => {
-    runtime.sessions.set('scheduled-session', { cwd: process.cwd(), session: { model: null } })
+    runtime.sessions.set('scheduled-session', { cwd: directory, session: { model: null } })
     return { id: 'scheduled-session' }
   }
   runtime.setSessionCwd = async (_id, cwd) => { calls.push(['cwd', cwd]) }
@@ -86,7 +88,7 @@ test('background prompts apply their explicit execution mode before the Agent st
   }
 
   const result = await runtime.promptFromChannel({
-    sessionId: '', message: 'run', cwd: process.cwd(), title: 'Scheduled task', executionMode: 'full-access', isolatedContext: true,
+    sessionId: '', message: 'run', cwd: directory, title: 'Scheduled task', executionMode: 'full-access', isolatedContext: true,
   })
 
   assert.deepEqual(calls.map(([type]) => type), ['cwd', 'executionMode', 'stream'])
@@ -97,8 +99,10 @@ test('background prompts apply their explicit execution mode before the Agent st
   assert.equal(result.text, 'done')
 })
 
-test('saving plugin tools keeps the current streaming session alive and invalidates idle runtimes', async () => {
-  const runtime = new AgentRuntimeService({ cwd: process.cwd(), dataDir: process.cwd() })
+test('saving plugin tools keeps the current streaming session alive and invalidates idle runtimes', async (t) => {
+  const directory = await mkdtemp(join(tmpdir(), 'vesper-plugin-save-'))
+  t.after(() => rm(directory, { recursive: true, force: true }))
+  const runtime = new AgentRuntimeService({ cwd: directory, dataDir: directory })
   let streamingDisposed = 0
   let idleDisposed = 0
   runtime.sessions.set('streaming', {
@@ -124,8 +128,10 @@ test('saving plugin tools keeps the current streaming session alive and invalida
   assert.equal(runtime.sessions.has('idle'), false)
 })
 
-test('resource changes keep the currently streaming session alive', async () => {
-  const runtime = new AgentRuntimeService({ cwd: process.cwd(), dataDir: process.cwd() })
+test('resource changes keep the currently streaming session alive', async (t) => {
+  const directory = await mkdtemp(join(tmpdir(), 'vesper-resource-change-'))
+  t.after(() => rm(directory, { recursive: true, force: true }))
+  const runtime = new AgentRuntimeService({ cwd: directory, dataDir: directory })
   let streamingDisposed = 0
   let idleDisposed = 0
   runtime.sessions.set('streaming', {

@@ -267,6 +267,7 @@ export class LocalSandboxService {
         let timeoutHandle
         const shellPath = this.platform === 'win32' ? (this.windowsShell || resolveWindowsShell()) : '/bin/bash'
         try {
+          if (this.disposing || this.disposed) throw new Error('本地沙箱正在关闭。')
           const wrapped = await this.manager.wrapWithSandboxArgv(
             this.platform === 'win32' ? buildWindowsSandboxCommand(command, shellPath, windowsSensitiveGuardPaths(this.dataDir, this.homeDir)) : command,
             shellPath,
@@ -274,6 +275,7 @@ export class LocalSandboxService {
             signal,
             cwd,
           )
+          if (this.disposing || this.disposed) throw new Error('本地沙箱正在关闭。')
           if (signal?.aborted) throw abortedError()
           child = spawn(wrapped.argv[0], wrapped.argv.slice(1), {
             cwd,
@@ -284,6 +286,10 @@ export class LocalSandboxService {
             // removes denied credentials and injects the network proxy boundary.
             env: sandboxChildEnvironment(wrapped.env),
           })
+          if (this.disposing || this.disposed) {
+            terminateProcessTree(child, this.platform)
+            throw new Error('本地沙箱正在关闭。')
+          }
           this.activeChildren.add(child)
           if (timeout && timeout > 0) {
             timeoutHandle = setTimeout(() => {
@@ -387,11 +393,21 @@ export class LocalSandboxService {
     this.disposing = true
     for (const child of this.activeChildren) terminateProcessTree(child, this.platform)
     await this.withLock(async () => {
+      for (const child of this.activeChildren) terminateProcessTree(child, this.platform)
       if (this.activeCommands > 0) {
         await Promise.race([
           this.waitForIdle(),
           unrefDelay(this.disposeGraceMs),
         ])
+      }
+      for (const child of [...this.activeChildren]) {
+        terminateProcessTree(child, this.platform)
+        this.activeChildren.delete(child)
+      }
+      // Dispose must not hang on commands that race spawn after termination starts.
+      if (this.activeCommands > 0) {
+        this.activeCommands = 0
+        for (const waiter of this.idleWaiters.splice(0)) waiter.resolve()
       }
       if (this.manager.isSandboxingEnabled()) {
         try { await this.manager.reset() } catch (error) { this.lastError = publicSandboxError(error) }

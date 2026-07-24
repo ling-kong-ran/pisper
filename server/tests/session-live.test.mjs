@@ -56,8 +56,10 @@ test('multi-Agent status inspection never promotes an unrelated failed Agent int
   assert.deepEqual(multiAgentResultAgent('spawn_agent', failed), failed)
 })
 
-test('live activity replaces plan and Agent status without retaining terminal Agent cards', () => {
-  const runtime = new AgentRuntimeService({ cwd: process.cwd(), dataDir: process.cwd() })
+test('live activity replaces plan and Agent status without retaining terminal Agent cards', async (t) => {
+  const directory = await mkdtemp(join(tmpdir(), 'vesper-live-activity-'))
+  t.after(() => rm(directory, { recursive: true, force: true }))
+  const runtime = new AgentRuntimeService({ cwd: directory, dataDir: directory })
   runtime.liveSessions.set('session-activity', {
     streaming: true,
     agents: [],
@@ -603,8 +605,10 @@ test('stream failures emit a single terminal error snapshot without throwing', a
   assert.equal(live.error, 'model failed')
 })
 
-test('context usage reports the current window share and earlier automatic compaction threshold', () => {
-  const runtime = new AgentRuntimeService({ cwd: process.cwd(), dataDir: process.cwd() })
+test('context usage reports the current window share and earlier automatic compaction threshold', async (t) => {
+  const directory = await mkdtemp(join(tmpdir(), 'vesper-context-usage-'))
+  t.after(() => rm(directory, { recursive: true, force: true }))
+  const runtime = new AgentRuntimeService({ cwd: directory, dataDir: directory })
   runtime.settingsManager = { getCompactionSettings: () => ({ enabled: true, reserveTokens: 16_384, keepRecentTokens: 20_000 }) }
   const session = {
     model: { provider: 'openai', id: 'gpt-5.4', contextWindow: 200_000 },
