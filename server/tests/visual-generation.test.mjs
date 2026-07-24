@@ -5,6 +5,7 @@ import { join } from 'node:path'
 import { tmpdir } from 'node:os'
 import test from 'node:test'
 import { VisualGenerationService } from '../services/visual-generation/index.mjs'
+import { VisualModelCatalog } from '../services/visual-generation/model-selection.mjs'
 import { TOOL_CATALOG, createAppTools } from '../tools/registry.mjs'
 
 const PNG = Buffer.from('89504e470d0a1a0a0000000d49484452000000010000000108060000001f15c4890000000d49444154789c6360000002000154a24f5d0000000049454e44ae426082', 'hex')
@@ -30,6 +31,211 @@ async function fixture(provider) {
     cleanup: () => rm(directory, { recursive: true, force: true }),
   }
 }
+
+test('visual model catalog deduplicates shared relay models and prefers the explicit visual Provider', async (t) => {
+  const directory = await mkdtemp(join(tmpdir(), 'vesper-visual-catalog-'))
+  t.after(() => rm(directory, { recursive: true, force: true }))
+  const sharedBaseUrl = 'https://relay.example.test/v1'
+  await writeFile(join(directory, 'models.json'), JSON.stringify({ providers: {
+    openai: { name: 'Chat Provider', api: 'openai-responses', baseUrl: sharedBaseUrl },
+    'openai-image': {
+      name: 'Visual Provider',
+      api: 'openai-responses',
+      baseUrl: sharedBaseUrl,
+      models: [{ id: 'gpt-image-2', name: 'A primary image', kind: 'image' }],
+    },
+    'visual-backup': {
+      name: 'Visual Backup',
+      api: 'openai-responses',
+      baseUrl: 'https://backup.example.test/v1',
+      models: [{ id: 'gpt-image-2', name: 'Z backup image', kind: 'image' }],
+    },
+  } }))
+  await writeFile(join(directory, 'auth.json'), JSON.stringify({
+    openai: { type: 'api_key', key: 'chat-key' },
+    'openai-image': { type: 'api_key', key: 'visual-key' },
+    'visual-backup': { type: 'api_key', key: 'backup-key' },
+  }))
+  await writeFile(join(directory, 'vesper.json'), JSON.stringify({
+    disabledProviders: [],
+    providerTypes: { openai: 'chat', 'openai-image': 'visual', 'visual-backup': 'visual' },
+  }))
+  const runtimeModels = {
+    openai: [{ id: 'gpt-image-2', name: 'Discovered image copy', api: 'openai-responses', baseUrl: sharedBaseUrl, vesperKind: 'image' }],
+  }
+  const runtime = {
+    getProviders: () => [{ id: 'openai', name: 'OpenAI' }, { id: 'openai-image', name: 'Visual Provider' }, { id: 'visual-backup', name: 'Visual Backup' }],
+    getProvider: (id) => ({ id, name: id }),
+    getModels: (id) => runtimeModels[id] || [],
+  }
+  const catalog = new VisualModelCatalog({
+    modelsPath: join(directory, 'models.json'),
+    authPath: join(directory, 'auth.json'),
+    appConfigPath: join(directory, 'vesper.json'),
+    getModelRuntime: () => runtime,
+  })
+
+  const models = await catalog.list('image')
+  assert.equal(models.length, 2)
+  assert.ok(models.some((model) => model.providerId === 'openai-image' && model.baseUrl === sharedBaseUrl))
+  assert.ok(models.some((model) => model.providerId === 'visual-backup'))
+  assert.ok(!models.some((model) => model.providerId === 'openai'))
+  const automatic = await catalog.select('image')
+  const unqualified = await catalog.select('image', 'gpt-image-2')
+  const visualQualified = await catalog.select('image', 'openai-image/gpt-image-2')
+  const chatQualified = await catalog.select('image', 'openai/gpt-image-2')
+  assert.equal(automatic.providerId, 'openai-image')
+  assert.equal(automatic.apiKey, 'visual-key')
+  assert.equal(unqualified.providerId, 'openai-image')
+  assert.equal(unqualified.apiKey, 'visual-key')
+  assert.equal(visualQualified.providerId, 'openai-image')
+  assert.equal(visualQualified.apiKey, 'visual-key')
+  assert.equal(chatQualified.providerId, 'openai')
+  assert.equal(chatQualified.apiKey, 'chat-key')
+})
+
+test('a duplicated chat catalog image still sends the dedicated visual Provider credential', async (t) => {
+  let authorization = ''
+  let requestedModel = ''
+  const { server, port } = await listen(async (req, res) => {
+    if (req.method === 'POST' && req.url === '/v1/images/generations') {
+      authorization = String(req.headers.authorization || '')
+      const chunks = []
+      for await (const chunk of req) chunks.push(chunk)
+      requestedModel = JSON.parse(Buffer.concat(chunks).toString('utf8')).model
+      res.writeHead(200, { 'content-type': 'application/json' })
+      res.end(JSON.stringify({ data: [{ b64_json: PNG.toString('base64') }] }))
+      return
+    }
+    res.writeHead(404).end()
+  })
+  t.after(() => server.close())
+  const directory = await mkdtemp(join(tmpdir(), 'vesper-visual-credential-'))
+  t.after(() => rm(directory, { recursive: true, force: true }))
+  const baseUrl = `http://127.0.0.1:${port}/v1`
+  await writeFile(join(directory, 'models.json'), JSON.stringify({ providers: {
+    openai: { name: 'Chat Provider', api: 'openai-responses', baseUrl },
+    'openai-image': {
+      name: 'Visual Provider',
+      api: 'openai-responses',
+      baseUrl,
+      models: [{ id: 'gpt-image-2', kind: 'image' }],
+    },
+  } }))
+  await writeFile(join(directory, 'auth.json'), JSON.stringify({
+    openai: { type: 'api_key', key: 'chat-key' },
+    'openai-image': { type: 'api_key', key: 'visual-key' },
+  }))
+  await writeFile(join(directory, 'vesper.json'), JSON.stringify({
+    disabledProviders: [],
+    providerTypes: { openai: 'chat', 'openai-image': 'visual' },
+  }))
+  const runtime = {
+    getProviders: () => [{ id: 'openai' }, { id: 'openai-image' }],
+    getProvider: (id) => ({ id, name: id }),
+    getModels: (id) => id === 'openai'
+      ? [{ id: 'gpt-image-2', api: 'openai-responses', baseUrl, vesperKind: 'image' }]
+      : [],
+  }
+  const service = new VisualGenerationService({
+    modelsPath: join(directory, 'models.json'),
+    authPath: join(directory, 'auth.json'),
+    appConfigPath: join(directory, 'vesper.json'),
+    getModelRuntime: () => runtime,
+  })
+
+  const result = await service.generate({ kind: 'image', prompt: 'credential routing test', cwd: directory })
+  assert.equal(result.provider, 'openai-image')
+  assert.equal(authorization, 'Bearer visual-key')
+  assert.equal(requestedModel, 'gpt-image-2')
+})
+
+test('automatic visual selection falls back when the preferred model has no available channel', async () => {
+  const requestedModels = []
+  const progress = []
+  const { server, port } = await listen(async (req, res) => {
+    const url = new URL(req.url, 'http://127.0.0.1')
+    if (req.method === 'GET' && url.pathname === '/') {
+      res.writeHead(404).end()
+      return
+    }
+    if (req.method === 'POST' && url.pathname === '/v1/images/generations') {
+      const chunks = []
+      for await (const chunk of req) chunks.push(chunk)
+      const model = JSON.parse(Buffer.concat(chunks).toString('utf8')).model
+      requestedModels.push(model)
+      if (model === 'gpt-image-2') {
+        res.writeHead(503, { 'content-type': 'application/json' })
+        res.end(JSON.stringify({ error: { code: 'model_not_found', message: '分组 image 下模型 gpt-image-2 无可用渠道（distributor）' } }))
+        return
+      }
+      res.writeHead(200, { 'content-type': 'application/json' })
+      res.end(JSON.stringify({ data: [{ b64_json: PNG.toString('base64') }] }))
+      return
+    }
+    res.writeHead(404).end()
+  })
+  const value = await fixture({
+    id: 'fallback-relay',
+    config: {
+      name: 'Fallback Relay',
+      api: 'openai-responses',
+      baseUrl: `http://127.0.0.1:${port}/v1`,
+      models: [{ id: 'gpt-image-2', kind: 'image' }, { id: 'grok-imagine-image', kind: 'image' }],
+    },
+  })
+  try {
+    const result = await value.service.generate(
+      { kind: 'image', prompt: 'automatic fallback test', cwd: value.directory },
+      { onProgress: (message) => progress.push(message) },
+    )
+    assert.equal(result.model, 'grok-imagine-image')
+    assert.equal(result.fallbackUsed, true)
+    assert.deepEqual(result.attemptedModels, ['fallback-relay/gpt-image-2', 'fallback-relay/grok-imagine-image'])
+    assert.equal(requestedModels[0], 'gpt-image-2')
+    assert.equal(requestedModels.at(-1), 'grok-imagine-image')
+    assert.ok(progress.some((message) => message.includes('当前不可用') && message.includes('grok-imagine-image')))
+  } finally {
+    server.close()
+    await value.cleanup()
+  }
+})
+
+test('an explicitly requested visual model fails without switching to another model', async () => {
+  const requestedModels = []
+  const { server, port } = await listen(async (req, res) => {
+    const url = new URL(req.url, 'http://127.0.0.1')
+    if (req.method === 'POST' && url.pathname === '/v1/images/generations') {
+      const chunks = []
+      for await (const chunk of req) chunks.push(chunk)
+      requestedModels.push(JSON.parse(Buffer.concat(chunks).toString('utf8')).model)
+      res.writeHead(503, { 'content-type': 'application/json' })
+      res.end(JSON.stringify({ error: { code: 'model_not_found', message: 'gpt-image-2 has no available channel' } }))
+      return
+    }
+    res.writeHead(404).end()
+  })
+  const value = await fixture({
+    id: 'explicit-relay',
+    config: {
+      name: 'Explicit Relay',
+      api: 'openai-responses',
+      baseUrl: `http://127.0.0.1:${port}/v1`,
+      models: [{ id: 'gpt-image-2', kind: 'image' }, { id: 'grok-imagine-image', kind: 'image' }],
+    },
+  })
+  try {
+    await assert.rejects(
+      value.service.generate({ kind: 'image', prompt: 'explicit model test', model: 'gpt-image-2', cwd: value.directory }),
+      /no available channel/,
+    )
+    assert.ok(requestedModels.length >= 1)
+    assert.ok(requestedModels.every((model) => model === 'gpt-image-2'))
+  } finally {
+    server.close()
+    await value.cleanup()
+  }
+})
 
 test('OpenAI-compatible image and video models generate files', async () => {
   const { server, port } = await listen(async (req, res) => {

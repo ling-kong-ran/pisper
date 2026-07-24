@@ -75,7 +75,7 @@ try {
     ['multi-agent', '派一个 Agent 并行审查测试'],
     ['mcp-management', '列出 MCP 服务'],
   ]) {
-    runtime.selectToolsForMessage(value, message)
+    await runtime.selectToolsForMessage(value, message)
     scenarios.push(snapshot(session, label))
   }
 

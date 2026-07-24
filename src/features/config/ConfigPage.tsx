@@ -70,6 +70,7 @@ type ConfigData = EntityRecord & {
   toolMode: string
   createdProviderId?: string
   addedModelIds?: string[]
+  apiKeyUpdated?: boolean
 }
 type ConfigDraft = {
   provider: string
@@ -207,6 +208,7 @@ export function ConfigPage({
   const [discovering, setDiscovering] = useState(true)
   const [discoveryError, setDiscoveryError] = useState('')
   const [importingProvider, setImportingProvider] = useState('')
+  const apiKeyInputRef = useRef<HTMLInputElement>(null)
   usePagePrimaryAction(registerPrimaryAction, () => setProviderModal(true))
 
   const refreshDiscovery = async () => {
@@ -380,10 +382,14 @@ export function ConfigPage({
     setSaving(true)
     setError('')
     try {
+      const apiKey = apiKeyInputRef.current?.value || draft.apiKey
       const saved = await apiJson<ConfigData>('/api/config', {
         method: 'PUT',
-        body: JSON.stringify(draft),
+        body: JSON.stringify({ ...draft, apiKey }),
       })
+      if (apiKey.trim() && !saved.apiKeyUpdated) {
+        throw new Error(t('config:configPage.apiKeyCouldNotBeUpdatedPleaseRetry'))
+      }
       setConfig(saved)
       const provider =
         saved.providers.find((item) => item.id === draft.provider) || saved.providers[0]
@@ -644,9 +650,19 @@ export function ConfigPage({
                       API Key
                       <span className="input-wrap">
                         <input
+                          ref={apiKeyInputRef}
                           type="password"
+                          name={`provider-api-key-${selectedProvider.id}`}
+                          autoComplete="new-password"
                           value={draft.apiKey}
-                          onChange={(event) => setDraft({ ...draft, apiKey: event.target.value })}
+                          onChange={(event) => {
+                            const apiKey = event.currentTarget.value
+                            setDraft((current) => current ? { ...current, apiKey } : current)
+                          }}
+                          onInput={(event) => {
+                            const apiKey = event.currentTarget.value
+                            setDraft((current) => current && current.apiKey !== apiKey ? { ...current, apiKey } : current)
+                          }}
                           placeholder={
                             selectedProvider.configured
                               ? t('config:configPage.configuredLeaveBlankToKeepTheExistingKey')

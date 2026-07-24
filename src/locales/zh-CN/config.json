@@ -23,6 +23,7 @@
   "configPage.agentRuntimePolicy": "Agent 运行策略",
   "configPage.agentSettingsSavedNewChatsWillUseThisModel": "Agent 配置已保存，新会话将使用该模型",
   "configPage.apiKeyRequired": "需要 API Key",
+  "configPage.apiKeyCouldNotBeUpdatedPleaseRetry": "API Key 未能更新，请重试。",
   "configPage.apiProtocol": "API 协议",
   "configPage.appUpdates": "应用更新",
   "configPage.authenticationAndEndpointsAreStoredIndependentlyForEachConnection": "每个连接独立保存认证与地址",

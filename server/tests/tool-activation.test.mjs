@@ -1,12 +1,12 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
-import { explicitlyRequestedToolNames, hotToolNames, isExplicitMemoryRememberRequest, schemaOnlyToolDefinition, selectedToolNames } from '../tools/tool-activation.mjs'
+import { explicitlyRequestedToolNames, hotToolNames, isExplicitMemoryRememberRequest, mergePromotedToolNames, schemaOnlyToolDefinition, selectedToolNames } from '../tools/tool-activation.mjs'
 
 const available = [
   'read', 'grep', 'find', 'ls', 'edit', 'write', 'bash',
   'web_search', 'browser_automation', 'generate_visual',
   'memory_search', 'memory_remember', 'mcp_list', 'mcp_manage',
-  'get_task_list', 'update_task_list',
+  'get_task_list', 'update_task_list', 'discover_tools',
   'spawn_agent', 'list_agents', 'send_message', 'followup_task', 'wait_agent', 'interrupt_agent',
   'mcp_pencil_batch_design_12345678',
 ]
@@ -34,9 +34,23 @@ test('schema-only cold tools move prompt guidance into their appended schema des
 
 test('hot tools keep local coding and task progress available without injecting cold schemas', () => {
   assert.deepEqual(hotToolNames(available), [
-    'read', 'grep', 'find', 'ls', 'edit', 'write', 'bash', 'get_task_list', 'update_task_list',
+    'read', 'grep', 'find', 'ls', 'edit', 'write', 'bash', 'get_task_list', 'update_task_list', 'discover_tools',
   ])
   assert.deepEqual(selectedToolNames({ availableToolNames: available }), hotToolNames(available))
+})
+
+test('promoted cold tools stay active beside the static hot set', () => {
+  const promotedToolNames = mergePromotedToolNames({
+    availableToolNames: available,
+    promotedToolNames: ['web_search'],
+    requestedToolNames: ['generate_visual', 'read'],
+  })
+  assert.deepEqual(promotedToolNames, ['web_search', 'generate_visual'])
+  assert.deepEqual(selectedToolNames({ availableToolNames: available, promotedToolNames }), [
+    ...hotToolNames(available),
+    'web_search',
+    'generate_visual',
+  ])
 })
 
 test('ordinary local coding requests do not activate cold tools', () => {
@@ -67,6 +81,23 @@ test('an explicit image edit with an attachment activates visual generation', ()
     mcpTools,
     attachments: [{ kind: 'image' }],
   }), ['generate_visual'])
+})
+
+test('a retry phrase keeps visual generation active only after a visual request', () => {
+  assert.deepEqual(explicitlyRequestedToolNames('再生成一下，刚刚配错 provider 了', {
+    availableToolNames: available,
+    mcpTools,
+    previousRequestedToolNames: ['generate_visual'],
+  }), ['generate_visual'])
+  assert.deepEqual(explicitlyRequestedToolNames('再生成一下，刚刚配错 provider 了', {
+    availableToolNames: available,
+    mcpTools,
+  }), [])
+  assert.deepEqual(explicitlyRequestedToolNames('重新生成代码', {
+    availableToolNames: available,
+    mcpTools,
+    previousRequestedToolNames: ['generate_visual'],
+  }), [])
 })
 
 test('explicit MCP requests activate management and remote schemas only when relevant', () => {

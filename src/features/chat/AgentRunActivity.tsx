@@ -40,6 +40,7 @@ function toolActivityLabel(name: unknown, t: Translate) {
   if (name === 'update_task_list') return t('chat:agentRunActivity.updatingPlan')
   if (name === 'browser_automation') return t('chat:agentRunActivity.controllingBrowser')
   if (name === 'generate_visual') return t('chat:agentRunActivity.generatingVisualContent')
+  if (name === 'discover_tools') return t('chat:agentRunActivity.discoveringTools')
   return t('chat:agentRunActivity.usingTool', {
     tool: String(name || t('chat:agentRunActivity.tools')),
   })
@@ -56,6 +57,7 @@ function toolCompletedLabel(name: unknown, t: Translate) {
   if (name === 'spawn_agent') return t('chat:agentRunActivity.subagentStarted')
   if (name === 'wait_agent') return t('chat:agentRunActivity.subagentStatusUpdated')
   if (name === 'update_task_list') return t('chat:agentRunActivity.planUpdated')
+  if (name === 'discover_tools') return t('chat:agentRunActivity.toolsDiscovered')
   return t('chat:agentRunActivity.currentOperationCompleted')
 }
 
@@ -147,6 +149,7 @@ function toolDetail(tool?: EntityRecord | null) {
   if (['send_message', 'followup_task', 'wait_agent', 'interrupt_agent'].includes(tool?.name))
     return { text: cleanInline(args.target) }
   if (tool?.name === 'generate_visual') return { text: cleanInline(args.outputName || args.kind) }
+  if (tool?.name === 'discover_tools') return { text: cleanInline(args.query) }
   return { text: '' }
 }
 

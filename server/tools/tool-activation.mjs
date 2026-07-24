@@ -1,3 +1,5 @@
+import { isVisualContinuationRequest } from '../services/visual-tool-routing.mjs'
+
 const HOT_TOOL_SET = new Set([
   'read',
   'grep',
@@ -8,6 +10,7 @@ const HOT_TOOL_SET = new Set([
   'bash',
   'get_task_list',
   'update_task_list',
+  'discover_tools',
 ])
 
 const MULTI_AGENT_TOOLS = ['spawn_agent', 'list_agents', 'send_message', 'followup_task', 'wait_agent', 'interrupt_agent']
@@ -88,6 +91,7 @@ export function explicitlyRequestedToolNames(message, {
   availableToolNames = [],
   mcpTools = [],
   attachments = [],
+  previousRequestedToolNames = [],
 } = {}) {
   const text = normalizedText(message)
   const available = new Set(availableToolNames)
@@ -103,7 +107,8 @@ export function explicitlyRequestedToolNames(message, {
   if (positiveMatch(text, WEB_SEARCH_REQUEST)) add('web_search')
   if (positiveMatch(text, BROWSER_REQUEST)) add('browser_automation')
   const hasImageAttachment = attachments.some((attachment) => attachment?.kind === 'image')
-  if (positiveMatch(text, VISUAL_REQUEST) || (hasImageAttachment && positiveMatch(text, IMAGE_EDIT_WITH_ATTACHMENT))) add('generate_visual')
+  const continuesVisualRequest = previousRequestedToolNames.includes('generate_visual') && isVisualContinuationRequest(text)
+  if (positiveMatch(text, VISUAL_REQUEST) || continuesVisualRequest || (hasImageAttachment && positiveMatch(text, IMAGE_EDIT_WITH_ATTACHMENT))) add('generate_visual')
   if (positiveMatch(text, MEMORY_SEARCH_REQUEST)) add('memory_search')
   if (positiveMatch(text, MEMORY_REMEMBER_REQUEST)) add('memory_remember')
 
@@ -118,14 +123,26 @@ export function explicitlyRequestedToolNames(message, {
   return [...requested]
 }
 
+export function mergePromotedToolNames({
+  availableToolNames = [],
+  promotedToolNames = [],
+  requestedToolNames = [],
+} = {}) {
+  const available = new Set(availableToolNames)
+  return [...new Set([...promotedToolNames, ...requestedToolNames])]
+    .filter((name) => available.has(name) && !HOT_TOOL_SET.has(name))
+}
+
 export function selectedToolNames({
   availableToolNames = [],
+  promotedToolNames = [],
   requestedToolNames = [],
   goalToolNames = [],
   goalActive = false,
 } = {}) {
   const available = new Set(availableToolNames)
   const names = new Set(hotToolNames(availableToolNames))
+  for (const name of promotedToolNames) if (available.has(name)) names.add(name)
   for (const name of requestedToolNames) if (available.has(name)) names.add(name)
   if (goalActive) for (const name of goalToolNames) if (available.has(name)) names.add(name)
   return [...names]

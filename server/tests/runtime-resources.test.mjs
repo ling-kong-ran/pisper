@@ -7,7 +7,7 @@ import { defineTool, SessionManager } from '@earendil-works/pi-coding-agent'
 import { Type } from 'typebox'
 import { AgentRuntimeService } from '../runtime/agent-runtime.mjs'
 
-test('main runtime keeps cold MCP tools dormant until explicitly requested while child resources remain available', async (t) => {
+test('main runtime promotes requested cold MCP tools for the rest of the session while child resources remain available', async (t) => {
   const directory = await mkdtemp(join(tmpdir(), 'vesper-runtime-resources-'))
   let runtime
   t.after(async () => {
@@ -40,10 +40,20 @@ test('main runtime keeps cold MCP tools dormant until explicitly requested while
   assert.equal(value.session.getActiveToolNames().includes('mcp_manage'), false)
   assert.ok(value.session.getActiveToolNames().includes('read'))
   assert.ok(value.session.getActiveToolNames().includes('update_task_list'))
+  assert.ok(value.session.getActiveToolNames().includes('discover_tools'))
+  assert.match(value.session.agent.state.systemPrompt, /discover_tools/)
   const hotToolNames = value.session.getActiveToolNames()
   const hotSystemPrompt = value.session.agent.state.systemPrompt
 
-  runtime.selectToolsForMessage(value, 'Use the MCP fixture echo tool for this task.')
+  const discovery = await value.session.getToolDefinition('discover_tools').execute(
+    'discover-fixture',
+    { query: 'MCP fixture echo', limit: 1 },
+    new AbortController().signal,
+  )
+  assert.deepEqual(discovery.details.activated, ['mcp_fixture_echo_12345678'])
+  assert.ok(value.session.getActiveToolNames().includes('mcp_fixture_echo_12345678'))
+
+  await runtime.selectToolsForMessage(value, 'Use the MCP fixture echo tool for this task.')
   assert.ok(value.session.getActiveToolNames().includes('mcp_fixture_echo_12345678'))
   assert.ok(value.session.getActiveToolNames().includes('mcp_list'))
   assert.ok(value.session.getActiveToolNames().includes('mcp_manage'))
@@ -52,16 +62,18 @@ test('main runtime keeps cold MCP tools dormant until explicitly requested while
   assert.match(value.session.getToolDefinition('mcp_manage').description, /Always use mcp_manage for MCP configuration/)
   assert.deepEqual(value.session.getToolDefinition('mcp_manage').promptGuidelines, [])
 
-  runtime.selectToolsForMessage(value, 'Now update the local source file.')
-  assert.equal(value.session.getActiveToolNames().includes('mcp_fixture_echo_12345678'), false)
-  assert.equal(value.session.getActiveToolNames().includes('mcp_list'), false)
-  assert.equal(value.session.getActiveToolNames().includes('mcp_manage'), false)
+  await runtime.selectToolsForMessage(value, 'Now update the local source file.')
+  assert.equal(value.session.getActiveToolNames().includes('mcp_fixture_echo_12345678'), true)
+  assert.equal(value.session.getActiveToolNames().includes('mcp_list'), true)
+  assert.equal(value.session.getActiveToolNames().includes('mcp_manage'), true)
+  assert.deepEqual(value.promotedToolNames, ['mcp_fixture_echo_12345678', 'mcp_list', 'mcp_manage'])
+  assert.deepEqual(runtime.sessionMeta[value.session.sessionId].promotedToolNames, value.promotedToolNames)
   assert.equal(value.session.hasExtensionHandlers('tool_result'), false)
   assert.equal(value.session.hasExtensionHandlers('message_end'), false)
 
   value.isolatedContext = true
   value.blockedToolNames = ['memory_search', 'memory_remember']
-  runtime.selectToolsForMessage(value, '搜索星忆并记住这项信息。')
+  await runtime.selectToolsForMessage(value, '搜索星忆并记住这项信息。')
   assert.equal(value.session.getActiveToolNames().includes('memory_search'), false)
   assert.equal(value.session.getActiveToolNames().includes('memory_remember'), false)
 

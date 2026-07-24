@@ -117,6 +117,50 @@ test('provider refresh API returns the asynchronously refreshed configuration', 
   assert.equal(JSON.parse(response.body).config.model, 'current-model')
 })
 
+test('dedicated visual Providers remove shared visual models from chat Provider catalogs', async (t) => {
+  const directory = await mkdtemp(join(tmpdir(), 'vesper-provider-model-shadowed-visual-'))
+  const runtime = new AgentRuntimeService({
+    cwd: directory,
+    dataDir: directory,
+    providerModelDiscovery: { async discover() { return { count: 2, models: [
+      { id: 'relay-chat-v2', name: 'Relay Chat V2', kind: 'chat' },
+      { id: 'gpt-image-2', name: 'GPT Image 2', kind: 'image' },
+    ] } } },
+  })
+  t.after(async () => {
+    await runtime.dispose()
+    await rm(directory, { recursive: true, force: true })
+  })
+  await runtime.init()
+  const baseUrl = 'https://shared.example.test/v1'
+  await runtime.createProvider({
+    id: 'shared-chat',
+    name: 'Shared Chat',
+    api: 'openai-responses',
+    baseUrl,
+    apiKey: 'chat-key',
+    model: 'relay-chat-v1',
+    modelKind: 'chat',
+  })
+  await runtime.createProvider({
+    id: 'shared-visual',
+    name: 'Shared Visual',
+    api: 'openai-responses',
+    baseUrl,
+    apiKey: 'visual-key',
+    model: 'gpt-image-2',
+    modelKind: 'image',
+  })
+
+  const result = await runtime.discoverProviderModels('shared-chat')
+  assert.deepEqual(result.models.map((model) => model.id), ['relay-chat-v2'])
+  assert.equal(runtime.modelRuntime.getModel('shared-chat', 'gpt-image-2'), undefined)
+  const chatProvider = result.config.providers.find((provider) => provider.id === 'shared-chat')
+  const visualProvider = result.config.providers.find((provider) => provider.id === 'shared-visual')
+  assert.equal(chatProvider.models.some((model) => model.id === 'gpt-image-2'), false)
+  assert.equal(visualProvider.models.some((model) => model.id === 'gpt-image-2'), true)
+})
+
 test('visual-only providers ignore chat models returned by a shared relay catalog', async (t) => {
   const directory = await mkdtemp(join(tmpdir(), 'vesper-provider-model-visual-scope-'))
   const runtime = new AgentRuntimeService({

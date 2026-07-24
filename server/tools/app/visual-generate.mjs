@@ -25,6 +25,7 @@ export function createVisualGenerateTool({ cwd, visualGenerationService, onGener
       'When the user asks to modify an existing image, pass its local path in sourceImages. The tool will automatically use an image editing interface.',
       'Before using generate_visual, include all important subject, style, composition, lighting, camera, motion, and text requirements in its prompt.',
       'generate_visual consumes external provider quota and writes the result under generated/visuals.',
+      'Never claim that visual generation or editing succeeded unless generate_visual returned successfully; if it fails, report the tool error clearly.',
     ],
     parameters: Type.Object({
       kind: Type.Union([Type.Literal('image'), Type.Literal('video')], { description: '生成图片或视频' }),

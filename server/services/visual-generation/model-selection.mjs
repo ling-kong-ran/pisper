@@ -50,6 +50,42 @@ function modelScore(model) {
   return score
 }
 
+function normalizedBaseUrl(value) {
+  return String(value || '').trim().replace(/\/+$/, '').toLowerCase()
+}
+
+function isVisualProvider(providerId, provider, appConfig) {
+  const explicitType = appConfig.providerTypes?.[providerId]
+  if (explicitType) return explicitType === 'visual'
+  const models = Array.isArray(provider.models) ? provider.models : []
+  return models.length > 0 && models.every((model) => inferModelKind(model.id, model.kind) !== 'chat')
+}
+
+function duplicateKey(model) {
+  return [normalizedBaseUrl(model.baseUrl), model.id.toLowerCase(), model.kind, model.driver].join('\0')
+}
+
+function duplicatePriority(model) {
+  return (model.visualProvider ? 10_000 : 0)
+    + (model.configuredDefinition ? 1_000 : 0)
+    + model.score
+}
+
+function deduplicateModels(models) {
+  const unique = new Map()
+  for (const model of models) {
+    const key = duplicateKey(model)
+    const existing = unique.get(key)
+    if (!existing || duplicatePriority(model) > duplicatePriority(existing)) unique.set(key, model)
+  }
+  return [...unique.values()]
+}
+
+function publicModel(model) {
+  const { visualProvider: _visualProvider, configuredDefinition: _configuredDefinition, ...value } = model
+  return value
+}
+
 export class VisualModelCatalog {
   constructor({ modelsPath, authPath, appConfigPath, getModelRuntime }) {
     this.modelsPath = modelsPath
@@ -58,11 +94,11 @@ export class VisualModelCatalog {
     this.getModelRuntime = getModelRuntime
   }
 
-  async list(kind) {
+  async candidates(kind) {
     const [modelsJson, credentials, appConfig] = await Promise.all([
       readJson(this.modelsPath, { providers: {} }),
       readJson(this.authPath, {}),
-      readJson(this.appConfigPath, { disabledProviders: [] }),
+      readJson(this.appConfigPath, { disabledProviders: [], providerTypes: {} }),
     ])
     const disabled = new Set(appConfig.disabledProviders || [])
     const runtime = this.getModelRuntime?.()
@@ -99,23 +135,37 @@ export class VisualModelCatalog {
           apiKey,
           headers: { ...(provider.headers || {}), ...(runtimeModel?.headers || {}), ...(definition.headers || {}) },
           visualApi: definition.visualApi || provider.visualApi || '',
+          visualProvider: isVisualProvider(providerId, provider, appConfig),
+          configuredDefinition: definitions.has(modelId),
         }
         value.driver = driverFor(value)
         value.score = modelScore(value)
         result.push(value)
       }
     }
-    return result.sort((left, right) => right.score - left.score || left.name.localeCompare(right.name))
+    return result
+  }
+
+  async list(kind) {
+    const models = deduplicateModels(await this.candidates(kind))
+    return models
+      .sort((left, right) => right.score - left.score || left.name.localeCompare(right.name))
+      .map(publicModel)
   }
 
   async select(kind, requestedModel) {
-    const models = await this.list(kind)
-    if (!models.length) throw new Error(`没有已配置并启用的${kind === 'video' ? '视频' : '图像'}生成模型。请先在配置页添加视觉模型。`)
-    if (!requestedModel) return models[0]
-    const requested = String(requestedModel).trim().toLowerCase()
-    const exact = models.find((model) => `${model.providerId}/${model.id}`.toLowerCase() === requested)
-      || models.find((model) => model.id.toLowerCase() === requested)
+    const candidates = await this.candidates(kind)
+    if (!candidates.length) throw new Error(`没有已配置并启用的${kind === 'video' ? '视频' : '图像'}生成模型。请先在配置页添加视觉模型。`)
+    const requested = String(requestedModel || '').trim().toLowerCase()
+    if (requested) {
+      const qualified = candidates.find((model) => `${model.providerId}/${model.id}`.toLowerCase() === requested)
+      if (qualified) return publicModel(qualified)
+    }
+    const models = deduplicateModels(candidates)
+      .sort((left, right) => right.score - left.score || left.name.localeCompare(right.name))
+    if (!requested) return publicModel(models[0])
+    const exact = models.find((model) => model.id.toLowerCase() === requested)
     if (!exact) throw new Error(`未找到已启用的视觉模型：${requestedModel}`)
-    return exact
+    return publicModel(exact)
   }
 }

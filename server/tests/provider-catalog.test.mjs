@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict'
-import { mkdtemp, rm } from 'node:fs/promises'
+import { mkdtemp, readFile, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import test from 'node:test'
@@ -59,13 +59,28 @@ test('visual-only providers save connection settings without replacing the defau
     model: 'gpt-image-1',
     modelKind: 'image',
   })
+  const nextKey = ['next', 'visual', 'credential'].join('-')
   const saved = await runtime.saveConfig({
+    provider: 'visual-relay',
+    model: '',
+    apiKey: nextKey,
+    baseUrl: 'https://visual.example.test/v1',
+    thinkingLevel: 'medium',
+    toolMode: 'read-only',
+  })
+  assert.equal(saved.apiKeyUpdated, true)
+  const credentials = JSON.parse(await readFile(join(directory, 'auth.json'), 'utf8'))
+  assert.equal(credentials['visual-relay'].key, nextKey)
+  assert.equal((await runtime.visualGeneration.models.select('image', 'visual-relay/gpt-image-1')).apiKey, nextKey)
+  const retained = await runtime.saveConfig({
     provider: 'visual-relay',
     model: '',
     baseUrl: 'https://visual.example.test/v1',
     thinkingLevel: 'medium',
     toolMode: 'read-only',
   })
+  assert.equal(retained.apiKeyUpdated, false)
+  assert.equal((await runtime.visualGeneration.models.select('image', 'visual-relay/gpt-image-1')).apiKey, nextKey)
   const after = runtime.settingsManager.getGlobalSettings()
   assert.equal(after.defaultProvider, before.defaultProvider)
   assert.equal(after.defaultModel, before.defaultModel)

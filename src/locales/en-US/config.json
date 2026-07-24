@@ -23,6 +23,7 @@
   "configPage.agentRuntimePolicy": "Agent runtime policy",
   "configPage.agentSettingsSavedNewChatsWillUseThisModel": "Agent settings saved. New chats will use this model.",
   "configPage.apiKeyRequired": "API key required",
+  "configPage.apiKeyCouldNotBeUpdatedPleaseRetry": "The API key could not be updated. Please try again.",
   "configPage.apiProtocol": "API protocol",
   "configPage.appUpdates": "App updates",
   "configPage.authenticationAndEndpointsAreStoredIndependentlyForEachConnection": "Authentication and endpoints are stored independently for each connection",

@@ -33,12 +33,13 @@ import { TaskListService } from '../services/task-list-service.mjs'
 import { BrowserAutomationService } from '../services/browser-automation-service.mjs'
 import { LocalSandboxService } from '../services/local-sandbox-service.mjs'
 import { assetMessageAttachment, attachGeneratedAssets } from '../services/session-assets.mjs'
-import { forceNextToolCall, isVisualGenerationRequest } from '../services/visual-tool-routing.mjs'
+import { forceNextToolCall, isVisualContinuationRequest, isVisualGenerationRequest } from '../services/visual-tool-routing.mjs'
 import { createAppTools, createMultiAgentTools, TOOL_PRESETS, toolsFromConfig } from '../tools/registry.mjs'
 import { createGoalTools, GOAL_TOOL_NAMES } from '../tools/app/goal.mjs'
 import { createTaskListTools, TASK_LIST_TOOL_NAMES } from '../tools/app/task-list.mjs'
+import { createToolDiscoveryTool, TOOL_DISCOVERY_NAME } from '../tools/app/tool-discovery.mjs'
 import { createVesperBashTool } from '../tools/sandboxed-bash.mjs'
-import { explicitlyRequestedToolNames, isExplicitMemoryRememberRequest, schemaOnlyToolDefinitions, selectedToolNames } from '../tools/tool-activation.mjs'
+import { explicitlyRequestedToolNames, hotToolNames, isExplicitMemoryRememberRequest, mergePromotedToolNames, schemaOnlyToolDefinitions, selectedToolNames } from '../tools/tool-activation.mjs'
 import { DEFAULT_EXECUTION_MODE, EXECUTION_MODES, filterToolsForExecutionMode, migrateLegacyExecutionMode, normalizeExecutionMode, permissionModeForExecutionMode } from '../security/execution-mode.mjs'
 import { createStreamingSecretRedactor, installSessionPersistenceRedaction, redactPersistedSessionFiles, redactSecretText, redactSecretValue } from '../security/secret-redaction.mjs'
 import { applyVesperSystemPrompt, vesperPromptExtension } from '../prompts/vesper-system-prompt.mjs'
@@ -433,14 +434,48 @@ function configuredProviderSecret(credential, providerConfig) {
   return reference
 }
 
+function normalizedProviderBaseUrl(value) {
+  return String(value || '').trim().replace(/\/+$/, '').toLowerCase()
+}
+
 function sameBaseUrl(left, right) {
-  return String(left || '').trim().replace(/\/+$/, '').toLowerCase() === String(right || '').trim().replace(/\/+$/, '').toLowerCase()
+  return normalizedProviderBaseUrl(left) === normalizedProviderBaseUrl(right)
 }
 
 function inferredProviderType(providerConfig) {
   const models = Array.isArray(providerConfig?.models) ? providerConfig.models : []
   if (!models.length) return 'chat'
   return models.every((model) => inferModelKind(model.id, model.kind) !== 'chat') ? 'visual' : 'chat'
+}
+
+function visualModelClaimKey(baseUrl, modelId, kind) {
+  return [normalizedProviderBaseUrl(baseUrl), String(modelId || '').toLowerCase(), kind].join('\0')
+}
+
+function dedicatedVisualModelClaims(modelsJson, appConfig) {
+  const claims = new Map()
+  const disabled = new Set(appConfig.disabledProviders || [])
+  for (const [providerId, provider] of Object.entries(modelsJson.providers || {})) {
+    if (disabled.has(providerId)) continue
+    const type = appConfig.providerTypes?.[providerId] || inferredProviderType(provider)
+    if (type !== 'visual') continue
+    for (const model of provider.models || []) {
+      const kind = inferModelKind(model.id, model.kind)
+      if (kind === 'chat') continue
+      const baseUrl = model.baseUrl || provider.baseUrl || PROVIDER_DEFAULT_BASE_URLS[providerId] || ''
+      if (!baseUrl) continue
+      const key = visualModelClaimKey(baseUrl, model.id, kind)
+      const providerIds = claims.get(key) || new Set()
+      providerIds.add(providerId)
+      claims.set(key, providerIds)
+    }
+  }
+  return claims
+}
+
+function claimedByOtherVisualProvider(claims, providerId, baseUrl, modelId, kind) {
+  const providerIds = claims.get(visualModelClaimKey(baseUrl, modelId, kind))
+  return Boolean(providerIds && [...providerIds].some((id) => id !== providerId))
 }
 
 export class AgentRuntimeService {
@@ -690,18 +725,28 @@ export class AgentRuntimeService {
     if (changed) await this.saveSessionMeta()
   }
 
+  optionalToolNames(value) {
+    const blockedToolNames = new Set(value?.blockedToolNames || [])
+    return [
+      ...(value?.baseToolNames || []),
+      ...MULTI_AGENT_TOOL_NAMES,
+    ].filter((name) => !blockedToolNames.has(name))
+  }
+
   syncGoalTools(value, goal) {
     if (!value?.session) return
     const mode = this.getSessionExecutionMode(value.session.sessionId)
     const blockedToolNames = new Set(value.blockedToolNames || [])
     const availableToolNames = [
       ...(value.baseToolNames || []),
+      TOOL_DISCOVERY_NAME,
       ...TASK_LIST_TOOL_NAMES,
       ...MULTI_AGENT_TOOL_NAMES,
       ...GOAL_TOOL_NAMES,
     ].filter((name) => !blockedToolNames.has(name))
     const names = selectedToolNames({
       availableToolNames,
+      promotedToolNames: value.promotedToolNames || [],
       requestedToolNames: value.requestedToolNames || [],
       goalToolNames: GOAL_TOOL_NAMES,
       goalActive: goal?.status === 'active',
@@ -713,21 +758,58 @@ export class AgentRuntimeService {
     ))
   }
 
-  selectToolsForMessage(value, message, { attachments = [], preserveRequested = false } = {}) {
-    if (!value?.session) return []
-    const requested = explicitlyRequestedToolNames(message, {
-      availableToolNames: [
-        ...(value.baseToolNames || []),
-        ...MULTI_AGENT_TOOL_NAMES,
-      ],
-      mcpTools: value.mcpTools || [],
-      attachments,
+  async promoteSessionTools(value, toolNames = []) {
+    if (!value?.session) return { activatedToolNames: [], promotedToolNames: [] }
+    const availableToolNames = this.optionalToolNames(value)
+    const permittedToolNames = filterToolsForExecutionMode(
+      toolNames.filter((name) => availableToolNames.includes(name)),
+      this.getSessionExecutionMode(value.session.sessionId),
+      (toolName) => this.mcp.getToolRisk(toolName),
+    )
+    const previousPromotedToolNames = value.promotedToolNames || []
+    const promotedToolNames = mergePromotedToolNames({
+      availableToolNames,
+      promotedToolNames: previousPromotedToolNames,
+      requestedToolNames: permittedToolNames,
     })
-    value.requestedToolNames = preserveRequested
-      ? [...new Set([...(value.requestedToolNames || []), ...requested])]
-      : requested
+    let promotionWrite = null
+    if (promotedToolNames.join('\0') !== previousPromotedToolNames.join('\0')) {
+      value.promotedToolNames = promotedToolNames
+      const sessionId = value.session.sessionId
+      this.sessionMeta[sessionId] = { ...(this.sessionMeta[sessionId] || {}), promotedToolNames }
+      promotionWrite = this.saveSessionMeta()
+    }
     this.syncGoalTools(value, this.goals.get(value.session.sessionId))
     applyVesperSystemPrompt(value.session, value.session.model)
+    if (promotionWrite) await promotionWrite
+    const active = new Set(value.session.getActiveToolNames())
+    return {
+      activatedToolNames: permittedToolNames.filter((name) => active.has(name)),
+      promotedToolNames,
+    }
+  }
+
+  async selectToolsForMessage(value, message, { attachments = [], preserveRequested = false } = {}) {
+    if (!value?.session) return []
+    const availableToolNames = this.optionalToolNames(value)
+    const requested = explicitlyRequestedToolNames(message, {
+      availableToolNames,
+      mcpTools: value.mcpTools || [],
+      attachments,
+      previousRequestedToolNames: [
+        ...(value.promotedToolNames || []),
+        ...(value.requestedToolNames || []),
+      ],
+    })
+    const permittedRequested = filterToolsForExecutionMode(
+      requested,
+      this.getSessionExecutionMode(value.session.sessionId),
+      (toolName) => this.mcp.getToolRisk(toolName),
+    )
+    value.requestedToolNames = preserveRequested
+      ? [...new Set([...(value.requestedToolNames || []), ...permittedRequested])]
+      : permittedRequested
+    await this.promoteSessionTools(value, permittedRequested)
     return value.session.getActiveToolNames()
   }
 
@@ -1441,6 +1523,10 @@ export class AgentRuntimeService {
       this.mcp.createToolDefinitions(),
     ])
     const baseToolNames = [...new Set([...enabledTools, ...mcpTools.map((tool) => tool.name)])]
+    const promotedToolNames = mergePromotedToolNames({
+      availableToolNames: [...baseToolNames, ...MULTI_AGENT_TOOL_NAMES],
+      promotedToolNames: this.sessionMeta[runtimeSessionId]?.promotedToolNames || [],
+    })
     let runtimeValue = null
     let runtimeSession = null
     const goalTools = schemaOnlyToolDefinitions(createGoalTools({
@@ -1506,6 +1592,36 @@ export class AgentRuntimeService {
       interrupt: (target) => this.multiAgents.interrupt(runtimeSession.sessionId, target),
     }
     const multiAgentTools = schemaOnlyToolDefinitions(createMultiAgentTools({ multiAgentRuntime }))
+    const toolDiscovery = createToolDiscoveryTool({
+      listTools: () => {
+        if (!runtimeValue || !runtimeSession) return []
+        const optionalToolNames = filterToolsForExecutionMode(
+          this.optionalToolNames(runtimeValue),
+          this.getSessionExecutionMode(runtimeSession.sessionId),
+          (toolName) => this.mcp.getToolRisk(toolName),
+        )
+        const staticHotToolNames = new Set(hotToolNames(optionalToolNames))
+        const activeToolNames = new Set(runtimeSession.getActiveToolNames())
+        return optionalToolNames
+          .filter((name) => !staticHotToolNames.has(name))
+          .map((name) => {
+            const definition = runtimeSession.getToolDefinition(name)
+            if (!definition) return null
+            const description = String(definition.description || '')
+              .split('\n')
+              .map((line) => line.trim())
+              .find(Boolean) || ''
+            return {
+              name,
+              label: definition.label || name,
+              description: description.slice(0, 320),
+              active: activeToolNames.has(name),
+            }
+          })
+          .filter(Boolean)
+      },
+      activateTools: (toolNames) => this.promoteSessionTools(runtimeValue, toolNames),
+    })
     const createInheritedCustomTools = () => [
       ...schemaOnlyToolDefinitions(createAppTools({
         cwd: effectiveCwd,
@@ -1545,8 +1661,8 @@ export class AgentRuntimeService {
       settingsManager: sessionSettingsManager,
       resourceLoader,
       sessionManager,
-      tools: [...baseToolNames, ...GOAL_TOOL_NAMES, ...TASK_LIST_TOOL_NAMES, ...MULTI_AGENT_TOOL_NAMES],
-      customTools: [...createInheritedCustomTools(), ...goalTools, ...taskListTools, ...multiAgentTools],
+      tools: [...baseToolNames, TOOL_DISCOVERY_NAME, ...GOAL_TOOL_NAMES, ...TASK_LIST_TOOL_NAMES, ...MULTI_AGENT_TOOL_NAMES],
+      customTools: [...createInheritedCustomTools(), toolDiscovery, ...goalTools, ...taskListTools, ...multiAgentTools],
     })
     const now = new Date().toISOString()
     const value = {
@@ -1559,6 +1675,7 @@ export class AgentRuntimeService {
       baseToolNames,
       enabledTools,
       mcpTools: mcpTools.map((tool) => ({ name: tool.name, label: tool.label || '' })),
+      promotedToolNames,
       requestedToolNames: [],
       runtimeVersion: this.sessionRuntimeVersion,
     }
@@ -1579,7 +1696,7 @@ export class AgentRuntimeService {
     if (text.length > 12_000) throw new Error('运行中追加消息不能超过 12000 个字符。')
     if (!value.session.isStreaming) throw new Error('当前会话已经结束运行，请作为新消息发送。')
     const streamingBehavior = behavior === 'followUp' ? 'followUp' : 'steer'
-    this.selectToolsForMessage(value, text, { preserveRequested: true })
+    await this.selectToolsForMessage(value, text, { preserveRequested: true })
     value.pendingUserMessage = text
     await value.session.prompt(text, { streamingBehavior, source: 'interactive' })
     value.modified = new Date().toISOString()
@@ -1613,7 +1730,7 @@ export class AgentRuntimeService {
         ? await this.goals.resume(session.sessionId)
         : await this.goals.start(session.sessionId, { objective: message })
     }
-    this.selectToolsForMessage(value, message, { attachments })
+    await this.selectToolsForMessage(value, message, { attachments })
     value.pendingUserMessage = String(message || '')
     // Drop stale plans from previous turns unless a Goal is actively driving multi-turn work.
     const keepTaskList = goal?.status === 'active' || isGoalContinuationMessage(message)
@@ -1848,7 +1965,8 @@ export class AgentRuntimeService {
       const titlePromise = mayAutoTitle
         ? this.generateSessionTitle(session.model, message, safeAttachments, temporaryTitle, session.sessionId).catch(() => '')
         : null
-      const shouldForceVisualTool = isVisualGenerationRequest(message) && session.getActiveToolNames().includes('generate_visual')
+      const shouldForceVisualTool = session.getActiveToolNames().includes('generate_visual')
+        && (isVisualGenerationRequest(message) || isVisualContinuationRequest(message))
       const restorePayloadHandler = shouldForceVisualTool ? forceNextToolCall(session.agent, 'generate_visual') : () => {}
       applyVesperSystemPrompt(session, session.model)
       let mailboxAccepted = false
@@ -2442,6 +2560,7 @@ export class AgentRuntimeService {
     const runtimeProviders = this.modelRuntime.getProviders()
     const providerIds = [...new Set([...KNOWN_PROVIDERS, ...Object.keys(modelsJson.providers || {})])]
     const disabledProviders = new Set(appConfig.disabledProviders || [])
+    const visualClaims = dedicatedVisualModelClaims(modelsJson, appConfig)
     const providers = providerIds.map((id) => {
       const runtimeProvider = runtimeProviders.find((item) => item.id === id)
       const overlay = modelsJson.providers?.[id] || {}
@@ -2458,8 +2577,12 @@ export class AgentRuntimeService {
           baseUrl: model.baseUrl || '',
           baseUrlOverride: definition?.baseUrl || '',
         }
-      }).filter((model) => type !== 'visual' || model.kind !== 'chat')
-        .sort((a, b) => modelRank(id, b) - modelRank(id, a) || a.name.localeCompare(b.name))
+      }).filter((model) => {
+        if (type === 'visual') return model.kind !== 'chat'
+        if (model.kind === 'chat') return true
+        const baseUrl = model.baseUrl || overlay.baseUrl || PROVIDER_DEFAULT_BASE_URLS[id] || ''
+        return !claimedByOtherVisualProvider(visualClaims, id, baseUrl, model.id, model.kind)
+      }).sort((a, b) => modelRank(id, b) - modelRank(id, a) || a.name.localeCompare(b.name))
       const chatModels = models.filter((model) => model.kind === 'chat')
       const preferredModel = appConfig.providerDefaultModels?.[id]
         || (settings.defaultProvider === id ? settings.defaultModel : '')
@@ -2510,11 +2633,16 @@ export class AgentRuntimeService {
     if ((currentAppConfig.disabledProviders || []).includes(provider)) throw new Error('请先启用该 Provider，再将其设为默认配置。')
 
     const credentials = await readJson(this.authPath, {})
-    if (input.clearApiKey) delete credentials[provider]
+    let apiKeyUpdated = false
+    if (input.clearApiKey) {
+      delete credentials[provider]
+      apiKeyUpdated = true
+    }
     if (typeof input.apiKey === 'string' && input.apiKey.trim()) {
       credentials[provider] = { type: 'api_key', key: input.apiKey.trim() }
+      apiKeyUpdated = true
     }
-    await writeJsonAtomic(this.authPath, credentials)
+    if (apiKeyUpdated) await writeJsonAtomic(this.authPath, credentials)
 
     const modelsJson = existingOverlay
     modelsJson.providers ||= {}
@@ -2590,7 +2718,7 @@ export class AgentRuntimeService {
     })
     await this.disposeSessions()
     await this.reloadModelRuntime()
-    return this.getConfig()
+    return { ...(await this.getConfig()), apiKeyUpdated }
   }
 
   async setProviderEnabled(id, enabled) {
@@ -2758,7 +2886,11 @@ export class AgentRuntimeService {
     const scope = input.providerType === 'visual' || input.providerType === 'chat'
       ? input.providerType
       : appConfig.providerTypes?.[provider] || inferredProviderType(overlay)
-    const models = scope === 'visual' ? discovered.models.filter((model) => model.kind !== 'chat') : discovered.models
+    const visualClaims = dedicatedVisualModelClaims(modelsJson, appConfig)
+    const models = scope === 'visual'
+      ? discovered.models.filter((model) => model.kind !== 'chat')
+      : discovered.models.filter((model) => model.kind === 'chat'
+        || !claimedByOtherVisualProvider(visualClaims, provider, baseUrl, model.id, model.kind))
     if (!models.length) throw new Error(scope === 'visual' ? 'Provider 没有返回可用的图像或视频模型。' : 'Provider 没有返回可用的模型。')
     const result = { ...discovered, count: models.length, models, scope }
     const previousModelIds = new Set(this.modelRuntime.getModels(provider).map((model) => model.id))
