@@ -76,6 +76,7 @@ const MAX_MESSAGE_PAGE_SIZE = 100
 const LIVE_MESSAGE_PAGE_SIZE = 60
 const MAX_AGENT_MAILBOX_CHARS = 32_000
 const AGENT_MAILBOX_CUSTOM_TYPE = 'vesper_agent_mailbox'
+const ISOLATED_CONTEXT_BLOCKED_TOOLS = ['memory_search', 'memory_remember']
 const ASSET_TEXT_EXTENSIONS = new Set(['.txt', '.md', '.json', '.js', '.jsx', '.ts', '.tsx', '.css', '.html', '.xml', '.yaml', '.yml', '.csv', '.log', '.py', '.java', '.go', '.rs', '.sh', '.ps1', '.toml', '.sql'])
 const ASSET_DOCUMENT_EXTENSIONS = new Set(['.pdf', '.docx', '.pptx', '.xlsx', '.odt', '.odp', '.ods', '.rtf', '.epub'])
 const IMAGE_EXTENSIONS = new Set(['.png', '.jpg', '.jpeg', '.gif', '.webp', '.bmp', '.svg'])
@@ -692,12 +693,13 @@ export class AgentRuntimeService {
   syncGoalTools(value, goal) {
     if (!value?.session) return
     const mode = this.getSessionExecutionMode(value.session.sessionId)
+    const blockedToolNames = new Set(value.blockedToolNames || [])
     const availableToolNames = [
       ...(value.baseToolNames || []),
       ...TASK_LIST_TOOL_NAMES,
       ...MULTI_AGENT_TOOL_NAMES,
       ...GOAL_TOOL_NAMES,
-    ]
+    ].filter((name) => !blockedToolNames.has(name))
     const names = selectedToolNames({
       availableToolNames,
       requestedToolNames: value.requestedToolNames || [],
@@ -1589,9 +1591,13 @@ export class AgentRuntimeService {
     }
   }
 
-  async streamPrompt({ sessionId, message, attachments = [], goalMode = false, send }) {
+  async streamPrompt({ sessionId, message, attachments = [], goalMode = false, isolatedContext = false, send }) {
     const emit = (event, data) => send(event, redactSecretValue(data))
     const value = await this.getOrCreateSession(sessionId)
+    if (isolatedContext) {
+      value.isolatedContext = true
+      value.blockedToolNames = ISOLATED_CONTEXT_BLOCKED_TOOLS
+    }
     const { session } = value
     const appConfig = await readJson(this.appConfigPath, { toolMode: 'full', disabledProviders: [] })
     if ((appConfig.disabledProviders || []).includes(session.model?.provider)) {
@@ -1808,14 +1814,17 @@ export class AgentRuntimeService {
       const archivedAttachments = await this.archiveAttachments(session.sessionId, value.name, safeAttachments)
       const images = []
       const contexts = []
-      const memoryContext = value.enabledTools?.includes('memory_search')
+      const sharedContextEnabled = !value.isolatedContext
+      const memoryContext = sharedContextEnabled && value.enabledTools?.includes('memory_search')
         ? await this.memory.relevantContext(message, value.cwd)
         : { text: '', memories: [] }
       if (memoryContext.text) contexts.push(memoryContext.text)
-      const mailboxDelivery = agentMailboxDelivery(this.multiAgents.peekMailbox(session.sessionId))
+      const mailboxDelivery = sharedContextEnabled
+        ? agentMailboxDelivery(this.multiAgents.peekMailbox(session.sessionId))
+        : { text: '', agents: [] }
       const agentMailbox = mailboxDelivery.agents
       if (mailboxDelivery.text) contexts.push(mailboxDelivery.text)
-      const activeGoal = this.goals.get(session.sessionId)
+      const activeGoal = sharedContextEnabled ? this.goals.get(session.sessionId) : null
       if (activeGoal?.status === 'active') contexts.push(goalContinuationPrompt(activeGoal))
       for (const [attachmentIndex, attachment] of safeAttachments.entries()) {
         const name = safeAttachmentName(attachment.name)
@@ -1891,7 +1900,7 @@ export class AgentRuntimeService {
         startedAt: live.startedAt,
         finishedAt,
       })
-      if (value.enabledTools?.includes('memory_remember')) {
+      if (!value.isolatedContext && value.enabledTools?.includes('memory_remember')) {
         void this.captureConversationMemory({
           sessionId: session.sessionId,
           cwd: value.cwd,
@@ -2094,13 +2103,18 @@ export class AgentRuntimeService {
     return this.webSearch.test(input)
   }
 
-  async promptFromChannel({ sessionId, message, attachments = [], cwd, title, model, executionMode, onSession }) {
+  async promptFromChannel({ sessionId, message, attachments = [], cwd, title, model, executionMode, isolatedContext = false, onSession }) {
     let id = String(sessionId || '')
     if (id && !this.sessions.has(id) && !(await this.findSessionInfo(id))) id = ''
     if (!id) {
       const created = await this.createSession(title || '飞书会话')
       id = created.id
       if (cwd) await this.setSessionCwd(id, cwd)
+    }
+    if (isolatedContext) {
+      const active = await this.getOrCreateSession(id)
+      active.isolatedContext = true
+      active.blockedToolNames = ISOLATED_CONTEXT_BLOCKED_TOOLS
     }
     if (executionMode) await this.setSessionExecutionMode(id, executionMode)
     if (model?.provider && model?.model) {
@@ -2115,6 +2129,7 @@ export class AgentRuntimeService {
       sessionId: id,
       message,
       attachments,
+      isolatedContext,
       send: (event, data) => {
         if ((event === 'meta' || event === 'done') && data?.sessionId) actualId = data.sessionId
         if (event === 'text_delta') text += data?.delta || ''

@@ -59,6 +59,12 @@ test('main runtime keeps cold MCP tools dormant until explicitly requested while
   assert.equal(value.session.hasExtensionHandlers('tool_result'), false)
   assert.equal(value.session.hasExtensionHandlers('message_end'), false)
 
+  value.isolatedContext = true
+  value.blockedToolNames = ['memory_search', 'memory_remember']
+  runtime.selectToolsForMessage(value, '搜索星忆并记住这项信息。')
+  assert.equal(value.session.getActiveToolNames().includes('memory_search'), false)
+  assert.equal(value.session.getActiveToolNames().includes('memory_remember'), false)
+
   const childLoader = await runtime.multiAgents.createResourceLoader({ cwd: directory, appendSystemPrompt: 'CHILD AGENT PROMPT' })
   assert.ok(childLoader.getSkills().skills.some((skill) => skill.name === 'runtime-skill'))
   assert.ok(childLoader.getAppendSystemPrompt().includes('CHILD AGENT PROMPT'))
@@ -73,17 +79,20 @@ test('background prompts apply their explicit execution mode before the Agent st
   }
   runtime.setSessionCwd = async (_id, cwd) => { calls.push(['cwd', cwd]) }
   runtime.setSessionExecutionMode = async (_id, mode) => { calls.push(['executionMode', mode]) }
-  runtime.streamPrompt = async ({ sessionId, send }) => {
-    calls.push(['stream', sessionId])
+  runtime.streamPrompt = async ({ sessionId, isolatedContext, send }) => {
+    calls.push(['stream', sessionId, isolatedContext])
     send('meta', { sessionId })
     send('text_delta', { delta: 'done' })
   }
 
   const result = await runtime.promptFromChannel({
-    sessionId: '', message: 'run', cwd: process.cwd(), title: 'Scheduled task', executionMode: 'full-access',
+    sessionId: '', message: 'run', cwd: process.cwd(), title: 'Scheduled task', executionMode: 'full-access', isolatedContext: true,
   })
 
   assert.deepEqual(calls.map(([type]) => type), ['cwd', 'executionMode', 'stream'])
+  assert.equal(calls.at(-1)[2], true)
+  assert.equal(runtime.sessions.get('scheduled-session').isolatedContext, true)
+  assert.deepEqual(runtime.sessions.get('scheduled-session').blockedToolNames, ['memory_search', 'memory_remember'])
   assert.equal(result.sessionId, 'scheduled-session')
   assert.equal(result.text, 'done')
 })

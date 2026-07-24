@@ -238,7 +238,7 @@ export class ScheduleService {
     let event = 'schedule.completed'
     let data
     try {
-      const result = await this.agent.prompt({ message: task.prompt, cwd: task.cwd, title: `定时任务 · ${task.name}`, model: task.model, executionMode: task.executionMode })
+      const result = await this.agent.prompt({ message: task.prompt, cwd: task.cwd, title: `定时任务 · ${task.name}`, model: task.model, executionMode: task.executionMode, isolatedContext: true })
       const summary = String(result.text || '任务已完成。').trim().slice(0, 1200)
       run.status = 'completed'
       run.summary = summary
