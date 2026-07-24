@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
-import { activityDurationMs, agentActivityState, deriveRunActivity, formatRunDuration, groupToolCalls, latestUnrecoveredToolError, primaryRunActivity, pushCurrentActivity, RUN_INACTIVITY_THRESHOLD_MS, settleToolCalls, taskListChanges } from '../../src/features/chat/run-activity.ts'
+import { activityDurationMs, activityRenderKey, activityScrollVersion, agentActivityState, deriveRunActivity, formatRunDuration, groupToolCalls, latestUnrecoveredToolError, primaryRunActivity, pushCurrentActivity, RUN_INACTIVITY_THRESHOLD_MS, settleToolCalls, taskListChanges } from '../../src/features/chat/run-activity.ts'
 
 test('chat activity derives meaningful stages and inactivity states', () => {
   const now = Date.parse('2026-07-20T10:00:20.000Z')
@@ -86,6 +86,24 @@ test('completed activity durations freeze while running activities keep advancin
   assert.equal(activityDurationMs({ type: 'tool', status: 'done', startedAt, updatedAt: finishedAt }, startedAt, now), 5_000)
   assert.equal(activityDurationMs({ type: 'tool', status: 'running', startedAt }, startedAt, now), 60_000)
   assert.equal(activityDurationMs({ type: 'agent', agent: { status: 'completed', startedAt, completedAt: finishedAt } }, startedAt, now), 5_000)
+})
+
+test('activity scroll versions ignore timestamp-only progress updates', () => {
+  const before = [{ type: 'tool', id: 'tool-1', status: 'running', updatedAt: '2026-07-20T10:00:01.000Z' }]
+  const afterProgress = [{ ...before[0], updatedAt: '2026-07-20T10:00:02.000Z' }]
+  const afterStatus = [{ ...afterProgress[0], status: 'done' }]
+  assert.equal(activityScrollVersion(before), activityScrollVersion(afterProgress))
+  assert.notEqual(activityScrollVersion(before), activityScrollVersion(afterStatus))
+})
+
+test('tool activity render keys stay stable when progress or status changes', () => {
+  const running = { type: 'tool', id: 'tool-1', status: 'running', updatedAt: '2026-07-20T10:00:01.000Z' }
+  const completed = { ...running, status: 'done', updatedAt: '2026-07-20T10:00:02.000Z' }
+  assert.equal(activityRenderKey(running), activityRenderKey(completed))
+  assert.notEqual(
+    activityRenderKey({ type: 'agent', agent: { id: 'agent-1', status: 'running' } }),
+    activityRenderKey({ type: 'agent', agent: { id: 'agent-1', status: 'completed' } }),
+  )
 })
 
 test('current activity feed updates tools in place and evicts its oldest entries', () => {

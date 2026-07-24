@@ -94,6 +94,50 @@ test('visual model catalog deduplicates shared relay models and prefers the expl
   assert.equal(chatQualified.apiKey, 'chat-key')
 })
 
+test('automatic visual ordering prefers backup models from a dedicated visual Provider', async (t) => {
+  const directory = await mkdtemp(join(tmpdir(), 'vesper-visual-order-'))
+  t.after(() => rm(directory, { recursive: true, force: true }))
+  const sharedBaseUrl = 'https://relay.example.test/v1'
+  await writeFile(join(directory, 'models.json'), JSON.stringify({ providers: {
+    'openai-image': {
+      name: 'Dedicated Visual',
+      api: 'openai-responses',
+      baseUrl: sharedBaseUrl,
+      models: [{ id: 'gpt-image-2', kind: 'image' }],
+    },
+    xai: { name: 'Chat and Grok', api: 'openai-completions', baseUrl: sharedBaseUrl },
+  } }))
+  await writeFile(join(directory, 'auth.json'), JSON.stringify({
+    'openai-image': { type: 'api_key', key: 'visual-key' },
+    xai: { type: 'api_key', key: 'xai-key' },
+  }))
+  await writeFile(join(directory, 'vesper.json'), JSON.stringify({
+    disabledProviders: [],
+    providerTypes: { 'openai-image': 'visual', xai: 'chat' },
+  }))
+  const runtimeModels = {
+    'openai-image': [{ id: 'grok-imagine-image', vesperKind: 'image', baseUrl: sharedBaseUrl }],
+    xai: [{ id: 'grok-imagine-image-quality', vesperKind: 'image', baseUrl: sharedBaseUrl }],
+  }
+  const catalog = new VisualModelCatalog({
+    modelsPath: join(directory, 'models.json'),
+    authPath: join(directory, 'auth.json'),
+    appConfigPath: join(directory, 'vesper.json'),
+    getModelRuntime: () => ({
+      getProviders: () => [{ id: 'openai-image' }, { id: 'xai' }],
+      getProvider: (id) => ({ id, name: id }),
+      getModels: (id) => runtimeModels[id] || [],
+    }),
+  })
+
+  const models = await catalog.list('image')
+  assert.deepEqual(models.map((model) => `${model.providerId}/${model.id}`), [
+    'openai-image/gpt-image-2',
+    'openai-image/grok-imagine-image',
+    'xai/grok-imagine-image-quality',
+  ])
+})
+
 test('a duplicated chat catalog image still sends the dedicated visual Provider credential', async (t) => {
   let authorization = ''
   let requestedModel = ''
@@ -195,6 +239,86 @@ test('automatic visual selection falls back when the preferred model has no avai
     assert.equal(requestedModels[0], 'gpt-image-2')
     assert.equal(requestedModels.at(-1), 'grok-imagine-image')
     assert.ok(progress.some((message) => message.includes('当前不可用') && message.includes('grok-imagine-image')))
+  } finally {
+    server.close()
+    await value.cleanup()
+  }
+})
+
+test('automatic visual selection falls back when the token cannot access only the preferred model', async () => {
+  const requestedModels = []
+  const { server, port } = await listen(async (req, res) => {
+    const url = new URL(req.url, 'http://127.0.0.1')
+    if (req.method === 'GET' && url.pathname === '/') {
+      res.writeHead(404).end()
+      return
+    }
+    if (req.method === 'POST' && url.pathname === '/v1/images/generations') {
+      const chunks = []
+      for await (const chunk of req) chunks.push(chunk)
+      const model = JSON.parse(Buffer.concat(chunks).toString('utf8')).model
+      requestedModels.push(model)
+      if (model === 'gpt-image-2') {
+        res.writeHead(403, { 'content-type': 'application/json' })
+        res.end(JSON.stringify({ error: { message: '该令牌无权访问模型 gpt-image-2' } }))
+        return
+      }
+      res.writeHead(200, { 'content-type': 'application/json' })
+      res.end(JSON.stringify({ data: [{ b64_json: PNG.toString('base64') }] }))
+      return
+    }
+    res.writeHead(404).end()
+  })
+  const value = await fixture({
+    id: 'model-permission-relay',
+    config: {
+      name: 'Model Permission Relay',
+      api: 'openai-responses',
+      baseUrl: `http://127.0.0.1:${port}/v1`,
+      models: [{ id: 'gpt-image-2', kind: 'image' }, { id: 'grok-imagine-image', kind: 'image' }],
+    },
+  })
+  try {
+    const result = await value.service.generate({ kind: 'image', prompt: 'model permission fallback test', cwd: value.directory })
+    assert.equal(result.model, 'grok-imagine-image')
+    assert.equal(result.fallbackUsed, true)
+    assert.equal(requestedModels[0], 'gpt-image-2')
+    assert.equal(requestedModels.at(-1), 'grok-imagine-image')
+  } finally {
+    server.close()
+    await value.cleanup()
+  }
+})
+
+test('automatic visual selection does not use another model to bypass a safety rejection', async () => {
+  const requestedModels = []
+  const { server, port } = await listen(async (req, res) => {
+    const url = new URL(req.url, 'http://127.0.0.1')
+    if (req.method === 'POST' && url.pathname === '/v1/images/generations') {
+      const chunks = []
+      for await (const chunk of req) chunks.push(chunk)
+      requestedModels.push(JSON.parse(Buffer.concat(chunks).toString('utf8')).model)
+      res.writeHead(403, { 'content-type': 'application/json' })
+      res.end(JSON.stringify({ error: { message: 'Content policy safety rejection' } }))
+      return
+    }
+    res.writeHead(404).end()
+  })
+  const value = await fixture({
+    id: 'safety-relay',
+    config: {
+      name: 'Safety Relay',
+      api: 'openai-responses',
+      baseUrl: `http://127.0.0.1:${port}/v1`,
+      models: [{ id: 'gpt-image-2', kind: 'image' }, { id: 'grok-imagine-image', kind: 'image' }],
+    },
+  })
+  try {
+    await assert.rejects(
+      value.service.generate({ kind: 'image', prompt: 'safety rejection test', cwd: value.directory }),
+      /Content policy safety rejection/,
+    )
+    assert.deepEqual(requestedModels, ['gpt-image-2'])
   } finally {
     server.close()
     await value.cleanup()

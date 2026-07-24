@@ -10,6 +10,7 @@ import type { I18nValues } from '@/app/i18n'
 import type { EntityRecord } from '@/types/chat'
 import {
   activityDurationMs,
+  activityRenderKey,
   agentActivityState,
   formatRunDuration,
   primaryRunActivity,
@@ -431,7 +432,7 @@ function AgentRunActivity({
               activityDurationMs(activity, startedAt, now),
               language,
             )
-            const key = `${activity.type}-${activity.id || activity.agent?.id || activity.updatedAt || index}-${activity.status || activity.stage || activity.agent?.status || ''}`
+            const key = activityRenderKey(activity, index)
             return (
               <ActivityElement
                 activity={activity}

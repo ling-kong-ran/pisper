@@ -53,6 +53,7 @@ import type {
 } from '@/types/chat'
 import { useAttachmentSelection } from './attachments'
 import { FocusChatMessage } from './ChatMessage'
+import { activityScrollVersion } from './run-activity'
 
 type Translate = (message: string, values?: I18nValues) => string
 type ExecutionModeOption = [string, string, string, LucideIcon]
@@ -92,6 +93,7 @@ export type FocusSessionProps = {
   goal?: EntityRecord | null
   currentActivity?: EntityRecord | null
   activityFeed: EntityRecord[]
+  tools: EntityRecord[]
   thinkingText?: string
   queuedInputs: EntityRecord[]
   compaction?: EntityRecord | null
@@ -494,6 +496,7 @@ export function FocusSession({
   goal,
   currentActivity,
   activityFeed,
+  tools,
   thinkingText,
   queuedInputs,
   compaction,
@@ -540,12 +543,7 @@ export function FocusSession({
   const lastMessage = messages[messages.length - 1]
   // Bucket streaming text length so auto-scroll does not fire on every token.
   const textScrollBucket = Math.floor((lastMessage?.text?.length || 0) / 64)
-  const activityVersion = activityFeed
-    .map(
-      (activity) =>
-        `${activity.type}:${activity.id || activity.agent?.id || ''}:${activity.status || activity.stage || activity.agent?.status || ''}:${activity.updatedAt || ''}`,
-    )
-    .join('|')
+  const activityVersion = activityScrollVersion(activityFeed)
   const transcriptVersion = `${session?.id || ''}:${lastMessage?.id || ''}:${textScrollBucket}:${lastMessage?.attachments?.length || 0}:${activityVersion}:${goal?.status || ''}:${goal?.tokensUsed || 0}:${compaction?.status || ''}:${compaction?.finishedAt || ''}:${error || ''}:${streaming ? '1' : '0'}`
   const {
     scrollRef: transcriptRef,
@@ -559,6 +557,7 @@ export function FocusSession({
       text: lastMessage?.role === 'agent' ? lastMessage.text : '',
       currentActivity,
       activityFeed,
+      tools,
       thinkingText,
       compaction,
       error: error || (lastMessage?.role === 'agent' ? lastMessage.error : ''),
@@ -573,6 +572,7 @@ export function FocusSession({
       lastMessage,
       currentActivity,
       activityFeed,
+      tools,
       thinkingText,
       compaction,
       error,

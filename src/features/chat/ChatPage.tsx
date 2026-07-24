@@ -49,6 +49,7 @@ import {
   type SessionOpenRequest,
 } from './dock-layout'
 import { pushCurrentActivity, settleToolCalls, taskListChanges } from './run-activity'
+import { shouldPollLiveSession } from './live-session-sync'
 import { mergeSessionLists } from './session-list'
 import type { ConfirmDialogOptions, PromptDialogOptions } from '@/hooks/useAppDialog'
 import type { Notify } from '@/app/route-context'
@@ -151,6 +152,8 @@ export function ChatPage({
   const pendingDockRequestRef = useRef<SessionOpenRequest | null>(null)
   const compactDockRef = useRef(compactDock)
   const legacyTiledSessionIdsRef = useRef(readStoredArray(STORAGE_KEYS.tiledSessions))
+  const localStreamSessionsRef = useRef(new Set<string>())
+  const liveSyncInFlightRef = useRef(new Set<string>())
 
   useEffect(() => {
     sessionStatesRef.current = sessionStates
@@ -184,9 +187,18 @@ export function ChatPage({
 
   const syncLiveSession = useCallback(
     async (id: string) => {
-      if (!id) return
+      if (
+        !id ||
+        localStreamSessionsRef.current.has(id) ||
+        liveSyncInFlightRef.current.has(id)
+      )
+        return
+      liveSyncInFlightRef.current.add(id)
       try {
         const data = await chatApi.getLiveSession(id)
+        // A local SSE stream may have started while the snapshot request was in flight.
+        // Never let that stale snapshot replace the optimistic assistant message and its stable key.
+        if (localStreamSessionsRef.current.has(id)) return
         updateSessionState(id, (current) => {
           const finishedAt = data.finishedAt || current.runFinishedAt || new Date().toISOString()
           return {
@@ -242,7 +254,10 @@ export function ChatPage({
           ),
         )
       } catch (caught) {
-        updateSessionState(id, { recovering: false, loading: false, error: errorMessage(caught) })
+        if (!localStreamSessionsRef.current.has(id))
+          updateSessionState(id, { recovering: false, loading: false, error: errorMessage(caught) })
+      } finally {
+        liveSyncInFlightRef.current.delete(id)
       }
     },
     [updateSessionState],
@@ -685,10 +700,12 @@ export function ChatPage({
     const poll = () => {
       if (!active) return
       for (const [id, state] of Object.entries(sessionStatesRef.current)) {
-        const hasActiveAgents = state.agents?.some((agent) =>
-          ['queued', 'starting', 'running'].includes(agent.status),
+        if (
+          shouldPollLiveSession(state, {
+            localStreamOwned: localStreamSessionsRef.current.has(id),
+          })
         )
-        if (state.recovering || state.approvals?.length || hasActiveAgents) void syncLiveSession(id)
+          void syncLiveSession(id)
       }
     }
     poll()
@@ -835,6 +852,7 @@ export function ChatPage({
         }),
       )
     }
+    localStreamSessionsRef.current.add(sessionId)
     try {
       await chatApi.openStream(
         { sessionId, message: prompt, attachments, goalMode },
@@ -1350,6 +1368,7 @@ export function ChatPage({
         ),
       )
     } finally {
+      localStreamSessionsRef.current.delete(sessionId)
       typewriter.cancel()
       thinkingScheduler.cancel()
       toolScheduler.cancel()

@@ -71,6 +71,16 @@ function duplicatePriority(model) {
     + model.score
 }
 
+function selectionPriority(model) {
+  return model.score
+    + (model.visualProvider ? 25 : 0)
+    + (model.configuredDefinition ? 2 : 0)
+}
+
+function compareModels(left, right) {
+  return selectionPriority(right) - selectionPriority(left) || left.name.localeCompare(right.name)
+}
+
 function deduplicateModels(models) {
   const unique = new Map()
   for (const model of models) {
@@ -149,7 +159,7 @@ export class VisualModelCatalog {
   async list(kind) {
     const models = deduplicateModels(await this.candidates(kind))
     return models
-      .sort((left, right) => right.score - left.score || left.name.localeCompare(right.name))
+      .sort(compareModels)
       .map(publicModel)
   }
 
@@ -162,7 +172,7 @@ export class VisualModelCatalog {
       if (qualified) return publicModel(qualified)
     }
     const models = deduplicateModels(candidates)
-      .sort((left, right) => right.score - left.score || left.name.localeCompare(right.name))
+      .sort(compareModels)
     if (!requested) return publicModel(models[0])
     const exact = models.find((model) => model.id.toLowerCase() === requested)
     if (!exact) throw new Error(`未找到已启用的视觉模型：${requestedModel}`)

@@ -59,6 +59,7 @@ export function SessionDockPanel({ params, api }: IDockviewPanelProps<{ sessionI
         goal={state.goal ?? session.goal ?? null}
         currentActivity={state.currentActivity}
         activityFeed={state.activityFeed || []}
+        tools={state.tools || []}
         thinkingText={state.thinkingText || ''}
         queuedInputs={state.queuedInputs || []}
         compaction={state.compaction}

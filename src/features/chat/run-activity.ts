@@ -73,6 +73,24 @@ export function primaryRunActivity({
   return { type: 'model', stage, updatedAt: currentActivity?.updatedAt || lastActivityAt }
 }
 
+export function activityScrollVersion(feed: EntityRecord[] = []) {
+  return feed
+    .map(
+      (activity) =>
+        `${activity.type}:${activity.id || activity.agent?.id || ''}:${activity.status || activity.stage || activity.agent?.status || ''}`,
+    )
+    .join('|')
+}
+
+export function activityRenderKey(activity: EntityRecord, index = 0) {
+  if (activity.type === 'tool') return `tool:${activity.id || activity.name || index}`
+  if (activity.type === 'agent')
+    return `agent:${activity.agent?.id || activity.agent?.canonicalName || index}:${activity.agent?.status || activity.status || ''}`
+  if (activity.type === 'plan')
+    return `plan:${activity.id || activity.taskList?.updatedAt || activity.updatedAt || index}`
+  return `${activity.type || 'activity'}:${activity.id || activity.startedAt || activity.createdAt || index}`
+}
+
 function activityKey(activity: EntityRecord | null | undefined) {
   if (!activity?.type) return ''
   if (activity.type === 'tool') return `tool:${activity.id || activity.name || ''}`

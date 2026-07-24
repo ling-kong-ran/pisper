@@ -8,7 +8,8 @@ import type { AgentRunActivityProps } from './AgentRunActivity'
 import { splitAssistantStreamText } from './stream-text'
 import { Message as AiMessage } from '@/components/ai-elements/message-shell'
 
-const AgentRunActivity = lazy(() => import('./AgentRunActivity'))
+const agentRunActivityModule = import('./AgentRunActivity')
+const AgentRunActivity = lazy(() => agentRunActivityModule)
 
 type ImagePreview = { attachment: ChatAttachment; source: string }
 type RunProps = AgentRunActivityProps
@@ -174,7 +175,9 @@ export const FocusChatMessage = memo(function FocusChatMessage({
           </div>
         )}
         {showRunActivity && activityProps && (
-          <Suspense fallback={null}>
+          <Suspense
+            fallback={<div className="agent-run-activity agent-run-activity-placeholder" aria-hidden="true" />}
+          >
             <AgentRunActivity {...activityProps} />
           </Suspense>
         )}

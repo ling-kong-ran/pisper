@@ -6,7 +6,7 @@ import { loadMaskImage, loadSourceImages } from './source-images.mjs'
 export { inferModelKind } from './model-selection.mjs'
 
 const RETRYABLE_VISUAL_STATUSES = new Set([404, 408, 409, 425, 429, 500, 502, 503, 504])
-const UNAVAILABLE_VISUAL_PATTERN = /(?:model[_ -]?not[_ -]?found|unknown provider for model|unsupported model|model .* unavailable|no available (?:channel|provider|model)|无可用渠道|模型不存在|模型不可用|未找到.*模型|没有.*渠道)/i
+const UNAVAILABLE_VISUAL_PATTERN = /(?:model[_ -]?not[_ -]?found|unknown provider for model|unsupported model|model .* unavailable|no available (?:channel|provider|model)|(?:token|key|credential).*(?:cannot|can't|not authorized to|no permission to|does not have).*access.*model|无可用渠道|模型不存在|模型不可用|未找到.*模型|没有.*渠道|(?:令牌|密钥|凭证).*无权访问模型)/i
 const SAFETY_REJECTION_PATTERN = /(?:content policy|safety system|moderation|内容安全|安全策略|审核拒绝|违规内容)/i
 
 function canFallbackFrom(error, signal) {

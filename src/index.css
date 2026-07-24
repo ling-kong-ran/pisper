@@ -694,6 +694,7 @@ h1, h2, h3, strong { overflow-wrap: anywhere; }
 .agent-welcome h2 { margin-top: 12px; color: var(--text); font-size: 20px; }.agent-welcome p { max-width: 500px; margin-top: 8px; font-size: 13px; line-height: 1.65; }
 .mini-message.agent > span::before { content: '✦'; margin-right: 4px; color: var(--star); }
 .agent-run-activity { width: 100%; overflow: hidden; margin: 1px 0 9px; color: var(--text); }
+.agent-run-activity-placeholder { min-height: 42px; border-radius: var(--r-sm); background: linear-gradient(90deg,var(--surface-subtle),var(--solid),var(--surface-subtle)); opacity: .7; }
 .agent-run-overview,.agent-run-summary { display: grid; width: 100%; min-height: 38px; grid-template-columns: 20px minmax(0,1fr) auto; align-items: start; gap: 8px; padding: 4px 1px; }
 .agent-run-overview { min-height: 42px; }
 .agent-run-feed { display: flex; max-height: 300px; flex-direction: column; justify-content: flex-end; overflow: hidden; margin-left: 9px; border-left: 1px solid var(--stroke-soft); padding-left: 10px; }
