@@ -24,7 +24,6 @@ export function AgentStatusAvatar({
   const id = useId().replaceAll(':', '')
   const bodyGradientId = `agent-body-${id}`
   const warmthGradientId = `agent-warmth-${id}`
-  const shadowId = `agent-shadow-${id}`
   const resolvedState: AgentAvatarState =
     state === 'waiting' || state === 'thinking' ? state : 'idle'
   const label =
@@ -84,22 +83,6 @@ export function AgentStatusAvatar({
             <stop offset="0.55" stopColor="var(--agent-body-overlay)" stopOpacity="0.06" />
             <stop offset="1" stopColor="var(--agent-body-end)" stopOpacity="0.1" />
           </radialGradient>
-          <filter
-            id={shadowId}
-            x="-45%"
-            y="-45%"
-            width="190%"
-            height="190%"
-            colorInterpolationFilters="sRGB"
-          >
-            <feDropShadow
-              dx="0"
-              dy="2"
-              stdDeviation="2"
-              floodColor="var(--agent-shadow)"
-              floodOpacity="0.24"
-            />
-          </filter>
         </defs>
 
         <path
@@ -109,7 +92,14 @@ export function AgentStatusAvatar({
           stroke="var(--agent-aura)"
           strokeWidth="1.5"
         />
-        <g className="agent-status-body-shell" filter={`url(#${shadowId})`}>
+        <path
+          className="agent-status-shadow"
+          d={BODY_PATH}
+          fill="var(--agent-shadow)"
+          opacity="0.14"
+          transform="translate(0 1.4)"
+        />
+        <g className="agent-status-body-shell">
           <path
             className="agent-status-body"
             d={BODY_PATH}
