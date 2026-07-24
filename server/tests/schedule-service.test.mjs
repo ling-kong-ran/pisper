@@ -70,6 +70,7 @@ test('scheduled tasks persist, execute with the selected model and notify multip
   assert.equal(state.tasks[0].lastStatus, 'completed')
   assert.equal(state.runs[0].status, 'completed')
   assert.equal(state.tasks[0].executionMode, DEFAULT_SCHEDULE_EXECUTION_MODE)
+  assert.equal(prompts[0].cwd, directory)
   assert.equal(prompts[0].executionMode, 'full-access')
   assert.deepEqual(prompts[0].model, { provider: 'openai', model: 'gpt-5.4' })
   assert.deepEqual(notifications[0][2], { platforms: ['browser', 'feishu', 'weixin'] })

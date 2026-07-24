@@ -2205,6 +2205,7 @@ export class AgentRuntimeService {
     const notificationSettings = await this.notificationSettings.getState()
     return {
       ...this.schedules.getState(),
+      defaultCwd: this.cwd,
       models: config.providers.filter((provider) => provider.type !== 'visual' && provider.enabled && provider.configured).flatMap((provider) => provider.models.filter((model) => model.kind === 'chat').map((model) => ({ provider: provider.id, model: model.id, label: `${provider.name} / ${model.name}` }))),
       notificationTargets: {
         browser: { enabled: notificationSettings.browser.enabled },
