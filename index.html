@@ -12,12 +12,13 @@
         const storedLanguage = localStorage.getItem('vesper-language')
         const dark = stored === 'dark' || (stored !== 'light' && window.matchMedia('(prefers-color-scheme: dark)').matches)
         document.documentElement.dataset.theme = dark ? 'dark' : 'light'
+        document.documentElement.classList.toggle('dark', dark)
         document.documentElement.lang = storedLanguage === 'en-US' ? 'en-US' : 'zh-CN'
       } catch {}
     </script>
   </head>
   <body>
     <div id="root"></div>
-    <script type="module" src="/src/main.jsx"></script>
+    <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>

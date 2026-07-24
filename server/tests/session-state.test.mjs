@@ -8,7 +8,7 @@ import {
   resolveQueuedInputs,
   resolveSessionTaskList,
   sessionStateChanged,
-} from '../../src/lib/session-state.js'
+} from '../../src/lib/session-state.ts'
 
 test('session state update bails out when nothing changed', () => {
   const previous = { ...DEFAULT_SESSION_STATE, streaming: true, error: '' }

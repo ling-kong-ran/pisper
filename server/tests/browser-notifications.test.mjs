@@ -5,7 +5,7 @@ import {
   requestBrowserNotificationPermission,
   resetBrowserNotificationRegistrationForTests,
   showBrowserSystemNotification,
-} from '../../src/lib/browser-notifications.js'
+} from '../../src/lib/browser-notifications.ts'
 
 test('browser notifications use the service worker system-notification API when available', async () => {
   resetBrowserNotificationRegistrationForTests()

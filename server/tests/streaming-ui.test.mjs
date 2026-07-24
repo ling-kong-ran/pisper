@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
-import { createStreamingTextScheduler, createToolUpdateScheduler, createTypewriterDisplay } from '../../src/lib/streaming-ui.js'
+import { createStreamingTextScheduler, createToolUpdateScheduler, createTypewriterDisplay } from '../../src/lib/streaming-ui.ts'
 
 test('streaming text scheduler coalesces rapid updates into one flush', async () => {
   const frames = []

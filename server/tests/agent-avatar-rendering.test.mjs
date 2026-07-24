@@ -4,7 +4,7 @@ import test from 'node:test'
 
 test('Agent avatar avoids filtered SVG paint surfaces that corrupt after session tab switches', async () => {
   const [component, styles] = await Promise.all([
-    readFile('src/components/AgentStatusAvatar.jsx', 'utf8'),
+    readFile('src/components/AgentStatusAvatar.tsx', 'utf8'),
     readFile('src/index.css', 'utf8'),
   ])
 

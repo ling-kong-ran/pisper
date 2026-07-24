@@ -90,14 +90,3 @@ export function wouldCreateWorkflowCycle(nodes, edges, source, target, sourcePor
   const candidate = [...edges, { id: '__candidate__', source, sourcePort, target, targetPort: 'input' }]
   return analyzeWorkflowGraph(nodes, candidate).hasCycle
 }
-
-export function workflowEdgePath(sourceNode, targetNode, sourcePort = 'output') {
-  if (!sourceNode || !targetNode) return ''
-  const sourceOffset = sourcePort === 'true' ? 15 : sourcePort === 'false' ? 35 : 25
-  const startX = sourceNode.x + 120
-  const startY = sourceNode.y + sourceOffset
-  const endX = targetNode.x
-  const endY = targetNode.y + 25
-  const distance = Math.max(42, Math.abs(endX - startX) * 0.45)
-  return `M${startX} ${startY} C${startX + distance} ${startY},${endX - distance} ${endY},${endX} ${endY}`
-}
