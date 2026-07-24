@@ -292,4 +292,8 @@ Before submitting a change, run the lint, test, and build commands above. Do not
 
 Vesper is built on the [Pi Coding Agent](https://github.com/earendil-works/pi/tree/main/packages/coding-agent) runtime and illuminated by open-source projects including Node.js, React, Electron, Vite, and i18next.
 
+Thanks to contributors:
+
+- [@mik-myp](https://github.com/mik-myp) — Frontend architecture modernization and i18n refactor ([#1](https://github.com/ling-kong-ran/vesper/pull/1))
+
 <p align="right"><a href="#top">Back to top ↑</a></p>

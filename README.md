@@ -292,4 +292,8 @@ npm run build
 
 Vesper 以 [Pi Coding Agent](https://github.com/earendil-works/pi/tree/main/packages/coding-agent) 为运行内核，也由 Node.js、React、Electron、Vite、i18next 等开源项目共同照亮。
 
+感谢贡献者：
+
+- [@mik-myp](https://github.com/mik-myp) — 前端架构现代化与 i18n 重构（[#1](https://github.com/ling-kong-ran/vesper/pull/1)）
+
 <p align="right"><a href="#top">返回顶部 ↑</a></p>
