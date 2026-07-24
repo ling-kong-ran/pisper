@@ -19,7 +19,6 @@ export function AgentStatusAvatar({ state = 'idle', size = 32, className = '' })
   const id = useId().replaceAll(':', '')
   const bodyGradientId = `agent-body-${id}`
   const warmthGradientId = `agent-warmth-${id}`
-  const shadowId = `agent-shadow-${id}`
   const resolvedState = STATE_LABELS[state] ? state : 'idle'
   const label = t(STATE_LABELS[resolvedState])
 
@@ -57,13 +56,11 @@ export function AgentStatusAvatar({ state = 'idle', size = 32, className = '' })
             <stop offset="0.55" stopColor="var(--agent-body-overlay)" stopOpacity="0.06" />
             <stop offset="1" stopColor="var(--agent-body-end)" stopOpacity="0.1" />
           </radialGradient>
-          <filter id={shadowId} x="-45%" y="-45%" width="190%" height="190%" colorInterpolationFilters="sRGB">
-            <feDropShadow dx="0" dy="2" stdDeviation="2" floodColor="var(--agent-shadow)" floodOpacity="0.24" />
-          </filter>
         </defs>
 
         <path className="agent-status-aura" d={BODY_PATH} fill="none" stroke="var(--agent-aura)" strokeWidth="1.5" />
-        <g className="agent-status-body-shell" filter={`url(#${shadowId})`}>
+        <path className="agent-status-shadow" d={BODY_PATH} fill="var(--agent-shadow)" opacity="0.14" transform="translate(0 1.4)" />
+        <g className="agent-status-body-shell">
           <path className="agent-status-body" d={BODY_PATH} fill={`url(#${bodyGradientId})`} stroke="var(--agent-body-overlay)" strokeOpacity="0.45" strokeWidth="0.8" />
           <path d={BODY_PATH} fill={`url(#${warmthGradientId})`} />
           <ellipse className="agent-status-shine" cx="12.7" cy="9.8" rx="6.8" ry="3.7" fill="var(--agent-body-overlay)" opacity="0.18" transform="rotate(-18 12.7 9.8)" />

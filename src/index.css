@@ -616,10 +616,10 @@ h1, h2, h3, strong { overflow-wrap: anywhere; }
 .message.agent .message-content.has-stream-split > .stream-body { margin-top: 8px; }
 .message.has-error .message-content > .markdown-body,
 .message.has-error .message-content > .stream-body > .markdown-body { background: var(--danger-soft); color: var(--danger); }
-.agent-status-avatar { --agent-avatar-size: 32px; --agent-gaze-x: 0px; --agent-gaze-y: 0px; display: inline-grid; width: var(--agent-avatar-size); height: var(--agent-avatar-size); flex: none; place-items: center; cursor: default; transition: transform var(--d1) var(--ease-out), filter var(--d1) var(--ease-out); }
-.agent-status-avatar:hover { transform: translateY(-1px) rotate(-2deg) scale(1.055); filter: saturate(1.06); }
+.agent-status-avatar { --agent-avatar-size: 32px; --agent-gaze-x: 0px; --agent-gaze-y: 0px; display: inline-grid; width: var(--agent-avatar-size); height: var(--agent-avatar-size); contain: paint; overflow: hidden; flex: none; place-items: center; cursor: default; transition: transform var(--d1) var(--ease-out); }
+.agent-status-avatar:hover { transform: translateY(-1px) rotate(-2deg) scale(1.055); }
 .agent-status-avatar:active { transform: translateY(0) rotate(1deg) scale(.94); }
-.agent-status-avatar svg { display: block; width: 100%; height: 100%; overflow: visible; }
+.agent-status-avatar svg { display: block; width: 100%; height: 100%; overflow: hidden; }
 .agent-status-body-shell,.agent-status-aura { transform-box: view-box; transform-origin: center; }
 .agent-status-shine,.agent-status-spark,.agent-status-eyes,.agent-status-cheeks,.agent-status-mouth-think { transform-box: fill-box; transform-origin: center; }
 .agent-status-aura { opacity: .08; }
