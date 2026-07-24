@@ -1,7 +1,7 @@
 {
   "name": "vesper",
   "private": true,
-  "version": "0.2.5",
+  "version": "0.2.6",
   "description": "A local-first multi-agent workspace for parallel sessions, tools, memory, and workflows.",
   "author": {
     "name": "ling-kong-ran",
