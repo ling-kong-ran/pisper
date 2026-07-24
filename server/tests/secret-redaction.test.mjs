@@ -11,7 +11,7 @@ import {
   redactSecretText,
   redactSecretValue,
 } from '../security/secret-redaction.mjs'
-import { applyTextPatch } from '../../src/lib/api.js'
+import { applyTextPatch } from '../../src/lib/api.ts'
 
 test('credential redaction removes common secrets without hiding token usage fields', () => {
   const text = redactSecretText([

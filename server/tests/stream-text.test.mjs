@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
-import { splitAssistantStreamText } from '../../src/features/chat/stream-text.js'
+import { splitAssistantStreamText } from '../../src/features/chat/stream-text.ts'
 
 test('without tools the full stream stays in one body block', () => {
   assert.deepEqual(

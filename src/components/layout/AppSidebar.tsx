@@ -1,0 +1,286 @@
+import { useEffect, useMemo, useState } from 'react'
+import { useQuery } from '@tanstack/react-query'
+import {
+  ChevronRight,
+  Download,
+  ExternalLink,
+  PanelLeftClose,
+  PanelLeftOpen,
+  RefreshCw,
+  Rocket,
+  X,
+  type LucideIcon,
+} from 'lucide-react'
+import { APP_NAME } from '../../app/brand'
+import { STORAGE_KEYS } from '../../app/storage'
+import { useI18n } from '../../app/use-i18n'
+import {
+  ACTIVE_SESSION_CHANGED_EVENT,
+  SESSION_SELECTED_EVENT,
+  SESSIONS_UPDATED_EVENT,
+  requestSessionSelection,
+} from '../../features/chat/events'
+import { apiJson } from '../../lib/api'
+import { relativeTime } from '../../lib/format'
+import { BrandLogo } from '../BrandLogo'
+import { Sidebar as ShadcnSidebar, useSidebar } from '../ui/sidebar'
+
+type SessionSummary = {
+  id: string
+  name?: string
+  modified: string
+}
+
+type SidebarUpdate = {
+  info?: { desktop?: boolean }
+  status?: {
+    state: string
+    percent?: number
+    availableVersion?: string
+    behindBy?: number
+    branch?: string
+    availableCommit?: string
+  }
+}
+
+type AppSidebarProps = {
+  page: string
+  navigation: Array<[string, Array<[string, string, LucideIcon]>]>
+  navigate: (page: string) => void
+  collapsed: boolean
+  onToggleCollapse: () => void
+  update: SidebarUpdate
+  onOpenUpdates: () => void
+}
+
+export function AppSidebar({
+  page,
+  navigation,
+  navigate,
+  collapsed,
+  onToggleCollapse,
+  update,
+  onOpenUpdates,
+}: AppSidebarProps) {
+  const { t, language } = useI18n()
+  const { isMobile, setOpenMobile } = useSidebar()
+  const [historyExpanded, setHistoryExpanded] = useState(true)
+  const [activeSessionId, setActiveSessionId] = useState(
+    () => localStorage.getItem(STORAGE_KEYS.activeSession) || '',
+  )
+  const active = page === 'workflowCreate' ? 'workflows' : page === 'chatHistory' ? 'chat' : page
+
+  const { data: sidebarSessionData, refetch: refreshSessions } = useQuery<{
+    sessions: SessionSummary[]
+  }>({
+    queryKey: ['sessions', 'sidebar'],
+    queryFn: () => apiJson<{ sessions: SessionSummary[] }>('/api/sessions'),
+    refetchInterval: 20_000,
+  })
+  const sessions = useMemo(
+    () =>
+      [...(sidebarSessionData?.sessions || [])].sort(
+        (a, b) => Date.parse(b.modified) - Date.parse(a.modified),
+      ),
+    [sidebarSessionData],
+  )
+
+  useEffect(() => {
+    const refresh = () => {
+      void refreshSessions()
+    }
+    const refreshWhenVisible = () => {
+      if (document.visibilityState === 'visible') refresh()
+    }
+    const syncActive = (event: Event) => {
+      const detail = (event as CustomEvent<{ id?: string }>).detail
+      setActiveSessionId(detail?.id || localStorage.getItem(STORAGE_KEYS.activeSession) || '')
+    }
+    document.addEventListener('visibilitychange', refreshWhenVisible)
+    window.addEventListener(SESSIONS_UPDATED_EVENT, refresh)
+    window.addEventListener(SESSION_SELECTED_EVENT, syncActive)
+    window.addEventListener(ACTIVE_SESSION_CHANGED_EVENT, syncActive)
+    return () => {
+      document.removeEventListener('visibilitychange', refreshWhenVisible)
+      window.removeEventListener(SESSIONS_UPDATED_EVENT, refresh)
+      window.removeEventListener(SESSION_SELECTED_EVENT, syncActive)
+      window.removeEventListener(ACTIVE_SESSION_CHANGED_EVENT, syncActive)
+    }
+  }, [refreshSessions])
+
+  const openRecentSession = (id: string) => {
+    setActiveSessionId(id)
+    requestSessionSelection(id)
+    navigate('chat')
+    if (isMobile) setOpenMobile(false)
+  }
+
+  const navigateFromSidebar = (id: string) => {
+    navigate(id)
+    if (isMobile) setOpenMobile(false)
+  }
+
+  return (
+    <ShadcnSidebar collapsible="icon" className="vesper-sidebar-container">
+      <aside className={`sidebar shadcn-sidebar-content ${collapsed ? 'collapsed' : ''}`}>
+        <div className="brand">
+          <BrandLogo size={22} />
+          <strong>{APP_NAME}</strong>
+          <button
+            className="mobile-close"
+            aria-label={t('navigation:appSidebar.closeNavigation')}
+            onClick={() => setOpenMobile(false)}
+          >
+            <X size={18} />
+          </button>
+        </div>
+        <div className="nav-list">
+          <nav className="nav-primary" aria-label={t('navigation:appSidebar.mainNavigation')}>
+            {navigation.map(([group, items]) => (
+              <div className="nav-group" key={group}>
+                <span className="nav-group-label">{group}</span>
+                {items.map(([id, label, Icon]) => (
+                  <button
+                    className={`nav-main ${active === id ? 'active' : ''}`}
+                    key={id}
+                    title={label}
+                    onClick={() => navigateFromSidebar(id)}
+                  >
+                    <Icon size={16} />
+                    <span>{label}</span>
+                  </button>
+                ))}
+              </div>
+            ))}
+          </nav>
+          <section
+            className={`nav-history-section ${historyExpanded ? 'is-expanded' : ''}`}
+            aria-label={t('navigation:appSidebar.recentChats')}
+          >
+            <div className="nav-history-section-head">
+              <button
+                className="nav-history-heading"
+                aria-controls="sidebar-recent-sessions"
+                aria-expanded={historyExpanded}
+                onClick={() => setHistoryExpanded((value) => !value)}
+              >
+                <span>{t('navigation:appSidebar.recentChats')}</span>
+                <ChevronRight className={historyExpanded ? 'is-open' : ''} size={14} />
+              </button>
+              <button
+                className="nav-history-view-all"
+                aria-label={t('navigation:appSidebar.viewAllCountChats', {
+                  count: sessions.length,
+                })}
+                onClick={() => navigateFromSidebar('chatHistory')}
+              >
+                {t('navigation:appSidebar.viewAll')}
+              </button>
+            </div>
+            {historyExpanded && (
+              <div className="nav-history-list" id="sidebar-recent-sessions">
+                {sessions.slice(0, 4).map((session) => (
+                  <button
+                    className={`nav-history-item ${session.id === activeSessionId ? 'active-session' : ''}`}
+                    aria-current={session.id === activeSessionId ? 'page' : undefined}
+                    title={`${session.name || t('navigation:appSidebar.untitledChat')} · ${relativeTime(session.modified, language)}`}
+                    onClick={() => openRecentSession(session.id)}
+                    key={session.id}
+                  >
+                    <span>{session.name || t('navigation:appSidebar.untitledChat')}</span>
+                  </button>
+                ))}
+                {!sessions.length && (
+                  <span className="nav-history-empty">
+                    {t('navigation:appSidebar.noChatHistoryYet')}
+                  </span>
+                )}
+              </div>
+            )}
+          </section>
+        </div>
+        <div className="mt-auto grid gap-2">
+          <SidebarUpdateStatus update={update} collapsed={collapsed} onOpen={onOpenUpdates} />
+          <button
+            className="sidebar-collapse !mt-0"
+            title={
+              collapsed
+                ? t('navigation:appSidebar.expandSidebar')
+                : t('navigation:appSidebar.collapseSidebar')
+            }
+            aria-label={
+              collapsed
+                ? t('navigation:appSidebar.expandSidebar')
+                : t('navigation:appSidebar.collapseSidebar')
+            }
+            onClick={onToggleCollapse}
+          >
+            {collapsed ? <PanelLeftOpen size={16} /> : <PanelLeftClose size={16} />}
+            <span>
+              {collapsed
+                ? t('navigation:appSidebar.expandSidebar')
+                : t('navigation:appSidebar.collapseSidebar')}
+            </span>
+          </button>
+        </div>
+      </aside>
+    </ShadcnSidebar>
+  )
+}
+
+function SidebarUpdateStatus({
+  update,
+  collapsed,
+  onOpen,
+}: {
+  update: SidebarUpdate
+  collapsed: boolean
+  onOpen: () => void
+}) {
+  const { t } = useI18n()
+  const status = update?.status || { state: 'idle' }
+  const desktop = Boolean(update?.info?.desktop)
+  if (!['available', 'downloading', 'downloaded'].includes(status.state)) return null
+  const downloading = status.state === 'downloading'
+  const downloaded = status.state === 'downloaded'
+  const label = downloaded
+    ? t('navigation:appSidebar.readyToRestart')
+    : downloading
+      ? t('navigation:appSidebar.downloading')
+      : desktop
+        ? t('navigation:appSidebar.updateAvailable')
+        : t('navigation:appSidebar.sourceUpdatesAvailable')
+  const detail = downloading
+    ? `${Math.round(status.percent || 0)}%`
+    : desktop && status.availableVersion
+      ? `v${status.availableVersion}`
+      : status.behindBy
+        ? t('navigation:appSidebar.countCommitsBehindBranch', {
+            branch: status.branch || 'main',
+            count: status.behindBy,
+          })
+        : status.availableCommit
+          ? status.availableCommit.slice(0, 7)
+          : t('navigation:appSidebar.viewUpdateDetails')
+  const Icon = downloaded ? Rocket : downloading ? RefreshCw : desktop ? Download : ExternalLink
+
+  return (
+    <button
+      type="button"
+      className={`flex min-h-11 w-full items-center rounded-[var(--r-sm)] border border-[var(--stroke)] bg-[var(--accent-soft)] text-[var(--text)] transition-colors hover:bg-[var(--surface-hover)] ${collapsed ? 'justify-center px-0' : 'gap-2.5 px-3 text-left'}`}
+      title={`${label} · ${detail}`}
+      aria-label={`${label} · ${detail}`}
+      onClick={onOpen}
+    >
+      <Icon className={downloading ? 'spin shrink-0' : 'shrink-0'} size={16} />
+      {!collapsed && (
+        <span className="min-w-0">
+          <strong className="block truncate text-[12px]">{label}</strong>
+          <small className="mt-0.5 block truncate text-[11px] text-[var(--text-muted)]">
+            {detail}
+          </small>
+        </span>
+      )}
+    </button>
+  )
+}

@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
-import { createPrimaryActionRegistry } from '../../src/app/primary-action.js'
-import { mergeSessionLists, removeTiledSession, toggleTiledSession } from '../../src/features/chat/session-list.js'
+import { createPrimaryActionRegistry } from '../../src/app/primary-action.ts'
+import { mergeSessionLists, removeTiledSession, toggleTiledSession } from '../../src/features/chat/session-list.ts'
 
 test('primary action remains callable until its page registration is disposed', () => {
   const registry = createPrimaryActionRegistry()

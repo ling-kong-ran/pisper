@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
-import { clipboardImageFiles } from '../../src/features/chat/attachments.js'
+import { clipboardImageFiles } from '../../src/features/chat/attachments.ts'
 
 test('clipboard image files are selected without treating other files as attachments', () => {
   const image = { name: 'screenshot.png', type: 'image/png' }

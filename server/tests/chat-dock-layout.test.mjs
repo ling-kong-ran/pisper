@@ -8,7 +8,7 @@ import {
   parseDockLayoutEnvelope,
   parseSessionOpenRequest,
   sessionIdFromPanel,
-} from '../../src/features/chat/dock-layout.js'
+} from '../../src/features/chat/dock-layout.ts'
 
 test('session panel ids round-trip through dock panel metadata', () => {
   assert.equal(panelIdForSession('alpha'), 'session:alpha')

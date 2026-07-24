@@ -4,7 +4,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import test from 'node:test'
 import { AgentRuntimeService, multiAgentResultAgent, waitForAgentMailbox } from '../runtime/agent-runtime.mjs'
-import { applyTextPatch } from '../../src/lib/api.js'
+import { applyTextPatch } from '../../src/lib/api.ts'
 
 test('live session snapshot restores partial assistant output and tool state', async (t) => {
   const directory = await mkdtemp(join(tmpdir(), 'vesper-live-session-'))

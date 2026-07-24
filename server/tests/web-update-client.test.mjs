@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
 import { newerVersion, normalizedVersion } from '../../shared/app-update.mjs'
-import { checkWebUpdates } from '../../src/features/updates/update-client.js'
+import { checkWebUpdates } from '../../src/features/updates/update-client.ts'
 
 test('web update versions normalize tags and compare semantic parts', () => {
   assert.equal(normalizedVersion('v1.2.3-beta.1'), '1.2.3')
