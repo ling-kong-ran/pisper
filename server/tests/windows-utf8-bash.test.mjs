@@ -32,7 +32,8 @@ test('Windows bash can stream Python Unicode output', { skip: process.platform !
   const tool = createWindowsUtf8BashTool(process.cwd())
   const result = await tool.execute('unicode-test', {
     command: `python -c "print('\\u4e2d\\u6587 \\U0001f525')"`,
-    timeout: 10,
+    // CI runners can be cold on first Python launch; keep headroom above the local 10s path.
+    timeout: 30,
   })
 
   assert.match(result.content[0].text, /中文 🔥/u)
