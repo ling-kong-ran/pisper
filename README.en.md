@@ -13,10 +13,11 @@
 
 <p align="center">
   <img src="https://img.shields.io/badge/Node.js-17141F?style=flat-square&logo=nodedotjs&logoColor=F59E0B" alt="Node.js" />
+  <img src="https://img.shields.io/badge/TypeScript-17141F?style=flat-square&logo=typescript&logoColor=F59E0B" alt="TypeScript" />
   <img src="https://img.shields.io/badge/React-17141F?style=flat-square&logo=react&logoColor=F59E0B" alt="React" />
-  <img src="https://img.shields.io/badge/Electron-17141F?style=flat-square&logo=electron&logoColor=F59E0B" alt="Electron" />
   <img src="https://img.shields.io/badge/Vite-17141F?style=flat-square&logo=vite&logoColor=F59E0B" alt="Vite" />
-  <img src="https://img.shields.io/badge/i18next-17141F?style=flat-square&logo=i18next&logoColor=F59E0B" alt="i18next" />
+  <img src="https://img.shields.io/badge/Tailwind_CSS-17141F?style=flat-square&logo=tailwindcss&logoColor=F59E0B" alt="Tailwind CSS" />
+  <img src="https://img.shields.io/badge/Electron-17141F?style=flat-square&logo=electron&logoColor=F59E0B" alt="Electron" />
 </p>
 
 <p align="center">
@@ -32,6 +33,7 @@
   <a href="#lightweight-prompt">Lightweight Prompt</a> ·
   <a href="#capabilities">Constellation of Capabilities</a> ·
   <a href="#architecture">Code Map</a> ·
+  <a href="#stack">Stack</a> ·
   <a href="#start">Begin Here</a> ·
   <a href="#contributing">Contributing</a>
 </p>
@@ -156,7 +158,7 @@ vesper/
 ├─ docs/                 # Documentation, screenshots, and brand assets
 ├─ electron/             # Electron main process and secure preload
 ├─ public/               # Public static assets
-├─ scripts/              # Icon generation, packaging, and release scripts
+├─ scripts/              # Icon generation, packaging, i18n checks, and releases
 ├─ shared/               # Workflow graph logic shared by client and server
 ├─ server/
 │  ├─ http/              # HTTP API, SSE, and static responses
@@ -168,12 +170,41 @@ vesper/
 │  ├─ tests/             # Node.js test suites
 │  └─ tools/             # Built-in and application tool registry
 └─ src/
-   ├─ app/               # Routing, navigation, branding, and localization
-   ├─ assets/            # Frontend static assets
-   ├─ components/        # Shared React components
-   ├─ features/          # Feature pages and interactions
+   ├─ app/               # Routing, providers, navigation, branding, and i18n
+   ├─ components/        # UI components, shadcn/ui, and AI Elements
+   ├─ features/          # Feature modules split by page
    ├─ hooks/             # Shared React hooks
-   └─ lib/               # API and formatting utilities
+   ├─ lib/               # Axios client and formatting utilities
+   ├─ locales/           # Namespaced i18n resources
+   ├─ stores/            # Zustand client state
+   └─ types/             # Frontend type definitions
+```
+
+---
+
+<a id="stack"></a>
+
+## ✦ Stack
+
+The frontend has been modernized into a TypeScript-first architecture with modular routing, state, and UI layers that are easier to extend and collaborate on.
+
+| Layer | Choices |
+| :--- | :--- |
+| **Language & build** | TypeScript, Vite, React 19 |
+| **Routing & state** | React Router Data Mode, Zustand, TanStack Query, Axios |
+| **UI system** | Tailwind CSS, shadcn/ui, Radix UI, Lucide, Sonner |
+| **Agent / rich content** | AI Elements, Streamdown, Shiki, React Markdown |
+| **Canvas & layout** | React Flow (`@xyflow/react`), Dockview, Resizable Panels |
+| **i18n** | i18next / react-i18next with namespaced JSON resources |
+| **Runtime core** | Pi Coding Agent, Node.js, Electron |
+| **Quality gates** | Oxlint, Prettier, TypeScript typecheck, i18n AST checks |
+
+Local quality checks:
+
+```bash
+npm run check   # typecheck + lint + i18n:check + format:check
+npm test
+npm run build
 ```
 
 ---
@@ -263,12 +294,12 @@ Set `VESPER_AGENT_DIR` to use another location.
 ### Verification
 
 ```bash
-npm run lint
+npm run check
 npm test
 npm run build
 ```
 
-The test suite uses the Node.js built-in test runner and lives under `server/tests/`.
+The test suite uses the Node.js built-in test runner via `tsx` and lives under `server/tests/`.
 
 ---
 
@@ -290,10 +321,10 @@ Before submitting a change, run the lint, test, and build commands above. Do not
 
 ## ✦ Acknowledgments · Where the Light Comes From
 
-Vesper is built on the [Pi Coding Agent](https://github.com/earendil-works/pi/tree/main/packages/coding-agent) runtime and illuminated by open-source projects including Node.js, React, Electron, Vite, and i18next.
+Vesper is built on the [Pi Coding Agent](https://github.com/earendil-works/pi/tree/main/packages/coding-agent) runtime and illuminated by open-source projects including Node.js, React, TypeScript, Vite, Tailwind CSS, shadcn/ui, React Router, Zustand, TanStack Query, React Flow, and i18next.
 
 Thanks to contributors:
 
-- [@mik-myp](https://github.com/mik-myp) — Frontend architecture modernization and i18n refactor ([#1](https://github.com/ling-kong-ran/vesper/pull/1))
+- [@mik-myp](https://github.com/mik-myp) — Frontend TypeScript architecture, shadcn/ui / AI Elements, Zustand, and i18n refactor ([#1](https://github.com/ling-kong-ran/vesper/pull/1))
 
 <p align="right"><a href="#top">Back to top ↑</a></p>

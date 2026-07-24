@@ -13,10 +13,11 @@
 
 <p align="center">
   <img src="https://img.shields.io/badge/Node.js-17141F?style=flat-square&logo=nodedotjs&logoColor=F59E0B" alt="Node.js" />
+  <img src="https://img.shields.io/badge/TypeScript-17141F?style=flat-square&logo=typescript&logoColor=F59E0B" alt="TypeScript" />
   <img src="https://img.shields.io/badge/React-17141F?style=flat-square&logo=react&logoColor=F59E0B" alt="React" />
-  <img src="https://img.shields.io/badge/Electron-17141F?style=flat-square&logo=electron&logoColor=F59E0B" alt="Electron" />
   <img src="https://img.shields.io/badge/Vite-17141F?style=flat-square&logo=vite&logoColor=F59E0B" alt="Vite" />
-  <img src="https://img.shields.io/badge/i18next-17141F?style=flat-square&logo=i18next&logoColor=F59E0B" alt="i18next" />
+  <img src="https://img.shields.io/badge/Tailwind_CSS-17141F?style=flat-square&logo=tailwindcss&logoColor=F59E0B" alt="Tailwind CSS" />
+  <img src="https://img.shields.io/badge/Electron-17141F?style=flat-square&logo=electron&logoColor=F59E0B" alt="Electron" />
 </p>
 
 <p align="center">
@@ -32,6 +33,7 @@
   <a href="#lightweight-prompt">轻量 Prompt</a> ·
   <a href="#capabilities">能力星图</a> ·
   <a href="#architecture">代码星图</a> ·
+  <a href="#stack">技术栈</a> ·
   <a href="#start">从这里启程</a> ·
   <a href="#contributing">参与贡献</a>
 </p>
@@ -156,7 +158,7 @@ vesper/
 ├─ docs/                 # 项目文档、截图与品牌资源
 ├─ electron/             # Electron 主进程与安全 preload
 ├─ public/               # 公共静态资源
-├─ scripts/              # 图标生成、桌面打包与版本发布脚本
+├─ scripts/              # 图标生成、桌面打包、i18n 检查与版本发布
 ├─ shared/               # 前后端共享的工作流图逻辑
 ├─ server/
 │  ├─ http/              # HTTP API、SSE 与静态资源响应
@@ -168,12 +170,41 @@ vesper/
 │  ├─ tests/             # Node.js 测试
 │  └─ tools/             # 内置工具与应用工具注册表
 └─ src/
-   ├─ app/               # 路由、导航、品牌与国际化
-   ├─ assets/            # 前端静态资源
-   ├─ components/        # 通用 React 组件
-   ├─ features/          # 功能页面与交互
+   ├─ app/               # 路由、Providers、导航、品牌与 i18n
+   ├─ components/        # UI 组件、shadcn/ui、AI Elements
+   ├─ features/          # 按页面拆分的功能模块
    ├─ hooks/             # 通用 React Hooks
-   └─ lib/               # API 与格式化工具
+   ├─ lib/               # Axios 客户端与格式化工具
+   ├─ locales/           # 命名空间化的 i18n 资源
+   ├─ stores/            # Zustand 客户端状态
+   └─ types/             # 前端类型定义
+```
+
+---
+
+<a id="stack"></a>
+
+## ✦ 技术栈
+
+前端已完成 TypeScript 化重构，采用模块化路由、状态与 UI 体系，便于扩展与协作。
+
+| 层级 | 选型 |
+| :--- | :--- |
+| **语言与构建** | TypeScript、Vite、React 19 |
+| **路由与状态** | React Router Data Mode、Zustand、TanStack Query、Axios |
+| **UI 体系** | Tailwind CSS、shadcn/ui、Radix UI、Lucide、Sonner |
+| **Agent / 富内容** | AI Elements、Streamdown、Shiki、React Markdown |
+| **画布与布局** | React Flow（`@xyflow/react`）、Dockview、Resizable Panels |
+| **国际化** | i18next / react-i18next，按命名空间拆分的 JSON 资源 |
+| **运行内核** | Pi Coding Agent、Node.js、Electron |
+| **质量门槛** | Oxlint、Prettier、TypeScript 类型检查、i18n AST 校验 |
+
+本地质量检查：
+
+```bash
+npm run check   # typecheck + lint + i18n:check + format:check
+npm test
+npm run build
 ```
 
 ---
@@ -263,12 +294,12 @@ Vesper 默认将配置、会话、星忆与运行数据保存在：
 ### 验证
 
 ```bash
-npm run lint
+npm run check
 npm test
 npm run build
 ```
 
-项目使用 Node.js 内置测试运行器，测试文件位于 `server/tests/`。
+项目使用 Node.js 内置测试运行器（经 `tsx` 执行），测试文件位于 `server/tests/`。
 
 ---
 
@@ -290,10 +321,10 @@ npm run build
 
 ## ✦ 致谢 · 星光所自
 
-Vesper 以 [Pi Coding Agent](https://github.com/earendil-works/pi/tree/main/packages/coding-agent) 为运行内核，也由 Node.js、React、Electron、Vite、i18next 等开源项目共同照亮。
+Vesper 以 [Pi Coding Agent](https://github.com/earendil-works/pi/tree/main/packages/coding-agent) 为运行内核，并由 Node.js、React、TypeScript、Vite、Tailwind CSS、shadcn/ui、React Router、Zustand、TanStack Query、React Flow、i18next 等开源项目共同照亮。
 
 感谢贡献者：
 
-- [@mik-myp](https://github.com/mik-myp) — 前端架构现代化与 i18n 重构（[#1](https://github.com/ling-kong-ran/vesper/pull/1)）
+- [@mik-myp](https://github.com/mik-myp) — 前端 TypeScript 架构、shadcn/ui / AI Elements、Zustand 与 i18n 重构（[#1](https://github.com/ling-kong-ran/vesper/pull/1)）
 
 <p align="right"><a href="#top">返回顶部 ↑</a></p>
