@@ -124,9 +124,12 @@
       "shared/**/*",
       "package.json",
       "!server/tests/**/*",
-      "!**/node_modules/**/{README,README.md,readme,readme.md,CHANGELOG,CHANGELOG.md,LICENSE,LICENSE.md,*.map,*.ts,*.tsx,*.d.ts}",
-      "!**/node_modules/**/{test,tests,__tests__,docs,doc,example,examples,.github}/**",
-      "!**/node_modules/@earendil-works/pi-coding-agent/{docs,examples,CHANGELOG.md,containerization.md}"
+      "!**/node_modules/**/{README,README.md,readme,readme.md,CHANGELOG,CHANGELOG.md,LICENSE,LICENSE.md,*.map}",
+      "!**/node_modules/**/{test,tests,__tests__,docs,example,examples,.github}/**",
+      "!**/node_modules/@earendil-works/pi-coding-agent/docs/**",
+      "!**/node_modules/@earendil-works/pi-coding-agent/examples/**",
+      "!**/node_modules/@earendil-works/pi-coding-agent/CHANGELOG.md",
+      "!**/node_modules/@earendil-works/pi-coding-agent/containerization.md"
     ],
     "win": {
       "icon": "build/icon.png",
