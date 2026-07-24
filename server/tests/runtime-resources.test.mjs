@@ -72,8 +72,12 @@ test('main runtime keeps cold MCP tools dormant until explicitly requested while
 
 test('background prompts apply their explicit execution mode before the Agent starts', async (t) => {
   const directory = await mkdtemp(join(tmpdir(), 'vesper-background-prompt-'))
-  t.after(() => rm(directory, { recursive: true, force: true }))
-  const runtime = new AgentRuntimeService({ cwd: directory, dataDir: directory })
+  let runtime
+  t.after(async () => {
+    await runtime?.dispose?.().catch(() => {})
+    await rm(directory, { recursive: true, force: true }).catch(() => {})
+  })
+  runtime = new AgentRuntimeService({ cwd: directory, dataDir: directory })
   const calls = []
   runtime.createSession = async () => {
     runtime.sessions.set('scheduled-session', { cwd: directory, session: { model: null } })
@@ -101,8 +105,12 @@ test('background prompts apply their explicit execution mode before the Agent st
 
 test('saving plugin tools keeps the current streaming session alive and invalidates idle runtimes', async (t) => {
   const directory = await mkdtemp(join(tmpdir(), 'vesper-plugin-save-'))
-  t.after(() => rm(directory, { recursive: true, force: true }))
-  const runtime = new AgentRuntimeService({ cwd: directory, dataDir: directory })
+  let runtime
+  t.after(async () => {
+    await runtime?.dispose?.().catch(() => {})
+    await rm(directory, { recursive: true, force: true }).catch(() => {})
+  })
+  runtime = new AgentRuntimeService({ cwd: directory, dataDir: directory })
   let streamingDisposed = 0
   let idleDisposed = 0
   runtime.sessions.set('streaming', {
@@ -130,8 +138,12 @@ test('saving plugin tools keeps the current streaming session alive and invalida
 
 test('resource changes keep the currently streaming session alive', async (t) => {
   const directory = await mkdtemp(join(tmpdir(), 'vesper-resource-change-'))
-  t.after(() => rm(directory, { recursive: true, force: true }))
-  const runtime = new AgentRuntimeService({ cwd: directory, dataDir: directory })
+  let runtime
+  t.after(async () => {
+    await runtime?.dispose?.().catch(() => {})
+    await rm(directory, { recursive: true, force: true }).catch(() => {})
+  })
+  runtime = new AgentRuntimeService({ cwd: directory, dataDir: directory })
   let streamingDisposed = 0
   let idleDisposed = 0
   runtime.sessions.set('streaming', {

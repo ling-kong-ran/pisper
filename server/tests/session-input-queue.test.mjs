@@ -26,7 +26,11 @@ function response() {
 
 test('running sessions accept steering and follow-up user messages through the Pi queue', async (t) => {
   const directory = await mkdtemp(join(tmpdir(), 'vesper-session-input-'))
-  t.after(() => rm(directory, { recursive: true, force: true }))
+  let runtime
+  t.after(async () => {
+    await runtime?.dispose?.().catch(() => {})
+    await rm(directory, { recursive: true, force: true }).catch(() => {})
+  })
   const calls = []
   const steering = []
   const followUp = []
@@ -41,7 +45,7 @@ test('running sessions accept steering and follow-up user messages through the P
       else steering.push(message)
     },
   }
-  const runtime = new AgentRuntimeService({ cwd: directory, dataDir: directory })
+  runtime = new AgentRuntimeService({ cwd: directory, dataDir: directory })
   const selections = []
   runtime.selectToolsForMessage = (_value, message, options) => { selections.push({ message, options }) }
   runtime.sessions.set('session-1', { session, modified: '' })
