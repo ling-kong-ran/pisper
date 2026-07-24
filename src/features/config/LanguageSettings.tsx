@@ -1,10 +1,10 @@
 import { Check, FoldVertical, Languages, UnfoldVertical } from 'lucide-react'
-import { LANGUAGE_OPTIONS, translateText, useI18n } from '../../app/use-i18n'
-import { Panel } from '../../components/ui'
-import { useUiStore, type DensityMode } from '../../stores/ui-store'
+import { LANGUAGE_OPTIONS, translateText, useI18n } from '@/app/use-i18n'
+import { Panel } from '@/components/ui'
+import { useUiStore, type DensityMode } from '@/stores/ui-store'
 import type { LucideIcon } from 'lucide-react'
-import type { SupportedLanguage } from '../../app/i18n'
-import type { Notify } from '../../app/route-context'
+import type { SupportedLanguage } from '@/app/i18n'
+import type { Notify } from '@/app/route-context'
 
 function languageName(language: SupportedLanguage, t: ReturnType<typeof useI18n>['t']) {
   return language === 'en-US'

@@ -9,12 +9,12 @@ import {
   Rocket,
   TriangleAlert,
 } from 'lucide-react'
-import MarkdownMessage from '../../components/MarkdownMessage'
-import { Badge, Panel, SectionTitle } from '../../components/ui'
-import { useI18n } from '../../app/use-i18n'
-import type { Notify } from '../../app/route-context'
-import type { I18nValues, SupportedLanguage } from '../../app/i18n'
-import type { AppUpdateController, AppUpdateInfo } from '../../types/update'
+import MarkdownMessage from '@/components/MarkdownMessage'
+import { Badge, Panel, SectionTitle } from '@/components/ui'
+import { useI18n } from '@/app/use-i18n'
+import type { Notify } from '@/app/route-context'
+import type { I18nValues, SupportedLanguage } from '@/app/i18n'
+import type { AppUpdateController, AppUpdateInfo } from '@/types/update'
 
 const BUILD_VERSION = import.meta.env.VITE_APP_VERSION || '0.0.0'
 

@@ -1,4 +1,4 @@
-import type { EntityRecord, TaskList, TaskListItem, ToolActivity } from '../../types/chat'
+import type { EntityRecord, TaskList, TaskListItem, ToolActivity } from '@/types/chat'
 
 export const RUN_INACTIVITY_THRESHOLD_MS = 10_000
 export const MAX_CURRENT_ACTIVITIES = 6

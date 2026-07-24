@@ -11,19 +11,19 @@ import {
   X,
   type LucideIcon,
 } from 'lucide-react'
-import { APP_NAME } from '../../app/brand'
-import { STORAGE_KEYS } from '../../app/storage'
-import { useI18n } from '../../app/use-i18n'
+import { APP_NAME } from '@/app/brand'
+import { STORAGE_KEYS } from '@/app/storage'
+import { useI18n } from '@/app/use-i18n'
 import {
   ACTIVE_SESSION_CHANGED_EVENT,
   SESSION_SELECTED_EVENT,
   SESSIONS_UPDATED_EVENT,
   requestSessionSelection,
-} from '../../features/chat/events'
-import { apiJson } from '../../lib/api'
-import { relativeTime } from '../../lib/format'
-import { BrandLogo } from '../BrandLogo'
-import { Sidebar as ShadcnSidebar, useSidebar } from '../ui/sidebar'
+} from '@/features/chat/events'
+import { apiJson } from '@/lib/api'
+import { relativeTime } from '@/lib/format'
+import { BrandLogo } from '@/components/BrandLogo'
+import { Sidebar as ShadcnSidebar, useSidebar } from '@/components/ui/sidebar'
 
 type SessionSummary = {
   id: string

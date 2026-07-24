@@ -13,9 +13,9 @@ import {
   Play,
   type LucideIcon,
 } from 'lucide-react'
-import { useI18n } from '../../app/use-i18n'
-import type { ThemeMode } from '../../stores/ui-store'
-import { SidebarTrigger } from '../ui/sidebar'
+import { useI18n } from '@/app/use-i18n'
+import type { ThemeMode } from '@/stores/ui-store'
+import { SidebarTrigger } from '@/components/ui/sidebar'
 
 const THEME_META: Record<ThemeMode, LucideIcon> = {
   system: Monitor,

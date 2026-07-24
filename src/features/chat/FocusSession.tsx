@@ -34,15 +34,15 @@ import {
   X,
 } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
-import type { I18nValues } from '../../app/i18n'
-import { useI18n } from '../../app/use-i18n'
-import { AppSelect } from '../../components/AppSelect'
-import { Confirmation } from '../../components/ai-elements/confirmation'
-import { QueueSection } from '../../components/ai-elements/queue'
-import { BrandLogo } from '../../components/BrandLogo'
-import { Panel, Toggle } from '../../components/ui'
-import { useAutoScroll } from '../../hooks/useAutoScroll'
-import { formatFileSize, formatTokenCount, workspaceName } from '../../lib/format'
+import type { I18nValues } from '@/app/i18n'
+import { useI18n } from '@/app/use-i18n'
+import { AppSelect } from '@/components/AppSelect'
+import { Confirmation } from '@/components/ai-elements/confirmation'
+import { QueueSection } from '@/components/ai-elements/queue'
+import { BrandLogo } from '@/components/BrandLogo'
+import { Panel, Toggle } from '@/components/ui'
+import { useAutoScroll } from '@/hooks/useAutoScroll'
+import { formatFileSize, formatTokenCount, workspaceName } from '@/lib/format'
 import type {
   ChatAttachment,
   ChatMessage,
@@ -50,7 +50,7 @@ import type {
   ModelOption,
   SandboxStatus,
   SessionSummary,
-} from '../../types/chat'
+} from '@/types/chat'
 import { useAttachmentSelection } from './attachments'
 import { FocusChatMessage } from './ChatMessage'
 

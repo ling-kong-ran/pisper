@@ -1,6 +1,6 @@
 import { useCallback, useRef, useState, type ChangeEvent, type ClipboardEvent } from 'react'
-import { storedLanguage, translateText, type I18nValues } from '../../app/i18n.ts'
-import type { ChatAttachment } from '../../types/chat'
+import { storedLanguage, translateText, type I18nValues } from '@/app/i18n.ts'
+import type { ChatAttachment } from '@/types/chat'
 
 const MAX_ATTACHMENT_BYTES = 10 * 1024 * 1024
 const MAX_TOTAL_ATTACHMENT_BYTES = 20 * 1024 * 1024

@@ -10,26 +10,26 @@ import {
   type ReactContextMenuItemConfig,
 } from 'dockview-react'
 import { RefreshCw } from 'lucide-react'
-import { APP_NAME } from '../../app/brand'
-import { STORAGE_KEYS } from '../../app/storage'
-import { useI18n } from '../../app/use-i18n'
-import { WorkspacePicker } from '../../components/WorkspacePicker'
-import { Panel } from '../../components/ui'
-import { usePagePrimaryAction } from '../../hooks/usePagePrimaryAction'
-import { applyTextPatch } from '../../lib/api'
-import { ApiError } from '../../lib/http'
-import { workspaceName } from '../../lib/format'
+import { APP_NAME } from '@/app/brand'
+import { STORAGE_KEYS } from '@/app/storage'
+import { useI18n } from '@/app/use-i18n'
+import { WorkspacePicker } from '@/components/WorkspacePicker'
+import { Panel } from '@/components/ui'
+import { usePagePrimaryAction } from '@/hooks/usePagePrimaryAction'
+import { applyTextPatch } from '@/lib/api'
+import { ApiError } from '@/lib/http'
+import { workspaceName } from '@/lib/format'
 import {
   applySessionUpdate,
   DEFAULT_SESSION_STATE,
   insertInteractiveUserMessage,
   resolveQueuedInputs,
-} from '../../lib/session-state'
+} from '@/lib/session-state'
 import {
   createStreamingTextScheduler,
   createToolUpdateScheduler,
   createTypewriterDisplay,
-} from '../../lib/streaming-ui'
+} from '@/lib/streaming-ui'
 import {
   SESSION_SELECTED_EVENT,
   announceActiveSession,
@@ -50,8 +50,8 @@ import {
 } from './dock-layout'
 import { pushCurrentActivity, settleToolCalls, taskListChanges } from './run-activity'
 import { mergeSessionLists } from './session-list'
-import type { ConfirmDialogOptions, PromptDialogOptions } from '../../hooks/useAppDialog'
-import type { Notify } from '../../app/route-context'
+import type { ConfirmDialogOptions, PromptDialogOptions } from '@/hooks/useAppDialog'
+import type { Notify } from '@/app/route-context'
 import type {
   ChatAttachment,
   ModelOption,
@@ -59,8 +59,8 @@ import type {
   SandboxStatus,
   SessionState,
   SessionSummary,
-} from '../../types/chat'
-import type { SessionStateUpdate } from '../../lib/session-state'
+} from '@/types/chat'
+import type { SessionStateUpdate } from '@/lib/session-state'
 
 const MAX_LIVE_THINKING_CHARS = 6_000
 const USAGE_UPDATED_EVENT = 'vesper:usage-updated'

@@ -1,6 +1,6 @@
-import { consumeEventStream } from '../../lib/api'
-import { requestJson } from '../../lib/http'
-import type { ChatMessage, EntityRecord, SandboxStatus, SessionSummary } from '../../types/chat'
+import { consumeEventStream } from '@/lib/api'
+import { requestJson } from '@/lib/http'
+import type { ChatMessage, EntityRecord, SandboxStatus, SessionSummary } from '@/types/chat'
 
 export type ApiRecord = EntityRecord
 type StreamEventHandler = (event: string, data: ApiRecord) => boolean | void

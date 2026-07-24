@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import {
   AlertTriangle,
@@ -12,12 +12,10 @@ import {
   File,
   FileCode2,
   GitBranch,
-  Grid2X2,
   Image,
   MessageCircle,
   Pencil,
   Play,
-  Plus,
   RefreshCw,
   Rocket,
   Search,
@@ -26,46 +24,21 @@ import {
   Trash2,
   Zap,
 } from 'lucide-react'
-import { workflowPath } from '../../app/routes'
-import { useI18n } from '../../app/use-i18n'
-import { Panel, SectionTitle, Segmented, Toggle } from '../../components/ui'
-import { AppSelect } from '../../components/AppSelect'
-import { usePagePrimaryAction } from '../../hooks/usePagePrimaryAction'
-import { apiJson } from '../../lib/api'
-import { relativeTime } from '../../lib/format'
-import {
-  createLinearWorkflowEdges,
-  workflowEdgePath,
-  wouldCreateWorkflowCycle,
-} from '../../../shared/workflow-graph.mjs'
-import type { DragEvent as ReactDragEvent, PointerEvent as ReactPointerEvent } from 'react'
+import { workflowPath } from '@/app/routes'
+import { useI18n } from '@/app/use-i18n'
+import { Panel, SectionTitle, Segmented, Toggle } from '@/components/ui'
+import { AppSelect } from '@/components/AppSelect'
+import { usePagePrimaryAction } from '@/hooks/usePagePrimaryAction'
+import { apiJson } from '@/lib/api'
+import { relativeTime } from '@/lib/format'
+import { createLinearWorkflowEdges, wouldCreateWorkflowCycle } from '@shared/workflow-graph.mjs'
+import { WorkflowCanvas, WorkflowPreview } from './WorkflowCanvas'
+import type { NodeKind, WorkflowEdge, WorkflowNode } from './types'
 import type { LucideIcon } from 'lucide-react'
-import type { Notify } from '../../app/route-context'
-import type { ConfirmDialogOptions } from '../../hooks/useAppDialog'
+import type { Notify } from '@/app/route-context'
+import type { ConfirmDialogOptions } from '@/hooks/useAppDialog'
 
-type NodeKind =
-  'trigger' | 'prompt' | 'file' | 'mcp' | 'notification' | 'condition' | 'parallel' | 'approval'
 type NotificationTarget = 'browser' | 'feishu' | 'weixin'
-type WorkflowNode = {
-  id: string
-  kind: NodeKind
-  label: string
-  prompt: string
-  x: number
-  y: number
-  model: { provider: string; model: string } | null
-  retries: number
-  timeoutMinutes: number
-  failurePolicy: 'stop' | 'skip'
-  enabled: boolean
-}
-type WorkflowEdge = {
-  id: string
-  source: string
-  sourcePort: string
-  target: string
-  targetPort: string
-}
 type Workflow = {
   id: string
   name: string
@@ -109,14 +82,6 @@ type WorkflowTemplate = {
   Icon: LucideIcon
   nodes: WorkflowNode[]
 }
-type ConnectionDraft = {
-  source: string
-  sourcePort: string
-  x1: number
-  y1: number
-  x2: number
-  y2: number
-}
 type WorkflowsPageProps = {
   notify: Notify
   requestConfirm?: (options?: ConfirmDialogOptions) => Promise<boolean>
@@ -132,7 +97,6 @@ type WorkflowBuilderProps = {
     running: boolean
   }) => () => void
 }
-type WorkflowMiniMapProps = { nodes?: WorkflowNode[]; edges?: WorkflowEdge[] }
 type Translate = ReturnType<typeof useI18n>['t']
 type WorkflowFilter = 'all' | 'presets' | 'custom' | 'running' | 'failed' | 'draft'
 
@@ -682,7 +646,17 @@ export function WorkflowsPage({ notify, requestConfirm, query = '' }: WorkflowsP
               {t('workflows:workflowsPage.startBlank')}
             </button>
           </div>
-          <WorkflowMiniMap nodes={preview?.nodes} edges={preview?.edges} />
+          {preview?.nodes.length ? (
+            <WorkflowPreview
+              nodes={preview.nodes}
+              edges={preview.edges || []}
+              nodeTypeLabel={(kind) => nodeTypeLabel(kind, t)}
+            />
+          ) : (
+            <div className="channel-route-empty compact">
+              <strong>{t('workflows:workflowsPage.noCustomWorkflowYet')}</strong>
+            </div>
+          )}
         </Panel>
       </div>
       <div className="workflow-bottom">
@@ -807,7 +781,6 @@ export function WorkflowBuilder({
   const routerNavigate = useNavigate()
   const { workflowId = 'new' } = useParams()
   const [searchParams] = useSearchParams()
-  const canvasRef = useRef<HTMLElement | null>(null)
   const [catalog, setCatalog] = useState<WorkflowsData>({
     workflows: [],
     runs: [],
@@ -819,7 +792,6 @@ export function WorkflowBuilder({
   const [draft, setDraft] = useState<Workflow | null>(null)
   const [selectedId, setSelectedId] = useState('')
   const [selectedEdgeId, setSelectedEdgeId] = useState('')
-  const [connectionDraft, setConnectionDraft] = useState<ConnectionDraft | null>(null)
   const [loading, setLoading] = useState(true)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
@@ -892,12 +864,6 @@ export function WorkflowBuilder({
   const current = selectedId ? draft?.nodes.find((item) => item.id === selectedId) || null : null
   const selectedEdge = draft?.edges?.find((edge) => edge.id === selectedEdgeId) || null
 
-  const canvasPoint = useCallback((clientX: number, clientY: number) => {
-    const box = canvasRef.current?.getBoundingClientRect()
-    if (!box) return null
-    return { x: clientX - box.left, y: clientY - box.top }
-  }, [])
-
   const addEdge = useCallback(
     (source: string, target: string, sourcePort = 'output') => {
       if (!draft || source === target) return
@@ -932,80 +898,50 @@ export function WorkflowBuilder({
     [draft, notify, t],
   )
 
-  const beginConnection = (
-    event: ReactPointerEvent<HTMLElement>,
-    source: string,
-    sourcePort = 'output',
-  ) => {
-    event.preventDefault()
-    event.stopPropagation()
-    if (!draft) return
-    const sourceNode = draft.nodes.find((item) => item.id === source)
-    const point = canvasPoint(event.clientX, event.clientY)
-    if (!sourceNode || !point) return
-    const sourceOffset = sourcePort === 'true' ? 15 : sourcePort === 'false' ? 35 : 25
-    setConnectionDraft({
-      source,
-      sourcePort,
-      x1: sourceNode.x + 120,
-      y1: sourceNode.y + sourceOffset,
-      x2: point.x,
-      y2: point.y,
-    })
-  }
-
-  const connectionSource = connectionDraft?.source
-  const connectionSourcePort = connectionDraft?.sourcePort
-  useEffect(() => {
-    if (!connectionSource) return undefined
-    const move = (event: PointerEvent) => {
-      const point = canvasPoint(event.clientX, event.clientY)
-      if (point)
-        setConnectionDraft((currentDraft) =>
-          currentDraft ? { ...currentDraft, x2: point.x, y2: point.y } : null,
-        )
-    }
-    const up = (event: PointerEvent) => {
-      const targetElement = document
-        .elementFromPoint(event.clientX, event.clientY)
-        ?.closest?.('[data-workflow-input]')
-      const target = (targetElement as HTMLElement | null)?.dataset.workflowInput
-      if (target) addEdge(connectionSource, target, connectionSourcePort)
-      setConnectionDraft(null)
-    }
-    window.addEventListener('pointermove', move)
-    window.addEventListener('pointerup', up, { once: true })
-    return () => {
-      window.removeEventListener('pointermove', move)
-      window.removeEventListener('pointerup', up)
-    }
-  }, [addEdge, canvasPoint, connectionSource, connectionSourcePort])
+  const removeEdges = useCallback(
+    (edgeIds: string[]) => {
+      if (!edgeIds.length) return
+      const ids = new Set(edgeIds)
+      setDraft((currentDraft) =>
+        currentDraft
+          ? {
+              ...currentDraft,
+              edges: (currentDraft.edges || []).filter((edge) => !ids.has(edge.id)),
+            }
+          : currentDraft,
+      )
+      setSelectedEdgeId('')
+      notify(t('workflows:workflowsPage.connectionDeleted'), 'info')
+    },
+    [notify, t],
+  )
 
   const removeSelectedEdge = useCallback(() => {
     if (!selectedEdgeId) return
-    setDraft((currentDraft) =>
-      currentDraft
-        ? {
-            ...currentDraft,
-            edges: (currentDraft.edges || []).filter((edge) => edge.id !== selectedEdgeId),
-          }
-        : currentDraft,
-    )
-    setSelectedEdgeId('')
-    notify(t('workflows:workflowsPage.connectionDeleted'), 'info')
-  }, [notify, selectedEdgeId, t])
+    removeEdges([selectedEdgeId])
+  }, [removeEdges, selectedEdgeId])
 
-  useEffect(() => {
-    if (!selectedEdgeId) return undefined
-    const keydown = (event: KeyboardEvent) => {
-      if (!['Backspace', 'Delete'].includes(event.key)) return
-      if (['INPUT', 'TEXTAREA', 'SELECT'].includes(document.activeElement?.tagName || '')) return
-      event.preventDefault()
-      removeSelectedEdge()
-    }
-    window.addEventListener('keydown', keydown)
-    return () => window.removeEventListener('keydown', keydown)
-  }, [removeSelectedEdge, selectedEdgeId])
+  const removeNodes = useCallback(
+    (nodeIds: string[]) => {
+      if (!nodeIds.length) return
+      const ids = new Set(nodeIds)
+      setDraft((currentDraft) =>
+        currentDraft
+          ? {
+              ...currentDraft,
+              nodes: currentDraft.nodes.filter((item) => !ids.has(item.id)),
+              edges: (currentDraft.edges || []).filter(
+                (edge) => !ids.has(edge.source) && !ids.has(edge.target),
+              ),
+            }
+          : currentDraft,
+      )
+      setSelectedId('')
+      setSelectedEdgeId('')
+      notify(t('workflows:workflowsPage.nodeDeleted'), 'info')
+    },
+    [notify, t],
+  )
 
   const saveWorkflow = useCallback(
     async (status: Workflow['status'] = 'draft', quiet = false) => {
@@ -1100,29 +1036,40 @@ export function WorkflowBuilder({
     [busy, registerWorkflowActions, runWorkflow, running, saveWorkflow, stopWorkflow],
   )
 
-  const drop = (event: ReactDragEvent<HTMLElement>) => {
-    event.preventDefault()
-    let data: { id?: string; kind?: NodeKind; label?: string } = {}
-    try {
-      data = JSON.parse(event.dataTransfer.getData('text/plain') || '{}')
-    } catch {}
-    const box = canvasRef.current?.getBoundingClientRect()
-    if (!box || !draft) return
-    const x = Math.max(10, event.clientX - box.left - 60)
-    const y = Math.max(10, event.clientY - box.top - 25)
-    if (data.id)
-      updateDraft({
-        nodes: draft.nodes.map((item) => (item.id === data.id ? { ...item, x, y } : item)),
-      })
-    else if (data.kind) {
+  const addNode = useCallback(
+    (kind: NodeKind, label: string, position: { x: number; y: number }) => {
       const id = crypto.randomUUID()
-      updateDraft({
-        nodes: [...draft.nodes, node(id, data.kind, data.label || NODE_TYPES[data.kind], '', x, y)],
-      })
+      setDraft((currentDraft) =>
+        currentDraft
+          ? {
+              ...currentDraft,
+              nodes: [
+                ...currentDraft.nodes,
+                node(id, kind, label || NODE_TYPES[kind], '', position.x, position.y),
+              ],
+            }
+          : currentDraft,
+      )
       setSelectedId(id)
       setSelectedEdgeId('')
-    }
-  }
+    },
+    [],
+  )
+
+  const moveNode = useCallback((id: string, position: { x: number; y: number }) => {
+    setDraft((currentDraft) =>
+      currentDraft
+        ? {
+            ...currentDraft,
+            nodes: currentDraft.nodes.map((item) =>
+              item.id === id && (item.x !== position.x || item.y !== position.y)
+                ? { ...item, x: position.x, y: position.y }
+                : item,
+            ),
+          }
+        : currentDraft,
+    )
+  }, [])
 
   const copyNode = () => {
     if (!current || !draft) return
@@ -1139,15 +1086,8 @@ export function WorkflowBuilder({
   }
 
   const deleteNode = () => {
-    if (!current || !draft) return
-    const nodes = draft.nodes.filter((item) => item.id !== current.id)
-    const edges = (draft.edges || []).filter(
-      (edge) => edge.source !== current.id && edge.target !== current.id,
-    )
-    updateDraft({ nodes, edges })
-    setSelectedId(nodes[0]?.id || '')
-    setSelectedEdgeId('')
-    notify(t('workflows:workflowsPage.nodeDeleted'), 'info')
+    if (!current) return
+    removeNodes([current.id])
   }
 
   const toggleNotification = (target: NotificationTarget) => {
@@ -1159,9 +1099,6 @@ export function WorkflowBuilder({
     })
   }
   const nodesById = new Map((draft?.nodes || []).map((item) => [item.id, item]))
-  const connectionPath = connectionDraft
-    ? `M${connectionDraft.x1} ${connectionDraft.y1} C${connectionDraft.x1 + Math.max(42, Math.abs(connectionDraft.x2 - connectionDraft.x1) * 0.45)} ${connectionDraft.y1},${connectionDraft.x2 - Math.max(42, Math.abs(connectionDraft.x2 - connectionDraft.x1) * 0.45)} ${connectionDraft.y2},${connectionDraft.x2} ${connectionDraft.y2}`
-    : ''
 
   if (loading || !draft)
     return (
@@ -1212,114 +1149,34 @@ export function WorkflowBuilder({
             </div>
           ))}
         </Panel>
-        <Panel
-          className={`builder-canvas ${connectionDraft ? 'connecting' : ''}`}
-          ref={canvasRef}
-          onDragOver={(event) => event.preventDefault()}
-          onDrop={drop}
-          onPointerDown={(event) => {
-            if (event.target === event.currentTarget) {
+        <Panel className="builder-canvas">
+          <WorkflowCanvas
+            nodes={draft.nodes}
+            edges={draft.edges || []}
+            selectedNodeId={selectedId}
+            selectedEdgeId={selectedEdgeId}
+            hint={t('workflows:workflowsPage.dragFromANodeOutputToTheTargetInputToConnectThem')}
+            inputLabel={t('workflows:workflowsPage.inputPort')}
+            outputLabel={t('workflows:workflowsPage.outputPort')}
+            nodeTypeLabel={(kind) => nodeTypeLabel(kind, t)}
+            onAddNode={addNode}
+            onConnect={addEdge}
+            onMoveNode={moveNode}
+            onSelectNode={(id) => {
+              setSelectedId(id)
+              setSelectedEdgeId('')
+            }}
+            onSelectEdge={(id) => {
+              setSelectedEdgeId(id)
+              setSelectedId('')
+            }}
+            onClearSelection={() => {
               setSelectedId('')
               setSelectedEdgeId('')
-            }
-          }}
-        >
-          <div className="canvas-tools">
-            <button type="button">
-              <Plus size={14} />
-            </button>
-            <button type="button">−</button>
-            <button type="button">
-              <Grid2X2 size={13} />
-            </button>
-          </div>
-          <div className="canvas-hint">
-            {t('workflows:workflowsPage.dragFromANodeOutputToTheTargetInputToConnectThem')}
-          </div>
-          <svg className="workflow-edge-layer">
-            <defs>
-              <marker
-                id="workflow-edge-arrow"
-                markerWidth="8"
-                markerHeight="8"
-                refX="7"
-                refY="4"
-                orient="auto"
-                markerUnits="strokeWidth"
-              >
-                <path className="workflow-edge-arrow" d="M0,0 L8,4 L0,8 Z" />
-              </marker>
-            </defs>
-            {(draft.edges || []).map((edge) => {
-              const path = workflowEdgePath(
-                nodesById.get(edge.source),
-                nodesById.get(edge.target),
-                edge.sourcePort,
-              )
-              if (!path) return null
-              return (
-                <g
-                  className={`workflow-edge ${selectedEdgeId === edge.id ? 'active' : ''}`}
-                  key={edge.id}
-                  onPointerDown={(event) => {
-                    event.preventDefault()
-                    event.stopPropagation()
-                    setSelectedEdgeId(edge.id)
-                    setSelectedId('')
-                  }}
-                >
-                  <path className="workflow-edge-hit" d={path} />
-                  <path
-                    className="workflow-edge-line"
-                    d={path}
-                    markerEnd="url(#workflow-edge-arrow)"
-                  />
-                </g>
-              )
-            })}
-            {connectionPath && <path className="workflow-edge-draft" d={connectionPath} />}
-          </svg>
-          {draft.nodes.map((item) => (
-            <div
-              role="button"
-              tabIndex={0}
-              draggable={!connectionDraft}
-              onDragStart={(event) =>
-                event.dataTransfer.setData('text/plain', JSON.stringify({ id: item.id }))
-              }
-              onClick={() => {
-                setSelectedId(item.id)
-                setSelectedEdgeId('')
-              }}
-              onKeyDown={(event) => {
-                if (event.key === 'Enter' || event.key === ' ') {
-                  event.preventDefault()
-                  setSelectedId(item.id)
-                  setSelectedEdgeId('')
-                }
-              }}
-              className={`flow-node ${selectedId === item.id ? 'active' : ''} type-${NODE_TYPES[item.kind]}`}
-              style={{ left: item.x, top: item.y }}
-              key={item.id}
-            >
-              {item.kind !== 'trigger' && (
-                <span
-                  className="flow-port input"
-                  data-workflow-input={item.id}
-                  title={t('workflows:workflowsPage.inputPort')}
-                  aria-label={t('workflows:workflowsPage.inputPort')}
-                />
-              )}
-              <span
-                className="flow-port output"
-                title={t('workflows:workflowsPage.outputPort')}
-                aria-label={t('workflows:workflowsPage.outputPort')}
-                onPointerDown={(event) => beginConnection(event, item.id)}
-              />
-              <small>{nodeTypeLabel(item.kind, t)}</small>
-              <strong>{item.label}</strong>
-            </div>
-          ))}
+            }}
+            onDeleteNodes={removeNodes}
+            onDeleteEdges={removeEdges}
+          />
         </Panel>
         <div className="detail-stack inspector">
           <Panel>
@@ -1563,57 +1420,6 @@ export function WorkflowBuilder({
           )}
         </div>
       </div>
-    </div>
-  )
-}
-
-function WorkflowMiniMap({ nodes = [], edges = [] }: WorkflowMiniMapProps) {
-  const { t } = useI18n()
-  const visible = nodes.slice(0, 5)
-  if (!visible.length)
-    return (
-      <div className="channel-route-empty compact">
-        <strong>{t('workflows:workflowsPage.noCustomWorkflowYet')}</strong>
-      </div>
-    )
-  const positions = [
-    { x: 16, y: 48 },
-    { x: 145, y: 48 },
-    { x: 292, y: 48 },
-    { x: 426, y: 48 },
-    { x: 220, y: 108 },
-  ]
-  const indexes = new Map(visible.map((item, index) => [item.id, index]))
-  const paths = edges
-    .map((edge) => {
-      const sourceIndex = indexes.get(edge.source)
-      const targetIndex = indexes.get(edge.target)
-      if (sourceIndex === undefined || targetIndex === undefined) return null
-      const source = positions[sourceIndex]
-      const target = positions[targetIndex]
-      return {
-        id: edge.id,
-        path: `M${source.x + 74} ${source.y + 20} C${source.x + 98} ${source.y + 20},${target.x - 24} ${target.y + 20},${target.x} ${target.y + 20}`,
-      }
-    })
-    .filter((edge): edge is { id: string; path: string } => Boolean(edge))
-  return (
-    <div className="workflow-mini-map">
-      <svg viewBox="0 0 520 170">
-        {paths.map((edge) => (
-          <path d={edge.path} key={edge.id} />
-        ))}
-      </svg>
-      {visible.map((item, index) => (
-        <span
-          className="mini-node"
-          style={{ left: positions[index].x, top: positions[index].y }}
-          key={item.id}
-        >
-          <small>{nodeTypeLabel(item.kind, t)}</small>
-          <strong>{item.label}</strong>
-        </span>
-      ))}
     </div>
   )
 }

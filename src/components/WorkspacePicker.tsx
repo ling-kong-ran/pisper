@@ -1,9 +1,9 @@
 import { useCallback, useEffect, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { AlertTriangle, Check, ChevronRight, FolderOpen, RefreshCw, X } from 'lucide-react'
-import { useI18n } from '../app/use-i18n'
-import { apiJson } from '../lib/api'
-import type { SessionSummary } from '../types/chat'
+import { useI18n } from '@/app/use-i18n'
+import { apiJson } from '@/lib/api'
+import type { SessionSummary } from '@/types/chat'
 
 type DirectoryEntry = { name: string; path: string }
 type DirectoryListing = { path: string; parent?: string; directories: DirectoryEntry[] }

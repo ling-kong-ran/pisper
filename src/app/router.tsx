@@ -1,6 +1,6 @@
 import { Navigate, createHashRouter } from 'react-router-dom'
-import App from '../App'
-import { PageLoader } from '../components/layout/PageLoader'
+import App from '@/App'
+import { PageLoader } from '@/components/layout/PageLoader'
 import { RouteErrorBoundary } from './RouteErrorBoundary'
 import { PAGE_PATHS } from './routes'
 import {

@@ -23,7 +23,7 @@
     "i18n:check": "node scripts/check-i18n.mjs",
     "check": "npm run typecheck && npm run lint && npm run i18n:check && npm run format:check",
     "typecheck": "tsc --noEmit && tsc --noEmit -p tsconfig.node.json",
-    "test": "node --test server/tests/*.test.mjs",
+    "test": "tsx --test server/tests/*.test.mjs",
     "preview": "node server/index.mjs --production",
     "start": "node server/index.mjs --production"
   },
@@ -96,6 +96,7 @@
     "shadcn": "^4.14.1",
     "sharp": "^0.35.3",
     "tailwindcss": "^4.3.3",
+    "tsx": "^4.23.1",
     "typescript": "^7.0.2",
     "vite": "^8.1.1"
   },

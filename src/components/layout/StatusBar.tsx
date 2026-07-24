@@ -1,10 +1,10 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { Bot } from 'lucide-react'
-import { STORAGE_KEYS } from '../../app/storage'
-import { useI18n } from '../../app/use-i18n'
-import { ACTIVE_SESSION_CHANGED_EVENT, SESSIONS_UPDATED_EVENT } from '../../features/chat/events'
-import { apiJson } from '../../lib/api'
-import { formatTokenCount } from '../../lib/format'
+import { STORAGE_KEYS } from '@/app/storage'
+import { useI18n } from '@/app/use-i18n'
+import { ACTIVE_SESSION_CHANGED_EVENT, SESSIONS_UPDATED_EVENT } from '@/features/chat/events'
+import { apiJson } from '@/lib/api'
+import { formatTokenCount } from '@/lib/format'
 
 const USAGE_UPDATED_EVENT = 'vesper:usage-updated'
 

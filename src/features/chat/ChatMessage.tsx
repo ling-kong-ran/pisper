@@ -1,12 +1,12 @@
 import { lazy, memo, Suspense, useEffect, useState } from 'react'
 import { Download, File, X } from 'lucide-react'
-import { useI18n } from '../../app/use-i18n'
-import { AgentStatusAvatar } from '../../components/AgentStatusAvatar'
-import MarkdownMessage from '../../components/MarkdownMessage'
-import type { ChatAttachment, ChatMessage } from '../../types/chat'
+import { useI18n } from '@/app/use-i18n'
+import { AgentStatusAvatar } from '@/components/AgentStatusAvatar'
+import MarkdownMessage from '@/components/MarkdownMessage'
+import type { ChatAttachment, ChatMessage } from '@/types/chat'
 import type { AgentRunActivityProps } from './AgentRunActivity'
 import { splitAssistantStreamText } from './stream-text'
-import { Message as AiMessage } from '../../components/ai-elements/message-shell'
+import { Message as AiMessage } from '@/components/ai-elements/message-shell'
 
 const AgentRunActivity = lazy(() => import('./AgentRunActivity'))
 

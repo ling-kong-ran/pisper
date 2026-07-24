@@ -1,14 +1,14 @@
 import { useCallback, useEffect, useState } from 'react'
 import { CircleDot, RefreshCw, Server, Trash2, Wrench } from 'lucide-react'
-import { useI18n } from '../../app/use-i18n'
-import { Badge, Metric, Panel, SectionTitle, Toggle } from '../../components/ui'
-import { usePagePrimaryAction } from '../../hooks/usePagePrimaryAction'
-import { apiJson } from '../../lib/api'
-import { relativeTime } from '../../lib/format'
-import type { Notify } from '../../app/route-context'
-import type { I18nValues } from '../../app/i18n'
-import type { ConfirmDialogOptions, PromptDialogOptions } from '../../hooks/useAppDialog'
-import type { EntityRecord } from '../../types/chat'
+import { useI18n } from '@/app/use-i18n'
+import { Badge, Metric, Panel, SectionTitle, Toggle } from '@/components/ui'
+import { usePagePrimaryAction } from '@/hooks/usePagePrimaryAction'
+import { apiJson } from '@/lib/api'
+import { relativeTime } from '@/lib/format'
+import type { Notify } from '@/app/route-context'
+import type { I18nValues } from '@/app/i18n'
+import type { ConfirmDialogOptions, PromptDialogOptions } from '@/hooks/useAppDialog'
+import type { EntityRecord } from '@/types/chat'
 
 type McpService = EntityRecord & { id: string; name: string; status?: string }
 type McpTool = EntityRecord & { serviceId: string; name: string }

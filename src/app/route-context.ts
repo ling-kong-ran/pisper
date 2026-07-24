@@ -1,9 +1,9 @@
-import type { ToastTone } from '../components/ui'
-import type { ConfirmDialogOptions, PromptDialogOptions } from '../hooks/useAppDialog'
-import type { ChatAttachment, PendingAsset } from '../types/chat'
-import type { NotificationSettingsData } from '../types/notifications'
-import type { AppUpdateController } from '../types/update'
-import type { WorkflowActions } from '../types/workflow'
+import type { ToastTone } from '@/components/ui'
+import type { ConfirmDialogOptions, PromptDialogOptions } from '@/hooks/useAppDialog'
+import type { ChatAttachment, PendingAsset } from '@/types/chat'
+import type { NotificationSettingsData } from '@/types/notifications'
+import type { AppUpdateController } from '@/types/update'
+import type { WorkflowActions } from '@/types/workflow'
 
 export type Notify = (message: string, tone?: ToastTone) => void
 

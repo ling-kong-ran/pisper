@@ -1,12 +1,12 @@
 import { useCallback, useEffect, useState } from 'react'
 import { FileCode2, Image, Package, RefreshCw, Save, Sparkles, Trash2, Wrench } from 'lucide-react'
-import { useI18n } from '../../app/use-i18n'
-import { Badge, Panel, SectionTitle, Segmented, Toggle } from '../../components/ui'
-import { usePagePrimaryAction } from '../../hooks/usePagePrimaryAction'
-import { apiJson } from '../../lib/api'
-import type { Notify } from '../../app/route-context'
-import type { ConfirmDialogOptions, PromptDialogOptions } from '../../hooks/useAppDialog'
-import type { EntityRecord } from '../../types/chat'
+import { useI18n } from '@/app/use-i18n'
+import { Badge, Panel, SectionTitle, Segmented, Toggle } from '@/components/ui'
+import { usePagePrimaryAction } from '@/hooks/usePagePrimaryAction'
+import { apiJson } from '@/lib/api'
+import type { Notify } from '@/app/route-context'
+import type { ConfirmDialogOptions, PromptDialogOptions } from '@/hooks/useAppDialog'
+import type { EntityRecord } from '@/types/chat'
 
 type Skill = EntityRecord & {
   id: string

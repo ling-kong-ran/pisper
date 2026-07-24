@@ -26,9 +26,3 @@ export function wouldCreateWorkflowCycle<T extends WorkflowGraphNode>(
   target: string,
   sourcePort?: string,
 ): boolean
-
-export function workflowEdgePath<T extends WorkflowGraphNode>(
-  sourceNode: T | undefined,
-  targetNode: T | undefined,
-  sourcePort?: string,
-): string

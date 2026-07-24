@@ -1,13 +1,13 @@
 import { memo, useEffect, useState, type ReactNode } from 'react'
 import { AlertTriangle, Check, Clock3, RefreshCw, Square } from 'lucide-react'
-import { useI18n } from '../../app/use-i18n'
-import { Plan } from '../../components/ai-elements/plan'
-import { Reasoning } from '../../components/ai-elements/reasoning'
-import { Task } from '../../components/ai-elements/task'
-import { Tool } from '../../components/ai-elements/tool'
-import { formatTokenCount } from '../../lib/format'
-import type { I18nValues } from '../../app/i18n'
-import type { EntityRecord } from '../../types/chat'
+import { useI18n } from '@/app/use-i18n'
+import { Plan } from '@/components/ai-elements/plan'
+import { Reasoning } from '@/components/ai-elements/reasoning'
+import { Task } from '@/components/ai-elements/task'
+import { Tool } from '@/components/ai-elements/tool'
+import { formatTokenCount } from '@/lib/format'
+import type { I18nValues } from '@/app/i18n'
+import type { EntityRecord } from '@/types/chat'
 import {
   activityDurationMs,
   agentActivityState,

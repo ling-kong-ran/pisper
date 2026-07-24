@@ -4,7 +4,7 @@ import type {
   SessionState,
   SessionSummary,
   TaskList,
-} from '../types/chat'
+} from '@/types/chat'
 
 export const DEFAULT_SESSION_STATE: SessionState = Object.freeze({
   messages: [],

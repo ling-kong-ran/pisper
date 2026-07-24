@@ -6,7 +6,7 @@ function useAppRouteContext() {
 }
 
 export async function chatRoute() {
-  const { ChatPage } = await import('../features/chat/ChatPage')
+  const { ChatPage } = await import('@/features/chat/ChatPage')
 
   function ChatRoute() {
     const context = useAppRouteContext()
@@ -27,7 +27,7 @@ export async function chatRoute() {
 }
 
 export async function chatHistoryRoute() {
-  const { ChatHistoryPage } = await import('../features/chat/ChatHistoryPage')
+  const { ChatHistoryPage } = await import('@/features/chat/ChatHistoryPage')
 
   function ChatHistoryRoute() {
     const context = useAppRouteContext()
@@ -46,7 +46,7 @@ export async function chatHistoryRoute() {
 }
 
 export async function assetsRoute() {
-  const { AssetsPage } = await import('../features/assets/AssetsPage')
+  const { AssetsPage } = await import('@/features/assets/AssetsPage')
 
   function AssetsRoute() {
     const context = useAppRouteContext()
@@ -65,7 +65,7 @@ export async function assetsRoute() {
 }
 
 export async function channelsRoute() {
-  const { ChannelsPage } = await import('../features/channels/ChannelsPage')
+  const { ChannelsPage } = await import('@/features/channels/ChannelsPage')
 
   function ChannelsRoute() {
     const context = useAppRouteContext()
@@ -82,7 +82,7 @@ export async function channelsRoute() {
 }
 
 export async function schedulesRoute() {
-  const { SchedulesPage } = await import('../features/schedules/SchedulesPage')
+  const { SchedulesPage } = await import('@/features/schedules/SchedulesPage')
 
   function SchedulesRoute() {
     const context = useAppRouteContext()
@@ -100,7 +100,7 @@ export async function schedulesRoute() {
 }
 
 export async function configRoute() {
-  const { ConfigPage } = await import('../features/config/ConfigPage')
+  const { ConfigPage } = await import('@/features/config/ConfigPage')
 
   function ConfigRoute() {
     const context = useAppRouteContext()
@@ -121,7 +121,7 @@ export async function configRoute() {
 }
 
 export async function pluginsRoute() {
-  const { PluginsPage } = await import('../features/plugins/PluginsPage')
+  const { PluginsPage } = await import('@/features/plugins/PluginsPage')
 
   function PluginsRoute() {
     const context = useAppRouteContext()
@@ -139,7 +139,7 @@ export async function pluginsRoute() {
 }
 
 export async function memoryRoute() {
-  const { MemoryPage } = await import('../features/memory/MemoryPage')
+  const { MemoryPage } = await import('@/features/memory/MemoryPage')
 
   function MemoryRoute() {
     const context = useAppRouteContext()
@@ -157,7 +157,7 @@ export async function memoryRoute() {
 }
 
 export async function mcpRoute() {
-  const { McpPage } = await import('../features/workflows/PreviewPages')
+  const { McpPage } = await import('@/features/workflows/PreviewPages')
 
   function McpRoute() {
     const context = useAppRouteContext()
@@ -176,7 +176,7 @@ export async function mcpRoute() {
 }
 
 export async function skillsRoute() {
-  const { SkillsPage } = await import('../features/skills/SkillsPage')
+  const { SkillsPage } = await import('@/features/skills/SkillsPage')
 
   function SkillsRoute() {
     const context = useAppRouteContext()
@@ -195,7 +195,7 @@ export async function skillsRoute() {
 }
 
 export async function workflowsRoute() {
-  const { WorkflowsPage } = await import('../features/workflows/WorkflowsPage')
+  const { WorkflowsPage } = await import('@/features/workflows/WorkflowsPage')
 
   function WorkflowsRoute() {
     const context = useAppRouteContext()
@@ -212,7 +212,7 @@ export async function workflowsRoute() {
 }
 
 export async function workflowBuilderRoute() {
-  const { WorkflowBuilder } = await import('../features/workflows/WorkflowsPage')
+  const { WorkflowBuilder } = await import('@/features/workflows/WorkflowsPage')
 
   function WorkflowBuilderRoute() {
     const context = useAppRouteContext()

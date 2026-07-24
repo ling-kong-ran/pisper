@@ -12,16 +12,16 @@ import {
   ZoomIn,
   ZoomOut,
 } from 'lucide-react'
-import { Panel, SectionTitle } from '../../components/ui'
-import { AppSelect } from '../../components/AppSelect'
-import { useI18n } from '../../app/use-i18n'
-import { StarOrbit } from '../../components/StarOrbit'
-import { apiJson } from '../../lib/api'
-import { usePagePrimaryAction } from '../../hooks/usePagePrimaryAction'
+import { Panel, SectionTitle } from '@/components/ui'
+import { AppSelect } from '@/components/AppSelect'
+import { useI18n } from '@/app/use-i18n'
+import { StarOrbit } from '@/components/StarOrbit'
+import { apiJson } from '@/lib/api'
+import { usePagePrimaryAction } from '@/hooks/usePagePrimaryAction'
 import type { CSSProperties, FormEvent, PointerEvent as ReactPointerEvent } from 'react'
-import type { Notify } from '../../app/route-context'
-import type { I18nValues } from '../../app/i18n'
-import type { ConfirmDialogOptions } from '../../hooks/useAppDialog'
+import type { Notify } from '@/app/route-context'
+import type { I18nValues } from '@/app/i18n'
+import type { ConfirmDialogOptions } from '@/hooks/useAppDialog'
 
 type Translate = (message: string, values?: I18nValues) => string
 type MemoryType = 'concept' | 'file' | 'risk' | 'preference' | 'decision' | 'fact' | 'task'

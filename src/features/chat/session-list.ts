@@ -1,4 +1,4 @@
-import type { SessionSummary } from '../../types/chat'
+import type { SessionSummary } from '@/types/chat'
 
 export function mergeSessionLists(current: SessionSummary[], incoming: SessionSummary[]) {
   const incomingIds = new Set(incoming.map((session) => session.id))

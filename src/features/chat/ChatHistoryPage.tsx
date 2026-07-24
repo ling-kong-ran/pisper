@@ -9,16 +9,16 @@ import {
   RefreshCw,
   Trash2,
 } from 'lucide-react'
-import { APP_NAME } from '../../app/brand'
-import type { Notify } from '../../app/route-context'
-import { useI18n } from '../../app/use-i18n'
-import { STORAGE_KEYS } from '../../app/storage'
-import { StarOrbit } from '../../components/StarOrbit'
-import { Panel } from '../../components/ui'
-import type { ConfirmDialogOptions, PromptDialogOptions } from '../../hooks/useAppDialog'
-import { apiJson } from '../../lib/api'
-import { relativeTime, workspaceName } from '../../lib/format'
-import type { SessionSummary } from '../../types/chat'
+import { APP_NAME } from '@/app/brand'
+import type { Notify } from '@/app/route-context'
+import { useI18n } from '@/app/use-i18n'
+import { STORAGE_KEYS } from '@/app/storage'
+import { StarOrbit } from '@/components/StarOrbit'
+import { Panel } from '@/components/ui'
+import type { ConfirmDialogOptions, PromptDialogOptions } from '@/hooks/useAppDialog'
+import { apiJson } from '@/lib/api'
+import { relativeTime, workspaceName } from '@/lib/format'
+import type { SessionSummary } from '@/types/chat'
 import {
   ACTIVE_SESSION_CHANGED_EVENT,
   SESSIONS_UPDATED_EVENT,

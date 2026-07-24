@@ -15,12 +15,12 @@ import {
   Server,
   ShieldCheck,
 } from 'lucide-react'
-import { Badge, Panel, SectionTitle, Segmented, Toggle } from '../../components/ui'
-import { AppSelect } from '../../components/AppSelect'
-import { useI18n } from '../../app/use-i18n'
-import { apiJson } from '../../lib/api'
-import { relativeTime } from '../../lib/format'
-import { usePagePrimaryAction } from '../../hooks/usePagePrimaryAction'
+import { Badge, Panel, SectionTitle, Segmented, Toggle } from '@/components/ui'
+import { AppSelect } from '@/components/AppSelect'
+import { useI18n } from '@/app/use-i18n'
+import { apiJson } from '@/lib/api'
+import { relativeTime } from '@/lib/format'
+import { usePagePrimaryAction } from '@/hooks/usePagePrimaryAction'
 import {
   toolCapabilityLabel,
   toolCategoryLabel,
@@ -30,8 +30,8 @@ import {
   toolScopeLabel,
 } from './tool-labels'
 import type { LucideIcon } from 'lucide-react'
-import type { Notify } from '../../app/route-context'
-import type { EntityRecord } from '../../types/chat'
+import type { Notify } from '@/app/route-context'
+import type { EntityRecord } from '@/types/chat'
 
 type PluginTool = EntityRecord & {
   id: string

@@ -1,19 +1,19 @@
 import { useCallback, useEffect, useState } from 'react'
 import { AlertTriangle, Bell, BellOff, RefreshCw, Save, Send, ShieldCheck } from 'lucide-react'
-import { Badge, Panel, SectionTitle, Toggle } from '../../components/ui'
-import { APP_NAME } from '../../app/brand'
-import { useI18n } from '../../app/use-i18n'
-import { apiJson } from '../../lib/api'
+import { Badge, Panel, SectionTitle, Toggle } from '@/components/ui'
+import { APP_NAME } from '@/app/brand'
+import { useI18n } from '@/app/use-i18n'
+import { apiJson } from '@/lib/api'
 import {
   getBrowserNotificationPermission,
   prepareBrowserNotifications,
   requestBrowserNotificationPermission,
   showBrowserSystemNotification,
-} from '../../lib/browser-notifications'
+} from '@/lib/browser-notifications'
 import type { Dispatch, SetStateAction } from 'react'
-import type { I18nValues } from '../../app/i18n'
-import type { Notify } from '../../app/route-context'
-import type { NotificationPlatform, NotificationSettingsData } from '../../types/notifications'
+import type { I18nValues } from '@/app/i18n'
+import type { Notify } from '@/app/route-context'
+import type { NotificationPlatform, NotificationSettingsData } from '@/types/notifications'
 
 type Translate = (message: string, values?: I18nValues) => string
 type NotificationPermissionState = NotificationPermission | 'checking' | 'unsupported'

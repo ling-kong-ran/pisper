@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { useI18n } from '../app/use-i18n'
+import { useI18n } from '@/app/use-i18n'
 
 export type DialogTone = 'primary' | 'danger'
 export type AppDialogState = {

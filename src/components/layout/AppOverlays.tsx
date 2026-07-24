@@ -7,10 +7,10 @@ import {
   type MouseEvent,
 } from 'react'
 import { MessageSquare, Plus, Search, X, type LucideIcon } from 'lucide-react'
-import { useI18n } from '../../app/use-i18n'
-import { apiJson } from '../../lib/api'
-import { relativeTime } from '../../lib/format'
-import { InputLabel, SelectLabel } from '../ui'
+import { useI18n } from '@/app/use-i18n'
+import { apiJson } from '@/lib/api'
+import { relativeTime } from '@/lib/format'
+import { InputLabel, SelectLabel } from '@/components/ui'
 
 type Navigation = Array<[string, Array<[string, string, LucideIcon]>]>
 

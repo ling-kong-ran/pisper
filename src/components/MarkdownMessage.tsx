@@ -4,8 +4,8 @@ import ReactMarkdown, { type Components } from 'react-markdown'
 import rehypeHighlight from 'rehype-highlight'
 import remarkGfm from 'remark-gfm'
 import type { Pluggable } from 'unified'
-import { useI18n } from '../app/use-i18n'
-import { prepareMarkdown } from '../lib/markdown'
+import { useI18n } from '@/app/use-i18n'
+import { prepareMarkdown } from '@/lib/markdown'
 
 const MARKDOWN_PLUGINS: Pluggable[] = [remarkGfm]
 const HIGHLIGHT_PLUGINS: Pluggable[] = [[rehypeHighlight, { detect: false, ignoreMissing: true }]]

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react'
-import type { AppUpdateController, AppUpdateInfo, UpdateStatus } from '../../types/update'
+import type { AppUpdateController, AppUpdateInfo, UpdateStatus } from '@/types/update'
 import { checkWebUpdates, RELEASES_URL } from './update-client'
 
 const BUILD_VERSION = import.meta.env.VITE_APP_VERSION || '0.0.0'

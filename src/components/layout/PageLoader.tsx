@@ -1,6 +1,6 @@
 import { RefreshCw } from 'lucide-react'
-import { useI18n } from '../../app/use-i18n'
-import { Panel } from '../ui'
+import { useI18n } from '@/app/use-i18n'
+import { Panel } from '@/components/ui'
 
 export function PageLoader() {
   const { t } = useI18n()

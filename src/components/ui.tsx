@@ -8,8 +8,8 @@ import {
   type ReactNode,
 } from 'react'
 import { AlertTriangle, CheckCircle2, ChevronDown, Eye, Info, X } from 'lucide-react'
-import { useI18n } from '../app/use-i18n'
-import type { AppDialogState } from '../hooks/useAppDialog'
+import { useI18n } from '@/app/use-i18n'
+import type { AppDialogState } from '@/hooks/useAppDialog'
 import { AppSelect } from './AppSelect'
 
 const BADGE_TONES = {

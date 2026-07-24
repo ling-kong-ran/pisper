@@ -6,7 +6,7 @@ import type {
   SandboxStatus,
   SessionState,
   SessionSummary,
-} from '../../types/chat'
+} from '@/types/chat'
 import type { SessionOpenDisposition } from './dock-layout'
 
 export type ChatDockContextValue = {

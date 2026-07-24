@@ -1,4 +1,4 @@
-import { STORAGE_KEYS } from '../../app/storage'
+import { STORAGE_KEYS } from '@/app/storage'
 import {
   createSessionOpenRequest,
   parseSessionOpenRequest,

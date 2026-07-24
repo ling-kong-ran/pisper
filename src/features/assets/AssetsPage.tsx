@@ -14,16 +14,16 @@ import {
   Trash2,
   X,
 } from 'lucide-react'
-import { STORAGE_KEYS } from '../../app/storage'
-import { useI18n } from '../../app/use-i18n'
-import { Panel, Segmented } from '../../components/ui'
-import { StarOrbit } from '../../components/StarOrbit'
-import { usePagePrimaryAction } from '../../hooks/usePagePrimaryAction'
-import { apiJson } from '../../lib/api'
-import { formatFileSize } from '../../lib/format'
-import type { Notify } from '../../app/route-context'
-import type { ConfirmDialogOptions } from '../../hooks/useAppDialog'
-import type { ChatAttachment, EntityRecord } from '../../types/chat'
+import { STORAGE_KEYS } from '@/app/storage'
+import { useI18n } from '@/app/use-i18n'
+import { Panel, Segmented } from '@/components/ui'
+import { StarOrbit } from '@/components/StarOrbit'
+import { usePagePrimaryAction } from '@/hooks/usePagePrimaryAction'
+import { apiJson } from '@/lib/api'
+import { formatFileSize } from '@/lib/format'
+import type { Notify } from '@/app/route-context'
+import type { ConfirmDialogOptions } from '@/hooks/useAppDialog'
+import type { ChatAttachment, EntityRecord } from '@/types/chat'
 
 type Asset = ChatAttachment & {
   id: string

@@ -1,5 +1,5 @@
 import { useId, useState, type CSSProperties, type PointerEvent } from 'react'
-import { useI18n } from '../app/use-i18n'
+import { useI18n } from '@/app/use-i18n'
 
 type AgentAvatarState = 'idle' | 'waiting' | 'thinking'
 

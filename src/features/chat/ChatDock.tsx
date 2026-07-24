@@ -10,10 +10,10 @@ import {
   Plus,
   Search,
 } from 'lucide-react'
-import { useI18n } from '../../app/use-i18n'
-import { relativeTime } from '../../lib/format'
-import { DEFAULT_SESSION_STATE } from '../../lib/session-state'
-import type { ChatAttachment, SessionState, SessionSummary } from '../../types/chat'
+import { useI18n } from '@/app/use-i18n'
+import { relativeTime } from '@/lib/format'
+import { DEFAULT_SESSION_STATE } from '@/lib/session-state'
+import type { ChatAttachment, SessionState, SessionSummary } from '@/types/chat'
 import { FocusSession } from './FocusSession'
 import { ChatDockContext } from './chat-dock-context'
 import { sessionIdFromPanel, type SessionOpenDisposition } from './dock-layout'

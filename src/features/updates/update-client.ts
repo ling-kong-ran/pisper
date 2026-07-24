@@ -1,6 +1,6 @@
-import type { UpdateStatus } from '../../types/update'
+import type { UpdateStatus } from '@/types/update'
 
-export { RELEASES_URL } from '../../../shared/app-update.mjs'
+export { RELEASES_URL } from '@shared/app-update.mjs'
 
 export async function checkWebUpdates({
   refresh = false,

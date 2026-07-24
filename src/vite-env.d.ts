@@ -1,6 +1,6 @@
 /// <reference types="vite/client" />
 
-import type { DesktopBridge } from './types/update'
+import type { DesktopBridge } from '@/types/update'
 
 declare module '*.css'
 
