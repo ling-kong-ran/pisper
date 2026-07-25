@@ -1,0 +1,21 @@
+{
+  "tray.showMainWindow": "显示主窗口",
+  "tray.closeAction": "关闭行为：{action}",
+  "tray.closeActionTray": "最小化到托盘",
+  "tray.closeActionQuit": "退出程序",
+  "tray.closeActionAsk": "每次询问",
+  "tray.askOnCloseAgain": "关闭时重新询问",
+  "tray.quit": "退出",
+  "closeDialog.title": "关闭 Vesper",
+  "closeDialog.message": "关闭主窗口时要做什么？",
+  "closeDialog.detail": "可以选择收纳到系统托盘继续在后台运行，或直接退出程序。",
+  "closeDialog.minimizeToTray": "最小化到托盘",
+  "closeDialog.quit": "退出",
+  "closeDialog.cancel": "取消",
+  "closeDialog.rememberChoice": "下次自动使用此选择",
+  "update.devModeCheckOnly": "开发模式仅检查版本，请从 GitHub Releases 下载正式安装包。",
+  "update.upToDate": "当前已是最新版本。",
+  "update.downloadedRestartToInstall": "更新已下载，重启后完成安装。",
+  "update.openedGitHubReleases": "已打开 GitHub Releases。",
+  "update.githubReleaseRequestFailed": "GitHub Release 请求失败：HTTP {status}"
+}

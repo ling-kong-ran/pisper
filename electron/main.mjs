@@ -1,11 +1,12 @@
-import { existsSync } from 'node:fs'
+import { existsSync, readFileSync, writeFileSync } from 'node:fs'
 import { homedir } from 'node:os'
 import { join } from 'node:path'
-import { app, autoUpdater as nativeAutoUpdater, BrowserWindow, dialog, ipcMain, Menu, nativeTheme, net, Notification as ElectronNotification, shell } from 'electron'
+import { app, autoUpdater as nativeAutoUpdater, BrowserWindow, dialog, ipcMain, Menu, nativeImage, nativeTheme, net, Notification as ElectronNotification, shell, Tray } from 'electron'
 import updater from 'electron-updater'
 import { createVesperServer } from '../server/app-server.mjs'
 import { createElectronBrowserAutomationDriver } from './browser-automation.mjs'
 import { getDesktopNotificationStatus, WINDOWS_NOTIFICATION_SETTINGS_URL } from './desktop-notifications.mjs'
+import { getDesktopLanguage, isSupportedLanguage, setDesktopLanguage, t } from './i18n.mjs'
 import { enableResumableUpdateDownloads } from './resumable-update-download.mjs'
 import { createUpdateLogger, shutdownWithDeadline } from './update-lifecycle.mjs'
 import { LATEST_RELEASE_API, newerVersion, normalizedVersion, reconcileDesktopUpdateCheck, RELEASES_URL } from '../shared/app-update.mjs'
@@ -14,14 +15,19 @@ import { releaseNotesMarkdown } from '../shared/release-notes.mjs'
 const { autoUpdater } = updater
 const UPDATE_CHANNEL = 'vesper:update-status'
 const APP_USER_MODEL_ID = 'com.lingkongran.vesper'
+const CLOSE_ACTION_ASK = 'ask'
+const CLOSE_ACTION_TRAY = 'tray'
+const CLOSE_ACTION_QUIT = 'quit'
 const NO_CACHE_HEADERS = Object.freeze({
   'Cache-Control': 'no-cache',
   Pragma: 'no-cache',
 })
 let mainWindow = null
+let tray = null
 let vesperServer = null
 let updateCheck = null
 let quitting = false
+let closePromptOpen = false
 let updateState = { state: 'idle', checkedAt: null }
 let updateLogger = console
 let updateLogPath = ''
@@ -71,7 +77,7 @@ async function githubLatestRelease() {
       ...NO_CACHE_HEADERS,
     },
   })
-  if (!response.ok) throw new Error(`GitHub Release 请求失败：HTTP ${response.status}`)
+  if (!response.ok) throw new Error(t('update.githubReleaseRequestFailed', { status: response.status }))
   const release = await response.json()
   const version = normalizedVersion(release.tag_name)
   return {
@@ -110,8 +116,8 @@ async function checkForUpdates({ silent = false } = {}) {
           canDownload: false,
           checkedAt: new Date().toISOString(),
           message: latest.available
-            ? '开发模式仅检查版本，请从 GitHub Releases 下载正式安装包。'
-            : '当前已是最新版本。',
+            ? t('update.devModeCheckOnly')
+            : t('update.upToDate'),
         })
       }
 
@@ -216,7 +222,7 @@ function configureUpdater() {
       canDownload: false,
       canResume: false,
       checkedAt: new Date().toISOString(),
-      message: '当前已是最新版本。',
+      message: t('update.upToDate'),
     })
   })
   autoUpdater.on('download-progress', (progress) => publishUpdate({
@@ -239,7 +245,7 @@ function configureUpdater() {
       canInstall: true,
       canResume: false,
       percent: 100,
-      message: '更新已下载，重启后完成安装。',
+      message: t('update.downloadedRestartToInstall'),
     })
   })
   autoUpdater.on('error', (error) => {
@@ -260,6 +266,10 @@ async function prepareApplicationShutdown({ exit = true } = {}) {
   updateLogger.info('Application shutdown started.', { reason: installingUpdate ? 'update' : 'quit' })
   return shutdownWithDeadline({
     destroy: () => {
+      if (tray) {
+        tray.destroy()
+        tray = null
+      }
       if (mainWindow && !mainWindow.isDestroyed()) mainWindow.destroy()
       mainWindow = null
     },
@@ -267,6 +277,200 @@ async function prepareApplicationShutdown({ exit = true } = {}) {
     ...(exit ? { exit: (code) => app.exit(code) } : {}),
     logger: updateLogger,
   })
+}
+
+function resolveAppIconPath(appRoot = app.getAppPath()) {
+  const icon = join(appRoot, 'build', 'icon.png')
+  return existsSync(icon) ? icon : null
+}
+
+function resolveTrayIconPath(appRoot = app.getAppPath()) {
+  const candidates = process.platform === 'win32'
+    ? ['build/icons/16x16.png', 'build/icons/32x32.png', 'build/icon.png']
+    : process.platform === 'darwin'
+      ? ['build/icons/16x16.png', 'build/icons/32x32.png', 'build/icon.png']
+      : ['build/icons/32x32.png', 'build/icons/24x24.png', 'build/icon.png']
+  for (const relative of candidates) {
+    const fullPath = join(appRoot, relative)
+    if (existsSync(fullPath)) return fullPath
+  }
+  return resolveAppIconPath(appRoot)
+}
+
+async function showMainWindow() {
+  if (!mainWindow || mainWindow.isDestroyed()) {
+    await createWindow()
+    return
+  }
+  if (mainWindow.isMinimized()) mainWindow.restore()
+  mainWindow.show()
+  if (typeof mainWindow.moveTop === 'function') mainWindow.moveTop()
+  mainWindow.focus()
+}
+
+function hideMainWindowToTray() {
+  if (!mainWindow || mainWindow.isDestroyed()) return
+  mainWindow.hide()
+}
+
+function desktopPreferencesPath() {
+  return join(app.getPath('userData'), 'desktop-preferences.json')
+}
+
+function normalizeCloseAction(value) {
+  if (value === CLOSE_ACTION_TRAY || value === CLOSE_ACTION_QUIT || value === CLOSE_ACTION_ASK) return value
+  return CLOSE_ACTION_ASK
+}
+
+function loadDesktopPreferences() {
+  try {
+    const raw = readFileSync(desktopPreferencesPath(), 'utf8')
+    const data = JSON.parse(raw)
+    return {
+      closeAction: normalizeCloseAction(data?.closeAction),
+      language: isSupportedLanguage(data?.language) ? data.language : null,
+    }
+  } catch {
+    return { closeAction: CLOSE_ACTION_ASK, language: null }
+  }
+}
+
+function saveDesktopPreferences(patch = {}) {
+  const current = loadDesktopPreferences()
+  const next = {
+    ...current,
+    ...patch,
+    closeAction: normalizeCloseAction(patch.closeAction ?? current.closeAction),
+    language: isSupportedLanguage(patch.language)
+      ? patch.language
+      : (isSupportedLanguage(current.language) ? current.language : null),
+  }
+  writeFileSync(desktopPreferencesPath(), `${JSON.stringify(next, null, 2)}\n`, 'utf8')
+  return next
+}
+
+function applyDesktopLanguage(language, { persist = false } = {}) {
+  if (!isSupportedLanguage(language)) return getDesktopLanguage()
+  const next = setDesktopLanguage(language)
+  if (persist) saveDesktopPreferences({ language: next })
+  updateTrayMenu()
+  return next
+}
+
+function restoreDesktopLanguagePreference() {
+  const { language } = loadDesktopPreferences()
+  if (language) setDesktopLanguage(language)
+}
+
+function closeActionLabel(action) {
+  if (action === CLOSE_ACTION_TRAY) return t('tray.closeActionTray')
+  if (action === CLOSE_ACTION_QUIT) return t('tray.closeActionQuit')
+  return t('tray.closeActionAsk')
+}
+
+function buildTrayMenuTemplate() {
+  const { closeAction } = loadDesktopPreferences()
+  return [
+    {
+      label: t('tray.showMainWindow'),
+      click: () => { void showMainWindow() },
+    },
+    { type: 'separator' },
+    {
+      label: t('tray.closeAction', { action: closeActionLabel(closeAction) }),
+      enabled: false,
+    },
+    ...(closeAction === CLOSE_ACTION_ASK
+      ? []
+      : [{
+          label: t('tray.askOnCloseAgain'),
+          click: () => {
+            saveDesktopPreferences({ closeAction: CLOSE_ACTION_ASK })
+            updateTrayMenu()
+          },
+        }]),
+    { type: 'separator' },
+    {
+      label: t('tray.quit'),
+      click: () => {
+        app.quit()
+      },
+    },
+  ]
+}
+
+function updateTrayMenu() {
+  if (!tray) return
+  tray.setContextMenu(Menu.buildFromTemplate(buildTrayMenuTemplate()))
+}
+
+async function handleWindowCloseRequest() {
+  if (quitting || !mainWindow || mainWindow.isDestroyed()) return
+  if (!tray) {
+    app.quit()
+    return
+  }
+
+  const { closeAction } = loadDesktopPreferences()
+  if (closeAction === CLOSE_ACTION_TRAY) {
+    hideMainWindowToTray()
+    return
+  }
+  if (closeAction === CLOSE_ACTION_QUIT) {
+    app.quit()
+    return
+  }
+  if (closePromptOpen) return
+
+  closePromptOpen = true
+  try {
+    const result = await dialog.showMessageBox(mainWindow, {
+      type: 'question',
+      buttons: [t('closeDialog.minimizeToTray'), t('closeDialog.quit'), t('closeDialog.cancel')],
+      defaultId: 0,
+      cancelId: 2,
+      title: t('closeDialog.title'),
+      message: t('closeDialog.message'),
+      detail: t('closeDialog.detail'),
+      checkboxLabel: t('closeDialog.rememberChoice'),
+      checkboxChecked: false,
+      noLink: true,
+    })
+
+    if (result.response === 2 || quitting) return
+
+    const action = result.response === 0 ? CLOSE_ACTION_TRAY : CLOSE_ACTION_QUIT
+    if (result.checkboxChecked) {
+      saveDesktopPreferences({ closeAction: action })
+      updateTrayMenu()
+    }
+
+    if (action === CLOSE_ACTION_TRAY) hideMainWindowToTray()
+    else app.quit()
+  } finally {
+    closePromptOpen = false
+  }
+}
+
+function createTray() {
+  if (tray) return tray
+  const iconPath = resolveTrayIconPath()
+  if (!iconPath) {
+    updateLogger.warn('Tray icon not found; system tray was not created.')
+    return null
+  }
+  const image = nativeImage.createFromPath(iconPath)
+  if (image.isEmpty()) {
+    updateLogger.warn('Tray icon could not be loaded; system tray was not created.', { iconPath })
+    return null
+  }
+  if (process.platform === 'darwin') image.setTemplateImage(true)
+  tray = new Tray(process.platform === 'win32' ? image.resize({ width: 16, height: 16 }) : image)
+  tray.setToolTip('Vesper')
+  updateTrayMenu()
+  tray.on('click', () => { void showMainWindow() })
+  tray.on('double-click', () => { void showMainWindow() })
+  return tray
 }
 
 function titleBarOptions() {
@@ -303,7 +507,7 @@ async function openExternalUrl(value) {
 
 async function createWindow() {
   const appRoot = app.getAppPath()
-  const icon = join(appRoot, 'build', 'icon.png')
+  const icon = resolveAppIconPath(appRoot)
   if (!vesperServer) {
     vesperServer = await createVesperServer({
       root: appRoot,
@@ -323,7 +527,7 @@ async function createWindow() {
     show: false,
     backgroundColor: nativeTheme.shouldUseDarkColors ? '#111113' : '#ffffff',
     autoHideMenuBar: true,
-    ...(existsSync(icon) ? { icon } : {}),
+    ...(icon ? { icon } : {}),
     ...titleBarOptions(),
     webPreferences: {
       preload: join(appRoot, 'electron', 'preload.cjs'),
@@ -347,6 +551,12 @@ async function createWindow() {
     void openExternalUrl(url)
   })
   mainWindow.once('ready-to-show', () => mainWindow?.show())
+  // Close button asks tray/quit (or uses the remembered preference).
+  mainWindow.on('close', (event) => {
+    if (quitting || !tray) return
+    event.preventDefault()
+    void handleWindowCloseRequest()
+  })
   mainWindow.on('closed', () => { mainWindow = null })
   await mainWindow.loadURL(vesperServer.url)
 }
@@ -358,16 +568,18 @@ function registerIpc() {
     version: app.getVersion(),
     platform: process.platform,
     arch: process.arch,
+    language: getDesktopLanguage(),
     releasesUrl: RELEASES_URL,
     update: updateState,
   }))
+  ipcMain.handle('vesper:set-language', (_event, language) => applyDesktopLanguage(language, { persist: true }))
   ipcMain.handle('vesper:check-for-updates', () => checkForUpdates())
   ipcMain.handle('vesper:download-update', async () => {
     const canResume = updateState.state === 'error' && updateState.canResume
     const canDownload = updateState.state === 'available' || canResume
     if (!app.isPackaged || !canDownload || !updateState.canDownload) {
       await openExternalUrl(updateState.releaseUrl || RELEASES_URL)
-      return publishUpdate({ ...updateState, message: '已打开 GitHub Releases。' })
+      return publishUpdate({ ...updateState, message: t('update.openedGitHubReleases') })
     }
     publishUpdate({ state: 'downloading', canResume: false, percent: 0, message: '' })
     await autoUpdater.downloadUpdate()
@@ -416,10 +628,7 @@ function registerIpc() {
     notification.once('close', cleanup)
     notification.once('failed', cleanup)
     notification.on('click', () => {
-      if (!mainWindow) return
-      if (mainWindow.isMinimized()) mainWindow.restore()
-      mainWindow.show()
-      mainWindow.focus()
+      void showMainWindow()
     })
     notification.show()
     const cleanupTimer = setTimeout(cleanup, 30_000)
@@ -431,18 +640,18 @@ function registerIpc() {
 if (!app.requestSingleInstanceLock()) app.quit()
 else {
   app.on('second-instance', () => {
-    if (!mainWindow) return
-    if (mainWindow.isMinimized()) mainWindow.restore()
-    mainWindow.focus()
+    void showMainWindow()
   })
   app.whenReady().then(async () => {
     app.setAppUserModelId(APP_USER_MODEL_ID)
+    restoreDesktopLanguagePreference()
     configureUpdater()
     registerIpc()
     nativeTheme.on('updated', updateTitleBarOverlay)
+    createTray()
     await createWindow()
     setTimeout(() => { void checkForUpdates({ silent: true }) }, 3_000)
-    app.on('activate', () => { if (BrowserWindow.getAllWindows().length === 0) void createWindow() })
+    app.on('activate', () => { void showMainWindow() })
   }).catch((error) => {
     updateLogger.error('Vesper failed to start.', error)
     dialog.showErrorBox('Vesper failed to start', `${error instanceof Error ? error.message : String(error)}\n\nUpdate log: ${updateLogPath || 'not initialized'}`)
@@ -450,7 +659,11 @@ else {
   })
 }
 
-app.on('window-all-closed', () => { if (process.platform !== 'darwin' && !quitting) app.quit() })
+// Keep the process alive while the main window is only hidden in the tray.
+app.on('window-all-closed', () => {
+  if (quitting || tray) return
+  if (process.platform !== 'darwin') app.quit()
+})
 app.on('before-quit', (event) => {
   if (quitting) return
   event.preventDefault()

@@ -54,6 +54,7 @@ export type DesktopNotificationResult = {
 export type DesktopBridge = {
   platform?: string
   getAppInfo: () => Promise<AppUpdateInfo>
+  setLanguage?: (language: string) => Promise<string>
   checkForUpdates: () => Promise<UpdateStatus>
   downloadUpdate: () => Promise<UpdateStatus>
   installUpdate: () => Promise<unknown>

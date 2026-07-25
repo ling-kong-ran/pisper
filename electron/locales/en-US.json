@@ -1,0 +1,21 @@
+{
+  "tray.showMainWindow": "Show main window",
+  "tray.closeAction": "Close action: {action}",
+  "tray.closeActionTray": "Minimize to tray",
+  "tray.closeActionQuit": "Quit",
+  "tray.closeActionAsk": "Ask every time",
+  "tray.askOnCloseAgain": "Ask again on close",
+  "tray.quit": "Quit",
+  "closeDialog.title": "Close Vesper",
+  "closeDialog.message": "What should happen when the main window is closed?",
+  "closeDialog.detail": "You can keep Vesper running in the system tray, or quit the application.",
+  "closeDialog.minimizeToTray": "Minimize to tray",
+  "closeDialog.quit": "Quit",
+  "closeDialog.cancel": "Cancel",
+  "closeDialog.rememberChoice": "Remember this choice next time",
+  "update.devModeCheckOnly": "Development mode only checks the version. Download the official installer from GitHub Releases.",
+  "update.upToDate": "You are already on the latest version.",
+  "update.downloadedRestartToInstall": "Update downloaded. Restart to finish installing.",
+  "update.openedGitHubReleases": "Opened GitHub Releases.",
+  "update.githubReleaseRequestFailed": "GitHub release request failed: HTTP {status}"
+}

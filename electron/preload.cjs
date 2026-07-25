@@ -3,6 +3,7 @@ const { contextBridge, ipcRenderer } = require('electron')
 contextBridge.exposeInMainWorld('vesperDesktop', Object.freeze({
   platform: process.platform,
   getAppInfo: () => ipcRenderer.invoke('vesper:get-app-info'),
+  setLanguage: (language) => ipcRenderer.invoke('vesper:set-language', language),
   checkForUpdates: () => ipcRenderer.invoke('vesper:check-for-updates'),
   downloadUpdate: () => ipcRenderer.invoke('vesper:download-update'),
   installUpdate: () => ipcRenderer.invoke('vesper:install-update'),

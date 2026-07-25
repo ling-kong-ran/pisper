@@ -14,6 +14,8 @@ function LanguagePreferenceBridge({ children }: { children: ReactNode }) {
     try {
       localStorage.setItem(STORAGE_KEYS.language, language)
     } catch {}
+    // Keep Electron shell chrome (tray, close dialog) in sync with the UI language.
+    void window.vesperDesktop?.setLanguage?.(language)
   }, [language])
 
   return children
