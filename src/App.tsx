@@ -7,6 +7,7 @@ import { getNavigation, getPageMeta } from '@/app/navigation'
 import { PAGE_IDS, pageFromPath, pagePath } from '@/app/routes'
 import { useI18n } from '@/app/use-i18n'
 import { BrandLogo } from '@/components/BrandLogo'
+import { WebPreviewProvider } from '@/components/WebPreviewProvider'
 import { AppSidebar } from '@/components/layout/AppSidebar'
 import { CommandPalette, QuickCreate } from '@/components/layout/AppOverlays'
 import { PageHeader } from '@/components/layout/PageHeader'
@@ -382,6 +383,7 @@ function App() {
 
   return (
     <div className="app-shell">
+      <WebPreviewProvider />
       <SidebarProvider
         className="app-body"
         open={!sidebarCollapsed}

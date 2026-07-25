@@ -37,6 +37,7 @@ import {
   consumeSessionSelectionRequest,
 } from './events'
 import { ChatDockWatermark, SessionDockPanel, SessionRail } from './ChatDock'
+import { WebPreviewDockPanel } from './WebPreviewDockPanel'
 import { chatApi, type ApiRecord } from './chat-api'
 import { ChatDockContext, type ChatDockContextValue } from './chat-dock-context'
 import {
@@ -51,6 +52,12 @@ import {
 import { pushCurrentActivity, settleToolCalls, taskListChanges } from './run-activity'
 import { shouldPollLiveSession } from './live-session-sync'
 import { mergeSessionLists } from './session-list'
+import {
+  WEB_PREVIEW_OPEN_EVENT,
+  consumeWebPreviewRequest,
+  type WebPreviewOpenRequest,
+} from './web-preview-events'
+import { WEB_PREVIEW_PANEL_ID, webPreviewPanelTitle } from './web-preview-panel'
 import type { ConfirmDialogOptions, PromptDialogOptions } from '@/hooks/useAppDialog'
 import type { Notify } from '@/app/route-context'
 import type {
@@ -150,6 +157,7 @@ export function ChatPage({
   const dockDisposablesRef = useRef<DockviewIDisposable[]>([])
   const layoutSaveTimerRef = useRef<number | undefined>(undefined)
   const pendingDockRequestRef = useRef<SessionOpenRequest | null>(null)
+  const pendingWebPreviewRef = useRef<WebPreviewOpenRequest | null>(null)
   const compactDockRef = useRef(compactDock)
   const legacyTiledSessionIdsRef = useRef(readStoredArray(STORAGE_KEYS.tiledSessions))
   const localStreamSessionsRef = useRef(new Set<string>())
@@ -394,6 +402,43 @@ export function ChatPage({
     [loadSessionMessages, t],
   )
 
+  const openWebPreviewInDock = useCallback(
+    (request: WebPreviewOpenRequest) => {
+      const api = dockApiRef.current
+      if (!api || !dockInitializedRef.current) {
+        pendingWebPreviewRef.current = request
+        return false
+      }
+      const existing = api.getPanel(WEB_PREVIEW_PANEL_ID)
+      const title = webPreviewPanelTitle(request.url, t('common:webPreview.title'))
+      if (existing) {
+        existing.api.updateParameters({ url: request.url })
+        existing.api.setTitle(title)
+        existing.api.setActive()
+        return true
+      }
+      const referencePanel = api.activePanel
+      const position = compactDockRef.current
+        ? api.activeGroup
+          ? { referenceGroup: api.activeGroup }
+          : undefined
+        : referencePanel
+          ? { referencePanel, direction: 'right' as const }
+          : { direction: 'right' as const }
+      api.addPanel({
+        id: WEB_PREVIEW_PANEL_ID,
+        component: 'webPreview',
+        title,
+        params: { url: request.url },
+        renderer: 'always',
+        minimumWidth: 360,
+        ...(position ? { position } : {}),
+      })
+      return true
+    },
+    [t],
+  )
+
   const splitDockPanel = useCallback(
     (panelId: string, direction: Exclude<SessionOpenDisposition, 'open'>) => {
       const panel = dockApiRef.current?.getPanel(panelId)
@@ -430,7 +475,7 @@ export function ChatPage({
       dockDisposablesRef.current.push(
         api.onDidActivePanelChange(({ panel }) => {
           const sessionId = sessionIdFromPanel(panel)
-          setActiveId(sessionId)
+          if (sessionId) setActiveId(sessionId)
         }),
         api.onDidLayoutChange(() => scheduleDockLayoutSave(api)),
         api.onDidAddPanel((panel) => {
@@ -454,6 +499,17 @@ export function ChatPage({
     window.addEventListener(SESSION_SELECTED_EVENT, selectSession)
     return () => window.removeEventListener(SESSION_SELECTED_EVENT, selectSession)
   }, [openSessionInDock])
+
+  useEffect(() => {
+    const openPreview = (event: Event) => {
+      const request = (event as CustomEvent<WebPreviewOpenRequest>).detail
+      if (!request?.url) return
+      localStorage.removeItem(STORAGE_KEYS.webPreviewRequest)
+      openWebPreviewInDock(request)
+    }
+    window.addEventListener(WEB_PREVIEW_OPEN_EVENT, openPreview)
+    return () => window.removeEventListener(WEB_PREVIEW_OPEN_EVENT, openPreview)
+  }, [openWebPreviewInDock])
 
   useEffect(
     () => () => {
@@ -620,14 +676,7 @@ export function ChatPage({
   }, [t, updateSessionState])
 
   useEffect(() => {
-    if (
-      !dockReady ||
-      loading ||
-      dockInitializedRef.current ||
-      !dockApiRef.current ||
-      !remoteSessions.length
-    )
-      return
+    if (!dockReady || loading || dockInitializedRef.current || !dockApiRef.current) return
     const api = dockApiRef.current
     const validIds = new Set(remoteSessions.map((session) => session.id))
     const storedLayout = parseDockLayoutEnvelope(localStorage.getItem(STORAGE_KEYS.chatDockLayout))
@@ -635,6 +684,7 @@ export function ChatPage({
       try {
         api.fromJSON(storedLayout.layout)
         for (const panel of [...api.panels]) {
+          if (panel.api.component !== 'session') continue
           const sessionId = sessionIdFromPanel(panel)
           if (!validIds.has(sessionId)) api.removePanel(panel)
         }
@@ -680,8 +730,20 @@ export function ChatPage({
         api.getPanel(storedLayout?.activePanelId || panelIdForSession(activeId)) || api.panels[0]
       preferredPanel?.api.setActive()
     }
+    const previewRequest = pendingWebPreviewRef.current || consumeWebPreviewRequest()
+    pendingWebPreviewRef.current = null
+    if (previewRequest) openWebPreviewInDock(previewRequest)
     scheduleDockLayoutSave(api)
-  }, [activeId, dockReady, loading, openSessionInDock, remoteSessions, scheduleDockLayoutSave, t])
+  }, [
+    activeId,
+    dockReady,
+    loading,
+    openSessionInDock,
+    openWebPreviewInDock,
+    remoteSessions,
+    scheduleDockLayoutSave,
+    t,
+  ])
 
   useEffect(() => {
     if (!dockInitializedRef.current || !dockApiRef.current) return
@@ -1646,7 +1708,10 @@ export function ChatPage({
     }
   }
 
-  const dockComponents = useMemo(() => ({ session: SessionDockPanel }), [])
+  const dockComponents = useMemo(
+    () => ({ session: SessionDockPanel, webPreview: WebPreviewDockPanel }),
+    [],
+  )
   const getTabContextMenuItems = useCallback(
     ({
       panel,

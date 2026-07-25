@@ -1,0 +1,298 @@
+.rb-shiny-text {
+  display: inline-block;
+  background: linear-gradient(
+    110deg,
+    var(--text) 0%,
+    var(--text) 38%,
+    var(--star-strong) 48%,
+    var(--brand-blue-strong) 52%,
+    var(--text) 62%,
+    var(--text) 100%
+  );
+  background-size: 240% 100%;
+  background-clip: text;
+  color: transparent;
+  animation: rb-shiny-text 2.8s linear infinite;
+}
+
+@keyframes rb-shiny-text {
+  from {
+    background-position: 120% 50%;
+  }
+  to {
+    background-position: -120% 50%;
+  }
+}
+
+.rb-blur-text {
+  display: inline;
+}
+.rb-blur-text-word {
+  display: inline-block;
+  opacity: 0;
+  filter: blur(8px);
+  transform: translateY(5px);
+  animation: rb-blur-text 0.55s var(--ease-out) forwards;
+  animation-delay: var(--rb-delay, 0ms);
+}
+
+@keyframes rb-blur-text {
+  to {
+    opacity: 1;
+    filter: blur(0);
+    transform: translateY(0);
+  }
+}
+
+.rb-spotlight-card {
+  --rb-spotlight-x: 50%;
+  --rb-spotlight-y: 50%;
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
+}
+.rb-spotlight-card::before {
+  position: absolute;
+  z-index: 0;
+  width: 260px;
+  height: 260px;
+  border-radius: 50%;
+  background: radial-gradient(
+    circle,
+    color-mix(in srgb, var(--brand-blue) 14%, transparent),
+    transparent 68%
+  );
+  content: '';
+  opacity: 0;
+  pointer-events: none;
+  transform: translate(calc(var(--rb-spotlight-x) - 50%), calc(var(--rb-spotlight-y) - 50%));
+  transition: opacity var(--d1) var(--ease-out);
+}
+.rb-spotlight-card:hover::before {
+  opacity: 1;
+}
+.rb-spotlight-card > * {
+  position: relative;
+  z-index: 1;
+}
+
+.rb-animated-list-item {
+  width: 100%;
+}
+.rb-animated-list-item > * {
+  width: 100%;
+}
+
+.rb-click-spark {
+  position: relative;
+  display: inline-flex;
+}
+.rb-click-spark-burst {
+  position: absolute;
+  z-index: 20;
+  width: 1px;
+  height: 1px;
+  pointer-events: none;
+}
+.rb-click-spark-burst i {
+  --rb-spark-angle: 0deg;
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 7px;
+  height: 1.5px;
+  border-radius: var(--r-pill);
+  background: var(--star-strong);
+  box-shadow: 0 0 5px color-mix(in srgb, var(--star) 55%, transparent);
+  transform: rotate(var(--rb-spark-angle)) translateX(3px) scaleX(0.4);
+  transform-origin: left center;
+  animation: rb-click-spark 0.48s var(--ease-out) forwards;
+}
+
+@keyframes rb-click-spark {
+  0% {
+    opacity: 0;
+    transform: rotate(var(--rb-spark-angle)) translateX(2px) scaleX(0.2);
+  }
+  22% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+    transform: rotate(var(--rb-spark-angle)) translateX(17px) scaleX(1);
+  }
+}
+
+.rb-aurora {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  pointer-events: none;
+}
+.rb-aurora i {
+  position: absolute;
+  width: 42%;
+  height: 74%;
+  border-radius: 50%;
+  filter: blur(38px);
+  opacity: 0.16;
+  mix-blend-mode: screen;
+  animation: rb-aurora 12s ease-in-out infinite alternate;
+}
+.rb-aurora i:nth-child(1) {
+  top: 2%;
+  left: 8%;
+  background: var(--brand-blue);
+}
+.rb-aurora i:nth-child(2) {
+  right: 5%;
+  bottom: 0;
+  background: var(--star);
+  animation-delay: -4s;
+}
+.rb-aurora i:nth-child(3) {
+  top: 30%;
+  left: 38%;
+  background: var(--success);
+  opacity: 0.08;
+  animation-delay: -8s;
+}
+
+@keyframes rb-aurora {
+  from {
+    transform: translate3d(-6%, -3%, 0) scale(0.92) rotate(-8deg);
+  }
+  to {
+    transform: translate3d(9%, 6%, 0) scale(1.12) rotate(10deg);
+  }
+}
+
+.rb-threads {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+  pointer-events: none;
+}
+.rb-threads path {
+  fill: none;
+  stroke: color-mix(in srgb, var(--brand-blue) 34%, var(--stroke-soft));
+  stroke-width: 1.1;
+  stroke-dasharray: 9 13;
+  vector-effect: non-scaling-stroke;
+  animation: rb-threads 6s linear infinite;
+}
+
+@keyframes rb-threads {
+  to {
+    stroke-dashoffset: -44;
+  }
+}
+
+.rb-ascii-text {
+  display: block;
+  width: min(430px, 100%);
+  height: 88px;
+  color: color-mix(in srgb, var(--star-strong) 72%, var(--text));
+  filter: drop-shadow(0 0 9px color-mix(in srgb, var(--star) 22%, transparent));
+  opacity: 0.88;
+}
+
+.rb-target-cursor {
+  position: relative;
+  isolation: isolate;
+}
+.rb-target-cursor-dot,
+.rb-target-cursor-frame {
+  position: absolute;
+  z-index: 8;
+  top: 0;
+  left: 0;
+  pointer-events: none;
+  opacity: 0;
+  will-change: transform;
+}
+.rb-target-cursor-dot {
+  width: 6px;
+  height: 6px;
+  margin: -3px 0 0 -3px;
+  border: 1px solid color-mix(in srgb, var(--solid) 86%, transparent);
+  border-radius: 50%;
+  background: var(--star-strong);
+  box-shadow: 0 0 9px color-mix(in srgb, var(--star) 45%, transparent);
+  transition: opacity 90ms linear;
+}
+.rb-target-cursor-frame {
+  transition:
+    width 180ms var(--ease-out),
+    height 180ms var(--ease-out),
+    transform 180ms var(--ease-out),
+    opacity 120ms linear;
+}
+.rb-target-cursor-dot[data-visible='true'],
+.rb-target-cursor-frame[data-visible='true'] {
+  opacity: 0.82;
+}
+.rb-target-cursor-frame i {
+  position: absolute;
+  width: 8px;
+  height: 8px;
+  border-color: var(--star-strong);
+  border-style: solid;
+  filter: drop-shadow(0 0 4px color-mix(in srgb, var(--star) 35%, transparent));
+}
+.rb-target-cursor-frame i:nth-child(1) {
+  top: 0;
+  left: 0;
+  border-width: 1px 0 0 1px;
+}
+.rb-target-cursor-frame i:nth-child(2) {
+  top: 0;
+  right: 0;
+  border-width: 1px 1px 0 0;
+}
+.rb-target-cursor-frame i:nth-child(3) {
+  right: 0;
+  bottom: 0;
+  border-width: 0 1px 1px 0;
+}
+.rb-target-cursor-frame i:nth-child(4) {
+  bottom: 0;
+  left: 0;
+  border-width: 0 0 1px 1px;
+}
+
+@media (pointer: coarse) {
+  .rb-target-cursor-dot,
+  .rb-target-cursor-frame {
+    display: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .rb-shiny-text,
+  .rb-blur-text-word,
+  .rb-click-spark-burst i,
+  .rb-aurora i,
+  .rb-threads path {
+    animation: none;
+  }
+  .rb-target-cursor-dot,
+  .rb-target-cursor-frame {
+    display: none;
+  }
+  .rb-ascii-text {
+    filter: none;
+    opacity: 0.64;
+  }
+  .rb-shiny-text {
+    background: none;
+    color: inherit;
+  }
+  .rb-blur-text-word {
+    opacity: 1;
+    filter: none;
+    transform: none;
+  }
+}

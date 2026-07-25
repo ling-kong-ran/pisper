@@ -40,6 +40,7 @@ import { AppSelect } from '@/components/AppSelect'
 import { Confirmation } from '@/components/ai-elements/confirmation'
 import { QueueSection } from '@/components/ai-elements/queue'
 import { BrandLogo } from '@/components/BrandLogo'
+import { AsciiText, Aurora, BlurText, TargetCursor } from '@/components/react-bits'
 import { Panel, Toggle } from '@/components/ui'
 import { useAutoScroll } from '@/hooks/useAutoScroll'
 import { formatFileSize, formatTokenCount, workspaceName } from '@/lib/format'
@@ -724,24 +725,33 @@ export function FocusSession({
         )}
         {!messages.length && (
           <div className="agent-welcome">
-            <BrandLogo size={44} className="welcome-logo" />
-            <h2>{t('chat:focusSession.letSBeginWithASparkOfAnIdea')}</h2>
-            <p>
-              {t(
-                'chat:focusSession.vesperIsReadyToReadTheCurrentWorkspaceSearchTheCodebaseAndHelpCarryTheTaskThroughItRunsInTheWork',
-              )}
-            </p>
-            <div className="welcome-chips">
-              {welcomeChips(t).map((chip) => (
-                <button
-                  type="button"
-                  key={chip.label}
-                  onClick={() => applyWelcomeChip(chip.prompt)}
-                >
-                  {chip.label}
-                </button>
-              ))}
-            </div>
+            <Aurora />
+            <TargetCursor className="agent-welcome-content">
+              <div className="welcome-visual">
+                <BrandLogo size={54} className="welcome-logo" />
+                <AsciiText text="VESPER" />
+              </div>
+              <h2>
+                <BlurText text={t('chat:focusSession.letSBeginWithASparkOfAnIdea')} />
+              </h2>
+              <p>
+                {t(
+                  'chat:focusSession.vesperIsReadyToReadTheCurrentWorkspaceSearchTheCodebaseAndHelpCarryTheTaskThroughItRunsInTheWork',
+                )}
+              </p>
+              <div className="welcome-chips">
+                {welcomeChips(t).map((chip) => (
+                  <button
+                    type="button"
+                    key={chip.label}
+                    data-target-cursor
+                    onClick={() => applyWelcomeChip(chip.prompt)}
+                  >
+                    {chip.label}
+                  </button>
+                ))}
+              </div>
+            </TargetCursor>
           </div>
         )}
         {messages.map((message, index) => {

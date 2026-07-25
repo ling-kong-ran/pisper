@@ -64,6 +64,12 @@ Vesper is a **local-first multi-agent workspace**. Run independent sessions in p
 
 ## ✦ Vesper at a Glance
 
+<p align="center">
+  <img src="./docs/shots/welcome-dark.png" alt="Vesper animated welcome screen in the dark theme" />
+  <br />
+  <sub><strong>Animated welcome screen</strong> · Aurora light, ASCII branding, and a target cursor wait quietly for the next spark of an idea</sub>
+</p>
+
 ![Vesper product demo](./docs/show.gif)
 
 <table>

@@ -64,6 +64,12 @@ Vesper 是一款**本地优先的多 Agent 工作台**。你可以让多个独�
 
 ## ✦ 一眼 Vesper
 
+<p align="center">
+  <img src="./docs/shots/welcome-dark.png" alt="Vesper 暗色主题动态欢迎页" />
+  <br />
+  <sub><strong>动态欢迎页</strong> · Aurora 光影、ASCII 品牌字与目标光标在安静的工作区中等待下一束灵感</sub>
+</p>
+
 ![Vesper 产品演示](./docs/show.gif)
 
 <table>

@@ -5,6 +5,7 @@ export const STORAGE_KEYS = Object.freeze({
   tiledSessions: 'vesper-tiled-sessions',
   chatDockLayout: 'vesper-chat-dock-layout-v1',
   sessionOpenRequest: 'vesper-session-open-request',
+  webPreviewRequest: 'vesper-web-preview-request',
   language: 'vesper-language',
   sidebarCollapsed: 'vesper-sidebar-collapsed',
   sessionRail: 'vesper-session-rail',

@@ -2,6 +2,7 @@
 
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
+import { ClickSpark } from '@/components/react-bits'
 import { cn } from '@/lib/utils'
 import type { ToolUIPart } from 'ai'
 import type { ComponentProps, ReactNode } from 'react'
@@ -146,5 +147,7 @@ export const ConfirmationActions = ({ className, ...props }: ConfirmationActions
 export type ConfirmationActionProps = ComponentProps<typeof Button>
 
 export const ConfirmationAction = (props: ConfirmationActionProps) => (
-  <Button className="h-8 px-3 text-sm" type="button" {...props} />
+  <ClickSpark>
+    <Button className="h-8 px-3 text-sm" type="button" {...props} />
+  </ClickSpark>
 )

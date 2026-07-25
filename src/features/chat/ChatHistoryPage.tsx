@@ -13,6 +13,7 @@ import { APP_NAME } from '@/app/brand'
 import type { Notify } from '@/app/route-context'
 import { useI18n } from '@/app/use-i18n'
 import { STORAGE_KEYS } from '@/app/storage'
+import { SpotlightCard } from '@/components/react-bits'
 import { StarOrbit } from '@/components/StarOrbit'
 import { Panel } from '@/components/ui'
 import type { ConfirmDialogOptions, PromptDialogOptions } from '@/hooks/useAppDialog'
@@ -191,7 +192,7 @@ export function ChatHistoryPage({
         <Panel className="chat-history-list">
           {visible.map((session) => {
             return (
-              <div
+              <SpotlightCard
                 className={`chat-history-row ${session.id === activeId ? 'active' : ''}`}
                 key={session.id}
               >
@@ -257,7 +258,7 @@ export function ChatHistoryPage({
                     <Trash2 size={14} />
                   </button>
                 </div>
-              </div>
+              </SpotlightCard>
             )
           })}
         </Panel>

@@ -5,6 +5,7 @@ import { Plan } from '@/components/ai-elements/plan'
 import { Reasoning } from '@/components/ai-elements/reasoning'
 import { Task } from '@/components/ai-elements/task'
 import { Tool } from '@/components/ai-elements/tool'
+import { AnimatedList, ShinyText } from '@/components/react-bits'
 import { formatTokenCount } from '@/lib/format'
 import type { I18nValues } from '@/app/i18n'
 import type { EntityRecord } from '@/types/chat'
@@ -416,7 +417,13 @@ function AgentRunActivity({
           <ActivityIcon tone={primary.tone} />
         </span>
         <span className="agent-run-copy">
-          <strong>{primary.title}</strong>
+          <strong>
+            {streaming && ['running', 'waiting', 'compacting'].includes(primary.tone) ? (
+              <ShinyText>{primary.title}</ShinyText>
+            ) : (
+              primary.title
+            )}
+          </strong>
           {primaryDetail && <small title={primaryDetail}>{primaryDetail}</small>}
         </span>
         <span className="agent-run-duration">
@@ -426,91 +433,93 @@ function AgentRunActivity({
       </Reasoning>
       {activityFeed.length > 0 && (
         <div className="agent-run-feed">
-          {activityFeed.map((activity, index) => {
-            const presentation = activityPresentation(activity, {
-              t,
-              streaming,
-              text,
-              thinkingText,
-              compaction,
-              error,
-              stopped,
-              notice,
-              lastActivityAt,
-              now,
-            })
-            const duration = formatRunDuration(
-              activityDurationMs(activity, startedAt, now),
-              language,
-            )
-            const key = activityRenderKey(activity, index)
-            const showTerminal = activity.name === 'bash' && index === activityFeed.length - 1
-            return (
-              <ActivityElement
-                activity={activity}
-                className={`agent-run-summary ${presentation.tone} ${index === activityFeed.length - 1 ? 'current' : ''}`}
-                key={key}
-              >
-                <span className="agent-run-status-icon">
-                  <ActivityIcon tone={presentation.tone} />
-                </span>
-                <span className="agent-run-copy">
-                  <strong>{presentation.title}</strong>
-                  {presentation.detail &&
-                    (presentation.command ? (
-                      <code className="agent-run-command" title={presentation.detail}>
-                        $ {presentation.detail}
-                      </code>
-                    ) : (
-                      <small title={presentation.detail}>{presentation.detail}</small>
-                    ))}
-                  {presentation.changes.length > 0 && (
-                    <span className="agent-run-plan-changes">
-                      {presentation.changes.slice(0, 4).map((change) => (
-                        <small key={`${change.id}-${change.kind}-${change.status}`}>
-                          {planChangeText(change, t)}
-                        </small>
+          <AnimatedList>
+            {activityFeed.map((activity, index) => {
+              const presentation = activityPresentation(activity, {
+                t,
+                streaming,
+                text,
+                thinkingText,
+                compaction,
+                error,
+                stopped,
+                notice,
+                lastActivityAt,
+                now,
+              })
+              const duration = formatRunDuration(
+                activityDurationMs(activity, startedAt, now),
+                language,
+              )
+              const key = activityRenderKey(activity, index)
+              const showTerminal = activity.name === 'bash' && index === activityFeed.length - 1
+              return (
+                <ActivityElement
+                  activity={activity}
+                  className={`agent-run-summary ${presentation.tone} ${index === activityFeed.length - 1 ? 'current' : ''}`}
+                  key={key}
+                >
+                  <span className="agent-run-status-icon">
+                    <ActivityIcon tone={presentation.tone} />
+                  </span>
+                  <span className="agent-run-copy">
+                    <strong>{presentation.title}</strong>
+                    {presentation.detail &&
+                      (presentation.command ? (
+                        <code className="agent-run-command" title={presentation.detail}>
+                          $ {presentation.detail}
+                        </code>
+                      ) : (
+                        <small title={presentation.detail}>{presentation.detail}</small>
                       ))}
-                      {presentation.changes.length > 4 && (
-                        <small>
-                          {t('chat:agentRunActivity.countMoreChanges', {
-                            count: presentation.changes.length - 4,
-                          })}
+                    {presentation.changes.length > 0 && (
+                      <span className="agent-run-plan-changes">
+                        {presentation.changes.slice(0, 4).map((change) => (
+                          <small key={`${change.id}-${change.kind}-${change.status}`}>
+                            {planChangeText(change, t)}
+                          </small>
+                        ))}
+                        {presentation.changes.length > 4 && (
+                          <small>
+                            {t('chat:agentRunActivity.countMoreChanges', {
+                              count: presentation.changes.length - 4,
+                            })}
+                          </small>
+                        )}
+                      </span>
+                    )}
+                    {!showTerminal &&
+                      presentation.output &&
+                      presentation.output !== presentation.detail && (
+                        <small className="agent-run-output" title={presentation.output}>
+                          {presentation.output}
                         </small>
                       )}
-                    </span>
+                  </span>
+                  <span className="agent-run-duration">
+                    <Clock3 size={12} />
+                    {duration}
+                  </span>
+                  {showTerminal && (
+                    <Suspense
+                      fallback={
+                        <pre className="agent-run-terminal agent-run-terminal-fallback">
+                          {String(activity.output || '')}
+                        </pre>
+                      }
+                    >
+                      <Terminal
+                        autoScroll
+                        className="agent-run-terminal"
+                        isStreaming={Boolean(streaming && activity.status === 'running')}
+                        output={String(activity.output || '')}
+                      />
+                    </Suspense>
                   )}
-                  {!showTerminal &&
-                    presentation.output &&
-                    presentation.output !== presentation.detail && (
-                      <small className="agent-run-output" title={presentation.output}>
-                        {presentation.output}
-                      </small>
-                    )}
-                </span>
-                <span className="agent-run-duration">
-                  <Clock3 size={12} />
-                  {duration}
-                </span>
-                {showTerminal && (
-                  <Suspense
-                    fallback={
-                      <pre className="agent-run-terminal agent-run-terminal-fallback">
-                        {String(activity.output || '')}
-                      </pre>
-                    }
-                  >
-                    <Terminal
-                      autoScroll
-                      className="agent-run-terminal"
-                      isStreaming={Boolean(streaming && activity.status === 'running')}
-                      output={String(activity.output || '')}
-                    />
-                  </Suspense>
-                )}
-              </ActivityElement>
-            )
-          })}
+                </ActivityElement>
+              )
+            })}
+          </AnimatedList>
         </div>
       )}
     </section>
