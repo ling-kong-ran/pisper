@@ -91,6 +91,7 @@ export type AgentRunActivityProps = {
 
 type ActivityPresentationContext = {
   t: Translate
+  streaming?: boolean
   text?: string
   thinkingText?: string
   compaction?: EntityRecord | null
@@ -208,6 +209,7 @@ function activityPresentation(
   activity: EntityRecord,
   {
     t,
+    streaming,
     text,
     thinkingText,
     compaction,
@@ -278,6 +280,10 @@ function activityPresentation(
     } else if (stopped) {
       tone = 'stopped'
       title = t('chat:agentRunActivity.runStopped')
+    } else if (!streaming) {
+      tone = 'completed'
+      title = t('chat:agentRunActivity.reasoningCompleted')
+      detail = cleanInline(thinkingText)
     } else if (inactiveMs >= 10_000) {
       tone = 'waiting'
       title = t('chat:agentRunActivity.waitingForTheModel')
@@ -368,7 +374,7 @@ function AgentRunActivity({
 }: AgentRunActivityProps) {
   const { t, language } = useI18n()
   const now = useRunActivityClock(streaming)
-  if (!streaming) return null
+  if (!streaming && !String(thinkingText || '').trim()) return null
 
   const primaryActivity = primaryRunActivity({
     currentActivity,
@@ -379,6 +385,7 @@ function AgentRunActivity({
   })
   const primary = activityPresentation(primaryActivity, {
     t,
+    streaming,
     text,
     thinkingText,
     compaction,
@@ -419,6 +426,7 @@ function AgentRunActivity({
           {activityFeed.map((activity, index) => {
             const presentation = activityPresentation(activity, {
               t,
+              streaming,
               text,
               thinkingText,
               compaction,

@@ -58,6 +58,7 @@
   "agentRunActivity.preparingTheResponse": "Preparing the response",
   "agentRunActivity.processingToolResult": "Processing tool result",
   "agentRunActivity.reasoningAboutTheNextStep": "Reasoning about the next step",
+  "agentRunActivity.reasoningCompleted": "Reasoning",
   "agentRunActivity.removedTitle": "Removed: {title}",
   "agentRunActivity.retryingRequest": "Retrying request",
   "agentRunActivity.runStopped": "Run stopped",

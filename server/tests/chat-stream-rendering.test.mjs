@@ -31,3 +31,19 @@ test('live snapshots cannot overwrite a locally owned SSE assistant message', as
   assert.match(source, /if \(localStreamSessionsRef\.current\.has\(id\)\) return/)
   assert.match(source, /liveSyncInFlightRef\.current\.has\(id\)/)
 })
+
+test('ephemeral reasoning remains rendered after a textless response completes', async () => {
+  const [page, focus, activity] = await Promise.all([
+    readFile('src/features/chat/ChatPage.tsx', 'utf8'),
+    readFile('src/features/chat/FocusSession.tsx', 'utf8'),
+    readFile('src/features/chat/AgentRunActivity.tsx', 'utf8'),
+  ])
+  const doneHandler = page.slice(page.indexOf("event === 'done'"), page.indexOf("event === 'error'"))
+  const finalizer = page.slice(page.indexOf('} finally {', page.indexOf("event === 'done'")), page.indexOf('const queuePrompt'))
+  assert.match(doneHandler, /thinkingScheduler\.flush\(\)/)
+  assert.doesNotMatch(doneHandler, /thinkingText:\s*''/)
+  assert.doesNotMatch(finalizer, /thinkingText:\s*''/)
+  assert.match(focus, /isLatestAgent && \(streaming \|\| String\(thinkingText \|\| ''\)\.trim\(\)\)/)
+  assert.match(activity, /if \(!streaming && !String\(thinkingText \|\| ''\)\.trim\(\)\) return null/)
+  assert.match(activity, /reasoningCompleted/)
+})

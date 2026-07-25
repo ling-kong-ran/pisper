@@ -544,7 +544,8 @@ export function FocusSession({
   // Bucket streaming text length so auto-scroll does not fire on every token.
   const textScrollBucket = Math.floor((lastMessage?.text?.length || 0) / 64)
   const activityVersion = activityScrollVersion(activityFeed)
-  const transcriptVersion = `${session?.id || ''}:${lastMessage?.id || ''}:${textScrollBucket}:${lastMessage?.attachments?.length || 0}:${activityVersion}:${goal?.status || ''}:${goal?.tokensUsed || 0}:${compaction?.status || ''}:${compaction?.finishedAt || ''}:${error || ''}:${streaming ? '1' : '0'}`
+  const thinkingScrollBucket = Math.floor(String(thinkingText || '').length / 128)
+  const transcriptVersion = `${session?.id || ''}:${lastMessage?.id || ''}:${textScrollBucket}:${thinkingScrollBucket}:${lastMessage?.attachments?.length || 0}:${activityVersion}:${goal?.status || ''}:${goal?.tokensUsed || 0}:${compaction?.status || ''}:${compaction?.finishedAt || ''}:${error || ''}:${streaming ? '1' : '0'}`
   const {
     scrollRef: transcriptRef,
     onScroll: onTranscriptScroll,
@@ -751,7 +752,9 @@ export function FocusSession({
               : isLatestAgent && !message.error
                 ? 'waiting'
                 : 'idle'
-          const showRunActivity = Boolean(isLatestAgent && streaming)
+          const showRunActivity = Boolean(
+            isLatestAgent && (streaming || String(thinkingText || '').trim()),
+          )
           return (
             <FocusChatMessage
               key={message.id}

@@ -1183,12 +1183,11 @@ export function ChatPage({
             if (typeof data.text === 'string') responseText = data.text
             typewriter.setTarget(responseText, finishedAt)
             typewriter.flush()
-            thinkingScheduler.cancel()
+            thinkingScheduler.flush()
             toolScheduler.cancel()
             updateSessionState(sessionId, (current) => ({
               ...current,
               streaming: false,
-              thinkingText: '',
               runFinishedAt: finishedAt,
               lastActivityAt: finishedAt,
               runNotice: '',
@@ -1235,12 +1234,11 @@ export function ChatPage({
             if (typeof data.text === 'string') responseText = data.text
             typewriter.setTarget(responseText, finishedAt)
             typewriter.flush()
-            thinkingScheduler.cancel()
+            thinkingScheduler.flush()
             toolScheduler.cancel()
             updateSessionState(sessionId, (current) => ({
               ...current,
               streaming: false,
-              thinkingText: '',
               runFinishedAt: finishedAt,
               lastActivityAt: finishedAt,
               currentActivity: null,
@@ -1280,7 +1278,6 @@ export function ChatPage({
           return {
             ...current,
             streaming: false,
-            thinkingText: '',
             runFinishedAt,
             lastActivityAt: runFinishedAt,
             runNotice: '',
@@ -1325,14 +1322,13 @@ export function ChatPage({
       })
     } catch (caught) {
       typewriter.cancel()
-      thinkingScheduler.cancel()
+      thinkingScheduler.flush()
       toolScheduler.cancel()
       const runFinishedAt = new Date().toISOString()
       const caughtMessage = errorMessage(caught)
       updateSessionState(sessionId, (current) => ({
         ...current,
         streaming: false,
-        thinkingText: '',
         error: caughtMessage,
         runFinishedAt,
         lastActivityAt: runFinishedAt,
@@ -1372,7 +1368,7 @@ export function ChatPage({
       typewriter.cancel()
       thinkingScheduler.cancel()
       toolScheduler.cancel()
-      updateSessionState(sessionId, { streaming: false, thinkingText: '', hadQueuedInput: false })
+      updateSessionState(sessionId, { streaming: false, hadQueuedInput: false })
       window.dispatchEvent(new Event(USAGE_UPDATED_EVENT))
     }
   }
@@ -1411,7 +1407,6 @@ export function ChatPage({
     updateSessionState(sessionId, (current) => ({
       ...current,
       streaming: false,
-      thinkingText: '',
       queuedInputs: [],
       hadQueuedInput: false,
       goal: result.goal ?? null,

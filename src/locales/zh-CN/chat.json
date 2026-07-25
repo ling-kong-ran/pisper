@@ -58,6 +58,7 @@
   "agentRunActivity.preparingTheResponse": "正在整理回复",
   "agentRunActivity.processingToolResult": "正在处理工具结果",
   "agentRunActivity.reasoningAboutTheNextStep": "正在推理下一步",
+  "agentRunActivity.reasoningCompleted": "思考过程",
   "agentRunActivity.removedTitle": "移除：{title}",
   "agentRunActivity.retryingRequest": "正在重试请求",
   "agentRunActivity.runStopped": "已停止运行",
