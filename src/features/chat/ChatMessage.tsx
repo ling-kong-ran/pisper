@@ -176,7 +176,12 @@ export const FocusChatMessage = memo(function FocusChatMessage({
         )}
         {showRunActivity && activityProps && (
           <Suspense
-            fallback={<div className="agent-run-activity agent-run-activity-placeholder" aria-hidden="true" />}
+            fallback={
+              <div
+                className="agent-run-activity agent-run-activity-placeholder"
+                aria-hidden="true"
+              />
+            }
           >
             <AgentRunActivity {...activityProps} />
           </Suspense>

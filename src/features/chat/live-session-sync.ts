@@ -2,7 +2,9 @@ import type { SessionState } from '@/types/chat'
 
 export function hasActiveSessionAgents(state: Partial<SessionState> | undefined) {
   return Boolean(
-    state?.agents?.some((agent) => ['queued', 'starting', 'running'].includes(String(agent.status))),
+    state?.agents?.some((agent) =>
+      ['queued', 'starting', 'running'].includes(String(agent.status)),
+    ),
   )
 }
 

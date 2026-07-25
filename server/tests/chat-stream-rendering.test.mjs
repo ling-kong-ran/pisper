@@ -47,3 +47,27 @@ test('ephemeral reasoning remains rendered after a textless response completes',
   assert.match(activity, /if \(!streaming && !String\(thinkingText \|\| ''\)\.trim\(\)\) return null/)
   assert.match(activity, /reasoningCompleted/)
 })
+
+test('bash tool output stays multiline across SSE state and renders in the terminal component', async () => {
+  const [runtime, page, activity, terminal, styles, packageJson] = await Promise.all([
+    readFile('server/runtime/agent-runtime.mjs', 'utf8'),
+    readFile('src/features/chat/ChatPage.tsx', 'utf8'),
+    readFile('src/features/chat/AgentRunActivity.tsx', 'utf8'),
+    readFile('src/components/ai-elements/terminal.tsx', 'utf8'),
+    readFile('src/index.css', 'utf8'),
+    readFile('package.json', 'utf8'),
+  ])
+  assert.match(runtime, /const rawOutput = textFromContent\(event\.partialResult\?\.content\)/)
+  assert.match(runtime, /event\.toolName === 'bash' \? \{ output: rawOutput \} : \{\}/)
+  assert.match(runtime, /const resultOutput = event\.toolName === 'bash'/)
+  assert.match(page, /data\.output !== undefined \? \{ output: data\.output \} : \{\}/)
+  assert.match(activity, /import\('@\/components\/ai-elements\/terminal'\)/)
+  assert.match(activity, /activity\.name === 'bash'/)
+  assert.match(activity, /output=\{String\(activity\.output \|\| ''\)\}/)
+  assert.match(terminal, /import AnsiModule from 'ansi-to-react'/)
+  assert.match(terminal, /typeof AnsiModule === 'function'/)
+  assert.match(terminal, /default: typeof AnsiModule/)
+  assert.match(terminal, /containerRef\.current\.scrollTop = containerRef\.current\.scrollHeight/)
+  assert.match(styles, /\.agent-run-terminal \{/)
+  assert.equal(JSON.parse(packageJson).dependencies['ansi-to-react'], '^6.2.6')
+})

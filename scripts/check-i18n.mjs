@@ -1,5 +1,5 @@
 import { readFile, readdir } from 'node:fs/promises'
-import { join, relative, resolve } from 'node:path'
+import { basename, join, relative, resolve } from 'node:path'
 import { parse } from '@babel/parser'
 
 const root = resolve(import.meta.dirname, '..')
@@ -36,7 +36,7 @@ for (const locale of ['zh-CN', 'en-US']) {
   const directory = join(localesRoot, locale)
   const localeResources = new Map()
   for (const file of await filesIn(directory, /\.json$/)) {
-    const namespace = file.split('/').at(-1).replace(/\.json$/, '')
+    const namespace = basename(file, '.json')
     localeResources.set(namespace, JSON.parse(await readFile(file, 'utf8')))
   }
   resources.set(locale, localeResources)

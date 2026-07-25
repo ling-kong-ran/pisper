@@ -46,14 +46,16 @@ export function toolRiskLabel(risk: string | undefined, t: ToolLabelTranslate) {
 }
 
 export function toolCategoryLabel(category: string | undefined, t: ToolLabelTranslate) {
-  if (category === 'filesystem' || category === '文件系统') return t('plugins:toolLabels.fileSystem')
+  if (category === 'filesystem' || category === '文件系统')
+    return t('plugins:toolLabels.fileSystem')
   if (category === 'search' || category === '搜索') return t('plugins:toolLabels.search')
   if (category === 'terminal' || category === '终端') return t('plugins:toolLabels.terminal')
   if (category === 'visual' || category === '视觉') return t('plugins:toolLabels.visual')
   if (category === 'browser' || category === '浏览器') return t('plugins:toolLabels.browser')
   if (category === 'memory' || category === '星忆') return t('plugins:toolLabels.memory')
   if (category === 'mcp' || category === 'MCP') return t('plugins:toolLabels.mcp')
-  if (category === 'collaboration' || category === '协作') return t('plugins:toolLabels.collaboration')
+  if (category === 'collaboration' || category === '协作')
+    return t('plugins:toolLabels.collaboration')
   return String(category || '')
 }
 

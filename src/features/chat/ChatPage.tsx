@@ -187,11 +187,7 @@ export function ChatPage({
 
   const syncLiveSession = useCallback(
     async (id: string) => {
-      if (
-        !id ||
-        localStreamSessionsRef.current.has(id) ||
-        liveSyncInFlightRef.current.has(id)
-      )
+      if (!id || localStreamSessionsRef.current.has(id) || liveSyncInFlightRef.current.has(id))
         return
       liveSyncInFlightRef.current.add(id)
       try {
@@ -999,6 +995,7 @@ export function ChatPage({
                 status: 'running',
                 startedAt: data.startedAt || eventAt,
                 updatedAt: eventAt,
+                ...(data.output !== undefined ? { output: data.output } : {}),
               }
               return {
                 ...current,
@@ -1025,6 +1022,7 @@ export function ChatPage({
               {
                 message: data.message || '',
                 updatedAt: data.updatedAt || eventAt,
+                ...(data.output !== undefined ? { output: data.output } : {}),
                 ...(data.agent ? { agent: data.agent } : {}),
               },
               data.updatedAt || eventAt,
@@ -1052,6 +1050,7 @@ export function ChatPage({
                 message: data.message || completedTool?.message || '',
                 updatedAt: finishedAt,
                 finishedAt,
+                ...(data.output !== undefined ? { output: data.output } : {}),
               }
               const agentActivity = data.agent
                 ? {
@@ -1075,6 +1074,7 @@ export function ChatPage({
                         message: data.message || '',
                         updatedAt: finishedAt,
                         finishedAt,
+                        ...(data.output !== undefined ? { output: data.output } : {}),
                       }
                     : item,
                 ),

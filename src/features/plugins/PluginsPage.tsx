@@ -267,7 +267,9 @@ export function PluginsPage({
     const tools = PRESETS[preset]
     setDraft((current) => current.map((tool) => ({ ...tool, enabled: tools.includes(tool.id) })))
   }
-  const enabledHighRisk = draft.filter((tool) => tool.enabled && (tool.risk === 'high' || tool.risk === '高风险'))
+  const enabledHighRisk = draft.filter(
+    (tool) => tool.enabled && (tool.risk === 'high' || tool.risk === '高风险'),
+  )
 
   return (
     <div className="plugins-page">

@@ -31,7 +31,13 @@ export default defineConfig({
       '@shared': resolve(rootDir, 'shared'),
     },
     // Force a single Shiki copy so language packs are not emitted twice.
-    dedupe: ['shiki', '@shikijs/core', '@shikijs/langs', '@shikijs/themes', '@shikijs/engine-javascript'],
+    dedupe: [
+      'shiki',
+      '@shikijs/core',
+      '@shikijs/langs',
+      '@shikijs/themes',
+      '@shikijs/engine-javascript',
+    ],
   },
   build: {
     chunkSizeWarningLimit: 900,

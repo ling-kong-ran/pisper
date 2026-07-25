@@ -1848,20 +1848,22 @@ export class AgentRuntimeService {
       } else if (event.type === 'tool_execution_start') {
         flushThinking()
         const toolStartedAt = live.lastActivityAt
-        const tool = { type: 'tool', id: event.toolCallId, name: event.toolName, args: event.args, status: 'running', startedAt: toolStartedAt, updatedAt: toolStartedAt }
+        const tool = { type: 'tool', id: event.toolCallId, name: event.toolName, args: event.args, status: 'running', startedAt: toolStartedAt, updatedAt: toolStartedAt, ...(event.toolName === 'bash' ? { output: '' } : {}) }
         live.tools.push(tool)
         setLiveActivity(live, tool)
-        emit('tool_start', { id: event.toolCallId, name: event.toolName, args: event.args, startedAt: toolStartedAt })
+        emit('tool_start', { id: event.toolCallId, name: event.toolName, args: event.args, startedAt: toolStartedAt, ...(event.toolName === 'bash' ? { output: '' } : {}) })
       } else if (event.type === 'tool_execution_update') {
-        const message = textFromContent(event.partialResult?.content).replace(/\s+/g, ' ').trim().slice(0, 180)
+        const rawOutput = textFromContent(event.partialResult?.content)
+        const message = rawOutput.replace(/\s+/g, ' ').trim().slice(0, 180)
+        const outputPatch = event.toolName === 'bash' ? { output: rawOutput } : {}
         const agent = multiAgentResultAgent(event.toolName, event.partialResult?.details)
         live.tools = live.tools.map((item) => item.id === event.toolCallId
-          ? { ...item, message: message || item.message || '', updatedAt: live.lastActivityAt, ...(agent ? { agent } : {}) }
+          ? { ...item, ...outputPatch, message: message || item.message || '', updatedAt: live.lastActivityAt, ...(agent ? { agent } : {}) }
           : item)
         if (live.currentActivity?.id === event.toolCallId) {
-          setLiveActivity(live, { ...live.currentActivity, message: message || live.currentActivity.message || '', updatedAt: live.lastActivityAt, ...(agent ? { agent } : {}) })
+          setLiveActivity(live, { ...live.currentActivity, ...outputPatch, message: message || live.currentActivity.message || '', updatedAt: live.lastActivityAt, ...(agent ? { agent } : {}) })
         }
-        emit('tool_update', { id: event.toolCallId, name: event.toolName, message, updatedAt: live.lastActivityAt, ...(agent ? { agent } : {}) })
+        emit('tool_update', { id: event.toolCallId, name: event.toolName, message, ...outputPatch, updatedAt: live.lastActivityAt, ...(agent ? { agent } : {}) })
       } else if (event.type === 'tool_execution_end') {
         if (!event.isError && ['generate_visual', 'browser_automation'].includes(event.toolName) && event.result?.details?.path) {
           const generatedPath = resolve(event.result.details.path)
@@ -1872,17 +1874,19 @@ export class AgentRuntimeService {
             emit('generated_asset', attachment)
           }
         }
-        const resultMessage = event.isError ? textFromContent(event.result?.content) || '工具执行失败。' : ''
+        const resultOutput = event.toolName === 'bash' ? textFromContent(event.result?.content) : ''
+        const resultMessage = event.isError ? resultOutput || textFromContent(event.result?.content) || '工具执行失败。' : ''
         const completedTool = live.tools.find((item) => item.id === event.toolCallId)
+        const outputPatch = event.toolName === 'bash' ? { output: resultOutput || completedTool?.output || '' } : {}
         const resultDetails = event.result?.details
         const resultAgent = multiAgentResultAgent(event.toolName, resultDetails)
         const toolFinishedAt = live.lastActivityAt
-        live.tools = live.tools.map((item) => item.id === event.toolCallId ? { ...item, status: event.isError ? 'error' : 'done', message: resultMessage || item.message || '', updatedAt: toolFinishedAt, finishedAt: toolFinishedAt } : item)
+        live.tools = live.tools.map((item) => item.id === event.toolCallId ? { ...item, ...outputPatch, status: event.isError ? 'error' : 'done', message: resultMessage || item.message || '', updatedAt: toolFinishedAt, finishedAt: toolFinishedAt } : item)
         const finishedActivity = event.isError
-          ? { ...(completedTool || {}), type: 'tool', status: 'error', message: resultMessage || completedTool?.message || '', updatedAt: toolFinishedAt, finishedAt: toolFinishedAt }
+          ? { ...(completedTool || {}), ...outputPatch, type: 'tool', status: 'error', message: resultMessage || completedTool?.message || '', updatedAt: toolFinishedAt, finishedAt: toolFinishedAt }
           : resultAgent
             ? { type: 'agent', agent: resultAgent, updatedAt: resultAgent.lastActivityAt || toolFinishedAt }
-            : { ...(completedTool || {}), type: 'tool', status: 'done', message: completedTool?.message || '', updatedAt: toolFinishedAt, finishedAt: toolFinishedAt }
+            : { ...(completedTool || {}), ...outputPatch, type: 'tool', status: 'done', message: completedTool?.message || '', updatedAt: toolFinishedAt, finishedAt: toolFinishedAt }
         const preserveEvent = ['get_task_list', 'update_task_list'].includes(event.toolName) && live.currentActivity?.type === 'plan'
         if (event.isError || !preserveEvent) live.activityFeed = pushLiveActivity(live.activityFeed, finishedActivity)
         if (live.currentActivity?.id === event.toolCallId) live.currentActivity = finishedActivity
@@ -1891,6 +1895,7 @@ export class AgentRuntimeService {
           name: event.toolName,
           error: event.isError,
           message: resultMessage || completedTool?.message || '',
+          ...outputPatch,
           finishedAt: toolFinishedAt,
           ...(resultAgent ? { agent: resultAgent } : {}),
         })

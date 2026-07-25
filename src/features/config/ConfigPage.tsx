@@ -657,11 +657,15 @@ export function ConfigPage({
                           value={draft.apiKey}
                           onChange={(event) => {
                             const apiKey = event.currentTarget.value
-                            setDraft((current) => current ? { ...current, apiKey } : current)
+                            setDraft((current) => (current ? { ...current, apiKey } : current))
                           }}
                           onInput={(event) => {
                             const apiKey = event.currentTarget.value
-                            setDraft((current) => current && current.apiKey !== apiKey ? { ...current, apiKey } : current)
+                            setDraft((current) =>
+                              current && current.apiKey !== apiKey
+                                ? { ...current, apiKey }
+                                : current,
+                            )
                           }}
                           placeholder={
                             selectedProvider.configured

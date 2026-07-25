@@ -150,7 +150,20 @@ test('stream completion publishes an authoritative terminal snapshot', async (t)
         willRetry: false,
       })
       for (const listener of listeners) listener({ type: 'message_update', assistantMessageEvent: { type: 'thinking_delta', delta: 'Inspecting the remaining tests before reading files.' } })
-      for (const listener of listeners) listener({ type: 'tool_execution_start', toolCallId: 'tool-1', toolName: 'read', args: {} })
+      for (const listener of listeners) listener({ type: 'tool_execution_start', toolCallId: 'tool-1', toolName: 'bash', args: { command: 'npm test' } })
+      for (const listener of listeners) listener({
+        type: 'tool_execution_update',
+        toolCallId: 'tool-1',
+        toolName: 'bash',
+        partialResult: { content: [{ type: 'text', text: '\u001b[32mfirst line\u001b[0m\nsecond line' }] },
+      })
+      for (const listener of listeners) listener({
+        type: 'tool_execution_end',
+        toolCallId: 'tool-1',
+        toolName: 'bash',
+        result: { content: [{ type: 'text', text: '\u001b[32mfirst line\u001b[0m\nsecond line\ncomplete' }] },
+        isError: false,
+      })
       const assistant = { role: 'assistant', content: [{ type: 'text', text: 'Final answer' }], timestamp: 2 }
       session.messages.push(assistant)
       for (const listener of listeners) listener({ type: 'message_update', assistantMessageEvent: { type: 'text_delta', delta: 'Final answer' } })
@@ -180,9 +193,14 @@ test('stream completion publishes an authoritative terminal snapshot', async (t)
   let thinkingText = ''
   for (const item of events.filter((event) => event.event === 'thinking_patch')) thinkingText = applyTextPatch(thinkingText, item.data)
   assert.equal(thinkingText, 'Inspecting the remaining tests before reading files.')
+  const toolUpdate = events.find((item) => item.event === 'tool_update')?.data
+  const toolEnd = events.find((item) => item.event === 'tool_end')?.data
+  assert.equal(toolUpdate.output, '\u001b[32mfirst line\u001b[0m\nsecond line')
+  assert.equal(toolEnd.output, '\u001b[32mfirst line\u001b[0m\nsecond line\ncomplete')
   const done = events.find((item) => item.event === 'done')?.data
   assert.equal(done.text, 'Final answer')
   assert.equal(done.tools[0].status, 'done')
+  assert.equal(done.tools[0].output, toolEnd.output)
   assert.deepEqual(done.compaction, compactionEnd)
   assert.ok(done.finishedAt)
   const live = await runtime.getSessionLive(session.sessionId)

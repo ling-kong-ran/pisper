@@ -319,7 +319,13 @@ export function McpPage({
                   </small>
                 </span>
                 <Badge
-                  tone={tool.risk === 'high' || tool.risk === '高风险' ? 'red' : tool.risk === 'medium' || tool.risk === '中风险' ? 'amber' : 'green'}
+                  tone={
+                    tool.risk === 'high' || tool.risk === '高风险'
+                      ? 'red'
+                      : tool.risk === 'medium' || tool.risk === '中风险'
+                        ? 'amber'
+                        : 'green'
+                  }
                 >
                   {mcpRiskLabel(tool.risk, t)}
                 </Badge>

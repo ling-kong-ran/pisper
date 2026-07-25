@@ -1,4 +1,4 @@
-import { memo, useEffect, useState, type ReactNode } from 'react'
+import { lazy, memo, Suspense, useEffect, useState, type ReactNode } from 'react'
 import { AlertTriangle, Check, Clock3, RefreshCw, Square } from 'lucide-react'
 import { useI18n } from '@/app/use-i18n'
 import { Plan } from '@/components/ai-elements/plan'
@@ -18,6 +18,9 @@ import {
 } from './run-activity'
 
 const EMPTY_LIST: EntityRecord[] = []
+const Terminal = lazy(() =>
+  import('@/components/ai-elements/terminal').then((module) => ({ default: module.Terminal })),
+)
 
 type Translate = (message: string, values?: I18nValues) => string
 
@@ -441,6 +444,7 @@ function AgentRunActivity({
               language,
             )
             const key = activityRenderKey(activity, index)
+            const showTerminal = activity.name === 'bash' && index === activityFeed.length - 1
             return (
               <ActivityElement
                 activity={activity}
@@ -476,16 +480,34 @@ function AgentRunActivity({
                       )}
                     </span>
                   )}
-                  {presentation.output && presentation.output !== presentation.detail && (
-                    <small className="agent-run-output" title={presentation.output}>
-                      {presentation.output}
-                    </small>
-                  )}
+                  {!showTerminal &&
+                    presentation.output &&
+                    presentation.output !== presentation.detail && (
+                      <small className="agent-run-output" title={presentation.output}>
+                        {presentation.output}
+                      </small>
+                    )}
                 </span>
                 <span className="agent-run-duration">
                   <Clock3 size={12} />
                   {duration}
                 </span>
+                {showTerminal && (
+                  <Suspense
+                    fallback={
+                      <pre className="agent-run-terminal agent-run-terminal-fallback">
+                        {String(activity.output || '')}
+                      </pre>
+                    }
+                  >
+                    <Terminal
+                      autoScroll
+                      className="agent-run-terminal"
+                      isStreaming={Boolean(streaming && activity.status === 'running')}
+                      output={String(activity.output || '')}
+                    />
+                  </Suspense>
+                )}
               </ActivityElement>
             )
           })}
