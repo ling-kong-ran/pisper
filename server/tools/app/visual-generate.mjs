@@ -4,11 +4,11 @@ import { Type } from 'typebox'
 export const manifest = {
   id: 'generate_visual',
   name: 'Visual Generate',
-  category: '视觉',
-  risk: '高风险',
-  description: '生成或编辑图片、设计图、效果图、插画、海报、Logo，或生成视频；调用已配置的视觉 Provider 并返回保存文件。',
-  scope: '已配置的视觉 Provider；当前会话工作目录/generated/visuals',
-  capability: '自动汇总已启用视觉模型，调用生成图片、编辑图片或生成视频接口，并写入输出文件',
+  category: 'visual',
+  risk: 'high',
+  description: 'Generate or edit images, mockups, posters, logos, or videos.',
+  scope: 'Visual providers; workspace/generated/visuals',
+  capability: 'Generate or edit images and videos',
   source: 'app',
 }
 
@@ -19,19 +19,19 @@ export function createVisualGenerateTool({ cwd, visualGenerationService, onGener
     name: manifest.id,
     label: manifest.name,
     description: manifest.description,
-    promptSnippet: 'Generate or edit visual media with configured visual models',
+    promptSnippet: 'Generate or edit visual media',
     promptGuidelines: [
-      'Use for image, mockup, concept art, poster, logo, animation, or video requests; call it instead of describing the visual.',
-      'For edits, pass local paths in sourceImages. Include subject, style, composition, lighting, camera, motion, and text in prompt.',
-      'Claim success only after a file path is returned; otherwise report the tool error.',
+      'Call for image, mockup, poster, logo, animation, or video requests.',
+      'For edits, pass local paths in sourceImages.',
+      'Claim success only after a file path is returned.',
     ],
     parameters: Type.Object({
-      kind: Type.String({ enum: ['image', 'video'], description: '生成图片或视频' }),
-      prompt: Type.String({ minLength: 1, description: '完整的视觉生成提示词' }),
-      model: Type.Optional(Type.String({ description: '可选模型 ID，支持 provider/model；留空自动选择' })),
-      sourceImages: Type.Optional(Type.Array(Type.String({ minLength: 1 }), { maxItems: 8, description: '需要编辑的本地图片路径；传入后自动调用图片编辑接口' })),
-      maskPath: Type.Optional(Type.String({ minLength: 1, description: '可选 PNG 蒙版路径，仅用于图片编辑' })),
-      outputName: Type.Optional(Type.String({ description: '输出文件名，不需要扩展名' })),
+      kind: Type.String({ enum: ['image', 'video'], description: 'image or video' }),
+      prompt: Type.String({ minLength: 1, description: 'Visual generation prompt' }),
+      model: Type.Optional(Type.String({ description: 'provider/model; empty for auto' })),
+      sourceImages: Type.Optional(Type.Array(Type.String({ minLength: 1 }), { maxItems: 8, description: 'Local image paths to edit' })),
+      maskPath: Type.Optional(Type.String({ minLength: 1, description: 'Optional PNG mask path' })),
+      outputName: Type.Optional(Type.String({ description: 'Output name without extension' })),
       aspectRatio: optionalStringEnum(['1:1', '16:9', '9:16', '4:3', '3:4']),
       size: optionalStringEnum(['1024x1024', '1536x1024', '1024x1536', '1280x720', '720x1280', '1792x1024', '1024x1792']),
       imageSize: optionalStringEnum(['1K', '2K', '4K']),
@@ -41,7 +41,7 @@ export function createVisualGenerateTool({ cwd, visualGenerationService, onGener
       outputFormat: optionalStringEnum(['png', 'jpeg', 'webp']),
     }),
     async execute(_toolCallId, params, signal, onUpdate) {
-      if (!visualGenerationService) throw new Error('视觉生成服务尚未初始化。')
+      if (!visualGenerationService) throw new Error('Visual generation service is not initialized.')
       const result = await visualGenerationService.generate({ ...params, cwd }, {
         signal,
         onProgress: (message) => onUpdate?.({ content: [{ type: 'text', text: message }] }),
@@ -54,7 +54,7 @@ export function createVisualGenerateTool({ cwd, visualGenerationService, onGener
       return {
         content: [{
           type: 'text',
-          text: `${result.operation === 'edit' ? '图片已编辑' : result.kind === 'video' ? '视频已生成' : '图片已生成'}。\n文件：${result.path}\nProvider：${result.providerName}\n模型：${result.modelName}`,
+          text: `${result.operation === 'edit' ? 'Image edited' : result.kind === 'video' ? 'Video generated' : 'Image generated'}.\nFile: ${result.path}\nProvider: ${result.providerName}\nModel: ${result.modelName}`,
         }],
         details: result,
       }

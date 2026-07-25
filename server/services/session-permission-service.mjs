@@ -11,14 +11,14 @@ export const MAX_RESOLVED_APPROVALS = 256
 const TOOL_RISKS = new Map([
   ...TOOL_CATALOG.map((tool) => [tool.id, tool.risk]),
   // Internal multi-agent tools are not listed in the plugins catalog, but still need risk metadata.
-  ['spawn_agent', '中风险'],
-  ['list_agents', '低风险'],
-  ['send_message', '低风险'],
-  ['followup_task', '中风险'],
-  ['wait_agent', '低风险'],
-  ['interrupt_agent', '中风险'],
+  ['spawn_agent', 'medium'],
+  ['list_agents', 'low'],
+  ['send_message', 'low'],
+  ['followup_task', 'medium'],
+  ['wait_agent', 'low'],
+  ['interrupt_agent', 'medium'],
 ])
-const SENSITIVE_RISKS = new Set(['中风险', '高风险'])
+const SENSITIVE_RISKS = new Set(['medium', 'high', '中风险', '高风险'])
 const INTERNAL_SAFE_TOOLS = new Set(['get_goal', 'update_goal', 'get_task_list', 'update_task_list'])
 const DANGEROUS_COMMAND = /(?:\brm\s+-[^\r\n]*r[^\r\n]*f|\brmdir\s+\/s|\bdel\s+\/s|remove-item[^\r\n]*(?:-recurse|-force)|\bformat(?:\.com)?\b|\bshutdown(?:\.exe)?\b|\btaskkill[^\r\n]*\/f|\bgit\s+(?:reset\s+--hard|clean\s+-[^\r\n]*f)|\breg\s+delete\b|\bdrop\s+(?:database|table)\b|\btruncate\s+table\b)/i
 
@@ -60,12 +60,12 @@ function pathOutsideWorkspace(cwd, input) {
 export function permissionRequirement({ mode, executionMode, cwd, toolName, args, toolRisk }) {
   if (executionMode === 'full-access') return null
   if (toolName === 'bash' && args?.sandbox_permissions === 'require_escalated') {
-    return { risk: '高风险', reason: String(args?.justification || 'Shell 命令请求在工作区沙箱之外执行。') }
+    return { risk: 'high', reason: String(args?.justification || 'Shell 命令请求在工作区沙箱之外执行。') }
   }
   if (INTERNAL_SAFE_TOOLS.has(toolName)) return null
-  const risk = toolRisk || TOOL_RISKS.get(toolName) || '高风险'
+  const risk = toolRisk || TOOL_RISKS.get(toolName) || 'high'
   if (['read', 'ls', 'grep', 'find', 'edit', 'write'].includes(toolName) && pathOutsideWorkspace(cwd, args?.path || args?.file_path)) {
-    return { risk: '高风险', reason: `${toolName} 将访问当前工作目录之外的文件。` }
+    return { risk: 'high', reason: `${toolName} 将访问当前工作目录之外的文件。` }
   }
   // Legacy "ignore" may suppress application-level prompts, but it must not
   // disable the workspace filesystem boundary. Only full-access can do that.
@@ -75,10 +75,10 @@ export function permissionRequirement({ mode, executionMode, cwd, toolName, args
   }
   if (mode !== 'auto') return null
   if (toolName === 'browser_automation' && ['click', 'type'].includes(String(args?.action || ''))) {
-    return { risk: '高风险', reason: '浏览器交互可能提交表单或改变远端状态，需要确认后执行。' }
+    return { risk: 'high', reason: '浏览器交互可能提交表单或改变远端状态，需要确认后执行。' }
   }
   if (toolName === 'bash' && DANGEROUS_COMMAND.test(String(args?.command || ''))) {
-    return { risk: '高风险', reason: 'Shell 命令包含删除、重置或系统级操作。' }
+    return { risk: 'high', reason: 'Shell 命令包含删除、重置或系统级操作。' }
   }
   return null
 }

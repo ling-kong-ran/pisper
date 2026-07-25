@@ -43,7 +43,7 @@ test('promoted cold tools stay active beside the static hot set', () => {
   const promotedToolNames = mergePromotedToolNames({
     availableToolNames: available,
     promotedToolNames: ['web_search'],
-    requestedToolNames: ['generate_visual', 'read'],
+    requestedToolNames: ['generate_visual', 'read', 'web_search'],
   })
   assert.deepEqual(promotedToolNames, ['web_search'])
   assert.deepEqual(selectedToolNames({ availableToolNames: available, promotedToolNames }), [
@@ -56,12 +56,12 @@ test('ordinary local coding requests do not activate cold tools', () => {
   assert.deepEqual(explicitlyRequestedToolNames('修复登录组件并运行测试', { availableToolNames: available, mcpTools }), [])
 })
 
-test('explicit web, browser, visual, memory, and Agent requests activate only their cold groups', () => {
+test('explicit web, browser, memory, and Agent requests activate only their cold groups', () => {
   assert.deepEqual(explicitlyRequestedToolNames('请搜索官网的最新版本说明', { availableToolNames: available, mcpTools }), ['web_search'])
   assert.deepEqual(explicitlyRequestedToolNames('打开 https://example.com 并截一张图', { availableToolNames: available, mcpTools }), ['browser_automation'])
-  assert.deepEqual(explicitlyRequestedToolNames('生成一张产品海报', { availableToolNames: available, mcpTools }), ['generate_visual'])
-  assert.deepEqual(explicitlyRequestedToolNames('先给我来个设计图，我看看样式', { availableToolNames: available, mcpTools }), ['generate_visual'])
-  assert.deepEqual(explicitlyRequestedToolNames('Design a logo for the app', { availableToolNames: available, mcpTools }), ['generate_visual'])
+  assert.deepEqual(explicitlyRequestedToolNames('生成一张产品海报', { availableToolNames: available, mcpTools }), [])
+  assert.deepEqual(explicitlyRequestedToolNames('先给我来个设计图，我看看样式', { availableToolNames: available, mcpTools }), [])
+  assert.deepEqual(explicitlyRequestedToolNames('Design a logo for the app', { availableToolNames: available, mcpTools }), [])
   assert.deepEqual(explicitlyRequestedToolNames('记住我的默认语言是中文', { availableToolNames: available, mcpTools }), ['memory_remember'])
   assert.deepEqual(explicitlyRequestedToolNames('如何发版 写入记忆', { availableToolNames: available, mcpTools }), ['memory_remember'])
   assert.equal(isExplicitMemoryRememberRequest('如何发版 写入记忆'), true)
@@ -75,31 +75,6 @@ test('negative mentions do not activate cold tools', () => {
   assert.deepEqual(explicitlyRequestedToolNames('不要使用浏览器，也不要派 Agent', { availableToolNames: available, mcpTools }), [])
   assert.deepEqual(explicitlyRequestedToolNames('不要生成图片，只分析需求', { availableToolNames: available, mcpTools }), [])
   assert.deepEqual(explicitlyRequestedToolNames('Do not use MCP.', { availableToolNames: available, mcpTools }), [])
-})
-
-test('an explicit image edit with an attachment activates visual generation', () => {
-  assert.deepEqual(explicitlyRequestedToolNames('把背景去掉', {
-    availableToolNames: available,
-    mcpTools,
-    attachments: [{ kind: 'image' }],
-  }), ['generate_visual'])
-})
-
-test('a retry phrase keeps visual generation active only after a visual request', () => {
-  assert.deepEqual(explicitlyRequestedToolNames('再生成一下，刚刚配错 provider 了', {
-    availableToolNames: available,
-    mcpTools,
-    previousRequestedToolNames: ['generate_visual'],
-  }), ['generate_visual'])
-  assert.deepEqual(explicitlyRequestedToolNames('再生成一下，刚刚配错 provider 了', {
-    availableToolNames: available,
-    mcpTools,
-  }), [])
-  assert.deepEqual(explicitlyRequestedToolNames('重新生成代码', {
-    availableToolNames: available,
-    mcpTools,
-    previousRequestedToolNames: ['generate_visual'],
-  }), [])
 })
 
 test('explicit MCP requests activate management and remote schemas only when relevant', () => {

@@ -38,6 +38,7 @@
   "toolLabels.browser": "浏览器",
   "toolLabels.memory": "星忆",
   "toolLabels.mcp": "MCP",
+  "toolLabels.collaboration": "协作",
   "toolLabels.currentChatWorkspace": "当前会话工作目录",
   "toolLabels.bingPublicWebSearch": "Bing 公开网页搜索",
   "toolLabels.isolatedSessionBrowser": "当前主 Agent 会话的隔离浏览器；仅支持 HTTP/HTTPS",

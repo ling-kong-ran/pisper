@@ -33,7 +33,6 @@ import { TaskListService } from '../services/task-list-service.mjs'
 import { BrowserAutomationService } from '../services/browser-automation-service.mjs'
 import { LocalSandboxService } from '../services/local-sandbox-service.mjs'
 import { assetMessageAttachment, attachGeneratedAssets } from '../services/session-assets.mjs'
-import { enforceRequiredVisualToolCall, enforceVisualClaimEvidence, forceNextToolCall } from '../services/visual-tool-routing.mjs'
 import { createAppTools, createMultiAgentTools, TOOL_PRESETS, toolsFromConfig } from '../tools/registry.mjs'
 import { createGoalTools, GOAL_TOOL_NAMES } from '../tools/app/goal.mjs'
 import { createTaskListTools, TASK_LIST_TOOL_NAMES } from '../tools/app/task-list.mjs'
@@ -66,7 +65,7 @@ const PROVIDER_DEFAULT_BASE_URLS = {
   'kimi-coding': 'https://api.kimi.com/coding/',
   'zai-coding-cn': 'https://open.bigmodel.cn/api/paas/v4',
 }
-const ATTACHMENT_MARKER = '\n\n---\n附件上下文（由 Vesper 注入）：\n'
+const ATTACHMENT_MARKER = '\n\n---\nAttachment context (injected by Vesper):\n'
 const MAX_EXTRACTED_CHARS = 400_000
 const MAX_ASSET_BYTES = 24 * 1024 * 1024
 const MAX_CHAT_ASSET_BYTES = 10 * 1024 * 1024
@@ -1788,14 +1787,8 @@ export class AgentRuntimeService {
     let budgetSummaryQueued = false
     const textRedactor = createStreamingSecretRedactor()
     let thinkingRedactor = createStreamingSecretRedactor()
-    let assistantTextOverride = null
-    let visualToolRequired = false
     const flushText = () => {
       const patch = textRedactor.flush()
-      if (assistantTextOverride !== null) {
-        live.text = assistantTextOverride
-        return
-      }
       live.text = textRedactor.text()
       if (patch) emit('text_patch', patch)
     }
@@ -1842,13 +1835,6 @@ export class AgentRuntimeService {
         emit('compaction_end', live.compaction)
         emit('context_usage', live.contextUsage)
       } else if (event.type === 'message_end') {
-        const visualValidationError = enforceRequiredVisualToolCall(event.message, live.tools, visualToolRequired)
-          || enforceVisualClaimEvidence(event.message, live.tools)
-        if (visualValidationError) {
-          assistantTextOverride = visualValidationError
-          live.text = visualValidationError
-          emit('text_patch', { start: 0, text: visualValidationError })
-        }
         const mailboxIds = agentMailboxMessageIds(event.message)
         if (mailboxIds.length) void this.acknowledgeAgentMailboxIds(session.sessionId, mailboxIds).catch(() => {})
         live.contextUsage = this.compactionAwareContextUsage(session, live.compaction)
@@ -1974,23 +1960,19 @@ export class AgentRuntimeService {
           if (data.length > 15_000_000) throw new Error(`${name} 图片数据过大`)
           images.push({ type: 'image', data, mimeType })
           const localPath = archivedAttachments[attachmentIndex]?.path
-          contexts.push(`[图片附件] ${name}${localPath ? `\n本地路径：${localPath}\n如需编辑这张图片，把此路径传给 generate_visual 的 sourceImages。` : ''}`)
+          contexts.push(`[Image attachment] ${name}${localPath ? `\nLocal path: ${localPath}\nTo edit this image, pass this path in generate_visual sourceImages.` : ''}`)
         } else if (attachment.kind === 'text') {
           const text = String(attachment.text || '').slice(0, MAX_EXTRACTED_CHARS)
-          contexts.push(`[文本附件: ${name}]\n${text}${attachment.truncated ? '\n（内容已截断）' : ''}`)
+          contexts.push(`[Text attachment: ${name}]\n${text}${attachment.truncated ? '\n(Content truncated)' : ''}`)
         } else if (attachment.kind === 'document') {
           const text = await extractDocumentText(attachment)
-          contexts.push(`[文档附件: ${name}]\n${text}`)
+          contexts.push(`[Document attachment: ${name}]\n${text}`)
         }
       }
       const prompt = contexts.length ? `${message}${ATTACHMENT_MARKER}${contexts.join('\n\n')}` : message
       const titlePromise = mayAutoTitle
         ? this.generateSessionTitle(session.model, message, safeAttachments, temporaryTitle, session.sessionId).catch(() => '')
         : null
-      const shouldForceVisualTool = session.getActiveToolNames().includes('generate_visual')
-        && value.requestedToolNames.includes('generate_visual')
-      visualToolRequired = shouldForceVisualTool
-      const restorePayloadHandler = shouldForceVisualTool ? forceNextToolCall(session.agent, 'generate_visual') : () => {}
       applyVesperSystemPrompt(session, session.model)
       let mailboxAccepted = false
       let promptCompleted = false
@@ -2001,7 +1983,6 @@ export class AgentRuntimeService {
         })
         promptCompleted = true
       } finally {
-        restorePayloadHandler()
         if (agentMailbox.length && (mailboxAccepted || promptCompleted)) {
           try { await this.multiAgents.acknowledge(session.sessionId, agentMailbox) } catch {}
         }

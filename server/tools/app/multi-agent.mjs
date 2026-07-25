@@ -5,16 +5,16 @@ import {
   MAX_AGENT_MAX_TURNS,
 } from '../../services/multi-agent-service.mjs'
 
-const category = '协作'
+const category = 'collaboration'
 const source = 'app'
 
 export const manifests = [
-  { id: 'spawn_agent', name: 'Spawn Agent', category, risk: '中风险', description: '用独立上下文启动一个边界明确的子任务。', scope: '当前会话工作目录与权限边界', capability: '异步启动或排队 Agent，不阻塞主 Agent', source },
-  { id: 'list_agents', name: 'List Agents', category, risk: '低风险', description: '查看当前会话创建的 Agent 与运行状态。', scope: '当前会话', capability: '列出状态、耗时、工具与结果', source },
-  { id: 'send_message', name: 'Send Message', category, risk: '低风险', description: '向运行中的 Agent 发送补充信息。', scope: '当前会话的 Agent', capability: '发送消息但不主动启动新一轮任务', source },
-  { id: 'followup_task', name: 'Follow-up Task', category, risk: '中风险', description: '让已有 Agent 继续执行后续任务。', scope: '当前会话的 Agent', capability: '复用 Agent 上下文继续工作', source },
-  { id: 'wait_agent', name: 'Wait Agent', category, risk: '低风险', description: '等待 Agent 完成、失败或被中断。', scope: '当前会话', capability: '短暂等待终态结果，不承担总任务超时', source },
-  { id: 'interrupt_agent', name: 'Interrupt Agent', category, risk: '中风险', description: '中断正在运行的 Agent。', scope: '当前会话的 Agent', capability: '停止 Agent 当前执行', source },
+  { id: 'spawn_agent', name: 'Spawn Agent', category, risk: 'medium', description: 'Start a bounded subtask with an isolated context.', scope: 'Current chat workspace and permission boundary', capability: 'Start or queue an Agent asynchronously without blocking the parent', source },
+  { id: 'list_agents', name: 'List Agents', category, risk: 'low', description: 'Inspect Agents created by the current chat and their run status.', scope: 'Current chat', capability: 'List status, duration, tools, and results', source },
+  { id: 'send_message', name: 'Send Message', category, risk: 'low', description: 'Send additional information to a running Agent.', scope: 'Agents in the current chat', capability: 'Send a message without starting a new task by itself', source },
+  { id: 'followup_task', name: 'Follow-up Task', category, risk: 'medium', description: 'Give an existing Agent another task while preserving its context.', scope: 'Agents in the current chat', capability: 'Reuse Agent context for follow-up work', source },
+  { id: 'wait_agent', name: 'Wait Agent', category, risk: 'low', description: 'Wait for an Agent to complete, fail, or be interrupted.', scope: 'Current chat', capability: 'Briefly wait for a terminal result without owning total task timeout', source },
+  { id: 'interrupt_agent', name: 'Interrupt Agent', category, risk: 'medium', description: 'Interrupt a running Agent.', scope: 'Agents in the current chat', capability: 'Stop the Agent current run', source },
 ]
 
 function text(value) {

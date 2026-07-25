@@ -1,5 +1,3 @@
-import { isVisualContinuationRequest, isVisualGenerationRequest } from '../services/visual-tool-routing.mjs'
-
 const HOT_TOOL_SET = new Set([
   'read',
   'grep',
@@ -18,7 +16,6 @@ const MULTI_AGENT_TOOLS = ['spawn_agent', 'list_agents', 'send_message', 'follow
 
 const WEB_SEARCH_REQUEST = /(?:\bweb[_ -]?search\b|\bsearch (?:the )?(?:web|internet|online)\b|\blook (?:it|this|that) up online\b|\blatest (?:release|version|news|documentation)\b|联网|上网|互联网|网上搜索|网络搜索|搜索网页|搜索网站|查找官网|查询官网|最新(?:版本|发布|新闻|资料)|官方(?:文档|资料|来源))/i
 const BROWSER_REQUEST = /(?:\bbrowser[_ -]?automation\b|\bopen (?:the )?(?:website|webpage|page|url|link)\b|\bclick (?:the )?(?:page|button|link)\b|\bfill (?:in )?(?:the )?(?:form|field)\b|\bscreenshot\b|\btest (?:the )?(?:website|webpage|page|ui)\b|浏览器|打开.{0,12}(?:网页|网站|链接|页面)|点击.{0,12}(?:页面|按钮|链接)|填写.{0,12}(?:表单|输入框)|网页截图|页面截图|测试.{0,8}(?:网页|网站|页面|界面)|https?:\/\/)/i
-const IMAGE_EDIT_WITH_ATTACHMENT = /(?:去掉|移除|删除|替换|修改|编辑|增强|修复|裁剪|放大|换成|remove|replace|edit|enhance|retouch|crop|upscale)/i
 const MEMORY_SEARCH_REQUEST = /(?:\bmemory_search\b|\bsearch (?:your )?memor(?:y|ies)\b|\brecall (?:my|our|the)\b|\bdo you remember\b|搜索星忆|查找星忆|查询星忆|你还记得|还记得我|之前我说过|我的偏好)/i
 const MEMORY_REMEMBER_REQUEST = /(?:\bmemory_remember\b|\bremember (?:this|that|my)\b|\bsave (?:this|that) (?:as|to) memor(?:y|ies)\b|\bwrite (?:this|that)? ?(?:to|into) memor(?:y|ies)\b|\bstore (?:this|that) (?:in|as) memor(?:y|ies)\b|记住(?:这个|这点|我的|以后|这)|请记住|帮我记住|记一下|记下来|写入记忆|记入记忆|写入星忆|保存记忆|保存为星忆|加入星忆|创建星忆草稿)/i
 const MCP_REQUEST = /(?:\bmcp\b|mcp_list|mcp_manage)/i
@@ -90,8 +87,8 @@ export function isExplicitMemoryRememberRequest(message) {
 export function explicitlyRequestedToolNames(message, {
   availableToolNames = [],
   mcpTools = [],
-  attachments = [],
-  previousRequestedToolNames = [],
+  attachments: _attachments = [],
+  previousRequestedToolNames: _previousRequestedToolNames = [],
 } = {}) {
   const text = normalizedText(message)
   const available = new Set(availableToolNames)
@@ -106,9 +103,6 @@ export function explicitlyRequestedToolNames(message, {
 
   if (positiveMatch(text, WEB_SEARCH_REQUEST)) add('web_search')
   if (positiveMatch(text, BROWSER_REQUEST)) add('browser_automation')
-  const hasImageAttachment = attachments.some((attachment) => attachment?.kind === 'image')
-  const continuesVisualRequest = previousRequestedToolNames.includes('generate_visual') && isVisualContinuationRequest(text)
-  if (isVisualGenerationRequest(text) || continuesVisualRequest || (hasImageAttachment && positiveMatch(text, IMAGE_EDIT_WITH_ATTACHMENT))) add('generate_visual')
   if (positiveMatch(text, MEMORY_SEARCH_REQUEST)) add('memory_search')
   if (positiveMatch(text, MEMORY_REMEMBER_REQUEST)) add('memory_remember')
 

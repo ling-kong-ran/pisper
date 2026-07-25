@@ -46,7 +46,7 @@ test('workspace escalation and filesystem boundaries cannot be bypassed by legac
     toolName: 'bash',
     args: { command: 'curl https://example.com', sandbox_permissions: 'require_escalated', justification: '需要访问受限网络' },
   })
-  assert.equal(escalation.risk, '高风险')
+  assert.equal(escalation.risk, 'high')
   assert.equal(escalation.reason, '需要访问受限网络')
   assert.match(permissionRequirement({
     mode: 'ignore',

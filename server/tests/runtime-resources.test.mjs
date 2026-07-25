@@ -50,7 +50,8 @@ test('main runtime promotes requested cold MCP tools for the rest of the session
   const hotSystemPrompt = value.session.agent.state.systemPrompt
 
   await runtime.selectToolsForMessage(value, '先给我来个设计图，我看看样式是什么样的。')
-  assert.deepEqual(value.requestedToolNames, ['generate_visual'])
+  assert.deepEqual(value.requestedToolNames, [])
+  assert.ok(value.session.getActiveToolNames().includes('generate_visual'))
   assert.deepEqual(value.promotedToolNames, [])
   assert.equal(value.session.agent.state.systemPrompt, hotSystemPrompt)
 

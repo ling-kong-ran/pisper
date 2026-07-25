@@ -4,11 +4,11 @@ import { Type } from 'typebox'
 export const manifest = {
   id: 'browser_automation',
   name: 'Browser Control',
-  category: '浏览器',
-  risk: '中风险',
-  description: '为 Agent 提供隔离、受控的浏览器环境，用于网页导航、内容检查和页面交互。',
-  scope: '当前主 Agent 会话的隔离浏览器；仅支持 HTTP/HTTPS',
-  capability: '导航、页面文本与控件检查、点击、输入、等待、PNG 截图和关闭浏览器；不允许执行模型提供的任意 JavaScript',
+  category: 'browser',
+  risk: 'medium',
+  description: 'Provide an isolated, controlled browser for navigation, inspection, and page interaction.',
+  scope: 'Isolated browser for the current primary Agent chat; HTTP/HTTPS only',
+  capability: 'Navigate, inspect, click, type, wait, capture screenshots, and close the browser without arbitrary JavaScript',
   source: 'app',
 }
 

@@ -23,7 +23,7 @@ export function filterToolsForExecutionMode(names, mode, getExternalRisk = () =>
   return unique.filter((name) => {
     if (INTERNAL_READ_ONLY_TOOLS.has(name)) return true
     const risk = TOOL_RISK.get(name) || getExternalRisk(name)
-    return risk === '低风险'
+    return risk === 'low' || risk === '低风险'
   })
 }
 

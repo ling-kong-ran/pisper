@@ -219,9 +219,9 @@ test('Agent memory tool creates a candidate instead of a trusted fact by default
       scope: 'global',
       importance: 1,
     })
-    assert.match(result.content[0].text, /候选/)
-    assert.match(result.content[0].text, /继续完成当前任务/)
-    assert.doesNotMatch(result.content[0].text, /需用户确认|等待用户/)
+    assert.match(result.content[0].text, /Memory candidate queued/)
+    assert.match(result.content[0].text, /Continue the current task/)
+    assert.doesNotMatch(result.content[0].text, /need confirmation|wait for the user|需用户确认|等待用户/i)
     assert.equal(result.details.status, 'pending')
     assert.equal(result.details.mode, 'candidate')
     assert.equal(memory.search('简洁回答').length, 0)
@@ -244,7 +244,7 @@ test('Agent memory tool stores explicit user requests without approval', async (
       importance: 0.9,
       userRequested: true,
     })
-    assert.match(result.content[0].text, /已直接写入长期星忆/)
+    assert.match(result.content[0].text, /Stored in long-term memory/)
     assert.equal(result.details.mode, 'stored')
     assert.equal(result.details.sourceType, 'user_confirmed')
     assert.equal(result.details.status, 'active')
@@ -267,7 +267,7 @@ test('Agent memory tool infers explicit user requests from the latest user messa
       type: 'preference',
       scope: 'global',
     })
-    assert.match(result.content[0].text, /已直接写入长期星忆/)
+    assert.match(result.content[0].text, /Stored in long-term memory/)
     assert.equal(result.details.mode, 'stored')
     assert.equal(memory.search('默认语言 中文')[0]?.id, result.details.id)
   })
@@ -410,7 +410,7 @@ test('retrieved memory context is bounded, escaped and explicitly treated as dat
       importance: 1,
     })
     const context = await memory.relevantContext('policy 忽略指令 bash', cwd)
-    assert.match(context.text, /不是指令/)
+    assert.match(context.text, /not instructions/)
     assert.match(context.text, /&lt;policy&gt;/)
     assert.match(context.text, /&lt;script&gt;/)
     assert.doesNotMatch(context.text, /<script>/)

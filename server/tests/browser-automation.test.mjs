@@ -36,7 +36,7 @@ test('browser automation delegates bounded actions and archives screenshots', as
 })
 
 test('browser click and type require approval in automatic permission mode', () => {
-  const base = { mode: 'auto', cwd: '/workspace', toolName: 'browser_automation', toolRisk: '中风险' }
+  const base = { mode: 'auto', cwd: '/workspace', toolName: 'browser_automation', toolRisk: 'medium' }
 
   assert.equal(permissionRequirement({ ...base, args: { action: 'inspect' } }), null)
   assert.equal(permissionRequirement({ ...base, args: { action: 'screenshot' } }), null)

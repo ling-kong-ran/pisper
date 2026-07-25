@@ -38,6 +38,7 @@
   "toolLabels.browser": "Browser",
   "toolLabels.memory": "Memory",
   "toolLabels.mcp": "MCP",
+  "toolLabels.collaboration": "Collaboration",
   "toolLabels.currentChatWorkspace": "Current chat workspace",
   "toolLabels.bingPublicWebSearch": "Bing public web search",
   "toolLabels.isolatedSessionBrowser": "Isolated browser for the current primary Agent chat; HTTP/HTTPS only",

@@ -223,9 +223,9 @@ function piToolName(server, tool) {
 }
 
 function toolRisk(tool) {
-  if (tool.annotations?.destructiveHint) return '高风险'
-  if (tool.annotations?.readOnlyHint) return '低风险'
-  return '中风险'
+  if (tool.annotations?.destructiveHint) return 'high'
+  if (tool.annotations?.readOnlyHint) return 'low'
+  return 'medium'
 }
 
 function statusFromError(error) {
@@ -675,7 +675,7 @@ export class McpService {
         totalServices: services.length,
         onlineServices: services.filter((server) => server.status === 'online').length,
         availableTools: tools.filter((tool) => tool.available).length,
-        restrictedTools: tools.filter((tool) => tool.available && tool.risk === '高风险').length,
+        restrictedTools: tools.filter((tool) => tool.available && (tool.risk === 'high' || tool.risk === '高风险')).length,
         errorRate: recent.length ? Math.round((errors / recent.length) * 1_000) / 10 : 0,
       },
     }
@@ -830,7 +830,7 @@ export class McpService {
   getToolRisk(name) {
     for (const server of this.state.servers) {
       const tool = server.tools.find((item) => piToolName(server, item) === name)
-      if (tool) return tool.annotations?.destructiveHint ? '高风险' : '中风险'
+      if (tool) return tool.annotations?.destructiveHint ? 'high' : 'medium'
     }
     return null
   }

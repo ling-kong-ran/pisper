@@ -40,9 +40,9 @@ function mcpStatusMeta(
 }
 
 function mcpRiskLabel(risk: unknown, t: Translate) {
-  if (risk === '高风险') return t('workflows:previewPages.highRisk')
-  if (risk === '中风险') return t('workflows:previewPages.mediumRisk')
-  if (risk === '低风险') return t('workflows:previewPages.lowRisk')
+  if (risk === 'high' || risk === '高风险') return t('workflows:previewPages.highRisk')
+  if (risk === 'medium' || risk === '中风险') return t('workflows:previewPages.mediumRisk')
+  if (risk === 'low' || risk === '低风险') return t('workflows:previewPages.lowRisk')
   return String(risk || '')
 }
 
@@ -319,7 +319,7 @@ export function McpPage({
                   </small>
                 </span>
                 <Badge
-                  tone={tool.risk === '高风险' ? 'red' : tool.risk === '中风险' ? 'amber' : 'green'}
+                  tone={tool.risk === 'high' || tool.risk === '高风险' ? 'red' : tool.risk === 'medium' || tool.risk === '中风险' ? 'amber' : 'green'}
                 >
                   {mcpRiskLabel(tool.risk, t)}
                 </Badge>

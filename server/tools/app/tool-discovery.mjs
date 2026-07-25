@@ -98,9 +98,9 @@ export function createToolDiscoveryTool({ listTools, activateTools }) {
       'Do not use discover_tools when the currently active tools already cover the task.',
     ],
     parameters: Type.Object({
-      query: Type.String({ minLength: 1, maxLength: 240, description: '需要查找的能力、任务或工具名称' }),
-      limit: Type.Optional(Type.Integer({ minimum: 1, maximum: 5, description: '最多返回并激活的匹配工具数，默认 3' })),
-      activate: Type.Optional(Type.Boolean({ description: '是否把匹配工具加入当前会话上下文，默认 true' })),
+      query: Type.String({ minLength: 1, maxLength: 240, description: 'Capability, task, or tool name to search for' }),
+      limit: Type.Optional(Type.Integer({ minimum: 1, maximum: 5, description: 'Maximum number of matching tools to return and activate; default 3' })),
+      activate: Type.Optional(Type.Boolean({ description: 'Whether to add matching tools to the current session context; default true' })),
     }),
     async execute(_toolCallId, params) {
       const tools = await listTools?.() || []

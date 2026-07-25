@@ -250,15 +250,15 @@ export function PluginsPage({
     draft[0] ||
     ({ id: '', enabled: false, risk: '', category: '', description: '' } as PluginTool)
   const filtered = draft.filter((tool) => {
-    if (tab === 'highRisk' && tool.risk !== '高风险') return false
+    if (tab === 'highRisk' && tool.risk !== 'high' && tool.risk !== '高风险') return false
     if (tab === 'disabled' && tool.enabled) return false
-    const categoryByFilter: Partial<Record<PluginFilter, string>> = {
-      fileSystem: '文件系统',
-      search: '搜索',
-      terminal: '终端',
-      visual: '视觉',
+    const categoryByFilter: Partial<Record<PluginFilter, string[]>> = {
+      fileSystem: ['filesystem', '文件系统'],
+      search: ['search', '搜索'],
+      terminal: ['terminal', '终端'],
+      visual: ['visual', '视觉'],
     }
-    if (categoryByFilter[tab] && tool.category !== categoryByFilter[tab]) return false
+    if (categoryByFilter[tab] && !categoryByFilter[tab]?.includes(tool.category)) return false
     return `${toolName(tool, t)} ${tool.id} ${toolDescription(tool, t)}`
       .toLowerCase()
       .includes(query.toLowerCase())
@@ -267,7 +267,7 @@ export function PluginsPage({
     const tools = PRESETS[preset]
     setDraft((current) => current.map((tool) => ({ ...tool, enabled: tools.includes(tool.id) })))
   }
-  const enabledHighRisk = draft.filter((tool) => tool.enabled && tool.risk === '高风险')
+  const enabledHighRisk = draft.filter((tool) => tool.enabled && (tool.risk === 'high' || tool.risk === '高风险'))
 
   return (
     <div className="plugins-page">
@@ -326,9 +326,9 @@ export function PluginsPage({
                         {toolName(tool, t)}{' '}
                         <Badge
                           tone={
-                            tool.risk === '高风险'
+                            tool.risk === 'high' || tool.risk === '高风险'
                               ? 'red'
-                              : tool.risk === '中风险'
+                              : tool.risk === 'medium' || tool.risk === '中风险'
                                 ? 'amber'
                                 : 'green'
                           }
