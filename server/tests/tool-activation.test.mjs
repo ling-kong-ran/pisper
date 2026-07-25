@@ -34,7 +34,7 @@ test('schema-only cold tools move prompt guidance into their appended schema des
 
 test('hot tools keep local coding and task progress available without injecting cold schemas', () => {
   assert.deepEqual(hotToolNames(available), [
-    'read', 'grep', 'find', 'ls', 'edit', 'write', 'bash', 'get_task_list', 'update_task_list', 'discover_tools',
+    'read', 'grep', 'find', 'ls', 'edit', 'write', 'bash', 'generate_visual', 'get_task_list', 'update_task_list', 'discover_tools',
   ])
   assert.deepEqual(selectedToolNames({ availableToolNames: available }), hotToolNames(available))
 })
@@ -45,11 +45,10 @@ test('promoted cold tools stay active beside the static hot set', () => {
     promotedToolNames: ['web_search'],
     requestedToolNames: ['generate_visual', 'read'],
   })
-  assert.deepEqual(promotedToolNames, ['web_search', 'generate_visual'])
+  assert.deepEqual(promotedToolNames, ['web_search'])
   assert.deepEqual(selectedToolNames({ availableToolNames: available, promotedToolNames }), [
     ...hotToolNames(available),
     'web_search',
-    'generate_visual',
   ])
 })
 
@@ -61,6 +60,8 @@ test('explicit web, browser, visual, memory, and Agent requests activate only th
   assert.deepEqual(explicitlyRequestedToolNames('请搜索官网的最新版本说明', { availableToolNames: available, mcpTools }), ['web_search'])
   assert.deepEqual(explicitlyRequestedToolNames('打开 https://example.com 并截一张图', { availableToolNames: available, mcpTools }), ['browser_automation'])
   assert.deepEqual(explicitlyRequestedToolNames('生成一张产品海报', { availableToolNames: available, mcpTools }), ['generate_visual'])
+  assert.deepEqual(explicitlyRequestedToolNames('先给我来个设计图，我看看样式', { availableToolNames: available, mcpTools }), ['generate_visual'])
+  assert.deepEqual(explicitlyRequestedToolNames('Design a logo for the app', { availableToolNames: available, mcpTools }), ['generate_visual'])
   assert.deepEqual(explicitlyRequestedToolNames('记住我的默认语言是中文', { availableToolNames: available, mcpTools }), ['memory_remember'])
   assert.deepEqual(explicitlyRequestedToolNames('如何发版 写入记忆', { availableToolNames: available, mcpTools }), ['memory_remember'])
   assert.equal(isExplicitMemoryRememberRequest('如何发版 写入记忆'), true)
@@ -72,6 +73,7 @@ test('explicit web, browser, visual, memory, and Agent requests activate only th
 
 test('negative mentions do not activate cold tools', () => {
   assert.deepEqual(explicitlyRequestedToolNames('不要使用浏览器，也不要派 Agent', { availableToolNames: available, mcpTools }), [])
+  assert.deepEqual(explicitlyRequestedToolNames('不要生成图片，只分析需求', { availableToolNames: available, mcpTools }), [])
   assert.deepEqual(explicitlyRequestedToolNames('Do not use MCP.', { availableToolNames: available, mcpTools }), [])
 })
 

@@ -41,9 +41,18 @@ test('main runtime promotes requested cold MCP tools for the rest of the session
   assert.ok(value.session.getActiveToolNames().includes('read'))
   assert.ok(value.session.getActiveToolNames().includes('update_task_list'))
   assert.ok(value.session.getActiveToolNames().includes('discover_tools'))
+  assert.ok(value.session.getActiveToolNames().includes('generate_visual'))
   assert.match(value.session.agent.state.systemPrompt, /discover_tools/)
+  assert.match(value.session.getToolDefinition('generate_visual').description, /mockup/)
+  assert.deepEqual(value.session.getToolDefinition('generate_visual').parameters.properties.aspectRatio.enum, ['1:1', '16:9', '9:16', '4:3', '3:4'])
+  assert.equal(value.session.getToolDefinition('generate_visual').parameters.properties.aspectRatio.anyOf, undefined)
   const hotToolNames = value.session.getActiveToolNames()
   const hotSystemPrompt = value.session.agent.state.systemPrompt
+
+  await runtime.selectToolsForMessage(value, '先给我来个设计图，我看看样式是什么样的。')
+  assert.deepEqual(value.requestedToolNames, ['generate_visual'])
+  assert.deepEqual(value.promotedToolNames, [])
+  assert.equal(value.session.agent.state.systemPrompt, hotSystemPrompt)
 
   const discovery = await value.session.getToolDefinition('discover_tools').execute(
     'discover-fixture',
@@ -67,6 +76,7 @@ test('main runtime promotes requested cold MCP tools for the rest of the session
   assert.equal(value.session.getActiveToolNames().includes('mcp_list'), true)
   assert.equal(value.session.getActiveToolNames().includes('mcp_manage'), true)
   assert.deepEqual(value.promotedToolNames, ['mcp_fixture_echo_12345678', 'mcp_list', 'mcp_manage'])
+  assert.equal(runtime.sessionMeta[value.session.sessionId].promotedToolNames.includes('generate_visual'), false)
   assert.deepEqual(runtime.sessionMeta[value.session.sessionId].promotedToolNames, value.promotedToolNames)
   assert.equal(value.session.hasExtensionHandlers('tool_result'), false)
   assert.equal(value.session.hasExtensionHandlers('message_end'), false)

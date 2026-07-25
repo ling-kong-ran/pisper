@@ -6,29 +6,27 @@ export const manifest = {
   name: 'Visual Generate',
   category: '视觉',
   risk: '高风险',
-  description: '自动调用已配置的视觉 Provider 生成图片、编辑图片或生成视频，并保存到工作目录。',
+  description: '生成或编辑图片、设计图、效果图、插画、海报、Logo，或生成视频；调用已配置的视觉 Provider 并返回保存文件。',
   scope: '已配置的视觉 Provider；当前会话工作目录/generated/visuals',
   capability: '自动汇总已启用视觉模型，调用生成图片、编辑图片或生成视频接口，并写入输出文件',
   source: 'app',
 }
 
-const optionalStringEnum = (values) => Type.Optional(Type.Union(values.map((value) => Type.Literal(value))))
+const optionalStringEnum = (values) => Type.Optional(Type.String({ enum: values }))
 
 export function createVisualGenerateTool({ cwd, visualGenerationService, onGeneratedFile }) {
   return defineTool({
     name: manifest.id,
     label: manifest.name,
     description: manifest.description,
-    promptSnippet: 'Generate or edit an image, or generate a video, with configured visual models',
+    promptSnippet: 'Generate or edit visual media with configured visual models',
     promptGuidelines: [
-      'Use generate_visual when the user asks to create an image, illustration, poster, concept art, animation, or video.',
-      'When the user asks to modify an existing image, pass its local path in sourceImages. The tool will automatically use an image editing interface.',
-      'Before using generate_visual, include all important subject, style, composition, lighting, camera, motion, and text requirements in its prompt.',
-      'generate_visual consumes external provider quota and writes the result under generated/visuals.',
-      'Never claim that visual generation or editing succeeded unless generate_visual returned successfully; if it fails, report the tool error clearly.',
+      'Use for image, mockup, concept art, poster, logo, animation, or video requests; call it instead of describing the visual.',
+      'For edits, pass local paths in sourceImages. Include subject, style, composition, lighting, camera, motion, and text in prompt.',
+      'Claim success only after a file path is returned; otherwise report the tool error.',
     ],
     parameters: Type.Object({
-      kind: Type.Union([Type.Literal('image'), Type.Literal('video')], { description: '生成图片或视频' }),
+      kind: Type.String({ enum: ['image', 'video'], description: '生成图片或视频' }),
       prompt: Type.String({ minLength: 1, description: '完整的视觉生成提示词' }),
       model: Type.Optional(Type.String({ description: '可选模型 ID，支持 provider/model；留空自动选择' })),
       sourceImages: Type.Optional(Type.Array(Type.String({ minLength: 1 }), { maxItems: 8, description: '需要编辑的本地图片路径；传入后自动调用图片编辑接口' })),
@@ -38,7 +36,7 @@ export function createVisualGenerateTool({ cwd, visualGenerationService, onGener
       size: optionalStringEnum(['1024x1024', '1536x1024', '1024x1536', '1280x720', '720x1280', '1792x1024', '1024x1792']),
       imageSize: optionalStringEnum(['1K', '2K', '4K']),
       resolution: optionalStringEnum(['720p', '1080p', '4k']),
-      durationSeconds: Type.Optional(Type.Union([Type.Literal(4), Type.Literal(8), Type.Literal(12)])),
+      durationSeconds: Type.Optional(Type.Number({ enum: [4, 8, 12] })),
       quality: optionalStringEnum(['auto', 'low', 'medium', 'high', 'standard', 'hd']),
       outputFormat: optionalStringEnum(['png', 'jpeg', 'webp']),
     }),

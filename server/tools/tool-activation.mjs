@@ -1,4 +1,4 @@
-import { isVisualContinuationRequest } from '../services/visual-tool-routing.mjs'
+import { isVisualContinuationRequest, isVisualGenerationRequest } from '../services/visual-tool-routing.mjs'
 
 const HOT_TOOL_SET = new Set([
   'read',
@@ -11,13 +11,13 @@ const HOT_TOOL_SET = new Set([
   'get_task_list',
   'update_task_list',
   'discover_tools',
+  'generate_visual',
 ])
 
 const MULTI_AGENT_TOOLS = ['spawn_agent', 'list_agents', 'send_message', 'followup_task', 'wait_agent', 'interrupt_agent']
 
 const WEB_SEARCH_REQUEST = /(?:\bweb[_ -]?search\b|\bsearch (?:the )?(?:web|internet|online)\b|\blook (?:it|this|that) up online\b|\blatest (?:release|version|news|documentation)\b|联网|上网|互联网|网上搜索|网络搜索|搜索网页|搜索网站|查找官网|查询官网|最新(?:版本|发布|新闻|资料)|官方(?:文档|资料|来源))/i
 const BROWSER_REQUEST = /(?:\bbrowser[_ -]?automation\b|\bopen (?:the )?(?:website|webpage|page|url|link)\b|\bclick (?:the )?(?:page|button|link)\b|\bfill (?:in )?(?:the )?(?:form|field)\b|\bscreenshot\b|\btest (?:the )?(?:website|webpage|page|ui)\b|浏览器|打开.{0,12}(?:网页|网站|链接|页面)|点击.{0,12}(?:页面|按钮|链接)|填写.{0,12}(?:表单|输入框)|网页截图|页面截图|测试.{0,8}(?:网页|网站|页面|界面)|https?:\/\/)/i
-const VISUAL_REQUEST = /(?:\bgenerate_visual\b|\b(?:generate|create|draw|design|edit|modify|transform|enhance|upscale|animate|make)\b.{0,24}\b(?:image|picture|photo|illustration|poster|logo|video|animation)\b|\b(?:image|picture|photo|video)\b.{0,24}\b(?:generate|create|edit|modify|transform|enhance|upscale|animate)\b|(?:生成|创建|绘制|画|制作|编辑|修改|转换|增强|放大|修复|设计).{0,16}(?:图片|图像|照片|插画|海报|Logo|logo|视频|动画)|(?:图片|图像|照片|视频).{0,16}(?:生成|创建|编辑|修改|转换|增强|放大|修复))/i
 const IMAGE_EDIT_WITH_ATTACHMENT = /(?:去掉|移除|删除|替换|修改|编辑|增强|修复|裁剪|放大|换成|remove|replace|edit|enhance|retouch|crop|upscale)/i
 const MEMORY_SEARCH_REQUEST = /(?:\bmemory_search\b|\bsearch (?:your )?memor(?:y|ies)\b|\brecall (?:my|our|the)\b|\bdo you remember\b|搜索星忆|查找星忆|查询星忆|你还记得|还记得我|之前我说过|我的偏好)/i
 const MEMORY_REMEMBER_REQUEST = /(?:\bmemory_remember\b|\bremember (?:this|that|my)\b|\bsave (?:this|that) (?:as|to) memor(?:y|ies)\b|\bwrite (?:this|that)? ?(?:to|into) memor(?:y|ies)\b|\bstore (?:this|that) (?:in|as) memor(?:y|ies)\b|记住(?:这个|这点|我的|以后|这)|请记住|帮我记住|记一下|记下来|写入记忆|记入记忆|写入星忆|保存记忆|保存为星忆|加入星忆|创建星忆草稿)/i
@@ -108,7 +108,7 @@ export function explicitlyRequestedToolNames(message, {
   if (positiveMatch(text, BROWSER_REQUEST)) add('browser_automation')
   const hasImageAttachment = attachments.some((attachment) => attachment?.kind === 'image')
   const continuesVisualRequest = previousRequestedToolNames.includes('generate_visual') && isVisualContinuationRequest(text)
-  if (positiveMatch(text, VISUAL_REQUEST) || continuesVisualRequest || (hasImageAttachment && positiveMatch(text, IMAGE_EDIT_WITH_ATTACHMENT))) add('generate_visual')
+  if (isVisualGenerationRequest(text) || continuesVisualRequest || (hasImageAttachment && positiveMatch(text, IMAGE_EDIT_WITH_ATTACHMENT))) add('generate_visual')
   if (positiveMatch(text, MEMORY_SEARCH_REQUEST)) add('memory_search')
   if (positiveMatch(text, MEMORY_REMEMBER_REQUEST)) add('memory_remember')
 

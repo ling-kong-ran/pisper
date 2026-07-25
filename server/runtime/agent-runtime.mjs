@@ -33,7 +33,7 @@ import { TaskListService } from '../services/task-list-service.mjs'
 import { BrowserAutomationService } from '../services/browser-automation-service.mjs'
 import { LocalSandboxService } from '../services/local-sandbox-service.mjs'
 import { assetMessageAttachment, attachGeneratedAssets } from '../services/session-assets.mjs'
-import { forceNextToolCall, isVisualContinuationRequest, isVisualGenerationRequest } from '../services/visual-tool-routing.mjs'
+import { enforceRequiredVisualToolCall, enforceVisualClaimEvidence, forceNextToolCall } from '../services/visual-tool-routing.mjs'
 import { createAppTools, createMultiAgentTools, TOOL_PRESETS, toolsFromConfig } from '../tools/registry.mjs'
 import { createGoalTools, GOAL_TOOL_NAMES } from '../tools/app/goal.mjs'
 import { createTaskListTools, TASK_LIST_TOOL_NAMES } from '../tools/app/task-list.mjs'
@@ -1788,8 +1788,14 @@ export class AgentRuntimeService {
     let budgetSummaryQueued = false
     const textRedactor = createStreamingSecretRedactor()
     let thinkingRedactor = createStreamingSecretRedactor()
+    let assistantTextOverride = null
+    let visualToolRequired = false
     const flushText = () => {
       const patch = textRedactor.flush()
+      if (assistantTextOverride !== null) {
+        live.text = assistantTextOverride
+        return
+      }
       live.text = textRedactor.text()
       if (patch) emit('text_patch', patch)
     }
@@ -1836,6 +1842,13 @@ export class AgentRuntimeService {
         emit('compaction_end', live.compaction)
         emit('context_usage', live.contextUsage)
       } else if (event.type === 'message_end') {
+        const visualValidationError = enforceRequiredVisualToolCall(event.message, live.tools, visualToolRequired)
+          || enforceVisualClaimEvidence(event.message, live.tools)
+        if (visualValidationError) {
+          assistantTextOverride = visualValidationError
+          live.text = visualValidationError
+          emit('text_patch', { start: 0, text: visualValidationError })
+        }
         const mailboxIds = agentMailboxMessageIds(event.message)
         if (mailboxIds.length) void this.acknowledgeAgentMailboxIds(session.sessionId, mailboxIds).catch(() => {})
         live.contextUsage = this.compactionAwareContextUsage(session, live.compaction)
@@ -1975,7 +1988,8 @@ export class AgentRuntimeService {
         ? this.generateSessionTitle(session.model, message, safeAttachments, temporaryTitle, session.sessionId).catch(() => '')
         : null
       const shouldForceVisualTool = session.getActiveToolNames().includes('generate_visual')
-        && (isVisualGenerationRequest(message) || isVisualContinuationRequest(message))
+        && value.requestedToolNames.includes('generate_visual')
+      visualToolRequired = shouldForceVisualTool
       const restorePayloadHandler = shouldForceVisualTool ? forceNextToolCall(session.agent, 'generate_visual') : () => {}
       applyVesperSystemPrompt(session, session.model)
       let mailboxAccepted = false
