@@ -42,6 +42,38 @@ function ensureColumn(db, table, name, definition) {
   if (!columns.some((column) => column.name === name)) db.exec(`ALTER TABLE ${table} ADD COLUMN ${name} ${definition}`)
 }
 
+function isFts5UnavailableError(error) {
+  return String(error?.message || error).toLowerCase().includes('no such module: fts5')
+}
+
+function initializeMemoryFullTextSearch(db) {
+  try {
+    db.exec(`
+      CREATE VIRTUAL TABLE IF NOT EXISTS memory_fts USING fts5(title, content, content='memories', content_rowid='rowid');
+      CREATE TRIGGER IF NOT EXISTS memories_ai AFTER INSERT ON memories BEGIN
+        INSERT INTO memory_fts(rowid, title, content) VALUES (new.rowid, new.title, new.content);
+      END;
+      CREATE TRIGGER IF NOT EXISTS memories_ad AFTER DELETE ON memories BEGIN
+        INSERT INTO memory_fts(memory_fts, rowid, title, content) VALUES ('delete', old.rowid, old.title, old.content);
+      END;
+      CREATE TRIGGER IF NOT EXISTS memories_au AFTER UPDATE ON memories BEGIN
+        INSERT INTO memory_fts(memory_fts, rowid, title, content) VALUES ('delete', old.rowid, old.title, old.content);
+        INSERT INTO memory_fts(rowid, title, content) VALUES (new.rowid, new.title, new.content);
+      END;
+      INSERT INTO memory_fts(memory_fts) VALUES ('rebuild');
+    `)
+    return true
+  } catch (error) {
+    if (!isFts5UnavailableError(error)) throw error
+    db.exec(`
+      DROP TRIGGER IF EXISTS memories_ai;
+      DROP TRIGGER IF EXISTS memories_ad;
+      DROP TRIGGER IF EXISTS memories_au;
+    `)
+    return false
+  }
+}
+
 function redactSecrets(value) {
   return String(value || '')
     .replace(/-----BEGIN [A-Z ]*PRIVATE KEY-----[\s\S]*?-----END [A-Z ]*PRIVATE KEY-----/g, '[已隐藏私钥]')
@@ -128,10 +160,12 @@ function rowSpace(row) {
 }
 
 export class LocalMemoryRuntime {
-  constructor({ path, cwd }) {
+  constructor({ path, cwd, fullTextSearchInitializer = initializeMemoryFullTextSearch }) {
     this.path = path
     this.cwd = resolve(cwd)
     this.db = null
+    this.ftsAvailable = false
+    this.fullTextSearchInitializer = fullTextSearchInitializer
   }
 
   async init() {
@@ -210,17 +244,6 @@ export class LocalMemoryRuntime {
       );
       CREATE INDEX IF NOT EXISTS memory_candidates_space_status ON memory_candidates(space_id, status, created_at DESC);
       CREATE UNIQUE INDEX IF NOT EXISTS memory_candidates_source ON memory_candidates(source_type, source_id) WHERE source_id <> '';
-      CREATE VIRTUAL TABLE IF NOT EXISTS memory_fts USING fts5(title, content, content='memories', content_rowid='rowid');
-      CREATE TRIGGER IF NOT EXISTS memories_ai AFTER INSERT ON memories BEGIN
-        INSERT INTO memory_fts(rowid, title, content) VALUES (new.rowid, new.title, new.content);
-      END;
-      CREATE TRIGGER IF NOT EXISTS memories_ad AFTER DELETE ON memories BEGIN
-        INSERT INTO memory_fts(memory_fts, rowid, title, content) VALUES ('delete', old.rowid, old.title, old.content);
-      END;
-      CREATE TRIGGER IF NOT EXISTS memories_au AFTER UPDATE ON memories BEGIN
-        INSERT INTO memory_fts(memory_fts, rowid, title, content) VALUES ('delete', old.rowid, old.title, old.content);
-        INSERT INTO memory_fts(rowid, title, content) VALUES (new.rowid, new.title, new.content);
-      END;
     `)
     ensureColumn(this.db, 'memories', 'evidence', "TEXT NOT NULL DEFAULT ''")
     ensureColumn(this.db, 'memories', 'source_timestamp', "TEXT NOT NULL DEFAULT ''")
@@ -235,6 +258,7 @@ export class LocalMemoryRuntime {
       CREATE INDEX IF NOT EXISTS memories_active_space_updated ON memories(space_id, status, updated_at DESC);
       CREATE INDEX IF NOT EXISTS memories_active_topic ON memories(space_id, status, topic_key) WHERE topic_key <> '';
     `)
+    this.ftsAvailable = this.fullTextSearchInitializer(this.db)
     await this.ensureGlobalSpace()
     await this.ensureWorkspaceSpace(this.cwd)
     this.normalizeTrustMetadata()
@@ -244,6 +268,7 @@ export class LocalMemoryRuntime {
   dispose() {
     this.db?.close()
     this.db = null
+    this.ftsAvailable = false
   }
 
   requireDb() {
@@ -630,7 +655,7 @@ export class LocalMemoryRuntime {
     const rows = db.prepare(`SELECT * FROM memories WHERE status = 'active' AND space_id IN (${placeholders})`).all(...ids)
     const ftsQuery = (text.match(/[\p{L}\p{N}_-]+/gu) || []).slice(0, 12).map((token) => `"${token.replaceAll('"', '""')}"`).join(' OR ')
     const ftsMatches = new Set()
-    if (ftsQuery) {
+    if (this.ftsAvailable && ftsQuery) {
       try {
         const matches = db.prepare(`
           SELECT memories.id FROM memory_fts JOIN memories ON memories.rowid = memory_fts.rowid
@@ -683,4 +708,4 @@ export class LocalMemoryRuntime {
   }
 }
 
-export { stableProjectId }
+export { initializeMemoryFullTextSearch, isFts5UnavailableError, stableProjectId }

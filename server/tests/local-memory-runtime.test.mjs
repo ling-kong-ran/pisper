@@ -5,7 +5,7 @@ import { join } from 'node:path'
 import test from 'node:test'
 import { createApiHandler } from '../http/api-handler.mjs'
 import { extractConversationMemories, shouldExtractConversationMemory } from '../services/memory/conversation-memory.mjs'
-import { LocalMemoryRuntime } from '../services/memory/local-memory-runtime.mjs'
+import { initializeMemoryFullTextSearch, LocalMemoryRuntime } from '../services/memory/local-memory-runtime.mjs'
 import { ToolPluginService } from '../services/tool-plugin-service.mjs'
 import { createMemoryRememberTool } from '../tools/app/memory.mjs'
 import { readJson, writeJsonAtomic } from '../storage/json-file.mjs'
@@ -42,6 +42,51 @@ async function withMemory(run) {
     await rm(directory, { recursive: true, force: true })
   }
 }
+
+test('local memory starts and searches when the bundled SQLite omits FTS5', async () => {
+  const directory = await mkdtemp(join(tmpdir(), 'vesper-memory-no-fts5-'))
+  const cwd = join(directory, 'project')
+  const path = join(directory, 'memory.sqlite')
+  const statements = []
+  const memory = new LocalMemoryRuntime({
+    path,
+    cwd,
+    fullTextSearchInitializer() {
+      return initializeMemoryFullTextSearch({
+        exec(statement) {
+          statements.push(statement)
+          if (statement.includes('CREATE VIRTUAL TABLE')) throw new Error('no such module: fts5')
+        },
+      })
+    },
+  })
+  try {
+    await memory.init()
+    assert.equal(memory.ftsAvailable, false)
+    assert.equal(statements.length, 2)
+    assert.match(statements[1], /DROP TRIGGER IF EXISTS memories_ai/)
+
+    const item = memory.remember({
+      spaceId: 'global',
+      title: '无全文索引兼容性',
+      content: '缺少 FTS5 时继续使用本地向量和关键词搜索。',
+      type: 'fact',
+    })
+    assert.equal(memory.search('FTS5 关键词搜索')[0]?.id, item.id)
+    assert.match(memory.updateMemory(item.id, { content: '无 FTS5 环境仍可更新和搜索记忆。' }).content, /仍可更新/)
+    assert.equal(memory.forget(item.id), true)
+  } finally {
+    memory.dispose()
+    await rm(directory, { recursive: true, force: true })
+  }
+})
+
+test('unexpected full-text search initialization errors remain fatal', () => {
+  assert.throws(
+    () => initializeMemoryFullTextSearch({ exec() { throw new Error('database disk image is malformed') } }),
+    /database disk image is malformed/,
+  )
+})
 
 test('trusted local memory persists spaces, nodes, search results and related links', async () => {
   await withMemory(async (memory, cwd) => {
