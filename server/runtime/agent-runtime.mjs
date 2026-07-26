@@ -74,42 +74,10 @@ const MAX_SESSION_TITLE_CHARS = 20
 const DEFAULT_MESSAGE_PAGE_SIZE = 40
 const MAX_MESSAGE_PAGE_SIZE = 100
 const LIVE_MESSAGE_PAGE_SIZE = 60
-const MAX_AGENT_MAILBOX_CHARS = 32_000
-const AGENT_MAILBOX_CUSTOM_TYPE = 'vesper_agent_mailbox'
 const ISOLATED_CONTEXT_BLOCKED_TOOLS = ['memory_search', 'memory_remember']
 const ASSET_TEXT_EXTENSIONS = new Set(['.txt', '.md', '.json', '.js', '.jsx', '.ts', '.tsx', '.css', '.html', '.xml', '.yaml', '.yml', '.csv', '.log', '.py', '.java', '.go', '.rs', '.sh', '.ps1', '.toml', '.sql'])
 const ASSET_DOCUMENT_EXTENSIONS = new Set(['.pdf', '.docx', '.pptx', '.xlsx', '.odt', '.odp', '.ods', '.rtf', '.epub'])
 const IMAGE_EXTENSIONS = new Set(['.png', '.jpg', '.jpeg', '.gif', '.webp', '.bmp', '.svg'])
-function agentMailboxDelivery(agents = []) {
-  if (!agents.length) return { text: '', agents: [] }
-  const blocks = []
-  const delivered = []
-  let bodyLength = 0
-  for (const agent of agents) {
-    const result = agent.output || agent.error || '(No output was preserved.)'
-    const block = `### ${agent.canonicalName} · ${agent.status}\nTask: ${agent.message}\nResult:\n${result}`
-    const separatorLength = blocks.length ? 2 : 0
-    const remaining = MAX_AGENT_MAILBOX_CHARS - bodyLength - separatorLength
-    if (remaining <= 0) break
-    if (block.length > remaining && blocks.length) break
-    blocks.push(block.slice(0, remaining))
-    delivered.push(agent)
-    bodyLength += separatorLength + Math.min(block.length, remaining)
-  }
-  const body = blocks.join('\n\n')
-  return {
-    text: `<vesper_agent_mailbox_results>\n${body}\n</vesper_agent_mailbox_results>`,
-    agents: delivered,
-  }
-}
-
-function agentMailboxMessageIds(message) {
-  if (message?.role !== 'custom' || message.customType !== AGENT_MAILBOX_CUSTOM_TYPE) return []
-  return [...new Set((Array.isArray(message.details?.mailboxIds) ? message.details.mailboxIds : [])
-    .map((id) => String(id || '').trim())
-    .filter(Boolean))]
-}
-
 function isInternalParentMessage(content) {
   return isGoalContinuationMessage(content)
 }
@@ -146,7 +114,7 @@ export async function waitForAgentMailbox(multiAgents, sessionId, timeoutMs, tar
 function liveActivityKey(activity) {
   if (!activity?.type) return ''
   if (activity.type === 'tool') return `tool:${activity.id || activity.name || ''}`
-  if (activity.type === 'agent') return `agent:${activity.agent?.id || activity.agent?.canonicalName || ''}:${activity.agent?.status || ''}`
+  if (activity.type === 'agent') return `agent:${activity.agent?.id || activity.agent?.canonicalName || ''}`
   if (activity.type === 'plan') return `plan:${activity.updatedAt || activity.taskList?.updatedAt || ''}`
   if (activity.type === 'model') return `model:${activity.stage || ''}`
   if (activity.type === 'compaction') return `compaction:${activity.compaction?.status || activity.compaction?.active || ''}`
@@ -580,7 +548,6 @@ export class AgentRuntimeService {
     this.sessionHistoryCache = new Map()
     this.sessionHistoryPaths = new Map()
     this.sessionContextUsageCache = new Map()
-    this.agentMailboxInFlight = new Set()
     this.modelRuntime = null
     this.settingsManager = null
     this.sessionMeta = {}
@@ -690,47 +657,6 @@ export class AgentRuntimeService {
       }
     }
     try { send?.('agent_update', { sessionId, agent: updatedAgent, agents, currentActivity }) } catch {}
-  }
-
-  async acknowledgeAgentMailboxIds(sessionId, mailboxIds = []) {
-    const ids = [...new Set(mailboxIds.map((id) => String(id || '').trim()).filter(Boolean))]
-    if (!ids.length) return false
-    try {
-      return await this.multiAgents.acknowledge(sessionId, ids.map((mailboxId) => ({ mailboxId })))
-    } finally {
-      for (const mailboxId of ids) this.agentMailboxInFlight.delete(mailboxId)
-    }
-  }
-
-  async deliverAgentMailboxToSession(sessionId) {
-    const session = this.sessions.get(sessionId)?.session
-    if (!session?.sendCustomMessage) return false
-    const pending = this.multiAgents.peekMailbox(sessionId)
-      .filter((agent) => agent.mailboxId && !this.agentMailboxInFlight.has(agent.mailboxId))
-    const delivery = agentMailboxDelivery(pending)
-    const mailboxIds = delivery.agents.map((agent) => agent.mailboxId).filter(Boolean)
-    if (!delivery.text || !mailboxIds.length) return false
-    for (const mailboxId of mailboxIds) this.agentMailboxInFlight.add(mailboxId)
-    try {
-      await session.sendCustomMessage({
-        customType: AGENT_MAILBOX_CUSTOM_TYPE,
-        content: delivery.text,
-        display: false,
-        details: { mailboxIds },
-      }, {
-        deliverAs: 'steer',
-        triggerTurn: false,
-      })
-      const persisted = session.messages.some((message) => {
-        const messageIds = agentMailboxMessageIds(message)
-        return mailboxIds.every((mailboxId) => messageIds.includes(mailboxId))
-      })
-      if (persisted) await this.acknowledgeAgentMailboxIds(sessionId, mailboxIds)
-      return true
-    } catch {
-      for (const mailboxId of mailboxIds) this.agentMailboxInFlight.delete(mailboxId)
-      return false
-    }
   }
 
   getSessionExecutionMode(sessionId) {
@@ -1754,7 +1680,6 @@ export class AgentRuntimeService {
           onProgress: (agent) => this.emitAgentUpdate(runtimeSession.sessionId, agent),
           onSession: installSubagentPermissions,
           onCompleted: accountSubagentUsage,
-          onTerminal: () => this.deliverAgentMailboxToSession(runtimeSession.sessionId),
         })
       },
       list: () => this.multiAgents.list(runtimeSession.sessionId),
@@ -1991,8 +1916,16 @@ export class AgentRuntimeService {
       live.tools = live.tools.map((tool) => tool.status === 'running'
         ? { ...tool, status: error ? 'error' : 'done', message: error || tool.message || '', updatedAt: finishedAt, finishedAt }
         : tool)
-      live.currentActivity = null
-      live.activityFeed = []
+      const backgroundAgents = this.multiAgents.summaries(session.sessionId)
+        .filter((agent) => ['queued', 'starting', 'running'].includes(agent.status))
+      const backgroundActivities = backgroundAgents.map((agent) => ({
+        type: 'agent',
+        agent,
+        updatedAt: agent.lastActivityAt || finishedAt,
+      }))
+      live.agents = backgroundAgents
+      live.currentActivity = backgroundActivities.at(-1) || null
+      live.activityFeed = backgroundActivities.slice(-MAX_LIVE_ACTIVITY_ITEMS)
       return finishedAt
     }
     const unsubscribe = session.subscribe((event) => {
@@ -2053,8 +1986,6 @@ export class AgentRuntimeService {
             updatedAt: live.lastActivityAt,
           })
         }
-        const mailboxIds = agentMailboxMessageIds(event.message)
-        if (mailboxIds.length) void this.acknowledgeAgentMailboxIds(session.sessionId, mailboxIds).catch(() => {})
         live.contextUsage = this.compactionAwareContextUsage(session, live.compaction)
         emit('context_usage', live.contextUsage)
       } else if (event.type === 'queue_update') {
@@ -2171,10 +2102,6 @@ export class AgentRuntimeService {
         ? await this.memory.relevantContext(message, value.cwd)
         : { text: '', memories: [] }
       if (memoryContext.text) contexts.push(memoryContext.text)
-      // Deliver background Agent results as hidden custom context messages. This keeps
-      // the user's prompt byte-for-byte intact while still making results available to
-      // the parent model and durable in the session transcript.
-      if (sharedContextEnabled) await this.deliverAgentMailboxToSession(session.sessionId)
       const activeGoal = sharedContextEnabled ? this.goals.get(session.sessionId) : null
       if (activeGoal?.status === 'active') contexts.push(goalContinuationPrompt(activeGoal))
       for (const [attachmentIndex, attachment] of safeAttachments.entries()) {
@@ -2229,7 +2156,9 @@ export class AgentRuntimeService {
         approvals: [],
         goal: this.goals.get(session.sessionId),
         taskList: this.taskLists.get(session.sessionId),
-        agents: this.multiAgents.summaries(session.sessionId).filter((agent) => ['queued', 'starting', 'running'].includes(agent.status)),
+        agents: live.agents,
+        currentActivity: live.currentActivity,
+        activityFeed: live.activityFeed,
         queuedInputs: live.queuedInputs,
         contextUsage: live.contextUsage,
         compaction: live.compaction,
@@ -2264,7 +2193,9 @@ export class AgentRuntimeService {
         approvals: [],
         goal: this.goals.get(session.sessionId),
         taskList: this.taskLists.get(session.sessionId),
-        agents: this.multiAgents.summaries(session.sessionId).filter((agent) => ['queued', 'starting', 'running'].includes(agent.status)),
+        agents: live.agents,
+        currentActivity: live.currentActivity,
+        activityFeed: live.activityFeed,
         queuedInputs: live.queuedInputs,
         contextUsage: live.contextUsage,
         compaction: live.compaction,
@@ -2279,9 +2210,6 @@ export class AgentRuntimeService {
       if (this.goalEmitters.get(session.sessionId) === emit) this.goalEmitters.delete(session.sessionId)
       if (this.taskListEmitters.get(session.sessionId) === emit) this.taskListEmitters.delete(session.sessionId)
       if (this.agentEmitters.get(session.sessionId) === emit) this.agentEmitters.delete(session.sessionId)
-      for (const agent of this.multiAgents.peekMailbox(session.sessionId)) {
-        if (agent.mailboxId) this.agentMailboxInFlight.delete(agent.mailboxId)
-      }
       if (live.streaming) finishLiveRun(live.error)
       const timer = setTimeout(() => { if (this.liveSessions.get(session.sessionId) === live) this.liveSessions.delete(session.sessionId) }, 60_000)
       timer.unref?.()

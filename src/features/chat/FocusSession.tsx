@@ -790,7 +790,12 @@ export function FocusSession({
                 ? 'waiting'
                 : 'idle'
           const showRunActivity = Boolean(
-            isLatestAgent && (streaming || String(thinkingText || '').trim() || tools.length > 0),
+            isLatestAgent &&
+            (streaming ||
+              String(thinkingText || '').trim() ||
+              tools.length > 0 ||
+              currentActivity?.type === 'agent' ||
+              activityFeed.some((activity) => activity.type === 'agent')),
           )
           return (
             <FocusChatMessage

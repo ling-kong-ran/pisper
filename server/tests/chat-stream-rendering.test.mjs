@@ -101,12 +101,33 @@ test('ephemeral reasoning remains rendered after a textless response completes',
   assert.match(doneHandler, /thinkingScheduler\.flush\(\)/)
   assert.doesNotMatch(doneHandler, /thinkingText:\s*''/)
   assert.doesNotMatch(finalizer, /thinkingText:\s*''/)
-  assert.match(
-    focus,
-    /isLatestAgent &&\s+\(streaming \|\| String\(thinkingText \|\| ''\)\.trim\(\) \|\| tools\.length > 0\)/,
-  )
+  assert.match(focus, /currentActivity\?\.type === 'agent'/)
+  assert.match(focus, /activityFeed\.some\(\(activity\) => activity\.type === 'agent'\)/)
   assert.match(activity, /if \(!streaming && !thinking && !activities\.length\) return null/)
   assert.match(activity, /reasoningCompleted/)
+})
+
+test('background Agent completion uses code-level UI state without prompt or custom-context injection', async () => {
+  const [runtime, page, focus] = await Promise.all([
+    readFile('server/runtime/agent-runtime.mjs', 'utf8'),
+    readFile('src/features/chat/ChatPage.tsx', 'utf8'),
+    readFile('src/features/chat/FocusSession.tsx', 'utf8'),
+  ])
+  assert.doesNotMatch(runtime, /sendCustomMessage/)
+  assert.doesNotMatch(runtime, /vesper_agent_mailbox_results/)
+  assert.match(runtime, /live\.currentActivity = backgroundActivities\.at\(-1\) \|\| null/)
+  assert.match(page, /data\.currentActivity\?\.type === 'agent'/)
+  assert.match(focus, /activityFeed\.some\(\(activity\) => activity\.type === 'agent'\)/)
+})
+
+test('stale streaming queue errors settle the old stream and resend as a new turn', async () => {
+  const source = await readFile('src/features/chat/ChatPage.tsx', 'utf8')
+  const queueHandler = source.slice(source.indexOf('const queuePrompt'), source.indexOf('const abort'))
+  assert.match(queueHandler, /endedSessionQueueError\(caught\)/)
+  assert.match(queueHandler, /if \(activeStream\) await activeStream\.promise/)
+  assert.match(queueHandler, /await loadSessionMessages\(sessionId, \{ force: true \}\)/)
+  assert.match(queueHandler, /void sendPrompt\(message, sessionId\)/)
+  assert.doesNotMatch(queueHandler, /notify\(errorMessage\(caught\), 'error'\)[\s\S]*endedSessionQueueError/)
 })
 
 test('shared task board uses live/session fallback and consistent effective blockers', async () => {

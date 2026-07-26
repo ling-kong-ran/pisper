@@ -63,6 +63,7 @@ import type { ConfirmDialogOptions, PromptDialogOptions } from '@/hooks/useAppDi
 import type { Notify } from '@/app/route-context'
 import type {
   ChatAttachment,
+  EntityRecord,
   ModelOption,
   PendingAsset,
   SandboxStatus,
@@ -87,6 +88,12 @@ type ChatPageProps = {
 
 function errorMessage(error: unknown) {
   return error instanceof Error ? error.message : String(error)
+}
+
+function endedSessionQueueError(error: unknown) {
+  return /(?:当前会话已经结束运行|session .*?(?:ended|finished|no longer running))/i.test(
+    errorMessage(error),
+  )
 }
 
 function latestPageState(current: SessionState, data: ApiRecord) {
@@ -155,6 +162,9 @@ export function ChatPage({
   const compactDockRef = useRef(compactDock)
   const legacyTiledSessionIdsRef = useRef(readStoredArray(STORAGE_KEYS.tiledSessions))
   const localStreamSessionsRef = useRef(new Set<string>())
+  const localStreamSettlersRef = useRef(
+    new Map<string, { promise: Promise<void>; resolve: () => void }>(),
+  )
   const liveSyncInFlightRef = useRef(new Set<string>())
 
   useEffect(() => {
@@ -226,8 +236,14 @@ export function ChatPage({
             agents: data.agents || [],
             currentActivity: data.streaming
               ? data.currentActivity || current.currentActivity || null
-              : null,
-            activityFeed: data.streaming ? data.activityFeed || current.activityFeed || [] : [],
+              : data.currentActivity?.type === 'agent'
+                ? data.currentActivity
+                : null,
+            activityFeed: data.streaming
+              ? data.activityFeed || current.activityFeed || []
+              : (data.activityFeed || []).filter(
+                  (activity: EntityRecord) => activity.type === 'agent',
+                ),
             thinkingText: data.streaming ? (data.thinkingText ?? current.thinkingText ?? '') : '',
             queuedInputs: resolveQueuedInputs(current.queuedInputs, data.queuedInputs),
             hadQueuedInput: data.streaming
@@ -792,6 +808,14 @@ export function ChatPage({
     if (!sessionId) sessionId = await createSession()
     if (!sessionId) return
     if (sessionStatesRef.current[sessionId]?.streaming) return
+    let resolveLocalStream = () => {}
+    const localStreamSettled = new Promise<void>((resolve) => {
+      resolveLocalStream = resolve
+    })
+    localStreamSettlersRef.current.set(sessionId, {
+      promise: localStreamSettled,
+      resolve: resolveLocalStream,
+    })
     setActiveId(sessionId)
     setError('')
     const userMessage = {
@@ -1265,8 +1289,10 @@ export function ChatPage({
               runFinishedAt: finishedAt,
               lastActivityAt: finishedAt,
               runNotice: '',
-              currentActivity: null,
-              activityFeed: [],
+              currentActivity: data.currentActivity?.type === 'agent' ? data.currentActivity : null,
+              activityFeed: (data.activityFeed || []).filter(
+                (activity: EntityRecord) => activity.type === 'agent',
+              ),
               goal: data.goal ?? current.goal ?? null,
               taskList: data.taskList !== undefined ? data.taskList : current.taskList,
               agents: data.agents || current.agents || [],
@@ -1315,8 +1341,10 @@ export function ChatPage({
               streaming: false,
               runFinishedAt: finishedAt,
               lastActivityAt: finishedAt,
-              currentActivity: null,
-              activityFeed: [],
+              currentActivity: data.currentActivity?.type === 'agent' ? data.currentActivity : null,
+              activityFeed: (data.activityFeed || []).filter(
+                (activity: EntityRecord) => activity.type === 'agent',
+              ),
               agents: data.agents || current.agents || [],
               contextUsage: data.contextUsage ?? current.contextUsage ?? null,
               compaction: data.compaction ?? current.compaction ?? null,
@@ -1443,6 +1471,9 @@ export function ChatPage({
       thinkingScheduler.cancel()
       toolScheduler.cancel()
       updateSessionState(sessionId, { streaming: false, hadQueuedInput: false })
+      const settler = localStreamSettlersRef.current.get(sessionId)
+      localStreamSettlersRef.current.delete(sessionId)
+      settler?.resolve()
       window.dispatchEvent(new Event(USAGE_UPDATED_EVENT))
     }
   }
@@ -1469,6 +1500,20 @@ export function ChatPage({
       }))
       return true
     } catch (caught) {
+      if (endedSessionQueueError(caught)) {
+        const activeStream = localStreamSettlersRef.current.get(sessionId)
+        if (activeStream) await activeStream.promise
+        else await syncLiveSession(sessionId)
+        updateSessionState(sessionId, {
+          streaming: false,
+          recovering: false,
+          queuedInputs: [],
+          hadQueuedInput: false,
+        })
+        await loadSessionMessages(sessionId, { force: true })
+        void sendPrompt(message, sessionId)
+        return true
+      }
       notify(errorMessage(caught), 'error')
       return false
     }

@@ -377,12 +377,14 @@ test('background Agents do not instruct the parent to poll or wait by default', 
   const waitGuidance = wait.promptGuidelines.join('\n')
 
   assert.match(spawnGuidance, /must not delay replying to the user/)
-  assert.match(spawnGuidance, /do not call list_agents or wait_agent merely to monitor progress/)
+  assert.match(spawnGuidance, /do not call list_agents or wait_agent merely to monitor progress/i)
+  assert.match(spawnGuidance, /never injected into the parent prompt or model context/)
   assert.match(spawnGuidance, /spawning other independent Agents/)
   assert.doesNotMatch(spawnGuidance, /explorer|reviewer|dependsOn/)
   assert.match(listGuidance, /Do not call list_agents repeatedly/)
   assert.match(waitGuidance, /Never call wait_agent repeatedly after a timeout/)
   assert.match(waitGuidance, /reply while Agents continue in the background/)
+  assert.match(waitGuidance, /without injecting model context/)
 })
 
 test('new installations enable the complete tool catalog by default', () => {

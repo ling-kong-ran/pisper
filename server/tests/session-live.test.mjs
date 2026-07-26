@@ -278,174 +278,34 @@ test('background memory candidate extraction never blocks or delays session comp
   assert.ok(timeline.indexOf('done') < timeline.indexOf('candidate-extraction-started'))
 })
 
-test('terminal Agent results enter an active parent loop before its next model call', async (t) => {
-  const directory = await mkdtemp(join(tmpdir(), 'vesper-agent-mailbox-active-'))
-  t.after(() => rm(directory, { recursive: true, force: true }))
-  const runtime = new AgentRuntimeService({ cwd: directory, dataDir: directory })
-  runtime.archiveAttachments = async () => []
-  runtime.captureConversationMemory = async () => []
-  runtime.memory = { relevantContext: async () => ({ text: '' }) }
-  let mailbox = []
-  runtime.multiAgents = {
-    summaries: () => [],
-    peekMailbox: () => mailbox.map((agent) => ({ ...agent })),
-    acknowledge: async (_sessionId, agents) => {
-      const ids = new Set(agents.map((agent) => agent.mailboxId))
-      mailbox = mailbox.filter((agent) => !ids.has(agent.mailboxId))
-      return true
-    },
-  }
-
-  const listeners = new Set()
-  let releasePrompt
-  let promptStarted
-  const started = new Promise((resolve) => { promptStarted = resolve })
-  const release = new Promise((resolve) => { releasePrompt = resolve })
-  let mainPrompt = ''
-  let customDelivery = null
-  let promptCalls = 0
-  const session = {
-    sessionId: 'session-mailbox-active',
-    isStreaming: false,
-    model: { provider: 'openai', id: 'gpt-5.4' },
-    thinkingLevel: 'medium',
-    messages: [{ role: 'user', content: 'Earlier context', timestamp: 1 }],
-    agent: { state: { systemPrompt: 'Base prompt' } },
-    getActiveToolNames: () => [],
-    setActiveToolsByName: () => {},
-    subscribe(listener) {
-      listeners.add(listener)
-      return () => listeners.delete(listener)
-    },
-    async prompt(prompt) {
-      promptCalls += 1
-      mainPrompt = prompt
-      session.isStreaming = true
-      promptStarted()
-      await release
-      session.messages.push({ role: 'assistant', content: [{ type: 'text', text: 'Combined the background result.' }], timestamp: 3 })
-      session.isStreaming = false
-    },
-    async sendCustomMessage(message, options) {
-      customDelivery = { message, options, wasStreaming: session.isStreaming }
-      const appMessage = { role: 'custom', ...message, timestamp: 2 }
-      session.messages.push(appMessage)
-      for (const listener of listeners) listener({ type: 'message_start', message: appMessage })
-      for (const listener of listeners) listener({ type: 'message_end', message: appMessage })
-    },
-  }
-  const value = { session, cwd: directory, name: 'Active mailbox', baseToolNames: [] }
-  runtime.sessions.set(session.sessionId, value)
-  runtime.getOrCreateSession = async () => value
-
-  const run = runtime.streamPrompt({ sessionId: session.sessionId, message: 'Continue the parent task.', send: () => {} })
-  await started
-  mailbox.push({
-    id: 'agent-active',
-    mailboxId: 'agent-active:1',
-    canonicalName: '/root/review_active_1',
-    parentSessionId: session.sessionId,
-    status: 'completed',
-    message: 'Review the runtime.',
-    output: 'Found an active-loop race.',
-    error: '',
-    resultVersion: 1,
-  })
-  const delivered = await runtime.deliverAgentMailboxToSession(session.sessionId)
-
-  assert.equal(delivered, true)
-  assert.equal(customDelivery.wasStreaming, true)
-  assert.equal(customDelivery.options.deliverAs, 'steer')
-  assert.equal(customDelivery.options.triggerTurn, false)
-  assert.equal(customDelivery.message.display, false)
-  assert.match(customDelivery.message.content, /Found an active-loop race/)
-  assert.doesNotMatch(mainPrompt, /Found an active-loop race/)
-  assert.equal(mailbox.length, 0)
-  assert.equal(promptCalls, 1)
-
-  releasePrompt()
-  await run
-  assert.equal(promptCalls, 1)
-})
-
-test('terminal Agent results do not start a turn when the loaded parent is idle', async (t) => {
-  const directory = await mkdtemp(join(tmpdir(), 'vesper-agent-mailbox-idle-'))
-  t.after(() => rm(directory, { recursive: true, force: true }))
-  const runtime = new AgentRuntimeService({ cwd: directory, dataDir: directory })
-  let mailbox = [{
-    id: 'agent-idle',
-    mailboxId: 'agent-idle:1',
-    canonicalName: '/root/review_idle_1',
-    parentSessionId: 'session-mailbox-idle',
-    status: 'completed',
-    message: 'Review while the parent is idle.',
-    output: 'Idle result.',
-    error: '',
-    resultVersion: 1,
-  }]
-  runtime.multiAgents = {
-    peekMailbox: () => mailbox.map((agent) => ({ ...agent })),
-    acknowledge: async (_sessionId, agents) => {
-      const ids = new Set(agents.map((agent) => agent.mailboxId))
-      mailbox = mailbox.filter((agent) => !ids.has(agent.mailboxId))
-      return true
-    },
-  }
-  let customDelivery = null
-  let promptCalls = 0
-  const session = {
-    sessionId: 'session-mailbox-idle',
-    isStreaming: false,
-    messages: [],
-    async prompt() { promptCalls += 1 },
-    async sendCustomMessage(message, options) {
-      customDelivery = { message, options }
-      session.messages.push({ role: 'custom', ...message, timestamp: 1 })
-    },
-  }
-  runtime.sessions.set(session.sessionId, { session })
-
-  const delivered = await runtime.deliverAgentMailboxToSession(session.sessionId)
-
-  assert.equal(delivered, true)
-  assert.equal(customDelivery.options.deliverAs, 'steer')
-  assert.equal(customDelivery.options.triggerTurn, false)
-  assert.match(customDelivery.message.content, /Idle result/)
-  assert.equal(promptCalls, 0)
-  assert.equal(mailbox.length, 0)
-})
-
-test('unread background Agent results use custom context without rewriting the next user prompt', async (t) => {
-  const directory = await mkdtemp(join(tmpdir(), 'vesper-agent-mailbox-'))
+test('background Agent results remain durable without entering parent prompts or custom context', async (t) => {
+  const directory = await mkdtemp(join(tmpdir(), 'vesper-agent-mailbox-passive-'))
   t.after(() => rm(directory, { recursive: true, force: true }))
   const runtime = new AgentRuntimeService({ cwd: directory, dataDir: directory })
   runtime.archiveAttachments = async () => []
   runtime.captureConversationMemory = async () => []
   runtime.memory = { relevantContext: async () => ({ text: '' }) }
   const mailbox = [{
-    id: 'agent-1',
-    mailboxId: 'agent-1:1',
-    canonicalName: '/root/review_1',
-    parentSessionId: 'session-mailbox',
+    id: 'agent-passive',
+    mailboxId: 'agent-passive:1',
+    canonicalName: '/root/review_passive_1',
+    parentSessionId: 'session-mailbox-passive',
     status: 'completed',
-    message: 'Review the runtime.',
-    output: 'Found a race in startup handling.',
+    message: 'Review in the background.',
+    output: 'Found a passive mailbox result.',
     error: '',
     resultVersion: 1,
-    deliveredVersion: 0,
   }]
-  let acknowledged = null
+  let acknowledgeCalls = 0
   runtime.multiAgents = {
-    summaries: () => mailbox,
-    peekMailbox: () => mailbox,
-    acknowledge: async (sessionId, agents) => { acknowledged = { sessionId, agents } },
+    summaries: () => [],
+    peekMailbox: () => mailbox.map((agent) => ({ ...agent })),
+    acknowledge: async () => { acknowledgeCalls += 1 },
   }
 
-  const listeners = new Set()
   let observedPrompt = ''
-  let customDelivery = null
   const session = {
-    sessionId: 'session-mailbox',
+    sessionId: 'session-mailbox-passive',
     isStreaming: false,
     model: { provider: 'openai', id: 'gpt-5.4' },
     thinkingLevel: 'medium',
@@ -453,120 +313,113 @@ test('unread background Agent results use custom context without rewriting the n
     agent: { state: { systemPrompt: 'Base prompt' } },
     getActiveToolNames: () => [],
     setActiveToolsByName: () => {},
-    subscribe(listener) {
-      listeners.add(listener)
-      return () => listeners.delete(listener)
-    },
+    subscribe() { return () => {} },
     async prompt(prompt) {
-      session.isStreaming = true
       observedPrompt = prompt
-      session.messages.push({ role: 'assistant', content: [{ type: 'text', text: 'Used the background result.' }], timestamp: 2 })
+      session.isStreaming = true
+      session.messages.push({ role: 'assistant', content: [{ type: 'text', text: 'Parent finished independently.' }], stopReason: 'stop', timestamp: 2 })
       session.isStreaming = false
     },
-    async sendCustomMessage(message, options) {
-      customDelivery = { message, options }
-      session.messages.push({ role: 'custom', ...message, timestamp: 2 })
-    },
   }
-  const value = { session, cwd: directory, name: 'Mailbox', baseToolNames: [] }
+  const value = { session, cwd: directory, name: 'Passive mailbox', baseToolNames: [] }
   runtime.sessions.set(session.sessionId, value)
   runtime.getOrCreateSession = async () => value
 
   await runtime.streamPrompt({
     sessionId: session.sessionId,
-    message: 'Continue.',
+    message: 'Continue the parent task.',
     send: () => {},
   })
 
-  assert.equal(observedPrompt, 'Continue.')
-  assert.match(customDelivery.message.content, /vesper_agent_mailbox_results/)
-  assert.match(customDelivery.message.content, /Found a race in startup handling/)
-  assert.equal(customDelivery.message.display, false)
-  assert.equal(customDelivery.options.triggerTurn, false)
-  assert.match(session.agent.state.systemPrompt, /^Base prompt/)
-  assert.doesNotMatch(session.agent.state.systemPrompt, /vesper_agent_mailbox/)
-  assert.equal(acknowledged.sessionId, session.sessionId)
-  assert.equal(acknowledged.agents[0].mailboxId, 'agent-1:1')
+  assert.equal(observedPrompt, 'Continue the parent task.')
+  assert.equal(session.messages.some((message) => message.role === 'custom'), false)
+  assert.equal(acknowledgeCalls, 0)
+  assert.equal(runtime.multiAgents.peekMailbox(session.sessionId).length, 1)
 })
 
-test('Agent mailbox versions arriving during a parent turn remain queued for the next turn', async (t) => {
-  const directory = await mkdtemp(join(tmpdir(), 'vesper-agent-mailbox-race-'))
+test('parent completion snapshot keeps background Agents visible without keeping the parent streaming', async (t) => {
+  const directory = await mkdtemp(join(tmpdir(), 'vesper-agent-background-snapshot-'))
   t.after(() => rm(directory, { recursive: true, force: true }))
   const runtime = new AgentRuntimeService({ cwd: directory, dataDir: directory })
   runtime.archiveAttachments = async () => []
   runtime.captureConversationMemory = async () => []
   runtime.memory = { relevantContext: async () => ({ text: '' }) }
-  const record = {
-    id: 'agent-race',
-    canonicalName: '/root/review_race_1',
-    parentSessionId: 'session-mailbox-race',
-    status: 'completed',
-    message: 'Review the runtime.',
-    output: 'First result.',
-    error: '',
-    resultVersion: 1,
-    deliveredVersion: 0,
+  const background = {
+    id: 'agent-background',
+    canonicalName: '/root/review_background_1',
+    parentSessionId: 'session-agent-background',
+    status: 'running',
+    message: 'Continue reviewing in the background.',
+    startedAt: '2026-07-26T10:00:00.000Z',
+    lastActivityAt: '2026-07-26T10:00:01.000Z',
   }
   runtime.multiAgents = {
-    summaries: () => [{ ...record }],
-    peekMailbox: () => record.resultVersion > record.deliveredVersion
-      ? [{ ...record, mailboxId: `${record.id}:${record.resultVersion}` }]
-      : [],
-    acknowledge: async (_sessionId, agents) => {
-      for (const agent of agents) {
-        const resultVersion = Number(agent.resultVersion || String(agent.mailboxId || '').split(':').at(-1))
-        record.deliveredVersion = Math.max(record.deliveredVersion, resultVersion)
-      }
-    },
+    summaries: () => [{ ...background }],
+    peekMailbox: () => [],
   }
 
-  const listeners = new Set()
-  const observedPrompts = []
-  const customDeliveries = []
-  let promptCount = 0
   const session = {
-    sessionId: 'session-mailbox-race',
+    sessionId: 'session-agent-background',
     isStreaming: false,
     model: { provider: 'openai', id: 'gpt-5.4' },
     thinkingLevel: 'medium',
     messages: [{ role: 'user', content: 'Earlier context', timestamp: 1 }],
-    agent: { state: { systemPrompt: 'Base prompt' } },
+    agent: { state: { systemPrompt: '' } },
     getActiveToolNames: () => [],
     setActiveToolsByName: () => {},
-    subscribe(listener) {
-      listeners.add(listener)
-      return () => listeners.delete(listener)
-    },
-    async prompt(prompt) {
-      promptCount += 1
-      observedPrompts.push(prompt)
-      session.isStreaming = true
-      if (promptCount === 1) {
-        record.output = 'Second result that arrived during the parent turn.'
-        record.resultVersion = 2
-      }
-      session.messages.push({ role: 'assistant', content: [{ type: 'text', text: `Parent answer ${promptCount}` }], timestamp: promptCount + 1 })
-      session.isStreaming = false
-    },
-    async sendCustomMessage(message) {
-      customDeliveries.push(message)
-      session.messages.push({ role: 'custom', ...message, timestamp: customDeliveries.length + 1 })
+    subscribe() { return () => {} },
+    async prompt() {
+      session.messages.push({ role: 'assistant', content: [{ type: 'text', text: 'Delegated and moved on.' }], stopReason: 'stop', timestamp: 2 })
     },
   }
-  const value = { session, cwd: directory, name: 'Mailbox race', baseToolNames: [] }
+  const value = { session, cwd: directory, name: 'Background snapshot', baseToolNames: [] }
   runtime.sessions.set(session.sessionId, value)
   runtime.getOrCreateSession = async () => value
 
-  await runtime.streamPrompt({ sessionId: session.sessionId, message: 'First parent turn.', send: () => {} })
-  assert.equal(observedPrompts[0], 'First parent turn.')
-  assert.match(customDeliveries[0].content, /First result/)
-  assert.equal(record.deliveredVersion, 1)
-  assert.equal(record.resultVersion, 2)
+  const events = []
+  await runtime.streamPrompt({
+    sessionId: session.sessionId,
+    message: 'Delegate the review.',
+    send: (event, data) => events.push({ event, data }),
+  })
 
-  await runtime.streamPrompt({ sessionId: session.sessionId, message: 'Second parent turn.', send: () => {} })
-  assert.equal(observedPrompts[1], 'Second parent turn.')
-  assert.match(customDeliveries[1].content, /Second result that arrived during the parent turn/)
-  assert.equal(record.deliveredVersion, 2)
+  const done = events.find((event) => event.event === 'done')?.data
+  assert.equal(done.agents[0].status, 'running')
+  assert.equal(done.currentActivity.agent.status, 'running', JSON.stringify(done))
+  assert.equal(done.activityFeed[0].agent.id, background.id)
+  assert.equal(runtime.liveSessions.get(session.sessionId).streaming, false)
+})
+
+test('terminal Agent progress replaces its running activity instead of leaving a stale card', async (t) => {
+  const directory = await mkdtemp(join(tmpdir(), 'vesper-agent-terminal-activity-'))
+  t.after(() => rm(directory, { recursive: true, force: true }))
+  const runtime = new AgentRuntimeService({ cwd: directory, dataDir: directory })
+  const record = {
+    id: 'agent-terminal',
+    canonicalName: '/root/review_terminal_1',
+    status: 'running',
+    startedAt: '2026-07-26T10:00:00.000Z',
+    lastActivityAt: '2026-07-26T10:00:01.000Z',
+  }
+  runtime.multiAgents = { summaries: () => [{ ...record }] }
+  runtime.liveSessions.set('session-agent-terminal', {
+    streaming: false,
+    agents: [{ ...record }],
+    currentActivity: null,
+    activityFeed: [],
+  })
+
+  runtime.emitAgentUpdate('session-agent-terminal', record, () => {})
+  record.status = 'completed'
+  record.completedAt = '2026-07-26T10:00:02.000Z'
+  record.lastActivityAt = record.completedAt
+  runtime.emitAgentUpdate('session-agent-terminal', record, () => {})
+
+  const live = runtime.liveSessions.get('session-agent-terminal')
+  assert.equal(live.activityFeed.length, 1)
+  assert.equal(live.activityFeed[0].agent.status, 'completed')
+  assert.equal(live.currentActivity.agent.status, 'completed')
+  assert.deepEqual(live.agents, [])
 })
 
 test('generated session title is emitted before the terminal done event', async (t) => {

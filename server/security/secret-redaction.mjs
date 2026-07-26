@@ -75,8 +75,16 @@ export function redactSecretValue(value, key = '', seen = new WeakSet()) {
   if (!value || typeof value !== 'object') return value
   if (seen.has(value)) return '[CIRCULAR]'
   seen.add(value)
-  if (Array.isArray(value)) return value.map((item) => redactSecretValue(item, key, seen))
-  return Object.fromEntries(Object.entries(value).map(([childKey, child]) => [childKey, redactSecretValue(child, childKey, seen)]))
+  const redacted = Array.isArray(value)
+    ? value.map((item) => redactSecretValue(item, key, seen))
+    : Object.fromEntries(
+        Object.entries(value).map(([childKey, child]) => [
+          childKey,
+          redactSecretValue(child, childKey, seen),
+        ]),
+      )
+  seen.delete(value)
+  return redacted
 }
 
 function commonPrefixLength(left, right) {

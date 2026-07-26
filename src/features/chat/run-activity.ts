@@ -95,7 +95,7 @@ function activityKey(activity: EntityRecord | null | undefined) {
   if (!activity?.type) return ''
   if (activity.type === 'tool') return `tool:${activity.id || activity.name || ''}`
   if (activity.type === 'agent')
-    return `agent:${activity.agent?.id || activity.agent?.canonicalName || ''}:${activity.agent?.status || ''}`
+    return `agent:${activity.agent?.id || activity.agent?.canonicalName || ''}`
   if (activity.type === 'plan')
     return `plan:${activity.updatedAt || activity.taskList?.updatedAt || ''}`
   if (activity.type === 'model') return `model:${activity.stage || ''}`

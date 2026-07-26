@@ -41,6 +41,19 @@ test('credential redaction removes common secrets without hiding token usage fie
   assert.equal(redactSecretText(text), text)
 })
 
+test('credential redaction preserves repeated object references while still stopping real cycles', () => {
+  const agent = { id: 'agent-1', status: 'completed' }
+  const repeated = redactSecretValue({ agent, currentActivity: { type: 'agent', agent } })
+  assert.deepEqual(repeated, {
+    agent: { id: 'agent-1', status: 'completed' },
+    currentActivity: { type: 'agent', agent: { id: 'agent-1', status: 'completed' } },
+  })
+
+  const circular = { id: 'cycle' }
+  circular.self = circular
+  assert.equal(redactSecretValue(circular).self, '[CIRCULAR]')
+})
+
 test('session persistence redacts a copy without changing the Agent message', () => {
   const persisted = []
   const manager = {

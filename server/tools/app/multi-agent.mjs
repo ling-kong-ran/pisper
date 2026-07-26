@@ -69,7 +69,8 @@ function createSpawnAgentTool({ multiAgentRuntime }) {
       'Provide a self-contained message with every constraint and piece of context the Agent needs; Agents never inherit the parent transcript.',
       'Agents inherit the current model, current reasoning level, tools, permission mode, and workspace boundary. They cannot recursively spawn more Agents.',
       'A spawned Agent is a background task. Its running state must not delay replying to the user, handling later user instructions, or spawning other independent Agents.',
-      'After spawning, do not call list_agents or wait_agent merely to monitor progress. Completed results are persisted and delivered through the parent mailbox on a later parent turn.',
+      'After spawning, acknowledge only that the work was delegated to a background Agent, phrased briefly in the user’s language, without explaining mailbox, prompt, or context internals.',
+      'Do not call list_agents or wait_agent merely to monitor progress. Completed results remain durable in the parent mailbox and update the UI, but are never injected into the parent prompt or model context.',
       'Use wait_agent only when the user explicitly asks you to wait for a specific Agent result before replying.',
     ],
     parameters: Type.Object({
@@ -144,7 +145,7 @@ function createWaitAgentTool({ multiAgentRuntime }) {
     promptGuidelines: [
       'Do not use wait_agent merely because an Agent is running.',
       'Never call wait_agent repeatedly after a timeout to poll for completion.',
-      'The parent should normally reply while Agents continue in the background; their completed results are delivered through the parent mailbox on a later turn.',
+      'The parent should normally reply while Agents continue in the background. Completion updates the UI and durable mailbox without injecting model context; inspect results later with list_agents or an explicitly requested wait_agent call.',
     ],
     parameters: Type.Object({
       target: Type.Optional(Type.String({ minLength: 1, description: 'Optional Agent id, task name, or canonical name. Without a target, returns when any currently active Agent finishes.' })),

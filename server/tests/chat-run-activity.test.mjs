@@ -122,6 +122,25 @@ test('current activity feed updates tools in place and evicts its oldest entries
   assert.equal(feed.filter((item) => item.type === 'model').length, 0)
 })
 
+test('Subagent status updates replace the same activity card in place', () => {
+  const running = {
+    type: 'agent',
+    agent: { id: 'agent-1', canonicalName: '/root/review_1', status: 'running' },
+  }
+  const completed = {
+    type: 'agent',
+    agent: {
+      id: 'agent-1',
+      canonicalName: '/root/review_1',
+      status: 'completed',
+      completedAt: '2026-07-20T10:00:05.000Z',
+    },
+  }
+  const feed = pushCurrentActivity(pushCurrentActivity([], running), completed)
+  assert.equal(feed.length, 1)
+  assert.equal(feed[0].agent.status, 'completed')
+})
+
 test('plan activity reports the concrete items whose status changed', () => {
   const changes = taskListChanges({ items: [
     { id: 'one', title: 'Inspect', status: 'in_progress' },
