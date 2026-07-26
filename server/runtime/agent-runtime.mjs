@@ -2755,6 +2755,15 @@ export class AgentRuntimeService {
     const baseUrl = String(input.baseUrl || '').trim()
     const modelBaseUrl = String(input.modelBaseUrl || '').trim()
     const organization = String(input.organization || '').trim()
+    const requestedApi = ['openai-responses', 'openai-completions', 'anthropic-messages', 'google-generative-ai'].includes(input.api)
+      ? input.api
+      : ''
+    if (requestedApi) {
+      providerOverlay.api = requestedApi
+      if (Array.isArray(providerOverlay.models)) {
+        providerOverlay.models = providerOverlay.models.map((item) => ({ ...item, api: requestedApi }))
+      }
+    }
     const runtimeModel = model ? this.modelRuntime.getModel(provider, model) : null
     if (model && !runtimeModel) {
       providerOverlay.name ||= String(input.providerName || provider)
@@ -2779,7 +2788,7 @@ export class AgentRuntimeService {
       const definition = definitionIndex >= 0 ? { ...modelDefinitions[definitionIndex] } : {
         id: model,
         name: runtimeModel?.name || String(input.modelName || model),
-        api: runtimeModel?.api || String(input.api || providerOverlay.api || 'openai-responses'),
+        api: requestedApi || runtimeModel?.api || String(input.api || providerOverlay.api || 'openai-responses'),
         kind: inferModelKind(model, input.modelKind),
         reasoning: runtimeModel?.reasoning ?? input.reasoning !== false,
         input: runtimeModel?.input || ['text', 'image'],

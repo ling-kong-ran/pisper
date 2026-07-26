@@ -76,6 +76,7 @@ type ConfigData = EntityRecord & {
 type ConfigDraft = {
   provider: string
   providerType: ProviderType
+  api: string
   model: string
   apiKey: string
   baseUrl: string
@@ -158,6 +159,7 @@ function configDraft(
   return {
     provider: provider?.id || 'openai',
     providerType: provider?.type || 'chat',
+    api: provider?.api || 'openai-responses',
     model: model?.id || '',
     apiKey: '',
     baseUrl: provider?.baseUrl || '',
@@ -183,6 +185,10 @@ function refreshedConfigDraft(data: ConfigData, current: ConfigDraft | null): Co
     ...current,
     provider: provider?.id || current.provider,
     providerType: current.providerType || provider?.type || 'chat',
+    api:
+      provider && provider.id !== current.provider
+        ? provider.api || 'openai-responses'
+        : current.api || provider?.api || 'openai-responses',
     model: model?.id || '',
     modelBaseUrl: model?.baseUrlOverride || '',
   }
@@ -661,6 +667,22 @@ export function ConfigPage({
                 ) : (
                   <>
                     <label className="field-label">
+                      {t('config:configPage.apiProtocol')}
+                      <span className="select-wrap">
+                        <AppSelect
+                          value={draft.api}
+                          onChange={(event) => setDraft({ ...draft, api: event.target.value })}
+                        >
+                          {PROVIDER_APIS.map(([value, label]) => (
+                            <option value={value} key={value}>
+                              {label}
+                            </option>
+                          ))}
+                        </AppSelect>
+                        <ChevronDown size={13} />
+                      </span>
+                    </label>
+                    <label className="field-label">
                       API Key
                       <span className="input-wrap">
                         <input
@@ -940,7 +962,7 @@ export function ConfigPage({
               provider={{ ...selectedProvider, type: draft.providerType }}
               connectionDraft={{
                 providerType: draft.providerType,
-                api: selectedProvider.api,
+                api: draft.api || selectedProvider.api,
                 baseUrl: draft.baseUrl,
                 apiKey: draft.apiKey,
                 organization: draft.organization,
