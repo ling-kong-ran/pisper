@@ -134,37 +134,27 @@
   width: 42%;
   height: 74%;
   border-radius: 50%;
-  filter: blur(38px);
+  background: radial-gradient(ellipse at center, currentColor 0%, transparent 72%);
   opacity: 0.16;
-  mix-blend-mode: screen;
-  animation: rb-aurora 12s ease-in-out infinite alternate;
 }
 .rb-aurora i:nth-child(1) {
   top: 2%;
   left: 8%;
-  background: var(--brand-blue);
+  color: var(--brand-blue);
+  transform: translate3d(-6%, -3%, 0) scale(0.92) rotate(-8deg);
 }
 .rb-aurora i:nth-child(2) {
   right: 5%;
   bottom: 0;
-  background: var(--star);
-  animation-delay: -4s;
+  color: var(--star);
+  transform: translate3d(9%, 6%, 0) scale(1.12) rotate(10deg);
 }
 .rb-aurora i:nth-child(3) {
   top: 30%;
   left: 38%;
-  background: var(--success);
+  color: var(--success);
   opacity: 0.08;
-  animation-delay: -8s;
-}
-
-@keyframes rb-aurora {
-  from {
-    transform: translate3d(-6%, -3%, 0) scale(0.92) rotate(-8deg);
-  }
-  to {
-    transform: translate3d(9%, 6%, 0) scale(1.12) rotate(10deg);
-  }
+  transform: rotate(4deg);
 }
 
 .rb-threads {

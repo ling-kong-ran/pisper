@@ -699,17 +699,16 @@ h1, h2, h3, strong { overflow-wrap: anywhere; }
 .agent-welcome-content { display: grid; width: 100%; max-width: 640px; place-items: center; padding: 28px; }
 .welcome-visual { display: grid; min-height: 144px; place-items: center; }
 .agent-welcome .welcome-logo { position: relative; z-index: 1; color: var(--text); }
-.agent-welcome .welcome-logo .logo-star { animation: star-twinkle 3s ease-in-out infinite; }
 .agent-welcome .rb-ascii-text { margin-top: -7px; }
 .welcome-chips { display: flex; max-width: 540px; flex-wrap: wrap; justify-content: center; gap: 9px; margin-top: 22px; }
 .welcome-chips button { min-height: 38px; border: 1px solid var(--stroke); border-radius: var(--r-pill); background: var(--solid); padding: 0 17px; color: var(--text-soft); font-size: 13px; font-weight: 650; transition: var(--d1) var(--ease-out); }
 .welcome-chips button:hover { border-color: var(--star-border); background: var(--star-soft); color: var(--star-strong); }
 .agent-welcome h2 { margin-top: 16px; color: var(--text); font-size: clamp(26px, 2.3vw, 30px); line-height: 1.25; }.agent-welcome p { max-width: 620px; margin-top: 12px; font-size: 15px; line-height: 1.7; }
 :root[data-theme='light'] .agent-welcome-content { border: 1px solid color-mix(in srgb, var(--brand-blue) 13%, var(--stroke)); border-radius: 32px; background: radial-gradient(circle at 16% 8%, color-mix(in srgb, var(--brand-blue) 10%, transparent), transparent 38%), radial-gradient(circle at 88% 92%, rgba(139, 92, 246, .08), transparent 42%), rgba(255,255,255,.82); box-shadow: 0 28px 72px -48px rgba(30,64,175,.3), 0 8px 26px -22px rgba(15,23,42,.22); backdrop-filter: blur(12px); }
-:root[data-theme='light'] .agent-welcome .rb-aurora i { filter: blur(52px); mix-blend-mode: multiply; opacity: .1; }
-:root[data-theme='light'] .agent-welcome .rb-aurora i:nth-child(1) { background: #60a5fa; opacity: .14; }
-:root[data-theme='light'] .agent-welcome .rb-aurora i:nth-child(2) { background: #a78bfa; opacity: .1; }
-:root[data-theme='light'] .agent-welcome .rb-aurora i:nth-child(3) { background: #5eead4; opacity: .09; }
+:root[data-theme='light'] .agent-welcome .rb-aurora i { opacity: .1; }
+:root[data-theme='light'] .agent-welcome .rb-aurora i:nth-child(1) { color: #60a5fa; opacity: .14; }
+:root[data-theme='light'] .agent-welcome .rb-aurora i:nth-child(2) { color: #a78bfa; opacity: .1; }
+:root[data-theme='light'] .agent-welcome .rb-aurora i:nth-child(3) { color: #5eead4; opacity: .09; }
 :root[data-theme='light'] .welcome-visual { position: relative; }
 :root[data-theme='light'] .welcome-visual::before { position: absolute; top: -8px; width: 78px; height: 78px; border: 1px solid rgba(23,131,255,.12); border-radius: 28px; background: linear-gradient(145deg, rgba(255,255,255,.94), rgba(239,246,255,.76)); box-shadow: 0 18px 42px -26px rgba(23,131,255,.48); content: ''; transform: rotate(8deg); }
 :root[data-theme='light'] .agent-welcome .welcome-logo { filter: drop-shadow(0 8px 14px rgba(23,131,255,.12)); }

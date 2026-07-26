@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict'
-import { mkdtemp, rm, writeFile } from 'node:fs/promises'
+import { appendFile, mkdtemp, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import test from 'node:test'
@@ -722,6 +722,61 @@ test('session history pagination follows the persisted branch across compaction'
   const older = await runtime.getSessionMessagePage('session-history', { limit: 2, before: latest.pageInfo.nextCursor })
   assert.deepEqual(older.messages.map((message) => message.text), ['old-user', 'old-agent'])
   assert.equal(older.pageInfo.hasMore, false)
+})
+
+test('session listings do not reopen every inactive history just to resolve its model', async (t) => {
+  const directory = await mkdtemp(join(tmpdir(), 'vesper-session-list-memory-'))
+  t.after(() => rm(directory, { recursive: true, force: true }))
+  const runtime = new AgentRuntimeService({ cwd: directory, dataDir: directory })
+  runtime.listStoredSessions = async () => [{
+    id: 'session-cached',
+    path: join(directory, 'session.jsonl'),
+    name: 'Cached session',
+    firstMessage: 'hello',
+    messageCount: 2,
+    cwd: directory,
+    created: new Date('2026-01-01T00:00:00.000Z'),
+    modified: new Date('2026-01-01T00:01:00.000Z'),
+  }]
+  runtime.settingsManager = { getGlobalSettings: () => ({ defaultProvider: 'openai', defaultModel: 'gpt-5.4' }) }
+  runtime.goals = { get: () => null }
+  runtime.taskLists = { get: () => null }
+  runtime.multiAgents = { summaries: () => [] }
+  runtime.openStoredSession = () => {
+    throw new Error('inactive history should not be reparsed')
+  }
+
+  const sessions = await runtime.listSessions()
+  assert.equal(sessions[0].model, 'openai/gpt-5.4')
+})
+
+test('today usage scans only newly appended session bytes', async (t) => {
+  const directory = await mkdtemp(join(tmpdir(), 'vesper-usage-scan-'))
+  t.after(() => rm(directory, { recursive: true, force: true }))
+  const path = join(directory, 'session.jsonl')
+  const now = Date.now()
+  const entries = [
+    { type: 'session', version: 3, id: 'session-usage', timestamp: new Date(now - 1000).toISOString(), cwd: directory },
+    { type: 'message', id: 'assistant-1', parentId: null, timestamp: new Date(now).toISOString(), message: { role: 'assistant', timestamp: now, content: [{ type: 'text', text: 'one' }], usage: { input: 10, output: 5, totalTokens: 15 } } },
+  ]
+  await writeFile(path, `${entries.map((entry) => JSON.stringify(entry)).join('\n')}\n`, 'utf8')
+
+  const runtime = new AgentRuntimeService({ cwd: directory, dataDir: directory })
+  runtime.listStoredSessions = async () => [{ id: 'session-usage', path, modified: new Date(now) }]
+  runtime.saveUsageLedger = async () => {}
+  runtime.openStoredSession = () => {
+    throw new Error('usage scanning must stay incremental')
+  }
+
+  const first = await runtime.getTodayUsage()
+  const firstOffset = runtime.usageLedger.sessionScans['session-usage'].size
+  assert.equal(first.totalTokens, 15)
+
+  const secondEntry = { type: 'message', id: 'assistant-2', parentId: 'assistant-1', timestamp: new Date(now + 1).toISOString(), message: { role: 'assistant', timestamp: now + 1, content: [{ type: 'text', text: 'two' }], usage: { input: 20, output: 10, totalTokens: 30 } } }
+  await appendFile(path, `${JSON.stringify(secondEntry)}\n`, 'utf8')
+  const second = await runtime.getTodayUsage()
+  assert.equal(second.totalTokens, 45)
+  assert.ok(runtime.usageLedger.sessionScans['session-usage'].size > firstOffset)
 })
 
 test('empty active sessions tolerate a JSONL file that has not been created yet', async (t) => {

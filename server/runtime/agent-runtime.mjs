@@ -547,6 +547,8 @@ export class AgentRuntimeService {
       notifications: this.notificationSettings,
     })
     this.sessions = new Map()
+    this.storedSessionsCache = null
+    this.storedSessionsPromise = null
     this.sessionRuntimeVersion = 0
     this.liveSessions = new Map()
     this.taskListEmitters = new Map()
@@ -570,7 +572,7 @@ export class AgentRuntimeService {
       createResourceLoader: ({ cwd: childCwd, appendSystemPrompt }) => this.skills.createResourceLoader(childCwd, { appendSystemPrompt }),
     })
     this.sessionMetaWrite = Promise.resolve()
-    this.usageLedger = { days: {} }
+    this.usageLedger = { days: {}, sessionScans: {} }
     this.usageWrite = Promise.resolve()
     this.assetIndex = { assets: [] }
     this.assetWrite = Promise.resolve()
@@ -583,8 +585,9 @@ export class AgentRuntimeService {
     await mkdir(this.assetsDir, { recursive: true })
     this.sessionMeta = await readJson(this.sessionMetaPath, {})
     await this.migrateSessionExecutionModes()
-    this.usageLedger = await readJson(this.usagePath, { days: {} })
+    this.usageLedger = await readJson(this.usagePath, { days: {}, sessionScans: {} })
     this.usageLedger.days ||= {}
+    this.usageLedger.sessionScans ||= {}
     this.assetIndex = await readJson(this.assetIndexPath, { assets: [] })
     this.assetIndex.assets = Array.isArray(this.assetIndex.assets) ? this.assetIndex.assets : []
     await migrateKimiCodeProvider({
@@ -708,8 +711,18 @@ export class AgentRuntimeService {
     return normalizeExecutionMode(this.sessionMeta[sessionId]?.executionMode, DEFAULT_EXECUTION_MODE)
   }
 
-  listStoredSessions() {
-    return SessionManager.listAll(this.sessionDir)
+  listStoredSessions({ refresh = false } = {}) {
+    if (!refresh && this.storedSessionsCache) return Promise.resolve(this.storedSessionsCache)
+    if (this.storedSessionsPromise) return this.storedSessionsPromise
+    this.storedSessionsPromise = SessionManager.listAll(this.sessionDir)
+      .then((sessions) => {
+        this.storedSessionsCache = sessions
+        return sessions
+      })
+      .finally(() => {
+        this.storedSessionsPromise = null
+      })
+    return this.storedSessionsPromise
   }
 
   openStoredSession(path) {
@@ -892,24 +905,77 @@ export class AgentRuntimeService {
     return true
   }
 
+  async scanSessionUsage(info, day) {
+    const file = await stat(info.path)
+    const scans = this.usageLedger.sessionScans
+    const previous = scans[info.id]
+    const records = this.usageLedger.days[day]?.records || {}
+    const hasRecordedSessionUsage = Object.keys(records).some((key) => key.startsWith(`session:${info.id}:`))
+    if (!previous && hasRecordedSessionUsage) {
+      scans[info.id] = { path: info.path, size: file.size }
+      return true
+    }
+
+    let offset = previous?.path === info.path && file.size >= Number(previous.size || 0)
+      ? Number(previous.size || 0)
+      : 0
+    if (offset >= file.size) return false
+
+    const handle = await open(info.path, 'r')
+    let changed = false
+    let position = offset
+    let scannedUntil = offset
+    let remainder = Buffer.alloc(0)
+    try {
+      while (position < file.size) {
+        const chunk = Buffer.allocUnsafe(Math.min(256 * 1024, file.size - position))
+        const { bytesRead } = await handle.read(chunk, 0, chunk.length, position)
+        if (!bytesRead) break
+        position += bytesRead
+        const combined = remainder.length ? Buffer.concat([remainder, chunk.subarray(0, bytesRead)]) : chunk.subarray(0, bytesRead)
+        const newline = combined.lastIndexOf(0x0a)
+        if (newline < 0) {
+          remainder = combined
+          continue
+        }
+        const complete = combined.subarray(0, newline).toString('utf8')
+        remainder = combined.subarray(newline + 1)
+        scannedUntil = position - remainder.length
+        for (const line of complete.split('\n')) {
+          if (!line.trim()) continue
+          try {
+            const entry = JSON.parse(line.trimEnd())
+            if (entry.type !== 'message' || entry.message?.role !== 'assistant' || !entry.message.usage) continue
+            const timestamp = entry.message.timestamp || entry.timestamp
+            if (localDayKey(timestamp) !== day) continue
+            const key = `session:${info.id}:${entry.id}`
+            this.usageLedger.days[day] ||= { records: {} }
+            this.usageLedger.days[day].records ||= {}
+            if (this.usageLedger.days[day].records[key]) continue
+            this.usageLedger.days[day].records[key] = normalizedUsage(entry.message.usage)
+            changed = true
+          } catch {
+            // Ignore malformed or partially written history lines.
+          }
+        }
+      }
+    } finally {
+      await handle.close()
+    }
+    if (scannedUntil !== Number(previous?.size || 0) || previous?.path !== info.path) {
+      scans[info.id] = { path: info.path, size: scannedUntil }
+      changed = true
+    }
+    return changed
+  }
+
   async getTodayUsage() {
     const day = localDayKey()
     const sessions = await this.listStoredSessions()
     let changed = false
     for (const info of sessions) {
       if (localDayKey(info.modified) !== day) continue
-      const manager = this.openStoredSession(info.path)
-      for (const entry of manager.getEntries()) {
-        if (entry.type !== 'message' || entry.message?.role !== 'assistant' || !entry.message.usage) continue
-        const timestamp = entry.message.timestamp || entry.timestamp
-        if (localDayKey(timestamp) !== day) continue
-        const key = `session:${info.id}:${entry.id}`
-        this.usageLedger.days[day] ||= { records: {} }
-        this.usageLedger.days[day].records ||= {}
-        if (this.usageLedger.days[day].records[key]) continue
-        this.usageLedger.days[day].records[key] = normalizedUsage(entry.message.usage)
-        changed = true
-      }
+      if (await this.scanSessionUsage(info, day)) changed = true
     }
     if (changed) await this.saveUsageLedger()
     const totals = { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, reasoning: 0, totalTokens: 0 }
@@ -1092,17 +1158,19 @@ export class AgentRuntimeService {
     const result = sessions.map((session) => {
       const active = this.sessions.get(session.id)
       const contextModel = active?.session.model
-        ? { provider: active.session.model.provider, modelId: active.session.model.id }
-        : this.openStoredSession(session.path).buildSessionContext().model
+        ? `${active.session.model.provider}/${active.session.model.id}`
+        : this.sessionMeta[session.id]?.model || defaultModel
       return {
         id: session.id,
-        name: session.name || session.firstMessage || DEFAULT_SESSION_NAME,
+        name: active?.name || session.name || session.firstMessage || DEFAULT_SESSION_NAME,
         firstMessage: session.firstMessage || '',
-        messageCount: session.messageCount,
-        model: contextModel ? `${contextModel.provider}/${contextModel.modelId}` : defaultModel,
+        messageCount: active
+          ? active.session.messages.filter((message) => ['user', 'assistant'].includes(message.role)).length
+          : session.messageCount,
+        model: contextModel,
         cwd: active?.cwd || this.sessionMeta[session.id]?.cwd || session.cwd || this.cwd,
         created: session.created.toISOString(),
-        modified: session.modified.toISOString(),
+        modified: active?.modified || session.modified.toISOString(),
         streaming: Boolean(active?.session.isStreaming),
         permissionMode: this.sessionMeta[session.id]?.permissionMode || permissionModeForExecutionMode(this.getSessionExecutionMode(session.id)),
         executionMode: this.getSessionExecutionMode(session.id),
@@ -1131,6 +1199,7 @@ export class AgentRuntimeService {
         agents: this.multiAgents.summaries(id).filter((agent) => ['queued', 'starting', 'running'].includes(agent.status)),
       })
     }
+    result.sort((left, right) => new Date(right.modified).getTime() - new Date(left.modified).getTime())
     return result
   }
 
@@ -1690,6 +1759,13 @@ export class AgentRuntimeService {
     }
     runtimeValue = value
     runtimeSession = session
+    if (session.model) {
+      const model = `${session.model.provider}/${session.model.id}`
+      if (this.sessionMeta[session.sessionId]?.model !== model) {
+        this.sessionMeta[session.sessionId] = { ...(this.sessionMeta[session.sessionId] || {}), model }
+        void this.saveSessionMeta()
+      }
+    }
     this.syncGoalTools(value, this.goals.get(session.sessionId))
     this.permissions.install(session, { sessionId: session.sessionId, cwd: effectiveCwd })
     applyVesperSystemPrompt(session, session.model)
@@ -1753,6 +1829,7 @@ export class AgentRuntimeService {
     const keepTaskList = goal?.status === 'active' || isGoalContinuationMessage(message)
     if (!keepTaskList) await this.taskLists.replace(session.sessionId, [])
     const startedAt = new Date().toISOString()
+    value.modified = startedAt
     const initialActivity = { type: 'model', stage: 'thinking', updatedAt: startedAt }
     const live = { streaming: true, text: '', thinkingText: '', tools: [], assets: [], error: '', goal, taskList: this.taskLists.get(session.sessionId), agents: this.multiAgents.summaries(session.sessionId).filter((agent) => ['queued', 'starting', 'running'].includes(agent.status)), currentActivity: initialActivity, activityFeed: [], queuedInputs: queuedSessionInputs(session), contextUsage: this.compactionAwareContextUsage(session), compaction: null, startedAt, lastActivityAt: startedAt }
     this.liveSessions.set(session.sessionId, live)
@@ -2214,6 +2291,11 @@ export class AgentRuntimeService {
         delete this.sessionMeta[id]
         await this.saveSessionMeta()
       }
+      if (this.usageLedger.sessionScans?.[id]) {
+        delete this.usageLedger.sessionScans[id]
+        await this.saveUsageLedger()
+      }
+      if (this.storedSessionsCache) this.storedSessionsCache = this.storedSessionsCache.filter((session) => session.id !== id)
       return Boolean(active)
     }
     const root = resolve(this.sessionDir)
@@ -2228,6 +2310,11 @@ export class AgentRuntimeService {
       delete this.sessionMeta[id]
       await this.saveSessionMeta()
     }
+    if (this.usageLedger.sessionScans?.[id]) {
+      delete this.usageLedger.sessionScans[id]
+      await this.saveUsageLedger()
+    }
+    if (this.storedSessionsCache) this.storedSessionsCache = this.storedSessionsCache.filter((session) => session.id !== id)
     return true
   }
 

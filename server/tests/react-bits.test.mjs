@@ -37,13 +37,14 @@ test('Vesper ships the selected lightweight React Bits components without anothe
 })
 
 test('React Bits effects are attached to purposeful low-noise UI surfaces', async () => {
-  const [focus, activity, confirmation, history, preview, appStyles] = await Promise.all([
+  const [focus, activity, confirmation, history, preview, appStyles, bitsStyles] = await Promise.all([
     readFile('src/features/chat/FocusSession.tsx', 'utf8'),
     readFile('src/features/chat/AgentRunActivity.tsx', 'utf8'),
     readFile('src/components/ai-elements/confirmation.tsx', 'utf8'),
     readFile('src/features/chat/ChatHistoryPage.tsx', 'utf8'),
     readFile('src/features/chat/WebPreviewDockPanel.tsx', 'utf8'),
     readFile('src/index.css', 'utf8'),
+    readFile('src/components/react-bits/react-bits.css', 'utf8'),
   ])
   assert.match(focus, /<Aurora \/>/)
   assert.match(focus, /<AsciiText text="VESPER" \/>/)
@@ -57,4 +58,9 @@ test('React Bits effects are attached to purposeful low-noise UI surfaces', asyn
   assert.match(preview, /<Threads \/>/)
   assert.match(appStyles, /:root\[data-theme='light'\] \.agent-welcome-content/)
   assert.match(appStyles, /:root\[data-theme='light'\] \.agent-welcome \.rb-aurora i/)
+
+  const auroraRule = bitsStyles.match(/\.rb-aurora i \{([^}]+)\}/)?.[1] || ''
+  assert.match(auroraRule, /radial-gradient/)
+  assert.doesNotMatch(auroraRule, /filter|mix-blend-mode|animation/)
+  assert.doesNotMatch(appStyles, /\.agent-welcome \.welcome-logo \.logo-star \{[^}]*animation/)
 })
