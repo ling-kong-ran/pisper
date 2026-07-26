@@ -161,7 +161,7 @@ test('dedicated visual Providers remove shared visual models from chat Provider 
   assert.equal(visualProvider.models.some((model) => model.id === 'gpt-image-2'), true)
 })
 
-test('visual-only providers ignore chat models returned by a shared relay catalog', async (t) => {
+test('visual-only providers list every discovered model so users can pick the kind', async (t) => {
   const directory = await mkdtemp(join(tmpdir(), 'vesper-provider-model-visual-scope-'))
   const runtime = new AgentRuntimeService({
     cwd: directory,
@@ -189,7 +189,8 @@ test('visual-only providers ignore chat models returned by a shared relay catalo
 
   const result = await runtime.discoverProviderModels('openai-image')
   assert.equal(result.scope, 'visual')
-  assert.deepEqual(result.models.map((model) => model.id), ['gpt-image-2', 'grok-imagine-video'])
+  // 发现结果不再按 ID 推断的 kind 过滤，全量列出，由用户添加时显式选择图像/视频类型
+  assert.deepEqual(result.models.map((model) => model.id), ['gpt-image-2', 'grok-3-mini', 'grok-imagine-video'])
   const provider = result.config.providers.find((item) => item.id === 'openai-image')
   assert.equal(provider.type, 'visual')
   assert.equal(provider.models.some((model) => model.kind === 'chat'), false)

@@ -1,13 +1,9 @@
 import { readJson } from '../../storage/json-file.mjs'
 
-const VIDEO_PATTERN = /(?:^|[-_/])(sora|veo|video|kling|runway|hailuo|minimax-video|wan[-_.]?\d|grok-imagine-video)(?:$|[-_/])/i
-const IMAGE_PATTERN = /(?:^|[-_/])(gpt[-_.]?(?:\d+(?:\.\d+)?)?[-_.]?image|gpt-image|dall-e|imagen|image|flux|recraft|ideogram|grok-imagine-image)(?:$|[-_/])/i
-
+// 不再按模型 ID 猜测用途：类型完全由用户在添加时显式选择。
+// 保留函数签名以兼容既有调用点与历史配置（'auto' 或缺省一律按对话模型处理）。
 export function inferModelKind(modelId, explicitKind = 'auto') {
   if (['chat', 'image', 'video'].includes(explicitKind)) return explicitKind
-  const id = String(modelId || '')
-  if (VIDEO_PATTERN.test(id)) return 'video'
-  if (IMAGE_PATTERN.test(id)) return 'image'
   return 'chat'
 }
 

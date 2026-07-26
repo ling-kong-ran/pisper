@@ -14,7 +14,8 @@ test('discovers and normalizes OpenAI-compatible model IDs with bearer authentic
   } })
   const result = await service.discover({ api: 'openai-responses', baseUrl: 'https://api.example.test/v1/', apiKey: 'secret-value', organization: 'org-1' })
   assert.deepEqual(result.models.map((item) => item.id), ['gpt-5.4', 'gpt-image-1'])
-  assert.equal(result.models.find((item) => item.id === 'gpt-image-1').kind, 'image')
+  // 发现的模型不再按 ID 推断用途，一律默认 chat，由用户添加时显式选择类型
+  assert.equal(result.models.find((item) => item.id === 'gpt-image-1').kind, 'chat')
   assert.equal(calls[0].url, 'https://api.example.test/v1/models')
   assert.equal(calls[0].options.headers.Authorization, 'Bearer secret-value')
   assert.equal(calls[0].options.headers['OpenAI-Organization'], 'org-1')

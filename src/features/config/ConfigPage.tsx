@@ -1181,7 +1181,7 @@ function ProviderConfigModal({ onClose, onCreated }: ProviderConfigModalProps) {
     apiKey: '',
     model: '',
     modelName: '',
-    modelKind: 'auto',
+    modelKind: 'chat',
     reasoning: true,
     enabled: true,
   })
@@ -1203,9 +1203,13 @@ function ProviderConfigModal({ onClose, onCreated }: ProviderConfigModalProps) {
       ...current,
       providerType,
       modelKind:
-        providerType === 'visual' && (current.modelKind === 'auto' || current.modelKind === 'chat')
-          ? 'image'
-          : current.modelKind,
+        providerType === 'visual'
+          ? current.modelKind === 'image' || current.modelKind === 'video'
+            ? current.modelKind
+            : 'image'
+          : current.modelKind === 'chat'
+            ? current.modelKind
+            : 'chat',
     }))
   const submit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
@@ -1349,9 +1353,6 @@ function ProviderConfigModal({ onClose, onCreated }: ProviderConfigModalProps) {
               onChange={(event) => setDraft({ ...draft, modelKind: event.target.value })}
             >
               {draft.providerType !== 'visual' && (
-                <option value="auto">{t('config:configPage.autoDetect')}</option>
-              )}
-              {draft.providerType !== 'visual' && (
                 <option value="chat">{t('config:configPage.chat')}</option>
               )}
               <option value="image">{t('config:configPage.imageGenerationAndEditing')}</option>
@@ -1405,9 +1406,13 @@ function ProviderModelModal({
     name: '',
     api: provider.api || 'openai-responses',
     baseUrl: '',
-    kind: provider.type === 'visual' ? 'image' : 'auto',
+    kind: provider.type === 'visual' ? 'image' : 'chat',
     reasoning: true,
   })
+  const [batchKind, setBatchKind] = useState(provider.type === 'visual' ? 'image' : 'chat')
+  const [batchApi, setBatchApi] = useState(
+    connectionDraft.api || provider.api || 'openai-responses',
+  )
   const [saving, setSaving] = useState(false)
   const [discovering, setDiscovering] = useState(false)
   const [catalog, setCatalog] = useState<ProviderModel[]>([])
@@ -1476,9 +1481,9 @@ function ProviderModelModal({
           .map((model) => ({
             id: model.id,
             name: model.name,
-            kind: model.kind,
-            api: connectionDraft.api,
-            reasoning: model.kind === 'chat',
+            kind: batchKind,
+            api: batchApi,
+            reasoning: batchKind === 'chat',
           }))
         const data = await apiJson<ConfigData>(
           `/api/providers/${encodeURIComponent(provider.id)}/models/batch`,
@@ -1501,10 +1506,9 @@ function ProviderModelModal({
   const normalizedSearch = search.trim().toLowerCase()
   const visibleCatalog = catalog.filter(
     (model) =>
-      (provider.type !== 'visual' || model.kind !== 'chat') &&
-      (!normalizedSearch ||
-        model.id.toLowerCase().includes(normalizedSearch) ||
-        model.name.toLowerCase().includes(normalizedSearch)),
+      !normalizedSearch ||
+      model.id.toLowerCase().includes(normalizedSearch) ||
+      model.name.toLowerCase().includes(normalizedSearch),
   )
   const canSubmit = selectedIds.length > 0 || draft.id.trim()
   return (
@@ -1556,6 +1560,36 @@ function ProviderModelModal({
           </button>
         </div>
         {catalog.length > 0 && (
+          <div className="form-grid">
+            <label className="field-label">
+              {t('config:configPage.modelType')}
+              <span className="select-wrap">
+                <AppSelect value={batchKind} onChange={(event) => setBatchKind(event.target.value)}>
+                  {provider.type !== 'visual' && (
+                    <option value="chat">{t('config:configPage.chat')}</option>
+                  )}
+                  <option value="image">{t('config:configPage.imageGenerationAndEditing')}</option>
+                  <option value="video">{t('config:configPage.videoGeneration')}</option>
+                </AppSelect>
+                <ChevronDown size={13} />
+              </span>
+            </label>
+            <label className="field-label">
+              {t('config:configPage.apiProtocol')}
+              <span className="select-wrap">
+                <AppSelect value={batchApi} onChange={(event) => setBatchApi(event.target.value)}>
+                  {PROVIDER_APIS.map(([value, label]) => (
+                    <option value={value} key={value}>
+                      {label}
+                    </option>
+                  ))}
+                </AppSelect>
+                <ChevronDown size={13} />
+              </span>
+            </label>
+          </div>
+        )}
+        {catalog.length > 0 && (
           <div
             className="max-h-64 space-y-1 overflow-y-auto rounded-[var(--r-sm)] border border-[var(--stroke)] bg-[var(--surface-subtle)] p-1"
             role="listbox"
@@ -1583,13 +1617,6 @@ function ProviderModelModal({
                       </small>
                     )}
                   </span>
-                  <Badge tone={model.kind === 'image' || model.kind === 'video' ? 'blue' : 'gray'}>
-                    {model.kind === 'video'
-                      ? t('config:configPage.video')
-                      : model.kind === 'image'
-                        ? t('config:configPage.image')
-                        : t('config:configPage.chat')}
-                  </Badge>
                   {model.added ? (
                     <Badge tone="gray">{t('config:configPage.added')}</Badge>
                   ) : selected ? (
@@ -1659,9 +1686,6 @@ function ProviderModelModal({
               value={draft.kind}
               onChange={(event) => setDraft({ ...draft, kind: event.target.value })}
             >
-              {provider.type !== 'visual' && (
-                <option value="auto">{t('config:configPage.autoDetect')}</option>
-              )}
               {provider.type !== 'visual' && (
                 <option value="chat">{t('config:configPage.chat')}</option>
               )}

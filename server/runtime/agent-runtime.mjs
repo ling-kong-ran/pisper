@@ -486,6 +486,15 @@ function claimedByOtherVisualProvider(claims, providerId, baseUrl, modelId, kind
   return Boolean(providerIds && [...providerIds].some((id) => id !== providerId))
 }
 
+function claimedByOtherVisualProviderAnyKind(claims, providerId, baseUrl, modelId) {
+  const prefix = [normalizedProviderBaseUrl(baseUrl), String(modelId || '').toLowerCase(), ''].join('\0')
+  for (const [key, providerIds] of claims) {
+    if (!key.startsWith(prefix)) continue
+    if ([...providerIds].some((id) => id !== providerId)) return true
+  }
+  return false
+}
+
 export class AgentRuntimeService {
   constructor({ cwd, dataDir, providerDiscovery, providerModelDiscovery, browserAutomationDriver, eventObserver } = {}) {
     this.cwd = cwd
@@ -3083,11 +3092,12 @@ export class AgentRuntimeService {
       ? input.providerType
       : appConfig.providerTypes?.[provider] || inferredProviderType(overlay)
     const visualClaims = dedicatedVisualModelClaims(modelsJson, appConfig)
+    // 发现的模型不再按 ID 推断用途（统一为 chat），所以这里不按 kind 过滤：
+    // 视觉 Provider 也列出全部发现结果，由用户添加时显式选择图像/视频类型。
     const models = scope === 'visual'
-      ? discovered.models.filter((model) => model.kind !== 'chat')
-      : discovered.models.filter((model) => model.kind === 'chat'
-        || !claimedByOtherVisualProvider(visualClaims, provider, baseUrl, model.id, model.kind))
-    if (!models.length) throw new Error(scope === 'visual' ? 'Provider 没有返回可用的图像或视频模型。' : 'Provider 没有返回可用的模型。')
+      ? discovered.models
+      : discovered.models.filter((model) => !claimedByOtherVisualProviderAnyKind(visualClaims, provider, baseUrl, model.id))
+    if (!models.length) throw new Error('Provider 没有返回可用的模型。')
     const result = { ...discovered, count: models.length, models, scope }
     const previousModelIds = new Set(this.modelRuntime.getModels(provider).map((model) => model.id))
     let sync = { addedModelIds: [], removedModelIds: [] }

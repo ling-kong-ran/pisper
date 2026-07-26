@@ -85,6 +85,8 @@ function candidateFrom(item, api) {
   return {
     id,
     name,
+    // 不再按 ID 推断用途：发现的模型一律先按对话模型列出，
+    // 实际类型由用户在添加时显式选择（详见 inferModelKind）。
     kind: inferModelKind(id, 'auto'),
     ...(Array.isArray(item.supportedGenerationMethods) ? { supportedGenerationMethods: item.supportedGenerationMethods.map(String) } : {}),
   }
