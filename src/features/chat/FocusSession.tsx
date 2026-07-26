@@ -568,6 +568,34 @@ export function FocusSession({
     hasUnread,
     scrollToBottom,
   } = useAutoScroll(transcriptVersion)
+  // Mirror the pinned-to-bottom state so the post-stream catch-up scroll below
+  // does not yank a reader who has scrolled up to review earlier output.
+  const pinnedToBottomRef = useRef(true)
+  useEffect(() => {
+    pinnedToBottomRef.current = !hasUnread
+  }, [hasUnread])
+  // When streaming ends, the message swaps from the plain <pre> streaming view
+  // to full ReactMarkdown (tables, code blocks, syntax highlighting). That
+  // height change lands *after* the final auto-scroll has already fired against
+  // a stale scrollHeight, leaving the tail off-screen. Re-scroll once the layout
+  // settles, but only if the user is still at the bottom.
+  useEffect(() => {
+    if (streaming) return undefined
+    if (!pinnedToBottomRef.current) return undefined
+    let outer = 0
+    let inner = 0
+    let timeout = 0
+    outer = requestAnimationFrame(() => {
+      inner = requestAnimationFrame(() => scrollToBottom())
+      // Fallback for layout that settles past two frames (async reflow).
+      timeout = window.setTimeout(() => scrollToBottom(), 60)
+    })
+    return () => {
+      cancelAnimationFrame(outer)
+      if (inner) cancelAnimationFrame(inner)
+      if (timeout) window.clearTimeout(timeout)
+    }
+  }, [streaming, scrollToBottom])
   const latestRunProps = useMemo(
     () => ({
       streaming,
