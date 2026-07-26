@@ -9,264 +9,141 @@
 <h1 align="center">Vesper</h1>
 
 <p align="center"><strong>暮色落下，灵感仍醒着。</strong></p>
-<p align="center">本地优先的多 Agent 工作台，让会话、工具、记忆与工作流在同一片星图中并行运转。</p>
+<p align="center">本地优先的多 Agent 工作台，在一个可停靠工作区中连接会话、工具、记忆与自动化。</p>
 
 <p align="center">
   <img src="https://img.shields.io/badge/Node.js-17141F?style=flat-square&logo=nodedotjs&logoColor=F59E0B" alt="Node.js" />
   <img src="https://img.shields.io/badge/TypeScript-17141F?style=flat-square&logo=typescript&logoColor=F59E0B" alt="TypeScript" />
   <img src="https://img.shields.io/badge/React-17141F?style=flat-square&logo=react&logoColor=F59E0B" alt="React" />
-  <img src="https://img.shields.io/badge/Vite-17141F?style=flat-square&logo=vite&logoColor=F59E0B" alt="Vite" />
-  <img src="https://img.shields.io/badge/Tailwind_CSS-17141F?style=flat-square&logo=tailwindcss&logoColor=F59E0B" alt="Tailwind CSS" />
   <img src="https://img.shields.io/badge/Electron-17141F?style=flat-square&logo=electron&logoColor=F59E0B" alt="Electron" />
   <a href="./LICENSE"><img src="https://img.shields.io/badge/License-MIT-F59E0B?style=flat-square" alt="MIT License" /></a>
 </p>
 
 <p align="center">
   <a href="https://github.com/ling-kong-ran/vesper/releases/latest">
-    <img src="https://img.shields.io/badge/下载桌面版-Windows%20%7C%20macOS%20%7C%20Linux-F59E0B?style=for-the-badge&logo=github&logoColor=17141F" alt="下载 Vesper 桌面版安装包" />
+    <img src="https://img.shields.io/badge/下载桌面版-Windows%20%7C%20macOS%20%7C%20Linux-F59E0B?style=for-the-badge&logo=github&logoColor=17141F" alt="下载 Vesper 桌面版" />
   </a>
 </p>
-<p align="center"><sub>可直接下载安装包，无需克隆源码或配置 Node.js 开发环境。</sub></p>
 
 <p align="center">
-  <a href="#about">暮星之名</a> ·
-  <a href="#glance">一眼 Vesper</a> ·
-  <a href="#lightweight-prompt">轻量 Prompt</a> ·
-  <a href="#capabilities">能力星图</a> ·
+  <a href="#overview">简介</a> ·
+  <a href="#preview">界面</a> ·
+  <a href="#features">功能</a> ·
   <a href="#desktop-pet">桌面宠物</a> ·
-  <a href="#architecture">代码星图</a> ·
-  <a href="#stack">技术栈</a> ·
-  <a href="#start">从这里启程</a> ·
-  <a href="#contributing">参与贡献</a> ·
-  <a href="#license">开源许可</a> ·
-  <a href="#acknowledgements">致谢</a>
+  <a href="#install">安装</a> ·
+  <a href="#development">开发</a> ·
+  <a href="#license">许可</a>
 </p>
 
 ---
 
-<a id="about"></a>
+<a id="overview"></a>
 
-## ✦ 暮星之名
+## 简介
 
-**Vesper**，取意于黄昏与晚星。
+Vesper 是一款**本地优先的多 Agent 工作台**。每个会话拥有独立的模型、上下文、工作目录和执行权限，并可通过标签、左右分屏与拖拽停靠组合成 IDE 式工作区。
 
-白昼退场之后，仍有一束光守望尚未完成的工作。Vesper 希望成为这样的存在：安静、清醒、始终在场，把分散的模型、工具与上下文收拢成一张可见、可控、可继续生长的工作星图。
+- 多会话并行运行，布局自动恢复。
+- 动态 Prompt 只加载当前任务需要的工具。
+- 记忆、定时任务、工作流、MCP 与外部渠道统一管理。
+- 敏感操作受执行模式、工作区、沙箱和审批约束。
 
-Vesper 是一款**本地优先的多 Agent 工作台**。你可以让多个独立会话同时推进，让每个 Agent 拥有自己的模型、执行模式、上下文与工作目录；通过可拖拽标签与 `Split Left` / `Split Right` 左右分屏，将任务编排成可随时调整并自动恢复的 IDE 式工作区。
+<a id="preview"></a>
 
-> 让每个 Agent 各行其轨，让每一次思考都有归处。
-
-- **并行而不混乱**：会话彼此独立，状态、权限与上下文清晰可见。
-- **轻量而不减配**：动态 Prompt 只携带当前任务真正需要的工具，让普通编码会话保持极致轻量。
-- **自动化而不越界**：定时任务与工作流负责重复劳动，敏感操作仍由你决定。
-- **记住而不喧哗**：偏好、事实、决策与文件关系沉淀为本地「星忆」。
-- **连接而不失守**：MCP、插件与外部渠道可以扩展能力，也始终受权限边界约束。
-
----
-
-<a id="glance"></a>
-
-## ✦ 一眼 Vesper
+## 界面
 
 <p align="center">
-  <img src="./docs/shots/welcome-dark.png" alt="Vesper 暗色主题动态欢迎页" />
+  <img src="./docs/shots/welcome-dark.png" alt="Vesper 暗色主题欢迎页" />
 </p>
-
-![Vesper 产品演示](./docs/show.gif)
 
 <table>
   <tr>
     <td width="50%" align="center">
       <img src="./docs/shots/chat-grid.png" alt="Vesper 多会话 Dock 分屏工作区" />
-      <br />
-      <sub><strong>Dock 分屏工作区</strong> · 用标签、左右拆分与拖拽停靠并行推进任务</sub>
+      <br /><sub><strong>Dock 工作区</strong> · 标签、分屏与拖拽停靠</sub>
     </td>
     <td width="50%" align="center">
       <img src="./docs/shots/memory.png" alt="Vesper 星忆视图" />
-      <br />
-      <sub><strong>星忆</strong> · 让值得保留的思考与决定持续发光</sub>
+      <br /><sub><strong>星忆</strong> · 保存可搜索的本地记忆</sub>
     </td>
   </tr>
   <tr>
     <td width="50%" align="center">
       <img src="./docs/shots/workflow-builder.png" alt="Vesper 工作流编辑器" />
-      <br />
-      <sub><strong>工作流</strong> · 把一次设想编排成可运行、可复用的路径</sub>
+      <br /><sub><strong>工作流</strong> · 编排可复用自动化</sub>
     </td>
     <td width="50%" align="center">
       <img src="./docs/shots/channels.png" alt="Vesper 渠道视图" />
-      <br />
-      <sub><strong>双向渠道</strong> · 让 Vesper 抵达飞书与个人微信</sub>
+      <br /><sub><strong>双向渠道</strong> · 连接飞书与个人微信</sub>
     </td>
   </tr>
 </table>
 
----
+<a id="features"></a>
 
-<a id="lightweight-prompt"></a>
-
-## ✦ 动态 Prompt · 极致轻量
-
-Vesper 不会在每次模型调用时，把所有工具、MCP、视觉、浏览器、星忆与多 Agent 规则一股脑塞进上下文。运行时会保留一个稳定、精简的基础 Prompt，并根据用户当前的明确请求，按需追加对应工具 Schema。
-
-<table>
-  <tr>
-    <td width="33%" valign="top">
-      <strong>轻量默认上下文</strong><br />
-      普通编码会话只加载读写、搜索、Shell 与任务进度等高频工具。当前基准下，固定输入约为 <strong>2,979 tokens</strong>，相比全量注入约减少 <strong>58.7%</strong>。
-    </td>
-    <td width="33%" valign="top">
-      <strong>能力按需唤醒</strong><br />
-      Web Search、浏览器、视觉生成、星忆、MCP 与 Subagent 等能力，仅在用户明确需要时追加；新的普通请求会自动回到轻量基线。
-    </td>
-    <td width="33%" valign="top">
-      <strong>Prompt Cache 友好</strong><br />
-      System Prompt 与高频工具 Schema 保持稳定前缀，低频工具只追加在末尾，尽可能复用 Provider 的 Prompt Cache，减少重复输入与延迟。
-    </td>
-  </tr>
-</table>
-
-- **显式 Skills**：可将大型专业流程设为仅通过 `/skill:name` 调用，默认不向模型暴露名称、描述或正文，实现零常驻上下文开销。
-- **可信意图路由**：只依据最新用户请求和明确附件元数据激活能力；网页、文件、工具输出、星忆或 Agent 结果中的文本不能偷偷扩张工具集。
-- **否定语义保护**：诸如“不要使用浏览器”“Do not use MCP”的请求不会误激活对应工具。
-- **权限仍是硬边界**：动态激活只决定本轮需要哪些工具，不会绕过工具开关、执行模式、工作区、沙箱或审批策略。
-
-> Token 数值使用 Vesper 的保守估算 `ceil(characters / 4)`，来自当前默认完整模式的可复现基准；实际 Provider 计费、缓存命中与延迟收益会因模型和服务商而异。
-
----
-
-<a id="capabilities"></a>
-
-## ✦ 能力星图
+## 功能
 
 | 模块 | 能力 |
 | :--- | :--- |
-| **多会话对话** | 多个独立 Agent 会话并行运行；模型、执行模式、上下文与工作目录彼此分明，支持标签分组、左右拆分、拖拽停靠、尺寸调整与布局恢复。 |
-| **Agent Runtime** | 以 Pi Coding Agent 为运行内核，支持结构化工具活动、Goal、可复用 Skills 与隔离的 Subagent 委派。 |
-| **动态 Prompt** | 保持稳定、轻量、缓存友好的基础 Prompt，仅按用户明确意图追加低频工具 Schema；支持零常驻开销的显式 Skills。 |
-| **工具与 MCP** | 将内置工具、应用插件与 MCP 服务接入同一能力层，并通过不暴露凭据的结构化配置守住连接边界。 |
-| **星忆** | 以轻量本地 SQLite 保存偏好、事实、决策与任务；按工作空间隔离，支持搜索、主动点亮、编辑与对话提取。 |
-| **多模态** | 阅读图片、文档与代码，也可通过已配置的 OpenAI 兼容、Gemini、Imagen、Veo 或 xAI 模型生成及编辑视觉内容。 |
-| **自动化** | 用定时任务与可视化工作流承接重复劳动，支持模型选择、重试、超时、失败策略、执行历史与完成通知。 |
-| **双向渠道** | 连接飞书与个人微信，为每个渠道配置回复模型、工作目录、附件传输与可复用通知模板。 |
-| **桌面宠物** | 在 Vesper 内搜索、安装和切换 Petdex 兼容宠物，让等待、思考、工具执行、完成与失败等 Agent 状态映射为实时动画。 |
-| **桌面应用** | 提供 Electron 原生窗口、单实例运行、品牌图标、应用内更新日志，以及基于 GitHub Releases 的更新能力。 |
-| **安全边界** | 会话级 `只读 / 工作区 / 完全访问` 执行模式、工作区外单次授权、服务端凭据脱敏，以及独立于仓库之外的本地用户数据存储。 |
+| **多会话对话** | 独立 Agent 会话、模型与权限；支持标签分组、左右拆分、拖拽停靠和布局恢复。 |
+| **Agent Runtime** | 基于 Pi Coding Agent，支持工具活动、Goal、Skills 与隔离 Subagent。 |
+| **动态 Prompt** | 保持稳定的轻量基础 Prompt，只按明确意图追加低频工具 Schema。 |
+| **工具与 MCP** | 统一管理内置工具、插件和 MCP 服务，不向前端暴露凭据。 |
+| **星忆** | 使用本地 SQLite 保存并搜索偏好、事实、决策与任务。 |
+| **多模态** | 阅读图片、文档和代码，并通过已配置模型生成或编辑视觉内容。 |
+| **自动化** | 定时任务与可视化工作流，支持重试、失败策略、历史和通知。 |
+| **双向渠道** | 连接飞书与个人微信，支持独立模型、工作目录和附件。 |
+| **Web 预览** | 在 Dock 面板中预览外部网页，并保留系统浏览器回退。 |
+| **桌面应用** | Electron 单实例应用，支持应用内更新日志和 GitHub Releases 更新。 |
+| **安全边界** | 会话级 `只读 / 工作区 / 完全访问`、单次审批、凭据脱敏和本地数据隔离。 |
 
-> **本地沙箱说明**：默认“工作区”模式使用开源的 [Anthropic Sandbox Runtime](https://github.com/anthropic-experimental/sandbox-runtime) 限制 Shell 的文件写入、凭据与网络访问；Windows 首次启用需要一次 UAC 来安装低权限账户和网络隔离设施，Agent 本身不会获得管理员权限。Windows 上同一工作区的多个会话可以并发执行，不同工作区会安全地排队切换单一授权，避免共享沙箱账户跨项目写入或在大型目录上反复传播 deny ACL。沙箱初始化失败时 Vesper 会阻止执行，而不会静默回退到完整本机权限。该运行时目前仍是 Beta Research Preview，沙箱能降低风险，但不能保证未知代码绝对安全。
+### 轻量 Prompt
 
----
+普通编码会话默认只加载高频工具。Web Search、浏览器、视觉生成、星忆、MCP 和 Subagent 等能力仅在明确需要时追加，并在下一次普通请求中回到轻量基线。动态激活不会绕过工具开关、执行模式、沙箱或审批策略。
+
+> 当前基准下，固定 Prompt 约为 **2,979 tokens**，相比全量注入减少约 **58.7%**。实际计费与缓存收益因模型和服务商而异。
+
+> **沙箱说明：** 默认“工作区”模式使用 [Anthropic Sandbox Runtime](https://github.com/anthropic-experimental/sandbox-runtime) 限制 Shell 写入、凭据和网络访问。Windows 首次启用需要一次 UAC；初始化失败时 Vesper 会阻止执行，不会静默回退到完整权限。该运行时仍处于 Beta Research Preview。
 
 <a id="desktop-pet"></a>
 
-## ✦ 桌面宠物 · 陪伴 Agent 工作
+## 桌面宠物
 
-Vesper 原生支持 [Petdex](https://petdex.dev) 兼容桌面宠物。你可以直接在 **设置 → 桌面宠物** 中搜索、安装、切换和启停宠物，不需要安装 Petdex CLI、Desktop、hooks 或其他伴随进程。
+Vesper 原生支持 [Petdex](https://petdex.dev) 兼容宠物，可在 **设置 → 桌面宠物** 中搜索、安装、切换和启停，无需安装 Petdex CLI 或独立进程。
 
-- **跟随 Agent 状态**：等待回复、思考审阅、运行工具、完成任务与执行失败都会映射为对应动画；点击宠物还会触发跳跃互动。
-- **原生桌面悬浮**：Electron 使用独立透明窗口，支持拖动、置顶、多显示器位置记忆和 `20%–100%` 透明度；主窗口隐藏到托盘后，宠物仍会继续显示。
-- **Web 页面陪伴**：浏览器版本使用页面内可拖动悬浮层，沿用相同的宠物资源与 Agent 状态动画，并在浏览器本地保存位置。
-- **安全安装资源**：Vesper 只通过 HTTPS 白名单下载资源，并在保存前验证文件大小、PNG/WebP 结构、精灵帧网格和本地路径边界；社区宠物资源不会预打包进 Vesper。
-- **贴近角落而不打扰**：首次启用时默认显示在主显示器或页面右下方，拖动后的自定义位置会持续保留。
+- Agent 的等待、思考、工具执行、完成与失败状态会映射为宠物动画。
+- Electron 使用独立透明窗口，支持拖动、置顶、多显示器位置记忆和 `20%–100%` 透明度；隐藏主窗口后仍可显示。
+- Web 版使用页面内可拖动悬浮层，关闭页面后随之退出。
+- 资源仅从 HTTPS 白名单下载，并验证大小、格式、精灵网格和路径边界；社区宠物不会预打包。
 
-详细协议、资源格式与安全边界请参阅 [`docs/petdex-integration.md`](./docs/petdex-integration.md)。
+详见 [`docs/petdex-integration.md`](./docs/petdex-integration.md)。
 
----
+<a id="install"></a>
 
-<a id="architecture"></a>
+## 安装
 
-## ✦ 代码星图
+### 桌面版
 
-```text
-vesper/
-├─ .github/              # CI、Release Notes 与全平台发布工作流
-├─ docs/                 # 项目文档、截图与品牌资源
-├─ electron/             # Electron 主进程与安全 preload
-├─ public/               # 公共静态资源
-├─ scripts/              # 图标生成、桌面打包、i18n 检查与版本发布
-├─ shared/               # 前后端共享的工作流图逻辑
-├─ server/
-│  ├─ http/              # HTTP API、SSE 与静态资源响应
-│  ├─ prompts/           # Agent 系统提示词与运行时身份注入
-│  ├─ runtime/           # Pi Agent 会话与模型运行时
-│  ├─ security/          # 凭据与输出脱敏
-│  ├─ services/          # 渠道、星忆、工作流等领域服务与外部集成
-│  ├─ storage/           # 本地持久化工具
-│  ├─ tests/             # Node.js 测试
-│  └─ tools/             # 内置工具与应用工具注册表
-└─ src/
-   ├─ app/               # 路由、Providers、导航、品牌与 i18n
-   ├─ components/        # UI 组件、shadcn/ui、AI Elements
-   ├─ features/          # 按页面拆分的功能模块
-   ├─ hooks/             # 通用 React Hooks
-   ├─ lib/               # Axios 客户端与格式化工具
-   ├─ locales/           # 命名空间化的 i18n 资源
-   ├─ stores/            # Zustand 客户端状态
-   └─ types/             # 前端类型定义
-```
+前往 [GitHub Releases](https://github.com/ling-kong-ran/vesper/releases/latest) 下载 Windows、macOS 或 Linux 安装包，无需安装 Node.js。
 
----
+#### macOS 无法打开
 
-<a id="stack"></a>
-
-## ✦ 技术栈
-
-前端已完成 TypeScript 化重构，采用模块化路由、状态与 UI 体系，便于扩展与协作。
-
-| 层级 | 选型 |
-| :--- | :--- |
-| **语言与构建** | TypeScript、Vite、React 19 |
-| **路由与状态** | React Router Data Mode、Zustand、TanStack Query、Axios |
-| **UI 体系** | Tailwind CSS、shadcn/ui、Radix UI、Lucide、Sonner |
-| **Agent / 富内容** | AI Elements、Streamdown、Shiki、React Markdown |
-| **画布与布局** | React Flow（`@xyflow/react`）、Dockview、Resizable Panels |
-| **国际化** | i18next / react-i18next，按命名空间拆分的 JSON 资源 |
-| **运行内核** | Pi Coding Agent、Node.js、Electron |
-| **质量门槛** | Oxlint、Prettier、TypeScript 类型检查、i18n AST 校验 |
-
-本地质量检查：
-
-```bash
-npm run check   # typecheck + lint + i18n:check + format:check
-npm test
-npm run build
-```
-
----
-
-<a id="start"></a>
-
-## ✦ 从这里启程
-
-### 直接下载桌面版
-
-无需从源码构建。前往 [GitHub Releases 最新版本](https://github.com/ling-kong-ran/vesper/releases/latest)，即可直接下载 Windows、macOS 或 Linux 安装包。
-
-> [下载最新版 Vesper 桌面安装包 →](https://github.com/ling-kong-ran/vesper/releases/latest)
-
-#### macOS 无法打开时
-
-Vesper 当前未经过 Apple 公证，因此 macOS Gatekeeper 可能提示应用“无法打开”“无法验证开发者”或“已损坏”。请先确认安装包直接下载自 Vesper 的官方 [GitHub Releases](https://github.com/ling-kong-ran/vesper/releases/latest)，将 `Vesper.app` 拖入“应用程序”目录，然后尝试以下方式：
-
-1. 优先打开 **系统设置 → 隐私与安全性**，在安全提示下选择 **仍要打开**。
-2. 如果没有“仍要打开”选项，可打开“终端”并执行：
+Vesper 当前未经过 Apple 公证。请确认应用来自官方 Releases，并优先在 **系统设置 → 隐私与安全性** 中选择 **仍要打开**。如果没有该选项，可执行：
 
 ```bash
 sudo xattr -rd com.apple.quarantine /Applications/Vesper.app
 ```
 
-输入 macOS 管理员密码后，再从“应用程序”目录启动 Vesper。该命令只会递归移除 `/Applications/Vesper.app` 的下载隔离属性；请勿对来源不明的应用执行此操作。
+仅对从 Vesper 官方 Releases 下载并放入 `/Applications` 的应用使用此命令。
 
-#### Linux AppImage 无法启动时
-
-先为 AppImage 添加执行权限：
+#### Linux AppImage 无法启动
 
 ```bash
 chmod +x Vesper-*-linux-x86_64.AppImage
 ./Vesper-*-linux-x86_64.AppImage
 ```
 
-若提示缺少 FUSE，请安装发行版的 FUSE 2 兼容包（Ubuntu/Debian 通常为 `libfuse2`，较新版本可能为 `libfuse2t64`），或改用 Release 中的 `.deb` 安装包：
+缺少 FUSE 时安装 `libfuse2` 或 `libfuse2t64`，也可改用 `.deb`：
 
 ```bash
 sudo apt install ./Vesper-*-linux-amd64.deb
@@ -274,77 +151,36 @@ sudo apt install ./Vesper-*-linux-amd64.deb
 
 ### 从源码运行
 
-以下环境要求仅适用于开发、Web 版运行或自行打包桌面应用。
-
-#### 环境要求
-
-- Node.js 20 或更高版本
-- npm
-- 至少一个受支持的模型 Provider 和 API Key
-
-#### 安装依赖
+需要 Node.js 20+、npm，以及至少一个模型 Provider 和 API Key。
 
 ```bash
 git clone https://github.com/ling-kong-ran/vesper.git
 cd vesper
 npm install
-```
-
-### Web 版
-
-启动开发服务：
-
-```bash
 npm run dev
 ```
 
-服务就绪后，终端会明确打印访问地址。请在浏览器中打开 `http://127.0.0.1:5173`。Vesper 默认不会自动创建浏览器页签；如有需要，可设置环境变量 `VESPER_OPEN_BROWSER=1`。
-
-Web 版启动时会比较当前 Git commit 与 GitHub `main` 分支，而不是等待 Release Tag。若远端已有尚未同步的提交，左侧导航栏底部会显示落后的提交数；点击即可查看差异。该检查只负责提醒，不会强制刷新页面、下载文件或覆盖本地源码。
-
-更新源码前，请先提交或暂存本地修改，然后执行：
-
-```bash
-git pull
-npm install
-```
-
-构建并运行 Web 生产版本：
+Web 开发地址默认为 `http://127.0.0.1:5173`。生产模式：
 
 ```bash
 npm run build
 npm start
 ```
 
-### 桌面版
-
-启动或打包桌面应用：
+桌面开发与本地打包：
 
 ```bash
 npm run desktop:dev
 npm run desktop:pack
 ```
 
-桌面版会在启动后自动检查更新，并在左侧导航栏显示新版本提醒。更新不会自动下载；只有在用户确认后才会开始下载，并可先查看应用内更新日志。
+本地配置、会话与记忆默认保存在 `~/.vesper/agent`，可通过 `VESPER_AGENT_DIR` 修改。
 
-发布新版本时，脚本会更新并提交 `package.json` 与 `package-lock.json`，创建 Git Tag，再由 GitHub Actions 生成更新日志并发布 Windows、macOS 与 Linux 安装包：
+<a id="development"></a>
 
-```bash
-npm run release -- patch
-# 也可使用 minor、major 或明确版本号，例如 1.2.0
-```
+## 开发
 
-### 本地数据
-
-Vesper 默认将配置、会话、星忆与运行数据保存在：
-
-```text
-~/.vesper/agent
-```
-
-可通过环境变量 `VESPER_AGENT_DIR` 指定其他目录。
-
-### 验证
+**技术栈：** TypeScript、React 19、Vite、Tailwind CSS、shadcn/ui、Dockview、React Flow、Zustand、i18next、Node.js、Electron 与 Pi Coding Agent。
 
 ```bash
 npm run check
@@ -352,43 +188,21 @@ npm test
 npm run build
 ```
 
-项目使用 Node.js 内置测试运行器（经 `tsx` 执行），测试文件位于 `server/tests/`。
-
----
-
-<a id="contributing"></a>
-
-## ✦ 与 Vesper 同行
-
-欢迎提交 Issue 与 Pull Request：
-
-- [报告问题](https://github.com/ling-kong-ran/vesper/issues)
-- [提交 Pull Request](https://github.com/ling-kong-ran/vesper/pulls)
-- [查看贡献者](https://github.com/ling-kong-ran/vesper/graphs/contributors)
-
-提交修改前，请运行上方的 lint、测试与构建命令。请勿提交 API Key、机器人凭据、本地会话数据，或 `~/.vesper/agent` 中的任何文件。
-
----
+欢迎提交 [Issue](https://github.com/ling-kong-ran/vesper/issues) 和 [Pull Request](https://github.com/ling-kong-ran/vesper/pulls)。请勿提交 API Key、机器人凭据或 `~/.vesper/agent` 中的本地数据。
 
 <a id="license"></a>
 
-## ✦ 开源许可
+## 许可
 
-Vesper 采用 [MIT License](./LICENSE) 开源。你可以自由使用、复制、修改、合并、发布、分发、再许可或销售本项目，但必须在副本或主要部分中保留原版权声明与 MIT 许可文本。
+Vesper 采用 [MIT License](./LICENSE)。第三方依赖与外部资源继续适用各自的许可证和权利声明；Petdex 社区宠物资源归相应作者或权利人所有，不属于 Vesper 源码或发行包。
 
-第三方依赖与外部资源继续适用各自的许可证和权利声明；从 Petdex 社区安装的宠物资源不属于 Vesper 源码或发行包，其权利归相应作者或权利人。
+## 致谢
 
----
+Vesper 基于 [Pi Coding Agent](https://github.com/earendil-works/pi/tree/main/packages/coding-agent) 构建，并受益于 Node.js、React、TypeScript、Vite、Tailwind CSS、shadcn/ui、React Router、Zustand、React Flow、i18next 等开源项目。
 
-<a id="acknowledgements"></a>
+感谢 [Petdex](https://petdex.dev) 与 [`crafter-station/petdex`](https://github.com/crafter-station/petdex) 提供 MIT 许可的兼容格式和目录实现参考。
 
-## ✦ 致谢 · 星光所自
-
-Vesper 以 [Pi Coding Agent](https://github.com/earendil-works/pi/tree/main/packages/coding-agent) 为运行内核，并由 Node.js、React、TypeScript、Vite、Tailwind CSS、shadcn/ui、React Router、Zustand、TanStack Query、React Flow、i18next 等开源项目共同照亮。
-
-特别感谢 [Petdex](https://petdex.dev) 及其开源项目 [`crafter-station/petdex`](https://github.com/crafter-station/petdex)：Vesper 的桌面宠物兼容格式、精灵动画状态约定与社区目录接入参考了其 MIT 许可实现。社区宠物资源由各自作者或权利人提供，Vesper 不主张其所有权，也不会将这些资源预打包进发行版本。
-
-感谢贡献者：
+贡献者：
 
 - [@mik-myp](https://github.com/mik-myp) — 前端 TypeScript 架构、shadcn/ui / AI Elements、Zustand 与 i18n 重构（[#1](https://github.com/ling-kong-ran/vesper/pull/1)）
 

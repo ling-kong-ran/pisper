@@ -9,264 +9,141 @@
 <h1 align="center">Vesper</h1>
 
 <p align="center"><strong>When daylight fades, ideas stay awake.</strong></p>
-<p align="center">A local-first multi-agent workspace where conversations, tools, memory, and workflows move together in one constellation.</p>
+<p align="center">A local-first multi-agent workspace for conversations, tools, memory, and automation in one dockable interface.</p>
 
 <p align="center">
   <img src="https://img.shields.io/badge/Node.js-17141F?style=flat-square&logo=nodedotjs&logoColor=F59E0B" alt="Node.js" />
   <img src="https://img.shields.io/badge/TypeScript-17141F?style=flat-square&logo=typescript&logoColor=F59E0B" alt="TypeScript" />
   <img src="https://img.shields.io/badge/React-17141F?style=flat-square&logo=react&logoColor=F59E0B" alt="React" />
-  <img src="https://img.shields.io/badge/Vite-17141F?style=flat-square&logo=vite&logoColor=F59E0B" alt="Vite" />
-  <img src="https://img.shields.io/badge/Tailwind_CSS-17141F?style=flat-square&logo=tailwindcss&logoColor=F59E0B" alt="Tailwind CSS" />
   <img src="https://img.shields.io/badge/Electron-17141F?style=flat-square&logo=electron&logoColor=F59E0B" alt="Electron" />
   <a href="./LICENSE"><img src="https://img.shields.io/badge/License-MIT-F59E0B?style=flat-square" alt="MIT License" /></a>
 </p>
 
 <p align="center">
   <a href="https://github.com/ling-kong-ran/vesper/releases/latest">
-    <img src="https://img.shields.io/badge/Download%20Desktop-Windows%20%7C%20macOS%20%7C%20Linux-F59E0B?style=for-the-badge&logo=github&logoColor=17141F" alt="Download Vesper desktop installers" />
+    <img src="https://img.shields.io/badge/Download%20Desktop-Windows%20%7C%20macOS%20%7C%20Linux-F59E0B?style=for-the-badge&logo=github&logoColor=17141F" alt="Download Vesper desktop" />
   </a>
 </p>
-<p align="center"><sub>Install Vesper directly—no source checkout or Node.js development environment required.</sub></p>
 
 <p align="center">
-  <a href="#about">The Evening Star</a> ·
-  <a href="#glance">Vesper at a Glance</a> ·
-  <a href="#lightweight-prompt">Lightweight Prompt</a> ·
-  <a href="#capabilities">Constellation of Capabilities</a> ·
+  <a href="#overview">Overview</a> ·
+  <a href="#preview">Interface</a> ·
+  <a href="#features">Features</a> ·
   <a href="#desktop-pet">Desktop Pet</a> ·
-  <a href="#architecture">Code Map</a> ·
-  <a href="#stack">Stack</a> ·
-  <a href="#start">Begin Here</a> ·
-  <a href="#contributing">Contributing</a> ·
-  <a href="#license">License</a> ·
-  <a href="#acknowledgements">Acknowledgments</a>
+  <a href="#install">Install</a> ·
+  <a href="#development">Development</a> ·
+  <a href="#license">License</a>
 </p>
 
 ---
 
-<a id="about"></a>
+<a id="overview"></a>
 
-## ✦ The Evening Star
+## Overview
 
-**Vesper** takes its name from evening—and from the first star to appear at dusk.
+Vesper is a **local-first multi-agent workspace**. Each session has its own model, context, working directory, and execution permissions. Tabs, splits, and drag-to-dock panels turn them into an IDE-style workspace.
 
-When the noise of daylight recedes, a small light remains beside unfinished work. Vesper is built to be that kind of presence: quiet, lucid, and always within reach, gathering scattered models, tools, and context into a workspace you can see, control, and continue to shape.
+- Run independent sessions in parallel and restore their layout automatically.
+- Load only the tools required by the current task through dynamic prompts.
+- Manage memory, schedules, workflows, MCP, and external channels in one app.
+- Keep sensitive actions behind execution modes, workspace boundaries, sandboxing, and approval.
 
-Vesper is a **local-first multi-agent workspace**. Run independent sessions in parallel, each with its own model, execution mode, context, and working directory. Arrange them in an IDE-style workspace with draggable tabs, `Split Left` / `Split Right`, adjustable panes, and layouts that restore automatically.
+<a id="preview"></a>
 
-> Let every agent follow its own orbit, and every thought find a place to return to.
-
-- **Parallel without disorder** — Sessions stay independent, with clear state, context, and permissions.
-- **Lightweight without compromise** — Dynamic prompts carry only the tools needed for the current task, keeping ordinary coding sessions exceptionally lean.
-- **Automation without overreach** — Schedules and workflows carry repetitive work; sensitive actions remain yours to approve.
-- **Memory without noise** — Preferences, facts, decisions, and file relationships settle into local, durable memory.
-- **Connection without surrender** — MCP, plugins, and channels expand the workspace while staying inside visible permission boundaries.
-
----
-
-<a id="glance"></a>
-
-## ✦ Vesper at a Glance
+## Interface
 
 <p align="center">
-  <img src="./docs/shots/welcome-dark.png" alt="Vesper animated welcome screen in the dark theme" />
+  <img src="./docs/shots/welcome-dark.png" alt="Vesper welcome screen in the dark theme" />
 </p>
-
-![Vesper product demo](./docs/show.gif)
 
 <table>
   <tr>
     <td width="50%" align="center">
       <img src="./docs/shots/chat-grid.png" alt="Vesper multi-session dock workspace" />
-      <br />
-      <sub><strong>Dock workspace</strong> · Run tasks in parallel with tabs, splits, and drag-to-dock panels</sub>
+      <br /><sub><strong>Dock workspace</strong> · Tabs, splits, and drag-to-dock panels</sub>
     </td>
     <td width="50%" align="center">
       <img src="./docs/shots/memory.png" alt="Vesper memory view" />
-      <br />
-      <sub><strong>Memory</strong> · Keep meaningful thoughts and decisions glowing within reach</sub>
+      <br /><sub><strong>Memory</strong> · Searchable local knowledge</sub>
     </td>
   </tr>
   <tr>
     <td width="50%" align="center">
       <img src="./docs/shots/workflow-builder.png" alt="Vesper workflow builder" />
-      <br />
-      <sub><strong>Workflows</strong> · Turn an idea into a reusable path that can run</sub>
+      <br /><sub><strong>Workflows</strong> · Reusable visual automation</sub>
     </td>
     <td width="50%" align="center">
       <img src="./docs/shots/channels.png" alt="Vesper channels view" />
-      <br />
-      <sub><strong>Two-way channels</strong> · Bring Vesper into Feishu and personal Weixin</sub>
+      <br /><sub><strong>Two-way channels</strong> · Feishu and personal Weixin</sub>
     </td>
   </tr>
 </table>
 
----
+<a id="features"></a>
 
-<a id="lightweight-prompt"></a>
-
-## ✦ Dynamic Prompts · Exceptionally Lightweight
-
-Vesper does not inject every tool, MCP integration, visual capability, browser rule, memory instruction, and multi-agent API into every model call. The runtime keeps a compact, stable base prompt and appends only the tool Schemas explicitly required by the user's current request.
-
-<table>
-  <tr>
-    <td width="33%" valign="top">
-      <strong>Lean by default</strong><br />
-      Ordinary coding sessions load only high-frequency file, search, Shell, and task-progress tools. In the current benchmark, fixed input is about <strong>2,979 tokens</strong>—approximately <strong>58.7% less</strong> than injecting the complete tool catalog.
-    </td>
-    <td width="33%" valign="top">
-      <strong>Capabilities on demand</strong><br />
-      Web Search, browser automation, visual generation, memory, MCP, and Subagent tools are appended only when explicitly requested. A new ordinary request returns to the lean baseline automatically.
-    </td>
-    <td width="33%" valign="top">
-      <strong>Prompt-cache friendly</strong><br />
-      The system prompt and high-frequency tool Schemas remain a stable prefix. Cold Schemas are appended at the end, maximizing opportunities to reuse Provider prompt caches and reduce repeated input and latency.
-    </td>
-  </tr>
-</table>
-
-- **Explicit-only Skills** — Large specialist workflows can be exposed only through `/skill:name`; their names, descriptions, and bodies add zero persistent model-context overhead.
-- **Trusted intent routing** — Capabilities activate only from the latest user request and explicit attachment metadata. Text found in web pages, files, tool output, memory, or Agent results cannot silently expand the tool set.
-- **Negation-aware activation** — Requests such as “do not use the browser” or “Do not use MCP” do not activate those tools by mistake.
-- **Permissions remain hard boundaries** — Dynamic activation decides what is useful for the current turn; it never bypasses tool settings, execution modes, workspace boundaries, sandboxing, or approval policies.
-
-> Token figures use Vesper's conservative `ceil(characters / 4)` estimate and a reproducible benchmark of the current default full mode. Actual Provider billing, cache hits, and latency savings vary by model and service.
-
----
-
-<a id="capabilities"></a>
-
-## ✦ Constellation of Capabilities
+## Features
 
 | Area | Capability |
 | :--- | :--- |
-| **Multi-session chat** | Run independent Agent sessions in parallel with distinct models, execution modes, context, and working directories, plus tab groups, left/right splits, drag-to-dock panels, resizing, and layout restoration. |
-| **Agent Runtime** | Built on Pi Coding Agent with structured tool activity, goals, reusable skills, and isolated subagent delegation. |
-| **Dynamic prompts** | Keep a stable, lightweight, cache-friendly base prompt and append cold tool Schemas only from explicit user intent, with zero-persistent-overhead explicit Skills. |
-| **Tools & MCP** | Bring built-in tools, application plugins, and MCP services into one capability layer, with credential-safe structured configuration. |
-| **Memory** | Store preferences, facts, decisions, and tasks in lightweight local SQLite memory, scoped by workspace and searchable, editable, or captured from conversations. |
-| **Multimodal** | Read images, documents, and code, then generate or edit visual content through configured OpenAI-compatible, Gemini, Imagen, Veo, or xAI models. |
-| **Automation** | Let scheduled tasks and visual workflows carry repetitive work with model selection, retries, timeouts, failure policies, run history, and notifications. |
-| **Two-way channels** | Connect Feishu and personal Weixin with per-channel reply models, workspace routing, attachments, and reusable notification templates. |
-| **Desktop pet** | Search, install, and switch Petdex-compatible pets inside Vesper, with Agent states such as waiting, thinking, tool activity, completion, and failure mapped to live animations. |
-| **Desktop app** | Use a native Electron window with single-instance behavior, branded icons, in-app release notes, and GitHub Releases update support. |
-| **Security boundaries** | Per-session `Read only / Workspace / Full access` execution modes, one-shot approval for out-of-workspace actions, server-side secret redaction, and local user data stored outside the repository. |
+| **Multi-session chat** | Independent Agent sessions, models, and permissions with tab groups, splits, drag-to-dock panels, and layout restoration. |
+| **Agent Runtime** | Built on Pi Coding Agent with tool activity, goals, skills, and isolated subagents. |
+| **Dynamic prompts** | Keep a stable lightweight prompt and append cold tool Schemas only from explicit intent. |
+| **Tools & MCP** | Manage built-in tools, plugins, and MCP services without exposing credentials to the client. |
+| **Memory** | Store and search preferences, facts, decisions, and tasks in local SQLite. |
+| **Multimodal** | Read images, documents, and code, then generate or edit visual content through configured models. |
+| **Automation** | Schedules and visual workflows with retries, failure policies, history, and notifications. |
+| **Two-way channels** | Connect Feishu and personal Weixin with separate models, workspaces, and attachments. |
+| **Web preview** | Preview external pages in a Dock panel with a system-browser fallback. |
+| **Desktop app** | Electron single-instance app with in-app release notes and GitHub Releases updates. |
+| **Security boundaries** | Per-session `Read only / Workspace / Full access`, one-shot approval, secret redaction, and isolated local data. |
 
-> **Local sandbox note:** The default Workspace mode uses the open-source [Anthropic Sandbox Runtime](https://github.com/anthropic-experimental/sandbox-runtime) to restrict Shell filesystem writes, credentials, and network access. On Windows, first use requires one UAC prompt to install a low-privilege account and network isolation; the Agent itself does not receive administrator privileges. Multiple sessions in the same workspace can run concurrently, while different workspaces safely queue a single-root grant switch to prevent cross-project writes by the shared sandbox account and repeated deny-ACL propagation across large directory trees. If sandbox initialization fails, Vesper blocks execution instead of silently falling back to unrestricted host access. The runtime is currently a Beta Research Preview: it reduces risk, but cannot make unknown code absolutely safe.
+### Lightweight Prompts
 
----
+Ordinary coding sessions load only high-frequency tools. Web Search, browser automation, visual generation, memory, MCP, and subagents are appended only when clearly needed, then return to the lightweight baseline on the next ordinary request. Dynamic activation never bypasses tool settings, execution modes, sandboxing, or approval.
+
+> In the current benchmark, the fixed prompt is about **2,979 tokens**, roughly **58.7% less** than injecting the full catalog. Actual billing and cache savings vary by model and provider.
+
+> **Sandbox note:** Workspace mode uses [Anthropic Sandbox Runtime](https://github.com/anthropic-experimental/sandbox-runtime) to restrict Shell writes, credentials, and network access. First use on Windows requires one UAC prompt. Vesper blocks execution if initialization fails instead of falling back to full access. The runtime remains a Beta Research Preview.
 
 <a id="desktop-pet"></a>
 
-## ✦ Desktop Pet · A Companion for Agent Work
+## Desktop Pet
 
-Vesper natively supports [Petdex](https://petdex.dev)-compatible desktop pets. Search, install, switch, enable, or disable pets directly from **Settings → Desktop pet**, without installing Petdex CLI, Petdex Desktop, hooks, or a companion process.
+Vesper natively supports [Petdex](https://petdex.dev)-compatible pets. Search, install, switch, enable, or disable them in **Settings → Desktop pet** without Petdex CLI or a companion process.
 
-- **Agent-aware animation** — Waiting, thinking and review, tool execution, completion, and failure are mapped to distinct animations; clicking the pet triggers a jump interaction.
-- **Native desktop overlay** — Electron uses an independent transparent window with dragging, always-on-top behavior, multi-display position persistence, and `20%–100%` opacity. The pet stays visible when the main window is hidden to the system tray.
-- **Web-page companion** — The browser version renders a draggable in-page overlay with the same pet resources and Agent-state animations, storing its position locally in the browser.
-- **Validated asset installation** — Vesper downloads assets only through HTTPS allowlisted hosts and validates size, PNG/WebP structure, sprite grids, and local path boundaries before saving. Community pet assets are not bundled with Vesper.
-- **Out of the way by default** — On first use, the pet appears near the lower-right corner of the primary display or page. Custom positions persist after dragging.
+- Waiting, thinking, tool activity, completion, and failure map to pet animations.
+- Electron uses an independent transparent window with dragging, always-on-top behavior, multi-display position persistence, and `20%–100%` opacity. It remains visible when the main window is hidden.
+- The Web app uses a draggable in-page overlay that exits with the page.
+- Assets are downloaded only from HTTPS allowlisted hosts and validated for size, format, sprite grid, and path safety. Community pets are not bundled.
 
-See [`docs/petdex-integration.md`](./docs/petdex-integration.md) for the full protocol, asset format, and security boundaries.
+See [`docs/petdex-integration.md`](./docs/petdex-integration.md).
 
----
+<a id="install"></a>
 
-<a id="architecture"></a>
+## Install
 
-## ✦ Code Map
+### Desktop
 
-```text
-vesper/
-├─ .github/              # CI, release notes, and cross-platform releases
-├─ docs/                 # Documentation, screenshots, and brand assets
-├─ electron/             # Electron main process and secure preload
-├─ public/               # Public static assets
-├─ scripts/              # Icon generation, packaging, i18n checks, and releases
-├─ shared/               # Workflow graph logic shared by client and server
-├─ server/
-│  ├─ http/              # HTTP API, SSE, and static responses
-│  ├─ prompts/           # Agent system prompts and runtime identity
-│  ├─ runtime/           # Pi Agent session and model runtime
-│  ├─ security/          # Credential and output redaction
-│  ├─ services/          # Channels, memory, workflows, and integrations
-│  ├─ storage/           # Local persistence helpers
-│  ├─ tests/             # Node.js test suites
-│  └─ tools/             # Built-in and application tool registry
-└─ src/
-   ├─ app/               # Routing, providers, navigation, branding, and i18n
-   ├─ components/        # UI components, shadcn/ui, and AI Elements
-   ├─ features/          # Feature modules split by page
-   ├─ hooks/             # Shared React hooks
-   ├─ lib/               # Axios client and formatting utilities
-   ├─ locales/           # Namespaced i18n resources
-   ├─ stores/            # Zustand client state
-   └─ types/             # Frontend type definitions
-```
-
----
-
-<a id="stack"></a>
-
-## ✦ Stack
-
-The frontend has been modernized into a TypeScript-first architecture with modular routing, state, and UI layers that are easier to extend and collaborate on.
-
-| Layer | Choices |
-| :--- | :--- |
-| **Language & build** | TypeScript, Vite, React 19 |
-| **Routing & state** | React Router Data Mode, Zustand, TanStack Query, Axios |
-| **UI system** | Tailwind CSS, shadcn/ui, Radix UI, Lucide, Sonner |
-| **Agent / rich content** | AI Elements, Streamdown, Shiki, React Markdown |
-| **Canvas & layout** | React Flow (`@xyflow/react`), Dockview, Resizable Panels |
-| **i18n** | i18next / react-i18next with namespaced JSON resources |
-| **Runtime core** | Pi Coding Agent, Node.js, Electron |
-| **Quality gates** | Oxlint, Prettier, TypeScript typecheck, i18n AST checks |
-
-Local quality checks:
-
-```bash
-npm run check   # typecheck + lint + i18n:check + format:check
-npm test
-npm run build
-```
-
----
-
-<a id="start"></a>
-
-## ✦ Begin Here
-
-### Download the Desktop App
-
-No source build is required. Visit the [latest GitHub Release](https://github.com/ling-kong-ran/vesper/releases/latest) to download an installer for Windows, macOS, or Linux.
-
-> [Download the latest Vesper desktop installer →](https://github.com/ling-kong-ran/vesper/releases/latest)
+Download a Windows, macOS, or Linux installer from [GitHub Releases](https://github.com/ling-kong-ran/vesper/releases/latest). Node.js is not required.
 
 #### If macOS Refuses to Open Vesper
 
-Vesper is not currently notarized by Apple, so macOS Gatekeeper may report that the app cannot be opened, the developer cannot be verified, or the app is damaged. First confirm that the installer came directly from Vesper's official [GitHub Releases](https://github.com/ling-kong-ran/vesper/releases/latest), drag `Vesper.app` into the Applications folder, then try the following:
-
-1. Prefer opening **System Settings → Privacy & Security** and selecting **Open Anyway** below the security notice.
-2. If **Open Anyway** is unavailable, open Terminal and run:
+Vesper is not currently notarized by Apple. Confirm that it came from the official Releases page and first select **Open Anyway** in **System Settings → Privacy & Security**. If that option is unavailable, run:
 
 ```bash
 sudo xattr -rd com.apple.quarantine /Applications/Vesper.app
 ```
 
-After entering your macOS administrator password, launch Vesper again from Applications. This command recursively removes the download quarantine attribute only from `/Applications/Vesper.app`; do not use it on applications from untrusted sources.
+Use this command only for Vesper downloaded from the official Releases page and installed in `/Applications`.
 
 #### If the Linux AppImage Does Not Start
-
-Make the AppImage executable first:
 
 ```bash
 chmod +x Vesper-*-linux-x86_64.AppImage
 ./Vesper-*-linux-x86_64.AppImage
 ```
 
-If FUSE is missing, install your distribution's FUSE 2 compatibility package (`libfuse2` on many Ubuntu/Debian releases, or `libfuse2t64` on newer versions), or use the `.deb` package from the Release instead:
+If FUSE is missing, install `libfuse2` or `libfuse2t64`, or use the `.deb` package:
 
 ```bash
 sudo apt install ./Vesper-*-linux-amd64.deb
@@ -274,77 +151,36 @@ sudo apt install ./Vesper-*-linux-amd64.deb
 
 ### Run from Source
 
-The following requirements apply only when developing Vesper, running the Web app, or packaging the desktop app yourself.
-
-#### Prerequisites
-
-- Node.js 20 or later
-- npm
-- At least one supported model provider and API key
-
-#### Install Dependencies
+Requires Node.js 20+, npm, and at least one model provider and API key.
 
 ```bash
 git clone https://github.com/ling-kong-ran/vesper.git
 cd vesper
 npm install
-```
-
-### Web
-
-Start the development server:
-
-```bash
 npm run dev
 ```
 
-When the service is ready, the terminal prints its URL clearly. Open `http://127.0.0.1:5173` in a browser. Vesper does not create a browser tab by default; set `VESPER_OPEN_BROWSER=1` if you want it to open automatically.
-
-On startup, the Web app compares its current Git commit with GitHub `main` rather than waiting for a Release tag. If remote commits have not been synced, the number of missing commits appears at the bottom of the left navigation; click it to review the difference. The check is informational only: it never forces a refresh, downloads files, or overwrites local source code.
-
-Commit or stash local changes before updating the source, then run:
-
-```bash
-git pull
-npm install
-```
-
-Create and run a production Web build:
+The Web development URL is `http://127.0.0.1:5173` by default. Production mode:
 
 ```bash
 npm run build
 npm start
 ```
 
-### Desktop
-
-Start or package the desktop app:
+Desktop development and local packaging:
 
 ```bash
 npm run desktop:dev
 npm run desktop:pack
 ```
 
-The desktop app checks for updates shortly after startup and shows new-version status in the left navigation. Updates are never downloaded automatically; the user chooses when to begin and can review the release notes first.
+Configuration, sessions, and memory are stored in `~/.vesper/agent` by default. Set `VESPER_AGENT_DIR` to use another location.
 
-To publish a release, the script updates and commits `package.json` and `package-lock.json`, creates a Git tag, then lets GitHub Actions generate release notes and publish Windows, macOS, and Linux packages:
+<a id="development"></a>
 
-```bash
-npm run release -- patch
-# minor, major, or an explicit version such as 1.2.0 are also supported
-```
+## Development
 
-### Local Data
-
-Vesper stores configuration, conversations, memory, and runtime data in:
-
-```text
-~/.vesper/agent
-```
-
-Set `VESPER_AGENT_DIR` to use another location.
-
-### Verification
+**Stack:** TypeScript, React 19, Vite, Tailwind CSS, shadcn/ui, Dockview, React Flow, Zustand, i18next, Node.js, Electron, and Pi Coding Agent.
 
 ```bash
 npm run check
@@ -352,43 +188,21 @@ npm test
 npm run build
 ```
 
-The test suite uses the Node.js built-in test runner via `tsx` and lives under `server/tests/`.
-
----
-
-<a id="contributing"></a>
-
-## ✦ Walk with Vesper
-
-Issues and pull requests are welcome:
-
-- [Report an issue](https://github.com/ling-kong-ran/vesper/issues)
-- [Open a pull request](https://github.com/ling-kong-ran/vesper/pulls)
-- [View contributors](https://github.com/ling-kong-ran/vesper/graphs/contributors)
-
-Before submitting a change, run the lint, test, and build commands above. Do not commit API keys, bot credentials, local session data, or any files from `~/.vesper/agent`.
-
----
+[Issues](https://github.com/ling-kong-ran/vesper/issues) and [pull requests](https://github.com/ling-kong-ran/vesper/pulls) are welcome. Do not commit API keys, bot credentials, or local data from `~/.vesper/agent`.
 
 <a id="license"></a>
 
-## ✦ License
+## License
 
-Vesper is open source under the [MIT License](./LICENSE). You may use, copy, modify, merge, publish, distribute, sublicense, or sell the project, provided that copies or substantial portions retain the original copyright notice and MIT license text.
+Vesper is open source under the [MIT License](./LICENSE). Third-party dependencies and external resources remain under their own licenses and rights notices. Petdex community assets belong to their respective creators or rights holders and are not part of Vesper's source or release packages.
 
-Third-party dependencies and external resources remain subject to their own licenses and rights notices. Pet assets installed from the Petdex community are not part of Vesper's source code or release packages and remain the property of their respective creators or rights holders.
+## Acknowledgments
 
----
+Vesper is built on [Pi Coding Agent](https://github.com/earendil-works/pi/tree/main/packages/coding-agent) and benefits from open-source projects including Node.js, React, TypeScript, Vite, Tailwind CSS, shadcn/ui, React Router, Zustand, React Flow, and i18next.
 
-<a id="acknowledgements"></a>
+Thanks to [Petdex](https://petdex.dev) and [`crafter-station/petdex`](https://github.com/crafter-station/petdex) for the MIT-licensed format and catalog implementation reference.
 
-## ✦ Acknowledgments · Where the Light Comes From
-
-Vesper is built on the [Pi Coding Agent](https://github.com/earendil-works/pi/tree/main/packages/coding-agent) runtime and illuminated by open-source projects including Node.js, React, TypeScript, Vite, Tailwind CSS, shadcn/ui, React Router, Zustand, TanStack Query, React Flow, and i18next.
-
-Special thanks to [Petdex](https://petdex.dev) and its open-source project [`crafter-station/petdex`](https://github.com/crafter-station/petdex). Vesper's compatible desktop-pet format, sprite-state conventions, and community catalog integration build on its MIT-licensed work. Community pet assets remain the property of their respective creators or rights holders; Vesper does not claim ownership or bundle those assets in its releases.
-
-Thanks to contributors:
+Contributors:
 
 - [@mik-myp](https://github.com/mik-myp) — Frontend TypeScript architecture, shadcn/ui / AI Elements, Zustand, and i18n refactor ([#1](https://github.com/ling-kong-ran/vesper/pull/1))
 
