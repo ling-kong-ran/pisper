@@ -26,10 +26,13 @@ function readPackageVersion() {
 export default defineConfig({
   plugins: [react(), tailwindcss()],
   resolve: {
-    alias: {
-      '@': resolve(rootDir, 'src'),
-      '@shared': resolve(rootDir, 'shared'),
-    },
+    alias: [
+      { find: '@', replacement: resolve(rootDir, 'src') },
+      { find: '@shared', replacement: resolve(rootDir, 'shared') },
+      // Swap the full Shiki bundle (~220 grammars) for the web bundle (~60 grammars)
+      // to keep the emitted language chunks and installer size down.
+      { find: /^shiki$/, replacement: 'shiki/dist/bundle-web.mjs' },
+    ],
     // Force a single Shiki copy so language packs are not emitted twice.
     dedupe: [
       'shiki',

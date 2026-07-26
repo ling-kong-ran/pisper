@@ -1,10 +1,6 @@
 import { createHash, randomUUID } from 'node:crypto'
 import { stat } from 'node:fs/promises'
 import { isAbsolute, resolve } from 'node:path'
-import { Client } from '@modelcontextprotocol/sdk/client/index.js'
-import { SSEClientTransport } from '@modelcontextprotocol/sdk/client/sse.js'
-import { StdioClientTransport, getDefaultEnvironment } from '@modelcontextprotocol/sdk/client/stdio.js'
-import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js'
 import {
   DEFAULT_MAX_BYTES,
   DEFAULT_MAX_LINES,
@@ -26,6 +22,23 @@ const MCP_CONNECT_TIMEOUT_MS = 10_000
 const MAX_MCP_TIMEOUT_MS = 10 * 60_000
 const MAX_MCP_IMAGE_BYTES = 10 * 1024 * 1024
 const STDERR_ATTACHED = Symbol('vesperMcpStderrAttached')
+
+let mcpSdkPromise
+function loadMcpSdk() {
+  mcpSdkPromise ||= Promise.all([
+    import('@modelcontextprotocol/sdk/client/index.js'),
+    import('@modelcontextprotocol/sdk/client/sse.js'),
+    import('@modelcontextprotocol/sdk/client/stdio.js'),
+    import('@modelcontextprotocol/sdk/client/streamableHttp.js'),
+  ]).then(([client, sse, stdio, streamableHttp]) => ({
+    Client: client.Client,
+    SSEClientTransport: sse.SSEClientTransport,
+    StdioClientTransport: stdio.StdioClientTransport,
+    getDefaultEnvironment: stdio.getDefaultEnvironment,
+    StreamableHTTPClientTransport: streamableHttp.StreamableHTTPClientTransport,
+  }))
+  return mcpSdkPromise
+}
 
 function clone(value) {
   return JSON.parse(JSON.stringify(value))
@@ -401,14 +414,23 @@ export class McpService {
   constructor({ path, cwd, createClient, createTransport } = {}) {
     this.path = path
     this.cwd = cwd || process.cwd()
-    this.createClient = createClient || ((server, handlers) => new Client(
-      { name: 'vesper', version: '0.0.0' },
-      {
-        capabilities: {},
-        listChanged: { tools: { onChanged: handlers.onToolsChanged } },
-      },
-    ))
-    this.createTransport = createTransport || ((server, onStderr) => {
+    this.createClient = createClient || (async (server, handlers) => {
+      const { Client } = await loadMcpSdk()
+      return new Client(
+        { name: 'vesper', version: '0.0.0' },
+        {
+          capabilities: {},
+          listChanged: { tools: { onChanged: handlers.onToolsChanged } },
+        },
+      )
+    })
+    this.createTransport = createTransport || (async (server, onStderr) => {
+      const {
+        SSEClientTransport,
+        StdioClientTransport,
+        StreamableHTTPClientTransport,
+        getDefaultEnvironment,
+      } = await loadMcpSdk()
       if (server.transport === 'stdio') {
         const transport = new StdioClientTransport({
           command: server.command,
@@ -561,8 +583,8 @@ export class McpService {
           }
         },
       }
-      client = this.createClient(server, handlers)
-      const transport = this.createTransport(server, (message) => { connection.stderr = message })
+      client = await this.createClient(server, handlers)
+      const transport = await this.createTransport(server, (message) => { connection.stderr = message })
       connection.client = client
       connection.transport = transport
       client.onclose = () => {

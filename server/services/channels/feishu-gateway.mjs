@@ -1,7 +1,8 @@
-import { createLarkChannel, Domain, LoggerLevel } from '@larksuiteoapi/node-sdk'
+// Lazily loaded: @larksuiteoapi/node-sdk is large and only needed once a Feishu channel connects.
+const larkSdk = () => import('@larksuiteoapi/node-sdk')
 
 export class FeishuGateway {
-  constructor({ createChannelImpl = createLarkChannel, onMessage, onStatusChange = () => {} }) {
+  constructor({ createChannelImpl = null, onMessage, onStatusChange = () => {} }) {
     this.createChannelImpl = createChannelImpl
     this.onMessage = onMessage
     this.onStatusChange = onStatusChange
@@ -28,7 +29,9 @@ export class FeishuGateway {
   async connect(config) {
     await this.disconnect()
     this.setStatus({ state: 'connecting', lastError: '' })
-    const channel = this.createChannelImpl({
+    const { createLarkChannel, Domain, LoggerLevel } = await larkSdk()
+    const createChannel = this.createChannelImpl || createLarkChannel
+    const channel = createChannel({
       appId: config.appId,
       appSecret: config.appSecret,
       domain: config.domain === 'lark' ? Domain.Lark : Domain.Feishu,

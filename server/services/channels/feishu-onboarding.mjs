@@ -1,6 +1,11 @@
 import { randomUUID } from 'node:crypto'
-import { registerApp } from '@larksuiteoapi/node-sdk'
 import QRCode from 'qrcode'
+
+// Lazily loaded: @larksuiteoapi/node-sdk is large and only needed during Feishu onboarding.
+const defaultRegisterApp = async (options) => {
+  const { registerApp } = await import('@larksuiteoapi/node-sdk')
+  return registerApp(options)
+}
 
 const SCOPES = [
   'im:message:send_as_bot',
@@ -22,7 +27,7 @@ function publicJob(job) {
 }
 
 export class FeishuOnboardingService {
-  constructor({ onCompleted, registerAppImpl = registerApp, renderQr = (url) => QRCode.toDataURL(url, { width: 248, margin: 2, errorCorrectionLevel: 'M' }) }) {
+  constructor({ onCompleted, registerAppImpl = defaultRegisterApp, renderQr = (url) => QRCode.toDataURL(url, { width: 248, margin: 2, errorCorrectionLevel: 'M' }) }) {
     this.onCompleted = onCompleted
     this.registerAppImpl = registerAppImpl
     this.renderQr = renderQr

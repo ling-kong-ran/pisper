@@ -108,6 +108,7 @@
     "productName": "Vesper",
     "artifactName": "${productName}-${version}-${os}-${arch}.${ext}",
     "asar": true,
+    "compression": "maximum",
     "asarUnpack": [
       "node_modules/@anthropic-ai/sandbox-runtime/vendor/**/*"
     ],
@@ -130,7 +131,26 @@
       "!**/node_modules/@earendil-works/pi-coding-agent/docs/**",
       "!**/node_modules/@earendil-works/pi-coding-agent/examples/**",
       "!**/node_modules/@earendil-works/pi-coding-agent/CHANGELOG.md",
-      "!**/node_modules/@earendil-works/pi-coding-agent/containerization.md"
+      "!**/node_modules/@earendil-works/pi-coding-agent/containerization.md",
+      "!**/node_modules/**/*.d.ts",
+      "!**/node_modules/**/*.d.mts",
+      "!**/node_modules/**/*.d.cts",
+      "!**/node_modules/**/*.tsbuildinfo",
+      "!**/node_modules/@larksuiteoapi/node-sdk/types/**",
+      "!**/node_modules/@larksuiteoapi/node-sdk/es/**",
+      "!**/node_modules/playwright-core/types/**",
+      "!**/node_modules/officeparser/dist/officeparser.browser*",
+      "!**/node_modules/tesseract.js/**",
+      "!**/node_modules/tesseract.js-core/**",
+      "!**/node_modules/@napi-rs/canvas/**",
+      "!**/node_modules/@napi-rs/canvas-*/**",
+      "!**/node_modules/@mistralai/mistralai/src/**",
+      "!**/node_modules/@google/genai/dist/web/**"
+    ],
+    "electronLanguages": [
+      "en-US",
+      "zh-CN",
+      "zh-TW"
     ],
     "win": {
       "icon": "build/icon.png",
