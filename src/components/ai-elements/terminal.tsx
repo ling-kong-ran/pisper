@@ -1,8 +1,8 @@
 'use client'
 
 import { Button } from '@/components/ui/button'
+import { terminalDisplayOutput } from '@/lib/terminal-output'
 import { cn } from '@/lib/utils'
-import AnsiModule from 'ansi-to-react'
 import { CheckIcon, CopyIcon, TerminalIcon, Trash2Icon } from 'lucide-react'
 import type { ComponentProps, HTMLAttributes } from 'react'
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react'
@@ -14,12 +14,7 @@ interface TerminalContextType {
   onClear?: () => void
 }
 
-// ansi-to-react publishes CommonJS with an __esModule marker, so native ESM loaders can
-// expose its component as default.default while Vite may expose the function directly.
-const Ansi =
-  typeof AnsiModule === 'function'
-    ? AnsiModule
-    : (AnsiModule as unknown as { default: typeof AnsiModule }).default
+const TERMINAL_STREAM_PAINT_INTERVAL_MS = 500
 
 const TerminalContext = createContext<TerminalContextType>({
   autoScroll: true,
@@ -163,12 +158,38 @@ export type TerminalContentProps = HTMLAttributes<HTMLDivElement>
 export const TerminalContent = ({ className, children, ...props }: TerminalContentProps) => {
   const { output, isStreaming, autoScroll } = useContext(TerminalContext)
   const containerRef = useRef<HTMLDivElement>(null)
+  const latestOutputRef = useRef(output)
+  const paintTimerRef = useRef<number | undefined>(undefined)
+  const [renderedOutput, setRenderedOutput] = useState(output)
+  const display = useMemo(() => terminalDisplayOutput(renderedOutput), [renderedOutput])
+
+  useEffect(() => {
+    latestOutputRef.current = output
+    if (!isStreaming) {
+      window.clearTimeout(paintTimerRef.current)
+      paintTimerRef.current = undefined
+      setRenderedOutput(output)
+      return
+    }
+    if (paintTimerRef.current !== undefined) return
+    paintTimerRef.current = window.setTimeout(() => {
+      paintTimerRef.current = undefined
+      setRenderedOutput(latestOutputRef.current)
+    }, TERMINAL_STREAM_PAINT_INTERVAL_MS)
+  }, [isStreaming, output])
+
+  useEffect(
+    () => () => {
+      window.clearTimeout(paintTimerRef.current)
+    },
+    [],
+  )
 
   useEffect(() => {
     if (autoScroll && containerRef.current) {
       containerRef.current.scrollTop = containerRef.current.scrollHeight
     }
-  }, [output, autoScroll])
+  }, [display.text, autoScroll])
 
   return (
     <div
@@ -178,7 +199,7 @@ export const TerminalContent = ({ className, children, ...props }: TerminalConte
     >
       {children ?? (
         <pre className="whitespace-pre-wrap break-words">
-          <Ansi>{output}</Ansi>
+          {display.text}
           {isStreaming && (
             <span className="ml-0.5 inline-block h-4 w-2 animate-pulse bg-zinc-100" />
           )}
