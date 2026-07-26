@@ -29,6 +29,17 @@ type ChatConfigResponse = EntityRecord & {
   >
 }
 
+export type GitChangesResponse = EntityRecord & {
+  isRepo: boolean
+  cwd?: string
+  branch?: string
+  hasHead?: boolean
+  files: Array<{ path: string; status: string }>
+  diff: string
+  diffTruncated?: boolean
+  ahead?: number | null
+}
+
 const sessionPath = (sessionId: string) => `/api/sessions/${encodeURIComponent(sessionId)}`
 
 export const chatApi = {
@@ -65,6 +76,7 @@ export const chatApi = {
       message: string
       attachments: unknown[]
       goalMode: boolean
+      goalTokenBudget?: number | null
     },
     onEvent: StreamEventHandler,
   ) => {
@@ -92,6 +104,36 @@ export const chatApi = {
     requestJson<ApiRecord>(`${sessionPath(sessionId)}/goal`, {
       method: 'PATCH',
       data: { action: 'pause' },
+    }),
+
+  setGoalBudget: (sessionId: string, tokenBudget: number) =>
+    requestJson<ApiRecord>(`${sessionPath(sessionId)}/goal`, {
+      method: 'PATCH',
+      data: { action: 'set-budget', tokenBudget },
+    }),
+
+  getGitChanges: (sessionId: string) =>
+    requestJson<GitChangesResponse>(`${sessionPath(sessionId)}/git/changes`),
+
+  commitGitChanges: (sessionId: string, message: string) =>
+    requestJson<GitChangesResponse>(`${sessionPath(sessionId)}/git/commit`, {
+      method: 'POST',
+      data: { message },
+      timeout: 60_000,
+    }),
+
+  pushGitChanges: (sessionId: string) =>
+    requestJson<GitChangesResponse>(`${sessionPath(sessionId)}/git/push`, {
+      method: 'POST',
+      data: {},
+      timeout: 150_000,
+    }),
+
+  revertGitChanges: (sessionId: string) =>
+    requestJson<GitChangesResponse>(`${sessionPath(sessionId)}/git/revert`, {
+      method: 'POST',
+      data: {},
+      timeout: 60_000,
     }),
 
   updateModel: (sessionId: string, provider: string, model: string) =>

@@ -779,6 +779,7 @@ export function ChatPage({
     requestedSessionId: string,
     attachments: ChatAttachment[] = [],
     goalMode = false,
+    goalTokenBudget: number | null = null,
   ) => {
     const prompt =
       text.trim() || (attachments.length ? t('chat:chatPage.pleaseAnalyzeTheseAttachments') : '')
@@ -913,7 +914,7 @@ export function ChatPage({
     localStreamSessionsRef.current.add(sessionId)
     try {
       await chatApi.openStream(
-        { sessionId, message: prompt, attachments, goalMode },
+        { sessionId, message: prompt, attachments, goalMode, goalTokenBudget },
         (event, data) => {
           const eventAt = new Date().toISOString()
           if (event === 'meta') {
@@ -1520,6 +1521,22 @@ export function ChatPage({
     }
   }
 
+  const setGoalBudget = async (sessionId: string, tokenBudget: number) => {
+    if (!sessionId) return
+    try {
+      const result = await chatApi.setGoalBudget(sessionId, tokenBudget)
+      updateSessionState(sessionId, { goal: result.goal || null })
+      setRemoteSessions((current) =>
+        current.map((session) =>
+          session.id === sessionId ? { ...session, goal: result.goal || null } : session,
+        ),
+      )
+      notify(t('chat:chatPage.goalTokenBudgetUpdated'), 'info')
+    } catch (caught) {
+      updateSessionState(sessionId, { error: errorMessage(caught) })
+    }
+  }
+
   const switchSessionModel = async (sessionId: string, nextModel: string) => {
     const selected = availableModels.find((item) => item.key === nextModel)
     if (!sessionId || !selected || sessionStatesRef.current[sessionId]?.streaming) return
@@ -1778,6 +1795,7 @@ export function ChatPage({
     queuePrompt,
     abort,
     pauseGoal,
+    setGoalBudget,
     switchSessionModel,
     switchSessionExecutionMode,
     sandboxStatus,

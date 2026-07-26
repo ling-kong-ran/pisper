@@ -483,10 +483,37 @@ export function createApiHandler(runtime, { updates, desktopPet, engineVersion =
       if (req.method === 'PATCH' && sessionGoalMatch) {
         const id = decodeURIComponent(sessionGoalMatch[1])
         const body = await bodyJson(req)
-        if (body.action !== 'pause') throw new Error('Goal 操作无效。')
-        const goal = await runtime.pauseSessionGoal(id)
-        if (!goal) json(res, 404, { error: '当前会话没有进行中的 Goal。' })
-        else json(res, 200, { goal })
+        if (body.action === 'pause') {
+          const goal = await runtime.pauseSessionGoal(id)
+          if (!goal) json(res, 404, { error: '当前会话没有进行中的 Goal。' })
+          else json(res, 200, { goal })
+        } else if (body.action === 'set-budget') {
+          const goal = await runtime.setSessionGoalBudget(id, body.tokenBudget)
+          json(res, 200, { goal })
+        } else {
+          throw new Error('Goal 操作无效。')
+        }
+        return true
+      }
+      const sessionGitMatch = url.pathname.match(/^\/api\/sessions\/([^/]+)\/git\/changes$/)
+      if (req.method === 'GET' && sessionGitMatch) {
+        json(res, 200, await runtime.getSessionGitChanges(decodeURIComponent(sessionGitMatch[1])))
+        return true
+      }
+      const sessionGitCommitMatch = url.pathname.match(/^\/api\/sessions\/([^/]+)\/git\/commit$/)
+      if (req.method === 'POST' && sessionGitCommitMatch) {
+        const body = await bodyJson(req)
+        json(res, 200, await runtime.commitSessionGitChanges(decodeURIComponent(sessionGitCommitMatch[1]), body.message))
+        return true
+      }
+      const sessionGitPushMatch = url.pathname.match(/^\/api\/sessions\/([^/]+)\/git\/push$/)
+      if (req.method === 'POST' && sessionGitPushMatch) {
+        json(res, 200, await runtime.pushSessionGitChanges(decodeURIComponent(sessionGitPushMatch[1])))
+        return true
+      }
+      const sessionGitRevertMatch = url.pathname.match(/^\/api\/sessions\/([^/]+)\/git\/revert$/)
+      if (req.method === 'POST' && sessionGitRevertMatch) {
+        json(res, 200, await runtime.revertSessionGitChanges(decodeURIComponent(sessionGitRevertMatch[1])))
         return true
       }
       const sessionExecutionMatch = url.pathname.match(/^\/api\/sessions\/([^/]+)\/execution-mode$/)
@@ -576,6 +603,7 @@ export function createApiHandler(runtime, { updates, desktopPet, engineVersion =
             message: String(body.message).trim(),
             attachments: body.attachments,
             goalMode: Boolean(body.goalMode),
+            goalTokenBudget: body.goalTokenBudget == null ? null : Number(body.goalTokenBudget),
             send: (event, data) => { if (!res.destroyed && !res.writableEnded) sseSend(res, event, data) },
           })
         } catch (error) {

@@ -26,10 +26,12 @@ export type ChatDockContextValue = {
     sessionId: string,
     attachments?: ChatAttachment[],
     goalMode?: boolean,
+    goalTokenBudget?: number | null,
   ) => Promise<void>
   queuePrompt: (value: string, sessionId: string, behavior?: string) => Promise<boolean>
   abort: (sessionId: string) => Promise<void>
   pauseGoal: (sessionId: string) => Promise<void>
+  setGoalBudget: (sessionId: string, tokenBudget: number) => Promise<void>
   switchSessionModel: (sessionId: string, model: string) => Promise<void>
   switchSessionExecutionMode: (sessionId: string, mode: string) => Promise<boolean>
   sandboxStatus: SandboxStatus

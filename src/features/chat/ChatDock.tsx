@@ -85,6 +85,7 @@ export function SessionDockPanel({ params, api }: IDockviewPanelProps<{ sessionI
           context.switchSessionExecutionMode(sessionId, nextMode)
         }
         onGoalPause={() => context.pauseGoal(sessionId)}
+        onGoalBudgetChange={(tokenBudget: number) => context.setGoalBudget(sessionId, tokenBudget)}
         onApproval={(approvalId: string, approved: boolean) =>
           context.resolveToolApproval(sessionId, approvalId, approved)
         }
@@ -94,9 +95,12 @@ export function SessionDockPanel({ params, api }: IDockviewPanelProps<{ sessionI
         onSplitRight={() => context.splitDockPanel(api.id, 'right')}
         onClosePanel={() => context.closeDockPanel(api.id)}
         canSplit={!context.compactDock && api.group.size > 1}
-        onSend={(value: string, attachments: ChatAttachment[], goalMode: boolean) =>
-          context.sendPrompt(value, sessionId, attachments, goalMode)
-        }
+        onSend={(
+          value: string,
+          attachments: ChatAttachment[],
+          goalMode: boolean,
+          goalTokenBudget: number | null,
+        ) => context.sendPrompt(value, sessionId, attachments, goalMode, goalTokenBudget)}
         onQueue={(value: string, behavior: string) =>
           context.queuePrompt(value, sessionId, behavior)
         }

@@ -54,10 +54,15 @@ import type {
 } from '@/types/chat'
 import { useAttachmentSelection } from './attachments'
 import { FocusChatMessage } from './ChatMessage'
+import { GitChangesControl } from './GitChangesControl'
 import { activityScrollVersion } from './run-activity'
 
 type Translate = (message: string, values?: I18nValues) => string
 type ExecutionModeOption = [string, string, string, LucideIcon]
+
+const MIN_GOAL_TOKEN_BUDGET = 1_000
+const DEFAULT_GOAL_TOKEN_BUDGET = 30_000
+const MAX_GOAL_TOKEN_BUDGET = 200_000
 
 type SessionModelSelectProps = {
   value: string
@@ -119,13 +124,19 @@ export type FocusSessionProps = {
   onModelChange: (model: string) => Promise<void> | void
   onExecutionModeChange: (mode: string) => Promise<boolean> | boolean
   onGoalPause?: () => Promise<void> | void
+  onGoalBudgetChange?: (tokenBudget: number) => Promise<void> | void
   onApproval: (approvalId: string, approved: boolean) => Promise<void> | void
   onWorkspace: () => void
   onRename: () => void
   onSplitLeft: () => void
   onSplitRight: () => void
   onClosePanel: () => void
-  onSend: (value: string, attachments: ChatAttachment[], goalMode: boolean) => Promise<void> | void
+  onSend: (
+    value: string,
+    attachments: ChatAttachment[],
+    goalMode: boolean,
+    goalTokenBudget: number | null,
+  ) => Promise<void> | void
   onQueue?: (value: string, behavior: string) => Promise<boolean> | boolean
   onAbort: () => Promise<void> | void
   onOpenRail?: (() => void) | null
@@ -522,6 +533,7 @@ export function FocusSession({
   onModelChange,
   onExecutionModeChange,
   onGoalPause,
+  onGoalBudgetChange,
   onApproval,
   onWorkspace,
   onRename,
@@ -536,6 +548,7 @@ export function FocusSession({
   const { t, language } = useI18n()
   const [value, setValue] = useState('')
   const [goalArmed, setGoalArmed] = useState(false)
+  const [goalTokenBudget, setGoalTokenBudget] = useState(DEFAULT_GOAL_TOKEN_BUDGET)
   const [queueing, setQueueing] = useState(false)
   const selection = useAttachmentSelection()
   const addSelectedAttachments = selection.addAttachments
@@ -644,7 +657,7 @@ export function FocusSession({
       const ready = await onExecutionModeChange('workspace')
       if (!ready) return
     }
-    onSend(value, selection.attachments, goalArmed)
+    onSend(value, selection.attachments, goalArmed, goalArmed ? goalTokenBudget : null)
     scrollToBottom('smooth')
     setValue('')
     setGoalArmed(false)
@@ -850,11 +863,15 @@ export function FocusSession({
             <GoalModeControl
               goal={goal}
               armed={goalArmed}
+              tokenBudget={goalTokenBudget}
+              onTokenBudgetChange={setGoalTokenBudget}
+              onSaveTokenBudget={(tokenBudget) => onGoalBudgetChange?.(tokenBudget)}
               onChange={(enabled) => {
                 if (!enabled && goal?.status === 'active') void onGoalPause?.()
                 else setGoalArmed(enabled)
               }}
             />
+            <GitChangesControl sessionId={session?.id} streaming={streaming} />
           </div>
           <textarea
             ref={promptRef}
@@ -906,17 +923,27 @@ export function FocusSession({
 function GoalModeControl({
   goal,
   armed,
+  tokenBudget,
+  onTokenBudgetChange,
+  onSaveTokenBudget,
   onChange,
 }: {
   goal?: EntityRecord | null
   armed: boolean
+  tokenBudget: number
+  onTokenBudgetChange: (tokenBudget: number) => void
+  onSaveTokenBudget?: (tokenBudget: number) => Promise<void> | void
   onChange: (enabled: boolean) => void
 }) {
   const { t } = useI18n()
   const [open, setOpen] = useState(false)
+  const [savingBudget, setSavingBudget] = useState(false)
   const rootRef = useRef<HTMLDivElement>(null)
   const active = goal?.status === 'active'
   const enabled = active || armed
+  const hasExistingGoal = Boolean(goal?.id)
+  const currentBudget = Number(goal?.tokenBudget) || DEFAULT_GOAL_TOKEN_BUDGET
+  const budgetDirty = tokenBudget !== currentBudget
   const status = active
     ? t('chat:focusSession.runningAutonomously')
     : armed
@@ -934,10 +961,10 @@ function GoalModeControl({
     .replace(/\s+/g, ' ')
     .trim()
   const detail = armed ? status : objective || status
-  const usage = active
+  const usage = hasExistingGoal
     ? t('chat:focusSession.usedBudgetTokensUsed', {
-        used: goal.tokensUsed || 0,
-        budget: goal.tokenBudget || 0,
+        used: goal?.tokensUsed || 0,
+        budget: goal?.tokenBudget || 0,
       })
     : ''
   const label = [t('chat:focusSession.goalMode'), detail, usage].filter(Boolean).join(' · ')
@@ -962,6 +989,18 @@ function GoalModeControl({
   const change = (next: boolean) => {
     onChange(next)
     setOpen(false)
+  }
+
+  const saveBudget = async () => {
+    if (savingBudget || !budgetDirty) return
+    if (hasExistingGoal && onSaveTokenBudget) {
+      setSavingBudget(true)
+      try {
+        await onSaveTokenBudget(tokenBudget)
+      } finally {
+        setSavingBudget(false)
+      }
+    }
   }
 
   return (
@@ -992,7 +1031,50 @@ function GoalModeControl({
             </span>
             <Toggle value={enabled} onChange={change} ariaLabel={label} title={label} />
           </div>
-          {active && <p>{usage}</p>}
+          {usage && <p>{usage}</p>}
+          <div className="goal-mode-budget-row">
+            <label htmlFor="goal-token-budget-input">
+              {t('chat:focusSession.goalTokenBudget')}
+            </label>
+            <input
+              id="goal-token-budget-input"
+              type="number"
+              min={MIN_GOAL_TOKEN_BUDGET}
+              max={MAX_GOAL_TOKEN_BUDGET}
+              step={1000}
+              value={tokenBudget}
+              disabled={savingBudget}
+              onChange={(event) => {
+                const next = Number(event.target.value)
+                if (!Number.isFinite(next)) return
+                onTokenBudgetChange(
+                  Math.min(
+                    MAX_GOAL_TOKEN_BUDGET,
+                    Math.max(MIN_GOAL_TOKEN_BUDGET, Math.round(next)),
+                  ),
+                )
+              }}
+            />
+            {hasExistingGoal && budgetDirty && (
+              <button
+                type="button"
+                className="button secondary tiny"
+                disabled={savingBudget}
+                onClick={() => void saveBudget()}
+              >
+                {savingBudget ? <RefreshCw className="spin" size={12} /> : <Check size={12} />}
+                {t('chat:focusSession.goalBudgetSave')}
+              </button>
+            )}
+          </div>
+          <small className="goal-mode-budget-hint">
+            {hasExistingGoal
+              ? t('chat:focusSession.goalTokenBudgetUpdateHint')
+              : t('chat:focusSession.goalTokenBudgetHint', {
+                  min: formatTokenCount(MIN_GOAL_TOKEN_BUDGET),
+                  max: formatTokenCount(MAX_GOAL_TOKEN_BUDGET),
+                })}
+          </small>
         </div>
       )}
     </div>

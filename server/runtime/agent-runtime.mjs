@@ -1,7 +1,6 @@
 import { mkdir, open, readFile, readdir, stat, unlink, writeFile } from 'node:fs/promises'
 import { createHash, randomUUID } from 'node:crypto'
 import { basename, dirname, extname, join, resolve, sep } from 'node:path'
-import { OfficeParser } from 'officeparser'
 import {
   calculateContextTokens,
   createAgentSession,
@@ -29,6 +28,7 @@ import { LocalMemoryRuntime } from '../services/memory/local-memory-runtime.mjs'
 import { inferModelKind, VisualGenerationService } from '../services/visual-generation/index.mjs'
 import { MultiAgentService, MULTI_AGENT_TOOL_NAMES } from '../services/multi-agent-service.mjs'
 import { GoalService, goalBudgetPrompt, goalContinuationPrompt, isGoalContinuationMessage } from '../services/goal-service.mjs'
+import { GitChangesService } from '../services/git-changes-service.mjs'
 import { TaskListService } from '../services/task-list-service.mjs'
 import { BrowserAutomationService } from '../services/browser-automation-service.mjs'
 import { LocalSandboxService } from '../services/local-sandbox-service.mjs'
@@ -385,6 +385,8 @@ function temporarySessionTitle(message, attachments = []) {
 async function extractDocumentText(attachment) {
   const buffer = Buffer.from(String(attachment.data || ''), 'base64')
   if (!buffer.length) throw new Error(`${safeAttachmentName(attachment.name)} 内容为空`)
+  // Lazily loaded: officeparser is only needed when a document attachment arrives.
+  const { OfficeParser } = await import('officeparser')
   const ast = await OfficeParser.parseOffice(buffer, {
     fileType: String(attachment.extension || '').toLowerCase() || undefined,
     ocr: false,
@@ -512,6 +514,7 @@ export class AgentRuntimeService {
     this.assetIndexPath = join(dataDir, 'vesper-assets.json')
     this.memory = new LocalMemoryRuntime({ path: join(dataDir, 'vesper-memory.sqlite'), cwd })
     this.goals = new GoalService({ path: join(dataDir, 'vesper-goals.json') })
+    this.gitChanges = new GitChangesService()
     this.taskLists = new TaskListService({ path: join(dataDir, 'vesper-task-lists.json') })
     this.browserAutomation = new BrowserAutomationService({ driver: browserAutomationDriver })
     this.goalEmitters = new Map()
@@ -850,8 +853,38 @@ export class AgentRuntimeService {
     return goal
   }
 
+  async setSessionGoalBudget(id, tokenBudget) {
+    const goal = await this.goals.setBudget(id, tokenBudget)
+    const value = this.sessions.get(id)
+    if (value) this.syncGoalTools(value, goal)
+    this.emitGoalUpdate(id, goal)
+    return goal
+  }
+
   getSessionGoal(id) {
     return this.goals.get(id)
+  }
+
+  sessionGitCwd(id) {
+    return this.sessions.get(id)?.cwd || this.sessionMeta[id]?.cwd || this.cwd
+  }
+
+  getSessionGitChanges(id) {
+    return this.gitChanges.getChanges(this.sessionGitCwd(id))
+  }
+
+  async commitSessionGitChanges(id, message) {
+    if (this.sessions.get(id)?.session.isStreaming) throw new Error('当前会话正在运行，请完成或停止后再提交改动。')
+    return this.gitChanges.commit(this.sessionGitCwd(id), message)
+  }
+
+  async pushSessionGitChanges(id) {
+    return this.gitChanges.push(this.sessionGitCwd(id))
+  }
+
+  async revertSessionGitChanges(id) {
+    if (this.sessions.get(id)?.session.isStreaming) throw new Error('当前会话正在运行，请完成或停止后再撤销改动。')
+    return this.gitChanges.revert(this.sessionGitCwd(id))
   }
 
   async disposeSessions() {
@@ -1833,7 +1866,7 @@ export class AgentRuntimeService {
     }
   }
 
-  async streamPrompt({ sessionId, message, attachments = [], goalMode = false, isolatedContext = false, send }) {
+  async streamPrompt({ sessionId, message, attachments = [], goalMode = false, goalTokenBudget = null, isolatedContext = false, send }) {
     const emit = (event, data) => {
       const redacted = redactSecretValue(data)
       send(event, redacted)
@@ -1859,9 +1892,12 @@ export class AgentRuntimeService {
     if (session.isStreaming) throw new Error('当前会话仍在运行，请等待完成或先停止。')
     let goal = this.goals.get(session.sessionId)
     if (goalMode) {
-      goal = goal?.status === 'paused'
-        ? await this.goals.resume(session.sessionId)
-        : await this.goals.start(session.sessionId, { objective: message })
+      if (goal?.status === 'paused') {
+        if (goalTokenBudget != null) await this.goals.setBudget(session.sessionId, goalTokenBudget)
+        goal = await this.goals.resume(session.sessionId)
+      } else {
+        goal = await this.goals.start(session.sessionId, { objective: message, tokenBudget: goalTokenBudget ?? undefined })
+      }
     }
     await this.selectToolsForMessage(value, message, { attachments })
     value.pendingUserMessage = String(message || '')

@@ -156,6 +156,16 @@ export class GoalService {
     return clone(goal)
   }
 
+  async setBudget(sessionId, tokenBudget) {
+    const goal = this.state.goals[String(sessionId || '')]
+    if (!goal) throw new Error('No goal is set for this session.')
+    goal.tokenBudget = normalizedBudget(tokenBudget)
+    if (goal.status === 'budget_limited' && goal.tokensUsed < goal.tokenBudget) goal.status = 'paused'
+    goal.updatedAt = nowIso(this.now())
+    await this.save()
+    return clone(goal)
+  }
+
   async complete(sessionId) {
     const goal = this.state.goals[String(sessionId || '')]
     if (!goal || goal.status !== 'active') throw new Error('No active goal is available to complete.')
