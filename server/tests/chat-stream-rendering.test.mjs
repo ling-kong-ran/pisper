@@ -14,12 +14,34 @@ test('chat renders thinking and tool activity above one uninterrupted response b
   assert.match(focus, /activityFeed,\s+tools,\s+thinkingText,/)
   assert.doesNotMatch(message, /streamPreamble|splitAssistantStreamText|has-stream-split/)
   const activityIndex = message.indexOf('<AgentRunActivity')
-  const responseIndex = message.indexOf('<MarkdownMessage streaming={streaming}>{fullText}</MarkdownMessage>')
+  const responseIndex = message.indexOf('<TextType')
   assert.ok(activityIndex >= 0)
   assert.ok(responseIndex > activityIndex)
+  assert.match(message, /message\.role === 'agent' && streaming/)
+  assert.match(message, /text=\{fullText\}[\s\S]*live[\s\S]*controlled/)
+  assert.match(message, /<MarkdownMessage streaming>\{displayedText\}<\/MarkdownMessage>/)
   assert.match(activity, /agent-thinking-window/)
   assert.match(activity, /thinkingScrollRef/)
-  assert.match(activity, /<MarkdownMessage streaming=\{Boolean\(streaming\)\}>\{thinking\}<\/MarkdownMessage>/)
+  assert.match(activity, /<DecryptedText/)
+  assert.match(activity, /animateOn="change"/)
+  assert.match(activity, /<MarkdownMessage>\{thinking\}<\/MarkdownMessage>/)
+})
+
+test('React Bits text effects preserve streaming performance and reduced-motion fallbacks', async () => {
+  const [decrypted, textType, exports, styles] = await Promise.all([
+    readFile('src/components/react-bits/DecryptedText.tsx', 'utf8'),
+    readFile('src/components/react-bits/TextType.tsx', 'utf8'),
+    readFile('src/components/react-bits/index.ts', 'utf8'),
+    readFile('src/components/react-bits/react-bits.css', 'utf8'),
+  ])
+  assert.match(decrypted, /animateOn\?: 'view' \| 'hover' \| 'change'/)
+  assert.match(decrypted, /prefers-reduced-motion: reduce/)
+  assert.match(textType, /controlled\?: boolean/)
+  assert.match(textType, /const visibleText = controlled \? targetText : displayedText/)
+  assert.match(textType, /prefers-reduced-motion: reduce/)
+  assert.match(exports, /export \{ DecryptedText \}/)
+  assert.match(exports, /export \{ TextType \}/)
+  assert.match(styles, /@keyframes rb-text-type-cursor/)
 })
 
 test('composer keeps the Agent run state visible when the message avatar scrolls away', async () => {

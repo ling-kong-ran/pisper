@@ -4,7 +4,7 @@ import { useI18n } from '@/app/use-i18n'
 import { Plan } from '@/components/ai-elements/plan'
 import { Task } from '@/components/ai-elements/task'
 import { Tool } from '@/components/ai-elements/tool'
-import { AnimatedList, ShinyText } from '@/components/react-bits'
+import { AnimatedList, DecryptedText, ShinyText } from '@/components/react-bits'
 import MarkdownMessage from '@/components/MarkdownMessage'
 import { formatTokenCount } from '@/lib/format'
 import type { I18nValues } from '@/app/i18n'
@@ -443,7 +443,24 @@ function AgentRunActivity({
             </span>
           </div>
           <div ref={thinkingScrollRef} className="agent-thinking-scroll">
-            <MarkdownMessage streaming={Boolean(streaming)}>{thinking}</MarkdownMessage>
+            {streaming ? (
+              <div className="markdown-body markdown-streaming" aria-busy="true">
+                <pre className="streaming-plain">
+                  <DecryptedText
+                    text={thinking}
+                    animateOn="change"
+                    speed={24}
+                    maxIterations={4}
+                    sequential
+                    revealDirection="start"
+                    parentClassName="agent-thinking-decrypted"
+                    encryptedClassName="agent-thinking-encrypted"
+                  />
+                </pre>
+              </div>
+            ) : (
+              <MarkdownMessage>{thinking}</MarkdownMessage>
+            )}
           </div>
         </div>
       )}
