@@ -801,6 +801,8 @@ h1, h2, h3, strong { overflow-wrap: anywhere; }
 .focus-composer textarea { width: 100%; min-width: 0; min-height: 48px; max-height: 220px; grid-column: 1/6; grid-row: 1; align-self: start; resize: none; overflow-y: auto; border: 0; outline: 0; background: transparent; padding: 5px 6px; color: var(--text); font-size: 14px; line-height: 1.5; }
 .focus-composer .send-button { display: grid; grid-column: 6; grid-row: 2; width: 100%; height: 38px; place-items: center; background: var(--star); color: var(--on-accent); transition: var(--d1) var(--ease-out); }
 .focus-composer .send-button:hover:not(:disabled) { background: var(--star-hover); box-shadow: var(--sh-star); }
+.focus-composer .send-button.stop { background: var(--danger); box-shadow: 0 7px 16px -10px var(--danger); }
+.focus-composer .send-button.stop:hover:not(:disabled) { background: var(--danger); box-shadow: 0 0 0 3px var(--danger-soft); }
 .focus-composer .send-button:active:not(:disabled) { transform: scale(.96); }
 .tool-approval { display: grid; grid-template-columns: minmax(0,1fr) auto; align-items: center; gap: 8px; border: 1px solid var(--warning-border); border-radius: var(--r-sm); background: var(--warning-soft); color: var(--warning-strong); padding: 9px 10px; }
 .tool-approval > div:first-child { display: flex; min-width: 0; align-items: center; gap: 8px; }.tool-approval > div:first-child > span { display: flex; min-width: 0; flex-direction: column; gap: 2px; }.tool-approval strong { font-size: 13px; }.tool-approval small { overflow: hidden; font-size: 13px; text-overflow: ellipsis; white-space: nowrap; }
@@ -1231,7 +1233,6 @@ h1, h2, h3, strong { overflow-wrap: anywhere; }
 
 @container (max-width: 700px) {
   .session-runtime-meta { min-width: 0; }
-  .session-runtime-meta > span { display: none; }
   .workspace-chip { max-width: 180px; }
   .transcript { padding: 20px 14px; }
   .message.user .message-content { max-width: 86%; }

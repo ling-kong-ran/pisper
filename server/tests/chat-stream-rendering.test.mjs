@@ -44,15 +44,29 @@ test('React Bits text effects preserve streaming performance and reduced-motion 
   assert.match(styles, /@keyframes rb-text-type-cursor/)
 })
 
-test('composer keeps the Agent run state visible when the message avatar scrolls away', async () => {
+test('composer is the sole persistent Agent run status surface', async () => {
   const [focus, styles] = await Promise.all([
     readFile('src/features/chat/FocusSession.tsx', 'utf8'),
     readFile('src/index.css', 'utf8'),
   ])
   assert.match(focus, /focus-composer-status/)
   assert.match(focus, /compaction\?\.active \? 'compacting' : streaming \? 'running' : 'idle'/)
+  assert.doesNotMatch(focus, /focusSession\.agentRunning/)
   assert.match(styles, /\.focus-composer-status\.running/)
   assert.match(styles, /\.focus-composer-status\.compacting/)
+})
+
+test('composer send action becomes the only stop control while streaming', async () => {
+  const [focus, styles] = await Promise.all([
+    readFile('src/features/chat/FocusSession.tsx', 'utf8'),
+    readFile('src/index.css', 'utf8'),
+  ])
+  assert.doesNotMatch(focus, /className="button danger tiny" onClick=\{onAbort\}/)
+  assert.match(focus, /type=\{streaming \? 'button' : 'submit'\}/)
+  assert.match(focus, /className=\{`send-button\$\{streaming \? ' stop' : ''\}`\}/)
+  assert.match(focus, /onClick=\{streaming \? onAbort : undefined\}/)
+  assert.match(focus, /streaming \? \(\s*<Square size=\{16\} fill="currentColor"/)
+  assert.match(styles, /\.focus-composer \.send-button\.stop/)
 })
 
 test('chat activity lazy loading reserves layout space instead of flashing an empty fallback', async () => {

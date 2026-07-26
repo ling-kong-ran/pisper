@@ -683,13 +683,6 @@ export function FocusSession({
               <PanelLeftOpen size={15} />
             </button>
           )}
-          <span className={streaming ? 'success' : ''}>
-            {compaction?.active
-              ? t('chat:focusSession.compactingContext')
-              : streaming
-                ? t('chat:focusSession.agentRunning')
-                : t('chat:focusSession.waitingForInput')}
-          </span>
           <button
             className="workspace-chip"
             title={cwd}
@@ -701,12 +694,6 @@ export function FocusSession({
           </button>
         </div>
         <div className="focus-session-head-actions">
-          {streaming && (
-            <button className="button danger tiny" onClick={onAbort}>
-              <Square size={12} />
-              {t('chat:focusSession.stop')}
-            </button>
-          )}
           <SessionActionsMenu
             session={session}
             canSplit={canSplit}
@@ -919,23 +906,22 @@ export function FocusSession({
             }
           />
           <button
-            className="send-button"
-            title={
-              streaming
-                ? t('chat:focusSession.sendToRunningAgent')
-                : t('chat:focusSession.sendMessage')
-            }
+            type={streaming ? 'button' : 'submit'}
+            className={`send-button${streaming ? ' stop' : ''}`}
+            title={streaming ? t('chat:focusSession.stop') : t('chat:focusSession.sendMessage')}
             aria-label={
-              streaming
-                ? t('chat:focusSession.sendToRunningAgent')
-                : t('chat:focusSession.sendMessage')
+              streaming ? t('chat:focusSession.stop') : t('chat:focusSession.sendMessage')
             }
-            disabled={
-              queueing ||
-              (streaming ? !value.trim() : !value.trim() && !selection.attachments.length)
-            }
+            onClick={streaming ? onAbort : undefined}
+            disabled={!streaming && (queueing || (!value.trim() && !selection.attachments.length))}
           >
-            {queueing ? <RefreshCw className="spin" size={17} /> : <Send size={18} />}
+            {streaming ? (
+              <Square size={16} fill="currentColor" />
+            ) : queueing ? (
+              <RefreshCw className="spin" size={17} />
+            ) : (
+              <Send size={18} />
+            )}
           </button>
         </div>
       </form>
