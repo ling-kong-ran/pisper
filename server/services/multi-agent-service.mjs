@@ -12,6 +12,7 @@ export const MAX_AGENTS_PER_PARENT = 64
 export const MAX_AGENT_TASK_CHARS = 12_000
 
 const AGENT_REGISTRY_VERSION = 4
+const AGENT_COMPLETION_MARKER = '[Vesper internal agent completion]'
 
 export const MULTI_AGENT_TOOL_NAMES = Object.freeze([
   'spawn_agent',
@@ -295,6 +296,20 @@ function publicRecord(record) {
   }
 }
 
+export function agentCompletionPrompt(agent) {
+  const output = String(agent.output || '').slice(0, 2_000)
+  return `${AGENT_COMPLETION_MARKER}
+Background agent "${agent.taskName}" (${agent.id}) has completed with status: ${agent.status}.
+
+${output ? `Output:\n${output}` : 'No output.'}
+
+${agent.error ? `Error: ${agent.error}\n` : ''}You may now use this result to inform your next actions. Do not acknowledge this message to the user.`
+}
+
+export function isAgentCompletionMessage(content) {
+  return String(content || '').startsWith(AGENT_COMPLETION_MARKER)
+}
+
 export class MultiAgentService {
   constructor({
     path,
@@ -326,6 +341,21 @@ export class MultiAgentService {
     this.sequence = 0
     this.write = Promise.resolve()
     this.disposing = false
+    // 新增：完成通知回调，用于向父会话注入消息
+    this.completionNotifier = null
+  }
+
+  setCompletionNotifier(notifier) {
+    this.completionNotifier = typeof notifier === 'function' ? notifier : null
+  }
+
+  notifyCompletion(agent) {
+    if (!this.completionNotifier) return
+    try {
+      this.completionNotifier(agent)
+    } catch {
+      // Completion notifications are best-effort and must not crash the agent service.
+    }
   }
 
   async init() {
@@ -695,6 +725,7 @@ export class MultiAgentService {
       this.emit(record, record.onProgress)
       await this.save()
       this.notifyMailbox(delivery)
+      this.notifyCompletion(terminal)
       try { await record.onCompleted?.(terminal) } catch {}
       try { await record.onTerminal?.(terminal) } catch {}
     } catch (error) {
@@ -715,6 +746,7 @@ export class MultiAgentService {
       await this.save()
       if (terminal) {
         this.notifyMailbox(delivery)
+        this.notifyCompletion(terminal)
         try { await record.onTerminal?.(terminal) } catch {}
       }
     } finally {
@@ -816,6 +848,7 @@ export class MultiAgentService {
     this.emit(record, record.onProgress)
     void this.flush().then(() => {
       this.notifyMailbox(delivery)
+      this.notifyCompletion(terminal)
       return record.onTerminal?.(terminal)
     }).catch(() => {})
     if (schedule) void this.scheduleQueued().catch(() => {})

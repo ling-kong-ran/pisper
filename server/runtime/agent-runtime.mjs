@@ -26,7 +26,7 @@ import { WebSearchService } from '../services/web-search-service.mjs'
 import { extractConversationMemories } from '../services/memory/conversation-memory.mjs'
 import { LocalMemoryRuntime } from '../services/memory/local-memory-runtime.mjs'
 import { inferModelKind, VisualGenerationService } from '../services/visual-generation/index.mjs'
-import { MultiAgentService, MULTI_AGENT_TOOL_NAMES } from '../services/multi-agent-service.mjs'
+import { MultiAgentService, MULTI_AGENT_TOOL_NAMES, agentCompletionPrompt, isAgentCompletionMessage } from '../services/multi-agent-service.mjs'
 import { GoalService, goalBudgetPrompt, goalContinuationPrompt, isGoalContinuationMessage } from '../services/goal-service.mjs'
 import { GitChangesService } from '../services/git-changes-service.mjs'
 import { TaskListService } from '../services/task-list-service.mjs'
@@ -79,7 +79,7 @@ const ASSET_TEXT_EXTENSIONS = new Set(['.txt', '.md', '.json', '.js', '.jsx', '.
 const ASSET_DOCUMENT_EXTENSIONS = new Set(['.pdf', '.docx', '.pptx', '.xlsx', '.odt', '.odp', '.ods', '.rtf', '.epub'])
 const IMAGE_EXTENSIONS = new Set(['.png', '.jpg', '.jpeg', '.gif', '.webp', '.bmp', '.svg'])
 function isInternalParentMessage(content) {
-  return isGoalContinuationMessage(content)
+  return isGoalContinuationMessage(content) || isAgentCompletionMessage(content)
 }
 
 function textFromContent(content) {
@@ -564,6 +564,8 @@ export class AgentRuntimeService {
       getSettingsManager: () => this.settingsManager,
       createResourceLoader: ({ cwd: childCwd, appendSystemPrompt }) => this.skills.createResourceLoader(childCwd, { appendSystemPrompt }),
     })
+    // 设置 Agent 完成通知器：向父会话注入隐藏消息
+    this.multiAgents.setCompletionNotifier((agent) => this.injectAgentCompletion(agent))
     this.sessionMetaWrite = Promise.resolve()
     this.usageLedger = { days: {}, sessionScans: {} }
     this.usageWrite = Promise.resolve()
@@ -1812,6 +1814,29 @@ export class AgentRuntimeService {
     }
   }
 
+  /**
+   * 向父会话注入 Agent 完成通知（对用户隐藏）
+   * 如果父会话正在运行，直接 steer；否则作为 pending 消息，下次用户消息时注入
+   */
+  injectAgentCompletion(agent) {
+    const sessionId = agent.parentSessionId
+    const value = this.sessions.get(sessionId)
+    if (!value?.session) return
+
+    const prompt = agentCompletionPrompt(agent)
+    const session = value.session
+
+    // 如果会话正在运行，直接 steer 注入
+    if (session.isStreaming) {
+      void session.steer(prompt).catch(() => {})
+      return
+    }
+
+    // 会话未运行：将通知存入 pending，下次用户消息时由 streamPrompt 注入
+    value.pendingAgentNotifications = value.pendingAgentNotifications || []
+    value.pendingAgentNotifications.push(prompt)
+  }
+
   async streamPrompt({ sessionId, message, attachments = [], goalMode = false, goalTokenBudget = null, isolatedContext = false, send }) {
     const emit = (event, data) => {
       const redacted = redactSecretValue(data)
@@ -1850,6 +1875,20 @@ export class AgentRuntimeService {
     // Drop stale plans from previous turns unless a Goal is actively driving multi-turn work.
     const keepTaskList = goal?.status === 'active' || isGoalContinuationMessage(message)
     if (!keepTaskList) await this.taskLists.replace(session.sessionId, [])
+    
+    // 注入待处理的 Agent 完成通知（对用户隐藏）
+    const pendingAgentNotes = value.pendingAgentNotifications || []
+    value.pendingAgentNotifications = []
+    if (pendingAgentNotes.length) {
+      for (const note of pendingAgentNotes) {
+        try {
+          await session.steer(note)
+        } catch {
+          // 注入失败时忽略，不影响主消息流
+        }
+      }
+    }
+    
     const startedAt = new Date().toISOString()
     value.modified = startedAt
     const initialActivity = { type: 'model', stage: 'thinking', updatedAt: startedAt }

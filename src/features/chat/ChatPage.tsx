@@ -51,7 +51,7 @@ import {
   type SessionOpenRequest,
 } from './dock-layout'
 import { pushCurrentActivity, settleToolCalls, taskListChanges } from './run-activity'
-import { shouldPollLiveSession } from './live-session-sync'
+
 import { mergeSessionLists } from './session-list'
 import {
   WEB_PREVIEW_OPEN_EVENT,
@@ -773,26 +773,93 @@ export function ChatPage({
         ?.api.setTitle(session.name || t('chat:chatPage.untitledChat'))
   }, [remoteSessions, t])
 
-  useEffect(() => {
-    let active = true
-    const poll = () => {
-      if (!active) return
-      for (const [id, state] of Object.entries(sessionStatesRef.current)) {
-        if (
-          shouldPollLiveSession(state, {
-            localStreamOwned: localStreamSessionsRef.current.has(id),
-          })
+  // 智能轮询：按需启动/停止，与子 Agent 生命周期绑定
+  const pollingStateRef = useRef<{
+    timer: number | null
+    activeSessions: Set<string>
+  }>({ timer: null, activeSessions: new Set() })
+  
+  const stopPolling = useCallback(() => {
+    if (pollingStateRef.current.timer) {
+      window.clearInterval(pollingStateRef.current.timer)
+      pollingStateRef.current.timer = null
+    }
+    pollingStateRef.current.activeSessions.clear()
+  }, [])
+  
+  const startPollingIfNeeded = useCallback((sessionId: string) => {
+    const state = sessionStatesRef.current[sessionId]
+    if (!state) return
+    
+    const hasActiveAgents = state.agents?.some((a: any) => 
+      ['queued', 'starting', 'running'].includes(a.status)
+    )
+    
+    if (!hasActiveAgents) return
+    
+    // 标记该会话需要轮询
+    pollingStateRef.current.activeSessions.add(sessionId)
+    
+    // 如果已有定时器，无需重复启动
+    if (pollingStateRef.current.timer) return
+    
+    // 启动轮询：子 Agent 运行期间每 2 秒检查一次
+    pollingStateRef.current.timer = window.setInterval(() => {
+      const sessionsToPoll = Array.from(pollingStateRef.current.activeSessions)
+      
+      // 并发轮询所有会话，但每个会话独立处理，互不影响
+      const pollPromises = sessionsToPoll.map(async (id) => {
+        const currentState = sessionStatesRef.current[id]
+        const stillHasActiveAgents = currentState?.agents?.some((a: any) => 
+          ['queued', 'starting', 'running'].includes(a.status)
         )
-          void syncLiveSession(id)
+        
+        if (!stillHasActiveAgents) {
+          // 该会话的子 Agent 已全部完成，从轮询列表移除
+          pollingStateRef.current.activeSessions.delete(id)
+          return
+        }
+        
+        try {
+          await syncLiveSession(id)
+        } catch (error) {
+          // 单个会话轮询失败不影响其他会话，仅记录错误
+          console.warn(`[Polling] Session ${id} sync failed:`, error)
+        }
+      })
+      
+      // 等待所有会话轮询完成（无论成功或失败）
+      void Promise.allSettled(pollPromises).then(() => {
+        // 所有会话的子 Agent 都完成了，停止轮询
+        if (pollingStateRef.current.activeSessions.size === 0) {
+          stopPolling()
+        }
+      })
+    }, 2000)
+  }, [syncLiveSession, stopPolling])
+  
+  // 监听 agents 状态变化，自动启动/停止轮询
+  useEffect(() => {
+    // 检查所有会话，为有活跃子 Agent 的会话启动轮询
+    for (const [id, state] of Object.entries(sessionStates)) {
+      const hasActiveAgents = state.agents?.some((a: any) => 
+        ['queued', 'starting', 'running'].includes(a.status)
+      )
+      if (hasActiveAgents) {
+        startPollingIfNeeded(id)
       }
     }
-    poll()
-    const timer = window.setInterval(poll, 800)
-    return () => {
-      active = false
-      window.clearInterval(timer)
+    
+    // 如果没有会话需要轮询，确保停止
+    if (pollingStateRef.current.activeSessions.size === 0) {
+      stopPolling()
     }
-  }, [syncLiveSession])
+  }, [sessionStates, startPollingIfNeeded, stopPolling])
+  
+  // 组件卸载时清理
+  useEffect(() => {
+    return () => stopPolling()
+  }, [stopPolling])
 
   const sendPrompt = async (
     text: string,
