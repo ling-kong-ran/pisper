@@ -69,6 +69,7 @@ export type DesktopPetStatus = {
   selectedSlug: string
   selectedName: string
   installed: DesktopPet[]
+  opacity?: number
   state?: string
   stateVersion?: number
   sheetWidth?: number
@@ -93,6 +94,7 @@ export type DesktopBridge = {
   }) => Promise<DesktopNotificationResult>
   getPetStatus?: () => Promise<DesktopPetStatus>
   setPetEnabled?: (enabled: boolean) => Promise<DesktopPetStatus>
+  setPetOpacity?: (opacity: number) => Promise<DesktopPetStatus>
   searchPets?: (query: string) => Promise<DesktopPetCatalogItem[]>
   installPet?: (slug: string) => Promise<DesktopPetStatus>
   selectPet?: (slug: string) => Promise<DesktopPetStatus>

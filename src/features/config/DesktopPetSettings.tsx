@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Cat, Download, ExternalLink, RefreshCw, Search } from 'lucide-react'
 import { useI18n } from '@/app/use-i18n'
 import { Badge, Panel, Toggle } from '@/components/ui'
+import { Slider } from '@/components/ui/slider'
 import { apiJson } from '@/lib/api'
 import type { Notify } from '@/app/route-context'
 import type { DesktopPetCatalogItem, DesktopPetStatus } from '@/types/update'
@@ -9,6 +10,7 @@ import type { DesktopPetCatalogItem, DesktopPetStatus } from '@/types/update'
 type PetController = {
   getStatus: () => Promise<DesktopPetStatus>
   setEnabled: (enabled: boolean) => Promise<DesktopPetStatus>
+  setOpacity: (opacity: number) => Promise<DesktopPetStatus>
   search: (query: string) => Promise<DesktopPetCatalogItem[]>
   install: (slug: string) => Promise<DesktopPetStatus>
   select: (slug: string) => Promise<DesktopPetStatus>
@@ -27,6 +29,7 @@ export function DesktopPetSettings({ notify }: { notify: Notify }) {
       return {
         getStatus: () => bridge.getPetStatus!(),
         setEnabled: (enabled) => bridge.setPetEnabled!(enabled),
+        setOpacity: (opacity) => bridge.setPetOpacity!(opacity),
         search: (query) => bridge.searchPets!(query),
         install: (nextSlug) => bridge.installPet!(nextSlug),
         select: (nextSlug) => bridge.selectPet!(nextSlug),
@@ -39,6 +42,11 @@ export function DesktopPetSettings({ notify }: { notify: Notify }) {
         apiJson<DesktopPetStatus>('/api/desktop-pet/enabled', {
           method: 'POST',
           body: { enabled },
+        }),
+      setOpacity: (opacity) =>
+        apiJson<DesktopPetStatus>('/api/desktop-pet/opacity', {
+          method: 'POST',
+          body: { opacity },
         }),
       search: (query) =>
         apiJson<DesktopPetCatalogItem[]>(
@@ -104,6 +112,20 @@ export function DesktopPetSettings({ notify }: { notify: Notify }) {
           ? t('config:desktopPetSettings.petEnabled')
           : t('config:desktopPetSettings.petDisabled'),
       )
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : String(caught))
+    } finally {
+      setBusy('')
+    }
+  }
+
+  const changeOpacity = async (opacity: number) => {
+    setBusy('opacity')
+    try {
+      setError('')
+      const next = await controller.setOpacity(opacity)
+      setStatus(next)
+      announcePetChange(next)
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : String(caught))
     } finally {
@@ -186,6 +208,24 @@ export function DesktopPetSettings({ notify }: { notify: Notify }) {
               disabled={busy === 'toggle' || !status.installed.length}
               onChange={toggle}
               ariaLabel={t('config:desktopPetSettings.showOnDesktop')}
+            />
+          </div>
+        )}
+
+        {status && (
+          <div className="desktop-pet-opacity mt-4">
+            <div>
+              <strong>{t('config:desktopPetSettings.opacity')}</strong>
+              <span>{Math.round((status.opacity ?? 1) * 100)}%</span>
+            </div>
+            <Slider
+              value={[Math.round((status.opacity ?? 1) * 100)]}
+              min={20}
+              max={100}
+              step={5}
+              disabled={busy === 'opacity'}
+              onValueCommit={([value]) => void changeOpacity(value / 100)}
+              aria-label={t('config:desktopPetSettings.opacity')}
             />
           </div>
         )}

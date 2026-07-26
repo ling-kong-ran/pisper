@@ -8,6 +8,7 @@ import {
   PET_WINDOW_HEIGHT,
   PET_WINDOW_WIDTH,
   isPetSheetDimensions,
+  normalizePetOpacity,
   petBubbleKeyForState,
   petStateForAgentEvent,
   readImageDimensions,
@@ -35,6 +36,9 @@ test('Petdex PNG and WebP sheets are validated without a renderer dependency', (
   assert.equal(isPetSheetDimensions({ width: 1536, height: 1872 }), true)
   assert.equal(isPetSheetDimensions({ width: 1536, height: 1800 }), false)
   assert.equal(readImageDimensions(Buffer.from('not-an-image')), null)
+  assert.equal(normalizePetOpacity(0), 0.2)
+  assert.equal(normalizePetOpacity(0.65), 0.65)
+  assert.equal(normalizePetOpacity(2), 1)
 })
 
 test('Agent runtime events map to Petdex sprite states', () => {
@@ -136,6 +140,8 @@ test('Web pet service installs validated resources and publishes Agent state', a
     assert.equal(status.running, false)
     status = service.setEnabled(true)
     assert.equal(status.running, true)
+    status = service.setOpacity(0.55)
+    assert.equal(status.opacity, 0.55)
     assert.match(status.spriteUrl, /^\/api\/desktop-pet\/sprite\?slug=boba/)
     assert.equal(service.sprite('boba')?.mime, 'image/webp')
     service.observeRuntimeEvent({ event: 'thinking_patch', sessionId: 'session-1' })
@@ -149,9 +155,10 @@ test('Web pet service installs validated resources and publishes Agent state', a
 })
 
 test('Electron pet integration remains independent from the hidden main window', async () => {
-  const [main, html, petPreload, appPreload, settings, configPage, webPet, appShell] = await Promise.all([
+  const [main, html, petRenderer, petPreload, appPreload, settings, configPage, webPet, appShell] = await Promise.all([
     readFile(new URL('electron/main.mjs', ROOT), 'utf8'),
     readFile(new URL('electron/pet-window.html', ROOT), 'utf8'),
+    readFile(new URL('electron/pet-window.js', ROOT), 'utf8'),
     readFile(new URL('electron/pet-preload.cjs', ROOT), 'utf8'),
     readFile(new URL('electron/preload.cjs', ROOT), 'utf8'),
     readFile(new URL('src/features/config/DesktopPetSettings.tsx', ROOT), 'utf8'),
@@ -174,6 +181,13 @@ test('Electron pet integration remains independent from the hidden main window',
   assert.doesNotMatch(main, /petdex desktop start|spawn_sidecar|npx petdex/)
   assert.equal(MAX_PET_BYTES, 16 * 1024 * 1024)
   assert.match(html, /Content-Security-Policy/)
+  assert.match(html, /img-src data: blob:/)
+  assert.match(main, /spriteBytes: Uint8Array\.from/)
+  assert.match(main, /setOpacity\(preferences\.petOpacity\)/)
+  assert.match(main, /vesper:set-pet-opacity/)
+  assert.doesNotMatch(main, /spriteDataUrl/)
+  assert.match(petRenderer, /URL\.createObjectURL/)
+  assert.match(petRenderer, /new Blob\(\[bytes\]/)
   assert.match(petPreload, /contextBridge\.exposeInMainWorld\('vesperPet'/)
   assert.match(appPreload, /installPet: \(slug\)/)
   assert.match(settings, /Vesper desktop pet|desktopPetSettings/)

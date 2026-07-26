@@ -18,6 +18,7 @@ import {
   PET_WINDOW_WIDTH,
   PETDEX_PAGE_URL,
   isPetSheetDimensions,
+  normalizePetOpacity,
   petBubbleKeyForState,
   petStateForAgentEvent,
   readImageDimensions,
@@ -465,6 +466,7 @@ function desktopPetStatus() {
     selectedSlug: selected?.slug || '',
     selectedName: selected?.name || '',
     installed,
+    opacity: preferences.petOpacity,
   }
 }
 
@@ -648,6 +650,7 @@ async function createDesktopPet({ notifyOnError = false } = {}) {
         alwaysOnTop: true,
         hasShadow: false,
         backgroundColor: '#00000000',
+        opacity: preferences.petOpacity,
         webPreferences: {
           preload: join(appRoot, 'electron', 'pet-preload.cjs'),
           contextIsolation: true,
@@ -655,6 +658,7 @@ async function createDesktopPet({ notifyOnError = false } = {}) {
           sandbox: true,
         },
       })
+      petWindow.setOpacity(preferences.petOpacity)
       petWindow.setAlwaysOnTop(true, 'floating')
       petWindow.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true })
       petWindow.on('move', persistPetPosition)
@@ -670,9 +674,9 @@ async function createDesktopPet({ notifyOnError = false } = {}) {
       petWindow.webContents.on('will-navigate', (event) => event.preventDefault())
       petWindow.webContents.once('did-finish-load', () => {
         if (!petWindow || petWindow.isDestroyed()) return
-        const spriteDataUrl = `data:${installedPet.mime};base64,${installedPet.buffer.toString('base64')}`
         petWindow.webContents.send('vesper:pet-config', {
-          spriteDataUrl,
+          spriteBytes: Uint8Array.from(installedPet.buffer),
+          spriteMime: installedPet.mime,
           sheetWidth: installedPet.width,
           sheetHeight: installedPet.height,
           petName: installedPet.name,
@@ -701,6 +705,13 @@ async function createDesktopPet({ notifyOnError = false } = {}) {
   } finally {
     petWindowCreation = null
   }
+}
+
+function setDesktopPetOpacity(value) {
+  const opacity = normalizePetOpacity(value)
+  saveDesktopPreferences({ petOpacity: opacity })
+  if (petWindow && !petWindow.isDestroyed()) petWindow.setOpacity(opacity)
+  return desktopPetStatus()
 }
 
 async function setDesktopPetEnabled(enabled, { notifyOnError = true } = {}) {
@@ -739,9 +750,18 @@ function loadDesktopPreferences() {
       petSlug: typeof data?.petSlug === 'string' ? data.petSlug : '',
       petX: Number.isFinite(data?.petX) ? Math.round(data.petX) : null,
       petY: Number.isFinite(data?.petY) ? Math.round(data.petY) : null,
+      petOpacity: normalizePetOpacity(data?.petOpacity),
     }
   } catch {
-    return { closeAction: CLOSE_ACTION_ASK, language: null, petEnabled: false, petSlug: '', petX: null, petY: null }
+    return {
+      closeAction: CLOSE_ACTION_ASK,
+      language: null,
+      petEnabled: false,
+      petSlug: '',
+      petX: null,
+      petY: null,
+      petOpacity: 1,
+    }
   }
 }
 
@@ -758,6 +778,10 @@ function saveDesktopPreferences(patch = {}) {
     petSlug: typeof patch.petSlug === 'string' ? patch.petSlug : current.petSlug,
     petX: Number.isFinite(patch.petX) ? Math.round(patch.petX) : current.petX,
     petY: Number.isFinite(patch.petY) ? Math.round(patch.petY) : current.petY,
+    petOpacity:
+      patch.petOpacity === undefined
+        ? normalizePetOpacity(current.petOpacity)
+        : normalizePetOpacity(patch.petOpacity),
   }
   writeFileSync(desktopPreferencesPath(), `${JSON.stringify(next, null, 2)}\n`, 'utf8')
   return next
@@ -1043,6 +1067,7 @@ function registerIpc() {
     await setDesktopPetEnabled(enabled === true)
     return desktopPetStatus()
   })
+  ipcMain.handle('vesper:set-pet-opacity', (_event, opacity) => setDesktopPetOpacity(opacity))
   ipcMain.handle('vesper:search-pets', async (_event, query) => {
     const needle = String(query || '').trim().toLowerCase()
     const manifest = await petdexManifest()

@@ -38,6 +38,12 @@ export function createApiHandler(runtime, { updates, desktopPet } = {}) {
         json(res, 200, desktopPet.setEnabled(Boolean(body?.enabled)))
         return true
       }
+      if (req.method === 'POST' && url.pathname === '/api/desktop-pet/opacity') {
+        if (!desktopPet) throw new Error('桌面宠物服务尚未初始化。')
+        const body = await bodyJson(req)
+        json(res, 200, desktopPet.setOpacity(body?.opacity))
+        return true
+      }
       if (req.method === 'POST' && url.pathname === '/api/desktop-pet/install') {
         if (!desktopPet) throw new Error('桌面宠物服务尚未初始化。')
         const body = await bodyJson(req)

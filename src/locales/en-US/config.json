@@ -257,6 +257,7 @@
   "desktopPetSettings.installedTitle": "Installed pets",
   "desktopPetSettings.installTitle": "Add a pet from Petdex",
   "desktopPetSettings.loading": "Loading desktop pet status…",
+  "desktopPetSettings.opacity": "Pet opacity",
   "desktopPetSettings.petDisabled": "Desktop pet disabled",
   "desktopPetSettings.petEnabled": "Desktop pet enabled",
   "desktopPetSettings.petInstalled": "Installed and selected {name}",

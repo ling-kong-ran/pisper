@@ -12,6 +12,7 @@ import { isAbsolute, join, relative } from 'node:path'
 import {
   MAX_PET_BYTES,
   isPetSheetDimensions,
+  normalizePetOpacity,
   petStateForAgentEvent,
   readImageDimensions,
 } from '../../electron/desktop-pet-state.mjs'
@@ -87,6 +88,7 @@ export class WebDesktopPetService {
     return {
       enabled: Boolean(value?.enabled),
       selectedSlug: typeof value?.selectedSlug === 'string' ? value.selectedSlug : '',
+      opacity: normalizePetOpacity(value?.opacity),
     }
   }
 
@@ -181,6 +183,7 @@ export class WebDesktopPetService {
       selectedSlug: selected?.slug || '',
       selectedName: selected?.name || '',
       installed,
+      opacity: preferences.opacity,
       state: this.state,
       stateVersion: this.stateVersion,
       sheetWidth: loaded?.width || 0,
@@ -189,6 +192,11 @@ export class WebDesktopPetService {
         ? `/api/desktop-pet/sprite?slug=${encodeURIComponent(loaded.slug)}&v=${statSync(loaded.path).mtimeMs}`
         : '',
     }
+  }
+
+  setOpacity(value) {
+    this.savePreferences({ opacity: normalizePetOpacity(value) })
+    return this.status()
   }
 
   setEnabled(enabled) {

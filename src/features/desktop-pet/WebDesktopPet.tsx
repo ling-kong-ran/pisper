@@ -120,7 +120,7 @@ export function WebDesktopPet() {
   return (
     <div
       className={`web-desktop-pet ${pointer.current ? 'dragging' : ''}`}
-      style={{ left: position.x, top: position.y }}
+      style={{ left: position.x, top: position.y, opacity: status.opacity ?? 1 }}
       onPointerDown={(event) => {
         if (event.button !== 0) return
         const bounds = event.currentTarget.getBoundingClientRect()

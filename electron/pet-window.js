@@ -15,6 +15,7 @@ const frame = document.getElementById('frame')
 const sprite = document.getElementById('sprite')
 const bubble = document.getElementById('bubble')
 let pointer = null
+let spriteObjectUrl = ''
 
 function applyState(input = {}) {
   const state = PET_STATES[input.state] || PET_STATES.idle
@@ -26,13 +27,25 @@ function applyState(input = {}) {
 }
 
 window.vesperPet.onConfig((config) => {
-  if (config?.spriteDataUrl) sprite.style.setProperty('--sprite-url', `url("${config.spriteDataUrl}")`)
+  if (config?.spriteBytes) {
+    if (spriteObjectUrl) URL.revokeObjectURL(spriteObjectUrl)
+    const bytes = config.spriteBytes instanceof Uint8Array
+      ? config.spriteBytes
+      : new Uint8Array(config.spriteBytes)
+    spriteObjectUrl = URL.createObjectURL(
+      new Blob([bytes], { type: String(config.spriteMime || 'application/octet-stream') }),
+    )
+    sprite.style.setProperty('--sprite-url', `url("${spriteObjectUrl}")`)
+  }
   if (Number.isFinite(config?.sheetWidth)) sprite.style.setProperty('--sheet-width', `${config.sheetWidth}px`)
   if (Number.isFinite(config?.sheetHeight)) sprite.style.setProperty('--sheet-height', `${config.sheetHeight}px`)
   if (config?.petName) frame.setAttribute('aria-label', `${config.petName}, via Petdex`)
   applyState(config)
 })
 window.vesperPet.onState(applyState)
+window.addEventListener('beforeunload', () => {
+  if (spriteObjectUrl) URL.revokeObjectURL(spriteObjectUrl)
+})
 
 stage.addEventListener('pointerdown', (event) => {
   if (event.button !== 0) return

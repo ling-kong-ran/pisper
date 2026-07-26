@@ -257,6 +257,7 @@
   "desktopPetSettings.installedTitle": "已安装的宠物",
   "desktopPetSettings.installTitle": "从 Petdex 添加宠物",
   "desktopPetSettings.loading": "正在读取桌面宠物状态…",
+  "desktopPetSettings.opacity": "宠物透明度",
   "desktopPetSettings.petDisabled": "桌面宠物已关闭",
   "desktopPetSettings.petEnabled": "桌面宠物已启用",
   "desktopPetSettings.petInstalled": "已安装并选择 {name}",

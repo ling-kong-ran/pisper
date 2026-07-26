@@ -14,6 +14,7 @@ contextBridge.exposeInMainWorld('vesperDesktop', Object.freeze({
   showNotification: (notification) => ipcRenderer.invoke('vesper:show-notification', notification),
   getPetStatus: () => ipcRenderer.invoke('vesper:get-pet-status'),
   setPetEnabled: (enabled) => ipcRenderer.invoke('vesper:set-pet-enabled', enabled),
+  setPetOpacity: (opacity) => ipcRenderer.invoke('vesper:set-pet-opacity', opacity),
   searchPets: (query) => ipcRenderer.invoke('vesper:search-pets', query),
   installPet: (slug) => ipcRenderer.invoke('vesper:install-pet', slug),
   selectPet: (slug) => ipcRenderer.invoke('vesper:select-pet', slug),

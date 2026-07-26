@@ -61,6 +61,12 @@ export function isPetSheetDimensions({ width, height } = {}) {
     && height % PET_FRAME_HEIGHT === 0
 }
 
+export function normalizePetOpacity(value, fallback = 1) {
+  const opacity = Number(value)
+  if (!Number.isFinite(opacity)) return fallback
+  return Math.round(Math.max(0.2, Math.min(1, opacity)) * 100) / 100
+}
+
 export function petStateForAgentEvent(event) {
   if (event === 'error') return 'failed'
   if (event === 'done') return 'waving'
