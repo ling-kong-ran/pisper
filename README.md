@@ -257,6 +257,21 @@ sudo xattr -rd com.apple.quarantine /Applications/Vesper.app
 
 输入 macOS 管理员密码后，再从“应用程序”目录启动 Vesper。该命令只会递归移除 `/Applications/Vesper.app` 的下载隔离属性；请勿对来源不明的应用执行此操作。
 
+#### Linux AppImage 无法启动时
+
+先为 AppImage 添加执行权限：
+
+```bash
+chmod +x Vesper-*-linux-x86_64.AppImage
+./Vesper-*-linux-x86_64.AppImage
+```
+
+若提示缺少 FUSE，请安装发行版的 FUSE 2 兼容包（Ubuntu/Debian 通常为 `libfuse2`，较新版本可能为 `libfuse2t64`），或改用 Release 中的 `.deb` 安装包：
+
+```bash
+sudo apt install ./Vesper-*-linux-amd64.deb
+```
+
 ### 从源码运行
 
 以下环境要求仅适用于开发、Web 版运行或自行打包桌面应用。

@@ -257,6 +257,21 @@ sudo xattr -rd com.apple.quarantine /Applications/Vesper.app
 
 After entering your macOS administrator password, launch Vesper again from Applications. This command recursively removes the download quarantine attribute only from `/Applications/Vesper.app`; do not use it on applications from untrusted sources.
 
+#### If the Linux AppImage Does Not Start
+
+Make the AppImage executable first:
+
+```bash
+chmod +x Vesper-*-linux-x86_64.AppImage
+./Vesper-*-linux-x86_64.AppImage
+```
+
+If FUSE is missing, install your distribution's FUSE 2 compatibility package (`libfuse2` on many Ubuntu/Debian releases, or `libfuse2t64` on newer versions), or use the `.deb` package from the Release instead:
+
+```bash
+sudo apt install ./Vesper-*-linux-amd64.deb
+```
+
 ### Run from Source
 
 The following requirements apply only when developing Vesper, running the Web app, or packaging the desktop app yourself.
