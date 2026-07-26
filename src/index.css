@@ -613,7 +613,7 @@ h1, h2, h3, strong { overflow-wrap: anywhere; }
 .session-dock-panel .focus-session > .card-head .session-runtime-meta { margin-top: 0; }
 .transcript { min-height: 0; flex: 1; overflow: auto; margin: 0; border: 0; padding: 26px max(24px,calc((100% - 960px)/2)); scroll-padding-bottom: 28px; }
 .history-page-loader { display: flex; width: min(960px,100%); min-height: 42px; align-items: center; justify-content: center; gap: 7px; margin: 0 auto 18px; color: var(--text-muted); font-size: 12px; }.history-page-loader .history-up-arrow { transform: rotate(180deg); }
-.message { display: flex; width: min(960px,100%); flex-direction: column; align-items: flex-start; gap: 6px; margin: 0 auto 24px; content-visibility: auto; contain-intrinsic-size: auto 120px; }
+.message { display: flex; width: min(960px,100%); flex-direction: column; align-items: flex-start; gap: 6px; margin: 0 auto 24px; }
 .message.user { align-items: flex-end; }
 .message.agent { display: grid; grid-template-columns: 36px minmax(0,1fr); align-items: start; column-gap: 10px; }
 .message > span { display: flex; align-items: center; gap: 5px; padding: 0 4px; color: var(--text-muted); font-family: ui-monospace, SFMono-Regular, Consolas, 'Liberation Mono', monospace; font-size: 12px; font-weight: 600; letter-spacing: .04em; text-transform: uppercase; }
