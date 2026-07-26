@@ -36,7 +36,7 @@ import {
   announceSessionsUpdated,
   consumeSessionSelectionRequest,
 } from './events'
-import { ChatDockWatermark, SessionDockPanel, SessionRail } from './ChatDock'
+import { ChatDockWatermark, SessionDockPanel } from './ChatDock'
 import { WebPreviewDockPanel } from './WebPreviewDockPanel'
 import { chatApi, type ApiRecord } from './chat-api'
 import { ChatDockContext, type ChatDockContextValue } from './chat-dock-context'
@@ -143,13 +143,6 @@ export function ChatPage({
   const [compactDock, setCompactDock] = useState(
     () => window.matchMedia('(max-width: 900px)').matches,
   )
-  const [railOpen, setRailOpenState] = useState(
-    () => localStorage.getItem(STORAGE_KEYS.sessionRail) !== '0',
-  )
-  const setRailOpen = useCallback((open: boolean) => {
-    setRailOpenState(open)
-    localStorage.setItem(STORAGE_KEYS.sessionRail, open ? '1' : '0')
-  }, [])
   const creatingSessionRef = useRef<Promise<string> | null>(null)
   const sessionStatesRef = useRef(sessionStates)
   const sessionsRef = useRef(remoteSessions)
@@ -1821,12 +1814,11 @@ export function ChatPage({
     renameSession,
     splitDockPanel,
     closeDockPanel,
-    openRail: railOpen ? null : () => setRailOpen(true),
   }
 
   return (
     <>
-      <div className={`chat-layout dock-layout ${railOpen ? 'rail-open' : ''}`}>
+      <div className="chat-layout dock-layout">
         {loading ? (
           <Panel className="empty-state">
             <RefreshCw className="spin" size={24} />
@@ -1835,18 +1827,6 @@ export function ChatPage({
           </Panel>
         ) : (
           <>
-            {railOpen && (
-              <SessionRail
-                sessions={remoteSessions}
-                states={sessionStates}
-                activeId={activeId}
-                splitEnabled={!compactDock}
-                onSelect={(id) => openSessionInDock(id, 'open')}
-                onSplit={(id, direction) => openSessionInDock(id, direction)}
-                onCreate={createSession}
-                onClose={() => setRailOpen(false)}
-              />
-            )}
             <div className="chat-dock-workspace">
               <ChatDockContext.Provider value={dockContextValue}>
                 <DockviewReact

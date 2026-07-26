@@ -61,8 +61,8 @@ test('chat split controls expose left, right, top and bottom actions', async () 
     readFile('src/features/chat/ChatPage.tsx', 'utf8'),
     readFile('src/features/chat/ChatHistoryPage.tsx', 'utf8'),
   ])
-  assert.match(dock, /onSplit\(session\.id, 'above'\)/)
-  assert.match(dock, /onSplit\(session\.id, 'below'\)/)
+  assert.match(dock, /splitDockPanel\(api\.id, 'above'\)/)
+  assert.match(dock, /splitDockPanel\(api\.id, 'below'\)/)
   assert.match(focus, /onSplitTop/)
   assert.match(focus, /onSplitBottom/)
   assert.match(page, /splitDockPanel\(panel\.id, 'above'\)/)

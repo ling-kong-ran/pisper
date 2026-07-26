@@ -53,6 +53,8 @@ type AppSidebarProps = {
   onOpenUpdates: () => void
 }
 
+const RECENT_SESSION_LIMIT = 15
+
 export function AppSidebar({
   page,
   navigation,
@@ -179,7 +181,7 @@ export function AppSidebar({
             </div>
             {historyExpanded && (
               <div className="nav-history-list" id="sidebar-recent-sessions">
-                {sessions.slice(0, 4).map((session) => (
+                {sessions.slice(0, RECENT_SESSION_LIMIT).map((session) => (
                   <button
                     className={`nav-history-item ${session.id === activeSessionId ? 'active-session' : ''}`}
                     aria-current={session.id === activeSessionId ? 'page' : undefined}

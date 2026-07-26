@@ -21,7 +21,6 @@ import {
   MoreHorizontal,
   PanelBottom,
   PanelLeft,
-  PanelLeftOpen,
   PanelRight,
   PanelTop,
   Paperclip,
@@ -142,7 +141,6 @@ export type FocusSessionProps = {
   ) => Promise<void> | void
   onQueue?: (value: string, behavior: string) => Promise<boolean> | boolean
   onAbort: () => Promise<void> | void
-  onOpenRail?: (() => void) | null
 }
 
 function ContextUsageIndicator({ usage }: { usage?: EntityRecord | null }) {
@@ -548,7 +546,6 @@ export function FocusSession({
   onSend,
   onQueue,
   onAbort,
-  onOpenRail,
 }: FocusSessionProps) {
   const { t, language } = useI18n()
   const [value, setValue] = useState('')
@@ -673,16 +670,6 @@ export function FocusSession({
     <Panel className="focus-session">
       <div className="card-head">
         <div className="session-runtime-meta">
-          {onOpenRail && (
-            <button
-              className="icon-button session-rail-open-btn"
-              title={t('chat:focusSession.showChatList')}
-              aria-label={t('chat:focusSession.showChatList')}
-              onClick={onOpenRail}
-            >
-              <PanelLeftOpen size={15} />
-            </button>
-          )}
           <button
             className="workspace-chip"
             title={cwd}

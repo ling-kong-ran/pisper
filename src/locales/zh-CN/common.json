@@ -2,7 +2,7 @@
   "agentStatusAvatar.idle": "Vesper Agent",
   "agentStatusAvatar.waiting": "Agent 等待输入",
   "agentStatusAvatar.thinking": "Agent 思考中",
-  "app.dragTabsOrSplitChatsInAnyDirectionFromTheSessionList": "拖动标签，或从会话列表向左、右、上、下拆分会话",
+  "app.dragTabsOrSplitChatsInAnyDirectionFromTheSessionList": "拖动标签，或向左、右、上、下拆分会话",
   "app.sessions": "会话",
   "app.wakingVesper": "正在唤醒 Vesper…",
   "markdownMessage.copied": "已复制",

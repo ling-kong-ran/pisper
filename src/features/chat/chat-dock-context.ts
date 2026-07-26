@@ -40,7 +40,6 @@ export type ChatDockContextValue = {
   renameSession: (session: SessionSummary) => Promise<void>
   splitDockPanel: (panelId: string, direction: Exclude<SessionOpenDisposition, 'open'>) => void
   closeDockPanel: (panelId: string) => void
-  openRail: (() => void) | null
 }
 
 export const ChatDockContext = createContext<ChatDockContextValue | null>(null)
