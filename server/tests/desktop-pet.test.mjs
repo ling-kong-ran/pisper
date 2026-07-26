@@ -14,6 +14,7 @@ import {
   resolvePetPosition,
 } from '../../electron/desktop-pet-state.mjs'
 import { WebDesktopPetService } from '../services/web-desktop-pet-service.mjs'
+import { fetchAllowedHttps } from '../../electron/petdex-fetch.mjs'
 
 const ROOT = new URL('../../', import.meta.url)
 
@@ -56,6 +57,49 @@ test('desktop pet position survives valid multi-display coordinates and recovers
     x: 1920 - PET_WINDOW_WIDTH - 20,
     y: 1040 - PET_WINDOW_HEIGHT - 20,
   })
+})
+
+test('Electron Petdex fetch follows allowlisted redirects without relying on response.url', async () => {
+  const requests = []
+  const fetchFn = async (url, options) => {
+    requests.push({ url, options })
+    if (url === 'https://petdex.dev/api/manifest')
+      return new Response(null, {
+        status: 302,
+        headers: { location: 'https://assets.petdex.dev/manifests/petdex-v1.json' },
+      })
+    return new Response('{"pets":[]}', { status: 200 })
+  }
+  const { response, finalUrl } = await fetchAllowedHttps(
+    fetchFn,
+    'https://petdex.dev/api/manifest',
+    {
+      allowedHost: 'petdex.dev',
+      redirectHosts: ['assets.petdex.dev'],
+    },
+  )
+  assert.equal(response.status, 200)
+  assert.equal(finalUrl.href, 'https://assets.petdex.dev/manifests/petdex-v1.json')
+  assert.deepEqual(
+    requests.map((request) => request.url),
+    [
+      'https://petdex.dev/api/manifest',
+      'https://assets.petdex.dev/manifests/petdex-v1.json',
+    ],
+  )
+  assert.equal(requests[0].options.redirect, 'manual')
+  await assert.rejects(
+    fetchAllowedHttps(
+      async () =>
+        new Response(null, {
+          status: 302,
+          headers: { location: 'https://example.com/manifest.json' },
+        }),
+      'https://petdex.dev/api/manifest',
+      { allowedHost: 'petdex.dev', redirectHosts: ['assets.petdex.dev'] },
+    ),
+    /UNTRUSTED_URL/,
+  )
 })
 
 test('Web pet service installs validated resources and publishes Agent state', async () => {
@@ -124,9 +168,8 @@ test('Electron pet integration remains independent from the hidden main window',
   assert.match(main, /runtimeEventObserver: observeRuntimeEvent/)
   assert.match(main, /'desktop-pets'/)
   assert.match(main, /PETDEX_MANIFEST_URL/)
-  assert.match(main, /redirect: 'manual'/)
-  assert.match(main, /if \(response\.url\)/)
-  assert.match(main, /new URL\(location, currentUrl\)/)
+  assert.match(main, /fetchAllowedHttps\(globalThis\.fetch/)
+  assert.doesNotMatch(main, /net\.fetch\(currentUrl\.href/)
   assert.match(main, /ipcMain\.handle\('vesper:install-pet'/)
   assert.doesNotMatch(main, /petdex desktop start|spawn_sidecar|npx petdex/)
   assert.equal(MAX_PET_BYTES, 16 * 1024 * 1024)

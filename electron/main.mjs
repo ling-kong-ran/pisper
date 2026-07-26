@@ -8,6 +8,7 @@ import { createElectronBrowserAutomationDriver } from './browser-automation.mjs'
 import { getDesktopNotificationStatus, WINDOWS_NOTIFICATION_SETTINGS_URL } from './desktop-notifications.mjs'
 import { getDesktopLanguage, isSupportedLanguage, setDesktopLanguage, t } from './i18n.mjs'
 import { enableResumableUpdateDownloads } from './resumable-update-download.mjs'
+import { fetchAllowedHttps } from './petdex-fetch.mjs'
 import { createUpdateLogger, shutdownWithDeadline } from './update-lifecycle.mjs'
 import { LATEST_RELEASE_API, newerVersion, normalizedVersion, reconcileDesktopUpdateCheck, RELEASES_URL } from '../shared/app-update.mjs'
 import { releaseNotesMarkdown } from '../shared/release-notes.mjs'
@@ -468,57 +469,25 @@ function desktopPetStatus() {
 }
 
 async function boundedPetdexFetch(value, maxBytes, allowedHost, redirectHosts = []) {
-  const allowedHosts = new Set([allowedHost, ...redirectHosts])
-  let currentUrl
+  let response
   try {
-    currentUrl = new URL(value)
-  } catch {
-    throw new Error(t('pet.untrustedAsset'))
-  }
-  if (currentUrl.protocol !== 'https:' || currentUrl.hostname !== allowedHost)
-    throw new Error(t('pet.untrustedAsset'))
-
-  for (let redirects = 0; redirects <= 5; redirects += 1) {
-    const response = await net.fetch(currentUrl.href, {
-      redirect: 'manual',
+    const result = await fetchAllowedHttps(globalThis.fetch, value, {
+      allowedHost,
+      redirectHosts,
       headers: { 'User-Agent': `Vesper/${app.getVersion()}` },
     })
-    if ([301, 302, 303, 307, 308].includes(response.status)) {
-      const location = response.headers.get('location')
-      if (!location || redirects === 5) throw new Error(t('pet.untrustedAsset'))
-      let nextUrl
-      try {
-        nextUrl = new URL(location, currentUrl)
-      } catch {
-        throw new Error(t('pet.untrustedAsset'))
-      }
-      if (nextUrl.protocol !== 'https:' || !allowedHosts.has(nextUrl.hostname))
-        throw new Error(t('pet.untrustedAsset'))
-      currentUrl = nextUrl
-      continue
-    }
-    if (!response.ok) throw new Error(`Petdex request failed: HTTP ${response.status}`)
-
-    let finalUrl = currentUrl
-    if (response.url) {
-      try {
-        finalUrl = new URL(response.url, currentUrl)
-      } catch {
-        throw new Error(t('pet.untrustedAsset'))
-      }
-    }
-    if (finalUrl.protocol !== 'https:' || !allowedHosts.has(finalUrl.hostname))
+    response = result.response
+  } catch (error) {
+    if (error instanceof Error && error.message === 'UNTRUSTED_URL')
       throw new Error(t('pet.untrustedAsset'))
-    const declaredSize = Number(response.headers.get('content-length') || 0)
-    if (declaredSize > maxBytes) throw new Error(t('pet.assetTooLarge'))
-    const buffer = Buffer.from(await response.arrayBuffer())
-    if (!buffer.length || buffer.length > maxBytes) throw new Error(t('pet.assetTooLarge'))
-    return {
-      buffer,
-      contentType: String(response.headers.get('content-type') || '').toLowerCase(),
-    }
+    throw error
   }
-  throw new Error(t('pet.untrustedAsset'))
+  if (!response.ok) throw new Error(`Petdex request failed: HTTP ${response.status}`)
+  const declaredSize = Number(response.headers.get('content-length') || 0)
+  if (declaredSize > maxBytes) throw new Error(t('pet.assetTooLarge'))
+  const buffer = Buffer.from(await response.arrayBuffer())
+  if (!buffer.length || buffer.length > maxBytes) throw new Error(t('pet.assetTooLarge'))
+  return { buffer, contentType: String(response.headers.get('content-type') || '').toLowerCase() }
 }
 
 async function petdexManifest() {
