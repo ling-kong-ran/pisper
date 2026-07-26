@@ -18,6 +18,7 @@
   <img src="https://img.shields.io/badge/Vite-17141F?style=flat-square&logo=vite&logoColor=F59E0B" alt="Vite" />
   <img src="https://img.shields.io/badge/Tailwind_CSS-17141F?style=flat-square&logo=tailwindcss&logoColor=F59E0B" alt="Tailwind CSS" />
   <img src="https://img.shields.io/badge/Electron-17141F?style=flat-square&logo=electron&logoColor=F59E0B" alt="Electron" />
+  <a href="./LICENSE"><img src="https://img.shields.io/badge/License-MIT-F59E0B?style=flat-square" alt="MIT License" /></a>
 </p>
 
 <p align="center">
@@ -36,7 +37,9 @@
   <a href="#architecture">代码星图</a> ·
   <a href="#stack">技术栈</a> ·
   <a href="#start">从这里启程</a> ·
-  <a href="#contributing">参与贡献</a>
+  <a href="#contributing">参与贡献</a> ·
+  <a href="#license">开源许可</a> ·
+  <a href="#acknowledgements">致谢</a>
 </p>
 
 ---
@@ -336,6 +339,16 @@ npm run build
 - [查看贡献者](https://github.com/ling-kong-ran/vesper/graphs/contributors)
 
 提交修改前，请运行上方的 lint、测试与构建命令。请勿提交 API Key、机器人凭据、本地会话数据，或 `~/.vesper/agent` 中的任何文件。
+
+---
+
+<a id="license"></a>
+
+## ✦ 开源许可
+
+Vesper 采用 [MIT License](./LICENSE) 开源。你可以自由使用、复制、修改、合并、发布、分发、再许可或销售本项目，但必须在副本或主要部分中保留原版权声明与 MIT 许可文本。
+
+第三方依赖与外部资源继续适用各自的许可证和权利声明；从 Petdex 社区安装的宠物资源不属于 Vesper 源码或发行包，其权利归相应作者或权利人。
 
 ---
 

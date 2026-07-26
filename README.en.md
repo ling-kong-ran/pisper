@@ -18,6 +18,7 @@
   <img src="https://img.shields.io/badge/Vite-17141F?style=flat-square&logo=vite&logoColor=F59E0B" alt="Vite" />
   <img src="https://img.shields.io/badge/Tailwind_CSS-17141F?style=flat-square&logo=tailwindcss&logoColor=F59E0B" alt="Tailwind CSS" />
   <img src="https://img.shields.io/badge/Electron-17141F?style=flat-square&logo=electron&logoColor=F59E0B" alt="Electron" />
+  <a href="./LICENSE"><img src="https://img.shields.io/badge/License-MIT-F59E0B?style=flat-square" alt="MIT License" /></a>
 </p>
 
 <p align="center">
@@ -36,7 +37,9 @@
   <a href="#architecture">Code Map</a> ·
   <a href="#stack">Stack</a> ·
   <a href="#start">Begin Here</a> ·
-  <a href="#contributing">Contributing</a>
+  <a href="#contributing">Contributing</a> ·
+  <a href="#license">License</a> ·
+  <a href="#acknowledgements">Acknowledgments</a>
 </p>
 
 ---
@@ -336,6 +339,16 @@ Issues and pull requests are welcome:
 - [View contributors](https://github.com/ling-kong-ran/vesper/graphs/contributors)
 
 Before submitting a change, run the lint, test, and build commands above. Do not commit API keys, bot credentials, local session data, or any files from `~/.vesper/agent`.
+
+---
+
+<a id="license"></a>
+
+## ✦ License
+
+Vesper is open source under the [MIT License](./LICENSE). You may use, copy, modify, merge, publish, distribute, sublicense, or sell the project, provided that copies or substantial portions retain the original copyright notice and MIT license text.
+
+Third-party dependencies and external resources remain subject to their own licenses and rights notices. Pet assets installed from the Petdex community are not part of Vesper's source code or release packages and remain the property of their respective creators or rights holders.
 
 ---
 
