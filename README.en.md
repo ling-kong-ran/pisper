@@ -9,7 +9,7 @@
 <h1 align="center">Vesper</h1>
 
 <p align="center"><strong>When daylight fades, ideas stay awake.</strong></p>
-<p align="center">A local-first multi-agent workspace for conversations, tools, memory, and automation in one dockable interface.</p>
+<p align="center">A multi-agent desktop workspace that brings conversations, tools, memory, and automation into one dockable interface.</p>
 
 <p align="center">
   <img src="https://img.shields.io/badge/Node.js-17141F?style=flat-square&logo=nodedotjs&logoColor=F59E0B" alt="Node.js" />
@@ -41,12 +41,22 @@
 
 ## Overview
 
-Vesper is a **local-first multi-agent workspace**. Each session has its own model, context, working directory, and execution permissions. Tabs, splits, and drag-to-dock panels turn them into an IDE-style workspace.
+One window per task, context copied back and forth, tool configs scattered everywhere — working with multiple agents shouldn't feel like this.
 
-- Run independent sessions in parallel and restore their layout automatically.
-- Load only the tools required by the current task through dynamic prompts.
-- Manage memory, schedules, workflows, MCP, and external channels in one app.
-- Keep sensitive actions behind execution modes, workspace boundaries, sandboxing, and approval.
+**Vesper puts all your AI agents into one desktop workspace.** Each session has its own model, context, working directory, and execution permissions. Tabs, splits, and drag-to-dock panels organize them like an IDE — and the layout is right where you left it on restart.
+
+**Why Vesper:**
+
+- **Parallel without chaos** — Run multiple sessions on different tasks at once, fully isolated, with automatic layout restoration.
+- **Token-efficient by design** — Dynamic prompts load only the tools the current task needs: a fixed prompt of ~2,979 tokens, roughly 58.7% less than injecting the full catalog.
+- **One place for everything** — Memory, schedules, workflows, MCP, and Feishu / Weixin channels under a single roof.
+- **Safe by default** — Sensitive actions stay behind execution modes, workspace boundaries, sandboxing, and approval. Nothing escalates without asking you.
+
+### Get Started in Three Steps
+
+1. [Download the desktop app](https://github.com/ling-kong-ran/vesper/releases/latest) (Windows / macOS / Linux, no Node.js required)
+2. Configure any model provider with an API key
+3. Create a session and start working in parallel
 
 <a id="preview"></a>
 
@@ -64,7 +74,7 @@ Vesper is a **local-first multi-agent workspace**. Each session has its own mode
     </td>
     <td width="50%" align="center">
       <img src="./docs/shots/memory.png" alt="Vesper memory view" />
-      <br /><sub><strong>Memory</strong> · Searchable local knowledge</sub>
+      <br /><sub><strong>Memory</strong> · Searchable persistent knowledge</sub>
     </td>
   </tr>
   <tr>
@@ -83,33 +93,35 @@ Vesper is a **local-first multi-agent workspace**. Each session has its own mode
 
 ## Features
 
+From conversation to automation, Vesper covers the full agent workflow:
+
 | Area | Capability |
 | :--- | :--- |
 | **Multi-session chat** | Independent Agent sessions, models, and permissions with tab groups, splits, drag-to-dock panels, and layout restoration. |
 | **Agent Runtime** | Built on Pi Coding Agent with tool activity, goals, skills, and isolated subagents. |
-| **Dynamic prompts** | Keep a stable lightweight prompt and append cold tool Schemas only from explicit intent. |
-| **Tools & MCP** | Manage built-in tools, plugins, and MCP services without exposing credentials to the client. |
-| **Memory** | Store and search preferences, facts, decisions, and tasks in local SQLite. |
+| **Dynamic prompts** | Keep a stable lightweight prompt, and append cold tool Schemas only from explicit intent. |
+| **Tools & MCP** | Manage built-in tools, plugins, and MCP services without exposing credentials to the UI. |
+| **Memory** | Store and search preferences, facts, decisions, and tasks in SQLite — it learns you over time. |
 | **Multimodal** | Read images, documents, and code, then generate or edit visual content through configured models. |
 | **Automation** | Schedules and visual workflows with retries, failure policies, history, and notifications. |
-| **Two-way channels** | Connect Feishu and personal Weixin with separate models, workspaces, and attachments. |
-| **Web preview** | Preview external pages in a Dock panel with a system-browser fallback. |
+| **Two-way channels** | Connect Feishu and personal Weixin — reach your agents even when you're away from the desk. |
+| **Web preview** | Preview external pages in a Dock panel, with a system-browser fallback when needed. |
 | **Desktop app** | Electron single-instance app with in-app release notes and GitHub Releases updates. |
-| **Security boundaries** | Per-session `Read only / Workspace / Full access`, one-shot approval, secret redaction, and isolated local data. |
+| **Security boundaries** | Per-session `Read only / Workspace / Full access`, one-shot approval, secret redaction, and data isolation. |
 
-### Lightweight Prompts
+### Lightweight Prompts: Real Savings on Long Sessions
 
-Ordinary coding sessions load only high-frequency tools. Web Search, browser automation, visual generation, memory, MCP, and subagents are appended only when clearly needed, then return to the lightweight baseline on the next ordinary request. Dynamic activation never bypasses tool settings, execution modes, sandboxing, or approval.
+Ordinary coding sessions load only high-frequency tools. Web Search, browser automation, visual generation, memory, MCP, and subagents are appended only when clearly needed, then return to the lightweight baseline on the next ordinary request. Dynamic activation never bypasses tool settings, execution modes, sandboxing, or approval — saving tokens never means cutting safety.
 
-> In the current benchmark, the fixed prompt is about **2,979 tokens**, roughly **58.7% less** than injecting the full catalog. Actual billing and cache savings vary by model and provider.
+> In the current benchmark, the fixed prompt is about **2,979 tokens** — roughly **58.7% less** than injecting the full catalog. Actual billing and cache savings vary by model and provider.
 
-> **Sandbox note:** Workspace mode uses [Anthropic Sandbox Runtime](https://github.com/anthropic-experimental/sandbox-runtime) to restrict Shell writes, credentials, and network access. First use on Windows requires one UAC prompt. Vesper blocks execution if initialization fails instead of falling back to full access. The runtime remains a Beta Research Preview.
+> **Sandbox note:** Workspace mode uses [Anthropic Sandbox Runtime](https://github.com/anthropic-experimental/sandbox-runtime) to restrict Shell writes, credentials, and network access. First use on Windows requires one UAC prompt. If initialization fails, Vesper blocks execution instead of falling back to full access. The runtime remains a Beta Research Preview.
 
 <a id="desktop-pet"></a>
 
 ## Desktop Pet
 
-Vesper natively supports [Petdex](https://petdex.dev)-compatible pets. Search, install, switch, enable, or disable them in **Settings → Desktop pet** without Petdex CLI or a companion process.
+A workspace doesn't have to feel cold. Vesper natively supports [Petdex](https://petdex.dev)-compatible pets — while your agent thinks, the pet paces; when the task finishes, it lets you know. Search, install, switch, enable, or disable pets in **Settings → Desktop pet** — no Petdex CLI or companion process required.
 
 - Waiting, thinking, tool activity, completion, and failure map to pet animations.
 - Electron uses an independent transparent window with dragging, always-on-top behavior, multi-display position persistence, and `20%–100%` opacity. It remains visible when the main window is hidden.
@@ -122,19 +134,19 @@ See [`docs/petdex-integration.md`](./docs/petdex-integration.md).
 
 ## Install
 
-### Desktop
+### Desktop (Recommended)
 
-Download a Windows, macOS, or Linux installer from [GitHub Releases](https://github.com/ling-kong-ran/vesper/releases/latest). Node.js is not required.
+Download a Windows, macOS, or Linux installer from [GitHub Releases](https://github.com/ling-kong-ran/vesper/releases/latest). It works out of the box — no separate Node.js install is required.
 
 #### If macOS Refuses to Open Vesper
 
-Vesper is not currently notarized by Apple. Confirm that it came from the official Releases page and first select **Open Anyway** in **System Settings → Privacy & Security**. If that option is unavailable, run:
+Vesper is not currently notarized by Apple. Confirm that it came from the official Releases page, then select **Open Anyway** in **System Settings → Privacy & Security**. If that option is unavailable, run:
 
 ```bash
 sudo xattr -rd com.apple.quarantine /Applications/Vesper.app
 ```
 
-Use this command only for Vesper downloaded from the official Releases page and installed in `/Applications`.
+Use this command only for Vesper downloaded from the official Releases page and placed in `/Applications`.
 
 #### If the Linux AppImage Does Not Start
 
@@ -151,7 +163,7 @@ sudo apt install ./Vesper-*-linux-amd64.deb
 
 ### Run from Source
 
-Requires Node.js 20+, npm, and at least one model provider and API key.
+Requires Node.js 20+, npm, and at least one model provider with an API key.
 
 ```bash
 git clone https://github.com/ling-kong-ran/vesper.git
@@ -160,21 +172,21 @@ npm install
 npm run dev
 ```
 
-The Web development URL is `http://127.0.0.1:5173` by default. Production mode:
+The Web development URL defaults to `http://127.0.0.1:5173`. For production mode:
 
 ```bash
 npm run build
 npm start
 ```
 
-Desktop development and local packaging:
+Desktop development and packaging:
 
 ```bash
 npm run desktop:dev
 npm run desktop:pack
 ```
 
-Configuration, sessions, and memory are stored in `~/.vesper/agent` by default. Set `VESPER_AGENT_DIR` to use another location.
+Configuration, sessions, and memory are stored under `~/.vesper/agent` by default. Set `VESPER_AGENT_DIR` to use another location.
 
 <a id="development"></a>
 
@@ -188,13 +200,13 @@ npm test
 npm run build
 ```
 
-[Issues](https://github.com/ling-kong-ran/vesper/issues) and [pull requests](https://github.com/ling-kong-ran/vesper/pulls) are welcome. Do not commit API keys, bot credentials, or local data from `~/.vesper/agent`.
+[Issues](https://github.com/ling-kong-ran/vesper/issues) and [pull requests](https://github.com/ling-kong-ran/vesper/pulls) are welcome. Do not commit API keys, bot credentials, or personal data from `~/.vesper/agent`.
 
 <a id="license"></a>
 
 ## License
 
-Vesper is open source under the [MIT License](./LICENSE). Third-party dependencies and external resources remain under their own licenses and rights notices. Petdex community assets belong to their respective creators or rights holders and are not part of Vesper's source or release packages.
+Vesper is released under the [MIT License](./LICENSE). Third-party dependencies and external resources remain under their own licenses and rights notices. Petdex community assets belong to their respective creators or rights holders and are not part of Vesper's source tree or release packages.
 
 ## Acknowledgments
 
