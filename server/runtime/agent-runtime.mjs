@@ -38,7 +38,7 @@ import { createGoalTools, GOAL_TOOL_NAMES } from '../tools/app/goal.mjs'
 import { createTaskListTools, TASK_LIST_TOOL_NAMES } from '../tools/app/task-list.mjs'
 import { createToolDiscoveryTool, TOOL_DISCOVERY_NAME } from '../tools/app/tool-discovery.mjs'
 import { createVesperBashTool } from '../tools/sandboxed-bash.mjs'
-import { explicitlyRequestedToolNames, hotToolNames, isExplicitMemoryRememberRequest, mergePromotedToolNames, schemaOnlyToolDefinitions, selectedToolNames } from '../tools/tool-activation.mjs'
+import { hotToolNames, mergePromotedToolNames, schemaOnlyToolDefinitions, selectedToolNames } from '../tools/tool-activation.mjs'
 import { DEFAULT_EXECUTION_MODE, EXECUTION_MODES, filterToolsForExecutionMode, migrateLegacyExecutionMode, normalizeExecutionMode, permissionModeForExecutionMode } from '../security/execution-mode.mjs'
 import { createStreamingSecretRedactor, installSessionPersistenceRedaction, redactPersistedSessionFiles, redactSecretText, redactSecretValue } from '../security/secret-redaction.mjs'
 import { applyVesperSystemPrompt, vesperPromptExtension } from '../prompts/vesper-system-prompt.mjs'
@@ -766,25 +766,12 @@ export class AgentRuntimeService {
 
   async selectToolsForMessage(value, message, { attachments = [], preserveRequested = false } = {}) {
     if (!value?.session) return []
-    const availableToolNames = this.optionalToolNames(value)
-    const requested = explicitlyRequestedToolNames(message, {
-      availableToolNames,
-      mcpTools: value.mcpTools || [],
-      attachments,
-      previousRequestedToolNames: [
-        ...(value.promotedToolNames || []),
-        ...(value.requestedToolNames || []),
-      ],
-    })
-    const permittedRequested = filterToolsForExecutionMode(
-      requested,
-      this.getSessionExecutionMode(value.session.sessionId),
-      (toolName) => this.mcp.getToolRisk(toolName),
-    )
+    // 简化：不再使用正则表达式路由，只保留基本工具选择
+    const requestedToolNames = []
     value.requestedToolNames = preserveRequested
-      ? [...new Set([...(value.requestedToolNames || []), ...permittedRequested])]
-      : permittedRequested
-    await this.promoteSessionTools(value, permittedRequested)
+      ? [...new Set([...(value.requestedToolNames || []), ...requestedToolNames])]
+      : requestedToolNames
+    await this.promoteSessionTools(value, requestedToolNames)
     return value.session.getActiveToolNames()
   }
 
@@ -2280,7 +2267,7 @@ export class AgentRuntimeService {
     if (result.usage) await this.recordUsage(localDayKey(result.timestamp || Date.now()), `memory:${sessionId}:${result.timestamp || Date.now()}`, result.usage)
     if (!result.memories.length) return []
     const projectSpaceId = await this.memory.ensureWorkspaceSpace(cwd)
-    const userRequested = isExplicitMemoryRememberRequest(user)
+    const userRequested = false // 简化：不再使用正则判断，默认非用户显式请求
     return result.memories.map((item, index) => {
       const payload = {
         ...item,

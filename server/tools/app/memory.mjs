@@ -1,6 +1,5 @@
 import { defineTool } from '@earendil-works/pi-coding-agent'
 import { Type } from 'typebox'
-import { isExplicitMemoryRememberRequest } from '../tool-activation.mjs'
 
 export const manifests = [
   {
@@ -49,11 +48,9 @@ export function createMemorySearchTool({ cwd, memoryRuntime }) {
   })
 }
 
-function resolveUserRequested(params, getUserMessage) {
+function resolveUserRequested(params, _getUserMessage) {
   if (params.userRequested === true) return true
-  if (params.userRequested === false) return false
-  const message = typeof getUserMessage === 'function' ? getUserMessage() : ''
-  return isExplicitMemoryRememberRequest(message)
+  return false // 简化：不再使用正则判断，默认非用户显式请求
 }
 
 export function createMemoryRememberTool({ cwd, memoryRuntime, getUserMessage } = {}) {
