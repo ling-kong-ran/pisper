@@ -5,6 +5,8 @@ export const TASK_LIST_STATUSES = Object.freeze(['pending', 'in_progress', 'comp
 export const MAX_TASK_LIST_ITEMS = 50
 export const MAX_TASK_TITLE_CHARS = 300
 export const MAX_TASK_NOTE_CHARS = 1_000
+export const MAX_TASK_ASSIGNEE_CHARS = 80
+export const MAX_TASK_DEPENDS_ON = 20
 
 const STATUS_SET = new Set(TASK_LIST_STATUSES)
 
@@ -21,6 +23,32 @@ function normalizedId(value) {
   return /^[a-zA-Z0-9._:-]{1,80}$/.test(id) ? id : randomUUID()
 }
 
+function normalizedAssignee(value) {
+  const assignee = String(value || '').trim()
+  if (!assignee) return ''
+  if (assignee.length > MAX_TASK_ASSIGNEE_CHARS)
+    throw new Error(`Task assignee is limited to ${MAX_TASK_ASSIGNEE_CHARS} characters.`)
+  return assignee
+}
+
+function normalizedDependsOn(value) {
+  if (value == null) return []
+  if (!Array.isArray(value)) throw new Error('Task dependsOn must be an array of task ids.')
+  if (value.length > MAX_TASK_DEPENDS_ON)
+    throw new Error(`Task dependsOn is limited to ${MAX_TASK_DEPENDS_ON} ids.`)
+  const seen = new Set()
+  const ids = []
+  for (const entry of value) {
+    const id = String(entry || '').trim()
+    if (!id) continue
+    if (!/^[a-zA-Z0-9._:-]{1,80}$/.test(id)) throw new Error(`Invalid dependency task id: ${id}`)
+    if (seen.has(id)) continue
+    seen.add(id)
+    ids.push(id)
+  }
+  return ids
+}
+
 function normalizeItem(value, previous, now) {
   const title = String(value?.title || '').trim()
   if (!title) throw new Error('Task title cannot be empty.')
@@ -33,6 +61,8 @@ function normalizeItem(value, previous, now) {
     title,
     status,
     note,
+    assignee: normalizedAssignee(value?.assignee ?? previous?.assignee),
+    dependsOn: normalizedDependsOn(value?.dependsOn ?? previous?.dependsOn),
     createdAt: previous?.createdAt || now,
     updatedAt: now,
   }

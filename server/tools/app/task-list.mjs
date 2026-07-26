@@ -1,6 +1,6 @@
 import { defineTool } from '@earendil-works/pi-coding-agent'
 import { Type } from 'typebox'
-import { MAX_TASK_LIST_ITEMS, MAX_TASK_NOTE_CHARS, MAX_TASK_TITLE_CHARS, TASK_LIST_STATUSES } from '../../services/task-list-service.mjs'
+import { MAX_TASK_ASSIGNEE_CHARS, MAX_TASK_DEPENDS_ON, MAX_TASK_LIST_ITEMS, MAX_TASK_NOTE_CHARS, MAX_TASK_TITLE_CHARS, TASK_LIST_STATUSES } from '../../services/task-list-service.mjs'
 
 export const TASK_LIST_TOOL_NAMES = Object.freeze(['get_task_list', 'update_task_list'])
 
@@ -42,6 +42,8 @@ export function createTaskListTools({ getTaskList, updateTaskList }) {
           title: Type.String({ minLength: 1, maxLength: MAX_TASK_TITLE_CHARS }),
           status: statusSchema,
           note: Type.Optional(Type.String({ maxLength: MAX_TASK_NOTE_CHARS })),
+          assignee: Type.Optional(Type.String({ maxLength: MAX_TASK_ASSIGNEE_CHARS, description: 'Who owns this task: an agent canonical name, or empty when unassigned' })),
+          dependsOn: Type.Optional(Type.Array(Type.String({ minLength: 1, maxLength: 80 }), { maxItems: MAX_TASK_DEPENDS_ON, description: 'Task ids that must complete before this task can start' })),
         }), { maxItems: MAX_TASK_LIST_ITEMS }),
       }),
       async execute(_toolCallId, params) {

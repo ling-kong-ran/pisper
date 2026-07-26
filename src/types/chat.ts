@@ -52,6 +52,9 @@ export type TaskListItem = EntityRecord & {
   id?: string
   title?: string
   status?: string
+  note?: string
+  assignee?: string
+  dependsOn?: string[]
 }
 
 export type TaskList = EntityRecord & {

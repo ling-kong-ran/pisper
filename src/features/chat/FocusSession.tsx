@@ -52,11 +52,13 @@ import type {
   ModelOption,
   SandboxStatus,
   SessionSummary,
+  TaskList,
 } from '@/types/chat'
 import { useAttachmentSelection } from './attachments'
 import { FocusChatMessage } from './ChatMessage'
 import { GitChangesControl } from './GitChangesControl'
 import { activityScrollVersion } from './run-activity'
+import TaskBoard from './TaskBoard'
 
 type Translate = (message: string, values?: I18nValues) => string
 type ExecutionModeOption = [string, string, string, LucideIcon]
@@ -97,6 +99,7 @@ export type FocusSessionProps = {
   executionMode: string
   sandboxStatus: SandboxStatus
   goal?: EntityRecord | null
+  taskList?: TaskList | null
   currentActivity?: EntityRecord | null
   activityFeed: EntityRecord[]
   tools: EntityRecord[]
@@ -507,6 +510,7 @@ export function FocusSession({
   executionMode,
   sandboxStatus,
   goal,
+  taskList,
   currentActivity,
   activityFeed,
   tools,
@@ -745,6 +749,7 @@ export function FocusSession({
             )}
           </div>
         )}
+        {taskList?.items?.length ? <TaskBoard taskList={taskList} /> : null}
         {!messages.length && (
           <div className="agent-welcome">
             <Aurora />

@@ -44,3 +44,37 @@ test('task list tools return structured details and can clear the list', async (
   assert.equal(updated.details.taskList.items.length, 1)
   assert.deepEqual(read.details.taskList, current)
 })
+
+test('task items persist assignee and dependsOn with defaults and validation', async (t) => {
+  const directory = await mkdtemp(join(tmpdir(), 'vesper-task-list-'))
+  t.after(() => rm(directory, { recursive: true, force: true }))
+  const path = join(directory, 'task-lists.json')
+  const service = new TaskListService({ path })
+  await service.init()
+
+  const updated = await service.replace('session-1', [
+    { id: 'research', title: 'Research the module', status: 'completed', assignee: '/root/researcher' },
+    { id: 'implement', title: 'Implement the change', status: 'pending', assignee: '/root/builder', dependsOn: ['research'] },
+    { id: 'docs', title: 'Update docs', status: 'pending' },
+  ])
+
+  assert.equal(updated.items[0].assignee, '/root/researcher')
+  assert.deepEqual(updated.items[1].dependsOn, ['research'])
+  // Missing fields default to empty so older lists stay readable.
+  assert.equal(updated.items[2].assignee, '')
+  assert.deepEqual(updated.items[2].dependsOn, [])
+
+  const restored = new TaskListService({ path })
+  await restored.init()
+  assert.deepEqual(restored.get('session-1').items[1].dependsOn, ['research'])
+
+  // Duplicate dependency ids collapse, invalid ids are rejected.
+  const deduped = await service.replace('session-1', [
+    { id: 'a', title: 'A', status: 'pending', dependsOn: ['b', 'b', 'c'] },
+  ])
+  assert.deepEqual(deduped.items[0].dependsOn, ['b', 'c'])
+  await assert.rejects(
+    () => service.replace('session-1', [{ id: 'x', title: 'X', status: 'pending', dependsOn: ['not a valid id!'] }]),
+    /Invalid dependency task id/,
+  )
+})
