@@ -3,8 +3,10 @@ import {
   ChevronRight,
   History,
   MessageSquare,
+  PanelBottom,
   PanelLeft,
   PanelRight,
+  PanelTop,
   Pencil,
   RefreshCw,
   Trash2,
@@ -243,6 +245,24 @@ export function ChatHistoryPage({
                     onClick={() => openSession(session.id, 'right')}
                   >
                     <PanelRight size={14} />
+                  </button>
+                  <button
+                    title={t('chat:chatHistoryPage.splitToTop')}
+                    aria-label={t('chat:chatHistoryPage.splitNameToTheTop', {
+                      name: session.name,
+                    })}
+                    onClick={() => openSession(session.id, 'above')}
+                  >
+                    <PanelTop size={14} />
+                  </button>
+                  <button
+                    title={t('chat:chatHistoryPage.splitToBottom')}
+                    aria-label={t('chat:chatHistoryPage.splitNameToTheBottom', {
+                      name: session.name,
+                    })}
+                    onClick={() => openSession(session.id, 'below')}
+                  >
+                    <PanelBottom size={14} />
                   </button>
                   <button
                     title={t('chat:chatHistoryPage.renameChat')}

@@ -19,9 +19,11 @@ import {
   FolderOpen,
   Gauge,
   MoreHorizontal,
+  PanelBottom,
   PanelLeft,
   PanelLeftOpen,
   PanelRight,
+  PanelTop,
   Paperclip,
   Pencil,
   RefreshCw,
@@ -129,6 +131,8 @@ export type FocusSessionProps = {
   onRename: () => void
   onSplitLeft: () => void
   onSplitRight: () => void
+  onSplitTop: () => void
+  onSplitBottom: () => void
   onClosePanel: () => void
   onSend: (
     value: string,
@@ -538,6 +542,8 @@ export function FocusSession({
   onRename,
   onSplitLeft,
   onSplitRight,
+  onSplitTop,
+  onSplitBottom,
   onClosePanel,
   onSend,
   onQueue,
@@ -708,6 +714,8 @@ export function FocusSession({
             switchingCwd={switchingCwd}
             onSplitLeft={onSplitLeft}
             onSplitRight={onSplitRight}
+            onSplitTop={onSplitTop}
+            onSplitBottom={onSplitBottom}
             onClosePanel={onClosePanel}
             onWorkspace={onWorkspace}
             onRename={onRename}
@@ -1096,6 +1104,8 @@ function SessionActionsMenu({
   switchingCwd,
   onSplitLeft,
   onSplitRight,
+  onSplitTop,
+  onSplitBottom,
   onClosePanel,
   onWorkspace,
   onRename,
@@ -1106,6 +1116,8 @@ function SessionActionsMenu({
   switchingCwd?: boolean
   onSplitLeft: () => void
   onSplitRight: () => void
+  onSplitTop: () => void
+  onSplitBottom: () => void
   onClosePanel: () => void
   onWorkspace: () => void
   onRename: () => void
@@ -1180,6 +1192,38 @@ function SessionActionsMenu({
               <small>
                 {canSplit
                   ? t('chat:focusSession.moveTheCurrentTabIntoANewGroupOnTheRight')
+                  : t('chat:focusSession.thisGroupHasOnlyOneChat')}
+              </small>
+            </span>
+          </button>
+          <button
+            type="button"
+            role="menuitem"
+            disabled={!canSplit}
+            onClick={() => run(onSplitTop)}
+          >
+            <PanelTop size={15} />
+            <span>
+              <strong>{t('chat:focusSession.splitToTop')}</strong>
+              <small>
+                {canSplit
+                  ? t('chat:focusSession.moveTheCurrentTabIntoANewGroupOnTheTop')
+                  : t('chat:focusSession.thisGroupHasOnlyOneChat')}
+              </small>
+            </span>
+          </button>
+          <button
+            type="button"
+            role="menuitem"
+            disabled={!canSplit}
+            onClick={() => run(onSplitBottom)}
+          >
+            <PanelBottom size={15} />
+            <span>
+              <strong>{t('chat:focusSession.splitToBottom')}</strong>
+              <small>
+                {canSplit
+                  ? t('chat:focusSession.moveTheCurrentTabIntoANewGroupOnTheBottom')
                   : t('chat:focusSession.thisGroupHasOnlyOneChat')}
               </small>
             </span>

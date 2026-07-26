@@ -1,8 +1,10 @@
 import assert from 'node:assert/strict'
+import { readFile } from 'node:fs/promises'
 import test from 'node:test'
 import {
   createDockLayoutEnvelope,
   createSessionOpenRequest,
+  dockPositionForDisposition,
   initialDockSessionIds,
   panelIdForSession,
   parseDockLayoutEnvelope,
@@ -27,11 +29,46 @@ test('dock layout envelopes reject incompatible or malformed state', () => {
   assert.equal(parseDockLayoutEnvelope({ ...envelope, layout: [] }), null)
 })
 
-test('session open requests accept only supported dispositions', () => {
-  assert.deepEqual(createSessionOpenRequest('alpha', 'left'), { sessionId: 'alpha', disposition: 'left' })
-  assert.deepEqual(parseSessionOpenRequest('{"sessionId":"beta","disposition":"right"}'), { sessionId: 'beta', disposition: 'right' })
-  assert.equal(createSessionOpenRequest('alpha', 'below'), null)
-  assert.equal(parseSessionOpenRequest('{"sessionId":"alpha","disposition":"below"}'), null)
+test('session open requests accept horizontal and vertical dispositions', () => {
+  assert.equal(dockPositionForDisposition('left'), 'left')
+  assert.equal(dockPositionForDisposition('right'), 'right')
+  assert.equal(dockPositionForDisposition('above'), 'top')
+  assert.equal(dockPositionForDisposition('below'), 'bottom')
+  assert.deepEqual(createSessionOpenRequest('alpha', 'left'), {
+    sessionId: 'alpha',
+    disposition: 'left',
+  })
+  assert.deepEqual(createSessionOpenRequest('alpha', 'above'), {
+    sessionId: 'alpha',
+    disposition: 'above',
+  })
+  assert.deepEqual(parseSessionOpenRequest('{"sessionId":"beta","disposition":"right"}'), {
+    sessionId: 'beta',
+    disposition: 'right',
+  })
+  assert.deepEqual(parseSessionOpenRequest('{"sessionId":"beta","disposition":"below"}'), {
+    sessionId: 'beta',
+    disposition: 'below',
+  })
+  assert.equal(createSessionOpenRequest('alpha', 'top'), null)
+  assert.equal(parseSessionOpenRequest('{"sessionId":"alpha","disposition":"bottom"}'), null)
+})
+
+test('chat split controls expose left, right, top and bottom actions', async () => {
+  const [dock, focus, page, history] = await Promise.all([
+    readFile('src/features/chat/ChatDock.tsx', 'utf8'),
+    readFile('src/features/chat/FocusSession.tsx', 'utf8'),
+    readFile('src/features/chat/ChatPage.tsx', 'utf8'),
+    readFile('src/features/chat/ChatHistoryPage.tsx', 'utf8'),
+  ])
+  assert.match(dock, /onSplit\(session\.id, 'above'\)/)
+  assert.match(dock, /onSplit\(session\.id, 'below'\)/)
+  assert.match(focus, /onSplitTop/)
+  assert.match(focus, /onSplitBottom/)
+  assert.match(page, /splitDockPanel\(panel\.id, 'above'\)/)
+  assert.match(page, /splitDockPanel\(panel\.id, 'below'\)/)
+  assert.match(history, /openSession\(session\.id, 'above'\)/)
+  assert.match(history, /openSession\(session\.id, 'below'\)/)
 })
 
 test('initial dock sessions prefer the active chat and migrate valid legacy tabs once', () => {

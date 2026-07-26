@@ -42,6 +42,7 @@ import { chatApi, type ApiRecord } from './chat-api'
 import { ChatDockContext, type ChatDockContextValue } from './chat-dock-context'
 import {
   createDockLayoutEnvelope,
+  dockPositionForDisposition,
   initialDockSessionIds,
   panelIdForSession,
   parseDockLayoutEnvelope,
@@ -370,9 +371,15 @@ export function ChatPage({
       if (existing) {
         if (effectiveDisposition !== 'open') {
           if (referencePanel && existing.id !== referencePanel.id)
-            existing.api.moveTo({ group: referencePanel.group, position: effectiveDisposition })
+            existing.api.moveTo({
+              group: referencePanel.group,
+              position: dockPositionForDisposition(effectiveDisposition),
+            })
           else if (existing.group.size > 1)
-            existing.api.moveTo({ group: existing.group, position: effectiveDisposition })
+            existing.api.moveTo({
+              group: existing.group,
+              position: dockPositionForDisposition(effectiveDisposition),
+            })
         }
         existing.api.setActive()
         setActiveId(sessionId)
@@ -393,6 +400,7 @@ export function ChatPage({
         params: { sessionId },
         renderer: 'always',
         minimumWidth: 300,
+        minimumHeight: 240,
         ...(position ? { position } : {}),
       })
       setActiveId(sessionId)
@@ -456,7 +464,10 @@ export function ChatPage({
         )
         return
       }
-      panel.api.moveTo({ group: panel.group, position: direction })
+      panel.api.moveTo({
+        group: panel.group,
+        position: dockPositionForDisposition(direction),
+      })
       panel.api.setActive()
     },
     [notify, t],
@@ -1739,6 +1750,16 @@ export function ChatPage({
       {
         label: t('chat:chatPage.splitToRight'),
         action: () => splitDockPanel(panel.id, 'right'),
+        disabled: compactDock || panel.group.size <= 1,
+      },
+      {
+        label: t('chat:chatPage.splitToTop'),
+        action: () => splitDockPanel(panel.id, 'above'),
+        disabled: compactDock || panel.group.size <= 1,
+      },
+      {
+        label: t('chat:chatPage.splitToBottom'),
+        action: () => splitDockPanel(panel.id, 'below'),
         disabled: compactDock || panel.group.size <= 1,
       },
       'separator',

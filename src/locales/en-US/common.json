@@ -2,7 +2,7 @@
   "agentStatusAvatar.idle": "Vesper Agent",
   "agentStatusAvatar.waiting": "Agent waiting for input",
   "agentStatusAvatar.thinking": "Agent thinking",
-  "app.dragTabsOrSplitChatsToTheLeftOrRightFromTheSessionList": "Drag tabs, or split chats to the left or right from the session list",
+  "app.dragTabsOrSplitChatsInAnyDirectionFromTheSessionList": "Drag tabs, or split chats in any direction from the session list",
   "app.sessions": "Sessions",
   "app.wakingVesper": "Waking Vesper…",
   "markdownMessage.copied": "Copied",

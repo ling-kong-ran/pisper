@@ -350,7 +350,7 @@ function App() {
     page === 'chat'
       ? [
           t('common:app.sessions'),
-          t('common:app.dragTabsOrSplitChatsToTheLeftOrRightFromTheSessionList'),
+          t('common:app.dragTabsOrSplitChatsInAnyDirectionFromTheSessionList'),
         ]
       : pageMeta[page] || [t('common:app.sessions'), '']
 

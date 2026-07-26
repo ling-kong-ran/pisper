@@ -3,10 +3,12 @@ import type { IDockviewPanelProps } from 'dockview-react'
 import {
   AlertTriangle,
   MessageSquare,
+  PanelBottom,
   PanelLeft,
   PanelLeftClose,
   PanelLeftOpen,
   PanelRight,
+  PanelTop,
   Plus,
   Search,
 } from 'lucide-react'
@@ -93,6 +95,8 @@ export function SessionDockPanel({ params, api }: IDockviewPanelProps<{ sessionI
         onRename={() => context.renameSession(session)}
         onSplitLeft={() => context.splitDockPanel(api.id, 'left')}
         onSplitRight={() => context.splitDockPanel(api.id, 'right')}
+        onSplitTop={() => context.splitDockPanel(api.id, 'above')}
+        onSplitBottom={() => context.splitDockPanel(api.id, 'below')}
         onClosePanel={() => context.closeDockPanel(api.id)}
         canSplit={!context.compactDock && api.group.size > 1}
         onSend={(
@@ -118,7 +122,7 @@ export function ChatDockWatermark() {
     <div className="chat-dock-watermark">
       <MessageSquare size={34} />
       <strong>{t('chat:chatDock.openAChatToBegin')}</strong>
-      <span>{t('chat:chatDock.openAChatFromTheSessionListOrSplitItToTheLeftOrRight')}</span>
+      <span>{t('chat:chatDock.openAChatFromTheSessionListOrSplitItInAnyDirection')}</span>
       {context?.openRail && (
         <button type="button" className="button secondary" onClick={context.openRail}>
           <PanelLeftOpen size={14} />
@@ -230,6 +234,22 @@ export function SessionRail({
                     onClick={() => onSplit(session.id, 'right')}
                   >
                     <PanelRight size={13} />
+                  </button>
+                  <button
+                    type="button"
+                    title={t('chat:chatDock.splitToTop')}
+                    aria-label={t('chat:chatDock.splitNameToTheTop', { name: session.name })}
+                    onClick={() => onSplit(session.id, 'above')}
+                  >
+                    <PanelTop size={13} />
+                  </button>
+                  <button
+                    type="button"
+                    title={t('chat:chatDock.splitToBottom')}
+                    aria-label={t('chat:chatDock.splitNameToTheBottom', { name: session.name })}
+                    onClick={() => onSplit(session.id, 'below')}
+                  >
+                    <PanelBottom size={13} />
                   </button>
                 </div>
               )}

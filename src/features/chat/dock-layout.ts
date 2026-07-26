@@ -1,6 +1,13 @@
 export const CHAT_DOCK_LAYOUT_VERSION = 1
-export const SESSION_OPEN_DISPOSITIONS = Object.freeze(['open', 'left', 'right'] as const)
+export const SESSION_OPEN_DISPOSITIONS = Object.freeze([
+  'open',
+  'left',
+  'right',
+  'above',
+  'below',
+] as const)
 export type SessionOpenDisposition = (typeof SESSION_OPEN_DISPOSITIONS)[number]
+export type SessionSplitDisposition = Exclude<SessionOpenDisposition, 'open'>
 const SESSION_PANEL_PREFIX = 'session:'
 
 type DockPanelLike = string | { id?: string; params?: { sessionId?: string } } | null | undefined
@@ -63,6 +70,14 @@ export function parseDockLayoutEnvelope(raw: unknown): DockLayoutEnvelope | null
   } catch {
     return null
   }
+}
+
+export function dockPositionForDisposition(
+  disposition: SessionSplitDisposition,
+): 'left' | 'right' | 'top' | 'bottom' {
+  if (disposition === 'above') return 'top'
+  if (disposition === 'below') return 'bottom'
+  return disposition
 }
 
 export function createSessionOpenRequest(

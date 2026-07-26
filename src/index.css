@@ -550,9 +550,9 @@ h1, h2, h3, strong { overflow-wrap: anywhere; }
 .session-rail-row.active { background: var(--star-soft); box-shadow: inset 2px 0 var(--brand-blue); }
 .session-rail-item { display: flex; min-width: 0; flex: 1; flex-direction: column; gap: 3px; border: 0; border-radius: var(--r-sm); background: transparent; padding: 8px 54px 8px 9px; color: var(--text-secondary); text-align: left; cursor: pointer; }
 .session-rail-row:hover .session-rail-item, .session-rail-row.active .session-rail-item { color: var(--text); }
-.session-rail-split-actions { position: absolute; right: 5px; display: flex; gap: 1px; opacity: 0; transition: opacity var(--d1) var(--ease-out); }
+.session-rail-split-actions { position: absolute; top: 50%; right: 5px; display: grid; grid-template-columns: repeat(2,23px); gap: 1px; opacity: 0; transform: translateY(-50%); transition: opacity var(--d1) var(--ease-out); }
 .session-rail-row:hover .session-rail-split-actions, .session-rail-row:focus-within .session-rail-split-actions { opacity: 1; }
-.session-rail-split-actions button { display: grid; width: 23px; height: 25px; min-height: 25px; place-items: center; border: 0; border-radius: var(--r-xs); background: var(--solid); color: var(--text-muted); box-shadow: var(--sh-1); }
+.session-rail-split-actions button { display: grid; width: 23px; height: 21px; min-height: 21px; place-items: center; border: 0; border-radius: var(--r-xs); background: var(--solid); color: var(--text-muted); box-shadow: var(--sh-1); }
 .session-rail-split-actions button:hover { color: var(--text); }
 .session-rail-item-name { display: block; overflow: hidden; font-size: 12px; font-weight: 600; text-overflow: ellipsis; white-space: nowrap; }
 .session-rail-live { display: inline-block; width: 6px; height: 6px; margin-right: 6px; border-radius: 50%; background: var(--success); vertical-align: 1px; animation: pulse-dot 1.6s ease-in-out infinite; }
