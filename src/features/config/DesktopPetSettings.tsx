@@ -203,7 +203,7 @@ export function DesktopPetSettings({ notify }: { notify: Notify }) {
             <p>{t('config:desktopPetSettings.installDescription')}</p>
           </div>
         </div>
-        <div className="workspace-path-form mt-4">
+        <div className="workspace-path-form desktop-pet-search mt-4">
           <input
             value={slug}
             onChange={(event) => setSlug(event.target.value)}

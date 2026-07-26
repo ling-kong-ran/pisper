@@ -468,18 +468,57 @@ function desktopPetStatus() {
 }
 
 async function boundedPetdexFetch(value, maxBytes, allowedHost, redirectHosts = []) {
-  const url = new URL(value)
-  if (url.protocol !== 'https:' || url.hostname !== allowedHost) throw new Error(t('pet.untrustedAsset'))
-  const response = await net.fetch(url.href, { headers: { 'User-Agent': `Vesper/${app.getVersion()}` } })
-  if (!response.ok) throw new Error(`Petdex request failed: HTTP ${response.status}`)
-  const finalUrl = new URL(response.url)
-  if (finalUrl.protocol !== 'https:' || ![allowedHost, ...redirectHosts].includes(finalUrl.hostname))
+  const allowedHosts = new Set([allowedHost, ...redirectHosts])
+  let currentUrl
+  try {
+    currentUrl = new URL(value)
+  } catch {
     throw new Error(t('pet.untrustedAsset'))
-  const declaredSize = Number(response.headers.get('content-length') || 0)
-  if (declaredSize > maxBytes) throw new Error(t('pet.assetTooLarge'))
-  const buffer = Buffer.from(await response.arrayBuffer())
-  if (!buffer.length || buffer.length > maxBytes) throw new Error(t('pet.assetTooLarge'))
-  return { buffer, contentType: String(response.headers.get('content-type') || '').toLowerCase() }
+  }
+  if (currentUrl.protocol !== 'https:' || currentUrl.hostname !== allowedHost)
+    throw new Error(t('pet.untrustedAsset'))
+
+  for (let redirects = 0; redirects <= 5; redirects += 1) {
+    const response = await net.fetch(currentUrl.href, {
+      redirect: 'manual',
+      headers: { 'User-Agent': `Vesper/${app.getVersion()}` },
+    })
+    if ([301, 302, 303, 307, 308].includes(response.status)) {
+      const location = response.headers.get('location')
+      if (!location || redirects === 5) throw new Error(t('pet.untrustedAsset'))
+      let nextUrl
+      try {
+        nextUrl = new URL(location, currentUrl)
+      } catch {
+        throw new Error(t('pet.untrustedAsset'))
+      }
+      if (nextUrl.protocol !== 'https:' || !allowedHosts.has(nextUrl.hostname))
+        throw new Error(t('pet.untrustedAsset'))
+      currentUrl = nextUrl
+      continue
+    }
+    if (!response.ok) throw new Error(`Petdex request failed: HTTP ${response.status}`)
+
+    let finalUrl = currentUrl
+    if (response.url) {
+      try {
+        finalUrl = new URL(response.url, currentUrl)
+      } catch {
+        throw new Error(t('pet.untrustedAsset'))
+      }
+    }
+    if (finalUrl.protocol !== 'https:' || !allowedHosts.has(finalUrl.hostname))
+      throw new Error(t('pet.untrustedAsset'))
+    const declaredSize = Number(response.headers.get('content-length') || 0)
+    if (declaredSize > maxBytes) throw new Error(t('pet.assetTooLarge'))
+    const buffer = Buffer.from(await response.arrayBuffer())
+    if (!buffer.length || buffer.length > maxBytes) throw new Error(t('pet.assetTooLarge'))
+    return {
+      buffer,
+      contentType: String(response.headers.get('content-type') || '').toLowerCase(),
+    }
+  }
+  throw new Error(t('pet.untrustedAsset'))
 }
 
 async function petdexManifest() {
@@ -1040,7 +1079,7 @@ function registerIpc() {
     const manifest = await petdexManifest()
     return manifest
       .filter((pet) => !needle || pet.slug.includes(needle) || pet.displayName.toLowerCase().includes(needle))
-      .slice(0, 40)
+      .slice(0, needle ? 40 : 12)
       .map(({ slug, displayName }) => ({ slug, displayName }))
   })
   ipcMain.handle('vesper:install-pet', (_event, slug) => installManagedDesktopPet(slug))
