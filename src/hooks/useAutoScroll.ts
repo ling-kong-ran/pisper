@@ -6,20 +6,35 @@ export function useAutoScroll(
 ) {
   const scrollRef = useRef<HTMLDivElement>(null)
   const frameRef = useRef(0)
+  // Marks a window during which scroll events come from our own scrollToBottom,
+  // not the user. scrollTo fires asynchronously and may emit several scroll
+  // events; the flag is cleared on the next frame so all of them are ignored.
+  // Without this, a programmatic scroll whose scrollHeight was stale (content
+  // kept growing right after) would measure a large gap and wrongly flip
+  // pinnedToBottom to false, permanently disabling auto-scroll.
+  const programmaticScrollRef = useRef(false)
+  const programmaticFrameRef = useRef(0)
   const [pinnedToBottom, setPinnedToBottom] = useState(true)
   const [hasUnread, setHasUnread] = useState(false)
 
   const scrollToBottom = useCallback((behavior: ScrollBehavior = 'auto') => {
     const node = scrollRef.current
     if (!node) return
+    programmaticScrollRef.current = true
+    cancelAnimationFrame(programmaticFrameRef.current)
     node.scrollTo({ top: node.scrollHeight, behavior })
     setPinnedToBottom(true)
     setHasUnread(false)
+    // Clear the marker after this programmatic scroll's events have landed.
+    programmaticFrameRef.current = requestAnimationFrame(() => {
+      programmaticScrollRef.current = false
+    })
   }, [])
 
   const onScroll = useCallback(
     (event: UIEvent<HTMLDivElement>) => {
       const node = event.currentTarget
+      if (programmaticScrollRef.current) return
       const pinned = node.scrollHeight - node.scrollTop - node.clientHeight <= threshold
       setPinnedToBottom(pinned)
       if (pinned) setHasUnread(false)
@@ -38,6 +53,9 @@ export function useAutoScroll(
     frameRef.current = requestAnimationFrame(() => scrollToBottom())
     return () => cancelAnimationFrame(frameRef.current)
   }, [contentVersion, pinnedToBottom, scrollToBottom])
+
+  // Clean up any pending programmatic-scroll marker reset on unmount.
+  useEffect(() => () => cancelAnimationFrame(programmaticFrameRef.current), [])
 
   return { scrollRef, onScroll, hasUnread, scrollToBottom }
 }
