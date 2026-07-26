@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { Check, GitBranch, GitCommitHorizontal, RefreshCw, Undo2, Upload, X } from 'lucide-react'
 import { useI18n } from '@/app/use-i18n'
+import { workspaceName } from '@/lib/format'
 import { chatApi, type GitChangesResponse } from './chat-api'
 
 const DEFAULT_COMMIT_MESSAGE = 'Agent changes'
@@ -18,7 +19,7 @@ export function GitChangesControl({
   sessionId?: string
   streaming?: boolean
 }) {
-  const { t } = useI18n()
+  const { t, language } = useI18n()
   const [open, setOpen] = useState(false)
   const [loading, setLoading] = useState(false)
   const [running, setRunning] = useState<GitAction | null>(null)
@@ -143,7 +144,7 @@ export function GitChangesControl({
                   ? changes.branch || t('chat:focusSession.gitDetachedHead')
                   : loading
                     ? t('chat:focusSession.gitLoading')
-                    : t('chat:focusSession.gitNotARepository')}
+                    : `${t('chat:focusSession.gitNotARepository')}${changes?.cwd ? ` · ${workspaceName(changes.cwd, language)}` : ''}`}
               </small>
             </span>
             <button
