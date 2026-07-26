@@ -32,6 +32,7 @@
   <a href="#glance">Vesper at a Glance</a> ·
   <a href="#lightweight-prompt">Lightweight Prompt</a> ·
   <a href="#capabilities">Constellation of Capabilities</a> ·
+  <a href="#desktop-pet">Desktop Pet</a> ·
   <a href="#architecture">Code Map</a> ·
   <a href="#stack">Stack</a> ·
   <a href="#start">Begin Here</a> ·
@@ -145,10 +146,27 @@ Vesper does not inject every tool, MCP integration, visual capability, browser r
 | **Multimodal** | Read images, documents, and code, then generate or edit visual content through configured OpenAI-compatible, Gemini, Imagen, Veo, or xAI models. |
 | **Automation** | Let scheduled tasks and visual workflows carry repetitive work with model selection, retries, timeouts, failure policies, run history, and notifications. |
 | **Two-way channels** | Connect Feishu and personal Weixin with per-channel reply models, workspace routing, attachments, and reusable notification templates. |
+| **Desktop pet** | Search, install, and switch Petdex-compatible pets inside Vesper, with Agent states such as waiting, thinking, tool activity, completion, and failure mapped to live animations. |
 | **Desktop app** | Use a native Electron window with single-instance behavior, branded icons, in-app release notes, and GitHub Releases update support. |
 | **Security boundaries** | Per-session `Read only / Workspace / Full access` execution modes, one-shot approval for out-of-workspace actions, server-side secret redaction, and local user data stored outside the repository. |
 
 > **Local sandbox note:** The default Workspace mode uses the open-source [Anthropic Sandbox Runtime](https://github.com/anthropic-experimental/sandbox-runtime) to restrict Shell filesystem writes, credentials, and network access. On Windows, first use requires one UAC prompt to install a low-privilege account and network isolation; the Agent itself does not receive administrator privileges. Multiple sessions in the same workspace can run concurrently, while different workspaces safely queue a single-root grant switch to prevent cross-project writes by the shared sandbox account and repeated deny-ACL propagation across large directory trees. If sandbox initialization fails, Vesper blocks execution instead of silently falling back to unrestricted host access. The runtime is currently a Beta Research Preview: it reduces risk, but cannot make unknown code absolutely safe.
+
+---
+
+<a id="desktop-pet"></a>
+
+## ✦ Desktop Pet · A Companion for Agent Work
+
+Vesper natively supports [Petdex](https://petdex.dev)-compatible desktop pets. Search, install, switch, enable, or disable pets directly from **Settings → Desktop pet**, without installing Petdex CLI, Petdex Desktop, hooks, or a companion process.
+
+- **Agent-aware animation** — Waiting, thinking and review, tool execution, completion, and failure are mapped to distinct animations; clicking the pet triggers a jump interaction.
+- **Native desktop overlay** — Electron uses an independent transparent window with dragging, always-on-top behavior, multi-display position persistence, and `20%–100%` opacity. The pet stays visible when the main window is hidden to the system tray.
+- **Web-page companion** — The browser version renders a draggable in-page overlay with the same pet resources and Agent-state animations, storing its position locally in the browser.
+- **Validated asset installation** — Vesper downloads assets only through HTTPS allowlisted hosts and validates size, PNG/WebP structure, sprite grids, and local path boundaries before saving. Community pet assets are not bundled with Vesper.
+- **Out of the way by default** — On first use, the pet appears near the lower-right corner of the primary display or page. Custom positions persist after dragging.
+
+See [`docs/petdex-integration.md`](./docs/petdex-integration.md) for the full protocol, asset format, and security boundaries.
 
 ---
 

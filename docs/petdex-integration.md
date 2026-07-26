@@ -12,7 +12,7 @@ Vesper provides:
 - an independent transparent Electron `BrowserWindow` on desktop
 - a draggable DOM overlay inside Vesper in Web browsers
 - direct mapping from Vesper Agent runtime events to pet animation states
-- tray controls and multi-display persistence on desktop, plus browser-local position persistence on Web
+- tray controls, 20%–100% opacity, and multi-display persistence on desktop, plus browser-local position persistence on Web
 
 Installing a pet downloads its sprite content because the Petdex source/npm package does not contain the community pet assets. This is resource installation performed by Vesper itself, not an external application or companion process.
 
@@ -49,7 +49,7 @@ Before writing an asset, Vesper validates:
 - 192×208 frame grid compatibility
 - local canonical path boundaries before rendering
 
-The sandboxed Electron pet renderer receives a validated data URL through a narrow preload bridge. It has no Node.js access and cannot navigate. The Web renderer receives only validated, installed sprite bytes from Vesper's same-origin `/api/desktop-pet/sprite` endpoint.
+The sandboxed Electron pet renderer receives validated sprite bytes through a narrow preload bridge and creates a renderer-local Blob URL. This avoids large CSS data URLs while keeping the renderer isolated: it has no Node.js access and cannot navigate. The Web renderer receives only validated, installed sprite bytes from Vesper's same-origin `/api/desktop-pet/sprite` endpoint.
 
 ## Rendering architecture
 
@@ -58,7 +58,8 @@ Electron creates a separate Vesper-owned `BrowserWindow`:
 - 192×288, frameless and transparent
 - always on top, skipped from the taskbar, and shown without stealing focus
 - independently draggable and clickable
-- position persisted across restarts and validated against the current display layout
+- lower-right default placement, with dragged positions persisted across restarts and validated against the current display layout
+- adjustable 20%–100% window opacity
 - kept alive when the main Vesper window is hidden to the system tray
 - destroyed only when the feature is disabled or Vesper truly exits
 
