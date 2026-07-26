@@ -601,7 +601,7 @@ function observeRuntimeEvent({ event, sessionId } = {}) {
 function persistPetPosition() {
   if (!petWindow || petWindow.isDestroyed()) return
   const [petX, petY] = petWindow.getPosition()
-  saveDesktopPreferences({ petX, petY })
+  saveDesktopPreferences({ petX, petY, petPositionCustomized: true })
 }
 
 function destroyDesktopPet() {
@@ -630,7 +630,11 @@ async function createDesktopPet({ notifyOnError = false } = {}) {
       if (!preferences.petEnabled) return null
       const installedPet = resolveInstalledDesktopPet(preferences.petSlug)
       const position = resolvePetPosition(
-        { x: preferences.petX, y: preferences.petY },
+        {
+          x: preferences.petX,
+          y: preferences.petY,
+          customized: preferences.petPositionCustomized,
+        },
         screen.getAllDisplays(),
         screen.getPrimaryDisplay(),
       )
@@ -750,6 +754,7 @@ function loadDesktopPreferences() {
       petSlug: typeof data?.petSlug === 'string' ? data.petSlug : '',
       petX: Number.isFinite(data?.petX) ? Math.round(data.petX) : null,
       petY: Number.isFinite(data?.petY) ? Math.round(data.petY) : null,
+      petPositionCustomized: data?.petPositionCustomized === true,
       petOpacity: normalizePetOpacity(data?.petOpacity),
     }
   } catch {
@@ -760,6 +765,7 @@ function loadDesktopPreferences() {
       petSlug: '',
       petX: null,
       petY: null,
+      petPositionCustomized: false,
       petOpacity: 1,
     }
   }
@@ -778,6 +784,10 @@ function saveDesktopPreferences(patch = {}) {
     petSlug: typeof patch.petSlug === 'string' ? patch.petSlug : current.petSlug,
     petX: Number.isFinite(patch.petX) ? Math.round(patch.petX) : current.petX,
     petY: Number.isFinite(patch.petY) ? Math.round(patch.petY) : current.petY,
+    petPositionCustomized:
+      patch.petPositionCustomized === undefined
+        ? current.petPositionCustomized
+        : patch.petPositionCustomized === true,
     petOpacity:
       patch.petOpacity === undefined
         ? normalizePetOpacity(current.petOpacity)

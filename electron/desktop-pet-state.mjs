@@ -90,7 +90,8 @@ export function resolvePetPosition(saved, displays, primaryDisplay, margin = 20)
   const validDisplays = Array.isArray(displays) ? displays : []
   const x = Number(saved?.x)
   const y = Number(saved?.y)
-  if (Number.isFinite(x) && Number.isFinite(y)) {
+  const legacyTopLeftDefault = x === 0 && y === 0 && saved?.customized !== true
+  if (Number.isFinite(x) && Number.isFinite(y) && !legacyTopLeftDefault) {
     const visible = validDisplays.some(({ workArea }) => {
       if (!workArea) return false
       return x + PET_WINDOW_WIDTH > workArea.x
