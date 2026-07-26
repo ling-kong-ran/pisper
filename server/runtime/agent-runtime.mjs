@@ -1963,6 +1963,9 @@ export class AgentRuntimeService {
     let budgetSummaryQueued = false
     const textRedactor = createStreamingSecretRedactor()
     let thinkingRedactor = createStreamingSecretRedactor()
+    const activeTextBlocks = new Set()
+    const activeThinkingBlocks = new Set()
+    const streamBlockIndex = (update) => Number.isInteger(update?.contentIndex) ? update.contentIndex : 0
     const flushText = () => {
       const patch = textRedactor.flush()
       live.text = textRedactor.text()
@@ -1989,17 +1992,30 @@ export class AgentRuntimeService {
       live.lastActivityAt = new Date().toISOString()
       if (event.type === 'message_update') {
         const update = event.assistantMessageEvent
+        const blockIndex = streamBlockIndex(update)
+        if (update.type === 'text_start') activeTextBlocks.add(blockIndex)
         if (update.type === 'text_delta') {
+          activeTextBlocks.add(blockIndex)
           const patch = textRedactor.push(update.delta)
           live.text = textRedactor.text()
           setLiveActivity(live, { type: 'model', stage: 'responding', updatedAt: live.lastActivityAt })
           if (patch) emit('text_patch', patch)
         }
+        if (update.type === 'text_end') {
+          activeTextBlocks.delete(blockIndex)
+          if (!activeTextBlocks.size) flushText()
+        }
+        if (update.type === 'thinking_start') activeThinkingBlocks.add(blockIndex)
         if (update.type === 'thinking_delta') {
+          activeThinkingBlocks.add(blockIndex)
           const patch = thinkingRedactor.push(update.delta)
           live.thinkingText = liveThinkingTail(thinkingRedactor.text())
           setLiveActivity(live, { type: 'model', stage: 'thinking', updatedAt: live.lastActivityAt })
           if (patch) emit('thinking_patch', patch)
+        }
+        if (update.type === 'thinking_end') {
+          activeThinkingBlocks.delete(blockIndex)
+          if (!activeThinkingBlocks.size) flushThinking()
         }
       } else if (event.type === 'compaction_start') {
         live.compaction = startedCompaction(event.reason, live.lastActivityAt)
@@ -2011,6 +2027,12 @@ export class AgentRuntimeService {
         emit('compaction_end', live.compaction)
         emit('context_usage', live.contextUsage)
       } else if (event.type === 'message_end') {
+        if (event.message?.role === 'assistant') {
+          flushText()
+          flushThinking()
+          activeTextBlocks.clear()
+          activeThinkingBlocks.clear()
+        }
         const mailboxIds = agentMailboxMessageIds(event.message)
         if (mailboxIds.length) void this.acknowledgeAgentMailboxIds(session.sessionId, mailboxIds).catch(() => {})
         live.contextUsage = this.compactionAwareContextUsage(session, live.compaction)
@@ -2022,7 +2044,10 @@ export class AgentRuntimeService {
         ]
         emit('queue_update', { queuedInputs: live.queuedInputs })
       } else if (event.type === 'tool_execution_start') {
+        flushText()
         flushThinking()
+        activeTextBlocks.clear()
+        activeThinkingBlocks.clear()
         const toolStartedAt = live.lastActivityAt
         const tool = { type: 'tool', id: event.toolCallId, name: event.toolName, args: event.args, status: 'running', startedAt: toolStartedAt, updatedAt: toolStartedAt, ...(event.toolName === 'bash' ? { output: '' } : {}) }
         live.tools.push(tool)
@@ -2077,6 +2102,7 @@ export class AgentRuntimeService {
         })
       } else if (event.type === 'turn_start') {
         flushThinking()
+        activeThinkingBlocks.clear()
         thinkingRedactor = createStreamingSecretRedactor()
         live.thinkingText = ''
         setLiveActivity(live, { type: 'model', stage: 'thinking', updatedAt: live.lastActivityAt })

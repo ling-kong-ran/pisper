@@ -96,6 +96,18 @@ test('streaming redaction preserves text order and hides secrets split across ch
   assert.equal(visible, redactSecretText(source))
 })
 
+test('streaming redaction keeps flushed content visible when a later block starts', () => {
+  const redactor = createStreamingSecretRedactor()
+  let visible = applyTextPatch('', redactor.push('First completed response block.'))
+  visible = applyTextPatch(visible, redactor.flush())
+  assert.equal(visible, 'First completed response block.')
+
+  visible = applyTextPatch(visible, redactor.push(' Next'))
+  assert.equal(visible, 'First completed response block.')
+  visible = applyTextPatch(visible, redactor.flush())
+  assert.equal(visible, 'First completed response block. Next')
+})
+
 test('streaming redaction withholds an incomplete private key', () => {
   const redactor = createStreamingSecretRedactor({ guardLength: 0 })
   let visible = applyTextPatch('', redactor.push('before\n-----BEGIN PRIVATE KEY-----\nprivate-material'))

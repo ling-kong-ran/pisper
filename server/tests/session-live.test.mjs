@@ -126,6 +126,12 @@ test('stream completion publishes an authoritative terminal snapshot', async (t)
   runtime.memory = { relevantContext: async () => ({ text: '' }) }
 
   const listeners = new Set()
+  const events = []
+  const streamedText = (eventName) => events
+    .filter((item) => item.event === eventName)
+    .reduce((text, item) => applyTextPatch(text, item.data), '')
+  let thinkingAtBlockEnd = ''
+  let textAtBlockEnd = ''
   const session = {
     sessionId: 'session-terminal',
     isStreaming: false,
@@ -149,7 +155,10 @@ test('stream completion publishes an authoritative terminal snapshot', async (t)
         aborted: false,
         willRetry: false,
       })
-      for (const listener of listeners) listener({ type: 'message_update', assistantMessageEvent: { type: 'thinking_delta', delta: 'Inspecting the remaining tests before reading files.' } })
+      for (const listener of listeners) listener({ type: 'message_update', assistantMessageEvent: { type: 'thinking_start', contentIndex: 0 } })
+      for (const listener of listeners) listener({ type: 'message_update', assistantMessageEvent: { type: 'thinking_delta', contentIndex: 0, delta: 'Inspecting the remaining tests before reading files.' } })
+      for (const listener of listeners) listener({ type: 'message_update', assistantMessageEvent: { type: 'thinking_end', contentIndex: 0 } })
+      thinkingAtBlockEnd = streamedText('thinking_patch')
       for (const listener of listeners) listener({ type: 'tool_execution_start', toolCallId: 'tool-1', toolName: 'bash', args: { command: 'npm test' } })
       for (const listener of listeners) listener({
         type: 'tool_execution_update',
@@ -166,7 +175,11 @@ test('stream completion publishes an authoritative terminal snapshot', async (t)
       })
       const assistant = { role: 'assistant', content: [{ type: 'text', text: 'Final answer' }], timestamp: 2 }
       session.messages.push(assistant)
-      for (const listener of listeners) listener({ type: 'message_update', assistantMessageEvent: { type: 'text_delta', delta: 'Final answer' } })
+      for (const listener of listeners) listener({ type: 'message_update', assistantMessageEvent: { type: 'text_start', contentIndex: 0 } })
+      for (const listener of listeners) listener({ type: 'message_update', assistantMessageEvent: { type: 'text_delta', contentIndex: 0, delta: 'Final answer' } })
+      for (const listener of listeners) listener({ type: 'message_update', assistantMessageEvent: { type: 'text_end', contentIndex: 0 } })
+      textAtBlockEnd = streamedText('text_patch')
+      for (const listener of listeners) listener({ type: 'message_end', message: assistant })
       session.isStreaming = false
     },
   }
@@ -174,7 +187,6 @@ test('stream completion publishes an authoritative terminal snapshot', async (t)
   runtime.sessions.set(session.sessionId, value)
   runtime.getOrCreateSession = async () => value
 
-  const events = []
   await runtime.streamPrompt({
     sessionId: session.sessionId,
     message: 'Finish the answer.',
@@ -192,7 +204,9 @@ test('stream completion publishes an authoritative terminal snapshot', async (t)
   assert.equal(Object.hasOwn(compactionEnd, 'summary'), false)
   let thinkingText = ''
   for (const item of events.filter((event) => event.event === 'thinking_patch')) thinkingText = applyTextPatch(thinkingText, item.data)
-  assert.equal(thinkingText, 'Inspecting the remaining tests before reading files.')
+  assert.equal(thinkingAtBlockEnd, 'Inspecting the remaining tests before reading files.')
+  assert.equal(thinkingText, thinkingAtBlockEnd)
+  assert.equal(textAtBlockEnd, 'Final answer')
   const toolUpdate = events.find((item) => item.event === 'tool_update')?.data
   const toolEnd = events.find((item) => item.event === 'tool_end')?.data
   assert.equal(toolUpdate.output, '\u001b[32mfirst line\u001b[0m\nsecond line')

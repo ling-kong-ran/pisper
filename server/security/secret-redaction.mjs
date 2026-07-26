@@ -109,7 +109,13 @@ export function createStreamingSecretRedactor({ guardLength = STREAM_GUARD_LENGT
     const redacted = privateKeyStart >= 0
       ? redactSecretText(source.slice(0, privateKeyStart))
       : redactSecretText(source)
-    const safeLength = final ? redacted.length : Math.max(0, redacted.length - Math.max(0, guardLength))
+    const guardedLength = Math.max(0, redacted.length - Math.max(0, guardLength))
+    // Once a completed content block has been flushed, later blocks may continue
+    // streaming through the same redactor. Do not retract that already-safe prefix
+    // merely to recreate the guard window; still allow rewrites when new input makes
+    // the previously visible text part of a secret spanning a block boundary.
+    const stableVisibleLength = redacted.startsWith(visible) ? visible.length : 0
+    const safeLength = final ? redacted.length : Math.max(stableVisibleLength, guardedLength)
     return patchFor(redacted.slice(0, safeLength))
   }
 
