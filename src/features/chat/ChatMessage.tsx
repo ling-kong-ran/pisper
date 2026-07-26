@@ -3,7 +3,6 @@ import { Download, File, X } from 'lucide-react'
 import { useI18n } from '@/app/use-i18n'
 import { AgentStatusAvatar } from '@/components/AgentStatusAvatar'
 import MarkdownMessage from '@/components/MarkdownMessage'
-import { TextType } from '@/components/react-bits'
 import type { ChatAttachment, ChatMessage } from '@/types/chat'
 import type { AgentRunActivityProps } from './AgentRunActivity'
 import { Message as AiMessage } from '@/components/ai-elements/message-shell'
@@ -172,23 +171,9 @@ export const FocusChatMessage = memo(function FocusChatMessage({
             <AgentRunActivity {...runProps} />
           </Suspense>
         )}
-        {(fullText || !streaming) &&
-          (message.role === 'agent' && streaming ? (
-            <TextType
-              as="div"
-              className="agent-response-text-type"
-              text={fullText}
-              live
-              controlled
-              loop={false}
-              showCursor={false}
-              renderText={(displayedText) => (
-                <MarkdownMessage streaming>{displayedText}</MarkdownMessage>
-              )}
-            />
-          ) : (
-            <MarkdownMessage streaming={streaming}>{fullText}</MarkdownMessage>
-          ))}
+        {(fullText || !streaming) && (
+          <MarkdownMessage streaming={streaming}>{fullText}</MarkdownMessage>
+        )}
         {message.attachments && message.attachments.length > 0 && (
           <MessageAttachments attachments={message.attachments} />
         )}

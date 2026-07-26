@@ -44,41 +44,6 @@
   }
 }
 
-.rb-decrypted-text {
-  display: inline;
-  white-space: pre-wrap;
-}
-.rb-decrypted-text__sr {
-  position: absolute;
-  width: 1px;
-  height: 1px;
-  overflow: hidden;
-  margin: -1px;
-  clip: rect(0, 0, 0, 0);
-  white-space: nowrap;
-}
-
-.rb-text-type {
-  display: inline-block;
-  white-space: pre-wrap;
-}
-.rb-text-type__cursor {
-  display: inline-block;
-  margin-left: 0.18em;
-  opacity: 1;
-  animation: rb-text-type-cursor var(--rb-text-type-cursor-duration, 0.5s) ease-in-out infinite
-    alternate;
-}
-.rb-text-type__cursor--hidden {
-  display: none;
-}
-
-@keyframes rb-text-type-cursor {
-  to {
-    opacity: 0;
-  }
-}
-
 .rb-spotlight-card {
   --rb-spotlight-x: 50%;
   --rb-spotlight-y: 50%;
@@ -300,8 +265,7 @@
   .rb-blur-text-word,
   .rb-click-spark-burst i,
   .rb-aurora i,
-  .rb-threads path,
-  .rb-text-type__cursor {
+  .rb-threads path {
     animation: none;
   }
   .rb-target-cursor-dot,
