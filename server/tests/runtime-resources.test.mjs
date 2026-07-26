@@ -7,7 +7,7 @@ import { defineTool, SessionManager } from '@earendil-works/pi-coding-agent'
 import { Type } from 'typebox'
 import { AgentRuntimeService } from '../runtime/agent-runtime.mjs'
 
-test('main runtime promotes requested cold MCP tools for the rest of the session while child resources remain available', async (t) => {
+test('main runtime keeps discovered cold MCP tools for the rest of the session while child resources remain available', async (t) => {
   const directory = await mkdtemp(join(tmpdir(), 'vesper-runtime-resources-'))
   let runtime
   t.after(async () => {
@@ -63,10 +63,11 @@ test('main runtime promotes requested cold MCP tools for the rest of the session
   assert.deepEqual(discovery.details.activated, ['mcp_fixture_echo_12345678'])
   assert.ok(value.session.getActiveToolNames().includes('mcp_fixture_echo_12345678'))
 
+  // 删除正则路由后：selectToolsForMessage 不再按消息内容自动激活工具，已激活的 discover 工具保持
   await runtime.selectToolsForMessage(value, 'Use the MCP fixture echo tool for this task.')
   assert.ok(value.session.getActiveToolNames().includes('mcp_fixture_echo_12345678'))
-  assert.ok(value.session.getActiveToolNames().includes('mcp_list'))
-  assert.ok(value.session.getActiveToolNames().includes('mcp_manage'))
+  assert.equal(value.session.getActiveToolNames().includes('mcp_list'), false)
+  assert.equal(value.session.getActiveToolNames().includes('mcp_manage'), false)
   assert.deepEqual(value.session.getActiveToolNames().slice(0, hotToolNames.length), hotToolNames)
   assert.equal(value.session.agent.state.systemPrompt, hotSystemPrompt)
   assert.match(value.session.getToolDefinition('mcp_manage').description, /Always use mcp_manage for MCP configuration/)
@@ -74,9 +75,9 @@ test('main runtime promotes requested cold MCP tools for the rest of the session
 
   await runtime.selectToolsForMessage(value, 'Now update the local source file.')
   assert.equal(value.session.getActiveToolNames().includes('mcp_fixture_echo_12345678'), true)
-  assert.equal(value.session.getActiveToolNames().includes('mcp_list'), true)
-  assert.equal(value.session.getActiveToolNames().includes('mcp_manage'), true)
-  assert.deepEqual(value.promotedToolNames, ['mcp_fixture_echo_12345678', 'mcp_list', 'mcp_manage'])
+  assert.equal(value.session.getActiveToolNames().includes('mcp_list'), false)
+  assert.equal(value.session.getActiveToolNames().includes('mcp_manage'), false)
+  assert.deepEqual(value.promotedToolNames, ['mcp_fixture_echo_12345678'])
   assert.equal(runtime.sessionMeta[value.session.sessionId].promotedToolNames.includes('generate_visual'), false)
   assert.deepEqual(runtime.sessionMeta[value.session.sessionId].promotedToolNames, value.promotedToolNames)
   assert.equal(value.session.hasExtensionHandlers('tool_result'), false)

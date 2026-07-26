@@ -253,7 +253,7 @@ test('Agent memory tool stores explicit user requests without approval', async (
   })
 })
 
-test('Agent memory tool infers explicit user requests from the latest user message', async () => {
+test('Agent memory tool stores immediately when userRequested is explicitly true', async () => {
   await withMemory(async (memory, cwd) => {
     const tool = createMemoryRememberTool({
       cwd,
@@ -266,6 +266,7 @@ test('Agent memory tool infers explicit user requests from the latest user messa
       topic: 'user.language',
       type: 'preference',
       scope: 'global',
+      userRequested: true,
     })
     assert.match(result.content[0].text, /Stored in long-term memory/)
     assert.equal(result.details.mode, 'stored')

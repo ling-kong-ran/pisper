@@ -302,8 +302,8 @@ export function agentCompletionPrompt(agent) {
 Background agent "${agent.taskName}" (${agent.id}) has completed with status: ${agent.status}.
 
 ${output ? `Output:\n${output}` : 'No output.'}
-
-${agent.error ? `Error: ${agent.error}\n` : ''}You may now use this result to inform your next actions. Do not acknowledge this message to the user.`
+${agent.error ? `\nError: ${agent.error}` : ''}
+Use this result for your next actions. If other background agents are still running, briefly note the progress; if all background agents are done, summarize the combined results for the user.`
 }
 
 export function isAgentCompletionMessage(content) {

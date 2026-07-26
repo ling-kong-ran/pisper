@@ -572,6 +572,7 @@ export class AgentRuntimeService {
     this.assetIndex = { assets: [] }
     this.assetWrite = Promise.resolve()
     this.providerModelRefreshPromise = null
+    this.agentWakeupTimers = new Map()
   }
 
   async init() {
@@ -1819,9 +1820,36 @@ export class AgentRuntimeService {
       return
     }
 
-    // 会话未运行：将通知存入 pending，下次用户消息时由 streamPrompt 注入
+    // 会话未运行：存入 pending，并调度自动唤醒（防抖合并短时间内的多个完成）
     value.pendingAgentNotifications = value.pendingAgentNotifications || []
     value.pendingAgentNotifications.push(prompt)
+    this.scheduleAgentWakeup(sessionId)
+  }
+
+  scheduleAgentWakeup(sessionId) {
+    if (this.agentWakeupTimers.has(sessionId)) return
+    const timer = setTimeout(() => {
+      this.agentWakeupTimers.delete(sessionId)
+      void this.runAgentWakeup(sessionId).catch(() => {})
+    }, 500)
+    timer.unref?.()
+    this.agentWakeupTimers.set(sessionId, timer)
+  }
+
+  async runAgentWakeup(sessionId) {
+    const value = this.sessions.get(sessionId)
+    if (!value?.session) return
+    const pending = (value.pendingAgentNotifications || []).splice(0)
+    if (!pending.length) return
+    const message = pending.join('\n\n')
+    // 防抖窗口内会话恰好开始运行：改为 steer 注入，避免另起一轮
+    if (value.session.isStreaming) {
+      void value.session.steer(message).catch(() => {})
+      return
+    }
+    // 服务端自动唤醒：以内部消息发起一轮，让大模型立即感知完成结果。
+    // 消息以 AGENT_COMPLETION_MARKER 开头，对用户隐藏；产生的助手回复正常显示。
+    await this.streamPrompt({ sessionId, message, send: () => {} })
   }
 
   async streamPrompt({ sessionId, message, attachments = [], goalMode = false, goalTokenBudget = null, isolatedContext = false, send }) {
@@ -1859,8 +1887,8 @@ export class AgentRuntimeService {
     }
     await this.selectToolsForMessage(value, message, { attachments })
     value.pendingUserMessage = String(message || '')
-    // Drop stale plans from previous turns unless a Goal is actively driving multi-turn work.
-    const keepTaskList = goal?.status === 'active' || isGoalContinuationMessage(message)
+    // Drop stale plans from previous turns unless a Goal is actively driving multi-turn work or this is an internal wakeup turn.
+    const keepTaskList = goal?.status === 'active' || isGoalContinuationMessage(message) || isAgentCompletionMessage(message)
     if (!keepTaskList) await this.taskLists.replace(session.sessionId, [])
     
     // 注入待处理的 Agent 完成通知（对用户隐藏）
@@ -2337,6 +2365,11 @@ export class AgentRuntimeService {
   }
 
   async abortSession(id) {
+    const wakeupTimer = this.agentWakeupTimers.get(id)
+    if (wakeupTimer) {
+      clearTimeout(wakeupTimer)
+      this.agentWakeupTimers.delete(id)
+    }
     const value = this.sessions.get(id)
     if (!value) return false
     await this.pauseSessionGoal(id)
@@ -2594,6 +2627,8 @@ export class AgentRuntimeService {
   }
 
   async dispose() {
+    for (const timer of this.agentWakeupTimers.values()) clearTimeout(timer)
+    this.agentWakeupTimers.clear()
     this.providerModelDiscovery.abort?.()
     await this.providerModelRefreshPromise?.catch(() => {})
     await this.workflows.dispose()
