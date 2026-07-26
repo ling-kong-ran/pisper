@@ -65,7 +65,9 @@ export function StatusBar({ page, pluginStats }: StatusBarProps) {
         ])
         if (request !== modelRequest.current) return
         const session = sessionData.sessions?.find((item: { id: string }) => item.id === sessionId)
-        setModelLabel(session?.model || (config.model ? `${config.provider}/${config.model}` : ''))
+        const label = session?.model || (config.model ? `${config.provider}/${config.model}` : '')
+        // 会话尚未解析出真实模型时可能是 "unknown/unknown"，按未配置处理
+        setModelLabel(/(^|\/)unknown$/i.test(label) ? '' : label)
       } catch {}
     },
     [],
@@ -77,7 +79,7 @@ export function StatusBar({ page, pluginStats }: StatusBarProps) {
       const sessionId = detail?.id || localStorage.getItem(STORAGE_KEYS.activeSession) || ''
       if (detail?.model) {
         modelRequest.current += 1
-        setModelLabel(detail.model)
+        setModelLabel(/(^|\/)unknown$/i.test(detail.model) ? '' : detail.model)
       } else {
         void refreshModel(sessionId)
       }

@@ -12,6 +12,7 @@ import {
   File,
   FileCode2,
   GitBranch,
+  GripVertical,
   Image,
   MessageCircle,
   Pencil,
@@ -1144,7 +1145,12 @@ export function WorkflowBuilder({
               >
                 <Icon size={15} />
                 {paletteLabel(kind as NodeKind, t)}
-                <span>{t('workflows:workflowsPage.drag')}</span>
+                <span
+                  title={t('workflows:workflowsPage.drag')}
+                  aria-label={t('workflows:workflowsPage.drag')}
+                >
+                  <GripVertical size={13} />
+                </span>
               </button>
             </div>
           ))}

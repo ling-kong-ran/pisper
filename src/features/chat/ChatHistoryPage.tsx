@@ -209,7 +209,9 @@ export function ChatHistoryPage({
                     </span>
                     <small>
                       {workspaceName(session.cwd, language)}
-                      {session.model ? ` · ${String(session.model).split('/').at(-1)}` : ''}
+                      {session.model && !/(^|\/)unknown$/i.test(String(session.model))
+                        ? ` · ${String(session.model).split('/').at(-1)}`
+                        : ''}
                       {session.streaming ? ` · ${t('chat:chatHistoryPage.agentRunning')}` : ''}
                     </small>
                   </span>

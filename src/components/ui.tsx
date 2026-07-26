@@ -44,7 +44,7 @@ export const Panel = forwardRef<HTMLElement, HTMLAttributes<HTMLElement>>(functi
   return (
     <section
       ref={ref}
-      className={`panel min-w-0 rounded-[10px] border border-[var(--stroke)] bg-[var(--panel)] p-3.5 shadow-[0_12px_30px_-25px_var(--shadow)] backdrop-blur-[14px] ${className}`}
+      className={`panel min-w-0 rounded-[10px] border border-[var(--stroke)] bg-[var(--panel)] p-3.5 shadow-[0_1px_2px_var(--sh-edge),0_14px_32px_-24px_var(--shadow)] backdrop-blur-[14px] ${className}`}
       {...props}
     >
       {children}

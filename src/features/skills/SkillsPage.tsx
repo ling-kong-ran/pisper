@@ -264,25 +264,26 @@ export function SkillsPage({
             filteredSkills.map((skill) => {
               const Icon = skillIcon(skill)
               return (
-                <button
+                <div
                   className={`skill-row ${selected?.id === skill.id ? 'selected' : ''}`}
-                  onClick={() => setSelectedId(skill.id)}
                   key={skill.id}
                 >
-                  <span className="list-icon">
-                    <Icon size={15} />
-                  </span>
-                  <span>
-                    <strong>{skill.name}</strong>
-                    <small>{skill.description}</small>
-                  </span>
+                  <button className="skill-row-main" onClick={() => setSelectedId(skill.id)}>
+                    <span className="list-icon">
+                      <Icon size={15} />
+                    </span>
+                    <span>
+                      <strong>{skill.name}</strong>
+                      <small>{skill.description}</small>
+                    </span>
+                  </button>
                   <Toggle
                     value={skill.enabled}
                     disabled={busy}
                     ariaLabel={t('skills:skillsPage.toggleSkillName', { name: skill.name })}
                     onChange={(enabled) => void updateSkill(skill, { enabled })}
                   />
-                </button>
+                </div>
               )
             })
           ) : (

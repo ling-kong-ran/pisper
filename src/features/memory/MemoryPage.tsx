@@ -585,7 +585,7 @@ export function MemoryPage({
                 {
                   left: `${(x / GALAXY_VIEW.width) * 100}%`,
                   top: `${(y / GALAXY_VIEW.height) * 100}%`,
-                  '--star-size': `${10 + Math.round((node.importance || 0.5) * 9)}px`,
+                  '--star-size': `${12 + Math.round((node.importance || 0.5) * 9)}px`,
                   '--twinkle-delay': `${twinkle}s`,
                   '--enter-delay': `${index * 55}ms`,
                   '--depth': (hashSeed(node.id) % 100) / 100,

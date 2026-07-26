@@ -559,9 +559,7 @@ export function ConfigPage({
                       </span>
                     </button>
                     <div className="provider-list-control">
-                      <Badge
-                        tone={!provider.enabled ? 'gray' : provider.configured ? 'green' : 'amber'}
-                      >
+                      <Badge tone={provider.enabled && provider.configured ? 'green' : 'gray'}>
                         {!provider.enabled
                           ? t('config:configPage.disabled2')
                           : provider.configured
