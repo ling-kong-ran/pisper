@@ -62,7 +62,6 @@ type ExecutionModeOption = [string, string, string, LucideIcon]
 
 const MIN_GOAL_TOKEN_BUDGET = 1_000
 const DEFAULT_GOAL_TOKEN_BUDGET = 30_000
-const MAX_GOAL_TOKEN_BUDGET = 200_000
 
 type SessionModelSelectProps = {
   value: string
@@ -1042,19 +1041,13 @@ function GoalModeControl({
               id="goal-token-budget-input"
               type="number"
               min={MIN_GOAL_TOKEN_BUDGET}
-              max={MAX_GOAL_TOKEN_BUDGET}
               step={1000}
               value={tokenBudget}
               disabled={savingBudget}
               onChange={(event) => {
                 const next = Number(event.target.value)
                 if (!Number.isFinite(next)) return
-                onTokenBudgetChange(
-                  Math.min(
-                    MAX_GOAL_TOKEN_BUDGET,
-                    Math.max(MIN_GOAL_TOKEN_BUDGET, Math.round(next)),
-                  ),
-                )
+                onTokenBudgetChange(Math.max(MIN_GOAL_TOKEN_BUDGET, Math.round(next)))
               }}
             />
             {hasExistingGoal && budgetDirty && (
@@ -1074,7 +1067,6 @@ function GoalModeControl({
               ? t('chat:focusSession.goalTokenBudgetUpdateHint')
               : t('chat:focusSession.goalTokenBudgetHint', {
                   min: formatTokenCount(MIN_GOAL_TOKEN_BUDGET),
-                  max: formatTokenCount(MAX_GOAL_TOKEN_BUDGET),
                 })}
           </small>
         </div>

@@ -204,7 +204,7 @@
   "focusSession.goalMode": "Goal 模式",
   "focusSession.goalBudgetSave": "保存预算",
   "focusSession.goalTokenBudget": "Token 预算",
-  "focusSession.goalTokenBudgetHint": "可设置 {min} ~ {max} tokens",
+  "focusSession.goalTokenBudgetHint": "不低于 {min} tokens，不设上限",
   "focusSession.goalTokenBudgetUpdateHint": "调整后即时生效，并用于下一次继续 Goal",
   "focusSession.gitCancel": "取消",
   "focusSession.gitChanges": "改动",

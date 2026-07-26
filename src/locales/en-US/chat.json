@@ -204,7 +204,7 @@
   "focusSession.goalMode": "Goal mode",
   "focusSession.goalBudgetSave": "Save budget",
   "focusSession.goalTokenBudget": "Token budget",
-  "focusSession.goalTokenBudgetHint": "Choose {min} - {max} tokens",
+  "focusSession.goalTokenBudgetHint": "At least {min} tokens, no upper limit",
   "focusSession.goalTokenBudgetUpdateHint": "Applies immediately and is used on the next goal resume",
   "focusSession.gitCancel": "Cancel",
   "focusSession.gitChanges": "Changes",

@@ -3,7 +3,6 @@ import { readJson, writeJsonAtomic } from '../storage/json-file.mjs'
 
 export const GOAL_STATUSES = Object.freeze(new Set(['active', 'paused', 'budget_limited', 'complete']))
 export const DEFAULT_GOAL_TOKEN_BUDGET = 30_000
-export const MAX_GOAL_TOKEN_BUDGET = 200_000
 export const MAX_GOAL_OBJECTIVE_CHARS = 6_000
 export const GOAL_CONTINUATION_MARKER = '[Vesper internal goal continuation]'
 
@@ -26,8 +25,8 @@ function usageTokens(usage) {
 function normalizedBudget(value, fallback = DEFAULT_GOAL_TOKEN_BUDGET) {
   if (value == null) return fallback
   const budget = Math.round(Number(value))
-  if (!Number.isFinite(budget) || budget <= 0 || budget > MAX_GOAL_TOKEN_BUDGET) {
-    throw new Error(`Goal token budget must be between 1 and ${MAX_GOAL_TOKEN_BUDGET}.`)
+  if (!Number.isFinite(budget) || budget <= 0) {
+    throw new Error('Goal token budget must be a positive number.')
   }
   return budget
 }
@@ -42,7 +41,7 @@ function normalizedState(input) {
       sessionId,
       objective: String(value.objective).trim().slice(0, MAX_GOAL_OBJECTIVE_CHARS),
       status: value.status,
-      tokenBudget: Number.isFinite(Number(value.tokenBudget)) && Number(value.tokenBudget) > 0 && Number(value.tokenBudget) <= MAX_GOAL_TOKEN_BUDGET
+      tokenBudget: Number.isFinite(Number(value.tokenBudget)) && Number(value.tokenBudget) > 0
         ? Number(value.tokenBudget)
         : DEFAULT_GOAL_TOKEN_BUDGET,
       tokensUsed: Math.max(0, Number(value.tokensUsed) || 0),
