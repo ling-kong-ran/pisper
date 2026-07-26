@@ -345,6 +345,8 @@ Before submitting a change, run the lint, test, and build commands above. Do not
 
 Vesper is built on the [Pi Coding Agent](https://github.com/earendil-works/pi/tree/main/packages/coding-agent) runtime and illuminated by open-source projects including Node.js, React, TypeScript, Vite, Tailwind CSS, shadcn/ui, React Router, Zustand, TanStack Query, React Flow, and i18next.
 
+Special thanks to [Petdex](https://petdex.dev) and its open-source project [`crafter-station/petdex`](https://github.com/crafter-station/petdex). Vesper's compatible desktop-pet format, sprite-state conventions, and community catalog integration build on its MIT-licensed work. Community pet assets remain the property of their respective creators or rights holders; Vesper does not claim ownership or bundle those assets in its releases.
+
 Thanks to contributors:
 
 - [@mik-myp](https://github.com/mik-myp) — Frontend TypeScript architecture, shadcn/ui / AI Elements, Zustand, and i18n refactor ([#1](https://github.com/ling-kong-ran/vesper/pull/1))

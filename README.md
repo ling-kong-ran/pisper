@@ -345,6 +345,8 @@ npm run build
 
 Vesper 以 [Pi Coding Agent](https://github.com/earendil-works/pi/tree/main/packages/coding-agent) 为运行内核，并由 Node.js、React、TypeScript、Vite、Tailwind CSS、shadcn/ui、React Router、Zustand、TanStack Query、React Flow、i18next 等开源项目共同照亮。
 
+特别感谢 [Petdex](https://petdex.dev) 及其开源项目 [`crafter-station/petdex`](https://github.com/crafter-station/petdex)：Vesper 的桌面宠物兼容格式、精灵动画状态约定与社区目录接入参考了其 MIT 许可实现。社区宠物资源由各自作者或权利人提供，Vesper 不主张其所有权，也不会将这些资源预打包进发行版本。
+
 感谢贡献者：
 
 - [@mik-myp](https://github.com/mik-myp) — 前端 TypeScript 架构、shadcn/ui / AI Elements、Zustand 与 i18n 重构（[#1](https://github.com/ling-kong-ran/vesper/pull/1)）
