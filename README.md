@@ -244,6 +244,19 @@ npm run build
 
 > [下载最新版 Vesper 桌面安装包 →](https://github.com/ling-kong-ran/vesper/releases/latest)
 
+#### macOS 无法打开时
+
+Vesper 当前未经过 Apple 公证，因此 macOS Gatekeeper 可能提示应用“无法打开”“无法验证开发者”或“已损坏”。请先确认安装包直接下载自 Vesper 的官方 [GitHub Releases](https://github.com/ling-kong-ran/vesper/releases/latest)，将 `Vesper.app` 拖入“应用程序”目录，然后尝试以下方式：
+
+1. 优先打开 **系统设置 → 隐私与安全性**，在安全提示下选择 **仍要打开**。
+2. 如果没有“仍要打开”选项，可打开“终端”并执行：
+
+```bash
+sudo xattr -rd com.apple.quarantine /Applications/Vesper.app
+```
+
+输入 macOS 管理员密码后，再从“应用程序”目录启动 Vesper。该命令只会递归移除 `/Applications/Vesper.app` 的下载隔离属性；请勿对来源不明的应用执行此操作。
+
 ### 从源码运行
 
 以下环境要求仅适用于开发、Web 版运行或自行打包桌面应用。

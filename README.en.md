@@ -244,6 +244,19 @@ No source build is required. Visit the [latest GitHub Release](https://github.co
 
 > [Download the latest Vesper desktop installer →](https://github.com/ling-kong-ran/vesper/releases/latest)
 
+#### If macOS Refuses to Open Vesper
+
+Vesper is not currently notarized by Apple, so macOS Gatekeeper may report that the app cannot be opened, the developer cannot be verified, or the app is damaged. First confirm that the installer came directly from Vesper's official [GitHub Releases](https://github.com/ling-kong-ran/vesper/releases/latest), drag `Vesper.app` into the Applications folder, then try the following:
+
+1. Prefer opening **System Settings → Privacy & Security** and selecting **Open Anyway** below the security notice.
+2. If **Open Anyway** is unavailable, open Terminal and run:
+
+```bash
+sudo xattr -rd com.apple.quarantine /Applications/Vesper.app
+```
+
+After entering your macOS administrator password, launch Vesper again from Applications. This command recursively removes the download quarantine attribute only from `/Applications/Vesper.app`; do not use it on applications from untrusted sources.
+
 ### Run from Source
 
 The following requirements apply only when developing Vesper, running the Web app, or packaging the desktop app yourself.
