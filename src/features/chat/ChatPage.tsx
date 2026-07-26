@@ -1067,13 +1067,11 @@ export function ChatPage({
                 tools: [...current.tools, activity],
                 currentActivity: activity,
                 activityFeed: pushCurrentActivity(current.activityFeed, activity),
-                // Freeze the pre-tool preamble once, so the UI can render: preamble → tools → post-tool text.
                 messages: current.messages.map((item) =>
                   item.id === agentId
                     ? {
                         ...item,
                         text: responseText || item.text,
-                        streamPreamble: item.streamPreamble ?? responseText ?? item.text ?? '',
                       }
                     : item,
                 ),
@@ -1269,7 +1267,6 @@ export function ChatPage({
                       ...item,
                       text: typeof data.text === 'string' ? data.text : responseText || item.text,
                       streaming: false,
-                      streamPreamble: undefined,
                       ...(data.assets?.length ? { attachments: data.assets } : {}),
                     }
                   : item,
@@ -1320,7 +1317,6 @@ export function ChatPage({
                       ...item,
                       text: typeof data.text === 'string' ? data.text : responseText || item.text,
                       streaming: false,
-                      streamPreamble: undefined,
                     }
                   : item,
               ),

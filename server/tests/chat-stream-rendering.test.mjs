@@ -2,16 +2,35 @@ import assert from 'node:assert/strict'
 import { readFile } from 'node:fs/promises'
 import test from 'node:test'
 
-test('chat rendering keeps tool state connected to streaming message segmentation', async () => {
-  const [dock, focus, message] = await Promise.all([
+test('chat renders thinking and tool activity above one uninterrupted response body', async () => {
+  const [dock, focus, message, activity] = await Promise.all([
     readFile('src/features/chat/ChatDock.tsx', 'utf8'),
     readFile('src/features/chat/FocusSession.tsx', 'utf8'),
     readFile('src/features/chat/ChatMessage.tsx', 'utf8'),
+    readFile('src/features/chat/AgentRunActivity.tsx', 'utf8'),
   ])
   assert.match(dock, /tools=\{state\.tools \|\| \[\]\}/)
   assert.match(focus, /tools: EntityRecord\[\]/)
   assert.match(focus, /activityFeed,\s+tools,\s+thinkingText,/)
-  assert.match(message, /const hasTools = Boolean\(runProps\?\.tools\?\.length\)/)
+  assert.doesNotMatch(message, /streamPreamble|splitAssistantStreamText|has-stream-split/)
+  const activityIndex = message.indexOf('<AgentRunActivity')
+  const responseIndex = message.indexOf('<MarkdownMessage streaming={streaming}>{fullText}</MarkdownMessage>')
+  assert.ok(activityIndex >= 0)
+  assert.ok(responseIndex > activityIndex)
+  assert.match(activity, /agent-thinking-window/)
+  assert.match(activity, /thinkingScrollRef/)
+  assert.match(activity, /<MarkdownMessage streaming=\{Boolean\(streaming\)\}>\{thinking\}<\/MarkdownMessage>/)
+})
+
+test('composer keeps the Agent run state visible when the message avatar scrolls away', async () => {
+  const [focus, styles] = await Promise.all([
+    readFile('src/features/chat/FocusSession.tsx', 'utf8'),
+    readFile('src/index.css', 'utf8'),
+  ])
+  assert.match(focus, /focus-composer-status/)
+  assert.match(focus, /compaction\?\.active \? 'compacting' : streaming \? 'running' : 'idle'/)
+  assert.match(styles, /\.focus-composer-status\.running/)
+  assert.match(styles, /\.focus-composer-status\.compacting/)
 })
 
 test('chat activity lazy loading reserves layout space instead of flashing an empty fallback', async () => {
@@ -43,8 +62,11 @@ test('ephemeral reasoning remains rendered after a textless response completes',
   assert.match(doneHandler, /thinkingScheduler\.flush\(\)/)
   assert.doesNotMatch(doneHandler, /thinkingText:\s*''/)
   assert.doesNotMatch(finalizer, /thinkingText:\s*''/)
-  assert.match(focus, /isLatestAgent && \(streaming \|\| String\(thinkingText \|\| ''\)\.trim\(\)\)/)
-  assert.match(activity, /if \(!streaming && !String\(thinkingText \|\| ''\)\.trim\(\)\) return null/)
+  assert.match(
+    focus,
+    /isLatestAgent &&\s+\(streaming \|\| String\(thinkingText \|\| ''\)\.trim\(\) \|\| tools\.length > 0\)/,
+  )
+  assert.match(activity, /if \(!streaming && !thinking && !activities\.length\) return null/)
   assert.match(activity, /reasoningCompleted/)
 })
 

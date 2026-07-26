@@ -1,11 +1,11 @@
-import { lazy, memo, Suspense, useEffect, useState, type ReactNode } from 'react'
+import { lazy, memo, Suspense, useEffect, useRef, useState, type ReactNode } from 'react'
 import { AlertTriangle, Check, Clock3, RefreshCw, Square } from 'lucide-react'
 import { useI18n } from '@/app/use-i18n'
 import { Plan } from '@/components/ai-elements/plan'
-import { Reasoning } from '@/components/ai-elements/reasoning'
 import { Task } from '@/components/ai-elements/task'
 import { Tool } from '@/components/ai-elements/tool'
 import { AnimatedList, ShinyText } from '@/components/react-bits'
+import MarkdownMessage from '@/components/MarkdownMessage'
 import { formatTokenCount } from '@/lib/format'
 import type { I18nValues } from '@/app/i18n'
 import type { EntityRecord } from '@/types/chat'
@@ -367,6 +367,7 @@ function AgentRunActivity({
   thinkingText,
   currentActivity,
   activityFeed = EMPTY_LIST,
+  tools = EMPTY_LIST,
   compaction,
   error,
   stopped,
@@ -378,7 +379,20 @@ function AgentRunActivity({
 }: AgentRunActivityProps) {
   const { t, language } = useI18n()
   const now = useRunActivityClock(streaming)
-  if (!streaming && !String(thinkingText || '').trim()) return null
+  const thinking = String(thinkingText || '').trim()
+  const thinkingScrollRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    if (!thinking) return undefined
+    const frame = window.requestAnimationFrame(() => {
+      const node = thinkingScrollRef.current
+      if (node) node.scrollTop = node.scrollHeight
+    })
+    return () => window.cancelAnimationFrame(frame)
+  }, [thinking])
+
+  const activities = activityFeed.length ? activityFeed : tools
+  if (!streaming && !thinking && !activities.length) return null
 
   const primaryActivity = primaryRunActivity({
     currentActivity,
@@ -391,7 +405,7 @@ function AgentRunActivity({
     t,
     streaming,
     text,
-    thinkingText,
+    thinkingText: thinking ? '' : thinkingText,
     compaction,
     error,
     stopped,
@@ -399,47 +413,70 @@ function AgentRunActivity({
     lastActivityAt,
     now,
   })
+  if (!streaming && activities.length) {
+    primary.title = t('chat:agentRunActivity.currentOperationCompleted')
+    primary.detail = ''
+  }
+  const showOverview = Boolean(
+    streaming || activities.length || compaction?.active || error || stopped,
+  )
   const primaryDuration = formatRunDuration(runDurationMs(startedAt, finishedAt, now), language)
   const primaryDetail =
-    primary.command && activityFeed.length
-      ? t('chat:agentRunActivity.countLiveOperations', { count: activityFeed.length })
+    primary.command && activities.length
+      ? t('chat:agentRunActivity.countLiveOperations', { count: activities.length })
       : primary.detail
 
   return (
     <section className={`agent-run-activity ${compact ? 'compact' : ''}`} aria-live="polite">
-      <Reasoning
-        className={`agent-run-overview ${primary.tone} !mb-0`}
-        isStreaming={streaming}
-        open
-        data-vesper-activity-type="reasoning"
-      >
-        <span className="agent-run-status-icon">
-          <ActivityIcon tone={primary.tone} />
-        </span>
-        <span className="agent-run-copy">
-          <strong>
-            {streaming && ['running', 'waiting', 'compacting'].includes(primary.tone) ? (
-              <ShinyText>{primary.title}</ShinyText>
-            ) : (
-              primary.title
-            )}
-          </strong>
-          {primaryDetail && <small title={primaryDetail}>{primaryDetail}</small>}
-        </span>
-        <span className="agent-run-duration">
-          <Clock3 size={12} />
-          {primaryDuration}
-        </span>
-      </Reasoning>
-      {activityFeed.length > 0 && (
+      {thinking && (
+        <div className="agent-thinking-window" data-vesper-activity-type="reasoning">
+          <div className="agent-thinking-head">
+            <span className="agent-run-status-icon">
+              <ActivityIcon tone={streaming ? 'running' : 'completed'} />
+            </span>
+            <span className="agent-run-copy">
+              <strong>{t('chat:agentRunActivity.reasoningCompleted')}</strong>
+            </span>
+            <span className="agent-run-duration">
+              <Clock3 size={12} />
+              {primaryDuration}
+            </span>
+          </div>
+          <div ref={thinkingScrollRef} className="agent-thinking-scroll">
+            <MarkdownMessage streaming={Boolean(streaming)}>{thinking}</MarkdownMessage>
+          </div>
+        </div>
+      )}
+      {showOverview && (
+        <div className={`agent-run-overview ${primary.tone}`} data-vesper-activity-type="status">
+          <span className="agent-run-status-icon">
+            <ActivityIcon tone={primary.tone} />
+          </span>
+          <span className="agent-run-copy">
+            <strong>
+              {streaming && ['running', 'waiting', 'compacting'].includes(primary.tone) ? (
+                <ShinyText>{primary.title}</ShinyText>
+              ) : (
+                primary.title
+              )}
+            </strong>
+            {primaryDetail && <small title={primaryDetail}>{primaryDetail}</small>}
+          </span>
+          <span className="agent-run-duration">
+            <Clock3 size={12} />
+            {primaryDuration}
+          </span>
+        </div>
+      )}
+      {activities.length > 0 && (
         <div className="agent-run-feed">
           <AnimatedList>
-            {activityFeed.map((activity, index) => {
+            {activities.map((activity, index) => {
               const presentation = activityPresentation(activity, {
                 t,
                 streaming,
                 text,
-                thinkingText,
+                thinkingText: thinking ? '' : thinkingText,
                 compaction,
                 error,
                 stopped,
@@ -452,11 +489,11 @@ function AgentRunActivity({
                 language,
               )
               const key = activityRenderKey(activity, index)
-              const showTerminal = activity.name === 'bash' && index === activityFeed.length - 1
+              const showTerminal = activity.name === 'bash' && index === activities.length - 1
               return (
                 <ActivityElement
                   activity={activity}
-                  className={`agent-run-summary ${presentation.tone} ${index === activityFeed.length - 1 ? 'current' : ''}`}
+                  className={`agent-run-summary ${presentation.tone} ${index === activities.length - 1 ? 'current' : ''}`}
                   key={key}
                 >
                   <span className="agent-run-status-icon">

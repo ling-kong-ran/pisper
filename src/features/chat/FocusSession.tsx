@@ -775,7 +775,7 @@ export function FocusSession({
                 ? 'waiting'
                 : 'idle'
           const showRunActivity = Boolean(
-            isLatestAgent && (streaming || String(thinkingText || '').trim()),
+            isLatestAgent && (streaming || String(thinkingText || '').trim() || tools.length > 0),
           )
           return (
             <FocusChatMessage
@@ -825,6 +825,20 @@ export function FocusSession({
         {selection.attachmentError && (
           <span className="attachment-error">{selection.attachmentError}</span>
         )}
+        <div
+          className={`focus-composer-status ${compaction?.active ? 'compacting' : streaming ? 'running' : 'idle'}`}
+          role="status"
+          aria-live="polite"
+        >
+          <i aria-hidden="true" />
+          <span>
+            {compaction?.active
+              ? t('chat:focusSession.compactingContext')
+              : streaming
+                ? t('chat:focusSession.running')
+                : t('chat:focusSession.waitingForInput')}
+          </span>
+        </div>
         <div className="focus-composer">
           <button
             type="button"

@@ -63,7 +63,7 @@ export class GitChangesService {
     const [branchResult, headResult, statusResult] = await Promise.all([
       runGit(cwd, ['rev-parse', '--abbrev-ref', 'HEAD']),
       runGit(cwd, ['rev-parse', '--verify', 'HEAD']),
-      runGit(cwd, ['status', '--porcelain']),
+      runGit(cwd, ['status', '--porcelain', '--untracked-files=all']),
     ])
     const hasHead = headResult.ok
     const files = statusResult.ok ? parsePorcelainStatus(statusResult.stdout) : []
@@ -71,12 +71,21 @@ export class GitChangesService {
     let diffTruncated = false
     if (files.length) {
       const diffResult = await runGit(cwd, hasHead ? ['diff', 'HEAD'] : ['diff'])
-      if (diffResult.ok) {
-        diff = diffResult.stdout
-        if (diff.length > MAX_DIFF_CHARS) {
-          diff = diff.slice(0, MAX_DIFF_CHARS)
-          diffTruncated = true
-        }
+      if (diffResult.ok) diff = diffResult.stdout
+      for (const file of files.filter((item) => item.status === '??')) {
+        if (diff.length >= MAX_DIFF_CHARS) break
+        const untrackedDiff = await runGit(cwd, [
+          'diff',
+          '--no-index',
+          '--',
+          '/dev/null',
+          file.path,
+        ])
+        if (untrackedDiff.stdout) diff += `${diff && !diff.endsWith('\n') ? '\n' : ''}${untrackedDiff.stdout}`
+      }
+      if (diff.length > MAX_DIFF_CHARS) {
+        diff = diff.slice(0, MAX_DIFF_CHARS)
+        diffTruncated = true
       }
     }
     let ahead = null

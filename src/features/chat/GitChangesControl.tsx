@@ -1,8 +1,18 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { Check, GitBranch, GitCommitHorizontal, RefreshCw, Undo2, Upload, X } from 'lucide-react'
+import {
+  Check,
+  FileDiff,
+  GitBranch,
+  GitCommitHorizontal,
+  RefreshCw,
+  Undo2,
+  Upload,
+  X,
+} from 'lucide-react'
 import { useI18n } from '@/app/use-i18n'
 import { workspaceName } from '@/lib/format'
 import { chatApi, type GitChangesResponse } from './chat-api'
+import { GitDiffDialog } from './GitDiffViewer'
 
 const DEFAULT_COMMIT_MESSAGE = 'Agent changes'
 
@@ -21,6 +31,7 @@ export function GitChangesControl({
 }) {
   const { t, language } = useI18n()
   const [open, setOpen] = useState(false)
+  const [diffOpen, setDiffOpen] = useState(false)
   const [loading, setLoading] = useState(false)
   const [running, setRunning] = useState<GitAction | null>(null)
   const [confirmingRevert, setConfirmingRevert] = useState(false)
@@ -222,13 +233,17 @@ export function GitChangesControl({
               )}
 
               {hasChanges && (
-                <details className="git-changes-diff">
-                  <summary>{t('chat:focusSession.gitViewDiff')}</summary>
-                  <pre>
-                    {changes.diff || t('chat:focusSession.gitDiffUnavailable')}
-                    {changes.diffTruncated ? `\n… ${t('chat:focusSession.gitDiffTruncated')}` : ''}
-                  </pre>
-                </details>
+                <button
+                  type="button"
+                  className="git-changes-view-diff"
+                  onClick={() => {
+                    setDiffOpen(true)
+                    setOpen(false)
+                  }}
+                >
+                  <FileDiff size={13} />
+                  {t('chat:focusSession.gitViewDiff')}
+                </button>
               )}
 
               <div className="git-changes-actions">
@@ -297,6 +312,13 @@ export function GitChangesControl({
             </>
           )}
         </div>
+      )}
+      {diffOpen && changes && (
+        <GitDiffDialog
+          diff={changes.diff || ''}
+          truncated={changes.diffTruncated}
+          onClose={() => setDiffOpen(false)}
+        />
       )}
     </div>
   )

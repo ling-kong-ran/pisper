@@ -5,7 +5,6 @@ import { AgentStatusAvatar } from '@/components/AgentStatusAvatar'
 import MarkdownMessage from '@/components/MarkdownMessage'
 import type { ChatAttachment, ChatMessage } from '@/types/chat'
 import type { AgentRunActivityProps } from './AgentRunActivity'
-import { splitAssistantStreamText } from './stream-text'
 import { Message as AiMessage } from '@/components/ai-elements/message-shell'
 
 const agentRunActivityModule = import('./AgentRunActivity')
@@ -146,17 +145,8 @@ export const FocusChatMessage = memo(function FocusChatMessage({
   showRunActivity,
   runProps,
 }: FocusChatMessageProps) {
-  const hasTools = Boolean(runProps?.tools?.length)
   const streaming = Boolean(message.streaming)
   const fullText = message.text || ''
-  const split = splitAssistantStreamText(fullText, message.streamPreamble, {
-    streaming,
-    hasTools,
-  })
-  const showSplit = streaming && hasTools && split.mode === 'split' && Boolean(split.lead)
-  const activityProps = runProps
-    ? { ...runProps, text: showSplit ? split.body || split.lead : fullText }
-    : runProps
 
   return (
     <AiMessage
@@ -168,13 +158,8 @@ export const FocusChatMessage = memo(function FocusChatMessage({
       data-vesper-error={message.error ? 'true' : undefined}
     >
       <span>{message.role === 'agent' ? <AgentStatusAvatar state={agentState} /> : 'You'}</span>
-      <div className={`message-content ${showSplit ? 'has-stream-split' : ''}`}>
-        {showSplit && (
-          <div className="stream-lead">
-            <MarkdownMessage streaming={false}>{split.lead}</MarkdownMessage>
-          </div>
-        )}
-        {showRunActivity && activityProps && (
+      <div className="message-content">
+        {showRunActivity && runProps && (
           <Suspense
             fallback={
               <div
@@ -183,15 +168,11 @@ export const FocusChatMessage = memo(function FocusChatMessage({
               />
             }
           >
-            <AgentRunActivity {...activityProps} />
+            <AgentRunActivity {...runProps} />
           </Suspense>
         )}
-        {(split.body || (!streaming && fullText) || (!showSplit && (fullText || !streaming))) && (
-          <div className={showSplit ? 'stream-body' : undefined}>
-            <MarkdownMessage streaming={streaming}>
-              {streaming ? (showSplit ? split.body : fullText) : fullText}
-            </MarkdownMessage>
-          </div>
+        {(fullText || !streaming) && (
+          <MarkdownMessage streaming={streaming}>{fullText}</MarkdownMessage>
         )}
         {message.attachments && message.attachments.length > 0 && (
           <MessageAttachments attachments={message.attachments} />
