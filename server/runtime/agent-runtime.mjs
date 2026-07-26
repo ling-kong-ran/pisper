@@ -198,20 +198,27 @@ function queuedSessionInputs(session) {
   ]
 }
 
-function serializeMessage(message, index) {
+function serializeMessage(message, index, resolveImageUrl = null) {
   if (!message || !['user', 'assistant'].includes(message.role)) return null
   const rawText = textFromContent(message.content)
   if (message.role === 'user' && isInternalParentMessage(rawText)) return null
   const text = redactSecretText(message.role === 'user' ? rawText.split(ATTACHMENT_MARKER)[0] : rawText)
   if (!text) return null
   const attachments = Array.isArray(message.content)
-    ? message.content.filter((part) => part?.type === 'image').map((part, attachmentIndex) => ({
-        id: `image-${index}-${attachmentIndex}`,
-        kind: 'image',
-        name: `图片附件 ${attachmentIndex + 1}`,
-        mimeType: part.mimeType,
-        data: part.data,
-      }))
+    ? message.content.filter((part) => part?.type === 'image').map((part, attachmentIndex) => {
+        const attachment = {
+          id: `image-${index}-${attachmentIndex}`,
+          kind: 'image',
+          name: `图片附件 ${attachmentIndex + 1}`,
+          mimeType: part.mimeType,
+        }
+        // Avoid re-sending base64 payloads on every poll: archived user images
+        // are served through the asset pipeline and cached by the browser.
+        const url = resolveImageUrl?.(part)
+        if (url) attachment.url = url
+        else attachment.data = part.data
+        return attachment
+      })
     : []
   return {
     id: `${message.role}-${message.timestamp || index}-${index}`,
@@ -554,6 +561,7 @@ export class AgentRuntimeService {
     this.taskListEmitters = new Map()
     this.sessionHistoryCache = new Map()
     this.sessionHistoryPaths = new Map()
+    this.sessionContextUsageCache = new Map()
     this.agentMailboxInFlight = new Set()
     this.modelRuntime = null
     this.settingsManager = null
@@ -984,7 +992,7 @@ export class AgentRuntimeService {
   }
 
   saveAssetIndex() {
-    const snapshot = JSON.parse(JSON.stringify(this.assetIndex))
+    const snapshot = structuredClone(this.assetIndex)
     this.assetWrite = this.assetWrite
       .catch(() => {})
       .then(() => writeJsonAtomic(this.assetIndexPath, snapshot))
@@ -1258,7 +1266,7 @@ export class AgentRuntimeService {
     const file = await stat(path)
     let cached = this.sessionHistoryCache.get(path)
     if (!cached || file.size < cached.size || (file.size === cached.size && file.mtimeMs !== cached.mtimeMs)) {
-      cached = { size: 0, mtimeMs: 0, remainder: Buffer.alloc(0), entries: [], byId: new Map(), touchedAt: Date.now() }
+      cached = { size: 0, mtimeMs: 0, remainder: Buffer.alloc(0), entries: [], byId: new Map(), serializedById: new Map(), touchedAt: Date.now() }
     }
     if (file.size > cached.size) {
       const handle = await open(path, 'r')
@@ -1312,7 +1320,7 @@ export class AgentRuntimeService {
       this.sessionHistoryCache.delete(path)
       return active ? this.getSessionMessages(id) : []
     }
-    let cursor = [...history.entries].reverse().find((entry) => entry?.id)
+    let cursor = history.entries.findLast((entry) => entry?.id)
     const branch = []
     const visited = new Set()
     while (cursor?.id && !visited.has(cursor.id)) {
@@ -1321,9 +1329,34 @@ export class AgentRuntimeService {
       cursor = cursor.parentId ? history.byId.get(cursor.parentId) : null
     }
     branch.reverse()
+    // History entries are immutable once appended, so serialized messages can be
+    // cached per entry: polling only serializes entries added since last time.
+    let assetUrlByHash = null
+    const resolveImageUrl = (part) => {
+      if (!part?.data) return null
+      if (!assetUrlByHash) {
+        assetUrlByHash = new Map()
+        for (const asset of this.assetIndex.assets) {
+          if (asset.source === 'attachment' && asset.hash) {
+            assetUrlByHash.set(asset.hash, `/api/assets/${encodeURIComponent(asset.id)}/download?inline=1`)
+          }
+        }
+      }
+      try {
+        const hash = createHash('sha256').update(Buffer.from(String(part.data), 'base64')).digest('hex')
+        return assetUrlByHash.get(hash) || null
+      } catch {
+        return null
+      }
+    }
     const messages = branch
       .filter((entry) => entry?.type === 'message')
-      .map((entry, index) => serializeMessage(entry.message, index))
+      .map((entry, index) => {
+        if (entry.id && history.serializedById.has(entry.id)) return history.serializedById.get(entry.id)
+        const serialized = serializeMessage(entry.message, index, resolveImageUrl)
+        if (entry.id) history.serializedById.set(entry.id, serialized)
+        return serialized
+      })
       .filter(Boolean)
     const assets = this.assetIndex.assets
       .filter((asset) => asset.sessionId === id && asset.source === 'agent' && /^(?:image|video)\//.test(asset.mimeType || ''))
@@ -1375,13 +1408,20 @@ export class AgentRuntimeService {
     if (active) return this.compactionAwareContextUsage(active.session, compaction || this.liveSessions.get(id)?.compaction)
     const info = await this.findSessionInfo(id)
     if (!info) return undefined
+    const fileStat = await stat(info.path).catch(() => null)
+    const cached = this.sessionContextUsageCache.get(id)
+    if (fileStat && cached?.path === info.path && cached.size === fileStat.size && cached.mtimeMs === fileStat.mtimeMs) {
+      return cached.value
+    }
     const manager = this.openStoredSession(info.path)
     const context = manager.buildSessionContext()
     const globalSettings = this.settingsManager?.getGlobalSettings?.() || {}
     const provider = context.model?.provider || globalSettings.defaultProvider
     const modelId = context.model?.modelId || globalSettings.defaultModel
     const model = provider && modelId ? this.modelRuntime?.getModel?.(provider, modelId) : null
-    return this.decorateContextUsage(persistedContextUsage(manager, model?.contextWindow || 0), compaction)
+    const value = this.decorateContextUsage(persistedContextUsage(manager, model?.contextWindow || 0), compaction)
+    this.sessionContextUsageCache.set(id, { path: info.path, size: fileStat?.size || 0, mtimeMs: fileStat?.mtimeMs || 0, value })
+    return value
   }
 
   async getSessionMessagePage(id, { before, limit = DEFAULT_MESSAGE_PAGE_SIZE } = {}) {
@@ -2285,6 +2325,7 @@ export class AgentRuntimeService {
     }
     if (!sessionFile) sessionFile = (await this.findSessionInfo(id))?.path
     this.sessionHistoryPaths.delete(id)
+    this.sessionContextUsageCache.delete(id)
     if (sessionFile) this.sessionHistoryCache.delete(sessionFile)
     if (!sessionFile) {
       if (this.sessionMeta[id]) {

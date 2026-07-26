@@ -43,6 +43,9 @@ export async function createVesperServer({
   })
   await runtime.init()
   const packageJson = JSON.parse(await readFile(join(appRoot, 'package.json'), 'utf8'))
+  const engineVersion = await readFile(join(appRoot, 'node_modules', '@earendil-works', 'pi-coding-agent', 'package.json'), 'utf8')
+    .then((text) => JSON.parse(text).version || 'unknown')
+    .catch(() => 'unknown')
   const currentCommit = await resolveGitCommit(appRoot)
   const updates = new UpdateCheckService({ currentVersion: packageJson.version, currentCommit })
 
@@ -55,7 +58,7 @@ export async function createVesperServer({
       appType: 'spa',
     })
   }
-  const handleApi = createApiHandler(runtime, { updates, desktopPet })
+  const handleApi = createApiHandler(runtime, { updates, desktopPet, engineVersion })
   const serveProduction = createStaticHandler(appRoot)
   const server = createServer(async (req, res) => {
     const address = server.address()

@@ -5,12 +5,12 @@ function publicError(error) {
   return redactSecretText(error instanceof Error ? error.message : String(error))
 }
 
-export function createApiHandler(runtime, { updates, desktopPet } = {}) {
+export function createApiHandler(runtime, { updates, desktopPet, engineVersion = 'unknown' } = {}) {
   return async function handleApi(req, res, url) {
     if (!url.pathname.startsWith('/api/')) return false
     try {
       if (req.method === 'GET' && url.pathname === '/api/health') {
-        json(res, 200, { ok: true, engine: '@earendil-works/pi-coding-agent', version: '0.80.10' })
+        json(res, 200, { ok: true, engine: '@earendil-works/pi-coding-agent', version: engineVersion })
         return true
       }
       if (req.method === 'GET' && url.pathname === '/api/app-update') {
