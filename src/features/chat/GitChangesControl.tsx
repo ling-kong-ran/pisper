@@ -144,7 +144,11 @@ export function GitChangesControl({
                   ? changes.branch || t('chat:focusSession.gitDetachedHead')
                   : loading
                     ? t('chat:focusSession.gitLoading')
-                    : `${t('chat:focusSession.gitNotARepository')}${changes?.cwd ? ` · ${workspaceName(changes.cwd, language)}` : ''}`}
+                    : error && !changes
+                      ? t('chat:focusSession.gitLoadFailed')
+                      : changes?.gitAvailable === false
+                        ? t('chat:focusSession.gitUnavailable')
+                        : `${t('chat:focusSession.gitNotARepository')}${changes?.cwd ? ` · ${workspaceName(changes.cwd, language)}` : ''}`}
               </small>
             </span>
             <button
@@ -160,6 +164,7 @@ export function GitChangesControl({
           </div>
 
           {error && <p className="git-changes-error">{error}</p>}
+          {!error && changes?.error && <p className="git-changes-error">{changes.error}</p>}
           {notice && !error && <p className="git-changes-notice">{notice}</p>}
 
           {changes?.isRepo && (

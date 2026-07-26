@@ -865,26 +865,31 @@ export class AgentRuntimeService {
     return this.goals.get(id)
   }
 
-  sessionGitCwd(id) {
-    return this.sessions.get(id)?.cwd || this.sessionMeta[id]?.cwd || this.cwd
+  async sessionGitCwd(id) {
+    const activeCwd = this.sessions.get(id)?.cwd
+    if (activeCwd) return activeCwd
+    const metaCwd = this.sessionMeta[id]?.cwd
+    if (metaCwd) return metaCwd
+    const stored = await this.findSessionInfo(id)
+    return stored?.cwd || this.cwd
   }
 
-  getSessionGitChanges(id) {
-    return this.gitChanges.getChanges(this.sessionGitCwd(id))
+  async getSessionGitChanges(id) {
+    return this.gitChanges.getChanges(await this.sessionGitCwd(id))
   }
 
   async commitSessionGitChanges(id, message) {
     if (this.sessions.get(id)?.session.isStreaming) throw new Error('当前会话正在运行，请完成或停止后再提交改动。')
-    return this.gitChanges.commit(this.sessionGitCwd(id), message)
+    return this.gitChanges.commit(await this.sessionGitCwd(id), message)
   }
 
   async pushSessionGitChanges(id) {
-    return this.gitChanges.push(this.sessionGitCwd(id))
+    return this.gitChanges.push(await this.sessionGitCwd(id))
   }
 
   async revertSessionGitChanges(id) {
     if (this.sessions.get(id)?.session.isStreaming) throw new Error('当前会话正在运行，请完成或停止后再撤销改动。')
-    return this.gitChanges.revert(this.sessionGitCwd(id))
+    return this.gitChanges.revert(await this.sessionGitCwd(id))
   }
 
   async disposeSessions() {

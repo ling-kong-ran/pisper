@@ -44,7 +44,21 @@ export class GitChangesService {
   async getChanges(cwd) {
     const repoCheck = await runGit(cwd, ['rev-parse', '--is-inside-work-tree'])
     if (!repoCheck.ok || repoCheck.stdout.trim() !== 'true') {
-      return { isRepo: false, cwd, branch: '', hasHead: false, files: [], diff: '', diffTruncated: false, ahead: null }
+      const detail = repoCheck.message || ''
+      const notRepo = /not a git repository/i.test(detail)
+      const gitMissing = /ENOENT|not recognized|command not found/i.test(detail)
+      return {
+        isRepo: false,
+        gitAvailable: !gitMissing,
+        cwd,
+        branch: '',
+        hasHead: false,
+        files: [],
+        diff: '',
+        diffTruncated: false,
+        ahead: null,
+        error: notRepo || gitMissing || !detail ? '' : detail,
+      }
     }
     const [branchResult, headResult, statusResult] = await Promise.all([
       runGit(cwd, ['rev-parse', '--abbrev-ref', 'HEAD']),

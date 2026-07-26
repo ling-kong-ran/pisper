@@ -217,6 +217,8 @@
   "focusSession.gitDiffUnavailable": "暂无可用 diff",
   "focusSession.gitFilesChanged": "{count} 个文件",
   "focusSession.gitLoading": "加载中…",
+  "focusSession.gitLoadFailed": "加载失败，请点右侧刷新重试",
+  "focusSession.gitUnavailable": "未找到 git 命令，请安装 Git 后重启 Vesper",
   "focusSession.gitMoreFiles": "还有 {count} 个文件未显示",
   "focusSession.gitNoChanges": "工作区没有未提交的改动",
   "focusSession.gitNotARepository": "当前目录不是 Git 仓库",

@@ -217,6 +217,8 @@
   "focusSession.gitDiffUnavailable": "No diff available",
   "focusSession.gitFilesChanged": "{count} files",
   "focusSession.gitLoading": "Loading...",
+  "focusSession.gitLoadFailed": "Failed to load. Click refresh to retry.",
+  "focusSession.gitUnavailable": "Git command not found. Install Git and restart Vesper.",
   "focusSession.gitMoreFiles": "{count} more files not shown",
   "focusSession.gitNoChanges": "No uncommitted changes in the workspace",
   "focusSession.gitNotARepository": "Current directory is not a Git repository",

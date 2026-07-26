@@ -31,6 +31,7 @@ type ChatConfigResponse = EntityRecord & {
 
 export type GitChangesResponse = EntityRecord & {
   isRepo: boolean
+  gitAvailable?: boolean
   cwd?: string
   branch?: string
   hasHead?: boolean
@@ -38,6 +39,7 @@ export type GitChangesResponse = EntityRecord & {
   diff: string
   diffTruncated?: boolean
   ahead?: number | null
+  error?: string
 }
 
 const sessionPath = (sessionId: string) => `/api/sessions/${encodeURIComponent(sessionId)}`
