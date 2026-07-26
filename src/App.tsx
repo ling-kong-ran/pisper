@@ -14,6 +14,7 @@ import { PageHeader } from '@/components/layout/PageHeader'
 import { StatusBar } from '@/components/layout/StatusBar'
 import { AppDialog, Toast, type ToastTone } from '@/components/ui'
 import { requestSessionSelection } from '@/features/chat/events'
+import { WebDesktopPet } from '@/features/desktop-pet/WebDesktopPet'
 import { apiJson } from '@/lib/api'
 import { showBrowserSystemNotification } from '@/lib/browser-notifications'
 import { useAppDialog } from '@/hooks/useAppDialog'
@@ -384,6 +385,7 @@ function App() {
   return (
     <div className="app-shell">
       <WebPreviewProvider />
+      <WebDesktopPet />
       <SidebarProvider
         className="app-body"
         open={!sidebarCollapsed}

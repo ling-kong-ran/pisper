@@ -51,6 +51,31 @@ export type DesktopNotificationResult = {
   [key: string]: unknown
 }
 
+export type DesktopPet = {
+  slug: string
+  name: string
+  source: 'vesper' | 'petdex'
+}
+
+export type DesktopPetCatalogItem = {
+  slug: string
+  displayName: string
+}
+
+export type DesktopPetStatus = {
+  supported: boolean
+  enabled: boolean
+  running: boolean
+  selectedSlug: string
+  selectedName: string
+  installed: DesktopPet[]
+  state?: string
+  stateVersion?: number
+  sheetWidth?: number
+  sheetHeight?: number
+  spriteUrl?: string
+}
+
 export type DesktopBridge = {
   platform?: string
   getAppInfo: () => Promise<AppUpdateInfo>
@@ -66,5 +91,11 @@ export type DesktopBridge = {
     title: string
     body: string
   }) => Promise<DesktopNotificationResult>
+  getPetStatus?: () => Promise<DesktopPetStatus>
+  setPetEnabled?: (enabled: boolean) => Promise<DesktopPetStatus>
+  searchPets?: (query: string) => Promise<DesktopPetCatalogItem[]>
+  installPet?: (slug: string) => Promise<DesktopPetStatus>
+  selectPet?: (slug: string) => Promise<DesktopPetStatus>
+  openPetdex?: () => Promise<boolean>
   onUpdateStatus: (callback: (status: UpdateStatus) => void) => () => void
 }

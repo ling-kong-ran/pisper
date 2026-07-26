@@ -1,7 +1,7 @@
-import { existsSync, readFileSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdirSync, readFileSync, readdirSync, realpathSync, statSync, unlinkSync, writeFileSync } from 'node:fs'
 import { homedir } from 'node:os'
-import { join } from 'node:path'
-import { app, autoUpdater as nativeAutoUpdater, BrowserWindow, dialog, ipcMain, Menu, nativeImage, nativeTheme, net, Notification as ElectronNotification, shell, Tray } from 'electron'
+import { isAbsolute, join, relative } from 'node:path'
+import { app, autoUpdater as nativeAutoUpdater, BrowserWindow, dialog, ipcMain, Menu, nativeImage, nativeTheme, net, Notification as ElectronNotification, screen, shell, Tray } from 'electron'
 import updater from 'electron-updater'
 import { createVesperServer } from '../server/app-server.mjs'
 import { createElectronBrowserAutomationDriver } from './browser-automation.mjs'
@@ -11,6 +11,17 @@ import { enableResumableUpdateDownloads } from './resumable-update-download.mjs'
 import { createUpdateLogger, shutdownWithDeadline } from './update-lifecycle.mjs'
 import { LATEST_RELEASE_API, newerVersion, normalizedVersion, reconcileDesktopUpdateCheck, RELEASES_URL } from '../shared/app-update.mjs'
 import { releaseNotesMarkdown } from '../shared/release-notes.mjs'
+import {
+  MAX_PET_BYTES,
+  PET_WINDOW_HEIGHT,
+  PET_WINDOW_WIDTH,
+  PETDEX_PAGE_URL,
+  isPetSheetDimensions,
+  petBubbleKeyForState,
+  petStateForAgentEvent,
+  readImageDimensions,
+  resolvePetPosition,
+} from './desktop-pet-state.mjs'
 
 const { autoUpdater } = updater
 const UPDATE_CHANNEL = 'vesper:update-status'
@@ -18,11 +29,13 @@ const APP_USER_MODEL_ID = 'com.lingkongran.vesper'
 const CLOSE_ACTION_ASK = 'ask'
 const CLOSE_ACTION_TRAY = 'tray'
 const CLOSE_ACTION_QUIT = 'quit'
+const PETDEX_MANIFEST_URL = 'https://petdex.dev/api/manifest'
 const NO_CACHE_HEADERS = Object.freeze({
   'Cache-Control': 'no-cache',
   Pragma: 'no-cache',
 })
 let mainWindow = null
+let petWindow = null
 let tray = null
 let vesperServer = null
 let updateCheck = null
@@ -32,6 +45,14 @@ let updateState = { state: 'idle', checkedAt: null }
 let updateLogger = console
 let updateLogPath = ''
 let installingUpdate = false
+let petState = 'idle'
+let petStateResetTimer = null
+let petWindowCreation = null
+let petdexManifestCache = null
+let petdexManifestExpiresAt = 0
+let petDragStart = null
+let petClosing = false
+const activePetSessions = new Set()
 const activeDesktopNotifications = new Set()
 
 process.env.PI_SKIP_VERSION_CHECK ||= '1'
@@ -270,6 +291,7 @@ async function prepareApplicationShutdown({ exit = true } = {}) {
         tray.destroy()
         tray = null
       }
+      destroyDesktopPet()
       if (mainWindow && !mainWindow.isDestroyed()) mainWindow.destroy()
       mainWindow = null
     },
@@ -313,6 +335,382 @@ function hideMainWindowToTray() {
   mainWindow.hide()
 }
 
+const PET_SPRITE_NAMES = Object.freeze([
+  'spritesheet.webp',
+  'spritesheet.png',
+  'sprite.webp',
+  'sprite.png',
+])
+
+function managedDesktopPetRoot() {
+  return join(app.getPath('userData'), 'desktop-pets')
+}
+
+function desktopPetRoots() {
+  return [managedDesktopPetRoot(), join(homedir(), '.petdex', 'pets'), join(homedir(), '.codex', 'pets')]
+}
+
+function activeDesktopPetSlug() {
+  try {
+    const data = JSON.parse(readFileSync(join(homedir(), '.petdex', 'active.json'), 'utf8'))
+    return typeof data?.slug === 'string' ? data.slug : ''
+  } catch {
+    return ''
+  }
+}
+
+function loadInstalledDesktopPet(root, slug) {
+  let petDirectory
+  try {
+    const entry = readdirSync(root, { withFileTypes: true }).find((item) => item.isDirectory() && item.name === slug)
+    if (!entry) return null
+    petDirectory = join(root, entry.name)
+  } catch {
+    return null
+  }
+
+  for (const fileName of PET_SPRITE_NAMES) {
+    const spritePath = join(petDirectory, fileName)
+    try {
+      const relativePath = relative(realpathSync(root), realpathSync(spritePath))
+      if (!relativePath || relativePath.startsWith('..') || isAbsolute(relativePath)) continue
+      const size = statSync(spritePath).size
+      if (size <= 0 || size > MAX_PET_BYTES) continue
+      const buffer = readFileSync(spritePath)
+      const image = readImageDimensions(buffer)
+      if (!image || !isPetSheetDimensions(image)) continue
+      let name = slug
+      try {
+        const metadata = JSON.parse(readFileSync(join(petDirectory, 'pet.json'), 'utf8'))
+        name = String(metadata?.displayName || metadata?.name || slug).trim() || slug
+      } catch {
+        // pet.json is optional in the upstream desktop loader.
+      }
+      return { slug, name, buffer, ...image }
+    } catch {
+      // Try the next supported sprite file name.
+    }
+  }
+  return null
+}
+
+function findInstalledDesktopPet(slug) {
+  if (!slug) return null
+  for (const root of desktopPetRoots()) {
+    const pet = loadInstalledDesktopPet(root, slug)
+    if (pet) return pet
+  }
+  return null
+}
+
+function resolveInstalledDesktopPet(preferredSlug = '') {
+  const roots = desktopPetRoots()
+  const preferred = [preferredSlug, activeDesktopPetSlug()].filter(Boolean)
+  for (const slug of preferred) {
+    const pet = findInstalledDesktopPet(slug)
+    if (pet) return pet
+  }
+  for (const root of roots) {
+    let slugs = []
+    try {
+      slugs = readdirSync(root, { withFileTypes: true })
+        .filter((entry) => entry.isDirectory())
+        .map((entry) => entry.name)
+        .sort()
+    } catch {
+      continue
+    }
+    for (const slug of slugs) {
+      const pet = loadInstalledDesktopPet(root, slug)
+      if (pet) return pet
+    }
+  }
+  throw new Error(t('pet.noInstalledPet'))
+}
+
+function installedDesktopPets() {
+  const managedRoot = managedDesktopPetRoot()
+  const pets = []
+  const seen = new Set()
+  for (const root of desktopPetRoots()) {
+    let slugs = []
+    try {
+      slugs = readdirSync(root, { withFileTypes: true })
+        .filter((entry) => entry.isDirectory())
+        .map((entry) => entry.name)
+        .sort()
+    } catch {
+      continue
+    }
+    for (const slug of slugs) {
+      if (seen.has(slug)) continue
+      const pet = loadInstalledDesktopPet(root, slug)
+      if (!pet) continue
+      seen.add(slug)
+      pets.push({ slug: pet.slug, name: pet.name, source: root === managedRoot ? 'vesper' : 'petdex' })
+    }
+  }
+  return pets
+}
+
+function desktopPetStatus() {
+  const preferences = loadDesktopPreferences()
+  const installed = installedDesktopPets()
+  const selected = installed.find((pet) => pet.slug === preferences.petSlug) || installed[0] || null
+  return {
+    supported: true,
+    enabled: preferences.petEnabled,
+    running: Boolean(petWindow && !petWindow.isDestroyed() && petWindow.isVisible()),
+    selectedSlug: selected?.slug || '',
+    selectedName: selected?.name || '',
+    installed,
+  }
+}
+
+async function boundedPetdexFetch(value, maxBytes, allowedHost, redirectHosts = []) {
+  const url = new URL(value)
+  if (url.protocol !== 'https:' || url.hostname !== allowedHost) throw new Error(t('pet.untrustedAsset'))
+  const response = await net.fetch(url.href, { headers: { 'User-Agent': `Vesper/${app.getVersion()}` } })
+  if (!response.ok) throw new Error(`Petdex request failed: HTTP ${response.status}`)
+  const finalUrl = new URL(response.url)
+  if (finalUrl.protocol !== 'https:' || ![allowedHost, ...redirectHosts].includes(finalUrl.hostname))
+    throw new Error(t('pet.untrustedAsset'))
+  const declaredSize = Number(response.headers.get('content-length') || 0)
+  if (declaredSize > maxBytes) throw new Error(t('pet.assetTooLarge'))
+  const buffer = Buffer.from(await response.arrayBuffer())
+  if (!buffer.length || buffer.length > maxBytes) throw new Error(t('pet.assetTooLarge'))
+  return { buffer, contentType: String(response.headers.get('content-type') || '').toLowerCase() }
+}
+
+async function petdexManifest() {
+  if (petdexManifestCache && Date.now() < petdexManifestExpiresAt) return petdexManifestCache
+  const { buffer } = await boundedPetdexFetch(
+    PETDEX_MANIFEST_URL,
+    5 * 1024 * 1024,
+    'petdex.dev',
+    ['assets.petdex.dev'],
+  )
+  const data = JSON.parse(buffer.toString('utf8'))
+  const pets = Array.isArray(data?.pets) ? data.pets : []
+  petdexManifestCache = pets.slice(0, 5000).flatMap((pet) => {
+    const slug = String(pet?.slug || '').trim()
+    const displayName = String(pet?.displayName || slug).trim()
+    const spritesheetUrl = String(pet?.spritesheetUrl || '')
+    if (!/^[a-z0-9][a-z0-9-]{0,79}$/.test(slug)) return []
+    try {
+      const asset = new URL(spritesheetUrl)
+      if (asset.protocol !== 'https:' || asset.hostname !== 'assets.petdex.dev') return []
+    } catch {
+      return []
+    }
+    return [{ slug, displayName: displayName || slug, spritesheetUrl }]
+  })
+  petdexManifestExpiresAt = Date.now() + 5 * 60 * 1000
+  return petdexManifestCache
+}
+
+async function installManagedDesktopPet(inputSlug) {
+  const slug = String(inputSlug || '').trim().toLowerCase()
+  if (!/^[a-z0-9][a-z0-9-]{0,79}$/.test(slug)) throw new Error(t('pet.invalidSlug'))
+  const manifest = await petdexManifest()
+  const entry = manifest.find((pet) => pet.slug === slug)
+  if (!entry) throw new Error(t('pet.notFound'))
+  const { buffer, contentType } = await boundedPetdexFetch(entry.spritesheetUrl, MAX_PET_BYTES, 'assets.petdex.dev')
+  const image = readImageDimensions(buffer)
+  if (!image || !isPetSheetDimensions(image)) throw new Error(t('pet.invalidSheet'))
+  if (contentType && !contentType.startsWith(image.mime)) throw new Error(t('pet.invalidSheet'))
+  const directory = join(managedDesktopPetRoot(), slug)
+  mkdirSync(directory, { recursive: true })
+  for (const fileName of PET_SPRITE_NAMES) {
+    try {
+      unlinkSync(join(directory, fileName))
+    } catch {
+      // Missing previous formats are expected.
+    }
+  }
+  const extension = image.mime === 'image/png' ? 'png' : 'webp'
+  writeFileSync(join(directory, `spritesheet.${extension}`), buffer)
+  writeFileSync(join(directory, 'pet.json'), `${JSON.stringify({ id: slug, displayName: entry.displayName }, null, 2)}\n`, 'utf8')
+  saveDesktopPreferences({ petSlug: slug })
+  if (loadDesktopPreferences().petEnabled) {
+    destroyDesktopPet()
+    await createDesktopPet({ notifyOnError: true })
+  }
+  return desktopPetStatus()
+}
+
+async function selectDesktopPet(slug) {
+  const pet = findInstalledDesktopPet(String(slug || ''))
+  if (!pet) throw new Error(t('pet.notInstalled'))
+  saveDesktopPreferences({ petSlug: pet.slug })
+  if (loadDesktopPreferences().petEnabled) {
+    destroyDesktopPet()
+    await createDesktopPet({ notifyOnError: true })
+  }
+  return desktopPetStatus()
+}
+
+function petStatePayload(state = petState) {
+  const bubbleKey = petBubbleKeyForState(state)
+  return { state, bubble: bubbleKey ? t(bubbleKey) : '' }
+}
+
+function sendPetState() {
+  if (!petWindow || petWindow.isDestroyed() || petWindow.webContents.isLoading()) return
+  petWindow.webContents.send('vesper:pet-state', petStatePayload())
+}
+
+function publishPetState(state, { resetAfter = 0 } = {}) {
+  if (petStateResetTimer) clearTimeout(petStateResetTimer)
+  petStateResetTimer = null
+  petState = state
+  sendPetState()
+  if (resetAfter > 0) {
+    petStateResetTimer = setTimeout(() => {
+      petStateResetTimer = null
+      petState = activePetSessions.size ? 'waiting' : 'idle'
+      sendPetState()
+    }, resetAfter)
+    petStateResetTimer.unref?.()
+  }
+}
+
+function observeRuntimeEvent({ event, sessionId } = {}) {
+  const id = String(sessionId || '')
+  if (event === 'done' || event === 'error') {
+    if (id) activePetSessions.delete(id)
+    publishPetState(event === 'error' ? 'failed' : 'waving', { resetAfter: event === 'error' ? 2200 : 1400 })
+    return
+  }
+  const state = petStateForAgentEvent(event)
+  if (!state) return
+  if (id) activePetSessions.add(id)
+  publishPetState(state)
+}
+
+function persistPetPosition() {
+  if (!petWindow || petWindow.isDestroyed()) return
+  const [petX, petY] = petWindow.getPosition()
+  saveDesktopPreferences({ petX, petY })
+}
+
+function destroyDesktopPet() {
+  if (petStateResetTimer) clearTimeout(petStateResetTimer)
+  petStateResetTimer = null
+  petDragStart = null
+  if (!petWindow || petWindow.isDestroyed()) {
+    petWindow = null
+    return
+  }
+  petClosing = true
+  petWindow.destroy()
+  petWindow = null
+  petClosing = false
+}
+
+async function createDesktopPet({ notifyOnError = false } = {}) {
+  if (petWindow && !petWindow.isDestroyed()) {
+    petWindow.showInactive()
+    return petWindow
+  }
+  if (petWindowCreation) return petWindowCreation
+  petWindowCreation = (async () => {
+    try {
+      const preferences = loadDesktopPreferences()
+      if (!preferences.petEnabled) return null
+      const installedPet = resolveInstalledDesktopPet(preferences.petSlug)
+      const position = resolvePetPosition(
+        { x: preferences.petX, y: preferences.petY },
+        screen.getAllDisplays(),
+        screen.getPrimaryDisplay(),
+      )
+      const appRoot = app.getAppPath()
+      petWindow = new BrowserWindow({
+        ...position,
+        width: PET_WINDOW_WIDTH,
+        height: PET_WINDOW_HEIGHT,
+        show: false,
+        frame: false,
+        transparent: true,
+        resizable: false,
+        maximizable: false,
+        minimizable: false,
+        fullscreenable: false,
+        skipTaskbar: true,
+        alwaysOnTop: true,
+        hasShadow: false,
+        backgroundColor: '#00000000',
+        webPreferences: {
+          preload: join(appRoot, 'electron', 'pet-preload.cjs'),
+          contextIsolation: true,
+          nodeIntegration: false,
+          sandbox: true,
+        },
+      })
+      petWindow.setAlwaysOnTop(true, 'floating')
+      petWindow.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true })
+      petWindow.on('move', persistPetPosition)
+      petWindow.on('close', (event) => {
+        if (quitting || petClosing) return
+        event.preventDefault()
+        petWindow?.hide()
+      })
+      petWindow.on('closed', () => {
+        petWindow = null
+      })
+      petWindow.webContents.setWindowOpenHandler(() => ({ action: 'deny' }))
+      petWindow.webContents.on('will-navigate', (event) => event.preventDefault())
+      petWindow.webContents.once('did-finish-load', () => {
+        if (!petWindow || petWindow.isDestroyed()) return
+        const spriteDataUrl = `data:${installedPet.mime};base64,${installedPet.buffer.toString('base64')}`
+        petWindow.webContents.send('vesper:pet-config', {
+          spriteDataUrl,
+          sheetWidth: installedPet.width,
+          sheetHeight: installedPet.height,
+          petName: installedPet.name,
+          ...petStatePayload(),
+        })
+        petWindow.showInactive()
+      })
+      await petWindow.loadFile(join(appRoot, 'electron', 'pet-window.html'))
+      return petWindow
+    } catch (error) {
+      destroyDesktopPet()
+      updateLogger.error('Desktop pet failed to start.', error)
+      if (notifyOnError) {
+        await dialog.showMessageBox(mainWindow || undefined, {
+          type: 'error',
+          title: t('pet.errorTitle'),
+          message: t('pet.errorMessage'),
+          detail: error instanceof Error ? error.message : String(error),
+        })
+      }
+      return null
+    }
+  })()
+  try {
+    return await petWindowCreation
+  } finally {
+    petWindowCreation = null
+  }
+}
+
+async function setDesktopPetEnabled(enabled, { notifyOnError = true } = {}) {
+  saveDesktopPreferences({ petEnabled: enabled })
+  updateTrayMenu()
+  if (!enabled) {
+    destroyDesktopPet()
+    return false
+  }
+  const window = await createDesktopPet({ notifyOnError })
+  if (!window) {
+    if (notifyOnError) saveDesktopPreferences({ petEnabled: false })
+    updateTrayMenu()
+    return false
+  }
+  return true
+}
+
 function desktopPreferencesPath() {
   return join(app.getPath('userData'), 'desktop-preferences.json')
 }
@@ -329,9 +727,13 @@ function loadDesktopPreferences() {
     return {
       closeAction: normalizeCloseAction(data?.closeAction),
       language: isSupportedLanguage(data?.language) ? data.language : null,
+      petEnabled: data?.petEnabled === true,
+      petSlug: typeof data?.petSlug === 'string' ? data.petSlug : '',
+      petX: Number.isFinite(data?.petX) ? Math.round(data.petX) : null,
+      petY: Number.isFinite(data?.petY) ? Math.round(data.petY) : null,
     }
   } catch {
-    return { closeAction: CLOSE_ACTION_ASK, language: null }
+    return { closeAction: CLOSE_ACTION_ASK, language: null, petEnabled: false, petSlug: '', petX: null, petY: null }
   }
 }
 
@@ -344,6 +746,10 @@ function saveDesktopPreferences(patch = {}) {
     language: isSupportedLanguage(patch.language)
       ? patch.language
       : (isSupportedLanguage(current.language) ? current.language : null),
+    petEnabled: patch.petEnabled === undefined ? current.petEnabled : patch.petEnabled === true,
+    petSlug: typeof patch.petSlug === 'string' ? patch.petSlug : current.petSlug,
+    petX: Number.isFinite(patch.petX) ? Math.round(patch.petX) : current.petX,
+    petY: Number.isFinite(patch.petY) ? Math.round(patch.petY) : current.petY,
   }
   writeFileSync(desktopPreferencesPath(), `${JSON.stringify(next, null, 2)}\n`, 'utf8')
   return next
@@ -354,6 +760,7 @@ function applyDesktopLanguage(language, { persist = false } = {}) {
   const next = setDesktopLanguage(language)
   if (persist) saveDesktopPreferences({ language: next })
   updateTrayMenu()
+  sendPetState()
   return next
 }
 
@@ -369,11 +776,22 @@ function closeActionLabel(action) {
 }
 
 function buildTrayMenuTemplate() {
-  const { closeAction } = loadDesktopPreferences()
+  const { closeAction, petEnabled } = loadDesktopPreferences()
   return [
     {
       label: t('tray.showMainWindow'),
       click: () => { void showMainWindow() },
+    },
+    {
+      label: t('tray.desktopPet'),
+      type: 'checkbox',
+      checked: petEnabled,
+      click: (item) => { void setDesktopPetEnabled(item.checked) },
+    },
+    {
+      label: t('tray.desktopPetCredit'),
+      enabled: petEnabled,
+      click: () => { void openExternalUrl(PETDEX_PAGE_URL) },
     },
     { type: 'separator' },
     {
@@ -517,6 +935,7 @@ async function createWindow() {
       port: 0,
       host: '127.0.0.1',
       browserAutomationDriver: createElectronBrowserAutomationDriver(),
+      runtimeEventObserver: observeRuntimeEvent,
     })
   }
   mainWindow = new BrowserWindow({
@@ -561,7 +980,73 @@ async function createWindow() {
   await mainWindow.loadURL(vesperServer.url)
 }
 
+function isPetSender(event) {
+  return Boolean(petWindow && !petWindow.isDestroyed() && event.sender === petWindow.webContents)
+}
+
+function showDesktopPetContextMenu() {
+  if (!petWindow || petWindow.isDestroyed()) return
+  Menu.buildFromTemplate([
+    { label: t('tray.showMainWindow'), click: () => { void showMainWindow() } },
+    { label: t('tray.desktopPetCredit'), click: () => { void openExternalUrl(PETDEX_PAGE_URL) } },
+    { type: 'separator' },
+    { label: t('pet.hide'), click: () => { void setDesktopPetEnabled(false) } },
+    { label: t('tray.quit'), click: () => app.quit() },
+  ]).popup({ window: petWindow })
+}
+
 function registerIpc() {
+  ipcMain.on('vesper:pet-drag', (event, input = {}) => {
+    if (!isPetSender(event)) return
+    const screenX = Number(input.screenX)
+    const screenY = Number(input.screenY)
+    if (!Number.isFinite(screenX) || !Number.isFinite(screenY)) return
+    if (input.phase === 'start') {
+      const [x, y] = petWindow.getPosition()
+      petDragStart = { screenX, screenY, x, y }
+      return
+    }
+    if (input.phase === 'move' && petDragStart) {
+      petWindow.setPosition(
+        Math.round(petDragStart.x + screenX - petDragStart.screenX),
+        Math.round(petDragStart.y + screenY - petDragStart.screenY),
+        false,
+      )
+      return
+    }
+    if (input.phase === 'end') {
+      petDragStart = null
+      persistPetPosition()
+    }
+  })
+  ipcMain.on('vesper:pet-interact', (event) => {
+    if (!isPetSender(event)) return
+    publishPetState('jumping', { resetAfter: 1000 })
+  })
+  ipcMain.on('vesper:pet-context-menu', (event) => {
+    if (isPetSender(event)) showDesktopPetContextMenu()
+  })
+  ipcMain.on('vesper:pet-show-main-window', (event) => {
+    if (isPetSender(event)) void showMainWindow()
+  })
+
+  ipcMain.handle('vesper:get-pet-status', () => desktopPetStatus())
+  ipcMain.handle('vesper:set-pet-enabled', async (_event, enabled) => {
+    await setDesktopPetEnabled(enabled === true)
+    return desktopPetStatus()
+  })
+  ipcMain.handle('vesper:search-pets', async (_event, query) => {
+    const needle = String(query || '').trim().toLowerCase()
+    const manifest = await petdexManifest()
+    return manifest
+      .filter((pet) => !needle || pet.slug.includes(needle) || pet.displayName.toLowerCase().includes(needle))
+      .slice(0, 40)
+      .map(({ slug, displayName }) => ({ slug, displayName }))
+  })
+  ipcMain.handle('vesper:install-pet', (_event, slug) => installManagedDesktopPet(slug))
+  ipcMain.handle('vesper:select-pet', (_event, slug) => selectDesktopPet(slug))
+  ipcMain.handle('vesper:open-petdex', async () => openExternalUrl(PETDEX_PAGE_URL))
+
   ipcMain.handle('vesper:get-app-info', () => ({
     desktop: true,
     packaged: app.isPackaged,
@@ -650,6 +1135,7 @@ else {
     nativeTheme.on('updated', updateTitleBarOverlay)
     createTray()
     await createWindow()
+    if (loadDesktopPreferences().petEnabled) await setDesktopPetEnabled(true, { notifyOnError: false })
     setTimeout(() => { void checkForUpdates({ silent: true }) }, 3_000)
     app.on('activate', () => { void showMainWindow() })
   }).catch((error) => {

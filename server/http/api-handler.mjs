@@ -5,7 +5,7 @@ function publicError(error) {
   return redactSecretText(error instanceof Error ? error.message : String(error))
 }
 
-export function createApiHandler(runtime, { updates } = {}) {
+export function createApiHandler(runtime, { updates, desktopPet } = {}) {
   return async function handleApi(req, res, url) {
     if (!url.pathname.startsWith('/api/')) return false
     try {
@@ -20,6 +20,50 @@ export function createApiHandler(runtime, { updates } = {}) {
       }
       if (req.method === 'GET' && url.pathname === '/api/config') {
         json(res, 200, await runtime.getConfig())
+        return true
+      }
+      if (req.method === 'GET' && url.pathname === '/api/desktop-pet') {
+        if (!desktopPet) throw new Error('桌面宠物服务尚未初始化。')
+        json(res, 200, desktopPet.status())
+        return true
+      }
+      if (req.method === 'GET' && url.pathname === '/api/desktop-pet/catalog') {
+        if (!desktopPet) throw new Error('桌面宠物服务尚未初始化。')
+        json(res, 200, await desktopPet.search(url.searchParams.get('query') || ''))
+        return true
+      }
+      if (req.method === 'POST' && url.pathname === '/api/desktop-pet/enabled') {
+        if (!desktopPet) throw new Error('桌面宠物服务尚未初始化。')
+        const body = await bodyJson(req)
+        json(res, 200, desktopPet.setEnabled(Boolean(body?.enabled)))
+        return true
+      }
+      if (req.method === 'POST' && url.pathname === '/api/desktop-pet/install') {
+        if (!desktopPet) throw new Error('桌面宠物服务尚未初始化。')
+        const body = await bodyJson(req)
+        json(res, 200, await desktopPet.install(body?.slug))
+        return true
+      }
+      if (req.method === 'POST' && url.pathname === '/api/desktop-pet/select') {
+        if (!desktopPet) throw new Error('桌面宠物服务尚未初始化。')
+        const body = await bodyJson(req)
+        json(res, 200, desktopPet.select(body?.slug))
+        return true
+      }
+      if (req.method === 'GET' && url.pathname === '/api/desktop-pet/sprite') {
+        if (!desktopPet) throw new Error('桌面宠物服务尚未初始化。')
+        const sprite = desktopPet.sprite(url.searchParams.get('slug') || '')
+        if (!sprite) {
+          json(res, 404, { error: '宠物资源不存在。' })
+          return true
+        }
+        res.writeHead(200, {
+          'Content-Type': sprite.mime,
+          'Content-Length': sprite.buffer.length,
+          'Cache-Control': 'private, max-age=86400',
+          'X-Content-Type-Options': 'nosniff',
+        })
+        res.end(sprite.buffer)
         return true
       }
       if (req.method === 'GET' && url.pathname === '/api/sandbox/status') {

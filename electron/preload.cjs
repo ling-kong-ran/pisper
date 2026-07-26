@@ -12,6 +12,12 @@ contextBridge.exposeInMainWorld('vesperDesktop', Object.freeze({
   getNotificationStatus: () => ipcRenderer.invoke('vesper:get-notification-status'),
   openNotificationSettings: () => ipcRenderer.invoke('vesper:open-notification-settings'),
   showNotification: (notification) => ipcRenderer.invoke('vesper:show-notification', notification),
+  getPetStatus: () => ipcRenderer.invoke('vesper:get-pet-status'),
+  setPetEnabled: (enabled) => ipcRenderer.invoke('vesper:set-pet-enabled', enabled),
+  searchPets: (query) => ipcRenderer.invoke('vesper:search-pets', query),
+  installPet: (slug) => ipcRenderer.invoke('vesper:install-pet', slug),
+  selectPet: (slug) => ipcRenderer.invoke('vesper:select-pet', slug),
+  openPetdex: () => ipcRenderer.invoke('vesper:open-petdex'),
   onUpdateStatus(callback) {
     if (typeof callback !== 'function') return () => {}
     const listener = (_event, status) => callback(status)

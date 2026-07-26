@@ -478,8 +478,9 @@ function claimedByOtherVisualProvider(claims, providerId, baseUrl, modelId, kind
 }
 
 export class AgentRuntimeService {
-  constructor({ cwd, dataDir, providerDiscovery, providerModelDiscovery, browserAutomationDriver } = {}) {
+  constructor({ cwd, dataDir, providerDiscovery, providerModelDiscovery, browserAutomationDriver, eventObserver } = {}) {
     this.cwd = cwd
+    this.eventObserver = typeof eventObserver === 'function' ? eventObserver : null
     this.dataDir = dataDir
     this.providerDiscovery = providerDiscovery || new ProviderDiscoveryService({ cwd })
     this.providerModelDiscovery = providerModelDiscovery || new ProviderModelDiscoveryService()
@@ -1717,7 +1718,15 @@ export class AgentRuntimeService {
   }
 
   async streamPrompt({ sessionId, message, attachments = [], goalMode = false, isolatedContext = false, send }) {
-    const emit = (event, data) => send(event, redactSecretValue(data))
+    const emit = (event, data) => {
+      const redacted = redactSecretValue(data)
+      send(event, redacted)
+      try {
+        this.eventObserver?.({ event, data: redacted, sessionId: redacted?.sessionId || sessionId || '' })
+      } catch {
+        // Desktop observers are best-effort and must never interrupt an Agent stream.
+      }
+    }
     const value = await this.getOrCreateSession(sessionId)
     if (isolatedContext) {
       value.isolatedContext = true

@@ -822,8 +822,8 @@ h1, h2, h3, strong { overflow-wrap: anywhere; }
 .markdown-body ul,.markdown-body ol { margin: .5em 0; padding-left: 1.7em; }
 .markdown-body li + li { margin-top: .22em; }
 .markdown-body blockquote { margin: .6em 0; border-left: 3px solid var(--accent-border); padding: .25em 0 .25em .8em; color: var(--text-tertiary); }
-.markdown-body a { color: var(--text); text-decoration: underline; text-decoration-color: var(--control-muted); text-underline-offset: 2px; }
-.markdown-body a:hover { text-decoration-color: var(--text); }
+.markdown-body .markdown-link { color: var(--text); -webkit-text-fill-color: currentColor; text-decoration: underline; text-decoration-color: var(--control-muted); text-decoration-thickness: 1px; text-underline-offset: 2px; }
+.markdown-body .markdown-link:hover { text-decoration-color: currentColor; }
 .markdown-body code { border-radius: var(--r-xs); background: var(--code-inline-bg); padding: .12em .35em; font-family: ui-monospace, SFMono-Regular, Consolas, 'Liberation Mono', monospace; font-size: .92em; }
 .markdown-body pre { max-width: 100%; overflow: auto; margin: .65em 0; border: 1px solid var(--code-border); border-radius: var(--r-sm); background: var(--ink-strong); padding: 10px; color: var(--code-text); }
 .markdown-body pre code { background: transparent; padding: 0; color: inherit; line-height: 1.55; }
@@ -1077,6 +1077,101 @@ h1, h2, h3, strong { overflow-wrap: anywhere; }
 [data-theme='dark'] .main-surface { background-image: radial-gradient(rgba(255, 255, 255, .05) 1px, transparent 1.3px), radial-gradient(rgba(255, 255, 255, .025) 1px, transparent 1.3px); background-size: 26px 26px, 41px 41px; background-position: 0 0, 13px 20px; }
 /* 墨色脉冲环（激活图谱节点 / 工作流节点） */
 @keyframes star-node-pulse { 0% { box-shadow: 0 0 0 0 var(--node-pulse-color), 0 6px 16px -10px var(--shadow); } 70%,100% { box-shadow: 0 0 0 10px transparent, 0 6px 16px -10px var(--shadow); } }
+.web-desktop-pet {
+  position: fixed;
+  z-index: 70;
+  width: 192px;
+  height: 288px;
+  cursor: grab;
+  touch-action: none;
+  user-select: none;
+  filter: drop-shadow(0 12px 14px rgb(15 23 42 / 0.16));
+}
+
+.web-desktop-pet.dragging {
+  cursor: grabbing;
+}
+
+.web-desktop-pet-bubble {
+  position: absolute;
+  z-index: 2;
+  left: 50%;
+  bottom: 210px;
+  max-width: 180px;
+  padding: 6px 10px;
+  transform: translateX(-50%) translateY(4px);
+  border: 1px solid color-mix(in srgb, var(--stroke) 75%, transparent);
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--surface) 94%, transparent);
+  box-shadow: 0 8px 24px rgb(15 23 42 / 0.2);
+  color: var(--text);
+  font-size: 11px;
+  line-height: 1.4;
+  opacity: 0;
+  pointer-events: none;
+  text-align: center;
+  transition:
+    opacity 0.18s ease,
+    transform 0.18s ease;
+  white-space: nowrap;
+}
+
+.web-desktop-pet-bubble.visible {
+  opacity: 1;
+  transform: translateX(-50%) translateY(0);
+}
+
+.web-desktop-pet-frame {
+  position: absolute;
+  left: 0;
+  bottom: 0;
+  width: 192px;
+  height: 208px;
+  contain: layout paint;
+  overflow: hidden;
+}
+
+.web-desktop-pet-sprite {
+  --pet-sprite-y: calc(var(--pet-row) * -208px);
+  --pet-sprite-end-x: calc(var(--pet-frames) * -192px);
+  width: 192px;
+  height: 208px;
+  background-image: var(--pet-sprite-url);
+  background-repeat: no-repeat;
+  background-size: var(--pet-sheet-width, 1536px) var(--pet-sheet-height, 1872px);
+  image-rendering: pixelated;
+  transform: translateZ(0);
+  transform-origin: top left;
+  will-change: background-position;
+  animation: web-pet-state var(--pet-duration) steps(var(--pet-frames)) infinite;
+}
+
+@keyframes web-pet-state {
+  from {
+    background-position: 0 var(--pet-sprite-y);
+  }
+  to {
+    background-position: var(--pet-sprite-end-x) var(--pet-sprite-y);
+  }
+}
+
+@media (max-width: 640px) {
+  .web-desktop-pet {
+    transform: scale(0.75);
+    transform-origin: bottom right;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .web-desktop-pet-sprite {
+    animation: none;
+  }
+
+  .web-desktop-pet-bubble {
+    transition: none;
+  }
+}
+
 @keyframes toast-in { from { opacity: 0; transform: translateY(8px); } }
 @keyframes pulse-dot { 50% { opacity: .35; transform: translateY(-1px); } }
 .spin { animation: spin .8s linear infinite; }

@@ -25,6 +25,7 @@ import { Badge, Panel, SectionTitle, Toggle } from '@/components/ui'
 import { AppSelect } from '@/components/AppSelect'
 import { usePagePrimaryAction } from '@/hooks/usePagePrimaryAction'
 import { apiJson } from '@/lib/api'
+import { DesktopPetSettings } from './DesktopPetSettings'
 import { NotificationSettings } from './NotificationSettings'
 import { UpdateSettings } from './UpdateSettings'
 import { LanguageSettings } from './LanguageSettings'
@@ -434,6 +435,12 @@ export function ConfigPage({
         {t('config:configPage.interface')}
       </button>
       <button
+        className={section === 'desktop-pet' ? 'active' : ''}
+        onClick={() => setSection('desktop-pet')}
+      >
+        {t('config:configPage.desktopPet')}
+      </button>
+      <button
         className={section === 'updates' ? 'active' : ''}
         onClick={() => setSection('updates')}
       >
@@ -446,6 +453,13 @@ export function ConfigPage({
       <>
         {subnav}
         <LanguageSettings notify={notify} />
+      </>
+    )
+  if (section === 'desktop-pet')
+    return (
+      <>
+        {subnav}
+        <DesktopPetSettings notify={notify} />
       </>
     )
   if (section === 'updates')

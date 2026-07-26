@@ -6,6 +6,7 @@ import { createApiHandler } from './http/api-handler.mjs'
 import { createStaticHandler } from './http/static-handler.mjs'
 import { AgentRuntimeService } from './runtime/agent-runtime.mjs'
 import { resolveGitCommit, UpdateCheckService } from './services/update-check-service.mjs'
+import { WebDesktopPetService } from './services/web-desktop-pet-service.mjs'
 
 export async function createVesperServer({
   root,
@@ -15,13 +16,31 @@ export async function createVesperServer({
   port = 5173,
   host = '127.0.0.1',
   browserAutomationDriver = null,
+  runtimeEventObserver = null,
 } = {}) {
   const appRoot = resolve(root || process.cwd())
   const cwd = resolve(runtimeCwd || appRoot)
   const agentDir = resolve(dataDir)
   process.env.PI_CODING_AGENT_DIR = agentDir
 
-  const runtime = new AgentRuntimeService({ cwd, dataDir: agentDir, browserAutomationDriver })
+  const desktopPet = new WebDesktopPetService({ dataDir: agentDir })
+  const runtime = new AgentRuntimeService({
+    cwd,
+    dataDir: agentDir,
+    browserAutomationDriver,
+    eventObserver: (payload) => {
+      try {
+        desktopPet.observeRuntimeEvent(payload)
+      } catch {
+        // Browser pet updates are best-effort and must not interrupt Agent streams.
+      }
+      try {
+        runtimeEventObserver?.(payload)
+      } catch {
+        // External desktop observers remain best-effort.
+      }
+    },
+  })
   await runtime.init()
   const packageJson = JSON.parse(await readFile(join(appRoot, 'package.json'), 'utf8'))
   const currentCommit = await resolveGitCommit(appRoot)
@@ -36,7 +55,7 @@ export async function createVesperServer({
       appType: 'spa',
     })
   }
-  const handleApi = createApiHandler(runtime, { updates })
+  const handleApi = createApiHandler(runtime, { updates, desktopPet })
   const serveProduction = createStaticHandler(appRoot)
   const server = createServer(async (req, res) => {
     const address = server.address()
@@ -67,6 +86,7 @@ export async function createVesperServer({
     async close() {
       if (closing) return closing
       closing = (async () => {
+        desktopPet.dispose()
         await runtime.dispose()
         await vite?.close()
         await new Promise((resolveClose) => server.close(() => resolveClose()))

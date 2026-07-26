@@ -10,9 +10,15 @@ import { prepareMarkdown } from '@/lib/markdown'
 const MARKDOWN_PLUGINS: Pluggable[] = [remarkGfm]
 const HIGHLIGHT_PLUGINS: Pluggable[] = [[rehypeHighlight, { detect: false, ignoreMissing: true }]]
 const MARKDOWN_COMPONENTS: Components = {
-  a: ({ children: label, node: _node, ...props }) => (
-    <a {...props} target="_blank" rel="noreferrer">
-      {label}
+  a: ({ children: label, node: _node, className, href, ...props }) => (
+    <a
+      {...props}
+      className={['markdown-link', className].filter(Boolean).join(' ')}
+      href={href}
+      target="_blank"
+      rel="noreferrer"
+    >
+      {textContent(label).trim() ? label : href}
     </a>
   ),
   pre: ({ children: codeChildren }) => <CodeBlock>{codeChildren}</CodeBlock>,
