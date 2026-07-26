@@ -77,7 +77,17 @@ const MAX_WINDOWS_CREDENTIAL_FILES = 512
 
 export function packagedSandboxExecutablePath(filePath) {
   const value = String(filePath || '')
-  return value.includes('app.asar') ? value.replace('app.asar', 'app.asar.unpacked') : value
+  // Native binaries ship unpacked under app.asar.unpacked. Only remap a path
+  // that still points *inside* the packed app.asar archive; a path that is
+  // already unpacked (or not in an asar at all) must be returned unchanged.
+  // 'app.asar' is a substring of 'app.asar.unpacked', so a naive replace would
+  // turn an already-unpacked path into 'app.asar.unpacked.unpacked' and the
+  // srt-win binary could no longer be found — which breaks sandbox init (and
+  // workspace switching, since SRT re-initializes on path change). This also
+  // makes the function idempotent, so applying it twice is harmless.
+  if (value.includes('app.asar.unpacked')) return value
+  if (value.includes('app.asar')) return value.replace('app.asar', 'app.asar.unpacked')
+  return value
 }
 
 export function canonicalSandboxPath(value) {

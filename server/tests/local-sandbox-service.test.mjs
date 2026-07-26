@@ -9,6 +9,7 @@ import {
   buildCommandSandboxOverrides,
   buildSandboxConfig,
   canonicalSandboxPath,
+  packagedSandboxExecutablePath,
   sandboxChildEnvironment,
   windowsSensitiveGuardPaths,
 } from '../security/local-sandbox-policy.mjs'
@@ -30,6 +31,26 @@ test('sandbox config accepts workspace sets and protects credentials', () => {
   assert.ok(config.credentials.envVars.some((entry) => entry.name === 'OPENAI_API_KEY' && entry.mode === 'deny'))
   assert.equal(DEFAULT_SANDBOX_DOMAINS.includes('localhost'), false)
   assert.equal(config.network.strictAllowlist, true)
+})
+
+test('packagedSandboxExecutablePath remaps packed app.asar paths but never double-unpacks', () => {
+  const win = (segments) => segments.join('\\')
+  const packed = win(['C:', 'app', 'resources', 'app.asar', 'node_modules', '@anthropic-ai', 'sandbox-runtime', 'vendor', 'srt-win', 'x64', 'srt-win.exe'])
+  const unpacked = win(['C:', 'app', 'resources', 'app.asar.unpacked', 'node_modules', '@anthropic-ai', 'sandbox-runtime', 'vendor', 'srt-win', 'x64', 'srt-win.exe'])
+  const dev = win(['E:', 'code', 'pi-coder', 'node_modules', '@anthropic-ai', 'sandbox-runtime', 'vendor', 'srt-win', 'x64', 'srt-win.exe'])
+
+  // Packed archive path is remapped to its unpacked counterpart.
+  assert.equal(packagedSandboxExecutablePath(packed), unpacked)
+  // An already-unpacked path must be returned verbatim - the old
+  // implementation produced 'app.asar.unpacked.unpacked' here.
+  assert.equal(packagedSandboxExecutablePath(unpacked), unpacked)
+  // Paths outside any asar are untouched.
+  assert.equal(packagedSandboxExecutablePath(dev), dev)
+  // The function is idempotent even when applied repeatedly.
+  assert.equal(packagedSandboxExecutablePath(packagedSandboxExecutablePath(unpacked)), unpacked)
+  // Empty / missing input is safe.
+  assert.equal(packagedSandboxExecutablePath(''), '')
+  assert.equal(packagedSandboxExecutablePath(undefined), '')
 })
 
 test('POSIX commands deny writes to other registered workspaces without Windows ACL stamps', () => {
