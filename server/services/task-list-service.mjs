@@ -49,6 +49,45 @@ function normalizedDependsOn(value) {
   return ids
 }
 
+function validateDependencyGraph(items) {
+  const byId = new Map(items.map((item) => [item.id, item]))
+  for (const item of items) {
+    for (const dependencyId of item.dependsOn) {
+      if (dependencyId === item.id) throw new Error(`Task cannot depend on itself: ${item.id}`)
+      if (!byId.has(dependencyId)) throw new Error(`Unknown dependency task id: ${dependencyId}`)
+    }
+  }
+
+  const visitState = new Map()
+  const stack = []
+  const visit = (id) => {
+    if (visitState.get(id) === 2) return
+    if (visitState.get(id) === 1) {
+      const start = stack.indexOf(id)
+      const cycle = [...stack.slice(Math.max(0, start)), id]
+      throw new Error(`Task dependency cycle: ${cycle.join(' -> ')}`)
+    }
+    visitState.set(id, 1)
+    stack.push(id)
+    for (const dependencyId of byId.get(id)?.dependsOn || []) visit(dependencyId)
+    stack.pop()
+    visitState.set(id, 2)
+  }
+  for (const item of items) visit(item.id)
+}
+
+function taskCounts(items) {
+  const byId = new Map(items.map((item) => [item.id, item]))
+  const dependencyBlocked = (item) => item.status !== 'completed'
+    && item.dependsOn.some((dependencyId) => byId.get(dependencyId)?.status !== 'completed')
+  const completed = items.filter((item) => item.status === 'completed').length
+  const blocked = items.filter((item) => item.status !== 'completed'
+    && (item.status === 'blocked' || dependencyBlocked(item))).length
+  const inProgress = items.filter((item) => item.status === 'in_progress' && !dependencyBlocked(item)).length
+  const pending = items.filter((item) => item.status === 'pending' && !dependencyBlocked(item)).length
+  return { pending, inProgress, completed, blocked, total: items.length }
+}
+
 function normalizeItem(value, previous, now) {
   const title = String(value?.title || '').trim()
   if (!title) throw new Error('Task title cannot be empty.')
@@ -83,13 +122,7 @@ function publicList(sessionId, value) {
   return {
     sessionId: String(sessionId || ''),
     items,
-    counts: {
-      pending: items.filter((item) => item.status === 'pending').length,
-      inProgress: items.filter((item) => item.status === 'in_progress').length,
-      completed: items.filter((item) => item.status === 'completed').length,
-      blocked: items.filter((item) => item.status === 'blocked').length,
-      total: items.length,
-    },
+    counts: taskCounts(items),
     updatedAt: value.updatedAt || null,
   }
 }
@@ -155,6 +188,7 @@ export class TaskListService {
       seen.add(normalized.id)
       return normalized
     })
+    validateDependencyGraph(items)
     if (items.length) this.state.lists[id] = { items, updatedAt: now }
     else delete this.state.lists[id]
     await this.save()

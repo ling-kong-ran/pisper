@@ -153,6 +153,25 @@ test('subagents inherit parent-safe tools without hard-coded roles', async () =>
   assert.doesNotMatch(seen.options.resourceLoader.options.appendSystemPrompt, /Role:/)
 })
 
+test('subagents can read but cannot modify the shared task list', async () => {
+  const session = createFakeSession({
+    onPrompt: async ({ session: active }) => active.messages.push({ role: 'assistant', content: [{ type: 'text', text: 'Read the shared plan.' }] }),
+  })
+  const getTaskList = { name: 'get_task_list' }
+  const updateTaskList = { name: 'update_task_list' }
+  const { service, seen } = createService(session)
+
+  await service.spawn(baseInput({
+    allowedTools: ['read', 'get_task_list', 'update_task_list'],
+    customTools: [getTaskList, updateTaskList],
+  }))
+  await waitFor(() => service.list('parent-1')[0]?.status === 'completed', 'shared task list read')
+
+  assert.deepEqual(seen.options.tools, ['read', 'get_task_list'])
+  assert.deepEqual(seen.options.customTools, [getTaskList])
+  assert.ok(seen.options.excludeTools.includes('update_task_list'))
+})
+
 test('send_message steers a running Agent and followup_task reuses its context', async () => {
   const firstRun = deferred()
   const session = createFakeSession({

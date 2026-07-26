@@ -67,6 +67,9 @@ test('live activity replaces plan and Agent status without retaining terminal Ag
   runtime.liveSessions.set('session-activity', {
     streaming: true,
     agents: [],
+    taskList: {
+      items: [{ id: 'one', title: 'Implement', status: 'in_progress', assignee: '', dependsOn: [] }],
+    },
     currentActivity: { type: 'model', stage: 'thinking' },
   })
   const running = { id: 'agent-running', canonicalName: '/root/running_1', status: 'running', lastActivityAt: '2026-07-20T10:00:01.000Z' }
@@ -81,13 +84,14 @@ test('live activity replaces plan and Agent status without retaining terminal Ag
   assert.deepEqual(update.data.agents, [running])
 
   const taskList = {
-    items: [{ id: 'one', title: 'Implement', status: 'in_progress' }],
+    items: [{ id: 'one', title: 'Implement', status: 'in_progress', assignee: '/root/builder_1', dependsOn: ['research'] }],
     counts: { completed: 0, inProgress: 1 },
     updatedAt: '2026-07-20T10:00:03.000Z',
   }
   runtime.emitTaskListUpdate('session-activity', taskList, (event, data) => { update = { event, data } })
   assert.equal(runtime.liveSessions.get('session-activity').currentActivity.type, 'plan')
   assert.equal(runtime.liveSessions.get('session-activity').activityFeed.at(-1).changes[0].title, 'Implement')
+  assert.equal(runtime.liveSessions.get('session-activity').activityFeed.at(-1).changes[0].kind, 'updated')
   assert.equal(update.event, 'task_list_update')
   assert.equal(update.data.currentActivity.taskList, taskList)
 })
@@ -173,7 +177,7 @@ test('stream completion publishes an authoritative terminal snapshot', async (t)
         result: { content: [{ type: 'text', text: '\u001b[32mfirst line\u001b[0m\nsecond line\ncomplete' }] },
         isError: false,
       })
-      const assistant = { role: 'assistant', content: [{ type: 'text', text: 'Final answer' }], timestamp: 2 }
+      const assistant = { role: 'assistant', content: [{ type: 'text', text: 'Final answer' }], stopReason: 'stop', timestamp: 2 }
       session.messages.push(assistant)
       for (const listener of listeners) listener({ type: 'message_update', assistantMessageEvent: { type: 'text_start', contentIndex: 0 } })
       for (const listener of listeners) listener({ type: 'message_update', assistantMessageEvent: { type: 'text_delta', contentIndex: 0, delta: 'Final answer' } })
@@ -207,6 +211,9 @@ test('stream completion publishes an authoritative terminal snapshot', async (t)
   assert.equal(thinkingAtBlockEnd, 'Inspecting the remaining tests before reading files.')
   assert.equal(thinkingText, thinkingAtBlockEnd)
   assert.equal(textAtBlockEnd, 'Final answer')
+  const textEndEvents = events.filter((item) => item.event === 'text_end')
+  assert.ok(textEndEvents.some((item) => item.data.text === 'Final answer'))
+  assert.ok(textEndEvents.some((item) => item.data.final === true))
   const toolUpdate = events.find((item) => item.event === 'tool_update')?.data
   const toolEnd = events.find((item) => item.event === 'tool_end')?.data
   assert.equal(toolUpdate.output, '\u001b[32mfirst line\u001b[0m\nsecond line')
@@ -408,7 +415,7 @@ test('terminal Agent results do not start a turn when the loaded parent is idle'
   assert.equal(mailbox.length, 0)
 })
 
-test('unread background Agent results are injected once into the next parent run', async (t) => {
+test('unread background Agent results use custom context without rewriting the next user prompt', async (t) => {
   const directory = await mkdtemp(join(tmpdir(), 'vesper-agent-mailbox-'))
   t.after(() => rm(directory, { recursive: true, force: true }))
   const runtime = new AgentRuntimeService({ cwd: directory, dataDir: directory })
@@ -417,6 +424,7 @@ test('unread background Agent results are injected once into the next parent run
   runtime.memory = { relevantContext: async () => ({ text: '' }) }
   const mailbox = [{
     id: 'agent-1',
+    mailboxId: 'agent-1:1',
     canonicalName: '/root/review_1',
     parentSessionId: 'session-mailbox',
     status: 'completed',
@@ -435,6 +443,7 @@ test('unread background Agent results are injected once into the next parent run
 
   const listeners = new Set()
   let observedPrompt = ''
+  let customDelivery = null
   const session = {
     sessionId: 'session-mailbox',
     isStreaming: false,
@@ -448,12 +457,15 @@ test('unread background Agent results are injected once into the next parent run
       listeners.add(listener)
       return () => listeners.delete(listener)
     },
-    async prompt(prompt, options) {
+    async prompt(prompt) {
       session.isStreaming = true
       observedPrompt = prompt
-      options?.preflightResult?.(true)
       session.messages.push({ role: 'assistant', content: [{ type: 'text', text: 'Used the background result.' }], timestamp: 2 })
       session.isStreaming = false
+    },
+    async sendCustomMessage(message, options) {
+      customDelivery = { message, options }
+      session.messages.push({ role: 'custom', ...message, timestamp: 2 })
     },
   }
   const value = { session, cwd: directory, name: 'Mailbox', baseToolNames: [] }
@@ -466,12 +478,15 @@ test('unread background Agent results are injected once into the next parent run
     send: () => {},
   })
 
-  assert.match(observedPrompt, /vesper_agent_mailbox/)
-  assert.match(observedPrompt, /Found a race in startup handling/)
+  assert.equal(observedPrompt, 'Continue.')
+  assert.match(customDelivery.message.content, /vesper_agent_mailbox_results/)
+  assert.match(customDelivery.message.content, /Found a race in startup handling/)
+  assert.equal(customDelivery.message.display, false)
+  assert.equal(customDelivery.options.triggerTurn, false)
   assert.match(session.agent.state.systemPrompt, /^Base prompt/)
   assert.doesNotMatch(session.agent.state.systemPrompt, /vesper_agent_mailbox/)
   assert.equal(acknowledged.sessionId, session.sessionId)
-  assert.equal(acknowledged.agents[0].id, 'agent-1')
+  assert.equal(acknowledged.agents[0].mailboxId, 'agent-1:1')
 })
 
 test('Agent mailbox versions arriving during a parent turn remain queued for the next turn', async (t) => {
@@ -494,14 +509,20 @@ test('Agent mailbox versions arriving during a parent turn remain queued for the
   }
   runtime.multiAgents = {
     summaries: () => [{ ...record }],
-    peekMailbox: () => record.resultVersion > record.deliveredVersion ? [{ ...record }] : [],
+    peekMailbox: () => record.resultVersion > record.deliveredVersion
+      ? [{ ...record, mailboxId: `${record.id}:${record.resultVersion}` }]
+      : [],
     acknowledge: async (_sessionId, agents) => {
-      for (const agent of agents) record.deliveredVersion = Math.max(record.deliveredVersion, agent.resultVersion)
+      for (const agent of agents) {
+        const resultVersion = Number(agent.resultVersion || String(agent.mailboxId || '').split(':').at(-1))
+        record.deliveredVersion = Math.max(record.deliveredVersion, resultVersion)
+      }
     },
   }
 
   const listeners = new Set()
   const observedPrompts = []
+  const customDeliveries = []
   let promptCount = 0
   const session = {
     sessionId: 'session-mailbox-race',
@@ -516,11 +537,10 @@ test('Agent mailbox versions arriving during a parent turn remain queued for the
       listeners.add(listener)
       return () => listeners.delete(listener)
     },
-    async prompt(prompt, options) {
+    async prompt(prompt) {
       promptCount += 1
       observedPrompts.push(prompt)
       session.isStreaming = true
-      options?.preflightResult?.(true)
       if (promptCount === 1) {
         record.output = 'Second result that arrived during the parent turn.'
         record.resultVersion = 2
@@ -528,18 +548,24 @@ test('Agent mailbox versions arriving during a parent turn remain queued for the
       session.messages.push({ role: 'assistant', content: [{ type: 'text', text: `Parent answer ${promptCount}` }], timestamp: promptCount + 1 })
       session.isStreaming = false
     },
+    async sendCustomMessage(message) {
+      customDeliveries.push(message)
+      session.messages.push({ role: 'custom', ...message, timestamp: customDeliveries.length + 1 })
+    },
   }
   const value = { session, cwd: directory, name: 'Mailbox race', baseToolNames: [] }
   runtime.sessions.set(session.sessionId, value)
   runtime.getOrCreateSession = async () => value
 
   await runtime.streamPrompt({ sessionId: session.sessionId, message: 'First parent turn.', send: () => {} })
-  assert.match(observedPrompts[0], /First result/)
+  assert.equal(observedPrompts[0], 'First parent turn.')
+  assert.match(customDeliveries[0].content, /First result/)
   assert.equal(record.deliveredVersion, 1)
   assert.equal(record.resultVersion, 2)
 
   await runtime.streamPrompt({ sessionId: session.sessionId, message: 'Second parent turn.', send: () => {} })
-  assert.match(observedPrompts[1], /Second result that arrived during the parent turn/)
+  assert.equal(observedPrompts[1], 'Second parent turn.')
+  assert.match(customDeliveries[1].content, /Second result that arrived during the parent turn/)
   assert.equal(record.deliveredVersion, 2)
 })
 

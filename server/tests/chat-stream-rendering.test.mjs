@@ -65,6 +65,31 @@ test('live snapshots cannot overwrite a locally owned SSE assistant message', as
   assert.match(source, /liveSyncInFlightRef\.current\.has\(id\)/)
 })
 
+test('every settled SSE run reconciles its optimistic message with the durable transcript', async () => {
+  const source = await readFile('src/features/chat/ChatPage.tsx', 'utf8')
+  const settledRun = source.slice(
+    source.indexOf('// Always replace the optimistic SSE bubble'),
+    source.indexOf('let completed', source.indexOf('// Always replace the optimistic SSE bubble')),
+  )
+  assert.match(settledRun, /await loadSessionMessages\(sessionId, \{ force: true \}\)/)
+  assert.ok(
+    settledRun.indexOf('await loadSessionMessages') < settledRun.indexOf('if ('),
+    'durable transcript reconciliation must not depend on Goal or queued-input state',
+  )
+})
+
+test('assistant text block completion flushes the typewriter and switches to final markdown', async () => {
+  const source = await readFile('src/features/chat/ChatPage.tsx', 'utf8')
+  const textEndHandler = source.slice(
+    source.indexOf("event === 'text_end'"),
+    source.indexOf("event === 'thinking_reset'"),
+  )
+  assert.match(textEndHandler, /responseRenderingStreaming = false/)
+  assert.match(textEndHandler, /typewriter\.setTarget\(responseText, data\.updatedAt \|\| eventAt\)/)
+  assert.match(textEndHandler, /typewriter\.flush\(\)/)
+  assert.match(source, /streaming: responseRenderingStreaming/)
+})
+
 test('ephemeral reasoning remains rendered after a textless response completes', async () => {
   const [page, focus, activity] = await Promise.all([
     readFile('src/features/chat/ChatPage.tsx', 'utf8'),
@@ -82,6 +107,19 @@ test('ephemeral reasoning remains rendered after a textless response completes',
   )
   assert.match(activity, /if \(!streaming && !thinking && !activities\.length\) return null/)
   assert.match(activity, /reasoningCompleted/)
+})
+
+test('shared task board uses live/session fallback and consistent effective blockers', async () => {
+  const [dock, board] = await Promise.all([
+    readFile('src/features/chat/ChatDock.tsx', 'utf8'),
+    readFile('src/features/chat/TaskBoard.tsx', 'utf8'),
+  ])
+  assert.match(dock, /resolveSessionTaskList\(sessionState, session\)/)
+  assert.match(dock, /isTaskListActive\(taskList, \{ streaming: state\.streaming \}\)/)
+  assert.match(dock, /taskList=\{visibleTaskList\}/)
+  assert.match(board, /item\.status === 'blocked' \|\| blockedBy\.length > 0/)
+  assert.match(board, /view\.status === 'in_progress' && !view\.blocked/)
+  assert.doesNotMatch(board, /unblocks:/)
 })
 
 test('bash tool output stays multiline while terminal rendering remains bounded', async () => {

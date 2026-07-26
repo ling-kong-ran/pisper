@@ -26,7 +26,6 @@ const PARENT_ONLY_TOOL_NAMES = new Set([
   ...MULTI_AGENT_TOOL_NAMES,
   'get_goal',
   'update_goal',
-  'get_task_list',
   'update_task_list',
   'browser_automation',
   'mcp_list',

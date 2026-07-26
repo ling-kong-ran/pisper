@@ -36,7 +36,14 @@ test('task list tools return structured details and can clear the list', async (
     },
   })
 
-  const updated = await tools.find((tool) => tool.name === 'update_task_list').execute('call-1', {
+  const updateTool = tools.find((tool) => tool.name === 'update_task_list')
+  assert.deepEqual(updateTool.parameters.properties.items.items.properties.status.enum, [
+    'pending',
+    'in_progress',
+    'completed',
+    'blocked',
+  ])
+  const updated = await updateTool.execute('call-1', {
     items: [{ id: 'one', title: 'One task', status: 'pending' }],
   })
   const read = await tools.find((tool) => tool.name === 'get_task_list').execute('call-2', {})
@@ -68,13 +75,39 @@ test('task items persist assignee and dependsOn with defaults and validation', a
   await restored.init()
   assert.deepEqual(restored.get('session-1').items[1].dependsOn, ['research'])
 
-  // Duplicate dependency ids collapse, invalid ids are rejected.
+  // Duplicate dependency ids collapse and dependency-blocked work is counted consistently.
   const deduped = await service.replace('session-1', [
-    { id: 'a', title: 'A', status: 'pending', dependsOn: ['b', 'b', 'c'] },
+    { id: 'b', title: 'B', status: 'completed' },
+    { id: 'c', title: 'C', status: 'pending' },
+    { id: 'a', title: 'A', status: 'in_progress', dependsOn: ['b', 'b', 'c'] },
+    { id: 'manual-block', title: 'Manual blocker', status: 'blocked' },
   ])
-  assert.deepEqual(deduped.items[0].dependsOn, ['b', 'c'])
+  assert.deepEqual(deduped.items[2].dependsOn, ['b', 'c'])
+  assert.deepEqual(deduped.counts, {
+    pending: 1,
+    inProgress: 0,
+    completed: 1,
+    blocked: 2,
+    total: 4,
+  })
+
   await assert.rejects(
     () => service.replace('session-1', [{ id: 'x', title: 'X', status: 'pending', dependsOn: ['not a valid id!'] }]),
     /Invalid dependency task id/,
+  )
+  await assert.rejects(
+    () => service.replace('session-1', [{ id: 'x', title: 'X', status: 'pending', dependsOn: ['missing'] }]),
+    /Unknown dependency task id: missing/,
+  )
+  await assert.rejects(
+    () => service.replace('session-1', [{ id: 'x', title: 'X', status: 'pending', dependsOn: ['x'] }]),
+    /Task cannot depend on itself: x/,
+  )
+  await assert.rejects(
+    () => service.replace('session-1', [
+      { id: 'x', title: 'X', status: 'pending', dependsOn: ['y'] },
+      { id: 'y', title: 'Y', status: 'pending', dependsOn: ['x'] },
+    ]),
+    /Task dependency cycle: x -> y -> x/,
   )
 })

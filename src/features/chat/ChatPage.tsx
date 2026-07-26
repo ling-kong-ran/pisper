@@ -810,6 +810,7 @@ export function ChatPage({
     const agentId = `agent-${Date.now()}`
     const runStartedAt = new Date().toISOString()
     let responseText = ''
+    let responseRenderingStreaming = true
     let thinkingText = ''
     let queuedDuringRun = false
     const thinkingScheduler = createStreamingTextScheduler(
@@ -841,7 +842,7 @@ export function ChatPage({
           currentActivity: activity,
           activityFeed: pushCurrentActivity(current.activityFeed, activity),
           messages: current.messages.map((item) =>
-            item.id === agentId ? { ...item, text } : item,
+            item.id === agentId ? { ...item, text, streaming: responseRenderingStreaming } : item,
           ),
         }
       })
@@ -1029,11 +1030,18 @@ export function ChatPage({
               }
             })
           } else if (event === 'text_patch') {
+            responseRenderingStreaming = true
             responseText = applyTextPatch(responseText, data)
             typewriter.setTarget(responseText, eventAt)
           } else if (event === 'text_delta') {
+            responseRenderingStreaming = true
             responseText += data.delta || ''
             typewriter.setTarget(responseText, eventAt)
+          } else if (event === 'text_end') {
+            if (typeof data.text === 'string') responseText = data.text
+            responseRenderingStreaming = false
+            typewriter.setTarget(responseText, data.updatedAt || eventAt)
+            typewriter.flush()
           } else if (event === 'thinking_reset') {
             thinkingText = ''
             thinkingScheduler.cancel()
@@ -1246,6 +1254,7 @@ export function ChatPage({
             )
             const finishedAt = data.finishedAt || eventAt
             if (typeof data.text === 'string') responseText = data.text
+            responseRenderingStreaming = false
             typewriter.setTarget(responseText, finishedAt)
             typewriter.flush()
             thinkingScheduler.flush()
@@ -1296,6 +1305,7 @@ export function ChatPage({
             )
             const finishedAt = data.finishedAt || eventAt
             if (typeof data.text === 'string') responseText = data.text
+            responseRenderingStreaming = false
             typewriter.setTarget(responseText, finishedAt)
             typewriter.flush()
             thinkingScheduler.flush()
@@ -1356,8 +1366,10 @@ export function ChatPage({
           }
         })
       }
-      // Steering and follow-up inputs can create multiple user/assistant turns inside one SSE run.
-      // Reload the persisted transcript once the run settles so those turns render as separate bubbles.
+      // Always replace the optimistic SSE bubble with the durable transcript once the run settles.
+      // Besides splitting queued turns into separate bubbles, this is the authoritative fallback when
+      // a terminal SSE snapshot is delayed or lost after the assistant message was already persisted.
+      await loadSessionMessages(sessionId, { force: true })
       if (
         goalMode ||
         queuedDuringRun ||
@@ -1365,7 +1377,6 @@ export function ChatPage({
         sessionStatesRef.current[sessionId]?.goal ||
         sessionStatesRef.current[sessionId]?.queuedInputs?.length
       ) {
-        await loadSessionMessages(sessionId, { force: true })
         updateSessionState(sessionId, { queuedInputs: [], hadQueuedInput: false })
       }
       let completed

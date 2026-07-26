@@ -2,7 +2,11 @@ import { useContext, useEffect } from 'react'
 import type { IDockviewPanelProps } from 'dockview-react'
 import { AlertTriangle, MessageSquare } from 'lucide-react'
 import { useI18n } from '@/app/use-i18n'
-import { DEFAULT_SESSION_STATE } from '@/lib/session-state'
+import {
+  DEFAULT_SESSION_STATE,
+  isTaskListActive,
+  resolveSessionTaskList,
+} from '@/lib/session-state'
 import type { ChatAttachment } from '@/types/chat'
 import { FocusSession } from './FocusSession'
 import { ChatDockContext } from './chat-dock-context'
@@ -14,7 +18,12 @@ export function SessionDockPanel({ params, api }: IDockviewPanelProps<{ sessionI
   const context = useContext(ChatDockContext)
   const sessionId = params?.sessionId || sessionIdFromPanel(api?.id)
   const session = context?.sessions.find((item) => item.id === sessionId)
-  const state = context?.sessionStates[sessionId] || DEFAULT_SESSION_STATE
+  const sessionState = context?.sessionStates[sessionId]
+  const state = sessionState || DEFAULT_SESSION_STATE
+  const taskList = resolveSessionTaskList(sessionState, session)
+  const visibleTaskList = isTaskListActive(taskList, { streaming: state.streaming })
+    ? taskList
+    : null
   const loadMessages = context?.loadSessionMessages
 
   useEffect(() => {
@@ -47,7 +56,7 @@ export function SessionDockPanel({ params, api }: IDockviewPanelProps<{ sessionI
         executionMode={state.executionMode || session.executionMode || 'workspace'}
         sandboxStatus={context.sandboxStatus}
         goal={state.goal ?? session.goal ?? null}
-        taskList={state.taskList ?? null}
+        taskList={visibleTaskList}
         currentActivity={state.currentActivity}
         activityFeed={state.activityFeed || []}
         tools={state.tools || []}

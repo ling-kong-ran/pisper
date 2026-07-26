@@ -4,7 +4,7 @@ import { MAX_TASK_ASSIGNEE_CHARS, MAX_TASK_DEPENDS_ON, MAX_TASK_LIST_ITEMS, MAX_
 
 export const TASK_LIST_TOOL_NAMES = Object.freeze(['get_task_list', 'update_task_list'])
 
-const statusSchema = Type.Union(TASK_LIST_STATUSES.map((status) => Type.Literal(status)))
+const statusSchema = Type.String({ enum: TASK_LIST_STATUSES })
 
 export function createTaskListTools({ getTaskList, updateTaskList }) {
   return [
@@ -15,7 +15,7 @@ export function createTaskListTools({ getTaskList, updateTaskList }) {
       promptSnippet: 'Read the structured task list for the current primary Agent session',
       promptGuidelines: [
         'Use get_task_list when the current task breakdown is needed and has not already been returned by update_task_list.',
-        'This list belongs to the primary Agent session. Subagents cannot read or modify it.',
+        'This list belongs to the primary Agent session. Subagents may read it for coordination but cannot modify it.',
       ],
       parameters: Type.Object({}),
       async execute() {
@@ -34,7 +34,7 @@ export function createTaskListTools({ getTaskList, updateTaskList }) {
         'Set status to in_progress before substantive work, completed only after verification, and blocked only when a concrete blocker exists.',
         'Keep the list concise and outcome-oriented. Do not create a task for trivial narration or every individual tool call.',
         'An empty items array clears the task list.',
-        'This list belongs to the primary Agent session. Subagents cannot read or modify it.',
+        'Only the primary Agent may modify this list. Subagents have read-only access for coordination.',
       ],
       parameters: Type.Object({
         items: Type.Array(Type.Object({
@@ -43,7 +43,7 @@ export function createTaskListTools({ getTaskList, updateTaskList }) {
           status: statusSchema,
           note: Type.Optional(Type.String({ maxLength: MAX_TASK_NOTE_CHARS })),
           assignee: Type.Optional(Type.String({ maxLength: MAX_TASK_ASSIGNEE_CHARS, description: 'Who owns this task: an agent canonical name, or empty when unassigned' })),
-          dependsOn: Type.Optional(Type.Array(Type.String({ minLength: 1, maxLength: 80 }), { maxItems: MAX_TASK_DEPENDS_ON, description: 'Task ids that must complete before this task can start' })),
+          dependsOn: Type.Optional(Type.Array(Type.String({ minLength: 1, maxLength: 80 }), { maxItems: MAX_TASK_DEPENDS_ON, description: 'Existing task ids that must complete first; self-references and cycles are rejected' })),
         }), { maxItems: MAX_TASK_LIST_ITEMS }),
       }),
       async execute(_toolCallId, params) {

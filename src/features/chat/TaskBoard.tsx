@@ -8,8 +8,8 @@ type Translate = (message: string, values?: I18nValues) => string
 
 type TaskView = TaskListItem & {
   id: string
+  blocked: boolean
   blockedBy: TaskListItem[]
-  unblocks: TaskListItem[]
 }
 
 const STATUS_TONE: Record<string, string> = {
@@ -28,11 +28,9 @@ function buildTaskViews(items: TaskListItem[]): TaskView[] {
     const blockedBy = dependsOn
       .map((depId) => byId.get(String(depId)))
       .filter((dep): dep is TaskListItem => Boolean(dep) && !isDone(dep))
-    const unblocks = items.filter(
-      (candidate) =>
-        Array.isArray(candidate.dependsOn) && candidate.dependsOn.map(String).includes(id),
-    )
-    return { ...item, id, blockedBy, unblocks }
+    const blocked =
+      item.status !== 'completed' && (item.status === 'blocked' || blockedBy.length > 0)
+    return { ...item, id, blocked, blockedBy }
   })
 }
 
@@ -62,11 +60,10 @@ function StatusBadge({ status, t }: { status: string | undefined; t: Translate }
 }
 
 function TaskRow({ task, t }: { task: TaskView; t: Translate }) {
-  const blocked = task.blockedBy.length > 0 && task.status !== 'completed'
   return (
-    <li className={`task-board-row ${blocked ? 'blocked' : ''}`} data-vesper-task-id={task.id}>
+    <li className={`task-board-row ${task.blocked ? 'blocked' : ''}`} data-vesper-task-id={task.id}>
       <div className="task-board-row-head">
-        <StatusBadge status={blocked ? 'blocked' : task.status} t={t} />
+        <StatusBadge status={task.blocked ? 'blocked' : task.status} t={t} />
         <span className="task-board-title" title={task.title}>
           {task.title}
         </span>
@@ -84,7 +81,7 @@ function TaskRow({ task, t }: { task: TaskView; t: Translate }) {
           )
         )}
       </div>
-      {blocked && (
+      {task.blockedBy.length > 0 && (
         <div className="task-board-deps">
           <Lock size={11} />
           {t('chat:taskBoard.waitingFor', {
@@ -110,12 +107,9 @@ function TaskBoard({ taskList, header }: TaskBoardProps) {
   const items = taskList?.items || []
   if (!items.length) return null
   const views = buildTaskViews(items)
-  const completed =
-    taskList?.counts?.completed ?? views.filter((v) => v.status === 'completed').length
-  const inProgress = views.filter((v) => v.status === 'in_progress').length
-  const blockedCount = views.filter(
-    (v) => v.status !== 'completed' && v.blockedBy.length > 0,
-  ).length
+  const completed = views.filter((view) => view.status === 'completed').length
+  const inProgress = views.filter((view) => view.status === 'in_progress' && !view.blocked).length
+  const blockedCount = views.filter((view) => view.blocked).length
 
   return (
     <section className="task-board" aria-label={t('chat:taskBoard.ariaLabel')}>
