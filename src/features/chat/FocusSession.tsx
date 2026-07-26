@@ -858,8 +858,7 @@ export function FocusSession({
             onChange={onExecutionModeChange}
             disabled={streaming || switchingPermission}
           />
-          <div className="focus-composer-secondary">
-            <ContextUsageIndicator usage={contextUsage} />
+          <div className="focus-composer-tools">
             <GoalModeControl
               goal={goal}
               armed={goalArmed}
@@ -872,6 +871,9 @@ export function FocusSession({
               }}
             />
             <GitChangesControl sessionId={session?.id} streaming={streaming} />
+          </div>
+          <div className="focus-composer-secondary">
+            <ContextUsageIndicator usage={contextUsage} />
           </div>
           <textarea
             ref={promptRef}
