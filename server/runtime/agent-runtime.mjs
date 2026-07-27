@@ -432,6 +432,26 @@ function sameBaseUrl(left, right) {
   return normalizedProviderBaseUrl(left) === normalizedProviderBaseUrl(right)
 }
 
+function hasHeader(headers, expectedName) {
+  const expected = String(expectedName || '').toLowerCase()
+  return Object.keys(headers || {}).some((name) => name.toLowerCase() === expected)
+}
+
+function usesCustomProviderEndpoint(providerId, providerConfig) {
+  const baseUrl = String(providerConfig?.baseUrl || '').trim()
+  if (!baseUrl) return false
+  const officialBaseUrl = PROVIDER_DEFAULT_BASE_URLS[providerId]
+  return !officialBaseUrl || !sameBaseUrl(baseUrl, officialBaseUrl)
+}
+
+function providerHeaders(providerId, providerConfig, userAgent, modelHeaders = {}) {
+  const headers = { ...(providerConfig?.headers || {}), ...(modelHeaders || {}) }
+  if (usesCustomProviderEndpoint(providerId, providerConfig) && !hasHeader(headers, 'user-agent')) {
+    headers['User-Agent'] = userAgent
+  }
+  return headers
+}
+
 function inferredProviderType(providerConfig) {
   const models = Array.isArray(providerConfig?.models) ? providerConfig.models : []
   if (!models.length) return 'chat'
@@ -478,10 +498,11 @@ function claimedByOtherVisualProviderAnyKind(claims, providerId, baseUrl, modelI
 }
 
 export class AgentRuntimeService {
-  constructor({ cwd, dataDir, providerDiscovery, providerModelDiscovery, browserAutomationDriver, eventObserver } = {}) {
+  constructor({ cwd, dataDir, appVersion, providerDiscovery, providerModelDiscovery, browserAutomationDriver, eventObserver } = {}) {
     this.cwd = cwd
     this.eventObserver = typeof eventObserver === 'function' ? eventObserver : null
     this.dataDir = dataDir
+    this.providerUserAgent = String(appVersion || '').trim() ? `Pisper/${String(appVersion).trim()}` : 'Pisper'
     this.providerDiscovery = providerDiscovery || new ProviderDiscoveryService({ cwd })
     this.providerModelDiscovery = providerModelDiscovery || new ProviderModelDiscoveryService()
     this.sessionDir = join(dataDir, 'sessions')
@@ -624,18 +645,22 @@ export class AgentRuntimeService {
   }
 
   async reloadModelRuntime() {
+    const modelsJson = await readJson(this.modelsPath, { providers: {} })
     this.modelRuntime = await ModelRuntime.create({
       authPath: this.authPath,
       modelsPath: this.modelsPath,
       allowModelNetwork: false,
     })
-    const modelsJson = await readJson(this.modelsPath, { providers: {} })
     const configuredBaseUrls = {}
+    const configuredHeaders = {}
     for (const provider of this.modelRuntime.getProviders()) {
       const overlay = modelsJson.providers?.[provider.id] || {}
       configuredBaseUrls[provider.id] = overlay.baseUrl || PROVIDER_DEFAULT_BASE_URLS[provider.id] || this.modelRuntime.getModels(provider.id)[0]?.baseUrl || ''
+      if (usesCustomProviderEndpoint(provider.id, overlay)) {
+        configuredHeaders[provider.id] = providerHeaders(provider.id, overlay, this.providerUserAgent)
+      }
     }
-    this.providerModelCatalog.decorateRuntime(this.modelRuntime, configuredBaseUrls)
+    this.providerModelCatalog.decorateRuntime(this.modelRuntime, configuredBaseUrls, configuredHeaders)
   }
 
   emitGoalUpdate(sessionId, goal, send = this.goalEmitters.get(sessionId)) {
@@ -3148,7 +3173,7 @@ export class AgentRuntimeService {
       baseUrl,
       apiKey,
       organization: String(input.organization || overlay.headers?.['OpenAI-Organization'] || '').trim(),
-      headers: overlay.headers,
+      headers: providerHeaders(provider, overlay, this.providerUserAgent),
     })
     const scope = input.providerType === 'visual' || input.providerType === 'chat'
       ? input.providerType

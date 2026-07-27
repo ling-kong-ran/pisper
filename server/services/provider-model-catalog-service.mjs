@@ -21,6 +21,7 @@ function runtimeModel(providerId, entry, candidate, existing, template) {
     cost: template?.cost || zeroCost(),
     contextWindow: template?.contextWindow || 200_000,
     maxTokens: template?.maxTokens || 128_000,
+    headers: template?.headers ? { ...template.headers } : undefined,
     pisperKind: candidate.kind || 'chat',
   }
 }
@@ -30,6 +31,7 @@ export class ProviderModelCatalogService {
     this.path = path
     this.state = { providers: {} }
     this.configuredBaseUrls = new Map()
+    this.configuredHeaders = new Map()
     this.writeQueue = Promise.resolve()
   }
 
@@ -84,8 +86,9 @@ export class ProviderModelCatalogService {
     await this.writeQueue
   }
 
-  decorateRuntime(runtime, configuredBaseUrls) {
+  decorateRuntime(runtime, configuredBaseUrls, configuredHeaders = {}) {
     this.configuredBaseUrls = new Map(Object.entries(configuredBaseUrls || {}).map(([id, url]) => [id, normalizedBaseUrl(url)]))
+    this.configuredHeaders = new Map(Object.entries(configuredHeaders || {}))
     const rawGetModels = runtime.getModels.bind(runtime)
     const rawGetModel = runtime.getModel.bind(runtime)
     const rawGetAvailable = runtime.getAvailable.bind(runtime)
@@ -100,10 +103,13 @@ export class ProviderModelCatalogService {
     const modelsForProvider = (providerId) => {
       const raw = [...rawGetModels(providerId)]
       const entry = catalogEntry(providerId)
-      if (!entry) return raw
       const existing = new Map(raw.map((model) => [model.id, model]))
-      const template = raw[0]
-      return entry.models.map((candidate) => runtimeModel(providerId, entry, candidate, existing.get(candidate.id), template))
+      const models = entry
+        ? entry.models.map((candidate) => runtimeModel(providerId, entry, candidate, existing.get(candidate.id), raw[0]))
+        : raw
+      const providerHeaders = this.configuredHeaders.get(providerId)
+      if (!providerHeaders || Object.keys(providerHeaders).length === 0) return models
+      return models.map((model) => ({ ...model, headers: { ...providerHeaders, ...(model.headers || {}) } }))
     }
 
     runtime.getModels = (providerId) => {

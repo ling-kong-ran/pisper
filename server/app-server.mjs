@@ -22,11 +22,13 @@ export async function createPisperServer({
   const cwd = resolve(runtimeCwd || appRoot)
   const agentDir = resolve(dataDir)
   process.env.PI_CODING_AGENT_DIR = agentDir
+  const packageJson = JSON.parse(await readFile(join(appRoot, 'package.json'), 'utf8'))
 
   const desktopPet = new WebDesktopPetService({ dataDir: agentDir })
   const runtime = new AgentRuntimeService({
     cwd,
     dataDir: agentDir,
+    appVersion: packageJson.version,
     browserAutomationDriver,
     eventObserver: (payload) => {
       try {
@@ -42,7 +44,6 @@ export async function createPisperServer({
     },
   })
   await runtime.init()
-  const packageJson = JSON.parse(await readFile(join(appRoot, 'package.json'), 'utf8'))
   const engineVersion = await readFile(join(appRoot, 'node_modules', '@earendil-works', 'pi-coding-agent', 'package.json'), 'utf8')
     .then((text) => JSON.parse(text).version || 'unknown')
     .catch(() => 'unknown')

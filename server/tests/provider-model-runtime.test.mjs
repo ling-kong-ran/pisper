@@ -12,6 +12,7 @@ test('provider model discovery uses the configured relay Base URL and stored cre
   const runtime = new AgentRuntimeService({
     cwd: directory,
     dataDir: directory,
+    appVersion: '0.3.2-test',
     providerModelDiscovery: {
       async discover(input) {
         calls.push(input)
@@ -43,14 +44,48 @@ test('provider model discovery uses the configured relay Base URL and stored cre
   assert.equal(calls.length, 1)
   assert.equal(calls[0].baseUrl, 'https://relay.example.test/v1')
   assert.equal(calls[0].apiKey, 'relay-private-key')
+  assert.equal(calls[0].headers['User-Agent'], 'Pisper/0.3.2-test')
   assert.equal(discovered.synchronized, true)
   assert.equal(discovered.models.every((model) => model.added === true), true)
   assert.deepEqual(discovered.addedModelIds, ['relay-chat-v2', 'relay-image-v1'])
   assert.deepEqual(discovered.removedModelIds, ['relay-chat-v1'])
   assert.equal(runtime.modelRuntime.getModel('company-relay', 'relay-chat-v1'), undefined)
+  assert.equal(runtime.modelRuntime.getModel('company-relay', 'relay-chat-v2').headers['User-Agent'], 'Pisper/0.3.2-test')
   const provider = discovered.config.providers.find((item) => item.id === 'company-relay')
   assert.ok(provider.models.some((model) => model.id === 'relay-chat-v2' && model.kind === 'chat'))
   assert.ok(provider.models.some((model) => model.id === 'relay-image-v1' && model.kind === 'image'))
+})
+
+test('explicit relay User-Agent overrides the Pisper default', async (t) => {
+  const directory = await mkdtemp(join(tmpdir(), 'pisper-provider-user-agent-'))
+  await writeFile(join(directory, 'models.json'), JSON.stringify({ providers: { relay: {
+    name: 'Relay',
+    api: 'openai-completions',
+    baseUrl: 'https://relay.example.test/v1',
+    headers: { 'user-agent': 'Mozilla/5.0' },
+    models: [{ id: 'relay-chat', name: 'Relay Chat', api: 'openai-completions' }],
+  } } }))
+  await writeFile(join(directory, 'auth.json'), JSON.stringify({ relay: { type: 'api_key', key: 'relay-key' } }))
+  const requests = []
+  const runtime = new AgentRuntimeService({
+    cwd: directory,
+    dataDir: directory,
+    appVersion: '0.3.2-test',
+    providerModelDiscovery: { async discover(input) {
+      requests.push(input)
+      return { count: 1, models: [{ id: 'relay-chat', name: 'Relay Chat', kind: 'chat' }] }
+    } },
+  })
+  t.after(async () => {
+    await runtime.dispose()
+    await rm(directory, { recursive: true, force: true })
+  })
+
+  await runtime.init()
+  await runtime.refreshProviderModels()
+  assert.equal(requests.at(-1).headers['user-agent'], 'Mozilla/5.0')
+  assert.equal(requests.at(-1).headers['User-Agent'], undefined)
+  assert.equal(runtime.modelRuntime.getModel('relay', 'relay-chat').headers['user-agent'], 'Mozilla/5.0')
 })
 
 test('built-in official providers use their visible default Base URL', async (t) => {
@@ -68,6 +103,7 @@ test('built-in official providers use their visible default Base URL', async (t)
   await runtime.init()
   const result = await runtime.discoverProviderModels('openai', { apiKey: 'private-key' })
   assert.equal(request.baseUrl, 'https://api.openai.com/v1')
+  assert.equal(request.headers['User-Agent'], undefined)
   assert.equal(result.synchronized, true)
   assert.equal(runtime.modelRuntime.getModel('openai', 'official-chat').baseUrl, 'https://api.openai.com/v1')
 })
