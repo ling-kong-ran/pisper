@@ -69,11 +69,14 @@ function renderNotificationContent(content: string, data: Record<string, unknown
   )
 }
 
+// 系统时间自动判断暗色：18:00–次日 8:00 为暗色，其余为亮色
+function isAutoDarkByTime() {
+  const hour = new Date().getHours()
+  return hour >= 18 || hour < 8
+}
+
 function resolveDark(mode: ThemeMode) {
-  return (
-    mode === 'dark' ||
-    (mode === 'system' && window.matchMedia('(prefers-color-scheme: dark)').matches)
-  )
+  return mode === 'dark' || (mode === 'system' && isAutoDarkByTime())
 }
 
 function isEditableTarget(target: EventTarget | null) {
@@ -129,9 +132,9 @@ function App() {
     }
     apply()
     if (theme !== 'system') return undefined
-    const media = window.matchMedia('(prefers-color-scheme: dark)')
-    media.addEventListener('change', apply)
-    return () => media.removeEventListener('change', apply)
+    // 时间驱动：每分钟重新评估，以在 18:00 / 8:00 边界自动切换主题
+    const timer = window.setInterval(apply, 60_000)
+    return () => window.clearInterval(timer)
   }, [theme])
 
   const toggleSidebarCollapsed = () => {

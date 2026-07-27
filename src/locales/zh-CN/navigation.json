@@ -90,7 +90,7 @@
   "pageHeader.searchPage": "搜索{page}",
   "pageHeader.searchServicesOrTools": "搜索服务或工具",
   "pageHeader.stop": "停止",
-  "pageHeader.system": "跟随系统",
+  "pageHeader.system": "自动",
   "pageHeader.testRun": "试运行",
   "pageHeader.themeThemeClickToSwitch": "主题：{theme}（点击切换）",
   "pageHeader.themeThemeClickToSwitchThemes": "主题：{theme}，点击切换主题",

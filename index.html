@@ -8,11 +8,29 @@
     <title>Vesper</title>
     <script>
       try {
-        const stored = localStorage.getItem('vesper-theme')
-        const storedLanguage = localStorage.getItem('vesper-language')
-        const dark = stored === 'dark' || (stored !== 'light' && window.matchMedia('(prefers-color-scheme: dark)').matches)
+        // 读取主题选择：优先 zustand persist (vesper-ui)，回退旧键 vesper-theme，默认 system
+        let theme = ''
+        try {
+          const raw = JSON.parse(localStorage.getItem('vesper-ui') || '{}')
+          const t = raw && raw.state && raw.state.theme
+          if (t === 'system' || t === 'light' || t === 'dark') theme = t
+        } catch {}
+        if (!theme) {
+          const legacy = localStorage.getItem('vesper-theme')
+          if (legacy === 'system' || legacy === 'light' || legacy === 'dark') theme = legacy
+        }
+        if (!theme) theme = 'system'
+        let dark
+        if (theme === 'dark') dark = true
+        else if (theme === 'light') dark = false
+        else {
+          // system：按系统时间，18:00–次日 8:00 为暗色
+          const hour = new Date().getHours()
+          dark = hour >= 18 || hour < 8
+        }
         document.documentElement.dataset.theme = dark ? 'dark' : 'light'
         document.documentElement.classList.toggle('dark', dark)
+        const storedLanguage = localStorage.getItem('vesper-language')
         document.documentElement.lang = storedLanguage === 'en-US' ? 'en-US' : 'zh-CN'
       } catch {}
     </script>

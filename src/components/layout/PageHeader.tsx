@@ -2,7 +2,7 @@ import type { RefObject } from 'react'
 import {
   Link2,
   Menu,
-  Monitor,
+  Clock,
   Moon,
   Plus,
   Rocket,
@@ -18,7 +18,7 @@ import type { ThemeMode } from '@/stores/ui-store'
 import { SidebarTrigger } from '@/components/ui/sidebar'
 
 const THEME_META: Record<ThemeMode, LucideIcon> = {
-  system: Monitor,
+  system: Clock,
   light: Sun,
   dark: Moon,
 }
