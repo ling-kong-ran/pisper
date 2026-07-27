@@ -2,21 +2,28 @@ import assert from 'node:assert/strict'
 import test from 'node:test'
 import {
   COMPACTION_SUMMARY_RESERVE_TOKENS,
+  DEFAULT_COMPACTION_THRESHOLD_PERCENT,
   createCompactionSettingsManager,
   effectiveCompactionSettings,
+  normalizeCompactionThresholdPercent,
   pisperCompactionExtension,
 } from '../runtime/compaction-policy.mjs'
 
-test('large context windows compact earlier without penalizing smaller models', () => {
+test('context windows use the configured percentage with an 80% default', () => {
   const base = { enabled: true, reserveTokens: 16_384, keepRecentTokens: 20_000 }
+  assert.equal(DEFAULT_COMPACTION_THRESHOLD_PERCENT, 80)
   assert.deepEqual(effectiveCompactionSettings(base, 272_000), {
     ...base,
     reserveTokens: 54_400,
   })
   assert.equal(effectiveCompactionSettings(base, 128_000).reserveTokens, 25_600)
-  assert.equal(effectiveCompactionSettings(base, 64_000).reserveTokens, 16_384)
-  assert.equal(effectiveCompactionSettings(base, 1_000_000).reserveTokens, 65_536)
+  assert.equal(effectiveCompactionSettings(base, 64_000).reserveTokens, 12_800)
+  assert.equal(effectiveCompactionSettings(base, 1_000_000).reserveTokens, 200_000)
+  assert.equal(effectiveCompactionSettings(base, 200_000, 75).reserveTokens, 50_000)
   assert.equal(effectiveCompactionSettings({ ...base, enabled: false }, 272_000).enabled, false)
+  assert.equal(normalizeCompactionThresholdPercent(49), 50)
+  assert.equal(normalizeCompactionThresholdPercent(96), 95)
+  assert.equal(normalizeCompactionThresholdPercent('invalid'), 80)
 })
 
 test('session settings manager exposes the adaptive threshold and preserves method bindings', () => {
@@ -28,8 +35,11 @@ test('session settings manager exposes the adaptive threshold and preserves meth
     },
     getMarker() { return this.marker },
   }
-  const wrapped = createCompactionSettingsManager(manager, () => 200_000)
+  let threshold = 80
+  const wrapped = createCompactionSettingsManager(manager, () => 200_000, () => threshold)
   assert.equal(wrapped.getCompactionSettings().reserveTokens, 40_000)
+  threshold = 75
+  assert.equal(wrapped.getCompactionSettings().reserveTokens, 50_000)
   assert.equal(wrapped.getMarker(), 'base')
 })
 

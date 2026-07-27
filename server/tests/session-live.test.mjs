@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict'
-import { appendFile, mkdtemp, rm, writeFile } from 'node:fs/promises'
+import { appendFile, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import test from 'node:test'
@@ -551,6 +551,27 @@ test('context usage reports the current window share and earlier automatic compa
     compactAtTokens: 160_000,
     compactAtPercent: 80,
   })
+})
+
+test('compaction threshold defaults to 80% and persists valid updates', async (t) => {
+  const directory = await mkdtemp(join(tmpdir(), 'pisper-compaction-setting-'))
+  t.after(() => rm(directory, { recursive: true, force: true }))
+  const runtime = new AgentRuntimeService({ cwd: directory, dataDir: directory })
+
+  assert.equal(runtime.getCompactionPreference().thresholdPercent, 80)
+  assert.deepEqual(await runtime.updateCompactionPreference({ thresholdPercent: 72 }), {
+    thresholdPercent: 72,
+    minPercent: 50,
+    maxPercent: 95,
+  })
+  assert.equal(
+    JSON.parse(await readFile(join(directory, 'pisper.json'), 'utf8')).compactionThresholdPercent,
+    72,
+  )
+  await assert.rejects(
+    runtime.updateCompactionPreference({ thresholdPercent: 99 }),
+    /50%.*95%/,
+  )
 })
 
 test('session messages are returned newest-first by bounded cursor pages', async (t) => {

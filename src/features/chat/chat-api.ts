@@ -15,6 +15,12 @@ type MessagePageResponse = EntityRecord & {
   }
 }
 
+type CompactionPreferenceResponse = {
+  thresholdPercent: number
+  minPercent: number
+  maxPercent: number
+}
+
 type ChatConfigResponse = EntityRecord & {
   provider?: string
   model?: string
@@ -54,6 +60,12 @@ export const chatApi = {
     }),
 
   getConfig: () => requestJson<ChatConfigResponse>('/api/config'),
+
+  updateCompactionPreference: (thresholdPercent: number) =>
+    requestJson<CompactionPreferenceResponse>('/api/settings/compaction', {
+      method: 'PATCH',
+      data: { thresholdPercent },
+    }),
 
   getSandboxStatus: () => requestJson<SandboxStatus>('/api/sandbox/status'),
 

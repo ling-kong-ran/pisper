@@ -86,6 +86,7 @@ export function SessionDockPanel({ params, api }: IDockviewPanelProps<{ sessionI
         }
         onGoalPause={() => context.pauseGoal(sessionId)}
         onGoalBudgetChange={(tokenBudget: number) => context.setGoalBudget(sessionId, tokenBudget)}
+        onCompactionThresholdChange={context.setCompactionThreshold}
         onApproval={(approvalId: string, approved: boolean) =>
           context.resolveToolApproval(sessionId, approvalId, approved)
         }

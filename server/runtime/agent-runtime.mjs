@@ -42,7 +42,15 @@ import { hotToolNames, mergePromotedToolNames, schemaOnlyToolDefinitions, select
 import { DEFAULT_EXECUTION_MODE, EXECUTION_MODES, filterToolsForExecutionMode, migrateLegacyExecutionMode, normalizeExecutionMode, permissionModeForExecutionMode } from '../security/execution-mode.mjs'
 import { createStreamingSecretRedactor, installSessionPersistenceRedaction, redactPersistedSessionFiles, redactSecretText, redactSecretValue } from '../security/secret-redaction.mjs'
 import { applyPisperSystemPrompt, pisperPromptExtension } from '../prompts/pisper-system-prompt.mjs'
-import { createCompactionSettingsManager, effectiveCompactionSettings, pisperCompactionExtension } from './compaction-policy.mjs'
+import {
+  DEFAULT_COMPACTION_THRESHOLD_PERCENT,
+  MAX_COMPACTION_THRESHOLD_PERCENT,
+  MIN_COMPACTION_THRESHOLD_PERCENT,
+  createCompactionSettingsManager,
+  effectiveCompactionSettings,
+  normalizeCompactionThresholdPercent,
+  pisperCompactionExtension,
+} from './compaction-policy.mjs'
 
 const KNOWN_PROVIDERS = ['openai', 'anthropic', 'google', 'deepseek', 'xai', 'openrouter', 'kimi-coding', 'zai-coding-cn']
 const PROVIDER_LABELS = {
@@ -550,6 +558,7 @@ export class AgentRuntimeService {
     this.sessionContextUsageCache = new Map()
     this.modelRuntime = null
     this.settingsManager = null
+    this.compactionThresholdPercent = DEFAULT_COMPACTION_THRESHOLD_PERCENT
     this.sessionMeta = {}
     this.sandbox = new LocalSandboxService({ dataDir })
     this.permissions = new SessionPermissionService({
@@ -562,6 +571,7 @@ export class AgentRuntimeService {
       agentDir: this.dataDir,
       getModelRuntime: () => this.modelRuntime,
       getSettingsManager: () => this.settingsManager,
+      getCompactionThresholdPercent: () => this.compactionThresholdPercent,
       createResourceLoader: ({ cwd: childCwd, appendSystemPrompt }) => this.skills.createResourceLoader(childCwd, { appendSystemPrompt }),
     })
     // 设置 Agent 完成通知器：向父会话注入隐藏消息
@@ -586,6 +596,8 @@ export class AgentRuntimeService {
     this.usageLedger.sessionScans ||= {}
     this.assetIndex = await readJson(this.assetIndexPath, { assets: [] })
     this.assetIndex.assets = Array.isArray(this.assetIndex.assets) ? this.assetIndex.assets : []
+    const appConfig = await readJson(this.appConfigPath, {})
+    this.compactionThresholdPercent = normalizeCompactionThresholdPercent(appConfig.compactionThresholdPercent)
     await migrateKimiCodeProvider({
       authPath: this.authPath,
       modelsPath: this.modelsPath,
@@ -1359,6 +1371,7 @@ export class AgentRuntimeService {
     const settings = effectiveCompactionSettings(
       this.settingsManager?.getCompactionSettings?.() || { enabled: true, reserveTokens: 16_384, keepRecentTokens: 20_000 },
       contextWindow,
+      this.compactionThresholdPercent,
     )
     const compactAtTokens = settings.enabled ? Math.max(0, contextWindow - Math.max(0, Number(settings.reserveTokens) || 0)) : null
     return {
@@ -1740,6 +1753,7 @@ export class AgentRuntimeService {
     const sessionSettingsManager = createCompactionSettingsManager(
       this.settingsManager,
       () => runtimeSession?.model?.contextWindow,
+      () => this.compactionThresholdPercent,
     )
     const { session, modelFallbackMessage } = await createAgentSession({
       cwd: effectiveCwd,
@@ -2527,6 +2541,32 @@ export class AgentRuntimeService {
 
   resetChannelScope(key) {
     return this.channels.resetScope(key)
+  }
+
+  getCompactionPreference() {
+    return {
+      thresholdPercent: this.compactionThresholdPercent,
+      minPercent: MIN_COMPACTION_THRESHOLD_PERCENT,
+      maxPercent: MAX_COMPACTION_THRESHOLD_PERCENT,
+    }
+  }
+
+  async updateCompactionPreference(input) {
+    const requested = Number(input?.thresholdPercent)
+    if (!Number.isFinite(requested)
+      || requested < MIN_COMPACTION_THRESHOLD_PERCENT
+      || requested > MAX_COMPACTION_THRESHOLD_PERCENT) {
+      throw new Error(`自动压缩阈值必须在 ${MIN_COMPACTION_THRESHOLD_PERCENT}% 到 ${MAX_COMPACTION_THRESHOLD_PERCENT}% 之间。`)
+    }
+    const thresholdPercent = normalizeCompactionThresholdPercent(requested)
+    const appConfig = await readJson(this.appConfigPath, {})
+    await writeJsonAtomic(this.appConfigPath, {
+      ...appConfig,
+      compactionThresholdPercent: thresholdPercent,
+    })
+    this.compactionThresholdPercent = thresholdPercent
+    this.sessionContextUsageCache.clear()
+    return this.getCompactionPreference()
   }
 
   getNotificationSettings() {

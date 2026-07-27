@@ -43,6 +43,7 @@ import { QueueSection } from '@/components/ai-elements/queue'
 import { BrandLogo } from '@/components/BrandLogo'
 import { AsciiText, Aurora, BlurText, TargetCursor } from '@/components/react-bits'
 import { Panel, Toggle } from '@/components/ui'
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { useAutoScroll } from '@/hooks/useAutoScroll'
 import { formatFileSize, formatTokenCount, workspaceName } from '@/lib/format'
 import type {
@@ -128,6 +129,7 @@ export type FocusSessionProps = {
   onExecutionModeChange: (mode: string) => Promise<boolean> | boolean
   onGoalPause?: () => Promise<void> | void
   onGoalBudgetChange?: (tokenBudget: number) => Promise<void> | void
+  onCompactionThresholdChange?: (thresholdPercent: number) => Promise<void> | void
   onApproval: (approvalId: string, approved: boolean) => Promise<void> | void
   onWorkspace: () => void
   onRename: () => void
@@ -146,19 +148,40 @@ export type FocusSessionProps = {
   onAbort: () => Promise<void> | void
 }
 
-function ContextUsageIndicator({ usage }: { usage?: EntityRecord | null }) {
+function ContextUsageIndicator({
+  usage,
+  onThresholdChange,
+}: {
+  usage?: EntityRecord | null
+  onThresholdChange?: (thresholdPercent: number) => Promise<void> | void
+}) {
   const { t } = useI18n()
   const contextWindow = Number(usage?.contextWindow) || 0
+  const compactAtPercent = usage?.compactAtPercent == null ? 80 : Number(usage.compactAtPercent)
+  const currentThreshold = Number.isFinite(compactAtPercent) ? Math.round(compactAtPercent) : 80
+  const [draftThreshold, setDraftThreshold] = useState(currentThreshold)
+  const [savingThreshold, setSavingThreshold] = useState(false)
+  const [thresholdError, setThresholdError] = useState('')
+  const lastSavedThreshold = useRef(currentThreshold)
+  const thresholdSaveTimer = useRef<number | undefined>(undefined)
+
+  useEffect(() => {
+    window.clearTimeout(thresholdSaveTimer.current)
+    setDraftThreshold(currentThreshold)
+    lastSavedThreshold.current = currentThreshold
+  }, [currentThreshold])
+
+  useEffect(() => () => window.clearTimeout(thresholdSaveTimer.current), [])
+
   if (!contextWindow) return null
   const known = usage?.percent != null && Number.isFinite(Number(usage.percent))
   const percent = known ? Math.max(0, Number(usage.percent)) : null
   const roundedPercent = percent == null ? null : Math.round(percent)
-  const compactAtPercent = usage?.compactAtPercent == null ? null : Number(usage.compactAtPercent)
-  const warningAt = compactAtPercent == null ? 75 : Math.max(50, compactAtPercent - 15)
+  const warningAt = Math.max(50, currentThreshold - 15)
   const tone =
     percent == null
       ? 'unknown'
-      : compactAtPercent != null && percent >= compactAtPercent
+      : percent >= currentThreshold
         ? 'danger'
         : percent >= warningAt
           ? 'warning'
@@ -178,25 +201,94 @@ function ContextUsageIndicator({ usage }: { usage?: EntityRecord | null }) {
     : t('chat:focusSession.contextUsageWillUpdateAfterTheNextModelResponseLimitLimitTokens', {
         limit: formatTokenCount(contextWindow),
       })
-  const thresholdText =
-    usage?.autoCompactEnabled && compactAtPercent != null
-      ? t('chat:focusSession.autoCompactionThresholdAboutPercent', {
-          percent: Math.round(compactAtPercent),
-        })
-      : t('chat:focusSession.automaticContextCompactionIsDisabled')
+  const thresholdText = usage?.autoCompactEnabled
+    ? t('chat:focusSession.autoCompactionThresholdAboutPercent', {
+        percent: currentThreshold,
+      })
+    : t('chat:focusSession.automaticContextCompactionIsDisabled')
   const label = `${usageText} · ${thresholdText}`
   const tokenLabel = `${usage?.tokens == null ? '—' : formatTokenCount(usage.tokens)} / ${formatTokenCount(contextWindow)}`
+
+  const saveThreshold = async (value: number) => {
+    const next = Math.min(95, Math.max(50, Math.round(value)))
+    setDraftThreshold(next)
+    if (!onThresholdChange || next === lastSavedThreshold.current) return
+    setSavingThreshold(true)
+    setThresholdError('')
+    try {
+      await onThresholdChange(next)
+      lastSavedThreshold.current = next
+    } catch (error) {
+      setThresholdError(error instanceof Error ? error.message : String(error))
+    } finally {
+      setSavingThreshold(false)
+    }
+  }
+
+  const scheduleThresholdSave = (value: number) => {
+    window.clearTimeout(thresholdSaveTimer.current)
+    setDraftThreshold(value)
+    thresholdSaveTimer.current = window.setTimeout(() => void saveThreshold(value), 250)
+  }
+
+  const commitThreshold = (value: number) => {
+    window.clearTimeout(thresholdSaveTimer.current)
+    void saveThreshold(value)
+  }
+
   return (
-    <div className={`context-usage-chip ${tone}`} role="status" aria-label={label} title={label}>
-      <Gauge size={12} />
-      <span>
-        <strong>{tokenLabel}</strong>
-        <small>{roundedPercent == null ? '—' : `${roundedPercent}%`}</small>
-      </span>
-      <i aria-hidden="true">
-        <b style={{ width: `${Math.min(100, percent || 0)}%` }} />
-      </i>
-    </div>
+    <Popover>
+      <PopoverTrigger asChild>
+        <button
+          type="button"
+          className={`context-usage-chip ${tone}`}
+          aria-label={label}
+          title={label}
+        >
+          <Gauge size={12} />
+          <span>
+            <strong>{tokenLabel}</strong>
+            <small>{roundedPercent == null ? '—' : `${roundedPercent}%`}</small>
+          </span>
+          <i aria-hidden="true">
+            <b style={{ width: `${Math.min(100, percent || 0)}%` }} />
+          </i>
+        </button>
+      </PopoverTrigger>
+      <PopoverContent className="context-usage-popover" align="end" sideOffset={8}>
+        <div className="context-threshold-heading">
+          <span>{t('chat:focusSession.autoCompactionThreshold')}</span>
+          <output>{draftThreshold}%</output>
+        </div>
+        <input
+          type="range"
+          min="50"
+          max="95"
+          step="1"
+          value={draftThreshold}
+          aria-label={t('chat:focusSession.autoCompactionThreshold')}
+          disabled={savingThreshold}
+          onChange={(event) => scheduleThresholdSave(Number(event.currentTarget.value))}
+          onBlur={(event) => commitThreshold(Number(event.currentTarget.value))}
+          onPointerUp={(event) => commitThreshold(Number(event.currentTarget.value))}
+          onKeyUp={(event) => {
+            if (
+              ['ArrowLeft', 'ArrowRight', 'Home', 'End', 'PageUp', 'PageDown'].includes(event.key)
+            ) {
+              commitThreshold(Number(event.currentTarget.value))
+            }
+          }}
+        />
+        <div className="context-threshold-scale" aria-hidden="true">
+          <span>50%</span>
+          <span>95%</span>
+        </div>
+        <small className={thresholdError ? 'error' : ''}>
+          {thresholdError ||
+            (savingThreshold ? t('chat:focusSession.savingCompactionThreshold') : '\u00a0')}
+        </small>
+      </PopoverContent>
+    </Popover>
   )
 }
 
@@ -537,6 +629,7 @@ export function FocusSession({
   onLoadOlder,
   onModelChange,
   onExecutionModeChange,
+  onCompactionThresholdChange,
   onGoalPause,
   onGoalBudgetChange,
   onApproval,
@@ -906,7 +999,10 @@ export function FocusSession({
             <GitChangesControl sessionId={session?.id} streaming={streaming} />
           </div>
           <div className="focus-composer-secondary">
-            <ContextUsageIndicator usage={contextUsage} />
+            <ContextUsageIndicator
+              usage={contextUsage}
+              onThresholdChange={onCompactionThresholdChange}
+            />
           </div>
           <textarea
             ref={promptRef}

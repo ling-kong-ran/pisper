@@ -20,6 +20,30 @@ function response() {
   }
 }
 
+test('compaction preference APIs expose and update the threshold percentage', async () => {
+  const calls = []
+  const runtime = {
+    getCompactionPreference() {
+      calls.push(['get'])
+      return { thresholdPercent: 80, minPercent: 50, maxPercent: 95 }
+    },
+    async updateCompactionPreference(input) {
+      calls.push(['update', input.thresholdPercent])
+      return { thresholdPercent: input.thresholdPercent, minPercent: 50, maxPercent: 95 }
+    },
+  }
+  const handler = createApiHandler(runtime)
+
+  const getResponse = response()
+  assert.equal(await handler(request('GET'), getResponse, new URL('http://localhost/api/settings/compaction')), true)
+  assert.deepEqual(JSON.parse(getResponse.body), { thresholdPercent: 80, minPercent: 50, maxPercent: 95 })
+
+  const patchResponse = response()
+  assert.equal(await handler(request('PATCH', { thresholdPercent: 75 }), patchResponse, new URL('http://localhost/api/settings/compaction')), true)
+  assert.deepEqual(JSON.parse(patchResponse.body), { thresholdPercent: 75, minPercent: 50, maxPercent: 95 })
+  assert.deepEqual(calls, [['get'], ['update', 75]])
+})
+
 test('sandbox status, install, and session execution mode APIs delegate to the runtime', async () => {
   const calls = []
   const runtime = {

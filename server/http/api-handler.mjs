@@ -80,6 +80,14 @@ export function createApiHandler(runtime, { updates, desktopPet, engineVersion =
         json(res, 200, await runtime.installLocalSandbox())
         return true
       }
+      if (req.method === 'GET' && url.pathname === '/api/settings/compaction') {
+        json(res, 200, runtime.getCompactionPreference())
+        return true
+      }
+      if (req.method === 'PATCH' && url.pathname === '/api/settings/compaction') {
+        json(res, 200, await runtime.updateCompactionPreference(await bodyJson(req)))
+        return true
+      }
       if (req.method === 'GET' && url.pathname === '/api/settings/notifications') {
         json(res, 200, await runtime.getNotificationSettings())
         return true

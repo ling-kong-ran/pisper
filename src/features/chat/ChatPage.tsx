@@ -1662,6 +1662,29 @@ export function ChatPage({
     }
   }
 
+  const setCompactionThreshold = async (thresholdPercent: number) => {
+    const preference = await chatApi.updateCompactionPreference(thresholdPercent)
+    const states = Object.fromEntries(
+      Object.entries(sessionStatesRef.current).map(([sessionId, state]) => {
+        const contextWindow = Number(state.contextUsage?.contextWindow) || 0
+        if (!contextWindow) return [sessionId, state]
+        return [
+          sessionId,
+          {
+            ...state,
+            contextUsage: {
+              ...state.contextUsage,
+              compactAtPercent: preference.thresholdPercent,
+              compactAtTokens: Math.floor((contextWindow * preference.thresholdPercent) / 100),
+            },
+          },
+        ]
+      }),
+    )
+    sessionStatesRef.current = states
+    setSessionStates(states)
+  }
+
   const switchSessionModel = async (sessionId: string, nextModel: string) => {
     const selected = availableModels.find((item) => item.key === nextModel)
     if (!sessionId || !selected || sessionStatesRef.current[sessionId]?.streaming) return
@@ -1931,6 +1954,7 @@ export function ChatPage({
     abort,
     pauseGoal,
     setGoalBudget,
+    setCompactionThreshold,
     switchSessionModel,
     switchSessionExecutionMode,
     sandboxStatus,

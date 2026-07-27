@@ -316,6 +316,7 @@ export class MultiAgentService {
     agentDir,
     getModelRuntime,
     getSettingsManager,
+    getCompactionThresholdPercent,
     createSession = createAgentSession,
     createSessionManager = (cwd) => SessionManager.inMemory(cwd),
     createResourceLoader = createAgentResourceLoader,
@@ -328,6 +329,7 @@ export class MultiAgentService {
     this.agentDir = agentDir
     this.getModelRuntime = getModelRuntime || (() => null)
     this.getSettingsManager = getSettingsManager || (() => null)
+    this.getCompactionThresholdPercent = getCompactionThresholdPercent || (() => undefined)
     this.createSession = createSession
     this.createSessionManager = createSessionManager
     this.createResourceLoader = createResourceLoader
@@ -622,6 +624,7 @@ export class MultiAgentService {
         const settingsManager = createCompactionSettingsManager(
           this.getSettingsManager(),
           () => record.model?.contextWindow,
+          this.getCompactionThresholdPercent,
         )
         const resourceLoader = await this.createResourceLoader({ cwd: record.cwd, agentDir: this.agentDir || record.cwd, settingsManager, appendSystemPrompt: MULTI_AGENT_SYSTEM_PROMPT })
         if (!isCurrent()) return
