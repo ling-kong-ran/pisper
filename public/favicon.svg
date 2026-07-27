@@ -3,8 +3,8 @@
   <!-- Pisper 品牌标：深空圆角底 + 终端 P（竖杆 + ">" 字碗 + 光标），极光渐变。 -->
   <defs>
     <linearGradient id="pa" x1="9" y1="6" x2="40" y2="44" gradientUnits="userSpaceOnUse">
-      <stop offset="0" stop-color="#2DD4BF"/>
-      <stop offset="0.5" stop-color="#8B5CF6"/>
+      <stop offset="0" stop-color="#8B5CF6"/>
+      <stop offset="0.55" stop-color="#A855F7"/>
       <stop offset="1" stop-color="#EC4899"/>
     </linearGradient>
   </defs>
