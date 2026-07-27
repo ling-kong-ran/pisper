@@ -1,0 +1,98 @@
+import assert from 'node:assert/strict'
+import { mkdtemp, rm } from 'node:fs/promises'
+import { tmpdir } from 'node:os'
+import { join, resolve } from 'node:path'
+import { createInterface } from 'node:readline'
+import { spawn } from 'node:child_process'
+import test from 'node:test'
+import { DESKTOP_BOOTSTRAP_PATH } from '../desktop-sidecar-auth.mjs'
+
+function waitForReady(child) {
+  return new Promise((resolveReady, rejectReady) => {
+    const timeout = setTimeout(() => rejectReady(new Error('Sidecar readiness timed out.')), 20_000)
+    const lines = createInterface({ input: child.stdout })
+    const errors = []
+    child.stderr.on('data', (chunk) => errors.push(chunk))
+    child.once('exit', (code) => {
+      clearTimeout(timeout)
+      rejectReady(new Error(`Sidecar exited before readiness (${code}): ${Buffer.concat(errors).toString('utf8')}`))
+    })
+    lines.on('line', (line) => {
+      if (!line.startsWith('PISPER_SIDECAR_READY ')) return
+      clearTimeout(timeout)
+      resolveReady(JSON.parse(line.slice('PISPER_SIDECAR_READY '.length)))
+    })
+  })
+}
+
+function waitForExit(child) {
+  return new Promise((resolveExit, rejectExit) => {
+    const timeout = setTimeout(() => {
+      child.kill()
+      rejectExit(new Error('Sidecar shutdown timed out.'))
+    }, 10_000)
+    child.once('exit', (code) => {
+      clearTimeout(timeout)
+      resolveExit(code)
+    })
+  })
+}
+
+test('desktop sidecar authenticates its WebView and shuts down through stdin', async () => {
+  const dataDir = await mkdtemp(join(tmpdir(), 'pisper-sidecar-'))
+  const token = 'test-sidecar-token'
+  const child = spawn(process.execPath, [resolve('server/sidecar.mjs')], {
+    cwd: resolve('.'),
+    env: {
+      ...process.env,
+      PISPER_AGENT_DIR: dataDir,
+      PISPER_DESKTOP_TOKEN: token,
+      PISPER_EXIT_ON_STDIN_CLOSE: '1',
+    },
+    stdio: ['pipe', 'pipe', 'pipe'],
+  })
+
+  try {
+    const ready = await waitForReady(child)
+    assert.match(ready.url, /^http:\/\/127\.0\.0\.1:\d+$/)
+    assert.equal(ready.bootstrapUrl, `${ready.url}${DESKTOP_BOOTSTRAP_PATH}?token=${encodeURIComponent(token)}`)
+
+    const unauthorized = await fetch(`${ready.url}/api/config`)
+    assert.equal(unauthorized.status, 401)
+    const malformedCookie = await fetch(`${ready.url}/api/config`, {
+      headers: { Cookie: '__pisper_desktop=%' },
+    })
+    assert.equal(malformedCookie.status, 401)
+    const invalidBootstrap = await fetch(
+      `${ready.url}${DESKTOP_BOOTSTRAP_PATH}?token=invalid`,
+      { redirect: 'manual' },
+    )
+    assert.equal(invalidBootstrap.status, 401)
+
+    const bootstrap = await fetch(ready.bootstrapUrl, { redirect: 'manual' })
+    assert.equal(bootstrap.status, 302)
+    assert.equal(bootstrap.headers.get('location'), '/')
+    const cookie = bootstrap.headers.get('set-cookie')
+    assert.match(cookie, /__pisper_desktop=/)
+    assert.match(cookie, /HttpOnly/)
+
+    const authorized = await fetch(`${ready.url}/api/config`, { headers: { Cookie: cookie } })
+    assert.equal(authorized.status, 200)
+    const rejectedOrigin = await fetch(`${ready.url}/api/sessions`, {
+      method: 'POST',
+      headers: {
+        Cookie: cookie,
+        Origin: 'https://example.test',
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ name: 'Rejected session' }),
+    })
+    assert.equal(rejectedOrigin.status, 403)
+
+    child.stdin.end('shutdown\n')
+    assert.equal(await waitForExit(child), 0)
+  } finally {
+    if (child.exitCode === null) child.kill()
+    await rm(dataDir, { recursive: true, force: true })
+  }
+})

@@ -7,6 +7,7 @@ import { createStaticHandler } from './http/static-handler.mjs'
 import { AgentRuntimeService } from './runtime/agent-runtime.mjs'
 import { resolveGitCommit, UpdateCheckService } from './services/update-check-service.mjs'
 import { WebDesktopPetService } from './services/web-desktop-pet-service.mjs'
+import { authorizeDesktopRequest } from './desktop-sidecar-auth.mjs'
 
 export async function createPisperServer({
   root,
@@ -17,6 +18,7 @@ export async function createPisperServer({
   host = '127.0.0.1',
   browserAutomationDriver = null,
   runtimeEventObserver = null,
+  desktopAuthToken = '',
 } = {}) {
   const appRoot = resolve(root || process.cwd())
   const cwd = resolve(runtimeCwd || appRoot)
@@ -64,7 +66,9 @@ export async function createPisperServer({
   const server = createServer(async (req, res) => {
     const address = server.address()
     const activePort = typeof address === 'object' && address ? address.port : port
-    const url = new URL(req.url || '/', `http://${req.headers.host || `${host}:${activePort}`}`)
+    const origin = `http://${host}:${activePort}`
+    const url = new URL(req.url || '/', req.headers.host ? `http://${req.headers.host}` : origin)
+    if (authorizeDesktopRequest(req, res, url, { token: desktopAuthToken, origin })) return
     if (await handleApi(req, res, url)) return
     if (vite) vite.middlewares(req, res)
     else await serveProduction(req, res, url)
