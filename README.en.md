@@ -64,27 +64,113 @@ One window per task, context copied back and forth, tool configs scattered every
 
 <p align="center">
   <img src="./docs/shots/welcome-dark.png" alt="Pisper welcome screen in the dark theme" />
+  <br /><sub><strong>Dark workspace</strong> · Every session has its own model, context, directory, and permissions</sub>
 </p>
 
 <table>
   <tr>
     <td width="50%" align="center">
-      <img src="./docs/shots/chat-grid.png" alt="Pisper multi-session dock workspace" />
-      <br /><sub><strong>Dock workspace</strong> · Tabs, splits, and drag-to-dock panels</sub>
+      <img src="./docs/shots/chat.png" alt="Pisper single-session workspace" />
+      <br /><sub><strong>Session workspace</strong> · Focused tasks, tool state, and context usage</sub>
     </td>
     <td width="50%" align="center">
-      <img src="./docs/shots/memory.png" alt="Pisper memory view" />
-      <br /><sub><strong>Memory</strong> · Searchable persistent knowledge</sub>
+      <img src="./docs/shots/chat-grid.png" alt="Pisper multi-session dock workspace" />
+      <br /><sub><strong>Dock splits</strong> · Tabs, horizontal and vertical splits, and drag-to-dock panels</sub>
+    </td>
+  </tr>
+</table>
+
+### Workspace
+
+<table>
+  <tr>
+    <td width="50%" align="center">
+      <img src="./docs/shots/history.png" alt="Pisper session history" />
+      <br /><sub><strong>Session history</strong> · Search, rename, and reopen sessions in any layout</sub>
+    </td>
+    <td width="50%" align="center">
+      <img src="./docs/shots/assets.png" alt="Pisper asset library" />
+      <br /><sub><strong>Assets</strong> · Collect images, files, links, and Agent output</sub>
     </td>
   </tr>
   <tr>
     <td width="50%" align="center">
-      <img src="./docs/shots/workflow-builder.png" alt="Pisper workflow builder" />
-      <br /><sub><strong>Workflows</strong> · Reusable visual automation</sub>
+      <img src="./docs/shots/channels.png" alt="Pisper channels" />
+      <br /><sub><strong>Two-way channels</strong> · Connect Feishu and personal Weixin</sub>
     </td>
     <td width="50%" align="center">
-      <img src="./docs/shots/channels.png" alt="Pisper channels view" />
-      <br /><sub><strong>Two-way channels</strong> · Feishu and personal Weixin</sub>
+      <img src="./docs/shots/schedules.png" alt="Pisper schedules" />
+      <br /><sub><strong>Schedules</strong> · Configure frequency, execution mode, and notifications</sub>
+    </td>
+  </tr>
+</table>
+
+### Capabilities
+
+<table>
+  <tr>
+    <td width="50%" align="center">
+      <img src="./docs/shots/plugins.png" alt="Pisper tool policy" />
+      <br /><sub><strong>Tools</strong> · Manage permissions by risk and execution mode</sub>
+    </td>
+    <td width="50%" align="center">
+      <img src="./docs/shots/memory.png" alt="Pisper memory view" />
+      <br /><sub><strong>Memory</strong> · Search facts and decisions in a persistent knowledge graph</sub>
+    </td>
+  </tr>
+  <tr>
+    <td width="50%" align="center">
+      <img src="./docs/shots/mcp.png" alt="Pisper MCP services" />
+      <br /><sub><strong>MCP</strong> · Manage services, tool permissions, and call history</sub>
+    </td>
+    <td width="50%" align="center">
+      <img src="./docs/shots/skills.png" alt="Pisper skills" />
+      <br /><sub><strong>Skills</strong> · Install and control reusable capability packages</sub>
+    </td>
+  </tr>
+</table>
+
+### Automation
+
+<table>
+  <tr>
+    <td width="50%" align="center">
+      <img src="./docs/shots/workflows.png" alt="Pisper workflow list" />
+      <br /><sub><strong>Workflows</strong> · Organize automation from presets or drafts</sub>
+    </td>
+    <td width="50%" align="center">
+      <img src="./docs/shots/workflow-builder.png" alt="Pisper workflow builder" />
+      <br /><sub><strong>Visual builder</strong> · Connect prompt, file, MCP, and notification nodes</sub>
+    </td>
+  </tr>
+</table>
+
+### Settings
+
+<p align="center">
+  <img src="./docs/shots/config.png" alt="Pisper provider and model settings" />
+  <br /><sub><strong>Providers and models</strong> · Manage protocols, endpoints, credentials, and model catalogs independently</sub>
+</p>
+
+<table>
+  <tr>
+    <td width="50%" align="center">
+      <img src="./docs/shots/config-notifications.png" alt="Pisper notification settings" />
+      <br /><sub><strong>Notifications</strong> · Customize templates for chats, schedules, and workflows</sub>
+    </td>
+    <td width="50%" align="center">
+      <img src="./docs/shots/config-interface.png" alt="Pisper interface settings" />
+      <br /><sub><strong>Interface</strong> · Language, density, and display preferences</sub>
+    </td>
+  </tr>
+  <tr>
+    <td width="50%" align="center">
+      <img src="./docs/shots/config-desktop-pet.png" alt="Pisper desktop pet settings" />
+      <br /><sub><strong>Desktop pet</strong> · Search, install, and manage pets from Petdex</sub>
+    </td>
+    <td width="50%" align="center">
+      <img src="./docs/shots/config-updates.png" alt="Pisper app updates" />
+      <br /><sub><strong>App updates</strong> · Review version status and update channels</sub>
     </td>
   </tr>
 </table>
