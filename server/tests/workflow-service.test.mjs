@@ -14,7 +14,7 @@ async function waitFor(check, timeoutMs = 3000) {
 }
 
 test('workflows persist and execute Agent nodes in order with completion notifications', async () => {
-  const directory = await mkdtemp(join(tmpdir(), 'vesper-workflows-'))
+  const directory = await mkdtemp(join(tmpdir(), 'pisper-workflows-'))
   const prompts = []
   const notifications = []
   const service = new WorkflowService({
@@ -60,7 +60,7 @@ test('workflows persist and execute Agent nodes in order with completion notific
 })
 
 test('workflow edges determine execution order independently from canvas node order', async () => {
-  const directory = await mkdtemp(join(tmpdir(), 'vesper-workflow-graph-'))
+  const directory = await mkdtemp(join(tmpdir(), 'pisper-workflow-graph-'))
   const prompts = []
   const service = new WorkflowService({
     path: join(directory, 'workflows.json'), cwd: directory,
@@ -99,7 +99,7 @@ test('workflow edges determine execution order independently from canvas node or
 })
 
 test('published workflows reject cycles and disconnected nodes', async () => {
-  const directory = await mkdtemp(join(tmpdir(), 'vesper-workflow-invalid-'))
+  const directory = await mkdtemp(join(tmpdir(), 'pisper-workflow-invalid-'))
   const service = new WorkflowService({
     path: join(directory, 'workflows.json'), cwd: directory,
     agent: { validateDirectory: async (value) => value, abort: async () => true, prompt: async () => ({ text: '' }) },
@@ -131,7 +131,7 @@ test('published workflows reject cycles and disconnected nodes', async () => {
 })
 
 test('failed nodes can retry and skip without terminating the workflow', async () => {
-  const directory = await mkdtemp(join(tmpdir(), 'vesper-workflow-skip-'))
+  const directory = await mkdtemp(join(tmpdir(), 'pisper-workflow-skip-'))
   let calls = 0
   const service = new WorkflowService({
     path: join(directory, 'workflows.json'), cwd: directory,
@@ -164,7 +164,7 @@ test('failed nodes can retry and skip without terminating the workflow', async (
 })
 
 test('active workflow runs can abort their Agent session', async () => {
-  const directory = await mkdtemp(join(tmpdir(), 'vesper-workflow-stop-'))
+  const directory = await mkdtemp(join(tmpdir(), 'pisper-workflow-stop-'))
   let rejectPrompt
   const aborted = []
   const service = new WorkflowService({

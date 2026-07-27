@@ -4,7 +4,7 @@ import { readJson, writeJsonAtomic } from '../storage/json-file.mjs'
 export const GOAL_STATUSES = Object.freeze(new Set(['active', 'paused', 'budget_limited', 'complete']))
 export const DEFAULT_GOAL_TOKEN_BUDGET = 30_000
 export const MAX_GOAL_OBJECTIVE_CHARS = 6_000
-export const GOAL_CONTINUATION_MARKER = '[Vesper internal goal continuation]'
+export const GOAL_CONTINUATION_MARKER = '[Pisper internal goal continuation]'
 
 function clone(value) {
   return value ? JSON.parse(JSON.stringify(value)) : null

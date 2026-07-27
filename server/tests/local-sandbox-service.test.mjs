@@ -17,7 +17,7 @@ import { LocalSandboxService } from '../services/local-sandbox-service.mjs'
 import { shouldRunBashOutsideSandbox } from '../tools/sandboxed-bash.mjs'
 
 const TEST_WINDOWS_SHELL = 'C:\\Program Files\\Git\\bin\\bash.exe'
-const TEST_WINDOWS_HOME = resolve(join(tmpdir(), 'vesper-sandbox-empty-home'))
+const TEST_WINDOWS_HOME = resolve(join(tmpdir(), 'pisper-sandbox-empty-home'))
 
 test('sandbox config accepts workspace sets and protects credentials', () => {
   const workspace = resolve('workspace')
@@ -86,9 +86,9 @@ test('Windows config avoids large home/workspace deny stamps and protects bounde
 })
 
 test('Windows command preflight guards readable credential paths before user code runs', async (t) => {
-  const workspace = await mkdtemp(join(tmpdir(), 'vesper-sandbox-win-guard-workspace-'))
-  const dataDir = await mkdtemp(join(tmpdir(), 'vesper-sandbox-win-guard-data-'))
-  const homeDir = await mkdtemp(join(tmpdir(), 'vesper-sandbox-win-guard-home-'))
+  const workspace = await mkdtemp(join(tmpdir(), 'pisper-sandbox-win-guard-workspace-'))
+  const dataDir = await mkdtemp(join(tmpdir(), 'pisper-sandbox-win-guard-data-'))
+  const homeDir = await mkdtemp(join(tmpdir(), 'pisper-sandbox-win-guard-home-'))
   await writeFile(join(homeDir, '.git-credentials'), 'https://user:secret@example.test\n', 'utf8')
   t.after(() => Promise.all([
     rm(workspace, { recursive: true, force: true }),
@@ -116,15 +116,15 @@ test('Windows command preflight guards readable credential paths before user cod
   const guardedPaths = windowsSensitiveGuardPaths(dataDir, homeDir)
   assert.ok(guardedPaths.includes(canonicalSandboxPath(dataDir)))
   assert.ok(guardedPaths.includes(canonicalSandboxPath(resolve(homeDir, '.git-credentials'))))
-  assert.match(wrappedCommand, /VESPER_SANDBOX_SENSITIVE_PATH_READABLE/)
+  assert.match(wrappedCommand, /PISPER_SANDBOX_SENSITIVE_PATH_READABLE/)
   assert.match(wrappedCommand, /printf USER_COMMAND/)
   await service.dispose()
 })
 
 test('new credential files rotate the Windows sandbox policy before the next command', async (t) => {
-  const workspace = await mkdtemp(join(tmpdir(), 'vesper-sandbox-win-rotate-workspace-'))
-  const dataDir = await mkdtemp(join(tmpdir(), 'vesper-sandbox-win-rotate-data-'))
-  const homeDir = await mkdtemp(join(tmpdir(), 'vesper-sandbox-win-rotate-home-'))
+  const workspace = await mkdtemp(join(tmpdir(), 'pisper-sandbox-win-rotate-workspace-'))
+  const dataDir = await mkdtemp(join(tmpdir(), 'pisper-sandbox-win-rotate-data-'))
+  const homeDir = await mkdtemp(join(tmpdir(), 'pisper-sandbox-win-rotate-home-'))
   t.after(() => Promise.all([
     rm(workspace, { recursive: true, force: true }),
     rm(dataDir, { recursive: true, force: true }),
@@ -178,7 +178,7 @@ test('sandbox initialization failures fail closed before spawning a command', as
 })
 
 test('sandbox operations spawn only the wrapper-owned environment', async (t) => {
-  const directory = await mkdtemp(join(tmpdir(), 'vesper-sandbox-op-'))
+  const directory = await mkdtemp(join(tmpdir(), 'pisper-sandbox-op-'))
   t.after(() => rm(directory, { recursive: true, force: true }))
   let initializedConfig
   let wrappedConfig
@@ -215,8 +215,8 @@ test('sandbox operations spawn only the wrapper-owned environment', async (t) =>
 })
 
 test('Windows switches one granted workspace at a time instead of accumulating roots', async (t) => {
-  const first = await mkdtemp(join(tmpdir(), 'vesper-sandbox-win-a-'))
-  const second = await mkdtemp(join(tmpdir(), 'vesper-sandbox-win-b-'))
+  const first = await mkdtemp(join(tmpdir(), 'pisper-sandbox-win-a-'))
+  const second = await mkdtemp(join(tmpdir(), 'pisper-sandbox-win-b-'))
   t.after(() => Promise.all([
     rm(first, { recursive: true, force: true }),
     rm(second, { recursive: true, force: true }),
@@ -236,7 +236,7 @@ test('Windows switches one granted workspace at a time instead of accumulating r
     cleanupAfterCommand: () => {},
     reset: async () => { enabled = false; resetCount += 1 },
   }
-  const service = new LocalSandboxService({ dataDir: join(tmpdir(), 'vesper-sandbox-win-data'), homeDir: TEST_WINDOWS_HOME, platform: 'win32', manager, windowsShell: TEST_WINDOWS_SHELL })
+  const service = new LocalSandboxService({ dataDir: join(tmpdir(), 'pisper-sandbox-win-data'), homeDir: TEST_WINDOWS_HOME, platform: 'win32', manager, windowsShell: TEST_WINDOWS_SHELL })
   const operations = service.createBashOperations()
 
   await operations.exec('first', first, { onData: () => {}, timeout: 5 })
@@ -252,7 +252,7 @@ test('Windows switches one granted workspace at a time instead of accumulating r
 })
 
 test('same Windows workspace commands run concurrently without reinitializing SRT', async (t) => {
-  const workspace = await mkdtemp(join(tmpdir(), 'vesper-sandbox-win-shared-'))
+  const workspace = await mkdtemp(join(tmpdir(), 'pisper-sandbox-win-shared-'))
   t.after(() => rm(workspace, { recursive: true, force: true }))
   let enabled = false
   let initializeCount = 0
@@ -267,7 +267,7 @@ test('same Windows workspace commands run concurrently without reinitializing SR
     cleanupAfterCommand: () => {},
     reset: async () => { enabled = false },
   }
-  const service = new LocalSandboxService({ dataDir: join(tmpdir(), 'vesper-sandbox-shared-data'), homeDir: TEST_WINDOWS_HOME, platform: 'win32', manager, windowsShell: TEST_WINDOWS_SHELL })
+  const service = new LocalSandboxService({ dataDir: join(tmpdir(), 'pisper-sandbox-shared-data'), homeDir: TEST_WINDOWS_HOME, platform: 'win32', manager, windowsShell: TEST_WINDOWS_SHELL })
   const operations = service.createBashOperations()
 
   const first = operations.exec('first', workspace, { onData: () => {}, timeout: 5 })
@@ -287,8 +287,8 @@ test('same Windows workspace commands run concurrently without reinitializing SR
 })
 
 test('an aborted cross-workspace waiter never resets or switches the active Windows sandbox', async (t) => {
-  const first = await mkdtemp(join(tmpdir(), 'vesper-sandbox-win-abort-a-'))
-  const second = await mkdtemp(join(tmpdir(), 'vesper-sandbox-win-abort-b-'))
+  const first = await mkdtemp(join(tmpdir(), 'pisper-sandbox-win-abort-a-'))
+  const second = await mkdtemp(join(tmpdir(), 'pisper-sandbox-win-abort-b-'))
   t.after(() => Promise.all([
     rm(first, { recursive: true, force: true }),
     rm(second, { recursive: true, force: true }),
@@ -304,7 +304,7 @@ test('an aborted cross-workspace waiter never resets or switches the active Wind
     cleanupAfterCommand: () => {},
     reset: async () => { enabled = false; resetCount += 1 },
   }
-  const service = new LocalSandboxService({ dataDir: join(tmpdir(), 'vesper-sandbox-abort-data'), homeDir: TEST_WINDOWS_HOME, platform: 'win32', manager, windowsShell: TEST_WINDOWS_SHELL })
+  const service = new LocalSandboxService({ dataDir: join(tmpdir(), 'pisper-sandbox-abort-data'), homeDir: TEST_WINDOWS_HOME, platform: 'win32', manager, windowsShell: TEST_WINDOWS_SHELL })
   const operations = service.createBashOperations()
   const running = operations.exec('running', first, { onData: () => {}, timeout: 5 })
   for (let attempt = 0; attempt < 40 && service.activeCommands < 1; attempt += 1) await delay(10)
@@ -323,8 +323,8 @@ test('an aborted cross-workspace waiter never resets or switches the active Wind
 })
 
 test('workspace reset failures fail closed and keep the previous grant registered', async (t) => {
-  const first = await mkdtemp(join(tmpdir(), 'vesper-sandbox-win-reset-a-'))
-  const second = await mkdtemp(join(tmpdir(), 'vesper-sandbox-win-reset-b-'))
+  const first = await mkdtemp(join(tmpdir(), 'pisper-sandbox-win-reset-a-'))
+  const second = await mkdtemp(join(tmpdir(), 'pisper-sandbox-win-reset-b-'))
   t.after(() => Promise.all([
     rm(first, { recursive: true, force: true }),
     rm(second, { recursive: true, force: true }),
@@ -342,7 +342,7 @@ test('workspace reset failures fail closed and keep the previous grant registere
     cleanupAfterCommand: () => {},
     reset: async () => { throw new Error('reset failed') },
   }
-  const service = new LocalSandboxService({ dataDir: join(tmpdir(), 'vesper-sandbox-reset-data'), homeDir: TEST_WINDOWS_HOME, platform: 'win32', manager, windowsShell: TEST_WINDOWS_SHELL })
+  const service = new LocalSandboxService({ dataDir: join(tmpdir(), 'pisper-sandbox-reset-data'), homeDir: TEST_WINDOWS_HOME, platform: 'win32', manager, windowsShell: TEST_WINDOWS_SHELL })
   const operations = service.createBashOperations()
 
   await operations.exec('first', first, { onData: () => {}, timeout: 5 })
@@ -357,7 +357,7 @@ test('workspace reset failures fail closed and keep the previous grant registere
 })
 
 test('disposing the sandbox terminates active process trees and rejects future commands', async (t) => {
-  const workspace = await mkdtemp(join(tmpdir(), 'vesper-sandbox-dispose-'))
+  const workspace = await mkdtemp(join(tmpdir(), 'pisper-sandbox-dispose-'))
   t.after(() => rm(workspace, { recursive: true, force: true }))
   let enabled = false
   let resetCount = 0
@@ -372,7 +372,7 @@ test('disposing the sandbox terminates active process trees and rejects future c
     reset: async () => { enabled = false; resetCount += 1 },
   }
   const service = new LocalSandboxService({
-    dataDir: join(tmpdir(), 'vesper-sandbox-dispose-data'),
+    dataDir: join(tmpdir(), 'pisper-sandbox-dispose-data'),
     platform: 'linux',
     manager,
     disposeGraceMs: 1_000,

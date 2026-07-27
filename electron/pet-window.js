@@ -26,7 +26,7 @@ function applyState(input = {}) {
   bubble.classList.toggle('visible', Boolean(input.bubble))
 }
 
-window.vesperPet.onConfig((config) => {
+window.pisperPet.onConfig((config) => {
   if (config?.spriteBytes) {
     if (spriteObjectUrl) URL.revokeObjectURL(spriteObjectUrl)
     const bytes = config.spriteBytes instanceof Uint8Array
@@ -42,7 +42,7 @@ window.vesperPet.onConfig((config) => {
   if (config?.petName) frame.setAttribute('aria-label', `${config.petName}, via Petdex`)
   applyState(config)
 })
-window.vesperPet.onState(applyState)
+window.pisperPet.onState(applyState)
 window.addEventListener('beforeunload', () => {
   if (spriteObjectUrl) URL.revokeObjectURL(spriteObjectUrl)
 })
@@ -52,13 +52,13 @@ stage.addEventListener('pointerdown', (event) => {
   pointer = { id: event.pointerId, startX: event.screenX, startY: event.screenY, moved: false }
   stage.setPointerCapture(event.pointerId)
   stage.classList.add('dragging')
-  window.vesperPet.drag({ phase: 'start', screenX: event.screenX, screenY: event.screenY })
+  window.pisperPet.drag({ phase: 'start', screenX: event.screenX, screenY: event.screenY })
 })
 
 stage.addEventListener('pointermove', (event) => {
   if (!pointer || pointer.id !== event.pointerId) return
   if (Math.hypot(event.screenX - pointer.startX, event.screenY - pointer.startY) > 4) pointer.moved = true
-  window.vesperPet.drag({ phase: 'move', screenX: event.screenX, screenY: event.screenY })
+  window.pisperPet.drag({ phase: 'move', screenX: event.screenX, screenY: event.screenY })
 })
 
 function finishPointer(event) {
@@ -66,14 +66,14 @@ function finishPointer(event) {
   const moved = pointer.moved
   pointer = null
   stage.classList.remove('dragging')
-  window.vesperPet.drag({ phase: 'end', screenX: event.screenX, screenY: event.screenY })
-  if (!moved) window.vesperPet.interact()
+  window.pisperPet.drag({ phase: 'end', screenX: event.screenX, screenY: event.screenY })
+  if (!moved) window.pisperPet.interact()
 }
 
 stage.addEventListener('pointerup', finishPointer)
 stage.addEventListener('pointercancel', finishPointer)
-stage.addEventListener('dblclick', () => window.vesperPet.showMainWindow())
+stage.addEventListener('dblclick', () => window.pisperPet.showMainWindow())
 stage.addEventListener('contextmenu', (event) => {
   event.preventDefault()
-  window.vesperPet.showContextMenu()
+  window.pisperPet.showContextMenu()
 })

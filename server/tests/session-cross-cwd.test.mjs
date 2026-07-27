@@ -36,7 +36,7 @@ function createPersistedSession(cwd, sessionDir, prompt) {
 }
 
 test('desktop runtime lists and opens sessions created under other working directories', async (t) => {
-  const directory = await mkdtemp(join(tmpdir(), 'vesper-session-cross-cwd-'))
+  const directory = await mkdtemp(join(tmpdir(), 'pisper-session-cross-cwd-'))
   t.after(() => rm(directory, { recursive: true, force: true }))
 
   const dataDir = join(directory, 'agent')

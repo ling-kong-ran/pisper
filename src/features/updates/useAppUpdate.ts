@@ -14,7 +14,7 @@ const WEB_INFO: AppUpdateInfo = Object.freeze({
 })
 
 export function useAppUpdate(): AppUpdateController {
-  const bridge = window.vesperDesktop
+  const bridge = window.pisperDesktop
   const [info, setInfo] = useState(WEB_INFO)
   const [status, setStatus] = useState<UpdateStatus>({ state: 'idle', checkedAt: null })
 

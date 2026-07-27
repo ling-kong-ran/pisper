@@ -6,7 +6,7 @@ import { ACTIVE_SESSION_CHANGED_EVENT, SESSIONS_UPDATED_EVENT } from '@/features
 import { apiJson } from '@/lib/api'
 import { formatTokenCount } from '@/lib/format'
 
-const USAGE_UPDATED_EVENT = 'vesper:usage-updated'
+const USAGE_UPDATED_EVENT = 'pisper:usage-updated'
 
 type Usage = {
   input: number

@@ -12,7 +12,7 @@ async function writeSkill(directory, name, description, extra = '') {
 }
 
 test('skills service discovers Pi skills and applies persistent enable/invocation overrides', async (t) => {
-  const directory = await mkdtemp(join(tmpdir(), 'vesper-skills-'))
+  const directory = await mkdtemp(join(tmpdir(), 'pisper-skills-'))
   t.after(() => rm(directory, { recursive: true, force: true }))
   const agentDir = join(directory, 'agent')
   const cwd = join(directory, 'workspace')
@@ -21,7 +21,7 @@ test('skills service discovers Pi skills and applies persistent enable/invocatio
 
   const settingsManager = SettingsManager.inMemory({ enableSkillCommands: true })
   const service = new SkillsService({
-    path: join(agentDir, 'vesper-skills.json'),
+    path: join(agentDir, 'pisper-skills.json'),
     agentDir,
     cwd,
     getSettingsManager: () => settingsManager,
@@ -36,7 +36,7 @@ test('skills service discovers Pi skills and applies persistent enable/invocatio
   assert.deepEqual(skill.allowedTools, ['read', 'grep'])
   assert.equal(skill.command, '/skill:docs-search')
   assert.equal(skill.removable, false)
-  await assert.rejects(service.remove(skill.id), /只能卸载由 Vesper 安装的技能/)
+  await assert.rejects(service.remove(skill.id), /只能卸载由 Pisper 安装的技能/)
 
   const disabled = await service.update(skill.id, { enabled: false })
   assert.equal(disabled.enabled, false)
@@ -49,7 +49,7 @@ test('skills service discovers Pi skills and applies persistent enable/invocatio
   assert.equal(manualSkill.disableModelInvocation, true)
 
   const restored = new SkillsService({
-    path: join(agentDir, 'vesper-skills.json'),
+    path: join(agentDir, 'pisper-skills.json'),
     agentDir,
     cwd,
     getSettingsManager: () => settingsManager,
@@ -61,7 +61,7 @@ test('skills service discovers Pi skills and applies persistent enable/invocatio
 })
 
 test('skills service installs Pi package skill resources through DefaultPackageManager-compatible resolution', async (t) => {
-  const directory = await mkdtemp(join(tmpdir(), 'vesper-skill-package-'))
+  const directory = await mkdtemp(join(tmpdir(), 'pisper-skill-package-'))
   t.after(() => rm(directory, { recursive: true, force: true }))
   const agentDir = join(directory, 'agent')
   const cwd = join(directory, 'workspace')
@@ -70,7 +70,7 @@ test('skills service installs Pi package skill resources through DefaultPackageM
   await writeSkill(packageSkill, 'package-helper', 'Help with package workflows.')
   const calls = []
   const service = new SkillsService({
-    path: join(agentDir, 'vesper-skills.json'),
+    path: join(agentDir, 'pisper-skills.json'),
     agentDir,
     cwd,
     getSettingsManager: () => SettingsManager.inMemory(),
@@ -94,7 +94,7 @@ test('skills service installs Pi package skill resources through DefaultPackageM
 })
 
 test('skills dashboard uses single-flight caching and skills-only discovery', async (t) => {
-  const directory = await mkdtemp(join(tmpdir(), 'vesper-skills-cache-'))
+  const directory = await mkdtemp(join(tmpdir(), 'pisper-skills-cache-'))
   t.after(() => rm(directory, { recursive: true, force: true }))
   const agentDir = join(directory, 'agent')
   const cwd = join(directory, 'workspace')
@@ -103,7 +103,7 @@ test('skills dashboard uses single-flight caching and skills-only discovery', as
 
   let resolveCalls = 0
   const service = new SkillsService({
-    path: join(agentDir, 'vesper-skills.json'),
+    path: join(agentDir, 'pisper-skills.json'),
     agentDir,
     cwd,
     getSettingsManager: () => SettingsManager.inMemory({ enableSkillCommands: true }),
@@ -143,8 +143,8 @@ test('skills dashboard uses single-flight caching and skills-only discovery', as
   assert.equal(resolveCalls, 2)
 })
 
-test('skills service installs only skill resources from a local source and can remove Vesper-managed skills', async (t) => {
-  const directory = await mkdtemp(join(tmpdir(), 'vesper-skill-install-'))
+test('skills service installs only skill resources from a local source and can remove Pisper-managed skills', async (t) => {
+  const directory = await mkdtemp(join(tmpdir(), 'pisper-skill-install-'))
   t.after(() => rm(directory, { recursive: true, force: true }))
   const agentDir = join(directory, 'agent')
   const cwd = join(directory, 'workspace')
@@ -156,7 +156,7 @@ test('skills service installs only skill resources from a local source and can r
   await writeFile(join(source, 'template.md'), '# Release template\n', 'utf8')
 
   const service = new SkillsService({
-    path: join(agentDir, 'vesper-skills.json'),
+    path: join(agentDir, 'pisper-skills.json'),
     agentDir,
     cwd,
     getSettingsManager: () => SettingsManager.inMemory(),

@@ -36,7 +36,7 @@ export function createCompactionSettingsManager(settingsManager, getContextWindo
   })
 }
 
-export function vesperCompactionExtension(pi, { compactSession = compact } = {}) {
+export function pisperCompactionExtension(pi, { compactSession = compact } = {}) {
   pi.on('session_before_compact', async (event, context) => {
     const model = context.model
     if (!model) return undefined

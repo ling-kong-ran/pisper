@@ -7,7 +7,7 @@ import { AgentRuntimeService, multiAgentResultAgent, waitForAgentMailbox } from 
 import { applyTextPatch } from '../../src/lib/api.ts'
 
 test('live session snapshot restores partial assistant output and tool state', async (t) => {
-  const directory = await mkdtemp(join(tmpdir(), 'vesper-live-session-'))
+  const directory = await mkdtemp(join(tmpdir(), 'pisper-live-session-'))
   t.after(() => rm(directory, { recursive: true, force: true }))
   const runtime = new AgentRuntimeService({ cwd: directory, dataDir: directory })
   runtime.multiAgents = { summaries: () => [
@@ -57,7 +57,7 @@ test('multi-Agent status inspection never promotes an unrelated failed Agent int
 })
 
 test('live activity replaces plan and Agent status without retaining terminal Agent cards', async (t) => {
-  const directory = await mkdtemp(join(tmpdir(), 'vesper-live-activity-'))
+  const directory = await mkdtemp(join(tmpdir(), 'pisper-live-activity-'))
   let runtime
   t.after(async () => {
     await runtime?.dispose?.().catch(() => {})
@@ -122,7 +122,7 @@ test('wait_agent consumes the terminal mailbox item without starting a parent tu
 })
 
 test('stream completion publishes an authoritative terminal snapshot', async (t) => {
-  const directory = await mkdtemp(join(tmpdir(), 'vesper-live-terminal-'))
+  const directory = await mkdtemp(join(tmpdir(), 'pisper-live-terminal-'))
   t.after(() => rm(directory, { recursive: true, force: true }))
   const runtime = new AgentRuntimeService({ cwd: directory, dataDir: directory })
   runtime.archiveAttachments = async () => []
@@ -233,7 +233,7 @@ test('stream completion publishes an authoritative terminal snapshot', async (t)
 })
 
 test('background memory candidate extraction never blocks or delays session completion', async (t) => {
-  const directory = await mkdtemp(join(tmpdir(), 'vesper-memory-background-'))
+  const directory = await mkdtemp(join(tmpdir(), 'pisper-memory-background-'))
   t.after(() => rm(directory, { recursive: true, force: true }))
   const runtime = new AgentRuntimeService({ cwd: directory, dataDir: directory })
   runtime.archiveAttachments = async () => []
@@ -279,7 +279,7 @@ test('background memory candidate extraction never blocks or delays session comp
 })
 
 test('background Agent results remain durable without entering parent prompts or custom context', async (t) => {
-  const directory = await mkdtemp(join(tmpdir(), 'vesper-agent-mailbox-passive-'))
+  const directory = await mkdtemp(join(tmpdir(), 'pisper-agent-mailbox-passive-'))
   t.after(() => rm(directory, { recursive: true, force: true }))
   const runtime = new AgentRuntimeService({ cwd: directory, dataDir: directory })
   runtime.archiveAttachments = async () => []
@@ -338,7 +338,7 @@ test('background Agent results remain durable without entering parent prompts or
 })
 
 test('parent completion snapshot keeps background Agents visible without keeping the parent streaming', async (t) => {
-  const directory = await mkdtemp(join(tmpdir(), 'vesper-agent-background-snapshot-'))
+  const directory = await mkdtemp(join(tmpdir(), 'pisper-agent-background-snapshot-'))
   t.after(() => rm(directory, { recursive: true, force: true }))
   const runtime = new AgentRuntimeService({ cwd: directory, dataDir: directory })
   runtime.archiveAttachments = async () => []
@@ -391,7 +391,7 @@ test('parent completion snapshot keeps background Agents visible without keeping
 })
 
 test('terminal Agent progress replaces its running activity instead of leaving a stale card', async (t) => {
-  const directory = await mkdtemp(join(tmpdir(), 'vesper-agent-terminal-activity-'))
+  const directory = await mkdtemp(join(tmpdir(), 'pisper-agent-terminal-activity-'))
   t.after(() => rm(directory, { recursive: true, force: true }))
   const runtime = new AgentRuntimeService({ cwd: directory, dataDir: directory })
   const record = {
@@ -423,7 +423,7 @@ test('terminal Agent progress replaces its running activity instead of leaving a
 })
 
 test('generated session title is emitted before the terminal done event', async (t) => {
-  const directory = await mkdtemp(join(tmpdir(), 'vesper-live-title-order-'))
+  const directory = await mkdtemp(join(tmpdir(), 'pisper-live-title-order-'))
   t.after(() => rm(directory, { recursive: true, force: true }))
   const runtime = new AgentRuntimeService({ cwd: directory, dataDir: directory })
   runtime.archiveAttachments = async () => []
@@ -474,7 +474,7 @@ test('generated session title is emitted before the terminal done event', async 
 })
 
 test('stream failures emit a single terminal error snapshot without throwing', async (t) => {
-  const directory = await mkdtemp(join(tmpdir(), 'vesper-live-error-once-'))
+  const directory = await mkdtemp(join(tmpdir(), 'pisper-live-error-once-'))
   t.after(() => rm(directory, { recursive: true, force: true }))
   const runtime = new AgentRuntimeService({ cwd: directory, dataDir: directory })
   runtime.archiveAttachments = async () => []
@@ -521,7 +521,7 @@ test('stream failures emit a single terminal error snapshot without throwing', a
 })
 
 test('context usage reports the current window share and earlier automatic compaction threshold', async (t) => {
-  const directory = await mkdtemp(join(tmpdir(), 'vesper-context-usage-'))
+  const directory = await mkdtemp(join(tmpdir(), 'pisper-context-usage-'))
   let runtime
   t.after(async () => {
     await runtime?.dispose?.().catch(() => {})
@@ -554,7 +554,7 @@ test('context usage reports the current window share and earlier automatic compa
 })
 
 test('session messages are returned newest-first by bounded cursor pages', async (t) => {
-  const directory = await mkdtemp(join(tmpdir(), 'vesper-message-pages-'))
+  const directory = await mkdtemp(join(tmpdir(), 'pisper-message-pages-'))
   t.after(() => rm(directory, { recursive: true, force: true }))
   const runtime = new AgentRuntimeService({ cwd: directory, dataDir: directory })
   runtime.sessions.set('session-pages', {
@@ -592,7 +592,7 @@ test('session messages are returned newest-first by bounded cursor pages', async
 })
 
 test('session history pagination follows the persisted branch across compaction', async (t) => {
-  const directory = await mkdtemp(join(tmpdir(), 'vesper-persisted-history-'))
+  const directory = await mkdtemp(join(tmpdir(), 'pisper-persisted-history-'))
   t.after(() => rm(directory, { recursive: true, force: true }))
   const path = join(directory, 'session.jsonl')
   const entries = [
@@ -618,7 +618,7 @@ test('session history pagination follows the persisted branch across compaction'
 })
 
 test('session listings do not reopen every inactive history just to resolve its model', async (t) => {
-  const directory = await mkdtemp(join(tmpdir(), 'vesper-session-list-memory-'))
+  const directory = await mkdtemp(join(tmpdir(), 'pisper-session-list-memory-'))
   t.after(() => rm(directory, { recursive: true, force: true }))
   const runtime = new AgentRuntimeService({ cwd: directory, dataDir: directory })
   runtime.listStoredSessions = async () => [{
@@ -644,7 +644,7 @@ test('session listings do not reopen every inactive history just to resolve its 
 })
 
 test('today usage scans only newly appended session bytes', async (t) => {
-  const directory = await mkdtemp(join(tmpdir(), 'vesper-usage-scan-'))
+  const directory = await mkdtemp(join(tmpdir(), 'pisper-usage-scan-'))
   t.after(() => rm(directory, { recursive: true, force: true }))
   const path = join(directory, 'session.jsonl')
   const now = Date.now()
@@ -673,7 +673,7 @@ test('today usage scans only newly appended session bytes', async (t) => {
 })
 
 test('empty active sessions tolerate a JSONL file that has not been created yet', async (t) => {
-  const directory = await mkdtemp(join(tmpdir(), 'vesper-empty-session-'))
+  const directory = await mkdtemp(join(tmpdir(), 'pisper-empty-session-'))
   t.after(() => rm(directory, { recursive: true, force: true }))
   const runtime = new AgentRuntimeService({ cwd: directory, dataDir: directory })
   runtime.sessions.set('session-empty', {

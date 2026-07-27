@@ -8,7 +8,7 @@ import { permissionRequirement } from '../services/session-permission-service.mj
 import { createBrowserAutomationTool } from '../tools/app/browser-automation.mjs'
 
 test('browser automation delegates bounded actions and archives screenshots', async (t) => {
-  const directory = await mkdtemp(join(tmpdir(), 'vesper-browser-tool-'))
+  const directory = await mkdtemp(join(tmpdir(), 'pisper-browser-tool-'))
   t.after(() => rm(directory, { recursive: true, force: true }))
   const calls = []
   const generated = []

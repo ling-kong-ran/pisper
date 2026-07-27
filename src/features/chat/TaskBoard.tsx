@@ -61,7 +61,7 @@ function StatusBadge({ status, t }: { status: string | undefined; t: Translate }
 
 function TaskRow({ task, t }: { task: TaskView; t: Translate }) {
   return (
-    <li className={`task-board-row ${task.blocked ? 'blocked' : ''}`} data-vesper-task-id={task.id}>
+    <li className={`task-board-row ${task.blocked ? 'blocked' : ''}`} data-pisper-task-id={task.id}>
       <div className="task-board-row-head">
         <StatusBadge status={task.blocked ? 'blocked' : task.status} t={t} />
         <span className="task-board-title" title={task.title}>

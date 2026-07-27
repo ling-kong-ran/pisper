@@ -3,12 +3,12 @@
 <a id="top"></a>
 
 <p align="center">
-  <img src="docs/brand/vesper-logo.svg" width="112" alt="Vesper 项目标志" />
+  <img src="docs/brand/pisper-logo.svg" width="112" alt="Pisper 项目标志" />
 </p>
 
-<h1 align="center">Vesper</h1>
+<h1 align="center">Pisper</h1>
 
-<p align="center"><strong>暮色落下，灵感仍醒着。</strong></p>
+<p align="center"><strong>Pi 驱动，Agent 低语。</strong></p>
 <p align="center">多 Agent 桌面工作台：在可停靠工作区中整合会话、工具、记忆与自动化。</p>
 
 <p align="center">
@@ -20,8 +20,8 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/ling-kong-ran/vesper/releases/latest">
-    <img src="https://img.shields.io/badge/下载桌面版-Windows%20%7C%20macOS%20%7C%20Linux-F59E0B?style=for-the-badge&logo=github&logoColor=17141F" alt="下载 Vesper 桌面版" />
+  <a href="https://github.com/ling-kong-ran/pisper/releases/latest">
+    <img src="https://img.shields.io/badge/下载桌面版-Windows%20%7C%20macOS%20%7C%20Linux-F59E0B?style=for-the-badge&logo=github&logoColor=17141F" alt="下载 Pisper 桌面版" />
   </a>
 </p>
 
@@ -43,9 +43,9 @@
 
 一个任务开一个窗口、上下文来回复制、工具配置散落各处——多 Agent 协作不该这么累。
 
-**Vesper 把多个 AI Agent 装进一个桌面工作台。** 每个会话拥有独立的模型、上下文、工作目录和执行权限，像 IDE 一样标签分组、分屏与拖拽停靠，关掉重开布局照旧。
+**Pisper 把多个 AI Agent 装进一个桌面工作台。** 每个会话拥有独立的模型、上下文、工作目录和执行权限，像 IDE 一样标签分组、分屏与拖拽停靠，关掉重开布局照旧。
 
-**为什么选择 Vesper：**
+**为什么选择 Pisper：**
 
 - **并行而不混乱** — 多个会话同时推进不同任务，互不串扰，布局自动恢复。
 - **更省 Token** — 动态 Prompt 只加载当前任务所需工具，固定 Prompt 约 2,979 tokens，比全量注入减少约 58.7%。
@@ -54,7 +54,7 @@
 
 ### 三步上手
 
-1. [下载桌面版](https://github.com/ling-kong-ran/vesper/releases/latest)（Windows / macOS / Linux，免装 Node.js）
+1. [下载桌面版](https://github.com/ling-kong-ran/pisper/releases/latest)（Windows / macOS / Linux，免装 Node.js）
 2. 配置任意一个模型 Provider 与 API Key
 3. 新建会话，开始并行工作
 
@@ -63,27 +63,27 @@
 ## 界面
 
 <p align="center">
-  <img src="./docs/shots/welcome-dark.png" alt="Vesper 暗色主题欢迎页" />
+  <img src="./docs/shots/welcome-dark.png" alt="Pisper 暗色主题欢迎页" />
 </p>
 
 <table>
   <tr>
     <td width="50%" align="center">
-      <img src="./docs/shots/chat-grid.png" alt="Vesper 多会话 Dock 分屏工作区" />
+      <img src="./docs/shots/chat-grid.png" alt="Pisper 多会话 Dock 分屏工作区" />
       <br /><sub><strong>Dock 工作区</strong> · 标签、分屏与拖拽停靠</sub>
     </td>
     <td width="50%" align="center">
-      <img src="./docs/shots/memory.png" alt="Vesper 星忆视图" />
+      <img src="./docs/shots/memory.png" alt="Pisper 星忆视图" />
       <br /><sub><strong>星忆</strong> · 可检索的持久记忆</sub>
     </td>
   </tr>
   <tr>
     <td width="50%" align="center">
-      <img src="./docs/shots/workflow-builder.png" alt="Vesper 工作流编辑器" />
+      <img src="./docs/shots/workflow-builder.png" alt="Pisper 工作流编辑器" />
       <br /><sub><strong>工作流</strong> · 编排可复用自动化</sub>
     </td>
     <td width="50%" align="center">
-      <img src="./docs/shots/channels.png" alt="Vesper 渠道视图" />
+      <img src="./docs/shots/channels.png" alt="Pisper 渠道视图" />
       <br /><sub><strong>双向渠道</strong> · 连接飞书与个人微信</sub>
     </td>
   </tr>
@@ -93,7 +93,7 @@
 
 ## 功能
 
-从对话到自动化，Vesper 覆盖 Agent 工作的完整链路：
+从对话到自动化，Pisper 覆盖 Agent 工作的完整链路：
 
 | 模块 | 能力 |
 | :--- | :--- |
@@ -115,13 +115,13 @@
 
 > 当前基准下，固定 Prompt 约为 **2,979 tokens**，相较全量注入减少约 **58.7%**。实际计费与缓存收益因模型和服务商而异。
 
-> **沙箱说明：** 默认“工作区”模式使用 [Anthropic Sandbox Runtime](https://github.com/anthropic-experimental/sandbox-runtime) 限制 Shell 写入、凭据与网络访问。Windows 首次启用需要一次 UAC；初始化失败时 Vesper 会阻止执行，不会静默回退到完整权限。该运行时仍处于 Beta Research Preview。
+> **沙箱说明：** 默认“工作区”模式使用 [Anthropic Sandbox Runtime](https://github.com/anthropic-experimental/sandbox-runtime) 限制 Shell 写入、凭据与网络访问。Windows 首次启用需要一次 UAC；初始化失败时 Pisper 会阻止执行，不会静默回退到完整权限。该运行时仍处于 Beta Research Preview。
 
 <a id="desktop-pet"></a>
 
 ## 桌面宠物
 
-工作台不必冷冰冰。Vesper 原生支持 [Petdex](https://petdex.dev) 兼容宠物——Agent 在思考，宠物在踱步；任务完成，它会告诉你。在 **设置 → 桌面宠物** 中即可搜索、安装、切换与启停，无需 Petdex CLI 或额外进程。
+工作台不必冷冰冰。Pisper 原生支持 [Petdex](https://petdex.dev) 兼容宠物——Agent 在思考，宠物在踱步；任务完成，它会告诉你。在 **设置 → 桌面宠物** 中即可搜索、安装、切换与启停，无需 Petdex CLI 或额外进程。
 
 - Agent 的等待、思考、工具执行、完成与失败状态会映射为宠物动画。
 - Electron 使用独立透明窗口，支持拖动、置顶、多显示器位置记忆和 `20%–100%` 透明度；隐藏主窗口后仍可显示。
@@ -136,14 +136,14 @@
 
 ### 桌面版（推荐）
 
-前往 [GitHub Releases](https://github.com/ling-kong-ran/vesper/releases/latest) 下载 Windows、macOS 或 Linux 安装包，开箱即用，无需额外安装 Node.js。
+前往 [GitHub Releases](https://github.com/ling-kong-ran/pisper/releases/latest) 下载 Windows、macOS 或 Linux 安装包，开箱即用，无需额外安装 Node.js。
 
 #### macOS 无法打开
 
-Vesper 当前尚未经过 Apple 公证。请确认应用来自官方 Releases，并优先在 **系统设置 → 隐私与安全性** 中选择 **仍要打开**。若没有该选项，可执行：
+Pisper 当前尚未经过 Apple 公证。请确认应用来自官方 Releases，并优先在 **系统设置 → 隐私与安全性** 中选择 **仍要打开**。若没有该选项，可执行：
 
 ```bash
-sudo xattr -rd com.apple.quarantine /Applications/Vesper.app
+sudo xattr -rd com.apple.quarantine /Applications/Pisper.app
 ```
 
 请仅对从官方 Releases 下载并放入 `/Applications` 的应用使用此命令。
@@ -151,14 +151,14 @@ sudo xattr -rd com.apple.quarantine /Applications/Vesper.app
 #### Linux AppImage 无法启动
 
 ```bash
-chmod +x Vesper-*-linux-x86_64.AppImage
-./Vesper-*-linux-x86_64.AppImage
+chmod +x Pisper-*-linux-x86_64.AppImage
+./Pisper-*-linux-x86_64.AppImage
 ```
 
 缺少 FUSE 时安装 `libfuse2` 或 `libfuse2t64`，也可改用 `.deb`：
 
 ```bash
-sudo apt install ./Vesper-*-linux-amd64.deb
+sudo apt install ./Pisper-*-linux-amd64.deb
 ```
 
 ### 从源码运行
@@ -166,8 +166,8 @@ sudo apt install ./Vesper-*-linux-amd64.deb
 需要 Node.js 20+、npm，以及至少一个模型 Provider 与 API Key。
 
 ```bash
-git clone https://github.com/ling-kong-ran/vesper.git
-cd vesper
+git clone https://github.com/ling-kong-ran/pisper.git
+cd pisper
 npm install
 npm run dev
 ```
@@ -186,7 +186,7 @@ npm run desktop:dev
 npm run desktop:pack
 ```
 
-配置、会话与记忆默认保存在 `~/.vesper/agent`，可通过 `VESPER_AGENT_DIR` 修改。
+配置、会话与记忆默认保存在 `~/.pisper/agent`，可通过 `PISPER_AGENT_DIR` 修改。
 
 <a id="development"></a>
 
@@ -200,22 +200,22 @@ npm test
 npm run build
 ```
 
-欢迎提交 [Issue](https://github.com/ling-kong-ran/vesper/issues) 与 [Pull Request](https://github.com/ling-kong-ran/vesper/pulls)。请勿提交 API Key、机器人凭据，或 `~/.vesper/agent` 中的个人数据。
+欢迎提交 [Issue](https://github.com/ling-kong-ran/pisper/issues) 与 [Pull Request](https://github.com/ling-kong-ran/pisper/pulls)。请勿提交 API Key、机器人凭据，或 `~/.pisper/agent` 中的个人数据。
 
 <a id="license"></a>
 
 ## 许可
 
-Vesper 采用 [MIT License](./LICENSE)。第三方依赖与外部资源仍遵循各自许可证与权利声明；Petdex 社区宠物资源归相应作者或权利人所有，不属于 Vesper 源码或发行包。
+Pisper 采用 [MIT License](./LICENSE)。第三方依赖与外部资源仍遵循各自许可证与权利声明；Petdex 社区宠物资源归相应作者或权利人所有，不属于 Pisper 源码或发行包。
 
 ## 致谢
 
-Vesper 基于 [Pi Coding Agent](https://github.com/earendil-works/pi/tree/main/packages/coding-agent) 构建，并受益于 Node.js、React、TypeScript、Vite、Tailwind CSS、shadcn/ui、React Router、Zustand、React Flow、i18next 等开源项目。
+Pisper 基于 [Pi Coding Agent](https://github.com/earendil-works/pi/tree/main/packages/coding-agent) 构建，并受益于 Node.js、React、TypeScript、Vite、Tailwind CSS、shadcn/ui、React Router、Zustand、React Flow、i18next 等开源项目。
 
 感谢 [Petdex](https://petdex.dev) 与 [`crafter-station/petdex`](https://github.com/crafter-station/petdex) 提供 MIT 许可的兼容格式与目录实现参考。
 
 贡献者：
 
-- [@mik-myp](https://github.com/mik-myp) — 前端 TypeScript 架构、shadcn/ui / AI Elements、Zustand 与 i18n 重构（[#1](https://github.com/ling-kong-ran/vesper/pull/1)）
+- [@mik-myp](https://github.com/mik-myp) — 前端 TypeScript 架构、shadcn/ui / AI Elements、Zustand 与 i18n 重构（[#1](https://github.com/ling-kong-ran/pisper/pull/1)）
 
 <p align="right"><a href="#top">返回顶部 ↑</a></p>

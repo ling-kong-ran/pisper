@@ -30,7 +30,7 @@ function response() {
 }
 
 async function withMemory(run) {
-  const directory = await mkdtemp(join(tmpdir(), 'vesper-memory-'))
+  const directory = await mkdtemp(join(tmpdir(), 'pisper-memory-'))
   const cwd = join(directory, 'project')
   const path = join(directory, 'memory.sqlite')
   const memory = new LocalMemoryRuntime({ path, cwd })
@@ -44,7 +44,7 @@ async function withMemory(run) {
 }
 
 test('local memory starts and searches when the bundled SQLite omits FTS5', async () => {
-  const directory = await mkdtemp(join(tmpdir(), 'vesper-memory-no-fts5-'))
+  const directory = await mkdtemp(join(tmpdir(), 'pisper-memory-no-fts5-'))
   const cwd = join(directory, 'project')
   const path = join(directory, 'memory.sqlite')
   const statements = []
@@ -236,7 +236,7 @@ test('Agent memory tool stores explicit user requests without approval', async (
       getUserMessage: () => '如何发版 写入记忆',
     })
     const result = await tool.execute('call-2', {
-      title: 'Vesper 发版流程',
+      title: 'Pisper 发版流程',
       content: '使用 npm run release -- patch 发版，更新日志由 CI 自动注入。',
       topic: 'project.release.workflow',
       type: 'decision',
@@ -374,7 +374,7 @@ test('similar titles no longer trigger fuzzy destructive deduplication', async (
 })
 
 test('legacy inferred memories are quarantined and migrated into review candidates', async () => {
-  const directory = await mkdtemp(join(tmpdir(), 'vesper-memory-migration-'))
+  const directory = await mkdtemp(join(tmpdir(), 'pisper-memory-migration-'))
   const cwd = join(directory, 'project')
   const path = join(directory, 'memory.sqlite')
   const first = new LocalMemoryRuntime({ path, cwd })
@@ -491,8 +491,8 @@ test('memory candidate API exposes a lightweight inbox plus explicit accept and 
 })
 
 test('memory tools migrate once and can still be disabled in plugin settings', async () => {
-  const directory = await mkdtemp(join(tmpdir(), 'vesper-tools-'))
-  const path = join(directory, 'vesper.json')
+  const directory = await mkdtemp(join(tmpdir(), 'pisper-tools-'))
+  const path = join(directory, 'pisper.json')
   try {
     await writeJsonAtomic(path, { toolMode: 'custom', enabledTools: ['read', 'bash'] })
     const service = new ToolPluginService(path)

@@ -294,7 +294,7 @@ export function AssetsPage({
           <h2>{t('assets:assetsPage.nothingHasGatheredHereYet')}</h2>
           <p>
             {t(
-              'assets:assetsPage.bringInALinkOrAttachAFileInAConversationVesperWillGatherTheOutputsCreatedAlongTheWay',
+              'assets:assetsPage.bringInALinkOrAttachAFileInAConversationPisperWillGatherTheOutputsCreatedAlongTheWay',
             )}
           </p>
           <button className="button primary" onClick={() => setLinkModal(true)}>

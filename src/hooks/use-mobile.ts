@@ -1,6 +1,6 @@
 import * as React from 'react'
 
-// Vesper's existing navigation switches to an off-canvas layout at 900px.
+// Pisper's existing navigation switches to an off-canvas layout at 900px.
 // Keep this breakpoint aligned with the legacy layout during the shadcn migration.
 const MOBILE_BREAKPOINT = 901
 

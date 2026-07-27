@@ -4,10 +4,10 @@ import { browserLaunchSpec, openBrowser, shouldOpenBrowser } from '../open-brows
 
 test('local npm servers open a browser only when explicitly enabled', () => {
   assert.equal(shouldOpenBrowser({ host: '127.0.0.1', env: {} }), false)
-  assert.equal(shouldOpenBrowser({ host: '127.0.0.1', env: { VESPER_OPEN_BROWSER: '1' } }), true)
-  assert.equal(shouldOpenBrowser({ host: 'localhost', env: { VESPER_OPEN_BROWSER: '1' } }), true)
-  assert.equal(shouldOpenBrowser({ host: '0.0.0.0', env: { VESPER_OPEN_BROWSER: '1' } }), false)
-  assert.equal(shouldOpenBrowser({ host: '127.0.0.1', env: { CI: 'true', VESPER_OPEN_BROWSER: '1' } }), false)
+  assert.equal(shouldOpenBrowser({ host: '127.0.0.1', env: { PISPER_OPEN_BROWSER: '1' } }), true)
+  assert.equal(shouldOpenBrowser({ host: 'localhost', env: { PISPER_OPEN_BROWSER: '1' } }), true)
+  assert.equal(shouldOpenBrowser({ host: '0.0.0.0', env: { PISPER_OPEN_BROWSER: '1' } }), false)
+  assert.equal(shouldOpenBrowser({ host: '127.0.0.1', env: { CI: 'true', PISPER_OPEN_BROWSER: '1' } }), false)
 })
 
 test('browser launch commands use the operating system default URL handler', () => {

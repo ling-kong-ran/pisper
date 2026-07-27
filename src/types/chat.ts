@@ -1,4 +1,4 @@
-// Vesper's streaming protocol carries tool-specific extension fields that are not
+// Pisper's streaming protocol carries tool-specific extension fields that are not
 // known to the frontend ahead of time. Keep the escape hatch centralized here
 // until the server protocol exposes discriminated event schemas.
 export type EntityRecord = Record<string, any>

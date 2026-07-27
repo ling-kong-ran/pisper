@@ -56,7 +56,7 @@ if (dirty) throw new Error('发布前工作区必须保持干净，请先提交�
 
 const branch = run('git', ['branch', '--show-current'], { capture: true })
 if (!branch) throw new Error('当前处于 detached HEAD，无法创建版本提交。')
-const releaseBranch = String(process.env.VESPER_RELEASE_BRANCH || 'main').trim()
+const releaseBranch = String(process.env.PISPER_RELEASE_BRANCH || 'main').trim()
 if (branch !== releaseBranch) throw new Error(`只能从 ${releaseBranch} 分支发布，当前分支为 ${branch}。`)
 
 run('git', ['fetch', '--tags', 'origin'])

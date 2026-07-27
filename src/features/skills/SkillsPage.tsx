@@ -104,10 +104,10 @@ export function SkillsPage({
     const source = await requestText?.({
       title: t('skills:skillsPage.installSkill'),
       message: t(
-        'skills:skillsPage.enterALocalSkillDirectorySKILLMdFileNpmPackageOrGitSourceVesperImportsOnlyItsSkillResources',
+        'skills:skillsPage.enterALocalSkillDirectorySKILLMdFileNpmPackageOrGitSourcePisperImportsOnlyItsSkillResources',
       ),
       inputLabel: t('skills:skillsPage.skillSource'),
-      placeholder: 'npm:@scope/vesper-skills or ./path/to/skill',
+      placeholder: 'npm:@scope/pisper-skills or ./path/to/skill',
       maxLength: 2_000,
       confirmLabel: t('skills:skillsPage.continue'),
     })
@@ -226,7 +226,7 @@ export function SkillsPage({
     const approved = await requestConfirm?.({
       title: t('skills:skillsPage.uninstallSkill'),
       message: t(
-        'skills:skillsPage.thisRemovesTheSkillDirectoryInstalledByVesperItDoesNotUninstallTheOriginalNpmOrGitPackage',
+        'skills:skillsPage.thisRemovesTheSkillDirectoryInstalledByPisperItDoesNotUninstallTheOriginalNpmOrGitPackage',
       ),
       confirmLabel: t('skills:skillsPage.uninstall'),
       tone: 'danger',

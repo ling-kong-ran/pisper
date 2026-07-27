@@ -75,7 +75,7 @@ test('session persistence redacts a copy without changing the Agent message', ()
 })
 
 test('existing JSONL sessions are scrubbed while preserving ordinary usage data', async (t) => {
-  const directory = await mkdtemp(join(tmpdir(), 'vesper-redaction-'))
+  const directory = await mkdtemp(join(tmpdir(), 'pisper-redaction-'))
   t.after(() => rm(directory, { recursive: true, force: true }))
   const path = join(directory, 'session.jsonl')
   await writeFile(path, `${JSON.stringify({

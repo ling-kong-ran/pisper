@@ -9,7 +9,7 @@ import { createAppTools, TOOL_CATALOG, TOOL_PRESETS } from '../tools/registry.mj
 
 const SEARCH_XML = `<?xml version="1.0" encoding="utf-8"?>
   <rss version="2.0"><channel>
-    <item><title>Vesper &amp; Agent</title><link>https://example.com/vesper</link><description>An open agent.</description><pubDate>Tue, 21 Jul 2026 03:14:00 GMT</pubDate></item>
+    <item><title>Pisper &amp; Agent</title><link>https://example.com/pisper</link><description>An open agent.</description><pubDate>Tue, 21 Jul 2026 03:14:00 GMT</pubDate></item>
     <item><title>Documentation</title><link>https://example.com/docs</link><description><![CDATA[Official <b>docs</b>]]></description></item>
     <item><title>Unsafe</title><link>javascript:alert(1)</link><description>discard me</description></item>
   </channel></rss>`
@@ -24,11 +24,11 @@ test('Bing RSS search builds a lightweight request and parses structured results
   })
 
   const result = await service.search({
-    query: 'Vesper agent', language: 'en-US', page: 2, limit: 2,
+    query: 'Pisper agent', language: 'en-US', page: 2, limit: 2,
   }, { config: { language: 'auto', safeSearch: 2, maxResults: 8 } })
 
   assert.equal(request.url.hostname, 'www.bing.com')
-  assert.equal(request.url.searchParams.get('q'), 'Vesper agent')
+  assert.equal(request.url.searchParams.get('q'), 'Pisper agent')
   assert.equal(request.url.searchParams.get('format'), 'rss')
   assert.equal(request.url.searchParams.get('count'), '2')
   assert.equal(request.url.searchParams.get('adlt'), 'strict')
@@ -38,11 +38,11 @@ test('Bing RSS search builds a lightweight request and parses structured results
   assert.equal(request.options.redirect, 'follow')
   assert.equal(result.provider, 'bing')
   assert.equal(result.results.length, 2)
-  assert.equal(result.results[0].title, 'Vesper & Agent')
-  assert.equal(result.results[0].url, 'https://example.com/vesper')
+  assert.equal(result.results[0].title, 'Pisper & Agent')
+  assert.equal(result.results[0].url, 'https://example.com/pisper')
   assert.equal(result.results[0].publishedAt, 'Tue, 21 Jul 2026 03:14:00 GMT')
   assert.equal(result.results[1].snippet, 'Official docs')
-  assert.match(result.text, /https:\/\/example\.com\/vesper/)
+  assert.match(result.text, /https:\/\/example\.com\/pisper/)
 })
 
 test('Bing RSS parser removes unsafe links and reports invalid responses', async () => {
@@ -54,8 +54,8 @@ test('Bing RSS parser removes unsafe links and reports invalid responses', async
 })
 
 test('web_search needs no endpoint, belongs to read-only presets, and persists preferences', async (t) => {
-  const directory = await mkdtemp(join(tmpdir(), 'vesper-web-search-'))
-  const path = join(directory, 'vesper.json')
+  const directory = await mkdtemp(join(tmpdir(), 'pisper-web-search-'))
+  const path = join(directory, 'pisper.json')
   t.after(() => rm(directory, { recursive: true, force: true }))
   const plugins = new ToolPluginService(path)
   const saved = await plugins.saveState({
@@ -74,7 +74,7 @@ test('web_search needs no endpoint, belongs to read-only presets, and persists p
     enabledTools: ['web_search'],
     webSearchService: { search: async (input) => { searched = input; return { text: 'result', results: [] } } },
   })
-  const output = await tool.execute('search-1', { query: 'latest Vesper release', limit: 5 })
-  assert.equal(searched.query, 'latest Vesper release')
+  const output = await tool.execute('search-1', { query: 'latest Pisper release', limit: 5 })
+  assert.equal(searched.query, 'latest Pisper release')
   assert.equal(output.content[0].text, 'result')
 })

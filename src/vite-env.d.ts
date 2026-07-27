@@ -6,7 +6,7 @@ declare module '*.css'
 
 declare global {
   interface Window {
-    vesperDesktop?: DesktopBridge
+    pisperDesktop?: DesktopBridge
   }
 }
 

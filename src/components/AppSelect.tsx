@@ -14,7 +14,7 @@ import {
 } from '@/components/ui/select'
 import { cn } from '@/lib/utils'
 
-const EMPTY_VALUE = '__vesper_empty_value__'
+const EMPTY_VALUE = '__pisper_empty_value__'
 
 type OptionProps = {
   children?: ReactNode

@@ -7,7 +7,7 @@ import { TaskListService } from '../services/task-list-service.mjs'
 import { createTaskListTools } from '../tools/app/task-list.mjs'
 
 test('task lists persist structured progress per primary session', async (t) => {
-  const directory = await mkdtemp(join(tmpdir(), 'vesper-task-list-'))
+  const directory = await mkdtemp(join(tmpdir(), 'pisper-task-list-'))
   t.after(() => rm(directory, { recursive: true, force: true }))
   const path = join(directory, 'task-lists.json')
   const service = new TaskListService({ path, now: () => Date.parse('2026-07-22T01:02:03.000Z') })
@@ -53,7 +53,7 @@ test('task list tools return structured details and can clear the list', async (
 })
 
 test('task items persist assignee and dependsOn with defaults and validation', async (t) => {
-  const directory = await mkdtemp(join(tmpdir(), 'vesper-task-list-'))
+  const directory = await mkdtemp(join(tmpdir(), 'pisper-task-list-'))
   t.after(() => rm(directory, { recursive: true, force: true }))
   const path = join(directory, 'task-lists.json')
   const service = new TaskListService({ path })

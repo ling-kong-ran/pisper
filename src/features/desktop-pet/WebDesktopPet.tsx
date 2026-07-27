@@ -18,7 +18,7 @@ type PointerDrag = {
 
 const PET_WIDTH = 192
 const PET_HEIGHT = 288
-const POSITION_KEY = 'vesper-web-desktop-pet-position'
+const POSITION_KEY = 'pisper-web-desktop-pet-position'
 const PET_STATES: Record<PetState, { row: number; frames: number; durationMs: number }> = {
   idle: { row: 0, frames: 6, durationMs: 1100 },
   waving: { row: 3, frames: 4, durationMs: 700 },
@@ -70,7 +70,7 @@ export function WebDesktopPet() {
   }, [])
 
   useEffect(() => {
-    if (window.vesperDesktop?.getPetStatus) return undefined
+    if (window.pisperDesktop?.getPetStatus) return undefined
     void refresh()
     const timer = window.setInterval(refresh, 1200)
     const onChanged = (event: Event) => {
@@ -79,17 +79,17 @@ export function WebDesktopPet() {
       else void refresh()
     }
     const onResize = () => setPosition((current) => clampPosition(current))
-    window.addEventListener('vesper:desktop-pet-changed', onChanged)
+    window.addEventListener('pisper:desktop-pet-changed', onChanged)
     window.addEventListener('resize', onResize)
     return () => {
       window.clearInterval(timer)
       window.clearTimeout(interactionTimer.current)
-      window.removeEventListener('vesper:desktop-pet-changed', onChanged)
+      window.removeEventListener('pisper:desktop-pet-changed', onChanged)
       window.removeEventListener('resize', onResize)
     }
   }, [refresh])
 
-  if (window.vesperDesktop?.getPetStatus || !status?.running || !status.spriteUrl) return null
+  if (window.pisperDesktop?.getPetStatus || !status?.running || !status.spriteUrl) return null
 
   const stateName = interactionState || normalizedState(status.state)
   const animation = PET_STATES[stateName]

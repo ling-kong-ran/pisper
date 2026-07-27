@@ -1,5 +1,5 @@
 {
-  "name": "vesper",
+  "name": "pisper",
   "private": true,
   "version": "0.2.21",
   "license": "MIT",
@@ -104,8 +104,8 @@
     "shiki": "$shiki"
   },
   "build": {
-    "appId": "com.lingkongran.vesper",
-    "productName": "Vesper",
+    "appId": "com.lingkongran.pisper",
+    "productName": "Pisper",
     "artifactName": "${productName}-${version}-${os}-${arch}.${ext}",
     "asar": true,
     "compression": "maximum",
@@ -168,7 +168,7 @@
       "allowToChangeInstallationDirectory": true,
       "createDesktopShortcut": true,
       "createStartMenuShortcut": true,
-      "shortcutName": "Vesper"
+      "shortcutName": "Pisper"
     },
     "mac": {
       "icon": "build/icon.png",
@@ -212,7 +212,7 @@
       {
         "provider": "github",
         "owner": "ling-kong-ran",
-        "repo": "vesper",
+        "repo": "pisper",
         "releaseType": "release"
       }
     ]

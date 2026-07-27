@@ -6,11 +6,11 @@ function subscribe(channel, listener) {
   return () => ipcRenderer.removeListener(channel, handler)
 }
 
-contextBridge.exposeInMainWorld('vesperPet', {
-  onConfig: (listener) => subscribe('vesper:pet-config', listener),
-  onState: (listener) => subscribe('vesper:pet-state', listener),
-  drag: (input) => ipcRenderer.send('vesper:pet-drag', input),
-  interact: () => ipcRenderer.send('vesper:pet-interact'),
-  showContextMenu: () => ipcRenderer.send('vesper:pet-context-menu'),
-  showMainWindow: () => ipcRenderer.send('vesper:pet-show-main-window'),
+contextBridge.exposeInMainWorld('pisperPet', {
+  onConfig: (listener) => subscribe('pisper:pet-config', listener),
+  onState: (listener) => subscribe('pisper:pet-state', listener),
+  drag: (input) => ipcRenderer.send('pisper:pet-drag', input),
+  interact: () => ipcRenderer.send('pisper:pet-interact'),
+  showContextMenu: () => ipcRenderer.send('pisper:pet-context-menu'),
+  showMainWindow: () => ipcRenderer.send('pisper:pet-show-main-window'),
 })

@@ -8,7 +8,7 @@ import { Type } from 'typebox'
 import { AgentRuntimeService } from '../runtime/agent-runtime.mjs'
 
 test('main runtime keeps discovered cold MCP tools for the rest of the session while child resources remain available', async (t) => {
-  const directory = await mkdtemp(join(tmpdir(), 'vesper-runtime-resources-'))
+  const directory = await mkdtemp(join(tmpdir(), 'pisper-runtime-resources-'))
   let runtime
   t.after(async () => {
     await runtime?.dispose()
@@ -32,9 +32,9 @@ test('main runtime keeps discovered cold MCP tools for the rest of the session w
   const value = await runtime.createSessionRuntime(SessionManager.inMemory(directory))
   assert.ok(value.session.resourceLoader.getSkills().skills.some((skill) => skill.name === 'runtime-skill'))
   assert.ok(value.session.agent.state.systemPrompt.includes('runtime-skill'))
-  assert.match(value.session.agent.state.systemPrompt, /Application: Vesper/)
+  assert.match(value.session.agent.state.systemPrompt, /Application: Pisper/)
   assert.match(value.session.agent.state.systemPrompt, /Active model:/)
-  assert.doesNotMatch(value.session.agent.state.systemPrompt, /You are Vesper/i)
+  assert.doesNotMatch(value.session.agent.state.systemPrompt, /You are Pisper/i)
   assert.equal(value.session.getActiveToolNames().includes('mcp_fixture_echo_12345678'), false)
   assert.equal(value.session.getActiveToolNames().includes('mcp_list'), false)
   assert.equal(value.session.getActiveToolNames().includes('mcp_manage'), false)
@@ -95,7 +95,7 @@ test('main runtime keeps discovered cold MCP tools for the rest of the session w
 })
 
 test('background prompts apply their explicit execution mode before the Agent starts', async (t) => {
-  const directory = await mkdtemp(join(tmpdir(), 'vesper-background-prompt-'))
+  const directory = await mkdtemp(join(tmpdir(), 'pisper-background-prompt-'))
   let runtime
   t.after(async () => {
     await runtime?.dispose?.().catch(() => {})
@@ -128,7 +128,7 @@ test('background prompts apply their explicit execution mode before the Agent st
 })
 
 test('saving plugin tools keeps the current streaming session alive and invalidates idle runtimes', async (t) => {
-  const directory = await mkdtemp(join(tmpdir(), 'vesper-plugin-save-'))
+  const directory = await mkdtemp(join(tmpdir(), 'pisper-plugin-save-'))
   let runtime
   t.after(async () => {
     await runtime?.dispose?.().catch(() => {})
@@ -161,7 +161,7 @@ test('saving plugin tools keeps the current streaming session alive and invalida
 })
 
 test('resource changes keep the currently streaming session alive', async (t) => {
-  const directory = await mkdtemp(join(tmpdir(), 'vesper-resource-change-'))
+  const directory = await mkdtemp(join(tmpdir(), 'pisper-resource-change-'))
   let runtime
   t.after(async () => {
     await runtime?.dispose?.().catch(() => {})

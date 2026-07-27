@@ -65,11 +65,11 @@ function createFakeClient(server, handlers, calls) {
 }
 
 test('MCP service persists servers, discovers tools, and exposes Pi custom tools', async (t) => {
-  const directory = await mkdtemp(join(tmpdir(), 'vesper-mcp-'))
+  const directory = await mkdtemp(join(tmpdir(), 'pisper-mcp-'))
   t.after(() => rm(directory, { recursive: true, force: true }))
   const calls = []
   const service = new McpService({
-    path: join(directory, 'vesper-mcp.json'),
+    path: join(directory, 'pisper-mcp.json'),
     cwd: directory,
     createClient: (server, handlers) => createFakeClient(server, handlers, calls),
     createTransport: (server) => ({ kind: server.transport, endpoint: server.url || server.command }),
@@ -114,7 +114,7 @@ test('MCP service persists servers, discovers tools, and exposes Pi custom tools
   assert.equal((await service.update(serverId, { enabled: true })).services[0].status, 'online')
 
   await service.dispose()
-  const restored = new McpService({ path: join(directory, 'vesper-mcp.json'), cwd: directory })
+  const restored = new McpService({ path: join(directory, 'pisper-mcp.json'), cwd: directory })
   await restored.init()
   const snapshot = restored.dashboard()
   assert.equal(snapshot.services[0].name, 'Docs')
@@ -123,10 +123,10 @@ test('MCP service persists servers, discovers tools, and exposes Pi custom tools
 })
 
 test('stdio MCP dashboard exposes an unambiguous executable and working directory', async (t) => {
-  const directory = await mkdtemp(join(tmpdir(), 'vesper-mcp-stdio-'))
+  const directory = await mkdtemp(join(tmpdir(), 'pisper-mcp-stdio-'))
   t.after(() => rm(directory, { recursive: true, force: true }))
   const service = new McpService({
-    path: join(directory, 'vesper-mcp.json'),
+    path: join(directory, 'pisper-mcp.json'),
     cwd: directory,
     createClient: (server, handlers) => createFakeClient(server, handlers, []),
     createTransport: () => ({}),
@@ -148,7 +148,7 @@ test('stdio MCP dashboard exposes an unambiguous executable and working director
 })
 
 test('stdio MCP validation rejects escaped control characters and missing executable paths', async (t) => {
-  const directory = await mkdtemp(join(tmpdir(), 'vesper-mcp-validation-'))
+  const directory = await mkdtemp(join(tmpdir(), 'pisper-mcp-validation-'))
   t.after(() => rm(directory, { recursive: true, force: true }))
   const service = new McpService({ path: join(directory, 'state.json'), cwd: directory })
   await service.init()
@@ -169,7 +169,7 @@ test('stdio MCP validation rejects escaped control characters and missing execut
 })
 
 test('MCP service connects to a real Streamable HTTP endpoint with configured headers', async (t) => {
-  const directory = await mkdtemp(join(tmpdir(), 'vesper-mcp-http-'))
+  const directory = await mkdtemp(join(tmpdir(), 'pisper-mcp-http-'))
   let service
   let httpServer
   t.after(async () => {
@@ -237,7 +237,7 @@ test('MCP service connects to a real Streamable HTTP endpoint with configured he
 })
 
 test('MCP service remains compatible with legacy HTTP plus SSE servers', async (t) => {
-  const directory = await mkdtemp(join(tmpdir(), 'vesper-mcp-sse-'))
+  const directory = await mkdtemp(join(tmpdir(), 'pisper-mcp-sse-'))
   let service
   let httpServer
   let eventStream
@@ -314,7 +314,7 @@ test('MCP service remains compatible with legacy HTTP plus SSE servers', async (
 })
 
 test('MCP service connects to a real SDK stdio server', async (t) => {
-  const directory = await mkdtemp(join(tmpdir(), 'vesper-mcp-stdio-'))
+  const directory = await mkdtemp(join(tmpdir(), 'pisper-mcp-stdio-'))
   let service
   t.after(async () => {
     await service?.dispose()

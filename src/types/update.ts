@@ -54,7 +54,7 @@ export type DesktopNotificationResult = {
 export type DesktopPet = {
   slug: string
   name: string
-  source: 'vesper' | 'petdex'
+  source: 'pisper' | 'petdex'
 }
 
 export type DesktopPetCatalogItem = {

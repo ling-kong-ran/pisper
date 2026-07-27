@@ -1,10 +1,10 @@
 {
-  "agentStatusAvatar.idle": "Vesper Agent",
+  "agentStatusAvatar.idle": "Pisper Agent",
   "agentStatusAvatar.waiting": "Agent 等待输入",
   "agentStatusAvatar.thinking": "Agent 思考中",
   "app.dragTabsOrSplitChatsInAnyDirectionFromTheSessionList": "拖动标签，或向左、右、上、下拆分会话",
   "app.sessions": "会话",
-  "app.wakingVesper": "正在唤醒 Vesper…",
+  "app.wakingPisper": "正在唤醒 Pisper…",
   "markdownMessage.copied": "已复制",
   "markdownMessage.copy": "复制",
   "markdownMessage.copyCode": "复制代码",

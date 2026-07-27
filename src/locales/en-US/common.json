@@ -1,10 +1,10 @@
 {
-  "agentStatusAvatar.idle": "Vesper Agent",
+  "agentStatusAvatar.idle": "Pisper Agent",
   "agentStatusAvatar.waiting": "Agent waiting for input",
   "agentStatusAvatar.thinking": "Agent thinking",
   "app.dragTabsOrSplitChatsInAnyDirectionFromTheSessionList": "Drag tabs, or split chats in any direction",
   "app.sessions": "Sessions",
-  "app.wakingVesper": "Waking Vesper…",
+  "app.wakingPisper": "Waking Pisper…",
   "markdownMessage.copied": "Copied",
   "markdownMessage.copy": "Copy",
   "markdownMessage.copyCode": "Copy code",

@@ -116,7 +116,7 @@ export class ChannelService {
     return {
       id: platform,
       type: platform,
-      name: connection.name || (platform === 'feishu' ? live.bot?.name || 'Vesper Agent' : '微信机器人'),
+      name: connection.name || (platform === 'feishu' ? live.bot?.name || 'Pisper Agent' : '微信机器人'),
       enabled: connection.enabled !== false,
       accountId: maskedId(platform === 'feishu' ? connection.appId : connection.accountId),
       accessMode: connection.accessMode || 'owner',
@@ -165,7 +165,7 @@ export class ChannelService {
   async completeOnboarding(platform, credentials) {
     const current = this.state.connections[platform]
     const common = {
-      name: platform === 'feishu' ? 'Vesper Agent' : '微信机器人',
+      name: platform === 'feishu' ? 'Pisper Agent' : '微信机器人',
       accessMode: 'owner',
       defaultCwd: current?.defaultCwd || this.cwd,
       replyModel: current?.replyModel || null,
@@ -261,11 +261,11 @@ export class ChannelService {
     const command = message.content.trim().toLowerCase()
     if (command === '/new' || command === '/reset') {
       await this.resetScope(key)
-      await this.gateways[platform].send(message, { text: '已开始新的 Vesper 会话。' })
+      await this.gateways[platform].send(message, { text: '已开始新的 Pisper 会话。' })
       return
     }
     if (command === '/status') {
-      await this.gateways[platform].send(message, { text: scope.sessionId ? `会话：${scope.sessionId}\n模型：${scope.model || '默认'}\n工作目录：${scope.cwd || connection.defaultCwd}` : '当前聊天还没有绑定 Vesper 会话。' })
+      await this.gateways[platform].send(message, { text: scope.sessionId ? `会话：${scope.sessionId}\n模型：${scope.model || '默认'}\n工作目录：${scope.cwd || connection.defaultCwd}` : '当前聊天还没有绑定 Pisper 会话。' })
       return
     }
     if (command === '/stop') {

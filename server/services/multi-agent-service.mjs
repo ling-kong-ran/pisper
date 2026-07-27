@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto'
 import { createAgentSession, DEFAULT_MAX_BYTES, DefaultResourceLoader, estimateTokens, formatSize, SessionManager } from '@earendil-works/pi-coding-agent'
-import { applyVesperSystemPrompt, vesperPromptExtension } from '../prompts/vesper-system-prompt.mjs'
-import { createCompactionSettingsManager, vesperCompactionExtension } from '../runtime/compaction-policy.mjs'
+import { applyPisperSystemPrompt, pisperPromptExtension } from '../prompts/pisper-system-prompt.mjs'
+import { createCompactionSettingsManager, pisperCompactionExtension } from '../runtime/compaction-policy.mjs'
 import { readJson, writeJsonAtomic } from '../storage/json-file.mjs'
 import { redactSecretText, redactSecretValue } from '../security/secret-redaction.mjs'
 
@@ -12,7 +12,7 @@ export const MAX_AGENTS_PER_PARENT = 64
 export const MAX_AGENT_TASK_CHARS = 12_000
 
 const AGENT_REGISTRY_VERSION = 4
-const AGENT_COMPLETION_MARKER = '[Vesper internal agent completion]'
+const AGENT_COMPLETION_MARKER = '[Pisper internal agent completion]'
 
 export const MULTI_AGENT_TOOL_NAMES = Object.freeze([
   'spawn_agent',
@@ -35,9 +35,9 @@ const PARENT_ONLY_TOOL_NAMES = new Set([
 
 const ACTIVE_AGENT_STATUSES = new Set(['queued', 'starting', 'running'])
 const TERMINAL_AGENT_STATUSES = new Set(['completed', 'failed', 'interrupted'])
-const RESTART_INTERRUPTION_REASON = 'Agent was interrupted because Vesper restarted.'
+const RESTART_INTERRUPTION_REASON = 'Agent was interrupted because Pisper restarted.'
 
-export const MULTI_AGENT_SYSTEM_PROMPT = `You are a Vesper subagent working in an isolated context on one delegated task.
+export const MULTI_AGENT_SYSTEM_PROMPT = `You are a Pisper subagent working in an isolated context on one delegated task.
 
 Guidelines:
 - Complete only the concrete task you were given and return a concise, evidence-based result.
@@ -219,7 +219,7 @@ function contextLimitedText(value, model) {
   if (!tokenTruncated && !byteTruncated) {
     return { text, fullText: text, truncated: false, estimatedTokens, tokenLimit, outputBytes, byteLimit: DEFAULT_MAX_BYTES }
   }
-  const reasons = [tokenTruncated ? 'model context' : '', byteTruncated ? `${formatSize(DEFAULT_MAX_BYTES)} Vesper tool-output limit` : ''].filter(Boolean).join(' and ')
+  const reasons = [tokenTruncated ? 'model context' : '', byteTruncated ? `${formatSize(DEFAULT_MAX_BYTES)} Pisper tool-output limit` : ''].filter(Boolean).join(' and ')
   const suffix = `\n\n[Output truncated for ${reasons}.]`
   const byteBudget = Math.max(0, DEFAULT_MAX_BYTES - Buffer.byteLength(suffix, 'utf8'))
   const charBudget = tokenTruncated ? Math.max(0, tokenLimit * 4 - suffix.length) : text.length
@@ -258,7 +258,7 @@ async function createAgentResourceLoader({ cwd, agentDir, settingsManager, appen
     cwd,
     agentDir: agentDir || cwd,
     ...(settingsManager ? { settingsManager } : {}),
-    extensionFactories: [vesperPromptExtension, vesperCompactionExtension],
+    extensionFactories: [pisperPromptExtension, pisperCompactionExtension],
     appendSystemPromptOverride: (base) => [...base, appendSystemPrompt],
   })
   await loader.reload()
@@ -651,7 +651,7 @@ export class MultiAgentService {
         }
         if (!result?.session) throw new Error('Agent session could not be created.')
         record.session = result.session
-        applyVesperSystemPrompt(record.session, record.model)
+        applyPisperSystemPrompt(record.session, record.model)
         record.onSession?.(record.session)
         record.unsubscribe = record.session.subscribe((event) => {
           // Session is reused across follow-up runs; always attribute live events to the current record state.

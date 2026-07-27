@@ -20,7 +20,7 @@ function response({ statusCode = 200, headers = {}, body }) {
 }
 
 async function fixture(t) {
-  const directory = await mkdtemp(join(tmpdir(), 'vesper-resumable-update-'))
+  const directory = await mkdtemp(join(tmpdir(), 'pisper-resumable-update-'))
   t.after(() => rm(directory, { recursive: true, force: true }))
   return {
     directory,
@@ -46,7 +46,7 @@ test('interrupted update downloads resume from the persisted byte offset', async
   const paths = await fixture(t)
   const content = Buffer.alloc(1024 * 1024, 7)
   const split = 410_321
-  const url = 'https://example.test/Vesper.exe'
+  const url = 'https://example.test/Pisper.exe'
   const options = { sha512: sha512(content) }
   await seedPartial(paths, { url, options, content, split, etag: '"release-1"' })
 
@@ -81,7 +81,7 @@ test('a server that ignores Range safely restarts the current file from zero', a
   const paths = await fixture(t)
   const content = Buffer.from('complete installer payload')
   const split = 8
-  const url = 'https://example.test/Vesper.exe'
+  const url = 'https://example.test/Pisper.exe'
   const options = { sha512: sha512(content) }
   await seedPartial(paths, { url, options, content, split })
 
@@ -108,7 +108,7 @@ test('transient failures retry automatically using the saved partial file', asyn
   const paths = await fixture(t)
   const content = Buffer.alloc(64 * 1024, 3)
   const split = 12_345
-  const url = 'https://example.test/Vesper.exe'
+  const url = 'https://example.test/Pisper.exe'
   const options = { sha512: sha512(content) }
   await seedPartial(paths, { url, options, content, split })
   const ranges = []
@@ -158,7 +158,7 @@ test('checksum failures remove unusable partial update data', async (t) => {
   const corrupted = Buffer.from('corrupted installer')
 
   await assert.rejects(downloadResumableFile({
-    url: 'https://example.test/Vesper.exe',
+    url: 'https://example.test/Pisper.exe',
     ...paths,
     options: { sha512: sha512(expected) },
     openResponse: async () => response({
@@ -194,11 +194,11 @@ test('the Electron updater executor is replaced without changing its download co
   assert.equal(enableResumableUpdateDownloads(updater), true)
   assert.equal(enableResumableUpdateDownloads(updater), false)
 
-  await executor.download('https://example.test/Vesper.exe', paths.destination, {
+  await executor.download('https://example.test/Pisper.exe', paths.destination, {
     sha512: sha512(content),
     cancellationToken: { cancelled: false, onCancel() {}, removeListener() {} },
   })
 
-  assert.equal(requestHeaders[0]['User-Agent'], 'Vesper Updater')
+  assert.equal(requestHeaders[0]['User-Agent'], 'Pisper Updater')
   assert.deepEqual(await readFile(paths.destination), content)
 })

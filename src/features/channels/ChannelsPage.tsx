@@ -478,7 +478,7 @@ export function ChannelsPage({ notify, registerPrimaryAction, requestConfirm }: 
               <strong>{t('channels:channelsPage.waitingForTheFirstReplyFromAfar')}</strong>
               <span>
                 {t(
-                  'channels:channelsPage.onceConnectedMessagesFromFeishuOrWeixinWillArriveHereInVesper',
+                  'channels:channelsPage.onceConnectedMessagesFromFeishuOrWeixinWillArriveHereInPisper',
                 )}
               </span>
             </div>

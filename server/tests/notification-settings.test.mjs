@@ -6,8 +6,8 @@ import test from 'node:test'
 import { NotificationSettingsService } from '../services/notification-settings-service.mjs'
 
 test('browser notification setting persists without overwriting other app configuration', async (t) => {
-  const directory = await mkdtemp(join(tmpdir(), 'vesper-notifications-'))
-  const path = join(directory, 'vesper.json')
+  const directory = await mkdtemp(join(tmpdir(), 'pisper-notifications-'))
+  const path = join(directory, 'pisper.json')
   t.after(() => rm(directory, { recursive: true, force: true }))
   await writeFile(path, JSON.stringify({ toolMode: 'workspace', disabledProviders: ['example'] }))
   const channels = {
@@ -43,8 +43,8 @@ test('notification templates remain delegated to the channel notification servic
 })
 
 test('browser notification events use the configured template queue', async (t) => {
-  const directory = await mkdtemp(join(tmpdir(), 'vesper-browser-events-'))
-  const path = join(directory, 'vesper.json')
+  const directory = await mkdtemp(join(tmpdir(), 'pisper-browser-events-'))
+  const path = join(directory, 'pisper.json')
   const browserEventsPath = join(directory, 'browser-events.json')
   t.after(() => rm(directory, { recursive: true, force: true }))
   await writeFile(path, JSON.stringify({ notifications: { browser: { enabled: true } } }))
@@ -65,8 +65,8 @@ test('browser notification events use the configured template queue', async (t) 
 })
 
 test('browser template tests return a system-notification payload without queueing a duplicate event', async (t) => {
-  const directory = await mkdtemp(join(tmpdir(), 'vesper-browser-template-test-'))
-  const path = join(directory, 'vesper.json')
+  const directory = await mkdtemp(join(tmpdir(), 'pisper-browser-template-test-'))
+  const path = join(directory, 'pisper.json')
   const browserEventsPath = join(directory, 'browser-events.json')
   t.after(() => rm(directory, { recursive: true, force: true }))
   await writeFile(path, JSON.stringify({ notifications: { browser: { enabled: true } } }))
@@ -86,8 +86,8 @@ test('browser template tests return a system-notification payload without queuei
 })
 
 test('channel notification failures are reported after other targets are attempted', async (t) => {
-  const directory = await mkdtemp(join(tmpdir(), 'vesper-notification-failure-'))
-  const path = join(directory, 'vesper.json')
+  const directory = await mkdtemp(join(tmpdir(), 'pisper-notification-failure-'))
+  const path = join(directory, 'pisper.json')
   const browserEventsPath = join(directory, 'browser-events.json')
   t.after(() => rm(directory, { recursive: true, force: true }))
   await writeFile(path, JSON.stringify({ notifications: { browser: { enabled: true } } }))

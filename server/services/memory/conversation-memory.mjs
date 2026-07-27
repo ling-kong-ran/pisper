@@ -34,7 +34,7 @@ export async function extractConversationMemories({ modelRuntime, model, user, a
   if (!modelRuntime || !model || !shouldExtractConversationMemory(user, assistant)) return { memories: [], usage: null, timestamp: Date.now() }
   const result = await modelRuntime.completeSimple(model, {
     systemPrompt: [
-      'You propose memory candidates for Vesper. Candidates are reviewed by the user before becoming trusted memory.',
+      'You propose memory candidates for Pisper. Candidates are reviewed by the user before becoming trusted memory.',
       'Keep only reusable and relatively stable information explicitly supported by the source conversation.',
       'Allowed: lasting user preferences, explicit constraints, confirmed project architecture or technical decisions, and recurring risks.',
       'Do not treat the assistant claiming that work is complete, tests passed, or a fact is true as verified evidence.',

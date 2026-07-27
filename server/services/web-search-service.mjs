@@ -120,7 +120,7 @@ export class WebSearchService {
       response = await this.fetchImpl(endpoint, {
         headers: {
           Accept: 'application/rss+xml,application/xml,text/xml',
-          'User-Agent': 'Vesper Web Search/1.0',
+          'User-Agent': 'Pisper Web Search/1.0',
         },
         redirect: 'follow',
         signal: signal ? AbortSignal.any([signal, timeoutSignal]) : timeoutSignal,
@@ -144,6 +144,6 @@ export class WebSearchService {
   }
 
   test(config) {
-    return this.search({ query: 'Vesper AI agent', limit: 3 }, { config })
+    return this.search({ query: 'Pisper AI agent', limit: 3 }, { config })
   }
 }

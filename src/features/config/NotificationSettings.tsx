@@ -100,8 +100,8 @@ function renderPreview(content: string, t: Translate) {
 }
 
 function notificationPermission(): NotificationPermissionState {
-  if (typeof window !== 'undefined' && window.vesperDesktop?.showNotification) {
-    return window.vesperDesktop.getNotificationStatus ? 'checking' : 'granted'
+  if (typeof window !== 'undefined' && window.pisperDesktop?.showNotification) {
+    return window.pisperDesktop.getNotificationStatus ? 'checking' : 'granted'
   }
   return getBrowserNotificationPermission()
 }
@@ -109,7 +109,7 @@ function notificationPermission(): NotificationPermissionState {
 function notificationFailureMessage(reason: unknown, t: Translate) {
   if (reason === 'system-disabled' || reason === 'app-disabled')
     return t(
-      'config:notificationSettings.systemNotificationsAreOffAllowVesperToSendNotificationsInYourOperatingSystemSettings',
+      'config:notificationSettings.systemNotificationsAreOffAllowPisperToSendNotificationsInYourOperatingSystemSettings',
     )
   if (reason === 'unsupported')
     return t('config:notificationSettings.systemNotificationsAreNotSupportedInThisEnvironment')
@@ -135,13 +135,13 @@ export function NotificationSettings({
   })
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
-  const desktop = Boolean(window.vesperDesktop?.showNotification)
+  const desktop = Boolean(window.pisperDesktop?.showNotification)
   const [permission, setPermission] = useState<NotificationPermissionState>(notificationPermission)
   const [browserSaving, setBrowserSaving] = useState(false)
 
   const refreshDesktopPermission = useCallback(async () => {
     if (!desktop) return
-    const getNotificationStatus = window.vesperDesktop?.getNotificationStatus
+    const getNotificationStatus = window.pisperDesktop?.getNotificationStatus
     if (!getNotificationStatus) {
       setPermission('granted')
       return
@@ -254,9 +254,9 @@ export function NotificationSettings({
   }
 
   const sendSystemNotification = useCallback(
-    async (title: string, body: string, tag = 'vesper-browser-test') => {
+    async (title: string, body: string, tag = 'pisper-browser-test') => {
       if (desktop) {
-        const showNotification = window.vesperDesktop?.showNotification
+        const showNotification = window.pisperDesktop?.showNotification
         if (!showNotification)
           throw new Error(
             t('config:notificationSettings.systemNotificationsAreNotSupportedInThisEnvironment'),
@@ -311,7 +311,7 @@ export function NotificationSettings({
 
   const openDesktopNotificationSettings = async () => {
     try {
-      const opened = await window.vesperDesktop?.openNotificationSettings?.()
+      const opened = await window.pisperDesktop?.openNotificationSettings?.()
       if (!opened)
         notify(
           t('config:notificationSettings.openNotificationPermissionsInYourOperatingSystemSettings'),
@@ -368,7 +368,7 @@ export function NotificationSettings({
             <strong>{t('config:notificationSettings.notification')}</strong>
             <small>
               {t(
-                'config:notificationSettings.vesperUsesTheCurrentPlatformNotificationSystemWhenAnAgentCompletesOrFails',
+                'config:notificationSettings.pisperUsesTheCurrentPlatformNotificationSystemWhenAnAgentCompletesOrFails',
               )}
             </small>
           </div>
@@ -484,7 +484,7 @@ function NotificationTemplates({
         await onBrowserTest?.(
           result.title || notificationTemplateName(selected.id, selected.name, t),
           result.body || result.preview || '',
-          `vesper-template-${selected.id}`,
+          `pisper-template-${selected.id}`,
         )
       notify(
         platform === 'browser'

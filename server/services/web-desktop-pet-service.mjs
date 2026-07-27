@@ -41,7 +41,7 @@ async function boundedFetch(fetchFn, value, maxBytes, allowedHost, redirectHosts
   if (url.protocol !== 'https:' || url.hostname !== allowedHost)
     throw new Error('Petdex 资源地址不受信任。')
   const response = await fetchFn(url.href, {
-    headers: { 'User-Agent': 'Vesper Web Desktop Pet' },
+    headers: { 'User-Agent': 'Pisper Web Desktop Pet' },
   })
   if (!response.ok) throw new Error(`Petdex request failed: HTTP ${response.status}`)
   const finalUrl = new URL(response.url || url.href)
@@ -137,7 +137,7 @@ export class WebDesktopPetService {
     if (!SLUG_PATTERN.test(String(slug || ''))) return null
     for (const root of this.roots()) {
       const pet = this.loadPet(root, slug)
-      if (pet) return { ...pet, source: root === this.managedRoot ? 'vesper' : 'petdex' }
+      if (pet) return { ...pet, source: root === this.managedRoot ? 'pisper' : 'petdex' }
     }
     return null
   }
@@ -163,7 +163,7 @@ export class WebDesktopPetService {
         pets.push({
           slug: pet.slug,
           name: pet.name,
-          source: root === this.managedRoot ? 'vesper' : 'petdex',
+          source: root === this.managedRoot ? 'pisper' : 'petdex',
         })
       }
     }

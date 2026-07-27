@@ -21,7 +21,7 @@ const DEFAULT_MCP_TIMEOUT_MS = 60_000
 const MCP_CONNECT_TIMEOUT_MS = 10_000
 const MAX_MCP_TIMEOUT_MS = 10 * 60_000
 const MAX_MCP_IMAGE_BYTES = 10 * 1024 * 1024
-const STDERR_ATTACHED = Symbol('vesperMcpStderrAttached')
+const STDERR_ATTACHED = Symbol('pisperMcpStderrAttached')
 
 let mcpSdkPromise
 function loadMcpSdk() {
@@ -417,7 +417,7 @@ export class McpService {
     this.createClient = createClient || (async (server, handlers) => {
       const { Client } = await loadMcpSdk()
       return new Client(
-        { name: 'vesper', version: '0.0.0' },
+        { name: 'pisper', version: '0.0.0' },
         {
           capabilities: {},
           listChanged: { tools: { onChanged: handlers.onToolsChanged } },

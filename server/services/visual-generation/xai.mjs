@@ -118,7 +118,7 @@ async function createVideo(root, model, request, signal) {
   }
   try {
     const task = await jsonRequest(`${root}/videos/generations`, model, { method: 'POST', body: JSON.stringify(xaiBody) }, signal)
-    return { ...task, _vesperEndpoint: 'videos/generations' }
+    return { ...task, _pisperEndpoint: 'videos/generations' }
   } catch (error) {
     if (![404, 405].includes(error.status)) throw error
   }
@@ -126,7 +126,7 @@ async function createVideo(root, model, request, signal) {
     method: 'POST',
     body: JSON.stringify({ model: model.id, prompt: request.prompt, seconds: request.durationSeconds ? String(request.durationSeconds) : undefined, size }),
   }, signal)
-  return { ...task, _vesperEndpoint: 'videos' }
+  return { ...task, _pisperEndpoint: 'videos' }
 }
 
 async function getVideo(root, id, endpoint, model, signal) {
@@ -145,7 +145,7 @@ async function generateVideo(model, request, signal, onProgress) {
   const root = model.baseUrl.replace(/\/+$/, '')
   let task = await createVideo(root, model, request, signal)
   const id = task.task_id || task.request_id || task.id || task.data?.task_id || task.data?.id
-  const endpoint = task._vesperEndpoint
+  const endpoint = task._pisperEndpoint
   let url = videoUrl(task)
   while (!url && id) {
     const status = videoStatus(task)

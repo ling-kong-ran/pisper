@@ -34,7 +34,7 @@ export const useUiStore = create<UiState>()(
       setDensity: (density) => set({ density }),
     }),
     {
-      name: 'vesper-ui',
+      name: 'pisper-ui',
       partialize: ({ sidebarCollapsed, theme, density }) => ({
         sidebarCollapsed,
         theme,

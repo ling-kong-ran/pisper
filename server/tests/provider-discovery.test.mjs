@@ -22,7 +22,7 @@ function storedCredential(value) {
 }
 
 test('provider discovery reads Codex and Claude configuration without exposing private values', async (t) => {
-  const home = await mkdtemp(join(tmpdir(), 'vesper-provider-config-'))
+  const home = await mkdtemp(join(tmpdir(), 'pisper-provider-config-'))
   t.after(() => rm(home, { recursive: true, force: true }))
   await mkdir(join(home, '.codex'), { recursive: true })
   await mkdir(join(home, '.claude'), { recursive: true })
@@ -88,15 +88,15 @@ test('Codex TOML parser supports quoted provider tables and inline values', () =
     '[model_providers."proxy.one"]',
     'base_url = "https://example.test/v1"',
     'wire_api = "chat"',
-    'http_headers = { "X-Client" = "vesper", "X-Mode" = "test" }',
+    'http_headers = { "X-Client" = "pisper", "X-Mode" = "test" }',
   ].join('\n'))
   assert.equal(parsed.model, 'gpt-custom')
   assert.equal(parsed.model_providers['proxy.one'].wire_api, 'chat')
-  assert.deepEqual(parsed.model_providers['proxy.one'].http_headers, { 'X-Client': 'vesper', 'X-Mode': 'test' })
+  assert.deepEqual(parsed.model_providers['proxy.one'].http_headers, { 'X-Client': 'pisper', 'X-Mode': 'test' })
 })
 
 test('runtime imports provider definitions and embedded configuration credentials without overwriting conflicts', async (t) => {
-  const directory = await mkdtemp(join(tmpdir(), 'vesper-provider-config-import-'))
+  const directory = await mkdtemp(join(tmpdir(), 'pisper-provider-config-import-'))
   const privateText = privateValue('runtime')
   const importedCredential = storedCredential(privateText)
   const providerConfig = {
@@ -190,7 +190,7 @@ test('provider discovery API exposes scan and import endpoints', async () => {
 })
 
 test('provider discovery reports invalid configuration files without falling back to login files or ambient auth', async (t) => {
-  const home = await mkdtemp(join(tmpdir(), 'vesper-provider-config-invalid-'))
+  const home = await mkdtemp(join(tmpdir(), 'pisper-provider-config-invalid-'))
   t.after(() => rm(home, { recursive: true, force: true }))
   await mkdir(join(home, '.codex'), { recursive: true })
   await mkdir(join(home, '.claude'), { recursive: true })

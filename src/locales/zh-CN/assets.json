@@ -10,7 +10,7 @@
   "assetsPage.all": "全部",
   "assetsPage.assetDeleted": "资产已删除",
   "assetsPage.assets": "个资产",
-  "assetsPage.bringInALinkOrAttachAFileInAConversationVesperWillGatherTheOutputsCreatedAlongTheWay": "把链接带来，或在对话中加入附件；Vesper 会把沿途生成的文件一并收好。",
+  "assetsPage.bringInALinkOrAttachAFileInAConversationPisperWillGatherTheOutputsCreatedAlongTheWay": "把链接带来，或在对话中加入附件；Pisper 会把沿途生成的文件一并收好。",
   "assetsPage.cancel": "取消",
   "assetsPage.closeDialog": "关闭对话框",
   "assetsPage.conversationAttachmentsAndAgentOutputsGatherHereAutomatically": "对话附件与 Agent 产物，会在这里自动汇聚",

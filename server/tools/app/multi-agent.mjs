@@ -37,7 +37,7 @@ function utf8Prefix(value, maxBytes) {
 function boundedToolText(value) {
   const textValue = String(value || '')
   if (Buffer.byteLength(textValue, 'utf8') <= DEFAULT_MAX_BYTES) return textValue
-  const suffix = '\n\n[Agent summary truncated to the Vesper tool-output limit.]'
+  const suffix = '\n\n[Agent summary truncated to the Pisper tool-output limit.]'
   return `${utf8Prefix(textValue, DEFAULT_MAX_BYTES - Buffer.byteLength(suffix, 'utf8'))}${suffix}`
 }
 

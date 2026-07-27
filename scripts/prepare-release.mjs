@@ -13,7 +13,7 @@ const match = tag.match(/^v(\d+\.\d+\.\d+)$/)
 if (!match) throw new Error(`发布标签无效：${tag}。标签必须使用 vX.Y.Z 格式。`)
 
 const version = match[1]
-const repository = String(process.env.GITHUB_REPOSITORY || 'ling-kong-ran/vesper')
+const repository = String(process.env.GITHUB_REPOSITORY || 'ling-kong-ran/pisper')
 const token = String(process.env.GITHUB_TOKEN || '').trim()
 
 function run(command, args) {
@@ -46,7 +46,7 @@ const markdown = normalizeMarkdown(generated.body, version)
 await mkdir(dirname(releaseNotesPath), { recursive: true })
 await writeFile(releaseNotesPath, `${JSON.stringify({ version, date, notes: markdown }, null, 2)}\n`, 'utf8')
 await writeFile(releaseBodyPath, `${markdown}\n`, 'utf8')
-console.log(`已从 ${source}生成 Vesper ${version} 更新日志。`)
+console.log(`已从 ${source}生成 Pisper ${version} 更新日志。`)
 
 async function generateGitHubNotes({ repository: repo, token: githubToken, tag: currentTag, previousTag: previous }) {
   const payload = {
@@ -61,7 +61,7 @@ async function generateGitHubNotes({ repository: repo, token: githubToken, tag: 
       Accept: 'application/vnd.github+json',
       Authorization: `Bearer ${githubToken}`,
       'X-GitHub-Api-Version': '2022-11-28',
-      'User-Agent': 'vesper-release',
+      'User-Agent': 'pisper-release',
     },
     body: JSON.stringify(payload),
   })
@@ -87,5 +87,5 @@ function generateLocalNotes({ tag: currentTag, previousTag: previous }) {
 
 function normalizeMarkdown(body, currentVersion) {
   const content = String(body || '').trim() || '- Maintenance release'
-  return `## Vesper ${currentVersion}\n\n${content}`
+  return `## Pisper ${currentVersion}\n\n${content}`
 }

@@ -130,7 +130,7 @@ export class BrowserAutomationService {
         lastError = error
       }
     }
-    throw new Error(`No controllable browser was found. Install Chrome, Edge, Chromium, or run Vesper Desktop.${lastError ? ` ${lastError.message}` : ''}`)
+    throw new Error(`No controllable browser was found. Install Chrome, Edge, Chromium, or run Pisper Desktop.${lastError ? ` ${lastError.message}` : ''}`)
   }
 
   async ensureSession(sessionId, viewport) {

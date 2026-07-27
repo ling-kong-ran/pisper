@@ -13,9 +13,9 @@ import {
 import { createGoalTools } from '../tools/app/goal.mjs'
 
 test('goals persist usage, stop at their token budget, and pause after runtime restart', async (t) => {
-  const directory = await mkdtemp(join(tmpdir(), 'vesper-goal-'))
+  const directory = await mkdtemp(join(tmpdir(), 'pisper-goal-'))
   t.after(() => rm(directory, { recursive: true, force: true }))
-  const path = join(directory, 'vesper-goals.json')
+  const path = join(directory, 'pisper-goals.json')
   let now = 1_700_000_000_000
   const service = new GoalService({ path, now: () => now })
   await service.init()

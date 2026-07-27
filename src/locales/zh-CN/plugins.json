@@ -107,7 +107,7 @@
   "pluginsPage.toolID": "工具 ID",
   "pluginsPage.toolPlugins": "工具插件",
   "pluginsPage.unsaved": "未保存",
-  "pluginsPage.vesperAppTools": "Vesper 应用工具",
-  "pluginsPage.vesperBuiltInTools": "Vesper 内置工具",
+  "pluginsPage.pisperAppTools": "Pisper 应用工具",
+  "pluginsPage.pisperBuiltInTools": "Pisper 内置工具",
   "pluginsPage.workspace": "工作区"
 }

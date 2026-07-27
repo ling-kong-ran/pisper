@@ -123,7 +123,7 @@ export function AppSidebar({
   }
 
   return (
-    <ShadcnSidebar collapsible="icon" className="vesper-sidebar-container">
+    <ShadcnSidebar collapsible="icon" className="pisper-sidebar-container">
       <aside className={`sidebar shadcn-sidebar-content ${collapsed ? 'collapsed' : ''}`}>
         <div className="brand">
           <BrandLogo size={22} />

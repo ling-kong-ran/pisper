@@ -16,7 +16,7 @@ export function shouldRunBashOutsideSandbox(mode, params = {}) {
   return mode === 'full-access' || params.sandbox_permissions === 'require_escalated'
 }
 
-export function createVesperBashTool(cwd, { sandboxService, getExecutionMode, platform = process.platform } = {}) {
+export function createPisperBashTool(cwd, { sandboxService, getExecutionMode, platform = process.platform } = {}) {
   const localTool = createBashTool(cwd, {
     spawnHook: (context) => applyWindowsUtf8Environment(context, platform),
   })

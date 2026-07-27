@@ -286,7 +286,7 @@ export function ConfigPage({
         toolMode: current?.toolMode || result.config.toolMode,
       }))
       notify(
-        t('config:configPage.nameConfigurationHasBeenLoadedIntoVesper', { name: imported.name }),
+        t('config:configPage.nameConfigurationHasBeenLoadedIntoPisper', { name: imported.name }),
       )
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : String(caught))

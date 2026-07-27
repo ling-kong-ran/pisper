@@ -1,6 +1,6 @@
 ---
 name: prompt-cache-optimizer
-description: Audit and optimize Vesper system-prompt and tool-schema token overhead while preserving stable prompt-cache prefixes, permissions, and runtime behavior. Invoke only for explicit prompt or tool-context optimization work.
+description: Audit and optimize Pisper system-prompt and tool-schema token overhead while preserving stable prompt-cache prefixes, permissions, and runtime behavior. Invoke only for explicit prompt or tool-context optimization work.
 disable-model-invocation: true
 allowed-tools: read grep find ls edit write bash
 ---
@@ -29,7 +29,7 @@ Measure these separately before and after changes:
 4. Dynamic additions such as project instructions, Skills, memories, attachments, mailbox results, and conversation history.
 5. Context-window share for the configured model, or at least representative 128K and 200K windows.
 
-When no provider tokenizer is available, use Vesper's conservative estimate of `ceil(characters / 4)` and label it as an estimate.
+When no provider tokenizer is available, use Pisper's conservative estimate of `ceil(characters / 4)` and label it as an estimate.
 
 Run the bundled baseline helper from the repository root:
 
@@ -41,13 +41,13 @@ node .agents/skills/prompt-cache-optimizer/scripts/measure-tool-overhead.mjs
 
 ### 1. Record a reproducible baseline
 
-- Instantiate a clean Vesper runtime using a temporary data directory.
+- Instantiate a clean Pisper runtime using a temporary data directory.
 - Record active tool order, system-prompt characters/tokens, tool-schema characters/tokens, and total fixed tokens.
 - Keep the same workspace, execution mode, enabled-tool configuration, and model identity for comparisons.
 
 ### 2. Separate hot and cold capabilities
 
-Keep only frequently needed local coding capabilities in the stable hot set. In the current Vesper architecture these normally include:
+Keep only frequently needed local coding capabilities in the stable hot set. In the current Pisper architecture these normally include:
 
 ```text
 read grep find ls edit write bash get_task_list update_task_list
@@ -115,7 +115,7 @@ Do not claim savings or cache stability without measured evidence.
 
 ## Reference benchmark
 
-The July 2026 Vesper optimization produced this clean default-full-mode estimate:
+The July 2026 Pisper optimization produced this clean default-full-mode estimate:
 
 | Measurement | Before | After | Reduction |
 |---|---:|---:|---:|

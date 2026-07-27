@@ -3,12 +3,12 @@
 <a id="top"></a>
 
 <p align="center">
-  <img src="docs/brand/vesper-logo.svg" width="112" alt="Vesper project logo" />
+  <img src="docs/brand/pisper-logo.svg" width="112" alt="Pisper project logo" />
 </p>
 
-<h1 align="center">Vesper</h1>
+<h1 align="center">Pisper</h1>
 
-<p align="center"><strong>When daylight fades, ideas stay awake.</strong></p>
+<p align="center"><strong>Powered by Pi, whispered by agents.</strong></p>
 <p align="center">A multi-agent desktop workspace that brings conversations, tools, memory, and automation into one dockable interface.</p>
 
 <p align="center">
@@ -20,8 +20,8 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/ling-kong-ran/vesper/releases/latest">
-    <img src="https://img.shields.io/badge/Download%20Desktop-Windows%20%7C%20macOS%20%7C%20Linux-F59E0B?style=for-the-badge&logo=github&logoColor=17141F" alt="Download Vesper desktop" />
+  <a href="https://github.com/ling-kong-ran/pisper/releases/latest">
+    <img src="https://img.shields.io/badge/Download%20Desktop-Windows%20%7C%20macOS%20%7C%20Linux-F59E0B?style=for-the-badge&logo=github&logoColor=17141F" alt="Download Pisper desktop" />
   </a>
 </p>
 
@@ -43,9 +43,9 @@
 
 One window per task, context copied back and forth, tool configs scattered everywhere — working with multiple agents shouldn't feel like this.
 
-**Vesper puts all your AI agents into one desktop workspace.** Each session has its own model, context, working directory, and execution permissions. Tabs, splits, and drag-to-dock panels organize them like an IDE — and the layout is right where you left it on restart.
+**Pisper puts all your AI agents into one desktop workspace.** Each session has its own model, context, working directory, and execution permissions. Tabs, splits, and drag-to-dock panels organize them like an IDE — and the layout is right where you left it on restart.
 
-**Why Vesper:**
+**Why Pisper:**
 
 - **Parallel without chaos** — Run multiple sessions on different tasks at once, fully isolated, with automatic layout restoration.
 - **Token-efficient by design** — Dynamic prompts load only the tools the current task needs: a fixed prompt of ~2,979 tokens, roughly 58.7% less than injecting the full catalog.
@@ -54,7 +54,7 @@ One window per task, context copied back and forth, tool configs scattered every
 
 ### Get Started in Three Steps
 
-1. [Download the desktop app](https://github.com/ling-kong-ran/vesper/releases/latest) (Windows / macOS / Linux, no Node.js required)
+1. [Download the desktop app](https://github.com/ling-kong-ran/pisper/releases/latest) (Windows / macOS / Linux, no Node.js required)
 2. Configure any model provider with an API key
 3. Create a session and start working in parallel
 
@@ -63,27 +63,27 @@ One window per task, context copied back and forth, tool configs scattered every
 ## Interface
 
 <p align="center">
-  <img src="./docs/shots/welcome-dark.png" alt="Vesper welcome screen in the dark theme" />
+  <img src="./docs/shots/welcome-dark.png" alt="Pisper welcome screen in the dark theme" />
 </p>
 
 <table>
   <tr>
     <td width="50%" align="center">
-      <img src="./docs/shots/chat-grid.png" alt="Vesper multi-session dock workspace" />
+      <img src="./docs/shots/chat-grid.png" alt="Pisper multi-session dock workspace" />
       <br /><sub><strong>Dock workspace</strong> · Tabs, splits, and drag-to-dock panels</sub>
     </td>
     <td width="50%" align="center">
-      <img src="./docs/shots/memory.png" alt="Vesper memory view" />
+      <img src="./docs/shots/memory.png" alt="Pisper memory view" />
       <br /><sub><strong>Memory</strong> · Searchable persistent knowledge</sub>
     </td>
   </tr>
   <tr>
     <td width="50%" align="center">
-      <img src="./docs/shots/workflow-builder.png" alt="Vesper workflow builder" />
+      <img src="./docs/shots/workflow-builder.png" alt="Pisper workflow builder" />
       <br /><sub><strong>Workflows</strong> · Reusable visual automation</sub>
     </td>
     <td width="50%" align="center">
-      <img src="./docs/shots/channels.png" alt="Vesper channels view" />
+      <img src="./docs/shots/channels.png" alt="Pisper channels view" />
       <br /><sub><strong>Two-way channels</strong> · Feishu and personal Weixin</sub>
     </td>
   </tr>
@@ -93,7 +93,7 @@ One window per task, context copied back and forth, tool configs scattered every
 
 ## Features
 
-From conversation to automation, Vesper covers the full agent workflow:
+From conversation to automation, Pisper covers the full agent workflow:
 
 | Area | Capability |
 | :--- | :--- |
@@ -115,13 +115,13 @@ Ordinary coding sessions load only high-frequency tools. Web Search, browser aut
 
 > In the current benchmark, the fixed prompt is about **2,979 tokens** — roughly **58.7% less** than injecting the full catalog. Actual billing and cache savings vary by model and provider.
 
-> **Sandbox note:** Workspace mode uses [Anthropic Sandbox Runtime](https://github.com/anthropic-experimental/sandbox-runtime) to restrict Shell writes, credentials, and network access. First use on Windows requires one UAC prompt. If initialization fails, Vesper blocks execution instead of falling back to full access. The runtime remains a Beta Research Preview.
+> **Sandbox note:** Workspace mode uses [Anthropic Sandbox Runtime](https://github.com/anthropic-experimental/sandbox-runtime) to restrict Shell writes, credentials, and network access. First use on Windows requires one UAC prompt. If initialization fails, Pisper blocks execution instead of falling back to full access. The runtime remains a Beta Research Preview.
 
 <a id="desktop-pet"></a>
 
 ## Desktop Pet
 
-A workspace doesn't have to feel cold. Vesper natively supports [Petdex](https://petdex.dev)-compatible pets — while your agent thinks, the pet paces; when the task finishes, it lets you know. Search, install, switch, enable, or disable pets in **Settings → Desktop pet** — no Petdex CLI or companion process required.
+A workspace doesn't have to feel cold. Pisper natively supports [Petdex](https://petdex.dev)-compatible pets — while your agent thinks, the pet paces; when the task finishes, it lets you know. Search, install, switch, enable, or disable pets in **Settings → Desktop pet** — no Petdex CLI or companion process required.
 
 - Waiting, thinking, tool activity, completion, and failure map to pet animations.
 - Electron uses an independent transparent window with dragging, always-on-top behavior, multi-display position persistence, and `20%–100%` opacity. It remains visible when the main window is hidden.
@@ -136,29 +136,29 @@ See [`docs/petdex-integration.md`](./docs/petdex-integration.md).
 
 ### Desktop (Recommended)
 
-Download a Windows, macOS, or Linux installer from [GitHub Releases](https://github.com/ling-kong-ran/vesper/releases/latest). It works out of the box — no separate Node.js install is required.
+Download a Windows, macOS, or Linux installer from [GitHub Releases](https://github.com/ling-kong-ran/pisper/releases/latest). It works out of the box — no separate Node.js install is required.
 
-#### If macOS Refuses to Open Vesper
+#### If macOS Refuses to Open Pisper
 
-Vesper is not currently notarized by Apple. Confirm that it came from the official Releases page, then select **Open Anyway** in **System Settings → Privacy & Security**. If that option is unavailable, run:
+Pisper is not currently notarized by Apple. Confirm that it came from the official Releases page, then select **Open Anyway** in **System Settings → Privacy & Security**. If that option is unavailable, run:
 
 ```bash
-sudo xattr -rd com.apple.quarantine /Applications/Vesper.app
+sudo xattr -rd com.apple.quarantine /Applications/Pisper.app
 ```
 
-Use this command only for Vesper downloaded from the official Releases page and placed in `/Applications`.
+Use this command only for Pisper downloaded from the official Releases page and placed in `/Applications`.
 
 #### If the Linux AppImage Does Not Start
 
 ```bash
-chmod +x Vesper-*-linux-x86_64.AppImage
-./Vesper-*-linux-x86_64.AppImage
+chmod +x Pisper-*-linux-x86_64.AppImage
+./Pisper-*-linux-x86_64.AppImage
 ```
 
 If FUSE is missing, install `libfuse2` or `libfuse2t64`, or use the `.deb` package:
 
 ```bash
-sudo apt install ./Vesper-*-linux-amd64.deb
+sudo apt install ./Pisper-*-linux-amd64.deb
 ```
 
 ### Run from Source
@@ -166,8 +166,8 @@ sudo apt install ./Vesper-*-linux-amd64.deb
 Requires Node.js 20+, npm, and at least one model provider with an API key.
 
 ```bash
-git clone https://github.com/ling-kong-ran/vesper.git
-cd vesper
+git clone https://github.com/ling-kong-ran/pisper.git
+cd pisper
 npm install
 npm run dev
 ```
@@ -186,7 +186,7 @@ npm run desktop:dev
 npm run desktop:pack
 ```
 
-Configuration, sessions, and memory are stored under `~/.vesper/agent` by default. Set `VESPER_AGENT_DIR` to use another location.
+Configuration, sessions, and memory are stored under `~/.pisper/agent` by default. Set `PISPER_AGENT_DIR` to use another location.
 
 <a id="development"></a>
 
@@ -200,22 +200,22 @@ npm test
 npm run build
 ```
 
-[Issues](https://github.com/ling-kong-ran/vesper/issues) and [pull requests](https://github.com/ling-kong-ran/vesper/pulls) are welcome. Do not commit API keys, bot credentials, or personal data from `~/.vesper/agent`.
+[Issues](https://github.com/ling-kong-ran/pisper/issues) and [pull requests](https://github.com/ling-kong-ran/pisper/pulls) are welcome. Do not commit API keys, bot credentials, or personal data from `~/.pisper/agent`.
 
 <a id="license"></a>
 
 ## License
 
-Vesper is released under the [MIT License](./LICENSE). Third-party dependencies and external resources remain under their own licenses and rights notices. Petdex community assets belong to their respective creators or rights holders and are not part of Vesper's source tree or release packages.
+Pisper is released under the [MIT License](./LICENSE). Third-party dependencies and external resources remain under their own licenses and rights notices. Petdex community assets belong to their respective creators or rights holders and are not part of Pisper's source tree or release packages.
 
 ## Acknowledgments
 
-Vesper is built on [Pi Coding Agent](https://github.com/earendil-works/pi/tree/main/packages/coding-agent) and benefits from open-source projects including Node.js, React, TypeScript, Vite, Tailwind CSS, shadcn/ui, React Router, Zustand, React Flow, and i18next.
+Pisper is built on [Pi Coding Agent](https://github.com/earendil-works/pi/tree/main/packages/coding-agent) and benefits from open-source projects including Node.js, React, TypeScript, Vite, Tailwind CSS, shadcn/ui, React Router, Zustand, React Flow, and i18next.
 
 Thanks to [Petdex](https://petdex.dev) and [`crafter-station/petdex`](https://github.com/crafter-station/petdex) for the MIT-licensed format and catalog implementation reference.
 
 Contributors:
 
-- [@mik-myp](https://github.com/mik-myp) — Frontend TypeScript architecture, shadcn/ui / AI Elements, Zustand, and i18n refactor ([#1](https://github.com/ling-kong-ran/vesper/pull/1))
+- [@mik-myp](https://github.com/mik-myp) — Frontend TypeScript architecture, shadcn/ui / AI Elements, Zustand, and i18n refactor ([#1](https://github.com/ling-kong-ran/pisper/pull/1))
 
 <p align="right"><a href="#top">Back to top ↑</a></p>

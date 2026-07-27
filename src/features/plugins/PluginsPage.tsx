@@ -467,8 +467,8 @@ export function PluginsPage({
               [
                 t('plugins:pluginsPage.source'),
                 selected.source === 'app'
-                  ? t('plugins:pluginsPage.vesperAppTools')
-                  : t('plugins:pluginsPage.vesperBuiltInTools'),
+                  ? t('plugins:pluginsPage.pisperAppTools')
+                  : t('plugins:pluginsPage.pisperBuiltInTools'),
               ],
               [t('plugins:pluginsPage.category'), toolCategoryLabel(selected.category, t)],
               [t('plugins:pluginsPage.riskLevel'), toolRiskLabel(selected.risk, t)],

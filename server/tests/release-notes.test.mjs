@@ -3,16 +3,16 @@ import test from 'node:test'
 import { hasMeaningfulGeneratedNotes, normalizeReleaseNotes, releaseNotesMarkdown } from '../../shared/release-notes.mjs'
 
 test('Electron updater HTML release notes are converted to safe Markdown', () => {
-  const html = '<h2>Vesper 0.1.1</h2><p><strong>Full Changelog</strong>: <a href="https://github.com/ling-kong-ran/vesper/commits/v0.1.1">https://github.com/ling-kong-ran/vesper/commits/v0.1.1</a></p>'
+  const html = '<h2>Pisper 0.1.1</h2><p><strong>Full Changelog</strong>: <a href="https://github.com/ling-kong-ran/pisper/commits/v0.1.1">https://github.com/ling-kong-ran/pisper/commits/v0.1.1</a></p>'
   assert.equal(normalizeReleaseNotes(html), [
-    '## Vesper 0.1.1',
+    '## Pisper 0.1.1',
     '',
-    '**Full Changelog**: [https://github.com/ling-kong-ran/vesper/commits/v0.1.1](https://github.com/ling-kong-ran/vesper/commits/v0.1.1)',
+    '**Full Changelog**: [https://github.com/ling-kong-ran/pisper/commits/v0.1.1](https://github.com/ling-kong-ran/pisper/commits/v0.1.1)',
   ].join('\n'))
 })
 
 test('release notes preserve Markdown and combine updater note arrays', () => {
-  assert.equal(releaseNotesMarkdown('## Vesper\n\n- Fixed updates'), '## Vesper\n\n- Fixed updates')
+  assert.equal(releaseNotesMarkdown('## Pisper\n\n- Fixed updates'), '## Pisper\n\n- Fixed updates')
   assert.equal(releaseNotesMarkdown([{ note: '<p>First fix</p>' }, { note: '<p>Second fix</p>' }]), 'First fix\n\nSecond fix')
 })
 

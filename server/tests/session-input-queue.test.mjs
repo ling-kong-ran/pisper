@@ -25,7 +25,7 @@ function response() {
 }
 
 test('running sessions accept steering and follow-up user messages through the Pi queue', async (t) => {
-  const directory = await mkdtemp(join(tmpdir(), 'vesper-session-input-'))
+  const directory = await mkdtemp(join(tmpdir(), 'pisper-session-input-'))
   let runtime
   t.after(async () => {
     await runtime?.dispose?.().catch(() => {})

@@ -7,7 +7,7 @@ import { createApiHandler } from '../http/api-handler.mjs'
 import { AgentRuntimeService } from '../runtime/agent-runtime.mjs'
 
 test('provider model discovery uses the configured relay Base URL and stored credential', async (t) => {
-  const directory = await mkdtemp(join(tmpdir(), 'vesper-provider-model-runtime-'))
+  const directory = await mkdtemp(join(tmpdir(), 'pisper-provider-model-runtime-'))
   const calls = []
   const runtime = new AgentRuntimeService({
     cwd: directory,
@@ -54,7 +54,7 @@ test('provider model discovery uses the configured relay Base URL and stored cre
 })
 
 test('built-in official providers use their visible default Base URL', async (t) => {
-  const directory = await mkdtemp(join(tmpdir(), 'vesper-provider-model-official-url-'))
+  const directory = await mkdtemp(join(tmpdir(), 'pisper-provider-model-official-url-'))
   let request
   const runtime = new AgentRuntimeService({
     cwd: directory,
@@ -73,7 +73,7 @@ test('built-in official providers use their visible default Base URL', async (t)
 })
 
 test('startup refresh runs asynchronously and atomically replaces stale provider models', async (t) => {
-  const directory = await mkdtemp(join(tmpdir(), 'vesper-provider-model-startup-refresh-'))
+  const directory = await mkdtemp(join(tmpdir(), 'pisper-provider-model-startup-refresh-'))
   await writeFile(join(directory, 'models.json'), JSON.stringify({ providers: { relay: {
     name: 'Relay',
     api: 'openai-responses',
@@ -118,7 +118,7 @@ test('provider refresh API returns the asynchronously refreshed configuration', 
 })
 
 test('dedicated visual Providers remove shared visual models from chat Provider catalogs', async (t) => {
-  const directory = await mkdtemp(join(tmpdir(), 'vesper-provider-model-shadowed-visual-'))
+  const directory = await mkdtemp(join(tmpdir(), 'pisper-provider-model-shadowed-visual-'))
   const runtime = new AgentRuntimeService({
     cwd: directory,
     dataDir: directory,
@@ -162,7 +162,7 @@ test('dedicated visual Providers remove shared visual models from chat Provider 
 })
 
 test('visual-only providers list every discovered model so users can pick the kind', async (t) => {
-  const directory = await mkdtemp(join(tmpdir(), 'vesper-provider-model-visual-scope-'))
+  const directory = await mkdtemp(join(tmpdir(), 'pisper-provider-model-visual-scope-'))
   const runtime = new AgentRuntimeService({
     cwd: directory,
     dataDir: directory,

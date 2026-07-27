@@ -23,7 +23,7 @@ function setDefaultHeader(headers, name, value) {
 function requestOptions(url, headers) {
   const parsed = new URL(url)
   const nextHeaders = { ...(headers || {}) }
-  setDefaultHeader(nextHeaders, 'User-Agent', 'Vesper Updater')
+  setDefaultHeader(nextHeaders, 'User-Agent', 'Pisper Updater')
   setDefaultHeader(nextHeaders, 'Cache-Control', 'no-cache')
   return {
     protocol: parsed.protocol,
@@ -299,8 +299,8 @@ export async function downloadResumableWithRetry(input, { retryDelays = RETRY_DE
 
 export function enableResumableUpdateDownloads(autoUpdater, { logger = console } = {}) {
   const executor = autoUpdater?.httpExecutor
-  if (!executor || executor.__vesperResumableDownload) return false
-  executor.__vesperResumableDownload = true
+  if (!executor || executor.__pisperResumableDownload) return false
+  executor.__pisperResumableDownload = true
   executor.download = async (url, destination, options) => {
     return downloadResumableWithRetry({
       url,

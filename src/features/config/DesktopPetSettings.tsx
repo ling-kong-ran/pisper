@@ -18,12 +18,12 @@ type PetController = {
 }
 
 function announcePetChange(status: DesktopPetStatus) {
-  window.dispatchEvent(new CustomEvent('vesper:desktop-pet-changed', { detail: status }))
+  window.dispatchEvent(new CustomEvent('pisper:desktop-pet-changed', { detail: status }))
 }
 
 export function DesktopPetSettings({ notify }: { notify: Notify }) {
   const { t } = useI18n()
-  const bridge = window.vesperDesktop
+  const bridge = window.pisperDesktop
   const controller = useMemo<PetController>(() => {
     if (bridge?.getPetStatus) {
       return {
@@ -326,8 +326,8 @@ export function DesktopPetSettings({ notify }: { notify: Notify }) {
                     <strong>{pet.name}</strong>
                     <small>{pet.slug}</small>
                   </span>
-                  <Badge tone={pet.source === 'vesper' ? 'blue' : 'gray'}>
-                    {pet.source === 'vesper' ? 'Vesper' : 'Petdex'}
+                  <Badge tone={pet.source === 'pisper' ? 'blue' : 'gray'}>
+                    {pet.source === 'pisper' ? 'Pisper' : 'Petdex'}
                   </Badge>
                 </button>
               )

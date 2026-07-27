@@ -152,10 +152,10 @@ export const FocusChatMessage = memo(function FocusChatMessage({
     <AiMessage
       from={message.role === 'agent' ? 'assistant' : 'user'}
       className={`message ${message.role} ${message.error ? 'has-error' : ''}`}
-      data-vesper-message-id={message.id}
-      data-vesper-role={message.role}
-      data-vesper-streaming={streaming || undefined}
-      data-vesper-error={message.error ? 'true' : undefined}
+      data-pisper-message-id={message.id}
+      data-pisper-role={message.role}
+      data-pisper-streaming={streaming || undefined}
+      data-pisper-error={message.error ? 'true' : undefined}
     >
       <span>{message.role === 'agent' ? <AgentStatusAvatar state={agentState} /> : 'You'}</span>
       <div className="message-content">
@@ -193,11 +193,11 @@ export const MiniChatMessage = memo(function MiniChatMessage({ message }: MiniCh
     <AiMessage
       from={message.role === 'agent' ? 'assistant' : 'user'}
       className={`mini-message ${message.role}`}
-      data-vesper-message-id={message.id}
-      data-vesper-role={message.role}
-      data-vesper-streaming={message.streaming || undefined}
+      data-pisper-message-id={message.id}
+      data-pisper-role={message.role}
+      data-pisper-streaming={message.streaming || undefined}
     >
-      <span>{message.role === 'agent' ? 'Vesper' : 'You'}</span>
+      <span>{message.role === 'agent' ? 'Pisper' : 'You'}</span>
       <div className="mini-message-content">
         {(message.text || !message.streaming) && (
           <MarkdownMessage streaming={message.streaming}>{message.text}</MarkdownMessage>

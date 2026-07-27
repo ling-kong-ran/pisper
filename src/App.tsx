@@ -167,14 +167,14 @@ function App() {
     (title: string, body: string, { force = false }: { force?: boolean } = {}) => {
       if (!notificationSettings.browser?.enabled) return
       if (!force && document.visibilityState === 'visible' && document.hasFocus()) return
-      if (window.vesperDesktop?.showNotification) {
-        void window.vesperDesktop.showNotification({ title, body }).catch(() => {})
+      if (window.pisperDesktop?.showNotification) {
+        void window.pisperDesktop.showNotification({ title, body }).catch(() => {})
         return
       }
       void showBrowserSystemNotification({
         title,
         body,
-        tag: `vesper-${title}`,
+        tag: `pisper-${title}`,
         url: window.location.href,
       }).catch(() => {})
     },
@@ -381,7 +381,7 @@ function App() {
     return (
       <div className="app-startup">
         <BrandLogo size={30} className="startup-logo" />
-        <strong>{t('common:app.wakingVesper')}</strong>
+        <strong>{t('common:app.wakingPisper')}</strong>
       </div>
     )
 
@@ -418,7 +418,7 @@ function App() {
             theme={theme}
             onCycleTheme={cycleTheme}
             workflowActions={workflowActions}
-            desktopPlatform={window.vesperDesktop?.platform || ''}
+            desktopPlatform={window.pisperDesktop?.platform || ''}
           />
           <div className={`page-content page-${page}`} key={page}>
             <Outlet context={routeContext} />

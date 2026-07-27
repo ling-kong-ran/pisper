@@ -10,7 +10,7 @@
   "assetsPage.all": "All",
   "assetsPage.assetDeleted": "Asset deleted",
   "assetsPage.assets": "assets",
-  "assetsPage.bringInALinkOrAttachAFileInAConversationVesperWillGatherTheOutputsCreatedAlongTheWay": "Bring in a link or attach a file in a conversation; Vesper will gather the outputs created along the way.",
+  "assetsPage.bringInALinkOrAttachAFileInAConversationPisperWillGatherTheOutputsCreatedAlongTheWay": "Bring in a link or attach a file in a conversation; Pisper will gather the outputs created along the way.",
   "assetsPage.cancel": "Cancel",
   "assetsPage.closeDialog": "Close dialog",
   "assetsPage.conversationAttachmentsAndAgentOutputsGatherHereAutomatically": "Conversation attachments and Agent outputs gather here automatically.",

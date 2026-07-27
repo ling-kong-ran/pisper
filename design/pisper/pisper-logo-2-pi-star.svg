@@ -1,0 +1,33 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <defs>
+    <linearGradient id="line2" gradientUnits="userSpaceOnUse" x1="150" y1="130" x2="410" y2="380">
+      <stop offset="0" stop-color="#22d3ee"/>
+      <stop offset="1" stop-color="#8b5cf6"/>
+    </linearGradient>
+    <radialGradient id="bg2" cx="0.5" cy="0.4" r="0.95">
+      <stop offset="0" stop-color="#1a1d27"/>
+      <stop offset="1" stop-color="#101116"/>
+    </radialGradient>
+    <filter id="glow2" x="-80%" y="-80%" width="260%" height="260%">
+      <feGaussianBlur stdDeviation="8" result="b"/>
+      <feMerge>
+        <feMergeNode in="b"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+  </defs>
+
+  <rect width="512" height="512" rx="112" fill="url(#bg2)"/>
+
+  <!-- pi drawn with one flowing line style -->
+  <g stroke="url(#line2)" stroke-width="30" fill="none" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M150,200 H362"/>
+    <path d="M212,200 C212,265 208,318 198,354"/>
+    <path d="M300,200 C300,262 306,308 320,340 C327,357 341,363 353,356"/>
+  </g>
+
+  <!-- star accent resting on the bar end -->
+  <g transform="translate(394 160)" filter="url(#glow2)">
+    <path d="M0,-28 C2.6,-8 8,-2.6 28,0 C8,2.6 2.6,8 0,28 C-2.6,8 -8,2.6 -28,0 C-8,-2.6 -2.6,-8 0,-28 Z" fill="url(#line2)"/>
+  </g>
+</svg>

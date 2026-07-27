@@ -448,7 +448,7 @@ function ToolApproval({ approvals, onResolve, compact = false }: ToolApprovalPro
       approval={{ id: approval.id }}
       state="approval-requested"
       className={`tool-approval ${compact ? 'compact' : ''}`}
-      data-vesper-approval-id={approval.id}
+      data-pisper-approval-id={approval.id}
     >
       <div>
         <ShieldCheck size={compact ? 12 : 15} />
@@ -756,14 +756,14 @@ export function FocusSession({
             <TargetCursor className="agent-welcome-content">
               <div className="welcome-visual">
                 <BrandLogo size={54} className="welcome-logo" />
-                <AsciiText text="VESPER" />
+                <AsciiText text="PISPER" />
               </div>
               <h2>
                 <BlurText text={t('chat:focusSession.letSBeginWithASparkOfAnIdea')} />
               </h2>
               <p>
                 {t(
-                  'chat:focusSession.vesperIsReadyToReadTheCurrentWorkspaceSearchTheCodebaseAndHelpCarryTheTaskThroughItRunsInTheWork',
+                  'chat:focusSession.pisperIsReadyToReadTheCurrentWorkspaceSearchTheCodebaseAndHelpCarryTheTaskThroughItRunsInTheWork',
                 )}
               </p>
               <div className="welcome-chips">
@@ -828,7 +828,7 @@ export function FocusSession({
         <ToolApproval approvals={approvals} onResolve={onApproval} />
         {streaming && queuedInputs.length > 0 && (
           <QueueSection asChild defaultOpen>
-            <div className="queued-input-tray" data-vesper-queue-size={queuedInputs.length}>
+            <div className="queued-input-tray" data-pisper-queue-size={queuedInputs.length}>
               <span>{t('chat:focusSession.sentToTheRunningAgent')}</span>
               {queuedInputs.slice(-3).map((item, index) => (
                 <small key={item.id || `${item.behavior}-${index}`} title={item.text}>

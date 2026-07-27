@@ -107,7 +107,7 @@
   "pluginsPage.toolID": "Tool ID",
   "pluginsPage.toolPlugins": "Tool plugins",
   "pluginsPage.unsaved": "Unsaved",
-  "pluginsPage.vesperAppTools": "Vesper app tools",
-  "pluginsPage.vesperBuiltInTools": "Vesper built-in tools",
+  "pluginsPage.pisperAppTools": "Pisper app tools",
+  "pluginsPage.pisperBuiltInTools": "Pisper built-in tools",
   "pluginsPage.workspace": "Workspace"
 }

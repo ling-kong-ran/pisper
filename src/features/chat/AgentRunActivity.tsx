@@ -331,7 +331,7 @@ function ActivityElement({
     return (
       <Tool
         className={`${className} !mb-0 !rounded-none !border-0`}
-        data-vesper-activity-type="tool"
+        data-pisper-activity-type="tool"
       >
         {children}
       </Tool>
@@ -341,7 +341,7 @@ function ActivityElement({
     return (
       <Plan
         className={`${className} !gap-0 !rounded-none !border-0 !bg-transparent !p-0 !shadow-none`}
-        data-vesper-activity-type="plan"
+        data-pisper-activity-type="plan"
       >
         {children}
       </Plan>
@@ -349,13 +349,13 @@ function ActivityElement({
   }
   if (activity.type === 'agent') {
     return (
-      <Task className={className} data-vesper-activity-type="agent">
+      <Task className={className} data-pisper-activity-type="agent">
         {children}
       </Task>
     )
   }
   return (
-    <div className={className} data-vesper-activity-type={activity.type}>
+    <div className={className} data-pisper-activity-type={activity.type}>
       {children}
     </div>
   )
@@ -429,7 +429,7 @@ function AgentRunActivity({
   return (
     <section className={`agent-run-activity ${compact ? 'compact' : ''}`} aria-live="polite">
       {thinking && (
-        <div className="agent-thinking-window" data-vesper-activity-type="reasoning">
+        <div className="agent-thinking-window" data-pisper-activity-type="reasoning">
           <div className="agent-thinking-head">
             <span className="agent-run-status-icon">
               <ActivityIcon tone={streaming ? 'running' : 'completed'} />
@@ -454,7 +454,7 @@ function AgentRunActivity({
         </div>
       )}
       {showOverview && (
-        <div className={`agent-run-overview ${primary.tone}`} data-vesper-activity-type="status">
+        <div className={`agent-run-overview ${primary.tone}`} data-pisper-activity-type="status">
           <span className="agent-run-status-icon">
             <ActivityIcon tone={primary.tone} />
           </span>

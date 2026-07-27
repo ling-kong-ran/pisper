@@ -9,7 +9,7 @@ function zeroCost() {
 }
 
 function runtimeModel(providerId, entry, candidate, existing, template) {
-  if (existing) return { ...existing, name: candidate.name || existing.name, vesperKind: candidate.kind || 'chat' }
+  if (existing) return { ...existing, name: candidate.name || existing.name, pisperKind: candidate.kind || 'chat' }
   return {
     id: candidate.id,
     name: candidate.name || candidate.id,
@@ -21,7 +21,7 @@ function runtimeModel(providerId, entry, candidate, existing, template) {
     cost: template?.cost || zeroCost(),
     contextWindow: template?.contextWindow || 200_000,
     maxTokens: template?.maxTokens || 128_000,
-    vesperKind: candidate.kind || 'chat',
+    pisperKind: candidate.kind || 'chat',
   }
 }
 

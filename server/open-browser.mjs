@@ -3,7 +3,7 @@ import { spawn as spawnProcess } from 'node:child_process'
 const LOCAL_HOSTS = new Set(['127.0.0.1', 'localhost', '::1'])
 
 export function shouldOpenBrowser({ host, env = process.env } = {}) {
-  if (String(env.VESPER_OPEN_BROWSER || '').trim() !== '1') return false
+  if (String(env.PISPER_OPEN_BROWSER || '').trim() !== '1') return false
   if (String(env.CI || '').trim()) return false
   return LOCAL_HOSTS.has(String(host || '').trim().toLowerCase())
 }

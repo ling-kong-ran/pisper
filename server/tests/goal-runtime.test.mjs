@@ -7,7 +7,7 @@ import { isGoalContinuationMessage } from '../services/goal-service.mjs'
 import { AgentRuntimeService } from '../runtime/agent-runtime.mjs'
 
 test('goal mode queues hidden continuation turns until the goal is completed', async (t) => {
-  const directory = await mkdtemp(join(tmpdir(), 'vesper-goal-runtime-'))
+  const directory = await mkdtemp(join(tmpdir(), 'pisper-goal-runtime-'))
   t.after(() => rm(directory, { recursive: true, force: true }))
   const runtime = new AgentRuntimeService({ cwd: directory, dataDir: directory })
   await runtime.goals.init()
@@ -84,7 +84,7 @@ test('goal mode queues hidden continuation turns until the goal is completed', a
 })
 
 test('goal mode resumes a paused Goal without replacing its objective', async (t) => {
-  const directory = await mkdtemp(join(tmpdir(), 'vesper-goal-resume-'))
+  const directory = await mkdtemp(join(tmpdir(), 'pisper-goal-resume-'))
   t.after(() => rm(directory, { recursive: true, force: true }))
   const runtime = new AgentRuntimeService({ cwd: directory, dataDir: directory })
   await runtime.goals.init()
@@ -130,7 +130,7 @@ test('goal mode resumes a paused Goal without replacing its objective', async (t
 })
 
 test('goal continuation waits for Pi retries and skips terminal assistant errors', async (t) => {
-  const directory = await mkdtemp(join(tmpdir(), 'vesper-goal-retry-'))
+  const directory = await mkdtemp(join(tmpdir(), 'pisper-goal-retry-'))
   t.after(() => rm(directory, { recursive: true, force: true }))
   const runtime = new AgentRuntimeService({ cwd: directory, dataDir: directory })
   await runtime.goals.init()

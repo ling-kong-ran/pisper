@@ -125,7 +125,7 @@ export class VisualModelCatalog {
       for (const modelId of modelIds) {
         const definition = definitions.get(modelId) || {}
         const runtimeModel = runtimeModels.find((model) => model.id === modelId)
-        const modelKind = inferModelKind(modelId, definition.kind || runtimeModel?.vesperKind)
+        const modelKind = inferModelKind(modelId, definition.kind || runtimeModel?.pisperKind)
         if (modelKind !== kind) continue
         const api = definition.api || provider.api || runtimeModel?.api || ''
         const baseUrl = String(definition.baseUrl || provider.baseUrl || runtimeModel?.baseUrl || defaultBaseUrl(providerId, api)).replace(/\/+$/, '')

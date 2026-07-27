@@ -5,9 +5,9 @@ import {
   type SessionOpenDisposition,
 } from './dock-layout'
 
-export const SESSION_SELECTED_EVENT = 'vesper:session-selected'
-export const ACTIVE_SESSION_CHANGED_EVENT = 'vesper:active-session-changed'
-export const SESSIONS_UPDATED_EVENT = 'vesper:sessions-updated'
+export const SESSION_SELECTED_EVENT = 'pisper:session-selected'
+export const ACTIVE_SESSION_CHANGED_EVENT = 'pisper:active-session-changed'
+export const SESSIONS_UPDATED_EVENT = 'pisper:sessions-updated'
 
 export function requestSessionSelection(id: string, disposition: SessionOpenDisposition = 'open') {
   const request = createSessionOpenRequest(id, disposition)

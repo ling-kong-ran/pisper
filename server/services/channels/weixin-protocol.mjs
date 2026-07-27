@@ -12,7 +12,7 @@ const MESSAGE_ITEM = { TEXT: 1, IMAGE: 2, VOICE: 3, FILE: 4, VIDEO: 5 }
 const UPLOAD_MEDIA = { IMAGE: 1, VIDEO: 2, FILE: 3 }
 
 function baseInfo() {
-  return { channel_version: CHANNEL_VERSION, bot_agent: 'Vesper/0.0.0' }
+  return { channel_version: CHANNEL_VERSION, bot_agent: 'Pisper/0.0.0' }
 }
 
 function commonHeaders() {
@@ -147,7 +147,7 @@ export class WeixinProtocol {
   }
 
   async sendText(connection, { to, text, contextToken }) {
-    const clientId = `vesper-${randomUUID()}`
+    const clientId = `pisper-${randomUUID()}`
     const result = await this.authPost(connection, 'ilink/bot/sendmessage', {
       msg: {
         from_user_id: '',
@@ -229,7 +229,7 @@ export class WeixinProtocol {
       : type === MESSAGE_ITEM.VIDEO
         ? { type, video_item: { media, video_size: paddedSize(plaintext.length) } }
         : { type, file_item: { media, file_name: name || basename(path), len: String(plaintext.length) } }
-    const clientId = `vesper-${randomUUID()}`
+    const clientId = `pisper-${randomUUID()}`
     const sent = await this.authPost(connection, 'ilink/bot/sendmessage', {
       msg: { from_user_id: '', to_user_id: to, client_id: clientId, message_type: 2, message_state: 2, item_list: [item], context_token: contextToken || undefined },
     })

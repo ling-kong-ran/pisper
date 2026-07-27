@@ -4,11 +4,11 @@ import { tmpdir } from 'node:os'
 import { dirname, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { AgentRuntimeService } from '../../../../server/runtime/agent-runtime.mjs'
-import { applyVesperSystemPrompt } from '../../../../server/prompts/vesper-system-prompt.mjs'
+import { applyPisperSystemPrompt } from '../../../../server/prompts/pisper-system-prompt.mjs'
 
 const scriptDirectory = dirname(fileURLToPath(import.meta.url))
 const projectRoot = resolve(scriptDirectory, '../../../..')
-const temporaryDataDirectory = await mkdtemp(join(tmpdir(), 'vesper-prompt-cache-measure-'))
+const temporaryDataDirectory = await mkdtemp(join(tmpdir(), 'pisper-prompt-cache-measure-'))
 
 function estimatedTokens(value) {
   return Math.ceil(String(value || '').length / 4)
@@ -80,7 +80,7 @@ try {
   }
 
   session.setActiveToolsByName(session.getAllTools().map((tool) => tool.name))
-  applyVesperSystemPrompt(session, session.model)
+  applyPisperSystemPrompt(session, session.model)
   const allConfigured = snapshot(session, 'all-configured')
 
   const historicalFixedTokens = 7_221

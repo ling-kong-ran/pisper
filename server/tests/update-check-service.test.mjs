@@ -12,14 +12,14 @@ test('server update checks compare the current commit with main and cache respon
     fetcher: async (_url, options) => {
       requests += 1
       assert.match(_url, /compare\/1111111111111111111111111111111111111111\.\.\.main$/)
-      assert.equal(options.headers['User-Agent'], 'Vesper/0.1.2 (1111111)')
+      assert.equal(options.headers['User-Agent'], 'Pisper/0.1.2 (1111111)')
       assert.equal(options.headers['X-GitHub-Api-Version'], '2022-11-28')
       return {
         ok: true,
         json: async () => ({
           status: 'ahead',
           ahead_by: 1,
-          html_url: 'https://github.com/ling-kong-ran/vesper/compare/1111111...main',
+          html_url: 'https://github.com/ling-kong-ran/pisper/compare/1111111...main',
           commits: [{
             sha: '2222222222222222222222222222222222222222',
             commit: { message: 'feat: improve startup updates\n\nDetails', committer: { date: '2026-07-22T23:00:00.000Z' } },
@@ -47,7 +47,7 @@ test('server update checks compare the current commit with main and cache respon
 })
 
 test('current commit resolution prefers environment metadata and safely falls back to git', async () => {
-  assert.equal(await resolveGitCommit('/workspace', { env: { VESPER_COMMIT_SHA: 'ABCDEF1234567' }, runGit: async () => { throw new Error('should not run') } }), 'abcdef1234567')
+  assert.equal(await resolveGitCommit('/workspace', { env: { PISPER_COMMIT_SHA: 'ABCDEF1234567' }, runGit: async () => { throw new Error('should not run') } }), 'abcdef1234567')
   assert.equal(await resolveGitCommit('/workspace', { env: {}, runGit: async () => ({ stdout: '1234567890abcdef\n' }) }), '1234567890abcdef')
   assert.equal(await resolveGitCommit('/workspace', { env: {}, runGit: async () => { throw new Error('missing git') } }), '')
 })

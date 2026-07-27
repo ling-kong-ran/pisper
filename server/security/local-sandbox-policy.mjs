@@ -223,7 +223,7 @@ export function buildSandboxConfig({ workspaces, dataDir, platform = process.pla
     },
     filesystem: {
       // Keep Windows deny stamping away from large home/workspace parents.
-      // Deny only the app-owned Vesper tree and concrete credential files;
+      // Deny only the app-owned Pisper tree and concrete credential files;
       // direct home-level credential files use the runtime guard below.
       denyRead: platform === 'win32'
         ? windowsDenyReadPaths(dataDir, homeDir)
@@ -272,7 +272,7 @@ export function buildWindowsSandboxCommand(command, shellPath, sensitivePaths = 
     .map((path) => {
       const shellPath = path.replaceAll('\\', '/')
       const probe = `if [ -d ${bashQuote(shellPath)} ]; then /usr/bin/ls -A ${bashQuote(shellPath)} >/dev/null 2>&1; else /usr/bin/dd if=${bashQuote(shellPath)} of=/dev/null bs=1 count=1 >/dev/null 2>&1; fi`
-      return `if { ${probe}; }; then printf '%s\\n' ${bashQuote(`VESPER_SANDBOX_SENSITIVE_PATH_READABLE:${shellPath}`)} >&2; exit 126; fi`
+      return `if { ${probe}; }; then printf '%s\\n' ${bashQuote(`PISPER_SANDBOX_SENSITIVE_PATH_READABLE:${shellPath}`)} >&2; exit 126; fi`
     })
     .join('; ')
   return `export PYTHONIOENCODING=utf-8 PYTHONUTF8=1 LANG=C.UTF-8 LC_ALL=C.UTF-8; ${guard ? `${guard}; ` : ''}${command}`

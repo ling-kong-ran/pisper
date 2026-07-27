@@ -85,7 +85,7 @@ jobs:
           npm run desktop:pack -- ${{ matrix.args }}
       - uses: actions/upload-artifact@v4
         with:
-          name: vesper-${{ runner.os }}
+          name: pisper-${{ runner.os }}
           if-no-files-found: error
           path: |
             release/*.exe
@@ -109,12 +109,12 @@ jobs:
           path: .
       - uses: actions/download-artifact@v5
         with:
-          pattern: vesper-*
+          pattern: pisper-*
           path: artifacts
           merge-multiple: true
       - uses: softprops/action-gh-release@v2
         with:
-          name: Vesper ${{ github.ref_name }}
+          name: Pisper ${{ github.ref_name }}
           body_path: release-body.md
           fail_on_unmatched_files: true
           make_latest: true
@@ -122,4 +122,4 @@ jobs:
       - name: Synchronize release notes
         env:
           GH_TOKEN: ${{ github.token }}
-        run: gh release edit "${{ github.ref_name }}" --repo "${{ github.repository }}" --title "Vesper ${{ github.ref_name }}" --notes-file release-body.md --latest
+        run: gh release edit "${{ github.ref_name }}" --repo "${{ github.repository }}" --title "Pisper ${{ github.ref_name }}" --notes-file release-body.md --latest

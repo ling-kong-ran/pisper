@@ -89,7 +89,7 @@ export function createToolDiscoveryTool({ listTools, activateTools }) {
   return defineTool({
     name: TOOL_DISCOVERY_NAME,
     label: 'Discover Tools',
-    description: 'Search Vesper optional capabilities by task or intent and activate the most relevant tool schemas for the current session.',
+    description: 'Search Pisper optional capabilities by task or intent and activate the most relevant tool schemas for the current session.',
     promptSnippet: 'Search and activate optional tools when the currently active tools do not cover the task',
     promptGuidelines: [
       'Use discover_tools when the task may require an optional capability whose tool schema is not currently active.',

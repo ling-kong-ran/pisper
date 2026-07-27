@@ -282,7 +282,7 @@ export class SkillsService {
 
   packageManager(cwd = this.cwd) {
     const settingsManager = this.getSettingsManager()
-    if (!settingsManager) throw new Error('Vesper 技能运行时尚未初始化。')
+    if (!settingsManager) throw new Error('Pisper 技能运行时尚未初始化。')
     return this.createPackageManager({ cwd, agentDir: this.agentDir, settingsManager })
   }
 
@@ -426,7 +426,7 @@ export class SkillsService {
     const skill = await this.findSkill(id, cwd)
     if (!skill) return false
     const key = normalizedPath(skill.filePath)
-    if (!this.state.installed[key] || !pathInside(this.skillsDir, skill.filePath)) throw new Error('只能卸载由 Vesper 安装的技能；其他来源可以禁用。')
+    if (!this.state.installed[key] || !pathInside(this.skillsDir, skill.filePath)) throw new Error('只能卸载由 Pisper 安装的技能；其他来源可以禁用。')
     const target = basename(skill.filePath).toLowerCase() === 'skill.md' ? dirname(skill.filePath) : skill.filePath
     await rm(target, { recursive: true, force: true })
     delete this.state.overrides[key]

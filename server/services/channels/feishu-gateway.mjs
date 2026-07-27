@@ -36,7 +36,7 @@ export class FeishuGateway {
       appSecret: config.appSecret,
       domain: config.domain === 'lark' ? Domain.Lark : Domain.Feishu,
       transport: 'websocket',
-      source: 'vesper',
+      source: 'pisper',
       loggerLevel: LoggerLevel.warn,
       handshakeTimeoutMs: 15_000,
       safety: { chatQueue: { enabled: false }, staleMessageWindowMs: 5 * 60 * 1000 },

@@ -37,12 +37,12 @@ import { createAppTools, createMultiAgentTools, TOOL_PRESETS, toolsFromConfig } 
 import { createGoalTools, GOAL_TOOL_NAMES } from '../tools/app/goal.mjs'
 import { createTaskListTools, TASK_LIST_TOOL_NAMES } from '../tools/app/task-list.mjs'
 import { createToolDiscoveryTool, TOOL_DISCOVERY_NAME } from '../tools/app/tool-discovery.mjs'
-import { createVesperBashTool } from '../tools/sandboxed-bash.mjs'
+import { createPisperBashTool } from '../tools/sandboxed-bash.mjs'
 import { hotToolNames, mergePromotedToolNames, schemaOnlyToolDefinitions, selectedToolNames } from '../tools/tool-activation.mjs'
 import { DEFAULT_EXECUTION_MODE, EXECUTION_MODES, filterToolsForExecutionMode, migrateLegacyExecutionMode, normalizeExecutionMode, permissionModeForExecutionMode } from '../security/execution-mode.mjs'
 import { createStreamingSecretRedactor, installSessionPersistenceRedaction, redactPersistedSessionFiles, redactSecretText, redactSecretValue } from '../security/secret-redaction.mjs'
-import { applyVesperSystemPrompt, vesperPromptExtension } from '../prompts/vesper-system-prompt.mjs'
-import { createCompactionSettingsManager, effectiveCompactionSettings, vesperCompactionExtension } from './compaction-policy.mjs'
+import { applyPisperSystemPrompt, pisperPromptExtension } from '../prompts/pisper-system-prompt.mjs'
+import { createCompactionSettingsManager, effectiveCompactionSettings, pisperCompactionExtension } from './compaction-policy.mjs'
 
 const KNOWN_PROVIDERS = ['openai', 'anthropic', 'google', 'deepseek', 'xai', 'openrouter', 'kimi-coding', 'zai-coding-cn']
 const PROVIDER_LABELS = {
@@ -65,7 +65,7 @@ const PROVIDER_DEFAULT_BASE_URLS = {
   'kimi-coding': 'https://api.kimi.com/coding/',
   'zai-coding-cn': 'https://open.bigmodel.cn/api/paas/v4',
 }
-const ATTACHMENT_MARKER = '\n\n---\nAttachment context (injected by Vesper):\n'
+const ATTACHMENT_MARKER = '\n\n---\nAttachment context (injected by Pisper):\n'
 const MAX_EXTRACTED_CHARS = 400_000
 const MAX_ASSET_BYTES = 24 * 1024 * 1024
 const MAX_CHAT_ASSET_BYTES = 10 * 1024 * 1024
@@ -479,10 +479,10 @@ export class AgentRuntimeService {
     this.sessionDir = join(dataDir, 'sessions')
     this.authPath = join(dataDir, 'auth.json')
     this.modelsPath = join(dataDir, 'models.json')
-    this.providerModelCatalogPath = join(dataDir, 'vesper-provider-models.json')
+    this.providerModelCatalogPath = join(dataDir, 'pisper-provider-models.json')
     this.providerModelCatalog = new ProviderModelCatalogService({ path: this.providerModelCatalogPath })
     this.settingsPath = join(dataDir, 'settings.json')
-    this.appConfigPath = join(dataDir, 'vesper.json')
+    this.appConfigPath = join(dataDir, 'pisper.json')
     this.toolPlugins = new ToolPluginService(this.appConfigPath)
     this.webSearch = new WebSearchService({ configPath: this.appConfigPath })
     this.visualGeneration = new VisualGenerationService({
@@ -491,27 +491,27 @@ export class AgentRuntimeService {
       appConfigPath: this.appConfigPath,
       getModelRuntime: () => this.modelRuntime,
     })
-    this.sessionMetaPath = join(dataDir, 'vesper-sessions.json')
-    this.usagePath = join(dataDir, 'vesper-usage.json')
-    this.assetsDir = join(dataDir, 'vesper-assets')
-    this.assetIndexPath = join(dataDir, 'vesper-assets.json')
-    this.memory = new LocalMemoryRuntime({ path: join(dataDir, 'vesper-memory.sqlite'), cwd })
-    this.goals = new GoalService({ path: join(dataDir, 'vesper-goals.json') })
+    this.sessionMetaPath = join(dataDir, 'pisper-sessions.json')
+    this.usagePath = join(dataDir, 'pisper-usage.json')
+    this.assetsDir = join(dataDir, 'pisper-assets')
+    this.assetIndexPath = join(dataDir, 'pisper-assets.json')
+    this.memory = new LocalMemoryRuntime({ path: join(dataDir, 'pisper-memory.sqlite'), cwd })
+    this.goals = new GoalService({ path: join(dataDir, 'pisper-goals.json') })
     this.gitChanges = new GitChangesService()
-    this.taskLists = new TaskListService({ path: join(dataDir, 'vesper-task-lists.json') })
+    this.taskLists = new TaskListService({ path: join(dataDir, 'pisper-task-lists.json') })
     this.browserAutomation = new BrowserAutomationService({ driver: browserAutomationDriver })
     this.goalEmitters = new Map()
     this.agentEmitters = new Map()
-    this.mcp = new McpService({ path: join(dataDir, 'vesper-mcp.json'), cwd })
+    this.mcp = new McpService({ path: join(dataDir, 'pisper-mcp.json'), cwd })
     this.skills = new SkillsService({
-      path: join(dataDir, 'vesper-skills.json'),
+      path: join(dataDir, 'pisper-skills.json'),
       agentDir: dataDir,
       cwd,
       getSettingsManager: () => this.settingsManager,
-      extensionFactories: [vesperPromptExtension, vesperCompactionExtension],
+      extensionFactories: [pisperPromptExtension, pisperCompactionExtension],
     })
     this.channels = new ChannelService({
-      path: join(dataDir, 'vesper-channels.json'),
+      path: join(dataDir, 'pisper-channels.json'),
       cwd,
       agent: {
         prompt: (input) => this.promptFromChannel(input),
@@ -519,9 +519,9 @@ export class AgentRuntimeService {
         validateDirectory: (input) => resolveDirectory(input, this.cwd),
       },
     })
-    this.notificationSettings = new NotificationSettingsService({ path: this.appConfigPath, browserEventsPath: join(dataDir, 'vesper-browser-notifications.json'), channels: this.channels })
+    this.notificationSettings = new NotificationSettingsService({ path: this.appConfigPath, browserEventsPath: join(dataDir, 'pisper-browser-notifications.json'), channels: this.channels })
     this.schedules = new ScheduleService({
-      path: join(dataDir, 'vesper-schedules.json'),
+      path: join(dataDir, 'pisper-schedules.json'),
       cwd,
       agent: {
         prompt: (input) => this.promptFromChannel({ sessionId: '', ...input }),
@@ -530,7 +530,7 @@ export class AgentRuntimeService {
       notifications: this.notificationSettings,
     })
     this.workflows = new WorkflowService({
-      path: join(dataDir, 'vesper-workflows.json'),
+      path: join(dataDir, 'pisper-workflows.json'),
       cwd,
       agent: {
         prompt: (input) => this.promptFromChannel({ sessionId: '', ...input }),
@@ -558,7 +558,7 @@ export class AgentRuntimeService {
       getToolRisk: (toolName) => this.mcp.getToolRisk(toolName),
     })
     this.multiAgents = new MultiAgentService({
-      path: join(dataDir, 'vesper-agents.json'),
+      path: join(dataDir, 'pisper-agents.json'),
       agentDir: this.dataDir,
       getModelRuntime: () => this.modelRuntime,
       getSettingsManager: () => this.settingsManager,
@@ -756,7 +756,7 @@ export class AgentRuntimeService {
       promotionWrite = this.saveSessionMeta()
     }
     this.syncGoalTools(value, this.goals.get(value.session.sessionId))
-    applyVesperSystemPrompt(value.session, value.session.model)
+    applyPisperSystemPrompt(value.session, value.session.model)
     if (promotionWrite) await promotionWrite
     const active = new Set(value.session.getActiveToolNames())
     return {
@@ -1490,7 +1490,7 @@ export class AgentRuntimeService {
     const defaultThinkingLevel = settings.defaultThinkingLevel
     try {
       await value.session.setModel(model)
-      applyVesperSystemPrompt(value.session, model)
+      applyPisperSystemPrompt(value.session, model)
     } finally {
       if (defaultProvider && defaultModel) {
         this.settingsManager.setDefaultModelAndProvider(defaultProvider, defaultModel)
@@ -1732,7 +1732,7 @@ export class AgentRuntimeService {
         },
       })),
       ...schemaOnlyToolDefinitions(mcpTools),
-      ...(enabledTools.includes('bash') ? [createVesperBashTool(effectiveCwd, {
+      ...(enabledTools.includes('bash') ? [createPisperBashTool(effectiveCwd, {
         sandboxService: this.sandbox,
         getExecutionMode: () => this.getSessionExecutionMode(runtimeSessionId),
       })] : []),
@@ -1777,7 +1777,7 @@ export class AgentRuntimeService {
     }
     this.syncGoalTools(value, this.goals.get(session.sessionId))
     this.permissions.install(session, { sessionId: session.sessionId, cwd: effectiveCwd })
-    applyVesperSystemPrompt(session, session.model)
+    applyPisperSystemPrompt(session, session.model)
     this.sessions.set(session.sessionId, value)
     return value
   }
@@ -2180,7 +2180,7 @@ export class AgentRuntimeService {
       const titlePromise = mayAutoTitle
         ? this.generateSessionTitle(session.model, message, safeAttachments, temporaryTitle, session.sessionId).catch(() => '')
         : null
-      applyVesperSystemPrompt(session, session.model)
+      applyPisperSystemPrompt(session, session.model)
       await session.prompt(prompt, { images })
       flushText()
       flushThinking()
@@ -2741,10 +2741,10 @@ export class AgentRuntimeService {
     modelsJson.providers ||= {}
     const existingProvider = modelsJson.providers[loaded.providerId]
     if (existingProvider && JSON.stringify(existingProvider) !== JSON.stringify(loaded.providerConfig)) {
-      throw new Error('Vesper 已存在该 Provider 的模型配置，不会自动覆盖。')
+      throw new Error('Pisper 已存在该 Provider 的模型配置，不会自动覆盖。')
     }
     if (loaded.credential && credentials[loaded.providerId] && JSON.stringify(credentials[loaded.providerId]) !== JSON.stringify(loaded.credential)) {
-      throw new Error('Vesper 已存在该 Provider 的认证，不会自动覆盖。')
+      throw new Error('Pisper 已存在该 Provider 的认证，不会自动覆盖。')
     }
 
     modelsJson.providers[loaded.providerId] = loaded.providerConfig
@@ -2789,7 +2789,7 @@ export class AgentRuntimeService {
         return {
           id: model.id,
           name: model.name || model.id,
-          kind: inferModelKind(model.id, definition?.kind || model.vesperKind),
+          kind: inferModelKind(model.id, definition?.kind || model.pisperKind),
           reasoning: Boolean(model.reasoning),
           contextWindow: model.contextWindow || null,
           baseUrl: model.baseUrl || '',
@@ -2969,10 +2969,10 @@ export class AgentRuntimeService {
           && type !== 'visual'
           && !disabled.has(item.id)
           && credentials[item.id]
-          && this.modelRuntime.getModels(item.id).some((model) => inferModelKind(model.id, model.vesperKind) === 'chat')
+          && this.modelRuntime.getModels(item.id).some((model) => inferModelKind(model.id, model.pisperKind) === 'chat')
       })
       if (!alternative) throw new Error('至少需要保留一个已配置并启用的 Provider。')
-      const alternativeModel = this.modelRuntime.getModels(alternative.id).find((model) => inferModelKind(model.id, model.vesperKind) === 'chat')
+      const alternativeModel = this.modelRuntime.getModels(alternative.id).find((model) => inferModelKind(model.id, model.pisperKind) === 'chat')
       this.settingsManager.setDefaultModelAndProvider(alternative.id, alternativeModel.id)
       await this.settingsManager.flush()
     }
@@ -3222,10 +3222,10 @@ export class AgentRuntimeService {
         return item.id !== provider
           && type !== 'visual'
           && credentials[item.id]
-          && this.modelRuntime.getModels(item.id).some((model) => inferModelKind(model.id, model.vesperKind) === 'chat')
+          && this.modelRuntime.getModels(item.id).some((model) => inferModelKind(model.id, model.pisperKind) === 'chat')
       })
       if (alternative) {
-        const alternativeModel = this.modelRuntime.getModels(alternative.id).find((model) => inferModelKind(model.id, model.vesperKind) === 'chat')
+        const alternativeModel = this.modelRuntime.getModels(alternative.id).find((model) => inferModelKind(model.id, model.pisperKind) === 'chat')
         this.settingsManager.setDefaultModelAndProvider(alternative.id, alternativeModel.id)
         await this.settingsManager.flush()
       }

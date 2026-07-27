@@ -114,7 +114,7 @@ test('background Agent completion uses code-level UI state without prompt or cus
     readFile('src/features/chat/FocusSession.tsx', 'utf8'),
   ])
   assert.doesNotMatch(runtime, /sendCustomMessage/)
-  assert.doesNotMatch(runtime, /vesper_agent_mailbox_results/)
+  assert.doesNotMatch(runtime, /pisper_agent_mailbox_results/)
   assert.match(runtime, /live\.currentActivity = backgroundActivities\.at\(-1\) \|\| null/)
   assert.match(page, /data\.currentActivity\?\.type === 'agent'/)
   assert.match(focus, /activityFeed\.some\(\(activity\) => activity\.type === 'agent'\)/)

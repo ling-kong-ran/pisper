@@ -24,7 +24,7 @@ test('permission modes progress from ask to automatic to ignored checks', () => 
 })
 
 test('workspace path checks resolve symbolic links before authorization', async (t) => {
-  const directory = await mkdtemp(join(tmpdir(), 'vesper-permission-path-'))
+  const directory = await mkdtemp(join(tmpdir(), 'pisper-permission-path-'))
   const workspace = join(directory, 'workspace')
   const outside = join(directory, 'outside')
   await mkdir(workspace)

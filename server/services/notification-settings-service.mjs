@@ -2,7 +2,7 @@ import { randomUUID } from 'node:crypto'
 import { readJson, writeJsonAtomic } from '../storage/json-file.mjs'
 import { sampleNotificationData } from './channels/notification-templates.mjs'
 
-const EMPTY_BROWSER_EVENT_CURSOR = '__vesper_browser_events_empty__'
+const EMPTY_BROWSER_EVENT_CURSOR = '__pisper_browser_events_empty__'
 
 export class NotificationSettingsService {
   constructor({ path, browserEventsPath, channels }) {
@@ -57,7 +57,7 @@ export class NotificationSettingsService {
   async publishBrowser(title, body, event = '') {
     const appConfig = await readJson(this.path, {})
     if (appConfig.notifications?.browser?.enabled !== true || !this.browserEventsPath) return false
-    const item = { id: randomUUID(), title: String(title || 'Vesper'), body: String(body || ''), event, createdAt: new Date().toISOString() }
+    const item = { id: randomUUID(), title: String(title || 'Pisper'), body: String(body || ''), event, createdAt: new Date().toISOString() }
     this.eventWrite = this.eventWrite.catch(() => {}).then(async () => {
       const ledger = await readJson(this.browserEventsPath, { events: [] })
       ledger.events = [...(Array.isArray(ledger.events) ? ledger.events : []), item].slice(-100)

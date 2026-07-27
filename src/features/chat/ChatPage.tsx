@@ -73,7 +73,7 @@ import type {
 import type { SessionStateUpdate } from '@/lib/session-state'
 
 const MAX_LIVE_THINKING_CHARS = 6_000
-const USAGE_UPDATED_EVENT = 'vesper:usage-updated'
+const USAGE_UPDATED_EVENT = 'pisper:usage-updated'
 const FOCUS_MESSAGE_PAGE_SIZE = 40
 
 type ChatPageProps = {
@@ -778,7 +778,7 @@ export function ChatPage({
     timer: number | null
     activeSessions: Set<string>
   }>({ timer: null, activeSessions: new Set() })
-  
+
   const stopPolling = useCallback(() => {
     if (pollingStateRef.current.timer) {
       window.clearInterval(pollingStateRef.current.timer)
@@ -786,72 +786,78 @@ export function ChatPage({
     }
     pollingStateRef.current.activeSessions.clear()
   }, [])
-  
-  const startPollingIfNeeded = useCallback((sessionId: string) => {
-    // 标记该会话需要轮询
-    pollingStateRef.current.activeSessions.add(sessionId)
-    
-    // 如果已有定时器，无需重复启动
-    if (pollingStateRef.current.timer) return
-    
-    // 启动轮询：后台活跃期间每 2 秒检查一次
-    pollingStateRef.current.timer = window.setInterval(() => {
-      const sessionsToPoll = Array.from(pollingStateRef.current.activeSessions)
-      
-      // 并发轮询所有会话，但每个会话独立处理，互不影响
-      const pollPromises = sessionsToPoll.map(async (id) => {
-        const currentState = sessionStatesRef.current[id]
-        const hasActiveAgents = Boolean(currentState?.agents?.some((a: any) => 
-          ['queued', 'starting', 'running'].includes(a.status)
-        ))
-        // 服务端自动唤醒轮次：会话在 streaming/recovering 但非本地 SSE 拥有
-        const backgroundRunning = Boolean(currentState?.recovering || currentState?.streaming) &&
-          !localStreamSessionsRef.current.has(id)
-        
-        if (!hasActiveAgents && !backgroundRunning) {
-          // 该会话后台活动已全部结束，从轮询列表移除
-          pollingStateRef.current.activeSessions.delete(id)
-          return
-        }
-        
-        try {
-          await syncLiveSession(id)
-        } catch (error) {
-          // 单个会话轮询失败不影响其他会话，仅记录错误
-          console.warn(`[Polling] Session ${id} sync failed:`, error)
-        }
-      })
-      
-      // 等待所有会话轮询完成（无论成功或失败）
-      void Promise.allSettled(pollPromises).then(() => {
-        // 所有会话的后台活动都结束了，停止轮询
-        if (pollingStateRef.current.activeSessions.size === 0) {
-          stopPolling()
-        }
-      })
-    }, 2000)
-  }, [syncLiveSession, stopPolling])
-  
+
+  const startPollingIfNeeded = useCallback(
+    (sessionId: string) => {
+      // 标记该会话需要轮询
+      pollingStateRef.current.activeSessions.add(sessionId)
+
+      // 如果已有定时器，无需重复启动
+      if (pollingStateRef.current.timer) return
+
+      // 启动轮询：后台活跃期间每 2 秒检查一次
+      pollingStateRef.current.timer = window.setInterval(() => {
+        const sessionsToPoll = Array.from(pollingStateRef.current.activeSessions)
+
+        // 并发轮询所有会话，但每个会话独立处理，互不影响
+        const pollPromises = sessionsToPoll.map(async (id) => {
+          const currentState = sessionStatesRef.current[id]
+          const hasActiveAgents = Boolean(
+            currentState?.agents?.some((a: any) =>
+              ['queued', 'starting', 'running'].includes(a.status),
+            ),
+          )
+          // 服务端自动唤醒轮次：会话在 streaming/recovering 但非本地 SSE 拥有
+          const backgroundRunning =
+            Boolean(currentState?.recovering || currentState?.streaming) &&
+            !localStreamSessionsRef.current.has(id)
+
+          if (!hasActiveAgents && !backgroundRunning) {
+            // 该会话后台活动已全部结束，从轮询列表移除
+            pollingStateRef.current.activeSessions.delete(id)
+            return
+          }
+
+          try {
+            await syncLiveSession(id)
+          } catch (error) {
+            // 单个会话轮询失败不影响其他会话，仅记录错误
+            console.warn(`[Polling] Session ${id} sync failed:`, error)
+          }
+        })
+
+        // 等待所有会话轮询完成（无论成功或失败）
+        void Promise.allSettled(pollPromises).then(() => {
+          // 所有会话的后台活动都结束了，停止轮询
+          if (pollingStateRef.current.activeSessions.size === 0) {
+            stopPolling()
+          }
+        })
+      }, 2000)
+    },
+    [syncLiveSession, stopPolling],
+  )
+
   // 监听状态变化，自动启动/停止轮询
   useEffect(() => {
     // 检查所有会话，为有后台活动的会话启动轮询
     for (const [id, state] of Object.entries(sessionStates)) {
-      const hasActiveAgents = Boolean(state.agents?.some((a: any) => 
-        ['queued', 'starting', 'running'].includes(a.status)
-      ))
-      const backgroundRunning = Boolean(state.recovering || state.streaming) &&
-        !localStreamSessionsRef.current.has(id)
+      const hasActiveAgents = Boolean(
+        state.agents?.some((a: any) => ['queued', 'starting', 'running'].includes(a.status)),
+      )
+      const backgroundRunning =
+        Boolean(state.recovering || state.streaming) && !localStreamSessionsRef.current.has(id)
       if (hasActiveAgents || backgroundRunning) {
         startPollingIfNeeded(id)
       }
     }
-    
+
     // 如果没有会话需要轮询，确保停止
     if (pollingStateRef.current.activeSessions.size === 0) {
       stopPolling()
     }
   }, [sessionStates, startPollingIfNeeded, stopPolling])
-  
+
   // 组件卸载时清理
   useEffect(() => {
     return () => stopPolling()
@@ -1702,7 +1708,7 @@ export function ChatPage({
     const confirmed = await requestConfirm({
       title: t('chat:chatPage.enableSecureExecution'),
       message: t(
-        'chat:chatPage.vesperWillCreateALowPrivilegeSandboxAccountAndConfigureNetworkIsolationWindowsWillShowOneAdminis',
+        'chat:chatPage.pisperWillCreateALowPrivilegeSandboxAccountAndConfigureNetworkIsolationWindowsWillShowOneAdminis',
       ),
       confirmLabel: t('chat:chatPage.continueSetup'),
       tone: 'primary',
@@ -1949,7 +1955,7 @@ export function ChatPage({
             <div className="chat-dock-workspace">
               <ChatDockContext.Provider value={dockContextValue}>
                 <DockviewReact
-                  className="dockview-theme-light dockview-theme-vesper"
+                  className="dockview-theme-light dockview-theme-pisper"
                   components={dockComponents}
                   watermarkComponent={ChatDockWatermark}
                   onReady={onDockReady}

@@ -2,21 +2,21 @@
 <html lang="zh-CN">
   <head>
     <meta charset="UTF-8" />
-    <link rel="icon" type="image/svg+xml" href="/favicon.svg?v=2" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg?v=3" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <meta name="description" content="Vesper — 在暮色中，让多个 AI Agent 沿各自轨道并行工作。" />
-    <title>Vesper</title>
+    <meta name="description" content="Pisper — Pi 驱动，Agent 低语。多 Agent 桌面工作台，让多个 AI Agent 沿各自轨道并行工作。" />
+    <title>Pisper</title>
     <script>
       try {
-        // 读取主题选择：优先 zustand persist (vesper-ui)，回退旧键 vesper-theme，默认 system
+        // 读取主题选择：优先 zustand persist (pisper-ui)，回退旧键 pisper-theme，默认 system
         let theme = ''
         try {
-          const raw = JSON.parse(localStorage.getItem('vesper-ui') || '{}')
+          const raw = JSON.parse(localStorage.getItem('pisper-ui') || '{}')
           const t = raw && raw.state && raw.state.theme
           if (t === 'system' || t === 'light' || t === 'dark') theme = t
         } catch {}
         if (!theme) {
-          const legacy = localStorage.getItem('vesper-theme')
+          const legacy = localStorage.getItem('pisper-theme')
           if (legacy === 'system' || legacy === 'light' || legacy === 'dark') theme = legacy
         }
         if (!theme) theme = 'system'
@@ -30,7 +30,7 @@
         }
         document.documentElement.dataset.theme = dark ? 'dark' : 'light'
         document.documentElement.classList.toggle('dark', dark)
-        const storedLanguage = localStorage.getItem('vesper-language')
+        const storedLanguage = localStorage.getItem('pisper-language')
         document.documentElement.lang = storedLanguage === 'en-US' ? 'en-US' : 'zh-CN'
       } catch {}
     </script>

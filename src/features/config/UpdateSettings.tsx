@@ -145,7 +145,7 @@ export function UpdateSettings({
             </span>
             <span className="min-w-0">
               <strong className="block text-[16px]">
-                {t('config:updateSettings.vesperAppUpdates')}
+                {t('config:updateSettings.pisperAppUpdates')}
               </strong>
             </span>
           </div>

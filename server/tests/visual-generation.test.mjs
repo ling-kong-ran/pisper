@@ -18,10 +18,10 @@ async function listen(handler) {
 }
 
 async function fixture(provider) {
-  const directory = await mkdtemp(join(tmpdir(), 'vesper-visual-test-'))
+  const directory = await mkdtemp(join(tmpdir(), 'pisper-visual-test-'))
   const modelsPath = join(directory, 'models.json')
   const authPath = join(directory, 'auth.json')
-  const appConfigPath = join(directory, 'vesper.json')
+  const appConfigPath = join(directory, 'pisper.json')
   await writeFile(modelsPath, JSON.stringify({ providers: { [provider.id]: provider.config } }))
   await writeFile(authPath, JSON.stringify({ [provider.id]: { type: 'api_key', key: 'test-key' } }))
   await writeFile(appConfigPath, JSON.stringify({ disabledProviders: [] }))
@@ -33,7 +33,7 @@ async function fixture(provider) {
 }
 
 test('visual model catalog deduplicates shared relay models and prefers the explicit visual Provider', async (t) => {
-  const directory = await mkdtemp(join(tmpdir(), 'vesper-visual-catalog-'))
+  const directory = await mkdtemp(join(tmpdir(), 'pisper-visual-catalog-'))
   t.after(() => rm(directory, { recursive: true, force: true }))
   const sharedBaseUrl = 'https://relay.example.test/v1'
   await writeFile(join(directory, 'models.json'), JSON.stringify({ providers: {
@@ -56,12 +56,12 @@ test('visual model catalog deduplicates shared relay models and prefers the expl
     'openai-image': { type: 'api_key', key: 'visual-key' },
     'visual-backup': { type: 'api_key', key: 'backup-key' },
   }))
-  await writeFile(join(directory, 'vesper.json'), JSON.stringify({
+  await writeFile(join(directory, 'pisper.json'), JSON.stringify({
     disabledProviders: [],
     providerTypes: { openai: 'chat', 'openai-image': 'visual', 'visual-backup': 'visual' },
   }))
   const runtimeModels = {
-    openai: [{ id: 'gpt-image-2', name: 'Discovered image copy', api: 'openai-responses', baseUrl: sharedBaseUrl, vesperKind: 'image' }],
+    openai: [{ id: 'gpt-image-2', name: 'Discovered image copy', api: 'openai-responses', baseUrl: sharedBaseUrl, pisperKind: 'image' }],
   }
   const runtime = {
     getProviders: () => [{ id: 'openai', name: 'OpenAI' }, { id: 'openai-image', name: 'Visual Provider' }, { id: 'visual-backup', name: 'Visual Backup' }],
@@ -71,7 +71,7 @@ test('visual model catalog deduplicates shared relay models and prefers the expl
   const catalog = new VisualModelCatalog({
     modelsPath: join(directory, 'models.json'),
     authPath: join(directory, 'auth.json'),
-    appConfigPath: join(directory, 'vesper.json'),
+    appConfigPath: join(directory, 'pisper.json'),
     getModelRuntime: () => runtime,
   })
 
@@ -95,7 +95,7 @@ test('visual model catalog deduplicates shared relay models and prefers the expl
 })
 
 test('automatic visual ordering prefers backup models from a dedicated visual Provider', async (t) => {
-  const directory = await mkdtemp(join(tmpdir(), 'vesper-visual-order-'))
+  const directory = await mkdtemp(join(tmpdir(), 'pisper-visual-order-'))
   t.after(() => rm(directory, { recursive: true, force: true }))
   const sharedBaseUrl = 'https://relay.example.test/v1'
   await writeFile(join(directory, 'models.json'), JSON.stringify({ providers: {
@@ -111,18 +111,18 @@ test('automatic visual ordering prefers backup models from a dedicated visual Pr
     'openai-image': { type: 'api_key', key: 'visual-key' },
     xai: { type: 'api_key', key: 'xai-key' },
   }))
-  await writeFile(join(directory, 'vesper.json'), JSON.stringify({
+  await writeFile(join(directory, 'pisper.json'), JSON.stringify({
     disabledProviders: [],
     providerTypes: { 'openai-image': 'visual', xai: 'chat' },
   }))
   const runtimeModels = {
-    'openai-image': [{ id: 'grok-imagine-image', vesperKind: 'image', baseUrl: sharedBaseUrl }],
-    xai: [{ id: 'grok-imagine-image-quality', vesperKind: 'image', baseUrl: sharedBaseUrl }],
+    'openai-image': [{ id: 'grok-imagine-image', pisperKind: 'image', baseUrl: sharedBaseUrl }],
+    xai: [{ id: 'grok-imagine-image-quality', pisperKind: 'image', baseUrl: sharedBaseUrl }],
   }
   const catalog = new VisualModelCatalog({
     modelsPath: join(directory, 'models.json'),
     authPath: join(directory, 'auth.json'),
-    appConfigPath: join(directory, 'vesper.json'),
+    appConfigPath: join(directory, 'pisper.json'),
     getModelRuntime: () => ({
       getProviders: () => [{ id: 'openai-image' }, { id: 'xai' }],
       getProvider: (id) => ({ id, name: id }),
@@ -154,7 +154,7 @@ test('a duplicated chat catalog image still sends the dedicated visual Provider 
     res.writeHead(404).end()
   })
   t.after(() => server.close())
-  const directory = await mkdtemp(join(tmpdir(), 'vesper-visual-credential-'))
+  const directory = await mkdtemp(join(tmpdir(), 'pisper-visual-credential-'))
   t.after(() => rm(directory, { recursive: true, force: true }))
   const baseUrl = `http://127.0.0.1:${port}/v1`
   await writeFile(join(directory, 'models.json'), JSON.stringify({ providers: {
@@ -170,7 +170,7 @@ test('a duplicated chat catalog image still sends the dedicated visual Provider 
     openai: { type: 'api_key', key: 'chat-key' },
     'openai-image': { type: 'api_key', key: 'visual-key' },
   }))
-  await writeFile(join(directory, 'vesper.json'), JSON.stringify({
+  await writeFile(join(directory, 'pisper.json'), JSON.stringify({
     disabledProviders: [],
     providerTypes: { openai: 'chat', 'openai-image': 'visual' },
   }))
@@ -178,13 +178,13 @@ test('a duplicated chat catalog image still sends the dedicated visual Provider 
     getProviders: () => [{ id: 'openai' }, { id: 'openai-image' }],
     getProvider: (id) => ({ id, name: id }),
     getModels: (id) => id === 'openai'
-      ? [{ id: 'gpt-image-2', api: 'openai-responses', baseUrl, vesperKind: 'image' }]
+      ? [{ id: 'gpt-image-2', api: 'openai-responses', baseUrl, pisperKind: 'image' }]
       : [],
   }
   const service = new VisualGenerationService({
     modelsPath: join(directory, 'models.json'),
     authPath: join(directory, 'auth.json'),
-    appConfigPath: join(directory, 'vesper.json'),
+    appConfigPath: join(directory, 'pisper.json'),
     getModelRuntime: () => runtime,
   })
 

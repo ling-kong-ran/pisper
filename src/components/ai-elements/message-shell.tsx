@@ -7,9 +7,9 @@ export type MessageProps = HTMLAttributes<HTMLDivElement> & {
   from: AiMessageRole
 }
 
-// Lightweight Vesper adapter for the AI Elements Message primitive. Rich
+// Lightweight Pisper adapter for the AI Elements Message primitive. Rich
 // Streamdown rendering remains available in message.tsx and can be loaded only
-// when the Vesper protocol exposes a compatible rich-content part.
+// when the Pisper protocol exposes a compatible rich-content part.
 export function Message({ className, from, ...props }: MessageProps) {
   return (
     <div

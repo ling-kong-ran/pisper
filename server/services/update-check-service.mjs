@@ -12,7 +12,7 @@ function validCommit(value) {
 }
 
 export async function resolveGitCommit(root, { env = process.env, runGit = execFileAsync } = {}) {
-  const configured = validCommit(env.VESPER_COMMIT_SHA || env.GITHUB_SHA)
+  const configured = validCommit(env.PISPER_COMMIT_SHA || env.GITHUB_SHA)
   if (configured) return configured
   try {
     const result = await runGit('git', ['-C', root, 'rev-parse', 'HEAD'], { encoding: 'utf8', windowsHide: true })
@@ -50,12 +50,12 @@ export class UpdateCheckService {
   }
 
   async fetchLatest() {
-    if (!this.currentCommit) throw new Error('无法识别当前 Web 源码的 Git commit。请使用 Git 仓库运行，或设置 VESPER_COMMIT_SHA。')
+    if (!this.currentCommit) throw new Error('无法识别当前 Web 源码的 Git commit。请使用 Git 仓库运行，或设置 PISPER_COMMIT_SHA。')
     const response = await this.fetcher(`${REPOSITORY_API}/compare/${this.currentCommit}...${encodeURIComponent(this.branch)}`, {
       headers: {
         Accept: 'application/vnd.github+json',
         'X-GitHub-Api-Version': '2022-11-28',
-        'User-Agent': `Vesper/${this.currentVersion || 'web'} (${this.currentCommit.slice(0, 7)})`,
+        'User-Agent': `Pisper/${this.currentVersion || 'web'} (${this.currentCommit.slice(0, 7)})`,
       },
     })
     if (!response.ok) throw new Error(`GitHub commit 比较失败：HTTP ${response.status}`)

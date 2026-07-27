@@ -3,7 +3,7 @@ import { homedir } from 'node:os'
 import { isAbsolute, join, relative } from 'node:path'
 import { app, autoUpdater as nativeAutoUpdater, BrowserWindow, dialog, ipcMain, Menu, nativeImage, nativeTheme, net, Notification as ElectronNotification, screen, shell, Tray } from 'electron'
 import updater from 'electron-updater'
-import { createVesperServer } from '../server/app-server.mjs'
+import { createPisperServer } from '../server/app-server.mjs'
 import { createElectronBrowserAutomationDriver } from './browser-automation.mjs'
 import { getDesktopNotificationStatus, WINDOWS_NOTIFICATION_SETTINGS_URL } from './desktop-notifications.mjs'
 import { getDesktopLanguage, isSupportedLanguage, setDesktopLanguage, t } from './i18n.mjs'
@@ -26,8 +26,8 @@ import {
 } from './desktop-pet-state.mjs'
 
 const { autoUpdater } = updater
-const UPDATE_CHANNEL = 'vesper:update-status'
-const APP_USER_MODEL_ID = 'com.lingkongran.vesper'
+const UPDATE_CHANNEL = 'pisper:update-status'
+const APP_USER_MODEL_ID = 'com.lingkongran.pisper'
 const CLOSE_ACTION_ASK = 'ask'
 const CLOSE_ACTION_TRAY = 'tray'
 const CLOSE_ACTION_QUIT = 'quit'
@@ -39,7 +39,7 @@ const NO_CACHE_HEADERS = Object.freeze({
 let mainWindow = null
 let petWindow = null
 let tray = null
-let vesperServer = null
+let pisperServer = null
 let updateCheck = null
 let quitting = false
 let closePromptOpen = false
@@ -96,7 +96,7 @@ async function githubLatestRelease() {
     headers: {
       Accept: 'application/vnd.github+json',
       'X-GitHub-Api-Version': '2022-11-28',
-      'User-Agent': `Vesper/${app.getVersion()}`,
+      'User-Agent': `Pisper/${app.getVersion()}`,
       ...NO_CACHE_HEADERS,
     },
   })
@@ -284,8 +284,8 @@ function configureUpdater() {
 }
 
 async function prepareApplicationShutdown({ exit = true } = {}) {
-  const server = vesperServer
-  vesperServer = null
+  const server = pisperServer
+  pisperServer = null
   updateLogger.info('Application shutdown started.', { reason: installingUpdate ? 'update' : 'quit' })
   return shutdownWithDeadline({
     destroy: () => {
@@ -449,7 +449,7 @@ function installedDesktopPets() {
       const pet = loadInstalledDesktopPet(root, slug)
       if (!pet) continue
       seen.add(slug)
-      pets.push({ slug: pet.slug, name: pet.name, source: root === managedRoot ? 'vesper' : 'petdex' })
+      pets.push({ slug: pet.slug, name: pet.name, source: root === managedRoot ? 'pisper' : 'petdex' })
     }
   }
   return pets
@@ -476,7 +476,7 @@ async function boundedPetdexFetch(value, maxBytes, allowedHost, redirectHosts = 
     const result = await fetchAllowedHttps(globalThis.fetch, value, {
       allowedHost,
       redirectHosts,
-      headers: { 'User-Agent': `Vesper/${app.getVersion()}` },
+      headers: { 'User-Agent': `Pisper/${app.getVersion()}` },
     })
     response = result.response
   } catch (error) {
@@ -567,7 +567,7 @@ function petStatePayload(state = petState) {
 
 function sendPetState() {
   if (!petWindow || petWindow.isDestroyed() || petWindow.webContents.isLoading()) return
-  petWindow.webContents.send('vesper:pet-state', petStatePayload())
+  petWindow.webContents.send('pisper:pet-state', petStatePayload())
 }
 
 function publishPetState(state, { resetAfter = 0 } = {}) {
@@ -678,7 +678,7 @@ async function createDesktopPet({ notifyOnError = false } = {}) {
       petWindow.webContents.on('will-navigate', (event) => event.preventDefault())
       petWindow.webContents.once('did-finish-load', () => {
         if (!petWindow || petWindow.isDestroyed()) return
-        petWindow.webContents.send('vesper:pet-config', {
+        petWindow.webContents.send('pisper:pet-config', {
           spriteBytes: Uint8Array.from(installedPet.buffer),
           spriteMime: installedPet.mime,
           sheetWidth: installedPet.width,
@@ -926,7 +926,7 @@ function createTray() {
   }
   if (process.platform === 'darwin') image.setTemplateImage(true)
   tray = new Tray(process.platform === 'win32' ? image.resize({ width: 16, height: 16 }) : image)
-  tray.setToolTip('Vesper')
+  tray.setToolTip('Pisper')
   updateTrayMenu()
   tray.on('click', () => { void showMainWindow() })
   tray.on('double-click', () => { void showMainWindow() })
@@ -968,11 +968,11 @@ async function openExternalUrl(value) {
 async function createWindow() {
   const appRoot = app.getAppPath()
   const icon = resolveAppIconPath(appRoot)
-  if (!vesperServer) {
-    vesperServer = await createVesperServer({
+  if (!pisperServer) {
+    pisperServer = await createPisperServer({
       root: appRoot,
-      runtimeCwd: process.env.VESPER_WORKSPACE_DIR || homedir(),
-      dataDir: process.env.VESPER_AGENT_DIR || join(homedir(), '.vesper', 'agent'),
+      runtimeCwd: process.env.PISPER_WORKSPACE_DIR || homedir(),
+      dataDir: process.env.PISPER_AGENT_DIR || join(homedir(), '.pisper', 'agent'),
       production: true,
       port: 0,
       host: '127.0.0.1',
@@ -1004,7 +1004,7 @@ async function createWindow() {
   })
   mainWindow.webContents.on('will-navigate', (event, url) => {
     try {
-      if (new URL(url).origin === vesperServer.url) return
+      if (new URL(url).origin === pisperServer.url) return
     } catch {
       // Invalid and non-web URLs are always kept outside the renderer.
     }
@@ -1019,7 +1019,7 @@ async function createWindow() {
     void handleWindowCloseRequest()
   })
   mainWindow.on('closed', () => { mainWindow = null })
-  await mainWindow.loadURL(vesperServer.url)
+  await mainWindow.loadURL(pisperServer.url)
 }
 
 function isPetSender(event) {
@@ -1038,7 +1038,7 @@ function showDesktopPetContextMenu() {
 }
 
 function registerIpc() {
-  ipcMain.on('vesper:pet-drag', (event, input = {}) => {
+  ipcMain.on('pisper:pet-drag', (event, input = {}) => {
     if (!isPetSender(event)) return
     const screenX = Number(input.screenX)
     const screenY = Number(input.screenY)
@@ -1061,24 +1061,24 @@ function registerIpc() {
       persistPetPosition()
     }
   })
-  ipcMain.on('vesper:pet-interact', (event) => {
+  ipcMain.on('pisper:pet-interact', (event) => {
     if (!isPetSender(event)) return
     publishPetState('jumping', { resetAfter: 1000 })
   })
-  ipcMain.on('vesper:pet-context-menu', (event) => {
+  ipcMain.on('pisper:pet-context-menu', (event) => {
     if (isPetSender(event)) showDesktopPetContextMenu()
   })
-  ipcMain.on('vesper:pet-show-main-window', (event) => {
+  ipcMain.on('pisper:pet-show-main-window', (event) => {
     if (isPetSender(event)) void showMainWindow()
   })
 
-  ipcMain.handle('vesper:get-pet-status', () => desktopPetStatus())
-  ipcMain.handle('vesper:set-pet-enabled', async (_event, enabled) => {
+  ipcMain.handle('pisper:get-pet-status', () => desktopPetStatus())
+  ipcMain.handle('pisper:set-pet-enabled', async (_event, enabled) => {
     await setDesktopPetEnabled(enabled === true)
     return desktopPetStatus()
   })
-  ipcMain.handle('vesper:set-pet-opacity', (_event, opacity) => setDesktopPetOpacity(opacity))
-  ipcMain.handle('vesper:search-pets', async (_event, query) => {
+  ipcMain.handle('pisper:set-pet-opacity', (_event, opacity) => setDesktopPetOpacity(opacity))
+  ipcMain.handle('pisper:search-pets', async (_event, query) => {
     const needle = String(query || '').trim().toLowerCase()
     const manifest = await petdexManifest()
     return manifest
@@ -1086,11 +1086,11 @@ function registerIpc() {
       .slice(0, needle ? 40 : 12)
       .map(({ slug, displayName }) => ({ slug, displayName }))
   })
-  ipcMain.handle('vesper:install-pet', (_event, slug) => installManagedDesktopPet(slug))
-  ipcMain.handle('vesper:select-pet', (_event, slug) => selectDesktopPet(slug))
-  ipcMain.handle('vesper:open-petdex', async () => openExternalUrl(PETDEX_PAGE_URL))
+  ipcMain.handle('pisper:install-pet', (_event, slug) => installManagedDesktopPet(slug))
+  ipcMain.handle('pisper:select-pet', (_event, slug) => selectDesktopPet(slug))
+  ipcMain.handle('pisper:open-petdex', async () => openExternalUrl(PETDEX_PAGE_URL))
 
-  ipcMain.handle('vesper:get-app-info', () => ({
+  ipcMain.handle('pisper:get-app-info', () => ({
     desktop: true,
     packaged: app.isPackaged,
     version: app.getVersion(),
@@ -1100,9 +1100,9 @@ function registerIpc() {
     releasesUrl: RELEASES_URL,
     update: updateState,
   }))
-  ipcMain.handle('vesper:set-language', (_event, language) => applyDesktopLanguage(language, { persist: true }))
-  ipcMain.handle('vesper:check-for-updates', () => checkForUpdates())
-  ipcMain.handle('vesper:download-update', async () => {
+  ipcMain.handle('pisper:set-language', (_event, language) => applyDesktopLanguage(language, { persist: true }))
+  ipcMain.handle('pisper:check-for-updates', () => checkForUpdates())
+  ipcMain.handle('pisper:download-update', async () => {
     const canResume = updateState.state === 'error' && updateState.canResume
     const canDownload = updateState.state === 'available' || canResume
     if (!app.isPackaged || !canDownload || !updateState.canDownload) {
@@ -1113,7 +1113,7 @@ function registerIpc() {
     await autoUpdater.downloadUpdate()
     return updateState
   })
-  ipcMain.handle('vesper:install-update', async () => {
+  ipcMain.handle('pisper:install-update', async () => {
     if (updateState.state !== 'downloaded' || installingUpdate) return false
     installingUpdate = true
     quitting = true
@@ -1123,25 +1123,25 @@ function registerIpc() {
     autoUpdater.quitAndInstall(false, true)
     return true
   })
-  ipcMain.handle('vesper:open-releases', async () => {
+  ipcMain.handle('pisper:open-releases', async () => {
     await openExternalUrl(updateState.releaseUrl || RELEASES_URL)
     return true
   })
-  ipcMain.handle('vesper:open-update-log', () => {
+  ipcMain.handle('pisper:open-update-log', () => {
     if (!updateLogPath || !existsSync(updateLogPath)) return false
     shell.showItemInFolder(updateLogPath)
     return true
   })
-  ipcMain.handle('vesper:get-notification-status', () => getDesktopNotificationStatus({
+  ipcMain.handle('pisper:get-notification-status', () => getDesktopNotificationStatus({
     appUserModelId: APP_USER_MODEL_ID,
     isSupported: ElectronNotification.isSupported(),
   }))
-  ipcMain.handle('vesper:open-notification-settings', async () => {
+  ipcMain.handle('pisper:open-notification-settings', async () => {
     if (process.platform !== 'win32') return false
     await shell.openExternal(WINDOWS_NOTIFICATION_SETTINGS_URL)
     return true
   })
-  ipcMain.handle('vesper:show-notification', async (_event, input = {}) => {
+  ipcMain.handle('pisper:show-notification', async (_event, input = {}) => {
     const status = await getDesktopNotificationStatus({
       appUserModelId: APP_USER_MODEL_ID,
       isSupported: ElectronNotification.isSupported(),
@@ -1182,8 +1182,8 @@ else {
     setTimeout(() => { void checkForUpdates({ silent: true }) }, 3_000)
     app.on('activate', () => { void showMainWindow() })
   }).catch((error) => {
-    updateLogger.error('Vesper failed to start.', error)
-    dialog.showErrorBox('Vesper failed to start', `${error instanceof Error ? error.message : String(error)}\n\nUpdate log: ${updateLogPath || 'not initialized'}`)
+    updateLogger.error('Pisper failed to start.', error)
+    dialog.showErrorBox('Pisper failed to start', `${error instanceof Error ? error.message : String(error)}\n\nUpdate log: ${updateLogPath || 'not initialized'}`)
     app.exit(1)
   })
 }
@@ -1202,7 +1202,7 @@ app.on('before-quit', (event) => {
 
 process.on('uncaughtException', (error) => {
   updateLogger.error('Uncaught main-process exception.', error)
-  if (app.isReady()) dialog.showErrorBox('Vesper encountered an error', `${error.message}\n\nUpdate log: ${updateLogPath || 'not initialized'}`)
+  if (app.isReady()) dialog.showErrorBox('Pisper encountered an error', `${error.message}\n\nUpdate log: ${updateLogPath || 'not initialized'}`)
   app.exit(1)
 })
 

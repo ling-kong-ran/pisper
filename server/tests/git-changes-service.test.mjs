@@ -17,7 +17,7 @@ test('git changes include untracked files as green additions in the unified diff
     return
   }
 
-  const cwd = await mkdtemp(join(tmpdir(), 'vesper-git-changes-'))
+  const cwd = await mkdtemp(join(tmpdir(), 'pisper-git-changes-'))
   try {
     await execFileAsync('git', ['init'], { cwd, windowsHide: true })
     await writeFile(join(cwd, 'new-file.txt'), 'first line\nsecond line\n', 'utf8')

@@ -31,16 +31,16 @@ test('browser notifications use the service worker system-notification API when 
   }
 
   assert.deepEqual(await showBrowserSystemNotification({
-    title: 'Vesper test',
+    title: 'Pisper test',
     body: 'Completed',
-    tag: 'vesper-test',
+    tag: 'pisper-test',
   }, { windowRef, navigatorRef }), { shown: true, transport: 'service-worker' })
   assert.deepEqual(registered, { path: '/notification-sw.js', options: { scope: '/' } })
   assert.deepEqual(shown, [{
-    title: 'Vesper test',
+    title: 'Pisper test',
     options: {
       body: 'Completed',
-      tag: 'vesper-test',
+      tag: 'pisper-test',
       data: { url: 'http://127.0.0.1:5180/#/chat' },
     },
   }])

@@ -47,7 +47,7 @@ function publicSandboxError(error) {
 }
 
 function resolveWindowsShell() {
-  const configured = String(process.env.VESPER_SANDBOX_SHELL || '').trim()
+  const configured = String(process.env.PISPER_SANDBOX_SHELL || '').trim()
   if (configured && existsSync(configured)) return configured
   try {
     const matches = execFileSync('where.exe', ['bash'], { encoding: 'utf8', windowsHide: true })
@@ -96,7 +96,7 @@ function terminateProcessTree(child, platform = process.platform) {
 export class LocalSandboxService {
   constructor({ dataDir, homeDir = homedir(), platform = process.platform, manager = SandboxManager, windowsExecutable = VENDORED_SRT_WIN_EXE, windowsShell = '', disposeGraceMs = 5_000 } = {}) {
     this.homeDir = resolve(homeDir)
-    this.dataDir = resolve(dataDir || join(this.homeDir, '.vesper', 'agent'))
+    this.dataDir = resolve(dataDir || join(this.homeDir, '.pisper', 'agent'))
     this.platform = platform
     this.manager = manager
     this.windowsExecutable = packagedSandboxExecutablePath(windowsExecutable)

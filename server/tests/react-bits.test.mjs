@@ -14,7 +14,7 @@ const COMPONENTS = [
   'Threads',
 ]
 
-test('Vesper ships the selected lightweight React Bits components without another animation runtime', async () => {
+test('Pisper ships the selected lightweight React Bits components without another animation runtime', async () => {
   const [index, styles, packageJson, asciiText, targetCursor] = await Promise.all([
     readFile('src/components/react-bits/index.ts', 'utf8'),
     readFile('src/components/react-bits/react-bits.css', 'utf8'),
@@ -47,7 +47,7 @@ test('React Bits effects are attached to purposeful low-noise UI surfaces', asyn
     readFile('src/components/react-bits/react-bits.css', 'utf8'),
   ])
   assert.match(focus, /<Aurora \/>/)
-  assert.match(focus, /<AsciiText text="VESPER" \/>/)
+  assert.match(focus, /<AsciiText text="PISPER" \/>/)
   assert.match(focus, /<BlurText/)
   assert.match(focus, /<TargetCursor/)
   assert.match(focus, /data-target-cursor/)

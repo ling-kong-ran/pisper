@@ -6,7 +6,7 @@ import test from 'node:test'
 import { AgentRuntimeService } from '../runtime/agent-runtime.mjs'
 
 test('model configuration exposes built-in Kimi and GLM providers', async (t) => {
-  const directory = await mkdtemp(join(tmpdir(), 'vesper-provider-catalog-'))
+  const directory = await mkdtemp(join(tmpdir(), 'pisper-provider-catalog-'))
   const runtime = new AgentRuntimeService({ cwd: directory, dataDir: directory })
   t.after(async () => {
     await runtime.dispose()
@@ -41,7 +41,7 @@ test('model configuration exposes built-in Kimi and GLM providers', async (t) =>
 })
 
 test('visual-only providers save connection settings without replacing the default chat model', async (t) => {
-  const directory = await mkdtemp(join(tmpdir(), 'vesper-visual-provider-config-'))
+  const directory = await mkdtemp(join(tmpdir(), 'pisper-visual-provider-config-'))
   const runtime = new AgentRuntimeService({ cwd: directory, dataDir: directory })
   t.after(async () => {
     await runtime.dispose()
@@ -91,7 +91,7 @@ test('visual-only providers save connection settings without replacing the defau
 })
 
 test('each chat provider keeps its saved default model independently', async (t) => {
-  const directory = await mkdtemp(join(tmpdir(), 'vesper-provider-default-models-'))
+  const directory = await mkdtemp(join(tmpdir(), 'pisper-provider-default-models-'))
   const runtime = new AgentRuntimeService({ cwd: directory, dataDir: directory })
   t.after(async () => {
     await runtime.dispose()

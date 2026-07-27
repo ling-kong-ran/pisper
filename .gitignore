@@ -16,6 +16,8 @@ build/icons/
 generated/
 .vesper/
 vesper-agents.json
+.pisper/
+pisper-agents.json
 *.local
 /nul
 

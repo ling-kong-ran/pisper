@@ -7,13 +7,13 @@ import { migrateKimiCodeProvider } from '../services/provider-migrations.mjs'
 import { readJson, writeJsonAtomic } from '../storage/json-file.mjs'
 
 test('Kimi Code migration moves compatible credentials and default model', async (t) => {
-  const directory = await mkdtemp(join(tmpdir(), 'vesper-kimi-migration-'))
+  const directory = await mkdtemp(join(tmpdir(), 'pisper-kimi-migration-'))
   t.after(() => rm(directory, { recursive: true, force: true }))
   const paths = {
     authPath: join(directory, 'auth.json'),
     modelsPath: join(directory, 'models.json'),
     settingsPath: join(directory, 'settings.json'),
-    appConfigPath: join(directory, 'vesper.json'),
+    appConfigPath: join(directory, 'pisper.json'),
   }
   await writeJsonAtomic(paths.authPath, { 'moonshotai-cn': { type: 'api_key', key: 'sk-kimi-example' } })
   await writeJsonAtomic(paths.modelsPath, { providers: { 'moonshotai-cn': { baseUrl: 'https://api.moonshot.cn/v1' } } })

@@ -18,7 +18,7 @@ test('desktop update check prefers GitHub when electron-updater metadata is stal
     appVersion: '0.1.2',
     githubVersion: '0.2.0',
     githubNotes: '## 0.2.0',
-    githubReleaseUrl: 'https://github.com/ling-kong-ran/vesper/releases/tag/v0.2.0',
+    githubReleaseUrl: 'https://github.com/ling-kong-ran/pisper/releases/tag/v0.2.0',
     updaterVersion: '0.1.3',
     updaterIsAvailable: true,
     previousState: 'available',

@@ -1,7 +1,7 @@
-export const RELEASES_URL = 'https://github.com/ling-kong-ran/vesper/releases'
-export const LATEST_RELEASE_API = 'https://api.github.com/repos/ling-kong-ran/vesper/releases/latest'
-export const REPOSITORY_URL = 'https://github.com/ling-kong-ran/vesper'
-export const REPOSITORY_API = 'https://api.github.com/repos/ling-kong-ran/vesper'
+export const RELEASES_URL = 'https://github.com/ling-kong-ran/pisper/releases'
+export const LATEST_RELEASE_API = 'https://api.github.com/repos/ling-kong-ran/pisper/releases/latest'
+export const REPOSITORY_URL = 'https://github.com/ling-kong-ran/pisper'
+export const REPOSITORY_API = 'https://api.github.com/repos/ling-kong-ran/pisper'
 export const DEFAULT_BRANCH = 'main'
 
 export function normalizedVersion(value) {

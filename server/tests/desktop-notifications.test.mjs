@@ -35,7 +35,7 @@ test('desktop notification status queries Windows settings and handles unsupport
   ])
   const status = await getDesktopNotificationStatus({
     platform: 'win32',
-    appUserModelId: 'com.lingkongran.vesper',
+    appUserModelId: 'com.lingkongran.pisper',
     queryDword: async (_key, valueName) => values.get(valueName) ?? null,
   })
   assert.equal(status.permission, 'denied')

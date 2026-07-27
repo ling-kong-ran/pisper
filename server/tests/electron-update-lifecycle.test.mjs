@@ -6,7 +6,7 @@ import test from 'node:test'
 import { createUpdateLogger, shutdownWithDeadline } from '../../electron/update-lifecycle.mjs'
 
 test('desktop update logger persists updater events and error stacks', async (t) => {
-  const directory = await mkdtemp(join(tmpdir(), 'vesper-update-log-'))
+  const directory = await mkdtemp(join(tmpdir(), 'pisper-update-log-'))
   t.after(() => rm(directory, { recursive: true, force: true }))
   const filePath = join(directory, 'updater.log')
   const logger = createUpdateLogger({ filePath, now: () => new Date('2026-07-22T00:00:00.000Z') })

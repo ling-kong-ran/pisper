@@ -4,7 +4,7 @@ import {
   COMPACTION_SUMMARY_RESERVE_TOKENS,
   createCompactionSettingsManager,
   effectiveCompactionSettings,
-  vesperCompactionExtension,
+  pisperCompactionExtension,
 } from '../runtime/compaction-policy.mjs'
 
 test('large context windows compact earlier without penalizing smaller models', () => {
@@ -33,9 +33,9 @@ test('session settings manager exposes the adaptive threshold and preserves meth
   assert.equal(wrapped.getMarker(), 'base')
 })
 
-test('Vesper compaction uses no reasoning and keeps the summary output budget bounded', async () => {
+test('Pisper compaction uses no reasoning and keeps the summary output budget bounded', async () => {
   let handler
-  vesperCompactionExtension({ on(type, callback) { if (type === 'session_before_compact') handler = callback } }, {
+  pisperCompactionExtension({ on(type, callback) { if (type === 'session_before_compact') handler = callback } }, {
     compactSession: async (...args) => {
       const [preparation, model, apiKey, headers, instructions, signal, thinkingLevel, streamFn, env] = args
       assert.equal(preparation.settings.reserveTokens, COMPACTION_SUMMARY_RESERVE_TOKENS)
@@ -71,9 +71,9 @@ test('Vesper compaction uses no reasoning and keeps the summary output budget bo
   assert.equal(result.compaction.summary, 'compact')
 })
 
-test('Vesper compaction falls back to the SDK when extension auth is unavailable', async () => {
+test('Pisper compaction falls back to the SDK when extension auth is unavailable', async () => {
   let handler
-  vesperCompactionExtension({ on(type, callback) { if (type === 'session_before_compact') handler = callback } })
+  pisperCompactionExtension({ on(type, callback) { if (type === 'session_before_compact') handler = callback } })
   const result = await handler({ preparation: { settings: {} } }, {
     model: { provider: 'missing', id: 'model' },
     modelRegistry: { async getApiKeyAndHeaders() { return { ok: false, error: 'missing' } } },

@@ -1,7 +1,7 @@
 import { STORAGE_KEYS } from '@/app/storage'
 import { normalizeWebPreviewInput } from '@/lib/web-preview'
 
-export const WEB_PREVIEW_OPEN_EVENT = 'vesper:web-preview-open'
+export const WEB_PREVIEW_OPEN_EVENT = 'pisper:web-preview-open'
 
 export type WebPreviewOpenRequest = {
   url: string

@@ -111,11 +111,11 @@ export async function showBrowserSystemNotification(
     data: { url: String(url || windowRef.location?.href || '/') },
   }
   if (registration?.showNotification) {
-    await registration.showNotification(String(title || 'Vesper'), notificationOptions)
+    await registration.showNotification(String(title || 'Pisper'), notificationOptions)
     return { shown: true, transport: 'service-worker' }
   }
 
-  const item = new NotificationApi(String(title || 'Vesper'), notificationOptions)
+  const item = new NotificationApi(String(title || 'Pisper'), notificationOptions)
   item.onclick = () => {
     windowRef.focus?.()
     item.close()

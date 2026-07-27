@@ -58,7 +58,7 @@
   "channelsPage.nameTwoWayConnectionEstablished": "{name} two-way connection established",
   "channelsPage.noMessages": "No messages",
   "channelsPage.off": "Off",
-  "channelsPage.onceConnectedMessagesFromFeishuOrWeixinWillArriveHereInVesper": "Once connected, messages from Feishu or Weixin will arrive here in Vesper.",
+  "channelsPage.onceConnectedMessagesFromFeishuOrWeixinWillArriveHereInPisper": "Once connected, messages from Feishu or Weixin will arrive here in Pisper.",
   "channelsPage.onlyThePersonWhoScannedTheCodeIsAllowedByDefaultAgentToolsStillFollowPluginPermissionsAndChatWor": "Only the person who scanned the code is allowed by default. Agent tools still follow plugin permissions and chat workspace limits.",
   "channelsPage.pairingCodeSubmitted": "Pairing code submitted",
   "channelsPage.persistentTwoWayConnection": "Persistent two-way connection",

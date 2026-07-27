@@ -4,7 +4,7 @@ import { fileURLToPath } from 'node:url'
 import sharp from 'sharp'
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..')
-const source = await readFile(join(root, 'docs', 'brand', 'vesper-logo.svg'))
+const source = await readFile(join(root, 'design', 'pisper', 'pisper-logo-icon-source.png'))
 const buildDir = join(root, 'build')
 const iconsDir = join(buildDir, 'icons')
 const sizes = [16, 24, 32, 48, 64, 128, 256, 512, 1024]
@@ -16,4 +16,4 @@ await Promise.all(sizes.map((size) => sharp(source, { density: 768 })
   .png()
   .toFile(join(iconsDir, `${size}x${size}.png`))))
 
-console.log(`Generated Vesper desktop icons in ${buildDir}`)
+console.log(`Generated Pisper desktop icons in ${buildDir}`)

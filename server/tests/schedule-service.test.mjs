@@ -14,7 +14,7 @@ async function waitFor(predicate, timeoutMs = 1500) {
 }
 
 test('scheduled task records notification delivery failures without changing the run result', async (t) => {
-  const directory = await mkdtemp(join(tmpdir(), 'vesper-schedule-notification-failure-'))
+  const directory = await mkdtemp(join(tmpdir(), 'pisper-schedule-notification-failure-'))
   t.after(() => rm(directory, { recursive: true, force: true }))
   const service = new ScheduleService({
     path: join(directory, 'schedules.json'), cwd: directory, tickMs: 60_000,
@@ -43,7 +43,7 @@ test('next run calculation supports daily, weekly and monthly schedules', () => 
 })
 
 test('scheduled tasks persist, execute with the selected model and notify multiple targets', async (t) => {
-  const directory = await mkdtemp(join(tmpdir(), 'vesper-schedules-'))
+  const directory = await mkdtemp(join(tmpdir(), 'pisper-schedules-'))
   t.after(() => rm(directory, { recursive: true, force: true }))
   const prompts = []
   const notifications = []
@@ -80,7 +80,7 @@ test('scheduled tasks persist, execute with the selected model and notify multip
 })
 
 test('scheduled tasks preserve an explicit sandboxed execution mode', async (t) => {
-  const directory = await mkdtemp(join(tmpdir(), 'vesper-schedules-execution-mode-'))
+  const directory = await mkdtemp(join(tmpdir(), 'pisper-schedules-execution-mode-'))
   t.after(() => rm(directory, { recursive: true, force: true }))
   const prompts = []
   const service = new ScheduleService({
@@ -98,7 +98,7 @@ test('scheduled tasks preserve an explicit sandboxed execution mode', async (t) 
 })
 
 test('failure-only tasks suppress success notifications and send failure templates', async (t) => {
-  const directory = await mkdtemp(join(tmpdir(), 'vesper-schedules-failure-'))
+  const directory = await mkdtemp(join(tmpdir(), 'pisper-schedules-failure-'))
   t.after(() => rm(directory, { recursive: true, force: true }))
   const notifications = []
   let shouldFail = false

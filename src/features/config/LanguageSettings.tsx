@@ -69,7 +69,7 @@ export function LanguageSettings({ notify }: { notify: Notify }) {
             <h2>{t('config:languageSettings.displayLanguage')}</h2>
             <p>
               {t(
-                'config:languageSettings.chooseTheLanguageUsedByVesperChangesApplyImmediatelyAndAreSavedForYourNextVisit',
+                'config:languageSettings.chooseTheLanguageUsedByPisperChangesApplyImmediatelyAndAreSavedForYourNextVisit',
               )}
             </p>
           </div>

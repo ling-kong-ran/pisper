@@ -317,7 +317,7 @@ test('completed, failed, and interrupted Agents emit terminal callbacks without 
   gate.resolve()
 })
 
-test('Agent output is UTF-8 safe and bounded to the Vesper tool-output limit', async () => {
+test('Agent output is UTF-8 safe and bounded to the Pisper tool-output limit', async () => {
   const largeOutput = '你'.repeat(20_000)
   const session = createFakeSession({
     onPrompt: async ({ session: active }) => active.messages.push({ role: 'assistant', content: [{ type: 'text', text: largeOutput }] }),
@@ -328,7 +328,7 @@ test('Agent output is UTF-8 safe and bounded to the Vesper tool-output limit', a
   assert.ok(Buffer.byteLength(completed.output, 'utf8') <= DEFAULT_MAX_BYTES)
   assert.equal(completed.output.includes('\ufffd'), false)
   assert.equal(completed.outputTruncated, true)
-  assert.match(completed.output, /Vesper tool-output limit/)
+  assert.match(completed.output, /Pisper tool-output limit/)
   assert.doesNotMatch(completed.output, /Pi tool-output limit/)
   assert.equal(completed.fullOutput, largeOutput)
 })
@@ -429,7 +429,7 @@ test('interrupt then followup waits for the old run and keeps run generations is
 })
 
 test('Agent registry survives restart and marks previously active runs as interrupted', async (t) => {
-  const directory = await mkdtemp(join(tmpdir(), 'vesper-agents-'))
+  const directory = await mkdtemp(join(tmpdir(), 'pisper-agents-'))
   t.after(() => rm(directory, { recursive: true, force: true }))
   const path = join(directory, 'agents.json')
   await writeFile(path, `${JSON.stringify({
@@ -470,7 +470,7 @@ test('Agent registry survives restart and marks previously active runs as interr
   assert.equal(restored.status, 'interrupted')
   assert.equal(restored.maxTurns, 24)
   assert.equal(restored.turnCount, 3)
-  assert.match(restored.error, /Vesper restarted/)
+  assert.match(restored.error, /Pisper restarted/)
   assert.equal(restored.completedAt, '2026-07-23T10:01:00.000Z')
   assert.equal(restored.resultVersion, 1)
   assert.deepEqual(service.peekMailbox('parent-persisted').map((agent) => agent.id), ['agent-running'])
@@ -483,7 +483,7 @@ test('Agent registry survives restart and marks previously active runs as interr
 })
 
 test('legacy Agent registries are discarded instead of migrated', async (t) => {
-  const directory = await mkdtemp(join(tmpdir(), 'vesper-agent-legacy-'))
+  const directory = await mkdtemp(join(tmpdir(), 'pisper-agent-legacy-'))
   t.after(() => rm(directory, { recursive: true, force: true }))
   const path = join(directory, 'agents.json')
   await writeFile(path, `${JSON.stringify({
@@ -511,7 +511,7 @@ test('legacy Agent registries are discarded instead of migrated', async (t) => {
 })
 
 test('completed Agent results persist across service instances', async (t) => {
-  const directory = await mkdtemp(join(tmpdir(), 'vesper-agent-result-'))
+  const directory = await mkdtemp(join(tmpdir(), 'pisper-agent-result-'))
   t.after(() => rm(directory, { recursive: true, force: true }))
   const path = join(directory, 'agents.json')
   const session = createFakeSession({

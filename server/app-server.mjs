@@ -8,10 +8,10 @@ import { AgentRuntimeService } from './runtime/agent-runtime.mjs'
 import { resolveGitCommit, UpdateCheckService } from './services/update-check-service.mjs'
 import { WebDesktopPetService } from './services/web-desktop-pet-service.mjs'
 
-export async function createVesperServer({
+export async function createPisperServer({
   root,
   runtimeCwd = root,
-  dataDir = join(homedir(), '.vesper', 'agent'),
+  dataDir = join(homedir(), '.pisper', 'agent'),
   production = false,
   port = 5173,
   host = '127.0.0.1',
