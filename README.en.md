@@ -8,8 +8,8 @@
 
 <h1 align="center">Pisper</h1>
 
-<p align="center"><strong>Powered by Pi, whispered by agents.</strong></p>
-<p align="center">A multi-agent desktop workspace that brings conversations, tools, memory, and automation into one dockable interface.</p>
+<p align="center"><strong>Powered by Pi, whispered by Agents.</strong></p>
+<p align="center">Complex work moves quietly in the background; every task receives a clear response.</p>
 
 <p align="center">
   <img src="https://img.shields.io/badge/Node.js-17141F?style=flat-square&logo=nodedotjs&logoColor=F59E0B" alt="Node.js" />
@@ -43,14 +43,15 @@
 
 One window per task, context copied back and forth, tool configs scattered everywhere — working with multiple agents shouldn't feel like this.
 
-**Pisper puts all your AI agents into one desktop workspace.** Each session has its own model, context, working directory, and execution permissions. Tabs, splits, and drag-to-dock panels organize them like an IDE — and the layout is right where you left it on restart.
+**Pisper brings every AI Agent into one desktop workspace.** Models, context, tools, and permissions fall into place while complex collaboration happens quietly in the background. You stay focused on the work. Each session runs independently with tabs, splits, and drag-to-dock panels, returning exactly where you left it.
 
-**Why Pisper:**
+**Product highlights:**
 
-- **Parallel without chaos** — Run multiple sessions on different tasks at once, fully isolated, with automatic layout restoration.
-- **Token-efficient by design** — Dynamic prompts load only the tools the current task needs: a fixed prompt of ~2,979 tokens, roughly 58.7% less than injecting the full catalog.
-- **One place for everything** — Memory, schedules, workflows, MCP, and Feishu / Weixin channels under a single roof.
-- **Safe by default** — Sensitive actions stay behind execution modes, workspace boundaries, sandboxing, and approval. Nothing escalates without asking you.
+- **Quietly simple, decisively efficient** — Sessions, tools, memory, and execution state come together in one place: fewer windows, fewer configuration surfaces, and less irrelevant context.
+- **Capabilities answer on demand** — Progressive disclosure keeps frequent tools lightweight, hot-loads optional schemas when a task needs them, and expands full Skill instructions only for matching work.
+- **Parallel voices, uninterrupted flow** — Subagents run non-blocking in isolated contexts while the primary Agent continues replying, accepting new instructions, or delegating independent work.
+- **Completed work echoes back** — Subagent output persists and automatically wakes the parent Agent to continue reasoning, with no polling and no result stranded in a passive notification.
+- **Clear boundaries, orderly collaboration** — Every session owns its model, context, directory, and permissions, while dynamic loading remains subject to execution modes, sandboxing, and approval.
 
 ### Get Started in Three Steps
 
@@ -184,8 +185,10 @@ From conversation to automation, Pisper covers the full agent workflow:
 | Area | Capability |
 | :--- | :--- |
 | **Multi-session chat** | Independent Agent sessions, models, and permissions with tab groups, splits, drag-to-dock panels, and layout restoration. |
-| **Agent Runtime** | Built on Pi Coding Agent with tool activity, goals, skills, and isolated subagents. |
-| **Dynamic prompts** | Keep a stable lightweight prompt, and append cold tool Schemas only from explicit intent. |
+| **Agent Runtime** | Built on Pi Coding Agent with tool activity, goals, Skills, and asynchronous isolated Subagents. |
+| **Progressive disclosure** | Keep frequent tools stable and hot-load optional tool schemas by intent into the current session without restarting it. |
+| **Skills** | Implements the Agent Skills standard; only names and descriptions stay in context, while full `SKILL.md` instructions load for matching or explicit invocations. |
+| **Asynchronous Subagents** | Run isolated tasks without blocking, persist their results, and automatically wake the parent Agent when work completes. |
 | **Tools & MCP** | Manage built-in tools, plugins, and MCP services without exposing credentials to the UI. |
 | **Memory** | Store and search preferences, facts, decisions, and tasks in SQLite — it learns you over time. |
 | **Multimodal** | Read images, documents, and code, then generate or edit visual content through configured models. |
@@ -195,11 +198,23 @@ From conversation to automation, Pisper covers the full agent workflow:
 | **Desktop app** | Electron single-instance app with in-app release notes and GitHub Releases updates. |
 | **Security boundaries** | Per-session `Read only / Workspace / Full access`, one-shot approval, secret redaction, and data isolation. |
 
-### Lightweight Prompts: Real Savings on Long Sessions
+### Capabilities Answer on Demand: Progressive Disclosure
 
-Ordinary coding sessions load only high-frequency tools. Web Search, browser automation, visual generation, memory, MCP, and subagents are appended only when clearly needed, then return to the lightweight baseline on the next ordinary request. Dynamic activation never bypasses tool settings, execution modes, sandboxing, or approval — saving tokens never means cutting safety.
+Pisper does not flood the context with every capability at once. Tools and knowledge unfold layer by layer as the task develops:
+
+- **A stable hot path** — Frequent file, search, editing, and terminal tools keep the lightweight base prompt stable and cacheable.
+- **Hot-loaded tools** — Optional capabilities such as Web Search, browser automation, memory, MCP, and Subagents can be discovered by intent, adding only the most relevant schemas to the current session.
+- **Skills on demand** — Only Skill names and descriptions are exposed by default. Full instructions, scripts, and references load when a task matches or the Skill is explicitly invoked.
+
+This reduces fixed tokens in long sessions while keeping irrelevant tools out of model decisions. Dynamic loading remains subject to tool settings, execution modes, sandboxing, and approval.
 
 > In the current benchmark, the fixed prompt is about **2,979 tokens** — roughly **58.7% less** than injecting the full catalog. Actual billing and cache savings vary by model and provider.
+
+### Parallel Voices, Unbroken Flow: Non-blocking Subagents
+
+A bounded task can move to an isolated Subagent without stopping the primary Agent in its tracks. Each Subagent inherits the active model, reasoning level, safe tools, and workspace boundary. The parent never needs to poll, and background work never blocks the next reply.
+
+Completed work does not disappear into an unattended notification. If the parent is running, the result joins the active reasoning turn; if the parent is idle, Pisper wakes it through a hidden internal message so every background contribution returns to the main task.
 
 > **Sandbox note:** Workspace mode uses [Anthropic Sandbox Runtime](https://github.com/anthropic-experimental/sandbox-runtime) to restrict Shell writes, credentials, and network access. First use on Windows requires one UAC prompt. If initialization fails, Pisper blocks execution instead of falling back to full access. The runtime remains a Beta Research Preview.
 
