@@ -9,6 +9,7 @@ import { execFileSync, spawn } from 'node:child_process'
 import { existsSync } from 'node:fs'
 import { homedir } from 'node:os'
 import { join, resolve } from 'node:path'
+import { resolveAgentDataDir } from '../data-dir-migration.mjs'
 import {
   DEFAULT_WINDOWS_PROXY_PORT_RANGE,
   SandboxManager,
@@ -96,7 +97,7 @@ function terminateProcessTree(child, platform = process.platform) {
 export class LocalSandboxService {
   constructor({ dataDir, homeDir = homedir(), platform = process.platform, manager = SandboxManager, windowsExecutable = VENDORED_SRT_WIN_EXE, windowsShell = '', disposeGraceMs = 5_000 } = {}) {
     this.homeDir = resolve(homeDir)
-    this.dataDir = resolve(dataDir || join(this.homeDir, '.pisper', 'agent'))
+    this.dataDir = resolve(dataDir || resolveAgentDataDir({ home: this.homeDir, env: {} }))
     this.platform = platform
     this.manager = manager
     this.windowsExecutable = packagedSandboxExecutablePath(windowsExecutable)

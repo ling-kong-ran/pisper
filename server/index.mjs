@@ -1,7 +1,7 @@
-import { homedir } from 'node:os'
-import { dirname, join, resolve } from 'node:path'
+import { dirname, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { createPisperServer } from './app-server.mjs'
+import { resolveAgentDataDir } from './data-dir-migration.mjs'
 import { openBrowser, shouldOpenBrowser } from './open-browser.mjs'
 
 process.env.PI_SKIP_VERSION_CHECK ||= '1'
@@ -9,8 +9,7 @@ process.env.PI_TELEMETRY ||= '0'
 
 const serverDir = dirname(fileURLToPath(import.meta.url))
 const root = resolve(serverDir, '..')
-const configuredDataDir = process.env.PISPER_AGENT_DIR
-const dataDir = configuredDataDir ? resolve(configuredDataDir) : join(homedir(), '.pisper', 'agent')
+const dataDir = resolveAgentDataDir()
 const production = process.argv.includes('--production')
 const port = Number(process.env.PORT || 5173)
 const host = process.env.HOST || '127.0.0.1'

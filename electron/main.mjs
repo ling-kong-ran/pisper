@@ -4,6 +4,7 @@ import { isAbsolute, join, relative } from 'node:path'
 import { app, autoUpdater as nativeAutoUpdater, BrowserWindow, dialog, ipcMain, Menu, nativeImage, nativeTheme, net, Notification as ElectronNotification, screen, shell, Tray } from 'electron'
 import updater from 'electron-updater'
 import { createPisperServer } from '../server/app-server.mjs'
+import { resolveAgentDataDir } from '../server/data-dir-migration.mjs'
 import { createElectronBrowserAutomationDriver } from './browser-automation.mjs'
 import { getDesktopNotificationStatus, WINDOWS_NOTIFICATION_SETTINGS_URL } from './desktop-notifications.mjs'
 import { getDesktopLanguage, isSupportedLanguage, setDesktopLanguage, t } from './i18n.mjs'
@@ -972,7 +973,7 @@ async function createWindow() {
     pisperServer = await createPisperServer({
       root: appRoot,
       runtimeCwd: process.env.PISPER_WORKSPACE_DIR || homedir(),
-      dataDir: process.env.PISPER_AGENT_DIR || join(homedir(), '.pisper', 'agent'),
+      dataDir: resolveAgentDataDir({ log: (...args) => updateLogger.info(...args) }),
       production: true,
       port: 0,
       host: '127.0.0.1',

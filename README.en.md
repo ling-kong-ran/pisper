@@ -186,7 +186,7 @@ npm run desktop:dev
 npm run desktop:pack
 ```
 
-Configuration, sessions, and memory are stored under `~/.pisper/agent` by default. Set `PISPER_AGENT_DIR` to use another location.
+Configuration, sessions, and memory are stored under `~/.pisper/agent` by default. Set `PISPER_AGENT_DIR` to use another location. When upgrading from Vesper, the legacy `~/.vesper` directory is migrated to `~/.pisper` automatically on first launch (existing data is never overwritten; the legacy directory is kept as a backup).
 
 <a id="development"></a>
 

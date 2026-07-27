@@ -186,7 +186,7 @@ npm run desktop:dev
 npm run desktop:pack
 ```
 
-配置、会话与记忆默认保存在 `~/.pisper/agent`，可通过 `PISPER_AGENT_DIR` 修改。
+配置、会话与记忆默认保存在 `~/.pisper/agent`，可通过 `PISPER_AGENT_DIR` 修改。从 Vesper 升级时，首次启动会自动把旧的 `~/.vesper` 迁移到 `~/.pisper`（新目录已有数据则不覆盖，旧目录保留作备份）。
 
 <a id="development"></a>
 
