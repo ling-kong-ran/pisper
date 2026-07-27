@@ -109,6 +109,7 @@
     "artifactName": "${productName}-${version}-${os}-${arch}.${ext}",
     "asar": true,
     "compression": "maximum",
+    "afterPack": "./scripts/verify-package-size.mjs",
     "asarUnpack": [
       "node_modules/@anthropic-ai/sandbox-runtime/vendor/**/*"
     ],
@@ -138,14 +139,28 @@
       "!**/node_modules/**/*.tsbuildinfo",
       "!**/node_modules/@larksuiteoapi/node-sdk/types/**",
       "!**/node_modules/@larksuiteoapi/node-sdk/es/**",
-      "!**/node_modules/playwright-core/types/**",
+      "!**/node_modules/playwright-core/**",
       "!**/node_modules/officeparser/dist/officeparser.browser*",
       "!**/node_modules/tesseract.js/**",
       "!**/node_modules/tesseract.js-core/**",
       "!**/node_modules/@napi-rs/canvas/**",
       "!**/node_modules/@napi-rs/canvas-*/**",
+      "!**/node_modules/@mariozechner/clipboard-!(${platform}-${arch}*)/**",
+      "!**/node_modules/@anthropic-ai/sandbox-runtime/vendor/srt-win/!(${arch})/**",
+      "!**/node_modules/@anthropic-ai/sandbox-runtime/vendor/seccomp/!(${arch})/**",
+      "!**/node_modules/zlibjs/**",
+      "!**/node_modules/openai/src/**",
+      "!**/node_modules/@anthropic-ai/sdk/src/**",
       "!**/node_modules/@mistralai/mistralai/src/**",
-      "!**/node_modules/@google/genai/dist/web/**"
+      "!**/node_modules/@mistralai/mistralai/packages/**",
+      "!**/node_modules/@opentelemetry/semantic-conventions/build/{esm,esnext}/**",
+      "!**/node_modules/@google/genai/dist/web/**",
+      "!**/node_modules/@google/genai/dist/{tokenizer,vertex_internal}/**",
+      "!**/node_modules/@google/genai/dist/index.{cjs,mjs}",
+      "!**/node_modules/@google/genai/dist/node/index.cjs",
+      "!**/node_modules/pdfjs-dist/build/{pdf.min.mjs,pdf.sandbox*,pdf.worker*}",
+      "!**/node_modules/pdfjs-dist/{web,image_decoders}/**",
+      "!**/node_modules/highlight.js/{scss,styles}/**"
     ],
     "electronLanguages": [
       "en-US",
