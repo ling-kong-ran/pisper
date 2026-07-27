@@ -1,4 +1,4 @@
-import { DEFAULT_MAX_BYTES, defineTool } from '@earendil-works/pi-coding-agent'
+import { DEFAULT_MAX_BYTES, defineTool } from '../../runtime/pi-coding-agent.mjs'
 import { Type } from 'typebox'
 import {
   DEFAULT_AGENT_MAX_TURNS,

@@ -8,7 +8,7 @@ import {
   ModelRuntime,
   SessionManager,
   SettingsManager,
-} from '@earendil-works/pi-coding-agent'
+} from './pi-coding-agent.mjs'
 import { readJson, writeJsonAtomic } from '../storage/json-file.mjs'
 import { ChannelService } from '../services/channels/channel-service.mjs'
 import { NotificationSettingsService } from '../services/notification-settings-service.mjs'
@@ -569,6 +569,7 @@ export class AgentRuntimeService {
       notifications: this.notificationSettings,
     })
     this.sessions = new Map()
+    this.pendingSessions = new Map()
     this.storedSessionsCache = null
     this.storedSessionsPromise = null
     this.sessionRuntimeVersion = 0
@@ -1213,6 +1214,25 @@ export class AgentRuntimeService {
         agents: this.multiAgents.summaries(id).filter((agent) => ['queued', 'starting', 'running'].includes(agent.status)),
       })
     }
+    for (const [id, value] of this.pendingSessions) {
+      if (persistedIds.has(id) || this.sessions.has(id)) continue
+      result.unshift({
+        id,
+        name: value.name,
+        firstMessage: '',
+        messageCount: 0,
+        model: defaultModel,
+        cwd: value.cwd,
+        created: value.created,
+        modified: value.modified,
+        streaming: false,
+        permissionMode: this.sessionMeta[id]?.permissionMode || permissionModeForExecutionMode(this.getSessionExecutionMode(id)),
+        executionMode: this.getSessionExecutionMode(id),
+        goal: this.goals.get(id),
+        taskList: this.taskLists.get(id),
+        agents: [],
+      })
+    }
     result.sort((left, right) => new Date(right.modified).getTime() - new Date(left.modified).getTime())
     return result
   }
@@ -1220,29 +1240,42 @@ export class AgentRuntimeService {
   async createSession(name) {
     const resolvedName = cleanSessionTitle(name) || DEFAULT_SESSION_NAME
     const manager = SessionManager.create(this.cwd, this.sessionDir)
-    this.sessionMeta[manager.getSessionId()] = {
-      ...(this.sessionMeta[manager.getSessionId()] || {}),
+    const id = manager.getSessionId()
+    const now = new Date().toISOString()
+    manager.appendSessionInfo(resolvedName)
+    this.pendingSessions.set(id, {
+      manager,
+      name: resolvedName,
+      cwd: this.cwd,
+      created: now,
+      modified: now,
+    })
+    this.sessionMeta[id] = {
+      ...(this.sessionMeta[id] || {}),
+      name: resolvedName,
+      manual: resolvedName !== DEFAULT_SESSION_NAME,
       executionMode: DEFAULT_EXECUTION_MODE,
       permissionMode: permissionModeForExecutionMode(DEFAULT_EXECUTION_MODE),
     }
     await this.saveSessionMeta()
-    const value = await this.createSessionRuntime(manager, resolvedName)
-    value.session.setSessionName(resolvedName)
-    await this.markSessionTitle(value.session.sessionId, resolvedName, resolvedName !== DEFAULT_SESSION_NAME)
+    const settings = this.settingsManager.getGlobalSettings()
+    const model = settings.defaultProvider && settings.defaultModel
+      ? `${settings.defaultProvider}/${settings.defaultModel}`
+      : ''
     return {
-      id: value.session.sessionId,
+      id,
       name: resolvedName,
       messageCount: 0,
-      model: value.session.model ? `${value.session.model.provider}/${value.session.model.id}` : '',
-      cwd: value.cwd || this.cwd,
-      created: new Date().toISOString(),
-      modified: new Date().toISOString(),
-      permissionMode: this.sessionMeta[value.session.sessionId]?.permissionMode || permissionModeForExecutionMode(this.getSessionExecutionMode(value.session.sessionId)),
-      executionMode: this.getSessionExecutionMode(value.session.sessionId),
+      model,
+      cwd: this.cwd,
+      created: now,
+      modified: now,
+      permissionMode: this.sessionMeta[id].permissionMode,
+      executionMode: this.getSessionExecutionMode(id),
       goal: null,
-      taskList: this.taskLists.get(value.session.sessionId),
+      taskList: this.taskLists.get(id),
       agents: [],
-      contextUsage: this.compactionAwareContextUsage(value.session),
+      contextUsage: null,
     }
   }
 
@@ -1501,10 +1534,15 @@ export class AgentRuntimeService {
     const title = cleanSessionTitle(name)
     if (!title) throw new Error('会话标题不能为空。')
     const active = this.sessions.get(id)
+    const pending = this.pendingSessions.get(id)
     if (active) {
       active.session.setSessionName(title)
       active.name = title
       active.modified = new Date().toISOString()
+    } else if (pending) {
+      pending.manager.appendSessionInfo(title)
+      pending.name = title
+      pending.modified = new Date().toISOString()
     } else {
       const info = await this.findSessionInfo(id)
       if (!info) return null
@@ -1548,7 +1586,7 @@ export class AgentRuntimeService {
   async setSessionPermission(id, mode) {
     const permissionMode = String(mode || '')
     if (!PERMISSION_MODES.has(permissionMode)) throw new Error('权限模式无效。')
-    if (!this.sessions.has(id) && !(await this.findSessionInfo(id))) return null
+    if (!this.sessions.has(id) && !this.pendingSessions.has(id) && !(await this.findSessionInfo(id))) return null
     this.sessionMeta[id] = { ...(this.sessionMeta[id] || {}), permissionMode }
     await this.saveSessionMeta()
     if (permissionMode !== 'ask') this.permissions.resolveSession(id, true, `权限模式已切换为${permissionMode === 'ignore' ? '忽略' : '自动'}。`)
@@ -1558,7 +1596,7 @@ export class AgentRuntimeService {
   async setSessionExecutionMode(id, mode) {
     const executionMode = normalizeExecutionMode(mode, '')
     if (!executionMode) throw new Error('执行模式无效。')
-    if (!this.sessions.has(id) && !(await this.findSessionInfo(id))) return null
+    if (!this.sessions.has(id) && !this.pendingSessions.has(id) && !(await this.findSessionInfo(id))) return null
     const permissionMode = permissionModeForExecutionMode(executionMode)
     this.sessionMeta[id] = { ...(this.sessionMeta[id] || {}), executionMode, permissionMode }
     await this.saveSessionMeta()
@@ -1583,6 +1621,14 @@ export class AgentRuntimeService {
   async setSessionCwd(id, input) {
     const cwd = await resolveDirectory(input, this.cwd)
     const active = this.sessions.get(id)
+    const pending = this.pendingSessions.get(id)
+    if (pending) {
+      pending.cwd = cwd
+      pending.modified = new Date().toISOString()
+      this.sessionMeta[id] = { ...(this.sessionMeta[id] || {}), cwd }
+      await this.saveSessionMeta()
+      return { id, cwd }
+    }
     if (active?.session.isStreaming) throw new Error('当前会话正在运行，请完成或停止后再切换工作目录。')
     const activeSessionFile = active?.session.sessionFile
     const activeSessionFileInfo = activeSessionFile ? await stat(activeSessionFile).catch(() => null) : null
@@ -1629,6 +1675,19 @@ export class AgentRuntimeService {
       if (current.session.isStreaming || (current.runtimeVersion ?? this.sessionRuntimeVersion) === this.sessionRuntimeVersion) return current
       current.session.dispose()
       this.sessions.delete(id)
+    }
+    if (id && this.pendingSessions.has(id)) {
+      const pending = this.pendingSessions.get(id)
+      this.pendingSessions.delete(id)
+      try {
+        const value = await this.createSessionRuntime(pending.manager, pending.name)
+        value.created = pending.created
+        value.modified = pending.modified
+        return value
+      } catch (error) {
+        this.pendingSessions.set(id, pending)
+        throw error
+      }
     }
     if (id) {
       const info = await this.findSessionInfo(id)
@@ -1747,6 +1806,12 @@ export class AgentRuntimeService {
       },
       activateTools: (toolNames) => this.promoteSessionTools(runtimeValue, toolNames),
     })
+    const bashTool = enabledTools.includes('bash')
+      ? await createPisperBashTool(effectiveCwd, {
+          sandboxService: this.sandbox,
+          getExecutionMode: () => this.getSessionExecutionMode(runtimeSessionId),
+        })
+      : null
     const createInheritedCustomTools = () => [
       ...schemaOnlyToolDefinitions(createAppTools({
         cwd: effectiveCwd,
@@ -1770,10 +1835,7 @@ export class AgentRuntimeService {
         },
       })),
       ...schemaOnlyToolDefinitions(mcpTools),
-      ...(enabledTools.includes('bash') ? [createPisperBashTool(effectiveCwd, {
-        sandboxService: this.sandbox,
-        getExecutionMode: () => this.getSessionExecutionMode(runtimeSessionId),
-      })] : []),
+      ...(bashTool ? [bashTool] : []),
     ]
     const sessionSettingsManager = createCompactionSettingsManager(
       this.settingsManager,
@@ -2426,6 +2488,8 @@ export class AgentRuntimeService {
     await this.multiAgents.removeParent(id)
     this.permissions.resolveSession(id, false, '会话已删除，工具未执行。')
     const active = this.sessions.get(id)
+    const pending = this.pendingSessions.get(id)
+    this.pendingSessions.delete(id)
     let sessionFile = active?.session.sessionFile
     if (active) {
       if (active.session.isStreaming) await active.session.abort()
@@ -2446,7 +2510,7 @@ export class AgentRuntimeService {
         await this.saveUsageLedger()
       }
       if (this.storedSessionsCache) this.storedSessionsCache = this.storedSessionsCache.filter((session) => session.id !== id)
-      return Boolean(active)
+      return Boolean(active || pending)
     }
     const root = resolve(this.sessionDir)
     const target = resolve(sessionFile)
@@ -2478,7 +2542,7 @@ export class AgentRuntimeService {
 
   async promptFromChannel({ sessionId, message, attachments = [], cwd, title, model, executionMode, isolatedContext = false, onSession }) {
     let id = String(sessionId || '')
-    if (id && !this.sessions.has(id) && !(await this.findSessionInfo(id))) id = ''
+    if (id && !this.sessions.has(id) && !this.pendingSessions.has(id) && !(await this.findSessionInfo(id))) id = ''
     if (!id) {
       const created = await this.createSession(title || '飞书会话')
       id = created.id
@@ -2704,9 +2768,11 @@ export class AgentRuntimeService {
     await this.browserAutomation.dispose()
     this.permissions.dispose()
     await this.disposeSessions()
+    this.pendingSessions.clear()
     await this.sandbox.dispose()
     await this.mcp.dispose()
     this.memory.dispose()
+    await Promise.allSettled([this.sessionMetaWrite, this.usageWrite, this.assetWrite])
   }
 
   async savePlugins(input) {

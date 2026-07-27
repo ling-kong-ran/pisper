@@ -1,4 +1,4 @@
-import { compact } from '@earendil-works/pi-coding-agent'
+import { compact } from './pi-coding-agent.mjs'
 
 export const DEFAULT_COMPACTION_THRESHOLD_PERCENT = 80
 export const MIN_COMPACTION_THRESHOLD_PERCENT = 50

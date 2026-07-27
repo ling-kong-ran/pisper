@@ -4,10 +4,10 @@ import { cp, lstat, mkdir, readFile, readdir, rm } from 'node:fs/promises'
 import { homedir } from 'node:os'
 import { basename, dirname, extname, isAbsolute, join, relative, resolve, sep } from 'node:path'
 import {
-  DefaultPackageManager,
-  DefaultResourceLoader,
+  createDefaultPackageManager,
+  createDefaultResourceLoader,
   loadSkills,
-} from '@earendil-works/pi-coding-agent'
+} from '../runtime/pi-coding-agent.mjs'
 import { readJson, writeJsonAtomic } from '../storage/json-file.mjs'
 
 const SKILLS_STATE_VERSION = 2
@@ -172,7 +172,7 @@ export class SkillsService {
     this.cwd = cwd || process.cwd()
     this.skillsDir = join(agentDir, 'skills')
     this.getSettingsManager = getSettingsManager || (() => null)
-    this.createPackageManager = createPackageManager || ((options) => new DefaultPackageManager(options))
+    this.createPackageManager = createPackageManager || null
     this.extensionFactories = extensionFactories
     this.state = { version: SKILLS_STATE_VERSION, overrides: {}, installed: {} }
     this.write = Promise.resolve()
@@ -215,7 +215,7 @@ export class SkillsService {
 
   async createResourceLoader(cwd = this.cwd, { includeDisabled = false, appendSystemPrompt = '' } = {}) {
     const settingsManager = this.getSettingsManager()
-    const loader = new DefaultResourceLoader({
+    const loader = await createDefaultResourceLoader({
       cwd,
       agentDir: this.agentDir,
       ...(settingsManager ? { settingsManager } : {}),
@@ -231,7 +231,8 @@ export class SkillsService {
 
   async resolveSkillPaths(cwd = this.cwd) {
     try {
-      const resolved = await this.packageManager(cwd).resolve()
+      const manager = await this.packageManager(cwd)
+      const resolved = await manager.resolve()
       return resolved.skills
         .filter((item) => item.enabled)
         .map((item) => mapSkillResourcePath(item))
@@ -244,7 +245,7 @@ export class SkillsService {
 
   async discover(cwd = this.cwd) {
     const skillPaths = await this.resolveSkillPaths(cwd)
-    const loaded = loadSkills({
+    const loaded = await loadSkills({
       cwd,
       agentDir: this.agentDir,
       skillPaths,
@@ -280,10 +281,13 @@ export class SkillsService {
     }
   }
 
-  packageManager(cwd = this.cwd) {
+  async packageManager(cwd = this.cwd) {
     const settingsManager = this.getSettingsManager()
     if (!settingsManager) throw new Error('Pisper 技能运行时尚未初始化。')
-    return this.createPackageManager({ cwd, agentDir: this.agentDir, settingsManager })
+    const options = { cwd, agentDir: this.agentDir, settingsManager }
+    return this.createPackageManager
+      ? this.createPackageManager(options)
+      : createDefaultPackageManager(options)
   }
 
   async buildDashboard(cwd = this.cwd) {
@@ -291,7 +295,7 @@ export class SkillsService {
     const skills = await Promise.all(discovered.skills.map((skill) => this.publicSkill(skill)))
     let packages = []
     try {
-      packages = this.packageManager(cwd).listConfiguredPackages().map((item) => ({
+      packages = (await this.packageManager(cwd)).listConfiguredPackages().map((item) => ({
         source: safeSourceLabel(item.source),
         scope: item.scope,
         filtered: item.filtered,
@@ -357,12 +361,12 @@ export class SkillsService {
     const localStat = localPath ? await pathExists(localPath) : null
     if (localStat) {
       await validateSkillSource(localPath)
-      const loaded = loadSkills({ cwd, agentDir: this.agentDir, skillPaths: [localPath], includeDefaults: false })
+      const loaded = await loadSkills({ cwd, agentDir: this.agentDir, skillPaths: [localPath], includeDefaults: false })
       if (loaded.skills.length) return loaded
       throw new Error(loaded.diagnostics[0]?.message || '该本地路径没有发现符合 Agent Skills 标准的技能。')
     }
 
-    const manager = this.packageManager(cwd)
+    const manager = await this.packageManager(cwd)
     const resolved = await manager.resolveExtensionSources([source], { temporary: true })
     const paths = [...new Set(resolved.skills.filter((item) => item.enabled).map((item) => item.path))]
     if (!paths.length) throw new Error('该来源没有发现符合 Agent Skills 标准的技能。')

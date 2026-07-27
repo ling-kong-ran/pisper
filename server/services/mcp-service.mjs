@@ -7,7 +7,7 @@ import {
   defineTool,
   formatSize,
   truncateHead,
-} from '@earendil-works/pi-coding-agent'
+} from '../runtime/pi-coding-agent.mjs'
 import { Type } from 'typebox'
 import { readJson, writeJsonAtomic } from '../storage/json-file.mjs'
 

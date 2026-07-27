@@ -1,4 +1,4 @@
-import { defineTool } from '@earendil-works/pi-coding-agent'
+import { defineTool } from '../../runtime/pi-coding-agent.mjs'
 import { Type } from 'typebox'
 
 export const manifests = [

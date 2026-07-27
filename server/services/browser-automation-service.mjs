@@ -5,6 +5,7 @@ import { basename, join, resolve } from 'node:path'
 const MAX_PAGE_TEXT_CHARS = 20_000
 const MAX_ELEMENTS = 100
 const DEFAULT_VIEWPORT = Object.freeze({ width: 1440, height: 900 })
+const DEFAULT_IDLE_TIMEOUT_MS = 10 * 60_000
 
 function safeDimension(value, fallback, minimum, maximum) {
   const parsed = Math.round(Number(value))
@@ -109,9 +110,34 @@ async function inspectPage(page) {
 }
 
 export class BrowserAutomationService {
-  constructor({ driver } = {}) {
+  constructor({ driver, idleTimeoutMs = DEFAULT_IDLE_TIMEOUT_MS, setTimer = setTimeout, clearTimer = clearTimeout } = {}) {
     this.driver = driver || null
     this.sessions = new Map()
+    this.idleTimers = new Map()
+    this.idleTimeoutMs = Math.max(0, Number(idleTimeoutMs) || 0)
+    this.setTimer = setTimer
+    this.clearTimer = clearTimer
+  }
+
+  clearIdleTimer(sessionId) {
+    const id = String(sessionId || 'default')
+    if (!this.idleTimers.has(id)) return
+    const timer = this.idleTimers.get(id)
+    this.idleTimers.delete(id)
+    this.clearTimer(timer)
+  }
+
+  touchSession(sessionId) {
+    const id = String(sessionId || 'default')
+    this.clearIdleTimer(id)
+    if (!this.idleTimeoutMs) return
+    const timer = this.setTimer(() => {
+      if (this.idleTimers.get(id) !== timer) return
+      this.idleTimers.delete(id)
+      void this.closeSession(id).catch(() => {})
+    }, this.idleTimeoutMs)
+    timer?.unref?.()
+    this.idleTimers.set(id, timer)
   }
 
   async launchPlaywright(viewport) {
@@ -146,14 +172,17 @@ export class BrowserAutomationService {
 
   async execute(sessionId, input = {}, { cwd, signal, onProgress } = {}) {
     const action = String(input.action || 'inspect')
+    const id = String(sessionId || 'default')
     const viewport = {
       width: safeDimension(input.width, DEFAULT_VIEWPORT.width, 640, 2560),
       height: safeDimension(input.height, DEFAULT_VIEWPORT.height, 480, 1600),
     }
     signal?.throwIfAborted?.()
+    if (action === 'close') this.clearIdleTimer(id)
+    else this.touchSession(id)
     if (this.driver) {
       const outputPath = action === 'screenshot' ? await this.screenshotPath(cwd, input.outputName) : undefined
-      return this.driver.execute(String(sessionId || 'default'), { ...input, action, viewport, outputPath }, { signal, onProgress })
+      return this.driver.execute(id, { ...input, action, viewport, outputPath }, { signal, onProgress })
     }
     if (action === 'close') {
       await this.closeSession(sessionId)
@@ -208,6 +237,7 @@ export class BrowserAutomationService {
 
   async closeSession(sessionId) {
     const id = String(sessionId || 'default')
+    this.clearIdleTimer(id)
     if (this.driver) return this.driver.closeSession?.(id)
     const current = this.sessions.get(id)
     if (!current) return false
@@ -218,6 +248,7 @@ export class BrowserAutomationService {
   }
 
   async dispose() {
+    for (const id of [...this.idleTimers.keys()]) this.clearIdleTimer(id)
     if (this.driver) return this.driver.dispose?.()
     await Promise.all([...this.sessions.keys()].map((id) => this.closeSession(id)))
   }

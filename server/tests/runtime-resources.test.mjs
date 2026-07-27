@@ -7,6 +7,38 @@ import { defineTool, SessionManager } from '@earendil-works/pi-coding-agent'
 import { Type } from 'typebox'
 import { AgentRuntimeService } from '../runtime/agent-runtime.mjs'
 
+test('blank chat sessions stay lightweight until an Agent is first required', async (t) => {
+  const directory = await mkdtemp(join(tmpdir(), 'pisper-pending-session-'))
+  t.after(() => rm(directory, { recursive: true, force: true }))
+  const runtime = new AgentRuntimeService({ cwd: directory, dataDir: directory })
+  runtime.settingsManager = {
+    getGlobalSettings: () => ({ defaultProvider: 'openai', defaultModel: 'gpt-test' }),
+  }
+  runtime.saveSessionMeta = async () => {}
+  runtime.listStoredSessions = async () => []
+  let runtimeCreations = 0
+  runtime.createSessionRuntime = async (manager, name) => {
+    runtimeCreations += 1
+    return { manager, name, created: 'runtime-created', modified: 'runtime-modified' }
+  }
+
+  const created = await runtime.createSession('Pending chat')
+  assert.equal(runtimeCreations, 0)
+  assert.equal(runtime.pendingSessions.has(created.id), true)
+  assert.equal(created.model, 'openai/gpt-test')
+  assert.equal((await runtime.listSessions())[0].name, 'Pending chat')
+
+  await runtime.renameSession(created.id, 'Renamed pending chat')
+  await runtime.setSessionCwd(created.id, directory)
+  const activated = await runtime.getOrCreateSession(created.id)
+
+  assert.equal(runtimeCreations, 1)
+  assert.equal(runtime.pendingSessions.has(created.id), false)
+  assert.equal(activated.manager.getSessionId(), created.id)
+  assert.equal(activated.name, 'Renamed pending chat')
+  assert.equal(activated.created, created.created)
+})
+
 test('main runtime keeps discovered cold MCP tools for the rest of the session while child resources remain available', async (t) => {
   const directory = await mkdtemp(join(tmpdir(), 'pisper-runtime-resources-'))
   let runtime

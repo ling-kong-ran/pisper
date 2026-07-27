@@ -62,7 +62,7 @@ try {
   runtime = new AgentRuntimeService({ cwd: projectRoot, dataDir: temporaryDataDirectory })
   await runtime.init()
   const created = await runtime.createSession('Prompt cache measurement')
-  const value = runtime.sessions.get(created.id)
+  const value = await runtime.getOrCreateSession(created.id)
   const { session } = value
 
   const hot = snapshot(session, 'hot')

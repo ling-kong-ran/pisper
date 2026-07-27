@@ -1,4 +1,4 @@
-import { defineTool } from '@earendil-works/pi-coding-agent'
+import { defineTool } from '../../runtime/pi-coding-agent.mjs'
 import { Type } from 'typebox'
 import { MAX_TASK_ASSIGNEE_CHARS, MAX_TASK_DEPENDS_ON, MAX_TASK_LIST_ITEMS, MAX_TASK_NOTE_CHARS, MAX_TASK_TITLE_CHARS, TASK_LIST_STATUSES } from '../../services/task-list-service.mjs'
 

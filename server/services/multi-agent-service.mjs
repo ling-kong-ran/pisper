@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto'
-import { createAgentSession, DEFAULT_MAX_BYTES, DefaultResourceLoader, estimateTokens, formatSize, SessionManager } from '@earendil-works/pi-coding-agent'
+import { createAgentSession, createDefaultResourceLoader, DEFAULT_MAX_BYTES, estimateTokens, formatSize, SessionManager } from '../runtime/pi-coding-agent.mjs'
 import { applyPisperSystemPrompt, pisperPromptExtension } from '../prompts/pisper-system-prompt.mjs'
 import { createCompactionSettingsManager, pisperCompactionExtension } from '../runtime/compaction-policy.mjs'
 import { readJson, writeJsonAtomic } from '../storage/json-file.mjs'
@@ -254,7 +254,7 @@ function normalizeTaskName(value) {
 }
 
 async function createAgentResourceLoader({ cwd, agentDir, settingsManager, appendSystemPrompt = MULTI_AGENT_SYSTEM_PROMPT }) {
-  const loader = new DefaultResourceLoader({
+  const loader = await createDefaultResourceLoader({
     cwd,
     agentDir: agentDir || cwd,
     ...(settingsManager ? { settingsManager } : {}),

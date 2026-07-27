@@ -1,4 +1,4 @@
-import { createBashTool } from '@earendil-works/pi-coding-agent'
+import { createBashTool } from '../runtime/pi-coding-agent.mjs'
 import { Type } from 'typebox'
 import { applyWindowsUtf8Environment } from './windows-utf8-bash.mjs'
 
@@ -16,11 +16,11 @@ export function shouldRunBashOutsideSandbox(mode, params = {}) {
   return mode === 'full-access' || params.sandbox_permissions === 'require_escalated'
 }
 
-export function createPisperBashTool(cwd, { sandboxService, getExecutionMode, platform = process.platform } = {}) {
-  const localTool = createBashTool(cwd, {
+export async function createPisperBashTool(cwd, { sandboxService, getExecutionMode, platform = process.platform } = {}) {
+  const localTool = await createBashTool(cwd, {
     spawnHook: (context) => applyWindowsUtf8Environment(context, platform),
   })
-  const sandboxedTool = createBashTool(cwd, {
+  const sandboxedTool = await createBashTool(cwd, {
     operations: sandboxService.createBashOperations(),
   })
   return {

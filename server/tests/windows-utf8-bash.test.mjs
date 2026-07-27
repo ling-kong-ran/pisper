@@ -22,14 +22,14 @@ test('Windows bash child processes receive a UTF-8 environment', () => {
   )
 })
 
-test('non-Windows bash environment is left unchanged', () => {
+test('non-Windows bash environment is left unchanged', async () => {
   const context = { command: 'echo ok', cwd: '/tmp', env: { LANG: 'custom' } }
   assert.equal(applyWindowsUtf8Environment(context, 'linux'), context)
-  assert.equal(createWindowsUtf8BashTool('/tmp', 'linux'), null)
+  assert.equal(await createWindowsUtf8BashTool('/tmp', 'linux'), null)
 })
 
 test('Windows bash can stream Python Unicode output', { skip: process.platform !== 'win32' }, async () => {
-  const tool = createWindowsUtf8BashTool(process.cwd())
+  const tool = await createWindowsUtf8BashTool(process.cwd())
   const result = await tool.execute('unicode-test', {
     command: `python -c "print('\\u4e2d\\u6587 \\U0001f525')"`,
     // CI runners can be cold on first Python launch; keep headroom above the local 10s path.

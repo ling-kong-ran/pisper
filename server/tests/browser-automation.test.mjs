@@ -35,6 +35,34 @@ test('browser automation delegates bounded actions and archives screenshots', as
   assert.deepEqual(generated, [screenshot.details])
 })
 
+test('browser automation releases an idle desktop browser session', async () => {
+  const closed = []
+  const callbacks = []
+  const service = new BrowserAutomationService({
+    driver: {
+      async execute(_sessionId, input) {
+        return { action: input.action, url: input.url }
+      },
+      async closeSession(sessionId) {
+        closed.push(sessionId)
+        return true
+      },
+    },
+    idleTimeoutMs: 1,
+    setTimer(callback) {
+      callbacks.push(callback)
+      return { unref() {} }
+    },
+    clearTimer() {},
+  })
+
+  await service.execute('session-idle', { action: 'open', url: 'https://example.com' })
+  callbacks.at(-1)()
+  await new Promise((resolveWait) => setImmediate(resolveWait))
+
+  assert.deepEqual(closed, ['session-idle'])
+})
+
 test('browser click and type require approval in automatic permission mode', () => {
   const base = { mode: 'auto', cwd: '/workspace', toolName: 'browser_automation', toolRisk: 'medium' }
 
