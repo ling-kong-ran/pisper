@@ -1,0 +1,10 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "desktop-runtime",
+  "description": "Allows the authenticated localhost Pisper UI to call the narrow desktop bridge.",
+  "windows": ["main", "desktop-pet"],
+  "remote": {
+    "urls": ["http://127.0.0.1:*/*"]
+  },
+  "permissions": ["core:default", "allow-pisper-desktop-bridge"]
+}

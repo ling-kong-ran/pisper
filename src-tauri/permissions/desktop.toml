@@ -1,0 +1,20 @@
+[[permission]]
+identifier = "allow-pisper-desktop-bridge"
+description = "Allows authenticated Pisper localhost WebViews to call the narrow native desktop bridge."
+commands.allow = [
+  "desktop_get_app_info",
+  "desktop_set_language",
+  "desktop_update_status",
+  "desktop_check_for_updates",
+  "desktop_download_update",
+  "desktop_install_update",
+  "desktop_open_url",
+  "desktop_open_releases",
+  "desktop_open_update_log",
+  "desktop_get_notification_status",
+  "desktop_open_notification_settings",
+  "desktop_show_notification",
+  "desktop_pet_set_visible",
+  "desktop_pet_start_dragging",
+  "desktop_show_main_window",
+]

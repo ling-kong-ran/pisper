@@ -15,7 +15,7 @@
   <img src="https://img.shields.io/badge/Node.js-17141F?style=flat-square&logo=nodedotjs&logoColor=F59E0B" alt="Node.js" />
   <img src="https://img.shields.io/badge/TypeScript-17141F?style=flat-square&logo=typescript&logoColor=F59E0B" alt="TypeScript" />
   <img src="https://img.shields.io/badge/React-17141F?style=flat-square&logo=react&logoColor=F59E0B" alt="React" />
-  <img src="https://img.shields.io/badge/Electron-17141F?style=flat-square&logo=electron&logoColor=F59E0B" alt="Electron" />
+  <img src="https://img.shields.io/badge/Tauri-17141F?style=flat-square&logo=tauri&logoColor=F59E0B" alt="Tauri" />
   <a href="./LICENSE"><img src="https://img.shields.io/badge/License-MIT-F59E0B?style=flat-square" alt="MIT License" /></a>
 </p>
 
@@ -195,7 +195,7 @@ From conversation to automation, Pisper covers the full agent workflow:
 | **Automation** | Schedules and visual workflows with retries, failure policies, history, and notifications. |
 | **Two-way channels** | Connect Feishu and personal Weixin — reach your agents even when you're away from the desk. |
 | **Web preview** | Preview external pages in a Dock panel, with a system-browser fallback when needed. |
-| **Desktop app** | Electron single-instance app with in-app release notes and GitHub Releases updates. |
+| **Desktop app** | Tauri 2 system-WebView app with single-instance handling, tray controls, signed updates, and GitHub Releases. |
 | **Security boundaries** | Per-session `Read only / Workspace / Full access`, one-shot approval, secret redaction, and data isolation. |
 
 ### Capabilities Answer on Demand: Progressive Disclosure
@@ -225,7 +225,7 @@ Completed work does not disappear into an unattended notification. If the parent
 A workspace doesn't have to feel cold. Pisper natively supports [Petdex](https://petdex.dev)-compatible pets — while your agent thinks, the pet paces; when the task finishes, it lets you know. Search, install, switch, enable, or disable pets in **Settings → Desktop pet** — no Petdex CLI or companion process required.
 
 - Waiting, thinking, tool activity, completion, and failure map to pet animations.
-- Electron uses an independent transparent window with dragging, always-on-top behavior, multi-display position persistence, and `20%–100%` opacity. It remains visible when the main window is hidden.
+- The Tauri desktop app uses an independent transparent window with dragging, always-on-top behavior, multi-display position persistence, and `20%–100%` opacity. It remains visible when the main window is hidden.
 - The Web app uses a draggable in-page overlay that exits with the page.
 - Assets are downloaded only from HTTPS allowlisted hosts and validated for size, format, sprite grid, and path safety. Community pets are not bundled.
 
@@ -252,8 +252,8 @@ Use this command only for Pisper downloaded from the official Releases page and 
 #### If the Linux AppImage Does Not Start
 
 ```bash
-chmod +x Pisper-*-linux-x86_64.AppImage
-./Pisper-*-linux-x86_64.AppImage
+chmod +x Pisper_*_linux_x86_64.AppImage
+./Pisper_*_linux_x86_64.AppImage
 ```
 
 If FUSE is missing, install `libfuse2` or `libfuse2t64`, or use the `.deb` package:
@@ -293,7 +293,7 @@ Configuration, sessions, and memory are stored under `~/.pisper/agent` by defaul
 
 ## Development
 
-**Stack:** TypeScript, React 19, Vite, Tailwind CSS, shadcn/ui, Dockview, React Flow, Zustand, i18next, Node.js, Electron, and Pi Coding Agent.
+**Stack:** TypeScript, React 19, Vite, Tailwind CSS, shadcn/ui, Dockview, React Flow, Zustand, i18next, Tauri 2, Rust, Node SEA, and Pi Coding Agent.
 
 ```bash
 npm run check

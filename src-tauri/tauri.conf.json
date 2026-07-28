@@ -1,7 +1,7 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
   "productName": "Pisper",
-  "version": "0.3.2",
+  "version": "../package.json",
   "identifier": "com.lingkongran.pisper",
   "build": {
     "frontendDist": "../dist"
@@ -9,12 +9,18 @@
   "app": {
     "windows": [],
     "security": {
+      "capabilities": ["desktop-runtime"],
       "csp": null
+    }
+  },
+  "plugins": {
+    "updater": {
+      "pubkey": ""
     }
   },
   "bundle": {
     "active": true,
-    "targets": ["nsis"],
+    "targets": "all",
     "externalBin": ["binaries/pisper-sidecar"],
     "resources": {
       "../release/sea/runtime/": "sidecar-runtime/"

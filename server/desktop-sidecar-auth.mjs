@@ -18,6 +18,19 @@ function cookieValue(header, name) {
   return ''
 }
 
+function bootstrapLocation(value) {
+  const location = String(value || '')
+  if (!location.startsWith('/') || location.startsWith('//') || location.includes('\\')) return '/'
+  try {
+    const parsed = new URL(location, 'http://127.0.0.1')
+    return parsed.origin === 'http://127.0.0.1'
+      ? `${parsed.pathname}${parsed.search}${parsed.hash}`
+      : '/'
+  } catch {
+    return '/'
+  }
+}
+
 function reject(res, status, message) {
   const body = `${JSON.stringify({ error: message })}\n`
   res.writeHead(status, {
@@ -40,7 +53,7 @@ export function authorizeDesktopRequest(req, res, url, { token, origin }) {
       'Cache-Control': 'no-store',
       'Referrer-Policy': 'no-referrer',
       'Set-Cookie': `${DESKTOP_COOKIE_NAME}=${encodeURIComponent(token)}; HttpOnly; SameSite=Strict; Path=/`,
-      Location: '/',
+      Location: bootstrapLocation(url.searchParams.get('next')),
     })
     res.end()
     return true

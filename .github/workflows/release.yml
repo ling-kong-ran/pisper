@@ -35,30 +35,58 @@ jobs:
             release-body.md
             public/release-notes.json
 
+  quality:
+    name: Verify release source
+    needs: prepare
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 24
+          cache: npm
+      - uses: dtolnay/rust-toolchain@stable
+      - name: Install Linux Tauri prerequisites
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf
+      - run: npm ci
+      - run: npm test
+      - run: npm run check
+      - name: Check Rust shell
+        run: |
+          cargo check --manifest-path src-tauri/Cargo.toml
+          cargo clippy --manifest-path src-tauri/Cargo.toml --all-targets -- -D warnings
+
   build:
     name: Build ${{ matrix.name }}
-    needs: prepare
+    needs: [prepare, quality]
     strategy:
       fail-fast: false
       matrix:
         include:
           - name: Windows x64
+            target: windows-x86_64
             os: windows-latest
-            args: --win nsis --x64
-          - name: macOS x64 + arm64
-            os: macos-latest
-            args: --mac dmg zip --x64 --arm64
+          - name: macOS Intel
+            target: darwin-x86_64
+            os: macos-15-intel
+          - name: macOS Apple Silicon
+            target: darwin-aarch64
+            os: macos-15
           - name: Linux x64
-            os: ubuntu-latest
-            args: --linux AppImage deb --x64
+            target: linux-x86_64
+            os: ubuntu-22.04
     runs-on: ${{ matrix.os }}
     env:
-      CSC_IDENTITY_AUTO_DISCOVERY: 'false'
-      CSC_LINK: ${{ matrix.os == 'windows-latest' && secrets.WINDOWS_CSC_LINK || matrix.os == 'macos-latest' && secrets.MACOS_CSC_LINK || '' }}
-      CSC_KEY_PASSWORD: ${{ matrix.os == 'windows-latest' && secrets.WINDOWS_CSC_KEY_PASSWORD || matrix.os == 'macos-latest' && secrets.MACOS_CSC_KEY_PASSWORD || '' }}
-      APPLE_ID: ${{ secrets.APPLE_ID }}
-      APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
-      APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+      TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+      TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+      APPLE_CERTIFICATE: ${{ startsWith(matrix.target, 'darwin-') && secrets.APPLE_CERTIFICATE || '' }}
+      APPLE_CERTIFICATE_PASSWORD: ${{ startsWith(matrix.target, 'darwin-') && secrets.APPLE_CERTIFICATE_PASSWORD || '' }}
+      APPLE_SIGNING_IDENTITY: ${{ startsWith(matrix.target, 'darwin-') && secrets.APPLE_SIGNING_IDENTITY || '' }}
+      APPLE_ID: ${{ startsWith(matrix.target, 'darwin-') && secrets.APPLE_ID || '' }}
+      APPLE_PASSWORD: ${{ startsWith(matrix.target, 'darwin-') && secrets.APPLE_APP_SPECIFIC_PASSWORD || '' }}
+      APPLE_TEAM_ID: ${{ startsWith(matrix.target, 'darwin-') && secrets.APPLE_TEAM_ID || '' }}
     steps:
       - uses: actions/checkout@v5
         with:
@@ -67,58 +95,60 @@ jobs:
         with:
           node-version: 24
           cache: npm
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri
+      - name: Install Linux Tauri prerequisites
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf
       - uses: actions/download-artifact@v5
         with:
           name: release-metadata
           path: .
       - run: npm ci
-      - run: npm test
-      - run: npm run lint
-      - name: Package desktop app
-        shell: pwsh
-        run: |
-          @('CSC_LINK', 'CSC_KEY_PASSWORD', 'APPLE_ID', 'APPLE_APP_SPECIFIC_PASSWORD', 'APPLE_TEAM_ID') | ForEach-Object {
-            if (-not [Environment]::GetEnvironmentVariable($_)) {
-              Remove-Item "Env:$_" -ErrorAction SilentlyContinue
-            }
-          }
-          npm run desktop:pack -- ${{ matrix.args }}
+      - name: Build SEA sidecar, verify Agent, and package Tauri
+        run: npm run desktop:webview:build
       - uses: actions/upload-artifact@v4
         with:
-          name: pisper-${{ runner.os }}
+          name: pisper-tauri-${{ matrix.target }}
           if-no-files-found: error
-          path: |
-            release/*.exe
-            release/*.dmg
-            release/*.zip
-            release/*.AppImage
-            release/*.deb
-            release/latest.yml
-            release/latest-mac.yml
-            release/latest-linux.yml
-            release/*.blockmap
+          path: release/tauri-artifacts
 
   release:
     name: Publish GitHub Release
     needs: build
     runs-on: ubuntu-latest
+    env:
+      TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
     steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 24
       - uses: actions/download-artifact@v5
         with:
           name: release-metadata
           path: .
       - uses: actions/download-artifact@v5
         with:
-          pattern: pisper-*
+          pattern: pisper-tauri-*
           path: artifacts
           merge-multiple: true
+      - name: Create multi-platform updater manifest
+        if: env.TAURI_SIGNING_PRIVATE_KEY != ''
+        run: node scripts/create-tauri-update-manifest.mjs "${{ github.ref_name }}" artifacts --require-all --output artifacts/latest.json
       - uses: softprops/action-gh-release@v2
         with:
           name: Pisper ${{ github.ref_name }}
           body_path: release-body.md
           fail_on_unmatched_files: true
           make_latest: true
-          files: artifacts/*
+          files: artifacts/**/*
       - name: Synchronize release notes
         env:
           GH_TOKEN: ${{ github.token }}

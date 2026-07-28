@@ -1,24 +1,46 @@
-use serde::Deserialize;
+mod desktop_bridge;
+mod desktop_pet;
+
 use std::{
     io::{BufRead, BufReader, Read, Write},
     path::{Path, PathBuf},
     process::{Child, Command, Stdio},
-    sync::{mpsc, Mutex},
+    sync::{
+        atomic::{AtomicBool, Ordering},
+        mpsc, Mutex,
+    },
     thread,
     time::{Duration, Instant},
 };
-use tauri::{Manager, RunEvent, Url, WebviewUrl, WebviewWindowBuilder};
+use tauri::{
+    menu::{MenuBuilder, MenuItem},
+    tray::TrayIconBuilder,
+    webview::NewWindowResponse,
+    AppHandle, Manager, RunEvent, Url, WebviewUrl, WebviewWindowBuilder,
+};
+use tauri_plugin_opener::OpenerExt;
+
+use desktop_bridge::{DesktopUpdateState, UPDATER_PUBLIC_KEY};
 
 const READY_PREFIX: &str = "PISPER_SIDECAR_READY ";
 const SIDECAR_TIMEOUT: Duration = Duration::from_secs(30);
+const DESKTOP_BRIDGE_SCRIPT: &str = include_str!("desktop-bridge.js");
 
-#[derive(Deserialize)]
-struct SidecarReady {
+#[derive(serde::Deserialize)]
+pub(crate) struct SidecarReady {
+    pub(crate) url: String,
     #[serde(rename = "bootstrapUrl")]
-    bootstrap_url: String,
+    pub(crate) bootstrap_url: String,
 }
 
 struct SidecarState(Mutex<Option<Child>>);
+struct LifecycleState {
+    quitting: AtomicBool,
+}
+struct TrayMenuState {
+    show: MenuItem<tauri::Wry>,
+    quit: MenuItem<tauri::Wry>,
+}
 
 fn platform_binary_name() -> &'static str {
     if cfg!(windows) {
@@ -123,8 +145,10 @@ fn start_sidecar(app: &tauri::App) -> Result<(Child, SidecarReady), String> {
     }
 }
 
-fn stop_sidecar(app: &tauri::AppHandle) {
-    let state = app.state::<SidecarState>();
+pub(crate) fn stop_sidecar(app: &AppHandle) {
+    let Some(state) = app.try_state::<SidecarState>() else {
+        return;
+    };
     let Some(mut child) = state.0.lock().expect("sidecar state poisoned").take() else {
         return;
     };
@@ -146,35 +170,183 @@ fn stop_sidecar(app: &tauri::AppHandle) {
     let _ = child.wait();
 }
 
+fn same_origin(left: &Url, right: &Url) -> bool {
+    left.scheme() == right.scheme()
+        && left.host_str() == right.host_str()
+        && left.port_or_known_default() == right.port_or_known_default()
+}
+
 fn create_main_window(app: &tauri::App, ready: &SidecarReady) -> Result<(), String> {
     let url = Url::parse(&ready.bootstrap_url).map_err(|error| error.to_string())?;
+    let allowed = Url::parse(&ready.url).map_err(|error| error.to_string())?;
+    let navigation_app = app.handle().clone();
+    let new_window_app = app.handle().clone();
+
     WebviewWindowBuilder::new(app, "main", WebviewUrl::External(url))
         .title("Pisper")
         .inner_size(1440.0, 920.0)
         .min_inner_size(980.0, 680.0)
         .center()
+        .initialization_script(DESKTOP_BRIDGE_SCRIPT)
+        .on_navigation(move |target| {
+            if same_origin(target, &allowed) || target.scheme() == "about" {
+                return true;
+            }
+            if matches!(target.scheme(), "http" | "https" | "mailto") {
+                let _ = navigation_app
+                    .opener()
+                    .open_url(target.to_string(), None::<&str>);
+            }
+            false
+        })
+        .on_new_window(move |target, _| {
+            if matches!(target.scheme(), "http" | "https" | "mailto") {
+                let _ = new_window_app
+                    .opener()
+                    .open_url(target.to_string(), None::<&str>);
+            }
+            NewWindowResponse::Deny
+        })
         .build()
         .map_err(|error| error.to_string())?;
+    Ok(())
+}
+
+fn show_main_window(app: &AppHandle) {
+    if let Some(window) = app.get_webview_window("main") {
+        let _ = window.show();
+        let _ = window.unminimize();
+        let _ = window.set_focus();
+    }
+}
+
+pub(crate) fn set_tray_language(app: &AppHandle, language: &str) {
+    let Some(menu) = app.try_state::<TrayMenuState>() else {
+        return;
+    };
+    let (show, quit) = if language == "en-US" {
+        ("Show Pisper", "Quit Pisper")
+    } else {
+        ("显示 Pisper", "退出 Pisper")
+    };
+    let _ = menu.show.set_text(show);
+    let _ = menu.quit.set_text(quit);
+}
+
+fn create_tray(app: &tauri::App) -> tauri::Result<()> {
+    let show = MenuItem::with_id(app, "show", "显示 Pisper", true, None::<&str>)?;
+    let quit = MenuItem::with_id(app, "quit", "退出 Pisper", true, None::<&str>)?;
+    let menu = MenuBuilder::new(app)
+        .item(&show)
+        .separator()
+        .item(&quit)
+        .build()?;
+    let mut builder = TrayIconBuilder::new()
+        .menu(&menu)
+        .show_menu_on_left_click(false)
+        .tooltip("Pisper")
+        .on_menu_event(|app, event| match event.id().as_ref() {
+            "show" => show_main_window(app),
+            "quit" => {
+                if let Some(state) = app.try_state::<LifecycleState>() {
+                    state.quitting.store(true, Ordering::SeqCst);
+                }
+                app.exit(0);
+            }
+            _ => {}
+        })
+        .on_tray_icon_event(|tray, event| {
+            if let tauri::tray::TrayIconEvent::Click {
+                button: tauri::tray::MouseButton::Left,
+                button_state: tauri::tray::MouseButtonState::Up,
+                ..
+            } = event
+            {
+                show_main_window(tray.app_handle());
+            }
+        });
+    if let Some(icon) = app.default_window_icon().cloned() {
+        builder = builder.icon(icon);
+    }
+    builder.build(app)?;
+    app.manage(TrayMenuState { show, quit });
     Ok(())
 }
 
 pub fn run() {
     let builder = tauri::Builder::default()
         .plugin(tauri_plugin_single_instance::init(|app, _, _| {
-            if let Some(window) = app.get_webview_window("main") {
-                let _ = window.show();
-                let _ = window.unminimize();
-                let _ = window.set_focus();
-            }
+            show_main_window(app);
         }))
+        .plugin(tauri_plugin_notification::init())
+        .plugin(
+            tauri_plugin_opener::Builder::new()
+                .open_js_links_on_click(false)
+                .build(),
+        )
+        .plugin(
+            tauri_plugin_updater::Builder::new()
+                .pubkey(UPDATER_PUBLIC_KEY)
+                .build(),
+        )
+        .plugin(
+            tauri_plugin_window_state::Builder::default()
+                .with_state_flags(
+                    tauri_plugin_window_state::StateFlags::POSITION
+                        | tauri_plugin_window_state::StateFlags::SIZE
+                        | tauri_plugin_window_state::StateFlags::MAXIMIZED,
+                )
+                .build(),
+        )
+        .manage(DesktopUpdateState::default())
+        .manage(LifecycleState {
+            quitting: AtomicBool::new(false),
+        })
+        .invoke_handler(tauri::generate_handler![
+            desktop_bridge::desktop_get_app_info,
+            desktop_bridge::desktop_set_language,
+            desktop_bridge::desktop_update_status,
+            desktop_bridge::desktop_check_for_updates,
+            desktop_bridge::desktop_download_update,
+            desktop_bridge::desktop_install_update,
+            desktop_bridge::desktop_open_url,
+            desktop_bridge::desktop_open_releases,
+            desktop_bridge::desktop_open_update_log,
+            desktop_bridge::desktop_get_notification_status,
+            desktop_bridge::desktop_open_notification_settings,
+            desktop_bridge::desktop_show_notification,
+            desktop_pet::desktop_pet_set_visible,
+            desktop_pet::desktop_pet_start_dragging,
+            desktop_pet::desktop_show_main_window,
+        ])
         .setup(|app| {
             let (child, ready) = start_sidecar(app)?;
             app.manage(SidecarState(Mutex::new(Some(child))));
-            if let Err(error) = create_main_window(app, &ready) {
+            let result = create_tray(app)
+                .map_err(|error| error.to_string())
+                .and_then(|_| create_main_window(app, &ready))
+                .and_then(|_| desktop_pet::create_pet_window(app, &ready.bootstrap_url));
+            if let Err(error) = result {
                 stop_sidecar(app.handle());
                 return Err(error.into());
             }
             Ok(())
+        })
+        .on_window_event(|window, event| {
+            if window.label() != "main" {
+                return;
+            }
+            if let tauri::WindowEvent::CloseRequested { api, .. } = event {
+                let quitting = window
+                    .app_handle()
+                    .state::<LifecycleState>()
+                    .quitting
+                    .load(Ordering::SeqCst);
+                if !quitting {
+                    api.prevent_close();
+                    let _ = window.hide();
+                }
+            }
         });
 
     let application = builder

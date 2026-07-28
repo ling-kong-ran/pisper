@@ -1,0 +1,117 @@
+:root {
+  color-scheme: light dark;
+  font-family: "Microsoft YaHei UI", "PingFang SC", system-ui, sans-serif;
+  background: transparent;
+}
+
+* {
+  box-sizing: border-box;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+html,
+body {
+  width: 192px;
+  height: 288px;
+  margin: 0;
+  overflow: hidden;
+  background: transparent;
+}
+
+body {
+  cursor: grab;
+}
+
+body.dragging {
+  cursor: grabbing;
+}
+
+#pet {
+  position: relative;
+  width: 192px;
+  height: 288px;
+  opacity: 0;
+  transition: opacity 120ms ease;
+}
+
+#pet.visible {
+  opacity: var(--pet-opacity, 1);
+}
+
+#sprite {
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  width: 192px;
+  height: 208px;
+  background-image: var(--pet-sprite-url);
+  background-repeat: no-repeat;
+  background-size: var(--pet-sheet-width) var(--pet-sheet-height);
+  background-position-y: calc(var(--pet-row) * -208px);
+  image-rendering: pixelated;
+  filter: drop-shadow(0 8px 9px rgb(0 0 0 / 0.2));
+  animation: pet-frames var(--pet-duration) steps(var(--pet-frames)) infinite;
+}
+
+#bubble {
+  position: absolute;
+  top: 11px;
+  right: 8px;
+  z-index: 2;
+  max-width: 172px;
+  min-height: 32px;
+  padding: 7px 10px;
+  border: 1px solid rgb(120 120 130 / 0.24);
+  border-radius: 7px;
+  background: rgb(255 255 255 / 0.94);
+  color: #18181b;
+  font-size: 12px;
+  line-height: 1.35;
+  opacity: 0;
+  transform: translateY(3px);
+  transition:
+    opacity 140ms ease,
+    transform 140ms ease;
+  box-shadow: 0 5px 16px rgb(0 0 0 / 0.14);
+}
+
+#bubble.visible {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+#bubble::after {
+  position: absolute;
+  right: 23px;
+  bottom: -6px;
+  width: 10px;
+  height: 10px;
+  border-right: 1px solid rgb(120 120 130 / 0.24);
+  border-bottom: 1px solid rgb(120 120 130 / 0.24);
+  background: inherit;
+  content: "";
+  transform: rotate(45deg);
+}
+
+@media (prefers-color-scheme: dark) {
+  #bubble {
+    border-color: rgb(255 255 255 / 0.14);
+    background: rgb(24 24 27 / 0.94);
+    color: #fafafa;
+  }
+
+  #bubble::after {
+    border-color: rgb(255 255 255 / 0.14);
+  }
+}
+
+@keyframes pet-frames {
+  from {
+    background-position-x: 0;
+  }
+
+  to {
+    background-position-x: calc(var(--pet-frames) * -192px);
+  }
+}

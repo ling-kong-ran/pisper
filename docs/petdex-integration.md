@@ -2,14 +2,14 @@
 
 ## Native Pisper feature
 
-Desktop pets are owned and managed by Pisper. Users do not need to install or run the Petdex CLI, Petdex Desktop, Tauri/Zig binaries, hooks, or the localhost sidecar.
+Desktop pets are owned and managed by Pisper. Users do not need to install or run the Petdex CLI, Petdex Desktop, separate native binaries, hooks, or an additional companion process.
 
 Pisper provides:
 
 - a dedicated **Settings → Desktop pet** page
 - native install and selection of Petdex-compatible pets
-- Pisper-managed pet directories under Electron `userData/desktop-pets/` and the Web server data directory
-- an independent transparent Electron `BrowserWindow` on desktop
+- Pisper-managed pet directories under the Agent data directory
+- an independent transparent Tauri WebviewWindow on desktop
 - a draggable DOM overlay inside Pisper in Web browsers
 - direct mapping from Pisper Agent runtime events to pet animation states
 - tray controls, 20%–100% opacity, and multi-display persistence on desktop, plus browser-local position persistence on Web
@@ -49,11 +49,11 @@ Before writing an asset, Pisper validates:
 - 192×208 frame grid compatibility
 - local canonical path boundaries before rendering
 
-The sandboxed Electron pet renderer receives validated sprite bytes through a narrow preload bridge and creates a renderer-local Blob URL. This avoids large CSS data URLs while keeping the renderer isolated: it has no Node.js access and cannot navigate. The Web renderer receives only validated, installed sprite bytes from Pisper's same-origin `/api/desktop-pet/sprite` endpoint.
+The Tauri pet window loads a dedicated same-origin page through the authenticated localhost sidecar. It receives only validated, installed sprite bytes from Pisper's `/api/desktop-pet/sprite` endpoint, has no Node.js access, and can invoke only the explicitly allowlisted Pisper desktop commands.
 
 ## Rendering architecture
 
-Electron creates a separate Pisper-owned `BrowserWindow`:
+Tauri creates a separate Pisper-owned transparent WebviewWindow:
 
 - 192×288, frameless and transparent
 - always on top, skipped from the taskbar, and shown without stealing focus

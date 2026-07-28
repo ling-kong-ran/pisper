@@ -7,9 +7,10 @@ import {
   type DockviewIDisposable,
   type DockviewReadyEvent,
   type GetTabContextMenuItemsParams,
+  type IDockviewHeaderActionsProps,
   type ReactContextMenuItemConfig,
 } from 'dockview-react'
-import { RefreshCw } from 'lucide-react'
+import { Plus, RefreshCw } from 'lucide-react'
 import { APP_NAME } from '@/app/brand'
 import { STORAGE_KEYS } from '@/app/storage'
 import { useI18n } from '@/app/use-i18n'
@@ -545,7 +546,7 @@ export function ChatPage({
     if (activeId) localStorage.setItem(STORAGE_KEYS.activeSession, activeId)
   }, [activeId])
 
-  const refreshSessions = async (preferredId?: string) => {
+  const refreshSessions = useCallback(async (preferredId?: string) => {
     const data = await chatApi.listSessions()
     sessionsRef.current = data.sessions
     setRemoteSessions(data.sessions)
@@ -558,68 +559,98 @@ export function ChatPage({
       )
     announceSessionsUpdated()
     return data.sessions
-  }
+  }, [])
 
-  const createSession = () => {
-    if (creatingSessionRef.current) return creatingSessionRef.current
-    const request = (async () => {
-      try {
-        setError('')
-        const created = await chatApi.createSession(t('chat:chatPage.newChat'))
-        setActiveId(created.id)
-        setRemoteSessions((current) => {
-          const next = mergeSessionLists(current, [created])
-          sessionsRef.current = next
-          return next
-        })
-        updateSessionState(created.id, {
-          messages: [],
-          tools: [],
-          approvals: [],
-          queuedInputs: [],
-          permissionMode: created.permissionMode || 'auto',
-          executionMode: created.executionMode || 'workspace',
-          goal: created.goal || null,
-          taskList: created.taskList || null,
-          contextUsage: created.contextUsage || null,
-          compaction: null,
-          streaming: false,
-          error: '',
-          loaded: true,
-          pageSize: FOCUS_MESSAGE_PAGE_SIZE,
-          messageStart: 0,
-          hasOlder: false,
-          olderCursor: null,
-          runStartedAt: null,
-          lastActivityAt: null,
-          runFinishedAt: null,
-          runStopped: false,
-          runNotice: '',
-        })
+  const createSession = useCallback(
+    (targetGroup?: DockviewGroupPanel) => {
+      if (creatingSessionRef.current) return creatingSessionRef.current
+      const request = (async () => {
         try {
-          await refreshSessions(created.id)
+          setError('')
+          const created = await chatApi.createSession(t('chat:chatPage.newChat'))
+          setActiveId(created.id)
+          setRemoteSessions((current) => {
+            const next = mergeSessionLists(current, [created])
+            sessionsRef.current = next
+            return next
+          })
+          updateSessionState(created.id, {
+            messages: [],
+            tools: [],
+            approvals: [],
+            queuedInputs: [],
+            permissionMode: created.permissionMode || 'auto',
+            executionMode: created.executionMode || 'workspace',
+            goal: created.goal || null,
+            taskList: created.taskList || null,
+            contextUsage: created.contextUsage || null,
+            compaction: null,
+            streaming: false,
+            error: '',
+            loaded: true,
+            pageSize: FOCUS_MESSAGE_PAGE_SIZE,
+            messageStart: 0,
+            hasOlder: false,
+            olderCursor: null,
+            runStartedAt: null,
+            lastActivityAt: null,
+            runFinishedAt: null,
+            runStopped: false,
+            runNotice: '',
+          })
+          try {
+            await refreshSessions(created.id)
+          } catch (caught) {
+            setError(
+              t('chat:chatPage.theChatWasCreatedButTheListCouldNotBeRefreshedError', {
+                error: errorMessage(caught),
+              }),
+            )
+          }
+          const opened = openSessionInDock(created.id)
+          if (opened && targetGroup) {
+            const panel = dockApiRef.current?.getPanel(panelIdForSession(created.id))
+            if (panel && panel.group !== targetGroup) panel.api.moveTo({ group: targetGroup })
+          }
+          notify(t('chat:chatPage.newChatCreated'))
+          return created.id
         } catch (caught) {
-          setError(
-            t('chat:chatPage.theChatWasCreatedButTheListCouldNotBeRefreshedError', {
-              error: errorMessage(caught),
-            }),
-          )
+          setError(errorMessage(caught))
+          return ''
         }
-        openSessionInDock(created.id)
-        notify(t('chat:chatPage.newChatCreated'))
-        return created.id
-      } catch (caught) {
-        setError(errorMessage(caught))
-        return ''
-      }
-    })()
-    creatingSessionRef.current = request
-    void request.finally(() => {
-      if (creatingSessionRef.current === request) creatingSessionRef.current = null
-    })
-    return request
-  }
+      })()
+      creatingSessionRef.current = request
+      void request.finally(() => {
+        if (creatingSessionRef.current === request) creatingSessionRef.current = null
+      })
+      return request
+    },
+    [notify, openSessionInDock, refreshSessions, t, updateSessionState],
+  )
   usePagePrimaryAction(registerPrimaryAction, createSession)
+
+  const DockNewSessionAction = useMemo(
+    () =>
+      function DockNewSessionAction({ group }: IDockviewHeaderActionsProps) {
+        const label = t('navigation:pageHeader.newChat')
+        return (
+          <button
+            type="button"
+            className="dock-new-session"
+            title={label}
+            aria-label={label}
+            onPointerDown={(event) => event.stopPropagation()}
+            onClick={(event) => {
+              event.stopPropagation()
+              void createSession(group)
+            }}
+          >
+            <Plus size={15} />
+          </button>
+        )
+      },
+    [createSession, t],
+  )
 
   useEffect(() => {
     let active = true
@@ -1982,6 +2013,7 @@ export function ChatPage({
                   className="dockview-theme-light dockview-theme-pisper"
                   components={dockComponents}
                   watermarkComponent={ChatDockWatermark}
+                  leftHeaderActionsComponent={DockNewSessionAction}
                   onReady={onDockReady}
                   getTabContextMenuItems={getTabContextMenuItems}
                   disableFloatingGroups

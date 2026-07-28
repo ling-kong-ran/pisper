@@ -69,6 +69,16 @@ test('desktop sidecar authenticates its WebView and shuts down through stdin', a
     )
     assert.equal(invalidBootstrap.status, 401)
 
+    const petBootstrap = await fetch(`${ready.bootstrapUrl}&next=%2Ftauri-pet.html`, {
+      redirect: 'manual',
+    })
+    assert.equal(petBootstrap.status, 302)
+    assert.equal(petBootstrap.headers.get('location'), '/tauri-pet.html')
+    const unsafeBootstrap = await fetch(`${ready.bootstrapUrl}&next=%2F%2Fevil.example`, {
+      redirect: 'manual',
+    })
+    assert.equal(unsafeBootstrap.headers.get('location'), '/')
+
     const bootstrap = await fetch(ready.bootstrapUrl, { redirect: 'manual' })
     assert.equal(bootstrap.status, 302)
     assert.equal(bootstrap.headers.get('location'), '/')

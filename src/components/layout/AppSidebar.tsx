@@ -11,7 +11,6 @@ import {
   X,
   type LucideIcon,
 } from 'lucide-react'
-import { APP_NAME } from '@/app/brand'
 import { STORAGE_KEYS } from '@/app/storage'
 import { useI18n } from '@/app/use-i18n'
 import {
@@ -22,7 +21,6 @@ import {
 } from '@/features/chat/events'
 import { apiJson } from '@/lib/api'
 import { relativeTime } from '@/lib/format'
-import { BrandLogo } from '@/components/BrandLogo'
 import { Sidebar as ShadcnSidebar, useSidebar } from '@/components/ui/sidebar'
 
 type SessionSummary = {
@@ -125,17 +123,13 @@ export function AppSidebar({
   return (
     <ShadcnSidebar collapsible="icon" className="pisper-sidebar-container">
       <aside className={`sidebar shadcn-sidebar-content ${collapsed ? 'collapsed' : ''}`}>
-        <div className="brand">
-          <BrandLogo size={22} />
-          <strong>{APP_NAME}</strong>
-          <button
-            className="mobile-close"
-            aria-label={t('navigation:appSidebar.closeNavigation')}
-            onClick={() => setOpenMobile(false)}
-          >
-            <X size={18} />
-          </button>
-        </div>
+        <button
+          className="mobile-close"
+          aria-label={t('navigation:appSidebar.closeNavigation')}
+          onClick={() => setOpenMobile(false)}
+        >
+          <X size={18} />
+        </button>
         <div className="nav-list">
           <nav className="nav-primary" aria-label={t('navigation:appSidebar.mainNavigation')}>
             {navigation.map(([group, items]) => (

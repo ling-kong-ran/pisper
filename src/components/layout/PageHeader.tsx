@@ -61,7 +61,6 @@ export function PageHeader({
 }: PageHeaderProps) {
   const { t } = useI18n()
   const primaryActions: Partial<Record<string, [string, LucideIcon]>> = {
-    chat: [t('navigation:pageHeader.newChat'), Plus],
     chatHistory: [t('navigation:pageHeader.newChat'), Plus],
     assets: [t('navigation:pageHeader.addLink'), Link2],
     channels: [t('navigation:pageHeader.connectChannel'), Plus],

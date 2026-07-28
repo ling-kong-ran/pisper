@@ -15,7 +15,7 @@
   <img src="https://img.shields.io/badge/Node.js-17141F?style=flat-square&logo=nodedotjs&logoColor=F59E0B" alt="Node.js" />
   <img src="https://img.shields.io/badge/TypeScript-17141F?style=flat-square&logo=typescript&logoColor=F59E0B" alt="TypeScript" />
   <img src="https://img.shields.io/badge/React-17141F?style=flat-square&logo=react&logoColor=F59E0B" alt="React" />
-  <img src="https://img.shields.io/badge/Electron-17141F?style=flat-square&logo=electron&logoColor=F59E0B" alt="Electron" />
+  <img src="https://img.shields.io/badge/Tauri-17141F?style=flat-square&logo=tauri&logoColor=F59E0B" alt="Tauri" />
   <a href="./LICENSE"><img src="https://img.shields.io/badge/License-MIT-F59E0B?style=flat-square" alt="MIT License" /></a>
 </p>
 
@@ -195,7 +195,7 @@
 | **自动化** | 定时任务与可视化工作流，支持重试、失败策略、历史与通知。 |
 | **双向渠道** | 连接飞书与个人微信，离开电脑也能随时召唤 Agent。 |
 | **Web 预览** | 在 Dock 面板中预览外部网页，必要时回退到系统浏览器。 |
-| **桌面应用** | Electron 单实例应用，支持应用内更新日志与 GitHub Releases 更新。 |
+| **桌面应用** | Tauri 2 系统 WebView 单实例应用，支持托盘、签名更新与 GitHub Releases。 |
 | **安全边界** | 会话级 `只读 / 工作区 / 完全访问`、单次审批、凭据脱敏与数据隔离。 |
 
 ### 能力轻声应答：渐进式披露
@@ -225,7 +225,7 @@ Pisper 不让所有能力同时涌入上下文，而是让工具与知识沿着�
 工作台不必冷冰冰。Pisper 原生支持 [Petdex](https://petdex.dev) 兼容宠物——Agent 在思考，宠物在踱步；任务完成，它会告诉你。在 **设置 → 桌面宠物** 中即可搜索、安装、切换与启停，无需 Petdex CLI 或额外进程。
 
 - Agent 的等待、思考、工具执行、完成与失败状态会映射为宠物动画。
-- Electron 使用独立透明窗口，支持拖动、置顶、多显示器位置记忆和 `20%–100%` 透明度；隐藏主窗口后仍可显示。
+- Tauri 桌面版使用独立透明窗口，支持拖动、置顶、多显示器位置记忆和 `20%–100%` 透明度；隐藏主窗口后仍可显示。
 - Web 版使用页面内可拖动悬浮层，关闭页面后随之退出。
 - 资源仅从 HTTPS 白名单下载，并校验大小、格式、精灵网格与路径边界；社区宠物不会预打包。
 
@@ -252,8 +252,8 @@ sudo xattr -rd com.apple.quarantine /Applications/Pisper.app
 #### Linux AppImage 无法启动
 
 ```bash
-chmod +x Pisper-*-linux-x86_64.AppImage
-./Pisper-*-linux-x86_64.AppImage
+chmod +x Pisper_*_linux_x86_64.AppImage
+./Pisper_*_linux_x86_64.AppImage
 ```
 
 缺少 FUSE 时安装 `libfuse2` 或 `libfuse2t64`，也可改用 `.deb`：
@@ -293,7 +293,7 @@ npm run desktop:pack
 
 ## 开发
 
-**技术栈：** TypeScript、React 19、Vite、Tailwind CSS、shadcn/ui、Dockview、React Flow、Zustand、i18next、Node.js、Electron 与 Pi Coding Agent。
+**技术栈：** TypeScript、React 19、Vite、Tailwind CSS、shadcn/ui、Dockview、React Flow、Zustand、i18next、Tauri 2、Rust、Node SEA 与 Pi Coding Agent。
 
 ```bash
 npm run check
