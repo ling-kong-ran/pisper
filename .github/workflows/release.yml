@@ -53,6 +53,8 @@ jobs:
       - run: npm ci
       - run: npm test
       - run: npm run check
+      - name: Build Linux SEA sidecar for Rust checks
+        run: npm run sidecar:sea
       - name: Check Rust shell
         run: |
           cargo check --manifest-path src-tauri/Cargo.toml
