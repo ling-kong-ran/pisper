@@ -109,6 +109,11 @@ jobs:
           name: release-metadata
           path: .
       - run: npm ci
+      - name: Require Tauri updater signing credentials
+        shell: bash
+        run: |
+          test -n "$TAURI_SIGNING_PRIVATE_KEY" || { echo "TAURI_SIGNING_PRIVATE_KEY is not configured." >&2; exit 1; }
+          test -n "$TAURI_SIGNING_PRIVATE_KEY_PASSWORD" || { echo "TAURI_SIGNING_PRIVATE_KEY_PASSWORD is not configured." >&2; exit 1; }
       - name: Build SEA sidecar, verify Agent, and package Tauri
         run: npm run desktop:webview:build
       - uses: actions/upload-artifact@v4
@@ -121,8 +126,6 @@ jobs:
     name: Publish GitHub Release
     needs: build
     runs-on: ubuntu-latest
-    env:
-      TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
     steps:
       - uses: actions/checkout@v5
         with:
@@ -140,7 +143,6 @@ jobs:
           path: artifacts
           merge-multiple: true
       - name: Create multi-platform updater manifest
-        if: env.TAURI_SIGNING_PRIVATE_KEY != ''
         run: node scripts/create-tauri-update-manifest.mjs "${{ github.ref_name }}" artifacts --require-all --output artifacts/latest.json
       - uses: softprops/action-gh-release@v2
         with:
