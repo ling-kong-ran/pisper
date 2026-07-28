@@ -160,6 +160,25 @@ test('Web pet service installs validated resources and publishes Agent state', a
   }
 })
 
+test('Tauri pet and tray menus preserve desktop pet controls', async () => {
+  const [shell, petShell, petRenderer, permissions] = await Promise.all([
+    readFile(new URL('src-tauri/src/lib.rs', ROOT), 'utf8'),
+    readFile(new URL('src-tauri/src/desktop_pet.rs', ROOT), 'utf8'),
+    readFile(new URL('public/tauri-pet.js', ROOT), 'utf8'),
+    readFile(new URL('src-tauri/permissions/desktop.toml', ROOT), 'utf8'),
+  ])
+
+  assert.match(shell, /CheckMenuItem::with_id\(app, "tray_pet"/)
+  assert.match(shell, /"pet_hide" => request_desktop_pet_enabled\(app, false\)/)
+  assert.match(shell, /window\.popup_menu\(&state\.menu\)/)
+  assert.match(petShell, /desktop_pet_show_context_menu/)
+  assert.match(petRenderer, /invoke\('desktop_pet_show_context_menu'\)/)
+  assert.match(petRenderer, /fetch\('\/api\/desktop-pet\/enabled'/)
+  assert.match(petRenderer, /__PISPER_DESKTOP_PET_SET_ENABLED/)
+  assert.match(permissions, /"desktop_pet_show_context_menu"/)
+  assert.match(permissions, /"desktop_pet_sync_menu"/)
+})
+
 test('Electron pet integration remains independent from the hidden main window', async () => {
   const [main, html, petRenderer, petPreload, appPreload, settings, configPage, webPet, appShell] = await Promise.all([
     readFile(new URL('electron/main.mjs', ROOT), 'utf8'),

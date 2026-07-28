@@ -60,16 +60,35 @@
     pet.classList.add('visible')
   }
 
+  async function setEnabled(enabled) {
+    try {
+      const response = await fetch('/api/desktop-pet/enabled', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ enabled }),
+      })
+      if (!response.ok) return
+      status = await response.json()
+      await invoke('desktop_pet_sync_menu', { enabled: Boolean(status?.enabled) })
+      render()
+    } catch {
+      // A failed preference update leaves the last durable desktop-pet state in place.
+    }
+  }
+
   async function refresh() {
     try {
       const response = await fetch('/api/desktop-pet', { cache: 'no-store' })
       if (!response.ok) return
       status = await response.json()
+      await invoke('desktop_pet_sync_menu', { enabled: Boolean(status?.enabled) })
       render()
     } catch {
       // The sidecar owns retry and lifecycle; a transient poll failure only hides stale state.
     }
   }
+
+  window.__PISPER_DESKTOP_PET_SET_ENABLED = (enabled) => void setEnabled(Boolean(enabled))
 
   document.addEventListener('pointerdown', (event) => {
     if (event.button !== 0) return
@@ -80,7 +99,7 @@
   document.addEventListener('dblclick', () => void invoke('desktop_show_main_window'))
   document.addEventListener('contextmenu', (event) => {
     event.preventDefault()
-    void invoke('desktop_show_main_window')
+    void invoke('desktop_pet_show_context_menu')
   })
   document.addEventListener('click', () => {
     interaction = 'jumping'

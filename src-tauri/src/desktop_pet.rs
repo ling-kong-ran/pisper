@@ -74,6 +74,16 @@ pub fn desktop_pet_start_dragging(app: AppHandle) -> bool {
 }
 
 #[tauri::command]
+pub fn desktop_pet_show_context_menu(app: AppHandle) -> bool {
+    crate::show_desktop_pet_context_menu(&app)
+}
+
+#[tauri::command]
+pub fn desktop_pet_sync_menu(app: AppHandle, enabled: bool) {
+    crate::sync_desktop_pet_menu_enabled(&app, enabled);
+}
+
+#[tauri::command]
 pub fn desktop_show_main_window(app: AppHandle) -> bool {
     let Some(window) = app.get_webview_window("main") else {
         return false;

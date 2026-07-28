@@ -13,7 +13,7 @@ use std::{
     time::{Duration, Instant},
 };
 use tauri::{
-    menu::{MenuBuilder, MenuItem},
+    menu::{CheckMenuItem, Menu, MenuBuilder, MenuItem},
     tray::TrayIconBuilder,
     webview::NewWindowResponse,
     AppHandle, Manager, RunEvent, Url, WebviewUrl, WebviewWindowBuilder,
@@ -39,6 +39,15 @@ struct LifecycleState {
 }
 struct TrayMenuState {
     show: MenuItem<tauri::Wry>,
+    pet: CheckMenuItem<tauri::Wry>,
+    petdex: MenuItem<tauri::Wry>,
+    quit: MenuItem<tauri::Wry>,
+}
+struct PetContextMenuState {
+    menu: Menu<tauri::Wry>,
+    show: MenuItem<tauri::Wry>,
+    petdex: MenuItem<tauri::Wry>,
+    hide: MenuItem<tauri::Wry>,
     quit: MenuItem<tauri::Wry>,
 }
 
@@ -221,23 +230,134 @@ fn show_main_window(app: &AppHandle) {
 }
 
 pub(crate) fn set_tray_language(app: &AppHandle, language: &str) {
-    let Some(menu) = app.try_state::<TrayMenuState>() else {
+    let english = language == "en-US";
+    if let Some(menu) = app.try_state::<TrayMenuState>() {
+        let _ = menu.show.set_text(if english {
+            "Show Pisper"
+        } else {
+            "显示 Pisper"
+        });
+        let _ = menu.pet.set_text(if english {
+            "Desktop pet"
+        } else {
+            "桌面宠物"
+        });
+        let _ = menu.petdex.set_text(if english {
+            "Pet provided by Petdex"
+        } else {
+            "桌宠来自 Petdex"
+        });
+        let _ = menu.quit.set_text(if english {
+            "Quit Pisper"
+        } else {
+            "退出 Pisper"
+        });
+    }
+    if let Some(menu) = app.try_state::<PetContextMenuState>() {
+        let _ = menu.show.set_text(if english {
+            "Show Pisper"
+        } else {
+            "显示 Pisper"
+        });
+        let _ = menu.petdex.set_text(if english {
+            "Pet provided by Petdex"
+        } else {
+            "桌宠来自 Petdex"
+        });
+        let _ = menu.hide.set_text(if english {
+            "Hide desktop pet"
+        } else {
+            "隐藏桌宠"
+        });
+        let _ = menu.quit.set_text(if english {
+            "Quit Pisper"
+        } else {
+            "退出 Pisper"
+        });
+    }
+}
+
+pub(crate) fn sync_desktop_pet_menu_enabled(app: &AppHandle, enabled: bool) {
+    if let Some(menu) = app.try_state::<TrayMenuState>() {
+        let _ = menu.pet.set_checked(enabled);
+        let _ = menu.petdex.set_enabled(enabled);
+    }
+}
+
+fn request_desktop_pet_enabled(app: &AppHandle, enabled: bool) {
+    let Some(window) = app.get_webview_window("desktop-pet") else {
         return;
     };
-    let (show, quit) = if language == "en-US" {
-        ("Show Pisper", "Quit Pisper")
-    } else {
-        ("显示 Pisper", "退出 Pisper")
+    let _ = window.eval(format!(
+        "window.__PISPER_DESKTOP_PET_SET_ENABLED?.({enabled});"
+    ));
+}
+
+fn quit_application(app: &AppHandle) {
+    if let Some(state) = app.try_state::<LifecycleState>() {
+        state.quitting.store(true, Ordering::SeqCst);
+    }
+    app.exit(0);
+}
+
+fn handle_desktop_menu_event(app: &AppHandle, id: &str) {
+    match id {
+        "tray_show" | "pet_show" => show_main_window(app),
+        "tray_pet" => {
+            if let Some(menu) = app.try_state::<TrayMenuState>() {
+                request_desktop_pet_enabled(app, menu.pet.is_checked().unwrap_or(false));
+            }
+        }
+        "tray_petdex" | "pet_petdex" => {
+            let _ = app.opener().open_url("https://petdex.dev", None::<&str>);
+        }
+        "pet_hide" => request_desktop_pet_enabled(app, false),
+        "tray_quit" | "pet_quit" => quit_application(app),
+        _ => {}
+    }
+}
+
+fn create_pet_context_menu(app: &tauri::App) -> tauri::Result<()> {
+    let show = MenuItem::with_id(app, "pet_show", "显示 Pisper", true, None::<&str>)?;
+    let petdex = MenuItem::with_id(app, "pet_petdex", "桌宠来自 Petdex", true, None::<&str>)?;
+    let hide = MenuItem::with_id(app, "pet_hide", "隐藏桌宠", true, None::<&str>)?;
+    let quit = MenuItem::with_id(app, "pet_quit", "退出 Pisper", true, None::<&str>)?;
+    let menu = MenuBuilder::new(app)
+        .item(&show)
+        .item(&petdex)
+        .separator()
+        .item(&hide)
+        .item(&quit)
+        .build()?;
+    app.manage(PetContextMenuState {
+        menu,
+        show,
+        petdex,
+        hide,
+        quit,
+    });
+    Ok(())
+}
+
+pub(crate) fn show_desktop_pet_context_menu(app: &AppHandle) -> bool {
+    let Some(window) = app.get_webview_window("desktop-pet") else {
+        return false;
     };
-    let _ = menu.show.set_text(show);
-    let _ = menu.quit.set_text(quit);
+    let Some(state) = app.try_state::<PetContextMenuState>() else {
+        return false;
+    };
+    window.popup_menu(&state.menu).is_ok()
 }
 
 fn create_tray(app: &tauri::App) -> tauri::Result<()> {
-    let show = MenuItem::with_id(app, "show", "显示 Pisper", true, None::<&str>)?;
-    let quit = MenuItem::with_id(app, "quit", "退出 Pisper", true, None::<&str>)?;
+    let show = MenuItem::with_id(app, "tray_show", "显示 Pisper", true, None::<&str>)?;
+    let pet = CheckMenuItem::with_id(app, "tray_pet", "桌面宠物", true, false, None::<&str>)?;
+    let petdex = MenuItem::with_id(app, "tray_petdex", "桌宠来自 Petdex", false, None::<&str>)?;
+    let quit = MenuItem::with_id(app, "tray_quit", "退出 Pisper", true, None::<&str>)?;
     let menu = MenuBuilder::new(app)
         .item(&show)
+        .item(&pet)
+        .item(&petdex)
         .separator()
         .item(&quit)
         .build()?;
@@ -245,16 +365,6 @@ fn create_tray(app: &tauri::App) -> tauri::Result<()> {
         .menu(&menu)
         .show_menu_on_left_click(false)
         .tooltip("Pisper")
-        .on_menu_event(|app, event| match event.id().as_ref() {
-            "show" => show_main_window(app),
-            "quit" => {
-                if let Some(state) = app.try_state::<LifecycleState>() {
-                    state.quitting.store(true, Ordering::SeqCst);
-                }
-                app.exit(0);
-            }
-            _ => {}
-        })
         .on_tray_icon_event(|tray, event| {
             if let tauri::tray::TrayIconEvent::Click {
                 button: tauri::tray::MouseButton::Left,
@@ -269,12 +379,18 @@ fn create_tray(app: &tauri::App) -> tauri::Result<()> {
         builder = builder.icon(icon);
     }
     builder.build(app)?;
-    app.manage(TrayMenuState { show, quit });
+    app.manage(TrayMenuState {
+        show,
+        pet,
+        petdex,
+        quit,
+    });
     Ok(())
 }
 
 pub fn run() {
     let builder = tauri::Builder::default()
+        .on_menu_event(|app, event| handle_desktop_menu_event(app, event.id().as_ref()))
         .plugin(tauri_plugin_single_instance::init(|app, _, _| {
             show_main_window(app);
         }))
@@ -317,6 +433,8 @@ pub fn run() {
             desktop_bridge::desktop_show_notification,
             desktop_pet::desktop_pet_set_visible,
             desktop_pet::desktop_pet_start_dragging,
+            desktop_pet::desktop_pet_show_context_menu,
+            desktop_pet::desktop_pet_sync_menu,
             desktop_pet::desktop_show_main_window,
         ])
         .setup(|app| {
@@ -324,6 +442,7 @@ pub fn run() {
             app.manage(SidecarState(Mutex::new(Some(child))));
             let result = create_tray(app)
                 .map_err(|error| error.to_string())
+                .and_then(|_| create_pet_context_menu(app).map_err(|error| error.to_string()))
                 .and_then(|_| create_main_window(app, &ready))
                 .and_then(|_| desktop_pet::create_pet_window(app, &ready.bootstrap_url));
             if let Err(error) = result {

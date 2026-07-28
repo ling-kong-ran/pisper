@@ -16,5 +16,7 @@ commands.allow = [
   "desktop_show_notification",
   "desktop_pet_set_visible",
   "desktop_pet_start_dragging",
+  "desktop_pet_show_context_menu",
+  "desktop_pet_sync_menu",
   "desktop_show_main_window",
 ]
