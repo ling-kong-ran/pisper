@@ -141,7 +141,6 @@ async function stageRuntime() {
   await rm(runtimeDir, { recursive: true, force: true })
   await mkdir(runtimeDir, { recursive: true })
   await Promise.all([
-    cp(join(root, 'build'), join(runtimeDir, 'build'), { recursive: true, force: true }),
     cp(join(root, 'dist'), join(runtimeDir, 'dist'), { recursive: true, force: true }),
     cp(join(root, 'server'), join(runtimeDir, 'server'), { recursive: true, force: true }),
     cp(join(root, 'shared'), join(runtimeDir, 'shared'), { recursive: true, force: true }),

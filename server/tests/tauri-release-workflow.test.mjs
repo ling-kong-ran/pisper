@@ -25,7 +25,7 @@ test('main desktop source and dependencies are Tauri-only', async () => {
     assert.equal(dependencies[name], undefined)
   }
   assert.equal(packageJson.scripts.icons, undefined)
-  assert.doesNotMatch(seaBuild, /generate-icons|design[/\\]/)
+  assert.doesNotMatch(seaBuild, /generate-icons|design[/\\]|join\(root, 'build'\)/)
 })
 
 test('transparent desktop pet enables the required macOS Tauri API', async () => {
