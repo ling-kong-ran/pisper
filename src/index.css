@@ -695,7 +695,6 @@ h1, h2, h3, strong { overflow-wrap: anywhere; }
 :root[data-theme='light'] .welcome-chips button:hover { border-color: rgba(23,131,255,.34); background: #fff; color: var(--brand-blue-strong); box-shadow: 0 12px 24px -18px rgba(23,131,255,.55); transform: translateY(-1px); }
 .mini-message.agent > span::before { content: '✦'; margin-right: 4px; color: var(--star); }
 .agent-run-activity { width: 100%; overflow: hidden; margin: 1px 0 9px; color: var(--text); }
-.agent-run-activity-placeholder { min-height: 42px; border-radius: var(--r-sm); background: linear-gradient(90deg,var(--surface-subtle),var(--solid),var(--surface-subtle)); opacity: .7; }
 .agent-thinking-window { overflow: hidden; margin: 1px 0 8px; border: 1px solid var(--stroke-soft); border-radius: var(--r-md); background: var(--surface-subtle); }
 .agent-thinking-head { display: grid; min-height: 38px; grid-template-columns: 20px minmax(0,1fr) auto; align-items: center; gap: 8px; padding: 6px 10px; }
 .agent-thinking-scroll { max-height: 190px; overflow: auto; border-top: 1px solid var(--stroke-soft); padding: 9px 12px; scroll-behavior: smooth; }

@@ -1,14 +1,11 @@
-import { lazy, memo, Suspense, useEffect, useState } from 'react'
+import { memo, useEffect, useState } from 'react'
 import { Download, File, X } from 'lucide-react'
 import { useI18n } from '@/app/use-i18n'
 import { AgentStatusAvatar } from '@/components/AgentStatusAvatar'
 import MarkdownMessage from '@/components/MarkdownMessage'
 import type { ChatAttachment, ChatMessage } from '@/types/chat'
-import type { AgentRunActivityProps } from './AgentRunActivity'
+import AgentRunActivity, { type AgentRunActivityProps } from './AgentRunActivity'
 import { Message as AiMessage } from '@/components/ai-elements/message-shell'
-
-const agentRunActivityModule = import('./AgentRunActivity')
-const AgentRunActivity = lazy(() => agentRunActivityModule)
 
 type ImagePreview = { attachment: ChatAttachment; source: string }
 type RunProps = AgentRunActivityProps
@@ -159,18 +156,7 @@ export const FocusChatMessage = memo(function FocusChatMessage({
     >
       <span>{message.role === 'agent' ? <AgentStatusAvatar state={agentState} /> : 'You'}</span>
       <div className="message-content">
-        {showRunActivity && runProps && (
-          <Suspense
-            fallback={
-              <div
-                className="agent-run-activity agent-run-activity-placeholder"
-                aria-hidden="true"
-              />
-            }
-          >
-            <AgentRunActivity {...runProps} />
-          </Suspense>
-        )}
+        {showRunActivity && runProps && <AgentRunActivity {...runProps} />}
         {(fullText || !streaming) && (
           <MarkdownMessage streaming={streaming}>{fullText}</MarkdownMessage>
         )}

@@ -47,14 +47,15 @@ test('composer send action becomes the only stop control while streaming', async
   assert.match(styles, /\.focus-composer \.send-button\.stop/)
 })
 
-test('chat activity lazy loading reserves layout space instead of flashing an empty fallback', async () => {
-  const [message, styles] = await Promise.all([
-    readFile('src/features/chat/ChatMessage.tsx', 'utf8'),
-    readFile('src/index.css', 'utf8'),
-  ])
-  assert.doesNotMatch(message, /<Suspense fallback=\{null\}>/)
-  assert.match(message, /agent-run-activity-placeholder/)
-  assert.match(styles, /\.agent-run-activity-placeholder \{ min-height: 42px;/)
+test('core chat activity loads synchronously with the message renderer', async () => {
+  const message = await readFile('src/features/chat/ChatMessage.tsx', 'utf8')
+  assert.match(
+    message,
+    /import AgentRunActivity, \{ type AgentRunActivityProps \} from '\.\/AgentRunActivity'/,
+  )
+  assert.doesNotMatch(message, /lazy\(\(\) => .*AgentRunActivity/)
+  assert.doesNotMatch(message, /import\('\.\/AgentRunActivity'\)/)
+  assert.doesNotMatch(message, /agent-run-activity-placeholder/)
 })
 
 test('live snapshots cannot overwrite a locally owned SSE assistant message', async () => {
