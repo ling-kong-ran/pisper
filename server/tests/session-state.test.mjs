@@ -24,14 +24,25 @@ test('session state update returns a new object when fields change', () => {
   assert.equal(next.streaming, false)
 })
 
-test('interactive user messages remain visible before the active Agent bubble', () => {
+test('interactive user messages keep the current Agent bubble last between queued turns', () => {
   const messages = [
     { id: 'user-1', role: 'user', text: 'Start' },
     { id: 'agent-1', role: 'agent', text: 'Working', streaming: true },
   ]
   const steering = { id: 'user-2', role: 'user', text: 'Also update the tests' }
-  assert.deepEqual(insertInteractiveUserMessage(messages, steering).map((message) => message.id), ['user-1', 'user-2', 'agent-1'])
-  assert.deepEqual(insertInteractiveUserMessage([{ id: 'agent-done', role: 'agent', streaming: false }], steering).map((message) => message.id), ['agent-done', 'user-2'])
+  assert.deepEqual(insertInteractiveUserMessage(messages, steering).map((message) => message.id), [
+    'user-1',
+    'user-2',
+    'agent-1',
+  ])
+  assert.deepEqual(
+    insertInteractiveUserMessage(
+      [{ id: 'agent-between-turns', role: 'agent', streaming: false }],
+      steering,
+    ).map((message) => message.id),
+    ['user-2', 'agent-between-turns'],
+  )
+  assert.deepEqual(insertInteractiveUserMessage([], steering), [steering])
 })
 
 test('an explicit empty queue clears stale composer guidance', () => {

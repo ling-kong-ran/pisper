@@ -80,6 +80,7 @@ export type DesktopPetStatus = {
 export type DesktopBridge = {
   platform?: string
   getAppInfo: () => Promise<AppUpdateInfo>
+  pickDirectory?: (initialDirectory?: string) => Promise<string | null>
   setLanguage?: (language: string) => Promise<string>
   checkForUpdates: () => Promise<UpdateStatus>
   downloadUpdate: () => Promise<UpdateStatus>

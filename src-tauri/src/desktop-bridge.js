@@ -50,6 +50,7 @@
     writable: false,
     value: Object.freeze({
       getAppInfo: () => invoke('desktop_get_app_info'),
+      pickDirectory: (initialDirectory) => invoke('desktop_pick_directory', { initialDirectory }),
       setLanguage: (language) => invoke('desktop_set_language', { language }),
       checkForUpdates: () => invoke('desktop_check_for_updates'),
       downloadUpdate: () => invoke('desktop_download_update'),

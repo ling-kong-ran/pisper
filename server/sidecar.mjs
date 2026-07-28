@@ -17,7 +17,7 @@ process.env.PI_TELEMETRY ||= '0'
 
 const pisper = await createPisperServer({
   root,
-  runtimeCwd: process.env.PISPER_WORKSPACE_DIR || root,
+  runtimeCwd: process.env.PISPER_WORKSPACE_DIR || undefined,
   dataDir: resolveAgentDataDir(),
   production: true,
   port: 0,

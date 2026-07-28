@@ -1,6 +1,6 @@
 import { spawn } from 'node:child_process'
 import { mkdtemp, rm } from 'node:fs/promises'
-import { tmpdir } from 'node:os'
+import { homedir, tmpdir } from 'node:os'
 import { dirname, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
@@ -99,6 +99,9 @@ try {
   })
   if (created.status !== 201) throw new Error(`Session creation failed with ${created.status}.`)
   const session = await created.json()
+  if (resolve(session.cwd) !== resolve(homedir())) {
+    throw new Error(`Expected default workspace ${homedir()}, received ${session.cwd}.`)
+  }
 
   const prompt = await api(ready.url, cookie, '/api/chat', {
     method: 'POST',

@@ -13,7 +13,6 @@
   "scripts": {
     "dev": "node server/index.mjs",
     "build": "vite build",
-    "icons": "node scripts/generate-icons.mjs",
     "sidecar:dev": "node server/sidecar.mjs",
     "sidecar:sea": "node scripts/build-sea.mjs",
     "sidecar:sea:smoke": "node scripts/smoke-sea.mjs",
@@ -88,7 +87,6 @@
     "remark-gfm": "^4.0.1",
     "remend": "^1.3.0",
     "shadcn": "^4.14.1",
-    "sharp": "^0.35.3",
     "shiki": "^4.3.1",
     "sonner": "^2.0.7",
     "streamdown": "^2.5.0",

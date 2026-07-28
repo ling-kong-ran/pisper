@@ -7,11 +7,25 @@ import test from 'node:test'
 
 test('main desktop source and dependencies are Tauri-only', async () => {
   await assert.rejects(access('electron'), (error) => error?.code === 'ENOENT')
-  const packageJson = JSON.parse(await readFile('package.json', 'utf8'))
+  await assert.rejects(access('design'), (error) => error?.code === 'ENOENT')
+  await assert.rejects(access('scripts/generate-icons.mjs'), (error) => error?.code === 'ENOENT')
+  const [packageSource, seaBuild] = await Promise.all([
+    readFile('package.json', 'utf8'),
+    readFile('scripts/build-sea.mjs', 'utf8'),
+  ])
+  const packageJson = JSON.parse(packageSource)
   const dependencies = { ...packageJson.dependencies, ...packageJson.devDependencies }
-  for (const name of ['electron', 'electron-builder', 'electron-updater', '@electron/asar']) {
+  for (const name of [
+    'electron',
+    'electron-builder',
+    'electron-updater',
+    '@electron/asar',
+    'sharp',
+  ]) {
     assert.equal(dependencies[name], undefined)
   }
+  assert.equal(packageJson.scripts.icons, undefined)
+  assert.doesNotMatch(seaBuild, /generate-icons|design[/\\]/)
 })
 
 test('transparent desktop pet enables the required macOS Tauri API', async () => {

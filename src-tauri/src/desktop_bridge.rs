@@ -9,6 +9,7 @@ use std::{
     time::Duration,
 };
 use tauri::{AppHandle, Manager, State, Url};
+use tauri_plugin_dialog::DialogExt;
 use tauri_plugin_notification::{NotificationExt, PermissionState};
 use tauri_plugin_opener::OpenerExt;
 use tauri_plugin_updater::{Update, UpdaterExt};
@@ -225,6 +226,32 @@ pub fn desktop_get_app_info(app: AppHandle, state: State<'_, DesktopUpdateState>
         releases_url: RELEASES_URL,
         update: state.status.lock().expect("update status poisoned").clone(),
     }
+}
+
+#[tauri::command]
+pub async fn desktop_pick_directory(
+    app: AppHandle,
+    initial_directory: Option<String>,
+) -> Result<Option<String>, String> {
+    let mut dialog = app.dialog().file();
+    if let Some(initial_directory) = initial_directory.filter(|value| !value.trim().is_empty()) {
+        let path = PathBuf::from(initial_directory);
+        if path.is_dir() {
+            dialog = dialog.set_directory(path);
+        }
+    }
+    if let Some(window) = app.get_webview_window("main") {
+        dialog = dialog.set_parent(&window);
+    }
+    dialog
+        .blocking_pick_folder()
+        .map(|path| {
+            path.simplified()
+                .into_path()
+                .map(|path| path.to_string_lossy().into_owned())
+                .map_err(|error| error.to_string())
+        })
+        .transpose()
 }
 
 #[tauri::command]

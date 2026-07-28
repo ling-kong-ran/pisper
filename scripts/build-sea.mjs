@@ -200,7 +200,6 @@ async function injectSea() {
   return tauriBinaries
 }
 
-await run(process.execPath, [join(root, 'scripts', 'generate-icons.mjs')], { cwd: root })
 await run(process.execPath, [join(root, 'node_modules', 'vite', 'bin', 'vite.js'), 'build'], { cwd: root })
 await stageRuntime()
 const tauriBinaries = await injectSea()

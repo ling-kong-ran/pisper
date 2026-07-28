@@ -1,6 +1,6 @@
-import { mkdir, open, readFile, readdir, stat, unlink, writeFile } from 'node:fs/promises'
+import { mkdir, open, readFile, stat, unlink, writeFile } from 'node:fs/promises'
 import { createHash, randomUUID } from 'node:crypto'
-import { basename, dirname, extname, join, resolve, sep } from 'node:path'
+import { basename, extname, join, resolve, sep } from 'node:path'
 import {
   calculateContextTokens,
   createAgentSession,
@@ -32,6 +32,12 @@ import { GitChangesService } from '../services/git-changes-service.mjs'
 import { TaskListService } from '../services/task-list-service.mjs'
 import { BrowserAutomationService } from '../services/browser-automation-service.mjs'
 import { LocalSandboxService } from '../services/local-sandbox-service.mjs'
+import {
+  listWorkspaceDirectories,
+  normalizeWorkspacePath,
+  resolveWorkspaceDirectory,
+  workspacePathKey,
+} from './workspace-directories.mjs'
 import { assetMessageAttachment, attachGeneratedAssets } from '../services/session-assets.mjs'
 import { createAppTools, createMultiAgentTools, TOOL_PRESETS, toolsFromConfig } from '../tools/registry.mjs'
 import { createGoalTools, GOAL_TOOL_NAMES } from '../tools/app/goal.mjs'
@@ -341,10 +347,7 @@ function finishedCompaction(previous, event, finishedAt) {
 }
 
 async function resolveDirectory(input, fallback) {
-  const directory = resolve(String(input || fallback || '').trim())
-  const info = await stat(directory).catch(() => null)
-  if (!info?.isDirectory()) throw new Error('工作目录不存在或不是文件夹。')
-  return directory
+  return resolveWorkspaceDirectory(input, fallback)
 }
 
 function temporarySessionTitle(message, attachments = []) {
@@ -498,8 +501,15 @@ function claimedByOtherVisualProviderAnyKind(claims, providerId, baseUrl, modelI
 }
 
 export class AgentRuntimeService {
-  constructor({ cwd, dataDir, appVersion, providerDiscovery, providerModelDiscovery, browserAutomationDriver, eventObserver } = {}) {
-    this.cwd = cwd
+  constructor({ cwd, dataDir, appVersion, providerDiscovery, providerModelDiscovery, browserAutomationDriver, eventObserver, legacyDefaultCwds = [] } = {}) {
+    this.cwd = normalizeWorkspacePath(cwd)
+    cwd = this.cwd
+    const currentWorkspaceKey = workspacePathKey(cwd)
+    this.legacyDefaultWorkspaceKeys = new Set(
+      legacyDefaultCwds
+        .map((path) => workspacePathKey(path))
+        .filter((path) => path && path !== currentWorkspaceKey),
+    )
     this.eventObserver = typeof eventObserver === 'function' ? eventObserver : null
     this.dataDir = dataDir
     this.providerUserAgent = String(appVersion || '').trim() ? `Pisper/${String(appVersion).trim()}` : 'Pisper'
@@ -612,6 +622,7 @@ export class AgentRuntimeService {
     await redactPersistedSessionFiles(this.sessionDir)
     await mkdir(this.assetsDir, { recursive: true })
     this.sessionMeta = await readJson(this.sessionMetaPath, {})
+    await this.migrateLegacyDefaultWorkspaces()
     await this.migrateSessionExecutionModes()
     this.usageLedger = await readJson(this.usagePath, { days: {}, sessionScans: {} })
     this.usageLedger.days ||= {}
@@ -720,6 +731,20 @@ export class AgentRuntimeService {
 
   openStoredSession(path) {
     return SessionManager.open(path, this.sessionDir)
+  }
+
+  async migrateLegacyDefaultWorkspaces() {
+    if (!this.legacyDefaultWorkspaceKeys.size) return
+    const sessions = await this.listStoredSessions()
+    let changed = false
+    for (const session of sessions) {
+      const current = this.sessionMeta[session.id] || {}
+      const cwd = current.cwd || session.cwd
+      if (!this.legacyDefaultWorkspaceKeys.has(workspacePathKey(cwd))) continue
+      this.sessionMeta[session.id] = { ...current, cwd: this.cwd }
+      changed = true
+    }
+    if (changed) await this.saveSessionMeta()
   }
 
   async migrateSessionExecutionModes() {
@@ -1657,16 +1682,8 @@ export class AgentRuntimeService {
     return { id, cwd: next.cwd }
   }
 
-  async listDirectories(input) {
-    const path = await resolveDirectory(input, this.cwd)
-    const entries = await readdir(path, { withFileTypes: true })
-    const directories = entries
-      .filter((entry) => entry.isDirectory())
-      .map((entry) => ({ name: entry.name, path: join(path, entry.name) }))
-      .sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true, sensitivity: 'base' }))
-      .slice(0, 300)
-    const parent = dirname(path)
-    return { path, parent: parent === path ? null : parent, directories }
+  listDirectories(input) {
+    return listWorkspaceDirectories(input, this.cwd)
   }
 
   async getOrCreateSession(id) {

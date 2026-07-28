@@ -1,7 +1,7 @@
 import { createServer } from 'node:http'
 import { readFile } from 'node:fs/promises'
 import { homedir } from 'node:os'
-import { join, resolve } from 'node:path'
+import { basename, join, resolve } from 'node:path'
 import { createApiHandler } from './http/api-handler.mjs'
 import { createStaticHandler } from './http/static-handler.mjs'
 import { AgentRuntimeService } from './runtime/agent-runtime.mjs'
@@ -11,7 +11,7 @@ import { authorizeDesktopRequest } from './desktop-sidecar-auth.mjs'
 
 export async function createPisperServer({
   root,
-  runtimeCwd = root,
+  runtimeCwd = homedir(),
   dataDir = join(homedir(), '.pisper', 'agent'),
   production = false,
   port = 5173,
@@ -21,7 +21,7 @@ export async function createPisperServer({
   desktopAuthToken = '',
 } = {}) {
   const appRoot = resolve(root || process.cwd())
-  const cwd = resolve(runtimeCwd || appRoot)
+  const cwd = resolve(runtimeCwd || homedir())
   const agentDir = resolve(dataDir)
   process.env.PI_CODING_AGENT_DIR = agentDir
   const packageJson = JSON.parse(await readFile(join(appRoot, 'package.json'), 'utf8'))
@@ -31,6 +31,7 @@ export async function createPisperServer({
     cwd,
     dataDir: agentDir,
     appVersion: packageJson.version,
+    legacyDefaultCwds: production && basename(appRoot) === 'sidecar-runtime' ? [appRoot] : [],
     browserAutomationDriver,
     eventObserver: (payload) => {
       try {

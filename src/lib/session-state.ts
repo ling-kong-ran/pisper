@@ -65,7 +65,7 @@ export function insertInteractiveUserMessage(
   let activeAgentIndex = -1
   for (let index = current.length - 1; index >= 0; index -= 1) {
     const item = current[index]
-    if (item?.role === 'agent' && item.streaming) {
+    if (item?.role === 'agent') {
       activeAgentIndex = index
       break
     }

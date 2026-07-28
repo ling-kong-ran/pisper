@@ -394,6 +394,7 @@ pub fn run() {
         .plugin(tauri_plugin_single_instance::init(|app, _, _| {
             show_main_window(app);
         }))
+        .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_notification::init())
         .plugin(
             tauri_plugin_opener::Builder::new()
@@ -420,6 +421,7 @@ pub fn run() {
         })
         .invoke_handler(tauri::generate_handler![
             desktop_bridge::desktop_get_app_info,
+            desktop_bridge::desktop_pick_directory,
             desktop_bridge::desktop_set_language,
             desktop_bridge::desktop_update_status,
             desktop_bridge::desktop_check_for_updates,

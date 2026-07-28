@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { AlertTriangle, Check, ChevronRight, FolderOpen, RefreshCw, X } from 'lucide-react'
 import { useI18n } from '@/app/use-i18n'
@@ -20,6 +20,9 @@ export function WorkspacePicker({ session, onClose, onSelect }: WorkspacePickerP
   const [loading, setLoading] = useState(false)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
+  const [nativeFailed, setNativeFailed] = useState(false)
+  const nativeStarted = useRef(false)
+  const nativePicker = window.pisperDesktop?.pickDirectory
 
   const browse = useCallback(async (target: string) => {
     setLoading(true)
@@ -38,8 +41,34 @@ export function WorkspacePicker({ session, onClose, onSelect }: WorkspacePickerP
   }, [])
 
   useEffect(() => {
-    browse(session.cwd || '')
-  }, [browse, session.cwd])
+    if (!nativePicker || nativeFailed) {
+      void browse(session.cwd || '')
+      return
+    }
+    if (nativeStarted.current) return
+    nativeStarted.current = true
+    setLoading(true)
+    void nativePicker(session.cwd || undefined)
+      .then(async (selected) => {
+        if (!selected) {
+          onClose()
+          return
+        }
+        setSaving(true)
+        await onSelect(selected)
+        onClose()
+      })
+      .catch((caught) => {
+        setError(caught instanceof Error ? caught.message : String(caught))
+        setNativeFailed(true)
+      })
+      .finally(() => {
+        setLoading(false)
+        setSaving(false)
+      })
+  }, [browse, nativeFailed, nativePicker, onClose, onSelect, session.cwd])
+
+  if (nativePicker && !nativeFailed) return null
 
   const choose = async () => {
     setSaving(true)

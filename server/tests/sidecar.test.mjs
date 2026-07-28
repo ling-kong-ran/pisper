@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import { mkdtemp, rm } from 'node:fs/promises'
-import { tmpdir } from 'node:os'
+import { homedir, tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
 import { createInterface } from 'node:readline'
 import { spawn } from 'node:child_process'
@@ -48,6 +48,7 @@ test('desktop sidecar authenticates its WebView and shuts down through stdin', a
       PISPER_AGENT_DIR: dataDir,
       PISPER_DESKTOP_TOKEN: token,
       PISPER_EXIT_ON_STDIN_CLOSE: '1',
+      PISPER_WORKSPACE_DIR: '',
     },
     stdio: ['pipe', 'pipe', 'pipe'],
   })
@@ -88,6 +89,20 @@ test('desktop sidecar authenticates its WebView and shuts down through stdin', a
 
     const authorized = await fetch(`${ready.url}/api/config`, { headers: { Cookie: cookie } })
     assert.equal(authorized.status, 200)
+    const created = await fetch(`${ready.url}/api/sessions`, {
+      method: 'POST',
+      headers: {
+        Cookie: cookie,
+        Origin: ready.url,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ name: 'Default workspace' }),
+    })
+    assert.equal(created.status, 201)
+    const session = await created.json()
+    assert.equal(session.cwd, homedir())
+    assert.doesNotMatch(session.cwd, /^\\\\\?\\/)
+
     const rejectedOrigin = await fetch(`${ready.url}/api/sessions`, {
       method: 'POST',
       headers: {

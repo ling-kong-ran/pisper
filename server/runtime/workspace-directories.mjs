@@ -1,0 +1,48 @@
+import { readdir, stat } from 'node:fs/promises'
+import { dirname, join, resolve, win32 } from 'node:path'
+
+export function normalizeWorkspacePath(value, platform = process.platform) {
+  const path = String(value || '').trim()
+  if (platform !== 'win32') return path
+  if (/^\\\\\?\\UNC\\/i.test(path)) return `\\\\${path.slice(8)}`
+  if (/^\\\\\?\\/.test(path)) return path.slice(4)
+  return path
+}
+
+export function workspacePathKey(value, platform = process.platform) {
+  const path = normalizeWorkspacePath(value, platform).replace(/[\\/]+$/, '')
+  return platform === 'win32' ? path.toLowerCase() : path
+}
+
+export async function resolveWorkspaceDirectory(
+  input,
+  fallback,
+  { platform = process.platform, inspectDirectory = stat } = {},
+) {
+  const requested = normalizeWorkspacePath(input || fallback, platform)
+  const path = normalizeWorkspacePath(
+    platform === 'win32' ? win32.resolve(requested) : resolve(requested),
+    platform,
+  )
+  const info = await inspectDirectory(path).catch(() => null)
+  if (!info?.isDirectory()) throw new Error('工作目录不存在或不是文件夹。')
+  return path
+}
+
+export async function listWorkspaceDirectories(
+  input,
+  fallback,
+  { inspectDirectory = stat, readDirectory = readdir } = {},
+) {
+  const path = await resolveWorkspaceDirectory(input, fallback, { inspectDirectory })
+  const entries = await readDirectory(path, { withFileTypes: true })
+  const directories = entries
+    .filter((entry) => entry.isDirectory())
+    .map((entry) => ({ name: entry.name, path: join(path, entry.name) }))
+    .sort((left, right) =>
+      left.name.localeCompare(right.name, undefined, { numeric: true, sensitivity: 'base' }),
+    )
+    .slice(0, 300)
+  const parent = dirname(path)
+  return { path, parent: parent === path ? null : parent, directories }
+}

@@ -16,7 +16,7 @@ const host = process.env.HOST || '127.0.0.1'
 
 const pisper = await createPisperServer({
   root,
-  runtimeCwd: process.env.PISPER_WORKSPACE_DIR || root,
+  runtimeCwd: process.env.PISPER_WORKSPACE_DIR || undefined,
   dataDir,
   production,
   port,
