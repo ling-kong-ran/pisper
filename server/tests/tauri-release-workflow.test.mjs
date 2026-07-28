@@ -2,6 +2,18 @@ import assert from 'node:assert/strict'
 import { readFile } from 'node:fs/promises'
 import test from 'node:test'
 
+test('transparent desktop pet enables the required macOS Tauri API', async () => {
+  const [cargo, config, desktopPet] = await Promise.all([
+    readFile('src-tauri/Cargo.toml', 'utf8'),
+    readFile('src-tauri/tauri.conf.json', 'utf8'),
+    readFile('src-tauri/src/desktop_pet.rs', 'utf8'),
+  ])
+
+  assert.match(desktopPet, /\.transparent\(true\)/)
+  assert.match(cargo, /features = \["tray-icon", "macos-private-api"\]/)
+  assert.equal(JSON.parse(config).app.macOSPrivateApi, true)
+})
+
 test('release quality builds the external SEA sidecar before checking Rust', async () => {
   const workflow = await readFile('.github/workflows/release.yml', 'utf8')
   const qualityJob = workflow.slice(workflow.indexOf('quality:'), workflow.indexOf('  build:'))
