@@ -142,6 +142,11 @@ jobs:
           pattern: pisper-tauri-*
           path: artifacts
           merge-multiple: true
+      - name: Stage Electron transition assets for v0.4.0
+        if: github.ref_name == 'v0.4.0'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release download v0.3.3 --repo "${{ github.repository }}" --dir artifacts/electron-transition
       - name: Create multi-platform updater manifest
         run: node scripts/create-tauri-update-manifest.mjs "${{ github.ref_name }}" artifacts --require-all --output artifacts/latest.json
       - uses: softprops/action-gh-release@v2
