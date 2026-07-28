@@ -17,6 +17,12 @@ export function newerVersion(candidate, current) {
   return false
 }
 
+export function versionAtLeast(candidate, minimum) {
+  const version = normalizedVersion(candidate)
+  const threshold = normalizedVersion(minimum)
+  return Boolean(version && threshold && !newerVersion(threshold, version))
+}
+
 /** Prefer the higher of GitHub API and electron-updater channel metadata. */
 export function preferredUpdateVersion(githubVersion, updaterVersion) {
   const github = normalizedVersion(githubVersion)

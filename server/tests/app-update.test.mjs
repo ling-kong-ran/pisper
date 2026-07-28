@@ -1,10 +1,31 @@
 import assert from 'node:assert/strict'
+import { readFile } from 'node:fs/promises'
 import test from 'node:test'
 import {
   newerVersion,
   preferredUpdateVersion,
   reconcileDesktopUpdateCheck,
+  versionAtLeast,
 } from '../../shared/app-update.mjs'
+
+test('Electron updater prompts users to install Tauri releases manually', async () => {
+  const [main, zh, en] = await Promise.all([
+    readFile(new URL('../../electron/main.mjs', import.meta.url), 'utf8'),
+    readFile(new URL('../../electron/locales/zh-CN.json', import.meta.url), 'utf8'),
+    readFile(new URL('../../electron/locales/en-US.json', import.meta.url), 'utf8'),
+  ])
+  assert.match(main, /TAURI_MIGRATION_VERSION = '0\.4\.0'/)
+  assert.match(main, /await promptTauriMigration\(latest\)/)
+  assert.match(main, /canDownload: false/)
+  assert.match(zh, /下载最新 Tauri 版/)
+  assert.match(en, /Download latest Tauri version/)
+})
+
+test('Tauri migration threshold starts at v0.4.0', () => {
+  assert.equal(versionAtLeast('0.3.3', '0.4.0'), false)
+  assert.equal(versionAtLeast('v0.4.0', '0.4.0'), true)
+  assert.equal(versionAtLeast('0.4.1', '0.4.0'), true)
+})
 
 test('preferred update version keeps the higher of GitHub and updater metadata', () => {
   assert.equal(preferredUpdateVersion('0.2.0', '0.1.3'), '0.2.0')

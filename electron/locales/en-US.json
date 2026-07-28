@@ -35,5 +35,11 @@
   "update.upToDate": "You are already on the latest version.",
   "update.downloadedRestartToInstall": "Update downloaded. Restart to finish installing.",
   "update.openedGitHubReleases": "Opened GitHub Releases.",
+  "update.tauriMigrationRequired": "Pisper has moved to the Tauri desktop app. Download and install the latest version from GitHub Releases.",
+  "update.tauriMigrationTitle": "A new Pisper installer is required",
+  "update.tauriMigrationMessage": "Pisper {version} has moved to the Tauri desktop architecture",
+  "update.tauriMigrationDetail": "This Electron version cannot install the new Tauri package directly. Download and install the latest package manually; your existing ~/.pisper settings and sessions will be preserved.",
+  "update.downloadTauri": "Download latest Tauri version",
+  "update.remindLater": "Later",
   "update.githubReleaseRequestFailed": "GitHub release request failed: HTTP {status}"
 }

@@ -35,5 +35,11 @@
   "update.upToDate": "当前已是最新版本。",
   "update.downloadedRestartToInstall": "更新已下载，重启后完成安装。",
   "update.openedGitHubReleases": "已打开 GitHub Releases。",
+  "update.tauriMigrationRequired": "Pisper 已切换到 Tauri 桌面版。请从 GitHub Releases 下载并安装最新版本。",
+  "update.tauriMigrationTitle": "需要安装新版 Pisper",
+  "update.tauriMigrationMessage": "Pisper {version} 已迁移到 Tauri 桌面架构",
+  "update.tauriMigrationDetail": "当前 Electron 版本无法直接安装新的 Tauri 包。请下载最新安装包并手动安装；现有 ~/.pisper 配置和会话数据会继续保留。",
+  "update.downloadTauri": "下载最新 Tauri 版",
+  "update.remindLater": "稍后",
   "update.githubReleaseRequestFailed": "GitHub Release 请求失败：HTTP {status}"
 }

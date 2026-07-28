@@ -62,7 +62,14 @@ export function insertInteractiveUserMessage(
   message: ChatMessage,
 ): ChatMessage[] {
   const current = Array.isArray(messages) ? messages : []
-  const activeAgentIndex = current.findLastIndex((item) => item?.role === 'agent' && item.streaming)
+  let activeAgentIndex = -1
+  for (let index = current.length - 1; index >= 0; index -= 1) {
+    const item = current[index]
+    if (item?.role === 'agent' && item.streaming) {
+      activeAgentIndex = index
+      break
+    }
+  }
   if (activeAgentIndex < 0) return [...current, message]
   return [...current.slice(0, activeAgentIndex), message, ...current.slice(activeAgentIndex)]
 }

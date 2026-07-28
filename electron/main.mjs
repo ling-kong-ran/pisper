@@ -11,7 +11,7 @@ import { getDesktopLanguage, isSupportedLanguage, setDesktopLanguage, t } from '
 import { enableResumableUpdateDownloads } from './resumable-update-download.mjs'
 import { fetchAllowedHttps } from './petdex-fetch.mjs'
 import { createUpdateLogger, shutdownWithDeadline } from './update-lifecycle.mjs'
-import { LATEST_RELEASE_API, newerVersion, normalizedVersion, reconcileDesktopUpdateCheck, RELEASES_URL } from '../shared/app-update.mjs'
+import { LATEST_RELEASE_API, newerVersion, normalizedVersion, reconcileDesktopUpdateCheck, RELEASES_URL, versionAtLeast } from '../shared/app-update.mjs'
 import { releaseNotesMarkdown } from '../shared/release-notes.mjs'
 import {
   MAX_PET_BYTES,
@@ -33,6 +33,7 @@ const CLOSE_ACTION_ASK = 'ask'
 const CLOSE_ACTION_TRAY = 'tray'
 const CLOSE_ACTION_QUIT = 'quit'
 const PETDEX_MANIFEST_URL = 'https://petdex.dev/api/manifest'
+const TAURI_MIGRATION_VERSION = '0.4.0'
 const NO_CACHE_HEADERS = Object.freeze({
   'Cache-Control': 'no-cache',
   Pragma: 'no-cache',
@@ -120,6 +121,21 @@ function invalidateUpdaterMetadata() {
   autoUpdater.updateInfoAndProvider = null
 }
 
+async function promptTauriMigration(latest) {
+  if (!mainWindow || mainWindow.isDestroyed()) return
+  const result = await dialog.showMessageBox(mainWindow, {
+    type: 'info',
+    buttons: [t('update.downloadTauri'), t('update.remindLater')],
+    defaultId: 0,
+    cancelId: 1,
+    title: t('update.tauriMigrationTitle'),
+    message: t('update.tauriMigrationMessage', { version: latest.version }),
+    detail: t('update.tauriMigrationDetail'),
+    noLink: true,
+  })
+  if (result.response === 0) await openExternalUrl(latest.releaseUrl || RELEASES_URL)
+}
+
 async function checkForUpdates({ silent = false } = {}) {
   if (updateCheck) return updateCheck
   if (!silent) beginUpdateCheck()
@@ -143,6 +159,23 @@ async function checkForUpdates({ silent = false } = {}) {
             ? t('update.devModeCheckOnly')
             : t('update.upToDate'),
         })
+      }
+
+      if (latest.available && versionAtLeast(latest.version, TAURI_MIGRATION_VERSION)) {
+        const migrated = publishUpdate({
+          state: 'available',
+          availableVersion: latest.version,
+          releaseDate: latest.releaseDate,
+          notes: latest.notes,
+          releaseUrl: latest.releaseUrl,
+          canDownload: false,
+          canInstall: false,
+          canResume: false,
+          checkedAt: new Date().toISOString(),
+          message: t('update.tauriMigrationRequired'),
+        })
+        await promptTauriMigration(latest)
+        return migrated
       }
 
       invalidateUpdaterMetadata()
