@@ -151,6 +151,8 @@ jobs:
         run: gh release download v0.3.3 --repo "${{ github.repository }}" --dir artifacts/electron-transition
       - name: Create multi-platform updater manifest
         run: node scripts/create-tauri-update-manifest.mjs "${{ github.ref_name }}" artifacts --require-all --output artifacts/latest.json
+      - name: Validate exact release asset set
+        run: node scripts/validate-tauri-release-assets.mjs "${{ github.ref_name }}" artifacts
       - uses: softprops/action-gh-release@v2
         with:
           name: Pisper ${{ github.ref_name }}

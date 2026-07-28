@@ -1,5 +1,8 @@
 import assert from 'node:assert/strict'
-import { readFile } from 'node:fs/promises'
+import { spawnSync } from 'node:child_process'
+import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
 import test from 'node:test'
 
 test('transparent desktop pet enables the required macOS Tauri API', async () => {
@@ -32,4 +35,45 @@ test('v0.4.0 alone republishes the archived Electron transition assets', async (
   assert.match(transitionStep, /gh release download v0\.3\.3/)
   assert.match(transitionStep, /--dir artifacts\/electron-transition/)
   assert.doesNotMatch(workflow, /if: startsWith\(github\.ref_name, 'v0\.4'/)
+  assert.match(workflow, /node scripts\/validate-tauri-release-assets\.mjs/)
+})
+
+test('v0.4.1 release assets reject Electron metadata and unexpected files', async () => {
+  const version = '0.4.1'
+  const directory = await mkdtemp(join(tmpdir(), 'pisper-release-assets-'))
+  const expected = [
+    'latest.json',
+    `Pisper_${version}_darwin_aarch64.app.tar.gz`,
+    `Pisper_${version}_darwin_aarch64.app.tar.gz.sig`,
+    `Pisper_${version}_darwin_aarch64.dmg`,
+    `Pisper_${version}_darwin_x86_64.app.tar.gz`,
+    `Pisper_${version}_darwin_x86_64.app.tar.gz.sig`,
+    `Pisper_${version}_darwin_x86_64.dmg`,
+    `Pisper_${version}_linux_x86_64.AppImage`,
+    `Pisper_${version}_linux_x86_64.AppImage.sig`,
+    `Pisper_${version}_linux_x86_64.deb`,
+    `Pisper_${version}_windows_x86_64-setup.exe`,
+    `Pisper_${version}_windows_x86_64-setup.exe.sig`,
+  ]
+
+  try {
+    await Promise.all(expected.map((name) => writeFile(join(directory, name), 'artifact')))
+    const valid = spawnSync(
+      process.execPath,
+      ['scripts/validate-tauri-release-assets.mjs', `v${version}`, directory],
+      { encoding: 'utf8' },
+    )
+    assert.equal(valid.status, 0, valid.stderr)
+
+    await writeFile(join(directory, 'latest.yml'), 'version: 0.3.3')
+    const invalid = spawnSync(
+      process.execPath,
+      ['scripts/validate-tauri-release-assets.mjs', `v${version}`, directory],
+      { encoding: 'utf8' },
+    )
+    assert.notEqual(invalid.status, 0)
+    assert.match(invalid.stderr, /Unexpected release assets: latest\.yml/)
+  } finally {
+    await rm(directory, { recursive: true, force: true })
+  }
 })
