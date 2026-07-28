@@ -4,7 +4,6 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import test from 'node:test'
 import {
-  MAX_PET_BYTES,
   PET_WINDOW_HEIGHT,
   PET_WINDOW_WIDTH,
   isPetSheetDimensions,
@@ -13,9 +12,8 @@ import {
   petStateForAgentEvent,
   readImageDimensions,
   resolvePetPosition,
-} from '../../electron/desktop-pet-state.mjs'
+} from '../../shared/desktop-pet-state.mjs'
 import { WebDesktopPetService } from '../services/web-desktop-pet-service.mjs'
-import { fetchAllowedHttps } from '../../electron/petdex-fetch.mjs'
 
 const ROOT = new URL('../../', import.meta.url)
 
@@ -67,49 +65,6 @@ test('desktop pet position survives valid multi-display coordinates and recovers
     x: 0,
     y: 0,
   })
-})
-
-test('Electron Petdex fetch follows allowlisted redirects without relying on response.url', async () => {
-  const requests = []
-  const fetchFn = async (url, options) => {
-    requests.push({ url, options })
-    if (url === 'https://petdex.dev/api/manifest')
-      return new Response(null, {
-        status: 302,
-        headers: { location: 'https://assets.petdex.dev/manifests/petdex-v1.json' },
-      })
-    return new Response('{"pets":[]}', { status: 200 })
-  }
-  const { response, finalUrl } = await fetchAllowedHttps(
-    fetchFn,
-    'https://petdex.dev/api/manifest',
-    {
-      allowedHost: 'petdex.dev',
-      redirectHosts: ['assets.petdex.dev'],
-    },
-  )
-  assert.equal(response.status, 200)
-  assert.equal(finalUrl.href, 'https://assets.petdex.dev/manifests/petdex-v1.json')
-  assert.deepEqual(
-    requests.map((request) => request.url),
-    [
-      'https://petdex.dev/api/manifest',
-      'https://assets.petdex.dev/manifests/petdex-v1.json',
-    ],
-  )
-  assert.equal(requests[0].options.redirect, 'manual')
-  await assert.rejects(
-    fetchAllowedHttps(
-      async () =>
-        new Response(null, {
-          status: 302,
-          headers: { location: 'https://example.com/manifest.json' },
-        }),
-      'https://petdex.dev/api/manifest',
-      { allowedHost: 'petdex.dev', redirectHosts: ['assets.petdex.dev'] },
-    ),
-    /UNTRUSTED_URL/,
-  )
 })
 
 test('Web pet service installs validated resources and publishes Agent state', async () => {
@@ -177,47 +132,4 @@ test('Tauri pet and tray menus preserve desktop pet controls', async () => {
   assert.match(petRenderer, /__PISPER_DESKTOP_PET_SET_ENABLED/)
   assert.match(permissions, /"desktop_pet_show_context_menu"/)
   assert.match(permissions, /"desktop_pet_sync_menu"/)
-})
-
-test('Electron pet integration remains independent from the hidden main window', async () => {
-  const [main, html, petRenderer, petPreload, appPreload, settings, configPage, webPet, appShell] = await Promise.all([
-    readFile(new URL('electron/main.mjs', ROOT), 'utf8'),
-    readFile(new URL('electron/pet-window.html', ROOT), 'utf8'),
-    readFile(new URL('electron/pet-window.js', ROOT), 'utf8'),
-    readFile(new URL('electron/pet-preload.cjs', ROOT), 'utf8'),
-    readFile(new URL('electron/preload.cjs', ROOT), 'utf8'),
-    readFile(new URL('src/features/config/DesktopPetSettings.tsx', ROOT), 'utf8'),
-    readFile(new URL('src/features/config/ConfigPage.tsx', ROOT), 'utf8'),
-    readFile(new URL('src/features/desktop-pet/WebDesktopPet.tsx', ROOT), 'utf8'),
-    readFile(new URL('src/App.tsx', ROOT), 'utf8'),
-  ])
-
-  assert.match(main, /let petWindow = null/)
-  assert.match(main, /mainWindow\.hide\(\)/)
-  assert.match(main, /skipTaskbar: true/)
-  assert.match(main, /alwaysOnTop: true/)
-  assert.match(main, /showInactive\(\)/)
-  assert.match(main, /runtimeEventObserver: observeRuntimeEvent/)
-  assert.match(main, /'desktop-pets'/)
-  assert.match(main, /PETDEX_MANIFEST_URL/)
-  assert.match(main, /fetchAllowedHttps\(globalThis\.fetch/)
-  assert.doesNotMatch(main, /net\.fetch\(currentUrl\.href/)
-  assert.match(main, /ipcMain\.handle\('pisper:install-pet'/)
-  assert.doesNotMatch(main, /petdex desktop start|spawn_sidecar|npx petdex/)
-  assert.equal(MAX_PET_BYTES, 16 * 1024 * 1024)
-  assert.match(html, /Content-Security-Policy/)
-  assert.match(html, /img-src data: blob:/)
-  assert.match(main, /spriteBytes: Uint8Array\.from/)
-  assert.match(main, /setOpacity\(preferences\.petOpacity\)/)
-  assert.match(main, /pisper:set-pet-opacity/)
-  assert.doesNotMatch(main, /spriteDataUrl/)
-  assert.match(petRenderer, /URL\.createObjectURL/)
-  assert.match(petRenderer, /new Blob\(\[bytes\]/)
-  assert.match(petPreload, /contextBridge\.exposeInMainWorld\('pisperPet'/)
-  assert.match(appPreload, /installPet: \(slug\)/)
-  assert.match(settings, /Pisper desktop pet|desktopPetSettings/)
-  assert.match(configPage, /section === 'desktop-pet'/)
-  assert.doesNotMatch(configPage, /pisperDesktop\?\.getPetStatus &&/)
-  assert.match(webPet, /position:|web-desktop-pet|onPointerMove/)
-  assert.match(appShell, /<WebDesktopPet \/>/)
 })

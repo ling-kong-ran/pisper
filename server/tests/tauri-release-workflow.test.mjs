@@ -1,9 +1,18 @@
 import assert from 'node:assert/strict'
 import { spawnSync } from 'node:child_process'
-import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
+import { access, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import test from 'node:test'
+
+test('main desktop source and dependencies are Tauri-only', async () => {
+  await assert.rejects(access('electron'), (error) => error?.code === 'ENOENT')
+  const packageJson = JSON.parse(await readFile('package.json', 'utf8'))
+  const dependencies = { ...packageJson.dependencies, ...packageJson.devDependencies }
+  for (const name of ['electron', 'electron-builder', 'electron-updater', '@electron/asar']) {
+    assert.equal(dependencies[name], undefined)
+  }
+})
 
 test('transparent desktop pet enables the required macOS Tauri API', async () => {
   const [cargo, config, desktopPet] = await Promise.all([
@@ -24,21 +33,17 @@ test('release quality builds the external SEA sidecar before checking Rust', asy
   assert.ok(qualityJob.indexOf('npm run sidecar:sea') < qualityJob.indexOf('cargo check'))
 })
 
-test('v0.4.0 alone republishes the archived Electron transition assets', async () => {
+test('release workflow validates the exact Tauri asset set before upload', async () => {
   const workflow = await readFile('.github/workflows/release.yml', 'utf8')
-  const transitionStep = workflow.slice(
-    workflow.indexOf('Stage Electron transition assets for v0.4.0'),
-    workflow.indexOf('Create multi-platform updater manifest'),
-  )
+  const validator = workflow.indexOf('node scripts/validate-tauri-release-assets.mjs')
+  const upload = workflow.indexOf('softprops/action-gh-release')
 
-  assert.match(transitionStep, /if: github\.ref_name == 'v0\.4\.0'/)
-  assert.match(transitionStep, /gh release download v0\.3\.3/)
-  assert.match(transitionStep, /--dir artifacts\/electron-transition/)
-  assert.doesNotMatch(workflow, /if: startsWith\(github\.ref_name, 'v0\.4'/)
-  assert.match(workflow, /node scripts\/validate-tauri-release-assets\.mjs/)
+  assert.ok(validator >= 0)
+  assert.ok(upload > validator)
+  assert.doesNotMatch(workflow, /gh release download/)
 })
 
-test('v0.4.1 release assets reject Electron metadata and unexpected files', async () => {
+test('release assets reject legacy updater metadata and unexpected files', async () => {
   const version = '0.4.1'
   const directory = await mkdtemp(join(tmpdir(), 'pisper-release-assets-'))
   const expected = [

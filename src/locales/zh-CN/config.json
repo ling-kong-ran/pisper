@@ -248,7 +248,7 @@
   "desktopPetSettings.currentPet": "当前宠物：{name}",
   "desktopPetSettings.description": "这是 Pisper 内建的桌面宠物功能。桌面端显示独立宠物窗口，Web 端在 Pisper 页面内悬浮，并直接响应当前 Agent 的活动。",
   "desktopPetSettings.desktopOnly": "桌面端专属功能",
-  "desktopPetSettings.desktopOnlyDescription": "桌面宠物仅在 Pisper Electron 桌面应用中可用。",
+  "desktopPetSettings.desktopOnlyDescription": "桌面宠物仅在 Pisper 桌面应用中可用。",
   "desktopPetSettings.install": "安装",
   "desktopPetSettings.installed": "已安装",
   "desktopPetSettings.installBeforeEnabling": "先从 Petdex 安装一只宠物，再启用桌面显示。",

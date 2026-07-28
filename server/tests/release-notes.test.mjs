@@ -2,7 +2,7 @@ import assert from 'node:assert/strict'
 import test from 'node:test'
 import { hasMeaningfulGeneratedNotes, normalizeReleaseNotes, releaseNotesMarkdown } from '../../shared/release-notes.mjs'
 
-test('Electron updater HTML release notes are converted to safe Markdown', () => {
+test('updater HTML release notes are converted to safe Markdown', () => {
   const html = '<h2>Pisper 0.1.1</h2><p><strong>Full Changelog</strong>: <a href="https://github.com/ling-kong-ran/pisper/commits/v0.1.1">https://github.com/ling-kong-ran/pisper/commits/v0.1.1</a></p>'
   assert.equal(normalizeReleaseNotes(html), [
     '## Pisper 0.1.1',

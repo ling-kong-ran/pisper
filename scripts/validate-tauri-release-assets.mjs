@@ -26,27 +26,7 @@ const tauriAssets = [
   `Pisper_${version}_windows_x86_64-setup.exe`,
   `Pisper_${version}_windows_x86_64-setup.exe.sig`,
 ]
-const electronTransitionAssets = [
-  'latest-linux.yml',
-  'latest-mac.yml',
-  'latest.yml',
-  'Pisper-0.3.3-linux-amd64.deb',
-  'Pisper-0.3.3-linux-x86_64.AppImage',
-  'Pisper-0.3.3-mac-arm64.dmg',
-  'Pisper-0.3.3-mac-arm64.dmg.blockmap',
-  'Pisper-0.3.3-mac-arm64.zip',
-  'Pisper-0.3.3-mac-arm64.zip.blockmap',
-  'Pisper-0.3.3-mac-x64.dmg',
-  'Pisper-0.3.3-mac-x64.dmg.blockmap',
-  'Pisper-0.3.3-mac-x64.zip',
-  'Pisper-0.3.3-mac-x64.zip.blockmap',
-  'Pisper-0.3.3-win-x64.exe',
-  'Pisper-0.3.3-win-x64.exe.blockmap',
-]
-const expected = new Set([
-  ...tauriAssets,
-  ...(tag === 'v0.4.0' ? electronTransitionAssets : []),
-])
+const expected = new Set(tauriAssets)
 
 async function filesUnder(directory) {
   const result = []

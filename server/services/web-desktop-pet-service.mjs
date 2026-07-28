@@ -15,7 +15,7 @@ import {
   normalizePetOpacity,
   petStateForAgentEvent,
   readImageDimensions,
-} from '../../electron/desktop-pet-state.mjs'
+} from '../../shared/desktop-pet-state.mjs'
 
 const PETDEX_MANIFEST_URL = 'https://petdex.dev/api/manifest'
 const PETDEX_PAGE_URL = 'https://petdex.dev'

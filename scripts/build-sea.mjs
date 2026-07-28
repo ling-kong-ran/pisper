@@ -149,11 +149,6 @@ async function stageRuntime() {
     copyFile(join(root, 'package-lock.json'), join(runtimeDir, 'package-lock.json')),
   ])
   await rm(join(runtimeDir, 'server', 'tests'), { recursive: true, force: true })
-  await mkdir(join(runtimeDir, 'electron'), { recursive: true })
-  await copyFile(
-    join(root, 'electron', 'desktop-pet-state.mjs'),
-    join(runtimeDir, 'electron', 'desktop-pet-state.mjs'),
-  )
 
   await runNpm(['ci', '--omit=dev', '--ignore-scripts', '--no-audit', '--no-fund'], {
     cwd: runtimeDir,
