@@ -218,6 +218,132 @@ function serializeMessage(message, index, resolveImageUrl = null) {
   }
 }
 
+function serializedTimestamp(value) {
+  if (value == null || value === '') return null
+  const date = new Date(value)
+  return Number.isNaN(date.getTime()) ? null : date.toISOString()
+}
+
+function serializeTranscriptMessages(messages, resolveImageUrl = null) {
+  const result = []
+  let thinkingParts = []
+  let tools = new Map()
+  let startedAt = null
+  let lastActivityAt = null
+  let lastActivityMessage = null
+  let runResultIndex = null
+
+  const hasActivity = () => thinkingParts.length > 0 || tools.size > 0
+  const resetRun = () => {
+    thinkingParts = []
+    tools = new Map()
+    startedAt = null
+    lastActivityAt = null
+    lastActivityMessage = null
+    runResultIndex = null
+  }
+  const finishRun = () => {
+    if (!hasActivity()) return
+    let item = runResultIndex == null ? null : result[runResultIndex]
+    if (!item) {
+      const { message, index } = lastActivityMessage || { message: {}, index: result.length }
+      item = {
+        id: `assistant-${message.timestamp || index}-${index}`,
+        role: 'agent',
+        text: '',
+        timestamp: message.timestamp || null,
+        error: message.errorMessage || null,
+        attachments: [],
+      }
+      result.push(item)
+    }
+    const activityTools = [...tools.values()].slice(-MAX_LIVE_ACTIVITY_ITEMS)
+    item.runActivity = {
+      thinkingText: thinkingParts.join('\n\n').slice(-MAX_LIVE_THINKING_CHARS),
+      tools: activityTools,
+      activityFeed: activityTools,
+      startedAt,
+      lastActivityAt,
+      finishedAt: lastActivityAt,
+    }
+  }
+
+  for (const [index, message] of (messages || []).entries()) {
+    if (message?.role === 'toolResult') {
+      const tool = tools.get(message.toolCallId)
+      if (!tool) continue
+      const finishedAt = serializedTimestamp(message.timestamp)
+      const output = redactSecretText(textFromContent(message.content)).slice(-MAX_LIVE_THINKING_CHARS)
+      Object.assign(tool, {
+        status: message.isError ? 'error' : 'done',
+        message: message.isError ? output.replace(/\s+/g, ' ').trim().slice(0, 180) : '',
+        updatedAt: finishedAt || tool.updatedAt,
+        finishedAt,
+        ...(tool.name === 'bash' ? { output } : {}),
+      })
+      lastActivityAt = finishedAt || lastActivityAt
+      continue
+    }
+
+    if (message?.role === 'assistant') {
+      const timestamp = serializedTimestamp(message.timestamp)
+      const content = Array.isArray(message.content) ? message.content : []
+      const thinking = content
+        .filter((part) => part?.type === 'thinking')
+        .map((part) => redactSecretText(part.thinking || ''))
+        .filter(Boolean)
+      if (thinking.length) thinkingParts.push(...thinking)
+      const toolCalls = content.filter((part) => part?.type === 'toolCall')
+      for (const call of toolCalls) {
+        const activity = {
+          type: 'tool',
+          id: call.id,
+          name: call.name,
+          args: redactSecretValue(call.arguments || {}),
+          status: 'running',
+          startedAt: timestamp,
+          updatedAt: timestamp,
+          ...(call.name === 'bash' ? { output: '' } : {}),
+        }
+        tools.set(call.id, activity)
+      }
+      if (thinking.length || toolCalls.length) {
+        if (!startedAt) startedAt = timestamp
+        lastActivityAt = timestamp || lastActivityAt
+        lastActivityMessage = { message, index }
+      }
+
+      const serialized = serializeMessage(message, index, resolveImageUrl)
+      const terminal = message.stopReason
+        ? message.stopReason !== 'toolUse'
+        : toolCalls.length === 0
+      if (serialized || (terminal && hasActivity())) {
+        const item = serialized || {
+          id: `${message.role}-${message.timestamp || index}-${index}`,
+          role: 'agent',
+          text: '',
+          timestamp: message.timestamp || null,
+          error: message.errorMessage || null,
+          attachments: [],
+        }
+        result.push(item)
+        runResultIndex = result.length - 1
+      }
+      if (terminal) {
+        finishRun()
+        resetRun()
+      }
+      continue
+    }
+
+    const serialized = serializeMessage(message, index, resolveImageUrl)
+    if (serialized) result.push(serialized)
+  }
+
+  finishRun()
+  return result
+}
+
 function safeAttachmentName(name) {
   return String(name || '附件').replace(/[\r\n<>]/g, '_').slice(0, 180)
 }
@@ -1313,12 +1439,12 @@ export class AgentRuntimeService {
     const active = this.sessions.get(id)
     let messages
     if (active) {
-      messages = active.session.messages.map(serializeMessage).filter(Boolean)
+      messages = serializeTranscriptMessages(active.session.messages)
     } else {
       const info = await this.findSessionInfo(id)
       if (!info) return []
       const manager = this.openStoredSession(info.path)
-      messages = manager.buildSessionContext().messages.map(serializeMessage).filter(Boolean)
+      messages = serializeTranscriptMessages(manager.buildSessionContext().messages)
     }
     const assets = this.assetIndex.assets
       .filter((asset) => asset.sessionId === id && asset.source === 'agent' && /^(?:image|video)\//.test(asset.mimeType || ''))
@@ -1330,7 +1456,16 @@ export class AgentRuntimeService {
     const file = await stat(path)
     let cached = this.sessionHistoryCache.get(path)
     if (!cached || file.size < cached.size || (file.size === cached.size && file.mtimeMs !== cached.mtimeMs)) {
-      cached = { size: 0, mtimeMs: 0, remainder: Buffer.alloc(0), entries: [], byId: new Map(), serializedById: new Map(), touchedAt: Date.now() }
+      cached = {
+        size: 0,
+        mtimeMs: 0,
+        remainder: Buffer.alloc(0),
+        entries: [],
+        byId: new Map(),
+        serializedSize: -1,
+        serializedMessages: null,
+        touchedAt: Date.now(),
+      }
     }
     if (file.size > cached.size) {
       const handle = await open(path, 'r')
@@ -1393,8 +1528,6 @@ export class AgentRuntimeService {
       cursor = cursor.parentId ? history.byId.get(cursor.parentId) : null
     }
     branch.reverse()
-    // History entries are immutable once appended, so serialized messages can be
-    // cached per entry: polling only serializes entries added since last time.
     let assetUrlByHash = null
     const resolveImageUrl = (part) => {
       if (!part?.data) return null
@@ -1413,15 +1546,15 @@ export class AgentRuntimeService {
         return null
       }
     }
-    const messages = branch
-      .filter((entry) => entry?.type === 'message')
-      .map((entry, index) => {
-        if (entry.id && history.serializedById.has(entry.id)) return history.serializedById.get(entry.id)
-        const serialized = serializeMessage(entry.message, index, resolveImageUrl)
-        if (entry.id) history.serializedById.set(entry.id, serialized)
-        return serialized
-      })
-      .filter(Boolean)
+    let messages = history.serializedSize === history.size ? history.serializedMessages : null
+    if (!messages) {
+      messages = serializeTranscriptMessages(
+        branch.filter((entry) => entry?.type === 'message').map((entry) => entry.message),
+        resolveImageUrl,
+      )
+      history.serializedSize = history.size
+      history.serializedMessages = messages
+    }
     const assets = this.assetIndex.assets
       .filter((asset) => asset.sessionId === id && asset.source === 'agent' && /^(?:image|video)\//.test(asset.mimeType || ''))
       .sort((left, right) => new Date(left.created).getTime() - new Date(right.created).getTime())
@@ -2067,6 +2200,7 @@ export class AgentRuntimeService {
     let budgetSummaryQueued = false
     const textRedactor = createStreamingSecretRedactor()
     let thinkingRedactor = createStreamingSecretRedactor()
+    let thinkingPrefix = ''
     const activeTextBlocks = new Set()
     const activeThinkingBlocks = new Set()
     const streamBlockIndex = (update) => Number.isInteger(update?.contentIndex) ? update.contentIndex : 0
@@ -2075,9 +2209,11 @@ export class AgentRuntimeService {
       live.text = textRedactor.text()
       if (patch) emit('text_patch', patch)
     }
+    const currentThinkingText = () =>
+      liveThinkingTail([thinkingPrefix, thinkingRedactor.text()].filter(Boolean).join('\n\n'))
     const flushThinking = () => {
       const patch = thinkingRedactor.flush()
-      live.thinkingText = liveThinkingTail(thinkingRedactor.text())
+      live.thinkingText = currentThinkingText()
       if (patch) emit('thinking_patch', patch)
     }
     const finishLiveRun = (error = '') => {
@@ -2124,7 +2260,7 @@ export class AgentRuntimeService {
         if (update.type === 'thinking_delta') {
           activeThinkingBlocks.add(blockIndex)
           const patch = thinkingRedactor.push(update.delta)
-          live.thinkingText = liveThinkingTail(thinkingRedactor.text())
+          live.thinkingText = currentThinkingText()
           setLiveActivity(live, { type: 'model', stage: 'thinking', updatedAt: live.lastActivityAt })
           if (patch) emit('thinking_patch', patch)
         }
@@ -2226,10 +2362,11 @@ export class AgentRuntimeService {
       } else if (event.type === 'turn_start') {
         flushThinking()
         activeThinkingBlocks.clear()
+        thinkingPrefix = live.thinkingText
         thinkingRedactor = createStreamingSecretRedactor()
-        live.thinkingText = ''
+        live.thinkingText = thinkingPrefix
         setLiveActivity(live, { type: 'model', stage: 'thinking', updatedAt: live.lastActivityAt })
-        emit('thinking_reset', { updatedAt: live.lastActivityAt })
+        emit('thinking_reset', { thinkingText: thinkingPrefix, updatedAt: live.lastActivityAt })
         const activeGoal = this.goals.get(session.sessionId)
         goalTurnId = activeGoal?.status === 'active' ? activeGoal.id : ''
         goalTurnStartedAt = Date.now()

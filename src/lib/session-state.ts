@@ -74,6 +74,26 @@ export function insertInteractiveUserMessage(
   return [...current.slice(0, activeAgentIndex), message, ...current.slice(activeAgentIndex)]
 }
 
+export function hasRunActivity(activity: EntityRecord | null | undefined) {
+  return Boolean(
+    activity &&
+    (activity.streaming ||
+      String(activity.thinkingText || '').trim() ||
+      activity.tools?.length ||
+      activity.currentActivity?.type === 'agent' ||
+      activity.activityFeed?.some((item: EntityRecord) => item.type === 'agent')),
+  )
+}
+
+export function resolveMessageRunActivity(
+  message: ChatMessage,
+  isLatestAgent: boolean,
+  liveActivity: EntityRecord | null | undefined,
+) {
+  if (isLatestAgent && hasRunActivity(liveActivity)) return liveActivity
+  return hasRunActivity(message.runActivity) ? message.runActivity : null
+}
+
 /**
  * Prefer the live session-state task list once a session has been opened.
  * Important: `null` means “cleared”, and must NOT fall back to stale listSessions data.

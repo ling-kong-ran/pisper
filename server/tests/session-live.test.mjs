@@ -48,6 +48,119 @@ test('live session snapshot restores partial assistant output and tool state', a
   assert.deepEqual(live.agents, [{ id: 'agent-live', canonicalName: '/root/live_1', status: 'running' }])
 })
 
+test('persisted transcript binds reasoning and tool activity to the completed Agent run', async (t) => {
+  const directory = await mkdtemp(join(tmpdir(), 'pisper-persisted-activity-'))
+  t.after(() => rm(directory, { recursive: true, force: true }))
+  const runtime = new AgentRuntimeService({ cwd: directory, dataDir: directory })
+  runtime.sessions.set('session-activity-history', {
+    cwd: directory,
+    session: {
+      isStreaming: false,
+      model: { provider: 'openai', id: 'gpt-5.4' },
+      messages: [
+        { role: 'user', content: 'Start the task.', timestamp: '2026-07-20T10:00:00.000Z' },
+        {
+          role: 'assistant',
+          content: [
+            { type: 'thinking', thinking: 'Inspect the implementation.' },
+            { type: 'toolCall', id: 'tool-1', name: 'bash', arguments: { command: 'npm test' } },
+          ],
+          stopReason: 'toolUse',
+          timestamp: '2026-07-20T10:00:01.000Z',
+        },
+        {
+          role: 'toolResult',
+          toolCallId: 'tool-1',
+          toolName: 'bash',
+          content: [{ type: 'text', text: 'all tests passed' }],
+          isError: false,
+          timestamp: '2026-07-20T10:00:02.000Z',
+        },
+        { role: 'user', content: 'Also cover the follow-up.', timestamp: '2026-07-20T10:00:03.000Z' },
+        {
+          role: 'assistant',
+          content: [
+            { type: 'thinking', thinking: 'Apply the requested follow-up.' },
+            { type: 'text', text: 'First run complete.' },
+          ],
+          stopReason: 'stop',
+          timestamp: '2026-07-20T10:00:04.000Z',
+        },
+        { role: 'user', content: 'Start a separate round.', timestamp: '2026-07-20T10:01:00.000Z' },
+        {
+          role: 'assistant',
+          content: [
+            { type: 'thinking', thinking: 'Handle only the new round.' },
+            { type: 'text', text: 'Second run complete.' },
+          ],
+          stopReason: 'stop',
+          timestamp: '2026-07-20T10:01:01.000Z',
+        },
+        { role: 'user', content: 'Recover an interrupted run.', timestamp: '2026-07-20T10:02:00.000Z' },
+        {
+          role: 'assistant',
+          content: [
+            { type: 'thinking', thinking: 'Persist activity before the final response.' },
+            { type: 'toolCall', id: 'tool-2', name: 'read', arguments: { path: 'package.json' } },
+          ],
+          stopReason: 'toolUse',
+          timestamp: '2026-07-20T10:02:01.000Z',
+        },
+        {
+          role: 'toolResult',
+          toolCallId: 'tool-2',
+          toolName: 'read',
+          content: [{ type: 'text', text: '{ "name": "pisper" }' }],
+          isError: false,
+          timestamp: '2026-07-20T10:02:02.000Z',
+        },
+      ],
+    },
+  })
+  const sessionId = 'session-activity-history'
+  const path = join(directory, 'session.jsonl')
+  const persistedMessages = runtime.sessions.get(sessionId).session.messages
+  const entries = [
+    {
+      type: 'session',
+      version: 3,
+      id: sessionId,
+      timestamp: '2026-07-20T10:00:00.000Z',
+      cwd: directory,
+    },
+    ...persistedMessages.map((message, index) => ({
+      type: 'message',
+      id: `message-${index + 1}`,
+      parentId: index === 0 ? sessionId : `message-${index}`,
+      message,
+    })),
+  ]
+  await writeFile(path, `${entries.map((entry) => JSON.stringify(entry)).join('\n')}\n`, 'utf8')
+  runtime.sessions.delete(sessionId)
+  runtime.findSessionInfo = async () => ({ path })
+
+  const page = await runtime.getSessionMessagePage(sessionId, { limit: 20 })
+  assert.deepEqual(page.messages.map((message) => message.text), [
+    'Start the task.',
+    'Also cover the follow-up.',
+    'First run complete.',
+    'Start a separate round.',
+    'Second run complete.',
+    'Recover an interrupted run.',
+    '',
+  ])
+  const firstRun = page.messages[2].runActivity
+  assert.equal(firstRun.thinkingText, 'Inspect the implementation.\n\nApply the requested follow-up.')
+  assert.equal(firstRun.tools[0].name, 'bash')
+  assert.equal(firstRun.tools[0].status, 'done')
+  assert.equal(firstRun.tools[0].output, 'all tests passed')
+  assert.equal(page.messages[4].runActivity.thinkingText, 'Handle only the new round.')
+  assert.equal(page.messages[4].runActivity.tools.length, 0)
+  assert.equal(page.messages[6].runActivity.thinkingText, 'Persist activity before the final response.')
+  assert.equal(page.messages[6].runActivity.tools[0].name, 'read')
+  assert.equal(page.messages[6].runActivity.tools[0].status, 'done')
+})
+
 test('multi-Agent status inspection never promotes an unrelated failed Agent into current activity', () => {
   const failed = { id: 'failed-agent', status: 'failed' }
   assert.equal(multiAgentResultAgent('list_agents', { agents: [failed] }), null)
@@ -159,6 +272,7 @@ test('stream completion publishes an authoritative terminal snapshot', async (t)
         aborted: false,
         willRetry: false,
       })
+      for (const listener of listeners) listener({ type: 'turn_start' })
       for (const listener of listeners) listener({ type: 'message_update', assistantMessageEvent: { type: 'thinking_start', contentIndex: 0 } })
       for (const listener of listeners) listener({ type: 'message_update', assistantMessageEvent: { type: 'thinking_delta', contentIndex: 0, delta: 'Inspecting the remaining tests before reading files.' } })
       for (const listener of listeners) listener({ type: 'message_update', assistantMessageEvent: { type: 'thinking_end', contentIndex: 0 } })
@@ -177,6 +291,10 @@ test('stream completion publishes an authoritative terminal snapshot', async (t)
         result: { content: [{ type: 'text', text: '\u001b[32mfirst line\u001b[0m\nsecond line\ncomplete' }] },
         isError: false,
       })
+      for (const listener of listeners) listener({ type: 'turn_start' })
+      for (const listener of listeners) listener({ type: 'message_update', assistantMessageEvent: { type: 'thinking_start', contentIndex: 0 } })
+      for (const listener of listeners) listener({ type: 'message_update', assistantMessageEvent: { type: 'thinking_delta', contentIndex: 0, delta: 'Applying the appended guidance.' } })
+      for (const listener of listeners) listener({ type: 'message_update', assistantMessageEvent: { type: 'thinking_end', contentIndex: 0 } })
       const assistant = { role: 'assistant', content: [{ type: 'text', text: 'Final answer' }], stopReason: 'stop', timestamp: 2 }
       session.messages.push(assistant)
       for (const listener of listeners) listener({ type: 'message_update', assistantMessageEvent: { type: 'text_start', contentIndex: 0 } })
@@ -207,9 +325,14 @@ test('stream completion publishes an authoritative terminal snapshot', async (t)
   assert.equal(compactionEnd.tokensSaved, 73_500)
   assert.equal(Object.hasOwn(compactionEnd, 'summary'), false)
   let thinkingText = ''
-  for (const item of events.filter((event) => event.event === 'thinking_patch')) thinkingText = applyTextPatch(thinkingText, item.data)
+  for (const item of events) {
+    if (item.event === 'thinking_reset') thinkingText = ''
+    if (item.event === 'thinking_patch') thinkingText = applyTextPatch(thinkingText, item.data)
+  }
   assert.equal(thinkingAtBlockEnd, 'Inspecting the remaining tests before reading files.')
-  assert.equal(thinkingText, thinkingAtBlockEnd)
+  assert.equal(thinkingText, 'Applying the appended guidance.')
+  const thinkingResets = events.filter((item) => item.event === 'thinking_reset')
+  assert.equal(thinkingResets[1].data.thinkingText, thinkingAtBlockEnd)
   assert.equal(textAtBlockEnd, 'Final answer')
   const textEndEvents = events.filter((item) => item.event === 'text_end')
   assert.ok(textEndEvents.some((item) => item.data.text === 'Final answer'))
@@ -229,6 +352,10 @@ test('stream completion publishes an authoritative terminal snapshot', async (t)
   assert.equal(live.finishedAt, done.finishedAt)
   assert.equal(live.tools[0].status, 'done')
   assert.equal(live.currentActivity, null)
+  assert.equal(
+    live.thinkingText,
+    `${thinkingAtBlockEnd}\n\nApplying the appended guidance.`,
+  )
   assert.deepEqual(live.compaction, compactionEnd)
 })
 

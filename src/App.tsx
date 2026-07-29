@@ -13,7 +13,7 @@ import { CommandPalette, QuickCreate } from '@/components/layout/AppOverlays'
 import { PageHeader } from '@/components/layout/PageHeader'
 import { StatusBar } from '@/components/layout/StatusBar'
 import { AppDialog, Toast, type ToastTone } from '@/components/ui'
-import { requestSessionSelection } from '@/features/chat/events'
+import { COMMAND_PALETTE_REQUESTED_EVENT, requestSessionSelection } from '@/features/chat/events'
 import { WebDesktopPet } from '@/features/desktop-pet/WebDesktopPet'
 import { apiJson } from '@/lib/api'
 import { showBrowserSystemNotification } from '@/lib/browser-notifications'
@@ -271,11 +271,14 @@ function App() {
         requestAnimationFrame(() => requestAnimationFrame(() => searchInputRef.current?.focus()))
       } else searchInputRef.current?.focus()
     }
+    const openCommandPalette = () => {
+      if (!appDialog.dialog && !modal) setPaletteOpen(true)
+    }
     const onKeyDown = (event: KeyboardEvent) => {
       const modifier = event.metaKey || event.ctrlKey
       if (modifier && event.key.toLowerCase() === 'k' && !appDialog.dialog && !modal) {
         event.preventDefault()
-        setPaletteOpen(true)
+        openCommandPalette()
       } else if (modifier && event.key.toLowerCase() === 'n' && !isEditableTarget(event.target)) {
         event.preventDefault()
         handlePrimary()
@@ -294,7 +297,11 @@ function App() {
       }
     }
     window.addEventListener('keydown', onKeyDown)
-    return () => window.removeEventListener('keydown', onKeyDown)
+    window.addEventListener(COMMAND_PALETTE_REQUESTED_EVENT, openCommandPalette)
+    return () => {
+      window.removeEventListener('keydown', onKeyDown)
+      window.removeEventListener(COMMAND_PALETTE_REQUESTED_EVENT, openCommandPalette)
+    }
   }, [appDialog.dialog, handlePrimary, mobileNav, modal, navigate, page, paletteOpen])
 
   useEffect(() => {

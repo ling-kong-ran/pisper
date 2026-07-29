@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict'
+import { readFile } from 'node:fs/promises'
 import test from 'node:test'
 import { createPrimaryActionRegistry } from '../../src/app/primary-action.ts'
 import { mergeSessionLists, removeTiledSession, toggleTiledSession } from '../../src/features/chat/session-list.ts'
@@ -51,4 +52,29 @@ test('removing a tiled session keeps the session itself available elsewhere', ()
 test('a session can be added to and removed from the tiled set', () => {
   assert.deepEqual(toggleTiledSession(['first'], 'second'), ['first', 'second'])
   assert.deepEqual(toggleTiledSession(['first', 'second'], 'second'), ['first'])
+})
+
+test('the chat composer exposes the global command palette shortcut', async () => {
+  const [app, events, focus, styles, english, chinese] = await Promise.all([
+    readFile('src/App.tsx', 'utf8'),
+    readFile('src/features/chat/events.ts', 'utf8'),
+    readFile('src/features/chat/FocusSession.tsx', 'utf8'),
+    readFile('src/index.css', 'utf8'),
+    readFile('src/locales/en-US/chat.json', 'utf8').then(JSON.parse),
+    readFile('src/locales/zh-CN/chat.json', 'utf8').then(JSON.parse),
+  ])
+
+  assert.match(events, /COMMAND_PALETTE_REQUESTED_EVENT/)
+  assert.match(app, /addEventListener\(COMMAND_PALETTE_REQUESTED_EVENT, openCommandPalette\)/)
+  assert.match(focus, /className="command-palette-trigger"/)
+  assert.match(focus, /onClick=\{requestCommandPalette\}/)
+  assert.match(focus, /<kbd>\{COMMAND_PALETTE_SHORTCUT\}<\/kbd>/)
+  assert.match(styles, /\.command-palette-trigger kbd/)
+  assert.equal(english['focusSession.openCommandPaletteShortcut'], 'Open command palette ({shortcut})')
+  assert.equal(chinese['focusSession.openCommandPaletteShortcut'], '打开命令面板（{shortcut}）')
+})
+
+test('the git changes badge uses the theme-aware contrasting text color', async () => {
+  const styles = await readFile('src/index.css', 'utf8')
+  assert.match(styles, /\.git-changes-trigger > i \{[^}]*color: var\(--on-accent\)/)
 })

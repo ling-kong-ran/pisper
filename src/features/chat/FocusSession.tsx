@@ -14,6 +14,7 @@ import {
   ArrowDown,
   Bot,
   Check,
+  Command,
   Eye,
   File,
   FolderOpen,
@@ -46,6 +47,7 @@ import { Panel, Toggle } from '@/components/ui'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { useAutoScroll } from '@/hooks/useAutoScroll'
 import { formatFileSize, formatTokenCount, workspaceName } from '@/lib/format'
+import { resolveMessageRunActivity } from '@/lib/session-state'
 import type {
   ChatAttachment,
   ChatMessage,
@@ -57,6 +59,7 @@ import type {
 } from '@/types/chat'
 import { useAttachmentSelection } from './attachments'
 import { FocusChatMessage } from './ChatMessage'
+import { requestCommandPalette } from './events'
 import { GitChangesControl } from './GitChangesControl'
 import { activityScrollVersion } from './run-activity'
 import TaskBoard from './TaskBoard'
@@ -66,6 +69,10 @@ type ExecutionModeOption = [string, string, string, LucideIcon]
 
 const MIN_GOAL_TOKEN_BUDGET = 1_000
 const DEFAULT_GOAL_TOKEN_BUDGET = 30_000
+const COMMAND_PALETTE_SHORTCUT =
+  typeof navigator !== 'undefined' && /Mac|iPhone|iPad/.test(navigator.platform)
+    ? '\u2318 K'
+    : 'Ctrl K'
 
 type SessionModelSelectProps = {
   value: string
@@ -882,21 +889,14 @@ export function FocusSession({
               : isLatestAgent && !message.error
                 ? 'waiting'
                 : 'idle'
-          const showRunActivity = Boolean(
-            isLatestAgent &&
-            (streaming ||
-              String(thinkingText || '').trim() ||
-              tools.length > 0 ||
-              currentActivity?.type === 'agent' ||
-              activityFeed.some((activity) => activity.type === 'agent')),
-          )
+          const runProps = resolveMessageRunActivity(message, isLatestAgent, latestRunProps)
           return (
             <FocusChatMessage
               key={message.id}
               message={message}
               agentState={agentState}
-              showRunActivity={showRunActivity}
-              runProps={showRunActivity ? latestRunProps : null}
+              showRunActivity={Boolean(runProps)}
+              runProps={runProps}
             />
           )
         })}
@@ -953,6 +953,20 @@ export function FocusSession({
           </span>
         </div>
         <div className="focus-composer">
+          <button
+            type="button"
+            className="command-palette-trigger"
+            title={t('chat:focusSession.openCommandPaletteShortcut', {
+              shortcut: COMMAND_PALETTE_SHORTCUT,
+            })}
+            aria-label={t('chat:focusSession.openCommandPaletteShortcut', {
+              shortcut: COMMAND_PALETTE_SHORTCUT,
+            })}
+            onClick={requestCommandPalette}
+          >
+            <Command size={16} />
+            <kbd>{COMMAND_PALETTE_SHORTCUT}</kbd>
+          </button>
           <button
             type="button"
             className="attach-trigger"

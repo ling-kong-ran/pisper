@@ -92,33 +92,43 @@ test('assistant text block completion flushes the typewriter and switches to fin
 })
 
 test('ephemeral reasoning remains rendered after a textless response completes', async () => {
-  const [page, focus, activity] = await Promise.all([
+  const [page, focus, activity, sessionState] = await Promise.all([
     readFile('src/features/chat/ChatPage.tsx', 'utf8'),
     readFile('src/features/chat/FocusSession.tsx', 'utf8'),
     readFile('src/features/chat/AgentRunActivity.tsx', 'utf8'),
+    readFile('src/lib/session-state.ts', 'utf8'),
   ])
   const doneHandler = page.slice(page.indexOf("event === 'done'"), page.indexOf("event === 'error'"))
   const finalizer = page.slice(page.indexOf('} finally {', page.indexOf("event === 'done'")), page.indexOf('const queuePrompt'))
+  const thinkingResetHandler = page.slice(
+    page.indexOf("event === 'thinking_reset'"),
+    page.indexOf("event === 'tool_start'"),
+  )
   assert.match(doneHandler, /thinkingScheduler\.flush\(\)/)
   assert.doesNotMatch(doneHandler, /thinkingText:\s*''/)
   assert.doesNotMatch(finalizer, /thinkingText:\s*''/)
-  assert.match(focus, /currentActivity\?\.type === 'agent'/)
-  assert.match(focus, /activityFeed\.some\(\(activity\) => activity\.type === 'agent'\)/)
+  assert.match(thinkingResetHandler, /thinkingPrefix = String\(data\.thinkingText \|\| ''\)/)
+  assert.match(thinkingResetHandler, /\[thinkingPrefix, thinkingText\]\.filter\(Boolean\)/)
+  assert.match(focus, /resolveMessageRunActivity\(message, isLatestAgent, latestRunProps\)/)
+  assert.match(sessionState, /String\(activity\.thinkingText \|\| ''\)\.trim\(\)/)
+  assert.match(sessionState, /activity\.currentActivity\?\.type === 'agent'/)
   assert.match(activity, /if \(!streaming && !thinking && !activities\.length\) return null/)
   assert.match(activity, /reasoningCompleted/)
 })
 
 test('background Agent completion uses code-level UI state without prompt or custom-context injection', async () => {
-  const [runtime, page, focus] = await Promise.all([
+  const [runtime, page, focus, sessionState] = await Promise.all([
     readFile('server/runtime/agent-runtime.mjs', 'utf8'),
     readFile('src/features/chat/ChatPage.tsx', 'utf8'),
     readFile('src/features/chat/FocusSession.tsx', 'utf8'),
+    readFile('src/lib/session-state.ts', 'utf8'),
   ])
   assert.doesNotMatch(runtime, /sendCustomMessage/)
   assert.doesNotMatch(runtime, /pisper_agent_mailbox_results/)
   assert.match(runtime, /live\.currentActivity = backgroundActivities\.at\(-1\) \|\| null/)
   assert.match(page, /data\.currentActivity\?\.type === 'agent'/)
-  assert.match(focus, /activityFeed\.some\(\(activity\) => activity\.type === 'agent'\)/)
+  assert.match(focus, /resolveMessageRunActivity\(message, isLatestAgent, latestRunProps\)/)
+  assert.match(sessionState, /activity\.currentActivity\?\.type === 'agent'/)
 })
 
 test('stale streaming queue errors settle the old stream and resend as a new turn', async () => {

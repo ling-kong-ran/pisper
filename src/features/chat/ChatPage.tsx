@@ -936,6 +936,7 @@ export function ChatPage({
     let responseText = ''
     let responseRenderingStreaming = true
     let thinkingText = ''
+    let thinkingPrefix = ''
     let queuedDuringRun = false
     const thinkingScheduler = createStreamingTextScheduler(
       (text, activityAt) => {
@@ -1168,9 +1169,10 @@ export function ChatPage({
             typewriter.flush()
           } else if (event === 'thinking_reset') {
             thinkingText = ''
+            thinkingPrefix = String(data.thinkingText || '').slice(-MAX_LIVE_THINKING_CHARS)
             thinkingScheduler.cancel()
             updateSessionState(sessionId, {
-              thinkingText: '',
+              thinkingText: thinkingPrefix,
               currentActivity: {
                 type: 'model',
                 stage: 'thinking',
@@ -1180,7 +1182,8 @@ export function ChatPage({
             })
           } else if (event === 'thinking_patch') {
             thinkingText = applyTextPatch(thinkingText, data)
-            thinkingScheduler.push(thinkingText.slice(-MAX_LIVE_THINKING_CHARS), eventAt)
+            const displayedThinking = [thinkingPrefix, thinkingText].filter(Boolean).join('\n\n')
+            thinkingScheduler.push(displayedThinking.slice(-MAX_LIVE_THINKING_CHARS), eventAt)
           } else if (event === 'tool_start') {
             thinkingScheduler.flush()
             typewriter.flush()

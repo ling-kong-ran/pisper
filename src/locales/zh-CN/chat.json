@@ -171,6 +171,7 @@
   "chatPage.workingDirectoryChangedToWorkspace": "工作目录已切换至 {workspace}",
   "chatPage.workspace": "工作区",
   "focusSession.addAttachment": "添加附件",
+  "focusSession.openCommandPaletteShortcut": "打开命令面板（{shortcut}）",
   "focusSession.addGuidanceForTheRunningAgentShiftEnterForANewLine": "向正在运行的 Agent 追加说明，Shift + Enter 换行",
   "focusSession.allow": "允许",
   "focusSession.allowOnce": "本次允许",

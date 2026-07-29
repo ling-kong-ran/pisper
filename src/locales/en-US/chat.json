@@ -171,6 +171,7 @@
   "chatPage.workingDirectoryChangedToWorkspace": "Working directory changed to {workspace}",
   "chatPage.workspace": "Workspace",
   "focusSession.addAttachment": "Add attachment",
+  "focusSession.openCommandPaletteShortcut": "Open command palette ({shortcut})",
   "focusSession.addGuidanceForTheRunningAgentShiftEnterForANewLine": "Add guidance for the running agent; Shift + Enter for a new line",
   "focusSession.allow": "Allow",
   "focusSession.allowOnce": "Allow once",

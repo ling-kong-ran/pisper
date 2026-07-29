@@ -5,6 +5,7 @@ import {
   DEFAULT_SESSION_STATE,
   insertInteractiveUserMessage,
   isTaskListActive,
+  resolveMessageRunActivity,
   resolveQueuedInputs,
   resolveSessionTaskList,
   sessionStateChanged,
@@ -43,6 +44,29 @@ test('interactive user messages keep the current Agent bubble last between queue
     ['user-2', 'agent-between-turns'],
   )
   assert.deepEqual(insertInteractiveUserMessage([], steering), [steering])
+})
+
+test('run activity stays bound to its Agent message across appended turns and refreshes', () => {
+  const firstRun = {
+    thinkingText: 'Inspect the implementation.',
+    tools: [{ id: 'tool-1', name: 'read', status: 'done' }],
+  }
+  const liveRun = {
+    streaming: true,
+    thinkingText: 'Apply the follow-up.',
+    tools: [],
+  }
+  const firstAgent = {
+    id: 'agent-1',
+    role: 'agent',
+    text: 'First answer',
+    runActivity: firstRun,
+  }
+  const currentAgent = { id: 'agent-2', role: 'agent', text: '', streaming: true }
+
+  assert.equal(resolveMessageRunActivity(firstAgent, false, liveRun), firstRun)
+  assert.equal(resolveMessageRunActivity(currentAgent, true, liveRun), liveRun)
+  assert.equal(resolveMessageRunActivity(firstAgent, true, {}), firstRun)
 })
 
 test('an explicit empty queue clears stale composer guidance', () => {
