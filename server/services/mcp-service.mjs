@@ -411,9 +411,8 @@ export function parseMcpServerInput(input, cwd = process.cwd()) {
 }
 
 export class McpService {
-  constructor({ path, legacyPath, cwd, createClient, createTransport } = {}) {
+  constructor({ path, cwd, createClient, createTransport } = {}) {
     this.path = path
-    this.legacyPath = legacyPath
     this.cwd = cwd || process.cwd()
     this.createClient = createClient || (async (server, handlers) => {
       const { Client } = await loadMcpSdk()
@@ -468,11 +467,8 @@ export class McpService {
   }
 
   async init() {
-    const current = await readJson(this.path, null)
-    const legacy = current == null && this.legacyPath ? await readJson(this.legacyPath, null) : null
-    this.state = normalizeState(current ?? legacy ?? { version: MCP_STATE_VERSION, servers: [], calls: [] })
+    this.state = normalizeState(await readJson(this.path, { version: MCP_STATE_VERSION, servers: [], calls: [] }))
     this.calls = this.state.calls
-    if (current == null && legacy != null) await writeJsonAtomic(this.path, this.state)
   }
 
   async validateServer(server) {
