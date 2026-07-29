@@ -50,6 +50,7 @@ test('main runtime keeps discovered cold MCP tools for the rest of the session w
   await writeFile(join(directory, 'skills', 'runtime-skill', 'SKILL.md'), `---\nname: runtime-skill\ndescription: Verify runtime skill loading.\n---\n\nUse this runtime skill.\n`, 'utf8')
 
   runtime = new AgentRuntimeService({ cwd: directory, dataDir: directory })
+  assert.equal(runtime.mcp.legacyPath, join(directory, 'vesper-mcp.json'))
   await runtime.init()
   runtime.mcp.createToolDefinitions = async () => [defineTool({
     name: 'mcp_fixture_echo_12345678',

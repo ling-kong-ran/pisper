@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict'
-import { mkdtemp, rm, writeFile } from 'node:fs/promises'
+import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
 import { createServer } from 'node:http'
 import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
@@ -63,6 +63,38 @@ function createFakeClient(server, handlers, calls) {
     },
   }
 }
+
+test('MCP service migrates a legacy Vesper state only when the Pisper state is absent', async (t) => {
+  const directory = await mkdtemp(join(tmpdir(), 'pisper-mcp-migration-'))
+  t.after(() => rm(directory, { recursive: true, force: true }))
+  const currentPath = join(directory, 'pisper-mcp.json')
+  const legacyPath = join(directory, 'vesper-mcp.json')
+  const legacyState = {
+    version: 1,
+    servers: [
+      {
+        id: 'legacy-docs',
+        name: 'Legacy Docs',
+        transport: 'http',
+        enabled: true,
+        url: 'https://mcp.example.com/mcp',
+      },
+    ],
+    calls: [],
+  }
+  await writeFile(legacyPath, `${JSON.stringify(legacyState)}\n`, 'utf8')
+
+  const migrated = new McpService({ path: currentPath, legacyPath, cwd: directory })
+  await migrated.init()
+  assert.equal(migrated.dashboard().services[0].name, 'Legacy Docs')
+  assert.equal(JSON.parse(await readFile(currentPath, 'utf8')).servers[0].name, 'Legacy Docs')
+  assert.equal(JSON.parse(await readFile(legacyPath, 'utf8')).servers[0].name, 'Legacy Docs')
+
+  await writeFile(currentPath, '{"version":1,"servers":[],"calls":[]}\n', 'utf8')
+  const currentWins = new McpService({ path: currentPath, legacyPath, cwd: directory })
+  await currentWins.init()
+  assert.equal(currentWins.dashboard().services.length, 0)
+})
 
 test('MCP service persists servers, discovers tools, and exposes Pi custom tools', async (t) => {
   const directory = await mkdtemp(join(tmpdir(), 'pisper-mcp-'))

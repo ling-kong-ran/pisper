@@ -541,7 +541,11 @@ export class AgentRuntimeService {
     this.browserAutomation = new BrowserAutomationService({ driver: browserAutomationDriver })
     this.goalEmitters = new Map()
     this.agentEmitters = new Map()
-    this.mcp = new McpService({ path: join(dataDir, 'pisper-mcp.json'), cwd })
+    this.mcp = new McpService({
+      path: join(dataDir, 'pisper-mcp.json'),
+      legacyPath: join(dataDir, 'vesper-mcp.json'),
+      cwd,
+    })
     this.skills = new SkillsService({
       path: join(dataDir, 'pisper-skills.json'),
       agentDir: dataDir,
