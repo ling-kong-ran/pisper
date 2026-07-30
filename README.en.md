@@ -33,6 +33,7 @@
   <a href="#install">Install</a> ·
   <a href="#tui">Terminal Client</a> ·
   <a href="#development">Development</a> ·
+  <a href="#sponsors">Sponsors</a> ·
   <a href="#license">License</a>
 </p>
 
@@ -404,6 +405,18 @@ npm run build
 ```
 
 [Issues](https://github.com/ling-kong-ran/pisper/issues) and [pull requests](https://github.com/ling-kong-ran/pisper/pulls) are welcome. Do not commit API keys, bot credentials, or personal data from `~/.pisper/agent`.
+
+<a id="sponsors"></a>
+
+## Sponsors
+
+Thanks to the following partner for supporting the Pisper community:
+
+- [Matrix](https://matrix.000328.xyz/sign-up?aff=ZPeH)
+
+The Matrix link contains a referral parameter. Registering through it may generate referral revenue for the Pisper project. Sponsor content is not targeted using conversations, workspaces, providers, models, or API configuration, and Pisper does not send that data to sponsors.
+
+The public configuration for the in-app sponsor placement is maintained in [`docs/sponsors.json`](./docs/sponsors.json).
 
 <a id="license"></a>
 

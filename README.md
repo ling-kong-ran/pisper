@@ -33,6 +33,7 @@
   <a href="#install">安装</a> ·
   <a href="#tui">终端客户端</a> ·
   <a href="#development">开发</a> ·
+  <a href="#sponsors">赞助</a> ·
   <a href="#license">许可</a>
 </p>
 
@@ -404,6 +405,18 @@ npm run build
 ```
 
 欢迎提交 [Issue](https://github.com/ling-kong-ran/pisper/issues) 与 [Pull Request](https://github.com/ling-kong-ran/pisper/pulls)。请勿提交 API Key、机器人凭据，或 `~/.pisper/agent` 中的个人数据。
+
+<a id="sponsors"></a>
+
+## 赞助
+
+感谢以下合作伙伴对 Pisper 社区的支持：
+
+- [Matrix](https://matrix.000328.xyz/sign-up?aff=ZPeH)
+
+Matrix 链接包含推广参数；通过该链接注册可能为 Pisper 项目带来推广收益。Pisper 的赞助内容不会使用会话、工作区、Provider、模型或 API 配置进行定向，也不会向赞助商发送这些数据。
+
+客户端赞助位的公开配置维护在 [`docs/sponsors.json`](./docs/sponsors.json)。
 
 <a id="license"></a>
 
