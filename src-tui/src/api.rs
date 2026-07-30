@@ -30,8 +30,13 @@ impl ApiClient {
             header::ORIGIN,
             header::HeaderValue::from_str(base.as_str().trim_end_matches('/'))?,
         );
+        // Sandbox initialization can block the Node event loop beyond its
+        // keep-alive timeout. A fresh localhost connection prevents the first
+        // chat request from reusing a startup socket that the sidecar closed.
         let client = Client::builder()
             .default_headers(headers)
+            .no_proxy()
+            .pool_max_idle_per_host(0)
             .build()
             .context("failed to create HTTP client")?;
         Ok(Self { base, client })
@@ -87,13 +92,27 @@ impl ApiClient {
             .sessions)
     }
 
-    pub async fn create_session(&self, name: &str) -> Result<SessionSummary> {
+    pub async fn create_session(
+        &self,
+        name: &str,
+        cwd: &std::path::Path,
+    ) -> Result<SessionSummary> {
         self.send_json(
             reqwest::Method::POST,
             "/api/sessions",
-            &json!({ "name": name }),
+            &json!({ "name": name, "cwd": cwd.to_string_lossy() }),
         )
         .await
+    }
+
+    pub async fn default_thinking_level(&self) -> Result<String> {
+        let config = self.get_json::<Value>("/api/config").await?;
+        Ok(config
+            .get("thinkingLevel")
+            .and_then(Value::as_str)
+            .filter(|value| !value.is_empty())
+            .unwrap_or("medium")
+            .to_owned())
     }
 
     pub async fn messages(&self, session_id: &str) -> Result<MessagePage> {
@@ -330,7 +349,65 @@ impl SseDecoder {
 
 #[cfg(test)]
 mod tests {
-    use super::SseDecoder;
+    use std::time::Duration;
+
+    use serde_json::Value;
+    use tokio::{
+        io::{AsyncReadExt, AsyncWriteExt},
+        net::TcpListener,
+        sync::mpsc,
+        time::timeout,
+    };
+
+    use super::{ApiClient, SseDecoder};
+
+    #[tokio::test]
+    async fn local_api_requests_do_not_reuse_idle_sidecar_connections() {
+        let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let address = listener.local_addr().unwrap();
+        let (request_tx, mut request_rx) = mpsc::unbounded_channel();
+        let server = tokio::spawn(async move {
+            loop {
+                let (mut socket, peer) = listener.accept().await.unwrap();
+                let request_tx = request_tx.clone();
+                tokio::spawn(async move {
+                    let mut request = Vec::new();
+                    loop {
+                        let mut buffer = [0_u8; 1024];
+                        let count = socket.read(&mut buffer).await.unwrap();
+                        if count == 0 {
+                            break;
+                        }
+                        request.extend_from_slice(&buffer[..count]);
+                        if request.windows(4).any(|window| window == b"\r\n\r\n") {
+                            request_tx.send(peer.port()).unwrap();
+                            socket
+                                .write_all(
+                                    b"HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: 2\r\nConnection: keep-alive\r\n\r\n{}",
+                                )
+                                .await
+                                .unwrap();
+                            request.clear();
+                        }
+                    }
+                });
+            }
+        });
+
+        let api = ApiClient::new(&format!("http://{address}"), "test-token").unwrap();
+        let _: Value = api.get_json("/first").await.unwrap();
+        let _: Value = api.get_json("/second").await.unwrap();
+        let first = timeout(Duration::from_secs(1), request_rx.recv())
+            .await
+            .unwrap()
+            .unwrap();
+        let second = timeout(Duration::from_secs(1), request_rx.recv())
+            .await
+            .unwrap()
+            .unwrap();
+        assert_ne!(first, second);
+        server.abort();
+    }
 
     #[test]
     fn parses_chunked_crlf_and_final_records() {

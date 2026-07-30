@@ -16,6 +16,8 @@ pub struct SessionSummary {
     #[serde(default)]
     pub execution_mode: String,
     #[serde(default)]
+    pub thinking_level: String,
+    #[serde(default)]
     pub task_list: Option<TaskList>,
 }
 

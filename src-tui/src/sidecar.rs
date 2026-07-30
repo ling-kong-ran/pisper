@@ -1,5 +1,7 @@
 use std::{
+    fs,
     io::{BufRead, BufReader, Write},
+    net::{SocketAddr, TcpStream},
     path::{Path, PathBuf},
     process::{Child, Command, Stdio},
     sync::{mpsc, Arc, Mutex},
@@ -12,11 +14,22 @@ use serde::Deserialize;
 
 const READY_PREFIX: &str = "PISPER_SIDECAR_READY ";
 const START_TIMEOUT: Duration = Duration::from_secs(30);
+const SIDECAR_DESCRIPTOR_NAME: &str = "desktop-sidecar.json";
+const APP_IDENTIFIER: &str = "com.lingkongran.pisper";
 
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
 struct ReadyPayload {
     url: String,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct SidecarDescriptor {
+    version: u8,
+    url: String,
+    token: String,
+    pid: u32,
 }
 
 pub struct SidecarConnection {
@@ -33,6 +46,13 @@ impl SidecarConnection {
             return Ok(Self {
                 url,
                 token,
+                child: None,
+            });
+        }
+        if let Some(descriptor) = desktop_sidecar_descriptor() {
+            return Ok(Self {
+                url: descriptor.url,
+                token: descriptor.token,
                 child: None,
             });
         }
@@ -145,6 +165,28 @@ impl Drop for SidecarConnection {
     fn drop(&mut self) {
         self.shutdown();
     }
+}
+
+fn desktop_sidecar_descriptor() -> Option<SidecarDescriptor> {
+    let path = dirs::data_local_dir()?
+        .join(APP_IDENTIFIER)
+        .join(SIDECAR_DESCRIPTOR_NAME);
+    let descriptor = serde_json::from_slice::<SidecarDescriptor>(&fs::read(&path).ok()?).ok()?;
+    let url = url::Url::parse(&descriptor.url).ok()?;
+    if descriptor.version != 1
+        || descriptor.pid == 0
+        || descriptor.token.len() < 32
+        || url.scheme() != "http"
+        || url.host_str() != Some("127.0.0.1")
+    {
+        return None;
+    }
+    let address = SocketAddr::from(([127, 0, 0, 1], url.port()?));
+    if TcpStream::connect_timeout(&address, Duration::from_millis(250)).is_err() {
+        let _ = fs::remove_file(path);
+        return None;
+    }
+    Some(descriptor)
 }
 
 fn sidecar_command() -> Result<(Command, PathBuf)> {

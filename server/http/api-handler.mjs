@@ -488,7 +488,7 @@ export function createApiHandler(
       }
       if (req.method === 'POST' && url.pathname === '/api/sessions') {
         const body = await bodyJson(req)
-        json(res, 201, await runtime.createSession(body.name))
+        json(res, 201, await runtime.createSession(body.name, body.cwd))
         return true
       }
       const sessionModelMatch = url.pathname.match(/^\/api\/sessions\/([^/]+)\/model$/)

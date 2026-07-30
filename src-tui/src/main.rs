@@ -54,10 +54,31 @@ async fn run() -> Result<()> {
         .sessions()
         .await
         .context("failed to list conversations")?;
+    let fallback_thinking_level = if sessions.is_empty()
+        || sessions
+            .iter()
+            .any(|session| session.thinking_level.is_empty())
+    {
+        api.default_thinking_level()
+            .await
+            .unwrap_or_else(|_| "medium".to_owned())
+    } else {
+        "medium".to_owned()
+    };
+    for summary in &mut sessions {
+        if summary.thinking_level.is_empty() {
+            summary.thinking_level.clone_from(&fallback_thinking_level);
+        }
+    }
     let session = match resumable_session(&sessions, &options.workspace, options.resume) {
         Some(session) => session,
         None => {
-            let created = api.create_session("New conversation").await?;
+            let mut created = api
+                .create_session("New conversation", &options.workspace)
+                .await?;
+            if created.thinking_level.is_empty() {
+                created.thinking_level.clone_from(&fallback_thinking_level);
+            }
             sessions.insert(0, created.clone());
             created
         }
@@ -89,6 +110,8 @@ async fn run_event_loop(
     let (runtime_tx, mut runtime_rx) = mpsc::unbounded_channel::<RuntimeEvent>();
     let mut animation = tokio::time::interval(std::time::Duration::from_millis(24));
     animation.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Skip);
+    let mut status_animation = tokio::time::interval(std::time::Duration::from_millis(120));
+    status_animation.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Skip);
 
     loop {
         terminal.draw(|frame| ui::draw(frame, &app))?;
@@ -117,6 +140,9 @@ async fn run_event_loop(
             _ = animation.tick(), if app.has_pending_render() => {
                 app.advance_stream_render();
             }
+            _ = status_animation.tick(), if app.is_streaming() && !app.has_pending_render() => {
+                app.advance_status_animation();
+            }
         }
     }
     Ok(())
@@ -143,7 +169,7 @@ async fn execute_action(
                     .stream_chat(session_id, message, requested_tool, sender.clone())
                     .await
                 {
-                    let _ = sender.send(RuntimeEvent::StreamFailed(error.to_string()));
+                    let _ = sender.send(RuntimeEvent::StreamFailed(format!("{error:#}")));
                 }
             });
         }
@@ -156,7 +182,8 @@ async fn execute_action(
             app.status = if approved { "approved" } else { "denied" }.to_owned();
         }
         Action::NewSession => {
-            let created = api.create_session("New conversation").await?;
+            let workspace = PathBuf::from(&app.session.cwd);
+            let created = api.create_session("New conversation", &workspace).await?;
             let page = api.messages(&created.id).await?;
             app.sessions = refreshed_sessions(api, created.clone()).await?;
             app.replace_session(created, page.messages, page.context_usage);

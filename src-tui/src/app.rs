@@ -97,12 +97,14 @@ pub struct App {
     pub session_selected: usize,
     pub view: View,
     pub scroll: u16,
-    pub show_startup_brand: bool,
     pub model: String,
     pub cwd: String,
     pub execution_mode: String,
+    pub thinking_level: String,
     pub context_percent: Option<f64>,
     pub status: String,
+    pub status_error: bool,
+    pub status_frame: u64,
     pub approval: Option<Approval>,
     pub events: Vec<EventLine>,
     slash_usage: HashMap<String, SlashUsage>,
@@ -123,6 +125,7 @@ impl App {
             model: session.model.clone(),
             cwd: session.cwd.clone(),
             execution_mode: session.execution_mode.clone(),
+            thinking_level: session.thinking_level.clone(),
             context_percent: context_usage.and_then(|usage| usage.percent),
             sessions,
             session,
@@ -137,8 +140,9 @@ impl App {
             session_selected: 0,
             view: View::Chat,
             scroll: 0,
-            show_startup_brand: true,
             status: String::new(),
+            status_error: false,
+            status_frame: 0,
             approval: None,
             events: Vec::new(),
             slash_usage: load_slash_usage(),
@@ -166,6 +170,11 @@ impl App {
             advance_typewriter(&mut live.thinking, &live.thinking_target);
             advance_typewriter(&mut live.text, &live.text_target);
         }
+        self.status_frame = self.status_frame.wrapping_add(1);
+    }
+
+    pub fn advance_status_animation(&mut self) {
+        self.status_frame = self.status_frame.wrapping_add(5);
     }
 
     pub fn slash_open(&self) -> bool {
@@ -245,7 +254,6 @@ impl App {
         if key.kind != crossterm::event::KeyEventKind::Press {
             return Action::None;
         }
-        self.show_startup_brand = false;
         if let Some(approval) = self.approval.clone() {
             return match key.code {
                 KeyCode::Char('y') | KeyCode::Char('Y') => {
@@ -398,6 +406,7 @@ impl App {
         if message.is_empty() {
             return Action::None;
         }
+        self.status_error = false;
         match message.as_str() {
             "/quit" => {
                 self.mark_slash_use("/quit");
@@ -514,7 +523,6 @@ impl App {
     }
 
     pub fn insert_paste(&mut self, value: &str) {
-        self.show_startup_brand = false;
         for character in value.replace(['\r', '\n'], " ").chars() {
             self.input.insert(self.input_cursor, character);
             self.input_cursor += 1;
@@ -531,6 +539,7 @@ impl App {
         self.model = session.model.clone();
         self.cwd = session.cwd.clone();
         self.execution_mode = session.execution_mode.clone();
+        self.thinking_level = session.thinking_level.clone();
         self.context_percent = context_usage.and_then(|usage| usage.percent);
         self.session = session;
         self.messages = messages;
@@ -538,9 +547,9 @@ impl App {
         self.pending_slash_command = None;
         self.events.clear();
         self.status.clear();
+        self.status_error = false;
         self.view = View::Chat;
         self.scroll = 0;
-        self.show_startup_brand = false;
     }
 
     pub fn set_execution_mode(&mut self, mode: String) {
@@ -555,6 +564,7 @@ impl App {
             session.execution_mode.clone_from(&mode);
         }
         self.status = format!("mode · {mode}");
+        self.status_error = false;
     }
 
     pub fn apply_stream_event(&mut self, event: StreamEvent) {
@@ -575,6 +585,7 @@ impl App {
                 self.model = string_field(&event.data, "model");
                 self.cwd = string_field(&event.data, "cwd");
                 self.execution_mode = string_field(&event.data, "executionMode");
+                self.thinking_level = string_field(&event.data, "thinkingLevel");
                 self.context_percent = event.data["contextUsage"]["percent"].as_f64();
             }
             "thinking_reset" => {
@@ -637,6 +648,7 @@ impl App {
                 }
             }
             "done" => {
+                self.status_error = false;
                 if event.data["text"].is_string() {
                     live.text_target = string_field(&event.data, "text");
                 }
@@ -654,6 +666,7 @@ impl App {
             "error" => {
                 live.streaming = false;
                 self.status = string_field(&event.data, "message");
+                self.status_error = true;
             }
             _ => {}
         }
@@ -673,6 +686,7 @@ impl App {
         }
         self.pending_slash_command = None;
         self.status = message;
+        self.status_error = true;
     }
 
     fn commit_live(&mut self) {

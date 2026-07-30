@@ -36,6 +36,7 @@ pub fn draw(frame: &mut Frame, app: &App) {
         .constraints([
             Constraint::Length(2),
             Constraint::Min(5),
+            Constraint::Length(1),
             Constraint::Length(3),
             Constraint::Length(1),
         ])
@@ -46,11 +47,12 @@ pub fn draw(frame: &mut Frame, app: &App) {
         View::Chat => render_chat(frame, app, chunks[1]),
         View::Events => render_events(frame, app, chunks[1]),
     }
-    render_composer(frame, app, chunks[2]);
-    render_status(frame, app, chunks[3]);
+    render_run_state(frame, app, chunks[2]);
+    render_composer(frame, app, chunks[3]);
+    render_status(frame, app, chunks[4]);
 
     if app.slash_open() {
-        render_slash(frame, app, chunks[2]);
+        render_slash(frame, app, chunks[3]);
     }
     if app.session_picker {
         render_sessions(frame, app, area);
@@ -88,7 +90,7 @@ fn render_header(frame: &mut Frame, app: &App, area: Rect) {
     let meta = format!(
         "{} · {}{}",
         display_model(&app.model),
-        display_mode(&app.execution_mode),
+        display_thinking_level(&app.thinking_level),
         context
     );
     frame.render_widget(
@@ -105,10 +107,6 @@ fn render_header(frame: &mut Frame, app: &App, area: Rect) {
 }
 
 fn render_chat(frame: &mut Frame, app: &App, area: Rect) {
-    if app.show_startup_brand || (app.messages.is_empty() && app.live.is_none()) {
-        render_welcome(frame, area);
-        return;
-    }
     let mut lines = Vec::new();
     let content_width = area.width.saturating_sub(4) as usize;
     for message in &app.messages {
@@ -123,64 +121,134 @@ fn render_chat(frame: &mut Frame, app: &App, area: Rect) {
             area.height.saturating_sub(2) as usize,
         );
     }
-    let max_scroll = lines
-        .len()
-        .saturating_sub(area.height.saturating_sub(2) as usize) as u16;
-    let scroll = max_scroll.saturating_sub(app.scroll.min(max_scroll));
+    let viewport = inset(area, 2, 1);
+    if viewport.width == 0 || viewport.height == 0 {
+        return;
+    }
     let paragraph = Paragraph::new(Text::from(lines))
         .style(Style::default().fg(TEXT).bg(BG))
-        .wrap(Wrap { trim: false })
-        .scroll((scroll, 0));
-    frame.render_widget(paragraph, inset(area, 2, 1));
-}
-
-fn render_welcome(frame: &mut Frame, area: Rect) {
-    let compact = area.width < 40 || area.height < 6;
-    let (height, text) = if compact {
-        (
-            2,
-            Text::from(vec![
-                Line::from(vec![
-                    Span::styled(
-                        "PISPER",
-                        Style::default().fg(TEXT).add_modifier(Modifier::BOLD),
-                    ),
-                    Span::styled("  ›_", Style::default().fg(ACCENT)),
-                ]),
-                Line::from(Span::styled(
-                    "Pi-powered Agent workspace",
-                    Style::default().fg(MUTED),
-                )),
-            ]),
+        .wrap(Wrap { trim: false });
+    let rendered_rows = paragraph.line_count(viewport.width);
+    let max_scroll = rendered_rows
+        .saturating_sub(viewport.height as usize)
+        .min(u16::MAX as usize) as u16;
+    let scroll = max_scroll.saturating_sub(app.scroll.min(max_scroll));
+    let render_area = if rendered_rows < viewport.height as usize {
+        let content_rows = rendered_rows.max(1) as u16;
+        Rect::new(
+            viewport.x,
+            viewport
+                .y
+                .saturating_add(viewport.height.saturating_sub(content_rows)),
+            viewport.width,
+            content_rows,
         )
     } else {
-        let wordmark = Style::default().fg(TEXT).add_modifier(Modifier::BOLD);
-        (
-            4,
-            Text::from(vec![
-                Line::from(Span::styled("╭─╮  ╷  ╭──  ╭─╮  ╭──  ╭─╮", wordmark)),
-                Line::from(Span::styled("├─╯  │  ╰─╮  ├─╯  ├─   ├┬╯", wordmark)),
-                Line::from(Span::styled("╵    ╵  ──╯  ╵    ╰──  ╵ ╰─", wordmark)),
-                Line::from(vec![
-                    Span::styled("›_", Style::default().fg(ACCENT)),
-                    Span::styled("  Pi-powered Agent workspace", Style::default().fg(MUTED)),
-                ]),
-            ]),
-        )
+        viewport
     };
-    let height = height.min(area.height);
-    let welcome = Rect::new(
-        area.x,
-        area.y
-            .saturating_add(area.height.saturating_sub(height) / 2),
-        area.width,
-        height,
-    );
+    let brand_height = brand_height(viewport);
+    if render_area.y >= viewport.y.saturating_add(brand_height) {
+        render_brand(
+            frame,
+            Rect::new(viewport.x, viewport.y, viewport.width, brand_height),
+        );
+    }
+    frame.render_widget(paragraph.scroll((scroll, 0)), render_area);
+}
+
+fn render_run_state(frame: &mut Frame, app: &App, area: Rect) {
+    let (label, color, animate) = if app.approval.is_some() {
+        ("Approval required".to_owned(), AMBER, false)
+    } else if app.is_streaming() {
+        let label = match app.status.as_str() {
+            "thinking" => "Thinking".to_owned(),
+            "streaming" => "Responding".to_owned(),
+            value if value.starts_with("running ") => {
+                format!("Running {}", value.trim_start_matches("running "))
+            }
+            _ => "Running".to_owned(),
+        };
+        (label, ACCENT, true)
+    } else if app.status_error {
+        (app.status.clone(), RED, false)
+    } else {
+        return;
+    };
+
+    let line = if animate {
+        const FRAMES: [&str; 4] = ["|", "/", "-", "\\"];
+        let frame = FRAMES[(app.status_frame as usize / 5) % FRAMES.len()];
+        let dots = ".".repeat((app.status_frame as usize / 10) % 3 + 1);
+        Line::from(vec![
+            Span::styled(
+                format!("  {frame} "),
+                Style::default().fg(color).add_modifier(Modifier::BOLD),
+            ),
+            Span::styled(format!("{label}{dots}"), Style::default().fg(color)),
+        ])
+    } else {
+        Line::from(Span::styled(
+            format!("  {label}"),
+            Style::default().fg(color),
+        ))
+    };
+    frame.render_widget(Paragraph::new(line).style(Style::default().bg(BG)), area);
+}
+
+fn brand_height(area: Rect) -> u16 {
+    if area.width < 40 || area.height < 7 {
+        2.min(area.height)
+    } else {
+        5.min(area.height)
+    }
+}
+
+fn render_brand(frame: &mut Frame, area: Rect) {
+    let compact = area.width < 40 || area.height < 5;
+    let text = if compact {
+        Text::from(vec![
+            Line::from(vec![
+                Span::styled(
+                    "PISPER",
+                    Style::default().fg(TEXT).add_modifier(Modifier::BOLD),
+                ),
+                Span::styled("  ›_", Style::default().fg(ACCENT)),
+            ]),
+            Line::from(Span::styled("terminal agent", Style::default().fg(MUTED))),
+        ])
+    } else {
+        let frame_style = Style::default().fg(FAINT);
+        let mark_style = Style::default().fg(ACCENT).add_modifier(Modifier::BOLD);
+        Text::from(vec![
+            Line::from(Span::styled("╭─────────╮", frame_style)),
+            Line::from(vec![
+                Span::styled("│  ", frame_style),
+                Span::styled("╭──╮", mark_style),
+                Span::styled("   │    ", frame_style),
+                Span::styled(
+                    "PISPER",
+                    Style::default().fg(TEXT).add_modifier(Modifier::BOLD),
+                ),
+            ]),
+            Line::from(vec![
+                Span::styled("│  ", frame_style),
+                Span::styled("├──╯", mark_style),
+                Span::styled("   │    ", frame_style),
+                Span::styled("terminal agent", Style::default().fg(MUTED)),
+            ]),
+            Line::from(vec![
+                Span::styled("│  ", frame_style),
+                Span::styled("╵  ›_", mark_style),
+                Span::styled("  │", frame_style),
+            ]),
+            Line::from(Span::styled("╰─────────╯", frame_style)),
+        ])
+    };
     frame.render_widget(
         Paragraph::new(text)
-            .alignment(Alignment::Center)
+            .alignment(Alignment::Left)
             .style(Style::default().bg(BG)),
-        welcome,
+        area,
     );
 }
 
@@ -505,28 +573,11 @@ fn render_composer(frame: &mut Frame, app: &App, area: Rect) {
 fn render_status(frame: &mut Frame, app: &App, area: Rect) {
     let columns = Layout::default()
         .direction(Direction::Horizontal)
-        .constraints([
-            Constraint::Percentage(55),
-            Constraint::Percentage(20),
-            Constraint::Percentage(25),
-        ])
+        .constraints([Constraint::Percentage(70), Constraint::Percentage(30)])
         .split(area);
     frame.render_widget(
         Paragraph::new(shorten_path(&app.cwd)).style(Style::default().fg(MUTED)),
         columns[0],
-    );
-    let run_color = if app.status.contains("error") || app.status.contains("failed") {
-        RED
-    } else if app.is_streaming() || app.approval.is_some() {
-        AMBER
-    } else {
-        GREEN
-    };
-    frame.render_widget(
-        Paragraph::new(app.status.clone())
-            .alignment(Alignment::Center)
-            .style(Style::default().fg(run_color)),
-        columns[1],
     );
     let tasks = app
         .session
@@ -545,7 +596,7 @@ fn render_status(frame: &mut Frame, app: &App, area: Rect) {
         Paragraph::new(tasks)
             .alignment(Alignment::Right)
             .style(Style::default().fg(MUTED)),
-        columns[2],
+        columns[1],
     );
 }
 
@@ -782,9 +833,9 @@ fn display_model(value: &str) -> &str {
         .unwrap_or("model")
 }
 
-fn display_mode(value: &str) -> &str {
+fn display_thinking_level(value: &str) -> &str {
     if value.is_empty() {
-        "workspace"
+        "medium"
     } else {
         value
     }
@@ -909,6 +960,64 @@ mod tests {
     }
 
     #[test]
+    fn short_conversations_anchor_above_the_composer_with_runtime_meta_and_status() {
+        let session = SessionSummary {
+            id: "session-1".to_owned(),
+            name: "Bottom anchored".to_owned(),
+            model: "openai/gpt-5.6-sol".to_owned(),
+            cwd: "/workspace".to_owned(),
+            execution_mode: "workspace".to_owned(),
+            thinking_level: "high".to_owned(),
+            ..SessionSummary::default()
+        };
+        let mut app = App::new(
+            vec![session.clone()],
+            session,
+            vec![ChatMessage {
+                role: "agent".to_owned(),
+                text: "Pisper is ready.".to_owned(),
+                run_activity: None,
+            }],
+            Some(crate::model::ContextUsage { percent: Some(4.0) }),
+            Vec::new(),
+            Vec::new(),
+        );
+        app.status = "thinking".to_owned();
+        app.live = Some(LiveTurn {
+            streaming: true,
+            ..LiveTurn::default()
+        });
+
+        let backend = TestBackend::new(80, 24);
+        let mut terminal = Terminal::new(backend).unwrap();
+        terminal.draw(|frame| draw(frame, &app)).unwrap();
+        let buffer = terminal.backend().buffer();
+        let rows = (0..24)
+            .map(|y| {
+                (0..80)
+                    .filter_map(|x| buffer.cell((x, y)))
+                    .map(|cell| cell.symbol())
+                    .collect::<String>()
+            })
+            .collect::<Vec<_>>();
+
+        assert!(rows[0].contains("gpt-5.6-sol · high · 4%"));
+        assert!(!rows[0].contains("workspace"));
+        assert!(rows[4].contains("PISPER"));
+        assert!(rows[4].chars().position(|ch| ch == 'P').unwrap() < 20);
+        assert!(rows[19].contains("Thinking."));
+        let message_row = rows
+            .iter()
+            .position(|row| row.contains("Pisper is ready."))
+            .unwrap();
+        assert!(
+            message_row >= 15,
+            "message rendered too high: row {message_row}"
+        );
+        assert!(message_row < 19, "message crossed into the run state");
+    }
+
+    #[test]
     fn conversation_and_slash_menu_render_at_terminal_sizes() {
         for (width, height) in [(120, 40), (60, 20)] {
             let session = SessionSummary {
@@ -940,7 +1049,7 @@ mod tests {
     }
 
     #[test]
-    fn empty_conversation_renders_the_startup_brand() {
+    fn startup_brand_shares_the_viewport_with_existing_history() {
         let session = SessionSummary {
             id: "session-1".to_owned(),
             model: "openai/gpt-5.6-sol".to_owned(),
@@ -970,9 +1079,10 @@ mod tests {
             .iter()
             .map(|cell| cell.symbol())
             .collect::<String>();
-        assert!(rendered.contains("╭─╮"));
-        assert!(rendered.contains("├┬╯"));
-        assert!(rendered.contains("Pi-powered Agent workspace"));
+        assert!(rendered.contains("╭─────────╮"));
+        assert!(rendered.contains("├──╯"));
+        assert!(rendered.contains("PISPER"));
+        assert!(rendered.contains("Existing history"));
     }
 
     #[test]
@@ -1004,5 +1114,45 @@ mod tests {
             .collect::<String>();
         assert!(rendered.contains("PISPER"));
         assert!(rendered.contains("›_"));
+        assert!(rendered.contains("terminal agent"));
+    }
+
+    #[test]
+    fn long_conversations_use_the_full_viewport_without_the_logo() {
+        let session = SessionSummary {
+            id: "session-1".to_owned(),
+            model: "openai/gpt-5.6-sol".to_owned(),
+            cwd: "/workspace".to_owned(),
+            execution_mode: "workspace".to_owned(),
+            ..SessionSummary::default()
+        };
+        let messages = (0..20)
+            .map(|index| ChatMessage {
+                role: "agent".to_owned(),
+                text: format!("History line {index}"),
+                run_activity: None,
+            })
+            .collect();
+        let app = App::new(
+            vec![session.clone()],
+            session,
+            messages,
+            None,
+            Vec::new(),
+            Vec::new(),
+        );
+        let backend = TestBackend::new(80, 24);
+        let mut terminal = Terminal::new(backend).unwrap();
+        terminal.draw(|frame| draw(frame, &app)).unwrap();
+        let rendered = terminal
+            .backend()
+            .buffer()
+            .content
+            .iter()
+            .map(|cell| cell.symbol())
+            .collect::<String>();
+
+        assert!(!rendered.contains("PISPER"));
+        assert!(rendered.contains("History line 19"));
     }
 }

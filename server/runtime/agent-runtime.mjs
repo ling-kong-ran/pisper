@@ -1321,6 +1321,7 @@ export class AgentRuntimeService {
     const defaultModel = settings.defaultProvider && settings.defaultModel
       ? `${settings.defaultProvider}/${settings.defaultModel}`
       : ''
+    const defaultThinkingLevel = settings.defaultThinkingLevel || 'medium'
     const result = sessions.map((session) => {
       const active = this.sessions.get(session.id)
       const contextModel = active?.session.model
@@ -1334,6 +1335,7 @@ export class AgentRuntimeService {
           ? active.session.messages.filter((message) => ['user', 'assistant'].includes(message.role)).length
           : session.messageCount,
         model: contextModel,
+        thinkingLevel: active?.session.thinkingLevel || defaultThinkingLevel,
         cwd: active?.cwd || this.sessionMeta[session.id]?.cwd || session.cwd || this.cwd,
         created: session.created.toISOString(),
         modified: active?.modified || session.modified.toISOString(),
@@ -1354,6 +1356,7 @@ export class AgentRuntimeService {
         firstMessage: '',
         messageCount: value.session.messages.filter((message) => ['user', 'assistant'].includes(message.role)).length,
         model: value.session.model ? `${value.session.model.provider}/${value.session.model.id}` : defaultModel,
+        thinkingLevel: value.session.thinkingLevel || defaultThinkingLevel,
         cwd: value.cwd || this.cwd,
         created: value.created,
         modified: value.modified,
@@ -1373,6 +1376,7 @@ export class AgentRuntimeService {
         firstMessage: '',
         messageCount: 0,
         model: defaultModel,
+        thinkingLevel: defaultThinkingLevel,
         cwd: value.cwd,
         created: value.created,
         modified: value.modified,
@@ -1388,16 +1392,17 @@ export class AgentRuntimeService {
     return result
   }
 
-  async createSession(name) {
+  async createSession(name, cwd) {
     const resolvedName = cleanSessionTitle(name) || DEFAULT_SESSION_NAME
-    const manager = SessionManager.create(this.cwd, this.sessionDir)
+    const effectiveCwd = await resolveDirectory(cwd, this.cwd)
+    const manager = SessionManager.create(effectiveCwd, this.sessionDir)
     const id = manager.getSessionId()
     const now = new Date().toISOString()
     manager.appendSessionInfo(resolvedName)
     this.pendingSessions.set(id, {
       manager,
       name: resolvedName,
-      cwd: this.cwd,
+      cwd: effectiveCwd,
       created: now,
       modified: now,
     })
@@ -1418,7 +1423,8 @@ export class AgentRuntimeService {
       name: resolvedName,
       messageCount: 0,
       model,
-      cwd: this.cwd,
+      thinkingLevel: settings.defaultThinkingLevel || 'medium',
+      cwd: effectiveCwd,
       created: now,
       modified: now,
       permissionMode: this.sessionMeta[id].permissionMode,

@@ -90,6 +90,26 @@ test('chat API forwards explicit Tool requests as structured runtime input', asy
   assert.match(output.body, /event: done/)
 })
 
+test('session creation forwards the CLI workspace to the shared runtime', async () => {
+  const calls = []
+  const runtime = {
+    async createSession(name, cwd) {
+      calls.push([name, cwd])
+      return { id: 'session-1', name, cwd }
+    },
+  }
+  const handler = createApiHandler(runtime)
+  const output = response()
+
+  assert.equal(await handler(
+    request('POST', { name: 'CLI chat', cwd: 'E:\\code\\workspace' }),
+    output,
+    new URL('http://localhost/api/sessions'),
+  ), true)
+  assert.equal(output.status, 201)
+  assert.deepEqual(calls, [['CLI chat', 'E:\\code\\workspace']])
+})
+
 test('sandbox status, install, and session execution mode APIs delegate to the runtime', async () => {
   const calls = []
   const runtime = {

@@ -12,7 +12,7 @@ test('blank chat sessions stay lightweight until an Agent is first required', as
   t.after(() => rm(directory, { recursive: true, force: true }))
   const runtime = new AgentRuntimeService({ cwd: directory, dataDir: directory })
   runtime.settingsManager = {
-    getGlobalSettings: () => ({ defaultProvider: 'openai', defaultModel: 'gpt-test' }),
+    getGlobalSettings: () => ({ defaultProvider: 'openai', defaultModel: 'gpt-test', defaultThinkingLevel: 'high' }),
   }
   runtime.saveSessionMeta = async () => {}
   runtime.listStoredSessions = async () => []
@@ -21,12 +21,18 @@ test('blank chat sessions stay lightweight until an Agent is first required', as
     runtimeCreations += 1
     return { manager, name, created: 'runtime-created', modified: 'runtime-modified' }
   }
+  const workspace = join(directory, 'cli-workspace')
+  await mkdir(workspace)
 
-  const created = await runtime.createSession('Pending chat')
+  const created = await runtime.createSession('Pending chat', workspace)
   assert.equal(runtimeCreations, 0)
+  assert.equal(created.cwd, workspace)
   assert.equal(runtime.pendingSessions.has(created.id), true)
   assert.equal(created.model, 'openai/gpt-test')
-  assert.equal((await runtime.listSessions())[0].name, 'Pending chat')
+  assert.equal(created.thinkingLevel, 'high')
+  const [pending] = await runtime.listSessions()
+  assert.equal(pending.name, 'Pending chat')
+  assert.equal(pending.thinkingLevel, 'high')
 
   await runtime.renameSession(created.id, 'Renamed pending chat')
   await runtime.setSessionCwd(created.id, directory)

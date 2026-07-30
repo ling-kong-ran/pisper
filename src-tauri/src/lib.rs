@@ -25,6 +25,7 @@ use desktop_bridge::{DesktopUpdateState, UPDATER_PUBLIC_KEY};
 
 const READY_PREFIX: &str = "PISPER_SIDECAR_READY ";
 const SIDECAR_TIMEOUT: Duration = Duration::from_secs(30);
+const SIDECAR_DESCRIPTOR_NAME: &str = "desktop-sidecar.json";
 const DESKTOP_BRIDGE_SCRIPT: &str = include_str!("desktop-bridge.js");
 
 #[derive(serde::Deserialize)]
@@ -32,9 +33,24 @@ pub(crate) struct SidecarReady {
     pub(crate) url: String,
     #[serde(rename = "bootstrapUrl")]
     pub(crate) bootstrap_url: String,
+    pub(crate) pid: u32,
 }
 
-struct SidecarState(Mutex<Option<Child>>);
+#[derive(serde::Deserialize, serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+struct SidecarDescriptor {
+    version: u8,
+    url: String,
+    token: String,
+    pid: u32,
+}
+
+struct ManagedSidecar {
+    child: Child,
+    pid: u32,
+}
+
+struct SidecarState(Mutex<Option<ManagedSidecar>>);
 struct LifecycleState {
     quitting: AtomicBool,
 }
@@ -155,13 +171,66 @@ fn start_sidecar(app: &tauri::App) -> Result<(Child, SidecarReady), String> {
     }
 }
 
+fn sidecar_descriptor_path(app: &AppHandle) -> Result<PathBuf, String> {
+    Ok(app
+        .path()
+        .app_local_data_dir()
+        .map_err(|error| error.to_string())?
+        .join(SIDECAR_DESCRIPTOR_NAME))
+}
+
+fn publish_sidecar_descriptor(app: &AppHandle, ready: &SidecarReady) -> Result<(), String> {
+    let bootstrap = Url::parse(&ready.bootstrap_url).map_err(|error| error.to_string())?;
+    let token = bootstrap
+        .query_pairs()
+        .find_map(|(name, value)| (name == "token").then(|| value.into_owned()))
+        .ok_or_else(|| "Pisper sidecar bootstrap URL has no desktop token.".to_string())?;
+    let path = sidecar_descriptor_path(app)?;
+    if let Some(parent) = path.parent() {
+        std::fs::create_dir_all(parent).map_err(|error| error.to_string())?;
+    }
+    let payload = serde_json::to_vec(&SidecarDescriptor {
+        version: 1,
+        url: ready.url.clone(),
+        token,
+        pid: ready.pid,
+    })
+    .map_err(|error| error.to_string())?;
+    let mut options = std::fs::OpenOptions::new();
+    options.create(true).truncate(true).write(true);
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::OpenOptionsExt;
+        options.mode(0o600);
+    }
+    let mut file = options.open(path).map_err(|error| error.to_string())?;
+    file.write_all(&payload)
+        .map_err(|error| error.to_string())?;
+    file.flush().map_err(|error| error.to_string())
+}
+
+fn remove_sidecar_descriptor(app: &AppHandle, pid: u32) {
+    let Ok(path) = sidecar_descriptor_path(app) else {
+        return;
+    };
+    let owned = std::fs::read(&path)
+        .ok()
+        .and_then(|payload| serde_json::from_slice::<SidecarDescriptor>(&payload).ok())
+        .is_some_and(|descriptor| descriptor.pid == pid);
+    if owned {
+        let _ = std::fs::remove_file(path);
+    }
+}
+
 pub(crate) fn stop_sidecar(app: &AppHandle) {
     let Some(state) = app.try_state::<SidecarState>() else {
         return;
     };
-    let Some(mut child) = state.0.lock().expect("sidecar state poisoned").take() else {
+    let Some(managed) = state.0.lock().expect("sidecar state poisoned").take() else {
         return;
     };
+    remove_sidecar_descriptor(app, managed.pid);
+    let mut child = managed.child;
 
     if let Some(stdin) = child.stdin.as_mut() {
         let _ = stdin.write_all(b"shutdown\n");
@@ -466,7 +535,14 @@ pub fn run() {
             }
 
             let (child, ready) = start_sidecar(app)?;
-            app.manage(SidecarState(Mutex::new(Some(child))));
+            app.manage(SidecarState(Mutex::new(Some(ManagedSidecar {
+                child,
+                pid: ready.pid,
+            }))));
+            if let Err(error) = publish_sidecar_descriptor(app.handle(), &ready) {
+                stop_sidecar(app.handle());
+                return Err(error.into());
+            }
             let result = create_tray(app)
                 .map_err(|error| error.to_string())
                 .and_then(|_| create_pet_context_menu(app).map_err(|error| error.to_string()))
