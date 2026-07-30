@@ -16,10 +16,14 @@ const updatedLock = lock.replace(
   /(\[\[package\]\]\s*\nname\s*=\s*"pisper-tui"\s*\nversion\s*=\s*")[^"]+("\s*\n)/,
   `$1${packageJson.version}$2`,
 )
-if (updatedManifest === manifest && !manifest.includes(`version = "${packageJson.version}"`)) {
+const manifestVersion = updatedManifest.match(/\[package\][\s\S]*?\r?\nversion\s*=\s*"([^"]+)"/)?.[1]
+const lockVersion = updatedLock.match(
+  /\[\[package\]\]\s*\r?\nname\s*=\s*"pisper-tui"\s*\r?\nversion\s*=\s*"([^"]+)"/,
+)?.[1]
+if (manifestVersion !== packageJson.version) {
   throw new Error('Unable to synchronize src-tui/Cargo.toml version.')
 }
-if (updatedLock === lock && !lock.includes(`name = "pisper-tui"\nversion = "${packageJson.version}"`)) {
+if (lockVersion !== packageJson.version) {
   throw new Error('Unable to synchronize src-tui/Cargo.lock version.')
 }
 await Promise.all([
