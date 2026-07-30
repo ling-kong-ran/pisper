@@ -25,6 +25,7 @@ import { ToolPluginService } from '../services/tool-plugin-service.mjs'
 import { WebSearchService } from '../services/web-search-service.mjs'
 import { extractConversationMemories } from '../services/memory/conversation-memory.mjs'
 import { LocalMemoryRuntime } from '../services/memory/local-memory-runtime.mjs'
+import { LocalEmbeddingModelService } from '../services/memory/local-embedding-model-service.mjs'
 import { inferModelKind, VisualGenerationService } from '../services/visual-generation/index.mjs'
 import { MultiAgentService, MULTI_AGENT_TOOL_NAMES, agentCompletionPrompt, isAgentCompletionMessage } from '../services/multi-agent-service.mjs'
 import { GoalService, goalBudgetPrompt, goalContinuationPrompt, isGoalContinuationMessage } from '../services/goal-service.mjs'
@@ -661,6 +662,11 @@ export class AgentRuntimeService {
     this.assetsDir = join(dataDir, 'pisper-assets')
     this.assetIndexPath = join(dataDir, 'pisper-assets.json')
     this.memory = new LocalMemoryRuntime({ path: join(dataDir, 'pisper-memory.sqlite'), cwd })
+    this.memoryEmbeddingModels = new LocalEmbeddingModelService({
+      modelsDir: join(dataDir, 'pisper-memory-models'),
+      configPath: this.appConfigPath,
+      onChange: () => this.syncMemoryEmbeddingProvider(),
+    })
     this.goals = new GoalService({ path: join(dataDir, 'pisper-goals.json') })
     this.gitChanges = new GitChangesService()
     this.taskLists = new TaskListService({ path: join(dataDir, 'pisper-task-lists.json') })
@@ -771,7 +777,9 @@ export class AgentRuntimeService {
     await this.toolPlugins.ensureDefaultTools(['web_search'], 'webSearchToolV1')
     await this.toolPlugins.ensureDefaultTools(['browser_automation'], 'browserAutomationToolV1')
     await this.reloadModelRuntime()
+    await this.memoryEmbeddingModels.init()
     await this.memory.init()
+    await this.syncMemoryEmbeddingProvider()
     await this.goals.init({ pauseActive: true })
     await this.taskLists.init()
     await this.multiAgents.init()
@@ -2537,29 +2545,43 @@ export class AgentRuntimeService {
     if (result.usage) await this.recordUsage(localDayKey(result.timestamp || Date.now()), `memory:${sessionId}:${result.timestamp || Date.now()}`, result.usage)
     if (!result.memories.length) return []
     const projectSpaceId = await this.memory.ensureWorkspaceSpace(cwd)
-    const userRequested = false // 简化：不再使用正则判断，默认非用户显式请求
-    return result.memories.map((item, index) => {
-      const payload = {
-        ...item,
-        spaceId: item.scope === 'global' ? 'global' : projectSpaceId,
-        cwd,
-        sessionId,
-        sourceId: `${sessionId}:${sourceTimestamp || result.timestamp || Date.now()}:${index}`,
-        sourceTimestamp: sourceTimestamp || new Date(result.timestamp || Date.now()).toISOString(),
-      }
-      if (userRequested) {
-        return this.memory.remember({
-          ...payload,
-          sourceType: 'user_confirmed',
-          authority: 100,
-          evidence: item.evidence || '用户明确要求记住，会话结束后已直接写入长期星忆。',
-        })
-      }
-      return this.memory.propose({
-        ...payload,
-        sourceType: 'conversation',
-      })
+    return result.memories.map((item, index) => this.memory.propose({
+      ...item,
+      spaceId: item.scope === 'global' ? 'global' : projectSpaceId,
+      cwd,
+      sessionId,
+      sourceId: `${sessionId}:${sourceTimestamp || result.timestamp || Date.now()}:${index}`,
+      sourceTimestamp: sourceTimestamp || new Date(result.timestamp || Date.now()).toISOString(),
+      sourceType: 'conversation',
+    }))
+  }
+
+  async syncMemoryEmbeddingProvider() {
+    return this.memory.setEmbeddingProvider(await this.memoryEmbeddingModels.getProvider())
+  }
+
+  async getMemoryEmbeddingConfig() {
+    return this.memoryEmbeddingModels.state(this.memory.embeddingStatus())
+  }
+
+  async downloadMemoryEmbeddingModel(input) {
+    return this.memoryEmbeddingModels.download(String(input?.modelId || ''), {
+      source: input?.source,
+      activate: input?.activate !== false,
     })
+  }
+
+  async selectMemoryEmbeddingModel(input) {
+    const state = await this.memoryEmbeddingModels.select(String(input?.modelId || ''), {
+      enabled: input?.enabled !== false,
+      source: input?.source,
+    })
+    return { ...state, indexing: this.memory.embeddingStatus() }
+  }
+
+  async removeMemoryEmbeddingModel(modelId) {
+    const deleted = await this.memoryEmbeddingModels.remove(modelId)
+    return { deleted, state: await this.getMemoryEmbeddingConfig() }
   }
 
   getMemoryDashboard(input) {
@@ -2583,7 +2605,7 @@ export class AgentRuntimeService {
   }
 
   createMemory(input) {
-    return this.memory.remember({ ...input, sourceType: input.sourceType || 'manual' })
+    return this.memory.remember({ ...input, sourceType: 'manual' })
   }
 
   updateMemory(id, input) {
@@ -2913,6 +2935,7 @@ export class AgentRuntimeService {
     await this.sandbox.dispose()
     await this.mcp.dispose()
     this.memory.dispose()
+    await this.memoryEmbeddingModels.dispose()
     await Promise.allSettled([this.sessionMetaWrite, this.usageWrite, this.assetWrite])
   }
 

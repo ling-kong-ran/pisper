@@ -39,7 +39,7 @@ export function createMemorySearchTool({ cwd, memoryRuntime }) {
       limit: Type.Optional(Type.Number({ minimum: 1, maximum: 12, description: 'Maximum number of results' })),
     }),
     async execute(_toolCallId, params) {
-      const memories = memoryRuntime.search(params.query, { cwd, limit: params.limit || 6 })
+      const memories = await memoryRuntime.searchRelevant(params.query, { cwd, limit: params.limit || 6 })
       const text = memories.length
         ? memories.map((memory) => `[${memory.id}] [${memory.type}] ${memory.title}\n${memory.content}`).join('\n\n')
         : 'No related memories found.'
@@ -48,9 +48,13 @@ export function createMemorySearchTool({ cwd, memoryRuntime }) {
   })
 }
 
-function resolveUserRequested(params, _getUserMessage) {
-  if (params.userRequested === true) return true
-  return false // 简化：不再使用正则判断，默认非用户显式请求
+const EXPLICIT_REMEMBER_REQUEST = /记住|记下来|请记下|写入记忆|保存到记忆|加入记忆|remember(?: this| that)?|save (?:this|that) (?:to|in) memory/iu
+
+export function verifiedRememberEvidence(params, getUserMessage) {
+  const userMessage = String(getUserMessage?.() || '')
+  const quote = String(params.userQuote || '').trim().slice(0, 1000)
+  if (quote.length < 4 || !userMessage.includes(quote) || !EXPLICIT_REMEMBER_REQUEST.test(quote)) return ''
+  return quote
 }
 
 export function createMemoryRememberTool({ cwd, memoryRuntime, getUserMessage } = {}) {
@@ -61,8 +65,8 @@ export function createMemoryRememberTool({ cwd, memoryRuntime, getUserMessage } 
     promptSnippet: 'Store a durable user preference or project fact in long-term memory',
     promptGuidelines: [
       'Use memory_remember when the user explicitly asks you to remember something, or when a stable project decision will matter in future sessions.',
-      'When the user explicitly asks to remember, save, or write something into memory, set userRequested=true so it is stored immediately without approval.',
-      'When you are only capturing a reusable fact without an explicit remember request, omit userRequested or set it to false so it becomes a candidate draft.',
+      'When the user explicitly asks to remember something, include userQuote as an exact quote containing that request. The server verifies it against the current raw user message.',
+      'When you are only capturing a reusable fact without an explicit remember request, omit userQuote so it becomes a candidate draft.',
       'Never store API keys, passwords, access tokens, private credentials, or transient conversational details.',
       'Use global scope only for preferences that apply across projects; use project scope for codebase-specific facts and decisions.',
       'Provide a stable topic key and reuse it when a newer fact replaces an older fact on the same subject.',
@@ -77,21 +81,23 @@ export function createMemoryRememberTool({ cwd, memoryRuntime, getUserMessage } 
       ])),
       scope: Type.Optional(Type.Union([Type.Literal('global'), Type.Literal('project')])),
       importance: Type.Optional(Type.Number({ minimum: 0.1, maximum: 1 })),
-      userRequested: Type.Optional(Type.Boolean({
-        description: 'Whether the user explicitly asked to remember. true stores immediately; false or omitted creates a candidate.',
+      userQuote: Type.Optional(Type.String({
+        minLength: 4,
+        maxLength: 1000,
+        description: 'Exact quote from the current raw user message containing an explicit request to remember this fact.',
       })),
     }),
     async execute(_toolCallId, params) {
       const spaceId = params.scope === 'global' ? 'global' : await memoryRuntime.ensureWorkspaceSpace(cwd)
-      const userRequested = resolveUserRequested(params, getUserMessage)
+      const rememberEvidence = verifiedRememberEvidence(params, getUserMessage)
 
-      if (userRequested) {
+      if (rememberEvidence) {
         const memory = memoryRuntime.remember({
           ...params,
           spaceId,
           cwd,
           sourceType: 'user_confirmed',
-          evidence: 'User explicitly asked to remember; stored in long-term memory.',
+          evidence: rememberEvidence,
           authority: 100,
         })
         // remember() may fall back to a pending candidate when a higher-authority conflict exists.

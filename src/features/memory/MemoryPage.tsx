@@ -52,6 +52,11 @@ type MemoryCandidate = {
   title: string
   content: string
   evidence?: string
+  sourceType?: string
+  confidence?: number
+  topicKey?: string
+  createdAt?: string
+  expiresAt?: string
 }
 type MemoryData = {
   spaces: MemorySpace[]
@@ -451,13 +456,33 @@ export function MemoryPage({
                     data.spaces.find((space) => space.id === candidate.spaceId),
                     t,
                   )}
+                  {' · '}
+                  {candidate.sourceType === 'agent'
+                    ? t('memory:memoryPage.agentProposed')
+                    : t('memory:memoryPage.conversationExtracted')}
+                  {' · '}
+                  {t('memory:memoryPage.confidencePercent', {
+                    value: Math.round((candidate.confidence || 0) * 100),
+                  })}
                 </small>
                 <span>{candidate.content}</span>
+                {candidate.topicKey && (
+                  <small>
+                    {t('memory:memoryPage.topic')}：{candidate.topicKey}
+                  </small>
+                )}
                 {candidate.evidence && (
                   <small>
                     {t('memory:memoryPage.evidence')}：{candidate.evidence}
                   </small>
                 )}
+                <small>
+                  {t('memory:memoryPage.created')}：
+                  {formatMemoryTime(candidate.createdAt, language)}
+                  {candidate.expiresAt
+                    ? ` · ${t('memory:memoryPage.expires')}：${formatMemoryTime(candidate.expiresAt, language)}`
+                    : ''}
+                </small>
                 <div>
                   <button
                     disabled={Boolean(resolvingCandidateId)}

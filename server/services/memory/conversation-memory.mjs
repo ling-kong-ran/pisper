@@ -1,3 +1,5 @@
+import { containsSecretText, redactSecretText } from '../../security/secret-redaction.mjs'
+
 function textContent(content) {
   if (typeof content === 'string') return content
   return Array.isArray(content)
@@ -32,6 +34,9 @@ export function shouldExtractConversationMemory(user, _assistant = '') {
 
 export async function extractConversationMemories({ modelRuntime, model, user, assistant }) {
   if (!modelRuntime || !model || !shouldExtractConversationMemory(user, assistant)) return { memories: [], usage: null, timestamp: Date.now() }
+  const sourceHadSecrets = containsSecretText(user) || containsSecretText(assistant)
+  const safeUser = redactSecretText(String(user || '')).slice(0, 2400)
+  const safeAssistant = redactSecretText(String(assistant || '')).slice(0, 3600)
   const result = await modelRuntime.completeSimple(model, {
     systemPrompt: [
       'You propose memory candidates for Pisper. Candidates are reviewed by the user before becoming trusted memory.',
@@ -47,7 +52,7 @@ export async function extractConversationMemories({ modelRuntime, model, user, a
     ].join('\n'),
     messages: [{
       role: 'user',
-      content: `用户消息：\n${String(user || '').slice(0, 2400)}\n\nAgent 回复：\n${String(assistant || '').slice(0, 3600)}`,
+      content: `用户消息：\n${safeUser}\n\nAgent 回复：\n${safeAssistant}`,
       timestamp: Date.now(),
     }],
   }, {
@@ -58,11 +63,11 @@ export async function extractConversationMemories({ modelRuntime, model, user, a
   const memories = parseJsonArray(textContent(result.content)).slice(0, 3).flatMap((item) => {
     const title = String(item?.title || '').trim().slice(0, 140)
     const content = String(item?.content || '').trim().slice(0, 4000)
-    const evidence = exactEvidence(item?.evidence, user, assistant)
-    if (!title || !content || !evidence) return []
+    const evidence = exactEvidence(item?.evidence, safeUser, safeAssistant)
+    if (!title || !content || !evidence || evidence.includes('[REDACTED SECRET]')) return []
     return [{
-      title,
-      content,
+      title: redactSecretText(title),
+      content: redactSecretText(content),
       topic: String(item?.topic || '').trim().slice(0, 180),
       type: ['preference', 'decision', 'fact', 'risk', 'task'].includes(item.type) ? item.type : 'fact',
       scope: item.scope === 'global' ? 'global' : 'project',
@@ -71,5 +76,5 @@ export async function extractConversationMemories({ modelRuntime, model, user, a
       evidence,
     }]
   })
-  return { memories, usage: result.usage, timestamp: result.timestamp }
+  return { memories, usage: result.usage, timestamp: result.timestamp, sourceHadSecrets }
 }
