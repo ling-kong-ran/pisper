@@ -53,12 +53,16 @@ jobs:
       - run: npm ci
       - run: npm test
       - run: npm run check
-      - name: Build Linux SEA sidecar for Rust checks
-        run: npm run sidecar:sea
-      - name: Check Rust shell
+      - name: Build desktop sidecars for Rust checks
+        run: |
+          npm run sidecar:sea
+          npm run tui:stage
+      - name: Check Rust clients
         run: |
           cargo check --manifest-path src-tauri/Cargo.toml
           cargo clippy --manifest-path src-tauri/Cargo.toml --all-targets -- -D warnings
+          cargo test --manifest-path src-tui/Cargo.toml
+          cargo clippy --manifest-path src-tui/Cargo.toml --all-targets -- -D warnings
 
   build:
     name: Build ${{ matrix.name }}

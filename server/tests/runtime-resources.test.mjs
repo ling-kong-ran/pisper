@@ -126,6 +126,24 @@ test('main runtime keeps discovered cold MCP tools for the rest of the session w
   assert.ok(childLoader.getAppendSystemPrompt().includes('CHILD AGENT PROMPT'))
 })
 
+test('explicit client tool requests activate only the structured tool names', async () => {
+  const promoted = []
+  const runtime = Object.create(AgentRuntimeService.prototype)
+  runtime.promoteSessionTools = async (_value, names) => promoted.push(...names)
+  const value = {
+    requestedToolNames: [],
+    session: { getActiveToolNames: () => ['read', 'web_search'] },
+  }
+
+  const active = await runtime.selectToolsForMessage(value, '/web_search Pisper releases', {
+    requestedToolNames: ['web_search', '', 'web_search'],
+  })
+
+  assert.deepEqual(value.requestedToolNames, ['web_search'])
+  assert.deepEqual(promoted, ['web_search'])
+  assert.deepEqual(active, ['read', 'web_search'])
+})
+
 test('background prompts apply their explicit execution mode before the Agent starts', async (t) => {
   const directory = await mkdtemp(join(tmpdir(), 'pisper-background-prompt-'))
   let runtime

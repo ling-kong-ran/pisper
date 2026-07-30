@@ -1,3 +1,4 @@
+mod cli_manager;
 mod desktop_bridge;
 mod desktop_pet;
 
@@ -389,11 +390,20 @@ fn create_tray(app: &tauri::App) -> tauri::Result<()> {
 }
 
 pub fn run() {
-    let builder = tauri::Builder::default()
-        .on_menu_event(|app, event| handle_desktop_menu_event(app, event.id().as_ref()))
-        .plugin(tauri_plugin_single_instance::init(|app, _, _| {
+    let process_args = std::env::args_os().skip(1).collect::<Vec<_>>();
+    let cli_args = process_args
+        .first()
+        .is_some_and(|value| value == "--pisper-cli")
+        .then(|| process_args[1..].to_vec());
+    let mut builder = tauri::Builder::default()
+        .on_menu_event(|app, event| handle_desktop_menu_event(app, event.id().as_ref()));
+    if cli_args.is_none() {
+        builder = builder.plugin(tauri_plugin_single_instance::init(|app, _, _| {
             show_main_window(app);
-        }))
+        }));
+    }
+    let cli_args_for_setup = cli_args.clone();
+    let builder = builder
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_notification::init())
         .plugin(
@@ -423,6 +433,9 @@ pub fn run() {
             desktop_bridge::desktop_get_app_info,
             desktop_bridge::desktop_pick_directory,
             desktop_bridge::desktop_set_language,
+            cli_manager::desktop_get_cli_status,
+            cli_manager::desktop_install_cli,
+            cli_manager::desktop_uninstall_cli,
             desktop_bridge::desktop_update_status,
             desktop_bridge::desktop_check_for_updates,
             desktop_bridge::desktop_download_update,
@@ -439,7 +452,19 @@ pub fn run() {
             desktop_pet::desktop_pet_sync_menu,
             desktop_pet::desktop_show_main_window,
         ])
-        .setup(|app| {
+        .setup(move |app| {
+            if let Some(args) = cli_args_for_setup.as_deref() {
+                let exit_code = match cli_manager::run_bundled_cli(app, args) {
+                    Ok(code) => code,
+                    Err(error) => {
+                        eprintln!("{error}");
+                        1
+                    }
+                };
+                app.handle().exit(exit_code);
+                return Ok(());
+            }
+
             let (child, ready) = start_sidecar(app)?;
             app.manage(SidecarState(Mutex::new(Some(child))));
             let result = create_tray(app)

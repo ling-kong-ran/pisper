@@ -3,7 +3,6 @@ import { createAgentSession, createDefaultResourceLoader, DEFAULT_MAX_BYTES, est
 import { applyPisperSystemPrompt, pisperPromptExtension } from '../prompts/pisper-system-prompt.mjs'
 import { createCompactionSettingsManager, pisperCompactionExtension } from '../runtime/compaction-policy.mjs'
 import { readJson, writeJsonAtomic } from '../storage/json-file.mjs'
-import { redactSecretText, redactSecretValue } from '../security/secret-redaction.mjs'
 
 export const DEFAULT_AGENT_MAX_TURNS = 30
 export const MAX_AGENT_MAX_TURNS = 100
@@ -94,31 +93,31 @@ function durableRecord(record) {
     cwd: record.cwd,
     model: modelLabel(record.model),
     thinkingLevel: record.thinkingLevel,
-    message: redactSecretText(record.message),
+    message: record.message,
     availableTools: [...record.availableTools],
     maxTurns: record.maxTurns,
     turnCount: record.turnCount,
     toolCallCount: record.toolCallCount,
-    tools: redactSecretValue(record.tools.map((tool) => ({ ...tool }))),
-    output: redactSecretText(record.output),
+    tools: record.tools.map((tool) => ({ ...tool })),
+    output: record.output,
     outputTruncated: record.outputTruncated,
     usage: { ...record.usage },
     runUsage: { ...record.runUsage },
     runNumber: record.runNumber,
     resultVersion: record.resultVersion,
-    error: redactSecretText(record.error),
+    error: record.error,
     startedAt: record.startedAt,
     lastActivityAt: record.lastActivityAt,
     completedAt: record.completedAt,
     durationMs: record.durationMs,
     status: record.status,
-    currentActivity: redactSecretValue(record.currentActivity),
+    currentActivity: record.currentActivity,
   }
 }
 
 function durableMailboxEntry(entry) {
   const { fullOutput: _fullOutput, ...durable } = entry
-  return redactSecretValue(durable)
+  return durable
 }
 
 function restoredMailboxEntry(value) {

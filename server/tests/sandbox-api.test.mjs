@@ -15,8 +15,15 @@ function response() {
   return {
     status: 0,
     body: '',
+    destroyed: false,
+    writableEnded: false,
     writeHead(status) { this.status = status },
-    end(body = '') { this.body = body },
+    flushHeaders() {},
+    write(body = '') { this.body += body },
+    end(body = '') {
+      this.body += body
+      this.writableEnded = true
+    },
   }
 }
 
@@ -42,6 +49,28 @@ test('compaction preference APIs expose and update the threshold percentage', as
   assert.equal(await handler(request('PATCH', { thresholdPercent: 75 }), patchResponse, new URL('http://localhost/api/settings/compaction')), true)
   assert.deepEqual(JSON.parse(patchResponse.body), { thresholdPercent: 75, minPercent: 50, maxPercent: 95 })
   assert.deepEqual(calls, [['get'], ['update', 75]])
+})
+
+test('chat API forwards explicit Tool requests as structured runtime input', async () => {
+  const calls = []
+  const runtime = {
+    async streamPrompt(input) {
+      calls.push(input)
+      input.send('done', { text: 'complete' })
+    },
+  }
+  const handler = createApiHandler(runtime)
+  const output = response()
+
+  assert.equal(await handler(request('POST', {
+    sessionId: 'session-1',
+    message: '/web_search Pisper release',
+    requestedToolNames: ['web_search'],
+  }), output, new URL('http://localhost/api/chat')), true)
+
+  assert.equal(output.status, 200)
+  assert.deepEqual(calls[0].requestedToolNames, ['web_search'])
+  assert.match(output.body, /event: done/)
 })
 
 test('sandbox status, install, and session execution mode APIs delegate to the runtime', async () => {

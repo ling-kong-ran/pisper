@@ -277,7 +277,12 @@ test('stream completion publishes an authoritative terminal snapshot', async (t)
       for (const listener of listeners) listener({ type: 'message_update', assistantMessageEvent: { type: 'thinking_delta', contentIndex: 0, delta: 'Inspecting the remaining tests before reading files.' } })
       for (const listener of listeners) listener({ type: 'message_update', assistantMessageEvent: { type: 'thinking_end', contentIndex: 0 } })
       thinkingAtBlockEnd = streamedText('thinking_patch')
-      for (const listener of listeners) listener({ type: 'tool_execution_start', toolCallId: 'tool-1', toolName: 'bash', args: { command: 'npm test' } })
+      for (const listener of listeners) listener({
+        type: 'tool_execution_start',
+        toolCallId: 'tool-1',
+        toolName: 'bash',
+        args: { command: 'npm test', apiKey: 'local-chat-value' },
+      })
       for (const listener of listeners) listener({
         type: 'tool_execution_update',
         toolCallId: 'tool-1',
@@ -300,7 +305,10 @@ test('stream completion publishes an authoritative terminal snapshot', async (t)
       for (const listener of listeners) listener({ type: 'message_update', assistantMessageEvent: { type: 'text_start', contentIndex: 0 } })
       for (const listener of listeners) listener({ type: 'message_update', assistantMessageEvent: { type: 'text_delta', contentIndex: 0, delta: 'Final answer' } })
       for (const listener of listeners) listener({ type: 'message_update', assistantMessageEvent: { type: 'text_end', contentIndex: 0 } })
-      textAtBlockEnd = streamedText('text_patch')
+      textAtBlockEnd = events
+        .filter((item) => item.event === 'text_delta')
+        .map((item) => item.data.delta)
+        .join('')
       for (const listener of listeners) listener({ type: 'message_end', message: assistant })
       session.isStreaming = false
     },
@@ -326,19 +334,25 @@ test('stream completion publishes an authoritative terminal snapshot', async (t)
   assert.equal(Object.hasOwn(compactionEnd, 'summary'), false)
   let thinkingText = ''
   for (const item of events) {
-    if (item.event === 'thinking_reset') thinkingText = ''
+    if (item.event === 'thinking_reset') thinkingText = String(item.data.thinkingText || '')
     if (item.event === 'thinking_patch') thinkingText = applyTextPatch(thinkingText, item.data)
   }
   assert.equal(thinkingAtBlockEnd, 'Inspecting the remaining tests before reading files.')
-  assert.equal(thinkingText, 'Applying the appended guidance.')
+  assert.equal(
+    thinkingText,
+    `${thinkingAtBlockEnd}\n\nApplying the appended guidance.`,
+  )
   const thinkingResets = events.filter((item) => item.event === 'thinking_reset')
   assert.equal(thinkingResets[1].data.thinkingText, thinkingAtBlockEnd)
   assert.equal(textAtBlockEnd, 'Final answer')
+  assert.equal(events.some((item) => item.event === 'text_patch'), false)
   const textEndEvents = events.filter((item) => item.event === 'text_end')
   assert.ok(textEndEvents.some((item) => item.data.text === 'Final answer'))
   assert.ok(textEndEvents.some((item) => item.data.final === true))
+  const toolStart = events.find((item) => item.event === 'tool_start')?.data
   const toolUpdate = events.find((item) => item.event === 'tool_update')?.data
   const toolEnd = events.find((item) => item.event === 'tool_end')?.data
+  assert.equal(toolStart.args.apiKey, 'local-chat-value')
   assert.equal(toolUpdate.output, '\u001b[32mfirst line\u001b[0m\nsecond line')
   assert.equal(toolEnd.output, '\u001b[32mfirst line\u001b[0m\nsecond line\ncomplete')
   const done = events.find((item) => item.event === 'done')?.data

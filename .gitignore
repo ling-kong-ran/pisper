@@ -12,6 +12,7 @@ dist
 dist-ssr
 release/
 src-tauri/target/
+src-tui/target/
 src-tauri/binaries/
 src-tauri/gen/
 .tmp-tauri-data/

@@ -31,6 +31,7 @@
   <a href="#features">Features</a> ·
   <a href="#desktop-pet">Desktop Pet</a> ·
   <a href="#install">Install</a> ·
+  <a href="#tui">Terminal Client</a> ·
   <a href="#development">Development</a> ·
   <a href="#license">License</a>
 </p>
@@ -196,7 +197,7 @@ From conversation to automation, Pisper covers the full agent workflow:
 | **Two-way channels** | Connect Feishu and personal Weixin — reach your agents even when you're away from the desk. |
 | **Web preview** | Preview external pages in a Dock panel, with a system-browser fallback when needed. |
 | **Desktop app** | Tauri 2 system-WebView app with single-instance handling, tray controls, signed updates, and GitHub Releases. |
-| **Security boundaries** | Per-session `Read only / Workspace / Full access`, one-shot approval, secret redaction, and data isolation. |
+| **Security boundaries** | Per-session `Read only / Workspace / Full access`, one-shot approval, credential isolation, and local data boundaries. |
 
 ### Capabilities Answer on Demand: Progressive Disclosure
 
@@ -261,6 +262,107 @@ If FUSE is missing, install `libfuse2` or `libfuse2t64`, or use the `.deb` packa
 ```bash
 sudo apt install ./Pisper-*-linux-amd64.deb
 ```
+
+<a id="tui"></a>
+
+### Terminal Client (TUI)
+
+Pisper also provides a Rust + Ratatui terminal client. Every TUI launch opens with the Pisper terminal brand in the main area; once interaction begins, the brand yields to the message stream. When the model provides reasoning tokens, the TUI expands Thinking before the response and marks active reasoning with an event-driven terminal spinner. The TUI reuses the desktop app's Node SEA sidecar, Agent runtime, sessions, Tools, Skills, MCP, sandbox, and approval chain.
+
+After installing the desktop app, install or uninstall the `pisper` command from **Settings → Interface → Pisper terminal command**. Pisper uses a current-user directory and manages the corresponding PATH entry without administrator access; restart the terminal host after making a change. Windows installs `pisper.exe`, while macOS and Linux install the extensionless `pisper` command.
+
+Run it in the current directory from source:
+
+```bash
+npm run tui:dev
+```
+
+Choose another workspace:
+
+```bash
+npm run tui:dev -- --cwd /path/to/project
+```
+
+Build a complete directory containing `pisper`, the SEA sidecar, and its runtime:
+
+```bash
+npm run sidecar:sea
+npm run tui:package
+```
+
+Add `release/tui/pisper-<version>-<platform>-<arch>/` to `PATH`, then launch Pisper from any project directory:
+
+```bash
+pisper
+```
+
+A normal launch always creates an empty conversation and never loads history automatically. Use `resume` explicitly to restore the most recent conversation for the current workspace:
+
+```bash
+pisper resume
+pisper resume --cwd /path/to/project
+```
+
+Diagnose the sidecar, authentication, and capability catalog:
+
+```bash
+pisper doctor
+```
+
+#### Change Session Permissions
+
+Enter `/mode` to show the current execution mode. Change the current session with:
+
+| Command | Behavior |
+| :--- | :--- |
+| `/mode read-only` | Exposes only low-risk analysis tools and prevents project modifications. |
+| `/mode workspace` | Allows changes inside the current workspace sandbox; boundary-crossing operations still require approval. |
+| `/mode full-access` | Allows files and network access outside the workspace and removes the workspace Shell boundary. Use only when explicitly needed. |
+
+On Windows, selecting `workspace` for the first time may show one UAC prompt to create the low-privilege sandbox account and network isolation rules. Pisper does not silently change modes when setup fails or is cancelled.
+
+#### Invoke a Tool
+
+1. Enter `/` in the composer.
+2. Select a Tool marked with `T`.
+3. Add the target or arguments after the command, then press `Enter`.
+
+Examples:
+
+```text
+/read README.md
+/bash npm test
+/web_search Pisper latest release
+/mcp_pencil_get_editor_state_f9837b9b inspect the current Pencil canvas
+```
+
+The TUI sends the selected Tool name to the runtime as a structured request so its schema is active for the turn; the Agent still prepares arguments and performs the call. Slash selection never bypasses Tool settings, the active execution mode, workspace boundaries, or runtime approval. Disabled and unavailable Tools do not appear.
+
+#### Invoke a Skill
+
+Enter `/`, select a Skill marked with `S`, and add the task after its command. If an enabled Skill exposes `/skill:docs-search`, for example:
+
+```text
+/skill:docs-search find the signing requirements for the Tauri updater
+```
+
+Skill names come from the active runtime, so the Slash list is authoritative. Only enabled, model-invocable Skills appear. The runtime loads the matching `SKILL.md`, scripts, and references on demand. Tool calls made by a Skill remain subject to the current `/mode`, sandbox, and approval policy.
+
+#### Built-in TUI Commands
+
+| Command | Action |
+| :--- | :--- |
+| `/new` | Create a conversation. |
+| `/sessions` | Switch conversation history. |
+| `/events` | Open the event ledger for the current TUI process. |
+| `/chat` | Return to the message stream. |
+| `/model` | Show the active model. |
+| `/mode` | Show the current execution mode and accepted values. |
+| `/quit` | Exit the TUI and stop the sidecar it launched. |
+
+During a run, `Ctrl+C` aborts the active Agent; while idle, it exits. When the runtime requests Tool approval, press `Y` to approve or `N`/`Esc` to deny.
+
+See [`src-tui/README.md`](./src-tui/README.md) for the complete development and release layout.
 
 ### Run from Source
 

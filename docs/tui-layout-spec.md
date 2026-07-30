@@ -1,17 +1,16 @@
 # Pisper TUI layout specification
 
-> Fallback artifact: Pencil MCP is not available in this agent context. This specification is intended for direct reconstruction in `docs/tui.pen`; the `.pen` file was not edited.
+> Companion specification for the MCP-maintained `docs/tui.pen` design.
 
 ## Canvas
 
-Create four top-level frames in one horizontal row. Keep every frame self-contained and name it exactly as below.
+Create three top-level frames in one horizontal row. Keep every frame self-contained and name it exactly as below.
 
 | Frame | Pencil name | Position | Size |
 | --- | --- | ---: | ---: |
 | A | `A — Conversation First` | `x: 0, y: 0` | `1360 × 900` |
-| B | `B — Activity Drawer` | `x: 1480, y: 0` | `1360 × 900` |
-| C | `C — Event Ledger` | `x: 2960, y: 0` | `1360 × 900` |
-| D | `D — Command Overlay` | `x: 4440, y: 0` | `1360 × 900` |
+| B | `B — Event Ledger` | `x: 1480, y: 0` | `1360 × 900` |
+| C | `C — Slash Menu` | `x: 2960, y: 0` | `1360 × 900` |
 
 Use no permanent sidebar, dashboard tiles, nested cards, gradients, shadows, translucent blur, illustrations, or window-chrome imitation. Each frame should read as a terminal application: continuous text surfaces, rules, gutters, line-oriented activity, keyboard focus, and dense status information.
 
@@ -22,7 +21,7 @@ Use no permanent sidebar, dashboard tiles, nested cards, gradients, shadows, tra
 | Token | Hex | Usage |
 | --- | --- | --- |
 | `bg` | `#0B0E11` | terminal background |
-| `surface` | `#11161B` | composer, drawer, or overlay only |
+| `surface` | `#11161B` | composer or transient overlay only |
 | `surfaceRaised` | `#171D23` | selected row / focused command |
 | `rule` | `#28313A` | 1 px separators and keylines |
 | `text` | `#D7DEE7` | primary text |
@@ -59,7 +58,7 @@ The palette must not be dominated by one hue. All body text on `bg` must meet WC
 
 ### Shared realistic scenario
 
-All four frames depict the same session at different interaction moments, using these facts consistently:
+All three frames depict the same session at different interaction moments, using these facts consistently:
 
 - Session: `Fix flaky workspace sandbox test`
 - Repository: `E:/code/pi-coder`
@@ -133,85 +132,7 @@ Transcript content uses `x:240`, width `880`, top padding `28`, bottom padding `
 
 No separate activity region exists. On completion, tool groups collapse to the first row plus `3 tools · 61 ms`; activating the row expands them in place without changing transcript width.
 
-## B — Activity Drawer
-
-### Intent
-
-Conversation remains a single stream, while live operational detail occupies a resizable bottom drawer. The drawer is temporary and run-scoped, resembling a terminal multiplexer pane rather than a dashboard.
-
-### Geometry
-
-| Region | Bounds | Style |
-| --- | --- | --- |
-| Top bar | `0,0,1360,42` | shared top bar |
-| Transcript | `0,42,1360,450` | max text column `920`, centered at `x:220` |
-| Drawer tab line | `0,492,1360,34` | top and bottom `1 rule` |
-| Activity drawer | `0,526,1360,236` | `surface`, no radius |
-| Composer | `220,778,920,82` | `bg`, top border `1 rule` |
-| Bottom status | `0,876,1360,24` | `surface` |
-
-A `4 px` horizontal resize handle spans `x:620..740` above the drawer tab line. The transcript reserves scrollbar width at right.
-
-### Transcript content
-
-Use speaker labels in a `64 px` leading column and a content width of `856 px`.
-
-1. `YOU  10:42` followed by the complete user request from the shared scenario.
-2. `AGENT  10:42` followed by: `I’ll isolate the race first. I’ve started a log-analysis Subagent while I inspect the service and test locally.`
-3. One subdued run marker: `──────── run #184 · started 10:42:11 ────────`.
-4. Current Agent response: `The stale disconnect callback is not scoped to the transport that installed it. I’m applying an identity guard and validating both restart and explicit disconnect behavior.`
-
-The transcript shows no individual tool rows while the drawer is open; its only live cue is an amber `● running` after `AGENT`.
-
-### Drawer tab line
-
-Left at `x:20`:
-
-- Active tab: `ACTIVITY  6` with `cyan` text and a `2 px cyan` underline.
-- Inactive tabs: `CHANGES  1`, `PROBLEMS  0`, `TERMINAL` in `muted`.
-
-Right at `x:1210`: collapse chevron icon, `Esc` hint, close icon. Use icons, not rounded text buttons.
-
-### Activity drawer content
-
-Use terminal columns: `time 78 px`, `state 24 px`, `operation 610 px`, `target 430 px`, `duration 90 px`. Header row at y `536`, body rows `26 px` high.
-
-Visible rows:
-
-```text
-10:42:11  ✓  read       server/tests/mcp-service.test.mjs                 18 ms
-10:42:12  ✓  grep       disconnect|dispose|restart · 6 matches            31 ms
-10:42:13  ✓  read       server/services/mcp-service.mjs                   12 ms
-10:42:14  ●  subagent   log-analysis · comparing 3 failed CI traces       00:27
-10:42:31  ✓  edit       server/services/mcp-service.mjs · +4 −1            9 ms
-10:42:32  ●  bash       node --test server/tests/mcp-service.test.mjs      00:09
-```
-
-- Selected row is the running `bash` row with `surfaceRaised` fill and a `2 px cyan` left marker.
-- Expand selected row into the remaining drawer height, showing two indented output lines:
-  - `TAP version 13`
-  - `# Subtest: disconnect from stale transport preserves replacement client`
-- Running symbols pulse only by opacity, no movement or layout shift.
-- A Subagent completion should turn `●` into `✓` and append `· found late disconnect in 2/3 traces`; it must not create a popup.
-
-### Composer
-
-Single compact terminal prompt line:
-
-- Prefix `❯` in `cyan` at `x:220`.
-- Draft at `x:244`: `Also verify reconnect does not duplicate listeners.`
-- Right controls: attachment icon, stop square while running, submit arrow.
-- A second metadata line inside the composer: `queued after current run  ·  Enter newline  ·  Ctrl+Enter send` in `muted`.
-
-### Bottom status
-
-Left: `Pisper  ·  fix/mcp-lifecycle  ·  workspace`; center: `run #184  00:30`; right: `gpt-5.6-sol  ·  ctx 41%  ·  3/4 tasks`.
-
-### Differentiator
-
-The operational stream is spatially separate but only along the bottom. Closing the drawer returns its `270 px` to conversation; the `ACTIVITY 6` tab becomes a one-line footer indicator.
-
-## C — Event Ledger
+## B — Event Ledger
 
 ### Intent
 
@@ -291,11 +212,11 @@ Composer preserves the ledger alignment:
 
 Everything is one event ledger with a millisecond timeline and stable columns. There are no chat bubbles, drawer, or overlay in its default state. Filtering uses `/` and alters visible rows without changing column widths.
 
-## D — Command Overlay
+## C — Slash Menu
 
 ### Intent
 
-The base interface is a nearly chrome-free conversation. A keyboard command panel overlays the lower-middle canvas for fast navigation and execution. Activity is summarized in one inline run line unless explicitly opened through the command panel.
+The base interface remains a nearly chrome-free conversation. Typing `/` at the start of the composer opens a transient completion menu directly above it. TUI does not expose `Ctrl+K` or a separate command-menu button.
 
 ### Geometry
 
@@ -303,65 +224,51 @@ The base interface is a nearly chrome-free conversation. A keyboard command pane
 | --- | --- | --- |
 | Minimal top line | `0,0,1360,32` | no fill, bottom border `1 rule` |
 | Transcript | `0,32,1360,682` | text column `780`, centered at `x:290` |
+| Slash menu | `290,310,780,404` | `surface`, border `1 #3A4652`, radius `6` |
 | Composer prompt | `290,730,780,88` | only top and bottom `1 rule` |
 | Compact status | `290,842,780,20` | no fill |
-| Overlay scrim | `0,32,1360,682` | `#0B0E11` at `36%` opacity |
-| Command panel | `290,184,780,404` | `surface`, border `1 #3A4652`, radius `6` |
 
-The top line contains only `pisper / Fix flaky workspace sandbox test` left and `workspace · 41%` right. Branch and model move to the status line.
+The menu is anchored `16 px` above the composer. It has no page scrim and does not blur the conversation. The opaque menu surface may cover older transcript rows while open.
 
-### Base transcript behind overlay
+### Trigger and catalog
 
-Keep enough content visible around the panel edges to establish the conversation:
+- Open only when the composer begins with `/`; text after `/` filters the visible candidates.
+- Merge the current runtime tool catalog, enabled Skills, and TUI-native commands into one list.
+- Do not synthesize unavailable tools or disabled Skills.
+- Tool selection remains subject to the existing Agent execution mode, sandbox, and approval chain.
+- Closing the menu leaves the composer draft unchanged.
 
-1. User text at y `78`: complete shared user request, no speaker block; prefix `you ›` in `blue`.
-2. Agent response at y `176`: prefix `agent ›` in `cyan`; text starts `I isolated the failure to stale transport cleanup and delegated trace comparison.`
-3. One compact activity line at y `284`: `↳ 3 tools complete · log-analysis running · test running 00:09` with `amber` running state.
-4. Agent continuation below the panel at y `624`: `The identity guard is in place. The focused MCP service test is still running.`
+### Personal ordering
 
-The scrim dims content but does not blur it.
+Filter first, then sort matching candidates by:
 
-### Command panel
+1. Descending successful-use count for the current user.
+2. Descending last-used timestamp.
+3. Stable command name order.
 
-#### Search row
+Increment usage only after a candidate is confirmed, not when it is merely highlighted. Store usage metadata under the normal Pisper data root through the shared sidecar/runtime contract; do not introduce a TUI-only legacy path.
 
-- Bounds `306,200,748,48`; bottom border `1 rule`.
-- Leading search icon `16 px` at x `322`.
-- Input text at x `350`: `run test`.
-- Right hint: `Esc` in `muted`; keycap is plain text with a `1 px rule` outline and `3 px` radius.
+### Menu content
 
-#### Scope row
+The first row contains a slash icon and the current query `/`. Do not show an alternate invocation shortcut or an `Esc` keycap.
 
-Bounds `306,248,748,34`. Inline segmented text, not pill buttons:
+The scope row uses inline labels `ALL`, `TOOLS`, `SKILLS`, and `COMMANDS`, followed by `6 matches`. Result rows are `46 px` high with a `32 px` type column, `500 px` command column, and right-aligned usage count. The visible frequency-ranked example is:
 
-- `ALL` active in `cyan` with `2 px` underline.
-- `COMMANDS`, `FILES`, `SESSIONS` inactive in `muted`.
-- Right aligned result count: `6 results`.
+1. Tool: `/read` — `Read workspace files` — `42 uses`.
+2. Skill: `/frontend-design` — `Build distinctive production UI` — `31 uses`.
+3. Tool: `/grep` — `Search file contents` — `28 uses`.
+4. Skill: `/prompt-cache-optimizer` — `Optimize reusable prompt context` — `19 uses`.
+5. Tool: `/bash` — `Run a shell command` — `17 uses`.
+6. Command: `/model` — `Switch active model` — `11 uses`.
 
-#### Results
+The selected row uses `surfaceRaised` and a `2 px cyan` left marker. Tool, Skill, and native command types use `cyan`, `violet`, and `amber` respectively. The footer contains only catalog counts and `MOST USED`; it does not teach keyboard shortcuts.
 
-Rows are `46 px` high, x `306`, width `748`. Icon column `32`, command column `500`, shortcut column `184`. No card per result.
+### Composer
 
-1. Selected, `surfaceRaised`, `2 px cyan` left marker:
-   - Icon: terminal prompt symbol.
-   - Primary: `Run focused MCP service tests`.
-   - Secondary: `node --test server/tests/mcp-service.test.mjs`.
-   - Shortcut: `Enter`.
-2. Primary: `Show current run activity`; secondary: `6 events · 2 live`; shortcut: `Ctrl+J`.
-3. Primary: `Open changed file`; secondary: `server/services/mcp-service.mjs`; shortcut: none.
-4. Primary: `Message Subagent log-analysis`; secondary: `running · 00:27`; shortcut: `Ctrl+Shift+A`.
-5. Primary: `Stop current run`; secondary: `run #184`; icon and text use `red`; shortcut: `Ctrl+C`.
-6. Primary: `Switch execution mode`; secondary: `workspace`; shortcut: none.
-
-Footer at y `556`, height `32`: `↑↓ navigate  ·  Enter run  ·  Tab preview` left; `> commands` right. Both use `12 px muted`.
-
-The selected result has no rounded pill treatment. Only the command panel itself is framed. A preview, if opened with `Tab`, replaces the result list rather than adding a second card.
-
-### Composer behind overlay
-
-- Prefix `❯` in `cyan`; draft `Also verify reconnect does not duplicate listeners.`
-- Right icons: attach, command (`⌘`/terminal icon), submit.
-- When the overlay is open, composer caret is hidden and focus belongs to search.
+- Prefix `❯` in `cyan`; draft `/`.
+- Right icons: attach and submit only.
+- Metadata line: `6 matches · current runtime catalog`.
+- The composer retains focus while the menu is open; selection updates the composer command rather than creating a separate prompt field.
 
 ### Compact status
 
@@ -369,13 +276,13 @@ The selected result has no rounded pill treatment. Only the command panel itself
 
 ### Differentiator
 
-This variant minimizes persistent UI and exposes tools, files, activity, modes, and Subagent actions through a transient command surface. Closing it restores an almost pure transcript with no drawer, gutter, sidebar, or card grid.
+This variant exposes runtime capabilities through the same text entry point used for conversation. Closing the slash menu restores a pure transcript with no drawer, gutter, sidebar, scrim, or persistent command surface.
 
 ## Content and overflow rules
 
 - Use explicit text boxes with fixed widths from each layout; never rely on unconstrained auto-width for body text.
 - Wrap prose on spaces. Paths and commands truncate in the middle only when required, preserving filename or final command argument, for example `server/…/mcp-service.test.mjs`.
-- Maximum visible transcript line length: A `96`, B `100`, C `92`, D `86` monospace characters.
+- Maximum visible transcript line length: A `96`, B `92`, C `86` monospace characters.
 - Tool/event rows remain one line. Expanded output may use two additional lines and then show `… 4 more lines`.
 - Labels, timestamps, durations, and status values must use fixed columns and must not push adjacent text.
 - Composer controls have fixed positions. Draft text scrolls before reaching the controls.
@@ -384,36 +291,35 @@ This variant minimizes persistent UI and exposes tools, files, activity, modes, 
 
 ## Pencil construction order
 
-1. Create the four named top-level frames at the exact canvas coordinates.
+1. Create the three named top-level frames at the exact canvas coordinates.
 2. Apply shared background, typography, and top bar primitives.
 3. Build each layout from full-width separators and text groups; avoid reusable card components.
 4. Add visible scenario content before decorative states so wrapping can be checked early.
-5. Add fixed-width metadata columns, current activity state, composer, and status line.
-6. For D, create the base transcript first, then add scrim and command panel as the final two layers.
-7. Name major groups `topbar`, `transcript`, `activity`, `composer`, `status`; in D also name `command-overlay`.
+5. Add fixed-width metadata columns, current inline activity state, composer, and status line.
+6. For C, create the base transcript first, then add the composer-anchored slash menu as the final layer.
+7. Name major groups `topbar`, `transcript`, `composer`, `status`; in C also name `slash-menu`.
 
 ## Screenshot verification checklist
 
-Capture one full-frame screenshot for each top-level frame at 100% zoom and one canvas overview showing A–D side by side.
+Capture one full-frame screenshot for each top-level frame at 100% zoom and one canvas overview showing A–C side by side.
 
-- All frame names A–D are visible and unambiguous in the canvas overview.
+- All frame names A–C are visible and unambiguous in the canvas overview.
 - A reads as one conversation stream with inline activity.
-- B reads as a conversation plus a bottom terminal drawer, not a lower dashboard.
-- C reads as a chronological ledger with a stable time/event gutter.
-- D reads as a minimal transcript with one keyboard command overlay.
+- B reads as a chronological ledger with a stable time/event gutter.
+- C reads as a minimal transcript with one composer-anchored slash menu.
 - User, Agent, thinking, tool, Subagent, composer, and compact status information are visible in every frame.
 - No frame contains a permanent sidebar, chat bubbles, metric cards, nested cards, large branding, or desktop dashboard navigation.
 - No text is clipped, ellipsized unnecessarily, or overlapped at `1360 × 900`.
 - Running, success, focus, Subagent, and failure colors remain distinguishable without making the interface colorful or noisy.
 - Borders are crisp at 1 px; baseline rhythm remains aligned at 22 px.
-- D overlay search is visibly focused; B test row is visibly selected; C running event is legible; A composer is visibly focused.
+- C shows `/` in the focused composer and frequency-ranked Tool, Skill, and Command matches; B running event is legible; A composer is visibly focused.
 
 ## Required MCP verification when available
 
 After reconstruction with Pencil MCP, perform these checks through MCP rather than manual JSON inspection:
 
-1. Read the Pencil document tree and confirm exactly four top-level frames with the specified names and sizes.
+1. Read the Pencil document tree and confirm exactly three top-level frames with the specified names and sizes.
 2. Inspect each frame for overflowing text nodes and out-of-bounds children.
 3. Use the batch design editor for corrections; do not hand-edit `.pen` JSON.
-4. Render screenshots of all four frames and the overview.
+4. Render screenshots of all three frames and the overview.
 5. Re-inspect after corrections and confirm no overflow, overlap, or unintended persistent sidebar/card grid remains.

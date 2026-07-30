@@ -51,6 +51,15 @@ export type DesktopNotificationResult = {
   [key: string]: unknown
 }
 
+export type DesktopCliStatus = {
+  supported: boolean
+  installed: boolean
+  pathConfigured: boolean
+  needsRepair: boolean
+  command: string
+  installPath: string
+}
+
 export type DesktopPet = {
   slug: string
   name: string
@@ -82,6 +91,9 @@ export type DesktopBridge = {
   getAppInfo: () => Promise<AppUpdateInfo>
   pickDirectory?: (initialDirectory?: string) => Promise<string | null>
   setLanguage?: (language: string) => Promise<string>
+  getCliStatus?: () => Promise<DesktopCliStatus>
+  installCli?: () => Promise<DesktopCliStatus>
+  uninstallCli?: () => Promise<DesktopCliStatus>
   checkForUpdates: () => Promise<UpdateStatus>
   downloadUpdate: () => Promise<UpdateStatus>
   installUpdate: () => Promise<unknown>

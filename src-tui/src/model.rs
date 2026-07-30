@@ -1,0 +1,164 @@
+use serde::Deserialize;
+use serde_json::Value;
+
+#[derive(Clone, Debug, Default, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SessionSummary {
+    pub id: String,
+    #[serde(default)]
+    pub name: String,
+    #[serde(default)]
+    pub model: String,
+    #[serde(default)]
+    pub cwd: String,
+    #[serde(default)]
+    pub streaming: bool,
+    #[serde(default)]
+    pub execution_mode: String,
+    #[serde(default)]
+    pub task_list: Option<TaskList>,
+}
+
+#[derive(Clone, Debug, Default, Deserialize)]
+pub struct TaskList {
+    #[serde(default)]
+    pub items: Vec<TaskItem>,
+}
+
+#[derive(Clone, Debug, Default, Deserialize)]
+pub struct TaskItem {
+    #[serde(default)]
+    pub status: String,
+}
+
+#[derive(Clone, Debug, Default, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ChatMessage {
+    pub role: String,
+    #[serde(default)]
+    pub text: String,
+    #[serde(default)]
+    pub run_activity: Option<RunActivity>,
+}
+
+#[derive(Clone, Debug, Default, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct RunActivity {
+    #[serde(default)]
+    pub thinking_text: String,
+    #[serde(default)]
+    pub tools: Vec<ToolActivity>,
+    #[serde(default)]
+    pub agents: Vec<Value>,
+}
+
+#[derive(Clone, Debug, Default, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ToolActivity {
+    #[serde(default)]
+    pub id: String,
+    #[serde(default)]
+    pub name: String,
+    #[serde(default)]
+    pub status: String,
+    #[serde(default)]
+    pub message: String,
+    #[serde(default)]
+    pub output: String,
+    #[serde(default)]
+    pub args: Value,
+}
+
+#[derive(Clone, Debug, Default, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct MessagePage {
+    #[serde(default)]
+    pub messages: Vec<ChatMessage>,
+    #[serde(default)]
+    pub context_usage: Option<ContextUsage>,
+}
+
+#[derive(Clone, Debug, Default, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ContextUsage {
+    #[serde(default)]
+    pub percent: Option<f64>,
+}
+
+#[derive(Clone, Debug, Default, Deserialize)]
+pub struct SessionsResponse {
+    #[serde(default)]
+    pub sessions: Vec<SessionSummary>,
+}
+
+#[derive(Clone, Debug, Default, Deserialize)]
+pub struct PluginCatalog {
+    #[serde(default)]
+    pub tools: Vec<ToolDefinition>,
+}
+
+#[derive(Clone, Debug, Default, Deserialize)]
+pub struct ToolDefinition {
+    pub id: String,
+    #[serde(default)]
+    pub name: String,
+    #[serde(default)]
+    pub description: String,
+    #[serde(default)]
+    pub enabled: bool,
+}
+
+#[derive(Clone, Debug, Default, Deserialize)]
+pub struct McpCatalog {
+    #[serde(default)]
+    pub tools: Vec<McpToolDefinition>,
+}
+
+#[derive(Clone, Debug, Default, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct McpToolDefinition {
+    #[serde(default)]
+    pub pi_name: String,
+    #[serde(default)]
+    pub title: String,
+    #[serde(default)]
+    pub description: String,
+    #[serde(default)]
+    pub available: bool,
+}
+
+#[derive(Clone, Debug, Default, Deserialize)]
+pub struct SkillsCatalog {
+    #[serde(default)]
+    pub skills: Vec<SkillDefinition>,
+}
+
+#[derive(Clone, Debug, Default, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SkillDefinition {
+    #[serde(default)]
+    pub description: String,
+    #[serde(default)]
+    pub command: String,
+    #[serde(default)]
+    pub enabled: bool,
+}
+
+#[derive(Clone, Debug, Default, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ExecutionModeUpdate {
+    #[serde(default)]
+    pub execution_mode: String,
+}
+
+#[derive(Clone, Debug)]
+pub struct StreamEvent {
+    pub name: String,
+    pub data: Value,
+}
+
+#[derive(Clone, Debug)]
+pub enum RuntimeEvent {
+    Stream(StreamEvent),
+    StreamFailed(String),
+}

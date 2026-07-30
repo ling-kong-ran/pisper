@@ -610,6 +610,7 @@ export function createApiHandler(runtime, { updates, desktopPet, engineVersion =
             sessionId: body.sessionId,
             message: String(body.message).trim(),
             attachments: body.attachments,
+            requestedToolNames: body.requestedToolNames,
             goalMode: Boolean(body.goalMode),
             goalTokenBudget: body.goalTokenBudget == null ? null : Number(body.goalTokenBudget),
             send: (event, data) => { if (!res.destroyed && !res.writableEnded) sseSend(res, event, data) },

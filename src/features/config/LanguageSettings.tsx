@@ -5,6 +5,7 @@ import { useUiStore, type DensityMode } from '@/stores/ui-store'
 import type { LucideIcon } from 'lucide-react'
 import type { SupportedLanguage } from '@/app/i18n'
 import type { Notify } from '@/app/route-context'
+import { CliSettings } from './CliSettings'
 
 function languageName(language: SupportedLanguage, t: ReturnType<typeof useI18n>['t']) {
   return language === 'en-US'
@@ -190,6 +191,7 @@ export function LanguageSettings({ notify }: { notify: Notify }) {
           </span>
         </div>
       </Panel>
+      <CliSettings notify={notify} />
     </div>
   )
 }

@@ -40,11 +40,42 @@ test('transparent desktop pet enables the required macOS Tauri API', async () =>
   assert.equal(JSON.parse(config).app.macOSPrivateApi, true)
 })
 
-test('release quality builds the external SEA sidecar before checking Rust', async () => {
+test('release quality stages both desktop sidecars before checking Rust', async () => {
   const workflow = await readFile('.github/workflows/release.yml', 'utf8')
   const qualityJob = workflow.slice(workflow.indexOf('quality:'), workflow.indexOf('  build:'))
+  const cargoCheck = qualityJob.indexOf('cargo check')
 
-  assert.ok(qualityJob.indexOf('npm run sidecar:sea') < qualityJob.indexOf('cargo check'))
+  assert.ok(qualityJob.indexOf('npm run sidecar:sea') < cargoCheck)
+  assert.ok(qualityJob.indexOf('npm run tui:stage') < cargoCheck)
+})
+
+test('desktop bundles the TUI behind the narrow CLI management bridge', async () => {
+  const [configSource, packageSource, bridge, permissions, manager] = await Promise.all([
+    readFile('src-tauri/tauri.conf.json', 'utf8'),
+    readFile('package.json', 'utf8'),
+    readFile('src-tauri/src/desktop-bridge.js', 'utf8'),
+    readFile('src-tauri/permissions/desktop.toml', 'utf8'),
+    readFile('src-tauri/src/cli_manager.rs', 'utf8'),
+  ])
+  const config = JSON.parse(configSource)
+  const packageJson = JSON.parse(packageSource)
+
+  assert.deepEqual(config.bundle.externalBin, [
+    'binaries/pisper-sidecar',
+    'binaries/pisper-cli',
+  ])
+  assert.match(packageJson.scripts['desktop:webview:build'], /npm run tui:stage/)
+  for (const command of [
+    'desktop_get_cli_status',
+    'desktop_install_cli',
+    'desktop_uninstall_cli',
+  ]) {
+    assert.match(bridge, new RegExp(command))
+    assert.match(permissions, new RegExp(command))
+  }
+  assert.match(manager, /PISPER_CLI_MANAGED_V1/)
+  assert.match(manager, /WM_SETTINGCHANGE/)
+  assert.match(manager, /\.local.*bin/s)
 })
 
 test('release workflow validates the exact Tauri asset set before upload', async () => {

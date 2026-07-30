@@ -31,6 +31,7 @@
   <a href="#features">功能</a> ·
   <a href="#desktop-pet">桌面宠物</a> ·
   <a href="#install">安装</a> ·
+  <a href="#tui">终端客户端</a> ·
   <a href="#development">开发</a> ·
   <a href="#license">许可</a>
 </p>
@@ -196,7 +197,7 @@
 | **双向渠道** | 连接飞书与个人微信，离开电脑也能随时召唤 Agent。 |
 | **Web 预览** | 在 Dock 面板中预览外部网页，必要时回退到系统浏览器。 |
 | **桌面应用** | Tauri 2 系统 WebView 单实例应用，支持托盘、签名更新与 GitHub Releases。 |
-| **安全边界** | 会话级 `只读 / 工作区 / 完全访问`、单次审批、凭据脱敏与数据隔离。 |
+| **安全边界** | 会话级 `只读 / 工作区 / 完全访问`、单次审批、凭据隔离与本地数据边界。 |
 
 ### 能力轻声应答：渐进式披露
 
@@ -261,6 +262,107 @@ chmod +x Pisper_*_linux_x86_64.AppImage
 ```bash
 sudo apt install ./Pisper-*-linux-amd64.deb
 ```
+
+<a id="tui"></a>
+
+### 终端客户端（TUI）
+
+Pisper 同时提供 Rust + Ratatui 终端客户端。每次启动 TUI 时，主区域都会先显示 Pisper 终端品牌标识；开始交互后，品牌画面自动让位给消息流。模型提供 reasoning token 时，TUI 会在回答前实时展开 Thinking，并用事件驱动的终端 spinner 标识活跃状态。TUI 复用桌面版的 Node SEA sidecar、Agent runtime、会话、Tools、Skills、MCP、沙箱和审批链。
+
+安装桌面版后，可在 **设置 → 界面设置 → Pisper 终端命令** 中安装或卸载 `pisper` 命令。Pisper 会使用当前用户目录并管理对应 PATH 项，不需要管理员权限；操作后需重启终端宿主。Windows 安装的是 `pisper.exe`，macOS 和 Linux 安装的是无扩展名的 `pisper`。
+
+从源码启动当前目录：
+
+```bash
+npm run tui:dev
+```
+
+指定工作目录：
+
+```bash
+npm run tui:dev -- --cwd /path/to/project
+```
+
+构建包含 `pisper`、SEA sidecar 和 runtime 的完整目录：
+
+```bash
+npm run sidecar:sea
+npm run tui:package
+```
+
+将生成的 `release/tui/pisper-<version>-<platform>-<arch>/` 加入 `PATH` 后，可以在任意项目目录直接启动：
+
+```bash
+pisper
+```
+
+普通启动始终创建空会话，不会自动载入历史。只有显式使用 `resume` 才恢复当前工作目录最近的会话：
+
+```bash
+pisper resume
+pisper resume --cwd /path/to/project
+```
+
+诊断 sidecar、鉴权与当前能力目录：
+
+```bash
+pisper doctor
+```
+
+#### 调整当前会话权限
+
+输入 `/mode` 查看当前执行模式。使用以下命令切换当前会话：
+
+| 命令 | 行为 |
+| :--- | :--- |
+| `/mode read-only` | 只开放低风险分析工具，不允许修改项目。 |
+| `/mode workspace` | 允许在当前工作目录内修改；Shell 运行在本地沙箱中，越界操作仍需审批。 |
+| `/mode full-access` | 允许访问工作目录外的文件和网络，Shell 不再受工作区沙箱限制。仅在明确需要时使用。 |
+
+Windows 首次切换到 `workspace` 时可能显示一次 UAC，用于创建低权限沙箱账户和网络隔离规则。安装失败或被取消时，TUI 不会静默切换权限。
+
+#### 调用 Tool
+
+1. 在 composer 中输入 `/`。
+2. 选择前缀为 `T` 的 Tool。
+3. 在命令后写清目标或参数，然后按 `Enter`。
+
+示例：
+
+```text
+/read README.md
+/bash npm test
+/web_search Pisper latest release
+/mcp_pencil_get_editor_state_f9837b9b 读取当前 Pencil 画布状态
+```
+
+TUI 会把选中的 Tool 名作为结构化请求交给 runtime，确保对应 Schema 在当前回合可用；随后仍由 Agent 组织参数并执行。Slash 选择不会绕过 Tool 开关、当前执行模式、工作区边界或 runtime 审批。被禁用或不可用的 Tool 不会出现在列表中。
+
+#### 调用 Skill
+
+输入 `/` 后选择前缀为 `S` 的 Skill，再在命令后补充本次任务。例如已启用的 Skill 命令为 `/skill:docs-search` 时：
+
+```text
+/skill:docs-search 查找 Tauri updater 的签名要求
+```
+
+Skill 名称来自当前 runtime，实际命令以 Slash 列表为准。只有已启用且允许模型调用的 Skill 才会显示；选中后，runtime 按需加载对应 `SKILL.md`、脚本和参考资料。Skill 内部调用 Tool 时仍服从当前 `/mode`、沙箱和审批策略。
+
+#### TUI 内置命令
+
+| 命令 | 作用 |
+| :--- | :--- |
+| `/new` | 新建会话。 |
+| `/sessions` | 切换历史会话。 |
+| `/events` | 打开当前 TUI 进程的事件账本。 |
+| `/chat` | 返回消息流。 |
+| `/model` | 显示当前模型。 |
+| `/mode` | 显示当前执行模式及可用参数。 |
+| `/quit` | 退出 TUI 并关闭它启动的 sidecar。 |
+
+运行中按 `Ctrl+C` 会终止当前 Agent；空闲时按 `Ctrl+C` 会退出。runtime 请求 Tool 审批时，按 `Y` 同意，按 `N` 或 `Esc` 拒绝。
+
+更完整的开发与发行布局说明见 [`src-tui/README.md`](./src-tui/README.md)。
 
 ### 从源码运行
 

@@ -2618,6 +2618,8 @@ dependencies = [
  "tauri-plugin-updater",
  "tauri-plugin-window-state",
  "time",
+ "windows-sys 0.59.0",
+ "winreg",
 ]
 
 [[package]]

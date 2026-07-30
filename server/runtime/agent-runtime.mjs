@@ -46,7 +46,7 @@ import { createToolDiscoveryTool, TOOL_DISCOVERY_NAME } from '../tools/app/tool-
 import { createPisperBashTool } from '../tools/sandboxed-bash.mjs'
 import { hotToolNames, mergePromotedToolNames, schemaOnlyToolDefinitions, selectedToolNames } from '../tools/tool-activation.mjs'
 import { DEFAULT_EXECUTION_MODE, EXECUTION_MODES, filterToolsForExecutionMode, migrateLegacyExecutionMode, normalizeExecutionMode, permissionModeForExecutionMode } from '../security/execution-mode.mjs'
-import { createStreamingSecretRedactor, installSessionPersistenceRedaction, redactPersistedSessionFiles, redactSecretText, redactSecretValue } from '../security/secret-redaction.mjs'
+import { redactSecretText } from '../security/secret-redaction.mjs'
 import { applyPisperSystemPrompt, pisperPromptExtension } from '../prompts/pisper-system-prompt.mjs'
 import {
   DEFAULT_COMPACTION_THRESHOLD_PERCENT,
@@ -181,8 +181,8 @@ function queuedSessionInputs(session) {
   const steering = typeof session?.getSteeringMessages === 'function' ? session.getSteeringMessages() : []
   const followUp = typeof session?.getFollowUpMessages === 'function' ? session.getFollowUpMessages() : []
   return [
-    ...steering.filter((text) => !isInternalParentMessage(text)).map((text) => ({ behavior: 'steer', text: redactSecretText(text) })),
-    ...followUp.filter((text) => !isInternalParentMessage(text)).map((text) => ({ behavior: 'followUp', text: redactSecretText(text) })),
+    ...steering.filter((text) => !isInternalParentMessage(text)).map((text) => ({ behavior: 'steer', text })),
+    ...followUp.filter((text) => !isInternalParentMessage(text)).map((text) => ({ behavior: 'followUp', text })),
   ]
 }
 
@@ -190,7 +190,7 @@ function serializeMessage(message, index, resolveImageUrl = null) {
   if (!message || !['user', 'assistant'].includes(message.role)) return null
   const rawText = textFromContent(message.content)
   if (message.role === 'user' && isInternalParentMessage(rawText)) return null
-  const text = redactSecretText(message.role === 'user' ? rawText.split(ATTACHMENT_MARKER)[0] : rawText)
+  const text = message.role === 'user' ? rawText.split(ATTACHMENT_MARKER)[0] : rawText
   if (!text) return null
   const attachments = Array.isArray(message.content)
     ? message.content.filter((part) => part?.type === 'image').map((part, attachmentIndex) => {
@@ -273,7 +273,7 @@ function serializeTranscriptMessages(messages, resolveImageUrl = null) {
       const tool = tools.get(message.toolCallId)
       if (!tool) continue
       const finishedAt = serializedTimestamp(message.timestamp)
-      const output = redactSecretText(textFromContent(message.content)).slice(-MAX_LIVE_THINKING_CHARS)
+      const output = textFromContent(message.content).slice(-MAX_LIVE_THINKING_CHARS)
       Object.assign(tool, {
         status: message.isError ? 'error' : 'done',
         message: message.isError ? output.replace(/\s+/g, ' ').trim().slice(0, 180) : '',
@@ -290,7 +290,7 @@ function serializeTranscriptMessages(messages, resolveImageUrl = null) {
       const content = Array.isArray(message.content) ? message.content : []
       const thinking = content
         .filter((part) => part?.type === 'thinking')
-        .map((part) => redactSecretText(part.thinking || ''))
+        .map((part) => String(part.thinking || ''))
         .filter(Boolean)
       if (thinking.length) thinkingParts.push(...thinking)
       const toolCalls = content.filter((part) => part?.type === 'toolCall')
@@ -299,7 +299,7 @@ function serializeTranscriptMessages(messages, resolveImageUrl = null) {
           type: 'tool',
           id: call.id,
           name: call.name,
-          args: redactSecretValue(call.arguments || {}),
+          args: call.arguments || {},
           status: 'running',
           startedAt: timestamp,
           updatedAt: timestamp,
@@ -745,7 +745,6 @@ export class AgentRuntimeService {
 
   async init() {
     await mkdir(this.sessionDir, { recursive: true })
-    await redactPersistedSessionFiles(this.sessionDir)
     await mkdir(this.assetsDir, { recursive: true })
     this.sessionMeta = await readJson(this.sessionMetaPath, {})
     await this.migrateLegacyDefaultWorkspaces()
@@ -954,14 +953,15 @@ export class AgentRuntimeService {
     }
   }
 
-  async selectToolsForMessage(value, message, { attachments = [], preserveRequested = false } = {}) {
+  async selectToolsForMessage(value, _message, { requestedToolNames = [], preserveRequested = false } = {}) {
     if (!value?.session) return []
-    // 简化：不再使用正则表达式路由，只保留基本工具选择
-    const requestedToolNames = []
+    const requested = [...new Set((Array.isArray(requestedToolNames) ? requestedToolNames : [])
+      .map((name) => String(name || '').trim())
+      .filter(Boolean))]
     value.requestedToolNames = preserveRequested
-      ? [...new Set([...(value.requestedToolNames || []), ...requestedToolNames])]
-      : requestedToolNames
-    await this.promoteSessionTools(value, requestedToolNames)
+      ? [...new Set([...(value.requestedToolNames || []), ...requested])]
+      : requested
+    await this.promoteSessionTools(value, requested)
     return value.session.getActiveToolNames()
   }
 
@@ -1654,7 +1654,7 @@ export class AgentRuntimeService {
       const liveMessage = {
         id: `live-${id}`,
         role: 'agent',
-        text: redactSecretText(live.text),
+        text: live.text,
         streaming: true,
         attachments: live.assets,
       }
@@ -1665,8 +1665,8 @@ export class AgentRuntimeService {
       id,
       streaming,
       messages,
-      tools: redactSecretValue(live?.tools || []),
-      error: redactSecretText(live?.error || ''),
+      tools: live?.tools || [],
+      error: live?.error || '',
       startedAt: live?.startedAt || null,
       lastActivityAt: live?.lastActivityAt || null,
       finishedAt: live?.finishedAt || null,
@@ -1676,14 +1676,14 @@ export class AgentRuntimeService {
       executionMode: this.getSessionExecutionMode(id),
       goal: live?.goal ?? this.goals.get(id),
       taskList: live?.taskList ?? this.taskLists.get(id),
-      agents: redactSecretValue(live?.agents ?? this.multiAgents.summaries(id).filter((agent) => ['queued', 'starting', 'running'].includes(agent.status))),
-      currentActivity: redactSecretValue(live?.currentActivity || null),
-      activityFeed: redactSecretValue(live?.activityFeed || []),
-      thinkingText: redactSecretText(live?.thinkingText || ''),
-      queuedInputs: redactSecretValue(live?.queuedInputs ?? queuedSessionInputs(active?.session)),
+      agents: live?.agents ?? this.multiAgents.summaries(id).filter((agent) => ['queued', 'starting', 'running'].includes(agent.status)),
+      currentActivity: live?.currentActivity || null,
+      activityFeed: live?.activityFeed || [],
+      thinkingText: live?.thinkingText || '',
+      queuedInputs: live?.queuedInputs ?? queuedSessionInputs(active?.session),
       contextUsage: this.compactionAwareContextUsage(active?.session, live?.compaction) || page.contextUsage,
-      compaction: redactSecretValue(live?.compaction || null),
-      approvals: redactSecretValue(this.permissions.getPending(id)),
+      compaction: live?.compaction || null,
+      approvals: this.permissions.getPending(id),
       pageInfo: page.pageInfo,
     }
   }
@@ -1847,7 +1847,6 @@ export class AgentRuntimeService {
   }
 
   async createSessionRuntime(sessionManager, name) {
-    installSessionPersistenceRedaction(sessionManager)
     const appConfig = await readJson(this.appConfigPath, { toolMode: 'full' })
     const effectiveCwd = await resolveDirectory(this.sessionMeta[sessionManager.getSessionId()]?.cwd, sessionManager.getCwd() || this.cwd)
     const enabledTools = toolsFromConfig(appConfig)
@@ -2103,12 +2102,11 @@ export class AgentRuntimeService {
     await this.streamPrompt({ sessionId, message, send: () => {} })
   }
 
-  async streamPrompt({ sessionId, message, attachments = [], goalMode = false, goalTokenBudget = null, isolatedContext = false, send }) {
+  async streamPrompt({ sessionId, message, attachments = [], requestedToolNames = [], goalMode = false, goalTokenBudget = null, isolatedContext = false, send }) {
     const emit = (event, data) => {
-      const redacted = redactSecretValue(data)
-      send(event, redacted)
+      send(event, data)
       try {
-        this.eventObserver?.({ event, data: redacted, sessionId: redacted?.sessionId || sessionId || '' })
+        this.eventObserver?.({ event, data, sessionId: data?.sessionId || sessionId || '' })
       } catch {
         // Desktop observers are best-effort and must never interrupt an Agent stream.
       }
@@ -2136,7 +2134,7 @@ export class AgentRuntimeService {
         goal = await this.goals.start(session.sessionId, { objective: message, tokenBudget: goalTokenBudget ?? undefined })
       }
     }
-    await this.selectToolsForMessage(value, message, { attachments })
+    await this.selectToolsForMessage(value, message, { requestedToolNames })
     value.pendingUserMessage = String(message || '')
     // Drop stale plans from previous turns unless a Goal is actively driving multi-turn work or this is an internal wakeup turn.
     const keepTaskList = goal?.status === 'active' || isGoalContinuationMessage(message) || isAgentCompletionMessage(message)
@@ -2198,23 +2196,19 @@ export class AgentRuntimeService {
     let goalTurnStartedAt = 0
     let continuationQueued = false
     let budgetSummaryQueued = false
-    const textRedactor = createStreamingSecretRedactor()
-    let thinkingRedactor = createStreamingSecretRedactor()
     let thinkingPrefix = ''
+    let thinkingTurnText = ''
     const activeTextBlocks = new Set()
     const activeThinkingBlocks = new Set()
     const streamBlockIndex = (update) => Number.isInteger(update?.contentIndex) ? update.contentIndex : 0
-    const flushText = () => {
-      const patch = textRedactor.flush()
-      live.text = textRedactor.text()
-      if (patch) emit('text_patch', patch)
-    }
-    const currentThinkingText = () =>
-      liveThinkingTail([thinkingPrefix, thinkingRedactor.text()].filter(Boolean).join('\n\n'))
-    const flushThinking = () => {
-      const patch = thinkingRedactor.flush()
-      live.thinkingText = currentThinkingText()
-      if (patch) emit('thinking_patch', patch)
+    const appendThinking = (delta) => {
+      thinkingTurnText += String(delta || '')
+      const next = liveThinkingTail([thinkingPrefix, thinkingTurnText].filter(Boolean).join('\n\n'))
+      let start = 0
+      const limit = Math.min(live.thinkingText.length, next.length)
+      while (start < limit && live.thinkingText.charCodeAt(start) === next.charCodeAt(start)) start += 1
+      live.thinkingText = next
+      emit('thinking_patch', { start, text: next.slice(start) })
     }
     const finishLiveRun = (error = '') => {
       const finishedAt = new Date().toISOString()
@@ -2244,29 +2238,25 @@ export class AgentRuntimeService {
         if (update.type === 'text_start') activeTextBlocks.add(blockIndex)
         if (update.type === 'text_delta') {
           activeTextBlocks.add(blockIndex)
-          const patch = textRedactor.push(update.delta)
-          live.text = textRedactor.text()
+          const delta = String(update.delta || '')
+          live.text += delta
           setLiveActivity(live, { type: 'model', stage: 'responding', updatedAt: live.lastActivityAt })
-          if (patch) emit('text_patch', patch)
+          if (delta) emit('text_delta', { delta })
         }
         if (update.type === 'text_end') {
           activeTextBlocks.delete(blockIndex)
           if (!activeTextBlocks.size) {
-            flushText()
             emit('text_end', { text: live.text, updatedAt: live.lastActivityAt })
           }
         }
         if (update.type === 'thinking_start') activeThinkingBlocks.add(blockIndex)
         if (update.type === 'thinking_delta') {
           activeThinkingBlocks.add(blockIndex)
-          const patch = thinkingRedactor.push(update.delta)
-          live.thinkingText = currentThinkingText()
+          appendThinking(update.delta)
           setLiveActivity(live, { type: 'model', stage: 'thinking', updatedAt: live.lastActivityAt })
-          if (patch) emit('thinking_patch', patch)
         }
         if (update.type === 'thinking_end') {
           activeThinkingBlocks.delete(blockIndex)
-          if (!activeThinkingBlocks.size) flushThinking()
         }
       } else if (event.type === 'compaction_start') {
         live.compaction = startedCompaction(event.reason, live.lastActivityAt)
@@ -2279,13 +2269,11 @@ export class AgentRuntimeService {
         emit('context_usage', live.contextUsage)
       } else if (event.type === 'message_end') {
         if (event.message?.role === 'assistant') {
-          flushText()
-          flushThinking()
           activeTextBlocks.clear()
           activeThinkingBlocks.clear()
           const finalMessage = ['stop', 'length'].includes(event.message.stopReason)
           if (finalMessage) {
-            const completedText = redactSecretText(textFromContent(event.message.content))
+            const completedText = textFromContent(event.message.content)
             if (completedText) live.text = completedText
           }
           emit('text_end', {
@@ -2303,8 +2291,6 @@ export class AgentRuntimeService {
         ]
         emit('queue_update', { queuedInputs: live.queuedInputs })
       } else if (event.type === 'tool_execution_start') {
-        flushText()
-        flushThinking()
         activeTextBlocks.clear()
         activeThinkingBlocks.clear()
         const toolStartedAt = live.lastActivityAt
@@ -2360,10 +2346,9 @@ export class AgentRuntimeService {
           ...(resultAgent ? { agent: resultAgent } : {}),
         })
       } else if (event.type === 'turn_start') {
-        flushThinking()
         activeThinkingBlocks.clear()
         thinkingPrefix = live.thinkingText
-        thinkingRedactor = createStreamingSecretRedactor()
+        thinkingTurnText = ''
         live.thinkingText = thinkingPrefix
         setLiveActivity(live, { type: 'model', stage: 'thinking', updatedAt: live.lastActivityAt })
         emit('thinking_reset', { thinkingText: thinkingPrefix, updatedAt: live.lastActivityAt })
@@ -2437,12 +2422,10 @@ export class AgentRuntimeService {
         : null
       applyPisperSystemPrompt(session, session.model)
       await session.prompt(prompt, { images })
-      flushText()
-      flushThinking()
       const last = [...session.messages].reverse().find((item) => item.role === 'assistant')
       if (last?.errorMessage) throw new Error(last.errorMessage)
       const assistantText = textFromContent(last?.content)
-      live.text = redactSecretText(assistantText) || live.text
+      live.text = assistantText || live.text
       // Resolve auto-title before done so clients that stop the SSE stream on `done` still receive it.
       if (titlePromise) {
         try {
@@ -2485,8 +2468,6 @@ export class AgentRuntimeService {
         }).catch(() => {})
       }
     } catch (error) {
-      flushText()
-      flushThinking()
       session.clearQueue?.()
       live.queuedInputs = []
       live.error = error instanceof Error ? error.message : String(error)
