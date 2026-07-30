@@ -1,0 +1,20 @@
+{
+  "schemaVersion": 1,
+  "campaigns": [
+    {
+      "id": "matrix",
+      "placement": "settings-updates",
+      "enabled": true,
+      "priority": 100,
+      "name": {
+        "zh-CN": "Matrix",
+        "en-US": "Matrix"
+      },
+      "description": {
+        "zh-CN": "感谢 Matrix 对 Pisper 社区的支持。",
+        "en-US": "Matrix supports the Pisper community."
+      },
+      "href": "https://matrix.000328.xyz/sign-up?aff=ZPeH"
+    }
+  ]
+}

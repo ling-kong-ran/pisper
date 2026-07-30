@@ -5,6 +5,7 @@ import { basename, join, resolve } from 'node:path'
 import { createApiHandler } from './http/api-handler.mjs'
 import { createStaticHandler } from './http/static-handler.mjs'
 import { AgentRuntimeService } from './runtime/agent-runtime.mjs'
+import { SponsorContentService } from './services/sponsor-content-service.mjs'
 import { resolveGitCommit, UpdateCheckService } from './services/update-check-service.mjs'
 import { WebDesktopPetService } from './services/web-desktop-pet-service.mjs'
 import { authorizeDesktopRequest } from './desktop-sidecar-auth.mjs'
@@ -52,6 +53,12 @@ export async function createPisperServer({
     .catch(() => 'unknown')
   const currentCommit = await resolveGitCommit(appRoot)
   const updates = new UpdateCheckService({ currentVersion: packageJson.version, currentCommit })
+  const sponsors = new SponsorContentService({
+    dataDir: agentDir,
+    fallbackPath: join(appRoot, 'docs', 'sponsors.json'),
+    appVersion: packageJson.version,
+  })
+  await sponsors.init()
 
   let vite = null
   if (!production) {
@@ -62,7 +69,12 @@ export async function createPisperServer({
       appType: 'spa',
     })
   }
-  const handleApi = createApiHandler(runtime, { updates, desktopPet, engineVersion })
+  const handleApi = createApiHandler(runtime, {
+    updates,
+    sponsors,
+    desktopPet,
+    engineVersion,
+  })
   const serveProduction = createStaticHandler(appRoot)
   const server = createServer(async (req, res) => {
     const address = server.address()

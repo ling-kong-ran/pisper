@@ -9,6 +9,12 @@ export async function checkWebUpdates({
   const response = await fetcher(`/api/app-update${refresh ? '?refresh=1' : ''}`, {
     cache: 'no-store',
   })
-  if (!response.ok) throw new Error(`更新检查失败：HTTP ${response.status}`)
-  return response.json() as Promise<UpdateStatus>
+  const payload = (await response.json().catch(() => null)) as
+    UpdateStatus | { error?: unknown } | null
+  if (!response.ok) {
+    const detail =
+      payload && 'error' in payload && typeof payload.error === 'string' ? payload.error.trim() : ''
+    throw new Error(detail || `更新检查失败：HTTP ${response.status}`)
+  }
+  return payload as UpdateStatus
 }

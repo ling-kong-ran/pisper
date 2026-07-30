@@ -3,22 +3,53 @@ import {
   CheckCircle2,
   Download,
   ExternalLink,
+  Handshake,
   Laptop,
   PackageCheck,
   RefreshCw,
   Rocket,
   TriangleAlert,
+  X,
 } from 'lucide-react'
 import MarkdownMessage from '@/components/MarkdownMessage'
 import { Badge, Panel, SectionTitle } from '@/components/ui'
+import { STORAGE_KEYS } from '@/app/storage'
 import { useI18n } from '@/app/use-i18n'
 import type { Notify } from '@/app/route-context'
 import type { I18nValues, SupportedLanguage } from '@/app/i18n'
+import { apiJson } from '@/lib/api'
 import type { AppUpdateController, AppUpdateInfo } from '@/types/update'
 
 const BUILD_VERSION = import.meta.env.VITE_APP_VERSION || '0.0.0'
+const SPONSOR_REFRESH_MS = 15 * 60_000
+const SPONSOR_DISMISSAL_MS = 30 * 24 * 60 * 60_000
 
 type Translate = (message: string, values?: I18nValues) => string
+
+type SponsorCampaign = {
+  id: string
+  name: string
+  description: string
+  href: string
+}
+
+type SponsorResponse = {
+  campaigns: SponsorCampaign[]
+}
+
+function storedSponsorDismissals() {
+  try {
+    const value = JSON.parse(localStorage.getItem(STORAGE_KEYS.sponsorDismissals) || '{}')
+    if (!value || typeof value !== 'object' || Array.isArray(value)) return {}
+    return Object.fromEntries(
+      Object.entries(value).filter((entry): entry is [string, number] => {
+        return typeof entry[1] === 'number' && entry[1] > Date.now()
+      }),
+    )
+  } catch {
+    return {}
+  }
+}
 
 function platformLabel(info: AppUpdateInfo, t: Translate) {
   if (!info.desktop) return t('config:updateSettings.browserMode')
@@ -55,6 +86,9 @@ export function UpdateSettings({
   const status = update?.status || { state: 'idle' }
   const desktop = Boolean(info.desktop)
   const [bundled, setBundled] = useState({ version: BUILD_VERSION, date: '', notes: '' })
+  const [sponsors, setSponsors] = useState<SponsorCampaign[]>([])
+  const [sponsorDismissals, setSponsorDismissals] =
+    useState<Record<string, number>>(storedSponsorDismissals)
 
   useEffect(() => {
     let active = true
@@ -68,6 +102,38 @@ export function UpdateSettings({
       active = false
     }
   }, [])
+
+  useEffect(() => {
+    let active = true
+    const loadSponsors = (force = false) => {
+      const refresh = force ? '&refresh=1' : ''
+      return apiJson<SponsorResponse>(
+        `/api/sponsors/settings-updates?locale=${encodeURIComponent(language)}${refresh}`,
+      )
+        .then((value) => {
+          if (active) setSponsors(Array.isArray(value.campaigns) ? value.campaigns : [])
+        })
+        .catch(() => {
+          if (active && !force) setSponsors([])
+        })
+    }
+    void loadSponsors()
+    const timer = window.setInterval(() => void loadSponsors(true), SPONSOR_REFRESH_MS)
+    return () => {
+      active = false
+      window.clearInterval(timer)
+    }
+  }, [language])
+
+  const dismissSponsor = (id: string) => {
+    const next = { ...sponsorDismissals, [id]: Date.now() + SPONSOR_DISMISSAL_MS }
+    setSponsorDismissals(next)
+    try {
+      localStorage.setItem(STORAGE_KEYS.sponsorDismissals, JSON.stringify(next))
+    } catch {
+      // The dismissal remains effective for this session when storage is unavailable.
+    }
+  }
 
   const check = async () => {
     await update?.check()
@@ -109,6 +175,9 @@ export function UpdateSettings({
       status.currentCommit?.slice(0, 7) ||
       bundled.version ||
       info.version
+  const visibleSponsors = sponsors.filter(
+    (sponsor) => (sponsorDismissals[sponsor.id] || 0) <= Date.now(),
+  )
   const statusMeta = useMemo(
     () =>
       (
@@ -290,6 +359,58 @@ export function UpdateSettings({
           <MarkdownMessage>{notes}</MarkdownMessage>
         </div>
       </Panel>
+
+      {visibleSponsors.length > 0 && (
+        <Panel className="p-5">
+          <div className="flex min-w-0 items-start gap-3">
+            <span className="language-settings-icon">
+              <Handshake size={19} />
+            </span>
+            <span className="min-w-0">
+              <SectionTitle title={t('config:updateSettings.sponsors')} />
+              <small className="mt-1 block text-[12px] leading-5 text-[var(--text-muted)]">
+                {t('config:updateSettings.sponsorsDescription')}
+              </small>
+            </span>
+          </div>
+          <div className="mt-4 divide-y divide-[var(--stroke-soft)] border-y border-[var(--stroke-soft)]">
+            {visibleSponsors.map((sponsor) => (
+              <div
+                key={sponsor.id}
+                className="grid min-h-16 grid-cols-[minmax(0,1fr)_auto_auto] items-center gap-3 py-3"
+              >
+                <span className="min-w-0">
+                  <span className="mb-1 flex items-center gap-2">
+                    <strong className="truncate text-[14px]">{sponsor.name}</strong>
+                    <Badge tone="gray">{t('config:updateSettings.sponsored')}</Badge>
+                  </span>
+                  <small className="block text-[12px] leading-5 text-[var(--text-muted)]">
+                    {sponsor.description}
+                  </small>
+                </span>
+                <a
+                  className="button secondary tiny"
+                  href={sponsor.href}
+                  target="_blank"
+                  rel="noopener noreferrer sponsored"
+                >
+                  <ExternalLink size={13} />
+                  {t('config:updateSettings.visitSponsor')}
+                </a>
+                <button
+                  type="button"
+                  className="icon-button shrink-0"
+                  aria-label={t('config:updateSettings.hideSponsor')}
+                  title={t('config:updateSettings.hideSponsor')}
+                  onClick={() => dismissSponsor(sponsor.id)}
+                >
+                  <X size={15} />
+                </button>
+              </div>
+            ))}
+          </div>
+        </Panel>
+      )}
     </div>
   )
 }

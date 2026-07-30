@@ -27,6 +27,23 @@ function response() {
   }
 }
 
+test('app update API distinguishes upstream failures from invalid requests', async () => {
+  const updates = {
+    async check() {
+      throw new Error('GitHub commit 比较失败：HTTP 403')
+    },
+  }
+  const handler = createApiHandler({}, { updates })
+  const output = response()
+
+  assert.equal(
+    await handler(request('GET'), output, new URL('http://localhost/api/app-update?refresh=1')),
+    true,
+  )
+  assert.equal(output.status, 502)
+  assert.deepEqual(JSON.parse(output.body), { error: 'GitHub commit 比较失败：HTTP 403' })
+})
+
 test('compaction preference APIs expose and update the threshold percentage', async () => {
   const calls = []
   const runtime = {

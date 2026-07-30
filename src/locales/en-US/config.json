@@ -302,6 +302,11 @@
   "updateSettings.updateChannel": "Update channel",
   "updateSettings.upToDate": "Up to date",
   "updateSettings.pisperAppUpdates": "Pisper app updates",
+  "updateSettings.sponsors": "Project sponsors",
+  "updateSettings.sponsorsDescription": "These partners support the Pisper community. Sponsor content is not targeted using conversation or workspace data.",
+  "updateSettings.sponsored": "Sponsored",
+  "updateSettings.visitSponsor": "Visit",
+  "updateSettings.hideSponsor": "Hide this sponsor for 30 days",
   "updateSettings.viewRelease": "View release",
   "updateSettings.viewSourceUpdates": "View source updates",
   "updateSettings.viewUpdateDiagnosticLog": "View update diagnostic log"

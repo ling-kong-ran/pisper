@@ -302,6 +302,11 @@
   "updateSettings.updateChannel": "更新通道",
   "updateSettings.upToDate": "已是最新",
   "updateSettings.pisperAppUpdates": "Pisper 应用更新",
+  "updateSettings.sponsors": "项目赞助商",
+  "updateSettings.sponsorsDescription": "以下合作伙伴为 Pisper 社区提供支持。赞助内容不会使用会话或工作区数据进行定向。",
+  "updateSettings.sponsored": "赞助",
+  "updateSettings.visitSponsor": "访问",
+  "updateSettings.hideSponsor": "隐藏此赞助商 30 天",
   "updateSettings.viewRelease": "查看新版本",
   "updateSettings.viewSourceUpdates": "查看代码更新",
   "updateSettings.viewUpdateDiagnosticLog": "查看更新诊断日志"

@@ -28,3 +28,16 @@ test('web update checks use the same-origin cached API', async () => {
   assert.equal(result.canDownload, false)
   assert.match(result.message, /1 个提交/)
 })
+
+test('web update checks preserve the server error detail', async () => {
+  await assert.rejects(
+    checkWebUpdates({
+      fetcher: async () => ({
+        ok: false,
+        status: 502,
+        json: async () => ({ error: 'GitHub commit 比较失败：HTTP 403' }),
+      }),
+    }),
+    /GitHub commit 比较失败：HTTP 403/,
+  )
+})

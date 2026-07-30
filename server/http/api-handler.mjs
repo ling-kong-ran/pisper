@@ -5,7 +5,10 @@ function publicError(error) {
   return redactSecretText(error instanceof Error ? error.message : String(error))
 }
 
-export function createApiHandler(runtime, { updates, desktopPet, engineVersion = 'unknown' } = {}) {
+export function createApiHandler(
+  runtime,
+  { updates, sponsors, desktopPet, engineVersion = 'unknown' } = {},
+) {
   return async function handleApi(req, res, url) {
     if (!url.pathname.startsWith('/api/')) return false
     try {
@@ -15,7 +18,28 @@ export function createApiHandler(runtime, { updates, desktopPet, engineVersion =
       }
       if (req.method === 'GET' && url.pathname === '/api/app-update') {
         if (!updates) throw new Error('更新检查服务尚未初始化。')
-        json(res, 200, await updates.check({ refresh: url.searchParams.get('refresh') === '1' }))
+        try {
+          json(
+            res,
+            200,
+            await updates.check({ refresh: url.searchParams.get('refresh') === '1' }),
+          )
+        } catch (error) {
+          json(res, 502, { error: publicError(error) })
+        }
+        return true
+      }
+      const sponsorMatch = url.pathname.match(/^\/api\/sponsors\/([^/]+)$/)
+      if (req.method === 'GET' && sponsorMatch) {
+        if (!sponsors) throw new Error('赞助内容服务尚未初始化。')
+        json(
+          res,
+          200,
+          await sponsors.getPlacement(decodeURIComponent(sponsorMatch[1]), {
+            locale: url.searchParams.get('locale') || 'zh-CN',
+            refresh: url.searchParams.get('refresh') === '1',
+          }),
+        )
         return true
       }
       if (req.method === 'GET' && url.pathname === '/api/config') {
