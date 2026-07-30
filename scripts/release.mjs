@@ -90,13 +90,26 @@ if (latestTag && compareVersions(nextVersion, latestTag.replace(/^v/i, '')) <= 0
   throw new Error(`新版本 ${nextVersion} 必须高于最新标签 ${latestTag}。`)
 }
 
-const bumpedVersion = runNpm([
+const versionOutput = runNpm([
   'version',
   nextVersion,
   '--message',
   'chore(release): v%s',
-], { capture: true }).replace(/^v/i, '')
-if (bumpedVersion !== nextVersion) throw new Error(`npm version 返回了意外版本：${bumpedVersion}`)
+], { capture: true })
+const bumpedVersion = versionOutput
+  .split(/\r?\n/)
+  .map((line) => line.trim())
+  .filter(Boolean)
+  .at(-1)
+  ?.replace(/^v/i, '')
+if (bumpedVersion !== nextVersion) throw new Error(`npm version 返回了意外版本：${versionOutput}`)
+
+const synchronizedClientFiles = ['src-tui/Cargo.toml', 'src-tui/Cargo.lock']
+if (run('git', ['status', '--porcelain', '--', ...synchronizedClientFiles], { capture: true })) {
+  run('git', ['add', '--', ...synchronizedClientFiles])
+  run('git', ['commit', '--amend', '--no-edit'])
+  run('git', ['tag', '--force', tag])
+}
 
 try {
   run('git', ['push', '--atomic', 'origin', `HEAD:${branch}`, tag])
