@@ -1,6 +1,6 @@
 {
-  "schedulesPage.fullAccessHelp": "后台运行不使用本地沙箱，适合需要网络或外部目录的任务。",
-  "schedulesPage.workspaceHelp": "Shell 在工作区沙箱中运行；受阻时后台任务无法等待交互授权。",
+  "schedulesPage.fullAccessHelp": "后台任务以当前系统用户权限运行 Shell，不会逐次请求授权。",
+  "schedulesPage.workspaceHelp": "工作区内读取直接执行；文件写入和 Shell 需要交互授权，不适合无人值守的后台任务，无法执行的操作会保持待授权状态。",
   "schedulesPage.readOnlyHelp": "仅允许读取和分析，不允许修改文件或运行 Shell。",
   "schedulesPage.atIntervals": "每隔一段时间",
   "schedulesPage.daily": "每天",

@@ -67,7 +67,6 @@ import type {
   EntityRecord,
   ModelOption,
   PendingAsset,
-  SandboxStatus,
   SessionState,
   SessionSummary,
 } from '@/types/chat'
@@ -141,11 +140,6 @@ export function ChatPage({
   const [error, setError] = useState('')
   const [model, setModel] = useState(() => t('chat:chatPage.waitingForConfiguration'))
   const [availableModels, setAvailableModels] = useState<ModelOption[]>([])
-  const [sandboxStatus, setSandboxStatus] = useState<SandboxStatus>({
-    state: 'checking',
-    supported: true,
-    platform: '',
-  })
   const [workspaceSession, setWorkspaceSession] = useState<SessionSummary | null>(null)
   const [dockReady, setDockReady] = useState(0)
   const [compactDock, setCompactDock] = useState(
@@ -654,9 +648,8 @@ export function ChatPage({
 
   useEffect(() => {
     let active = true
-    Promise.all([chatApi.listSessions(), chatApi.getConfig(), chatApi.getSandboxStatus()])
-      .then(async ([sessionData, configData, sandboxData]) => {
-        setSandboxStatus(sandboxData)
+    Promise.all([chatApi.listSessions(), chatApi.getConfig()])
+      .then(async ([sessionData, configData]) => {
         if (!active) return
         setModel(
           configData.model
@@ -1741,64 +1734,10 @@ export function ChatPage({
     }
   }
 
-  const refreshSandboxStatus = useCallback(async () => {
-    const next = await chatApi.getSandboxStatus()
-    setSandboxStatus(next)
-    return next
-  }, [])
-
-  const ensureWorkspaceSandbox = async () => {
-    const status = await refreshSandboxStatus()
-    if (status.state === 'ready' || status.state === 'active') return true
-    if (status.platform !== 'win32' || status.state !== 'not-installed') {
-      notify(
-        t('chat:chatPage.theWorkspaceSandboxCannotBeEnabledOnThisDeviceReason', {
-          reason:
-            status.message ||
-            status.errors?.join('、') ||
-            t('chat:chatPage.unsupportedEnvironment'),
-        }),
-        'error',
-      )
-      return false
-    }
-    const confirmed = await requestConfirm({
-      title: t('chat:chatPage.enableSecureExecution'),
-      message: t(
-        'chat:chatPage.pisperWillCreateALowPrivilegeSandboxAccountAndConfigureNetworkIsolationWindowsWillShowOneAdminis',
-      ),
-      confirmLabel: t('chat:chatPage.continueSetup'),
-      tone: 'primary',
-    })
-    if (!confirmed) return false
-    setSandboxStatus((current) => ({ ...current, state: 'installing' }))
-    const installed = await chatApi.installSandbox()
-    setSandboxStatus(installed)
-    if (installed.cancelled) {
-      notify(t('chat:chatPage.sandboxSetupCancelled'), 'info')
-      return false
-    }
-    if (installed.state !== 'ready' && installed.state !== 'active') {
-      notify(
-        t('chat:chatPage.localSandboxSetupFailedReason', {
-          reason: installed.message || t('chat:chatPage.checkTheSystemSettingsAndTryAgain'),
-        }),
-        'error',
-      )
-      return false
-    }
-    notify(t('chat:chatPage.localSandboxEnabled'))
-    return true
-  }
-
   const switchSessionExecutionMode = async (sessionId: string, executionMode: string) => {
     if (!sessionId) return false
     updateSessionState(sessionId, { switchingPermission: true, error: '' })
     try {
-      if (executionMode === 'workspace' && !(await ensureWorkspaceSandbox())) {
-        updateSessionState(sessionId, { switchingPermission: false })
-        return false
-      }
       if (executionMode === 'full-access') {
         const confirmed = await requestConfirm({
           title: t('chat:chatPage.enableFullAccess'),
@@ -1991,7 +1930,6 @@ export function ChatPage({
     setCompactionThreshold,
     switchSessionModel,
     switchSessionExecutionMode,
-    sandboxStatus,
     resolveToolApproval,
     setWorkspaceSession,
     renameSession,

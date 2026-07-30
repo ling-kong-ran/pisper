@@ -49,6 +49,8 @@ pub struct LiveTurn {
 pub struct Approval {
     pub id: String,
     pub tool_name: String,
+    pub args: Value,
+    pub risk: String,
     pub reason: String,
 }
 
@@ -216,7 +218,7 @@ impl App {
             command("/mode read-only", "Allow low-risk analysis tools only"),
             command(
                 "/mode workspace",
-                "Allow changes inside the workspace sandbox",
+                "Read directly; approve file writes and every shell command",
             ),
             command(
                 "/mode full-access",
@@ -633,6 +635,8 @@ impl App {
                 self.approval = Some(Approval {
                     id: string_field(&event.data, "id"),
                     tool_name: string_field(&event.data, "toolName"),
+                    args: event.data["args"].clone(),
+                    risk: string_field(&event.data, "risk"),
                     reason: string_field(&event.data, "reason"),
                 });
                 self.status = "approval required".to_owned();
@@ -900,7 +904,9 @@ fn event_state(event: &StreamEvent) -> &'static str {
 
 #[cfg(test)]
 mod tests {
-    use super::{advance_typewriter, apply_patch, Action, App};
+    use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
+
+    use super::{advance_typewriter, apply_patch, Action, App, Approval};
     use crate::model::{SessionSummary, StreamEvent, ToolDefinition};
     use serde_json::json;
 
@@ -958,6 +964,48 @@ mod tests {
             app.submit_action(),
             Action::SetExecutionMode(mode) if mode == "full-access"
         ));
+    }
+
+    #[test]
+    fn approval_keys_resolve_the_visible_request() {
+        for (key, approved) in [('y', true), ('Y', true), ('n', false), ('N', false)] {
+            let mut app = test_app(Vec::new());
+            app.approval = Some(Approval {
+                id: "approval-1".to_owned(),
+                tool_name: "bash".to_owned(),
+                args: json!({ "command": "date" }),
+                risk: "high".to_owned(),
+                reason: "Runs as the current OS user.".to_owned(),
+            });
+
+            assert!(matches!(
+                app.handle_key(KeyEvent::new(KeyCode::Char(key), KeyModifiers::NONE)),
+                Action::ResolveApproval { id, approved: actual }
+                    if id == "approval-1" && actual == approved
+            ));
+            assert!(app.approval.is_none());
+        }
+    }
+
+    #[test]
+    fn permission_events_keep_the_command_for_review() {
+        let mut app = test_app(Vec::new());
+        app.set_input("run date");
+        assert!(matches!(app.submit_action(), Action::Submit { .. }));
+        app.apply_stream_event(StreamEvent {
+            name: "permission_request".to_owned(),
+            data: json!({
+                "id": "approval-1",
+                "toolName": "bash",
+                "args": { "command": "date +%A" },
+                "risk": "high",
+                "reason": "Runs as the current OS user."
+            }),
+        });
+
+        let approval = app.approval.as_ref().unwrap();
+        assert_eq!(approval.args["command"], "date +%A");
+        assert_eq!(approval.risk, "high");
     }
 
     #[test]

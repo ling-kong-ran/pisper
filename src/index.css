@@ -612,7 +612,6 @@ h1, h2, h3, strong { overflow-wrap: anywhere; }
 .permission-mode-select.compact .permission-mode-trigger.icon-only { width: 32px; }
 .permission-mode-trigger.icon-only.mode-auto,.permission-mode-trigger.icon-only.mode-workspace { color: var(--star-strong); }
 .permission-mode-trigger.icon-only.mode-ignore,.permission-mode-trigger.icon-only.mode-full-access { color: var(--danger); }
-.sandbox-status-dot { position: absolute; right: 5px; bottom: 5px; width: 5px; height: 5px; border: 1px solid var(--surface-muted); border-radius: 50%; background: var(--success); }.sandbox-status-dot.checking { background: var(--text-muted); animation: star-twinkle 1.2s ease-in-out infinite; }.sandbox-status-dot.warning { background: var(--warning-strong); }.sandbox-status-dot.danger { background: var(--danger); }
 .send-mini { display: grid; width: 32px; height: 32px; place-items: center; border: 0; border-radius: var(--r-xs); background: var(--blue); color: var(--on-accent); }
 .send-mini.stop { background: var(--danger); }
 .send-mini:disabled, .send-button:disabled { opacity: .38; }

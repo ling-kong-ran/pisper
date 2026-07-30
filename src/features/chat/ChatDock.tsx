@@ -54,7 +54,6 @@ export function SessionDockPanel({ params, api }: IDockviewPanelProps<{ sessionI
         olderError={state.olderError}
         model={state.model || session.model || context.defaultModel}
         executionMode={state.executionMode || session.executionMode || 'workspace'}
-        sandboxStatus={context.sandboxStatus}
         goal={state.goal ?? session.goal ?? null}
         taskList={visibleTaskList}
         currentActivity={state.currentActivity}

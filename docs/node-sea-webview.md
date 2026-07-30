@@ -10,7 +10,7 @@ pisper-sidecar             Node SEA runtime and bootstrap
 sidecar-runtime/           Pisper server, Pi packages, Skills, native modules, and vendor binaries
 ```
 
-The SEA contains Node and a small bootstrap. The application runtime remains external by design because Pi loads Skills and extensions dynamically, MCP starts external processes, and Sandbox/clipboard integrations require native files at stable filesystem paths. This is not an absolute single-file deployment.
+The SEA contains Node and a small bootstrap. The application runtime remains external by design because Pi loads Skills and extensions dynamically, MCP starts external processes, and clipboard and local-process integrations require native files at stable filesystem paths. This is not an absolute single-file deployment.
 
 The shell starts the sidecar on a random `127.0.0.1` port and waits for a structured readiness message before opening the WebView. A random bootstrap token is exchanged for an `HttpOnly`, `SameSite=Strict` session cookie. Authenticated write requests also reject foreign browser origins. The localhost WebView capability exposes only Pisper's custom desktop commands; it does not grant browser content general shell, filesystem, opener, notification, or updater plugin permissions.
 

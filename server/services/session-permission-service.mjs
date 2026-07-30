@@ -20,7 +20,6 @@ const TOOL_RISKS = new Map([
 ])
 const SENSITIVE_RISKS = new Set(['medium', 'high', '中风险', '高风险'])
 const INTERNAL_SAFE_TOOLS = new Set(['get_goal', 'update_goal', 'get_task_list', 'update_task_list'])
-const DANGEROUS_COMMAND = /(?:\brm\s+-[^\r\n]*r[^\r\n]*f|\brmdir\s+\/s|\bdel\s+\/s|remove-item[^\r\n]*(?:-recurse|-force)|\bformat(?:\.com)?\b|\bshutdown(?:\.exe)?\b|\btaskkill[^\r\n]*\/f|\bgit\s+(?:reset\s+--hard|clean\s+-[^\r\n]*f)|\breg\s+delete\b|\bdrop\s+(?:database|table)\b|\btruncate\s+table\b)/i
 
 function safeArgs(value, depth = 0, key = '') {
   if (depth > 3) return '[内容已省略]'
@@ -59,16 +58,29 @@ function pathOutsideWorkspace(cwd, input) {
 
 export function permissionRequirement({ mode, executionMode, cwd, toolName, args, toolRisk }) {
   if (executionMode === 'full-access') return null
-  if (toolName === 'bash' && args?.sandbox_permissions === 'require_escalated') {
-    return { risk: 'high', reason: String(args?.justification || 'Shell 命令请求在工作区沙箱之外执行。') }
-  }
   if (INTERNAL_SAFE_TOOLS.has(toolName)) return null
   const risk = toolRisk || TOOL_RISKS.get(toolName) || 'high'
-  if (['read', 'ls', 'grep', 'find', 'edit', 'write'].includes(toolName) && pathOutsideWorkspace(cwd, args?.path || args?.file_path)) {
-    return { risk: 'high', reason: `${toolName} 将访问当前工作目录之外的文件。` }
+  const filePath = args?.path || args?.file_path
+  if (['read', 'ls', 'grep', 'find', 'edit', 'write'].includes(toolName) && pathOutsideWorkspace(cwd, filePath)) {
+    return {
+      block: true,
+      risk: 'high',
+      reason: `${toolName} 不能在工作区模式下访问当前工作目录之外的文件。`,
+    }
   }
-  // Legacy "ignore" may suppress application-level prompts, but it must not
-  // disable the workspace filesystem boundary. Only full-access can do that.
+  if (['read', 'ls', 'grep', 'find'].includes(toolName)) return null
+  if (['edit', 'write'].includes(toolName)) {
+    return {
+      risk: 'high',
+      reason: `${toolName} 将修改当前工作区中的文件，需要确认后执行。`,
+    }
+  }
+  if (toolName === 'bash') {
+    return {
+      risk: 'high',
+      reason: 'Shell 命令将以当前操作系统用户权限运行，批准后可访问工作区之外的文件和网络。',
+    }
+  }
   if (mode === 'ignore') return null
   if (mode === 'ask' && SENSITIVE_RISKS.has(risk)) {
     return { risk, reason: `${toolName} 属于${risk}工具，需要确认后执行。` }
@@ -76,9 +88,6 @@ export function permissionRequirement({ mode, executionMode, cwd, toolName, args
   if (mode !== 'auto') return null
   if (toolName === 'browser_automation' && ['click', 'type'].includes(String(args?.action || ''))) {
     return { risk: 'high', reason: '浏览器交互可能提交表单或改变远端状态，需要确认后执行。' }
-  }
-  if (toolName === 'bash' && DANGEROUS_COMMAND.test(String(args?.command || ''))) {
-    return { risk: 'high', reason: 'Shell 命令包含删除、重置或系统级操作。' }
   }
   return null
 }
@@ -143,6 +152,7 @@ export class SessionPermissionService {
     const executionMode = this.getExecutionMode(sessionId)
     const requirement = permissionRequirement({ mode, executionMode, cwd, toolName, args, toolRisk: this.getToolRisk(toolName) })
     if (!requirement) return undefined
+    if (requirement.block) return { block: true, reason: requirement.reason }
     const approval = await this.requestApproval({ sessionId, toolName, toolCallId, args, mode, ...requirement, signal })
     if (approval.approved) return undefined
     return { block: true, reason: approval.reason || `用户拒绝执行工具 ${toolName}。` }

@@ -20,13 +20,6 @@ export type ModelOption = {
   providerName: string
 }
 
-export type SandboxStatus = EntityRecord & {
-  state: string
-  supported?: boolean
-  platform?: string
-  message?: string
-}
-
 export type PendingAsset = {
   asset: ChatAttachment
   targetSessionId?: string

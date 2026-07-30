@@ -60,7 +60,7 @@ The palette must not be dominated by one hue. All body text on `bg` must meet WC
 
 All three frames depict the same session at different interaction moments, using these facts consistently:
 
-- Session: `Fix flaky workspace sandbox test`
+- Session: `Fix flaky workspace permission test`
 - Repository: `E:/code/pi-coder`
 - Branch: `fix/mcp-lifecycle`
 - Model: `gpt-5.6-sol`
@@ -105,7 +105,7 @@ Transcript content uses `x:240`, width `880`, top padding `28`, bottom padding `
 4. Subagent event, `height 68`:
    - Label: `SUB` in `violet`.
    - Main line: `log-analysis  running  · comparing 3 failed CI traces`.
-   - Detail: `└ isolated context · inherited workspace sandbox · 00:18`.
+   - Detail: `└ isolated context · inherited workspace policy · 00:18`.
    - Running indicator is a single amber `●`; no avatar or card.
 5. Agent response, `height 150`:
    - Label: `AGENT` in `cyan`.
@@ -235,7 +235,7 @@ The menu is anchored `16 px` above the composer. It has no page scrim and does n
 - Open only when the composer begins with `/`; text after `/` filters the visible candidates.
 - Merge the current runtime tool catalog, enabled Skills, and TUI-native commands into one list.
 - Do not synthesize unavailable tools or disabled Skills.
-- Tool selection remains subject to the existing Agent execution mode, sandbox, and approval chain.
+- Tool selection remains subject to the existing Agent execution mode, workspace boundary, and approval chain.
 - Closing the menu leaves the composer draft unchanged.
 
 ### Personal ordering

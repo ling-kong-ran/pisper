@@ -39,7 +39,6 @@
     "start": "node server/index.mjs --production"
   },
   "dependencies": {
-    "@anthropic-ai/sandbox-runtime": "^0.0.67",
     "@earendil-works/pi-coding-agent": "^0.80.10",
     "@larksuiteoapi/node-sdk": "^1.71.1",
     "@modelcontextprotocol/sdk": "^1.29.0",

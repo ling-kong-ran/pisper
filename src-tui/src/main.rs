@@ -189,11 +189,7 @@ async fn execute_action(
             app.replace_session(created, page.messages, page.context_usage);
         }
         Action::SetExecutionMode(mode) => {
-            app.status = if mode == "workspace" {
-                "preparing workspace sandbox".to_owned()
-            } else {
-                format!("changing mode · {mode}")
-            };
+            app.status = format!("changing mode · {mode}");
             match api.set_execution_mode(&app.session.id, &mode).await {
                 Ok(updated) => app.set_execution_mode(updated.execution_mode),
                 Err(error) => app.status = format!("mode change failed · {error}"),

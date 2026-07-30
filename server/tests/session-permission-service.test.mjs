@@ -16,11 +16,13 @@ test('permission modes progress from ask to automatic to ignored checks', () => 
   assert.equal(permissionRequirement({ mode: 'ask', cwd, toolName: 'mcp_read_123', toolRisk: 'low', args: {} }), null)
   assert.match(permissionRequirement({ mode: 'ask', cwd, toolName: 'mcp_write_456', toolRisk: 'high', args: {} }).reason, /需要确认/)
   assert.equal(permissionRequirement({ mode: 'ask', cwd, toolName: 'update_goal', args: { status: 'complete' } }), null)
-  assert.equal(permissionRequirement({ mode: 'auto', cwd, toolName: 'write', args: { path: 'README.md' } }), null)
+  assert.match(permissionRequirement({ mode: 'auto', cwd, toolName: 'write', args: { path: 'README.md' } }).reason, /修改当前工作区/)
   assert.match(permissionRequirement({ mode: 'auto', cwd, toolName: 'write', args: { path: outside } }).reason, /工作目录之外/)
-  assert.match(permissionRequirement({ mode: 'auto', cwd, toolName: 'bash', args: { command: 'git reset --hard' } }).reason, /Shell/)
-  assert.match(permissionRequirement({ mode: 'ignore', executionMode: 'workspace', cwd, toolName: 'write', args: { path: outside } }).reason, /工作目录之外/)
-  assert.equal(permissionRequirement({ mode: 'ignore', cwd, toolName: 'bash', args: { command: 'rm -rf /' } }), null)
+  assert.match(permissionRequirement({ mode: 'auto', cwd, toolName: 'bash', args: { command: 'npm test' } }).reason, /Shell/)
+  assert.equal(permissionRequirement({ mode: 'ignore', executionMode: 'workspace', cwd, toolName: 'write', args: { path: outside } }).block, true)
+  assert.match(permissionRequirement({ mode: 'ignore', executionMode: 'workspace', cwd, toolName: 'edit', args: { path: 'README.md' } }).reason, /修改当前工作区/)
+  assert.match(permissionRequirement({ mode: 'ignore', executionMode: 'workspace', cwd, toolName: 'bash', args: { command: 'date' } }).reason, /Shell/)
+  assert.equal(permissionRequirement({ mode: 'ignore', executionMode: 'full-access', cwd, toolName: 'bash', args: { command: 'date' } }), null)
 })
 
 test('workspace path checks resolve symbolic links before authorization', async (t) => {
@@ -44,8 +46,13 @@ test('workspace path checks resolve symbolic links before authorization', async 
 
 test('pending tool approval can be accepted or denied', async () => {
   let mode = 'ask'
+  let executionMode = 'workspace'
   const events = []
-  const service = new SessionPermissionService({ getMode: () => mode, timeoutMs: 5000 })
+  const service = new SessionPermissionService({
+    getMode: () => mode,
+    getExecutionMode: () => executionMode,
+    timeoutMs: 5000,
+  })
   service.attachEmitter('session-1', (event, data) => events.push({ event, data }))
 
   const allowed = service.authorize({ sessionId: 'session-1', cwd: process.cwd(), toolName: 'write', toolCallId: 'tool-1', args: { path: 'file.txt', content: 'ok' } })
@@ -70,8 +77,16 @@ test('pending tool approval can be accepted or denied', async () => {
   assert.ok(events.some((item) => item.event === 'permission_request'))
   assert.ok(events.some((item) => item.event === 'permission_resolved'))
 
+  const outside = resolve(process.cwd(), '..', 'outside.txt')
+  assert.deepEqual(
+    await service.authorize({ sessionId: 'session-1', cwd: process.cwd(), toolName: 'write', args: { path: outside } }),
+    { block: true, reason: 'write 不能在工作区模式下访问当前工作目录之外的文件。' },
+  )
+  assert.deepEqual(service.getPending('session-1'), [])
+
   mode = 'ignore'
-  assert.equal(await service.authorize({ sessionId: 'session-1', cwd: process.cwd(), toolName: 'bash', args: { command: 'rm -rf /' } }), undefined)
+  executionMode = 'full-access'
+  assert.equal(await service.authorize({ sessionId: 'session-1', cwd: process.cwd(), toolName: 'bash', args: { command: 'date' } }), undefined)
   service.dispose()
 })
 

@@ -53,7 +53,7 @@
 - **按需应答，能力不喧宾夺主** — 渐进式披露保持高频工具轻量，在任务需要时热加载低频工具 Schema，并按场景展开完整 Skill。
 - **多声部并行，主线不停** — Subagent 在隔离上下文中非阻塞运行；主 Agent 仍可继续回复、接收新指令或分派其他任务。
 - **任务完成，自有回响** — Subagent 持久保存结果并自动唤醒父 Agent 接续推理，无需轮询，不让成果停在一条被动通知里。
-- **各守其界，协作有序** — 每个会话独享模型、上下文、目录与权限；动态加载始终服从执行模式、沙箱和审批。
+- **各守其界，协作有序** — 每个会话独享模型、上下文、目录与权限；动态加载始终服从执行模式、工作区边界和审批。
 
 ### 三步上手
 
@@ -208,7 +208,7 @@ Pisper 不让所有能力同时涌入上下文，而是让工具与知识沿着�
 - **工具热加载** — Web Search、浏览器、星忆、MCP 与 Subagent 等可选能力可按意图发现，并把最相关的 Schema 即时加入当前会话。
 - **Skill 按需展开** — 默认只暴露 Skill 的名称与描述；任务匹配或显式调用时才读取完整说明、脚本与参考资料。
 
-这套机制既减少长会话中的固定 Token，也避免无关工具干扰模型决策。动态加载始终受工具开关、执行模式、沙箱和审批策略约束。
+这套机制既减少长会话中的固定 Token，也避免无关工具干扰模型决策。动态加载始终受工具开关、执行模式、工作区边界和审批策略约束。
 
 > 当前基准下，固定 Prompt 约为 **2,979 tokens**，相较全量注入减少约 **58.7%**。实际计费与缓存收益因模型和服务商而异。
 
@@ -218,7 +218,7 @@ Pisper 不让所有能力同时涌入上下文，而是让工具与知识沿着�
 
 完成结果不会沉入无人查看的通知：父 Agent 正在运行时，结果直接汇入当前推理；父 Agent 空闲时，Pisper 会通过隐藏的内部消息自动唤醒下一轮，让每一次后台协作都回到任务主线。
 
-> **沙箱说明：** 默认“工作区”模式使用 [Anthropic Sandbox Runtime](https://github.com/anthropic-experimental/sandbox-runtime) 限制 Shell 写入、凭据与网络访问。Windows 首次启用需要一次 UAC；初始化失败时 Pisper 会阻止执行，不会静默回退到完整权限。该运行时仍处于 Beta Research Preview。
+> **执行边界：** 默认“工作区”模式通过结构化工具限制文件访问范围；读取操作直接执行，文件修改和每条 Shell 命令都需要用户授权。Shell 以当前系统用户权限运行。只有明确切换到“完全访问”后，文件修改和 Shell 才不再逐次请求授权。
 
 <a id="desktop-pet"></a>
 
@@ -268,7 +268,7 @@ sudo apt install ./Pisper-*-linux-amd64.deb
 
 ### 终端客户端（TUI）
 
-Pisper 同时提供 Rust + Ratatui 终端客户端。每次启动 TUI 时，主区域都会先显示 Pisper 终端品牌标识；开始交互后，品牌画面自动让位给消息流。模型提供 reasoning token 时，TUI 会在回答前实时展开 Thinking，并用事件驱动的终端 spinner 标识活跃状态。TUI 复用桌面版的 Node SEA sidecar、Agent runtime、会话、Tools、Skills、MCP、沙箱和审批链。
+Pisper 同时提供 Rust + Ratatui 终端客户端。每次启动 TUI 时，主区域都会先显示 Pisper 终端品牌标识；开始交互后，品牌画面自动让位给消息流。模型提供 reasoning token 时，TUI 会在回答前实时展开 Thinking，并用事件驱动的终端 spinner 标识活跃状态。TUI 复用桌面版的 Node SEA sidecar、Agent runtime、会话、Tools、Skills、MCP、执行模式和审批链。
 
 安装桌面版后，可在 **设置 → 界面设置 → Pisper 终端命令** 中安装或卸载 `pisper` 命令。Pisper 会使用当前用户目录并管理对应 PATH 项，不需要管理员权限；操作后需重启终端宿主。Windows 安装的是 `pisper.exe`，macOS 和 Linux 安装的是无扩展名的 `pisper`。
 
@@ -317,10 +317,8 @@ pisper doctor
 | 命令 | 行为 |
 | :--- | :--- |
 | `/mode read-only` | 只开放低风险分析工具，不允许修改项目。 |
-| `/mode workspace` | 允许在当前工作目录内修改；Shell 运行在本地沙箱中，越界操作仍需审批。 |
-| `/mode full-access` | 允许访问工作目录外的文件和网络，Shell 不再受工作区沙箱限制。仅在明确需要时使用。 |
-
-Windows 首次切换到 `workspace` 时可能显示一次 UAC，用于创建低权限沙箱账户和网络隔离规则。安装失败或被取消时，TUI 不会静默切换权限。
+| `/mode workspace` | 文件工具限制在当前工作目录；读取直接执行，文件修改和每条 Shell 命令都需要用户授权。 |
+| `/mode full-access` | 允许访问本机文件和网络，Shell 以当前系统用户权限运行且不再逐次请求授权。仅在明确需要时使用。 |
 
 #### 调用 Tool
 
@@ -347,7 +345,7 @@ TUI 会把选中的 Tool 名作为结构化请求交给 runtime，确保对应 S
 /skill:docs-search 查找 Tauri updater 的签名要求
 ```
 
-Skill 名称来自当前 runtime，实际命令以 Slash 列表为准。只有已启用且允许模型调用的 Skill 才会显示；选中后，runtime 按需加载对应 `SKILL.md`、脚本和参考资料。Skill 内部调用 Tool 时仍服从当前 `/mode`、沙箱和审批策略。
+Skill 名称来自当前 runtime，实际命令以 Slash 列表为准。只有已启用且允许模型调用的 Skill 才会显示；选中后，runtime 按需加载对应 `SKILL.md`、脚本和参考资料。Skill 内部调用 Tool 时仍服从当前 `/mode`、工作区边界和审批策略。
 
 #### TUI 内置命令
 

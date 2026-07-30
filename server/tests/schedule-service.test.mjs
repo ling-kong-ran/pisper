@@ -79,7 +79,7 @@ test('scheduled tasks persist, execute with the selected model and notify multip
   assert.match(notifications[0][1].task.summary, /检查完成/)
 })
 
-test('scheduled tasks preserve an explicit sandboxed execution mode', async (t) => {
+test('scheduled tasks preserve an explicit workspace execution mode', async (t) => {
   const directory = await mkdtemp(join(tmpdir(), 'pisper-schedules-execution-mode-'))
   t.after(() => rm(directory, { recursive: true, force: true }))
   const prompts = []

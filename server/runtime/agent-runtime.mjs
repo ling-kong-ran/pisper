@@ -32,7 +32,6 @@ import { GoalService, goalBudgetPrompt, goalContinuationPrompt, isGoalContinuati
 import { GitChangesService } from '../services/git-changes-service.mjs'
 import { TaskListService } from '../services/task-list-service.mjs'
 import { BrowserAutomationService } from '../services/browser-automation-service.mjs'
-import { LocalSandboxService } from '../services/local-sandbox-service.mjs'
 import {
   listWorkspaceDirectories,
   normalizeWorkspacePath,
@@ -44,7 +43,7 @@ import { createAppTools, createMultiAgentTools, TOOL_PRESETS, toolsFromConfig } 
 import { createGoalTools, GOAL_TOOL_NAMES } from '../tools/app/goal.mjs'
 import { createTaskListTools, TASK_LIST_TOOL_NAMES } from '../tools/app/task-list.mjs'
 import { createToolDiscoveryTool, TOOL_DISCOVERY_NAME } from '../tools/app/tool-discovery.mjs'
-import { createPisperBashTool } from '../tools/sandboxed-bash.mjs'
+import { createPisperBashTool } from '../tools/host-bash.mjs'
 import { hotToolNames, mergePromotedToolNames, schemaOnlyToolDefinitions, selectedToolNames } from '../tools/tool-activation.mjs'
 import { DEFAULT_EXECUTION_MODE, EXECUTION_MODES, filterToolsForExecutionMode, migrateLegacyExecutionMode, normalizeExecutionMode, permissionModeForExecutionMode } from '../security/execution-mode.mjs'
 import { redactSecretText } from '../security/secret-redaction.mjs'
@@ -724,7 +723,6 @@ export class AgentRuntimeService {
     this.settingsManager = null
     this.compactionThresholdPercent = DEFAULT_COMPACTION_THRESHOLD_PERCENT
     this.sessionMeta = {}
-    this.sandbox = new LocalSandboxService({ dataDir })
     this.permissions = new SessionPermissionService({
       getMode: (sessionId) => this.sessionMeta[sessionId]?.permissionMode || permissionModeForExecutionMode(this.getSessionExecutionMode(sessionId)),
       getExecutionMode: (sessionId) => this.getSessionExecutionMode(sessionId),
@@ -1778,14 +1776,6 @@ export class AgentRuntimeService {
     return { id, executionMode, permissionMode }
   }
 
-  getSandboxStatus() {
-    return this.sandbox.getStatus()
-  }
-
-  installLocalSandbox() {
-    return this.sandbox.install()
-  }
-
   resolveToolApproval(sessionId, approvalId, approved) {
     return this.permissions.resolve(sessionId, approvalId, approved)
   }
@@ -1970,10 +1960,7 @@ export class AgentRuntimeService {
       activateTools: (toolNames) => this.promoteSessionTools(runtimeValue, toolNames),
     })
     const bashTool = enabledTools.includes('bash')
-      ? await createPisperBashTool(effectiveCwd, {
-          sandboxService: this.sandbox,
-          getExecutionMode: () => this.getSessionExecutionMode(runtimeSessionId),
-        })
+      ? await createPisperBashTool(effectiveCwd)
       : null
     const createInheritedCustomTools = () => [
       ...schemaOnlyToolDefinitions(createAppTools({
@@ -2932,7 +2919,6 @@ export class AgentRuntimeService {
     this.permissions.dispose()
     await this.disposeSessions()
     this.pendingSessions.clear()
-    await this.sandbox.dispose()
     await this.mcp.dispose()
     this.memory.dispose()
     await this.memoryEmbeddingModels.dispose()

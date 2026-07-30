@@ -36,25 +36,46 @@ test('read-only execution exposes only low-risk analysis tools', () => {
   assert.deepEqual(filterToolsForExecutionMode(names, 'workspace'), names)
 })
 
-test('workspace escalation and filesystem boundaries cannot be bypassed by legacy ignore mode', () => {
+test('workspace writes and shell require approval while reads stay direct', () => {
   const cwd = process.cwd()
   const outside = resolve(cwd, '..', 'outside.txt')
-  const escalation = permissionRequirement({
+  const shell = permissionRequirement({
     mode: 'ignore',
     executionMode: 'workspace',
     cwd,
     toolName: 'bash',
-    args: { command: 'curl https://example.com', sandbox_permissions: 'require_escalated', justification: '需要访问受限网络' },
+    args: { command: 'npm test' },
   })
-  assert.equal(escalation.risk, 'high')
-  assert.equal(escalation.reason, '需要访问受限网络')
-  assert.match(permissionRequirement({
+  assert.equal(shell.risk, 'high')
+  assert.match(shell.reason, /操作系统用户权限/)
+  assert.equal(
+    permissionRequirement({
+      mode: 'ignore',
+      executionMode: 'workspace',
+      cwd,
+      toolName: 'read',
+      args: { path: 'README.md' },
+    }),
+    null,
+  )
+  const insideWrite = permissionRequirement({
+    mode: 'ignore',
+    executionMode: 'workspace',
+    cwd,
+    toolName: 'write',
+    args: { path: 'result.txt' },
+  })
+  assert.equal(insideWrite.risk, 'high')
+  assert.match(insideWrite.reason, /修改当前工作区/)
+  const outsideWrite = permissionRequirement({
     mode: 'ignore',
     executionMode: 'workspace',
     cwd,
     toolName: 'write',
     args: { path: outside },
-  }).reason, /工作目录之外/)
+  })
+  assert.equal(outsideWrite.block, true)
+  assert.match(outsideWrite.reason, /工作目录之外/)
   assert.equal(permissionRequirement({
     mode: 'ignore',
     executionMode: 'full-access',

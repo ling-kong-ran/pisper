@@ -77,10 +77,8 @@ TUI 直接接收 runtime 的原始 Text、Thinking 和 Tool 事件，不对本�
 ```
 
 - `read-only`：只开放低风险分析工具，不允许修改项目。
-- `workspace`：允许修改当前工作目录，Shell 使用本地沙箱；越界与高风险操作仍由 runtime 判断是否审批。
-- `full-access`：允许工作目录外的文件和网络访问，不再使用工作区 Shell 边界。该命令代表用户明确要求提升当前会话权限。
-
-Windows 首次启用 `workspace` 时可能弹出 UAC。TUI 会先检查 `/api/sandbox/status`，只在 Windows `not-installed` 状态调用 `/api/sandbox/install`；安装取消或失败时不会提交模式切换。
+- `workspace`：文件工具限制在当前工作目录；读取直接执行，文件修改和每条 Shell 命令都需要用户授权。
+- `full-access`：允许本机文件和网络访问，Shell 以当前系统用户权限运行且不再逐次请求授权。该命令代表用户明确要求提升当前会话权限。
 
 ### Tool
 

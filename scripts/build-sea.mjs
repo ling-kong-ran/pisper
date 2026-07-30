@@ -120,20 +120,6 @@ async function pruneRuntime() {
     if (error?.code !== 'ENOENT') throw error
   }
 
-  const sandboxVendor = join(nodeModules, '@anthropic-ai', 'sandbox-runtime', 'vendor')
-  for (const family of ['seccomp', 'srt-win']) {
-    const familyDir = join(sandboxVendor, family)
-    try {
-      for (const entry of await readdir(familyDir, { withFileTypes: true })) {
-        if (entry.isDirectory() && entry.name !== process.arch) {
-          await rm(join(familyDir, entry.name), { recursive: true, force: true })
-        }
-      }
-    } catch (error) {
-      if (error?.code !== 'ENOENT') throw error
-    }
-  }
-
   await prunePackageTree(nodeModules)
 }
 

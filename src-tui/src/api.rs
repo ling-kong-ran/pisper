@@ -1,3 +1,5 @@
+use std::time::Duration;
+
 use anyhow::{anyhow, Context, Result};
 use futures_util::StreamExt;
 use percent_encoding::{utf8_percent_encode, NON_ALPHANUMERIC};
@@ -30,13 +32,13 @@ impl ApiClient {
             header::ORIGIN,
             header::HeaderValue::from_str(base.as_str().trim_end_matches('/'))?,
         );
-        // Sandbox initialization can block the Node event loop beyond its
-        // keep-alive timeout. A fresh localhost connection prevents the first
-        // chat request from reusing a startup socket that the sidecar closed.
+        // Keep localhost pooling below Node's default five-second keep-alive.
+        // This reuses startup requests without retaining a socket the server
+        // may already have expired.
         let client = Client::builder()
             .default_headers(headers)
             .no_proxy()
-            .pool_max_idle_per_host(0)
+            .pool_idle_timeout(Duration::from_secs(4))
             .build()
             .context("failed to create HTTP client")?;
         Ok(Self { base, client })
@@ -158,9 +160,6 @@ impl ApiClient {
         session_id: &str,
         mode: &str,
     ) -> Result<ExecutionModeUpdate> {
-        if mode == "workspace" {
-            self.ensure_workspace_sandbox().await?;
-        }
         let id = encode_segment(session_id);
         self.send_json(
             reqwest::Method::PUT,
@@ -168,22 +167,6 @@ impl ApiClient {
             &json!({ "mode": mode }),
         )
         .await
-    }
-
-    async fn ensure_workspace_sandbox(&self) -> Result<()> {
-        let mut status = self.get_json::<Value>("/api/sandbox/status").await?;
-        if matches!(status["state"].as_str(), Some("ready" | "active")) {
-            return Ok(());
-        }
-        if status["platform"] == "win32" && status["state"] == "not-installed" {
-            status = self
-                .send_json(reqwest::Method::POST, "/api/sandbox/install", &json!({}))
-                .await?;
-            if matches!(status["state"].as_str(), Some("ready" | "active")) {
-                return Ok(());
-            }
-        }
-        Err(anyhow!(sandbox_status_message(&status)))
     }
 
     pub async fn abort(&self, session_id: &str) -> Result<()> {
@@ -255,23 +238,6 @@ impl ApiClient {
         }
         Ok(())
     }
-}
-
-fn sandbox_status_message(status: &Value) -> String {
-    status["message"]
-        .as_str()
-        .map(str::to_owned)
-        .or_else(|| {
-            status["errors"].as_array().map(|errors| {
-                errors
-                    .iter()
-                    .filter_map(Value::as_str)
-                    .collect::<Vec<_>>()
-                    .join("; ")
-            })
-        })
-        .filter(|message| !message.is_empty())
-        .unwrap_or_else(|| "workspace sandbox is unavailable".to_owned())
 }
 
 fn encode_segment(value: &str) -> String {
@@ -349,65 +315,7 @@ impl SseDecoder {
 
 #[cfg(test)]
 mod tests {
-    use std::time::Duration;
-
-    use serde_json::Value;
-    use tokio::{
-        io::{AsyncReadExt, AsyncWriteExt},
-        net::TcpListener,
-        sync::mpsc,
-        time::timeout,
-    };
-
-    use super::{ApiClient, SseDecoder};
-
-    #[tokio::test]
-    async fn local_api_requests_do_not_reuse_idle_sidecar_connections() {
-        let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
-        let address = listener.local_addr().unwrap();
-        let (request_tx, mut request_rx) = mpsc::unbounded_channel();
-        let server = tokio::spawn(async move {
-            loop {
-                let (mut socket, peer) = listener.accept().await.unwrap();
-                let request_tx = request_tx.clone();
-                tokio::spawn(async move {
-                    let mut request = Vec::new();
-                    loop {
-                        let mut buffer = [0_u8; 1024];
-                        let count = socket.read(&mut buffer).await.unwrap();
-                        if count == 0 {
-                            break;
-                        }
-                        request.extend_from_slice(&buffer[..count]);
-                        if request.windows(4).any(|window| window == b"\r\n\r\n") {
-                            request_tx.send(peer.port()).unwrap();
-                            socket
-                                .write_all(
-                                    b"HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: 2\r\nConnection: keep-alive\r\n\r\n{}",
-                                )
-                                .await
-                                .unwrap();
-                            request.clear();
-                        }
-                    }
-                });
-            }
-        });
-
-        let api = ApiClient::new(&format!("http://{address}"), "test-token").unwrap();
-        let _: Value = api.get_json("/first").await.unwrap();
-        let _: Value = api.get_json("/second").await.unwrap();
-        let first = timeout(Duration::from_secs(1), request_rx.recv())
-            .await
-            .unwrap()
-            .unwrap();
-        let second = timeout(Duration::from_secs(1), request_rx.recv())
-            .await
-            .unwrap()
-            .unwrap();
-        assert_ne!(first, second);
-        server.abort();
-    }
+    use super::SseDecoder;
 
     #[test]
     fn parses_chunked_crlf_and_final_records() {

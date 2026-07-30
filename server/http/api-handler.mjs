@@ -96,14 +96,6 @@ export function createApiHandler(
         res.end(sprite.buffer)
         return true
       }
-      if (req.method === 'GET' && url.pathname === '/api/sandbox/status') {
-        json(res, 200, await runtime.getSandboxStatus())
-        return true
-      }
-      if (req.method === 'POST' && url.pathname === '/api/sandbox/install') {
-        json(res, 200, await runtime.installLocalSandbox())
-        return true
-      }
       if (req.method === 'GET' && url.pathname === '/api/settings/compaction') {
         json(res, 200, runtime.getCompactionPreference())
         return true

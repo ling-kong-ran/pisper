@@ -7,10 +7,11 @@ use ratatui::{
     },
     Frame,
 };
+use serde_json::Value;
 use unicode_width::{UnicodeWidthChar, UnicodeWidthStr};
 
 use crate::{
-    app::{App, LiveTurn, SlashKind, View},
+    app::{App, Approval, LiveTurn, SlashKind, View},
     model::{ChatMessage, RunActivity, ToolActivity},
 };
 
@@ -31,6 +32,28 @@ const BLUE: Color = Color::Rgb(158, 180, 207);
 pub fn draw(frame: &mut Frame, app: &App) {
     let area = frame.area();
     frame.render_widget(Block::default().style(Style::default().bg(BG)), area);
+
+    if app.approval.is_some() {
+        let chat_minimum = if area.height >= 16 { 3 } else { 0 };
+        let chunks = Layout::default()
+            .direction(Direction::Vertical)
+            .constraints([
+                Constraint::Length(2),
+                Constraint::Min(chat_minimum),
+                Constraint::Length(approval_panel_height(app, area)),
+                Constraint::Length(1),
+            ])
+            .split(area);
+        render_header(frame, app, chunks[0]);
+        match app.view {
+            View::Chat => render_chat(frame, app, chunks[1]),
+            View::Events => render_events(frame, app, chunks[1]),
+        }
+        render_approval(frame, app, chunks[2]);
+        render_status(frame, app, chunks[3]);
+        return;
+    }
+
     let chunks = Layout::default()
         .direction(Direction::Vertical)
         .constraints([
@@ -56,9 +79,6 @@ pub fn draw(frame: &mut Frame, app: &App) {
     }
     if app.session_picker {
         render_sessions(frame, app, area);
-    }
-    if app.approval.is_some() {
-        render_approval(frame, app, area);
     }
 }
 
@@ -600,28 +620,51 @@ fn render_status(frame: &mut Frame, app: &App, area: Rect) {
     );
 }
 
+fn slash_menu_area(composer: Rect, item_count: usize) -> Rect {
+    let inset: u16 = if composer.width > 4 { 2 } else { 0 };
+    let width = composer
+        .width
+        .saturating_sub(inset.saturating_mul(2))
+        .max(1);
+    let desired_height = (item_count.min(8) as u16).saturating_add(2).max(3);
+    let available_height = composer.y.saturating_sub(2).max(1);
+    let height = desired_height.min(available_height);
+    Rect::new(
+        composer.x.saturating_add(inset),
+        composer.y.saturating_sub(height),
+        width,
+        height,
+    )
+}
+
 fn render_slash(frame: &mut Frame, app: &App, composer: Rect) {
     let items = app.slash_items();
-    let height = (items.len().min(8) as u16).saturating_add(2).max(3);
-    let width = composer.width.saturating_sub(2).clamp(1, 110);
-    let x = composer.x + composer.width.saturating_sub(width) / 2;
-    let y = composer.y.saturating_sub(height);
-    let area = Rect::new(x, y, width, height);
+    let area = slash_menu_area(composer, items.len());
     frame.render_widget(Clear, area);
+    let command_width = area.width.saturating_sub(12).clamp(8, 24) as usize;
+    let detail_width = area
+        .width
+        .saturating_sub(command_width as u16)
+        .saturating_sub(8) as usize;
     let rows = items.iter().take(8).map(|item| {
         let (kind, color) = match item.kind {
             SlashKind::Tool => ("T", ACCENT),
             SlashKind::Skill => ("S", VIOLET),
             SlashKind::Command => ("C", AMBER),
         };
+        let command = single_line(&item.command, command_width);
         ListItem::new(Line::from(vec![
             Span::styled(
                 format!(" {kind}  "),
                 Style::default().fg(color).add_modifier(Modifier::BOLD),
             ),
-            Span::styled(format!("{:<24}", item.command), Style::default().fg(color)),
             Span::styled(
-                single_line(&item.detail, width.saturating_sub(34) as usize),
+                format!("{command:<command_width$}"),
+                Style::default().fg(color),
+            ),
+            Span::styled("  ", Style::default()),
+            Span::styled(
+                single_line(&item.detail, detail_width),
                 Style::default().fg(MUTED),
             ),
         ]))
@@ -675,43 +718,124 @@ fn render_sessions(frame: &mut Frame, app: &App, area: Rect) {
     frame.render_stateful_widget(list, popup, &mut state);
 }
 
+fn approval_detail_text(approval: &Approval) -> Text<'_> {
+    let command = approval
+        .args
+        .get("command")
+        .and_then(Value::as_str)
+        .map(str::to_owned)
+        .unwrap_or_else(|| {
+            serde_json::to_string(&approval.args).unwrap_or_else(|_| "{}".to_owned())
+        });
+    let mut lines = command
+        .lines()
+        .enumerate()
+        .map(|(index, line)| {
+            Line::from(vec![
+                Span::styled(
+                    if index == 0 { "$ " } else { "  " },
+                    Style::default().fg(ACCENT),
+                ),
+                Span::styled(line.to_owned(), Style::default().fg(TEXT)),
+            ])
+        })
+        .collect::<Vec<_>>();
+    if lines.is_empty() {
+        lines.push(Line::from(Span::styled("$", Style::default().fg(ACCENT))));
+    }
+    lines.push(Line::default());
+    lines.push(Line::from(Span::styled(
+        &approval.reason,
+        Style::default().fg(MUTED),
+    )));
+    Text::from(lines)
+}
+
+fn approval_panel_height(app: &App, area: Rect) -> u16 {
+    let Some(approval) = &app.approval else {
+        return 0;
+    };
+    let inner_width = area.width.saturating_sub(4).max(1);
+    let details = Paragraph::new(approval_detail_text(approval)).wrap(Wrap { trim: false });
+    let desired = details
+        .line_count(inner_width)
+        .saturating_add(3)
+        .max(7)
+        .min(u16::MAX as usize) as u16;
+    let chat_reserve = if area.height >= 16 { 3 } else { 0 };
+    let maximum = area
+        .height
+        .saturating_sub(3)
+        .saturating_sub(chat_reserve)
+        .max(1);
+    desired.min(maximum)
+}
+
 fn render_approval(frame: &mut Frame, app: &App, area: Rect) {
     let Some(approval) = &app.approval else {
         return;
     };
-    let popup = centered_rect(64, 28, area);
-    frame.render_widget(Clear, popup);
-    let body = Text::from(vec![
+    let risk = if approval.risk.is_empty() {
+        String::new()
+    } else {
+        format!(" · {} risk", approval.risk)
+    };
+    let block = Block::default()
+        .title(format!(
+            " Approval required · {}{risk} ",
+            approval.tool_name
+        ))
+        .borders(Borders::ALL)
+        .border_style(Style::default().fg(AMBER))
+        .style(Style::default().bg(SURFACE));
+    let inner = block.inner(area);
+    frame.render_widget(block, area);
+    if inner.height == 0 {
+        return;
+    }
+    let rows = Layout::default()
+        .direction(Direction::Vertical)
+        .constraints([Constraint::Min(1), Constraint::Length(1)])
+        .split(inner);
+    frame.render_widget(
+        Paragraph::new(approval_detail_text(approval))
+            .wrap(Wrap { trim: false })
+            .style(Style::default().bg(SURFACE)),
+        rows[0],
+    );
+    let actions = if rows[1].width >= 52 {
         Line::from(vec![
-            Span::styled("Tool  ", Style::default().fg(MUTED)),
+            Span::styled("Press ", Style::default().fg(MUTED)),
             Span::styled(
-                &approval.tool_name,
-                Style::default().fg(AMBER).add_modifier(Modifier::BOLD),
-            ),
-        ]),
-        Line::default(),
-        Line::from(Span::styled(&approval.reason, Style::default().fg(TEXT))),
-        Line::default(),
-        Line::from(vec![
-            Span::styled(
-                "Y  Approve",
+                "[Y]",
                 Style::default().fg(GREEN).add_modifier(Modifier::BOLD),
             ),
+            Span::styled(" Allow once     ", Style::default().fg(TEXT)),
+            Span::styled("[N]", Style::default().fg(RED).add_modifier(Modifier::BOLD)),
+            Span::styled(" Deny     ", Style::default().fg(TEXT)),
             Span::styled(
-                "     N  Deny",
+                "[Esc]",
                 Style::default().fg(RED).add_modifier(Modifier::BOLD),
             ),
-        ]),
-    ]);
+            Span::styled(" Deny", Style::default().fg(TEXT)),
+        ])
+    } else {
+        Line::from(vec![
+            Span::styled(
+                "[Y]",
+                Style::default().fg(GREEN).add_modifier(Modifier::BOLD),
+            ),
+            Span::styled(" Allow  ", Style::default().fg(TEXT)),
+            Span::styled(
+                "[N/Esc]",
+                Style::default().fg(RED).add_modifier(Modifier::BOLD),
+            ),
+            Span::styled(" Deny", Style::default().fg(TEXT)),
+        ])
+    };
     frame.render_widget(
-        Paragraph::new(body).wrap(Wrap { trim: true }).block(
-            Block::default()
-                .title(" Approval required ")
-                .borders(Borders::ALL)
-                .border_style(Style::default().fg(AMBER))
-                .style(Style::default().bg(SURFACE)),
-        ),
-        popup,
+        Paragraph::new(actions).style(Style::default().bg(SURFACE)),
+        rows[1],
     );
 }
 
@@ -845,9 +969,9 @@ fn display_thinking_level(value: &str) -> &str {
 mod tests {
     use ratatui::{backend::TestBackend, style::Modifier, Terminal};
 
-    use super::{draw, push_live, visible_input};
+    use super::{draw, push_live, slash_menu_area, visible_input};
     use crate::{
-        app::{App, LiveTurn},
+        app::{App, Approval, LiveTurn},
         model::{ChatMessage, SessionSummary, ToolActivity},
     };
 
@@ -1018,8 +1142,64 @@ mod tests {
     }
 
     #[test]
+    fn approval_panel_keeps_the_command_and_keys_visible_at_terminal_sizes() {
+        for (width, height) in [(80, 24), (36, 12)] {
+            let session = SessionSummary {
+                id: "session-1".to_owned(),
+                name: "Approval".to_owned(),
+                model: "openai/gpt-5.6-sol".to_owned(),
+                cwd: "/workspace".to_owned(),
+                execution_mode: "workspace".to_owned(),
+                ..SessionSummary::default()
+            };
+            let mut app = App::new(
+                vec![session.clone()],
+                session,
+                Vec::new(),
+                None,
+                Vec::new(),
+                Vec::new(),
+            );
+            app.approval = Some(Approval {
+                id: "approval-1".to_owned(),
+                tool_name: "bash".to_owned(),
+                args: serde_json::json!({ "command": "date +%A" }),
+                risk: "high".to_owned(),
+                reason: "Runs as the current OS user and may access files or network services."
+                    .to_owned(),
+            });
+
+            let backend = TestBackend::new(width, height);
+            let mut terminal = Terminal::new(backend).unwrap();
+            terminal.draw(|frame| draw(frame, &app)).unwrap();
+            let rendered = terminal
+                .backend()
+                .buffer()
+                .content
+                .iter()
+                .map(|cell| cell.symbol())
+                .collect::<String>();
+
+            assert!(rendered.contains("Approval required"));
+            assert!(rendered.contains("date +%A"));
+            assert!(rendered.contains("[Y]"));
+            assert!(rendered.contains("Allow"));
+            assert!(rendered.contains("[N"));
+            assert!(rendered.contains("Deny"));
+        }
+    }
+
+    #[test]
+    fn slash_menu_aligns_with_the_composer_instead_of_centering() {
+        let area = slash_menu_area(ratatui::layout::Rect::new(0, 30, 160, 3), 12);
+        assert_eq!(area.x, 2);
+        assert_eq!(area.width, 156);
+        assert_eq!(area.y + area.height, 30);
+    }
+
+    #[test]
     fn conversation_and_slash_menu_render_at_terminal_sizes() {
-        for (width, height) in [(120, 40), (60, 20)] {
+        for (width, height) in [(160, 40), (60, 20), (36, 12)] {
             let session = SessionSummary {
                 id: "session-1".to_owned(),
                 name: "Terminal smoke".to_owned(),

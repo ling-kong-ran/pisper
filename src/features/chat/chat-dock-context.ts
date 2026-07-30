@@ -3,7 +3,6 @@ import type {
   ChatAttachment,
   ModelOption,
   PendingAsset,
-  SandboxStatus,
   SessionState,
   SessionSummary,
 } from '@/types/chat'
@@ -35,7 +34,6 @@ export type ChatDockContextValue = {
   setCompactionThreshold: (thresholdPercent: number) => Promise<void>
   switchSessionModel: (sessionId: string, model: string) => Promise<void>
   switchSessionExecutionMode: (sessionId: string, mode: string) => Promise<boolean>
-  sandboxStatus: SandboxStatus
   resolveToolApproval: (sessionId: string, approvalId: string, approved: boolean) => Promise<void>
   setWorkspaceSession: (session: SessionSummary) => void
   renameSession: (session: SessionSummary) => Promise<void>

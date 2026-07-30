@@ -1,6 +1,6 @@
 import { consumeEventStream } from '@/lib/api'
 import { requestJson } from '@/lib/http'
-import type { ChatMessage, EntityRecord, SandboxStatus, SessionSummary } from '@/types/chat'
+import type { ChatMessage, EntityRecord, SessionSummary } from '@/types/chat'
 
 export type ApiRecord = EntityRecord
 type StreamEventHandler = (event: string, data: ApiRecord) => boolean | void
@@ -65,14 +65,6 @@ export const chatApi = {
     requestJson<CompactionPreferenceResponse>('/api/settings/compaction', {
       method: 'PATCH',
       data: { thresholdPercent },
-    }),
-
-  getSandboxStatus: () => requestJson<SandboxStatus>('/api/sandbox/status'),
-
-  installSandbox: () =>
-    requestJson<SandboxStatus>('/api/sandbox/install', {
-      method: 'POST',
-      data: {},
     }),
 
   getLiveSession: (sessionId: string) =>

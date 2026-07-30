@@ -53,7 +53,7 @@ One window per task, context copied back and forth, tool configs scattered every
 - **Capabilities answer on demand** — Progressive disclosure keeps frequent tools lightweight, hot-loads optional schemas when a task needs them, and expands full Skill instructions only for matching work.
 - **Parallel voices, uninterrupted flow** — Subagents run non-blocking in isolated contexts while the primary Agent continues replying, accepting new instructions, or delegating independent work.
 - **Completed work echoes back** — Subagent output persists and automatically wakes the parent Agent to continue reasoning, with no polling and no result stranded in a passive notification.
-- **Clear boundaries, orderly collaboration** — Every session owns its model, context, directory, and permissions, while dynamic loading remains subject to execution modes, sandboxing, and approval.
+- **Clear boundaries, orderly collaboration** — Every session owns its model, context, directory, and permissions, while dynamic loading remains subject to execution modes, workspace boundaries, and approval.
 
 ### Get Started in Three Steps
 
@@ -208,7 +208,7 @@ Pisper does not flood the context with every capability at once. Tools and knowl
 - **Hot-loaded tools** — Optional capabilities such as Web Search, browser automation, memory, MCP, and Subagents can be discovered by intent, adding only the most relevant schemas to the current session.
 - **Skills on demand** — Only Skill names and descriptions are exposed by default. Full instructions, scripts, and references load when a task matches or the Skill is explicitly invoked.
 
-This reduces fixed tokens in long sessions while keeping irrelevant tools out of model decisions. Dynamic loading remains subject to tool settings, execution modes, sandboxing, and approval.
+This reduces fixed tokens in long sessions while keeping irrelevant tools out of model decisions. Dynamic loading remains subject to tool settings, execution modes, workspace boundaries, and approval.
 
 > In the current benchmark, the fixed prompt is about **2,979 tokens** — roughly **58.7% less** than injecting the full catalog. Actual billing and cache savings vary by model and provider.
 
@@ -218,7 +218,7 @@ A bounded task can move to an isolated Subagent without stopping the primary Age
 
 Completed work does not disappear into an unattended notification. If the parent is running, the result joins the active reasoning turn; if the parent is idle, Pisper wakes it through a hidden internal message so every background contribution returns to the main task.
 
-> **Sandbox note:** Workspace mode uses [Anthropic Sandbox Runtime](https://github.com/anthropic-experimental/sandbox-runtime) to restrict Shell writes, credentials, and network access. First use on Windows requires one UAC prompt. If initialization fails, Pisper blocks execution instead of falling back to full access. The runtime remains a Beta Research Preview.
+> **Execution boundary:** Workspace mode constrains file access through structured tools. Reads run directly; file modifications and every Shell command require user approval. Shell runs as the current OS user. File modifications and Shell stop requesting per-operation approval only after an explicit switch to full-access mode.
 
 <a id="desktop-pet"></a>
 
@@ -268,7 +268,7 @@ sudo apt install ./Pisper-*-linux-amd64.deb
 
 ### Terminal Client (TUI)
 
-Pisper also provides a Rust + Ratatui terminal client. Every TUI launch opens with the Pisper terminal brand in the main area; once interaction begins, the brand yields to the message stream. When the model provides reasoning tokens, the TUI expands Thinking before the response and marks active reasoning with an event-driven terminal spinner. The TUI reuses the desktop app's Node SEA sidecar, Agent runtime, sessions, Tools, Skills, MCP, sandbox, and approval chain.
+Pisper also provides a Rust + Ratatui terminal client. Every TUI launch opens with the Pisper terminal brand in the main area; once interaction begins, the brand yields to the message stream. When the model provides reasoning tokens, the TUI expands Thinking before the response and marks active reasoning with an event-driven terminal spinner. The TUI reuses the desktop app's Node SEA sidecar, Agent runtime, sessions, Tools, Skills, MCP, execution modes, and approval chain.
 
 After installing the desktop app, install or uninstall the `pisper` command from **Settings → Interface → Pisper terminal command**. Pisper uses a current-user directory and manages the corresponding PATH entry without administrator access; restart the terminal host after making a change. Windows installs `pisper.exe`, while macOS and Linux install the extensionless `pisper` command.
 
@@ -317,10 +317,8 @@ Enter `/mode` to show the current execution mode. Change the current session wit
 | Command | Behavior |
 | :--- | :--- |
 | `/mode read-only` | Exposes only low-risk analysis tools and prevents project modifications. |
-| `/mode workspace` | Allows changes inside the current workspace sandbox; boundary-crossing operations still require approval. |
-| `/mode full-access` | Allows files and network access outside the workspace and removes the workspace Shell boundary. Use only when explicitly needed. |
-
-On Windows, selecting `workspace` for the first time may show one UAC prompt to create the low-privilege sandbox account and network isolation rules. Pisper does not silently change modes when setup fails or is cancelled.
+| `/mode workspace` | Keeps file tools inside the current workspace; reads run directly, while file modifications and every Shell command require user approval. |
+| `/mode full-access` | Allows host file and network access; Shell runs as the current OS user without per-command approval. Use only when explicitly needed. |
 
 #### Invoke a Tool
 
@@ -347,7 +345,7 @@ Enter `/`, select a Skill marked with `S`, and add the task after its command. I
 /skill:docs-search find the signing requirements for the Tauri updater
 ```
 
-Skill names come from the active runtime, so the Slash list is authoritative. Only enabled, model-invocable Skills appear. The runtime loads the matching `SKILL.md`, scripts, and references on demand. Tool calls made by a Skill remain subject to the current `/mode`, sandbox, and approval policy.
+Skill names come from the active runtime, so the Slash list is authoritative. Only enabled, model-invocable Skills appear. The runtime loads the matching `SKILL.md`, scripts, and references on demand. Tool calls made by a Skill remain subject to the current `/mode`, workspace boundary, and approval policy.
 
 #### Built-in TUI Commands
 

@@ -1,6 +1,6 @@
 {
-  "schedulesPage.fullAccessHelp": "Background runs do not use the local sandbox and can access the network or external directories.",
-  "schedulesPage.workspaceHelp": "Shell runs in the workspace sandbox; background tasks cannot wait for interactive approval when blocked.",
+  "schedulesPage.fullAccessHelp": "Background tasks run Shell as the current OS user without per-command approval.",
+  "schedulesPage.workspaceHelp": "Reads run directly inside the workspace; file writes and Shell require interactive approval and are unsuitable for unattended tasks. Unsupported operations remain pending approval.",
   "schedulesPage.readOnlyHelp": "Only reading and analysis are allowed; files cannot be modified and Shell cannot run.",
   "schedulesPage.atIntervals": "At intervals",
   "schedulesPage.daily": "Daily",

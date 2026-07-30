@@ -53,7 +53,6 @@ import type {
   ChatMessage,
   EntityRecord,
   ModelOption,
-  SandboxStatus,
   SessionSummary,
   TaskList,
 } from '@/types/chat'
@@ -84,7 +83,6 @@ type SessionModelSelectProps = {
 
 type ExecutionModeSelectProps = {
   value: string
-  sandboxStatus: SandboxStatus
   onChange: (mode: string) => void
   disabled?: boolean
   compact?: boolean
@@ -105,7 +103,6 @@ export type FocusSessionProps = {
   olderError?: string
   model: string
   executionMode: string
-  sandboxStatus: SandboxStatus
   goal?: EntityRecord | null
   taskList?: TaskList | null
   currentActivity?: EntityRecord | null
@@ -364,14 +361,7 @@ function welcomeChips(t: Translate) {
   ]
 }
 
-function executionModeOptions(t: Translate, sandboxStatus: SandboxStatus): ExecutionModeOption[] {
-  const workspaceDescription =
-    sandboxStatus?.state === 'not-installed'
-      ? t('chat:focusSession.canModifyTheCurrentProjectLocalSandboxSetupIsRequiredOnFirstUse')
-      : sandboxStatus?.supported === false ||
-          ['unsupported', 'unavailable', 'error'].includes(sandboxStatus?.state)
-        ? t('chat:focusSession.theLocalSandboxIsUnavailableOnThisDevice')
-        : t('chat:focusSession.canModifyTheCurrentProjectOutOfSandboxActionsRequireApproval')
+function executionModeOptions(t: Translate): ExecutionModeOption[] {
   return [
     [
       'read-only',
@@ -379,11 +369,16 @@ function executionModeOptions(t: Translate, sandboxStatus: SandboxStatus): Execu
       t('chat:focusSession.onlyInspectAndAnalyzeCode'),
       Eye,
     ],
-    ['workspace', t('chat:focusSession.workspace'), workspaceDescription, Shield],
+    [
+      'workspace',
+      t('chat:focusSession.workspace'),
+      t('chat:focusSession.workspaceReadsDirectlyAndApprovesWritesAndShellCommands'),
+      Shield,
+    ],
     [
       'full-access',
       t('chat:focusSession.fullAccess'),
-      t('chat:focusSession.noSandboxCanAccessLocalFilesAndNetwork'),
+      t('chat:focusSession.fullAccessRunsShellWithoutPerCommandApproval'),
       ShieldOff,
     ],
   ]
@@ -391,7 +386,6 @@ function executionModeOptions(t: Translate, sandboxStatus: SandboxStatus): Execu
 
 function ExecutionModeSelect({
   value,
-  sandboxStatus,
   onChange,
   disabled,
   compact = false,
@@ -401,19 +395,9 @@ function ExecutionModeSelect({
   const [menuPosition, setMenuPosition] = useState({ left: 0, top: 0, width: 270 })
   const rootRef = useRef<HTMLDivElement>(null)
   const menuRef = useRef<HTMLDivElement>(null)
-  const options = executionModeOptions(t, sandboxStatus)
+  const options = executionModeOptions(t)
   const current = options.find((item) => item[0] === value) || options[1]
   const CurrentIcon = current[3]
-  const sandboxTone =
-    sandboxStatus?.state === 'installing' || sandboxStatus?.state === 'checking'
-      ? 'checking'
-      : sandboxStatus?.state === 'not-installed' ||
-          sandboxStatus?.state === 'unavailable' ||
-          sandboxStatus?.state === 'error'
-        ? 'warning'
-        : sandboxStatus?.supported === false
-          ? 'danger'
-          : 'ready'
   const positionMenu = useCallback(() => {
     const trigger = rootRef.current?.querySelector('button')
     if (!trigger) return
@@ -515,7 +499,6 @@ function ExecutionModeSelect({
           onClick={() => setOpen((visible) => !visible)}
         >
           <CurrentIcon size={compact ? 11 : 14} />
-          {value === 'workspace' && <i className={`sandbox-status-dot ${sandboxTone}`} />}
         </button>
       </div>
       {menu}
@@ -529,8 +512,6 @@ function ToolApproval({ approvals, onResolve, compact = false }: ToolApprovalPro
   const resolvingRef = useRef(false)
   const approval = approvals[0]
   if (!approval) return null
-  const escalated =
-    approval.toolName === 'bash' && approval.args?.sandbox_permissions === 'require_escalated'
   const resolve = async (approved: boolean) => {
     if (resolvingRef.current) return
     resolvingRef.current = true
@@ -553,13 +534,9 @@ function ToolApproval({ approvals, onResolve, compact = false }: ToolApprovalPro
         <ShieldCheck size={compact ? 12 : 15} />
         <span>
           <strong>
-            {escalated
-              ? t('chat:focusSession.toolRequestsExecutionOutsideTheSandbox', {
-                  tool: approval.toolName,
-                })
-              : t('chat:focusSession.toolRequestsApproval', {
-                  tool: approval.toolName,
-                })}
+            {t('chat:focusSession.toolRequestsApproval', {
+              tool: approval.toolName,
+            })}
           </strong>
           <small>
             {approval.reason}
@@ -591,7 +568,7 @@ function ToolApproval({ approvals, onResolve, compact = false }: ToolApprovalPro
           onClick={() => resolve(true)}
         >
           {resolving ? <RefreshCw className="spin" size={12} /> : <Check size={12} />}
-          {escalated ? t('chat:focusSession.allowOnce') : t('chat:focusSession.allow')}
+          {t('chat:focusSession.allow')}
         </button>
       </div>
     </Confirmation>
@@ -607,7 +584,6 @@ export function FocusSession({
   olderError,
   model,
   executionMode,
-  sandboxStatus,
   goal,
   taskList,
   currentActivity,
@@ -786,10 +762,6 @@ export function FocusSession({
       requestAnimationFrame(() => scrollToBottom('smooth'))
       if (promptRef.current) promptRef.current.style.height = 'auto'
       return
-    }
-    if (executionMode === 'workspace' && !['ready', 'active'].includes(sandboxStatus?.state)) {
-      const ready = await onExecutionModeChange('workspace')
-      if (!ready) return
     }
     onSend(value, selection.attachments, goalArmed, goalArmed ? goalTokenBudget : null)
     scrollToBottom('smooth')
@@ -994,7 +966,6 @@ export function FocusSession({
           />
           <ExecutionModeSelect
             value={executionMode}
-            sandboxStatus={sandboxStatus}
             onChange={onExecutionModeChange}
             disabled={streaming || switchingPermission}
           />

@@ -110,17 +110,9 @@ test('session creation forwards the CLI workspace to the shared runtime', async 
   assert.deepEqual(calls, [['CLI chat', 'E:\\code\\workspace']])
 })
 
-test('sandbox status, install, and session execution mode APIs delegate to the runtime', async () => {
+test('session execution mode API delegates to the runtime', async () => {
   const calls = []
   const runtime = {
-    async getSandboxStatus() {
-      calls.push(['status'])
-      return { supported: true, state: 'not-installed', platform: 'win32' }
-    },
-    async installLocalSandbox() {
-      calls.push(['install'])
-      return { supported: true, state: 'ready', platform: 'win32' }
-    },
     async setSessionExecutionMode(id, mode) {
       calls.push(['mode', id, mode])
       return { id, executionMode: mode, permissionMode: mode === 'full-access' ? 'ignore' : 'auto' }
@@ -128,23 +120,9 @@ test('sandbox status, install, and session execution mode APIs delegate to the r
   }
   const handler = createApiHandler(runtime)
 
-  const statusResponse = response()
-  assert.equal(await handler(request('GET'), statusResponse, new URL('http://localhost/api/sandbox/status')), true)
-  assert.equal(statusResponse.status, 200)
-  assert.equal(JSON.parse(statusResponse.body).state, 'not-installed')
-
-  const installResponse = response()
-  assert.equal(await handler(request('POST', {}), installResponse, new URL('http://localhost/api/sandbox/install')), true)
-  assert.equal(installResponse.status, 200)
-  assert.equal(JSON.parse(installResponse.body).state, 'ready')
-
   const modeResponse = response()
   assert.equal(await handler(request('PUT', { mode: 'workspace' }), modeResponse, new URL('http://localhost/api/sessions/session%201/execution-mode')), true)
   assert.equal(modeResponse.status, 200)
   assert.deepEqual(JSON.parse(modeResponse.body), { id: 'session 1', executionMode: 'workspace', permissionMode: 'auto' })
-  assert.deepEqual(calls, [
-    ['status'],
-    ['install'],
-    ['mode', 'session 1', 'workspace'],
-  ])
+  assert.deepEqual(calls, [['mode', 'session 1', 'workspace']])
 })

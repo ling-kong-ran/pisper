@@ -60,8 +60,9 @@ export function toolCategoryLabel(category: string | undefined, t: ToolLabelTran
 }
 
 export function toolScopeLabel(tool: Record<string, unknown>, t: ToolLabelTranslate) {
-  if (['read', 'ls', 'grep', 'find', 'edit', 'write', 'bash'].includes(String(tool.id)))
+  if (['read', 'ls', 'grep', 'find', 'edit', 'write'].includes(String(tool.id)))
     return t('plugins:toolLabels.currentChatWorkspace')
+  if (tool.id === 'bash') return t('plugins:toolLabels.currentOsUser')
   if (tool.id === 'web_search') return t('plugins:toolLabels.bingPublicWebSearch')
   if (tool.id === 'browser_automation') return t('plugins:toolLabels.isolatedSessionBrowser')
   if (tool.id === 'generate_visual') return t('plugins:toolLabels.visualProviderAndWorkspace')
