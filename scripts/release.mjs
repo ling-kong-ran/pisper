@@ -93,7 +93,6 @@ if (latestTag && compareVersions(nextVersion, latestTag.replace(/^v/i, '')) <= 0
 const bumpedVersion = runNpm([
   'version',
   nextVersion,
-  '--ignore-scripts',
   '--message',
   'chore(release): v%s',
 ], { capture: true }).replace(/^v/i, '')
