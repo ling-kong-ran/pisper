@@ -29,7 +29,6 @@ import { DesktopPetSettings } from './DesktopPetSettings'
 import { NotificationSettings } from './NotificationSettings'
 import { UpdateSettings } from './UpdateSettings'
 import { LanguageSettings } from './LanguageSettings'
-import { MemoryEmbeddingSettings } from './MemoryEmbeddingSettings'
 import type { FormEvent } from 'react'
 import type { LucideIcon } from 'lucide-react'
 import type { I18nValues } from '@/app/i18n'
@@ -429,9 +428,6 @@ export function ConfigPage({
       <button className={section === 'models' ? 'active' : ''} onClick={() => setSection('models')}>
         {t('config:configPage.models')}
       </button>
-      <button className={section === 'memory' ? 'active' : ''} onClick={() => setSection('memory')}>
-        {t('config:configPage.memory')}
-      </button>
       <button
         className={section === 'notifications' ? 'active' : ''}
         onClick={() => setSection('notifications')}
@@ -458,13 +454,6 @@ export function ConfigPage({
       </button>
     </div>
   )
-  if (section === 'memory')
-    return (
-      <>
-        {subnav}
-        <MemoryEmbeddingSettings notify={notify} requestConfirm={requestConfirm} />
-      </>
-    )
   if (section === 'interface')
     return (
       <>

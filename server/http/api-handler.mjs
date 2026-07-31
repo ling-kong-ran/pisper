@@ -208,24 +208,6 @@ export function createApiHandler(
         }))
         return true
       }
-      if (req.method === 'GET' && url.pathname === '/api/memory/embedding') {
-        json(res, 200, await runtime.getMemoryEmbeddingConfig())
-        return true
-      }
-      if (req.method === 'POST' && url.pathname === '/api/memory/embedding/download') {
-        await runtime.downloadMemoryEmbeddingModel(await bodyJson(req))
-        json(res, 200, await runtime.getMemoryEmbeddingConfig())
-        return true
-      }
-      if (req.method === 'PUT' && url.pathname === '/api/memory/embedding') {
-        json(res, 200, await runtime.selectMemoryEmbeddingModel(await bodyJson(req)))
-        return true
-      }
-      const memoryEmbeddingModelMatch = url.pathname.match(/^\/api\/memory\/embedding\/models\/([^/]+)$/)
-      if (req.method === 'DELETE' && memoryEmbeddingModelMatch) {
-        json(res, 200, await runtime.removeMemoryEmbeddingModel(decodeURIComponent(memoryEmbeddingModelMatch[1])))
-        return true
-      }
       if (req.method === 'GET' && url.pathname === '/api/memory/candidates') {
         json(res, 200, runtime.getMemoryCandidateInbox({ limit: url.searchParams.get('limit') }))
         return true

@@ -1,5 +1,4 @@
 import assert from 'node:assert/strict'
-import { createHash } from 'node:crypto'
 import { mkdir, mkdtemp, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
@@ -7,7 +6,6 @@ import { performance } from 'node:perf_hooks'
 import test from 'node:test'
 import { createApiHandler } from '../http/api-handler.mjs'
 import { extractConversationMemories, shouldExtractConversationMemory } from '../services/memory/conversation-memory.mjs'
-import { LocalEmbeddingModelService } from '../services/memory/local-embedding-model-service.mjs'
 import {
   initializeMemoryFullTextSearch,
   LocalMemoryRuntime,
@@ -37,26 +35,22 @@ function response() {
   }
 }
 
-class SemanticTestProvider {
+function summarizeMemory(entry) {
+  const value = `${entry.title} ${entry.content}`
+  if (/发布|部署|上线|release|deploy/iu.test(value)) return '发布 部署 上线 release deploy 流水线 交付'
+  if (/界面|页面|布局|UI/iu.test(value)) return '界面 页面 布局 UI 验收 布局规范'
+  if (/数据库|存储|SQLite|PostgreSQL/iu.test(value)) return '数据库 存储 SQLite PostgreSQL 引擎'
+  return ''
+}
+
+class TestSummarizer {
   constructor({ fail = false } = {}) {
     this.fail = fail
   }
 
-  descriptor() {
-    return { provider: 'test', model: 'semantic-test', version: '1', dimensions: 8 }
-  }
-
-  async embed(texts) {
-    if (this.fail) throw new Error('embedding unavailable')
-    return texts.map((text) => {
-      const value = String(text)
-      const vector = new Float32Array(8)
-      if (/发布|部署|上线|release|deploy/iu.test(value)) vector[0] = 1
-      else if (/界面|页面|布局|UI/iu.test(value)) vector[1] = 1
-      else if (/数据库|存储|SQLite|PostgreSQL/iu.test(value)) vector[2] = 1
-      else vector[7] = 1
-      return vector
-    })
+  async summarize(entries) {
+    if (this.fail) throw new Error('semantic summarizer unavailable')
+    return entries.map(summarizeMemory)
   }
 }
 
@@ -65,7 +59,7 @@ async function withMemory(run, options = {}) {
   const cwd = join(directory, 'project')
   await mkdir(cwd, { recursive: true })
   const path = join(directory, 'memory.sqlite')
-  const memory = new LocalMemoryRuntime({ path, cwd, ...options })
+  const memory = new LocalMemoryRuntime({ path, cwd, semanticSummarizer: options.semanticSummarizer ?? new TestSummarizer(), ...options })
   try {
     await memory.init()
     await run(memory, cwd, path, directory)
@@ -123,14 +117,14 @@ test('trusted memory persists, updates, searches and builds semantic related lin
       type: 'file',
       sourcePath: join(cwd, 'UI.md'),
     })
-    await memory.drainEmbeddingQueue()
+    await memory.drainSemanticQueue()
 
     assert.equal(memory.search('页面布局不能随便修改', { cwd })[0].id, preference.id)
     assert.ok(memory.getDashboard({ spaceId: projectId }).links.some((link) => [link.sourceId, link.targetId].includes(file.id)))
     assert.match(memory.updateMemory(preference.id, { content: '已验收 UI 不允许随意调整。' }).content, /不允许/)
     assert.equal(memory.forget(file.id), true)
     assert.equal(memory.getMemory(file.id), null)
-  }, { embeddingProvider: new SemanticTestProvider() })
+  }, { semanticSummarizer: new TestSummarizer() })
 })
 
 test('memory redacts credentials, private keys and database connection strings before persistence', async () => {
@@ -193,15 +187,16 @@ test('candidate acceptance and rejection scrub candidate content and retain mini
   })
 })
 
-test('physical memory deletion removes content, evidence, embeddings and links', async () => {
+test('physical memory deletion removes content, evidence, semantic text and links', async () => {
   await withMemory(async (memory) => {
     const item = memory.remember({ spaceId: 'global', title: '敏感事实', content: '需要彻底删除的正文', evidence: '删除证据' })
-    await memory.drainEmbeddingQueue()
+    await memory.drainSemanticQueue()
     assert.equal(memory.forget(item.id), true)
     assert.equal(memory.getMemory(item.id), null)
-    assert.equal(memory.requireDb().prepare('SELECT 1 FROM memory_embedding_buckets WHERE memory_id = ?').get(item.id), undefined)
+    assert.equal(memory.requireDb().prepare('SELECT 1 FROM memories WHERE id = ?').get(item.id), undefined)
+    assert.equal(memory.requireDb().prepare('SELECT 1 FROM memory_links WHERE source_id = ? OR target_id = ?').get(item.id, item.id), undefined)
     assert.doesNotMatch(JSON.stringify(memory.requireDb().prepare('SELECT * FROM memory_tombstones WHERE id = ?').get(item.id)), /彻底删除|删除证据/)
-  }, { embeddingProvider: new SemanticTestProvider() })
+  }, { semanticSummarizer: new TestSummarizer() })
 })
 
 test('Agent memory tool cannot promote trust using a model-controlled boolean', async () => {
@@ -314,7 +309,7 @@ test('an incompatible existing memory schema is destroyed and rebuilt', async ()
     const restored = new LocalMemoryRuntime({ path, cwd })
     await restored.init()
     assert.equal(restored.getMemory(item.id), null)
-    assert.equal(restored.requireDb().prepare('PRAGMA user_version').get().user_version, 3)
+    assert.equal(restored.requireDb().prepare('PRAGMA user_version').get().user_version, 4)
     restored.dispose()
   } finally {
     first.dispose()
@@ -372,16 +367,16 @@ test('conversation extraction remains user-triggered and rejects fabricated evid
   assert.deepEqual(result.memories, [])
 })
 
-test('optional semantic provider retrieves synonyms and failure falls back to lexical search', async () => {
+test('semantic summarizer expands retrieval and failure falls back to lexical search', async () => {
   await withMemory(async (memory, cwd) => {
     const spaceId = await memory.ensureWorkspaceSpace(cwd)
     const release = memory.remember({ spaceId, title: '交付流程', content: '通过流水线将构建产物部署到生产环境。', topic: 'project.release.workflow' })
-    await memory.drainEmbeddingQueue()
+    await memory.drainSemanticQueue()
     assert.equal((await memory.searchRelevant('如何上线新版本', { cwd }))[0]?.id, release.id)
-    await memory.setEmbeddingProvider(new SemanticTestProvider({ fail: true }))
-    await memory.drainEmbeddingQueue()
+    memory.setSemanticSummarizer(new TestSummarizer({ fail: true }))
+    await memory.drainSemanticQueue()
     assert.equal((await memory.searchRelevant('交付流程', { cwd }))[0]?.id, release.id)
-  }, { embeddingProvider: new SemanticTestProvider() })
+  }, { semanticSummarizer: new TestSummarizer() })
 })
 
 test('FTS candidate generation remains bounded with ten thousand rows', async () => {
@@ -411,74 +406,25 @@ test('FTS candidate generation remains bounded with ten thousand rows', async ()
   })
 })
 
-test('local model downloads verify SHA-256 before activation', async () => {
-  const directory = await mkdtemp(join(tmpdir(), 'pisper-embedding-download-'))
-  const good = Buffer.from('{"model":"test"}')
-  const catalog = [{
-    id: 'test-model',
-    name: 'Test model',
-    description: 'test',
-    repository: 'example/test',
-    version: '1',
-    dimensions: 8,
-    languages: ['en'],
-    size: good.length,
-    files: [{ path: 'config.json', size: good.length, sha256: createHash('sha256').update(good).digest('hex') }],
-  }]
-  try {
-    const service = new LocalEmbeddingModelService({
-      modelsDir: join(directory, 'models'),
-      configPath: join(directory, 'config.json'),
-      catalog,
-      fetchImpl: async () => new Response(good, { headers: { 'content-length': String(good.length) } }),
-    })
-    await service.init()
-    const downloaded = await service.download('test-model', { activate: false })
-    assert.equal(downloaded.models[0].installed, true)
-    await service.select('test-model', { enabled: true })
-    assert.equal((await service.state()).enabled, true)
-    await service.dispose()
-
-    await rm(join(directory, 'models'), { recursive: true, force: true })
-    const corrupt = new LocalEmbeddingModelService({
-      modelsDir: join(directory, 'models'),
-      configPath: join(directory, 'config-2.json'),
-      catalog,
-      fetchImpl: async () => new Response(Buffer.from('{"model":"fail"}'), { headers: { 'content-length': String(good.length) } }),
-    })
-    await corrupt.init()
-    await assert.rejects(() => corrupt.download('test-model', { activate: false }), /SHA-256/)
-    assert.equal((await corrupt.state()).models[0].installed, false)
-  } finally {
-    await rm(directory, { recursive: true, force: true })
-  }
-})
-
-test('memory candidate and embedding API expose explicit actions', async () => {
+test('memory candidate API exposes explicit actions', async () => {
   const calls = []
   const runtime = {
     getMemoryCandidateInbox(input) { calls.push(['inbox', input.limit]); return { count: 1, candidates: [] } },
     acceptMemoryCandidate(id) { calls.push(['accept', id]); return { memory: { id: 'memory-1' } } },
     rejectMemoryCandidate(id) { calls.push(['reject', id]); return { id, status: 'rejected' } },
     rejectAllMemoryCandidates() { calls.push(['reject-all']); return { rejected: 1 } },
-    async getMemoryEmbeddingConfig() { calls.push(['embedding']); return { enabled: false } },
-    async selectMemoryEmbeddingModel(input) { calls.push(['select-model', input.modelId]); return { enabled: true } },
   }
   const handler = createApiHandler(runtime)
   const inbox = response()
   const accept = response()
   const reject = response()
   const rejectAll = response()
-  const embedding = response()
-  const select = response()
   await handler(request('GET'), inbox, new URL('http://localhost/api/memory/candidates?limit=1'))
   await handler(request('POST', {}), accept, new URL('http://localhost/api/memory/candidates/candidate%201/accept'))
   await handler(request('POST', {}), reject, new URL('http://localhost/api/memory/candidates/candidate%202/reject'))
   await handler(request('POST', {}), rejectAll, new URL('http://localhost/api/memory/candidates/reject-all'))
-  await handler(request('GET'), embedding, new URL('http://localhost/api/memory/embedding'))
-  await handler(request('PUT', { modelId: 'model-1' }), select, new URL('http://localhost/api/memory/embedding'))
-  assert.deepEqual(calls, [['inbox', '1'], ['accept', 'candidate 1'], ['reject', 'candidate 2'], ['reject-all'], ['embedding'], ['select-model', 'model-1']])
-  assert.equal(select.status, 200)
+  assert.deepEqual(calls, [['inbox', '1'], ['accept', 'candidate 1'], ['reject', 'candidate 2'], ['reject-all']])
+  assert.equal(inbox.status, 200)
 })
 
 test('memory tools migrate once and can still be disabled', async () => {

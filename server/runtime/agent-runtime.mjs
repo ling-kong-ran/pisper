@@ -25,7 +25,7 @@ import { ToolPluginService } from '../services/tool-plugin-service.mjs'
 import { WebSearchService } from '../services/web-search-service.mjs'
 import { extractConversationMemories } from '../services/memory/conversation-memory.mjs'
 import { LocalMemoryRuntime } from '../services/memory/local-memory-runtime.mjs'
-import { LocalEmbeddingModelService } from '../services/memory/local-embedding-model-service.mjs'
+import { createSemanticMemorySummarizer } from '../services/memory/semantic-memory.mjs'
 import { inferModelKind, VisualGenerationService } from '../services/visual-generation/index.mjs'
 import { MultiAgentService, MULTI_AGENT_TOOL_NAMES, agentCompletionPrompt, isAgentCompletionMessage } from '../services/multi-agent-service.mjs'
 import { GoalService, goalBudgetPrompt, goalContinuationPrompt, isGoalContinuationMessage } from '../services/goal-service.mjs'
@@ -661,10 +661,9 @@ export class AgentRuntimeService {
     this.assetsDir = join(dataDir, 'pisper-assets')
     this.assetIndexPath = join(dataDir, 'pisper-assets.json')
     this.memory = new LocalMemoryRuntime({ path: join(dataDir, 'pisper-memory.sqlite'), cwd })
-    this.memoryEmbeddingModels = new LocalEmbeddingModelService({
-      modelsDir: join(dataDir, 'pisper-memory-models'),
-      configPath: this.appConfigPath,
-      onChange: () => this.syncMemoryEmbeddingProvider(),
+    this.memorySummarizer = createSemanticMemorySummarizer({
+      getModelRuntime: () => this.modelRuntime,
+      getDefaultModel: () => this.resolveDefaultModel(),
     })
     this.goals = new GoalService({ path: join(dataDir, 'pisper-goals.json') })
     this.gitChanges = new GitChangesService()
@@ -775,9 +774,8 @@ export class AgentRuntimeService {
     await this.toolPlugins.ensureDefaultTools(['web_search'], 'webSearchToolV1')
     await this.toolPlugins.ensureDefaultTools(['browser_automation'], 'browserAutomationToolV1')
     await this.reloadModelRuntime()
-    await this.memoryEmbeddingModels.init()
     await this.memory.init()
-    await this.syncMemoryEmbeddingProvider()
+    this.memory.setSemanticSummarizer(this.memorySummarizer)
     await this.goals.init({ pauseActive: true })
     await this.taskLists.init()
     await this.multiAgents.init()
@@ -2543,32 +2541,12 @@ export class AgentRuntimeService {
     }))
   }
 
-  async syncMemoryEmbeddingProvider() {
-    return this.memory.setEmbeddingProvider(await this.memoryEmbeddingModels.getProvider())
-  }
-
-  async getMemoryEmbeddingConfig() {
-    return this.memoryEmbeddingModels.state(this.memory.embeddingStatus())
-  }
-
-  async downloadMemoryEmbeddingModel(input) {
-    return this.memoryEmbeddingModels.download(String(input?.modelId || ''), {
-      source: input?.source,
-      activate: input?.activate !== false,
-    })
-  }
-
-  async selectMemoryEmbeddingModel(input) {
-    const state = await this.memoryEmbeddingModels.select(String(input?.modelId || ''), {
-      enabled: input?.enabled !== false,
-      source: input?.source,
-    })
-    return { ...state, indexing: this.memory.embeddingStatus() }
-  }
-
-  async removeMemoryEmbeddingModel(modelId) {
-    const deleted = await this.memoryEmbeddingModels.remove(modelId)
-    return { deleted, state: await this.getMemoryEmbeddingConfig() }
+  resolveDefaultModel() {
+    const settings = this.settingsManager?.getGlobalSettings?.() || {}
+    const provider = settings.defaultProvider
+    const modelId = settings.defaultModel
+    if (!provider || !modelId || !this.modelRuntime?.getModel) return null
+    return this.modelRuntime.getModel(String(provider), String(modelId)) || null
   }
 
   getMemoryDashboard(input) {
@@ -2921,7 +2899,6 @@ export class AgentRuntimeService {
     this.pendingSessions.clear()
     await this.mcp.dispose()
     this.memory.dispose()
-    await this.memoryEmbeddingModels.dispose()
     await Promise.allSettled([this.sessionMetaWrite, this.usageWrite, this.assetWrite])
   }
 
