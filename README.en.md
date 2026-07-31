@@ -25,6 +25,30 @@
   </a>
 </p>
 
+<a id="sponsors"></a>
+
+## ❤️ Sponsors
+
+Thanks to the following partners for supporting the Pisper community. If you'd like to appear here too, feel free to reach out via [Issues](https://github.com/ling-kong-ran/pisper/issues).
+
+<details open>
+<summary>View sponsors</summary>
+
+<table>
+<tr>
+<td width="180" align="center">
+  <a href="https://matrix.000328.xyz/sign-up?aff=ZPeH"><strong>Matrix</strong></a>
+</td>
+<td>
+Thanks to <a href="https://matrix.000328.xyz/sign-up?aff=ZPeH">Matrix</a> for supporting the Pisper community. Registering through <a href="https://matrix.000328.xyz/sign-up?aff=ZPeH">this link</a> may generate referral revenue for the project.
+</td>
+</tr>
+</table>
+
+> Sponsor links contain a referral parameter. Sponsor content is not targeted using conversations, workspaces, providers, models, or API configuration, and Pisper does not send that data to sponsors. The public configuration for the in-app sponsor placement is maintained in [`docs/sponsors.json`](./docs/sponsors.json).
+
+</details>
+
 <p align="center">
   <a href="#overview">Overview</a> ·
   <a href="#preview">Interface</a> ·
@@ -403,18 +427,6 @@ npm run build
 ```
 
 [Issues](https://github.com/ling-kong-ran/pisper/issues) and [pull requests](https://github.com/ling-kong-ran/pisper/pulls) are welcome. Do not commit API keys, bot credentials, or personal data from `~/.pisper/agent`.
-
-<a id="sponsors"></a>
-
-## Sponsors
-
-Thanks to the following partner for supporting the Pisper community:
-
-- [Matrix](https://matrix.000328.xyz/sign-up?aff=ZPeH)
-
-The Matrix link contains a referral parameter. Registering through it may generate referral revenue for the Pisper project. Sponsor content is not targeted using conversations, workspaces, providers, models, or API configuration, and Pisper does not send that data to sponsors.
-
-The public configuration for the in-app sponsor placement is maintained in [`docs/sponsors.json`](./docs/sponsors.json).
 
 <a id="license"></a>
 
