@@ -233,6 +233,16 @@ impl App {
                     .contains(&query)
         });
         items.sort_by(|left, right| {
+            let left_prefix = left
+                .command
+                .strip_prefix('/')
+                .unwrap_or(&left.command)
+                .starts_with(&query);
+            let right_prefix = right
+                .command
+                .strip_prefix('/')
+                .unwrap_or(&right.command)
+                .starts_with(&query);
             let left_usage = self
                 .slash_usage
                 .get(&left.command)
@@ -243,9 +253,9 @@ impl App {
                 .get(&right.command)
                 .cloned()
                 .unwrap_or_default();
-            right_usage
-                .count
-                .cmp(&left_usage.count)
+            right_prefix
+                .cmp(&left_prefix)
+                .then_with(|| right_usage.count.cmp(&left_usage.count))
                 .then_with(|| right_usage.last_used.cmp(&left_usage.last_used))
                 .then_with(|| left.command.cmp(&right.command))
         });
@@ -298,6 +308,10 @@ impl App {
                 }
                 KeyCode::Esc => {
                     self.clear_input();
+                    return Action::None;
+                }
+                KeyCode::Tab => {
+                    self.complete_slash();
                     return Action::None;
                 }
                 KeyCode::Enter => return self.choose_slash(),
@@ -388,6 +402,19 @@ impl App {
             }
             _ => Action::None,
         }
+    }
+
+    fn complete_slash(&mut self) {
+        let items = self.slash_items();
+        let Some(item) = items.get(self.slash_selected).cloned() else {
+            return;
+        };
+        let completed = if item.kind == SlashKind::Command {
+            item.command
+        } else {
+            format!("{} ", item.command)
+        };
+        self.set_input(&completed);
     }
 
     fn choose_slash(&mut self) -> Action {
@@ -565,7 +592,7 @@ impl App {
         {
             session.execution_mode.clone_from(&mode);
         }
-        self.status = format!("mode · {mode}");
+        self.status = format!("mode changed · {mode}");
         self.status_error = false;
     }
 
@@ -964,6 +991,12 @@ mod tests {
             app.submit_action(),
             Action::SetExecutionMode(mode) if mode == "full-access"
         ));
+
+        app.set_execution_mode("full-access".to_owned());
+        assert_eq!(app.execution_mode, "full-access");
+        assert_eq!(app.session.execution_mode, "full-access");
+        assert_eq!(app.status, "mode changed · full-access");
+        assert!(!app.status_error);
     }
 
     #[test]
@@ -1021,6 +1054,37 @@ mod tests {
             app.submit_action(),
             Action::Submit { requested_tool: Some(tool), .. } if tool == "read"
         ));
+    }
+
+    #[test]
+    fn tab_completes_the_highlighted_slash_tool_without_submitting() {
+        let mut app = test_app(vec![ToolDefinition {
+            id: "read".to_owned(),
+            name: "Read".to_owned(),
+            description: "Read a file".to_owned(),
+            enabled: true,
+        }]);
+        app.set_input("/rea");
+
+        assert!(matches!(
+            app.handle_key(KeyEvent::new(KeyCode::Tab, KeyModifiers::NONE)),
+            Action::None
+        ));
+        assert_eq!(app.input_text(), "/read ");
+        assert!(!app.is_streaming());
+    }
+
+    #[test]
+    fn tab_completes_a_builtin_command_without_executing_it() {
+        let mut app = test_app(Vec::new());
+        app.set_input("/quit");
+
+        assert!(matches!(
+            app.handle_key(KeyEvent::new(KeyCode::Tab, KeyModifiers::NONE)),
+            Action::None
+        ));
+        assert_eq!(app.input_text(), "/quit");
+        assert!(app.input_cursor > 0);
     }
 
     fn test_app(tools: Vec<ToolDefinition>) -> App {

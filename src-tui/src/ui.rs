@@ -85,7 +85,7 @@ pub fn draw(frame: &mut Frame, app: &App) {
 fn render_header(frame: &mut Frame, app: &App, area: Rect) {
     let columns = Layout::default()
         .direction(Direction::Horizontal)
-        .constraints([Constraint::Percentage(62), Constraint::Percentage(38)])
+        .constraints([Constraint::Percentage(45), Constraint::Percentage(55)])
         .split(area);
     let title = Line::from(vec![
         Span::styled(
@@ -103,18 +103,8 @@ fn render_header(frame: &mut Frame, app: &App, area: Rect) {
         ),
         columns[0],
     );
-    let context = app
-        .context_percent
-        .map(|value| format!(" · {value:.0}%"))
-        .unwrap_or_default();
-    let meta = format!(
-        "{} · {}{}",
-        display_model(&app.model),
-        display_thinking_level(&app.thinking_level),
-        context
-    );
     frame.render_widget(
-        Paragraph::new(meta)
+        Paragraph::new(runtime_meta(app, columns[1].width as usize))
             .alignment(Alignment::Right)
             .style(Style::default().fg(MUTED))
             .block(
@@ -226,16 +216,13 @@ fn brand_height(area: Rect) -> u16 {
 fn render_brand(frame: &mut Frame, area: Rect) {
     let compact = area.width < 40 || area.height < 5;
     let text = if compact {
-        Text::from(vec![
-            Line::from(vec![
-                Span::styled(
-                    "PISPER",
-                    Style::default().fg(TEXT).add_modifier(Modifier::BOLD),
-                ),
-                Span::styled("  ›_", Style::default().fg(ACCENT)),
-            ]),
-            Line::from(Span::styled("terminal agent", Style::default().fg(MUTED))),
-        ])
+        Text::from(vec![Line::from(vec![
+            Span::styled(
+                "PISPER",
+                Style::default().fg(TEXT).add_modifier(Modifier::BOLD),
+            ),
+            Span::styled("  ›_", Style::default().fg(ACCENT)),
+        ])])
     } else {
         let frame_style = Style::default().fg(FAINT);
         let mark_style = Style::default().fg(ACCENT).add_modifier(Modifier::BOLD);
@@ -253,8 +240,7 @@ fn render_brand(frame: &mut Frame, area: Rect) {
             Line::from(vec![
                 Span::styled("│  ", frame_style),
                 Span::styled("├──╯", mark_style),
-                Span::styled("   │    ", frame_style),
-                Span::styled("terminal agent", Style::default().fg(MUTED)),
+                Span::styled("   │   ", frame_style),
             ]),
             Line::from(vec![
                 Span::styled("│  ", frame_style),
@@ -965,6 +951,38 @@ fn display_thinking_level(value: &str) -> &str {
     }
 }
 
+fn display_execution_mode(value: &str) -> &str {
+    if value.is_empty() {
+        "workspace"
+    } else {
+        value
+    }
+}
+
+fn runtime_meta(app: &App, width: usize) -> String {
+    let mode = format!("[{}]", display_execution_mode(&app.execution_mode));
+    let context = app
+        .context_percent
+        .map(|value| format!(" · {value:.0}%"))
+        .unwrap_or_default();
+    let full = format!(
+        "{mode} · {} · {}{context}",
+        display_model(&app.model),
+        display_thinking_level(&app.thinking_level),
+    );
+    if full.width() <= width {
+        return full;
+    }
+    let compact = format!(
+        "{mode} · {}{context}",
+        display_thinking_level(&app.thinking_level)
+    );
+    if compact.width() <= width {
+        return compact;
+    }
+    mode
+}
+
 #[cfg(test)]
 mod tests {
     use ratatui::{backend::TestBackend, style::Modifier, Terminal};
@@ -1125,8 +1143,7 @@ mod tests {
             })
             .collect::<Vec<_>>();
 
-        assert!(rows[0].contains("gpt-5.6-sol · high · 4%"));
-        assert!(!rows[0].contains("workspace"));
+        assert!(rows[0].contains("[workspace] · gpt-5.6-sol · high · 4%"));
         assert!(rows[4].contains("PISPER"));
         assert!(rows[4].chars().position(|ch| ch == 'P').unwrap() < 20);
         assert!(rows[19].contains("Thinking."));
@@ -1139,6 +1156,40 @@ mod tests {
             "message rendered too high: row {message_row}"
         );
         assert!(message_row < 19, "message crossed into the run state");
+    }
+
+    #[test]
+    fn narrow_headers_keep_the_execution_mode_visible() {
+        for (width, expected) in [(60, "[full-access]"), (36, "[full-access]")] {
+            let session = SessionSummary {
+                id: "session-1".to_owned(),
+                name: "Mode visibility".to_owned(),
+                model: "openai/gpt-5.6-sol".to_owned(),
+                cwd: "/workspace".to_owned(),
+                execution_mode: "full-access".to_owned(),
+                thinking_level: "high".to_owned(),
+                ..SessionSummary::default()
+            };
+            let app = App::new(
+                vec![session.clone()],
+                session,
+                Vec::new(),
+                Some(crate::model::ContextUsage { percent: Some(4.0) }),
+                Vec::new(),
+                Vec::new(),
+            );
+            let backend = TestBackend::new(width, 12);
+            let mut terminal = Terminal::new(backend).unwrap();
+            terminal.draw(|frame| draw(frame, &app)).unwrap();
+            let first_row = (0..width)
+                .filter_map(|x| terminal.backend().buffer().cell((x, 0)))
+                .map(|cell| cell.symbol())
+                .collect::<String>();
+            assert!(
+                first_row.contains(expected),
+                "mode missing at width {width}: {first_row}"
+            );
+        }
     }
 
     #[test]
@@ -1294,7 +1345,6 @@ mod tests {
             .collect::<String>();
         assert!(rendered.contains("PISPER"));
         assert!(rendered.contains("›_"));
-        assert!(rendered.contains("terminal agent"));
     }
 
     #[test]

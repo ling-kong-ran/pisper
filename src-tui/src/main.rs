@@ -192,7 +192,10 @@ async fn execute_action(
             app.status = format!("changing mode · {mode}");
             match api.set_execution_mode(&app.session.id, &mode).await {
                 Ok(updated) => app.set_execution_mode(updated.execution_mode),
-                Err(error) => app.status = format!("mode change failed · {error}"),
+                Err(error) => {
+                    app.status = format!("mode change failed · {error}");
+                    app.status_error = true;
+                }
             }
         }
         Action::SwitchSession(id) => {
