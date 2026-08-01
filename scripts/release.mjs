@@ -70,10 +70,24 @@ try {
 const behind = Number(run('git', ['rev-list', '--count', `HEAD..${upstream}`], { capture: true }))
 if (behind > 0) throw new Error(`当前分支落后于 ${upstream} ${behind} 个提交，请先同步远端。`)
 
+console.log('正在刷新发布依赖…')
+runNpm(['update'])
+run('cargo', ['update', '--manifest-path', join(root, 'src-tui', 'Cargo.toml')])
+
 console.log('正在执行发布前检查…')
 runNpm(['test'])
-runNpm(['run', 'lint'])
+runNpm(['run', 'check'])
 runNpm(['run', 'build'])
+runNpm(['run', 'tui:test'])
+runNpm(['run', 'tui:check'])
+
+const dependencyFiles = ['package.json', 'package-lock.json', 'src-tui/Cargo.toml', 'src-tui/Cargo.lock']
+if (run('git', ['status', '--porcelain', '--', ...dependencyFiles], { capture: true })) {
+  run('git', ['add', '--', ...dependencyFiles])
+  run('git', ['commit', '-m', 'chore(deps): refresh release dependencies'])
+}
+const unrelatedChanges = run('git', ['status', '--porcelain'], { capture: true })
+if (unrelatedChanges) throw new Error(`依赖刷新产生了未纳入发布的文件：\n${unrelatedChanges}`)
 
 const packageJson = JSON.parse(await readFile(packagePath, 'utf8'))
 const nextVersion = resolveVersion(packageJson.version, input)
