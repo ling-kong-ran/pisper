@@ -1,4 +1,4 @@
-import { useContext, useEffect } from 'react'
+import { useContext, useEffect, useState } from 'react'
 import type { IDockviewPanelProps } from 'dockview-react'
 import { AlertTriangle, MessageSquare } from 'lucide-react'
 import { useI18n } from '@/app/use-i18n'
@@ -17,6 +17,7 @@ const FOCUS_MESSAGE_PAGE_SIZE = 40
 export function SessionDockPanel({ params, api }: IDockviewPanelProps<{ sessionId?: string }>) {
   const context = useContext(ChatDockContext)
   const sessionId = params?.sessionId || sessionIdFromPanel(api?.id)
+  const [visible, setVisible] = useState(() => api.isVisible)
   const session = context?.sessions.find((item) => item.id === sessionId)
   const sessionState = context?.sessionStates[sessionId]
   const state = sessionState || DEFAULT_SESSION_STATE
@@ -27,8 +28,16 @@ export function SessionDockPanel({ params, api }: IDockviewPanelProps<{ sessionI
   const loadMessages = context?.loadSessionMessages
 
   useEffect(() => {
-    if (sessionId) void loadMessages?.(sessionId, { limit: FOCUS_MESSAGE_PAGE_SIZE })
-  }, [loadMessages, sessionId])
+    setVisible(api.isVisible)
+    const disposable = api.onDidVisibilityChange(({ isVisible }) => setVisible(isVisible))
+    return () => disposable.dispose()
+  }, [api])
+
+  useEffect(() => {
+    if (visible && sessionId) void loadMessages?.(sessionId, { limit: FOCUS_MESSAGE_PAGE_SIZE })
+  }, [loadMessages, sessionId, visible])
+
+  if (!visible) return null
 
   if (!context || !session) {
     return (

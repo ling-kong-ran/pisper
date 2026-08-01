@@ -180,3 +180,17 @@ test('bash tool output stays multiline while terminal rendering remains bounded'
   assert.match(styles, /\.agent-run-terminal \{/)
   assert.equal(JSON.parse(packageJson).dependencies['ansi-to-react'], undefined)
 })
+
+test('chat keeps hidden panels and continuous canvas work out of the renderer', async () => {
+  const [dock, page, ascii] = await Promise.all([
+    readFile('src/features/chat/ChatDock.tsx', 'utf8'),
+    readFile('src/features/chat/ChatPage.tsx', 'utf8'),
+    readFile('src/components/react-bits/AsciiText.tsx', 'utf8'),
+  ])
+  assert.match(dock, /api\.onDidVisibilityChange/)
+  assert.match(dock, /if \(!visible\) return null/)
+  assert.match(dock, /if \(visible && sessionId\)/)
+  assert.match(page, /tools: pushCurrentActivity\(current\.tools, activity\)/)
+  assert.match(ascii, /new ResizeObserver\(draw\)/)
+  assert.doesNotMatch(ascii, /requestAnimationFrame|setInterval/)
+})

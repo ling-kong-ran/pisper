@@ -1,4 +1,4 @@
-import { useEffect, useRef, type PointerEvent } from 'react'
+import { useEffect, useRef } from 'react'
 import { cn } from '@/lib/utils'
 
 type AsciiTextProps = {
@@ -7,15 +7,8 @@ type AsciiTextProps = {
   characters?: string
 }
 
-type PointerPosition = {
-  x: number
-  y: number
-  active: boolean
-}
-
 export function AsciiText({ text, className, characters = '.:-=+*#%@' }: AsciiTextProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null)
-  const pointerRef = useRef<PointerPosition>({ x: 0, y: 0, active: false })
 
   useEffect(() => {
     const canvas = canvasRef.current
@@ -26,15 +19,11 @@ export function AsciiText({ text, className, characters = '.:-=+*#%@' }: AsciiTe
     const maskContext = mask.getContext('2d', { willReadFrequently: true })
     if (!maskContext) return
 
-    const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)')
     let width = 0
     let height = 0
     let columns = 0
     let rows = 0
     let maskPixels = new Uint8ClampedArray()
-    let animationFrame = 0
-    let lastPaint = -Infinity
-    let visible = true
 
     const rebuildMask = () => {
       const rect = canvas.getBoundingClientRect()
@@ -62,11 +51,10 @@ export function AsciiText({ text, className, characters = '.:-=+*#%@' }: AsciiTe
       maskPixels = maskContext.getImageData(0, 0, columns, rows).data
     }
 
-    const draw = (time: number) => {
+    const draw = () => {
       rebuildMask()
       context.clearRect(0, 0, width, height)
-      const computedStyle = getComputedStyle(canvas)
-      context.fillStyle = computedStyle.color
+      context.fillStyle = getComputedStyle(canvas).color
       context.textAlign = 'center'
       context.textBaseline = 'middle'
       context.globalAlpha = 0.07
@@ -75,83 +63,33 @@ export function AsciiText({ text, className, characters = '.:-=+*#%@' }: AsciiTe
       context.font = `${Math.max(6, height / rows - 1)}px ui-monospace, SFMono-Regular, Menlo, monospace`
       const cellWidth = width / columns
       const cellHeight = height / rows
-      const pointer = pointerRef.current
 
       for (let row = 0; row < rows; row += 1) {
         for (let column = 0; column < columns; column += 1) {
           const alpha = maskPixels[(row * columns + column) * 4 + 3] || 0
           if (alpha < 18) continue
-          const x = (column + 0.5) * cellWidth
-          const y = (row + 0.5) * cellHeight
-          const distance = pointer.active ? Math.hypot(x - pointer.x, y - pointer.y) : 999
-          const pointerLift = Math.max(0, 1 - distance / 86)
-          const wave = reducedMotion.matches
-            ? 0.35
-            : (Math.sin(column * 0.42 + row * 0.58 - time * 0.0024) + 1) / 2
-          const strength = Math.min(1, alpha / 255 + pointerLift * 0.28)
+          const strength = Math.min(1, alpha / 255)
+          const wave = (Math.sin(column * 0.42 + row * 0.58) + 1) / 2
           const characterIndex = Math.min(
             characters.length - 1,
             Math.floor((strength * 0.68 + wave * 0.32) * characters.length),
           )
-          context.globalAlpha = 0.22 + strength * 0.62 + pointerLift * 0.12
-          context.fillText(characters[characterIndex] || '#', x, y)
+          context.globalAlpha = 0.22 + strength * 0.62
+          context.fillText(
+            characters[characterIndex] || '#',
+            (column + 0.5) * cellWidth,
+            (row + 0.5) * cellHeight,
+          )
         }
       }
       context.globalAlpha = 1
     }
 
-    const animate = (time: number) => {
-      if (time - lastPaint >= 72) {
-        draw(time)
-        lastPaint = time
-      }
-      if (!reducedMotion.matches) animationFrame = requestAnimationFrame(animate)
-    }
-
-    const startAnimation = () => {
-      cancelAnimationFrame(animationFrame)
-      lastPaint = -Infinity
-      if (!visible) return
-      if (reducedMotion.matches) draw(0)
-      else animationFrame = requestAnimationFrame(animate)
-    }
-
-    const resizeObserver = new ResizeObserver(startAnimation)
-    const intersectionObserver = new IntersectionObserver(([entry]) => {
-      visible = Boolean(entry?.isIntersecting)
-      startAnimation()
-    })
+    const resizeObserver = new ResizeObserver(draw)
     resizeObserver.observe(canvas)
-    intersectionObserver.observe(canvas)
-    reducedMotion.addEventListener('change', startAnimation)
-    startAnimation()
-
-    return () => {
-      cancelAnimationFrame(animationFrame)
-      resizeObserver.disconnect()
-      intersectionObserver.disconnect()
-      reducedMotion.removeEventListener('change', startAnimation)
-    }
+    draw()
+    return () => resizeObserver.disconnect()
   }, [characters, text])
 
-  const handlePointerMove = (event: PointerEvent<HTMLCanvasElement>) => {
-    const rect = event.currentTarget.getBoundingClientRect()
-    pointerRef.current = {
-      x: event.clientX - rect.left,
-      y: event.clientY - rect.top,
-      active: true,
-    }
-  }
-
-  return (
-    <canvas
-      ref={canvasRef}
-      className={cn('rb-ascii-text', className)}
-      aria-hidden="true"
-      onPointerMove={handlePointerMove}
-      onPointerLeave={() => {
-        pointerRef.current.active = false
-      }}
-    />
-  )
+  return <canvas ref={canvasRef} className={cn('rb-ascii-text', className)} aria-hidden="true" />
 }

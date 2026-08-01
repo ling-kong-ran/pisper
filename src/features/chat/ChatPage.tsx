@@ -1226,7 +1226,7 @@ export function ChatPage({
                 ...current,
                 lastActivityAt: eventAt,
                 runNotice: '',
-                tools: [...current.tools, activity],
+                tools: pushCurrentActivity(current.tools, activity),
                 currentActivity: activity,
                 activityFeed: pushCurrentActivity(current.activityFeed, activity),
                 messages: current.messages.map((item) =>
