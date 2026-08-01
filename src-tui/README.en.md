@@ -1,7 +1,5 @@
 # Pisper TUI
 
-Pisper's Rust + Ratatui terminal client. It reuses the desktop app's Node SEA sidecar, Agent runtime, sessions, Tools, Skills, MCP, execution modes, and approval chain instead of shipping a second Agent runtime.
-
 ![Pisper TUI welcome screen](../docs/shots/cli.png)
 
 [中文指南](./README.md)
@@ -55,8 +53,6 @@ Inspect sidecar, authentication, and capability status:
 pisper doctor
 ```
 
-The TUI prefers an active desktop sidecar. If one is unavailable, a packaged TUI starts the SEA sidecar beside it. Exiting closes only a sidecar started by that TUI process.
-
 ## Composer and Message Stream
 
 - `Enter`: submit a message. Messages submitted during an active run enter a FIFO queue and are sent in order after the run finishes normally.
@@ -69,8 +65,6 @@ The TUI prefers an active desktop sidecar. If one is unavailable, a packaged TUI
 - `Ctrl+C`: abort the active or approval-blocked run; exit only while idle.
 
 Long or multiline bracketed pastes render as a compact `[Pasted text · …]` token. The complete original text, including line breaks, is still submitted to the Agent. The token can be moved across or deleted as one unit.
-
-When a model provides reasoning tokens, the TUI renders live `THINK` content before the response. It never invents reasoning when the provider does not supply it. Tools, Subagents, and response text appear inline; `/events` opens the complete event ledger.
 
 ## Built-in Commands
 

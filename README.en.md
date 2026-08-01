@@ -8,8 +8,7 @@
 
 <h1 align="center">Pisper</h1>
 
-<p align="center"><strong>Powered by Pi, whispered by Agents.</strong></p>
-<p align="center">Complex work moves quietly in the background; every task receives a clear response.</p>
+<p align="center"><strong>A multi-Agent workspace powered by Pi</strong></p>
 
 <p align="center">
   <img src="https://img.shields.io/badge/Node.js-17141F?style=flat-square&logo=nodedotjs&logoColor=F59E0B" alt="Node.js" />
@@ -67,17 +66,7 @@ Thanks to <a href="https://matrix.000328.xyz/sign-up?aff=ZPeH">Matrix</a> for su
 
 ## Overview
 
-One window per task, context copied back and forth, tool configs scattered everywhere — working with multiple agents shouldn't feel like this.
-
-**Pisper brings every AI Agent into one desktop workspace.** Models, context, tools, and permissions fall into place while complex collaboration happens quietly in the background. You stay focused on the work. Each session runs independently with tabs, splits, and drag-to-dock panels, returning exactly where you left it.
-
-**Product highlights:**
-
-- **Quietly simple, decisively efficient** — Sessions, tools, memory, and execution state come together in one place: fewer windows, fewer configuration surfaces, and less irrelevant context.
-- **Capabilities answer on demand** — Progressive disclosure keeps frequent tools lightweight, hot-loads optional schemas when a task needs them, and expands full Skill instructions only for matching work.
-- **Parallel voices, uninterrupted flow** — Subagents run non-blocking in isolated contexts while the primary Agent continues replying, accepting new instructions, or delegating independent work.
-- **Completed work echoes back** — Subagent output persists and automatically wakes the parent Agent to continue reasoning, with no polling and no result stranded in a passive notification.
-- **Clear boundaries, orderly collaboration** — Every session owns its model, context, directory, and permissions, while dynamic loading remains subject to execution modes, workspace boundaries, and approval.
+Pisper is a desktop and terminal client built on [Pi Coding Agent](https://github.com/earendil-works/pi/tree/main/packages/coding-agent), with multiple sessions, Tools, Skills, MCP, automation, and per-session permissions.
 
 ### Get Started in Three Steps
 
@@ -92,6 +81,11 @@ One window per task, context copied back and forth, tool configs scattered every
 <p align="center">
   <img src="./docs/shots/welcome-dark.png" alt="Pisper welcome screen in the dark theme" />
   <br /><sub><strong>Dark workspace</strong> · Every session has its own model, context, directory, and permissions</sub>
+</p>
+
+<p align="center">
+  <a href="./src-tui/README.en.md"><img src="./docs/shots/cli.png" alt="Pisper TUI" /></a>
+  <br /><sub><strong>Terminal client</strong></sub>
 </p>
 
 <table>
@@ -206,56 +200,19 @@ One window per task, context copied back and forth, tool configs scattered every
 
 ## Features
 
-From conversation to automation, Pisper covers the full agent workflow:
-
-| Area | Capability |
-| :--- | :--- |
-| **Multi-session chat** | Independent Agent sessions, models, and permissions with tab groups, splits, drag-to-dock panels, and layout restoration. |
-| **Agent Runtime** | Built on Pi Coding Agent with tool activity, goals, Skills, and asynchronous isolated Subagents. |
-| **Progressive disclosure** | Keep frequent tools stable and hot-load optional tool schemas by intent into the current session without restarting it. |
-| **Skills** | Implements the Agent Skills standard; only names and descriptions stay in context, while full `SKILL.md` instructions load for matching or explicit invocations. |
-| **Asynchronous Subagents** | Run isolated tasks without blocking, persist their results, and automatically wake the parent Agent when work completes. |
-| **Tools & MCP** | Manage built-in tools, plugins, and MCP services without exposing credentials to the UI. |
-| **Memory** | Store and search preferences, facts, decisions, and tasks in SQLite — it learns you over time. |
-| **Multimodal** | Read images, documents, and code, then generate or edit visual content through configured models. |
-| **Automation** | Schedules and visual workflows with retries, failure policies, history, and notifications. |
-| **Two-way channels** | Connect Feishu and personal Weixin — reach your agents even when you're away from the desk. |
-| **Web preview** | Preview external pages in a Dock panel, with a system-browser fallback when needed. |
-| **Desktop app** | Tauri 2 system-WebView app with single-instance handling, tray controls, signed updates, and GitHub Releases. |
-| **Security boundaries** | Per-session `Read only / Workspace / Full access`, one-shot approval, credential isolation, and local data boundaries. |
-
-### Capabilities Answer on Demand: Progressive Disclosure
-
-Pisper does not flood the context with every capability at once. Tools and knowledge unfold layer by layer as the task develops:
-
-- **A stable hot path** — Frequent file, search, editing, and terminal tools keep the lightweight base prompt stable and cacheable.
-- **Hot-loaded tools** — Optional capabilities such as Web Search, browser automation, memory, MCP, and Subagents can be discovered by intent, adding only the most relevant schemas to the current session.
-- **Skills on demand** — Only Skill names and descriptions are exposed by default. Full instructions, scripts, and references load when a task matches or the Skill is explicitly invoked.
-
-This reduces fixed tokens in long sessions while keeping irrelevant tools out of model decisions. Dynamic loading remains subject to tool settings, execution modes, workspace boundaries, and approval.
-
-> In the current benchmark, the fixed prompt is about **2,979 tokens** — roughly **58.7% less** than injecting the full catalog. Actual billing and cache savings vary by model and provider.
-
-### Parallel Voices, Unbroken Flow: Non-blocking Subagents
-
-A bounded task can move to an isolated Subagent without stopping the primary Agent in its tracks. Each Subagent inherits the active model, reasoning level, safe tools, and workspace boundary. The parent never needs to poll, and background work never blocks the next reply.
-
-Completed work does not disappear into an unattended notification. If the parent is running, the result joins the active reasoning turn; if the parent is idle, Pisper wakes it through a hidden internal message so every background contribution returns to the main task.
-
-> **Execution boundary:** Workspace mode constrains file access through structured tools. Reads run directly; file modifications and every Shell command require user approval. Shell runs as the current OS user. File modifications and Shell stop requesting per-operation approval only after an explicit switch to full-access mode.
+- **Multiple sessions:** independent models, context, workspaces, and permissions with Dock splits and layout restoration.
+- **Tools, Skills, and MCP:** manage capabilities and call permissions in one place.
+- **Subagents:** run temporary tasks in isolated contexts and return results to the parent session.
+- **Memory and multimodal input:** retrieve project memory and process images, documents, and code.
+- **Automation and channels:** schedules, visual workflows, Feishu, and personal Weixin.
+- **Desktop and terminal:** Tauri desktop app and Ratatui TUI.
+- **Permission controls:** `Read only / Workspace / Full access`, one-shot approval, and credential isolation.
 
 <a id="desktop-pet"></a>
 
 ## Desktop Pet
 
-A workspace doesn't have to feel cold. Pisper natively supports [Petdex](https://petdex.dev)-compatible pets — while your agent thinks, the pet paces; when the task finishes, it lets you know. Search, install, switch, enable, or disable pets in **Settings → Desktop pet** — no Petdex CLI or companion process required.
-
-- Waiting, thinking, tool activity, completion, and failure map to pet animations.
-- The Tauri desktop app uses an independent transparent window with dragging, always-on-top behavior, multi-display position persistence, and `20%–100%` opacity. It remains visible when the main window is hidden.
-- The Web app uses a draggable in-page overlay that exits with the page.
-- Assets are downloaded only from HTTPS allowlisted hosts and validated for size, format, sprite grid, and path safety. Community pets are not bundled.
-
-See [`docs/petdex-integration.md`](./docs/petdex-integration.md).
+Pisper supports [Petdex](https://petdex.dev)-compatible pets. Install and manage them under **Settings → Desktop pet**. See [`docs/petdex-integration.md`](./docs/petdex-integration.md).
 
 <a id="install"></a>
 
@@ -292,106 +249,15 @@ sudo apt install ./Pisper-*-linux-amd64.deb
 
 ### Terminal Client (TUI)
 
-Pisper also provides a Rust + Ratatui terminal client. Every TUI launch opens with the Pisper terminal brand in the main area; once interaction begins, the brand yields to the message stream. When the model provides reasoning tokens, the TUI expands Thinking before the response and marks active reasoning with an event-driven terminal spinner. The TUI reuses the desktop app's Node SEA sidecar, Agent runtime, sessions, Tools, Skills, MCP, execution modes, and approval chain.
-
-[![Pisper TUI welcome screen](./docs/shots/cli.png)](./src-tui/README.en.md)
-
-> **New to the terminal client?** Read the **[complete Pisper TUI user guide](./src-tui/README.en.md)** for installation, startup, session recovery, every built-in command, keyboard controls, attachments, message queueing, Tools, Skills, execution modes, and approvals.
-
-After installing the desktop app, install, repair, or uninstall the `pisper` command from **Settings → Terminal**. Pisper uses a current-user directory and manages the corresponding PATH entry without administrator access; restart the terminal host after making a change. Windows installs `pisper.exe`, while macOS and Linux install the extensionless `pisper` command.
-
-Run it in the current directory from source:
+After installing the desktop app, install the `pisper` command from **Settings → Terminal**:
 
 ```bash
-npm run tui:dev
+pisper          # start a new conversation
+pisper resume   # resume the latest conversation for this directory
+pisper doctor   # diagnose the runtime
 ```
 
-Choose another workspace:
-
-```bash
-npm run tui:dev -- --cwd /path/to/project
-```
-
-Build a complete directory containing `pisper`, the SEA sidecar, and its runtime:
-
-```bash
-npm run sidecar:sea
-npm run tui:package
-```
-
-Add `release/tui/pisper-<version>-<platform>-<arch>/` to `PATH`, then launch Pisper from any project directory:
-
-```bash
-pisper
-```
-
-A normal launch always creates an empty conversation and never loads history automatically. Use `resume` explicitly to restore the most recent conversation for the current workspace:
-
-```bash
-pisper resume
-pisper resume --cwd /path/to/project
-```
-
-Diagnose the sidecar, authentication, and capability catalog:
-
-```bash
-pisper doctor
-```
-
-#### Change Session Permissions
-
-Enter `/mode` to show the current execution mode. Change the current session with:
-
-| Command | Behavior |
-| :--- | :--- |
-| `/mode read-only` | Exposes only low-risk analysis tools and prevents project modifications. |
-| `/mode workspace` | Keeps file tools inside the current workspace; reads run directly, while file modifications and every Shell command require user approval. |
-| `/mode full-access` | Allows host file and network access; Shell runs as the current OS user without per-command approval. Use only when explicitly needed. |
-
-#### Invoke a Tool
-
-1. Enter `/` in the composer.
-2. Select a Tool marked with `T`.
-3. Add the target or arguments after the command, then press `Enter`.
-
-Examples:
-
-```text
-/read README.md
-/bash npm test
-/web_search Pisper latest release
-/mcp_pencil_get_editor_state_f9837b9b inspect the current Pencil canvas
-```
-
-The TUI sends the selected Tool name to the runtime as a structured request so its schema is active for the turn; the Agent still prepares arguments and performs the call. Slash selection never bypasses Tool settings, the active execution mode, workspace boundaries, or runtime approval. Disabled and unavailable Tools do not appear.
-
-#### Invoke a Skill
-
-Enter `/`, select a Skill marked with `S`, and add the task after its command. If an enabled Skill exposes `/skill:docs-search`, for example:
-
-```text
-/skill:docs-search find the signing requirements for the Tauri updater
-```
-
-Skill names come from the active runtime, so the Slash list is authoritative. Only enabled, model-invocable Skills appear. The runtime loads the matching `SKILL.md`, scripts, and references on demand. Tool calls made by a Skill remain subject to the current `/mode`, workspace boundary, and approval policy.
-
-#### Built-in TUI Commands
-
-| Command | Action |
-| :--- | :--- |
-| `/new` | Create a conversation. |
-| `/sessions` | Switch conversation history. |
-| `/events` | Open the event ledger for the current TUI process. |
-| `/chat` | Return to the message stream. |
-| `/model` | Open the model picker and switch the active session model. |
-| `/thinking` | Open the thinking-level picker. |
-| `/attach` | Open the workspace attachment picker. |
-| `/mode` | Show the current execution mode and accepted values. |
-| `/quit` | Exit the TUI and stop the sidecar it launched. |
-
-During a run, `Ctrl+C` aborts the active Agent; while idle, it exits. When the runtime requests Tool approval, press `Y` to approve or `N`/`Esc` to deny.
-
-See **[`src-tui/README.en.md`](./src-tui/README.en.md)** for the complete installation, interaction, command, and development guide.
+See the **[Pisper TUI user guide](./src-tui/README.en.md)** for installation, commands, keyboard controls, attachments, execution modes, and approvals.
 
 ### Run from Source
 
@@ -404,27 +270,20 @@ npm install
 npm run dev
 ```
 
-The Web development URL defaults to `http://127.0.0.1:5173`. For production mode:
-
-```bash
-npm run build
-npm start
-```
-
 Desktop development and packaging:
 
 ```bash
-npm run desktop:dev
-npm run desktop:pack
+npm run desktop:webview:dev
+npm run desktop:webview:build
 ```
 
-Configuration, sessions, and memory are stored under `~/.pisper/agent` by default. Set `PISPER_AGENT_DIR` to use another location. When upgrading from Vesper, the legacy `~/.vesper` directory is migrated to `~/.pisper` automatically on first launch (existing data is never overwritten; the legacy directory is kept as a backup).
+Data is stored under `~/.pisper/agent` by default. Set `PISPER_AGENT_DIR` to use another location.
 
 <a id="development"></a>
 
 ## Development
 
-**Stack:** TypeScript, React 19, Vite, Tailwind CSS, shadcn/ui, Dockview, React Flow, Zustand, i18next, Tauri 2, Rust, Node SEA, and Pi Coding Agent.
+Main stack: React, TypeScript, Tauri, Rust, Node SEA, and Pi Coding Agent.
 
 ```bash
 npm run check
@@ -438,13 +297,11 @@ npm run build
 
 ## License
 
-Pisper is released under the [MIT License](./LICENSE). Third-party dependencies and external resources remain under their own licenses and rights notices. Petdex community assets belong to their respective creators or rights holders and are not part of Pisper's source tree or release packages.
+Pisper is released under the [MIT License](./LICENSE). Third-party dependencies and community resources retain their own licenses.
 
 ## Acknowledgments
 
-Pisper is built on [Pi Coding Agent](https://github.com/earendil-works/pi/tree/main/packages/coding-agent) and benefits from open-source projects including Node.js, React, TypeScript, Vite, Tailwind CSS, shadcn/ui, React Router, Zustand, React Flow, and i18next.
-
-Thanks to [Petdex](https://petdex.dev) and [`crafter-station/petdex`](https://github.com/crafter-station/petdex) for the MIT-licensed format and catalog implementation reference.
+Thanks to [Pi Coding Agent](https://github.com/earendil-works/pi/tree/main/packages/coding-agent), [Petdex](https://petdex.dev), and the open-source software used by this project.
 
 Contributors:
 

@@ -1,7 +1,5 @@
 # Pisper TUI
 
-Pisper 的 Rust + Ratatui 终端客户端。它复用桌面版的 Node SEA sidecar、Agent runtime、会话、Tools、Skills、MCP、执行模式和审批链，不包含第二套 Agent runtime。
-
 ![Pisper TUI 启动画面](../docs/shots/cli.png)
 
 [English guide](./README.en.md)
@@ -55,8 +53,6 @@ pisper --cwd /path/to/project
 pisper doctor
 ```
 
-TUI 优先复用正在运行的桌面 sidecar。不可用时，发行版会启动同目录的 SEA sidecar；退出 TUI 时只关闭由当前 TUI 启动的 sidecar。
-
 ## Composer 与消息流
 
 - `Enter`：提交消息；Agent 运行期间提交的消息进入 FIFO 队列，并在当前 run 正常结束后依次发送。
@@ -69,8 +65,6 @@ TUI 优先复用正在运行的桌面 sidecar。不可用时，发行版会启�
 - `Ctrl+C`：Agent 运行或等待审批时中止当前 run；空闲时退出 TUI。
 
 长文本或多行 bracketed paste 会在 composer 中折叠为 `[Pasted text · …]`，但提交给 Agent 的仍是包含原始换行的完整文本。摘要可作为整体移动和删除。
-
-模型提供 reasoning token 时，TUI 在回答前实时渲染 `THINK`；未提供 reasoning 时不会生成或伪造思考文本。Tool、Subagent 和正文按事件内联显示，完整事件账本可通过 `/events` 查看。
 
 ## 内置命令
 
