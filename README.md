@@ -294,7 +294,11 @@ sudo apt install ./Pisper-*-linux-amd64.deb
 
 Pisper 同时提供 Rust + Ratatui 终端客户端。每次启动 TUI 时，主区域都会先显示 Pisper 终端品牌标识；开始交互后，品牌画面自动让位给消息流。模型提供 reasoning token 时，TUI 会在回答前实时展开 Thinking，并用事件驱动的终端 spinner 标识活跃状态。TUI 复用桌面版的 Node SEA sidecar、Agent runtime、会话、Tools、Skills、MCP、执行模式和审批链。
 
-安装桌面版后，可在 **设置 → 界面设置 → Pisper 终端命令** 中安装或卸载 `pisper` 命令。Pisper 会使用当前用户目录并管理对应 PATH 项，不需要管理员权限；操作后需重启终端宿主。Windows 安装的是 `pisper.exe`，macOS 和 Linux 安装的是无扩展名的 `pisper`。
+[![Pisper TUI 启动画面](./docs/shots/cli.png)](./src-tui/README.md)
+
+> **第一次使用终端客户端？** 请阅读 **[Pisper TUI 完整使用指南](./src-tui/README.md)**，其中包含安装、启动、会话恢复、全部内置命令、快捷键、附件、消息队列、Tools、Skills、执行模式和审批说明。
+
+安装桌面版后，可在 **设置 → 终端** 中安装、修复或卸载 `pisper` 命令。Pisper 会使用当前用户目录并管理对应 PATH 项，不需要管理员权限；操作后需重启终端宿主。Windows 安装的是 `pisper.exe`，macOS 和 Linux 安装的是无扩展名的 `pisper`。
 
 从源码启动当前目录：
 
@@ -379,13 +383,15 @@ Skill 名称来自当前 runtime，实际命令以 Slash 列表为准。只有�
 | `/sessions` | 切换历史会话。 |
 | `/events` | 打开当前 TUI 进程的事件账本。 |
 | `/chat` | 返回消息流。 |
-| `/model` | 显示当前模型。 |
+| `/model` | 打开模型选择器并切换当前会话模型。 |
+| `/thinking` | 打开思考等级选择器。 |
+| `/attach` | 打开 workspace 附件选择器。 |
 | `/mode` | 显示当前执行模式及可用参数。 |
 | `/quit` | 退出 TUI 并关闭它启动的 sidecar。 |
 
 运行中按 `Ctrl+C` 会终止当前 Agent；空闲时按 `Ctrl+C` 会退出。runtime 请求 Tool 审批时，按 `Y` 同意，按 `N` 或 `Esc` 拒绝。
 
-更完整的开发与发行布局说明见 [`src-tui/README.md`](./src-tui/README.md)。
+完整的安装、交互、命令与开发说明见 **[`src-tui/README.md`](./src-tui/README.md)**。
 
 ### 从源码运行
 

@@ -137,6 +137,7 @@
   "configPage.theAPIProtocolInThisConfigurationIsNotSupportedYet": "The API protocol in this configuration is not supported yet",
   "configPage.theKeyEnvironmentVariableNameIsInvalid": "The key environment variable name is invalid",
   "configPage.theProviderEndpointIsInvalid": "The provider endpoint is invalid",
+  "configPage.terminal": "Terminal",
   "configPage.thinkingLevel": "Thinking level",
   "configPage.unableToReadTheConfigurationFile": "Unable to read the configuration file",
   "configPage.usedForAgentChatAndMayAlsoIncludeVisualModels": "Used for Agent chat and may also include visual models.",

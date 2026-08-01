@@ -29,6 +29,7 @@ import { DesktopPetSettings } from './DesktopPetSettings'
 import { NotificationSettings } from './NotificationSettings'
 import { UpdateSettings } from './UpdateSettings'
 import { LanguageSettings } from './LanguageSettings'
+import { CliSettings } from './CliSettings'
 import type { FormEvent } from 'react'
 import type { LucideIcon } from 'lucide-react'
 import type { I18nValues } from '@/app/i18n'
@@ -441,6 +442,12 @@ export function ConfigPage({
         {t('config:configPage.interface')}
       </button>
       <button
+        className={section === 'terminal' ? 'active' : ''}
+        onClick={() => setSection('terminal')}
+      >
+        {t('config:configPage.terminal')}
+      </button>
+      <button
         className={section === 'desktop-pet' ? 'active' : ''}
         onClick={() => setSection('desktop-pet')}
       >
@@ -459,6 +466,15 @@ export function ConfigPage({
       <>
         {subnav}
         <LanguageSettings notify={notify} />
+      </>
+    )
+  if (section === 'terminal')
+    return (
+      <>
+        {subnav}
+        <div className="language-settings">
+          <CliSettings notify={notify} />
+        </div>
       </>
     )
   if (section === 'desktop-pet')

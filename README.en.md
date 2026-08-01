@@ -294,7 +294,11 @@ sudo apt install ./Pisper-*-linux-amd64.deb
 
 Pisper also provides a Rust + Ratatui terminal client. Every TUI launch opens with the Pisper terminal brand in the main area; once interaction begins, the brand yields to the message stream. When the model provides reasoning tokens, the TUI expands Thinking before the response and marks active reasoning with an event-driven terminal spinner. The TUI reuses the desktop app's Node SEA sidecar, Agent runtime, sessions, Tools, Skills, MCP, execution modes, and approval chain.
 
-After installing the desktop app, install or uninstall the `pisper` command from **Settings → Interface → Pisper terminal command**. Pisper uses a current-user directory and manages the corresponding PATH entry without administrator access; restart the terminal host after making a change. Windows installs `pisper.exe`, while macOS and Linux install the extensionless `pisper` command.
+[![Pisper TUI welcome screen](./docs/shots/cli.png)](./src-tui/README.en.md)
+
+> **New to the terminal client?** Read the **[complete Pisper TUI user guide](./src-tui/README.en.md)** for installation, startup, session recovery, every built-in command, keyboard controls, attachments, message queueing, Tools, Skills, execution modes, and approvals.
+
+After installing the desktop app, install, repair, or uninstall the `pisper` command from **Settings → Terminal**. Pisper uses a current-user directory and manages the corresponding PATH entry without administrator access; restart the terminal host after making a change. Windows installs `pisper.exe`, while macOS and Linux install the extensionless `pisper` command.
 
 Run it in the current directory from source:
 
@@ -379,13 +383,15 @@ Skill names come from the active runtime, so the Slash list is authoritative. On
 | `/sessions` | Switch conversation history. |
 | `/events` | Open the event ledger for the current TUI process. |
 | `/chat` | Return to the message stream. |
-| `/model` | Show the active model. |
+| `/model` | Open the model picker and switch the active session model. |
+| `/thinking` | Open the thinking-level picker. |
+| `/attach` | Open the workspace attachment picker. |
 | `/mode` | Show the current execution mode and accepted values. |
 | `/quit` | Exit the TUI and stop the sidecar it launched. |
 
 During a run, `Ctrl+C` aborts the active Agent; while idle, it exits. When the runtime requests Tool approval, press `Y` to approve or `N`/`Esc` to deny.
 
-See [`src-tui/README.md`](./src-tui/README.md) for the complete development and release layout.
+See **[`src-tui/README.en.md`](./src-tui/README.en.md)** for the complete installation, interaction, command, and development guide.
 
 ### Run from Source
 

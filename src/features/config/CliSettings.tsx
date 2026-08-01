@@ -27,13 +27,14 @@ export function CliSettings({ notify }: { notify: Notify }) {
     }
   }, [bridge])
 
-  if (!bridge?.getCliStatus || !bridge.installCli || !bridge.uninstallCli) return null
+  const supported = Boolean(bridge?.getCliStatus && bridge.installCli && bridge.uninstallCli)
 
   const install = async () => {
+    if (!bridge?.installCli) return
     setBusy('install')
     setError('')
     try {
-      const next = await bridge.installCli!()
+      const next = await bridge.installCli()
       setStatus(next)
       notify(t('config:cliSettings.installedNotification'))
     } catch (caught) {
@@ -44,10 +45,11 @@ export function CliSettings({ notify }: { notify: Notify }) {
   }
 
   const uninstall = async () => {
+    if (!bridge?.uninstallCli) return
     setBusy('uninstall')
     setError('')
     try {
-      const next = await bridge.uninstallCli!()
+      const next = await bridge.uninstallCli()
       setStatus(next)
       notify(t('config:cliSettings.uninstalledNotification'))
     } catch (caught) {
@@ -57,16 +59,18 @@ export function CliSettings({ notify }: { notify: Notify }) {
     }
   }
 
-  const loading = !status
-  const stateLabel = loading
-    ? t('config:cliSettings.checking')
-    : !status.supported
-      ? t('config:cliSettings.unavailable')
-      : status.needsRepair
-        ? t('config:cliSettings.needsRepair')
-        : status.installed
-          ? t('config:cliSettings.installed')
-          : t('config:cliSettings.notInstalled')
+  const loading = supported && !status
+  const stateLabel = !supported
+    ? t('config:cliSettings.unavailable')
+    : loading
+      ? t('config:cliSettings.checking')
+      : !status?.supported
+        ? t('config:cliSettings.unavailable')
+        : status.needsRepair
+          ? t('config:cliSettings.needsRepair')
+          : status.installed
+            ? t('config:cliSettings.installed')
+            : t('config:cliSettings.notInstalled')
 
   return (
     <Panel className="language-settings-card cli-settings-card">
@@ -118,37 +122,49 @@ export function CliSettings({ notify }: { notify: Notify }) {
 
       {error && <div className="config-error">{error}</div>}
 
-      <div className="button-row cli-settings-actions">
-        {status?.installed && (
-          <button
-            type="button"
-            className="button secondary"
-            disabled={Boolean(busy)}
-            onClick={() => void uninstall()}
-          >
-            {busy === 'uninstall' ? <RefreshCw className="spin" size={14} /> : <Trash2 size={14} />}
-            {t('config:cliSettings.uninstall')}
-          </button>
-        )}
-        {(!status?.installed || status.needsRepair) && (
-          <button
-            type="button"
-            className="button primary"
-            disabled={Boolean(busy) || loading || status?.supported === false}
-            onClick={() => void install()}
-          >
-            {busy === 'install' ? (
-              <RefreshCw className="spin" size={14} />
-            ) : status?.needsRepair ? (
-              <Wrench size={14} />
-            ) : (
-              <Download size={14} />
-            )}
-            {status?.needsRepair ? t('config:cliSettings.repair') : t('config:cliSettings.install')}
-          </button>
-        )}
-      </div>
-      <small className="language-settings-storage">{t('config:cliSettings.restartTerminal')}</small>
+      {supported && (
+        <div className="button-row cli-settings-actions">
+          {status?.installed && (
+            <button
+              type="button"
+              className="button secondary"
+              disabled={Boolean(busy)}
+              onClick={() => void uninstall()}
+            >
+              {busy === 'uninstall' ? (
+                <RefreshCw className="spin" size={14} />
+              ) : (
+                <Trash2 size={14} />
+              )}
+              {t('config:cliSettings.uninstall')}
+            </button>
+          )}
+          {(!status?.installed || status.needsRepair) && (
+            <button
+              type="button"
+              className="button primary"
+              disabled={Boolean(busy) || loading || status?.supported === false}
+              onClick={() => void install()}
+            >
+              {busy === 'install' ? (
+                <RefreshCw className="spin" size={14} />
+              ) : status?.needsRepair ? (
+                <Wrench size={14} />
+              ) : (
+                <Download size={14} />
+              )}
+              {status?.needsRepair
+                ? t('config:cliSettings.repair')
+                : t('config:cliSettings.install')}
+            </button>
+          )}
+        </div>
+      )}
+      {supported && (
+        <small className="language-settings-storage">
+          {t('config:cliSettings.restartTerminal')}
+        </small>
+      )}
     </Panel>
   )
 }

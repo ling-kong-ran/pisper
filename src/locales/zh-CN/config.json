@@ -137,6 +137,7 @@
   "configPage.theAPIProtocolInThisConfigurationIsNotSupportedYet": "配置中的 API 协议暂不支持",
   "configPage.theKeyEnvironmentVariableNameIsInvalid": "密钥环境变量名称无效",
   "configPage.theProviderEndpointIsInvalid": "Provider 地址无效",
+  "configPage.terminal": "终端",
   "configPage.thinkingLevel": "思考强度",
   "configPage.unableToReadTheConfigurationFile": "无法读取配置文件",
   "configPage.usedForAgentChatAndMayAlsoIncludeVisualModels": "用于 Agent 对话，也可以包含视觉模型。",
