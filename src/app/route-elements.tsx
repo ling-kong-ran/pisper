@@ -183,6 +183,7 @@ export async function skillsRoute() {
     return (
       <SkillsPage
         query={context.query}
+        activeSessionId={context.activeSessionId}
         notify={context.notify}
         registerPrimaryAction={context.registerPrimaryAction}
         requestText={context.requestText}

@@ -400,16 +400,17 @@ export function createApiHandler(
         else json(res, 200, { deleted: true })
         return true
       }
+      const skillSessionId = url.searchParams.get('sessionId') || ''
       if (req.method === 'GET' && url.pathname === '/api/skills') {
-        json(res, 200, await runtime.getSkillsDashboard())
+        json(res, 200, await runtime.getSkillsDashboard(skillSessionId))
         return true
       }
       if (req.method === 'POST' && url.pathname === '/api/skills/install') {
-        json(res, 201, await runtime.installSkill(await bodyJson(req)))
+        json(res, 201, await runtime.installSkill(await bodyJson(req), skillSessionId))
         return true
       }
       if (req.method === 'POST' && url.pathname === '/api/skills/reload') {
-        json(res, 200, await runtime.reloadSkills())
+        json(res, 200, await runtime.reloadSkills(skillSessionId))
         return true
       }
       const skillMatch = url.pathname.match(/^\/api\/skills\/([^/]+)$/)
@@ -417,13 +418,13 @@ export function createApiHandler(
         const body = await bodyJson(req)
         if ('enabled' in body && typeof body.enabled !== 'boolean') throw new Error('技能启用状态无效。')
         if ('modelInvocationEnabled' in body && typeof body.modelInvocationEnabled !== 'boolean') throw new Error('技能自动调用状态无效。')
-        const result = await runtime.updateSkill(decodeURIComponent(skillMatch[1]), body)
+        const result = await runtime.updateSkill(decodeURIComponent(skillMatch[1]), body, skillSessionId)
         if (!result) json(res, 404, { error: '技能不存在。' })
         else json(res, 200, result)
         return true
       }
       if (req.method === 'DELETE' && skillMatch) {
-        const deleted = await runtime.deleteSkill(decodeURIComponent(skillMatch[1]))
+        const deleted = await runtime.deleteSkill(decodeURIComponent(skillMatch[1]), skillSessionId)
         if (!deleted) json(res, 404, { error: '技能不存在。' })
         else json(res, 200, { deleted: true })
         return true

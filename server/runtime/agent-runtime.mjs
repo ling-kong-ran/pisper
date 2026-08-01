@@ -699,7 +699,10 @@ export class AgentRuntimeService {
       path: join(dataDir, 'pisper-skills.json'),
       agentDir: dataDir,
       cwd,
-      getSettingsManager: () => this.settingsManager,
+      getSettingsManager: (skillsCwd = this.cwd) => {
+        if (!this.settingsManager || workspacePathKey(skillsCwd) === workspacePathKey(this.cwd)) return this.settingsManager
+        return SettingsManager.create(skillsCwd, this.dataDir)
+      },
       extensionFactories: [pisperPromptExtension, pisperCompactionExtension],
     })
     this.channels = new ChannelService({
@@ -1056,13 +1059,20 @@ export class AgentRuntimeService {
     return evicted
   }
 
-  async sessionGitCwd(id) {
+  async sessionWorkspaceCwd(id) {
+    if (!id) return this.cwd
     const activeCwd = this.sessions.get(id)?.cwd
     if (activeCwd) return activeCwd
+    const pendingCwd = this.pendingSessions.get(id)?.cwd
+    if (pendingCwd) return pendingCwd
     const metaCwd = this.sessionMeta[id]?.cwd
     if (metaCwd) return metaCwd
     const stored = await this.findSessionInfo(id)
     return stored?.cwd || this.cwd
+  }
+
+  async sessionGitCwd(id) {
+    return this.sessionWorkspaceCwd(id)
   }
 
   async getSessionGitChanges(id) {
@@ -3077,32 +3087,32 @@ export class AgentRuntimeService {
     return result
   }
 
-  getSkillsDashboard() {
-    return this.skills.dashboard({ cwd: this.cwd })
+  async getSkillsDashboard(sessionId = '') {
+    return this.skills.dashboard({ cwd: await this.sessionWorkspaceCwd(sessionId) })
   }
 
-  async installSkill(input) {
-    const result = await this.skills.install(input, { cwd: this.cwd })
+  async installSkill(input, sessionId = '') {
+    const result = await this.skills.install(input, { cwd: await this.sessionWorkspaceCwd(sessionId) })
     this.invalidateSessionRuntimes()
     return result
   }
 
-  async updateSkill(id, input) {
-    const result = await this.skills.update(id, input, { cwd: this.cwd })
+  async updateSkill(id, input, sessionId = '') {
+    const result = await this.skills.update(id, input, { cwd: await this.sessionWorkspaceCwd(sessionId) })
     if (result) this.invalidateSessionRuntimes()
     return result
   }
 
-  async deleteSkill(id) {
-    const deleted = await this.skills.remove(id, { cwd: this.cwd })
+  async deleteSkill(id, sessionId = '') {
+    const deleted = await this.skills.remove(id, { cwd: await this.sessionWorkspaceCwd(sessionId) })
     if (deleted) this.invalidateSessionRuntimes()
     return deleted
   }
 
-  async reloadSkills() {
+  async reloadSkills(sessionId = '') {
     this.invalidateSessionRuntimes()
     this.skills.invalidateDashboardCache()
-    return this.skills.dashboard({ cwd: this.cwd, force: true })
+    return this.skills.dashboard({ cwd: await this.sessionWorkspaceCwd(sessionId), force: true })
   }
 
   async getProviderDiscovery() {

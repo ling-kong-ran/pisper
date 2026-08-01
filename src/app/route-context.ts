@@ -9,6 +9,7 @@ export type Notify = (message: string, tone?: ToastTone) => void
 
 export type AppRouteContext = {
   query: string
+  activeSessionId: string
   navigate: (page: string, options?: { replace?: boolean }) => void
   notify: Notify
   browserNotify: (event: string, data: unknown, options?: { force?: boolean }) => void

@@ -20,20 +20,36 @@ type Skill = EntityRecord & {
 }
 
 type SkillPackage = EntityRecord & { source: string; scope?: string; installed?: boolean }
-type SkillsData = EntityRecord & { skills: Skill[]; packages?: SkillPackage[] }
+type SkillsData = EntityRecord & { cwd?: string; skills: Skill[]; packages?: SkillPackage[] }
 type SkillsPageProps = {
   notify: Notify
   query?: string
+  activeSessionId?: string
   registerPrimaryAction: (action: () => void) => () => void
   requestText?: (options?: PromptDialogOptions) => Promise<string | null>
   requestConfirm?: (options?: ConfirmDialogOptions) => Promise<boolean>
 }
-type SkillFilter = 'all' | 'installed' | 'design' | 'code' | 'docs' | 'privileged'
+type SkillFilter = 'all' | 'global' | 'project' | 'design' | 'code' | 'docs' | 'privileged'
 
-const SKILL_FILTERS: SkillFilter[] = ['all', 'installed', 'design', 'code', 'docs', 'privileged']
+const SKILL_FILTERS: SkillFilter[] = [
+  'all',
+  'global',
+  'project',
+  'design',
+  'code',
+  'docs',
+  'privileged',
+]
+
+function skillsApiPath(path: string, activeSessionId = '') {
+  if (!activeSessionId) return path
+  const separator = path.includes('?') ? '&' : '?'
+  return `${path}${separator}sessionId=${encodeURIComponent(activeSessionId)}`
+}
 
 function skillFilterLabel(filter: SkillFilter, t: ReturnType<typeof useI18n>['t']) {
-  if (filter === 'installed') return t('skills:skillsPage.installed')
+  if (filter === 'global') return t('skills:skillsPage.global')
+  if (filter === 'project') return t('skills:skillsPage.project')
   if (filter === 'design') return t('skills:skillsPage.design')
   if (filter === 'code') return t('skills:skillsPage.code')
   if (filter === 'docs') return t('skills:skillsPage.documents')
@@ -51,7 +67,9 @@ function skillIcon(skill: Skill) {
 }
 
 function skillMatchesFilter(skill: Skill, filter: SkillFilter) {
-  if (filter === 'all' || filter === 'installed') return true
+  if (filter === 'all') return true
+  if (filter === 'global') return skill.sourceInfo?.scope !== 'project'
+  if (filter === 'project') return skill.sourceInfo?.scope === 'project'
   const text =
     `${skill.name} ${skill.description} ${(skill.allowedTools || []).join(' ')}`.toLowerCase()
   if (filter === 'design') return /image|visual|design|figma|svg|图片|视觉|设计/.test(text)
@@ -67,6 +85,7 @@ function skillMatchesFilter(skill: Skill, filter: SkillFilter) {
 export function SkillsPage({
   notify,
   query = '',
+  activeSessionId = '',
   registerPrimaryAction,
   requestText,
   requestConfirm,
@@ -82,7 +101,7 @@ export function SkillsPage({
   const load = useCallback(async () => {
     setError('')
     try {
-      const result = await apiJson<SkillsData>('/api/skills')
+      const result = await apiJson<SkillsData>(skillsApiPath('/api/skills', activeSessionId))
       setData(result)
       setSelectedId((current) =>
         result.skills.some((skill) => skill.id === current) ? current : result.skills[0]?.id || '',
@@ -94,7 +113,7 @@ export function SkillsPage({
     } finally {
       setLoading(false)
     }
-  }, [])
+  }, [activeSessionId])
 
   useEffect(() => {
     void load()
@@ -102,32 +121,33 @@ export function SkillsPage({
 
   const installSkill = useCallback(async () => {
     const source = await requestText?.({
-      title: t('skills:skillsPage.installSkill'),
-      message: t(
-        'skills:skillsPage.enterALocalSkillDirectorySKILLMdFileNpmPackageOrGitSourcePisperImportsOnlyItsSkillResources',
-      ),
+      title: t('skills:skillsPage.importGlobalSkill'),
+      message: t('skills:skillsPage.globalSkillSourceHelp'),
       inputLabel: t('skills:skillsPage.skillSource'),
-      placeholder: 'npm:@scope/pisper-skills or ./path/to/skill',
+      placeholder: 'E:\\path\\to\\skill, npm:@scope/package, or https://github.com/...',
       maxLength: 2_000,
       confirmLabel: t('skills:skillsPage.continue'),
     })
     if (!source?.trim()) return
     const approved = await requestConfirm?.({
-      title: t('skills:skillsPage.installSkill'),
+      title: t('skills:skillsPage.importGlobalSkill'),
       message: t(
         'skills:skillsPage.skillsProvideInstructionsToTheAgentAndMayIncludeExecutableScriptsConfirmThatYouTrustTheSource',
       ),
-      confirmLabel: t('skills:skillsPage.install'),
+      confirmLabel: t('skills:skillsPage.import'),
       tone: 'danger',
     })
     if (approved === false) return
     setBusy(true)
     setError('')
     try {
-      const result = await apiJson<SkillsData & { installed?: Skill[] }>('/api/skills/install', {
-        method: 'POST',
-        body: JSON.stringify({ source }),
-      })
+      const result = await apiJson<SkillsData & { installed?: Skill[] }>(
+        skillsApiPath('/api/skills/install', activeSessionId),
+        {
+          method: 'POST',
+          body: JSON.stringify({ source }),
+        },
+      )
       setData(result)
       setSelectedId(result.installed?.[0]?.id || result.skills[0]?.id || '')
       notify(t('skills:skillsPage.skillInstalledAndLoadedIntoTheAgentRuntime'), 'success')
@@ -138,7 +158,7 @@ export function SkillsPage({
     } finally {
       setBusy(false)
     }
-  }, [notify, requestConfirm, requestText, t])
+  }, [activeSessionId, notify, requestConfirm, requestText, t])
 
   usePagePrimaryAction(registerPrimaryAction, installSkill)
 
@@ -160,6 +180,10 @@ export function SkillsPage({
       skillMatchesFilter(skill, filter) &&
       `${skill.name} ${skill.description}`.toLowerCase().includes(query.toLowerCase()),
   )
+  const allGlobalSkills = skills.filter((skill) => skill.sourceInfo?.scope !== 'project')
+  const allProjectSkills = skills.filter((skill) => skill.sourceInfo?.scope === 'project')
+  const globalSkills = filteredSkills.filter((skill) => skill.sourceInfo?.scope !== 'project')
+  const projectSkills = filteredSkills.filter((skill) => skill.sourceInfo?.scope === 'project')
   const selected =
     skills.find((skill) => skill.id === selectedId) || filteredSkills[0] || skills[0] || null
   const packages = (data?.packages || [])
@@ -183,10 +207,13 @@ export function SkillsPage({
     setBusy(true)
     setError('')
     try {
-      const updated = await apiJson<Skill>(`/api/skills/${encodeURIComponent(skill.id)}`, {
-        method: 'PATCH',
-        body: JSON.stringify(patch),
-      })
+      const updated = await apiJson<Skill>(
+        skillsApiPath(`/api/skills/${encodeURIComponent(skill.id)}`, activeSessionId),
+        {
+          method: 'PATCH',
+          body: JSON.stringify(patch),
+        },
+      )
       setData((current) => {
         if (!current) return current
         const nextSkills = current.skills.map((item) => (item.id === updated.id ? updated : item))
@@ -212,7 +239,12 @@ export function SkillsPage({
     setBusy(true)
     setError('')
     try {
-      setData(await apiJson<SkillsData>('/api/skills/reload', { method: 'POST', body: '{}' }))
+      setData(
+        await apiJson<SkillsData>(skillsApiPath('/api/skills/reload', activeSessionId), {
+          method: 'POST',
+          body: '{}',
+        }),
+      )
       notify(t('skills:skillsPage.skillSettingsSavedAndReloaded'), 'success')
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : String(caught))
@@ -235,7 +267,10 @@ export function SkillsPage({
     setBusy(true)
     setError('')
     try {
-      await apiJson(`/api/skills/${encodeURIComponent(selected.id)}`, { method: 'DELETE' })
+      await apiJson(
+        skillsApiPath(`/api/skills/${encodeURIComponent(selected.id)}`, activeSessionId),
+        { method: 'DELETE' },
+      )
       const result = await load()
       setSelectedId(result?.skills[0]?.id || '')
       notify(t('skills:skillsPage.skillUninstalled'), 'success')
@@ -248,6 +283,57 @@ export function SkillsPage({
     }
   }
 
+  const renderSkillScope = (
+    title: string,
+    scopedSkills: Skill[],
+    allScopedSkills: Skill[],
+    emptyMessage: string,
+    workspace = '',
+  ) => (
+    <section className="skill-scope">
+      <div className="skill-scope-head">
+        <div>
+          <SectionTitle title={title} />
+          {workspace && <small title={workspace}>{workspace}</small>}
+        </div>
+        <span>{scopedSkills.length}</span>
+      </div>
+      {scopedSkills.length ? (
+        scopedSkills.map((skill) => {
+          const Icon = skillIcon(skill)
+          return (
+            <div
+              className={`skill-row ${selected?.id === skill.id ? 'selected' : ''}`}
+              key={skill.id}
+            >
+              <button className="skill-row-main" onClick={() => setSelectedId(skill.id)}>
+                <span className="list-icon">
+                  <Icon size={15} />
+                </span>
+                <span>
+                  <strong>{skill.name}</strong>
+                  <small>{skill.description}</small>
+                </span>
+              </button>
+              <Toggle
+                value={skill.enabled}
+                disabled={busy}
+                ariaLabel={t('skills:skillsPage.toggleSkillName', { name: skill.name })}
+                onChange={(enabled) => void updateSkill(skill, { enabled })}
+              />
+            </div>
+          )
+        })
+      ) : (
+        <p className="muted-copy skills-empty-copy">
+          {allScopedSkills.length
+            ? t('skills:skillsPage.noSkillsMatchTheCurrentFilter')
+            : emptyMessage}
+        </p>
+      )}
+    </section>
+  )
+
   return (
     <div className="skills-page">
       <Segmented
@@ -258,43 +344,22 @@ export function SkillsPage({
         }
       />
       <div className="skills-layout">
-        <Panel>
-          <SectionTitle title={t('skills:skillsPage.installedSkills')} />
-          {filteredSkills.length ? (
-            filteredSkills.map((skill) => {
-              const Icon = skillIcon(skill)
-              return (
-                <div
-                  className={`skill-row ${selected?.id === skill.id ? 'selected' : ''}`}
-                  key={skill.id}
-                >
-                  <button className="skill-row-main" onClick={() => setSelectedId(skill.id)}>
-                    <span className="list-icon">
-                      <Icon size={15} />
-                    </span>
-                    <span>
-                      <strong>{skill.name}</strong>
-                      <small>{skill.description}</small>
-                    </span>
-                  </button>
-                  <Toggle
-                    value={skill.enabled}
-                    disabled={busy}
-                    ariaLabel={t('skills:skillsPage.toggleSkillName', { name: skill.name })}
-                    onChange={(enabled) => void updateSkill(skill, { enabled })}
-                  />
-                </div>
-              )
-            })
-          ) : (
-            <p className="muted-copy skills-empty-copy">
-              {skills.length
-                ? t('skills:skillsPage.noSkillsMatchTheCurrentFilter')
-                : t(
-                    'skills:skillsPage.noSkillsInstalledYetUseInstallSkillInTheUpperRightToAddALocalDirectoryNpmPackageOrGitSource',
-                  )}
-            </p>
-          )}
+        <Panel className="skill-scopes-panel">
+          {filter !== 'project' &&
+            renderSkillScope(
+              t('skills:skillsPage.globalSkills'),
+              globalSkills,
+              allGlobalSkills,
+              t('skills:skillsPage.noGlobalSkills'),
+            )}
+          {filter !== 'global' &&
+            renderSkillScope(
+              t('skills:skillsPage.projectSkills'),
+              projectSkills,
+              allProjectSkills,
+              t('skills:skillsPage.noProjectSkills'),
+              data?.cwd || '',
+            )}
         </Panel>
         <Panel>
           <div className="card-head">
@@ -327,12 +392,9 @@ export function SkillsPage({
         <div className="detail-stack">
           <Panel>
             <SectionTitle title={t('skills:skillsPage.selectedSkill')} />
-            <h2>{selected?.name || t('skills:skillsPage.noSkillInstalled')}</h2>
+            <h2>{selected?.name || t('skills:skillsPage.noSkillAvailable')}</h2>
             <p className="muted-copy">
-              {selected?.description ||
-                t(
-                  'skills:skillsPage.useTheButtonInTheUpperRightToInstallAnAgentSkillsCompatibleSkill',
-                )}
+              {selected?.description || t('skills:skillsPage.addGlobalOrProjectSkill')}
             </p>
             {[
               [
@@ -346,6 +408,12 @@ export function SkillsPage({
                 selected?.allowedTools?.length
                   ? selected.allowedTools.join(', ')
                   : t('skills:skillsPage.usesChatToolPermissions'),
+              ],
+              [
+                t('skills:skillsPage.scope'),
+                selected?.sourceInfo?.scope === 'project'
+                  ? t('skills:skillsPage.project')
+                  : t('skills:skillsPage.global'),
               ],
               [t('skills:skillsPage.version'), selected?.version || 'latest'],
               [t('skills:skillsPage.source'), selected?.source || '—'],

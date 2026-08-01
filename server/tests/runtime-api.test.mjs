@@ -68,6 +68,51 @@ test('compaction preference APIs expose and update the threshold percentage', as
   assert.deepEqual(calls, [['get'], ['update', 75]])
 })
 
+test('skills APIs forward the active session scope for global and project discovery', async () => {
+  const calls = []
+  const runtime = {
+    async getSkillsDashboard(sessionId) {
+      calls.push(['dashboard', sessionId])
+      return { cwd: '/project', skills: [] }
+    },
+    async installSkill(input, sessionId) {
+      calls.push(['install', input.source, sessionId])
+      return { skills: [] }
+    },
+    async reloadSkills(sessionId) {
+      calls.push(['reload', sessionId])
+      return { skills: [] }
+    },
+    async updateSkill(id, input, sessionId) {
+      calls.push(['update', id, input.enabled, sessionId])
+      return { id, enabled: input.enabled }
+    },
+    async deleteSkill(id, sessionId) {
+      calls.push(['delete', id, sessionId])
+      return true
+    },
+  }
+  const handler = createApiHandler(runtime)
+  const sessionQuery = '?sessionId=session%201'
+
+  const dashboardResponse = response()
+  await handler(request('GET'), dashboardResponse, new URL(`http://localhost/api/skills${sessionQuery}`))
+  assert.equal(JSON.parse(dashboardResponse.body).cwd, '/project')
+
+  await handler(request('POST', { source: './skill' }), response(), new URL(`http://localhost/api/skills/install${sessionQuery}`))
+  await handler(request('POST', {}), response(), new URL(`http://localhost/api/skills/reload${sessionQuery}`))
+  await handler(request('PATCH', { enabled: false }), response(), new URL(`http://localhost/api/skills/project-helper${sessionQuery}`))
+  await handler(request('DELETE'), response(), new URL(`http://localhost/api/skills/global-helper${sessionQuery}`))
+
+  assert.deepEqual(calls, [
+    ['dashboard', 'session 1'],
+    ['install', './skill', 'session 1'],
+    ['reload', 'session 1'],
+    ['update', 'project-helper', false, 'session 1'],
+    ['delete', 'global-helper', 'session 1'],
+  ])
+})
+
 test('chat API forwards explicit Tool requests as structured runtime input', async () => {
   const calls = []
   const runtime = {

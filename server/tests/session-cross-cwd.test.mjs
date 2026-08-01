@@ -71,6 +71,10 @@ test('desktop runtime lists and opens sessions created under other working direc
   const messages = await runtime.getSessionMessages(webSession.getSessionId())
   assert.equal(messages[0]?.text, 'Web session')
 
+  runtime.skills = { dashboard: async ({ cwd }) => ({ cwd }) }
+  const skills = await runtime.getSkillsDashboard(webSession.getSessionId())
+  assert.equal(skills.cwd, resolve(webCwd))
+
   runtime.getSessionMessagePage = async () => ({ messages: [], contextUsage: null, pageInfo: {} })
   runtime.permissions = { getPending: () => [] }
   const live = await runtime.getSessionLive(webSession.getSessionId())

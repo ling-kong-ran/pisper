@@ -13,7 +13,11 @@ import { CommandPalette, QuickCreate } from '@/components/layout/AppOverlays'
 import { PageHeader } from '@/components/layout/PageHeader'
 import { StatusBar } from '@/components/layout/StatusBar'
 import { AppDialog, Toast, type ToastTone } from '@/components/ui'
-import { COMMAND_PALETTE_REQUESTED_EVENT, requestSessionSelection } from '@/features/chat/events'
+import {
+  ACTIVE_SESSION_CHANGED_EVENT,
+  COMMAND_PALETTE_REQUESTED_EVENT,
+  requestSessionSelection,
+} from '@/features/chat/events'
 import { WebDesktopPet } from '@/features/desktop-pet/WebDesktopPet'
 import { apiJson } from '@/lib/api'
 import { showBrowserSystemNotification } from '@/lib/browser-notifications'
@@ -94,6 +98,9 @@ function App() {
   const pageMeta = useMemo(() => getPageMeta(t), [t])
   const page = pageFromPath(location.pathname) || 'chat'
   const [query, setQuery] = useState('')
+  const [activeSessionId, setActiveSessionId] = useState(
+    () => localStorage.getItem(STORAGE_KEYS.activeSession) || '',
+  )
   const [mobileNav, setMobileNav] = useState(false)
   const [paletteOpen, setPaletteOpen] = useState(false)
   const sidebarCollapsed = useUiStore((state) => state.sidebarCollapsed)
@@ -162,6 +169,15 @@ function App() {
   }, [])
 
   useEffect(() => () => window.clearTimeout(toastTimer.current), [])
+
+  useEffect(() => {
+    const syncActiveSession = (event: Event) => {
+      const id = (event as CustomEvent<{ id?: string }>).detail?.id
+      setActiveSessionId(id ?? localStorage.getItem(STORAGE_KEYS.activeSession) ?? '')
+    }
+    window.addEventListener(ACTIVE_SESSION_CHANGED_EVENT, syncActiveSession)
+    return () => window.removeEventListener(ACTIVE_SESSION_CHANGED_EVENT, syncActiveSession)
+  }, [])
 
   const showSystemNotification = useCallback(
     (title: string, body: string, { force = false }: { force?: boolean } = {}) => {
@@ -366,6 +382,7 @@ function App() {
 
   const routeContext: AppRouteContext = {
     query,
+    activeSessionId,
     navigate,
     notify,
     browserNotify,

@@ -173,3 +173,36 @@ test('skills service installs only skill resources from a local source and can r
   assert.equal(await service.remove(installed.installed[0].id), true)
   assert.equal((await service.dashboard()).skills.some((item) => item.name === 'release-notes'), false)
 })
+
+test('skills dashboard separates global skills from the requested project workspace', async (t) => {
+  const directory = await mkdtemp(join(tmpdir(), 'pisper-skill-scopes-'))
+  t.after(() => rm(directory, { recursive: true, force: true }))
+  const agentDir = join(directory, 'agent')
+  const projectA = join(directory, 'project-a')
+  const projectB = join(directory, 'project-b')
+  await writeSkill(join(agentDir, 'skills', 'global-helper'), 'global-helper', 'Available in every project.')
+  await writeSkill(join(projectA, '.agents', 'skills', 'project-a-helper'), 'project-a-helper', 'Available only in project A.')
+  await writeSkill(join(projectB, '.agents', 'skills', 'project-b-helper'), 'project-b-helper', 'Available only in project B.')
+
+  const service = new SkillsService({
+    path: join(agentDir, 'pisper-skills.json'),
+    agentDir,
+    cwd: projectA,
+    getSettingsManager: (cwd) => SettingsManager.create(cwd, agentDir),
+  })
+  await service.init()
+
+  const dashboardA = await service.dashboard({ cwd: projectA, force: true })
+  assert.equal(dashboardA.cwd, projectA)
+  assert.deepEqual(new Set(dashboardA.skills.map((skill) => skill.name)), new Set(['global-helper', 'project-a-helper']))
+  assert.equal(dashboardA.skills.find((skill) => skill.name === 'global-helper')?.sourceInfo?.scope, 'user')
+  assert.equal(dashboardA.skills.find((skill) => skill.name === 'project-a-helper')?.sourceInfo?.scope, 'project')
+  assert.equal(dashboardA.counts.global, 1)
+  assert.equal(dashboardA.counts.project, 1)
+
+  const dashboardB = await service.dashboard({ cwd: projectB, force: true })
+  assert.deepEqual(new Set(dashboardB.skills.map((skill) => skill.name)), new Set(['global-helper', 'project-b-helper']))
+  assert.equal(dashboardB.skills.some((skill) => skill.name === 'project-a-helper'), false)
+  assert.equal(dashboardB.counts.global, 1)
+  assert.equal(dashboardB.counts.project, 1)
+})

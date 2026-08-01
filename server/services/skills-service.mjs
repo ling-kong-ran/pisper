@@ -214,7 +214,7 @@ export class SkillsService {
   }
 
   async createResourceLoader(cwd = this.cwd, { includeDisabled = false, appendSystemPrompt = '' } = {}) {
-    const settingsManager = this.getSettingsManager()
+    const settingsManager = this.getSettingsManager(cwd)
     const loader = await createDefaultResourceLoader({
       cwd,
       agentDir: this.agentDir,
@@ -229,14 +229,14 @@ export class SkillsService {
     return loader
   }
 
-  async resolveSkillPaths(cwd = this.cwd) {
+  async resolveSkillResources(cwd = this.cwd) {
     try {
       const manager = await this.packageManager(cwd)
       const resolved = await manager.resolve()
       return resolved.skills
         .filter((item) => item.enabled)
-        .map((item) => mapSkillResourcePath(item))
-        .filter(Boolean)
+        .map((item) => ({ ...item, path: mapSkillResourcePath(item) }))
+        .filter((item) => item.path)
     } catch {
       // SettingsManager may not be ready during early bootstrap; fall back to default skill roots.
       return []
@@ -244,18 +244,30 @@ export class SkillsService {
   }
 
   async discover(cwd = this.cwd) {
-    const skillPaths = await this.resolveSkillPaths(cwd)
+    const resources = await this.resolveSkillResources(cwd)
     const loaded = await loadSkills({
       cwd,
       agentDir: this.agentDir,
-      skillPaths,
+      skillPaths: resources.map((item) => item.path),
       // package resolve already auto-discovers user/project skill roots when settings are available.
-      includeDefaults: skillPaths.length === 0,
+      includeDefaults: resources.length === 0,
     })
-    return this.applySkillOverrides(loaded, { includeDisabled: true })
+    const metadataByPath = new Map(
+      resources.map((item) => [normalizedPath(item.path), item.metadata || {}]),
+    )
+    const scoped = {
+      ...loaded,
+      skills: loaded.skills.map((skill) => {
+        const metadata = metadataByPath.get(normalizedPath(skill.filePath))
+        return metadata
+          ? { ...skill, sourceInfo: { ...(skill.sourceInfo || {}), ...metadata } }
+          : skill
+      }),
+    }
+    return this.applySkillOverrides(scoped, { includeDisabled: true })
   }
 
-  async publicSkill(skill) {
+  async publicSkill(skill, cwd = this.cwd) {
     const override = this.overrideFor(skill)
     const managed = this.state.installed[normalizedPath(skill.filePath)]
     let frontmatter = { version: 'latest', license: '', allowedTools: [] }
@@ -271,7 +283,7 @@ export class SkillsService {
       baseDir: skill.baseDir,
       enabled: override.enabled !== false,
       modelInvocationEnabled,
-      command: this.getSettingsManager()?.getEnableSkillCommands?.() === false ? '' : `/skill:${skill.name}`,
+      command: this.getSettingsManager(cwd)?.getEnableSkillCommands?.() === false ? '' : `/skill:${skill.name}`,
       version: frontmatter.version,
       license: frontmatter.license,
       allowedTools: frontmatter.allowedTools,
@@ -282,7 +294,7 @@ export class SkillsService {
   }
 
   async packageManager(cwd = this.cwd) {
-    const settingsManager = this.getSettingsManager()
+    const settingsManager = this.getSettingsManager(cwd)
     if (!settingsManager) throw new Error('Pisper 技能运行时尚未初始化。')
     const options = { cwd, agentDir: this.agentDir, settingsManager }
     return this.createPackageManager
@@ -292,7 +304,7 @@ export class SkillsService {
 
   async buildDashboard(cwd = this.cwd) {
     const discovered = await this.discover(cwd)
-    const skills = await Promise.all(discovered.skills.map((skill) => this.publicSkill(skill)))
+    const skills = await Promise.all(discovered.skills.map((skill) => this.publicSkill(skill, cwd)))
     let packages = []
     try {
       packages = (await this.packageManager(cwd)).listConfiguredPackages().map((item) => ({
@@ -302,12 +314,17 @@ export class SkillsService {
         installed: Boolean(item.installedPath),
       }))
     } catch {}
+    const projectSkills = skills.filter((skill) => skill.sourceInfo?.scope === 'project')
+    const globalSkills = skills.filter((skill) => skill.sourceInfo?.scope !== 'project')
     return {
+      cwd: resolve(cwd),
       skills,
       diagnostics: discovered.diagnostics.map((item) => ({ type: item.type, message: item.message, path: item.path || '' })),
       packages,
       counts: {
         installed: skills.length,
+        global: globalSkills.length,
+        project: projectSkills.length,
         enabled: skills.filter((skill) => skill.enabled).length,
         modelInvocable: skills.filter((skill) => skill.enabled && skill.modelInvocationEnabled).length,
       },
@@ -353,7 +370,7 @@ export class SkillsService {
     else delete this.state.overrides[key]
     await this.save()
     this.invalidateDashboardCache()
-    return this.publicSkill(skill)
+    return this.publicSkill(skill, cwd)
   }
 
   async resolveInstallSkills(source, cwd) {
