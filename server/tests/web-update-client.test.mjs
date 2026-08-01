@@ -1,6 +1,12 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
 import { newerVersion, normalizedVersion } from '../../shared/app-update.mjs'
+import {
+  DESKTOP_UPDATE_INITIAL_DELAY_MS,
+  DESKTOP_UPDATE_INTERVAL_MS,
+  scheduleDesktopUpdateChecks,
+  shouldAutomaticallyCheckForUpdates,
+} from '../../src/features/updates/auto-update.ts'
 import { checkWebUpdates } from '../../src/features/updates/update-client.ts'
 
 test('web update versions normalize tags and compare semantic parts', () => {
@@ -40,4 +46,71 @@ test('web update checks preserve the server error detail', async () => {
     }),
     /GitHub commit 比较失败：HTTP 403/,
   )
+})
+
+test('desktop update checks run after a delay and then periodically', async () => {
+  let delayedCheck = null
+  let periodicCheck = null
+  const cleared = []
+  const scheduler = {
+    setTimeout(callback, delay) {
+      assert.equal(delay, DESKTOP_UPDATE_INITIAL_DELAY_MS)
+      delayedCheck = callback
+      return 1
+    },
+    clearTimeout(handle) {
+      cleared.push(['timeout', handle])
+    },
+    setInterval(callback, delay) {
+      assert.equal(delay, DESKTOP_UPDATE_INTERVAL_MS)
+      periodicCheck = callback
+      return 2
+    },
+    clearInterval(handle) {
+      cleared.push(['interval', handle])
+    },
+  }
+  let checks = 0
+  let finishCheck
+  const stop = scheduleDesktopUpdateChecks(
+    () => {
+      checks += 1
+      return new Promise((resolve) => {
+        finishCheck = resolve
+      })
+    },
+    scheduler,
+  )
+
+  delayedCheck()
+  await Promise.resolve()
+  assert.equal(checks, 1)
+  periodicCheck()
+  await Promise.resolve()
+  assert.equal(checks, 1, 'overlapping automatic checks should be ignored')
+
+  finishCheck()
+  await new Promise((resolve) => setImmediate(resolve))
+  periodicCheck()
+  await Promise.resolve()
+  assert.equal(checks, 2)
+
+  stop()
+  finishCheck()
+  periodicCheck()
+  await new Promise((resolve) => setImmediate(resolve))
+  assert.equal(checks, 2)
+  assert.deepEqual(cleared, [
+    ['timeout', 1],
+    ['interval', 2],
+  ])
+})
+
+test('desktop automatic checks do not interrupt active or downloaded updates', () => {
+  for (const state of ['checking', 'downloading', 'downloaded']) {
+    assert.equal(shouldAutomaticallyCheckForUpdates(state), false)
+  }
+  for (const state of ['idle', 'current', 'available', 'error']) {
+    assert.equal(shouldAutomaticallyCheckForUpdates(state), true)
+  }
 })

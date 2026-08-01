@@ -1,5 +1,6 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import type { AppUpdateController, AppUpdateInfo, UpdateStatus } from '@/types/update'
+import { scheduleDesktopUpdateChecks, shouldAutomaticallyCheckForUpdates } from './auto-update'
 import { checkWebUpdates, RELEASES_URL } from './update-client'
 
 const BUILD_VERSION = import.meta.env.VITE_APP_VERSION || '0.0.0'
@@ -17,31 +18,48 @@ export function useAppUpdate(): AppUpdateController {
   const bridge = window.pisperDesktop
   const [info, setInfo] = useState(WEB_INFO)
   const [status, setStatus] = useState<UpdateStatus>({ state: 'idle', checkedAt: null })
+  const statusRef = useRef(status)
+  const checkInFlightRef = useRef<Promise<UpdateStatus> | null>(null)
+
+  const applyStatus = useCallback((value: UpdateStatus) => {
+    statusRef.current = value
+    setStatus(value)
+  }, [])
 
   const check = useCallback(
-    async ({ refresh = true }: { refresh?: boolean } = {}) => {
-      setStatus((current) => ({ ...current, state: 'checking', message: '' }))
-      try {
-        const next: UpdateStatus = bridge
-          ? await bridge.checkForUpdates()
-          : await checkWebUpdates({ refresh })
-        setStatus(next)
-        return next
-      } catch (error) {
-        const failed = {
-          state: 'error',
-          message: error instanceof Error ? error.message : String(error),
-          checkedAt: new Date().toISOString(),
+    ({ refresh = true }: { refresh?: boolean } = {}) => {
+      if (checkInFlightRef.current) return checkInFlightRef.current
+
+      applyStatus({ ...statusRef.current, state: 'checking', message: '' })
+      const pending = (async (): Promise<UpdateStatus> => {
+        try {
+          const next: UpdateStatus = bridge
+            ? await bridge.checkForUpdates()
+            : await checkWebUpdates({ refresh })
+          applyStatus(next)
+          return next
+        } catch (error) {
+          const failed = {
+            state: 'error',
+            message: error instanceof Error ? error.message : String(error),
+            checkedAt: new Date().toISOString(),
+          }
+          applyStatus(failed)
+          return failed
         }
-        setStatus(failed)
-        return failed
-      }
+      })()
+      checkInFlightRef.current = pending
+      void pending.finally(() => {
+        if (checkInFlightRef.current === pending) checkInFlightRef.current = null
+      })
+      return pending
     },
-    [bridge],
+    [applyStatus, bridge],
   )
 
   useEffect(() => {
     let active = true
+    let stopAutomaticChecks = () => {}
     if (!bridge) {
       void check({ refresh: false })
       return () => {
@@ -50,21 +68,28 @@ export function useAppUpdate(): AppUpdateController {
     }
 
     const unsubscribe = bridge.onUpdateStatus((value) => {
-      if (active) setStatus(value)
+      if (active) applyStatus(value)
     })
     bridge
       .getAppInfo()
       .then((value) => {
         if (!active) return
         setInfo(value)
-        setStatus(value.update || { state: 'idle', checkedAt: null })
+        applyStatus(value.update || { state: 'idle', checkedAt: null })
+        if (value.packaged) {
+          stopAutomaticChecks = scheduleDesktopUpdateChecks(() => {
+            if (!shouldAutomaticallyCheckForUpdates(statusRef.current.state)) return
+            return check()
+          })
+        }
       })
       .catch(() => {})
     return () => {
       active = false
+      stopAutomaticChecks()
       unsubscribe?.()
     }
-  }, [bridge, check])
+  }, [applyStatus, bridge, check])
 
   const openReleases = useCallback(async () => {
     if (bridge) return bridge.openReleases()
@@ -77,9 +102,9 @@ export function useAppUpdate(): AppUpdateController {
   const download = useCallback(async () => {
     if (!bridge || !status.canDownload) return openReleases()
     const next = await bridge.downloadUpdate()
-    setStatus(next)
+    applyStatus(next)
     return next
-  }, [bridge, openReleases, status.canDownload])
+  }, [applyStatus, bridge, openReleases, status.canDownload])
 
   const install = useCallback(() => bridge?.installUpdate(), [bridge])
 
