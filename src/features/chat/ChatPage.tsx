@@ -25,6 +25,7 @@ import {
   DEFAULT_SESSION_STATE,
   insertInteractiveUserMessage,
   resolveQueuedInputs,
+  shouldRetainClosedSessionState,
 } from '@/lib/session-state'
 import {
   createStreamingTextScheduler,
@@ -190,6 +191,26 @@ export function ChatPage({
     const states = { ...current, [id]: next }
     sessionStatesRef.current = states
     setSessionStates(states)
+  }, [])
+
+  const releaseClosedSessionState = useCallback((id: string) => {
+    const dockApi = dockApiRef.current
+    if (
+      !id ||
+      !dockApi ||
+      dockApi.getPanel(panelIdForSession(id)) ||
+      localStreamSessionsRef.current.has(id)
+    )
+      return false
+    const current = sessionStatesRef.current
+    const state = current[id]
+    if (!state || shouldRetainClosedSessionState(state)) return false
+    const states = { ...current }
+    delete states[id]
+    sessionStatesRef.current = states
+    liveSyncInFlightRef.current.delete(id)
+    setSessionStates(states)
+    return true
   }, [])
 
   const syncLiveSession = useCallback(
@@ -497,11 +518,20 @@ export function ChatPage({
           const sessionId = sessionIdFromPanel(panel)
           if (sessionId) void loadSessionMessages(sessionId, { limit: FOCUS_MESSAGE_PAGE_SIZE })
         }),
+        api.onDidRemovePanel((panel) => {
+          const sessionId = sessionIdFromPanel(panel)
+          if (sessionId) queueMicrotask(() => releaseClosedSessionState(sessionId))
+        }),
       )
       setDockReady((generation) => generation + 1)
     },
-    [loadSessionMessages, scheduleDockLayoutSave],
+    [loadSessionMessages, releaseClosedSessionState, scheduleDockLayoutSave],
   )
+
+  useEffect(() => {
+    if (!dockInitializedRef.current) return
+    for (const id of Object.keys(sessionStates)) releaseClosedSessionState(id)
+  }, [releaseClosedSessionState, sessionStates])
 
   useEffect(() => {
     const selectSession = (event: Event) => {

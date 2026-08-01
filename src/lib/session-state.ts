@@ -74,6 +74,14 @@ export function insertInteractiveUserMessage(
   return [...current.slice(0, activeAgentIndex), message, ...current.slice(activeAgentIndex)]
 }
 
+export function shouldRetainClosedSessionState(state: Partial<SessionState> | undefined) {
+  return Boolean(
+    state?.streaming ||
+    state?.recovering ||
+    state?.agents?.some((agent) => ['queued', 'starting', 'running'].includes(agent.status)),
+  )
+}
+
 export function hasRunActivity(activity: EntityRecord | null | undefined) {
   return Boolean(
     activity &&

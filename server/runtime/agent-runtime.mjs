@@ -88,6 +88,12 @@ const MAX_SESSION_TITLE_CHARS = 20
 const DEFAULT_MESSAGE_PAGE_SIZE = 40
 const MAX_MESSAGE_PAGE_SIZE = 100
 const LIVE_MESSAGE_PAGE_SIZE = 60
+const MAX_RESIDENT_SESSION_RUNTIMES = 8
+const SESSION_HISTORY_READ_CHUNK_BYTES = 1024 * 1024
+const MAX_SESSION_HISTORY_CACHE_ENTRIES = 8
+const MAX_SESSION_HISTORY_CACHE_SOURCE_BYTES = 16 * 1024 * 1024
+const MAX_SESSION_HISTORY_CACHE_ESTIMATED_BYTES = 128 * 1024 * 1024
+const SESSION_HISTORY_CACHE_MEMORY_MULTIPLIER = 4
 const ISOLATED_CONTEXT_BLOCKED_TOOLS = ['memory_search', 'memory_remember']
 const ASSET_TEXT_EXTENSIONS = new Set(['.txt', '.md', '.json', '.js', '.jsx', '.ts', '.tsx', '.css', '.html', '.xml', '.yaml', '.yml', '.csv', '.log', '.py', '.java', '.go', '.rs', '.sh', '.ps1', '.toml', '.sql'])
 const ASSET_DOCUMENT_EXTENSIONS = new Set(['.pdf', '.docx', '.pptx', '.xlsx', '.odt', '.odp', '.ods', '.rtf', '.epub'])
@@ -709,6 +715,7 @@ export class AgentRuntimeService {
       notifications: this.notificationSettings,
     })
     this.sessions = new Map()
+    this.maxResidentSessionRuntimes = MAX_RESIDENT_SESSION_RUNTIMES
     this.pendingSessions = new Map()
     this.storedSessionsCache = null
     this.storedSessionsPromise = null
@@ -716,6 +723,10 @@ export class AgentRuntimeService {
     this.liveSessions = new Map()
     this.taskListEmitters = new Map()
     this.sessionHistoryCache = new Map()
+    this.sessionHistoryReadChunkBytes = SESSION_HISTORY_READ_CHUNK_BYTES
+    this.maxSessionHistoryCacheEntries = MAX_SESSION_HISTORY_CACHE_ENTRIES
+    this.maxSessionHistoryCacheSourceBytes = MAX_SESSION_HISTORY_CACHE_SOURCE_BYTES
+    this.maxSessionHistoryCacheEstimatedBytes = MAX_SESSION_HISTORY_CACHE_ESTIMATED_BYTES
     this.sessionHistoryPaths = new Map()
     this.sessionContextUsageCache = new Map()
     this.modelRuntime = null
@@ -987,6 +998,39 @@ export class AgentRuntimeService {
 
   getSessionGoal(id) {
     return this.goals.get(id)
+  }
+
+  touchSessionRuntime(value) {
+    if (value) value.lastAccessedAt = Date.now()
+    return value
+  }
+
+  sessionRuntimeIsProtected(id, value) {
+    return Boolean(
+      value?.session?.isStreaming ||
+      this.goals.get(id)?.status === 'active' ||
+      this.agentWakeupTimers.has(id) ||
+      value?.pendingAgentNotifications?.length ||
+      this.multiAgents.hasActive?.(id),
+    )
+  }
+
+  evictIdleSessionRuntimes(exceptId = '') {
+    const maximum = Math.max(1, Number(this.maxResidentSessionRuntimes) || MAX_RESIDENT_SESSION_RUNTIMES)
+    if (this.sessions.size <= maximum) return 0
+    const candidates = [...this.sessions.entries()]
+      .filter(([id, value]) => id !== exceptId && !this.sessionRuntimeIsProtected(id, value))
+      .sort((left, right) => (left[1].lastAccessedAt || 0) - (right[1].lastAccessedAt || 0))
+    let evicted = 0
+    while (this.sessions.size > maximum && candidates.length) {
+      const [id, value] = candidates.shift()
+      if (this.sessions.get(id) !== value) continue
+      this.permissions.resolveSession(id, false, '会话运行时已从内存释放，请重新发送消息。')
+      value.session.dispose()
+      this.sessions.delete(id)
+      evicted += 1
+    }
+    return evicted
   }
 
   async sessionGitCwd(id) {
@@ -1449,6 +1493,7 @@ export class AgentRuntimeService {
     const active = this.sessions.get(id)
     let messages
     if (active) {
+      this.touchSessionRuntime(active)
       messages = serializeTranscriptMessages(active.session.messages)
     } else {
       const info = await this.findSessionInfo(id)
@@ -1460,6 +1505,21 @@ export class AgentRuntimeService {
       .filter((asset) => asset.sessionId === id && asset.source === 'agent' && /^(?:image|video)\//.test(asset.mimeType || ''))
       .sort((left, right) => new Date(left.created).getTime() - new Date(right.created).getTime())
     return attachGeneratedAssets(messages, assets)
+  }
+
+  trimSessionHistoryCache(protectedPath = '') {
+    const maximumEntries = Math.max(1, Number(this.maxSessionHistoryCacheEntries) || MAX_SESSION_HISTORY_CACHE_ENTRIES)
+    const maximumBytes = Math.max(1, Number(this.maxSessionHistoryCacheEstimatedBytes) || MAX_SESSION_HISTORY_CACHE_ESTIMATED_BYTES)
+    const estimatedBytes = () => [...this.sessionHistoryCache.values()]
+      .reduce((total, entry) => total + entry.size * SESSION_HISTORY_CACHE_MEMORY_MULTIPLIER, 0)
+    const candidates = () => [...this.sessionHistoryCache.entries()]
+      .filter(([path]) => path !== protectedPath)
+      .sort((left, right) => left[1].touchedAt - right[1].touchedAt)
+    while (this.sessionHistoryCache.size > maximumEntries || estimatedBytes() > maximumBytes) {
+      const oldest = candidates()[0]?.[0]
+      if (!oldest) break
+      this.sessionHistoryCache.delete(oldest)
+    }
   }
 
   async readSessionHistoryEntries(path) {
@@ -1480,20 +1540,28 @@ export class AgentRuntimeService {
     if (file.size > cached.size) {
       const handle = await open(path, 'r')
       try {
-        const chunk = Buffer.allocUnsafe(file.size - cached.size)
-        await handle.read(chunk, 0, chunk.length, cached.size)
-        const combined = cached.remainder.length ? Buffer.concat([cached.remainder, chunk]) : chunk
-        const newline = combined.lastIndexOf(0x0a)
-        const complete = newline >= 0 ? combined.subarray(0, newline).toString('utf8') : ''
-        cached.remainder = newline >= 0 ? combined.subarray(newline + 1) : combined
-        for (const line of complete.split('\n')) {
-          if (!line.trim()) continue
-          try {
-            const entry = JSON.parse(line.trimEnd())
-            cached.entries.push(entry)
-            if (entry?.id) cached.byId.set(entry.id, entry)
-          } catch {
-            // Ignore a malformed history line without making the rest of the session unreadable.
+        let position = cached.size
+        const maximumChunkBytes = Math.max(1, Number(this.sessionHistoryReadChunkBytes) || SESSION_HISTORY_READ_CHUNK_BYTES)
+        const readBuffer = Buffer.allocUnsafe(Math.min(maximumChunkBytes, file.size - position))
+        while (position < file.size) {
+          const length = Math.min(readBuffer.length, file.size - position)
+          const { bytesRead } = await handle.read(readBuffer, 0, length, position)
+          if (!bytesRead) break
+          position += bytesRead
+          const chunk = readBuffer.subarray(0, bytesRead)
+          const combined = cached.remainder.length ? Buffer.concat([cached.remainder, chunk]) : chunk
+          const newline = combined.lastIndexOf(0x0a)
+          const complete = newline >= 0 ? combined.subarray(0, newline).toString('utf8') : ''
+          cached.remainder = newline >= 0 ? Buffer.from(combined.subarray(newline + 1)) : Buffer.from(combined)
+          for (const line of complete.split('\n')) {
+            if (!line.trim()) continue
+            try {
+              const entry = JSON.parse(line.trimEnd())
+              cached.entries.push(entry)
+              if (entry?.id) cached.byId.set(entry.id, entry)
+            } catch {
+              // Ignore a malformed history line without making the rest of the session unreadable.
+            }
           }
         }
       } finally {
@@ -1503,10 +1571,12 @@ export class AgentRuntimeService {
     cached.size = file.size
     cached.mtimeMs = file.mtimeMs
     cached.touchedAt = Date.now()
-    this.sessionHistoryCache.set(path, cached)
-    if (this.sessionHistoryCache.size > 20) {
-      const oldest = [...this.sessionHistoryCache.entries()].sort((left, right) => left[1].touchedAt - right[1].touchedAt)[0]?.[0]
-      if (oldest && oldest !== path) this.sessionHistoryCache.delete(oldest)
+    const maximumSourceBytes = Math.max(1, Number(this.maxSessionHistoryCacheSourceBytes) || MAX_SESSION_HISTORY_CACHE_SOURCE_BYTES)
+    if (file.size <= maximumSourceBytes) {
+      this.sessionHistoryCache.set(path, cached)
+      this.trimSessionHistoryCache(path)
+    } else {
+      this.sessionHistoryCache.delete(path)
     }
     return cached
   }
@@ -1613,7 +1683,10 @@ export class AgentRuntimeService {
 
   async getSessionContextUsage(id, compaction = null) {
     const active = this.sessions.get(id)
-    if (active) return this.compactionAwareContextUsage(active.session, compaction || this.liveSessions.get(id)?.compaction)
+    if (active) {
+      this.touchSessionRuntime(active)
+      return this.compactionAwareContextUsage(active.session, compaction || this.liveSessions.get(id)?.compaction)
+    }
     const info = await this.findSessionInfo(id)
     if (!info) return undefined
     const fileStat = await stat(info.path).catch(() => null)
@@ -1653,6 +1726,7 @@ export class AgentRuntimeService {
 
   async getSessionLive(id) {
     const active = this.sessions.get(id)
+    if (active) this.touchSessionRuntime(active)
     const persisted = active ? null : await this.findSessionInfo(id)
     const live = this.liveSessions.get(id)
     const page = await this.getSessionMessagePage(id, { limit: LIVE_MESSAGE_PAGE_SIZE })
@@ -1824,7 +1898,7 @@ export class AgentRuntimeService {
   async getOrCreateSession(id) {
     if (id && this.sessions.has(id)) {
       const current = this.sessions.get(id)
-      if (current.session.isStreaming || (current.runtimeVersion ?? this.sessionRuntimeVersion) === this.sessionRuntimeVersion) return current
+      if (current.session.isStreaming || (current.runtimeVersion ?? this.sessionRuntimeVersion) === this.sessionRuntimeVersion) return this.touchSessionRuntime(current)
       current.session.dispose()
       this.sessions.delete(id)
     }
@@ -2014,6 +2088,7 @@ export class AgentRuntimeService {
       promotedToolNames,
       requestedToolNames: [],
       runtimeVersion: this.sessionRuntimeVersion,
+      lastAccessedAt: Date.now(),
     }
     runtimeValue = value
     runtimeSession = session
@@ -2028,6 +2103,7 @@ export class AgentRuntimeService {
     this.permissions.install(session, { sessionId: session.sessionId, cwd: effectiveCwd })
     applyPisperSystemPrompt(session, session.model)
     this.sessions.set(session.sessionId, value)
+    this.evictIdleSessionRuntimes(session.sessionId)
     return value
   }
 
@@ -2500,6 +2576,8 @@ export class AgentRuntimeService {
       if (this.taskListEmitters.get(session.sessionId) === emit) this.taskListEmitters.delete(session.sessionId)
       if (this.agentEmitters.get(session.sessionId) === emit) this.agentEmitters.delete(session.sessionId)
       if (live.streaming) finishLiveRun(live.error)
+      this.touchSessionRuntime(value)
+      this.evictIdleSessionRuntimes(session.sessionId)
       const timer = setTimeout(() => { if (this.liveSessions.get(session.sessionId) === live) this.liveSessions.delete(session.sessionId) }, 60_000)
       timer.unref?.()
     }

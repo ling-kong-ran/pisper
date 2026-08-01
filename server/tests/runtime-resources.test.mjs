@@ -244,3 +244,31 @@ test('resource changes keep the currently streaming session alive', async (t) =>
   assert.equal(runtime.sessions.has('streaming'), true)
   assert.equal(runtime.sessions.has('idle'), false)
 })
+
+test('resident session runtime limit evicts the least-recent idle session but preserves streaming work', async (t) => {
+  const directory = await mkdtemp(join(tmpdir(), 'pisper-session-runtime-lru-'))
+  const runtime = new AgentRuntimeService({ cwd: directory, dataDir: directory })
+  t.after(async () => {
+    runtime.sessions.clear()
+    await runtime.dispose().catch(() => {})
+    await rm(directory, { recursive: true, force: true }).catch(() => {})
+  })
+  runtime.maxResidentSessionRuntimes = 2
+  const disposed = []
+  runtime.sessions.set('old-idle', {
+    lastAccessedAt: 1,
+    session: { isStreaming: false, dispose: () => disposed.push('old-idle') },
+  })
+  runtime.sessions.set('streaming', {
+    lastAccessedAt: 2,
+    session: { isStreaming: true, dispose: () => disposed.push('streaming') },
+  })
+  runtime.sessions.set('new-idle', {
+    lastAccessedAt: 3,
+    session: { isStreaming: false, dispose: () => disposed.push('new-idle') },
+  })
+
+  assert.equal(runtime.evictIdleSessionRuntimes(), 1)
+  assert.deepEqual(disposed, ['old-idle'])
+  assert.deepEqual([...runtime.sessions.keys()], ['streaming', 'new-idle'])
+})

@@ -8,7 +8,9 @@ export const DEFAULT_AGENT_MAX_TURNS = 30
 export const MAX_AGENT_MAX_TURNS = 100
 export const MAX_CONCURRENT_AGENTS = 4
 export const MAX_AGENTS_PER_PARENT = 64
+export const MAX_AGENT_RECORDS = 256
 export const MAX_AGENT_TASK_CHARS = 12_000
+export const TERMINAL_AGENT_SESSION_RETENTION_MS = 10 * 60 * 1000
 
 const AGENT_REGISTRY_VERSION = 4
 const AGENT_COMPLETION_MARKER = '[Pisper internal agent completion]'
@@ -320,6 +322,7 @@ export class MultiAgentService {
     createSessionManager = (cwd) => SessionManager.inMemory(cwd),
     createResourceLoader = createAgentResourceLoader,
     maxConcurrent = MAX_CONCURRENT_AGENTS,
+    terminalSessionRetentionMs = TERMINAL_AGENT_SESSION_RETENTION_MS,
     setTimer = setTimeout,
     clearTimer = clearTimeout,
     now = () => Date.now(),
@@ -333,12 +336,14 @@ export class MultiAgentService {
     this.createSessionManager = createSessionManager
     this.createResourceLoader = createResourceLoader
     this.maxConcurrent = Math.max(1, Number(maxConcurrent) || MAX_CONCURRENT_AGENTS)
+    this.terminalSessionRetentionMs = Math.max(0, Number(terminalSessionRetentionMs) || 0)
     this.setTimer = setTimer
     this.clearTimer = clearTimer
     this.now = now
     this.records = new Map()
     this.mailbox = new Map()
     this.mailboxWaiters = new Map()
+    this.terminalSessionTimers = new Map()
     this.sequence = 0
     this.write = Promise.resolve()
     this.disposing = false
@@ -416,7 +421,12 @@ export class MultiAgentService {
     const mailboxId = `${agent.id}:${agent.resultVersion}`
     const existing = this.mailbox.get(mailboxId)
     if (existing) return existing
-    const entry = { ...agent, mailboxId, queuedAt: new Date(this.now()).toISOString() }
+    const entry = {
+      ...agent,
+      fullOutput: String(agent.output || ''),
+      mailboxId,
+      queuedAt: new Date(this.now()).toISOString(),
+    }
     this.mailbox.set(mailboxId, entry)
     return entry
   }
@@ -464,16 +474,67 @@ export class MultiAgentService {
       && [record.id, record.taskName, record.canonicalName].includes(value))
   }
 
+  hasActive(parentSessionId) {
+    return [...this.records.values()].some((record) => record.parentSessionId === parentSessionId && ACTIVE_AGENT_STATUSES.has(record.status))
+  }
+
+  clearTerminalSessionTimer(record) {
+    const timer = this.terminalSessionTimers.get(record.id)
+    if (!timer) return
+    this.clearTimer(timer)
+    this.terminalSessionTimers.delete(record.id)
+  }
+
+  releaseTerminalSession(record) {
+    this.clearTerminalSessionTimer(record)
+    if (ACTIVE_AGENT_STATUSES.has(record.status) || record.slotActive) return false
+    try { record.unsubscribe?.() } catch {}
+    try { record.session?.dispose?.() } catch {}
+    record.session = null
+    record.unsubscribe = () => {}
+    record.customTools = []
+    record.pendingMessages = []
+    record.fullOutput = record.output
+    record.onProgress = null
+    record.onSession = null
+    record.onCompleted = null
+    record.onTerminal = null
+    return true
+  }
+
+  scheduleTerminalSessionRelease(record) {
+    this.clearTerminalSessionTimer(record)
+    if (!TERMINAL_AGENT_STATUSES.has(record.status) || record.slotActive) return
+    if (!this.terminalSessionRetentionMs) {
+      this.releaseTerminalSession(record)
+      return
+    }
+    const timer = this.setTimer(() => {
+      this.terminalSessionTimers.delete(record.id)
+      this.releaseTerminalSession(record)
+    }, this.terminalSessionRetentionMs)
+    timer?.unref?.()
+    this.terminalSessionTimers.set(record.id, timer)
+  }
+
+  removeRecord(record) {
+    this.releaseTerminalSession(record)
+    this.records.delete(record.id)
+    for (const [mailboxId, entry] of this.mailbox) {
+      if (entry.id === record.id) this.mailbox.delete(mailboxId)
+    }
+  }
+
   prune(parentSessionId) {
     const records = [...this.records.values()].filter((record) => record.parentSessionId === parentSessionId)
     const removable = records.filter((record) => !ACTIVE_AGENT_STATUSES.has(record.status))
     while (records.length >= MAX_AGENTS_PER_PARENT && removable.length) {
       const record = removable.shift()
-      try { record.unsubscribe?.() } catch {}
-      try { record.session?.dispose?.() } catch {}
-      this.records.delete(record.id)
+      this.removeRecord(record)
       records.splice(records.indexOf(record), 1)
     }
+    const globalRemovable = [...this.records.values()].filter((record) => !ACTIVE_AGENT_STATUSES.has(record.status))
+    while (this.records.size >= MAX_AGENT_RECORDS && globalRemovable.length) this.removeRecord(globalRemovable.shift())
   }
 
   notifyMailbox(agent) {
@@ -560,6 +621,7 @@ export class MultiAgentService {
     this.prune(parentSessionId)
     const parentRecordCount = [...this.records.values()].filter((record) => record.parentSessionId === parentSessionId).length
     if (parentRecordCount >= MAX_AGENTS_PER_PARENT) throw new Error(`Agent record limit reached for this session (${MAX_AGENTS_PER_PARENT}).`)
+    if (this.records.size >= MAX_AGENT_RECORDS) throw new Error(`Global Agent record limit reached (${MAX_AGENT_RECORDS}).`)
     const id = randomUUID()
     const normalizedName = normalizeTaskName(taskName)
     const record = {
@@ -613,6 +675,7 @@ export class MultiAgentService {
   }
 
   async startRun(record, message) {
+    this.clearTerminalSessionTimer(record)
     const generation = ++record.runGeneration
     const startedAt = this.now()
     const isCurrent = () => record.runGeneration === generation
@@ -712,7 +775,7 @@ export class MultiAgentService {
       if (last?.errorMessage) throw new Error(last.errorMessage)
       const output = contextLimitedText(textFromContent(last?.content), record.model)
       record.output = output.text || '(Agent returned no text output.)'
-      record.fullOutput = output.fullText
+      record.fullOutput = record.output
       record.outputTruncated = output.truncated
       record.usage = usageTotal(record.session.messages)
       record.runUsage = usageDifference(record.usage, usageBeforeRun)
@@ -752,7 +815,10 @@ export class MultiAgentService {
         try { await record.onTerminal?.(terminal) } catch {}
       }
     } finally {
-      if (record.runGeneration === generation) record.slotActive = false
+      if (record.runGeneration === generation) {
+        record.slotActive = false
+        this.scheduleTerminalSessionRelease(record)
+      }
       try { await this.scheduleQueued() } catch {}
     }
   }
@@ -780,6 +846,7 @@ export class MultiAgentService {
     const text = String(message || '').trim()
     if (!text) throw new Error('Follow-up task cannot be empty.')
     if (text.length > MAX_AGENT_TASK_CHARS) throw new Error(`Follow-up task is limited to ${MAX_AGENT_TASK_CHARS} characters.`)
+    this.clearTerminalSessionTimer(record)
 
     if (['queued', 'starting'].includes(record.status)) {
       record.pendingMessages.push({ behavior: 'followUp', text })
@@ -807,7 +874,7 @@ export class MultiAgentService {
         this.emit(record, record.onProgress)
         return publicRecord(record)
       }
-      if (!record.session) throw new Error('Agent session is not available for follow-up.')
+      if (!record.session) throw new Error('Agent context expired from memory. Spawn a new Agent for another task.')
       record.aborted = false
       record.abortReason = ''
       record.startedAt = new Date(this.now()).toISOString()
@@ -853,6 +920,7 @@ export class MultiAgentService {
       this.notifyCompletion(terminal)
       return record.onTerminal?.(terminal)
     }).catch(() => {})
+    if (!record.slotActive) this.scheduleTerminalSessionRelease(record)
     if (schedule) void this.scheduleQueued().catch(() => {})
     return terminal
   }
@@ -872,6 +940,7 @@ export class MultiAgentService {
     this.abortParent(parentSessionId)
     for (const [id, record] of this.records) {
       if (record.parentSessionId !== parentSessionId) continue
+      this.clearTerminalSessionTimer(record)
       try { record.unsubscribe?.() } catch {}
       try { record.session?.dispose?.() } catch {}
       this.records.delete(id)
@@ -886,6 +955,7 @@ export class MultiAgentService {
     this.disposing = true
     for (const record of this.records.values()) {
       if (ACTIVE_AGENT_STATUSES.has(record.status)) this.interrupt(record.parentSessionId, record.id, 'Agent service is shutting down.', false)
+      this.clearTerminalSessionTimer(record)
       try { record.unsubscribe?.() } catch {}
       try { record.session?.dispose?.() } catch {}
     }

@@ -5,6 +5,7 @@ import { join } from 'node:path'
 import test from 'node:test'
 import { AgentRuntimeService, multiAgentResultAgent, waitForAgentMailbox } from '../runtime/agent-runtime.mjs'
 import { applyTextPatch } from '../../src/lib/api.ts'
+import { shouldRetainClosedSessionState } from '../../src/lib/session-state.ts'
 
 test('live session snapshot restores partial assistant output and tool state', async (t) => {
   const directory = await mkdtemp(join(tmpdir(), 'pisper-live-session-'))
@@ -777,6 +778,36 @@ test('session history pagination follows the persisted branch across compaction'
   const older = await runtime.getSessionMessagePage('session-history', { limit: 2, before: latest.pageInfo.nextCursor })
   assert.deepEqual(older.messages.map((message) => message.text), ['old-user', 'old-agent'])
   assert.equal(older.pageInfo.hasMore, false)
+})
+
+test('oversized session histories are parsed in chunks without remaining in the history cache', async (t) => {
+  const directory = await mkdtemp(join(tmpdir(), 'pisper-large-history-cache-'))
+  t.after(() => rm(directory, { recursive: true, force: true }))
+  const path = join(directory, 'session.jsonl')
+  const entries = [
+    { type: 'session', version: 3, id: 'session-large', timestamp: '2026-01-01T00:00:00.000Z', cwd: directory },
+    { type: 'message', id: 'message-1', parentId: 'session-large', message: { role: 'user', content: `large-${'x'.repeat(300)}`, timestamp: 1 } },
+    { type: 'message', id: 'message-2', parentId: 'message-1', message: { role: 'assistant', content: 'done', timestamp: 2 } },
+  ]
+  await writeFile(path, `${entries.map((entry) => JSON.stringify(entry)).join('\n')}\n`, 'utf8')
+  const runtime = new AgentRuntimeService({ cwd: directory, dataDir: directory })
+  runtime.findSessionInfo = async () => ({ path })
+  runtime.sessionHistoryReadChunkBytes = 17
+  runtime.maxSessionHistoryCacheSourceBytes = 128
+
+  const page = await runtime.getSessionMessagePage('session-large', { limit: 2 })
+  assert.equal(page.messages.length, 2)
+  assert.match(page.messages[0].text, /^large-x+/)
+  assert.equal(page.messages[1].text, 'done')
+  assert.equal(runtime.sessionHistoryCache.has(path), false)
+})
+
+test('closed chat state is retained only while background work remains active', () => {
+  assert.equal(shouldRetainClosedSessionState({ streaming: true }), true)
+  assert.equal(shouldRetainClosedSessionState({ recovering: true }), true)
+  assert.equal(shouldRetainClosedSessionState({ agents: [{ status: 'running' }] }), true)
+  assert.equal(shouldRetainClosedSessionState({ agents: [{ status: 'completed' }] }), false)
+  assert.equal(shouldRetainClosedSessionState({ streaming: false, recovering: false, agents: [] }), false)
 })
 
 test('session listings do not reopen every inactive history just to resolve its model', async (t) => {

@@ -330,7 +330,39 @@ test('Agent output is UTF-8 safe and bounded to the Pisper tool-output limit', a
   assert.equal(completed.outputTruncated, true)
   assert.match(completed.output, /Pisper tool-output limit/)
   assert.doesNotMatch(completed.output, /Pi tool-output limit/)
-  assert.equal(completed.fullOutput, largeOutput)
+  assert.equal(completed.fullOutput, completed.output)
+})
+
+test('terminal Agent sessions and callbacks are released after the follow-up retention window', async () => {
+  let releaseTimer = null
+  const setTimer = (callback, milliseconds) => {
+    const timer = { callback, milliseconds, unref() {} }
+    releaseTimer = timer
+    return timer
+  }
+  const clearTimer = (timer) => {
+    if (releaseTimer === timer) releaseTimer = null
+  }
+  const session = createFakeSession({
+    onPrompt: async ({ session: active }) => active.messages.push({ role: 'assistant', content: [{ type: 'text', text: 'Done.' }] }),
+  })
+  const { service } = createService(session, {
+    terminalSessionRetentionMs: 500,
+    setTimer,
+    clearTimer,
+  })
+  const started = await service.spawn(baseInput())
+  await waitFor(() => releaseTimer && service.list('parent-1')[0]?.status === 'completed', 'Agent retention timer')
+  assert.equal(releaseTimer.milliseconds, 500)
+  assert.equal(session.disposed, false)
+
+  releaseTimer.callback()
+  const record = service.records.get(started.id)
+  assert.equal(session.disposed, true)
+  assert.equal(record.session, null)
+  assert.deepEqual(record.customTools, [])
+  assert.equal(record.onProgress, null)
+  await assert.rejects(service.followup('parent-1', started.id, 'Continue.'), /context expired/)
 })
 
 test('Codex-style Agent tools replace delegate_task and stay hidden from the plugins catalog', async () => {
