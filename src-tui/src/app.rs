@@ -15,6 +15,8 @@ use crate::model::{
     ToolDefinition,
 };
 
+const INIT_PROMPT: &str = "/init\n\n---\nAttachment context (injected by Pisper):\nAnalyze this codebase and create or improve `AGENTS.md` in the current workspace root. The file is long-lived guidance for Pisper and other coding agents working in this repository. Inspect the repository before writing it. Capture only project-specific, durable information: the project purpose, important directories and architecture, build/test/lint/typecheck commands, coding conventions, and verification expectations. Keep it concise and practical. Do not include generic advice, temporary task details, secrets, exhaustive file listings, or information you cannot verify. If `AGENTS.md` already exists, preserve accurate useful instructions and update it carefully instead of replacing it blindly. Modify only `AGENTS.md`. After writing it, briefly summarize what you added.";
+
 #[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
 pub enum View {
     #[default]
@@ -88,6 +90,7 @@ pub enum SettingsPicker {
 #[derive(Clone, Debug)]
 struct QueuedPrompt {
     message: String,
+    display_message: Option<String>,
     requested_tool: Option<String>,
     attachments: Vec<AttachmentDraft>,
 }
@@ -434,6 +437,7 @@ impl App {
             });
         }
         items.extend([
+            command("/init", "Create or improve workspace AGENTS.md"),
             command("/new", "Start a new conversation"),
             command("/sessions", "Switch conversation"),
             command("/events", "Open the event ledger"),
@@ -444,7 +448,7 @@ impl App {
             command("/mode read-only", "Allow low-risk analysis tools only"),
             command(
                 "/mode workspace",
-                "Read directly; approve file writes and every shell command",
+                "Allow workspace file changes; approve every shell command",
             ),
             command(
                 "/mode full-access",
@@ -867,6 +871,30 @@ impl App {
                 self.clear_input();
                 Action::None
             }
+            "/init" => {
+                if self.execution_mode == "read-only" {
+                    self.status = "/init requires workspace or full-access mode to write AGENTS.md"
+                        .to_owned();
+                    self.status_error = true;
+                    self.clear_input();
+                    return Action::None;
+                }
+                let attachments = std::mem::take(&mut self.attachments);
+                let prompt = QueuedPrompt {
+                    message: INIT_PROMPT.to_owned(),
+                    display_message: Some("/init".to_owned()),
+                    requested_tool: None,
+                    attachments,
+                };
+                self.clear_input();
+                if self.is_streaming() {
+                    self.queued_prompts.push_back(prompt);
+                    self.status = format!("{} message(s) queued", self.queued_prompts.len());
+                    Action::None
+                } else {
+                    self.start_prompt(prompt)
+                }
+            }
             "/new" => {
                 if self.is_streaming() {
                     self.status = "Stop the active run before creating a conversation".to_owned();
@@ -918,10 +946,6 @@ impl App {
                 Action::None
             }
             _ if execution_mode_command(&message).is_some() => {
-                if self.is_streaming() {
-                    self.status = "Stop the active run before changing mode".to_owned();
-                    return Action::None;
-                }
                 let mode = execution_mode_command(&message).unwrap_or_default();
                 self.clear_input();
                 Action::SetExecutionMode(mode.to_owned())
@@ -936,6 +960,7 @@ impl App {
                 let attachments = std::mem::take(&mut self.attachments);
                 self.queued_prompts.push_back(QueuedPrompt {
                     message,
+                    display_message: None,
                     requested_tool,
                     attachments,
                 });
@@ -949,6 +974,7 @@ impl App {
                 self.clear_input();
                 self.start_prompt(QueuedPrompt {
                     message,
+                    display_message: None,
                     requested_tool,
                     attachments,
                 })
@@ -957,8 +983,11 @@ impl App {
     }
 
     fn start_prompt(&mut self, prompt: QueuedPrompt) -> Action {
-        self.pending_slash_command = prompt
-            .message
+        let display_message = prompt
+            .display_message
+            .clone()
+            .unwrap_or_else(|| prompt.message.clone());
+        self.pending_slash_command = display_message
             .split_whitespace()
             .next()
             .filter(|value| value.starts_with('/'))
@@ -976,7 +1005,7 @@ impl App {
             .collect();
         self.messages.push(ChatMessage {
             role: "user".to_owned(),
-            text: prompt.message.clone(),
+            text: display_message.clone(),
             run_activity: None,
             attachments: message_attachments,
         });
@@ -986,7 +1015,7 @@ impl App {
         });
         self.events.push(EventLine {
             name: "YOU".to_owned(),
-            detail: prompt.message.clone(),
+            detail: display_message,
             state: "queued".to_owned(),
         });
         self.status = "thinking".to_owned();
@@ -1666,6 +1695,7 @@ mod tests {
 
     use super::{
         advance_typewriter, apply_patch, attachment_draft, Action, App, Approval, SettingsPicker,
+        INIT_PROMPT,
     };
     use crate::model::{ModelOption, SessionSummary, StreamEvent, ToolDefinition};
     use serde_json::json;
@@ -1719,6 +1749,10 @@ mod tests {
     #[test]
     fn mode_command_changes_the_current_session_without_calling_the_agent() {
         let mut app = test_app(Vec::new());
+        app.set_input("keep running");
+        assert!(matches!(app.submit_action(), Action::Submit { .. }));
+        assert!(app.is_streaming());
+
         app.set_input("/mode full-access");
         assert!(matches!(
             app.submit_action(),
@@ -1817,6 +1851,42 @@ mod tests {
         let approval = app.approval.as_ref().unwrap();
         assert_eq!(approval.args["command"], "date +%A");
         assert_eq!(approval.risk, "high");
+    }
+
+    #[test]
+    fn init_runs_a_hidden_workspace_instruction_and_keeps_the_command_visible() {
+        let mut app = test_app(Vec::new());
+        assert!(app.slash_items().iter().any(|item| item.command == "/init"));
+        app.set_input("/init");
+
+        assert!(matches!(
+            app.submit_action(),
+            Action::Submit {
+                message,
+                requested_tool: None,
+                attachment_paths,
+            } if message == INIT_PROMPT && attachment_paths.is_empty()
+        ));
+        assert_eq!(app.messages.last().unwrap().text, "/init");
+        assert_eq!(app.events.last().unwrap().detail, "/init");
+        assert!(!app
+            .messages
+            .last()
+            .unwrap()
+            .text
+            .contains("Analyze this codebase"));
+    }
+
+    #[test]
+    fn init_is_rejected_in_read_only_mode() {
+        let mut app = test_app(Vec::new());
+        app.execution_mode = "read-only".to_owned();
+        app.set_input("/init");
+
+        assert!(matches!(app.submit_action(), Action::None));
+        assert!(app.status_error);
+        assert!(app.status.contains("workspace or full-access"));
+        assert!(!app.is_streaming());
     }
 
     #[test]

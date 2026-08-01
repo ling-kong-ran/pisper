@@ -967,7 +967,7 @@ export function FocusSession({
           <ExecutionModeSelect
             value={executionMode}
             onChange={onExecutionModeChange}
-            disabled={streaming || switchingPermission}
+            disabled={switchingPermission}
           />
           <div className="focus-composer-tools">
             <GoalModeControl

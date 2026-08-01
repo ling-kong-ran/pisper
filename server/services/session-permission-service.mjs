@@ -68,6 +68,15 @@ export function permissionRequirement({ mode, executionMode, cwd, toolName, args
       reason: `${toolName} 不能在工作区模式下访问当前工作目录之外的文件。`,
     }
   }
+  if (executionMode === 'workspace') {
+    if (toolName === 'bash') {
+      return {
+        risk: 'high',
+        reason: 'Shell 命令将以当前操作系统用户权限运行，批准后可访问工作区之外的文件和网络。',
+      }
+    }
+    return null
+  }
   if (['read', 'ls', 'grep', 'find'].includes(toolName)) return null
   if (['edit', 'write'].includes(toolName)) {
     return {

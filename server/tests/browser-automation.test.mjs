@@ -63,11 +63,11 @@ test('browser automation releases an idle desktop browser session', async () => 
   assert.deepEqual(closed, ['session-idle'])
 })
 
-test('browser click and type require approval in automatic permission mode', () => {
-  const base = { mode: 'auto', cwd: '/workspace', toolName: 'browser_automation', toolRisk: 'medium' }
+test('workspace browser actions run without approval', () => {
+  const base = { mode: 'auto', executionMode: 'workspace', cwd: '/workspace', toolName: 'browser_automation', toolRisk: 'medium' }
 
   assert.equal(permissionRequirement({ ...base, args: { action: 'inspect' } }), null)
   assert.equal(permissionRequirement({ ...base, args: { action: 'screenshot' } }), null)
-  assert.match(permissionRequirement({ ...base, args: { action: 'click' } }).reason, /需要确认/)
-  assert.match(permissionRequirement({ ...base, args: { action: 'type' } }).reason, /需要确认/)
+  assert.equal(permissionRequirement({ ...base, args: { action: 'click' } }), null)
+  assert.equal(permissionRequirement({ ...base, args: { action: 'type' } }), null)
 })

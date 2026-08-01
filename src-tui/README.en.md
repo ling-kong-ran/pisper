@@ -70,6 +70,7 @@ Long or multiline bracketed pastes render as a compact `[Pasted text · …]` to
 
 | Command | Action |
 | :--- | :--- |
+| `/init` | Analyze the current project and create or improve `AGENTS.md` at the workspace root. |
 | `/new` | Create an empty conversation; unavailable during a run. |
 | `/sessions` | Open the conversation picker; unavailable during a run. |
 | `/events` | Open the event ledger for the current TUI process. |
@@ -77,13 +78,15 @@ Long or multiline bracketed pastes render as a compact `[Pasted text · …]` to
 | `/model` | Open the model picker and switch the active session model; unavailable during a run. |
 | `/thinking` | Open the thinking levels supported by the active model; unavailable during a run. |
 | `/attach` | Open the workspace file picker. |
-| `/mode` | Show the active execution mode and accepted values. |
+| `/mode` | Show the active execution mode and accepted values; it can be changed during a run. |
 | `/mode read-only` | Expose low-risk analysis tools only. |
-| `/mode workspace` | Read directly; approve file writes and every Shell command. |
+| `/mode workspace` | Read and write inside the workspace directly; approve every Shell command. |
 | `/mode full-access` | Allow unrestricted local files, network, and Shell access. |
 | `/quit` | Exit the TUI. |
 
 Candidates are sorted by prefix match and local usage frequency. `Tab` completes a command without executing a Tool; press `Enter` to select a built-in command.
+
+`/init` asks the Agent to inspect the project structure, commands, and conventions before writing repository-specific guidance instead of a fixed template. It carefully preserves useful content in an existing `AGENTS.md` and does not modify other project files. The command is unavailable in `read-only` mode; writes run directly without approval in `workspace` mode. After it completes, use `/new` to start a session that loads the generated project guidance at startup.
 
 ## Attachments
 
@@ -128,7 +131,7 @@ The active Slash list is authoritative for Skill names. The runtime loads the ma
 
 ## Approvals
 
-In `workspace` mode, file writes and every Shell command require per-request approval. The approval panel temporarily replaces the composer:
+In `workspace` mode, structured file reads and writes inside the workspace run directly. Only Shell commands require per-request approval. The approval panel temporarily replaces the composer:
 
 - `Y`: Allow once.
 - `N`: deny.

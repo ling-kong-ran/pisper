@@ -19,8 +19,10 @@ test('permission modes progress from ask to automatic to ignored checks', () => 
   assert.match(permissionRequirement({ mode: 'auto', cwd, toolName: 'write', args: { path: 'README.md' } }).reason, /修改当前工作区/)
   assert.match(permissionRequirement({ mode: 'auto', cwd, toolName: 'write', args: { path: outside } }).reason, /工作目录之外/)
   assert.match(permissionRequirement({ mode: 'auto', cwd, toolName: 'bash', args: { command: 'npm test' } }).reason, /Shell/)
+  assert.equal(permissionRequirement({ mode: 'auto', executionMode: 'workspace', cwd, toolName: 'write', args: { path: 'README.md' } }), null)
+  assert.equal(permissionRequirement({ mode: 'auto', executionMode: 'workspace', cwd, toolName: 'edit', args: { path: 'README.md', edits: [] } }), null)
+  assert.equal(permissionRequirement({ mode: 'auto', executionMode: 'workspace', cwd, toolName: 'browser_automation', toolRisk: 'high', args: { action: 'click' } }), null)
   assert.equal(permissionRequirement({ mode: 'ignore', executionMode: 'workspace', cwd, toolName: 'write', args: { path: outside } }).block, true)
-  assert.match(permissionRequirement({ mode: 'ignore', executionMode: 'workspace', cwd, toolName: 'edit', args: { path: 'README.md' } }).reason, /修改当前工作区/)
   assert.match(permissionRequirement({ mode: 'ignore', executionMode: 'workspace', cwd, toolName: 'bash', args: { command: 'date' } }).reason, /Shell/)
   assert.equal(permissionRequirement({ mode: 'ignore', executionMode: 'full-access', cwd, toolName: 'bash', args: { command: 'date' } }), null)
 })
@@ -55,9 +57,15 @@ test('pending tool approval can be accepted or denied', async () => {
   })
   service.attachEmitter('session-1', (event, data) => events.push({ event, data }))
 
-  const allowed = service.authorize({ sessionId: 'session-1', cwd: process.cwd(), toolName: 'write', toolCallId: 'tool-1', args: { path: 'file.txt', content: 'ok' } })
+  assert.equal(
+    await service.authorize({ sessionId: 'session-1', cwd: process.cwd(), toolName: 'write', toolCallId: 'tool-write', args: { path: 'file.txt', content: 'ok' } }),
+    undefined,
+  )
+  assert.deepEqual(service.getPending('session-1'), [])
+
+  const allowed = service.authorize({ sessionId: 'session-1', cwd: process.cwd(), toolName: 'bash', toolCallId: 'tool-1', args: { command: 'npm test' } })
   const first = service.getPending('session-1')[0]
-  assert.equal(first.toolName, 'write')
+  assert.equal(first.toolName, 'bash')
   const firstResolution = service.resolve('session-1', first.id, true)
   assert.equal(firstResolution.found, true)
   assert.equal(firstResolution.alreadyResolved, false)

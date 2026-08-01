@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict'
+import { readFile } from 'node:fs/promises'
 import { resolve } from 'node:path'
 import test from 'node:test'
 import {
@@ -36,7 +37,13 @@ test('read-only execution exposes only low-risk analysis tools', () => {
   assert.deepEqual(filterToolsForExecutionMode(names, 'workspace'), names)
 })
 
-test('workspace writes and shell require approval while reads stay direct', () => {
+test('React keeps execution mode switching available during active runs', async () => {
+  const source = await readFile(new URL('../../src/features/chat/FocusSession.tsx', import.meta.url), 'utf8')
+  assert.match(source, /<ExecutionModeSelect[\s\S]*?disabled=\{switchingPermission\}/)
+  assert.doesNotMatch(source, /disabled=\{streaming \|\| switchingPermission\}/)
+})
+
+test('workspace file tools run directly while shell requires approval', () => {
   const cwd = process.cwd()
   const outside = resolve(cwd, '..', 'outside.txt')
   const shell = permissionRequirement({
@@ -58,15 +65,20 @@ test('workspace writes and shell require approval while reads stay direct', () =
     }),
     null,
   )
-  const insideWrite = permissionRequirement({
+  assert.equal(permissionRequirement({
     mode: 'ignore',
     executionMode: 'workspace',
     cwd,
     toolName: 'write',
     args: { path: 'result.txt' },
-  })
-  assert.equal(insideWrite.risk, 'high')
-  assert.match(insideWrite.reason, /修改当前工作区/)
+  }), null)
+  assert.equal(permissionRequirement({
+    mode: 'ignore',
+    executionMode: 'workspace',
+    cwd,
+    toolName: 'edit',
+    args: { path: 'result.txt', edits: [] },
+  }), null)
   const outsideWrite = permissionRequirement({
     mode: 'ignore',
     executionMode: 'workspace',

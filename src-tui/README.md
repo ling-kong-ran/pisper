@@ -70,6 +70,7 @@ pisper doctor
 
 | 命令 | 作用 |
 | :--- | :--- |
+| `/init` | 分析当前项目并创建或完善 workspace 根目录的 `AGENTS.md`。 |
 | `/new` | 新建空会话；运行期间不可执行。 |
 | `/sessions` | 打开历史会话选择器；运行期间不可切换。 |
 | `/events` | 打开当前 TUI 进程的事件账本。 |
@@ -77,13 +78,15 @@ pisper doctor
 | `/model` | 打开模型选择器并切换当前会话模型；运行期间不可切换。 |
 | `/thinking` | 打开当前模型支持的思考等级选择器；运行期间不可切换。 |
 | `/attach` | 打开 workspace 文件选择器。 |
-| `/mode` | 显示当前执行模式和可用参数。 |
+| `/mode` | 显示当前执行模式和可用参数；运行期间也可随时调整。 |
 | `/mode read-only` | 只开放低风险分析工具，不允许修改项目。 |
-| `/mode workspace` | 读取直接执行；文件修改和每条 Shell 命令都需要审批。 |
+| `/mode workspace` | workspace 内读写直接执行；每条 Shell 命令需要审批。 |
 | `/mode full-access` | 允许本机文件、网络和 Shell 完整访问。 |
 | `/quit` | 退出 TUI。 |
 
 命令候选会根据前缀匹配和本机使用频率排序。`Tab` 只补全，不会执行 Tool；选择内置命令后按 `Enter` 才执行。
+
+`/init` 会让 Agent 先检查项目结构、命令和约定，再生成项目专属的 `AGENTS.md`，而不是写入固定模板。已有文件会在保留有效说明的基础上谨慎更新，且该任务不会修改其他项目文件。`read-only` 模式下不能运行；`workspace` 模式下写入直接执行，无需审批。命令完成后使用 `/new`，可让新会话从启动时加载生成的项目说明。
 
 ## 附件
 
@@ -128,7 +131,7 @@ Skill 名称以当前 Slash 列表为准。runtime 会按需加载对应的 `SKI
 
 ## 审批
 
-在 `workspace` 模式下，文件写入和每条 Shell 命令都需要逐次审批。审批面板临时替代 composer：
+在 `workspace` 模式下，workspace 内的结构化文件读写直接执行，只有每条 Shell 命令需要逐次审批。审批面板临时替代 composer：
 
 - `Y`：`Allow once`，仅允许当前请求。
 - `N`：拒绝。
