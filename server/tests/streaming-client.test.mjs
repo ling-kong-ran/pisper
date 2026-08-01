@@ -28,6 +28,19 @@ test('SSE client preserves event order across arbitrary chunk boundaries', async
   assert.equal(events.reduce((text, item) => applyTextPatch(text, item.data), ''), '## 最终建议')
 })
 
+test('SSE client recovers when a record separator is missing', async () => {
+  const response = chunkedResponse([
+    'event: text_patch\ndata: {"start":0,"text":"first"}\n',
+    'event: text_patch\ndata: {"start":5,"text":" second"}\n\n',
+  ])
+  const events = []
+  await consumeEventStream(response, (event, data) => events.push({ event, data }))
+  assert.deepEqual(events, [
+    { event: 'text_patch', data: { start: 0, text: 'first' } },
+    { event: 'text_patch', data: { start: 5, text: ' second' } },
+  ])
+})
+
 test('SSE client stops immediately when a terminal event is handled', async () => {
   const encoder = new TextEncoder()
   let cancelled = false

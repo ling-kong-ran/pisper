@@ -49,8 +49,12 @@ export async function consumeEventStream<T = Record<string, unknown>>(
     const field = separator < 0 ? line : line.slice(0, separator)
     let value = separator < 0 ? '' : line.slice(separator + 1)
     if (value.startsWith(' ')) value = value.slice(1)
-    if (field === 'event') event = value
-    else if (field === 'data') dataLines.push(value)
+    if (field === 'event') {
+      // Each Pisper record starts with `event:`. Flush a pending record here as a
+      // recovery path when a WebView or intermediary drops the blank SSE separator.
+      if (dataLines.length && !dispatch()) return false
+      event = value
+    } else if (field === 'data') dataLines.push(value)
     return true
   }
   const drain = (final = false) => {
