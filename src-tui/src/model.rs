@@ -41,6 +41,21 @@ pub struct ChatMessage {
     pub text: String,
     #[serde(default)]
     pub run_activity: Option<RunActivity>,
+    #[serde(default)]
+    pub attachments: Vec<MessageAttachment>,
+}
+
+#[derive(Clone, Debug, Default, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct MessageAttachment {
+    #[serde(default)]
+    pub kind: String,
+    #[serde(default)]
+    pub name: String,
+    #[serde(default)]
+    pub mime_type: String,
+    #[serde(default)]
+    pub size: u64,
 }
 
 #[derive(Clone, Debug, Default, Deserialize)]
@@ -69,6 +84,12 @@ pub struct ToolActivity {
     pub output: String,
     #[serde(default)]
     pub args: Value,
+    #[serde(default)]
+    pub started_at: u64,
+    #[serde(default)]
+    pub finished_at: u64,
+    #[serde(default)]
+    pub agent: Option<Value>,
 }
 
 #[derive(Clone, Debug, Default, Deserialize)]
@@ -144,6 +165,41 @@ pub struct SkillDefinition {
     pub command: String,
     #[serde(default)]
     pub enabled: bool,
+}
+
+#[derive(Clone, Debug, Default, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ModelOption {
+    #[serde(default)]
+    pub provider: String,
+    #[serde(default)]
+    pub id: String,
+    #[serde(default)]
+    pub name: String,
+    #[serde(default)]
+    pub reasoning: bool,
+}
+
+#[derive(Clone, Debug, Default, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SessionModelUpdate {
+    #[serde(default)]
+    pub model: String,
+    #[serde(default)]
+    pub thinking_level: String,
+    #[serde(default)]
+    pub available_thinking_levels: Vec<String>,
+    #[serde(default)]
+    pub context_usage: Option<ContextUsage>,
+}
+
+#[derive(Clone, Debug, Default, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ThinkingLevelUpdate {
+    #[serde(default)]
+    pub thinking_level: String,
+    #[serde(default)]
+    pub available_levels: Vec<String>,
 }
 
 #[derive(Clone, Debug, Default, Deserialize)]

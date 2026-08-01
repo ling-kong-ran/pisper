@@ -1,7 +1,7 @@
 use std::{
-    collections::HashMap,
+    collections::{HashMap, VecDeque},
     fs,
-    path::PathBuf,
+    path::{Path, PathBuf},
     time::{SystemTime, UNIX_EPOCH},
 };
 
@@ -10,8 +10,9 @@ use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
 use crate::model::{
-    ChatMessage, ContextUsage, RunActivity, SessionSummary, SkillDefinition, StreamEvent,
-    ToolActivity, ToolDefinition,
+    ChatMessage, ContextUsage, MessageAttachment, ModelOption, RunActivity, SessionModelUpdate,
+    SessionSummary, SkillDefinition, StreamEvent, ThinkingLevelUpdate, ToolActivity,
+    ToolDefinition,
 };
 
 #[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
@@ -61,6 +62,42 @@ pub struct EventLine {
     pub state: String,
 }
 
+#[derive(Clone, Debug)]
+pub struct AttachmentDraft {
+    pub path: PathBuf,
+    pub name: String,
+    pub kind: String,
+    pub size: u64,
+}
+
+#[derive(Clone, Debug)]
+pub struct PathEntry {
+    pub path: PathBuf,
+    pub name: String,
+    pub is_dir: bool,
+    pub size: u64,
+    pub supported: bool,
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum SettingsPicker {
+    Model,
+    Thinking,
+}
+
+#[derive(Clone, Debug)]
+struct QueuedPrompt {
+    message: String,
+    requested_tool: Option<String>,
+    attachments: Vec<AttachmentDraft>,
+}
+
+#[derive(Clone, Debug)]
+struct PastedRange {
+    start: usize,
+    end: usize,
+}
+
 #[derive(Debug)]
 pub enum Action {
     None,
@@ -68,10 +105,16 @@ pub enum Action {
     Submit {
         message: String,
         requested_tool: Option<String>,
+        attachment_paths: Vec<PathBuf>,
     },
     Abort,
     NewSession,
     SetExecutionMode(String),
+    SetModel {
+        provider: String,
+        model: String,
+    },
+    SetThinkingLevel(String),
     SwitchSession(String),
     ResolveApproval {
         id: String,
@@ -109,6 +152,19 @@ pub struct App {
     pub status_frame: u64,
     pub approval: Option<Approval>,
     pub events: Vec<EventLine>,
+    pub attachments: Vec<AttachmentDraft>,
+    pub path_picker: bool,
+    pub path_input: Vec<char>,
+    pub attachment_selected: usize,
+    pub path_directory: PathBuf,
+    pub path_entries: Vec<PathEntry>,
+    pub path_selected: usize,
+    pub model_options: Vec<ModelOption>,
+    pub thinking_options: Vec<String>,
+    pub settings_picker: Option<SettingsPicker>,
+    pub settings_selected: usize,
+    queued_prompts: VecDeque<QueuedPrompt>,
+    pasted_ranges: Vec<PastedRange>,
     slash_usage: HashMap<String, SlashUsage>,
     slash_usage_path: Option<PathBuf>,
     pending_slash_command: Option<String>,
@@ -123,6 +179,7 @@ impl App {
         tools: Vec<ToolDefinition>,
         skills: Vec<SkillDefinition>,
     ) -> Self {
+        let path_directory = PathBuf::from(&session.cwd);
         Self {
             model: session.model.clone(),
             cwd: session.cwd.clone(),
@@ -147,6 +204,26 @@ impl App {
             status_frame: 0,
             approval: None,
             events: Vec::new(),
+            attachments: Vec::new(),
+            path_picker: false,
+            path_input: Vec::new(),
+            attachment_selected: 0,
+            path_directory,
+            path_entries: Vec::new(),
+            path_selected: 0,
+            model_options: Vec::new(),
+            thinking_options: vec![
+                "off".to_owned(),
+                "minimal".to_owned(),
+                "low".to_owned(),
+                "medium".to_owned(),
+                "high".to_owned(),
+                "xhigh".to_owned(),
+            ],
+            settings_picker: None,
+            settings_selected: 0,
+            queued_prompts: VecDeque::new(),
+            pasted_ranges: Vec::new(),
             slash_usage: load_slash_usage(),
             slash_usage_path: slash_usage_path(),
             pending_slash_command: None,
@@ -155,6 +232,59 @@ impl App {
 
     pub fn input_text(&self) -> String {
         self.input.iter().collect()
+    }
+
+    pub fn composer_input(&self) -> (Vec<char>, usize) {
+        if self.pasted_ranges.is_empty() {
+            return (self.input.clone(), self.input_cursor);
+        }
+        let mut display = Vec::new();
+        let mut display_cursor = None;
+        let mut source = 0;
+        for range in self
+            .pasted_ranges
+            .iter()
+            .filter(|range| range.start <= range.end && range.end <= self.input.len())
+        {
+            while source < range.start {
+                if source == self.input_cursor {
+                    display_cursor = Some(display.len());
+                }
+                display.push(self.input[source]);
+                source += 1;
+            }
+            if self.input_cursor == range.start {
+                display_cursor = Some(display.len());
+            }
+            let pasted = &self.input[range.start..range.end];
+            let lines = pasted
+                .iter()
+                .filter(|character| **character == '\n')
+                .count()
+                + 1;
+            let label = if lines > 1 {
+                format!("[Pasted text · {lines} lines · {} chars]", pasted.len())
+            } else {
+                format!("[Pasted text · {} chars]", pasted.len())
+            };
+            display.extend(label.chars());
+            if self.input_cursor > range.start && self.input_cursor <= range.end {
+                display_cursor = Some(display.len());
+            }
+            source = range.end;
+        }
+        while source < self.input.len() {
+            if source == self.input_cursor {
+                display_cursor = Some(display.len());
+            }
+            display.push(self.input[source]);
+            source += 1;
+        }
+        if self.input_cursor == self.input.len() {
+            display_cursor = Some(display.len());
+        }
+        let cursor = display_cursor.unwrap_or(display.len());
+        (display, cursor)
     }
 
     pub fn is_streaming(&self) -> bool {
@@ -182,6 +312,100 @@ impl App {
     pub fn slash_open(&self) -> bool {
         let input = self.input_text();
         input.starts_with('/') && !input.chars().any(char::is_whitespace)
+    }
+
+    pub fn path_input_text(&self) -> String {
+        self.path_input.iter().collect()
+    }
+
+    pub fn queued_count(&self) -> usize {
+        self.queued_prompts.len()
+    }
+
+    pub fn set_model_options(&mut self, mut options: Vec<ModelOption>) {
+        options.sort_by(|left, right| {
+            left.provider
+                .cmp(&right.provider)
+                .then_with(|| left.name.cmp(&right.name))
+                .then_with(|| left.id.cmp(&right.id))
+        });
+        self.model_options = options;
+    }
+
+    pub fn visible_path_entries(&self) -> Vec<&PathEntry> {
+        let query = self.path_input_text().to_lowercase();
+        self.path_entries
+            .iter()
+            .filter(|entry| query.is_empty() || entry.name.to_lowercase().contains(&query))
+            .collect()
+    }
+
+    pub fn thinking_levels(&self) -> &[String] {
+        &self.thinking_options
+    }
+
+    pub fn set_thinking_options(&mut self, options: Vec<String>) {
+        if !options.is_empty() {
+            self.thinking_options = options;
+        }
+    }
+
+    pub fn open_path_picker(&mut self) {
+        self.path_picker = true;
+        self.path_input.clear();
+        self.path_directory = PathBuf::from(&self.cwd);
+        self.refresh_path_entries();
+    }
+
+    fn refresh_path_entries(&mut self) {
+        self.path_entries = fs::read_dir(&self.path_directory)
+            .map(|entries| {
+                entries
+                    .filter_map(Result::ok)
+                    .filter_map(|entry| {
+                        let metadata = entry.metadata().ok()?;
+                        let path = entry.path();
+                        let is_dir = metadata.is_dir();
+                        let supported = is_dir || attachment_kind(&path).is_some();
+                        Some(PathEntry {
+                            name: entry.file_name().to_string_lossy().into_owned(),
+                            path,
+                            is_dir,
+                            size: metadata.len(),
+                            supported,
+                        })
+                    })
+                    .collect::<Vec<_>>()
+            })
+            .unwrap_or_default();
+        self.path_entries.sort_by(|left, right| {
+            right
+                .is_dir
+                .cmp(&left.is_dir)
+                .then_with(|| left.name.to_lowercase().cmp(&right.name.to_lowercase()))
+        });
+        self.path_selected = 0;
+    }
+
+    fn open_settings_picker(&mut self, picker: SettingsPicker) {
+        if self.is_streaming() {
+            self.status = "Stop the active run before changing runtime settings".to_owned();
+            self.status_error = true;
+            return;
+        }
+        self.settings_picker = Some(picker);
+        self.settings_selected = match picker {
+            SettingsPicker::Model => self
+                .model_options
+                .iter()
+                .position(|option| format!("{}/{}", option.provider, option.id) == self.model)
+                .unwrap_or(0),
+            SettingsPicker::Thinking => self
+                .thinking_levels()
+                .iter()
+                .position(|level| level == &self.thinking_level)
+                .unwrap_or(0),
+        };
     }
 
     pub fn slash_items(&self) -> Vec<SlashItem> {
@@ -214,7 +438,9 @@ impl App {
             command("/sessions", "Switch conversation"),
             command("/events", "Open the event ledger"),
             command("/chat", "Return to the conversation"),
-            command("/model", "Show the active model"),
+            command("/model", "Switch the active session model"),
+            command("/thinking", "Switch the active session thinking level"),
+            command("/attach", "Add image, text, code, or document files"),
             command("/mode read-only", "Allow low-risk analysis tools only"),
             command(
                 "/mode workspace",
@@ -266,6 +492,14 @@ impl App {
         if key.kind != crossterm::event::KeyEventKind::Press {
             return Action::None;
         }
+        if key.modifiers.contains(KeyModifiers::CONTROL) && key.code == KeyCode::Char('c') {
+            return if self.is_streaming() || self.approval.is_some() {
+                self.approval = None;
+                Action::Abort
+            } else {
+                Action::Quit
+            };
+        }
         if let Some(approval) = self.approval.clone() {
             return match key.code {
                 KeyCode::Char('y') | KeyCode::Char('Y') => {
@@ -285,12 +519,15 @@ impl App {
                 _ => Action::None,
             };
         }
-        if key.modifiers.contains(KeyModifiers::CONTROL) && key.code == KeyCode::Char('c') {
-            return if self.is_streaming() {
-                Action::Abort
-            } else {
-                Action::Quit
-            };
+        if key.modifiers.contains(KeyModifiers::CONTROL) && key.code == KeyCode::Char('o') {
+            self.open_path_picker();
+            return Action::None;
+        }
+        if self.path_picker {
+            return self.handle_path_picker(key);
+        }
+        if self.settings_picker.is_some() {
+            return self.handle_settings_picker(key);
         }
         if self.session_picker {
             return self.handle_session_picker(key);
@@ -322,32 +559,28 @@ impl App {
             KeyCode::Enter => self.submit_action(),
             KeyCode::Char(character) => {
                 if !key.modifiers.contains(KeyModifiers::CONTROL) {
-                    self.input.insert(self.input_cursor, character);
-                    self.input_cursor += 1;
-                    self.slash_selected = 0;
+                    if self.input.is_empty() && character == '+' {
+                        self.open_path_picker();
+                    } else {
+                        self.insert_input_character(character);
+                    }
                 }
                 Action::None
             }
             KeyCode::Backspace => {
-                if self.input_cursor > 0 {
-                    self.input_cursor -= 1;
-                    self.input.remove(self.input_cursor);
-                    self.slash_selected = 0;
-                }
+                self.delete_input_before_cursor();
                 Action::None
             }
             KeyCode::Delete => {
-                if self.input_cursor < self.input.len() {
-                    self.input.remove(self.input_cursor);
-                }
+                self.delete_input_at_cursor();
                 Action::None
             }
             KeyCode::Left => {
-                self.input_cursor = self.input_cursor.saturating_sub(1);
+                self.move_input_cursor_left();
                 Action::None
             }
             KeyCode::Right => {
-                self.input_cursor = (self.input_cursor + 1).min(self.input.len());
+                self.move_input_cursor_right();
                 Action::None
             }
             KeyCode::Home => {
@@ -373,6 +606,183 @@ impl App {
                     self.clear_input();
                 }
                 Action::None
+            }
+            _ => Action::None,
+        }
+    }
+
+    fn handle_path_picker(&mut self, key: KeyEvent) -> Action {
+        match key.code {
+            KeyCode::Esc => {
+                self.path_picker = false;
+                self.path_input.clear();
+            }
+            KeyCode::Enter | KeyCode::Right => {
+                let typed = self.path_input_text();
+                let typed_path = (!typed.trim().is_empty()).then(|| {
+                    let path = PathBuf::from(typed.trim().trim_matches(['"', '\'']));
+                    if path.is_absolute() {
+                        path
+                    } else {
+                        self.path_directory.join(path)
+                    }
+                });
+                let selected = self
+                    .visible_path_entries()
+                    .get(self.path_selected)
+                    .map(|entry| (*entry).clone());
+                let target = typed_path.filter(|path| path.exists()).or_else(|| {
+                    selected
+                        .as_ref()
+                        .filter(|entry| entry.supported)
+                        .map(|entry| entry.path.clone())
+                });
+                if let Some(target) = target {
+                    if target.is_dir() {
+                        self.navigate_path_directory(&target);
+                    } else {
+                        self.add_attachment_path(&target);
+                    }
+                } else if selected.is_some_and(|entry| !entry.supported) {
+                    self.status = "Unsupported attachment type".to_owned();
+                    self.status_error = true;
+                }
+            }
+            KeyCode::Backspace if self.path_input.is_empty() => {
+                self.navigate_path_parent();
+            }
+            KeyCode::Backspace => {
+                self.path_input.pop();
+                self.path_selected = 0;
+            }
+            KeyCode::Left => self.navigate_path_parent(),
+            KeyCode::Delete => {
+                if !self.attachments.is_empty() {
+                    self.attachments.remove(self.attachment_selected);
+                    self.attachment_selected = self
+                        .attachment_selected
+                        .min(self.attachments.len().saturating_sub(1));
+                }
+            }
+            KeyCode::Up => {
+                self.path_selected = self.path_selected.saturating_sub(1);
+            }
+            KeyCode::Down => {
+                let max = self.visible_path_entries().len().saturating_sub(1);
+                self.path_selected = (self.path_selected + 1).min(max);
+            }
+            KeyCode::Char(character) if !key.modifiers.contains(KeyModifiers::CONTROL) => {
+                self.path_input.push(character);
+                self.path_selected = 0;
+            }
+            _ => {}
+        }
+        Action::None
+    }
+
+    fn navigate_path_parent(&mut self) {
+        let workspace = PathBuf::from(&self.cwd)
+            .canonicalize()
+            .unwrap_or_else(|_| PathBuf::from(&self.cwd));
+        let Some(parent) = self.path_directory.parent().map(Path::to_path_buf) else {
+            return;
+        };
+        if parent.starts_with(workspace) {
+            self.navigate_path_directory(&parent);
+        }
+    }
+
+    fn navigate_path_directory(&mut self, directory: &Path) {
+        let workspace = PathBuf::from(&self.cwd)
+            .canonicalize()
+            .unwrap_or_else(|_| PathBuf::from(&self.cwd));
+        let directory = directory
+            .canonicalize()
+            .unwrap_or_else(|_| directory.to_path_buf());
+        if directory.starts_with(workspace) && directory.is_dir() {
+            self.path_directory = directory;
+            self.path_input.clear();
+            self.refresh_path_entries();
+        }
+    }
+
+    fn add_attachment_path(&mut self, path: &Path) {
+        match attachment_draft(&self.cwd, &path.to_string_lossy()) {
+            Ok(attachment) => {
+                if self.attachments.len() >= 8 {
+                    self.status = "Attachment limit reached · 8 files".to_owned();
+                    self.status_error = true;
+                } else if self
+                    .attachments
+                    .iter()
+                    .any(|item| item.path == attachment.path)
+                {
+                    self.status = "Attachment already added".to_owned();
+                    self.status_error = true;
+                } else if self
+                    .attachments
+                    .iter()
+                    .map(|item| item.size)
+                    .sum::<u64>()
+                    .saturating_add(attachment.size)
+                    > 20 * 1024 * 1024
+                {
+                    self.status = "Total attachment size cannot exceed 20 MiB".to_owned();
+                    self.status_error = true;
+                } else {
+                    self.attachments.push(attachment);
+                    self.attachment_selected = self.attachments.len().saturating_sub(1);
+                    self.path_input.clear();
+                    self.path_selected = 0;
+                    self.status = format!("{} attachment(s) ready", self.attachments.len());
+                    self.status_error = false;
+                }
+            }
+            Err(error) => {
+                self.status = error;
+                self.status_error = true;
+            }
+        }
+    }
+
+    fn handle_settings_picker(&mut self, key: KeyEvent) -> Action {
+        let Some(picker) = self.settings_picker else {
+            return Action::None;
+        };
+        let count = match picker {
+            SettingsPicker::Model => self.model_options.len(),
+            SettingsPicker::Thinking => self.thinking_levels().len(),
+        };
+        match key.code {
+            KeyCode::Esc => {
+                self.settings_picker = None;
+                Action::None
+            }
+            KeyCode::Up => {
+                self.settings_selected = self.settings_selected.saturating_sub(1);
+                Action::None
+            }
+            KeyCode::Down => {
+                self.settings_selected = (self.settings_selected + 1).min(count.saturating_sub(1));
+                Action::None
+            }
+            KeyCode::Enter => {
+                self.settings_picker = None;
+                match picker {
+                    SettingsPicker::Model => self
+                        .model_options
+                        .get(self.settings_selected)
+                        .map(|model| Action::SetModel {
+                            provider: model.provider.clone(),
+                            model: model.id.clone(),
+                        })
+                        .unwrap_or(Action::None),
+                    SettingsPicker::Thinking => self
+                        .thinking_levels()
+                        .get(self.settings_selected)
+                        .map(|level| Action::SetThinkingLevel(level.clone()))
+                        .unwrap_or(Action::None),
+                }
             }
             _ => Action::None,
         }
@@ -431,9 +841,12 @@ impl App {
     }
 
     fn submit_action(&mut self) -> Action {
-        let message = self.input_text().trim().to_owned();
-        if message.is_empty() {
+        let mut message = self.input_text().trim().to_owned();
+        if message.is_empty() && self.attachments.is_empty() {
             return Action::None;
+        }
+        if message.is_empty() {
+            message = "Please analyze these attachments.".to_owned();
         }
         self.status_error = false;
         match message.as_str() {
@@ -480,8 +893,20 @@ impl App {
             }
             "/model" => {
                 self.mark_slash_use("/model");
-                self.status = format!("model · {}", self.model);
                 self.clear_input();
+                self.open_settings_picker(SettingsPicker::Model);
+                Action::None
+            }
+            "/thinking" => {
+                self.mark_slash_use("/thinking");
+                self.clear_input();
+                self.open_settings_picker(SettingsPicker::Thinking);
+                Action::None
+            }
+            "/attach" => {
+                self.mark_slash_use(&message);
+                self.clear_input();
+                self.open_path_picker();
                 Action::None
             }
             "/mode" => {
@@ -507,40 +932,81 @@ impl App {
                 Action::None
             }
             _ if self.is_streaming() => {
-                self.status = "Agent is running · Ctrl+C to stop".to_owned();
+                let requested_tool = self.requested_tool(&message);
+                let attachments = std::mem::take(&mut self.attachments);
+                self.queued_prompts.push_back(QueuedPrompt {
+                    message,
+                    requested_tool,
+                    attachments,
+                });
+                self.clear_input();
+                self.status = format!("{} message(s) queued", self.queued_prompts.len());
                 Action::None
             }
             _ => {
-                self.pending_slash_command = message
-                    .split_whitespace()
-                    .next()
-                    .filter(|value| value.starts_with('/'))
-                    .map(str::to_owned);
-                self.commit_live();
-                self.messages.push(ChatMessage {
-                    role: "user".to_owned(),
-                    text: message.clone(),
-                    run_activity: None,
-                });
-                self.live = Some(LiveTurn {
-                    streaming: true,
-                    ..LiveTurn::default()
-                });
-                self.events.push(EventLine {
-                    name: "YOU".to_owned(),
-                    detail: message.clone(),
-                    state: "queued".to_owned(),
-                });
-                self.status = "thinking".to_owned();
-                self.scroll = 0;
-                self.clear_input();
                 let requested_tool = self.requested_tool(&message);
-                Action::Submit {
+                let attachments = std::mem::take(&mut self.attachments);
+                self.clear_input();
+                self.start_prompt(QueuedPrompt {
                     message,
                     requested_tool,
-                }
+                    attachments,
+                })
             }
         }
+    }
+
+    fn start_prompt(&mut self, prompt: QueuedPrompt) -> Action {
+        self.pending_slash_command = prompt
+            .message
+            .split_whitespace()
+            .next()
+            .filter(|value| value.starts_with('/'))
+            .map(str::to_owned);
+        self.commit_live();
+        let message_attachments = prompt
+            .attachments
+            .iter()
+            .map(|attachment| MessageAttachment {
+                kind: attachment.kind.clone(),
+                name: attachment.name.clone(),
+                size: attachment.size,
+                ..MessageAttachment::default()
+            })
+            .collect();
+        self.messages.push(ChatMessage {
+            role: "user".to_owned(),
+            text: prompt.message.clone(),
+            run_activity: None,
+            attachments: message_attachments,
+        });
+        self.live = Some(LiveTurn {
+            streaming: true,
+            ..LiveTurn::default()
+        });
+        self.events.push(EventLine {
+            name: "YOU".to_owned(),
+            detail: prompt.message.clone(),
+            state: "queued".to_owned(),
+        });
+        self.status = "thinking".to_owned();
+        self.scroll = 0;
+        Action::Submit {
+            message: prompt.message,
+            requested_tool: prompt.requested_tool,
+            attachment_paths: prompt
+                .attachments
+                .into_iter()
+                .map(|attachment| attachment.path)
+                .collect(),
+        }
+    }
+
+    pub fn take_queued_action(&mut self) -> Option<Action> {
+        (!self.is_streaming())
+            .then(|| self.queued_prompts.pop_front())
+            .flatten()
+            .map(|prompt| self.start_prompt(prompt))
     }
 
     fn requested_tool(&self, message: &str) -> Option<String> {
@@ -552,9 +1018,25 @@ impl App {
     }
 
     pub fn insert_paste(&mut self, value: &str) {
-        for character in value.replace(['\r', '\n'], " ").chars() {
-            self.input.insert(self.input_cursor, character);
-            self.input_cursor += 1;
+        if self.path_picker {
+            self.path_input.extend(value.trim().chars());
+            return;
+        }
+        let normalized = value.replace("\r\n", "\n").replace('\r', "\n");
+        let characters = normalized.chars().collect::<Vec<_>>();
+        if characters.is_empty() {
+            return;
+        }
+        let start = self.input_cursor;
+        self.shift_pasted_ranges_for_insert(start, characters.len());
+        self.input.splice(start..start, characters.iter().copied());
+        self.input_cursor += characters.len();
+        if characters.len() >= 80 || characters.contains(&'\n') {
+            self.pasted_ranges.push(PastedRange {
+                start,
+                end: self.input_cursor,
+            });
+            self.merge_adjacent_pasted_ranges();
         }
         self.slash_selected = 0;
     }
@@ -573,6 +1055,14 @@ impl App {
         self.session = session;
         self.messages = messages;
         self.live = None;
+        self.attachments.clear();
+        self.path_picker = false;
+        self.path_input.clear();
+        self.path_directory = PathBuf::from(&self.cwd);
+        self.path_entries.clear();
+        self.path_selected = 0;
+        self.settings_picker = None;
+        self.queued_prompts.clear();
         self.pending_slash_command = None;
         self.events.clear();
         self.status.clear();
@@ -593,6 +1083,41 @@ impl App {
             session.execution_mode.clone_from(&mode);
         }
         self.status = format!("mode changed · {mode}");
+        self.status_error = false;
+    }
+
+    pub fn set_model(&mut self, updated: SessionModelUpdate) {
+        self.model = updated.model;
+        self.session.model.clone_from(&self.model);
+        if !updated.thinking_level.is_empty() {
+            self.thinking_level = updated.thinking_level;
+            self.session.thinking_level.clone_from(&self.thinking_level);
+        }
+        self.set_thinking_options(updated.available_thinking_levels);
+        self.context_percent = updated.context_usage.and_then(|usage| usage.percent);
+        if let Some(session) = self
+            .sessions
+            .iter_mut()
+            .find(|session| session.id == self.session.id)
+        {
+            session.model.clone_from(&self.model);
+        }
+        self.status = format!("model changed · {}", self.model);
+        self.status_error = false;
+    }
+
+    pub fn set_thinking_level(&mut self, updated: ThinkingLevelUpdate) {
+        self.set_thinking_options(updated.available_levels);
+        self.thinking_level = updated.thinking_level;
+        self.session.thinking_level.clone_from(&self.thinking_level);
+        if let Some(session) = self
+            .sessions
+            .iter_mut()
+            .find(|session| session.id == self.session.id)
+        {
+            session.thinking_level.clone_from(&self.thinking_level);
+        }
+        self.status = format!("thinking changed · {}", self.thinking_level);
         self.status_error = false;
     }
 
@@ -647,6 +1172,7 @@ impl App {
                     name: string_field(&event.data, "name"),
                     status: "running".to_owned(),
                     args: event.data.get("args").cloned().unwrap_or_default(),
+                    started_at: event.data["startedAt"].as_u64().unwrap_or_default(),
                     ..ToolActivity::default()
                 });
                 self.status = format!("running {}", string_field(&event.data, "name"));
@@ -736,6 +1262,7 @@ impl App {
                 tools: live.tools,
                 ..RunActivity::default()
             }),
+            attachments: Vec::new(),
         });
     }
 
@@ -756,16 +1283,216 @@ impl App {
         }
     }
 
+    fn insert_input_character(&mut self, character: char) {
+        self.shift_pasted_ranges_for_insert(self.input_cursor, 1);
+        self.input.insert(self.input_cursor, character);
+        self.input_cursor += 1;
+        self.slash_selected = 0;
+    }
+
+    fn delete_input_before_cursor(&mut self) {
+        if let Some(index) = self
+            .pasted_ranges
+            .iter()
+            .position(|range| range.end == self.input_cursor)
+        {
+            self.remove_pasted_range(index);
+        } else if self.input_cursor > 0 {
+            let removed = self.input_cursor - 1;
+            self.input.remove(removed);
+            self.input_cursor = removed;
+            self.shift_pasted_ranges_after_removal(removed);
+        }
+        self.slash_selected = 0;
+    }
+
+    fn delete_input_at_cursor(&mut self) {
+        if let Some(index) = self
+            .pasted_ranges
+            .iter()
+            .position(|range| range.start == self.input_cursor)
+        {
+            self.remove_pasted_range(index);
+        } else if self.input_cursor < self.input.len() {
+            let removed = self.input_cursor;
+            self.input.remove(removed);
+            self.shift_pasted_ranges_after_removal(removed);
+        }
+        self.slash_selected = 0;
+    }
+
+    fn move_input_cursor_left(&mut self) {
+        if let Some(range) = self
+            .pasted_ranges
+            .iter()
+            .find(|range| range.start < self.input_cursor && self.input_cursor <= range.end)
+        {
+            self.input_cursor = range.start;
+        } else {
+            self.input_cursor = self.input_cursor.saturating_sub(1);
+        }
+    }
+
+    fn move_input_cursor_right(&mut self) {
+        if let Some(range) = self
+            .pasted_ranges
+            .iter()
+            .find(|range| range.start <= self.input_cursor && self.input_cursor < range.end)
+        {
+            self.input_cursor = range.end;
+        } else {
+            self.input_cursor = (self.input_cursor + 1).min(self.input.len());
+        }
+    }
+
+    fn shift_pasted_ranges_for_insert(&mut self, position: usize, amount: usize) {
+        for range in &mut self.pasted_ranges {
+            if range.start >= position {
+                range.start += amount;
+                range.end += amount;
+            }
+        }
+    }
+
+    fn shift_pasted_ranges_after_removal(&mut self, position: usize) {
+        for range in &mut self.pasted_ranges {
+            if position < range.start {
+                range.start -= 1;
+                range.end -= 1;
+            }
+        }
+    }
+
+    fn remove_pasted_range(&mut self, index: usize) {
+        let range = self.pasted_ranges.remove(index);
+        let removed = range.end.saturating_sub(range.start);
+        self.input.drain(range.start..range.end);
+        self.input_cursor = range.start;
+        for following in &mut self.pasted_ranges {
+            if following.start >= range.end {
+                following.start -= removed;
+                following.end -= removed;
+            }
+        }
+    }
+
+    fn merge_adjacent_pasted_ranges(&mut self) {
+        self.pasted_ranges.sort_by_key(|range| range.start);
+        let mut merged = Vec::<PastedRange>::new();
+        for range in self.pasted_ranges.drain(..) {
+            if let Some(previous) = merged.last_mut() {
+                if previous.end >= range.start {
+                    previous.end = previous.end.max(range.end);
+                    continue;
+                }
+            }
+            merged.push(range);
+        }
+        self.pasted_ranges = merged;
+    }
+
     fn clear_input(&mut self) {
         self.input.clear();
         self.input_cursor = 0;
+        self.pasted_ranges.clear();
         self.slash_selected = 0;
     }
 
     fn set_input(&mut self, value: &str) {
         self.input = value.chars().collect();
         self.input_cursor = self.input.len();
+        self.pasted_ranges.clear();
         self.slash_selected = 0;
+    }
+}
+
+fn attachment_draft(workspace: &str, raw_path: &str) -> Result<AttachmentDraft, String> {
+    let cleaned = raw_path.trim().trim_matches(['"', '\'']);
+    let file_uri_path = cleaned.strip_prefix("file://").unwrap_or(cleaned);
+    let value = if cfg!(windows)
+        && file_uri_path.starts_with('/')
+        && file_uri_path.as_bytes().get(2) == Some(&b':')
+    {
+        &file_uri_path[1..]
+    } else {
+        file_uri_path
+    };
+    let path = Path::new(value)
+        .canonicalize()
+        .map_err(|error| format!("Cannot open attachment · {error}"))?;
+    let workspace = Path::new(workspace)
+        .canonicalize()
+        .map_err(|error| format!("Cannot resolve workspace · {error}"))?;
+    if !path.starts_with(&workspace) {
+        return Err("Attachments must be inside the current workspace".to_owned());
+    }
+    let metadata = path
+        .metadata()
+        .map_err(|error| format!("Cannot inspect attachment · {error}"))?;
+    if !metadata.is_file() {
+        return Err("Attachment path must point to a file".to_owned());
+    }
+    if metadata.len() > 10 * 1024 * 1024 {
+        return Err("Attachment cannot exceed 10 MiB".to_owned());
+    }
+    let kind = attachment_kind(&path).ok_or_else(|| {
+        "Unsupported attachment type · use an image, text/code file, or document".to_owned()
+    })?;
+    Ok(AttachmentDraft {
+        name: path
+            .file_name()
+            .map(|value| value.to_string_lossy().into_owned())
+            .unwrap_or_else(|| "attachment".to_owned()),
+        path,
+        kind: kind.to_owned(),
+        size: metadata.len(),
+    })
+}
+
+fn attachment_kind(path: &Path) -> Option<&'static str> {
+    let extension = path
+        .extension()
+        .and_then(|value| value.to_str())
+        .unwrap_or_default()
+        .to_ascii_lowercase();
+    if matches!(
+        extension.as_str(),
+        "png" | "jpg" | "jpeg" | "gif" | "webp" | "bmp"
+    ) {
+        Some("image")
+    } else if matches!(
+        extension.as_str(),
+        "txt"
+            | "md"
+            | "json"
+            | "js"
+            | "jsx"
+            | "ts"
+            | "tsx"
+            | "css"
+            | "html"
+            | "xml"
+            | "yaml"
+            | "yml"
+            | "csv"
+            | "log"
+            | "py"
+            | "java"
+            | "go"
+            | "rs"
+            | "sh"
+            | "ps1"
+            | "toml"
+            | "sql"
+    ) {
+        Some("text")
+    } else if matches!(
+        extension.as_str(),
+        "pdf" | "docx" | "pptx" | "xlsx" | "odt" | "odp" | "ods" | "rtf" | "epub"
+    ) {
+        Some("document")
+    } else {
+        None
     }
 }
 
@@ -889,7 +1616,11 @@ fn update_tool(live: &mut LiveTurn, value: &Value, done: bool) {
     if value["output"].is_string() {
         tool.output = string_field(value, "output");
     }
+    if value["agent"].is_object() {
+        tool.agent = value.get("agent").cloned();
+    }
     if done {
+        tool.finished_at = value["finishedAt"].as_u64().unwrap_or_default();
         tool.status = if value["error"].as_bool().unwrap_or(false) {
             "error"
         } else {
@@ -933,8 +1664,10 @@ fn event_state(event: &StreamEvent) -> &'static str {
 mod tests {
     use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 
-    use super::{advance_typewriter, apply_patch, Action, App, Approval};
-    use crate::model::{SessionSummary, StreamEvent, ToolDefinition};
+    use super::{
+        advance_typewriter, apply_patch, attachment_draft, Action, App, Approval, SettingsPicker,
+    };
+    use crate::model::{ModelOption, SessionSummary, StreamEvent, ToolDefinition};
     use serde_json::json;
 
     #[test]
@@ -1021,6 +1754,51 @@ mod tests {
     }
 
     #[test]
+    fn ctrl_c_aborts_streaming_and_pending_approval_before_it_quits() {
+        let mut app = test_app(Vec::new());
+        app.set_input("run date");
+        assert!(matches!(app.submit_action(), Action::Submit { .. }));
+        app.approval = Some(Approval {
+            id: "approval-1".to_owned(),
+            tool_name: "bash".to_owned(),
+            args: json!({ "command": "date" }),
+            risk: "high".to_owned(),
+            reason: "Runs as the current OS user.".to_owned(),
+        });
+
+        assert!(matches!(
+            app.handle_key(KeyEvent::new(KeyCode::Char('c'), KeyModifiers::CONTROL)),
+            Action::Abort
+        ));
+        assert!(app.approval.is_none());
+
+        app.live = None;
+        assert!(matches!(
+            app.handle_key(KeyEvent::new(KeyCode::Char('c'), KeyModifiers::CONTROL)),
+            Action::Quit
+        ));
+    }
+
+    #[test]
+    fn pasted_text_is_collapsed_for_display_but_submitted_in_full() {
+        let mut app = test_app(Vec::new());
+        let pasted = format!("first line\n{}", "payload ".repeat(30));
+        app.insert_paste(&pasted);
+
+        let (display, display_cursor) = app.composer_input();
+        let display = display.iter().collect::<String>();
+        assert!(display.starts_with("[Pasted text · 2 lines · "));
+        assert!(!display.contains("payload payload"));
+        assert_eq!(display_cursor, display.chars().count());
+        assert_eq!(app.input_text(), pasted);
+
+        assert!(matches!(
+            app.submit_action(),
+            Action::Submit { message, .. } if message == pasted.trim()
+        ));
+    }
+
+    #[test]
     fn permission_events_keep_the_command_for_review() {
         let mut app = test_app(Vec::new());
         app.set_input("run date");
@@ -1072,6 +1850,156 @@ mod tests {
         ));
         assert_eq!(app.input_text(), "/read ");
         assert!(!app.is_streaming());
+    }
+
+    #[test]
+    fn attachment_picker_enforces_workspace_and_submits_selected_files() {
+        let workspace = std::env::temp_dir().join(format!(
+            "pisper-tui-attachment-{}",
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        ));
+        std::fs::create_dir_all(&workspace).unwrap();
+        let nested = workspace.join("docs");
+        std::fs::create_dir_all(&nested).unwrap();
+        let file = nested.join("context.md");
+        std::fs::write(&file, "# Context\nImportant details").unwrap();
+
+        let draft = attachment_draft(workspace.to_str().unwrap(), file.to_str().unwrap()).unwrap();
+        assert_eq!(draft.kind, "text");
+        let mut app = test_app(Vec::new());
+        app.cwd = workspace.to_string_lossy().into_owned();
+        app.session.cwd.clone_from(&app.cwd);
+        app.open_path_picker();
+        assert_eq!(app.path_entries.len(), 1);
+        assert!(app.path_entries[0].is_dir);
+        app.handle_key(KeyEvent::new(KeyCode::Enter, KeyModifiers::NONE));
+        assert_eq!(app.path_directory, nested.canonicalize().unwrap());
+        assert_eq!(app.path_entries[0].name, "context.md");
+        app.handle_key(KeyEvent::new(KeyCode::Enter, KeyModifiers::NONE));
+        assert_eq!(app.attachments.len(), 1);
+
+        app.path_picker = false;
+        app.set_input("Analyze this context");
+        assert!(matches!(
+            app.submit_action(),
+            Action::Submit { attachment_paths, .. }
+                if attachment_paths == vec![file.canonicalize().unwrap()]
+        ));
+        assert!(app.attachments.is_empty());
+        std::fs::remove_dir_all(workspace).unwrap();
+    }
+
+    #[test]
+    fn attachment_shortcuts_open_without_discarding_the_composer_draft() {
+        let mut app = test_app(Vec::new());
+        app.set_input("keep this draft");
+        assert!(matches!(
+            app.handle_key(KeyEvent::new(KeyCode::Char('o'), KeyModifiers::CONTROL)),
+            Action::None
+        ));
+        assert!(app.path_picker);
+        assert_eq!(app.input_text(), "keep this draft");
+        app.handle_key(KeyEvent::new(KeyCode::Esc, KeyModifiers::NONE));
+
+        app.clear_input();
+        app.handle_key(KeyEvent::new(KeyCode::Char('@'), KeyModifiers::NONE));
+        assert!(!app.path_picker);
+        assert_eq!(app.input_text(), "@");
+    }
+
+    #[test]
+    fn model_and_thinking_slash_commands_open_pickers_and_apply_selection() {
+        let mut app = test_app(Vec::new());
+        app.model = "provider/model-a".to_owned();
+        app.set_model_options(vec![
+            ModelOption {
+                provider: "provider".to_owned(),
+                id: "model-a".to_owned(),
+                name: "Model A".to_owned(),
+                reasoning: true,
+            },
+            ModelOption {
+                provider: "provider".to_owned(),
+                id: "model-b".to_owned(),
+                name: "Model B".to_owned(),
+                reasoning: true,
+            },
+        ]);
+        app.set_input("/model");
+        assert!(matches!(app.submit_action(), Action::None));
+        assert_eq!(app.settings_picker, Some(SettingsPicker::Model));
+        app.handle_key(KeyEvent::new(KeyCode::Down, KeyModifiers::NONE));
+        assert!(matches!(
+            app.handle_key(KeyEvent::new(KeyCode::Enter, KeyModifiers::NONE)),
+            Action::SetModel { provider, model }
+                if provider == "provider" && model == "model-b"
+        ));
+
+        app.set_input("/thinking");
+        assert!(matches!(app.submit_action(), Action::None));
+        assert_eq!(app.settings_picker, Some(SettingsPicker::Thinking));
+        app.settings_selected = 4;
+        assert!(matches!(
+            app.handle_key(KeyEvent::new(KeyCode::Enter, KeyModifiers::NONE)),
+            Action::SetThinkingLevel(level) if level == "high"
+        ));
+    }
+
+    #[test]
+    fn tool_events_preserve_timestamps_and_subagent_results() {
+        let mut app = test_app(Vec::new());
+        app.set_input("inspect");
+        assert!(matches!(app.submit_action(), Action::Submit { .. }));
+        app.apply_stream_event(StreamEvent {
+            name: "tool_start".to_owned(),
+            data: json!({ "id": "tool-1", "name": "read", "args": {}, "startedAt": 1000 }),
+        });
+        app.apply_stream_event(StreamEvent {
+            name: "tool_end".to_owned(),
+            data: json!({
+                "id": "tool-1",
+                "name": "read",
+                "finishedAt": 1512,
+                "agent": { "canonicalName": "log-analysis", "status": "completed" }
+            }),
+        });
+        let tool = &app.live.as_ref().unwrap().tools[0];
+        assert_eq!(tool.started_at, 1000);
+        assert_eq!(tool.finished_at, 1512);
+        assert_eq!(
+            tool.agent.as_ref().unwrap()["canonicalName"],
+            "log-analysis"
+        );
+    }
+
+    #[test]
+    fn messages_submitted_during_a_run_are_sent_fifo_after_completion() {
+        let mut app = test_app(Vec::new());
+        app.set_input("first");
+        assert!(matches!(app.submit_action(), Action::Submit { .. }));
+        app.set_input("second");
+        assert!(matches!(app.submit_action(), Action::None));
+        assert_eq!(app.queued_count(), 1);
+
+        app.apply_stream_event(StreamEvent {
+            name: "done".to_owned(),
+            data: json!({ "text": "first answer", "tools": [], "contextUsage": {} }),
+        });
+        assert!(matches!(
+            app.take_queued_action(),
+            Some(Action::Submit { message, .. }) if message == "second"
+        ));
+        assert_eq!(app.queued_count(), 0);
+        assert_eq!(
+            app.messages
+                .iter()
+                .filter(|message| message.role == "user")
+                .count(),
+            2
+        );
     }
 
     #[test]

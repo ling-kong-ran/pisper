@@ -16,6 +16,7 @@ import { McpService } from '../services/mcp-service.mjs'
 import { migrateKimiCodeProvider } from '../services/provider-migrations.mjs'
 import { ProviderDiscoveryService } from '../services/provider-discovery.mjs'
 import { ProviderModelCatalogService } from '../services/provider-model-catalog-service.mjs'
+import { ModelMetadataService } from '../services/model-metadata-service.mjs'
 import { ProviderModelDiscoveryService } from '../services/provider-model-discovery-service.mjs'
 import { ScheduleService } from '../services/schedule-service.mjs'
 import { WorkflowService } from '../services/workflow-service.mjs'
@@ -98,6 +99,20 @@ const ISOLATED_CONTEXT_BLOCKED_TOOLS = ['memory_search', 'memory_remember']
 const ASSET_TEXT_EXTENSIONS = new Set(['.txt', '.md', '.json', '.js', '.jsx', '.ts', '.tsx', '.css', '.html', '.xml', '.yaml', '.yml', '.csv', '.log', '.py', '.java', '.go', '.rs', '.sh', '.ps1', '.toml', '.sql'])
 const ASSET_DOCUMENT_EXTENSIONS = new Set(['.pdf', '.docx', '.pptx', '.xlsx', '.odt', '.odp', '.ods', '.rtf', '.epub'])
 const IMAGE_EXTENSIONS = new Set(['.png', '.jpg', '.jpeg', '.gif', '.webp', '.bmp', '.svg'])
+const TRANSIENT_STREAM_READ_ERROR_PATTERN = /\bstream[_\s-]?read[_\s-]?error\b/i
+const PISPER_STREAM_RETRY_PATCH = Symbol('pisper.stream-retry-patch')
+
+export function installTransientStreamRetry(session) {
+  if (!session || session[PISPER_STREAM_RETRY_PATCH] || typeof session._isRetryableError !== 'function') return session
+  const isRetryableError = session._isRetryableError.bind(session)
+  session._isRetryableError = (message) => {
+    if (message?.stopReason === 'error' && TRANSIENT_STREAM_READ_ERROR_PATTERN.test(String(message.errorMessage || ''))) return true
+    return isRetryableError(message)
+  }
+  session[PISPER_STREAM_RETRY_PATCH] = true
+  return session
+}
+
 function isInternalParentMessage(content) {
   return isGoalContinuationMessage(content) || isAgentCompletionMessage(content)
 }
@@ -651,7 +666,9 @@ export class AgentRuntimeService {
     this.authPath = join(dataDir, 'auth.json')
     this.modelsPath = join(dataDir, 'models.json')
     this.providerModelCatalogPath = join(dataDir, 'pisper-provider-models.json')
-    this.providerModelCatalog = new ProviderModelCatalogService({ path: this.providerModelCatalogPath })
+    this.modelMetadataPath = join(dataDir, 'pisper-model-metadata.json')
+    this.modelMetadata = new ModelMetadataService({ path: this.modelMetadataPath })
+    this.providerModelCatalog = new ProviderModelCatalogService({ path: this.providerModelCatalogPath, metadata: this.modelMetadata })
     this.settingsPath = join(dataDir, 'settings.json')
     this.appConfigPath = join(dataDir, 'pisper.json')
     this.toolPlugins = new ToolPluginService(this.appConfigPath)
@@ -776,7 +793,7 @@ export class AgentRuntimeService {
       settingsPath: this.settingsPath,
       appConfigPath: this.appConfigPath,
     })
-    await this.providerModelCatalog.init()
+    await Promise.all([this.providerModelCatalog.init(), this.modelMetadata.init()])
     this.settingsManager = SettingsManager.create(this.cwd, this.dataDir)
     await this.skills.init()
     await this.mcp.init()
@@ -805,14 +822,20 @@ export class AgentRuntimeService {
     })
     const configuredBaseUrls = {}
     const configuredHeaders = {}
+    const configuredContextWindows = {}
+    const configuredInputs = {}
     for (const provider of this.modelRuntime.getProviders()) {
       const overlay = modelsJson.providers?.[provider.id] || {}
       configuredBaseUrls[provider.id] = overlay.baseUrl || PROVIDER_DEFAULT_BASE_URLS[provider.id] || this.modelRuntime.getModels(provider.id)[0]?.baseUrl || ''
       if (usesCustomProviderEndpoint(provider.id, overlay)) {
         configuredHeaders[provider.id] = providerHeaders(provider.id, overlay, this.providerUserAgent)
       }
+      for (const model of overlay.models || []) {
+        if (Number(model?.contextWindow) > 0) configuredContextWindows[`${provider.id}:${model.id}`] = Number(model.contextWindow)
+        if (Array.isArray(model?.input)) configuredInputs[`${provider.id}:${model.id}`] = model.input
+      }
     }
-    this.providerModelCatalog.decorateRuntime(this.modelRuntime, configuredBaseUrls, configuredHeaders)
+    this.providerModelCatalog.decorateRuntime(this.modelRuntime, configuredBaseUrls, configuredHeaders, configuredContextWindows, configuredInputs)
   }
 
   emitGoalUpdate(sessionId, goal, send = this.goalEmitters.get(sessionId)) {
@@ -1798,6 +1821,7 @@ export class AgentRuntimeService {
   async setSessionModel(id, provider, modelId) {
     const appConfig = await readJson(this.appConfigPath, { toolMode: 'full', disabledProviders: [] })
     if ((appConfig.disabledProviders || []).includes(String(provider || ''))) throw new Error('该 Provider 当前未启用。')
+    await this.modelMetadata.ensure(modelId)
     const model = this.modelRuntime.getModel(String(provider || ''), String(modelId || ''))
     if (!model) throw new Error('指定的模型不存在。')
     const value = await this.getOrCreateSession(id)
@@ -1821,7 +1845,38 @@ export class AgentRuntimeService {
       model: `${model.provider}/${model.id}`,
       provider: model.provider,
       modelId: model.id,
+      thinkingLevel: value.session.thinkingLevel,
+      availableThinkingLevels: value.session.getAvailableThinkingLevels(),
       contextUsage: this.compactionAwareContextUsage(value.session),
+    }
+  }
+
+  async getSessionThinkingState(id) {
+    const value = await this.getOrCreateSession(id)
+    return {
+      id: value.session.sessionId,
+      thinkingLevel: value.session.thinkingLevel,
+      availableLevels: value.session.getAvailableThinkingLevels(),
+    }
+  }
+
+  async setSessionThinkingLevel(id, level) {
+    const value = await this.getOrCreateSession(id)
+    if (value.session.isStreaming) throw new Error('当前会话正在运行，请完成或停止后再切换思考等级。')
+    const requested = String(level || '')
+    const availableLevels = value.session.getAvailableThinkingLevels()
+    if (!availableLevels.includes(requested)) throw new Error('当前模型不支持该思考等级。')
+    const defaultThinkingLevel = this.settingsManager.getGlobalSettings().defaultThinkingLevel || 'medium'
+    try {
+      value.session.setThinkingLevel(requested)
+    } finally {
+      this.settingsManager.setDefaultThinkingLevel(defaultThinkingLevel)
+    }
+    value.modified = new Date().toISOString()
+    return {
+      id: value.session.sessionId,
+      thinkingLevel: value.session.thinkingLevel,
+      availableLevels: value.session.getAvailableThinkingLevels(),
     }
   }
 
@@ -1923,6 +1978,9 @@ export class AgentRuntimeService {
   }
 
   async createSessionRuntime(sessionManager, name) {
+    const settings = this.settingsManager.getGlobalSettings()
+    const storedModelId = sessionManager.buildSessionContext()?.model?.modelId
+    await this.modelMetadata.ensure(storedModelId || settings.defaultModel)
     const appConfig = await readJson(this.appConfigPath, { toolMode: 'full' })
     const effectiveCwd = await resolveDirectory(this.sessionMeta[sessionManager.getSessionId()]?.cwd, sessionManager.getCwd() || this.cwd)
     const enabledTools = toolsFromConfig(appConfig)
@@ -2074,6 +2132,7 @@ export class AgentRuntimeService {
       tools: [...baseToolNames, TOOL_DISCOVERY_NAME, ...GOAL_TOOL_NAMES, ...TASK_LIST_TOOL_NAMES, ...MULTI_AGENT_TOOL_NAMES],
       customTools: [...createInheritedCustomTools(), toolDiscovery, ...goalTools, ...taskListTools, ...multiAgentTools],
     })
+    installTransientStreamRetry(session)
     const now = new Date().toISOString()
     const value = {
       session,

@@ -48,10 +48,12 @@ The palette must not be dominated by one hue. All body text on `bg` must meet WC
 ### Shared shell rules
 
 - Outer frame fill: `bg`; no radius and no shadow.
-- Top bar: `height 42`, horizontal padding `20`, bottom border `1 rule`.
-- Top bar left: Pisper wordmark in `text`, then `/`, then session title. Do not place a large logo.
-- Top bar right: model, permission, branch, and context; use inline text separated by ` · `, not pills.
+- No persistent header or top bar. The transcript starts at the top edge and session/runtime metadata belongs in the bottom status line.
+- An empty Chat session uses a centered two-tone terminal Pisper logo above the composer; established conversations do not repeat the logo.
 - Bottom status line: `height 24`, `12 px` type. It may be integrated into the composer boundary; never float it in a card.
+- A pending approval replaces the composer at full terminal width. It must not switch to a centered rail or move the status line horizontally.
+- Bracketed pastes preserve the complete submitted text but render long or multiline content as one `[Pasted text · …]` token in the composer.
+- `Ctrl+C` aborts an active or approval-blocked run; it exits the TUI only while idle.
 - Icon buttons are `28 × 28`, square or `4 px` radius, with Lucide-style 14 px symbols when available. Tooltip labels: `Attach file`, `Run command`, `Stop run`, `Submit`.
 - Focus: one `1 px cyan` keyline or one `2 px` left marker. Avoid glow.
 - Scrollbars: `6 px` track, thumb `#36414C`; reserve width so content never shifts.
@@ -79,18 +81,17 @@ A single uninterrupted transcript. Tool and Subagent activity appears inline at 
 
 | Region | Bounds | Style |
 | --- | --- | --- |
-| Top bar | `0,0,1360,42` | shared top bar |
-| Transcript viewport | `0,42,1360,666` | max text column `880`, centered at `x:240` |
+| Transcript viewport | `0,0,1360,708` | full-width conversation surface |
 | Composer | `240,724,880,136` | `surface`, border `1 rule`, radius `6` |
 | Bottom status | `240,868,880,20` | no fill |
 
-Transcript content uses `x:240`, width `880`, top padding `28`, bottom padding `24`. Keep labels in a fixed `76 px` column and content in an `804 px` column. Message blocks are separated by `22 px`, not enclosed by cards.
+Transcript content uses the full terminal width and starts at the left edge, with top padding only. User and Agent messages use a compact `3`-column marker gutter (`›` and `●`); Thinking, Tool, and Subagent activity use a subordinate `6`-column label gutter. Message blocks are appended from top to bottom and the viewport begins scrolling only after rendered content exceeds its available height; messages are not bottom-anchored. Message blocks are not enclosed by cards.
 
 ### Visible content, top to bottom
 
 1. User message, `height 74`:
-   - Label at `x:240`: `YOU` in `blue`, `12 px semibold`.
-   - Content at `x:316`: `The MCP lifecycle test still fails intermittently on Windows. Keep the existing runtime changes, delegate log analysis, and make the narrowest fix. Run the targeted tests when done.`
+   - Marker at `x:0`: `›` in `blue`.
+   - Content begins at column `3`: `The MCP lifecycle test still fails intermittently on Windows. Keep the existing runtime changes, delegate log analysis, and make the narrowest fix. Run the targeted tests when done.`
    - Metadata beneath: `10:42:08  ·  workspace` in `muted`.
 2. Agent reasoning, expanded, `height 68`:
    - Label: `THINK` in `amber`.
@@ -108,12 +109,12 @@ Transcript content uses `x:240`, width `880`, top padding `28`, bottom padding `
    - Detail: `└ isolated context · inherited workspace policy · 00:18`.
    - Running indicator is a single amber `●`; no avatar or card.
 5. Agent response, `height 150`:
-   - Label: `AGENT` in `cyan`.
+   - Marker: `●` in `cyan`; response text begins at column `3`.
    - Text: `The failure is a close/restart race. The stale transport can emit one final disconnect after the replacement client is already registered, which clears the new client entry.`
    - Blank line, then: `I’m guarding cleanup by transport identity, then I’ll run the MCP service test directly and the runtime regression set.`
    - A narrow code excerpt below with no container fill:
      `if (clients.get(serverId)?.transport === transport) clients.delete(serverId)`
-6. Current activity line pinned immediately above the composer, `height 30`:
+6. Current activity line pinned immediately above the composer, `height 30`, aligned to the terminal's left edge without an independent centered rail:
    - `● editing  server/services/mcp-service.mjs` in `amber/text`.
    - Right aligned: `00:41` in `muted`.
 
@@ -121,7 +122,7 @@ Transcript content uses `x:240`, width `880`, top padding `28`, bottom padding `
 
 - Inner padding `14`; input area `852 × 76`.
 - Placeholder/current draft: `Also verify reconnect does not duplicate listeners.`
-- Bottom control row at composer y `824`: left `+  @  /`, right `3 queued  ·  Ctrl+Enter submit`, then a `28 × 28` send icon button.
+- Bottom control row at composer y `824`: left `+  /`, right `3 queued  ·  Ctrl+Enter submit`, then a `28 × 28` send icon button.
 - Focus keyline on the composer only. Long draft wraps at approximately 96 monospace characters; maximum visible four lines, then internal scroll.
 
 ### Compact status
@@ -142,9 +143,8 @@ A chronological, audit-friendly transcript. Time and event identity are first-cl
 
 | Region | Bounds | Style |
 | --- | --- | --- |
-| Top bar | `0,0,1360,42` | shared top bar |
-| Column header | `0,42,1360,32` | bottom border `1 rule` |
-| Ledger viewport | `0,74,1360,674` | continuous background |
+| Column header | `0,0,1360,32` | bottom border `1 rule` |
+| Ledger viewport | `0,32,1360,716` | continuous background |
 | Composer | `0,748,1360,126` | top border `1 rule`, `surface` |
 | Bottom status | `0,876,1360,24` | `bg` |
 
@@ -222,8 +222,7 @@ The base interface remains a nearly chrome-free conversation. Typing `/` at the 
 
 | Region | Bounds | Style |
 | --- | --- | --- |
-| Minimal top line | `0,0,1360,32` | no fill, bottom border `1 rule` |
-| Transcript | `0,32,1360,682` | text column `780`, centered at `x:290` |
+| Transcript | `0,0,1360,714` | text column `780`, centered at `x:290` |
 | Slash menu | `290,310,780,404` | `surface`, border `1 #3A4652`, radius `6` |
 | Composer prompt | `290,730,780,88` | only top and bottom `1 rule` |
 | Compact status | `290,842,780,20` | no fill |
@@ -286,18 +285,20 @@ This variant exposes runtime capabilities through the same text entry point used
 - Tool/event rows remain one line. Expanded output may use two additional lines and then show `… 4 more lines`.
 - Labels, timestamps, durations, and status values must use fixed columns and must not push adjacent text.
 - Composer controls have fixed positions. Draft text scrolls before reaching the controls.
+- Empty Chat sessions center an `88`-column composer below the Pisper logo. The first submitted message switches to the conversation layout in the same frame, pins the composer to the bottom edge, and expands it to the full terminal width.
+- Conversation messages align to the terminal's left edge and grow downward from the top of the transcript. Short conversations leave unused space below; only overflowing content scrolls.
 - Reserve the final `16 px` at the right edge of every scrollable viewport for scrollbar and safety spacing.
 - At `1360 × 900`, no text may touch or cross a region boundary. Every frame must show its composer and status without scrolling.
 
 ## Pencil construction order
 
 1. Create the three named top-level frames at the exact canvas coordinates.
-2. Apply shared background, typography, and top bar primitives.
+2. Apply the shared background and typography without adding persistent header chrome.
 3. Build each layout from full-width separators and text groups; avoid reusable card components.
 4. Add visible scenario content before decorative states so wrapping can be checked early.
 5. Add fixed-width metadata columns, current inline activity state, composer, and status line.
 6. For C, create the base transcript first, then add the composer-anchored slash menu as the final layer.
-7. Name major groups `topbar`, `transcript`, `composer`, `status`; in C also name `slash-menu`.
+7. Name major groups `transcript`, `composer`, and `status`; in C also name `slash-menu`.
 
 ## Screenshot verification checklist
 
@@ -310,7 +311,7 @@ Capture one full-frame screenshot for each top-level frame at 100% zoom and one 
 - User, Agent, thinking, tool, Subagent, composer, and compact status information are visible in every frame.
 - No frame contains a permanent sidebar, chat bubbles, metric cards, nested cards, large branding, or desktop dashboard navigation.
 - No text is clipped, ellipsized unnecessarily, or overlapped at `1360 × 900`.
-- Running, success, focus, Subagent, and failure colors remain distinguishable without making the interface colorful or noisy.
+- Running, success, focus, Subagent, and failure colors remain distinguishable without making the interface colorful or noisy. Running activity uses a short fixed-width pulse at the bottom-left status line, never a marquee or persistent top row.
 - Borders are crisp at 1 px; baseline rhythm remains aligned at 22 px.
 - C shows `/` in the focused composer and frequency-ranked Tool, Skill, and Command matches; B running event is legible; A composer is visibly focused.
 

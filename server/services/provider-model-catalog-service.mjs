@@ -8,8 +8,36 @@ function zeroCost() {
   return { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 }
 }
 
-function runtimeModel(providerId, entry, candidate, existing, template) {
-  if (existing) return { ...existing, name: candidate.name || existing.name, pisperKind: candidate.kind || 'chat' }
+export function inferredContextWindow(modelId, fallback = 200_000) {
+  if (/^gpt-5\.6(?:-|$)/i.test(String(modelId || ''))) return 272_000
+  return Number(fallback) || 200_000
+}
+
+function normalizedInput(value) {
+  if (!Array.isArray(value)) return null
+  const input = [...new Set(value.filter((item) => ['text', 'image'].includes(item)))]
+  return input.includes('text') ? input : null
+}
+
+function modelWithMetadata(model, metadata, explicitContextWindow, explicitInput) {
+  const remoteMetadata = metadata?.get(model.id)
+  return {
+    ...model,
+    input: normalizedInput(explicitInput) || normalizedInput(remoteMetadata?.input) || normalizedInput(model.input) || ['text'],
+    contextWindow: Number(explicitContextWindow) || Number(remoteMetadata?.contextWindow) || inferredContextWindow(model.id, model.contextWindow),
+    maxTokens: Number(remoteMetadata?.maxTokens) || model.maxTokens,
+  }
+}
+
+function runtimeModel(providerId, entry, candidate, existing, template, metadata, explicitContextWindow, explicitInput) {
+  const remoteMetadata = metadata?.get(candidate.id)
+  if (existing) {
+    return {
+      ...modelWithMetadata(existing, metadata, explicitContextWindow, explicitInput),
+      name: candidate.name || existing.name,
+      pisperKind: candidate.kind || 'chat',
+    }
+  }
   return {
     id: candidate.id,
     name: candidate.name || candidate.id,
@@ -19,16 +47,17 @@ function runtimeModel(providerId, entry, candidate, existing, template) {
     reasoning: candidate.kind === 'chat',
     input: ['text', 'image'],
     cost: template?.cost || zeroCost(),
-    contextWindow: template?.contextWindow || 200_000,
-    maxTokens: template?.maxTokens || 128_000,
+    contextWindow: Number(remoteMetadata?.contextWindow) || inferredContextWindow(candidate.id),
+    maxTokens: Number(remoteMetadata?.maxTokens) || template?.maxTokens || 128_000,
     headers: template?.headers ? { ...template.headers } : undefined,
     pisperKind: candidate.kind || 'chat',
   }
 }
 
 export class ProviderModelCatalogService {
-  constructor({ path }) {
+  constructor({ path, metadata = null }) {
     this.path = path
+    this.metadata = metadata
     this.state = { providers: {} }
     this.configuredBaseUrls = new Map()
     this.configuredHeaders = new Map()
@@ -86,8 +115,10 @@ export class ProviderModelCatalogService {
     await this.writeQueue
   }
 
-  decorateRuntime(runtime, configuredBaseUrls, configuredHeaders = {}) {
+  decorateRuntime(runtime, configuredBaseUrls, configuredHeaders = {}, configuredContextWindows = {}, configuredInputs = {}) {
     this.configuredBaseUrls = new Map(Object.entries(configuredBaseUrls || {}).map(([id, url]) => [id, normalizedBaseUrl(url)]))
+    const explicitContextWindows = new Map(Object.entries(configuredContextWindows || {}))
+    const explicitInputs = new Map(Object.entries(configuredInputs || {}))
     this.configuredHeaders = new Map(Object.entries(configuredHeaders || {}))
     const rawGetModels = runtime.getModels.bind(runtime)
     const rawGetModel = runtime.getModel.bind(runtime)
@@ -101,11 +132,11 @@ export class ProviderModelCatalogService {
       return configured && configured === normalizedBaseUrl(entry.baseUrl) ? entry : null
     }
     const modelsForProvider = (providerId) => {
-      const raw = [...rawGetModels(providerId)]
+      const raw = [...rawGetModels(providerId)].map((model) => modelWithMetadata(model, this.metadata, explicitContextWindows.get(`${providerId}:${model.id}`), explicitInputs.get(`${providerId}:${model.id}`)))
       const entry = catalogEntry(providerId)
       const existing = new Map(raw.map((model) => [model.id, model]))
       const models = entry
-        ? entry.models.map((candidate) => runtimeModel(providerId, entry, candidate, existing.get(candidate.id), raw[0]))
+        ? entry.models.map((candidate) => runtimeModel(providerId, entry, candidate, existing.get(candidate.id), raw[0], this.metadata, explicitContextWindows.get(`${providerId}:${candidate.id}`), explicitInputs.get(`${providerId}:${candidate.id}`)))
         : raw
       const providerHeaders = this.configuredHeaders.get(providerId)
       if (!providerHeaders || Object.keys(providerHeaders).length === 0) return models
@@ -118,9 +149,11 @@ export class ProviderModelCatalogService {
       const providerIds = new Set([...raw.map((model) => model.provider), ...Object.keys(this.state.providers || {})])
       return [...providerIds].flatMap((id) => modelsForProvider(id))
     }
-    runtime.getModel = (providerId, modelId) => catalogEntry(providerId)
-      ? modelsForProvider(providerId).find((model) => model.id === modelId)
-      : rawGetModel(providerId, modelId)
+    runtime.getModel = (providerId, modelId) => {
+      const model = modelsForProvider(providerId).find((item) => item.id === modelId)
+      if (model || catalogEntry(providerId)) return model
+      return rawGetModel(providerId, modelId)
+    }
     runtime.getAvailable = async (providerId) => {
       const raw = [...await rawGetAvailable(providerId)]
       const availableProviders = new Set(raw.map((model) => model.provider))

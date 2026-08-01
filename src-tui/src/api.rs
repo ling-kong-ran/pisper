@@ -1,17 +1,22 @@
-use std::time::Duration;
+use std::{
+    path::{Path, PathBuf},
+    time::Duration,
+};
 
-use anyhow::{anyhow, Context, Result};
+use anyhow::{anyhow, bail, Context, Result};
+use base64::{engine::general_purpose::STANDARD as BASE64, Engine};
 use futures_util::StreamExt;
 use percent_encoding::{utf8_percent_encode, NON_ALPHANUMERIC};
 use reqwest::{header, Client, Response};
-use serde::{de::DeserializeOwned, Serialize};
+use serde::{de::DeserializeOwned, Deserialize, Serialize};
 use serde_json::{json, Value};
 use tokio::sync::mpsc;
 use url::Url;
 
 use crate::model::{
-    ExecutionModeUpdate, McpCatalog, MessagePage, PluginCatalog, RuntimeEvent, SessionSummary,
-    SessionsResponse, SkillDefinition, SkillsCatalog, StreamEvent, ToolDefinition,
+    ExecutionModeUpdate, McpCatalog, MessagePage, ModelOption, PluginCatalog, RuntimeEvent,
+    SessionModelUpdate, SessionSummary, SessionsResponse, SkillDefinition, SkillsCatalog,
+    StreamEvent, ThinkingLevelUpdate, ToolDefinition,
 };
 
 #[derive(Clone)]
@@ -107,14 +112,29 @@ impl ApiClient {
         .await
     }
 
-    pub async fn default_thinking_level(&self) -> Result<String> {
-        let config = self.get_json::<Value>("/api/config").await?;
-        Ok(config
-            .get("thinkingLevel")
-            .and_then(Value::as_str)
-            .filter(|value| !value.is_empty())
-            .unwrap_or("medium")
-            .to_owned())
+    pub async fn runtime_preferences(&self) -> Result<(String, Vec<ModelOption>)> {
+        let config = self.get_json::<RuntimeConfig>("/api/config").await?;
+        let models = config
+            .providers
+            .into_iter()
+            .filter(|provider| provider.enabled && provider.provider_type == "chat")
+            .flat_map(|provider| {
+                provider.models.into_iter().map(move |model| ModelOption {
+                    provider: provider.id.clone(),
+                    id: model.id,
+                    name: model.name,
+                    reasoning: model.reasoning,
+                })
+            })
+            .collect();
+        Ok((
+            if config.thinking_level.is_empty() {
+                "medium".to_owned()
+            } else {
+                config.thinking_level
+            },
+            models,
+        ))
     }
 
     pub async fn messages(&self, session_id: &str) -> Result<MessagePage> {
@@ -153,6 +173,41 @@ impl ApiClient {
                 .filter(|item| item.enabled && !item.command.is_empty())
                 .collect(),
         ))
+    }
+
+    pub async fn set_session_model(
+        &self,
+        session_id: &str,
+        provider: &str,
+        model: &str,
+    ) -> Result<SessionModelUpdate> {
+        let id = encode_segment(session_id);
+        self.send_json(
+            reqwest::Method::PUT,
+            &format!("/api/sessions/{id}/model"),
+            &json!({ "provider": provider, "model": model }),
+        )
+        .await
+    }
+
+    pub async fn thinking_state(&self, session_id: &str) -> Result<ThinkingLevelUpdate> {
+        let id = encode_segment(session_id);
+        self.get_json(&format!("/api/sessions/{id}/thinking-level"))
+            .await
+    }
+
+    pub async fn set_thinking_level(
+        &self,
+        session_id: &str,
+        level: &str,
+    ) -> Result<ThinkingLevelUpdate> {
+        let id = encode_segment(session_id);
+        self.send_json(
+            reqwest::Method::PUT,
+            &format!("/api/sessions/{id}/thinking-level"),
+            &json!({ "level": level }),
+        )
+        .await
     }
 
     pub async fn set_execution_mode(
@@ -204,15 +259,17 @@ impl ApiClient {
         session_id: String,
         message: String,
         requested_tool: Option<String>,
+        attachment_paths: Vec<PathBuf>,
         sender: mpsc::UnboundedSender<RuntimeEvent>,
     ) -> Result<()> {
+        let attachments = prepare_attachments(&attachment_paths).await?;
         let response = self
             .client
             .post(self.url("/api/chat")?)
             .json(&json!({
                 "sessionId": session_id,
                 "message": message,
-                "attachments": [],
+                "attachments": attachments,
                 "goalMode": false,
                 "requestedToolNames": requested_tool.into_iter().collect::<Vec<_>>(),
             }))
@@ -238,6 +295,148 @@ impl ApiClient {
         }
         Ok(())
     }
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct RuntimeConfig {
+    #[serde(default)]
+    thinking_level: String,
+    #[serde(default)]
+    providers: Vec<RuntimeProvider>,
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct RuntimeProvider {
+    id: String,
+    #[serde(rename = "type", default)]
+    provider_type: String,
+    #[serde(default)]
+    enabled: bool,
+    #[serde(default)]
+    models: Vec<RuntimeModel>,
+}
+
+#[derive(Deserialize)]
+struct RuntimeModel {
+    id: String,
+    #[serde(default)]
+    name: String,
+    #[serde(default)]
+    reasoning: bool,
+}
+
+async fn prepare_attachments(paths: &[PathBuf]) -> Result<Vec<Value>> {
+    if paths.len() > 8 {
+        bail!("attachment limit exceeded (maximum 8)");
+    }
+    let mut result = Vec::with_capacity(paths.len());
+    let mut total_size = 0u64;
+    for path in paths {
+        let metadata = tokio::fs::metadata(path)
+            .await
+            .with_context(|| format!("failed to inspect attachment {}", path.display()))?;
+        if !metadata.is_file() {
+            bail!("attachment is not a file: {}", path.display());
+        }
+        if metadata.len() > 10 * 1024 * 1024 {
+            bail!("attachment exceeds 10 MiB: {}", path.display());
+        }
+        total_size = total_size.saturating_add(metadata.len());
+        if total_size > 20 * 1024 * 1024 {
+            bail!("total attachment size exceeds 20 MiB");
+        }
+        let bytes = tokio::fs::read(path)
+            .await
+            .with_context(|| format!("failed to read attachment {}", path.display()))?;
+        let name = path
+            .file_name()
+            .map(|value| value.to_string_lossy().into_owned())
+            .unwrap_or_else(|| "attachment".to_owned());
+        let extension = attachment_extension(path);
+        let common = json!({
+            "id": format!("{}-{}", name, metadata.len()),
+            "name": name,
+            "size": metadata.len(),
+        });
+        let mut attachment = common.as_object().cloned().unwrap_or_default();
+        if let Some(mime_type) = image_mime_type(&extension) {
+            attachment.insert("kind".to_owned(), json!("image"));
+            attachment.insert("mimeType".to_owned(), json!(mime_type));
+            attachment.insert("data".to_owned(), json!(BASE64.encode(bytes)));
+        } else if is_text_extension(&extension) {
+            let text = String::from_utf8_lossy(&bytes);
+            let truncated = text.chars().count() > 200_000;
+            let text = text.chars().take(200_000).collect::<String>();
+            attachment.insert("kind".to_owned(), json!("text"));
+            attachment.insert("mimeType".to_owned(), json!("text/plain"));
+            attachment.insert("text".to_owned(), json!(text));
+            attachment.insert("truncated".to_owned(), json!(truncated));
+        } else if is_document_extension(&extension) {
+            attachment.insert("kind".to_owned(), json!("document"));
+            attachment.insert("mimeType".to_owned(), json!("application/octet-stream"));
+            attachment.insert("extension".to_owned(), json!(extension));
+            attachment.insert("data".to_owned(), json!(BASE64.encode(bytes)));
+        } else {
+            bail!("unsupported attachment type: {}", path.display());
+        }
+        result.push(Value::Object(attachment));
+    }
+    Ok(result)
+}
+
+fn attachment_extension(path: &Path) -> String {
+    path.extension()
+        .and_then(|value| value.to_str())
+        .unwrap_or_default()
+        .to_ascii_lowercase()
+}
+
+fn image_mime_type(extension: &str) -> Option<&'static str> {
+    match extension {
+        "png" => Some("image/png"),
+        "jpg" | "jpeg" => Some("image/jpeg"),
+        "gif" => Some("image/gif"),
+        "webp" => Some("image/webp"),
+        "bmp" => Some("image/bmp"),
+        _ => None,
+    }
+}
+
+fn is_text_extension(extension: &str) -> bool {
+    matches!(
+        extension,
+        "txt"
+            | "md"
+            | "json"
+            | "js"
+            | "jsx"
+            | "ts"
+            | "tsx"
+            | "css"
+            | "html"
+            | "xml"
+            | "yaml"
+            | "yml"
+            | "csv"
+            | "log"
+            | "py"
+            | "java"
+            | "go"
+            | "rs"
+            | "sh"
+            | "ps1"
+            | "toml"
+            | "sql"
+    )
+}
+
+fn is_document_extension(extension: &str) -> bool {
+    matches!(
+        extension,
+        "pdf" | "docx" | "pptx" | "xlsx" | "odt" | "odp" | "ods" | "rtf" | "epub"
+    )
 }
 
 fn encode_segment(value: &str) -> String {
@@ -315,7 +514,33 @@ impl SseDecoder {
 
 #[cfg(test)]
 mod tests {
-    use super::SseDecoder;
+    use super::{prepare_attachments, SseDecoder};
+
+    #[tokio::test]
+    async fn prepares_text_and_image_attachments_for_the_shared_chat_protocol() {
+        let directory = std::env::temp_dir().join(format!(
+            "pisper-tui-api-{}",
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        ));
+        tokio::fs::create_dir_all(&directory).await.unwrap();
+        let text = directory.join("notes.md");
+        let image = directory.join("pixel.png");
+        tokio::fs::write(&text, "# Notes\nUTF-8 中文")
+            .await
+            .unwrap();
+        tokio::fs::write(&image, [1u8, 2, 3]).await.unwrap();
+
+        let attachments = prepare_attachments(&[text, image]).await.unwrap();
+        assert_eq!(attachments[0]["kind"], "text");
+        assert_eq!(attachments[0]["text"], "# Notes\nUTF-8 中文");
+        assert_eq!(attachments[1]["kind"], "image");
+        assert_eq!(attachments[1]["mimeType"], "image/png");
+        assert_eq!(attachments[1]["data"], "AQID");
+        tokio::fs::remove_dir_all(directory).await.unwrap();
+    }
 
     #[test]
     fn parses_chunked_crlf_and_final_records() {

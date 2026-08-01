@@ -748,6 +748,7 @@ name = "pisper-tui"
 version = "0.4.5"
 dependencies = [
  "anyhow",
+ "base64",
  "crossterm",
  "dirs",
  "futures-util",

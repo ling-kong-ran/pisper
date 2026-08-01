@@ -28,13 +28,14 @@ test('non-Windows bash environment is left unchanged', async () => {
   assert.equal(await createWindowsUtf8BashTool('/tmp', 'linux'), null)
 })
 
-test('Windows bash can stream Python Unicode output', { skip: process.platform !== 'win32' }, async () => {
+test('Windows bash preserves Unicode and shell-sensitive JavaScript syntax', { skip: process.platform !== 'win32' }, async () => {
   const tool = await createWindowsUtf8BashTool(process.cwd())
   const result = await tool.execute('unicode-test', {
-    command: `python -c "print('\\u4e2d\\u6587 \\U0001f525')"`,
-    // CI runners can be cold on first Python launch; keep headroom above the local 10s path.
+    command: `node -e 'console.log([1, 2].map((value) => value * 2).join(",")); console.log("中文 & symbols > preserved 🔥")'`,
+    // CI runners can be cold on first Node launch; keep headroom above the local 10s path.
     timeout: 30,
   })
 
-  assert.match(result.content[0].text, /中文 🔥/u)
+  assert.match(result.content[0].text, /2,4/u)
+  assert.match(result.content[0].text, /中文 & symbols > preserved 🔥/u)
 })

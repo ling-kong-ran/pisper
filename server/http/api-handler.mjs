@@ -489,6 +489,16 @@ export function createApiHandler(
         json(res, 200, await runtime.setSessionModel(decodeURIComponent(sessionModelMatch[1]), String(body.provider || ''), String(body.model || '')))
         return true
       }
+      const sessionThinkingMatch = url.pathname.match(/^\/api\/sessions\/([^/]+)\/thinking-level$/)
+      if (req.method === 'GET' && sessionThinkingMatch) {
+        json(res, 200, await runtime.getSessionThinkingState(decodeURIComponent(sessionThinkingMatch[1])))
+        return true
+      }
+      if (req.method === 'PUT' && sessionThinkingMatch) {
+        const body = await bodyJson(req)
+        json(res, 200, await runtime.setSessionThinkingLevel(decodeURIComponent(sessionThinkingMatch[1]), String(body.level || '')))
+        return true
+      }
       const sessionCwdMatch = url.pathname.match(/^\/api\/sessions\/([^/]+)\/cwd$/)
       if (req.method === 'PUT' && sessionCwdMatch) {
         const body = await bodyJson(req)

@@ -9,7 +9,7 @@ use std::{io, path::PathBuf};
 use anyhow::{Context, Result};
 use app::{Action, App};
 use crossterm::{
-    event::{Event, EventStream},
+    event::{DisableBracketedPaste, EnableBracketedPaste, Event, EventStream},
     execute,
     terminal::{disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen},
 };
@@ -54,23 +54,16 @@ async fn run() -> Result<()> {
         .sessions()
         .await
         .context("failed to list conversations")?;
-    let fallback_thinking_level = if sessions.is_empty()
-        || sessions
-            .iter()
-            .any(|session| session.thinking_level.is_empty())
-    {
-        api.default_thinking_level()
-            .await
-            .unwrap_or_else(|_| "medium".to_owned())
-    } else {
-        "medium".to_owned()
-    };
+    let (fallback_thinking_level, model_options) = api
+        .runtime_preferences()
+        .await
+        .unwrap_or_else(|_| ("medium".to_owned(), Vec::new()));
     for summary in &mut sessions {
         if summary.thinking_level.is_empty() {
             summary.thinking_level.clone_from(&fallback_thinking_level);
         }
     }
-    let session = match resumable_session(&sessions, &options.workspace, options.resume) {
+    let mut session = match resumable_session(&sessions, &options.workspace, options.resume) {
         Some(session) => session,
         None => {
             let mut created = api
@@ -83,9 +76,15 @@ async fn run() -> Result<()> {
             created
         }
     };
+    let thinking_state = api.thinking_state(&session.id).await.ok();
+    if let Some(state) = &thinking_state {
+        if !state.thinking_level.is_empty() {
+            session.thinking_level.clone_from(&state.thinking_level);
+        }
+    }
     let page = api.messages(&session.id).await?;
     let (tools, skills) = api.catalogs().await.unwrap_or_default();
-    let app = App::new(
+    let mut app = App::new(
         sessions,
         session,
         page.messages,
@@ -93,6 +92,10 @@ async fn run() -> Result<()> {
         tools,
         skills,
     );
+    app.set_model_options(model_options);
+    if let Some(state) = thinking_state {
+        app.set_thinking_options(state.available_levels);
+    }
 
     let mut terminal = TerminalSession::start()?;
     let result = run_event_loop(&mut terminal.terminal, app, api).await;
@@ -131,10 +134,24 @@ async fn run_event_loop(
                 }
             }
             maybe_runtime = runtime_rx.recv() => {
-                match maybe_runtime {
-                    Some(RuntimeEvent::Stream(event)) => app.apply_stream_event(event),
-                    Some(RuntimeEvent::StreamFailed(message)) => app.stream_failed(message),
-                    None => {}
+                let terminal_event = match maybe_runtime {
+                    Some(RuntimeEvent::Stream(event)) => {
+                        let terminal = matches!(event.name.as_str(), "done" | "error");
+                        app.apply_stream_event(event);
+                        terminal
+                    }
+                    Some(RuntimeEvent::StreamFailed(message)) => {
+                        app.stream_failed(message);
+                        true
+                    }
+                    None => false,
+                };
+                if terminal_event {
+                    if let Some(action) = app.take_queued_action() {
+                        if execute_action(action, &mut app, &api, &runtime_tx).await? {
+                            break;
+                        }
+                    }
                 }
             }
             _ = animation.tick(), if app.has_pending_render() => {
@@ -160,13 +177,20 @@ async fn execute_action(
         Action::Submit {
             message,
             requested_tool,
+            attachment_paths,
         } => {
             let api = api.clone();
             let sender = runtime_tx.clone();
             let session_id = app.session.id.clone();
             tokio::spawn(async move {
                 if let Err(error) = api
-                    .stream_chat(session_id, message, requested_tool, sender.clone())
+                    .stream_chat(
+                        session_id,
+                        message,
+                        requested_tool,
+                        attachment_paths,
+                        sender.clone(),
+                    )
                     .await
                 {
                     let _ = sender.send(RuntimeEvent::StreamFailed(format!("{error:#}")));
@@ -194,6 +218,29 @@ async fn execute_action(
                 Ok(updated) => app.set_execution_mode(updated.execution_mode),
                 Err(error) => {
                     app.status = format!("mode change failed · {error}");
+                    app.status_error = true;
+                }
+            }
+        }
+        Action::SetModel { provider, model } => {
+            app.status = format!("changing model · {provider}/{model}");
+            match api
+                .set_session_model(&app.session.id, &provider, &model)
+                .await
+            {
+                Ok(updated) => app.set_model(updated),
+                Err(error) => {
+                    app.status = format!("model change failed · {error}");
+                    app.status_error = true;
+                }
+            }
+        }
+        Action::SetThinkingLevel(level) => {
+            app.status = format!("changing thinking · {level}");
+            match api.set_thinking_level(&app.session.id, &level).await {
+                Ok(updated) => app.set_thinking_level(updated),
+                Err(error) => {
+                    app.status = format!("thinking change failed · {error}");
                     app.status_error = true;
                 }
             }
@@ -306,7 +353,7 @@ impl TerminalSession {
     fn start() -> Result<Self> {
         enable_raw_mode()?;
         let mut stdout = io::stdout();
-        execute!(stdout, EnterAlternateScreen)?;
+        execute!(stdout, EnterAlternateScreen, EnableBracketedPaste)?;
         let terminal = Terminal::new(CrosstermBackend::new(stdout))?;
         Ok(Self {
             terminal,
@@ -320,7 +367,11 @@ impl TerminalSession {
         }
         self.restored = true;
         let _ = disable_raw_mode();
-        let _ = execute!(self.terminal.backend_mut(), LeaveAlternateScreen);
+        let _ = execute!(
+            self.terminal.backend_mut(),
+            DisableBracketedPaste,
+            LeaveAlternateScreen
+        );
         let _ = self.terminal.show_cursor();
     }
 }

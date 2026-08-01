@@ -3,7 +3,7 @@ import { appendFile, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import test from 'node:test'
-import { AgentRuntimeService, multiAgentResultAgent, waitForAgentMailbox } from '../runtime/agent-runtime.mjs'
+import { AgentRuntimeService, installTransientStreamRetry, multiAgentResultAgent, waitForAgentMailbox } from '../runtime/agent-runtime.mjs'
 import { applyTextPatch } from '../../src/lib/api.ts'
 import { shouldRetainClosedSessionState } from '../../src/lib/session-state.ts'
 
@@ -420,6 +420,48 @@ test('background memory candidate extraction never blocks or delays session comp
   assert.ok(timeline.indexOf('done') < timeline.indexOf('candidate-extraction-started'))
 })
 
+test('image attachments reach the Pi prompt when the selected model supports images', async (t) => {
+  const directory = await mkdtemp(join(tmpdir(), 'pisper-image-prompt-'))
+  t.after(() => rm(directory, { recursive: true, force: true }))
+  const runtime = new AgentRuntimeService({ cwd: directory, dataDir: directory })
+  runtime.archiveAttachments = async () => [{ path: join(directory, 'image.png') }]
+  runtime.captureConversationMemory = async () => []
+  runtime.memory = { relevantContext: async () => ({ text: '' }) }
+
+  let observedPrompt = ''
+  let observedOptions
+  const session = {
+    sessionId: 'session-image-prompt',
+    isStreaming: false,
+    model: { provider: 'relay', id: 'gpt-5.6-sol', input: ['text', 'image'] },
+    thinkingLevel: 'medium',
+    messages: [{ role: 'user', content: 'Earlier context', timestamp: 1 }],
+    agent: { state: { systemPrompt: 'Base prompt' } },
+    getActiveToolNames: () => [],
+    setActiveToolsByName: () => {},
+    subscribe() { return () => {} },
+    async prompt(prompt, options) {
+      observedPrompt = prompt
+      observedOptions = options
+      session.messages.push({ role: 'assistant', content: [{ type: 'text', text: 'I can see the image.' }], stopReason: 'stop', timestamp: 2 })
+    },
+  }
+  const value = { session, cwd: directory, name: 'Image prompt', baseToolNames: [] }
+  runtime.sessions.set(session.sessionId, value)
+  runtime.getOrCreateSession = async () => value
+
+  await runtime.streamPrompt({
+    sessionId: session.sessionId,
+    message: 'Analyze this image.',
+    attachments: [{ kind: 'image', name: 'image.png', mimeType: 'image/png', data: 'AQID' }],
+    send: () => {},
+  })
+
+  assert.deepEqual(observedOptions.images, [{ type: 'image', data: 'AQID', mimeType: 'image/png' }])
+  assert.match(observedPrompt, /\[Image attachment\] image\.png/)
+  assert.match(observedPrompt, /Local path:/)
+})
+
 test('background Agent results remain durable without entering parent prompts or custom context', async (t) => {
   const directory = await mkdtemp(join(tmpdir(), 'pisper-agent-mailbox-passive-'))
   t.after(() => rm(directory, { recursive: true, force: true }))
@@ -613,6 +655,25 @@ test('generated session title is emitted before the terminal done event', async 
   assert.ok(titleIndex >= 0)
   assert.ok(doneIndex > titleIndex)
   assert.equal(events[titleIndex].data.name, 'Generated Title')
+})
+
+test('stream_read_error uses the Pi turn retry path without broadening terminal errors', () => {
+  const originalCalls = []
+  const session = {
+    _isRetryableError(message) {
+      originalCalls.push(message)
+      return message?.errorMessage === 'existing transient error'
+    },
+  }
+
+  installTransientStreamRetry(session)
+  installTransientStreamRetry(session)
+
+  assert.equal(session._isRetryableError({ stopReason: 'error', errorMessage: 'stream_read_error' }), true)
+  assert.equal(session._isRetryableError({ stopReason: 'error', errorMessage: 'Stream read error: connection closed' }), true)
+  assert.equal(session._isRetryableError({ stopReason: 'error', errorMessage: 'invalid api key' }), false)
+  assert.equal(session._isRetryableError({ stopReason: 'stop', errorMessage: 'stream_read_error' }), false)
+  assert.equal(originalCalls.length, 2)
 })
 
 test('stream failures emit a single terminal error snapshot without throwing', async (t) => {

@@ -110,6 +110,42 @@ test('session creation forwards the CLI workspace to the shared runtime', async 
   assert.deepEqual(calls, [['CLI chat', 'E:\\code\\workspace']])
 })
 
+test('session model and thinking APIs delegate current-session changes to the runtime', async () => {
+  const calls = []
+  const runtime = {
+    async setSessionModel(id, provider, model) {
+      calls.push(['model', id, provider, model])
+      return { id, model: `${provider}/${model}` }
+    },
+    async getSessionThinkingState(id) {
+      calls.push(['thinking-state', id])
+      return { id, thinkingLevel: 'medium', availableLevels: ['off', 'medium', 'high'] }
+    },
+    async setSessionThinkingLevel(id, level) {
+      calls.push(['thinking', id, level])
+      return { id, thinkingLevel: level, availableLevels: ['off', 'medium', 'high'] }
+    },
+  }
+  const handler = createApiHandler(runtime)
+
+  const modelResponse = response()
+  assert.equal(await handler(request('PUT', { provider: 'openai', model: 'gpt-5.6' }), modelResponse, new URL('http://localhost/api/sessions/session%201/model')), true)
+  assert.deepEqual(JSON.parse(modelResponse.body), { id: 'session 1', model: 'openai/gpt-5.6' })
+
+  const thinkingStateResponse = response()
+  assert.equal(await handler(request('GET'), thinkingStateResponse, new URL('http://localhost/api/sessions/session%201/thinking-level')), true)
+  assert.deepEqual(JSON.parse(thinkingStateResponse.body), { id: 'session 1', thinkingLevel: 'medium', availableLevels: ['off', 'medium', 'high'] })
+
+  const thinkingResponse = response()
+  assert.equal(await handler(request('PUT', { level: 'high' }), thinkingResponse, new URL('http://localhost/api/sessions/session%201/thinking-level')), true)
+  assert.deepEqual(JSON.parse(thinkingResponse.body), { id: 'session 1', thinkingLevel: 'high', availableLevels: ['off', 'medium', 'high'] })
+  assert.deepEqual(calls, [
+    ['model', 'session 1', 'openai', 'gpt-5.6'],
+    ['thinking-state', 'session 1'],
+    ['thinking', 'session 1', 'high'],
+  ])
+})
+
 test('session execution mode API delegates to the runtime', async () => {
   const calls = []
   const runtime = {
