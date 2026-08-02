@@ -16,6 +16,10 @@ export function createApiHandler(
         json(res, 200, { ok: true, engine: '@earendil-works/pi-coding-agent', version: engineVersion })
         return true
       }
+      if (req.method === 'GET' && url.pathname === '/api/runtime/diagnostics') {
+        json(res, 200, runtime.getRuntimeDiagnostics())
+        return true
+      }
       if (req.method === 'GET' && url.pathname === '/api/app-update') {
         if (!updates) throw new Error('更新检查服务尚未初始化。')
         try {

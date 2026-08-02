@@ -10,6 +10,7 @@ import {
   SettingsManager,
 } from './pi-coding-agent.mjs'
 import { readJson, writeJsonAtomic } from '../storage/json-file.mjs'
+import { cleanupRemovedLocalEmbeddingData } from '../data-dir-migration.mjs'
 import { ChannelService } from '../services/channels/channel-service.mjs'
 import { NotificationSettingsService } from '../services/notification-settings-service.mjs'
 import { McpService } from '../services/mcp-service.mjs'
@@ -89,11 +90,13 @@ const MAX_SESSION_TITLE_CHARS = 20
 const DEFAULT_MESSAGE_PAGE_SIZE = 40
 const MAX_MESSAGE_PAGE_SIZE = 100
 const LIVE_MESSAGE_PAGE_SIZE = 60
-const MAX_RESIDENT_SESSION_RUNTIMES = 8
+const MAX_RESIDENT_SESSION_RUNTIMES = 3
+const SESSION_RUNTIME_IDLE_TTL_MS = 5 * 60 * 1000
+const SESSION_RUNTIME_SWEEP_INTERVAL_MS = 60 * 1000
 const SESSION_HISTORY_READ_CHUNK_BYTES = 1024 * 1024
-const MAX_SESSION_HISTORY_CACHE_ENTRIES = 8
-const MAX_SESSION_HISTORY_CACHE_SOURCE_BYTES = 16 * 1024 * 1024
-const MAX_SESSION_HISTORY_CACHE_ESTIMATED_BYTES = 128 * 1024 * 1024
+const MAX_SESSION_HISTORY_CACHE_ENTRIES = 4
+const MAX_SESSION_HISTORY_CACHE_SOURCE_BYTES = 8 * 1024 * 1024
+const MAX_SESSION_HISTORY_CACHE_ESTIMATED_BYTES = 48 * 1024 * 1024
 const SESSION_HISTORY_CACHE_MEMORY_MULTIPLIER = 4
 const ISOLATED_CONTEXT_BLOCKED_TOOLS = ['memory_search', 'memory_remember']
 const ASSET_TEXT_EXTENSIONS = new Set(['.txt', '.md', '.json', '.js', '.jsx', '.ts', '.tsx', '.css', '.html', '.xml', '.yaml', '.yml', '.csv', '.log', '.py', '.java', '.go', '.rs', '.sh', '.ps1', '.toml', '.sql'])
@@ -124,6 +127,15 @@ function textFromContent(content) {
     .filter((part) => part?.type === 'text')
     .map((part) => part.text || '')
     .join('')
+}
+
+export function storedSessionModelId(sessionManager) {
+  let modelId = ''
+  for (const entry of sessionManager?.getBranch?.() || []) {
+    if (entry?.type === 'model_change') modelId = entry.modelId || modelId
+    else if (entry?.type === 'message' && entry.message?.role === 'assistant') modelId = entry.message.model || modelId
+  }
+  return modelId
 }
 
 const MAX_LIVE_ACTIVITY_ITEMS = 6
@@ -736,6 +748,9 @@ export class AgentRuntimeService {
     })
     this.sessions = new Map()
     this.maxResidentSessionRuntimes = MAX_RESIDENT_SESSION_RUNTIMES
+    this.sessionRuntimeIdleTtlMs = SESSION_RUNTIME_IDLE_TTL_MS
+    this.sessionRuntimeSweepIntervalMs = SESSION_RUNTIME_SWEEP_INTERVAL_MS
+    this.sessionRuntimeSweepTimer = null
     this.pendingSessions = new Map()
     this.storedSessionsCache = null
     this.storedSessionsPromise = null
@@ -780,6 +795,7 @@ export class AgentRuntimeService {
   async init() {
     await mkdir(this.sessionDir, { recursive: true })
     await mkdir(this.assetsDir, { recursive: true })
+    await cleanupRemovedLocalEmbeddingData(this.dataDir)
     this.sessionMeta = await readJson(this.sessionMetaPath, {})
     await this.migrateLegacyDefaultWorkspaces()
     await this.migrateSessionExecutionModes()
@@ -813,6 +829,7 @@ export class AgentRuntimeService {
     await this.channels.init()
     await this.schedules.init()
     await this.workflows.init()
+    this.startSessionRuntimeSweeper()
     void this.refreshProviderModels().catch(() => {})
   }
 
@@ -1041,22 +1058,88 @@ export class AgentRuntimeService {
     )
   }
 
-  evictIdleSessionRuntimes(exceptId = '') {
+  disposeSessionRuntime(id, value) {
+    if (!value || this.sessions.get(id) !== value) return false
+    this.permissions.resolveSession(id, false, '会话运行时已从内存释放，请重新发送消息。')
+    try {
+      value.session.dispose()
+    } finally {
+      this.sessions.delete(id)
+      this.sessionContextUsageCache.delete(id)
+      const sessionPath = value.session.sessionFile
+      if (sessionPath) this.sessionHistoryCache.delete(sessionPath)
+    }
+    return true
+  }
+
+  evictIdleSessionRuntimes(exceptId = '', now = Date.now()) {
     const maximum = Math.max(1, Number(this.maxResidentSessionRuntimes) || MAX_RESIDENT_SESSION_RUNTIMES)
-    if (this.sessions.size <= maximum) return 0
-    const candidates = [...this.sessions.entries()]
+    const idleTtlMs = Math.max(0, Number(this.sessionRuntimeIdleTtlMs) || SESSION_RUNTIME_IDLE_TTL_MS)
+    const candidates = () => [...this.sessions.entries()]
       .filter(([id, value]) => id !== exceptId && !this.sessionRuntimeIsProtected(id, value))
       .sort((left, right) => (left[1].lastAccessedAt || 0) - (right[1].lastAccessedAt || 0))
     let evicted = 0
-    while (this.sessions.size > maximum && candidates.length) {
-      const [id, value] = candidates.shift()
-      if (this.sessions.get(id) !== value) continue
-      this.permissions.resolveSession(id, false, '会话运行时已从内存释放，请重新发送消息。')
-      value.session.dispose()
-      this.sessions.delete(id)
-      evicted += 1
+    if (idleTtlMs > 0) {
+      for (const [id, value] of candidates()) {
+        if (now - (value.lastAccessedAt || 0) < idleTtlMs) continue
+        if (this.disposeSessionRuntime(id, value)) evicted += 1
+      }
+    }
+    const overflow = candidates()
+    while (this.sessions.size > maximum && overflow.length) {
+      const [id, value] = overflow.shift()
+      if (this.disposeSessionRuntime(id, value)) evicted += 1
     }
     return evicted
+  }
+
+  startSessionRuntimeSweeper() {
+    if (this.sessionRuntimeSweepTimer) return
+    const intervalMs = Math.max(1_000, Number(this.sessionRuntimeSweepIntervalMs) || SESSION_RUNTIME_SWEEP_INTERVAL_MS)
+    this.sessionRuntimeSweepTimer = setInterval(() => {
+      try { this.evictIdleSessionRuntimes() } catch {}
+    }, intervalMs)
+    this.sessionRuntimeSweepTimer.unref?.()
+  }
+
+  getRuntimeDiagnostics() {
+    const now = Date.now()
+    const memory = process.memoryUsage()
+    const resident = [...this.sessions.entries()]
+    const protectedSessions = resident.filter(([id, value]) => this.sessionRuntimeIsProtected(id, value)).length
+    const idleAges = resident
+      .filter(([id, value]) => !this.sessionRuntimeIsProtected(id, value))
+      .map(([, value]) => Math.max(0, now - (value.lastAccessedAt || now)))
+    const historySourceBytes = [...this.sessionHistoryCache.values()].reduce((total, entry) => total + entry.size, 0)
+    return {
+      timestamp: new Date(now).toISOString(),
+      uptimeSeconds: Math.round(process.uptime()),
+      memory: {
+        rss: memory.rss,
+        heapTotal: memory.heapTotal,
+        heapUsed: memory.heapUsed,
+        external: memory.external,
+        arrayBuffers: memory.arrayBuffers,
+      },
+      sessions: {
+        resident: resident.length,
+        protected: protectedSessions,
+        idle: resident.length - protectedSessions,
+        pending: this.pendingSessions.size,
+        live: this.liveSessions.size,
+        oldestIdleMs: idleAges.length ? Math.max(...idleAges) : 0,
+        maxResident: this.maxResidentSessionRuntimes,
+        idleTtlMs: this.sessionRuntimeIdleTtlMs,
+      },
+      historyCache: {
+        entries: this.sessionHistoryCache.size,
+        sourceBytes: historySourceBytes,
+        estimatedBytes: historySourceBytes * SESSION_HISTORY_CACHE_MEMORY_MULTIPLIER,
+        maxEntries: this.maxSessionHistoryCacheEntries,
+        maxSourceBytes: this.maxSessionHistoryCacheSourceBytes,
+        maxEstimatedBytes: this.maxSessionHistoryCacheEstimatedBytes,
+      },
+    }
   }
 
   async sessionWorkspaceCwd(id) {
@@ -1989,7 +2072,7 @@ export class AgentRuntimeService {
 
   async createSessionRuntime(sessionManager, name) {
     const settings = this.settingsManager.getGlobalSettings()
-    const storedModelId = sessionManager.buildSessionContext()?.model?.modelId
+    const storedModelId = storedSessionModelId(sessionManager)
     await this.modelMetadata.ensure(storedModelId || settings.defaultModel)
     const appConfig = await readJson(this.appConfigPath, { toolMode: 'full' })
     const effectiveCwd = await resolveDirectory(this.sessionMeta[sessionManager.getSessionId()]?.cwd, sessionManager.getCwd() || this.cwd)
@@ -3031,6 +3114,8 @@ export class AgentRuntimeService {
   }
 
   async dispose() {
+    if (this.sessionRuntimeSweepTimer) clearInterval(this.sessionRuntimeSweepTimer)
+    this.sessionRuntimeSweepTimer = null
     for (const timer of this.agentWakeupTimers.values()) clearTimeout(timer)
     this.agentWakeupTimers.clear()
     this.providerModelDiscovery.abort?.()

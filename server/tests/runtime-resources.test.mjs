@@ -5,7 +5,7 @@ import { join } from 'node:path'
 import test from 'node:test'
 import { defineTool, SessionManager } from '@earendil-works/pi-coding-agent'
 import { Type } from 'typebox'
-import { AgentRuntimeService } from '../runtime/agent-runtime.mjs'
+import { AgentRuntimeService, storedSessionModelId } from '../runtime/agent-runtime.mjs'
 
 test('blank chat sessions stay lightweight until an Agent is first required', async (t) => {
   const directory = await mkdtemp(join(tmpdir(), 'pisper-pending-session-'))
@@ -254,6 +254,7 @@ test('resident session runtime limit evicts the least-recent idle session but pr
     await rm(directory, { recursive: true, force: true }).catch(() => {})
   })
   runtime.maxResidentSessionRuntimes = 2
+  runtime.sessionRuntimeIdleTtlMs = Number.POSITIVE_INFINITY
   const disposed = []
   runtime.sessions.set('old-idle', {
     lastAccessedAt: 1,
@@ -271,4 +272,82 @@ test('resident session runtime limit evicts the least-recent idle session but pr
   assert.equal(runtime.evictIdleSessionRuntimes(), 1)
   assert.deepEqual(disposed, ['old-idle'])
   assert.deepEqual([...runtime.sessions.keys()], ['streaming', 'new-idle'])
+})
+
+test('idle session runtime TTL releases inactive contexts and their history cache', async (t) => {
+  const directory = await mkdtemp(join(tmpdir(), 'pisper-session-runtime-ttl-'))
+  const runtime = new AgentRuntimeService({ cwd: directory, dataDir: directory })
+  t.after(async () => {
+    runtime.sessions.clear()
+    await runtime.dispose().catch(() => {})
+    await rm(directory, { recursive: true, force: true }).catch(() => {})
+  })
+  runtime.sessionRuntimeIdleTtlMs = 100
+  const sessionFile = join(directory, 'idle.jsonl')
+  const disposed = []
+  runtime.sessions.set('expired', {
+    lastAccessedAt: 800,
+    session: { isStreaming: false, sessionFile, dispose: () => disposed.push('expired') },
+  })
+  runtime.sessions.set('recent', {
+    lastAccessedAt: 950,
+    session: { isStreaming: false, dispose: () => disposed.push('recent') },
+  })
+  runtime.sessions.set('streaming', {
+    lastAccessedAt: 1,
+    session: { isStreaming: true, dispose: () => disposed.push('streaming') },
+  })
+  runtime.sessionHistoryCache.set(sessionFile, { size: 1024 })
+  runtime.sessionContextUsageCache.set('expired', { value: {} })
+
+  assert.equal(runtime.evictIdleSessionRuntimes('', 1_000), 1)
+  assert.deepEqual(disposed, ['expired'])
+  assert.equal(runtime.sessions.has('expired'), false)
+  assert.equal(runtime.sessions.has('recent'), true)
+  assert.equal(runtime.sessions.has('streaming'), true)
+  assert.equal(runtime.sessionHistoryCache.has(sessionFile), false)
+  assert.equal(runtime.sessionContextUsageCache.has('expired'), false)
+})
+
+test('stored session model lookup does not build the full message context', () => {
+  const sessionManager = {
+    buildSessionContext() {
+      throw new Error('full context should not be built')
+    },
+    getBranch() {
+      return [
+        { type: 'model_change', provider: 'openai', modelId: 'gpt-old' },
+        { type: 'message', message: { role: 'assistant', provider: 'openai', model: 'gpt-response' } },
+        { type: 'model_change', provider: 'openai', modelId: 'gpt-current' },
+      ]
+    },
+  }
+
+  assert.equal(storedSessionModelId(sessionManager), 'gpt-current')
+})
+
+test('runtime diagnostics expose bounded memory and cache counters without session content', async (t) => {
+  const directory = await mkdtemp(join(tmpdir(), 'pisper-runtime-diagnostics-'))
+  const runtime = new AgentRuntimeService({ cwd: directory, dataDir: directory })
+  t.after(async () => {
+    runtime.sessions.clear()
+    await runtime.dispose().catch(() => {})
+    await rm(directory, { recursive: true, force: true }).catch(() => {})
+  })
+  runtime.sessions.set('idle', {
+    lastAccessedAt: Date.now() - 1_000,
+    session: { isStreaming: false, dispose() {} },
+  })
+  runtime.sessionHistoryCache.set('history', { size: 2_048 })
+
+  const diagnostics = runtime.getRuntimeDiagnostics()
+
+  assert.equal(diagnostics.sessions.resident, 1)
+  assert.equal(diagnostics.sessions.idle, 1)
+  assert.equal(diagnostics.sessions.maxResident, 3)
+  assert.equal(diagnostics.historyCache.entries, 1)
+  assert.equal(diagnostics.historyCache.sourceBytes, 2_048)
+  assert.equal(diagnostics.historyCache.estimatedBytes, 8_192)
+  assert.ok(diagnostics.memory.rss > 0)
+  assert.equal(JSON.stringify(diagnostics).includes('idle.jsonl'), false)
 })

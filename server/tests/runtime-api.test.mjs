@@ -44,6 +44,20 @@ test('app update API distinguishes upstream failures from invalid requests', asy
   assert.deepEqual(JSON.parse(output.body), { error: 'GitHub commit 比较失败：HTTP 403' })
 })
 
+test('runtime diagnostics API returns sidecar memory counters', async () => {
+  const diagnostics = {
+    memory: { rss: 123, heapUsed: 45 },
+    sessions: { resident: 1, idle: 1 },
+    historyCache: { entries: 0 },
+  }
+  const handler = createApiHandler({ getRuntimeDiagnostics: () => diagnostics })
+  const output = response()
+
+  assert.equal(await handler(request('GET'), output, new URL('http://localhost/api/runtime/diagnostics')), true)
+  assert.equal(output.status, 200)
+  assert.deepEqual(JSON.parse(output.body), diagnostics)
+})
+
 test('compaction preference APIs expose and update the threshold percentage', async () => {
   const calls = []
   const runtime = {

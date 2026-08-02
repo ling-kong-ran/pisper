@@ -1,9 +1,9 @@
 import assert from 'node:assert/strict'
-import { existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
 import test from 'node:test'
-import { resolveAgentDataDir } from '../data-dir-migration.mjs'
+import { cleanupRemovedLocalEmbeddingData, resolveAgentDataDir } from '../data-dir-migration.mjs'
 
 function withTempHome(t) {
   const home = mkdtempSync(join(tmpdir(), 'pisper-data-dir-'))
@@ -40,4 +40,27 @@ test('legacy home data is ignored instead of read or migrated', (t) => {
 test('uses ~/.pisper/agent by default', (t) => {
   const home = withTempHome(t)
   assert.equal(resolveAgentDataDir({ env: {}, home }), join(home, '.pisper', 'agent'))
+})
+
+test('removed local embedding data is cleaned without changing other settings', async (t) => {
+  const home = withTempHome(t)
+  const dataDir = join(home, '.pisper', 'agent')
+  const modelsDir = join(dataDir, 'pisper-memory-models', 'legacy-model')
+  mkdirSync(modelsDir, { recursive: true })
+  writeFileSync(join(modelsDir, 'model.onnx'), 'legacy-model')
+  writeFileSync(join(dataDir, 'pisper.json'), JSON.stringify({
+    toolMode: 'full',
+    memoryEmbedding: { enabled: true, modelId: 'legacy-model' },
+  }))
+
+  assert.deepEqual(await cleanupRemovedLocalEmbeddingData(dataDir), {
+    configUpdated: true,
+    modelsRemoved: true,
+  })
+  assert.deepEqual(JSON.parse(readFileSync(join(dataDir, 'pisper.json'), 'utf8')), { toolMode: 'full' })
+  assert.equal(existsSync(join(dataDir, 'pisper-memory-models')), false)
+  assert.deepEqual(await cleanupRemovedLocalEmbeddingData(dataDir), {
+    configUpdated: false,
+    modelsRemoved: false,
+  })
 })
