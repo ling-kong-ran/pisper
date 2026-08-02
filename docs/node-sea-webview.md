@@ -37,6 +37,12 @@ npm run desktop:webview:build
 
 `sidecar:sea` generates icons and the web application, installs the production Node dependency closure directly into the external runtime, removes development-only content, injects the SEA blob, and prepares the native Tauri sidecar name. It does not invoke Electron or electron-builder. `sidecar:sea:smoke` verifies authentication, API access, first Pi Agent activation, and graceful shutdown.
 
+### Dependency partition
+
+The root `package.json` and `package-lock.json` are the single npm dependency source for both build and runtime packaging. Keep browser source libraries and build/test tooling in `devDependencies`: Vite compiles browser imports into `dist/` before desktop packaging, so those packages are not installed as Node modules in the shipped application. Keep packages loaded by `server/`, Node-executed `shared/` modules, Skills, MCP integration, or other sidecar runtime paths in `dependencies`; `sidecar:sea` copies the root manifests and runs `npm ci --omit=dev` in `sidecar-runtime/` to install that production closure. A package used by both browser and sidecar code therefore belongs in `dependencies`.
+
+Do not create a second browser package manifest, npm workspace, or package-manager lockfile to represent this split. The repository supports Node.js 20 and newer for development and web/server execution, while release SEA builds continue to target Node.js 24.
+
 `desktop:webview:build` selects native bundles for its host platform:
 
 ```text
