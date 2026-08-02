@@ -1,6 +1,6 @@
 import { Check, FoldVertical, Languages, UnfoldVertical } from 'lucide-react'
 import { LANGUAGE_OPTIONS, translateText, useI18n } from '@/app/use-i18n'
-import { Panel } from '@/components/ui'
+import { SettingsCard as Panel } from './settings-primitives'
 import { useUiStore, type DensityMode } from '@/stores/ui-store'
 import type { LucideIcon } from 'lucide-react'
 import type { SupportedLanguage } from '@/app/i18n'

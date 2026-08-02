@@ -12,7 +12,11 @@ import {
   X,
 } from 'lucide-react'
 import MarkdownMessage from '@/components/MarkdownMessage'
-import { Badge, Panel, SectionTitle } from '@/components/ui'
+import {
+  SettingsBadge as Badge,
+  SettingsCard as Panel,
+  SettingsSectionTitle as SectionTitle,
+} from './settings-primitives'
 import { STORAGE_KEYS } from '@/app/storage'
 import { useI18n } from '@/app/use-i18n'
 import type { Notify } from '@/app/route-context'

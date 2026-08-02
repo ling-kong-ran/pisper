@@ -1,7 +1,11 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Cat, Download, ExternalLink, RefreshCw, Search } from 'lucide-react'
 import { useI18n } from '@/app/use-i18n'
-import { Badge, Panel, Toggle } from '@/components/ui'
+import {
+  SettingsBadge as Badge,
+  SettingsCard as Panel,
+  SettingsSwitch as Toggle,
+} from './settings-primitives'
 import { Slider } from '@/components/ui/slider'
 import { apiJson } from '@/lib/api'
 import type { Notify } from '@/app/route-context'

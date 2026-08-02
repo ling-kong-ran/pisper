@@ -1,6 +1,11 @@
 import { useCallback, useEffect, useState } from 'react'
 import { AlertTriangle, Bell, BellOff, RefreshCw, Save, Send, ShieldCheck } from 'lucide-react'
-import { Badge, Panel, SectionTitle, Toggle } from '@/components/ui'
+import {
+  SettingsBadge as Badge,
+  SettingsCard as Panel,
+  SettingsSectionTitle as SectionTitle,
+  SettingsSwitch as Toggle,
+} from './settings-primitives'
 import { APP_NAME } from '@/app/brand'
 import { useI18n } from '@/app/use-i18n'
 import { apiJson } from '@/lib/api'
