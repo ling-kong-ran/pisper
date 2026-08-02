@@ -20,6 +20,7 @@ src-tauri/gen/
 build/icon.png
 build/icons/
 generated/
+/.agents/skills/
 .vesper/
 vesper-agents.json
 .pisper/
