@@ -71,6 +71,23 @@ test('chat split controls expose left, right, top and bottom actions', async () 
   assert.match(history, /openSession\(session\.id, 'below'\)/)
 })
 
+test('dock layout persistence flushes before suspension and prevents teardown overwrites', async () => {
+  const page = await readFile('src/features/chat/ChatPage.tsx', 'utf8')
+  assert.match(page, /const persistDockLayout = useCallback/)
+  assert.match(page, /const envelope = createDockLayoutEnvelope\(api\.toJSON\(\), api\.activePanel\?\.id \|\| ''\)/)
+  assert.match(page, /document\.addEventListener\('visibilitychange', flushWhenHidden\)/)
+  assert.match(page, /window\.addEventListener\('pagehide', flushBeforePageHide\)/)
+  assert.match(
+    page,
+    /persistDockLayout\(api\)\s+dockInitializedRef\.current = false\s+window\.clearTimeout/,
+  )
+  assert.match(page, /if \(!dockInitializedRef\.current \|\| dockApiRef\.current !== api\) return/)
+  assert.match(
+    page,
+    /api\.onDidActivePanelChange\(\(\{ panel \}\) => \{[\s\S]*?scheduleDockLayoutSave\(api\)/,
+  )
+})
+
 test('initial dock sessions prefer the active chat and migrate valid legacy tabs once', () => {
   assert.deepEqual(initialDockSessionIds({
     activeSessionId: 'b',

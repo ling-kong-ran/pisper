@@ -153,6 +153,7 @@ export function ChatPage({
   const dockInitializedRef = useRef(false)
   const dockDisposablesRef = useRef<DockviewIDisposable[]>([])
   const layoutSaveTimerRef = useRef<number | undefined>(undefined)
+  const pendingDockLayoutRef = useRef<string | null>(null)
   const pendingDockRequestRef = useRef<SessionOpenRequest | null>(null)
   const pendingWebPreviewRef = useRef<WebPreviewOpenRequest | null>(null)
   const compactDockRef = useRef(compactDock)
@@ -372,12 +373,45 @@ export function ChatPage({
     [updateSessionState],
   )
 
+  const persistDockLayout = useCallback((api: DockviewApi | null = dockApiRef.current) => {
+    if (!dockInitializedRef.current) return false
+    window.clearTimeout(layoutSaveTimerRef.current)
+    layoutSaveTimerRef.current = undefined
+    let serialized = pendingDockLayoutRef.current
+    if (api) {
+      try {
+        const envelope = createDockLayoutEnvelope(api.toJSON(), api.activePanel?.id || '')
+        serialized = JSON.stringify(envelope)
+      } catch {}
+    }
+    if (!serialized) return false
+    try {
+      localStorage.setItem(STORAGE_KEYS.chatDockLayout, serialized)
+      pendingDockLayoutRef.current = null
+      return true
+    } catch {
+      return false
+    }
+  }, [])
+
   const scheduleDockLayoutSave = useCallback((api: DockviewApi | null = dockApiRef.current) => {
     if (!api || !dockInitializedRef.current) return
+    let serialized: string
+    try {
+      const envelope = createDockLayoutEnvelope(api.toJSON(), api.activePanel?.id || '')
+      serialized = JSON.stringify(envelope)
+    } catch {
+      return
+    }
+    pendingDockLayoutRef.current = serialized
     window.clearTimeout(layoutSaveTimerRef.current)
     layoutSaveTimerRef.current = window.setTimeout(() => {
-      const envelope = createDockLayoutEnvelope(api.toJSON(), api.activePanel?.id || '')
-      localStorage.setItem(STORAGE_KEYS.chatDockLayout, JSON.stringify(envelope))
+      layoutSaveTimerRef.current = undefined
+      if (!dockInitializedRef.current || dockApiRef.current !== api) return
+      try {
+        localStorage.setItem(STORAGE_KEYS.chatDockLayout, serialized)
+        if (pendingDockLayoutRef.current === serialized) pendingDockLayoutRef.current = null
+      } catch {}
     }, 180)
   }, [])
 
@@ -512,6 +546,7 @@ export function ChatPage({
         api.onDidActivePanelChange(({ panel }) => {
           const sessionId = sessionIdFromPanel(panel)
           if (sessionId) setActiveId(sessionId)
+          scheduleDockLayoutSave(api)
         }),
         api.onDidLayoutChange(() => scheduleDockLayoutSave(api)),
         api.onDidAddPanel((panel) => {
@@ -556,14 +591,31 @@ export function ChatPage({
     return () => window.removeEventListener(WEB_PREVIEW_OPEN_EVENT, openPreview)
   }, [openWebPreviewInDock])
 
+  useEffect(() => {
+    const flushWhenHidden = () => {
+      if (document.visibilityState === 'hidden') persistDockLayout()
+    }
+    const flushBeforePageHide = () => persistDockLayout()
+    document.addEventListener('visibilitychange', flushWhenHidden)
+    window.addEventListener('pagehide', flushBeforePageHide)
+    return () => {
+      document.removeEventListener('visibilitychange', flushWhenHidden)
+      window.removeEventListener('pagehide', flushBeforePageHide)
+    }
+  }, [persistDockLayout])
+
   useEffect(
     () => () => {
+      const api = dockApiRef.current
+      persistDockLayout(api)
+      dockInitializedRef.current = false
       window.clearTimeout(layoutSaveTimerRef.current)
+      layoutSaveTimerRef.current = undefined
       for (const disposable of dockDisposablesRef.current) disposable.dispose()
       dockDisposablesRef.current = []
       dockApiRef.current = null
     },
-    [],
+    [persistDockLayout],
   )
 
   useEffect(() => {
