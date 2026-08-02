@@ -53,10 +53,10 @@ const sessionPath = (sessionId: string) => `/api/sessions/${encodeURIComponent(s
 export const chatApi = {
   listSessions: () => requestJson<SessionListResponse>('/api/sessions'),
 
-  createSession: (name: string) =>
+  createSession: (name: string, cwd = '') =>
     requestJson<SessionSummary>('/api/sessions', {
       method: 'POST',
-      data: { name },
+      data: { name, ...(cwd ? { cwd } : {}) },
     }),
 
   getConfig: () => requestJson<ChatConfigResponse>('/api/config'),

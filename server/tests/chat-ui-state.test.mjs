@@ -2,7 +2,12 @@ import assert from 'node:assert/strict'
 import { readFile } from 'node:fs/promises'
 import test from 'node:test'
 import { createPrimaryActionRegistry } from '../../src/app/primary-action.ts'
-import { mergeSessionLists, removeTiledSession, toggleTiledSession } from '../../src/features/chat/session-list.ts'
+import {
+  mergeSessionLists,
+  recentSessionCwd,
+  removeTiledSession,
+  toggleTiledSession,
+} from '../../src/features/chat/session-list.ts'
 
 test('primary action remains callable until its page registration is disposed', () => {
   const registry = createPrimaryActionRegistry()
@@ -43,6 +48,23 @@ test('stale initial session lists preserve an optimistically created session', (
   const stale = [{ id: 'existing-session', name: '旧会话' }]
 
   assert.deepEqual(mergeSessionLists([optimistic], stale), [stale[0], optimistic])
+})
+
+test('new sessions inherit the most recently listed workspace', async () => {
+  const sessions = [
+    { id: 'latest-without-cwd', modified: '2026-08-02T02:00:00Z', cwd: '  ' },
+    { id: 'latest-workspace', modified: '2026-08-02T01:00:00Z', cwd: 'E:\\code\\latest' },
+    { id: 'older-workspace', modified: '2026-08-01T01:00:00Z', cwd: 'E:\\code\\older' },
+  ]
+  assert.equal(recentSessionCwd(sessions), 'E:\\code\\latest')
+  assert.equal(recentSessionCwd([]), '')
+
+  const [page, api] = await Promise.all([
+    readFile('src/features/chat/ChatPage.tsx', 'utf8'),
+    readFile('src/features/chat/chat-api.ts', 'utf8'),
+  ])
+  assert.match(page, /recentSessionCwd\(sessionsRef\.current\)/)
+  assert.match(api, /data: \{ name, \.\.\.\(cwd \? \{ cwd \} : \{\}\) \}/)
 })
 
 test('removing a tiled session keeps the session itself available elsewhere', () => {

@@ -6,6 +6,14 @@ export function mergeSessionLists(current: SessionSummary[], incoming: SessionSu
   return [...incoming, ...optimistic]
 }
 
+export function recentSessionCwd(sessions: SessionSummary[]) {
+  for (const session of sessions) {
+    const cwd = typeof session.cwd === 'string' ? session.cwd.trim() : ''
+    if (cwd) return cwd
+  }
+  return ''
+}
+
 export function removeTiledSession(ids: string[], sessionId: string) {
   return ids.filter((id) => id !== sessionId)
 }

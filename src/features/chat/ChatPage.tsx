@@ -54,7 +54,7 @@ import {
 } from './dock-layout'
 import { pushCurrentActivity, settleToolCalls, taskListChanges } from './run-activity'
 
-import { mergeSessionLists } from './session-list'
+import { mergeSessionLists, recentSessionCwd } from './session-list'
 import {
   WEB_PREVIEW_OPEN_EVENT,
   consumeWebPreviewRequest,
@@ -643,7 +643,10 @@ export function ChatPage({
       const request = (async () => {
         try {
           setError('')
-          const created = await chatApi.createSession(t('chat:chatPage.newChat'))
+          const created = await chatApi.createSession(
+            t('chat:chatPage.newChat'),
+            recentSessionCwd(sessionsRef.current),
+          )
           setActiveId(created.id)
           setRemoteSessions((current) => {
             const next = mergeSessionLists(current, [created])
