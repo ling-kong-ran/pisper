@@ -25,10 +25,17 @@ function historyForUrl(url: string): PreviewHistory {
 export function WebPreviewDockPanel({ params, api }: IDockviewPanelProps<WebPreviewPanelParams>) {
   const { t } = useI18n()
   const incomingUrl = normalizeWebPreviewInput(params?.url || '', window.location.href) || ''
+  const [visible, setVisible] = useState(() => api.isVisible)
   const [history, setHistory] = useState<PreviewHistory>(() => historyForUrl(incomingUrl))
   const [reloadKey, setReloadKey] = useState(0)
   const [loading, setLoading] = useState(Boolean(incomingUrl))
   const currentUrl = history.index >= 0 ? history.entries[history.index] || '' : ''
+
+  useEffect(() => {
+    setVisible(api.isVisible)
+    const disposable = api.onDidVisibilityChange(({ isVisible }) => setVisible(isVisible))
+    return () => disposable.dispose()
+  }, [api])
 
   useEffect(() => {
     if (!incomingUrl || incomingUrl === currentUrl) return
@@ -76,6 +83,8 @@ export function WebPreviewDockPanel({ params, api }: IDockviewPanelProps<WebPrev
   const openExternal = useCallback(() => {
     if (currentUrl) window.open(currentUrl, '_blank', 'noopener,noreferrer')
   }, [currentUrl])
+
+  if (!visible) return null
 
   if (!currentUrl) {
     return (

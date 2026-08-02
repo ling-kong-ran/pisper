@@ -34,6 +34,8 @@ pub(crate) struct SidecarReady {
     #[serde(rename = "bootstrapUrl")]
     pub(crate) bootstrap_url: String,
     pub(crate) pid: u32,
+    #[serde(default, rename = "desktopPetRunning")]
+    pub(crate) desktop_pet_running: bool,
 }
 
 #[derive(serde::Deserialize, serde::Serialize)]
@@ -355,11 +357,11 @@ pub(crate) fn sync_desktop_pet_menu_enabled(app: &AppHandle, enabled: bool) {
 }
 
 fn request_desktop_pet_enabled(app: &AppHandle, enabled: bool) {
-    let Some(window) = app.get_webview_window("desktop-pet") else {
+    let Some(window) = app.get_webview_window("main") else {
         return;
     };
     let _ = window.eval(format!(
-        "window.__PISPER_DESKTOP_PET_SET_ENABLED?.({enabled});"
+        "void window.pisperDesktop?.setPetEnabled?.({enabled});"
     ));
 }
 
@@ -515,6 +517,7 @@ pub fn run() {
             desktop_bridge::desktop_get_notification_status,
             desktop_bridge::desktop_open_notification_settings,
             desktop_bridge::desktop_show_notification,
+            desktop_pet::desktop_pet_apply_enabled,
             desktop_pet::desktop_pet_set_visible,
             desktop_pet::desktop_pet_start_dragging,
             desktop_pet::desktop_pet_show_context_menu,
@@ -539,6 +542,9 @@ pub fn run() {
                 child,
                 pid: ready.pid,
             }))));
+            app.manage(desktop_pet::DesktopPetWindowState::new(
+                ready.bootstrap_url.clone(),
+            ));
             if let Err(error) = publish_sidecar_descriptor(app.handle(), &ready) {
                 stop_sidecar(app.handle());
                 return Err(error.into());
@@ -547,7 +553,14 @@ pub fn run() {
                 .map_err(|error| error.to_string())
                 .and_then(|_| create_pet_context_menu(app).map_err(|error| error.to_string()))
                 .and_then(|_| create_main_window(app, &ready))
-                .and_then(|_| desktop_pet::create_pet_window(app, &ready.bootstrap_url));
+                .and_then(|_| {
+                    sync_desktop_pet_menu_enabled(app.handle(), ready.desktop_pet_running);
+                    if ready.desktop_pet_running {
+                        desktop_pet::create_pet_window(app.handle(), &ready.bootstrap_url)
+                    } else {
+                        Ok(())
+                    }
+                });
             if let Err(error) = result {
                 stop_sidecar(app.handle());
                 return Err(error.into());

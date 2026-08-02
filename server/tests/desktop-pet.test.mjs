@@ -116,9 +116,10 @@ test('Web pet service installs validated resources and publishes Agent state', a
 })
 
 test('Tauri pet and tray menus preserve desktop pet controls', async () => {
-  const [shell, petShell, petRenderer, permissions] = await Promise.all([
+  const [shell, petShell, desktopBridge, petRenderer, permissions] = await Promise.all([
     readFile(new URL('src-tauri/src/lib.rs', ROOT), 'utf8'),
     readFile(new URL('src-tauri/src/desktop_pet.rs', ROOT), 'utf8'),
+    readFile(new URL('src-tauri/src/desktop-bridge.js', ROOT), 'utf8'),
     readFile(new URL('public/tauri-pet.js', ROOT), 'utf8'),
     readFile(new URL('src-tauri/permissions/desktop.toml', ROOT), 'utf8'),
   ])
@@ -126,10 +127,14 @@ test('Tauri pet and tray menus preserve desktop pet controls', async () => {
   assert.match(shell, /CheckMenuItem::with_id\(app, "tray_pet"/)
   assert.match(shell, /"pet_hide" => request_desktop_pet_enabled\(app, false\)/)
   assert.match(shell, /window\.popup_menu\(&state\.menu\)/)
-  assert.match(petShell, /desktop_pet_show_context_menu/)
+  assert.match(shell, /if ready\.desktop_pet_running/)
+  assert.match(petShell, /desktop_pet_apply_enabled/)
+  assert.match(petShell, /window\.destroy\(\)/)
+  assert.match(desktopBridge, /desktop_pet_apply_enabled/)
   assert.match(petRenderer, /invoke\('desktop_pet_show_context_menu'\)/)
   assert.match(petRenderer, /fetch\('\/api\/desktop-pet\/enabled'/)
   assert.match(petRenderer, /__PISPER_DESKTOP_PET_SET_ENABLED/)
+  assert.match(permissions, /"desktop_pet_apply_enabled"/)
   assert.match(permissions, /"desktop_pet_show_context_menu"/)
   assert.match(permissions, /"desktop_pet_sync_menu"/)
 })

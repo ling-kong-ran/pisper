@@ -72,6 +72,8 @@ test('application routes external links into a right-side Dockview Web Preview p
   assert.match(chatPage, /if \(sessionId\) setActiveId\(sessionId\)/)
   assert.match(chatPage, /panel\.api\.component !== 'session'/)
   assert.match(dockPanel, /window\.open\(currentUrl, '_blank', 'noopener,noreferrer'\)/)
+  assert.match(dockPanel, /api\.onDidVisibilityChange/)
+  assert.match(dockPanel, /if \(!visible\) return null/)
   assert.match(dockPanel, /<WebPreviewBody/)
   assert.match(
     component,

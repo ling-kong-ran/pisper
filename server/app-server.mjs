@@ -104,6 +104,7 @@ export async function createPisperServer({
     url: `http://${host}:${activePort}`,
     dataDir: agentDir,
     runtime,
+    desktopPetRunning: desktopPet.status().running,
     async close() {
       if (closing) return closing
       closing = (async () => {

@@ -1,5 +1,5 @@
 use tauri::{
-    webview::NewWindowResponse, App, AppHandle, Manager, Url, WebviewUrl, WebviewWindowBuilder,
+    webview::NewWindowResponse, AppHandle, Manager, Url, WebviewUrl, WebviewWindowBuilder,
 };
 use tauri_plugin_opener::OpenerExt;
 
@@ -12,12 +12,25 @@ fn same_origin(left: &Url, right: &Url) -> bool {
         && left.port_or_known_default() == right.port_or_known_default()
 }
 
-pub fn create_pet_window(app: &App, bootstrap_url: &str) -> Result<(), String> {
+pub struct DesktopPetWindowState {
+    bootstrap_url: String,
+}
+
+impl DesktopPetWindowState {
+    pub fn new(bootstrap_url: String) -> Self {
+        Self { bootstrap_url }
+    }
+}
+
+pub fn create_pet_window(app: &AppHandle, bootstrap_url: &str) -> Result<(), String> {
+    if app.get_webview_window("desktop-pet").is_some() {
+        return Ok(());
+    }
     let mut url = Url::parse(bootstrap_url).map_err(|error| error.to_string())?;
     url.query_pairs_mut().append_pair("next", "/tauri-pet.html");
     let allowed = url.clone();
-    let navigation_app = app.handle().clone();
-    let new_window_app = app.handle().clone();
+    let navigation_app = app.clone();
+    let new_window_app = app.clone();
 
     WebviewWindowBuilder::new(app, "desktop-pet", WebviewUrl::External(url))
         .title("Pisper Pet")
@@ -53,6 +66,19 @@ pub fn create_pet_window(app: &App, bootstrap_url: &str) -> Result<(), String> {
         .build()
         .map_err(|error| error.to_string())?;
     Ok(())
+}
+
+#[tauri::command]
+pub fn desktop_pet_apply_enabled(app: AppHandle, enabled: bool) -> Result<bool, String> {
+    if enabled {
+        let state = app
+            .try_state::<DesktopPetWindowState>()
+            .ok_or_else(|| "Desktop pet window state is unavailable.".to_string())?;
+        create_pet_window(&app, &state.bootstrap_url)?;
+    } else if let Some(window) = app.get_webview_window("desktop-pet") {
+        window.destroy().map_err(|error| error.to_string())?;
+    }
+    Ok(true)
 }
 
 #[tauri::command]

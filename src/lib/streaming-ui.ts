@@ -3,27 +3,51 @@ type ToolPatch = Record<string, unknown>
 
 function createTimerScheduler(flush: () => void, intervalMs: number) {
   let timer: ReturnType<typeof setTimeout> | null = null
+  let waitingForVisibility = false
+  const hasDocument = typeof document !== 'undefined'
+  const isVisible = () => !hasDocument || document.visibilityState === 'visible'
+  const stopWaitingForVisibility = () => {
+    if (!waitingForVisibility) return
+    document.removeEventListener('visibilitychange', handleVisibilityChange)
+    waitingForVisibility = false
+  }
+  const startTimer = () => {
+    timer = setTimeout(() => {
+      timer = null
+      flush()
+    }, intervalMs)
+  }
+  const handleVisibilityChange = () => {
+    if (!isVisible() || timer != null) return
+    stopWaitingForVisibility()
+    startTimer()
+  }
+  const waitForVisibility = () => {
+    if (!hasDocument || waitingForVisibility) return
+    document.addEventListener('visibilitychange', handleVisibilityChange)
+    waitingForVisibility = true
+  }
   return {
     schedule() {
-      if (timer != null) return
-      timer = setTimeout(() => {
-        timer = null
-        flush()
-      }, intervalMs)
+      if (timer != null || waitingForVisibility) return
+      if (isVisible()) startTimer()
+      else waitForVisibility()
     },
     flushNow() {
       if (timer != null) {
         clearTimeout(timer)
         timer = null
       }
+      stopWaitingForVisibility()
       flush()
     },
     cancel() {
       if (timer != null) clearTimeout(timer)
       timer = null
+      stopWaitingForVisibility()
     },
     get active() {
-      return timer != null
+      return timer != null || waitingForVisibility
     },
   }
 }
@@ -104,7 +128,7 @@ function commonPrefixLength(left: string, right: string) {
 
 /**
  * Smooth typewriter display for streaming text.
- * - Keeps React updates to at most one rAF (~60fps)
+ * - Keeps React updates to at most ~30fps
  * - Speeds up dynamically when the target is far ahead
  * - Snaps immediately on flush (done / tool boundary)
  */
@@ -115,8 +139,8 @@ export function createTypewriterDisplay(
     maxCharsPerSecond = 1_200,
     catchUpRemaining = 160,
     snapRemaining = 480,
-    requestFrame = globalThis.requestAnimationFrame?.bind(globalThis),
-    cancelFrame = globalThis.cancelAnimationFrame?.bind(globalThis),
+    requestFrame,
+    cancelFrame,
     now = () =>
       typeof performance !== 'undefined' && performance.now ? performance.now() : Date.now(),
   }: {
@@ -130,8 +154,10 @@ export function createTypewriterDisplay(
   } = {},
 ) {
   const scheduleFrame: typeof requestAnimationFrame =
-    requestFrame || ((callback) => setTimeout(() => callback(now()), 16))
+    requestFrame || ((callback) => setTimeout(() => callback(now()), 32))
   const cancelScheduled = cancelFrame || clearTimeout
+  const hasDocument = typeof document !== 'undefined'
+  const isVisible = () => !hasDocument || document.visibilityState === 'visible'
   let target = ''
   let shown = ''
   let activityAt: ActivityTimestamp = null
@@ -181,10 +207,20 @@ export function createTypewriterDisplay(
   }
 
   const schedule = () => {
-    if (closed || frame) return
+    if (closed || frame || !isVisible()) return
     lastTs = 0
     frame = scheduleFrame(step)
   }
+  const handleVisibilityChange = () => {
+    if (isVisible()) {
+      schedule()
+    } else if (frame) {
+      cancelScheduled(frame)
+      frame = 0
+      lastTs = 0
+    }
+  }
+  if (hasDocument) document.addEventListener('visibilitychange', handleVisibilityChange)
 
   return {
     setTarget(text: unknown, nextActivityAt = new Date().toISOString()) {
@@ -203,6 +239,7 @@ export function createTypewriterDisplay(
     cancel() {
       closed = true
       if (frame) cancelScheduled(frame)
+      if (hasDocument) document.removeEventListener('visibilitychange', handleVisibilityChange)
       frame = 0
       lastTs = 0
     },

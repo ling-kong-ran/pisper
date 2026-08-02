@@ -12,7 +12,7 @@
   background-size: 240% 100%;
   background-clip: text;
   color: transparent;
-  animation: rb-shiny-text 2.8s linear infinite;
+  animation: rb-shiny-text 1.2s var(--ease-out) 1;
 }
 
 @keyframes rb-shiny-text {

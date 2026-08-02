@@ -57,6 +57,7 @@ test('desktop sidecar authenticates its WebView and shuts down through stdin', a
     const ready = await waitForReady(child)
     assert.match(ready.url, /^http:\/\/127\.0\.0\.1:\d+$/)
     assert.equal(ready.bootstrapUrl, `${ready.url}${DESKTOP_BOOTSTRAP_PATH}?token=${encodeURIComponent(token)}`)
+    assert.equal(ready.desktopPetRunning, false)
 
     const unauthorized = await fetch(`${ready.url}/api/config`)
     assert.equal(unauthorized.status, 401)

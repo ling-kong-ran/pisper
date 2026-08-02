@@ -22,6 +22,12 @@
     return value
   }
 
+  const syncPetWindow = async (status) => {
+    await invoke('desktop_pet_sync_menu', { enabled: Boolean(status?.enabled) })
+    await invoke('desktop_pet_apply_enabled', { enabled: Boolean(status?.running) })
+    return status
+  }
+
   const updateListeners = new Set()
   let updatePoll = 0
   let lastUpdate = ''
@@ -65,13 +71,15 @@
       showNotification: (notification) =>
         invoke('desktop_show_notification', { input: notification }),
       getPetStatus: () => api('/api/desktop-pet'),
-      setPetEnabled: (enabled) =>
-        api('/api/desktop-pet/enabled', { method: 'POST', body: { enabled } }),
+      setPetEnabled: async (enabled) =>
+        syncPetWindow(await api('/api/desktop-pet/enabled', { method: 'POST', body: { enabled } })),
       setPetOpacity: (opacity) =>
         api('/api/desktop-pet/opacity', { method: 'POST', body: { opacity } }),
       searchPets: (query) => api(`/api/desktop-pet/catalog?query=${encodeURIComponent(query)}`),
-      installPet: (slug) => api('/api/desktop-pet/install', { method: 'POST', body: { slug } }),
-      selectPet: (slug) => api('/api/desktop-pet/select', { method: 'POST', body: { slug } }),
+      installPet: async (slug) =>
+        syncPetWindow(await api('/api/desktop-pet/install', { method: 'POST', body: { slug } })),
+      selectPet: async (slug) =>
+        syncPetWindow(await api('/api/desktop-pet/select', { method: 'POST', body: { slug } })),
       openPetdex: () => invoke('desktop_open_url', { url: 'https://petdex.dev' }),
       onUpdateStatus(callback) {
         if (typeof callback !== 'function') return () => {}

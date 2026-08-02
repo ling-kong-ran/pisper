@@ -63,4 +63,5 @@ test('React Bits effects are attached to purposeful low-noise UI surfaces', asyn
   assert.match(auroraRule, /radial-gradient/)
   assert.doesNotMatch(auroraRule, /filter|mix-blend-mode|animation/)
   assert.doesNotMatch(appStyles, /\.agent-welcome \.welcome-logo \.logo-star \{[^}]*animation/)
+  assert.doesNotMatch(bitsStyles, /\.rb-shiny-text \{[^}]*animation:[^;}]*infinite/)
 })

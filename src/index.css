@@ -375,6 +375,7 @@
 * { box-sizing: border-box; }
 html, body, #root { width: 100%; min-width: 320px; min-height: 100%; margin: 0; }
 body { min-height: 100dvh; overflow: hidden; font-size: 13px; line-height: 1.5; }
+:root[data-page-visibility='hidden'] *, :root[data-page-visibility='hidden'] *::before, :root[data-page-visibility='hidden'] *::after { animation-play-state: paused !important; }
 small { font-size: 12px !important; line-height: 1.45; }
 .app-startup { display: flex; width: 100%; min-height: 100vh; align-items: center; justify-content: center; gap: 10px; background: var(--bg); color: var(--text-muted); font-size: 13px; }
 .app-startup .startup-logo { margin-right: 2px; }
@@ -389,7 +390,7 @@ h1, h2, h3, strong { overflow-wrap: anywhere; }
 .app-shell { display: flex; width: 100%; height: 100dvh; min-height: 600px; flex-direction: column; overflow: hidden; background: var(--bg); }
 .app-body { display: flex; min-height: 0; flex: 1; }
 
-.sidebar { position: relative; z-index: 30; width: 236px; min-width: 236px; height: 100%; display: flex; flex-direction: column; gap: 18px; padding: 18px; border-right: 1px solid var(--stroke); background: var(--sidebar-bg); backdrop-filter: blur(20px); box-shadow: 0 14px 40px -18px var(--sidebar-shadow); }
+.sidebar { position: relative; z-index: 30; width: 236px; min-width: 236px; height: 100%; display: flex; flex-direction: column; gap: 18px; padding: 18px; border-right: 1px solid var(--stroke); background: var(--sidebar-bg); box-shadow: 0 14px 40px -18px var(--sidebar-shadow); }
 .brand-logo-svg { display: block; flex: none; color: var(--text); }
 @keyframes star-twinkle { 0%, 100% { opacity: 1; } 50% { opacity: .45; } }
 .mobile-close { display: none; width: 32px; height: 32px; flex: none; margin-left: auto; border: 0; border-radius: var(--r-sm); background: transparent; color: var(--text-muted); cursor: pointer; }
@@ -421,7 +422,7 @@ h1, h2, h3, strong { overflow-wrap: anywhere; }
 .nav-scrim { display: none; }
 .sidebar-collapse { display: flex; height: 34px; flex: none; align-items: center; gap: 8px; margin-top: auto; border: 1px solid var(--stroke); border-radius: var(--r-sm); background: transparent; padding: 0 10px; color: var(--text-muted); font-size: 12px; cursor: pointer; transition: var(--d1) var(--ease-out); }
 .sidebar-collapse:hover { background: var(--surface-hover); color: var(--text); }
-.status-bar { display: flex; height: 28px; flex: none; align-items: center; justify-content: space-between; gap: 12px; border-top: 1px solid var(--stroke); background: var(--sidebar-bg); padding: 0 14px; color: var(--text-muted); font-size: 11px; backdrop-filter: blur(20px); }
+.status-bar { display: flex; height: 28px; flex: none; align-items: center; justify-content: space-between; gap: 12px; border-top: 1px solid var(--stroke); background: var(--sidebar-bg); padding: 0 14px; color: var(--text-muted); font-size: 11px; }
 .status-bar .status-model { display: flex; min-width: 0; align-items: center; gap: 6px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .status-bar .status-usage { display: flex; flex: none; align-items: center; gap: 6px; }
 .status-bar em { color: var(--star-strong); font-family: ui-monospace, SFMono-Regular, Consolas, 'Liberation Mono', monospace; font-style: normal; font-weight: 700; }
@@ -646,29 +647,11 @@ h1, h2, h3, strong { overflow-wrap: anywhere; }
 .agent-status-mouth-smile,.agent-status-mouth-think { transition: opacity var(--d1) var(--ease-out), transform var(--d1) var(--ease-out); }
 .agent-status-mouth-think { opacity: 0; transform: scale(.4); }
 .agent-status-spark { transform-origin: 33px 7px; }
-.agent-status-avatar.is-waiting .agent-status-body-shell { animation: agent-mochi-breathe 3.2s ease-in-out infinite; }
-.agent-status-avatar.is-waiting .agent-status-aura { animation: agent-aura-breathe 3.2s ease-in-out infinite; }
-.agent-status-avatar.is-waiting .agent-status-eyes { animation: agent-eye-blink 4.6s ease-in-out infinite; }
-.agent-status-avatar.is-waiting .agent-status-spark { animation: agent-spark-twinkle 2.8s ease-in-out infinite; }
-.agent-status-avatar.is-thinking .agent-status-body-shell { animation: agent-mochi-think 1.3s ease-in-out infinite; }
-.agent-status-avatar.is-thinking .agent-status-aura { animation: agent-aura-think 1.3s ease-in-out infinite; }
-.agent-status-avatar.is-thinking .agent-status-eyes { animation: agent-eyes-wonder 1.45s ease-in-out infinite; }
-.agent-status-avatar.is-thinking .agent-status-cheeks { animation: agent-cheeks-think 1.3s ease-in-out infinite; }
-.agent-status-avatar.is-thinking .agent-status-spark { animation: agent-spark-think 1.45s ease-in-out infinite; }
-.agent-status-avatar.is-thinking .agent-status-shine { animation: agent-shine-think 1.3s ease-in-out infinite; }
+.agent-status-avatar.is-waiting .agent-status-aura { opacity: .18; }
+.agent-status-avatar.is-thinking .agent-status-aura { animation: agent-aura-think 1.8s ease-in-out infinite; }
 .agent-status-avatar.is-thinking .agent-status-mouth-smile { opacity: 0; }
-.agent-status-avatar.is-thinking .agent-status-mouth-think { opacity: .82; transform: scale(1); animation: agent-mouth-think 1.3s ease-in-out infinite; }
-@keyframes agent-mochi-breathe { 0%,100% { transform: translateY(.3px) scale(.975,1.015); } 50% { transform: translateY(-.5px) scale(1.02,.985); } }
-@keyframes agent-aura-breathe { 0%,100% { opacity: .06; transform: scale(.94); } 50% { opacity: .24; transform: scale(1.045); } }
-@keyframes agent-eye-blink { 0%,44%,48%,100% { transform: scaleY(1); } 46% { transform: scaleY(.12); } }
-@keyframes agent-spark-twinkle { 0%,100% { opacity: .62; transform: rotate(-7deg) scale(.82); } 50% { opacity: 1; transform: rotate(7deg) scale(1.08); } }
-@keyframes agent-mochi-think { 0%,100% { transform: rotate(-2deg) scale(1.015,.98); } 50% { transform: rotate(2.5deg) scale(.98,1.025); } }
-@keyframes agent-aura-think { 0%,100% { opacity: .1; transform: scale(.94) rotate(-2deg); } 50% { opacity: .3; transform: scale(1.06) rotate(2deg); } }
-@keyframes agent-eyes-wonder { 0%,100% { transform: translate(-.7px,.2px) scaleY(1); } 35% { transform: translate(1px,-.8px) scaleY(.94); } 68% { transform: translate(.1px,.45px) scaleY(1); } }
-@keyframes agent-cheeks-think { 0%,100% { opacity: .24; transform: scale(.92); } 50% { opacity: .46; transform: scale(1.08); } }
-@keyframes agent-spark-think { 0%,100% { transform: translate(0,0) rotate(-8deg) scale(.9); } 35% { transform: translate(-1.7px,1px) rotate(9deg) scale(1.08); } 70% { transform: translate(.7px,-1.2px) rotate(-3deg) scale(.96); } }
-@keyframes agent-shine-think { 0%,100% { opacity: .16; transform: rotate(-18deg) translateX(-.3px); } 50% { opacity: .32; transform: rotate(-11deg) translateX(.8px); } }
-@keyframes agent-mouth-think { 0%,100% { transform: scale(.82); } 50% { transform: scale(1.08); } }
+.agent-status-avatar.is-thinking .agent-status-mouth-think { opacity: .82; transform: scale(1); }
+@keyframes agent-aura-think { 0%,100% { opacity: .1; transform: scale(.96); } 50% { opacity: .28; transform: scale(1.04); } }
 .agent-welcome { position: relative; display: grid; min-height: 100%; place-content: center; justify-items: center; overflow: hidden; color: var(--text-muted); text-align: center; }
 .agent-welcome > :not(.rb-aurora) { position: relative; z-index: 1; }
 .agent-welcome-content { display: grid; width: 100%; max-width: 640px; place-items: center; padding: 28px; }

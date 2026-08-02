@@ -17,6 +17,31 @@ test('streaming text scheduler coalesces rapid updates into one flush', async ()
   scheduler.cancel()
 })
 
+test('streaming scheduler defers hidden-page updates until visibility returns', async () => {
+  const originalDocument = Object.getOwnPropertyDescriptor(globalThis, 'document')
+  const page = new EventTarget()
+  page.visibilityState = 'hidden'
+  Object.defineProperty(globalThis, 'document', { configurable: true, value: page })
+  const frames = []
+  const scheduler = createStreamingTextScheduler((text) => frames.push(text), { intervalMs: 10 })
+
+  try {
+    scheduler.push('first')
+    scheduler.push('latest')
+    await new Promise((resolve) => setTimeout(resolve, 20))
+    assert.deepEqual(frames, [])
+
+    page.visibilityState = 'visible'
+    page.dispatchEvent(new Event('visibilitychange'))
+    await new Promise((resolve) => setTimeout(resolve, 20))
+    assert.deepEqual(frames, ['latest'])
+  } finally {
+    scheduler.cancel()
+    if (originalDocument) Object.defineProperty(globalThis, 'document', originalDocument)
+    else delete globalThis.document
+  }
+})
+
 test('tool update scheduler merges patches by tool id', async () => {
   const frames = []
   const scheduler = createToolUpdateScheduler((batch, activityAt) => frames.push({ batch: Object.fromEntries(batch), activityAt }), { intervalMs: 20 })
@@ -48,6 +73,30 @@ test('typewriter reveals gradually and snaps on flush', async () => {
   typewriter.flush()
   assert.equal(frames.at(-1), 'hello world!!!')
   typewriter.cancel()
+})
+
+test('typewriter pauses while hidden and catches up when visible', async () => {
+  const originalDocument = Object.getOwnPropertyDescriptor(globalThis, 'document')
+  const page = new EventTarget()
+  page.visibilityState = 'hidden'
+  Object.defineProperty(globalThis, 'document', { configurable: true, value: page })
+  const frames = []
+  const typewriter = createTypewriterDisplay((text) => frames.push(text))
+
+  try {
+    typewriter.setTarget('hidden response')
+    await new Promise((resolve) => setTimeout(resolve, 45))
+    assert.deepEqual(frames, [])
+
+    page.visibilityState = 'visible'
+    page.dispatchEvent(new Event('visibilitychange'))
+    await new Promise((resolve) => setTimeout(resolve, 45))
+    assert.ok(frames.at(-1).length > 0)
+  } finally {
+    typewriter.cancel()
+    if (originalDocument) Object.defineProperty(globalThis, 'document', originalDocument)
+    else delete globalThis.document
+  }
 })
 
 test('typewriter snaps large backlogs in one paint', async () => {

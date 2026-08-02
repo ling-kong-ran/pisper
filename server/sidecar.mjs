@@ -26,7 +26,14 @@ const pisper = await createPisperServer({
 })
 
 const bootstrapUrl = `${pisper.url}/_pisper/desktop/bootstrap?token=${encodeURIComponent(token)}`
-process.stdout.write(`PISPER_SIDECAR_READY ${JSON.stringify({ url: pisper.url, bootstrapUrl, pid: process.pid })}\n`)
+process.stdout.write(
+  `PISPER_SIDECAR_READY ${JSON.stringify({
+    url: pisper.url,
+    bootstrapUrl,
+    pid: process.pid,
+    desktopPetRunning: pisper.desktopPetRunning,
+  })}\n`,
+)
 
 let shuttingDown = false
 async function shutdown(code = 0) {

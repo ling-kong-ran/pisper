@@ -18,6 +18,7 @@ commands.allow = [
   "desktop_get_notification_status",
   "desktop_open_notification_settings",
   "desktop_show_notification",
+  "desktop_pet_apply_enabled",
   "desktop_pet_set_visible",
   "desktop_pet_start_dragging",
   "desktop_pet_show_context_menu",
