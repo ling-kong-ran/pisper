@@ -444,13 +444,7 @@ function AgentRunActivity({
             </span>
           </div>
           <div ref={thinkingScrollRef} className="agent-thinking-scroll">
-            {streaming ? (
-              <div className="markdown-body markdown-streaming" aria-busy="true">
-                <pre className="streaming-plain">{thinking}</pre>
-              </div>
-            ) : (
-              <MarkdownMessage>{thinking}</MarkdownMessage>
-            )}
+            <MarkdownMessage streaming={streaming}>{thinking}</MarkdownMessage>
           </div>
         </div>
       )}

@@ -19,7 +19,7 @@ test('chat renders thinking and tool activity above one uninterrupted response b
   assert.ok(responseIndex > activityIndex)
   assert.match(activity, /agent-thinking-window/)
   assert.match(activity, /thinkingScrollRef/)
-  assert.match(activity, /<MarkdownMessage>\{thinking\}<\/MarkdownMessage>/)
+  assert.match(activity, /<MarkdownMessage streaming=\{streaming\}>\{thinking\}<\/MarkdownMessage>/)
 })
 
 test('composer is the sole persistent Agent run status surface', async () => {
@@ -86,7 +86,7 @@ test('every settled SSE run reconciles its optimistic message with the durable t
   )
 })
 
-test('assistant text block completion flushes the typewriter and switches to final markdown', async () => {
+test('assistant text block completion flushes the typewriter and settles Markdown streaming', async () => {
   const source = await readFile('src/features/chat/ChatPage.tsx', 'utf8')
   const textEndHandler = source.slice(
     source.indexOf("event === 'text_end'"),

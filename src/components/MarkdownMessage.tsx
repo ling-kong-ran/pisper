@@ -1,33 +1,19 @@
-import { Children, isValidElement, memo, useState, type ReactNode } from 'react'
+import { isValidElement, memo, useState, type ComponentProps, type ReactNode } from 'react'
 import { Check, Copy } from 'lucide-react'
-import ReactMarkdown, { type Components } from 'react-markdown'
-import rehypeHighlight from 'rehype-highlight'
-import remarkGfm from 'remark-gfm'
-import type { Pluggable } from 'unified'
+import { CodeBlock, Streamdown, useIsCodeFenceIncomplete, type Components } from 'streamdown'
 import { useI18n } from '@/app/use-i18n'
-import { prepareMarkdown } from '@/lib/markdown'
+import { streamdownPlugins } from '@/lib/streamdown'
+import { cn } from '@/lib/utils'
 
-const MARKDOWN_PLUGINS: Pluggable[] = [remarkGfm]
-const HIGHLIGHT_PLUGINS: Pluggable[] = [[rehypeHighlight, { detect: false, ignoreMissing: true }]]
 const MARKDOWN_COMPONENTS: Components = {
-  a: ({ children: label, node: _node, className, href, ...props }) => (
-    <a
-      {...props}
-      className={['markdown-link', className].filter(Boolean).join(' ')}
-      href={href}
-      target="_blank"
-      rel="noreferrer"
-    >
-      {textContent(label).trim() ? label : href}
-    </a>
-  ),
-  pre: ({ children: codeChildren }) => <CodeBlock>{codeChildren}</CodeBlock>,
-  code: ({ children: code, className, node: _node, ...props }) => (
-    <code className={className || ''} {...props}>
-      {code}
-    </code>
-  ),
+  a: MarkdownLink,
+  code: MarkdownCode,
+  img: MarkdownImage,
+  strong: MarkdownStrong,
+  table: MarkdownTable,
 }
+const STREAMDOWN_CONTROLS = false
+const STREAMDOWN_REMEND = { linkMode: 'text-only' } as const
 
 function textContent(value: ReactNode): string {
   if (typeof value === 'string' || typeof value === 'number') return String(value)
@@ -55,14 +41,44 @@ function copyText(value: string) {
   return Promise.resolve()
 }
 
-function CodeBlock({ children }: { children: ReactNode }) {
+function MarkdownLink({
+  children: label,
+  node: _node,
+  className,
+  href,
+  ...props
+}: ComponentProps<'a'> & { node?: unknown }) {
+  const content = textContent(label).trim() ? label : href
+  if (!href) return <span className={cn('markdown-link', className)}>{content}</span>
+
+  return (
+    <a
+      {...props}
+      className={cn('markdown-link', className)}
+      href={href}
+      target="_blank"
+      rel="noopener noreferrer"
+    >
+      {content}
+    </a>
+  )
+}
+
+function MarkdownImage({ node: _node, ...props }: ComponentProps<'img'> & { node?: unknown }) {
+  return <img loading="lazy" {...props} />
+}
+
+function MarkdownStrong({ node: _node, ...props }: ComponentProps<'strong'> & { node?: unknown }) {
+  return <strong {...props} />
+}
+
+function MarkdownTable({ node: _node, ...props }: ComponentProps<'table'> & { node?: unknown }) {
+  return <table {...props} />
+}
+
+function MarkdownCopyButton({ source }: { source: string }) {
   const { t } = useI18n()
   const [copied, setCopied] = useState(false)
-  const codeNode = Children.toArray(children).find((child) =>
-    isValidElement<{ className?: string; children?: ReactNode }>(child),
-  )
-  const className = codeNode?.props.className || ''
-  const source = textContent(codeNode?.props.children || children).replace(/\n$/, '')
 
   const copy = async () => {
     try {
@@ -75,54 +91,73 @@ function CodeBlock({ children }: { children: ReactNode }) {
   }
 
   return (
-    <div className="code-block">
-      <div className="code-block-toolbar">
-        <span>{languageName(className)}</span>
-        <button
-          type="button"
-          onClick={copy}
-          aria-label={t('common:markdownMessage.copyCode')}
-          title={t('common:markdownMessage.copyCode')}
-        >
-          {copied ? <Check size={13} /> : <Copy size={13} />}
-          {copied ? t('common:markdownMessage.copied') : t('common:markdownMessage.copy')}
-        </button>
-      </div>
-      <pre>
-        <code className={className}>{codeNode?.props.children || children}</code>
-      </pre>
-    </div>
+    <button
+      type="button"
+      data-streamdown="code-block-copy-button"
+      onClick={copy}
+      aria-label={t('common:markdownMessage.copyCode')}
+      title={t('common:markdownMessage.copyCode')}
+    >
+      {copied ? <Check size={13} /> : <Copy size={13} />}
+      {copied ? t('common:markdownMessage.copied') : t('common:markdownMessage.copy')}
+    </button>
   )
 }
 
-function MarkdownMessage({
+function MarkdownCode({
   children,
-  streaming = false,
-}: {
-  children: ReactNode
-  streaming?: boolean
-}) {
-  const source = prepareMarkdown(children, streaming)
-  // Streaming: skip full AST + syntax highlight. Rebuilding them on every SSE token causes flicker
-  // (especially over remote desktops). Final message still gets full markdown rendering.
-  if (streaming) {
+  className,
+  node: _node,
+  ...props
+}: ComponentProps<'code'> & { node?: unknown; 'data-block'?: string }) {
+  const isIncomplete = useIsCodeFenceIncomplete()
+  if (!Object.hasOwn(props, 'data-block')) {
     return (
-      <div className="markdown-body markdown-streaming" aria-busy="true">
-        <pre className="streaming-plain">{source}</pre>
-      </div>
+      <code className={className || ''} {...props}>
+        {children}
+      </code>
     )
   }
+
+  const source = textContent(children).replace(/\n$/, '')
+  const language = languageName(className)
   return (
-    <div className="markdown-body">
-      <ReactMarkdown
-        remarkPlugins={MARKDOWN_PLUGINS}
-        rehypePlugins={HIGHLIGHT_PLUGINS}
+    <CodeBlock code={source} isIncomplete={isIncomplete} language={language} lineNumbers={false}>
+      <MarkdownCopyButton source={source} />
+    </CodeBlock>
+  )
+}
+
+export type MarkdownMessageProps = {
+  children: ReactNode
+  className?: string
+  streaming?: boolean
+}
+
+function MarkdownMessage({ children, className, streaming = false }: MarkdownMessageProps) {
+  const source = String(children ?? '')
+  return (
+    <div
+      className={cn('markdown-body', streaming && 'markdown-streaming', className)}
+      aria-busy={streaming || undefined}
+    >
+      <Streamdown
+        className="markdown-content space-y-0"
         components={MARKDOWN_COMPONENTS}
+        controls={STREAMDOWN_CONTROLS}
+        isAnimating={streaming}
+        lineNumbers={false}
+        mode="streaming"
+        plugins={streamdownPlugins}
+        remend={STREAMDOWN_REMEND}
       >
         {source}
-      </ReactMarkdown>
+      </Streamdown>
     </div>
   )
 }
 
-export default memo(MarkdownMessage)
+const MemoizedMarkdownMessage = memo(MarkdownMessage)
+MemoizedMarkdownMessage.displayName = 'MarkdownMessage'
+
+export default MemoizedMarkdownMessage

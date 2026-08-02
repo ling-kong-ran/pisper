@@ -1,7 +1,6 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
 import { applyTextPatch, consumeEventStream } from '../../src/lib/api.ts'
-import { prepareMarkdown } from '../../src/lib/markdown.ts'
 
 function chunkedResponse(chunks) {
   const encoder = new TextEncoder()
@@ -66,10 +65,4 @@ test('SSE client flushes a final record without a blank line', async () => {
   const events = []
   await consumeEventStream(response, (event, data) => events.push({ event, data }))
   assert.deepEqual(events, [{ event: 'done', data: { ok: true } }])
-})
-
-test('streaming Markdown completes unfinished syntax without changing final Markdown', () => {
-  assert.equal(prepareMarkdown('这是 **流式内容', true), '这是 **流式内容**')
-  assert.equal(prepareMarkdown('这是 **完整内容**', false), '这是 **完整内容**')
-  assert.equal(prepareMarkdown('[未完成链接](https://example', true), '未完成链接')
 })
