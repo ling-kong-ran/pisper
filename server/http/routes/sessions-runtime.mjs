@@ -1,0 +1,248 @@
+export const sessionRuntimeRoutes = [
+  {
+    method: 'GET',
+    path: '/api/health',
+    handler({ services, json }) {
+      json(200, {
+        ok: true,
+        engine: '@earendil-works/pi-coding-agent',
+        version: services.engineVersion,
+      })
+    },
+  },
+  {
+    method: 'GET',
+    path: '/api/runtime/diagnostics',
+    handler({ runtime, json }) {
+      json(200, runtime.getRuntimeDiagnostics())
+    },
+  },
+  {
+    method: 'GET',
+    path: '/api/usage/today',
+    async handler({ runtime, json }) {
+      json(200, await runtime.getTodayUsage())
+    },
+  },
+  {
+    method: 'GET',
+    path: '/api/sessions',
+    async handler({ runtime, json }) {
+      json(200, { sessions: await runtime.listSessions() })
+    },
+  },
+  {
+    method: 'POST',
+    path: '/api/sessions',
+    async handler({ runtime, body, json }) {
+      const input = await body()
+      json(201, await runtime.createSession(input.name, input.cwd))
+    },
+  },
+  {
+    method: 'PUT',
+    path: '/api/sessions/:sessionId/model',
+    async handler({ runtime, params, body, json }) {
+      const input = await body()
+      json(
+        200,
+        await runtime.setSessionModel(
+          params.sessionId,
+          String(input.provider || ''),
+          String(input.model || ''),
+        ),
+      )
+    },
+  },
+  {
+    method: 'GET',
+    path: '/api/sessions/:sessionId/thinking-level',
+    async handler({ runtime, params, json }) {
+      json(200, await runtime.getSessionThinkingState(params.sessionId))
+    },
+  },
+  {
+    method: 'PUT',
+    path: '/api/sessions/:sessionId/thinking-level',
+    async handler({ runtime, params, body, json }) {
+      const input = await body()
+      json(200, await runtime.setSessionThinkingLevel(params.sessionId, String(input.level || '')))
+    },
+  },
+  {
+    method: 'PUT',
+    path: '/api/sessions/:sessionId/cwd',
+    async handler({ runtime, params, body, json }) {
+      const updated = await runtime.setSessionCwd(params.sessionId, (await body()).cwd)
+      if (!updated) json(404, { error: '会话不存在。' })
+      else json(200, updated)
+    },
+  },
+  {
+    method: 'GET',
+    path: '/api/sessions/:sessionId/goal',
+    handler({ runtime, params, json }) {
+      const goal = runtime.getSessionGoal(params.sessionId)
+      if (!goal) json(404, { error: '当前会话没有 Goal。' })
+      else json(200, { goal })
+    },
+  },
+  {
+    method: 'PATCH',
+    path: '/api/sessions/:sessionId/goal',
+    async handler({ runtime, params, body, json }) {
+      const input = await body()
+      if (input.action === 'pause') {
+        const goal = await runtime.pauseSessionGoal(params.sessionId)
+        if (!goal) json(404, { error: '当前会话没有进行中的 Goal。' })
+        else json(200, { goal })
+      } else if (input.action === 'set-budget') {
+        const goal = await runtime.setSessionGoalBudget(params.sessionId, input.tokenBudget)
+        json(200, { goal })
+      } else {
+        throw new Error('Goal 操作无效。')
+      }
+    },
+  },
+  {
+    method: 'GET',
+    path: '/api/sessions/:sessionId/git/changes',
+    async handler({ runtime, params, json }) {
+      json(200, await runtime.getSessionGitChanges(params.sessionId))
+    },
+  },
+  {
+    method: 'POST',
+    path: '/api/sessions/:sessionId/git/commit',
+    async handler({ runtime, params, body, json }) {
+      json(200, await runtime.commitSessionGitChanges(params.sessionId, (await body()).message))
+    },
+  },
+  {
+    method: 'POST',
+    path: '/api/sessions/:sessionId/git/push',
+    async handler({ runtime, params, json }) {
+      json(200, await runtime.pushSessionGitChanges(params.sessionId))
+    },
+  },
+  {
+    method: 'POST',
+    path: '/api/sessions/:sessionId/git/revert',
+    async handler({ runtime, params, json }) {
+      json(200, await runtime.revertSessionGitChanges(params.sessionId))
+    },
+  },
+  {
+    method: 'PUT',
+    path: '/api/sessions/:sessionId/execution-mode',
+    async handler({ runtime, params, body, json }) {
+      const updated = await runtime.setSessionExecutionMode(params.sessionId, (await body()).mode)
+      if (!updated) json(404, { error: '会话不存在。' })
+      else json(200, updated)
+    },
+  },
+  {
+    method: 'PUT',
+    path: '/api/sessions/:sessionId/permission',
+    async handler({ runtime, params, body, json }) {
+      const updated = await runtime.setSessionPermission(params.sessionId, (await body()).mode)
+      if (!updated) json(404, { error: '会话不存在。' })
+      else json(200, updated)
+    },
+  },
+  {
+    method: 'POST',
+    path: '/api/sessions/:sessionId/approvals/:approvalId',
+    async handler({ runtime, params, body, json }) {
+      const resolution = runtime.resolveToolApproval(
+        params.sessionId,
+        params.approvalId,
+        Boolean((await body()).approved),
+      )
+      if (!resolution.found) json(404, { error: '授权请求不存在。' })
+      else json(200, resolution)
+    },
+  },
+  {
+    method: 'PATCH',
+    path: '/api/sessions/:sessionId',
+    async handler({ runtime, params, body, json }) {
+      const updated = await runtime.renameSession(params.sessionId, (await body()).name, {
+        manual: true,
+      })
+      if (!updated) json(404, { error: '会话不存在。' })
+      else json(200, updated)
+    },
+  },
+  {
+    method: 'DELETE',
+    path: '/api/sessions/:sessionId',
+    async handler({ runtime, params, json }) {
+      const deleted = await runtime.deleteSession(params.sessionId)
+      if (!deleted) json(404, { error: '会话不存在。' })
+      else json(200, { deleted: true, id: params.sessionId })
+    },
+  },
+  {
+    method: 'GET',
+    path: '/api/sessions/:sessionId/messages',
+    async handler({ runtime, params, url, json }) {
+      json(
+        200,
+        await runtime.getSessionMessagePage(params.sessionId, {
+          before: url.searchParams.get('before'),
+          limit: url.searchParams.get('limit'),
+        }),
+      )
+    },
+  },
+  {
+    method: 'GET',
+    path: '/api/sessions/:sessionId/live',
+    async handler({ runtime, params, json }) {
+      json(200, await runtime.getSessionLive(params.sessionId))
+    },
+  },
+  {
+    method: 'POST',
+    path: '/api/sessions/:sessionId/input',
+    async handler({ runtime, params, body, json }) {
+      const input = await body()
+      json(
+        200,
+        await runtime.queueSessionMessage(params.sessionId, {
+          message: input.message,
+          behavior: input.behavior,
+        }),
+      )
+    },
+  },
+  {
+    method: 'POST',
+    path: '/api/sessions/:sessionId/abort',
+    async handler({ runtime, params, json }) {
+      json(200, {
+        aborted: await runtime.abortSession(params.sessionId),
+        goal: runtime.getSessionGoal(params.sessionId),
+      })
+    },
+  },
+  {
+    method: 'POST',
+    path: '/api/chat',
+    async handler({ runtime, body, startSse, sendSse }) {
+      const input = await body()
+      if (!String(input.message || '').trim()) throw new Error('消息不能为空。')
+      startSse()
+      await runtime.streamPrompt({
+        sessionId: input.sessionId,
+        message: String(input.message).trim(),
+        attachments: input.attachments,
+        requestedToolNames: input.requestedToolNames,
+        goalMode: Boolean(input.goalMode),
+        goalTokenBudget: input.goalTokenBudget == null ? null : Number(input.goalTokenBudget),
+        send: sendSse,
+      })
+    },
+  },
+]
