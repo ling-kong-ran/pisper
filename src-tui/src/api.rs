@@ -13,10 +13,13 @@ use serde_json::{json, Value};
 use tokio::sync::mpsc;
 use url::Url;
 
-use crate::model::{
-    ExecutionModeUpdate, McpCatalog, MessagePage, ModelOption, PluginCatalog, RuntimeEvent,
-    SessionModelUpdate, SessionSummary, SessionsResponse, SkillDefinition, SkillsCatalog,
-    StreamEvent, ThinkingLevelUpdate, ToolDefinition,
+use crate::{
+    model::{
+        ExecutionModeUpdate, McpCatalog, MessagePage, ModelOption, PluginCatalog, RuntimeEvent,
+        SessionModelUpdate, SessionSummary, SessionsResponse, SkillDefinition, SkillsCatalog,
+        StreamEvent, ThinkingLevelUpdate, ToolDefinition,
+    },
+    workspace::validate_session_workspace,
 };
 
 #[derive(Clone)]
@@ -104,12 +107,19 @@ impl ApiClient {
         name: &str,
         cwd: &std::path::Path,
     ) -> Result<SessionSummary> {
-        self.send_json(
-            reqwest::Method::POST,
-            "/api/sessions",
-            &json!({ "name": name, "cwd": cwd.to_string_lossy() }),
-        )
-        .await
+        let session = self
+            .send_json(
+                reqwest::Method::POST,
+                "/api/sessions",
+                &json!({ "name": name, "cwd": cwd.to_string_lossy() }),
+            )
+            .await?;
+        validate_session_workspace(&session, Some(cwd))?;
+        Ok(session)
+    }
+
+    pub async fn runtime_diagnostics(&self) -> Result<Value> {
+        self.get_json("/api/runtime/diagnostics").await
     }
 
     pub async fn runtime_preferences(&self) -> Result<(String, Vec<ModelOption>)> {

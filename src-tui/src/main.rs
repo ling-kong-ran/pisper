@@ -3,6 +3,7 @@ mod app;
 mod model;
 mod sidecar;
 mod ui;
+mod workspace;
 
 use std::{io, path::PathBuf};
 
@@ -21,7 +22,11 @@ use model::{RuntimeEvent, SessionSummary};
 use ratatui::{backend::CrosstermBackend, Terminal};
 use tokio::sync::mpsc;
 
-use crate::{api::ApiClient, sidecar::SidecarConnection};
+use crate::{
+    api::ApiClient,
+    sidecar::SidecarConnection,
+    workspace::{canonical_workspace, same_workspace, validate_session_workspace},
+};
 
 #[tokio::main]
 async fn main() {
@@ -40,12 +45,29 @@ async fn run() -> Result<()> {
             .sessions()
             .await
             .context("failed to list conversations")?;
+        let diagnostics = api
+            .runtime_diagnostics()
+            .await
+            .context("failed to load runtime diagnostics")?;
         let (tools, skills) = api
             .catalogs()
             .await
             .context("failed to load Slash catalog")?;
+        let runtime_workspace = diagnostics
+            .get("workspaceCwd")
+            .and_then(serde_json::Value::as_str)
+            .unwrap_or("unknown");
+        let matching_session = sessions
+            .iter()
+            .find(|session| same_workspace(&session.cwd, &options.workspace))
+            .map(|session| session.cwd.as_str())
+            .unwrap_or("none");
         println!(
-            "Pisper TUI ready · {} conversations · {} tools · {} skills",
+            "Pisper TUI ready\n  connection: {}\n  launch workspace: {}\n  runtime fallback: {}\n  matching session: {}\n  catalogs: {} conversations · {} tools · {} skills",
+            sidecar.kind.label(),
+            options.workspace.display(),
+            runtime_workspace,
+            matching_session,
             sessions.len(),
             tools.len(),
             skills.len()
@@ -57,30 +79,26 @@ async fn run() -> Result<()> {
         .sessions()
         .await
         .context("failed to list conversations")?;
-    let (fallback_thinking_level, model_options) = api
+    let (_, model_options) = api
         .runtime_preferences()
         .await
-        .unwrap_or_else(|_| ("medium".to_owned(), Vec::new()));
-    for summary in &mut sessions {
-        if summary.thinking_level.is_empty() {
-            summary.thinking_level.clone_from(&fallback_thinking_level);
-        }
-    }
+        .unwrap_or_else(|_| (String::new(), Vec::new()));
     let mut session = match resumable_session(&sessions, &options.workspace, options.resume) {
         Some(session) => session,
         None => {
-            let mut created = api
+            let created = api
                 .create_session("New conversation", &options.workspace)
                 .await?;
-            if created.thinking_level.is_empty() {
-                created.thinking_level.clone_from(&fallback_thinking_level);
-            }
             sessions.insert(0, created.clone());
             created
         }
     };
-    let thinking_state = api.thinking_state(&session.id).await.ok();
-    if let Some(state) = &thinking_state {
+    validate_session_workspace(
+        &session,
+        options.resume.then_some(options.workspace.as_path()),
+    )?;
+    let thinking_state = api.thinking_state(&session.id).await;
+    if let Ok(state) = &thinking_state {
         if !state.thinking_level.is_empty() {
             session.thinking_level.clone_from(&state.thinking_level);
         }
@@ -95,9 +113,11 @@ async fn run() -> Result<()> {
         tools,
         skills,
     );
+    app.set_launch_workspace(options.workspace.clone());
     app.set_model_options(model_options);
-    if let Some(state) = thinking_state {
-        app.set_thinking_options(state.available_levels);
+    match thinking_state {
+        Ok(state) => app.set_thinking_state(state),
+        Err(error) => app.set_thinking_error(format!("{error:#}")),
     }
 
     let mut terminal = TerminalSession::start()?;
@@ -233,11 +253,16 @@ async fn execute_action(
             app.status = if approved { "approved" } else { "denied" }.to_owned();
         }
         Action::NewSession => {
-            let workspace = PathBuf::from(&app.session.cwd);
+            let workspace = app.new_session_workspace().to_path_buf();
             let created = api.create_session("New conversation", &workspace).await?;
             let page = api.messages(&created.id).await?;
+            let thinking_state = api.thinking_state(&created.id).await;
             app.sessions = refreshed_sessions(api, created.clone()).await?;
             app.replace_session(created, page.messages, page.context_usage);
+            match thinking_state {
+                Ok(state) => app.set_thinking_state(state),
+                Err(error) => app.set_thinking_error(format!("{error:#}")),
+            }
         }
         Action::SetExecutionMode(mode) => {
             app.status = format!("changing mode · {mode}");
@@ -262,13 +287,61 @@ async fn execute_action(
                 }
             }
         }
+        Action::RefreshThinking => {
+            app.begin_thinking_load();
+            let result = api.thinking_state(&app.session.id).await;
+            match result {
+                Ok(state) => {
+                    let detail = format!(
+                        "session {} · model {} · current {} · available {}",
+                        app.session.id,
+                        app.model,
+                        state.thinking_level,
+                        state.available_levels.join(",")
+                    );
+                    app.set_thinking_state(state);
+                    app.record_event("THINKING", detail, "done");
+                }
+                Err(error) => {
+                    let error = format!("{error:#}");
+                    app.set_thinking_error(error.clone());
+                    app.record_event(
+                        "THINKING",
+                        format!(
+                            "session {} · model {} · load failed · {error}",
+                            app.session.id, app.model
+                        ),
+                        "error",
+                    );
+                }
+            }
+            app.open_thinking_picker();
+        }
         Action::SetThinkingLevel(level) => {
             app.status = format!("changing thinking · {level}");
             match api.set_thinking_level(&app.session.id, &level).await {
-                Ok(updated) => app.set_thinking_level(updated),
+                Ok(updated) => {
+                    let detail = format!(
+                        "session {} · model {} · requested {level} · current {} · available {}",
+                        app.session.id,
+                        app.model,
+                        updated.thinking_level,
+                        updated.available_levels.join(",")
+                    );
+                    app.set_thinking_level(updated);
+                    app.record_event("THINKING", detail, "done");
+                }
                 Err(error) => {
                     app.status = format!("thinking change failed · {error}");
                     app.status_error = true;
+                    app.record_event(
+                        "THINKING",
+                        format!(
+                            "session {} · model {} · requested {level} · failed · {error}",
+                            app.session.id, app.model
+                        ),
+                        "error",
+                    );
                 }
             }
         }
@@ -279,8 +352,14 @@ async fn execute_action(
                 .find(|session| session.id == id)
                 .cloned()
                 .context("conversation no longer exists")?;
+            validate_session_workspace(&session, None)?;
             let page = api.messages(&session.id).await?;
+            let thinking_state = api.thinking_state(&session.id).await;
             app.replace_session(session, page.messages, page.context_usage);
+            match thinking_state {
+                Ok(state) => app.set_thinking_state(state),
+                Err(error) => app.set_thinking_error(format!("{error:#}")),
+            }
         }
     }
     Ok(false)
@@ -309,19 +388,6 @@ fn resumable_session(
         .iter()
         .find(|session| same_workspace(&session.cwd, workspace))
         .cloned()
-}
-
-fn same_workspace(value: &str, workspace: &std::path::Path) -> bool {
-    let candidate = PathBuf::from(value);
-    let candidate = candidate.canonicalize().unwrap_or(candidate);
-    #[cfg(windows)]
-    {
-        candidate.to_string_lossy().to_lowercase() == workspace.to_string_lossy().to_lowercase()
-    }
-    #[cfg(not(windows))]
-    {
-        candidate == workspace
-    }
 }
 
 struct LaunchOptions {
@@ -358,12 +424,7 @@ fn launch_options() -> Result<LaunchOptions> {
         anyhow::bail!("doctor and resume cannot be used together");
     }
     let workspace = workspace.unwrap_or(std::env::current_dir()?);
-    let workspace = workspace
-        .canonicalize()
-        .context("workspace directory does not exist")?;
-    if !workspace.is_dir() {
-        anyhow::bail!("workspace is not a directory: {}", workspace.display());
-    }
+    let workspace = canonical_workspace(&workspace)?;
     Ok(LaunchOptions {
         workspace,
         doctor,

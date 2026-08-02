@@ -53,6 +53,8 @@ Inspect sidecar, authentication, and capability status:
 pisper doctor
 ```
 
+The diagnostic output reports the sidecar connection source, TUI launch workspace, sidecar runtime fallback workspace, and the latest matching session workspace so directory inheritance failures are visible.
+
 ## Composer and Message Stream
 
 - `Enter`: submit a message. Messages submitted during an active run enter a FIFO queue and are sent in order after the run finishes normally.
@@ -71,12 +73,12 @@ Long or multiline bracketed pastes render as a compact `[Pasted text · …]` to
 | Command | Action |
 | :--- | :--- |
 | `/init` | Analyze the current project and create or improve `AGENTS.md` at the workspace root. |
-| `/new` | Create an empty conversation; unavailable during a run. |
-| `/sessions` | Open the conversation picker; unavailable during a run. |
+| `/new` | Create an empty conversation in the TUI launch workspace; unavailable during a run. |
+| `/sessions` | Open the conversation picker; switching to another workspace requires a second confirmation and is unavailable during a run. |
 | `/events` | Open the event ledger for the current TUI process. |
 | `/chat` | Return to the Chat message stream. |
 | `/model` | Open the model picker and switch the active session model; unavailable during a run. |
-| `/thinking` | Open the thinking levels supported by the active model; unavailable during a run. |
+| `/thinking` | Refresh and open thinking levels supported by the active model; unsupported/error states explain why and can be retried. Unavailable during a run. |
 | `/attach` | Open the workspace file picker. |
 | `/mode` | Show the active execution mode and accepted values; it can be changed during a run. |
 | `/mode read-only` | Expose low-risk analysis tools only. |

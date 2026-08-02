@@ -342,6 +342,7 @@ test('runtime diagnostics expose bounded memory and cache counters without sessi
 
   const diagnostics = runtime.getRuntimeDiagnostics()
 
+  assert.equal(diagnostics.workspaceCwd, directory)
   assert.equal(diagnostics.sessions.resident, 1)
   assert.equal(diagnostics.sessions.idle, 1)
   assert.equal(diagnostics.sessions.maxResident, 3)

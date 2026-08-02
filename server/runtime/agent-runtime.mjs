@@ -524,6 +524,18 @@ async function resolveDirectory(input, fallback) {
   return resolveWorkspaceDirectory(input, fallback)
 }
 
+function sessionThinkingState(session) {
+  const availableLevels = session.getAvailableThinkingLevels()
+  const supported = availableLevels.length > 0
+  return {
+    thinkingLevel: session.thinkingLevel,
+    availableLevels,
+    status: supported ? 'supported' : 'unsupported',
+    message: supported ? '' : 'The current model does not expose configurable thinking levels.',
+    model: session.model ? `${session.model.provider}/${session.model.id}` : '',
+  }
+}
+
 function temporarySessionTitle(message, attachments = []) {
   const attachmentNames = attachments
     .map((attachment) => safeAttachmentName(attachment?.name))
@@ -1129,6 +1141,7 @@ export class AgentRuntimeService {
     return {
       timestamp: new Date(now).toISOString(),
       uptimeSeconds: Math.round(process.uptime()),
+      workspaceCwd: this.cwd,
       memory: {
         rss: memory.rss,
         heapTotal: memory.heapTotal,
@@ -1948,24 +1961,23 @@ export class AgentRuntimeService {
       if (defaultThinkingLevel) this.settingsManager.setDefaultThinkingLevel(defaultThinkingLevel)
     }
     value.modified = new Date().toISOString()
+    const thinking = sessionThinkingState(value.session)
     return {
       id: value.session.sessionId,
       model: `${model.provider}/${model.id}`,
       provider: model.provider,
       modelId: model.id,
-      thinkingLevel: value.session.thinkingLevel,
-      availableThinkingLevels: value.session.getAvailableThinkingLevels(),
+      thinkingLevel: thinking.thinkingLevel,
+      availableThinkingLevels: thinking.availableLevels,
+      thinkingStatus: thinking.status,
+      thinkingMessage: thinking.message,
       contextUsage: this.compactionAwareContextUsage(value.session),
     }
   }
 
   async getSessionThinkingState(id) {
     const value = await this.getOrCreateSession(id)
-    return {
-      id: value.session.sessionId,
-      thinkingLevel: value.session.thinkingLevel,
-      availableLevels: value.session.getAvailableThinkingLevels(),
-    }
+    return { id: value.session.sessionId, ...sessionThinkingState(value.session) }
   }
 
   async setSessionThinkingLevel(id, level) {
@@ -1981,11 +1993,7 @@ export class AgentRuntimeService {
       this.settingsManager.setDefaultThinkingLevel(defaultThinkingLevel)
     }
     value.modified = new Date().toISOString()
-    return {
-      id: value.session.sessionId,
-      thinkingLevel: value.session.thinkingLevel,
-      availableLevels: value.session.getAvailableThinkingLevels(),
-    }
+    return { id: value.session.sessionId, ...sessionThinkingState(value.session) }
   }
 
   async setSessionPermission(id, mode) {

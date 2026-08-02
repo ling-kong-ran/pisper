@@ -32,9 +32,27 @@ struct SidecarDescriptor {
     pid: u32,
 }
 
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum ConnectionKind {
+    Remote,
+    Desktop,
+    Spawned,
+}
+
+impl ConnectionKind {
+    pub fn label(self) -> &'static str {
+        match self {
+            Self::Remote => "PISPER_TUI_URL",
+            Self::Desktop => "desktop sidecar",
+            Self::Spawned => "TUI sidecar",
+        }
+    }
+}
+
 pub struct SidecarConnection {
     pub url: String,
     pub token: String,
+    pub kind: ConnectionKind,
     child: Option<Child>,
 }
 
@@ -46,6 +64,7 @@ impl SidecarConnection {
             return Ok(Self {
                 url,
                 token,
+                kind: ConnectionKind::Remote,
                 child: None,
             });
         }
@@ -53,6 +72,7 @@ impl SidecarConnection {
             return Ok(Self {
                 url: descriptor.url,
                 token: descriptor.token,
+                kind: ConnectionKind::Desktop,
                 child: None,
             });
         }
@@ -136,6 +156,7 @@ impl SidecarConnection {
         Ok(Self {
             url: ready.url,
             token,
+            kind: ConnectionKind::Spawned,
             child: Some(child),
         })
     }

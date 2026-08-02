@@ -9,10 +9,13 @@ use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
-use crate::model::{
-    ChatMessage, ContextUsage, MessageAttachment, ModelOption, RunActivity, SessionModelUpdate,
-    SessionSummary, SkillDefinition, StreamEvent, ThinkingLevelUpdate, ToolActivity,
-    ToolDefinition,
+use crate::{
+    model::{
+        ChatMessage, ContextUsage, MessageAttachment, ModelOption, RunActivity, SessionModelUpdate,
+        SessionSummary, SkillDefinition, StreamEvent, ThinkingAvailability, ThinkingLevelUpdate,
+        ToolActivity, ToolDefinition,
+    },
+    workspace::same_workspace,
 };
 
 const INIT_PROMPT: &str = "/init\n\n---\nAttachment context (injected by Pisper):\nAnalyze this codebase and create or improve `AGENTS.md` in the current workspace root. The file is long-lived guidance for Pisper and other coding agents working in this repository. Inspect the repository before writing it. Capture only project-specific, durable information: the project purpose, important directories and architecture, build/test/lint/typecheck commands, coding conventions, and verification expectations. Keep it concise and practical. Do not include generic advice, temporary task details, secrets, exhaustive file listings, or information you cannot verify. If `AGENTS.md` already exists, preserve accurate useful instructions and update it carefully instead of replacing it blindly. Modify only `AGENTS.md`. After writing it, briefly summarize what you added.";
@@ -117,6 +120,7 @@ pub enum Action {
         provider: String,
         model: String,
     },
+    RefreshThinking,
     SetThinkingLevel(String),
     SwitchSession(String),
     ResolveApproval {
@@ -147,8 +151,11 @@ pub struct App {
     pub scroll: u16,
     pub model: String,
     pub cwd: String,
+    pub launch_workspace: PathBuf,
     pub execution_mode: String,
     pub thinking_level: String,
+    pub thinking_availability: ThinkingAvailability,
+    pub thinking_message: String,
     pub context_percent: Option<f64>,
     pub status: String,
     pub status_error: bool,
@@ -171,6 +178,7 @@ pub struct App {
     slash_usage: HashMap<String, SlashUsage>,
     slash_usage_path: Option<PathBuf>,
     pending_slash_command: Option<String>,
+    pending_workspace_switch: Option<String>,
 }
 
 impl App {
@@ -186,8 +194,11 @@ impl App {
         Self {
             model: session.model.clone(),
             cwd: session.cwd.clone(),
+            launch_workspace: path_directory.clone(),
             execution_mode: session.execution_mode.clone(),
             thinking_level: session.thinking_level.clone(),
+            thinking_availability: ThinkingAvailability::Loading,
+            thinking_message: String::new(),
             context_percent: context_usage.and_then(|usage| usage.percent),
             sessions,
             session,
@@ -215,14 +226,7 @@ impl App {
             path_entries: Vec::new(),
             path_selected: 0,
             model_options: Vec::new(),
-            thinking_options: vec![
-                "off".to_owned(),
-                "minimal".to_owned(),
-                "low".to_owned(),
-                "medium".to_owned(),
-                "high".to_owned(),
-                "xhigh".to_owned(),
-            ],
+            thinking_options: Vec::new(),
             settings_picker: None,
             settings_selected: 0,
             queued_prompts: VecDeque::new(),
@@ -230,6 +234,7 @@ impl App {
             slash_usage: load_slash_usage(),
             slash_usage_path: slash_usage_path(),
             pending_slash_command: None,
+            pending_workspace_switch: None,
         }
     }
 
@@ -347,10 +352,80 @@ impl App {
         &self.thinking_options
     }
 
-    pub fn set_thinking_options(&mut self, options: Vec<String>) {
-        if !options.is_empty() {
-            self.thinking_options = options;
+    pub fn set_launch_workspace(&mut self, workspace: PathBuf) {
+        self.launch_workspace = workspace;
+    }
+
+    pub fn new_session_workspace(&self) -> &Path {
+        &self.launch_workspace
+    }
+
+    pub fn session_uses_launch_workspace(&self, session: &SessionSummary) -> bool {
+        same_workspace(&session.cwd, &self.launch_workspace)
+    }
+
+    pub fn begin_thinking_load(&mut self) {
+        self.thinking_options.clear();
+        self.thinking_message.clear();
+        self.thinking_availability = ThinkingAvailability::Loading;
+        self.status = "loading thinking levels".to_owned();
+        self.status_error = false;
+    }
+
+    pub fn set_thinking_state(&mut self, updated: ThinkingLevelUpdate) {
+        let was_loading = self.thinking_availability == ThinkingAvailability::Loading
+            && self.status == "loading thinking levels";
+        self.thinking_options = updated.available_levels;
+        self.thinking_message = updated.message;
+        self.thinking_availability = match updated.status.as_str() {
+            "unsupported" => ThinkingAvailability::Unsupported,
+            "supported" => ThinkingAvailability::Supported,
+            _ if self.thinking_options.is_empty() => ThinkingAvailability::Unsupported,
+            _ => ThinkingAvailability::Supported,
+        };
+        if !updated.thinking_level.is_empty() {
+            self.thinking_level = updated.thinking_level;
+            self.session.thinking_level.clone_from(&self.thinking_level);
+            if let Some(session) = self
+                .sessions
+                .iter_mut()
+                .find(|session| session.id == self.session.id)
+            {
+                session.thinking_level.clone_from(&self.thinking_level);
+            }
         }
+        if was_loading {
+            self.status = match &self.thinking_availability {
+                ThinkingAvailability::Unsupported => {
+                    "thinking levels unavailable for this model".to_owned()
+                }
+                _ => format!("thinking · {}", self.thinking_level),
+            };
+        }
+        self.status_error = false;
+    }
+
+    pub fn set_thinking_error(&mut self, error: String) {
+        self.thinking_options.clear();
+        self.thinking_message.clone_from(&error);
+        self.thinking_availability = ThinkingAvailability::Error(error.clone());
+        self.status = format!("thinking levels unavailable · {error}");
+        self.status_error = true;
+    }
+
+    pub fn record_event(&mut self, name: &str, detail: String, state: &str) {
+        self.events.push(EventLine {
+            name: name.to_owned(),
+            detail,
+            state: state.to_owned(),
+        });
+        if self.events.len() > 200 {
+            self.events.drain(..self.events.len() - 200);
+        }
+    }
+
+    pub fn open_thinking_picker(&mut self) {
+        self.open_settings_picker(SettingsPicker::Thinking);
     }
 
     pub fn open_path_picker(&mut self) {
@@ -788,6 +863,9 @@ impl App {
                         .unwrap_or(Action::None),
                 }
             }
+            KeyCode::Char('r') | KeyCode::Char('R') if picker == SettingsPicker::Thinking => {
+                Action::RefreshThinking
+            }
             _ => Action::None,
         }
     }
@@ -796,23 +874,39 @@ impl App {
         match key.code {
             KeyCode::Esc => {
                 self.session_picker = false;
+                self.pending_workspace_switch = None;
                 Action::None
             }
             KeyCode::Up => {
                 self.session_selected = self.session_selected.saturating_sub(1);
+                self.pending_workspace_switch = None;
                 Action::None
             }
             KeyCode::Down => {
                 self.session_selected =
                     (self.session_selected + 1).min(self.sessions.len().saturating_sub(1));
+                self.pending_workspace_switch = None;
                 Action::None
             }
             KeyCode::Enter => {
+                let Some(session) = self.sessions.get(self.session_selected) else {
+                    return Action::None;
+                };
+                let session_id = session.id.clone();
+                let session_cwd = session.cwd.clone();
+                let uses_launch_workspace = self.session_uses_launch_workspace(session);
+                if !uses_launch_workspace
+                    && self.pending_workspace_switch.as_deref() != Some(session_id.as_str())
+                {
+                    self.pending_workspace_switch = Some(session_id);
+                    self.status =
+                        format!("workspace change · {session_cwd} · press Enter again to confirm");
+                    self.status_error = true;
+                    return Action::None;
+                }
                 self.session_picker = false;
-                self.sessions
-                    .get(self.session_selected)
-                    .map(|session| Action::SwitchSession(session.id.clone()))
-                    .unwrap_or(Action::None)
+                self.pending_workspace_switch = None;
+                Action::SwitchSession(session_id)
             }
             _ => Action::None,
         }
@@ -916,6 +1010,7 @@ impl App {
                     .iter()
                     .position(|session| session.id == self.session.id)
                     .unwrap_or(0);
+                self.pending_workspace_switch = None;
                 self.session_picker = true;
                 Action::None
             }
@@ -928,8 +1023,7 @@ impl App {
             "/thinking" => {
                 self.mark_slash_use("/thinking");
                 self.clear_input();
-                self.open_settings_picker(SettingsPicker::Thinking);
-                Action::None
+                Action::RefreshThinking
             }
             "/attach" => {
                 self.mark_slash_use(&message);
@@ -1080,6 +1174,9 @@ impl App {
         self.cwd = session.cwd.clone();
         self.execution_mode = session.execution_mode.clone();
         self.thinking_level = session.thinking_level.clone();
+        self.thinking_options.clear();
+        self.thinking_availability = ThinkingAvailability::Loading;
+        self.thinking_message.clear();
         self.context_percent = context_usage.and_then(|usage| usage.percent);
         self.session = session;
         self.messages = messages;
@@ -1093,6 +1190,7 @@ impl App {
         self.settings_picker = None;
         self.queued_prompts.clear();
         self.pending_slash_command = None;
+        self.pending_workspace_switch = None;
         self.events.clear();
         self.status.clear();
         self.status_error = false;
@@ -1118,11 +1216,12 @@ impl App {
     pub fn set_model(&mut self, updated: SessionModelUpdate) {
         self.model = updated.model;
         self.session.model.clone_from(&self.model);
-        if !updated.thinking_level.is_empty() {
-            self.thinking_level = updated.thinking_level;
-            self.session.thinking_level.clone_from(&self.thinking_level);
-        }
-        self.set_thinking_options(updated.available_thinking_levels);
+        self.set_thinking_state(ThinkingLevelUpdate {
+            thinking_level: updated.thinking_level,
+            available_levels: updated.available_thinking_levels,
+            status: updated.thinking_status,
+            message: updated.thinking_message,
+        });
         self.context_percent = updated.context_usage.and_then(|usage| usage.percent);
         if let Some(session) = self
             .sessions
@@ -1136,37 +1235,34 @@ impl App {
     }
 
     pub fn set_thinking_level(&mut self, updated: ThinkingLevelUpdate) {
-        self.set_thinking_options(updated.available_levels);
-        self.thinking_level = updated.thinking_level;
-        self.session.thinking_level.clone_from(&self.thinking_level);
-        if let Some(session) = self
-            .sessions
-            .iter_mut()
-            .find(|session| session.id == self.session.id)
-        {
-            session.thinking_level.clone_from(&self.thinking_level);
-        }
+        self.set_thinking_state(updated);
         self.status = format!("thinking changed · {}", self.thinking_level);
         self.status_error = false;
     }
 
     pub fn apply_stream_event(&mut self, event: StreamEvent) {
-        let detail = event_detail(&event);
-        self.events.push(EventLine {
-            name: event.name.to_uppercase(),
-            detail,
-            state: event_state(&event).to_owned(),
-        });
-        if self.events.len() > 200 {
-            self.events.drain(..self.events.len() - 200);
-        }
+        self.record_event(
+            &event.name.to_uppercase(),
+            event_detail(&event),
+            event_state(&event),
+        );
         let Some(live) = self.live.as_mut() else {
             return;
         };
         match event.name.as_str() {
             "meta" => {
                 self.model = string_field(&event.data, "model");
-                self.cwd = string_field(&event.data, "cwd");
+                let event_cwd = string_field(&event.data, "cwd");
+                if !event_cwd.is_empty() && same_workspace(&event_cwd, Path::new(&self.session.cwd))
+                {
+                    self.cwd = event_cwd;
+                } else if !event_cwd.is_empty() {
+                    self.status = format!(
+                        "workspace mismatch · session {} · runtime {event_cwd}",
+                        self.session.cwd
+                    );
+                    self.status_error = true;
+                }
                 self.execution_mode = string_field(&event.data, "executionMode");
                 self.thinking_level = string_field(&event.data, "thinkingLevel");
                 self.context_percent = event.data["contextUsage"]["percent"].as_f64();
@@ -1691,13 +1787,18 @@ fn event_state(event: &StreamEvent) -> &'static str {
 
 #[cfg(test)]
 mod tests {
+    use std::time::{SystemTime, UNIX_EPOCH};
+
     use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 
     use super::{
         advance_typewriter, apply_patch, attachment_draft, Action, App, Approval, SettingsPicker,
         INIT_PROMPT,
     };
-    use crate::model::{ModelOption, SessionSummary, StreamEvent, ToolDefinition};
+    use crate::model::{
+        ModelOption, SessionSummary, StreamEvent, ThinkingAvailability, ThinkingLevelUpdate,
+        ToolDefinition,
+    };
     use serde_json::json;
 
     #[test]
@@ -2009,13 +2110,81 @@ mod tests {
         ));
 
         app.set_input("/thinking");
-        assert!(matches!(app.submit_action(), Action::None));
-        assert_eq!(app.settings_picker, Some(SettingsPicker::Thinking));
-        app.settings_selected = 4;
+        assert!(matches!(app.submit_action(), Action::RefreshThinking));
+        assert_eq!(app.settings_picker, None);
+        app.set_thinking_state(ThinkingLevelUpdate {
+            thinking_level: "off".to_owned(),
+            available_levels: vec!["off".to_owned(), "xhigh".to_owned(), "max".to_owned()],
+            status: "supported".to_owned(),
+            message: String::new(),
+        });
+        app.open_thinking_picker();
+        app.settings_selected = 1;
         assert!(matches!(
             app.handle_key(KeyEvent::new(KeyCode::Enter, KeyModifiers::NONE)),
-            Action::SetThinkingLevel(level) if level == "high"
+            Action::SetThinkingLevel(level) if level == "xhigh"
         ));
+    }
+
+    #[test]
+    fn thinking_empty_and_error_states_never_restore_hard_coded_levels() {
+        let mut app = test_app(Vec::new());
+        assert!(app.thinking_levels().is_empty());
+        assert_eq!(app.thinking_availability, ThinkingAvailability::Loading);
+
+        app.set_thinking_state(ThinkingLevelUpdate {
+            thinking_level: "off".to_owned(),
+            available_levels: Vec::new(),
+            status: "unsupported".to_owned(),
+            message: "Fixed reasoning".to_owned(),
+        });
+        assert!(app.thinking_levels().is_empty());
+        assert_eq!(app.thinking_availability, ThinkingAvailability::Unsupported);
+
+        app.set_thinking_error("sidecar unavailable".to_owned());
+        app.open_thinking_picker();
+        assert!(matches!(
+            app.handle_key(KeyEvent::new(KeyCode::Char('r'), KeyModifiers::NONE)),
+            Action::RefreshThinking
+        ));
+    }
+
+    #[test]
+    fn launch_workspace_survives_cross_workspace_session_switches() {
+        let root = std::env::temp_dir().join(format!(
+            "pisper-tui-workspaces-{}",
+            SystemTime::now()
+                .duration_since(UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        ));
+        let launch = root.join("launch");
+        let other = root.join("other");
+        std::fs::create_dir_all(&launch).unwrap();
+        std::fs::create_dir_all(&other).unwrap();
+
+        let mut app = test_app(Vec::new());
+        app.set_launch_workspace(launch.canonicalize().unwrap());
+        app.sessions.push(SessionSummary {
+            id: "other-session".to_owned(),
+            cwd: other.to_string_lossy().into_owned(),
+            ..SessionSummary::default()
+        });
+        app.session_picker = true;
+        app.session_selected = 1;
+
+        assert!(matches!(
+            app.handle_key(KeyEvent::new(KeyCode::Enter, KeyModifiers::NONE)),
+            Action::None
+        ));
+        assert!(app.session_picker);
+        assert!(app.status.contains("press Enter again"));
+        assert!(matches!(
+            app.handle_key(KeyEvent::new(KeyCode::Enter, KeyModifiers::NONE)),
+            Action::SwitchSession(id) if id == "other-session"
+        ));
+        assert_eq!(app.new_session_workspace(), launch.canonicalize().unwrap());
+        std::fs::remove_dir_all(root).unwrap();
     }
 
     #[test]

@@ -53,6 +53,8 @@ pisper --cwd /path/to/project
 pisper doctor
 ```
 
+诊断输出会列出 sidecar 连接来源、TUI 启动目录、sidecar runtime fallback 目录，以及该 workspace 的最近会话目录，便于定位目录继承问题。
+
 ## Composer 与消息流
 
 - `Enter`：提交消息；Agent 运行期间提交的消息进入 FIFO 队列，并在当前 run 正常结束后依次发送。
@@ -71,12 +73,12 @@ pisper doctor
 | 命令 | 作用 |
 | :--- | :--- |
 | `/init` | 分析当前项目并创建或完善 workspace 根目录的 `AGENTS.md`。 |
-| `/new` | 新建空会话；运行期间不可执行。 |
-| `/sessions` | 打开历史会话选择器；运行期间不可切换。 |
+| `/new` | 在 TUI 启动时的 workspace 新建空会话；运行期间不可执行。 |
+| `/sessions` | 打开历史会话选择器；跨 workspace 会话需要再次确认，运行期间不可切换。 |
 | `/events` | 打开当前 TUI 进程的事件账本。 |
 | `/chat` | 返回 Chat 消息流。 |
 | `/model` | 打开模型选择器并切换当前会话模型；运行期间不可切换。 |
-| `/thinking` | 打开当前模型支持的思考等级选择器；运行期间不可切换。 |
+| `/thinking` | 刷新并打开当前模型支持的思考等级；不支持或加载失败时显示原因并可重试，运行期间不可切换。 |
 | `/attach` | 打开 workspace 文件选择器。 |
 | `/mode` | 显示当前执行模式和可用参数；运行期间也可随时调整。 |
 | `/mode read-only` | 只开放低风险分析工具，不允许修改项目。 |

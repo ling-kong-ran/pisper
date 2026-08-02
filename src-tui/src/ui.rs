@@ -12,7 +12,7 @@ use unicode_width::{UnicodeWidthChar, UnicodeWidthStr};
 
 use crate::{
     app::{App, Approval, LiveTurn, SettingsPicker, SlashKind, View},
-    model::{ChatMessage, MessageAttachment, RunActivity, ToolActivity},
+    model::{ChatMessage, MessageAttachment, RunActivity, ThinkingAvailability, ToolActivity},
 };
 
 const BG: Color = Color::Rgb(9, 11, 15);
@@ -1225,9 +1225,14 @@ fn render_status(frame: &mut Frame, app: &App, area: Rect) {
     } else {
         String::new()
     };
+    let thinking = if app.thinking_level.is_empty() {
+        String::new()
+    } else {
+        format!("Thinking · {} · ", app.thinking_level)
+    };
     frame.render_widget(
         Paragraph::new(format!(
-            "{tasks}{agents}{}UTF-8",
+            "{thinking}{tasks}{agents}{}UTF-8",
             if app.queued_count() > 0 {
                 format!("{} queued · ", app.queued_count())
             } else {
@@ -1356,13 +1361,24 @@ fn render_sessions(frame: &mut Frame, app: &App, area: Rect) {
     frame.render_widget(Clear, popup);
     let rows = app.sessions.iter().map(|session| {
         let streaming = if session.streaming { " · running" } else { "" };
-        ListItem::new(Line::from(vec![
-            Span::styled(format!("{:<32}", session.name), Style::default().fg(TEXT)),
-            Span::styled(
-                format!("{}{}", display_model(&session.model), streaming),
+        let workspace = if app.session_uses_launch_workspace(session) {
+            shorten_path(&session.cwd)
+        } else {
+            format!("{} · other workspace", shorten_path(&session.cwd))
+        };
+        ListItem::new(vec![
+            Line::from(vec![
+                Span::styled(format!("{:<32}", session.name), Style::default().fg(TEXT)),
+                Span::styled(
+                    format!("{}{}", display_model(&session.model), streaming),
+                    Style::default().fg(MUTED),
+                ),
+            ]),
+            Line::from(Span::styled(
+                format!("   {workspace}"),
                 Style::default().fg(MUTED),
-            ),
-        ]))
+            )),
+        ])
     });
     let list = List::new(rows)
         .block(
@@ -1601,6 +1617,25 @@ fn render_settings_picker(frame: &mut Frame, app: &App, area: Rect) {
                 ]))
             })
             .collect(),
+        SettingsPicker::Thinking if app.thinking_levels().is_empty() => {
+            let (message, color) = match &app.thinking_availability {
+                ThinkingAvailability::Loading => ("Loading thinking levels…", MUTED),
+                ThinkingAvailability::Unsupported => (
+                    if app.thinking_message.is_empty() {
+                        "The current model has no configurable thinking levels"
+                    } else {
+                        app.thinking_message.as_str()
+                    },
+                    MUTED,
+                ),
+                ThinkingAvailability::Error(error) => (error.as_str(), RED),
+                ThinkingAvailability::Supported => ("No thinking levels returned", RED),
+            };
+            vec![ListItem::new(Span::styled(
+                format!(" {message}"),
+                Style::default().fg(color),
+            ))]
+        }
         SettingsPicker::Thinking => app
             .thinking_levels()
             .iter()
@@ -1636,7 +1671,11 @@ fn render_settings_picker(frame: &mut Frame, app: &App, area: Rect) {
         .block(
             Block::default()
                 .title_bottom(Span::styled(
-                    " ↑↓ choose · Enter apply · Esc cancel ",
+                    if picker == SettingsPicker::Thinking && count == 0 {
+                        " R retry · Esc close "
+                    } else {
+                        " ↑↓ choose · Enter apply · Esc cancel "
+                    },
                     Style::default().fg(MUTED),
                 ))
                 .borders(Borders::BOTTOM)
@@ -1931,7 +1970,7 @@ mod tests {
     };
     use crate::{
         app::{App, Approval, LiveTurn, PathEntry, SettingsPicker},
-        model::{ChatMessage, ModelOption, SessionSummary, ToolActivity},
+        model::{ChatMessage, ModelOption, SessionSummary, ThinkingLevelUpdate, ToolActivity},
     };
 
     #[test]
@@ -2175,13 +2214,14 @@ mod tests {
         assert!(rows
             .iter()
             .any(|row| row.contains("gpt-5.6-sol · [workspace]")));
+        assert!(rows.iter().any(|row| row.contains("Thinking · high")));
         let message_row = rows
             .iter()
             .position(|row| row.contains("Pisper is ready."))
             .unwrap();
         let thinking_row = rows
             .iter()
-            .rposition(|row| row.contains("Thinking"))
+            .rposition(|row| row.contains("⠋ Thinking."))
             .unwrap();
         assert!(rows[message_row].starts_with("●  Pisper is ready."));
         assert!(
@@ -2432,9 +2472,26 @@ mod tests {
         terminal.draw(|frame| draw(frame, &app)).unwrap();
         assert!(format!("{:?}", terminal.backend().buffer()).contains("Model A"));
 
+        app.set_thinking_state(ThinkingLevelUpdate {
+            thinking_level: "off".to_owned(),
+            available_levels: vec!["off".to_owned(), "xhigh".to_owned(), "max".to_owned()],
+            status: "supported".to_owned(),
+            message: String::new(),
+        });
         app.settings_picker = Some(SettingsPicker::Thinking);
         terminal.draw(|frame| draw(frame, &app)).unwrap();
-        assert!(format!("{:?}", terminal.backend().buffer()).contains("medium"));
+        let thinking = format!("{:?}", terminal.backend().buffer());
+        assert!(thinking.contains("xhigh"));
+        assert!(thinking.contains("max"));
+
+        app.set_thinking_state(ThinkingLevelUpdate {
+            thinking_level: "off".to_owned(),
+            available_levels: Vec::new(),
+            status: "unsupported".to_owned(),
+            message: "Fixed reasoning for this model".to_owned(),
+        });
+        terminal.draw(|frame| draw(frame, &app)).unwrap();
+        assert!(format!("{:?}", terminal.backend().buffer()).contains("Fixed reasoning"));
     }
 
     #[test]

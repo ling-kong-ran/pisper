@@ -190,6 +190,10 @@ pub struct SessionModelUpdate {
     #[serde(default)]
     pub available_thinking_levels: Vec<String>,
     #[serde(default)]
+    pub thinking_status: String,
+    #[serde(default)]
+    pub thinking_message: String,
+    #[serde(default)]
     pub context_usage: Option<ContextUsage>,
 }
 
@@ -200,6 +204,19 @@ pub struct ThinkingLevelUpdate {
     pub thinking_level: String,
     #[serde(default)]
     pub available_levels: Vec<String>,
+    #[serde(default)]
+    pub status: String,
+    #[serde(default)]
+    pub message: String,
+}
+
+#[derive(Clone, Debug, Default, Eq, PartialEq)]
+pub enum ThinkingAvailability {
+    #[default]
+    Loading,
+    Supported,
+    Unsupported,
+    Error(String),
 }
 
 #[derive(Clone, Debug, Default, Deserialize)]

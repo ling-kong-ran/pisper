@@ -178,11 +178,11 @@ test('session model and thinking APIs delegate current-session changes to the ru
     },
     async getSessionThinkingState(id) {
       calls.push(['thinking-state', id])
-      return { id, thinkingLevel: 'medium', availableLevels: ['off', 'medium', 'high'] }
+      return { id, thinkingLevel: 'off', availableLevels: ['off', 'xhigh', 'max'], status: 'supported', message: '', model: 'relay/gpt-5.6-sol' }
     },
     async setSessionThinkingLevel(id, level) {
       calls.push(['thinking', id, level])
-      return { id, thinkingLevel: level, availableLevels: ['off', 'medium', 'high'] }
+      return { id, thinkingLevel: level, availableLevels: ['off', 'xhigh', 'max'], status: 'supported', message: '', model: 'relay/gpt-5.6-sol' }
     },
   }
   const handler = createApiHandler(runtime)
@@ -193,15 +193,15 @@ test('session model and thinking APIs delegate current-session changes to the ru
 
   const thinkingStateResponse = response()
   assert.equal(await handler(request('GET'), thinkingStateResponse, new URL('http://localhost/api/sessions/session%201/thinking-level')), true)
-  assert.deepEqual(JSON.parse(thinkingStateResponse.body), { id: 'session 1', thinkingLevel: 'medium', availableLevels: ['off', 'medium', 'high'] })
+  assert.deepEqual(JSON.parse(thinkingStateResponse.body), { id: 'session 1', thinkingLevel: 'off', availableLevels: ['off', 'xhigh', 'max'], status: 'supported', message: '', model: 'relay/gpt-5.6-sol' })
 
   const thinkingResponse = response()
-  assert.equal(await handler(request('PUT', { level: 'high' }), thinkingResponse, new URL('http://localhost/api/sessions/session%201/thinking-level')), true)
-  assert.deepEqual(JSON.parse(thinkingResponse.body), { id: 'session 1', thinkingLevel: 'high', availableLevels: ['off', 'medium', 'high'] })
+  assert.equal(await handler(request('PUT', { level: 'xhigh' }), thinkingResponse, new URL('http://localhost/api/sessions/session%201/thinking-level')), true)
+  assert.deepEqual(JSON.parse(thinkingResponse.body), { id: 'session 1', thinkingLevel: 'xhigh', availableLevels: ['off', 'xhigh', 'max'], status: 'supported', message: '', model: 'relay/gpt-5.6-sol' })
   assert.deepEqual(calls, [
     ['model', 'session 1', 'openai', 'gpt-5.6'],
     ['thinking-state', 'session 1'],
-    ['thinking', 'session 1', 'high'],
+    ['thinking', 'session 1', 'xhigh'],
   ])
 })
 
