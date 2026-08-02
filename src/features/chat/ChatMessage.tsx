@@ -144,6 +144,7 @@ export const FocusChatMessage = memo(function FocusChatMessage({
 }: FocusChatMessageProps) {
   const streaming = Boolean(message.streaming)
   const fullText = message.text || ''
+  const displayText = fullText || (!showRunActivity ? String(message.error || '') : '')
 
   return (
     <AiMessage
@@ -157,9 +158,7 @@ export const FocusChatMessage = memo(function FocusChatMessage({
       <span>{message.role === 'agent' ? <AgentStatusAvatar state={agentState} /> : 'You'}</span>
       <div className="message-content">
         {showRunActivity && runProps && <AgentRunActivity {...runProps} />}
-        {(fullText || !streaming) && (
-          <MarkdownMessage streaming={streaming}>{fullText}</MarkdownMessage>
-        )}
+        {displayText && <MarkdownMessage streaming={streaming}>{displayText}</MarkdownMessage>}
         {message.attachments && message.attachments.length > 0 && (
           <MessageAttachments attachments={message.attachments} />
         )}

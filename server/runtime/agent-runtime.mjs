@@ -275,7 +275,7 @@ function serializeTranscriptMessages(messages, resolveImageUrl = null) {
     lastActivityMessage = null
     runResultIndex = null
   }
-  const finishRun = () => {
+  const finishRun = ({ terminal = false } = {}) => {
     if (!hasActivity()) return
     let item = runResultIndex == null ? null : result[runResultIndex]
     if (!item) {
@@ -290,7 +290,22 @@ function serializeTranscriptMessages(messages, resolveImageUrl = null) {
       }
       result.push(item)
     }
-    const activityTools = [...tools.values()].slice(-MAX_LIVE_ACTIVITY_ITEMS)
+    const unresolvedMessage = String(
+      item.error || (!terminal ? '工具调用未记录完成结果。' : ''),
+    ).trim()
+    const activityTools = [...tools.values()]
+      .slice(-MAX_LIVE_ACTIVITY_ITEMS)
+      .map((tool) =>
+        tool.status === 'running'
+          ? {
+              ...tool,
+              status: unresolvedMessage ? 'error' : 'done',
+              message: unresolvedMessage || tool.message || '',
+              updatedAt: lastActivityAt || tool.updatedAt,
+              finishedAt: lastActivityAt || tool.updatedAt || tool.startedAt,
+            }
+          : tool,
+      )
     item.runActivity = {
       thinkingText: thinkingParts.join('\n\n').slice(-MAX_LIVE_THINKING_CHARS),
       tools: activityTools,
@@ -363,7 +378,7 @@ function serializeTranscriptMessages(messages, resolveImageUrl = null) {
         runResultIndex = result.length - 1
       }
       if (terminal) {
-        finishRun()
+        finishRun({ terminal: true })
         resetRun()
       }
       continue

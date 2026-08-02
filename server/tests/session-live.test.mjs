@@ -162,6 +162,38 @@ test('persisted transcript binds reasoning and tool activity to the completed Ag
   assert.equal(page.messages[6].runActivity.tools[0].status, 'done')
 })
 
+test('persisted transcript settles orphaned tools from a terminated turn', async (t) => {
+  const directory = await mkdtemp(join(tmpdir(), 'pisper-terminated-tool-'))
+  t.after(() => rm(directory, { recursive: true, force: true }))
+  const runtime = new AgentRuntimeService({ cwd: directory, dataDir: directory })
+  runtime.sessions.set('session-terminated-tool', {
+    cwd: directory,
+    session: {
+      isStreaming: false,
+      messages: [
+        { role: 'user', content: 'Attempt an edit.', timestamp: '2026-07-20T10:03:00.000Z' },
+        {
+          role: 'assistant',
+          content: [
+            { type: 'thinking', thinking: 'Attempt the edit before the stream terminates.' },
+            { type: 'toolCall', id: 'tool-3', name: 'edit', arguments: { path: 'server/runtime.mjs' } },
+          ],
+          stopReason: 'error',
+          errorMessage: 'terminated',
+          timestamp: '2026-07-20T10:03:01.000Z',
+        },
+      ],
+    },
+  })
+
+  const page = await runtime.getSessionMessagePage('session-terminated-tool', { limit: 10 })
+  const terminatedRun = page.messages[1].runActivity
+  assert.equal(terminatedRun.tools[0].name, 'edit')
+  assert.equal(terminatedRun.tools[0].status, 'error')
+  assert.equal(terminatedRun.tools[0].message, 'terminated')
+  assert.equal(terminatedRun.tools[0].finishedAt, '2026-07-20T10:03:01.000Z')
+})
+
 test('multi-Agent status inspection never promotes an unrelated failed Agent into current activity', () => {
   const failed = { id: 'failed-agent', status: 'failed' }
   assert.equal(multiAgentResultAgent('list_agents', { agents: [failed] }), null)

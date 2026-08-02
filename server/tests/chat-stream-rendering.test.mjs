@@ -47,6 +47,13 @@ test('composer send action becomes the only stop control while streaming', async
   assert.match(styles, /\.focus-composer \.send-button\.stop/)
 })
 
+test('completed activity-only messages do not render an empty error bubble', async () => {
+  const message = await readFile('src/features/chat/ChatMessage.tsx', 'utf8')
+  assert.match(message, /const displayText = fullText \|\| \(!showRunActivity/)
+  assert.match(message, /\{displayText && <MarkdownMessage/)
+  assert.doesNotMatch(message, /\(fullText \|\| !streaming\)/)
+})
+
 test('core chat activity loads synchronously with the message renderer', async () => {
   const message = await readFile('src/features/chat/ChatMessage.tsx', 'utf8')
   assert.match(
