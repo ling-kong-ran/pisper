@@ -21,11 +21,16 @@ function normalizedInput(value) {
 
 function modelWithMetadata(model, metadata, explicitContextWindow, explicitInput) {
   const remoteMetadata = metadata?.get(model.id)
+  const metadataThinkingLevelMap = remoteMetadata?.thinkingLevelMap
+  const modelThinkingLevelMap = model.thinkingLevelMap
   return {
     ...model,
     input: normalizedInput(explicitInput) || normalizedInput(remoteMetadata?.input) || normalizedInput(model.input) || ['text'],
     contextWindow: Number(explicitContextWindow) || Number(remoteMetadata?.contextWindow) || inferredContextWindow(model.id, model.contextWindow),
     maxTokens: Number(remoteMetadata?.maxTokens) || model.maxTokens,
+    ...(metadataThinkingLevelMap || modelThinkingLevelMap
+      ? { thinkingLevelMap: { ...(metadataThinkingLevelMap || {}), ...(modelThinkingLevelMap || {}) } }
+      : {}),
   }
 }
 
@@ -50,6 +55,7 @@ function runtimeModel(providerId, entry, candidate, existing, template, metadata
     contextWindow: Number(remoteMetadata?.contextWindow) || inferredContextWindow(candidate.id),
     maxTokens: Number(remoteMetadata?.maxTokens) || template?.maxTokens || 128_000,
     headers: template?.headers ? { ...template.headers } : undefined,
+    thinkingLevelMap: remoteMetadata?.thinkingLevelMap ? { ...remoteMetadata.thinkingLevelMap } : undefined,
     pisperKind: candidate.kind || 'chat',
   }
 }

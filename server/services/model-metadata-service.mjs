@@ -4,15 +4,22 @@ const DEFAULT_ENDPOINT = 'https://models.dev/api.json'
 const MAX_RESPONSE_BYTES = 1024 * 1024
 
 const TEXT_IMAGE_INPUT = Object.freeze(['text', 'image'])
+const GPT_56_THINKING_LEVEL_MAP = Object.freeze({ off: 'none', xhigh: 'xhigh', max: 'max' })
 
-function metadata(id, contextWindow, maxTokens, input) {
-  return Object.freeze({ id, contextWindow, ...(maxTokens ? { maxTokens } : {}), ...(input ? { input } : {}) })
+function metadata(id, contextWindow, maxTokens, input, thinkingLevelMap) {
+  return Object.freeze({
+    id,
+    contextWindow,
+    ...(maxTokens ? { maxTokens } : {}),
+    ...(input ? { input } : {}),
+    ...(thinkingLevelMap ? { thinkingLevelMap } : {}),
+  })
 }
 
 export const BUNDLED_MODEL_METADATA = Object.freeze({
-  'gpt-5.6-luna': metadata('gpt-5.6-luna', 272_000, null, TEXT_IMAGE_INPUT),
-  'gpt-5.6-sol': metadata('gpt-5.6-sol', 272_000, null, TEXT_IMAGE_INPUT),
-  'gpt-5.6-terra': metadata('gpt-5.6-terra', 272_000, null, TEXT_IMAGE_INPUT),
+  'gpt-5.6-luna': metadata('gpt-5.6-luna', 272_000, null, TEXT_IMAGE_INPUT, GPT_56_THINKING_LEVEL_MAP),
+  'gpt-5.6-sol': metadata('gpt-5.6-sol', 272_000, null, TEXT_IMAGE_INPUT, GPT_56_THINKING_LEVEL_MAP),
+  'gpt-5.6-terra': metadata('gpt-5.6-terra', 272_000, null, TEXT_IMAGE_INPUT, GPT_56_THINKING_LEVEL_MAP),
 
   'claude-3-5-sonnet-latest': metadata('claude-3-5-sonnet-latest', 200_000, 8_192),
   'claude-3-7-sonnet-latest': metadata('claude-3-7-sonnet-latest', 200_000, 64_000),
@@ -109,7 +116,17 @@ export class ModelMetadataService {
 
   get(modelId) {
     const key = String(modelId || '').trim().toLowerCase()
-    return this.state.models[key] || BUNDLED_MODEL_METADATA[key] || null
+    const bundled = BUNDLED_MODEL_METADATA[key]
+    const stored = this.state.models[key]
+    if (!bundled) return stored || null
+    if (!stored) return bundled
+    return {
+      ...bundled,
+      ...stored,
+      ...(bundled.thinkingLevelMap || stored.thinkingLevelMap
+        ? { thinkingLevelMap: { ...(bundled.thinkingLevelMap || {}), ...(stored.thinkingLevelMap || {}) } }
+        : {}),
+    }
   }
 
   async ensure(modelId) {

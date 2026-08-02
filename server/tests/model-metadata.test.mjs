@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict'
-import { mkdtemp, rm } from 'node:fs/promises'
+import { mkdtemp, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import test from 'node:test'
@@ -42,8 +42,28 @@ test('bundled model metadata resolves without network access', async (t) => {
     assert.equal(model.contextWindow, contextWindow, modelId)
     assert.equal(model.maxTokens, maxTokens, modelId)
   }
-  assert.deepEqual((await metadata.ensure('gpt-5.6-sol')).input, ['text', 'image'])
+  const gpt56 = await metadata.ensure('gpt-5.6-sol')
+  assert.deepEqual(gpt56.input, ['text', 'image'])
+  assert.deepEqual(gpt56.thinkingLevelMap, { off: 'none', xhigh: 'xhigh', max: 'max' })
   assert.equal(calls, 0)
+})
+
+test('stored window metadata retains bundled model capabilities', async (t) => {
+  const directory = await mkdtemp(join(tmpdir(), 'pisper-model-metadata-merged-'))
+  const path = join(directory, 'metadata.json')
+  t.after(() => rm(directory, { recursive: true, force: true }))
+  await writeFile(path, JSON.stringify({
+    version: 1,
+    models: { 'gpt-5.6-sol': { id: 'gpt-5.6-sol', contextWindow: 300_000, maxTokens: 140_000 } },
+  }))
+  const metadata = new ModelMetadataService({ path })
+  await metadata.init()
+
+  const model = metadata.get('gpt-5.6-sol')
+  assert.equal(model.contextWindow, 300_000)
+  assert.equal(model.maxTokens, 140_000)
+  assert.deepEqual(model.input, ['text', 'image'])
+  assert.deepEqual(model.thinkingLevelMap, { off: 'none', xhigh: 'xhigh', max: 'max' })
 })
 
 test('unlisted future family models still use first-use discovery', async (t) => {

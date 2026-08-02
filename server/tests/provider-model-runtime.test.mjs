@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict'
 import { mkdtemp, rm, writeFile } from 'node:fs/promises'
+import { createServer } from 'node:http'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import test from 'node:test'
@@ -54,6 +55,48 @@ test('provider model discovery uses the configured relay Base URL and stored cre
   const provider = discovered.config.providers.find((item) => item.id === 'company-relay')
   assert.ok(provider.models.some((model) => model.id === 'relay-chat-v2' && model.kind === 'chat'))
   assert.ok(provider.models.some((model) => model.id === 'relay-image-v1' && model.kind === 'image'))
+})
+
+test('custom OpenAI Responses models send template-supported xhigh reasoning', async (t) => {
+  const directory = await mkdtemp(join(tmpdir(), 'pisper-provider-thinking-runtime-'))
+  let requestBody
+  const server = createServer(async (request, response) => {
+    const chunks = []
+    for await (const chunk of request) chunks.push(chunk)
+    requestBody = JSON.parse(Buffer.concat(chunks).toString('utf8'))
+    response.writeHead(400, { 'content-type': 'application/json' })
+    response.end(JSON.stringify({ error: { message: 'request captured' } }))
+  })
+  await new Promise((resolve) => server.listen(0, '127.0.0.1', resolve))
+  const baseUrl = `http://127.0.0.1:${server.address().port}/v1`
+  await writeFile(join(directory, 'models.json'), JSON.stringify({ providers: { relay: {
+    name: 'Relay',
+    api: 'openai-responses',
+    baseUrl,
+    models: [{ id: 'gpt-5.6-sol', reasoning: true, input: ['text'], contextWindow: 200_000, maxTokens: 128_000 }],
+  } } }))
+  await writeFile(join(directory, 'auth.json'), JSON.stringify({ relay: { type: 'api_key', key: 'relay-key' } }))
+  const runtime = new AgentRuntimeService({
+    cwd: directory,
+    dataDir: directory,
+    providerModelDiscovery: { async discover() { return { count: 1, models: [{ id: 'gpt-5.6-sol', name: 'GPT-5.6 Sol', kind: 'chat' }] } } },
+  })
+  t.after(async () => {
+    await runtime.dispose()
+    server.closeAllConnections?.()
+    await new Promise((resolve) => server.close(resolve))
+    await rm(directory, { recursive: true, force: true })
+  })
+
+  await runtime.init()
+  const model = runtime.modelRuntime.getModel('relay', 'gpt-5.6-sol')
+  assert.deepEqual(model.thinkingLevelMap, { off: 'none', xhigh: 'xhigh', max: 'max' })
+  await runtime.modelRuntime.completeSimple(model, {
+    systemPrompt: 'Test',
+    messages: [{ role: 'user', content: 'Test', timestamp: Date.now() }],
+  }, { reasoning: 'xhigh', maxTokens: 16 }).catch(() => {})
+
+  assert.equal(requestBody.reasoning.effort, 'xhigh')
 })
 
 test('explicit relay User-Agent overrides the Pisper default', async (t) => {

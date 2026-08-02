@@ -59,8 +59,40 @@ test('known visual models recover image input while explicit input remains autho
     return runtime.getModel('relay', 'gpt-5.6-sol')
   }
 
-  assert.deepEqual((await decorate()).input, ['text', 'image'])
+  const inferred = await decorate()
+  assert.deepEqual(inferred.input, ['text', 'image'])
+  assert.deepEqual(inferred.thinkingLevelMap, { off: 'none', xhigh: 'xhigh', max: 'max' })
   assert.deepEqual((await decorate({ 'relay:gpt-5.6-sol': ['text'] })).input, ['text'])
+})
+
+test('model thinking-level overrides remain authoritative over metadata templates', async (t) => {
+  const directory = await mkdtemp(join(tmpdir(), 'pisper-provider-thinking-capability-'))
+  t.after(() => rm(directory, { recursive: true, force: true }))
+  const metadata = { get: (id) => BUNDLED_MODEL_METADATA[id] || null }
+  const catalog = new ProviderModelCatalogService({ path: join(directory, 'catalog.json'), metadata })
+  await catalog.init()
+  const raw = {
+    provider: 'relay',
+    id: 'gpt-5.6-sol',
+    reasoning: true,
+    thinkingLevelMap: { xhigh: null, max: null },
+    contextWindow: 128_000,
+    maxTokens: 128_000,
+  }
+  const runtime = {
+    getModels: (provider) => provider === 'relay' ? [raw] : [],
+    getModel: () => raw,
+    getAvailable: async () => [raw],
+    getAvailableSnapshot: () => [raw],
+  }
+
+  catalog.decorateRuntime(runtime, { relay: 'https://relay.example.test/v1' })
+
+  assert.deepEqual(runtime.getModel('relay', 'gpt-5.6-sol').thinkingLevelMap, {
+    off: 'none',
+    xhigh: null,
+    max: null,
+  })
 })
 
 test('raw runtime models use metadata while explicit context configuration wins', async (t) => {
