@@ -1,4 +1,20 @@
 {
+  "files.watcherExclude": {
+    "**/src-tauri/target/**": true,
+    "**/src-tui/target/**": true,
+    "**/.tmp-tauri-data/**": true,
+    "**/release/**": true,
+    "**/dist/**": true,
+    "**/generated/**": true
+  },
+  "search.exclude": {
+    "**/src-tauri/target/**": true,
+    "**/src-tui/target/**": true,
+    "**/.tmp-tauri-data/**": true,
+    "**/release/**": true,
+    "**/dist/**": true,
+    "**/generated/**": true
+  },
   "i18n-ally.localesPaths": ["src/locales"],
   "i18n-ally.pathMatcher": "{locale}/{namespace}.json",
   "i18n-ally.namespace": true,
