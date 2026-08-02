@@ -1,10 +1,14 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useState, type ReactNode } from 'react'
 import { CircleDot, RefreshCw, Server, Trash2, Wrench } from 'lucide-react'
 import { useI18n } from '@/app/use-i18n'
-import { Badge, Metric, Panel, SectionTitle, Toggle } from '@/components/ui'
+import { Badge } from '@/components/ui/badge'
+import { Button } from '@/components/ui/button'
+import { Card, CardTitle } from '@/components/ui/card'
+import { Switch } from '@/components/ui/switch'
 import { usePagePrimaryAction } from '@/hooks/usePagePrimaryAction'
 import { apiJson } from '@/lib/api'
 import { relativeTime } from '@/lib/format'
+import { cn } from '@/lib/utils'
 import type { Notify } from '@/app/route-context'
 import type { I18nValues } from '@/app/i18n'
 import type { ConfirmDialogOptions, PromptDialogOptions } from '@/hooks/useAppDialog'
@@ -27,11 +31,56 @@ type McpPageProps = {
   requestConfirm?: (options?: ConfirmDialogOptions) => Promise<boolean>
 }
 type Translate = (message: string, values?: I18nValues) => string
+type McpTone = 'green' | 'amber' | 'gray' | 'red'
 
-function mcpStatusMeta(
-  status: string | undefined,
-  t: Translate,
-): [string, 'green' | 'amber' | 'gray' | 'red'] {
+const MCP_BADGE_TONES: Record<McpTone, string> = {
+  green: 'border-[var(--success-border)] bg-[var(--success-soft)] text-[var(--success-strong)]',
+  amber: 'border-[var(--warning-border)] bg-[var(--warning-soft)] text-[var(--warning-strong)]',
+  gray: 'border-[var(--stroke)] bg-[var(--surface-muted)] text-[var(--text-muted)]',
+  red: 'border-[var(--danger-border)] bg-[var(--danger-soft)] text-[var(--danger)]',
+}
+
+function McpPanel({ className, children }: { className?: string; children: ReactNode }) {
+  return (
+    <Card size="sm" className={cn('workflow-card gap-0 p-3.5 py-3.5', className)}>
+      {children}
+    </Card>
+  )
+}
+
+function McpSectionTitle({ children }: { children: ReactNode }) {
+  return <CardTitle className="workflow-section-title">{children}</CardTitle>
+}
+
+function McpMetric({
+  value,
+  label,
+  note,
+  tone,
+}: {
+  value: ReactNode
+  label: ReactNode
+  note: ReactNode
+  tone: 'blue' | 'green' | 'amber'
+}) {
+  return (
+    <Card size="sm" className={cn('workflow-card metric gap-0 p-3 py-3', tone)}>
+      <small>{label}</small>
+      <strong>{value}</strong>
+      <span>{note}</span>
+    </Card>
+  )
+}
+
+function McpBadge({ children, tone }: { children: ReactNode; tone: McpTone }) {
+  return (
+    <Badge variant="outline" className={MCP_BADGE_TONES[tone]}>
+      {children}
+    </Badge>
+  )
+}
+
+function mcpStatusMeta(status: string | undefined, t: Translate): [string, McpTone] {
   if (status === 'online') return [t('workflows:previewPages.online'), 'green']
   if (status === 'connecting') return [t('workflows:previewPages.connecting'), 'amber']
   if (status === 'unauthorized') return [t('workflows:previewPages.unauthorized'), 'gray']
@@ -254,8 +303,8 @@ export function McpPage({
   return (
     <div className="preview-page">
       <div className="mcp-layout">
-        <Panel className="selection-list">
-          <SectionTitle title={t('workflows:previewPages.services')} />
+        <McpPanel className="selection-list">
+          <McpSectionTitle>{t('workflows:previewPages.services')}</McpSectionTitle>
           {visibleServices.map((service) => {
             const [label, tone] = mcpStatusMeta(service.status, t)
             const location =
@@ -275,14 +324,14 @@ export function McpPage({
                   <strong>{service.name}</strong>
                   <small title={location}>{location}</small>
                 </span>
-                <Badge tone={tone}>{label}</Badge>
+                <McpBadge tone={tone}>{label}</McpBadge>
               </button>
             )
           })}
-        </Panel>
+        </McpPanel>
         <div className="mcp-center">
           <div className="metric-grid">
-            <Metric
+            <McpMetric
               value={String(metrics.onlineServices)}
               label={t('workflows:previewPages.onlineServices')}
               note={t('workflows:previewPages.countServicesTotal', {
@@ -290,7 +339,7 @@ export function McpPage({
               })}
               tone="blue"
             />
-            <Metric
+            <McpMetric
               value={String(metrics.availableTools)}
               label={t('workflows:previewPages.availableTools')}
               note={t('workflows:previewPages.countRestrictedTools', {
@@ -298,15 +347,15 @@ export function McpPage({
               })}
               tone="green"
             />
-            <Metric
+            <McpMetric
               value={`${metrics.errorRate}%`}
               label={t('workflows:previewPages.errorRate')}
               note="24h"
               tone="amber"
             />
           </div>
-          <Panel>
-            <SectionTitle title={t('workflows:previewPages.toolCapabilities')} />
+          <McpPanel>
+            <McpSectionTitle>{t('workflows:previewPages.toolCapabilities')}</McpSectionTitle>
             {tools.map((tool) => (
               <div className="tool-row" key={tool.piName}>
                 <span className="list-icon">
@@ -318,7 +367,7 @@ export function McpPage({
                     {tool.serviceName} · {tool.description}
                   </small>
                 </span>
-                <Badge
+                <McpBadge
                   tone={
                     tool.risk === 'high' || tool.risk === '高风险'
                       ? 'red'
@@ -328,20 +377,21 @@ export function McpPage({
                   }
                 >
                   {mcpRiskLabel(tool.risk, t)}
-                </Badge>
-                <Toggle
-                  value={tool.enabled}
+                </McpBadge>
+                <Switch
+                  size="sm"
+                  checked={Boolean(tool.enabled)}
                   disabled={busy || !tool.serviceEnabled}
-                  ariaLabel={t('workflows:previewPages.toggleToolName', { name: tool.name })}
-                  onChange={(enabled) => void toggleTool(tool, enabled)}
+                  aria-label={t('workflows:previewPages.toggleToolName', { name: tool.name })}
+                  onCheckedChange={(enabled) => void toggleTool(tool, enabled)}
                 />
               </div>
             ))}
-          </Panel>
+          </McpPanel>
         </div>
         <div className="detail-stack">
-          <Panel>
-            <SectionTitle title={t('workflows:previewPages.currentService')} />
+          <McpPanel>
+            <McpSectionTitle>{t('workflows:previewPages.currentService')}</McpSectionTitle>
             <h2>{selected?.name || t('workflows:previewPages.noServerConfigured')}</h2>
             <p className="muted-copy">
               {selected?.error ||
@@ -388,30 +438,37 @@ export function McpPage({
             ))}
             <div className="toggle-line">
               <span>{t('workflows:previewPages.serverEnabled')}</span>
-              <Toggle
-                value={Boolean(selected?.enabled)}
+              <Switch
+                size="sm"
+                checked={Boolean(selected?.enabled)}
                 disabled={!selected || busy}
-                ariaLabel={t('workflows:previewPages.toggleMCPServer')}
-                onChange={(enabled) => void toggleServer(enabled)}
+                aria-label={t('workflows:previewPages.toggleMCPServer')}
+                onCheckedChange={(enabled) => void toggleServer(enabled)}
               />
             </div>
             <div className="button-row">
-              <button
-                className="button secondary"
+              <Button
+                size="sm"
+                variant="secondary"
                 disabled={!selected?.enabled || busy}
                 onClick={testConnection}
               >
-                <RefreshCw className={busy ? 'spin' : ''} size={14} />
+                <RefreshCw className={busy ? 'spin' : ''} data-icon="inline-start" />
                 {t('workflows:previewPages.testConnection')}
-              </button>
-              <button className="button danger" disabled={!selected || busy} onClick={deleteServer}>
-                <Trash2 size={14} />
+              </Button>
+              <Button
+                size="sm"
+                variant="destructive"
+                disabled={!selected || busy}
+                onClick={deleteServer}
+              >
+                <Trash2 data-icon="inline-start" />
                 {t('workflows:previewPages.delete')}
-              </button>
+              </Button>
             </div>
-          </Panel>
-          <Panel>
-            <SectionTitle title={t('workflows:previewPages.recentCalls')} />
+          </McpPanel>
+          <McpPanel>
+            <McpSectionTitle>{t('workflows:previewPages.recentCalls')}</McpSectionTitle>
             {calls.map((activity) => (
               <div className="activity-row" key={activity.id}>
                 <CircleDot size={14} />
@@ -425,7 +482,7 @@ export function McpPage({
                 </span>
               </div>
             ))}
-          </Panel>
+          </McpPanel>
         </div>
       </div>
     </div>
