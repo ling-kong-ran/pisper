@@ -11,7 +11,10 @@ use app::{Action, App};
 use crossterm::{
     event::{DisableBracketedPaste, EnableBracketedPaste, Event, EventStream},
     execute,
-    terminal::{disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen},
+    terminal::{
+        disable_raw_mode, enable_raw_mode, BeginSynchronizedUpdate, EndSynchronizedUpdate,
+        EnterAlternateScreen, LeaveAlternateScreen,
+    },
 };
 use futures_util::StreamExt;
 use model::{RuntimeEvent, SessionSummary};
@@ -116,9 +119,12 @@ async fn run_event_loop(
     let mut status_animation = tokio::time::interval(std::time::Duration::from_millis(120));
     status_animation.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Skip);
 
+    let mut redraw = true;
     loop {
-        terminal.draw(|frame| ui::draw(frame, &app))?;
-        tokio::select! {
+        if redraw {
+            draw_frame(terminal, &app)?;
+        }
+        redraw = tokio::select! {
             maybe_event = input.next() => {
                 match maybe_event {
                     Some(Ok(Event::Key(key))) => {
@@ -126,42 +132,63 @@ async fn run_event_loop(
                         if execute_action(action, &mut app, &api, &runtime_tx).await? {
                             break;
                         }
+                        true
                     }
-                    Some(Ok(Event::Paste(value))) => app.insert_paste(&value),
-                    Some(Ok(_)) => {}
+                    Some(Ok(Event::Paste(value))) => {
+                        app.insert_paste(&value);
+                        true
+                    }
+                    Some(Ok(Event::Resize(_, _))) => true,
+                    Some(Ok(_)) => false,
                     Some(Err(error)) => return Err(error.into()),
                     None => break,
                 }
             }
             maybe_runtime = runtime_rx.recv() => {
-                let terminal_event = match maybe_runtime {
-                    Some(RuntimeEvent::Stream(event)) => {
-                        let terminal = matches!(event.name.as_str(), "done" | "error");
-                        app.apply_stream_event(event);
-                        terminal
-                    }
-                    Some(RuntimeEvent::StreamFailed(message)) => {
-                        app.stream_failed(message);
+                match maybe_runtime {
+                    Some(runtime_event) => {
+                        let terminal_event = match runtime_event {
+                            RuntimeEvent::Stream(event) => {
+                                let terminal = matches!(event.name.as_str(), "done" | "error");
+                                app.apply_stream_event(event);
+                                terminal
+                            }
+                            RuntimeEvent::StreamFailed(message) => {
+                                app.stream_failed(message);
+                                true
+                            }
+                        };
+                        if terminal_event {
+                            if let Some(action) = app.take_queued_action() {
+                                if execute_action(action, &mut app, &api, &runtime_tx).await? {
+                                    break;
+                                }
+                            }
+                        }
                         true
                     }
                     None => false,
-                };
-                if terminal_event {
-                    if let Some(action) = app.take_queued_action() {
-                        if execute_action(action, &mut app, &api, &runtime_tx).await? {
-                            break;
-                        }
-                    }
                 }
             }
             _ = animation.tick(), if app.has_pending_render() => {
                 app.advance_stream_render();
+                true
             }
             _ = status_animation.tick(), if app.is_streaming() && !app.has_pending_render() => {
                 app.advance_status_animation();
+                true
             }
-        }
+        };
     }
+    Ok(())
+}
+
+fn draw_frame(terminal: &mut Terminal<CrosstermBackend<io::Stdout>>, app: &App) -> Result<()> {
+    execute!(terminal.backend_mut(), BeginSynchronizedUpdate)?;
+    let draw_result = terminal.draw(|frame| ui::draw(frame, app)).map(drop);
+    let end_result = execute!(terminal.backend_mut(), EndSynchronizedUpdate);
+    draw_result?;
+    end_result?;
     Ok(())
 }
 

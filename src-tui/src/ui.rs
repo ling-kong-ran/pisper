@@ -307,7 +307,7 @@ fn push_message(lines: &mut Vec<Line<'static>>, message: &ChatMessage, width: us
         push_activity(lines, activity, width);
     }
     if !message.text.is_empty() {
-        push_markdown(lines, "●", ACCENT, &message.text, width, false);
+        push_markdown(lines, "●", ACCENT, &message.text, width);
     }
     push_attachment_lines(lines, &message.attachments, width);
     lines.push(Line::default());
@@ -328,7 +328,7 @@ fn push_live(
     push_tool_group(lines, &live.tools, width, tool_rows, animation_frame);
     push_tool_agents(lines, &live.tools);
     if !live.text.is_empty() {
-        push_markdown(lines, "●", ACCENT, &live.text, width, live.streaming);
+        push_markdown(lines, "●", ACCENT, &live.text, width);
     }
 }
 
@@ -662,7 +662,6 @@ fn push_markdown(
     color: Color,
     value: &str,
     width: usize,
-    streaming: bool,
 ) {
     let content_width = width.saturating_sub(ROLE_GUTTER_WIDTH).max(8);
     let mut label_used = false;
@@ -795,16 +794,6 @@ fn push_markdown(
                 Style::default().fg(RULE).bg(RAISED),
             )],
         );
-    }
-    if streaming {
-        if let Some(line) = lines.last_mut() {
-            line.spans.push(Span::styled(
-                "▋",
-                Style::default()
-                    .fg(ACCENT)
-                    .add_modifier(Modifier::SLOW_BLINK),
-            ));
-        }
     }
 }
 
@@ -1964,7 +1953,7 @@ mod tests {
     }
 
     #[test]
-    fn markdown_renderer_styles_headings_lists_diffs_and_streaming_cursor() {
+    fn markdown_renderer_styles_headings_lists_and_diffs() {
         let mut lines = Vec::new();
         push_markdown(
             &mut lines,
@@ -1972,7 +1961,6 @@ mod tests {
             super::ACCENT,
             "## Root cause\n\n- Keep **cleanup** scoped.\n\n```diff\n-old\n+new\n```",
             80,
-            true,
         );
         let rendered = lines
             .iter()
@@ -1989,20 +1977,52 @@ mod tests {
         assert!(rendered.contains("• Keep cleanup scoped."));
         assert!(rendered.contains("┌─ diff"));
         assert!(rendered.contains("+new"));
-        assert!(rendered.ends_with('▋'));
         assert!(lines
             .iter()
             .flat_map(|line| &line.spans)
             .any(|span| { span.content.contains("+new") && span.style.fg == Some(GREEN) }));
-        assert!(lines
-            .last()
-            .unwrap()
-            .spans
-            .last()
-            .unwrap()
-            .style
-            .add_modifier
-            .contains(Modifier::SLOW_BLINK));
+    }
+
+    #[test]
+    fn completion_state_does_not_change_the_transcript_buffer() {
+        let session = SessionSummary {
+            id: "session-1".to_owned(),
+            model: "openai/gpt-5.6-sol".to_owned(),
+            cwd: "/workspace".to_owned(),
+            execution_mode: "workspace".to_owned(),
+            ..SessionSummary::default()
+        };
+        let mut app = App::new(
+            vec![session.clone()],
+            session,
+            vec![ChatMessage {
+                role: "user".to_owned(),
+                text: "Explain the render path".to_owned(),
+                run_activity: None,
+                attachments: Vec::new(),
+            }],
+            None,
+            Vec::new(),
+            Vec::new(),
+        );
+        app.status = "streaming".to_owned();
+        app.live = Some(LiveTurn {
+            text: "The transcript is already final.".to_owned(),
+            text_target: "The transcript is already final.".to_owned(),
+            streaming: true,
+            ..LiveTurn::default()
+        });
+
+        let mut terminal = Terminal::new(TestBackend::new(80, 24)).unwrap();
+        terminal.draw(|frame| draw(frame, &app)).unwrap();
+        let before = terminal.backend().buffer().content[..80 * 15].to_vec();
+
+        app.live.as_mut().unwrap().streaming = false;
+        app.status = "complete".to_owned();
+        terminal.draw(|frame| draw(frame, &app)).unwrap();
+        let after = terminal.backend().buffer().content[..80 * 15].to_vec();
+
+        assert_eq!(before, after);
     }
 
     #[test]
