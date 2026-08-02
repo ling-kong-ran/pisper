@@ -38,6 +38,7 @@ test('dynamic models do not inherit another model context window', async (t) => 
 
   assert.equal(runtime.getModel('relay', 'gpt-5.6-terra').contextWindow, 272_000)
   assert.equal(runtime.getModel('relay', 'unknown-model').contextWindow, 200_000)
+  assert.deepEqual(runtime.getModel('relay', 'unknown-model').thinkingLevelMap, { xhigh: null, max: null })
 })
 
 test('known visual models recover image input while explicit input remains authoritative', async (t) => {
@@ -92,6 +93,80 @@ test('model thinking-level overrides remain authoritative over metadata template
     off: 'none',
     xhigh: null,
     max: null,
+  })
+})
+
+test('dynamic relay models inherit their own thinking capabilities', async (t) => {
+  const directory = await mkdtemp(join(tmpdir(), 'pisper-provider-model-capabilities-'))
+  t.after(() => rm(directory, { recursive: true, force: true }))
+  const metadata = { get: (id) => BUNDLED_MODEL_METADATA[id] || null }
+  const catalog = new ProviderModelCatalogService({ path: join(directory, 'catalog.json'), metadata })
+  await catalog.init()
+  await catalog.sync('relay', {
+    baseUrl: 'https://relay.example.test/v1',
+    api: 'openai-completions',
+    models: [
+      { id: 'glm-5.2', name: 'GLM-5.2', kind: 'chat' },
+      { id: 'claude-sonnet-4-6', name: 'Claude Sonnet 4.6', kind: 'chat' },
+      { id: 'gemini-3.1-pro-preview', name: 'Gemini 3.1 Pro', kind: 'chat' },
+      { id: 'gemini-2.0-flash', name: 'Gemini 2.0 Flash', kind: 'chat' },
+    ],
+  })
+  const template = { provider: 'relay', id: 'old-model', reasoning: true, contextWindow: 128_000, maxTokens: 128_000 }
+  const runtime = {
+    getModels: (provider) => provider === 'relay' ? [template] : [],
+    getModel: () => undefined,
+    getAvailable: async () => [template],
+    getAvailableSnapshot: () => [template],
+  }
+
+  catalog.decorateRuntime(runtime, { relay: 'https://relay.example.test/v1' })
+
+  assert.deepEqual(runtime.getModel('relay', 'glm-5.2').thinkingLevelMap, BUNDLED_MODEL_METADATA['glm-5.2'].thinkingLevelMap)
+  assert.deepEqual(runtime.getModel('relay', 'claude-sonnet-4-6').thinkingLevelMap, BUNDLED_MODEL_METADATA['claude-sonnet-4-6'].thinkingLevelMap)
+  assert.deepEqual(runtime.getModel('relay', 'gemini-3.1-pro-preview').thinkingLevelMap, BUNDLED_MODEL_METADATA['gemini-3.1-pro-preview'].thinkingLevelMap)
+  assert.equal(runtime.getModel('relay', 'gemini-2.0-flash').reasoning, false)
+})
+
+test('custom providers inherit exact-ID capabilities from every registered SDK model', async (t) => {
+  const directory = await mkdtemp(join(tmpdir(), 'pisper-provider-sdk-capabilities-'))
+  t.after(() => rm(directory, { recursive: true, force: true }))
+  const catalog = new ProviderModelCatalogService({ path: join(directory, 'catalog.json') })
+  await catalog.init()
+  await catalog.sync('relay', {
+    baseUrl: 'https://relay.example.test/v1',
+    api: 'openai-completions',
+    models: [{ id: 'sdk-known-model', name: 'SDK Known Model', kind: 'chat' }],
+  })
+  const official = {
+    provider: 'official',
+    id: 'sdk-known-model',
+    reasoning: true,
+    thinkingLevelMap: { minimal: null, max: 'max' },
+    contextWindow: 320_000,
+    maxTokens: 64_000,
+  }
+  const relayTemplate = { provider: 'relay', id: 'old-model', reasoning: true, contextWindow: 128_000, maxTokens: 32_000 }
+  const runtime = {
+    getModels: (provider) => {
+      if (provider === 'official') return [official]
+      if (provider === 'relay') return [relayTemplate]
+      return [official, relayTemplate]
+    },
+    getModel: () => undefined,
+    getAvailable: async () => [official, relayTemplate],
+    getAvailableSnapshot: () => [official, relayTemplate],
+  }
+
+  catalog.decorateRuntime(runtime, {
+    official: 'https://official.example.test/v1',
+    relay: 'https://relay.example.test/v1',
+  })
+
+  assert.deepEqual(runtime.getModel('relay', 'sdk-known-model').thinkingLevelMap, {
+    xhigh: null,
+    max: 'max',
+    minimal: null,
   })
 })
 

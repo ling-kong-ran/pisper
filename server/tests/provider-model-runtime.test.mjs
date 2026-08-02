@@ -99,6 +99,62 @@ test('custom OpenAI Responses models send template-supported xhigh reasoning', a
   assert.equal(requestBody.reasoning.effort, 'xhigh')
 })
 
+test('custom OpenAI-compatible GLM models preserve their model-specific max reasoning', async (t) => {
+  const directory = await mkdtemp(join(tmpdir(), 'pisper-provider-glm-thinking-runtime-'))
+  let requestBody
+  const server = createServer(async (request, response) => {
+    const chunks = []
+    for await (const chunk of request) chunks.push(chunk)
+    requestBody = JSON.parse(Buffer.concat(chunks).toString('utf8'))
+    response.writeHead(400, { 'content-type': 'application/json' })
+    response.end(JSON.stringify({ error: { message: 'request captured' } }))
+  })
+  await new Promise((resolve) => server.listen(0, '127.0.0.1', resolve))
+  const baseUrl = `http://127.0.0.1:${server.address().port}/v1`
+  await writeFile(join(directory, 'models.json'), JSON.stringify({ providers: { relay: {
+    name: 'Relay',
+    api: 'openai-completions',
+    baseUrl,
+    models: [{
+      id: 'glm-5.2',
+      reasoning: true,
+      compat: { supportsReasoningEffort: true },
+      input: ['text'],
+      contextWindow: 200_000,
+      maxTokens: 128_000,
+    }],
+  } } }))
+  await writeFile(join(directory, 'auth.json'), JSON.stringify({ relay: { type: 'api_key', key: 'relay-key' } }))
+  const runtime = new AgentRuntimeService({
+    cwd: directory,
+    dataDir: directory,
+    providerModelDiscovery: { async discover() { return { count: 1, models: [{ id: 'glm-5.2', name: 'GLM-5.2', kind: 'chat' }] } } },
+  })
+  t.after(async () => {
+    await runtime.dispose()
+    server.closeAllConnections?.()
+    await new Promise((resolve) => server.close(resolve))
+    await rm(directory, { recursive: true, force: true })
+  })
+
+  await runtime.init()
+  const model = runtime.modelRuntime.getModel('relay', 'glm-5.2')
+  assert.deepEqual(model.thinkingLevelMap, {
+    xhigh: null,
+    max: 'max',
+    minimal: null,
+    low: 'high',
+    medium: 'high',
+    high: 'high',
+  })
+  await runtime.modelRuntime.completeSimple(model, {
+    systemPrompt: 'Test',
+    messages: [{ role: 'user', content: 'Test', timestamp: Date.now() }],
+  }, { reasoning: 'max', maxTokens: 16 }).catch(() => {})
+
+  assert.equal(requestBody.reasoning_effort, 'max')
+})
+
 test('explicit relay User-Agent overrides the Pisper default', async (t) => {
   const directory = await mkdtemp(join(tmpdir(), 'pisper-provider-user-agent-'))
   await writeFile(join(directory, 'models.json'), JSON.stringify({ providers: { relay: {

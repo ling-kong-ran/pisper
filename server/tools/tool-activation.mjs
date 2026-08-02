@@ -12,12 +12,6 @@ const HOT_TOOL_SET = new Set([
   'generate_visual',
 ])
 
-const MULTI_AGENT_TOOLS = ['spawn_agent', 'list_agents', 'send_message', 'followup_task', 'wait_agent', 'interrupt_agent']
-
-function normalizedText(value) {
-  return String(value || '').toLowerCase().replace(/\s+/g, ' ').trim()
-}
-
 export function schemaOnlyToolDefinition(tool) {
   const guidelines = Array.isArray(tool?.promptGuidelines)
     ? tool.promptGuidelines.map((item) => String(item || '').trim()).filter(Boolean)

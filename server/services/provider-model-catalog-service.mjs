@@ -1,5 +1,7 @@
 import { readJson, writeJsonAtomic } from '../storage/json-file.mjs'
 
+const DEFAULT_THINKING_LEVEL_MAP = Object.freeze({ xhigh: null, max: null })
+
 function normalizedBaseUrl(value) {
   return String(value || '').trim().replace(/\/+$/, '').toLowerCase()
 }
@@ -19,6 +21,31 @@ function normalizedInput(value) {
   return input.includes('text') ? input : null
 }
 
+function runtimeCapabilityMetadata(models) {
+  const capabilities = new Map()
+  for (const model of models || []) {
+    const id = String(model?.id || '').trim().toLowerCase()
+    if (!id || typeof model.reasoning !== 'boolean') continue
+    const candidate = {
+      reasoning: model.reasoning,
+      thinkingLevelMap: { ...DEFAULT_THINKING_LEVEL_MAP, ...(model.thinkingLevelMap || {}) },
+    }
+    const score = (model.thinkingLevelMap ? 100 + Object.keys(model.thinkingLevelMap).length : 0) + (model.reasoning ? 1 : 10)
+    if (!capabilities.has(id) || score > capabilities.get(id).score) capabilities.set(id, { metadata: candidate, score })
+  }
+  return capabilities
+}
+
+function mergedMetadata(primary, fallback) {
+  if (!primary) return fallback || null
+  if (!fallback) return primary
+  return {
+    ...fallback,
+    ...primary,
+    thinkingLevelMap: primary.thinkingLevelMap || fallback.thinkingLevelMap,
+  }
+}
+
 function modelWithMetadata(model, metadata, explicitContextWindow, explicitInput) {
   const remoteMetadata = metadata?.get(model.id)
   const metadataThinkingLevelMap = remoteMetadata?.thinkingLevelMap
@@ -26,6 +53,7 @@ function modelWithMetadata(model, metadata, explicitContextWindow, explicitInput
   return {
     ...model,
     input: normalizedInput(explicitInput) || normalizedInput(remoteMetadata?.input) || normalizedInput(model.input) || ['text'],
+    reasoning: typeof model.reasoning === 'boolean' ? model.reasoning : remoteMetadata?.reasoning ?? true,
     contextWindow: Number(explicitContextWindow) || Number(remoteMetadata?.contextWindow) || inferredContextWindow(model.id, model.contextWindow),
     maxTokens: Number(remoteMetadata?.maxTokens) || model.maxTokens,
     ...(metadataThinkingLevelMap || modelThinkingLevelMap
@@ -49,13 +77,13 @@ function runtimeModel(providerId, entry, candidate, existing, template, metadata
     api: entry.api || template?.api || 'openai-responses',
     provider: providerId,
     baseUrl: entry.baseUrl || template?.baseUrl || '',
-    reasoning: candidate.kind === 'chat',
+    reasoning: candidate.kind === 'chat' && (remoteMetadata?.reasoning ?? true),
     input: ['text', 'image'],
     cost: template?.cost || zeroCost(),
     contextWindow: Number(remoteMetadata?.contextWindow) || inferredContextWindow(candidate.id),
     maxTokens: Number(remoteMetadata?.maxTokens) || template?.maxTokens || 128_000,
     headers: template?.headers ? { ...template.headers } : undefined,
-    thinkingLevelMap: remoteMetadata?.thinkingLevelMap ? { ...remoteMetadata.thinkingLevelMap } : undefined,
+    thinkingLevelMap: candidate.kind === 'chat' ? { ...(remoteMetadata?.thinkingLevelMap || DEFAULT_THINKING_LEVEL_MAP) } : undefined,
     pisperKind: candidate.kind || 'chat',
   }
 }
@@ -130,6 +158,13 @@ export class ProviderModelCatalogService {
     const rawGetModel = runtime.getModel.bind(runtime)
     const rawGetAvailable = runtime.getAvailable.bind(runtime)
     const rawGetAvailableSnapshot = runtime.getAvailableSnapshot.bind(runtime)
+    const runtimeCapabilities = runtimeCapabilityMetadata(rawGetModels())
+    const effectiveMetadata = {
+      get: (modelId) => mergedMetadata(
+        this.metadata?.get(modelId),
+        runtimeCapabilities.get(String(modelId || '').trim().toLowerCase())?.metadata,
+      ),
+    }
 
     const catalogEntry = (providerId) => {
       const entry = this.state.providers?.[providerId]
@@ -138,11 +173,11 @@ export class ProviderModelCatalogService {
       return configured && configured === normalizedBaseUrl(entry.baseUrl) ? entry : null
     }
     const modelsForProvider = (providerId) => {
-      const raw = [...rawGetModels(providerId)].map((model) => modelWithMetadata(model, this.metadata, explicitContextWindows.get(`${providerId}:${model.id}`), explicitInputs.get(`${providerId}:${model.id}`)))
+      const raw = [...rawGetModels(providerId)].map((model) => modelWithMetadata(model, effectiveMetadata, explicitContextWindows.get(`${providerId}:${model.id}`), explicitInputs.get(`${providerId}:${model.id}`)))
       const entry = catalogEntry(providerId)
       const existing = new Map(raw.map((model) => [model.id, model]))
       const models = entry
-        ? entry.models.map((candidate) => runtimeModel(providerId, entry, candidate, existing.get(candidate.id), raw[0], this.metadata, explicitContextWindows.get(`${providerId}:${candidate.id}`), explicitInputs.get(`${providerId}:${candidate.id}`)))
+        ? entry.models.map((candidate) => runtimeModel(providerId, entry, candidate, existing.get(candidate.id), raw[0], effectiveMetadata, explicitContextWindows.get(`${providerId}:${candidate.id}`), explicitInputs.get(`${providerId}:${candidate.id}`)))
         : raw
       const providerHeaders = this.configuredHeaders.get(providerId)
       if (!providerHeaders || Object.keys(providerHeaders).length === 0) return models

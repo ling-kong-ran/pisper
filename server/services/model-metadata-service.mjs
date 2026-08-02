@@ -4,24 +4,55 @@ const DEFAULT_ENDPOINT = 'https://models.dev/api.json'
 const MAX_RESPONSE_BYTES = 1024 * 1024
 
 const TEXT_IMAGE_INPUT = Object.freeze(['text', 'image'])
-const GPT_56_THINKING_LEVEL_MAP = Object.freeze({ off: 'none', xhigh: 'xhigh', max: 'max' })
 
-function metadata(id, contextWindow, maxTokens, input, thinkingLevelMap) {
+function levelMap(overrides = {}) {
+  return Object.freeze({ xhigh: null, max: null, ...overrides })
+}
+
+const STANDARD_THINKING_LEVEL_MAP = levelMap()
+const NO_REASONING_LEVEL_MAP = levelMap({ off: null, minimal: null, low: null, medium: null, high: null })
+const GPT_XHIGH_THINKING_LEVEL_MAP = levelMap({ off: 'none', xhigh: 'xhigh' })
+const GPT_ALWAYS_ON_XHIGH_THINKING_LEVEL_MAP = levelMap({ off: null, xhigh: 'xhigh' })
+const GPT_55_THINKING_LEVEL_MAP = levelMap({ off: 'none', minimal: null, xhigh: 'xhigh' })
+const GPT_56_THINKING_LEVEL_MAP = levelMap({ off: 'none', xhigh: 'xhigh', max: 'max' })
+const CLAUDE_FABLE_THINKING_LEVEL_MAP = levelMap({ off: null, xhigh: 'xhigh', max: 'max' })
+const MAX_THINKING_LEVEL_MAP = levelMap({ max: 'max' })
+const GLM_52_THINKING_LEVEL_MAP = levelMap({ minimal: null, low: 'high', medium: 'high', high: 'high', max: 'max' })
+const DEEPSEEK_V4_THINKING_LEVEL_MAP = levelMap({ minimal: null, low: null, medium: null, high: 'high', max: 'max' })
+const FIXED_HIGH_THINKING_LEVEL_MAP = levelMap({ off: null, minimal: null, low: null, medium: null, high: 'high' })
+const KIMI_K3_THINKING_LEVEL_MAP = levelMap({ off: null, minimal: null, low: null, medium: null, high: null, max: 'max' })
+const ALWAYS_ON_THINKING_LEVEL_MAP = levelMap({ off: null })
+const GROK_45_THINKING_LEVEL_MAP = levelMap({ off: null, minimal: null })
+const GEMINI_PRO_THINKING_LEVEL_MAP = levelMap({ off: null, minimal: null, medium: null })
+
+function metadata(id, contextWindow, maxTokens, { input, reasoning = true, thinkingLevelMap } = {}) {
   return Object.freeze({
     id,
     contextWindow,
     ...(maxTokens ? { maxTokens } : {}),
     ...(input ? { input } : {}),
-    ...(thinkingLevelMap ? { thinkingLevelMap } : {}),
+    reasoning,
+    thinkingLevelMap: thinkingLevelMap || (reasoning ? STANDARD_THINKING_LEVEL_MAP : NO_REASONING_LEVEL_MAP),
   })
 }
 
 export const BUNDLED_MODEL_METADATA = Object.freeze({
-  'gpt-5.6-luna': metadata('gpt-5.6-luna', 272_000, null, TEXT_IMAGE_INPUT, GPT_56_THINKING_LEVEL_MAP),
-  'gpt-5.6-sol': metadata('gpt-5.6-sol', 272_000, null, TEXT_IMAGE_INPUT, GPT_56_THINKING_LEVEL_MAP),
-  'gpt-5.6-terra': metadata('gpt-5.6-terra', 272_000, null, TEXT_IMAGE_INPUT, GPT_56_THINKING_LEVEL_MAP),
+  'gpt-5.3-codex-spark': metadata('gpt-5.3-codex-spark', 128_000, 32_000, {
+    input: TEXT_IMAGE_INPUT,
+    thinkingLevelMap: GPT_ALWAYS_ON_XHIGH_THINKING_LEVEL_MAP,
+  }),
+  'gpt-5.4': metadata('gpt-5.4', 272_000, 128_000, { input: TEXT_IMAGE_INPUT, thinkingLevelMap: GPT_XHIGH_THINKING_LEVEL_MAP }),
+  'gpt-5.4-mini': metadata('gpt-5.4-mini', 400_000, 128_000, { input: TEXT_IMAGE_INPUT, thinkingLevelMap: GPT_XHIGH_THINKING_LEVEL_MAP }),
+  'gpt-5.5': metadata('gpt-5.5', 272_000, 128_000, { input: TEXT_IMAGE_INPUT, thinkingLevelMap: GPT_55_THINKING_LEVEL_MAP }),
+  'gpt-5.6-luna': metadata('gpt-5.6-luna', 272_000, null, { input: TEXT_IMAGE_INPUT, thinkingLevelMap: GPT_56_THINKING_LEVEL_MAP }),
+  'gpt-5.6-sol': metadata('gpt-5.6-sol', 272_000, null, { input: TEXT_IMAGE_INPUT, thinkingLevelMap: GPT_56_THINKING_LEVEL_MAP }),
+  'gpt-5.6-terra': metadata('gpt-5.6-terra', 272_000, null, { input: TEXT_IMAGE_INPUT, thinkingLevelMap: GPT_56_THINKING_LEVEL_MAP }),
 
-  'claude-3-5-sonnet-latest': metadata('claude-3-5-sonnet-latest', 200_000, 8_192),
+  'claude-fable-5': metadata('claude-fable-5', 1_000_000, 128_000, {
+    input: TEXT_IMAGE_INPUT,
+    thinkingLevelMap: CLAUDE_FABLE_THINKING_LEVEL_MAP,
+  }),
+  'claude-3-5-sonnet-latest': metadata('claude-3-5-sonnet-latest', 200_000, 8_192, { reasoning: false }),
   'claude-3-7-sonnet-latest': metadata('claude-3-7-sonnet-latest', 200_000, 64_000),
   'claude-haiku-4-5': metadata('claude-haiku-4-5', 200_000, 64_000),
   'claude-haiku-4-5-20251001': metadata('claude-haiku-4-5-20251001', 200_000, 64_000),
@@ -29,44 +60,47 @@ export const BUNDLED_MODEL_METADATA = Object.freeze({
   'claude-opus-4-1-20250805': metadata('claude-opus-4-1-20250805', 200_000, 32_000),
   'claude-opus-4-5': metadata('claude-opus-4-5', 200_000, 64_000),
   'claude-opus-4-5-20251101': metadata('claude-opus-4-5-20251101', 200_000, 64_000),
-  'claude-opus-4-6': metadata('claude-opus-4-6', 1_000_000, 128_000),
+  'claude-opus-4-6': metadata('claude-opus-4-6', 1_000_000, 128_000, { thinkingLevelMap: MAX_THINKING_LEVEL_MAP }),
   'claude-sonnet-4-5': metadata('claude-sonnet-4-5', 1_000_000, 64_000),
   'claude-sonnet-4-5-20250929': metadata('claude-sonnet-4-5-20250929', 1_000_000, 64_000),
-  'claude-sonnet-4-6': metadata('claude-sonnet-4-6', 1_000_000, 128_000),
+  'claude-sonnet-4-6': metadata('claude-sonnet-4-6', 1_000_000, 128_000, { thinkingLevelMap: MAX_THINKING_LEVEL_MAP }),
 
   'glm-4.5-air': metadata('glm-4.5-air', 131_072, 98_304),
   'glm-4.7': metadata('glm-4.7', 204_800, 131_072),
   'glm-4.7-flash': metadata('glm-4.7-flash', 204_800, 131_072),
   'glm-5-turbo': metadata('glm-5-turbo', 200_000, 131_072),
   'glm-5.1': metadata('glm-5.1', 200_000, 131_072),
-  'glm-5.2': metadata('glm-5.2', 1_000_000, 131_072),
+  'glm-5.2': metadata('glm-5.2', 1_000_000, 131_072, { thinkingLevelMap: GLM_52_THINKING_LEVEL_MAP }),
   'glm-5v-turbo': metadata('glm-5v-turbo', 200_000, 131_072),
 
-  'deepseek-chat': metadata('deepseek-chat', 128_000),
-  'deepseek-reasoner': metadata('deepseek-reasoner', 128_000),
-  'deepseek-v4-flash': metadata('deepseek-v4-flash', 1_000_000, 384_000),
-  'deepseek-v4-pro': metadata('deepseek-v4-pro', 1_000_000, 384_000),
+  'deepseek-chat': metadata('deepseek-chat', 128_000, null, { reasoning: false }),
+  'deepseek-reasoner': metadata('deepseek-reasoner', 128_000, null, { thinkingLevelMap: FIXED_HIGH_THINKING_LEVEL_MAP }),
+  'deepseek-v4-flash': metadata('deepseek-v4-flash', 1_000_000, 384_000, { thinkingLevelMap: DEEPSEEK_V4_THINKING_LEVEL_MAP }),
+  'deepseek-v4-pro': metadata('deepseek-v4-pro', 1_000_000, 384_000, { thinkingLevelMap: DEEPSEEK_V4_THINKING_LEVEL_MAP }),
 
   k2p7: metadata('k2p7', 262_144, 32_768),
-  k3: metadata('k3', 1_048_576, 131_072),
+  k3: metadata('k3', 1_048_576, 131_072, { thinkingLevelMap: KIMI_K3_THINKING_LEVEL_MAP }),
+  'kimi-k3': metadata('kimi-k3', 1_048_576, 131_072, { thinkingLevelMap: KIMI_K3_THINKING_LEVEL_MAP }),
   'kimi-for-coding': metadata('kimi-for-coding', 262_144, 32_768),
   'kimi-for-coding-highspeed': metadata('kimi-for-coding-highspeed', 262_144, 32_768),
   'kimi-k2-thinking': metadata('kimi-k2-thinking', 262_144, 32_768),
 
-  'gemini-2.0-flash': metadata('gemini-2.0-flash', 1_048_576, 8_192),
-  'gemini-2.0-flash-lite': metadata('gemini-2.0-flash-lite', 1_048_576, 8_192),
+  'grok-4.5': metadata('grok-4.5', 500_000, 500_000, { input: TEXT_IMAGE_INPUT, thinkingLevelMap: GROK_45_THINKING_LEVEL_MAP }),
+
+  'gemini-2.0-flash': metadata('gemini-2.0-flash', 1_048_576, 8_192, { reasoning: false }),
+  'gemini-2.0-flash-lite': metadata('gemini-2.0-flash-lite', 1_048_576, 8_192, { reasoning: false }),
   'gemini-2.5-flash': metadata('gemini-2.5-flash', 1_048_576, 65_536),
   'gemini-2.5-flash-lite': metadata('gemini-2.5-flash-lite', 1_048_576, 65_536),
   'gemini-2.5-pro': metadata('gemini-2.5-pro', 1_048_576, 65_536),
-  'gemini-3-flash-preview': metadata('gemini-3-flash-preview', 1_048_576, 65_536),
-  'gemini-3-pro-preview': metadata('gemini-3-pro-preview', 1_048_576, 65_536),
-  'gemini-3.1-flash-lite': metadata('gemini-3.1-flash-lite', 1_048_576, 65_536),
-  'gemini-3.1-flash-lite-preview': metadata('gemini-3.1-flash-lite-preview', 1_048_576, 65_536),
-  'gemini-3.1-pro-preview': metadata('gemini-3.1-pro-preview', 1_048_576, 65_536),
-  'gemini-3.1-pro-preview-customtools': metadata('gemini-3.1-pro-preview-customtools', 1_048_576, 65_536),
-  'gemini-3.5-flash': metadata('gemini-3.5-flash', 1_048_576, 65_536),
-  'gemini-flash-latest': metadata('gemini-flash-latest', 1_048_576, 65_536),
-  'gemini-flash-lite-latest': metadata('gemini-flash-lite-latest', 1_048_576, 65_536),
+  'gemini-3-flash-preview': metadata('gemini-3-flash-preview', 1_048_576, 65_536, { thinkingLevelMap: ALWAYS_ON_THINKING_LEVEL_MAP }),
+  'gemini-3-pro-preview': metadata('gemini-3-pro-preview', 1_048_576, 65_536, { thinkingLevelMap: GEMINI_PRO_THINKING_LEVEL_MAP }),
+  'gemini-3.1-flash-lite': metadata('gemini-3.1-flash-lite', 1_048_576, 65_536, { thinkingLevelMap: ALWAYS_ON_THINKING_LEVEL_MAP }),
+  'gemini-3.1-flash-lite-preview': metadata('gemini-3.1-flash-lite-preview', 1_048_576, 65_536, { thinkingLevelMap: ALWAYS_ON_THINKING_LEVEL_MAP }),
+  'gemini-3.1-pro-preview': metadata('gemini-3.1-pro-preview', 1_048_576, 65_536, { thinkingLevelMap: GEMINI_PRO_THINKING_LEVEL_MAP }),
+  'gemini-3.1-pro-preview-customtools': metadata('gemini-3.1-pro-preview-customtools', 1_048_576, 65_536, { thinkingLevelMap: GEMINI_PRO_THINKING_LEVEL_MAP }),
+  'gemini-3.5-flash': metadata('gemini-3.5-flash', 1_048_576, 65_536, { thinkingLevelMap: ALWAYS_ON_THINKING_LEVEL_MAP }),
+  'gemini-flash-latest': metadata('gemini-flash-latest', 1_048_576, 65_536, { thinkingLevelMap: ALWAYS_ON_THINKING_LEVEL_MAP }),
+  'gemini-flash-lite-latest': metadata('gemini-flash-lite-latest', 1_048_576, 65_536, { thinkingLevelMap: ALWAYS_ON_THINKING_LEVEL_MAP }),
 })
 
 function positiveInteger(value) {

@@ -3,7 +3,7 @@ import { mkdtemp, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import test from 'node:test'
-import { ModelMetadataService } from '../services/model-metadata-service.mjs'
+import { BUNDLED_MODEL_METADATA, ModelMetadataService } from '../services/model-metadata-service.mjs'
 
 function response(payload, { status = 200 } = {}) {
   return {
@@ -25,7 +25,12 @@ test('bundled model metadata resolves without network access', async (t) => {
   await metadata.init()
 
   const expected = {
+    'gpt-5.3-codex-spark': [128_000, 32_000],
+    'gpt-5.4': [272_000, 128_000],
+    'gpt-5.4-mini': [400_000, 128_000],
+    'gpt-5.5': [272_000, 128_000],
     'gpt-5.6-terra': [272_000, undefined],
+    'claude-fable-5': [1_000_000, 128_000],
     'claude-sonnet-4-6': [1_000_000, 128_000],
     'claude-opus-4-5': [200_000, 64_000],
     'glm-5.2': [1_000_000, 131_072],
@@ -34,6 +39,8 @@ test('bundled model metadata resolves without network access', async (t) => {
     'deepseek-v4-pro': [1_000_000, 384_000],
     k2p7: [262_144, 32_768],
     k3: [1_048_576, 131_072],
+    'kimi-k3': [1_048_576, 131_072],
+    'grok-4.5': [500_000, 500_000],
     'gemini-2.5-pro': [1_048_576, 65_536],
     'gemini-3.1-pro-preview': [1_048_576, 65_536],
   }
@@ -46,6 +53,43 @@ test('bundled model metadata resolves without network access', async (t) => {
   assert.deepEqual(gpt56.input, ['text', 'image'])
   assert.deepEqual(gpt56.thinkingLevelMap, { off: 'none', xhigh: 'xhigh', max: 'max' })
   assert.equal(calls, 0)
+})
+
+test('every bundled model declares its reasoning and extended thinking boundaries', () => {
+  for (const [modelId, model] of Object.entries(BUNDLED_MODEL_METADATA)) {
+    assert.equal(typeof model.reasoning, 'boolean', `${modelId} reasoning`)
+    assert.equal(typeof model.thinkingLevelMap, 'object', `${modelId} thinkingLevelMap`)
+    assert.equal(Object.hasOwn(model.thinkingLevelMap, 'xhigh'), true, `${modelId} xhigh boundary`)
+    assert.equal(Object.hasOwn(model.thinkingLevelMap, 'max'), true, `${modelId} max boundary`)
+  }
+
+  assert.deepEqual(BUNDLED_MODEL_METADATA['glm-5.2'].thinkingLevelMap, {
+    xhigh: null,
+    max: 'max',
+    minimal: null,
+    low: 'high',
+    medium: 'high',
+    high: 'high',
+  })
+  assert.deepEqual(BUNDLED_MODEL_METADATA['deepseek-v4-pro'].thinkingLevelMap, {
+    xhigh: null,
+    max: 'max',
+    minimal: null,
+    low: null,
+    medium: null,
+    high: 'high',
+  })
+  assert.deepEqual(BUNDLED_MODEL_METADATA.k3.thinkingLevelMap, {
+    xhigh: null,
+    max: 'max',
+    off: null,
+    minimal: null,
+    low: null,
+    medium: null,
+    high: null,
+  })
+  assert.equal(BUNDLED_MODEL_METADATA['gemini-2.0-flash'].reasoning, false)
+  assert.equal(BUNDLED_MODEL_METADATA['deepseek-chat'].reasoning, false)
 })
 
 test('stored window metadata retains bundled model capabilities', async (t) => {
