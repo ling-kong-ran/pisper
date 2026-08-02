@@ -11,8 +11,9 @@ import { WebPreviewProvider } from '@/components/WebPreviewProvider'
 import { AppSidebar } from '@/components/layout/AppSidebar'
 import { CommandPalette, QuickCreate } from '@/components/layout/AppOverlays'
 import { PageHeader } from '@/components/layout/PageHeader'
+import { AppDialog } from '@/components/layout/AppDialog'
 import { StatusBar } from '@/components/layout/StatusBar'
-import { AppDialog, Toast, type ToastTone } from '@/components/ui'
+import { AppToast, ToastProvider, ToastViewport, type ToastTone } from '@/components/ui/toast'
 import {
   ACTIVE_SESSION_CHANGED_EVENT,
   COMMAND_PALETTE_REQUESTED_EVENT,
@@ -40,6 +41,7 @@ type AppConfig = {
 }
 
 type ToastState = {
+  id: number
   message: string
   tone: ToastTone
 }
@@ -124,7 +126,7 @@ function App() {
   const browserEventCursor = useRef('')
   const [primaryActions] = useState(createPrimaryActionRegistry)
   const searchInputRef = useRef<HTMLInputElement>(null)
-  const toastTimer = useRef<number | undefined>(undefined)
+  const toastSequence = useRef(0)
   const appDialog = useAppDialog()
   const appUpdate = useAppUpdate()
   useEffect(() => {
@@ -163,12 +165,9 @@ function App() {
   }, [])
 
   const notify = useCallback((message: string, tone: ToastTone = 'success') => {
-    setToast({ message, tone })
-    window.clearTimeout(toastTimer.current)
-    toastTimer.current = window.setTimeout(() => setToast(null), 2800)
+    toastSequence.current += 1
+    setToast({ id: toastSequence.current, message, tone })
   }, [])
-
-  useEffect(() => () => window.clearTimeout(toastTimer.current), [])
 
   useEffect(() => {
     const syncActiveSession = (event: Event) => {
@@ -410,65 +409,81 @@ function App() {
     )
 
   return (
-    <div className="app-shell">
-      <WebPreviewProvider />
-      <WebDesktopPet />
-      <SidebarProvider
-        className="app-body"
-        open={!sidebarCollapsed}
-        onOpenChange={(open) => setSidebarCollapsed(!open)}
-        openMobile={mobileNav}
-        onOpenMobileChange={setMobileNav}
-      >
-        <AppSidebar
-          page={page}
-          navigation={navigation}
-          navigate={navigate}
-          collapsed={sidebarCollapsed}
-          onToggleCollapse={toggleSidebarCollapsed}
-          update={appUpdate}
-          onOpenUpdates={openUpdateSettings}
-        />
-        <SidebarInset className="main-surface">
-          <PageHeader
-            meta={activeMeta}
+    <ToastProvider duration={2800} swipeDirection="right">
+      <div className="app-shell">
+        <WebPreviewProvider />
+        <WebDesktopPet />
+        <SidebarProvider
+          className="app-body"
+          open={!sidebarCollapsed}
+          onOpenChange={(open) => setSidebarCollapsed(!open)}
+          openMobile={mobileNav}
+          onOpenMobileChange={setMobileNav}
+        >
+          <AppSidebar
             page={page}
-            query={query}
-            setQuery={setQuery}
-            configSection={configSection}
-            onMenu={() => setMobileNav(true)}
-            onPrimary={handlePrimary}
-            searchInputRef={searchInputRef}
-            theme={theme}
-            onCycleTheme={cycleTheme}
-            workflowActions={workflowActions}
-            desktopPlatform={window.pisperDesktop?.platform || ''}
+            navigation={navigation}
+            navigate={navigate}
+            collapsed={sidebarCollapsed}
+            onToggleCollapse={toggleSidebarCollapsed}
+            update={appUpdate}
+            onOpenUpdates={openUpdateSettings}
           />
-          <div className={`page-content page-${page}`} key={page}>
-            <Outlet context={routeContext} />
-          </div>
-        </SidebarInset>
-      </SidebarProvider>
-      <StatusBar page={page} pluginStats={pluginStats} />
-      {toast && <Toast message={toast.message} tone={toast.tone} />}
-      <AppDialog dialog={appDialog.dialog} onClose={appDialog.close} onFinish={appDialog.finish} />
-      {paletteOpen && (
-        <CommandPalette
-          navigation={navigation}
-          onClose={() => setPaletteOpen(false)}
-          onNavigate={navigate}
-          onOpenSession={(id) => {
-            requestSessionSelection(id)
-            navigate('chat')
-          }}
-          onNewChat={() => {
-            navigate('chat')
-            requestAnimationFrame(() => requestAnimationFrame(invokePrimaryAction))
-          }}
+          <SidebarInset className="main-surface">
+            <PageHeader
+              meta={activeMeta}
+              page={page}
+              query={query}
+              setQuery={setQuery}
+              configSection={configSection}
+              onMenu={() => setMobileNav(true)}
+              onPrimary={handlePrimary}
+              searchInputRef={searchInputRef}
+              theme={theme}
+              onCycleTheme={cycleTheme}
+              workflowActions={workflowActions}
+              desktopPlatform={window.pisperDesktop?.platform || ''}
+            />
+            <div className={`page-content page-${page}`} key={page}>
+              <Outlet context={routeContext} />
+            </div>
+          </SidebarInset>
+        </SidebarProvider>
+        <StatusBar page={page} pluginStats={pluginStats} />
+        {toast && (
+          <AppToast
+            key={toast.id}
+            open
+            message={toast.message}
+            tone={toast.tone}
+            closeLabel={t('common:ui.closeDialog')}
+            onOpenChange={(open) => !open && setToast(null)}
+          />
+        )}
+        <ToastViewport />
+        <AppDialog
+          dialog={appDialog.dialog}
+          onClose={appDialog.close}
+          onFinish={appDialog.finish}
         />
-      )}
-      {modal && <QuickCreate type={modal} close={() => setModal(null)} notify={notify} />}
-    </div>
+        {paletteOpen && (
+          <CommandPalette
+            navigation={navigation}
+            onClose={() => setPaletteOpen(false)}
+            onNavigate={navigate}
+            onOpenSession={(id) => {
+              requestSessionSelection(id)
+              navigate('chat')
+            }}
+            onNewChat={() => {
+              navigate('chat')
+              requestAnimationFrame(() => requestAnimationFrame(invokePrimaryAction))
+            }}
+          />
+        )}
+        {modal && <QuickCreate type={modal} close={() => setModal(null)} notify={notify} />}
+      </div>
+    </ToastProvider>
   )
 }
 

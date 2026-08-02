@@ -16,7 +16,12 @@ import {
   X,
   Zap,
 } from 'lucide-react'
-import { Badge, Panel, SectionTitle, Toggle } from '@/components/ui'
+import {
+  AppCard as Panel,
+  AppSectionTitle as SectionTitle,
+  AppSwitch as Toggle,
+  StatusBadge as Badge,
+} from '@/components/ui/app-primitives'
 import { AppSelect } from '@/components/AppSelect'
 import { useI18n } from '@/app/use-i18n'
 import { StarOrbit } from '@/components/StarOrbit'

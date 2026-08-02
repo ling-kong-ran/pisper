@@ -1,4 +1,4 @@
-import type { ToastTone } from '@/components/ui'
+import type { ToastTone } from '@/components/ui/toast'
 import type { ConfirmDialogOptions, PromptDialogOptions } from '@/hooks/useAppDialog'
 import type { ChatAttachment, PendingAsset } from '@/types/chat'
 import type { NotificationSettingsData } from '@/types/notifications'

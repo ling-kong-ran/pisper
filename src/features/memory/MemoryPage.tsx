@@ -12,7 +12,7 @@ import {
   ZoomIn,
   ZoomOut,
 } from 'lucide-react'
-import { Panel, SectionTitle } from '@/components/ui'
+import { AppCard as Panel, AppSectionTitle as SectionTitle } from '@/components/ui/app-primitives'
 import { AppSelect } from '@/components/AppSelect'
 import { useI18n } from '@/app/use-i18n'
 import { StarOrbit } from '@/components/StarOrbit'
@@ -124,13 +124,13 @@ function memoryTypeLabel(type: MemoryType, t: Translate) {
 
 // 与 index.css 中的 --g-* 星辰色保持一致，用于连线渐变
 const STAR_COLORS: Record<MemoryType, string> = {
-  concept: '#6eb5ff',
-  file: '#4ade80',
-  risk: '#fb7185',
-  preference: '#c4b5fd',
-  decision: '#fbbf24',
-  fact: '#e2e8f0',
-  task: '#67e8f9',
+  concept: 'var(--g-concept)',
+  file: 'var(--g-file)',
+  risk: 'var(--g-risk)',
+  preference: 'var(--g-preference)',
+  decision: 'var(--g-decision)',
+  fact: 'var(--g-fact)',
+  task: 'var(--g-task)',
 }
 
 function hashSeed(text: string) {
@@ -569,8 +569,14 @@ export function MemoryPage({
                     y2={target.y}
                     key={link.id}
                   >
-                    <stop offset="0" stopColor={STAR_COLORS[source.node.type] || '#93b4ff'} />
-                    <stop offset="1" stopColor={STAR_COLORS[target.node.type] || '#93b4ff'} />
+                    <stop
+                      offset="0"
+                      stopColor={STAR_COLORS[source.node.type] || 'var(--galaxy-line-active)'}
+                    />
+                    <stop
+                      offset="1"
+                      stopColor={STAR_COLORS[target.node.type] || 'var(--galaxy-line-active)'}
+                    />
                   </linearGradient>
                 )
               })}

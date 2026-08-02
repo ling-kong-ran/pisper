@@ -16,7 +16,7 @@ import {
 } from 'lucide-react'
 import { STORAGE_KEYS } from '@/app/storage'
 import { useI18n } from '@/app/use-i18n'
-import { Panel, Segmented } from '@/components/ui'
+import { AppCard as Panel, SegmentedTabs as Segmented } from '@/components/ui/app-primitives'
 import { StarOrbit } from '@/components/StarOrbit'
 import { usePagePrimaryAction } from '@/hooks/usePagePrimaryAction'
 import { apiJson } from '@/lib/api'

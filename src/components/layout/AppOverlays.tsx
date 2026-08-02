@@ -1,16 +1,19 @@
-import {
-  useEffect,
-  useMemo,
-  useState,
-  type FormEvent,
-  type KeyboardEvent,
-  type MouseEvent,
-} from 'react'
+import { useEffect, useMemo, useState, type FormEvent, type KeyboardEvent } from 'react'
 import { MessageSquare, Plus, Search, X, type LucideIcon } from 'lucide-react'
 import { useI18n } from '@/app/use-i18n'
 import { apiJson } from '@/lib/api'
+import { Button } from '@/components/ui/button'
+import { Dialog, DialogContent, DialogDescription, DialogTitle } from '@/components/ui/dialog'
+import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
 import { relativeTime } from '@/lib/format'
-import { InputLabel, SelectLabel } from '@/components/ui'
 
 type Navigation = Array<[string, Array<[string, string, LucideIcon]>]>
 
@@ -132,17 +135,15 @@ export function CommandPalette({
   }
 
   return (
-    <div
-      className="modal-backdrop palette-backdrop"
-      role="presentation"
-      onMouseDown={(event) => event.target === event.currentTarget && onClose()}
-    >
-      <section
-        className="command-palette"
-        role="dialog"
-        aria-modal="true"
-        aria-label={t('navigation:appOverlays.commandPalette')}
+    <Dialog open onOpenChange={(open) => !open && onClose()}>
+      <DialogContent
+        showCloseButton={false}
+        className="command-palette top-[16vh]! max-w-[calc(100vw-40px)]! translate-y-0! gap-0 p-0 ring-0 max-sm:top-[8vh]! sm:max-w-[560px]!"
       >
+        <DialogTitle className="sr-only">{t('navigation:appOverlays.commandPalette')}</DialogTitle>
+        <DialogDescription className="sr-only">
+          {t('navigation:appOverlays.searchPagesChatsOrActions')}
+        </DialogDescription>
         <label className="palette-input">
           <Search size={16} />
           <input
@@ -178,8 +179,8 @@ export function CommandPalette({
             <div className="palette-empty">{t('navigation:appOverlays.noMatchingResults')}</div>
           )}
         </div>
-      </section>
-    </div>
+      </DialogContent>
+    </Dialog>
   )
 }
 
@@ -203,59 +204,78 @@ export function QuickCreate({ type, close, notify }: QuickCreateProps) {
     skills: t('navigation:appOverlays.installSkill'),
   }
   const title = titles[type] || t('navigation:appOverlays.newProject')
-  const stopPropagation = (event: MouseEvent<HTMLFormElement>) => event.stopPropagation()
+  const options = [
+    t('navigation:appOverlays.default'),
+    t('navigation:appOverlays.custom'),
+    t('navigation:appOverlays.createFromTemplate'),
+  ]
   const submit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
     notify(t('navigation:appOverlays.actionSucceeded', { action: title }))
     close()
   }
   return (
-    <div className="modal-backdrop" onMouseDown={close}>
-      <form className="modal" onMouseDown={stopPropagation} onSubmit={submit}>
-        <div className="card-head">
-          <div>
-            <h2>{title}</h2>
-            <p>{t('navigation:appOverlays.enterTheBasicDetailsToContinue')}</p>
+    <Dialog open onOpenChange={(open) => !open && close()}>
+      <DialogContent
+        showCloseButton={false}
+        className="modal max-w-[430px]! gap-0 rounded-dialog border-surface-highlight p-[18px] shadow-dialog ring-0"
+      >
+        <form onSubmit={submit}>
+          <div className="card-head">
+            <div>
+              <DialogTitle>{title}</DialogTitle>
+              <DialogDescription>
+                {t('navigation:appOverlays.enterTheBasicDetailsToContinue')}
+              </DialogDescription>
+            </div>
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon"
+              aria-label={t('navigation:appOverlays.closeDialog')}
+              title={t('navigation:appOverlays.closeDialog')}
+              onClick={close}
+            >
+              <X className="size-[17px]" />
+            </Button>
           </div>
-          <button
-            type="button"
-            className="icon-button"
-            aria-label={t('navigation:appOverlays.closeDialog')}
-            onClick={close}
-          >
-            <X size={17} />
-          </button>
-        </div>
-        <InputLabel
-          label={t('navigation:appOverlays.name')}
-          value=""
-          secret={false}
-          placeholder={t('navigation:appOverlays.enterAName')}
-        />
-        <InputLabel
-          label={t('navigation:appOverlays.description')}
-          value=""
-          secret={false}
-          placeholder={t('navigation:appOverlays.addAShortDescription')}
-        />
-        <SelectLabel
-          label={t('navigation:appOverlays.type')}
-          options={[
-            t('navigation:appOverlays.default'),
-            t('navigation:appOverlays.custom'),
-            t('navigation:appOverlays.createFromTemplate'),
-          ]}
-        />
-        <div className="modal-actions">
-          <button type="button" className="button secondary" onClick={close}>
-            {t('navigation:appOverlays.cancel')}
-          </button>
-          <button className="button primary">
-            <Plus size={14} />
-            {t('navigation:appOverlays.create')}
-          </button>
-        </div>
-      </form>
-    </div>
+          <Label className="field-label items-start">
+            {t('navigation:appOverlays.name')}
+            <Input name="name" placeholder={t('navigation:appOverlays.enterAName')} />
+          </Label>
+          <Label className="field-label items-start">
+            {t('navigation:appOverlays.description')}
+            <Input
+              name="description"
+              placeholder={t('navigation:appOverlays.addAShortDescription')}
+            />
+          </Label>
+          <Label className="field-label items-start" htmlFor="quick-create-type">
+            {t('navigation:appOverlays.type')}
+          </Label>
+          <Select defaultValue={options[0]}>
+            <SelectTrigger id="quick-create-type" className="mt-1 w-full bg-surface-subtle">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent position="popper">
+              {options.map((option) => (
+                <SelectItem value={option} key={option}>
+                  {option}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <div className="modal-actions">
+            <Button type="button" variant="secondary" onClick={close}>
+              {t('navigation:appOverlays.cancel')}
+            </Button>
+            <Button type="submit">
+              <Plus className="size-3.5" />
+              {t('navigation:appOverlays.create')}
+            </Button>
+          </div>
+        </form>
+      </DialogContent>
+    </Dialog>
   )
 }

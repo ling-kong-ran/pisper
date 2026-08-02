@@ -15,7 +15,13 @@ import {
   Server,
   ShieldCheck,
 } from 'lucide-react'
-import { Badge, Panel, SectionTitle, Segmented, Toggle } from '@/components/ui'
+import {
+  AppCard as Panel,
+  AppSectionTitle as SectionTitle,
+  AppSwitch as Toggle,
+  SegmentedTabs as Segmented,
+  StatusBadge as Badge,
+} from '@/components/ui/app-primitives'
 import { AppSelect } from '@/components/AppSelect'
 import { useI18n } from '@/app/use-i18n'
 import { apiJson } from '@/lib/api'
