@@ -148,14 +148,14 @@ test('stale streaming queue errors settle the old stream and resend as a new tur
   assert.doesNotMatch(queueHandler, /notify\(errorMessage\(caught\), 'error'\)[\s\S]*endedSessionQueueError/)
 })
 
-test('shared task board uses live/session fallback and consistent effective blockers', async () => {
+test('shared plan board uses live/session fallback and consistent effective blockers', async () => {
   const [dock, board] = await Promise.all([
     readFile('src/features/chat/ChatDock.tsx', 'utf8'),
-    readFile('src/features/chat/TaskBoard.tsx', 'utf8'),
+    readFile('src/features/chat/PlanBoard.tsx', 'utf8'),
   ])
-  assert.match(dock, /resolveSessionTaskList\(sessionState, session\)/)
-  assert.match(dock, /isTaskListActive\(taskList, \{ streaming: state\.streaming \}\)/)
-  assert.match(dock, /taskList=\{visibleTaskList\}/)
+  assert.match(dock, /resolveSessionPlan\(sessionState, session\)/)
+  assert.match(dock, /isPlanActive\(plan, \{ streaming: state\.streaming \}\)/)
+  assert.match(dock, /plan=\{visiblePlan\}/)
   assert.match(board, /item\.status === 'blocked' \|\| blockedBy\.length > 0/)
   assert.match(board, /view\.status === 'in_progress' && !view\.blocked/)
   assert.doesNotMatch(board, /unblocks:/)

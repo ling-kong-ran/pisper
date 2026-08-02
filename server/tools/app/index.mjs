@@ -5,7 +5,7 @@ import { factories as mcpFactories, manifests as mcpManifests } from './mcp-mana
 import { createWebSearchTool, manifest as webSearchManifest } from './web-search.mjs'
 import { createBrowserAutomationTool, manifest as browserAutomationManifest } from './browser-automation.mjs'
 
-// Multi-agent tools are internal runtime tools (like goal/task-list) and are intentionally
+// Multi-agent tools are internal runtime tools (like goal/plan) and are intentionally
 // omitted from the plugins catalog so they stay hidden from the frontend tool list.
 export const APP_TOOL_CATALOG = [webSearchManifest, browserAutomationManifest, visualGenerateManifest, ...memoryManifests, ...mcpManifests]
 export { createMultiAgentTools }

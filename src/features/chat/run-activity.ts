@@ -1,4 +1,5 @@
-import type { EntityRecord, TaskList, TaskListItem, ToolActivity } from '@/types/chat'
+import { isPlanReadTool, isPlanTool, planFromActivity } from '@/lib/plan-protocol'
+import type { EntityRecord, Plan, PlanItem, ToolActivity } from '@/types/chat'
 
 export const RUN_INACTIVITY_THRESHOLD_MS = 10_000
 export const MAX_CURRENT_ACTIVITIES = 6
@@ -9,7 +10,6 @@ const RESEARCH_TOOLS = new Set([
   'find',
   'ls',
   'memory_search',
-  'get_task_list',
   'browser_automation',
 ])
 const EDIT_TOOLS = new Set(['edit', 'write', 'memory_remember'])
@@ -87,7 +87,7 @@ export function activityRenderKey(activity: EntityRecord, index = 0) {
   if (activity.type === 'agent')
     return `agent:${activity.agent?.id || activity.agent?.canonicalName || index}:${activity.agent?.status || activity.status || ''}`
   if (activity.type === 'plan')
-    return `plan:${activity.id || activity.taskList?.updatedAt || activity.updatedAt || index}`
+    return `plan:${activity.id || planFromActivity(activity)?.updatedAt || activity.updatedAt || index}`
   return `${activity.type || 'activity'}:${activity.id || activity.startedAt || activity.createdAt || index}`
 }
 
@@ -97,18 +97,18 @@ function activityKey(activity: EntityRecord | null | undefined) {
   if (activity.type === 'agent')
     return `agent:${activity.agent?.id || activity.agent?.canonicalName || ''}`
   if (activity.type === 'plan')
-    return `plan:${activity.updatedAt || activity.taskList?.updatedAt || ''}`
+    return `plan:${activity.updatedAt || planFromActivity(activity)?.updatedAt || ''}`
   if (activity.type === 'model') return `model:${activity.stage || ''}`
   if (activity.type === 'compaction')
     return `compaction:${activity.compaction?.status || activity.compaction?.active || ''}`
   return `${activity.type}:${activity.id || activity.updatedAt || ''}`
 }
 
-export function taskListChanges(previous?: TaskList | null, next?: TaskList | null) {
-  const previousItems = new Map<string, TaskListItem>(
+export function planChanges(previous?: Plan | null, next?: Plan | null) {
+  const previousItems = new Map<string, PlanItem>(
     (previous?.items || []).map((item) => [String(item.id || ''), item]),
   )
-  const nextItems = new Map<string, TaskListItem>(
+  const nextItems = new Map<string, PlanItem>(
     (next?.items || []).map((item) => [String(item.id || ''), item]),
   )
   const changes: EntityRecord[] = []
@@ -146,9 +146,7 @@ export function pushCurrentActivity(
   if (!['tool', 'plan', 'agent'].includes(activity?.type)) return current
   let next = [...current]
   if (activity.type === 'plan')
-    next = next.filter(
-      (item) => item?.type !== 'tool' || !['get_task_list', 'update_task_list'].includes(item.name),
-    )
+    next = next.filter((item) => item?.type !== 'tool' || !isPlanTool(item.name))
   if (activity.type === 'agent')
     next = next.filter(
       (item) =>
@@ -228,7 +226,7 @@ export function deriveRunActivity({
   if (activeTool?.name === 'bash') return { stage: 'validating', inactiveMs, activeTool }
   if (activeTool?.name && EDIT_TOOLS.has(activeTool.name))
     return { stage: 'editing', inactiveMs, activeTool }
-  if (activeTool?.name && RESEARCH_TOOLS.has(activeTool.name))
+  if (activeTool?.name && (RESEARCH_TOOLS.has(activeTool.name) || isPlanReadTool(activeTool.name)))
     return { stage: 'researching', inactiveMs, activeTool }
   if (activeTool) return { stage: 'using_tool', inactiveMs, activeTool }
   if (String(text || '').trim()) return { stage: 'responding', inactiveMs, activeTool: null }

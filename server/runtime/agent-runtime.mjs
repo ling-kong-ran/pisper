@@ -32,7 +32,7 @@ import { inferModelKind, VisualGenerationService } from '../services/visual-gene
 import { MultiAgentService, MULTI_AGENT_TOOL_NAMES, agentCompletionPrompt, isAgentCompletionMessage } from '../services/multi-agent-service.mjs'
 import { GoalService, goalBudgetPrompt, goalContinuationPrompt, isGoalContinuationMessage } from '../services/goal-service.mjs'
 import { GitChangesService } from '../services/git-changes-service.mjs'
-import { TaskListService } from '../services/task-list-service.mjs'
+import { PlanService } from '../services/plan-service.mjs'
 import { BrowserAutomationService } from '../services/browser-automation-service.mjs'
 import {
   listWorkspaceDirectories,
@@ -43,7 +43,7 @@ import {
 import { assetMessageAttachment, attachGeneratedAssets } from '../services/session-assets.mjs'
 import { createAppTools, createMultiAgentTools, TOOL_PRESETS, toolsFromConfig } from '../tools/registry.mjs'
 import { createGoalTools, GOAL_TOOL_NAMES } from '../tools/app/goal.mjs'
-import { createTaskListTools, TASK_LIST_TOOL_NAMES } from '../tools/app/task-list.mjs'
+import { createPlanTools, PLAN_ALL_TOOL_NAMES, PLAN_COMPATIBILITY_TOOL_NAMES } from '../tools/app/plan.mjs'
 import { createToolDiscoveryTool, TOOL_DISCOVERY_NAME } from '../tools/app/tool-discovery.mjs'
 import { createPisperBashTool } from '../tools/host-bash.mjs'
 import { hotToolNames, mergePromotedToolNames, schemaOnlyToolDefinitions, selectedToolNames } from '../tools/tool-activation.mjs'
@@ -162,7 +162,7 @@ function liveActivityKey(activity) {
   if (!activity?.type) return ''
   if (activity.type === 'tool') return `tool:${activity.id || activity.name || ''}`
   if (activity.type === 'agent') return `agent:${activity.agent?.id || activity.agent?.canonicalName || ''}`
-  if (activity.type === 'plan') return `plan:${activity.updatedAt || activity.taskList?.updatedAt || ''}`
+  if (activity.type === 'plan') return `plan:${activity.updatedAt || activity.plan?.updatedAt || ''}`
   if (activity.type === 'model') return `model:${activity.stage || ''}`
   if (activity.type === 'compaction') return `compaction:${activity.compaction?.status || activity.compaction?.active || ''}`
   return `${activity.type}:${activity.id || activity.updatedAt || ''}`
@@ -172,7 +172,7 @@ function pushLiveActivity(feed, activity) {
   const current = Array.isArray(feed) ? feed : []
   if (!['tool', 'plan', 'agent'].includes(activity?.type)) return current
   let next = [...current]
-  if (activity.type === 'plan') next = next.filter((item) => item?.type !== 'tool' || !['get_task_list', 'update_task_list'].includes(item.name))
+  if (activity.type === 'plan') next = next.filter((item) => item?.type !== 'tool' || !PLAN_ALL_TOOL_NAMES.includes(item.name))
   if (activity.type === 'agent') next = next.filter((item) => item?.type !== 'tool' || !MULTI_AGENT_TOOL_NAMES.includes(item.name))
   const key = liveActivityKey(activity)
   const existingIndex = next.findIndex((item) => liveActivityKey(item) === key)
@@ -187,7 +187,7 @@ function setLiveActivity(live, activity) {
   live.activityFeed = activity ? pushLiveActivity(live.activityFeed, activity) : []
 }
 
-function liveTaskListChanges(previous, next) {
+function livePlanChanges(previous, next) {
   const previousItems = new Map((previous?.items || []).map((item) => [item.id, item]))
   const nextItems = new Map((next?.items || []).map((item) => [item.id, item]))
   const changes = []
@@ -729,7 +729,10 @@ export class AgentRuntimeService {
     })
     this.goals = new GoalService({ path: join(dataDir, 'pisper-goals.json') })
     this.gitChanges = new GitChangesService()
-    this.taskLists = new TaskListService({ path: join(dataDir, 'pisper-task-lists.json') })
+    this.plans = new PlanService({
+      path: join(dataDir, 'pisper-plans.json'),
+      legacyPath: join(dataDir, 'pisper-task-lists.json'),
+    })
     this.browserAutomation = new BrowserAutomationService({ driver: browserAutomationDriver })
     this.goalEmitters = new Map()
     this.agentEmitters = new Map()
@@ -783,7 +786,7 @@ export class AgentRuntimeService {
     this.storedSessionsPromise = null
     this.sessionRuntimeVersion = 0
     this.liveSessions = new Map()
-    this.taskListEmitters = new Map()
+    this.planEmitters = new Map()
     this.sessionHistoryCache = new Map()
     this.sessionHistoryReadChunkBytes = SESSION_HISTORY_READ_CHUNK_BYTES
     this.maxSessionHistoryCacheEntries = MAX_SESSION_HISTORY_CACHE_ENTRIES
@@ -851,7 +854,7 @@ export class AgentRuntimeService {
     await this.memory.init()
     this.memory.setSemanticSummarizer(this.memorySummarizer)
     await this.goals.init({ pauseActive: true })
-    await this.taskLists.init()
+    await this.plans.init()
     await this.multiAgents.init()
     await this.channels.init()
     await this.schedules.init()
@@ -891,16 +894,16 @@ export class AgentRuntimeService {
     try { send?.('goal_update', { sessionId, goal: goal || null }) } catch {}
   }
 
-  emitTaskListUpdate(sessionId, taskList, send = this.taskListEmitters.get(sessionId)) {
+  emitPlanUpdate(sessionId, plan, send = this.planEmitters.get(sessionId)) {
     const live = this.liveSessions.get(sessionId)
-    const nextTaskList = taskList || this.taskLists.get(sessionId)
-    const updatedAt = nextTaskList?.updatedAt || new Date().toISOString()
-    const currentActivity = { type: 'plan', taskList: nextTaskList, changes: liveTaskListChanges(live?.taskList, nextTaskList), updatedAt }
+    const nextPlan = plan || this.plans.get(sessionId)
+    const updatedAt = nextPlan?.updatedAt || new Date().toISOString()
+    const currentActivity = { type: 'plan', plan: nextPlan, changes: livePlanChanges(live?.plan, nextPlan), updatedAt }
     if (live) {
-      live.taskList = nextTaskList
+      live.plan = nextPlan
       setLiveActivity(live, currentActivity)
     }
-    try { send?.('task_list_update', { sessionId, taskList: nextTaskList, currentActivity }) } catch {}
+    try { send?.('plan_update', { sessionId, plan: nextPlan, currentActivity }) } catch {}
   }
 
   emitAgentUpdate(sessionId, agent, send = this.agentEmitters.get(sessionId)) {
@@ -978,6 +981,7 @@ export class AgentRuntimeService {
     const blockedToolNames = new Set(value?.blockedToolNames || [])
     return [
       ...(value?.baseToolNames || []),
+      ...PLAN_COMPATIBILITY_TOOL_NAMES,
       ...MULTI_AGENT_TOOL_NAMES,
     ].filter((name) => !blockedToolNames.has(name))
   }
@@ -989,7 +993,7 @@ export class AgentRuntimeService {
     const availableToolNames = [
       ...(value.baseToolNames || []),
       TOOL_DISCOVERY_NAME,
-      ...TASK_LIST_TOOL_NAMES,
+      ...PLAN_ALL_TOOL_NAMES,
       ...MULTI_AGENT_TOOL_NAMES,
       ...GOAL_TOOL_NAMES,
     ].filter((name) => !blockedToolNames.has(name))
@@ -1017,7 +1021,7 @@ export class AgentRuntimeService {
     )
     const previousPromotedToolNames = value.promotedToolNames || []
     const promotedToolNames = mergePromotedToolNames({
-      availableToolNames,
+      availableToolNames: availableToolNames.filter((name) => !PLAN_COMPATIBILITY_TOOL_NAMES.includes(name)),
       promotedToolNames: previousPromotedToolNames,
       requestedToolNames: permittedToolNames,
     })
@@ -1535,7 +1539,7 @@ export class AgentRuntimeService {
         permissionMode: this.sessionMeta[session.id]?.permissionMode || permissionModeForExecutionMode(this.getSessionExecutionMode(session.id)),
         executionMode: this.getSessionExecutionMode(session.id),
         goal: this.goals.get(session.id),
-        taskList: this.taskLists.get(session.id),
+        plan: this.plans.get(session.id),
         agents: this.multiAgents.summaries(session.id).filter((agent) => ['queued', 'starting', 'running'].includes(agent.status)),
       }
     })
@@ -1556,7 +1560,7 @@ export class AgentRuntimeService {
         permissionMode: this.sessionMeta[id]?.permissionMode || permissionModeForExecutionMode(this.getSessionExecutionMode(id)),
         executionMode: this.getSessionExecutionMode(id),
         goal: this.goals.get(id),
-        taskList: this.taskLists.get(id),
+        plan: this.plans.get(id),
         agents: this.multiAgents.summaries(id).filter((agent) => ['queued', 'starting', 'running'].includes(agent.status)),
       })
     }
@@ -1576,7 +1580,7 @@ export class AgentRuntimeService {
         permissionMode: this.sessionMeta[id]?.permissionMode || permissionModeForExecutionMode(this.getSessionExecutionMode(id)),
         executionMode: this.getSessionExecutionMode(id),
         goal: this.goals.get(id),
-        taskList: this.taskLists.get(id),
+        plan: this.plans.get(id),
         agents: [],
       })
     }
@@ -1622,7 +1626,7 @@ export class AgentRuntimeService {
       permissionMode: this.sessionMeta[id].permissionMode,
       executionMode: this.getSessionExecutionMode(id),
       goal: null,
-      taskList: this.taskLists.get(id),
+      plan: this.plans.get(id),
       agents: [],
       contextUsage: null,
     }
@@ -1903,7 +1907,7 @@ export class AgentRuntimeService {
       permissionMode: this.sessionMeta[id]?.permissionMode || permissionModeForExecutionMode(this.getSessionExecutionMode(id)),
       executionMode: this.getSessionExecutionMode(id),
       goal: live?.goal ?? this.goals.get(id),
-      taskList: live?.taskList ?? this.taskLists.get(id),
+      plan: live?.plan ?? this.plans.get(id),
       agents: live?.agents ?? this.multiAgents.summaries(id).filter((agent) => ['queued', 'starting', 'running'].includes(agent.status)),
       currentActivity: live?.currentActivity || null,
       activityFeed: live?.activityFeed || [],
@@ -2121,15 +2125,15 @@ export class AgentRuntimeService {
         return goal
       },
     }))
-    const taskListTools = createTaskListTools({
-      getTaskList: () => this.taskLists.get(runtimeSessionId),
-      updateTaskList: async (items) => {
-        const taskList = await this.taskLists.replace(runtimeSessionId, items)
-        this.emitTaskListUpdate(runtimeSessionId, taskList)
-        return taskList
+    const planTools = createPlanTools({
+      getPlan: () => this.plans.get(runtimeSessionId),
+      updatePlan: async (items) => {
+        const plan = await this.plans.replace(runtimeSessionId, items)
+        this.emitPlanUpdate(runtimeSessionId, plan)
+        return plan
       },
     })
-    const taskListReader = taskListTools.find((tool) => tool.name === 'get_task_list')
+    const planReader = planTools.find((tool) => tool.name === 'get_plan')
     const installSubagentPermissions = (subagentSession) => this.permissions.install(subagentSession, {
       sessionId: runtimeSession.sessionId,
       cwd: effectiveCwd,
@@ -2161,8 +2165,8 @@ export class AgentRuntimeService {
           cwd: effectiveCwd,
           model: runtimeSession.model,
           thinkingLevel: runtimeSession.thinkingLevel,
-          allowedTools: [...parentActiveToolNames(), ...(taskListReader ? [taskListReader.name] : [])],
-          customTools: [...createInheritedCustomTools(), ...(taskListReader ? [taskListReader] : [])],
+          allowedTools: [...parentActiveToolNames(), ...(planReader ? [planReader.name] : [])],
+          customTools: [...createInheritedCustomTools(), ...(planReader ? [planReader] : [])],
           onProgress: (agent) => this.emitAgentUpdate(runtimeSession.sessionId, agent),
           onSession: installSubagentPermissions,
           onCompleted: accountSubagentUsage,
@@ -2186,7 +2190,7 @@ export class AgentRuntimeService {
         const staticHotToolNames = new Set(hotToolNames(optionalToolNames))
         const activeToolNames = new Set(runtimeSession.getActiveToolNames())
         return optionalToolNames
-          .filter((name) => !staticHotToolNames.has(name))
+          .filter((name) => !staticHotToolNames.has(name) && !PLAN_COMPATIBILITY_TOOL_NAMES.includes(name))
           .map((name) => {
             const definition = runtimeSession.getToolDefinition(name)
             if (!definition) return null
@@ -2245,8 +2249,8 @@ export class AgentRuntimeService {
       settingsManager: sessionSettingsManager,
       resourceLoader,
       sessionManager,
-      tools: [...baseToolNames, TOOL_DISCOVERY_NAME, ...GOAL_TOOL_NAMES, ...TASK_LIST_TOOL_NAMES, ...MULTI_AGENT_TOOL_NAMES],
-      customTools: [...createInheritedCustomTools(), toolDiscovery, ...goalTools, ...taskListTools, ...multiAgentTools],
+      tools: [...baseToolNames, TOOL_DISCOVERY_NAME, ...GOAL_TOOL_NAMES, ...PLAN_ALL_TOOL_NAMES, ...MULTI_AGENT_TOOL_NAMES],
+      customTools: [...createInheritedCustomTools(), toolDiscovery, ...goalTools, ...planTools, ...multiAgentTools],
     })
     installTransientStreamRetry(session)
     const now = new Date().toISOString()
@@ -2387,8 +2391,8 @@ export class AgentRuntimeService {
     await this.selectToolsForMessage(value, message, { requestedToolNames })
     value.pendingUserMessage = String(message || '')
     // Drop stale plans from previous turns unless a Goal is actively driving multi-turn work or this is an internal wakeup turn.
-    const keepTaskList = goal?.status === 'active' || isGoalContinuationMessage(message) || isAgentCompletionMessage(message)
-    if (!keepTaskList) await this.taskLists.replace(session.sessionId, [])
+    const keepPlan = goal?.status === 'active' || isGoalContinuationMessage(message) || isAgentCompletionMessage(message)
+    if (!keepPlan) await this.plans.replace(session.sessionId, [])
     
     // 注入待处理的 Agent 完成通知（对用户隐藏）
     const pendingAgentNotes = value.pendingAgentNotifications || []
@@ -2406,10 +2410,10 @@ export class AgentRuntimeService {
     const startedAt = new Date().toISOString()
     value.modified = startedAt
     const initialActivity = { type: 'model', stage: 'thinking', updatedAt: startedAt }
-    const live = { streaming: true, text: '', thinkingText: '', tools: [], assets: [], error: '', goal, taskList: this.taskLists.get(session.sessionId), agents: this.multiAgents.summaries(session.sessionId).filter((agent) => ['queued', 'starting', 'running'].includes(agent.status)), currentActivity: initialActivity, activityFeed: [], queuedInputs: queuedSessionInputs(session), contextUsage: this.compactionAwareContextUsage(session), compaction: null, startedAt, lastActivityAt: startedAt }
+    const live = { streaming: true, text: '', thinkingText: '', tools: [], assets: [], error: '', goal, plan: this.plans.get(session.sessionId), agents: this.multiAgents.summaries(session.sessionId).filter((agent) => ['queued', 'starting', 'running'].includes(agent.status)), currentActivity: initialActivity, activityFeed: [], queuedInputs: queuedSessionInputs(session), contextUsage: this.compactionAwareContextUsage(session), compaction: null, startedAt, lastActivityAt: startedAt }
     this.liveSessions.set(session.sessionId, live)
     this.goalEmitters.set(session.sessionId, emit)
-    this.taskListEmitters.set(session.sessionId, emit)
+    this.planEmitters.set(session.sessionId, emit)
     this.agentEmitters.set(session.sessionId, emit)
 
     const firstTurn = !session.messages.some((item) => item.role === 'user')
@@ -2431,7 +2435,7 @@ export class AgentRuntimeService {
       permissionMode: this.sessionMeta[session.sessionId]?.permissionMode || permissionModeForExecutionMode(this.getSessionExecutionMode(session.sessionId)),
       executionMode: this.getSessionExecutionMode(session.sessionId),
       goal,
-      taskList: live.taskList,
+      plan: live.plan,
       agents: live.agents,
       currentActivity: live.currentActivity,
       activityFeed: live.activityFeed,
@@ -2583,7 +2587,7 @@ export class AgentRuntimeService {
           : resultAgent
             ? { type: 'agent', agent: resultAgent, updatedAt: resultAgent.lastActivityAt || toolFinishedAt }
             : { ...(completedTool || {}), ...outputPatch, type: 'tool', status: 'done', message: completedTool?.message || '', updatedAt: toolFinishedAt, finishedAt: toolFinishedAt }
-        const preserveEvent = ['get_task_list', 'update_task_list'].includes(event.toolName) && live.currentActivity?.type === 'plan'
+        const preserveEvent = PLAN_ALL_TOOL_NAMES.includes(event.toolName) && live.currentActivity?.type === 'plan'
         if (event.isError || !preserveEvent) live.activityFeed = pushLiveActivity(live.activityFeed, finishedActivity)
         if (live.currentActivity?.id === event.toolCallId) live.currentActivity = finishedActivity
         emit('tool_end', {
@@ -2697,7 +2701,7 @@ export class AgentRuntimeService {
         assets: live.assets,
         approvals: [],
         goal: this.goals.get(session.sessionId),
-        taskList: this.taskLists.get(session.sessionId),
+        plan: this.plans.get(session.sessionId),
         agents: live.agents,
         currentActivity: live.currentActivity,
         activityFeed: live.activityFeed,
@@ -2732,7 +2736,7 @@ export class AgentRuntimeService {
         assets: live.assets,
         approvals: [],
         goal: this.goals.get(session.sessionId),
-        taskList: this.taskLists.get(session.sessionId),
+        plan: this.plans.get(session.sessionId),
         agents: live.agents,
         currentActivity: live.currentActivity,
         activityFeed: live.activityFeed,
@@ -2748,7 +2752,7 @@ export class AgentRuntimeService {
       unsubscribe()
       this.permissions.detachEmitter(session.sessionId, emit)
       if (this.goalEmitters.get(session.sessionId) === emit) this.goalEmitters.delete(session.sessionId)
-      if (this.taskListEmitters.get(session.sessionId) === emit) this.taskListEmitters.delete(session.sessionId)
+      if (this.planEmitters.get(session.sessionId) === emit) this.planEmitters.delete(session.sessionId)
       if (this.agentEmitters.get(session.sessionId) === emit) this.agentEmitters.delete(session.sessionId)
       if (live.streaming) finishLiveRun(live.error)
       this.touchSessionRuntime(value)
@@ -2864,7 +2868,7 @@ export class AgentRuntimeService {
 
   async deleteSession(id) {
     await this.goals.remove(id)
-    await this.taskLists.remove(id)
+    await this.plans.remove(id)
     await this.browserAutomation.closeSession(id)
     await this.multiAgents.removeParent(id)
     this.permissions.resolveSession(id, false, '会话已删除，工具未执行。')

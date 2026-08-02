@@ -17,20 +17,51 @@ pub struct SessionSummary {
     pub execution_mode: String,
     #[serde(default)]
     pub thinking_level: String,
-    #[serde(default)]
-    pub task_list: Option<TaskList>,
+    #[serde(default, alias = "taskList")]
+    pub plan: Option<Plan>,
 }
 
-#[derive(Clone, Debug, Default, Deserialize)]
-pub struct TaskList {
+#[derive(Clone, Debug, Default, Deserialize, Eq, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct Plan {
     #[serde(default)]
-    pub items: Vec<TaskItem>,
+    pub items: Vec<PlanItem>,
+    #[serde(default)]
+    pub counts: PlanCounts,
+    #[serde(default)]
+    pub updated_at: Option<String>,
 }
 
-#[derive(Clone, Debug, Default, Deserialize)]
-pub struct TaskItem {
+#[derive(Clone, Debug, Default, Deserialize, Eq, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct PlanItem {
+    #[serde(default)]
+    pub id: String,
+    #[serde(default)]
+    pub title: String,
     #[serde(default)]
     pub status: String,
+    #[serde(default)]
+    pub note: String,
+    #[serde(default)]
+    pub assignee: String,
+    #[serde(default)]
+    pub depends_on: Vec<String>,
+}
+
+#[derive(Clone, Debug, Default, Deserialize, Eq, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct PlanCounts {
+    #[serde(default)]
+    pub pending: usize,
+    #[serde(default)]
+    pub in_progress: usize,
+    #[serde(default)]
+    pub completed: usize,
+    #[serde(default)]
+    pub blocked: usize,
+    #[serde(default)]
+    pub total: usize,
 }
 
 #[derive(Clone, Debug, Default, Deserialize)]
@@ -236,4 +267,41 @@ pub struct StreamEvent {
 pub enum RuntimeEvent {
     Stream(StreamEvent),
     StreamFailed(String),
+}
+
+#[cfg(test)]
+mod tests {
+    use super::SessionSummary;
+
+    #[test]
+    fn session_plan_deserializes_canonical_and_legacy_fields() {
+        let canonical: SessionSummary = serde_json::from_value(serde_json::json!({
+            "id": "canonical",
+            "plan": {
+                "items": [{
+                    "id": "inspect",
+                    "title": "Inspect",
+                    "status": "in_progress",
+                    "note": "Read files",
+                    "assignee": "agent",
+                    "dependsOn": ["setup"]
+                }],
+                "counts": { "inProgress": 1, "total": 1 },
+                "updatedAt": "2026-08-02T00:00:00.000Z"
+            }
+        }))
+        .unwrap();
+        assert_eq!(canonical.plan.as_ref().unwrap().items[0].id, "inspect");
+        assert_eq!(
+            canonical.plan.as_ref().unwrap().items[0].depends_on,
+            ["setup"]
+        );
+
+        let legacy: SessionSummary = serde_json::from_value(serde_json::json!({
+            "id": "legacy",
+            "taskList": { "items": [{ "id": "old", "title": "Old", "status": "pending" }] }
+        }))
+        .unwrap();
+        assert_eq!(legacy.plan.as_ref().unwrap().items[0].id, "old");
+    }
 }

@@ -213,7 +213,7 @@ test('live activity replaces plan and Agent status without retaining terminal Ag
   runtime.liveSessions.set('session-activity', {
     streaming: true,
     agents: [],
-    taskList: {
+    plan: {
       items: [{ id: 'one', title: 'Implement', status: 'in_progress', assignee: '', dependsOn: [] }],
     },
     currentActivity: { type: 'model', stage: 'thinking' },
@@ -229,17 +229,19 @@ test('live activity replaces plan and Agent status without retaining terminal Ag
   assert.equal(update.event, 'agent_update')
   assert.deepEqual(update.data.agents, [running])
 
-  const taskList = {
+  const plan = {
     items: [{ id: 'one', title: 'Implement', status: 'in_progress', assignee: '/root/builder_1', dependsOn: ['research'] }],
     counts: { completed: 0, inProgress: 1 },
     updatedAt: '2026-07-20T10:00:03.000Z',
   }
-  runtime.emitTaskListUpdate('session-activity', taskList, (event, data) => { update = { event, data } })
+  runtime.emitPlanUpdate('session-activity', plan, (event, data) => { update = { event, data } })
   assert.equal(runtime.liveSessions.get('session-activity').currentActivity.type, 'plan')
   assert.equal(runtime.liveSessions.get('session-activity').activityFeed.at(-1).changes[0].title, 'Implement')
   assert.equal(runtime.liveSessions.get('session-activity').activityFeed.at(-1).changes[0].kind, 'updated')
-  assert.equal(update.event, 'task_list_update')
-  assert.equal(update.data.currentActivity.taskList, taskList)
+  assert.equal(update.event, 'plan_update')
+  assert.equal(update.data.plan, plan)
+  assert.equal(update.data.currentActivity.plan, plan)
+  assert.equal(Object.hasOwn(update.data, 'taskList'), false)
 })
 
 test('wait_agent consumes the terminal mailbox item without starting a parent turn', async () => {
@@ -356,6 +358,9 @@ test('stream completion publishes an authoritative terminal snapshot', async (t)
     send: (event, data) => events.push({ event, data }),
   })
 
+  const meta = events.find((item) => item.event === 'meta')?.data
+  assert.equal(meta.plan.sessionId, session.sessionId)
+  assert.equal(Object.hasOwn(meta, 'taskList'), false)
   const compactionStart = events.find((item) => item.event === 'compaction_start')?.data
   const compactionEnd = events.find((item) => item.event === 'compaction_end')?.data
   assert.equal(compactionStart.status, 'running')
@@ -393,12 +398,16 @@ test('stream completion publishes an authoritative terminal snapshot', async (t)
   assert.equal(done.tools[0].status, 'done')
   assert.equal(done.tools[0].output, toolEnd.output)
   assert.deepEqual(done.compaction, compactionEnd)
+  assert.equal(done.plan.sessionId, session.sessionId)
+  assert.equal(Object.hasOwn(done, 'taskList'), false)
   assert.ok(done.finishedAt)
   const live = await runtime.getSessionLive(session.sessionId)
   assert.equal(live.streaming, false)
   assert.equal(live.finishedAt, done.finishedAt)
   assert.equal(live.tools[0].status, 'done')
   assert.equal(live.currentActivity, null)
+  assert.equal(live.plan.sessionId, session.sessionId)
+  assert.equal(Object.hasOwn(live, 'taskList'), false)
   assert.equal(
     live.thinkingText,
     `${thinkingAtBlockEnd}\n\nApplying the appended guidance.`,
@@ -919,7 +928,7 @@ test('session listings do not reopen every inactive history just to resolve its 
   }]
   runtime.settingsManager = { getGlobalSettings: () => ({ defaultProvider: 'openai', defaultModel: 'gpt-5.4' }) }
   runtime.goals = { get: () => null }
-  runtime.taskLists = { get: () => null }
+  runtime.plans = { get: () => null }
   runtime.multiAgents = { summaries: () => [] }
   runtime.openStoredSession = () => {
     throw new Error('inactive history should not be reparsed')

@@ -56,6 +56,8 @@ test('main runtime keeps discovered cold MCP tools for the rest of the session w
   await writeFile(join(directory, 'skills', 'runtime-skill', 'SKILL.md'), `---\nname: runtime-skill\ndescription: Verify runtime skill loading.\n---\n\nUse this runtime skill.\n`, 'utf8')
 
   runtime = new AgentRuntimeService({ cwd: directory, dataDir: directory })
+  assert.equal(runtime.plans.path, join(directory, 'pisper-plans.json'))
+  assert.equal(runtime.plans.legacyPath, join(directory, 'pisper-task-lists.json'))
   await runtime.init()
   runtime.mcp.createToolDefinitions = async () => [defineTool({
     name: 'mcp_fixture_echo_12345678',
@@ -77,7 +79,20 @@ test('main runtime keeps discovered cold MCP tools for the rest of the session w
   assert.equal(value.session.getActiveToolNames().includes('mcp_list'), false)
   assert.equal(value.session.getActiveToolNames().includes('mcp_manage'), false)
   assert.ok(value.session.getActiveToolNames().includes('read'))
-  assert.ok(value.session.getActiveToolNames().includes('update_task_list'))
+  assert.ok(value.session.getActiveToolNames().includes('get_plan'))
+  assert.ok(value.session.getActiveToolNames().includes('update_plan'))
+  assert.equal(value.session.getActiveToolNames().includes('get_task_list'), false)
+  assert.equal(value.session.getActiveToolNames().includes('update_task_list'), false)
+  assert.ok(value.session.getToolDefinition('get_task_list'))
+  assert.ok(value.session.getToolDefinition('update_task_list'))
+  const compatibilityRead = await value.session.getToolDefinition('get_task_list').execute(
+    'legacy-plan-read',
+    {},
+    new AbortController().signal,
+  )
+  assert.equal(compatibilityRead.details.plan.sessionId, value.session.sessionId)
+  assert.equal(Object.hasOwn(compatibilityRead.details, 'taskList'), false)
+  assert.doesNotMatch(value.session.agent.state.systemPrompt, /get_task_list|update_task_list/)
   assert.ok(value.session.getActiveToolNames().includes('discover_tools'))
   assert.ok(value.session.getActiveToolNames().includes('generate_visual'))
   assert.match(value.session.agent.state.systemPrompt, /discover_tools/)
@@ -126,6 +141,24 @@ test('main runtime keeps discovered cold MCP tools for the rest of the session w
   await runtime.selectToolsForMessage(value, '搜索星忆并记住这项信息。')
   assert.equal(value.session.getActiveToolNames().includes('memory_search'), false)
   assert.equal(value.session.getActiveToolNames().includes('memory_remember'), false)
+
+  const compatibilityDiscovery = await value.session.getToolDefinition('discover_tools').execute(
+    'discover-legacy-plan-alias',
+    { query: 'get_task_list update_task_list', limit: 5, activate: false },
+    new AbortController().signal,
+  )
+  assert.equal(compatibilityDiscovery.details.matches.some((tool) => ['get_task_list', 'update_task_list'].includes(tool.name)), false)
+  await runtime.selectToolsForMessage(value, 'Legacy client plan request.', {
+    requestedToolNames: ['get_task_list', 'update_task_list'],
+  })
+  assert.ok(value.session.getActiveToolNames().includes('get_task_list'))
+  assert.ok(value.session.getActiveToolNames().includes('update_task_list'))
+  assert.equal(value.promotedToolNames.includes('get_task_list'), false)
+  assert.equal(value.promotedToolNames.includes('update_task_list'), false)
+  assert.doesNotMatch(value.session.agent.state.systemPrompt, /get_task_list|update_task_list/)
+  await runtime.selectToolsForMessage(value, 'Return to canonical tools.')
+  assert.equal(value.session.getActiveToolNames().includes('get_task_list'), false)
+  assert.equal(value.session.getActiveToolNames().includes('update_task_list'), false)
 
   const childLoader = await runtime.multiAgents.createResourceLoader({ cwd: directory, appendSystemPrompt: 'CHILD AGENT PROMPT' })
   assert.ok(childLoader.getSkills().skills.some((skill) => skill.name === 'runtime-skill'))

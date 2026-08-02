@@ -1,10 +1,5 @@
-import type {
-  ChatMessage,
-  EntityRecord,
-  SessionState,
-  SessionSummary,
-  TaskList,
-} from '@/types/chat'
+import { planFromPayload, planFromPayloadOr } from '@/lib/plan-protocol'
+import type { ChatMessage, EntityRecord, Plan, SessionState, SessionSummary } from '@/types/chat'
 
 export const DEFAULT_SESSION_STATE: SessionState = Object.freeze({
   messages: [],
@@ -16,7 +11,7 @@ export const DEFAULT_SESSION_STATE: SessionState = Object.freeze({
   thinkingText: '',
   queuedInputs: [],
   hadQueuedInput: false,
-  taskList: null,
+  plan: null,
   executionMode: null,
   contextUsage: null,
   compaction: null,
@@ -103,24 +98,29 @@ export function resolveMessageRunActivity(
 }
 
 /**
- * Prefer the live session-state task list once a session has been opened.
- * Important: `null` means “cleared”, and must NOT fall back to stale listSessions data.
+ * Prefer live session state once a session has opened. Explicit null means
+ * “cleared” and must not fall back to a stale listSessions snapshot.
  */
-export function resolveSessionTaskList(
+export function resolveSessionPlan(
   state: Partial<SessionState> | undefined,
   session: Partial<SessionSummary> | undefined,
-): TaskList | null {
-  if (state && (state.loaded || state.streaming || Object.hasOwn(state, 'taskList'))) {
-    return state.taskList ?? null
+): Plan | null {
+  if (
+    state &&
+    (state.loaded || state.streaming || planFromPayload(state as EntityRecord) !== undefined)
+  ) {
+    return planFromPayloadOr(state as EntityRecord, null)
   }
-  return session?.taskList ?? state?.taskList ?? null
+  const sessionPlan = planFromPayload(session as EntityRecord)
+  if (sessionPlan !== undefined) return sessionPlan
+  return planFromPayloadOr(state as EntityRecord, null)
 }
 
-export function isTaskListActive(
-  taskList: TaskList | null | undefined,
+export function isPlanActive(
+  plan: Plan | null | undefined,
   { streaming = false }: { streaming?: boolean } = {},
 ) {
-  const items = taskList?.items || []
+  const items = plan?.items || []
   if (!items.length) return false
   if (streaming) return true
   return items.some((item) => item?.status !== 'completed')

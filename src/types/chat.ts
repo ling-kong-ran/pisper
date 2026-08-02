@@ -41,7 +41,7 @@ export type ToolActivity = EntityRecord & {
   message?: string
 }
 
-export type TaskListItem = EntityRecord & {
+export type PlanItem = EntityRecord & {
   id?: string
   title?: string
   status?: string
@@ -50,8 +50,8 @@ export type TaskListItem = EntityRecord & {
   dependsOn?: string[]
 }
 
-export type TaskList = EntityRecord & {
-  items: TaskListItem[]
+export type Plan = EntityRecord & {
+  items: PlanItem[]
 }
 
 export type SessionSummary = EntityRecord & {
@@ -62,7 +62,7 @@ export type SessionSummary = EntityRecord & {
   model?: string
   cwd?: string
   streaming?: boolean
-  taskList?: TaskList | null
+  plan?: Plan | null
 }
 
 export type SessionState = EntityRecord & {
@@ -75,7 +75,7 @@ export type SessionState = EntityRecord & {
   thinkingText: string
   queuedInputs: EntityRecord[]
   hadQueuedInput: boolean
-  taskList: TaskList | null
+  plan: Plan | null
   executionMode: string | null
   contextUsage: EntityRecord | null
   compaction: EntityRecord | null

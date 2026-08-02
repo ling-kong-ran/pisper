@@ -26,12 +26,13 @@ test('execution modes normalize and migrate legacy permission settings', () => {
 })
 
 test('read-only execution exposes only low-risk analysis tools', () => {
-  const names = ['read', 'grep', 'edit', 'bash', 'discover_tools', 'memory_search', 'memory_remember', 'get_task_list', 'spawn_agent']
+  const names = ['read', 'grep', 'edit', 'bash', 'discover_tools', 'memory_search', 'memory_remember', 'get_plan', 'update_plan', 'get_task_list', 'update_task_list', 'spawn_agent']
   assert.deepEqual(filterToolsForExecutionMode(names, 'read-only'), [
     'read',
     'grep',
     'discover_tools',
     'memory_search',
+    'get_plan',
     'get_task_list',
   ])
   assert.deepEqual(filterToolsForExecutionMode(names, 'workspace'), names)

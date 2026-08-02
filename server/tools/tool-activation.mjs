@@ -1,3 +1,5 @@
+import { PLAN_TOOL_NAMES } from './app/plan-tool-names.mjs'
+
 const HOT_TOOL_SET = new Set([
   'read',
   'grep',
@@ -6,8 +8,7 @@ const HOT_TOOL_SET = new Set([
   'edit',
   'write',
   'bash',
-  'get_task_list',
-  'update_task_list',
+  ...PLAN_TOOL_NAMES,
   'discover_tools',
   'generate_visual',
 ])

@@ -153,22 +153,24 @@ test('subagents inherit parent-safe tools without hard-coded roles', async () =>
   assert.doesNotMatch(seen.options.resourceLoader.options.appendSystemPrompt, /Role:/)
 })
 
-test('subagents can read but cannot modify the shared task list', async () => {
+test('subagents inherit canonical read-only plan access while update names remain parent-only', async () => {
   const session = createFakeSession({
     onPrompt: async ({ session: active }) => active.messages.push({ role: 'assistant', content: [{ type: 'text', text: 'Read the shared plan.' }] }),
   })
-  const getTaskList = { name: 'get_task_list' }
-  const updateTaskList = { name: 'update_task_list' }
+  const getPlan = { name: 'get_plan' }
+  const updatePlan = { name: 'update_plan' }
+  const legacyUpdatePlan = { name: 'update_task_list' }
   const { service, seen } = createService(session)
 
   await service.spawn(baseInput({
-    allowedTools: ['read', 'get_task_list', 'update_task_list'],
-    customTools: [getTaskList, updateTaskList],
+    allowedTools: ['read', 'get_plan', 'update_plan', 'update_task_list'],
+    customTools: [getPlan, updatePlan, legacyUpdatePlan],
   }))
-  await waitFor(() => service.list('parent-1')[0]?.status === 'completed', 'shared task list read')
+  await waitFor(() => service.list('parent-1')[0]?.status === 'completed', 'shared plan read')
 
-  assert.deepEqual(seen.options.tools, ['read', 'get_task_list'])
-  assert.deepEqual(seen.options.customTools, [getTaskList])
+  assert.deepEqual(seen.options.tools, ['read', 'get_plan'])
+  assert.deepEqual(seen.options.customTools, [getPlan])
+  assert.ok(seen.options.excludeTools.includes('update_plan'))
   assert.ok(seen.options.excludeTools.includes('update_task_list'))
 })
 

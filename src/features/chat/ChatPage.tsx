@@ -21,6 +21,12 @@ import { applyTextPatch } from '@/lib/api'
 import { ApiError } from '@/lib/http'
 import { workspaceName } from '@/lib/format'
 import {
+  isPlanUpdateEvent,
+  isPlanWriteTool,
+  planFromPayload,
+  planFromPayloadOr,
+} from '@/lib/plan-protocol'
+import {
   applySessionUpdate,
   DEFAULT_SESSION_STATE,
   insertInteractiveUserMessage,
@@ -52,7 +58,7 @@ import {
   type SessionOpenDisposition,
   type SessionOpenRequest,
 } from './dock-layout'
-import { pushCurrentActivity, settleToolCalls, taskListChanges } from './run-activity'
+import { pushCurrentActivity, settleToolCalls, planChanges } from './run-activity'
 
 import { mergeSessionLists, recentSessionCwd } from './session-list'
 import {
@@ -246,7 +252,7 @@ export function ChatPage({
             permissionMode: data.permissionMode || current.permissionMode,
             executionMode: data.executionMode || current.executionMode,
             goal: data.goal ?? current.goal ?? null,
-            taskList: data.taskList ?? current.taskList ?? null,
+            plan: planFromPayloadOr(data, current.plan ?? null),
             contextUsage: data.contextUsage ?? current.contextUsage ?? null,
             compaction: data.compaction ?? current.compaction ?? null,
             approvals: data.approvals || [],
@@ -279,7 +285,7 @@ export function ChatPage({
                   permissionMode: data.permissionMode || session.permissionMode,
                   executionMode: data.executionMode || session.executionMode,
                   goal: data.goal ?? session.goal ?? null,
-                  taskList: data.taskList ?? session.taskList ?? null,
+                  plan: planFromPayloadOr(data, session.plan ?? null),
                 }
               : session,
           ),
@@ -661,7 +667,7 @@ export function ChatPage({
             permissionMode: created.permissionMode || 'auto',
             executionMode: created.executionMode || 'workspace',
             goal: created.goal || null,
-            taskList: created.taskList || null,
+            plan: planFromPayloadOr(created, null),
             contextUsage: created.contextUsage || null,
             compaction: null,
             streaming: false,
@@ -1083,7 +1089,7 @@ export function ChatPage({
       })
     })
     updateSessionState(sessionId, (current) => {
-      const keepTaskList = goalMode || current.goal?.status === 'active'
+      const keepPlan = goalMode || current.goal?.status === 'active'
       return {
         ...current,
         messages: [
@@ -1107,7 +1113,7 @@ export function ChatPage({
         hadQueuedInput: false,
         compaction: null,
         // Explicit null means cleared; do not keep a previous turn's plan hanging around.
-        taskList: keepTaskList ? current.taskList : null,
+        plan: keepPlan ? current.plan : null,
       }
     })
     if (!goalMode) {
@@ -1115,7 +1121,7 @@ export function ChatPage({
         current.map((session) => {
           if (session.id !== sessionId) return session
           if (session.goal?.status === 'active') return session
-          return { ...session, taskList: null }
+          return { ...session, plan: null }
         }),
       )
     }
@@ -1133,8 +1139,8 @@ export function ChatPage({
               permissionMode: data.permissionMode,
               executionMode: data.executionMode,
               goal: data.goal ?? null,
-              // Prefer explicit meta.taskList (including empty) over leftover client state.
-              taskList: data.taskList !== undefined ? data.taskList : current.taskList,
+              // Prefer an explicit plan, including a legacy clear, over leftover client state.
+              plan: planFromPayloadOr(data, current.plan),
               agents: data.agents || current.agents || [],
               currentActivity: data.currentActivity || current.currentActivity || null,
               activityFeed: data.activityFeed || current.activityFeed || [],
@@ -1150,7 +1156,7 @@ export function ChatPage({
               data.permissionMode ||
               data.executionMode ||
               data.goal !== undefined ||
-              data.taskList !== undefined
+              planFromPayload(data) !== undefined
             ) {
               setRemoteSessions((current) =>
                 current.map((session) =>
@@ -1161,7 +1167,7 @@ export function ChatPage({
                         permissionMode: data.permissionMode || session.permissionMode,
                         executionMode: data.executionMode || session.executionMode,
                         goal: data.goal ?? session.goal ?? null,
-                        taskList: data.taskList !== undefined ? data.taskList : session.taskList,
+                        plan: planFromPayloadOr(data, session.plan ?? null),
                       }
                     : session,
                 ),
@@ -1310,16 +1316,17 @@ export function ChatPage({
             updateSessionState(sessionId, (current) => {
               const completedTool = current.tools.find((item) => item.id === data.id)
               const finishedAt = data.finishedAt || eventAt
+              const completedToolName = String(completedTool?.name || '')
               const preserveEvent =
-                [
-                  'update_task_list',
-                  'spawn_agent',
-                  'list_agents',
-                  'send_message',
-                  'followup_task',
-                  'wait_agent',
-                  'interrupt_agent',
-                ].includes(String(completedTool?.name || '')) &&
+                (isPlanWriteTool(completedToolName) ||
+                  [
+                    'spawn_agent',
+                    'list_agents',
+                    'send_message',
+                    'followup_task',
+                    'wait_agent',
+                    'interrupt_agent',
+                  ].includes(completedToolName)) &&
                 ['plan', 'agent'].includes(current.currentActivity?.type)
               const toolActivity = {
                 ...(completedTool || {}),
@@ -1401,21 +1408,21 @@ export function ChatPage({
                 session.id === sessionId ? { ...session, goal: data.goal ?? null } : session,
               ),
             )
-          } else if (event === 'task_list_update') {
+          } else if (isPlanUpdateEvent(event)) {
             typewriter.flush()
             toolScheduler.flush()
             updateSessionState(sessionId, (current) => {
-              const nextTaskList = data.taskList !== undefined ? data.taskList : current.taskList
+              const nextPlan = planFromPayloadOr(data, current.plan)
               const activity = data.currentActivity || {
                 type: 'plan',
-                taskList: nextTaskList,
-                changes: taskListChanges(current.taskList, nextTaskList),
-                updatedAt: nextTaskList?.updatedAt || eventAt,
+                plan: nextPlan,
+                changes: planChanges(current.plan, nextPlan),
+                updatedAt: nextPlan?.updatedAt || eventAt,
               }
               return {
                 ...current,
                 lastActivityAt: eventAt,
-                taskList: nextTaskList,
+                plan: nextPlan,
                 currentActivity: activity,
                 activityFeed: pushCurrentActivity(current.activityFeed, activity),
               }
@@ -1425,7 +1432,7 @@ export function ChatPage({
                 session.id === sessionId
                   ? {
                       ...session,
-                      taskList: data.taskList !== undefined ? data.taskList : session.taskList,
+                      plan: planFromPayloadOr(data, session.plan ?? null),
                     }
                   : session,
               ),
@@ -1475,7 +1482,7 @@ export function ChatPage({
                 (activity: EntityRecord) => activity.type === 'agent',
               ),
               goal: data.goal ?? current.goal ?? null,
-              taskList: data.taskList !== undefined ? data.taskList : current.taskList,
+              plan: planFromPayloadOr(data, current.plan),
               agents: data.agents || current.agents || [],
               contextUsage: data.contextUsage ?? current.contextUsage ?? null,
               compaction: data.compaction ?? current.compaction ?? null,
@@ -1499,7 +1506,7 @@ export function ChatPage({
                       ...session,
                       streaming: false,
                       goal: data.goal ?? session.goal ?? null,
-                      taskList: data.taskList !== undefined ? data.taskList : session.taskList,
+                      plan: planFromPayloadOr(data, session.plan ?? null),
                     }
                   : session,
               ),
@@ -1971,7 +1978,7 @@ export function ChatPage({
     messages: [],
     tools: [],
     approvals: [],
-    taskList: null,
+    plan: null,
     streaming: false,
     error: '',
     loading: false,

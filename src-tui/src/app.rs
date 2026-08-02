@@ -11,10 +11,11 @@ use serde_json::Value;
 
 use crate::{
     model::{
-        ChatMessage, ContextUsage, MessageAttachment, ModelOption, RunActivity, SessionModelUpdate,
-        SessionSummary, SkillDefinition, StreamEvent, ThinkingAvailability, ThinkingLevelUpdate,
-        ToolActivity, ToolDefinition,
+        ChatMessage, ContextUsage, MessageAttachment, ModelOption, Plan, RunActivity,
+        SessionModelUpdate, SessionSummary, SkillDefinition, StreamEvent, ThinkingAvailability,
+        ThinkingLevelUpdate, ToolActivity, ToolDefinition,
     },
+    plan_protocol::{is_plan_update_event, plan_from_payload},
     workspace::same_workspace,
 };
 
@@ -1240,12 +1241,30 @@ impl App {
         self.status_error = false;
     }
 
+    pub fn set_plan(&mut self, plan: Option<Plan>) {
+        self.session.plan = plan.clone();
+        if let Some(session) = self
+            .sessions
+            .iter_mut()
+            .find(|session| session.id == self.session.id)
+        {
+            session.plan = plan;
+        }
+    }
+
     pub fn apply_stream_event(&mut self, event: StreamEvent) {
         self.record_event(
             &event.name.to_uppercase(),
             event_detail(&event),
             event_state(&event),
         );
+        if let Some(plan) = plan_from_payload(&event.data) {
+            self.set_plan(plan);
+        }
+        if is_plan_update_event(&event.name) {
+            self.scroll = 0;
+            return;
+        }
         let Some(live) = self.live.as_mut() else {
             return;
         };
@@ -1758,6 +1777,7 @@ fn update_tool(live: &mut LiveTurn, value: &Value, done: bool) {
 fn event_detail(event: &StreamEvent) -> String {
     match event.name.as_str() {
         "meta" => string_field(&event.data, "model"),
+        _ if is_plan_update_event(&event.name) => "Plan updated".to_owned(),
         "thinking_patch" => string_field(&event.data, "text"),
         "text_patch" | "text_delta" => "Agent response".to_owned(),
         "tool_start" | "tool_update" | "tool_end" => {
@@ -1781,6 +1801,7 @@ fn event_state(event: &StreamEvent) -> &'static str {
         "error" => "error",
         "permission_request" => "waiting",
         "done" | "tool_end" | "text_end" => "done",
+        _ if is_plan_update_event(&event.name) => "done",
         _ => "",
     }
 }
@@ -2185,6 +2206,45 @@ mod tests {
         ));
         assert_eq!(app.new_session_workspace(), launch.canonicalize().unwrap());
         std::fs::remove_dir_all(root).unwrap();
+    }
+
+    #[test]
+    fn plan_events_update_items_in_place_and_clear_legacy_state() {
+        let mut app = test_app(Vec::new());
+        app.set_input("implement the plan");
+        assert!(matches!(app.submit_action(), Action::Submit { .. }));
+
+        app.apply_stream_event(StreamEvent {
+            name: "meta".to_owned(),
+            data: json!({
+                "model": "provider/model",
+                "cwd": "/workspace",
+                "plan": {
+                    "items": [{ "id": "one", "title": "Inspect", "status": "pending", "note": "Read files", "assignee": "agent", "dependsOn": [] }],
+                    "counts": { "pending": 1, "inProgress": 0, "completed": 0, "blocked": 0, "total": 1 }
+                }
+            }),
+        });
+        assert_eq!(app.session.plan.as_ref().unwrap().items[0].title, "Inspect");
+
+        app.apply_stream_event(StreamEvent {
+            name: "plan_update".to_owned(),
+            data: json!({
+                "plan": {
+                    "items": [{ "id": "one", "title": "Inspect", "status": "completed", "note": "Verified", "assignee": "agent", "dependsOn": [] }],
+                    "counts": { "pending": 0, "inProgress": 0, "completed": 1, "blocked": 0, "total": 1 }
+                }
+            }),
+        });
+        let plan = app.session.plan.as_ref().unwrap();
+        assert_eq!(plan.items.len(), 1);
+        assert_eq!(plan.items[0].status, "completed");
+
+        app.apply_stream_event(StreamEvent {
+            name: "task_list_update".to_owned(),
+            data: json!({ "taskList": null }),
+        });
+        assert!(app.session.plan.is_none());
     }
 
     #[test]

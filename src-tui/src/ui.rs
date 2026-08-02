@@ -12,7 +12,9 @@ use unicode_width::{UnicodeWidthChar, UnicodeWidthStr};
 
 use crate::{
     app::{App, Approval, LiveTurn, SettingsPicker, SlashKind, View},
-    model::{ChatMessage, MessageAttachment, RunActivity, ThinkingAvailability, ToolActivity},
+    model::{
+        ChatMessage, MessageAttachment, PlanItem, RunActivity, ThinkingAvailability, ToolActivity,
+    },
 };
 
 const BG: Color = Color::Rgb(9, 11, 15);
@@ -76,29 +78,47 @@ pub fn draw(frame: &mut Frame, app: &App) {
         return;
     }
 
-    if matches!(app.view, View::Chat) && app.messages.is_empty() && app.live.is_none() {
+    if matches!(app.view, View::Chat)
+        && app.messages.is_empty()
+        && app.live.is_none()
+        && app
+            .session
+            .plan
+            .as_ref()
+            .is_none_or(|plan| plan.items.is_empty())
+    {
         let composer = render_welcome(frame, app, area);
         render_overlays(frame, app, composer, area);
         return;
     }
 
     let composer_height = if area.height >= 18 { 7 } else { 3 };
+    let plan_height = if matches!(app.view, View::Chat) {
+        plan_panel_height(app, area)
+    } else {
+        0
+    };
     let chunks = Layout::default()
         .direction(Direction::Vertical)
         .constraints([
             Constraint::Min(3),
+            Constraint::Length(plan_height),
             Constraint::Length(1),
             Constraint::Length(composer_height),
             Constraint::Length(1),
         ])
         .split(area);
-    let run_state = chunks[1];
-    let composer = chunks[2];
-    let status = chunks[3];
+    let plan = chunks[1];
+    let run_state = chunks[2];
+    let composer = chunks[3];
+    let status = chunks[4];
 
     match app.view {
         View::Chat => render_chat(frame, app, chunks[0]),
         View::Events => render_events(frame, app, centered_width(chunks[0], CONVERSATION_WIDTH)),
+    }
+    if plan.height > 0 {
+        render_plan(frame, app, plan);
     }
     render_run_state(frame, app, run_state);
     render_composer(frame, app, composer);
@@ -234,6 +254,104 @@ fn render_chat(frame: &mut Frame, app: &App, area: Rect) {
         .min(u16::MAX as usize) as u16;
     let scroll = max_scroll.saturating_sub(app.scroll.min(max_scroll));
     frame.render_widget(paragraph.scroll((scroll, 0)), viewport);
+}
+
+fn plan_panel_height(app: &App, area: Rect) -> u16 {
+    let Some(plan) = app.session.plan.as_ref() else {
+        return 0;
+    };
+    if plan.items.is_empty() || area.height < 18 {
+        return 0;
+    }
+    let maximum_items = if area.height >= 36 { 5 } else { 3 };
+    1 + maximum_items
+}
+
+fn plan_item_rank(item: &PlanItem) -> u8 {
+    match item.status.as_str() {
+        "in_progress" => 0,
+        "blocked" => 1,
+        "pending" => 2,
+        "completed" => 3,
+        _ => 2,
+    }
+}
+
+fn render_plan(frame: &mut Frame, app: &App, area: Rect) {
+    let Some(plan) = app.session.plan.as_ref() else {
+        return;
+    };
+    if area.height == 0 || plan.items.is_empty() {
+        return;
+    }
+    let completed = plan
+        .items
+        .iter()
+        .filter(|item| item.status == "completed")
+        .count();
+    let maximum_items = area.height.saturating_sub(1) as usize;
+    let mut items = plan.items.iter().collect::<Vec<_>>();
+    items.sort_by_key(|item| plan_item_rank(item));
+    items.truncate(maximum_items);
+    let hidden_completed = completed.saturating_sub(
+        items
+            .iter()
+            .filter(|item| item.status == "completed")
+            .count(),
+    );
+    let mut lines = vec![Line::from(vec![
+        Span::styled(
+            format!(" Plan · {completed}/{}", plan.items.len()),
+            Style::default().fg(VIOLET).add_modifier(Modifier::BOLD),
+        ),
+        Span::styled(
+            if hidden_completed > 0 {
+                format!(" · {hidden_completed} completed folded")
+            } else {
+                String::new()
+            },
+            Style::default().fg(MUTED),
+        ),
+    ])];
+    for item in items {
+        let (symbol, color) = match item.status.as_str() {
+            "completed" => ("✓", GREEN),
+            "in_progress" => ("●", ACCENT),
+            "blocked" => ("!", RED),
+            _ => ("○", MUTED),
+        };
+        let mut detail = Vec::new();
+        if !item.assignee.is_empty() {
+            detail.push(format!("@{}", item.assignee));
+        }
+        if !item.depends_on.is_empty() {
+            detail.push(format!("waits {}", item.depends_on.join(",")));
+        }
+        if area.width >= 100 && !item.note.is_empty() {
+            detail.push(item.note.clone());
+        }
+        let detail = if detail.is_empty() {
+            String::new()
+        } else {
+            format!(" · {}", detail.join(" · "))
+        };
+        let available = area.width.saturating_sub(5) as usize;
+        lines.push(Line::from(vec![
+            Span::styled(format!(" {symbol} "), Style::default().fg(color)),
+            Span::styled(
+                single_line(&format!("{}{detail}", item.title), available),
+                Style::default().fg(if item.status == "in_progress" {
+                    TEXT
+                } else {
+                    MUTED
+                }),
+            ),
+        ]));
+    }
+    frame.render_widget(
+        Paragraph::new(lines).style(Style::default().bg(SURFACE)),
+        area,
+    );
 }
 
 fn render_run_state(frame: &mut Frame, app: &App, area: Rect) {
@@ -1206,17 +1324,17 @@ fn render_status(frame: &mut Frame, app: &App, area: Rect) {
     }
     left_spans.push(Span::styled(left, Style::default().fg(MUTED)));
     frame.render_widget(Paragraph::new(Line::from(left_spans)), columns[0]);
-    let tasks = app
+    let plan_progress = app
         .session
-        .task_list
+        .plan
         .as_ref()
-        .map(|list| {
-            let done = list
+        .map(|plan| {
+            let done = plan
                 .items
                 .iter()
                 .filter(|item| item.status == "completed")
                 .count();
-            format!("{done}/{} tasks · ", list.items.len())
+            format!("Plan · {done}/{} · ", plan.items.len())
         })
         .unwrap_or_default();
     let agents = visible_agent_count(app);
@@ -1232,7 +1350,7 @@ fn render_status(frame: &mut Frame, app: &App, area: Rect) {
     };
     frame.render_widget(
         Paragraph::new(format!(
-            "{thinking}{tasks}{agents}{}UTF-8",
+            "{thinking}{plan_progress}{agents}{}UTF-8",
             if app.queued_count() > 0 {
                 format!("{} queued · ", app.queued_count())
             } else {
@@ -1970,7 +2088,10 @@ mod tests {
     };
     use crate::{
         app::{App, Approval, LiveTurn, PathEntry, SettingsPicker},
-        model::{ChatMessage, ModelOption, SessionSummary, ThinkingLevelUpdate, ToolActivity},
+        model::{
+            ChatMessage, ModelOption, Plan, PlanCounts, PlanItem, SessionSummary,
+            ThinkingLevelUpdate, ToolActivity,
+        },
     };
 
     #[test]
@@ -2492,6 +2613,97 @@ mod tests {
         });
         terminal.draw(|frame| draw(frame, &app)).unwrap();
         assert!(format!("{:?}", terminal.backend().buffer()).contains("Fixed reasoning"));
+    }
+
+    #[test]
+    fn plan_panel_is_compact_at_terminal_sizes_and_disappears_when_cleared() {
+        for (width, height) in [(80, 24), (120, 40)] {
+            let session = SessionSummary {
+                id: "session-plan".to_owned(),
+                model: "provider/model".to_owned(),
+                cwd: "/workspace".to_owned(),
+                plan: Some(Plan {
+                    items: vec![
+                        PlanItem {
+                            id: "active".to_owned(),
+                            title: "Implement protocol".to_owned(),
+                            status: "in_progress".to_owned(),
+                            note: "Keep clients compatible".to_owned(),
+                            assignee: "builder".to_owned(),
+                            depends_on: Vec::new(),
+                        },
+                        PlanItem {
+                            id: "blocked".to_owned(),
+                            title: "Verify migration".to_owned(),
+                            status: "blocked".to_owned(),
+                            depends_on: vec!["active".to_owned()],
+                            ..PlanItem::default()
+                        },
+                        PlanItem {
+                            id: "pending".to_owned(),
+                            title: "Update docs".to_owned(),
+                            status: "pending".to_owned(),
+                            ..PlanItem::default()
+                        },
+                        PlanItem {
+                            id: "done".to_owned(),
+                            title: "Inspect".to_owned(),
+                            status: "completed".to_owned(),
+                            ..PlanItem::default()
+                        },
+                    ],
+                    counts: PlanCounts {
+                        in_progress: 1,
+                        blocked: 1,
+                        pending: 1,
+                        completed: 1,
+                        total: 4,
+                    },
+                    updated_at: None,
+                }),
+                ..SessionSummary::default()
+            };
+            let mut app = App::new(
+                vec![session.clone()],
+                session,
+                vec![ChatMessage {
+                    role: "agent".to_owned(),
+                    text: "Working".to_owned(),
+                    ..ChatMessage::default()
+                }],
+                None,
+                Vec::new(),
+                Vec::new(),
+            );
+            let backend = TestBackend::new(width, height);
+            let mut terminal = Terminal::new(backend).unwrap();
+            terminal.draw(|frame| draw(frame, &app)).unwrap();
+            let rows = (0..height)
+                .map(|y| {
+                    (0..width)
+                        .filter_map(|x| terminal.backend().buffer().cell((x, y)))
+                        .map(|cell| cell.symbol())
+                        .collect::<String>()
+                })
+                .collect::<Vec<_>>();
+            let plan_row = rows
+                .iter()
+                .position(|row| row.contains("Plan · 1/4"))
+                .unwrap();
+            let composer_row = rows
+                .iter()
+                .position(|row| row.contains("Message Pisper"))
+                .unwrap();
+            assert!(rows.iter().any(|row| row.contains("Implement protocol")));
+            assert!(rows.iter().any(|row| row.contains("Verify migration")));
+            assert!(plan_row < composer_row);
+
+            app.set_plan(None);
+            terminal.draw(|frame| draw(frame, &app)).unwrap();
+            let cleared = format!("{:?}", terminal.backend().buffer());
+            assert!(!cleared.contains("Plan · 1/4"));
+            assert!(cleared.contains("Message Pisper"));
+        }
     }
 
     #[test]

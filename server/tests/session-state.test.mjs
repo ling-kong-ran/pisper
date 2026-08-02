@@ -4,10 +4,10 @@ import {
   applySessionUpdate,
   DEFAULT_SESSION_STATE,
   insertInteractiveUserMessage,
-  isTaskListActive,
+  isPlanActive,
   resolveMessageRunActivity,
   resolveQueuedInputs,
-  resolveSessionTaskList,
+  resolveSessionPlan,
   sessionStateChanged,
 } from '../../src/lib/session-state.ts'
 
@@ -76,17 +76,19 @@ test('an explicit empty queue clears stale composer guidance', () => {
   assert.deepEqual(resolveQueuedInputs(stale, null), [])
 })
 
-test('cleared task lists do not fall back to stale session list data', () => {
+test('cleared plans do not fall back to stale session list data', () => {
   const stale = { items: [{ id: 'old', title: 'Old plan', status: 'pending' }], updatedAt: '2026-01-01' }
-  const cleared = resolveSessionTaskList({ loaded: true, taskList: null }, { taskList: stale })
+  const cleared = resolveSessionPlan({ loaded: true, plan: null }, { plan: stale })
   assert.equal(cleared, null)
-  const fromSession = resolveSessionTaskList(undefined, { taskList: stale })
+  const fromSession = resolveSessionPlan(undefined, { plan: stale })
   assert.equal(fromSession, stale)
+  assert.equal(resolveSessionPlan(undefined, { taskList: stale }), stale)
+  assert.equal(resolveSessionPlan({ loaded: true, taskList: null }, { plan: stale }), null)
 })
 
-test('fully completed task lists hide when idle but stay visible while streaming', () => {
+test('fully completed plans hide when idle but stay visible while streaming', () => {
   const completed = { items: [{ id: 'a', title: 'Done', status: 'completed' }] }
-  assert.equal(isTaskListActive(completed, { streaming: false }), false)
-  assert.equal(isTaskListActive(completed, { streaming: true }), true)
-  assert.equal(isTaskListActive({ items: [{ id: 'a', title: 'Todo', status: 'pending' }] }, { streaming: false }), true)
+  assert.equal(isPlanActive(completed, { streaming: false }), false)
+  assert.equal(isPlanActive(completed, { streaming: true }), true)
+  assert.equal(isPlanActive({ items: [{ id: 'a', title: 'Todo', status: 'pending' }] }, { streaming: false }), true)
 })

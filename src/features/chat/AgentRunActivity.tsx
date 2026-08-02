@@ -7,6 +7,7 @@ import { Tool } from '@/components/ai-elements/tool'
 import { AnimatedList, ShinyText } from '@/components/react-bits'
 import MarkdownMessage from '@/components/MarkdownMessage'
 import { formatTokenCount } from '@/lib/format'
+import { isPlanReadTool, isPlanWriteTool, planFromActivity } from '@/lib/plan-protocol'
 import type { I18nValues } from '@/app/i18n'
 import type { EntityRecord } from '@/types/chat'
 import {
@@ -41,8 +42,8 @@ function toolActivityLabel(name: unknown, t: Translate) {
   if (name === 'followup_task') return t('chat:agentRunActivity.addingSubagentTask')
   if (name === 'wait_agent') return t('chat:agentRunActivity.waitingForSubagent')
   if (name === 'interrupt_agent') return t('chat:agentRunActivity.interruptingSubagent')
-  if (name === 'get_task_list') return t('chat:agentRunActivity.readingPlan')
-  if (name === 'update_task_list') return t('chat:agentRunActivity.updatingPlan')
+  if (isPlanReadTool(name)) return t('chat:agentRunActivity.readingPlan')
+  if (isPlanWriteTool(name)) return t('chat:agentRunActivity.updatingPlan')
   if (name === 'browser_automation') return t('chat:agentRunActivity.controllingBrowser')
   if (name === 'generate_visual') return t('chat:agentRunActivity.generatingVisualContent')
   if (name === 'discover_tools') return t('chat:agentRunActivity.discoveringTools')
@@ -61,7 +62,7 @@ function toolCompletedLabel(name: unknown, t: Translate) {
   if (name === 'bash') return t('chat:agentRunActivity.commandCompleted')
   if (name === 'spawn_agent') return t('chat:agentRunActivity.subagentStarted')
   if (name === 'wait_agent') return t('chat:agentRunActivity.subagentStatusUpdated')
-  if (name === 'update_task_list') return t('chat:agentRunActivity.planUpdated')
+  if (isPlanWriteTool(name)) return t('chat:agentRunActivity.planUpdated')
   if (name === 'discover_tools') return t('chat:agentRunActivity.toolsDiscovered')
   return t('chat:agentRunActivity.currentOperationCompleted')
 }
@@ -159,13 +160,13 @@ function toolDetail(tool?: EntityRecord | null) {
   return { text: '' }
 }
 
-function planProgress(taskList: EntityRecord | null | undefined, t: Translate) {
-  const items = taskList?.items || []
+function planProgress(plan: EntityRecord | null | undefined, t: Translate) {
+  const items = plan?.items || []
   const completed =
-    taskList?.counts?.completed ??
+    plan?.counts?.completed ??
     items.filter((item: EntityRecord) => item.status === 'completed').length
   const active =
-    taskList?.counts?.inProgress ??
+    plan?.counts?.inProgress ??
     items.filter((item: EntityRecord) => item.status === 'in_progress').length
   return (
     [
@@ -253,7 +254,7 @@ function activityPresentation(
     changes = activity.changes || EMPTY_LIST
     detail = changes.length
       ? t('chat:agentRunActivity.countPlanChanges', { count: changes.length })
-      : planProgress(activity.taskList, t)
+      : planProgress(planFromActivity(activity), t)
   } else if (activity.type === 'agent') {
     const agent = activity.agent || {}
     const name = agent.canonicalName || agent.taskName || t('chat:agentRunActivity.subagent')

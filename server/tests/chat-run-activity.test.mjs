@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
-import { activityDurationMs, activityRenderKey, activityScrollVersion, agentActivityState, deriveRunActivity, formatRunDuration, groupToolCalls, latestUnrecoveredToolError, primaryRunActivity, pushCurrentActivity, RUN_INACTIVITY_THRESHOLD_MS, settleToolCalls, taskListChanges } from '../../src/features/chat/run-activity.ts'
+import { activityDurationMs, activityRenderKey, activityScrollVersion, agentActivityState, deriveRunActivity, formatRunDuration, groupToolCalls, latestUnrecoveredToolError, primaryRunActivity, pushCurrentActivity, RUN_INACTIVITY_THRESHOLD_MS, settleToolCalls, planChanges } from '../../src/features/chat/run-activity.ts'
 
 test('chat activity derives meaningful stages and inactivity states', () => {
   const now = Date.parse('2026-07-20T10:00:20.000Z')
@@ -142,7 +142,7 @@ test('Subagent status updates replace the same activity card in place', () => {
 })
 
 test('plan activity reports the concrete items whose status changed', () => {
-  const changes = taskListChanges({ items: [
+  const changes = planChanges({ items: [
     { id: 'one', title: 'Inspect', status: 'in_progress' },
     { id: 'removed', title: 'Old step', status: 'pending' },
   ] }, { items: [

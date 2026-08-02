@@ -1,6 +1,7 @@
 mod api;
 mod app;
 mod model;
+mod plan_protocol;
 mod sidecar;
 mod ui;
 mod workspace;

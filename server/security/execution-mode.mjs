@@ -1,10 +1,11 @@
+import { PLAN_READ_TOOL_NAMES } from '../tools/app/plan-tool-names.mjs'
 import { TOOL_CATALOG } from '../tools/registry.mjs'
 
 export const EXECUTION_MODES = new Set(['read-only', 'workspace', 'full-access'])
 export const DEFAULT_EXECUTION_MODE = 'workspace'
 
 const TOOL_RISK = new Map(TOOL_CATALOG.map((tool) => [tool.id, tool.risk]))
-const INTERNAL_READ_ONLY_TOOLS = new Set(['discover_tools', 'get_goal', 'get_task_list', 'list_agents', 'send_message', 'wait_agent'])
+const INTERNAL_READ_ONLY_TOOLS = new Set(['discover_tools', 'get_goal', ...PLAN_READ_TOOL_NAMES, 'list_agents', 'send_message', 'wait_agent'])
 
 export function normalizeExecutionMode(value, fallback = DEFAULT_EXECUTION_MODE) {
   const mode = String(value || '')

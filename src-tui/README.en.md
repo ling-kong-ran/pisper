@@ -90,6 +90,8 @@ Candidates are sorted by prefix match and local usage frequency. `Tab` completes
 
 `/init` asks the Agent to inspect the project structure, commands, and conventions before writing repository-specific guidance instead of a fixed template. It carefully preserves useful content in an existing `AGENTS.md` and does not modify other project files. The command is unavailable in `read-only` mode; writes run directly without approval in `workspace` mode. After it completes, use `/new` to start a session that loads the generated project guidance at startup.
 
+When the Agent creates a structured Plan, the TUI updates its items, owners, dependencies, and statuses in place between the transcript and Composer. Narrow terminals fold completed items and retain `Plan · completed/total` in the footer.
+
 ## Attachments
 
 Open the attachment picker with any of these controls:

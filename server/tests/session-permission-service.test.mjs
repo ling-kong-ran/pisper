@@ -16,6 +16,8 @@ test('permission modes progress from ask to automatic to ignored checks', () => 
   assert.equal(permissionRequirement({ mode: 'ask', cwd, toolName: 'mcp_read_123', toolRisk: 'low', args: {} }), null)
   assert.match(permissionRequirement({ mode: 'ask', cwd, toolName: 'mcp_write_456', toolRisk: 'high', args: {} }).reason, /需要确认/)
   assert.equal(permissionRequirement({ mode: 'ask', cwd, toolName: 'update_goal', args: { status: 'complete' } }), null)
+  assert.equal(permissionRequirement({ mode: 'ask', cwd, toolName: 'update_plan', args: { items: [] } }), null)
+  assert.equal(permissionRequirement({ mode: 'ask', cwd, toolName: 'update_task_list', args: { items: [] } }), null)
   assert.match(permissionRequirement({ mode: 'auto', cwd, toolName: 'write', args: { path: 'README.md' } }).reason, /修改当前工作区/)
   assert.match(permissionRequirement({ mode: 'auto', cwd, toolName: 'write', args: { path: outside } }).reason, /工作目录之外/)
   assert.match(permissionRequirement({ mode: 'auto', cwd, toolName: 'bash', args: { command: 'npm test' } }).reason, /Shell/)

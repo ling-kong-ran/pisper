@@ -1,6 +1,7 @@
 import { existsSync, realpathSync } from 'node:fs'
 import { dirname, isAbsolute, join, relative, resolve, sep } from 'node:path'
 import { randomUUID } from 'node:crypto'
+import { PLAN_ALL_TOOL_NAMES } from '../tools/app/plan-tool-names.mjs'
 import { TOOL_CATALOG } from '../tools/registry.mjs'
 
 export const PERMISSION_MODES = new Set(['ask', 'auto', 'ignore'])
@@ -19,7 +20,7 @@ const TOOL_RISKS = new Map([
   ['interrupt_agent', 'medium'],
 ])
 const SENSITIVE_RISKS = new Set(['medium', 'high', '中风险', '高风险'])
-const INTERNAL_SAFE_TOOLS = new Set(['get_goal', 'update_goal', 'get_task_list', 'update_task_list'])
+const INTERNAL_SAFE_TOOLS = new Set(['get_goal', 'update_goal', ...PLAN_ALL_TOOL_NAMES])
 
 function safeArgs(value, depth = 0, key = '') {
   if (depth > 3) return '[内容已省略]'

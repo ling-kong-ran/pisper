@@ -54,7 +54,7 @@ test('desktop runtime lists and opens sessions created under other working direc
   const runtime = new AgentRuntimeService({ cwd: desktopCwd, dataDir })
   runtime.settingsManager = { getGlobalSettings: () => ({}) }
   runtime.goals = { get: () => null }
-  runtime.taskLists = { get: () => null }
+  runtime.plans = { get: () => null }
   runtime.multiAgents = { summaries: () => [] }
 
   const sessions = await runtime.listSessions()
@@ -63,6 +63,8 @@ test('desktop runtime lists and opens sessions created under other working direc
     desktopSession.getSessionId(),
   ]))
   assert.equal(sessions.find((session) => session.id === webSession.getSessionId())?.cwd, resolve(webCwd))
+  assert.equal(sessions[0].plan, null)
+  assert.equal(Object.hasOwn(sessions[0], 'taskList'), false)
 
   const info = await runtime.findSessionInfo(webSession.getSessionId())
   assert.equal(info?.cwd, resolve(webCwd))
@@ -79,6 +81,8 @@ test('desktop runtime lists and opens sessions created under other working direc
   runtime.permissions = { getPending: () => [] }
   const live = await runtime.getSessionLive(webSession.getSessionId())
   assert.equal(live.cwd, resolve(webCwd))
+  assert.equal(live.plan, null)
+  assert.equal(Object.hasOwn(live, 'taskList'), false)
 
   runtime.createSessionRuntime = async (manager) => ({ cwd: manager.getCwd(), manager })
   const opened = await runtime.getOrCreateSession(webSession.getSessionId())

@@ -54,14 +54,14 @@ import type {
   EntityRecord,
   ModelOption,
   SessionSummary,
-  TaskList,
+  Plan,
 } from '@/types/chat'
 import { useAttachmentSelection } from './attachments'
 import { FocusChatMessage } from './ChatMessage'
 import { requestCommandPalette } from './events'
 import { GitChangesControl } from './GitChangesControl'
 import { activityScrollVersion } from './run-activity'
-import TaskBoard from './TaskBoard'
+import PlanBoard from './PlanBoard'
 
 type Translate = (message: string, values?: I18nValues) => string
 type ExecutionModeOption = [string, string, string, LucideIcon]
@@ -104,7 +104,7 @@ export type FocusSessionProps = {
   model: string
   executionMode: string
   goal?: EntityRecord | null
-  taskList?: TaskList | null
+  plan?: Plan | null
   currentActivity?: EntityRecord | null
   activityFeed: EntityRecord[]
   tools: EntityRecord[]
@@ -585,7 +585,7 @@ export function FocusSession({
   model,
   executionMode,
   goal,
-  taskList,
+  plan,
   currentActivity,
   activityFeed,
   tools,
@@ -821,7 +821,7 @@ export function FocusSession({
             )}
           </div>
         )}
-        {taskList?.items?.length ? <TaskBoard taskList={taskList} /> : null}
+        {plan?.items?.length ? <PlanBoard plan={plan} /> : null}
         {!messages.length && (
           <div className="agent-welcome">
             <Aurora />

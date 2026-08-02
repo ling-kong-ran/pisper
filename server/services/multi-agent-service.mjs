@@ -3,6 +3,7 @@ import { createAgentSession, createDefaultResourceLoader, DEFAULT_MAX_BYTES, est
 import { applyPisperSystemPrompt, pisperPromptExtension } from '../prompts/pisper-system-prompt.mjs'
 import { createCompactionSettingsManager, pisperCompactionExtension } from '../runtime/compaction-policy.mjs'
 import { readJson, writeJsonAtomic } from '../storage/json-file.mjs'
+import { PLAN_WRITE_TOOL_NAMES } from '../tools/app/plan-tool-names.mjs'
 
 export const DEFAULT_AGENT_MAX_TURNS = 30
 export const MAX_AGENT_MAX_TURNS = 100
@@ -28,7 +29,7 @@ const PARENT_ONLY_TOOL_NAMES = new Set([
   ...MULTI_AGENT_TOOL_NAMES,
   'get_goal',
   'update_goal',
-  'update_task_list',
+  ...PLAN_WRITE_TOOL_NAMES,
   'browser_automation',
   'mcp_list',
   'mcp_manage',
