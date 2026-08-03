@@ -1,4 +1,4 @@
-use serde::Deserialize;
+use serde::{Deserialize, Deserializer};
 use serde_json::Value;
 
 #[derive(Clone, Debug, Default, Deserialize)]
@@ -122,12 +122,24 @@ pub struct ToolActivity {
     pub output: String,
     #[serde(default)]
     pub args: Value,
-    #[serde(default)]
+    #[serde(default, deserialize_with = "deserialize_millis")]
     pub started_at: u64,
-    #[serde(default)]
+    #[serde(default, deserialize_with = "deserialize_millis")]
     pub finished_at: u64,
     #[serde(default)]
     pub agent: Option<Value>,
+}
+
+fn deserialize_millis<'de, D>(deserializer: D) -> Result<u64, D::Error>
+where
+    D: Deserializer<'de>,
+{
+    let value = Value::deserialize(deserializer)?;
+    Ok(match value {
+        Value::Number(number) => number.as_u64().unwrap_or_default(),
+        Value::String(value) => value.parse().unwrap_or_default(),
+        _ => 0,
+    })
 }
 
 #[derive(Clone, Debug, Default, Deserialize)]
@@ -278,7 +290,36 @@ pub enum RuntimeEvent {
 
 #[cfg(test)]
 mod tests {
-    use super::SessionSummary;
+    use super::{MessagePage, SessionSummary};
+
+    #[test]
+    fn historical_tool_timestamps_accept_iso_strings_and_milliseconds() {
+        let page: MessagePage = serde_json::from_value(serde_json::json!({
+            "messages": [{
+                "role": "assistant",
+                "runActivity": {
+                    "tools": [
+                        {
+                            "id": "iso",
+                            "startedAt": "2026-08-03T01:14:48.734Z",
+                            "finishedAt": null
+                        },
+                        {
+                            "id": "millis",
+                            "startedAt": 1000,
+                            "finishedAt": "1512"
+                        }
+                    ]
+                }
+            }]
+        }))
+        .unwrap();
+        let tools = &page.messages[0].run_activity.as_ref().unwrap().tools;
+        assert_eq!(tools[0].started_at, 0);
+        assert_eq!(tools[0].finished_at, 0);
+        assert_eq!(tools[1].started_at, 1000);
+        assert_eq!(tools[1].finished_at, 1512);
+    }
 
     #[test]
     fn session_plan_deserializes_canonical_and_legacy_fields() {
