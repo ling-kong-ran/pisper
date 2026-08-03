@@ -386,8 +386,8 @@
 }
 
 * { box-sizing: border-box; }
-html, body, #root { width: 100%; min-width: 320px; min-height: 100%; margin: 0; }
-body { min-height: 100dvh; overflow: hidden; font-size: 13px; line-height: 1.5; }
+html, body, #root { width: 100%; height: 100%; min-width: 320px; min-height: 100%; margin: 0; }
+body { overflow: hidden; font-size: 13px; line-height: 1.5; }
 :root[data-page-visibility='hidden'] *, :root[data-page-visibility='hidden'] *::before, :root[data-page-visibility='hidden'] *::after { animation-play-state: paused !important; }
 small { font-size: 12px !important; line-height: 1.45; }
 .app-startup { display: flex; width: 100%; min-height: 100vh; align-items: center; justify-content: center; gap: 10px; background: var(--bg); color: var(--text-muted); font-size: 13px; }
@@ -400,7 +400,7 @@ button:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-
 h1, h2, h3, p { margin: 0; }
 h1, h2, h3, strong { overflow-wrap: anywhere; }
 
-.app-shell { display: flex; width: 100%; height: 100dvh; min-height: 600px; flex-direction: column; overflow: hidden; background: var(--bg); }
+.app-shell { display: flex; width: 100%; height: 100%; min-height: 600px; flex-direction: column; overflow: hidden; background: var(--bg); }
 .app-body { display: flex; min-height: 0; flex: 1; }
 
 .sidebar { position: relative; z-index: 30; width: 236px; min-width: 236px; height: 100%; display: flex; flex-direction: column; gap: 18px; padding: 18px; border-right: 1px solid var(--stroke); background: var(--sidebar-bg); box-shadow: 0 14px 40px -18px var(--sidebar-shadow); }

@@ -50,6 +50,15 @@ test('app primitives compose shadcn controls and share project Tailwind tokens',
   assert.doesNotMatch(styles, /\.toast(?:\W|$)/)
 })
 
+test('desktop shell fills the WebView through the root percentage height chain', async () => {
+  const styles = await readFile('src/index.css', 'utf8')
+
+  const appShellRule = styles.match(/\.app-shell \{([^}]*)\}/)?.[1] || ''
+  assert.match(styles, /html, body, #root \{[^}]*height: 100%;/)
+  assert.match(appShellRule, /(?:^|;)\s*height: 100%;/)
+  assert.doesNotMatch(appShellRule, /(?:^|;)\s*height: 100dvh;/)
+})
+
 test('modal surfaces stay scrollable within low-height viewports', async () => {
   const [styles, dialog, alertDialog] = await Promise.all([
     readFile('src/index.css', 'utf8'),
