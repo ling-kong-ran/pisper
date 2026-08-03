@@ -23,6 +23,13 @@ pub struct SessionSummary {
 
 #[derive(Clone, Debug, Default, Deserialize, Eq, PartialEq)]
 #[serde(rename_all = "camelCase")]
+pub struct SessionCwdUpdate {
+    #[serde(default)]
+    pub cwd: String,
+}
+
+#[derive(Clone, Debug, Default, Deserialize, Eq, PartialEq)]
+#[serde(rename_all = "camelCase")]
 pub struct Plan {
     #[serde(default)]
     pub items: Vec<PlanItem>,

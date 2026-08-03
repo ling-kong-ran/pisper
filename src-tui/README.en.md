@@ -34,12 +34,13 @@ Run Pisper from a project directory:
 pisper
 ```
 
-Plain `pisper` always creates an empty conversation. It never restores history automatically. Use `resume` explicitly to restore the most recent conversation for the current workspace:
+Plain `pisper` always creates an empty conversation. It never restores history automatically. Use `resume` explicitly to open an interactive list containing conversations from every workspace; use the arrow keys to select one, press `Enter` to resume, or press `Esc` to exit:
 
 ```bash
 pisper resume
-pisper resume --cwd /path/to/project
 ```
+
+When no history exists, `pisper resume` reports that condition and exits without creating a conversation. Resuming uses the conversation's saved working directory without rewriting it to the TUI launch directory. After entering a conversation, `/dir <directory>` explicitly changes its working directory; relative paths resolve from the current conversation directory.
 
 Create a new conversation for another workspace:
 
@@ -74,7 +75,8 @@ Long or multiline bracketed pastes render as a compact `[Pasted text · …]` to
 | :--- | :--- |
 | `/init` | Analyze the current project and create or improve `AGENTS.md` at the workspace root. |
 | `/new` | Create an empty conversation in the TUI launch workspace; unavailable during a run. |
-| `/sessions` | Open the conversation picker; switching to another workspace requires a second confirmation and is unavailable during a run. |
+| `/sessions` | Open the history picker across every workspace; press `Enter` to resume. Unavailable during a run. |
+| `/dir <directory>` | Explicitly change the active conversation directory. Relative paths resolve from its current directory; unavailable during a run. |
 | `/events` | Open the event ledger for the current TUI process. |
 | `/chat` | Return to the Chat message stream. |
 | `/model` | Open the model picker and switch the active session model; unavailable during a run. |

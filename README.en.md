@@ -253,7 +253,7 @@ After installing the desktop app, install the `pisper` command from **Settings â
 
 ```bash
 pisper          # start a new conversation
-pisper resume   # resume the latest conversation for this directory
+pisper resume   # resume from an interactive list across all workspaces
 pisper doctor   # diagnose the runtime
 ```
 

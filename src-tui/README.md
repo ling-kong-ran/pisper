@@ -34,12 +34,13 @@ release/tui/pisper-<version>-<platform>-<arch>/
 pisper
 ```
 
-普通 `pisper` 始终创建空会话，不会自动打开历史记录。只有显式使用 `resume` 才恢复当前工作目录最近的会话：
+普通 `pisper` 始终创建空会话，不会自动打开历史记录。显式使用 `resume` 会打开跨所有 workspace 的交互式会话列表；使用方向键选择，按 `Enter` 恢复，按 `Esc` 退出：
 
 ```bash
 pisper resume
-pisper resume --cwd /path/to/project
 ```
+
+没有历史会话时，`pisper resume` 会提示后退出，不会创建新会话。恢复只使用会话已保存的工作目录，不会将其改写为 TUI 启动目录。进入会话后可通过 `/dir <目录>` 显式修改该会话的工作目录；相对路径以当前会话目录为基准。
 
 指定其他工作目录创建新会话：
 
@@ -74,7 +75,8 @@ pisper doctor
 | :--- | :--- |
 | `/init` | 分析当前项目并创建或完善 workspace 根目录的 `AGENTS.md`。 |
 | `/new` | 在 TUI 启动时的 workspace 新建空会话；运行期间不可执行。 |
-| `/sessions` | 打开历史会话选择器；跨 workspace 会话需要再次确认，运行期间不可切换。 |
+| `/sessions` | 打开跨所有 workspace 的历史会话选择器；按 `Enter` 恢复，运行期间不可切换。 |
+| `/dir <目录>` | 显式修改当前会话的工作目录；相对路径以当前会话目录为基准，运行期间不可修改。 |
 | `/events` | 打开当前 TUI 进程的事件账本。 |
 | `/chat` | 返回 Chat 消息流。 |
 | `/model` | 打开模型选择器并切换当前会话模型；运行期间不可切换。 |

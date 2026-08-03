@@ -80,11 +80,17 @@ async fn run() -> Result<()> {
         .sessions()
         .await
         .context("failed to list conversations")?;
+    if options.resume && sessions.is_empty() {
+        println!("No conversations are available to resume.");
+        sidecar.shutdown();
+        return Ok(());
+    }
     let (_, model_options) = api
         .runtime_preferences()
         .await
         .unwrap_or_else(|_| (String::new(), Vec::new()));
-    let mut session = match resumable_session(&sessions, &options.workspace, options.resume) {
+    let interactive_resume = options.resume;
+    let mut session = match resume_seed(&sessions, options.resume) {
         Some(session) => session,
         None => {
             let created = api
@@ -94,31 +100,32 @@ async fn run() -> Result<()> {
             created
         }
     };
-    validate_session_workspace(
-        &session,
-        options.resume.then_some(options.workspace.as_path()),
-    )?;
-    let thinking_state = api.thinking_state(&session.id).await;
-    if let Ok(state) = &thinking_state {
-        if !state.thinking_level.is_empty() {
-            session.thinking_level.clone_from(&state.thinking_level);
-        }
+    if !interactive_resume {
+        validate_session_workspace(&session, None)?;
     }
-    let page = api.messages(&session.id).await?;
+    let (messages, context_usage, thinking_state) = if interactive_resume {
+        (Vec::new(), None, None)
+    } else {
+        let thinking_state = api.thinking_state(&session.id).await;
+        if let Ok(state) = &thinking_state {
+            if !state.thinking_level.is_empty() {
+                session.thinking_level.clone_from(&state.thinking_level);
+            }
+        }
+        let page = api.messages(&session.id).await?;
+        (page.messages, page.context_usage, Some(thinking_state))
+    };
     let (tools, skills) = api.catalogs().await.unwrap_or_default();
-    let mut app = App::new(
-        sessions,
-        session,
-        page.messages,
-        page.context_usage,
-        tools,
-        skills,
-    );
+    let mut app = App::new(sessions, session, messages, context_usage, tools, skills);
     app.set_launch_workspace(options.workspace.clone());
     app.set_model_options(model_options);
-    match thinking_state {
-        Ok(state) => app.set_thinking_state(state),
-        Err(error) => app.set_thinking_error(format!("{error:#}")),
+    if interactive_resume {
+        app.open_session_picker(true);
+    } else if let Some(thinking_state) = thinking_state {
+        match thinking_state {
+            Ok(state) => app.set_thinking_state(state),
+            Err(error) => app.set_thinking_error(format!("{error:#}")),
+        }
     }
 
     let mut terminal = TerminalSession::start()?;
@@ -265,6 +272,30 @@ async fn execute_action(
                 Err(error) => app.set_thinking_error(format!("{error:#}")),
             }
         }
+        Action::SetCwd(requested) => {
+            app.status = format!("changing directory · {}", requested.display());
+            match canonical_workspace(&requested) {
+                Ok(requested) => match api.set_session_cwd(&app.session.id, &requested).await {
+                    Ok(updated) if same_workspace(&updated.cwd, &requested) => app.set_cwd(updated),
+                    Ok(updated) => {
+                        app.status = format!(
+                            "directory change failed · requested {} · received {}",
+                            requested.display(),
+                            updated.cwd
+                        );
+                        app.status_error = true;
+                    }
+                    Err(error) => {
+                        app.status = format!("directory change failed · {error}");
+                        app.status_error = true;
+                    }
+                },
+                Err(error) => {
+                    app.status = format!("directory change failed · {error}");
+                    app.status_error = true;
+                }
+            }
+        }
         Action::SetExecutionMode(mode) => {
             app.status = format!("changing mode · {mode}");
             match api.set_execution_mode(&app.session.id, &mode).await {
@@ -346,15 +377,36 @@ async fn execute_action(
                 }
             }
         }
-        Action::SwitchSession(id) => {
-            let session = app
+        Action::SwitchSession {
+            id,
+            exit_on_failure,
+        } => {
+            let Some(session) = app
                 .sessions
                 .iter()
                 .find(|session| session.id == id)
                 .cloned()
-                .context("conversation no longer exists")?;
-            validate_session_workspace(&session, None)?;
-            let page = api.messages(&session.id).await?;
+            else {
+                app.status = "conversation no longer exists".to_owned();
+                app.status_error = true;
+                app.open_session_picker_at(exit_on_failure, &id);
+                return Ok(false);
+            };
+            if let Err(error) = validate_session_workspace(&session, None) {
+                app.status = format!("cannot resume conversation · {error}");
+                app.status_error = true;
+                app.open_session_picker_at(exit_on_failure, &id);
+                return Ok(false);
+            }
+            let page = match api.messages(&session.id).await {
+                Ok(page) => page,
+                Err(error) => {
+                    app.status = format!("cannot resume conversation · {error}");
+                    app.status_error = true;
+                    app.open_session_picker_at(exit_on_failure, &id);
+                    return Ok(false);
+                }
+            };
             let thinking_state = api.thinking_state(&session.id).await;
             app.replace_session(session, page.messages, page.context_usage);
             match thinking_state {
@@ -377,18 +429,8 @@ async fn refreshed_sessions(
     Ok(sessions)
 }
 
-fn resumable_session(
-    sessions: &[SessionSummary],
-    workspace: &std::path::Path,
-    resume: bool,
-) -> Option<SessionSummary> {
-    if !resume {
-        return None;
-    }
-    sessions
-        .iter()
-        .find(|session| same_workspace(&session.cwd, workspace))
-        .cloned()
+fn resume_seed(sessions: &[SessionSummary], resume: bool) -> Option<SessionSummary> {
+    resume.then(|| sessions.first().cloned()).flatten()
 }
 
 struct LaunchOptions {
@@ -415,7 +457,7 @@ fn launch_options() -> Result<LaunchOptions> {
             println!("pisper {}", env!("CARGO_PKG_VERSION"));
             std::process::exit(0);
         } else if argument == "--help" || argument == "-h" {
-            println!("Pisper terminal client\n\nUsage: pisper [--cwd <directory>]\n       pisper resume [--cwd <directory>]\n       pisper doctor [--cwd <directory>]\n");
+            println!("Pisper terminal client\n\nUsage: pisper [--cwd <directory>]\n       pisper resume\n       pisper doctor [--cwd <directory>]\n\n`pisper resume` opens an interactive list of conversations from every workspace.\n");
             std::process::exit(0);
         } else {
             anyhow::bail!("unknown argument: {}", argument.to_string_lossy());
@@ -473,24 +515,24 @@ impl Drop for TerminalSession {
 
 #[cfg(test)]
 mod tests {
-    use super::resumable_session;
+    use super::resume_seed;
     use crate::model::SessionSummary;
 
     #[test]
-    fn startup_only_restores_history_when_resume_is_explicit() {
-        let workspace = std::env::current_dir().unwrap().canonicalize().unwrap();
+    fn resume_seeds_the_global_picker_without_filtering_by_workspace() {
         let sessions = vec![SessionSummary {
-            id: "recent-session".to_owned(),
-            cwd: workspace.to_string_lossy().into_owned(),
+            id: "other-workspace-session".to_owned(),
+            cwd: "/another/workspace".to_owned(),
             ..SessionSummary::default()
         }];
 
-        assert!(resumable_session(&sessions, &workspace, false).is_none());
+        assert!(resume_seed(&sessions, false).is_none());
         assert_eq!(
-            resumable_session(&sessions, &workspace, true)
+            resume_seed(&sessions, true)
                 .map(|session| session.id)
                 .as_deref(),
-            Some("recent-session")
+            Some("other-workspace-session")
         );
+        assert!(resume_seed(&[], true).is_none());
     }
 }

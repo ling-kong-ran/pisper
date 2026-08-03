@@ -12,8 +12,8 @@ use serde_json::Value;
 use crate::{
     model::{
         ChatMessage, ContextUsage, MessageAttachment, ModelOption, Plan, RunActivity,
-        SessionModelUpdate, SessionSummary, SkillDefinition, StreamEvent, ThinkingAvailability,
-        ThinkingLevelUpdate, ToolActivity, ToolDefinition,
+        SessionCwdUpdate, SessionModelUpdate, SessionSummary, SkillDefinition, StreamEvent,
+        ThinkingAvailability, ThinkingLevelUpdate, ToolActivity, ToolDefinition,
     },
     plan_protocol::{is_plan_update_event, plan_from_payload},
     workspace::same_workspace,
@@ -119,6 +119,7 @@ pub enum Action {
     },
     Abort,
     NewSession,
+    SetCwd(PathBuf),
     SetExecutionMode(String),
     SetModel {
         provider: String,
@@ -126,7 +127,10 @@ pub enum Action {
     },
     RefreshThinking,
     SetThinkingLevel(String),
-    SwitchSession(String),
+    SwitchSession {
+        id: String,
+        exit_on_failure: bool,
+    },
     ResolveApproval {
         id: String,
         approved: bool,
@@ -151,6 +155,7 @@ pub struct App {
     pub slash_selected: usize,
     pub session_picker: bool,
     pub session_selected: usize,
+    session_picker_exit_on_cancel: bool,
     pub view: View,
     pub scroll: u16,
     pub model: String,
@@ -182,7 +187,6 @@ pub struct App {
     slash_usage: HashMap<String, SlashUsage>,
     slash_usage_path: Option<PathBuf>,
     pending_slash_command: Option<String>,
-    pending_workspace_switch: Option<String>,
 }
 
 impl App {
@@ -217,6 +221,7 @@ impl App {
             slash_selected: 0,
             session_picker: false,
             session_selected: 0,
+            session_picker_exit_on_cancel: false,
             view: View::Chat,
             scroll: 0,
             status: String::new(),
@@ -240,7 +245,6 @@ impl App {
             slash_usage: load_slash_usage(),
             slash_usage_path: slash_usage_path(),
             pending_slash_command: None,
-            pending_workspace_switch: None,
         }
     }
 
@@ -366,8 +370,19 @@ impl App {
         &self.launch_workspace
     }
 
-    pub fn session_uses_launch_workspace(&self, session: &SessionSummary) -> bool {
-        same_workspace(&session.cwd, &self.launch_workspace)
+    pub fn open_session_picker(&mut self, exit_on_cancel: bool) {
+        let active_id = self.session.id.clone();
+        self.open_session_picker_at(exit_on_cancel, &active_id);
+    }
+
+    pub fn open_session_picker_at(&mut self, exit_on_cancel: bool, selected_id: &str) {
+        self.session_selected = self
+            .sessions
+            .iter()
+            .position(|session| session.id == selected_id)
+            .unwrap_or(0);
+        self.session_picker_exit_on_cancel = exit_on_cancel;
+        self.session_picker = true;
     }
 
     pub fn begin_thinking_load(&mut self) {
@@ -520,7 +535,8 @@ impl App {
         items.extend([
             command("/init", "Create or improve workspace AGENTS.md"),
             command("/new", "Start a new conversation"),
-            command("/sessions", "Switch conversation"),
+            command("/sessions", "Resume a conversation from any workspace"),
+            command("/dir", "Change the active conversation directory"),
             command("/events", "Open the event ledger"),
             command("/chat", "Return to the conversation"),
             command("/model", "Switch the active session model"),
@@ -888,39 +904,32 @@ impl App {
         match key.code {
             KeyCode::Esc => {
                 self.session_picker = false;
-                self.pending_workspace_switch = None;
-                Action::None
+                if std::mem::take(&mut self.session_picker_exit_on_cancel) {
+                    Action::Quit
+                } else {
+                    Action::None
+                }
             }
             KeyCode::Up => {
                 self.session_selected = self.session_selected.saturating_sub(1);
-                self.pending_workspace_switch = None;
                 Action::None
             }
             KeyCode::Down => {
                 self.session_selected =
                     (self.session_selected + 1).min(self.sessions.len().saturating_sub(1));
-                self.pending_workspace_switch = None;
                 Action::None
             }
             KeyCode::Enter => {
                 let Some(session) = self.sessions.get(self.session_selected) else {
                     return Action::None;
                 };
-                let session_id = session.id.clone();
-                let session_cwd = session.cwd.clone();
-                let uses_launch_workspace = self.session_uses_launch_workspace(session);
-                if !uses_launch_workspace
-                    && self.pending_workspace_switch.as_deref() != Some(session_id.as_str())
-                {
-                    self.pending_workspace_switch = Some(session_id);
-                    self.status =
-                        format!("workspace change · {session_cwd} · press Enter again to confirm");
-                    self.status_error = true;
-                    return Action::None;
-                }
+                let id = session.id.clone();
+                let exit_on_failure = self.session_picker_exit_on_cancel;
                 self.session_picker = false;
-                self.pending_workspace_switch = None;
-                Action::SwitchSession(session_id)
+                Action::SwitchSession {
+                    id,
+                    exit_on_failure,
+                }
             }
             _ => Action::None,
         }
@@ -931,7 +940,7 @@ impl App {
         let Some(item) = items.get(self.slash_selected).cloned() else {
             return;
         };
-        let completed = if item.kind == SlashKind::Command {
+        let completed = if item.kind == SlashKind::Command && item.command != "/dir" {
             item.command
         } else {
             format!("{} ", item.command)
@@ -944,7 +953,7 @@ impl App {
         let Some(item) = items.get(self.slash_selected).cloned() else {
             return Action::None;
         };
-        if item.kind == SlashKind::Command {
+        if item.kind == SlashKind::Command && item.command != "/dir" {
             self.set_input(&item.command);
             return self.submit_action();
         }
@@ -1019,14 +1028,34 @@ impl App {
                 }
                 self.mark_slash_use("/sessions");
                 self.clear_input();
-                self.session_selected = self
-                    .sessions
-                    .iter()
-                    .position(|session| session.id == self.session.id)
-                    .unwrap_or(0);
-                self.pending_workspace_switch = None;
-                self.session_picker = true;
+                self.open_session_picker(false);
                 Action::None
+            }
+            "/dir" => {
+                self.status = format!("directory · {} · use /dir <path>", self.cwd);
+                self.clear_input();
+                Action::None
+            }
+            _ if message.starts_with("/dir ") => {
+                if self.is_streaming() {
+                    self.status = "Stop the active run before changing directory".to_owned();
+                    return Action::None;
+                }
+                let value = message.trim_start_matches("/dir ").trim();
+                if value.is_empty() {
+                    self.status = "usage · /dir <path>".to_owned();
+                    self.clear_input();
+                    return Action::None;
+                }
+                let requested = PathBuf::from(value);
+                let requested = if requested.is_absolute() {
+                    requested
+                } else {
+                    Path::new(&self.cwd).join(requested)
+                };
+                self.mark_slash_use("/dir");
+                self.clear_input();
+                Action::SetCwd(requested)
             }
             "/model" => {
                 self.mark_slash_use("/model");
@@ -1199,14 +1228,34 @@ impl App {
         self.path_entries.clear();
         self.path_selected = 0;
         self.settings_picker = None;
+        self.session_picker_exit_on_cancel = false;
         self.queued_prompts.clear();
         self.pending_slash_command = None;
-        self.pending_workspace_switch = None;
         self.events.clear();
         self.status.clear();
         self.status_error = false;
         self.view = View::Chat;
         self.scroll = 0;
+    }
+
+    pub fn set_cwd(&mut self, updated: SessionCwdUpdate) {
+        self.cwd.clone_from(&updated.cwd);
+        self.session.cwd.clone_from(&updated.cwd);
+        if let Some(session) = self
+            .sessions
+            .iter_mut()
+            .find(|session| session.id == self.session.id)
+        {
+            session.cwd.clone_from(&updated.cwd);
+        }
+        self.attachments.clear();
+        self.path_picker = false;
+        self.path_input.clear();
+        self.path_directory = PathBuf::from(&updated.cwd);
+        self.path_entries.clear();
+        self.path_selected = 0;
+        self.status = format!("directory changed · {}", updated.cwd);
+        self.status_error = false;
     }
 
     pub fn set_execution_mode(&mut self, mode: String) {
@@ -1837,8 +1886,8 @@ mod tests {
         SettingsPicker, INIT_PROMPT, MAX_TRANSCRIPT_MESSAGES, PAGE_SCROLL_STEP,
     };
     use crate::model::{
-        ChatMessage, ModelOption, SessionSummary, StreamEvent, ThinkingAvailability,
-        ThinkingLevelUpdate, ToolDefinition,
+        ChatMessage, ModelOption, SessionCwdUpdate, SessionSummary, StreamEvent,
+        ThinkingAvailability, ThinkingLevelUpdate, ToolDefinition,
     };
     use serde_json::json;
 
@@ -2191,7 +2240,7 @@ mod tests {
     }
 
     #[test]
-    fn launch_workspace_survives_cross_workspace_session_switches() {
+    fn global_resume_and_explicit_dir_changes_preserve_the_launch_workspace() {
         let root = std::env::temp_dir().join(format!(
             "pisper-tui-workspaces-{}",
             SystemTime::now()
@@ -2203,29 +2252,46 @@ mod tests {
         let other = root.join("other");
         std::fs::create_dir_all(&launch).unwrap();
         std::fs::create_dir_all(&other).unwrap();
+        let launch = launch.canonicalize().unwrap();
+        let other = other.canonicalize().unwrap();
 
         let mut app = test_app(Vec::new());
-        app.set_launch_workspace(launch.canonicalize().unwrap());
+        app.set_launch_workspace(launch.clone());
         app.sessions.push(SessionSummary {
             id: "other-session".to_owned(),
             cwd: other.to_string_lossy().into_owned(),
             ..SessionSummary::default()
         });
-        app.session_picker = true;
+        app.open_session_picker(false);
         app.session_selected = 1;
 
         assert!(matches!(
             app.handle_key(KeyEvent::new(KeyCode::Enter, KeyModifiers::NONE)),
-            Action::None
+            Action::SwitchSession { id, .. } if id == "other-session"
         ));
-        assert!(app.session_picker);
-        assert!(app.status.contains("press Enter again"));
+        assert_eq!(app.new_session_workspace(), launch);
+
+        app.set_input(&format!("/dir {}", other.display()));
         assert!(matches!(
-            app.handle_key(KeyEvent::new(KeyCode::Enter, KeyModifiers::NONE)),
-            Action::SwitchSession(id) if id == "other-session"
+            app.submit_action(),
+            Action::SetCwd(path) if path == other
         ));
-        assert_eq!(app.new_session_workspace(), launch.canonicalize().unwrap());
+        app.set_cwd(SessionCwdUpdate {
+            cwd: other.to_string_lossy().into_owned(),
+        });
+        assert_eq!(app.cwd, other.to_string_lossy());
+        assert_eq!(app.new_session_workspace(), launch);
         std::fs::remove_dir_all(root).unwrap();
+    }
+
+    #[test]
+    fn startup_resume_picker_exits_on_cancel() {
+        let mut app = test_app(Vec::new());
+        app.open_session_picker(true);
+        assert!(matches!(
+            app.handle_key(KeyEvent::new(KeyCode::Esc, KeyModifiers::NONE)),
+            Action::Quit
+        ));
     }
 
     #[test]

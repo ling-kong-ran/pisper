@@ -253,7 +253,7 @@ sudo apt install ./Pisper-*-linux-amd64.deb
 
 ```bash
 pisper          # 新建会话
-pisper resume   # 恢复当前目录最近的会话
+pisper resume   # 从所有工作目录的交互列表中恢复会话
 pisper doctor   # 诊断运行环境
 ```
 

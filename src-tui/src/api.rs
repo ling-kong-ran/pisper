@@ -16,8 +16,8 @@ use url::Url;
 use crate::{
     model::{
         ExecutionModeUpdate, McpCatalog, MessagePage, ModelOption, PluginCatalog, RuntimeEvent,
-        SessionModelUpdate, SessionSummary, SessionsResponse, SkillDefinition, SkillsCatalog,
-        StreamEvent, ThinkingLevelUpdate, ToolDefinition,
+        SessionCwdUpdate, SessionModelUpdate, SessionSummary, SessionsResponse, SkillDefinition,
+        SkillsCatalog, StreamEvent, ThinkingLevelUpdate, ToolDefinition,
     },
     workspace::validate_session_workspace,
 };
@@ -183,6 +183,16 @@ impl ApiClient {
                 .filter(|item| item.enabled && !item.command.is_empty())
                 .collect(),
         ))
+    }
+
+    pub async fn set_session_cwd(&self, session_id: &str, cwd: &Path) -> Result<SessionCwdUpdate> {
+        let id = encode_segment(session_id);
+        self.send_json(
+            reqwest::Method::PUT,
+            &format!("/api/sessions/{id}/cwd"),
+            &json!({ "cwd": cwd.to_string_lossy() }),
+        )
+        .await
     }
 
     pub async fn set_session_model(

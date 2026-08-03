@@ -1479,11 +1479,7 @@ fn render_sessions(frame: &mut Frame, app: &App, area: Rect) {
     frame.render_widget(Clear, popup);
     let rows = app.sessions.iter().map(|session| {
         let streaming = if session.streaming { " · running" } else { "" };
-        let workspace = if app.session_uses_launch_workspace(session) {
-            shorten_path(&session.cwd)
-        } else {
-            format!("{} · other workspace", shorten_path(&session.cwd))
-        };
+        let workspace = shorten_path(&session.cwd);
         ListItem::new(vec![
             Line::from(vec![
                 Span::styled(format!("{:<32}", session.name), Style::default().fg(TEXT)),
@@ -1502,7 +1498,7 @@ fn render_sessions(frame: &mut Frame, app: &App, area: Rect) {
         .block(
             Block::default()
                 .title(Span::styled(
-                    " Conversations ",
+                    " Resume conversation · all workspaces ",
                     Style::default().fg(VIOLET).add_modifier(Modifier::BOLD),
                 ))
                 .borders(Borders::ALL)
