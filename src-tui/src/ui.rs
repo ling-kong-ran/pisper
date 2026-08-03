@@ -85,7 +85,7 @@ pub fn draw(frame: &mut Frame, app: &App) {
             .session
             .plan
             .as_ref()
-            .is_none_or(|plan| plan.items.is_empty())
+            .map_or(true, |plan| plan.items.is_empty())
     {
         let composer = render_welcome(frame, app, area);
         render_overlays(frame, app, composer, area);
@@ -2943,5 +2943,18 @@ mod tests {
         assert!(!rendered.contains("╭─────────╮"));
         assert!(!rendered.contains("History line 0"));
         assert!(rendered.contains("History line 19"));
+
+        let mut scrolled = app;
+        scrolled.scroll = u16::MAX;
+        terminal.draw(|frame| draw(frame, &scrolled)).unwrap();
+        let rendered = terminal
+            .backend()
+            .buffer()
+            .content
+            .iter()
+            .map(|cell| cell.symbol())
+            .collect::<String>();
+        assert!(rendered.contains("History line 0"));
+        assert!(!rendered.contains("History line 19"));
     }
 }

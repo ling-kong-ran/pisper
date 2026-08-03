@@ -20,6 +20,9 @@ use crate::{
 };
 
 const INIT_PROMPT: &str = "/init\n\n---\nAttachment context (injected by Pisper):\nAnalyze this codebase and create or improve `AGENTS.md` in the current workspace root. The file is long-lived guidance for Pisper and other coding agents working in this repository. Inspect the repository before writing it. Capture only project-specific, durable information: the project purpose, important directories and architecture, build/test/lint/typecheck commands, coding conventions, and verification expectations. Keep it concise and practical. Do not include generic advice, temporary task details, secrets, exhaustive file listings, or information you cannot verify. If `AGENTS.md` already exists, preserve accurate useful instructions and update it carefully instead of replacing it blindly. Modify only `AGENTS.md`. After writing it, briefly summarize what you added.";
+const MAX_TRANSCRIPT_MESSAGES: usize = 100;
+const LINE_SCROLL_STEP: u16 = 1;
+const PAGE_SCROLL_STEP: u16 = 8;
 
 #[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
 pub enum View {
@@ -192,6 +195,8 @@ impl App {
         skills: Vec<SkillDefinition>,
     ) -> Self {
         let path_directory = PathBuf::from(&session.cwd);
+        let mut messages = messages;
+        retain_latest_messages(&mut messages);
         Self {
             model: session.model.clone(),
             cwd: session.cwd.clone(),
@@ -671,12 +676,20 @@ impl App {
                 self.input_cursor = self.input.len();
                 Action::None
             }
-            KeyCode::PageUp => {
-                self.scroll = self.scroll.saturating_add(8);
+            KeyCode::Up if self.view == View::Chat => {
+                self.scroll = self.scroll.saturating_add(LINE_SCROLL_STEP);
                 Action::None
             }
-            KeyCode::PageDown => {
-                self.scroll = self.scroll.saturating_sub(8);
+            KeyCode::Down if self.view == View::Chat => {
+                self.scroll = self.scroll.saturating_sub(LINE_SCROLL_STEP);
+                Action::None
+            }
+            KeyCode::PageUp if self.view == View::Chat => {
+                self.scroll = self.scroll.saturating_add(PAGE_SCROLL_STEP);
+                Action::None
+            }
+            KeyCode::PageDown if self.view == View::Chat => {
+                self.scroll = self.scroll.saturating_sub(PAGE_SCROLL_STEP);
                 Action::None
             }
             KeyCode::Esc => {
@@ -1098,7 +1111,7 @@ impl App {
                 ..MessageAttachment::default()
             })
             .collect();
-        self.messages.push(ChatMessage {
+        self.push_transcript_message(ChatMessage {
             role: "user".to_owned(),
             text: display_message.clone(),
             run_activity: None,
@@ -1108,11 +1121,7 @@ impl App {
             streaming: true,
             ..LiveTurn::default()
         });
-        self.events.push(EventLine {
-            name: "YOU".to_owned(),
-            detail: display_message,
-            state: "queued".to_owned(),
-        });
+        self.record_event("YOU", display_message, "queued");
         self.status = "thinking".to_owned();
         self.scroll = 0;
         Action::Submit {
@@ -1181,6 +1190,7 @@ impl App {
         self.context_percent = context_usage.and_then(|usage| usage.percent);
         self.session = session;
         self.messages = messages;
+        retain_latest_messages(&mut self.messages);
         self.live = None;
         self.attachments.clear();
         self.path_picker = false;
@@ -1262,7 +1272,6 @@ impl App {
             self.set_plan(plan);
         }
         if is_plan_update_event(&event.name) {
-            self.scroll = 0;
             return;
         }
         let Some(live) = self.live.as_mut() else {
@@ -1371,7 +1380,6 @@ impl App {
             }
             _ => {}
         }
-        self.scroll = 0;
         if event.name == "done" {
             if let Some(command) = self.pending_slash_command.take() {
                 self.mark_slash_use(&command);
@@ -1398,7 +1406,7 @@ impl App {
         if live.text.is_empty() && live.thinking.is_empty() && live.tools.is_empty() {
             return;
         }
-        self.messages.push(ChatMessage {
+        self.push_transcript_message(ChatMessage {
             role: "agent".to_owned(),
             text: live.text,
             run_activity: Some(RunActivity {
@@ -1408,6 +1416,11 @@ impl App {
             }),
             attachments: Vec::new(),
         });
+    }
+
+    fn push_transcript_message(&mut self, message: ChatMessage) {
+        self.messages.push(message);
+        retain_latest_messages(&mut self.messages);
     }
 
     fn mark_slash_use(&mut self, command: &str) {
@@ -1660,6 +1673,13 @@ fn command(command: &str, detail: &str) -> SlashItem {
     }
 }
 
+fn retain_latest_messages(messages: &mut Vec<ChatMessage>) {
+    let excess = messages.len().saturating_sub(MAX_TRANSCRIPT_MESSAGES);
+    if excess > 0 {
+        messages.drain(..excess);
+    }
+}
+
 fn slash_usage_path() -> Option<PathBuf> {
     dirs::home_dir().map(|home| home.join(".pisper").join("tui-slash-usage.json"))
 }
@@ -1813,12 +1833,12 @@ mod tests {
     use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 
     use super::{
-        advance_typewriter, apply_patch, attachment_draft, Action, App, Approval, SettingsPicker,
-        INIT_PROMPT,
+        advance_typewriter, apply_patch, attachment_draft, Action, App, Approval, LiveTurn,
+        SettingsPicker, INIT_PROMPT, MAX_TRANSCRIPT_MESSAGES, PAGE_SCROLL_STEP,
     };
     use crate::model::{
-        ModelOption, SessionSummary, StreamEvent, ThinkingAvailability, ThinkingLevelUpdate,
-        ToolDefinition,
+        ChatMessage, ModelOption, SessionSummary, StreamEvent, ThinkingAvailability,
+        ThinkingLevelUpdate, ToolDefinition,
     };
     use serde_json::json;
 
@@ -2299,6 +2319,61 @@ mod tests {
                 .count(),
             2
         );
+    }
+
+    #[test]
+    fn chat_arrow_and_page_keys_scroll_without_losing_position_to_stream_updates() {
+        let mut app = test_app(Vec::new());
+
+        app.handle_key(KeyEvent::new(KeyCode::Up, KeyModifiers::NONE));
+        assert_eq!(app.scroll, 1);
+        app.handle_key(KeyEvent::new(KeyCode::PageUp, KeyModifiers::NONE));
+        assert_eq!(app.scroll, 1 + PAGE_SCROLL_STEP);
+
+        app.live = Some(LiveTurn {
+            streaming: true,
+            ..LiveTurn::default()
+        });
+        app.apply_stream_event(StreamEvent {
+            name: "text_delta".to_owned(),
+            data: json!({ "delta": "new output" }),
+        });
+        assert_eq!(app.scroll, 1 + PAGE_SCROLL_STEP);
+
+        app.handle_key(KeyEvent::new(KeyCode::Down, KeyModifiers::NONE));
+        app.handle_key(KeyEvent::new(KeyCode::PageDown, KeyModifiers::NONE));
+        assert_eq!(app.scroll, 0);
+    }
+
+    #[test]
+    fn transcript_retains_only_the_latest_message_page() {
+        let session = SessionSummary {
+            id: "session-1".to_owned(),
+            cwd: "/workspace".to_owned(),
+            ..SessionSummary::default()
+        };
+        let messages = (0..MAX_TRANSCRIPT_MESSAGES + 25)
+            .map(|index| ChatMessage {
+                role: "agent".to_owned(),
+                text: format!("message-{index}"),
+                ..ChatMessage::default()
+            })
+            .collect();
+        let mut app = App::new(
+            vec![session.clone()],
+            session,
+            messages,
+            None,
+            Vec::new(),
+            Vec::new(),
+        );
+
+        assert_eq!(app.messages.len(), MAX_TRANSCRIPT_MESSAGES);
+        assert_eq!(app.messages.first().unwrap().text, "message-25");
+        app.set_input("next message");
+        assert!(matches!(app.submit_action(), Action::Submit { .. }));
+        assert_eq!(app.messages.len(), MAX_TRANSCRIPT_MESSAGES);
+        assert_eq!(app.messages.last().unwrap().text, "next message");
     }
 
     #[test]

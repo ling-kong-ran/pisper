@@ -62,7 +62,7 @@ The diagnostic output reports the sidecar connection source, TUI launch workspac
 - `Up` / `Down`: move through Slash, session, model, thinking-level, or file choices.
 - `Tab`: complete the highlighted candidate only while the Slash list is open.
 - `Esc`: close a picker, clear a Slash draft, or return from Events to Chat.
-- `PageUp` / `PageDown`: scroll the conversation.
+- `↑` / `↓`: scroll the conversation one row at a time; `PageUp` / `PageDown`: move eight rows. The TUI retains only the latest 100 messages so long sessions stay memory-bounded.
 - `Home` / `End`, `Left` / `Right`, `Backspace` / `Delete`: edit the composer draft.
 - `Ctrl+C`: abort the active or approval-blocked run; exit only while idle.
 
