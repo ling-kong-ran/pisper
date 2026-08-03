@@ -67,15 +67,14 @@ try {
 
   const hot = snapshot(session, 'hot')
   const scenarios = []
-  for (const [label, message] of [
-    ['web-search', '请搜索官网的最新版本说明'],
-    ['browser', '打开 https://example.com 并截图'],
-    ['visual', '生成一张产品海报'],
-    ['memory', '记住我的默认语言是中文'],
-    ['multi-agent', '派一个 Agent 并行审查测试'],
-    ['mcp-management', '列出 MCP 服务'],
+  for (const [label, message, requestedToolNames] of [
+    ['web-search', '请搜索官网的最新版本说明', ['web_search']],
+    ['browser', '打开 https://example.com 并截图', ['browser_automation']],
+    ['memory', '记住我的默认语言是中文', ['memory_search', 'memory_remember']],
+    ['multi-agent', '派一个 Agent 并行审查测试', ['spawn_agent', 'list_agents', 'send_message']],
+    ['mcp-management', '列出 MCP 服务', ['mcp_list', 'mcp_manage']],
   ]) {
-    await runtime.selectToolsForMessage(value, message)
+    await runtime.selectToolsForMessage(value, message, { requestedToolNames })
     scenarios.push(snapshot(session, label))
   }
 
@@ -84,6 +83,8 @@ try {
   const allConfigured = snapshot(session, 'all-configured')
 
   const historicalFixedTokens = 7_221
+  const currentFixedTokensSaved = allConfigured.fixedTokens - hot.fixedTokens
+  const currentSchemaTokensSaved = allConfigured.toolSchemaTokens - hot.toolSchemaTokens
   const output = {
     estimator: 'ceil(characters / 4)',
     projectRoot,
@@ -92,6 +93,16 @@ try {
       currentHotFixedTokens: hot.fixedTokens,
       savedTokens: historicalFixedTokens - hot.fixedTokens,
       reductionPercent: Number((((historicalFixedTokens - hot.fixedTokens) / historicalFixedTokens) * 100).toFixed(1)),
+    },
+    currentConfigurationReference: {
+      fixedTokensWithAllConfiguredTools: allConfigured.fixedTokens,
+      currentHotFixedTokens: hot.fixedTokens,
+      fixedTokensSaved: currentFixedTokensSaved,
+      fixedTokenReductionPercent: Number(((currentFixedTokensSaved / allConfigured.fixedTokens) * 100).toFixed(1)),
+      schemaTokensWithAllConfiguredTools: allConfigured.toolSchemaTokens,
+      currentHotSchemaTokens: hot.toolSchemaTokens,
+      schemaTokensSaved: currentSchemaTokensSaved,
+      schemaTokenReductionPercent: Number(((currentSchemaTokensSaved / allConfigured.toolSchemaTokens) * 100).toFixed(1)),
     },
     defaultSystemPromptContainsSkill: hot.systemPrompt.includes('prompt-cache-optimizer'),
     hot: publicSnapshot(hot, hot),

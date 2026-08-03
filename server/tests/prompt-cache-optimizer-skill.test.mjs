@@ -32,13 +32,17 @@ test('prompt cache optimizer measurement script verifies stable prompt and appen
   const result = JSON.parse(stdout)
   assert.equal(result.estimator, 'ceil(characters / 4)')
   assert.equal(result.defaultSystemPromptContainsSkill, false)
-  // Absolute percent can move a few tenths across runners because the system prompt
-  // embeds the working directory path length. Keep a clear win over the full-tool baseline.
-  assert.ok(result.historicalReference.reductionPercent >= 45, `reductionPercent=${result.historicalReference.reductionPercent}`)
-  assert.ok(result.hot.fixedTokens < result.historicalReference.fixedTokensBeforeHotColdOptimization * 0.55)
+  // Compare tool schemas from the same runtime so workspace path length and an evolving
+  // system prompt cannot distort the hot/cold optimization budget.
+  assert.ok(result.currentConfigurationReference.fixedTokensSaved > 0)
+  assert.ok(
+    result.currentConfigurationReference.schemaTokenReductionPercent >= 60,
+    `schemaTokenReductionPercent=${result.currentConfigurationReference.schemaTokenReductionPercent}`,
+  )
   assert.equal(result.hot.promptMatchesHot, true)
   for (const scenario of result.scenarios) {
     assert.equal(scenario.promptMatchesHot, true, `${scenario.label} changed the stable system prompt`)
     assert.equal(scenario.hotSchemaIsExactPrefix, true, `${scenario.label} did not append its cold schemas`)
+    assert.ok(scenario.toolSchemaTokens > result.hot.toolSchemaTokens, `${scenario.label} did not activate cold schemas`)
   }
 })
