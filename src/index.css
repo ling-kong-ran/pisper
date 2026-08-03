@@ -1,10 +1,12 @@
-@import "tailwindcss";
+@import "tailwindcss" source(none);
 @import "tw-animate-css";
 @import "shadcn/tailwind.css";
 @import "@fontsource-variable/geist";
 @import "katex/dist/katex.min.css";
 @import "streamdown/styles.css";
 
+@source "./**/*.{ts,tsx}";
+@source "../index.html";
 @source "../node_modules/streamdown/dist/*.js";
 @source "../node_modules/@streamdown/cjk/dist/*.js";
 @source "../node_modules/@streamdown/code/dist/*.js";

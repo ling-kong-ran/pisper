@@ -1,5 +1,6 @@
 import { useCallback, useRef, type FocusEvent, type PointerEvent, type ReactNode } from 'react'
 import { cn } from '@/lib/utils'
+import './react-bits.css'
 
 type TargetCursorProps = {
   children: ReactNode

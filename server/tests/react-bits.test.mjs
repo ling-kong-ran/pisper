@@ -36,26 +36,48 @@ test('Pisper ships the selected lightweight React Bits components without anothe
   assert.equal(JSON.parse(packageJson).devDependencies.motion, '^12.42.2')
 })
 
-test('React Bits effects are attached to purposeful low-noise UI surfaces', async () => {
-  const [focus, activity, confirmation, history, preview, appStyles, bitsStyles] = await Promise.all([
+test('React Bits effects are lazy, CSS-owned, and preserve core UI fallbacks', async () => {
+  const [
+    focus,
+    welcome,
+    activity,
+    confirmation,
+    history,
+    preview,
+    main,
+    shinyText,
+    appStyles,
+    bitsStyles,
+  ] = await Promise.all([
     readFile('src/features/chat/FocusTranscript.tsx', 'utf8'),
+    readFile('src/features/chat/WelcomeEffects.tsx', 'utf8'),
     readFile('src/features/chat/AgentRunActivity.tsx', 'utf8'),
     readFile('src/components/ai-elements/confirmation.tsx', 'utf8'),
     readFile('src/features/chat/ChatHistoryPage.tsx', 'utf8'),
     readFile('src/features/chat/WebPreviewDockPanel.tsx', 'utf8'),
+    readFile('src/main.tsx', 'utf8'),
+    readFile('src/components/react-bits/ShinyText.tsx', 'utf8'),
     readFile('src/index.css', 'utf8'),
     readFile('src/components/react-bits/react-bits.css', 'utf8'),
   ])
-  assert.match(focus, /<Aurora \/>/)
-  assert.match(focus, /<AsciiText text="PISPER" \/>/)
-  assert.match(focus, /<BlurText/)
-  assert.match(focus, /<TargetCursor/)
+  assert.match(focus, /lazy\(\(\) => import\('\.\/WelcomeEffects'\)\)/)
+  assert.match(focus, /fallback=\{<WelcomeFallback/)
   assert.match(focus, /data-target-cursor/)
-  assert.match(activity, /<ShinyText>/)
-  assert.match(activity, /<AnimatedList>/)
-  assert.match(confirmation, /<ClickSpark>/)
-  assert.match(history, /<SpotlightCard/)
-  assert.match(preview, /<Threads \/>/)
+  assert.match(welcome, /<Aurora \/>/)
+  assert.match(welcome, /<AsciiText text="PISPER" \/>/)
+  assert.match(welcome, /<BlurText/)
+  assert.match(welcome, /<TargetCursor/)
+  assert.match(activity, /import\('@\/components\/react-bits\/ShinyText'\)/)
+  assert.match(activity, /import\('@\/components\/react-bits\/AnimatedList'\)/)
+  assert.match(activity, /<Suspense fallback=\{activityCards\}>/)
+  assert.match(activity, /<ActivityCard/)
+  assert.match(confirmation, /import\('@\/components\/react-bits\/ClickSpark'\)/)
+  assert.match(confirmation, /<Suspense fallback=\{action\}>/)
+  assert.match(history, /from '@\/components\/react-bits\/SpotlightCard'/)
+  assert.match(preview, /import\('@\/components\/react-bits\/Threads'\)/)
+  assert.match(preview, /<Suspense fallback=\{null\}>/)
+  assert.doesNotMatch(main, /react-bits\.css/)
+  assert.match(shinyText, /import '\.\/react-bits\.css'/)
   assert.match(appStyles, /:root\[data-theme='light'\] \.agent-welcome-content/)
   assert.match(appStyles, /:root\[data-theme='light'\] \.agent-welcome \.rb-aurora i/)
 

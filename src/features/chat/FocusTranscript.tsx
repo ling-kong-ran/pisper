@@ -1,9 +1,18 @@
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, type UIEvent } from 'react'
+import {
+  lazy,
+  Suspense,
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  type ReactNode,
+  type UIEvent,
+} from 'react'
 import { AlertTriangle, ArrowDown, RefreshCw } from 'lucide-react'
 import type { I18nValues } from '@/app/i18n'
 import { useI18n } from '@/app/use-i18n'
 import { BrandLogo } from '@/components/BrandLogo'
-import { AsciiText, Aurora, BlurText, TargetCursor } from '@/components/react-bits'
 import { useAutoScroll } from '@/hooks/useAutoScroll'
 import type { ChatMessage, EntityRecord, Plan } from '@/types/chat'
 import PlanBoard from './PlanBoard'
@@ -13,6 +22,8 @@ import {
   type TranscriptPrependSnapshot,
 } from './transcript-virtualization'
 import { VirtualMessageTranscript } from './VirtualMessageTranscript'
+
+const WelcomeEffects = lazy(() => import('./WelcomeEffects'))
 
 type Translate = (message: string, values?: I18nValues) => string
 
@@ -39,6 +50,18 @@ type FocusTranscriptProps = {
   scrollRequest?: number
   onLoadOlder?: () => Promise<boolean> | boolean
   onPromptSelect: (prompt: string) => void
+}
+
+function WelcomeFallback({ children, title }: { children: ReactNode; title: string }) {
+  return (
+    <div className="agent-welcome-content">
+      <div className="welcome-visual">
+        <BrandLogo size={54} className="welcome-logo" />
+      </div>
+      <h2>{title}</h2>
+      {children}
+    </div>
+  )
 }
 
 function welcomeChips(t: Translate) {
@@ -161,6 +184,29 @@ export function FocusTranscript({
     if (scrollRequest) scrollToBottom('smooth')
   }, [scrollRequest, scrollToBottom])
 
+  const welcomeTitle = t('chat:focusSession.letSBeginWithASparkOfAnIdea')
+  const welcomeContent = (
+    <>
+      <p>
+        {t(
+          'chat:focusSession.pisperIsReadyToReadTheCurrentWorkspaceSearchTheCodebaseAndHelpCarryTheTaskThroughItRunsInTheWork',
+        )}
+      </p>
+      <div className="welcome-chips">
+        {welcomeChips(t).map((chip) => (
+          <button
+            type="button"
+            key={chip.label}
+            data-target-cursor
+            onClick={() => onPromptSelect(chip.prompt)}
+          >
+            {chip.label}
+          </button>
+        ))}
+      </div>
+    </>
+  )
+
   return (
     <>
       <div
@@ -196,33 +242,11 @@ export function FocusTranscript({
         </div>
         {!messages.length && (
           <div className="agent-welcome">
-            <Aurora />
-            <TargetCursor className="agent-welcome-content">
-              <div className="welcome-visual">
-                <BrandLogo size={54} className="welcome-logo" />
-                <AsciiText text="PISPER" />
-              </div>
-              <h2>
-                <BlurText text={t('chat:focusSession.letSBeginWithASparkOfAnIdea')} />
-              </h2>
-              <p>
-                {t(
-                  'chat:focusSession.pisperIsReadyToReadTheCurrentWorkspaceSearchTheCodebaseAndHelpCarryTheTaskThroughItRunsInTheWork',
-                )}
-              </p>
-              <div className="welcome-chips">
-                {welcomeChips(t).map((chip) => (
-                  <button
-                    type="button"
-                    key={chip.label}
-                    data-target-cursor
-                    onClick={() => onPromptSelect(chip.prompt)}
-                  >
-                    {chip.label}
-                  </button>
-                ))}
-              </div>
-            </TargetCursor>
+            <Suspense
+              fallback={<WelcomeFallback title={welcomeTitle}>{welcomeContent}</WelcomeFallback>}
+            >
+              <WelcomeEffects title={welcomeTitle}>{welcomeContent}</WelcomeEffects>
+            </Suspense>
           </div>
         )}
         {messages.length > 0 && (

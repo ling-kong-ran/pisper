@@ -1,5 +1,6 @@
 import type { CSSProperties } from 'react'
 import { cn } from '@/lib/utils'
+import './react-bits.css'
 
 export function BlurText({
   text,

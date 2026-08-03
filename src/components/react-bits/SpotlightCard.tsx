@@ -1,5 +1,6 @@
 import { useCallback, type ComponentProps, type PointerEvent } from 'react'
 import { cn } from '@/lib/utils'
+import './react-bits.css'
 
 export function SpotlightCard({ className, onPointerMove, ...props }: ComponentProps<'div'>) {
   const moveSpotlight = useCallback(

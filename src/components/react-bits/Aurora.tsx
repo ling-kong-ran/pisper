@@ -1,5 +1,6 @@
 import type { ComponentProps } from 'react'
 import { cn } from '@/lib/utils'
+import './react-bits.css'
 
 export function Aurora({ className, ...props }: ComponentProps<'div'>) {
   return (

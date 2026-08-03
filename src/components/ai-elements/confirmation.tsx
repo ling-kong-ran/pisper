@@ -2,11 +2,14 @@
 
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
-import { ClickSpark } from '@/components/react-bits'
 import { cn } from '@/lib/utils'
 import type { ToolUIPart } from 'ai'
 import type { ComponentProps, ReactNode } from 'react'
-import { createContext, useContext, useMemo } from 'react'
+import { createContext, lazy, Suspense, useContext, useMemo } from 'react'
+
+const ClickSpark = lazy(() =>
+  import('@/components/react-bits/ClickSpark').then((module) => ({ default: module.ClickSpark })),
+)
 
 type ToolUIPartApproval =
   | {
@@ -146,8 +149,11 @@ export const ConfirmationActions = ({ className, ...props }: ConfirmationActions
 
 export type ConfirmationActionProps = ComponentProps<typeof Button>
 
-export const ConfirmationAction = (props: ConfirmationActionProps) => (
-  <ClickSpark>
-    <Button className="h-8 px-3 text-sm" type="button" {...props} />
-  </ClickSpark>
-)
+export const ConfirmationAction = (props: ConfirmationActionProps) => {
+  const action = <Button className="h-8 px-3 text-sm" type="button" {...props} />
+  return (
+    <Suspense fallback={action}>
+      <ClickSpark>{action}</ClickSpark>
+    </Suspense>
+  )
+}

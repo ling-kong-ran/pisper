@@ -15,7 +15,7 @@
   },
   "scripts": {
     "dev": "node server/index.mjs",
-    "build": "vite build",
+    "build": "vite build && node scripts/check-bundle-budget.mjs",
     "sidecar:dev": "node server/sidecar.mjs",
     "sidecar:sea": "node scripts/build-sea.mjs",
     "sidecar:sea:smoke": "node scripts/smoke-sea.mjs",
@@ -68,7 +68,6 @@
     "@vitejs/plugin-react": "^6.0.3",
     "@xyflow/react": "^12.11.2",
     "ai": "^7.0.37",
-    "axios": "^1.18.1",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "cmdk": "^1.1.1",

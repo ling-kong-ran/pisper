@@ -6,6 +6,7 @@ import {
   type PointerEvent,
 } from 'react'
 import { cn } from '@/lib/utils'
+import './react-bits.css'
 
 type SparkBurst = { id: number; x: number; y: number }
 

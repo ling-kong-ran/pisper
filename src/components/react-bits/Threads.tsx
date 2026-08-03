@@ -1,5 +1,6 @@
 import type { ComponentProps } from 'react'
 import { cn } from '@/lib/utils'
+import './react-bits.css'
 
 const THREAD_PATHS = [
   'M-20 18 C120 0 170 76 320 42 S520 2 700 54 S920 104 1100 44',

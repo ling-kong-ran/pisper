@@ -1,5 +1,6 @@
 import { useEffect, useRef } from 'react'
 import { cn } from '@/lib/utils'
+import './react-bits.css'
 
 type AsciiTextProps = {
   text: string

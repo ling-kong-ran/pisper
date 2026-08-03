@@ -1,4 +1,5 @@
 import { useCallback, useMemo, useRef } from 'react'
+import 'dockview-react/dist/styles/dockview.css'
 import {
   DockviewReact,
   type DockviewGroupPanel,

@@ -4,7 +4,6 @@ import { useI18n } from '@/app/use-i18n'
 import { Plan } from '@/components/ai-elements/plan'
 import { Task } from '@/components/ai-elements/task'
 import { Tool } from '@/components/ai-elements/tool'
-import { AnimatedList, ShinyText } from '@/components/react-bits'
 import MarkdownMessage from '@/components/MarkdownMessage'
 import { formatTokenCount } from '@/lib/format'
 import { isPlanReadTool, isPlanWriteTool, planFromActivity } from '@/lib/plan-protocol'
@@ -22,6 +21,14 @@ import {
 const EMPTY_LIST: EntityRecord[] = []
 const Terminal = lazy(() =>
   import('@/components/ai-elements/terminal').then((module) => ({ default: module.Terminal })),
+)
+const AnimatedList = lazy(() =>
+  import('@/components/react-bits/AnimatedList').then((module) => ({
+    default: module.AnimatedList,
+  })),
+)
+const ShinyText = lazy(() =>
+  import('@/components/react-bits/ShinyText').then((module) => ({ default: module.ShinyText })),
 )
 
 type Translate = (message: string, values?: I18nValues) => string
@@ -579,6 +586,25 @@ function AgentRunActivity({
     primary.command && activities.length
       ? t('chat:agentRunActivity.countLiveOperations', { count: activities.length })
       : primary.detail
+  const activityCards = activities.map((activity, index) => (
+    <ActivityCard
+      activity={activity}
+      compaction={compaction}
+      error={error}
+      key={activityRenderKey(activity, index)}
+      language={language}
+      lastActivityAt={lastActivityAt}
+      latest={index === activities.length - 1}
+      notice={notice}
+      now={now}
+      runStartedAt={startedAt}
+      stopped={stopped}
+      streaming={streaming}
+      t={t}
+      text={text}
+      thinkingText={thinking ? '' : thinkingText}
+    />
+  ))
 
   return (
     <section className={`agent-run-activity ${compact ? 'compact' : ''}`} aria-live="polite">
@@ -609,7 +635,9 @@ function AgentRunActivity({
           <span className="agent-run-copy">
             <strong>
               {streaming && ['running', 'waiting', 'compacting'].includes(primary.tone) ? (
-                <ShinyText>{primary.title}</ShinyText>
+                <Suspense fallback={primary.title}>
+                  <ShinyText>{primary.title}</ShinyText>
+                </Suspense>
               ) : (
                 primary.title
               )}
@@ -624,27 +652,9 @@ function AgentRunActivity({
       )}
       {activities.length > 0 && (
         <div className="agent-run-feed">
-          <AnimatedList>
-            {activities.map((activity, index) => (
-              <ActivityCard
-                activity={activity}
-                compaction={compaction}
-                error={error}
-                key={activityRenderKey(activity, index)}
-                language={language}
-                lastActivityAt={lastActivityAt}
-                latest={index === activities.length - 1}
-                notice={notice}
-                now={now}
-                runStartedAt={startedAt}
-                stopped={stopped}
-                streaming={streaming}
-                t={t}
-                text={text}
-                thinkingText={thinking ? '' : thinkingText}
-              />
-            ))}
-          </AnimatedList>
+          <Suspense fallback={activityCards}>
+            <AnimatedList>{activityCards}</AnimatedList>
+          </Suspense>
         </div>
       )}
     </section>

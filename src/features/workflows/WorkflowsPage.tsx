@@ -1,4 +1,5 @@
 import { useCallback, useEffect } from 'react'
+import '@xyflow/react/dist/style.css'
 import { AlertTriangle, RefreshCw } from 'lucide-react'
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { workflowPath } from '@/app/routes'

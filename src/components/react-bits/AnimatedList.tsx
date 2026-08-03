@@ -1,6 +1,7 @@
 import { AnimatePresence, motion } from 'motion/react'
 import { Children, type ReactNode } from 'react'
 import { cn } from '@/lib/utils'
+import './react-bits.css'
 
 export function AnimatedList({ children, className }: { children: ReactNode; className?: string }) {
   return (

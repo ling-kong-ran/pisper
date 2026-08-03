@@ -1,15 +1,9 @@
-import type { AxiosRequestConfig } from 'axios'
-import { ApiError, requestJson } from './http.ts'
+import { ApiError, requestJson, type HttpRequestOptions } from './http.ts'
 
-export type ApiJsonOptions = Omit<AxiosRequestConfig, 'data'> & { body?: unknown }
+export type ApiJsonOptions = Omit<HttpRequestOptions, 'data'>
 
 export async function apiJson<T = unknown>(path: string, options: ApiJsonOptions = {}): Promise<T> {
-  const { body, headers, ...rest } = options
-  return requestJson(path, {
-    ...rest,
-    headers,
-    data: body,
-  })
+  return requestJson(path, options)
 }
 
 export async function consumeEventStream<T = Record<string, unknown>>(

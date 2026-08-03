@@ -1,8 +1,7 @@
-import { useCallback, useEffect, useState } from 'react'
+import { lazy, Suspense, useCallback, useEffect, useState } from 'react'
 import type { IDockviewPanelProps } from 'dockview-react'
 import { ArrowLeft, ArrowRight, ExternalLink, Globe2, LoaderCircle, RefreshCw } from 'lucide-react'
 import { useI18n } from '@/app/use-i18n'
-import { Threads } from '@/components/react-bits'
 import {
   WebPreview,
   WebPreviewBody,
@@ -12,6 +11,10 @@ import {
 } from '@/components/ai-elements/web-preview'
 import { normalizeWebPreviewInput } from '@/lib/web-preview'
 import { webPreviewPanelTitle, type WebPreviewPanelParams } from './web-preview-panel'
+
+const Threads = lazy(() =>
+  import('@/components/react-bits/Threads').then((module) => ({ default: module.Threads })),
+)
 
 type PreviewHistory = {
   entries: string[]
@@ -150,7 +153,9 @@ export function WebPreviewDockPanel({ params, api }: IDockviewPanelProps<WebPrev
           loading={
             loading ? (
               <div className="web-preview-loading">
-                <Threads />
+                <Suspense fallback={null}>
+                  <Threads />
+                </Suspense>
                 <span className="web-preview-loading-copy">
                   <LoaderCircle className="spin" size={18} />
                   <span>{t('common:webPreview.loading')}</span>
