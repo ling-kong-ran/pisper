@@ -107,9 +107,20 @@ fn marker_path(app: &AppHandle) -> Result<PathBuf, String> {
     Ok(install_dir(app)?.join(".pisper-cli-managed"))
 }
 
+fn managed_marker(version: &str, payload_size: u64) -> String {
+    format!("{MANAGED_MARKER}\nversion={version}\npayload_size={payload_size}\n")
+}
+
 #[cfg(windows)]
-fn expected_marker(app: &AppHandle) -> String {
-    format!("{MANAGED_MARKER}\nversion={}\n", app.package_info().version)
+fn expected_marker(app: &AppHandle) -> Result<String, String> {
+    let payload = bundled_payload()?;
+    let payload_size = fs::metadata(&payload)
+        .map_err(|error| format!("Failed to inspect {}: {error}", payload.display()))?
+        .len();
+    Ok(managed_marker(
+        &app.package_info().version.to_string(),
+        payload_size,
+    ))
 }
 
 fn read_optional(path: &Path) -> Result<Option<String>, String> {
@@ -332,7 +343,7 @@ fn install_windows(app: &AppHandle) -> Result<(), String> {
     }
     fs::rename(&temporary, &target)
         .map_err(|error| format!("Failed to install {}: {error}", target.display()))?;
-    write_file(&marker, expected_marker(app).as_bytes())?;
+    write_file(&marker, expected_marker(app)?.as_bytes())?;
     windows_path::add(&install_dir(app)?)
 }
 
@@ -481,7 +492,7 @@ pub fn refresh_managed_cli(app: &AppHandle) -> Result<bool, String> {
             return Ok(false);
         }
         let needs_refresh = !install_path(app)?.is_file()
-            || marker.as_deref() != Some(expected_marker(app).as_str())
+            || marker.as_deref() != Some(expected_marker(app)?.as_str())
             || !windows_path::contains(&install_dir(app)?);
         if needs_refresh {
             install_windows(app)?;
@@ -516,7 +527,7 @@ fn current_status(app: &AppHandle) -> Result<CliInstallStatus, String> {
         (
             target.is_file() && has_managed_marker(marker.as_deref()),
             windows_path::contains(&install_dir(app)?),
-            marker.as_deref() == Some(expected_marker(app).as_str()),
+            marker.as_deref() == Some(expected_marker(app)?.as_str()),
         )
     };
 
@@ -612,10 +623,16 @@ pub fn run_bundled_cli(app: &tauri::App, args: &[std::ffi::OsString]) -> Result<
 
 #[cfg(test)]
 mod tests {
-    use super::{has_managed_marker, remove_managed_block, PROFILE_END, PROFILE_START};
+    use super::{
+        has_managed_marker, managed_marker, remove_managed_block, PROFILE_END, PROFILE_START,
+    };
 
     #[test]
-    fn recognizes_only_present_managed_markers() {
+    fn managed_markers_identify_the_exact_bundled_payload() {
+        assert_eq!(
+            managed_marker("0.4.12", 10_124_257),
+            "PISPER_CLI_MANAGED_V1\nversion=0.4.12\npayload_size=10124257\n"
+        );
         assert!(has_managed_marker(Some(
             "PISPER_CLI_MANAGED_V1\nversion=0.4.12\n"
         )));

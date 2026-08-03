@@ -75,7 +75,8 @@ test('desktop startup refreshes only an existing managed TUI installation', asyn
     )?.length,
     2,
   )
-  assert.match(manager, /marker\.as_deref\(\) != Some\(expected_marker\(app\)\.as_str\(\)\)/)
+  assert.match(manager, /marker\.as_deref\(\) != Some\(expected_marker\(app\)\?\.as_str\(\)\)/)
+  assert.match(manager, /payload_size=\{payload_size\}/)
   assert.match(manager, /install_windows\(app\)\?/)
   assert.match(manager, /install_unix\(app\)\?/)
   const refresh = desktop.indexOf('cli_manager::refresh_managed_cli(app.handle())')
