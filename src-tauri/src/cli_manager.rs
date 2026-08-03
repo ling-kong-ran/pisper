@@ -107,6 +107,7 @@ fn marker_path(app: &AppHandle) -> Result<PathBuf, String> {
     Ok(install_dir(app)?.join(".pisper-cli-managed"))
 }
 
+#[cfg(any(windows, test))]
 fn managed_marker(version: &str, payload_size: u64) -> String {
     format!("{MANAGED_MARKER}\nversion={version}\npayload_size={payload_size}\n")
 }
