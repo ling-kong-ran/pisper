@@ -50,6 +50,21 @@ test('app primitives compose shadcn controls and share project Tailwind tokens',
   assert.doesNotMatch(styles, /\.toast(?:\W|$)/)
 })
 
+test('modal surfaces stay scrollable within low-height viewports', async () => {
+  const [styles, dialog, alertDialog] = await Promise.all([
+    readFile('src/index.css', 'utf8'),
+    readFile('src/components/ui/dialog.tsx', 'utf8'),
+    readFile('src/components/ui/alert-dialog.tsx', 'utf8'),
+  ])
+
+  assert.match(styles, /\.modal-backdrop \{[^}]*overflow-y: auto;/)
+  assert.match(styles, /\.modal \{[^}]*max-height: calc\(100dvh - 40px\);[^}]*overflow-y: auto;/)
+  assert.match(styles, /\.modal \{ max-height: calc\(100dvh - 16px\); \}/)
+  assert.match(styles, /\.directory-browser \{ height: min\(290px,45dvh\);/)
+  assert.match(dialog, /max-h-\[calc\(100dvh-2rem\)\].*overflow-y-auto.*overscroll-contain/)
+  assert.match(alertDialog, /max-h-\[calc\(100dvh-2rem\)\].*overflow-y-auto.*overscroll-contain/)
+})
+
 test('toast and app dialogs use integrated Radix and shadcn surfaces', async () => {
   const [app, toast, appDialog, overlays] = await Promise.all([
     readFile('src/App.tsx', 'utf8'),
