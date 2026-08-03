@@ -12,7 +12,9 @@ import {
 test('primary action remains callable until its page registration is disposed', () => {
   const registry = createPrimaryActionRegistry()
   let calls = 0
-  const dispose = registry.register(() => { calls += 1 })
+  const dispose = registry.register(() => {
+    calls += 1
+  })
 
   registry.invoke()
   registry.invoke()
@@ -28,7 +30,9 @@ test('a queued primary action runs once when a lazy page registers', () => {
   let calls = 0
 
   registry.invoke()
-  registry.register(() => { calls += 1 })
+  registry.register(() => {
+    calls += 1
+  })
   assert.equal(calls, 1)
 })
 
@@ -36,7 +40,9 @@ test('disposing an old page action does not clear the newly registered action', 
   const registry = createPrimaryActionRegistry()
   let calls = 0
   const disposeOld = registry.register(() => {})
-  registry.register(() => { calls += 1 })
+  registry.register(() => {
+    calls += 1
+  })
 
   disposeOld()
   registry.invoke()
@@ -92,7 +98,10 @@ test('the chat composer exposes the global command palette shortcut', async () =
   assert.match(focus, /onClick=\{requestCommandPalette\}/)
   assert.match(focus, /<kbd>\{COMMAND_PALETTE_SHORTCUT\}<\/kbd>/)
   assert.match(styles, /\.command-palette-trigger kbd/)
-  assert.equal(english['focusSession.openCommandPaletteShortcut'], 'Open command palette ({shortcut})')
+  assert.equal(
+    english['focusSession.openCommandPaletteShortcut'],
+    'Open command palette ({shortcut})',
+  )
   assert.equal(chinese['focusSession.openCommandPaletteShortcut'], '打开命令面板（{shortcut}）')
 })
 

@@ -19,14 +19,30 @@ test('execution modes normalize and migrate legacy permission settings', () => {
   assert.equal(migrateLegacyExecutionMode({ permissionMode: 'ignore' }), 'full-access')
   assert.equal(migrateLegacyExecutionMode({ permissionMode: 'ask' }), 'workspace')
   assert.equal(migrateLegacyExecutionMode({ permissionMode: 'auto' }), 'workspace')
-  assert.equal(migrateLegacyExecutionMode({ executionMode: 'read-only', permissionMode: 'ignore' }), 'read-only')
+  assert.equal(
+    migrateLegacyExecutionMode({ executionMode: 'read-only', permissionMode: 'ignore' }),
+    'read-only',
+  )
   assert.equal(permissionModeForExecutionMode('read-only'), 'ask')
   assert.equal(permissionModeForExecutionMode('workspace'), 'auto')
   assert.equal(permissionModeForExecutionMode('full-access'), 'ignore')
 })
 
 test('read-only execution exposes only low-risk analysis tools', () => {
-  const names = ['read', 'grep', 'edit', 'bash', 'discover_tools', 'memory_search', 'memory_remember', 'get_plan', 'update_plan', 'get_task_list', 'update_task_list', 'spawn_agent']
+  const names = [
+    'read',
+    'grep',
+    'edit',
+    'bash',
+    'discover_tools',
+    'memory_search',
+    'memory_remember',
+    'get_plan',
+    'update_plan',
+    'get_task_list',
+    'update_task_list',
+    'spawn_agent',
+  ]
   assert.deepEqual(filterToolsForExecutionMode(names, 'read-only'), [
     'read',
     'grep',
@@ -39,7 +55,10 @@ test('read-only execution exposes only low-risk analysis tools', () => {
 })
 
 test('React keeps execution mode switching available during active runs', async () => {
-  const source = await readFile(new URL('../../src/features/chat/FocusSession.tsx', import.meta.url), 'utf8')
+  const source = await readFile(
+    new URL('../../src/features/chat/FocusSession.tsx', import.meta.url),
+    'utf8',
+  )
   assert.match(source, /<ExecutionModeSelect[\s\S]*?disabled=\{switchingPermission\}/)
   assert.doesNotMatch(source, /disabled=\{streaming \|\| switchingPermission\}/)
 })
@@ -66,20 +85,26 @@ test('workspace file tools run directly while shell requires approval', () => {
     }),
     null,
   )
-  assert.equal(permissionRequirement({
-    mode: 'ignore',
-    executionMode: 'workspace',
-    cwd,
-    toolName: 'write',
-    args: { path: 'result.txt' },
-  }), null)
-  assert.equal(permissionRequirement({
-    mode: 'ignore',
-    executionMode: 'workspace',
-    cwd,
-    toolName: 'edit',
-    args: { path: 'result.txt', edits: [] },
-  }), null)
+  assert.equal(
+    permissionRequirement({
+      mode: 'ignore',
+      executionMode: 'workspace',
+      cwd,
+      toolName: 'write',
+      args: { path: 'result.txt' },
+    }),
+    null,
+  )
+  assert.equal(
+    permissionRequirement({
+      mode: 'ignore',
+      executionMode: 'workspace',
+      cwd,
+      toolName: 'edit',
+      args: { path: 'result.txt', edits: [] },
+    }),
+    null,
+  )
   const outsideWrite = permissionRequirement({
     mode: 'ignore',
     executionMode: 'workspace',
@@ -89,11 +114,14 @@ test('workspace file tools run directly while shell requires approval', () => {
   })
   assert.equal(outsideWrite.block, true)
   assert.match(outsideWrite.reason, /工作目录之外/)
-  assert.equal(permissionRequirement({
-    mode: 'ignore',
-    executionMode: 'full-access',
-    cwd,
-    toolName: 'write',
-    args: { path: outside },
-  }), null)
+  assert.equal(
+    permissionRequirement({
+      mode: 'ignore',
+      executionMode: 'full-access',
+      cwd,
+      toolName: 'write',
+      args: { path: outside },
+    }),
+    null,
+  )
 })

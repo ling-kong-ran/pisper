@@ -8,7 +8,11 @@ import { SkillsService } from '../services/skills-service.mjs'
 
 async function writeSkill(directory, name, description, extra = '') {
   await mkdir(directory, { recursive: true })
-  await writeFile(join(directory, 'SKILL.md'), `---\nname: ${name}\ndescription: ${description}\n${extra}---\n\n# ${name}\n\nFollow these instructions.\n`, 'utf8')
+  await writeFile(
+    join(directory, 'SKILL.md'),
+    `---\nname: ${name}\ndescription: ${description}\n${extra}---\n\n# ${name}\n\nFollow these instructions.\n`,
+    'utf8',
+  )
 }
 
 test('skills service discovers Pi skills and applies persistent enable/invocation overrides', async (t) => {
@@ -17,7 +21,12 @@ test('skills service discovers Pi skills and applies persistent enable/invocatio
   const agentDir = join(directory, 'agent')
   const cwd = join(directory, 'workspace')
   await mkdir(cwd, { recursive: true })
-  await writeSkill(join(agentDir, 'skills', 'docs-search'), 'docs-search', 'Search official product documentation.', 'allowed-tools: read grep\n')
+  await writeSkill(
+    join(agentDir, 'skills', 'docs-search'),
+    'docs-search',
+    'Search official product documentation.',
+    'allowed-tools: read grep\n',
+  )
 
   const settingsManager = SettingsManager.inMemory({ enableSkillCommands: true })
   const service = new SkillsService({
@@ -41,7 +50,10 @@ test('skills service discovers Pi skills and applies persistent enable/invocatio
   const disabled = await service.update(skill.id, { enabled: false })
   assert.equal(disabled.enabled, false)
   const filteredLoader = await service.createResourceLoader(cwd)
-  assert.equal(filteredLoader.getSkills().skills.some((item) => item.name === 'docs-search'), false)
+  assert.equal(
+    filteredLoader.getSkills().skills.some((item) => item.name === 'docs-search'),
+    false,
+  )
 
   await service.update(skill.id, { enabled: true, modelInvocationEnabled: false })
   const manualLoader = await service.createResourceLoader(cwd)
@@ -55,7 +67,9 @@ test('skills service discovers Pi skills and applies persistent enable/invocatio
     getSettingsManager: () => settingsManager,
   })
   await restored.init()
-  const restoredSkill = (await restored.dashboard()).skills.find((item) => item.name === 'docs-search')
+  const restoredSkill = (await restored.dashboard()).skills.find(
+    (item) => item.name === 'docs-search',
+  )
   assert.equal(restoredSkill.enabled, true)
   assert.equal(restoredSkill.modelInvocationEnabled, false)
 })
@@ -77,10 +91,22 @@ test('skills service installs Pi package skill resources through DefaultPackageM
     createPackageManager: () => ({
       async resolveExtensionSources(sources, options) {
         calls.push({ sources, options })
-        return { extensions: [], prompts: [], themes: [], skills: [{ path: join(packageSkill, 'SKILL.md'), enabled: true }] }
+        return {
+          extensions: [],
+          prompts: [],
+          themes: [],
+          skills: [{ path: join(packageSkill, 'SKILL.md'), enabled: true }],
+        }
       },
       listConfiguredPackages() {
-        return [{ source: 'npm:fixture-skills', scope: 'user', filtered: false, installedPath: packageSkill }]
+        return [
+          {
+            source: 'npm:fixture-skills',
+            scope: 'user',
+            filtered: false,
+            installedPath: packageSkill,
+          },
+        ]
       },
     }),
   })
@@ -99,7 +125,11 @@ test('skills dashboard uses single-flight caching and skills-only discovery', as
   const agentDir = join(directory, 'agent')
   const cwd = join(directory, 'workspace')
   await mkdir(cwd, { recursive: true })
-  await writeSkill(join(agentDir, 'skills', 'cache-skill'), 'cache-skill', 'Validate dashboard caching.')
+  await writeSkill(
+    join(agentDir, 'skills', 'cache-skill'),
+    'cache-skill',
+    'Validate dashboard caching.',
+  )
 
   let resolveCalls = 0
   const service = new SkillsService({
@@ -114,11 +144,13 @@ test('skills dashboard uses single-flight caching and skills-only discovery', as
           extensions: [],
           prompts: [],
           themes: [],
-          skills: [{
-            path: join(agentDir, 'skills', 'cache-skill'),
-            enabled: true,
-            metadata: { source: 'auto', scope: 'user', origin: 'top-level' },
-          }],
+          skills: [
+            {
+              path: join(agentDir, 'skills', 'cache-skill'),
+              enabled: true,
+              metadata: { source: 'auto', scope: 'user', origin: 'top-level' },
+            },
+          ],
         }
       },
       listConfiguredPackages() {
@@ -163,7 +195,10 @@ test('skills service installs only skill resources from a local source and can r
   })
   await service.init()
 
-  await assert.rejects(service.install({ source: emptySource }), /没有发现符合 Agent Skills 标准的技能/)
+  await assert.rejects(
+    service.install({ source: emptySource }),
+    /没有发现符合 Agent Skills 标准的技能/,
+  )
   const installed = await service.install({ source })
   assert.equal(installed.installed.length, 1)
   assert.equal(installed.installed[0].name, 'release-notes')
@@ -171,7 +206,10 @@ test('skills service installs only skill resources from a local source and can r
 
   await assert.rejects(service.install({ source }), /已存在|已安装/)
   assert.equal(await service.remove(installed.installed[0].id), true)
-  assert.equal((await service.dashboard()).skills.some((item) => item.name === 'release-notes'), false)
+  assert.equal(
+    (await service.dashboard()).skills.some((item) => item.name === 'release-notes'),
+    false,
+  )
 })
 
 test('skills dashboard separates global skills from the requested project workspace', async (t) => {
@@ -180,9 +218,21 @@ test('skills dashboard separates global skills from the requested project worksp
   const agentDir = join(directory, 'agent')
   const projectA = join(directory, 'project-a')
   const projectB = join(directory, 'project-b')
-  await writeSkill(join(agentDir, 'skills', 'global-helper'), 'global-helper', 'Available in every project.')
-  await writeSkill(join(projectA, '.agents', 'skills', 'project-a-helper'), 'project-a-helper', 'Available only in project A.')
-  await writeSkill(join(projectB, '.agents', 'skills', 'project-b-helper'), 'project-b-helper', 'Available only in project B.')
+  await writeSkill(
+    join(agentDir, 'skills', 'global-helper'),
+    'global-helper',
+    'Available in every project.',
+  )
+  await writeSkill(
+    join(projectA, '.agents', 'skills', 'project-a-helper'),
+    'project-a-helper',
+    'Available only in project A.',
+  )
+  await writeSkill(
+    join(projectB, '.agents', 'skills', 'project-b-helper'),
+    'project-b-helper',
+    'Available only in project B.',
+  )
 
   const service = new SkillsService({
     path: join(agentDir, 'pisper-skills.json'),
@@ -194,15 +244,30 @@ test('skills dashboard separates global skills from the requested project worksp
 
   const dashboardA = await service.dashboard({ cwd: projectA, force: true })
   assert.equal(dashboardA.cwd, projectA)
-  assert.deepEqual(new Set(dashboardA.skills.map((skill) => skill.name)), new Set(['global-helper', 'project-a-helper']))
-  assert.equal(dashboardA.skills.find((skill) => skill.name === 'global-helper')?.sourceInfo?.scope, 'user')
-  assert.equal(dashboardA.skills.find((skill) => skill.name === 'project-a-helper')?.sourceInfo?.scope, 'project')
+  assert.deepEqual(
+    new Set(dashboardA.skills.map((skill) => skill.name)),
+    new Set(['global-helper', 'project-a-helper']),
+  )
+  assert.equal(
+    dashboardA.skills.find((skill) => skill.name === 'global-helper')?.sourceInfo?.scope,
+    'user',
+  )
+  assert.equal(
+    dashboardA.skills.find((skill) => skill.name === 'project-a-helper')?.sourceInfo?.scope,
+    'project',
+  )
   assert.equal(dashboardA.counts.global, 1)
   assert.equal(dashboardA.counts.project, 1)
 
   const dashboardB = await service.dashboard({ cwd: projectB, force: true })
-  assert.deepEqual(new Set(dashboardB.skills.map((skill) => skill.name)), new Set(['global-helper', 'project-b-helper']))
-  assert.equal(dashboardB.skills.some((skill) => skill.name === 'project-a-helper'), false)
+  assert.deepEqual(
+    new Set(dashboardB.skills.map((skill) => skill.name)),
+    new Set(['global-helper', 'project-b-helper']),
+  )
+  assert.equal(
+    dashboardB.skills.some((skill) => skill.name === 'project-a-helper'),
+    false,
+  )
   assert.equal(dashboardB.counts.global, 1)
   assert.equal(dashboardB.counts.project, 1)
 })

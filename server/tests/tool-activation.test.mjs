@@ -1,8 +1,27 @@
 import { describe, it } from 'node:test'
 import assert from 'node:assert'
-import { hotToolNames, mergePromotedToolNames, schemaOnlyToolDefinition, selectedToolNames } from '../tools/tool-activation.mjs'
+import {
+  hotToolNames,
+  mergePromotedToolNames,
+  schemaOnlyToolDefinition,
+  selectedToolNames,
+} from '../tools/tool-activation.mjs'
 
-const available = ['read', 'edit', 'web_search', 'browser_automation', 'memory_search', 'memory_remember', 'mcp_list', 'mcp_manage', 'spawn_agent', 'list_agents', 'send_message', 'followup_task', 'interrupt_agent']
+const available = [
+  'read',
+  'edit',
+  'web_search',
+  'browser_automation',
+  'memory_search',
+  'memory_remember',
+  'mcp_list',
+  'mcp_manage',
+  'spawn_agent',
+  'list_agents',
+  'send_message',
+  'followup_task',
+  'interrupt_agent',
+]
 
 describe('tool-activation', () => {
   it('schemaOnlyToolDefinition flattens promptGuidelines into description', () => {

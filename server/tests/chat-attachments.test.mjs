@@ -20,5 +20,8 @@ test('clipboard image items are supported when the files collection is empty', (
 })
 
 test('plain text clipboard data does not trigger attachment handling', () => {
-  assert.deepEqual(clipboardImageFiles({ files: [], items: [{ kind: 'string', type: 'text/plain' }] }), [])
+  assert.deepEqual(
+    clipboardImageFiles({ files: [], items: [{ kind: 'string', type: 'text/plain' }] }),
+    [],
+  )
 })

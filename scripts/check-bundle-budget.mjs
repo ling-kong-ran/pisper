@@ -210,9 +210,7 @@ export function validateBundle(report, budgets = BUNDLE_BUDGETS) {
   }
 
   const dynamicShiki = (prefix) =>
-    report.records.filter(
-      ([key, record]) => key.startsWith(prefix) && record.isDynamicEntry,
-    ).length
+    report.records.filter(([key, record]) => key.startsWith(prefix) && record.isDynamicEntry).length
   if (dynamicShiki('node_modules/@shikijs/langs/dist/') < 40)
     failures.push('Shiki grammar modules are not preserved as dynamic entries')
   if (dynamicShiki('node_modules/@shikijs/themes/dist/') < 20)

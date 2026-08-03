@@ -39,7 +39,7 @@ function targetTriples() {
   return [`${arch}-unknown-linux-gnu`]
 }
 
-async function runNpm(args, options = {}) {
+function runNpm(args, options = {}) {
   const npmCli = String(process.env.npm_execpath || '').trim()
   if (npmCli) return run(process.execPath, [npmCli, ...args], options)
   const command = process.platform === 'win32' ? 'npm.cmd' : 'npm'

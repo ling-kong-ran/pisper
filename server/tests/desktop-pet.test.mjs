@@ -54,7 +54,10 @@ test('desktop pet position survives valid multi-display coordinates and recovers
     { workArea: { x: 0, y: 0, width: 1920, height: 1040 } },
     { workArea: { x: 1920, y: 0, width: 1280, height: 1024 } },
   ]
-  assert.deepEqual(resolvePetPosition({ x: 2100, y: 600 }, displays, displays[0]), { x: 2100, y: 600 })
+  assert.deepEqual(resolvePetPosition({ x: 2100, y: 600 }, displays, displays[0]), {
+    x: 2100,
+    y: 600,
+  })
   const lowerRight = {
     x: 1920 - PET_WINDOW_WIDTH - 20,
     y: 1040 - PET_WINDOW_HEIGHT - 20,

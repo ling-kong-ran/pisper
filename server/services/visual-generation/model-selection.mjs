@@ -16,7 +16,8 @@ function credentialKey(credential) {
 function defaultBaseUrl(providerId, api) {
   const value = `${providerId} ${api}`.toLowerCase()
   if (value.includes('google')) return 'https://generativelanguage.googleapis.com/v1beta'
-  if (value.includes('xai') || value.includes('x-ai') || value.includes('grok')) return 'https://api.x.ai/v1'
+  if (value.includes('xai') || value.includes('x-ai') || value.includes('grok'))
+    return 'https://api.x.ai/v1'
   if (value.includes('openrouter')) return 'https://openrouter.ai/api/v1'
   if (value.includes('openai')) return 'https://api.openai.com/v1'
   return ''
@@ -25,9 +26,12 @@ function defaultBaseUrl(providerId, api) {
 function driverFor(model) {
   if (model.visualApi) return model.visualApi
   const value = `${model.providerId} ${model.api} ${model.baseUrl} ${model.id}`.toLowerCase()
-  if (value.includes('google') || value.includes('generativelanguage.googleapis.com')) return model.kind === 'video' ? 'google-video' : 'google-image'
-  if (value.includes('xai') || value.includes('x.ai') || value.includes('grok')) return model.kind === 'video' ? 'xai-video' : 'xai-image'
-  if (value.includes('openrouter')) return model.kind === 'video' ? 'openai-video' : 'openrouter-image'
+  if (value.includes('google') || value.includes('generativelanguage.googleapis.com'))
+    return model.kind === 'video' ? 'google-video' : 'google-image'
+  if (value.includes('xai') || value.includes('x.ai') || value.includes('grok'))
+    return model.kind === 'video' ? 'xai-video' : 'xai-image'
+  if (value.includes('openrouter'))
+    return model.kind === 'video' ? 'openai-video' : 'openrouter-image'
   return model.kind === 'video' ? 'openai-video' : 'openai-image'
 }
 
@@ -47,30 +51,35 @@ function modelScore(model) {
 }
 
 function normalizedBaseUrl(value) {
-  return String(value || '').trim().replace(/\/+$/, '').toLowerCase()
+  return String(value || '')
+    .trim()
+    .replace(/\/+$/, '')
+    .toLowerCase()
 }
 
 function isVisualProvider(providerId, provider, appConfig) {
   const explicitType = appConfig.providerTypes?.[providerId]
   if (explicitType) return explicitType === 'visual'
   const models = Array.isArray(provider.models) ? provider.models : []
-  return models.length > 0 && models.every((model) => inferModelKind(model.id, model.kind) !== 'chat')
+  return (
+    models.length > 0 && models.every((model) => inferModelKind(model.id, model.kind) !== 'chat')
+  )
 }
 
 function duplicateKey(model) {
-  return [normalizedBaseUrl(model.baseUrl), model.id.toLowerCase(), model.kind, model.driver].join('\0')
+  return [normalizedBaseUrl(model.baseUrl), model.id.toLowerCase(), model.kind, model.driver].join(
+    '\0',
+  )
 }
 
 function duplicatePriority(model) {
-  return (model.visualProvider ? 10_000 : 0)
-    + (model.configuredDefinition ? 1_000 : 0)
-    + model.score
+  return (
+    (model.visualProvider ? 10_000 : 0) + (model.configuredDefinition ? 1_000 : 0) + model.score
+  )
 }
 
 function selectionPriority(model) {
-  return model.score
-    + (model.visualProvider ? 25 : 0)
-    + (model.configuredDefinition ? 2 : 0)
+  return model.score + (model.visualProvider ? 25 : 0) + (model.configuredDefinition ? 2 : 0)
 }
 
 function compareModels(left, right) {
@@ -88,7 +97,11 @@ function deduplicateModels(models) {
 }
 
 function publicModel(model) {
-  const { visualProvider: _visualProvider, configuredDefinition: _configuredDefinition, ...value } = model
+  const {
+    visualProvider: _visualProvider,
+    configuredDefinition: _configuredDefinition,
+    ...value
+  } = model
   return value
 }
 
@@ -128,7 +141,12 @@ export class VisualModelCatalog {
         const modelKind = inferModelKind(modelId, definition.kind || runtimeModel?.pisperKind)
         if (modelKind !== kind) continue
         const api = definition.api || provider.api || runtimeModel?.api || ''
-        const baseUrl = String(definition.baseUrl || provider.baseUrl || runtimeModel?.baseUrl || defaultBaseUrl(providerId, api)).replace(/\/+$/, '')
+        const baseUrl = String(
+          definition.baseUrl ||
+            provider.baseUrl ||
+            runtimeModel?.baseUrl ||
+            defaultBaseUrl(providerId, api),
+        ).replace(/\/+$/, '')
         if (!baseUrl) continue
         const value = {
           id: modelId,
@@ -139,7 +157,11 @@ export class VisualModelCatalog {
           kind: modelKind,
           baseUrl,
           apiKey,
-          headers: { ...(provider.headers || {}), ...(runtimeModel?.headers || {}), ...(definition.headers || {}) },
+          headers: {
+            ...(provider.headers || {}),
+            ...(runtimeModel?.headers || {}),
+            ...(definition.headers || {}),
+          },
           visualApi: definition.visualApi || provider.visualApi || '',
           visualProvider: isVisualProvider(providerId, provider, appConfig),
           configuredDefinition: definitions.has(modelId),
@@ -154,21 +176,25 @@ export class VisualModelCatalog {
 
   async list(kind) {
     const models = deduplicateModels(await this.candidates(kind))
-    return models
-      .sort(compareModels)
-      .map(publicModel)
+    return models.sort(compareModels).map(publicModel)
   }
 
   async select(kind, requestedModel) {
     const candidates = await this.candidates(kind)
-    if (!candidates.length) throw new Error(`没有已配置并启用的${kind === 'video' ? '视频' : '图像'}生成模型。请先在配置页添加视觉模型。`)
-    const requested = String(requestedModel || '').trim().toLowerCase()
+    if (!candidates.length)
+      throw new Error(
+        `没有已配置并启用的${kind === 'video' ? '视频' : '图像'}生成模型。请先在配置页添加视觉模型。`,
+      )
+    const requested = String(requestedModel || '')
+      .trim()
+      .toLowerCase()
     if (requested) {
-      const qualified = candidates.find((model) => `${model.providerId}/${model.id}`.toLowerCase() === requested)
+      const qualified = candidates.find(
+        (model) => `${model.providerId}/${model.id}`.toLowerCase() === requested,
+      )
       if (qualified) return publicModel(qualified)
     }
-    const models = deduplicateModels(candidates)
-      .sort(compareModels)
+    const models = deduplicateModels(candidates).sort(compareModels)
     if (!requested) return publicModel(models[0])
     const exact = models.find((model) => model.id.toLowerCase() === requested)
     if (!exact) throw new Error(`未找到已启用的视觉模型：${requestedModel}`)

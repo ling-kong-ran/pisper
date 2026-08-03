@@ -2,18 +2,63 @@ import { extname } from 'node:path'
 import { readJson, writeJsonAtomic } from '../../storage/json-file.mjs'
 import { FeishuGateway } from './feishu-gateway.mjs'
 import { FeishuOnboardingService } from './feishu-onboarding.mjs'
-import { defaultTemplates, normalizeTemplates, NOTIFICATION_EVENTS, renderNotificationTemplate, sampleNotificationData, templateCatalog } from './notification-templates.mjs'
+import {
+  defaultTemplates,
+  normalizeTemplates,
+  NOTIFICATION_EVENTS,
+  renderNotificationTemplate,
+  sampleNotificationData,
+  templateCatalog,
+} from './notification-templates.mjs'
 import { WeixinGateway } from './weixin-gateway.mjs'
 import { WeixinOnboardingService } from './weixin-onboarding.mjs'
 
 const PLATFORMS = new Set(['feishu', 'weixin'])
 const TEMPLATE_PLATFORMS = new Set(['feishu', 'weixin', 'browser'])
-const TEXT_EXTENSIONS = new Set(['.txt', '.md', '.json', '.js', '.jsx', '.ts', '.tsx', '.css', '.html', '.xml', '.yaml', '.yml', '.csv', '.log', '.py', '.java', '.go', '.rs', '.sh', '.ps1', '.toml', '.sql'])
-const DOCUMENT_EXTENSIONS = new Set(['.pdf', '.docx', '.pptx', '.xlsx', '.odt', '.odp', '.ods', '.rtf', '.epub'])
+const TEXT_EXTENSIONS = new Set([
+  '.txt',
+  '.md',
+  '.json',
+  '.js',
+  '.jsx',
+  '.ts',
+  '.tsx',
+  '.css',
+  '.html',
+  '.xml',
+  '.yaml',
+  '.yml',
+  '.csv',
+  '.log',
+  '.py',
+  '.java',
+  '.go',
+  '.rs',
+  '.sh',
+  '.ps1',
+  '.toml',
+  '.sql',
+])
+const DOCUMENT_EXTENSIONS = new Set([
+  '.pdf',
+  '.docx',
+  '.pptx',
+  '.xlsx',
+  '.odt',
+  '.odp',
+  '.ods',
+  '.rtf',
+  '.epub',
+])
 const IMAGE_EXTENSIONS = new Set(['.png', '.jpg', '.jpeg', '.gif', '.webp', '.bmp'])
 
 function defaultState() {
-  return { version: 3, connections: { feishu: null, weixin: null }, scopes: {}, templates: defaultTemplates() }
+  return {
+    version: 3,
+    connections: { feishu: null, weixin: null },
+    scopes: {},
+    templates: defaultTemplates(),
+  }
 }
 
 function scopeKey(platform, peerId) {
@@ -28,11 +73,38 @@ function maskedId(value) {
 function attachmentFromResource(resource) {
   const extension = extname(resource.name || '').toLowerCase()
   if (resource.type === 'image' || IMAGE_EXTENSIONS.has(extension)) {
-    const mimeType = resource.mimeType || (extension === '.jpg' || extension === '.jpeg' ? 'image/jpeg' : extension === '.webp' ? 'image/webp' : extension === '.gif' ? 'image/gif' : 'image/png')
-    return { kind: 'image', name: resource.name, mimeType, size: resource.buffer.length, data: resource.buffer.toString('base64') }
+    const mimeType =
+      resource.mimeType ||
+      (extension === '.jpg' || extension === '.jpeg'
+        ? 'image/jpeg'
+        : extension === '.webp'
+          ? 'image/webp'
+          : extension === '.gif'
+            ? 'image/gif'
+            : 'image/png')
+    return {
+      kind: 'image',
+      name: resource.name,
+      mimeType,
+      size: resource.buffer.length,
+      data: resource.buffer.toString('base64'),
+    }
   }
-  if (TEXT_EXTENSIONS.has(extension)) return { kind: 'text', name: resource.name, size: resource.buffer.length, text: resource.buffer.toString('utf8') }
-  if (DOCUMENT_EXTENSIONS.has(extension)) return { kind: 'document', name: resource.name, size: resource.buffer.length, extension, data: resource.buffer.toString('base64') }
+  if (TEXT_EXTENSIONS.has(extension))
+    return {
+      kind: 'text',
+      name: resource.name,
+      size: resource.buffer.length,
+      text: resource.buffer.toString('utf8'),
+    }
+  if (DOCUMENT_EXTENSIONS.has(extension))
+    return {
+      kind: 'document',
+      name: resource.name,
+      size: resource.buffer.length,
+      extension,
+      data: resource.buffer.toString('base64'),
+    }
   return null
 }
 
@@ -52,15 +124,29 @@ function publicScope(key, scope) {
 }
 
 function normalizeState(stored) {
-  if (stored?.version === 3) return {
-    version: 3,
-    connections: { feishu: stored.connections?.feishu || null, weixin: stored.connections?.weixin || null },
-    scopes: stored.scopes && typeof stored.scopes === 'object' ? stored.scopes : {},
-    templates: normalizeTemplates(stored.templates),
-  }
+  if (stored?.version === 3)
+    return {
+      version: 3,
+      connections: {
+        feishu: stored.connections?.feishu || null,
+        weixin: stored.connections?.weixin || null,
+      },
+      scopes: stored.scopes && typeof stored.scopes === 'object' ? stored.scopes : {},
+      templates: normalizeTemplates(stored.templates),
+    }
   if (stored?.version === 2) {
-    const scopes = Object.fromEntries(Object.entries(stored.scopes || {}).map(([peerId, scope]) => [scopeKey('feishu', peerId), { ...scope, platform: 'feishu', peerId }]))
-    return { version: 3, connections: { feishu: stored.connection || null, weixin: null }, scopes, templates: defaultTemplates() }
+    const scopes = Object.fromEntries(
+      Object.entries(stored.scopes || {}).map(([peerId, scope]) => [
+        scopeKey('feishu', peerId),
+        { ...scope, platform: 'feishu', peerId },
+      ]),
+    )
+    return {
+      version: 3,
+      connections: { feishu: stored.connection || null, weixin: null },
+      scopes,
+      templates: defaultTemplates(),
+    }
   }
   return defaultState()
 }
@@ -78,23 +164,41 @@ export class ChannelService {
         ? gatewayFactories.feishu({ onMessage: (message) => this.enqueue('feishu', message) })
         : new FeishuGateway({ onMessage: (message) => this.enqueue('feishu', message) }),
       weixin: gatewayFactories.weixin
-        ? gatewayFactories.weixin({ onMessage: (message) => this.enqueue('weixin', message), onSyncBuf: (value) => this.updateWeixinSync(value) })
-        : new WeixinGateway({ onMessage: (message) => this.enqueue('weixin', message), onSyncBuf: (value) => this.updateWeixinSync(value) }),
+        ? gatewayFactories.weixin({
+            onMessage: (message) => this.enqueue('weixin', message),
+            onSyncBuf: (value) => this.updateWeixinSync(value),
+          })
+        : new WeixinGateway({
+            onMessage: (message) => this.enqueue('weixin', message),
+            onSyncBuf: (value) => this.updateWeixinSync(value),
+          }),
     }
     this.onboardings = {
       feishu: onboardingFactories.feishu
-        ? onboardingFactories.feishu({ onCompleted: (credentials) => this.completeOnboarding('feishu', credentials) })
-        : new FeishuOnboardingService({ onCompleted: (credentials) => this.completeOnboarding('feishu', credentials) }),
+        ? onboardingFactories.feishu({
+            onCompleted: (credentials) => this.completeOnboarding('feishu', credentials),
+          })
+        : new FeishuOnboardingService({
+            onCompleted: (credentials) => this.completeOnboarding('feishu', credentials),
+          }),
       weixin: onboardingFactories.weixin
-        ? onboardingFactories.weixin({ onCompleted: (credentials) => this.completeOnboarding('weixin', credentials) })
-        : new WeixinOnboardingService({ onCompleted: (credentials) => this.completeOnboarding('weixin', credentials) }),
+        ? onboardingFactories.weixin({
+            onCompleted: (credentials) => this.completeOnboarding('weixin', credentials),
+          })
+        : new WeixinOnboardingService({
+            onCompleted: (credentials) => this.completeOnboarding('weixin', credentials),
+          }),
     }
   }
 
   async init() {
     const stored = await readJson(this.path, defaultState())
     this.state = normalizeState(stored)
-    const hasLegacyTemplateTargets = Object.values(stored?.templates || {}).some((template) => Object.values(template?.channels || {}).some((variant) => Object.hasOwn(variant || {}, 'targets')))
+    const hasLegacyTemplateTargets = Object.values(stored?.templates || {}).some((template) =>
+      Object.values(template?.channels || {}).some((variant) =>
+        Object.hasOwn(variant || {}, 'targets'),
+      ),
+    )
     if (stored?.version !== 3 || hasLegacyTemplateTargets) await this.save()
     for (const platform of PLATFORMS) {
       const connection = this.state.connections[platform]
@@ -104,7 +208,9 @@ export class ChannelService {
 
   save() {
     const snapshot = JSON.parse(JSON.stringify(this.state))
-    this.writeQueue = this.writeQueue.catch(() => {}).then(() => writeJsonAtomic(this.path, snapshot))
+    this.writeQueue = this.writeQueue
+      .catch(() => {})
+      .then(() => writeJsonAtomic(this.path, snapshot))
     return this.writeQueue
   }
 
@@ -116,7 +222,9 @@ export class ChannelService {
     return {
       id: platform,
       type: platform,
-      name: connection.name || (platform === 'feishu' ? live.bot?.name || 'Pisper Agent' : '微信机器人'),
+      name:
+        connection.name ||
+        (platform === 'feishu' ? live.bot?.name || 'Pisper Agent' : '微信机器人'),
       enabled: connection.enabled !== false,
       accountId: maskedId(platform === 'feishu' ? connection.appId : connection.accountId),
       accessMode: connection.accessMode || 'owner',
@@ -134,18 +242,34 @@ export class ChannelService {
   getState() {
     return {
       providers: [
-        { type: 'feishu', name: '飞书应用机器人', description: '官方扫码创建，WebSocket 长连接，支持私聊与群聊 @' },
-        { type: 'weixin', name: '微信', description: '腾讯 iLink Bot 扫码登录，支持个人微信私聊与媒体消息' },
+        {
+          type: 'feishu',
+          name: '飞书应用机器人',
+          description: '官方扫码创建，WebSocket 长连接，支持私聊与群聊 @',
+        },
+        {
+          type: 'weixin',
+          name: '微信',
+          description: '腾讯 iLink Bot 扫码登录，支持个人微信私聊与媒体消息',
+        },
       ],
-      connections: { feishu: this.publicConnection('feishu'), weixin: this.publicConnection('weixin') },
-      scopes: Object.entries(this.state.scopes).map(([key, scope]) => publicScope(key, scope)).sort((a, b) => new Date(b.updatedAt || 0) - new Date(a.updatedAt || 0)),
+      connections: {
+        feishu: this.publicConnection('feishu'),
+        weixin: this.publicConnection('weixin'),
+      },
+      scopes: Object.entries(this.state.scopes)
+        .map(([key, scope]) => publicScope(key, scope))
+        .sort((a, b) => new Date(b.updatedAt || 0) - new Date(a.updatedAt || 0)),
       templates: templateCatalog(this.state.templates),
     }
   }
 
   startOnboarding(platform) {
     if (!PLATFORMS.has(platform)) throw new Error('不支持这个渠道。')
-    const options = platform === 'weixin' ? { localTokens: [this.state.connections.weixin?.token].filter(Boolean) } : undefined
+    const options =
+      platform === 'weixin'
+        ? { localTokens: [this.state.connections.weixin?.token].filter(Boolean) }
+        : undefined
     return this.onboardings[platform].start(options)
   }
 
@@ -173,13 +297,32 @@ export class ChannelService {
       createdAt: current?.createdAt || new Date().toISOString(),
       updatedAt: new Date().toISOString(),
     }
-    this.state.connections[platform] = platform === 'feishu'
-      ? { ...common, appId: credentials.appId, appSecret: credentials.appSecret, ownerOpenId: credentials.ownerOpenId || '', domain: credentials.domain || 'feishu' }
-      : { ...common, accountId: credentials.accountId, token: credentials.token, ownerUserId: credentials.ownerUserId || '', baseUrl: credentials.baseUrl, cdnBaseUrl: credentials.cdnBaseUrl, syncBuf: '' }
-    for (const key of Object.keys(this.state.scopes)) if (this.state.scopes[key].platform === platform) delete this.state.scopes[key]
+    this.state.connections[platform] =
+      platform === 'feishu'
+        ? {
+            ...common,
+            appId: credentials.appId,
+            appSecret: credentials.appSecret,
+            ownerOpenId: credentials.ownerOpenId || '',
+            domain: credentials.domain || 'feishu',
+          }
+        : {
+            ...common,
+            accountId: credentials.accountId,
+            token: credentials.token,
+            ownerUserId: credentials.ownerUserId || '',
+            baseUrl: credentials.baseUrl,
+            cdnBaseUrl: credentials.cdnBaseUrl,
+            syncBuf: '',
+          }
+    for (const key of Object.keys(this.state.scopes))
+      if (this.state.scopes[key].platform === platform) delete this.state.scopes[key]
     await this.save()
     const status = await this.connect(platform)
-    if (platform === 'feishu' && status.bot?.name) { this.state.connections.feishu.name = status.bot.name; await this.save() }
+    if (platform === 'feishu' && status.bot?.name) {
+      this.state.connections.feishu.name = status.bot.name
+      await this.save()
+    }
     return this.getState()
   }
 
@@ -195,8 +338,10 @@ export class ChannelService {
     if (!connection) throw new Error('渠道尚未连接。')
     const enabledChanged = Object.hasOwn(input || {}, 'enabled')
     if (Object.hasOwn(input || {}, 'enabled')) connection.enabled = Boolean(input.enabled)
-    if (Object.hasOwn(input || {}, 'accessMode')) connection.accessMode = input.accessMode === 'all' ? 'all' : 'owner'
-    if (Object.hasOwn(input || {}, 'defaultCwd')) connection.defaultCwd = await this.agent.validateDirectory(input.defaultCwd)
+    if (Object.hasOwn(input || {}, 'accessMode'))
+      connection.accessMode = input.accessMode === 'all' ? 'all' : 'owner'
+    if (Object.hasOwn(input || {}, 'defaultCwd'))
+      connection.defaultCwd = await this.agent.validateDirectory(input.defaultCwd)
     if (Object.hasOwn(input || {}, 'replyModel')) {
       const provider = String(input.replyModel?.provider || '')
       const model = String(input.replyModel?.model || '')
@@ -214,7 +359,8 @@ export class ChannelService {
   async remove(platform) {
     await this.gateways[platform].disconnect()
     this.state.connections[platform] = null
-    for (const key of Object.keys(this.state.scopes)) if (this.state.scopes[key].platform === platform) delete this.state.scopes[key]
+    for (const key of Object.keys(this.state.scopes))
+      if (this.state.scopes[key].platform === platform) delete this.state.scopes[key]
     await this.save()
     return true
   }
@@ -230,7 +376,9 @@ export class ChannelService {
     return Object.values(this.state.scopes).reduce((latest, scope) => {
       if (scope.platform !== platform) return latest
       if (!latest) return scope
-      return new Date(scope.updatedAt || 0).getTime() >= new Date(latest.updatedAt || 0).getTime() ? scope : latest
+      return new Date(scope.updatedAt || 0).getTime() >= new Date(latest.updatedAt || 0).getTime()
+        ? scope
+        : latest
     }, null)
   }
 
@@ -245,7 +393,11 @@ export class ChannelService {
     const previous = this.chatQueues.get(key) || Promise.resolve()
     const next = previous.catch(() => {}).then(() => this.handleMessage(platform, message))
     this.chatQueues.set(key, next)
-    next.finally(() => { if (this.chatQueues.get(key) === next) this.chatQueues.delete(key) }).catch(() => {})
+    next
+      .finally(() => {
+        if (this.chatQueues.get(key) === next) this.chatQueues.delete(key)
+      })
+      .catch(() => {})
   }
 
   async handleMessage(platform, message) {
@@ -253,7 +405,11 @@ export class ChannelService {
     if (!connection?.enabled) return
     const ownerId = platform === 'feishu' ? connection.ownerOpenId : connection.ownerUserId
     if (connection.accessMode !== 'all' && (!ownerId || message.senderId !== ownerId)) {
-      await this.gateways[platform].send(message, { text: ownerId ? '当前机器人仅允许扫码创建者使用。' : '未获取到创建者身份，请重新扫码或调整访问范围。' })
+      await this.gateways[platform].send(message, {
+        text: ownerId
+          ? '当前机器人仅允许扫码创建者使用。'
+          : '未获取到创建者身份，请重新扫码或调整访问范围。',
+      })
       return
     }
     const key = scopeKey(platform, message.peerId)
@@ -265,12 +421,18 @@ export class ChannelService {
       return
     }
     if (command === '/status') {
-      await this.gateways[platform].send(message, { text: scope.sessionId ? `会话：${scope.sessionId}\n模型：${scope.model || '默认'}\n工作目录：${scope.cwd || connection.defaultCwd}` : '当前聊天还没有绑定 Pisper 会话。' })
+      await this.gateways[platform].send(message, {
+        text: scope.sessionId
+          ? `会话：${scope.sessionId}\n模型：${scope.model || '默认'}\n工作目录：${scope.cwd || connection.defaultCwd}`
+          : '当前聊天还没有绑定 Pisper 会话。',
+      })
       return
     }
     if (command === '/stop') {
       const stopped = scope.sessionId ? await this.agent.abort(scope.sessionId) : false
-      await this.gateways[platform].send(message, { text: stopped ? '已停止当前任务。' : '当前没有运行中的任务。' })
+      await this.gateways[platform].send(message, {
+        text: stopped ? '已停止当前任务。' : '当前没有运行中的任务。',
+      })
       return
     }
     try {
@@ -292,23 +454,35 @@ export class ChannelService {
         peerId: message.peerId,
         sessionId: result.sessionId,
         chatType: message.chatType,
-        title: message.senderName || `${platform === 'feishu' ? '飞书' : '微信'}${message.chatType === 'p2p' ? '私聊' : '群聊'}`,
+        title:
+          message.senderName ||
+          `${platform === 'feishu' ? '飞书' : '微信'}${message.chatType === 'p2p' ? '私聊' : '群聊'}`,
         cwd: result.cwd || connection.defaultCwd || this.cwd,
-        model: result.model || (connection.replyModel ? `${connection.replyModel.provider}/${connection.replyModel.model}` : ''),
+        model:
+          result.model ||
+          (connection.replyModel
+            ? `${connection.replyModel.provider}/${connection.replyModel.model}`
+            : ''),
         contextToken: message.contextToken || scope.contextToken || '',
         lastMessage: prompt.slice(0, 120),
         updatedAt: new Date().toISOString(),
       }
       await this.save()
       await this.gateways[platform].send(message, { markdown: result.text || '任务已完成。' })
-      for (const asset of result.assets || []) await this.gateways[platform].sendAsset(message.peerId, asset, this.state.scopes[key])
+      for (const asset of result.assets || [])
+        await this.gateways[platform].sendAsset(message.peerId, asset, this.state.scopes[key])
     } catch (error) {
-      await this.gateways[platform].send(message, { text: `执行失败：${error instanceof Error ? error.message : String(error)}` }).catch(() => {})
+      await this.gateways[platform]
+        .send(message, {
+          text: `执行失败：${error instanceof Error ? error.message : String(error)}`,
+        })
+        .catch(() => {})
     }
   }
 
   async updateTemplate(event, platform, input) {
-    if (!NOTIFICATION_EVENTS[event] || !TEMPLATE_PLATFORMS.has(platform)) throw new Error('通知模板类型不存在。')
+    if (!NOTIFICATION_EVENTS[event] || !TEMPLATE_PLATFORMS.has(platform))
+      throw new Error('通知模板类型不存在。')
     const template = this.state.templates[event]
     if (Object.hasOwn(input || {}, 'enabled')) template.enabled = Boolean(input.enabled)
     if (Object.hasOwn(input || {}, 'content')) {
@@ -341,13 +515,23 @@ export class ChannelService {
       const { content } = this.renderNotification(event, platform, data)
       deliveries.push({
         platform,
-        promise: this.gateways[platform].sendToPeer(scope.peerId, platform === 'feishu' ? { markdown: content } : { text: content }, scope),
+        promise: this.gateways[platform].sendToPeer(
+          scope.peerId,
+          platform === 'feishu' ? { markdown: content } : { text: content },
+          scope,
+        ),
       })
     }
     const settled = await Promise.allSettled(deliveries.map((delivery) => delivery.promise))
-    return settled.map((result, index) => result.status === 'fulfilled'
-      ? { platform: deliveries[index].platform, status: 'fulfilled' }
-      : { platform: deliveries[index].platform, status: 'rejected', error: result.reason instanceof Error ? result.reason.message : String(result.reason) })
+    return settled.map((result, index) =>
+      result.status === 'fulfilled'
+        ? { platform: deliveries[index].platform, status: 'fulfilled' }
+        : {
+            platform: deliveries[index].platform,
+            status: 'rejected',
+            error: result.reason instanceof Error ? result.reason.message : String(result.reason),
+          },
+    )
   }
 
   async testNotification(event, platform) {
@@ -356,7 +540,11 @@ export class ChannelService {
     const scope = this.latestScope(platform)
     if (!scope) throw new Error('该渠道还没有可接收通知的历史会话。')
     const content = this.renderNotification(event, platform, sampleNotificationData()).content
-    await this.gateways[platform].sendToPeer(scope.peerId, platform === 'feishu' ? { markdown: content } : { text: content }, scope)
+    await this.gateways[platform].sendToPeer(
+      scope.peerId,
+      platform === 'feishu' ? { markdown: content } : { text: content },
+      scope,
+    )
     return { sent: 1, preview: content }
   }
 

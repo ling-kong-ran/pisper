@@ -17,9 +17,13 @@ function response() {
     body: '',
     destroyed: false,
     writableEnded: false,
-    writeHead(status) { this.status = status },
+    writeHead(status) {
+      this.status = status
+    },
     flushHeaders() {},
-    write(body = '') { this.body += body },
+    write(body = '') {
+      this.body += body
+    },
     end(body = '') {
       this.body += body
       this.writableEnded = true
@@ -53,7 +57,10 @@ test('runtime diagnostics API returns sidecar memory counters', async () => {
   const handler = createApiHandler({ getRuntimeDiagnostics: () => diagnostics })
   const output = response()
 
-  assert.equal(await handler(request('GET'), output, new URL('http://localhost/api/runtime/diagnostics')), true)
+  assert.equal(
+    await handler(request('GET'), output, new URL('http://localhost/api/runtime/diagnostics')),
+    true,
+  )
   assert.equal(output.status, 200)
   assert.deepEqual(JSON.parse(output.body), diagnostics)
 })
@@ -73,12 +80,30 @@ test('compaction preference APIs expose and update the threshold percentage', as
   const handler = createApiHandler(runtime)
 
   const getResponse = response()
-  assert.equal(await handler(request('GET'), getResponse, new URL('http://localhost/api/settings/compaction')), true)
-  assert.deepEqual(JSON.parse(getResponse.body), { thresholdPercent: 80, minPercent: 50, maxPercent: 95 })
+  assert.equal(
+    await handler(request('GET'), getResponse, new URL('http://localhost/api/settings/compaction')),
+    true,
+  )
+  assert.deepEqual(JSON.parse(getResponse.body), {
+    thresholdPercent: 80,
+    minPercent: 50,
+    maxPercent: 95,
+  })
 
   const patchResponse = response()
-  assert.equal(await handler(request('PATCH', { thresholdPercent: 75 }), patchResponse, new URL('http://localhost/api/settings/compaction')), true)
-  assert.deepEqual(JSON.parse(patchResponse.body), { thresholdPercent: 75, minPercent: 50, maxPercent: 95 })
+  assert.equal(
+    await handler(
+      request('PATCH', { thresholdPercent: 75 }),
+      patchResponse,
+      new URL('http://localhost/api/settings/compaction'),
+    ),
+    true,
+  )
+  assert.deepEqual(JSON.parse(patchResponse.body), {
+    thresholdPercent: 75,
+    minPercent: 50,
+    maxPercent: 95,
+  })
   assert.deepEqual(calls, [['get'], ['update', 75]])
 })
 
@@ -110,13 +135,33 @@ test('skills APIs forward the active session scope for global and project discov
   const sessionQuery = '?sessionId=session%201'
 
   const dashboardResponse = response()
-  await handler(request('GET'), dashboardResponse, new URL(`http://localhost/api/skills${sessionQuery}`))
+  await handler(
+    request('GET'),
+    dashboardResponse,
+    new URL(`http://localhost/api/skills${sessionQuery}`),
+  )
   assert.equal(JSON.parse(dashboardResponse.body).cwd, '/project')
 
-  await handler(request('POST', { source: './skill' }), response(), new URL(`http://localhost/api/skills/install${sessionQuery}`))
-  await handler(request('POST', {}), response(), new URL(`http://localhost/api/skills/reload${sessionQuery}`))
-  await handler(request('PATCH', { enabled: false }), response(), new URL(`http://localhost/api/skills/project-helper${sessionQuery}`))
-  await handler(request('DELETE'), response(), new URL(`http://localhost/api/skills/global-helper${sessionQuery}`))
+  await handler(
+    request('POST', { source: './skill' }),
+    response(),
+    new URL(`http://localhost/api/skills/install${sessionQuery}`),
+  )
+  await handler(
+    request('POST', {}),
+    response(),
+    new URL(`http://localhost/api/skills/reload${sessionQuery}`),
+  )
+  await handler(
+    request('PATCH', { enabled: false }),
+    response(),
+    new URL(`http://localhost/api/skills/project-helper${sessionQuery}`),
+  )
+  await handler(
+    request('DELETE'),
+    response(),
+    new URL(`http://localhost/api/skills/global-helper${sessionQuery}`),
+  )
 
   assert.deepEqual(calls, [
     ['dashboard', 'session 1'],
@@ -138,11 +183,18 @@ test('chat API forwards explicit Tool requests as structured runtime input', asy
   const handler = createApiHandler(runtime)
   const output = response()
 
-  assert.equal(await handler(request('POST', {
-    sessionId: 'session-1',
-    message: '/web_search Pisper release',
-    requestedToolNames: ['web_search'],
-  }), output, new URL('http://localhost/api/chat')), true)
+  assert.equal(
+    await handler(
+      request('POST', {
+        sessionId: 'session-1',
+        message: '/web_search Pisper release',
+        requestedToolNames: ['web_search'],
+      }),
+      output,
+      new URL('http://localhost/api/chat'),
+    ),
+    true,
+  )
 
   assert.equal(output.status, 200)
   assert.deepEqual(calls[0].requestedToolNames, ['web_search'])
@@ -160,11 +212,14 @@ test('session creation forwards the CLI workspace to the shared runtime', async 
   const handler = createApiHandler(runtime)
   const output = response()
 
-  assert.equal(await handler(
-    request('POST', { name: 'CLI chat', cwd: 'E:\\code\\workspace' }),
-    output,
-    new URL('http://localhost/api/sessions'),
-  ), true)
+  assert.equal(
+    await handler(
+      request('POST', { name: 'CLI chat', cwd: 'E:\\code\\workspace' }),
+      output,
+      new URL('http://localhost/api/sessions'),
+    ),
+    true,
+  )
   assert.equal(output.status, 201)
   assert.deepEqual(calls, [['CLI chat', 'E:\\code\\workspace']])
 })
@@ -178,26 +233,75 @@ test('session model and thinking APIs delegate current-session changes to the ru
     },
     async getSessionThinkingState(id) {
       calls.push(['thinking-state', id])
-      return { id, thinkingLevel: 'off', availableLevels: ['off', 'xhigh', 'max'], status: 'supported', message: '', model: 'relay/gpt-5.6-sol' }
+      return {
+        id,
+        thinkingLevel: 'off',
+        availableLevels: ['off', 'xhigh', 'max'],
+        status: 'supported',
+        message: '',
+        model: 'relay/gpt-5.6-sol',
+      }
     },
     async setSessionThinkingLevel(id, level) {
       calls.push(['thinking', id, level])
-      return { id, thinkingLevel: level, availableLevels: ['off', 'xhigh', 'max'], status: 'supported', message: '', model: 'relay/gpt-5.6-sol' }
+      return {
+        id,
+        thinkingLevel: level,
+        availableLevels: ['off', 'xhigh', 'max'],
+        status: 'supported',
+        message: '',
+        model: 'relay/gpt-5.6-sol',
+      }
     },
   }
   const handler = createApiHandler(runtime)
 
   const modelResponse = response()
-  assert.equal(await handler(request('PUT', { provider: 'openai', model: 'gpt-5.6' }), modelResponse, new URL('http://localhost/api/sessions/session%201/model')), true)
+  assert.equal(
+    await handler(
+      request('PUT', { provider: 'openai', model: 'gpt-5.6' }),
+      modelResponse,
+      new URL('http://localhost/api/sessions/session%201/model'),
+    ),
+    true,
+  )
   assert.deepEqual(JSON.parse(modelResponse.body), { id: 'session 1', model: 'openai/gpt-5.6' })
 
   const thinkingStateResponse = response()
-  assert.equal(await handler(request('GET'), thinkingStateResponse, new URL('http://localhost/api/sessions/session%201/thinking-level')), true)
-  assert.deepEqual(JSON.parse(thinkingStateResponse.body), { id: 'session 1', thinkingLevel: 'off', availableLevels: ['off', 'xhigh', 'max'], status: 'supported', message: '', model: 'relay/gpt-5.6-sol' })
+  assert.equal(
+    await handler(
+      request('GET'),
+      thinkingStateResponse,
+      new URL('http://localhost/api/sessions/session%201/thinking-level'),
+    ),
+    true,
+  )
+  assert.deepEqual(JSON.parse(thinkingStateResponse.body), {
+    id: 'session 1',
+    thinkingLevel: 'off',
+    availableLevels: ['off', 'xhigh', 'max'],
+    status: 'supported',
+    message: '',
+    model: 'relay/gpt-5.6-sol',
+  })
 
   const thinkingResponse = response()
-  assert.equal(await handler(request('PUT', { level: 'xhigh' }), thinkingResponse, new URL('http://localhost/api/sessions/session%201/thinking-level')), true)
-  assert.deepEqual(JSON.parse(thinkingResponse.body), { id: 'session 1', thinkingLevel: 'xhigh', availableLevels: ['off', 'xhigh', 'max'], status: 'supported', message: '', model: 'relay/gpt-5.6-sol' })
+  assert.equal(
+    await handler(
+      request('PUT', { level: 'xhigh' }),
+      thinkingResponse,
+      new URL('http://localhost/api/sessions/session%201/thinking-level'),
+    ),
+    true,
+  )
+  assert.deepEqual(JSON.parse(thinkingResponse.body), {
+    id: 'session 1',
+    thinkingLevel: 'xhigh',
+    availableLevels: ['off', 'xhigh', 'max'],
+    status: 'supported',
+    message: '',
+    model: 'relay/gpt-5.6-sol',
+  })
   assert.deepEqual(calls, [
     ['model', 'session 1', 'openai', 'gpt-5.6'],
     ['thinking-state', 'session 1'],
@@ -216,8 +320,19 @@ test('session execution mode API delegates to the runtime', async () => {
   const handler = createApiHandler(runtime)
 
   const modeResponse = response()
-  assert.equal(await handler(request('PUT', { mode: 'workspace' }), modeResponse, new URL('http://localhost/api/sessions/session%201/execution-mode')), true)
+  assert.equal(
+    await handler(
+      request('PUT', { mode: 'workspace' }),
+      modeResponse,
+      new URL('http://localhost/api/sessions/session%201/execution-mode'),
+    ),
+    true,
+  )
   assert.equal(modeResponse.status, 200)
-  assert.deepEqual(JSON.parse(modeResponse.body), { id: 'session 1', executionMode: 'workspace', permissionMode: 'auto' })
+  assert.deepEqual(JSON.parse(modeResponse.body), {
+    id: 'session 1',
+    executionMode: 'workspace',
+    permissionMode: 'auto',
+  })
   assert.deepEqual(calls, [['mode', 'session 1', 'workspace']])
 })

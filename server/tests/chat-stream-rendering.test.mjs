@@ -133,10 +133,7 @@ test('ephemeral reasoning remains rendered after a textless response completes',
   assert.match(doneHandler, /thinkingScheduler\.flush\(\)/)
   assert.doesNotMatch(doneHandler, /thinkingText:\s*''/)
   assert.doesNotMatch(finalizer, /thinkingText:\s*''/)
-  assert.match(
-    thinkingResetHandler,
-    /state\.thinkingPrefix = String\(data\.thinkingText \|\| ''\)/,
-  )
+  assert.match(thinkingResetHandler, /state\.thinkingPrefix = String\(data\.thinkingText \|\| ''\)/)
   assert.match(
     thinkingResetHandler,
     /\[state\.thinkingPrefix, state\.thinkingText\][\s\S]*\.filter\(Boolean\)/,
@@ -172,7 +169,10 @@ test('background Agent completion uses code-level UI state without prompt or cus
 
 test('stale streaming queue errors settle the old stream and resend as a new turn', async () => {
   const source = await readFile('src/features/chat/use-prompt-commands.ts', 'utf8')
-  const queueHandler = source.slice(source.indexOf('const queuePrompt'), source.indexOf('const abort'))
+  const queueHandler = source.slice(
+    source.indexOf('const queuePrompt'),
+    source.indexOf('const abort'),
+  )
   assert.match(queueHandler, /isEndedSessionQueueError\(error\)/)
   assert.match(queueHandler, /if \(activeStream\) await activeStream\.promise/)
   assert.match(queueHandler, /await loadSessionMessages\(sessionId, \{ force: true \}\)/)
@@ -201,10 +201,10 @@ test('bash tool output stays multiline while terminal rendering remains bounded'
     await Promise.all([
       readFile('server/runtime/agent-runtime.mjs', 'utf8'),
       readFile('src/features/chat/stream-event-dispatch.ts', 'utf8'),
-    readFile('src/features/chat/AgentRunActivity.tsx', 'utf8'),
-    readFile('src/components/ai-elements/terminal.tsx', 'utf8'),
-    readFile('src/lib/terminal-output.ts', 'utf8'),
-    readFile('src/index.css', 'utf8'),
+      readFile('src/features/chat/AgentRunActivity.tsx', 'utf8'),
+      readFile('src/components/ai-elements/terminal.tsx', 'utf8'),
+      readFile('src/lib/terminal-output.ts', 'utf8'),
+      readFile('src/index.css', 'utf8'),
       readFile('package.json', 'utf8'),
     ])
   assert.match(runtime, /const rawOutput = textFromContent\(event\.partialResult\?\.content\)/)

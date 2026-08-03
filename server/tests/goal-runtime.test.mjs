@@ -19,7 +19,9 @@ test('goal mode queues hidden continuation turns until the goal is completed', a
   const listeners = new Set()
   const queued = []
   let turns = 0
-  const emit = (event) => { for (const listener of listeners) listener(event) }
+  const emit = (event) => {
+    for (const listener of listeners) listener(event)
+  }
   const session = {
     sessionId: 'goal-session',
     model: { provider: 'openai', id: 'gpt-5' },
@@ -51,7 +53,10 @@ test('goal mode queues hidden continuation turns until the goal is completed', a
           timestamp: Date.now(),
         }
         session.messages.push(assistant)
-        emit({ type: 'message_update', assistantMessageEvent: { type: 'text_delta', delta: `turn ${turns}` } })
+        emit({
+          type: 'message_update',
+          assistantMessageEvent: { type: 'text_delta', delta: `turn ${turns}` },
+        })
         emit({ type: 'turn_end', message: assistant })
         emit({ type: 'agent_end', messages: [assistant] })
       }
@@ -79,8 +84,14 @@ test('goal mode queues hidden continuation turns until the goal is completed', a
   assert.equal(events.find((item) => item.event === 'meta').data.goal.status, 'active')
   assert.equal(events.find((item) => item.event === 'done').data.goal.status, 'complete')
   const messages = await runtime.getSessionMessages(session.sessionId)
-  assert.deepEqual(messages.map((message) => message.role), ['user', 'agent', 'agent'])
-  assert.deepEqual(messages.map((message) => message.text), ['Implement the focused Goal.', 'turn 1', 'turn 2'])
+  assert.deepEqual(
+    messages.map((message) => message.role),
+    ['user', 'agent', 'agent'],
+  )
+  assert.deepEqual(
+    messages.map((message) => message.text),
+    ['Implement the focused Goal.', 'turn 1', 'turn 2'],
+  )
 })
 
 test('goal mode resumes a paused Goal without replacing its objective', async (t) => {
@@ -92,7 +103,9 @@ test('goal mode resumes a paused Goal without replacing its objective', async (t
   runtime.captureConversationMemory = async () => []
   runtime.memory = { relevantContext: async () => ({ text: '' }) }
 
-  const original = await runtime.goals.start('paused-goal-session', { objective: 'Finish the original objective.' })
+  const original = await runtime.goals.start('paused-goal-session', {
+    objective: 'Finish the original objective.',
+  })
   await runtime.goals.pause('paused-goal-session')
   const session = {
     sessionId: 'paused-goal-session',
@@ -107,7 +120,11 @@ test('goal mode resumes a paused Goal without replacing its objective', async (t
     subscribe: () => () => {},
     async prompt(text) {
       session.messages.push({ role: 'user', content: text, timestamp: Date.now() })
-      session.messages.push({ role: 'assistant', content: [{ type: 'text', text: 'Continuing the existing Goal.' }], timestamp: Date.now() })
+      session.messages.push({
+        role: 'assistant',
+        content: [{ type: 'text', text: 'Continuing the existing Goal.' }],
+        timestamp: Date.now(),
+      })
     },
   }
   const value = { session, cwd: directory, name: 'Goal resume test', baseToolNames: [] }
@@ -160,11 +177,23 @@ test('goal continuation waits for Pi retries and skips terminal assistant errors
     },
     async prompt(text) {
       session.messages.push({ role: 'user', content: text, timestamp: Date.now() })
-      const retrying = { role: 'assistant', content: [{ type: 'text', text: 'Temporary provider failure.' }], stopReason: 'stop', timestamp: Date.now() }
-      for (const listener of listeners) listener({ type: 'agent_end', messages: [retrying], willRetry: true })
-      const failed = { role: 'assistant', content: [{ type: 'text', text: 'The retry did not complete.' }], stopReason: 'error', timestamp: Date.now() }
+      const retrying = {
+        role: 'assistant',
+        content: [{ type: 'text', text: 'Temporary provider failure.' }],
+        stopReason: 'stop',
+        timestamp: Date.now(),
+      }
+      for (const listener of listeners)
+        listener({ type: 'agent_end', messages: [retrying], willRetry: true })
+      const failed = {
+        role: 'assistant',
+        content: [{ type: 'text', text: 'The retry did not complete.' }],
+        stopReason: 'error',
+        timestamp: Date.now(),
+      }
       session.messages.push(failed)
-      for (const listener of listeners) listener({ type: 'agent_end', messages: [failed], willRetry: false })
+      for (const listener of listeners)
+        listener({ type: 'agent_end', messages: [failed], willRetry: false })
     },
   }
   const value = { session, cwd: directory, name: 'Goal retry test', baseToolNames: [] }

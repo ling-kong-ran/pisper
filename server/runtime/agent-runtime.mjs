@@ -1,11 +1,7 @@
 import { mkdir, open, readFile, stat, unlink, writeFile } from 'node:fs/promises'
 import { createHash, randomUUID } from 'node:crypto'
 import { basename, extname, join, resolve, sep } from 'node:path'
-import {
-  createAgentSession,
-  SessionManager,
-  SettingsManager,
-} from './pi-coding-agent.mjs'
+import { createAgentSession, SessionManager, SettingsManager } from './pi-coding-agent.mjs'
 import { readJson, writeJsonAtomic } from '../storage/json-file.mjs'
 import { cleanupRemovedLocalEmbeddingData } from '../data-dir-migration.mjs'
 import { ChannelService } from '../services/channels/channel-service.mjs'
@@ -19,15 +15,28 @@ import { ProviderModelDiscoveryService } from '../services/provider-model-discov
 import { ScheduleService } from '../services/schedule-service.mjs'
 import { WorkflowService } from '../services/workflow-service.mjs'
 import { SkillsService } from '../services/skills-service.mjs'
-import { PERMISSION_MODES, SessionPermissionService } from '../services/session-permission-service.mjs'
+import {
+  PERMISSION_MODES,
+  SessionPermissionService,
+} from '../services/session-permission-service.mjs'
 import { ToolPluginService } from '../services/tool-plugin-service.mjs'
 import { WebSearchService } from '../services/web-search-service.mjs'
 import { extractConversationMemories } from '../services/memory/conversation-memory.mjs'
 import { LocalMemoryRuntime } from '../services/memory/local-memory-runtime.mjs'
 import { createSemanticMemorySummarizer } from '../services/memory/semantic-memory.mjs'
 import { VisualGenerationService } from '../services/visual-generation/index.mjs'
-import { MultiAgentService, MULTI_AGENT_TOOL_NAMES, agentCompletionPrompt, isAgentCompletionMessage } from '../services/multi-agent-service.mjs'
-import { GoalService, goalBudgetPrompt, goalContinuationPrompt, isGoalContinuationMessage } from '../services/goal-service.mjs'
+import {
+  MultiAgentService,
+  MULTI_AGENT_TOOL_NAMES,
+  agentCompletionPrompt,
+  isAgentCompletionMessage,
+} from '../services/multi-agent-service.mjs'
+import {
+  GoalService,
+  goalBudgetPrompt,
+  goalContinuationPrompt,
+  isGoalContinuationMessage,
+} from '../services/goal-service.mjs'
 import { GitChangesService } from '../services/git-changes-service.mjs'
 import { PlanService } from '../services/plan-service.mjs'
 import { BrowserAutomationService } from '../services/browser-automation-service.mjs'
@@ -38,22 +47,36 @@ import {
   workspacePathKey,
 } from './workspace-directories.mjs'
 import { assetMessageAttachment } from '../services/session-assets.mjs'
-import { createAppTools, createMultiAgentTools, TOOL_PRESETS, toolsFromConfig } from '../tools/registry.mjs'
+import { createAppTools, createMultiAgentTools, toolsFromConfig } from '../tools/registry.mjs'
 import { createGoalTools, GOAL_TOOL_NAMES } from '../tools/app/goal.mjs'
-import { createPlanTools, PLAN_ALL_TOOL_NAMES, PLAN_COMPATIBILITY_TOOL_NAMES } from '../tools/app/plan.mjs'
+import {
+  createPlanTools,
+  PLAN_ALL_TOOL_NAMES,
+  PLAN_COMPATIBILITY_TOOL_NAMES,
+} from '../tools/app/plan.mjs'
 import { createToolDiscoveryTool, TOOL_DISCOVERY_NAME } from '../tools/app/tool-discovery.mjs'
 import { createPisperBashTool } from '../tools/host-bash.mjs'
-import { hotToolNames, mergePromotedToolNames, schemaOnlyToolDefinitions } from '../tools/tool-activation.mjs'
-import { DEFAULT_EXECUTION_MODE, EXECUTION_MODES, filterToolsForExecutionMode, migrateLegacyExecutionMode, normalizeExecutionMode, permissionModeForExecutionMode } from '../security/execution-mode.mjs'
+import {
+  hotToolNames,
+  mergePromotedToolNames,
+  schemaOnlyToolDefinitions,
+} from '../tools/tool-activation.mjs'
+import {
+  DEFAULT_EXECUTION_MODE,
+  EXECUTION_MODES,
+  filterToolsForExecutionMode,
+  migrateLegacyExecutionMode,
+  normalizeExecutionMode,
+  permissionModeForExecutionMode,
+} from '../security/execution-mode.mjs'
 import { applyPisperSystemPrompt, pisperPromptExtension } from '../prompts/pisper-system-prompt.mjs'
 import {
   DEFAULT_COMPACTION_THRESHOLD_PERCENT,
-  MAX_COMPACTION_THRESHOLD_PERCENT,
-  MIN_COMPACTION_THRESHOLD_PERCENT,
   createCompactionSettingsManager,
   normalizeCompactionThresholdPercent,
   pisperCompactionExtension,
 } from './compaction-policy.mjs'
+import { AgentRuntimeFacade, ISOLATED_CONTEXT_BLOCKED_TOOLS } from './agent-runtime-facade.mjs'
 import { ToolActivation } from './tool-activation.mjs'
 import { SessionLifecycle } from './session-lifecycle.mjs'
 import { ProviderPreferences } from './provider-preferences.mjs'
@@ -83,18 +106,59 @@ const SESSION_HISTORY_READ_CHUNK_BYTES = 1024 * 1024
 const MAX_SESSION_HISTORY_CACHE_ENTRIES = 4
 const MAX_SESSION_HISTORY_CACHE_SOURCE_BYTES = 8 * 1024 * 1024
 const MAX_SESSION_HISTORY_CACHE_ESTIMATED_BYTES = 48 * 1024 * 1024
-const ISOLATED_CONTEXT_BLOCKED_TOOLS = ['memory_search', 'memory_remember']
-const ASSET_TEXT_EXTENSIONS = new Set(['.txt', '.md', '.json', '.js', '.jsx', '.ts', '.tsx', '.css', '.html', '.xml', '.yaml', '.yml', '.csv', '.log', '.py', '.java', '.go', '.rs', '.sh', '.ps1', '.toml', '.sql'])
-const ASSET_DOCUMENT_EXTENSIONS = new Set(['.pdf', '.docx', '.pptx', '.xlsx', '.odt', '.odp', '.ods', '.rtf', '.epub'])
+const ASSET_TEXT_EXTENSIONS = new Set([
+  '.txt',
+  '.md',
+  '.json',
+  '.js',
+  '.jsx',
+  '.ts',
+  '.tsx',
+  '.css',
+  '.html',
+  '.xml',
+  '.yaml',
+  '.yml',
+  '.csv',
+  '.log',
+  '.py',
+  '.java',
+  '.go',
+  '.rs',
+  '.sh',
+  '.ps1',
+  '.toml',
+  '.sql',
+])
+const ASSET_DOCUMENT_EXTENSIONS = new Set([
+  '.pdf',
+  '.docx',
+  '.pptx',
+  '.xlsx',
+  '.odt',
+  '.odp',
+  '.ods',
+  '.rtf',
+  '.epub',
+])
 const IMAGE_EXTENSIONS = new Set(['.png', '.jpg', '.jpeg', '.gif', '.webp', '.bmp', '.svg'])
 const TRANSIENT_STREAM_READ_ERROR_PATTERN = /\bstream[_\s-]?read[_\s-]?error\b/i
 const PISPER_STREAM_RETRY_PATCH = Symbol('pisper.stream-retry-patch')
 
 export function installTransientStreamRetry(session) {
-  if (!session || session[PISPER_STREAM_RETRY_PATCH] || typeof session._isRetryableError !== 'function') return session
+  if (
+    !session ||
+    session[PISPER_STREAM_RETRY_PATCH] ||
+    typeof session._isRetryableError !== 'function'
+  )
+    return session
   const isRetryableError = session._isRetryableError.bind(session)
   session._isRetryableError = (message) => {
-    if (message?.stopReason === 'error' && TRANSIENT_STREAM_READ_ERROR_PATTERN.test(String(message.errorMessage || ''))) return true
+    if (
+      message?.stopReason === 'error' &&
+      TRANSIENT_STREAM_READ_ERROR_PATTERN.test(String(message.errorMessage || ''))
+    )
+      return true
     return isRetryableError(message)
   }
   session[PISPER_STREAM_RETRY_PATCH] = true
@@ -105,7 +169,8 @@ export function storedSessionModelId(sessionManager) {
   let modelId = ''
   for (const entry of sessionManager?.getBranch?.() || []) {
     if (entry?.type === 'model_change') modelId = entry.modelId || modelId
-    else if (entry?.type === 'message' && entry.message?.role === 'assistant') modelId = entry.message.model || modelId
+    else if (entry?.type === 'message' && entry.message?.role === 'assistant')
+      modelId = entry.message.model || modelId
   }
   return modelId
 }
@@ -113,7 +178,8 @@ export function storedSessionModelId(sessionManager) {
 export function multiAgentResultAgent(toolName, details) {
   if (!MULTI_AGENT_TOOL_NAMES.includes(toolName) || !details) return null
   if (toolName === 'wait_agent') return details.agent?.id ? details.agent : null
-  if (['spawn_agent', 'send_message', 'followup_task', 'interrupt_agent'].includes(toolName)) return details.id ? details : null
+  if (['spawn_agent', 'send_message', 'followup_task', 'interrupt_agent'].includes(toolName))
+    return details.id ? details : null
   return null
 }
 
@@ -123,24 +189,38 @@ export async function waitForAgentMailbox(multiAgents, sessionId, timeoutMs, tar
   return result
 }
 
-
-
-
-
-
-
 function safeAttachmentName(name) {
-  return String(name || '附件').replace(/[\r\n<>]/g, '_').slice(0, 180)
+  return String(name || '附件')
+    .replace(/[\r\n<>]/g, '_')
+    .slice(0, 180)
 }
 
 function mimeFromName(name) {
   const extension = extname(String(name || '')).toLowerCase()
-  return ({
-    '.png': 'image/png', '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.gif': 'image/gif', '.webp': 'image/webp', '.svg': 'image/svg+xml',
-    '.txt': 'text/plain', '.md': 'text/markdown', '.json': 'application/json', '.js': 'text/javascript', '.ts': 'text/typescript', '.css': 'text/css', '.html': 'text/html',
-    '.pdf': 'application/pdf', '.docx': 'application/vnd.openxmlformats-officedocument.wordprocessingml.document', '.pptx': 'application/vnd.openxmlformats-officedocument.presentationml.presentation', '.xlsx': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-    '.mp4': 'video/mp4', '.webm': 'video/webm', '.mov': 'video/quicktime',
-  })[extension] || 'application/octet-stream'
+  return (
+    {
+      '.png': 'image/png',
+      '.jpg': 'image/jpeg',
+      '.jpeg': 'image/jpeg',
+      '.gif': 'image/gif',
+      '.webp': 'image/webp',
+      '.svg': 'image/svg+xml',
+      '.txt': 'text/plain',
+      '.md': 'text/markdown',
+      '.json': 'application/json',
+      '.js': 'text/javascript',
+      '.ts': 'text/typescript',
+      '.css': 'text/css',
+      '.html': 'text/html',
+      '.pdf': 'application/pdf',
+      '.docx': 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+      '.pptx': 'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+      '.xlsx': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+      '.mp4': 'video/mp4',
+      '.webm': 'video/webm',
+      '.mov': 'video/quicktime',
+    }[extension] || 'application/octet-stream'
+  )
 }
 
 function truncateTitle(value) {
@@ -169,7 +249,7 @@ function localDayKey(value = new Date()) {
 }
 
 function normalizedUsage(usage) {
-  const number = (value) => Number.isFinite(Number(value)) ? Math.max(0, Number(value)) : 0
+  const number = (value) => (Number.isFinite(Number(value)) ? Math.max(0, Number(value)) : 0)
   return {
     input: number(usage?.input),
     output: number(usage?.output),
@@ -197,11 +277,17 @@ function temporarySessionTitle(message, attachments = []) {
   let title = String(message || '')
     .replace(/```[\s\S]*?```/g, '代码内容')
     .replace(/https?:\/\/\S+/g, '链接')
-    .replace(/^[\s，,。.!！?？]*(?:请|麻烦)?(?:你)?(?:帮我|帮忙|协助|请问|能否|可以)?[\s，,。.!！?？]*/i, '')
+    .replace(
+      /^[\s，,。.!！?？]*(?:请|麻烦)?(?:你)?(?:帮我|帮忙|协助|请问|能否|可以)?[\s，,。.!！?？]*/i,
+      '',
+    )
     .replace(/^(?:分析|查看|检查)(?:一下)?(?:这些|这个)?附件[\s，,。.!！?？]*/i, '')
     .replace(/\s+/g, ' ')
     .trim()
-  if ((!title || /^(?:分析|查看|检查)?(?:这些|这个)?附件$/i.test(title)) && attachmentNames.length) {
+  if (
+    (!title || /^(?:分析|查看|检查)?(?:这些|这个)?附件$/i.test(title)) &&
+    attachmentNames.length
+  ) {
     title = `分析 ${attachmentNames[0]}`
   }
   return cleanSessionTitle(title) || DEFAULT_SESSION_NAME
@@ -222,8 +308,18 @@ async function extractDocumentText(attachment) {
   return text.slice(0, MAX_EXTRACTED_CHARS)
 }
 
-export class AgentRuntimeService {
-  constructor({ cwd, dataDir, appVersion, providerDiscovery, providerModelDiscovery, browserAutomationDriver, eventObserver, legacyDefaultCwds = [] } = {}) {
+export class AgentRuntimeService extends AgentRuntimeFacade {
+  constructor({
+    cwd,
+    dataDir,
+    appVersion,
+    providerDiscovery,
+    providerModelDiscovery,
+    browserAutomationDriver,
+    eventObserver,
+    legacyDefaultCwds = [],
+  } = {}) {
+    super()
     this.cwd = normalizeWorkspacePath(cwd)
     cwd = this.cwd
     const currentWorkspaceKey = workspacePathKey(cwd)
@@ -234,7 +330,9 @@ export class AgentRuntimeService {
     )
     this.eventObserver = typeof eventObserver === 'function' ? eventObserver : null
     this.dataDir = dataDir
-    this.providerUserAgent = String(appVersion || '').trim() ? `Pisper/${String(appVersion).trim()}` : 'Pisper'
+    this.providerUserAgent = String(appVersion || '').trim()
+      ? `Pisper/${String(appVersion).trim()}`
+      : 'Pisper'
     this.providerDiscovery = providerDiscovery || new ProviderDiscoveryService({ cwd })
     this.providerModelDiscovery = providerModelDiscovery || new ProviderModelDiscoveryService()
     this.sessionDir = join(dataDir, 'sessions')
@@ -243,7 +341,10 @@ export class AgentRuntimeService {
     this.providerModelCatalogPath = join(dataDir, 'pisper-provider-models.json')
     this.modelMetadataPath = join(dataDir, 'pisper-model-metadata.json')
     this.modelMetadata = new ModelMetadataService({ path: this.modelMetadataPath })
-    this.providerModelCatalog = new ProviderModelCatalogService({ path: this.providerModelCatalogPath, metadata: this.modelMetadata })
+    this.providerModelCatalog = new ProviderModelCatalogService({
+      path: this.providerModelCatalogPath,
+      metadata: this.modelMetadata,
+    })
     this.settingsPath = join(dataDir, 'settings.json')
     this.appConfigPath = join(dataDir, 'pisper.json')
     this.toolPlugins = new ToolPluginService(this.appConfigPath)
@@ -278,7 +379,8 @@ export class AgentRuntimeService {
       agentDir: dataDir,
       cwd,
       getSettingsManager: (skillsCwd = this.cwd) => {
-        if (!this.settingsManager || workspacePathKey(skillsCwd) === workspacePathKey(this.cwd)) return this.settingsManager
+        if (!this.settingsManager || workspacePathKey(skillsCwd) === workspacePathKey(this.cwd))
+          return this.settingsManager
         return SettingsManager.create(skillsCwd, this.dataDir)
       },
       extensionFactories: [pisperPromptExtension, pisperCompactionExtension],
@@ -292,7 +394,11 @@ export class AgentRuntimeService {
         validateDirectory: (input) => resolveDirectory(input, this.cwd),
       },
     })
-    this.notificationSettings = new NotificationSettingsService({ path: this.appConfigPath, browserEventsPath: join(dataDir, 'pisper-browser-notifications.json'), channels: this.channels })
+    this.notificationSettings = new NotificationSettingsService({
+      path: this.appConfigPath,
+      browserEventsPath: join(dataDir, 'pisper-browser-notifications.json'),
+      channels: this.channels,
+    })
     this.schedules = new ScheduleService({
       path: join(dataDir, 'pisper-schedules.json'),
       cwd,
@@ -335,7 +441,9 @@ export class AgentRuntimeService {
     this.compactionThresholdPercent = DEFAULT_COMPACTION_THRESHOLD_PERCENT
     this.sessionMeta = {}
     this.permissions = new SessionPermissionService({
-      getMode: (sessionId) => this.sessionMeta[sessionId]?.permissionMode || permissionModeForExecutionMode(this.getSessionExecutionMode(sessionId)),
+      getMode: (sessionId) =>
+        this.sessionMeta[sessionId]?.permissionMode ||
+        permissionModeForExecutionMode(this.getSessionExecutionMode(sessionId)),
       getExecutionMode: (sessionId) => this.getSessionExecutionMode(sessionId),
       getToolRisk: (toolName) => this.mcp.getToolRisk(toolName),
     })
@@ -345,7 +453,8 @@ export class AgentRuntimeService {
       getModelRuntime: () => this.modelRuntime,
       getSettingsManager: () => this.settingsManager,
       getCompactionThresholdPercent: () => this.compactionThresholdPercent,
-      createResourceLoader: ({ cwd: childCwd, appendSystemPrompt }) => this.skills.createResourceLoader(childCwd, { appendSystemPrompt }),
+      createResourceLoader: ({ cwd: childCwd, appendSystemPrompt }) =>
+        this.skills.createResourceLoader(childCwd, { appendSystemPrompt }),
     })
     this.multiAgents.setCompletionNotifier((agent) => this.injectAgentCompletion(agent))
     this.sessionMetaWrite = Promise.resolve()
@@ -357,7 +466,9 @@ export class AgentRuntimeService {
     Object.defineProperty(this, 'providerModelRefreshPromise', {
       configurable: true,
       get: () => this.providerState.refreshPromise,
-      set: (value) => { this.providerState.refreshPromise = value },
+      set: (value) => {
+        this.providerState.refreshPromise = value
+      },
     })
     this.agentWakeupTimers = new Map()
     this.assetProjectionRevision = 0
@@ -410,7 +521,9 @@ export class AgentRuntimeService {
       Object.defineProperty(this.lifecycleState, property, {
         enumerable: true,
         get: () => this[property],
-        set: (value) => { this[property] = value },
+        set: (value) => {
+          this[property] = value
+        },
       })
     }
     this.sessionLifecycle = new SessionLifecycle({
@@ -444,7 +557,9 @@ export class AgentRuntimeService {
       pauseSessionGoal: (id) => this.pauseSessionGoal(id),
       invalidateProjection: (id, scopes) => this.streamProjection.invalidate(id, scopes),
       getRuntimeState: () => this.lifecycleState,
-      setRuntimeVersion: (version) => { this.sessionRuntimeVersion = version },
+      setRuntimeVersion: (version) => {
+        this.sessionRuntimeVersion = version
+      },
     })
     this.providerPreferences = new ProviderPreferences({
       authPath: this.authPath,
@@ -456,7 +571,9 @@ export class AgentRuntimeService {
       providerModelCatalog: this.providerModelCatalog,
       modelMetadata: this.modelMetadata,
       getModelRuntime: () => this.modelRuntime,
-      setModelRuntime: (runtime) => { this.modelRuntime = runtime },
+      setModelRuntime: (runtime) => {
+        this.modelRuntime = runtime
+      },
       getSettingsManager: () => this.settingsManager,
       getSession: (id) => this.getOrCreateSession(id),
       contextUsage: (session, compaction) => this.compactionAwareContextUsage(session, compaction),
@@ -487,7 +604,9 @@ export class AgentRuntimeService {
     this.assetIndex = await readJson(this.assetIndexPath, { assets: [] })
     this.assetIndex.assets = Array.isArray(this.assetIndex.assets) ? this.assetIndex.assets : []
     const appConfig = await readJson(this.appConfigPath, {})
-    this.compactionThresholdPercent = normalizeCompactionThresholdPercent(appConfig.compactionThresholdPercent)
+    this.compactionThresholdPercent = normalizeCompactionThresholdPercent(
+      appConfig.compactionThresholdPercent,
+    )
     await migrateKimiCodeProvider({
       authPath: this.authPath,
       modelsPath: this.modelsPath,
@@ -523,29 +642,44 @@ export class AgentRuntimeService {
     const live = this.liveSessions.get(sessionId)
     if (live) live.goal = goal || null
     this.streamProjection.invalidate(sessionId, { transcript: false, activity: true, usage: false })
-    try { send?.('goal_update', { sessionId, goal: goal || null }) } catch {}
+    try {
+      send?.('goal_update', { sessionId, goal: goal || null })
+    } catch {}
   }
 
   emitPlanUpdate(sessionId, plan, send = this.planEmitters.get(sessionId)) {
     const live = this.liveSessions.get(sessionId)
     const nextPlan = plan || this.plans.get(sessionId)
     const updatedAt = nextPlan?.updatedAt || new Date().toISOString()
-    const currentActivity = { type: 'plan', plan: nextPlan, changes: livePlanChanges(live?.plan, nextPlan), updatedAt }
+    const currentActivity = {
+      type: 'plan',
+      plan: nextPlan,
+      changes: livePlanChanges(live?.plan, nextPlan),
+      updatedAt,
+    }
     if (live) {
       live.plan = nextPlan
       setLiveActivity(live, currentActivity)
     }
     this.streamProjection.invalidate(sessionId, { transcript: false, activity: true, usage: false })
-    try { send?.('plan_update', { sessionId, plan: nextPlan, currentActivity }) } catch {}
+    try {
+      send?.('plan_update', { sessionId, plan: nextPlan, currentActivity })
+    } catch {}
   }
 
   emitAgentUpdate(sessionId, agent, send = this.agentEmitters.get(sessionId)) {
     const allAgents = this.multiAgents.summaries(sessionId)
     const updatedAgent = allAgents.find((item) => item.id === agent?.id) || null
-    const agents = allAgents.filter((item) => ['queued', 'starting', 'running'].includes(item.status))
+    const agents = allAgents.filter((item) =>
+      ['queued', 'starting', 'running'].includes(item.status),
+    )
     const live = this.liveSessions.get(sessionId)
     const currentActivity = updatedAgent
-      ? { type: 'agent', agent: updatedAgent, updatedAt: updatedAgent.lastActivityAt || new Date().toISOString() }
+      ? {
+          type: 'agent',
+          agent: updatedAgent,
+          updatedAt: updatedAgent.lastActivityAt || new Date().toISOString(),
+        }
       : live?.currentActivity || null
     if (live) {
       live.agents = agents
@@ -555,11 +689,16 @@ export class AgentRuntimeService {
       }
     }
     this.streamProjection.invalidate(sessionId, { transcript: false, activity: true, usage: false })
-    try { send?.('agent_update', { sessionId, agent: updatedAgent, agents, currentActivity }) } catch {}
+    try {
+      send?.('agent_update', { sessionId, agent: updatedAgent, agents, currentActivity })
+    } catch {}
   }
 
   getSessionExecutionMode(sessionId) {
-    return normalizeExecutionMode(this.sessionMeta[sessionId]?.executionMode, DEFAULT_EXECUTION_MODE)
+    return normalizeExecutionMode(
+      this.sessionMeta[sessionId]?.executionMode,
+      DEFAULT_EXECUTION_MODE,
+    )
   }
 
   listStoredSessions({ refresh = false } = {}) {
@@ -627,9 +766,13 @@ export class AgentRuntimeService {
     if (this.toolActivation) {
       return this.toolActivation.selectToolsForMessage(value, message, options)
     }
-    const requested = [...new Set((Array.isArray(options.requestedToolNames)
-      ? options.requestedToolNames
-      : []).map((name) => String(name || '').trim()).filter(Boolean))]
+    const requested = [
+      ...new Set(
+        (Array.isArray(options.requestedToolNames) ? options.requestedToolNames : [])
+          .map((name) => String(name || '').trim())
+          .filter(Boolean),
+      ),
+    ]
     value.requestedToolNames = options.preserveRequested
       ? [...new Set([...(value.requestedToolNames || []), ...requested])]
       : requested
@@ -675,9 +818,14 @@ export class AgentRuntimeService {
 
   startSessionRuntimeSweeper() {
     if (this.sessionRuntimeSweepTimer) return
-    const intervalMs = Math.max(1_000, Number(this.sessionRuntimeSweepIntervalMs) || SESSION_RUNTIME_SWEEP_INTERVAL_MS)
+    const intervalMs = Math.max(
+      1_000,
+      Number(this.sessionRuntimeSweepIntervalMs) || SESSION_RUNTIME_SWEEP_INTERVAL_MS,
+    )
     this.sessionRuntimeSweepTimer = setInterval(() => {
-      try { this.evictIdleSessionRuntimes() } catch {}
+      try {
+        this.evictIdleSessionRuntimes()
+      } catch {}
     }, intervalMs)
     this.sessionRuntimeSweepTimer.unref?.()
   }
@@ -699,7 +847,8 @@ export class AgentRuntimeService {
   }
 
   async commitSessionGitChanges(id, message) {
-    if (this.sessions.get(id)?.session.isStreaming) throw new Error('当前会话正在运行，请完成或停止后再提交改动。')
+    if (this.sessions.get(id)?.session.isStreaming)
+      throw new Error('当前会话正在运行，请完成或停止后再提交改动。')
     return this.gitChanges.commit(await this.sessionGitCwd(id), message)
   }
 
@@ -708,7 +857,8 @@ export class AgentRuntimeService {
   }
 
   async revertSessionGitChanges(id) {
-    if (this.sessions.get(id)?.session.isStreaming) throw new Error('当前会话正在运行，请完成或停止后再撤销改动。')
+    if (this.sessions.get(id)?.session.isStreaming)
+      throw new Error('当前会话正在运行，请完成或停止后再撤销改动。')
     return this.gitChanges.revert(await this.sessionGitCwd(id))
   }
 
@@ -763,15 +913,18 @@ export class AgentRuntimeService {
     const scans = this.usageLedger.sessionScans
     const previous = scans[info.id]
     const records = this.usageLedger.days[day]?.records || {}
-    const hasRecordedSessionUsage = Object.keys(records).some((key) => key.startsWith(`session:${info.id}:`))
+    const hasRecordedSessionUsage = Object.keys(records).some((key) =>
+      key.startsWith(`session:${info.id}:`),
+    )
     if (!previous && hasRecordedSessionUsage) {
       scans[info.id] = { path: info.path, size: file.size }
       return true
     }
 
-    let offset = previous?.path === info.path && file.size >= Number(previous.size || 0)
-      ? Number(previous.size || 0)
-      : 0
+    let offset =
+      previous?.path === info.path && file.size >= Number(previous.size || 0)
+        ? Number(previous.size || 0)
+        : 0
     if (offset >= file.size) return false
 
     const handle = await open(info.path, 'r')
@@ -785,7 +938,9 @@ export class AgentRuntimeService {
         const { bytesRead } = await handle.read(chunk, 0, chunk.length, position)
         if (!bytesRead) break
         position += bytesRead
-        const combined = remainder.length ? Buffer.concat([remainder, chunk.subarray(0, bytesRead)]) : chunk.subarray(0, bytesRead)
+        const combined = remainder.length
+          ? Buffer.concat([remainder, chunk.subarray(0, bytesRead)])
+          : chunk.subarray(0, bytesRead)
         const newline = combined.lastIndexOf(0x0a)
         if (newline < 0) {
           remainder = combined
@@ -798,7 +953,12 @@ export class AgentRuntimeService {
           if (!line.trim()) continue
           try {
             const entry = JSON.parse(line.trimEnd())
-            if (entry.type !== 'message' || entry.message?.role !== 'assistant' || !entry.message.usage) continue
+            if (
+              entry.type !== 'message' ||
+              entry.message?.role !== 'assistant' ||
+              !entry.message.usage
+            )
+              continue
             const timestamp = entry.message.timestamp || entry.timestamp
             if (localDayKey(timestamp) !== day) continue
             const key = `session:${info.id}:${entry.id}`
@@ -831,8 +991,16 @@ export class AgentRuntimeService {
       if (await this.scanSessionUsage(info, day)) changed = true
     }
     if (changed) await this.saveUsageLedger()
-    const totals = { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, reasoning: 0, totalTokens: 0 }
-    for (const usage of Object.values(this.usageLedger.days[day]?.records || {})) addUsage(totals, usage)
+    const totals = {
+      input: 0,
+      output: 0,
+      cacheRead: 0,
+      cacheWrite: 0,
+      reasoning: 0,
+      totalTokens: 0,
+    }
+    for (const usage of Object.values(this.usageLedger.days[day]?.records || {}))
+      addUsage(totals, usage)
     return { day, ...totals }
   }
 
@@ -859,11 +1027,22 @@ export class AgentRuntimeService {
     if (input.kind === 'link' || input.url) {
       const url = new URL(String(input.url || ''))
       if (!['http:', 'https:'].includes(url.protocol)) throw new Error('链接只支持 http 或 https。')
-      const existing = this.assetIndex.assets.find((asset) => asset.kind === 'link' && asset.url === url.href)
+      const existing = this.assetIndex.assets.find(
+        (asset) => asset.kind === 'link' && asset.url === url.href,
+      )
       if (existing) return this.publicAsset(existing)
       const asset = {
-        id: randomUUID(), kind: 'link', name: safeAttachmentName(input.name || url.hostname), url: url.href,
-        mimeType: 'text/uri-list', size: 0, source, sessionId: input.sessionId || '', sessionName: input.sessionName || '', created: now, modified: now,
+        id: randomUUID(),
+        kind: 'link',
+        name: safeAttachmentName(input.name || url.hostname),
+        url: url.href,
+        mimeType: 'text/uri-list',
+        size: 0,
+        source,
+        sessionId: input.sessionId || '',
+        sessionName: input.sessionName || '',
+        created: now,
+        modified: now,
       }
       this.assetIndex.assets.unshift(asset)
       await this.saveAssetIndex()
@@ -871,13 +1050,16 @@ export class AgentRuntimeService {
     }
 
     const name = safeAttachmentName(input.name)
-    const buffer = input.text !== undefined
-      ? Buffer.from(String(input.text), 'utf8')
-      : Buffer.from(String(input.data || ''), 'base64')
+    const buffer =
+      input.text !== undefined
+        ? Buffer.from(String(input.text), 'utf8')
+        : Buffer.from(String(input.data || ''), 'base64')
     if (!buffer.length) throw new Error(`${name} 内容为空。`)
     if (buffer.length > MAX_ASSET_BYTES) throw new Error(`${name} 超过 24 MB 资产限制。`)
     const hash = createHash('sha256').update(buffer).digest('hex')
-    const duplicate = this.assetIndex.assets.find((asset) => asset.hash === hash && asset.name === name)
+    const duplicate = this.assetIndex.assets.find(
+      (asset) => asset.hash === hash && asset.name === name,
+    )
     if (duplicate) {
       duplicate.modified = now
       if (input.sessionId && !duplicate.sessionId) duplicate.sessionId = input.sessionId
@@ -891,9 +1073,21 @@ export class AgentRuntimeService {
     await writeFile(storagePath, buffer)
     const mimeType = String(input.mimeType || mimeFromName(name))
     const asset = {
-      id, kind: mimeType.startsWith('image/') || IMAGE_EXTENSIONS.has(extname(name).toLowerCase()) ? 'image' : 'file',
-      name, mimeType, size: buffer.length, hash, storagePath, source,
-      sessionId: input.sessionId || '', sessionName: input.sessionName || '', created: now, modified: now,
+      id,
+      kind:
+        mimeType.startsWith('image/') || IMAGE_EXTENSIONS.has(extname(name).toLowerCase())
+          ? 'image'
+          : 'file',
+      name,
+      mimeType,
+      size: buffer.length,
+      hash,
+      storagePath,
+      source,
+      sessionId: input.sessionId || '',
+      sessionName: input.sessionName || '',
+      created: now,
+      modified: now,
     }
     this.assetIndex.assets.unshift(asset)
     await this.saveAssetIndex()
@@ -914,7 +1108,9 @@ export class AgentRuntimeService {
           sessionName,
         })
         const stored = this.assetIndex.assets.find((asset) => asset.id === created.id)
-        archived.push(stored ? { id: stored.id, path: stored.storagePath || stored.filePath || '' } : null)
+        archived.push(
+          stored ? { id: stored.id, path: stored.storagePath || stored.filePath || '' } : null,
+        )
       } catch {
         // Asset archival must not block the chat request.
         archived.push(null)
@@ -953,11 +1149,16 @@ export class AgentRuntimeService {
   }
 
   async listAssets({ query = '', kind = '', sessionId = '' } = {}) {
-    const needle = String(query || '').trim().toLowerCase()
+    const needle = String(query || '')
+      .trim()
+      .toLowerCase()
     const assets = this.assetIndex.assets.filter((asset) => {
       if (kind && asset.kind !== kind) return false
       if (sessionId && asset.sessionId !== sessionId) return false
-      return !needle || `${asset.name} ${asset.sessionName} ${asset.url || ''}`.toLowerCase().includes(needle)
+      return (
+        !needle ||
+        `${asset.name} ${asset.sessionName} ${asset.url || ''}`.toLowerCase().includes(needle)
+      )
     })
     return assets.map((asset) => this.publicAsset(asset))
   }
@@ -970,25 +1171,70 @@ export class AgentRuntimeService {
     const asset = this.findAsset(id)
     if (!asset) return null
     if (asset.kind === 'link') {
-      return { id: asset.id, kind: 'text', name: `${asset.name}.url.txt`, mimeType: 'text/plain', size: asset.url.length, text: `链接：${asset.url}` }
+      return {
+        id: asset.id,
+        kind: 'text',
+        name: `${asset.name}.url.txt`,
+        mimeType: 'text/plain',
+        size: asset.url.length,
+        text: `链接：${asset.url}`,
+      }
     }
     const path = asset.storagePath || asset.filePath
     const buffer = await readFile(path)
-    if (buffer.length > MAX_CHAT_ASSET_BYTES) throw new Error('资产超过 10 MB，无法直接加入对话；仍可下载或在工作目录中读取。')
+    if (buffer.length > MAX_CHAT_ASSET_BYTES)
+      throw new Error('资产超过 10 MB，无法直接加入对话；仍可下载或在工作目录中读取。')
     const extension = extname(asset.name).toLowerCase()
-    if (asset.kind === 'image') return { id: asset.id, kind: 'image', name: asset.name, mimeType: asset.mimeType, size: buffer.length, data: buffer.toString('base64') }
+    if (asset.kind === 'image')
+      return {
+        id: asset.id,
+        kind: 'image',
+        name: asset.name,
+        mimeType: asset.mimeType,
+        size: buffer.length,
+        data: buffer.toString('base64'),
+      }
     if (ASSET_TEXT_EXTENSIONS.has(extension) || asset.mimeType.startsWith('text/')) {
       const text = buffer.toString('utf8')
-      return { id: asset.id, kind: 'text', name: asset.name, mimeType: asset.mimeType, size: buffer.length, text: text.slice(0, MAX_EXTRACTED_CHARS), truncated: text.length > MAX_EXTRACTED_CHARS }
+      return {
+        id: asset.id,
+        kind: 'text',
+        name: asset.name,
+        mimeType: asset.mimeType,
+        size: buffer.length,
+        text: text.slice(0, MAX_EXTRACTED_CHARS),
+        truncated: text.length > MAX_EXTRACTED_CHARS,
+      }
     }
-    if (ASSET_DOCUMENT_EXTENSIONS.has(extension)) return { id: asset.id, kind: 'document', name: asset.name, mimeType: asset.mimeType, extension: extension.slice(1), size: buffer.length, data: buffer.toString('base64') }
-    return { id: asset.id, kind: 'text', name: `${asset.name}.path.txt`, mimeType: 'text/plain', size: path.length, text: asset.filePath ? `本地文件路径：${asset.filePath}` : `资产 ${asset.name} 是二进制文件，请结合文件名称和元数据分析。` }
+    if (ASSET_DOCUMENT_EXTENSIONS.has(extension))
+      return {
+        id: asset.id,
+        kind: 'document',
+        name: asset.name,
+        mimeType: asset.mimeType,
+        extension: extension.slice(1),
+        size: buffer.length,
+        data: buffer.toString('base64'),
+      }
+    return {
+      id: asset.id,
+      kind: 'text',
+      name: `${asset.name}.path.txt`,
+      mimeType: 'text/plain',
+      size: path.length,
+      text: asset.filePath
+        ? `本地文件路径：${asset.filePath}`
+        : `资产 ${asset.name} 是二进制文件，请结合文件名称和元数据分析。`,
+    }
   }
 
   async getAssetDownload(id) {
     const asset = this.findAsset(id)
     if (!asset || asset.kind === 'link') return null
-    return { asset: this.publicAsset(asset), buffer: await readFile(asset.storagePath || asset.filePath) }
+    return {
+      asset: this.publicAsset(asset),
+      buffer: await readFile(asset.storagePath || asset.filePath),
+    }
   }
 
   async deleteAsset(id) {
@@ -998,7 +1244,8 @@ export class AgentRuntimeService {
     if (asset.storagePath) {
       const root = resolve(this.assetsDir)
       const target = resolve(asset.storagePath)
-      if (target !== root && target.startsWith(`${root}${sep}`)) await unlink(target).catch(() => {})
+      if (target !== root && target.startsWith(`${root}${sep}`))
+        await unlink(target).catch(() => {})
     }
     await this.saveAssetIndex()
     return true
@@ -1097,7 +1344,10 @@ export class AgentRuntimeService {
     const storedModelId = storedSessionModelId(sessionManager)
     await this.modelMetadata.ensure(storedModelId || settings.defaultModel)
     const appConfig = await readJson(this.appConfigPath, { toolMode: 'full' })
-    const effectiveCwd = await resolveDirectory(this.sessionMeta[sessionManager.getSessionId()]?.cwd, sessionManager.getCwd() || this.cwd)
+    const effectiveCwd = await resolveDirectory(
+      this.sessionMeta[sessionManager.getSessionId()]?.cwd,
+      sessionManager.getCwd() || this.cwd,
+    )
     const enabledTools = toolsFromConfig(appConfig)
     const runtimeSessionId = sessionManager.getSessionId()
     const [resourceLoader, mcpTools] = await Promise.all([
@@ -1111,15 +1361,17 @@ export class AgentRuntimeService {
     })
     let runtimeValue = null
     let runtimeSession = null
-    const goalTools = schemaOnlyToolDefinitions(createGoalTools({
-      getGoal: () => this.goals.get(runtimeSessionId),
-      completeGoal: async () => {
-        const goal = await this.goals.complete(runtimeSessionId)
-        if (runtimeValue) this.syncGoalTools(runtimeValue, goal)
-        this.emitGoalUpdate(runtimeSessionId, goal)
-        return goal
-      },
-    }))
+    const goalTools = schemaOnlyToolDefinitions(
+      createGoalTools({
+        getGoal: () => this.goals.get(runtimeSessionId),
+        completeGoal: async () => {
+          const goal = await this.goals.complete(runtimeSessionId)
+          if (runtimeValue) this.syncGoalTools(runtimeValue, goal)
+          this.emitGoalUpdate(runtimeSessionId, goal)
+          return goal
+        },
+      }),
+    )
     const planTools = createPlanTools({
       getPlan: () => this.plans.get(runtimeSessionId),
       updatePlan: async (items) => {
@@ -1129,15 +1381,23 @@ export class AgentRuntimeService {
       },
     })
     const planReader = planTools.find((tool) => tool.name === 'get_plan')
-    const installSubagentPermissions = (subagentSession) => this.permissions.install(subagentSession, {
-      sessionId: runtimeSession.sessionId,
-      cwd: effectiveCwd,
-    })
+    const installSubagentPermissions = (subagentSession) =>
+      this.permissions.install(subagentSession, {
+        sessionId: runtimeSession.sessionId,
+        cwd: effectiveCwd,
+      })
     const accountSubagentUsage = async ({ id, runNumber, runUsage, completedAt }) => {
-      await this.recordUsage(localDayKey(completedAt), `agent:${runtimeSession.sessionId}:${id}:${runNumber}`, runUsage)
+      await this.recordUsage(
+        localDayKey(completedAt),
+        `agent:${runtimeSession.sessionId}:${id}:${runNumber}`,
+        runUsage,
+      )
       const goal = this.goals.get(runtimeSession.sessionId)
       if (goal?.status !== 'active') return
-      const accounting = this.goals.account(runtimeSession.sessionId, { goalId: goal.id, usage: runUsage })
+      const accounting = this.goals.account(runtimeSession.sessionId, {
+        goalId: goal.id,
+        usage: runUsage,
+      })
       const updatedGoal = this.goals.get(runtimeSession.sessionId)
       if (runtimeValue) this.syncGoalTools(runtimeValue, updatedGoal)
       this.emitGoalUpdate(runtimeSession.sessionId, updatedGoal)
@@ -1168,9 +1428,12 @@ export class AgentRuntimeService {
         })
       },
       list: () => this.multiAgents.list(runtimeSession.sessionId),
-      sendMessage: (target, message) => this.multiAgents.sendMessage(runtimeSession.sessionId, target, message),
-      followup: (target, message) => this.multiAgents.followup(runtimeSession.sessionId, target, message),
-      wait: (timeoutMs, target) => waitForAgentMailbox(this.multiAgents, runtimeSession.sessionId, timeoutMs, target),
+      sendMessage: (target, message) =>
+        this.multiAgents.sendMessage(runtimeSession.sessionId, target, message),
+      followup: (target, message) =>
+        this.multiAgents.followup(runtimeSession.sessionId, target, message),
+      wait: (timeoutMs, target) =>
+        waitForAgentMailbox(this.multiAgents, runtimeSession.sessionId, timeoutMs, target),
       interrupt: (target) => this.multiAgents.interrupt(runtimeSession.sessionId, target),
     }
     const multiAgentTools = schemaOnlyToolDefinitions(createMultiAgentTools({ multiAgentRuntime }))
@@ -1185,14 +1448,18 @@ export class AgentRuntimeService {
         const staticHotToolNames = new Set(hotToolNames(optionalToolNames))
         const activeToolNames = new Set(runtimeSession.getActiveToolNames())
         return optionalToolNames
-          .filter((name) => !staticHotToolNames.has(name) && !PLAN_COMPATIBILITY_TOOL_NAMES.includes(name))
+          .filter(
+            (name) =>
+              !staticHotToolNames.has(name) && !PLAN_COMPATIBILITY_TOOL_NAMES.includes(name),
+          )
           .map((name) => {
             const definition = runtimeSession.getToolDefinition(name)
             if (!definition) return null
-            const description = String(definition.description || '')
-              .split('\n')
-              .map((line) => line.trim())
-              .find(Boolean) || ''
+            const description =
+              String(definition.description || '')
+                .split('\n')
+                .map((line) => line.trim())
+                .find(Boolean) || ''
             return {
               name,
               label: definition.label || name,
@@ -1204,31 +1471,33 @@ export class AgentRuntimeService {
       },
       activateTools: (toolNames) => this.promoteSessionTools(runtimeValue, toolNames),
     })
-    const bashTool = enabledTools.includes('bash')
-      ? await createPisperBashTool(effectiveCwd)
-      : null
+    const bashTool = enabledTools.includes('bash') ? await createPisperBashTool(effectiveCwd) : null
     const createInheritedCustomTools = () => [
-      ...schemaOnlyToolDefinitions(createAppTools({
-        cwd: effectiveCwd,
-        enabledTools,
-        memoryRuntime: this.memory,
-        getUserMessage: () => runtimeValue?.pendingUserMessage || '',
-        webSearchService: this.webSearch,
-        browserAutomationService: this.browserAutomation,
-        browserSessionId: runtimeSessionId,
-        visualGenerationService: this.visualGeneration,
-        onGeneratedFile: ({ path }) => runtimeValue && runtimeSession
-          ? this.recordGeneratedFile(runtimeSession.sessionId, runtimeValue, path)
-          : undefined,
-        mcpRuntime: {
-          list: (options) => this.getMcpDashboard(options),
-          add: (input) => this.createMcpServer(input),
-          update: (id, input) => this.updateMcpServer(id, input),
-          remove: (id) => this.deleteMcpServer(id),
-          test: (id, options) => this.mcp.test(id, options),
-          setToolEnabled: (id, toolName, nextEnabled) => this.setMcpToolEnabled(id, toolName, nextEnabled),
-        },
-      })),
+      ...schemaOnlyToolDefinitions(
+        createAppTools({
+          cwd: effectiveCwd,
+          enabledTools,
+          memoryRuntime: this.memory,
+          getUserMessage: () => runtimeValue?.pendingUserMessage || '',
+          webSearchService: this.webSearch,
+          browserAutomationService: this.browserAutomation,
+          browserSessionId: runtimeSessionId,
+          visualGenerationService: this.visualGeneration,
+          onGeneratedFile: ({ path }) =>
+            runtimeValue && runtimeSession
+              ? this.recordGeneratedFile(runtimeSession.sessionId, runtimeValue, path)
+              : undefined,
+          mcpRuntime: {
+            list: (options) => this.getMcpDashboard(options),
+            add: (input) => this.createMcpServer(input),
+            update: (id, input) => this.updateMcpServer(id, input),
+            remove: (id) => this.deleteMcpServer(id),
+            test: (id, options) => this.mcp.test(id, options),
+            setToolEnabled: (id, toolName, nextEnabled) =>
+              this.setMcpToolEnabled(id, toolName, nextEnabled),
+          },
+        }),
+      ),
       ...schemaOnlyToolDefinitions(mcpTools),
       ...(bashTool ? [bashTool] : []),
     ]
@@ -1244,8 +1513,20 @@ export class AgentRuntimeService {
       settingsManager: sessionSettingsManager,
       resourceLoader,
       sessionManager,
-      tools: [...baseToolNames, TOOL_DISCOVERY_NAME, ...GOAL_TOOL_NAMES, ...PLAN_ALL_TOOL_NAMES, ...MULTI_AGENT_TOOL_NAMES],
-      customTools: [...createInheritedCustomTools(), toolDiscovery, ...goalTools, ...planTools, ...multiAgentTools],
+      tools: [
+        ...baseToolNames,
+        TOOL_DISCOVERY_NAME,
+        ...GOAL_TOOL_NAMES,
+        ...PLAN_ALL_TOOL_NAMES,
+        ...MULTI_AGENT_TOOL_NAMES,
+      ],
+      customTools: [
+        ...createInheritedCustomTools(),
+        toolDiscovery,
+        ...goalTools,
+        ...planTools,
+        ...multiAgentTools,
+      ],
     })
     installTransientStreamRetry(session)
     const now = new Date().toISOString()
@@ -1269,7 +1550,10 @@ export class AgentRuntimeService {
     if (session.model) {
       const model = `${session.model.provider}/${session.model.id}`
       if (this.sessionMeta[session.sessionId]?.model !== model) {
-        this.sessionMeta[session.sessionId] = { ...(this.sessionMeta[session.sessionId] || {}), model }
+        this.sessionMeta[session.sessionId] = {
+          ...(this.sessionMeta[session.sessionId] || {}),
+          model,
+        }
         void this.saveSessionMeta()
       }
     }
@@ -1352,7 +1636,16 @@ export class AgentRuntimeService {
     await this.streamPrompt({ sessionId, message, send: () => {} })
   }
 
-  async streamPrompt({ sessionId, message, attachments = [], requestedToolNames = [], goalMode = false, goalTokenBudget = null, isolatedContext = false, send }) {
+  async streamPrompt({
+    sessionId,
+    message,
+    attachments = [],
+    requestedToolNames = [],
+    goalMode = false,
+    goalTokenBudget = null,
+    isolatedContext = false,
+    send,
+  }) {
     const emit = (event, data) => {
       this.streamProjection.invalidate(data?.sessionId || sessionId || '')
       send(event, data)
@@ -1368,7 +1661,10 @@ export class AgentRuntimeService {
       value.blockedToolNames = ISOLATED_CONTEXT_BLOCKED_TOOLS
     }
     const { session } = value
-    const appConfig = await readJson(this.appConfigPath, { toolMode: 'full', disabledProviders: [] })
+    const appConfig = await readJson(this.appConfigPath, {
+      toolMode: 'full',
+      disabledProviders: [],
+    })
     if ((appConfig.disabledProviders || []).includes(session.model?.provider)) {
       throw new Error('当前会话使用的 Provider 已停用，请先启用或切换模型。')
     }
@@ -1382,15 +1678,21 @@ export class AgentRuntimeService {
         if (goalTokenBudget != null) await this.goals.setBudget(session.sessionId, goalTokenBudget)
         goal = await this.goals.resume(session.sessionId)
       } else {
-        goal = await this.goals.start(session.sessionId, { objective: message, tokenBudget: goalTokenBudget ?? undefined })
+        goal = await this.goals.start(session.sessionId, {
+          objective: message,
+          tokenBudget: goalTokenBudget ?? undefined,
+        })
       }
     }
     await this.selectToolsForMessage(value, message, { requestedToolNames })
     value.pendingUserMessage = String(message || '')
     // Drop stale plans from previous turns unless a Goal is actively driving multi-turn work or this is an internal wakeup turn.
-    const keepPlan = goal?.status === 'active' || isGoalContinuationMessage(message) || isAgentCompletionMessage(message)
+    const keepPlan =
+      goal?.status === 'active' ||
+      isGoalContinuationMessage(message) ||
+      isAgentCompletionMessage(message)
     if (!keepPlan) await this.plans.replace(session.sessionId, [])
-    
+
     // 注入待处理的 Agent 完成通知（对用户隐藏）
     const pendingAgentNotes = value.pendingAgentNotifications || []
     value.pendingAgentNotifications = []
@@ -1403,11 +1705,30 @@ export class AgentRuntimeService {
         }
       }
     }
-    
+
     const startedAt = new Date().toISOString()
     value.modified = startedAt
     const initialActivity = { type: 'model', stage: 'thinking', updatedAt: startedAt }
-    const live = { streaming: true, text: '', thinkingText: '', tools: [], assets: [], error: '', goal, plan: this.plans.get(session.sessionId), agents: this.multiAgents.summaries(session.sessionId).filter((agent) => ['queued', 'starting', 'running'].includes(agent.status)), currentActivity: initialActivity, activityFeed: [], queuedInputs: queuedSessionInputs(session), contextUsage: this.compactionAwareContextUsage(session), compaction: null, startedAt, lastActivityAt: startedAt }
+    const live = {
+      streaming: true,
+      text: '',
+      thinkingText: '',
+      tools: [],
+      assets: [],
+      error: '',
+      goal,
+      plan: this.plans.get(session.sessionId),
+      agents: this.multiAgents
+        .summaries(session.sessionId)
+        .filter((agent) => ['queued', 'starting', 'running'].includes(agent.status)),
+      currentActivity: initialActivity,
+      activityFeed: [],
+      queuedInputs: queuedSessionInputs(session),
+      contextUsage: this.compactionAwareContextUsage(session),
+      compaction: null,
+      startedAt,
+      lastActivityAt: startedAt,
+    }
     this.liveSessions.set(session.sessionId, live)
     this.streamProjection.invalidate(session.sessionId)
     this.goalEmitters.set(session.sessionId, emit)
@@ -1422,7 +1743,11 @@ export class AgentRuntimeService {
       session.setSessionName(temporaryTitle)
       value.name = temporaryTitle
       await this.markSessionTitle(session.sessionId, temporaryTitle, false)
-      emit('session_title', { sessionId: session.sessionId, name: temporaryTitle, source: 'temporary' })
+      emit('session_title', {
+        sessionId: session.sessionId,
+        name: temporaryTitle,
+        source: 'temporary',
+      })
     }
 
     emit('meta', {
@@ -1430,7 +1755,9 @@ export class AgentRuntimeService {
       model: `${session.model.provider}/${session.model.id}`,
       thinkingLevel: session.thinkingLevel,
       cwd: value.cwd,
-      permissionMode: this.sessionMeta[session.sessionId]?.permissionMode || permissionModeForExecutionMode(this.getSessionExecutionMode(session.sessionId)),
+      permissionMode:
+        this.sessionMeta[session.sessionId]?.permissionMode ||
+        permissionModeForExecutionMode(this.getSessionExecutionMode(session.sessionId)),
       executionMode: this.getSessionExecutionMode(session.sessionId),
       goal,
       plan: live.plan,
@@ -1452,13 +1779,15 @@ export class AgentRuntimeService {
     let thinkingTurnText = ''
     const activeTextBlocks = new Set()
     const activeThinkingBlocks = new Set()
-    const streamBlockIndex = (update) => Number.isInteger(update?.contentIndex) ? update.contentIndex : 0
+    const streamBlockIndex = (update) =>
+      Number.isInteger(update?.contentIndex) ? update.contentIndex : 0
     const appendThinking = (delta) => {
       thinkingTurnText += String(delta || '')
       const next = liveThinkingTail([thinkingPrefix, thinkingTurnText].filter(Boolean).join('\n\n'))
       let start = 0
       const limit = Math.min(live.thinkingText.length, next.length)
-      while (start < limit && live.thinkingText.charCodeAt(start) === next.charCodeAt(start)) start += 1
+      while (start < limit && live.thinkingText.charCodeAt(start) === next.charCodeAt(start))
+        start += 1
       live.thinkingText = next
       emit('thinking_patch', { start, text: next.slice(start) })
     }
@@ -1467,10 +1796,19 @@ export class AgentRuntimeService {
       live.streaming = false
       live.finishedAt = finishedAt
       live.lastActivityAt = finishedAt
-      live.tools = live.tools.map((tool) => tool.status === 'running'
-        ? { ...tool, status: error ? 'error' : 'done', message: error || tool.message || '', updatedAt: finishedAt, finishedAt }
-        : tool)
-      const backgroundAgents = this.multiAgents.summaries(session.sessionId)
+      live.tools = live.tools.map((tool) =>
+        tool.status === 'running'
+          ? {
+              ...tool,
+              status: error ? 'error' : 'done',
+              message: error || tool.message || '',
+              updatedAt: finishedAt,
+              finishedAt,
+            }
+          : tool,
+      )
+      const backgroundAgents = this.multiAgents
+        .summaries(session.sessionId)
         .filter((agent) => ['queued', 'starting', 'running'].includes(agent.status))
       const backgroundActivities = backgroundAgents.map((agent) => ({
         type: 'agent',
@@ -1492,7 +1830,11 @@ export class AgentRuntimeService {
           activeTextBlocks.add(blockIndex)
           const delta = String(update.delta || '')
           live.text += delta
-          setLiveActivity(live, { type: 'model', stage: 'responding', updatedAt: live.lastActivityAt })
+          setLiveActivity(live, {
+            type: 'model',
+            stage: 'responding',
+            updatedAt: live.lastActivityAt,
+          })
           if (delta) emit('text_delta', { delta })
         }
         if (update.type === 'text_end') {
@@ -1505,14 +1847,22 @@ export class AgentRuntimeService {
         if (update.type === 'thinking_delta') {
           activeThinkingBlocks.add(blockIndex)
           appendThinking(update.delta)
-          setLiveActivity(live, { type: 'model', stage: 'thinking', updatedAt: live.lastActivityAt })
+          setLiveActivity(live, {
+            type: 'model',
+            stage: 'thinking',
+            updatedAt: live.lastActivityAt,
+          })
         }
         if (update.type === 'thinking_end') {
           activeThinkingBlocks.delete(blockIndex)
         }
       } else if (event.type === 'compaction_start') {
         live.compaction = startedCompaction(event.reason, live.lastActivityAt)
-        setLiveActivity(live, { type: 'compaction', compaction: live.compaction, updatedAt: live.lastActivityAt })
+        setLiveActivity(live, {
+          type: 'compaction',
+          compaction: live.compaction,
+          updatedAt: live.lastActivityAt,
+        })
         emit('compaction_start', live.compaction)
       } else if (event.type === 'compaction_end') {
         live.compaction = finishedCompaction(live.compaction, event, live.lastActivityAt)
@@ -1538,34 +1888,80 @@ export class AgentRuntimeService {
         emit('context_usage', live.contextUsage)
       } else if (event.type === 'queue_update') {
         live.queuedInputs = [
-          ...(event.steering || []).filter((text) => !isInternalParentMessage(text)).map((text) => ({ behavior: 'steer', text })),
-          ...(event.followUp || []).filter((text) => !isInternalParentMessage(text)).map((text) => ({ behavior: 'followUp', text })),
+          ...(event.steering || [])
+            .filter((text) => !isInternalParentMessage(text))
+            .map((text) => ({ behavior: 'steer', text })),
+          ...(event.followUp || [])
+            .filter((text) => !isInternalParentMessage(text))
+            .map((text) => ({ behavior: 'followUp', text })),
         ]
         emit('queue_update', { queuedInputs: live.queuedInputs })
       } else if (event.type === 'tool_execution_start') {
         activeTextBlocks.clear()
         activeThinkingBlocks.clear()
         const toolStartedAt = live.lastActivityAt
-        const tool = { type: 'tool', id: event.toolCallId, name: event.toolName, args: event.args, status: 'running', startedAt: toolStartedAt, updatedAt: toolStartedAt, ...(event.toolName === 'bash' ? { output: '' } : {}) }
+        const tool = {
+          type: 'tool',
+          id: event.toolCallId,
+          name: event.toolName,
+          args: event.args,
+          status: 'running',
+          startedAt: toolStartedAt,
+          updatedAt: toolStartedAt,
+          ...(event.toolName === 'bash' ? { output: '' } : {}),
+        }
         live.tools.push(tool)
         setLiveActivity(live, tool)
-        emit('tool_start', { id: event.toolCallId, name: event.toolName, args: event.args, startedAt: toolStartedAt, ...(event.toolName === 'bash' ? { output: '' } : {}) })
+        emit('tool_start', {
+          id: event.toolCallId,
+          name: event.toolName,
+          args: event.args,
+          startedAt: toolStartedAt,
+          ...(event.toolName === 'bash' ? { output: '' } : {}),
+        })
       } else if (event.type === 'tool_execution_update') {
         const rawOutput = textFromContent(event.partialResult?.content)
         const message = rawOutput.replace(/\s+/g, ' ').trim().slice(0, 180)
         const outputPatch = event.toolName === 'bash' ? { output: rawOutput } : {}
         const agent = multiAgentResultAgent(event.toolName, event.partialResult?.details)
-        live.tools = live.tools.map((item) => item.id === event.toolCallId
-          ? { ...item, ...outputPatch, message: message || item.message || '', updatedAt: live.lastActivityAt, ...(agent ? { agent } : {}) }
-          : item)
+        live.tools = live.tools.map((item) =>
+          item.id === event.toolCallId
+            ? {
+                ...item,
+                ...outputPatch,
+                message: message || item.message || '',
+                updatedAt: live.lastActivityAt,
+                ...(agent ? { agent } : {}),
+              }
+            : item,
+        )
         if (live.currentActivity?.id === event.toolCallId) {
-          setLiveActivity(live, { ...live.currentActivity, ...outputPatch, message: message || live.currentActivity.message || '', updatedAt: live.lastActivityAt, ...(agent ? { agent } : {}) })
+          setLiveActivity(live, {
+            ...live.currentActivity,
+            ...outputPatch,
+            message: message || live.currentActivity.message || '',
+            updatedAt: live.lastActivityAt,
+            ...(agent ? { agent } : {}),
+          })
         }
-        emit('tool_update', { id: event.toolCallId, name: event.toolName, message, ...outputPatch, updatedAt: live.lastActivityAt, ...(agent ? { agent } : {}) })
+        emit('tool_update', {
+          id: event.toolCallId,
+          name: event.toolName,
+          message,
+          ...outputPatch,
+          updatedAt: live.lastActivityAt,
+          ...(agent ? { agent } : {}),
+        })
       } else if (event.type === 'tool_execution_end') {
-        if (!event.isError && ['generate_visual', 'browser_automation'].includes(event.toolName) && event.result?.details?.path) {
+        if (
+          !event.isError &&
+          ['generate_visual', 'browser_automation'].includes(event.toolName) &&
+          event.result?.details?.path
+        ) {
           const generatedPath = resolve(event.result.details.path)
-          const asset = this.assetIndex.assets.find((item) => item.filePath && resolve(item.filePath) === generatedPath)
+          const asset = this.assetIndex.assets.find(
+            (item) => item.filePath && resolve(item.filePath) === generatedPath,
+          )
           if (asset) {
             const attachment = assetMessageAttachment(asset)
             live.assets = [...live.assets.filter((item) => item.id !== attachment.id), attachment]
@@ -1573,20 +1969,56 @@ export class AgentRuntimeService {
           }
         }
         const resultOutput = event.toolName === 'bash' ? textFromContent(event.result?.content) : ''
-        const resultMessage = event.isError ? resultOutput || textFromContent(event.result?.content) || '工具执行失败。' : ''
+        const resultMessage = event.isError
+          ? resultOutput || textFromContent(event.result?.content) || '工具执行失败。'
+          : ''
         const completedTool = live.tools.find((item) => item.id === event.toolCallId)
-        const outputPatch = event.toolName === 'bash' ? { output: resultOutput || completedTool?.output || '' } : {}
+        const outputPatch =
+          event.toolName === 'bash' ? { output: resultOutput || completedTool?.output || '' } : {}
         const resultDetails = event.result?.details
         const resultAgent = multiAgentResultAgent(event.toolName, resultDetails)
         const toolFinishedAt = live.lastActivityAt
-        live.tools = live.tools.map((item) => item.id === event.toolCallId ? { ...item, ...outputPatch, status: event.isError ? 'error' : 'done', message: resultMessage || item.message || '', updatedAt: toolFinishedAt, finishedAt: toolFinishedAt } : item)
+        live.tools = live.tools.map((item) =>
+          item.id === event.toolCallId
+            ? {
+                ...item,
+                ...outputPatch,
+                status: event.isError ? 'error' : 'done',
+                message: resultMessage || item.message || '',
+                updatedAt: toolFinishedAt,
+                finishedAt: toolFinishedAt,
+              }
+            : item,
+        )
         const finishedActivity = event.isError
-          ? { ...(completedTool || {}), ...outputPatch, type: 'tool', status: 'error', message: resultMessage || completedTool?.message || '', updatedAt: toolFinishedAt, finishedAt: toolFinishedAt }
+          ? {
+              ...(completedTool || {}),
+              ...outputPatch,
+              type: 'tool',
+              status: 'error',
+              message: resultMessage || completedTool?.message || '',
+              updatedAt: toolFinishedAt,
+              finishedAt: toolFinishedAt,
+            }
           : resultAgent
-            ? { type: 'agent', agent: resultAgent, updatedAt: resultAgent.lastActivityAt || toolFinishedAt }
-            : { ...(completedTool || {}), ...outputPatch, type: 'tool', status: 'done', message: completedTool?.message || '', updatedAt: toolFinishedAt, finishedAt: toolFinishedAt }
-        const preserveEvent = PLAN_ALL_TOOL_NAMES.includes(event.toolName) && live.currentActivity?.type === 'plan'
-        if (event.isError || !preserveEvent) live.activityFeed = pushLiveActivity(live.activityFeed, finishedActivity)
+            ? {
+                type: 'agent',
+                agent: resultAgent,
+                updatedAt: resultAgent.lastActivityAt || toolFinishedAt,
+              }
+            : {
+                ...(completedTool || {}),
+                ...outputPatch,
+                type: 'tool',
+                status: 'done',
+                message: completedTool?.message || '',
+                updatedAt: toolFinishedAt,
+                finishedAt: toolFinishedAt,
+              }
+        const preserveEvent =
+          PLAN_ALL_TOOL_NAMES.includes(event.toolName) && live.currentActivity?.type === 'plan'
+        if (event.isError || !preserveEvent)
+          live.activityFeed = pushLiveActivity(live.activityFeed, finishedActivity)
         if (live.currentActivity?.id === event.toolCallId) live.currentActivity = finishedActivity
         emit('tool_end', {
           id: event.toolCallId,
@@ -1626,27 +2058,48 @@ export class AgentRuntimeService {
         void accounting.catch(() => {})
       } else if (event.type === 'agent_end') {
         if (event.willRetry) return
-        const finalAssistant = [...(event.messages || [])].reverse().find((item) => item?.role === 'assistant')
-        if (finalAssistant?.stopReason === 'error' || finalAssistant?.stopReason === 'aborted' || finalAssistant?.errorMessage) return
+        const finalAssistant = [...(event.messages || [])]
+          .reverse()
+          .find((item) => item?.role === 'assistant')
+        if (
+          finalAssistant?.stopReason === 'error' ||
+          finalAssistant?.stopReason === 'aborted' ||
+          finalAssistant?.errorMessage
+        )
+          return
         const activeGoal = this.goals.get(session.sessionId)
         if (activeGoal?.status !== 'active' || continuationQueued) return
         continuationQueued = true
-        void session.followUp(goalContinuationPrompt(activeGoal)).catch(() => {}).finally(() => { continuationQueued = false })
+        void session
+          .followUp(goalContinuationPrompt(activeGoal))
+          .catch(() => {})
+          .finally(() => {
+            continuationQueued = false
+          })
       } else if (event.type === 'auto_retry_start') {
-        emit('retry', { attempt: event.attempt, maxAttempts: event.maxAttempts, message: event.errorMessage })
+        emit('retry', {
+          attempt: event.attempt,
+          maxAttempts: event.maxAttempts,
+          message: event.errorMessage,
+        })
       }
     })
 
     this.permissions.attachEmitter(session.sessionId, emit)
     try {
       const safeAttachments = Array.isArray(attachments) ? attachments.slice(0, 8) : []
-      const archivedAttachments = await this.archiveAttachments(session.sessionId, value.name, safeAttachments)
+      const archivedAttachments = await this.archiveAttachments(
+        session.sessionId,
+        value.name,
+        safeAttachments,
+      )
       const images = []
       const contexts = []
       const sharedContextEnabled = !value.isolatedContext
-      const memoryContext = sharedContextEnabled && value.enabledTools?.includes('memory_search')
-        ? await this.memory.relevantContext(message, value.cwd)
-        : { text: '', memories: [] }
+      const memoryContext =
+        sharedContextEnabled && value.enabledTools?.includes('memory_search')
+          ? await this.memory.relevantContext(message, value.cwd)
+          : { text: '', memories: [] }
       if (memoryContext.text) contexts.push(memoryContext.text)
       const activeGoal = sharedContextEnabled ? this.goals.get(session.sessionId) : null
       if (activeGoal?.status === 'active') contexts.push(goalContinuationPrompt(activeGoal))
@@ -1659,18 +2112,30 @@ export class AgentRuntimeService {
           if (data.length > 15_000_000) throw new Error(`${name} 图片数据过大`)
           images.push({ type: 'image', data, mimeType })
           const localPath = archivedAttachments[attachmentIndex]?.path
-          contexts.push(`[Image attachment] ${name}${localPath ? `\nLocal path: ${localPath}\nTo edit this image, pass this path in generate_visual sourceImages.` : ''}`)
+          contexts.push(
+            `[Image attachment] ${name}${localPath ? `\nLocal path: ${localPath}\nTo edit this image, pass this path in generate_visual sourceImages.` : ''}`,
+          )
         } else if (attachment.kind === 'text') {
           const text = String(attachment.text || '').slice(0, MAX_EXTRACTED_CHARS)
-          contexts.push(`[Text attachment: ${name}]\n${text}${attachment.truncated ? '\n(Content truncated)' : ''}`)
+          contexts.push(
+            `[Text attachment: ${name}]\n${text}${attachment.truncated ? '\n(Content truncated)' : ''}`,
+          )
         } else if (attachment.kind === 'document') {
           const text = await extractDocumentText(attachment)
           contexts.push(`[Document attachment: ${name}]\n${text}`)
         }
       }
-      const prompt = contexts.length ? `${message}${ATTACHMENT_MARKER}${contexts.join('\n\n')}` : message
+      const prompt = contexts.length
+        ? `${message}${ATTACHMENT_MARKER}${contexts.join('\n\n')}`
+        : message
       const titlePromise = mayAutoTitle
-        ? this.generateSessionTitle(session.model, message, safeAttachments, temporaryTitle, session.sessionId).catch(() => '')
+        ? this.generateSessionTitle(
+            session.model,
+            message,
+            safeAttachments,
+            temporaryTitle,
+            session.sessionId,
+          ).catch(() => '')
         : null
       applyPisperSystemPrompt(session, session.model)
       await session.prompt(prompt, { images })
@@ -1682,11 +2147,19 @@ export class AgentRuntimeService {
       if (titlePromise) {
         try {
           const generatedTitle = await titlePromise
-          if (generatedTitle && !this.sessionMeta[session.sessionId]?.manual && generatedTitle !== value.name) {
+          if (
+            generatedTitle &&
+            !this.sessionMeta[session.sessionId]?.manual &&
+            generatedTitle !== value.name
+          ) {
             session.setSessionName(generatedTitle)
             value.name = generatedTitle
             await this.markSessionTitle(session.sessionId, generatedTitle, false)
-            emit('session_title', { sessionId: session.sessionId, name: generatedTitle, source: 'generated' })
+            emit('session_title', {
+              sessionId: session.sessionId,
+              name: generatedTitle,
+              source: 'generated',
+            })
           }
         } catch {}
       }
@@ -1725,7 +2198,8 @@ export class AgentRuntimeService {
       live.error = error instanceof Error ? error.message : String(error)
       const finishedAt = live.streaming ? finishLiveRun(live.error) : live.finishedAt
       live.contextUsage = this.compactionAwareContextUsage(session, live.compaction)
-      if (this.goals.get(session.sessionId)?.status === 'active') await this.pauseSessionGoal(session.sessionId)
+      if (this.goals.get(session.sessionId)?.status === 'active')
+        await this.pauseSessionGoal(session.sessionId)
       emit('error', {
         sessionId: session.sessionId,
         message: live.error,
@@ -1749,9 +2223,12 @@ export class AgentRuntimeService {
     } finally {
       unsubscribe()
       this.permissions.detachEmitter(session.sessionId, emit)
-      if (this.goalEmitters.get(session.sessionId) === emit) this.goalEmitters.delete(session.sessionId)
-      if (this.planEmitters.get(session.sessionId) === emit) this.planEmitters.delete(session.sessionId)
-      if (this.agentEmitters.get(session.sessionId) === emit) this.agentEmitters.delete(session.sessionId)
+      if (this.goalEmitters.get(session.sessionId) === emit)
+        this.goalEmitters.delete(session.sessionId)
+      if (this.planEmitters.get(session.sessionId) === emit)
+        this.planEmitters.delete(session.sessionId)
+      if (this.agentEmitters.get(session.sessionId) === emit)
+        this.agentEmitters.delete(session.sessionId)
       if (live.streaming) finishLiveRun(live.error)
       this.touchSessionRuntime(value)
       this.evictIdleSessionRuntimes(session.sessionId)
@@ -1773,452 +2250,66 @@ export class AgentRuntimeService {
     const attachmentText = attachments.length
       ? `\n附件：${attachments.map((item) => safeAttachmentName(item.name)).join('、')}`
       : ''
-    const result = await this.modelRuntime.completeSimple(model, {
-      systemPrompt: 'You generate clear, specific session titles from the user task. Output only a Simplified Chinese title with no quotes, punctuation, explanation, or title prefix. Use at most 20 Chinese characters while preserving necessary filenames, technical terms, and error names.',
-      messages: [{
-        role: 'user',
-        content: `${String(message || '').slice(0, 1200)}${attachmentText}`,
-        timestamp: Date.now(),
-      }],
-    }, {
-      ...(model.reasoning ? { reasoning: 'low' } : { temperature: 0.2 }),
-      maxTokens: 128,
-    })
-    if (sessionId) await this.recordUsage(localDayKey(result.timestamp || Date.now()), `title:${sessionId}`, result.usage)
+    const result = await this.modelRuntime.completeSimple(
+      model,
+      {
+        systemPrompt:
+          'You generate clear, specific session titles from the user task. Output only a Simplified Chinese title with no quotes, punctuation, explanation, or title prefix. Use at most 20 Chinese characters while preserving necessary filenames, technical terms, and error names.',
+        messages: [
+          {
+            role: 'user',
+            content: `${String(message || '').slice(0, 1200)}${attachmentText}`,
+            timestamp: Date.now(),
+          },
+        ],
+      },
+      {
+        ...(model.reasoning ? { reasoning: 'low' } : { temperature: 0.2 }),
+        maxTokens: 128,
+      },
+    )
+    if (sessionId)
+      await this.recordUsage(
+        localDayKey(result.timestamp || Date.now()),
+        `title:${sessionId}`,
+        result.usage,
+      )
     if (result.errorMessage) return fallback
     return cleanSessionTitle(textFromContent(result.content)) || fallback
   }
 
-  async captureConversationMemory({ sessionId, cwd, model, user, assistant, sourceTimestamp = '' }) {
-    const result = await extractConversationMemories({ modelRuntime: this.modelRuntime, model, user, assistant })
-    if (result.usage) await this.recordUsage(localDayKey(result.timestamp || Date.now()), `memory:${sessionId}:${result.timestamp || Date.now()}`, result.usage)
+  async captureConversationMemory({
+    sessionId,
+    cwd,
+    model,
+    user,
+    assistant,
+    sourceTimestamp = '',
+  }) {
+    const result = await extractConversationMemories({
+      modelRuntime: this.modelRuntime,
+      model,
+      user,
+      assistant,
+    })
+    if (result.usage)
+      await this.recordUsage(
+        localDayKey(result.timestamp || Date.now()),
+        `memory:${sessionId}:${result.timestamp || Date.now()}`,
+        result.usage,
+      )
     if (!result.memories.length) return []
     const projectSpaceId = await this.memory.ensureWorkspaceSpace(cwd)
-    return result.memories.map((item, index) => this.memory.propose({
-      ...item,
-      spaceId: item.scope === 'global' ? 'global' : projectSpaceId,
-      cwd,
-      sessionId,
-      sourceId: `${sessionId}:${sourceTimestamp || result.timestamp || Date.now()}:${index}`,
-      sourceTimestamp: sourceTimestamp || new Date(result.timestamp || Date.now()).toISOString(),
-      sourceType: 'conversation',
-    }))
-  }
-
-  resolveDefaultModel() {
-    return this.providerPreferences.resolveDefaultModel()
-  }
-
-  getMemoryDashboard(input) {
-    return this.memory.getDashboard(input)
-  }
-
-  getMemoryCandidateInbox(input) {
-    return this.memory.candidateInbox(input)
-  }
-
-  createMemorySpace(input) {
-    return this.memory.createSpace(input)
-  }
-
-  updateMemorySpace(id, input) {
-    return this.memory.updateSpace(id, input)
-  }
-
-  deleteMemorySpace(id) {
-    return this.memory.deleteSpace(id)
-  }
-
-  createMemory(input) {
-    return this.memory.remember({ ...input, sourceType: 'manual' })
-  }
-
-  updateMemory(id, input) {
-    return this.memory.updateMemory(id, input)
-  }
-
-  deleteMemory(id) {
-    return this.memory.forget(id)
-  }
-
-  acceptMemoryCandidate(id) {
-    return this.memory.acceptCandidate(id)
-  }
-
-  rejectMemoryCandidate(id) {
-    return this.memory.rejectCandidate(id)
-  }
-
-  rejectAllMemoryCandidates() {
-    return this.memory.rejectAllCandidates()
-  }
-
-  async abortSession(id) {
-    return this.sessionLifecycle.abortSession(id)
-  }
-
-  async deleteSession(id) {
-    return this.sessionLifecycle.deleteSession(id)
-  }
-
-  async getPlugins() {
-    return this.toolPlugins.getState()
-  }
-
-  testWebSearch(input) {
-    return this.webSearch.test(input)
-  }
-
-  async promptFromChannel({ sessionId, message, attachments = [], cwd, title, model, executionMode, isolatedContext = false, onSession }) {
-    let id = String(sessionId || '')
-    if (id && !this.sessions.has(id) && !this.pendingSessions.has(id) && !(await this.findSessionInfo(id))) id = ''
-    if (!id) {
-      const created = await this.createSession(title || '飞书会话')
-      id = created.id
-      if (cwd) await this.setSessionCwd(id, cwd)
-    }
-    if (isolatedContext) {
-      const active = await this.getOrCreateSession(id)
-      active.isolatedContext = true
-      active.blockedToolNames = ISOLATED_CONTEXT_BLOCKED_TOOLS
-    }
-    if (executionMode) await this.setSessionExecutionMode(id, executionMode)
-    if (model?.provider && model?.model) {
-      const active = await this.getOrCreateSession(id)
-      if (active.session.model?.provider !== model.provider || active.session.model?.id !== model.model) await this.setSessionModel(id, model.provider, model.model)
-    }
-    onSession?.(id)
-    let actualId = id
-    let text = ''
-    const assetIds = new Set()
-    await this.streamPrompt({
-      sessionId: id,
-      message,
-      attachments,
-      isolatedContext,
-      send: (event, data) => {
-        if ((event === 'meta' || event === 'done') && data?.sessionId) actualId = data.sessionId
-        if (event === 'text_delta') text += data?.delta || ''
-        if (event === 'generated_asset' && data?.id) assetIds.add(data.id)
-      },
-    })
-    if (!text.trim()) {
-      const messages = await this.getSessionMessages(actualId)
-      text = [...messages].reverse().find((item) => item.role === 'agent')?.text || ''
-    }
-    const runtime = this.sessions.get(actualId)
-    const assets = [...assetIds].map((assetId) => this.assetIndex.assets.find((asset) => asset.id === assetId)).filter(Boolean).map((asset) => ({
-      id: asset.id,
-      name: asset.name,
-      path: asset.filePath,
-      mimeType: asset.mimeType,
-    })).filter((asset) => asset.path)
-    return { sessionId: actualId, text: text.trim(), cwd: runtime?.cwd || this.sessionMeta[actualId]?.cwd || this.cwd, model: runtime?.session.model ? `${runtime.session.model.provider}/${runtime.session.model.id}` : '', assets }
-  }
-
-  async getChannels() {
-    const state = this.channels.getState()
-    const config = await this.getConfig()
-    return {
-      providers: state.providers,
-      connections: state.connections,
-      scopes: state.scopes,
-      models: config.providers.filter((provider) => provider.type !== 'visual' && provider.enabled && provider.configured).flatMap((provider) => provider.models.filter((model) => model.kind === 'chat').map((model) => ({ provider: provider.id, model: model.id, label: `${provider.name} / ${model.name}` }))),
-    }
-  }
-
-  startChannelOnboarding(platform) {
-    return this.channels.startOnboarding(platform)
-  }
-
-  getChannelOnboarding(platform, id) {
-    return this.channels.getOnboarding(platform, id)
-  }
-
-  cancelChannelOnboarding(platform, id) {
-    return this.channels.cancelOnboarding(platform, id)
-  }
-
-  verifyChannelOnboarding(platform, id, code) {
-    return this.channels.verifyOnboarding(platform, id, code)
-  }
-
-  async updateChannel(platform, input) {
-    await this.channels.update(platform, input)
-    return this.getChannels()
-  }
-
-  async reconnectChannel(platform) {
-    await this.channels.connect(platform)
-    return this.getChannels()
-  }
-
-  deleteChannel(platform) {
-    return this.channels.remove(platform)
-  }
-
-  resetChannelScope(key) {
-    return this.channels.resetScope(key)
-  }
-
-  getCompactionPreference() {
-    return {
-      thresholdPercent: this.compactionThresholdPercent,
-      minPercent: MIN_COMPACTION_THRESHOLD_PERCENT,
-      maxPercent: MAX_COMPACTION_THRESHOLD_PERCENT,
-    }
-  }
-
-  async updateCompactionPreference(input) {
-    const requested = Number(input?.thresholdPercent)
-    if (!Number.isFinite(requested)
-      || requested < MIN_COMPACTION_THRESHOLD_PERCENT
-      || requested > MAX_COMPACTION_THRESHOLD_PERCENT) {
-      throw new Error(`自动压缩阈值必须在 ${MIN_COMPACTION_THRESHOLD_PERCENT}% 到 ${MAX_COMPACTION_THRESHOLD_PERCENT}% 之间。`)
-    }
-    const thresholdPercent = normalizeCompactionThresholdPercent(requested)
-    const appConfig = await readJson(this.appConfigPath, {})
-    await writeJsonAtomic(this.appConfigPath, {
-      ...appConfig,
-      compactionThresholdPercent: thresholdPercent,
-    })
-    this.compactionThresholdPercent = thresholdPercent
-    this.sessionContextUsageCache.clear()
-    this.streamProjection.invalidateAllUsage()
-    return this.getCompactionPreference()
-  }
-
-  getNotificationSettings() {
-    return this.notificationSettings.getState()
-  }
-
-  updateBrowserNotifications(input) {
-    return this.notificationSettings.updateBrowser(input)
-  }
-
-  saveNotificationTemplate(event, platform, input) {
-    return this.notificationSettings.updateTemplate(event, platform, input)
-  }
-
-  testNotificationTemplate(event, platform) {
-    return this.notificationSettings.testTemplate(event, platform)
-  }
-
-  getBrowserNotificationEvents(after) {
-    return this.notificationSettings.getBrowserEvents(after)
-  }
-
-  async getSchedules() {
-    const config = await this.getConfig()
-    const notificationSettings = await this.notificationSettings.getState()
-    return {
-      ...this.schedules.getState(),
-      defaultCwd: this.cwd,
-      models: config.providers.filter((provider) => provider.type !== 'visual' && provider.enabled && provider.configured).flatMap((provider) => provider.models.filter((model) => model.kind === 'chat').map((model) => ({ provider: provider.id, model: model.id, label: `${provider.name} / ${model.name}` }))),
-      notificationTargets: {
-        browser: { enabled: notificationSettings.browser.enabled },
-        feishu: { enabled: Boolean(notificationSettings.connections.feishu?.enabled) },
-        weixin: { enabled: Boolean(notificationSettings.connections.weixin?.enabled) },
-      },
-    }
-  }
-
-  async createSchedule(input) {
-    const task = await this.schedules.create(input)
-    return { task, state: await this.getSchedules() }
-  }
-
-  async updateSchedule(id, input) {
-    const task = await this.schedules.update(id, input)
-    return task ? { task, state: await this.getSchedules() } : null
-  }
-
-  deleteSchedule(id) {
-    return this.schedules.remove(id)
-  }
-
-  async runSchedule(id) {
-    const task = await this.schedules.runNow(id)
-    return task ? { started: true, task } : null
-  }
-
-  async getWorkflows() {
-    const config = await this.getConfig()
-    const notificationSettings = await this.notificationSettings.getState()
-    return {
-      ...this.workflows.getState(),
-      cwd: this.cwd,
-      models: config.providers.filter((provider) => provider.type !== 'visual' && provider.enabled && provider.configured).flatMap((provider) => provider.models.filter((model) => model.kind === 'chat').map((model) => ({ provider: provider.id, model: model.id, label: `${provider.name} / ${model.name}` }))),
-      notificationTargets: {
-        browser: { enabled: notificationSettings.browser.enabled },
-        feishu: { enabled: Boolean(notificationSettings.connections.feishu?.enabled) },
-        weixin: { enabled: Boolean(notificationSettings.connections.weixin?.enabled) },
-      },
-    }
-  }
-
-  async createWorkflow(input) {
-    const workflow = await this.workflows.create(input)
-    return { workflow, state: await this.getWorkflows() }
-  }
-
-  async updateWorkflow(id, input) {
-    const workflow = await this.workflows.update(id, input)
-    return workflow ? { workflow, state: await this.getWorkflows() } : null
-  }
-
-  deleteWorkflow(id) {
-    return this.workflows.remove(id)
-  }
-
-  async runWorkflow(id) {
-    const run = await this.workflows.runNow(id)
-    return run ? { started: true, run } : null
-  }
-
-  async stopWorkflowRun(id) {
-    const run = await this.workflows.stop(id)
-    return run ? { stopping: true, run } : null
-  }
-
-  notifyChannels(event, data) {
-    return this.notificationSettings.notify(event, data)
-  }
-
-  async dispose() {
-    if (this.sessionRuntimeSweepTimer) clearInterval(this.sessionRuntimeSweepTimer)
-    this.sessionRuntimeSweepTimer = null
-    for (const timer of this.agentWakeupTimers.values()) clearTimeout(timer)
-    this.agentWakeupTimers.clear()
-    this.providerModelDiscovery.abort?.()
-    await this.providerModelRefreshPromise?.catch(() => {})
-    await this.workflows.dispose()
-    await this.schedules.dispose()
-    await this.channels.dispose()
-    await this.goals.pauseAllActive()
-    await this.multiAgents.dispose()
-    await this.browserAutomation.dispose()
-    this.permissions.dispose()
-    await this.disposeSessions()
-    this.pendingSessions.clear()
-    await this.mcp.dispose()
-    this.memory.dispose()
-    await Promise.allSettled([this.sessionMetaWrite, this.usageWrite, this.assetWrite])
-  }
-
-  async savePlugins(input) {
-    const result = await this.toolPlugins.saveState(input)
-    this.invalidateSessionRuntimes()
-    return result
-  }
-
-  getMcpDashboard({ refresh = true } = {}) {
-    return this.mcp.getDashboard({ refresh })
-  }
-
-  async createMcpServer(input) {
-    const result = await this.mcp.add(input)
-    this.invalidateSessionRuntimes()
-    return result
-  }
-
-  async updateMcpServer(id, input) {
-    const result = await this.mcp.update(id, input)
-    if (result) this.invalidateSessionRuntimes()
-    return result
-  }
-
-  async deleteMcpServer(id) {
-    const deleted = await this.mcp.remove(id)
-    if (deleted) this.invalidateSessionRuntimes()
-    return deleted
-  }
-
-  async testMcpServer(id) {
-    return this.mcp.test(id)
-  }
-
-  async setMcpToolEnabled(id, toolName, enabled) {
-    const result = await this.mcp.setToolEnabled(id, toolName, enabled)
-    if (result) this.invalidateSessionRuntimes()
-    return result
-  }
-
-  async getSkillsDashboard(sessionId = '') {
-    return this.skills.dashboard({ cwd: await this.sessionWorkspaceCwd(sessionId) })
-  }
-
-  async installSkill(input, sessionId = '') {
-    const result = await this.skills.install(input, { cwd: await this.sessionWorkspaceCwd(sessionId) })
-    this.invalidateSessionRuntimes()
-    return result
-  }
-
-  async updateSkill(id, input, sessionId = '') {
-    const result = await this.skills.update(id, input, { cwd: await this.sessionWorkspaceCwd(sessionId) })
-    if (result) this.invalidateSessionRuntimes()
-    return result
-  }
-
-  async deleteSkill(id, sessionId = '') {
-    const deleted = await this.skills.remove(id, { cwd: await this.sessionWorkspaceCwd(sessionId) })
-    if (deleted) this.invalidateSessionRuntimes()
-    return deleted
-  }
-
-  async reloadSkills(sessionId = '') {
-    this.invalidateSessionRuntimes()
-    this.skills.invalidateDashboardCache()
-    return this.skills.dashboard({ cwd: await this.sessionWorkspaceCwd(sessionId), force: true })
-  }
-
-  async getProviderDiscovery() {
-    return this.providerPreferences.getProviderDiscovery()
-  }
-
-  async importDiscoveredProvider(discoveryId) {
-    return this.providerPreferences.importDiscoveredProvider(discoveryId)
-  }
-
-  async getConfig() {
-    return this.providerPreferences.getConfig()
-  }
-
-  async saveConfig(input) {
-    return this.providerPreferences.saveConfig(input, toolsFromConfig, TOOL_PRESETS)
-  }
-
-  async setProviderEnabled(id, enabled) {
-    return this.providerPreferences.setProviderEnabled(id, enabled)
-  }
-
-  async createProvider(input) {
-    return this.providerPreferences.createProvider(input)
-  }
-
-  async addProviderModel(providerId, input) {
-    return this.providerPreferences.addProviderModels(providerId, [input], {
-      skipExisting: false,
-    })
-  }
-
-  async reconcileDefaultModel() {
-    return this.providerPreferences.reconcileDefaultModel()
-  }
-
-  async refreshProviderModels() {
-    return this.providerPreferences.refreshProviderModels()
-  }
-
-  async discoverProviderModels(providerId, input = {}) {
-    return this.providerPreferences.discoverProviderModels(providerId, input)
-  }
-
-  async addProviderModels(providerId, inputs, options = {}) {
-    return this.providerPreferences.addProviderModels(providerId, inputs, options)
-  }
-
-  async deleteProvider(id) {
-    return this.providerPreferences.deleteProvider(id)
+    return result.memories.map((item, index) =>
+      this.memory.propose({
+        ...item,
+        spaceId: item.scope === 'global' ? 'global' : projectSpaceId,
+        cwd,
+        sessionId,
+        sourceId: `${sessionId}:${sourceTimestamp || result.timestamp || Date.now()}:${index}`,
+        sourceTimestamp: sourceTimestamp || new Date(result.timestamp || Date.now()).toISOString(),
+        sourceType: 'conversation',
+      }),
+    )
   }
 }

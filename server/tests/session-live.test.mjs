@@ -3,7 +3,12 @@ import { appendFile, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import test from 'node:test'
-import { AgentRuntimeService, installTransientStreamRetry, multiAgentResultAgent, waitForAgentMailbox } from '../runtime/agent-runtime.mjs'
+import {
+  AgentRuntimeService,
+  installTransientStreamRetry,
+  multiAgentResultAgent,
+  waitForAgentMailbox,
+} from '../runtime/agent-runtime.mjs'
 import { applyTextPatch } from '../../src/lib/api.ts'
 import { shouldRetainClosedSessionState } from '../../src/lib/session-state.ts'
 
@@ -11,10 +16,12 @@ test('live session snapshot restores partial assistant output and tool state', a
   const directory = await mkdtemp(join(tmpdir(), 'pisper-live-session-'))
   t.after(() => rm(directory, { recursive: true, force: true }))
   const runtime = new AgentRuntimeService({ cwd: directory, dataDir: directory })
-  runtime.multiAgents = { summaries: () => [
-    { id: 'agent-live', canonicalName: '/root/live_1', status: 'running' },
-    { id: 'agent-finished', canonicalName: '/root/finished_1', status: 'completed' },
-  ] }
+  runtime.multiAgents = {
+    summaries: () => [
+      { id: 'agent-live', canonicalName: '/root/live_1', status: 'running' },
+      { id: 'agent-finished', canonicalName: '/root/finished_1', status: 'completed' },
+    ],
+  }
   runtime.sessions.set('session-live', {
     cwd: directory,
     session: {
@@ -27,9 +34,33 @@ test('live session snapshot restores partial assistant output and tool state', a
     streaming: true,
     text: '正在处理剩余测试…',
     thinkingText: '先检查失败测试，再修复实现。',
-    tools: [{ type: 'tool', id: 'tool-1', name: 'bash', args: { command: 'npm test' }, status: 'running' }],
-    currentActivity: { type: 'tool', id: 'tool-1', name: 'bash', args: { command: 'npm test' }, status: 'running', updatedAt: '2026-07-20T10:00:05.000Z' },
-    activityFeed: [{ type: 'tool', id: 'tool-1', name: 'bash', args: { command: 'npm test' }, status: 'running', updatedAt: '2026-07-20T10:00:05.000Z' }],
+    tools: [
+      {
+        type: 'tool',
+        id: 'tool-1',
+        name: 'bash',
+        args: { command: 'npm test' },
+        status: 'running',
+      },
+    ],
+    currentActivity: {
+      type: 'tool',
+      id: 'tool-1',
+      name: 'bash',
+      args: { command: 'npm test' },
+      status: 'running',
+      updatedAt: '2026-07-20T10:00:05.000Z',
+    },
+    activityFeed: [
+      {
+        type: 'tool',
+        id: 'tool-1',
+        name: 'bash',
+        args: { command: 'npm test' },
+        status: 'running',
+        updatedAt: '2026-07-20T10:00:05.000Z',
+      },
+    ],
     assets: [],
     error: '',
     startedAt: '2026-07-20T10:00:00.000Z',
@@ -40,13 +71,17 @@ test('live session snapshot restores partial assistant output and tool state', a
   assert.equal(live.messages.at(-1).role, 'agent')
   assert.equal(live.messages.at(-1).text, '正在处理剩余测试…')
   assert.equal(live.thinkingText, '先检查失败测试，再修复实现。')
-  assert.deepEqual(live.tools, [{ type: 'tool', id: 'tool-1', name: 'bash', args: { command: 'npm test' }, status: 'running' }])
+  assert.deepEqual(live.tools, [
+    { type: 'tool', id: 'tool-1', name: 'bash', args: { command: 'npm test' }, status: 'running' },
+  ])
   assert.equal(live.currentActivity.args.command, 'npm test')
   assert.equal(live.activityFeed[0].args.command, 'npm test')
   assert.equal(live.startedAt, '2026-07-20T10:00:00.000Z')
   assert.equal(live.lastActivityAt, '2026-07-20T10:00:05.000Z')
   assert.equal(live.model, 'openai/gpt-5.4')
-  assert.deepEqual(live.agents, [{ id: 'agent-live', canonicalName: '/root/live_1', status: 'running' }])
+  assert.deepEqual(live.agents, [
+    { id: 'agent-live', canonicalName: '/root/live_1', status: 'running' },
+  ])
 })
 
 test('persisted transcript binds reasoning and tool activity to the completed Agent run', async (t) => {
@@ -77,7 +112,11 @@ test('persisted transcript binds reasoning and tool activity to the completed Ag
           isError: false,
           timestamp: '2026-07-20T10:00:02.000Z',
         },
-        { role: 'user', content: 'Also cover the follow-up.', timestamp: '2026-07-20T10:00:03.000Z' },
+        {
+          role: 'user',
+          content: 'Also cover the follow-up.',
+          timestamp: '2026-07-20T10:00:03.000Z',
+        },
         {
           role: 'assistant',
           content: [
@@ -97,7 +136,11 @@ test('persisted transcript binds reasoning and tool activity to the completed Ag
           stopReason: 'stop',
           timestamp: '2026-07-20T10:01:01.000Z',
         },
-        { role: 'user', content: 'Recover an interrupted run.', timestamp: '2026-07-20T10:02:00.000Z' },
+        {
+          role: 'user',
+          content: 'Recover an interrupted run.',
+          timestamp: '2026-07-20T10:02:00.000Z',
+        },
         {
           role: 'assistant',
           content: [
@@ -141,23 +184,32 @@ test('persisted transcript binds reasoning and tool activity to the completed Ag
   runtime.findSessionInfo = async () => ({ path })
 
   const page = await runtime.getSessionMessagePage(sessionId, { limit: 20 })
-  assert.deepEqual(page.messages.map((message) => message.text), [
-    'Start the task.',
-    'Also cover the follow-up.',
-    'First run complete.',
-    'Start a separate round.',
-    'Second run complete.',
-    'Recover an interrupted run.',
-    '',
-  ])
+  assert.deepEqual(
+    page.messages.map((message) => message.text),
+    [
+      'Start the task.',
+      'Also cover the follow-up.',
+      'First run complete.',
+      'Start a separate round.',
+      'Second run complete.',
+      'Recover an interrupted run.',
+      '',
+    ],
+  )
   const firstRun = page.messages[2].runActivity
-  assert.equal(firstRun.thinkingText, 'Inspect the implementation.\n\nApply the requested follow-up.')
+  assert.equal(
+    firstRun.thinkingText,
+    'Inspect the implementation.\n\nApply the requested follow-up.',
+  )
   assert.equal(firstRun.tools[0].name, 'bash')
   assert.equal(firstRun.tools[0].status, 'done')
   assert.equal(firstRun.tools[0].output, 'all tests passed')
   assert.equal(page.messages[4].runActivity.thinkingText, 'Handle only the new round.')
   assert.equal(page.messages[4].runActivity.tools.length, 0)
-  assert.equal(page.messages[6].runActivity.thinkingText, 'Persist activity before the final response.')
+  assert.equal(
+    page.messages[6].runActivity.thinkingText,
+    'Persist activity before the final response.',
+  )
   assert.equal(page.messages[6].runActivity.tools[0].name, 'read')
   assert.equal(page.messages[6].runActivity.tools[0].status, 'done')
 })
@@ -176,7 +228,12 @@ test('persisted transcript settles orphaned tools from a terminated turn', async
           role: 'assistant',
           content: [
             { type: 'thinking', thinking: 'Attempt the edit before the stream terminates.' },
-            { type: 'toolCall', id: 'tool-3', name: 'edit', arguments: { path: 'server/runtime.mjs' } },
+            {
+              type: 'toolCall',
+              id: 'tool-3',
+              name: 'edit',
+              arguments: { path: 'server/runtime.mjs' },
+            },
           ],
           stopReason: 'error',
           errorMessage: 'terminated',
@@ -214,30 +271,60 @@ test('live activity replaces plan and Agent status without retaining terminal Ag
     streaming: true,
     agents: [],
     plan: {
-      items: [{ id: 'one', title: 'Implement', status: 'in_progress', assignee: '', dependsOn: [] }],
+      items: [
+        { id: 'one', title: 'Implement', status: 'in_progress', assignee: '', dependsOn: [] },
+      ],
     },
     currentActivity: { type: 'model', stage: 'thinking' },
   })
-  const running = { id: 'agent-running', canonicalName: '/root/running_1', status: 'running', lastActivityAt: '2026-07-20T10:00:01.000Z' }
-  const completed = { id: 'agent-completed', canonicalName: '/root/completed_1', status: 'completed', lastActivityAt: '2026-07-20T10:00:02.000Z' }
+  const running = {
+    id: 'agent-running',
+    canonicalName: '/root/running_1',
+    status: 'running',
+    lastActivityAt: '2026-07-20T10:00:01.000Z',
+  }
+  const completed = {
+    id: 'agent-completed',
+    canonicalName: '/root/completed_1',
+    status: 'completed',
+    lastActivityAt: '2026-07-20T10:00:02.000Z',
+  }
   runtime.multiAgents = { summaries: () => [running, completed] }
 
   let update = null
-  runtime.emitAgentUpdate('session-activity', completed, (event, data) => { update = { event, data } })
+  runtime.emitAgentUpdate('session-activity', completed, (event, data) => {
+    update = { event, data }
+  })
   assert.deepEqual(runtime.liveSessions.get('session-activity').agents, [running])
   assert.equal(runtime.liveSessions.get('session-activity').currentActivity.agent.id, completed.id)
   assert.equal(update.event, 'agent_update')
   assert.deepEqual(update.data.agents, [running])
 
   const plan = {
-    items: [{ id: 'one', title: 'Implement', status: 'in_progress', assignee: '/root/builder_1', dependsOn: ['research'] }],
+    items: [
+      {
+        id: 'one',
+        title: 'Implement',
+        status: 'in_progress',
+        assignee: '/root/builder_1',
+        dependsOn: ['research'],
+      },
+    ],
     counts: { completed: 0, inProgress: 1 },
     updatedAt: '2026-07-20T10:00:03.000Z',
   }
-  runtime.emitPlanUpdate('session-activity', plan, (event, data) => { update = { event, data } })
+  runtime.emitPlanUpdate('session-activity', plan, (event, data) => {
+    update = { event, data }
+  })
   assert.equal(runtime.liveSessions.get('session-activity').currentActivity.type, 'plan')
-  assert.equal(runtime.liveSessions.get('session-activity').activityFeed.at(-1).changes[0].title, 'Implement')
-  assert.equal(runtime.liveSessions.get('session-activity').activityFeed.at(-1).changes[0].kind, 'updated')
+  assert.equal(
+    runtime.liveSessions.get('session-activity').activityFeed.at(-1).changes[0].title,
+    'Implement',
+  )
+  assert.equal(
+    runtime.liveSessions.get('session-activity').activityFeed.at(-1).changes[0].kind,
+    'updated',
+  )
   assert.equal(update.event, 'plan_update')
   assert.equal(update.data.plan, plan)
   assert.equal(update.data.currentActivity.plan, plan)
@@ -279,9 +366,10 @@ test('stream completion publishes an authoritative terminal snapshot', async (t)
 
   const listeners = new Set()
   const events = []
-  const streamedText = (eventName) => events
-    .filter((item) => item.event === eventName)
-    .reduce((text, item) => applyTextPatch(text, item.data), '')
+  const streamedText = (eventName) =>
+    events
+      .filter((item) => item.event === eventName)
+      .reduce((text, item) => applyTextPatch(text, item.data), '')
   let thinkingAtBlockEnd = ''
   let textAtBlockEnd = ''
   const session = {
@@ -300,46 +388,110 @@ test('stream completion publishes an authoritative terminal snapshot', async (t)
     async prompt() {
       session.isStreaming = true
       for (const listener of listeners) listener({ type: 'compaction_start', reason: 'threshold' })
-      for (const listener of listeners) listener({
-        type: 'compaction_end',
-        reason: 'threshold',
-        result: { summary: 'redacted from the public event', firstKeptEntryId: 'message-1', tokensBefore: 92_000, estimatedTokensAfter: 18_500 },
-        aborted: false,
-        willRetry: false,
-      })
+      for (const listener of listeners)
+        listener({
+          type: 'compaction_end',
+          reason: 'threshold',
+          result: {
+            summary: 'redacted from the public event',
+            firstKeptEntryId: 'message-1',
+            tokensBefore: 92_000,
+            estimatedTokensAfter: 18_500,
+          },
+          aborted: false,
+          willRetry: false,
+        })
       for (const listener of listeners) listener({ type: 'turn_start' })
-      for (const listener of listeners) listener({ type: 'message_update', assistantMessageEvent: { type: 'thinking_start', contentIndex: 0 } })
-      for (const listener of listeners) listener({ type: 'message_update', assistantMessageEvent: { type: 'thinking_delta', contentIndex: 0, delta: 'Inspecting the remaining tests before reading files.' } })
-      for (const listener of listeners) listener({ type: 'message_update', assistantMessageEvent: { type: 'thinking_end', contentIndex: 0 } })
+      for (const listener of listeners)
+        listener({
+          type: 'message_update',
+          assistantMessageEvent: { type: 'thinking_start', contentIndex: 0 },
+        })
+      for (const listener of listeners)
+        listener({
+          type: 'message_update',
+          assistantMessageEvent: {
+            type: 'thinking_delta',
+            contentIndex: 0,
+            delta: 'Inspecting the remaining tests before reading files.',
+          },
+        })
+      for (const listener of listeners)
+        listener({
+          type: 'message_update',
+          assistantMessageEvent: { type: 'thinking_end', contentIndex: 0 },
+        })
       thinkingAtBlockEnd = streamedText('thinking_patch')
-      for (const listener of listeners) listener({
-        type: 'tool_execution_start',
-        toolCallId: 'tool-1',
-        toolName: 'bash',
-        args: { command: 'npm test', apiKey: 'local-chat-value' },
-      })
-      for (const listener of listeners) listener({
-        type: 'tool_execution_update',
-        toolCallId: 'tool-1',
-        toolName: 'bash',
-        partialResult: { content: [{ type: 'text', text: '\u001b[32mfirst line\u001b[0m\nsecond line' }] },
-      })
-      for (const listener of listeners) listener({
-        type: 'tool_execution_end',
-        toolCallId: 'tool-1',
-        toolName: 'bash',
-        result: { content: [{ type: 'text', text: '\u001b[32mfirst line\u001b[0m\nsecond line\ncomplete' }] },
-        isError: false,
-      })
+      for (const listener of listeners)
+        listener({
+          type: 'tool_execution_start',
+          toolCallId: 'tool-1',
+          toolName: 'bash',
+          args: { command: 'npm test', apiKey: 'local-chat-value' },
+        })
+      for (const listener of listeners)
+        listener({
+          type: 'tool_execution_update',
+          toolCallId: 'tool-1',
+          toolName: 'bash',
+          partialResult: {
+            content: [{ type: 'text', text: '\u001b[32mfirst line\u001b[0m\nsecond line' }],
+          },
+        })
+      for (const listener of listeners)
+        listener({
+          type: 'tool_execution_end',
+          toolCallId: 'tool-1',
+          toolName: 'bash',
+          result: {
+            content: [
+              { type: 'text', text: '\u001b[32mfirst line\u001b[0m\nsecond line\ncomplete' },
+            ],
+          },
+          isError: false,
+        })
       for (const listener of listeners) listener({ type: 'turn_start' })
-      for (const listener of listeners) listener({ type: 'message_update', assistantMessageEvent: { type: 'thinking_start', contentIndex: 0 } })
-      for (const listener of listeners) listener({ type: 'message_update', assistantMessageEvent: { type: 'thinking_delta', contentIndex: 0, delta: 'Applying the appended guidance.' } })
-      for (const listener of listeners) listener({ type: 'message_update', assistantMessageEvent: { type: 'thinking_end', contentIndex: 0 } })
-      const assistant = { role: 'assistant', content: [{ type: 'text', text: 'Final answer' }], stopReason: 'stop', timestamp: 2 }
+      for (const listener of listeners)
+        listener({
+          type: 'message_update',
+          assistantMessageEvent: { type: 'thinking_start', contentIndex: 0 },
+        })
+      for (const listener of listeners)
+        listener({
+          type: 'message_update',
+          assistantMessageEvent: {
+            type: 'thinking_delta',
+            contentIndex: 0,
+            delta: 'Applying the appended guidance.',
+          },
+        })
+      for (const listener of listeners)
+        listener({
+          type: 'message_update',
+          assistantMessageEvent: { type: 'thinking_end', contentIndex: 0 },
+        })
+      const assistant = {
+        role: 'assistant',
+        content: [{ type: 'text', text: 'Final answer' }],
+        stopReason: 'stop',
+        timestamp: 2,
+      }
       session.messages.push(assistant)
-      for (const listener of listeners) listener({ type: 'message_update', assistantMessageEvent: { type: 'text_start', contentIndex: 0 } })
-      for (const listener of listeners) listener({ type: 'message_update', assistantMessageEvent: { type: 'text_delta', contentIndex: 0, delta: 'Final answer' } })
-      for (const listener of listeners) listener({ type: 'message_update', assistantMessageEvent: { type: 'text_end', contentIndex: 0 } })
+      for (const listener of listeners)
+        listener({
+          type: 'message_update',
+          assistantMessageEvent: { type: 'text_start', contentIndex: 0 },
+        })
+      for (const listener of listeners)
+        listener({
+          type: 'message_update',
+          assistantMessageEvent: { type: 'text_delta', contentIndex: 0, delta: 'Final answer' },
+        })
+      for (const listener of listeners)
+        listener({
+          type: 'message_update',
+          assistantMessageEvent: { type: 'text_end', contentIndex: 0 },
+        })
       textAtBlockEnd = events
         .filter((item) => item.event === 'text_delta')
         .map((item) => item.data.delta)
@@ -376,14 +528,14 @@ test('stream completion publishes an authoritative terminal snapshot', async (t)
     if (item.event === 'thinking_patch') thinkingText = applyTextPatch(thinkingText, item.data)
   }
   assert.equal(thinkingAtBlockEnd, 'Inspecting the remaining tests before reading files.')
-  assert.equal(
-    thinkingText,
-    `${thinkingAtBlockEnd}\n\nApplying the appended guidance.`,
-  )
+  assert.equal(thinkingText, `${thinkingAtBlockEnd}\n\nApplying the appended guidance.`)
   const thinkingResets = events.filter((item) => item.event === 'thinking_reset')
   assert.equal(thinkingResets[1].data.thinkingText, thinkingAtBlockEnd)
   assert.equal(textAtBlockEnd, 'Final answer')
-  assert.equal(events.some((item) => item.event === 'text_patch'), false)
+  assert.equal(
+    events.some((item) => item.event === 'text_patch'),
+    false,
+  )
   const textEndEvents = events.filter((item) => item.event === 'text_end')
   assert.ok(textEndEvents.some((item) => item.data.text === 'Final answer'))
   assert.ok(textEndEvents.some((item) => item.data.final === true))
@@ -408,10 +560,7 @@ test('stream completion publishes an authoritative terminal snapshot', async (t)
   assert.equal(live.currentActivity, null)
   assert.equal(live.plan.sessionId, session.sessionId)
   assert.equal(Object.hasOwn(live, 'taskList'), false)
-  assert.equal(
-    live.thinkingText,
-    `${thinkingAtBlockEnd}\n\nApplying the appended guidance.`,
-  )
+  assert.equal(live.thinkingText, `${thinkingAtBlockEnd}\n\nApplying the appended guidance.`)
   assert.deepEqual(live.compaction, compactionEnd)
 })
 
@@ -443,11 +592,21 @@ test('background memory candidate extraction never blocks or delays session comp
     },
     async prompt() {
       session.isStreaming = true
-      session.messages.push({ role: 'assistant', content: [{ type: 'text', text: 'Current task completed.' }], timestamp: 2 })
+      session.messages.push({
+        role: 'assistant',
+        content: [{ type: 'text', text: 'Current task completed.' }],
+        timestamp: 2,
+      })
       session.isStreaming = false
     },
   }
-  const value = { session, cwd: directory, name: 'Background memory', baseToolNames: [], enabledTools: ['memory_remember'] }
+  const value = {
+    session,
+    cwd: directory,
+    name: 'Background memory',
+    baseToolNames: [],
+    enabledTools: ['memory_remember'],
+  }
   runtime.sessions.set(session.sessionId, value)
   runtime.getOrCreateSession = async () => value
 
@@ -480,11 +639,18 @@ test('image attachments reach the Pi prompt when the selected model supports ima
     agent: { state: { systemPrompt: 'Base prompt' } },
     getActiveToolNames: () => [],
     setActiveToolsByName: () => {},
-    subscribe() { return () => {} },
+    subscribe() {
+      return () => {}
+    },
     async prompt(prompt, options) {
       observedPrompt = prompt
       observedOptions = options
-      session.messages.push({ role: 'assistant', content: [{ type: 'text', text: 'I can see the image.' }], stopReason: 'stop', timestamp: 2 })
+      session.messages.push({
+        role: 'assistant',
+        content: [{ type: 'text', text: 'I can see the image.' }],
+        stopReason: 'stop',
+        timestamp: 2,
+      })
     },
   }
   const value = { session, cwd: directory, name: 'Image prompt', baseToolNames: [] }
@@ -510,22 +676,26 @@ test('background Agent results remain durable without entering parent prompts or
   runtime.archiveAttachments = async () => []
   runtime.captureConversationMemory = async () => []
   runtime.memory = { relevantContext: async () => ({ text: '' }) }
-  const mailbox = [{
-    id: 'agent-passive',
-    mailboxId: 'agent-passive:1',
-    canonicalName: '/root/review_passive_1',
-    parentSessionId: 'session-mailbox-passive',
-    status: 'completed',
-    message: 'Review in the background.',
-    output: 'Found a passive mailbox result.',
-    error: '',
-    resultVersion: 1,
-  }]
+  const mailbox = [
+    {
+      id: 'agent-passive',
+      mailboxId: 'agent-passive:1',
+      canonicalName: '/root/review_passive_1',
+      parentSessionId: 'session-mailbox-passive',
+      status: 'completed',
+      message: 'Review in the background.',
+      output: 'Found a passive mailbox result.',
+      error: '',
+      resultVersion: 1,
+    },
+  ]
   let acknowledgeCalls = 0
   runtime.multiAgents = {
     summaries: () => [],
     peekMailbox: () => mailbox.map((agent) => ({ ...agent })),
-    acknowledge: async () => { acknowledgeCalls += 1 },
+    acknowledge: async () => {
+      acknowledgeCalls += 1
+    },
   }
 
   let observedPrompt = ''
@@ -538,11 +708,18 @@ test('background Agent results remain durable without entering parent prompts or
     agent: { state: { systemPrompt: 'Base prompt' } },
     getActiveToolNames: () => [],
     setActiveToolsByName: () => {},
-    subscribe() { return () => {} },
+    subscribe() {
+      return () => {}
+    },
     async prompt(prompt) {
       observedPrompt = prompt
       session.isStreaming = true
-      session.messages.push({ role: 'assistant', content: [{ type: 'text', text: 'Parent finished independently.' }], stopReason: 'stop', timestamp: 2 })
+      session.messages.push({
+        role: 'assistant',
+        content: [{ type: 'text', text: 'Parent finished independently.' }],
+        stopReason: 'stop',
+        timestamp: 2,
+      })
       session.isStreaming = false
     },
   }
@@ -557,7 +734,10 @@ test('background Agent results remain durable without entering parent prompts or
   })
 
   assert.equal(observedPrompt, 'Continue the parent task.')
-  assert.equal(session.messages.some((message) => message.role === 'custom'), false)
+  assert.equal(
+    session.messages.some((message) => message.role === 'custom'),
+    false,
+  )
   assert.equal(acknowledgeCalls, 0)
   assert.equal(runtime.multiAgents.peekMailbox(session.sessionId).length, 1)
 })
@@ -592,9 +772,16 @@ test('parent completion snapshot keeps background Agents visible without keeping
     agent: { state: { systemPrompt: '' } },
     getActiveToolNames: () => [],
     setActiveToolsByName: () => {},
-    subscribe() { return () => {} },
+    subscribe() {
+      return () => {}
+    },
     async prompt() {
-      session.messages.push({ role: 'assistant', content: [{ type: 'text', text: 'Delegated and moved on.' }], stopReason: 'stop', timestamp: 2 })
+      session.messages.push({
+        role: 'assistant',
+        content: [{ type: 'text', text: 'Delegated and moved on.' }],
+        stopReason: 'stop',
+        timestamp: 2,
+      })
     },
   }
   const value = { session, cwd: directory, name: 'Background snapshot', baseToolNames: [] }
@@ -667,7 +854,9 @@ test('generated session title is emitted before the terminal done event', async 
     agent: { state: { systemPrompt: '' } },
     getActiveToolNames: () => [],
     setActiveToolsByName: () => {},
-    setSessionName(name) { this.name = name },
+    setSessionName(name) {
+      this.name = name
+    },
     subscribe(listener) {
       listeners.add(listener)
       return () => listeners.delete(listener)
@@ -675,8 +864,16 @@ test('generated session title is emitted before the terminal done event', async 
     async prompt() {
       session.isStreaming = true
       session.messages.push({ role: 'user', content: 'Name this chat.', timestamp: 1 })
-      session.messages.push({ role: 'assistant', content: [{ type: 'text', text: 'Hello' }], timestamp: 2 })
-      for (const listener of listeners) listener({ type: 'message_update', assistantMessageEvent: { type: 'text_delta', delta: 'Hello' } })
+      session.messages.push({
+        role: 'assistant',
+        content: [{ type: 'text', text: 'Hello' }],
+        timestamp: 2,
+      })
+      for (const listener of listeners)
+        listener({
+          type: 'message_update',
+          assistantMessageEvent: { type: 'text_delta', delta: 'Hello' },
+        })
       session.isStreaming = false
     },
   }
@@ -691,7 +888,9 @@ test('generated session title is emitted before the terminal done event', async 
     send: (event, data) => events.push({ event, data }),
   })
 
-  const titleIndex = events.findIndex((item) => item.event === 'session_title' && item.data?.source === 'generated')
+  const titleIndex = events.findIndex(
+    (item) => item.event === 'session_title' && item.data?.source === 'generated',
+  )
   const doneIndex = events.findIndex((item) => item.event === 'done')
   assert.ok(titleIndex >= 0)
   assert.ok(doneIndex > titleIndex)
@@ -710,10 +909,25 @@ test('stream_read_error uses the Pi turn retry path without broadening terminal 
   installTransientStreamRetry(session)
   installTransientStreamRetry(session)
 
-  assert.equal(session._isRetryableError({ stopReason: 'error', errorMessage: 'stream_read_error' }), true)
-  assert.equal(session._isRetryableError({ stopReason: 'error', errorMessage: 'Stream read error: connection closed' }), true)
-  assert.equal(session._isRetryableError({ stopReason: 'error', errorMessage: 'invalid api key' }), false)
-  assert.equal(session._isRetryableError({ stopReason: 'stop', errorMessage: 'stream_read_error' }), false)
+  assert.equal(
+    session._isRetryableError({ stopReason: 'error', errorMessage: 'stream_read_error' }),
+    true,
+  )
+  assert.equal(
+    session._isRetryableError({
+      stopReason: 'error',
+      errorMessage: 'Stream read error: connection closed',
+    }),
+    true,
+  )
+  assert.equal(
+    session._isRetryableError({ stopReason: 'error', errorMessage: 'invalid api key' }),
+    false,
+  )
+  assert.equal(
+    session._isRetryableError({ stopReason: 'stop', errorMessage: 'stream_read_error' }),
+    false,
+  )
   assert.equal(originalCalls.length, 2)
 })
 
@@ -734,7 +948,9 @@ test('stream failures emit a single terminal error snapshot without throwing', a
     agent: { state: { systemPrompt: '' } },
     getActiveToolNames: () => [],
     setActiveToolsByName: () => {},
-    subscribe() { return () => {} },
+    subscribe() {
+      return () => {}
+    },
     async prompt() {
       session.isStreaming = true
       try {
@@ -772,7 +988,13 @@ test('context usage reports the current window share and earlier automatic compa
     await rm(directory, { recursive: true, force: true }).catch(() => {})
   })
   runtime = new AgentRuntimeService({ cwd: directory, dataDir: directory })
-  runtime.settingsManager = { getCompactionSettings: () => ({ enabled: true, reserveTokens: 16_384, keepRecentTokens: 20_000 }) }
+  runtime.settingsManager = {
+    getCompactionSettings: () => ({
+      enabled: true,
+      reserveTokens: 16_384,
+      keepRecentTokens: 20_000,
+    }),
+  }
   const session = {
     model: { provider: 'openai', id: 'gpt-5.4', contextWindow: 200_000 },
     getContextUsage: () => ({ tokens: 120_000, contextWindow: 200_000, percent: 60 }),
@@ -786,15 +1008,21 @@ test('context usage reports the current window share and earlier automatic compa
     compactAtTokens: 160_000,
     compactAtPercent: 80,
   })
-  assert.deepEqual(runtime.decorateContextUsage({ tokens: null, contextWindow: 200_000, percent: null }, { status: 'completed', estimatedTokensAfter: 18_500 }), {
-    tokens: 18_500,
-    contextWindow: 200_000,
-    percent: 9.25,
-    estimated: true,
-    autoCompactEnabled: true,
-    compactAtTokens: 160_000,
-    compactAtPercent: 80,
-  })
+  assert.deepEqual(
+    runtime.decorateContextUsage(
+      { tokens: null, contextWindow: 200_000, percent: null },
+      { status: 'completed', estimatedTokensAfter: 18_500 },
+    ),
+    {
+      tokens: 18_500,
+      contextWindow: 200_000,
+      percent: 9.25,
+      estimated: true,
+      autoCompactEnabled: true,
+      compactAtTokens: 160_000,
+      compactAtPercent: 80,
+    },
+  )
 })
 
 test('compaction threshold defaults to 80% and persists valid updates', async (t) => {
@@ -812,10 +1040,7 @@ test('compaction threshold defaults to 80% and persists valid updates', async (t
     JSON.parse(await readFile(join(directory, 'pisper.json'), 'utf8')).compactionThresholdPercent,
     72,
   )
-  await assert.rejects(
-    runtime.updateCompactionPreference({ thresholdPercent: 99 }),
-    /50%.*95%/,
-  )
+  await assert.rejects(runtime.updateCompactionPreference({ thresholdPercent: 99 }), /50%.*95%/)
 })
 
 test('session messages are returned newest-first by bounded cursor pages', async (t) => {
@@ -840,11 +1065,20 @@ test('session messages are returned newest-first by bounded cursor pages', async
   assert.equal(latest.messages.length, 20)
   assert.equal(latest.messages[0].text, 'message-75')
   assert.equal(latest.messages.at(-1).text, 'message-94')
-  assert.deepEqual(latest.pageInfo, { start: 75, end: 95, total: 95, hasMore: true, nextCursor: '75' })
+  assert.deepEqual(latest.pageInfo, {
+    start: 75,
+    end: 95,
+    total: 95,
+    hasMore: true,
+    nextCursor: '75',
+  })
   assert.equal(latest.contextUsage.percent, 50)
   assert.equal(latest.contextUsage.contextWindow, 128_000)
 
-  const older = await runtime.getSessionMessagePage('session-pages', { limit: 20, before: latest.pageInfo.nextCursor })
+  const older = await runtime.getSessionMessagePage('session-pages', {
+    limit: 20,
+    before: latest.pageInfo.nextCursor,
+  })
   assert.equal(older.messages[0].text, 'message-55')
   assert.equal(older.messages.at(-1).text, 'message-74')
   assert.equal(older.pageInfo.nextCursor, '55')
@@ -861,24 +1095,59 @@ test('session history pagination follows the persisted branch across compaction'
   t.after(() => rm(directory, { recursive: true, force: true }))
   const path = join(directory, 'session.jsonl')
   const entries = [
-    { type: 'session', version: 3, id: 'session-history', timestamp: '2026-01-01T00:00:00.000Z', cwd: directory },
-    { type: 'message', id: 'message-1', parentId: 'session-history', message: { role: 'user', content: 'old-user', timestamp: 1 } },
-    { type: 'message', id: 'message-2', parentId: 'message-1', message: { role: 'assistant', content: 'old-agent', timestamp: 2 } },
+    {
+      type: 'session',
+      version: 3,
+      id: 'session-history',
+      timestamp: '2026-01-01T00:00:00.000Z',
+      cwd: directory,
+    },
+    {
+      type: 'message',
+      id: 'message-1',
+      parentId: 'session-history',
+      message: { role: 'user', content: 'old-user', timestamp: 1 },
+    },
+    {
+      type: 'message',
+      id: 'message-2',
+      parentId: 'message-1',
+      message: { role: 'assistant', content: 'old-agent', timestamp: 2 },
+    },
     { type: 'compaction', id: 'compact-1', parentId: 'message-2', summary: 'compressed context' },
-    { type: 'message', id: 'message-3', parentId: 'compact-1', message: { role: 'user', content: 'new-user', timestamp: 3 } },
-    { type: 'message', id: 'message-4', parentId: 'message-3', message: { role: 'assistant', content: 'new-agent', timestamp: 4 } },
+    {
+      type: 'message',
+      id: 'message-3',
+      parentId: 'compact-1',
+      message: { role: 'user', content: 'new-user', timestamp: 3 },
+    },
+    {
+      type: 'message',
+      id: 'message-4',
+      parentId: 'message-3',
+      message: { role: 'assistant', content: 'new-agent', timestamp: 4 },
+    },
   ]
   await writeFile(path, `${entries.map((entry) => JSON.stringify(entry)).join('\n')}\n`, 'utf8')
   const runtime = new AgentRuntimeService({ cwd: directory, dataDir: directory })
   runtime.findSessionInfo = async () => ({ path })
 
   const latest = await runtime.getSessionMessagePage('session-history', { limit: 2 })
-  assert.deepEqual(latest.messages.map((message) => message.text), ['new-user', 'new-agent'])
+  assert.deepEqual(
+    latest.messages.map((message) => message.text),
+    ['new-user', 'new-agent'],
+  )
   assert.equal(latest.pageInfo.total, 4)
   assert.equal(latest.pageInfo.nextCursor, '2')
 
-  const older = await runtime.getSessionMessagePage('session-history', { limit: 2, before: latest.pageInfo.nextCursor })
-  assert.deepEqual(older.messages.map((message) => message.text), ['old-user', 'old-agent'])
+  const older = await runtime.getSessionMessagePage('session-history', {
+    limit: 2,
+    before: latest.pageInfo.nextCursor,
+  })
+  assert.deepEqual(
+    older.messages.map((message) => message.text),
+    ['old-user', 'old-agent'],
+  )
   assert.equal(older.pageInfo.hasMore, false)
 })
 
@@ -887,9 +1156,25 @@ test('oversized session histories are parsed in chunks without remaining in the 
   t.after(() => rm(directory, { recursive: true, force: true }))
   const path = join(directory, 'session.jsonl')
   const entries = [
-    { type: 'session', version: 3, id: 'session-large', timestamp: '2026-01-01T00:00:00.000Z', cwd: directory },
-    { type: 'message', id: 'message-1', parentId: 'session-large', message: { role: 'user', content: `large-${'x'.repeat(300)}`, timestamp: 1 } },
-    { type: 'message', id: 'message-2', parentId: 'message-1', message: { role: 'assistant', content: 'done', timestamp: 2 } },
+    {
+      type: 'session',
+      version: 3,
+      id: 'session-large',
+      timestamp: '2026-01-01T00:00:00.000Z',
+      cwd: directory,
+    },
+    {
+      type: 'message',
+      id: 'message-1',
+      parentId: 'session-large',
+      message: { role: 'user', content: `large-${'x'.repeat(300)}`, timestamp: 1 },
+    },
+    {
+      type: 'message',
+      id: 'message-2',
+      parentId: 'message-1',
+      message: { role: 'assistant', content: 'done', timestamp: 2 },
+    },
   ]
   await writeFile(path, `${entries.map((entry) => JSON.stringify(entry)).join('\n')}\n`, 'utf8')
   const runtime = new AgentRuntimeService({ cwd: directory, dataDir: directory })
@@ -909,24 +1194,31 @@ test('closed chat state is retained only while background work remains active', 
   assert.equal(shouldRetainClosedSessionState({ recovering: true }), true)
   assert.equal(shouldRetainClosedSessionState({ agents: [{ status: 'running' }] }), true)
   assert.equal(shouldRetainClosedSessionState({ agents: [{ status: 'completed' }] }), false)
-  assert.equal(shouldRetainClosedSessionState({ streaming: false, recovering: false, agents: [] }), false)
+  assert.equal(
+    shouldRetainClosedSessionState({ streaming: false, recovering: false, agents: [] }),
+    false,
+  )
 })
 
 test('session listings do not reopen every inactive history just to resolve its model', async (t) => {
   const directory = await mkdtemp(join(tmpdir(), 'pisper-session-list-memory-'))
   t.after(() => rm(directory, { recursive: true, force: true }))
   const runtime = new AgentRuntimeService({ cwd: directory, dataDir: directory })
-  runtime.listStoredSessions = async () => [{
-    id: 'session-cached',
-    path: join(directory, 'session.jsonl'),
-    name: 'Cached session',
-    firstMessage: 'hello',
-    messageCount: 2,
-    cwd: directory,
-    created: new Date('2026-01-01T00:00:00.000Z'),
-    modified: new Date('2026-01-01T00:01:00.000Z'),
-  }]
-  runtime.settingsManager = { getGlobalSettings: () => ({ defaultProvider: 'openai', defaultModel: 'gpt-5.4' }) }
+  runtime.listStoredSessions = async () => [
+    {
+      id: 'session-cached',
+      path: join(directory, 'session.jsonl'),
+      name: 'Cached session',
+      firstMessage: 'hello',
+      messageCount: 2,
+      cwd: directory,
+      created: new Date('2026-01-01T00:00:00.000Z'),
+      modified: new Date('2026-01-01T00:01:00.000Z'),
+    },
+  ]
+  runtime.settingsManager = {
+    getGlobalSettings: () => ({ defaultProvider: 'openai', defaultModel: 'gpt-5.4' }),
+  }
   runtime.goals = { get: () => null }
   runtime.plans = { get: () => null }
   runtime.multiAgents = { summaries: () => [] }
@@ -944,8 +1236,25 @@ test('today usage scans only newly appended session bytes', async (t) => {
   const path = join(directory, 'session.jsonl')
   const now = Date.now()
   const entries = [
-    { type: 'session', version: 3, id: 'session-usage', timestamp: new Date(now - 1000).toISOString(), cwd: directory },
-    { type: 'message', id: 'assistant-1', parentId: null, timestamp: new Date(now).toISOString(), message: { role: 'assistant', timestamp: now, content: [{ type: 'text', text: 'one' }], usage: { input: 10, output: 5, totalTokens: 15 } } },
+    {
+      type: 'session',
+      version: 3,
+      id: 'session-usage',
+      timestamp: new Date(now - 1000).toISOString(),
+      cwd: directory,
+    },
+    {
+      type: 'message',
+      id: 'assistant-1',
+      parentId: null,
+      timestamp: new Date(now).toISOString(),
+      message: {
+        role: 'assistant',
+        timestamp: now,
+        content: [{ type: 'text', text: 'one' }],
+        usage: { input: 10, output: 5, totalTokens: 15 },
+      },
+    },
   ]
   await writeFile(path, `${entries.map((entry) => JSON.stringify(entry)).join('\n')}\n`, 'utf8')
 
@@ -960,7 +1269,18 @@ test('today usage scans only newly appended session bytes', async (t) => {
   const firstOffset = runtime.usageLedger.sessionScans['session-usage'].size
   assert.equal(first.totalTokens, 15)
 
-  const secondEntry = { type: 'message', id: 'assistant-2', parentId: 'assistant-1', timestamp: new Date(now + 1).toISOString(), message: { role: 'assistant', timestamp: now + 1, content: [{ type: 'text', text: 'two' }], usage: { input: 20, output: 10, totalTokens: 30 } } }
+  const secondEntry = {
+    type: 'message',
+    id: 'assistant-2',
+    parentId: 'assistant-1',
+    timestamp: new Date(now + 1).toISOString(),
+    message: {
+      role: 'assistant',
+      timestamp: now + 1,
+      content: [{ type: 'text', text: 'two' }],
+      usage: { input: 20, output: 10, totalTokens: 30 },
+    },
+  }
   await appendFile(path, `${JSON.stringify(secondEntry)}\n`, 'utf8')
   const second = await runtime.getTodayUsage()
   assert.equal(second.totalTokens, 45)

@@ -6,13 +6,19 @@ export const manifest = {
   name: 'Browser Control',
   category: 'browser',
   risk: 'medium',
-  description: 'Provide an isolated, controlled browser for navigation, inspection, and page interaction.',
+  description:
+    'Provide an isolated, controlled browser for navigation, inspection, and page interaction.',
   scope: 'Isolated browser for the current primary Agent chat; HTTP/HTTPS only',
-  capability: 'Navigate, inspect, click, type, wait, capture screenshots, and close the browser without arbitrary JavaScript',
+  capability:
+    'Navigate, inspect, click, type, wait, capture screenshots, and close the browser without arbitrary JavaScript',
   source: 'app',
 }
 
-const actionSchema = Type.Union(['open', 'inspect', 'click', 'type', 'wait', 'screenshot', 'close'].map((value) => Type.Literal(value)))
+const actionSchema = Type.Union(
+  ['open', 'inspect', 'click', 'type', 'wait', 'screenshot', 'close'].map((value) =>
+    Type.Literal(value),
+  ),
+)
 
 function formatResult(result) {
   const compact = { ...result }
@@ -20,12 +26,18 @@ function formatResult(result) {
   return JSON.stringify(compact, null, 2)
 }
 
-export function createBrowserAutomationTool({ cwd, browserSessionId, browserAutomationService, onGeneratedFile }) {
+export function createBrowserAutomationTool({
+  cwd,
+  browserSessionId,
+  browserAutomationService,
+  onGeneratedFile,
+}) {
   return defineTool({
     name: manifest.id,
     label: manifest.name,
     description: manifest.description,
-    promptSnippet: 'Control an isolated real browser to navigate, inspect, and interact with web applications',
+    promptSnippet:
+      'Control an isolated real browser to navigate, inspect, and interact with web applications',
     promptGuidelines: [
       'Use browser_automation when the user asks to open, inspect, test, or screenshot a real web page or the running application.',
       'Start with open, then inspect to obtain current text and selectors before clicking or typing. Re-inspect after navigation or major UI changes.',
@@ -38,24 +50,33 @@ export function createBrowserAutomationTool({ cwd, browserSessionId, browserAuto
     parameters: Type.Object({
       action: actionSchema,
       url: Type.Optional(Type.String({ maxLength: 2_000, description: 'HTTP/HTTPS URL for open' })),
-      selector: Type.Optional(Type.String({ maxLength: 500, description: 'CSS or Playwright selector for click/type' })),
+      selector: Type.Optional(
+        Type.String({ maxLength: 500, description: 'CSS or Playwright selector for click/type' }),
+      ),
       text: Type.Optional(Type.String({ maxLength: 5_000, description: 'Text for type' })),
       submit: Type.Optional(Type.Boolean({ description: 'Press Enter after typing' })),
       waitMs: Type.Optional(Type.Integer({ minimum: 0, maximum: 15_000 })),
-      outputName: Type.Optional(Type.String({ maxLength: 120, description: 'PNG filename for screenshot' })),
-      fullPage: Type.Optional(Type.Boolean({ description: 'Capture the full scrollable page when supported' })),
+      outputName: Type.Optional(
+        Type.String({ maxLength: 120, description: 'PNG filename for screenshot' }),
+      ),
+      fullPage: Type.Optional(
+        Type.Boolean({ description: 'Capture the full scrollable page when supported' }),
+      ),
       width: Type.Optional(Type.Integer({ minimum: 640, maximum: 2560 })),
       height: Type.Optional(Type.Integer({ minimum: 480, maximum: 1600 })),
     }),
     async execute(_toolCallId, params, signal, onUpdate) {
-      if (!browserAutomationService) throw new Error('Browser automation service is not initialized.')
+      if (!browserAutomationService)
+        throw new Error('Browser automation service is not initialized.')
       const result = await browserAutomationService.execute(browserSessionId, params, {
         cwd,
         signal,
         onProgress: (message) => onUpdate?.({ content: [{ type: 'text', text: message }] }),
       })
       if (result?.path) {
-        try { await onGeneratedFile?.(result) } catch {}
+        try {
+          await onGeneratedFile?.(result)
+        } catch {}
       }
       return { content: [{ type: 'text', text: formatResult(result) }], details: result }
     },

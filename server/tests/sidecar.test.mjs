@@ -15,7 +15,11 @@ function waitForReady(child) {
     child.stderr.on('data', (chunk) => errors.push(chunk))
     child.once('exit', (code) => {
       clearTimeout(timeout)
-      rejectReady(new Error(`Sidecar exited before readiness (${code}): ${Buffer.concat(errors).toString('utf8')}`))
+      rejectReady(
+        new Error(
+          `Sidecar exited before readiness (${code}): ${Buffer.concat(errors).toString('utf8')}`,
+        ),
+      )
     })
     lines.on('line', (line) => {
       if (!line.startsWith('PISPER_SIDECAR_READY ')) return
@@ -56,7 +60,10 @@ test('desktop sidecar authenticates its WebView and shuts down through stdin', a
   try {
     const ready = await waitForReady(child)
     assert.match(ready.url, /^http:\/\/127\.0\.0\.1:\d+$/)
-    assert.equal(ready.bootstrapUrl, `${ready.url}${DESKTOP_BOOTSTRAP_PATH}?token=${encodeURIComponent(token)}`)
+    assert.equal(
+      ready.bootstrapUrl,
+      `${ready.url}${DESKTOP_BOOTSTRAP_PATH}?token=${encodeURIComponent(token)}`,
+    )
     assert.equal(ready.desktopPetRunning, false)
 
     const unauthorized = await fetch(`${ready.url}/api/config`)
@@ -65,10 +72,9 @@ test('desktop sidecar authenticates its WebView and shuts down through stdin', a
       headers: { Cookie: '__pisper_desktop=%' },
     })
     assert.equal(malformedCookie.status, 401)
-    const invalidBootstrap = await fetch(
-      `${ready.url}${DESKTOP_BOOTSTRAP_PATH}?token=invalid`,
-      { redirect: 'manual' },
-    )
+    const invalidBootstrap = await fetch(`${ready.url}${DESKTOP_BOOTSTRAP_PATH}?token=invalid`, {
+      redirect: 'manual',
+    })
     assert.equal(invalidBootstrap.status, 401)
 
     const petBootstrap = await fetch(`${ready.bootstrapUrl}&next=%2Ftauri-pet.html`, {

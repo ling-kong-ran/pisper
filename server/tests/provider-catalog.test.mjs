@@ -36,8 +36,15 @@ test('model configuration exposes built-in Kimi and GLM providers', async (t) =>
     thinkingLevel: 'medium',
     toolMode: 'read-only',
   })
-  assert.equal(runtime.modelRuntime.getModel('zai-coding-cn', 'glm-5.2').baseUrl, 'https://open.bigmodel.cn/api/paas/v4')
-  assert.equal((await runtime.getConfig()).providers.find((provider) => provider.id === 'zai-coding-cn').configured, true)
+  assert.equal(
+    runtime.modelRuntime.getModel('zai-coding-cn', 'glm-5.2').baseUrl,
+    'https://open.bigmodel.cn/api/paas/v4',
+  )
+  assert.equal(
+    (await runtime.getConfig()).providers.find((provider) => provider.id === 'zai-coding-cn')
+      .configured,
+    true,
+  )
 })
 
 test('visual-only providers save connection settings without replacing the default chat model', async (t) => {
@@ -71,7 +78,10 @@ test('visual-only providers save connection settings without replacing the defau
   assert.equal(saved.apiKeyUpdated, true)
   const credentials = JSON.parse(await readFile(join(directory, 'auth.json'), 'utf8'))
   assert.equal(credentials['visual-relay'].key, nextKey)
-  assert.equal((await runtime.visualGeneration.models.select('image', 'visual-relay/gpt-image-1')).apiKey, nextKey)
+  assert.equal(
+    (await runtime.visualGeneration.models.select('image', 'visual-relay/gpt-image-1')).apiKey,
+    nextKey,
+  )
   const retained = await runtime.saveConfig({
     provider: 'visual-relay',
     model: '',
@@ -80,13 +90,19 @@ test('visual-only providers save connection settings without replacing the defau
     toolMode: 'read-only',
   })
   assert.equal(retained.apiKeyUpdated, false)
-  assert.equal((await runtime.visualGeneration.models.select('image', 'visual-relay/gpt-image-1')).apiKey, nextKey)
+  assert.equal(
+    (await runtime.visualGeneration.models.select('image', 'visual-relay/gpt-image-1')).apiKey,
+    nextKey,
+  )
   const after = runtime.settingsManager.getGlobalSettings()
   assert.equal(after.defaultProvider, before.defaultProvider)
   assert.equal(after.defaultModel, before.defaultModel)
   const visual = saved.providers.find((provider) => provider.id === 'visual-relay')
   assert.equal(visual.type, 'visual')
-  assert.equal(visual.models.some((model) => model.kind === 'chat'), false)
+  assert.equal(
+    visual.models.some((model) => model.kind === 'chat'),
+    false,
+  )
   assert.ok(visual.models.some((model) => model.kind === 'image'))
 })
 
@@ -106,7 +122,11 @@ test('each chat provider keeps its saved default model independently', async (t)
     apiKey: 'relay-one-key',
     model: 'relay-one-first',
   })
-  await runtime.addProviderModel('relay-one', { id: 'relay-one-second', name: 'Relay One Second', kind: 'chat' })
+  await runtime.addProviderModel('relay-one', {
+    id: 'relay-one-second',
+    name: 'Relay One Second',
+    kind: 'chat',
+  })
   await runtime.createProvider({
     id: 'relay-two',
     name: 'Relay Two',
@@ -136,6 +156,12 @@ test('each chat provider keeps its saved default model independently', async (t)
   const config = await runtime.getConfig()
   assert.equal(config.provider, 'relay-two')
   assert.equal(config.model, 'relay-two-first')
-  assert.equal(config.providers.find((provider) => provider.id === 'relay-one').defaultModel, 'relay-one-second')
-  assert.equal(config.providers.find((provider) => provider.id === 'relay-two').defaultModel, 'relay-two-first')
+  assert.equal(
+    config.providers.find((provider) => provider.id === 'relay-one').defaultModel,
+    'relay-one-second',
+  )
+  assert.equal(
+    config.providers.find((provider) => provider.id === 'relay-two').defaultModel,
+    'relay-two-first',
+  )
 })

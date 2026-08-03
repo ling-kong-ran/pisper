@@ -39,8 +39,9 @@ export function mergePromotedToolNames({
   requestedToolNames = [],
 } = {}) {
   const available = new Set(availableToolNames)
-  return [...new Set([...promotedToolNames, ...requestedToolNames])]
-    .filter((name) => available.has(name) && !HOT_TOOL_SET.has(name))
+  return [...new Set([...promotedToolNames, ...requestedToolNames])].filter(
+    (name) => available.has(name) && !HOT_TOOL_SET.has(name),
+  )
 }
 
 export function selectedToolNames({

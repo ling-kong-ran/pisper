@@ -1,11 +1,7 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
 import { apiJson } from '../../src/lib/api.ts'
-import {
-  ApiError,
-  DEFAULT_HTTP_TIMEOUT_MS,
-  requestJson,
-} from '../../src/lib/http.ts'
+import { ApiError, DEFAULT_HTTP_TIMEOUT_MS, requestJson } from '../../src/lib/http.ts'
 
 async function withFetch(fetchImplementation, callback) {
   const originalFetch = globalThis.fetch

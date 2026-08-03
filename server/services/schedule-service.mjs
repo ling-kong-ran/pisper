@@ -16,10 +16,17 @@ function defaultState() {
 function zonedParts(value, timeZone) {
   const parts = new Intl.DateTimeFormat('en-CA', {
     timeZone,
-    year: 'numeric', month: '2-digit', day: '2-digit',
-    hour: '2-digit', minute: '2-digit', second: '2-digit', hourCycle: 'h23',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+    hourCycle: 'h23',
   }).formatToParts(value)
-  return Object.fromEntries(parts.filter((part) => part.type !== 'literal').map((part) => [part.type, Number(part.value)]))
+  return Object.fromEntries(
+    parts.filter((part) => part.type !== 'literal').map((part) => [part.type, Number(part.value)]),
+  )
 }
 
 function zonedTimeToUtc(parts, timeZone) {
@@ -27,7 +34,14 @@ function zonedTimeToUtc(parts, timeZone) {
   let guess = target
   for (let index = 0; index < 3; index += 1) {
     const actual = zonedParts(new Date(guess), timeZone)
-    const actualUtc = Date.UTC(actual.year, actual.month - 1, actual.day, actual.hour, actual.minute, actual.second)
+    const actualUtc = Date.UTC(
+      actual.year,
+      actual.month - 1,
+      actual.day,
+      actual.hour,
+      actual.minute,
+      actual.second,
+    )
     guess -= actualUtc - target
   }
   return new Date(guess)
@@ -48,7 +62,9 @@ export function calculateNextRun(task, from = new Date()) {
     const value = Math.min(10_000, Math.max(1, Number(task.intervalValue) || 1))
     return new Date(from.getTime() + value * INTERVAL_MS[unit]).toISOString()
   }
-  const [hour, minute] = String(task.time || '09:00').split(':').map(Number)
+  const [hour, minute] = String(task.time || '09:00')
+    .split(':')
+    .map(Number)
   const current = zonedParts(from, task.timezone)
   let date = { year: current.year, month: current.month, day: current.day }
   if (task.frequency === 'weekly') {
@@ -63,7 +79,14 @@ export function calculateNextRun(task, from = new Date()) {
     else if (task.frequency === 'weekly') date = addLocalDays(date, 7)
     else {
       const nextMonth = new Date(Date.UTC(date.year, date.month, 1))
-      date = { year: nextMonth.getUTCFullYear(), month: nextMonth.getUTCMonth() + 1, day: Math.min(Number(task.dayOfMonth), daysInMonth(nextMonth.getUTCFullYear(), nextMonth.getUTCMonth() + 1)) }
+      date = {
+        year: nextMonth.getUTCFullYear(),
+        month: nextMonth.getUTCMonth() + 1,
+        day: Math.min(
+          Number(task.dayOfMonth),
+          daysInMonth(nextMonth.getUTCFullYear(), nextMonth.getUTCMonth() + 1),
+        ),
+      }
     }
     candidate = zonedTimeToUtc({ ...date, hour, minute }, task.timezone)
   }
@@ -72,8 +95,14 @@ export function calculateNextRun(task, from = new Date()) {
 
 function normalizeStoredTask(task, cwd) {
   const timezone = String(task.timezone || 'Asia/Hong_Kong')
-  try { new Intl.DateTimeFormat('en', { timeZone: timezone }).format() } catch { throw new Error('定时任务时区无效。') }
-  const time = /^([01]\d|2[0-3]):[0-5]\d$/.test(String(task.time || '')) ? String(task.time) : '09:00'
+  try {
+    new Intl.DateTimeFormat('en', { timeZone: timezone }).format()
+  } catch {
+    throw new Error('定时任务时区无效。')
+  }
+  const time = /^([01]\d|2[0-3]):[0-5]\d$/.test(String(task.time || ''))
+    ? String(task.time)
+    : '09:00'
   const frequency = FREQUENCIES.has(task.frequency) ? task.frequency : 'daily'
   const normalized = {
     id: String(task.id || randomUUID()),
@@ -85,12 +114,24 @@ function normalizeStoredTask(task, cwd) {
     intervalUnit: INTERVAL_UNITS.has(task.intervalUnit) ? task.intervalUnit : 'hours',
     time,
     timezone,
-    dayOfWeek: Math.min(6, Math.max(0, Number.isInteger(Number(task.dayOfWeek)) ? Number(task.dayOfWeek) : 1)),
+    dayOfWeek: Math.min(
+      6,
+      Math.max(0, Number.isInteger(Number(task.dayOfWeek)) ? Number(task.dayOfWeek) : 1),
+    ),
     dayOfMonth: Math.min(28, Math.max(1, Number(task.dayOfMonth) || 1)),
     cwd: String(task.cwd || cwd),
     executionMode: normalizeExecutionMode(task.executionMode, DEFAULT_SCHEDULE_EXECUTION_MODE),
-    model: task.model?.provider && task.model?.model ? { provider: String(task.model.provider), model: String(task.model.model) } : null,
-    notifications: [...new Set((Array.isArray(task.notifications) ? task.notifications : []).filter((target) => NOTIFICATION_TARGETS.has(target)))],
+    model:
+      task.model?.provider && task.model?.model
+        ? { provider: String(task.model.provider), model: String(task.model.model) }
+        : null,
+    notifications: [
+      ...new Set(
+        (Array.isArray(task.notifications) ? task.notifications : []).filter((target) =>
+          NOTIFICATION_TARGETS.has(target),
+        ),
+      ),
+    ],
     notifyOn: task.notifyOn === 'failure' ? 'failure' : 'always',
     createdAt: task.createdAt || new Date().toISOString(),
     updatedAt: task.updatedAt || new Date().toISOString(),
@@ -101,7 +142,14 @@ function normalizeStoredTask(task, cwd) {
     lastError: String(task.lastError || '').slice(0, 1200),
     lastNotificationError: String(task.lastNotificationError || '').slice(0, 1200),
   }
-  normalized.nextRunAt = normalized.enabled ? calculateNextRun(normalized, normalized.nextRunAt && new Date(normalized.nextRunAt) > new Date() ? new Date(Date.now() - 1000) : new Date()) : null
+  normalized.nextRunAt = normalized.enabled
+    ? calculateNextRun(
+        normalized,
+        normalized.nextRunAt && new Date(normalized.nextRunAt) > new Date()
+          ? new Date(Date.now() - 1000)
+          : new Date(),
+      )
+    : null
   return normalized
 }
 
@@ -113,7 +161,11 @@ function durationLabel(durationMs) {
 
 function nextRunLabel(task) {
   if (!task.nextRunAt) return '未安排'
-  return new Intl.DateTimeFormat('zh-CN', { timeZone: task.timezone, dateStyle: 'medium', timeStyle: 'short' }).format(new Date(task.nextRunAt))
+  return new Intl.DateTimeFormat('zh-CN', {
+    timeZone: task.timezone,
+    dateStyle: 'medium',
+    timeStyle: 'short',
+  }).format(new Date(task.nextRunAt))
 }
 
 export class ScheduleService {
@@ -142,14 +194,18 @@ export class ScheduleService {
       runs: (Array.isArray(stored.runs) ? stored.runs : []).slice(-200),
     }
     await this.save()
-    this.timer = setInterval(() => { void this.tick() }, this.tickMs)
+    this.timer = setInterval(() => {
+      void this.tick()
+    }, this.tickMs)
     this.timer.unref?.()
     void this.tick()
   }
 
   save() {
     const snapshot = JSON.parse(JSON.stringify(this.state))
-    this.writeQueue = this.writeQueue.catch(() => {}).then(() => writeJsonAtomic(this.path, snapshot))
+    this.writeQueue = this.writeQueue
+      .catch(() => {})
+      .then(() => writeJsonAtomic(this.path, snapshot))
     return this.writeQueue
   }
 
@@ -163,14 +219,22 @@ export class ScheduleService {
     const prompt = String(merged.prompt || '').trim()
     if (!name) throw new Error('任务名称不能为空。')
     if (!prompt) throw new Error('任务 Prompt 不能为空。')
-    if (Object.hasOwn(input || {}, 'cwd')) merged.cwd = await this.agent.validateDirectory(input.cwd)
-    const task = normalizeStoredTask({ ...merged, name, prompt, updatedAt: new Date().toISOString() }, this.cwd)
+    if (Object.hasOwn(input || {}, 'cwd'))
+      merged.cwd = await this.agent.validateDirectory(input.cwd)
+    const task = normalizeStoredTask(
+      { ...merged, name, prompt, updatedAt: new Date().toISOString() },
+      this.cwd,
+    )
     task.nextRunAt = task.enabled ? calculateNextRun(task) : null
     return task
   }
 
   async create(input) {
-    const task = await this.normalizeInput({ ...input, id: randomUUID(), createdAt: new Date().toISOString() })
+    const task = await this.normalizeInput({
+      ...input,
+      id: randomUUID(),
+      createdAt: new Date().toISOString(),
+    })
     this.state.tasks.unshift(task)
     await this.save()
     return task
@@ -213,14 +277,31 @@ export class ScheduleService {
   async tick() {
     const now = Date.now()
     for (const task of this.state.tasks) {
-      if (task.enabled && task.nextRunAt && new Date(task.nextRunAt).getTime() <= now && !this.running.has(task.id)) await this.startRun(task, 'scheduled')
+      if (
+        task.enabled &&
+        task.nextRunAt &&
+        new Date(task.nextRunAt).getTime() <= now &&
+        !this.running.has(task.id)
+      )
+        await this.startRun(task, 'scheduled')
     }
   }
 
   async startRun(task, trigger) {
     if (this.running.has(task.id)) throw new Error('任务已经在运行。')
     this.running.add(task.id)
-    const run = { id: randomUUID(), taskId: task.id, trigger, status: 'running', startedAt: new Date().toISOString(), finishedAt: null, durationMs: 0, summary: '', error: '', sessionId: '' }
+    const run = {
+      id: randomUUID(),
+      taskId: task.id,
+      trigger,
+      status: 'running',
+      startedAt: new Date().toISOString(),
+      finishedAt: null,
+      durationMs: 0,
+      summary: '',
+      error: '',
+      sessionId: '',
+    }
     this.state.runs.push(run)
     this.state.runs = this.state.runs.slice(-200)
     task.lastRunAt = run.startedAt
@@ -238,15 +319,32 @@ export class ScheduleService {
     let event = 'schedule.completed'
     let data
     try {
-      const result = await this.agent.prompt({ message: task.prompt, cwd: task.cwd, title: `定时任务 · ${task.name}`, model: task.model, executionMode: task.executionMode, isolatedContext: true })
-      const summary = String(result.text || '任务已完成。').trim().slice(0, 1200)
+      const result = await this.agent.prompt({
+        message: task.prompt,
+        cwd: task.cwd,
+        title: `定时任务 · ${task.name}`,
+        model: task.model,
+        executionMode: task.executionMode,
+        isolatedContext: true,
+      })
+      const summary = String(result.text || '任务已完成。')
+        .trim()
+        .slice(0, 1200)
       run.status = 'completed'
       run.summary = summary
       run.sessionId = result.sessionId || ''
       task.lastStatus = 'completed'
       task.lastSummary = summary
       task.lastError = ''
-      data = { task: { name: task.name, summary, duration: durationLabel(Date.now() - started), nextRun: nextRunLabel(task), error: '' } }
+      data = {
+        task: {
+          name: task.name,
+          summary,
+          duration: durationLabel(Date.now() - started),
+          nextRun: nextRunLabel(task),
+          error: '',
+        },
+      }
     } catch (error) {
       event = 'schedule.failed'
       const message = error instanceof Error ? error.message : String(error)
@@ -254,12 +352,23 @@ export class ScheduleService {
       run.error = message
       task.lastStatus = 'failed'
       task.lastError = message
-      data = { task: { name: task.name, summary: '', error: message, duration: durationLabel(Date.now() - started), nextRun: nextRunLabel(task) } }
+      data = {
+        task: {
+          name: task.name,
+          summary: '',
+          error: message,
+          duration: durationLabel(Date.now() - started),
+          nextRun: nextRunLabel(task),
+        },
+      }
     } finally {
       run.finishedAt = new Date().toISOString()
       run.durationMs = Date.now() - started
       task.updatedAt = new Date().toISOString()
-      if (task.notifications.length && (event === 'schedule.failed' || task.notifyOn === 'always')) {
+      if (
+        task.notifications.length &&
+        (event === 'schedule.failed' || task.notifyOn === 'always')
+      ) {
         try {
           await this.notifications.notify(event, data, { platforms: task.notifications })
           run.notificationError = ''

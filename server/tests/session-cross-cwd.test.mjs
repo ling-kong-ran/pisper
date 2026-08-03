@@ -58,11 +58,14 @@ test('desktop runtime lists and opens sessions created under other working direc
   runtime.multiAgents = { summaries: () => [] }
 
   const sessions = await runtime.listSessions()
-  assert.deepEqual(new Set(sessions.map((session) => session.id)), new Set([
-    webSession.getSessionId(),
-    desktopSession.getSessionId(),
-  ]))
-  assert.equal(sessions.find((session) => session.id === webSession.getSessionId())?.cwd, resolve(webCwd))
+  assert.deepEqual(
+    new Set(sessions.map((session) => session.id)),
+    new Set([webSession.getSessionId(), desktopSession.getSessionId()]),
+  )
+  assert.equal(
+    sessions.find((session) => session.id === webSession.getSessionId())?.cwd,
+    resolve(webCwd),
+  )
   assert.equal(sessions[0].plan, null)
   assert.equal(Object.hasOwn(sessions[0], 'taskList'), false)
 

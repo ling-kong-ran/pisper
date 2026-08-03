@@ -1,10 +1,7 @@
 import assert from 'node:assert/strict'
 import { readFile } from 'node:fs/promises'
 import test from 'node:test'
-import {
-  normalizeWebPreviewInput,
-  shouldOpenWebPreview,
-} from '../../src/lib/web-preview.ts'
+import { normalizeWebPreviewInput, shouldOpenWebPreview } from '../../src/lib/web-preview.ts'
 import {
   WEB_PREVIEW_PANEL_ID,
   webPreviewPanelTitle,
@@ -22,10 +19,7 @@ test('external http links open in the in-app preview while internal and special 
     shouldOpenWebPreview({ href: 'https://example.com/file', baseUrl, download: true }),
     null,
   )
-  assert.equal(
-    shouldOpenWebPreview({ href: 'https://example.com', baseUrl, ctrlKey: true }),
-    null,
-  )
+  assert.equal(shouldOpenWebPreview({ href: 'https://example.com', baseUrl, ctrlKey: true }), null)
   assert.equal(
     shouldOpenWebPreview({
       href: 'https://example.com',
@@ -45,10 +39,7 @@ test('URL bar input and dock panel metadata normalize preview destinations', () 
     normalizeWebPreviewInput('https://example.com', 'http://127.0.0.1:5173/chat'),
     'https://example.com/',
   )
-  assert.equal(
-    normalizeWebPreviewInput('javascript:alert(1)', 'http://127.0.0.1:5173/chat'),
-    null,
-  )
+  assert.equal(normalizeWebPreviewInput('javascript:alert(1)', 'http://127.0.0.1:5173/chat'), null)
   assert.equal(WEB_PREVIEW_PANEL_ID, 'web-preview')
   assert.equal(webPreviewPanelTitle('https://www.reactbits.dev/docs'), 'reactbits.dev')
 })

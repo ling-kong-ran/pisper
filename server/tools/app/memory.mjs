@@ -17,7 +17,8 @@ export const manifests = [
     name: 'Memory Remember',
     category: 'memory',
     risk: 'medium',
-    description: 'Save explicit remember requests directly and silently queue inferred reusable information as candidates.',
+    description:
+      'Save explicit remember requests directly and silently queue inferred reusable information as candidates.',
     scope: 'Global or current-project memory spaces',
     capability: 'Save explicit requests, queue inferred candidates, and hide common secret formats',
     source: 'app',
@@ -32,28 +33,39 @@ export function createMemorySearchTool({ cwd, memoryRuntime }) {
     promptSnippet: 'Search durable user and project memories',
     promptGuidelines: [
       'Use memory_search when prior user preferences, project decisions, constraints, or earlier outcomes could materially affect the answer.',
-      'Treat retrieved memory as background context. The user\'s current request always takes precedence.',
+      "Treat retrieved memory as background context. The user's current request always takes precedence.",
     ],
     parameters: Type.Object({
       query: Type.String({ minLength: 1, description: 'Topic, constraint, or question to search' }),
-      limit: Type.Optional(Type.Number({ minimum: 1, maximum: 12, description: 'Maximum number of results' })),
+      limit: Type.Optional(
+        Type.Number({ minimum: 1, maximum: 12, description: 'Maximum number of results' }),
+      ),
     }),
     async execute(_toolCallId, params) {
-      const memories = await memoryRuntime.searchRelevant(params.query, { cwd, limit: params.limit || 6 })
+      const memories = await memoryRuntime.searchRelevant(params.query, {
+        cwd,
+        limit: params.limit || 6,
+      })
       const text = memories.length
-        ? memories.map((memory) => `[${memory.id}] [${memory.type}] ${memory.title}\n${memory.content}`).join('\n\n')
+        ? memories
+            .map((memory) => `[${memory.id}] [${memory.type}] ${memory.title}\n${memory.content}`)
+            .join('\n\n')
         : 'No related memories found.'
       return { content: [{ type: 'text', text }], details: { count: memories.length, memories } }
     },
   })
 }
 
-const EXPLICIT_REMEMBER_REQUEST = /记住|记下来|请记下|写入记忆|保存到记忆|加入记忆|remember(?: this| that)?|save (?:this|that) (?:to|in) memory/iu
+const EXPLICIT_REMEMBER_REQUEST =
+  /记住|记下来|请记下|写入记忆|保存到记忆|加入记忆|remember(?: this| that)?|save (?:this|that) (?:to|in) memory/iu
 
 export function verifiedRememberEvidence(params, getUserMessage) {
   const userMessage = String(getUserMessage?.() || '')
-  const quote = String(params.userQuote || '').trim().slice(0, 1000)
-  if (quote.length < 4 || !userMessage.includes(quote) || !EXPLICIT_REMEMBER_REQUEST.test(quote)) return ''
+  const quote = String(params.userQuote || '')
+    .trim()
+    .slice(0, 1000)
+  if (quote.length < 4 || !userMessage.includes(quote) || !EXPLICIT_REMEMBER_REQUEST.test(quote))
+    return ''
   return quote
 }
 
@@ -75,20 +87,37 @@ export function createMemoryRememberTool({ cwd, memoryRuntime, getUserMessage } 
     parameters: Type.Object({
       title: Type.String({ minLength: 1, description: 'Short, recognizable memory title' }),
       content: Type.String({ minLength: 1, description: 'Self-contained reusable memory content' }),
-      topic: Type.Optional(Type.String({ minLength: 1, maxLength: 180, description: 'Stable topic key reused when updating the same fact, for example project.brand_colors' })),
-      type: Type.Optional(Type.Union([
-        Type.Literal('preference'), Type.Literal('decision'), Type.Literal('fact'), Type.Literal('risk'), Type.Literal('task'),
-      ])),
+      topic: Type.Optional(
+        Type.String({
+          minLength: 1,
+          maxLength: 180,
+          description:
+            'Stable topic key reused when updating the same fact, for example project.brand_colors',
+        }),
+      ),
+      type: Type.Optional(
+        Type.Union([
+          Type.Literal('preference'),
+          Type.Literal('decision'),
+          Type.Literal('fact'),
+          Type.Literal('risk'),
+          Type.Literal('task'),
+        ]),
+      ),
       scope: Type.Optional(Type.Union([Type.Literal('global'), Type.Literal('project')])),
       importance: Type.Optional(Type.Number({ minimum: 0.1, maximum: 1 })),
-      userQuote: Type.Optional(Type.String({
-        minLength: 4,
-        maxLength: 1000,
-        description: 'Exact quote from the current raw user message containing an explicit request to remember this fact.',
-      })),
+      userQuote: Type.Optional(
+        Type.String({
+          minLength: 4,
+          maxLength: 1000,
+          description:
+            'Exact quote from the current raw user message containing an explicit request to remember this fact.',
+        }),
+      ),
     }),
     async execute(_toolCallId, params) {
-      const spaceId = params.scope === 'global' ? 'global' : await memoryRuntime.ensureWorkspaceSpace(cwd)
+      const spaceId =
+        params.scope === 'global' ? 'global' : await memoryRuntime.ensureWorkspaceSpace(cwd)
       const rememberEvidence = verifiedRememberEvidence(params, getUserMessage)
 
       if (rememberEvidence) {
@@ -103,12 +132,22 @@ export function createMemoryRememberTool({ cwd, memoryRuntime, getUserMessage } 
         // remember() may fall back to a pending candidate when a higher-authority conflict exists.
         if (memory?.status === 'pending') {
           return {
-            content: [{ type: 'text', text: `Memory candidate queued in the background: ${memory.title}\nCandidate ID: ${memory.id}\nReason: conflicts with higher-authority memory and needs confirmation. Continue the current task.` }],
+            content: [
+              {
+                type: 'text',
+                text: `Memory candidate queued in the background: ${memory.title}\nCandidate ID: ${memory.id}\nReason: conflicts with higher-authority memory and needs confirmation. Continue the current task.`,
+              },
+            ],
             details: { ...memory, mode: 'candidate', reason: 'authority_conflict' },
           }
         }
         return {
-          content: [{ type: 'text', text: `Stored in long-term memory: ${memory.title}\nMemory ID: ${memory.id}` }],
+          content: [
+            {
+              type: 'text',
+              text: `Stored in long-term memory: ${memory.title}\nMemory ID: ${memory.id}`,
+            },
+          ],
           details: { ...memory, mode: 'stored' },
         }
       }
@@ -118,11 +157,17 @@ export function createMemoryRememberTool({ cwd, memoryRuntime, getUserMessage } 
         spaceId,
         cwd,
         sourceType: 'agent',
-        evidence: 'Proposed by the Agent in the background; reviewing the candidate does not block the original task.',
+        evidence:
+          'Proposed by the Agent in the background; reviewing the candidate does not block the original task.',
         confidence: 0.5,
       })
       return {
-        content: [{ type: 'text', text: `Memory candidate queued in the background: ${candidate.title}\nCandidate ID: ${candidate.id}\nContinue the current task; do not ask the user to review candidates now.` }],
+        content: [
+          {
+            type: 'text',
+            text: `Memory candidate queued in the background: ${candidate.title}\nCandidate ID: ${candidate.id}\nContinue the current task; do not ask the user to review candidates now.`,
+          },
+        ],
         details: { ...candidate, mode: 'candidate' },
       }
     },

@@ -43,10 +43,13 @@ export function liveThinkingTail(value) {
 function liveActivityKey(activity) {
   if (!activity?.type) return ''
   if (activity.type === 'tool') return `tool:${activity.id || activity.name || ''}`
-  if (activity.type === 'agent') return `agent:${activity.agent?.id || activity.agent?.canonicalName || ''}`
-  if (activity.type === 'plan') return `plan:${activity.updatedAt || activity.plan?.updatedAt || ''}`
+  if (activity.type === 'agent')
+    return `agent:${activity.agent?.id || activity.agent?.canonicalName || ''}`
+  if (activity.type === 'plan')
+    return `plan:${activity.updatedAt || activity.plan?.updatedAt || ''}`
   if (activity.type === 'model') return `model:${activity.stage || ''}`
-  if (activity.type === 'compaction') return `compaction:${activity.compaction?.status || activity.compaction?.active || ''}`
+  if (activity.type === 'compaction')
+    return `compaction:${activity.compaction?.status || activity.compaction?.active || ''}`
   return `${activity.type}:${activity.id || activity.updatedAt || ''}`
 }
 
@@ -55,9 +58,7 @@ export function pushLiveActivity(feed, activity) {
   if (!['tool', 'plan', 'agent'].includes(activity?.type)) return current
   let next = [...current]
   if (activity.type === 'plan') {
-    next = next.filter(
-      (item) => item?.type !== 'tool' || !PLAN_ALL_TOOL_NAMES.includes(item.name),
-    )
+    next = next.filter((item) => item?.type !== 'tool' || !PLAN_ALL_TOOL_NAMES.includes(item.name))
   }
   if (activity.type === 'agent') {
     next = next.filter(
@@ -83,13 +84,14 @@ export function livePlanChanges(previous, next) {
   const changes = []
   for (const item of nextItems.values()) {
     const before = previousItems.get(item.id)
-    if (!before) changes.push({ id: item.id, title: item.title, status: item.status, kind: 'added' })
+    if (!before)
+      changes.push({ id: item.id, title: item.title, status: item.status, kind: 'added' })
     else if (
-      before.status !== item.status
-      || before.title !== item.title
-      || before.note !== item.note
-      || before.assignee !== item.assignee
-      || JSON.stringify(before.dependsOn || []) !== JSON.stringify(item.dependsOn || [])
+      before.status !== item.status ||
+      before.title !== item.title ||
+      before.note !== item.note ||
+      before.assignee !== item.assignee ||
+      JSON.stringify(before.dependsOn || []) !== JSON.stringify(item.dependsOn || [])
     ) {
       changes.push({
         id: item.id,
@@ -109,12 +111,10 @@ export function livePlanChanges(previous, next) {
 }
 
 export function queuedSessionInputs(session) {
-  const steering = typeof session?.getSteeringMessages === 'function'
-    ? session.getSteeringMessages()
-    : []
-  const followUp = typeof session?.getFollowUpMessages === 'function'
-    ? session.getFollowUpMessages()
-    : []
+  const steering =
+    typeof session?.getSteeringMessages === 'function' ? session.getSteeringMessages() : []
+  const followUp =
+    typeof session?.getFollowUpMessages === 'function' ? session.getFollowUpMessages() : []
   return [
     ...steering
       .filter((text) => !isInternalParentMessage(text))
@@ -133,19 +133,19 @@ function serializeMessage(message, index, resolveImageUrl = null) {
   if (!text) return null
   const attachments = Array.isArray(message.content)
     ? message.content
-      .filter((part) => part?.type === 'image')
-      .map((part, attachmentIndex) => {
-        const attachment = {
-          id: `image-${index}-${attachmentIndex}`,
-          kind: 'image',
-          name: `图片附件 ${attachmentIndex + 1}`,
-          mimeType: part.mimeType,
-        }
-        const url = resolveImageUrl?.(part)
-        if (url) attachment.url = url
-        else attachment.data = part.data
-        return attachment
-      })
+        .filter((part) => part?.type === 'image')
+        .map((part, attachmentIndex) => {
+          const attachment = {
+            id: `image-${index}-${attachmentIndex}`,
+            kind: 'image',
+            name: `图片附件 ${attachmentIndex + 1}`,
+            mimeType: part.mimeType,
+          }
+          const url = resolveImageUrl?.(part)
+          if (url) attachment.url = url
+          else attachment.data = part.data
+          return attachment
+        })
     : []
   return {
     id: `${message.role}-${message.timestamp || index}-${index}`,
@@ -199,9 +199,8 @@ export function serializeTranscriptMessages(messages, resolveImageUrl = null) {
     const unresolvedMessage = String(
       item.error || (!terminal ? '工具调用未记录完成结果。' : ''),
     ).trim()
-    const activityTools = [...tools.values()]
-      .slice(-MAX_LIVE_ACTIVITY_ITEMS)
-      .map((tool) => tool.status === 'running'
+    const activityTools = [...tools.values()].slice(-MAX_LIVE_ACTIVITY_ITEMS).map((tool) =>
+      tool.status === 'running'
         ? {
             ...tool,
             status: unresolvedMessage ? 'error' : 'done',
@@ -209,7 +208,8 @@ export function serializeTranscriptMessages(messages, resolveImageUrl = null) {
             updatedAt: lastActivityAt || tool.updatedAt,
             finishedAt: lastActivityAt || tool.updatedAt || tool.startedAt,
           }
-        : tool)
+        : tool,
+    )
     item.runActivity = {
       thinkingText: thinkingParts.join('\n\n').slice(-MAX_LIVE_THINKING_CHARS),
       tools: activityTools,
@@ -319,11 +319,12 @@ export function startedCompaction(reason, startedAt) {
 
 function validAssistantUsage(message) {
   if (
-    message?.role !== 'assistant'
-    || message.stopReason === 'aborted'
-    || message.stopReason === 'error'
-    || !message.usage
-  ) return null
+    message?.role !== 'assistant' ||
+    message.stopReason === 'aborted' ||
+    message.stopReason === 'error' ||
+    !message.usage
+  )
+    return null
   return calculateContextTokens(message.usage) > 0 ? message.usage : null
 }
 
@@ -377,9 +378,10 @@ export function finishedCompaction(previous, event, finishedAt) {
     finishedAt,
     tokensBefore,
     estimatedTokensAfter,
-    tokensSaved: tokensBefore != null && estimatedTokensAfter != null
-      ? Math.max(0, tokensBefore - estimatedTokensAfter)
-      : null,
+    tokensSaved:
+      tokensBefore != null && estimatedTokensAfter != null
+        ? Math.max(0, tokensBefore - estimatedTokensAfter)
+        : null,
     aborted: Boolean(event.aborted),
     willRetry: Boolean(event.willRetry),
     error: String(event.errorMessage || ''),
@@ -535,20 +537,21 @@ export class StreamProjection {
   }
 
   generatedAssets(sessionId) {
-    return this.assetIndex().assets
-      .filter(
-        (asset) => asset.sessionId === sessionId
-          && asset.source === 'agent'
-          && /^(?:image|video)\//.test(asset.mimeType || ''),
+    return this.assetIndex()
+      .assets.filter(
+        (asset) =>
+          asset.sessionId === sessionId &&
+          asset.source === 'agent' &&
+          /^(?:image|video)\//.test(asset.mimeType || ''),
       )
       .sort((left, right) => new Date(left.created).getTime() - new Date(right.created).getTime())
   }
 
   withGeneratedAssets(sessionId, messages) {
     const revision = this.getAssetRevision()
-    return this.cache.transcriptWithAssets(sessionId, messages, revision, () => (
-      attachGeneratedAssets(messages, this.generatedAssets(sessionId))
-    ))
+    return this.cache.transcriptWithAssets(sessionId, messages, revision, () =>
+      attachGeneratedAssets(messages, this.generatedAssets(sessionId)),
+    )
   }
 
   async getSessionMessages(id) {
@@ -556,9 +559,9 @@ export class StreamProjection {
     let messages
     if (active) {
       this.touchSessionRuntime(active)
-      messages = this.cache.transcript(id, active.session.messages, () => (
-        serializeTranscriptMessages(active.session.messages)
-      ))
+      messages = this.cache.transcript(id, active.session.messages, () =>
+        serializeTranscriptMessages(active.session.messages),
+      )
     } else {
       const info = await this.findSessionInfo(id)
       if (!info) return []
@@ -579,11 +582,15 @@ export class StreamProjection {
       1,
       Number(history.maxEstimatedBytes) || MAX_SESSION_HISTORY_CACHE_ESTIMATED_BYTES,
     )
-    const estimatedBytes = () => [...history.cache.values()]
-      .reduce((total, entry) => total + entry.size * SESSION_HISTORY_CACHE_MEMORY_MULTIPLIER, 0)
-    const candidates = () => [...history.cache.entries()]
-      .filter(([path]) => path !== protectedPath)
-      .sort((left, right) => left[1].touchedAt - right[1].touchedAt)
+    const estimatedBytes = () =>
+      [...history.cache.values()].reduce(
+        (total, entry) => total + entry.size * SESSION_HISTORY_CACHE_MEMORY_MULTIPLIER,
+        0,
+      )
+    const candidates = () =>
+      [...history.cache.entries()]
+        .filter(([path]) => path !== protectedPath)
+        .sort((left, right) => left[1].touchedAt - right[1].touchedAt)
     while (history.cache.size > maximumEntries || estimatedBytes() > maximumBytes) {
       const oldest = candidates()[0]?.[0]
       if (!oldest) break
@@ -595,9 +602,11 @@ export class StreamProjection {
     const file = await stat(path)
     const history = this.history()
     let cached = history.cache.get(path)
-    if (!cached || file.size < cached.size || (
-      file.size === cached.size && file.mtimeMs !== cached.mtimeMs
-    )) {
+    if (
+      !cached ||
+      file.size < cached.size ||
+      (file.size === cached.size && file.mtimeMs !== cached.mtimeMs)
+    ) {
       cached = {
         size: 0,
         mtimeMs: 0,
@@ -629,9 +638,8 @@ export class StreamProjection {
             : chunk
           const newline = combined.lastIndexOf(0x0a)
           const complete = newline >= 0 ? combined.subarray(0, newline).toString('utf8') : ''
-          cached.remainder = newline >= 0
-            ? Buffer.from(combined.subarray(newline + 1))
-            : Buffer.from(combined)
+          cached.remainder =
+            newline >= 0 ? Buffer.from(combined.subarray(newline + 1)) : Buffer.from(combined)
           for (const line of complete.split('\n')) {
             if (!line.trim()) continue
             try {
@@ -714,9 +722,7 @@ export class StreamProjection {
         return null
       }
     }
-    let messages = history.serializedSize === history.size
-      ? history.serializedMessages
-      : null
+    let messages = history.serializedSize === history.size ? history.serializedMessages : null
     if (!messages) {
       messages = serializeTranscriptMessages(
         branch.filter((entry) => entry?.type === 'message').map((entry) => entry.message),
@@ -734,16 +740,19 @@ export class StreamProjection {
     let tokens = raw?.tokens == null ? null : optionalTokenCount(raw.tokens)
     let estimated = false
     if (
-      tokens == null
-      && compaction?.status === 'completed'
-      && compaction.estimatedTokensAfter != null
+      tokens == null &&
+      compaction?.status === 'completed' &&
+      compaction.estimatedTokensAfter != null
     ) {
       tokens = optionalTokenCount(compaction.estimatedTokensAfter)
       estimated = tokens != null
     }
     const settings = effectiveCompactionSettings(
-      this.settingsManager()?.getCompactionSettings?.()
-        || { enabled: true, reserveTokens: 16_384, keepRecentTokens: 20_000 },
+      this.settingsManager()?.getCompactionSettings?.() || {
+        enabled: true,
+        reserveTokens: 16_384,
+        keepRecentTokens: 20_000,
+      },
       contextWindow,
       this.compactionThresholdPercent(),
     )
@@ -757,9 +766,7 @@ export class StreamProjection {
       estimated,
       autoCompactEnabled: Boolean(settings.enabled),
       compactAtTokens,
-      compactAtPercent: compactAtTokens == null
-        ? null
-        : (compactAtTokens / contextWindow) * 100,
+      compactAtPercent: compactAtTokens == null ? null : (compactAtTokens / contextWindow) * 100,
     }
   }
 
@@ -767,17 +774,24 @@ export class StreamProjection {
     if (!session?.model) return undefined
     const messages = session.messages || []
     const key = session.sessionId || session
-    const token = [session, session.model, compaction, this.compactionThresholdPercent(), ...messageToken(messages)]
+    const token = [
+      session,
+      session.model,
+      compaction,
+      this.compactionThresholdPercent(),
+      ...messageToken(messages),
+    ]
     return this.cache.contextUsage(key, token, () => {
       const contextWindow = optionalTokenCount(session.model.contextWindow)
-      const raw = typeof session.getContextUsage === 'function'
-        ? session.getContextUsage()
-        : contextWindow
-          ? (() => {
-              const tokens = estimateMessageContextTokens(messages)
-              return { tokens, contextWindow, percent: (tokens / contextWindow) * 100 }
-            })()
-          : undefined
+      const raw =
+        typeof session.getContextUsage === 'function'
+          ? session.getContextUsage()
+          : contextWindow
+            ? (() => {
+                const tokens = estimateMessageContextTokens(messages)
+                return { tokens, contextWindow, percent: (tokens / contextWindow) * 100 }
+              })()
+            : undefined
       return this.decorateContextUsage(raw, compaction)
     })
   }
@@ -797,19 +811,18 @@ export class StreamProjection {
     const historyState = this.history()
     const cached = historyState.contextUsageCache.get(id)
     if (
-      fileStat
-      && cached?.path === info.path
-      && cached.size === fileStat.size
-      && cached.mtimeMs === fileStat.mtimeMs
-    ) return cached.value
+      fileStat &&
+      cached?.path === info.path &&
+      cached.size === fileStat.size &&
+      cached.mtimeMs === fileStat.mtimeMs
+    )
+      return cached.value
     const manager = this.openStoredSession(info.path)
     const context = manager.buildSessionContext()
     const globalSettings = this.settingsManager()?.getGlobalSettings?.() || {}
     const provider = context.model?.provider || globalSettings.defaultProvider
     const modelId = context.model?.modelId || globalSettings.defaultModel
-    const model = provider && modelId
-      ? this.modelRuntime()?.getModel?.(provider, modelId)
-      : null
+    const model = provider && modelId ? this.modelRuntime()?.getModel?.(provider, modelId) : null
     const value = this.decorateContextUsage(
       persistedContextUsage(manager, model?.contextWindow || 0),
       compaction,
@@ -823,18 +836,14 @@ export class StreamProjection {
     return value
   }
 
-  async getSessionMessagePage(
-    id,
-    { before, limit = DEFAULT_MESSAGE_PAGE_SIZE } = {},
-  ) {
+  async getSessionMessagePage(id, { before, limit = DEFAULT_MESSAGE_PAGE_SIZE } = {}) {
     const messages = await this.getSessionHistoryMessages(id)
     const pageSize = Math.min(
       MAX_MESSAGE_PAGE_SIZE,
       Math.max(1, Number.parseInt(limit, 10) || DEFAULT_MESSAGE_PAGE_SIZE),
     )
-    const requestedEnd = before == null || before === ''
-      ? messages.length
-      : Number.parseInt(before, 10)
+    const requestedEnd =
+      before == null || before === '' ? messages.length : Number.parseInt(before, 10)
     const end = Number.isFinite(requestedEnd)
       ? Math.min(messages.length, Math.max(0, requestedEnd))
       : messages.length
@@ -897,9 +906,7 @@ export class StreamProjection {
           ...messages[assistantIndex],
           ...liveMessage,
           text: liveMessage.text || messages[assistantIndex].text,
-          attachments: live.assets.length
-            ? live.assets
-            : messages[assistantIndex].attachments,
+          attachments: live.assets.length ? live.assets : messages[assistantIndex].attachments,
         }
       } else messages.push(liveMessage)
     }
@@ -922,21 +929,21 @@ export class StreamProjection {
       executionMode,
       goal: live?.goal ?? this.goals.get(id),
       plan: live?.plan ?? this.plans.get(id),
-      agents: live?.agents ?? this.multiAgents
-        .summaries(id)
-        .filter((agent) => ['queued', 'starting', 'running'].includes(agent.status)),
+      agents:
+        live?.agents ??
+        this.multiAgents
+          .summaries(id)
+          .filter((agent) => ['queued', 'starting', 'running'].includes(agent.status)),
       currentActivity: live?.currentActivity || null,
       activityFeed: live?.activityFeed || [],
       thinkingText: live?.thinkingText || '',
       queuedInputs: live?.queuedInputs ?? queuedSessionInputs(active?.session),
-      contextUsage: this.compactionAwareContextUsage(active?.session, live?.compaction)
-        || page.contextUsage,
+      contextUsage:
+        this.compactionAwareContextUsage(active?.session, live?.compaction) || page.contextUsage,
       compaction: live?.compaction || null,
       approvals,
       pageInfo: page.pageInfo,
     }
-    return active || live
-      ? this.cache.storeLiveSnapshot(id, token, value)
-      : value
+    return active || live ? this.cache.storeLiveSnapshot(id, token, value) : value
   }
 }

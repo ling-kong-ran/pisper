@@ -166,7 +166,7 @@ function waitForExit() {
   })
 }
 
-async function api(url, cookie, path, init = {}) {
+function api(url, cookie, path, init = {}) {
   return fetch(`${url}${path}`, {
     ...init,
     headers: {

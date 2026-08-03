@@ -5,7 +5,11 @@ import { join } from 'node:path'
 import test from 'node:test'
 import { PlanService } from '../services/plan-service.mjs'
 import { TaskListService } from '../services/task-list-service.mjs'
-import { createPlanTools, PLAN_COMPATIBILITY_TOOL_NAMES, PLAN_TOOL_NAMES } from '../tools/app/plan.mjs'
+import {
+  createPlanTools,
+  PLAN_COMPATIBILITY_TOOL_NAMES,
+  PLAN_TOOL_NAMES,
+} from '../tools/app/plan.mjs'
 import { createTaskListTools } from '../tools/app/task-list.mjs'
 
 function storedPlan(items, updatedAt = '2026-07-22T01:02:03.000Z') {
@@ -24,7 +28,13 @@ test('plans persist structured progress per primary session in the canonical sto
     { id: 'verify', title: 'Run focused tests', status: 'in_progress', note: 'Protocol coverage' },
   ])
 
-  assert.deepEqual(updated.counts, { pending: 0, inProgress: 1, completed: 1, blocked: 0, total: 2 })
+  assert.deepEqual(updated.counts, {
+    pending: 0,
+    inProgress: 1,
+    completed: 1,
+    blocked: 0,
+    total: 2,
+  })
   assert.equal(updated.items[0].createdAt, '2026-07-22T01:02:03.000Z')
   const restored = new PlanService({ path })
   await restored.init()
@@ -67,8 +77,14 @@ test('canonical plan tools return { plan }, aliases share behavior, and empty it
     },
   })
 
-  assert.deepEqual(tools.slice(0, 2).map((tool) => tool.name), PLAN_TOOL_NAMES)
-  assert.deepEqual(tools.slice(2).map((tool) => tool.name), PLAN_COMPATIBILITY_TOOL_NAMES)
+  assert.deepEqual(
+    tools.slice(0, 2).map((tool) => tool.name),
+    PLAN_TOOL_NAMES,
+  )
+  assert.deepEqual(
+    tools.slice(2).map((tool) => tool.name),
+    PLAN_COMPATIBILITY_TOOL_NAMES,
+  )
   const updateTool = tools.find((tool) => tool.name === 'update_plan')
   assert.deepEqual(updateTool.parameters.properties.items.items.properties.status.enum, [
     'pending',
@@ -84,7 +100,9 @@ test('canonical plan tools return { plan }, aliases share behavior, and empty it
   const cleared = await updateTool.execute('call-4', { items: [] })
 
   assert.equal(updated.details.plan.items.length, 1)
-  assert.deepEqual(read.details.plan.items, [{ id: 'one', title: 'One plan item', status: 'pending' }])
+  assert.deepEqual(read.details.plan.items, [
+    { id: 'one', title: 'One plan item', status: 'pending' },
+  ])
   assert.deepEqual(legacyRead.details.plan, read.details.plan)
   assert.equal(Object.hasOwn(updated.details, 'taskList'), false)
   assert.equal(cleared.details.plan.items.length, 0)
@@ -100,8 +118,19 @@ test('plan items persist assignee and dependsOn with defaults and validation', a
   await service.init()
 
   const updated = await service.replace('session-1', [
-    { id: 'research', title: 'Research the module', status: 'completed', assignee: '/root/researcher' },
-    { id: 'implement', title: 'Implement the change', status: 'pending', assignee: '/root/builder', dependsOn: ['research'] },
+    {
+      id: 'research',
+      title: 'Research the module',
+      status: 'completed',
+      assignee: '/root/researcher',
+    },
+    {
+      id: 'implement',
+      title: 'Implement the change',
+      status: 'pending',
+      assignee: '/root/builder',
+      dependsOn: ['research'],
+    },
     { id: 'docs', title: 'Update docs', status: 'pending' },
   ])
 
@@ -130,22 +159,30 @@ test('plan items persist assignee and dependsOn with defaults and validation', a
   })
 
   await assert.rejects(
-    () => service.replace('session-1', [{ id: 'x', title: 'X', status: 'pending', dependsOn: ['not a valid id!'] }]),
+    () =>
+      service.replace('session-1', [
+        { id: 'x', title: 'X', status: 'pending', dependsOn: ['not a valid id!'] },
+      ]),
     /Invalid dependency plan item id/,
   )
   await assert.rejects(
-    () => service.replace('session-1', [{ id: 'x', title: 'X', status: 'pending', dependsOn: ['missing'] }]),
+    () =>
+      service.replace('session-1', [
+        { id: 'x', title: 'X', status: 'pending', dependsOn: ['missing'] },
+      ]),
     /Unknown dependency plan item id: missing/,
   )
   await assert.rejects(
-    () => service.replace('session-1', [{ id: 'x', title: 'X', status: 'pending', dependsOn: ['x'] }]),
+    () =>
+      service.replace('session-1', [{ id: 'x', title: 'X', status: 'pending', dependsOn: ['x'] }]),
     /Plan item cannot depend on itself: x/,
   )
   await assert.rejects(
-    () => service.replace('session-1', [
-      { id: 'x', title: 'X', status: 'pending', dependsOn: ['y'] },
-      { id: 'y', title: 'Y', status: 'pending', dependsOn: ['x'] },
-    ]),
+    () =>
+      service.replace('session-1', [
+        { id: 'x', title: 'X', status: 'pending', dependsOn: ['y'] },
+        { id: 'y', title: 'Y', status: 'pending', dependsOn: ['x'] },
+      ]),
     /Plan dependency cycle: x -> y -> x/,
   )
 })
@@ -155,15 +192,19 @@ test('first startup backs up and atomically migrates a valid legacy task-list st
   t.after(() => rm(directory, { recursive: true, force: true }))
   const legacyPath = join(directory, 'pisper-task-lists.json')
   const path = join(directory, 'pisper-plans.json')
-  const legacy = JSON.stringify({
-    version: 1,
-    lists: {
-      'session-legacy': storedPlan([
-        { id: 'valid', title: 'Migrate this item', status: 'in_progress' },
-        { id: 'invalid', title: '', status: 'pending' },
-      ]),
+  const legacy = JSON.stringify(
+    {
+      version: 1,
+      lists: {
+        'session-legacy': storedPlan([
+          { id: 'valid', title: 'Migrate this item', status: 'in_progress' },
+          { id: 'invalid', title: '', status: 'pending' },
+        ]),
+      },
     },
-  }, null, 2)
+    null,
+    2,
+  )
   await writeFile(legacyPath, `${legacy}\n`, 'utf8')
   await writeFile(`${legacyPath}.bak`, 'stale backup\n', 'utf8')
 
@@ -190,12 +231,18 @@ test('backup failure blocks canonical writes until the legacy source is safely b
   const legacyPath = join(directory, 'pisper-task-lists.json')
   const backupPath = `${legacyPath}.bak`
   const path = join(directory, 'pisper-plans.json')
-  const legacy = `${JSON.stringify({
-    version: 1,
-    lists: {
-      'session-legacy': storedPlan([{ id: 'keep', title: 'Keep legacy data', status: 'pending' }]),
+  const legacy = `${JSON.stringify(
+    {
+      version: 1,
+      lists: {
+        'session-legacy': storedPlan([
+          { id: 'keep', title: 'Keep legacy data', status: 'pending' },
+        ]),
+      },
     },
-  }, null, 2)}\n`
+    null,
+    2,
+  )}\n`
   await writeFile(legacyPath, legacy, 'utf8')
   await mkdir(backupPath)
 
@@ -205,7 +252,10 @@ test('backup failure blocks canonical writes until the legacy source is safely b
   assert.equal(service.readingLegacy, true)
   assert.equal(service.get('session-legacy').items[0].title, 'Keep legacy data')
   await assert.rejects(
-    () => service.replace('session-legacy', [{ id: 'next', title: 'Write after backup', status: 'in_progress' }]),
+    () =>
+      service.replace('session-legacy', [
+        { id: 'next', title: 'Write after backup', status: 'in_progress' },
+      ]),
     /backup path is not a file/,
   )
   await assert.rejects(() => readFile(path, 'utf8'))
@@ -224,7 +274,10 @@ test('backup failure blocks canonical writes until the legacy source is safely b
   const stored = JSON.parse(await readFile(path, 'utf8'))
   assert.equal(Object.hasOwn(stored, 'lists'), false)
   assert.equal(stored.plans['session-legacy'].items[0].title, 'Write after backup')
-  assert.equal((await readdir(directory)).some((name) => name.endsWith('.tmp')), false)
+  assert.equal(
+    (await readdir(directory)).some((name) => name.endsWith('.tmp')),
+    false,
+  )
 })
 
 test('migration write failure continues serving legacy data without clearing its source or backup', async (t) => {
@@ -233,12 +286,18 @@ test('migration write failure continues serving legacy data without clearing its
   const legacyPath = join(directory, 'pisper-task-lists.json')
   const blockedParent = join(directory, 'not-a-directory')
   const path = join(blockedParent, 'pisper-plans.json')
-  const legacy = `${JSON.stringify({
-    version: 1,
-    lists: {
-      'session-legacy': storedPlan([{ id: 'keep', title: 'Keep legacy data', status: 'pending' }]),
+  const legacy = `${JSON.stringify(
+    {
+      version: 1,
+      lists: {
+        'session-legacy': storedPlan([
+          { id: 'keep', title: 'Keep legacy data', status: 'pending' },
+        ]),
+      },
     },
-  }, null, 2)}\n`
+    null,
+    2,
+  )}\n`
   await writeFile(legacyPath, legacy, 'utf8')
   await writeFile(blockedParent, 'blocks canonical store creation', 'utf8')
 
@@ -257,12 +316,22 @@ test('an existing canonical store takes precedence over the legacy migration sou
   t.after(() => rm(directory, { recursive: true, force: true }))
   const legacyPath = join(directory, 'pisper-task-lists.json')
   const path = join(directory, 'pisper-plans.json')
-  await writeFile(legacyPath, JSON.stringify({
-    lists: { session: storedPlan([{ id: 'old', title: 'Legacy item', status: 'pending' }]) },
-  }), 'utf8')
-  await writeFile(path, JSON.stringify({
-    plans: { session: storedPlan([{ id: 'new', title: 'Canonical item', status: 'in_progress' }]) },
-  }), 'utf8')
+  await writeFile(
+    legacyPath,
+    JSON.stringify({
+      lists: { session: storedPlan([{ id: 'old', title: 'Legacy item', status: 'pending' }]) },
+    }),
+    'utf8',
+  )
+  await writeFile(
+    path,
+    JSON.stringify({
+      plans: {
+        session: storedPlan([{ id: 'new', title: 'Canonical item', status: 'in_progress' }]),
+      },
+    }),
+    'utf8',
+  )
 
   const service = new PlanService({ path, legacyPath })
   await service.init()
@@ -304,9 +373,17 @@ test('one-release task-list modules remain thin compatibility wrappers', async (
   assert.equal(TaskListService, PlanService)
   const legacyTools = createTaskListTools({
     getTaskList: () => ({ sessionId: 'legacy', items: [], counts: { total: 0 }, updatedAt: null }),
-    updateTaskList: () => ({ sessionId: 'legacy', items: [], counts: { total: 0 }, updatedAt: null }),
+    updateTaskList: () => ({
+      sessionId: 'legacy',
+      items: [],
+      counts: { total: 0 },
+      updatedAt: null,
+    }),
   })
-  assert.deepEqual(legacyTools.map((tool) => tool.name), PLAN_COMPATIBILITY_TOOL_NAMES)
+  assert.deepEqual(
+    legacyTools.map((tool) => tool.name),
+    PLAN_COMPATIBILITY_TOOL_NAMES,
+  )
   const result = await legacyTools[0].execute('legacy-read', {})
   assert.equal(result.details.plan.sessionId, 'legacy')
 })

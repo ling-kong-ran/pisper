@@ -18,7 +18,7 @@ export function applyWindowsUtf8Environment(context, platform = process.platform
   }
 }
 
-export async function createWindowsUtf8BashTool(cwd, platform = process.platform) {
+export function createWindowsUtf8BashTool(cwd, platform = process.platform) {
   if (platform !== 'win32') return null
   return createBashTool(cwd, {
     spawnHook: (context) => applyWindowsUtf8Environment(context, platform),

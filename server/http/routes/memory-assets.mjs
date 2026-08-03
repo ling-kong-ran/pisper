@@ -144,9 +144,10 @@ export const memoryAssetRoutes = [
     path: '/api/memory/candidates/:candidateId/:action',
     where: { action: ['accept', 'reject'] },
     handler({ runtime, params, json }) {
-      const result = params.action === 'accept'
-        ? runtime.acceptMemoryCandidate(params.candidateId)
-        : runtime.rejectMemoryCandidate(params.candidateId)
+      const result =
+        params.action === 'accept'
+          ? runtime.acceptMemoryCandidate(params.candidateId)
+          : runtime.rejectMemoryCandidate(params.candidateId)
       if (!result) json(404, { error: '候选记忆不存在或已处理。' })
       else json(200, result)
     },

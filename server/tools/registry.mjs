@@ -15,13 +15,20 @@ export function toolsFromConfig(config = {}) {
 }
 
 export function presetFromTools(enabledTools) {
-  return Object.entries(TOOL_PRESETS).find(([, tools]) => (
-    tools.length === enabledTools.length && tools.every((tool) => enabledTools.includes(tool))
-  ))?.[0] || 'custom'
+  return (
+    Object.entries(TOOL_PRESETS).find(
+      ([, tools]) =>
+        tools.length === enabledTools.length && tools.every((tool) => enabledTools.includes(tool)),
+    )?.[0] || 'custom'
+  )
 }
 
 export function sanitizeEnabledTools(enabledTools) {
-  return [...new Set(Array.isArray(enabledTools) ? enabledTools.filter((tool) => TOOL_IDS.has(tool)) : [])]
+  return [
+    ...new Set(
+      Array.isArray(enabledTools) ? enabledTools.filter((tool) => TOOL_IDS.has(tool)) : [],
+    ),
+  ]
 }
 
 export function createAppTools({ enabledTools, ...context }) {

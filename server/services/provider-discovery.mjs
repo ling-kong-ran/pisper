@@ -23,12 +23,14 @@ function apiKeyCredential(input) {
 }
 
 function providerProfileId(value, fallback) {
-  return String(value || fallback || '')
-    .trim()
-    .toLowerCase()
-    .replace(/[^a-z0-9._-]+/g, '-')
-    .replace(/^-+|-+$/g, '')
-    .slice(0, 60) || fallback
+  return (
+    String(value || fallback || '')
+      .trim()
+      .toLowerCase()
+      .replace(/[^a-z0-9._-]+/g, '-')
+      .replace(/^-+|-+$/g, '')
+      .slice(0, 60) || fallback
+  )
 }
 
 function stableFingerprint(value) {
@@ -40,7 +42,8 @@ function normalizeUrl(value) {
   if (!input) return ''
   try {
     const url = new URL(input)
-    if (!['http:', 'https:'].includes(url.protocol) || url.username || url.password || url.hash) return ''
+    if (!['http:', 'https:'].includes(url.protocol) || url.username || url.password || url.hash)
+      return ''
     return input.replace(/\/$/, '')
   } catch {
     return ''
@@ -71,11 +74,14 @@ function splitTopLevel(input, delimiter) {
 }
 
 function tomlKeyParts(value) {
-  return splitTopLevel(value, '.').map((part) => {
-    const key = part.trim()
-    if ((key.startsWith('"') && key.endsWith('"')) || (key.startsWith("'") && key.endsWith("'"))) return key.slice(1, -1)
-    return key
-  }).filter(Boolean)
+  return splitTopLevel(value, '.')
+    .map((part) => {
+      const key = part.trim()
+      if ((key.startsWith('"') && key.endsWith('"')) || (key.startsWith("'") && key.endsWith("'")))
+        return key.slice(1, -1)
+      return key
+    })
+    .filter(Boolean)
 }
 
 function tomlAssignmentIndex(line) {
@@ -112,18 +118,25 @@ function stripTomlComment(line) {
 function parseTomlValue(raw) {
   const value = raw.trim()
   if (!value) return ''
-  if ((value.startsWith('"') && !value.endsWith('"')) || (value.startsWith("'") && !value.endsWith("'"))) throw new SyntaxError('Unterminated TOML string')
+  if (
+    (value.startsWith('"') && !value.endsWith('"')) ||
+    (value.startsWith("'") && !value.endsWith("'"))
+  )
+    throw new SyntaxError('Unterminated TOML string')
   if (value.startsWith('"') && value.endsWith('"')) return JSON.parse(value)
   if (value.startsWith("'") && value.endsWith("'")) return value.slice(1, -1)
   if (value === 'true' || value === 'false') return value === 'true'
   if (/^[+-]?(?:\d+\.?\d*|\d*\.\d+)$/.test(value)) return Number(value)
-  if (value.startsWith('[') && value.endsWith(']')) return splitTopLevel(value.slice(1, -1), ',').map(parseTomlValue)
+  if (value.startsWith('[') && value.endsWith(']'))
+    return splitTopLevel(value.slice(1, -1), ',').map(parseTomlValue)
   if (value.startsWith('{') && value.endsWith('}')) {
     const result = {}
     for (const entry of splitTopLevel(value.slice(1, -1), ',')) {
       const assignment = tomlAssignmentIndex(entry)
       if (assignment < 0) continue
-      result[tomlKeyParts(entry.slice(0, assignment)).join('.')] = parseTomlValue(entry.slice(assignment + 1))
+      result[tomlKeyParts(entry.slice(0, assignment)).join('.')] = parseTomlValue(
+        entry.slice(assignment + 1),
+      )
     }
     return result
   }
@@ -133,7 +146,8 @@ function parseTomlValue(raw) {
 function setNested(target, path, value) {
   let current = target
   for (const key of path.slice(0, -1)) {
-    if (!current[key] || typeof current[key] !== 'object' || Array.isArray(current[key])) current[key] = {}
+    if (!current[key] || typeof current[key] !== 'object' || Array.isArray(current[key]))
+      current[key] = {}
     current = current[key]
   }
   current[path.at(-1)] = value
@@ -146,7 +160,8 @@ export function parseCodexToml(input) {
     const line = stripTomlComment(rawLine).trim()
     if (!line) continue
     if (line.startsWith('[') && line.endsWith(']')) {
-      if (line.startsWith('[[')) throw new SyntaxError('TOML array tables are not supported in provider configuration')
+      if (line.startsWith('[['))
+        throw new SyntaxError('TOML array tables are not supported in provider configuration')
       table = tomlKeyParts(line.slice(1, -1))
       continue
     }
@@ -174,25 +189,47 @@ function normalizeCodexConfig(data, env, location) {
   const definition = data?.model_providers?.[profile] || {}
   const model = nonEmptyString(data?.model)
   const api = codexApi(nonEmptyString(definition.wire_api))
-  const rawBaseUrl = nonEmptyString(definition.base_url, profile === 'openai' ? CODEX_DEFAULT_BASE_URL : '')
+  const rawBaseUrl = nonEmptyString(
+    definition.base_url,
+    profile === 'openai' ? CODEX_DEFAULT_BASE_URL : '',
+  )
   const baseUrl = normalizeUrl(rawBaseUrl)
   const envKey = nonEmptyString(definition.env_key)
   const warnings = []
   if (!api) warnings.push({ code: 'unsupported_api', message: 'Codex wire_api is not supported' })
-  if (rawBaseUrl && !baseUrl) warnings.push({ code: 'invalid_url', message: 'Codex base_url is invalid' })
-  if (envKey && !ENV_NAME_PATTERN.test(envKey)) warnings.push({ code: 'invalid_env_name', message: 'Codex env_key is invalid' })
-  if (definition.requires_openai_auth === true && !envKey) warnings.push({ code: 'login_auth_not_imported', message: 'Codex login authentication is intentionally not imported' })
+  if (rawBaseUrl && !baseUrl)
+    warnings.push({ code: 'invalid_url', message: 'Codex base_url is invalid' })
+  if (envKey && !ENV_NAME_PATTERN.test(envKey))
+    warnings.push({ code: 'invalid_env_name', message: 'Codex env_key is invalid' })
+  if (definition.requires_openai_auth === true && !envKey)
+    warnings.push({
+      code: 'login_auth_not_imported',
+      message: 'Codex login authentication is intentionally not imported',
+    })
 
   const baseId = providerProfileId(profile, 'openai')
-  const providerId = baseId === 'openai' ? 'openai' : providerProfileId(`codex-${baseId}`, 'codex-provider')
+  const providerId =
+    baseId === 'openai' ? 'openai' : providerProfileId(`codex-${baseId}`, 'codex-provider')
   const providerName = nonEmptyString(definition.name, profile === 'openai' ? 'OpenAI' : profile)
   const providerConfig = { name: providerName, api }
   if (baseUrl) providerConfig.baseUrl = baseUrl
   if (model) providerConfig.models = [modelDefinition(model, api)]
-  if (envKey && ENV_NAME_PATTERN.test(envKey)) providerConfig[['api', 'Key'].join('')] = `$${envKey}`
+  if (envKey && ENV_NAME_PATTERN.test(envKey))
+    providerConfig[['api', 'Key'].join('')] = `$${envKey}`
 
   const importable = Boolean(api && baseUrl && model)
-  const normalized = { source: 'codex-config', location, profile, providerId, providerName, api, baseUrl, model, envKey, providerConfig }
+  const normalized = {
+    source: 'codex-config',
+    location,
+    profile,
+    providerId,
+    providerName,
+    api,
+    baseUrl,
+    model,
+    envKey,
+    providerConfig,
+  }
   const fingerprint = stableFingerprint(normalized)
   const item = {
     id: `codex-config-${providerProfileId(profile, 'provider')}-${fingerprint.slice(0, 12)}`,
@@ -205,7 +242,11 @@ function normalizeCodexConfig(data, env, location) {
     baseUrl,
     models: model ? [{ id: model, role: 'default', selected: true }] : [],
     selectedModel: model,
-    authType: envKey ? 'environment' : definition.requires_openai_auth === true ? 'external-login' : 'none',
+    authType: envKey
+      ? 'environment'
+      : definition.requires_openai_auth === true
+        ? 'external-login'
+        : 'none',
     authVariable: envKey || null,
     credentialPresent: Boolean(envKey && env[envKey]),
     importable,
@@ -220,12 +261,32 @@ function normalizeCodexConfig(data, env, location) {
 function claudeModelEntries(data) {
   const env = data?.env || {}
   const entries = [
-    { id: nonEmptyString(env[ANTHROPIC_MODEL]), role: 'default', sourceField: `env.${ANTHROPIC_MODEL}` },
+    {
+      id: nonEmptyString(env[ANTHROPIC_MODEL]),
+      role: 'default',
+      sourceField: `env.${ANTHROPIC_MODEL}`,
+    },
     { id: nonEmptyString(data?.model), role: 'configured', sourceField: 'model' },
-    { id: nonEmptyString(env.ANTHROPIC_DEFAULT_SONNET_MODEL), role: 'sonnet', sourceField: 'env.ANTHROPIC_DEFAULT_SONNET_MODEL' },
-    { id: nonEmptyString(env.ANTHROPIC_DEFAULT_OPUS_MODEL), role: 'opus', sourceField: 'env.ANTHROPIC_DEFAULT_OPUS_MODEL' },
-    { id: nonEmptyString(env.ANTHROPIC_DEFAULT_HAIKU_MODEL), role: 'haiku', sourceField: 'env.ANTHROPIC_DEFAULT_HAIKU_MODEL' },
-    { id: nonEmptyString(env.CLAUDE_CODE_SUBAGENT_MODEL), role: 'subagent', sourceField: 'env.CLAUDE_CODE_SUBAGENT_MODEL' },
+    {
+      id: nonEmptyString(env.ANTHROPIC_DEFAULT_SONNET_MODEL),
+      role: 'sonnet',
+      sourceField: 'env.ANTHROPIC_DEFAULT_SONNET_MODEL',
+    },
+    {
+      id: nonEmptyString(env.ANTHROPIC_DEFAULT_OPUS_MODEL),
+      role: 'opus',
+      sourceField: 'env.ANTHROPIC_DEFAULT_OPUS_MODEL',
+    },
+    {
+      id: nonEmptyString(env.ANTHROPIC_DEFAULT_HAIKU_MODEL),
+      role: 'haiku',
+      sourceField: 'env.ANTHROPIC_DEFAULT_HAIKU_MODEL',
+    },
+    {
+      id: nonEmptyString(env.CLAUDE_CODE_SUBAGENT_MODEL),
+      role: 'subagent',
+      sourceField: 'env.CLAUDE_CODE_SUBAGENT_MODEL',
+    },
   ].filter((entry) => entry.id)
   const byId = new Map()
   for (const entry of entries) {
@@ -251,17 +312,32 @@ function normalizeClaudeConfig(data, location) {
   const bearerValue = nonEmptyString(env[ANTHROPIC_AUTH_TOKEN]).replace(/^Bearer\s+/i, '')
   const standardValue = nonEmptyString(env[ANTHROPIC_API_KEY])
   const warnings = []
-  if (!baseUrl) warnings.push({ code: 'invalid_url', message: 'Claude Code ANTHROPIC_BASE_URL is invalid' })
-  if (bearerValue && standardValue) warnings.push({ code: 'multiple_auth_values', message: 'ANTHROPIC_AUTH_TOKEN takes precedence over ANTHROPIC_API_KEY' })
+  if (!baseUrl)
+    warnings.push({ code: 'invalid_url', message: 'Claude Code ANTHROPIC_BASE_URL is invalid' })
+  if (bearerValue && standardValue)
+    warnings.push({
+      code: 'multiple_auth_values',
+      message: 'ANTHROPIC_AUTH_TOKEN takes precedence over ANTHROPIC_API_KEY',
+    })
 
   const providerConfig = { name: 'Anthropic', api: 'anthropic-messages' }
   if (baseUrl) providerConfig.baseUrl = baseUrl
   if (bearerValue) providerConfig.authHeader = true
-  if (models.length) providerConfig.models = models.map((model) => modelDefinition(model.id, 'anthropic-messages'))
+  if (models.length)
+    providerConfig.models = models.map((model) => modelDefinition(model.id, 'anthropic-messages'))
   const privateText = bearerValue || standardValue
   const privateValue = privateText ? apiKeyCredential(privateText) : null
   const relevant = Boolean(env[ANTHROPIC_BASE_URL] || privateText || models.length)
-  const normalized = { source: 'claude-config', location, providerId: 'anthropic', baseUrl, models, selectedModel, authHeader: Boolean(bearerValue), providerConfig }
+  const normalized = {
+    source: 'claude-config',
+    location,
+    providerId: 'anthropic',
+    baseUrl,
+    models,
+    selectedModel,
+    authHeader: Boolean(bearerValue),
+    providerConfig,
+  }
   const fingerprint = stableFingerprint(normalized)
   const item = {
     id: `claude-config-${fingerprint.slice(0, 12)}`,
@@ -272,7 +348,11 @@ function normalizeClaudeConfig(data, location) {
     location,
     api: 'anthropic-messages',
     baseUrl,
-    models: models.map((model) => ({ id: model.id, role: model.roles.join(', '), selected: model.id === selectedModel })),
+    models: models.map((model) => ({
+      id: model.id,
+      role: model.roles.join(', '),
+      selected: model.id === selectedModel,
+    })),
     selectedModel,
     authType: claudeAuthKind(Boolean(bearerValue), Boolean(standardValue)),
     authVariable: null,
@@ -326,7 +406,9 @@ export class ProviderDiscoveryService {
 
   codexCandidates() {
     return uniqueCandidates([
-      ...(this.env.CODEX_HOME ? [{ path: join(this.env.CODEX_HOME, 'config.toml'), location: '$CODEX_HOME/config.toml' }] : []),
+      ...(this.env.CODEX_HOME
+        ? [{ path: join(this.env.CODEX_HOME, 'config.toml'), location: '$CODEX_HOME/config.toml' }]
+        : []),
       { path: join(this.homeDir, '.codex', 'config.toml'), location: '~/.codex/config.toml' },
     ])
   }
@@ -341,15 +423,26 @@ export class ProviderDiscoveryService {
   async readCandidate(candidate, source, parser) {
     try {
       const text = await this.readFile(candidate.path, 'utf8')
-      if (Buffer.byteLength(text, 'utf8') > 1024 * 1024) throw Object.assign(new Error('Configuration file is too large'), { code: 'EFBIG' })
+      if (Buffer.byteLength(text, 'utf8') > 1024 * 1024)
+        throw Object.assign(new Error('Configuration file is too large'), { code: 'EFBIG' })
       return { data: parser(text) }
     } catch (error) {
       if (error?.code === 'ENOENT') return { missing: true }
       return {
         error: {
           source,
-          code: error instanceof SyntaxError ? (source === 'codex-config' ? 'invalid_toml' : 'invalid_json') : error?.code === 'EFBIG' ? 'file_too_large' : 'unreadable',
-          message: error instanceof SyntaxError ? 'Configuration file has invalid syntax' : 'Configuration file could not be read',
+          code:
+            error instanceof SyntaxError
+              ? source === 'codex-config'
+                ? 'invalid_toml'
+                : 'invalid_json'
+              : error?.code === 'EFBIG'
+                ? 'file_too_large'
+                : 'unreadable',
+          message:
+            error instanceof SyntaxError
+              ? 'Configuration file has invalid syntax'
+              : 'Configuration file could not be read',
         },
       }
     }
@@ -365,23 +458,41 @@ export class ProviderDiscoveryService {
         continue
       }
       const item = normalize(result.data, candidate.location)
-      if (!item.importable && !item.warnings.length) errors.push({ source, code: 'unsupported_config', message: 'Configuration file does not contain a supported provider' })
+      if (!item.importable && !item.warnings.length)
+        errors.push({
+          source,
+          code: 'unsupported_config',
+          message: 'Configuration file does not contain a supported provider',
+        })
       return { item, errors }
     }
     return { item: null, errors }
   }
 
   async discoverCodex() {
-    return this.discoverFirst(this.codexCandidates(), 'codex-config', parseCodexToml, (data, location) => normalizeCodexConfig(data, this.env, location))
+    return this.discoverFirst(
+      this.codexCandidates(),
+      'codex-config',
+      parseCodexToml,
+      (data, location) => normalizeCodexConfig(data, this.env, location),
+    )
   }
 
   async discoverClaude() {
-    return this.discoverFirst(this.claudeCandidates(), 'claude-config', JSON.parse, normalizeClaudeConfig)
+    return this.discoverFirst(
+      this.claudeCandidates(),
+      'claude-config',
+      JSON.parse,
+      normalizeClaudeConfig,
+    )
   }
 
   async discoverInternal() {
     const [codex, claude] = await Promise.all([this.discoverCodex(), this.discoverClaude()])
-    return { items: [codex.item, claude.item].filter(Boolean), errors: [...codex.errors, ...claude.errors] }
+    return {
+      items: [codex.item, claude.item].filter(Boolean),
+      errors: [...codex.errors, ...claude.errors],
+    }
   }
 
   async discover() {
@@ -392,7 +503,8 @@ export class ProviderDiscoveryService {
   async loadConfiguration(discoveryId) {
     const result = await this.discoverInternal()
     const item = result.items.find((candidate) => candidate.id === discoveryId)
-    if (!item) throw new Error('Discovered provider configuration is no longer available or has changed')
+    if (!item)
+      throw new Error('Discovered provider configuration is no longer available or has changed')
     if (!item.importable) throw new Error('This provider configuration cannot be imported')
     const loaded = {
       providerId: item.providerId,

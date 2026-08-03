@@ -26,11 +26,17 @@ function safeArgs(value, depth = 0, key = '') {
   if (depth > 3) return '[内容已省略]'
   if (/api.?key|password|passwd|secret|token/i.test(key)) return '[已隐藏敏感信息]'
   if (typeof value === 'string') {
-    if (/^(?:data|image|content)$/i.test(key) && value.length > 500) return `[内容已省略，共 ${value.length} 字符]`
+    if (/^(?:data|image|content)$/i.test(key) && value.length > 500)
+      return `[内容已省略，共 ${value.length} 字符]`
     return value.length > 800 ? `${value.slice(0, 800)}…` : value
   }
   if (Array.isArray(value)) return value.slice(0, 12).map((item) => safeArgs(item, depth + 1, key))
-  if (value && typeof value === 'object') return Object.fromEntries(Object.entries(value).slice(0, 30).map(([childKey, child]) => [childKey, safeArgs(child, depth + 1, childKey)]))
+  if (value && typeof value === 'object')
+    return Object.fromEntries(
+      Object.entries(value)
+        .slice(0, 30)
+        .map(([childKey, child]) => [childKey, safeArgs(child, depth + 1, childKey)]),
+    )
   return value
 }
 
@@ -43,7 +49,9 @@ function canonicalPath(input) {
     suffix.unshift(target.slice(parent.length).replace(/^[/\\]+/, ''))
     target = parent
   }
-  try { target = realpathSync.native(target) } catch {}
+  try {
+    target = realpathSync.native(target)
+  } catch {}
   return suffix.reduce((current, part) => join(current, part), target)
 }
 
@@ -62,7 +70,10 @@ export function permissionRequirement({ mode, executionMode, cwd, toolName, args
   if (INTERNAL_SAFE_TOOLS.has(toolName)) return null
   const risk = toolRisk || TOOL_RISKS.get(toolName) || 'high'
   const filePath = args?.path || args?.file_path
-  if (['read', 'ls', 'grep', 'find', 'edit', 'write'].includes(toolName) && pathOutsideWorkspace(cwd, filePath)) {
+  if (
+    ['read', 'ls', 'grep', 'find', 'edit', 'write'].includes(toolName) &&
+    pathOutsideWorkspace(cwd, filePath)
+  ) {
     return {
       block: true,
       risk: 'high',
@@ -124,7 +135,8 @@ export class SessionPermissionService {
   rememberResolution(resolution) {
     this.pruneResolutions()
     this.resolved.set(resolution.id, resolution)
-    while (this.resolved.size > MAX_RESOLVED_APPROVALS) this.resolved.delete(this.resolved.keys().next().value)
+    while (this.resolved.size > MAX_RESOLVED_APPROVALS)
+      this.resolved.delete(this.resolved.keys().next().value)
   }
 
   attachEmitter(sessionId, emit) {
@@ -136,7 +148,9 @@ export class SessionPermissionService {
   }
 
   emit(sessionId, event, data) {
-    try { this.emitters.get(sessionId)?.(event, data) } catch {}
+    try {
+      this.emitters.get(sessionId)?.(event, data)
+    } catch {}
   }
 
   install(session, { sessionId, cwd }) {
@@ -158,12 +172,29 @@ export class SessionPermissionService {
   }
 
   async authorize({ sessionId, cwd, toolName, toolCallId, args, signal }) {
-    const mode = PERMISSION_MODES.has(this.getMode(sessionId)) ? this.getMode(sessionId) : DEFAULT_PERMISSION_MODE
+    const mode = PERMISSION_MODES.has(this.getMode(sessionId))
+      ? this.getMode(sessionId)
+      : DEFAULT_PERMISSION_MODE
     const executionMode = this.getExecutionMode(sessionId)
-    const requirement = permissionRequirement({ mode, executionMode, cwd, toolName, args, toolRisk: this.getToolRisk(toolName) })
+    const requirement = permissionRequirement({
+      mode,
+      executionMode,
+      cwd,
+      toolName,
+      args,
+      toolRisk: this.getToolRisk(toolName),
+    })
     if (!requirement) return undefined
     if (requirement.block) return { block: true, reason: requirement.reason }
-    const approval = await this.requestApproval({ sessionId, toolName, toolCallId, args, mode, ...requirement, signal })
+    const approval = await this.requestApproval({
+      sessionId,
+      toolName,
+      toolCallId,
+      args,
+      mode,
+      ...requirement,
+      signal,
+    })
     if (approval.approved) return undefined
     return { block: true, reason: approval.reason || `用户拒绝执行工具 ${toolName}。` }
   }
@@ -171,7 +202,17 @@ export class SessionPermissionService {
   requestApproval({ sessionId, toolName, toolCallId, args, mode, risk, reason, signal }) {
     const id = randomUUID()
     const createdAt = new Date().toISOString()
-    const publicApproval = { id, sessionId, toolName, toolCallId, args: safeArgs(args), mode, risk, reason, createdAt }
+    const publicApproval = {
+      id,
+      sessionId,
+      toolName,
+      toolCallId,
+      args: safeArgs(args),
+      mode,
+      risk,
+      reason,
+      createdAt,
+    }
     return new Promise((resolveApproval) => {
       let settled = false
       const settle = (approved, resolutionReason) => {
@@ -180,7 +221,13 @@ export class SessionPermissionService {
         clearTimeout(timer)
         signal?.removeEventListener('abort', abort)
         this.pending.delete(id)
-        const resolution = { id, sessionId, approved: Boolean(approved), reason: resolutionReason || '', resolvedAt: new Date().toISOString() }
+        const resolution = {
+          id,
+          sessionId,
+          approved: Boolean(approved),
+          reason: resolutionReason || '',
+          resolvedAt: new Date().toISOString(),
+        }
         this.rememberResolution(resolution)
         this.emit(sessionId, 'permission_resolved', resolution)
         resolveApproval({ approved: resolution.approved, reason: resolution.reason })
@@ -202,12 +249,16 @@ export class SessionPermissionService {
   resolve(sessionId, approvalId, approved) {
     const approval = this.pending.get(approvalId)
     if (approval?.sessionId === sessionId) {
-      const resolution = approval.settle(Boolean(approved), approved ? '用户已授权执行。' : '用户拒绝执行该工具。')
+      const resolution = approval.settle(
+        Boolean(approved),
+        approved ? '用户已授权执行。' : '用户拒绝执行该工具。',
+      )
       return { found: true, alreadyResolved: false, ...resolution }
     }
     this.pruneResolutions()
     const previous = this.resolved.get(approvalId)
-    if (previous?.sessionId === sessionId) return { found: true, alreadyResolved: true, ...previous }
+    if (previous?.sessionId === sessionId)
+      return { found: true, alreadyResolved: true, ...previous }
     return { found: false, alreadyResolved: false, id: approvalId, sessionId }
   }
 
@@ -215,18 +266,24 @@ export class SessionPermissionService {
     let count = 0
     for (const approval of [...this.pending.values()]) {
       if (approval.sessionId !== sessionId) continue
-      approval.settle(Boolean(approved), reason || (approved ? '权限模式已允许执行。' : '会话已停止。'))
+      approval.settle(
+        Boolean(approved),
+        reason || (approved ? '权限模式已允许执行。' : '会话已停止。'),
+      )
       count += 1
     }
     return count
   }
 
   getPending(sessionId) {
-    return [...this.pending.values()].filter((approval) => approval.sessionId === sessionId).map(({ settle: _settle, ...approval }) => approval)
+    return [...this.pending.values()]
+      .filter((approval) => approval.sessionId === sessionId)
+      .map(({ settle: _settle, ...approval }) => approval)
   }
 
   dispose() {
-    for (const approval of [...this.pending.values()]) approval.settle(false, '应用正在关闭，工具未执行。')
+    for (const approval of [...this.pending.values()])
+      approval.settle(false, '应用正在关闭，工具未执行。')
     this.emitters.clear()
     this.resolved.clear()
   }

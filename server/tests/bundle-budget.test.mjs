@@ -1,9 +1,6 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
-import {
-  BUNDLE_BUDGETS,
-  validateBundle,
-} from '../../scripts/check-bundle-budget.mjs'
+import { BUNDLE_BUDGETS, validateBundle } from '../../scripts/check-bundle-budget.mjs'
 
 const ROUTE_SOURCES = [
   'src/features/chat/ChatPage.tsx',

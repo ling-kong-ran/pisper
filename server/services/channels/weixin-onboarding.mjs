@@ -18,12 +18,23 @@ function publicJob(job) {
 function delay(ms, signal) {
   return new Promise((resolve, reject) => {
     const timer = setTimeout(resolve, ms)
-    signal?.addEventListener('abort', () => { clearTimeout(timer); reject(new Error('abort')) }, { once: true })
+    signal?.addEventListener(
+      'abort',
+      () => {
+        clearTimeout(timer)
+        reject(new Error('abort'))
+      },
+      { once: true },
+    )
   })
 }
 
 export class WeixinOnboardingService {
-  constructor({ onCompleted, protocol = new WeixinProtocol(), renderQr = (url) => QRCode.toDataURL(url, { width: 248, margin: 2, errorCorrectionLevel: 'M' }) }) {
+  constructor({
+    onCompleted,
+    protocol = new WeixinProtocol(),
+    renderQr = (url) => QRCode.toDataURL(url, { width: 248, margin: 2, errorCorrectionLevel: 'M' }),
+  }) {
     this.onCompleted = onCompleted
     this.protocol = protocol
     this.renderQr = renderQr
@@ -31,9 +42,11 @@ export class WeixinOnboardingService {
   }
 
   async start({ localTokens = [] } = {}) {
-    for (const job of this.jobs.values()) if (!['completed', 'failed', 'cancelled'].includes(job.status)) job.controller.abort()
+    for (const job of this.jobs.values())
+      if (!['completed', 'failed', 'cancelled'].includes(job.status)) job.controller.abort()
     const response = await this.protocol.startQr({ localTokens })
-    if (!response.qrcode || !response.qrcode_img_content) throw new Error('微信登录服务未返回二维码。')
+    if (!response.qrcode || !response.qrcode_img_content)
+      throw new Error('微信登录服务未返回二维码。')
     const job = {
       id: randomUUID(),
       controller: new AbortController(),
@@ -50,7 +63,10 @@ export class WeixinOnboardingService {
     this.jobs.set(job.id, job)
     job.promise = this.poll(job).catch((error) => {
       if (job.controller.signal.aborted) job.status = 'cancelled'
-      else { job.status = 'failed'; job.error = error instanceof Error ? error.message : String(error) }
+      else {
+        job.status = 'failed'
+        job.error = error instanceof Error ? error.message : String(error)
+      }
     })
     return publicJob(job)
   }
@@ -58,19 +74,29 @@ export class WeixinOnboardingService {
   async poll(job) {
     let refreshes = 0
     while (!job.controller.signal.aborted && Date.now() < new Date(job.expireAt).getTime()) {
-      const result = await this.protocol.pollQr({ qrcode: job.qrcode, baseUrl: job.baseUrl, verifyCode: job.verifyCode, signal: job.controller.signal })
+      const result = await this.protocol.pollQr({
+        qrcode: job.qrcode,
+        baseUrl: job.baseUrl,
+        verifyCode: job.verifyCode,
+        signal: job.controller.signal,
+      })
       if (result.status === 'wait') job.status = 'waiting'
-      else if (result.status === 'scaned') { job.status = 'scanned'; job.verifyCode = '' }
-      else if (result.status === 'need_verifycode') {
+      else if (result.status === 'scaned') {
+        job.status = 'scanned'
+        job.verifyCode = ''
+      } else if (result.status === 'need_verifycode') {
         job.status = 'verification_required'
         const version = job.verifyVersion
-        while (!job.controller.signal.aborted && version === job.verifyVersion) await delay(500, job.controller.signal)
+        while (!job.controller.signal.aborted && version === job.verifyVersion)
+          await delay(500, job.controller.signal)
         continue
-      } else if (result.status === 'verify_code_blocked') throw new Error('配对码多次输入错误，请重新扫码。')
+      } else if (result.status === 'verify_code_blocked')
+        throw new Error('配对码多次输入错误，请重新扫码。')
       else if (result.status === 'scaned_but_redirect') {
         if (result.redirect_host) job.baseUrl = `https://${result.redirect_host}`
         job.status = 'scanned'
-      } else if (result.status === 'binded_redirect') throw new Error('该微信已绑定当前机器人，请先解除旧连接后重试。')
+      } else if (result.status === 'binded_redirect')
+        throw new Error('该微信已绑定当前机器人，请先解除旧连接后重试。')
       else if (result.status === 'expired') {
         refreshes += 1
         if (refreshes > 2) throw new Error('微信二维码已多次过期，请重新开始。')
@@ -81,7 +107,8 @@ export class WeixinOnboardingService {
         job.expireAt = new Date(Date.now() + 5 * 60_000).toISOString()
         job.status = 'waiting'
       } else if (result.status === 'confirmed') {
-        if (!result.bot_token || !result.ilink_bot_id) throw new Error('微信确认成功，但登录凭据不完整。')
+        if (!result.bot_token || !result.ilink_bot_id)
+          throw new Error('微信确认成功，但登录凭据不完整。')
         job.status = 'connecting'
         await this.onCompleted({
           accountId: result.ilink_bot_id,
@@ -127,4 +154,3 @@ export class WeixinOnboardingService {
     this.jobs.clear()
   }
 }
-

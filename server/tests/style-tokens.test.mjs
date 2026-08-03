@@ -10,11 +10,13 @@ const COMPONENT_COLOR_PATTERNS = [
 
 async function sourceFiles(directory) {
   const entries = await readdir(directory, { withFileTypes: true })
-  const files = await Promise.all(entries.map(async (entry) => {
-    const target = path.join(directory, entry.name)
-    if (entry.isDirectory()) return sourceFiles(target)
-    return /\.(?:js|jsx)$/.test(entry.name) ? [target] : []
-  }))
+  const files = await Promise.all(
+    entries.map(async (entry) => {
+      const target = path.join(directory, entry.name)
+      if (entry.isDirectory()) return sourceFiles(target)
+      return /\.(?:js|jsx)$/.test(entry.name) ? [target] : []
+    }),
+  )
   return files.flat()
 }
 

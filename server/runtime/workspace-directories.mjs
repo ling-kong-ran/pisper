@@ -1,6 +1,11 @@
 import { readdir, stat } from 'node:fs/promises'
 import { dirname, join, resolve, win32 } from 'node:path'
 
+/**
+ * @param {unknown} value
+ * @param {string} [platform]
+ * @returns {string}
+ */
 export function normalizeWorkspacePath(value, platform = process.platform) {
   const path = String(value || '').trim()
   if (platform !== 'win32') return path
@@ -9,11 +14,21 @@ export function normalizeWorkspacePath(value, platform = process.platform) {
   return path
 }
 
+/**
+ * @param {unknown} value
+ * @param {string} [platform]
+ * @returns {string}
+ */
 export function workspacePathKey(value, platform = process.platform) {
   const path = normalizeWorkspacePath(value, platform).replace(/[\\/]+$/, '')
   return platform === 'win32' ? path.toLowerCase() : path
 }
 
+/**
+ * @param {unknown} input
+ * @param {unknown} fallback
+ * @returns {Promise<string>}
+ */
 export async function resolveWorkspaceDirectory(
   input,
   fallback,
@@ -29,6 +44,10 @@ export async function resolveWorkspaceDirectory(
   return path
 }
 
+/**
+ * @param {unknown} input
+ * @param {unknown} fallback
+ */
 export async function listWorkspaceDirectories(
   input,
   fallback,

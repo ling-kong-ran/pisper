@@ -1,7 +1,17 @@
 import { randomUUID } from 'node:crypto'
-import { createAgentSession, createDefaultResourceLoader, DEFAULT_MAX_BYTES, estimateTokens, formatSize, SessionManager } from '../runtime/pi-coding-agent.mjs'
+import {
+  createAgentSession,
+  createDefaultResourceLoader,
+  DEFAULT_MAX_BYTES,
+  estimateTokens,
+  formatSize,
+  SessionManager,
+} from '../runtime/pi-coding-agent.mjs'
 import { applyPisperSystemPrompt, pisperPromptExtension } from '../prompts/pisper-system-prompt.mjs'
-import { createCompactionSettingsManager, pisperCompactionExtension } from '../runtime/compaction-policy.mjs'
+import {
+  createCompactionSettingsManager,
+  pisperCompactionExtension,
+} from '../runtime/compaction-policy.mjs'
 import { readJson, writeJsonAtomic } from '../storage/json-file.mjs'
 import { PLAN_WRITE_TOOL_NAMES } from '../tools/app/plan-tool-names.mjs'
 
@@ -52,25 +62,36 @@ Guidelines:
 function textFromContent(content) {
   if (typeof content === 'string') return content
   if (!Array.isArray(content)) return ''
-  return content.filter((part) => part?.type === 'text').map((part) => part.text || '').join('')
+  return content
+    .filter((part) => part?.type === 'text')
+    .map((part) => part.text || '')
+    .join('')
 }
 
 function usageTotal(messages = []) {
-  return messages.reduce((total, message) => {
-    if (message?.role !== 'assistant' || !message.usage) return total
-    const usage = message.usage
-    total.input += Number(usage.input) || 0
-    total.output += Number(usage.output) || 0
-    total.cacheRead += Number(usage.cacheRead) || 0
-    total.cacheWrite += Number(usage.cacheWrite) || 0
-    total.reasoning += Number(usage.reasoning) || 0
-    total.totalTokens += Number(usage.totalTokens ?? usage.total) || 0
-    return total
-  }, { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, reasoning: 0, totalTokens: 0 })
+  return messages.reduce(
+    (total, message) => {
+      if (message?.role !== 'assistant' || !message.usage) return total
+      const usage = message.usage
+      total.input += Number(usage.input) || 0
+      total.output += Number(usage.output) || 0
+      total.cacheRead += Number(usage.cacheRead) || 0
+      total.cacheWrite += Number(usage.cacheWrite) || 0
+      total.reasoning += Number(usage.reasoning) || 0
+      total.totalTokens += Number(usage.totalTokens ?? usage.total) || 0
+      return total
+    },
+    { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, reasoning: 0, totalTokens: 0 },
+  )
 }
 
 function usageDifference(total, baseline) {
-  return Object.fromEntries(Object.keys(total).map((key) => [key, Math.max(0, (Number(total[key]) || 0) - (Number(baseline?.[key]) || 0))]))
+  return Object.fromEntries(
+    Object.keys(total).map((key) => [
+      key,
+      Math.max(0, (Number(total[key]) || 0) - (Number(baseline?.[key]) || 0)),
+    ]),
+  )
 }
 
 function modelLabel(model) {
@@ -80,7 +101,9 @@ function modelLabel(model) {
 function modelFromLabel(value) {
   const label = String(value || '')
   const separator = label.indexOf('/')
-  return separator > 0 ? { provider: label.slice(0, separator), id: label.slice(separator + 1) } : null
+  return separator > 0
+    ? { provider: label.slice(0, separator), id: label.slice(separator + 1) }
+    : null
 }
 
 function emptyUsage() {
@@ -128,8 +151,22 @@ function restoredMailboxEntry(value) {
   const id = String(value?.id || '').trim()
   const parentSessionId = String(value?.parentSessionId || '').trim()
   const resultVersion = positiveInteger(value?.resultVersion)
-  if (!mailboxId || !id || !parentSessionId || !resultVersion || !TERMINAL_AGENT_STATUSES.has(value?.status)) return null
-  return { ...value, mailboxId, id, parentSessionId, resultVersion, fullOutput: String(value?.output || '') }
+  if (
+    !mailboxId ||
+    !id ||
+    !parentSessionId ||
+    !resultVersion ||
+    !TERMINAL_AGENT_STATUSES.has(value?.status)
+  )
+    return null
+  return {
+    ...value,
+    mailboxId,
+    id,
+    parentSessionId,
+    resultVersion,
+    fullOutput: String(value?.output || ''),
+  }
 }
 
 function restoredRecord(value) {
@@ -137,12 +174,17 @@ function restoredRecord(value) {
   const parentSessionId = String(value?.parentSessionId || '').trim()
   const model = modelFromLabel(value?.model)
   if (!id || !parentSessionId || !model) return null
-  const status = TERMINAL_AGENT_STATUSES.has(value?.status) || ACTIVE_AGENT_STATUSES.has(value?.status) ? value.status : 'failed'
+  const status =
+    TERMINAL_AGENT_STATUSES.has(value?.status) || ACTIVE_AGENT_STATUSES.has(value?.status)
+      ? value.status
+      : 'failed'
   const output = String(value?.output || '')
   return {
     id,
     taskName: normalizeTaskName(value?.taskName),
-    canonicalName: String(value?.canonicalName || `/root/${normalizeTaskName(value?.taskName)}_restored`),
+    canonicalName: String(
+      value?.canonicalName || `/root/${normalizeTaskName(value?.taskName)}_restored`,
+    ),
     parentSessionId,
     cwd: String(value?.cwd || ''),
     model,
@@ -169,7 +211,10 @@ function restoredRecord(value) {
     completedAt: value?.completedAt || null,
     durationMs: Number.isFinite(value?.durationMs) ? value.durationMs : null,
     status,
-    currentActivity: value?.currentActivity && typeof value.currentActivity === 'object' ? { ...value.currentActivity } : null,
+    currentActivity:
+      value?.currentActivity && typeof value.currentActivity === 'object'
+        ? { ...value.currentActivity }
+        : null,
     session: null,
     unsubscribe: () => {},
     aborted: false,
@@ -195,7 +240,9 @@ function boundedInteger(value, fallback, maximum) {
 }
 
 function modelOutputTokenLimit(model) {
-  const limits = [positiveInteger(model?.contextWindow), positiveInteger(model?.maxTokens)].filter(Boolean)
+  const limits = [positiveInteger(model?.contextWindow), positiveInteger(model?.maxTokens)].filter(
+    Boolean,
+  )
   return limits.length ? Math.min(...limits) : null
 }
 
@@ -219,9 +266,22 @@ function contextLimitedText(value, model) {
   const tokenTruncated = Boolean(tokenLimit && estimatedTokens > tokenLimit)
   const byteTruncated = outputBytes > DEFAULT_MAX_BYTES
   if (!tokenTruncated && !byteTruncated) {
-    return { text, fullText: text, truncated: false, estimatedTokens, tokenLimit, outputBytes, byteLimit: DEFAULT_MAX_BYTES }
+    return {
+      text,
+      fullText: text,
+      truncated: false,
+      estimatedTokens,
+      tokenLimit,
+      outputBytes,
+      byteLimit: DEFAULT_MAX_BYTES,
+    }
   }
-  const reasons = [tokenTruncated ? 'model context' : '', byteTruncated ? `${formatSize(DEFAULT_MAX_BYTES)} Pisper tool-output limit` : ''].filter(Boolean).join(' and ')
+  const reasons = [
+    tokenTruncated ? 'model context' : '',
+    byteTruncated ? `${formatSize(DEFAULT_MAX_BYTES)} Pisper tool-output limit` : '',
+  ]
+    .filter(Boolean)
+    .join(' and ')
   const suffix = `\n\n[Output truncated for ${reasons}.]`
   const byteBudget = Math.max(0, DEFAULT_MAX_BYTES - Buffer.byteLength(suffix, 'utf8'))
   const charBudget = tokenTruncated ? Math.max(0, tokenLimit * 4 - suffix.length) : text.length
@@ -237,8 +297,9 @@ function contextLimitedText(value, model) {
 }
 
 function childTools(allowedTools) {
-  return [...new Set(Array.isArray(allowedTools) ? allowedTools.filter(Boolean) : [])]
-    .filter((tool) => !PARENT_ONLY_TOOL_NAMES.has(tool))
+  return [...new Set(Array.isArray(allowedTools) ? allowedTools.filter(Boolean) : [])].filter(
+    (tool) => !PARENT_ONLY_TOOL_NAMES.has(tool),
+  )
 }
 
 function inheritedCustomTools(tools, customTools) {
@@ -247,7 +308,9 @@ function inheritedCustomTools(tools, customTools) {
 }
 
 function normalizeTaskName(value) {
-  const normalized = String(value || '').trim().toLowerCase()
+  const normalized = String(value || '')
+    .trim()
+    .toLowerCase()
     .replace(/[^a-z0-9_-]+/g, '_')
     .replace(/_+/g, '_')
     .replace(/^_|_$/g, '')
@@ -255,7 +318,12 @@ function normalizeTaskName(value) {
   return normalized || 'task'
 }
 
-async function createAgentResourceLoader({ cwd, agentDir, settingsManager, appendSystemPrompt = MULTI_AGENT_SYSTEM_PROMPT }) {
+async function createAgentResourceLoader({
+  cwd,
+  agentDir,
+  settingsManager,
+  appendSystemPrompt = MULTI_AGENT_SYSTEM_PROMPT,
+}) {
   const loader = await createDefaultResourceLoader({
     cwd,
     agentDir: agentDir || cwd,
@@ -389,7 +457,11 @@ export class MultiAgentService {
         const completedAt = new Date(this.now()).toISOString()
         record.status = 'interrupted'
         record.error = RESTART_INTERRUPTION_REASON
-        record.tools = record.tools.map((tool) => tool.status === 'running' ? { ...tool, status: 'error', message: RESTART_INTERRUPTION_REASON } : tool)
+        record.tools = record.tools.map((tool) =>
+          tool.status === 'running'
+            ? { ...tool, status: 'error', message: RESTART_INTERRUPTION_REASON }
+            : tool,
+        )
         record.completedAt = completedAt
         record.lastActivityAt = completedAt
         record.durationMs = Math.max(0, this.now() - new Date(record.startedAt).getTime())
@@ -444,9 +516,11 @@ export class MultiAgentService {
     let changed = false
     for (const [mailboxId, entry] of this.mailbox) {
       if (entry.parentSessionId !== parentSessionId) continue
-      const delivered = deliveries.some((agent) => agent?.mailboxId
-        ? agent.mailboxId === mailboxId
-        : agent?.id === entry.id && Number(agent?.resultVersion) === entry.resultVersion)
+      const delivered = deliveries.some((agent) =>
+        agent?.mailboxId
+          ? agent.mailboxId === mailboxId
+          : agent?.id === entry.id && Number(agent?.resultVersion) === entry.resultVersion,
+      )
       if (!delivered) continue
       this.mailbox.delete(mailboxId)
       changed = true
@@ -471,12 +545,20 @@ export class MultiAgentService {
 
   find(parentSessionId, target) {
     const value = String(target || '').trim()
-    return [...this.records.values()].reverse().find((record) => record.parentSessionId === parentSessionId
-      && [record.id, record.taskName, record.canonicalName].includes(value))
+    return [...this.records.values()]
+      .reverse()
+      .find(
+        (record) =>
+          record.parentSessionId === parentSessionId &&
+          [record.id, record.taskName, record.canonicalName].includes(value),
+      )
   }
 
   hasActive(parentSessionId) {
-    return [...this.records.values()].some((record) => record.parentSessionId === parentSessionId && ACTIVE_AGENT_STATUSES.has(record.status))
+    return [...this.records.values()].some(
+      (record) =>
+        record.parentSessionId === parentSessionId && ACTIVE_AGENT_STATUSES.has(record.status),
+    )
   }
 
   clearTerminalSessionTimer(record) {
@@ -489,8 +571,12 @@ export class MultiAgentService {
   releaseTerminalSession(record) {
     this.clearTerminalSessionTimer(record)
     if (ACTIVE_AGENT_STATUSES.has(record.status) || record.slotActive) return false
-    try { record.unsubscribe?.() } catch {}
-    try { record.session?.dispose?.() } catch {}
+    try {
+      record.unsubscribe?.()
+    } catch {}
+    try {
+      record.session?.dispose?.()
+    } catch {}
     record.session = null
     record.unsubscribe = () => {}
     record.customTools = []
@@ -527,15 +613,20 @@ export class MultiAgentService {
   }
 
   prune(parentSessionId) {
-    const records = [...this.records.values()].filter((record) => record.parentSessionId === parentSessionId)
+    const records = [...this.records.values()].filter(
+      (record) => record.parentSessionId === parentSessionId,
+    )
     const removable = records.filter((record) => !ACTIVE_AGENT_STATUSES.has(record.status))
     while (records.length >= MAX_AGENTS_PER_PARENT && removable.length) {
       const record = removable.shift()
       this.removeRecord(record)
       records.splice(records.indexOf(record), 1)
     }
-    const globalRemovable = [...this.records.values()].filter((record) => !ACTIVE_AGENT_STATUSES.has(record.status))
-    while (this.records.size >= MAX_AGENT_RECORDS && globalRemovable.length) this.removeRecord(globalRemovable.shift())
+    const globalRemovable = [...this.records.values()].filter(
+      (record) => !ACTIVE_AGENT_STATUSES.has(record.status),
+    )
+    while (this.records.size >= MAX_AGENT_RECORDS && globalRemovable.length)
+      this.removeRecord(globalRemovable.shift())
   }
 
   notifyMailbox(agent) {
@@ -549,7 +640,9 @@ export class MultiAgentService {
 
   emit(record, onProgress) {
     record.lastActivityAt = new Date(this.now()).toISOString()
-    try { onProgress?.(publicRecord(record)) } catch {}
+    try {
+      onProgress?.(publicRecord(record))
+    } catch {}
     void this.save().catch(() => {})
   }
 
@@ -568,7 +661,11 @@ export class MultiAgentService {
       slots -= 1
       record.status = 'starting'
       record.slotActive = true
-      record.currentActivity = { type: 'model', stage: 'starting', updatedAt: new Date(this.now()).toISOString() }
+      record.currentActivity = {
+        type: 'model',
+        stage: 'starting',
+        updatedAt: new Date(this.now()).toISOString(),
+      }
       this.emit(record, record.onProgress)
       record.runningPromise = this.startRun(record, record.message).catch(() => {})
     }
@@ -584,8 +681,13 @@ export class MultiAgentService {
       ? pendingMailbox.find((agent) => agent.id === targetRecord.id)
       : pendingMailbox[0]
     if (pendingDelivery) return { timedOut: false, agents: current, agent: pendingDelivery }
-    if (targetRecord && TERMINAL_AGENT_STATUSES.has(targetRecord.status)) return { timedOut: false, agents: current, agent: publicRecord(targetRecord) }
-    const activeIds = new Set(current.filter((record) => ACTIVE_AGENT_STATUSES.has(record.status)).map((record) => record.id))
+    if (targetRecord && TERMINAL_AGENT_STATUSES.has(targetRecord.status))
+      return { timedOut: false, agents: current, agent: publicRecord(targetRecord) }
+    const activeIds = new Set(
+      current
+        .filter((record) => ACTIVE_AGENT_STATUSES.has(record.status))
+        .map((record) => record.id),
+    )
     if (!activeIds.size) return { timedOut: false, agents: current, agent: null }
     const matches = targetRecord
       ? (agent) => agent.id === targetRecord.id
@@ -607,22 +709,44 @@ export class MultiAgentService {
       const waiters = this.mailboxWaiters.get(parentSessionId) || new Set()
       waiters.add(waiter)
       this.mailboxWaiters.set(parentSessionId, waiters)
-      timer = this.setTimer(() => finish(null, true), Math.max(250, Math.min(30_000, Number(timeoutMs) || 15_000)))
+      timer = this.setTimer(
+        () => finish(null, true),
+        Math.max(250, Math.min(30_000, Number(timeoutMs) || 15_000)),
+      )
       timer?.unref?.()
     })
   }
 
-  async spawn({ parentSessionId, cwd, model, thinkingLevel, taskName, message, allowedTools, customTools, maxTurns, onProgress, onSession, onCompleted, onTerminal } = {}) {
+  async spawn({
+    parentSessionId,
+    cwd,
+    model,
+    thinkingLevel,
+    taskName,
+    message,
+    allowedTools,
+    customTools,
+    maxTurns,
+    onProgress,
+    onSession,
+    onCompleted,
+    onTerminal,
+  } = {}) {
     if (!parentSessionId) throw new Error('Agent requires a parent session.')
     if (!cwd) throw new Error('Agent requires a workspace directory.')
     if (!model) throw new Error('Agent requires an active parent model.')
     const normalizedMessage = String(message || '').trim()
     if (!normalizedMessage) throw new Error('Agent task cannot be empty.')
-    if (normalizedMessage.length > MAX_AGENT_TASK_CHARS) throw new Error(`Agent task is limited to ${MAX_AGENT_TASK_CHARS} characters.`)
+    if (normalizedMessage.length > MAX_AGENT_TASK_CHARS)
+      throw new Error(`Agent task is limited to ${MAX_AGENT_TASK_CHARS} characters.`)
     this.prune(parentSessionId)
-    const parentRecordCount = [...this.records.values()].filter((record) => record.parentSessionId === parentSessionId).length
-    if (parentRecordCount >= MAX_AGENTS_PER_PARENT) throw new Error(`Agent record limit reached for this session (${MAX_AGENTS_PER_PARENT}).`)
-    if (this.records.size >= MAX_AGENT_RECORDS) throw new Error(`Global Agent record limit reached (${MAX_AGENT_RECORDS}).`)
+    const parentRecordCount = [...this.records.values()].filter(
+      (record) => record.parentSessionId === parentSessionId,
+    ).length
+    if (parentRecordCount >= MAX_AGENTS_PER_PARENT)
+      throw new Error(`Agent record limit reached for this session (${MAX_AGENTS_PER_PARENT}).`)
+    if (this.records.size >= MAX_AGENT_RECORDS)
+      throw new Error(`Global Agent record limit reached (${MAX_AGENT_RECORDS}).`)
     const id = randomUUID()
     const normalizedName = normalizeTaskName(taskName)
     const record = {
@@ -689,7 +813,12 @@ export class MultiAgentService {
           () => record.model?.contextWindow,
           this.getCompactionThresholdPercent,
         )
-        const resourceLoader = await this.createResourceLoader({ cwd: record.cwd, agentDir: this.agentDir || record.cwd, settingsManager, appendSystemPrompt: MULTI_AGENT_SYSTEM_PROMPT })
+        const resourceLoader = await this.createResourceLoader({
+          cwd: record.cwd,
+          agentDir: this.agentDir || record.cwd,
+          settingsManager,
+          appendSystemPrompt: MULTI_AGENT_SYSTEM_PROMPT,
+        })
         if (!isCurrent()) return
         if (record.aborted) throw new Error(record.abortReason || 'Agent was interrupted.')
         const sessionManager = this.createSessionManager(record.cwd)
@@ -708,11 +837,15 @@ export class MultiAgentService {
           ...(childCustomTools.length ? { customTools: childCustomTools } : {}),
         })
         if (!isCurrent()) {
-          try { result?.session?.dispose?.() } catch {}
+          try {
+            result?.session?.dispose?.()
+          } catch {}
           return
         }
         if (record.aborted) {
-          try { result?.session?.dispose?.() } catch {}
+          try {
+            result?.session?.dispose?.()
+          } catch {}
           throw new Error(record.abortReason || 'Agent was interrupted.')
         }
         if (!result?.session) throw new Error('Agent session could not be created.')
@@ -723,20 +856,46 @@ export class MultiAgentService {
           // Session is reused across follow-up runs; always attribute live events to the current record state.
           if (event.type === 'turn_start') {
             record.turnCount += 1
-            record.currentActivity = { type: 'model', stage: 'thinking', updatedAt: new Date(this.now()).toISOString() }
+            record.currentActivity = {
+              type: 'model',
+              stage: 'thinking',
+              updatedAt: new Date(this.now()).toISOString(),
+            }
             if (record.turnCount > record.maxTurns) {
-              this.interrupt(record.parentSessionId, record.id, `Agent exceeded its ${record.maxTurns}-turn limit.`)
+              this.interrupt(
+                record.parentSessionId,
+                record.id,
+                `Agent exceeded its ${record.maxTurns}-turn limit.`,
+              )
             }
           } else if (event.type === 'tool_execution_start') {
             record.toolCallCount += 1
-            const tool = { type: 'tool', id: event.toolCallId, name: event.toolName, args: event.args, status: 'running', startedAt: new Date(this.now()).toISOString() }
+            const tool = {
+              type: 'tool',
+              id: event.toolCallId,
+              name: event.toolName,
+              args: event.args,
+              status: 'running',
+              startedAt: new Date(this.now()).toISOString(),
+            }
             record.tools.push(tool)
             record.currentActivity = tool
           } else if (event.type === 'tool_execution_end') {
             const finishedAt = new Date(this.now()).toISOString()
-            record.tools = record.tools.map((tool) => tool.id === event.toolCallId ? { ...tool, status: event.isError ? 'error' : 'done', finishedAt } : tool)
+            record.tools = record.tools.map((tool) =>
+              tool.id === event.toolCallId
+                ? { ...tool, status: event.isError ? 'error' : 'done', finishedAt }
+                : tool,
+            )
             record.currentActivity = event.isError
-              ? { ...(record.currentActivity || {}), type: 'tool', id: event.toolCallId, name: event.toolName, status: 'error', finishedAt }
+              ? {
+                  ...(record.currentActivity || {}),
+                  type: 'tool',
+                  id: event.toolCallId,
+                  name: event.toolName,
+                  status: 'error',
+                  finishedAt,
+                }
               : { type: 'model', stage: 'processing_result', updatedAt: finishedAt }
           }
           this.emit(record, record.onProgress)
@@ -755,7 +914,11 @@ export class MultiAgentService {
       record.outputTruncated = false
       record.runUsage = emptyUsage()
       record.status = 'running'
-      record.currentActivity = { type: 'model', stage: 'thinking', updatedAt: new Date(this.now()).toISOString() }
+      record.currentActivity = {
+        type: 'model',
+        stage: 'thinking',
+        updatedAt: new Date(this.now()).toISOString(),
+      }
       record.error = ''
       record.completedAt = null
       record.durationMs = null
@@ -765,7 +928,9 @@ export class MultiAgentService {
         const pendingMessages = record.pendingMessages.splice(0)
         for (const pending of pendingMessages) await record.session[pending.behavior](pending.text)
       } catch (error) {
-        try { await record.session.abort?.() } catch {}
+        try {
+          await record.session.abort?.()
+        } catch {}
         await promptPromise.catch(() => {})
         throw error
       }
@@ -792,15 +957,21 @@ export class MultiAgentService {
       await this.save()
       this.notifyMailbox(delivery)
       this.notifyCompletion(terminal)
-      try { await record.onCompleted?.(terminal) } catch {}
-      try { await record.onTerminal?.(terminal) } catch {}
+      try {
+        await record.onCompleted?.(terminal)
+      } catch {}
+      try {
+        await record.onTerminal?.(terminal)
+      } catch {}
     } catch (error) {
       if (!isCurrent()) return
       const wasTerminal = TERMINAL_AGENT_STATUSES.has(record.status) && Boolean(record.completedAt)
       record.error = error instanceof Error ? error.message : String(error)
       record.status = record.aborted ? 'interrupted' : 'failed'
       record.currentActivity = null
-      record.tools = record.tools.map((tool) => tool.status === 'running' ? { ...tool, status: 'error', message: record.error } : tool)
+      record.tools = record.tools.map((tool) =>
+        tool.status === 'running' ? { ...tool, status: 'error', message: record.error } : tool,
+      )
       record.completedAt ||= new Date(this.now()).toISOString()
       record.lastActivityAt = record.completedAt
       record.durationMs ??= this.now() - startedAt
@@ -813,14 +984,18 @@ export class MultiAgentService {
       if (terminal) {
         this.notifyMailbox(delivery)
         this.notifyCompletion(terminal)
-        try { await record.onTerminal?.(terminal) } catch {}
+        try {
+          await record.onTerminal?.(terminal)
+        } catch {}
       }
     } finally {
       if (record.runGeneration === generation) {
         record.slotActive = false
         this.scheduleTerminalSessionRelease(record)
       }
-      try { await this.scheduleQueued() } catch {}
+      try {
+        await this.scheduleQueued()
+      } catch {}
     }
   }
 
@@ -829,13 +1004,15 @@ export class MultiAgentService {
     if (!record) throw new Error(`Unknown agent: ${target}`)
     const text = String(message || '').trim()
     if (!text) throw new Error('Agent message cannot be empty.')
-    if (text.length > MAX_AGENT_TASK_CHARS) throw new Error(`Agent message is limited to ${MAX_AGENT_TASK_CHARS} characters.`)
+    if (text.length > MAX_AGENT_TASK_CHARS)
+      throw new Error(`Agent message is limited to ${MAX_AGENT_TASK_CHARS} characters.`)
     if (['queued', 'starting'].includes(record.status)) {
       record.pendingMessages.push({ behavior: 'steer', text })
       this.emit(record, record.onProgress)
       return publicRecord(record)
     }
-    if (record.status !== 'running' || !record.session) throw new Error('Agent is not running. Use followup_task to start another run.')
+    if (record.status !== 'running' || !record.session)
+      throw new Error('Agent is not running. Use followup_task to start another run.')
     await record.session.steer(text)
     this.emit(record, record.onProgress)
     return publicRecord(record)
@@ -846,7 +1023,8 @@ export class MultiAgentService {
     if (!record) throw new Error(`Unknown agent: ${target}`)
     const text = String(message || '').trim()
     if (!text) throw new Error('Follow-up task cannot be empty.')
-    if (text.length > MAX_AGENT_TASK_CHARS) throw new Error(`Follow-up task is limited to ${MAX_AGENT_TASK_CHARS} characters.`)
+    if (text.length > MAX_AGENT_TASK_CHARS)
+      throw new Error(`Follow-up task is limited to ${MAX_AGENT_TASK_CHARS} characters.`)
     this.clearTerminalSessionTimer(record)
 
     if (['queued', 'starting'].includes(record.status)) {
@@ -875,7 +1053,8 @@ export class MultiAgentService {
         this.emit(record, record.onProgress)
         return publicRecord(record)
       }
-      if (!record.session) throw new Error('Agent context expired from memory. Spawn a new Agent for another task.')
+      if (!record.session)
+        throw new Error('Agent context expired from memory. Spawn a new Agent for another task.')
       record.aborted = false
       record.abortReason = ''
       record.startedAt = new Date(this.now()).toISOString()
@@ -903,7 +1082,9 @@ export class MultiAgentService {
     record.status = 'interrupted'
     record.currentActivity = null
     record.error = reason
-    record.tools = record.tools.map((tool) => tool.status === 'running' ? { ...tool, status: 'error', message: reason } : tool)
+    record.tools = record.tools.map((tool) =>
+      tool.status === 'running' ? { ...tool, status: 'error', message: reason } : tool,
+    )
     record.completedAt = new Date(this.now()).toISOString()
     record.lastActivityAt = record.completedAt
     record.durationMs = Math.max(0, this.now() - new Date(record.startedAt).getTime())
@@ -916,11 +1097,13 @@ export class MultiAgentService {
     const terminal = publicRecord(record)
     const delivery = this.enqueueMailbox(terminal)
     this.emit(record, record.onProgress)
-    void this.flush().then(() => {
-      this.notifyMailbox(delivery)
-      this.notifyCompletion(terminal)
-      return record.onTerminal?.(terminal)
-    }).catch(() => {})
+    void this.flush()
+      .then(() => {
+        this.notifyMailbox(delivery)
+        this.notifyCompletion(terminal)
+        return record.onTerminal?.(terminal)
+      })
+      .catch(() => {})
     if (!record.slotActive) this.scheduleTerminalSessionRelease(record)
     if (schedule) void this.scheduleQueued().catch(() => {})
     return terminal
@@ -929,8 +1112,14 @@ export class MultiAgentService {
   abortParent(parentSessionId) {
     let count = 0
     for (const record of this.records.values()) {
-      if (record.parentSessionId !== parentSessionId || !ACTIVE_AGENT_STATUSES.has(record.status)) continue
-      this.interrupt(parentSessionId, record.id, 'Agent was cancelled because the parent session stopped.', false)
+      if (record.parentSessionId !== parentSessionId || !ACTIVE_AGENT_STATUSES.has(record.status))
+        continue
+      this.interrupt(
+        parentSessionId,
+        record.id,
+        'Agent was cancelled because the parent session stopped.',
+        false,
+      )
       count += 1
     }
     void this.scheduleQueued().catch(() => {})
@@ -942,8 +1131,12 @@ export class MultiAgentService {
     for (const [id, record] of this.records) {
       if (record.parentSessionId !== parentSessionId) continue
       this.clearTerminalSessionTimer(record)
-      try { record.unsubscribe?.() } catch {}
-      try { record.session?.dispose?.() } catch {}
+      try {
+        record.unsubscribe?.()
+      } catch {}
+      try {
+        record.session?.dispose?.()
+      } catch {}
       this.records.delete(id)
     }
     for (const [mailboxId, entry] of this.mailbox) {
@@ -955,15 +1148,21 @@ export class MultiAgentService {
   async dispose() {
     this.disposing = true
     for (const record of this.records.values()) {
-      if (ACTIVE_AGENT_STATUSES.has(record.status)) this.interrupt(record.parentSessionId, record.id, 'Agent service is shutting down.', false)
+      if (ACTIVE_AGENT_STATUSES.has(record.status))
+        this.interrupt(record.parentSessionId, record.id, 'Agent service is shutting down.', false)
       this.clearTerminalSessionTimer(record)
-      try { record.unsubscribe?.() } catch {}
-      try { record.session?.dispose?.() } catch {}
+      try {
+        record.unsubscribe?.()
+      } catch {}
+      try {
+        record.session?.dispose?.()
+      } catch {}
     }
     await this.flush()
     this.records.clear()
     this.mailbox.clear()
-    for (const waiters of this.mailboxWaiters.values()) for (const waiter of [...waiters]) waiter.finish(null, false)
+    for (const waiters of this.mailboxWaiters.values())
+      for (const waiter of [...waiters]) waiter.finish(null, false)
     this.mailboxWaiters.clear()
   }
 }

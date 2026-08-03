@@ -21,7 +21,16 @@ test('structured MCP tools list and mutate services without shell or local HTTP 
     },
     async add(config) {
       calls.push({ action: 'add', config })
-      current = dashboard([{ id: 'pencil', name: config.name, transport: config.transport, command: config.command, workingDirectory: config.cwd, tools: [] }])
+      current = dashboard([
+        {
+          id: 'pencil',
+          name: config.name,
+          transport: config.transport,
+          command: config.command,
+          workingDirectory: config.cwd,
+          tools: [],
+        },
+      ])
       return current
     },
     async update(id, config) {
@@ -48,12 +57,25 @@ test('structured MCP tools list and mutate services without shell or local HTTP 
 
   await list.execute('list-1', { refresh: false })
   const command = 'C:\\Users\\lkr\\.pencil\\mcp\\server.exe'
-  await manage.execute('manage-1', {
-    action: 'add',
-    config: { name: 'Pencil', transport: 'stdio', command, args: ['--app', 'desktop'], cwd: 'C:\\Users\\lkr\\.pencil' },
-  }, new AbortController().signal)
+  await manage.execute(
+    'manage-1',
+    {
+      action: 'add',
+      config: {
+        name: 'Pencil',
+        transport: 'stdio',
+        command,
+        args: ['--app', 'desktop'],
+        cwd: 'C:\\Users\\lkr\\.pencil',
+      },
+    },
+    new AbortController().signal,
+  )
   await manage.execute('manage-2', { action: 'delete', id: 'pencil' }, new AbortController().signal)
 
   assert.equal(calls[1].config.command, command)
-  assert.deepEqual(calls.map((call) => call.action), ['list', 'add', 'delete', 'list'])
+  assert.deepEqual(
+    calls.map((call) => call.action),
+    ['list', 'add', 'delete', 'list'],
+  )
 })

@@ -57,13 +57,16 @@ if (dirty) throw new Error('发布前工作区必须保持干净，请先提交�
 const branch = run('git', ['branch', '--show-current'], { capture: true })
 if (!branch) throw new Error('当前处于 detached HEAD，无法创建版本提交。')
 const releaseBranch = String(process.env.PISPER_RELEASE_BRANCH || 'main').trim()
-if (branch !== releaseBranch) throw new Error(`只能从 ${releaseBranch} 分支发布，当前分支为 ${branch}。`)
+if (branch !== releaseBranch)
+  throw new Error(`只能从 ${releaseBranch} 分支发布，当前分支为 ${branch}。`)
 
 run('git', ['fetch', '--tags', 'origin'])
 
 let upstream = ''
 try {
-  upstream = run('git', ['rev-parse', '--abbrev-ref', '--symbolic-full-name', '@{upstream}'], { capture: true })
+  upstream = run('git', ['rev-parse', '--abbrev-ref', '--symbolic-full-name', '@{upstream}'], {
+    capture: true,
+  })
 } catch {
   throw new Error(`当前分支 ${branch} 没有上游分支，请先设置 origin/${branch}。`)
 }
@@ -81,7 +84,12 @@ runNpm(['run', 'build'])
 runNpm(['run', 'tui:test'])
 runNpm(['run', 'tui:check'])
 
-const dependencyFiles = ['package.json', 'package-lock.json', 'src-tui/Cargo.toml', 'src-tui/Cargo.lock']
+const dependencyFiles = [
+  'package.json',
+  'package-lock.json',
+  'src-tui/Cargo.toml',
+  'src-tui/Cargo.lock',
+]
 if (run('git', ['status', '--porcelain', '--', ...dependencyFiles], { capture: true })) {
   run('git', ['add', '--', ...dependencyFiles])
   run('git', ['commit', '-m', 'chore(deps): refresh release dependencies'])
@@ -104,12 +112,9 @@ if (latestTag && compareVersions(nextVersion, latestTag.replace(/^v/i, '')) <= 0
   throw new Error(`新版本 ${nextVersion} 必须高于最新标签 ${latestTag}。`)
 }
 
-const versionOutput = runNpm([
-  'version',
-  nextVersion,
-  '--message',
-  'chore(release): v%s',
-], { capture: true })
+const versionOutput = runNpm(['version', nextVersion, '--message', 'chore(release): v%s'], {
+  capture: true,
+})
 const bumpedVersion = versionOutput
   .split(/\r?\n/)
   .map((line) => line.trim())

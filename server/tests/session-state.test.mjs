@@ -31,11 +31,10 @@ test('interactive user messages keep the current Agent bubble last between queue
     { id: 'agent-1', role: 'agent', text: 'Working', streaming: true },
   ]
   const steering = { id: 'user-2', role: 'user', text: 'Also update the tests' }
-  assert.deepEqual(insertInteractiveUserMessage(messages, steering).map((message) => message.id), [
-    'user-1',
-    'user-2',
-    'agent-1',
-  ])
+  assert.deepEqual(
+    insertInteractiveUserMessage(messages, steering).map((message) => message.id),
+    ['user-1', 'user-2', 'agent-1'],
+  )
   assert.deepEqual(
     insertInteractiveUserMessage(
       [{ id: 'agent-between-turns', role: 'agent', streaming: false }],
@@ -77,7 +76,10 @@ test('an explicit empty queue clears stale composer guidance', () => {
 })
 
 test('cleared plans do not fall back to stale session list data', () => {
-  const stale = { items: [{ id: 'old', title: 'Old plan', status: 'pending' }], updatedAt: '2026-01-01' }
+  const stale = {
+    items: [{ id: 'old', title: 'Old plan', status: 'pending' }],
+    updatedAt: '2026-01-01',
+  }
   const cleared = resolveSessionPlan({ loaded: true, plan: null }, { plan: stale })
   assert.equal(cleared, null)
   const fromSession = resolveSessionPlan(undefined, { plan: stale })
@@ -90,5 +92,8 @@ test('fully completed plans hide when idle but stay visible while streaming', ()
   const completed = { items: [{ id: 'a', title: 'Done', status: 'completed' }] }
   assert.equal(isPlanActive(completed, { streaming: false }), false)
   assert.equal(isPlanActive(completed, { streaming: true }), true)
-  assert.equal(isPlanActive({ items: [{ id: 'a', title: 'Todo', status: 'pending' }] }, { streaming: false }), true)
+  assert.equal(
+    isPlanActive({ items: [{ id: 'a', title: 'Todo', status: 'pending' }] }, { streaming: false }),
+    true,
+  )
 })

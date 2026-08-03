@@ -7,7 +7,9 @@ import { formatSkillsForPrompt, loadSkills } from '@earendil-works/pi-coding-age
 
 const execFileAsync = promisify(execFile)
 const skillPath = resolve('.agents/skills/prompt-cache-optimizer/SKILL.md')
-const scriptPath = resolve('.agents/skills/prompt-cache-optimizer/scripts/measure-tool-overhead.mjs')
+const scriptPath = resolve(
+  '.agents/skills/prompt-cache-optimizer/scripts/measure-tool-overhead.mjs',
+)
 
 test('prompt cache optimizer skill is hidden from default model context and remains explicitly invocable', () => {
   const loaded = loadSkills({
@@ -41,8 +43,19 @@ test('prompt cache optimizer measurement script verifies stable prompt and appen
   )
   assert.equal(result.hot.promptMatchesHot, true)
   for (const scenario of result.scenarios) {
-    assert.equal(scenario.promptMatchesHot, true, `${scenario.label} changed the stable system prompt`)
-    assert.equal(scenario.hotSchemaIsExactPrefix, true, `${scenario.label} did not append its cold schemas`)
-    assert.ok(scenario.toolSchemaTokens > result.hot.toolSchemaTokens, `${scenario.label} did not activate cold schemas`)
+    assert.equal(
+      scenario.promptMatchesHot,
+      true,
+      `${scenario.label} changed the stable system prompt`,
+    )
+    assert.equal(
+      scenario.hotSchemaIsExactPrefix,
+      true,
+      `${scenario.label} did not append its cold schemas`,
+    )
+    assert.ok(
+      scenario.toolSchemaTokens > result.hot.toolSchemaTokens,
+      `${scenario.label} did not activate cold schemas`,
+    )
   }
 })

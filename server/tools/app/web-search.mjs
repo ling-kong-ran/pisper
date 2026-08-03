@@ -8,7 +8,8 @@ export const manifest = {
   risk: 'medium',
   description: 'Search the internet through Bing RSS without installation or an API key.',
   scope: 'Bing public web search',
-  capability: 'Send search terms and return titles, links, summaries, and dates without modifying web pages',
+  capability:
+    'Send search terms and return titles, links, summaries, and dates without modifying web pages',
   source: 'app',
 }
 
@@ -26,10 +27,20 @@ export function createWebSearchTool({ webSearchService }) {
       'Search queries are sent to Bing. Do not include credentials, private data, or other secrets in a query.',
     ],
     parameters: Type.Object({
-      query: Type.String({ minLength: 1, maxLength: 500, description: 'Search keywords or question' }),
-      language: Type.Optional(Type.String({ maxLength: 40, description: 'Language code such as zh-CN, en-US, or auto' })),
-      page: Type.Optional(Type.Number({ minimum: 1, maximum: 20, description: 'Result page number' })),
-      limit: Type.Optional(Type.Number({ minimum: 1, maximum: 12, description: 'Maximum number of results' })),
+      query: Type.String({
+        minLength: 1,
+        maxLength: 500,
+        description: 'Search keywords or question',
+      }),
+      language: Type.Optional(
+        Type.String({ maxLength: 40, description: 'Language code such as zh-CN, en-US, or auto' }),
+      ),
+      page: Type.Optional(
+        Type.Number({ minimum: 1, maximum: 20, description: 'Result page number' }),
+      ),
+      limit: Type.Optional(
+        Type.Number({ minimum: 1, maximum: 12, description: 'Maximum number of results' }),
+      ),
     }),
     async execute(_toolCallId, params, signal, onUpdate) {
       if (!webSearchService) throw new Error('Web search service is not initialized.')

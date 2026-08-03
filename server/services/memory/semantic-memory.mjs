@@ -10,7 +10,10 @@ const SUMMARY_SYSTEM_PROMPT = [
 function textFromContent(content) {
   if (typeof content === 'string') return content
   return Array.isArray(content)
-    ? content.filter((part) => part?.type === 'text').map((part) => part.text || '').join('')
+    ? content
+        .filter((part) => part?.type === 'text')
+        .map((part) => part.text || '')
+        .join('')
     : ''
 }
 
@@ -20,20 +23,32 @@ export function createSemanticMemorySummarizer({ getModelRuntime, getDefaultMode
       const modelRuntime = getModelRuntime?.()
       const model = getDefaultModel?.()
       if (!modelRuntime || !model) return entries.map(() => '')
-      const blocks = entries.map((entry, index) => `${index + 1}. ${String(entry?.title || '').slice(0, 140)}\n${String(entry?.content || '').slice(0, 1000)}`)
-      const result = await modelRuntime.completeSimple(model, {
-        systemPrompt: SUMMARY_SYSTEM_PROMPT,
-        messages: [{
-          role: 'user',
-          content: `Expand each memory into one semantic keyword line:\n\n${blocks.join('\n\n')}`,
-          timestamp: Date.now(),
-        }],
-      }, {
-        ...(model.reasoning ? { reasoning: 'low' } : { temperature: 0.1 }),
-        maxTokens: Math.min(1200, Math.max(400, entries.length * 120)),
-      })
+      const blocks = entries.map(
+        (entry, index) =>
+          `${index + 1}. ${String(entry?.title || '').slice(0, 140)}\n${String(entry?.content || '').slice(0, 1000)}`,
+      )
+      const result = await modelRuntime.completeSimple(
+        model,
+        {
+          systemPrompt: SUMMARY_SYSTEM_PROMPT,
+          messages: [
+            {
+              role: 'user',
+              content: `Expand each memory into one semantic keyword line:\n\n${blocks.join('\n\n')}`,
+              timestamp: Date.now(),
+            },
+          ],
+        },
+        {
+          ...(model.reasoning ? { reasoning: 'low' } : { temperature: 0.1 }),
+          maxTokens: Math.min(1200, Math.max(400, entries.length * 120)),
+        },
+      )
       if (result.errorMessage) throw new Error(result.errorMessage)
-      const lines = textFromContent(result.content).split(/\r?\n/).map((line) => line.replace(/^\s*\d+\.\s*/, '').trim()).filter(Boolean)
+      const lines = textFromContent(result.content)
+        .split(/\r?\n/)
+        .map((line) => line.replace(/^\s*\d+\.\s*/, '').trim())
+        .filter(Boolean)
       return entries.map((_, index) => redactSecretText(cleanSummary(lines[index] || '')))
     },
   }

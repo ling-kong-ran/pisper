@@ -45,17 +45,19 @@ test('route registry decodes parameters and enforces explicit parameter constrai
 
 test('route registry rejects conflicting and order-ambiguous registrations', () => {
   assert.throws(
-    () => createRouteRegistry([
-      { method: 'GET', path: '/api/items/:itemId', handler },
-      { method: 'GET', path: '/api/items/:name', handler },
-    ]),
+    () =>
+      createRouteRegistry([
+        { method: 'GET', path: '/api/items/:itemId', handler },
+        { method: 'GET', path: '/api/items/:name', handler },
+      ]),
     /Conflicting route registration/,
   )
   assert.throws(
-    () => createRouteRegistry([
-      { method: 'GET', path: '/api/:group/fixed', handler },
-      { method: 'GET', path: '/api/fixed/:itemId', handler },
-    ]),
+    () =>
+      createRouteRegistry([
+        { method: 'GET', path: '/api/:group/fixed', handler },
+        { method: 'GET', path: '/api/fixed/:itemId', handler },
+      ]),
     /Ambiguous route registration/,
   )
 })
@@ -70,12 +72,42 @@ test('resource route groups expose representative static and parameter routes', 
     ...desktopRoutes,
   ])
   const cases = [
-    ['PUT', '/api/sessions/session%201/model', '/api/sessions/:sessionId/model', { sessionId: 'session 1' }],
-    ['POST', '/api/providers/provider%201/import', '/api/providers/:providerId/import', { providerId: 'provider 1' }],
-    ['POST', '/api/schedules/daily%20build/run', '/api/schedules/:scheduleId/run', { scheduleId: 'daily build' }],
-    ['GET', '/api/assets/folder%2Fasset/content', '/api/assets/:assetId/content', { assetId: 'folder/asset' }],
-    ['POST', '/api/channels/feishu/onboarding', '/api/channels/:channel/onboarding', { channel: 'feishu' }],
-    ['GET', '/api/sponsors/settings%20updates', '/api/sponsors/:placement', { placement: 'settings updates' }],
+    [
+      'PUT',
+      '/api/sessions/session%201/model',
+      '/api/sessions/:sessionId/model',
+      { sessionId: 'session 1' },
+    ],
+    [
+      'POST',
+      '/api/providers/provider%201/import',
+      '/api/providers/:providerId/import',
+      { providerId: 'provider 1' },
+    ],
+    [
+      'POST',
+      '/api/schedules/daily%20build/run',
+      '/api/schedules/:scheduleId/run',
+      { scheduleId: 'daily build' },
+    ],
+    [
+      'GET',
+      '/api/assets/folder%2Fasset/content',
+      '/api/assets/:assetId/content',
+      { assetId: 'folder/asset' },
+    ],
+    [
+      'POST',
+      '/api/channels/feishu/onboarding',
+      '/api/channels/:channel/onboarding',
+      { channel: 'feishu' },
+    ],
+    [
+      'GET',
+      '/api/sponsors/settings%20updates',
+      '/api/sponsors/:placement',
+      { placement: 'settings updates' },
+    ],
   ]
 
   for (const [method, pathname, path, params] of cases) {

@@ -3,7 +3,10 @@ import { readJson, writeJsonAtomic } from '../storage/json-file.mjs'
 const DEFAULT_THINKING_LEVEL_MAP = Object.freeze({ xhigh: null, max: null })
 
 function normalizedBaseUrl(value) {
-  return String(value || '').trim().replace(/\/+$/, '').toLowerCase()
+  return String(value || '')
+    .trim()
+    .replace(/\/+$/, '')
+    .toLowerCase()
 }
 
 function zeroCost() {
@@ -24,14 +27,19 @@ function normalizedInput(value) {
 function runtimeCapabilityMetadata(models) {
   const capabilities = new Map()
   for (const model of models || []) {
-    const id = String(model?.id || '').trim().toLowerCase()
+    const id = String(model?.id || '')
+      .trim()
+      .toLowerCase()
     if (!id || typeof model.reasoning !== 'boolean') continue
     const candidate = {
       reasoning: model.reasoning,
       thinkingLevelMap: { ...DEFAULT_THINKING_LEVEL_MAP, ...(model.thinkingLevelMap || {}) },
     }
-    const score = (model.thinkingLevelMap ? 100 + Object.keys(model.thinkingLevelMap).length : 0) + (model.reasoning ? 1 : 10)
-    if (!capabilities.has(id) || score > capabilities.get(id).score) capabilities.set(id, { metadata: candidate, score })
+    const score =
+      (model.thinkingLevelMap ? 100 + Object.keys(model.thinkingLevelMap).length : 0) +
+      (model.reasoning ? 1 : 10)
+    if (!capabilities.has(id) || score > capabilities.get(id).score)
+      capabilities.set(id, { metadata: candidate, score })
   }
   return capabilities
 }
@@ -52,17 +60,37 @@ function modelWithMetadata(model, metadata, explicitContextWindow, explicitInput
   const modelThinkingLevelMap = model.thinkingLevelMap
   return {
     ...model,
-    input: normalizedInput(explicitInput) || normalizedInput(remoteMetadata?.input) || normalizedInput(model.input) || ['text'],
-    reasoning: typeof model.reasoning === 'boolean' ? model.reasoning : remoteMetadata?.reasoning ?? true,
-    contextWindow: Number(explicitContextWindow) || Number(remoteMetadata?.contextWindow) || inferredContextWindow(model.id, model.contextWindow),
+    input: normalizedInput(explicitInput) ||
+      normalizedInput(remoteMetadata?.input) ||
+      normalizedInput(model.input) || ['text'],
+    reasoning:
+      typeof model.reasoning === 'boolean' ? model.reasoning : (remoteMetadata?.reasoning ?? true),
+    contextWindow:
+      Number(explicitContextWindow) ||
+      Number(remoteMetadata?.contextWindow) ||
+      inferredContextWindow(model.id, model.contextWindow),
     maxTokens: Number(remoteMetadata?.maxTokens) || model.maxTokens,
     ...(metadataThinkingLevelMap || modelThinkingLevelMap
-      ? { thinkingLevelMap: { ...(metadataThinkingLevelMap || {}), ...(modelThinkingLevelMap || {}) } }
+      ? {
+          thinkingLevelMap: {
+            ...(metadataThinkingLevelMap || {}),
+            ...(modelThinkingLevelMap || {}),
+          },
+        }
       : {}),
   }
 }
 
-function runtimeModel(providerId, entry, candidate, existing, template, metadata, explicitContextWindow, explicitInput) {
+function runtimeModel(
+  providerId,
+  entry,
+  candidate,
+  existing,
+  template,
+  metadata,
+  explicitContextWindow,
+  explicitInput,
+) {
   const remoteMetadata = metadata?.get(candidate.id)
   if (existing) {
     return {
@@ -83,7 +111,10 @@ function runtimeModel(providerId, entry, candidate, existing, template, metadata
     contextWindow: Number(remoteMetadata?.contextWindow) || inferredContextWindow(candidate.id),
     maxTokens: Number(remoteMetadata?.maxTokens) || template?.maxTokens || 128_000,
     headers: template?.headers ? { ...template.headers } : undefined,
-    thinkingLevelMap: candidate.kind === 'chat' ? { ...(remoteMetadata?.thinkingLevelMap || DEFAULT_THINKING_LEVEL_MAP) } : undefined,
+    thinkingLevelMap:
+      candidate.kind === 'chat'
+        ? { ...(remoteMetadata?.thinkingLevelMap || DEFAULT_THINKING_LEVEL_MAP) }
+        : undefined,
     pisperKind: candidate.kind || 'chat',
   }
 }
@@ -113,11 +144,20 @@ export class ProviderModelCatalogService {
   }
 
   async sync(providerId, { baseUrl, api, models }) {
-    const cleanModels = [...new Map((models || []).filter((model) => model?.id).map((model) => [String(model.id), {
-      id: String(model.id),
-      name: String(model.name || model.id),
-      kind: ['chat', 'image', 'video'].includes(model.kind) ? model.kind : 'chat',
-    }])).values()]
+    const cleanModels = [
+      ...new Map(
+        (models || [])
+          .filter((model) => model?.id)
+          .map((model) => [
+            String(model.id),
+            {
+              id: String(model.id),
+              name: String(model.name || model.id),
+              kind: ['chat', 'image', 'video'].includes(model.kind) ? model.kind : 'chat',
+            },
+          ]),
+      ).values(),
+    ]
     if (!cleanModels.length) throw new Error('Provider 没有返回可同步的模型。')
     const previous = this.state.providers?.[providerId]
     const previousIds = new Set(previous?.models?.map((model) => model.id) || [])
@@ -130,27 +170,42 @@ export class ProviderModelCatalogService {
       models: cleanModels,
       updatedAt: new Date().toISOString(),
     }
-    this.writeQueue = this.writeQueue.catch(() => {}).then(async () => {
-      this.state = { ...this.state, providers: { ...(this.state.providers || {}), [providerId]: entry } }
-      await writeJsonAtomic(this.path, this.state)
-    })
+    this.writeQueue = this.writeQueue
+      .catch(() => {})
+      .then(async () => {
+        this.state = {
+          ...this.state,
+          providers: { ...(this.state.providers || {}), [providerId]: entry },
+        }
+        await writeJsonAtomic(this.path, this.state)
+      })
     await this.writeQueue
     return { entry, addedModelIds, removedModelIds }
   }
 
   async remove(providerId) {
     if (!this.state.providers?.[providerId]) return
-    this.writeQueue = this.writeQueue.catch(() => {}).then(async () => {
-      const providers = { ...(this.state.providers || {}) }
-      delete providers[providerId]
-      this.state = { ...this.state, providers }
-      await writeJsonAtomic(this.path, this.state)
-    })
+    this.writeQueue = this.writeQueue
+      .catch(() => {})
+      .then(async () => {
+        const providers = { ...(this.state.providers || {}) }
+        delete providers[providerId]
+        this.state = { ...this.state, providers }
+        await writeJsonAtomic(this.path, this.state)
+      })
     await this.writeQueue
   }
 
-  decorateRuntime(runtime, configuredBaseUrls, configuredHeaders = {}, configuredContextWindows = {}, configuredInputs = {}) {
-    this.configuredBaseUrls = new Map(Object.entries(configuredBaseUrls || {}).map(([id, url]) => [id, normalizedBaseUrl(url)]))
+  decorateRuntime(
+    runtime,
+    configuredBaseUrls,
+    configuredHeaders = {},
+    configuredContextWindows = {},
+    configuredInputs = {},
+  ) {
+    this.configuredBaseUrls = new Map(
+      Object.entries(configuredBaseUrls || {}).map(([id, url]) => [id, normalizedBaseUrl(url)]),
+    )
     const explicitContextWindows = new Map(Object.entries(configuredContextWindows || {}))
     const explicitInputs = new Map(Object.entries(configuredInputs || {}))
     this.configuredHeaders = new Map(Object.entries(configuredHeaders || {}))
@@ -160,10 +215,15 @@ export class ProviderModelCatalogService {
     const rawGetAvailableSnapshot = runtime.getAvailableSnapshot.bind(runtime)
     const runtimeCapabilities = runtimeCapabilityMetadata(rawGetModels())
     const effectiveMetadata = {
-      get: (modelId) => mergedMetadata(
-        this.metadata?.get(modelId),
-        runtimeCapabilities.get(String(modelId || '').trim().toLowerCase())?.metadata,
-      ),
+      get: (modelId) =>
+        mergedMetadata(
+          this.metadata?.get(modelId),
+          runtimeCapabilities.get(
+            String(modelId || '')
+              .trim()
+              .toLowerCase(),
+          )?.metadata,
+        ),
     }
 
     const catalogEntry = (providerId) => {
@@ -173,21 +233,45 @@ export class ProviderModelCatalogService {
       return configured && configured === normalizedBaseUrl(entry.baseUrl) ? entry : null
     }
     const modelsForProvider = (providerId) => {
-      const raw = [...rawGetModels(providerId)].map((model) => modelWithMetadata(model, effectiveMetadata, explicitContextWindows.get(`${providerId}:${model.id}`), explicitInputs.get(`${providerId}:${model.id}`)))
+      const raw = [...rawGetModels(providerId)].map((model) =>
+        modelWithMetadata(
+          model,
+          effectiveMetadata,
+          explicitContextWindows.get(`${providerId}:${model.id}`),
+          explicitInputs.get(`${providerId}:${model.id}`),
+        ),
+      )
       const entry = catalogEntry(providerId)
       const existing = new Map(raw.map((model) => [model.id, model]))
       const models = entry
-        ? entry.models.map((candidate) => runtimeModel(providerId, entry, candidate, existing.get(candidate.id), raw[0], effectiveMetadata, explicitContextWindows.get(`${providerId}:${candidate.id}`), explicitInputs.get(`${providerId}:${candidate.id}`)))
+        ? entry.models.map((candidate) =>
+            runtimeModel(
+              providerId,
+              entry,
+              candidate,
+              existing.get(candidate.id),
+              raw[0],
+              effectiveMetadata,
+              explicitContextWindows.get(`${providerId}:${candidate.id}`),
+              explicitInputs.get(`${providerId}:${candidate.id}`),
+            ),
+          )
         : raw
       const providerHeaders = this.configuredHeaders.get(providerId)
       if (!providerHeaders || Object.keys(providerHeaders).length === 0) return models
-      return models.map((model) => ({ ...model, headers: { ...providerHeaders, ...(model.headers || {}) } }))
+      return models.map((model) => ({
+        ...model,
+        headers: { ...providerHeaders, ...(model.headers || {}) },
+      }))
     }
 
     runtime.getModels = (providerId) => {
       if (providerId) return modelsForProvider(providerId)
       const raw = [...rawGetModels()]
-      const providerIds = new Set([...raw.map((model) => model.provider), ...Object.keys(this.state.providers || {})])
+      const providerIds = new Set([
+        ...raw.map((model) => model.provider),
+        ...Object.keys(this.state.providers || {}),
+      ])
       return [...providerIds].flatMap((id) => modelsForProvider(id))
     }
     runtime.getModel = (providerId, modelId) => {
@@ -196,7 +280,7 @@ export class ProviderModelCatalogService {
       return rawGetModel(providerId, modelId)
     }
     runtime.getAvailable = async (providerId) => {
-      const raw = [...await rawGetAvailable(providerId)]
+      const raw = [...(await rawGetAvailable(providerId))]
       const availableProviders = new Set(raw.map((model) => model.provider))
       if (providerId) return availableProviders.has(providerId) ? modelsForProvider(providerId) : []
       return runtime.getModels().filter((model) => availableProviders.has(model.provider))

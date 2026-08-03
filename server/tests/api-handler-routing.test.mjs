@@ -81,11 +81,7 @@ test('desktop service validation still precedes JSON body parsing', async () => 
     },
   }
 
-  await handler(
-    malformedRequest,
-    output,
-    new URL('http://localhost/api/desktop-pet/enabled'),
-  )
+  await handler(malformedRequest, output, new URL('http://localhost/api/desktop-pet/enabled'))
 
   assert.equal(output.status, 400)
   assert.deepEqual(JSON.parse(output.body), { error: '桌面宠物服务尚未初始化。' })

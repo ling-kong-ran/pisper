@@ -60,10 +60,7 @@ test('desktop bundles the TUI behind the narrow CLI management bridge', async ()
   const config = JSON.parse(configSource)
   const packageJson = JSON.parse(packageSource)
 
-  assert.deepEqual(config.bundle.externalBin, [
-    'binaries/pisper-sidecar',
-    'binaries/pisper-cli',
-  ])
+  assert.deepEqual(config.bundle.externalBin, ['binaries/pisper-sidecar', 'binaries/pisper-cli'])
   assert.match(packageJson.scripts['desktop:webview:build'], /npm run tui:stage/)
   for (const command of [
     'desktop_get_cli_status',

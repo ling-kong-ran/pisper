@@ -5,10 +5,7 @@ import { readJson, writeJsonAtomic } from './storage/json-file.mjs'
 
 export const CURRENT_HOME = '.pisper'
 
-export function resolveAgentDataDir({
-  env = process.env,
-  home = homedir(),
-} = {}) {
+export function resolveAgentDataDir({ env = process.env, home = homedir() } = {}) {
   const explicit = env.PISPER_AGENT_DIR
   return explicit ? resolve(explicit) : join(home, CURRENT_HOME, 'agent')
 }
@@ -25,10 +22,12 @@ export async function cleanupRemovedLocalEmbeddingData(dataDir) {
   }
 
   const modelsPath = join(root, 'pisper-memory-models')
-  const modelsRemoved = Boolean(await stat(modelsPath).catch((error) => {
-    if (error?.code === 'ENOENT') return null
-    throw error
-  }))
+  const modelsRemoved = Boolean(
+    await stat(modelsPath).catch((error) => {
+      if (error?.code === 'ENOENT') return null
+      throw error
+    }),
+  )
   if (modelsRemoved) await rm(modelsPath, { recursive: true, force: true })
   return { configUpdated, modelsRemoved }
 }

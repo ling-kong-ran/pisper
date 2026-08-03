@@ -49,10 +49,7 @@ test('bundled sponsor configuration preserves the Matrix referral link', async (
   )
   const validated = validateSponsorDocument(bundled)
   assert.equal(validated.campaigns[0].name['zh-CN'], 'Matrix')
-  assert.equal(
-    validated.campaigns[0].href,
-    'https://matrix.000328.xyz/sign-up?aff=ZPeH',
-  )
+  assert.equal(validated.campaigns[0].href, 'https://matrix.000328.xyz/sign-up?aff=ZPeH')
 })
 
 test('sponsor content refreshes with ETag and survives offline restarts', async (t) => {
@@ -142,10 +139,7 @@ test('sponsor validation rejects executable and insecure remote content', () => 
     () =>
       validateSponsorDocument({
         ...sponsorDocument(),
-        campaigns: [
-          sponsorDocument().campaigns[0],
-          { ...sponsorDocument().campaigns[0] },
-        ],
+        campaigns: [sponsorDocument().campaigns[0], { ...sponsorDocument().campaigns[0] }],
       }),
     /重复/,
   )
@@ -161,13 +155,9 @@ test('sponsor API delegates placement and locale without exposing remote fetchin
   }
   const handler = createApiHandler({}, { sponsors })
   const output = response()
-  const url = new URL(
-    'http://localhost/api/sponsors/settings-updates?locale=en-US&refresh=1',
-  )
+  const url = new URL('http://localhost/api/sponsors/settings-updates?locale=en-US&refresh=1')
 
   assert.equal(await handler(request('GET'), output, url), true)
   assert.equal(output.status, 200)
-  assert.deepEqual(calls, [
-    ['settings-updates', { locale: 'en-US', refresh: true }],
-  ])
+  assert.deepEqual(calls, [['settings-updates', { locale: 'en-US', refresh: true }]])
 })

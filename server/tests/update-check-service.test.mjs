@@ -20,10 +20,15 @@ test('server update checks compare the current commit with main and cache respon
           status: 'ahead',
           ahead_by: 1,
           html_url: 'https://github.com/ling-kong-ran/pisper/compare/1111111...main',
-          commits: [{
-            sha: '2222222222222222222222222222222222222222',
-            commit: { message: 'feat: improve startup updates\n\nDetails', committer: { date: '2026-07-22T23:00:00.000Z' } },
-          }],
+          commits: [
+            {
+              sha: '2222222222222222222222222222222222222222',
+              commit: {
+                message: 'feat: improve startup updates\n\nDetails',
+                committer: { date: '2026-07-22T23:00:00.000Z' },
+              },
+            },
+          ],
         }),
       }
     },
@@ -47,7 +52,29 @@ test('server update checks compare the current commit with main and cache respon
 })
 
 test('current commit resolution prefers environment metadata and safely falls back to git', async () => {
-  assert.equal(await resolveGitCommit('/workspace', { env: { PISPER_COMMIT_SHA: 'ABCDEF1234567' }, runGit: async () => { throw new Error('should not run') } }), 'abcdef1234567')
-  assert.equal(await resolveGitCommit('/workspace', { env: {}, runGit: async () => ({ stdout: '1234567890abcdef\n' }) }), '1234567890abcdef')
-  assert.equal(await resolveGitCommit('/workspace', { env: {}, runGit: async () => { throw new Error('missing git') } }), '')
+  assert.equal(
+    await resolveGitCommit('/workspace', {
+      env: { PISPER_COMMIT_SHA: 'ABCDEF1234567' },
+      runGit: async () => {
+        throw new Error('should not run')
+      },
+    }),
+    'abcdef1234567',
+  )
+  assert.equal(
+    await resolveGitCommit('/workspace', {
+      env: {},
+      runGit: async () => ({ stdout: '1234567890abcdef\n' }),
+    }),
+    '1234567890abcdef',
+  )
+  assert.equal(
+    await resolveGitCommit('/workspace', {
+      env: {},
+      runGit: async () => {
+        throw new Error('missing git')
+      },
+    }),
+    '',
+  )
 })

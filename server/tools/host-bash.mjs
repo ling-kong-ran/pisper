@@ -38,7 +38,8 @@ const DENIED_ENVIRONMENT_NAMES = new Set([
   'GLOBIGNORE',
 ])
 
-const CREDENTIAL_ENVIRONMENT_NAME = /(?:^|_)(?:API_?KEY|ACCESS_?TOKEN|AUTH_?TOKEN|SECRET|PASSWORD|PASSWD|PRIVATE_?KEY)$/i
+const CREDENTIAL_ENVIRONMENT_NAME =
+  /(?:^|_)(?:API_?KEY|ACCESS_?TOKEN|AUTH_?TOKEN|SECRET|PASSWORD|PASSWD|PRIVATE_?KEY)$/i
 
 export function hostCommandEnvironment(environment = {}) {
   const result = {}
@@ -51,10 +52,14 @@ export function hostCommandEnvironment(environment = {}) {
 
 export async function createPisperBashTool(cwd, { platform = process.platform } = {}) {
   const localTool = await createBashTool(cwd, {
-    spawnHook: (context) => applyWindowsUtf8Environment({
-      ...context,
-      env: hostCommandEnvironment(context.env),
-    }, platform),
+    spawnHook: (context) =>
+      applyWindowsUtf8Environment(
+        {
+          ...context,
+          env: hostCommandEnvironment(context.env),
+        },
+        platform,
+      ),
   })
   return {
     ...localTool,

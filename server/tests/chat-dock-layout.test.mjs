@@ -95,14 +95,20 @@ test('dock layout persistence flushes before suspension and prevents teardown ov
 })
 
 test('initial dock sessions prefer the active chat and migrate valid legacy tabs once', () => {
-  assert.deepEqual(initialDockSessionIds({
-    activeSessionId: 'b',
-    legacyTiledSessionIds: ['a', 'b', 'missing', 'c'],
-    validSessionIds: ['a', 'b', 'c'],
-  }), ['b', 'a', 'c'])
-  assert.deepEqual(initialDockSessionIds({
-    activeSessionId: 'missing',
-    legacyTiledSessionIds: [],
-    validSessionIds: ['first', 'second'],
-  }), ['first'])
+  assert.deepEqual(
+    initialDockSessionIds({
+      activeSessionId: 'b',
+      legacyTiledSessionIds: ['a', 'b', 'missing', 'c'],
+      validSessionIds: ['a', 'b', 'c'],
+    }),
+    ['b', 'a', 'c'],
+  )
+  assert.deepEqual(
+    initialDockSessionIds({
+      activeSessionId: 'missing',
+      legacyTiledSessionIds: [],
+      validSessionIds: ['first', 'second'],
+    }),
+    ['first'],
+  )
 })

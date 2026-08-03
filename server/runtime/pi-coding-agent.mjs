@@ -5,14 +5,15 @@ function packageModule(relativePath) {
   return import(new URL(relativePath, packageEntryUrl).href)
 }
 
-const [compaction, modelRuntime, sessionManager, settingsManager, extensionTypes, truncate] = await Promise.all([
-  packageModule('./core/compaction/index.js'),
-  packageModule('./core/model-runtime.js'),
-  packageModule('./core/session-manager.js'),
-  packageModule('./core/settings-manager.js'),
-  packageModule('./core/extensions/types.js'),
-  packageModule('./core/tools/truncate.js'),
-])
+const [compaction, modelRuntime, sessionManager, settingsManager, extensionTypes, truncate] =
+  await Promise.all([
+    packageModule('./core/compaction/index.js'),
+    packageModule('./core/model-runtime.js'),
+    packageModule('./core/session-manager.js'),
+    packageModule('./core/settings-manager.js'),
+    packageModule('./core/extensions/types.js'),
+    packageModule('./core/tools/truncate.js'),
+  ])
 
 export const calculateContextTokens = compaction.calculateContextTokens
 export const compact = compaction.compact

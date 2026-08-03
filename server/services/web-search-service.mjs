@@ -20,13 +20,18 @@ const MARKETS = {
 
 function boundedInteger(value, fallback, minimum, maximum) {
   const number = Number(value)
-  return Number.isFinite(number) ? Math.min(maximum, Math.max(minimum, Math.round(number))) : fallback
+  return Number.isFinite(number)
+    ? Math.min(maximum, Math.max(minimum, Math.round(number)))
+    : fallback
 }
 
 export function normalizeWebSearchConfig(input = {}) {
   return {
     provider: 'bing',
-    language: String(input.language || 'auto').trim().slice(0, 40) || 'auto',
+    language:
+      String(input.language || 'auto')
+        .trim()
+        .slice(0, 40) || 'auto',
     safeSearch: boundedInteger(input.safeSearch, 1, 0, 2),
     maxResults: boundedInteger(input.maxResults, 8, 1, 12),
   }
@@ -46,7 +51,8 @@ function decodeXml(value) {
 }
 
 function plainText(value, maximum = 1200) {
-  return decodeXml(value).replace(/<[^>]*>/g, ' ')
+  return decodeXml(value)
+    .replace(/<[^>]*>/g, ' ')
     .replace(/\s+/g, ' ')
     .trim()
     .slice(0, maximum)
@@ -57,31 +63,42 @@ function xmlTag(block, name) {
 }
 
 export function parseBingRssResults(xml, limit = 8) {
-  return [...String(xml || '').matchAll(/<item>([\s\S]*?)<\/item>/gi)].flatMap((match) => {
-    const rawUrl = plainText(xmlTag(match[1], 'link'), 2000)
-    let url
-    try { url = new URL(rawUrl) }
-    catch { return [] }
-    if (!['http:', 'https:'].includes(url.protocol)) return []
-    return [{
-      title: plainText(xmlTag(match[1], 'title'), 300) || url.hostname,
-      url: url.toString(),
-      snippet: plainText(xmlTag(match[1], 'description')),
-      publishedAt: plainText(xmlTag(match[1], 'pubDate'), 120),
-    }]
-  }).slice(0, limit)
+  return [...String(xml || '').matchAll(/<item>([\s\S]*?)<\/item>/gi)]
+    .flatMap((match) => {
+      const rawUrl = plainText(xmlTag(match[1], 'link'), 2000)
+      let url
+      try {
+        url = new URL(rawUrl)
+      } catch {
+        return []
+      }
+      if (!['http:', 'https:'].includes(url.protocol)) return []
+      return [
+        {
+          title: plainText(xmlTag(match[1], 'title'), 300) || url.hostname,
+          url: url.toString(),
+          snippet: plainText(xmlTag(match[1], 'description')),
+          publishedAt: plainText(xmlTag(match[1], 'pubDate'), 120),
+        },
+      ]
+    })
+    .slice(0, limit)
 }
 
 function resultText(query, results) {
   if (!results.length) return `Bing 没有找到“${query}”的结果。`
   return [
     `Bing 搜索结果：${query}`,
-    ...results.map((result, index) => [
-      `${index + 1}. ${result.title}`,
-      result.url,
-      result.snippet || '无摘要',
-      result.publishedAt ? `发布时间：${result.publishedAt}` : '',
-    ].filter(Boolean).join('\n')),
+    ...results.map((result, index) =>
+      [
+        `${index + 1}. ${result.title}`,
+        result.url,
+        result.snippet || '无摘要',
+        result.publishedAt ? `发布时间：${result.publishedAt}` : '',
+      ]
+        .filter(Boolean)
+        .join('\n'),
+    ),
   ].join('\n\n')
 }
 
@@ -98,7 +115,9 @@ export class WebSearchService {
 
   async search(input, { signal, config } = {}) {
     const settings = config ? normalizeWebSearchConfig(config) : await this.getConfig()
-    const query = String(input?.query || '').trim().slice(0, 500)
+    const query = String(input?.query || '')
+      .trim()
+      .slice(0, 500)
     if (!query) throw new Error('搜索关键词不能为空。')
     const limit = boundedInteger(input.limit, settings.maxResults, 1, 12)
     const page = boundedInteger(input.page, 1, 1, 20)
@@ -127,12 +146,16 @@ export class WebSearchService {
       })
     } catch (error) {
       if (signal?.aborted) throw error
-      if (error?.name === 'TimeoutError' || error?.name === 'AbortError') throw new Error('Bing 搜索请求超时，请检查网络后重试。')
+      if (error?.name === 'TimeoutError' || error?.name === 'AbortError')
+        throw new Error('Bing 搜索请求超时，请检查网络后重试。')
       throw new Error(`无法连接 Bing：${error instanceof Error ? error.message : String(error)}`)
     }
 
     const body = await response.text()
-    if (!response.ok) throw new Error(`Bing 搜索失败（HTTP ${response.status}）：${plainText(body, 300) || '无响应内容'}`)
+    if (!response.ok)
+      throw new Error(
+        `Bing 搜索失败（HTTP ${response.status}）：${plainText(body, 300) || '无响应内容'}`,
+      )
     if (!/<rss\b/i.test(body)) throw new Error('Bing 没有返回可解析的 RSS 搜索结果，请稍后重试。')
     const results = parseBingRssResults(body, limit)
     return {

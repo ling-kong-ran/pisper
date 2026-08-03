@@ -29,11 +29,24 @@ export function createVisualGenerateTool({ cwd, visualGenerationService, onGener
       kind: Type.String({ enum: ['image', 'video'], description: 'image or video' }),
       prompt: Type.String({ minLength: 1, description: 'Visual generation prompt' }),
       model: Type.Optional(Type.String({ description: 'provider/model; empty for auto' })),
-      sourceImages: Type.Optional(Type.Array(Type.String({ minLength: 1 }), { maxItems: 8, description: 'Local image paths to edit' })),
+      sourceImages: Type.Optional(
+        Type.Array(Type.String({ minLength: 1 }), {
+          maxItems: 8,
+          description: 'Local image paths to edit',
+        }),
+      ),
       maskPath: Type.Optional(Type.String({ minLength: 1, description: 'Optional PNG mask path' })),
       outputName: Type.Optional(Type.String({ description: 'Output name without extension' })),
       aspectRatio: optionalStringEnum(['1:1', '16:9', '9:16', '4:3', '3:4']),
-      size: optionalStringEnum(['1024x1024', '1536x1024', '1024x1536', '1280x720', '720x1280', '1792x1024', '1024x1792']),
+      size: optionalStringEnum([
+        '1024x1024',
+        '1536x1024',
+        '1024x1536',
+        '1280x720',
+        '720x1280',
+        '1792x1024',
+        '1024x1792',
+      ]),
       imageSize: optionalStringEnum(['1K', '2K', '4K']),
       resolution: optionalStringEnum(['720p', '1080p', '4k']),
       durationSeconds: Type.Optional(Type.Number({ enum: [4, 8, 12] })),
@@ -42,20 +55,25 @@ export function createVisualGenerateTool({ cwd, visualGenerationService, onGener
     }),
     async execute(_toolCallId, params, signal, onUpdate) {
       if (!visualGenerationService) throw new Error('Visual generation service is not initialized.')
-      const result = await visualGenerationService.generate({ ...params, cwd }, {
-        signal,
-        onProgress: (message) => onUpdate?.({ content: [{ type: 'text', text: message }] }),
-      })
+      const result = await visualGenerationService.generate(
+        { ...params, cwd },
+        {
+          signal,
+          onProgress: (message) => onUpdate?.({ content: [{ type: 'text', text: message }] }),
+        },
+      )
       try {
         await onGeneratedFile?.(result)
       } catch {
         // Asset indexing must not discard a successfully generated file.
       }
       return {
-        content: [{
-          type: 'text',
-          text: `${result.operation === 'edit' ? 'Image edited' : result.kind === 'video' ? 'Video generated' : 'Image generated'}.\nFile: ${result.path}\nProvider: ${result.providerName}\nModel: ${result.modelName}`,
-        }],
+        content: [
+          {
+            type: 'text',
+            text: `${result.operation === 'edit' ? 'Image edited' : result.kind === 'video' ? 'Video generated' : 'Image generated'}.\nFile: ${result.path}\nProvider: ${result.providerName}\nModel: ${result.modelName}`,
+          },
+        ],
         details: result,
       }
     },

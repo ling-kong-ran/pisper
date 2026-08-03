@@ -40,12 +40,14 @@ function slug(value) {
 }
 
 function normalizeState(input) {
-  const overrides = input && typeof input === 'object' && input.overrides && typeof input.overrides === 'object'
-    ? input.overrides
-    : {}
-  const installed = input && typeof input === 'object' && input.installed && typeof input.installed === 'object'
-    ? input.installed
-    : {}
+  const overrides =
+    input && typeof input === 'object' && input.overrides && typeof input.overrides === 'object'
+      ? input.overrides
+      : {}
+  const installed =
+    input && typeof input === 'object' && input.installed && typeof input.installed === 'object'
+      ? input.installed
+      : {}
   const normalizedOverrides = {}
   const normalizedInstalled = {}
   for (const [path, value] of Object.entries(overrides)) {
@@ -62,14 +64,19 @@ function normalizeState(input) {
       installedAt: String(value.installedAt || ''),
     }
   }
-  return { version: SKILLS_STATE_VERSION, overrides: normalizedOverrides, installed: normalizedInstalled }
+  return {
+    version: SKILLS_STATE_VERSION,
+    overrides: normalizedOverrides,
+    installed: normalizedInstalled,
+  }
 }
 
 function expandPath(value, cwd) {
   const input = String(value || '').trim()
   if (!input) return ''
   if (input === '~') return homedir()
-  if (input.startsWith(`~${sep}`) || input.startsWith('~/') || input.startsWith('~\\')) return join(homedir(), input.slice(2))
+  if (input.startsWith(`~${sep}`) || input.startsWith('~/') || input.startsWith('~\\'))
+    return join(homedir(), input.slice(2))
   return isAbsolute(input) ? resolve(input) : resolve(cwd, input)
 }
 
@@ -99,7 +106,8 @@ async function validateSkillSource(path) {
     if (info.isDirectory()) {
       const children = await readdir(current)
       entries += children.length
-      if (entries > MAX_SKILL_FILES) throw new Error(`单个技能最多包含 ${MAX_SKILL_FILES} 个文件和目录。`)
+      if (entries > MAX_SKILL_FILES)
+        throw new Error(`单个技能最多包含 ${MAX_SKILL_FILES} 个文件和目录。`)
       for (const entry of children) pending.push(join(current, entry))
       continue
     }
@@ -113,7 +121,10 @@ async function validateSkillSource(path) {
 
 function parseFrontmatterDetails(content) {
   const block = String(content || '').match(/^---\s*\r?\n([\s\S]*?)\r?\n---(?:\r?\n|$)/)?.[1] || ''
-  const line = (name) => block.match(new RegExp(`^\\s*${name}\\s*:\\s*(.+?)\\s*$`, 'mi'))?.[1]?.replace(/^['"]|['"]$/g, '') || ''
+  const line = (name) =>
+    block
+      .match(new RegExp(`^\\s*${name}\\s*:\\s*(.+?)\\s*$`, 'mi'))?.[1]
+      ?.replace(/^['"]|['"]$/g, '') || ''
   const allowedTools = line('allowed-tools')
     .replace(/^\[|\]$/g, '')
     .split(/[\s,]+/)
@@ -166,7 +177,14 @@ function mapSkillResourcePath(resource) {
 }
 
 export class SkillsService {
-  constructor({ path, agentDir, cwd, getSettingsManager, createPackageManager, extensionFactories = [] } = {}) {
+  constructor({
+    path,
+    agentDir,
+    cwd,
+    getSettingsManager,
+    createPackageManager,
+    extensionFactories = [],
+  } = {}) {
     this.path = path
     this.agentDir = agentDir
     this.cwd = cwd || process.cwd()
@@ -182,7 +200,9 @@ export class SkillsService {
 
   async init() {
     await mkdir(this.skillsDir, { recursive: true })
-    this.state = normalizeState(await readJson(this.path, { version: SKILLS_STATE_VERSION, overrides: {}, installed: {} }))
+    this.state = normalizeState(
+      await readJson(this.path, { version: SKILLS_STATE_VERSION, overrides: {}, installed: {} }),
+    )
   }
 
   save() {
@@ -201,9 +221,10 @@ export class SkillsService {
       skills: current.skills.flatMap((skill) => {
         const override = this.overrideFor(skill)
         if (!includeDisabled && override.enabled === false) return []
-        const disableModelInvocation = typeof override.modelInvocation === 'boolean'
-          ? !override.modelInvocation
-          : Boolean(skill.disableModelInvocation)
+        const disableModelInvocation =
+          typeof override.modelInvocation === 'boolean'
+            ? !override.modelInvocation
+            : Boolean(skill.disableModelInvocation)
         return [{ ...skill, disableModelInvocation }]
       }),
     }
@@ -213,7 +234,10 @@ export class SkillsService {
     this.dashboardCache = null
   }
 
-  async createResourceLoader(cwd = this.cwd, { includeDisabled = false, appendSystemPrompt = '' } = {}) {
+  async createResourceLoader(
+    cwd = this.cwd,
+    { includeDisabled = false, appendSystemPrompt = '' } = {},
+  ) {
     const settingsManager = this.getSettingsManager(cwd)
     const loader = await createDefaultResourceLoader({
       cwd,
@@ -271,10 +295,13 @@ export class SkillsService {
     const override = this.overrideFor(skill)
     const managed = this.state.installed[normalizedPath(skill.filePath)]
     let frontmatter = { version: 'latest', license: '', allowedTools: [] }
-    try { frontmatter = parseFrontmatterDetails(await readFile(skill.filePath, 'utf8')) } catch {}
-    const modelInvocationEnabled = typeof override.modelInvocation === 'boolean'
-      ? override.modelInvocation
-      : !skill.disableModelInvocation
+    try {
+      frontmatter = parseFrontmatterDetails(await readFile(skill.filePath, 'utf8'))
+    } catch {}
+    const modelInvocationEnabled =
+      typeof override.modelInvocation === 'boolean'
+        ? override.modelInvocation
+        : !skill.disableModelInvocation
     return {
       id: skillId(skill.filePath),
       name: skill.name,
@@ -283,12 +310,17 @@ export class SkillsService {
       baseDir: skill.baseDir,
       enabled: override.enabled !== false,
       modelInvocationEnabled,
-      command: this.getSettingsManager(cwd)?.getEnableSkillCommands?.() === false ? '' : `/skill:${skill.name}`,
+      command:
+        this.getSettingsManager(cwd)?.getEnableSkillCommands?.() === false
+          ? ''
+          : `/skill:${skill.name}`,
       version: frontmatter.version,
       license: frontmatter.license,
       allowedTools: frontmatter.allowedTools,
       source: managed?.source || safeSourceLabel(sourceLabel(skill)),
-      sourceInfo: skill.sourceInfo ? { ...skill.sourceInfo, source: safeSourceLabel(skill.sourceInfo.source) } : null,
+      sourceInfo: skill.sourceInfo
+        ? { ...skill.sourceInfo, source: safeSourceLabel(skill.sourceInfo.source) }
+        : null,
       removable: Boolean(managed && pathInside(this.skillsDir, skill.filePath)),
     }
   }
@@ -319,14 +351,19 @@ export class SkillsService {
     return {
       cwd: resolve(cwd),
       skills,
-      diagnostics: discovered.diagnostics.map((item) => ({ type: item.type, message: item.message, path: item.path || '' })),
+      diagnostics: discovered.diagnostics.map((item) => ({
+        type: item.type,
+        message: item.message,
+        path: item.path || '',
+      })),
       packages,
       counts: {
         installed: skills.length,
         global: globalSkills.length,
         project: projectSkills.length,
         enabled: skills.filter((skill) => skill.enabled).length,
-        modelInvocable: skills.filter((skill) => skill.enabled && skill.modelInvocationEnabled).length,
+        modelInvocable: skills.filter((skill) => skill.enabled && skill.modelInvocationEnabled)
+          .length,
       },
     }
   }
@@ -365,7 +402,8 @@ export class SkillsService {
     const key = normalizedPath(skill.filePath)
     const current = { ...(this.state.overrides[key] || {}) }
     if (typeof input.enabled === 'boolean') current.enabled = input.enabled
-    if (typeof input.modelInvocationEnabled === 'boolean') current.modelInvocation = input.modelInvocationEnabled
+    if (typeof input.modelInvocationEnabled === 'boolean')
+      current.modelInvocation = input.modelInvocationEnabled
     if (Object.keys(current).length) this.state.overrides[key] = current
     else delete this.state.overrides[key]
     await this.save()
@@ -378,14 +416,23 @@ export class SkillsService {
     const localStat = localPath ? await pathExists(localPath) : null
     if (localStat) {
       await validateSkillSource(localPath)
-      const loaded = await loadSkills({ cwd, agentDir: this.agentDir, skillPaths: [localPath], includeDefaults: false })
+      const loaded = await loadSkills({
+        cwd,
+        agentDir: this.agentDir,
+        skillPaths: [localPath],
+        includeDefaults: false,
+      })
       if (loaded.skills.length) return loaded
-      throw new Error(loaded.diagnostics[0]?.message || '该本地路径没有发现符合 Agent Skills 标准的技能。')
+      throw new Error(
+        loaded.diagnostics[0]?.message || '该本地路径没有发现符合 Agent Skills 标准的技能。',
+      )
     }
 
     const manager = await this.packageManager(cwd)
     const resolved = await manager.resolveExtensionSources([source], { temporary: true })
-    const paths = [...new Set(resolved.skills.filter((item) => item.enabled).map((item) => item.path))]
+    const paths = [
+      ...new Set(resolved.skills.filter((item) => item.enabled).map((item) => item.path)),
+    ]
     if (!paths.length) throw new Error('该来源没有发现符合 Agent Skills 标准的技能。')
     return loadSkills({ cwd, agentDir: this.agentDir, skillPaths: paths, includeDefaults: false })
   }
@@ -396,7 +443,12 @@ export class SkillsService {
       const destination = join(this.skillsDir, skillName)
       if (await pathExists(destination)) throw new Error(`技能 ${skill.name} 已安装。`)
       await validateSkillSource(skill.baseDir)
-      await cp(skill.baseDir, destination, { recursive: true, errorOnExist: true, force: false, dereference: false })
+      await cp(skill.baseDir, destination, {
+        recursive: true,
+        errorOnExist: true,
+        force: false,
+        dereference: false,
+      })
       return join(destination, 'SKILL.md')
     }
     const extension = extname(skill.filePath) || '.md'
@@ -413,7 +465,8 @@ export class SkillsService {
     if (source.length > MAX_SKILL_SOURCE_CHARS) throw new Error('技能来源过长。')
     const loaded = await this.resolveInstallSkills(source, cwd)
     if (!loaded.skills.length) throw new Error('没有发现可安装技能。')
-    if (loaded.skills.length > MAX_SKILLS_PER_INSTALL) throw new Error(`一次最多安装 ${MAX_SKILLS_PER_INSTALL} 个技能。`)
+    if (loaded.skills.length > MAX_SKILLS_PER_INSTALL)
+      throw new Error(`一次最多安装 ${MAX_SKILLS_PER_INSTALL} 个技能。`)
     const existingNames = new Set((await this.discover(cwd)).skills.map((skill) => skill.name))
     const duplicate = loaded.skills.find((skill) => existingNames.has(skill.name))
     if (duplicate) throw new Error(`技能 ${duplicate.name} 已存在，可直接启用或调用。`)
@@ -421,24 +474,41 @@ export class SkillsService {
     try {
       for (const skill of loaded.skills) installedPaths.push(await this.copySkill(skill))
     } catch (error) {
-      await Promise.allSettled(installedPaths.map((path) => rm(basename(path).toLowerCase() === 'skill.md' ? dirname(path) : path, { recursive: true, force: true })))
+      await Promise.allSettled(
+        installedPaths.map((path) =>
+          rm(basename(path).toLowerCase() === 'skill.md' ? dirname(path) : path, {
+            recursive: true,
+            force: true,
+          }),
+        ),
+      )
       throw error
     }
     const installedAt = new Date().toISOString()
     const installedSource = safeSourceLabel(source)
-    for (const path of installedPaths) this.state.installed[normalizedPath(path)] = { source: installedSource, installedAt }
+    for (const path of installedPaths)
+      this.state.installed[normalizedPath(path)] = { source: installedSource, installedAt }
     try {
       await this.save()
     } catch (error) {
       for (const path of installedPaths) delete this.state.installed[normalizedPath(path)]
-      await Promise.allSettled(installedPaths.map((path) => rm(basename(path).toLowerCase() === 'skill.md' ? dirname(path) : path, { recursive: true, force: true })))
+      await Promise.allSettled(
+        installedPaths.map((path) =>
+          rm(basename(path).toLowerCase() === 'skill.md' ? dirname(path) : path, {
+            recursive: true,
+            force: true,
+          }),
+        ),
+      )
       throw error
     }
     this.invalidateDashboardCache()
     const dashboard = await this.dashboard({ cwd, force: true })
     return {
       ...dashboard,
-      installed: dashboard.skills.filter((skill) => installedPaths.some((path) => normalizedPath(path) === normalizedPath(skill.filePath))),
+      installed: dashboard.skills.filter((skill) =>
+        installedPaths.some((path) => normalizedPath(path) === normalizedPath(skill.filePath)),
+      ),
       source: installedSource,
     }
   }
@@ -447,8 +517,12 @@ export class SkillsService {
     const skill = await this.findSkill(id, cwd)
     if (!skill) return false
     const key = normalizedPath(skill.filePath)
-    if (!this.state.installed[key] || !pathInside(this.skillsDir, skill.filePath)) throw new Error('只能卸载由 Pisper 安装的技能；其他来源可以禁用。')
-    const target = basename(skill.filePath).toLowerCase() === 'skill.md' ? dirname(skill.filePath) : skill.filePath
+    if (!this.state.installed[key] || !pathInside(this.skillsDir, skill.filePath))
+      throw new Error('只能卸载由 Pisper 安装的技能；其他来源可以禁用。')
+    const target =
+      basename(skill.filePath).toLowerCase() === 'skill.md'
+        ? dirname(skill.filePath)
+        : skill.filePath
     await rm(target, { recursive: true, force: true })
     delete this.state.overrides[key]
     delete this.state.installed[key]

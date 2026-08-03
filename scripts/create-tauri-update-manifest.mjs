@@ -8,7 +8,9 @@ const args = process.argv.slice(2)
 const tag = String(args.find((value) => /^v/.test(value)) || '').trim()
 const requireAll = args.includes('--require-all')
 const outputIndex = args.indexOf('--output')
-const artifactsArg = args.find((value, index) => index > 0 && !value.startsWith('--') && args[index - 1] !== '--output')
+const artifactsArg = args.find(
+  (value, index) => index > 0 && !value.startsWith('--') && args[index - 1] !== '--output',
+)
 const artifactsDir = path.resolve(root, artifactsArg || path.join('release', 'tauri-artifacts'))
 const output = path.resolve(
   root,
@@ -35,7 +37,9 @@ async function filesUnder(directory) {
 
 const version = tag.slice(1)
 const packageJson = JSON.parse(await readFile(path.join(root, 'package.json'), 'utf8'))
-const updaterPublicKey = (await readFile(path.join(root, 'src-tauri', 'updater.pubkey'), 'utf8')).trim()
+const updaterPublicKey = (
+  await readFile(path.join(root, 'src-tauri', 'updater.pubkey'), 'utf8')
+).trim()
 const updaterConfig = JSON.parse(
   await readFile(path.join(root, 'src-tauri', 'tauri.updater.conf.json'), 'utf8'),
 )
@@ -51,12 +55,7 @@ const updaterSuffixes = {
   linux: '.AppImage',
   windows: '-setup.exe',
 }
-const expectedPlatforms = [
-  'darwin-aarch64',
-  'darwin-x86_64',
-  'linux-x86_64',
-  'windows-x86_64',
-]
+const expectedPlatforms = ['darwin-aarch64', 'darwin-x86_64', 'linux-x86_64', 'windows-x86_64']
 const escapedVersion = version.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
 const artifactPattern = new RegExp(
   `^Pisper_${escapedVersion}_(darwin|linux|windows)_(aarch64|x86_64)(\\.app\\.tar\\.gz|\\.AppImage|-setup\\.exe)$`,
@@ -102,7 +101,9 @@ const manifest = {
   version,
   notes: notes.trim(),
   pub_date: new Date().toISOString(),
-  platforms: Object.fromEntries(Object.entries(platforms).sort(([left], [right]) => left.localeCompare(right))),
+  platforms: Object.fromEntries(
+    Object.entries(platforms).sort(([left], [right]) => left.localeCompare(right)),
+  ),
 }
 await mkdir(path.dirname(output), { recursive: true })
 await writeFile(output, `${JSON.stringify(manifest, null, 2)}\n`)

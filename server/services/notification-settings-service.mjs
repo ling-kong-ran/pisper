@@ -57,12 +57,20 @@ export class NotificationSettingsService {
   async publishBrowser(title, body, event = '') {
     const appConfig = await readJson(this.path, {})
     if (appConfig.notifications?.browser?.enabled !== true || !this.browserEventsPath) return false
-    const item = { id: randomUUID(), title: String(title || 'Pisper'), body: String(body || ''), event, createdAt: new Date().toISOString() }
-    this.eventWrite = this.eventWrite.catch(() => {}).then(async () => {
-      const ledger = await readJson(this.browserEventsPath, { events: [] })
-      ledger.events = [...(Array.isArray(ledger.events) ? ledger.events : []), item].slice(-100)
-      await writeJsonAtomic(this.browserEventsPath, ledger)
-    })
+    const item = {
+      id: randomUUID(),
+      title: String(title || 'Pisper'),
+      body: String(body || ''),
+      event,
+      createdAt: new Date().toISOString(),
+    }
+    this.eventWrite = this.eventWrite
+      .catch(() => {})
+      .then(async () => {
+        const ledger = await readJson(this.browserEventsPath, { events: [] })
+        ledger.events = [...(Array.isArray(ledger.events) ? ledger.events : []), item].slice(-100)
+        await writeJsonAtomic(this.browserEventsPath, ledger)
+      })
     await this.eventWrite
     return true
   }
@@ -81,7 +89,9 @@ export class NotificationSettingsService {
     const selected = new Set(platforms || ['feishu', 'weixin', 'browser'])
     const template = this.channels.getState().templates.find((item) => item.id === event)
     if (!template?.enabled) return []
-    const results = await this.channels.notify(event, data, { platforms: [...selected].filter((platform) => platform !== 'browser') })
+    const results = await this.channels.notify(event, data, {
+      platforms: [...selected].filter((platform) => platform !== 'browser'),
+    })
     if (selected.has('browser')) {
       const rendered = this.channels.renderNotification(event, 'browser', data)
       await this.publishBrowser(rendered.title, rendered.content, event)

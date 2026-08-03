@@ -20,7 +20,12 @@ async function runGit(cwd, args, { timeout = GIT_TIMEOUT_MS } = {}) {
   } catch (error) {
     const stderr = String(error?.stderr || '').trim()
     const stdout = String(error?.stdout || '').trim()
-    return { ok: false, stdout, stderr, message: stderr || stdout || String(error?.message || error) }
+    return {
+      ok: false,
+      stdout,
+      stderr,
+      message: stderr || stdout || String(error?.message || error),
+    }
   }
 }
 
@@ -33,7 +38,9 @@ function parsePorcelainStatus(output) {
     const renameArrow = path.indexOf(' -> ')
     if (renameArrow !== -1) path = path.slice(renameArrow + 4)
     if (path.startsWith('"') && path.endsWith('"')) {
-      try { path = JSON.parse(path) } catch {}
+      try {
+        path = JSON.parse(path)
+      } catch {}
     }
     files.push({ path, status: status.trim() || status })
   }
@@ -81,7 +88,8 @@ export class GitChangesService {
           '/dev/null',
           file.path,
         ])
-        if (untrackedDiff.stdout) diff += `${diff && !diff.endsWith('\n') ? '\n' : ''}${untrackedDiff.stdout}`
+        if (untrackedDiff.stdout)
+          diff += `${diff && !diff.endsWith('\n') ? '\n' : ''}${untrackedDiff.stdout}`
       }
       if (diff.length > MAX_DIFF_CHARS) {
         diff = diff.slice(0, MAX_DIFF_CHARS)
@@ -108,7 +116,8 @@ export class GitChangesService {
   async commit(cwd, message) {
     const text = String(message || '').trim()
     if (!text) throw new Error('Commit message 不能为空。')
-    if (text.length > MAX_COMMIT_MESSAGE_CHARS) throw new Error(`Commit message 不能超过 ${MAX_COMMIT_MESSAGE_CHARS} 个字符。`)
+    if (text.length > MAX_COMMIT_MESSAGE_CHARS)
+      throw new Error(`Commit message 不能超过 ${MAX_COMMIT_MESSAGE_CHARS} 个字符。`)
     const addResult = await runGit(cwd, ['add', '-A'])
     if (!addResult.ok) throw new Error(`git add 失败：${addResult.message}`)
     const commitResult = await runGit(cwd, ['commit', '-m', text])
@@ -122,7 +131,9 @@ export class GitChangesService {
       const branchResult = await runGit(cwd, ['rev-parse', '--abbrev-ref', 'HEAD'])
       const branch = branchResult.ok ? branchResult.stdout.trim() : ''
       if (branch && branch !== 'HEAD') {
-        pushResult = await runGit(cwd, ['push', '--set-upstream', 'origin', branch], { timeout: PUSH_TIMEOUT_MS })
+        pushResult = await runGit(cwd, ['push', '--set-upstream', 'origin', branch], {
+          timeout: PUSH_TIMEOUT_MS,
+        })
       }
     }
     if (!pushResult.ok) throw new Error(`git push 失败：${pushResult.message}`)

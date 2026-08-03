@@ -72,7 +72,10 @@ test('MCP service persists servers, discovers tools, and exposes Pi custom tools
     path: join(directory, 'pisper-mcp.json'),
     cwd: directory,
     createClient: (server, handlers) => createFakeClient(server, handlers, calls),
-    createTransport: (server) => ({ kind: server.transport, endpoint: server.url || server.command }),
+    createTransport: (server) => ({
+      kind: server.transport,
+      endpoint: server.url || server.command,
+    }),
   })
   await service.init()
 
@@ -98,7 +101,12 @@ test('MCP service persists servers, discovers tools, and exposes Pi custom tools
   assert.equal(service.getToolRisk(search.name), 'medium')
   assert.equal(service.getToolRisk(publish.name), 'high')
   const updates = []
-  const result = await search.execute('tool-1', { query: 'MCP' }, new AbortController().signal, (update) => updates.push(update))
+  const result = await search.execute(
+    'tool-1',
+    { query: 'MCP' },
+    new AbortController().signal,
+    (update) => updates.push(update),
+  )
   assert.match(result.content[0].text, /Found documentation for MCP/)
   assert.equal(result.details.structuredContent.matches, 1)
   assert.equal(updates[0].details.progress.progress, 1)
@@ -118,7 +126,10 @@ test('MCP service persists servers, discovers tools, and exposes Pi custom tools
   await restored.init()
   const snapshot = restored.dashboard()
   assert.equal(snapshot.services[0].name, 'Docs')
-  assert.equal(snapshot.services[0].tools.find((tool) => tool.name === 'publish_release').enabled, false)
+  assert.equal(
+    snapshot.services[0].tools.find((tool) => tool.name === 'publish_release').enabled,
+    false,
+  )
   assert.equal(snapshot.calls[0].toolName, 'search_docs')
 })
 
@@ -153,18 +164,24 @@ test('stdio MCP validation rejects escaped control characters and missing execut
   const service = new McpService({ path: join(directory, 'state.json'), cwd: directory })
   await service.init()
 
-  await assert.rejects(service.add({
-    name: 'Broken escapes',
-    transport: 'stdio',
-    command: `C:Userspencil\u000bisualmcp.exe`,
-    enabled: false,
-  }), /control characters/)
-  await assert.rejects(service.add({
-    name: 'Missing executable',
-    transport: 'stdio',
-    command: join(directory, 'missing-mcp.exe'),
-    enabled: false,
-  }), /executable does not exist/)
+  await assert.rejects(
+    service.add({
+      name: 'Broken escapes',
+      transport: 'stdio',
+      command: `C:Userspencil\u000bisualmcp.exe`,
+      enabled: false,
+    }),
+    /control characters/,
+  )
+  await assert.rejects(
+    service.add({
+      name: 'Missing executable',
+      transport: 'stdio',
+      command: join(directory, 'missing-mcp.exe'),
+      enabled: false,
+    }),
+    /executable does not exist/,
+  )
   assert.equal(service.dashboard().services.length, 0)
 })
 
@@ -202,12 +219,18 @@ test('MCP service connects to a real Streamable HTTP endpoint with configured he
       }
     } else if (message.method === 'tools/list') {
       result = {
-        tools: [{
-          name: 'http_echo',
-          description: 'Echo over Streamable HTTP',
-          inputSchema: { type: 'object', properties: { text: { type: 'string' } }, required: ['text'] },
-          annotations: { readOnlyHint: true },
-        }],
+        tools: [
+          {
+            name: 'http_echo',
+            description: 'Echo over Streamable HTTP',
+            inputSchema: {
+              type: 'object',
+              properties: { text: { type: 'string' } },
+              required: ['text'],
+            },
+            annotations: { readOnlyHint: true },
+          },
+        ],
       }
     } else if (message.method === 'tools/call') {
       result = { content: [{ type: 'text', text: `http:${message.params.arguments.text}` }] }
@@ -258,7 +281,9 @@ test('MCP service remains compatible with legacy HTTP plus SSE servers', async (
         Connection: 'keep-alive',
       })
       eventStream = response
-      response.write(`event: endpoint\ndata: http://127.0.0.1:${httpServer.address().port}/messages\n\n`)
+      response.write(
+        `event: endpoint\ndata: http://127.0.0.1:${httpServer.address().port}/messages\n\n`,
+      )
       return
     }
     if (request.method === 'POST' && request.url === '/messages') {
@@ -277,16 +302,24 @@ test('MCP service remains compatible with legacy HTTP plus SSE servers', async (
         }
       } else if (message.method === 'tools/list') {
         result = {
-          tools: [{
-            name: 'sse_echo',
-            description: 'Echo over legacy SSE',
-            inputSchema: { type: 'object', properties: { text: { type: 'string' } }, required: ['text'] },
-          }],
+          tools: [
+            {
+              name: 'sse_echo',
+              description: 'Echo over legacy SSE',
+              inputSchema: {
+                type: 'object',
+                properties: { text: { type: 'string' } },
+                required: ['text'],
+              },
+            },
+          ],
         }
       } else if (message.method === 'tools/call') {
         result = { content: [{ type: 'text', text: `sse:${message.params.arguments.text}` }] }
       }
-      eventStream.write(`event: message\ndata: ${JSON.stringify({ jsonrpc: '2.0', id: message.id, result })}\n\n`)
+      eventStream.write(
+        `event: message\ndata: ${JSON.stringify({ jsonrpc: '2.0', id: message.id, result })}\n\n`,
+      )
       return
     }
     response.writeHead(404)
@@ -320,9 +353,12 @@ test('MCP service connects to a real SDK stdio server', async (t) => {
     await service?.dispose()
     await rm(directory, { recursive: true, force: true })
   })
-  const sdkUrl = (path) => pathToFileURL(resolve('node_modules/@modelcontextprotocol/sdk/dist/esm', path)).href
+  const sdkUrl = (path) =>
+    pathToFileURL(resolve('node_modules/@modelcontextprotocol/sdk/dist/esm', path)).href
   const fixturePath = join(directory, 'fixture-server.mjs')
-  await writeFile(fixturePath, `
+  await writeFile(
+    fixturePath,
+    `
 import { Server } from ${JSON.stringify(sdkUrl('server/index.js'))}
 import { StdioServerTransport } from ${JSON.stringify(sdkUrl('server/stdio.js'))}
 import { CallToolRequestSchema, ListToolsRequestSchema } from ${JSON.stringify(sdkUrl('types.js'))}
@@ -332,7 +368,9 @@ server.setRequestHandler(ListToolsRequestSchema, async () => ({
 }))
 server.setRequestHandler(CallToolRequestSchema, async (request) => ({ content: [{ type: 'text', text: 'echo:' + request.params.arguments.text }] }))
 await server.connect(new StdioServerTransport())
-`, 'utf8')
+`,
+    'utf8',
+  )
 
   service = new McpService({ path: join(directory, 'state.json'), cwd: directory })
   await service.init()
@@ -357,23 +395,35 @@ test('MCP connection specs support URLs, stdio commands, and JSON configuration'
   assert.equal(http.transport, 'http')
   assert.equal(http.url, 'https://example.com/mcp')
 
-  const stdio = parseMcpServerInput('npx -y @modelcontextprotocol/server-filesystem "C:\\Work Space"', 'C:\\workspace')
+  const stdio = parseMcpServerInput(
+    'npx -y @modelcontextprotocol/server-filesystem "C:\\Work Space"',
+    'C:\\workspace',
+  )
   assert.equal(stdio.transport, 'stdio')
   assert.equal(stdio.command, 'npx')
   assert.deepEqual(stdio.args, ['-y', '@modelcontextprotocol/server-filesystem', 'C:\\Work Space'])
 
-  const json = parseMcpServerInput(JSON.stringify({
-    name: 'Private Docs',
-    transport: 'http',
-    url: 'https://example.com/private-mcp',
-    headers: { Authorization: 'Bearer secret' },
-  }))
+  const json = parseMcpServerInput(
+    JSON.stringify({
+      name: 'Private Docs',
+      transport: 'http',
+      url: 'https://example.com/private-mcp',
+      headers: { Authorization: 'Bearer secret' },
+    }),
+  )
   assert.equal(json.name, 'Private Docs')
   assert.equal(json.headers.Authorization, 'Bearer secret')
 
-  const nested = parseMcpServerInput(JSON.stringify({
-    mcpServers: { filesystem: { command: 'npx', args: ['-y', '@modelcontextprotocol/server-filesystem', '.'] } },
-  }))
+  const nested = parseMcpServerInput(
+    JSON.stringify({
+      mcpServers: {
+        filesystem: {
+          command: 'npx',
+          args: ['-y', '@modelcontextprotocol/server-filesystem', '.'],
+        },
+      },
+    }),
+  )
   assert.equal(nested.name, 'filesystem')
   assert.equal(nested.transport, 'stdio')
 })

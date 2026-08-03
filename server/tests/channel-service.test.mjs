@@ -18,24 +18,41 @@ class FakeGateway {
     this.status = { state: 'idle', lastError: '', bot: null }
   }
 
-  getStatus() { return this.status }
+  getStatus() {
+    return this.status
+  }
 
   async connect(config) {
     this.config = config
     this.connectCount += 1
-    this.status = { state: 'connected', lastError: '', connectedAt: new Date().toISOString(), bot: { name: 'Pisper Agent', openId: 'bot' } }
+    this.status = {
+      state: 'connected',
+      lastError: '',
+      connectedAt: new Date().toISOString(),
+      bot: { name: 'Pisper Agent', openId: 'bot' },
+    }
     return this.status
   }
 
-  async disconnect() { this.status = { state: 'idle', lastError: '', bot: null } }
+  async disconnect() {
+    this.status = { state: 'idle', lastError: '', bot: null }
+  }
 
-  async send(message, input) { this.sent.push({ peerId: message.peerId, input, replyTo: message.messageId }) }
+  async send(message, input) {
+    this.sent.push({ peerId: message.peerId, input, replyTo: message.messageId })
+  }
 
-  async sendToPeer(peerId, input, scope) { this.sent.push({ peerId, input, scope }) }
+  async sendToPeer(peerId, input, scope) {
+    this.sent.push({ peerId, input, scope })
+  }
 
-  async sendAsset(peerId, asset, scope) { this.assets.push({ peerId, asset, scope }) }
+  async sendAsset(peerId, asset, scope) {
+    this.assets.push({ peerId, asset, scope })
+  }
 
-  async downloadResources(resources = []) { return resources.filter((resource) => resource.buffer) }
+  async downloadResources(resources = []) {
+    return resources.filter((resource) => resource.buffer)
+  }
 }
 
 async function fixture({ agent = {}, stored } = {}) {
@@ -53,20 +70,33 @@ async function fixture({ agent = {}, stored } = {}) {
     path,
     cwd: directory,
     agent: {
-      prompt: agent.prompt || (async ({ model }) => ({
-        sessionId: `session-${++sessionCounter}`,
-        text: 'Agent 回复',
-        cwd: directory,
-        model: model ? `${model.provider}/${model.model}` : 'openai/gpt-5',
-        assets: [],
-      })),
+      prompt:
+        agent.prompt ||
+        (async ({ model }) => ({
+          sessionId: `session-${++sessionCounter}`,
+          text: 'Agent 回复',
+          cwd: directory,
+          model: model ? `${model.provider}/${model.model}` : 'openai/gpt-5',
+          assets: [],
+        })),
       abort: agent.abort || (async () => true),
       validateDirectory: agent.validateDirectory || (async (value) => value || directory),
     },
     gatewayFactories: { feishu: gatewayFactory('feishu'), weixin: gatewayFactory('weixin') },
     onboardingFactories: {
-      feishu: () => ({ start: async () => ({}), get: () => null, cancel: () => false, dispose: () => {} }),
-      weixin: () => ({ start: async () => ({}), get: () => null, cancel: () => false, verify: () => null, dispose: () => {} }),
+      feishu: () => ({
+        start: async () => ({}),
+        get: () => null,
+        cancel: () => false,
+        dispose: () => {},
+      }),
+      weixin: () => ({
+        start: async () => ({}),
+        get: () => null,
+        cancel: () => false,
+        verify: () => null,
+        dispose: () => {},
+      }),
     },
   })
   await service.init()
@@ -74,7 +104,9 @@ async function fixture({ agent = {}, stored } = {}) {
 }
 
 test('legacy one-way webhook configuration is discarded during migration', async (t) => {
-  const { directory, path, service } = await fixture({ stored: { version: 1, channels: [{ type: 'feishu', webhookUrl: 'https://secret' }] } })
+  const { directory, path, service } = await fixture({
+    stored: { version: 1, channels: [{ type: 'feishu', webhookUrl: 'https://secret' }] },
+  })
   t.after(() => rm(directory, { recursive: true, force: true }))
   const state = service.getState()
   assert.equal(state.connections.feishu, null)
@@ -85,7 +117,13 @@ test('legacy one-way webhook configuration is discarded during migration', async
 test('version 2 Feishu state migrates to platform-scoped version 3 state', async (t) => {
   const stored = {
     version: 2,
-    connection: { appId: 'cli_old', appSecret: 'secret', ownerOpenId: 'owner', enabled: false, defaultCwd: 'E:\\work' },
+    connection: {
+      appId: 'cli_old',
+      appSecret: 'secret',
+      ownerOpenId: 'owner',
+      enabled: false,
+      defaultCwd: 'E:\\work',
+    },
     scopes: { chat1: { sessionId: 'session-old', title: '旧会话', cwd: 'E:\\work' } },
   }
   const { directory, path, service } = await fixture({ stored })
@@ -100,8 +138,19 @@ test('version 2 Feishu state migrates to platform-scoped version 3 state', async
 test('Feishu and WeChat credentials stay private while public identifiers are masked', async (t) => {
   const { directory, path, service, gateways } = await fixture()
   t.after(() => rm(directory, { recursive: true, force: true }))
-  await service.completeOnboarding('feishu', { appId: 'cli_1234567890', appSecret: 'private-feishu-secret', ownerOpenId: 'owner', domain: 'feishu' })
-  await service.completeOnboarding('weixin', { accountId: 'weixin_bot_1234567890', token: 'private-weixin-token', ownerUserId: 'wx-owner', baseUrl: WEIXIN_API_BASE, cdnBaseUrl: 'https://cdn.example' })
+  await service.completeOnboarding('feishu', {
+    appId: 'cli_1234567890',
+    appSecret: 'private-feishu-secret',
+    ownerOpenId: 'owner',
+    domain: 'feishu',
+  })
+  await service.completeOnboarding('weixin', {
+    accountId: 'weixin_bot_1234567890',
+    token: 'private-weixin-token',
+    ownerUserId: 'wx-owner',
+    baseUrl: WEIXIN_API_BASE,
+    cdnBaseUrl: 'https://cdn.example',
+  })
   const state = service.getState()
   assert.equal(state.connections.feishu.status, 'connected')
   assert.equal(state.connections.weixin.status, 'connected')
@@ -117,15 +166,37 @@ test('Feishu and WeChat credentials stay private while public identifiers are ma
 
 test('channel reply model is passed to the Agent without reconnecting the transport', async (t) => {
   let promptInput
-  const { directory, service, gateways } = await fixture({ agent: { prompt: async (input) => {
-    promptInput = input
-    return { sessionId: 'pi-session', text: '**完成**', cwd: directory, model: 'openai/gpt-5.1', assets: [] }
-  } } })
+  const { directory, service, gateways } = await fixture({
+    agent: {
+      prompt: async (input) => {
+        promptInput = input
+        return {
+          sessionId: 'pi-session',
+          text: '**完成**',
+          cwd: directory,
+          model: 'openai/gpt-5.1',
+          assets: [],
+        }
+      },
+    },
+  })
   t.after(() => rm(directory, { recursive: true, force: true }))
-  await service.completeOnboarding('feishu', { appId: 'cli_app', appSecret: 'secret', ownerOpenId: 'owner' })
+  await service.completeOnboarding('feishu', {
+    appId: 'cli_app',
+    appSecret: 'secret',
+    ownerOpenId: 'owner',
+  })
   await service.update('feishu', { replyModel: { provider: 'openai', model: 'gpt-5.1' } })
   assert.equal(gateways.feishu.connectCount, 1)
-  await service.handleMessage('feishu', { messageId: 'm1', peerId: 'chat1', chatType: 'p2p', senderId: 'owner', senderName: '用户', content: '检查项目', resources: [] })
+  await service.handleMessage('feishu', {
+    messageId: 'm1',
+    peerId: 'chat1',
+    chatType: 'p2p',
+    senderId: 'owner',
+    senderName: '用户',
+    content: '检查项目',
+    resources: [],
+  })
   assert.equal(promptInput.message, '检查项目')
   assert.deepEqual(promptInput.model, { provider: 'openai', model: 'gpt-5.1' })
   assert.equal(service.getState().scopes[0].sessionId, 'pi-session')
@@ -134,46 +205,155 @@ test('channel reply model is passed to the Agent without reconnecting the transp
 
 test('personal WeChat peers map to independent Pisper sessions', async (t) => {
   let count = 0
-  const { directory, service } = await fixture({ agent: { prompt: async (input) => ({ sessionId: input.sessionId || `wx-session-${++count}`, text: '收到', cwd: directory, model: 'google/gemini-2.5-pro', assets: [] }) } })
+  const { directory, service } = await fixture({
+    agent: {
+      prompt: async (input) => ({
+        sessionId: input.sessionId || `wx-session-${++count}`,
+        text: '收到',
+        cwd: directory,
+        model: 'google/gemini-2.5-pro',
+        assets: [],
+      }),
+    },
+  })
   t.after(() => rm(directory, { recursive: true, force: true }))
-  await service.completeOnboarding('weixin', { accountId: 'wx-bot', token: 'token', ownerUserId: 'owner', baseUrl: WEIXIN_API_BASE })
-  await service.update('weixin', { accessMode: 'all', replyModel: { provider: 'google', model: 'gemini-2.5-pro' } })
-  await service.handleMessage('weixin', { messageId: 'w1', peerId: 'user-1', senderId: 'user-1', chatType: 'p2p', content: '第一个会话', resources: [], contextToken: 'ctx-1' })
-  await service.handleMessage('weixin', { messageId: 'w2', peerId: 'user-2', senderId: 'user-2', chatType: 'p2p', content: '第二个会话', resources: [], contextToken: 'ctx-2' })
+  await service.completeOnboarding('weixin', {
+    accountId: 'wx-bot',
+    token: 'token',
+    ownerUserId: 'owner',
+    baseUrl: WEIXIN_API_BASE,
+  })
+  await service.update('weixin', {
+    accessMode: 'all',
+    replyModel: { provider: 'google', model: 'gemini-2.5-pro' },
+  })
+  await service.handleMessage('weixin', {
+    messageId: 'w1',
+    peerId: 'user-1',
+    senderId: 'user-1',
+    chatType: 'p2p',
+    content: '第一个会话',
+    resources: [],
+    contextToken: 'ctx-1',
+  })
+  await service.handleMessage('weixin', {
+    messageId: 'w2',
+    peerId: 'user-2',
+    senderId: 'user-2',
+    chatType: 'p2p',
+    content: '第二个会话',
+    resources: [],
+    contextToken: 'ctx-2',
+  })
   const scopes = service.getState().scopes
   assert.equal(scopes.length, 2)
-  assert.notEqual(scopes.find((scope) => scope.peerId === 'user-1').sessionId, scopes.find((scope) => scope.peerId === 'user-2').sessionId)
+  assert.notEqual(
+    scopes.find((scope) => scope.peerId === 'user-1').sessionId,
+    scopes.find((scope) => scope.peerId === 'user-2').sessionId,
+  )
 })
 
 test('owner-only access rejects other users and /stop aborts the bound session', async (t) => {
   let aborted = ''
-  const { directory, service, gateways } = await fixture({ agent: { abort: async (id) => { aborted = id; return true } } })
+  const { directory, service, gateways } = await fixture({
+    agent: {
+      abort: async (id) => {
+        aborted = id
+        return true
+      },
+    },
+  })
   t.after(() => rm(directory, { recursive: true, force: true }))
-  await service.completeOnboarding('feishu', { appId: 'cli_app', appSecret: 'secret', ownerOpenId: 'owner' })
-  await service.handleMessage('feishu', { messageId: 'm1', peerId: 'chat1', chatType: 'p2p', senderId: 'owner', content: '开始', resources: [] })
-  await service.handleMessage('feishu', { messageId: 'm2', peerId: 'chat2', chatType: 'p2p', senderId: 'other', content: '继续', resources: [] })
+  await service.completeOnboarding('feishu', {
+    appId: 'cli_app',
+    appSecret: 'secret',
+    ownerOpenId: 'owner',
+  })
+  await service.handleMessage('feishu', {
+    messageId: 'm1',
+    peerId: 'chat1',
+    chatType: 'p2p',
+    senderId: 'owner',
+    content: '开始',
+    resources: [],
+  })
+  await service.handleMessage('feishu', {
+    messageId: 'm2',
+    peerId: 'chat2',
+    chatType: 'p2p',
+    senderId: 'other',
+    content: '继续',
+    resources: [],
+  })
   assert.match(gateways.feishu.sent.at(-1).input.text, /扫码创建者/)
-  await service.handleMessage('feishu', { messageId: 'm3', peerId: 'chat1', chatType: 'p2p', senderId: 'owner', content: '/stop', resources: [] })
+  await service.handleMessage('feishu', {
+    messageId: 'm3',
+    peerId: 'chat1',
+    chatType: 'p2p',
+    senderId: 'owner',
+    content: '/stop',
+    resources: [],
+  })
   assert.equal(aborted, 'session-1')
 })
 
 test('notification templates use platform-specific content and the latest channel conversation', async (t) => {
   const { directory, service, gateways } = await fixture()
   t.after(() => rm(directory, { recursive: true, force: true }))
-  await service.completeOnboarding('feishu', { appId: 'cli_app', appSecret: 'secret', ownerOpenId: 'owner' })
-  await service.completeOnboarding('weixin', { accountId: 'wx-bot', token: 'token', ownerUserId: 'wx-owner', baseUrl: WEIXIN_API_BASE })
-  await service.handleMessage('feishu', { messageId: 'm1', peerId: 'chat1', chatType: 'p2p', senderId: 'owner', senderName: '飞书用户', content: 'hello', resources: [] })
-  await service.handleMessage('feishu', { messageId: 'm2', peerId: 'chat-latest', chatType: 'p2p', senderId: 'owner', senderName: '最近会话', content: 'latest', resources: [] })
-  await service.handleMessage('weixin', { messageId: 'w1', peerId: 'wx-owner', chatType: 'p2p', senderId: 'wx-owner', senderName: '微信用户', content: 'hello', resources: [], contextToken: 'ctx' })
+  await service.completeOnboarding('feishu', {
+    appId: 'cli_app',
+    appSecret: 'secret',
+    ownerOpenId: 'owner',
+  })
+  await service.completeOnboarding('weixin', {
+    accountId: 'wx-bot',
+    token: 'token',
+    ownerUserId: 'wx-owner',
+    baseUrl: WEIXIN_API_BASE,
+  })
+  await service.handleMessage('feishu', {
+    messageId: 'm1',
+    peerId: 'chat1',
+    chatType: 'p2p',
+    senderId: 'owner',
+    senderName: '飞书用户',
+    content: 'hello',
+    resources: [],
+  })
+  await service.handleMessage('feishu', {
+    messageId: 'm2',
+    peerId: 'chat-latest',
+    chatType: 'p2p',
+    senderId: 'owner',
+    senderName: '最近会话',
+    content: 'latest',
+    resources: [],
+  })
+  await service.handleMessage('weixin', {
+    messageId: 'w1',
+    peerId: 'wx-owner',
+    chatType: 'p2p',
+    senderId: 'wx-owner',
+    senderName: '微信用户',
+    content: 'hello',
+    resources: [],
+    contextToken: 'ctx',
+  })
   await service.updateTemplate('schedule.completed', 'feishu', { content: '飞书：{{task.name}}' })
-  await service.updateTemplate('schedule.completed', 'weixin', { content: '微信：{{task.summary}}' })
+  await service.updateTemplate('schedule.completed', 'weixin', {
+    content: '微信：{{task.summary}}',
+  })
   await service.notify('schedule.completed', { task: { name: '日报', summary: '已完成' } })
   assert.deepEqual(gateways.feishu.sent.at(-1).input, { markdown: '飞书：日报' })
   assert.deepEqual(gateways.weixin.sent.at(-1).input, { text: '微信：已完成' })
   assert.equal(gateways.feishu.sent.at(-1).peerId, 'chat-latest')
   assert.equal(gateways.weixin.sent.at(-1).peerId, 'wx-owner')
   const weixinSendCount = gateways.weixin.sent.length
-  await service.notify('schedule.completed', { task: { name: '仅飞书', summary: '完成' } }, { platforms: ['feishu'] })
+  await service.notify(
+    'schedule.completed',
+    { task: { name: '仅飞书', summary: '完成' } },
+    { platforms: ['feishu'] },
+  )
   assert.equal(gateways.weixin.sent.length, weixinSendCount)
   assert.equal(gateways.feishu.sent.at(-1).peerId, 'chat-latest')
   const tested = await service.testNotification('schedule.completed', 'weixin')
@@ -183,15 +363,20 @@ test('notification templates use platform-specific content and the latest channe
 
 test('WeChat QR and authenticated requests use Tencent iLink endpoints and headers', async () => {
   const requests = []
-  const protocol = new WeixinProtocol({ fetchImpl: async (url, options) => {
-    requests.push({ url: String(url), options })
-    const body = String(url).includes('get_bot_qrcode')
-      ? { qrcode: 'qr-id', qrcode_img_content: 'https://weixin.example/qr' }
-      : String(url).includes('get_qrcode_status')
-        ? { status: 'wait' }
-        : { ret: 0 }
-    return new Response(JSON.stringify(body), { status: 200, headers: { 'Content-Type': 'application/json' } })
-  } })
+  const protocol = new WeixinProtocol({
+    fetchImpl: async (url, options) => {
+      requests.push({ url: String(url), options })
+      const body = String(url).includes('get_bot_qrcode')
+        ? { qrcode: 'qr-id', qrcode_img_content: 'https://weixin.example/qr' }
+        : String(url).includes('get_qrcode_status')
+          ? { status: 'wait' }
+          : { ret: 0 }
+      return new Response(JSON.stringify(body), {
+        status: 200,
+        headers: { 'Content-Type': 'application/json' },
+      })
+    },
+  })
   await protocol.startQr({ localTokens: ['old-token'] })
   await protocol.pollQr({ qrcode: 'qr-id' })
   await protocol.notifyStart({ baseUrl: WEIXIN_API_BASE, token: 'bot-token' })
@@ -210,11 +395,16 @@ test('WeChat QR and authenticated requests use Tencent iLink endpoints and heade
 
 test('WeChat gateway disconnect interrupts reconnect backoff immediately', async () => {
   let updateCalled
-  const updateStarted = new Promise((resolve) => { updateCalled = resolve })
+  const updateStarted = new Promise((resolve) => {
+    updateCalled = resolve
+  })
   const protocol = {
     notifyStart: async () => ({ ret: 0 }),
     notifyStop: async () => ({ ret: 0 }),
-    getUpdates: async () => { updateCalled(); throw new Error('temporary network error') },
+    getUpdates: async () => {
+      updateCalled()
+      throw new Error('temporary network error')
+    },
   }
   const gateway = new WeixinGateway({ protocol, onMessage: () => {} })
   await gateway.connect({ token: 'token', syncBuf: '' })
@@ -228,25 +418,38 @@ test('WeChat gateway disconnect interrupts reconnect backoff immediately', async
 test('WeChat proactive sends use the latest persisted context token', async () => {
   const sent = []
   const gateway = new WeixinGateway({
-    protocol: { sendText: async (_connection, input) => { sent.push(input); return { messageId: 'sent' } } },
+    protocol: {
+      sendText: async (_connection, input) => {
+        sent.push(input)
+        return { messageId: 'sent' }
+      },
+    },
     onMessage: () => {},
   })
   gateway.connection = { token: 'token' }
   await gateway.send({ peerId: 'wx-owner', contextToken: 'current-context' }, { text: 'reply' })
-  await gateway.sendToPeer('wx-owner', { text: 'scheduled notification' }, { contextToken: 'stale-context' })
+  await gateway.sendToPeer(
+    'wx-owner',
+    { text: 'scheduled notification' },
+    { contextToken: 'stale-context' },
+  )
   assert.equal(sent[0].contextToken, 'current-context')
   assert.equal(sent[1].contextToken, 'stale-context')
 })
 
 test('WeChat expired contexts return an actionable notification error', async () => {
   const protocol = new WeixinProtocol({
-    fetchImpl: async () => new Response(JSON.stringify({ ret: -2, errmsg: 'prepare failed' }), {
-      status: 200,
-      headers: { 'Content-Type': 'application/json' },
-    }),
+    fetchImpl: async () =>
+      new Response(JSON.stringify({ ret: -2, errmsg: 'prepare failed' }), {
+        status: 200,
+        headers: { 'Content-Type': 'application/json' },
+      }),
   })
   await assert.rejects(
-    protocol.sendText({ token: 'token' }, { to: 'wx-owner', text: 'scheduled notification', contextToken: 'expired' }),
+    protocol.sendText(
+      { token: 'token' },
+      { to: 'wx-owner', text: 'scheduled notification', contextToken: 'expired' },
+    ),
     /请先在微信中向机器人发送一条消息/,
   )
 })
@@ -254,10 +457,29 @@ test('WeChat expired contexts return an actionable notification error', async ()
 test('channel notification results preserve platform delivery failures', async (t) => {
   const { directory, service, gateways } = await fixture()
   t.after(() => rm(directory, { recursive: true, force: true }))
-  await service.completeOnboarding('weixin', { accountId: 'wx-bot', token: 'token', ownerUserId: 'wx-owner', baseUrl: WEIXIN_API_BASE })
-  await service.handleMessage('weixin', { messageId: 'w1', peerId: 'wx-owner', chatType: 'p2p', senderId: 'wx-owner', content: 'hello', resources: [], contextToken: 'ctx' })
-  gateways.weixin.sendToPeer = async () => { throw new Error('prepare failed') }
-  const results = await service.notify('schedule.completed', { task: { name: 'daily', summary: 'done' } }, { platforms: ['weixin'] })
+  await service.completeOnboarding('weixin', {
+    accountId: 'wx-bot',
+    token: 'token',
+    ownerUserId: 'wx-owner',
+    baseUrl: WEIXIN_API_BASE,
+  })
+  await service.handleMessage('weixin', {
+    messageId: 'w1',
+    peerId: 'wx-owner',
+    chatType: 'p2p',
+    senderId: 'wx-owner',
+    content: 'hello',
+    resources: [],
+    contextToken: 'ctx',
+  })
+  gateways.weixin.sendToPeer = async () => {
+    throw new Error('prepare failed')
+  }
+  const results = await service.notify(
+    'schedule.completed',
+    { task: { name: 'daily', summary: 'done' } },
+    { platforms: ['weixin'] },
+  )
   assert.deepEqual(results, [{ platform: 'weixin', status: 'rejected', error: 'prepare failed' }])
 })
 
@@ -267,7 +489,11 @@ test('official registerApp flow requests only bidirectional bot capabilities', a
     registerAppImpl: async (input) => {
       options = input
       input.onQRCodeReady({ url: 'https://accounts.feishu.cn/device', expireIn: 60 })
-      return { client_id: 'cli_app', client_secret: 'secret', user_info: { open_id: 'owner', tenant_brand: 'feishu' } }
+      return {
+        client_id: 'cli_app',
+        client_secret: 'secret',
+        user_info: { open_id: 'owner', tenant_brand: 'feishu' },
+      }
     },
     renderQr: async () => 'data:image/png;base64,qr',
     onCompleted: async () => {},

@@ -20,18 +20,29 @@ test('goals persist usage, stop at their token budget, and pause after runtime r
   const service = new GoalService({ path, now: () => now })
   await service.init()
 
-  const started = await service.start('session-goal', { objective: 'Implement the feature and verify tests.', tokenBudget: 100 })
+  const started = await service.start('session-goal', {
+    objective: 'Implement the feature and verify tests.',
+    tokenBudget: 100,
+  })
   assert.equal(started.status, 'active')
   assert.equal(started.tokensUsed, 0)
 
   now += 4_000
-  const active = await service.account('session-goal', { goalId: started.id, usage: { totalTokens: 60 }, elapsedSeconds: 4 })
+  const active = await service.account('session-goal', {
+    goalId: started.id,
+    usage: { totalTokens: 60 },
+    elapsedSeconds: 4,
+  })
   assert.equal(active.status, 'active')
   assert.equal(active.tokensUsed, 60)
   assert.equal(active.timeUsedSeconds, 4)
 
   now += 3_000
-  const limited = await service.account('session-goal', { goalId: started.id, usage: { input: 25, output: 20 }, elapsedSeconds: 3 })
+  const limited = await service.account('session-goal', {
+    goalId: started.id,
+    usage: { input: 25, output: 20 },
+    elapsedSeconds: 3,
+  })
   assert.equal(limited.status, 'budget_limited')
   assert.equal(limited.tokensUsed, 105)
 
@@ -72,7 +83,11 @@ test('goal tools only expose completion after the runtime confirms it', async ()
   })
   const current = await getGoal.execute('get-goal', {}, new AbortController().signal)
   assert.match(current.content[0].text, /Ship the feature/)
-  const updated = await updateGoal.execute('update-goal', { status: 'complete' }, new AbortController().signal)
+  const updated = await updateGoal.execute(
+    'update-goal',
+    { status: 'complete' },
+    new AbortController().signal,
+  )
   assert.match(updated.content[0].text, /complete/)
   assert.equal(goal.status, 'complete')
 })

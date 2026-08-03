@@ -48,16 +48,21 @@ test('removed local embedding data is cleaned without changing other settings', 
   const modelsDir = join(dataDir, 'pisper-memory-models', 'legacy-model')
   mkdirSync(modelsDir, { recursive: true })
   writeFileSync(join(modelsDir, 'model.onnx'), 'legacy-model')
-  writeFileSync(join(dataDir, 'pisper.json'), JSON.stringify({
-    toolMode: 'full',
-    memoryEmbedding: { enabled: true, modelId: 'legacy-model' },
-  }))
+  writeFileSync(
+    join(dataDir, 'pisper.json'),
+    JSON.stringify({
+      toolMode: 'full',
+      memoryEmbedding: { enabled: true, modelId: 'legacy-model' },
+    }),
+  )
 
   assert.deepEqual(await cleanupRemovedLocalEmbeddingData(dataDir), {
     configUpdated: true,
     modelsRemoved: true,
   })
-  assert.deepEqual(JSON.parse(readFileSync(join(dataDir, 'pisper.json'), 'utf8')), { toolMode: 'full' })
+  assert.deepEqual(JSON.parse(readFileSync(join(dataDir, 'pisper.json'), 'utf8')), {
+    toolMode: 'full',
+  })
   assert.equal(existsSync(join(dataDir, 'pisper-memory-models')), false)
   assert.deepEqual(await cleanupRemovedLocalEmbeddingData(dataDir), {
     configUpdated: false,

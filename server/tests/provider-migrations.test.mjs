@@ -15,9 +15,16 @@ test('Kimi Code migration moves compatible credentials and default model', async
     settingsPath: join(directory, 'settings.json'),
     appConfigPath: join(directory, 'pisper.json'),
   }
-  await writeJsonAtomic(paths.authPath, { 'moonshotai-cn': { type: 'api_key', key: 'sk-kimi-example' } })
-  await writeJsonAtomic(paths.modelsPath, { providers: { 'moonshotai-cn': { baseUrl: 'https://api.moonshot.cn/v1' } } })
-  await writeJsonAtomic(paths.settingsPath, { defaultProvider: 'moonshotai-cn', defaultModel: 'kimi-k3' })
+  await writeJsonAtomic(paths.authPath, {
+    'moonshotai-cn': { type: 'api_key', key: 'sk-kimi-example' },
+  })
+  await writeJsonAtomic(paths.modelsPath, {
+    providers: { 'moonshotai-cn': { baseUrl: 'https://api.moonshot.cn/v1' } },
+  })
+  await writeJsonAtomic(paths.settingsPath, {
+    defaultProvider: 'moonshotai-cn',
+    defaultModel: 'kimi-k3',
+  })
   await writeJsonAtomic(paths.appConfigPath, { disabledProviders: ['moonshotai-cn'] })
 
   assert.equal(await migrateKimiCodeProvider(paths), true)

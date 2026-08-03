@@ -22,5 +22,7 @@ test('terminal display bounds expensive rendering while preserving the newest ou
   assert.equal(display.truncated, true)
   assert.ok(display.text.startsWith(`${TERMINAL_TRUNCATION_MARKER}\n`))
   assert.ok(display.text.endsWith(latest))
-  assert.ok(display.text.length <= MAX_TERMINAL_DISPLAY_CHARS + TERMINAL_TRUNCATION_MARKER.length + 1)
+  assert.ok(
+    display.text.length <= MAX_TERMINAL_DISPLAY_CHARS + TERMINAL_TRUNCATION_MARKER.length + 1,
+  )
 })

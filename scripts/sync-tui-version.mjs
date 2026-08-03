@@ -16,7 +16,9 @@ const updatedLock = lock.replace(
   /(\[\[package\]\]\s*\nname\s*=\s*"pisper-tui"\s*\nversion\s*=\s*")[^"]+("\s*\n)/,
   `$1${packageJson.version}$2`,
 )
-const manifestVersion = updatedManifest.match(/\[package\][\s\S]*?\r?\nversion\s*=\s*"([^"]+)"/)?.[1]
+const manifestVersion = updatedManifest.match(
+  /\[package\][\s\S]*?\r?\nversion\s*=\s*"([^"]+)"/,
+)?.[1]
 const lockVersion = updatedLock.match(
   /\[\[package\]\]\s*\r?\nname\s*=\s*"pisper-tui"\s*\r?\nversion\s*=\s*"([^"]+)"/,
 )?.[1]

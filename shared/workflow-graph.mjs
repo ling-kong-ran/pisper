@@ -30,7 +30,9 @@ export function normalizeWorkflowEdges(edges = [], nodes = [], idFactory) {
     if (seen.has(key)) continue
     seen.add(key)
     normalized.push({
-      id: String(edge?.id || idFactory?.(index, source, target) || `edge-${index}-${source}-${target}`),
+      id: String(
+        edge?.id || idFactory?.(index, source, target) || `edge-${index}-${source}-${target}`,
+      ),
       source,
       sourcePort,
       target,
@@ -43,7 +45,9 @@ export function normalizeWorkflowEdges(edges = [], nodes = [], idFactory) {
 export function analyzeWorkflowGraph(nodes = [], edges = []) {
   const activeNodes = nodes.filter((node) => node.enabled !== false)
   const activeIds = new Set(activeNodes.map((node) => node.id))
-  const activeEdges = edges.filter((edge) => activeIds.has(edge.source) && activeIds.has(edge.target))
+  const activeEdges = edges.filter(
+    (edge) => activeIds.has(edge.source) && activeIds.has(edge.target),
+  )
   const incoming = new Map(activeNodes.map((node) => [node.id, []]))
   const outgoing = new Map(activeNodes.map((node) => [node.id, []]))
   const indegree = new Map(activeNodes.map((node) => [node.id, 0]))
@@ -70,8 +74,12 @@ export function analyzeWorkflowGraph(nodes = [], edges = []) {
 
   const roots = activeNodes.filter((node) => (incoming.get(node.id) || []).length === 0)
   const preferredRoot = roots.find((node) => node.kind === 'trigger') || roots[0]
-  const unconnected = activeNodes.filter((node) => node.id !== preferredRoot?.id && (incoming.get(node.id) || []).length === 0)
-  const invalidTriggerTargets = activeNodes.filter((node) => node.kind === 'trigger' && (incoming.get(node.id) || []).length > 0)
+  const unconnected = activeNodes.filter(
+    (node) => node.id !== preferredRoot?.id && (incoming.get(node.id) || []).length === 0,
+  )
+  const invalidTriggerTargets = activeNodes.filter(
+    (node) => node.kind === 'trigger' && (incoming.get(node.id) || []).length > 0,
+  )
 
   return {
     nodes: activeNodes,
@@ -87,6 +95,9 @@ export function analyzeWorkflowGraph(nodes = [], edges = []) {
 }
 
 export function wouldCreateWorkflowCycle(nodes, edges, source, target, sourcePort = 'output') {
-  const candidate = [...edges, { id: '__candidate__', source, sourcePort, target, targetPort: 'input' }]
+  const candidate = [
+    ...edges,
+    { id: '__candidate__', source, sourcePort, target, targetPort: 'input' },
+  ]
   return analyzeWorkflowGraph(nodes, candidate).hasCycle
 }

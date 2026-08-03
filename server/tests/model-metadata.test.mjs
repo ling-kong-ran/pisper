@@ -3,7 +3,10 @@ import { mkdtemp, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import test from 'node:test'
-import { BUNDLED_MODEL_METADATA, ModelMetadataService } from '../services/model-metadata-service.mjs'
+import {
+  BUNDLED_MODEL_METADATA,
+  ModelMetadataService,
+} from '../services/model-metadata-service.mjs'
 
 function response(payload, { status = 200 } = {}) {
   return {
@@ -20,7 +23,10 @@ test('bundled model metadata resolves without network access', async (t) => {
   let calls = 0
   const metadata = new ModelMetadataService({
     path: join(directory, 'metadata.json'),
-    fetchImpl: async () => { calls += 1; throw new Error('unexpected request') },
+    fetchImpl: async () => {
+      calls += 1
+      throw new Error('unexpected request')
+    },
   })
   await metadata.init()
 
@@ -96,10 +102,13 @@ test('stored window metadata retains bundled model capabilities', async (t) => {
   const directory = await mkdtemp(join(tmpdir(), 'pisper-model-metadata-merged-'))
   const path = join(directory, 'metadata.json')
   t.after(() => rm(directory, { recursive: true, force: true }))
-  await writeFile(path, JSON.stringify({
-    version: 1,
-    models: { 'gpt-5.6-sol': { id: 'gpt-5.6-sol', contextWindow: 300_000, maxTokens: 140_000 } },
-  }))
+  await writeFile(
+    path,
+    JSON.stringify({
+      version: 1,
+      models: { 'gpt-5.6-sol': { id: 'gpt-5.6-sol', contextWindow: 300_000, maxTokens: 140_000 } },
+    }),
+  )
   const metadata = new ModelMetadataService({ path })
   await metadata.init()
 
@@ -118,7 +127,9 @@ test('unlisted future family models still use first-use discovery', async (t) =>
     path: join(directory, 'metadata.json'),
     fetchImpl: async () => {
       calls += 1
-      return response({ anthropic: { models: { 'claude-future': { limit: { context: 2_000_000 } } } } })
+      return response({
+        anthropic: { models: { 'claude-future': { limit: { context: 2_000_000 } } } },
+      })
     },
   })
   await metadata.init()
@@ -134,12 +145,20 @@ test('unknown model metadata is fetched once and persists across restarts', asyn
   let calls = 0
   const fetchImpl = async () => {
     calls += 1
-    return response({ relay: { models: { 'new-model': { id: 'new-model', limit: { context: 320_000, output: 64_000 } } } } })
+    return response({
+      relay: {
+        models: { 'new-model': { id: 'new-model', limit: { context: 320_000, output: 64_000 } } },
+      },
+    })
   }
   const first = new ModelMetadataService({ path, fetchImpl })
   await first.init()
 
-  assert.deepEqual(await first.ensure('new-model'), { id: 'new-model', contextWindow: 320_000, maxTokens: 64_000 })
+  assert.deepEqual(await first.ensure('new-model'), {
+    id: 'new-model',
+    contextWindow: 320_000,
+    maxTokens: 64_000,
+  })
   assert.equal((await first.ensure('new-model')).contextWindow, 320_000)
   assert.equal(calls, 1)
 
@@ -159,7 +178,9 @@ test('confirmed missing models are cached while network failures remain retryabl
     fetchImpl: async () => {
       calls += 1
       if (fail) throw new Error('offline')
-      return response({ relay: { models: { known: { id: 'known', limit: { context: 100_000 } } } } })
+      return response({
+        relay: { models: { known: { id: 'known', limit: { context: 100_000 } } } },
+      })
     },
   })
   await metadata.init()

@@ -175,10 +175,7 @@ export const integrationRoutes = [
     method: 'POST',
     path: '/api/skills/install',
     async handler({ runtime, url, body, json }) {
-      json(
-        201,
-        await runtime.installSkill(await body(), url.searchParams.get('sessionId') || ''),
-      )
+      json(201, await runtime.installSkill(await body(), url.searchParams.get('sessionId') || ''))
     },
   },
   {
@@ -196,10 +193,7 @@ export const integrationRoutes = [
       if ('enabled' in input && typeof input.enabled !== 'boolean') {
         throw new Error('技能启用状态无效。')
       }
-      if (
-        'modelInvocationEnabled' in input
-        && typeof input.modelInvocationEnabled !== 'boolean'
-      ) {
+      if ('modelInvocationEnabled' in input && typeof input.modelInvocationEnabled !== 'boolean') {
         throw new Error('技能自动调用状态无效。')
       }
       const result = await runtime.updateSkill(

@@ -48,7 +48,10 @@ export async function createPisperServer({
     },
   })
   await runtime.init()
-  const engineVersion = await readFile(join(appRoot, 'node_modules', '@earendil-works', 'pi-coding-agent', 'package.json'), 'utf8')
+  const engineVersion = await readFile(
+    join(appRoot, 'node_modules', '@earendil-works', 'pi-coding-agent', 'package.json'),
+    'utf8',
+  )
     .then((text) => JSON.parse(text).version || 'unknown')
     .catch(() => 'unknown')
   const currentCommit = await resolveGitCommit(appRoot)

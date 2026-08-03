@@ -24,7 +24,15 @@ test('web update checks use the same-origin cached API', async () => {
       assert.equal(options.cache, 'no-store')
       return {
         ok: true,
-        json: async () => ({ state: 'available', currentVersion: '0.1.2', currentCommit: '1111111', availableCommit: '2222222', behindBy: 1, canDownload: false, message: 'Web 源码落后 main 1 个提交，请查看更新内容后自行更新。' }),
+        json: async () => ({
+          state: 'available',
+          currentVersion: '0.1.2',
+          currentCommit: '1111111',
+          availableCommit: '2222222',
+          behindBy: 1,
+          canDownload: false,
+          message: 'Web 源码落后 main 1 个提交，请查看更新内容后自行更新。',
+        }),
       }
     },
   })
@@ -72,15 +80,12 @@ test('desktop update checks run after a delay and then periodically', async () =
   }
   let checks = 0
   let finishCheck
-  const stop = scheduleDesktopUpdateChecks(
-    () => {
-      checks += 1
-      return new Promise((resolve) => {
-        finishCheck = resolve
-      })
-    },
-    scheduler,
-  )
+  const stop = scheduleDesktopUpdateChecks(() => {
+    checks += 1
+    return new Promise((resolve) => {
+      finishCheck = resolve
+    })
+  }, scheduler)
 
   delayedCheck()
   await Promise.resolve()

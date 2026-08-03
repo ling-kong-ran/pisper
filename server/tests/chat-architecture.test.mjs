@@ -70,7 +70,10 @@ test('live and terminal reconciliation preserve explicit Plan clears', () => {
       pageInfo: { start: 0 },
       streaming: false,
       tools: [],
-      activityFeed: [{ type: 'tool', id: 'settled' }, { type: 'agent', id: 'child' }],
+      activityFeed: [
+        { type: 'tool', id: 'settled' },
+        { type: 'agent', id: 'child' },
+      ],
       agents: [],
       plan: null,
     },

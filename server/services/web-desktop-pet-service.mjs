@@ -76,11 +76,7 @@ export class WebDesktopPetService {
   }
 
   roots() {
-    return [
-      this.managedRoot,
-      join(homedir(), '.petdex', 'pets'),
-      join(homedir(), '.codex', 'pets'),
-    ]
+    return [this.managedRoot, join(homedir(), '.petdex', 'pets'), join(homedir(), '.codex', 'pets')]
   }
 
   preferences() {
@@ -229,7 +225,9 @@ export class WebDesktopPetService {
     const data = JSON.parse(buffer.toString('utf8'))
     const pets = Array.isArray(data?.pets) ? data.pets : []
     this.manifestCache = pets.slice(0, 5000).flatMap((pet) => {
-      const slug = String(pet?.slug || '').trim().toLowerCase()
+      const slug = String(pet?.slug || '')
+        .trim()
+        .toLowerCase()
       const displayName = String(pet?.displayName || slug).trim()
       const spritesheetUrl = String(pet?.spritesheetUrl || '')
       if (!SLUG_PATTERN.test(slug)) return []
@@ -246,7 +244,9 @@ export class WebDesktopPetService {
   }
 
   async search(query = '') {
-    const needle = String(query || '').trim().toLowerCase()
+    const needle = String(query || '')
+      .trim()
+      .toLowerCase()
     const manifest = await this.manifest()
     return manifest
       .filter(
@@ -258,7 +258,9 @@ export class WebDesktopPetService {
   }
 
   async install(inputSlug) {
-    const slug = String(inputSlug || '').trim().toLowerCase()
+    const slug = String(inputSlug || '')
+      .trim()
+      .toLowerCase()
     if (!SLUG_PATTERN.test(slug)) throw new Error('宠物标识格式无效。')
     const manifest = await this.manifest()
     const entry = manifest.find((pet) => pet.slug === slug)

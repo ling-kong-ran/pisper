@@ -7,11 +7,13 @@ import {
 } from '../security/secret-redaction.mjs'
 
 test('credential redaction removes common secrets without hiding token usage fields', () => {
-  const text = redactSecretText([
-    'apiKey: sk-example-secret-token-1234567890',
-    'Authorization: Bearer abcdefghijklmnopqrstuvwxyz',
-    'https://example.test/mcp?access_token=private-token-value',
-  ].join('\n'))
+  const text = redactSecretText(
+    [
+      'apiKey: sk-example-secret-token-1234567890',
+      'Authorization: Bearer abcdefghijklmnopqrstuvwxyz',
+      'https://example.test/mcp?access_token=private-token-value',
+    ].join('\n'),
+  )
   assert.doesNotMatch(text, /sk-example|abcdefghijklmnopqrstuvwxyz|private-token-value/)
   assert.match(text, new RegExp(REDACTED_SECRET.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')))
 
@@ -29,8 +31,14 @@ test('credential redaction removes common secrets without hiding token usage fie
   assert.equal(value.nextToken, 'page-2')
   assert.equal(value.accessToken, REDACTED_SECRET)
   assert.equal(value.nested.client_secret, REDACTED_SECRET)
-  assert.match(redactSecretText('token: completion-budget\nnextToken: page-2'), /token: completion-budget\nnextToken: page-2/)
-  assert.doesNotMatch(redactSecretText('token: secret-value-that-is-long-123456'), /secret-value-that-is-long/)
+  assert.match(
+    redactSecretText('token: completion-budget\nnextToken: page-2'),
+    /token: completion-budget\nnextToken: page-2/,
+  )
+  assert.doesNotMatch(
+    redactSecretText('token: secret-value-that-is-long-123456'),
+    /secret-value-that-is-long/,
+  )
   assert.equal(redactSecretText(text), text)
 })
 

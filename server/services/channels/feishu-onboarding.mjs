@@ -27,7 +27,11 @@ function publicJob(job) {
 }
 
 export class FeishuOnboardingService {
-  constructor({ onCompleted, registerAppImpl = defaultRegisterApp, renderQr = (url) => QRCode.toDataURL(url, { width: 248, margin: 2, errorCorrectionLevel: 'M' }) }) {
+  constructor({
+    onCompleted,
+    registerAppImpl = defaultRegisterApp,
+    renderQr = (url) => QRCode.toDataURL(url, { width: 248, margin: 2, errorCorrectionLevel: 'M' }),
+  }) {
     this.onCompleted = onCompleted
     this.registerAppImpl = registerAppImpl
     this.renderQr = renderQr
@@ -36,15 +40,27 @@ export class FeishuOnboardingService {
 
   async start() {
     for (const job of this.jobs.values()) {
-      if (['starting', 'waiting', 'authorizing', 'connecting'].includes(job.status)) job.controller.abort()
+      if (['starting', 'waiting', 'authorizing', 'connecting'].includes(job.status))
+        job.controller.abort()
     }
     const id = randomUUID()
     const controller = new AbortController()
-    const job = { id, controller, status: 'starting', qrUrl: '', qrDataUrl: '', expireAt: null, error: '' }
+    const job = {
+      id,
+      controller,
+      status: 'starting',
+      qrUrl: '',
+      qrDataUrl: '',
+      expireAt: null,
+      error: '',
+    }
     this.jobs.set(id, job)
     let readyResolve
     let readyReject
-    const ready = new Promise((resolve, reject) => { readyResolve = resolve; readyReject = reject })
+    const ready = new Promise((resolve, reject) => {
+      readyResolve = resolve
+      readyReject = reject
+    })
 
     job.promise = this.registerAppImpl({
       source: 'pisper',
@@ -63,38 +79,47 @@ export class FeishuOnboardingService {
         job.qrUrl = info.url
         job.expireAt = new Date(Date.now() + Number(info.expireIn || 600) * 1000).toISOString()
         job.status = 'waiting'
-        Promise.resolve(this.renderQr(info.url)).then((dataUrl) => {
-          job.qrDataUrl = dataUrl
-          readyResolve(publicJob(job))
-        }).catch(readyReject)
+        Promise.resolve(this.renderQr(info.url))
+          .then((dataUrl) => {
+            job.qrDataUrl = dataUrl
+            readyResolve(publicJob(job))
+          })
+          .catch(readyReject)
       },
       onStatusChange: ({ status }) => {
         if (status === 'domain_switched') job.status = 'authorizing'
         else if (job.status === 'starting') job.status = 'waiting'
       },
-    }).then(async (result) => {
-      job.status = 'connecting'
-      await this.onCompleted({
-        appId: result.client_id,
-        appSecret: result.client_secret,
-        ownerOpenId: result.user_info?.open_id || '',
-        domain: result.user_info?.tenant_brand === 'lark' ? 'lark' : 'feishu',
-      })
-      job.status = 'completed'
-      return result
-    }).catch((error) => {
-      if (error?.code === 'abort' || controller.signal.aborted) job.status = 'cancelled'
-      else {
-        job.status = 'failed'
-        job.error = error?.description || error?.message || String(error)
-      }
-      readyReject(error)
     })
+      .then(async (result) => {
+        job.status = 'connecting'
+        await this.onCompleted({
+          appId: result.client_id,
+          appSecret: result.client_secret,
+          ownerOpenId: result.user_info?.open_id || '',
+          domain: result.user_info?.tenant_brand === 'lark' ? 'lark' : 'feishu',
+        })
+        job.status = 'completed'
+        return result
+      })
+      .catch((error) => {
+        if (error?.code === 'abort' || controller.signal.aborted) job.status = 'cancelled'
+        else {
+          job.status = 'failed'
+          job.error = error?.description || error?.message || String(error)
+        }
+        readyReject(error)
+      })
 
     let timeoutId
-    const timeout = new Promise((_, reject) => { timeoutId = setTimeout(() => reject(new Error('飞书扫码地址生成超时。')), 15_000) })
-    try { await Promise.race([ready, timeout]) }
-    finally { clearTimeout(timeoutId) }
+    const timeout = new Promise((_, reject) => {
+      timeoutId = setTimeout(() => reject(new Error('飞书扫码地址生成超时。')), 15_000)
+    })
+    try {
+      await Promise.race([ready, timeout])
+    } finally {
+      clearTimeout(timeoutId)
+    }
     return publicJob(job)
   }
 

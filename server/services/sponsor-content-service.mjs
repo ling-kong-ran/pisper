@@ -267,8 +267,7 @@ export class SponsorContentService {
     const now = this.now()
     const campaigns = this.state.document.campaigns
       .filter(
-        (campaign) =>
-          campaign.placement === normalizedPlacement && activeCampaign(campaign, now),
+        (campaign) => campaign.placement === normalizedPlacement && activeCampaign(campaign, now),
       )
       .sort((left, right) => right.priority - left.priority || left.id.localeCompare(right.id))
       .map((campaign) => ({

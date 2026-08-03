@@ -7,11 +7,14 @@ import {
 } from '../tools/windows-utf8-bash.mjs'
 
 test('Windows bash child processes receive a UTF-8 environment', () => {
-  const context = applyWindowsUtf8Environment({
-    command: 'python script.py',
-    cwd: 'C:\\workspace',
-    env: { PATH: 'example', PYTHONIOENCODING: 'gbk' },
-  }, 'win32')
+  const context = applyWindowsUtf8Environment(
+    {
+      command: 'python script.py',
+      cwd: 'C:\\workspace',
+      env: { PATH: 'example', PYTHONIOENCODING: 'gbk' },
+    },
+    'win32',
+  )
 
   assert.equal(context.command, 'python script.py')
   assert.equal(context.cwd, 'C:\\workspace')
@@ -28,14 +31,18 @@ test('non-Windows bash environment is left unchanged', async () => {
   assert.equal(await createWindowsUtf8BashTool('/tmp', 'linux'), null)
 })
 
-test('Windows bash preserves Unicode and shell-sensitive JavaScript syntax', { skip: process.platform !== 'win32' }, async () => {
-  const tool = await createWindowsUtf8BashTool(process.cwd())
-  const result = await tool.execute('unicode-test', {
-    command: `node -e 'console.log([1, 2].map((value) => value * 2).join(",")); console.log("中文 & symbols > preserved 🔥")'`,
-    // CI runners can be cold on first Node launch; keep headroom above the local 10s path.
-    timeout: 30,
-  })
+test(
+  'Windows bash preserves Unicode and shell-sensitive JavaScript syntax',
+  { skip: process.platform !== 'win32' },
+  async () => {
+    const tool = await createWindowsUtf8BashTool(process.cwd())
+    const result = await tool.execute('unicode-test', {
+      command: `node -e 'console.log([1, 2].map((value) => value * 2).join(",")); console.log("中文 & symbols > preserved 🔥")'`,
+      // CI runners can be cold on first Node launch; keep headroom above the local 10s path.
+      timeout: 30,
+    })
 
-  assert.match(result.content[0].text, /2,4/u)
-  assert.match(result.content[0].text, /中文 & symbols > preserved 🔥/u)
-})
+    assert.match(result.content[0].text, /2,4/u)
+    assert.match(result.content[0].text, /中文 & symbols > preserved 🔥/u)
+  },
+)

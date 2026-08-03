@@ -14,5 +14,8 @@ test('icon-only composer model control hides the Radix Select trigger content', 
     styles,
     /\.session-model-select\.icon-only \[data-slot='select-trigger'\] \{[^}]*position: absolute;[^}]*inset: 0;[^}]*opacity: 0;/,
   )
-  assert.match(styles, /\.session-model-select\.icon-only \{[^}]*min-width: 38px;[^}]*overflow: hidden;/)
+  assert.match(
+    styles,
+    /\.session-model-select\.icon-only \{[^}]*min-width: 38px;[^}]*overflow: hidden;/,
+  )
 })

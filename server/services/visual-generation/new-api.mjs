@@ -14,7 +14,9 @@ function errorText(value) {
 function newAPIRequestError(data, status) {
   const upstream = errorText(data?.error?.message || data?.error || data?.message)
   if (/duplicate field\s+[`'"]?duration/i.test(upstream)) {
-    return new Error(`New API 视频渠道转发失败：${upstream}。请检查中转站中该模型的渠道映射或协议适配。`)
+    return new Error(
+      `New API 视频渠道转发失败：${upstream}。请检查中转站中该模型的渠道映射或协议适配。`,
+    )
   }
   return new Error(upstream || `New API 视觉接口请求失败 (${status})`)
 }
@@ -59,16 +61,27 @@ function videoUrl(value) {
 }
 
 function taskId(value) {
-  return value?.task_id || value?.request_id || value?.id || value?.data?.task_id || value?.data?.id || ''
+  return (
+    value?.task_id ||
+    value?.request_id ||
+    value?.id ||
+    value?.data?.task_id ||
+    value?.data?.id ||
+    ''
+  )
 }
 
 async function wait(delayMs, signal) {
   await new Promise((resolve, reject) => {
     const timer = setTimeout(resolve, delayMs)
-    signal?.addEventListener('abort', () => {
-      clearTimeout(timer)
-      reject(signal.reason || new Error('已取消'))
-    }, { once: true })
+    signal?.addEventListener(
+      'abort',
+      () => {
+        clearTimeout(timer)
+        reject(signal.reason || new Error('已取消'))
+      },
+      { once: true },
+    )
   })
 }
 
@@ -85,31 +98,41 @@ async function download(url, model, signal) {
 
 async function createOpenAIVideo(root, model, request, signal) {
   const size = String(request.size || (request.aspectRatio === '9:16' ? '720x1280' : '1280x720'))
-  const task = await jsonRequest(`${root}/videos`, model, {
-    method: 'POST',
-    body: JSON.stringify({
-      model: model.id,
-      prompt: request.prompt,
-      ...(request.durationSeconds ? { seconds: String(request.durationSeconds) } : {}),
-      size,
-    }),
-  }, signal)
+  const task = await jsonRequest(
+    `${root}/videos`,
+    model,
+    {
+      method: 'POST',
+      body: JSON.stringify({
+        model: model.id,
+        prompt: request.prompt,
+        ...(request.durationSeconds ? { seconds: String(request.durationSeconds) } : {}),
+        size,
+      }),
+    },
+    signal,
+  )
   return { task, route: 'videos' }
 }
 
 async function createLegacyVideo(root, model, request, signal) {
   const size = String(request.size || (request.aspectRatio === '9:16' ? '720x1280' : '1280x720'))
   const [width, height] = size.split('x').map(Number)
-  const task = await jsonRequest(`${root}/video/generations`, model, {
-    method: 'POST',
-    body: JSON.stringify({
-      model: model.id,
-      prompt: request.prompt,
-      ...(request.durationSeconds ? { duration: request.durationSeconds } : {}),
-      ...(width && height ? { width, height } : {}),
-      response_format: 'url',
-    }),
-  }, signal)
+  const task = await jsonRequest(
+    `${root}/video/generations`,
+    model,
+    {
+      method: 'POST',
+      body: JSON.stringify({
+        model: model.id,
+        prompt: request.prompt,
+        ...(request.durationSeconds ? { duration: request.durationSeconds } : {}),
+        ...(width && height ? { width, height } : {}),
+        response_format: 'url',
+      }),
+    },
+    signal,
+  )
   return { task, route: 'video/generations' }
 }
 
@@ -135,12 +158,20 @@ async function generateVideo(model, request, signal, onProgress) {
     if (['completed', 'succeeded', 'done'].includes(status)) break
     onProgress?.(`视频生成中${status ? `：${status}` : ''}…`)
     await wait(5000, signal)
-    task = await jsonRequest(`${root}/${route}/${encodeURIComponent(id)}`, model, { method: 'GET' }, signal)
+    task = await jsonRequest(
+      `${root}/${route}/${encodeURIComponent(id)}`,
+      model,
+      { method: 'GET' },
+      signal,
+    )
     url = videoUrl(task)
   }
   if (url) return { ...(await download(url, model, signal)), remoteId: id || null }
   if (!id) throw new Error('New API 视频接口没有返回任务 ID。')
-  return { ...(await download(`${root}/videos/${encodeURIComponent(id)}/content`, model, signal)), remoteId: id }
+  return {
+    ...(await download(`${root}/videos/${encodeURIComponent(id)}/content`, model, signal)),
+    remoteId: id,
+  }
 }
 
 export function generateNewAPI(model, request, options = {}) {

@@ -83,7 +83,10 @@ function configuredProviderSecret(credential, providerConfig) {
 }
 
 function normalizedProviderBaseUrl(value) {
-  return String(value || '').trim().replace(/\/+$/, '').toLowerCase()
+  return String(value || '')
+    .trim()
+    .replace(/\/+$/, '')
+    .toLowerCase()
 }
 
 function sameBaseUrl(left, right) {
@@ -104,10 +107,8 @@ function usesCustomProviderEndpoint(providerId, providerConfig) {
 
 function providerHeaders(providerId, providerConfig, userAgent, modelHeaders = {}) {
   const headers = { ...(providerConfig?.headers || {}), ...(modelHeaders || {}) }
-  if (
-    usesCustomProviderEndpoint(providerId, providerConfig)
-    && !hasHeader(headers, 'user-agent')
-  ) headers['User-Agent'] = userAgent
+  if (usesCustomProviderEndpoint(providerId, providerConfig) && !hasHeader(headers, 'user-agent'))
+    headers['User-Agent'] = userAgent
   return headers
 }
 
@@ -120,11 +121,7 @@ function inferredProviderType(providerConfig) {
 }
 
 function visualModelClaimKey(baseUrl, modelId, kind) {
-  return [
-    normalizedProviderBaseUrl(baseUrl),
-    String(modelId || '').toLowerCase(),
-    kind,
-  ].join('\0')
+  return [normalizedProviderBaseUrl(baseUrl), String(modelId || '').toLowerCase(), kind].join('\0')
 }
 
 function dedicatedVisualModelClaims(modelsJson, appConfig) {
@@ -137,10 +134,8 @@ function dedicatedVisualModelClaims(modelsJson, appConfig) {
     for (const model of provider.models || []) {
       const kind = inferModelKind(model.id, model.kind)
       if (kind === 'chat') continue
-      const baseUrl = model.baseUrl
-        || provider.baseUrl
-        || PROVIDER_DEFAULT_BASE_URLS[providerId]
-        || ''
+      const baseUrl =
+        model.baseUrl || provider.baseUrl || PROVIDER_DEFAULT_BASE_URLS[providerId] || ''
       if (!baseUrl) continue
       const key = visualModelClaimKey(baseUrl, model.id, kind)
       const providerIds = claims.get(key) || new Set()
@@ -157,11 +152,9 @@ function claimedByOtherVisualProvider(claims, providerId, baseUrl, modelId, kind
 }
 
 function claimedByOtherVisualProviderAnyKind(claims, providerId, baseUrl, modelId) {
-  const prefix = [
-    normalizedProviderBaseUrl(baseUrl),
-    String(modelId || '').toLowerCase(),
-    '',
-  ].join('\0')
+  const prefix = [normalizedProviderBaseUrl(baseUrl), String(modelId || '').toLowerCase(), ''].join(
+    '\0',
+  )
   for (const [key, providerIds] of claims) {
     if (!key.startsWith(prefix)) continue
     if ([...providerIds].some((id) => id !== providerId)) return true
@@ -176,9 +169,7 @@ function sessionThinkingState(session) {
     thinkingLevel: session.thinkingLevel,
     availableLevels,
     status: supported ? 'supported' : 'unsupported',
-    message: supported
-      ? ''
-      : 'The current model does not expose configurable thinking levels.',
+    message: supported ? '' : 'The current model does not expose configurable thinking levels.',
     model: session.model ? `${session.model.provider}/${session.model.id}` : '',
   }
 }
@@ -243,10 +234,11 @@ export class ProviderPreferences {
     const configuredInputs = {}
     for (const provider of modelRuntime.getProviders()) {
       const overlay = modelsJson.providers?.[provider.id] || {}
-      configuredBaseUrls[provider.id] = overlay.baseUrl
-        || PROVIDER_DEFAULT_BASE_URLS[provider.id]
-        || modelRuntime.getModels(provider.id)[0]?.baseUrl
-        || ''
+      configuredBaseUrls[provider.id] =
+        overlay.baseUrl ||
+        PROVIDER_DEFAULT_BASE_URLS[provider.id] ||
+        modelRuntime.getModels(provider.id)[0]?.baseUrl ||
+        ''
       if (usesCustomProviderEndpoint(provider.id, overlay)) {
         configuredHeaders[provider.id] = providerHeaders(
           provider.id,
@@ -283,10 +275,7 @@ export class ProviderPreferences {
       throw new Error('该 Provider 当前未启用。')
     }
     await this.modelMetadata.ensure(modelId)
-    const model = this.getModelRuntime().getModel(
-      String(provider || ''),
-      String(modelId || ''),
-    )
+    const model = this.getModelRuntime().getModel(String(provider || ''), String(modelId || ''))
     if (!model) throw new Error('指定的模型不存在。')
     const value = await this.getSession(id)
     if (value.session.isStreaming) {
@@ -338,7 +327,8 @@ export class ProviderPreferences {
       throw new Error('当前模型不支持该思考等级。')
     }
     const settingsManager = this.getSettingsManager()
-    const defaultThinkingLevel = settingsManager.getGlobalSettings().defaultThinkingLevel || 'medium'
+    const defaultThinkingLevel =
+      settingsManager.getGlobalSettings().defaultThinkingLevel || 'medium'
     try {
       value.session.setThinkingLevel(requested)
     } finally {
@@ -369,12 +359,14 @@ export class ProviderPreferences {
     return {
       ...discovery,
       providers: discovery.providers.map((provider) => {
-        const imported = Boolean(modelsJson.providers?.[provider.providerId])
-          && appConfig.providerImports?.[provider.id]?.fingerprint === provider.fingerprint
+        const imported =
+          Boolean(modelsJson.providers?.[provider.providerId]) &&
+          appConfig.providerImports?.[provider.id]?.fingerprint === provider.fingerprint
         return {
           ...provider,
-          configured: Boolean(credentials[provider.providerId])
-            || modelRuntime.hasConfiguredAuth(provider.providerId),
+          configured:
+            Boolean(credentials[provider.providerId]) ||
+            modelRuntime.hasConfiguredAuth(provider.providerId),
           imported,
           conflict: Boolean(modelsJson.providers?.[provider.providerId]) && !imported,
         }
@@ -396,14 +388,16 @@ export class ProviderPreferences {
     modelsJson.providers ||= {}
     const existingProvider = modelsJson.providers[loaded.providerId]
     if (
-      existingProvider
-      && JSON.stringify(existingProvider) !== JSON.stringify(loaded.providerConfig)
-    ) throw new Error('Pisper 已存在该 Provider 的模型配置，不会自动覆盖。')
+      existingProvider &&
+      JSON.stringify(existingProvider) !== JSON.stringify(loaded.providerConfig)
+    )
+      throw new Error('Pisper 已存在该 Provider 的模型配置，不会自动覆盖。')
     if (
-      loaded.credential
-      && credentials[loaded.providerId]
-      && JSON.stringify(credentials[loaded.providerId]) !== JSON.stringify(loaded.credential)
-    ) throw new Error('Pisper 已存在该 Provider 的认证，不会自动覆盖。')
+      loaded.credential &&
+      credentials[loaded.providerId] &&
+      JSON.stringify(credentials[loaded.providerId]) !== JSON.stringify(loaded.credential)
+    )
+      throw new Error('Pisper 已存在该 Provider 的认证，不会自动覆盖。')
 
     modelsJson.providers[loaded.providerId] = loaded.providerConfig
     await writeJsonAtomic(this.modelsPath, modelsJson)
@@ -443,79 +437,77 @@ export class ProviderPreferences {
     const modelsJson = await readJson(this.modelsPath, { providers: {} })
     const credentials = await readJson(this.authPath, {})
     const runtimeProviders = modelRuntime.getProviders()
-    const providerIds = [...new Set([
-      ...KNOWN_PROVIDERS,
-      ...Object.keys(modelsJson.providers || {}),
-    ])]
+    const providerIds = [
+      ...new Set([...KNOWN_PROVIDERS, ...Object.keys(modelsJson.providers || {})]),
+    ]
     const disabledProviders = new Set(appConfig.disabledProviders || [])
     const visualClaims = dedicatedVisualModelClaims(modelsJson, appConfig)
-    const providers = providerIds.map((id) => {
-      const runtimeProvider = runtimeProviders.find((item) => item.id === id)
-      const overlay = modelsJson.providers?.[id] || {}
-      const overlayModels = Array.isArray(overlay.models) ? overlay.models : []
-      const type = appConfig.providerTypes?.[id] || inferredProviderType(overlay)
-      const models = modelRuntime.getModels(id).map((model) => {
-        const definition = overlayModels.find((item) => item.id === model.id)
+    const providers = providerIds
+      .map((id) => {
+        const runtimeProvider = runtimeProviders.find((item) => item.id === id)
+        const overlay = modelsJson.providers?.[id] || {}
+        const overlayModels = Array.isArray(overlay.models) ? overlay.models : []
+        const type = appConfig.providerTypes?.[id] || inferredProviderType(overlay)
+        const models = modelRuntime
+          .getModels(id)
+          .map((model) => {
+            const definition = overlayModels.find((item) => item.id === model.id)
+            return {
+              id: model.id,
+              name: model.name || model.id,
+              kind: inferModelKind(model.id, definition?.kind || model.pisperKind),
+              reasoning: Boolean(model.reasoning),
+              contextWindow: model.contextWindow || null,
+              baseUrl: model.baseUrl || '',
+              baseUrlOverride: definition?.baseUrl || '',
+            }
+          })
+          .filter((model) => {
+            if (type === 'visual') return model.kind !== 'chat'
+            if (model.kind === 'chat') return true
+            const baseUrl = model.baseUrl || overlay.baseUrl || PROVIDER_DEFAULT_BASE_URLS[id] || ''
+            return !claimedByOtherVisualProvider(visualClaims, id, baseUrl, model.id, model.kind)
+          })
+          .sort(
+            (left, right) =>
+              modelRank(id, right) - modelRank(id, left) || left.name.localeCompare(right.name),
+          )
+        const chatModels = models.filter((model) => model.kind === 'chat')
+        const preferredModel =
+          appConfig.providerDefaultModels?.[id] ||
+          (settings.defaultProvider === id ? settings.defaultModel : '')
+        const defaultModel = chatModels.some((model) => model.id === preferredModel)
+          ? preferredModel
+          : chatModels[0]?.id || ''
         return {
-          id: model.id,
-          name: model.name || model.id,
-          kind: inferModelKind(model.id, definition?.kind || model.pisperKind),
-          reasoning: Boolean(model.reasoning),
-          contextWindow: model.contextWindow || null,
-          baseUrl: model.baseUrl || '',
-          baseUrlOverride: definition?.baseUrl || '',
-        }
-      }).filter((model) => {
-        if (type === 'visual') return model.kind !== 'chat'
-        if (model.kind === 'chat') return true
-        const baseUrl = model.baseUrl
-          || overlay.baseUrl
-          || PROVIDER_DEFAULT_BASE_URLS[id]
-          || ''
-        return !claimedByOtherVisualProvider(
-          visualClaims,
           id,
-          baseUrl,
-          model.id,
-          model.kind,
-        )
-      }).sort(
-        (left, right) => modelRank(id, right) - modelRank(id, left)
-          || left.name.localeCompare(right.name),
-      )
-      const chatModels = models.filter((model) => model.kind === 'chat')
-      const preferredModel = appConfig.providerDefaultModels?.[id]
-        || (settings.defaultProvider === id ? settings.defaultModel : '')
-      const defaultModel = chatModels.some((model) => model.id === preferredModel)
-        ? preferredModel
-        : chatModels[0]?.id || ''
-      return {
-        id,
-        name: PROVIDER_LABELS[id] || overlay.name || runtimeProvider?.name || id,
-        type,
-        configured: Boolean(credentials[id]) || modelRuntime.hasConfiguredAuth(id),
-        enabled: !disabledProviders.has(id),
-        custom: !KNOWN_PROVIDERS.includes(id),
-        api: overlay.api || modelRuntime.getModels(id)[0]?.api || 'openai-responses',
-        baseUrl: overlay.baseUrl || PROVIDER_DEFAULT_BASE_URLS[id] || '',
-        organization: overlay.headers?.['OpenAI-Organization'] || '',
-        defaultModel,
-        models,
-      }
-    }).filter((provider) => provider.models.length > 0 || KNOWN_PROVIDERS.includes(provider.id))
+          name: PROVIDER_LABELS[id] || overlay.name || runtimeProvider?.name || id,
+          type,
+          configured: Boolean(credentials[id]) || modelRuntime.hasConfiguredAuth(id),
+          enabled: !disabledProviders.has(id),
+          custom: !KNOWN_PROVIDERS.includes(id),
+          api: overlay.api || modelRuntime.getModels(id)[0]?.api || 'openai-responses',
+          baseUrl: overlay.baseUrl || PROVIDER_DEFAULT_BASE_URLS[id] || '',
+          organization: overlay.headers?.['OpenAI-Organization'] || '',
+          defaultModel,
+          models,
+        }
+      })
+      .filter((provider) => provider.models.length > 0 || KNOWN_PROVIDERS.includes(provider.id))
 
-    const hasChatModel = (provider) => provider.type !== 'visual'
-      && provider.models.some((model) => model.kind === 'chat')
-    const selectedProviderEntry = providers.find(
-      (item) => item.id === settings.defaultProvider
-        && item.enabled
-        && item.configured
-        && hasChatModel(item),
-    ) || providers.find(
-      (item) => item.enabled && item.configured && hasChatModel(item),
-    ) || providers.find(
-      (item) => item.enabled && hasChatModel(item),
-    ) || providers[0]
+    const hasChatModel = (provider) =>
+      provider.type !== 'visual' && provider.models.some((model) => model.kind === 'chat')
+    const selectedProviderEntry =
+      providers.find(
+        (item) =>
+          item.id === settings.defaultProvider &&
+          item.enabled &&
+          item.configured &&
+          hasChatModel(item),
+      ) ||
+      providers.find((item) => item.enabled && item.configured && hasChatModel(item)) ||
+      providers.find((item) => item.enabled && hasChatModel(item)) ||
+      providers[0]
     const selectedProvider = selectedProviderEntry?.id || 'openai'
     const selectedModel = selectedProviderEntry?.defaultModel || ''
     return {
@@ -537,10 +529,11 @@ export class ProviderPreferences {
       disabledProviders: [],
     })
     const existingOverlay = await readJson(this.modelsPath, { providers: {} })
-    const providerType = input.providerType === 'visual' || input.providerType === 'chat'
-      ? input.providerType
-      : currentAppConfig.providerTypes?.[provider]
-        || inferredProviderType(existingOverlay.providers?.[provider] || {})
+    const providerType =
+      input.providerType === 'visual' || input.providerType === 'chat'
+        ? input.providerType
+        : currentAppConfig.providerTypes?.[provider] ||
+          inferredProviderType(existingOverlay.providers?.[provider] || {})
     if ((currentAppConfig.disabledProviders || []).includes(provider)) {
       throw new Error('请先启用该 Provider，再将其设为默认配置。')
     }
@@ -568,12 +561,16 @@ export class ProviderPreferences {
       'openai-completions',
       'anthropic-messages',
       'google-generative-ai',
-    ].includes(input.api) ? input.api : ''
+    ].includes(input.api)
+      ? input.api
+      : ''
     if (requestedApi) {
       providerOverlay.api = requestedApi
       if (Array.isArray(providerOverlay.models)) {
-        providerOverlay.models = providerOverlay.models
-          .map((item) => ({ ...item, api: requestedApi }))
+        providerOverlay.models = providerOverlay.models.map((item) => ({
+          ...item,
+          api: requestedApi,
+        }))
       }
     }
     const modelRuntime = this.getModelRuntime()
@@ -600,26 +597,24 @@ export class ProviderPreferences {
     const modelDefinitions = Array.isArray(providerOverlay.models)
       ? [...providerOverlay.models]
       : []
-    const definitionIndex = model
-      ? modelDefinitions.findIndex((item) => item.id === model)
-      : -1
+    const definitionIndex = model ? modelDefinitions.findIndex((item) => item.id === model) : -1
     if (model && (modelBaseUrl || definitionIndex >= 0)) {
-      const definition = definitionIndex >= 0
-        ? { ...modelDefinitions[definitionIndex] }
-        : {
-            id: model,
-            name: runtimeModel?.name || String(input.modelName || model),
-            api: requestedApi
-              || runtimeModel?.api
-              || String(input.api || providerOverlay.api || 'openai-responses'),
-            kind: inferModelKind(model, input.modelKind),
-            reasoning: runtimeModel?.reasoning ?? input.reasoning !== false,
-            input: runtimeModel?.input || ['text', 'image'],
-            contextWindow: runtimeModel?.contextWindow
-              || Number(input.contextWindow)
-              || 200_000,
-            maxTokens: runtimeModel?.maxTokens || Number(input.maxTokens) || 128_000,
-          }
+      const definition =
+        definitionIndex >= 0
+          ? { ...modelDefinitions[definitionIndex] }
+          : {
+              id: model,
+              name: runtimeModel?.name || String(input.modelName || model),
+              api:
+                requestedApi ||
+                runtimeModel?.api ||
+                String(input.api || providerOverlay.api || 'openai-responses'),
+              kind: inferModelKind(model, input.modelKind),
+              reasoning: runtimeModel?.reasoning ?? input.reasoning !== false,
+              input: runtimeModel?.input || ['text', 'image'],
+              contextWindow: runtimeModel?.contextWindow || Number(input.contextWindow) || 200_000,
+              maxTokens: runtimeModel?.maxTokens || Number(input.maxTokens) || 128_000,
+            }
       if (modelBaseUrl) definition.baseUrl = modelBaseUrl
       else delete definition.baseUrl
       definition.kind = inferModelKind(model, input.modelKind || definition.kind)
@@ -657,17 +652,19 @@ export class ProviderPreferences {
     await writeJsonAtomic(this.appConfigPath, {
       ...currentAppConfig,
       toolMode: requestedToolMode,
-      enabledTools: requestedToolMode === 'custom'
-        ? toolsFromConfig(currentAppConfig)
-        : toolPresets[requestedToolMode],
+      enabledTools:
+        requestedToolMode === 'custom'
+          ? toolsFromConfig(currentAppConfig)
+          : toolPresets[requestedToolMode],
       disabledProviders: [...new Set(currentAppConfig.disabledProviders || [])],
       providerTypes: {
         ...(currentAppConfig.providerTypes || {}),
         [provider]: providerType,
       },
-      providerDefaultModels: providerType === 'visual' || !model
-        ? { ...(currentAppConfig.providerDefaultModels || {}) }
-        : { ...(currentAppConfig.providerDefaultModels || {}), [provider]: model },
+      providerDefaultModels:
+        providerType === 'visual' || !model
+          ? { ...(currentAppConfig.providerDefaultModels || {}) }
+          : { ...(currentAppConfig.providerDefaultModels || {}), [provider]: model },
     })
     await this.disposeSessions()
     await this.reloadModelRuntime()
@@ -678,9 +675,10 @@ export class ProviderPreferences {
     const provider = String(id || '').trim()
     const modelRuntime = this.getModelRuntime()
     if (
-      !modelRuntime.getProviders().some((item) => item.id === provider)
-      && !KNOWN_PROVIDERS.includes(provider)
-    ) throw new Error('Provider 不存在。')
+      !modelRuntime.getProviders().some((item) => item.id === provider) &&
+      !KNOWN_PROVIDERS.includes(provider)
+    )
+      throw new Error('Provider 不存在。')
     const appConfig = await readJson(this.appConfigPath, {
       toolMode: 'full',
       disabledProviders: [],
@@ -696,20 +694,22 @@ export class ProviderPreferences {
       const providerTypes = appConfig.providerTypes || {}
       const modelsJson = await readJson(this.modelsPath, { providers: {} })
       const alternative = modelRuntime.getProviders().find((item) => {
-        const type = providerTypes[item.id]
-          || inferredProviderType(modelsJson.providers?.[item.id] || {})
-        return item.id !== provider
-          && type !== 'visual'
-          && !disabled.has(item.id)
-          && credentials[item.id]
-          && modelRuntime.getModels(item.id).some(
-            (model) => inferModelKind(model.id, model.pisperKind) === 'chat',
-          )
+        const type =
+          providerTypes[item.id] || inferredProviderType(modelsJson.providers?.[item.id] || {})
+        return (
+          item.id !== provider &&
+          type !== 'visual' &&
+          !disabled.has(item.id) &&
+          credentials[item.id] &&
+          modelRuntime
+            .getModels(item.id)
+            .some((model) => inferModelKind(model.id, model.pisperKind) === 'chat')
+        )
       })
       if (!alternative) throw new Error('至少需要保留一个已配置并启用的 Provider。')
-      const alternativeModel = modelRuntime.getModels(alternative.id).find(
-        (model) => inferModelKind(model.id, model.pisperKind) === 'chat',
-      )
+      const alternativeModel = modelRuntime
+        .getModels(alternative.id)
+        .find((model) => inferModelKind(model.id, model.pisperKind) === 'chat')
       settingsManager.setDefaultModelAndProvider(alternative.id, alternativeModel.id)
       await settingsManager.flush()
     }
@@ -726,10 +726,10 @@ export class ProviderPreferences {
     const api = String(input.api || 'openai-responses').trim()
     const baseUrl = String(input.baseUrl || '').trim()
     const modelId = String(input.model || '').trim()
-    const providerType = input.providerType === 'visual'
-      || inferModelKind(modelId, input.modelKind) !== 'chat'
-      ? 'visual'
-      : 'chat'
+    const providerType =
+      input.providerType === 'visual' || inferModelKind(modelId, input.modelKind) !== 'chat'
+        ? 'visual'
+        : 'chat'
     if (!id || !name || !baseUrl || !modelId) {
       throw new Error('名称、Provider ID、Base URL 和初始模型不能为空。')
     }
@@ -737,10 +737,8 @@ export class ProviderPreferences {
       throw new Error('视觉 Provider 的初始模型必须是图像或视频模型。')
     }
     const modelRuntime = this.getModelRuntime()
-    if (
-      modelRuntime.getProviders().some((item) => item.id === id)
-      || KNOWN_PROVIDERS.includes(id)
-    ) throw new Error('Provider ID 已存在，请使用不同的连接标识。')
+    if (modelRuntime.getProviders().some((item) => item.id === id) || KNOWN_PROVIDERS.includes(id))
+      throw new Error('Provider ID 已存在，请使用不同的连接标识。')
 
     const modelsJson = await readJson(this.modelsPath, { providers: {} })
     modelsJson.providers ||= {}
@@ -748,16 +746,18 @@ export class ProviderPreferences {
       name,
       api,
       baseUrl,
-      models: [{
-        id: modelId,
-        name: String(input.modelName || modelId).trim() || modelId,
-        api,
-        kind: inferModelKind(modelId, input.modelKind),
-        reasoning: input.reasoning !== false,
-        input: ['text', 'image'],
-        contextWindow: Number(input.contextWindow) || 200_000,
-        maxTokens: Number(input.maxTokens) || 128_000,
-      }],
+      models: [
+        {
+          id: modelId,
+          name: String(input.modelName || modelId).trim() || modelId,
+          api,
+          kind: inferModelKind(modelId, input.modelKind),
+          reasoning: input.reasoning !== false,
+          input: ['text', 'image'],
+          contextWindow: Number(input.contextWindow) || 200_000,
+          maxTokens: Number(input.maxTokens) || 128_000,
+        },
+      ],
     }
     await writeJsonAtomic(this.modelsPath, modelsJson)
 
@@ -778,9 +778,10 @@ export class ProviderPreferences {
       ...appConfig,
       disabledProviders: [...disabled],
       providerTypes: { ...(appConfig.providerTypes || {}), [id]: providerType },
-      providerDefaultModels: providerType === 'visual'
-        ? { ...(appConfig.providerDefaultModels || {}) }
-        : { ...(appConfig.providerDefaultModels || {}), [id]: modelId },
+      providerDefaultModels:
+        providerType === 'visual'
+          ? { ...(appConfig.providerDefaultModels || {}) }
+          : { ...(appConfig.providerDefaultModels || {}), [id]: modelId },
     })
     await this.disposeSessions()
     await this.reloadModelRuntime()
@@ -792,12 +793,9 @@ export class ProviderPreferences {
     const settings = settingsManager.getGlobalSettings()
     const config = await this.getConfigFacade()
     if (
-      config.provider
-      && config.model
-      && (
-        settings.defaultProvider !== config.provider
-        || settings.defaultModel !== config.model
-      )
+      config.provider &&
+      config.model &&
+      (settings.defaultProvider !== config.provider || settings.defaultModel !== config.model)
     ) {
       settingsManager.setDefaultModelAndProvider(config.provider, config.model)
       await settingsManager.flush()
@@ -815,43 +813,41 @@ export class ProviderPreferences {
         readJson(this.appConfigPath, { disabledProviders: [] }),
       ])
       const disabled = new Set(appConfig.disabledProviders || [])
-      const providerIds = new Set([
-        ...KNOWN_PROVIDERS,
-        ...Object.keys(modelsJson.providers || {}),
-      ])
+      const providerIds = new Set([...KNOWN_PROVIDERS, ...Object.keys(modelsJson.providers || {})])
       const jobs = []
       for (const provider of providerIds) {
         if (disabled.has(provider) || provider === 'openai-codex') continue
         const overlay = modelsJson.providers?.[provider] || {}
-        const baseUrl = String(
-          overlay.baseUrl || PROVIDER_DEFAULT_BASE_URLS[provider] || '',
-        ).trim()
+        const baseUrl = String(overlay.baseUrl || PROVIDER_DEFAULT_BASE_URLS[provider] || '').trim()
         if (!baseUrl) continue
-        const hasAuthentication = Boolean(configuredProviderSecret(credentials[provider], overlay))
-          || modelRuntime.hasConfiguredAuth(provider)
+        const hasAuthentication =
+          Boolean(configuredProviderSecret(credentials[provider], overlay)) ||
+          modelRuntime.hasConfiguredAuth(provider)
         const isExplicitConnection = Boolean(overlay.baseUrl)
         if (!hasAuthentication && !isExplicitConnection) continue
-        jobs.push((async () => {
-          try {
-            const result = await this.discoverProviderModelsFacade(provider, {
-              reconcile: false,
-              includeConfig: false,
-            })
-            return {
-              provider,
-              ok: true,
-              count: result.count,
-              added: result.addedModelIds.length,
-              removed: result.removedModelIds.length,
+        jobs.push(
+          (async () => {
+            try {
+              const result = await this.discoverProviderModelsFacade(provider, {
+                reconcile: false,
+                includeConfig: false,
+              })
+              return {
+                provider,
+                ok: true,
+                count: result.count,
+                added: result.addedModelIds.length,
+                removed: result.removedModelIds.length,
+              }
+            } catch (error) {
+              return {
+                provider,
+                ok: false,
+                error: redactSecretText(error instanceof Error ? error.message : String(error)),
+              }
             }
-          } catch (error) {
-            return {
-              provider,
-              ok: false,
-              error: redactSecretText(error instanceof Error ? error.message : String(error)),
-            }
-          }
-        })())
+          })(),
+        )
       }
       const results = await Promise.all(jobs)
       return { results, config: await this.reconcileDefaultModelFacade() }
@@ -869,9 +865,10 @@ export class ProviderPreferences {
     const provider = String(providerId || '').trim()
     const modelRuntime = this.getModelRuntime()
     if (
-      !modelRuntime.getProviders().some((item) => item.id === provider)
-      && !KNOWN_PROVIDERS.includes(provider)
-    ) throw new Error('Provider 不存在。')
+      !modelRuntime.getProviders().some((item) => item.id === provider) &&
+      !KNOWN_PROVIDERS.includes(provider)
+    )
+      throw new Error('Provider 不存在。')
     const [modelsJson, credentials, appConfig] = await Promise.all([
       readJson(this.modelsPath, { providers: {} }),
       readJson(this.authPath, {}),
@@ -879,16 +876,14 @@ export class ProviderPreferences {
     ])
     const overlay = modelsJson.providers?.[provider] || {}
     const runtimeModel = modelRuntime.getModels(provider)[0]
-    const api = String(
-      input.api || overlay.api || runtimeModel?.api || 'openai-responses',
-    ).trim()
+    const api = String(input.api || overlay.api || runtimeModel?.api || 'openai-responses').trim()
     const configuredBaseUrl = String(
       overlay.baseUrl || PROVIDER_DEFAULT_BASE_URLS[provider] || '',
     ).trim()
     const baseUrl = String(input.baseUrl || configuredBaseUrl || '').trim()
     if (!baseUrl) throw new Error('请先配置 Provider Base URL。')
-    const apiKey = String(input.apiKey || '').trim()
-      || configuredProviderSecret(credentials[provider], overlay)
+    const apiKey =
+      String(input.apiKey || '').trim() || configuredProviderSecret(credentials[provider], overlay)
     const discovered = await this.providerModelDiscovery.discover({
       api,
       baseUrl,
@@ -898,25 +893,21 @@ export class ProviderPreferences {
       ).trim(),
       headers: providerHeaders(provider, overlay, this.providerUserAgent),
     })
-    const scope = input.providerType === 'visual' || input.providerType === 'chat'
-      ? input.providerType
-      : appConfig.providerTypes?.[provider] || inferredProviderType(overlay)
+    const scope =
+      input.providerType === 'visual' || input.providerType === 'chat'
+        ? input.providerType
+        : appConfig.providerTypes?.[provider] || inferredProviderType(overlay)
     const visualClaims = dedicatedVisualModelClaims(modelsJson, appConfig)
-    const models = scope === 'visual'
-      ? discovered.models
-      : discovered.models.filter(
-          (model) => !claimedByOtherVisualProviderAnyKind(
-            visualClaims,
-            provider,
-            baseUrl,
-            model.id,
-          ),
-        )
+    const models =
+      scope === 'visual'
+        ? discovered.models
+        : discovered.models.filter(
+            (model) =>
+              !claimedByOtherVisualProviderAnyKind(visualClaims, provider, baseUrl, model.id),
+          )
     if (!models.length) throw new Error('Provider 没有返回可用的模型。')
     const result = { ...discovered, count: models.length, models, scope }
-    const previousModelIds = new Set(
-      modelRuntime.getModels(provider).map((model) => model.id),
-    )
+    const previousModelIds = new Set(modelRuntime.getModels(provider).map((model) => model.id))
     let sync = { addedModelIds: [], removedModelIds: [] }
     const synchronized = sameBaseUrl(baseUrl, configuredBaseUrl)
     if (synchronized) {
@@ -939,9 +930,7 @@ export class ProviderPreferences {
       synchronized,
       addedModelIds: sync.addedModelIds,
       removedModelIds: sync.removedModelIds,
-      config: synchronized && input.includeConfig !== false
-        ? await this.getConfigFacade()
-        : null,
+      config: synchronized && input.includeConfig !== false ? await this.getConfigFacade() : null,
     }
   }
 
@@ -949,9 +938,10 @@ export class ProviderPreferences {
     const provider = String(providerId || '').trim()
     const modelRuntime = this.getModelRuntime()
     if (
-      !modelRuntime.getProviders().some((item) => item.id === provider)
-      && !KNOWN_PROVIDERS.includes(provider)
-    ) throw new Error('Provider 不存在。')
+      !modelRuntime.getProviders().some((item) => item.id === provider) &&
+      !KNOWN_PROVIDERS.includes(provider)
+    )
+      throw new Error('Provider 不存在。')
     const models = Array.isArray(inputs) ? inputs : []
     if (!models.length) throw new Error('请至少选择一个模型。')
     if (models.length > 250) throw new Error('单次最多添加 250 个模型。')
@@ -961,8 +951,7 @@ export class ProviderPreferences {
     ])
     modelsJson.providers ||= {}
     const overlay = { ...(modelsJson.providers[provider] || {}) }
-    const providerType = appConfig.providerTypes?.[provider]
-      || inferredProviderType(overlay)
+    const providerType = appConfig.providerTypes?.[provider] || inferredProviderType(overlay)
     overlay.models = Array.isArray(overlay.models) ? [...overlay.models] : []
     const existing = new Set([
       ...overlay.models.map((item) => item.id),
@@ -986,9 +975,7 @@ export class ProviderPreferences {
         name: String(input.name || modelId).trim() || modelId,
         api: String(input.api || overlay.api || 'openai-responses'),
         kind: modelKind,
-        ...(String(input.baseUrl || '').trim()
-          ? { baseUrl: String(input.baseUrl).trim() }
-          : {}),
+        ...(String(input.baseUrl || '').trim() ? { baseUrl: String(input.baseUrl).trim() } : {}),
         reasoning: input.reasoning !== false,
         input: ['text', 'image'],
         contextWindow: Number(input.contextWindow) || 200_000,
@@ -1031,8 +1018,9 @@ export class ProviderPreferences {
       toolMode: 'full',
       disabledProviders: [],
     })
-    appConfig.disabledProviders = (appConfig.disabledProviders || [])
-      .filter((item) => item !== provider)
+    appConfig.disabledProviders = (appConfig.disabledProviders || []).filter(
+      (item) => item !== provider,
+    )
     if (appConfig.providerTypes) delete appConfig.providerTypes[provider]
     if (appConfig.providerDefaultModels) delete appConfig.providerDefaultModels[provider]
     await writeJsonAtomic(this.appConfigPath, appConfig)
@@ -1043,19 +1031,21 @@ export class ProviderPreferences {
     if (settings.defaultProvider === provider) {
       const providerTypes = appConfig.providerTypes || {}
       const alternative = modelRuntime.getProviders().find((item) => {
-        const type = providerTypes[item.id]
-          || inferredProviderType(modelsJson.providers?.[item.id] || {})
-        return item.id !== provider
-          && type !== 'visual'
-          && credentials[item.id]
-          && modelRuntime.getModels(item.id).some(
-            (model) => inferModelKind(model.id, model.pisperKind) === 'chat',
-          )
+        const type =
+          providerTypes[item.id] || inferredProviderType(modelsJson.providers?.[item.id] || {})
+        return (
+          item.id !== provider &&
+          type !== 'visual' &&
+          credentials[item.id] &&
+          modelRuntime
+            .getModels(item.id)
+            .some((model) => inferModelKind(model.id, model.pisperKind) === 'chat')
+        )
       })
       if (alternative) {
-        const alternativeModel = modelRuntime.getModels(alternative.id).find(
-          (model) => inferModelKind(model.id, model.pisperKind) === 'chat',
-        )
+        const alternativeModel = modelRuntime
+          .getModels(alternative.id)
+          .find((model) => inferModelKind(model.id, model.pisperKind) === 'chat')
         settingsManager.setDefaultModelAndProvider(alternative.id, alternativeModel.id)
         await settingsManager.flush()
       }

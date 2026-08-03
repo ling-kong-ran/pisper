@@ -32,7 +32,10 @@ test('one thousand mixed-height transcript messages keep a bounded rendered wind
   const virtualizer = transcriptVirtualizer(sizes, 60_000)
   const rendered = virtualizer.getVirtualItems()
 
-  assert.equal(virtualizer.getTotalSize(), sizes.reduce((total, size) => total + size, 0))
+  assert.equal(
+    virtualizer.getTotalSize(),
+    sizes.reduce((total, size) => total + size, 0),
+  )
   assert.ok(rendered.length > 0)
   assert.ok(rendered.length < 32, `expected a bounded range, rendered ${rendered.length}`)
   assert.ok(rendered[0].index > 0)
@@ -104,7 +107,9 @@ test('virtualization source owns only message rows and preserves stable render b
   assert.ok(transcriptSource.indexOf('history-page-loader') < virtualBoundary)
   assert.ok(transcriptSource.indexOf('<PlanBoard') < virtualBoundary)
   assert.ok(transcriptSource.indexOf('className="chat-error"') > virtualBoundary)
-  assert.ok(sessionSource.indexOf('<FocusTranscript') < sessionSource.indexOf('focus-composer-shell'))
+  assert.ok(
+    sessionSource.indexOf('<FocusTranscript') < sessionSource.indexOf('focus-composer-shell'),
+  )
   assert.ok(sessionSource.indexOf('<ToolApproval') > sessionSource.indexOf('<FocusTranscript'))
   assert.match(transcriptSource, /onContentSizeChange=\{maintainBottom\}/)
   assert.match(transcriptSource, /onPointerDown=\{cancelProgrammaticScroll\}/)

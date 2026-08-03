@@ -22,7 +22,9 @@ function run(command, args) {
 
 const packageJson = JSON.parse(await readFile(packagePath, 'utf8'))
 if (packageJson.version !== version) {
-  throw new Error(`版本不一致：package.json 为 ${packageJson.version}，Git Tag 为 ${tag}。请使用 npm run release 创建版本。`)
+  throw new Error(
+    `版本不一致：package.json 为 ${packageJson.version}，Git Tag 为 ${tag}。请使用 npm run release 创建版本。`,
+  )
 }
 
 const tags = run('git', ['tag', '--list', 'v*', '--sort=-version:refname'])
@@ -44,11 +46,20 @@ const date = new Date().toISOString().slice(0, 10)
 const markdown = normalizeMarkdown(generated.body, version)
 
 await mkdir(dirname(releaseNotesPath), { recursive: true })
-await writeFile(releaseNotesPath, `${JSON.stringify({ version, date, notes: markdown }, null, 2)}\n`, 'utf8')
+await writeFile(
+  releaseNotesPath,
+  `${JSON.stringify({ version, date, notes: markdown }, null, 2)}\n`,
+  'utf8',
+)
 await writeFile(releaseBodyPath, `${markdown}\n`, 'utf8')
 console.log(`已从 ${source}生成 Pisper ${version} 更新日志。`)
 
-async function generateGitHubNotes({ repository: repo, token: githubToken, tag: currentTag, previousTag: previous }) {
+async function generateGitHubNotes({
+  repository: repo,
+  token: githubToken,
+  tag: currentTag,
+  previousTag: previous,
+}) {
   const payload = {
     tag_name: currentTag,
     configuration_file_path: '.github/release.yml',
@@ -78,7 +89,9 @@ function generateLocalNotes({ tag: currentTag, previousTag: previous }) {
     .split(/\r?\n/)
     .map((value) => value.trim())
     .filter((value) => value && !/^chore\(release\):/i.test(value))
-  const notes = subjects.length ? subjects.map((subject) => `- ${subject}`).join('\n') : '- Maintenance release'
+  const notes = subjects.length
+    ? subjects.map((subject) => `- ${subject}`).join('\n')
+    : '- Maintenance release'
   const compare = previous
     ? `\n\n**完整变更**：https://github.com/${repository}/compare/${previous}...${currentTag}`
     : ''

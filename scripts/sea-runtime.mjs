@@ -19,12 +19,7 @@ const removableDirectoryNames = new Set([
   'test',
   'tests',
 ])
-const removableFileNames = new Set([
-  'changelog',
-  'changelog.md',
-  'readme',
-  'readme.md',
-])
+const removableFileNames = new Set(['changelog', 'changelog.md', 'readme', 'readme.md'])
 const declarationSuffixes = ['.d.cts', '.d.mts', '.d.ts']
 const sourceOnlySuffixes = ['.cts', '.mts', '.ts', '.tsx']
 const officeBrowserFiles = new Set([

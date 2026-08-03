@@ -23,9 +23,15 @@ test('Bing RSS search builds a lightweight request and parses structured results
     },
   })
 
-  const result = await service.search({
-    query: 'Pisper agent', language: 'en-US', page: 2, limit: 2,
-  }, { config: { language: 'auto', safeSearch: 2, maxResults: 8 } })
+  const result = await service.search(
+    {
+      query: 'Pisper agent',
+      language: 'en-US',
+      page: 2,
+      limit: 2,
+    },
+    { config: { language: 'auto', safeSearch: 2, maxResults: 8 } },
+  )
 
   assert.equal(request.url.hostname, 'www.bing.com')
   assert.equal(request.url.searchParams.get('q'), 'Pisper agent')
@@ -66,13 +72,21 @@ test('web_search needs no endpoint, belongs to read-only presets, and persists p
   assert.ok(TOOL_PRESETS['read-only'].includes('web_search'))
   assert.ok(saved.enabledTools.includes('web_search'))
   assert.deepEqual(saved.webSearch, {
-    provider: 'bing', language: 'zh-CN', safeSearch: 1, maxResults: 6,
+    provider: 'bing',
+    language: 'zh-CN',
+    safeSearch: 1,
+    maxResults: 6,
   })
 
   let searched
   const [tool] = createAppTools({
     enabledTools: ['web_search'],
-    webSearchService: { search: async (input) => { searched = input; return { text: 'result', results: [] } } },
+    webSearchService: {
+      search: async (input) => {
+        searched = input
+        return { text: 'result', results: [] }
+      },
+    },
   })
   const output = await tool.execute('search-1', { query: 'latest Pisper release', limit: 5 })
   assert.equal(searched.query, 'latest Pisper release')

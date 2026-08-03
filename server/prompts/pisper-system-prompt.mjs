@@ -1,20 +1,21 @@
 const RUNTIME_BLOCK = /\n*<pisper_runtime>[\s\S]*?<\/pisper_runtime>\n*/g
-const PI_OPENING = 'You are an expert coding assistant operating inside pi, a coding agent harness. You help users by reading files, executing commands, editing code, and writing new files.'
-const PISPER_OPENING = 'You are an expert coding assistant operating inside Pisper, a desktop coding agent application. You help users by reading files, executing commands, editing code, and writing new files.'
+const PI_OPENING =
+  'You are an expert coding assistant operating inside pi, a coding agent harness. You help users by reading files, executing commands, editing code, and writing new files.'
+const PISPER_OPENING =
+  'You are an expert coding assistant operating inside Pisper, a desktop coding agent application. You help users by reading files, executing commands, editing code, and writing new files.'
 const MAX_IDENTITY_CHARS = 240
 
 function runtimeField(value) {
-  const normalized = Array.from(String(value || 'unknown'), (character) => {
-    const code = character.charCodeAt(0)
-    return code < 32 || code === 127 ? ' ' : character
-  }).join('')
-    .replace(/\s+/g, ' ')
-    .trim()
-    .slice(0, MAX_IDENTITY_CHARS) || 'unknown'
-  return normalized
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
+  const normalized =
+    Array.from(String(value || 'unknown'), (character) => {
+      const code = character.charCodeAt(0)
+      return code < 32 || code === 127 ? ' ' : character
+    })
+      .join('')
+      .replace(/\s+/g, ' ')
+      .trim()
+      .slice(0, MAX_IDENTITY_CHARS) || 'unknown'
+  return normalized.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
 }
 
 function modelIdentity(model) {
@@ -34,9 +35,18 @@ export function pisperSystemPrompt(basePrompt, model) {
       'Pisper runtime documentation (read only when the user asks about Pisper internals, its embedded SDK, extensions, themes, skills, or UI runtime):',
     )
     .replace('When reading pi docs or examples', 'When reading Pisper runtime docs or examples')
-    .replace('adding models (docs/models.md), pi packages (docs/packages.md)', 'adding models (docs/models.md), runtime packages (docs/packages.md)')
-    .replace('When working on pi topics, read the docs and examples', 'When working on Pisper runtime topics, read the docs and examples')
-    .replace('Always read pi .md files completely', 'Always read the referenced runtime .md files completely')
+    .replace(
+      'adding models (docs/models.md), pi packages (docs/packages.md)',
+      'adding models (docs/models.md), runtime packages (docs/packages.md)',
+    )
+    .replace(
+      'When working on pi topics, read the docs and examples',
+      'When working on Pisper runtime topics, read the docs and examples',
+    )
+    .replace(
+      'Always read pi .md files completely',
+      'Always read the referenced runtime .md files completely',
+    )
     .trim()
   const runtime = `<pisper_runtime>
 Application: Pisper

@@ -1,7 +1,9 @@
 import { randomUUID } from 'node:crypto'
 import { readJson, writeJsonAtomic } from '../storage/json-file.mjs'
 
-export const GOAL_STATUSES = Object.freeze(new Set(['active', 'paused', 'budget_limited', 'complete']))
+export const GOAL_STATUSES = Object.freeze(
+  new Set(['active', 'paused', 'budget_limited', 'complete']),
+)
 export const DEFAULT_GOAL_TOKEN_BUDGET = 30_000
 export const MAX_GOAL_OBJECTIVE_CHARS = 6_000
 export const GOAL_CONTINUATION_MARKER = '[Pisper internal goal continuation]'
@@ -18,8 +20,10 @@ function usageTokens(usage) {
   if (!usage) return 0
   const total = Number(usage.totalTokens ?? usage.total)
   if (Number.isFinite(total) && total > 0) return total
-  return ['input', 'output', 'cacheRead', 'cacheWrite', 'reasoning']
-    .reduce((sum, key) => sum + Math.max(0, Number(usage[key]) || 0), 0)
+  return ['input', 'output', 'cacheRead', 'cacheWrite', 'reasoning'].reduce(
+    (sum, key) => sum + Math.max(0, Number(usage[key]) || 0),
+    0,
+  )
 }
 
 function normalizedBudget(value, fallback = DEFAULT_GOAL_TOKEN_BUDGET) {
@@ -32,18 +36,28 @@ function normalizedBudget(value, fallback = DEFAULT_GOAL_TOKEN_BUDGET) {
 }
 
 function normalizedState(input) {
-  const goals = input && typeof input === 'object' && input.goals && typeof input.goals === 'object' ? input.goals : {}
+  const goals =
+    input && typeof input === 'object' && input.goals && typeof input.goals === 'object'
+      ? input.goals
+      : {}
   const result = {}
   for (const [sessionId, value] of Object.entries(goals)) {
-    if (!value || typeof value !== 'object' || !GOAL_STATUSES.has(value.status) || !String(value.objective || '').trim()) continue
+    if (
+      !value ||
+      typeof value !== 'object' ||
+      !GOAL_STATUSES.has(value.status) ||
+      !String(value.objective || '').trim()
+    )
+      continue
     result[sessionId] = {
       id: String(value.id || randomUUID()),
       sessionId,
       objective: String(value.objective).trim().slice(0, MAX_GOAL_OBJECTIVE_CHARS),
       status: value.status,
-      tokenBudget: Number.isFinite(Number(value.tokenBudget)) && Number(value.tokenBudget) > 0
-        ? Number(value.tokenBudget)
-        : DEFAULT_GOAL_TOKEN_BUDGET,
+      tokenBudget:
+        Number.isFinite(Number(value.tokenBudget)) && Number(value.tokenBudget) > 0
+          ? Number(value.tokenBudget)
+          : DEFAULT_GOAL_TOKEN_BUDGET,
       tokensUsed: Math.max(0, Number(value.tokensUsed) || 0),
       timeUsedSeconds: Math.max(0, Number(value.timeUsedSeconds) || 0),
       createdAt: value.createdAt || nowIso(),
@@ -118,7 +132,8 @@ export class GoalService {
     const text = String(objective || '').trim()
     if (!id) throw new Error('Goal requires a session.')
     if (!text) throw new Error('Goal objective cannot be empty.')
-    if (text.length > MAX_GOAL_OBJECTIVE_CHARS) throw new Error(`Goal objective is limited to ${MAX_GOAL_OBJECTIVE_CHARS} characters.`)
+    if (text.length > MAX_GOAL_OBJECTIVE_CHARS)
+      throw new Error(`Goal objective is limited to ${MAX_GOAL_OBJECTIVE_CHARS} characters.`)
     const now = this.now()
     const goal = {
       id: randomUUID(),
@@ -159,7 +174,8 @@ export class GoalService {
     const goal = this.state.goals[String(sessionId || '')]
     if (!goal) throw new Error('No goal is set for this session.')
     goal.tokenBudget = normalizedBudget(tokenBudget)
-    if (goal.status === 'budget_limited' && goal.tokensUsed < goal.tokenBudget) goal.status = 'paused'
+    if (goal.status === 'budget_limited' && goal.tokensUsed < goal.tokenBudget)
+      goal.status = 'paused'
     goal.updatedAt = nowIso(this.now())
     await this.save()
     return clone(goal)
@@ -167,7 +183,8 @@ export class GoalService {
 
   async complete(sessionId) {
     const goal = this.state.goals[String(sessionId || '')]
-    if (!goal || goal.status !== 'active') throw new Error('No active goal is available to complete.')
+    if (!goal || goal.status !== 'active')
+      throw new Error('No active goal is available to complete.')
     goal.status = 'complete'
     goal.updatedAt = nowIso(this.now())
     await this.save()

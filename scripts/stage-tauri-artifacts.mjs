@@ -14,7 +14,11 @@ const packageJson = JSON.parse(await readFile(path.join(root, 'package.json'), '
 const version = packageJson.version
 
 const platform =
-  process.platform === 'win32' ? 'windows' : process.platform === 'darwin' ? 'darwin' : process.platform
+  process.platform === 'win32'
+    ? 'windows'
+    : process.platform === 'darwin'
+      ? 'darwin'
+      : process.platform
 const arch = process.arch === 'x64' ? 'x86_64' : process.arch === 'arm64' ? 'aarch64' : process.arch
 const target = `${platform}-${arch}`
 const stageDir = path.join(stageRoot, target)

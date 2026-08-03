@@ -14,7 +14,11 @@ async function jsonRequest(url, model, init, signal) {
   })
   const data = await response.json().catch(() => ({}))
   if (!response.ok) {
-    const message = data.error?.message || data.error || data.message || `xAI 视觉接口请求失败 (${response.status})`
+    const message =
+      data.error?.message ||
+      data.error ||
+      data.message ||
+      `xAI 视觉接口请求失败 (${response.status})`
     const error = new Error(String(message))
     error.status = response.status
     throw error
@@ -55,13 +59,37 @@ async function generateImage(model, request, signal) {
     const form = new FormData()
     form.set('model', model.id)
     form.set('prompt', request.prompt)
-    request.sourceImages.forEach((image, index) => form.append('image', new Blob([image.buffer], { type: image.mimeType }), `image-${index + 1}`))
-    if (request.maskImage) form.set('mask', new Blob([request.maskImage.buffer], { type: request.maskImage.mimeType }), 'mask.png')
+    request.sourceImages.forEach((image, index) =>
+      form.append(
+        'image',
+        new Blob([image.buffer], { type: image.mimeType }),
+        `image-${index + 1}`,
+      ),
+    )
+    if (request.maskImage)
+      form.set(
+        'mask',
+        new Blob([request.maskImage.buffer], { type: request.maskImage.mimeType }),
+        'mask.png',
+      )
     if (request.size) form.set('size', request.size)
     if (request.quality) form.set('quality', request.quality)
-    const response = await fetch(`${root}/images/edits`, { method: 'POST', headers: authHeaders(model), body: form, signal })
+    const response = await fetch(`${root}/images/edits`, {
+      method: 'POST',
+      headers: authHeaders(model),
+      body: form,
+      signal,
+    })
     const data = await response.json().catch(() => ({}))
-    if (!response.ok) throw new Error(String(data.error?.message || data.error || data.message || `xAI 图片编辑失败 (${response.status})`))
+    if (!response.ok)
+      throw new Error(
+        String(
+          data.error?.message ||
+            data.error ||
+            data.message ||
+            `xAI 图片编辑失败 (${response.status})`,
+        ),
+      )
     const result = imageResult(data)
     if (result.buffer) return result
     if (result.url) {
@@ -71,17 +99,22 @@ async function generateImage(model, request, signal) {
     throw new Error('xAI 图片编辑接口没有返回图片数据。')
   }
 
-  const data = await jsonRequest(`${root}/images/generations`, model, {
-    method: 'POST',
-    body: JSON.stringify({
-      model: model.id,
-      prompt: request.prompt,
-      n: 1,
-      response_format: 'b64_json',
-      ...(request.aspectRatio ? { aspect_ratio: request.aspectRatio } : {}),
-      ...(request.outputFormat ? { output_format: request.outputFormat } : {}),
-    }),
-  }, signal)
+  const data = await jsonRequest(
+    `${root}/images/generations`,
+    model,
+    {
+      method: 'POST',
+      body: JSON.stringify({
+        model: model.id,
+        prompt: request.prompt,
+        n: 1,
+        response_format: 'b64_json',
+        ...(request.aspectRatio ? { aspect_ratio: request.aspectRatio } : {}),
+        ...(request.outputFormat ? { output_format: request.outputFormat } : {}),
+      }),
+    },
+    signal,
+  )
   const result = imageResult(data)
   if (result.buffer) return result
   if (result.url) {
@@ -117,27 +150,57 @@ async function createVideo(root, model, request, signal) {
     ...(request.resolution ? { resolution: request.resolution } : {}),
   }
   try {
-    const task = await jsonRequest(`${root}/videos/generations`, model, { method: 'POST', body: JSON.stringify(xaiBody) }, signal)
+    const task = await jsonRequest(
+      `${root}/videos/generations`,
+      model,
+      { method: 'POST', body: JSON.stringify(xaiBody) },
+      signal,
+    )
     return { ...task, _pisperEndpoint: 'videos/generations' }
   } catch (error) {
     if (![404, 405].includes(error.status)) throw error
   }
-  const task = await jsonRequest(`${root}/videos`, model, {
-    method: 'POST',
-    body: JSON.stringify({ model: model.id, prompt: request.prompt, seconds: request.durationSeconds ? String(request.durationSeconds) : undefined, size }),
-  }, signal)
+  const task = await jsonRequest(
+    `${root}/videos`,
+    model,
+    {
+      method: 'POST',
+      body: JSON.stringify({
+        model: model.id,
+        prompt: request.prompt,
+        seconds: request.durationSeconds ? String(request.durationSeconds) : undefined,
+        size,
+      }),
+    },
+    signal,
+  )
   return { ...task, _pisperEndpoint: 'videos' }
 }
 
 async function getVideo(root, id, endpoint, model, signal) {
   if (endpoint === 'videos/generations') {
-    return jsonRequest(`${root}/videos/generations/${encodeURIComponent(id)}`, model, { method: 'GET' }, signal)
+    return jsonRequest(
+      `${root}/videos/generations/${encodeURIComponent(id)}`,
+      model,
+      { method: 'GET' },
+      signal,
+    )
   }
   try {
-    return await jsonRequest(`${root}/videos/${encodeURIComponent(id)}`, model, { method: 'GET' }, signal)
+    return await jsonRequest(
+      `${root}/videos/${encodeURIComponent(id)}`,
+      model,
+      { method: 'GET' },
+      signal,
+    )
   } catch (error) {
     if (![404, 405].includes(error.status)) throw error
-    return jsonRequest(`${root}/videos/generations/${encodeURIComponent(id)}`, model, { method: 'GET' }, signal)
+    return jsonRequest(
+      `${root}/videos/generations/${encodeURIComponent(id)}`,
+      model,
+      { method: 'GET' },
+      signal,
+    )
   }
 }
 
@@ -149,25 +212,45 @@ async function generateVideo(model, request, signal, onProgress) {
   let url = videoUrl(task)
   while (!url && id) {
     const status = videoStatus(task)
-    if (['failed', 'error', 'cancelled', 'canceled'].includes(status)) throw new Error(task.error?.message || task.error || 'xAI 视频生成失败。')
+    if (['failed', 'error', 'cancelled', 'canceled'].includes(status))
+      throw new Error(task.error?.message || task.error || 'xAI 视频生成失败。')
     if (['completed', 'succeeded', 'done'].includes(status)) break
     onProgress?.(`视频生成中${status ? `：${status}` : ''}…`)
     await new Promise((resolve, reject) => {
       const timer = setTimeout(resolve, 5000)
-      signal?.addEventListener('abort', () => { clearTimeout(timer); reject(signal.reason || new Error('已取消')) }, { once: true })
+      signal?.addEventListener(
+        'abort',
+        () => {
+          clearTimeout(timer)
+          reject(signal.reason || new Error('已取消'))
+        },
+        { once: true },
+      )
     })
     task = await getVideo(root, id, endpoint, model, signal)
     url = videoUrl(task)
   }
   if (url) {
     const downloaded = await download(url, model, signal)
-    return { ...downloaded, extension: extensionFor(downloaded.mimeType, '.mp4'), remoteId: id || null }
+    return {
+      ...downloaded,
+      extension: extensionFor(downloaded.mimeType, '.mp4'),
+      remoteId: id || null,
+    }
   }
   if (!id) throw new Error('xAI 视频接口没有返回任务 ID 或下载地址。')
-  const response = await fetch(`${root}/videos/${encodeURIComponent(id)}/content`, { headers: authHeaders(model), signal })
+  const response = await fetch(`${root}/videos/${encodeURIComponent(id)}/content`, {
+    headers: authHeaders(model),
+    signal,
+  })
   if (!response.ok) throw new Error(`下载 xAI 视频失败 (${response.status})`)
   const mimeType = response.headers.get('content-type') || 'video/mp4'
-  return { buffer: Buffer.from(await response.arrayBuffer()), mimeType, extension: extensionFor(mimeType, '.mp4'), remoteId: id }
+  return {
+    buffer: Buffer.from(await response.arrayBuffer()),
+    mimeType,
+    extension: extensionFor(mimeType, '.mp4'),
+    remoteId: id,
+  }
 }
 
 export function generateXAI(model, request, options = {}) {

@@ -7,7 +7,7 @@ test('release refreshes npm and Cargo dependencies before checks and version tag
   const npmUpdate = source.indexOf("runNpm(['update'])")
   const cargoUpdate = source.indexOf("run('cargo', ['update'")
   const tests = source.indexOf("runNpm(['test'])")
-  const dependencyCommit = source.indexOf("chore(deps): refresh release dependencies")
+  const dependencyCommit = source.indexOf('chore(deps): refresh release dependencies')
   const npmVersion = source.indexOf('const versionOutput')
 
   assert.ok(npmUpdate >= 0)

@@ -162,7 +162,10 @@ test('production Markdown surfaces delegate to one Streamdown adapter', async ()
 test('Markdown styling covers Streamdown controls, task lists, and math', async () => {
   const css = await readFile(new URL('src/index.css', ROOT), 'utf8')
   assert.match(css, /@source "\.\.\/node_modules\/streamdown\/dist\/\*\.js";/)
-  assert.match(css, /\.markdown-body \.markdown-link \{[^}]*-webkit-text-fill-color: currentColor;/s)
+  assert.match(
+    css,
+    /\.markdown-body \.markdown-link \{[^}]*-webkit-text-fill-color: currentColor;/s,
+  )
   assert.match(css, /text-decoration-thickness: 1px;/)
   assert.match(css, /\.markdown-body \.task-list-item/)
   assert.match(css, /\.markdown-body \.katex-display/)

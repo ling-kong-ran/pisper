@@ -22,13 +22,14 @@ export const PET_STATES = Object.freeze({
 export function readImageDimensions(buffer) {
   if (!Buffer.isBuffer(buffer)) return null
   if (
-    buffer.length >= 24
-    && buffer.subarray(0, 8).equals(Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]))
+    buffer.length >= 24 &&
+    buffer.subarray(0, 8).equals(Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]))
   ) {
     return { width: buffer.readUInt32BE(16), height: buffer.readUInt32BE(20), mime: 'image/png' }
   }
   if (buffer.length < 30) return null
-  if (buffer.toString('ascii', 0, 4) !== 'RIFF' || buffer.toString('ascii', 8, 12) !== 'WEBP') return null
+  if (buffer.toString('ascii', 0, 4) !== 'RIFF' || buffer.toString('ascii', 8, 12) !== 'WEBP')
+    return null
   const chunk = buffer.toString('ascii', 12, 16)
   if (chunk === 'VP8X') {
     return {
@@ -55,10 +56,12 @@ export function readImageDimensions(buffer) {
 }
 
 export function isPetSheetDimensions({ width, height } = {}) {
-  return width === PET_FRAME_WIDTH * PET_SHEET_COLUMNS
-    && Number.isInteger(height)
-    && height >= PET_FRAME_HEIGHT * PET_MINIMUM_ROWS
-    && height % PET_FRAME_HEIGHT === 0
+  return (
+    width === PET_FRAME_WIDTH * PET_SHEET_COLUMNS &&
+    Number.isInteger(height) &&
+    height >= PET_FRAME_HEIGHT * PET_MINIMUM_ROWS &&
+    height % PET_FRAME_HEIGHT === 0
+  )
 }
 
 export function normalizePetOpacity(value, fallback = 1) {
@@ -71,8 +74,10 @@ export function petStateForAgentEvent(event) {
   if (event === 'error') return 'failed'
   if (event === 'done') return 'waving'
   if (event === 'tool_start' || event === 'tool_update' || event === 'tool_end') return 'running'
-  if (event === 'thinking_patch' || event === 'thinking_reset' || event === 'compaction_start') return 'review'
-  if (event === 'meta' || event === 'text_patch' || event === 'retry' || event === 'queue_update') return 'waiting'
+  if (event === 'thinking_patch' || event === 'thinking_reset' || event === 'compaction_start')
+    return 'review'
+  if (event === 'meta' || event === 'text_patch' || event === 'retry' || event === 'queue_update')
+    return 'waiting'
   return null
 }
 
@@ -94,10 +99,12 @@ export function resolvePetPosition(saved, displays, primaryDisplay, margin = 20)
   if (Number.isFinite(x) && Number.isFinite(y) && !legacyTopLeftDefault) {
     const visible = validDisplays.some(({ workArea }) => {
       if (!workArea) return false
-      return x + PET_WINDOW_WIDTH > workArea.x
-        && x < workArea.x + workArea.width
-        && y + PET_WINDOW_HEIGHT > workArea.y
-        && y < workArea.y + workArea.height
+      return (
+        x + PET_WINDOW_WIDTH > workArea.x &&
+        x < workArea.x + workArea.width &&
+        y + PET_WINDOW_HEIGHT > workArea.y &&
+        y < workArea.y + workArea.height
+      )
     })
     if (visible) return { x: Math.round(x), y: Math.round(y) }
   }

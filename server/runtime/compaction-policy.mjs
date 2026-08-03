@@ -10,10 +10,16 @@ function tokenCount(value, fallback = 0) {
   return number > 0 ? number : fallback
 }
 
-export function normalizeCompactionThresholdPercent(value, fallback = DEFAULT_COMPACTION_THRESHOLD_PERCENT) {
+export function normalizeCompactionThresholdPercent(
+  value,
+  fallback = DEFAULT_COMPACTION_THRESHOLD_PERCENT,
+) {
   const number = Number(value)
   if (!Number.isFinite(number)) return fallback
-  return Math.min(MAX_COMPACTION_THRESHOLD_PERCENT, Math.max(MIN_COMPACTION_THRESHOLD_PERCENT, Math.round(number)))
+  return Math.min(
+    MAX_COMPACTION_THRESHOLD_PERCENT,
+    Math.max(MIN_COMPACTION_THRESHOLD_PERCENT, Math.round(number)),
+  )
 }
 
 export function effectiveCompactionSettings(
@@ -29,7 +35,8 @@ export function effectiveCompactionSettings(
   return {
     ...settings,
     enabled: settings.enabled !== false,
-    reserveTokens: thresholdReserve || tokenCount(settings.reserveTokens, COMPACTION_SUMMARY_RESERVE_TOKENS),
+    reserveTokens:
+      thresholdReserve || tokenCount(settings.reserveTokens, COMPACTION_SUMMARY_RESERVE_TOKENS),
     keepRecentTokens: tokenCount(settings.keepRecentTokens, 20_000),
   }
 }
@@ -43,11 +50,12 @@ export function createCompactionSettingsManager(
   return new Proxy(settingsManager, {
     get(target, property) {
       if (property === 'getCompactionSettings') {
-        return () => effectiveCompactionSettings(
-          target.getCompactionSettings(),
-          getContextWindow(),
-          getThresholdPercent(),
-        )
+        return () =>
+          effectiveCompactionSettings(
+            target.getCompactionSettings(),
+            getContextWindow(),
+            getThresholdPercent(),
+          )
       }
       const value = Reflect.get(target, property, target)
       return typeof value === 'function' ? value.bind(target) : value

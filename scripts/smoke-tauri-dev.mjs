@@ -78,9 +78,15 @@ assert.equal(sprite.height, 208)
 assert.notEqual(sprite.backgroundImage, 'none')
 
 if (process.env.PISPER_TAURI_SMOKE_SCREENSHOT) {
-  await petPage.screenshot({ path: process.env.PISPER_TAURI_SMOKE_SCREENSHOT, omitBackground: true })
+  await petPage.screenshot({
+    path: process.env.PISPER_TAURI_SMOKE_SCREENSHOT,
+    omitBackground: true,
+  })
 }
-await mainPage.evaluate((enabled) => window.pisperDesktop.setPetEnabled(enabled), originalPet.enabled)
+await mainPage.evaluate(
+  (enabled) => window.pisperDesktop.setPetEnabled(enabled),
+  originalPet.enabled,
+)
 
 console.log(
   JSON.stringify({

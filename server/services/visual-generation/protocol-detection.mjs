@@ -17,7 +17,10 @@ async function detectNewAPI(baseUrl) {
       signal: controller.signal,
     })
     const text = await response.text()
-    return response.ok && /(?:<title>\s*New API\s*<\/title>|Unified AI API gateway|QuantumNous)/i.test(text)
+    return (
+      response.ok &&
+      /(?:<title>\s*New API\s*<\/title>|Unified AI API gateway|QuantumNous)/i.test(text)
+    )
   } catch {
     return false
   } finally {

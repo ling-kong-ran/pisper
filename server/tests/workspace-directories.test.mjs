@@ -11,7 +11,10 @@ import {
 } from '../runtime/workspace-directories.mjs'
 
 test('workspace paths remain platform-native without exposing Windows namespace prefixes', () => {
-  assert.equal(normalizeWorkspacePath('\\\\?\\E:\\Projects\\Pisper', 'win32'), 'E:\\Projects\\Pisper')
+  assert.equal(
+    normalizeWorkspacePath('\\\\?\\E:\\Projects\\Pisper', 'win32'),
+    'E:\\Projects\\Pisper',
+  )
   assert.equal(
     normalizeWorkspacePath('\\\\?\\UNC\\server\\share\\project', 'win32'),
     '\\\\server\\share\\project',

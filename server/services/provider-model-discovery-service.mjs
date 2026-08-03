@@ -11,7 +11,8 @@ function modelsUrl(baseUrl) {
   } catch {
     throw new Error('Provider Base URL 无效。')
   }
-  if (!['http:', 'https:'].includes(url.protocol)) throw new Error('Provider Base URL 仅支持 HTTP 或 HTTPS。')
+  if (!['http:', 'https:'].includes(url.protocol))
+    throw new Error('Provider Base URL 仅支持 HTTP 或 HTTPS。')
   url.search = ''
   url.hash = ''
   const path = url.pathname.replace(/\/+$/, '')
@@ -20,13 +21,16 @@ function modelsUrl(baseUrl) {
 }
 
 function apiKeyValue(value) {
-  return String(value || '').trim().replace(/^Bearer\s+/i, '')
+  return String(value || '')
+    .trim()
+    .replace(/^Bearer\s+/i, '')
 }
 
 function requestHeaders(api, apiKey, organization, extraHeaders) {
   const headers = { Accept: 'application/json' }
   for (const [name, value] of Object.entries(extraHeaders || {})) {
-    if (!/^(?:host|content-length)$/i.test(name) && typeof value === 'string' && value.trim()) headers[name] = value.trim()
+    if (!/^(?:host|content-length)$/i.test(name) && typeof value === 'string' && value.trim())
+      headers[name] = value.trim()
   }
   if (api === 'anthropic-messages') {
     if (apiKey) headers['x-api-key'] = apiKeyValue(apiKey)
@@ -78,7 +82,8 @@ function candidateFrom(item, api) {
   if (!item || typeof item !== 'object') return null
   const rawId = item.id || item.model_id || item.model || item.slug || item.name
   if (!rawId) return null
-  const normalizeName = (value) => api === 'google-generative-ai' ? String(value).replace(/^models\//, '') : String(value)
+  const normalizeName = (value) =>
+    api === 'google-generative-ai' ? String(value).replace(/^models\//, '') : String(value)
   const id = normalizeName(rawId).trim()
   if (!id) return null
   const name = normalizeName(item.display_name || item.displayName || item.name || id).trim() || id
@@ -88,7 +93,9 @@ function candidateFrom(item, api) {
     // 不再按 ID 推断用途：发现的模型一律先按对话模型列出，
     // 实际类型由用户在添加时显式选择（详见 inferModelKind）。
     kind: inferModelKind(id, 'auto'),
-    ...(Array.isArray(item.supportedGenerationMethods) ? { supportedGenerationMethods: item.supportedGenerationMethods.map(String) } : {}),
+    ...(Array.isArray(item.supportedGenerationMethods)
+      ? { supportedGenerationMethods: item.supportedGenerationMethods.map(String) }
+      : {}),
   }
 }
 
@@ -113,7 +120,11 @@ function nextPageUrl(payload, api, currentUrl) {
 }
 
 export class ProviderModelDiscoveryService {
-  constructor({ fetchImpl = globalThis.fetch, timeoutMs = DEFAULT_TIMEOUT_MS, maxResponseBytes = DEFAULT_MAX_RESPONSE_BYTES } = {}) {
+  constructor({
+    fetchImpl = globalThis.fetch,
+    timeoutMs = DEFAULT_TIMEOUT_MS,
+    maxResponseBytes = DEFAULT_MAX_RESPONSE_BYTES,
+  } = {}) {
     this.fetch = fetchImpl
     this.timeoutMs = timeoutMs
     this.maxResponseBytes = maxResponseBytes
@@ -126,7 +137,14 @@ export class ProviderModelDiscoveryService {
 
   async discover({ api, baseUrl, apiKey, organization, headers } = {}) {
     const protocol = String(api || 'openai-responses').trim()
-    if (!['openai-responses', 'openai-completions', 'anthropic-messages', 'google-generative-ai'].includes(protocol)) {
+    if (
+      ![
+        'openai-responses',
+        'openai-completions',
+        'anthropic-messages',
+        'google-generative-ai',
+      ].includes(protocol)
+    ) {
       throw new Error('当前 API 协议不支持自动获取模型。')
     }
     const url = modelsUrl(baseUrl)
@@ -165,11 +183,14 @@ export class ProviderModelDiscoveryService {
         pageUrl = nextPageUrl(payload, protocol, pageUrl)
         if (page === 49 && pageUrl) throw new Error('Provider 返回的模型分页过多。')
       }
-      const models = [...unique.values()].sort((left, right) => left.id.localeCompare(right.id, undefined, { numeric: true, sensitivity: 'base' }))
+      const models = [...unique.values()].sort((left, right) =>
+        left.id.localeCompare(right.id, undefined, { numeric: true, sensitivity: 'base' }),
+      )
       if (!models.length) throw new Error('Provider 没有返回可用的模型 ID。')
       return { models, count: models.length }
     } catch (error) {
-      if (error?.name === 'AbortError') throw new Error('获取模型超时，请检查 Provider 地址或网络。')
+      if (error?.name === 'AbortError')
+        throw new Error('获取模型超时，请检查 Provider 地址或网络。')
       throw error
     } finally {
       clearTimeout(timer)

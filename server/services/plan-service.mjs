@@ -55,7 +55,8 @@ function normalizedAssignee(value) {
 
 function normalizedDependsOn(value) {
   if (value == null) return []
-  if (!Array.isArray(value)) throw new Error('Plan item dependsOn must be an array of plan item ids.')
+  if (!Array.isArray(value))
+    throw new Error('Plan item dependsOn must be an array of plan item ids.')
   if (value.length > MAX_PLAN_DEPENDS_ON)
     throw new Error(`Plan item dependsOn is limited to ${MAX_PLAN_DEPENDS_ON} ids.`)
   const seen = new Set()
@@ -63,7 +64,8 @@ function normalizedDependsOn(value) {
   for (const entry of value) {
     const id = String(entry || '').trim()
     if (!id) continue
-    if (!/^[a-zA-Z0-9._:-]{1,80}$/.test(id)) throw new Error(`Invalid dependency plan item id: ${id}`)
+    if (!/^[a-zA-Z0-9._:-]{1,80}$/.test(id))
+      throw new Error(`Invalid dependency plan item id: ${id}`)
     if (seen.has(id)) continue
     seen.add(id)
     ids.push(id)
@@ -76,7 +78,8 @@ function validateDependencyGraph(items) {
   for (const item of items) {
     for (const dependencyId of item.dependsOn) {
       if (dependencyId === item.id) throw new Error(`Plan item cannot depend on itself: ${item.id}`)
-      if (!byId.has(dependencyId)) throw new Error(`Unknown dependency plan item id: ${dependencyId}`)
+      if (!byId.has(dependencyId))
+        throw new Error(`Unknown dependency plan item id: ${dependencyId}`)
     }
   }
 
@@ -100,22 +103,30 @@ function validateDependencyGraph(items) {
 
 function planCounts(items) {
   const byId = new Map(items.map((item) => [item.id, item]))
-  const dependencyBlocked = (item) => item.status !== 'completed'
-    && item.dependsOn.some((dependencyId) => byId.get(dependencyId)?.status !== 'completed')
+  const dependencyBlocked = (item) =>
+    item.status !== 'completed' &&
+    item.dependsOn.some((dependencyId) => byId.get(dependencyId)?.status !== 'completed')
   const completed = items.filter((item) => item.status === 'completed').length
-  const blocked = items.filter((item) => item.status !== 'completed'
-    && (item.status === 'blocked' || dependencyBlocked(item))).length
-  const inProgress = items.filter((item) => item.status === 'in_progress' && !dependencyBlocked(item)).length
-  const pending = items.filter((item) => item.status === 'pending' && !dependencyBlocked(item)).length
+  const blocked = items.filter(
+    (item) => item.status !== 'completed' && (item.status === 'blocked' || dependencyBlocked(item)),
+  ).length
+  const inProgress = items.filter(
+    (item) => item.status === 'in_progress' && !dependencyBlocked(item),
+  ).length
+  const pending = items.filter(
+    (item) => item.status === 'pending' && !dependencyBlocked(item),
+  ).length
   return { pending, inProgress, completed, blocked, total: items.length }
 }
 
 function normalizeItem(value, previous, now) {
   const title = String(value?.title || '').trim()
   if (!title) throw new Error('Plan item title cannot be empty.')
-  if (title.length > MAX_PLAN_TITLE_CHARS) throw new Error(`Plan item title is limited to ${MAX_PLAN_TITLE_CHARS} characters.`)
+  if (title.length > MAX_PLAN_TITLE_CHARS)
+    throw new Error(`Plan item title is limited to ${MAX_PLAN_TITLE_CHARS} characters.`)
   const note = String(value?.note || '').trim()
-  if (note.length > MAX_PLAN_NOTE_CHARS) throw new Error(`Plan item note is limited to ${MAX_PLAN_NOTE_CHARS} characters.`)
+  if (note.length > MAX_PLAN_NOTE_CHARS)
+    throw new Error(`Plan item note is limited to ${MAX_PLAN_NOTE_CHARS} characters.`)
   const status = STATUS_SET.has(value?.status) ? value.status : 'pending'
   return {
     id: normalizedId(value?.id || previous?.id),
@@ -151,8 +162,10 @@ function publicPlan(sessionId, value) {
 
 function persistedPlans(input) {
   if (!input || typeof input !== 'object') return null
-  if (input.plans && typeof input.plans === 'object' && !Array.isArray(input.plans)) return input.plans
-  if (input.lists && typeof input.lists === 'object' && !Array.isArray(input.lists)) return input.lists
+  if (input.plans && typeof input.plans === 'object' && !Array.isArray(input.plans))
+    return input.plans
+  if (input.lists && typeof input.lists === 'object' && !Array.isArray(input.lists))
+    return input.lists
   return null
 }
 
@@ -239,40 +252,47 @@ export class PlanService {
     const id = String(sessionId || '')
     if (!id) throw new Error('Plan requires a session.')
     if (!Array.isArray(input)) throw new Error('Plan items must be an array.')
-    if (input.length > MAX_PLAN_ITEMS) throw new Error(`Plan is limited to ${MAX_PLAN_ITEMS} items.`)
+    if (input.length > MAX_PLAN_ITEMS)
+      throw new Error(`Plan is limited to ${MAX_PLAN_ITEMS} items.`)
     const requestedItems = clone(input)
-    this.write = this.write.catch(() => {}).then(async () => {
-      const previousItems = new Map((this.state.plans[id]?.items || []).map((item) => [item.id, item]))
-      const now = nowIso(this.now())
-      const seen = new Set()
-      const items = requestedItems.map((item) => {
-        const previous = previousItems.get(String(item?.id || ''))
-        const normalized = normalizeItem(item, previous, now)
-        if (seen.has(normalized.id)) throw new Error(`Duplicate plan item id: ${normalized.id}`)
-        seen.add(normalized.id)
-        return normalized
+    this.write = this.write
+      .catch(() => {})
+      .then(async () => {
+        const previousItems = new Map(
+          (this.state.plans[id]?.items || []).map((item) => [item.id, item]),
+        )
+        const now = nowIso(this.now())
+        const seen = new Set()
+        const items = requestedItems.map((item) => {
+          const previous = previousItems.get(String(item?.id || ''))
+          const normalized = normalizeItem(item, previous, now)
+          if (seen.has(normalized.id)) throw new Error(`Duplicate plan item id: ${normalized.id}`)
+          seen.add(normalized.id)
+          return normalized
+        })
+        validateDependencyGraph(items)
+        const nextState = clone(this.state)
+        if (items.length) nextState.plans[id] = { items, updatedAt: now }
+        else delete nextState.plans[id]
+        await this.persist(nextState)
+        this.state = nextState
+        return publicPlan(id, nextState.plans[id])
       })
-      validateDependencyGraph(items)
-      const nextState = clone(this.state)
-      if (items.length) nextState.plans[id] = { items, updatedAt: now }
-      else delete nextState.plans[id]
-      await this.persist(nextState)
-      this.state = nextState
-      return publicPlan(id, nextState.plans[id])
-    })
     return this.write
   }
 
   async remove(sessionId) {
     const id = String(sessionId || '')
-    this.write = this.write.catch(() => {}).then(async () => {
-      if (!this.state.plans[id]) return emptyPlan(id)
-      const nextState = clone(this.state)
-      delete nextState.plans[id]
-      await this.persist(nextState)
-      this.state = nextState
-      return emptyPlan(id)
-    })
+    this.write = this.write
+      .catch(() => {})
+      .then(async () => {
+        if (!this.state.plans[id]) return emptyPlan(id)
+        const nextState = clone(this.state)
+        delete nextState.plans[id]
+        await this.persist(nextState)
+        this.state = nextState
+        return emptyPlan(id)
+      })
     return this.write
   }
 }

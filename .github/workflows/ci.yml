@@ -1,0 +1,45 @@
+name: Pull request quality
+
+on:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: pr-quality-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  web-server:
+    name: Web and server
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - run: npm run check
+      - run: npm test
+      - run: npm run build
+
+  tui:
+    name: Rust TUI
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: src-tui
+      - name: Check formatting
+        run: cargo fmt --manifest-path src-tui/Cargo.toml -- --check
+      - name: Check TUI
+        run: cargo check --manifest-path src-tui/Cargo.toml
+      - name: Test TUI
+        run: cargo test --manifest-path src-tui/Cargo.toml

@@ -6,7 +6,12 @@ const KIMI_CODE_MODEL_MAP = {
   'kimi-k2.7-code-highspeed': 'kimi-for-coding-highspeed',
 }
 
-export async function migrateKimiCodeProvider({ authPath, modelsPath, settingsPath, appConfigPath }) {
+export async function migrateKimiCodeProvider({
+  authPath,
+  modelsPath,
+  settingsPath,
+  appConfigPath,
+}) {
   let changed = false
   const auth = await readJson(authPath, {})
   const oldCredential = auth['moonshotai-cn']
@@ -33,8 +38,17 @@ export async function migrateKimiCodeProvider({ authPath, modelsPath, settingsPa
   }
 
   const appConfig = await readJson(appConfigPath, {})
-  if (Array.isArray(appConfig.disabledProviders) && appConfig.disabledProviders.includes('moonshotai-cn')) {
-    appConfig.disabledProviders = [...new Set(appConfig.disabledProviders.map((provider) => provider === 'moonshotai-cn' ? 'kimi-coding' : provider))]
+  if (
+    Array.isArray(appConfig.disabledProviders) &&
+    appConfig.disabledProviders.includes('moonshotai-cn')
+  ) {
+    appConfig.disabledProviders = [
+      ...new Set(
+        appConfig.disabledProviders.map((provider) =>
+          provider === 'moonshotai-cn' ? 'kimi-coding' : provider,
+        ),
+      ),
+    ]
     await writeJsonAtomic(appConfigPath, appConfig)
     changed = true
   }

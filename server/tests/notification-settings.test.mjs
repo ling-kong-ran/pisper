@@ -26,15 +26,31 @@ test('browser notification setting persists without overwriting other app config
 test('notification templates remain delegated to the channel notification service', async () => {
   const calls = []
   const channels = {
-    getState: () => ({ templates: [{ id: 'workflow.completed', enabled: true }], connections: {}, scopes: [] }),
-    updateTemplate: async (...args) => { calls.push(['update', ...args]) },
-    testNotification: async (...args) => { calls.push(['test', ...args]); return { sent: 1 } },
-    notify: async (...args) => { calls.push(['notify', ...args]); return [] },
+    getState: () => ({
+      templates: [{ id: 'workflow.completed', enabled: true }],
+      connections: {},
+      scopes: [],
+    }),
+    updateTemplate: async (...args) => {
+      calls.push(['update', ...args])
+    },
+    testNotification: async (...args) => {
+      calls.push(['test', ...args])
+      return { sent: 1 }
+    },
+    notify: async (...args) => {
+      calls.push(['notify', ...args])
+      return []
+    },
   }
   const service = new NotificationSettingsService({ path: 'unused.json', channels })
   await service.updateTemplate('workflow.completed', 'feishu', { content: 'done' })
   assert.deepEqual(await service.testTemplate('workflow.completed', 'feishu'), { sent: 1 })
-  await service.notify('workflow.completed', { workflow: { name: 'release' } }, { platforms: ['feishu'] })
+  await service.notify(
+    'workflow.completed',
+    { workflow: { name: 'release' } },
+    { platforms: ['feishu'] },
+  )
   assert.deepEqual(calls, [
     ['update', 'workflow.completed', 'feishu', { content: 'done' }],
     ['test', 'workflow.completed', 'feishu'],
@@ -49,7 +65,11 @@ test('browser notification events use the configured template queue', async (t) 
   t.after(() => rm(directory, { recursive: true, force: true }))
   await writeFile(path, JSON.stringify({ notifications: { browser: { enabled: true } } }))
   const channels = {
-    getState: () => ({ templates: [{ id: 'schedule.completed', enabled: true }], connections: {}, scopes: [] }),
+    getState: () => ({
+      templates: [{ id: 'schedule.completed', enabled: true }],
+      connections: {},
+      scopes: [],
+    }),
     notify: async () => [],
     renderNotification: () => ({ title: '定时任务完成', content: '日报已完成' }),
   }
@@ -71,7 +91,11 @@ test('browser template tests return a system-notification payload without queuei
   t.after(() => rm(directory, { recursive: true, force: true }))
   await writeFile(path, JSON.stringify({ notifications: { browser: { enabled: true } } }))
   const channels = {
-    getState: () => ({ templates: [{ id: 'schedule.completed', enabled: true }], connections: {}, scopes: [] }),
+    getState: () => ({
+      templates: [{ id: 'schedule.completed', enabled: true }],
+      connections: {},
+      scopes: [],
+    }),
     renderNotification: () => ({ title: '定时任务完成', content: '日报已完成' }),
   }
   const service = new NotificationSettingsService({ path, browserEventsPath, channels })
@@ -92,13 +116,21 @@ test('channel notification failures are reported after other targets are attempt
   t.after(() => rm(directory, { recursive: true, force: true }))
   await writeFile(path, JSON.stringify({ notifications: { browser: { enabled: true } } }))
   const channels = {
-    getState: () => ({ templates: [{ id: 'schedule.completed', enabled: true }], connections: {}, scopes: [] }),
+    getState: () => ({
+      templates: [{ id: 'schedule.completed', enabled: true }],
+      connections: {},
+      scopes: [],
+    }),
     notify: async () => [{ platform: 'weixin', status: 'rejected', error: 'prepare failed' }],
     renderNotification: () => ({ title: 'Schedule completed', content: 'Daily task completed' }),
   }
   const service = new NotificationSettingsService({ path, browserEventsPath, channels })
   await assert.rejects(
-    service.notify('schedule.completed', { task: { name: 'daily' } }, { platforms: ['weixin', 'browser'] }),
+    service.notify(
+      'schedule.completed',
+      { task: { name: 'daily' } },
+      { platforms: ['weixin', 'browser'] },
+    ),
     /weixin: prepare failed/,
   )
   assert.equal((await service.getBrowserEvents('missing')).events.length, 1)

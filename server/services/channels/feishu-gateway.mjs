@@ -59,7 +59,10 @@ export class FeishuGateway {
       this.setStatus({ state: 'connected', connectedAt: new Date().toISOString(), lastError: '' })
       return this.getStatus()
     } catch (error) {
-      this.setStatus({ state: 'failed', lastError: error instanceof Error ? error.message : String(error) })
+      this.setStatus({
+        state: 'failed',
+        lastError: error instanceof Error ? error.message : String(error),
+      })
       throw error
     }
   }
@@ -100,7 +103,11 @@ export class FeishuGateway {
       const buffer = await this.channel.downloadResource(resource.fileKey, kind)
       total += buffer.length
       if (total > 24 * 1024 * 1024) throw new Error('附件总大小超过 24 MB。')
-      result.push({ type: resource.type, name: resource.fileName || `${resource.type}-${result.length + 1}`, buffer })
+      result.push({
+        type: resource.type,
+        name: resource.fileName || `${resource.type}-${result.length + 1}`,
+        buffer,
+      })
     }
     return result
   }

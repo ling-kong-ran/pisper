@@ -14,7 +14,8 @@ function safeDimension(value, fallback, minimum, maximum) {
 
 function safeUrl(value) {
   const url = new URL(String(value || '').trim())
-  if (!['http:', 'https:'].includes(url.protocol)) throw new Error('Browser automation only supports http and https URLs.')
+  if (!['http:', 'https:'].includes(url.protocol))
+    throw new Error('Browser automation only supports http and https URLs.')
   return url.href
 }
 
@@ -27,7 +28,9 @@ function safeSelector(value) {
 
 function outputName(value) {
   const requested = basename(String(value || '').trim()).replace(/[^a-zA-Z0-9._-]+/g, '-')
-  const stem = requested.replace(/\.(?:png|jpe?g|webp)$/i, '').replace(/^-+|-+$/g, '') || `browser-${Date.now()}`
+  const stem =
+    requested.replace(/\.(?:png|jpe?g|webp)$/i, '').replace(/^-+|-+$/g, '') ||
+    `browser-${Date.now()}`
   return `${stem.slice(0, 100)}.png`
 }
 
@@ -42,10 +45,20 @@ async function executableExists(path) {
 }
 
 function pathExecutables() {
-  const names = process.platform === 'win32'
-    ? ['msedge.exe', 'chrome.exe', 'brave.exe']
-    : ['google-chrome', 'google-chrome-stable', 'chromium', 'chromium-browser', 'microsoft-edge', 'brave-browser']
-  const directories = String(process.env.PATH || '').split(process.platform === 'win32' ? ';' : ':').filter(Boolean)
+  const names =
+    process.platform === 'win32'
+      ? ['msedge.exe', 'chrome.exe', 'brave.exe']
+      : [
+          'google-chrome',
+          'google-chrome-stable',
+          'chromium',
+          'chromium-browser',
+          'microsoft-edge',
+          'brave-browser',
+        ]
+  const directories = String(process.env.PATH || '')
+    .split(process.platform === 'win32' ? ';' : ':')
+    .filter(Boolean)
   return directories.flatMap((directory) => names.map((name) => join(directory, name)))
 }
 
@@ -53,7 +66,13 @@ function browserCandidates() {
   if (process.platform === 'win32') {
     return [
       join(process.env.PROGRAMFILES || '', 'Microsoft', 'Edge', 'Application', 'msedge.exe'),
-      join(process.env['PROGRAMFILES(X86)'] || '', 'Microsoft', 'Edge', 'Application', 'msedge.exe'),
+      join(
+        process.env['PROGRAMFILES(X86)'] || '',
+        'Microsoft',
+        'Edge',
+        'Application',
+        'msedge.exe',
+      ),
       join(process.env.PROGRAMFILES || '', 'Google', 'Chrome', 'Application', 'chrome.exe'),
       join(process.env['PROGRAMFILES(X86)'] || '', 'Google', 'Chrome', 'Application', 'chrome.exe'),
       join(process.env.LOCALAPPDATA || '', 'Google', 'Chrome', 'Application', 'chrome.exe'),
@@ -72,45 +91,71 @@ function browserCandidates() {
 }
 
 async function inspectPage(page) {
-  const snapshot = await page.evaluate(({ maxElements, maxText }) => {
-    const selectorFor = (element) => {
-      if (element.id) return `#${CSS.escape(element.id)}`
-      const name = element.getAttribute('name')
-      if (name) return `${element.tagName.toLowerCase()}[name=${JSON.stringify(name)}]`
-      const testId = element.getAttribute('data-testid')
-      if (testId) return `[data-testid=${JSON.stringify(testId)}]`
-      const aria = element.getAttribute('aria-label')
-      if (aria) return `${element.tagName.toLowerCase()}[aria-label=${JSON.stringify(aria)}]`
-      return element.tagName.toLowerCase()
-    }
-    const elements = [...document.querySelectorAll('a,button,input,textarea,select,[role="button"],[contenteditable="true"]')]
-      .filter((element) => {
-        const style = getComputedStyle(element)
-        const rect = element.getBoundingClientRect()
-        return style.visibility !== 'hidden' && style.display !== 'none' && rect.width > 0 && rect.height > 0
-      })
-      .slice(0, maxElements)
-      .map((element) => ({
-        selector: selectorFor(element),
-        tag: element.tagName.toLowerCase(),
-        role: element.getAttribute('role') || '',
-        text: String(element.innerText || element.value || element.getAttribute('aria-label') || element.getAttribute('placeholder') || '').replace(/\s+/g, ' ').trim().slice(0, 240),
-        href: element.href || '',
-        type: element.getAttribute('type') || '',
-        disabled: Boolean(element.disabled),
-      }))
-    return {
-      title: document.title,
-      url: location.href,
-      text: String(document.body?.innerText || '').slice(0, maxText),
-      elements,
-    }
-  }, { maxElements: MAX_ELEMENTS, maxText: MAX_PAGE_TEXT_CHARS })
+  const snapshot = await page.evaluate(
+    ({ maxElements, maxText }) => {
+      const selectorFor = (element) => {
+        if (element.id) return `#${CSS.escape(element.id)}`
+        const name = element.getAttribute('name')
+        if (name) return `${element.tagName.toLowerCase()}[name=${JSON.stringify(name)}]`
+        const testId = element.getAttribute('data-testid')
+        if (testId) return `[data-testid=${JSON.stringify(testId)}]`
+        const aria = element.getAttribute('aria-label')
+        if (aria) return `${element.tagName.toLowerCase()}[aria-label=${JSON.stringify(aria)}]`
+        return element.tagName.toLowerCase()
+      }
+      const elements = [
+        ...document.querySelectorAll(
+          'a,button,input,textarea,select,[role="button"],[contenteditable="true"]',
+        ),
+      ]
+        .filter((element) => {
+          const style = getComputedStyle(element)
+          const rect = element.getBoundingClientRect()
+          return (
+            style.visibility !== 'hidden' &&
+            style.display !== 'none' &&
+            rect.width > 0 &&
+            rect.height > 0
+          )
+        })
+        .slice(0, maxElements)
+        .map((element) => ({
+          selector: selectorFor(element),
+          tag: element.tagName.toLowerCase(),
+          role: element.getAttribute('role') || '',
+          text: String(
+            element.innerText ||
+              element.value ||
+              element.getAttribute('aria-label') ||
+              element.getAttribute('placeholder') ||
+              '',
+          )
+            .replace(/\s+/g, ' ')
+            .trim()
+            .slice(0, 240),
+          href: element.href || '',
+          type: element.getAttribute('type') || '',
+          disabled: Boolean(element.disabled),
+        }))
+      return {
+        title: document.title,
+        url: location.href,
+        text: String(document.body?.innerText || '').slice(0, maxText),
+        elements,
+      }
+    },
+    { maxElements: MAX_ELEMENTS, maxText: MAX_PAGE_TEXT_CHARS },
+  )
   return snapshot
 }
 
 export class BrowserAutomationService {
-  constructor({ driver, idleTimeoutMs = DEFAULT_IDLE_TIMEOUT_MS, setTimer = setTimeout, clearTimer = clearTimeout } = {}) {
+  constructor({
+    driver,
+    idleTimeoutMs = DEFAULT_IDLE_TIMEOUT_MS,
+    setTimer = setTimeout,
+    clearTimer = clearTimeout,
+  } = {}) {
     this.driver = driver || null
     this.sessions = new Map()
     this.idleTimers = new Map()
@@ -144,7 +189,7 @@ export class BrowserAutomationService {
     const { chromium } = await import('playwright-core')
     let lastError = null
     for (const executablePath of [...new Set(browserCandidates())]) {
-      if (!await executableExists(executablePath)) continue
+      if (!(await executableExists(executablePath))) continue
       try {
         const browser = await chromium.launch({ executablePath, headless: true })
         const context = await browser.newContext({ viewport, acceptDownloads: false })
@@ -156,7 +201,9 @@ export class BrowserAutomationService {
         lastError = error
       }
     }
-    throw new Error(`No controllable browser was found. Install Chrome, Edge, Chromium, or run Pisper Desktop.${lastError ? ` ${lastError.message}` : ''}`)
+    throw new Error(
+      `No controllable browser was found. Install Chrome, Edge, Chromium, or run Pisper Desktop.${lastError ? ` ${lastError.message}` : ''}`,
+    )
   }
 
   async ensureSession(sessionId, viewport) {
@@ -181,8 +228,13 @@ export class BrowserAutomationService {
     if (action === 'close') this.clearIdleTimer(id)
     else this.touchSession(id)
     if (this.driver) {
-      const outputPath = action === 'screenshot' ? await this.screenshotPath(cwd, input.outputName) : undefined
-      return this.driver.execute(id, { ...input, action, viewport, outputPath }, { signal, onProgress })
+      const outputPath =
+        action === 'screenshot' ? await this.screenshotPath(cwd, input.outputName) : undefined
+      return this.driver.execute(
+        id,
+        { ...input, action, viewport, outputPath },
+        { signal, onProgress },
+      )
     }
     if (action === 'close') {
       await this.closeSession(sessionId)
@@ -195,15 +247,17 @@ export class BrowserAutomationService {
       onProgress?.(`Opening ${url}`)
       await page.setViewportSize(viewport)
       await page.goto(url, { waitUntil: 'domcontentloaded' })
-      if (input.waitMs) await page.waitForTimeout(Math.min(15_000, Math.max(0, Number(input.waitMs) || 0)))
+      if (input.waitMs)
+        await page.waitForTimeout(Math.min(15_000, Math.max(0, Number(input.waitMs) || 0)))
       return { action, url: page.url(), title: await page.title(), viewport }
     }
-    if (action === 'inspect') return { action, ...await inspectPage(page) }
+    if (action === 'inspect') return { action, ...(await inspectPage(page)) }
     if (action === 'click') {
       const selector = safeSelector(input.selector)
       onProgress?.(`Clicking ${selector}`)
       await page.locator(selector).first().click()
-      if (input.waitMs) await page.waitForTimeout(Math.min(15_000, Math.max(0, Number(input.waitMs) || 0)))
+      if (input.waitMs)
+        await page.waitForTimeout(Math.min(15_000, Math.max(0, Number(input.waitMs) || 0)))
       return { action, selector, url: page.url(), title: await page.title() }
     }
     if (action === 'type') {
@@ -212,8 +266,15 @@ export class BrowserAutomationService {
       onProgress?.(`Typing into ${selector}`)
       await page.locator(selector).first().fill(text)
       if (input.submit) await page.locator(selector).first().press('Enter')
-      if (input.waitMs) await page.waitForTimeout(Math.min(15_000, Math.max(0, Number(input.waitMs) || 0)))
-      return { action, selector, submitted: Boolean(input.submit), url: page.url(), title: await page.title() }
+      if (input.waitMs)
+        await page.waitForTimeout(Math.min(15_000, Math.max(0, Number(input.waitMs) || 0)))
+      return {
+        action,
+        selector,
+        submitted: Boolean(input.submit),
+        url: page.url(),
+        title: await page.title(),
+      }
     }
     if (action === 'wait') {
       const waitMs = Math.min(15_000, Math.max(0, Number(input.waitMs) || 1_000))
@@ -224,7 +285,16 @@ export class BrowserAutomationService {
       const path = await this.screenshotPath(cwd, input.outputName)
       onProgress?.(`Capturing ${page.url()}`)
       await page.screenshot({ path, fullPage: input.fullPage !== false, type: 'png' })
-      return { action, path, name: basename(path), mimeType: 'image/png', url: page.url(), title: await page.title(), fullPage: input.fullPage !== false, viewport }
+      return {
+        action,
+        path,
+        name: basename(path),
+        mimeType: 'image/png',
+        url: page.url(),
+        title: await page.title(),
+        fullPage: input.fullPage !== false,
+        viewport,
+      }
     }
     throw new Error(`Unsupported browser action: ${action}`)
   }

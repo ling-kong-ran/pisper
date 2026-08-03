@@ -12,19 +12,16 @@ test('vendor chunk classification is stable and preserves Shiki dynamic modules'
   assert.equal(vendorChunkForModule(modulePath('d3-selection')), 'vendor-xyflow')
   assert.equal(vendorChunkForModule(modulePath('motion', 'react.js')), 'vendor-motion')
   assert.equal(vendorChunkForModule(modulePath('streamdown')), 'vendor-markdown')
+  assert.equal(vendorChunkForModule(modulePath('@streamdown/code')), 'vendor-markdown-plugins')
   assert.equal(
-    vendorChunkForModule(modulePath('@streamdown/code')),
-    'vendor-markdown-plugins',
+    vendorChunkForModule(modulePath('shiki', 'dist/bundle-web.mjs')),
+    'vendor-shiki-runtime',
   )
-  assert.equal(vendorChunkForModule(modulePath('shiki', 'dist/bundle-web.mjs')), 'vendor-shiki-runtime')
   assert.equal(vendorChunkForModule(modulePath('@shikijs/core')), 'vendor-shiki-runtime')
   assert.equal(vendorChunkForModule(modulePath('zustand')), 'vendor-state')
   assert.equal(vendorChunkForModule(modulePath('tailwind-merge')), 'vendor-ui')
 
-  assert.equal(
-    vendorChunkForModule(modulePath('@shikijs/langs', 'dist/typescript.mjs')),
-    undefined,
-  )
+  assert.equal(vendorChunkForModule(modulePath('@shikijs/langs', 'dist/typescript.mjs')), undefined)
   assert.equal(
     vendorChunkForModule(modulePath('@shikijs/themes', 'dist/github-dark.mjs')),
     undefined,

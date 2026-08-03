@@ -85,21 +85,17 @@ export class SessionLifecycle {
 
   sessionRuntimeIsProtected(id, value) {
     return Boolean(
-      value?.session?.isStreaming
-      || this.getGoals().get(id)?.status === 'active'
-      || this.agentWakeupTimers.has(id)
-      || value?.pendingAgentNotifications?.length
-      || this.getMultiAgents().hasActive?.(id),
+      value?.session?.isStreaming ||
+      this.getGoals().get(id)?.status === 'active' ||
+      this.agentWakeupTimers.has(id) ||
+      value?.pendingAgentNotifications?.length ||
+      this.getMultiAgents().hasActive?.(id),
     )
   }
 
   disposeSessionRuntime(id, value) {
     if (!value || this.sessions.get(id) !== value) return false
-    this.getPermissions().resolveSession(
-      id,
-      false,
-      '会话运行时已从内存释放，请重新发送消息。',
-    )
+    this.getPermissions().resolveSession(id, false, '会话运行时已从内存释放，请重新发送消息。')
     try {
       value.session.dispose()
     } finally {
@@ -122,9 +118,10 @@ export class SessionLifecycle {
       0,
       Number(state.sessionRuntimeIdleTtlMs) || SESSION_RUNTIME_IDLE_TTL_MS,
     )
-    const candidates = () => [...this.sessions.entries()]
-      .filter(([id, value]) => id !== exceptId && !this.sessionRuntimeIsProtected(id, value))
-      .sort((left, right) => (left[1].lastAccessedAt || 0) - (right[1].lastAccessedAt || 0))
+    const candidates = () =>
+      [...this.sessions.entries()]
+        .filter(([id, value]) => id !== exceptId && !this.sessionRuntimeIsProtected(id, value))
+        .sort((left, right) => (left[1].lastAccessedAt || 0) - (right[1].lastAccessedAt || 0))
     let evicted = 0
     if (idleTtlMs > 0) {
       for (const [id, value] of candidates()) {
@@ -144,11 +141,7 @@ export class SessionLifecycle {
     for (const [id, value] of this.sessions) {
       await this.pauseSessionGoal(id)
       this.getMultiAgents().abortParent(id)
-      this.getPermissions().resolveSession(
-        id,
-        false,
-        'Agent Runtime 正在重新加载，工具未执行。',
-      )
+      this.getPermissions().resolveSession(id, false, 'Agent Runtime 正在重新加载，工具未执行。')
       value.session.dispose()
       this.invalidateProjection(id)
     }
@@ -177,14 +170,16 @@ export class SessionLifecycle {
     const memory = process.memoryUsage()
     const state = this.getRuntimeState()
     const resident = [...this.sessions.entries()]
-    const protectedSessions = resident
-      .filter(([id, value]) => this.sessionRuntimeIsProtected(id, value))
-      .length
+    const protectedSessions = resident.filter(([id, value]) =>
+      this.sessionRuntimeIsProtected(id, value),
+    ).length
     const idleAges = resident
       .filter(([id, value]) => !this.sessionRuntimeIsProtected(id, value))
       .map(([, value]) => Math.max(0, now - (value.lastAccessedAt || now)))
-    const historySourceBytes = [...this.sessionHistoryCache.values()]
-      .reduce((total, entry) => total + entry.size, 0)
+    const historySourceBytes = [...this.sessionHistoryCache.values()].reduce(
+      (total, entry) => total + entry.size,
+      0,
+    )
     return {
       timestamp: new Date(now).toISOString(),
       uptimeSeconds: Math.round(process.uptime()),
@@ -236,13 +231,15 @@ export class SessionLifecycle {
     const goals = this.getGoals()
     const plans = this.getPlans()
     const multiAgents = this.getMultiAgents()
-    const defaultModel = settings.defaultProvider && settings.defaultModel
-      ? `${settings.defaultProvider}/${settings.defaultModel}`
-      : ''
+    const defaultModel =
+      settings.defaultProvider && settings.defaultModel
+        ? `${settings.defaultProvider}/${settings.defaultModel}`
+        : ''
     const defaultThinkingLevel = settings.defaultThinkingLevel || 'medium'
     const sessionValue = (id, value) => ({
-      permissionMode: sessionMeta[id]?.permissionMode
-        || permissionModeForExecutionMode(this.getExecutionMode(id)),
+      permissionMode:
+        sessionMeta[id]?.permissionMode ||
+        permissionModeForExecutionMode(this.getExecutionMode(id)),
       executionMode: this.getExecutionMode(id),
       goal: goals.get(id),
       plan: plans.get(id),
@@ -261,8 +258,8 @@ export class SessionLifecycle {
         name: active?.name || session.name || session.firstMessage || DEFAULT_SESSION_NAME,
         firstMessage: session.firstMessage || '',
         messageCount: active
-          ? active.session.messages.filter(
-              (message) => ['user', 'assistant'].includes(message.role),
+          ? active.session.messages.filter((message) =>
+              ['user', 'assistant'].includes(message.role),
             ).length
           : session.messageCount,
         model: contextModel,
@@ -276,38 +273,42 @@ export class SessionLifecycle {
     const persistedIds = new Set(result.map((session) => session.id))
     for (const [id, value] of this.sessions) {
       if (persistedIds.has(id)) continue
-      result.unshift(sessionValue(id, {
-        id,
-        name: value.name || DEFAULT_SESSION_NAME,
-        firstMessage: '',
-        messageCount: value.session.messages.filter(
-          (message) => ['user', 'assistant'].includes(message.role),
-        ).length,
-        model: value.session.model
-          ? `${value.session.model.provider}/${value.session.model.id}`
-          : defaultModel,
-        thinkingLevel: value.session.thinkingLevel || defaultThinkingLevel,
-        cwd: value.cwd || this.cwd,
-        created: value.created,
-        modified: value.modified,
-        streaming: Boolean(value.session.isStreaming),
-      }))
+      result.unshift(
+        sessionValue(id, {
+          id,
+          name: value.name || DEFAULT_SESSION_NAME,
+          firstMessage: '',
+          messageCount: value.session.messages.filter((message) =>
+            ['user', 'assistant'].includes(message.role),
+          ).length,
+          model: value.session.model
+            ? `${value.session.model.provider}/${value.session.model.id}`
+            : defaultModel,
+          thinkingLevel: value.session.thinkingLevel || defaultThinkingLevel,
+          cwd: value.cwd || this.cwd,
+          created: value.created,
+          modified: value.modified,
+          streaming: Boolean(value.session.isStreaming),
+        }),
+      )
     }
     for (const [id, value] of this.pendingSessions) {
       if (persistedIds.has(id) || this.sessions.has(id)) continue
-      result.unshift(sessionValue(id, {
-        id,
-        name: value.name,
-        firstMessage: '',
-        messageCount: 0,
-        model: defaultModel,
-        thinkingLevel: defaultThinkingLevel,
-        cwd: value.cwd,
-        created: value.created,
-        modified: value.modified,
-        streaming: false,
-        agents: [],
-      }))
+      result.unshift(
+        sessionValue(id, {
+          id,
+          name: value.name,
+          firstMessage: '',
+          messageCount: 0,
+          model: defaultModel,
+          thinkingLevel: defaultThinkingLevel,
+          cwd: value.cwd,
+          created: value.created,
+          modified: value.modified,
+          streaming: false,
+          agents: [],
+        }),
+      )
     }
     result.sort(
       (left, right) => new Date(right.modified).getTime() - new Date(left.modified).getTime(),
@@ -339,9 +340,10 @@ export class SessionLifecycle {
     }
     await this.saveSessionMeta()
     const settings = this.getSettingsManager().getGlobalSettings()
-    const model = settings.defaultProvider && settings.defaultModel
-      ? `${settings.defaultProvider}/${settings.defaultModel}`
-      : ''
+    const model =
+      settings.defaultProvider && settings.defaultModel
+        ? `${settings.defaultProvider}/${settings.defaultModel}`
+        : ''
     return {
       id,
       name: resolvedName,
@@ -395,10 +397,11 @@ export class SessionLifecycle {
     const permissionMode = String(mode || '')
     if (!permissionModes.has(permissionMode)) throw new Error('权限模式无效。')
     if (
-      !this.sessions.has(id)
-      && !this.pendingSessions.has(id)
-      && !(await this.findSessionInfo(id))
-    ) return null
+      !this.sessions.has(id) &&
+      !this.pendingSessions.has(id) &&
+      !(await this.findSessionInfo(id))
+    )
+      return null
     const sessionMeta = this.getSessionMeta()
     sessionMeta[id] = { ...(sessionMeta[id] || {}), permissionMode }
     await this.saveSessionMeta()
@@ -416,10 +419,11 @@ export class SessionLifecycle {
   async setSessionExecutionMode(id, executionMode) {
     if (!executionMode) throw new Error('执行模式无效。')
     if (
-      !this.sessions.has(id)
-      && !this.pendingSessions.has(id)
-      && !(await this.findSessionInfo(id))
-    ) return null
+      !this.sessions.has(id) &&
+      !this.pendingSessions.has(id) &&
+      !(await this.findSessionInfo(id))
+    )
+      return null
     const permissionMode = permissionModeForExecutionMode(executionMode)
     const sessionMeta = this.getSessionMeta()
     sessionMeta[id] = { ...(sessionMeta[id] || {}), executionMode, permissionMode }
@@ -477,12 +481,10 @@ export class SessionLifecycle {
     const next = await this.createSessionRuntime(manager, name)
     if (!info?.path) next.session.setSessionName(name)
     if (
-      previousModel
-      && (
-        !next.session.model
-        || previousModel.provider !== next.session.model.provider
-        || previousModel.id !== next.session.model.id
-      )
+      previousModel &&
+      (!next.session.model ||
+        previousModel.provider !== next.session.model.provider ||
+        previousModel.id !== next.session.model.id)
     ) {
       await this.setSessionModel(id, previousModel.provider, previousModel.id)
     }
@@ -495,9 +497,10 @@ export class SessionLifecycle {
     if (id && this.sessions.has(id)) {
       const current = this.sessions.get(id)
       if (
-        current.session.isStreaming
-        || (current.runtimeVersion ?? state.sessionRuntimeVersion) === state.sessionRuntimeVersion
-      ) return this.touchSessionRuntime(current)
+        current.session.isStreaming ||
+        (current.runtimeVersion ?? state.sessionRuntimeVersion) === state.sessionRuntimeVersion
+      )
+        return this.touchSessionRuntime(current)
       current.session.dispose()
       this.sessions.delete(id)
       this.invalidateProjection(id)
@@ -575,8 +578,7 @@ export class SessionLifecycle {
       await removeMetadata()
       const state = this.getRuntimeState()
       if (state.storedSessionsCache) {
-        state.storedSessionsCache = state.storedSessionsCache
-          .filter((session) => session.id !== id)
+        state.storedSessionsCache = state.storedSessionsCache.filter((session) => session.id !== id)
       }
       return Boolean(active || pending)
     }
@@ -593,8 +595,7 @@ export class SessionLifecycle {
     await removeMetadata()
     const state = this.getRuntimeState()
     if (state.storedSessionsCache) {
-      state.storedSessionsCache = state.storedSessionsCache
-        .filter((session) => session.id !== id)
+      state.storedSessionsCache = state.storedSessionsCache.filter((session) => session.id !== id)
     }
     return true
   }

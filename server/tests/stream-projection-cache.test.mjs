@@ -36,18 +36,30 @@ test('projection invalidation clears only the requested session scopes', () => {
 
   cache.invalidate('session-1', { transcript: false, activity: true, usage: false })
 
-  assert.equal(cache.transcript('session-1', messages, () => ['rebuilt']), transcript)
+  assert.equal(
+    cache.transcript('session-1', messages, () => ['rebuilt']),
+    transcript,
+  )
   assert.equal(
     cache.transcriptWithAssets('session-1', transcript, 1, () => ['rebuilt']),
     withAssets,
   )
-  assert.equal(cache.contextUsage('session-1', usageToken, () => ({ tokens: 2 })), usage)
+  assert.equal(
+    cache.contextUsage('session-1', usageToken, () => ({ tokens: 2 })),
+    usage,
+  )
   assert.deepEqual(cache.liveSnapshot('session-1', liveToken), { hit: false, value: null })
   assert.equal(live.streaming, false)
 
   cache.invalidate('session-1')
-  assert.notEqual(cache.transcript('session-1', messages, () => ['rebuilt']), transcript)
-  assert.notEqual(cache.contextUsage('session-1', usageToken, () => ({ tokens: 2 })), usage)
+  assert.notEqual(
+    cache.transcript('session-1', messages, () => ['rebuilt']),
+    transcript,
+  )
+  assert.notEqual(
+    cache.contextUsage('session-1', usageToken, () => ({ tokens: 2 })),
+    usage,
+  )
 })
 
 test('asset, usage, and session invalidation evict dependent live snapshots', () => {
@@ -68,7 +80,10 @@ test('asset, usage, and session invalidation evict dependent live snapshots', ()
   const usage = cache.contextUsage('session-1', usageToken, () => ({ tokens: 1 }))
   cache.storeLiveSnapshot('session-1', liveToken, { revision: 2 })
   cache.invalidateAllUsage()
-  assert.notEqual(cache.contextUsage('session-1', usageToken, () => ({ tokens: 2 })), usage)
+  assert.notEqual(
+    cache.contextUsage('session-1', usageToken, () => ({ tokens: 2 })),
+    usage,
+  )
   assert.equal(cache.liveSnapshot('session-1', liveToken).hit, false)
 
   cache.storeLiveSnapshot('session-1', liveToken, { revision: 3 })

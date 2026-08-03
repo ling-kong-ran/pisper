@@ -10,19 +10,24 @@ function hashToken(token) {
 }
 
 function tokenize(value) {
-  const normalized = String(value || '').normalize('NFKC').toLowerCase()
+  const normalized = String(value || '')
+    .normalize('NFKC')
+    .toLowerCase()
   const tokens = normalized.match(/[\p{L}\p{N}_-]+/gu) || []
   const features = []
   for (const token of tokens) {
     const characters = Array.from(token)
     if (characters.every((character) => character.codePointAt(0) <= 0x7f)) {
       features.push(token)
-      for (let index = 0; index < characters.length - 2; index += 1) features.push(characters.slice(index, index + 3).join(''))
+      for (let index = 0; index < characters.length - 2; index += 1)
+        features.push(characters.slice(index, index + 3).join(''))
       continue
     }
     features.push(...characters)
-    for (let index = 0; index < characters.length - 1; index += 1) features.push(characters.slice(index, index + 2).join(''))
-    for (let index = 0; index < characters.length - 2; index += 1) features.push(characters.slice(index, index + 3).join(''))
+    for (let index = 0; index < characters.length - 1; index += 1)
+      features.push(characters.slice(index, index + 2).join(''))
+    for (let index = 0; index < characters.length - 2; index += 1)
+      features.push(characters.slice(index, index + 3).join(''))
   }
   return features
 }
@@ -52,7 +57,11 @@ export function embeddingFromBuffer(buffer) {
   const bytes = Buffer.from(buffer)
   const copy = new Uint8Array(bytes.byteLength)
   copy.set(bytes)
-  return new Float32Array(copy.buffer, 0, Math.floor(copy.byteLength / Float32Array.BYTES_PER_ELEMENT))
+  return new Float32Array(
+    copy.buffer,
+    0,
+    Math.floor(copy.byteLength / Float32Array.BYTES_PER_ELEMENT),
+  )
 }
 
 export function cosineSimilarity(left, right) {

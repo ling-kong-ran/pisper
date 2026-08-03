@@ -12,7 +12,11 @@ test('blank chat sessions stay lightweight until an Agent is first required', as
   t.after(() => rm(directory, { recursive: true, force: true }))
   const runtime = new AgentRuntimeService({ cwd: directory, dataDir: directory })
   runtime.settingsManager = {
-    getGlobalSettings: () => ({ defaultProvider: 'openai', defaultModel: 'gpt-test', defaultThinkingLevel: 'high' }),
+    getGlobalSettings: () => ({
+      defaultProvider: 'openai',
+      defaultModel: 'gpt-test',
+      defaultThinkingLevel: 'high',
+    }),
   }
   runtime.saveSessionMeta = async () => {}
   runtime.listStoredSessions = async () => []
@@ -53,24 +57,32 @@ test('main runtime keeps discovered cold MCP tools for the rest of the session w
     await rm(directory, { recursive: true, force: true })
   })
   await mkdir(join(directory, 'skills', 'runtime-skill'), { recursive: true })
-  await writeFile(join(directory, 'skills', 'runtime-skill', 'SKILL.md'), `---\nname: runtime-skill\ndescription: Verify runtime skill loading.\n---\n\nUse this runtime skill.\n`, 'utf8')
+  await writeFile(
+    join(directory, 'skills', 'runtime-skill', 'SKILL.md'),
+    `---\nname: runtime-skill\ndescription: Verify runtime skill loading.\n---\n\nUse this runtime skill.\n`,
+    'utf8',
+  )
 
   runtime = new AgentRuntimeService({ cwd: directory, dataDir: directory })
   assert.equal(runtime.plans.path, join(directory, 'pisper-plans.json'))
   assert.equal(runtime.plans.legacyPath, join(directory, 'pisper-task-lists.json'))
   await runtime.init()
-  runtime.mcp.createToolDefinitions = async () => [defineTool({
-    name: 'mcp_fixture_echo_12345678',
-    label: 'MCP fixture echo',
-    description: 'Fixture MCP tool',
-    parameters: Type.Object({ text: Type.String() }),
-    async execute(_id, params) {
-      return { content: [{ type: 'text', text: params.text }], details: {} }
-    },
-  })]
+  runtime.mcp.createToolDefinitions = async () => [
+    defineTool({
+      name: 'mcp_fixture_echo_12345678',
+      label: 'MCP fixture echo',
+      description: 'Fixture MCP tool',
+      parameters: Type.Object({ text: Type.String() }),
+      async execute(_id, params) {
+        return { content: [{ type: 'text', text: params.text }], details: {} }
+      },
+    }),
+  ]
 
   const value = await runtime.createSessionRuntime(SessionManager.inMemory(directory))
-  assert.ok(value.session.resourceLoader.getSkills().skills.some((skill) => skill.name === 'runtime-skill'))
+  assert.ok(
+    value.session.resourceLoader.getSkills().skills.some((skill) => skill.name === 'runtime-skill'),
+  )
   assert.ok(value.session.agent.state.systemPrompt.includes('runtime-skill'))
   assert.match(value.session.agent.state.systemPrompt, /Application: Pisper/)
   assert.match(value.session.agent.state.systemPrompt, /Active model:/)
@@ -85,11 +97,9 @@ test('main runtime keeps discovered cold MCP tools for the rest of the session w
   assert.equal(value.session.getActiveToolNames().includes('update_task_list'), false)
   assert.ok(value.session.getToolDefinition('get_task_list'))
   assert.ok(value.session.getToolDefinition('update_task_list'))
-  const compatibilityRead = await value.session.getToolDefinition('get_task_list').execute(
-    'legacy-plan-read',
-    {},
-    new AbortController().signal,
-  )
+  const compatibilityRead = await value.session
+    .getToolDefinition('get_task_list')
+    .execute('legacy-plan-read', {}, new AbortController().signal)
   assert.equal(compatibilityRead.details.plan.sessionId, value.session.sessionId)
   assert.equal(Object.hasOwn(compatibilityRead.details, 'taskList'), false)
   assert.doesNotMatch(value.session.agent.state.systemPrompt, /get_task_list|update_task_list/)
@@ -97,8 +107,14 @@ test('main runtime keeps discovered cold MCP tools for the rest of the session w
   assert.ok(value.session.getActiveToolNames().includes('generate_visual'))
   assert.match(value.session.agent.state.systemPrompt, /discover_tools/)
   assert.match(value.session.getToolDefinition('generate_visual').description, /mockup/)
-  assert.deepEqual(value.session.getToolDefinition('generate_visual').parameters.properties.aspectRatio.enum, ['1:1', '16:9', '9:16', '4:3', '3:4'])
-  assert.equal(value.session.getToolDefinition('generate_visual').parameters.properties.aspectRatio.anyOf, undefined)
+  assert.deepEqual(
+    value.session.getToolDefinition('generate_visual').parameters.properties.aspectRatio.enum,
+    ['1:1', '16:9', '9:16', '4:3', '3:4'],
+  )
+  assert.equal(
+    value.session.getToolDefinition('generate_visual').parameters.properties.aspectRatio.anyOf,
+    undefined,
+  )
   const hotToolNames = value.session.getActiveToolNames()
   const hotSystemPrompt = value.session.agent.state.systemPrompt
 
@@ -108,11 +124,13 @@ test('main runtime keeps discovered cold MCP tools for the rest of the session w
   assert.deepEqual(value.promotedToolNames, [])
   assert.equal(value.session.agent.state.systemPrompt, hotSystemPrompt)
 
-  const discovery = await value.session.getToolDefinition('discover_tools').execute(
-    'discover-fixture',
-    { query: 'MCP fixture echo', limit: 1 },
-    new AbortController().signal,
-  )
+  const discovery = await value.session
+    .getToolDefinition('discover_tools')
+    .execute(
+      'discover-fixture',
+      { query: 'MCP fixture echo', limit: 1 },
+      new AbortController().signal,
+    )
   assert.deepEqual(discovery.details.activated, ['mcp_fixture_echo_12345678'])
   assert.ok(value.session.getActiveToolNames().includes('mcp_fixture_echo_12345678'))
 
@@ -123,7 +141,10 @@ test('main runtime keeps discovered cold MCP tools for the rest of the session w
   assert.equal(value.session.getActiveToolNames().includes('mcp_manage'), false)
   assert.deepEqual(value.session.getActiveToolNames().slice(0, hotToolNames.length), hotToolNames)
   assert.equal(value.session.agent.state.systemPrompt, hotSystemPrompt)
-  assert.match(value.session.getToolDefinition('mcp_manage').description, /Always use mcp_manage for MCP configuration/)
+  assert.match(
+    value.session.getToolDefinition('mcp_manage').description,
+    /Always use mcp_manage for MCP configuration/,
+  )
   assert.deepEqual(value.session.getToolDefinition('mcp_manage').promptGuidelines, [])
 
   await runtime.selectToolsForMessage(value, 'Now update the local source file.')
@@ -131,8 +152,14 @@ test('main runtime keeps discovered cold MCP tools for the rest of the session w
   assert.equal(value.session.getActiveToolNames().includes('mcp_list'), false)
   assert.equal(value.session.getActiveToolNames().includes('mcp_manage'), false)
   assert.deepEqual(value.promotedToolNames, ['mcp_fixture_echo_12345678'])
-  assert.equal(runtime.sessionMeta[value.session.sessionId].promotedToolNames.includes('generate_visual'), false)
-  assert.deepEqual(runtime.sessionMeta[value.session.sessionId].promotedToolNames, value.promotedToolNames)
+  assert.equal(
+    runtime.sessionMeta[value.session.sessionId].promotedToolNames.includes('generate_visual'),
+    false,
+  )
+  assert.deepEqual(
+    runtime.sessionMeta[value.session.sessionId].promotedToolNames,
+    value.promotedToolNames,
+  )
   assert.equal(value.session.hasExtensionHandlers('tool_result'), false)
   assert.equal(value.session.hasExtensionHandlers('message_end'), false)
 
@@ -142,12 +169,19 @@ test('main runtime keeps discovered cold MCP tools for the rest of the session w
   assert.equal(value.session.getActiveToolNames().includes('memory_search'), false)
   assert.equal(value.session.getActiveToolNames().includes('memory_remember'), false)
 
-  const compatibilityDiscovery = await value.session.getToolDefinition('discover_tools').execute(
-    'discover-legacy-plan-alias',
-    { query: 'get_task_list update_task_list', limit: 5, activate: false },
-    new AbortController().signal,
+  const compatibilityDiscovery = await value.session
+    .getToolDefinition('discover_tools')
+    .execute(
+      'discover-legacy-plan-alias',
+      { query: 'get_task_list update_task_list', limit: 5, activate: false },
+      new AbortController().signal,
+    )
+  assert.equal(
+    compatibilityDiscovery.details.matches.some((tool) =>
+      ['get_task_list', 'update_task_list'].includes(tool.name),
+    ),
+    false,
   )
-  assert.equal(compatibilityDiscovery.details.matches.some((tool) => ['get_task_list', 'update_task_list'].includes(tool.name)), false)
   await runtime.selectToolsForMessage(value, 'Legacy client plan request.', {
     requestedToolNames: ['get_task_list', 'update_task_list'],
   })
@@ -160,7 +194,10 @@ test('main runtime keeps discovered cold MCP tools for the rest of the session w
   assert.equal(value.session.getActiveToolNames().includes('get_task_list'), false)
   assert.equal(value.session.getActiveToolNames().includes('update_task_list'), false)
 
-  const childLoader = await runtime.multiAgents.createResourceLoader({ cwd: directory, appendSystemPrompt: 'CHILD AGENT PROMPT' })
+  const childLoader = await runtime.multiAgents.createResourceLoader({
+    cwd: directory,
+    appendSystemPrompt: 'CHILD AGENT PROMPT',
+  })
   assert.ok(childLoader.getSkills().skills.some((skill) => skill.name === 'runtime-skill'))
   assert.ok(childLoader.getAppendSystemPrompt().includes('CHILD AGENT PROMPT'))
 })
@@ -196,8 +233,12 @@ test('background prompts apply their explicit execution mode before the Agent st
     runtime.sessions.set('scheduled-session', { cwd: directory, session: { model: null } })
     return { id: 'scheduled-session' }
   }
-  runtime.setSessionCwd = async (_id, cwd) => { calls.push(['cwd', cwd]) }
-  runtime.setSessionExecutionMode = async (_id, mode) => { calls.push(['executionMode', mode]) }
+  runtime.setSessionCwd = async (_id, cwd) => {
+    calls.push(['cwd', cwd])
+  }
+  runtime.setSessionExecutionMode = async (_id, mode) => {
+    calls.push(['executionMode', mode])
+  }
   runtime.streamPrompt = async ({ sessionId, isolatedContext, send }) => {
     calls.push(['stream', sessionId, isolatedContext])
     send('meta', { sessionId })
@@ -205,13 +246,24 @@ test('background prompts apply their explicit execution mode before the Agent st
   }
 
   const result = await runtime.promptFromChannel({
-    sessionId: '', message: 'run', cwd: directory, title: 'Scheduled task', executionMode: 'full-access', isolatedContext: true,
+    sessionId: '',
+    message: 'run',
+    cwd: directory,
+    title: 'Scheduled task',
+    executionMode: 'full-access',
+    isolatedContext: true,
   })
 
-  assert.deepEqual(calls.map(([type]) => type), ['cwd', 'executionMode', 'stream'])
+  assert.deepEqual(
+    calls.map(([type]) => type),
+    ['cwd', 'executionMode', 'stream'],
+  )
   assert.equal(calls.at(-1)[2], true)
   assert.equal(runtime.sessions.get('scheduled-session').isolatedContext, true)
-  assert.deepEqual(runtime.sessions.get('scheduled-session').blockedToolNames, ['memory_search', 'memory_remember'])
+  assert.deepEqual(runtime.sessions.get('scheduled-session').blockedToolNames, [
+    'memory_search',
+    'memory_remember',
+  ])
   assert.equal(result.sessionId, 'scheduled-session')
   assert.equal(result.text, 'done')
 })
@@ -228,11 +280,21 @@ test('saving plugin tools keeps the current streaming session alive and invalida
   let idleDisposed = 0
   runtime.sessions.set('streaming', {
     runtimeVersion: 0,
-    session: { isStreaming: true, dispose: () => { streamingDisposed += 1 } },
+    session: {
+      isStreaming: true,
+      dispose: () => {
+        streamingDisposed += 1
+      },
+    },
   })
   runtime.sessions.set('idle', {
     runtimeVersion: 0,
-    session: { isStreaming: false, dispose: () => { idleDisposed += 1 } },
+    session: {
+      isStreaming: false,
+      dispose: () => {
+        idleDisposed += 1
+      },
+    },
   })
   runtime.toolPlugins.saveState = async () => ({ enabledTools: ['read'] })
   runtime.pauseSessionGoal = async () => {}
@@ -261,11 +323,21 @@ test('resource changes keep the currently streaming session alive', async (t) =>
   let idleDisposed = 0
   runtime.sessions.set('streaming', {
     runtimeVersion: 0,
-    session: { isStreaming: true, dispose: () => { streamingDisposed += 1 } },
+    session: {
+      isStreaming: true,
+      dispose: () => {
+        streamingDisposed += 1
+      },
+    },
   })
   runtime.sessions.set('idle', {
     runtimeVersion: 0,
-    session: { isStreaming: false, dispose: () => { idleDisposed += 1 } },
+    session: {
+      isStreaming: false,
+      dispose: () => {
+        idleDisposed += 1
+      },
+    },
   })
   runtime.mcp.add = async () => ({ services: [] })
 
@@ -350,7 +422,10 @@ test('stored session model lookup does not build the full message context', () =
     getBranch() {
       return [
         { type: 'model_change', provider: 'openai', modelId: 'gpt-old' },
-        { type: 'message', message: { role: 'assistant', provider: 'openai', model: 'gpt-response' } },
+        {
+          type: 'message',
+          message: { role: 'assistant', provider: 'openai', model: 'gpt-response' },
+        },
         { type: 'model_change', provider: 'openai', modelId: 'gpt-current' },
       ]
     },

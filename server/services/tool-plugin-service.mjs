@@ -1,5 +1,10 @@
 import { readJson, writeJsonAtomic } from '../storage/json-file.mjs'
-import { presetFromTools, sanitizeEnabledTools, TOOL_CATALOG, toolsFromConfig } from '../tools/registry.mjs'
+import {
+  presetFromTools,
+  sanitizeEnabledTools,
+  TOOL_CATALOG,
+  toolsFromConfig,
+} from '../tools/registry.mjs'
 import { normalizeWebSearchConfig } from './web-search-service.mjs'
 
 export class ToolPluginService {
@@ -10,7 +15,9 @@ export class ToolPluginService {
   async ensureDefaultTools(toolIds, migrationKey) {
     const appConfig = await readJson(this.configPath, { toolMode: 'full' })
     if (appConfig[migrationKey]) return
-    const enabledTools = [...new Set([...toolsFromConfig(appConfig), ...sanitizeEnabledTools(toolIds)])]
+    const enabledTools = [
+      ...new Set([...toolsFromConfig(appConfig), ...sanitizeEnabledTools(toolIds)]),
+    ]
     await writeJsonAtomic(this.configPath, {
       ...appConfig,
       toolMode: presetFromTools(enabledTools),

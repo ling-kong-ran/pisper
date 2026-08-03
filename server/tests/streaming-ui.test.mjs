@@ -1,10 +1,17 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
-import { createStreamingTextScheduler, createToolUpdateScheduler, createTypewriterDisplay } from '../../src/lib/streaming-ui.ts'
+import {
+  createStreamingTextScheduler,
+  createToolUpdateScheduler,
+  createTypewriterDisplay,
+} from '../../src/lib/streaming-ui.ts'
 
 test('streaming text scheduler coalesces rapid updates into one flush', async () => {
   const frames = []
-  const scheduler = createStreamingTextScheduler((text, activityAt) => frames.push({ text, activityAt }), { intervalMs: 20 })
+  const scheduler = createStreamingTextScheduler(
+    (text, activityAt) => frames.push({ text, activityAt }),
+    { intervalMs: 20 },
+  )
   scheduler.push('a', 't1')
   scheduler.push('ab', 't2')
   scheduler.push('abc', 't3')
@@ -44,7 +51,10 @@ test('streaming scheduler defers hidden-page updates until visibility returns', 
 
 test('tool update scheduler merges patches by tool id', async () => {
   const frames = []
-  const scheduler = createToolUpdateScheduler((batch, activityAt) => frames.push({ batch: Object.fromEntries(batch), activityAt }), { intervalMs: 20 })
+  const scheduler = createToolUpdateScheduler(
+    (batch, activityAt) => frames.push({ batch: Object.fromEntries(batch), activityAt }),
+    { intervalMs: 20 },
+  )
   scheduler.push('tool-1', { message: 'a' }, 't1')
   scheduler.push('tool-1', { message: 'ab', agent: { status: 'running' } }, 't2')
   scheduler.push('tool-2', { message: 'x' }, 't3')

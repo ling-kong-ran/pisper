@@ -7,6 +7,24 @@
   },
   "overrides": [
     {
+      "files": ["server/**", "shared/**", "scripts/**"],
+      "rules": {
+        "no-unused-vars": "error"
+      }
+    },
+    {
+      "files": [
+        "server/http/**",
+        "server/security/**",
+        "server/tools/**",
+        "shared/**",
+        "scripts/**"
+      ],
+      "rules": {
+        "require-await": "error"
+      }
+    },
+    {
       "files": ["src/**"],
       "rules": {
         "import/no-relative-parent-imports": "error"

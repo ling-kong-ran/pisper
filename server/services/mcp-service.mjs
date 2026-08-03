@@ -49,14 +49,18 @@ function nowIso() {
 }
 
 function safeString(value, limit = 2_000) {
-  return String(value || '').trim().slice(0, limit)
+  return String(value || '')
+    .trim()
+    .slice(0, limit)
 }
 
 function safeRecord(value, { maxEntries = 50, maxValueChars = 8_000 } = {}) {
   if (!value || typeof value !== 'object' || Array.isArray(value)) return {}
-  return Object.fromEntries(Object.entries(value)
-    .slice(0, maxEntries)
-    .map(([key, item]) => [safeString(key, 200), safeString(item, maxValueChars)]))
+  return Object.fromEntries(
+    Object.entries(value)
+      .slice(0, maxEntries)
+      .map(([key, item]) => [safeString(key, 200), safeString(item, maxValueChars)]),
+  )
 }
 
 function safeArgs(value) {
@@ -82,9 +86,20 @@ function pathLikeCommand(value) {
 
 function normalizeTool(tool) {
   const name = typeof tool?.name === 'string' ? tool.name : ''
-  if (!tool || typeof tool !== 'object' || !name.trim() || name.length > 300 || ['__proto__', 'constructor', 'prototype'].includes(name)) return null
+  if (
+    !tool ||
+    typeof tool !== 'object' ||
+    !name.trim() ||
+    name.length > 300 ||
+    ['__proto__', 'constructor', 'prototype'].includes(name)
+  )
+    return null
   let schema = { type: 'object', properties: {} }
-  if (tool.inputSchema && typeof tool.inputSchema === 'object' && !Array.isArray(tool.inputSchema)) {
+  if (
+    tool.inputSchema &&
+    typeof tool.inputSchema === 'object' &&
+    !Array.isArray(tool.inputSchema)
+  ) {
     try {
       const serialized = JSON.stringify(tool.inputSchema)
       if (Buffer.byteLength(serialized, 'utf8') > MAX_MCP_SCHEMA_BYTES) return null
@@ -94,11 +109,14 @@ function normalizeTool(tool) {
     }
   }
   if (schema.type !== 'object') schema.type = 'object'
-  const annotations = tool.annotations && typeof tool.annotations === 'object'
-    ? Object.fromEntries(['readOnlyHint', 'destructiveHint', 'idempotentHint', 'openWorldHint']
-      .filter((key) => typeof tool.annotations[key] === 'boolean')
-      .map((key) => [key, tool.annotations[key]]))
-    : {}
+  const annotations =
+    tool.annotations && typeof tool.annotations === 'object'
+      ? Object.fromEntries(
+          ['readOnlyHint', 'destructiveHint', 'idempotentHint', 'openWorldHint']
+            .filter((key) => typeof tool.annotations[key] === 'boolean')
+            .map((key) => [key, tool.annotations[key]]),
+        )
+      : {}
   return {
     name,
     title: safeString(tool.title, 300),
@@ -128,7 +146,8 @@ function normalizeToolStates(...values) {
     if (!source || typeof source !== 'object' || Array.isArray(source)) continue
     for (const [name, enabled] of Object.entries(source)) {
       if (Object.keys(result).length >= MAX_MCP_TOOLS_PER_SERVER) break
-      if (typeof enabled === 'boolean' && !['__proto__', 'constructor', 'prototype'].includes(name)) result[name] = enabled
+      if (typeof enabled === 'boolean' && !['__proto__', 'constructor', 'prototype'].includes(name))
+        result[name] = enabled
     }
   }
   return result
@@ -143,9 +162,21 @@ function pruneToolStates(toolStates, tools) {
 }
 
 function connectionFingerprint(server) {
-  return JSON.stringify(server?.transport === 'stdio'
-    ? { transport: 'stdio', command: server.command, args: server.args || [], cwd: server.cwd || '', env: server.env || {} }
-    : { transport: server?.transport || 'http', url: server?.url || '', headers: server?.headers || {} })
+  return JSON.stringify(
+    server?.transport === 'stdio'
+      ? {
+          transport: 'stdio',
+          command: server.command,
+          args: server.args || [],
+          cwd: server.cwd || '',
+          env: server.env || {},
+        }
+      : {
+          transport: server?.transport || 'http',
+          url: server?.url || '',
+          headers: server?.headers || {},
+        },
+  )
 }
 
 function normalizeServer(value, existing = {}) {
@@ -180,7 +211,8 @@ function normalizeServer(value, existing = {}) {
     delete server.headers
   } else {
     const url = new URL(safeString(value?.url ?? existing.url, 8_000))
-    if (!['http:', 'https:'].includes(url.protocol)) throw new Error('MCP URL 仅支持 http 或 https。')
+    if (!['http:', 'https:'].includes(url.protocol))
+      throw new Error('MCP URL 仅支持 http 或 https。')
     server.url = url.toString()
     server.headers = safeRecord(value?.headers ?? existing.headers)
     delete server.command
@@ -215,9 +247,14 @@ function normalizeState(input) {
   const source = Array.isArray(input?.servers) ? input.servers : []
   const servers = []
   for (const value of source.slice(0, MAX_MCP_SERVERS)) {
-    try { servers.push(normalizeServer(value, value)) } catch {}
+    try {
+      servers.push(normalizeServer(value, value))
+    } catch {}
   }
-  const calls = (Array.isArray(input?.calls) ? input.calls : []).slice(0, MAX_MCP_CALLS).map(normalizeCall).filter(Boolean)
+  const calls = (Array.isArray(input?.calls) ? input.calls : [])
+    .slice(0, MAX_MCP_CALLS)
+    .map(normalizeCall)
+    .filter(Boolean)
   return { version: MCP_STATE_VERSION, servers, calls }
 }
 
@@ -247,7 +284,9 @@ function statusFromError(error) {
 }
 
 function publicStatus(status) {
-  return ['online', 'connecting', 'offline', 'unauthorized', 'disabled'].includes(status) ? status : 'offline'
+  return ['online', 'connecting', 'offline', 'unauthorized', 'disabled'].includes(status)
+    ? status
+    : 'offline'
 }
 
 function formatEndpoint(server) {
@@ -267,11 +306,17 @@ function publicEndpoint(server) {
   if (server.transport === 'stdio') {
     let hideNext = false
     const args = (server.args || []).map((arg) => {
-      if (hideNext) { hideNext = false; return '***' }
-      if (/^--?(?:token|key|secret|password|auth)$/i.test(arg)) { hideNext = true; return arg }
+      if (hideNext) {
+        hideNext = false
+        return '***'
+      }
+      if (/^--?(?:token|key|secret|password|auth)$/i.test(arg)) {
+        hideNext = true
+        return arg
+      }
       return redactSecrets(arg)
     })
-    const quote = (value) => /\s/.test(value) ? `"${value.replaceAll('"', '\\"')}"` : value
+    const quote = (value) => (/\s/.test(value) ? `"${value.replaceAll('"', '\\"')}"` : value)
     return [quote(redactSecrets(server.command)), ...args.map(quote)].join(' ')
   }
   return redactSecrets(server.url)
@@ -321,27 +366,37 @@ function normalizedProgress(progress) {
 function progressText(progress) {
   const total = Number(progress?.total)
   const current = Number(progress?.progress)
-  if (Number.isFinite(current) && Number.isFinite(total) && total > 0) return `MCP progress: ${current}/${total}`
+  if (Number.isFinite(current) && Number.isFinite(total) && total > 0)
+    return `MCP progress: ${current}/${total}`
   if (Number.isFinite(current)) return `MCP progress: ${current}`
   return 'MCP tool is working'
 }
 
 function truncatedAgentContent(value, images = []) {
-  const fullText = value === '' || value == null ? '(MCP tool returned no text content.)' : String(value)
-  const truncated = truncateHead(fullText, { maxLines: DEFAULT_MAX_LINES, maxBytes: DEFAULT_MAX_BYTES })
+  const fullText =
+    value === '' || value == null ? '(MCP tool returned no text content.)' : String(value)
+  const truncated = truncateHead(fullText, {
+    maxLines: DEFAULT_MAX_LINES,
+    maxBytes: DEFAULT_MAX_BYTES,
+  })
   let text = truncated.content
   if (truncated.firstLineExceedsLimit) text = utf8Prefix(fullText, DEFAULT_MAX_BYTES - 160)
   if (truncated.truncated) {
     text += `\n\n[Output truncated: ${truncated.outputLines}/${truncated.totalLines} lines, ${formatSize(truncated.outputBytes)}/${formatSize(truncated.totalBytes)}.]`
   }
-  return { content: [{ type: 'text', text }, ...images], text: fullText, truncated: truncated.truncated }
+  return {
+    content: [{ type: 'text', text }, ...images],
+    text: fullText,
+    truncated: truncated.truncated,
+  }
 }
 
 function mcpContentToAgent(result) {
   if (result && typeof result === 'object' && 'toolResult' in result) {
-    const text = typeof result.toolResult === 'string'
-      ? result.toolResult
-      : JSON.stringify(result.toolResult, null, 2) ?? String(result.toolResult ?? '')
+    const text =
+      typeof result.toolResult === 'string'
+        ? result.toolResult
+        : (JSON.stringify(result.toolResult, null, 2) ?? String(result.toolResult ?? ''))
     return truncatedAgentContent(text)
   }
   const textParts = []
@@ -355,10 +410,13 @@ function mcpContentToAgent(result) {
         imageBytes += bytes
         images.push({ type: 'image', data: item.data, mimeType: item.mimeType })
       } else {
-        textParts.push(`[MCP image omitted: image payload exceeds the ${formatSize(MAX_MCP_IMAGE_BYTES)} aggregate limit]`)
+        textParts.push(
+          `[MCP image omitted: image payload exceeds the ${formatSize(MAX_MCP_IMAGE_BYTES)} aggregate limit]`,
+        )
       }
     } else if (item?.type === 'resource') {
-      if (typeof item.resource?.text === 'string') textParts.push(`[Resource ${item.resource.uri}]\n${item.resource.text}`)
+      if (typeof item.resource?.text === 'string')
+        textParts.push(`[Resource ${item.resource.uri}]\n${item.resource.text}`)
       else textParts.push(`[Binary resource ${item.resource?.uri || 'unknown'} omitted]`)
     } else if (item?.type === 'resource_link') {
       textParts.push(`[Resource link] ${item.name || item.uri}: ${item.uri}`)
@@ -382,14 +440,19 @@ function unwrapMcpServerConfig(value) {
 }
 
 export function parseMcpServerInput(input, cwd = process.cwd()) {
-  if (input && typeof input === 'object' && !Array.isArray(input) && !input.spec) return normalizeServer(unwrapMcpServerConfig(input))
+  if (input && typeof input === 'object' && !Array.isArray(input) && !input.spec)
+    return normalizeServer(unwrapMcpServerConfig(input))
   const rawSpec = String(input?.spec ?? input ?? '')
   if (rawSpec.length > 12_000) throw new Error('MCP 配置过长。')
   const spec = rawSpec.trim()
   if (!spec) throw new Error('请输入 MCP URL、stdio 命令或 JSON 配置。')
   if (spec.startsWith('{')) {
     let parsed
-    try { parsed = JSON.parse(spec) } catch { throw new Error('MCP JSON 配置格式无效。') }
+    try {
+      parsed = JSON.parse(spec)
+    } catch {
+      throw new Error('MCP JSON 配置格式无效。')
+    }
     return normalizeServer(unwrapMcpServerConfig(parsed))
   }
   if (/^https?:\/\//i.test(spec)) {
@@ -399,10 +462,17 @@ export function parseMcpServerInput(input, cwd = process.cwd()) {
   const parts = []
   const matcher = /"((?:\\.|[^"\\])*)"|'([^']*)'|([^\s]+)/g
   let match
-  while ((match = matcher.exec(spec))) parts.push((match[1] ?? match[2] ?? match[3] ?? '').replace(/\\"/g, '"'))
+  while ((match = matcher.exec(spec)))
+    parts.push((match[1] ?? match[2] ?? match[3] ?? '').replace(/\\"/g, '"'))
   if (!parts.length) throw new Error('stdio MCP 命令不能为空。')
   return normalizeServer({
-    name: slug(parts[0].split(/[\\/]/).at(-1)?.replace(/\.(?:exe|cmd|bat)$/i, '') || 'MCP Server', 40),
+    name: slug(
+      parts[0]
+        .split(/[\\/]/)
+        .at(-1)
+        ?.replace(/\.(?:exe|cmd|bat)$/i, '') || 'MCP Server',
+      40,
+    ),
     transport: 'stdio',
     command: parts[0],
     args: parts.slice(1),
@@ -414,52 +484,56 @@ export class McpService {
   constructor({ path, cwd, createClient, createTransport } = {}) {
     this.path = path
     this.cwd = cwd || process.cwd()
-    this.createClient = createClient || (async (server, handlers) => {
-      const { Client } = await loadMcpSdk()
-      return new Client(
-        { name: 'pisper', version: '0.0.0' },
-        {
-          capabilities: {},
-          listChanged: { tools: { onChanged: handlers.onToolsChanged } },
-        },
-      )
-    })
-    this.createTransport = createTransport || (async (server, onStderr) => {
-      const {
-        SSEClientTransport,
-        StdioClientTransport,
-        StreamableHTTPClientTransport,
-        getDefaultEnvironment,
-      } = await loadMcpSdk()
-      if (server.transport === 'stdio') {
-        const transport = new StdioClientTransport({
-          command: server.command,
-          args: server.args,
-          cwd: server.cwd ? resolve(server.cwd) : this.cwd,
-          env: { ...getDefaultEnvironment(), ...(server.env || {}) },
-          stderr: 'pipe',
-        })
-        if (transport.stderr?.on) {
-          transport[STDERR_ATTACHED] = true
-          transport.stderr.on('data', (chunk) => onStderr(safeString(chunk, 2_000)))
-        }
-        return transport
-      }
-      const headers = server.headers || {}
-      if (server.transport === 'sse') {
-        return new SSEClientTransport(new URL(server.url), {
-          requestInit: { headers },
-          eventSourceInit: {
-            fetch: (url, init) => {
-              const merged = new Headers(init?.headers)
-              for (const [name, value] of Object.entries(headers)) merged.set(name, value)
-              return fetch(url, { ...init, headers: merged })
-            },
+    this.createClient =
+      createClient ||
+      (async (server, handlers) => {
+        const { Client } = await loadMcpSdk()
+        return new Client(
+          { name: 'pisper', version: '0.0.0' },
+          {
+            capabilities: {},
+            listChanged: { tools: { onChanged: handlers.onToolsChanged } },
           },
-        })
-      }
-      return new StreamableHTTPClientTransport(new URL(server.url), { requestInit: { headers } })
-    })
+        )
+      })
+    this.createTransport =
+      createTransport ||
+      (async (server, onStderr) => {
+        const {
+          SSEClientTransport,
+          StdioClientTransport,
+          StreamableHTTPClientTransport,
+          getDefaultEnvironment,
+        } = await loadMcpSdk()
+        if (server.transport === 'stdio') {
+          const transport = new StdioClientTransport({
+            command: server.command,
+            args: server.args,
+            cwd: server.cwd ? resolve(server.cwd) : this.cwd,
+            env: { ...getDefaultEnvironment(), ...(server.env || {}) },
+            stderr: 'pipe',
+          })
+          if (transport.stderr?.on) {
+            transport[STDERR_ATTACHED] = true
+            transport.stderr.on('data', (chunk) => onStderr(safeString(chunk, 2_000)))
+          }
+          return transport
+        }
+        const headers = server.headers || {}
+        if (server.transport === 'sse') {
+          return new SSEClientTransport(new URL(server.url), {
+            requestInit: { headers },
+            eventSourceInit: {
+              fetch: (url, init) => {
+                const merged = new Headers(init?.headers)
+                for (const [name, value] of Object.entries(headers)) merged.set(name, value)
+                return fetch(url, { ...init, headers: merged })
+              },
+            },
+          })
+        }
+        return new StreamableHTTPClientTransport(new URL(server.url), { requestInit: { headers } })
+      })
     this.state = { version: MCP_STATE_VERSION, servers: [], calls: [] }
     this.connections = new Map()
     this.calls = this.state.calls
@@ -467,15 +541,25 @@ export class McpService {
   }
 
   async init() {
-    this.state = normalizeState(await readJson(this.path, { version: MCP_STATE_VERSION, servers: [], calls: [] }))
+    this.state = normalizeState(
+      await readJson(this.path, { version: MCP_STATE_VERSION, servers: [], calls: [] }),
+    )
     this.calls = this.state.calls
   }
 
   async validateServer(server) {
     if (server.transport !== 'stdio') return server
-    if (hasControlCharacters(server.command)) throw new Error('stdio MCP command contains invalid control characters. Use a structured command field without shell or JavaScript escaping.')
-    if ((server.args || []).some(hasControlCharacters)) throw new Error('stdio MCP args contain invalid control characters.')
-    if (Object.entries(server.env || {}).some(([key, value]) => hasControlCharacters(key) || hasControlCharacters(value))) {
+    if (hasControlCharacters(server.command))
+      throw new Error(
+        'stdio MCP command contains invalid control characters. Use a structured command field without shell or JavaScript escaping.',
+      )
+    if ((server.args || []).some(hasControlCharacters))
+      throw new Error('stdio MCP args contain invalid control characters.')
+    if (
+      Object.entries(server.env || {}).some(
+        ([key, value]) => hasControlCharacters(key) || hasControlCharacters(value),
+      )
+    ) {
       throw new Error('stdio MCP environment variables contain invalid control characters.')
     }
 
@@ -483,15 +567,18 @@ export class McpService {
     if (server.cwd) {
       workingDirectory = resolve(this.cwd, server.cwd)
       const cwdInfo = await stat(workingDirectory).catch(() => null)
-      if (!cwdInfo?.isDirectory()) throw new Error(`stdio MCP working directory does not exist: ${workingDirectory}`)
+      if (!cwdInfo?.isDirectory())
+        throw new Error(`stdio MCP working directory does not exist: ${workingDirectory}`)
       server.cwd = workingDirectory
     }
     if (!pathLikeCommand(server.command)) return server
-    const commandPath = isAbsolute(server.command) || /^[a-z]:[\\/]/i.test(server.command)
-      ? resolve(server.command)
-      : resolve(workingDirectory, server.command)
+    const commandPath =
+      isAbsolute(server.command) || /^[a-z]:[\\/]/i.test(server.command)
+        ? resolve(server.command)
+        : resolve(workingDirectory, server.command)
     const commandInfo = await stat(commandPath).catch(() => null)
-    if (!commandInfo?.isFile()) throw new Error(`stdio MCP executable does not exist: ${commandPath}`)
+    if (!commandInfo?.isFile())
+      throw new Error(`stdio MCP executable does not exist: ${commandPath}`)
     server.command = commandPath
     return server
   }
@@ -509,8 +596,18 @@ export class McpService {
   connectionFor(id) {
     if (!this.connections.has(id)) {
       this.connections.set(id, {
-        status: 'offline', client: null, transport: null, connecting: null, error: '', stderr: '',
-        latencyMs: null, connectedAt: '', lastPingAt: '', serverVersion: null, capabilities: null, nextRetryAt: 0,
+        status: 'offline',
+        client: null,
+        transport: null,
+        connecting: null,
+        error: '',
+        stderr: '',
+        latencyMs: null,
+        connectedAt: '',
+        lastPingAt: '',
+        serverVersion: null,
+        capabilities: null,
+        nextRetryAt: 0,
       })
     }
     return this.connections.get(id)
@@ -520,7 +617,9 @@ export class McpService {
     const connection = this.connections.get(id)
     if (!connection) return
     connection.closing = true
-    try { await connection.client?.close?.() } catch {}
+    try {
+      await connection.client?.close?.()
+    } catch {}
     connection.client = null
     connection.transport = null
     connection.connecting = null
@@ -553,7 +652,8 @@ export class McpService {
     const connection = this.connectionFor(id)
     if (!force && connection.status === 'online' && connection.client) return connection
     if (!force && connection.connecting) return connection.connecting
-    if (!force && connection.nextRetryAt > Date.now()) throw new Error(connection.error || 'MCP 服务暂时离线，请稍后重试。')
+    if (!force && connection.nextRetryAt > Date.now())
+      throw new Error(connection.error || 'MCP 服务暂时离线，请稍后重试。')
     if (force) await this.closeConnection(id)
 
     connection.status = 'connecting'
@@ -579,12 +679,15 @@ export class McpService {
             server.updatedAt = nowIso()
             await this.save()
           } catch (refreshError) {
-            connection.error = refreshError instanceof Error ? refreshError.message : String(refreshError)
+            connection.error =
+              refreshError instanceof Error ? refreshError.message : String(refreshError)
           }
         },
       }
       client = await this.createClient(server, handlers)
-      const transport = await this.createTransport(server, (message) => { connection.stderr = message })
+      const transport = await this.createTransport(server, (message) => {
+        connection.stderr = message
+      })
       connection.client = client
       connection.transport = transport
       client.onclose = () => {
@@ -594,13 +697,16 @@ export class McpService {
         connection.transport = null
       }
       client.onerror = (error) => {
-        if (connection.client === client) connection.error = error instanceof Error ? error.message : String(error)
+        if (connection.client === client)
+          connection.error = error instanceof Error ? error.message : String(error)
       }
       try {
         await client.connect(transport, { signal: requestSignal, timeout: connectTimeoutMs })
         if (transport.stderr?.on && !transport[STDERR_ATTACHED]) {
           transport[STDERR_ATTACHED] = true
-          transport.stderr.on('data', (chunk) => { connection.stderr = safeString(chunk, 2_000) })
+          transport.stderr.on('data', (chunk) => {
+            connection.stderr = safeString(chunk, 2_000)
+          })
         }
         server.tools = await this.listAllTools(client, server, requestSignal)
         server.toolStates = pruneToolStates(server.toolStates, server.tools)
@@ -619,7 +725,9 @@ export class McpService {
         connection.status = statusFromError(error)
         connection.error = error instanceof Error ? error.message : String(error)
         connection.nextRetryAt = Date.now() + 30_000
-        try { await client.close?.() } catch {}
+        try {
+          await client.close?.()
+        } catch {}
         connection.client = null
         connection.transport = null
         throw error
@@ -631,7 +739,11 @@ export class McpService {
   }
 
   async refreshAll({ force = false } = {}) {
-    await Promise.allSettled(this.state.servers.filter((server) => server.enabled).map((server) => this.ensureConnected(server.id, { force })))
+    await Promise.allSettled(
+      this.state.servers
+        .filter((server) => server.enabled)
+        .map((server) => this.ensureConnected(server.id, { force })),
+    )
   }
 
   publicTool(server, tool) {
@@ -677,7 +789,8 @@ export class McpService {
       serverVersion: connection.serverVersion,
       capabilities: connection.capabilities,
       toolCount: server.tools.length,
-      enabledToolCount: server.tools.filter((tool) => server.toolStates?.[tool.name] !== false).length,
+      enabledToolCount: server.tools.filter((tool) => server.toolStates?.[tool.name] !== false)
+        .length,
       tools: server.tools.map((tool) => this.publicTool(server, tool)),
       requestTimeoutMs: server.requestTimeoutMs,
     }
@@ -697,7 +810,9 @@ export class McpService {
         totalServices: services.length,
         onlineServices: services.filter((server) => server.status === 'online').length,
         availableTools: tools.filter((tool) => tool.available).length,
-        restrictedTools: tools.filter((tool) => tool.available && (tool.risk === 'high' || tool.risk === '高风险')).length,
+        restrictedTools: tools.filter(
+          (tool) => tool.available && (tool.risk === 'high' || tool.risk === '高风险'),
+        ).length,
         errorRate: recent.length ? Math.round((errors / recent.length) * 1_000) / 10 : 0,
       },
     }
@@ -709,15 +824,22 @@ export class McpService {
   }
 
   async add(input = {}) {
-    if (this.state.servers.length >= MAX_MCP_SERVERS) throw new Error(`最多配置 ${MAX_MCP_SERVERS} 个 MCP 服务。`)
+    if (this.state.servers.length >= MAX_MCP_SERVERS)
+      throw new Error(`最多配置 ${MAX_MCP_SERVERS} 个 MCP 服务。`)
     const server = parseMcpServerInput(input, this.cwd)
     await this.validateServer(server)
-    if (this.state.servers.some((item) => item.name === server.name && formatEndpoint(item) === formatEndpoint(server))) {
+    if (
+      this.state.servers.some(
+        (item) => item.name === server.name && formatEndpoint(item) === formatEndpoint(server),
+      )
+    ) {
       throw new Error('该 MCP 服务已存在。')
     }
     this.state.servers.push(server)
     await this.save()
-    try { await this.ensureConnected(server.id) } catch {}
+    try {
+      await this.ensureConnected(server.id)
+    } catch {}
     return this.dashboard()
   }
 
@@ -731,7 +853,9 @@ export class McpService {
     await this.closeConnection(id)
     await this.save()
     if (updated.enabled) {
-      try { await this.ensureConnected(id) } catch {}
+      try {
+        await this.ensureConnected(id)
+      } catch {}
     }
     return this.dashboard()
   }
@@ -787,30 +911,52 @@ export class McpService {
       label: `MCP · ${server.name} · ${tool.title || tool.name}`,
       description: `${tool.description || tool.name}\nRemote MCP server: ${server.name}. Remote tool name: ${tool.name}.`,
       promptSnippet: `Call ${tool.name} on the ${server.name} MCP server`,
-      promptGuidelines: [`Use ${name} only when the ${server.name} MCP capability is relevant to the user's task.`],
+      promptGuidelines: [
+        `Use ${name} only when the ${server.name} MCP capability is relevant to the user's task.`,
+      ],
       parameters: Type.Unsafe(tool.inputSchema || { type: 'object', properties: {} }),
       async execute(_toolCallId, params, signal, onUpdate) {
         const startedAt = Date.now()
         const timestamp = nowIso()
         try {
           const currentServer = service.getServer(server.id)
-          if (!currentServer?.enabled || currentServer.toolStates?.[tool.name] === false) throw new Error('该 MCP 工具当前已禁用。')
+          if (!currentServer?.enabled || currentServer.toolStates?.[tool.name] === false)
+            throw new Error('该 MCP 工具当前已禁用。')
           const currentConnection = service.connectionFor(server.id)
-          const connection = await service.ensureConnected(server.id, { signal, force: !currentConnection.client })
-          const result = await connection.client.callTool({ name: tool.name, arguments: params || {} }, undefined, {
+          const connection = await service.ensureConnected(server.id, {
             signal,
-            timeout: currentServer.requestTimeoutMs,
-            resetTimeoutOnProgress: true,
-            onprogress: (progress) => onUpdate?.({
-              content: [{ type: 'text', text: progressText(progress) }],
-              details: { serviceId: server.id, toolName: tool.name, progress: normalizedProgress(progress) },
-            }),
+            force: !currentConnection.client,
           })
+          const result = await connection.client.callTool(
+            { name: tool.name, arguments: params || {} },
+            undefined,
+            {
+              signal,
+              timeout: currentServer.requestTimeoutMs,
+              resetTimeoutOnProgress: true,
+              onprogress: (progress) =>
+                onUpdate?.({
+                  content: [{ type: 'text', text: progressText(progress) }],
+                  details: {
+                    serviceId: server.id,
+                    toolName: tool.name,
+                    progress: normalizedProgress(progress),
+                  },
+                }),
+            },
+          )
           const converted = mcpContentToAgent(result)
-          if (result?.isError) throw new Error(converted.content[0]?.text || 'MCP tool returned an error.')
+          if (result?.isError)
+            throw new Error(converted.content[0]?.text || 'MCP tool returned an error.')
           service.recordCall({
-            id: randomUUID(), serviceId: server.id, serviceName: server.name, toolName: tool.name,
-            piToolName: name, timestamp, durationMs: Date.now() - startedAt, status: 'ok',
+            id: randomUUID(),
+            serviceId: server.id,
+            serviceName: server.name,
+            toolName: tool.name,
+            piToolName: name,
+            timestamp,
+            durationMs: Date.now() - startedAt,
+            status: 'ok',
           })
           return {
             content: converted.content,
@@ -826,8 +972,14 @@ export class McpService {
           }
         } catch (error) {
           service.recordCall({
-            id: randomUUID(), serviceId: server.id, serviceName: server.name, toolName: tool.name,
-            piToolName: name, timestamp, durationMs: Date.now() - startedAt, status: 'error',
+            id: randomUUID(),
+            serviceId: server.id,
+            serviceName: server.name,
+            toolName: tool.name,
+            piToolName: name,
+            timestamp,
+            durationMs: Date.now() - startedAt,
+            status: 'error',
             error: error instanceof Error ? error.message : String(error),
           })
           throw error

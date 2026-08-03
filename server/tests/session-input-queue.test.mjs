@@ -19,8 +19,12 @@ function response() {
   return {
     status: 0,
     body: '',
-    writeHead(status) { this.status = status },
-    end(body = '') { this.body = body },
+    writeHead(status) {
+      this.status = status
+    },
+    end(body = '') {
+      this.body = body
+    },
   }
 }
 
@@ -47,23 +51,34 @@ test('running sessions accept steering and follow-up user messages through the P
   }
   runtime = new AgentRuntimeService({ cwd: directory, dataDir: directory })
   const selections = []
-  runtime.selectToolsForMessage = (_value, message, options) => { selections.push({ message, options }) }
+  runtime.selectToolsForMessage = (_value, message, options) => {
+    selections.push({ message, options })
+  }
   runtime.sessions.set('session-1', { session, modified: '' })
 
-  assert.deepEqual(await runtime.queueSessionMessage('session-1', {
-    message: 'Focus on the Windows path.',
-    behavior: 'steer',
-  }), {
-    queued: true,
-    behavior: 'steer',
-    pendingMessageCount: 2,
-    queuedInputs: [{ behavior: 'steer', text: 'Focus on the Windows path.' }],
-  })
+  assert.deepEqual(
+    await runtime.queueSessionMessage('session-1', {
+      message: 'Focus on the Windows path.',
+      behavior: 'steer',
+    }),
+    {
+      queued: true,
+      behavior: 'steer',
+      pendingMessageCount: 2,
+      queuedInputs: [{ behavior: 'steer', text: 'Focus on the Windows path.' }],
+    },
+  )
   assert.equal(calls[0].message, 'Focus on the Windows path.')
   assert.deepEqual(calls[0].options, { streamingBehavior: 'steer', source: 'interactive' })
-  assert.deepEqual(selections[0], { message: 'Focus on the Windows path.', options: { preserveRequested: true } })
+  assert.deepEqual(selections[0], {
+    message: 'Focus on the Windows path.',
+    options: { preserveRequested: true },
+  })
 
-  await runtime.queueSessionMessage('session-1', { message: 'Then update the tests.', behavior: 'followUp' })
+  await runtime.queueSessionMessage('session-1', {
+    message: 'Then update the tests.',
+    behavior: 'followUp',
+  })
   assert.equal(calls[1].options.streamingBehavior, 'followUp')
 
   session.isStreaming = false
@@ -83,15 +98,25 @@ test('session input API delegates queued messages without opening another SSE re
   }
   const handler = createApiHandler(runtime)
   const res = response()
-  assert.equal(await handler(
-    request('POST', { message: 'Keep going, but skip packaging.', behavior: 'steer' }),
-    res,
-    new URL('http://localhost/api/sessions/session%201/input'),
-  ), true)
+  assert.equal(
+    await handler(
+      request('POST', { message: 'Keep going, but skip packaging.', behavior: 'steer' }),
+      res,
+      new URL('http://localhost/api/sessions/session%201/input'),
+    ),
+    true,
+  )
   assert.equal(res.status, 200)
-  assert.deepEqual(JSON.parse(res.body), { queued: true, behavior: 'steer', pendingMessageCount: 1, queuedInputs: [] })
-  assert.deepEqual(calls, [{
-    id: 'session 1',
-    input: { message: 'Keep going, but skip packaging.', behavior: 'steer' },
-  }])
+  assert.deepEqual(JSON.parse(res.body), {
+    queued: true,
+    behavior: 'steer',
+    pendingMessageCount: 1,
+    queuedInputs: [],
+  })
+  assert.deepEqual(calls, [
+    {
+      id: 'session 1',
+      input: { message: 'Keep going, but skip packaging.', behavior: 'steer' },
+    },
+  ])
 })

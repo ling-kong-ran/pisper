@@ -7,7 +7,10 @@ test('English interface translations resolve static and interpolated messages', 
   assert.equal(translateText('navigation:navigation.workbench', 'en-US'), 'Workbench')
   assert.equal(translateText('navigation:navigation.chat', 'en-US'), 'Chats')
   assert.equal(translateText('plugins:toolLabels.read', 'en-US'), 'Read files')
-  assert.equal(translateText('config:languageSettings.displayLanguage', 'en-US'), 'Display language')
+  assert.equal(
+    translateText('config:languageSettings.displayLanguage', 'en-US'),
+    'Display language',
+  )
   assert.equal(translateText('config:configPage.countModels', 'en-US', { count: 3 }), '3 models')
   assert.equal(
     translateText('chat:agentRunActivity.contextCompactedBeforeAfterTokens', 'en-US', {

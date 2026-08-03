@@ -43,7 +43,9 @@ async function optionalFile(filePath) {
 }
 
 const packageJson = JSON.parse(await readFile(path.join(root, 'package.json'), 'utf8'))
-const tauriConfig = JSON.parse(await readFile(path.join(root, 'src-tauri', 'tauri.conf.json'), 'utf8'))
+const tauriConfig = JSON.parse(
+  await readFile(path.join(root, 'src-tauri', 'tauri.conf.json'), 'utf8'),
+)
 if (tauriConfig.version !== '../package.json') {
   throw new Error('src-tauri/tauri.conf.json must read its release version from ../package.json.')
 }

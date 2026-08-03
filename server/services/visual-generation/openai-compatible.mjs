@@ -9,7 +9,10 @@ function dataUrlImage(value) {
 async function download(url, signal, headers = {}) {
   const response = await fetch(url, { signal, headers })
   if (!response.ok) throw new Error(`下载生成结果失败 (${response.status})`)
-  return { buffer: Buffer.from(await response.arrayBuffer()), mimeType: response.headers.get('content-type') || 'application/octet-stream' }
+  return {
+    buffer: Buffer.from(await response.arrayBuffer()),
+    mimeType: response.headers.get('content-type') || 'application/octet-stream',
+  }
 }
 
 function imageExtension(mimeType) {
@@ -23,14 +26,20 @@ async function openRouterImage(client, model, request, signal) {
     type: 'image_url',
     image_url: { url: `data:${image.mimeType};base64,${image.buffer.toString('base64')}` },
   }))
-  const response = await client.chat.completions.create({
-    model: model.id,
-    messages: [{ role: 'user', content: [{ type: 'text', text: request.prompt }, ...imageContent] }],
-    modalities: ['image'],
-    stream: false,
-  }, { signal })
+  const response = await client.chat.completions.create(
+    {
+      model: model.id,
+      messages: [
+        { role: 'user', content: [{ type: 'text', text: request.prompt }, ...imageContent] },
+      ],
+      modalities: ['image'],
+      stream: false,
+    },
+    { signal },
+  )
   const images = response.choices?.[0]?.message?.images || []
-  const imageUrl = typeof images[0]?.image_url === 'string' ? images[0].image_url : images[0]?.image_url?.url
+  const imageUrl =
+    typeof images[0]?.image_url === 'string' ? images[0].image_url : images[0]?.image_url?.url
   const inline = dataUrlImage(imageUrl)
   if (inline) return { ...inline, extension: imageExtension(inline.mimeType) }
   if (imageUrl) {
@@ -52,22 +61,40 @@ async function openAIImage(client, model, request, signal) {
   }
   let response
   if (request.operation === 'edit') {
-    const images = await Promise.all(request.sourceImages.map((image) => toFile(image.buffer, basename(image.path), { type: image.mimeType })))
+    const images = await Promise.all(
+      request.sourceImages.map((image) =>
+        toFile(image.buffer, basename(image.path), { type: image.mimeType }),
+      ),
+    )
     const mask = request.maskImage
-      ? await toFile(request.maskImage.buffer, basename(request.maskImage.path), { type: request.maskImage.mimeType })
+      ? await toFile(request.maskImage.buffer, basename(request.maskImage.path), {
+          type: request.maskImage.mimeType,
+        })
       : undefined
-    response = await client.images.edit({
-      ...common,
-      image: images.length === 1 ? images[0] : images,
-      ...(mask ? { mask } : {}),
-    }, { signal })
+    response = await client.images.edit(
+      {
+        ...common,
+        image: images.length === 1 ? images[0] : images,
+        ...(mask ? { mask } : {}),
+      },
+      { signal },
+    )
   } else {
     response = await client.images.generate(common, { signal })
   }
   const image = response.data?.[0]
   if (image?.b64_json) {
-    const mimeType = request.outputFormat === 'jpeg' ? 'image/jpeg' : request.outputFormat === 'webp' ? 'image/webp' : 'image/png'
-    return { buffer: Buffer.from(image.b64_json, 'base64'), mimeType, extension: imageExtension(mimeType) }
+    const mimeType =
+      request.outputFormat === 'jpeg'
+        ? 'image/jpeg'
+        : request.outputFormat === 'webp'
+          ? 'image/webp'
+          : 'image/png'
+    return {
+      buffer: Buffer.from(image.b64_json, 'base64'),
+      mimeType,
+      extension: imageExtension(mimeType),
+    }
   }
   if (image?.url) {
     const value = await download(image.url, signal)
@@ -77,17 +104,27 @@ async function openAIImage(client, model, request, signal) {
 }
 
 async function openAIVideo(client, model, request, signal, onProgress) {
-  let video = await client.videos.create({
-    model: model.id,
-    prompt: request.prompt,
-    ...(request.durationSeconds ? { seconds: String(request.durationSeconds) } : {}),
-    ...(request.size ? { size: request.size } : {}),
-  }, { signal })
+  let video = await client.videos.create(
+    {
+      model: model.id,
+      prompt: request.prompt,
+      ...(request.durationSeconds ? { seconds: String(request.durationSeconds) } : {}),
+      ...(request.size ? { size: request.size } : {}),
+    },
+    { signal },
+  )
   while (!['completed', 'failed'].includes(video.status)) {
     onProgress?.(`视频生成中：${Math.round(video.progress || 0)}%`)
     await new Promise((resolve, reject) => {
       const timer = setTimeout(resolve, 5000)
-      signal?.addEventListener('abort', () => { clearTimeout(timer); reject(signal.reason || new Error('已取消')) }, { once: true })
+      signal?.addEventListener(
+        'abort',
+        () => {
+          clearTimeout(timer)
+          reject(signal.reason || new Error('已取消'))
+        },
+        { once: true },
+      )
     })
     video = await client.videos.retrieve(video.id, { signal })
   }

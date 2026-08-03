@@ -1,14 +1,8 @@
 import { MULTI_AGENT_TOOL_NAMES } from '../services/multi-agent-service.mjs'
 import { GOAL_TOOL_NAMES } from '../tools/app/goal.mjs'
-import {
-  PLAN_ALL_TOOL_NAMES,
-  PLAN_COMPATIBILITY_TOOL_NAMES,
-} from '../tools/app/plan.mjs'
+import { PLAN_ALL_TOOL_NAMES, PLAN_COMPATIBILITY_TOOL_NAMES } from '../tools/app/plan.mjs'
 import { TOOL_DISCOVERY_NAME } from '../tools/app/tool-discovery.mjs'
-import {
-  mergePromotedToolNames,
-  selectedToolNames,
-} from '../tools/tool-activation.mjs'
+import { mergePromotedToolNames, selectedToolNames } from '../tools/tool-activation.mjs'
 import { filterToolsForExecutionMode } from '../security/execution-mode.mjs'
 import { applyPisperSystemPrompt } from '../prompts/pisper-system-prompt.mjs'
 
@@ -56,11 +50,7 @@ export class ToolActivation {
       goalToolNames: GOAL_TOOL_NAMES,
       goalActive: goal?.status === 'active',
     })
-    value.session.setActiveToolsByName(filterToolsForExecutionMode(
-      names,
-      mode,
-      this.getToolRisk,
-    ))
+    value.session.setActiveToolsByName(filterToolsForExecutionMode(names, mode, this.getToolRisk))
   }
 
   async promoteSessionTools(value, toolNames = []) {
@@ -103,9 +93,13 @@ export class ToolActivation {
     { requestedToolNames = [], preserveRequested = false } = {},
   ) {
     if (!value?.session) return []
-    const requested = [...new Set((Array.isArray(requestedToolNames) ? requestedToolNames : [])
-      .map((name) => String(name || '').trim())
-      .filter(Boolean))]
+    const requested = [
+      ...new Set(
+        (Array.isArray(requestedToolNames) ? requestedToolNames : [])
+          .map((name) => String(name || '').trim())
+          .filter(Boolean),
+      ),
+    ]
     value.requestedToolNames = preserveRequested
       ? [...new Set([...(value.requestedToolNames || []), ...requested])]
       : requested

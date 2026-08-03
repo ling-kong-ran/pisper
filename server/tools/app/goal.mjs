@@ -16,13 +16,17 @@ export function createGoalTools({ getGoal, completeGoal }) {
       parameters: Type.Object({}),
       async execute() {
         const goal = await getGoal?.()
-        return { content: [{ type: 'text', text: JSON.stringify({ goal }, null, 2) }], details: { goal } }
+        return {
+          content: [{ type: 'text', text: JSON.stringify({ goal }, null, 2) }],
+          details: { goal },
+        }
       },
     }),
     defineTool({
       name: 'update_goal',
       label: 'Complete Goal',
-      description: 'Mark the current active Goal complete after verifying every requirement with concrete evidence.',
+      description:
+        'Mark the current active Goal complete after verifying every requirement with concrete evidence.',
       promptSnippet: 'Mark the active Goal complete after a strict evidence-based completion audit',
       promptGuidelines: [
         'Call update_goal only when every explicit Goal requirement is complete and verified with real evidence.',
@@ -32,7 +36,11 @@ export function createGoalTools({ getGoal, completeGoal }) {
         status: Type.Literal('complete', { description: 'Only complete is accepted.' }),
       }),
       async execute(_toolCallId, params) {
-        if (params.status !== 'complete') return { content: [{ type: 'text', text: 'update_goal only accepts status=complete.' }], isError: true }
+        if (params.status !== 'complete')
+          return {
+            content: [{ type: 'text', text: 'update_goal only accepts status=complete.' }],
+            isError: true,
+          }
         const goal = await completeGoal?.()
         return {
           content: [{ type: 'text', text: JSON.stringify({ goal }, null, 2) }],

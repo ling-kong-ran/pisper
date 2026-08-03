@@ -9,7 +9,8 @@ const executableSuffix = process.platform === 'win32' ? '.exe' : ''
 const source = join(root, 'src-tui', 'target', 'release', `pisper${executableSuffix}`)
 
 function targetTriples() {
-  const arch = process.arch === 'x64' ? 'x86_64' : process.arch === 'arm64' ? 'aarch64' : process.arch
+  const arch =
+    process.arch === 'x64' ? 'x86_64' : process.arch === 'arm64' ? 'aarch64' : process.arch
   if (process.platform === 'win32') {
     return [`${arch}-pc-windows-msvc`, `${arch}-pc-windows-gnu`]
   }
@@ -30,7 +31,13 @@ function run(command, args) {
 
 const packageJson = JSON.parse(await readFile(join(root, 'package.json'), 'utf8'))
 await run(process.execPath, [join(root, 'scripts', 'sync-tui-version.mjs')])
-await run('cargo', ['build', '--locked', '--release', '--manifest-path', join(root, 'src-tui', 'Cargo.toml')])
+await run('cargo', [
+  'build',
+  '--locked',
+  '--release',
+  '--manifest-path',
+  join(root, 'src-tui', 'Cargo.toml'),
+])
 await stat(source).catch((error) => {
   if (error?.code === 'ENOENT') throw new Error('Pisper TUI release binary was not produced.')
   throw error
