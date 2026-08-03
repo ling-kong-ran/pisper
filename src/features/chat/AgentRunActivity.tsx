@@ -362,6 +362,159 @@ function ActivityElement({
   )
 }
 
+type ActivityCardProps = {
+  activity: EntityRecord
+  latest: boolean
+  t: Translate
+  language: string
+  now: number
+  runStartedAt?: string | null
+  streaming?: boolean
+  text?: string
+  thinkingText?: string
+  compaction?: EntityRecord | null
+  error?: string
+  stopped?: boolean
+  notice?: string
+  lastActivityAt?: string | null
+}
+
+function activityHasLiveClock(activity: EntityRecord) {
+  if (activity.type === 'plan') return !activity.updatedAt
+  if (activity.type === 'tool')
+    return (
+      !activity.status ||
+      activity.status === 'running' ||
+      (!activity.finishedAt && !activity.updatedAt)
+    )
+  if (activity.type === 'agent') {
+    const agent = activity.agent || {}
+    return (
+      !agent.status ||
+      ['queued', 'starting', 'running'].includes(agent.status) ||
+      (!agent.completedAt && !agent.lastActivityAt && !activity.updatedAt)
+    )
+  }
+  return true
+}
+
+function activityCardPropsEqual(prev: ActivityCardProps, next: ActivityCardProps) {
+  if (
+    prev.activity !== next.activity ||
+    prev.latest !== next.latest ||
+    prev.t !== next.t ||
+    prev.language !== next.language ||
+    prev.runStartedAt !== next.runStartedAt ||
+    prev.streaming !== next.streaming
+  )
+    return false
+  if (prev.now !== next.now && activityHasLiveClock(next.activity)) return false
+  if (['tool', 'plan', 'agent'].includes(next.activity.type)) return true
+  return (
+    prev.text === next.text &&
+    prev.thinkingText === next.thinkingText &&
+    prev.compaction === next.compaction &&
+    prev.error === next.error &&
+    prev.stopped === next.stopped &&
+    prev.notice === next.notice &&
+    prev.lastActivityAt === next.lastActivityAt
+  )
+}
+
+const ActivityCard = memo(function ActivityCard({
+  activity,
+  latest,
+  t,
+  language,
+  now,
+  runStartedAt,
+  streaming,
+  text,
+  thinkingText,
+  compaction,
+  error,
+  stopped,
+  notice,
+  lastActivityAt,
+}: ActivityCardProps) {
+  const presentation = activityPresentation(activity, {
+    t,
+    streaming,
+    text,
+    thinkingText,
+    compaction,
+    error,
+    stopped,
+    notice,
+    lastActivityAt,
+    now,
+  })
+  const duration = formatRunDuration(activityDurationMs(activity, runStartedAt, now), language)
+  const showTerminal = activity.name === 'bash' && latest
+  return (
+    <ActivityElement
+      activity={activity}
+      className={`agent-run-summary ${presentation.tone} ${latest ? 'current' : ''}`}
+    >
+      <span className="agent-run-status-icon">
+        <ActivityIcon tone={presentation.tone} />
+      </span>
+      <span className="agent-run-copy">
+        <strong>{presentation.title}</strong>
+        {presentation.detail &&
+          (presentation.command ? (
+            <code className="agent-run-command" title={presentation.detail}>
+              $ {presentation.detail}
+            </code>
+          ) : (
+            <small title={presentation.detail}>{presentation.detail}</small>
+          ))}
+        {presentation.changes.length > 0 && (
+          <span className="agent-run-plan-changes">
+            {presentation.changes.slice(0, 4).map((change) => (
+              <small key={`${change.id}-${change.kind}-${change.status}`}>
+                {planChangeText(change, t)}
+              </small>
+            ))}
+            {presentation.changes.length > 4 && (
+              <small>
+                {t('chat:agentRunActivity.countMoreChanges', {
+                  count: presentation.changes.length - 4,
+                })}
+              </small>
+            )}
+          </span>
+        )}
+        {!showTerminal && presentation.output && presentation.output !== presentation.detail && (
+          <small className="agent-run-output" title={presentation.output}>
+            {presentation.output}
+          </small>
+        )}
+      </span>
+      <span className="agent-run-duration">
+        <Clock3 size={12} />
+        {duration}
+      </span>
+      {showTerminal && (
+        <Suspense
+          fallback={
+            <pre className="agent-run-terminal agent-run-terminal-fallback">
+              {String(activity.output || '')}
+            </pre>
+          }
+        >
+          <Terminal
+            autoScroll
+            className="agent-run-terminal"
+            isStreaming={Boolean(streaming && activity.status === 'running')}
+            output={String(activity.output || '')}
+          />
+        </Suspense>
+      )}
+    </ActivityElement>
+  )
+}, activityCardPropsEqual)
+
 function AgentRunActivity({
   streaming,
   text,
@@ -472,91 +625,25 @@ function AgentRunActivity({
       {activities.length > 0 && (
         <div className="agent-run-feed">
           <AnimatedList>
-            {activities.map((activity, index) => {
-              const presentation = activityPresentation(activity, {
-                t,
-                streaming,
-                text,
-                thinkingText: thinking ? '' : thinkingText,
-                compaction,
-                error,
-                stopped,
-                notice,
-                lastActivityAt,
-                now,
-              })
-              const duration = formatRunDuration(
-                activityDurationMs(activity, startedAt, now),
-                language,
-              )
-              const key = activityRenderKey(activity, index)
-              const showTerminal = activity.name === 'bash' && index === activities.length - 1
-              return (
-                <ActivityElement
-                  activity={activity}
-                  className={`agent-run-summary ${presentation.tone} ${index === activities.length - 1 ? 'current' : ''}`}
-                  key={key}
-                >
-                  <span className="agent-run-status-icon">
-                    <ActivityIcon tone={presentation.tone} />
-                  </span>
-                  <span className="agent-run-copy">
-                    <strong>{presentation.title}</strong>
-                    {presentation.detail &&
-                      (presentation.command ? (
-                        <code className="agent-run-command" title={presentation.detail}>
-                          $ {presentation.detail}
-                        </code>
-                      ) : (
-                        <small title={presentation.detail}>{presentation.detail}</small>
-                      ))}
-                    {presentation.changes.length > 0 && (
-                      <span className="agent-run-plan-changes">
-                        {presentation.changes.slice(0, 4).map((change) => (
-                          <small key={`${change.id}-${change.kind}-${change.status}`}>
-                            {planChangeText(change, t)}
-                          </small>
-                        ))}
-                        {presentation.changes.length > 4 && (
-                          <small>
-                            {t('chat:agentRunActivity.countMoreChanges', {
-                              count: presentation.changes.length - 4,
-                            })}
-                          </small>
-                        )}
-                      </span>
-                    )}
-                    {!showTerminal &&
-                      presentation.output &&
-                      presentation.output !== presentation.detail && (
-                        <small className="agent-run-output" title={presentation.output}>
-                          {presentation.output}
-                        </small>
-                      )}
-                  </span>
-                  <span className="agent-run-duration">
-                    <Clock3 size={12} />
-                    {duration}
-                  </span>
-                  {showTerminal && (
-                    <Suspense
-                      fallback={
-                        <pre className="agent-run-terminal agent-run-terminal-fallback">
-                          {String(activity.output || '')}
-                        </pre>
-                      }
-                    >
-                      <Terminal
-                        autoScroll
-                        className="agent-run-terminal"
-                        isStreaming={Boolean(streaming && activity.status === 'running')}
-                        output={String(activity.output || '')}
-                      />
-                    </Suspense>
-                  )}
-                </ActivityElement>
-              )
-            })}
+            {activities.map((activity, index) => (
+              <ActivityCard
+                activity={activity}
+                compaction={compaction}
+                error={error}
+                key={activityRenderKey(activity, index)}
+                language={language}
+                lastActivityAt={lastActivityAt}
+                latest={index === activities.length - 1}
+                notice={notice}
+                now={now}
+                runStartedAt={startedAt}
+                stopped={stopped}
+                streaming={streaming}
+                t={t}
+                text={text}
+                thinkingText={thinking ? '' : thinkingText}
+              />
+            ))}
           </AnimatedList>
         </div>
       )}
@@ -564,4 +651,23 @@ function AgentRunActivity({
   )
 }
 
-export default memo(AgentRunActivity)
+function agentRunActivityPropsEqual(prev: AgentRunActivityProps, next: AgentRunActivityProps) {
+  return (
+    prev.streaming === next.streaming &&
+    prev.text === next.text &&
+    prev.thinkingText === next.thinkingText &&
+    prev.currentActivity === next.currentActivity &&
+    prev.activityFeed === next.activityFeed &&
+    prev.compaction === next.compaction &&
+    prev.error === next.error &&
+    prev.stopped === next.stopped &&
+    prev.notice === next.notice &&
+    prev.startedAt === next.startedAt &&
+    prev.lastActivityAt === next.lastActivityAt &&
+    prev.finishedAt === next.finishedAt &&
+    prev.compact === next.compact &&
+    prev.tools === next.tools
+  )
+}
+
+export default memo(AgentRunActivity, agentRunActivityPropsEqual)

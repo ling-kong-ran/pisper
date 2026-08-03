@@ -109,13 +109,15 @@ test('assistant text block completion flushes the typewriter and settles Markdow
 })
 
 test('ephemeral reasoning remains rendered after a textless response completes', async () => {
-  const [dispatcher, promptCommands, transcript, activity, sessionState] = await Promise.all([
-    readFile('src/features/chat/stream-event-dispatch.ts', 'utf8'),
-    readFile('src/features/chat/use-prompt-commands.ts', 'utf8'),
-    readFile('src/features/chat/FocusTranscript.tsx', 'utf8'),
-    readFile('src/features/chat/AgentRunActivity.tsx', 'utf8'),
-    readFile('src/lib/session-state.ts', 'utf8'),
-  ])
+  const [dispatcher, promptCommands, transcript, virtualTranscript, activity, sessionState] =
+    await Promise.all([
+      readFile('src/features/chat/stream-event-dispatch.ts', 'utf8'),
+      readFile('src/features/chat/use-prompt-commands.ts', 'utf8'),
+      readFile('src/features/chat/FocusTranscript.tsx', 'utf8'),
+      readFile('src/features/chat/VirtualMessageTranscript.tsx', 'utf8'),
+      readFile('src/features/chat/AgentRunActivity.tsx', 'utf8'),
+      readFile('src/lib/session-state.ts', 'utf8'),
+    ])
   const doneHandler = dispatcher.slice(
     dispatcher.indexOf("event === 'done'"),
     dispatcher.indexOf('return { dispatch, state }'),
@@ -139,7 +141,11 @@ test('ephemeral reasoning remains rendered after a textless response completes',
     thinkingResetHandler,
     /\[state\.thinkingPrefix, state\.thinkingText\][\s\S]*\.filter\(Boolean\)/,
   )
-  assert.match(transcript, /resolveMessageRunActivity\(message, isLatestAgent, latestRunProps\)/)
+  assert.match(transcript, /<VirtualMessageTranscript/)
+  assert.match(
+    virtualTranscript,
+    /resolveMessageRunActivity\(message, isLatestAgent, latestRunProps\)/,
+  )
   assert.match(sessionState, /String\(activity\.thinkingText \|\| ''\)\.trim\(\)/)
   assert.match(sessionState, /activity\.currentActivity\?\.type === 'agent'/)
   assert.match(activity, /if \(!streaming && !thinking && !activities\.length\) return null/)
@@ -147,17 +153,20 @@ test('ephemeral reasoning remains rendered after a textless response completes',
 })
 
 test('background Agent completion uses code-level UI state without prompt or custom-context injection', async () => {
-  const [runtime, dispatcher, transcript, sessionState] = await Promise.all([
+  const [runtime, dispatcher, virtualTranscript, sessionState] = await Promise.all([
     readFile('server/runtime/agent-runtime.mjs', 'utf8'),
     readFile('src/features/chat/stream-event-dispatch.ts', 'utf8'),
-    readFile('src/features/chat/FocusTranscript.tsx', 'utf8'),
+    readFile('src/features/chat/VirtualMessageTranscript.tsx', 'utf8'),
     readFile('src/lib/session-state.ts', 'utf8'),
   ])
   assert.doesNotMatch(runtime, /sendCustomMessage/)
   assert.doesNotMatch(runtime, /pisper_agent_mailbox_results/)
   assert.match(runtime, /live\.currentActivity = backgroundActivities\.at\(-1\) \|\| null/)
   assert.match(dispatcher, /data\.currentActivity\?\.type === 'agent'/)
-  assert.match(transcript, /resolveMessageRunActivity\(message, isLatestAgent, latestRunProps\)/)
+  assert.match(
+    virtualTranscript,
+    /resolveMessageRunActivity\(message, isLatestAgent, latestRunProps\)/,
+  )
   assert.match(sessionState, /activity\.currentActivity\?\.type === 'agent'/)
 })
 

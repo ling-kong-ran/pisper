@@ -5,11 +5,14 @@ import { useI18n } from '@/app/use-i18n'
 import { BrandLogo } from '@/components/BrandLogo'
 import { AsciiText, Aurora, BlurText, TargetCursor } from '@/components/react-bits'
 import { useAutoScroll } from '@/hooks/useAutoScroll'
-import { resolveMessageRunActivity } from '@/lib/session-state'
 import type { ChatMessage, EntityRecord, Plan } from '@/types/chat'
-import { FocusChatMessage } from './ChatMessage'
 import PlanBoard from './PlanBoard'
 import { activityScrollVersion } from './run-activity'
+import {
+  anchoredScrollTopAfterPrepend,
+  type TranscriptPrependSnapshot,
+} from './transcript-virtualization'
+import { VirtualMessageTranscript } from './VirtualMessageTranscript'
 
 type Translate = (message: string, values?: I18nValues) => string
 
@@ -84,7 +87,8 @@ export function FocusTranscript({
   onPromptSelect,
 }: FocusTranscriptProps) {
   const { t } = useI18n()
-  const prependSnapshot = useRef<{ scrollHeight: number; scrollTop: number } | null>(null)
+  const prependSnapshot = useRef<TranscriptPrependSnapshot | null>(null)
+  const transcriptPrefixRef = useRef<HTMLDivElement>(null)
   const lastMessage = messages[messages.length - 1]
   const textScrollBucket = Math.floor((lastMessage?.text?.length || 0) / 64)
   const activityVersion = activityScrollVersion(activityFeed)
@@ -95,6 +99,8 @@ export function FocusTranscript({
     onScroll: onTranscriptScroll,
     hasUnread,
     scrollToBottom,
+    maintainBottom,
+    cancelProgrammaticScroll,
   } = useAutoScroll(transcriptVersion)
   const latestRunProps = useMemo(
     () => ({
@@ -147,7 +153,7 @@ export function FocusTranscript({
     const snapshot = prependSnapshot.current
     const node = transcriptRef.current
     if (!snapshot || !node) return
-    node.scrollTop = snapshot.scrollTop + node.scrollHeight - snapshot.scrollHeight
+    node.scrollTop = anchoredScrollTopAfterPrepend(snapshot, node.scrollHeight)
     prependSnapshot.current = null
   }, [messageStart, transcriptRef])
 
@@ -157,28 +163,37 @@ export function FocusTranscript({
 
   return (
     <>
-      <div className="transcript" ref={transcriptRef} onScroll={handleTranscriptScroll}>
-        {(hasOlder || loadingOlder || olderError) && (
-          <div className="history-page-loader">
-            {olderError ? (
-              <button type="button" className="button secondary" onClick={loadOlder}>
-                <RefreshCw size={13} />
-                {t('chat:focusSession.retryOlderMessages')}
-              </button>
-            ) : loadingOlder ? (
-              <>
-                <RefreshCw className="spin" size={14} />
-                {t('chat:focusSession.loadingOlderMessages')}
-              </>
-            ) : (
-              <button type="button" className="button secondary" onClick={loadOlder}>
-                <ArrowDown className="history-up-arrow" size={14} />
-                {t('chat:focusSession.loadOlderMessages')}
-              </button>
-            )}
-          </div>
-        )}
-        {plan?.items?.length ? <PlanBoard plan={plan} /> : null}
+      <div
+        className="transcript"
+        ref={transcriptRef}
+        onPointerDown={cancelProgrammaticScroll}
+        onScroll={handleTranscriptScroll}
+        onTouchStart={cancelProgrammaticScroll}
+        onWheel={cancelProgrammaticScroll}
+      >
+        <div className="transcript-prefix" ref={transcriptPrefixRef}>
+          {(hasOlder || loadingOlder || olderError) && (
+            <div className="history-page-loader">
+              {olderError ? (
+                <button type="button" className="button secondary" onClick={loadOlder}>
+                  <RefreshCw size={13} />
+                  {t('chat:focusSession.retryOlderMessages')}
+                </button>
+              ) : loadingOlder ? (
+                <>
+                  <RefreshCw className="spin" size={14} />
+                  {t('chat:focusSession.loadingOlderMessages')}
+                </>
+              ) : (
+                <button type="button" className="button secondary" onClick={loadOlder}>
+                  <ArrowDown className="history-up-arrow" size={14} />
+                  {t('chat:focusSession.loadOlderMessages')}
+                </button>
+              )}
+            </div>
+          )}
+          {plan?.items?.length ? <PlanBoard plan={plan} /> : null}
+        </div>
         {!messages.length && (
           <div className="agent-welcome">
             <Aurora />
@@ -210,25 +225,18 @@ export function FocusTranscript({
             </TargetCursor>
           </div>
         )}
-        {messages.map((message, index) => {
-          const isLatestAgent = message.role === 'agent' && index === messages.length - 1
-          const agentState =
-            message.streaming || (isLatestAgent && streaming)
-              ? 'thinking'
-              : isLatestAgent && !message.error
-                ? 'waiting'
-                : 'idle'
-          const runProps = resolveMessageRunActivity(message, isLatestAgent, latestRunProps)
-          return (
-            <FocusChatMessage
-              key={message.id}
-              message={message}
-              agentState={agentState}
-              showRunActivity={Boolean(runProps)}
-              runProps={runProps}
-            />
-          )
-        })}
+        {messages.length > 0 && (
+          <VirtualMessageTranscript
+            key={sessionId}
+            messages={messages}
+            streaming={streaming}
+            latestRunProps={latestRunProps}
+            measurementVersion={transcriptVersion}
+            scrollRef={transcriptRef}
+            prefixRef={transcriptPrefixRef}
+            onContentSizeChange={maintainBottom}
+          />
+        )}
         {error && (
           <div className="chat-error">
             <AlertTriangle size={14} />

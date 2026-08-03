@@ -14,6 +14,7 @@ export function useAutoScroll(
   // pinnedToBottom to false, permanently disabling auto-scroll.
   const programmaticScrollRef = useRef(false)
   const programmaticFrameRef = useRef(0)
+  const pinnedToBottomRef = useRef(true)
   const [pinnedToBottom, setPinnedToBottom] = useState(true)
   const [hasUnread, setHasUnread] = useState(false)
 
@@ -23,12 +24,22 @@ export function useAutoScroll(
     programmaticScrollRef.current = true
     cancelAnimationFrame(programmaticFrameRef.current)
     node.scrollTo({ top: node.scrollHeight, behavior })
+    pinnedToBottomRef.current = true
     setPinnedToBottom(true)
     setHasUnread(false)
-    // Clear the marker after this programmatic scroll's events have landed.
+    // Virtualized rows can settle one frame after ResizeObserver fires. Keep the
+    // programmatic marker through that measurement frame so it cannot look like
+    // an upward user scroll.
     programmaticFrameRef.current = requestAnimationFrame(() => {
-      programmaticScrollRef.current = false
+      programmaticFrameRef.current = requestAnimationFrame(() => {
+        programmaticScrollRef.current = false
+      })
     })
+  }, [])
+
+  const cancelProgrammaticScroll = useCallback(() => {
+    cancelAnimationFrame(programmaticFrameRef.current)
+    programmaticScrollRef.current = false
   }, [])
 
   const onScroll = useCallback(
@@ -36,6 +47,7 @@ export function useAutoScroll(
       const node = event.currentTarget
       if (programmaticScrollRef.current) return
       const pinned = node.scrollHeight - node.scrollTop - node.clientHeight <= threshold
+      pinnedToBottomRef.current = pinned
       setPinnedToBottom(pinned)
       if (pinned) setHasUnread(false)
     },
@@ -54,8 +66,19 @@ export function useAutoScroll(
     return () => cancelAnimationFrame(frameRef.current)
   }, [contentVersion, pinnedToBottom, scrollToBottom])
 
+  const maintainBottom = useCallback(() => {
+    if (pinnedToBottomRef.current) scrollToBottom()
+  }, [scrollToBottom])
+
   // Clean up any pending programmatic-scroll marker reset on unmount.
   useEffect(() => () => cancelAnimationFrame(programmaticFrameRef.current), [])
 
-  return { scrollRef, onScroll, hasUnread, scrollToBottom }
+  return {
+    scrollRef,
+    onScroll,
+    hasUnread,
+    scrollToBottom,
+    maintainBottom,
+    cancelProgrammaticScroll,
+  }
 }
