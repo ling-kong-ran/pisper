@@ -5,7 +5,7 @@ export async function readJson(path, fallback) {
   try {
     return JSON.parse(await readFile(path, 'utf8'))
   } catch (error) {
-    if (error?.code === 'ENOENT') return fallback
+    if (error?.code === 'ENOENT' || error?.code === 'ENOTDIR') return fallback
     throw error
   }
 }
