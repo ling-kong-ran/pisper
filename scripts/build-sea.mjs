@@ -1,21 +1,37 @@
 import { execFile } from 'node:child_process'
-import { copyFile, cp, mkdir, readdir, rm, stat, writeFile } from 'node:fs/promises'
+import { copyFile, cp, mkdir, readFile, rm, stat, writeFile } from 'node:fs/promises'
 import { dirname, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { promisify } from 'node:util'
+import {
+  assertSizeManifest,
+  collectNativeState,
+  collectRuntimeSnapshot,
+  createSizeManifest,
+  criticalRuntimeEntries,
+  finalizeSizeManifest,
+  inspectCriticalFiles,
+  pruneRuntime,
+  runtimeTarget,
+  writeSizeManifest,
+} from './sea-runtime.mjs'
 
 const run = promisify(execFile)
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..')
 const releaseDir = join(root, 'release')
 const seaDir = join(releaseDir, 'sea')
 const runtimeDir = join(seaDir, 'runtime')
+const manifestPath = join(seaDir, 'runtime-size-manifest.json')
 const blobPath = join(seaDir, 'pisper-sidecar.blob')
 const seaConfigPath = join(seaDir, 'sea-config.json')
 const executableName = process.platform === 'win32' ? 'pisper-sidecar.exe' : 'pisper-sidecar'
 const executablePath = join(seaDir, executableName)
+const target = runtimeTarget()
+const packageJson = JSON.parse(await readFile(join(root, 'package.json'), 'utf8'))
 
 function targetTriples() {
-  const arch = process.arch === 'x64' ? 'x86_64' : process.arch === 'arm64' ? 'aarch64' : process.arch
+  const arch =
+    process.arch === 'x64' ? 'x86_64' : process.arch === 'arm64' ? 'aarch64' : process.arch
   if (process.platform === 'win32') {
     return [`${arch}-pc-windows-msvc`, `${arch}-pc-windows-gnu`]
   }
@@ -28,99 +44,6 @@ async function runNpm(args, options = {}) {
   if (npmCli) return run(process.execPath, [npmCli, ...args], options)
   const command = process.platform === 'win32' ? 'npm.cmd' : 'npm'
   return run(command, args, options)
-}
-
-const removableDirectoryNames = new Set([
-  '.github',
-  '__tests__',
-  'docs',
-  'example',
-  'examples',
-  'test',
-  'tests',
-])
-const removableFileNames = new Set([
-  'changelog',
-  'changelog.md',
-  'license',
-  'license.md',
-  'readme',
-  'readme.md',
-])
-const removableFileSuffixes = ['.d.cts', '.d.mts', '.d.ts', '.map', '.tsbuildinfo']
-
-async function prunePackageTree(directory) {
-  let entries
-  try {
-    entries = await readdir(directory, { withFileTypes: true })
-  } catch (error) {
-    if (error?.code === 'ENOENT') return
-    throw error
-  }
-  await Promise.all(
-    entries.map(async (entry) => {
-      const entryPath = join(directory, entry.name)
-      if (entry.isDirectory()) {
-        if (removableDirectoryNames.has(entry.name.toLowerCase())) {
-          await rm(entryPath, { recursive: true, force: true })
-        } else {
-          await prunePackageTree(entryPath)
-        }
-        return
-      }
-      const lowerName = entry.name.toLowerCase()
-      if (
-        removableFileNames.has(lowerName) ||
-        removableFileSuffixes.some((suffix) => lowerName.endsWith(suffix))
-      ) {
-        await rm(entryPath, { force: true })
-      }
-    }),
-  )
-}
-
-async function pruneRuntime() {
-  const nodeModules = join(runtimeDir, 'node_modules')
-  const removePaths = [
-    ['tesseract.js'],
-    ['tesseract.js-core'],
-    ['zlibjs'],
-    ['@napi-rs', 'canvas'],
-    ['@earendil-works', 'pi-coding-agent', 'CHANGELOG.md'],
-    ['@earendil-works', 'pi-coding-agent', 'containerization.md'],
-    ['@larksuiteoapi', 'node-sdk', 'es'],
-    ['@larksuiteoapi', 'node-sdk', 'types'],
-    ['openai', 'src'],
-    ['pdfjs-dist', 'image_decoders'],
-    ['pdfjs-dist', 'web'],
-    ['highlight.js', 'scss'],
-    ['highlight.js', 'styles'],
-  ]
-  await Promise.all(removePaths.map((parts) => rm(join(nodeModules, ...parts), { recursive: true, force: true })))
-
-  const pdfBuild = join(nodeModules, 'pdfjs-dist', 'build')
-  for (const name of [
-    'pdf.min.mjs',
-    'pdf.sandbox.mjs',
-    'pdf.sandbox.min.mjs',
-    'pdf.worker.mjs',
-    'pdf.worker.min.mjs',
-  ]) {
-    await rm(join(pdfBuild, name), { force: true })
-  }
-
-  const canvasScope = join(nodeModules, '@napi-rs')
-  try {
-    for (const entry of await readdir(canvasScope, { withFileTypes: true })) {
-      if (entry.isDirectory() && entry.name.startsWith('canvas-')) {
-        await rm(join(canvasScope, entry.name), { recursive: true, force: true })
-      }
-    }
-  } catch (error) {
-    if (error?.code !== 'ENOENT') throw error
-  }
-
-  await prunePackageTree(nodeModules)
 }
 
 async function stageRuntime() {
@@ -143,7 +66,26 @@ async function stageRuntime() {
     maxBuffer: 10 * 1024 * 1024,
   })
   await rm(join(runtimeDir, 'package-lock.json'), { force: true })
-  await pruneRuntime()
+
+  const beforePrune = await collectRuntimeSnapshot(runtimeDir)
+  const { audit, nativeSelection } = await pruneRuntime(runtimeDir, target)
+  const afterPrune = await collectRuntimeSnapshot(runtimeDir)
+  const [criticalFiles, native] = await Promise.all([
+    inspectCriticalFiles(runtimeDir, criticalRuntimeEntries(nativeSelection)),
+    collectNativeState(runtimeDir, nativeSelection),
+  ])
+  const manifest = createSizeManifest({
+    appVersion: packageJson.version,
+    target,
+    beforePrune,
+    afterPrune,
+    pruning: audit,
+    criticalFiles,
+    native,
+  })
+  await writeSizeManifest(manifestPath, manifest)
+  assertSizeManifest(manifest)
+  return manifest
 }
 
 async function injectSea() {
@@ -187,10 +129,21 @@ async function injectSea() {
   return tauriBinaries
 }
 
-await run(process.execPath, [join(root, 'node_modules', 'vite', 'bin', 'vite.js'), 'build'], { cwd: root })
-await stageRuntime()
+await run(process.execPath, [join(root, 'node_modules', 'vite', 'bin', 'vite.js'), 'build'], {
+  cwd: root,
+})
+let manifest = await stageRuntime()
 const tauriBinaries = await injectSea()
 const executableBytes = (await stat(executablePath)).size
-console.log(`Built Node SEA sidecar: ${executablePath} (${(executableBytes / 1024 / 1024).toFixed(1)} MiB)`)
-console.log(`Staged sidecar runtime: ${runtimeDir}`)
+manifest = finalizeSizeManifest(manifest, executableBytes)
+await writeSizeManifest(manifestPath, manifest)
+assertSizeManifest(manifest, { requireExecutable: true })
+
+console.log(
+  `Built Node SEA sidecar: ${executablePath} (${(executableBytes / 1024 / 1024).toFixed(1)} MiB)`,
+)
+console.log(
+  `Staged sidecar runtime: ${runtimeDir} (${(manifest.runtime.afterPrune.bytes / 1024 / 1024).toFixed(1)} MiB, ${manifest.runtime.reduction.percent}% pruned)`,
+)
+console.log(`Runtime size audit: ${manifestPath} (budget pass: ${manifest.budget.pass})`)
 for (const path of tauriBinaries) console.log(`Prepared Tauri sidecar: ${path}`)

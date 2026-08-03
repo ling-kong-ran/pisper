@@ -7,7 +7,6 @@ coverage
 package-lock.json
 .agents
 docs
-electron
 public
 scripts
 server
