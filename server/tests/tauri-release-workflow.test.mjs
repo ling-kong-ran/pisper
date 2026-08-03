@@ -49,6 +49,19 @@ test('release quality stages both desktop sidecars before checking Rust', async 
   assert.ok(qualityJob.indexOf('npm run tui:stage') < cargoCheck)
 })
 
+test('Windows GNU packages carry the WebView2 loader through an explicit Rust target', async () => {
+  const [packager, staging] = await Promise.all([
+    readFile('scripts/package-tauri-release.mjs', 'utf8'),
+    readFile('scripts/stage-tauri-artifacts.mjs', 'utf8'),
+  ])
+
+  assert.match(packager, /capture\(process\.env\.RUSTC \|\| 'rustc', \['-vV'\]/)
+  assert.match(packager, /rustTarget\.endsWith\('-windows-gnu'\)/)
+  assert.match(packager, /tauriTargetArgs\.push\('--target', rustTarget\)/)
+  assert.match(packager, /env\.PISPER_TAURI_BUNDLE_DIR = bundleDir/)
+  assert.match(staging, /process\.env\.PISPER_TAURI_BUNDLE_DIR/)
+})
+
 test('desktop bundles the TUI behind the narrow CLI management bridge', async () => {
   const [configSource, packageSource, bridge, permissions, manager] = await Promise.all([
     readFile('src-tauri/tauri.conf.json', 'utf8'),

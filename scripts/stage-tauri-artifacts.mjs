@@ -4,7 +4,10 @@ import process from 'node:process'
 import { fileURLToPath } from 'node:url'
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
-const bundleDir = path.join(root, 'src-tauri', 'target', 'release', 'bundle')
+const bundleDir = path.resolve(
+  root,
+  process.env.PISPER_TAURI_BUNDLE_DIR || path.join('src-tauri', 'target', 'release', 'bundle'),
+)
 const stageRoot = path.resolve(
   root,
   process.env.PISPER_TAURI_STAGE_DIR || path.join('release', 'tauri-artifacts'),

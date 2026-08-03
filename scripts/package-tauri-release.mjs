@@ -9,7 +9,7 @@ const tauriCli = path.join(root, 'node_modules', '@tauri-apps', 'cli', 'tauri.js
 const updaterConfig = path.join(root, 'src-tauri', 'tauri.updater.conf.json')
 const localKeyPath = path.join(root, 'release', 'tauri-updater.key')
 const localPasswordPath = path.join(root, 'release', 'tauri-updater-key.password')
-const bundleDir = path.join(root, 'src-tauri', 'target', 'release', 'bundle')
+let bundleDir = path.join(root, 'src-tauri', 'target', 'release', 'bundle')
 const stageDir = path.resolve(
   root,
   process.env.PISPER_TAURI_STAGE_DIR || path.join('release', 'tauri-artifacts'),
@@ -29,6 +29,21 @@ function run(command, args, env = process.env) {
     child.once('exit', (code, signal) => {
       if (code === 0) resolve()
       else reject(new Error(`${path.basename(command)} exited with ${signal || code}.`))
+    })
+  })
+}
+
+function capture(command, args, env = process.env) {
+  return new Promise((resolve, reject) => {
+    const child = spawn(command, args, { cwd: root, env, stdio: ['ignore', 'pipe', 'pipe'] })
+    let stdout = ''
+    let stderr = ''
+    child.stdout.setEncoding('utf8').on('data', (chunk) => (stdout += chunk))
+    child.stderr.setEncoding('utf8').on('data', (chunk) => (stderr += chunk))
+    child.once('error', reject)
+    child.once('exit', (code, signal) => {
+      if (code === 0) resolve(stdout)
+      else reject(new Error(`${path.basename(command)} exited with ${signal || code}: ${stderr}`))
     })
   })
 }
@@ -72,9 +87,20 @@ if (!signingKey.trim()) {
   credentialSource = 'ignored release files'
 }
 
+const tauriTargetArgs = []
+if (process.platform === 'win32') {
+  const rustVersion = await capture(process.env.RUSTC || 'rustc', ['-vV'], env)
+  const rustTarget = rustVersion.match(/^host:\s*(\S+)$/m)?.[1] || ''
+  if (!rustTarget) throw new Error('Unable to resolve the Rust host target from rustc -vV.')
+  if (rustTarget.endsWith('-windows-gnu')) {
+    tauriTargetArgs.push('--target', rustTarget)
+    bundleDir = path.join(root, 'src-tauri', 'target', rustTarget, 'release', 'bundle')
+  }
+}
+env.PISPER_TAURI_BUNDLE_DIR = bundleDir
 await rm(bundleDir, { recursive: true, force: true })
 
-const buildArgs = [tauriCli, 'build', '--bundles', bundles]
+const buildArgs = [tauriCli, 'build', '--bundles', bundles, ...tauriTargetArgs]
 if (signingKey.trim()) {
   env.TAURI_SIGNING_PRIVATE_KEY = signingKey
   env.TAURI_SIGNING_PRIVATE_KEY_PASSWORD = signingPassword.trim()
