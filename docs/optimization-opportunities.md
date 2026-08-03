@@ -294,10 +294,36 @@ Toast 目前走自研 `Toast`；`sonner` + `next-themes` 基本只服务未接�
 
 推荐启动顺序：**P0 修复 TUI thinking/workspace 可靠性** → **P0 依赖审计清理 + Markdown 栈二选一** → **P1 核心模块拆分与 PR CI**。
 
+## 12. 落地状态（2026-08-03）
+
+本清单已按 [`optimization-implementation-plan.md`](./optimization-implementation-plan.md) 的 P00-P15 全部完成。对应结果如下：
+
+| 原章节 | 状态 | 落地结果 |
+| --- | --- | --- |
+| 1. 大模块 | 完成 | `agent-runtime.mjs` 2315 行、`api-handler.mjs` 89 行、`ChatPage.tsx` 202 行、`FocusSession.tsx` 450 行、`ConfigPage.tsx` 111 行、`WorkflowsPage.tsx` 184 行 |
+| 2. 渲染与 UI | 完成 | Streamdown 成为唯一生产 Markdown 栈；业务代码不再依赖 legacy `ui.tsx`，旧文件已删除 |
+| 3. 依赖与产物 | 完成 | 直接依赖从 65 降至 54；移除未使用脚手架与前端 Axios；stable vendor chunk 和 gzip closure budget 已进入 build |
+| 4. 工程门禁 | 完成 | PR CI 覆盖 Node quality/build/test 与 Rust fmt/check/test；server/scripts/shared 进入 Prettier；关键 JS 边界启用严格 `checkJs` |
+| 5. 聊天性能 | 完成 | `@tanstack/react-virtual` 支持动态高度、streaming、prepend 锚点和有界 DOM；最终浏览器验收同时修复首次 scroll ref 挂载导致的零渲染 |
+| 6. Plan | 完成 | 新协议只写 Plan，兼容读取旧 Task List；Web/TUI 均显示并原位更新 Plan，真实 Task 概念保持不变 |
+| 7. TUI 可靠性 | 完成 | thinking 能力由服务端权威返回；launch workspace 独立保存、创建后校验，跨 workspace 切换显式可见 |
+| 8. SEA | 完成 | 实际 production closure 裁剪 73.78%，最终 runtime 90.3 MiB，低于 120 MiB budget；关键动态依赖、许可证和当前平台 native 均保留 |
+| 10. 保留能力 | 已回归 | route lazy、Shiki dynamic/dedupe、officeparser lazy、流式贴底、release checks 和 app-tool 单模块约定未回归 |
+
+保留决策：
+
+- 继续使用 `createHashRouter` 的路由级 lazy loading，不为改 URL 形态重写稳定路由。
+- Shiki 语法、主题和 WASM 保持动态 chunk；Markdown 的完整动态 closure 以预算约束，不追求把高亮运行时重新塞回入口。
+- `officeparser`、MCP clients、Playwright、pdfjs、skills runtime 和当前平台 native 是 SEA 的显式保留项。
+- 浏览器 bundle 依赖继续位于根包 `devDependencies`，sidecar production closure 位于 `dependencies`；本轮不引入 workspace 或第二套包管理器。
+- `checkJs` 先覆盖无扩散的 shared/runtime/API 边界，避免一次性破坏既有异步 facade 和 service 合约。
+- 桌面仍是 Tauri 2 + Node SEA，不恢复 Electron 路径。
+
 ## 变更记录
 
 | 日期 | 说明 |
 | --- | --- |
+| 2026-08-03 | P00-P15 全部完成，补充最终量化、保留决策与回归状态 |
 | 2026-08-02 | 新增 TUI P0 可靠性问题：`/thinking` 无可选等级/切换未生效，以及启动 workspace 回退到用户目录 |
 | 2026-08-02 | 新增 Plan 术语统一与 TUI 可视化优化：迁移 Task List 命名并展示步骤、状态与阻塞关系 |
 | 2026-08-02 | 初版：基于仓库审计写入优化机会与落地顺序 |

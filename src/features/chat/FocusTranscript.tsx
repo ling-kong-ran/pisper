@@ -119,6 +119,8 @@ export function FocusTranscript({
   const transcriptVersion = `${sessionId}:${lastMessage?.id || ''}:${textScrollBucket}:${thinkingScrollBucket}:${lastMessage?.attachments?.length || 0}:${activityVersion}:${plan?.updatedAt || ''}:${compaction?.status || ''}:${compaction?.finishedAt || ''}:${error || ''}:${streaming ? '1' : '0'}`
   const {
     scrollRef: transcriptRef,
+    scrollElement: transcriptElement,
+    setScrollRef: setTranscriptRef,
     onScroll: onTranscriptScroll,
     hasUnread,
     scrollToBottom,
@@ -211,7 +213,7 @@ export function FocusTranscript({
     <>
       <div
         className="transcript"
-        ref={transcriptRef}
+        ref={setTranscriptRef}
         onPointerDown={cancelProgrammaticScroll}
         onScroll={handleTranscriptScroll}
         onTouchStart={cancelProgrammaticScroll}
@@ -256,7 +258,7 @@ export function FocusTranscript({
             streaming={streaming}
             latestRunProps={latestRunProps}
             measurementVersion={transcriptVersion}
-            scrollRef={transcriptRef}
+            scrollElement={transcriptElement}
             prefixRef={transcriptPrefixRef}
             onContentSizeChange={maintainBottom}
           />

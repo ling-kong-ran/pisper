@@ -5,6 +5,11 @@ export function useAutoScroll(
   { threshold = 64 }: { threshold?: number } = {},
 ) {
   const scrollRef = useRef<HTMLDivElement>(null)
+  const [scrollElement, setScrollElement] = useState<HTMLDivElement | null>(null)
+  const setScrollRef = useCallback((node: HTMLDivElement | null) => {
+    scrollRef.current = node
+    setScrollElement(node)
+  }, [])
   const frameRef = useRef(0)
   // Marks a window during which scroll events come from our own scrollToBottom,
   // not the user. scrollTo fires asynchronously and may emit several scroll
@@ -75,6 +80,8 @@ export function useAutoScroll(
 
   return {
     scrollRef,
+    scrollElement,
+    setScrollRef,
     onScroll,
     hasUnread,
     scrollToBottom,

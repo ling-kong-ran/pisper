@@ -11,7 +11,7 @@ type VirtualMessageTranscriptProps = {
   streaming?: boolean
   latestRunProps: AgentRunActivityProps
   measurementVersion: unknown
-  scrollRef: RefObject<HTMLDivElement | null>
+  scrollElement: HTMLDivElement | null
   prefixRef: RefObject<HTMLDivElement | null>
   onContentSizeChange: () => void
 }
@@ -22,14 +22,13 @@ function measuredElementHeight(element: HTMLDivElement, entry?: ResizeObserverEn
 }
 
 function useTranscriptScrollMargin(
-  scrollRef: RefObject<HTMLDivElement | null>,
+  scrollElement: HTMLDivElement | null,
   prefixRef: RefObject<HTMLDivElement | null>,
   listRef: RefObject<HTMLDivElement | null>,
 ) {
   const [scrollMargin, setScrollMargin] = useState(0)
 
   useLayoutEffect(() => {
-    const scrollElement = scrollRef.current
     const listElement = listRef.current
     if (!scrollElement || !listElement) return undefined
 
@@ -52,7 +51,7 @@ function useTranscriptScrollMargin(
       observer?.disconnect()
       window.removeEventListener('resize', measure)
     }
-  }, [listRef, prefixRef, scrollRef])
+  }, [listRef, prefixRef, scrollElement])
 
   return scrollMargin
 }
@@ -62,21 +61,21 @@ export const VirtualMessageTranscript = memo(function VirtualMessageTranscript({
   streaming,
   latestRunProps,
   measurementVersion,
-  scrollRef,
+  scrollElement,
   prefixRef,
   onContentSizeChange,
 }: VirtualMessageTranscriptProps) {
   const listRef = useRef<HTMLDivElement>(null)
   const messagesRef = useRef(messages)
   messagesRef.current = messages
-  const scrollMargin = useTranscriptScrollMargin(scrollRef, prefixRef, listRef)
+  const scrollMargin = useTranscriptScrollMargin(scrollElement, prefixRef, listRef)
   const getItemKey = useCallback(
     (index: number) => messagesRef.current[index]?.id ?? `transcript-message-${index}`,
     [],
   )
   const virtualizer = useVirtualizer<HTMLDivElement, HTMLDivElement>({
     count: messages.length,
-    getScrollElement: () => scrollRef.current,
+    getScrollElement: () => scrollElement,
     getItemKey,
     estimateSize: () => TRANSCRIPT_ESTIMATED_ROW_HEIGHT,
     measureElement: measuredElementHeight,

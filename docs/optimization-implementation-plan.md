@@ -354,3 +354,123 @@ P14 必须让质量命令不被未提交的本地 Agent 指令文件干扰，并
 15 ci: enforce full repository quality gates on pull requests
 16 docs: close optimization rollout with verified results
 ```
+
+## 最终验收（2026-08-03）
+
+### Plan 状态
+
+| Plan | 状态 | Commit / 结果 |
+| --- | --- | --- |
+| P00 | 完成 | `ccc75a4` |
+| P01 | 完成 | `b42f05f` |
+| P02 | 完成 | `d205838` |
+| P03 | 完成 | `6ca6ea9` |
+| P04 | 完成 | `26327de` |
+| P05 | 完成 | `31e4b7a` |
+| P06 | 完成 | `3c719bb` |
+| P07 | 完成 | `59c580b` |
+| P08 | 完成 | `8c1a873` |
+| P09 | 完成 | `ae4568c` |
+| P10 | 完成 | `0281af2` |
+| P11 | 完成 | `a31e1d6` |
+| P12 | 完成 | `1fb2be4` |
+| P13 | 完成 | `aafe4e5` |
+| P14 | 完成 | `c889fdf` |
+| P15 | 完成 | 本提交；全栈验收中修复 virtualizer 首次取得空 scroll element 后不再订阅的问题 |
+
+`c821458` 是 rollout 期间保留的独立 prompt-cache 测量稳定性修复，不属于新的 plan 交付单元；最终完整 server suite 已包含该回归。
+
+### 质量命令
+
+| 命令 | 最终结果 |
+| --- | --- |
+| `npm run check` | 通过：TypeScript、增量 `checkJs`、oxlint、i18n、Prettier 全绿 |
+| `npm test` | 430/430 通过 |
+| `npm run build` | 通过：3258 modules，bundle budget 通过 |
+| `cargo fmt --manifest-path src-tui/Cargo.toml -- --check` | 通过 |
+| `npm run tui:check` | 通过 |
+| `npm run tui:test` | 50/50 通过 |
+| `npm run sidecar:sea` | 通过：Windows x64 SEA executable 与两个 Tauri sidecar target 已生成 |
+| `npm run sidecar:sea:smoke` | 通过：production closure、Agent 激活、API 和正常退出均验证 |
+| `git diff --check` | 通过 |
+
+### Web 体积
+
+直接 chunk 使用初始基线相同的 Vite 输出角色对比；`manualChunks` 后单个入口文件不再等同于冷启动总传输量，因此同时记录最终 closure budget，不用单文件下降冒充总下载下降。
+
+| 指标 | 初始基线 | 最终结果 | 说明 |
+| --- | ---: | ---: | --- |
+| app entry chunk | 749.17 kB / 237.16 kB gzip | 133.08 kB / 40.22 kB gzip | React/UI/state 等进入稳定 vendor；entry 减少约 82%/83% |
+| ChatPage chunk | 465.07 kB / 112.38 kB gzip | 152.94 kB / 45.31 kB gzip | 减少约 67%/60% |
+| MarkdownMessage owner | 335.14 kB / 103.38 kB gzip | 2.97 kB / 1.47 kB gzip | 适配层变薄；Streamdown/Shiki 为独立动态 closure |
+| react-bits welcome owner | 130.59 kB / 42.83 kB gzip | 4.42 kB / 1.84 kB gzip | 动效按页面加载；motion vendor 为 40.29 kB gzip |
+| WorkflowsPage owner | 208.93 kB / 66.53 kB gzip | 41.40 kB / 12.69 kB gzip | xyflow vendor 为 55.64 kB gzip，可跨路由缓存 |
+| global entry CSS | 438.50 kB / 62.75 kB gzip | 339.05 kB / 59.51 kB gzip | dockview/xyflow/React Bits CSS 改由路由所有 |
+| entry static JS closure | 未建立同口径 manifest | 244.46 kB gzip | budget 260 kB |
+| Markdown dynamic surface | 未建立同口径 manifest | 280.73 kB gzip | 包含 Streamdown、plugins、Shiki runtime/WASM；budget 320 kB |
+| total split CSS | 未建立同口径 manifest | 71.17 kB gzip | budget 80 kB |
+
+最终稳定 vendor gzip：React 88.55 kB、Dockview 75.89 kB、xyflow 55.64 kB、motion 40.29 kB、Markdown 126.92 kB、Markdown plugins 91.82 kB、Shiki runtime 60.30 kB；Shiki WASM 230.14 kB 保持动态归属。
+
+### 文件与依赖
+
+| 文件 / 指标 | 初始基线 | 最终结果 |
+| --- | ---: | ---: |
+| `server/runtime/agent-runtime.mjs` | 3742 行 | 2315 行；另有 498 行继承 facade，主文件 budget `<2500` |
+| `server/http/api-handler.mjs` | 663 行 | 89 行 |
+| `src/features/chat/ChatPage.tsx` | 2063 行 | 202 行 |
+| `src/features/chat/FocusSession.tsx` | 1404 行 | 450 行 |
+| `src/features/config/ConfigPage.tsx` | 1748 行 | 111 行 |
+| `src/features/workflows/WorkflowsPage.tsx` | 1431 行 | 184 行 |
+| `src/components/ui.tsx` | 344 行 | 已删除 |
+| `src/index.css` | 1396 行 | 1394 行；收益体现在 legacy 规则替换和 route CSS ownership，不以行数包装效果 |
+| 直接依赖 | 8 runtime + 57 dev = 65 | 8 runtime + 46 dev = 54，减少 11 个（16.9%） |
+
+### SEA 与长会话
+
+最终 `release/sea/runtime-size-manifest.json`：
+
+- prune 前 `361,154,181 bytes / 28,492 files`。
+- prune 后 `94,709,471 bytes / 10,604 files`，约 90.3 MiB。
+- 减少 `266,444,710 bytes / 17,888 files`，体积下降 73.78%。
+- 120 MiB runtime budget 通过；SEA executable `91,553,280 bytes`，约 87.3 MiB。
+- 31 个关键 runtime 文件通过；仅保留当前 Windows x64 clipboard/pi-tui native，DOCX、MCP、Playwright、pdfjs、skills 和许可证 smoke 通过。
+
+1000 条动态高度 transcript 的最终浏览器数据：
+
+| 视口 | 已加载消息 | 最终 DOM 行 | 全程峰值 | 可见行 | prepend 锚点漂移 |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| 1440×900 | 1000 | 11 | 19 | 5 | 0 px |
+| 390×844 | 1000 | 9 | 16 | 3 | 0 px |
+
+优化前 transcript 对每条消息线性创建 DOM；同一 1000 条输入意味着约 1000 个消息行。最终 DOM 始终低于 32 行。P15 首轮截图发现列表为 0 行：父级 host ref 在子级 layout effect 后才挂载，virtualizer 没有后续 render 去订阅 scroll element；callback ref 现在把真实元素变成显式状态并有源码回归测试。
+
+### 浏览器矩阵
+
+验收使用 gitignored `generated/browser/p15-agent` 作为独立 `PISPER_AGENT_DIR`，没有读取或修改真实 Pisper 会话。外部 GitHub compare 的 `/api/app-update` 在浏览器脚本中固定返回 `current`，避免网络状态污染 UI 验收；其他 API 均访问本轮 production preview。
+
+- 视口：1440×900、390×844。
+- 路由：chat、config、workflows、memory、MCP、skills、channels、schedules、assets、plugins、chat history。
+- 两个视口的所有路由均非空、无 document 横向溢出。
+- console error、page error、HTTP error 均为 0。
+- 截图与机器可读结果位于 gitignored `generated/browser/p15-*.png` 和 `generated/browser/p15-browser-report.json`。
+
+### 保留项回归
+
+- `createHashRouter` 路由 lazy 和 route-owned CSS 保持有效，没有将 Dockview/xyflow/React Bits 样式重新放回全局入口。
+- Shiki runtime、语言、主题和 WASM 保持动态 chunk，未产生循环 manual chunk。
+- `officeparser` 继续只在文档附件路径动态 `import()`。
+- streaming pinned/unread、用户滚动取消程序化贴底、prepend anchor 和结束后重测均由测试与浏览器数据覆盖。
+- release workflow 继续运行 check/test/Rust clippy，并构建 Windows x64、macOS Intel/Apple Silicon、Linux x64 Tauri 产物。
+- `server/tools/app/` 继续一工具一模块；Plan 兼容 wrapper 是明确的一个版本迁移层。
+
+### 平台矩阵
+
+| 平台 | 本机结果 | 后续门禁 |
+| --- | --- | --- |
+| Windows x64 Web / Node / Rust TUI / SEA | 已执行并通过 | PR CI 重跑 Node/Rust；release 重建 SEA/Tauri |
+| Windows Tauri GUI CDP smoke | 未在本轮启动交互式 WebView2；该脚本会安装/切换桌面宠物并依赖 GUI/CDP，不在隔离会话验收中运行 | release workflow 的 Windows x64 `desktop:webview:build` |
+| macOS Intel / Apple Silicon | 本机不可执行 | release matrix |
+| Linux x64 | 本机不可执行 | release matrix |
+
+所有 plan 均已完成；未 push、未改写历史，用户未跟踪的 `AGENTS.md`、`docs/agent-sandbox-design.md`、`docs/promotion-zh-CN.md` 未读取、未修改、未提交。
