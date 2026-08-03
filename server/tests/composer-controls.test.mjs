@@ -4,7 +4,7 @@ import test from 'node:test'
 
 test('icon-only composer model control hides the Radix Select trigger content', async () => {
   const [component, styles] = await Promise.all([
-    readFile('src/features/chat/FocusSession.tsx', 'utf8'),
+    readFile('src/features/chat/FocusRuntimeControls.tsx', 'utf8'),
     readFile('src/index.css', 'utf8'),
   ])
 

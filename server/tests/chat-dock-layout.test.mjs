@@ -55,35 +55,41 @@ test('session open requests accept horizontal and vertical dispositions', () => 
 })
 
 test('chat split controls expose left, right, top and bottom actions', async () => {
-  const [dock, focus, page, history] = await Promise.all([
+  const [dock, focus, dockHook, history] = await Promise.all([
     readFile('src/features/chat/ChatDock.tsx', 'utf8'),
     readFile('src/features/chat/FocusSession.tsx', 'utf8'),
-    readFile('src/features/chat/ChatPage.tsx', 'utf8'),
+    readFile('src/features/chat/use-chat-dock.ts', 'utf8'),
     readFile('src/features/chat/ChatHistoryPage.tsx', 'utf8'),
   ])
   assert.match(dock, /splitDockPanel\(api\.id, 'above'\)/)
   assert.match(dock, /splitDockPanel\(api\.id, 'below'\)/)
   assert.match(focus, /onSplitTop/)
   assert.match(focus, /onSplitBottom/)
-  assert.match(page, /splitDockPanel\(panel\.id, 'above'\)/)
-  assert.match(page, /splitDockPanel\(panel\.id, 'below'\)/)
+  assert.match(dockHook, /splitDockPanel\(panel\.id, 'above'\)/)
+  assert.match(dockHook, /splitDockPanel\(panel\.id, 'below'\)/)
   assert.match(history, /openSession\(session\.id, 'above'\)/)
   assert.match(history, /openSession\(session\.id, 'below'\)/)
 })
 
 test('dock layout persistence flushes before suspension and prevents teardown overwrites', async () => {
-  const page = await readFile('src/features/chat/ChatPage.tsx', 'utf8')
-  assert.match(page, /const persistDockLayout = useCallback/)
-  assert.match(page, /const envelope = createDockLayoutEnvelope\(api\.toJSON\(\), api\.activePanel\?\.id \|\| ''\)/)
-  assert.match(page, /document\.addEventListener\('visibilitychange', flushWhenHidden\)/)
-  assert.match(page, /window\.addEventListener\('pagehide', flushBeforePageHide\)/)
+  const dockHook = await readFile('src/features/chat/use-chat-dock.ts', 'utf8')
+  assert.match(dockHook, /const persistDockLayout = useCallback/)
   assert.match(
-    page,
+    dockHook,
+    /const envelope = createDockLayoutEnvelope\(api\.toJSON\(\), api\.activePanel\?\.id \|\| ''\)/,
+  )
+  assert.match(dockHook, /document\.addEventListener\('visibilitychange', flushWhenHidden\)/)
+  assert.match(dockHook, /window\.addEventListener\('pagehide', flushBeforePageHide\)/)
+  assert.match(
+    dockHook,
     /persistDockLayout\(api\)\s+dockInitializedRef\.current = false\s+window\.clearTimeout/,
   )
-  assert.match(page, /if \(!dockInitializedRef\.current \|\| dockApiRef\.current !== api\) return/)
   assert.match(
-    page,
+    dockHook,
+    /if \(!dockInitializedRef\.current \|\| dockApiRef\.current !== api\) return/,
+  )
+  assert.match(
+    dockHook,
     /api\.onDidActivePanelChange\(\(\{ panel \}\) => \{[\s\S]*?scheduleDockLayoutSave\(api\)/,
   )
 })

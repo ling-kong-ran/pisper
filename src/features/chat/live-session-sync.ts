@@ -13,5 +13,7 @@ export function shouldPollLiveSession(
   { localStreamOwned = false }: { localStreamOwned?: boolean } = {},
 ) {
   if (!state || localStreamOwned) return false
-  return Boolean(state.recovering || state.approvals?.length || hasActiveSessionAgents(state))
+  return Boolean(
+    state.recovering || state.streaming || state.approvals?.length || hasActiveSessionAgents(state),
+  )
 }

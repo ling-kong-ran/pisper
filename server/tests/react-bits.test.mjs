@@ -38,7 +38,7 @@ test('Pisper ships the selected lightweight React Bits components without anothe
 
 test('React Bits effects are attached to purposeful low-noise UI surfaces', async () => {
   const [focus, activity, confirmation, history, preview, appStyles, bitsStyles] = await Promise.all([
-    readFile('src/features/chat/FocusSession.tsx', 'utf8'),
+    readFile('src/features/chat/FocusTranscript.tsx', 'utf8'),
     readFile('src/features/chat/AgentRunActivity.tsx', 'utf8'),
     readFile('src/components/ai-elements/confirmation.tsx', 'utf8'),
     readFile('src/features/chat/ChatHistoryPage.tsx', 'utf8'),

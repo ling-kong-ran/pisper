@@ -59,11 +59,11 @@ test('new sessions inherit the most recently listed workspace', async () => {
   assert.equal(recentSessionCwd(sessions), 'E:\\code\\latest')
   assert.equal(recentSessionCwd([]), '')
 
-  const [page, api] = await Promise.all([
-    readFile('src/features/chat/ChatPage.tsx', 'utf8'),
+  const [catalog, api] = await Promise.all([
+    readFile('src/features/chat/use-session-catalog.ts', 'utf8'),
     readFile('src/features/chat/chat-api.ts', 'utf8'),
   ])
-  assert.match(page, /recentSessionCwd\(sessionsRef\.current\)/)
+  assert.match(catalog, /recentSessionCwd\(sessionsRef\.current\)/)
   assert.match(api, /data: \{ name, \.\.\.\(cwd \? \{ cwd \} : \{\}\) \}/)
 })
 
