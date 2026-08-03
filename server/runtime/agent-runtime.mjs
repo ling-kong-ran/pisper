@@ -2,10 +2,7 @@ import { mkdir, open, readFile, stat, unlink, writeFile } from 'node:fs/promises
 import { createHash, randomUUID } from 'node:crypto'
 import { basename, extname, join, resolve, sep } from 'node:path'
 import {
-  calculateContextTokens,
   createAgentSession,
-  estimateTokens,
-  ModelRuntime,
   SessionManager,
   SettingsManager,
 } from './pi-coding-agent.mjs'
@@ -28,7 +25,7 @@ import { WebSearchService } from '../services/web-search-service.mjs'
 import { extractConversationMemories } from '../services/memory/conversation-memory.mjs'
 import { LocalMemoryRuntime } from '../services/memory/local-memory-runtime.mjs'
 import { createSemanticMemorySummarizer } from '../services/memory/semantic-memory.mjs'
-import { inferModelKind, VisualGenerationService } from '../services/visual-generation/index.mjs'
+import { VisualGenerationService } from '../services/visual-generation/index.mjs'
 import { MultiAgentService, MULTI_AGENT_TOOL_NAMES, agentCompletionPrompt, isAgentCompletionMessage } from '../services/multi-agent-service.mjs'
 import { GoalService, goalBudgetPrompt, goalContinuationPrompt, isGoalContinuationMessage } from '../services/goal-service.mjs'
 import { GitChangesService } from '../services/git-changes-service.mjs'
@@ -40,56 +37,45 @@ import {
   resolveWorkspaceDirectory,
   workspacePathKey,
 } from './workspace-directories.mjs'
-import { assetMessageAttachment, attachGeneratedAssets } from '../services/session-assets.mjs'
+import { assetMessageAttachment } from '../services/session-assets.mjs'
 import { createAppTools, createMultiAgentTools, TOOL_PRESETS, toolsFromConfig } from '../tools/registry.mjs'
 import { createGoalTools, GOAL_TOOL_NAMES } from '../tools/app/goal.mjs'
 import { createPlanTools, PLAN_ALL_TOOL_NAMES, PLAN_COMPATIBILITY_TOOL_NAMES } from '../tools/app/plan.mjs'
 import { createToolDiscoveryTool, TOOL_DISCOVERY_NAME } from '../tools/app/tool-discovery.mjs'
 import { createPisperBashTool } from '../tools/host-bash.mjs'
-import { hotToolNames, mergePromotedToolNames, schemaOnlyToolDefinitions, selectedToolNames } from '../tools/tool-activation.mjs'
+import { hotToolNames, mergePromotedToolNames, schemaOnlyToolDefinitions } from '../tools/tool-activation.mjs'
 import { DEFAULT_EXECUTION_MODE, EXECUTION_MODES, filterToolsForExecutionMode, migrateLegacyExecutionMode, normalizeExecutionMode, permissionModeForExecutionMode } from '../security/execution-mode.mjs'
-import { redactSecretText } from '../security/secret-redaction.mjs'
 import { applyPisperSystemPrompt, pisperPromptExtension } from '../prompts/pisper-system-prompt.mjs'
 import {
   DEFAULT_COMPACTION_THRESHOLD_PERCENT,
   MAX_COMPACTION_THRESHOLD_PERCENT,
   MIN_COMPACTION_THRESHOLD_PERCENT,
   createCompactionSettingsManager,
-  effectiveCompactionSettings,
   normalizeCompactionThresholdPercent,
   pisperCompactionExtension,
 } from './compaction-policy.mjs'
-
-const KNOWN_PROVIDERS = ['openai', 'anthropic', 'google', 'deepseek', 'xai', 'openrouter', 'kimi-coding', 'zai-coding-cn']
-const PROVIDER_LABELS = {
-  openai: 'OpenAI',
-  anthropic: 'Anthropic',
-  google: 'Google',
-  deepseek: 'DeepSeek',
-  xai: 'xAI',
-  openrouter: 'OpenRouter',
-  'kimi-coding': 'Kimi Code',
-  'zai-coding-cn': 'GLM',
-}
-const PROVIDER_DEFAULT_BASE_URLS = {
-  openai: 'https://api.openai.com/v1',
-  anthropic: 'https://api.anthropic.com/v1',
-  google: 'https://generativelanguage.googleapis.com/v1beta',
-  deepseek: 'https://api.deepseek.com',
-  xai: 'https://api.x.ai/v1',
-  openrouter: 'https://openrouter.ai/api/v1',
-  'kimi-coding': 'https://api.kimi.com/coding/',
-  'zai-coding-cn': 'https://open.bigmodel.cn/api/paas/v4',
-}
+import { ToolActivation } from './tool-activation.mjs'
+import { SessionLifecycle } from './session-lifecycle.mjs'
+import { ProviderPreferences } from './provider-preferences.mjs'
+import {
+  MAX_LIVE_ACTIVITY_ITEMS,
+  StreamProjection,
+  finishedCompaction,
+  isInternalParentMessage,
+  livePlanChanges,
+  liveThinkingTail,
+  pushLiveActivity,
+  queuedSessionInputs,
+  setLiveActivity,
+  startedCompaction,
+  textFromContent,
+} from './stream-projection.mjs'
 const ATTACHMENT_MARKER = '\n\n---\nAttachment context (injected by Pisper):\n'
 const MAX_EXTRACTED_CHARS = 400_000
 const MAX_ASSET_BYTES = 24 * 1024 * 1024
 const MAX_CHAT_ASSET_BYTES = 10 * 1024 * 1024
 const DEFAULT_SESSION_NAME = '新会话'
 const MAX_SESSION_TITLE_CHARS = 20
-const DEFAULT_MESSAGE_PAGE_SIZE = 40
-const MAX_MESSAGE_PAGE_SIZE = 100
-const LIVE_MESSAGE_PAGE_SIZE = 60
 const MAX_RESIDENT_SESSION_RUNTIMES = 3
 const SESSION_RUNTIME_IDLE_TTL_MS = 5 * 60 * 1000
 const SESSION_RUNTIME_SWEEP_INTERVAL_MS = 60 * 1000
@@ -97,7 +83,6 @@ const SESSION_HISTORY_READ_CHUNK_BYTES = 1024 * 1024
 const MAX_SESSION_HISTORY_CACHE_ENTRIES = 4
 const MAX_SESSION_HISTORY_CACHE_SOURCE_BYTES = 8 * 1024 * 1024
 const MAX_SESSION_HISTORY_CACHE_ESTIMATED_BYTES = 48 * 1024 * 1024
-const SESSION_HISTORY_CACHE_MEMORY_MULTIPLIER = 4
 const ISOLATED_CONTEXT_BLOCKED_TOOLS = ['memory_search', 'memory_remember']
 const ASSET_TEXT_EXTENSIONS = new Set(['.txt', '.md', '.json', '.js', '.jsx', '.ts', '.tsx', '.css', '.html', '.xml', '.yaml', '.yml', '.csv', '.log', '.py', '.java', '.go', '.rs', '.sh', '.ps1', '.toml', '.sql'])
 const ASSET_DOCUMENT_EXTENSIONS = new Set(['.pdf', '.docx', '.pptx', '.xlsx', '.odt', '.odp', '.ods', '.rtf', '.epub'])
@@ -116,19 +101,6 @@ export function installTransientStreamRetry(session) {
   return session
 }
 
-function isInternalParentMessage(content) {
-  return isGoalContinuationMessage(content) || isAgentCompletionMessage(content)
-}
-
-function textFromContent(content) {
-  if (typeof content === 'string') return content
-  if (!Array.isArray(content)) return ''
-  return content
-    .filter((part) => part?.type === 'text')
-    .map((part) => part.text || '')
-    .join('')
-}
-
 export function storedSessionModelId(sessionManager) {
   let modelId = ''
   for (const entry of sessionManager?.getBranch?.() || []) {
@@ -136,13 +108,6 @@ export function storedSessionModelId(sessionManager) {
     else if (entry?.type === 'message' && entry.message?.role === 'assistant') modelId = entry.message.model || modelId
   }
   return modelId
-}
-
-const MAX_LIVE_ACTIVITY_ITEMS = 6
-const MAX_LIVE_THINKING_CHARS = 6_000
-
-function liveThinkingTail(value) {
-  return String(value || '').slice(-MAX_LIVE_THINKING_CHARS)
 }
 
 export function multiAgentResultAgent(toolName, details) {
@@ -158,239 +123,11 @@ export async function waitForAgentMailbox(multiAgents, sessionId, timeoutMs, tar
   return result
 }
 
-function liveActivityKey(activity) {
-  if (!activity?.type) return ''
-  if (activity.type === 'tool') return `tool:${activity.id || activity.name || ''}`
-  if (activity.type === 'agent') return `agent:${activity.agent?.id || activity.agent?.canonicalName || ''}`
-  if (activity.type === 'plan') return `plan:${activity.updatedAt || activity.plan?.updatedAt || ''}`
-  if (activity.type === 'model') return `model:${activity.stage || ''}`
-  if (activity.type === 'compaction') return `compaction:${activity.compaction?.status || activity.compaction?.active || ''}`
-  return `${activity.type}:${activity.id || activity.updatedAt || ''}`
-}
 
-function pushLiveActivity(feed, activity) {
-  const current = Array.isArray(feed) ? feed : []
-  if (!['tool', 'plan', 'agent'].includes(activity?.type)) return current
-  let next = [...current]
-  if (activity.type === 'plan') next = next.filter((item) => item?.type !== 'tool' || !PLAN_ALL_TOOL_NAMES.includes(item.name))
-  if (activity.type === 'agent') next = next.filter((item) => item?.type !== 'tool' || !MULTI_AGENT_TOOL_NAMES.includes(item.name))
-  const key = liveActivityKey(activity)
-  const existingIndex = next.findIndex((item) => liveActivityKey(item) === key)
-  if (existingIndex >= 0) next[existingIndex] = { ...next[existingIndex], ...activity }
-  else next.push(activity)
-  return next.slice(-MAX_LIVE_ACTIVITY_ITEMS)
-}
 
-function setLiveActivity(live, activity) {
-  if (!live) return
-  live.currentActivity = activity || null
-  live.activityFeed = activity ? pushLiveActivity(live.activityFeed, activity) : []
-}
 
-function livePlanChanges(previous, next) {
-  const previousItems = new Map((previous?.items || []).map((item) => [item.id, item]))
-  const nextItems = new Map((next?.items || []).map((item) => [item.id, item]))
-  const changes = []
-  for (const item of nextItems.values()) {
-    const before = previousItems.get(item.id)
-    if (!before) changes.push({ id: item.id, title: item.title, status: item.status, kind: 'added' })
-    else if (
-      before.status !== item.status ||
-      before.title !== item.title ||
-      before.note !== item.note ||
-      before.assignee !== item.assignee ||
-      JSON.stringify(before.dependsOn || []) !== JSON.stringify(item.dependsOn || [])
-    ) {
-      changes.push({ id: item.id, title: item.title, status: item.status, previousStatus: before.status, kind: 'updated' })
-    }
-  }
-  for (const item of previousItems.values()) {
-    if (!nextItems.has(item.id)) changes.push({ id: item.id, title: item.title, status: item.status, kind: 'removed' })
-  }
-  return changes
-}
 
-function queuedSessionInputs(session) {
-  const steering = typeof session?.getSteeringMessages === 'function' ? session.getSteeringMessages() : []
-  const followUp = typeof session?.getFollowUpMessages === 'function' ? session.getFollowUpMessages() : []
-  return [
-    ...steering.filter((text) => !isInternalParentMessage(text)).map((text) => ({ behavior: 'steer', text })),
-    ...followUp.filter((text) => !isInternalParentMessage(text)).map((text) => ({ behavior: 'followUp', text })),
-  ]
-}
 
-function serializeMessage(message, index, resolveImageUrl = null) {
-  if (!message || !['user', 'assistant'].includes(message.role)) return null
-  const rawText = textFromContent(message.content)
-  if (message.role === 'user' && isInternalParentMessage(rawText)) return null
-  const text = message.role === 'user' ? rawText.split(ATTACHMENT_MARKER)[0] : rawText
-  if (!text) return null
-  const attachments = Array.isArray(message.content)
-    ? message.content.filter((part) => part?.type === 'image').map((part, attachmentIndex) => {
-        const attachment = {
-          id: `image-${index}-${attachmentIndex}`,
-          kind: 'image',
-          name: `图片附件 ${attachmentIndex + 1}`,
-          mimeType: part.mimeType,
-        }
-        // Avoid re-sending base64 payloads on every poll: archived user images
-        // are served through the asset pipeline and cached by the browser.
-        const url = resolveImageUrl?.(part)
-        if (url) attachment.url = url
-        else attachment.data = part.data
-        return attachment
-      })
-    : []
-  return {
-    id: `${message.role}-${message.timestamp || index}-${index}`,
-    role: message.role === 'assistant' ? 'agent' : 'user',
-    text,
-    timestamp: message.timestamp || null,
-    error: message.role === 'assistant' ? message.errorMessage || null : null,
-    attachments,
-  }
-}
-
-function serializedTimestamp(value) {
-  if (value == null || value === '') return null
-  const date = new Date(value)
-  return Number.isNaN(date.getTime()) ? null : date.toISOString()
-}
-
-function serializeTranscriptMessages(messages, resolveImageUrl = null) {
-  const result = []
-  let thinkingParts = []
-  let tools = new Map()
-  let startedAt = null
-  let lastActivityAt = null
-  let lastActivityMessage = null
-  let runResultIndex = null
-
-  const hasActivity = () => thinkingParts.length > 0 || tools.size > 0
-  const resetRun = () => {
-    thinkingParts = []
-    tools = new Map()
-    startedAt = null
-    lastActivityAt = null
-    lastActivityMessage = null
-    runResultIndex = null
-  }
-  const finishRun = ({ terminal = false } = {}) => {
-    if (!hasActivity()) return
-    let item = runResultIndex == null ? null : result[runResultIndex]
-    if (!item) {
-      const { message, index } = lastActivityMessage || { message: {}, index: result.length }
-      item = {
-        id: `assistant-${message.timestamp || index}-${index}`,
-        role: 'agent',
-        text: '',
-        timestamp: message.timestamp || null,
-        error: message.errorMessage || null,
-        attachments: [],
-      }
-      result.push(item)
-    }
-    const unresolvedMessage = String(
-      item.error || (!terminal ? '工具调用未记录完成结果。' : ''),
-    ).trim()
-    const activityTools = [...tools.values()]
-      .slice(-MAX_LIVE_ACTIVITY_ITEMS)
-      .map((tool) =>
-        tool.status === 'running'
-          ? {
-              ...tool,
-              status: unresolvedMessage ? 'error' : 'done',
-              message: unresolvedMessage || tool.message || '',
-              updatedAt: lastActivityAt || tool.updatedAt,
-              finishedAt: lastActivityAt || tool.updatedAt || tool.startedAt,
-            }
-          : tool,
-      )
-    item.runActivity = {
-      thinkingText: thinkingParts.join('\n\n').slice(-MAX_LIVE_THINKING_CHARS),
-      tools: activityTools,
-      activityFeed: activityTools,
-      startedAt,
-      lastActivityAt,
-      finishedAt: lastActivityAt,
-    }
-  }
-
-  for (const [index, message] of (messages || []).entries()) {
-    if (message?.role === 'toolResult') {
-      const tool = tools.get(message.toolCallId)
-      if (!tool) continue
-      const finishedAt = serializedTimestamp(message.timestamp)
-      const output = textFromContent(message.content).slice(-MAX_LIVE_THINKING_CHARS)
-      Object.assign(tool, {
-        status: message.isError ? 'error' : 'done',
-        message: message.isError ? output.replace(/\s+/g, ' ').trim().slice(0, 180) : '',
-        updatedAt: finishedAt || tool.updatedAt,
-        finishedAt,
-        ...(tool.name === 'bash' ? { output } : {}),
-      })
-      lastActivityAt = finishedAt || lastActivityAt
-      continue
-    }
-
-    if (message?.role === 'assistant') {
-      const timestamp = serializedTimestamp(message.timestamp)
-      const content = Array.isArray(message.content) ? message.content : []
-      const thinking = content
-        .filter((part) => part?.type === 'thinking')
-        .map((part) => String(part.thinking || ''))
-        .filter(Boolean)
-      if (thinking.length) thinkingParts.push(...thinking)
-      const toolCalls = content.filter((part) => part?.type === 'toolCall')
-      for (const call of toolCalls) {
-        const activity = {
-          type: 'tool',
-          id: call.id,
-          name: call.name,
-          args: call.arguments || {},
-          status: 'running',
-          startedAt: timestamp,
-          updatedAt: timestamp,
-          ...(call.name === 'bash' ? { output: '' } : {}),
-        }
-        tools.set(call.id, activity)
-      }
-      if (thinking.length || toolCalls.length) {
-        if (!startedAt) startedAt = timestamp
-        lastActivityAt = timestamp || lastActivityAt
-        lastActivityMessage = { message, index }
-      }
-
-      const serialized = serializeMessage(message, index, resolveImageUrl)
-      const terminal = message.stopReason
-        ? message.stopReason !== 'toolUse'
-        : toolCalls.length === 0
-      if (serialized || (terminal && hasActivity())) {
-        const item = serialized || {
-          id: `${message.role}-${message.timestamp || index}-${index}`,
-          role: 'agent',
-          text: '',
-          timestamp: message.timestamp || null,
-          error: message.errorMessage || null,
-          attachments: [],
-        }
-        result.push(item)
-        runResultIndex = result.length - 1
-      }
-      if (terminal) {
-        finishRun({ terminal: true })
-        resetRun()
-      }
-      continue
-    }
-
-    const serialized = serializeMessage(message, index, resolveImageUrl)
-    if (serialized) result.push(serialized)
-  }
-
-  finishRun()
-  return result
-}
 
 function safeAttachmentName(name) {
   return String(name || '附件').replace(/[\r\n<>]/g, '_').slice(0, 180)
@@ -449,91 +186,8 @@ function addUsage(target, usage) {
   return target
 }
 
-function optionalTokenCount(value) {
-  const tokens = Number(value)
-  return Number.isFinite(tokens) ? Math.max(0, Math.round(tokens)) : null
-}
-
-function startedCompaction(reason, startedAt) {
-  return {
-    active: true,
-    status: 'running',
-    reason: ['manual', 'threshold', 'overflow'].includes(reason) ? reason : 'threshold',
-    startedAt,
-    finishedAt: null,
-    tokensBefore: null,
-    estimatedTokensAfter: null,
-    tokensSaved: null,
-    aborted: false,
-    willRetry: false,
-    error: '',
-  }
-}
-
-function validAssistantUsage(message) {
-  if (message?.role !== 'assistant' || message.stopReason === 'aborted' || message.stopReason === 'error' || !message.usage) return null
-  return calculateContextTokens(message.usage) > 0 ? message.usage : null
-}
-
-function estimateMessageContextTokens(messages = []) {
-  let usageIndex = -1
-  let tokens = 0
-  for (let index = messages.length - 1; index >= 0; index -= 1) {
-    const usage = validAssistantUsage(messages[index])
-    if (!usage) continue
-    usageIndex = index
-    tokens = calculateContextTokens(usage)
-    break
-  }
-  const start = usageIndex >= 0 ? usageIndex + 1 : 0
-  for (let index = start; index < messages.length; index += 1) tokens += estimateTokens(messages[index])
-  return Math.max(0, Math.round(tokens))
-}
-
-function persistedContextUsage(manager, contextWindow) {
-  if (!manager || !contextWindow) return undefined
-  const branch = manager.getBranch()
-  const latestCompactionIndex = branch.findLastIndex((entry) => entry?.type === 'compaction')
-  if (latestCompactionIndex >= 0) {
-    const hasPostCompactionUsage = branch.slice(latestCompactionIndex + 1).some((entry) => entry?.type === 'message' && validAssistantUsage(entry.message))
-    if (!hasPostCompactionUsage) return { tokens: null, contextWindow, percent: null }
-  }
-  const tokens = estimateMessageContextTokens(manager.buildSessionContext().messages)
-  return { tokens, contextWindow, percent: (tokens / contextWindow) * 100 }
-}
-
-function finishedCompaction(previous, event, finishedAt) {
-  const tokensBefore = optionalTokenCount(event.result?.tokensBefore)
-  const estimatedTokensAfter = optionalTokenCount(event.result?.estimatedTokensAfter)
-  return {
-    ...(previous || startedCompaction(event.reason, finishedAt)),
-    active: false,
-    status: event.errorMessage ? 'failed' : event.aborted ? 'aborted' : event.result ? 'completed' : 'failed',
-    reason: ['manual', 'threshold', 'overflow'].includes(event.reason) ? event.reason : previous?.reason || 'threshold',
-    finishedAt,
-    tokensBefore,
-    estimatedTokensAfter,
-    tokensSaved: tokensBefore != null && estimatedTokensAfter != null ? Math.max(0, tokensBefore - estimatedTokensAfter) : null,
-    aborted: Boolean(event.aborted),
-    willRetry: Boolean(event.willRetry),
-    error: String(event.errorMessage || ''),
-  }
-}
-
 async function resolveDirectory(input, fallback) {
   return resolveWorkspaceDirectory(input, fallback)
-}
-
-function sessionThinkingState(session) {
-  const availableLevels = session.getAvailableThinkingLevels()
-  const supported = availableLevels.length > 0
-  return {
-    thinkingLevel: session.thinkingLevel,
-    availableLevels,
-    status: supported ? 'supported' : 'unsupported',
-    message: supported ? '' : 'The current model does not expose configurable thinking levels.',
-    model: session.model ? `${session.model.provider}/${session.model.id}` : '',
-  }
 }
 
 function temporarySessionTitle(message, attachments = []) {
@@ -566,124 +220,6 @@ async function extractDocumentText(attachment) {
   const text = typeof extracted === 'string' ? extracted : extracted?.value
   if (!text?.trim()) throw new Error(`${safeAttachmentName(attachment.name)} 未提取到可分析文本`)
   return text.slice(0, MAX_EXTRACTED_CHARS)
-}
-
-function modelRank(provider, model) {
-  const id = model.id.toLowerCase()
-  if ((provider === 'openai' || provider === 'openai-codex') && id.startsWith('gpt-5')) return 100
-  if (provider === 'anthropic' && /claude-(opus|sonnet)-4/.test(id)) return 100
-  if (provider === 'google' && /gemini-(3|2\.5)/.test(id)) return 100
-  if (provider === 'deepseek' && /reasoner|chat/.test(id)) return 90
-  if (provider === 'kimi-coding') {
-    if (id === 'k3') return 120
-    if (id === 'kimi-for-coding-highspeed') return 115
-    if (id === 'kimi-for-coding' || id === 'k2p7') return 110
-    if (id.includes('k2-thinking')) return 100
-  }
-  if (provider === 'zai-coding-cn') {
-    if (id === 'glm-5.2') return 120
-    if (id === 'glm-5.1') return 110
-    if (id.includes('glm-5-turbo')) return 105
-    if (id === 'glm-4.7') return 100
-    if (id.includes('glm-4.7-flash')) return 90
-  }
-  return model.reasoning ? 50 : 10
-}
-
-function providerProfileId(value) {
-  return String(value || '')
-    .trim()
-    .toLowerCase()
-    .replace(/[^a-z0-9._-]+/g, '-')
-    .replace(/^-+|-+$/g, '')
-    .slice(0, 60)
-}
-
-function credentialSecret(credential) {
-  if (typeof credential === 'string') return credential.trim()
-  if (!credential || typeof credential !== 'object') return ''
-  return String(credential.key || credential.apiKey || credential.token || credential.accessToken || '').trim()
-}
-
-function configuredProviderSecret(credential, providerConfig) {
-  const stored = credentialSecret(credential)
-  if (stored) return stored
-  const reference = String(providerConfig?.apiKey || '').trim()
-  if (reference.startsWith('$')) return String(process.env[reference.slice(1)] || '').trim()
-  return reference
-}
-
-function normalizedProviderBaseUrl(value) {
-  return String(value || '').trim().replace(/\/+$/, '').toLowerCase()
-}
-
-function sameBaseUrl(left, right) {
-  return normalizedProviderBaseUrl(left) === normalizedProviderBaseUrl(right)
-}
-
-function hasHeader(headers, expectedName) {
-  const expected = String(expectedName || '').toLowerCase()
-  return Object.keys(headers || {}).some((name) => name.toLowerCase() === expected)
-}
-
-function usesCustomProviderEndpoint(providerId, providerConfig) {
-  const baseUrl = String(providerConfig?.baseUrl || '').trim()
-  if (!baseUrl) return false
-  const officialBaseUrl = PROVIDER_DEFAULT_BASE_URLS[providerId]
-  return !officialBaseUrl || !sameBaseUrl(baseUrl, officialBaseUrl)
-}
-
-function providerHeaders(providerId, providerConfig, userAgent, modelHeaders = {}) {
-  const headers = { ...(providerConfig?.headers || {}), ...(modelHeaders || {}) }
-  if (usesCustomProviderEndpoint(providerId, providerConfig) && !hasHeader(headers, 'user-agent')) {
-    headers['User-Agent'] = userAgent
-  }
-  return headers
-}
-
-function inferredProviderType(providerConfig) {
-  const models = Array.isArray(providerConfig?.models) ? providerConfig.models : []
-  if (!models.length) return 'chat'
-  return models.every((model) => inferModelKind(model.id, model.kind) !== 'chat') ? 'visual' : 'chat'
-}
-
-function visualModelClaimKey(baseUrl, modelId, kind) {
-  return [normalizedProviderBaseUrl(baseUrl), String(modelId || '').toLowerCase(), kind].join('\0')
-}
-
-function dedicatedVisualModelClaims(modelsJson, appConfig) {
-  const claims = new Map()
-  const disabled = new Set(appConfig.disabledProviders || [])
-  for (const [providerId, provider] of Object.entries(modelsJson.providers || {})) {
-    if (disabled.has(providerId)) continue
-    const type = appConfig.providerTypes?.[providerId] || inferredProviderType(provider)
-    if (type !== 'visual') continue
-    for (const model of provider.models || []) {
-      const kind = inferModelKind(model.id, model.kind)
-      if (kind === 'chat') continue
-      const baseUrl = model.baseUrl || provider.baseUrl || PROVIDER_DEFAULT_BASE_URLS[providerId] || ''
-      if (!baseUrl) continue
-      const key = visualModelClaimKey(baseUrl, model.id, kind)
-      const providerIds = claims.get(key) || new Set()
-      providerIds.add(providerId)
-      claims.set(key, providerIds)
-    }
-  }
-  return claims
-}
-
-function claimedByOtherVisualProvider(claims, providerId, baseUrl, modelId, kind) {
-  const providerIds = claims.get(visualModelClaimKey(baseUrl, modelId, kind))
-  return Boolean(providerIds && [...providerIds].some((id) => id !== providerId))
-}
-
-function claimedByOtherVisualProviderAnyKind(claims, providerId, baseUrl, modelId) {
-  const prefix = [normalizedProviderBaseUrl(baseUrl), String(modelId || '').toLowerCase(), ''].join('\0')
-  for (const [key, providerIds] of claims) {
-    if (!key.startsWith(prefix)) continue
-    if ([...providerIds].some((id) => id !== providerId)) return true
-  }
-  return false
 }
 
 export class AgentRuntimeService {
@@ -811,15 +347,131 @@ export class AgentRuntimeService {
       getCompactionThresholdPercent: () => this.compactionThresholdPercent,
       createResourceLoader: ({ cwd: childCwd, appendSystemPrompt }) => this.skills.createResourceLoader(childCwd, { appendSystemPrompt }),
     })
-    // 设置 Agent 完成通知器：向父会话注入隐藏消息
     this.multiAgents.setCompletionNotifier((agent) => this.injectAgentCompletion(agent))
     this.sessionMetaWrite = Promise.resolve()
     this.usageLedger = { days: {}, sessionScans: {} }
     this.usageWrite = Promise.resolve()
     this.assetIndex = { assets: [] }
     this.assetWrite = Promise.resolve()
-    this.providerModelRefreshPromise = null
+    this.providerState = { refreshPromise: null }
+    Object.defineProperty(this, 'providerModelRefreshPromise', {
+      configurable: true,
+      get: () => this.providerState.refreshPromise,
+      set: (value) => { this.providerState.refreshPromise = value },
+    })
     this.agentWakeupTimers = new Map()
+    this.assetProjectionRevision = 0
+    this.streamProjection = new StreamProjection({
+      cwd: this.cwd,
+      sessions: () => this.sessions,
+      liveSessions: () => this.liveSessions,
+      sessionMeta: () => this.sessionMeta,
+      assetIndex: () => this.assetIndex,
+      getAssetRevision: () => this.assetProjectionRevision,
+      getExecutionMode: (id) => this.getSessionExecutionMode(id),
+      goals: { get: (id) => this.goals.get(id) },
+      plans: { get: (id) => this.plans.get(id) },
+      multiAgents: { summaries: (id) => this.multiAgents.summaries(id) },
+      permissions: { getPending: (id) => this.permissions.getPending(id) },
+      settingsManager: () => this.settingsManager,
+      modelRuntime: () => this.modelRuntime,
+      compactionThresholdPercent: () => this.compactionThresholdPercent,
+      findSessionInfo: (id) => this.findSessionInfo(id),
+      openStoredSession: (path) => this.openStoredSession(path),
+      touchSessionRuntime: (value) => this.touchSessionRuntime(value),
+      history: () => ({
+        cache: this.sessionHistoryCache,
+        paths: this.sessionHistoryPaths,
+        contextUsageCache: this.sessionContextUsageCache,
+        readChunkBytes: this.sessionHistoryReadChunkBytes,
+        maxEntries: this.maxSessionHistoryCacheEntries,
+        maxSourceBytes: this.maxSessionHistoryCacheSourceBytes,
+        maxEstimatedBytes: this.maxSessionHistoryCacheEstimatedBytes,
+      }),
+    })
+    this.toolActivation = new ToolActivation({
+      getExecutionMode: (id) => this.getSessionExecutionMode(id),
+      getToolRisk: (name) => this.mcp.getToolRisk(name),
+      getSessionMeta: () => this.sessionMeta,
+      saveSessionMeta: () => this.saveSessionMeta(),
+      getGoal: (id) => this.goals.get(id),
+      promoteTools: (value, names) => this.promoteSessionTools(value, names),
+    })
+    this.lifecycleState = {}
+    for (const property of [
+      'maxResidentSessionRuntimes',
+      'sessionRuntimeIdleTtlMs',
+      'maxSessionHistoryCacheEntries',
+      'maxSessionHistoryCacheSourceBytes',
+      'maxSessionHistoryCacheEstimatedBytes',
+      'sessionRuntimeVersion',
+      'storedSessionsCache',
+    ]) {
+      Object.defineProperty(this.lifecycleState, property, {
+        enumerable: true,
+        get: () => this[property],
+        set: (value) => { this[property] = value },
+      })
+    }
+    this.sessionLifecycle = new SessionLifecycle({
+      cwd: this.cwd,
+      sessionDir: this.sessionDir,
+      sessions: this.sessions,
+      pendingSessions: this.pendingSessions,
+      liveSessions: this.liveSessions,
+      sessionHistoryCache: this.sessionHistoryCache,
+      sessionHistoryPaths: this.sessionHistoryPaths,
+      sessionContextUsageCache: this.sessionContextUsageCache,
+      agentWakeupTimers: this.agentWakeupTimers,
+      getSessionMeta: () => this.sessionMeta,
+      getSettingsManager: () => this.settingsManager,
+      getGoals: () => this.goals,
+      getPlans: () => this.plans,
+      getMultiAgents: () => this.multiAgents,
+      getPermissions: () => this.permissions,
+      getBrowserAutomation: () => this.browserAutomation,
+      getExecutionMode: (id) => this.getSessionExecutionMode(id),
+      resolveDirectory,
+      cleanSessionTitle,
+      listStoredSessions: (options) => this.listStoredSessions(options),
+      openStoredSession: (path) => this.openStoredSession(path),
+      saveSessionMeta: () => this.saveSessionMeta(),
+      saveUsageLedger: () => this.saveUsageLedger(),
+      getUsageLedger: () => this.usageLedger,
+      createSessionRuntime: (manager, name) => this.createSessionRuntime(manager, name),
+      setSessionModel: (id, provider, model) => this.setSessionModel(id, provider, model),
+      syncGoalTools: (value, goal) => this.syncGoalTools(value, goal),
+      pauseSessionGoal: (id) => this.pauseSessionGoal(id),
+      invalidateProjection: (id, scopes) => this.streamProjection.invalidate(id, scopes),
+      getRuntimeState: () => this.lifecycleState,
+      setRuntimeVersion: (version) => { this.sessionRuntimeVersion = version },
+    })
+    this.providerPreferences = new ProviderPreferences({
+      authPath: this.authPath,
+      modelsPath: this.modelsPath,
+      appConfigPath: this.appConfigPath,
+      providerUserAgent: this.providerUserAgent,
+      providerDiscovery: this.providerDiscovery,
+      providerModelDiscovery: this.providerModelDiscovery,
+      providerModelCatalog: this.providerModelCatalog,
+      modelMetadata: this.modelMetadata,
+      getModelRuntime: () => this.modelRuntime,
+      setModelRuntime: (runtime) => { this.modelRuntime = runtime },
+      getSettingsManager: () => this.settingsManager,
+      getSession: (id) => this.getOrCreateSession(id),
+      contextUsage: (session, compaction) => this.compactionAwareContextUsage(session, compaction),
+      invalidateProjection: (id, scopes) => {
+        if (scopes?.allUsage) this.streamProjection.invalidateAllUsage()
+        else this.streamProjection.invalidate(id, scopes)
+      },
+      disposeSessions: () => this.disposeSessions(),
+      reloadModelRuntime: () => this.reloadModelRuntime(),
+      getConfig: () => this.getConfig(),
+      getProviderDiscovery: () => this.getProviderDiscovery(),
+      discoverProviderModels: (id, input) => this.discoverProviderModels(id, input),
+      reconcileDefaultModel: () => this.reconcileDefaultModel(),
+      providerState: this.providerState,
+    })
   }
 
   async init() {
@@ -864,33 +516,13 @@ export class AgentRuntimeService {
   }
 
   async reloadModelRuntime() {
-    const modelsJson = await readJson(this.modelsPath, { providers: {} })
-    this.modelRuntime = await ModelRuntime.create({
-      authPath: this.authPath,
-      modelsPath: this.modelsPath,
-      allowModelNetwork: false,
-    })
-    const configuredBaseUrls = {}
-    const configuredHeaders = {}
-    const configuredContextWindows = {}
-    const configuredInputs = {}
-    for (const provider of this.modelRuntime.getProviders()) {
-      const overlay = modelsJson.providers?.[provider.id] || {}
-      configuredBaseUrls[provider.id] = overlay.baseUrl || PROVIDER_DEFAULT_BASE_URLS[provider.id] || this.modelRuntime.getModels(provider.id)[0]?.baseUrl || ''
-      if (usesCustomProviderEndpoint(provider.id, overlay)) {
-        configuredHeaders[provider.id] = providerHeaders(provider.id, overlay, this.providerUserAgent)
-      }
-      for (const model of overlay.models || []) {
-        if (Number(model?.contextWindow) > 0) configuredContextWindows[`${provider.id}:${model.id}`] = Number(model.contextWindow)
-        if (Array.isArray(model?.input)) configuredInputs[`${provider.id}:${model.id}`] = model.input
-      }
-    }
-    this.providerModelCatalog.decorateRuntime(this.modelRuntime, configuredBaseUrls, configuredHeaders, configuredContextWindows, configuredInputs)
+    return this.providerPreferences.reload()
   }
 
   emitGoalUpdate(sessionId, goal, send = this.goalEmitters.get(sessionId)) {
     const live = this.liveSessions.get(sessionId)
     if (live) live.goal = goal || null
+    this.streamProjection.invalidate(sessionId, { transcript: false, activity: true, usage: false })
     try { send?.('goal_update', { sessionId, goal: goal || null }) } catch {}
   }
 
@@ -903,6 +535,7 @@ export class AgentRuntimeService {
       live.plan = nextPlan
       setLiveActivity(live, currentActivity)
     }
+    this.streamProjection.invalidate(sessionId, { transcript: false, activity: true, usage: false })
     try { send?.('plan_update', { sessionId, plan: nextPlan, currentActivity }) } catch {}
   }
 
@@ -921,6 +554,7 @@ export class AgentRuntimeService {
         if (live.currentActivity?.type !== 'tool') live.currentActivity = currentActivity
       }
     }
+    this.streamProjection.invalidate(sessionId, { transcript: false, activity: true, usage: false })
     try { send?.('agent_update', { sessionId, agent: updatedAgent, agents, currentActivity }) } catch {}
   }
 
@@ -978,76 +612,25 @@ export class AgentRuntimeService {
   }
 
   optionalToolNames(value) {
-    const blockedToolNames = new Set(value?.blockedToolNames || [])
-    return [
-      ...(value?.baseToolNames || []),
-      ...PLAN_COMPATIBILITY_TOOL_NAMES,
-      ...MULTI_AGENT_TOOL_NAMES,
-    ].filter((name) => !blockedToolNames.has(name))
+    return this.toolActivation.optionalToolNames(value)
   }
 
   syncGoalTools(value, goal) {
-    if (!value?.session) return
-    const mode = this.getSessionExecutionMode(value.session.sessionId)
-    const blockedToolNames = new Set(value.blockedToolNames || [])
-    const availableToolNames = [
-      ...(value.baseToolNames || []),
-      TOOL_DISCOVERY_NAME,
-      ...PLAN_ALL_TOOL_NAMES,
-      ...MULTI_AGENT_TOOL_NAMES,
-      ...GOAL_TOOL_NAMES,
-    ].filter((name) => !blockedToolNames.has(name))
-    const names = selectedToolNames({
-      availableToolNames,
-      promotedToolNames: value.promotedToolNames || [],
-      requestedToolNames: value.requestedToolNames || [],
-      goalToolNames: GOAL_TOOL_NAMES,
-      goalActive: goal?.status === 'active',
-    })
-    value.session.setActiveToolsByName(filterToolsForExecutionMode(
-      names,
-      mode,
-      (toolName) => this.mcp.getToolRisk(toolName),
-    ))
+    return this.toolActivation.syncGoalTools(value, goal)
   }
 
   async promoteSessionTools(value, toolNames = []) {
-    if (!value?.session) return { activatedToolNames: [], promotedToolNames: [] }
-    const availableToolNames = this.optionalToolNames(value)
-    const permittedToolNames = filterToolsForExecutionMode(
-      toolNames.filter((name) => availableToolNames.includes(name)),
-      this.getSessionExecutionMode(value.session.sessionId),
-      (toolName) => this.mcp.getToolRisk(toolName),
-    )
-    const previousPromotedToolNames = value.promotedToolNames || []
-    const promotedToolNames = mergePromotedToolNames({
-      availableToolNames: availableToolNames.filter((name) => !PLAN_COMPATIBILITY_TOOL_NAMES.includes(name)),
-      promotedToolNames: previousPromotedToolNames,
-      requestedToolNames: permittedToolNames,
-    })
-    let promotionWrite = null
-    if (promotedToolNames.join('\0') !== previousPromotedToolNames.join('\0')) {
-      value.promotedToolNames = promotedToolNames
-      const sessionId = value.session.sessionId
-      this.sessionMeta[sessionId] = { ...(this.sessionMeta[sessionId] || {}), promotedToolNames }
-      promotionWrite = this.saveSessionMeta()
-    }
-    this.syncGoalTools(value, this.goals.get(value.session.sessionId))
-    applyPisperSystemPrompt(value.session, value.session.model)
-    if (promotionWrite) await promotionWrite
-    const active = new Set(value.session.getActiveToolNames())
-    return {
-      activatedToolNames: permittedToolNames.filter((name) => active.has(name)),
-      promotedToolNames,
-    }
+    return this.toolActivation.promoteSessionTools(value, toolNames)
   }
 
-  async selectToolsForMessage(value, _message, { requestedToolNames = [], preserveRequested = false } = {}) {
-    if (!value?.session) return []
-    const requested = [...new Set((Array.isArray(requestedToolNames) ? requestedToolNames : [])
-      .map((name) => String(name || '').trim())
-      .filter(Boolean))]
-    value.requestedToolNames = preserveRequested
+  async selectToolsForMessage(value, message, options = {}) {
+    if (this.toolActivation) {
+      return this.toolActivation.selectToolsForMessage(value, message, options)
+    }
+    const requested = [...new Set((Array.isArray(options.requestedToolNames)
+      ? options.requestedToolNames
+      : []).map((name) => String(name || '').trim()).filter(Boolean))]
+    value.requestedToolNames = options.preserveRequested
       ? [...new Set([...(value.requestedToolNames || []), ...requested])]
       : requested
     await this.promoteSessionTools(value, requested)
@@ -1075,53 +658,19 @@ export class AgentRuntimeService {
   }
 
   touchSessionRuntime(value) {
-    if (value) value.lastAccessedAt = Date.now()
-    return value
+    return this.sessionLifecycle.touchSessionRuntime(value)
   }
 
   sessionRuntimeIsProtected(id, value) {
-    return Boolean(
-      value?.session?.isStreaming ||
-      this.goals.get(id)?.status === 'active' ||
-      this.agentWakeupTimers.has(id) ||
-      value?.pendingAgentNotifications?.length ||
-      this.multiAgents.hasActive?.(id),
-    )
+    return this.sessionLifecycle.sessionRuntimeIsProtected(id, value)
   }
 
   disposeSessionRuntime(id, value) {
-    if (!value || this.sessions.get(id) !== value) return false
-    this.permissions.resolveSession(id, false, '会话运行时已从内存释放，请重新发送消息。')
-    try {
-      value.session.dispose()
-    } finally {
-      this.sessions.delete(id)
-      this.sessionContextUsageCache.delete(id)
-      const sessionPath = value.session.sessionFile
-      if (sessionPath) this.sessionHistoryCache.delete(sessionPath)
-    }
-    return true
+    return this.sessionLifecycle.disposeSessionRuntime(id, value)
   }
 
   evictIdleSessionRuntimes(exceptId = '', now = Date.now()) {
-    const maximum = Math.max(1, Number(this.maxResidentSessionRuntimes) || MAX_RESIDENT_SESSION_RUNTIMES)
-    const idleTtlMs = Math.max(0, Number(this.sessionRuntimeIdleTtlMs) || SESSION_RUNTIME_IDLE_TTL_MS)
-    const candidates = () => [...this.sessions.entries()]
-      .filter(([id, value]) => id !== exceptId && !this.sessionRuntimeIsProtected(id, value))
-      .sort((left, right) => (left[1].lastAccessedAt || 0) - (right[1].lastAccessedAt || 0))
-    let evicted = 0
-    if (idleTtlMs > 0) {
-      for (const [id, value] of candidates()) {
-        if (now - (value.lastAccessedAt || 0) < idleTtlMs) continue
-        if (this.disposeSessionRuntime(id, value)) evicted += 1
-      }
-    }
-    const overflow = candidates()
-    while (this.sessions.size > maximum && overflow.length) {
-      const [id, value] = overflow.shift()
-      if (this.disposeSessionRuntime(id, value)) evicted += 1
-    }
-    return evicted
+    return this.sessionLifecycle.evictIdleSessionRuntimes(exceptId, now)
   }
 
   startSessionRuntimeSweeper() {
@@ -1134,56 +683,11 @@ export class AgentRuntimeService {
   }
 
   getRuntimeDiagnostics() {
-    const now = Date.now()
-    const memory = process.memoryUsage()
-    const resident = [...this.sessions.entries()]
-    const protectedSessions = resident.filter(([id, value]) => this.sessionRuntimeIsProtected(id, value)).length
-    const idleAges = resident
-      .filter(([id, value]) => !this.sessionRuntimeIsProtected(id, value))
-      .map(([, value]) => Math.max(0, now - (value.lastAccessedAt || now)))
-    const historySourceBytes = [...this.sessionHistoryCache.values()].reduce((total, entry) => total + entry.size, 0)
-    return {
-      timestamp: new Date(now).toISOString(),
-      uptimeSeconds: Math.round(process.uptime()),
-      workspaceCwd: this.cwd,
-      memory: {
-        rss: memory.rss,
-        heapTotal: memory.heapTotal,
-        heapUsed: memory.heapUsed,
-        external: memory.external,
-        arrayBuffers: memory.arrayBuffers,
-      },
-      sessions: {
-        resident: resident.length,
-        protected: protectedSessions,
-        idle: resident.length - protectedSessions,
-        pending: this.pendingSessions.size,
-        live: this.liveSessions.size,
-        oldestIdleMs: idleAges.length ? Math.max(...idleAges) : 0,
-        maxResident: this.maxResidentSessionRuntimes,
-        idleTtlMs: this.sessionRuntimeIdleTtlMs,
-      },
-      historyCache: {
-        entries: this.sessionHistoryCache.size,
-        sourceBytes: historySourceBytes,
-        estimatedBytes: historySourceBytes * SESSION_HISTORY_CACHE_MEMORY_MULTIPLIER,
-        maxEntries: this.maxSessionHistoryCacheEntries,
-        maxSourceBytes: this.maxSessionHistoryCacheSourceBytes,
-        maxEstimatedBytes: this.maxSessionHistoryCacheEstimatedBytes,
-      },
-    }
+    return this.sessionLifecycle.getRuntimeDiagnostics()
   }
 
   async sessionWorkspaceCwd(id) {
-    if (!id) return this.cwd
-    const activeCwd = this.sessions.get(id)?.cwd
-    if (activeCwd) return activeCwd
-    const pendingCwd = this.pendingSessions.get(id)?.cwd
-    if (pendingCwd) return pendingCwd
-    const metaCwd = this.sessionMeta[id]?.cwd
-    if (metaCwd) return metaCwd
-    const stored = await this.findSessionInfo(id)
-    return stored?.cwd || this.cwd
+    return this.sessionLifecycle.sessionWorkspaceCwd(id)
   }
 
   async sessionGitCwd(id) {
@@ -1209,24 +713,11 @@ export class AgentRuntimeService {
   }
 
   async disposeSessions() {
-    for (const [id, value] of this.sessions) {
-      await this.pauseSessionGoal(id)
-      this.multiAgents.abortParent(id)
-      this.permissions.resolveSession(id, false, 'Agent Runtime 正在重新加载，工具未执行。')
-      value.session.dispose()
-    }
-    this.sessions.clear()
+    return this.sessionLifecycle.disposeSessions()
   }
 
   invalidateSessionRuntimes() {
-    this.sessionRuntimeVersion += 1
-    for (const [id, value] of this.sessions) {
-      if (value.session.isStreaming) continue
-      this.multiAgents.abortParent(id)
-      this.permissions.resolveSession(id, false, 'Agent Runtime resources changed before the tool could run.')
-      value.session.dispose()
-      this.sessions.delete(id)
-    }
+    return this.sessionLifecycle.invalidateSessionRuntimes()
   }
 
   saveSessionMeta() {
@@ -1346,6 +837,8 @@ export class AgentRuntimeService {
   }
 
   saveAssetIndex() {
+    this.assetProjectionRevision += 1
+    this.streamProjection.invalidateAssets()
     const snapshot = structuredClone(this.assetIndex)
     this.assetWrite = this.assetWrite
       .catch(() => {})
@@ -1512,515 +1005,75 @@ export class AgentRuntimeService {
   }
 
   async listSessions() {
-    const sessions = await this.listStoredSessions()
-    const settings = this.settingsManager.getGlobalSettings()
-    const defaultModel = settings.defaultProvider && settings.defaultModel
-      ? `${settings.defaultProvider}/${settings.defaultModel}`
-      : ''
-    const defaultThinkingLevel = settings.defaultThinkingLevel || 'medium'
-    const result = sessions.map((session) => {
-      const active = this.sessions.get(session.id)
-      const contextModel = active?.session.model
-        ? `${active.session.model.provider}/${active.session.model.id}`
-        : this.sessionMeta[session.id]?.model || defaultModel
-      return {
-        id: session.id,
-        name: active?.name || session.name || session.firstMessage || DEFAULT_SESSION_NAME,
-        firstMessage: session.firstMessage || '',
-        messageCount: active
-          ? active.session.messages.filter((message) => ['user', 'assistant'].includes(message.role)).length
-          : session.messageCount,
-        model: contextModel,
-        thinkingLevel: active?.session.thinkingLevel || defaultThinkingLevel,
-        cwd: active?.cwd || this.sessionMeta[session.id]?.cwd || session.cwd || this.cwd,
-        created: session.created.toISOString(),
-        modified: active?.modified || session.modified.toISOString(),
-        streaming: Boolean(active?.session.isStreaming),
-        permissionMode: this.sessionMeta[session.id]?.permissionMode || permissionModeForExecutionMode(this.getSessionExecutionMode(session.id)),
-        executionMode: this.getSessionExecutionMode(session.id),
-        goal: this.goals.get(session.id),
-        plan: this.plans.get(session.id),
-        agents: this.multiAgents.summaries(session.id).filter((agent) => ['queued', 'starting', 'running'].includes(agent.status)),
-      }
-    })
-    const persistedIds = new Set(result.map((session) => session.id))
-    for (const [id, value] of this.sessions) {
-      if (persistedIds.has(id)) continue
-      result.unshift({
-        id,
-        name: value.name || DEFAULT_SESSION_NAME,
-        firstMessage: '',
-        messageCount: value.session.messages.filter((message) => ['user', 'assistant'].includes(message.role)).length,
-        model: value.session.model ? `${value.session.model.provider}/${value.session.model.id}` : defaultModel,
-        thinkingLevel: value.session.thinkingLevel || defaultThinkingLevel,
-        cwd: value.cwd || this.cwd,
-        created: value.created,
-        modified: value.modified,
-        streaming: Boolean(value.session.isStreaming),
-        permissionMode: this.sessionMeta[id]?.permissionMode || permissionModeForExecutionMode(this.getSessionExecutionMode(id)),
-        executionMode: this.getSessionExecutionMode(id),
-        goal: this.goals.get(id),
-        plan: this.plans.get(id),
-        agents: this.multiAgents.summaries(id).filter((agent) => ['queued', 'starting', 'running'].includes(agent.status)),
-      })
-    }
-    for (const [id, value] of this.pendingSessions) {
-      if (persistedIds.has(id) || this.sessions.has(id)) continue
-      result.unshift({
-        id,
-        name: value.name,
-        firstMessage: '',
-        messageCount: 0,
-        model: defaultModel,
-        thinkingLevel: defaultThinkingLevel,
-        cwd: value.cwd,
-        created: value.created,
-        modified: value.modified,
-        streaming: false,
-        permissionMode: this.sessionMeta[id]?.permissionMode || permissionModeForExecutionMode(this.getSessionExecutionMode(id)),
-        executionMode: this.getSessionExecutionMode(id),
-        goal: this.goals.get(id),
-        plan: this.plans.get(id),
-        agents: [],
-      })
-    }
-    result.sort((left, right) => new Date(right.modified).getTime() - new Date(left.modified).getTime())
-    return result
+    return this.sessionLifecycle.listSessions()
   }
 
   async createSession(name, cwd) {
-    const resolvedName = cleanSessionTitle(name) || DEFAULT_SESSION_NAME
-    const effectiveCwd = await resolveDirectory(cwd, this.cwd)
-    const manager = SessionManager.create(effectiveCwd, this.sessionDir)
-    const id = manager.getSessionId()
-    const now = new Date().toISOString()
-    manager.appendSessionInfo(resolvedName)
-    this.pendingSessions.set(id, {
-      manager,
-      name: resolvedName,
-      cwd: effectiveCwd,
-      created: now,
-      modified: now,
-    })
-    this.sessionMeta[id] = {
-      ...(this.sessionMeta[id] || {}),
-      name: resolvedName,
-      manual: resolvedName !== DEFAULT_SESSION_NAME,
-      executionMode: DEFAULT_EXECUTION_MODE,
-      permissionMode: permissionModeForExecutionMode(DEFAULT_EXECUTION_MODE),
-    }
-    await this.saveSessionMeta()
-    const settings = this.settingsManager.getGlobalSettings()
-    const model = settings.defaultProvider && settings.defaultModel
-      ? `${settings.defaultProvider}/${settings.defaultModel}`
-      : ''
-    return {
-      id,
-      name: resolvedName,
-      messageCount: 0,
-      model,
-      thinkingLevel: settings.defaultThinkingLevel || 'medium',
-      cwd: effectiveCwd,
-      created: now,
-      modified: now,
-      permissionMode: this.sessionMeta[id].permissionMode,
-      executionMode: this.getSessionExecutionMode(id),
-      goal: null,
-      plan: this.plans.get(id),
-      agents: [],
-      contextUsage: null,
-    }
+    return this.sessionLifecycle.createSession(name, cwd)
   }
 
   async findSessionInfo(id) {
-    const sessions = await this.listStoredSessions()
-    return sessions.find((session) => session.id === id)
+    return this.sessionLifecycle.findSessionInfo(id)
   }
 
   async getSessionMessages(id) {
-    const active = this.sessions.get(id)
-    let messages
-    if (active) {
-      this.touchSessionRuntime(active)
-      messages = serializeTranscriptMessages(active.session.messages)
-    } else {
-      const info = await this.findSessionInfo(id)
-      if (!info) return []
-      const manager = this.openStoredSession(info.path)
-      messages = serializeTranscriptMessages(manager.buildSessionContext().messages)
-    }
-    const assets = this.assetIndex.assets
-      .filter((asset) => asset.sessionId === id && asset.source === 'agent' && /^(?:image|video)\//.test(asset.mimeType || ''))
-      .sort((left, right) => new Date(left.created).getTime() - new Date(right.created).getTime())
-    return attachGeneratedAssets(messages, assets)
+    return this.streamProjection.getSessionMessages(id)
   }
 
   trimSessionHistoryCache(protectedPath = '') {
-    const maximumEntries = Math.max(1, Number(this.maxSessionHistoryCacheEntries) || MAX_SESSION_HISTORY_CACHE_ENTRIES)
-    const maximumBytes = Math.max(1, Number(this.maxSessionHistoryCacheEstimatedBytes) || MAX_SESSION_HISTORY_CACHE_ESTIMATED_BYTES)
-    const estimatedBytes = () => [...this.sessionHistoryCache.values()]
-      .reduce((total, entry) => total + entry.size * SESSION_HISTORY_CACHE_MEMORY_MULTIPLIER, 0)
-    const candidates = () => [...this.sessionHistoryCache.entries()]
-      .filter(([path]) => path !== protectedPath)
-      .sort((left, right) => left[1].touchedAt - right[1].touchedAt)
-    while (this.sessionHistoryCache.size > maximumEntries || estimatedBytes() > maximumBytes) {
-      const oldest = candidates()[0]?.[0]
-      if (!oldest) break
-      this.sessionHistoryCache.delete(oldest)
-    }
+    return this.streamProjection.trimSessionHistoryCache(protectedPath)
   }
 
   async readSessionHistoryEntries(path) {
-    const file = await stat(path)
-    let cached = this.sessionHistoryCache.get(path)
-    if (!cached || file.size < cached.size || (file.size === cached.size && file.mtimeMs !== cached.mtimeMs)) {
-      cached = {
-        size: 0,
-        mtimeMs: 0,
-        remainder: Buffer.alloc(0),
-        entries: [],
-        byId: new Map(),
-        serializedSize: -1,
-        serializedMessages: null,
-        touchedAt: Date.now(),
-      }
-    }
-    if (file.size > cached.size) {
-      const handle = await open(path, 'r')
-      try {
-        let position = cached.size
-        const maximumChunkBytes = Math.max(1, Number(this.sessionHistoryReadChunkBytes) || SESSION_HISTORY_READ_CHUNK_BYTES)
-        const readBuffer = Buffer.allocUnsafe(Math.min(maximumChunkBytes, file.size - position))
-        while (position < file.size) {
-          const length = Math.min(readBuffer.length, file.size - position)
-          const { bytesRead } = await handle.read(readBuffer, 0, length, position)
-          if (!bytesRead) break
-          position += bytesRead
-          const chunk = readBuffer.subarray(0, bytesRead)
-          const combined = cached.remainder.length ? Buffer.concat([cached.remainder, chunk]) : chunk
-          const newline = combined.lastIndexOf(0x0a)
-          const complete = newline >= 0 ? combined.subarray(0, newline).toString('utf8') : ''
-          cached.remainder = newline >= 0 ? Buffer.from(combined.subarray(newline + 1)) : Buffer.from(combined)
-          for (const line of complete.split('\n')) {
-            if (!line.trim()) continue
-            try {
-              const entry = JSON.parse(line.trimEnd())
-              cached.entries.push(entry)
-              if (entry?.id) cached.byId.set(entry.id, entry)
-            } catch {
-              // Ignore a malformed history line without making the rest of the session unreadable.
-            }
-          }
-        }
-      } finally {
-        await handle.close()
-      }
-    }
-    cached.size = file.size
-    cached.mtimeMs = file.mtimeMs
-    cached.touchedAt = Date.now()
-    const maximumSourceBytes = Math.max(1, Number(this.maxSessionHistoryCacheSourceBytes) || MAX_SESSION_HISTORY_CACHE_SOURCE_BYTES)
-    if (file.size <= maximumSourceBytes) {
-      this.sessionHistoryCache.set(path, cached)
-      this.trimSessionHistoryCache(path)
-    } else {
-      this.sessionHistoryCache.delete(path)
-    }
-    return cached
+    return this.streamProjection.readSessionHistoryEntries(path)
   }
 
   async getSessionHistoryMessages(id) {
-    const active = this.sessions.get(id)
-    const activePath = active?.session.sessionFile
-    let path = activePath || this.sessionHistoryPaths.get(id)
-    if (!path) {
-      path = (await this.findSessionInfo(id))?.path
-      if (path) this.sessionHistoryPaths.set(id, path)
-    }
-    if (!path) return this.getSessionMessages(id)
-    let history
-    try {
-      history = await this.readSessionHistoryEntries(path)
-    } catch (error) {
-      if (error?.code !== 'ENOENT') throw error
-      this.sessionHistoryPaths.delete(id)
-      this.sessionHistoryCache.delete(path)
-      return active ? this.getSessionMessages(id) : []
-    }
-    let cursor = history.entries.findLast((entry) => entry?.id)
-    const branch = []
-    const visited = new Set()
-    while (cursor?.id && !visited.has(cursor.id)) {
-      visited.add(cursor.id)
-      branch.push(cursor)
-      cursor = cursor.parentId ? history.byId.get(cursor.parentId) : null
-    }
-    branch.reverse()
-    let assetUrlByHash = null
-    const resolveImageUrl = (part) => {
-      if (!part?.data) return null
-      if (!assetUrlByHash) {
-        assetUrlByHash = new Map()
-        for (const asset of this.assetIndex.assets) {
-          if (asset.source === 'attachment' && asset.hash) {
-            assetUrlByHash.set(asset.hash, `/api/assets/${encodeURIComponent(asset.id)}/download?inline=1`)
-          }
-        }
-      }
-      try {
-        const hash = createHash('sha256').update(Buffer.from(String(part.data), 'base64')).digest('hex')
-        return assetUrlByHash.get(hash) || null
-      } catch {
-        return null
-      }
-    }
-    let messages = history.serializedSize === history.size ? history.serializedMessages : null
-    if (!messages) {
-      messages = serializeTranscriptMessages(
-        branch.filter((entry) => entry?.type === 'message').map((entry) => entry.message),
-        resolveImageUrl,
-      )
-      history.serializedSize = history.size
-      history.serializedMessages = messages
-    }
-    const assets = this.assetIndex.assets
-      .filter((asset) => asset.sessionId === id && asset.source === 'agent' && /^(?:image|video)\//.test(asset.mimeType || ''))
-      .sort((left, right) => new Date(left.created).getTime() - new Date(right.created).getTime())
-    return attachGeneratedAssets(messages, assets)
+    return this.streamProjection.getSessionHistoryMessages(id)
   }
 
   compactionAwareContextUsage(session, compaction = null) {
-    if (!session?.model) return undefined
-    const contextWindow = optionalTokenCount(session.model.contextWindow)
-    const raw = typeof session.getContextUsage === 'function'
-      ? session.getContextUsage()
-      : contextWindow
-        ? (() => {
-            const tokens = estimateMessageContextTokens(session.messages)
-            return { tokens, contextWindow, percent: (tokens / contextWindow) * 100 }
-          })()
-        : undefined
-    return this.decorateContextUsage(raw, compaction)
+    return this.streamProjection.compactionAwareContextUsage(session, compaction)
   }
 
   decorateContextUsage(raw, compaction = null) {
-    const contextWindow = optionalTokenCount(raw?.contextWindow)
-    if (!contextWindow) return undefined
-    let tokens = raw?.tokens == null ? null : optionalTokenCount(raw.tokens)
-    let estimated = false
-    if (tokens == null && compaction?.status === 'completed' && compaction.estimatedTokensAfter != null) {
-      tokens = optionalTokenCount(compaction.estimatedTokensAfter)
-      estimated = tokens != null
-    }
-    const settings = effectiveCompactionSettings(
-      this.settingsManager?.getCompactionSettings?.() || { enabled: true, reserveTokens: 16_384, keepRecentTokens: 20_000 },
-      contextWindow,
-      this.compactionThresholdPercent,
-    )
-    const compactAtTokens = settings.enabled ? Math.max(0, contextWindow - Math.max(0, Number(settings.reserveTokens) || 0)) : null
-    return {
-      tokens,
-      contextWindow,
-      percent: tokens == null ? null : (tokens / contextWindow) * 100,
-      estimated,
-      autoCompactEnabled: Boolean(settings.enabled),
-      compactAtTokens,
-      compactAtPercent: compactAtTokens == null ? null : (compactAtTokens / contextWindow) * 100,
-    }
+    return this.streamProjection.decorateContextUsage(raw, compaction)
   }
 
   async getSessionContextUsage(id, compaction = null) {
-    const active = this.sessions.get(id)
-    if (active) {
-      this.touchSessionRuntime(active)
-      return this.compactionAwareContextUsage(active.session, compaction || this.liveSessions.get(id)?.compaction)
-    }
-    const info = await this.findSessionInfo(id)
-    if (!info) return undefined
-    const fileStat = await stat(info.path).catch(() => null)
-    const cached = this.sessionContextUsageCache.get(id)
-    if (fileStat && cached?.path === info.path && cached.size === fileStat.size && cached.mtimeMs === fileStat.mtimeMs) {
-      return cached.value
-    }
-    const manager = this.openStoredSession(info.path)
-    const context = manager.buildSessionContext()
-    const globalSettings = this.settingsManager?.getGlobalSettings?.() || {}
-    const provider = context.model?.provider || globalSettings.defaultProvider
-    const modelId = context.model?.modelId || globalSettings.defaultModel
-    const model = provider && modelId ? this.modelRuntime?.getModel?.(provider, modelId) : null
-    const value = this.decorateContextUsage(persistedContextUsage(manager, model?.contextWindow || 0), compaction)
-    this.sessionContextUsageCache.set(id, { path: info.path, size: fileStat?.size || 0, mtimeMs: fileStat?.mtimeMs || 0, value })
-    return value
+    return this.streamProjection.getSessionContextUsage(id, compaction)
   }
 
-  async getSessionMessagePage(id, { before, limit = DEFAULT_MESSAGE_PAGE_SIZE } = {}) {
-    const messages = await this.getSessionHistoryMessages(id)
-    const pageSize = Math.min(MAX_MESSAGE_PAGE_SIZE, Math.max(1, Number.parseInt(limit, 10) || DEFAULT_MESSAGE_PAGE_SIZE))
-    const requestedEnd = before == null || before === '' ? messages.length : Number.parseInt(before, 10)
-    const end = Number.isFinite(requestedEnd) ? Math.min(messages.length, Math.max(0, requestedEnd)) : messages.length
-    const start = Math.max(0, end - pageSize)
-    return {
-      messages: messages.slice(start, end),
-      contextUsage: await this.getSessionContextUsage(id),
-      pageInfo: {
-        start,
-        end,
-        total: messages.length,
-        hasMore: start > 0,
-        nextCursor: start > 0 ? String(start) : null,
-      },
-    }
+  async getSessionMessagePage(id, options = {}) {
+    return this.streamProjection.getSessionMessagePage(id, options)
   }
 
   async getSessionLive(id) {
-    const active = this.sessions.get(id)
-    if (active) this.touchSessionRuntime(active)
-    const persisted = active ? null : await this.findSessionInfo(id)
-    const live = this.liveSessions.get(id)
-    const page = await this.getSessionMessagePage(id, { limit: LIVE_MESSAGE_PAGE_SIZE })
-    const messages = page.messages
-    const streaming = Boolean(active?.session.isStreaming || live?.streaming)
-    if (streaming && live) {
-      const lastUserIndex = messages.findLastIndex((message) => message.role === 'user')
-      const assistantIndex = messages.findIndex((message, index) => index > lastUserIndex && message.role === 'agent')
-      const liveMessage = {
-        id: `live-${id}`,
-        role: 'agent',
-        text: live.text,
-        streaming: true,
-        attachments: live.assets,
-      }
-      if (assistantIndex >= 0) messages[assistantIndex] = { ...messages[assistantIndex], ...liveMessage, text: liveMessage.text || messages[assistantIndex].text, attachments: live.assets.length ? live.assets : messages[assistantIndex].attachments }
-      else messages.push(liveMessage)
-    }
-    return {
-      id,
-      streaming,
-      messages,
-      tools: live?.tools || [],
-      error: live?.error || '',
-      startedAt: live?.startedAt || null,
-      lastActivityAt: live?.lastActivityAt || null,
-      finishedAt: live?.finishedAt || null,
-      model: active?.session.model ? `${active.session.model.provider}/${active.session.model.id}` : '',
-      cwd: active?.cwd || this.sessionMeta[id]?.cwd || persisted?.cwd || this.cwd,
-      permissionMode: this.sessionMeta[id]?.permissionMode || permissionModeForExecutionMode(this.getSessionExecutionMode(id)),
-      executionMode: this.getSessionExecutionMode(id),
-      goal: live?.goal ?? this.goals.get(id),
-      plan: live?.plan ?? this.plans.get(id),
-      agents: live?.agents ?? this.multiAgents.summaries(id).filter((agent) => ['queued', 'starting', 'running'].includes(agent.status)),
-      currentActivity: live?.currentActivity || null,
-      activityFeed: live?.activityFeed || [],
-      thinkingText: live?.thinkingText || '',
-      queuedInputs: live?.queuedInputs ?? queuedSessionInputs(active?.session),
-      contextUsage: this.compactionAwareContextUsage(active?.session, live?.compaction) || page.contextUsage,
-      compaction: live?.compaction || null,
-      approvals: this.permissions.getPending(id),
-      pageInfo: page.pageInfo,
-    }
+    return this.streamProjection.getSessionLive(id)
   }
 
-  async renameSession(id, name, { manual = true } = {}) {
-    const title = cleanSessionTitle(name)
-    if (!title) throw new Error('会话标题不能为空。')
-    const active = this.sessions.get(id)
-    const pending = this.pendingSessions.get(id)
-    if (active) {
-      active.session.setSessionName(title)
-      active.name = title
-      active.modified = new Date().toISOString()
-    } else if (pending) {
-      pending.manager.appendSessionInfo(title)
-      pending.name = title
-      pending.modified = new Date().toISOString()
-    } else {
-      const info = await this.findSessionInfo(id)
-      if (!info) return null
-      const manager = this.openStoredSession(info.path)
-      manager.appendSessionInfo(title)
-    }
-    await this.markSessionTitle(id, title, manual)
-    return { id, name: title, manual: Boolean(manual) }
+  async renameSession(id, name, options = {}) {
+    return this.sessionLifecycle.renameSession(id, name, options)
   }
 
   async setSessionModel(id, provider, modelId) {
-    const appConfig = await readJson(this.appConfigPath, { toolMode: 'full', disabledProviders: [] })
-    if ((appConfig.disabledProviders || []).includes(String(provider || ''))) throw new Error('该 Provider 当前未启用。')
-    await this.modelMetadata.ensure(modelId)
-    const model = this.modelRuntime.getModel(String(provider || ''), String(modelId || ''))
-    if (!model) throw new Error('指定的模型不存在。')
-    const value = await this.getOrCreateSession(id)
-    if (value.session.isStreaming) throw new Error('当前会话正在运行，请完成或停止后再切换模型。')
-    const settings = this.settingsManager.getGlobalSettings()
-    const defaultProvider = settings.defaultProvider
-    const defaultModel = settings.defaultModel
-    const defaultThinkingLevel = settings.defaultThinkingLevel
-    try {
-      await value.session.setModel(model)
-      applyPisperSystemPrompt(value.session, model)
-    } finally {
-      if (defaultProvider && defaultModel) {
-        this.settingsManager.setDefaultModelAndProvider(defaultProvider, defaultModel)
-      }
-      if (defaultThinkingLevel) this.settingsManager.setDefaultThinkingLevel(defaultThinkingLevel)
-    }
-    value.modified = new Date().toISOString()
-    const thinking = sessionThinkingState(value.session)
-    return {
-      id: value.session.sessionId,
-      model: `${model.provider}/${model.id}`,
-      provider: model.provider,
-      modelId: model.id,
-      thinkingLevel: thinking.thinkingLevel,
-      availableThinkingLevels: thinking.availableLevels,
-      thinkingStatus: thinking.status,
-      thinkingMessage: thinking.message,
-      contextUsage: this.compactionAwareContextUsage(value.session),
-    }
+    return this.providerPreferences.setSessionModel(id, provider, modelId)
   }
 
   async getSessionThinkingState(id) {
-    const value = await this.getOrCreateSession(id)
-    return { id: value.session.sessionId, ...sessionThinkingState(value.session) }
+    return this.providerPreferences.getSessionThinkingState(id)
   }
 
   async setSessionThinkingLevel(id, level) {
-    const value = await this.getOrCreateSession(id)
-    if (value.session.isStreaming) throw new Error('当前会话正在运行，请完成或停止后再切换思考等级。')
-    const requested = String(level || '')
-    const availableLevels = value.session.getAvailableThinkingLevels()
-    if (!availableLevels.includes(requested)) throw new Error('当前模型不支持该思考等级。')
-    const defaultThinkingLevel = this.settingsManager.getGlobalSettings().defaultThinkingLevel || 'medium'
-    try {
-      value.session.setThinkingLevel(requested)
-    } finally {
-      this.settingsManager.setDefaultThinkingLevel(defaultThinkingLevel)
-    }
-    value.modified = new Date().toISOString()
-    return { id: value.session.sessionId, ...sessionThinkingState(value.session) }
+    return this.providerPreferences.setSessionThinkingLevel(id, level)
   }
 
   async setSessionPermission(id, mode) {
-    const permissionMode = String(mode || '')
-    if (!PERMISSION_MODES.has(permissionMode)) throw new Error('权限模式无效。')
-    if (!this.sessions.has(id) && !this.pendingSessions.has(id) && !(await this.findSessionInfo(id))) return null
-    this.sessionMeta[id] = { ...(this.sessionMeta[id] || {}), permissionMode }
-    await this.saveSessionMeta()
-    if (permissionMode !== 'ask') this.permissions.resolveSession(id, true, `权限模式已切换为${permissionMode === 'ignore' ? '忽略' : '自动'}。`)
-    return { id, permissionMode, executionMode: this.getSessionExecutionMode(id) }
+    return this.sessionLifecycle.setSessionPermission(id, mode, PERMISSION_MODES)
   }
 
   async setSessionExecutionMode(id, mode) {
-    const executionMode = normalizeExecutionMode(mode, '')
-    if (!executionMode) throw new Error('执行模式无效。')
-    if (!this.sessions.has(id) && !this.pendingSessions.has(id) && !(await this.findSessionInfo(id))) return null
-    const permissionMode = permissionModeForExecutionMode(executionMode)
-    this.sessionMeta[id] = { ...(this.sessionMeta[id] || {}), executionMode, permissionMode }
-    await this.saveSessionMeta()
-    const active = this.sessions.get(id)
-    if (active) this.syncGoalTools(active, this.goals.get(id))
-    this.permissions.resolveSession(id, executionMode === 'full-access', executionMode === 'full-access' ? '已切换为完全访问。' : '执行模式已切换，请重新发起工具调用。')
-    return { id, executionMode, permissionMode }
+    return this.sessionLifecycle.setSessionExecutionMode(id, normalizeExecutionMode(mode, ''))
   }
 
   resolveToolApproval(sessionId, approvalId, approved) {
@@ -2028,42 +1081,7 @@ export class AgentRuntimeService {
   }
 
   async setSessionCwd(id, input) {
-    const cwd = await resolveDirectory(input, this.cwd)
-    const active = this.sessions.get(id)
-    const pending = this.pendingSessions.get(id)
-    if (pending) {
-      pending.cwd = cwd
-      pending.modified = new Date().toISOString()
-      this.sessionMeta[id] = { ...(this.sessionMeta[id] || {}), cwd }
-      await this.saveSessionMeta()
-      return { id, cwd }
-    }
-    if (active?.session.isStreaming) throw new Error('当前会话正在运行，请完成或停止后再切换工作目录。')
-    const activeSessionFile = active?.session.sessionFile
-    const activeSessionFileInfo = activeSessionFile ? await stat(activeSessionFile).catch(() => null) : null
-    const info = activeSessionFileInfo?.isFile()
-      ? { path: activeSessionFile, name: active.name }
-      : await this.findSessionInfo(id)
-    if (!active && !info) return null
-
-    const name = active?.name || info?.name || this.sessionMeta[id]?.name || DEFAULT_SESSION_NAME
-    const previousModel = active?.session.model
-    if (active) {
-      active.session.dispose()
-      this.sessions.delete(id)
-    }
-    this.sessionMeta[id] = { ...(this.sessionMeta[id] || {}), cwd }
-    await this.saveSessionMeta()
-
-    const manager = info?.path
-      ? this.openStoredSession(info.path)
-      : SessionManager.create(this.cwd, this.sessionDir, { id })
-    const next = await this.createSessionRuntime(manager, name)
-    if (!info?.path) next.session.setSessionName(name)
-    if (previousModel && (!next.session.model || previousModel.provider !== next.session.model.provider || previousModel.id !== next.session.model.id)) {
-      await this.setSessionModel(id, previousModel.provider, previousModel.id)
-    }
-    return { id, cwd: next.cwd }
+    return this.sessionLifecycle.setSessionCwd(id, input)
   }
 
   listDirectories(input) {
@@ -2071,30 +1089,7 @@ export class AgentRuntimeService {
   }
 
   async getOrCreateSession(id) {
-    if (id && this.sessions.has(id)) {
-      const current = this.sessions.get(id)
-      if (current.session.isStreaming || (current.runtimeVersion ?? this.sessionRuntimeVersion) === this.sessionRuntimeVersion) return this.touchSessionRuntime(current)
-      current.session.dispose()
-      this.sessions.delete(id)
-    }
-    if (id && this.pendingSessions.has(id)) {
-      const pending = this.pendingSessions.get(id)
-      this.pendingSessions.delete(id)
-      try {
-        const value = await this.createSessionRuntime(pending.manager, pending.name)
-        value.created = pending.created
-        value.modified = pending.modified
-        return value
-      } catch (error) {
-        this.pendingSessions.set(id, pending)
-        throw error
-      }
-    }
-    if (id) {
-      const info = await this.findSessionInfo(id)
-      if (info) return this.createSessionRuntime(this.openStoredSession(info.path))
-    }
-    return this.createSessionRuntime(SessionManager.create(this.cwd, this.sessionDir))
+    return this.sessionLifecycle.getOrCreateSession(id)
   }
 
   async createSessionRuntime(sessionManager, name) {
@@ -2282,6 +1277,7 @@ export class AgentRuntimeService {
     this.permissions.install(session, { sessionId: session.sessionId, cwd: effectiveCwd })
     applyPisperSystemPrompt(session, session.model)
     this.sessions.set(session.sessionId, value)
+    this.streamProjection.invalidate(session.sessionId)
     this.evictIdleSessionRuntimes(session.sessionId)
     return value
   }
@@ -2358,6 +1354,7 @@ export class AgentRuntimeService {
 
   async streamPrompt({ sessionId, message, attachments = [], requestedToolNames = [], goalMode = false, goalTokenBudget = null, isolatedContext = false, send }) {
     const emit = (event, data) => {
+      this.streamProjection.invalidate(data?.sessionId || sessionId || '')
       send(event, data)
       try {
         this.eventObserver?.({ event, data, sessionId: data?.sessionId || sessionId || '' })
@@ -2412,6 +1409,7 @@ export class AgentRuntimeService {
     const initialActivity = { type: 'model', stage: 'thinking', updatedAt: startedAt }
     const live = { streaming: true, text: '', thinkingText: '', tools: [], assets: [], error: '', goal, plan: this.plans.get(session.sessionId), agents: this.multiAgents.summaries(session.sessionId).filter((agent) => ['queued', 'starting', 'running'].includes(agent.status)), currentActivity: initialActivity, activityFeed: [], queuedInputs: queuedSessionInputs(session), contextUsage: this.compactionAwareContextUsage(session), compaction: null, startedAt, lastActivityAt: startedAt }
     this.liveSessions.set(session.sessionId, live)
+    this.streamProjection.invalidate(session.sessionId)
     this.goalEmitters.set(session.sessionId, emit)
     this.planEmitters.set(session.sessionId, emit)
     this.agentEmitters.set(session.sessionId, emit)
@@ -2757,7 +1755,16 @@ export class AgentRuntimeService {
       if (live.streaming) finishLiveRun(live.error)
       this.touchSessionRuntime(value)
       this.evictIdleSessionRuntimes(session.sessionId)
-      const timer = setTimeout(() => { if (this.liveSessions.get(session.sessionId) === live) this.liveSessions.delete(session.sessionId) }, 60_000)
+      const timer = setTimeout(() => {
+        if (this.liveSessions.get(session.sessionId) === live) {
+          this.liveSessions.delete(session.sessionId)
+          this.streamProjection.invalidate(session.sessionId, {
+            transcript: false,
+            activity: true,
+            usage: false,
+          })
+        }
+      }, 60_000)
       timer.unref?.()
     }
   }
@@ -2799,11 +1806,7 @@ export class AgentRuntimeService {
   }
 
   resolveDefaultModel() {
-    const settings = this.settingsManager?.getGlobalSettings?.() || {}
-    const provider = settings.defaultProvider
-    const modelId = settings.defaultModel
-    if (!provider || !modelId || !this.modelRuntime?.getModel) return null
-    return this.modelRuntime.getModel(String(provider), String(modelId)) || null
+    return this.providerPreferences.resolveDefaultModel()
   }
 
   getMemoryDashboard(input) {
@@ -2851,70 +1854,11 @@ export class AgentRuntimeService {
   }
 
   async abortSession(id) {
-    const wakeupTimer = this.agentWakeupTimers.get(id)
-    if (wakeupTimer) {
-      clearTimeout(wakeupTimer)
-      this.agentWakeupTimers.delete(id)
-    }
-    const value = this.sessions.get(id)
-    if (!value) return false
-    await this.pauseSessionGoal(id)
-    this.multiAgents.abortParent(id)
-    this.permissions.resolveSession(id, false, '会话已停止，工具未执行。')
-    value.session.clearQueue?.()
-    await value.session.abort()
-    return true
+    return this.sessionLifecycle.abortSession(id)
   }
 
   async deleteSession(id) {
-    await this.goals.remove(id)
-    await this.plans.remove(id)
-    await this.browserAutomation.closeSession(id)
-    await this.multiAgents.removeParent(id)
-    this.permissions.resolveSession(id, false, '会话已删除，工具未执行。')
-    const active = this.sessions.get(id)
-    const pending = this.pendingSessions.get(id)
-    this.pendingSessions.delete(id)
-    let sessionFile = active?.session.sessionFile
-    if (active) {
-      if (active.session.isStreaming) await active.session.abort()
-      active.session.dispose()
-      this.sessions.delete(id)
-    }
-    if (!sessionFile) sessionFile = (await this.findSessionInfo(id))?.path
-    this.sessionHistoryPaths.delete(id)
-    this.sessionContextUsageCache.delete(id)
-    if (sessionFile) this.sessionHistoryCache.delete(sessionFile)
-    if (!sessionFile) {
-      if (this.sessionMeta[id]) {
-        delete this.sessionMeta[id]
-        await this.saveSessionMeta()
-      }
-      if (this.usageLedger.sessionScans?.[id]) {
-        delete this.usageLedger.sessionScans[id]
-        await this.saveUsageLedger()
-      }
-      if (this.storedSessionsCache) this.storedSessionsCache = this.storedSessionsCache.filter((session) => session.id !== id)
-      return Boolean(active || pending)
-    }
-    const root = resolve(this.sessionDir)
-    const target = resolve(sessionFile)
-    if (target !== root && !target.startsWith(`${root}${sep}`)) throw new Error('拒绝删除会话目录之外的文件。')
-    try {
-      await unlink(target)
-    } catch (error) {
-      if (error?.code !== 'ENOENT') throw error
-    }
-    if (this.sessionMeta[id]) {
-      delete this.sessionMeta[id]
-      await this.saveSessionMeta()
-    }
-    if (this.usageLedger.sessionScans?.[id]) {
-      delete this.usageLedger.sessionScans[id]
-      await this.saveUsageLedger()
-    }
-    if (this.storedSessionsCache) this.storedSessionsCache = this.storedSessionsCache.filter((session) => session.id !== id)
-    return true
+    return this.sessionLifecycle.deleteSession(id)
   }
 
   async getPlugins() {
@@ -3040,6 +1984,7 @@ export class AgentRuntimeService {
     })
     this.compactionThresholdPercent = thresholdPercent
     this.sessionContextUsageCache.clear()
+    this.streamProjection.invalidateAllUsage()
     return this.getCompactionPreference()
   }
 
@@ -3228,527 +2173,52 @@ export class AgentRuntimeService {
   }
 
   async getProviderDiscovery() {
-    const [discovery, credentials, modelsJson, appConfig] = await Promise.all([
-      this.providerDiscovery.discover(),
-      readJson(this.authPath, {}),
-      readJson(this.modelsPath, { providers: {} }),
-      readJson(this.appConfigPath, { providerImports: {} }),
-    ])
-    return {
-      ...discovery,
-      providers: discovery.providers.map((provider) => {
-        const imported = Boolean(modelsJson.providers?.[provider.providerId]) && appConfig.providerImports?.[provider.id]?.fingerprint === provider.fingerprint
-        return {
-          ...provider,
-          configured: Boolean(credentials[provider.providerId]) || this.modelRuntime.hasConfiguredAuth(provider.providerId),
-          imported,
-          conflict: Boolean(modelsJson.providers?.[provider.providerId]) && !imported,
-        }
-      }),
-    }
+    return this.providerPreferences.getProviderDiscovery()
   }
 
   async importDiscoveredProvider(discoveryId) {
-    const loaded = await this.providerDiscovery.loadConfiguration(String(discoveryId || '').trim())
-    const [credentials, modelsJson, appConfig] = await Promise.all([
-      readJson(this.authPath, {}),
-      readJson(this.modelsPath, { providers: {} }),
-      readJson(this.appConfigPath, { toolMode: 'full', disabledProviders: [], providerImports: {} }),
-    ])
-    modelsJson.providers ||= {}
-    const existingProvider = modelsJson.providers[loaded.providerId]
-    if (existingProvider && JSON.stringify(existingProvider) !== JSON.stringify(loaded.providerConfig)) {
-      throw new Error('Pisper 已存在该 Provider 的模型配置，不会自动覆盖。')
-    }
-    if (loaded.credential && credentials[loaded.providerId] && JSON.stringify(credentials[loaded.providerId]) !== JSON.stringify(loaded.credential)) {
-      throw new Error('Pisper 已存在该 Provider 的认证，不会自动覆盖。')
-    }
-
-    modelsJson.providers[loaded.providerId] = loaded.providerConfig
-    await writeJsonAtomic(this.modelsPath, modelsJson)
-    if (loaded.credential && !credentials[loaded.providerId]) {
-      credentials[loaded.providerId] = loaded.credential
-      await writeJsonAtomic(this.authPath, credentials)
-    }
-
-    const disabledProviders = new Set(appConfig.disabledProviders || [])
-    disabledProviders.delete(loaded.providerId)
-    const providerImports = { ...(appConfig.providerImports || {}) }
-    providerImports[String(discoveryId)] = { providerId: loaded.providerId, fingerprint: loaded.fingerprint, source: loaded.source }
-    await writeJsonAtomic(this.appConfigPath, { ...appConfig, disabledProviders: [...disabledProviders], providerImports })
-
-    await this.disposeSessions()
-    await this.reloadModelRuntime()
-    return {
-      providerId: loaded.providerId,
-      selectedModel: loaded.selectedModel,
-      config: await this.getConfig(),
-      discovery: await this.getProviderDiscovery(),
-    }
+    return this.providerPreferences.importDiscoveredProvider(discoveryId)
   }
 
   async getConfig() {
-    const settings = this.settingsManager.getGlobalSettings()
-    const appConfig = await readJson(this.appConfigPath, { toolMode: 'full' })
-    const modelsJson = await readJson(this.modelsPath, { providers: {} })
-    const credentials = await readJson(this.authPath, {})
-    const runtimeProviders = this.modelRuntime.getProviders()
-    const providerIds = [...new Set([...KNOWN_PROVIDERS, ...Object.keys(modelsJson.providers || {})])]
-    const disabledProviders = new Set(appConfig.disabledProviders || [])
-    const visualClaims = dedicatedVisualModelClaims(modelsJson, appConfig)
-    const providers = providerIds.map((id) => {
-      const runtimeProvider = runtimeProviders.find((item) => item.id === id)
-      const overlay = modelsJson.providers?.[id] || {}
-      const overlayModels = Array.isArray(overlay.models) ? overlay.models : []
-      const type = appConfig.providerTypes?.[id] || inferredProviderType(overlay)
-      const models = this.modelRuntime.getModels(id).map((model) => {
-        const definition = overlayModels.find((item) => item.id === model.id)
-        return {
-          id: model.id,
-          name: model.name || model.id,
-          kind: inferModelKind(model.id, definition?.kind || model.pisperKind),
-          reasoning: Boolean(model.reasoning),
-          contextWindow: model.contextWindow || null,
-          baseUrl: model.baseUrl || '',
-          baseUrlOverride: definition?.baseUrl || '',
-        }
-      }).filter((model) => {
-        if (type === 'visual') return model.kind !== 'chat'
-        if (model.kind === 'chat') return true
-        const baseUrl = model.baseUrl || overlay.baseUrl || PROVIDER_DEFAULT_BASE_URLS[id] || ''
-        return !claimedByOtherVisualProvider(visualClaims, id, baseUrl, model.id, model.kind)
-      }).sort((a, b) => modelRank(id, b) - modelRank(id, a) || a.name.localeCompare(b.name))
-      const chatModels = models.filter((model) => model.kind === 'chat')
-      const preferredModel = appConfig.providerDefaultModels?.[id]
-        || (settings.defaultProvider === id ? settings.defaultModel : '')
-      const defaultModel = chatModels.some((model) => model.id === preferredModel)
-        ? preferredModel
-        : (chatModels[0]?.id || '')
-      return {
-        id,
-        name: PROVIDER_LABELS[id] || overlay.name || runtimeProvider?.name || id,
-        type,
-        configured: Boolean(credentials[id]) || this.modelRuntime.hasConfiguredAuth(id),
-        enabled: !disabledProviders.has(id),
-        custom: !KNOWN_PROVIDERS.includes(id),
-        api: overlay.api || this.modelRuntime.getModels(id)[0]?.api || 'openai-responses',
-        baseUrl: overlay.baseUrl || PROVIDER_DEFAULT_BASE_URLS[id] || '',
-        organization: overlay.headers?.['OpenAI-Organization'] || '',
-        defaultModel,
-        models,
-      }
-    }).filter((provider) => provider.models.length > 0 || KNOWN_PROVIDERS.includes(provider.id))
-
-    const hasChatModel = (provider) => provider.type !== 'visual' && provider.models.some((model) => model.kind === 'chat')
-    const selectedProviderEntry = providers.find((item) => item.id === settings.defaultProvider && item.enabled && item.configured && hasChatModel(item))
-      || providers.find((item) => item.enabled && item.configured && hasChatModel(item))
-      || providers.find((item) => item.enabled && hasChatModel(item))
-      || providers[0]
-    const selectedProvider = selectedProviderEntry?.id || 'openai'
-    const selectedModel = selectedProviderEntry?.defaultModel || ''
-    return {
-      provider: selectedProvider,
-      model: selectedModel,
-      thinkingLevel: settings.defaultThinkingLevel || 'medium',
-      toolMode: appConfig.toolMode || 'full',
-      providers,
-      apiKeyConfigured: Boolean(credentials[selectedProvider]),
-    }
+    return this.providerPreferences.getConfig()
   }
 
   async saveConfig(input) {
-    const provider = String(input.provider || '').trim()
-    const model = String(input.model || '').trim()
-    if (!provider) throw new Error('Provider 不能为空。')
-    const currentAppConfig = await readJson(this.appConfigPath, { toolMode: 'full', disabledProviders: [] })
-    const existingOverlay = await readJson(this.modelsPath, { providers: {} })
-    const providerType = input.providerType === 'visual' || input.providerType === 'chat'
-      ? input.providerType
-      : currentAppConfig.providerTypes?.[provider] || inferredProviderType(existingOverlay.providers?.[provider] || {})
-    if ((currentAppConfig.disabledProviders || []).includes(provider)) throw new Error('请先启用该 Provider，再将其设为默认配置。')
-
-    const credentials = await readJson(this.authPath, {})
-    let apiKeyUpdated = false
-    if (input.clearApiKey) {
-      delete credentials[provider]
-      apiKeyUpdated = true
-    }
-    if (typeof input.apiKey === 'string' && input.apiKey.trim()) {
-      credentials[provider] = { type: 'api_key', key: input.apiKey.trim() }
-      apiKeyUpdated = true
-    }
-    if (apiKeyUpdated) await writeJsonAtomic(this.authPath, credentials)
-
-    const modelsJson = existingOverlay
-    modelsJson.providers ||= {}
-    const providerOverlay = { ...(modelsJson.providers[provider] || {}) }
-    const baseUrl = String(input.baseUrl || '').trim()
-    const modelBaseUrl = String(input.modelBaseUrl || '').trim()
-    const organization = String(input.organization || '').trim()
-    const requestedApi = ['openai-responses', 'openai-completions', 'anthropic-messages', 'google-generative-ai'].includes(input.api)
-      ? input.api
-      : ''
-    if (requestedApi) {
-      providerOverlay.api = requestedApi
-      if (Array.isArray(providerOverlay.models)) {
-        providerOverlay.models = providerOverlay.models.map((item) => ({ ...item, api: requestedApi }))
-      }
-    }
-    const runtimeModel = model ? this.modelRuntime.getModel(provider, model) : null
-    if (model && !runtimeModel) {
-      providerOverlay.name ||= String(input.providerName || provider)
-      providerOverlay.api ||= String(input.api || 'openai-responses')
-      providerOverlay.models = Array.isArray(providerOverlay.models) ? [...providerOverlay.models] : []
-      if (!providerOverlay.models.some((item) => item.id === model)) {
-        providerOverlay.models.push({
-          id: model,
-          name: String(input.modelName || model),
-          api: String(input.api || 'openai-responses'),
-          kind: inferModelKind(model, input.modelKind),
-          reasoning: input.reasoning !== false,
-          input: ['text', 'image'],
-          contextWindow: Number(input.contextWindow) || 200_000,
-          maxTokens: Number(input.maxTokens) || 128_000,
-        })
-      }
-    }
-    const modelDefinitions = Array.isArray(providerOverlay.models) ? [...providerOverlay.models] : []
-    const definitionIndex = model ? modelDefinitions.findIndex((item) => item.id === model) : -1
-    if (model && (modelBaseUrl || definitionIndex >= 0)) {
-      const definition = definitionIndex >= 0 ? { ...modelDefinitions[definitionIndex] } : {
-        id: model,
-        name: runtimeModel?.name || String(input.modelName || model),
-        api: requestedApi || runtimeModel?.api || String(input.api || providerOverlay.api || 'openai-responses'),
-        kind: inferModelKind(model, input.modelKind),
-        reasoning: runtimeModel?.reasoning ?? input.reasoning !== false,
-        input: runtimeModel?.input || ['text', 'image'],
-        contextWindow: runtimeModel?.contextWindow || Number(input.contextWindow) || 200_000,
-        maxTokens: runtimeModel?.maxTokens || Number(input.maxTokens) || 128_000,
-      }
-      if (modelBaseUrl) definition.baseUrl = modelBaseUrl
-      else delete definition.baseUrl
-      definition.kind = inferModelKind(model, input.modelKind || definition.kind)
-      if (definitionIndex >= 0) modelDefinitions[definitionIndex] = definition
-      else modelDefinitions.push(definition)
-      providerOverlay.models = modelDefinitions
-    }
-    if (baseUrl) providerOverlay.baseUrl = baseUrl
-    else delete providerOverlay.baseUrl
-    if (organization) providerOverlay.headers = { ...(providerOverlay.headers || {}), 'OpenAI-Organization': organization }
-    else if (providerOverlay.headers) {
-      delete providerOverlay.headers['OpenAI-Organization']
-      if (Object.keys(providerOverlay.headers).length === 0) delete providerOverlay.headers
-    }
-    if (Object.keys(providerOverlay).length) modelsJson.providers[provider] = providerOverlay
-    else delete modelsJson.providers[provider]
-    await writeJsonAtomic(this.modelsPath, modelsJson)
-
-    if (providerType !== 'visual' && model) this.settingsManager.setDefaultModelAndProvider(provider, model)
-    this.settingsManager.setDefaultThinkingLevel(input.thinkingLevel || 'medium')
-    await this.settingsManager.flush()
-    const errors = this.settingsManager.drainErrors()
-    if (errors.length) throw errors[0].error
-
-    const requestedToolMode = ['read-only', 'workspace', 'full', 'custom'].includes(input.toolMode) ? input.toolMode : 'full'
-    await writeJsonAtomic(this.appConfigPath, {
-      ...currentAppConfig,
-      toolMode: requestedToolMode,
-      enabledTools: requestedToolMode === 'custom' ? toolsFromConfig(currentAppConfig) : TOOL_PRESETS[requestedToolMode],
-      disabledProviders: [...new Set(currentAppConfig.disabledProviders || [])],
-      providerTypes: { ...(currentAppConfig.providerTypes || {}), [provider]: providerType },
-      providerDefaultModels: providerType === 'visual' || !model
-        ? { ...(currentAppConfig.providerDefaultModels || {}) }
-        : { ...(currentAppConfig.providerDefaultModels || {}), [provider]: model },
-    })
-    await this.disposeSessions()
-    await this.reloadModelRuntime()
-    return { ...(await this.getConfig()), apiKeyUpdated }
+    return this.providerPreferences.saveConfig(input, toolsFromConfig, TOOL_PRESETS)
   }
 
   async setProviderEnabled(id, enabled) {
-    const provider = String(id || '').trim()
-    if (!this.modelRuntime.getProviders().some((item) => item.id === provider) && !KNOWN_PROVIDERS.includes(provider)) {
-      throw new Error('Provider 不存在。')
-    }
-    const appConfig = await readJson(this.appConfigPath, { toolMode: 'full', disabledProviders: [] })
-    const disabled = new Set(appConfig.disabledProviders || [])
-    if (enabled) disabled.delete(provider)
-    else disabled.add(provider)
-
-    const settings = this.settingsManager.getGlobalSettings()
-    if (!enabled && settings.defaultProvider === provider) {
-      const credentials = await readJson(this.authPath, {})
-      const providerTypes = appConfig.providerTypes || {}
-      const modelsJson = await readJson(this.modelsPath, { providers: {} })
-      const alternative = this.modelRuntime.getProviders().find((item) => {
-        const type = providerTypes[item.id] || inferredProviderType(modelsJson.providers?.[item.id] || {})
-        return item.id !== provider
-          && type !== 'visual'
-          && !disabled.has(item.id)
-          && credentials[item.id]
-          && this.modelRuntime.getModels(item.id).some((model) => inferModelKind(model.id, model.pisperKind) === 'chat')
-      })
-      if (!alternative) throw new Error('至少需要保留一个已配置并启用的 Provider。')
-      const alternativeModel = this.modelRuntime.getModels(alternative.id).find((model) => inferModelKind(model.id, model.pisperKind) === 'chat')
-      this.settingsManager.setDefaultModelAndProvider(alternative.id, alternativeModel.id)
-      await this.settingsManager.flush()
-    }
-    await writeJsonAtomic(this.appConfigPath, {
-      ...appConfig,
-      disabledProviders: [...disabled],
-    })
-    return this.getConfig()
+    return this.providerPreferences.setProviderEnabled(id, enabled)
   }
 
   async createProvider(input) {
-    const id = providerProfileId(input.id || input.name)
-    const name = String(input.name || '').trim()
-    const api = String(input.api || 'openai-responses').trim()
-    const baseUrl = String(input.baseUrl || '').trim()
-    const modelId = String(input.model || '').trim()
-    const providerType = input.providerType === 'visual' || inferModelKind(modelId, input.modelKind) !== 'chat' ? 'visual' : 'chat'
-    if (!id || !name || !baseUrl || !modelId) throw new Error('名称、Provider ID、Base URL 和初始模型不能为空。')
-    if (providerType === 'visual' && inferModelKind(modelId, input.modelKind) === 'chat') throw new Error('视觉 Provider 的初始模型必须是图像或视频模型。')
-    if (this.modelRuntime.getProviders().some((item) => item.id === id) || KNOWN_PROVIDERS.includes(id)) throw new Error('Provider ID 已存在，请使用不同的连接标识。')
-
-    const modelsJson = await readJson(this.modelsPath, { providers: {} })
-    modelsJson.providers ||= {}
-    modelsJson.providers[id] = {
-      name,
-      api,
-      baseUrl,
-      models: [{
-        id: modelId,
-        name: String(input.modelName || modelId).trim() || modelId,
-        api,
-        kind: inferModelKind(modelId, input.modelKind),
-        reasoning: input.reasoning !== false,
-        input: ['text', 'image'],
-        contextWindow: Number(input.contextWindow) || 200_000,
-        maxTokens: Number(input.maxTokens) || 128_000,
-      }],
-    }
-    await writeJsonAtomic(this.modelsPath, modelsJson)
-
-    const apiKey = String(input.apiKey || '').trim()
-    if (apiKey) {
-      const credentials = await readJson(this.authPath, {})
-      credentials[id] = { type: 'api_key', key: apiKey }
-      await writeJsonAtomic(this.authPath, credentials)
-    }
-    const appConfig = await readJson(this.appConfigPath, { toolMode: 'full', disabledProviders: [] })
-    const disabled = new Set(appConfig.disabledProviders || [])
-    if (input.enabled === false) disabled.add(id)
-    else disabled.delete(id)
-    await writeJsonAtomic(this.appConfigPath, {
-      ...appConfig,
-      disabledProviders: [...disabled],
-      providerTypes: { ...(appConfig.providerTypes || {}), [id]: providerType },
-      providerDefaultModels: providerType === 'visual'
-        ? { ...(appConfig.providerDefaultModels || {}) }
-        : { ...(appConfig.providerDefaultModels || {}), [id]: modelId },
-    })
-    await this.disposeSessions()
-    await this.reloadModelRuntime()
-    return { ...(await this.getConfig()), createdProviderId: id }
+    return this.providerPreferences.createProvider(input)
   }
 
   async addProviderModel(providerId, input) {
-    return this.addProviderModels(providerId, [input], { skipExisting: false })
+    return this.providerPreferences.addProviderModels(providerId, [input], {
+      skipExisting: false,
+    })
   }
 
   async reconcileDefaultModel() {
-    const settings = this.settingsManager.getGlobalSettings()
-    const config = await this.getConfig()
-    if (config.provider && config.model && (settings.defaultProvider !== config.provider || settings.defaultModel !== config.model)) {
-      this.settingsManager.setDefaultModelAndProvider(config.provider, config.model)
-      await this.settingsManager.flush()
-    }
-    return config
+    return this.providerPreferences.reconcileDefaultModel()
   }
 
   async refreshProviderModels() {
-    if (this.providerModelRefreshPromise) return this.providerModelRefreshPromise
-    const refresh = async () => {
-      const [modelsJson, credentials, appConfig] = await Promise.all([
-        readJson(this.modelsPath, { providers: {} }),
-        readJson(this.authPath, {}),
-        readJson(this.appConfigPath, { disabledProviders: [] }),
-      ])
-      const disabled = new Set(appConfig.disabledProviders || [])
-      const providerIds = new Set([...KNOWN_PROVIDERS, ...Object.keys(modelsJson.providers || {})])
-      const jobs = []
-      for (const provider of providerIds) {
-        if (disabled.has(provider) || provider === 'openai-codex') continue
-        const overlay = modelsJson.providers?.[provider] || {}
-        const baseUrl = String(overlay.baseUrl || PROVIDER_DEFAULT_BASE_URLS[provider] || '').trim()
-        if (!baseUrl) continue
-        const hasAuthentication = Boolean(configuredProviderSecret(credentials[provider], overlay)) || this.modelRuntime.hasConfiguredAuth(provider)
-        const isExplicitConnection = Boolean(overlay.baseUrl)
-        if (!hasAuthentication && !isExplicitConnection) continue
-        jobs.push((async () => {
-          try {
-            const result = await this.discoverProviderModels(provider, { reconcile: false, includeConfig: false })
-            return { provider, ok: true, count: result.count, added: result.addedModelIds.length, removed: result.removedModelIds.length }
-          } catch (error) {
-            return { provider, ok: false, error: redactSecretText(error instanceof Error ? error.message : String(error)) }
-          }
-        })())
-      }
-      const results = await Promise.all(jobs)
-      return { results, config: await this.reconcileDefaultModel() }
-    }
-    const pending = refresh().finally(() => {
-      if (this.providerModelRefreshPromise === pending) this.providerModelRefreshPromise = null
-    })
-    this.providerModelRefreshPromise = pending
-    return pending
+    return this.providerPreferences.refreshProviderModels()
   }
 
   async discoverProviderModels(providerId, input = {}) {
-    const provider = String(providerId || '').trim()
-    if (!this.modelRuntime.getProviders().some((item) => item.id === provider) && !KNOWN_PROVIDERS.includes(provider)) throw new Error('Provider 不存在。')
-    const [modelsJson, credentials, appConfig] = await Promise.all([
-      readJson(this.modelsPath, { providers: {} }),
-      readJson(this.authPath, {}),
-      readJson(this.appConfigPath, { providerTypes: {} }),
-    ])
-    const overlay = modelsJson.providers?.[provider] || {}
-    const runtimeModel = this.modelRuntime.getModels(provider)[0]
-    const api = String(input.api || overlay.api || runtimeModel?.api || 'openai-responses').trim()
-    const configuredBaseUrl = String(overlay.baseUrl || PROVIDER_DEFAULT_BASE_URLS[provider] || '').trim()
-    const baseUrl = String(input.baseUrl || configuredBaseUrl || '').trim()
-    if (!baseUrl) throw new Error('请先配置 Provider Base URL。')
-    const apiKey = String(input.apiKey || '').trim() || configuredProviderSecret(credentials[provider], overlay)
-    const discovered = await this.providerModelDiscovery.discover({
-      api,
-      baseUrl,
-      apiKey,
-      organization: String(input.organization || overlay.headers?.['OpenAI-Organization'] || '').trim(),
-      headers: providerHeaders(provider, overlay, this.providerUserAgent),
-    })
-    const scope = input.providerType === 'visual' || input.providerType === 'chat'
-      ? input.providerType
-      : appConfig.providerTypes?.[provider] || inferredProviderType(overlay)
-    const visualClaims = dedicatedVisualModelClaims(modelsJson, appConfig)
-    // 发现的模型不再按 ID 推断用途（统一为 chat），所以这里不按 kind 过滤：
-    // 视觉 Provider 也列出全部发现结果，由用户添加时显式选择图像/视频类型。
-    const models = scope === 'visual'
-      ? discovered.models
-      : discovered.models.filter((model) => !claimedByOtherVisualProviderAnyKind(visualClaims, provider, baseUrl, model.id))
-    if (!models.length) throw new Error('Provider 没有返回可用的模型。')
-    const result = { ...discovered, count: models.length, models, scope }
-    const previousModelIds = new Set(this.modelRuntime.getModels(provider).map((model) => model.id))
-    let sync = { addedModelIds: [], removedModelIds: [] }
-    const synchronized = sameBaseUrl(baseUrl, configuredBaseUrl)
-    if (synchronized) {
-      await this.providerModelCatalog.sync(provider, { baseUrl, api, models: result.models })
-      const nextModelIds = new Set(result.models.map((model) => model.id))
-      sync = {
-        addedModelIds: [...nextModelIds].filter((id) => !previousModelIds.has(id)),
-        removedModelIds: [...previousModelIds].filter((id) => !nextModelIds.has(id)),
-      }
-      if (input.reconcile !== false) await this.reconcileDefaultModel()
-    }
-    const existing = new Set(this.modelRuntime.getModels(provider).map((model) => model.id))
-    return {
-      ...result,
-      models: result.models.map((model) => ({ ...model, added: existing.has(model.id) })),
-      synchronized,
-      addedModelIds: sync.addedModelIds,
-      removedModelIds: sync.removedModelIds,
-      config: synchronized && input.includeConfig !== false ? await this.getConfig() : null,
-    }
+    return this.providerPreferences.discoverProviderModels(providerId, input)
   }
 
-  async addProviderModels(providerId, inputs, { skipExisting = true } = {}) {
-    const provider = String(providerId || '').trim()
-    if (!this.modelRuntime.getProviders().some((item) => item.id === provider) && !KNOWN_PROVIDERS.includes(provider)) throw new Error('Provider 不存在。')
-    const models = Array.isArray(inputs) ? inputs : []
-    if (!models.length) throw new Error('请至少选择一个模型。')
-    if (models.length > 250) throw new Error('单次最多添加 250 个模型。')
-    const [modelsJson, appConfig] = await Promise.all([
-      readJson(this.modelsPath, { providers: {} }),
-      readJson(this.appConfigPath, { providerTypes: {} }),
-    ])
-    modelsJson.providers ||= {}
-    const overlay = { ...(modelsJson.providers[provider] || {}) }
-    const providerType = appConfig.providerTypes?.[provider] || inferredProviderType(overlay)
-    overlay.models = Array.isArray(overlay.models) ? [...overlay.models] : []
-    const existing = new Set([...overlay.models.map((item) => item.id), ...this.modelRuntime.getModels(provider).map((item) => item.id)])
-    const addedModelIds = []
-    for (const input of models) {
-      const modelId = String(input?.id || '').trim()
-      if (!modelId) throw new Error('模型 ID 不能为空。')
-      if (modelId.length > 240) throw new Error('模型 ID 过长。')
-      const modelKind = inferModelKind(modelId, input.kind)
-      if (providerType === 'visual' && modelKind === 'chat') throw new Error('视觉 Provider 只能添加图像或视频模型。')
-      if (existing.has(modelId)) {
-        if (!skipExisting) throw new Error('该模型已经存在。')
-        continue
-      }
-      overlay.models.push({
-        id: modelId,
-        name: String(input.name || modelId).trim() || modelId,
-        api: String(input.api || overlay.api || 'openai-responses'),
-        kind: modelKind,
-        ...(String(input.baseUrl || '').trim() ? { baseUrl: String(input.baseUrl).trim() } : {}),
-        reasoning: input.reasoning !== false,
-        input: ['text', 'image'],
-        contextWindow: Number(input.contextWindow) || 200_000,
-        maxTokens: Number(input.maxTokens) || 128_000,
-      })
-      existing.add(modelId)
-      addedModelIds.push(modelId)
-    }
-    if (!addedModelIds.length) throw new Error('所选模型均已添加。')
-    modelsJson.providers[provider] = overlay
-    await writeJsonAtomic(this.modelsPath, modelsJson)
-    const catalog = this.providerModelCatalog.get(provider)
-    const providerBaseUrl = overlay.baseUrl || PROVIDER_DEFAULT_BASE_URLS[provider] || ''
-    if (catalog && sameBaseUrl(catalog.baseUrl, providerBaseUrl)) {
-      const added = models.filter((model) => addedModelIds.includes(String(model.id)))
-      await this.providerModelCatalog.sync(provider, { baseUrl: catalog.baseUrl, api: catalog.api, models: [...catalog.models, ...added] })
-    }
-    await this.disposeSessions()
-    await this.reloadModelRuntime()
-    return { ...(await this.getConfig()), addedModelIds }
+  async addProviderModels(providerId, inputs, options = {}) {
+    return this.providerPreferences.addProviderModels(providerId, inputs, options)
   }
 
   async deleteProvider(id) {
-    const provider = String(id || '').trim()
-    if (KNOWN_PROVIDERS.includes(provider)) throw new Error('内置 Provider 不能删除，可以将其停用。')
-    const modelsJson = await readJson(this.modelsPath, { providers: {} })
-    if (!modelsJson.providers?.[provider]) return null
-    delete modelsJson.providers[provider]
-    await writeJsonAtomic(this.modelsPath, modelsJson)
-    const credentials = await readJson(this.authPath, {})
-    delete credentials[provider]
-    await writeJsonAtomic(this.authPath, credentials)
-    const appConfig = await readJson(this.appConfigPath, { toolMode: 'full', disabledProviders: [] })
-    appConfig.disabledProviders = (appConfig.disabledProviders || []).filter((item) => item !== provider)
-    if (appConfig.providerTypes) delete appConfig.providerTypes[provider]
-    if (appConfig.providerDefaultModels) delete appConfig.providerDefaultModels[provider]
-    await writeJsonAtomic(this.appConfigPath, appConfig)
-    await this.providerModelCatalog.remove(provider)
-    const settings = this.settingsManager.getGlobalSettings()
-    if (settings.defaultProvider === provider) {
-      const providerTypes = appConfig.providerTypes || {}
-      const alternative = this.modelRuntime.getProviders().find((item) => {
-        const type = providerTypes[item.id] || inferredProviderType(modelsJson.providers?.[item.id] || {})
-        return item.id !== provider
-          && type !== 'visual'
-          && credentials[item.id]
-          && this.modelRuntime.getModels(item.id).some((model) => inferModelKind(model.id, model.pisperKind) === 'chat')
-      })
-      if (alternative) {
-        const alternativeModel = this.modelRuntime.getModels(alternative.id).find((model) => inferModelKind(model.id, model.pisperKind) === 'chat')
-        this.settingsManager.setDefaultModelAndProvider(alternative.id, alternativeModel.id)
-        await this.settingsManager.flush()
-      }
-    }
-    await this.disposeSessions()
-    await this.reloadModelRuntime()
-    return this.getConfig()
+    return this.providerPreferences.deleteProvider(id)
   }
 }
