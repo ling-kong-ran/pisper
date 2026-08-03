@@ -537,6 +537,10 @@ pub fn run() {
                 return Ok(());
             }
 
+            if let Err(error) = cli_manager::refresh_managed_cli(app.handle()) {
+                eprintln!("Failed to refresh the managed Pisper CLI: {error}");
+            }
+
             let (child, ready) = start_sidecar(app)?;
             app.manage(SidecarState(Mutex::new(Some(ManagedSidecar {
                 child,

@@ -249,7 +249,7 @@ sudo apt install ./Pisper-*-linux-amd64.deb
 
 ### Terminal Client (TUI)
 
-After installing the desktop app, install the `pisper` command from **Settings → Terminal**:
+After installing the desktop app, install the `pisper` command from **Settings → Terminal**. The first installation remains explicit; after later desktop updates restart Pisper, it automatically refreshes this managed terminal client:
 
 ```bash
 pisper          # start a new conversation

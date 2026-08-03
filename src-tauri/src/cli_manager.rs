@@ -469,6 +469,43 @@ mod windows_path {
     }
 }
 
+fn has_managed_marker(value: Option<&str>) -> bool {
+    value.is_some_and(|contents| contents.contains(MANAGED_MARKER))
+}
+
+pub fn refresh_managed_cli(app: &AppHandle) -> Result<bool, String> {
+    #[cfg(windows)]
+    {
+        let marker = read_optional(&marker_path(app)?)?;
+        if !has_managed_marker(marker.as_deref()) {
+            return Ok(false);
+        }
+        let needs_refresh = !install_path(app)?.is_file()
+            || marker.as_deref() != Some(expected_marker(app).as_str())
+            || !windows_path::contains(&install_dir(app)?);
+        if needs_refresh {
+            install_windows(app)?;
+        }
+        Ok(needs_refresh)
+    }
+
+    #[cfg(not(windows))]
+    {
+        let target = install_path(app)?;
+        let contents = read_optional(&target)?;
+        if !has_managed_marker(contents.as_deref()) {
+            return Ok(false);
+        }
+        let expected = expected_launcher(app)?;
+        let needs_refresh =
+            contents.as_deref() != Some(expected.as_str()) || !profile_is_configured(app);
+        if needs_refresh {
+            install_unix(app)?;
+        }
+        Ok(needs_refresh)
+    }
+}
+
 fn current_status(app: &AppHandle) -> Result<CliInstallStatus, String> {
     let target = install_path(app)?;
     let supported = bundled_payload().is_ok();
@@ -477,10 +514,7 @@ fn current_status(app: &AppHandle) -> Result<CliInstallStatus, String> {
     let (installed, path_configured, launcher_matches) = {
         let marker = read_optional(&marker_path(app)?)?;
         (
-            target.is_file()
-                && marker
-                    .as_deref()
-                    .is_some_and(|value| value.contains(MANAGED_MARKER)),
+            target.is_file() && has_managed_marker(marker.as_deref()),
             windows_path::contains(&install_dir(app)?),
             marker.as_deref() == Some(expected_marker(app).as_str()),
         )
@@ -489,9 +523,7 @@ fn current_status(app: &AppHandle) -> Result<CliInstallStatus, String> {
     #[cfg(not(windows))]
     let (installed, path_configured, launcher_matches) = {
         let contents = read_optional(&target)?;
-        let installed = contents
-            .as_deref()
-            .is_some_and(|value| value.contains(MANAGED_MARKER));
+        let installed = has_managed_marker(contents.as_deref());
         let expected = expected_launcher(app).ok();
         (
             installed,
@@ -580,7 +612,16 @@ pub fn run_bundled_cli(app: &tauri::App, args: &[std::ffi::OsString]) -> Result<
 
 #[cfg(test)]
 mod tests {
-    use super::{remove_managed_block, PROFILE_END, PROFILE_START};
+    use super::{has_managed_marker, remove_managed_block, PROFILE_END, PROFILE_START};
+
+    #[test]
+    fn recognizes_only_present_managed_markers() {
+        assert!(has_managed_marker(Some(
+            "PISPER_CLI_MANAGED_V1\nversion=0.4.12\n"
+        )));
+        assert!(!has_managed_marker(Some("version=0.4.12\n")));
+        assert!(!has_managed_marker(None));
+    }
 
     #[test]
     fn removes_only_the_managed_profile_block() {

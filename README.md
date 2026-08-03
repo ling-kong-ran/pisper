@@ -249,7 +249,7 @@ sudo apt install ./Pisper-*-linux-amd64.deb
 
 ### 终端客户端（TUI）
 
-安装桌面版后，在 **设置 → 终端** 中安装 `pisper` 命令：
+安装桌面版后，在 **设置 → 终端** 中安装 `pisper` 命令。首次安装由你主动确认；之后桌面应用更新并重启时，Pisper 会自动刷新这份已托管的终端客户端：
 
 ```bash
 pisper          # 新建会话

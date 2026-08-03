@@ -62,6 +62,29 @@ test('Windows GNU packages carry the WebView2 loader through an explicit Rust ta
   assert.match(staging, /process\.env\.PISPER_TAURI_BUNDLE_DIR/)
 })
 
+test('desktop startup refreshes only an existing managed TUI installation', async () => {
+  const [manager, desktop] = await Promise.all([
+    readFile('src-tauri/src/cli_manager.rs', 'utf8'),
+    readFile('src-tauri/src/lib.rs', 'utf8'),
+  ])
+
+  assert.match(manager, /pub fn refresh_managed_cli\(app: &AppHandle\)/)
+  assert.equal(
+    manager.match(
+      /if !has_managed_marker\((?:marker|contents)\.as_deref\(\)\) \{\s*return Ok\(false\);/g,
+    )?.length,
+    2,
+  )
+  assert.match(manager, /marker\.as_deref\(\) != Some\(expected_marker\(app\)\.as_str\(\)\)/)
+  assert.match(manager, /install_windows\(app\)\?/)
+  assert.match(manager, /install_unix\(app\)\?/)
+  const refresh = desktop.indexOf('cli_manager::refresh_managed_cli(app.handle())')
+  const sidecar = desktop.indexOf('let (child, ready) = start_sidecar(app)?')
+  assert.ok(refresh >= 0)
+  assert.ok(sidecar > refresh)
+  assert.match(desktop, /if let Err\(error\) = cli_manager::refresh_managed_cli\(app\.handle\(\)\)/)
+})
+
 test('desktop bundles the TUI behind the narrow CLI management bridge', async () => {
   const [configSource, packageSource, bridge, permissions, manager] = await Promise.all([
     readFile('src-tauri/tauri.conf.json', 'utf8'),
