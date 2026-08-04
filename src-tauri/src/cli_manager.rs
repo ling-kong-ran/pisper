@@ -48,6 +48,14 @@ fn sidecar_name() -> &'static str {
     }
 }
 
+fn sandbox_name() -> &'static str {
+    if cfg!(windows) {
+        "agent-sandboxd.exe"
+    } else {
+        "agent-sandboxd"
+    }
+}
+
 fn executable_dir() -> Result<PathBuf, String> {
     std::env::current_exe()
         .map_err(|error| error.to_string())?
@@ -157,15 +165,18 @@ fn expected_launcher(app: &AppHandle) -> Result<String, String> {
     }
 
     let payload = bundled_payload()?;
-    let sidecar = executable_dir()?.join(sidecar_name());
+    let executable_dir = executable_dir()?;
+    let sidecar = executable_dir.join(sidecar_name());
+    let sandbox = executable_dir.join(sandbox_name());
     let runtime = app
         .path()
         .resource_dir()
         .map_err(|error| error.to_string())?
         .join("sidecar-runtime");
     Ok(format!(
-        "#!/bin/sh\n# {MANAGED_MARKER}\nPISPER_SIDECAR_PATH={} PISPER_APP_ROOT={} exec {} \"$@\"\n",
+        "#!/bin/sh\n# {MANAGED_MARKER}\nPISPER_SIDECAR_PATH={} PISPER_SANDBOX_PATH={} PISPER_APP_ROOT={} exec {} \"$@\"\n",
         shell_quote(&sidecar),
+        shell_quote(&sandbox),
         shell_quote(&runtime),
         shell_quote(&payload)
     ))
@@ -607,7 +618,9 @@ pub fn desktop_uninstall_cli(app: AppHandle) -> Result<CliInstallStatus, String>
 
 pub fn run_bundled_cli(app: &tauri::App, args: &[std::ffi::OsString]) -> Result<i32, String> {
     let payload = bundled_payload()?;
-    let sidecar = executable_dir()?.join(sidecar_name());
+    let executable_dir = executable_dir()?;
+    let sidecar = executable_dir.join(sidecar_name());
+    let sandbox = executable_dir.join(sandbox_name());
     let runtime = app
         .path()
         .resource_dir()
@@ -616,6 +629,7 @@ pub fn run_bundled_cli(app: &tauri::App, args: &[std::ffi::OsString]) -> Result<
     let status = Command::new(payload)
         .args(args)
         .env("PISPER_SIDECAR_PATH", sidecar)
+        .env("PISPER_SANDBOX_PATH", sandbox)
         .env("PISPER_APP_ROOT", runtime)
         .status()
         .map_err(|error| format!("Failed to start Pisper CLI: {error}"))?;

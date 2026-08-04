@@ -24,5 +24,5 @@ test('Pisper bash exposes only command and timeout without sandbox escalation fl
   assert.deepEqual(Object.keys(properties).sort(), ['command', 'timeout'])
   assert.equal('sandbox_permissions' in properties, false)
   assert.match(tool.description, /operating-system user/)
-  assert.match(tool.description, /explicit user approval/)
+  assert.match(tool.description, /bypasses Agent Sandbox Runtime/)
 })

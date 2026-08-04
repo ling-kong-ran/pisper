@@ -44,6 +44,7 @@ export class SessionLifecycle {
     invalidateProjection,
     getRuntimeState,
     setRuntimeVersion,
+    closeSandboxContext = async () => false,
   }) {
     this.cwd = cwd
     this.sessionDir = sessionDir
@@ -76,6 +77,7 @@ export class SessionLifecycle {
     this.invalidateProjection = invalidateProjection
     this.getRuntimeState = getRuntimeState
     this.setRuntimeVersion = setRuntimeVersion
+    this.closeSandboxContext = closeSandboxContext
   }
 
   touchSessionRuntime(value) {
@@ -96,6 +98,7 @@ export class SessionLifecycle {
   disposeSessionRuntime(id, value) {
     if (!value || this.sessions.get(id) !== value) return false
     this.getPermissions().resolveSession(id, false, '会话运行时已从内存释放，请重新发送消息。')
+    void this.closeSandboxContext(id).catch(() => {})
     try {
       value.session.dispose()
     } finally {
@@ -143,6 +146,7 @@ export class SessionLifecycle {
       this.getMultiAgents().abortParent(id)
       this.getPermissions().resolveSession(id, false, 'Agent Runtime 正在重新加载，工具未执行。')
       value.session.dispose()
+      await this.closeSandboxContext(id)
       this.invalidateProjection(id)
     }
     this.sessions.clear()
@@ -160,6 +164,7 @@ export class SessionLifecycle {
         'Agent Runtime resources changed before the tool could run.',
       )
       value.session.dispose()
+      void this.closeSandboxContext(id).catch(() => {})
       this.sessions.delete(id)
       this.invalidateProjection(id)
     }
@@ -424,12 +429,15 @@ export class SessionLifecycle {
       !(await this.findSessionInfo(id))
     )
       return null
+    const active = this.sessions.get(id)
+    if (active?.session.isStreaming) {
+      throw new Error('当前会话正在运行，请完成或停止后再切换执行模式。')
+    }
     const permissionMode = permissionModeForExecutionMode(executionMode)
     const sessionMeta = this.getSessionMeta()
     sessionMeta[id] = { ...(sessionMeta[id] || {}), executionMode, permissionMode }
     await this.saveSessionMeta()
-    const active = this.sessions.get(id)
-    if (active) this.syncGoalTools(active, this.getGoals().get(id))
+    if (active) this.disposeSessionRuntime(id, active)
     this.getPermissions().resolveSession(
       id,
       executionMode === 'full-access',
@@ -470,6 +478,7 @@ export class SessionLifecycle {
     const previousModel = active?.session.model
     if (active) {
       active.session.dispose()
+      await this.closeSandboxContext(id)
       this.sessions.delete(id)
     }
     sessionMeta[id] = { ...(sessionMeta[id] || {}), cwd }
@@ -502,6 +511,7 @@ export class SessionLifecycle {
       )
         return this.touchSessionRuntime(current)
       current.session.dispose()
+      await this.closeSandboxContext(id)
       this.sessions.delete(id)
       this.invalidateProjection(id)
     }
@@ -555,6 +565,7 @@ export class SessionLifecycle {
     if (active) {
       if (active.session.isStreaming) await active.session.abort()
       active.session.dispose()
+      await this.closeSandboxContext(id)
       this.sessions.delete(id)
     }
     if (!sessionFile) sessionFile = (await this.findSessionInfo(id))?.path

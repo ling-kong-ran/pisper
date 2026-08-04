@@ -78,6 +78,14 @@ fn platform_binary_name() -> &'static str {
     }
 }
 
+fn sandbox_binary_name() -> &'static str {
+    if cfg!(windows) {
+        "agent-sandboxd.exe"
+    } else {
+        "agent-sandboxd"
+    }
+}
+
 fn pipe_logs<R: Read + Send + 'static>(reader: R, label: &'static str) {
     thread::spawn(move || {
         for line in BufReader::new(reader).lines().map_while(Result::ok) {
@@ -96,9 +104,17 @@ fn development_root() -> PathBuf {
 fn sidecar_command(app: &tauri::App) -> Result<Command, String> {
     let mut command;
     let app_root;
+    let sandbox_path;
 
     if cfg!(debug_assertions) {
         app_root = development_root();
+        sandbox_path = app_root
+            .parent()
+            .expect("development root must have a parent")
+            .join("sandbox")
+            .join("target")
+            .join("debug")
+            .join(sandbox_binary_name());
         command = Command::new("node");
         command.arg(app_root.join("server").join("sidecar.mjs"));
         command.current_dir(&app_root);
@@ -113,11 +129,13 @@ fn sidecar_command(app: &tauri::App) -> Result<Command, String> {
             .resource_dir()
             .map_err(|error| error.to_string())?
             .join("sidecar-runtime");
+        sandbox_path = executable_dir.join(sandbox_binary_name());
         command = Command::new(executable_dir.join(platform_binary_name()));
     }
 
     command
         .env("PISPER_APP_ROOT", &app_root)
+        .env("PISPER_SANDBOX_PATH", sandbox_path)
         .env("PISPER_PARENT_PID", std::process::id().to_string())
         .env("PISPER_EXIT_ON_STDIN_CLOSE", "1")
         .stdin(Stdio::piped())

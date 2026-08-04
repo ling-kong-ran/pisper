@@ -74,7 +74,7 @@ test('workspace file tools run directly while shell requires approval', () => {
     args: { command: 'npm test' },
   })
   assert.equal(shell.risk, 'high')
-  assert.match(shell.reason, /操作系统用户权限/)
+  assert.match(shell.reason, /Agent Sandbox Runtime/)
   assert.equal(
     permissionRequirement({
       mode: 'ignore',

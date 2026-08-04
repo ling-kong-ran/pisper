@@ -192,6 +192,8 @@ function restoredRecord(value) {
     message: String(value?.message || ''),
     availableTools: childTools(value?.availableTools),
     customTools: [],
+    createCustomTools: null,
+    disposeCustomTools: null,
     maxTurns: boundedInteger(value?.maxTurns, DEFAULT_AGENT_MAX_TURNS, MAX_AGENT_MAX_TURNS),
     turnCount: positiveInteger(value?.turnCount) || 0,
     toolCallCount: positiveInteger(value?.toolCallCount) || 0,
@@ -580,6 +582,11 @@ export class MultiAgentService {
     record.session = null
     record.unsubscribe = () => {}
     record.customTools = []
+    record.createCustomTools = null
+    try {
+      void record.disposeCustomTools?.()
+    } catch {}
+    record.disposeCustomTools = null
     record.pendingMessages = []
     record.fullOutput = record.output
     record.onProgress = null
@@ -726,6 +733,7 @@ export class MultiAgentService {
     message,
     allowedTools,
     customTools,
+    createCustomTools,
     maxTurns,
     onProgress,
     onSession,
@@ -760,6 +768,8 @@ export class MultiAgentService {
       message: normalizedMessage,
       availableTools: childTools(allowedTools),
       customTools,
+      createCustomTools: typeof createCustomTools === 'function' ? createCustomTools : null,
+      disposeCustomTools: null,
       maxTurns: boundedInteger(maxTurns, DEFAULT_AGENT_MAX_TURNS, MAX_AGENT_MAX_TURNS),
       turnCount: 0,
       toolCallCount: 0,
@@ -822,7 +832,18 @@ export class MultiAgentService {
         if (!isCurrent()) return
         if (record.aborted) throw new Error(record.abortReason || 'Agent was interrupted.')
         const sessionManager = this.createSessionManager(record.cwd)
-        const childCustomTools = inheritedCustomTools(record.availableTools, record.customTools)
+        let suppliedCustomTools = record.customTools
+        if (record.createCustomTools) {
+          const created = await record.createCustomTools({
+            id: record.id,
+            parentSessionId: record.parentSessionId,
+            cwd: record.cwd,
+            availableTools: [...record.availableTools],
+          })
+          suppliedCustomTools = Array.isArray(created) ? created : created?.tools
+          record.disposeCustomTools = Array.isArray(created) ? null : created?.dispose || null
+        }
+        const childCustomTools = inheritedCustomTools(record.availableTools, suppliedCustomTools)
         const result = await this.createSession({
           cwd: record.cwd,
           agentDir: this.agentDir,
@@ -1137,6 +1158,9 @@ export class MultiAgentService {
       try {
         record.session?.dispose?.()
       } catch {}
+      try {
+        await record.disposeCustomTools?.()
+      } catch {}
       this.records.delete(id)
     }
     for (const [mailboxId, entry] of this.mailbox) {
@@ -1156,6 +1180,9 @@ export class MultiAgentService {
       } catch {}
       try {
         record.session?.dispose?.()
+      } catch {}
+      try {
+        await record.disposeCustomTools?.()
       } catch {}
     }
     await this.flush()

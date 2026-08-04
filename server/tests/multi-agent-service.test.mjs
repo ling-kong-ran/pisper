@@ -112,6 +112,36 @@ function baseInput(overrides = {}) {
   }
 }
 
+test('child custom tool factory receives the child identity and disposes its resources', async () => {
+  const session = createFakeSession({
+    onPrompt: async ({ session: active }) => {
+      active.messages.push({
+        role: 'assistant',
+        content: [{ type: 'text', text: 'done' }],
+        usage: { input: 1, output: 1, totalTokens: 2 },
+      })
+    },
+  })
+  const contexts = []
+  let disposed = 0
+  const { service, seen } = createService(session, { terminalSessionRetentionMs: 0 })
+  const started = await service.spawn(
+    baseInput({
+      customTools: undefined,
+      createCustomTools: async (context) => {
+        contexts.push(context)
+        return { tools: [{ name: 'bash' }], dispose: async () => (disposed += 1) }
+      },
+    }),
+  )
+  await waitFor(() => service.list('parent-1')[0]?.status === 'completed', 'Agent completion')
+  await waitFor(() => disposed === 1, 'custom tool disposal')
+  assert.equal(contexts[0].id, started.id)
+  assert.equal(contexts[0].parentSessionId, 'parent-1')
+  assert.deepEqual(seen.options.customTools, [{ name: 'bash' }])
+  await service.dispose()
+})
+
 test('spawn_agent starts asynchronously and inherits the active model, reasoning level, and safe tools', async () => {
   const promptGate = deferred()
   const session = createFakeSession({

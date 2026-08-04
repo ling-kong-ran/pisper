@@ -84,7 +84,8 @@ export function permissionRequirement({ mode, executionMode, cwd, toolName, args
     if (toolName === 'bash') {
       return {
         risk: 'high',
-        reason: 'Shell 命令将以当前操作系统用户权限运行，批准后可访问工作区之外的文件和网络。',
+        reason:
+          'Shell 命令将在 Agent Sandbox Runtime 中运行；文件写入限制在工作区内，网络默认拒绝。',
       }
     }
     return null

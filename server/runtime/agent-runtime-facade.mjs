@@ -370,6 +370,7 @@ export class AgentRuntimeFacade {
     await this.browserAutomation.dispose()
     this.permissions.dispose()
     await this.disposeSessions()
+    await this.sandbox?.close?.()
     this.pendingSessions.clear()
     await this.mcp.dispose()
     this.memory.dispose()
