@@ -8,6 +8,7 @@ use ratatui::{
     Frame,
 };
 use serde_json::Value;
+use std::time::SystemTime;
 use unicode_width::{UnicodeWidthChar, UnicodeWidthStr};
 
 use crate::{
@@ -1474,12 +1475,41 @@ fn render_slash(frame: &mut Frame, app: &App, composer: Rect) {
     );
 }
 
+fn format_session_time(modified: &str, now: SystemTime) -> String {
+    let Ok(timestamp) = humantime::parse_rfc3339(modified) else {
+        return String::new();
+    };
+    let Ok(age) = now.duration_since(timestamp) else {
+        return "just now".to_owned();
+    };
+    let seconds = age.as_secs();
+    if seconds < 60 {
+        "just now".to_owned()
+    } else if seconds < 60 * 60 {
+        format!("{}m ago", seconds / 60)
+    } else if seconds < 24 * 60 * 60 {
+        format!("{}h ago", seconds / (60 * 60))
+    } else if seconds < 7 * 24 * 60 * 60 {
+        format!("{}d ago", seconds / (24 * 60 * 60))
+    } else {
+        modified.get(..10).unwrap_or(modified).to_owned()
+    }
+}
+
 fn render_sessions(frame: &mut Frame, app: &App, area: Rect) {
     let popup = centered_rect(72, 64, area);
     frame.render_widget(Clear, popup);
+    let now = SystemTime::now();
     let rows = app.sessions.iter().map(|session| {
         let streaming = if session.streaming { " · running" } else { "" };
         let workspace = shorten_path(&session.cwd);
+        let modified = format_session_time(&session.modified, now);
+        let mut metadata = vec![Span::raw("   ")];
+        if !modified.is_empty() {
+            metadata.push(Span::styled(modified, Style::default().fg(BLUE)));
+            metadata.push(Span::styled(" · ", Style::default().fg(FAINT)));
+        }
+        metadata.push(Span::styled(workspace, Style::default().fg(MUTED)));
         ListItem::new(vec![
             Line::from(vec![
                 Span::styled(format!("{:<32}", session.name), Style::default().fg(TEXT)),
@@ -1488,10 +1518,7 @@ fn render_sessions(frame: &mut Frame, app: &App, area: Rect) {
                     Style::default().fg(MUTED),
                 ),
             ]),
-            Line::from(Span::styled(
-                format!("   {workspace}"),
-                Style::default().fg(MUTED),
-            )),
+            Line::from(metadata),
         ])
     });
     let list = List::new(rows)
@@ -2079,8 +2106,8 @@ mod tests {
     use unicode_width::UnicodeWidthStr;
 
     use super::{
-        draw, push_live, push_markdown, runtime_error_label, slash_menu_area, visible_input,
-        CONVERSATION_WIDTH, GREEN, PULSE_FRAMES,
+        draw, format_session_time, push_live, push_markdown, runtime_error_label, slash_menu_area,
+        visible_input, CONVERSATION_WIDTH, GREEN, PULSE_FRAMES,
     };
     use crate::{
         app::{App, Approval, LiveTurn, PathEntry, SettingsPicker},
@@ -2106,6 +2133,20 @@ mod tests {
         let (visible, cursor) = visible_input(&input, input.len(), 5);
         assert_eq!(visible, "7890");
         assert_eq!(cursor, 4);
+    }
+
+    #[test]
+    fn session_times_stay_compact_and_handle_invalid_values() {
+        let now = humantime::parse_rfc3339("2026-08-04T12:00:00Z").unwrap();
+        assert_eq!(format_session_time("2026-08-04T11:59:30Z", now), "just now");
+        assert_eq!(format_session_time("2026-08-04T11:55:00Z", now), "5m ago");
+        assert_eq!(format_session_time("2026-08-04T09:00:00Z", now), "3h ago");
+        assert_eq!(format_session_time("2026-08-02T12:00:00Z", now), "2d ago");
+        assert_eq!(
+            format_session_time("2026-07-01T12:00:00Z", now),
+            "2026-07-01"
+        );
+        assert_eq!(format_session_time("not-a-time", now), "");
     }
 
     #[test]
@@ -2535,6 +2576,32 @@ mod tests {
             app.path_picker = true;
             terminal.draw(|frame| draw(frame, &app)).unwrap();
         }
+    }
+
+    #[test]
+    fn session_picker_renders_the_last_activity_time() {
+        let session = SessionSummary {
+            id: "session-1".to_owned(),
+            name: "Timed conversation".to_owned(),
+            model: "provider/model-a".to_owned(),
+            cwd: "/workspace".to_owned(),
+            modified: "1970-01-01T00:00:00Z".to_owned(),
+            ..SessionSummary::default()
+        };
+        let mut app = App::new(
+            vec![session.clone()],
+            session,
+            Vec::new(),
+            None,
+            Vec::new(),
+            Vec::new(),
+        );
+        app.open_session_picker(false);
+        let mut terminal = Terminal::new(TestBackend::new(80, 24)).unwrap();
+        terminal.draw(|frame| draw(frame, &app)).unwrap();
+        let rendered = format!("{:?}", terminal.backend().buffer());
+        assert!(rendered.contains("Timed conversation"));
+        assert!(rendered.contains("1970-01-01"));
     }
 
     #[test]
