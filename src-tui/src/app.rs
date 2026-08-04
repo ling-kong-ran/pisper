@@ -340,6 +340,17 @@ impl App {
         self.queued_prompts.len()
     }
 
+    pub fn set_startup_data(
+        &mut self,
+        model_options: Vec<ModelOption>,
+        tools: Vec<ToolDefinition>,
+        skills: Vec<SkillDefinition>,
+    ) {
+        self.set_model_options(model_options);
+        self.tools = tools;
+        self.skills = skills;
+    }
+
     pub fn set_model_options(&mut self, mut options: Vec<ModelOption>) {
         options.sort_by(|left, right| {
             left.provider

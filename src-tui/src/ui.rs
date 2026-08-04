@@ -2782,6 +2782,57 @@ mod tests {
     }
 
     #[test]
+    fn composer_stays_whole_across_repeated_height_changes() {
+        let session = SessionSummary {
+            id: "session-1".to_owned(),
+            model: "openai/gpt-5.6-sol".to_owned(),
+            cwd: "/workspace".to_owned(),
+            execution_mode: "workspace".to_owned(),
+            ..SessionSummary::default()
+        };
+        let app = App::new(
+            vec![session.clone()],
+            session,
+            vec![ChatMessage {
+                role: "user".to_owned(),
+                text: "Resize the terminal".to_owned(),
+                run_activity: None,
+                attachments: Vec::new(),
+            }],
+            None,
+            Vec::new(),
+            Vec::new(),
+        );
+        let width = 80;
+        let mut terminal = Terminal::new(TestBackend::new(width, 24)).unwrap();
+
+        for height in [24, 10, 30] {
+            terminal.backend_mut().resize(width, height);
+            crate::synchronize_terminal_size(&mut terminal).unwrap();
+            terminal.draw(|frame| draw(frame, &app)).unwrap();
+            let rows = (0..height)
+                .map(|y| {
+                    (0..width)
+                        .filter_map(|x| terminal.backend().buffer().cell((x, y)))
+                        .map(|cell| cell.symbol())
+                        .collect::<String>()
+                })
+                .collect::<Vec<_>>();
+            let input_rows = rows
+                .iter()
+                .enumerate()
+                .filter_map(|(index, row)| row.contains("Message Pisper").then_some(index))
+                .collect::<Vec<_>>();
+            let expected = if height >= 18 {
+                height.saturating_sub(7)
+            } else {
+                height.saturating_sub(3)
+            } as usize;
+            assert_eq!(input_rows, [expected]);
+        }
+    }
+
+    #[test]
     fn streaming_activity_uses_a_bottom_left_pulse() {
         let session = SessionSummary {
             id: "session-1".to_owned(),

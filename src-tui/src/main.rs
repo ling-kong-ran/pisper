@@ -20,7 +20,10 @@ use crossterm::{
 };
 use futures_util::StreamExt;
 use model::{RuntimeEvent, SessionSummary};
-use ratatui::{backend::CrosstermBackend, Terminal};
+use ratatui::{
+    backend::{Backend, CrosstermBackend},
+    Terminal,
+};
 use tokio::sync::mpsc;
 
 use crate::{
@@ -85,10 +88,6 @@ async fn run() -> Result<()> {
         sidecar.shutdown();
         return Ok(());
     }
-    let (_, model_options) = api
-        .runtime_preferences()
-        .await
-        .unwrap_or_else(|_| (String::new(), Vec::new()));
     let interactive_resume = options.resume;
     let mut session = match resume_seed(&sessions, options.resume) {
         Some(session) => session,
@@ -106,19 +105,25 @@ async fn run() -> Result<()> {
     let (messages, context_usage, thinking_state) = if interactive_resume {
         (Vec::new(), None, None)
     } else {
-        let thinking_state = api.thinking_state(&session.id).await;
+        let (thinking_state, page) =
+            tokio::join!(api.thinking_state(&session.id), api.messages(&session.id));
         if let Ok(state) = &thinking_state {
             if !state.thinking_level.is_empty() {
                 session.thinking_level.clone_from(&state.thinking_level);
             }
         }
-        let page = api.messages(&session.id).await?;
+        let page = page?;
         (page.messages, page.context_usage, Some(thinking_state))
     };
-    let (tools, skills) = api.catalogs().await.unwrap_or_default();
-    let mut app = App::new(sessions, session, messages, context_usage, tools, skills);
+    let mut app = App::new(
+        sessions,
+        session,
+        messages,
+        context_usage,
+        Vec::new(),
+        Vec::new(),
+    );
     app.set_launch_workspace(options.workspace.clone());
-    app.set_model_options(model_options);
     if interactive_resume {
         app.open_session_picker(true);
     } else if let Some(thinking_state) = thinking_state {
@@ -142,15 +147,29 @@ async fn run_event_loop(
 ) -> Result<()> {
     let mut input = EventStream::new();
     let (runtime_tx, mut runtime_rx) = mpsc::unbounded_channel::<RuntimeEvent>();
+    let startup_api = api.clone();
+    let startup_sender = runtime_tx.clone();
+    tokio::spawn(async move {
+        let (preferences, catalogs) =
+            tokio::join!(startup_api.runtime_preferences(), startup_api.catalogs());
+        let (_, model_options) = preferences.unwrap_or_else(|_| (String::new(), Vec::new()));
+        let (tools, skills) = catalogs.unwrap_or_default();
+        let _ = startup_sender.send(RuntimeEvent::StartupData {
+            model_options,
+            tools,
+            skills,
+        });
+    });
     let mut animation = tokio::time::interval(std::time::Duration::from_millis(24));
     animation.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Skip);
     let mut status_animation = tokio::time::interval(std::time::Duration::from_millis(120));
     status_animation.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Skip);
 
     let mut redraw = true;
+    let mut reset_before_redraw = false;
     loop {
         if redraw {
-            draw_frame(terminal, &app)?;
+            draw_frame(terminal, &app, std::mem::take(&mut reset_before_redraw))?;
         }
         redraw = tokio::select! {
             maybe_event = input.next() => {
@@ -166,7 +185,10 @@ async fn run_event_loop(
                         app.insert_paste(&value);
                         true
                     }
-                    Some(Ok(Event::Resize(_, _))) => true,
+                    Some(Ok(Event::Resize(_, _))) => {
+                        reset_before_redraw = true;
+                        true
+                    },
                     Some(Ok(_)) => false,
                     Some(Err(error)) => return Err(error.into()),
                     None => break,
@@ -176,6 +198,14 @@ async fn run_event_loop(
                 match maybe_runtime {
                     Some(runtime_event) => {
                         let terminal_event = match runtime_event {
+                            RuntimeEvent::StartupData {
+                                model_options,
+                                tools,
+                                skills,
+                            } => {
+                                app.set_startup_data(model_options, tools, skills);
+                                false
+                            }
                             RuntimeEvent::Stream(event) => {
                                 let terminal = matches!(event.name.as_str(), "done" | "error");
                                 app.apply_stream_event(event);
@@ -211,9 +241,25 @@ async fn run_event_loop(
     Ok(())
 }
 
-fn draw_frame(terminal: &mut Terminal<CrosstermBackend<io::Stdout>>, app: &App) -> Result<()> {
+fn synchronize_terminal_size<B: Backend>(terminal: &mut Terminal<B>) -> Result<()> {
+    terminal.autoresize()?;
+    terminal.clear()?;
+    Ok(())
+}
+
+fn draw_frame(
+    terminal: &mut Terminal<CrosstermBackend<io::Stdout>>,
+    app: &App,
+    reset_before_draw: bool,
+) -> Result<()> {
     execute!(terminal.backend_mut(), BeginSynchronizedUpdate)?;
-    let draw_result = terminal.draw(|frame| ui::draw(frame, app)).map(drop);
+    let draw_result = (|| -> Result<()> {
+        if reset_before_draw {
+            synchronize_terminal_size(terminal)?;
+        }
+        terminal.draw(|frame| ui::draw(frame, app)).map(drop)?;
+        Ok(())
+    })();
     let end_result = execute!(terminal.backend_mut(), EndSynchronizedUpdate);
     draw_result?;
     end_result?;
@@ -263,8 +309,9 @@ async fn execute_action(
         Action::NewSession => {
             let workspace = app.new_session_workspace().to_path_buf();
             let created = api.create_session("New conversation", &workspace).await?;
-            let page = api.messages(&created.id).await?;
-            let thinking_state = api.thinking_state(&created.id).await;
+            let (page, thinking_state) =
+                tokio::join!(api.messages(&created.id), api.thinking_state(&created.id));
+            let page = page?;
             app.sessions = refreshed_sessions(api, created.clone()).await?;
             app.replace_session(created, page.messages, page.context_usage);
             match thinking_state {
@@ -398,7 +445,9 @@ async fn execute_action(
                 app.open_session_picker_at(exit_on_failure, &id);
                 return Ok(false);
             }
-            let page = match api.messages(&session.id).await {
+            let (page, thinking_state) =
+                tokio::join!(api.messages(&session.id), api.thinking_state(&session.id));
+            let page = match page {
                 Ok(page) => page,
                 Err(error) => {
                     app.status = format!("cannot resume conversation · {error}");
@@ -407,7 +456,6 @@ async fn execute_action(
                     return Ok(false);
                 }
             };
-            let thinking_state = api.thinking_state(&session.id).await;
             app.replace_session(session, page.messages, page.context_usage);
             match thinking_state {
                 Ok(state) => app.set_thinking_state(state),
