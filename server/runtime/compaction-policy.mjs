@@ -5,6 +5,8 @@ export const MIN_COMPACTION_THRESHOLD_PERCENT = 50
 export const MAX_COMPACTION_THRESHOLD_PERCENT = 95
 export const COMPACTION_SUMMARY_RESERVE_TOKENS = 16_384
 
+const PISPER_TURN_COMPACTION_PATCH = Symbol('pisper.turn-compaction-patch')
+
 function tokenCount(value, fallback = 0) {
   const number = Math.floor(Number(value) || 0)
   return number > 0 ? number : fallback
@@ -61,6 +63,38 @@ export function createCompactionSettingsManager(
       return typeof value === 'function' ? value.bind(target) : value
     },
   })
+}
+
+export function installTurnBoundaryCompaction(session) {
+  if (
+    !session?.agent ||
+    session[PISPER_TURN_COMPACTION_PATCH] ||
+    typeof session._checkCompaction !== 'function' ||
+    typeof session.sessionManager?.buildSessionContext !== 'function'
+  )
+    return session
+
+  const previousPrepareNextTurnWithContext = session.agent.prepareNextTurnWithContext
+  session.agent.prepareNextTurnWithContext = async (turn, signal) => {
+    const previousSnapshot = await previousPrepareNextTurnWithContext?.(turn, signal)
+    if (!turn.toolResults?.length) return previousSnapshot
+
+    const previousContext = previousSnapshot?.context ?? turn.context
+    const leafBefore = session.sessionManager.getLeafId?.()
+    await session._checkCompaction(turn.message)
+    const leafAfter = session.sessionManager.getLeafId?.()
+    if (leafBefore === leafAfter) return previousSnapshot
+
+    return {
+      ...previousSnapshot,
+      context: {
+        ...previousContext,
+        messages: session.sessionManager.buildSessionContext().messages,
+      },
+    }
+  }
+  session[PISPER_TURN_COMPACTION_PATCH] = true
+  return session
 }
 
 export function pisperCompactionExtension(pi, { compactSession = compact } = {}) {

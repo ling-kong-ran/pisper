@@ -74,6 +74,7 @@ import { applyPisperSystemPrompt, pisperPromptExtension } from '../prompts/pispe
 import {
   DEFAULT_COMPACTION_THRESHOLD_PERCENT,
   createCompactionSettingsManager,
+  installTurnBoundaryCompaction,
   normalizeCompactionThresholdPercent,
   pisperCompactionExtension,
 } from './compaction-policy.mjs'
@@ -1570,6 +1571,7 @@ export class AgentRuntimeService extends AgentRuntimeFacade {
       ],
     })
     installTransientStreamRetry(session)
+    installTurnBoundaryCompaction(session)
     const now = new Date().toISOString()
     const value = {
       session,

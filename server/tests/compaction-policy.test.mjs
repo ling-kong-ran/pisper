@@ -5,6 +5,7 @@ import {
   DEFAULT_COMPACTION_THRESHOLD_PERCENT,
   createCompactionSettingsManager,
   effectiveCompactionSettings,
+  installTurnBoundaryCompaction,
   normalizeCompactionThresholdPercent,
   pisperCompactionExtension,
 } from '../runtime/compaction-policy.mjs'
@@ -47,6 +48,78 @@ test('session settings manager exposes the adaptive threshold and preserves meth
   threshold = 75
   assert.equal(wrapped.getCompactionSettings().reserveTokens, 50_000)
   assert.equal(wrapped.getMarker(), 'base')
+})
+
+test('tool turns compact before the next provider request and resume with rebuilt context', async () => {
+  const originalContext = { systemPrompt: 'current', messages: ['before'], tools: ['read'] }
+  const refreshedContext = { ...originalContext, systemPrompt: 'refreshed' }
+  const compactedMessages = ['summary', 'recent-tool-result']
+  const calls = []
+  let leaf = 'tool-result'
+  const session = {
+    agent: {
+      prepareNextTurnWithContext: async (turn, signal) => {
+        calls.push(['previous', turn.message.model, signal.aborted])
+        return { context: refreshedContext, model: 'refreshed-model' }
+      },
+    },
+    sessionManager: {
+      getLeafId: () => leaf,
+      buildSessionContext: () => ({ messages: compactedMessages }),
+    },
+    async _checkCompaction(message) {
+      calls.push(['compact', message.model])
+      leaf = 'compaction'
+      return false
+    },
+  }
+
+  installTurnBoundaryCompaction(session)
+  installTurnBoundaryCompaction(session)
+  const result = await session.agent.prepareNextTurnWithContext(
+    {
+      message: { model: 'test-model' },
+      toolResults: [{ role: 'toolResult' }],
+      context: originalContext,
+    },
+    new AbortController().signal,
+  )
+
+  assert.deepEqual(calls, [
+    ['previous', 'test-model', false],
+    ['compact', 'test-model'],
+  ])
+  assert.deepEqual(result, {
+    context: { ...refreshedContext, messages: compactedMessages },
+    model: 'refreshed-model',
+  })
+})
+
+test('turn boundary compaction leaves ordinary assistant turns unchanged', async () => {
+  let checks = 0
+  const session = {
+    agent: {},
+    sessionManager: {
+      getLeafId: () => 'assistant',
+      buildSessionContext: () => {
+        throw new Error('context should not be rebuilt')
+      },
+    },
+    async _checkCompaction() {
+      checks += 1
+      return false
+    },
+  }
+  installTurnBoundaryCompaction(session)
+
+  assert.equal(
+    await session.agent.prepareNextTurnWithContext(
+      { message: { model: 'test-model' }, toolResults: [], context: { messages: [] } },
+      new AbortController().signal,
+    ),
+    undefined,
+  )
+  assert.equal(checks, 0)
 })
 
 test('Pisper compaction uses no reasoning and keeps the summary output budget bounded', async () => {

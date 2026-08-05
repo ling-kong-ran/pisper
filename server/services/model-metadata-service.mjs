@@ -205,6 +205,15 @@ function positiveInteger(value) {
   return Number.isSafeInteger(number) && number > 0 ? number : null
 }
 
+function metadataKeys(modelId) {
+  const key = String(modelId || '')
+    .trim()
+    .toLowerCase()
+  if (!key) return []
+  const separator = key.lastIndexOf('/')
+  return separator >= 0 && separator < key.length - 1 ? [key, key.slice(separator + 1)] : [key]
+}
+
 function normalizedModels(payload) {
   const models = {}
   for (const provider of Object.values(payload || {})) {
@@ -249,11 +258,9 @@ export class ModelMetadataService {
   }
 
   get(modelId) {
-    const key = String(modelId || '')
-      .trim()
-      .toLowerCase()
-    const bundled = BUNDLED_MODEL_METADATA[key]
-    const stored = this.state.models[key]
+    const keys = metadataKeys(modelId)
+    const bundled = keys.map((key) => BUNDLED_MODEL_METADATA[key]).find(Boolean)
+    const stored = keys.map((key) => this.state.models[key]).find(Boolean)
     if (!bundled) return stored || null
     if (!stored) return bundled
     return {
@@ -271,9 +278,7 @@ export class ModelMetadataService {
   }
 
   async ensure(modelId) {
-    const key = String(modelId || '')
-      .trim()
-      .toLowerCase()
+    const [key] = metadataKeys(modelId)
     if (!key || this.get(key)) return this.get(key)
     if (this.state.missing.includes(key)) return null
     if (this.lookupPromise) {
