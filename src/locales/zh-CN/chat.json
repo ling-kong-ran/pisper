@@ -245,7 +245,7 @@
   "focusSession.moveTheCurrentTabIntoANewGroupOnTheTop": "将当前标签移动到上方新分组",
   "focusSession.newChat": "新会话",
   "focusSession.newContent": "有新内容",
-  "focusSession.onlyInspectAndAnalyzeCode": "只能查看和分析代码",
+  "focusSession.onlyInspectAndAnalyzeContent": "只能查看和分析内容",
   "focusSession.fullAccessRunsShellWithoutPerCommandApproval": "允许访问本机文件和网络；Shell 不再逐次请求授权",
   "focusSession.openChatActionsMenu": "打开会话操作菜单",
   "focusSession.readOnly": "只读",

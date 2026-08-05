@@ -245,7 +245,7 @@
   "focusSession.moveTheCurrentTabIntoANewGroupOnTheTop": "Move the current tab into a new group above",
   "focusSession.newChat": "New chat",
   "focusSession.newContent": "New content",
-  "focusSession.onlyInspectAndAnalyzeCode": "Only inspect and analyze code",
+  "focusSession.onlyInspectAndAnalyzeContent": "Only inspect and analyze content",
   "focusSession.fullAccessRunsShellWithoutPerCommandApproval": "Can access host files and the network; Shell does not require per-command approval",
   "focusSession.openChatActionsMenu": "Open chat actions menu",
   "focusSession.readOnly": "Read only",

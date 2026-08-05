@@ -204,7 +204,7 @@ function executionModeOptions(t: Translate): ExecutionModeOption[] {
     [
       'read-only',
       t('chat:focusSession.readOnly'),
-      t('chat:focusSession.onlyInspectAndAnalyzeCode'),
+      t('chat:focusSession.onlyInspectAndAnalyzeContent'),
       Eye,
     ],
     [
