@@ -75,10 +75,10 @@ test('browser automation releases an idle desktop browser session', async () => 
   assert.deepEqual(closed, ['session-idle'])
 })
 
-test('workspace browser actions run without approval', () => {
+test('full-access browser actions run without approval', () => {
   const base = {
     mode: 'auto',
-    executionMode: 'workspace',
+    executionMode: 'full-access',
     cwd: '/workspace',
     toolName: 'browser_automation',
     toolRisk: 'medium',

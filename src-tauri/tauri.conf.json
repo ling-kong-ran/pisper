@@ -22,7 +22,7 @@
   "bundle": {
     "active": true,
     "targets": "all",
-    "externalBin": ["binaries/pisper-sidecar", "binaries/pisper-cli", "binaries/agent-sandboxd"],
+    "externalBin": ["binaries/pisper-sidecar", "binaries/pisper-cli"],
     "resources": {
       "../release/sea/runtime/": "sidecar-runtime/"
     },

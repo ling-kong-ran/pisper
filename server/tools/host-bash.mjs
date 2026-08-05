@@ -50,32 +50,20 @@ export function hostCommandEnvironment(environment = {}) {
   return result
 }
 
-export async function createPisperBashTool(
-  cwd,
-  { platform = process.platform, operations, executionMode = 'full-access' } = {},
-) {
+export async function createPisperBashTool(cwd, { platform = process.platform } = {}) {
   const localTool = await createBashTool(cwd, {
-    ...(operations ? { operations } : {}),
-    ...(!operations
-      ? {
-          spawnHook: (context) =>
-            applyWindowsUtf8Environment(
-              {
-                ...context,
-                env: hostCommandEnvironment(context.env),
-              },
-              platform,
-            ),
-        }
-      : {}),
+    spawnHook: (context) =>
+      applyWindowsUtf8Environment(
+        {
+          ...context,
+          env: hostCommandEnvironment(context.env),
+        },
+        platform,
+      ),
   })
-  const executionDescription =
-    executionMode === 'workspace'
-      ? 'Commands run in Agent Sandbox Runtime with workspace-only filesystem access and network denied by default. Sandbox failure never falls back to host execution.'
-      : 'Commands run as the current operating-system user because full-access mode explicitly bypasses Agent Sandbox Runtime.'
   return {
     ...localTool,
-    description: `${localTool.description}\n${executionDescription}`,
+    description: `${localTool.description}\nCommands run as the current operating-system user and can access host files and networks.`,
     parameters: HOST_BASH_SCHEMA,
   }
 }

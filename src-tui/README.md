@@ -84,13 +84,12 @@ pisper doctor
 | `/attach` | 打开 workspace 文件选择器。 |
 | `/mode` | 显示当前执行模式和可用参数；运行期间也可随时调整。 |
 | `/mode read-only` | 只开放低风险分析工具，不允许修改项目。 |
-| `/mode workspace` | workspace 内读写直接执行；每条 Shell 命令需要审批。 |
 | `/mode full-access` | 允许本机文件、网络和 Shell 完整访问。 |
 | `/quit` | 退出 TUI。 |
 
 命令候选会根据前缀匹配和本机使用频率排序。`Tab` 只补全，不会执行 Tool；选择内置命令后按 `Enter` 才执行。
 
-`/init` 会让 Agent 先检查项目结构、命令和约定，再生成项目专属的 `AGENTS.md`，而不是写入固定模板。已有文件会在保留有效说明的基础上谨慎更新，且该任务不会修改其他项目文件。`read-only` 模式下不能运行；`workspace` 模式下写入直接执行，无需审批。命令完成后使用 `/new`，可让新会话从启动时加载生成的项目说明。
+`/init` 会让 Agent 先检查项目结构、命令和约定，再生成项目专属的 `AGENTS.md`，而不是写入固定模板。已有文件会在保留有效说明的基础上谨慎更新，且该任务不会修改其他项目文件。`read-only` 模式下不能运行；`full-access` 模式下以当前系统用户权限执行。命令完成后使用 `/new`，可让新会话从启动时加载生成的项目说明。
 
 Agent 创建结构化 Plan 后，TUI 会在消息流和 Composer 之间原位显示步骤、负责人、依赖和状态；窄终端折叠已完成项，底部保留 `Plan · 完成数/总数`。
 
@@ -135,16 +134,7 @@ Skill 示例：
 
 Skill 名称以当前 Slash 列表为准。runtime 会按需加载对应的 `SKILL.md`、脚本和参考资料，Skill 内触发的 Tool 仍走相同权限链。
 
-## 审批
-
-在 `workspace` 模式下，workspace 内的结构化文件读写直接执行，只有每条 Shell 命令需要逐次审批。审批面板临时替代 composer：
-
-- `Y`：`Allow once`，仅允许当前请求。
-- `N`：拒绝。
-- `Esc`：拒绝。
-- `Ctrl+C`：拒绝待执行请求并中止当前 run。
-
-`read-only` 模式不会开放写入能力；`full-access` 代表用户明确允许完整访问，它不是安全沙箱。
+`read-only` 模式不会开放写入或 Shell 能力；`full-access` 代表用户明确允许以当前系统用户权限完整访问。
 
 ## 本地开发
 

@@ -84,13 +84,12 @@ Long or multiline bracketed pastes render as a compact `[Pasted text · …]` to
 | `/attach` | Open the workspace file picker. |
 | `/mode` | Show the active execution mode and accepted values; it can be changed during a run. |
 | `/mode read-only` | Expose low-risk analysis tools only. |
-| `/mode workspace` | Read and write inside the workspace directly; approve every Shell command. |
 | `/mode full-access` | Allow unrestricted local files, network, and Shell access. |
 | `/quit` | Exit the TUI. |
 
 Candidates are sorted by prefix match and local usage frequency. `Tab` completes a command without executing a Tool; press `Enter` to select a built-in command.
 
-`/init` asks the Agent to inspect the project structure, commands, and conventions before writing repository-specific guidance instead of a fixed template. It carefully preserves useful content in an existing `AGENTS.md` and does not modify other project files. The command is unavailable in `read-only` mode; writes run directly without approval in `workspace` mode. After it completes, use `/new` to start a session that loads the generated project guidance at startup.
+`/init` asks the Agent to inspect the project structure, commands, and conventions before writing repository-specific guidance instead of a fixed template. It carefully preserves useful content in an existing `AGENTS.md` and does not modify other project files. The command is unavailable in `read-only` mode and runs with current-user permissions in `full-access` mode. After it completes, use `/new` to start a session that loads the generated project guidance at startup.
 
 When the Agent creates a structured Plan, the TUI updates its items, owners, dependencies, and statuses in place between the transcript and Composer. Narrow terminals fold completed items and retain `Plan · completed/total` in the footer.
 
@@ -135,16 +134,7 @@ Skill example:
 
 The active Slash list is authoritative for Skill names. The runtime loads the matching `SKILL.md`, scripts, and references on demand. Tools invoked by a Skill follow the same permission chain.
 
-## Approvals
-
-In `workspace` mode, structured file reads and writes inside the workspace run directly. Only Shell commands require per-request approval. The approval panel temporarily replaces the composer:
-
-- `Y`: Allow once.
-- `N`: deny.
-- `Esc`: deny.
-- `Ctrl+C`: deny the pending request and abort the active run.
-
-`read-only` does not expose write capabilities. `full-access` means the user explicitly allows unrestricted access; it is not a security sandbox.
+`read-only` does not expose write or Shell capabilities. `full-access` means the user explicitly allows unrestricted access as the current operating-system user.
 
 ## Local Development
 

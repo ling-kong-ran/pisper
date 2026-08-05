@@ -168,9 +168,7 @@ export function useSessionCommands({
             mode:
               updated.executionMode === 'read-only'
                 ? t('chat:chatPage.readOnly')
-                : updated.executionMode === 'full-access'
-                  ? t('chat:chatPage.fullAccess')
-                  : t('chat:chatPage.workspace'),
+                : t('chat:chatPage.fullAccess'),
           }),
         )
         return true

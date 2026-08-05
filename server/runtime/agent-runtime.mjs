@@ -56,7 +56,6 @@ import {
 } from '../tools/app/plan.mjs'
 import { createToolDiscoveryTool, TOOL_DISCOVERY_NAME } from '../tools/app/tool-discovery.mjs'
 import { createPisperBashTool } from '../tools/host-bash.mjs'
-import { SandboxService } from '../sandbox/sandbox-service.mjs'
 import {
   hotToolNames,
   mergePromotedToolNames,
@@ -319,7 +318,6 @@ export class AgentRuntimeService extends AgentRuntimeFacade {
     providerModelDiscovery,
     browserAutomationDriver,
     eventObserver,
-    sandboxService,
     legacyDefaultCwds = [],
   } = {}) {
     super()
@@ -333,7 +331,6 @@ export class AgentRuntimeService extends AgentRuntimeFacade {
     )
     this.eventObserver = typeof eventObserver === 'function' ? eventObserver : null
     this.dataDir = dataDir
-    this.sandbox = sandboxService || new SandboxService({ dataDir })
     this.providerUserAgent = String(appVersion || '').trim()
       ? `Pisper/${String(appVersion).trim()}`
       : 'Pisper'
@@ -564,7 +561,6 @@ export class AgentRuntimeService extends AgentRuntimeFacade {
       setRuntimeVersion: (version) => {
         this.sessionRuntimeVersion = version
       },
-      closeSandboxContext: (id) => this.sandbox.closeContext(`session:${id}`),
     })
     this.providerPreferences = new ProviderPreferences({
       authPath: this.authPath,
@@ -1427,28 +1423,16 @@ export class AgentRuntimeService extends AgentRuntimeFacade {
           model: runtimeSession.model,
           thinkingLevel: runtimeSession.thinkingLevel,
           allowedTools: [...parentActiveToolNames(), ...(planReader ? [planReader.name] : [])],
-          createCustomTools: async ({ id }) => {
-            const contextId = `agent:${id}`
+          createCustomTools: async () => {
             const childBashTool =
               enabledTools.includes('bash') && executionMode !== 'read-only'
-                ? await createPisperBashTool(effectiveCwd, {
-                    executionMode,
-                    ...(executionMode === 'workspace'
-                      ? {
-                          operations: this.sandbox.createBashOperations({
-                            contextId,
-                            cwd: effectiveCwd,
-                          }),
-                        }
-                      : {}),
-                  })
+                ? await createPisperBashTool(effectiveCwd)
                 : null
             return {
               tools: [
                 ...createInheritedCustomTools(childBashTool),
                 ...(planReader ? [planReader] : []),
               ],
-              dispose: () => this.sandbox.closeContext(contextId),
             }
           },
           onProgress: (agent) => this.emitAgentUpdate(runtimeSession.sessionId, agent),
@@ -1502,17 +1486,7 @@ export class AgentRuntimeService extends AgentRuntimeFacade {
     })
     const bashTool =
       enabledTools.includes('bash') && executionMode !== 'read-only'
-        ? await createPisperBashTool(effectiveCwd, {
-            executionMode,
-            ...(executionMode === 'workspace'
-              ? {
-                  operations: this.sandbox.createBashOperations({
-                    contextId: `session:${runtimeSessionId}`,
-                    cwd: effectiveCwd,
-                  }),
-                }
-              : {}),
-          })
+        ? await createPisperBashTool(effectiveCwd)
         : null
     const createInheritedCustomTools = (inheritedBashTool = bashTool) => [
       ...schemaOnlyToolDefinitions(

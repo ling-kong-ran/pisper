@@ -56,7 +56,7 @@ export function SessionDockPanel({ params, api }: IDockviewPanelProps<{ sessionI
         loadingOlder={state.loadingOlder}
         olderError={state.olderError}
         model={state.model || session.model || context.defaultModel}
-        executionMode={state.executionMode || session.executionMode || 'workspace'}
+        executionMode={state.executionMode || session.executionMode || 'full-access'}
         goal={state.goal ?? session.goal ?? null}
         plan={visiblePlan}
         currentActivity={state.currentActivity}

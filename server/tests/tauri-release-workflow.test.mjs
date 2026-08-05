@@ -47,6 +47,7 @@ test('release quality stages both desktop sidecars before checking Rust', async 
 
   assert.ok(qualityJob.indexOf('npm run sidecar:sea') < cargoCheck)
   assert.ok(qualityJob.indexOf('npm run tui:stage') < cargoCheck)
+  assert.doesNotMatch(qualityJob, /sandbox:stage|agent-sandboxd/)
 })
 
 test('Windows GNU packages carry the WebView2 loader through an explicit Rust target', async () => {
@@ -97,13 +98,10 @@ test('desktop bundles the TUI behind the narrow CLI management bridge', async ()
   const config = JSON.parse(configSource)
   const packageJson = JSON.parse(packageSource)
 
-  assert.deepEqual(config.bundle.externalBin, [
-    'binaries/pisper-sidecar',
-    'binaries/pisper-cli',
-    'binaries/agent-sandboxd',
-  ])
-  assert.match(packageJson.scripts['desktop:webview:build'], /npm run sandbox:stage/)
+  assert.deepEqual(config.bundle.externalBin, ['binaries/pisper-sidecar', 'binaries/pisper-cli'])
+  assert.doesNotMatch(packageJson.scripts['desktop:webview:build'], /sandbox/)
   assert.match(packageJson.scripts['desktop:webview:build'], /npm run tui:stage/)
+  assert.doesNotMatch(manager, /PISPER_SANDBOX_PATH|agent-sandboxd/)
   for (const command of [
     'desktop_get_cli_status',
     'desktop_install_cli',

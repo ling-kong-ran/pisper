@@ -33,7 +33,7 @@ import type { ConfirmDialogOptions } from '@/hooks/useAppDialog'
 type NotificationTarget = 'browser' | 'feishu' | 'weixin'
 type ScheduleFrequency = 'interval' | 'daily' | 'weekly' | 'monthly'
 type IntervalUnit = 'minutes' | 'hours' | 'days'
-type ScheduleExecutionMode = 'full-access' | 'workspace' | 'read-only'
+type ScheduleExecutionMode = 'full-access' | 'read-only'
 type ScheduleStatus = 'idle' | 'running' | 'completed' | 'failed' | 'interrupted'
 type ScheduleTask = {
   id: string
@@ -129,11 +129,10 @@ const TIMEZONES = [
     ...(typeof Intl.supportedValuesOf === 'function' ? Intl.supportedValuesOf('timeZone') : []),
   ]),
 ]
-const SCHEDULE_EXECUTION_MODES: ScheduleExecutionMode[] = ['full-access', 'workspace', 'read-only']
+const SCHEDULE_EXECUTION_MODES: ScheduleExecutionMode[] = ['full-access', 'read-only']
 
 function executionModeHelp(mode: ScheduleExecutionMode, t: ReturnType<typeof useI18n>['t']) {
   if (mode === 'full-access') return t('schedules:schedulesPage.fullAccessHelp')
-  if (mode === 'workspace') return t('schedules:schedulesPage.workspaceHelp')
   return t('schedules:schedulesPage.readOnlyHelp')
 }
 
@@ -170,9 +169,7 @@ function ScheduleExecutionModeField({ value, onChange }: ScheduleExecutionModeFi
             <option value={mode} key={mode}>
               {mode === 'full-access'
                 ? t('schedules:schedulesPage.fullAccess')
-                : mode === 'workspace'
-                  ? t('schedules:schedulesPage.workspace')
-                  : t('schedules:schedulesPage.readOnly')}
+                : t('schedules:schedulesPage.readOnly')}
             </option>
           ))}
         </AppSelect>

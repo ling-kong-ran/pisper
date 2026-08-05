@@ -77,18 +77,8 @@ export function permissionRequirement({ mode, executionMode, cwd, toolName, args
     return {
       block: true,
       risk: 'high',
-      reason: `${toolName} 不能在工作区模式下访问当前工作目录之外的文件。`,
+      reason: `${toolName} 不能在当前执行模式下访问当前工作目录之外的文件。`,
     }
-  }
-  if (executionMode === 'workspace') {
-    if (toolName === 'bash') {
-      return {
-        risk: 'high',
-        reason:
-          'Shell 命令将在 Agent Sandbox Runtime 中运行；文件写入限制在工作区内，网络默认拒绝。',
-      }
-    }
-    return null
   }
   if (['read', 'ls', 'grep', 'find'].includes(toolName)) return null
   if (['edit', 'write'].includes(toolName)) {
@@ -117,7 +107,7 @@ export function permissionRequirement({ mode, executionMode, cwd, toolName, args
 export class SessionPermissionService {
   constructor({ getMode, getExecutionMode, getToolRisk, timeoutMs = 10 * 60_000 } = {}) {
     this.getMode = getMode || (() => DEFAULT_PERMISSION_MODE)
-    this.getExecutionMode = getExecutionMode || (() => 'workspace')
+    this.getExecutionMode = getExecutionMode || (() => '')
     this.getToolRisk = getToolRisk || (() => null)
     this.timeoutMs = timeoutMs
     this.pending = new Map()

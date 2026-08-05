@@ -322,7 +322,7 @@ test('session execution mode API delegates to the runtime', async () => {
   const modeResponse = response()
   assert.equal(
     await handler(
-      request('PUT', { mode: 'workspace' }),
+      request('PUT', { mode: 'full-access' }),
       modeResponse,
       new URL('http://localhost/api/sessions/session%201/execution-mode'),
     ),
@@ -331,8 +331,8 @@ test('session execution mode API delegates to the runtime', async () => {
   assert.equal(modeResponse.status, 200)
   assert.deepEqual(JSON.parse(modeResponse.body), {
     id: 'session 1',
-    executionMode: 'workspace',
-    permissionMode: 'auto',
+    executionMode: 'full-access',
+    permissionMode: 'ignore',
   })
-  assert.deepEqual(calls, [['mode', 'session 1', 'workspace']])
+  assert.deepEqual(calls, [['mode', 'session 1', 'full-access']])
 })

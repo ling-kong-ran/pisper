@@ -87,57 +87,6 @@ test('permission modes progress from ask to automatic to ignored checks', () => 
   )
   assert.equal(
     permissionRequirement({
-      mode: 'auto',
-      executionMode: 'workspace',
-      cwd,
-      toolName: 'write',
-      args: { path: 'README.md' },
-    }),
-    null,
-  )
-  assert.equal(
-    permissionRequirement({
-      mode: 'auto',
-      executionMode: 'workspace',
-      cwd,
-      toolName: 'edit',
-      args: { path: 'README.md', edits: [] },
-    }),
-    null,
-  )
-  assert.equal(
-    permissionRequirement({
-      mode: 'auto',
-      executionMode: 'workspace',
-      cwd,
-      toolName: 'browser_automation',
-      toolRisk: 'high',
-      args: { action: 'click' },
-    }),
-    null,
-  )
-  assert.equal(
-    permissionRequirement({
-      mode: 'ignore',
-      executionMode: 'workspace',
-      cwd,
-      toolName: 'write',
-      args: { path: outside },
-    }).block,
-    true,
-  )
-  assert.match(
-    permissionRequirement({
-      mode: 'ignore',
-      executionMode: 'workspace',
-      cwd,
-      toolName: 'bash',
-      args: { command: 'date' },
-    }).reason,
-    /Shell/,
-  )
-  assert.equal(
-    permissionRequirement({
       mode: 'ignore',
       executionMode: 'full-access',
       cwd,
@@ -148,7 +97,7 @@ test('permission modes progress from ask to automatic to ignored checks', () => 
   )
 })
 
-test('workspace path checks resolve symbolic links before authorization', async (t) => {
+test('path checks resolve symbolic links before authorization', async (t) => {
   const directory = await mkdtemp(join(tmpdir(), 'pisper-permission-path-'))
   const workspace = join(directory, 'workspace')
   const outside = join(directory, 'outside')
@@ -163,7 +112,7 @@ test('workspace path checks resolve symbolic links before authorization', async 
 
   const requirement = permissionRequirement({
     mode: 'auto',
-    executionMode: 'workspace',
+    executionMode: 'read-only',
     cwd: workspace,
     toolName: 'write',
     args: { path: join(workspace, 'linked-outside', 'escaped.txt') },
@@ -173,7 +122,7 @@ test('workspace path checks resolve symbolic links before authorization', async 
 
 test('pending tool approval can be accepted or denied', async () => {
   let mode = 'ask'
-  let executionMode = 'workspace'
+  let executionMode = ''
   const events = []
   const service = new SessionPermissionService({
     getMode: () => mode,
@@ -186,9 +135,9 @@ test('pending tool approval can be accepted or denied', async () => {
     await service.authorize({
       sessionId: 'session-1',
       cwd: process.cwd(),
-      toolName: 'write',
-      toolCallId: 'tool-write',
-      args: { path: 'file.txt', content: 'ok' },
+      toolName: 'read',
+      toolCallId: 'tool-read',
+      args: { path: 'file.txt' },
     }),
     undefined,
   )
@@ -236,7 +185,7 @@ test('pending tool approval can be accepted or denied', async () => {
       toolName: 'write',
       args: { path: outside },
     }),
-    { block: true, reason: 'write 不能在工作区模式下访问当前工作目录之外的文件。' },
+    { block: true, reason: 'write 不能在当前执行模式下访问当前工作目录之外的文件。' },
   )
   assert.deepEqual(service.getPending('session-1'), [])
 

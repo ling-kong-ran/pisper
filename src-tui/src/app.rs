@@ -555,10 +555,6 @@ impl App {
             command("/attach", "Add image, text, code, or document files"),
             command("/mode read-only", "Allow low-risk analysis tools only"),
             command(
-                "/mode workspace",
-                "Allow workspace file changes; approve every shell command",
-            ),
-            command(
                 "/mode full-access",
                 "Allow unrestricted files, network, and shell",
             ),
@@ -1001,8 +997,7 @@ impl App {
             }
             "/init" => {
                 if self.execution_mode == "read-only" {
-                    self.status = "/init requires workspace or full-access mode to write AGENTS.md"
-                        .to_owned();
+                    self.status = "/init requires full-access mode to write AGENTS.md".to_owned();
                     self.status_error = true;
                     self.clear_input();
                     return Action::None;
@@ -1087,7 +1082,7 @@ impl App {
             }
             "/mode" => {
                 self.status = format!(
-                    "mode · {} · use /mode read-only|workspace|full-access",
+                    "mode · {} · use /mode read-only|full-access",
                     self.execution_mode
                 );
                 self.clear_input();
@@ -1099,7 +1094,7 @@ impl App {
                 Action::SetExecutionMode(mode.to_owned())
             }
             _ if message.starts_with("/mode ") => {
-                self.status = "usage · /mode read-only|workspace|full-access".to_owned();
+                self.status = "usage · /mode read-only|full-access".to_owned();
                 self.clear_input();
                 Action::None
             }
@@ -1719,7 +1714,7 @@ fn execution_mode_command(message: &str) -> Option<&str> {
         return None;
     }
     let mode = parts.next()?;
-    if parts.next().is_some() || !matches!(mode, "read-only" | "workspace" | "full-access") {
+    if parts.next().is_some() || !matches!(mode, "read-only" | "full-access") {
         return None;
     }
     Some(mode)
@@ -2087,7 +2082,7 @@ mod tests {
 
         assert!(matches!(app.submit_action(), Action::None));
         assert!(app.status_error);
-        assert!(app.status.contains("workspace or full-access"));
+        assert!(app.status.contains("requires full-access"));
         assert!(!app.is_streaming());
     }
 
@@ -2470,7 +2465,7 @@ mod tests {
         let session = SessionSummary {
             id: "session-1".to_owned(),
             cwd: "/workspace".to_owned(),
-            execution_mode: "workspace".to_owned(),
+            execution_mode: "full-access".to_owned(),
             ..SessionSummary::default()
         };
         App::new(

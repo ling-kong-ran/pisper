@@ -127,7 +127,7 @@ test('scheduled tasks persist, execute with the selected model and notify multip
   assert.match(notifications[0][1].task.summary, /检查完成/)
 })
 
-test('scheduled tasks preserve an explicit workspace execution mode', async (t) => {
+test('scheduled tasks preserve an explicit read-only execution mode', async (t) => {
   const directory = await mkdtemp(join(tmpdir(), 'pisper-schedules-execution-mode-'))
   t.after(() => rm(directory, { recursive: true, force: true }))
   const prompts = []
@@ -147,17 +147,17 @@ test('scheduled tasks preserve an explicit workspace execution mode', async (t) 
   await service.init()
   t.after(() => service.dispose())
   const task = await service.create({
-    name: '沙箱任务',
+    name: '只读任务',
     prompt: 'test',
     frequency: 'daily',
     time: '09:00',
     timezone: 'UTC',
-    executionMode: 'workspace',
+    executionMode: 'read-only',
   })
   await service.runNow(task.id)
   await waitFor(() => service.executions.size === 0)
-  assert.equal(service.getState().tasks[0].executionMode, 'workspace')
-  assert.equal(prompts[0].executionMode, 'workspace')
+  assert.equal(service.getState().tasks[0].executionMode, 'read-only')
+  assert.equal(prompts[0].executionMode, 'read-only')
 })
 
 test('failure-only tasks suppress success notifications and send failure templates', async (t) => {

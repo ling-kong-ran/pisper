@@ -1,8 +1,8 @@
 import { PLAN_READ_TOOL_NAMES } from '../tools/app/plan-tool-names.mjs'
 import { TOOL_CATALOG } from '../tools/registry.mjs'
 
-export const EXECUTION_MODES = new Set(['read-only', 'workspace', 'full-access'])
-export const DEFAULT_EXECUTION_MODE = 'workspace'
+export const EXECUTION_MODES = new Set(['read-only', 'full-access'])
+export const DEFAULT_EXECUTION_MODE = 'full-access'
 
 const TOOL_RISK = new Map(TOOL_CATALOG.map((tool) => [tool.id, tool.risk]))
 const INTERNAL_READ_ONLY_TOOLS = new Set([
@@ -20,9 +20,7 @@ export function normalizeExecutionMode(value, fallback = DEFAULT_EXECUTION_MODE)
 }
 
 export function permissionModeForExecutionMode(mode) {
-  if (mode === 'full-access') return 'ignore'
-  if (mode === 'read-only') return 'ask'
-  return 'auto'
+  return mode === 'read-only' ? 'ask' : 'ignore'
 }
 
 export function filterToolsForExecutionMode(names, mode, getExternalRisk = () => null) {
@@ -37,5 +35,5 @@ export function filterToolsForExecutionMode(names, mode, getExternalRisk = () =>
 
 export function migrateLegacyExecutionMode(meta = {}) {
   if (EXECUTION_MODES.has(meta.executionMode)) return meta.executionMode
-  return meta.permissionMode === 'ignore' ? 'full-access' : DEFAULT_EXECUTION_MODE
+  return DEFAULT_EXECUTION_MODE
 }

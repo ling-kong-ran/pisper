@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
-import { Bot, Check, Eye, Gauge, Shield, ShieldOff } from 'lucide-react'
+import { Bot, Check, Eye, Gauge, ShieldOff } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
 import type { I18nValues } from '@/app/i18n'
 import { useI18n } from '@/app/use-i18n'
@@ -208,12 +208,6 @@ function executionModeOptions(t: Translate): ExecutionModeOption[] {
       Eye,
     ],
     [
-      'workspace',
-      t('chat:focusSession.workspace'),
-      t('chat:focusSession.workspaceReadsDirectlyAndApprovesWritesAndShellCommands'),
-      Shield,
-    ],
-    [
       'full-access',
       t('chat:focusSession.fullAccess'),
       t('chat:focusSession.fullAccessRunsShellWithoutPerCommandApproval'),
@@ -311,12 +305,7 @@ export function ExecutionModeSelect({
               <Icon size={13} />
             </span>
             <span>
-              <strong>
-                {label}
-                {mode === 'workspace' && (
-                  <small className="recommended-mode">{t('chat:focusSession.recommended')}</small>
-                )}
-              </strong>
+              <strong>{label}</strong>
               <small>{description}</small>
             </span>
             {mode === current[0] && <Check size={13} />}

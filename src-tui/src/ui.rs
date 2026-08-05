@@ -2094,7 +2094,7 @@ fn display_model(value: &str) -> &str {
 
 fn display_execution_mode(value: &str) -> &str {
     if value.is_empty() {
-        "workspace"
+        "full-access"
     } else {
         value
     }
@@ -2186,7 +2186,7 @@ mod tests {
             id: "session-1".to_owned(),
             model: "openai/gpt-5.6-sol".to_owned(),
             cwd: "/workspace".to_owned(),
-            execution_mode: "workspace".to_owned(),
+            execution_mode: "full-access".to_owned(),
             ..SessionSummary::default()
         };
         let mut app = App::new(
@@ -2332,7 +2332,7 @@ mod tests {
             name: "Top aligned".to_owned(),
             model: "openai/gpt-5.6-sol".to_owned(),
             cwd: "/workspace".to_owned(),
-            execution_mode: "workspace".to_owned(),
+            execution_mode: "full-access".to_owned(),
             thinking_level: "high".to_owned(),
             ..SessionSummary::default()
         };
@@ -2371,7 +2371,7 @@ mod tests {
         assert!(!rows.join("\n").contains("PISPER /"));
         assert!(rows
             .iter()
-            .any(|row| row.contains("gpt-5.6-sol · [workspace]")));
+            .any(|row| row.contains("gpt-5.6-sol · [full-access]")));
         assert!(rows.iter().any(|row| row.contains("Thinking · high")));
         let message_row = rows
             .iter()
@@ -2444,7 +2444,7 @@ mod tests {
                 name: "Approval".to_owned(),
                 model: "openai/gpt-5.6-sol".to_owned(),
                 cwd: "/workspace".to_owned(),
-                execution_mode: "workspace".to_owned(),
+                execution_mode: "full-access".to_owned(),
                 ..SessionSummary::default()
             };
             let mut app = App::new(
@@ -2508,7 +2508,7 @@ mod tests {
             id: "session-1".to_owned(),
             model: "openai/gpt-5.6-sol".to_owned(),
             cwd: "/workspace".to_owned(),
-            execution_mode: "workspace".to_owned(),
+            execution_mode: "full-access".to_owned(),
             ..SessionSummary::default()
         };
         let mut app = App::new(
@@ -2552,7 +2552,7 @@ mod tests {
                 name: "Terminal smoke".to_owned(),
                 model: "openai/gpt-5.6-sol".to_owned(),
                 cwd: "/workspace".to_owned(),
-                execution_mode: "workspace".to_owned(),
+                execution_mode: "full-access".to_owned(),
                 ..SessionSummary::default()
             };
             let mut app = App::new(
@@ -2775,7 +2775,7 @@ mod tests {
             id: "session-1".to_owned(),
             model: "openai/gpt-5.6-sol".to_owned(),
             cwd: "/workspace".to_owned(),
-            execution_mode: "workspace".to_owned(),
+            execution_mode: "full-access".to_owned(),
             ..SessionSummary::default()
         };
         let app = App::new(
@@ -2814,7 +2814,7 @@ mod tests {
             id: "session-1".to_owned(),
             model: "openai/gpt-5.6-sol".to_owned(),
             cwd: "/workspace".to_owned(),
-            execution_mode: "workspace".to_owned(),
+            execution_mode: "full-access".to_owned(),
             ..SessionSummary::default()
         };
         let app = App::new(
@@ -2854,7 +2854,7 @@ mod tests {
             id: "session-1".to_owned(),
             model: "openai/gpt-5.6-sol".to_owned(),
             cwd: "/workspace".to_owned(),
-            execution_mode: "workspace".to_owned(),
+            execution_mode: "full-access".to_owned(),
             ..SessionSummary::default()
         };
         let app = App::new(
@@ -2905,7 +2905,7 @@ mod tests {
             id: "session-1".to_owned(),
             model: "openai/gpt-5.6-sol".to_owned(),
             cwd: "/workspace".to_owned(),
-            execution_mode: "workspace".to_owned(),
+            execution_mode: "full-access".to_owned(),
             ..SessionSummary::default()
         };
         let mut app = App::new(
@@ -2949,7 +2949,7 @@ mod tests {
             name: "Header must stay hidden".to_owned(),
             model: "openai/gpt-5.6-sol".to_owned(),
             cwd: "/workspace".to_owned(),
-            execution_mode: "workspace".to_owned(),
+            execution_mode: "full-access".to_owned(),
             ..SessionSummary::default()
         };
         let app = App::new(
@@ -2993,7 +2993,7 @@ mod tests {
             id: "session-1".to_owned(),
             model: "openai/gpt-5.6-sol".to_owned(),
             cwd: "/workspace".to_owned(),
-            execution_mode: "workspace".to_owned(),
+            execution_mode: "full-access".to_owned(),
             ..SessionSummary::default()
         };
         let app = App::new(
@@ -3024,7 +3024,7 @@ mod tests {
             id: "session-1".to_owned(),
             model: "openai/gpt-5.6-sol".to_owned(),
             cwd: "/workspace".to_owned(),
-            execution_mode: "workspace".to_owned(),
+            execution_mode: "full-access".to_owned(),
             ..SessionSummary::default()
         };
         let messages = (0..20)

@@ -29,7 +29,7 @@ Use no permanent sidebar, dashboard tiles, nested cards, gradients, shadows, tra
 | `faint` | `#4E5A66` | tree connectors, idle ticks |
 | `cyan` | `#61C8D4` | Agent identity and active focus |
 | `green` | `#8CCF7E` | success, additions, completed tool calls |
-| `amber` | `#E6B566` | thinking, running state, workspace mode |
+| `amber` | `#E6B566` | thinking, running state, full-access mode |
 | `red` | `#E06C75` | failures and destructive action only |
 | `violet` | `#B7A0E8` | Subagent identity only |
 | `blue` | `#7AA2D6` | file paths and user identity |
