@@ -124,7 +124,7 @@ Tool examples:
 /mcp_pencil_get_editor_state_f9837b9b inspect the current Pencil canvas
 ```
 
-The TUI sends the first Slash token through the structured `requestedToolNames` field. The Agent still generates arguments and performs the call. Slash selection never bypasses Tool settings, execution mode, workspace boundaries, or approval.
+The TUI sends the first Slash token through the structured `requestedToolNames` field. The Agent still generates arguments and performs the call. Slash selection never bypasses Tool settings or the active execution mode; attachments remain limited to the current workspace.
 
 Skill example:
 

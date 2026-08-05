@@ -64,7 +64,7 @@
   "pluginsPage.bingSearchIsAvailableAndReturnedCountResults": "Bing search is available and returned {count} results",
   "pluginsPage.capabilities": "Capabilities",
   "pluginsPage.category": "Category",
-  "pluginsPage.countHighRiskToolsAreEnabledToolsAllPathsAreBoundToTheCurrentChatWorkspace": "{count} high-risk tools are enabled: {tools}. Structured file tools stay inside the workspace; Shell approval follows the execution mode.",
+  "pluginsPage.highRiskToolsEnabledFullAccessUsesCurrentUserPermissions": "{count} high-risk tools are enabled: {tools}. In full-access mode, file and Shell tools run with the current operating-system user's permissions.",
   "pluginsPage.defaultLanguage": "Default language",
   "pluginsPage.disabled": "Disabled",
   "pluginsPage.enabled": "Enabled",

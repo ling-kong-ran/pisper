@@ -537,7 +537,7 @@ export function PluginsPage({
               <p>
                 {enabledHighRisk.length
                   ? t(
-                      'plugins:pluginsPage.countHighRiskToolsAreEnabledToolsAllPathsAreBoundToTheCurrentChatWorkspace',
+                      'plugins:pluginsPage.highRiskToolsEnabledFullAccessUsesCurrentUserPermissions',
                       {
                         count: enabledHighRisk.length,
                         tools: enabledHighRisk

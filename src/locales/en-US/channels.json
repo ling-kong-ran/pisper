@@ -59,7 +59,7 @@
   "channelsPage.noMessages": "No messages",
   "channelsPage.off": "Off",
   "channelsPage.onceConnectedMessagesFromFeishuOrWeixinWillArriveHereInPisper": "Once connected, messages from Feishu or Weixin will arrive here in Pisper.",
-  "channelsPage.onlyThePersonWhoScannedTheCodeIsAllowedByDefaultAgentToolsStillFollowPluginPermissionsAndChatWor": "Only the person who scanned the code is allowed by default. Agent tools still follow plugin permissions and chat workspace limits.",
+  "channelsPage.ownerOnlyAccessRespectsToolPermissionsAndExecutionMode": "Only the person who scanned the QR code is allowed by default. Agent tools still follow the configured tool permissions and session execution mode.",
   "channelsPage.pairingCodeSubmitted": "Pairing code submitted",
   "channelsPage.persistentTwoWayConnection": "Persistent two-way connection",
   "channelsPage.processing": "Processing…",

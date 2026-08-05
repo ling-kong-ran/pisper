@@ -124,7 +124,7 @@ Tool 示例：
 /mcp_pencil_get_editor_state_f9837b9b 读取当前 Pencil 画布状态
 ```
 
-TUI 只把首个 Slash token 作为结构化 `requestedToolNames` 请求发送给 runtime。Agent 仍负责生成参数和调用 Tool，Slash 选择不会绕过 Tool 开关、执行模式、workspace 边界或审批。
+TUI 只把首个 Slash token 作为结构化 `requestedToolNames` 请求发送给 runtime。Agent 仍负责生成参数和调用 Tool，Slash 选择不会绕过 Tool 开关或当前执行模式；附件仍限制在当前 workspace 内。
 
 Skill 示例：
 

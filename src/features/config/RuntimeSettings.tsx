@@ -41,9 +41,9 @@ function ToolPermissionSettings({ draft, onPatchDraft }: RuntimeSettingsProps) {
             value={draft.toolMode}
             onChange={(event) => onPatchDraft({ toolMode: event.target.value })}
           >
-            <option value="read-only">{t('config:configPage.readOnlyReadGrepFindLs')}</option>
-            <option value="workspace">{t('config:configPage.workspaceAllowEditWrite')}</option>
-            <option value="full">{t('config:configPage.fullAllowBash')}</option>
+            <option value="read-only">{t('config:configPage.readOnlyInspectionTools')}</option>
+            <option value="workspace">{t('config:configPage.fileEditingTools')}</option>
+            <option value="full">{t('config:configPage.fullToolAccess')}</option>
             <option value="custom">
               {t('config:configPage.customManageEachToolOnThePluginsPage')}
             </option>

@@ -59,7 +59,7 @@
   "channelsPage.noMessages": "暂无消息",
   "channelsPage.off": "关闭",
   "channelsPage.onceConnectedMessagesFromFeishuOrWeixinWillArriveHereInPisper": "连接完成后，来自飞书或微信的消息会在这里抵达 Pisper。",
-  "channelsPage.onlyThePersonWhoScannedTheCodeIsAllowedByDefaultAgentToolsStillFollowPluginPermissionsAndChatWor": "默认仅允许扫码创建者使用；Agent 工具仍受插件权限和会话工作目录限制。",
+  "channelsPage.ownerOnlyAccessRespectsToolPermissionsAndExecutionMode": "默认仅允许扫码创建者使用；Agent 工具仍遵循已配置的工具权限和会话执行模式。",
   "channelsPage.pairingCodeSubmitted": "配对码已提交",
   "channelsPage.persistentTwoWayConnection": "持续在线的双向连接",
   "channelsPage.processing": "正在处理…",

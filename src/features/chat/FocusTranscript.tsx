@@ -82,6 +82,22 @@ function welcomeChips(t: Translate) {
       label: t('chat:focusSession.findABug'),
       prompt: t('chat:focusSession.helpMeLocateAndFixThisBug'),
     },
+    {
+      label: t('chat:focusSession.summarize'),
+      prompt: t('chat:focusSession.summarizeContentAndExtractKeyPoints'),
+    },
+    {
+      label: t('chat:focusSession.makeAPlan'),
+      prompt: t('chat:focusSession.makeAClearActionablePlanForThisGoal'),
+    },
+    {
+      label: t('chat:focusSession.organizeInformation'),
+      prompt: t('chat:focusSession.organizeThisInformationIntoAClearStructure'),
+    },
+    {
+      label: t('chat:focusSession.findIssues'),
+      prompt: t('chat:focusSession.reviewThisContentAndSuggestImprovements'),
+    },
   ]
 }
 
@@ -189,11 +205,7 @@ export function FocusTranscript({
   const welcomeTitle = t('chat:focusSession.letSBeginWithASparkOfAnIdea')
   const welcomeContent = (
     <>
-      <p>
-        {t(
-          'chat:focusSession.pisperIsReadyToReadTheCurrentWorkspaceSearchTheCodebaseAndHelpCarryTheTaskThroughItRunsInTheWork',
-        )}
-      </p>
+      <p>{t('chat:focusSession.readyToWorkWithTheCurrentDirectoryAndHelpCompleteTheTask')}</p>
       <div className="welcome-chips">
         {welcomeChips(t).map((chip) => (
           <button

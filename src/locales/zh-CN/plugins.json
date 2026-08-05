@@ -64,7 +64,7 @@
   "pluginsPage.bingSearchIsAvailableAndReturnedCountResults": "Bing 搜索可用，返回 {count} 条结果",
   "pluginsPage.capabilities": "能力",
   "pluginsPage.category": "分类",
-  "pluginsPage.countHighRiskToolsAreEnabledToolsAllPathsAreBoundToTheCurrentChatWorkspace": "{count} 个高风险工具已启用：{tools}。结构化文件工具受工作目录限制，Shell 按执行模式请求授权。",
+  "pluginsPage.highRiskToolsEnabledFullAccessUsesCurrentUserPermissions": "{count} 个高风险工具已启用：{tools}。完全访问模式下，文件和 Shell 工具均使用当前系统用户权限。",
   "pluginsPage.defaultLanguage": "默认语言",
   "pluginsPage.disabled": "已禁用",
   "pluginsPage.enabled": "启用",

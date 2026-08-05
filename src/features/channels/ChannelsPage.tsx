@@ -623,7 +623,7 @@ export function ChannelsPage({ notify, registerPrimaryAction, requestConfirm }: 
                   <strong>{t('channels:channelsPage.localSecurityBoundary')}</strong>
                   <small>
                     {t(
-                      'channels:channelsPage.onlyThePersonWhoScannedTheCodeIsAllowedByDefaultAgentToolsStillFollowPluginPermissionsAndChatWor',
+                      'channels:channelsPage.ownerOnlyAccessRespectsToolPermissionsAndExecutionMode',
                     )}
                   </small>
                 </span>
