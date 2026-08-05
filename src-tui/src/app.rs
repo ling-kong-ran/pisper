@@ -281,7 +281,7 @@ impl App {
                 .count()
                 + 1;
             let label = if lines > 1 {
-                format!("[Pasted text · {lines} lines · {} chars]", pasted.len())
+                format!("[Pasted text · {lines} lines]")
             } else {
                 format!("[Pasted text · {} chars]", pasted.len())
             };
@@ -303,6 +303,13 @@ impl App {
         }
         let cursor = display_cursor.unwrap_or(display.len());
         (display, cursor)
+    }
+
+    pub fn accepts_composer_input(&self) -> bool {
+        self.approval.is_none()
+            && !self.path_picker
+            && !self.session_picker
+            && self.settings_picker.is_none()
     }
 
     pub fn is_streaming(&self) -> bool {
@@ -1202,6 +1209,14 @@ impl App {
     }
 
     pub fn insert_paste(&mut self, value: &str) {
+        self.insert_paste_inner(value, false);
+    }
+
+    pub fn insert_detected_paste(&mut self, value: &str) {
+        self.insert_paste_inner(value, true);
+    }
+
+    fn insert_paste_inner(&mut self, value: &str, force_range: bool) {
         if self.path_picker {
             self.path_input.extend(value.trim().chars());
             return;
@@ -1215,12 +1230,11 @@ impl App {
         self.shift_pasted_ranges_for_insert(start, characters.len());
         self.input.splice(start..start, characters.iter().copied());
         self.input_cursor += characters.len();
-        if characters.len() >= 80 || characters.contains(&'\n') {
+        if force_range || characters.len() >= 80 || characters.contains(&'\n') {
             self.pasted_ranges.push(PastedRange {
                 start,
                 end: self.input_cursor,
             });
-            self.merge_adjacent_pasted_ranges();
         }
         self.slash_selected = 0;
     }
@@ -1641,21 +1655,6 @@ impl App {
         }
     }
 
-    fn merge_adjacent_pasted_ranges(&mut self) {
-        self.pasted_ranges.sort_by_key(|range| range.start);
-        let mut merged = Vec::<PastedRange>::new();
-        for range in self.pasted_ranges.drain(..) {
-            if let Some(previous) = merged.last_mut() {
-                if previous.end >= range.start {
-                    previous.end = previous.end.max(range.end);
-                    continue;
-                }
-            }
-            merged.push(range);
-        }
-        self.pasted_ranges = merged;
-    }
-
     fn clear_input(&mut self) {
         self.input.clear();
         self.input_cursor = 0;
@@ -2071,7 +2070,7 @@ mod tests {
 
         let (display, display_cursor) = app.composer_input();
         let display = display.iter().collect::<String>();
-        assert!(display.starts_with("[Pasted text · 2 lines · "));
+        assert_eq!(display, "[Pasted text · 2 lines]");
         assert!(!display.contains("payload payload"));
         assert_eq!(display_cursor, display.chars().count());
         assert_eq!(app.input_text(), pasted);
@@ -2080,6 +2079,34 @@ mod tests {
             app.submit_action(),
             Action::Submit { message, .. } if message == pasted.trim()
         ));
+    }
+
+    #[test]
+    fn independent_pastes_remain_separate_blocks() {
+        let mut app = test_app(Vec::new());
+        app.insert_detected_paste("first");
+        app.insert_detected_paste("second");
+
+        assert_eq!(app.input_text(), "firstsecond");
+        assert_eq!(
+            app.composer_input().0.iter().collect::<String>(),
+            "[Pasted text · 5 chars][Pasted text · 6 chars]"
+        );
+    }
+
+    #[test]
+    fn backspace_removes_a_collapsed_paste_as_one_block() {
+        let mut app = test_app(Vec::new());
+        app.insert_paste("first line\nsecond line\nthird line");
+        assert_eq!(
+            app.composer_input().0.iter().collect::<String>(),
+            "[Pasted text · 3 lines]"
+        );
+
+        app.handle_key(KeyEvent::new(KeyCode::Backspace, KeyModifiers::NONE));
+
+        assert!(app.input_text().is_empty());
+        assert!(app.composer_input().0.is_empty());
     }
 
     #[test]
