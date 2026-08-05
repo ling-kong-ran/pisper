@@ -18,8 +18,8 @@ use crossterm::{
     event::{DisableBracketedPaste, EnableBracketedPaste, Event, EventStream},
     execute,
     terminal::{
-        disable_raw_mode, enable_raw_mode, BeginSynchronizedUpdate, EndSynchronizedUpdate,
-        EnterAlternateScreen, LeaveAlternateScreen,
+        disable_raw_mode, enable_raw_mode, BeginSynchronizedUpdate, DisableLineWrap,
+        EnableLineWrap, EndSynchronizedUpdate, EnterAlternateScreen, LeaveAlternateScreen,
     },
 };
 use futures_util::StreamExt;
@@ -611,7 +611,12 @@ impl TerminalSession {
     fn start() -> Result<Self> {
         enable_raw_mode()?;
         let mut stdout = io::stdout();
-        execute!(stdout, EnterAlternateScreen, EnableBracketedPaste)?;
+        execute!(
+            stdout,
+            EnterAlternateScreen,
+            EnableBracketedPaste,
+            DisableLineWrap
+        )?;
         let terminal = Terminal::new(CrosstermBackend::new(stdout))?;
         Ok(Self {
             terminal,
@@ -628,6 +633,7 @@ impl TerminalSession {
         let _ = execute!(
             self.terminal.backend_mut(),
             DisableBracketedPaste,
+            EnableLineWrap,
             LeaveAlternateScreen
         );
         let _ = self.terminal.show_cursor();
