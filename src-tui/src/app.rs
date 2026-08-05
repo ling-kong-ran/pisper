@@ -126,6 +126,7 @@ pub enum Action {
         model: String,
     },
     RefreshThinking,
+    Compact,
     SetThinkingLevel(String),
     SwitchSession {
         id: String,
@@ -166,6 +167,7 @@ pub struct App {
     pub thinking_availability: ThinkingAvailability,
     pub thinking_message: String,
     pub context_percent: Option<f64>,
+    pub compacting_context: bool,
     pub status: String,
     pub status_error: bool,
     pub status_frame: u64,
@@ -210,6 +212,7 @@ impl App {
             thinking_availability: ThinkingAvailability::Loading,
             thinking_message: String::new(),
             context_percent: context_usage.and_then(|usage| usage.percent),
+            compacting_context: false,
             sessions,
             session,
             messages,
@@ -575,6 +578,7 @@ impl App {
             command("/chat", "Return to the conversation"),
             command("/model", "Switch the active session model"),
             command("/thinking", "Switch the active session thinking level"),
+            command("/compact", "Summarize older context now"),
             command("/attach", "Add image, text, code, or document files"),
             command("/mode read-only", "Allow low-risk analysis tools only"),
             command(
@@ -1097,6 +1101,27 @@ impl App {
                 self.clear_input();
                 Action::RefreshThinking
             }
+            "/compact" => {
+                self.clear_input();
+                if self.is_draft_session() {
+                    self.status =
+                        "Context compaction is available after the first message".to_owned();
+                    self.status_error = true;
+                    return Action::None;
+                }
+                if self.is_streaming() {
+                    self.status = "Stop the active run before compacting context".to_owned();
+                    self.status_error = true;
+                    return Action::None;
+                }
+                if self.compacting_context {
+                    self.status = "Context compaction is already running".to_owned();
+                    self.status_error = true;
+                    return Action::None;
+                }
+                self.mark_slash_use("/compact");
+                Action::Compact
+            }
             "/attach" => {
                 self.mark_slash_use(&message);
                 self.clear_input();
@@ -1253,6 +1278,7 @@ impl App {
         self.thinking_availability = ThinkingAvailability::Loading;
         self.thinking_message.clear();
         self.context_percent = context_usage.and_then(|usage| usage.percent);
+        self.compacting_context = false;
         self.session = session;
         self.messages = messages;
         retain_latest_messages(&mut self.messages);
@@ -1508,6 +1534,28 @@ impl App {
             }
         } else if event.name == "error" {
             self.pending_slash_command = None;
+        }
+    }
+
+    pub fn begin_context_compaction(&mut self) {
+        self.compacting_context = true;
+        self.status = "compacting context".to_owned();
+        self.status_error = false;
+    }
+
+    pub fn finish_context_compaction(
+        &mut self,
+        context_usage: Option<ContextUsage>,
+        error: Option<String>,
+    ) {
+        self.compacting_context = false;
+        if let Some(error) = error {
+            self.status = format!("context compaction failed · {error}");
+            self.status_error = true;
+        } else {
+            self.context_percent = context_usage.and_then(|usage| usage.percent);
+            self.status = "context compacted".to_owned();
+            self.status_error = false;
         }
     }
 
@@ -1944,7 +1992,7 @@ mod tests {
         SettingsPicker, INIT_PROMPT, MAX_TRANSCRIPT_MESSAGES, PAGE_SCROLL_STEP,
     };
     use crate::model::{
-        ChatMessage, ModelOption, SessionCwdUpdate, SessionSummary, StreamEvent,
+        ChatMessage, ContextUsage, ModelOption, SessionCwdUpdate, SessionSummary, StreamEvent,
         ThinkingAvailability, ThinkingLevelUpdate, ToolDefinition,
     };
     use serde_json::json;
@@ -2128,6 +2176,32 @@ mod tests {
         let approval = app.approval.as_ref().unwrap();
         assert_eq!(approval.args["command"], "date +%A");
         assert_eq!(approval.risk, "high");
+    }
+
+    #[test]
+    fn compact_command_runs_once_and_updates_context_status() {
+        let mut app = test_app(Vec::new());
+        assert!(app
+            .slash_items()
+            .iter()
+            .any(|item| item.command == "/compact"));
+        app.set_input("/compact");
+        assert!(matches!(app.submit_action(), Action::Compact));
+
+        app.begin_context_compaction();
+        app.set_input("/compact");
+        assert!(matches!(app.submit_action(), Action::None));
+        assert!(app.status_error);
+
+        app.finish_context_compaction(
+            Some(ContextUsage {
+                percent: Some(12.5),
+            }),
+            None,
+        );
+        assert_eq!(app.context_percent, Some(12.5));
+        assert_eq!(app.status, "context compacted");
+        assert!(!app.compacting_context);
     }
 
     #[test]

@@ -1300,6 +1300,71 @@ export class AgentRuntimeService extends AgentRuntimeFacade {
     return this.streamProjection.getSessionLive(id)
   }
 
+  async compactSession(id) {
+    const value = await this.getOrCreateSession(id)
+    const { session } = value
+    const existingLive = this.liveSessions.get(session.sessionId)
+    if (session.isStreaming) throw new Error('当前会话仍在运行，请等待完成后再压缩上下文。')
+    if (existingLive?.compaction?.active) throw new Error('当前会话正在压缩上下文。')
+
+    const startedAt = new Date().toISOString()
+    const live = existingLive || {
+      streaming: false,
+      text: '',
+      thinkingText: '',
+      tools: [],
+      assets: [],
+      error: '',
+      goal: this.goals.get(session.sessionId),
+      plan: this.plans.get(session.sessionId),
+      agents: [],
+      currentActivity: null,
+      activityFeed: [],
+      queuedInputs: queuedSessionInputs(session),
+      contextUsage: this.compactionAwareContextUsage(session),
+      compaction: null,
+      startedAt: null,
+      finishedAt: null,
+      lastActivityAt: startedAt,
+    }
+    live.compaction = startedCompaction('manual', startedAt)
+    live.lastActivityAt = startedAt
+    this.liveSessions.set(session.sessionId, live)
+    this.streamProjection.invalidate(session.sessionId)
+
+    try {
+      const result = await session.compact()
+      const finishedAt = new Date().toISOString()
+      live.compaction = finishedCompaction(
+        live.compaction,
+        { reason: 'manual', result, aborted: false, willRetry: false },
+        finishedAt,
+      )
+      live.contextUsage = this.compactionAwareContextUsage(session, live.compaction)
+      live.lastActivityAt = finishedAt
+      value.modified = finishedAt
+      this.streamProjection.invalidate(session.sessionId, { allUsage: true })
+      return { compaction: live.compaction, contextUsage: live.contextUsage }
+    } catch (error) {
+      const finishedAt = new Date().toISOString()
+      const message = error instanceof Error ? error.message : String(error)
+      live.compaction = finishedCompaction(
+        live.compaction,
+        {
+          reason: 'manual',
+          result: undefined,
+          aborted: false,
+          willRetry: false,
+          errorMessage: `Compaction failed: ${message}`,
+        },
+        finishedAt,
+      )
+      live.lastActivityAt = finishedAt
+      this.streamProjection.invalidate(session.sessionId)
+      throw error
+    }
+  }
+
   async renameSession(id, name, options = {}) {
     return this.sessionLifecycle.renameSession(id, name, options)
   }

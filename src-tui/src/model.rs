@@ -295,6 +295,10 @@ pub enum RuntimeEvent {
     },
     Stream(StreamEvent),
     StreamFailed(String),
+    CompactionFinished {
+        context_usage: Option<ContextUsage>,
+        error: Option<String>,
+    },
 }
 
 #[cfg(test)]

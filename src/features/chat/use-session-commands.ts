@@ -85,6 +85,34 @@ export function useSessionCommands({
     [notify, t, updateSessionState, updateSessionSummary],
   )
 
+  const compactSession = useCallback(
+    async (sessionId: string) => {
+      const current = sessionStatesRef.current[sessionId]
+      if (!sessionId || current?.streaming || current?.compaction?.active) return
+      updateSessionState(sessionId, {
+        compaction: {
+          ...(current?.compaction || {}),
+          active: true,
+          status: 'running',
+          reason: 'manual',
+        },
+        error: '',
+      })
+      try {
+        const result = await chatApi.compactSession(sessionId)
+        updateSessionState(sessionId, {
+          compaction: result.compaction || null,
+          contextUsage: result.contextUsage || null,
+        })
+        notify(t('chat:chatPage.contextCompacted'))
+      } catch (error) {
+        await syncLiveSession(sessionId).catch(() => {})
+        updateSessionState(sessionId, { error: chatErrorMessage(error) })
+      }
+    },
+    [notify, sessionStatesRef, syncLiveSession, t, updateSessionState],
+  )
+
   const setCompactionThreshold = useCallback(
     async (thresholdPercent: number) => {
       const preference = await chatApi.updateCompactionPreference(thresholdPercent)
@@ -259,6 +287,7 @@ export function useSessionCommands({
     renameSession,
     pauseGoal,
     setGoalBudget,
+    compactSession,
     setCompactionThreshold,
     switchSessionModel,
     switchSessionExecutionMode,

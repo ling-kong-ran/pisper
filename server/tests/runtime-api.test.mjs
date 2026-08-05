@@ -107,6 +107,34 @@ test('compaction preference APIs expose and update the threshold percentage', as
   assert.deepEqual(calls, [['get'], ['update', 75]])
 })
 
+test('manual session compaction API returns the runtime projection', async () => {
+  const calls = []
+  const result = {
+    compaction: { status: 'completed', reason: 'manual', tokensSaved: 800 },
+    contextUsage: { tokens: 200, contextWindow: 10_000, percent: 2 },
+  }
+  const runtime = {
+    async compactSession(sessionId) {
+      calls.push(sessionId)
+      return result
+    },
+  }
+  const handler = createApiHandler(runtime)
+  const output = response()
+
+  assert.equal(
+    await handler(
+      request('POST', {}),
+      output,
+      new URL('http://localhost/api/sessions/session-1/compact'),
+    ),
+    true,
+  )
+  assert.equal(output.status, 200)
+  assert.deepEqual(JSON.parse(output.body), result)
+  assert.deepEqual(calls, ['session-1'])
+})
+
 test('skills APIs forward the active session scope for global and project discovery', async () => {
   const calls = []
   const runtime = {

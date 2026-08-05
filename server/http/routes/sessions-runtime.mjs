@@ -205,6 +205,13 @@ export const sessionRuntimeRoutes = [
   },
   {
     method: 'POST',
+    path: '/api/sessions/:sessionId/compact',
+    async handler({ runtime, params, json }) {
+      json(200, await runtime.compactSession(params.sessionId))
+    },
+  },
+  {
+    method: 'POST',
     path: '/api/sessions/:sessionId/input',
     async handler({ runtime, params, body, json }) {
       const input = await body()

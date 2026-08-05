@@ -1025,6 +1025,49 @@ test('context usage reports the current window share and earlier automatic compa
   )
 })
 
+test('manual compaction persists through the Agent session and returns safe live state', async (t) => {
+  const directory = await mkdtemp(join(tmpdir(), 'pisper-manual-compaction-'))
+  t.after(() => rm(directory, { recursive: true, force: true }))
+  const runtime = new AgentRuntimeService({ cwd: directory, dataDir: directory })
+  const calls = []
+  const session = {
+    sessionId: 'session-compact',
+    isStreaming: false,
+    messages: [{ role: 'user', content: 'older context' }],
+    model: { provider: 'openai', id: 'gpt-5.4', contextWindow: 10_000 },
+    getContextUsage: () => ({ tokens: 200, contextWindow: 10_000, percent: 2 }),
+    async compact() {
+      calls.push('compact')
+      return {
+        summary: 'must not leave the runtime boundary',
+        firstKeptEntryId: 'entry-2',
+        tokensBefore: 1_000,
+        estimatedTokensAfter: 200,
+        details: {},
+      }
+    },
+  }
+  const value = { session, modified: '' }
+  runtime.getOrCreateSession = async (id) => {
+    assert.equal(id, session.sessionId)
+    return value
+  }
+
+  const result = await runtime.compactSession(session.sessionId)
+
+  assert.deepEqual(calls, ['compact'])
+  assert.equal(result.compaction.status, 'completed')
+  assert.equal(result.compaction.reason, 'manual')
+  assert.equal(result.compaction.tokensSaved, 800)
+  assert.equal(Object.hasOwn(result, 'summary'), false)
+  assert.equal(Object.hasOwn(result.compaction, 'summary'), false)
+  assert.equal(result.contextUsage.percent, 2)
+  assert.ok(value.modified)
+
+  session.isStreaming = true
+  await assert.rejects(runtime.compactSession(session.sessionId), /仍在运行/)
+})
+
 test('compaction threshold defaults to 80% and persists valid updates', async (t) => {
   const directory = await mkdtemp(join(tmpdir(), 'pisper-compaction-setting-'))
   t.after(() => rm(directory, { recursive: true, force: true }))
