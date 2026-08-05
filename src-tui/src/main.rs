@@ -2,6 +2,7 @@ mod api;
 mod app;
 mod model;
 mod notification;
+mod paste_burst;
 mod plan_protocol;
 mod sidecar;
 mod ui;
@@ -17,7 +18,10 @@ use anyhow::{Context, Result};
 use app::{Action, App};
 use crossterm::{
     cursor::MoveTo,
-    event::{DisableBracketedPaste, EnableBracketedPaste, Event, EventStream},
+    event::{
+        DisableBracketedPaste, EnableBracketedPaste, Event, EventStream, KeyCode, KeyEvent,
+        KeyEventKind, KeyModifiers,
+    },
     execute,
     terminal::{
         disable_raw_mode, enable_raw_mode, BeginSynchronizedUpdate, Clear, ClearType,
@@ -35,6 +39,7 @@ use tokio::{sync::mpsc, time::Instant};
 
 use crate::{
     api::ApiClient,
+    paste_burst::{CharDecision, FlushResult, PasteBurst},
     sidecar::SidecarConnection,
     workspace::{canonical_workspace, same_workspace, validate_session_workspace},
 };
@@ -172,22 +177,33 @@ async fn run_event_loop(
     let mut pending_resize = None;
     let mut last_resize_at = None;
     let mut resize_to_draw = None;
+    let mut paste_burst = PasteBurst::default();
     loop {
         if redraw {
             draw_frame(terminal, &app, resize_to_draw.take(), jetbrains_terminal)?;
         }
+        let paste_burst_deadline = paste_burst.deadline();
         redraw = tokio::select! {
             maybe_event = input.next() => {
                 match maybe_event {
                     Some(Ok(Event::Key(key))) => {
-                        let action = app.handle_key(key);
-                        if execute_action(action, &mut app, &api, &runtime_tx).await? {
+                        if handle_key_with_paste_burst(
+                            key,
+                            &mut paste_burst,
+                            &mut app,
+                            &api,
+                            &runtime_tx,
+                        )
+                        .await?
+                        {
                             break;
                         }
                         pending_resize.is_none()
                     }
                     Some(Ok(Event::Paste(value))) => {
+                        apply_paste_flush(paste_burst.flush(), &mut app);
                         app.insert_paste(&value);
+                        paste_burst.clear_after_explicit_paste();
                         pending_resize.is_none()
                     }
                     Some(Ok(Event::Resize(width, height))) => {
@@ -255,6 +271,12 @@ async fn run_event_loop(
                     None => false,
                 }
             }
+            _ = tokio::time::sleep_until(
+                paste_burst_deadline.unwrap_or_else(Instant::now)
+            ), if paste_burst_deadline.is_some() => {
+                apply_paste_flush(paste_burst.flush_if_due(Instant::now()), &mut app);
+                pending_resize.is_none()
+            }
             _ = animation.tick(), if app.has_pending_render() || pending_resize.is_some() => {
                 let resize_settled = pending_resize.is_some()
                     && last_resize_at.is_some_and(|last| {
@@ -276,6 +298,99 @@ async fn run_event_loop(
         };
     }
     Ok(())
+}
+
+fn normalize_clipboard_text(text: impl AsRef<str>) -> String {
+    text.as_ref().replace("\r\n", "\n").replace('\r', "\n")
+}
+
+async fn handle_key_with_paste_burst(
+    key: KeyEvent,
+    paste_burst: &mut PasteBurst,
+    app: &mut App,
+    api: &ApiClient,
+    runtime_tx: &mpsc::UnboundedSender<RuntimeEvent>,
+) -> Result<bool> {
+    if !should_handle_key_kind(key.kind) {
+        return Ok(false);
+    }
+
+    let composer_active = app.accepts_composer_input() && !app.slash_open();
+    let now = Instant::now();
+
+    apply_paste_flush(paste_burst.flush_if_due(now), app);
+
+    if composer_active && is_paste_shortcut(&key) {
+        apply_paste_flush(paste_burst.flush(), app);
+        if let Some(text) = read_clipboard_text().map(normalize_clipboard_text) {
+            app.insert_paste(&text);
+            paste_burst.clear_after_explicit_paste();
+        } else {
+            paste_burst.arm();
+        }
+        return Ok(false);
+    }
+
+    if composer_active {
+        if key.code == KeyCode::Esc {
+            paste_burst.cancel();
+        } else if !key
+            .modifiers
+            .intersects(KeyModifiers::CONTROL | KeyModifiers::ALT)
+        {
+            match key.code {
+                KeyCode::Char(character) => match paste_burst.on_char(character, now) {
+                    CharDecision::RetainFirst => return Ok(false),
+                    CharDecision::BeginFromPending | CharDecision::Append => {
+                        paste_burst.append_char(character, now);
+                        return Ok(false);
+                    }
+                },
+                KeyCode::Enter => {
+                    if paste_burst.append_newline_if_active(now) {
+                        return Ok(false);
+                    }
+                }
+                KeyCode::Tab if paste_burst.try_append_char_if_active('\t', now) => {
+                    return Ok(false);
+                }
+                _ => {}
+            }
+        }
+    }
+
+    apply_paste_flush(paste_burst.flush(), app);
+    let action = app.handle_key(key);
+    execute_action(action, app, api, runtime_tx).await
+}
+
+fn should_handle_key_kind(kind: KeyEventKind) -> bool {
+    matches!(kind, KeyEventKind::Press | KeyEventKind::Repeat)
+}
+
+fn is_paste_shortcut(key: &KeyEvent) -> bool {
+    (matches!(key.code, KeyCode::Char('v' | 'V')) && key.modifiers.contains(KeyModifiers::CONTROL))
+        || (key.code == KeyCode::Insert && key.modifiers.contains(KeyModifiers::SHIFT))
+}
+
+#[cfg(windows)]
+fn read_clipboard_text() -> Option<String> {
+    clipboard_win::get_clipboard(clipboard_win::formats::Unicode)
+        .ok()
+        .filter(|text: &String| !text.is_empty())
+}
+
+#[cfg(not(windows))]
+fn read_clipboard_text() -> Option<String> {
+    None
+}
+
+fn apply_paste_flush(result: FlushResult, app: &mut App) {
+    match result {
+        FlushResult::Paste(text) => app.insert_detected_paste(&text),
+        FlushResult::Typed(text) => app.insert_paste(&text),
+        FlushResult::None => {}
+    }
 }
 
 fn should_notify_completion(completed: bool, queued_count: usize) -> bool {
@@ -692,12 +807,36 @@ impl Drop for TerminalSession {
 #[cfg(test)]
 mod tests {
     use super::{
-        draft_session, resize_area, resize_has_settled, resume_seed, should_notify_completion,
-        terminal_content_area,
+        draft_session, is_paste_shortcut, resize_area, resize_has_settled, resume_seed,
+        should_handle_key_kind, should_notify_completion, terminal_content_area,
     };
     use crate::model::SessionSummary;
+    use crossterm::event::{KeyCode, KeyEvent, KeyEventKind, KeyModifiers};
     use std::time::Duration;
     use tokio::time::Instant;
+
+    #[test]
+    fn windows_paste_shortcuts_arm_the_paste_burst() {
+        assert!(is_paste_shortcut(&KeyEvent::new(
+            KeyCode::Char('v'),
+            KeyModifiers::CONTROL,
+        )));
+        assert!(is_paste_shortcut(&KeyEvent::new(
+            KeyCode::Insert,
+            KeyModifiers::SHIFT,
+        )));
+        assert!(!is_paste_shortcut(&KeyEvent::new(
+            KeyCode::Char('v'),
+            KeyModifiers::NONE,
+        )));
+    }
+
+    #[test]
+    fn key_releases_do_not_flush_paste_bursts() {
+        assert!(should_handle_key_kind(KeyEventKind::Press));
+        assert!(should_handle_key_kind(KeyEventKind::Repeat));
+        assert!(!should_handle_key_kind(KeyEventKind::Release));
+    }
 
     #[test]
     fn completion_notifications_wait_for_the_final_queued_turn() {
