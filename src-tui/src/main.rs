@@ -8,18 +8,20 @@ mod ui;
 mod workspace;
 
 use std::{
-    io,
+    env, io,
     path::{Path, PathBuf},
+    time::Duration,
 };
 
 use anyhow::{Context, Result};
 use app::{Action, App};
 use crossterm::{
+    cursor::MoveTo,
     event::{DisableBracketedPaste, EnableBracketedPaste, Event, EventStream},
     execute,
     terminal::{
-        disable_raw_mode, enable_raw_mode, BeginSynchronizedUpdate, DisableLineWrap,
-        EnableLineWrap, EndSynchronizedUpdate, EnterAlternateScreen, LeaveAlternateScreen,
+        disable_raw_mode, enable_raw_mode, BeginSynchronizedUpdate, Clear, ClearType,
+        EndSynchronizedUpdate, EnterAlternateScreen, LeaveAlternateScreen,
     },
 };
 use futures_util::StreamExt;
@@ -29,7 +31,7 @@ use ratatui::{
     layout::Rect,
     Terminal,
 };
-use tokio::sync::mpsc;
+use tokio::{sync::mpsc, time::Instant};
 
 use crate::{
     api::ApiClient,
@@ -160,16 +162,19 @@ async fn run_event_loop(
             skills,
         });
     });
-    let mut animation = tokio::time::interval(std::time::Duration::from_millis(24));
+    let mut animation = tokio::time::interval(Duration::from_millis(24));
     animation.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Skip);
-    let mut status_animation = tokio::time::interval(std::time::Duration::from_millis(120));
+    let mut status_animation = tokio::time::interval(Duration::from_millis(120));
     status_animation.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Skip);
 
+    let jetbrains_terminal = is_jetbrains_terminal();
     let mut redraw = true;
     let mut pending_resize = None;
+    let mut last_resize_at = None;
+    let mut resize_to_draw = None;
     loop {
         if redraw {
-            draw_frame(terminal, &app, pending_resize.take())?;
+            draw_frame(terminal, &app, resize_to_draw.take(), jetbrains_terminal)?;
         }
         redraw = tokio::select! {
             maybe_event = input.next() => {
@@ -179,14 +184,17 @@ async fn run_event_loop(
                         if execute_action(action, &mut app, &api, &runtime_tx).await? {
                             break;
                         }
-                        true
+                        pending_resize.is_none()
                     }
                     Some(Ok(Event::Paste(value))) => {
                         app.insert_paste(&value);
-                        true
+                        pending_resize.is_none()
                     }
                     Some(Ok(Event::Resize(width, height))) => {
-                        pending_resize = resize_area(width, height).or(pending_resize);
+                        if let Some(area) = resize_area(width, height) {
+                            pending_resize = Some(area);
+                            last_resize_at = Some(Instant::now());
+                        }
                         false
                     },
                     Some(Ok(_)) => false,
@@ -242,18 +250,26 @@ async fn run_event_loop(
                                 }
                             }
                         }
-                        true
+                        pending_resize.is_none()
                     }
                     None => false,
                 }
             }
             _ = animation.tick(), if app.has_pending_render() || pending_resize.is_some() => {
-                if app.has_pending_render() {
+                let resize_settled = pending_resize.is_some()
+                    && last_resize_at.is_some_and(|last| {
+                        resize_has_settled(last, Instant::now())
+                    });
+                if resize_settled {
+                    resize_to_draw = pending_resize.take();
+                    last_resize_at = None;
+                }
+                if app.has_pending_render() && pending_resize.is_none() {
                     app.advance_stream_render();
                 }
-                true
+                resize_settled || pending_resize.is_none()
             }
-            _ = status_animation.tick(), if app.is_streaming() && !app.has_pending_render() => {
+            _ = status_animation.tick(), if app.is_streaming() && !app.has_pending_render() && pending_resize.is_none() => {
                 app.advance_status_animation();
                 true
             }
@@ -270,6 +286,28 @@ fn resize_area(width: u16, height: u16) -> Option<Rect> {
     (width > 0 && height > 0).then(|| Rect::new(0, 0, width, height))
 }
 
+fn resize_has_settled(last_resize_at: Instant, now: Instant) -> bool {
+    now.saturating_duration_since(last_resize_at) >= Duration::from_millis(80)
+}
+
+fn is_jetbrains_terminal() -> bool {
+    ["TERMINAL_EMULATOR", "TERM_PROGRAM"]
+        .into_iter()
+        .filter_map(|name| env::var(name).ok())
+        .any(|value| {
+            let value = value.to_ascii_lowercase();
+            value.contains("jetbrains") || value.contains("jediterm")
+        })
+}
+
+fn terminal_content_area(area: Rect, jetbrains_terminal: bool) -> Rect {
+    if jetbrains_terminal && area.width > 1 {
+        Rect::new(area.x, area.y, area.width - 1, area.height)
+    } else {
+        area
+    }
+}
+
 fn synchronize_terminal_size<B: Backend>(terminal: &mut Terminal<B>, area: Rect) -> Result<()> {
     terminal.resize(area)?;
     terminal.clear()?;
@@ -280,16 +318,27 @@ fn draw_frame(
     terminal: &mut Terminal<CrosstermBackend<io::Stdout>>,
     app: &App,
     resize: Option<Rect>,
+    jetbrains_terminal: bool,
 ) -> Result<()> {
-    execute!(terminal.backend_mut(), BeginSynchronizedUpdate)?;
+    if !jetbrains_terminal {
+        execute!(terminal.backend_mut(), BeginSynchronizedUpdate)?;
+    }
     let draw_result = (|| -> Result<()> {
         if let Some(area) = resize {
+            execute!(terminal.backend_mut(), MoveTo(0, 0), Clear(ClearType::All))?;
             synchronize_terminal_size(terminal, area)?;
         }
-        terminal.draw(|frame| ui::draw(frame, app)).map(drop)?;
+        terminal
+            .draw(|frame| {
+                let area = terminal_content_area(frame.area(), jetbrains_terminal);
+                ui::draw_in(frame, app, area);
+            })
+            .map(drop)?;
         Ok(())
     })();
-    let end_result = execute!(terminal.backend_mut(), EndSynchronizedUpdate);
+    let end_result = (!jetbrains_terminal)
+        .then(|| execute!(terminal.backend_mut(), EndSynchronizedUpdate))
+        .transpose();
     draw_result?;
     end_result?;
     Ok(())
@@ -611,12 +660,7 @@ impl TerminalSession {
     fn start() -> Result<Self> {
         enable_raw_mode()?;
         let mut stdout = io::stdout();
-        execute!(
-            stdout,
-            EnterAlternateScreen,
-            EnableBracketedPaste,
-            DisableLineWrap
-        )?;
+        execute!(stdout, EnterAlternateScreen, EnableBracketedPaste)?;
         let terminal = Terminal::new(CrosstermBackend::new(stdout))?;
         Ok(Self {
             terminal,
@@ -633,7 +677,6 @@ impl TerminalSession {
         let _ = execute!(
             self.terminal.backend_mut(),
             DisableBracketedPaste,
-            EnableLineWrap,
             LeaveAlternateScreen
         );
         let _ = self.terminal.show_cursor();
@@ -648,8 +691,13 @@ impl Drop for TerminalSession {
 
 #[cfg(test)]
 mod tests {
-    use super::{draft_session, resize_area, resume_seed, should_notify_completion};
+    use super::{
+        draft_session, resize_area, resize_has_settled, resume_seed, should_notify_completion,
+        terminal_content_area,
+    };
     use crate::model::SessionSummary;
+    use std::time::Duration;
+    use tokio::time::Instant;
 
     #[test]
     fn completion_notifications_wait_for_the_final_queued_turn() {
@@ -664,6 +712,26 @@ mod tests {
         assert_eq!(resize_area(120, 30).unwrap().height, 30);
         assert!(resize_area(0, 30).is_none());
         assert!(resize_area(120, 0).is_none());
+    }
+
+    #[test]
+    fn resize_redraw_waits_until_the_event_stream_settles() {
+        let last_resize_at = Instant::now();
+        assert!(!resize_has_settled(
+            last_resize_at,
+            last_resize_at + Duration::from_millis(79),
+        ));
+        assert!(resize_has_settled(
+            last_resize_at,
+            last_resize_at + Duration::from_millis(80),
+        ));
+    }
+
+    #[test]
+    fn jetbrains_terminal_reserves_the_auto_wrap_column() {
+        let area = ratatui::layout::Rect::new(0, 0, 120, 30);
+        assert_eq!(terminal_content_area(area, true).width, 119);
+        assert_eq!(terminal_content_area(area, false), area);
     }
 
     #[test]

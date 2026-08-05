@@ -54,8 +54,13 @@ const PULSE_FRAMES: [&str; 8] = [
     "▁▂▅█▅▂▁",
 ];
 
+#[cfg(test)]
 pub fn draw(frame: &mut Frame, app: &App) {
     let area = frame.area();
+    draw_in(frame, app, area);
+}
+
+pub fn draw_in(frame: &mut Frame, app: &App, area: Rect) {
     frame.render_widget(Block::default().style(Style::default().bg(BG)), area);
 
     if app.approval.is_some() {
