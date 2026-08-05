@@ -287,6 +287,8 @@ pub struct StreamEvent {
 #[derive(Clone, Debug)]
 pub enum RuntimeEvent {
     StartupData {
+        default_model: String,
+        thinking_level: String,
         model_options: Vec<ModelOption>,
         tools: Vec<ToolDefinition>,
         skills: Vec<SkillDefinition>,

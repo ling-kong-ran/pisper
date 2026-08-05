@@ -122,8 +122,12 @@ impl ApiClient {
         self.get_json("/api/runtime/diagnostics").await
     }
 
-    pub async fn runtime_preferences(&self) -> Result<(String, Vec<ModelOption>)> {
+    pub async fn runtime_preferences(&self) -> Result<(String, String, Vec<ModelOption>)> {
         let config = self.get_json::<RuntimeConfig>("/api/config").await?;
+        let default_model = match (config.provider.as_str(), config.model.as_str()) {
+            ("", _) | (_, "") => String::new(),
+            (provider, model) => format!("{provider}/{model}"),
+        };
         let models = config
             .providers
             .into_iter()
@@ -138,6 +142,7 @@ impl ApiClient {
             })
             .collect();
         Ok((
+            default_model,
             if config.thinking_level.is_empty() {
                 "medium".to_owned()
             } else {
@@ -320,6 +325,10 @@ impl ApiClient {
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
 struct RuntimeConfig {
+    #[serde(default)]
+    provider: String,
+    #[serde(default)]
+    model: String,
     #[serde(default)]
     thinking_level: String,
     #[serde(default)]

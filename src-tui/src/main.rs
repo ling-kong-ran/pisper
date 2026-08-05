@@ -6,7 +6,10 @@ mod sidecar;
 mod ui;
 mod workspace;
 
-use std::{io, path::PathBuf};
+use std::{
+    io,
+    path::{Path, PathBuf},
+};
 
 use anyhow::{Context, Result};
 use app::{Action, App};
@@ -79,7 +82,7 @@ async fn run() -> Result<()> {
         sidecar.shutdown();
         return Ok(());
     }
-    let mut sessions = api
+    let sessions = api
         .sessions()
         .await
         .context("failed to list conversations")?;
@@ -89,20 +92,12 @@ async fn run() -> Result<()> {
         return Ok(());
     }
     let interactive_resume = options.resume;
-    let mut session = match resume_seed(&sessions, options.resume) {
-        Some(session) => session,
-        None => {
-            let created = api
-                .create_session("New conversation", &options.workspace)
-                .await?;
-            sessions.insert(0, created.clone());
-            created
-        }
-    };
+    let mut session = resume_seed(&sessions, options.resume)
+        .unwrap_or_else(|| draft_session(&options.workspace, "", ""));
     if !interactive_resume {
         validate_session_workspace(&session, None)?;
     }
-    let (messages, context_usage, thinking_state) = if interactive_resume {
+    let (messages, context_usage, thinking_state) = if interactive_resume || session.id.is_empty() {
         (Vec::new(), None, None)
     } else {
         let (thinking_state, page) =
@@ -152,9 +147,12 @@ async fn run_event_loop(
     tokio::spawn(async move {
         let (preferences, catalogs) =
             tokio::join!(startup_api.runtime_preferences(), startup_api.catalogs());
-        let (_, model_options) = preferences.unwrap_or_else(|_| (String::new(), Vec::new()));
+        let (default_model, thinking_level, model_options) =
+            preferences.unwrap_or_else(|_| (String::new(), String::new(), Vec::new()));
         let (tools, skills) = catalogs.unwrap_or_default();
         let _ = startup_sender.send(RuntimeEvent::StartupData {
+            default_model,
+            thinking_level,
             model_options,
             tools,
             skills,
@@ -199,11 +197,19 @@ async fn run_event_loop(
                     Some(runtime_event) => {
                         let terminal_event = match runtime_event {
                             RuntimeEvent::StartupData {
+                                default_model,
+                                thinking_level,
                                 model_options,
                                 tools,
                                 skills,
                             } => {
-                                app.set_startup_data(model_options, tools, skills);
+                                app.set_startup_data(
+                                    default_model,
+                                    thinking_level,
+                                    model_options,
+                                    tools,
+                                    skills,
+                                );
                                 false
                             }
                             RuntimeEvent::Stream(event) => {
@@ -280,6 +286,10 @@ async fn execute_action(
             requested_tool,
             attachment_paths,
         } => {
+            if let Err(error) = materialize_draft_session(app, api).await {
+                app.stream_failed(format!("{error:#}"));
+                return Ok(false);
+            }
             let api = api.clone();
             let sender = runtime_tx.clone();
             let session_id = app.session.id.clone();
@@ -307,21 +317,15 @@ async fn execute_action(
             app.status = if approved { "approved" } else { "denied" }.to_owned();
         }
         Action::NewSession => {
-            let workspace = app.new_session_workspace().to_path_buf();
-            let created = api.create_session("New conversation", &workspace).await?;
-            let (page, thinking_state) =
-                tokio::join!(api.messages(&created.id), api.thinking_state(&created.id));
-            let page = page?;
-            app.sessions = refreshed_sessions(api, created.clone()).await?;
-            app.replace_session(created, page.messages, page.context_usage);
-            match thinking_state {
-                Ok(state) => app.set_thinking_state(state),
-                Err(error) => app.set_thinking_error(format!("{error:#}")),
-            }
+            let draft = draft_session(app.new_session_workspace(), &app.model, &app.thinking_level);
+            app.replace_session(draft, Vec::new(), None);
         }
         Action::SetCwd(requested) => {
             app.status = format!("changing directory · {}", requested.display());
             match canonical_workspace(&requested) {
+                Ok(requested) if app.is_draft_session() => app.set_cwd(model::SessionCwdUpdate {
+                    cwd: requested.to_string_lossy().into_owned(),
+                }),
                 Ok(requested) => match api.set_session_cwd(&app.session.id, &requested).await {
                     Ok(updated) if same_workspace(&updated.cwd, &requested) => app.set_cwd(updated),
                     Ok(updated) => {
@@ -345,28 +349,41 @@ async fn execute_action(
         }
         Action::SetExecutionMode(mode) => {
             app.status = format!("changing mode · {mode}");
-            match api.set_execution_mode(&app.session.id, &mode).await {
-                Ok(updated) => app.set_execution_mode(updated.execution_mode),
-                Err(error) => {
-                    app.status = format!("mode change failed · {error}");
-                    app.status_error = true;
+            if app.is_draft_session() {
+                app.set_execution_mode(mode);
+            } else {
+                match api.set_execution_mode(&app.session.id, &mode).await {
+                    Ok(updated) => app.set_execution_mode(updated.execution_mode),
+                    Err(error) => {
+                        app.status = format!("mode change failed · {error}");
+                        app.status_error = true;
+                    }
                 }
             }
         }
         Action::SetModel { provider, model } => {
             app.status = format!("changing model · {provider}/{model}");
-            match api
-                .set_session_model(&app.session.id, &provider, &model)
-                .await
-            {
-                Ok(updated) => app.set_model(updated),
-                Err(error) => {
-                    app.status = format!("model change failed · {error}");
-                    app.status_error = true;
+            if app.is_draft_session() {
+                app.set_draft_model(provider, model);
+            } else {
+                match api
+                    .set_session_model(&app.session.id, &provider, &model)
+                    .await
+                {
+                    Ok(updated) => app.set_model(updated),
+                    Err(error) => {
+                        app.status = format!("model change failed · {error}");
+                        app.status_error = true;
+                    }
                 }
             }
         }
         Action::RefreshThinking => {
+            if app.is_draft_session() {
+                app.status = "Thinking options become available after the first message".to_owned();
+                app.status_error = false;
+                return Ok(false);
+            }
             app.begin_thinking_load();
             let result = api.thinking_state(&app.session.id).await;
             match result {
@@ -398,29 +415,33 @@ async fn execute_action(
         }
         Action::SetThinkingLevel(level) => {
             app.status = format!("changing thinking · {level}");
-            match api.set_thinking_level(&app.session.id, &level).await {
-                Ok(updated) => {
-                    let detail = format!(
-                        "session {} · model {} · requested {level} · current {} · available {}",
-                        app.session.id,
-                        app.model,
-                        updated.thinking_level,
-                        updated.available_levels.join(",")
-                    );
-                    app.set_thinking_level(updated);
-                    app.record_event("THINKING", detail, "done");
-                }
-                Err(error) => {
-                    app.status = format!("thinking change failed · {error}");
-                    app.status_error = true;
-                    app.record_event(
-                        "THINKING",
-                        format!(
-                            "session {} · model {} · requested {level} · failed · {error}",
-                            app.session.id, app.model
-                        ),
-                        "error",
-                    );
+            if app.is_draft_session() {
+                app.set_draft_thinking_level(level);
+            } else {
+                match api.set_thinking_level(&app.session.id, &level).await {
+                    Ok(updated) => {
+                        let detail = format!(
+                            "session {} · model {} · requested {level} · current {} · available {}",
+                            app.session.id,
+                            app.model,
+                            updated.thinking_level,
+                            updated.available_levels.join(",")
+                        );
+                        app.set_thinking_level(updated);
+                        app.record_event("THINKING", detail, "done");
+                    }
+                    Err(error) => {
+                        app.status = format!("thinking change failed · {error}");
+                        app.status_error = true;
+                        app.record_event(
+                            "THINKING",
+                            format!(
+                                "session {} · model {} · requested {level} · failed · {error}",
+                                app.session.id, app.model
+                            ),
+                            "error",
+                        );
+                    }
                 }
             }
         }
@@ -466,15 +487,50 @@ async fn execute_action(
     Ok(false)
 }
 
-async fn refreshed_sessions(
-    api: &ApiClient,
-    fallback: SessionSummary,
-) -> Result<Vec<SessionSummary>> {
-    let mut sessions = api.sessions().await?;
-    if !sessions.iter().any(|session| session.id == fallback.id) {
-        sessions.insert(0, fallback);
+async fn materialize_draft_session(app: &mut App, api: &ApiClient) -> Result<()> {
+    if !app.is_draft_session() {
+        return Ok(());
     }
-    Ok(sessions)
+
+    let requested_model = app.model.clone();
+    let requested_thinking = app.thinking_level.clone();
+    let requested_mode = app.execution_mode.clone();
+    let mut session = api
+        .create_session("New conversation", Path::new(&app.cwd))
+        .await?;
+
+    if !requested_model.is_empty() && requested_model != session.model {
+        let (provider, model) = requested_model
+            .split_once('/')
+            .context("draft model is missing its Provider")?;
+        let updated = api.set_session_model(&session.id, provider, model).await?;
+        session.model = updated.model;
+        session.thinking_level = updated.thinking_level;
+    }
+    if !requested_thinking.is_empty() && requested_thinking != session.thinking_level {
+        let updated = api
+            .set_thinking_level(&session.id, &requested_thinking)
+            .await?;
+        session.thinking_level = updated.thinking_level;
+    }
+    if !requested_mode.is_empty() && requested_mode != session.execution_mode {
+        let updated = api.set_execution_mode(&session.id, &requested_mode).await?;
+        session.execution_mode = updated.execution_mode;
+    }
+
+    app.materialize_session(session);
+    Ok(())
+}
+
+fn draft_session(workspace: &Path, model: &str, thinking_level: &str) -> SessionSummary {
+    SessionSummary {
+        name: "New conversation".to_owned(),
+        model: model.to_owned(),
+        cwd: workspace.to_string_lossy().into_owned(),
+        execution_mode: "full-access".to_owned(),
+        thinking_level: thinking_level.to_owned(),
+        ..SessionSummary::default()
+    }
 }
 
 fn resume_seed(sessions: &[SessionSummary], resume: bool) -> Option<SessionSummary> {
@@ -563,8 +619,19 @@ impl Drop for TerminalSession {
 
 #[cfg(test)]
 mod tests {
-    use super::resume_seed;
+    use super::{draft_session, resume_seed};
     use crate::model::SessionSummary;
+
+    #[test]
+    fn a_fresh_logo_page_uses_an_unpersisted_session_draft() {
+        let draft = draft_session(std::path::Path::new("/workspace"), "provider/model", "high");
+
+        assert!(draft.id.is_empty());
+        assert_eq!(draft.cwd, "/workspace");
+        assert_eq!(draft.model, "provider/model");
+        assert_eq!(draft.thinking_level, "high");
+        assert_eq!(draft.execution_mode, "full-access");
+    }
 
     #[test]
     fn resume_seeds_the_global_picker_without_filtering_by_workspace() {

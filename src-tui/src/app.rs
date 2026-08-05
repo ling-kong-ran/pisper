@@ -342,13 +342,29 @@ impl App {
 
     pub fn set_startup_data(
         &mut self,
+        default_model: String,
+        thinking_level: String,
         model_options: Vec<ModelOption>,
         tools: Vec<ToolDefinition>,
         skills: Vec<SkillDefinition>,
     ) {
+        if self.is_draft_session() {
+            if self.model.is_empty() {
+                self.model.clone_from(&default_model);
+                self.session.model = default_model;
+            }
+            if self.thinking_level.is_empty() {
+                self.thinking_level.clone_from(&thinking_level);
+                self.session.thinking_level = thinking_level;
+            }
+        }
         self.set_model_options(model_options);
         self.tools = tools;
         self.skills = skills;
+    }
+
+    pub fn is_draft_session(&self) -> bool {
+        self.session.id.is_empty()
     }
 
     pub fn set_model_options(&mut self, mut options: Vec<ModelOption>) {
@@ -1242,6 +1258,43 @@ impl App {
         self.status_error = false;
         self.view = View::Chat;
         self.scroll = 0;
+    }
+
+    pub fn materialize_session(&mut self, session: SessionSummary) {
+        self.model.clone_from(&session.model);
+        self.cwd.clone_from(&session.cwd);
+        self.execution_mode.clone_from(&session.execution_mode);
+        self.thinking_level.clone_from(&session.thinking_level);
+        self.path_directory = PathBuf::from(&session.cwd);
+        self.session = session.clone();
+        if let Some(existing) = self
+            .sessions
+            .iter_mut()
+            .find(|existing| existing.id == session.id)
+        {
+            *existing = session;
+        } else {
+            self.sessions.insert(0, session);
+        }
+    }
+
+    pub fn set_draft_model(&mut self, provider: String, model: String) {
+        self.model = format!("{provider}/{model}");
+        self.session.model.clone_from(&self.model);
+        self.thinking_level.clear();
+        self.session.thinking_level.clear();
+        self.thinking_options.clear();
+        self.thinking_availability = ThinkingAvailability::Loading;
+        self.thinking_message.clear();
+        self.status = format!("model selected · {}", self.model);
+        self.status_error = false;
+    }
+
+    pub fn set_draft_thinking_level(&mut self, level: String) {
+        self.thinking_level.clone_from(&level);
+        self.session.thinking_level = level;
+        self.status = format!("thinking selected · {}", self.thinking_level);
+        self.status_error = false;
     }
 
     pub fn set_cwd(&mut self, updated: SessionCwdUpdate) {
@@ -2459,6 +2512,46 @@ mod tests {
         ));
         assert_eq!(app.input_text(), "/quit");
         assert!(app.input_cursor > 0);
+    }
+
+    #[test]
+    fn draft_defaults_and_materialization_preserve_the_first_pending_turn() {
+        let draft = SessionSummary {
+            cwd: "/workspace".to_owned(),
+            execution_mode: "full-access".to_owned(),
+            ..SessionSummary::default()
+        };
+        let mut app = App::new(Vec::new(), draft, Vec::new(), None, Vec::new(), Vec::new());
+
+        assert!(app.is_draft_session());
+        app.set_startup_data(
+            "provider/model".to_owned(),
+            "high".to_owned(),
+            Vec::new(),
+            Vec::new(),
+            Vec::new(),
+        );
+        assert_eq!(app.model, "provider/model");
+        assert_eq!(app.thinking_level, "high");
+
+        app.set_input("first message");
+        assert!(matches!(app.submit_action(), Action::Submit { .. }));
+        assert!(app.live.is_some());
+        assert_eq!(app.messages.last().unwrap().text, "first message");
+
+        app.materialize_session(SessionSummary {
+            id: "session-1".to_owned(),
+            model: "provider/model".to_owned(),
+            cwd: "/workspace".to_owned(),
+            execution_mode: "full-access".to_owned(),
+            thinking_level: "high".to_owned(),
+            ..SessionSummary::default()
+        });
+        assert!(!app.is_draft_session());
+        assert!(app.live.is_some());
+        assert_eq!(app.messages.last().unwrap().text, "first message");
+        assert_eq!(app.sessions.len(), 1);
+        assert_eq!(app.sessions[0].id, "session-1");
     }
 
     fn test_app(tools: Vec<ToolDefinition>) -> App {
