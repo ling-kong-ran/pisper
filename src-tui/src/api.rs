@@ -15,9 +15,9 @@ use url::Url;
 
 use crate::{
     model::{
-        ExecutionModeUpdate, McpCatalog, MessagePage, ModelOption, PluginCatalog, RuntimeEvent,
-        SessionCwdUpdate, SessionModelUpdate, SessionSummary, SessionsResponse, SkillDefinition,
-        SkillsCatalog, StreamEvent, ThinkingLevelUpdate, ToolDefinition,
+        ContextUsage, ExecutionModeUpdate, McpCatalog, MessagePage, ModelOption, PluginCatalog,
+        RuntimeEvent, SessionCwdUpdate, SessionModelUpdate, SessionSummary, SessionsResponse,
+        SkillDefinition, SkillsCatalog, StreamEvent, ThinkingLevelUpdate, ToolDefinition,
     },
     workspace::validate_session_workspace,
 };
@@ -269,6 +269,18 @@ impl ApiClient {
         .await
     }
 
+    pub async fn compact_session(&self, session_id: &str) -> Result<Option<ContextUsage>> {
+        let id = encode_segment(session_id);
+        Ok(self
+            .send_json::<CompactSessionResponse, _>(
+                reqwest::Method::POST,
+                &format!("/api/sessions/{id}/compact"),
+                &json!({}),
+            )
+            .await?
+            .context_usage)
+    }
+
     pub async fn abort(&self, session_id: &str) -> Result<()> {
         let id = encode_segment(session_id);
         let _: Value = self
@@ -340,6 +352,13 @@ impl ApiClient {
         }
         Ok(())
     }
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct CompactSessionResponse {
+    #[serde(default)]
+    context_usage: Option<ContextUsage>,
 }
 
 #[derive(Deserialize)]

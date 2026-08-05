@@ -100,6 +100,13 @@ export const chatApi = {
       data: { message, behavior },
     }),
 
+  compactSession: (sessionId: string) =>
+    requestJson<ApiRecord>(`${sessionPath(sessionId)}/compact`, {
+      method: 'POST',
+      data: {},
+      timeout: 180_000,
+    }),
+
   abort: (sessionId: string) =>
     requestJson<ApiRecord>(`${sessionPath(sessionId)}/abort`, {
       method: 'POST',

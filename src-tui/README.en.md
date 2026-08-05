@@ -81,6 +81,7 @@ Long or multiline bracketed pastes render as a compact `[Pasted text · …]` to
 | `/chat` | Return to the Chat message stream. |
 | `/model` | Open the model picker and switch the active session model; unavailable during a run. |
 | `/thinking` | Refresh and open thinking levels supported by the active model; unsupported/error states explain why and can be retried. Unavailable during a run. |
+| `/compact` | Summarize older context immediately; available only for idle sessions with enough history. |
 | `/attach` | Open the workspace file picker. |
 | `/mode` | Show the active execution mode and accepted values; it can be changed during a run. |
 | `/mode read-only` | Expose low-risk analysis tools only. |

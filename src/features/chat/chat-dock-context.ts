@@ -31,6 +31,7 @@ export type ChatDockContextValue = {
   abort: (sessionId: string) => Promise<void>
   pauseGoal: (sessionId: string) => Promise<void>
   setGoalBudget: (sessionId: string, tokenBudget: number) => Promise<void>
+  compactSession: (sessionId: string) => Promise<void>
   setCompactionThreshold: (thresholdPercent: number) => Promise<void>
   switchSessionModel: (sessionId: string, model: string) => Promise<void>
   switchSessionExecutionMode: (sessionId: string, mode: string) => Promise<boolean>

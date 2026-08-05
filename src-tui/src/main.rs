@@ -258,6 +258,13 @@ async fn run_event_loop(
                                 app.stream_failed(message);
                                 true
                             }
+                            RuntimeEvent::CompactionFinished {
+                                context_usage,
+                                error,
+                            } => {
+                                app.finish_context_compaction(context_usage, error);
+                                false
+                            }
                         };
                         if terminal_event {
                             if let Some(action) = app.take_queued_action() {
@@ -498,6 +505,23 @@ async fn execute_action(
         Action::Abort => {
             api.abort(&app.session.id).await?;
             app.status = "stopping".to_owned();
+        }
+        Action::Compact => {
+            app.begin_context_compaction();
+            let api = api.clone();
+            let sender = runtime_tx.clone();
+            let session_id = app.session.id.clone();
+            tokio::spawn(async move {
+                let result = api.compact_session(&session_id).await;
+                let (context_usage, error) = match result {
+                    Ok(context_usage) => (context_usage, None),
+                    Err(error) => (None, Some(format!("{error:#}"))),
+                };
+                let _ = sender.send(RuntimeEvent::CompactionFinished {
+                    context_usage,
+                    error,
+                });
+            });
         }
         Action::ResolveApproval { id, approved } => {
             api.resolve_approval(&app.session.id, &id, approved).await?;

@@ -1,5 +1,15 @@
 import { useEffect, useRef, useState, type FormEvent } from 'react'
-import { Command, File, FolderOpen, Paperclip, RefreshCw, Send, Square, X } from 'lucide-react'
+import {
+  Command,
+  File,
+  FolderOpen,
+  Minimize2,
+  Paperclip,
+  RefreshCw,
+  Send,
+  Square,
+  X,
+} from 'lucide-react'
 import { useI18n } from '@/app/use-i18n'
 import { QueueSection } from '@/components/ai-elements/queue'
 import { AppCard as Panel } from '@/components/ui/app-primitives'
@@ -70,6 +80,7 @@ export type FocusSessionProps = {
   onExecutionModeChange: (mode: string) => Promise<boolean> | boolean
   onGoalPause?: () => Promise<void> | void
   onGoalBudgetChange?: (tokenBudget: number) => Promise<void> | void
+  onCompact?: () => Promise<void> | void
   onCompactionThresholdChange?: (thresholdPercent: number) => Promise<void> | void
   onApproval: (approvalId: string, approved: boolean) => Promise<void> | void
   onWorkspace: () => void
@@ -126,6 +137,7 @@ export function FocusSession({
   onLoadOlder,
   onModelChange,
   onExecutionModeChange,
+  onCompact,
   onCompactionThresholdChange,
   onGoalPause,
   onGoalBudgetChange,
@@ -146,6 +158,7 @@ export function FocusSession({
   const [goalArmed, setGoalArmed] = useState(false)
   const [goalTokenBudget, setGoalTokenBudget] = useState(DEFAULT_GOAL_TOKEN_BUDGET)
   const [queueing, setQueueing] = useState(false)
+  const [compactingManually, setCompactingManually] = useState(false)
   const [scrollRequest, setScrollRequest] = useState(0)
   const selection = useAttachmentSelection()
   const addSelectedAttachments = selection.addAttachments
@@ -154,6 +167,7 @@ export function FocusSession({
   useEffect(() => {
     setGoalArmed(false)
     setQueueing(false)
+    setCompactingManually(false)
   }, [session.id])
 
   useEffect(() => {
@@ -175,6 +189,16 @@ export function FocusSession({
 
   const requestTranscriptBottom = () => {
     setScrollRequest((current) => current + 1)
+  }
+
+  const compactContext = async () => {
+    if (!onCompact || streaming || compactingManually || compaction?.active) return
+    setCompactingManually(true)
+    try {
+      await onCompact()
+    } finally {
+      setCompactingManually(false)
+    }
   }
 
   const submit = async (event: FormEvent<HTMLFormElement>) => {
@@ -349,6 +373,32 @@ export function FocusSession({
               }}
             />
             <GitChangesControl sessionId={session.id} streaming={streaming} />
+            <button
+              type="button"
+              className="compact-context-trigger"
+              title={
+                streaming
+                  ? t('chat:focusSession.manualCompactionWaitForRun')
+                  : compactingManually || compaction?.active
+                    ? t('chat:focusSession.compactingContext')
+                    : t('chat:focusSession.compactContextNow')
+              }
+              aria-label={t('chat:focusSession.compactContextNow')}
+              disabled={
+                !onCompact ||
+                streaming ||
+                compactingManually ||
+                Boolean(compaction?.active) ||
+                messages.length === 0
+              }
+              onClick={() => void compactContext()}
+            >
+              {compactingManually || compaction?.active ? (
+                <RefreshCw className="spin" size={14} />
+              ) : (
+                <Minimize2 size={14} />
+              )}
+            </button>
           </div>
           <div className="focus-composer-secondary">
             <ContextUsageIndicator

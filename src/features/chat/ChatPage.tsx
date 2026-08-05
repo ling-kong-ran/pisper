@@ -151,6 +151,7 @@ export function ChatPage({
     abort: promptCommands.abort,
     pauseGoal: sessionCommands.pauseGoal,
     setGoalBudget: sessionCommands.setGoalBudget,
+    compactSession: sessionCommands.compactSession,
     setCompactionThreshold: sessionCommands.setCompactionThreshold,
     switchSessionModel: sessionCommands.switchSessionModel,
     switchSessionExecutionMode: sessionCommands.switchSessionExecutionMode,
