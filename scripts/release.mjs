@@ -51,12 +51,12 @@ function resolveVersion(current, target) {
 
 assertVersionInput(input)
 
-const dirty = run('git', ['status', '--porcelain'], { capture: true })
-if (dirty) throw new Error('发布前工作区必须保持干净，请先提交或处理现有修改。')
+const dirty = run('git', ['status', '--porcelain', '--untracked-files=no'], { capture: true })
+if (dirty) throw new Error('发布前tracked工作区必须保持干净，请先提交或处理现有修改。')
 
 const branch = run('git', ['branch', '--show-current'], { capture: true })
 if (!branch) throw new Error('当前处于 detached HEAD，无法创建版本提交。')
-const releaseBranch = String(process.env.PISPER_RELEASE_BRANCH || 'main').trim()
+const releaseBranch = String(process.env.PISPER_RELEASE_BRANCH || 'release').trim()
 if (branch !== releaseBranch)
   throw new Error(`只能从 ${releaseBranch} 分支发布，当前分支为 ${branch}。`)
 
@@ -68,10 +68,17 @@ try {
     capture: true,
   })
 } catch {
-  throw new Error(`当前分支 ${branch} 没有上游分支，请先设置 origin/${branch}。`)
+  try {
+    run('git', ['show-ref', '--verify', '--quiet', `refs/remotes/origin/${branch}`])
+    upstream = `origin/${branch}`
+  } catch {
+    console.log(`远端 ${branch} 分支尚不存在，将在发布时创建。`)
+  }
 }
-const behind = Number(run('git', ['rev-list', '--count', `HEAD..${upstream}`], { capture: true }))
-if (behind > 0) throw new Error(`当前分支落后于 ${upstream} ${behind} 个提交，请先同步远端。`)
+if (upstream) {
+  const behind = Number(run('git', ['rev-list', '--count', `HEAD..${upstream}`], { capture: true }))
+  if (behind > 0) throw new Error(`当前分支落后于 ${upstream} ${behind} 个提交，请先同步远端。`)
+}
 
 console.log('正在刷新发布依赖…')
 runNpm(['update'])
@@ -94,7 +101,9 @@ if (run('git', ['status', '--porcelain', '--', ...dependencyFiles], { capture: t
   run('git', ['add', '--', ...dependencyFiles])
   run('git', ['commit', '-m', 'chore(deps): refresh release dependencies'])
 }
-const unrelatedChanges = run('git', ['status', '--porcelain'], { capture: true })
+const unrelatedChanges = run('git', ['status', '--porcelain', '--untracked-files=no'], {
+  capture: true,
+})
 if (unrelatedChanges) throw new Error(`依赖刷新产生了未纳入发布的文件：\n${unrelatedChanges}`)
 
 const packageJson = JSON.parse(await readFile(packagePath, 'utf8'))

@@ -18,4 +18,7 @@ test('release refreshes npm and Cargo dependencies before checks and version tag
   assert.match(source, /runNpm\(\['run', 'check'\]\)/)
   assert.match(source, /runNpm\(\['run', 'tui:test'\]\)/)
   assert.match(source, /runNpm\(\['run', 'tui:check'\]\)/)
+  assert.match(source, /PISPER_RELEASE_BRANCH \|\| 'release'/)
+  assert.match(source, /--untracked-files=no/)
+  assert.match(source, /远端 \$\{branch\} 分支尚不存在，将在发布时创建/)
 })
