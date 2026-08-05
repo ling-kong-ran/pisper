@@ -58,9 +58,12 @@ test('bundled model metadata resolves without network access', async (t) => {
   const gpt56 = await metadata.ensure('gpt-5.6-sol')
   assert.deepEqual(gpt56.input, ['text', 'image'])
   assert.deepEqual(gpt56.thinkingLevelMap, { off: 'none', xhigh: 'xhigh', max: 'max' })
-  const namespacedGlm = await metadata.ensure('tokenhub/glm-5.2')
-  assert.equal(namespacedGlm.contextWindow, 1_000_000)
-  assert.equal(namespacedGlm.maxTokens, 131_072)
+  for (const modelId of ['tokenhub/glm-5.2', 'tokenhub&glm-5.2', 'tokenhub%glm-5.2']) {
+    const namespacedGlm = await metadata.ensure(modelId)
+    assert.equal(namespacedGlm.contextWindow, 1_000_000, modelId)
+    assert.equal(namespacedGlm.maxTokens, 131_072, modelId)
+  }
+  assert.equal(metadata.get('tokenhubglm-5.2'), null)
   assert.equal(calls, 0)
 })
 

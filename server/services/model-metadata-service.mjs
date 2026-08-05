@@ -209,9 +209,20 @@ function metadataKeys(modelId) {
   const key = String(modelId || '')
     .trim()
     .toLowerCase()
-  if (!key) return []
-  const separator = key.lastIndexOf('/')
-  return separator >= 0 && separator < key.length - 1 ? [key, key.slice(separator + 1)] : [key]
+  if (!key || BUNDLED_MODEL_METADATA[key]) return key ? [key] : []
+
+  let bundledSuffix = ''
+  for (const bundledId of Object.keys(BUNDLED_MODEL_METADATA)) {
+    const offset = key.length - bundledId.length
+    if (
+      offset > 0 &&
+      bundledId.length > bundledSuffix.length &&
+      key.endsWith(bundledId) &&
+      !/[a-z0-9._-]/i.test(key[offset - 1])
+    )
+      bundledSuffix = bundledId
+  }
+  return bundledSuffix ? [key, bundledSuffix] : [key]
 }
 
 function normalizedModels(payload) {
