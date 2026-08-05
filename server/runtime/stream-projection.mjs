@@ -21,6 +21,8 @@ const MAX_SESSION_HISTORY_CACHE_ENTRIES = 4
 const MAX_SESSION_HISTORY_CACHE_SOURCE_BYTES = 8 * 1024 * 1024
 const MAX_SESSION_HISTORY_CACHE_ESTIMATED_BYTES = 48 * 1024 * 1024
 const SESSION_HISTORY_CACHE_MEMORY_MULTIPLIER = 4
+const MAX_PROJECTION_CACHE_ENTRIES = 8
+const MAX_PROJECTION_CACHE_BYTES = 24 * 1024 * 1024
 const ATTACHMENT_MARKER = '\n\n---\nAttachment context (injected by Pisper):\n'
 
 export function isInternalParentMessage(content) {
@@ -405,50 +407,106 @@ function messageToken(messages) {
   ]
 }
 
+function estimateProjectionBytes(value, seen = new Set()) {
+  if (value == null) return 8
+  if (typeof value === 'string') return value.length * 2
+  if (typeof value !== 'object') return 8
+  if (ArrayBuffer.isView(value)) return value.byteLength
+  if (value instanceof ArrayBuffer) return value.byteLength
+  if (seen.has(value)) return 0
+  seen.add(value)
+  if (Array.isArray(value))
+    return 24 + value.reduce((total, item) => total + estimateProjectionBytes(item, seen), 0)
+  return (
+    32 +
+    Object.entries(value).reduce(
+      (total, [key, item]) => total + key.length * 2 + estimateProjectionBytes(item, seen),
+      0,
+    )
+  )
+}
+
 export class ProjectionCache {
-  constructor() {
+  constructor({
+    maxEntries = MAX_PROJECTION_CACHE_ENTRIES,
+    maxBytes = MAX_PROJECTION_CACHE_BYTES,
+  } = {}) {
+    this.maxEntries = Math.max(1, Number(maxEntries) || MAX_PROJECTION_CACHE_ENTRIES)
+    this.maxBytes = Math.max(1, Number(maxBytes) || MAX_PROJECTION_CACHE_BYTES)
     this.transcripts = new Map()
     this.assetTranscripts = new Map()
     this.contextUsages = new Map()
     this.liveSnapshots = new Map()
   }
 
+  get(map, key, token) {
+    const cached = map.get(key)
+    if (!cached || !sameToken(cached.token, token)) return { hit: false, value: null }
+    cached.touchedAt = Date.now()
+    return { hit: true, value: cached.value }
+  }
+
+  set(map, key, token, value) {
+    map.delete(key)
+    const entry = { token, value, bytes: estimateProjectionBytes(value), touchedAt: Date.now() }
+    if (entry.bytes > this.maxBytes) return value
+    map.set(key, entry)
+    this.trim(map)
+    return value
+  }
+
+  trim(map) {
+    const entries = () =>
+      [...map.entries()].sort((left, right) => left[1].touchedAt - right[1].touchedAt)
+    const totalBytes = () => [...map.values()].reduce((total, entry) => total + entry.bytes, 0)
+    while (map.size > this.maxEntries || totalBytes() > this.maxBytes) {
+      const oldest = entries()[0]?.[0]
+      if (oldest === undefined) break
+      map.delete(oldest)
+    }
+  }
+
+  stats() {
+    const describe = (map) => ({
+      entries: map.size,
+      estimatedBytes: [...map.values()].reduce((total, entry) => total + entry.bytes, 0),
+    })
+    return {
+      maxEntries: this.maxEntries,
+      maxEstimatedBytes: this.maxBytes,
+      transcripts: describe(this.transcripts),
+      assetTranscripts: describe(this.assetTranscripts),
+      contextUsages: describe(this.contextUsages),
+      liveSnapshots: describe(this.liveSnapshots),
+    }
+  }
+
   transcript(key, messages, build) {
     const token = messageToken(messages)
-    const cached = this.transcripts.get(key)
-    if (cached && sameToken(cached.token, token)) return cached.value
-    const value = build()
-    this.transcripts.set(key, { token, value })
-    return value
+    const cached = this.get(this.transcripts, key, token)
+    if (cached.hit) return cached.value
+    return this.set(this.transcripts, key, token, build())
   }
 
   transcriptWithAssets(key, transcript, assetRevision, build) {
     const token = [transcript, assetRevision]
-    const cached = this.assetTranscripts.get(key)
-    if (cached && sameToken(cached.token, token)) return cached.value
-    const value = build()
-    this.assetTranscripts.set(key, { token, value })
-    return value
+    const cached = this.get(this.assetTranscripts, key, token)
+    if (cached.hit) return cached.value
+    return this.set(this.assetTranscripts, key, token, build())
   }
 
   contextUsage(key, token, build) {
-    const cached = this.contextUsages.get(key)
-    if (cached && sameToken(cached.token, token)) return cached.value
-    const value = build()
-    this.contextUsages.set(key, { token, value })
-    return value
+    const cached = this.get(this.contextUsages, key, token)
+    if (cached.hit) return cached.value
+    return this.set(this.contextUsages, key, token, build())
   }
 
   liveSnapshot(key, token) {
-    const cached = this.liveSnapshots.get(key)
-    return cached && sameToken(cached.token, token)
-      ? { hit: true, value: cached.value }
-      : { hit: false, value: null }
+    return this.get(this.liveSnapshots, key, token)
   }
 
   storeLiveSnapshot(key, token, value) {
-    this.liveSnapshots.set(key, { token, value })
-    return value
+    return this.set(this.liveSnapshots, key, token, value)
   }
 
   invalidate(key, { transcript = true, activity = true, usage = true } = {}) {

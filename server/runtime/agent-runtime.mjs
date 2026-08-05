@@ -832,7 +832,10 @@ export class AgentRuntimeService extends AgentRuntimeFacade {
   }
 
   getRuntimeDiagnostics() {
-    return this.sessionLifecycle.getRuntimeDiagnostics()
+    return {
+      ...this.sessionLifecycle.getRuntimeDiagnostics(),
+      projectionCache: this.streamProjection.cache.stats(),
+    }
   }
 
   async sessionWorkspaceCwd(id) {
