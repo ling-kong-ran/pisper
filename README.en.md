@@ -206,7 +206,7 @@ Pisper is a desktop and terminal client built on [Pi Coding Agent](https://githu
 - **Memory and multimodal input:** retrieve project memory and process images, documents, and code.
 - **Automation and channels:** schedules, visual workflows, Feishu, and personal Weixin.
 - **Desktop and terminal:** Tauri desktop app and Ratatui TUI.
-- **Permission controls:** `Read only / Workspace / Full access`, one-shot approval, and credential isolation.
+- **Permission controls:** `Read only / Full access` execution modes, one-shot approval, and credential isolation.
 
 <a id="desktop-pet"></a>
 
