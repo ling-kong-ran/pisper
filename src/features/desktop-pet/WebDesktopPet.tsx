@@ -71,19 +71,35 @@ export function WebDesktopPet() {
 
   useEffect(() => {
     if (window.pisperDesktop?.getPetStatus) return undefined
-    void refresh()
-    const timer = window.setInterval(refresh, 1200)
+    let timer: number | undefined
+    const startPolling = () => {
+      if (document.visibilityState !== 'visible' || timer !== undefined) return
+      void refresh()
+      timer = window.setInterval(refresh, 1200)
+    }
+    const stopPolling = () => {
+      if (timer === undefined) return
+      window.clearInterval(timer)
+      timer = undefined
+    }
+    const onVisibilityChange = () => {
+      if (document.visibilityState === 'visible') startPolling()
+      else stopPolling()
+    }
     const onChanged = (event: Event) => {
       const next = (event as CustomEvent<DesktopPetStatus>).detail
       if (next) setStatus(next)
       else void refresh()
     }
     const onResize = () => setPosition((current) => clampPosition(current))
+    startPolling()
+    document.addEventListener('visibilitychange', onVisibilityChange)
     window.addEventListener('pisper:desktop-pet-changed', onChanged)
     window.addEventListener('resize', onResize)
     return () => {
-      window.clearInterval(timer)
+      stopPolling()
       window.clearTimeout(interactionTimer.current)
+      document.removeEventListener('visibilitychange', onVisibilityChange)
       window.removeEventListener('pisper:desktop-pet-changed', onChanged)
       window.removeEventListener('resize', onResize)
     }

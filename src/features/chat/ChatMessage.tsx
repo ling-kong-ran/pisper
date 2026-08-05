@@ -55,7 +55,11 @@ function ImageLightbox({ attachment, source, onClose }: ImagePreview & { onClose
           </button>
         </div>
       </div>
-      <img src={source} alt={attachment.name || t('chat:chatMessage.generatedImage')} />
+      <img
+        alt={attachment.name || t('chat:chatMessage.generatedImage')}
+        decoding="async"
+        src={source}
+      />
     </div>
   )
 }
@@ -86,7 +90,12 @@ export function MessageAttachments({
                 title={t('chat:chatMessage.openFullScreenPreview')}
                 key={key}
               >
-                <img src={source} alt={attachment.name || t('chat:chatMessage.imageAttachment')} />
+                <img
+                  alt={attachment.name || t('chat:chatMessage.imageAttachment')}
+                  decoding="async"
+                  loading="lazy"
+                  src={source}
+                />
                 <small>{attachment.name || t('chat:chatMessage.generatedImage')}</small>
               </button>
             )

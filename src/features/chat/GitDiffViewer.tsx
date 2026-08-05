@@ -1,8 +1,9 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
+import { useVirtualizer } from '@tanstack/react-virtual'
 import { FileDiff, X } from 'lucide-react'
 import { useI18n } from '@/app/use-i18n'
-import { parseUnifiedDiff, type GitDiffCell, type GitDiffFile } from './git-diff'
+import { parseUnifiedDiff, type GitDiffCell, type GitDiffFile, type GitDiffRow } from './git-diff'
 
 type DiffFileEntry = {
   file: GitDiffFile
@@ -22,6 +23,103 @@ function DiffCell({ side, cell }: { side: 'old' | 'next'; cell: GitDiffCell }) {
         {cell.tone === 'empty' ? '' : marker}
       </span>
       <code>{cell.text || '\u00a0'}</code>
+    </div>
+  )
+}
+
+type VirtualDiffItem =
+  | { kind: 'header'; hunkIndex: number; header: string }
+  | { kind: 'row'; hunkIndex: number; rowIndex: number; row: GitDiffRow }
+
+function VirtualDiffRows({
+  file,
+  scrollElement,
+}: {
+  file: GitDiffFile
+  scrollElement: HTMLDivElement | null
+}) {
+  const listRef = useRef<HTMLDivElement>(null)
+  const [scrollMargin, setScrollMargin] = useState(0)
+  const items = useMemo<VirtualDiffItem[]>(
+    () =>
+      file.hunks.flatMap((hunk, hunkIndex) => [
+        { kind: 'header' as const, hunkIndex, header: hunk.header },
+        ...hunk.rows.map((row, rowIndex) => ({
+          kind: 'row' as const,
+          hunkIndex,
+          rowIndex,
+          row,
+        })),
+      ]),
+    [file.hunks],
+  )
+
+  useLayoutEffect(() => {
+    const listElement = listRef.current
+    if (!scrollElement || !listElement) return undefined
+    const measure = () => {
+      const next = Math.max(
+        0,
+        listElement.getBoundingClientRect().top -
+          scrollElement.getBoundingClientRect().top +
+          scrollElement.scrollTop,
+      )
+      setScrollMargin((current) => (Math.abs(current - next) < 1 ? current : next))
+    }
+    measure()
+    const observer = typeof ResizeObserver === 'undefined' ? null : new ResizeObserver(measure)
+    observer?.observe(scrollElement)
+    observer?.observe(listElement)
+    return () => observer?.disconnect()
+  }, [scrollElement])
+
+  const virtualizer = useVirtualizer<HTMLDivElement, HTMLDivElement>({
+    count: items.length,
+    getScrollElement: () => scrollElement,
+    estimateSize: () => 25,
+    getItemKey: (index) => {
+      const item = items[index]
+      return item.kind === 'header'
+        ? `hunk-${item.hunkIndex}`
+        : `row-${item.hunkIndex}-${item.rowIndex}`
+    },
+    measureElement: (element) => Math.ceil(element.getBoundingClientRect().height),
+    overscan: 12,
+    scrollMargin,
+  })
+  const virtualItems = virtualizer.getVirtualItems()
+
+  return (
+    <div
+      className="git-diff-virtual-list"
+      data-pisper-diff-row-count={items.length}
+      data-pisper-rendered-count={virtualItems.length}
+      ref={listRef}
+      style={{ height: `${virtualizer.getTotalSize()}px` }}
+    >
+      {virtualItems.map((virtualItem) => {
+        const item = items[virtualItem.index]
+        return (
+          <div
+            className="git-diff-virtual-item"
+            data-index={virtualItem.index}
+            key={virtualItem.key}
+            ref={virtualizer.measureElement}
+            style={{ top: `${virtualItem.start - scrollMargin}px` }}
+          >
+            {item.kind === 'header' ? (
+              <div className="git-diff-hunk-header">{item.header}</div>
+            ) : item.row.kind === 'meta' ? (
+              <div className="git-diff-row-meta">{item.row.text}</div>
+            ) : (
+              <div className="git-diff-row">
+                <DiffCell side="old" cell={item.row.old} />
+                <DiffCell side="next" cell={item.row.next} />
+              </div>
+            )}
+          </div>
+        )
+      })}
     </div>
   )
 }
@@ -82,7 +180,7 @@ export function GitDiffDialog({
   const files = useMemo(() => parseUnifiedDiff(diff), [diff])
   const entries = useMemo(() => files.map(fileEntry), [files])
   const [requestedFileIndex, setRequestedFileIndex] = useState(0)
-  const contentRef = useRef<HTMLDivElement>(null)
+  const [contentElement, setContentElement] = useState<HTMLDivElement | null>(null)
   const selectedFileIndex = Math.min(requestedFileIndex, Math.max(entries.length - 1, 0))
   const selectedEntry = entries[selectedFileIndex]
 
@@ -101,7 +199,7 @@ export function GitDiffDialog({
 
   const selectFile = (index: number) => {
     setRequestedFileIndex(index)
-    contentRef.current?.scrollTo({ top: 0, left: 0 })
+    contentElement?.scrollTo({ top: 0, left: 0 })
   }
 
   return createPortal(
@@ -179,7 +277,7 @@ export function GitDiffDialog({
               </div>
             </nav>
 
-            <div className="git-diff-content" ref={contentRef}>
+            <div className="git-diff-content" ref={setContentElement}>
               {truncated && (
                 <div className="git-diff-truncated">{t('chat:focusSession.gitDiffTruncated')}</div>
               )}
@@ -207,23 +305,7 @@ export function GitDiffDialog({
                         <span>{t('chat:focusSession.gitDiffOriginal')}</span>
                         <span>{t('chat:focusSession.gitDiffModified')}</span>
                       </div>
-                      {selectedEntry.file.hunks.map((hunk, hunkIndex) => (
-                        <div className="git-diff-hunk" key={`${hunk.header}-${hunkIndex}`}>
-                          <div className="git-diff-hunk-header">{hunk.header}</div>
-                          {hunk.rows.map((row, rowIndex) =>
-                            row.kind === 'meta' ? (
-                              <div className="git-diff-row-meta" key={`meta-${rowIndex}`}>
-                                {row.text}
-                              </div>
-                            ) : (
-                              <div className="git-diff-row" key={`row-${rowIndex}`}>
-                                <DiffCell side="old" cell={row.old} />
-                                <DiffCell side="next" cell={row.next} />
-                              </div>
-                            ),
-                          )}
-                        </div>
-                      ))}
+                      <VirtualDiffRows file={selectedEntry.file} scrollElement={contentElement} />
                     </>
                   ) : (
                     <div className="git-diff-no-text">
