@@ -24,6 +24,30 @@ test('transcript projection preserves identity until its mutable source changes'
   assert.equal(project(), appended)
 })
 
+test('projection caches evict least-recent sessions and skip oversized values', () => {
+  const cache = new ProjectionCache({ maxEntries: 2, maxBytes: 256 })
+  const messages = (content) => [{ role: 'assistant', content }]
+
+  cache.transcript('session-1', messages('one'), () => ({ text: 'one' }))
+  cache.transcript('session-2', messages('two'), () => ({ text: 'two' }))
+  cache.transcript('session-3', messages('three'), () => ({ text: 'three' }))
+  assert.equal(cache.transcripts.size, 2)
+  assert.equal(cache.transcripts.has('session-1'), false)
+
+  const oversizedMessages = messages('large')
+  let builds = 0
+  const build = () => ({ text: 'x'.repeat(200), build: ++builds })
+  cache.transcript('session-large', oversizedMessages, build)
+  cache.transcript('session-large', oversizedMessages, build)
+  assert.equal(builds, 2)
+  assert.equal(cache.transcripts.has('session-large'), false)
+
+  const stats = cache.stats()
+  assert.equal(stats.maxEntries, 2)
+  assert.equal(stats.maxEstimatedBytes, 256)
+  assert.ok(stats.transcripts.estimatedBytes <= 256)
+})
+
 test('projection invalidation clears only the requested session scopes', () => {
   const cache = new ProjectionCache()
   const messages = [{ role: 'user', content: 'hello' }]
