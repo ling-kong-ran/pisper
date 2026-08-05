@@ -156,6 +156,7 @@ export const WebPreviewBody = ({ className, loading, src, ...props }: WebPreview
     <div className="relative min-h-0 flex-1 overflow-hidden bg-background">
       <iframe
         className={cn('block size-full border-0 bg-background', className)}
+        loading="lazy"
         sandbox="allow-scripts allow-same-origin allow-forms allow-popups allow-presentation"
         src={(src ?? url) || undefined}
         title="Preview"
