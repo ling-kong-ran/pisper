@@ -1,6 +1,7 @@
 mod api;
 mod app;
 mod model;
+mod notification;
 mod plan_protocol;
 mod sidecar;
 mod ui;
@@ -25,6 +26,7 @@ use futures_util::StreamExt;
 use model::{RuntimeEvent, SessionSummary};
 use ratatui::{
     backend::{Backend, CrosstermBackend},
+    layout::Rect,
     Terminal,
 };
 use tokio::sync::mpsc;
@@ -164,10 +166,10 @@ async fn run_event_loop(
     status_animation.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Skip);
 
     let mut redraw = true;
-    let mut reset_before_redraw = false;
+    let mut pending_resize = None;
     loop {
         if redraw {
-            draw_frame(terminal, &app, std::mem::take(&mut reset_before_redraw))?;
+            draw_frame(terminal, &app, pending_resize.take())?;
         }
         redraw = tokio::select! {
             maybe_event = input.next() => {
@@ -183,9 +185,9 @@ async fn run_event_loop(
                         app.insert_paste(&value);
                         true
                     }
-                    Some(Ok(Event::Resize(_, _))) => {
-                        reset_before_redraw = true;
-                        true
+                    Some(Ok(Event::Resize(width, height))) => {
+                        pending_resize = resize_area(width, height).or(pending_resize);
+                        false
                     },
                     Some(Ok(_)) => false,
                     Some(Err(error)) => return Err(error.into()),
@@ -214,7 +216,18 @@ async fn run_event_loop(
                             }
                             RuntimeEvent::Stream(event) => {
                                 let terminal = matches!(event.name.as_str(), "done" | "error");
+                                let completed = event.name == "done";
                                 app.apply_stream_event(event);
+                                if should_notify_completion(completed, app.queued_count()) {
+                                    let completion = notification::chat_completion(&app);
+                                    let _ = api
+                                        .notify_chat_completed(
+                                            &completion.title,
+                                            &completion.summary,
+                                            &completion.model,
+                                        )
+                                        .await;
+                                }
                                 terminal
                             }
                             RuntimeEvent::StreamFailed(message) => {
@@ -234,8 +247,10 @@ async fn run_event_loop(
                     None => false,
                 }
             }
-            _ = animation.tick(), if app.has_pending_render() => {
-                app.advance_stream_render();
+            _ = animation.tick(), if app.has_pending_render() || pending_resize.is_some() => {
+                if app.has_pending_render() {
+                    app.advance_stream_render();
+                }
                 true
             }
             _ = status_animation.tick(), if app.is_streaming() && !app.has_pending_render() => {
@@ -247,8 +262,16 @@ async fn run_event_loop(
     Ok(())
 }
 
-fn synchronize_terminal_size<B: Backend>(terminal: &mut Terminal<B>) -> Result<()> {
-    terminal.autoresize()?;
+fn should_notify_completion(completed: bool, queued_count: usize) -> bool {
+    completed && queued_count == 0
+}
+
+fn resize_area(width: u16, height: u16) -> Option<Rect> {
+    (width > 0 && height > 0).then(|| Rect::new(0, 0, width, height))
+}
+
+fn synchronize_terminal_size<B: Backend>(terminal: &mut Terminal<B>, area: Rect) -> Result<()> {
+    terminal.resize(area)?;
     terminal.clear()?;
     Ok(())
 }
@@ -256,12 +279,12 @@ fn synchronize_terminal_size<B: Backend>(terminal: &mut Terminal<B>) -> Result<(
 fn draw_frame(
     terminal: &mut Terminal<CrosstermBackend<io::Stdout>>,
     app: &App,
-    reset_before_draw: bool,
+    resize: Option<Rect>,
 ) -> Result<()> {
     execute!(terminal.backend_mut(), BeginSynchronizedUpdate)?;
     let draw_result = (|| -> Result<()> {
-        if reset_before_draw {
-            synchronize_terminal_size(terminal)?;
+        if let Some(area) = resize {
+            synchronize_terminal_size(terminal, area)?;
         }
         terminal.draw(|frame| ui::draw(frame, app)).map(drop)?;
         Ok(())
@@ -619,8 +642,23 @@ impl Drop for TerminalSession {
 
 #[cfg(test)]
 mod tests {
-    use super::{draft_session, resume_seed};
+    use super::{draft_session, resize_area, resume_seed, should_notify_completion};
     use crate::model::SessionSummary;
+
+    #[test]
+    fn completion_notifications_wait_for_the_final_queued_turn() {
+        assert!(should_notify_completion(true, 0));
+        assert!(!should_notify_completion(true, 1));
+        assert!(!should_notify_completion(false, 0));
+    }
+
+    #[test]
+    fn resize_events_keep_the_reported_terminal_area() {
+        assert_eq!(resize_area(120, 30).unwrap().width, 120);
+        assert_eq!(resize_area(120, 30).unwrap().height, 30);
+        assert!(resize_area(0, 30).is_none());
+        assert!(resize_area(120, 0).is_none());
+    }
 
     #[test]
     fn a_fresh_logo_page_uses_an_unpersisted_session_draft() {

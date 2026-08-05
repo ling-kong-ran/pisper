@@ -3,6 +3,7 @@ import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import test from 'node:test'
+import { configSettingsRoutes } from '../http/routes/config-settings.mjs'
 import { NotificationSettingsService } from '../services/notification-settings-service.mjs'
 
 test('browser notification setting persists without overwriting other app configuration', async (t) => {
@@ -107,6 +108,42 @@ test('browser template tests return a system-notification payload without queuei
     preview: '日报已完成',
   })
   assert.equal((await service.getBrowserEvents('missing')).events.length, 0)
+})
+
+test('TUI chat completion uses the desktop browser-notification queue only', async () => {
+  const route = configSettingsRoutes.find(
+    (item) => item.path === '/api/settings/notifications/chat-completed',
+  )
+  const calls = []
+  let response
+  await route.handler({
+    runtime: {
+      notifyChannels: async (...args) => calls.push(args),
+    },
+    body: async () => ({
+      title: 'TUI session',
+      summary: 'Finished from the terminal',
+      model: 'provider/model',
+    }),
+    json: (status, value) => {
+      response = { status, value }
+    },
+  })
+
+  assert.deepEqual(calls, [
+    [
+      'chat.completed',
+      {
+        chat: {
+          title: 'TUI session',
+          summary: 'Finished from the terminal',
+          model: 'provider/model',
+        },
+      },
+      { platforms: ['browser'] },
+    ],
+  ])
+  assert.deepEqual(response, { status: 202, value: { accepted: true } })
 })
 
 test('channel notification failures are reported after other targets are attempted', async (t) => {

@@ -1,5 +1,13 @@
 const notificationChannels = ['feishu', 'weixin', 'browser']
 
+function notificationText(value, fallback, maxLength) {
+  return (
+    String(value || '')
+      .trim()
+      .slice(0, maxLength) || fallback
+  )
+}
+
 export const configSettingsRoutes = [
   {
     method: 'GET',
@@ -48,6 +56,25 @@ export const configSettingsRoutes = [
     path: '/api/settings/notifications/browser/events',
     async handler({ runtime, url, json }) {
       json(200, await runtime.getBrowserNotificationEvents(url.searchParams.get('after') || ''))
+    },
+  },
+  {
+    method: 'POST',
+    path: '/api/settings/notifications/chat-completed',
+    async handler({ runtime, body, json }) {
+      const input = await body()
+      await runtime.notifyChannels(
+        'chat.completed',
+        {
+          chat: {
+            title: notificationText(input.title, 'Pisper conversation', 160),
+            summary: notificationText(input.summary, 'The Agent has finished responding.', 1_000),
+            model: notificationText(input.model, 'unknown', 160),
+          },
+        },
+        { platforms: ['browser'] },
+      )
+      json(202, { accepted: true })
     },
   },
   {

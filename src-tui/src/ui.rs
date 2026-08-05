@@ -2870,13 +2870,14 @@ mod tests {
             Vec::new(),
             Vec::new(),
         );
-        let width = 80;
-        let mut terminal = Terminal::new(TestBackend::new(width, 24)).unwrap();
+        let mut terminal = Terminal::new(TestBackend::new(80, 24)).unwrap();
 
-        for height in [24, 10, 30] {
+        for (width, height) in [(80, 24), (42, 10), (120, 30), (60, 18)] {
             terminal.backend_mut().resize(width, height);
-            crate::synchronize_terminal_size(&mut terminal).unwrap();
+            let area = crate::resize_area(width, height).unwrap();
+            crate::synchronize_terminal_size(&mut terminal, area).unwrap();
             terminal.draw(|frame| draw(frame, &app)).unwrap();
+            assert_eq!(terminal.size().unwrap(), area.into());
             let rows = (0..height)
                 .map(|y| {
                     (0..width)

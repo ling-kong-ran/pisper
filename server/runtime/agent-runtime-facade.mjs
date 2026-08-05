@@ -351,8 +351,8 @@ export class AgentRuntimeFacade {
     return run ? { stopping: true, run } : null
   }
 
-  notifyChannels(event, data) {
-    return this.notificationSettings.notify(event, data)
+  notifyChannels(event, data, options) {
+    return this.notificationSettings.notify(event, data, options)
   }
 
   async dispose() {

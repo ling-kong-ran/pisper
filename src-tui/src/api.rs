@@ -122,6 +122,26 @@ impl ApiClient {
         self.get_json("/api/runtime/diagnostics").await
     }
 
+    pub async fn notify_chat_completed(
+        &self,
+        title: &str,
+        summary: &str,
+        model: &str,
+    ) -> Result<()> {
+        let _: Value = self
+            .send_json(
+                reqwest::Method::POST,
+                "/api/settings/notifications/chat-completed",
+                &json!({
+                    "title": title,
+                    "summary": summary,
+                    "model": model,
+                }),
+            )
+            .await?;
+        Ok(())
+    }
+
     pub async fn runtime_preferences(&self) -> Result<(String, String, Vec<ModelOption>)> {
         let config = self.get_json::<RuntimeConfig>("/api/config").await?;
         let default_model = match (config.provider.as_str(), config.model.as_str()) {
