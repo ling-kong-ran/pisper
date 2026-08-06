@@ -2,6 +2,7 @@ import { mkdir, open, readFile, stat, unlink, writeFile } from 'node:fs/promises
 import { createHash, randomUUID } from 'node:crypto'
 import { basename, extname, join, resolve, sep } from 'node:path'
 import { createAgentSession, SessionManager, SettingsManager } from './pi-coding-agent.mjs'
+import { capturePromptCacheShape, comparePromptCacheShapes } from './prompt-cache-diagnostics.mjs'
 import { readJson, writeJsonAtomic } from '../storage/json-file.mjs'
 import { cleanupRemovedLocalEmbeddingData } from '../data-dir-migration.mjs'
 import { ChannelService } from '../services/channels/channel-service.mjs'
@@ -275,6 +276,13 @@ function localDayKey(value = new Date()) {
   if (Number.isNaN(date.getTime())) return ''
   const pad = (part) => String(part).padStart(2, '0')
   return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`
+}
+
+function promptCacheTools(session) {
+  const names = session?.getActiveToolNames?.() || []
+  if (typeof session?.getToolDefinition === 'function')
+    return names.map((name) => session.getToolDefinition(name)).filter(Boolean)
+  return session?.agent?.state?.tools || []
 }
 
 function normalizedUsage(usage) {
@@ -1473,7 +1481,12 @@ export class AgentRuntimeService extends AgentRuntimeFacade {
       this.skills.createResourceLoader(effectiveCwd),
       this.mcp.createToolDefinitions(),
     ])
-    const baseToolNames = [...new Set([...enabledTools, ...mcpTools.map((tool) => tool.name)])]
+    const stableMcpTools = [...mcpTools].sort((left, right) =>
+      String(left.name || '').localeCompare(String(right.name || '')),
+    )
+    const baseToolNames = [
+      ...new Set([...enabledTools, ...stableMcpTools.map((tool) => tool.name)]),
+    ]
     const promotedToolNames = mergePromotedToolNames({
       availableToolNames: [...baseToolNames, ...MULTI_AGENT_TOOL_NAMES],
       promotedToolNames: this.sessionMeta[runtimeSessionId]?.promotedToolNames || [],
@@ -1631,7 +1644,7 @@ export class AgentRuntimeService extends AgentRuntimeFacade {
           },
         }),
       ),
-      ...schemaOnlyToolDefinitions(mcpTools),
+      ...schemaOnlyToolDefinitions(stableMcpTools),
       ...(inheritedBashTool ? [inheritedBashTool] : []),
     ]
     const sessionSettingsManager = createCompactionSettingsManager(
@@ -1674,7 +1687,7 @@ export class AgentRuntimeService extends AgentRuntimeFacade {
       cwd: effectiveCwd,
       baseToolNames,
       enabledTools,
-      mcpTools: mcpTools.map((tool) => ({ name: tool.name, label: tool.label || '' })),
+      mcpTools: stableMcpTools.map((tool) => ({ name: tool.name, label: tool.label || '' })),
       promotedToolNames,
       requestedToolNames: [],
       runtimeVersion: this.sessionRuntimeVersion,
@@ -1695,6 +1708,10 @@ export class AgentRuntimeService extends AgentRuntimeFacade {
     this.syncGoalTools(value, this.goals.get(session.sessionId))
     this.permissions.install(session, { sessionId: session.sessionId, cwd: effectiveCwd })
     applyPisperSystemPrompt(session, session.model)
+    value.promptCache = capturePromptCacheShape({
+      systemPrompt: session.agent.state.systemPrompt,
+      tools: promptCacheTools(session),
+    })
     this.sessions.set(session.sessionId, value)
     this.streamProjection.invalidate(session.sessionId)
     this.evictIdleSessionRuntimes(session.sessionId)
@@ -1820,6 +1837,13 @@ export class AgentRuntimeService extends AgentRuntimeFacade {
       }
     }
     await this.selectToolsForMessage(value, message, { requestedToolNames })
+    value.promptCache = comparePromptCacheShapes(
+      value.promptCache,
+      capturePromptCacheShape({
+        systemPrompt: session.agent.state.systemPrompt,
+        tools: promptCacheTools(session),
+      }),
+    )
     value.pendingUserMessage = String(message || '')
     // Drop stale plans from previous turns unless a Goal is actively driving multi-turn work or this is an internal wakeup turn.
     const keepPlan =
@@ -1860,6 +1884,7 @@ export class AgentRuntimeService extends AgentRuntimeFacade {
       activityFeed: [],
       queuedInputs: queuedSessionInputs(session),
       contextUsage: this.compactionAwareContextUsage(session),
+      promptCache: value.promptCache,
       compaction: null,
       startedAt,
       lastActivityAt: startedAt,

@@ -1041,6 +1041,7 @@ export class StreamProjection {
       queuedInputs: live?.queuedInputs ?? queuedSessionInputs(active?.session),
       contextUsage:
         this.compactionAwareContextUsage(active?.session, live?.compaction) || page.contextUsage,
+      promptCache: live?.promptCache || active?.promptCache || null,
       compaction: live?.compaction || null,
       approvals,
       pageInfo: page.pageInfo,
