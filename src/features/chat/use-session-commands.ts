@@ -181,7 +181,10 @@ export function useSessionCommands({
     async (sessionId: string, nextModel: string) => {
       const selected = availableModels.find((item) => item.key === nextModel)
       if (!sessionId || !selected || sessionStatesRef.current[sessionId]?.streaming) return
-      const previousModel = sessionStatesRef.current[sessionId]?.model || ''
+      const current = sessionStatesRef.current[sessionId]
+      const previousModel = current?.model || ''
+      const shouldOfferCompaction =
+        Boolean(current?.messages?.length) && !current?.compaction?.active
       // Optimistic update so the controlled select does not snap back while the request is in flight.
       updateSessionState(sessionId, {
         switchingModel: true,
@@ -202,6 +205,14 @@ export function useSessionCommands({
         }))
         applyThinkingState(sessionId, updated)
         notify(t('chat:chatPage.switchedToModel', { model: selected.label }))
+        if (shouldOfferCompaction) {
+          const confirmed = await requestConfirm({
+            title: t('chat:chatPage.compactAfterModelSwitch'),
+            message: t('chat:chatPage.compactAfterModelSwitchDescription'),
+            confirmLabel: t('chat:chatPage.compactNow'),
+          })
+          if (confirmed) await compactSession(sessionId)
+        }
       } catch (error) {
         updateSessionState(sessionId, {
           switchingModel: false,
@@ -216,7 +227,9 @@ export function useSessionCommands({
     [
       applyThinkingState,
       availableModels,
+      compactSession,
       notify,
+      requestConfirm,
       sessionStatesRef,
       t,
       updateSessionState,
