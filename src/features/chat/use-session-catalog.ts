@@ -112,7 +112,7 @@ export function useSessionCatalog({ notify }: SessionCatalogOptions) {
           approvals: [],
           queuedInputs: [],
           permissionMode: created.permissionMode || 'auto',
-          executionMode: created.executionMode || 'full-access',
+          executionMode: created.executionMode || 'workspace-write',
           goal: created.goal || null,
           plan: planFromPayloadOr(created, null),
           contextUsage: created.contextUsage || null,

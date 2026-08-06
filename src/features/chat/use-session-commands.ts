@@ -295,7 +295,9 @@ export function useSessionCommands({
             mode:
               updated.executionMode === 'read-only'
                 ? t('chat:chatPage.readOnly')
-                : t('chat:chatPage.fullAccess'),
+                : updated.executionMode === 'workspace-write'
+                  ? t('chat:focusSession.workspaceWrite')
+                  : t('chat:chatPage.fullAccess'),
           }),
         )
         return true

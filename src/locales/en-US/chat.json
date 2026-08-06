@@ -263,6 +263,8 @@
   "focusSession.fullAccessRunsShellWithoutPerCommandApproval": "Can access host files and the network; Shell does not require per-command approval",
   "focusSession.openChatActionsMenu": "Open chat actions menu",
   "focusSession.readOnly": "Read only",
+  "focusSession.workspaceWrite": "Auto-approve",
+  "focusSession.workspaceWriteRunsCommandsWithAutomaticApproval": "Write to the workspace and auto-approve routine commands; external access remains restricted",
   "focusSession.refactor": "Refactor",
   "focusSession.refactorThisCodeAndExplainTheImprovements": "Refactor this code and explain the improvements:",
   "focusSession.organizeInformation": "Organize information",

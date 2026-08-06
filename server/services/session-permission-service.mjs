@@ -1,6 +1,7 @@
 import { existsSync, realpathSync } from 'node:fs'
 import { dirname, isAbsolute, join, relative, resolve, sep } from 'node:path'
-import { randomUUID } from 'node:crypto'
+import { createHash, randomUUID } from 'node:crypto'
+import { readJson, writeJsonAtomic } from '../storage/json-file.mjs'
 import { PLAN_ALL_TOOL_NAMES } from '../tools/app/plan-tool-names.mjs'
 import { TOOL_CATALOG } from '../tools/registry.mjs'
 
@@ -21,6 +22,23 @@ const TOOL_RISKS = new Map([
 ])
 const SENSITIVE_RISKS = new Set(['medium', 'high', '中风险', '高风险'])
 const INTERNAL_SAFE_TOOLS = new Set(['get_goal', 'update_goal', ...PLAN_ALL_TOOL_NAMES])
+
+function stableValue(value) {
+  if (Array.isArray(value)) return value.map((item) => stableValue(item))
+  if (value && typeof value === 'object')
+    return Object.fromEntries(
+      Object.entries(value)
+        .sort(([left], [right]) => left.localeCompare(right))
+        .map(([key, child]) => [key, stableValue(child)]),
+    )
+  return value
+}
+
+function approvalKey({ cwd, toolName, args }) {
+  return createHash('sha256')
+    .update(JSON.stringify([resolve(cwd), toolName, stableValue(args)]))
+    .digest('hex')
+}
 
 function safeArgs(value, depth = 0, key = '') {
   if (depth > 3) return '[内容已省略]'
@@ -81,6 +99,15 @@ export function permissionRequirement({ mode, executionMode, cwd, toolName, args
     }
   }
   if (['read', 'ls', 'grep', 'find'].includes(toolName)) return null
+  if (mode === 'auto') {
+    if (
+      toolName === 'browser_automation' &&
+      ['click', 'type'].includes(String(args?.action || ''))
+    ) {
+      return { risk: 'high', reason: '浏览器交互可能提交表单或改变远端状态，需要确认后执行。' }
+    }
+    return null
+  }
   if (['edit', 'write'].includes(toolName)) {
     return {
       risk: 'high',
@@ -105,13 +132,22 @@ export function permissionRequirement({ mode, executionMode, cwd, toolName, args
 }
 
 export class SessionPermissionService {
-  constructor({ getMode, getExecutionMode, getToolRisk, timeoutMs = 10 * 60_000 } = {}) {
+  constructor({
+    getMode,
+    getExecutionMode,
+    getToolRisk,
+    approvalPath,
+    timeoutMs = 10 * 60_000,
+  } = {}) {
     this.getMode = getMode || (() => DEFAULT_PERMISSION_MODE)
     this.getExecutionMode = getExecutionMode || (() => '')
     this.getToolRisk = getToolRisk || (() => null)
     this.timeoutMs = timeoutMs
+    this.approvalPath = approvalPath
+    this.approvalWrite = Promise.resolve()
     this.pending = new Map()
     this.resolved = new Map()
+    this.remembered = new Map()
     this.emitters = new Map()
     this.installedSessions = new WeakSet()
   }
@@ -162,6 +198,36 @@ export class SessionPermissionService {
     }
   }
 
+  async hasRememberedApproval(key) {
+    if (!this.approvalPath) return this.remembered.has(key)
+    const store = await readJson(this.approvalPath, { version: 1, approvals: {} })
+    return Boolean(store.approvals?.[key])
+  }
+
+  rememberApproval(key, resolution) {
+    if (!this.approvalPath) {
+      this.remembered.set(key, resolution)
+      return Promise.resolve()
+    }
+    this.approvalWrite = this.approvalWrite
+      .catch(() => {})
+      .then(async () => {
+        const store = await readJson(this.approvalPath, { version: 1, approvals: {} })
+        const approvals = {
+          ...(store.approvals && typeof store.approvals === 'object' ? store.approvals : {}),
+          [key]: {
+            approvedAt: resolution.resolvedAt,
+            toolName: resolution.toolName,
+            cwd: resolution.cwd,
+            command: resolution.command,
+            args: resolution.args,
+          },
+        }
+        await writeJsonAtomic(this.approvalPath, { version: 1, approvals })
+      })
+    return this.approvalWrite
+  }
+
   async authorize({ sessionId, cwd, toolName, toolCallId, args, signal }) {
     const mode = PERMISSION_MODES.has(this.getMode(sessionId))
       ? this.getMode(sessionId)
@@ -177,6 +243,8 @@ export class SessionPermissionService {
     })
     if (!requirement) return undefined
     if (requirement.block) return { block: true, reason: requirement.reason }
+    const rememberedKey = approvalKey({ sessionId, cwd, toolName, args })
+    if (await this.hasRememberedApproval(rememberedKey)) return undefined
     const approval = await this.requestApproval({
       sessionId,
       toolName,
@@ -186,7 +254,16 @@ export class SessionPermissionService {
       ...requirement,
       signal,
     })
-    if (approval.approved) return undefined
+    if (approval.approved) {
+      await this.rememberApproval(rememberedKey, {
+        resolvedAt: new Date().toISOString(),
+        toolName,
+        cwd: resolve(cwd),
+        command: toolName === 'bash' ? String(args?.command || '') : '',
+        args: toolName === 'bash' ? undefined : safeArgs(args),
+      })
+      return undefined
+    }
     return { block: true, reason: approval.reason || `用户拒绝执行工具 ${toolName}。` }
   }
 
@@ -277,5 +354,6 @@ export class SessionPermissionService {
       approval.settle(false, '应用正在关闭，工具未执行。')
     this.emitters.clear()
     this.resolved.clear()
+    this.remembered.clear()
   }
 }

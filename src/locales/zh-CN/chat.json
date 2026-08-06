@@ -261,6 +261,8 @@
   "focusSession.fullAccessRunsShellWithoutPerCommandApproval": "允许访问本机文件和网络；Shell 不再逐次请求授权",
   "focusSession.openChatActionsMenu": "打开会话操作菜单",
   "focusSession.readOnly": "只读",
+  "focusSession.workspaceWrite": "自动审批",
+  "focusSession.workspaceWriteRunsCommandsWithAutomaticApproval": "允许修改当前工作区并自动批准常规命令；外部访问仍受限制",
   "focusSession.organizeInformation": "整理信息",
   "focusSession.organizeThisInformationIntoAClearStructure": "将以下信息整理成清晰的结构：",
   "focusSession.refactor": "重构",

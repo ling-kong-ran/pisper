@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict'
-import { mkdtemp, mkdir, rm, symlink } from 'node:fs/promises'
+import { mkdtemp, mkdir, readFile, rm, symlink } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
 import test from 'node:test'
@@ -71,19 +71,17 @@ test('permission modes progress from ask to automatic to ignored checks', () => 
     permissionRequirement({ mode: 'ask', cwd, toolName: 'update_task_list', args: { items: [] } }),
     null,
   )
-  assert.match(
-    permissionRequirement({ mode: 'auto', cwd, toolName: 'write', args: { path: 'README.md' } })
-      .reason,
-    /修改当前工作区/,
+  assert.equal(
+    permissionRequirement({ mode: 'auto', cwd, toolName: 'write', args: { path: 'README.md' } }),
+    null,
   )
   assert.match(
     permissionRequirement({ mode: 'auto', cwd, toolName: 'write', args: { path: outside } }).reason,
     /工作目录之外/,
   )
-  assert.match(
-    permissionRequirement({ mode: 'auto', cwd, toolName: 'bash', args: { command: 'npm test' } })
-      .reason,
-    /Shell/,
+  assert.equal(
+    permissionRequirement({ mode: 'auto', cwd, toolName: 'bash', args: { command: 'npm test' } }),
+    null,
   )
   assert.equal(
     permissionRequirement({
@@ -150,6 +148,7 @@ test('pending tool approval can be accepted or denied', async () => {
     toolCallId: 'tool-1',
     args: { command: 'npm test' },
   })
+  await new Promise((resolve) => setImmediate(resolve))
   const first = service.getPending('session-1')[0]
   assert.equal(first.toolName, 'bash')
   const firstResolution = service.resolve('session-1', first.id, true)
@@ -163,14 +162,26 @@ test('pending tool approval can be accepted or denied', async () => {
   assert.equal(duplicateResolution.alreadyResolved, true)
   assert.equal(duplicateResolution.approved, true)
   assert.equal(service.resolve('another-session', first.id, true).found, false)
+  assert.equal(
+    await service.authorize({
+      sessionId: 'session-1',
+      cwd: process.cwd(),
+      toolName: 'bash',
+      toolCallId: 'tool-duplicate',
+      args: { command: 'npm test' },
+    }),
+    undefined,
+  )
+  assert.deepEqual(service.getPending('session-1'), [])
 
   const denied = service.authorize({
     sessionId: 'session-1',
     cwd: process.cwd(),
     toolName: 'bash',
     toolCallId: 'tool-2',
-    args: { command: 'npm test' },
+    args: { command: 'npm run check' },
   })
+  await new Promise((resolve) => setImmediate(resolve))
   const second = service.getPending('session-1')[0]
   service.resolve('session-1', second.id, false)
   assert.deepEqual(await denied, { block: true, reason: '用户拒绝执行该工具。' })
@@ -201,6 +212,46 @@ test('pending tool approval can be accepted or denied', async () => {
     undefined,
   )
   service.dispose()
+})
+
+test('approved commands persist on disk and are reused after service recreation', async (t) => {
+  const directory = await mkdtemp(join(tmpdir(), 'pisper-permission-memory-'))
+  t.after(() => rm(directory, { recursive: true, force: true }))
+  const approvalPath = join(directory, 'pisper-approvals.json')
+  const options = { approvalPath, getMode: () => 'ask', timeoutMs: 5000 }
+  const firstService = new SessionPermissionService(options)
+  const allowed = firstService.authorize({
+    sessionId: 'session-persisted',
+    cwd: directory,
+    toolName: 'bash',
+    toolCallId: 'tool-persisted',
+    args: { command: 'npm test' },
+  })
+  await new Promise((resolve) => setTimeout(resolve, 10))
+  const approval = firstService.getPending('session-persisted')[0]
+  firstService.resolve('session-persisted', approval.id, true)
+  assert.equal(await allowed, undefined)
+  firstService.dispose()
+
+  const persisted = JSON.parse(await readFile(approvalPath, 'utf8'))
+  const record = Object.values(persisted.approvals)[0]
+  assert.equal(record.toolName, 'bash')
+  assert.equal(record.cwd, directory)
+  assert.equal(record.command, 'npm test')
+
+  const secondService = new SessionPermissionService(options)
+  assert.equal(
+    await secondService.authorize({
+      sessionId: 'another-session-in-the-same-directory',
+      cwd: directory,
+      toolName: 'bash',
+      toolCallId: 'tool-reused',
+      args: { command: 'npm test' },
+    }),
+    undefined,
+  )
+  assert.deepEqual(secondService.getPending('another-session-in-the-same-directory'), [])
+  secondService.dispose()
 })
 
 test('approval API treats a repeated resolution as an idempotent success', async () => {

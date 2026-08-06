@@ -470,6 +470,7 @@ export class AgentRuntimeService extends AgentRuntimeFacade {
     this.compactionThresholdPercent = DEFAULT_COMPACTION_THRESHOLD_PERCENT
     this.sessionMeta = {}
     this.permissions = new SessionPermissionService({
+      approvalPath: join(dataDir, 'pisper-approvals.json'),
       getMode: (sessionId) =>
         this.sessionMeta[sessionId]?.permissionMode ||
         permissionModeForExecutionMode(this.getSessionExecutionMode(sessionId)),

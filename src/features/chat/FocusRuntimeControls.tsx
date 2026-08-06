@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
-import { Bot, Brain, Check, Eye, Gauge, ShieldOff } from 'lucide-react'
+import { Bot, Brain, Check, Eye, Gauge, Pencil, ShieldOff } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
 import type { I18nValues } from '@/app/i18n'
 import { useI18n } from '@/app/use-i18n'
@@ -259,6 +259,12 @@ function executionModeOptions(t: Translate): ExecutionModeOption[] {
       t('chat:focusSession.readOnly'),
       t('chat:focusSession.onlyInspectAndAnalyzeContent'),
       Eye,
+    ],
+    [
+      'workspace-write',
+      t('chat:focusSession.workspaceWrite'),
+      t('chat:focusSession.workspaceWriteRunsCommandsWithAutomaticApproval'),
+      Pencil,
     ],
     [
       'full-access',
