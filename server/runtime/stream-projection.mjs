@@ -607,11 +607,9 @@ export class StreamProjection {
     try {
       const context = this.openStoredSession(info.path).buildSessionContext()
       if (context?.model?.provider && context.model.modelId) {
-        return this.rememberSessionModel(
-          id,
-          `${context.model.provider}/${context.model.modelId}`,
-          { persist: true },
-        )
+        return this.rememberSessionModel(id, `${context.model.provider}/${context.model.modelId}`, {
+          persist: true,
+        })
       }
     } catch {
       // Historical files can be missing or mid-write; fall back to cached metadata.
