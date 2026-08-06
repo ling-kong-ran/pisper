@@ -106,19 +106,25 @@ async fn run() -> Result<()> {
     if !interactive_resume {
         validate_session_workspace(&session, None)?;
     }
-    let (messages, context_usage, thinking_state) = if interactive_resume || session.id.is_empty() {
-        (Vec::new(), None, None)
-    } else {
-        let (thinking_state, page) =
-            tokio::join!(api.thinking_state(&session.id), api.messages(&session.id));
-        if let Ok(state) = &thinking_state {
-            if !state.thinking_level.is_empty() {
-                session.thinking_level.clone_from(&state.thinking_level);
+    let (messages, context_usage, thinking_state, history_start) =
+        if interactive_resume || session.id.is_empty() {
+            (Vec::new(), None, None, 0)
+        } else {
+            let (thinking_state, page) =
+                tokio::join!(api.thinking_state(&session.id), api.messages(&session.id));
+            if let Ok(state) = &thinking_state {
+                if !state.thinking_level.is_empty() {
+                    session.thinking_level.clone_from(&state.thinking_level);
+                }
             }
-        }
-        let page = page?;
-        (page.messages, page.context_usage, Some(thinking_state))
-    };
+            let page = page?;
+            (
+                page.messages,
+                page.context_usage,
+                Some(thinking_state),
+                page.page_info.start,
+            )
+        };
     let mut app = App::new(
         sessions,
         session,
@@ -127,6 +133,7 @@ async fn run() -> Result<()> {
         Vec::new(),
         Vec::new(),
     );
+    app.set_history_window(history_start);
     app.set_launch_workspace(options.workspace.clone());
     if interactive_resume {
         app.open_session_picker(true);
@@ -171,6 +178,8 @@ async fn run_event_loop(
     animation.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Skip);
     let mut status_animation = tokio::time::interval(Duration::from_millis(120));
     status_animation.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Skip);
+    let mut history_eviction = tokio::time::interval(Duration::from_secs(5));
+    history_eviction.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Skip);
 
     let jetbrains_terminal = is_jetbrains_terminal();
     let mut redraw = true;
@@ -198,7 +207,7 @@ async fn run_event_loop(
                         {
                             break;
                         }
-                        pending_resize.is_none()
+                        pending_resize.is_none() && !paste_burst.is_buffering()
                     }
                     Some(Ok(Event::Paste(value))) => {
                         apply_paste_flush(paste_burst.flush(), &mut app);
@@ -258,6 +267,13 @@ async fn run_event_loop(
                                 app.stream_failed(message);
                                 true
                             }
+                            RuntimeEvent::HistoryPage { before, result } => {
+                                match result {
+                                    Ok(page) => app.apply_history_page(page, before),
+                                    Err(error) => app.history_load_failed(error),
+                                }
+                                true
+                            }
                             RuntimeEvent::CompactionFinished {
                                 context_usage,
                                 error,
@@ -301,6 +317,9 @@ async fn run_event_loop(
             _ = status_animation.tick(), if app.is_streaming() && !app.has_pending_render() && pending_resize.is_none() => {
                 app.advance_status_animation();
                 true
+            }
+            _ = history_eviction.tick() => {
+                app.evict_idle_history(Instant::now().into())
             }
         };
     }
@@ -506,6 +525,18 @@ async fn execute_action(
             api.abort(&app.session.id).await?;
             app.status = "stopping".to_owned();
         }
+        Action::LoadOlderMessages { before } => {
+            let api = api.clone();
+            let session_id = app.session.id.clone();
+            let sender = runtime_tx.clone();
+            tokio::spawn(async move {
+                let result = api
+                    .messages_page(&session_id, Some(before))
+                    .await
+                    .map_err(|error| format!("{error:#}"));
+                let _ = sender.send(RuntimeEvent::HistoryPage { before, result });
+            });
+        }
         Action::Compact => {
             app.begin_context_compaction();
             let api = api.clone();
@@ -688,7 +719,9 @@ async fn execute_action(
                     return Ok(false);
                 }
             };
+            let history_start = page.page_info.start;
             app.replace_session(session, page.messages, page.context_usage);
+            app.set_history_window(history_start);
             match thinking_state {
                 Ok(state) => app.set_thinking_state(state),
                 Err(error) => app.set_thinking_error(format!("{error:#}")),

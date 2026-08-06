@@ -173,9 +173,20 @@ impl ApiClient {
     }
 
     pub async fn messages(&self, session_id: &str) -> Result<MessagePage> {
+        self.messages_page(session_id, None).await
+    }
+
+    pub async fn messages_page(
+        &self,
+        session_id: &str,
+        before: Option<u64>,
+    ) -> Result<MessagePage> {
         let id = encode_segment(session_id);
-        self.get_json(&format!("/api/sessions/{id}/messages?limit=100"))
-            .await
+        let mut path = format!("/api/sessions/{id}/messages?limit={MESSAGE_PAGE_LIMIT}");
+        if let Some(before) = before {
+            path.push_str(&format!("&before={before}"));
+        }
+        self.get_json(&path).await
     }
 
     pub async fn catalogs(&self) -> Result<(Vec<ToolDefinition>, Vec<SkillDefinition>)> {
@@ -506,6 +517,8 @@ fn is_document_extension(extension: &str) -> bool {
         "pdf" | "docx" | "pptx" | "xlsx" | "odt" | "odp" | "ods" | "rtf" | "epub"
     )
 }
+
+pub const MESSAGE_PAGE_LIMIT: usize = 40;
 
 fn encode_segment(value: &str) -> String {
     utf8_percent_encode(value, NON_ALPHANUMERIC).to_string()

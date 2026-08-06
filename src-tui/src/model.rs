@@ -151,6 +151,17 @@ pub struct MessagePage {
     pub messages: Vec<ChatMessage>,
     #[serde(default)]
     pub context_usage: Option<ContextUsage>,
+    #[serde(default)]
+    pub page_info: PageInfo,
+}
+
+#[derive(Clone, Debug, Default, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PageInfo {
+    #[serde(default)]
+    pub start: u64,
+    #[serde(default)]
+    pub has_more: bool,
 }
 
 #[derive(Clone, Debug, Default, Deserialize)]
@@ -295,6 +306,10 @@ pub enum RuntimeEvent {
     },
     Stream(StreamEvent),
     StreamFailed(String),
+    HistoryPage {
+        before: u64,
+        result: Result<MessagePage, String>,
+    },
     CompactionFinished {
         context_usage: Option<ContextUsage>,
         error: Option<String>,

@@ -1,8 +1,9 @@
 use std::{
+    cell::Cell,
     collections::{HashMap, VecDeque},
     fs,
     path::{Path, PathBuf},
-    time::{SystemTime, UNIX_EPOCH},
+    time::{Duration, Instant, SystemTime, UNIX_EPOCH},
 };
 
 use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
@@ -10,8 +11,9 @@ use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
 use crate::{
+    api::MESSAGE_PAGE_LIMIT,
     model::{
-        ChatMessage, ContextUsage, MessageAttachment, ModelOption, Plan, RunActivity,
+        ChatMessage, ContextUsage, MessageAttachment, MessagePage, ModelOption, Plan, RunActivity,
         SessionCwdUpdate, SessionModelUpdate, SessionSummary, SkillDefinition, StreamEvent,
         ThinkingAvailability, ThinkingLevelUpdate, ToolActivity, ToolDefinition,
     },
@@ -20,7 +22,10 @@ use crate::{
 };
 
 const INIT_PROMPT: &str = "/init\n\n---\nAttachment context (injected by Pisper):\nAnalyze this codebase and create or improve `AGENTS.md` in the current workspace root. The file is long-lived guidance for Pisper and other coding agents working in this repository. Inspect the repository before writing it. Capture only project-specific, durable information: the project purpose, important directories and architecture, build/test/lint/typecheck commands, coding conventions, and verification expectations. Keep it concise and practical. Do not include generic advice, temporary task details, secrets, exhaustive file listings, or information you cannot verify. If `AGENTS.md` already exists, preserve accurate useful instructions and update it carefully instead of replacing it blindly. Modify only `AGENTS.md`. After writing it, briefly summarize what you added.";
-const MAX_TRANSCRIPT_MESSAGES: usize = 100;
+const MAX_LOADED_MESSAGES: usize = MESSAGE_PAGE_LIMIT * 4;
+const HISTORY_KEEP_MESSAGES: usize = MESSAGE_PAGE_LIMIT * 2;
+const HISTORY_IDLE_EVICT_DELAY: Duration = Duration::from_secs(90);
+const HISTORY_SCROLL_MARGIN: u16 = 8;
 const LINE_SCROLL_STEP: u16 = 1;
 const PAGE_SCROLL_STEP: u16 = 8;
 
@@ -127,6 +132,9 @@ pub enum Action {
     },
     RefreshThinking,
     Compact,
+    LoadOlderMessages {
+        before: u64,
+    },
     SetThinkingLevel(String),
     SwitchSession {
         id: String,
@@ -158,7 +166,11 @@ pub struct App {
     pub session_selected: usize,
     session_picker_exit_on_cancel: bool,
     pub view: View,
-    pub scroll: u16,
+    pub scroll: Cell<u16>,
+    pub render_max_scroll: Cell<u16>,
+    history_oldest_index: u64,
+    history_loading: bool,
+    history_touched_at: Option<Instant>,
     pub model: String,
     pub cwd: String,
     pub launch_workspace: PathBuf,
@@ -202,7 +214,7 @@ impl App {
     ) -> Self {
         let path_directory = PathBuf::from(&session.cwd);
         let mut messages = messages;
-        retain_latest_messages(&mut messages);
+        cap_message_count(&mut messages);
         Self {
             model: session.model.clone(),
             cwd: session.cwd.clone(),
@@ -226,7 +238,11 @@ impl App {
             session_selected: 0,
             session_picker_exit_on_cancel: false,
             view: View::Chat,
-            scroll: 0,
+            scroll: Cell::new(0),
+            render_max_scroll: Cell::new(0),
+            history_oldest_index: 0,
+            history_loading: false,
+            history_touched_at: None,
             status: String::new(),
             status_error: false,
             status_frame: 0,
@@ -727,19 +743,25 @@ impl App {
                 Action::None
             }
             KeyCode::Up if self.view == View::Chat => {
-                self.scroll = self.scroll.saturating_add(LINE_SCROLL_STEP);
-                Action::None
+                self.scroll
+                    .set(self.scroll.get().saturating_add(LINE_SCROLL_STEP));
+                self.history_touched_at = Some(Instant::now());
+                self.maybe_history_action()
             }
             KeyCode::Down if self.view == View::Chat => {
-                self.scroll = self.scroll.saturating_sub(LINE_SCROLL_STEP);
+                self.scroll
+                    .set(self.scroll.get().saturating_sub(LINE_SCROLL_STEP));
                 Action::None
             }
             KeyCode::PageUp if self.view == View::Chat => {
-                self.scroll = self.scroll.saturating_add(PAGE_SCROLL_STEP);
-                Action::None
+                self.scroll
+                    .set(self.scroll.get().saturating_add(PAGE_SCROLL_STEP));
+                self.history_touched_at = Some(Instant::now());
+                self.maybe_history_action()
             }
             KeyCode::PageDown if self.view == View::Chat => {
-                self.scroll = self.scroll.saturating_sub(PAGE_SCROLL_STEP);
+                self.scroll
+                    .set(self.scroll.get().saturating_sub(PAGE_SCROLL_STEP));
                 Action::None
             }
             KeyCode::Esc => {
@@ -1206,7 +1228,7 @@ impl App {
         });
         self.record_event("YOU", display_message, "queued");
         self.status = "thinking".to_owned();
-        self.scroll = 0;
+        self.scroll.set(0);
         Action::Submit {
             message: prompt.message,
             requested_tool: prompt.requested_tool,
@@ -1281,7 +1303,8 @@ impl App {
         self.compacting_context = false;
         self.session = session;
         self.messages = messages;
-        retain_latest_messages(&mut self.messages);
+        cap_message_count(&mut self.messages);
+        self.reset_history_window();
         self.live = None;
         self.attachments.clear();
         self.path_picker = false;
@@ -1297,7 +1320,103 @@ impl App {
         self.status.clear();
         self.status_error = false;
         self.view = View::Chat;
-        self.scroll = 0;
+        self.scroll.set(0);
+    }
+
+    pub fn set_history_window(&mut self, oldest_loaded_index: u64) {
+        self.history_oldest_index = oldest_loaded_index;
+    }
+
+    fn reset_history_window(&mut self) {
+        self.history_oldest_index = 0;
+        self.history_loading = false;
+        self.history_touched_at = None;
+        self.render_max_scroll.set(0);
+    }
+
+    pub fn has_older_history(&self) -> bool {
+        self.history_oldest_index > 0
+    }
+
+    fn maybe_history_action(&mut self) -> Action {
+        if self.view == View::Chat
+            && self.has_older_history()
+            && !self.history_loading
+            && self.scroll.get().saturating_add(HISTORY_SCROLL_MARGIN)
+                >= self.render_max_scroll.get()
+        {
+            self.history_loading = true;
+            self.history_touched_at = Some(Instant::now());
+            return Action::LoadOlderMessages {
+                before: self.history_oldest_index,
+            };
+        }
+        Action::None
+    }
+
+    pub fn apply_history_page(&mut self, page: MessagePage, before: u64) {
+        self.history_loading = false;
+        if before != self.history_oldest_index {
+            return;
+        }
+        let MessagePage {
+            messages,
+            context_usage,
+            page_info,
+        } = page;
+        if let Some(usage) = context_usage {
+            self.context_percent = usage.percent;
+        }
+        if messages.is_empty() {
+            self.history_oldest_index = 0;
+            return;
+        }
+        let mut older = messages;
+        older.append(&mut self.messages);
+        self.messages = older;
+        self.history_oldest_index = if page_info.has_more {
+            page_info.start
+        } else {
+            0
+        };
+        self.history_touched_at = Some(Instant::now());
+        self.cap_loaded_messages();
+    }
+
+    pub fn history_load_failed(&mut self, message: String) {
+        self.history_loading = false;
+        self.status = message;
+        self.status_error = true;
+    }
+
+    pub fn evict_idle_history(&mut self, now: Instant) -> bool {
+        if self.history_loading {
+            return false;
+        }
+        let Some(touched) = self.history_touched_at else {
+            return false;
+        };
+        if now.duration_since(touched) < HISTORY_IDLE_EVICT_DELAY {
+            return false;
+        }
+        let excess = self.messages.len().saturating_sub(HISTORY_KEEP_MESSAGES);
+        if excess == 0 {
+            self.history_touched_at = None;
+            return false;
+        }
+        self.messages.drain(..excess);
+        self.history_oldest_index = self.history_oldest_index.saturating_add(excess as u64);
+        self.history_touched_at = None;
+        true
+    }
+
+    fn cap_loaded_messages(&mut self) {
+        let excess = self.messages.len().saturating_sub(MAX_LOADED_MESSAGES);
+        if excess == 0 {
+            return;
+        }
+        self.messages.drain(..excess);
+        self.history_oldest_index = self.history_oldest_index.saturating_add(excess as u64);
     }
 
     pub fn materialize_session(&mut self, session: SessionSummary) {
@@ -1590,7 +1709,7 @@ impl App {
 
     fn push_transcript_message(&mut self, message: ChatMessage) {
         self.messages.push(message);
-        retain_latest_messages(&mut self.messages);
+        self.cap_loaded_messages();
     }
 
     fn mark_slash_use(&mut self, command: &str) {
@@ -1828,8 +1947,8 @@ fn command(command: &str, detail: &str) -> SlashItem {
     }
 }
 
-fn retain_latest_messages(messages: &mut Vec<ChatMessage>) {
-    let excess = messages.len().saturating_sub(MAX_TRANSCRIPT_MESSAGES);
+fn cap_message_count(messages: &mut Vec<ChatMessage>) {
+    let excess = messages.len().saturating_sub(MAX_LOADED_MESSAGES);
     if excess > 0 {
         messages.drain(..excess);
     }
@@ -1983,17 +2102,18 @@ fn event_state(event: &StreamEvent) -> &'static str {
 
 #[cfg(test)]
 mod tests {
-    use std::time::{SystemTime, UNIX_EPOCH};
+    use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
     use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 
     use super::{
         advance_typewriter, apply_patch, attachment_draft, Action, App, Approval, LiveTurn,
-        SettingsPicker, INIT_PROMPT, MAX_TRANSCRIPT_MESSAGES, PAGE_SCROLL_STEP,
+        SettingsPicker, HISTORY_IDLE_EVICT_DELAY, HISTORY_KEEP_MESSAGES, INIT_PROMPT,
+        MAX_LOADED_MESSAGES, PAGE_SCROLL_STEP,
     };
     use crate::model::{
-        ChatMessage, ContextUsage, ModelOption, SessionCwdUpdate, SessionSummary, StreamEvent,
-        ThinkingAvailability, ThinkingLevelUpdate, ToolDefinition,
+        ChatMessage, ContextUsage, MessagePage, ModelOption, PageInfo, SessionCwdUpdate,
+        SessionSummary, StreamEvent, ThinkingAvailability, ThinkingLevelUpdate, ToolDefinition,
     };
     use serde_json::json;
 
@@ -2552,9 +2672,9 @@ mod tests {
         let mut app = test_app(Vec::new());
 
         app.handle_key(KeyEvent::new(KeyCode::Up, KeyModifiers::NONE));
-        assert_eq!(app.scroll, 1);
+        assert_eq!(app.scroll.get(), 1);
         app.handle_key(KeyEvent::new(KeyCode::PageUp, KeyModifiers::NONE));
-        assert_eq!(app.scroll, 1 + PAGE_SCROLL_STEP);
+        assert_eq!(app.scroll.get(), 1 + PAGE_SCROLL_STEP);
 
         app.live = Some(LiveTurn {
             streaming: true,
@@ -2564,11 +2684,11 @@ mod tests {
             name: "text_delta".to_owned(),
             data: json!({ "delta": "new output" }),
         });
-        assert_eq!(app.scroll, 1 + PAGE_SCROLL_STEP);
+        assert_eq!(app.scroll.get(), 1 + PAGE_SCROLL_STEP);
 
         app.handle_key(KeyEvent::new(KeyCode::Down, KeyModifiers::NONE));
         app.handle_key(KeyEvent::new(KeyCode::PageDown, KeyModifiers::NONE));
-        assert_eq!(app.scroll, 0);
+        assert_eq!(app.scroll.get(), 0);
     }
 
     #[test]
@@ -2578,7 +2698,7 @@ mod tests {
             cwd: "/workspace".to_owned(),
             ..SessionSummary::default()
         };
-        let messages = (0..MAX_TRANSCRIPT_MESSAGES + 25)
+        let messages = (0..MAX_LOADED_MESSAGES + 25)
             .map(|index| ChatMessage {
                 role: "agent".to_owned(),
                 text: format!("message-{index}"),
@@ -2594,12 +2714,123 @@ mod tests {
             Vec::new(),
         );
 
-        assert_eq!(app.messages.len(), MAX_TRANSCRIPT_MESSAGES);
+        assert_eq!(app.messages.len(), MAX_LOADED_MESSAGES);
         assert_eq!(app.messages.first().unwrap().text, "message-25");
         app.set_input("next message");
         assert!(matches!(app.submit_action(), Action::Submit { .. }));
-        assert_eq!(app.messages.len(), MAX_TRANSCRIPT_MESSAGES);
+        assert_eq!(app.messages.len(), MAX_LOADED_MESSAGES);
         assert_eq!(app.messages.last().unwrap().text, "next message");
+    }
+
+    #[test]
+    fn scrolling_near_the_top_requests_an_older_page_once() {
+        let mut app = test_app(Vec::new());
+        app.set_history_window(40);
+        app.render_max_scroll.set(12);
+
+        let action = app.handle_key(KeyEvent::new(KeyCode::PageUp, KeyModifiers::NONE));
+        assert!(matches!(action, Action::LoadOlderMessages { before: 40 }));
+
+        let action = app.handle_key(KeyEvent::new(KeyCode::Up, KeyModifiers::NONE));
+        assert!(matches!(action, Action::None));
+    }
+
+    #[test]
+    fn applying_an_older_page_prepends_and_closes_the_window() {
+        let session = SessionSummary {
+            id: "session-1".to_owned(),
+            cwd: "/workspace".to_owned(),
+            ..SessionSummary::default()
+        };
+        let recent = (40..80)
+            .map(|index| ChatMessage {
+                role: "agent".to_owned(),
+                text: format!("message-{index}"),
+                ..ChatMessage::default()
+            })
+            .collect();
+        let mut app = App::new(
+            vec![session.clone()],
+            session,
+            recent,
+            None,
+            Vec::new(),
+            Vec::new(),
+        );
+        app.set_history_window(40);
+
+        let older = (0..40)
+            .map(|index| ChatMessage {
+                role: "agent".to_owned(),
+                text: format!("message-{index}"),
+                ..ChatMessage::default()
+            })
+            .collect();
+        app.apply_history_page(
+            MessagePage {
+                messages: older,
+                context_usage: None,
+                page_info: PageInfo {
+                    start: 0,
+                    has_more: false,
+                },
+            },
+            40,
+        );
+
+        assert_eq!(app.messages.len(), 80);
+        assert_eq!(app.messages.first().unwrap().text, "message-0");
+        assert!(!app.has_older_history());
+
+        let stale = MessagePage {
+            messages: vec![ChatMessage {
+                role: "agent".to_owned(),
+                text: "duplicate".to_owned(),
+                ..ChatMessage::default()
+            }],
+            context_usage: None,
+            page_info: PageInfo::default(),
+        };
+        app.apply_history_page(stale, 40);
+        assert_eq!(app.messages.len(), 80);
+    }
+
+    #[test]
+    fn idle_history_eviction_keeps_recent_pages_and_allows_reloading() {
+        let session = SessionSummary {
+            id: "session-1".to_owned(),
+            cwd: "/workspace".to_owned(),
+            ..SessionSummary::default()
+        };
+        let messages = (0..120)
+            .map(|index| ChatMessage {
+                role: "agent".to_owned(),
+                text: format!("message-{index}"),
+                ..ChatMessage::default()
+            })
+            .collect();
+        let mut app = App::new(
+            vec![session.clone()],
+            session,
+            messages,
+            None,
+            Vec::new(),
+            Vec::new(),
+        );
+        app.set_history_window(40);
+
+        let now = Instant::now();
+        app.history_touched_at = Some(now);
+        assert!(!app.evict_idle_history(now));
+        assert_eq!(app.messages.len(), 120);
+
+        let later = now + HISTORY_IDLE_EVICT_DELAY + Duration::from_secs(1);
+        assert!(app.evict_idle_history(later));
+        assert_eq!(app.messages.len(), HISTORY_KEEP_MESSAGES);
+        assert_eq!(app.messages.first().unwrap().text, "message-40");
+
+        let action = app.handle_key(KeyEvent::new(KeyCode::Up, KeyModifiers::NONE));
+        assert!(matches!(action, Action::LoadOlderMessages { before: 80 }));
     }
 
     #[test]
