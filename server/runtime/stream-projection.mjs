@@ -588,7 +588,7 @@ export class StreamProjection {
     meta[id] = { ...(meta[id] || {}), model: next }
     // Only persist when recovering model from cold history. Hot live paths keep this
     // in-memory to avoid racing session metadata writes during stream teardown.
-    if (persist) void this.saveSessionMeta?.()
+    if (persist) void this.saveSessionMeta?.()?.catch?.(() => {})
     return next
   }
 

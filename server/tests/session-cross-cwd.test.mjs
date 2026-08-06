@@ -37,8 +37,6 @@ function createPersistedSession(cwd, sessionDir, prompt) {
 
 test('desktop runtime lists and opens sessions created under other working directories', async (t) => {
   const directory = await mkdtemp(join(tmpdir(), 'pisper-session-cross-cwd-'))
-  t.after(() => rm(directory, { recursive: true, force: true }))
-
   const dataDir = join(directory, 'agent')
   const sessionDir = join(dataDir, 'sessions')
   const desktopCwd = join(directory, 'desktop-home')
@@ -52,6 +50,11 @@ test('desktop runtime lists and opens sessions created under other working direc
   const webSession = createPersistedSession(webCwd, sessionDir, 'Web session')
   const desktopSession = createPersistedSession(desktopCwd, sessionDir, 'Desktop session')
   const runtime = new AgentRuntimeService({ cwd: desktopCwd, dataDir })
+  t.after(async () => {
+    runtime.sessions.clear()
+    await runtime.dispose().catch(() => {})
+    await rm(directory, { recursive: true, force: true }).catch(() => {})
+  })
   runtime.settingsManager = { getGlobalSettings: () => ({}) }
   runtime.goals = { get: () => null }
   runtime.plans = { get: () => null }
@@ -90,4 +93,7 @@ test('desktop runtime lists and opens sessions created under other working direc
   runtime.createSessionRuntime = async (manager) => ({ cwd: manager.getCwd(), manager })
   const opened = await runtime.getOrCreateSession(webSession.getSessionId())
   assert.equal(opened.cwd, resolve(webCwd))
+
+  // Cold history may schedule deferred session-meta persistence; wait before teardown.
+  await runtime.sessionMetaWrite.catch(() => {})
 })
