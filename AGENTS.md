@@ -42,33 +42,52 @@ Path aliases: `@/*` → `src/*`, `@shared/*` → `shared/*`.
 ## Commands
 
 ```bash
-npm install
+# Setup
+npm install                 # install dependencies from package-lock.json
+npm ci                      # reproducible clean install for CI/release
 
-# Day-to-day
-npm run dev                 # web + API (Vite middleware via server)
-npm run build               # frontend production build
-npm run preview             # production server (built assets)
-npm start                   # same as preview
+# Day-to-day web server
+npm run dev                 # web + API with Vite middleware
+npm run build               # production frontend build and bundle-budget check
+npm run preview             # serve built assets through the production server
+npm start                   # alias for preview
 
 # Quality
-npm run typecheck           # tsc (src) + tsc -p tsconfig.node.json
+npm run typecheck           # TypeScript checks for src, node, and JS-check config
 npm run lint                # oxlint
 npm run format              # prettier --write .
-npm run format:check
-npm run i18n:check          # keys used in src must exist in zh-CN and en-US
+npm run format:check        # verify Prettier formatting
+npm run i18n:check          # verify literal src keys exist in zh-CN and en-US
 npm run check               # typecheck + lint + i18n:check + format:check
-npm test                    # server/tests/*.test.mjs via tsx
+npm test                    # all server/tests/*.test.mjs tests
+npx tsx --test server/tests/foo.test.mjs  # run one or more focused tests
 
-# Sidecar / desktop / TUI (need Rust + platform Tauri deps for desktop)
-npm run sidecar:dev
-npm run sidecar:sea
-npm run sidecar:sea:smoke
-npm run desktop:webview:dev
-npm run desktop:webview:build
-npm run tui:dev
-npm run tui:check
-npm run tui:test
-npm run tui:build
+# Node SEA sidecar
+npm run sidecar:dev         # run the sidecar directly in development
+npm run sidecar:sea         # build the Node SEA and stage its runtime closure
+npm run sidecar:sea:smoke   # smoke-test the staged SEA/runtime/API
+
+# Tauri desktop (requires Rust and platform Tauri dependencies)
+npm run desktop:webview:dev       # build frontend and launch tauri dev
+npm run desktop:webview:smoke -- http://127.0.0.1:9223  # smoke-test a running WebView CDP endpoint
+npm run desktop:webview:package   # package the Tauri desktop application
+npm run desktop:webview:build     # SEA + SEA smoke + TUI stage + desktop package
+
+# Rust TUI
+npm run tui:dev             # cargo run the TUI
+npm run tui:check           # cargo check
+npm run tui:test            # cargo test
+cargo fmt --manifest-path src-tui/Cargo.toml -- --check  # verify Rust formatting
+npm run tui:stage           # build and stage the TUI with the SEA sidecar
+npm run tui:package         # build and package the TUI distribution
+npm run tui:build           # SEA build followed by TUI packaging
+
+# Versioning and release
+npm run version             # synchronize src-tui/Cargo.toml and Cargo.lock to package.json
+npm run release -- patch    # refresh dependencies, run release gates, bump version, tag, and push
+npm run release -- minor
+npm run release -- major
+npm run release -- 0.4.20
 ```
 
 Prefer `npm run check` and `npm test` before considering a change done. Run desktop/TUI packaging only when touching those surfaces.
