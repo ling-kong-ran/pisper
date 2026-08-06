@@ -24,7 +24,15 @@ function toolShape(tool) {
   }
 }
 
-export function capturePromptCacheShape({ systemPrompt = '', tools = [] } = {}) {
+export function promptCacheRuntime(session) {
+  return {
+    provider: session?.model?.provider || '',
+    model: session?.model?.id || '',
+    thinkingLevel: session?.thinkingLevel || '',
+  }
+}
+
+export function capturePromptCacheShape({ systemPrompt = '', tools = [], runtime = {} } = {}) {
   const normalizedTools = tools
     .map(toolShape)
     .sort((left, right) =>
@@ -34,10 +42,14 @@ export function capturePromptCacheShape({ systemPrompt = '', tools = [] } = {}) 
     )
   const systemHash = hash(String(systemPrompt))
   const toolsHash = hash(normalizedTools)
+  const runtimeHash = hash(stableValue(runtime))
+  const prefixHash = hash({ system: String(systemPrompt), tools: normalizedTools })
   return {
     systemHash,
     toolsHash,
-    prefixHash: hash({ system: String(systemPrompt), tools: normalizedTools }),
+    runtimeHash,
+    prefixHash,
+    requestCacheKeyHash: hash({ prefixHash, runtimeHash }),
     toolCount: normalizedTools.length,
     toolSchemaBytes: Buffer.byteLength(JSON.stringify(normalizedTools), 'utf8'),
     changed: false,
@@ -50,5 +62,6 @@ export function comparePromptCacheShapes(previous, current) {
   const changeReasons = []
   if (previous.systemHash !== current.systemHash) changeReasons.push('system')
   if (previous.toolsHash !== current.toolsHash) changeReasons.push('tools')
+  if (previous.runtimeHash !== current.runtimeHash) changeReasons.push('runtime')
   return { ...current, changed: changeReasons.length > 0, changeReasons }
 }

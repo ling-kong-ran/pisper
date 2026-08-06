@@ -25,7 +25,7 @@ test('prompt cache optimizer skill is hidden from default model context and rema
   assert.doesNotMatch(formatSkillsForPrompt(loaded.skills), /prompt-cache-optimizer/)
 })
 
-test('prompt cache optimizer measurement script verifies stable prompt and appended cold schemas', async () => {
+test('prompt cache optimizer measurement script verifies stable prompt and fixed gateway schemas', async () => {
   const { stdout } = await execFileAsync(process.execPath, [scriptPath], {
     cwd: process.cwd(),
     timeout: 30_000,
@@ -38,7 +38,7 @@ test('prompt cache optimizer measurement script verifies stable prompt and appen
   // system prompt cannot distort the hot/cold optimization budget.
   assert.ok(result.currentConfigurationReference.fixedTokensSaved > 0)
   assert.ok(
-    result.currentConfigurationReference.schemaTokenReductionPercent >= 60,
+    result.currentConfigurationReference.schemaTokenReductionPercent >= 50,
     `schemaTokenReductionPercent=${result.currentConfigurationReference.schemaTokenReductionPercent}`,
   )
   assert.equal(result.hot.promptMatchesHot, true)
@@ -51,11 +51,12 @@ test('prompt cache optimizer measurement script verifies stable prompt and appen
     assert.equal(
       scenario.hotSchemaIsExactPrefix,
       true,
-      `${scenario.label} did not append its cold schemas`,
+      `${scenario.label} changed the fixed tool schemas`,
     )
-    assert.ok(
-      scenario.toolSchemaTokens > result.hot.toolSchemaTokens,
-      `${scenario.label} did not activate cold schemas`,
+    assert.equal(
+      scenario.toolSchemaTokens,
+      result.hot.toolSchemaTokens,
+      `${scenario.label} changed the fixed tool schemas`,
     )
   }
 })

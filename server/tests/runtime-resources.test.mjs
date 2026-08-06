@@ -108,7 +108,8 @@ test('main runtime keeps discovered cold MCP tools for the rest of the session w
   assert.equal(Object.hasOwn(compatibilityRead.details, 'taskList'), false)
   assert.doesNotMatch(value.session.agent.state.systemPrompt, /get_task_list|update_task_list/)
   assert.ok(value.session.getActiveToolNames().includes('discover_tools'))
-  assert.ok(value.session.getActiveToolNames().includes('generate_visual'))
+  assert.equal(value.session.getActiveToolNames().includes('generate_visual'), false)
+  assert.ok(value.session.getActiveToolNames().includes('call_tool'))
   assert.match(value.session.agent.state.systemPrompt, /discover_tools/)
   assert.match(value.session.getToolDefinition('generate_visual').description, /mockup/)
   assert.deepEqual(
@@ -124,7 +125,7 @@ test('main runtime keeps discovered cold MCP tools for the rest of the session w
 
   await runtime.selectToolsForMessage(value, '先给我来个设计图，我看看样式是什么样的。')
   assert.deepEqual(value.requestedToolNames, [])
-  assert.ok(value.session.getActiveToolNames().includes('generate_visual'))
+  assert.equal(value.session.getActiveToolNames().includes('generate_visual'), false)
   assert.deepEqual(value.promotedToolNames, [])
   assert.equal(value.session.agent.state.systemPrompt, hotSystemPrompt)
 
@@ -135,12 +136,12 @@ test('main runtime keeps discovered cold MCP tools for the rest of the session w
       { query: 'MCP fixture echo', limit: 1 },
       new AbortController().signal,
     )
-  assert.deepEqual(discovery.details.activated, ['mcp_fixture_echo_12345678'])
-  assert.ok(value.session.getActiveToolNames().includes('mcp_fixture_echo_12345678'))
+  assert.equal(discovery.details.activated, undefined)
+  assert.equal(value.session.getActiveToolNames().includes('mcp_fixture_echo_12345678'), false)
+  assert.match(discovery.content[0].text, /call_tool/)
 
-  // 删除正则路由后：selectToolsForMessage 不再按消息内容自动激活工具，已激活的 discover 工具保持
   await runtime.selectToolsForMessage(value, 'Use the MCP fixture echo tool for this task.')
-  assert.ok(value.session.getActiveToolNames().includes('mcp_fixture_echo_12345678'))
+  assert.equal(value.session.getActiveToolNames().includes('mcp_fixture_echo_12345678'), false)
   assert.equal(value.session.getActiveToolNames().includes('mcp_list'), false)
   assert.equal(value.session.getActiveToolNames().includes('mcp_manage'), false)
   assert.deepEqual(value.session.getActiveToolNames().slice(0, hotToolNames.length), hotToolNames)
@@ -152,18 +153,11 @@ test('main runtime keeps discovered cold MCP tools for the rest of the session w
   assert.deepEqual(value.session.getToolDefinition('mcp_manage').promptGuidelines, [])
 
   await runtime.selectToolsForMessage(value, 'Now update the local source file.')
-  assert.equal(value.session.getActiveToolNames().includes('mcp_fixture_echo_12345678'), true)
+  assert.equal(value.session.getActiveToolNames().includes('mcp_fixture_echo_12345678'), false)
   assert.equal(value.session.getActiveToolNames().includes('mcp_list'), false)
   assert.equal(value.session.getActiveToolNames().includes('mcp_manage'), false)
-  assert.deepEqual(value.promotedToolNames, ['mcp_fixture_echo_12345678'])
-  assert.equal(
-    runtime.sessionMeta[value.session.sessionId].promotedToolNames.includes('generate_visual'),
-    false,
-  )
-  assert.deepEqual(
-    runtime.sessionMeta[value.session.sessionId].promotedToolNames,
-    value.promotedToolNames,
-  )
+  assert.deepEqual(value.promotedToolNames, [])
+  assert.equal(runtime.sessionMeta[value.session.sessionId]?.promotedToolNames, undefined)
   assert.equal(value.session.hasExtensionHandlers('tool_result'), false)
   assert.equal(value.session.hasExtensionHandlers('message_end'), false)
 
@@ -189,14 +183,12 @@ test('main runtime keeps discovered cold MCP tools for the rest of the session w
   await runtime.selectToolsForMessage(value, 'Legacy client plan request.', {
     requestedToolNames: ['get_task_list', 'update_task_list'],
   })
-  assert.ok(value.session.getActiveToolNames().includes('get_task_list'))
-  assert.ok(value.session.getActiveToolNames().includes('update_task_list'))
-  assert.equal(value.promotedToolNames.includes('get_task_list'), false)
-  assert.equal(value.promotedToolNames.includes('update_task_list'), false)
-  assert.doesNotMatch(value.session.agent.state.systemPrompt, /get_task_list|update_task_list/)
-  await runtime.selectToolsForMessage(value, 'Return to canonical tools.')
   assert.equal(value.session.getActiveToolNames().includes('get_task_list'), false)
   assert.equal(value.session.getActiveToolNames().includes('update_task_list'), false)
+  assert.deepEqual(value.requestedToolNames, ['get_task_list', 'update_task_list'])
+  assert.doesNotMatch(value.session.agent.state.systemPrompt, /get_task_list|update_task_list/)
+  await runtime.selectToolsForMessage(value, 'Return to canonical tools.')
+  assert.deepEqual(value.requestedToolNames, [])
 
   const childLoader = await runtime.multiAgents.createResourceLoader({
     cwd: directory,
@@ -209,7 +201,10 @@ test('main runtime keeps discovered cold MCP tools for the rest of the session w
 test('explicit client tool requests activate only the structured tool names', async () => {
   const promoted = []
   const runtime = Object.create(AgentRuntimeService.prototype)
-  runtime.promoteSessionTools = async (_value, names) => promoted.push(...names)
+  runtime.promoteSessionTools = async (_value, names) => {
+    promoted.push(...names)
+    return { routedToolNames: names }
+  }
   const value = {
     requestedToolNames: [],
     session: { getActiveToolNames: () => ['read', 'web_search'] },

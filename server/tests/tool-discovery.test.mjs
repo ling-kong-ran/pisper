@@ -39,40 +39,29 @@ test('optional tool search understands capability aliases and exact dynamic tool
   )
 })
 
-test('discover_tools activates matching schemas and reports structured results', async () => {
-  const activations = []
-  const tool = createToolDiscoveryTool({
-    listTools: () => tools,
-    activateTools: async (toolNames) => {
-      activations.push(toolNames)
-      return { activatedToolNames: toolNames, promotedToolNames: toolNames }
-    },
-  })
+test('discover_tools returns stable gateway matches without activating schemas', async () => {
+  const tool = createToolDiscoveryTool({ listTools: () => tools })
   assert.equal(tool.name, TOOL_DISCOVERY_NAME)
   const result = await tool.execute(
     'discover-1',
     { query: 'generate an image', limit: 1 },
     new AbortController().signal,
   )
-  assert.deepEqual(activations, [['generate_visual']])
-  assert.deepEqual(result.details.activated, ['generate_visual'])
-  assert.match(result.content[0].text, /generate_visual \(activated\)/)
+  assert.deepEqual(
+    result.details.matches.map((match) => match.name),
+    ['generate_visual'],
+  )
+  assert.equal(result.details.activated, undefined)
+  assert.match(result.content[0].text, /Call one through call_tool/)
 })
 
-test('discover_tools can inspect matches without activating them', async () => {
-  let activated = false
-  const tool = createToolDiscoveryTool({
-    listTools: () => tools,
-    activateTools: async () => {
-      activated = true
-    },
-  })
+test('discover_tools returns matches without any activation callback', async () => {
+  const tool = createToolDiscoveryTool({ listTools: () => tools })
   const result = await tool.execute(
     'discover-2',
-    { query: 'browser web search', limit: 1, activate: false },
+    { query: 'browser web search', limit: 1 },
     new AbortController().signal,
   )
-  assert.equal(activated, false)
   assert.equal(result.details.matches[0].name, 'web_search')
-  assert.deepEqual(result.details.activated, [])
+  assert.equal(result.details.activated, undefined)
 })

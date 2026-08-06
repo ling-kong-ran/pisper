@@ -2,7 +2,11 @@ import { mkdir, open, readFile, stat, unlink, writeFile } from 'node:fs/promises
 import { createHash, randomUUID } from 'node:crypto'
 import { basename, extname, join, resolve, sep } from 'node:path'
 import { createAgentSession, SessionManager, SettingsManager } from './pi-coding-agent.mjs'
-import { capturePromptCacheShape, comparePromptCacheShapes } from './prompt-cache-diagnostics.mjs'
+import {
+  capturePromptCacheShape,
+  comparePromptCacheShapes,
+  promptCacheRuntime,
+} from './prompt-cache-diagnostics.mjs'
 import { readJson, writeJsonAtomic } from '../storage/json-file.mjs'
 import { cleanupRemovedLocalEmbeddingData } from '../data-dir-migration.mjs'
 import { ChannelService } from '../services/channels/channel-service.mjs'
@@ -56,6 +60,7 @@ import {
   PLAN_COMPATIBILITY_TOOL_NAMES,
 } from '../tools/app/plan.mjs'
 import { createToolDiscoveryTool, TOOL_DISCOVERY_NAME } from '../tools/app/tool-discovery.mjs'
+import { TOOL_GATEWAY_NAME } from '../tools/app/tool-gateway.mjs'
 import { createPisperBashTool } from '../tools/host-bash.mjs'
 import {
   hotToolNames,
@@ -71,6 +76,7 @@ import {
   permissionModeForExecutionMode,
 } from '../security/execution-mode.mjs'
 import { applyPisperSystemPrompt, pisperPromptExtension } from '../prompts/pisper-system-prompt.mjs'
+import { createRuntimeToolGateway } from './tool-gateway-runtime.mjs'
 import {
   DEFAULT_COMPACTION_THRESHOLD_PERCENT,
   createCompactionSettingsManager,
@@ -1608,11 +1614,13 @@ export class AgentRuntimeService extends AgentRuntimeFacade {
               label: definition.label || name,
               description: description.slice(0, 320),
               active: activeToolNames.has(name),
+              required: Array.isArray(definition.parameters?.required)
+                ? definition.parameters.required
+                : [],
             }
           })
           .filter(Boolean)
       },
-      activateTools: (toolNames) => this.promoteSessionTools(runtimeValue, toolNames),
     })
     const bashTool =
       enabledTools.includes('bash') && executionMode !== 'read-only'
@@ -1647,6 +1655,15 @@ export class AgentRuntimeService extends AgentRuntimeFacade {
       ...schemaOnlyToolDefinitions(stableMcpTools),
       ...(inheritedBashTool ? [inheritedBashTool] : []),
     ]
+    const inheritedCustomTools = createInheritedCustomTools()
+    const callableTools = new Map(inheritedCustomTools.map((tool) => [tool.name, tool]))
+    const toolGateway = createRuntimeToolGateway({
+      tools: callableTools,
+      getExecutionMode: (sessionId) => this.getSessionExecutionMode(sessionId),
+      getToolRisk: (name) => this.mcp.getToolRisk(name),
+      authorize: (input) => this.permissions.authorize({ cwd: effectiveCwd, ...input }),
+      sessionId: runtimeSessionId,
+    })
     const sessionSettingsManager = createCompactionSettingsManager(
       this.settingsManager,
       () => runtimeSession?.model?.contextWindow,
@@ -1663,13 +1680,15 @@ export class AgentRuntimeService extends AgentRuntimeFacade {
       tools: [
         ...baseToolNames,
         TOOL_DISCOVERY_NAME,
+        TOOL_GATEWAY_NAME,
         ...GOAL_TOOL_NAMES,
         ...PLAN_ALL_TOOL_NAMES,
         ...MULTI_AGENT_TOOL_NAMES,
       ],
       customTools: [
-        ...createInheritedCustomTools(),
+        ...inheritedCustomTools,
         toolDiscovery,
+        toolGateway,
         ...goalTools,
         ...planTools,
         ...multiAgentTools,
@@ -1711,6 +1730,7 @@ export class AgentRuntimeService extends AgentRuntimeFacade {
     value.promptCache = capturePromptCacheShape({
       systemPrompt: session.agent.state.systemPrompt,
       tools: promptCacheTools(session),
+      runtime: promptCacheRuntime(session),
     })
     this.sessions.set(session.sessionId, value)
     this.streamProjection.invalidate(session.sessionId)
@@ -1842,6 +1862,7 @@ export class AgentRuntimeService extends AgentRuntimeFacade {
       capturePromptCacheShape({
         systemPrompt: session.agent.state.systemPrompt,
         tools: promptCacheTools(session),
+        runtime: promptCacheRuntime(session),
       }),
     )
     value.pendingUserMessage = String(message || '')
@@ -1894,7 +1915,6 @@ export class AgentRuntimeService extends AgentRuntimeFacade {
     this.goalEmitters.set(session.sessionId, emit)
     this.planEmitters.set(session.sessionId, emit)
     this.agentEmitters.set(session.sessionId, emit)
-
     const firstTurn = !session.messages.some((item) => item.role === 'user')
     const sessionMeta = this.sessionMeta[session.sessionId]
     const mayAutoTitle = firstTurn && !sessionMeta?.manual
@@ -2244,7 +2264,6 @@ export class AgentRuntimeService extends AgentRuntimeFacade {
         })
       }
     })
-
     this.permissions.attachEmitter(session.sessionId, emit)
     try {
       const safeAttachments = Array.isArray(attachments) ? attachments.slice(0, 8) : []
@@ -2255,6 +2274,11 @@ export class AgentRuntimeService extends AgentRuntimeFacade {
       )
       const images = []
       const contexts = []
+      if (value.requestedToolNames?.length) {
+        contexts.push(
+          `[Requested optional tool]\nCall ${value.requestedToolNames.join(', ')} through call_tool for this request.`,
+        )
+      }
       const sharedContextEnabled = !value.isolatedContext
       const memoryContext =
         sharedContextEnabled && value.enabledTools?.includes('memory_search')
@@ -2405,7 +2429,6 @@ export class AgentRuntimeService extends AgentRuntimeFacade {
       timer.unref?.()
     }
   }
-
   async generateSessionTitle(model, message, attachments, fallback, sessionId) {
     const attachmentText = attachments.length
       ? `\n附件：${attachments.map((item) => safeAttachmentName(item.name)).join('、')}`

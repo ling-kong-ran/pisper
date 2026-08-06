@@ -180,6 +180,7 @@ pub struct App {
     pub thinking_message: String,
     pub context_percent: Option<f64>,
     pub compacting_context: bool,
+    pub confirm_model_compaction: bool,
     pub status: String,
     pub status_error: bool,
     pub status_frame: u64,
@@ -225,6 +226,7 @@ impl App {
             thinking_message: String::new(),
             context_percent: context_usage.and_then(|usage| usage.percent),
             compacting_context: false,
+            confirm_model_compaction: false,
             sessions,
             session,
             messages,
@@ -643,12 +645,34 @@ impl App {
         if key.kind != crossterm::event::KeyEventKind::Press {
             return Action::None;
         }
+        if key.modifiers.contains(KeyModifiers::CONTROL)
+            && key.code == KeyCode::Char('c')
+            && self.confirm_model_compaction
+        {
+            self.confirm_model_compaction = false;
+            self.status = "model changed · context kept".to_owned();
+            return Action::None;
+        }
         if key.modifiers.contains(KeyModifiers::CONTROL) && key.code == KeyCode::Char('c') {
             return if self.is_streaming() || self.approval.is_some() {
                 self.approval = None;
                 Action::Abort
             } else {
                 Action::Quit
+            };
+        }
+        if self.confirm_model_compaction {
+            return match key.code {
+                KeyCode::Char('y') | KeyCode::Char('Y') => {
+                    self.confirm_model_compaction = false;
+                    Action::Compact
+                }
+                KeyCode::Char('n') | KeyCode::Char('N') | KeyCode::Esc => {
+                    self.confirm_model_compaction = false;
+                    self.status = "model changed · context kept".to_owned();
+                    Action::None
+                }
+                _ => Action::None,
             };
         }
         if let Some(approval) = self.approval.clone() {
@@ -1301,6 +1325,7 @@ impl App {
         self.thinking_message.clear();
         self.context_percent = context_usage.and_then(|usage| usage.percent);
         self.compacting_context = false;
+        self.confirm_model_compaction = false;
         self.session = session;
         self.messages = messages;
         cap_message_count(&mut self.messages);
@@ -1508,7 +1533,12 @@ impl App {
         {
             session.model.clone_from(&self.model);
         }
-        self.status = format!("model changed · {}", self.model);
+        self.confirm_model_compaction = !self.messages.is_empty();
+        self.status = if self.confirm_model_compaction {
+            format!("model changed · {} · compact context? [y/N]", self.model)
+        } else {
+            format!("model changed · {}", self.model)
+        };
         self.status_error = false;
     }
 
@@ -2113,7 +2143,8 @@ mod tests {
     };
     use crate::model::{
         ChatMessage, ContextUsage, MessagePage, ModelOption, PageInfo, SessionCwdUpdate,
-        SessionSummary, StreamEvent, ThinkingAvailability, ThinkingLevelUpdate, ToolDefinition,
+        SessionModelUpdate, SessionSummary, StreamEvent, ThinkingAvailability, ThinkingLevelUpdate,
+        ToolDefinition,
     };
     use serde_json::json;
 
@@ -2449,6 +2480,36 @@ mod tests {
         app.handle_key(KeyEvent::new(KeyCode::Char('@'), KeyModifiers::NONE));
         assert!(!app.path_picker);
         assert_eq!(app.input_text(), "@");
+    }
+
+    #[test]
+    fn model_switch_offers_context_compaction_for_existing_messages() {
+        let mut app = test_app(Vec::new());
+        app.messages.push(ChatMessage {
+            role: "user".to_owned(),
+            text: "hello".to_owned(),
+            ..Default::default()
+        });
+        app.set_model(SessionModelUpdate {
+            model: "provider/model-b".to_owned(),
+            ..Default::default()
+        });
+        assert!(app.confirm_model_compaction);
+        assert!(matches!(
+            app.handle_key(KeyEvent::new(KeyCode::Char('y'), KeyModifiers::NONE)),
+            Action::Compact
+        ));
+        assert!(!app.confirm_model_compaction);
+    }
+
+    #[test]
+    fn model_switch_does_not_offer_compaction_for_empty_sessions() {
+        let mut app = test_app(Vec::new());
+        app.set_model(SessionModelUpdate {
+            model: "provider/model-b".to_owned(),
+            ..Default::default()
+        });
+        assert!(!app.confirm_model_compaction);
     }
 
     #[test]

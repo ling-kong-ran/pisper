@@ -130,41 +130,32 @@ export function searchOptionalTools(tools, query, limit = 3) {
     .map(({ score: _score, ...tool }) => tool)
 }
 
-function formatMatch(tool, activated) {
-  const state = activated ? 'activated' : tool.active ? 'already active' : 'available'
-  return `- ${tool.name} (${state}): ${tool.description || tool.label || 'Optional tool'}`
+function formatMatch(tool) {
+  const required =
+    Array.isArray(tool.required) && tool.required.length
+      ? `; required: ${tool.required.join(', ')}`
+      : ''
+  return `- ${tool.name}: ${tool.description || tool.label || 'Optional tool'}${required}`
 }
 
-export function createToolDiscoveryTool({ listTools, activateTools }) {
+export function createToolDiscoveryTool({ listTools }) {
   return defineTool({
     name: TOOL_DISCOVERY_NAME,
     label: 'Discover Tools',
-    description:
-      'Search Pisper optional capabilities by task or intent and activate the most relevant tool schemas for the current session.',
-    promptSnippet:
-      'Search and activate optional tools when the currently active tools do not cover the task',
-    promptGuidelines: [
-      'Use discover_tools when the task may require an optional capability whose tool schema is not currently active.',
-      'Search by the capability you need, not by guessing an unavailable tool call.',
-      'When discover_tools activates a tool, use that activated tool on the next step instead of merely describing it.',
-      'Do not use discover_tools when the currently active tools already cover the task.',
-    ],
+    description: 'Find optional tools by capability; call results through call_tool.',
+    promptSnippet: 'Find optional tools by capability',
+    promptGuidelines: ['Search by capability, then call the exact result through call_tool.'],
     parameters: Type.Object({
       query: Type.String({
         minLength: 1,
         maxLength: 240,
-        description: 'Capability, task, or tool name to search for',
+        description: 'Capability or task to find',
       }),
       limit: Type.Optional(
         Type.Integer({
           minimum: 1,
           maximum: 5,
-          description: 'Maximum number of matching tools to return and activate; default 3',
-        }),
-      ),
-      activate: Type.Optional(
-        Type.Boolean({
-          description: 'Whether to add matching tools to the current session context; default true',
+          description: 'Maximum matches; default 3',
         }),
       ),
     }),
@@ -174,29 +165,16 @@ export function createToolDiscoveryTool({ listTools, activateTools }) {
       if (!matches.length) {
         return {
           content: [{ type: 'text', text: `No optional tools matched: ${params.query}` }],
-          details: { query: params.query, matches: [], activated: [] },
+          details: { query: params.query, matches: [] },
         }
       }
-      const shouldActivate = params.activate !== false
-      const activation = shouldActivate
-        ? await activateTools?.(matches.map((tool) => tool.name))
-        : { activatedToolNames: [] }
-      const activatedToolNames = activation?.activatedToolNames || []
-      const activated = new Set(activatedToolNames)
       const text = [
-        shouldActivate
-          ? 'Matching optional tools were discovered. Newly available schemas are active for the current session:'
-          : 'Matching optional tools:',
-        ...matches.map((tool) => formatMatch(tool, activated.has(tool.name))),
+        'Matching optional tools. Call one through call_tool with its exact name:',
+        ...matches.map((tool) => formatMatch(tool)),
       ].join('\n')
       return {
         content: [{ type: 'text', text }],
-        details: {
-          query: params.query,
-          matches,
-          activated: activatedToolNames,
-          promotedToolNames: activation?.promotedToolNames || [],
-        },
+        details: { query: params.query, matches },
       }
     },
   })

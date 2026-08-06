@@ -2,7 +2,8 @@ import { MULTI_AGENT_TOOL_NAMES } from '../services/multi-agent-service.mjs'
 import { GOAL_TOOL_NAMES } from '../tools/app/goal.mjs'
 import { PLAN_ALL_TOOL_NAMES, PLAN_COMPATIBILITY_TOOL_NAMES } from '../tools/app/plan.mjs'
 import { TOOL_DISCOVERY_NAME } from '../tools/app/tool-discovery.mjs'
-import { mergePromotedToolNames, selectedToolNames } from '../tools/tool-activation.mjs'
+import { TOOL_GATEWAY_NAME } from '../tools/app/tool-gateway.mjs'
+import { selectedToolNames } from '../tools/tool-activation.mjs'
 import { filterToolsForExecutionMode } from '../security/execution-mode.mjs'
 import { applyPisperSystemPrompt } from '../prompts/pisper-system-prompt.mjs'
 
@@ -39,14 +40,15 @@ export class ToolActivation {
     const availableToolNames = [
       ...(value.baseToolNames || []),
       TOOL_DISCOVERY_NAME,
+      TOOL_GATEWAY_NAME,
       ...PLAN_ALL_TOOL_NAMES,
       ...MULTI_AGENT_TOOL_NAMES,
       ...GOAL_TOOL_NAMES,
     ].filter((name) => !blockedToolNames.has(name))
     const names = selectedToolNames({
       availableToolNames,
-      promotedToolNames: value.promotedToolNames || [],
-      requestedToolNames: value.requestedToolNames || [],
+      promotedToolNames: [],
+      requestedToolNames: [],
       goalToolNames: GOAL_TOOL_NAMES,
       goalActive: goal?.status === 'active',
     })
@@ -54,37 +56,16 @@ export class ToolActivation {
   }
 
   async promoteSessionTools(value, toolNames = []) {
-    if (!value?.session) return { activatedToolNames: [], promotedToolNames: [] }
+    if (!value?.session) return { routedToolNames: [] }
     const availableToolNames = this.optionalToolNames(value)
-    const permittedToolNames = filterToolsForExecutionMode(
+    const routedToolNames = filterToolsForExecutionMode(
       toolNames.filter((name) => availableToolNames.includes(name)),
       this.getExecutionMode(value.session.sessionId),
       this.getToolRisk,
     )
-    const previousPromotedToolNames = value.promotedToolNames || []
-    const promotedToolNames = mergePromotedToolNames({
-      availableToolNames: availableToolNames.filter(
-        (name) => !PLAN_COMPATIBILITY_TOOL_NAMES.includes(name),
-      ),
-      promotedToolNames: previousPromotedToolNames,
-      requestedToolNames: permittedToolNames,
-    })
-    let promotionWrite = null
-    if (promotedToolNames.join('\0') !== previousPromotedToolNames.join('\0')) {
-      value.promotedToolNames = promotedToolNames
-      const sessionId = value.session.sessionId
-      const sessionMeta = this.getSessionMeta()
-      sessionMeta[sessionId] = { ...(sessionMeta[sessionId] || {}), promotedToolNames }
-      promotionWrite = this.saveSessionMeta()
-    }
     this.syncGoalTools(value, this.getGoal(value.session.sessionId))
     applyPisperSystemPrompt(value.session, value.session.model)
-    if (promotionWrite) await promotionWrite
-    const active = new Set(value.session.getActiveToolNames())
-    return {
-      activatedToolNames: permittedToolNames.filter((name) => active.has(name)),
-      promotedToolNames,
-    }
+    return { routedToolNames }
   }
 
   async selectToolsForMessage(
@@ -100,10 +81,10 @@ export class ToolActivation {
           .filter(Boolean),
       ),
     ]
+    const routed = await this.promoteTools(value, requested)
     value.requestedToolNames = preserveRequested
-      ? [...new Set([...(value.requestedToolNames || []), ...requested])]
-      : requested
-    await this.promoteTools(value, requested)
+      ? [...new Set([...(value.requestedToolNames || []), ...(routed.routedToolNames || [])])]
+      : routed.routedToolNames || []
     return value.session.getActiveToolNames()
   }
 }

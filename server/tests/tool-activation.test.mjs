@@ -38,7 +38,15 @@ describe('tool-activation', () => {
 
   it('hotToolNames returns only hot tools', () => {
     const result = hotToolNames(available)
-    assert.deepEqual(result, ['read', 'edit'])
+    assert.deepEqual(result, [
+      'read',
+      'edit',
+      'spawn_agent',
+      'list_agents',
+      'send_message',
+      'followup_task',
+      'interrupt_agent',
+    ])
   })
 
   it('mergePromotedToolNames merges and deduplicates', () => {
@@ -58,7 +66,20 @@ describe('tool-activation', () => {
       goalToolNames: [],
       goalActive: false,
     })
-    assert.deepEqual(result.sort(), ['edit', 'memory_search', 'read', 'web_search'].sort())
+    assert.deepEqual(
+      result.sort(),
+      [
+        'edit',
+        'memory_search',
+        'read',
+        'web_search',
+        'spawn_agent',
+        'list_agents',
+        'send_message',
+        'followup_task',
+        'interrupt_agent',
+      ].sort(),
+    )
   })
 
   it('selectedToolNames includes goal tools when goal is active', () => {

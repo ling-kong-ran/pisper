@@ -32,8 +32,9 @@ test('prompt cache diagnostics identify system and tool changes', () => {
   const current = capturePromptCacheShape({
     systemPrompt: 'after',
     tools: [{ name: 'write', parameters: {} }],
+    runtime: { model: 'next-model', thinkingLevel: 'high' },
   })
   const compared = comparePromptCacheShapes(previous, current)
   assert.equal(compared.changed, true)
-  assert.deepEqual(compared.changeReasons, ['system', 'tools'])
+  assert.deepEqual(compared.changeReasons, ['system', 'tools', 'runtime'])
 })

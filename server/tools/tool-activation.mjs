@@ -10,7 +10,13 @@ const HOT_TOOL_SET = new Set([
   'bash',
   ...PLAN_TOOL_NAMES,
   'discover_tools',
-  'generate_visual',
+  'call_tool',
+  'spawn_agent',
+  'list_agents',
+  'send_message',
+  'followup_task',
+  'wait_agent',
+  'interrupt_agent',
 ])
 
 export function schemaOnlyToolDefinition(tool) {
