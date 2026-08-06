@@ -258,7 +258,8 @@ fn render_chat(frame: &mut Frame, app: &App, area: Rect) {
     let max_scroll = rendered_rows
         .saturating_sub(viewport.height as usize)
         .min(u16::MAX as usize) as u16;
-    let scroll = max_scroll.saturating_sub(app.scroll.min(max_scroll));
+    app.render_max_scroll.set(max_scroll);
+    let scroll = max_scroll.saturating_sub(app.scroll.get().min(max_scroll));
     frame.render_widget(paragraph.scroll((scroll, 0)), viewport);
 }
 
@@ -2117,8 +2118,8 @@ mod tests {
     use crate::{
         app::{App, Approval, LiveTurn, PathEntry, SettingsPicker},
         model::{
-            ChatMessage, ModelOption, Plan, PlanCounts, PlanItem, SessionSummary,
-            ThinkingLevelUpdate, ToolActivity,
+            ChatMessage, MessagePage, ModelOption, PageInfo, Plan, PlanCounts, PlanItem,
+            SessionSummary, ThinkingLevelUpdate, ToolActivity,
         },
     };
 
@@ -2854,6 +2855,39 @@ mod tests {
     }
 
     #[test]
+    fn active_conversation_keeps_pasted_text_collapsed_in_the_composer() {
+        let session = SessionSummary {
+            id: "session-1".to_owned(),
+            model: "openai/gpt-5.6-sol".to_owned(),
+            cwd: "/workspace".to_owned(),
+            execution_mode: "full-access".to_owned(),
+            ..SessionSummary::default()
+        };
+        let mut app = App::new(
+            vec![session.clone()],
+            session,
+            vec![ChatMessage {
+                role: "user".to_owned(),
+                text: "Start the task".to_owned(),
+                run_activity: None,
+                attachments: Vec::new(),
+            }],
+            None,
+            Vec::new(),
+            Vec::new(),
+        );
+        app.insert_detected_paste("first line\nsecond line\nthird line");
+
+        let mut terminal = Terminal::new(TestBackend::new(120, 30)).unwrap();
+        terminal.draw(|frame| draw(frame, &app)).unwrap();
+        let rendered = format!("{:?}", terminal.backend().buffer());
+
+        assert!(rendered.contains("[Pasted text · 3 lines]"));
+        assert!(!rendered.contains("second line"));
+        assert_eq!(app.input_text(), "first line\nsecond line\nthird line");
+    }
+
+    #[test]
     fn composer_stays_whole_across_repeated_height_changes() {
         let session = SessionSummary {
             id: "session-1".to_owned(),
@@ -3065,7 +3099,7 @@ mod tests {
         assert!(rendered.contains("History line 19"));
 
         let mut scrolled = app;
-        scrolled.scroll = u16::MAX;
+        scrolled.scroll.set(u16::MAX);
         terminal.draw(|frame| draw(frame, &scrolled)).unwrap();
         let rendered = terminal
             .backend()
@@ -3076,5 +3110,79 @@ mod tests {
             .collect::<String>();
         assert!(rendered.contains("History line 0"));
         assert!(!rendered.contains("History line 19"));
+    }
+
+    #[test]
+    fn prepended_history_keeps_the_visible_position() {
+        let session = SessionSummary {
+            id: "session-1".to_owned(),
+            model: "openai/gpt-5.6-sol".to_owned(),
+            cwd: "/workspace".to_owned(),
+            execution_mode: "full-access".to_owned(),
+            ..SessionSummary::default()
+        };
+        let messages = (0..20)
+            .map(|index| ChatMessage {
+                role: "agent".to_owned(),
+                text: format!("Visible line {index}"),
+                run_activity: None,
+                attachments: Vec::new(),
+            })
+            .collect();
+        let mut app = App::new(
+            vec![session.clone()],
+            session,
+            messages,
+            None,
+            Vec::new(),
+            Vec::new(),
+        );
+        app.set_history_window(20);
+        let backend = TestBackend::new(80, 24);
+        let mut terminal = Terminal::new(backend).unwrap();
+
+        terminal.draw(|frame| draw(frame, &app)).unwrap();
+        app.scroll.set(app.render_max_scroll.get());
+        terminal.draw(|frame| draw(frame, &app)).unwrap();
+        let rendered = terminal
+            .backend()
+            .buffer()
+            .content
+            .iter()
+            .map(|cell| cell.symbol())
+            .collect::<String>();
+        assert!(rendered.contains("Visible line 0"));
+        let anchored_scroll = app.scroll.get();
+
+        let older = (0..20)
+            .map(|index| ChatMessage {
+                role: "agent".to_owned(),
+                text: format!("Older line {index}"),
+                run_activity: None,
+                attachments: Vec::new(),
+            })
+            .collect();
+        app.apply_history_page(
+            MessagePage {
+                messages: older,
+                context_usage: None,
+                page_info: PageInfo {
+                    start: 0,
+                    has_more: false,
+                },
+            },
+            20,
+        );
+        terminal.draw(|frame| draw(frame, &app)).unwrap();
+        let rendered = terminal
+            .backend()
+            .buffer()
+            .content
+            .iter()
+            .map(|cell| cell.symbol())
+            .collect::<String>();
+        assert_eq!(app.scroll.get(), anchored_scroll);
+        assert!(rendered.contains("Visible line 0"));
+        assert!(!rendered.contains("Older line 0"));
     }
 }

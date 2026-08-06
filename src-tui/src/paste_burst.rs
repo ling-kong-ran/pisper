@@ -6,7 +6,10 @@
 use std::time::Duration;
 use tokio::time::Instant;
 
+#[cfg(not(windows))]
 const CHAR_INTERVAL: Duration = Duration::from_millis(8);
+#[cfg(windows)]
+const CHAR_INTERVAL: Duration = Duration::from_millis(25);
 
 #[cfg(not(windows))]
 const ACTIVE_IDLE_TIMEOUT: Duration = Duration::from_millis(8);
@@ -83,6 +86,10 @@ impl PasteBurst {
         true
     }
 
+    pub fn is_buffering(&self) -> bool {
+        self.armed || self.active_internal() || self.pending_first_char.is_some()
+    }
+
     pub fn deadline(&self) -> Option<Instant> {
         let last = self.last_char_at?;
         Some(
@@ -157,11 +164,25 @@ mod tests {
         let mut burst = PasteBurst::default();
         let start = Instant::now();
         assert_eq!(burst.on_char('a', start), CharDecision::RetainFirst);
+        assert!(burst.is_buffering());
         assert_eq!(
             burst.flush_if_due(start + CHAR_INTERVAL + Duration::from_millis(1)),
             FlushResult::Typed("a".to_owned())
         );
         assert!(burst.deadline().is_none());
+        assert!(!burst.is_buffering());
+    }
+
+    #[cfg(windows)]
+    #[test]
+    fn windows_paste_can_begin_across_a_render_frame() {
+        let mut burst = PasteBurst::default();
+        let start = Instant::now();
+        assert_eq!(burst.on_char('a', start), CharDecision::RetainFirst);
+        assert_eq!(
+            burst.on_char('b', start + Duration::from_millis(16)),
+            CharDecision::BeginFromPending
+        );
     }
 
     #[test]
