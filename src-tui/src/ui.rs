@@ -43,16 +43,6 @@ const PISPER_LOGO: [(&str, &str); 5] = [
     ("█     █     █  ", "█     █     █  █ "),
     ("█     █ █████  ", "█     █████ █   █"),
 ];
-const PULSE_FRAMES: [&str; 8] = [
-    "▁▂▅█▅▂▁",
-    "▂▅█▅▂▁▁",
-    "▅█▅▂▁▁▂",
-    "█▅▂▁▁▂▅",
-    "▅▂▁▁▂▅█",
-    "▂▁▁▂▅█▅",
-    "▁▁▂▅█▅▂",
-    "▁▂▅█▅▂▁",
-];
 
 #[cfg(test)]
 pub fn draw(frame: &mut Frame, app: &App) {
@@ -1307,11 +1297,7 @@ fn render_status(frame: &mut Frame, app: &App, area: Rect) {
     );
     let model_mode = format!("{} · {mode}{context}", display_model(&app.model));
     let compact = format!("{mode} · {}{context}", shorten_path(&app.cwd));
-    let pulse = app
-        .is_streaming()
-        .then(|| PULSE_FRAMES[(app.status_frame as usize) % PULSE_FRAMES.len()]);
-    let pulse_width = pulse.map_or(0, |value| value.width().saturating_add(2));
-    let available = (columns[0].width as usize).saturating_sub(pulse_width);
+    let available = columns[0].width as usize;
     let left = if full.width() <= available {
         full
     } else if model_mode.width() <= available {
@@ -1321,15 +1307,7 @@ fn render_status(frame: &mut Frame, app: &App, area: Rect) {
     } else {
         mode
     };
-    let mut left_spans = Vec::new();
-    if let Some(pulse) = pulse {
-        left_spans.push(Span::styled(
-            pulse,
-            Style::default().fg(ACCENT).add_modifier(Modifier::BOLD),
-        ));
-        left_spans.push(Span::raw("  "));
-    }
-    left_spans.push(Span::styled(left, Style::default().fg(MUTED)));
+    let left_spans = vec![Span::styled(left, Style::default().fg(MUTED))];
     frame.render_widget(Paragraph::new(Line::from(left_spans)), columns[0]);
     let plan_progress = app
         .session
@@ -2113,7 +2091,7 @@ mod tests {
 
     use super::{
         draw, format_session_time, push_live, push_markdown, runtime_error_label, slash_menu_area,
-        visible_input, CONVERSATION_WIDTH, GREEN, PULSE_FRAMES,
+        visible_input, CONVERSATION_WIDTH, GREEN,
     };
     use crate::{
         app::{App, Approval, LiveTurn, PathEntry, SettingsPicker},
@@ -2940,7 +2918,7 @@ mod tests {
     }
 
     #[test]
-    fn streaming_activity_uses_a_bottom_left_pulse() {
+    fn streaming_status_bar_shows_no_pulse_animation() {
         let session = SessionSummary {
             id: "session-1".to_owned(),
             model: "openai/gpt-5.6-sol".to_owned(),
@@ -2968,18 +2946,14 @@ mod tests {
         let mut terminal = Terminal::new(TestBackend::new(80, 24)).unwrap();
         terminal.draw(|frame| draw(frame, &app)).unwrap();
         let buffer = terminal.backend().buffer();
-        let pulse = PULSE_FRAMES[0];
-        let rows = (0..24)
-            .map(|y| {
-                (0..80)
-                    .filter_map(|x| buffer.cell((x, y)))
-                    .map(|cell| cell.symbol())
-                    .collect::<String>()
-            })
-            .collect::<Vec<_>>();
+        let bottom = (0..80)
+            .filter_map(|x| buffer.cell((x, 23)))
+            .map(|cell| cell.symbol())
+            .collect::<String>();
 
-        assert!(!rows[..23].iter().any(|row| row.contains(pulse)));
-        assert!(rows[23].starts_with(pulse));
+        assert!(bottom.starts_with("gpt-5.6-sol"));
+        assert!(!bottom.contains('▁'));
+        assert!(!bottom.contains('▅'));
     }
 
     #[test]
