@@ -155,6 +155,15 @@ export const chatApi = {
       data: { provider, model },
     }),
 
+  getThinkingLevel: (sessionId: string) =>
+    requestJson<ApiRecord>(`${sessionPath(sessionId)}/thinking-level`),
+
+  setThinkingLevel: (sessionId: string, level: string) =>
+    requestJson<ApiRecord>(`${sessionPath(sessionId)}/thinking-level`, {
+      method: 'PUT',
+      data: { level },
+    }),
+
   updateExecutionMode: (sessionId: string, mode: string) =>
     requestJson<ApiRecord>(`${sessionPath(sessionId)}/execution-mode`, {
       method: 'PUT',

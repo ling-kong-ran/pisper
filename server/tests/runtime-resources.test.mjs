@@ -5,7 +5,11 @@ import { join } from 'node:path'
 import test from 'node:test'
 import { defineTool, SessionManager } from '@earendil-works/pi-coding-agent'
 import { Type } from 'typebox'
-import { AgentRuntimeService, storedSessionModelId } from '../runtime/agent-runtime.mjs'
+import {
+  AgentRuntimeService,
+  storedSessionModel,
+  storedSessionModelId,
+} from '../runtime/agent-runtime.mjs'
 
 test('blank chat sessions stay lightweight until an Agent is first required', async (t) => {
   const directory = await mkdtemp(join(tmpdir(), 'pisper-pending-session-'))
@@ -431,7 +435,163 @@ test('stored session model lookup does not build the full message context', () =
     },
   }
 
+  assert.deepEqual(storedSessionModel(sessionManager), {
+    provider: 'openai',
+    modelId: 'gpt-current',
+  })
   assert.equal(storedSessionModelId(sessionManager), 'gpt-current')
+})
+
+test('empty sessions still restore the last model change after runtime recreation', () => {
+  const sessionManager = {
+    buildSessionContext() {
+      return {
+        messages: [],
+        model: { provider: 'xai', modelId: 'grok-4.5' },
+        thinkingLevel: 'medium',
+      }
+    },
+    getBranch() {
+      return [
+        { type: 'model_change', provider: 'openai', modelId: 'gpt-out-of-quota' },
+        { type: 'thinking_level_change', thinkingLevel: 'medium' },
+        { type: 'model_change', provider: 'xai', modelId: 'grok-4.5' },
+      ]
+    },
+  }
+
+  assert.deepEqual(storedSessionModel(sessionManager), {
+    provider: 'xai',
+    modelId: 'grok-4.5',
+  })
+})
+
+test('setSessionModel persists the active model into session metadata', async () => {
+  const runtime = {
+    sessionMeta: {
+      'session-1': { model: 'openai/gpt-out-of-quota' },
+    },
+    saved: 0,
+    async saveSessionMeta() {
+      this.saved += 1
+    },
+    providerPreferences: {
+      async setSessionModel(id, provider, modelId) {
+        return {
+          id,
+          model: `${provider}/${modelId}`,
+          provider,
+          modelId,
+        }
+      },
+    },
+  }
+
+  const result = await AgentRuntimeService.prototype.setSessionModel.call(
+    runtime,
+    'session-1',
+    'xai',
+    'grok-4.5',
+  )
+
+  assert.equal(result.model, 'xai/grok-4.5')
+  assert.equal(runtime.sessionMeta['session-1'].model, 'xai/grok-4.5')
+  assert.equal(runtime.saved, 1)
+})
+
+test('listSessions prefers persisted session metadata over the global default model', async () => {
+  const directory = await mkdtemp(join(tmpdir(), 'pisper-session-model-meta-'))
+  const runtime = new AgentRuntimeService({ cwd: directory, dataDir: directory })
+  try {
+    runtime.listStoredSessions = async () => [
+      {
+        id: 'session-switched',
+        path: join(directory, 'session.jsonl'),
+        name: 'Switched session',
+        firstMessage: '',
+        messageCount: 0,
+        cwd: directory,
+        created: new Date('2026-01-01T00:00:00.000Z'),
+        modified: new Date('2026-01-01T00:01:00.000Z'),
+      },
+    ]
+    runtime.settingsManager = {
+      getGlobalSettings: () => ({
+        defaultProvider: 'openai',
+        defaultModel: 'gpt-out-of-quota',
+      }),
+    }
+    runtime.goals = { get: () => null }
+    runtime.plans = { get: () => null }
+    runtime.multiAgents = { summaries: () => [] }
+    runtime.sessionMeta = {
+      'session-switched': { model: 'xai/grok-4.5' },
+    }
+    runtime.openStoredSession = () => {
+      throw new Error('inactive history should not be reparsed')
+    }
+
+    const sessions = await runtime.listSessions()
+    assert.equal(sessions[0].model, 'xai/grok-4.5')
+  } finally {
+    runtime.sessions.clear()
+    await runtime.dispose().catch(() => {})
+    await rm(directory, { recursive: true, force: true }).catch(() => {})
+  }
+})
+
+test('historical session message pages resolve model from the session file and backfill metadata', async () => {
+  const directory = await mkdtemp(join(tmpdir(), 'pisper-session-history-model-'))
+  const runtime = new AgentRuntimeService({ cwd: directory, dataDir: directory })
+  try {
+    const sessionPath = join(directory, 'history.jsonl')
+    runtime.findSessionInfo = async (id) =>
+      id === 'session-history'
+        ? {
+            id: 'session-history',
+            path: sessionPath,
+            name: 'History',
+            cwd: directory,
+          }
+        : null
+    runtime.openStoredSession = () => ({
+      buildSessionContext() {
+        return {
+          messages: [
+            { role: 'user', content: [{ type: 'text', text: 'hello' }] },
+            {
+              role: 'assistant',
+              content: [{ type: 'text', text: 'world' }],
+              provider: 'openai',
+              model: 'gpt-out-of-quota',
+            },
+          ],
+          model: { provider: 'xai', modelId: 'grok-4.5' },
+          thinkingLevel: 'medium',
+        }
+      },
+    })
+    runtime.streamProjection.getSessionHistoryMessages = async () => [
+      { id: 'u1', role: 'user', text: 'hello' },
+      { id: 'a1', role: 'agent', text: 'world' },
+    ]
+    runtime.streamProjection.getSessionContextUsage = async () => null
+    runtime.sessionMeta = {}
+    let saved = 0
+    runtime.saveSessionMeta = async () => {
+      saved += 1
+    }
+    runtime.streamProjection.saveSessionMeta = () => runtime.saveSessionMeta()
+
+    const page = await runtime.getSessionMessagePage('session-history', { limit: 20 })
+    assert.equal(page.model, 'xai/grok-4.5')
+    assert.equal(runtime.sessionMeta['session-history'].model, 'xai/grok-4.5')
+    assert.equal(saved, 1)
+  } finally {
+    runtime.sessions.clear()
+    await runtime.dispose().catch(() => {})
+    await rm(directory, { recursive: true, force: true }).catch(() => {})
+  }
 })
 
 test('runtime diagnostics expose bounded memory and cache counters without session content', async (t) => {

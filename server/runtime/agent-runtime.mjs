@@ -166,14 +166,42 @@ export function installTransientStreamRetry(session) {
   return session
 }
 
-export function storedSessionModelId(sessionManager) {
-  let modelId = ''
+export function storedSessionModel(sessionManager) {
+  let model = null
   for (const entry of sessionManager?.getBranch?.() || []) {
-    if (entry?.type === 'model_change') modelId = entry.modelId || modelId
-    else if (entry?.type === 'message' && entry.message?.role === 'assistant')
-      modelId = entry.message.model || modelId
+    if (entry?.type === 'model_change' && entry.provider && entry.modelId) {
+      model = { provider: entry.provider, modelId: entry.modelId }
+      continue
+    }
+    if (
+      entry?.type === 'message' &&
+      entry.message?.role === 'assistant' &&
+      entry.message?.provider &&
+      entry.message?.model
+    ) {
+      model = { provider: entry.message.provider, modelId: entry.message.model }
+    }
   }
-  return modelId
+  return model
+}
+
+export function storedSessionModelId(sessionManager) {
+  return storedSessionModel(sessionManager)?.modelId || ''
+}
+
+function parseSessionModelRef(value) {
+  const raw = String(value || '').trim()
+  if (!raw) return null
+  const slash = raw.indexOf('/')
+  if (slash <= 0 || slash >= raw.length - 1) return null
+  return {
+    provider: raw.slice(0, slash),
+    modelId: raw.slice(slash + 1),
+  }
+}
+
+function resolveSessionModelRef(sessionManager, sessionMeta = {}) {
+  return storedSessionModel(sessionManager) || parseSessionModelRef(sessionMeta.model) || null
 }
 
 export function multiAgentResultAgent(toolName, details) {
@@ -491,6 +519,7 @@ export class AgentRuntimeService extends AgentRuntimeFacade {
       findSessionInfo: (id) => this.findSessionInfo(id),
       openStoredSession: (path) => this.openStoredSession(path),
       touchSessionRuntime: (value) => this.touchSessionRuntime(value),
+      saveSessionMeta: () => this.saveSessionMeta(),
       history: () => ({
         cache: this.sessionHistoryCache,
         paths: this.sessionHistoryPaths,
@@ -1373,7 +1402,15 @@ export class AgentRuntimeService extends AgentRuntimeFacade {
   }
 
   async setSessionModel(id, provider, modelId) {
-    return this.providerPreferences.setSessionModel(id, provider, modelId)
+    const result = await this.providerPreferences.setSessionModel(id, provider, modelId)
+    if (result?.model) {
+      this.sessionMeta[id] = {
+        ...(this.sessionMeta[id] || {}),
+        model: result.model,
+      }
+      await this.saveSessionMeta()
+    }
+    return result
   }
 
   async getSessionThinkingState(id) {
@@ -1410,15 +1447,26 @@ export class AgentRuntimeService extends AgentRuntimeFacade {
 
   async createSessionRuntime(sessionManager, name) {
     const settings = this.settingsManager.getGlobalSettings()
-    const storedModelId = storedSessionModelId(sessionManager)
-    await this.modelMetadata.ensure(storedModelId || settings.defaultModel)
+    const runtimeSessionId = sessionManager.getSessionId()
+    const preferredModelRef = resolveSessionModelRef(
+      sessionManager,
+      this.sessionMeta[runtimeSessionId],
+    )
+    await this.modelMetadata.ensure(preferredModelRef?.modelId || settings.defaultModel)
+    const preferredModel =
+      preferredModelRef &&
+      this.modelRuntime?.getModel?.(preferredModelRef.provider, preferredModelRef.modelId)
+    const preferredModelHasAuth =
+      !preferredModel ||
+      !this.modelRuntime?.hasConfiguredAuth ||
+      this.modelRuntime.hasConfiguredAuth(preferredModel.provider)
+    const sessionModel = preferredModel && preferredModelHasAuth ? preferredModel : undefined
     const appConfig = await readJson(this.appConfigPath, { toolMode: 'full' })
     const effectiveCwd = await resolveDirectory(
-      this.sessionMeta[sessionManager.getSessionId()]?.cwd,
+      this.sessionMeta[runtimeSessionId]?.cwd,
       sessionManager.getCwd() || this.cwd,
     )
     const enabledTools = toolsFromConfig(appConfig)
-    const runtimeSessionId = sessionManager.getSessionId()
     const executionMode = this.getSessionExecutionMode(runtimeSessionId)
     const [resourceLoader, mcpTools] = await Promise.all([
       this.skills.createResourceLoader(effectiveCwd),
@@ -1597,6 +1645,7 @@ export class AgentRuntimeService extends AgentRuntimeFacade {
       settingsManager: sessionSettingsManager,
       resourceLoader,
       sessionManager,
+      ...(sessionModel ? { model: sessionModel } : {}),
       tools: [
         ...baseToolNames,
         TOOL_DISCOVERY_NAME,

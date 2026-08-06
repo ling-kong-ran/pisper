@@ -138,28 +138,123 @@ export function useSessionCommands({
     [replaceSessionStates, sessionStatesRef],
   )
 
+  const applyThinkingState = useCallback(
+    (sessionId: string, payload: Record<string, unknown> = {}) => {
+      const availableThinkingLevels = Array.isArray(payload.availableThinkingLevels)
+        ? payload.availableThinkingLevels.map((level) => String(level))
+        : Array.isArray(payload.availableLevels)
+          ? payload.availableLevels.map((level) => String(level))
+          : []
+      const thinkingLevel = String(payload.thinkingLevel || '')
+      updateSessionState(sessionId, {
+        thinkingLevel: thinkingLevel || undefined,
+        availableThinkingLevels,
+        thinkingStatus: String(payload.thinkingStatus || payload.status || ''),
+        thinkingMessage: String(payload.thinkingMessage || payload.message || ''),
+        switchingThinking: false,
+      })
+      if (thinkingLevel) {
+        updateSessionSummary(sessionId, (session) => ({ ...session, thinkingLevel }))
+      }
+    },
+    [updateSessionState, updateSessionSummary],
+  )
+
+  const loadSessionThinkingLevel = useCallback(
+    async (sessionId: string) => {
+      if (!sessionId || sessionStatesRef.current[sessionId]?.streaming) return
+      try {
+        const state = await chatApi.getThinkingLevel(sessionId)
+        applyThinkingState(sessionId, state)
+      } catch {
+        // Thinking controls are best-effort and should not block chat loading.
+      }
+    },
+    [applyThinkingState, sessionStatesRef],
+  )
+
   const switchSessionModel = useCallback(
     async (sessionId: string, nextModel: string) => {
       const selected = availableModels.find((item) => item.key === nextModel)
       if (!sessionId || !selected || sessionStatesRef.current[sessionId]?.streaming) return
-      updateSessionState(sessionId, { switchingModel: true, error: '' })
+      const previousModel = sessionStatesRef.current[sessionId]?.model || ''
+      // Optimistic update so the controlled select does not snap back while the request is in flight.
+      updateSessionState(sessionId, {
+        switchingModel: true,
+        model: selected.key,
+        error: '',
+      })
+      updateSessionSummary(sessionId, (session) => ({ ...session, model: selected.key }))
       try {
         const updated = await chatApi.updateModel(sessionId, selected.provider, selected.modelId)
         updateSessionState(sessionId, {
-          model: updated.model,
+          model: updated.model || selected.key,
           contextUsage: updated.contextUsage ?? null,
           switchingModel: false,
         })
-        updateSessionSummary(sessionId, (session) => ({ ...session, model: updated.model }))
+        updateSessionSummary(sessionId, (session) => ({
+          ...session,
+          model: updated.model || selected.key,
+        }))
+        applyThinkingState(sessionId, updated)
         notify(t('chat:chatPage.switchedToModel', { model: selected.label }))
       } catch (error) {
         updateSessionState(sessionId, {
           switchingModel: false,
+          model: previousModel || undefined,
           error: chatErrorMessage(error),
         })
+        if (previousModel) {
+          updateSessionSummary(sessionId, (session) => ({ ...session, model: previousModel }))
+        }
       }
     },
-    [availableModels, notify, sessionStatesRef, t, updateSessionState, updateSessionSummary],
+    [
+      applyThinkingState,
+      availableModels,
+      notify,
+      sessionStatesRef,
+      t,
+      updateSessionState,
+      updateSessionSummary,
+    ],
+  )
+
+  const switchSessionThinkingLevel = useCallback(
+    async (sessionId: string, nextLevel: string) => {
+      const level = String(nextLevel || '').trim()
+      if (!sessionId || !level || sessionStatesRef.current[sessionId]?.streaming) return
+      const previous = sessionStatesRef.current[sessionId] || {}
+      const previousLevel = String(previous.thinkingLevel || '')
+      updateSessionState(sessionId, {
+        switchingThinking: true,
+        thinkingLevel: level,
+        error: '',
+      })
+      updateSessionSummary(sessionId, (session) => ({ ...session, thinkingLevel: level }))
+      try {
+        const updated = await chatApi.setThinkingLevel(sessionId, level)
+        applyThinkingState(sessionId, updated)
+        notify(
+          t('chat:chatPage.switchedToThinkingLevel', {
+            level: String(updated.thinkingLevel || level),
+          }),
+        )
+      } catch (error) {
+        updateSessionState(sessionId, {
+          switchingThinking: false,
+          thinkingLevel: previousLevel || undefined,
+          error: chatErrorMessage(error),
+        })
+        if (previousLevel) {
+          updateSessionSummary(sessionId, (session) => ({
+            ...session,
+            thinkingLevel: previousLevel,
+          }))
+        }
+      }
+    },
+    [applyThinkingState, notify, sessionStatesRef, t, updateSessionState, updateSessionSummary],
   )
 
   const switchSessionExecutionMode = useCallback(
@@ -289,7 +384,9 @@ export function useSessionCommands({
     setGoalBudget,
     compactSession,
     setCompactionThreshold,
+    loadSessionThinkingLevel,
     switchSessionModel,
+    switchSessionThinkingLevel,
     switchSessionExecutionMode,
     resolveToolApproval,
   }

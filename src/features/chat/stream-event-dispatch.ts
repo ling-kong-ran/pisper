@@ -122,7 +122,8 @@ export function createStreamEventDispatcher({
     if (event === 'meta') {
       updateSessionState(sessionId, (current) => ({
         ...current,
-        model: data.model,
+        model: data.model || current.model,
+        thinkingLevel: data.thinkingLevel || current.thinkingLevel,
         cwd: data.cwd,
         permissionMode: data.permissionMode,
         executionMode: data.executionMode,
@@ -139,6 +140,8 @@ export function createStreamEventDispatcher({
         lastActivityAt: data.lastActivityAt || eventAt,
       }))
       if (
+        data.model ||
+        data.thinkingLevel ||
         data.cwd ||
         data.permissionMode ||
         data.executionMode ||
@@ -147,6 +150,8 @@ export function createStreamEventDispatcher({
       ) {
         updateSessionSummary((session) => ({
           ...session,
+          model: data.model || session.model,
+          thinkingLevel: data.thinkingLevel || session.thinkingLevel,
           cwd: data.cwd || session.cwd,
           permissionMode: data.permissionMode || session.permissionMode,
           executionMode: data.executionMode || session.executionMode,

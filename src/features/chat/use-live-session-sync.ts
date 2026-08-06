@@ -168,6 +168,8 @@ export function useLiveSessionSync({
             : {
                 ...latest,
                 ...reconcileMessagePage(latest, data),
+                // Prefer an in-memory selection (including optimistic switches) over a stale page read.
+                model: latest.model || data.model || undefined,
                 contextUsage: data.contextUsage ?? latest.contextUsage ?? null,
                 loaded: true,
                 loading: false,
@@ -176,11 +178,51 @@ export function useLiveSessionSync({
                 olderError: '',
               },
         )
+        const resolvedModel =
+          sessionStatesRef.current[id]?.model || (typeof data.model === 'string' ? data.model : '')
+        if (resolvedModel) {
+          updateSessions((current) =>
+            current.map((session) =>
+              session.id === id && session.model !== resolvedModel
+                ? { ...session, model: resolvedModel }
+                : session,
+            ),
+          )
+        }
+        if (!sessionStatesRef.current[id]?.streaming) {
+          void chatApi
+            .getThinkingLevel(id)
+            .then((thinking) => {
+              if (sessionStatesRef.current[id]?.streaming) return
+              const availableThinkingLevels = Array.isArray(thinking.availableLevels)
+                ? thinking.availableLevels.map((level) => String(level))
+                : Array.isArray(thinking.availableThinkingLevels)
+                  ? thinking.availableThinkingLevels.map((level) => String(level))
+                  : []
+              const thinkingLevel = String(thinking.thinkingLevel || '')
+              updateSessionState(id, {
+                thinkingLevel: thinkingLevel || undefined,
+                availableThinkingLevels,
+                thinkingStatus: String(thinking.status || thinking.thinkingStatus || ''),
+                thinkingMessage: String(thinking.message || thinking.thinkingMessage || ''),
+              })
+              if (thinkingLevel) {
+                updateSessions((current) =>
+                  current.map((session) =>
+                    session.id === id && session.thinkingLevel !== thinkingLevel
+                      ? { ...session, thinkingLevel }
+                      : session,
+                  ),
+                )
+              }
+            })
+            .catch(() => {})
+        }
       } catch (error) {
         updateSessionState(id, { loading: false, error: chatErrorMessage(error) })
       }
     },
-    [sessionStatesRef, syncLiveSession, updateSessionState],
+    [sessionStatesRef, syncLiveSession, updateSessionState, updateSessions],
   )
 
   const loadOlderMessages = useCallback(
