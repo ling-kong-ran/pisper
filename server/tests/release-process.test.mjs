@@ -53,10 +53,7 @@ test('release policy accepts product commits and rejects bookkeeping-only ranges
     ['fix(chat): persist model switches'],
   )
 
-  assert.throws(
-    () => assertHasSubstantiveReleaseCommits([], 'v0.4.22'),
-    /没有新提交，无需发布/,
-  )
+  assert.throws(() => assertHasSubstantiveReleaseCommits([], 'v0.4.22'), /没有新提交，无需发布/)
   assert.throws(
     () =>
       assertHasSubstantiveReleaseCommits(

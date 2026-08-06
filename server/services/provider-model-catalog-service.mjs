@@ -128,7 +128,7 @@ function runtimeModel(
       typeof explicitReasoning === 'boolean'
         ? explicitReasoning
         : explicitReasoning === null
-          ? (remoteMetadata?.reasoning ?? (candidate.kind === 'chat'))
+          ? (remoteMetadata?.reasoning ?? candidate.kind === 'chat')
           : candidate.kind === 'chat' && (remoteMetadata?.reasoning ?? true),
     input: ['text', 'image'],
     cost: template?.cost || zeroCost(),

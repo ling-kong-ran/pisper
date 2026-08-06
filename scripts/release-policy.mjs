@@ -8,15 +8,7 @@ const SUBSTANTIVE_TYPES = new Set([
   'security',
 ])
 
-const NON_SUBSTANTIVE_TYPES = new Set([
-  'chore',
-  'style',
-  'docs',
-  'doc',
-  'test',
-  'tests',
-  'ci',
-])
+const NON_SUBSTANTIVE_TYPES = new Set(['chore', 'style', 'docs', 'doc', 'test', 'tests', 'ci'])
 
 export function isSubstantiveReleaseCommit(subject) {
   const value = String(subject || '').trim()
