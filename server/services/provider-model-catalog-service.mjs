@@ -54,7 +54,13 @@ function mergedMetadata(primary, fallback) {
   }
 }
 
-function modelWithMetadata(model, metadata, explicitContextWindow, explicitInput) {
+function modelWithMetadata(
+  model,
+  metadata,
+  explicitContextWindow,
+  explicitInput,
+  explicitReasoning,
+) {
   const remoteMetadata = metadata?.get(model.id)
   const metadataThinkingLevelMap = remoteMetadata?.thinkingLevelMap
   const modelThinkingLevelMap = model.thinkingLevelMap
@@ -64,7 +70,13 @@ function modelWithMetadata(model, metadata, explicitContextWindow, explicitInput
       normalizedInput(remoteMetadata?.input) ||
       normalizedInput(model.input) || ['text'],
     reasoning:
-      typeof model.reasoning === 'boolean' ? model.reasoning : (remoteMetadata?.reasoning ?? true),
+      typeof explicitReasoning === 'boolean'
+        ? explicitReasoning
+        : explicitReasoning === null
+          ? (remoteMetadata?.reasoning ?? model.reasoning ?? true)
+          : typeof model.reasoning === 'boolean'
+            ? model.reasoning
+            : (remoteMetadata?.reasoning ?? true),
     contextWindow:
       Number(explicitContextWindow) ||
       Number(remoteMetadata?.contextWindow) ||
@@ -90,11 +102,18 @@ function runtimeModel(
   metadata,
   explicitContextWindow,
   explicitInput,
+  explicitReasoning,
 ) {
   const remoteMetadata = metadata?.get(candidate.id)
   if (existing) {
     return {
-      ...modelWithMetadata(existing, metadata, explicitContextWindow, explicitInput),
+      ...modelWithMetadata(
+        existing,
+        metadata,
+        explicitContextWindow,
+        explicitInput,
+        explicitReasoning,
+      ),
       name: candidate.name || existing.name,
       pisperKind: candidate.kind || 'chat',
     }
@@ -105,7 +124,12 @@ function runtimeModel(
     api: entry.api || template?.api || 'openai-responses',
     provider: providerId,
     baseUrl: entry.baseUrl || template?.baseUrl || '',
-    reasoning: candidate.kind === 'chat' && (remoteMetadata?.reasoning ?? true),
+    reasoning:
+      typeof explicitReasoning === 'boolean'
+        ? explicitReasoning
+        : explicitReasoning === null
+          ? (remoteMetadata?.reasoning ?? (candidate.kind === 'chat'))
+          : candidate.kind === 'chat' && (remoteMetadata?.reasoning ?? true),
     input: ['text', 'image'],
     cost: template?.cost || zeroCost(),
     contextWindow: Number(remoteMetadata?.contextWindow) || inferredContextWindow(candidate.id),
@@ -202,12 +226,14 @@ export class ProviderModelCatalogService {
     configuredHeaders = {},
     configuredContextWindows = {},
     configuredInputs = {},
+    configuredReasoning = {},
   ) {
     this.configuredBaseUrls = new Map(
       Object.entries(configuredBaseUrls || {}).map(([id, url]) => [id, normalizedBaseUrl(url)]),
     )
     const explicitContextWindows = new Map(Object.entries(configuredContextWindows || {}))
     const explicitInputs = new Map(Object.entries(configuredInputs || {}))
+    const explicitReasoning = new Map(Object.entries(configuredReasoning || {}))
     this.configuredHeaders = new Map(Object.entries(configuredHeaders || {}))
     const rawGetModels = runtime.getModels.bind(runtime)
     const rawGetModel = runtime.getModel.bind(runtime)
@@ -239,6 +265,7 @@ export class ProviderModelCatalogService {
           effectiveMetadata,
           explicitContextWindows.get(`${providerId}:${model.id}`),
           explicitInputs.get(`${providerId}:${model.id}`),
+          explicitReasoning.get(`${providerId}:${model.id}`),
         ),
       )
       const entry = catalogEntry(providerId)
@@ -254,6 +281,7 @@ export class ProviderModelCatalogService {
               effectiveMetadata,
               explicitContextWindows.get(`${providerId}:${candidate.id}`),
               explicitInputs.get(`${providerId}:${candidate.id}`),
+              explicitReasoning.get(`${providerId}:${candidate.id}`),
             ),
           )
         : raw

@@ -194,6 +194,10 @@ export function useLiveSessionSync({
             .getThinkingLevel(id)
             .then((thinking) => {
               if (sessionStatesRef.current[id]?.streaming) return
+              const responseModel = String(thinking.model || '')
+              const currentModel = String(sessionStatesRef.current[id]?.model || '')
+              if (responseModel && currentModel && responseModel !== currentModel) return
+
               const availableThinkingLevels = Array.isArray(thinking.availableLevels)
                 ? thinking.availableLevels.map((level) => String(level))
                 : Array.isArray(thinking.availableThinkingLevels)

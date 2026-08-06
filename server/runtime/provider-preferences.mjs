@@ -232,6 +232,7 @@ export class ProviderPreferences {
     const configuredHeaders = {}
     const configuredContextWindows = {}
     const configuredInputs = {}
+    const configuredReasoning = {}
     for (const provider of modelRuntime.getProviders()) {
       const overlay = modelsJson.providers?.[provider.id] || {}
       configuredBaseUrls[provider.id] =
@@ -253,6 +254,11 @@ export class ProviderPreferences {
         if (Array.isArray(model?.input)) {
           configuredInputs[`${provider.id}:${model.id}`] = model.input
         }
+        const configuredModel = overlay.models?.find((entry) => entry?.id === model.id)
+        if (configuredModel) {
+          configuredReasoning[`${provider.id}:${model.id}`] =
+            typeof configuredModel.reasoning === 'boolean' ? configuredModel.reasoning : null
+        }
       }
     }
     this.providerModelCatalog.decorateRuntime(
@@ -261,6 +267,7 @@ export class ProviderPreferences {
       configuredHeaders,
       configuredContextWindows,
       configuredInputs,
+      configuredReasoning,
     )
     this.setModelRuntime(modelRuntime)
     this.invalidateProjection('', { allUsage: true })

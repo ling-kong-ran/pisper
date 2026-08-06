@@ -140,6 +140,10 @@ export function useSessionCommands({
 
   const applyThinkingState = useCallback(
     (sessionId: string, payload: Record<string, unknown> = {}) => {
+      const responseModel = String(payload.model || '')
+      const currentModel = String(sessionStatesRef.current[sessionId]?.model || '')
+      if (responseModel && currentModel && responseModel !== currentModel) return
+
       const availableThinkingLevels = Array.isArray(payload.availableThinkingLevels)
         ? payload.availableThinkingLevels.map((level) => String(level))
         : Array.isArray(payload.availableLevels)
@@ -157,7 +161,7 @@ export function useSessionCommands({
         updateSessionSummary(sessionId, (session) => ({ ...session, thinkingLevel }))
       }
     },
-    [updateSessionState, updateSessionSummary],
+    [sessionStatesRef, updateSessionState, updateSessionSummary],
   )
 
   const loadSessionThinkingLevel = useCallback(
