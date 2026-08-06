@@ -3072,7 +3072,7 @@ mod tests {
         assert!(!rendered.contains("History line 0"));
         assert!(rendered.contains("History line 19"));
 
-        let mut scrolled = app;
+        let scrolled = app;
         scrolled.scroll.set(u16::MAX);
         terminal.draw(|frame| draw(frame, &scrolled)).unwrap();
         let rendered = terminal
