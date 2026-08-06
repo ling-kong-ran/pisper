@@ -60,6 +60,7 @@ export type SessionSummary = EntityRecord & {
   modified?: string
   firstMessage?: string
   model?: string
+  thinkingLevel?: string
   cwd?: string
   streaming?: boolean
   plan?: Plan | null

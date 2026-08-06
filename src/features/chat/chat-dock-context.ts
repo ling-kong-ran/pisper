@@ -34,6 +34,7 @@ export type ChatDockContextValue = {
   compactSession: (sessionId: string) => Promise<void>
   setCompactionThreshold: (thresholdPercent: number) => Promise<void>
   switchSessionModel: (sessionId: string, model: string) => Promise<void>
+  switchSessionThinkingLevel: (sessionId: string, level: string) => Promise<void>
   switchSessionExecutionMode: (sessionId: string, mode: string) => Promise<boolean>
   resolveToolApproval: (sessionId: string, approvalId: string, approved: boolean) => Promise<void>
   setWorkspaceSession: (session: SessionSummary) => void

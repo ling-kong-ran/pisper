@@ -28,6 +28,7 @@ import {
   ContextUsageIndicator,
   ExecutionModeSelect,
   SessionModelSelect,
+  SessionThinkingSelect,
 } from './FocusRuntimeControls'
 import { FocusTranscript } from './FocusTranscript'
 import { GitChangesControl } from './GitChangesControl'
@@ -49,6 +50,10 @@ export type FocusSessionProps = {
   loadingOlder?: boolean
   olderError?: string
   model: string
+  thinkingLevel?: string
+  availableThinkingLevels?: string[]
+  thinkingStatus?: string
+  thinkingMessage?: string
   executionMode: string
   goal?: EntityRecord | null
   plan?: Plan | null
@@ -62,6 +67,7 @@ export type FocusSessionProps = {
   cwd?: string
   availableModels: ModelOption[]
   switchingModel?: boolean
+  switchingThinking?: boolean
   switchingCwd?: boolean
   switchingPermission?: boolean
   streaming?: boolean
@@ -77,6 +83,7 @@ export type FocusSessionProps = {
   onAssetConsumed?: () => void
   onLoadOlder?: () => Promise<boolean> | boolean
   onModelChange: (model: string) => Promise<void> | void
+  onThinkingLevelChange: (level: string) => Promise<void> | void
   onExecutionModeChange: (mode: string) => Promise<boolean> | boolean
   onGoalPause?: () => Promise<void> | void
   onGoalBudgetChange?: (tokenBudget: number) => Promise<void> | void
@@ -108,6 +115,10 @@ export function FocusSession({
   loadingOlder,
   olderError,
   model,
+  thinkingLevel,
+  availableThinkingLevels,
+  thinkingStatus,
+  thinkingMessage,
   executionMode,
   goal,
   plan,
@@ -121,6 +132,7 @@ export function FocusSession({
   cwd,
   availableModels,
   switchingModel,
+  switchingThinking,
   switchingCwd,
   switchingPermission,
   streaming,
@@ -136,6 +148,7 @@ export function FocusSession({
   onAssetConsumed,
   onLoadOlder,
   onModelChange,
+  onThinkingLevelChange,
   onExecutionModeChange,
   onCompact,
   onCompactionThresholdChange,
@@ -354,6 +367,14 @@ export function FocusSession({
             models={availableModels}
             onChange={onModelChange}
             disabled={streaming || switchingModel}
+          />
+          <SessionThinkingSelect
+            value={thinkingLevel || 'medium'}
+            levels={availableThinkingLevels || []}
+            status={thinkingStatus}
+            message={thinkingMessage}
+            onChange={onThinkingLevelChange}
+            disabled={streaming || switchingThinking || switchingModel}
           />
           <ExecutionModeSelect
             value={executionMode}

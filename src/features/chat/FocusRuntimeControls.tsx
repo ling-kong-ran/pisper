@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
-import { Bot, Check, Eye, Gauge, ShieldOff } from 'lucide-react'
+import { Bot, Brain, Check, Eye, Gauge, ShieldOff } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
 import type { I18nValues } from '@/app/i18n'
 import { useI18n } from '@/app/use-i18n'
@@ -192,6 +192,59 @@ export function SessionModelSelect({
         {models.map((model) => (
           <option key={model.key} value={model.key}>
             {model.providerName} · {model.label}
+          </option>
+        ))}
+      </AppSelect>
+    </div>
+  )
+}
+
+export function SessionThinkingSelect({
+  value,
+  levels,
+  status = 'supported',
+  message = '',
+  onChange,
+  disabled,
+  compact = false,
+}: {
+  value: string
+  levels: string[]
+  status?: string
+  message?: string
+  onChange: (level: string) => void
+  disabled?: boolean
+  compact?: boolean
+}) {
+  const { t } = useI18n()
+  const current = value || levels[0] || 'off'
+  const loading = !status && levels.length === 0
+  const supported = status !== 'unsupported' && levels.length > 0
+  const title = loading
+    ? t('chat:focusSession.loadingThinkingLevels')
+    : !supported
+      ? message || t('chat:focusSession.thinkingLevelUnsupported')
+      : disabled
+        ? t('chat:focusSession.currentThinkingLevelLevelCannotSwitchWhileRunning', {
+            level: current,
+          })
+        : t('chat:focusSession.currentThinkingLevelLevelClickToSwitch', { level: current })
+  return (
+    <div
+      className={`session-model-select session-thinking-select icon-only ${compact ? 'compact' : ''}`}
+      title={title}
+    >
+      <Brain size={compact ? 11 : 14} />
+      <AppSelect
+        value={current}
+        onChange={(event) => onChange(event.target.value)}
+        disabled={disabled || loading || !supported}
+        aria-label={t('chat:focusSession.currentThinkingLevel')}
+      >
+        {!levels.includes(current) && <option value={current}>{current}</option>}
+        {levels.map((level) => (
+          <option key={level} value={level}>
+            {level}
           </option>
         ))}
       </AppSelect>

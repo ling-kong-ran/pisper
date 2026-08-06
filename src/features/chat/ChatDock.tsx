@@ -56,6 +56,10 @@ export function SessionDockPanel({ params, api }: IDockviewPanelProps<{ sessionI
         loadingOlder={state.loadingOlder}
         olderError={state.olderError}
         model={state.model || session.model || context.defaultModel}
+        thinkingLevel={state.thinkingLevel || session.thinkingLevel || 'medium'}
+        availableThinkingLevels={state.availableThinkingLevels || []}
+        thinkingStatus={state.thinkingStatus || ''}
+        thinkingMessage={state.thinkingMessage || ''}
         executionMode={state.executionMode || session.executionMode || 'full-access'}
         goal={state.goal ?? session.goal ?? null}
         plan={visiblePlan}
@@ -69,6 +73,7 @@ export function SessionDockPanel({ params, api }: IDockviewPanelProps<{ sessionI
         cwd={state.cwd || session.cwd}
         availableModels={context.availableModels}
         switchingModel={state.switchingModel}
+        switchingThinking={state.switchingThinking}
         switchingCwd={state.switchingCwd}
         switchingPermission={state.switchingPermission}
         streaming={state.streaming}
@@ -83,6 +88,9 @@ export function SessionDockPanel({ params, api }: IDockviewPanelProps<{ sessionI
         onAssetConsumed={context.onAssetConsumed}
         onLoadOlder={() => context.loadOlderMessages(sessionId)}
         onModelChange={(nextModel: string) => context.switchSessionModel(sessionId, nextModel)}
+        onThinkingLevelChange={(nextLevel: string) =>
+          context.switchSessionThinkingLevel(sessionId, nextLevel)
+        }
         onExecutionModeChange={(nextMode: string) =>
           context.switchSessionExecutionMode(sessionId, nextMode)
         }

@@ -555,6 +555,7 @@ export class StreamProjection {
     findSessionInfo,
     openStoredSession,
     touchSessionRuntime,
+    saveSessionMeta,
     history,
   }) {
     this.cwd = cwd
@@ -574,8 +575,48 @@ export class StreamProjection {
     this.findSessionInfo = findSessionInfo
     this.openStoredSession = openStoredSession
     this.touchSessionRuntime = touchSessionRuntime
+    this.saveSessionMeta = saveSessionMeta
     this.history = history
     this.cache = new ProjectionCache()
+  }
+
+  rememberSessionModel(id, model, { persist = false } = {}) {
+    const next = String(model || '').trim()
+    if (!id || !next || /(^|\/)unknown$/i.test(next)) return next
+    const meta = this.sessionMeta()
+    if (meta[id]?.model === next) return next
+    meta[id] = { ...(meta[id] || {}), model: next }
+    // Only persist when recovering model from cold history. Hot live paths keep this
+    // in-memory to avoid racing session metadata writes during stream teardown.
+    if (persist) void this.saveSessionMeta?.()
+    return next
+  }
+
+  async resolveSessionModel(id) {
+    const active = this.sessions().get(id)
+    if (active?.session?.model?.provider && active.session.model.id) {
+      return this.rememberSessionModel(
+        id,
+        `${active.session.model.provider}/${active.session.model.id}`,
+      )
+    }
+    const cached = String(this.sessionMeta()[id]?.model || '').trim()
+    if (cached && !/(^|\/)unknown$/i.test(cached)) return cached
+    const info = await this.findSessionInfo(id)
+    if (!info?.path) return cached
+    try {
+      const context = this.openStoredSession(info.path).buildSessionContext()
+      if (context?.model?.provider && context.model.modelId) {
+        return this.rememberSessionModel(
+          id,
+          `${context.model.provider}/${context.model.modelId}`,
+          { persist: true },
+        )
+      }
+    } catch {
+      // Historical files can be missing or mid-write; fall back to cached metadata.
+    }
+    return cached
   }
 
   invalidate(sessionId, scopes) {
@@ -908,6 +949,7 @@ export class StreamProjection {
     const start = Math.max(0, end - pageSize)
     return {
       messages: messages.slice(start, end),
+      model: await this.resolveSessionModel(id),
       contextUsage: await this.getSessionContextUsage(id),
       pageInfo: {
         start,
@@ -980,8 +1022,11 @@ export class StreamProjection {
       lastActivityAt: live?.lastActivityAt || null,
       finishedAt: live?.finishedAt || null,
       model: active?.session.model
-        ? `${active.session.model.provider}/${active.session.model.id}`
-        : '',
+        ? this.rememberSessionModel(
+            id,
+            `${active.session.model.provider}/${active.session.model.id}`,
+          )
+        : page.model || meta[id]?.model || '',
       cwd: active?.cwd || meta[id]?.cwd || persisted?.cwd || this.cwd,
       permissionMode: meta[id]?.permissionMode || permissionModeForExecutionMode(executionMode),
       executionMode,
