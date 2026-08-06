@@ -92,6 +92,20 @@ npm run release -- 0.4.20
 
 Prefer `npm run check` and `npm test` before considering a change done. Run desktop/TUI packaging only when touching those surfaces.
 
+### Release policy (agents)
+
+Releases must ship **substantive product changes**. Do **not** cut a version when the only delta since the latest `v*.*.*` tag is version metadata, dependency refresh, formatting, docs-only nits, or other release-script bookkeeping.
+
+Before running `npm run release`:
+
+1. Confirm you are on the `release` branch and the working tree is clean.
+2. Inspect `git log --oneline <latest-tag>..HEAD` and `git diff --stat <latest-tag>..HEAD`.
+3. Require at least one substantive commit since the latest tag: `feat`, `fix`, `perf`, user-facing behavior, security, or packaging that changes shipped artifacts. Pure `chore(deps)`, `chore(release)`, `style`, and docs-only commits do **not** count by themselves.
+4. If there is nothing substantive to ship, **stop**. Do not invent a patch release, do not run `npm run release` “just to push”, and do not force-publish after dependency refresh alone.
+5. When the user asks to “发布新版本” but HEAD is already a release commit / tag with no later product commits, report that the latest version is already published and wait for new work.
+
+`npm run release` enforces this gate in `scripts/release.mjs` via `scripts/release-policy.mjs`: after resolving the latest `v*.*.*` tag, it inspects `git log <tag>..HEAD` and **exits before dependency refresh / checks / tagging** when there are no new commits or only non-substantive ones. Dependency updates are still allowed **alongside** substantive changes, not as the sole reason to bump.
+
 ## Conventions
 
 ### Frontend (`src/`)

@@ -2,6 +2,7 @@ import { execFileSync } from 'node:child_process'
 import { readFile } from 'node:fs/promises'
 import { dirname, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
+import { assertHasSubstantiveReleaseCommits } from './release-policy.mjs'
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..')
 const packagePath = join(root, 'package.json')
@@ -80,6 +81,23 @@ if (upstream) {
   if (behind > 0) throw new Error(`当前分支落后于 ${upstream} ${behind} 个提交，请先同步远端。`)
 }
 
+const latestTag = run('git', ['tag', '--list', 'v*', '--sort=-version:refname'], { capture: true })
+  .split(/\r?\n/)
+  .find((value) => /^v\d+\.\d+\.\d+$/.test(value))
+
+if (latestTag) {
+  console.log(`正在检查自 ${latestTag} 以来的实质性提交…`)
+  const subjects = run('git', ['log', '--format=%s', `${latestTag}..HEAD`], { capture: true })
+    .split(/\r?\n/)
+    .map((value) => value.trim())
+    .filter(Boolean)
+  const substantive = assertHasSubstantiveReleaseCommits(subjects, latestTag)
+  console.log(`已找到 ${substantive.length} 个实质性提交：`)
+  for (const subject of substantive) console.log(`  - ${subject}`)
+} else {
+  console.log('未找到已有版本标签，允许作为首次发布继续。')
+}
+
 console.log('正在刷新发布依赖…')
 runNpm(['update'])
 run('cargo', ['update', '--manifest-path', join(root, 'src-tui', 'Cargo.toml')])
@@ -113,10 +131,6 @@ if (compareVersions(nextVersion, packageJson.version) <= 0) {
 }
 const tag = `v${nextVersion}`
 if (run('git', ['tag', '--list', tag], { capture: true })) throw new Error(`标签 ${tag} 已经存在。`)
-
-const latestTag = run('git', ['tag', '--list', 'v*', '--sort=-version:refname'], { capture: true })
-  .split(/\r?\n/)
-  .find((value) => /^v\d+\.\d+\.\d+$/.test(value))
 if (latestTag && compareVersions(nextVersion, latestTag.replace(/^v/i, '')) <= 0) {
   throw new Error(`新版本 ${nextVersion} 必须高于最新标签 ${latestTag}。`)
 }
