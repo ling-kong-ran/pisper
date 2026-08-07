@@ -121,6 +121,7 @@ test('desktop and TUI launch independently installed signed components with bund
   assert.match(cliManager, /preferred_payload/)
   assert.match(cliManager, /preferred_runtime/)
   assert.match(tuiMain, /parse_update_request/)
+  assert.match(tuiUpdater, /#\[cfg\(windows\)\]\s+use std::process::\{Command, Stdio\}/)
   assert.match(tuiUpdater, /Some\("runtime"\).*UpdateSelection::Runtime/)
   assert.match(tuiSidecar, /deactivate_component/)
   assert.match(bridge, /desktop_check_component_updates/)

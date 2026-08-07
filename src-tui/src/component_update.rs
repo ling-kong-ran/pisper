@@ -1,9 +1,7 @@
-use std::{
-    ffi::OsString,
-    fs,
-    path::Path,
-    process::{Command, Stdio},
-};
+use std::{ffi::OsString, fs, path::Path};
+
+#[cfg(windows)]
+use std::process::{Command, Stdio};
 
 use anyhow::{bail, Context, Result};
 use pisper_component_updater::{Component, ComponentUpdater, InstalledComponent};
