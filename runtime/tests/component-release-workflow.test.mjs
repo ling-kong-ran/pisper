@@ -181,7 +181,10 @@ test('release command auto-detects and dispatches every changed component', asyn
     source,
     /const candidates = requestedComponent \? \[requestedComponent\] : Object\.keys\(RELEASE_COMPONENTS\)/,
   )
-  assert.match(source, /for \(const \{ component, nextVersion, tag \} of plans\)/)
+  assert.match(
+    source,
+    /for \(const \[index, \{ component, nextVersion, tag \}\] of plans\.entries\(\)\)/,
+  )
   assert.match(source, /componentReleasePaths/)
   assert.match(source, /componentReleaseSubjects/)
   assert.match(source, /`component=\$\{component\}`/)

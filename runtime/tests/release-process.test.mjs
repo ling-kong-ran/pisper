@@ -26,9 +26,18 @@ test('release validates immutable source and dispatches without versioning or ta
   assert.match(source, /source !== remoteSource/)
   assert.match(source, /`version=\$\{nextVersion\}`/)
   assert.match(source, /`source_sha=\$\{source\}`/)
+  assert.match(source, /run\('gh', \['run', 'watch', runId, '--exit-status'\]\)/)
+  assert.match(source, /index < plans\.length - 1/)
   assert.doesNotMatch(source, /runNpm\(\['version'/)
   assert.doesNotMatch(source, /run\('git', \['tag', (?!'--list')/)
   assert.doesNotMatch(source, /run\('git', \['push'/)
+})
+
+test('the npm lockfile preserves third-party package registry identities', async () => {
+  const lockfile = await readFile('package-lock.json', 'utf8')
+
+  assert.match(lockfile, /@hono\/node-server\/-\/node-server-2\.1\.0\.tgz/)
+  assert.doesNotMatch(lockfile, /@hono\/node-runtime/)
 })
 
 test('queued component releases accept only isolated version commits after the source', async () => {

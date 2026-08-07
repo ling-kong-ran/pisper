@@ -167,23 +167,35 @@ const selectedComponents = plans.map(({ component }) => component)
 console.log(`${requestedComponent ? '发布组件' : '自动发布组件'}：${selectedComponents.join('、')}`)
 runComponentChecks(selectedComponents)
 
-for (const { component, nextVersion, tag } of plans) {
-  run('gh', [
-    'workflow',
-    'run',
-    'release.yml',
-    '--ref',
-    releaseBranch,
-    '-f',
-    `component=${component}`,
-    '-f',
-    `version=${nextVersion}`,
-    '-f',
-    `source_sha=${source}`,
-  ])
-  console.log(`已请求构建 ${tag}（源提交 ${source}）。`)
+for (const [index, { component, nextVersion, tag }] of plans.entries()) {
+  const output = run(
+    'gh',
+    [
+      'workflow',
+      'run',
+      'release.yml',
+      '--ref',
+      releaseBranch,
+      '-f',
+      `component=${component}`,
+      '-f',
+      `version=${nextVersion}`,
+      '-f',
+      `source_sha=${source}`,
+    ],
+    { capture: true },
+  )
+  const runId = output.match(/actions\/runs\/(\d+)/)?.[1]
+  if (!runId) throw new Error(`无法从 GitHub CLI 输出识别 ${tag} 的 workflow run：${output}`)
+  console.log(output)
+  console.log(`已请求构建 ${tag}（源提交 ${source}，run ${runId}）。`)
+
+  if (index < plans.length - 1) {
+    console.log(`等待 ${tag} 成功后再派发下一个组件，避免 GitHub 取消排队任务…`)
+    run('gh', ['run', 'watch', runId, '--exit-status'])
+  }
 }
 
 console.log(`只会执行 ${selectedComponents.join('、')} 对应的质量门禁和平台产物构建。`)
-console.log('多个组件任务会按发布队列依次完成；各自的版本文件和 tag 仍在资产验证后原子更新。')
+console.log('多个组件任务会依次派发；各自的版本文件和 tag 仍在资产验证后原子更新。')
 console.log(`可执行 gh run list --workflow release.yml --limit ${plans.length} 查看发布进度。`)
