@@ -25,29 +25,27 @@ fn package_version(path: &str, marker: &str) -> String {
         .unwrap_or_else(|| "0.0.0".to_string())
 }
 
-fn link_windows_resources_for_all_targets() {
+fn stage_windows_test_resource() {
     let target_env = std::env::var("CARGO_CFG_TARGET_ENV").unwrap_or_default();
-    let (generated_name, shared_name) = if target_env == "msvc" {
-        ("resource.lib", "pisper-resource.lib")
+    let (generated_name, test_name) = if target_env == "msvc" {
+        ("resource.lib", "pisper_test_resource.lib")
     } else {
-        ("libresource.a", "libpisper-resource.a")
+        ("libresource.a", "libpisper_test_resource.a")
     };
     let out_dir =
         std::path::PathBuf::from(std::env::var_os("OUT_DIR").expect("Cargo must provide OUT_DIR"));
     let generated = out_dir.join(generated_name);
-    let shared = out_dir.join(shared_name);
+    let test_resource = out_dir.join(test_name);
     assert!(
         generated.is_file(),
         "tauri-build did not generate the Windows resource at {}",
         generated.display()
     );
 
-    let _ = std::fs::remove_file(&shared);
-    std::fs::rename(&generated, &shared).expect("failed to stage the shared Windows resource");
-    // tauri-build links `generated` to binaries. Keep that argument valid while the shared
-    // resource is linked once to binaries and test harnesses through the general argument.
-    std::fs::write(&generated, b"!<arch>\n").expect("failed to create an empty COFF archive");
-    println!("cargo:rustc-link-arg={}", shared.display());
+    // tauri-build links `generated` to the application binary. Unit-test targets opt in to this
+    // valid copy through their cfg(test) native link block, so the binary is never linked twice.
+    std::fs::copy(&generated, &test_resource).expect("failed to stage the Windows test resource");
+    println!("cargo:rustc-link-search=native={}", out_dir.display());
 }
 
 fn main() {
@@ -72,6 +70,6 @@ fn main() {
     tauri_build::build();
 
     if std::env::var("CARGO_CFG_TARGET_OS").as_deref() == Ok("windows") {
-        link_windows_resources_for_all_targets();
+        stage_windows_test_resource();
     }
 }

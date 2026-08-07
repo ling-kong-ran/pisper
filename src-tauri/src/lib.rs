@@ -3,6 +3,10 @@ mod component_updates;
 mod desktop_bridge;
 mod desktop_pet;
 
+#[cfg(all(test, target_os = "windows"))]
+#[link(name = "pisper_test_resource", kind = "static")]
+extern "C" {}
+
 use std::{
     io::{BufRead, BufReader, Read, Write},
     path::{Path, PathBuf},

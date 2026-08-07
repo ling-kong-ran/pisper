@@ -50,6 +50,22 @@ test('release quality stages both desktop sidecars before checking Rust', async 
   assert.doesNotMatch(qualityJob, /sandbox:stage|agent-sandboxd/)
 })
 
+test('Windows test harnesses reuse the valid Tauri resource without replacing binary input', async () => {
+  const [build, library, binary] = await Promise.all([
+    readFile('src-tauri/build.rs', 'utf8'),
+    readFile('src-tauri/src/lib.rs', 'utf8'),
+    readFile('src-tauri/src/main.rs', 'utf8'),
+  ])
+
+  assert.match(build, /std::fs::copy\(&generated, &test_resource\)/)
+  assert.match(build, /cargo:rustc-link-search=native=/)
+  assert.doesNotMatch(build, /std::fs::rename|!<arch>|rustc-link-arg-tests/)
+  for (const target of [library, binary]) {
+    assert.match(target, /#\[cfg\(all\(test, target_os = "windows"\)\)\]/)
+    assert.match(target, /#\[link\(name = "pisper_test_resource", kind = "static"\)\]/)
+  }
+})
+
 test('Windows GNU packages carry the WebView2 loader through an explicit Rust target', async () => {
   const [packager, staging] = await Promise.all([
     readFile('scripts/package-tauri-release.mjs', 'utf8'),
