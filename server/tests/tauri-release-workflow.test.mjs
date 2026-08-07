@@ -118,7 +118,9 @@ test('desktop bundles the TUI behind the narrow CLI management bridge', async ()
 test('release workflow validates all assets before the bot commits, tags, and publishes', async () => {
   const workflow = await readFile('.github/workflows/release.yml', 'utf8')
   const validator = workflow.indexOf('node scripts/validate-tauri-release-assets.mjs')
-  const versionCommit = workflow.indexOf('git commit -m "chore(release): $RELEASE_TAG"')
+  const versionCommit = workflow.indexOf(
+    'git commit -m "chore(release-$RELEASE_COMPONENT): $RELEASE_TAG"',
+  )
   const atomicPush = workflow.indexOf('git push --atomic origin')
   const draftUpload = workflow.indexOf('gh release create "$RELEASE_TAG"')
   const publish = workflow.indexOf('gh release edit "$RELEASE_TAG"')
@@ -142,11 +144,16 @@ test('release workflow stages version metadata without exposing it before all bu
   const release = workflow.slice(workflow.indexOf('  release:'))
 
   assert.match(workflow, /workflow_dispatch:/)
+  assert.match(workflow, /component:/)
   assert.match(workflow, /source_sha:/)
   assert.match(prepare, /git fetch origin release/)
   assert.match(prepare, /git rev-parse origin\/release/)
-  assert.match(prepare, /node scripts\/stage-release-version\.mjs/)
+  assert.match(
+    prepare,
+    /node scripts\/stage-release-version\.mjs "\$RELEASE_COMPONENT" "\$RELEASE_VERSION"/,
+  )
   assert.match(prepare, /name: release-source/)
+  assert.match(prepare, /src-tauri\/desktop-package\.json/)
   assert.match(release, /remote_source=.*refs\/heads\/\$RELEASE_BRANCH/)
   assert.match(release, /test "\$remote_source" = "\$RELEASE_SOURCE_SHA"/)
   assert.match(release, /refs\/tags\/\$RELEASE_TAG/)

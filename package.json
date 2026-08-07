@@ -29,7 +29,6 @@
     "tui:stage": "node scripts/stage-tauri-cli.mjs",
     "tui:package": "node scripts/package-tui.mjs",
     "tui:build": "npm run sidecar:sea && npm run tui:package",
-    "version": "node scripts/sync-tui-version.mjs",
     "release": "node scripts/release.mjs",
     "lint": "oxlint",
     "format": "prettier --write .",

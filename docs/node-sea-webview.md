@@ -77,15 +77,27 @@ Pisper checks the human-readable GitHub Release first, then enables in-app downl
 
 Updater signatures and platform code signatures are separate. Windows Authenticode still requires a platform certificate. macOS distribution requires `APPLE_CERTIFICATE`, `APPLE_CERTIFICATE_PASSWORD`, and notarization credentials; without them the DMG can be built but Gatekeeper will not treat it as a verified distribution. Linux AppImage/DEB packages do not require a platform certificate, while their in-app updater artifact still uses the Tauri private key.
 
-## Release Matrix
+## Component Releases
 
-The tag-triggered workflow builds four native jobs:
+Desktop, TUI, and server/web versions advance independently:
 
-| Updater platform | GitHub runner | Public packages |
-| --- | --- | --- |
-| `windows-x86_64` | `windows-latest` | NSIS |
-| `darwin-x86_64` | `macos-15-intel` | DMG |
-| `darwin-aarch64` | `macos-15` | DMG |
-| `linux-x86_64` | `ubuntu-22.04` | AppImage, DEB |
+| Scope | Version source | Tag | Platform package |
+| --- | --- | --- | --- |
+| `desktop` | `src-tauri/desktop-package.json` | `vX.Y.Z` | Signed Tauri installer and updater |
+| `tui` | `src-tui/Cargo.toml` | `tui-vX.Y.Z` | Self-contained TUI, SEA sidecar, and runtime |
+| `server` | root `package.json` | `server-vX.Y.Z` | SEA sidecar and runtime |
+
+Run `npm run release -- <desktop|tui|server> <patch|minor|major|X.Y.Z>`. The workflow runs only the selected scope's checks and packaging. TUI keeps its sidecar/runtime in the archive so a standalone download remains usable, but it does not build Tauri. Server releases do not compile either Rust client. Desktop releases still integrate the current server and TUI sources into the application bundle.
+
+Only desktop Releases are marked as GitHub `latest`; this preserves `/releases/latest` and `latest.json` as desktop updater channels. TUI and server Releases are published with `--latest=false` and use their prefixed tags.
+
+All scopes use four native jobs:
+
+| Platform | GitHub runner | Desktop package | TUI/server package |
+| --- | --- | --- | --- |
+| `windows-x86_64` | `windows-latest` | NSIS | `.tar.gz` |
+| `darwin-x86_64` | `macos-15-intel` | DMG | `.tar.gz` |
+| `darwin-aarch64` | `macos-15` | DMG | `.tar.gz` |
+| `linux-x86_64` | `ubuntu-22.04` | AppImage, DEB | `.tar.gz` |
 
 Existing Electron installations cannot consume Tauri's `latest.json`. Users of those historical builds must install a Tauri package manually; Pisper's Agent data directory remains independent from the application installation directory.

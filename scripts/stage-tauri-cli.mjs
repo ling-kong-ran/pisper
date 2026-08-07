@@ -29,8 +29,9 @@ function run(command, args) {
   })
 }
 
-const packageJson = JSON.parse(await readFile(join(root, 'package.json'), 'utf8'))
-await run(process.execPath, [join(root, 'scripts', 'sync-tui-version.mjs')])
+const tuiManifest = await readFile(join(root, 'src-tui', 'Cargo.toml'), 'utf8')
+const tuiVersion = tuiManifest.match(/\[package\][\s\S]*?\r?\nversion\s*=\s*"([^"]+)"/)?.[1]
+if (!tuiVersion) throw new Error('Unable to resolve the Pisper TUI version.')
 await run('cargo', [
   'build',
   '--locked',
@@ -50,4 +51,4 @@ for (const triple of targetTriples()) {
   await copyFile(source, destination)
   console.log(`Prepared Tauri CLI payload: ${destination}`)
 }
-console.log(`Staged Pisper CLI ${packageJson.version} for the Tauri desktop bundle.`)
+console.log(`Staged Pisper CLI ${tuiVersion} for the Tauri desktop bundle.`)

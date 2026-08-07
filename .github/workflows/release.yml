@@ -1,10 +1,18 @@
-name: Release desktop apps
+name: Release component
 
 on:
   workflow_dispatch:
     inputs:
+      component:
+        description: 'Release component'
+        required: true
+        type: choice
+        options:
+          - desktop
+          - tui
+          - server
       version:
-        description: 'Release version (X.Y.Z)'
+        description: 'Component release version (X.Y.Z)'
         required: true
         type: string
       source_sha:
@@ -20,13 +28,14 @@ concurrency:
   cancel-in-progress: false
 
 env:
+  RELEASE_COMPONENT: ${{ inputs.component }}
   RELEASE_VERSION: ${{ inputs.version }}
-  RELEASE_TAG: v${{ inputs.version }}
+  RELEASE_TAG: ${{ inputs.component == 'desktop' && format('v{0}', inputs.version) || format('{0}-v{1}', inputs.component, inputs.version) }}
   RELEASE_SOURCE_SHA: ${{ inputs.source_sha }}
 
 jobs:
   prepare:
-    name: Prepare staged release
+    name: Prepare staged ${{ inputs.component }} release
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
@@ -45,15 +54,10 @@ jobs:
       - uses: actions/setup-node@v5
         with:
           node-version: 24
-      - uses: dtolnay/rust-toolchain@stable
-      - name: Refresh staged release dependencies
-        run: |
-          npm update
-          cargo update --manifest-path src-tui/Cargo.toml
-      - name: Stage version without committing or tagging
-        run: node scripts/stage-release-version.mjs "$RELEASE_VERSION" "$RELEASE_SOURCE_SHA"
-      - name: Generate release notes from the immutable source
-        run: node scripts/prepare-release.mjs "$RELEASE_TAG" "$RELEASE_SOURCE_SHA"
+      - name: Stage component version without committing or tagging
+        run: node scripts/stage-release-version.mjs "$RELEASE_COMPONENT" "$RELEASE_VERSION" "$RELEASE_SOURCE_SHA"
+      - name: Generate component release notes from the immutable source
+        run: node scripts/prepare-release.mjs "$RELEASE_TAG" "$RELEASE_SOURCE_SHA" "$RELEASE_COMPONENT"
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       - uses: actions/upload-artifact@v4
@@ -63,13 +67,14 @@ jobs:
           path: |
             package.json
             package-lock.json
+            src-tauri/desktop-package.json
             src-tui/Cargo.toml
             src-tui/Cargo.lock
             release-body.md
             public/release-notes.json
 
   quality:
-    name: Verify staged release source
+    name: Verify staged ${{ inputs.component }} source
     needs: prepare
     runs-on: ubuntu-latest
     steps:
@@ -81,30 +86,47 @@ jobs:
           name: release-source
           path: .
       - uses: actions/setup-node@v5
+        if: inputs.component != 'tui'
         with:
           node-version: 24
           cache: npm
       - uses: dtolnay/rust-toolchain@stable
+        if: inputs.component != 'server'
       - name: Install Linux Tauri prerequisites
+        if: inputs.component == 'desktop'
         run: |
           sudo apt-get update
           sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf
-      - run: npm ci
-      - run: npm test
-      - run: npm run check
-      - name: Build desktop sidecars for Rust checks
+      - name: Install Node dependencies
+        if: inputs.component != 'tui'
+        run: npm ci
+      - name: Check server and web
+        if: inputs.component == 'server'
         run: |
+          npm test
+          npm run check
+          npm run build
+      - name: Check TUI
+        if: inputs.component == 'tui'
+        run: |
+          cargo fmt --manifest-path src-tui/Cargo.toml -- --check
+          cargo test --manifest-path src-tui/Cargo.toml --locked
+          cargo clippy --manifest-path src-tui/Cargo.toml --all-targets --locked -- -D warnings
+      - name: Check integrated desktop source
+        if: inputs.component == 'desktop'
+        run: |
+          npm test
+          npm run check
+          npm run build
           npm run sidecar:sea
           npm run tui:stage
-      - name: Check Rust clients
-        run: |
           cargo check --manifest-path src-tauri/Cargo.toml
           cargo clippy --manifest-path src-tauri/Cargo.toml --all-targets -- -D warnings
-          cargo test --manifest-path src-tui/Cargo.toml
-          cargo clippy --manifest-path src-tui/Cargo.toml --all-targets -- -D warnings
+          cargo test --manifest-path src-tui/Cargo.toml --locked
+          cargo clippy --manifest-path src-tui/Cargo.toml --all-targets --locked -- -D warnings
 
   build:
-    name: Build ${{ matrix.name }}
+    name: Build ${{ inputs.component }} for ${{ matrix.name }}
     needs: [prepare, quality]
     strategy:
       fail-fast: false
@@ -124,14 +146,14 @@ jobs:
             os: ubuntu-22.04
     runs-on: ${{ matrix.os }}
     env:
-      TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
-      TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
-      APPLE_CERTIFICATE: ${{ startsWith(matrix.target, 'darwin-') && secrets.APPLE_CERTIFICATE || '' }}
-      APPLE_CERTIFICATE_PASSWORD: ${{ startsWith(matrix.target, 'darwin-') && secrets.APPLE_CERTIFICATE_PASSWORD || '' }}
-      APPLE_SIGNING_IDENTITY: ${{ startsWith(matrix.target, 'darwin-') && secrets.APPLE_SIGNING_IDENTITY || '' }}
-      APPLE_ID: ${{ startsWith(matrix.target, 'darwin-') && secrets.APPLE_ID || '' }}
-      APPLE_PASSWORD: ${{ startsWith(matrix.target, 'darwin-') && secrets.APPLE_APP_SPECIFIC_PASSWORD || '' }}
-      APPLE_TEAM_ID: ${{ startsWith(matrix.target, 'darwin-') && secrets.APPLE_TEAM_ID || '' }}
+      TAURI_SIGNING_PRIVATE_KEY: ${{ inputs.component == 'desktop' && secrets.TAURI_SIGNING_PRIVATE_KEY || '' }}
+      TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ inputs.component == 'desktop' && secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD || '' }}
+      APPLE_CERTIFICATE: ${{ inputs.component == 'desktop' && startsWith(matrix.target, 'darwin-') && secrets.APPLE_CERTIFICATE || '' }}
+      APPLE_CERTIFICATE_PASSWORD: ${{ inputs.component == 'desktop' && startsWith(matrix.target, 'darwin-') && secrets.APPLE_CERTIFICATE_PASSWORD || '' }}
+      APPLE_SIGNING_IDENTITY: ${{ inputs.component == 'desktop' && startsWith(matrix.target, 'darwin-') && secrets.APPLE_SIGNING_IDENTITY || '' }}
+      APPLE_ID: ${{ inputs.component == 'desktop' && startsWith(matrix.target, 'darwin-') && secrets.APPLE_ID || '' }}
+      APPLE_PASSWORD: ${{ inputs.component == 'desktop' && startsWith(matrix.target, 'darwin-') && secrets.APPLE_APP_SPECIFIC_PASSWORD || '' }}
+      APPLE_TEAM_ID: ${{ inputs.component == 'desktop' && startsWith(matrix.target, 'darwin-') && secrets.APPLE_TEAM_ID || '' }}
     steps:
       - uses: actions/checkout@v5
         with:
@@ -146,30 +168,58 @@ jobs:
           node-version: 24
           cache: npm
       - uses: dtolnay/rust-toolchain@stable
+        if: inputs.component != 'server'
       - uses: Swatinem/rust-cache@v2
+        if: inputs.component != 'server'
         with:
-          workspaces: src-tauri
+          workspaces: |
+            src-tauri
+            src-tui
       - name: Install Linux Tauri prerequisites
-        if: runner.os == 'Linux'
+        if: runner.os == 'Linux' && inputs.component == 'desktop'
         run: |
           sudo apt-get update
           sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf
       - run: npm ci
       - name: Require Tauri updater signing credentials
+        if: inputs.component == 'desktop'
         shell: bash
         run: |
           test -n "$TAURI_SIGNING_PRIVATE_KEY" || { echo "TAURI_SIGNING_PRIVATE_KEY is not configured." >&2; exit 1; }
           test -n "$TAURI_SIGNING_PRIVATE_KEY_PASSWORD" || { echo "TAURI_SIGNING_PRIVATE_KEY_PASSWORD is not configured." >&2; exit 1; }
-      - name: Build SEA sidecar, verify Agent, and package Tauri
-        run: npm run desktop:webview:build
+      - name: Build scoped release artifacts
+        shell: bash
+        run: |
+          case "$RELEASE_COMPONENT" in
+            desktop)
+              npm run desktop:webview:build
+              ;;
+            tui)
+              npm run sidecar:sea
+              npm run sidecar:sea:smoke
+              npm run tui:package
+              node scripts/archive-component-release.mjs tui
+              ;;
+            server)
+              npm run sidecar:sea
+              npm run sidecar:sea:smoke
+              node scripts/archive-component-release.mjs server
+              ;;
+            *)
+              echo "Unsupported release component: $RELEASE_COMPONENT" >&2
+              exit 1
+              ;;
+          esac
       - uses: actions/upload-artifact@v4
         with:
-          name: pisper-tauri-${{ matrix.target }}
+          name: pisper-${{ inputs.component }}-${{ matrix.target }}
           if-no-files-found: error
-          path: release/tauri-artifacts
+          path: |
+            release/tauri-artifacts
+            release/component-artifacts
 
   release:
-    name: Finalize version and publish release
+    name: Finalize ${{ inputs.component }} version and publish release
     needs: build
     runs-on: ubuntu-latest
     steps:
@@ -186,18 +236,24 @@ jobs:
           path: .
       - uses: actions/download-artifact@v5
         with:
-          pattern: pisper-tauri-*
+          pattern: pisper-${{ inputs.component }}-*
           path: artifacts
           merge-multiple: true
       - name: Create multi-platform updater manifest
+        if: inputs.component == 'desktop'
         run: node scripts/create-tauri-update-manifest.mjs "$RELEASE_TAG" artifacts --require-all --output artifacts/latest.json
-      - name: Validate exact release asset set
+      - name: Validate exact desktop release asset set
+        if: inputs.component == 'desktop'
         run: node scripts/validate-tauri-release-assets.mjs "$RELEASE_TAG" artifacts
-      - name: Commit version, upload a draft, and publish atomically
+      - name: Validate exact component release asset set
+        if: inputs.component != 'desktop'
+        run: node scripts/validate-component-release-assets.mjs "$RELEASE_COMPONENT" "$RELEASE_TAG" artifacts
+      - name: Commit component version, upload a draft, and publish atomically
         shell: bash
         env:
           GH_TOKEN: ${{ github.token }}
           RELEASE_BRANCH: release
+          MAKE_LATEST: ${{ inputs.component == 'desktop' && 'true' || 'false' }}
         run: |
           set -Eeuo pipefail
           git config user.name "github-actions[bot]"
@@ -213,12 +269,16 @@ jobs:
             exit 1
           }
 
-          git add package.json package-lock.json src-tui/Cargo.toml src-tui/Cargo.lock
+          case "$RELEASE_COMPONENT" in
+            desktop) git add src-tauri/desktop-package.json ;;
+            tui) git add src-tui/Cargo.toml src-tui/Cargo.lock ;;
+            server) git add package.json package-lock.json ;;
+          esac
           git diff --cached --quiet && {
             echo "staged release has no version changes" >&2
             exit 1
           }
-          git commit -m "chore(release): $RELEASE_TAG"
+          git commit -m "chore(release-$RELEASE_COMPONENT): $RELEASE_TAG"
           release_commit="$(git rev-parse HEAD)"
           git tag "$RELEASE_TAG"
 
@@ -244,16 +304,17 @@ jobs:
           pushed=1
 
           mapfile -d '' assets < <(find artifacts -type f -print0)
+          title="Pisper ${RELEASE_COMPONENT^} $RELEASE_TAG"
           gh release create "$RELEASE_TAG" \
             --draft \
             --verify-tag \
-            --title "Pisper $RELEASE_TAG" \
+            --title "$title" \
             --notes-file release-body.md \
             "${assets[@]}"
           gh release edit "$RELEASE_TAG" \
             --draft=false \
-            --latest \
-            --title "Pisper $RELEASE_TAG" \
+            --latest="$MAKE_LATEST" \
+            --title "$title" \
             --notes-file release-body.md
 
           trap - ERR

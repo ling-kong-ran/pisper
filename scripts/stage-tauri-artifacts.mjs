@@ -13,8 +13,10 @@ const stageRoot = path.resolve(
   process.env.PISPER_TAURI_STAGE_DIR || path.join('release', 'tauri-artifacts'),
 )
 const requireSignature = process.argv.includes('--require-signature')
-const packageJson = JSON.parse(await readFile(path.join(root, 'package.json'), 'utf8'))
-const version = packageJson.version
+const desktopPackage = JSON.parse(
+  await readFile(path.join(root, 'src-tauri', 'desktop-package.json'), 'utf8'),
+)
+const version = desktopPackage.version
 
 const platform =
   process.platform === 'win32'

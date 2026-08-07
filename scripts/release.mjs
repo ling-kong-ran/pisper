@@ -1,16 +1,23 @@
 import { execFileSync } from 'node:child_process'
-import { readFile } from 'node:fs/promises'
-import { dirname, join, resolve } from 'node:path'
+import { dirname, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { assertHasSubstantiveReleaseCommits } from './release-policy.mjs'
+import {
+  RELEASE_COMPONENTS,
+  fallbackReleaseTag,
+  readComponentVersion,
+  releaseTag,
+  releaseVersionFromTag,
+} from './release-components.mjs'
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..')
-const packagePath = join(root, 'package.json')
 const npmCli = String(process.env.npm_execpath || '').trim()
-const input = process.argv.slice(2).find((value) => !value.startsWith('--')) || 'patch'
+const args = process.argv.slice(2).filter((value) => !value.startsWith('--'))
+const component = RELEASE_COMPONENTS[args[0]] ? args.shift() : 'desktop'
+const input = args[0] || 'patch'
 
-function run(command, args, { capture = false } = {}) {
-  const result = execFileSync(command, args, {
+function run(command, commandArgs, { capture = false } = {}) {
+  const result = execFileSync(command, commandArgs, {
     cwd: root,
     encoding: 'utf8',
     stdio: capture ? 'pipe' : 'inherit',
@@ -18,9 +25,9 @@ function run(command, args, { capture = false } = {}) {
   return typeof result === 'string' ? result.trim() : ''
 }
 
-function runNpm(args, options) {
-  if (npmCli) return run(process.execPath, [npmCli, ...args], options)
-  return run(process.platform === 'win32' ? 'npm.cmd' : 'npm', args, options)
+function runNpm(commandArgs, options) {
+  if (npmCli) return run(process.execPath, [npmCli, ...commandArgs], options)
+  return run(process.platform === 'win32' ? 'npm.cmd' : 'npm', commandArgs, options)
 }
 
 function assertVersionInput(value) {
@@ -50,6 +57,27 @@ function resolveVersion(current, target) {
   return `${major}.${minor}.${patch + 1}`
 }
 
+function runComponentChecks(selected) {
+  console.log(`正在执行 ${selected} 发布前检查…`)
+  if (selected === 'desktop') {
+    runNpm(['test'])
+    runNpm(['run', 'check'])
+    runNpm(['run', 'build'])
+    runNpm(['run', 'tui:test'])
+    runNpm(['run', 'tui:check'])
+    return
+  }
+  if (selected === 'server') {
+    runNpm(['test'])
+    runNpm(['run', 'check'])
+    runNpm(['run', 'build'])
+    return
+  }
+  run('cargo', ['fmt', '--manifest-path', 'src-tui/Cargo.toml', '--', '--check'])
+  runNpm(['run', 'tui:test'])
+  runNpm(['run', 'tui:check'])
+}
+
 assertVersionInput(input)
 
 const dirty = run('git', ['status', '--porcelain', '--untracked-files=no'], { capture: true })
@@ -72,11 +100,12 @@ if (source !== remoteSource) {
   )
 }
 
-const latestTag = run('git', ['tag', '--list', 'v*', '--sort=-version:refname'], { capture: true })
+const tags = run('git', ['tag', '--list', '--sort=-version:refname'], { capture: true })
   .split(/\r?\n/)
-  .find((value) => /^v\d+\.\d+\.\d+$/.test(value))
+  .filter(Boolean)
+const latestTag = fallbackReleaseTag(component, tags)
 if (latestTag) {
-  console.log(`正在检查自 ${latestTag} 以来的实质性提交…`)
+  console.log(`正在检查自 ${latestTag} 以来的 ${component} 实质性提交…`)
   const subjects = run('git', ['log', '--format=%s', `${latestTag}..${source}`], { capture: true })
     .split(/\r?\n/)
     .map((value) => value.trim())
@@ -85,26 +114,24 @@ if (latestTag) {
   console.log(`已找到 ${substantive.length} 个实质性提交：`)
   for (const subject of substantive) console.log(`  - ${subject}`)
 } else {
-  console.log('未找到已有版本标签，允许作为首次发布继续。')
+  console.log(`未找到已有 ${component} 版本标签，允许作为首次组件发布继续。`)
 }
 
-const currentVersion = JSON.parse(await readFile(packagePath, 'utf8')).version
+const currentVersion = await readComponentVersion(root, component)
 const nextVersion = resolveVersion(currentVersion, input)
 if (compareVersions(nextVersion, currentVersion) <= 0) {
-  throw new Error(`新版本 ${nextVersion} 必须高于当前版本 ${currentVersion}。`)
+  throw new Error(`新版本 ${nextVersion} 必须高于当前 ${component} 版本 ${currentVersion}。`)
 }
-const tag = `v${nextVersion}`
+const tag = releaseTag(component, nextVersion)
 if (run('git', ['tag', '--list', tag], { capture: true })) throw new Error(`标签 ${tag} 已经存在。`)
-if (latestTag && compareVersions(nextVersion, latestTag.slice(1)) <= 0) {
-  throw new Error(`新版本 ${nextVersion} 必须高于最新标签 ${latestTag}。`)
+if (latestTag) {
+  const latestVersion = releaseVersionFromTag(component, latestTag) || latestTag.slice(1)
+  if (compareVersions(nextVersion, latestVersion) <= 0) {
+    throw new Error(`新版本 ${nextVersion} 必须高于最新 ${component} 标签 ${latestTag}。`)
+  }
 }
 
-console.log('正在执行发布前检查…')
-runNpm(['test'])
-runNpm(['run', 'check'])
-runNpm(['run', 'build'])
-runNpm(['run', 'tui:test'])
-runNpm(['run', 'tui:check'])
+runComponentChecks(component)
 
 run('gh', [
   'workflow',
@@ -113,11 +140,14 @@ run('gh', [
   '--ref',
   releaseBranch,
   '-f',
+  `component=${component}`,
+  '-f',
   `version=${nextVersion}`,
   '-f',
   `source_sha=${source}`,
 ])
 
 console.log(`已请求构建 ${tag}（源提交 ${source}）。`)
+console.log(`只会执行 ${component} 对应的质量门禁和平台产物构建。`)
 console.log('版本文件、release 分支和 tag 只会在全部平台构建及资产校验成功后更新。')
 console.log('可执行 gh run list --workflow release.yml --limit 1 查看发布进度。')

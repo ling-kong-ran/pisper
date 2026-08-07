@@ -36,7 +36,9 @@ async function filesUnder(directory) {
 }
 
 const version = tag.slice(1)
-const packageJson = JSON.parse(await readFile(path.join(root, 'package.json'), 'utf8'))
+const desktopPackage = JSON.parse(
+  await readFile(path.join(root, 'src-tauri', 'desktop-package.json'), 'utf8'),
+)
 const updaterPublicKey = (
   await readFile(path.join(root, 'src-tauri', 'updater.pubkey'), 'utf8')
 ).trim()
@@ -46,8 +48,8 @@ const updaterConfig = JSON.parse(
 if (updaterConfig.plugins?.updater?.pubkey !== updaterPublicKey) {
   throw new Error('Tauri updater build configuration does not match src-tauri/updater.pubkey.')
 }
-if (packageJson.version !== version) {
-  throw new Error(`Tag ${tag} does not match package.json version ${packageJson.version}.`)
+if (desktopPackage.version !== version) {
+  throw new Error(`Tag ${tag} does not match desktop version ${desktopPackage.version}.`)
 }
 
 const updaterSuffixes = {

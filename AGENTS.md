@@ -83,28 +83,29 @@ npm run tui:package         # build and package the TUI distribution
 npm run tui:build           # SEA build followed by TUI packaging
 
 # Versioning and release
-npm run version             # synchronize src-tui/Cargo.toml and Cargo.lock to package.json
-npm run release -- patch    # run release gates and dispatch the atomic GitHub Actions release
-npm run release -- minor
-npm run release -- major
-npm run release -- 0.4.20
+npm run release -- desktop patch  # signed Tauri installers; legacy `patch` still means desktop
+npm run release -- tui patch      # self-contained TUI bundles, no Tauri packaging
+npm run release -- server patch   # SEA/runtime bundles, no Tauri or TUI build
+npm run release -- desktop 0.4.20 # explicit component version
 ```
 
 Prefer `npm run check` and `npm test` before considering a change done. Run desktop/TUI packaging only when touching those surfaces.
 
 ### Release policy (agents)
 
-Releases must ship **substantive product changes**. Do **not** cut a version when the only delta since the latest `v*.*.*` tag is version metadata, dependency refresh, formatting, docs-only nits, or other release-script bookkeeping.
+Releases must ship **substantive product changes**. Do **not** cut a version when the only delta since the latest component tag is version metadata, dependency refresh, formatting, docs-only nits, or other release-script bookkeeping.
 
-Before running `npm run release`:
+Desktop, TUI, and server releases have independent versions and tags. Desktop uses `src-tauri/desktop-package.json` with `vX.Y.Z`; TUI uses `src-tui/Cargo.toml` with `tui-vX.Y.Z`; server/web uses root `package.json` with `server-vX.Y.Z`. Only desktop Releases are marked as GitHub `latest` and publish signed `latest.json` updater metadata. TUI bundles remain self-contained, so their scoped matrix packages the current server sidecar/runtime but never builds or signs Tauri installers.
+
+Before running `npm run release -- <desktop|tui|server> <version>`:
 
 1. Confirm you are on the `release` branch, the tracked working tree is clean, and local `release` exactly matches `origin/release`.
 2. Inspect `git log --oneline <latest-tag>..HEAD` and `git diff --stat <latest-tag>..HEAD`.
-3. Require at least one substantive commit since the latest tag: `feat`, `fix`, `perf`, user-facing behavior, security, or packaging that changes shipped artifacts. Pure `chore(deps)`, `chore(release)`, `style`, and docs-only commits do **not** count by themselves.
+3. Require at least one substantive commit since the latest tag for that component (`v*`, `tui-v*`, or `server-v*`): `feat`, `fix`, `perf`, user-facing behavior, security, or packaging that changes shipped artifacts. Pure `chore(deps)`, `chore(release)`, `style`, and docs-only commits do **not** count by themselves.
 4. If there is nothing substantive to ship, **stop**. Do not invent a patch release, do not run `npm run release` “just to push”, and do not force-publish after dependency refresh alone.
-5. When the user asks to “发布新版本” but HEAD is already a release commit / tag with no later product commits, report that the latest version is already published and wait for new work.
+5. When the user asks to “发布新版本” but HEAD is already the requested component's release commit / tag with no later product commits, report that the latest version is already published and wait for new work.
 
-`npm run release` enforces this gate in `scripts/release.mjs` via `scripts/release-policy.mjs`, runs local checks, and dispatches `.github/workflows/release.yml` with the exact source SHA and target version. It must **not** bump versions, create tags, or push release metadata locally. GitHub Actions stages the version and refreshed dependency locks only in artifacts, verifies and builds every platform, validates the exact signed asset set, then lets `github-actions[bot]` commit `chore(release): vX.Y.Z` and atomically push the `release` branch plus tag immediately before publishing a Draft Release. Any earlier failure leaves the remote version and tag unchanged; finalization failures run compensating cleanup. Do not reintroduce tag-push-triggered releases.
+`npm run release` enforces this gate in `scripts/release.mjs` via `scripts/release-policy.mjs`, runs only the selected component's local checks, and dispatches `.github/workflows/release.yml` with the component, exact source SHA, and target version. It must **not** bump versions, create tags, or push release metadata locally. GitHub Actions stages only that component's version files in artifacts, verifies and builds its platform packages, validates the exact asset set, then lets `github-actions[bot]` commit `chore(release-<component>): <tag>` and atomically push the `release` branch plus tag immediately before publishing a Draft Release. Any earlier failure leaves the remote version and tag unchanged; finalization failures run compensating cleanup. Do not reintroduce tag-push-triggered releases.
 
 ## Conventions
 
@@ -127,7 +128,7 @@ Before running `npm run release`:
 
 - Pure shared logic that both UI and server need goes in `shared/` (with `.d.mts` types when consumed from TS).
 - Desktop packaging and updater details: `docs/node-sea-webview.md`. Do not reintroduce Electron packaging paths.
-- TUI user-facing docs: `src-tui/README.md` / `README.en.md`. Keep version in sync via `npm run version` / release scripts when cutting releases.
+- TUI user-facing docs: `src-tui/README.md` / `README.en.md`. TUI versions advance only through the scoped release script; do not synchronize them to desktop or server versions.
 
 ## Verification expectations
 

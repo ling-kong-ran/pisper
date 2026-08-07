@@ -6,6 +6,9 @@ import { fileURLToPath } from 'node:url'
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..')
 const packageJson = JSON.parse(await readFile(join(root, 'package.json'), 'utf8'))
+const tuiManifest = await readFile(join(root, 'src-tui', 'Cargo.toml'), 'utf8')
+const tuiVersion = tuiManifest.match(/\[package\][\s\S]*?\r?\nversion\s*=\s*"([^"]+)"/)?.[1]
+if (!tuiVersion) throw new Error('Unable to resolve the Pisper TUI version.')
 const platform =
   process.platform === 'win32' ? 'windows' : process.platform === 'darwin' ? 'macos' : 'linux'
 const arch = process.arch === 'x64' ? 'x86_64' : process.arch === 'arm64' ? 'aarch64' : process.arch
@@ -17,7 +20,7 @@ const runtimeSource = join(seaRoot, 'runtime')
 const stage = resolve(
   root,
   process.env.PISPER_TUI_STAGE_DIR ||
-    join('release', 'tui', `pisper-${packageJson.version}-${platform}-${arch}`),
+    join('release', 'tui', `pisper-${tuiVersion}-${platform}-${arch}`),
 )
 
 function run(command, args) {
@@ -40,7 +43,6 @@ async function requirePath(path, message) {
   }
 }
 
-await run(process.execPath, [join(root, 'scripts', 'sync-tui-version.mjs')])
 await run('cargo', [
   'build',
   '--locked',
@@ -78,7 +80,8 @@ await writeFile(
   `${JSON.stringify(
     {
       name: 'pisper',
-      version: packageJson.version,
+      version: tuiVersion,
+      serverVersion: packageJson.version,
       platform,
       arch,
       command: `pisper${executableSuffix}`,
