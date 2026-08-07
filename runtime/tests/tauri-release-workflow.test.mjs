@@ -60,10 +60,9 @@ test('Windows test harnesses reuse the valid Tauri resource without replacing bi
   assert.match(build, /std::fs::copy\(&generated, &test_resource\)/)
   assert.match(build, /cargo:rustc-link-search=native=/)
   assert.doesNotMatch(build, /std::fs::rename|!<arch>|rustc-link-arg-tests/)
-  for (const target of [library, binary]) {
-    assert.match(target, /#\[cfg\(all\(test, target_os = "windows"\)\)\]/)
-    assert.match(target, /#\[link\(name = "pisper_test_resource", kind = "static"\)\]/)
-  }
+  assert.match(library, /#\[cfg\(all\(test, target_os = "windows"\)\)\]/)
+  assert.match(library, /#\[link\(name = "pisper_test_resource", kind = "static"\)\]/)
+  assert.doesNotMatch(binary, /pisper_test_resource/)
 })
 
 test('Windows GNU packages carry the WebView2 loader through an explicit Rust target', async () => {
