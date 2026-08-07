@@ -168,9 +168,11 @@ test('spawn_agent starts asynchronously and inherits the active model, reasoning
     type: 'tool_execution_start',
     toolCallId: 'read-live',
     toolName: 'read',
-    args: { path: 'server/runtime.mjs' },
+    args: { path: 'runtime/runtime.mjs' },
   })
-  assert.deepEqual(service.list('parent-1')[0].currentActivity.args, { path: 'server/runtime.mjs' })
+  assert.deepEqual(service.list('parent-1')[0].currentActivity.args, {
+    path: 'runtime/runtime.mjs',
+  })
   session.emit({
     type: 'tool_execution_end',
     toolCallId: 'read-live',

@@ -1,3 +1,4 @@
+use pisper_component_updater::Component;
 use serde::Serialize;
 use std::{
     fs,
@@ -82,6 +83,36 @@ fn bundled_payload() -> Result<PathBuf, String> {
     Err("This Pisper build does not contain the terminal client.".to_string())
 }
 
+fn preferred_payload(app: &AppHandle) -> Result<(PathBuf, String), String> {
+    if let Some(installed) = crate::component_updates::installed_component(app, Component::Tui) {
+        return Ok((installed.executable(), installed.version.to_string()));
+    }
+    Ok((
+        bundled_payload()?,
+        env!("PISPER_BUNDLED_TUI_VERSION").to_string(),
+    ))
+}
+
+fn preferred_runtime(app: &AppHandle) -> Result<(PathBuf, PathBuf), String> {
+    if let Some(installed) = crate::component_updates::installed_component(app, Component::Runtime)
+    {
+        return Ok((
+            installed.executable(),
+            installed
+                .runtime_root()
+                .ok_or_else(|| "Installed runtime payload is missing.".to_string())?,
+        ));
+    }
+    let executable_dir = executable_dir()?;
+    Ok((
+        executable_dir.join(sidecar_name()),
+        app.path()
+            .resource_dir()
+            .map_err(|error| error.to_string())?
+            .join("sidecar-runtime"),
+    ))
+}
+
 fn install_dir(app: &AppHandle) -> Result<PathBuf, String> {
     #[cfg(windows)]
     {
@@ -114,14 +145,11 @@ fn managed_marker(version: &str, payload_size: u64) -> String {
 
 #[cfg(windows)]
 fn expected_marker(app: &AppHandle) -> Result<String, String> {
-    let payload = bundled_payload()?;
+    let (payload, version) = preferred_payload(app)?;
     let payload_size = fs::metadata(&payload)
         .map_err(|error| format!("Failed to inspect {}: {error}", payload.display()))?
         .len();
-    Ok(managed_marker(
-        &app.package_info().version.to_string(),
-        payload_size,
-    ))
+    Ok(managed_marker(&version, payload_size))
 }
 
 fn read_optional(path: &Path) -> Result<Option<String>, String> {
@@ -147,23 +175,18 @@ fn shell_quote(path: &Path) -> String {
 
 #[cfg(not(windows))]
 fn expected_launcher(app: &AppHandle) -> Result<String, String> {
-    if let Some(app_image) = std::env::var_os("APPIMAGE").map(PathBuf::from) {
-        if app_image.is_file() {
-            return Ok(format!(
-                "#!/bin/sh\n# {MANAGED_MARKER}\nexec {} --pisper-cli \"$@\"\n",
-                shell_quote(&app_image)
-            ));
+    if crate::component_updates::installed_component(app, Component::Tui).is_none() {
+        if let Some(app_image) = std::env::var_os("APPIMAGE").map(PathBuf::from) {
+            if app_image.is_file() {
+                return Ok(format!(
+                    "#!/bin/sh\n# {MANAGED_MARKER}\nexec {} --pisper-cli \"$@\"\n",
+                    shell_quote(&app_image)
+                ));
+            }
         }
     }
-
-    let payload = bundled_payload()?;
-    let executable_dir = executable_dir()?;
-    let sidecar = executable_dir.join(sidecar_name());
-    let runtime = app
-        .path()
-        .resource_dir()
-        .map_err(|error| error.to_string())?
-        .join("sidecar-runtime");
+    let (payload, _) = preferred_payload(app)?;
+    let (sidecar, runtime) = preferred_runtime(app)?;
     Ok(format!(
         "#!/bin/sh\n# {MANAGED_MARKER}\nPISPER_SIDECAR_PATH={} PISPER_APP_ROOT={} exec {} \"$@\"\n",
         shell_quote(&sidecar),
@@ -317,7 +340,7 @@ fn install_unix(app: &AppHandle) -> Result<(), String> {
 
 #[cfg(windows)]
 fn install_windows(app: &AppHandle) -> Result<(), String> {
-    let source = bundled_payload()?;
+    let (source, _) = preferred_payload(app)?;
     let target = install_path(app)?;
     let marker = marker_path(app)?;
     if target.exists() && !marker.exists() {
@@ -521,7 +544,7 @@ pub fn refresh_managed_cli(app: &AppHandle) -> Result<bool, String> {
 
 fn current_status(app: &AppHandle) -> Result<CliInstallStatus, String> {
     let target = install_path(app)?;
-    let supported = bundled_payload().is_ok();
+    let supported = preferred_payload(app).is_ok();
 
     #[cfg(windows)]
     let (installed, path_configured, launcher_matches) = {
@@ -607,14 +630,8 @@ pub fn desktop_uninstall_cli(app: AppHandle) -> Result<CliInstallStatus, String>
 }
 
 pub fn run_bundled_cli(app: &tauri::App, args: &[std::ffi::OsString]) -> Result<i32, String> {
-    let payload = bundled_payload()?;
-    let executable_dir = executable_dir()?;
-    let sidecar = executable_dir.join(sidecar_name());
-    let runtime = app
-        .path()
-        .resource_dir()
-        .map_err(|error| error.to_string())?
-        .join("sidecar-runtime");
+    let (payload, _) = preferred_payload(app.handle())?;
+    let (sidecar, runtime) = preferred_runtime(app.handle())?;
     let status = Command::new(payload)
         .args(args)
         .env("PISPER_SIDECAR_PATH", sidecar)

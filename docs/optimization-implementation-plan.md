@@ -16,7 +16,7 @@
 每个 plan 必须同时满足：
 
 1. 计划内行为与兼容要求完成，没有用 TODO 代替交付。
-2. 新增或更新与风险匹配的 server、Web 或 Rust 测试。
+2. 新增或更新与风险匹配的 Runtime、Web 或 Rust 测试。
 3. 运行计划列出的定向检查；涉及公共合约时再运行 `npm test` 和 `npm run check`。
 4. 检查 `git diff --check` 和 staged diff，确认没有混入其他 plan 或用户改动。
 5. 使用计划指定的 commit 主题提交，不 push。
@@ -71,8 +71,8 @@ Tauri 平台打包只在当前机器依赖齐全时运行；不能运行的矩�
 
 | 文件 | 行数 |
 | --- | ---: |
-| `server/runtime/agent-runtime.mjs` | 3742 |
-| `server/http/api-handler.mjs` | 663 |
+| `runtime/runtime/agent-runtime.mjs` | 3742 |
+| `runtime/http/api-handler.mjs` | 663 |
 | `src/features/chat/ChatPage.tsx` | 2063 |
 | `src/features/chat/FocusSession.tsx` | 1404 |
 | `src/features/config/ConfigPage.tsx` | 1748 |
@@ -304,14 +304,14 @@ P14 必须让质量命令不被未提交的本地 Agent 指令文件干扰，并
 
 ## P14 工程质量门禁与渐进类型化
 
-**目标**：PR 在合并前覆盖 Web、server 和 TUI 的基础质量，server/shared 获得一致格式和关键边界类型检查。
+**目标**：PR 在合并前覆盖 Web、Runtime 和 TUI 的基础质量，runtime/shared 获得一致格式和关键边界类型检查。
 
 **交付**：
 
 - 新增 pull_request workflow：Node 24 `npm ci`、`npm run check`、`npm test`、Rust fmt/check/test；使用 concurrency 取消旧 PR run。
-- 缩小 `.prettierignore`，让 server/scripts/shared 进入格式化；机械格式化作为本 plan 的明确变化。
-- oxlint 对 server/shared 增加 unused、require-await 等可执行基础规则并处理存量。
-- 增加渐进 `checkJs` 配置和关键 shared/runtime/API JSDoc 边界，不要求一次改写全 server 为 TypeScript。
+- 缩小 `.prettierignore`，让 runtime/scripts/shared 进入格式化；机械格式化作为本 plan 的明确变化。
+- oxlint 对 runtime/shared 增加 unused、require-await 等可执行基础规则并处理存量。
+- 增加渐进 `checkJs` 配置和关键 shared/runtime/API JSDoc 边界，不要求一次改写全 Runtime 为 TypeScript。
 - `.gitignore` 覆盖 `NUL` 大小写、临时日志和 Tauri 临时数据；清理可安全删除的已跟踪垃圾。
 - 对本地 Agent 指令文件设置明确格式化策略，不修改或提交用户现有的未跟踪 `AGENTS.md`。
 - 修复 prompt-cache measurement 的基线失败：优先恢复实际缓存收益；若依赖升级改变计量口径，则用有依据的稳定预算替换脆弱阈值。
@@ -378,7 +378,7 @@ P14 必须让质量命令不被未提交的本地 Agent 指令文件干扰，并
 | P14 | 完成 | `c889fdf` |
 | P15 | 完成 | 本提交；全栈验收中修复 virtualizer 首次取得空 scroll element 后不再订阅的问题 |
 
-`c821458` 是 rollout 期间保留的独立 prompt-cache 测量稳定性修复，不属于新的 plan 交付单元；最终完整 server suite 已包含该回归。
+`c821458` 是 rollout 期间保留的独立 prompt-cache 测量稳定性修复，不属于新的 plan 交付单元；最终完整 Runtime suite 已包含该回归。
 
 ### 质量命令
 
@@ -416,8 +416,8 @@ P14 必须让质量命令不被未提交的本地 Agent 指令文件干扰，并
 
 | 文件 / 指标 | 初始基线 | 最终结果 |
 | --- | ---: | ---: |
-| `server/runtime/agent-runtime.mjs` | 3742 行 | 2315 行；另有 498 行继承 facade，主文件 budget `<2500` |
-| `server/http/api-handler.mjs` | 663 行 | 89 行 |
+| `runtime/runtime/agent-runtime.mjs` | 3742 行 | 2315 行；另有 498 行继承 facade，主文件 budget `<2500` |
+| `runtime/http/api-handler.mjs` | 663 行 | 89 行 |
 | `src/features/chat/ChatPage.tsx` | 2063 行 | 202 行 |
 | `src/features/chat/FocusSession.tsx` | 1404 行 | 450 行 |
 | `src/features/config/ConfigPage.tsx` | 1748 行 | 111 行 |
@@ -462,7 +462,7 @@ P14 必须让质量命令不被未提交的本地 Agent 指令文件干扰，并
 - `officeparser` 继续只在文档附件路径动态 `import()`。
 - streaming pinned/unread、用户滚动取消程序化贴底、prepend anchor 和结束后重测均由测试与浏览器数据覆盖。
 - release workflow 继续运行 check/test/Rust clippy，并构建 Windows x64、macOS Intel/Apple Silicon、Linux x64 Tauri 产物。
-- `server/tools/app/` 继续一工具一模块；Plan 兼容 wrapper 是明确的一个版本迁移层。
+- `runtime/tools/app/` 继续一工具一模块；Plan 兼容 wrapper 是明确的一个版本迁移层。
 
 ### 平台矩阵
 

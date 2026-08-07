@@ -9,24 +9,24 @@
 
 ## 总览
 
-项目主架构清晰（`src` UI / `server` 运行时 / Tauri / TUI），路由级懒加载已经落地。主要瓶颈集中在：
+项目主架构清晰（`src` UI / `runtime` / Tauri / TUI），路由级懒加载已经落地。主要瓶颈集中在：
 
 1. 超大模块难维护
 2. 双栈 UI / 双栈 Markdown 带来的体积与复杂度
 3. 未使用的 shadcn 组件与依赖
-4. 工程化缺口（server 无类型、CI 仅 release、格式化范围不一致）
+4. 工程化缺口（Runtime 无类型、CI 仅 release、格式化范围不一致）
 5. TUI 的运行时能力选择与 workspace 继承缺少端到端保障
 
 ## 1. 高优先级：拆分“上帝模块”
 
 | 文件 | 约行数 | 问题 |
 | --- | ---: | --- |
-| `server/runtime/agent-runtime.mjs` | ~3700 | 会话、provider、工具、记忆、多 agent、权限等全揉在一起 |
+| `runtime/runtime/agent-runtime.mjs` | ~3700 | 会话、provider、工具、记忆、多 agent、权限等全揉在一起 |
 | `src/features/chat/ChatPage.tsx` | ~2000 | 页面状态、dock、流式同步、会话列表耦合 |
 | `src/features/config/ConfigPage.tsx` | ~1700 | 设置面过大 |
 | `src/features/chat/FocusSession.tsx` | ~1400 | 单会话交互与渲染过重 |
 | `src/features/workflows/WorkflowsPage.tsx` | ~1400 | 列表 + 编排入口偏厚 |
-| `server/http/api-handler.mjs` | ~660 | 巨型 `if (pathname…)` 路由链 |
+| `runtime/http/api-handler.mjs` | ~660 | 巨型 `if (pathname…)` 路由链 |
 
 ### 建议
 
@@ -117,13 +117,13 @@ Toast 目前走自研 `Toast`；`sonner` + `next-themes` 基本只服务未接�
 
 | 项 | 现状 | 建议 |
 | --- | --- | --- |
-| Typecheck | 只覆盖 `src/` + `vite.config.ts` | server 渐进 TypeScript，或至少对 `shared/` 与关键边界加 JSDoc / `allowJs`+`checkJs` |
-| Format | `.prettierignore` 忽略整个 `server/`、`scripts/`、`shared/` | 与前端统一格式化，避免 PR 风格分裂 |
+| Typecheck | 只覆盖 `src/` + `vite.config.ts` | Runtime 渐进 TypeScript，或至少对 `shared/` 与关键边界加 JSDoc / `allowJs`+`checkJs` |
+| Format | `.prettierignore` 忽略整个 `runtime/`、`scripts/`、`shared/` | 与前端统一格式化，避免 PR 风格分裂 |
 | CI | 仅 tag release 跑 `check` / `test` | 增加 PR workflow（至少 `npm run check && npm test`） |
-| Lint | oxlint 主要盯 `src` | server 可加基础规则（unused、require-await 等） |
+| Lint | oxlint 主要盯 `src` | Runtime 可加基础规则（unused、require-await 等） |
 | 仓库垃圾 | `NUL`、`.tmp-*.log`、`.tmp-tauri-data/` 等 | 补 `.gitignore` 并清理，避免误提交 |
 
-测试面本身不薄（`server/tests` 有大量 `.test.mjs`），缺的是提交前自动门禁与大模块可测边界。
+测试面本身不薄（`runtime/tests` 有大量 `.test.mjs`），缺的是提交前自动门禁与大模块可测边界。
 
 ## 5. 中优先级：运行时性能（聊天主路径）
 
@@ -179,9 +179,9 @@ Toast 目前走自研 `Toast`；`sonner` + `next-themes` 基本只服务未接�
 - pending → in progress → completed / blocked 原位变化；清空计划后面板消失。
 - session 恢复或 SSE 重连后计划一致，不显示上一轮的陈旧计划。
 - `80×24` 与 `120×40` 下不遮挡消息、审批面板和 composer。
-- 增加 server、Web 和 Rust 测试，覆盖旧数据迁移、协议兼容、serde 字段、事件更新、清空语义及小终端渲染。
+- 增加 Runtime、Web 和 Rust 测试，覆盖旧数据迁移、协议兼容、serde 字段、事件更新、清空语义及小终端渲染。
 
-**收益**：统一 Agent、协议、代码和界面的概念模型，用户能直接看到当前执行步骤、剩余步骤和阻塞项。改动跨越 server、Web 与 TUI，兼容迁移完成前风险中等。
+**收益**：统一 Agent、协议、代码和界面的概念模型，用户能直接看到当前执行步骤、剩余步骤和阻塞项。改动跨越 Runtime、Web 与 TUI，兼容迁移完成前风险中等。
 
 ## 7. 高优先级：修复 TUI thinking 等级与 workspace 继承
 
@@ -216,7 +216,7 @@ Toast 目前走自研 `Toast`；`sonner` + `next-themes` 基本只服务未接�
 - 切到 reasoning=false 或仅支持固定 reasoning 的模型时显示明确不可用原因，不显示空白列表。
 - 模型切换、session 切换、TUI 重启后 level 与服务端一致；切换失败不会只改本地显示。
 - 捕获下一次 provider 请求，验证 `off` / `xhigh` / `max` 被映射为正确参数。
-- Rust 与 server 集成测试覆盖成功、空能力、请求失败、动态 provider 模型和切换模型后的能力刷新。
+- Rust 与 Runtime 集成测试覆盖成功、空能力、请求失败、动态 provider 模型和切换模型后的能力刷新。
 
 ### 7.2 启动 TUI 后 workspace 回退到用户目录
 
@@ -263,15 +263,15 @@ Toast 目前走自研 `Toast`；`sonner` + `next-themes` 基本只服务未接�
 
 | 阶段 | 做什么 | 预期收益 | 风险 |
 | --- | --- | --- | --- |
-| **P0** | 修复 TUI `/thinking` 能力加载、切换透传与 workspace 启动继承 | 运行参数和文件边界可信 | 中（需 Rust/server 端到端测试） |
+| **P0** | 修复 TUI `/thinking` 能力加载、切换透传与 workspace 启动继承 | 运行参数和文件边界可信 | 中（需 Rust/Runtime 端到端测试） |
 | **P0** | 删未使用依赖 / 组件（`date-fns`、chart / calendar / otp / drawer / sonner 等，确认后） | 安装与包体立刻变轻 | 低 |
 | **P0** | 选定唯一 Markdown 方案并删除另一套 | 聊天 chunk 与复杂度明显下降 | 中（需回归流式与代码块） |
 | **P1** | 拆 `agent-runtime` + Chat 页面状态 | 开发速度与缺陷率 | 中高（需测试托底） |
-| **P1** | PR CI + Prettier 覆盖 server | 回归更早暴露 | 低 |
+| **P1** | PR CI + Prettier 覆盖 Runtime | 回归更早暴露 | 低 |
 | **P1** | 统一 Task List → Plan 术语与协议，再补齐 TUI 紧凑计划面板 | 概念一致，计划内容与执行进度可见 | 中（需兼容迁移） |
 | **P2** | 按页面迁移 legacy UI、统一 token 并压缩 CSS | 首屏与可维护性 | 中（视觉回归） |
 | **P2** | 消息虚拟化 + vendor `manualChunks` | 长会话与缓存命中 | 中 |
-| **P3** | server 渐进类型化、API 路由表 | 长期质量 | 高投入 |
+| **P3** | Runtime 渐进类型化、API 路由表 | 长期质量 | 高投入 |
 
 ## 10. 暂不必优先动的点
 
@@ -280,7 +280,7 @@ Toast 目前走自研 `Toast`；`sonner` + `next-themes` 基本只服务未接�
 - `officeparser` 动态加载
 - 流式滚动 / 贴底逻辑已有针对性处理
 - release 流水线含 test / check / clippy
-- 应用工具 `server/tools/app/` 一工具一模块的约定清晰
+- 应用工具 `runtime/tools/app/` 一工具一模块的约定清晰
 
 ## 11. 结论
 
@@ -303,7 +303,7 @@ Toast 目前走自研 `Toast`；`sonner` + `next-themes` 基本只服务未接�
 | 1. 大模块 | 完成 | `agent-runtime.mjs` 2315 行、`api-handler.mjs` 89 行、`ChatPage.tsx` 202 行、`FocusSession.tsx` 450 行、`ConfigPage.tsx` 111 行、`WorkflowsPage.tsx` 184 行 |
 | 2. 渲染与 UI | 完成 | Streamdown 成为唯一生产 Markdown 栈；业务代码不再依赖 legacy `ui.tsx`，旧文件已删除 |
 | 3. 依赖与产物 | 完成 | 直接依赖从 65 降至 54；移除未使用脚手架与前端 Axios；stable vendor chunk 和 gzip closure budget 已进入 build |
-| 4. 工程门禁 | 完成 | PR CI 覆盖 Node quality/build/test 与 Rust fmt/check/test；server/scripts/shared 进入 Prettier；关键 JS 边界启用严格 `checkJs` |
+| 4. 工程门禁 | 完成 | PR CI 覆盖 Node quality/build/test 与 Rust fmt/check/test；runtime/scripts/shared 进入 Prettier；关键 JS 边界启用严格 `checkJs` |
 | 5. 聊天性能 | 完成 | `@tanstack/react-virtual` 支持动态高度、streaming、prepend 锚点和有界 DOM；最终浏览器验收同时修复首次 scroll ref 挂载导致的零渲染 |
 | 6. Plan | 完成 | 新协议只写 Plan，兼容读取旧 Task List；Web/TUI 均显示并原位更新 Plan，真实 Task 概念保持不变 |
 | 7. TUI 可靠性 | 完成 | thinking 能力由服务端权威返回；launch workspace 独立保存、创建后校验，跨 workspace 切换显式可见 |

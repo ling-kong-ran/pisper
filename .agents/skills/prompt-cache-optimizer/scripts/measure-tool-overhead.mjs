@@ -3,8 +3,8 @@ import { mkdtemp, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { dirname, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { AgentRuntimeService } from '../../../../server/runtime/agent-runtime.mjs'
-import { applyPisperSystemPrompt } from '../../../../server/prompts/pisper-system-prompt.mjs'
+import { AgentRuntimeService } from '../../../../runtime/runtime/agent-runtime.mjs'
+import { applyPisperSystemPrompt } from '../../../../runtime/prompts/pisper-system-prompt.mjs'
 
 const scriptDirectory = dirname(fileURLToPath(import.meta.url))
 const projectRoot = resolve(scriptDirectory, '../../../..')

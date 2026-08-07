@@ -53,7 +53,7 @@ test('legacy packaged-runtime workspaces migrate to the platform user directory'
   assert.equal(saves, 1)
 })
 
-test('web workspace browsing starts at the server fallback and accepts absolute directories', async (t) => {
+test('web workspace browsing starts at the runtime fallback and accepts absolute directories', async (t) => {
   const home = await mkdtemp(join(tmpdir(), 'pisper-web-workspace-'))
   const project = join(home, 'project')
   await mkdir(project)

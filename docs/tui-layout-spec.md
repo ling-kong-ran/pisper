@@ -98,9 +98,9 @@ Transcript content uses the full terminal width and starts at the left edge, wit
    - First line: `I’ll inspect the failing test and current MCP service changes, then delegate the captured log comparison.`
    - Second line prefixed with `└`: `Scope stays inside the lifecycle path; unrelated worktree changes remain untouched.` in `muted`.
 3. Inline tool group, `height 110`, left rule `2 px rule` at content x:
-   - `✓ read   server/tests/mcp-service.test.mjs                 18 ms`
-   - `✓ grep   "disconnect|dispose|restart" server/services     31 ms`
-   - `✓ read   server/services/mcp-service.mjs                  12 ms`
+   - `✓ read   runtime/tests/mcp-service.test.mjs                 18 ms`
+   - `✓ grep   "disconnect|dispose|restart" runtime/services     31 ms`
+   - `✓ read   runtime/services/mcp-service.mjs                  12 ms`
    - Tool names use `cyan`, paths use `blue`, checks use `green`, durations use `muted`.
    - Only the selected second row shows a detail line: `└ 6 matches across 2 files` in `muted`.
 4. Subagent event, `height 68`:
@@ -115,7 +115,7 @@ Transcript content uses the full terminal width and starts at the left edge, wit
    - A narrow code excerpt below with no container fill:
      `if (clients.get(serverId)?.transport === transport) clients.delete(serverId)`
 6. Current activity line pinned immediately above the composer, `height 30`, aligned to the terminal's left edge without an independent centered rail:
-   - `● editing  server/services/mcp-service.mjs` in `amber/text`.
+   - `● editing  runtime/services/mcp-service.mjs` in `amber/text`.
    - Right aligned: `00:41` in `muted`.
 
 ### Composer
@@ -165,13 +165,13 @@ Rows may be `28`, `44`, or `66 px` high but all content aligns to a `22 px` text
 ```text
 10:42:08.114  ◆  USER      Investigate the intermittent MCP lifecycle failure…       accepted
 10:42:10.006  ◇  THINK     Scope: lifecycle path; preserve unrelated worktree changes  1.8 s
-10:42:11.201  ├  READ      server/tests/mcp-service.test.mjs                            18 ms
+10:42:11.201  ├  READ      runtime/tests/mcp-service.test.mjs                            18 ms
 10:42:12.037  ├  GREP      disconnect|dispose|restart · 6 matches                       31 ms
-10:42:13.422  ├  READ      server/services/mcp-service.mjs                              12 ms
+10:42:13.422  ├  READ      runtime/services/mcp-service.mjs                              12 ms
 10:42:14.108  ├  SUB:01    log-analysis started · isolated workspace                    running
 10:42:29.663  ◇  AGENT     Found a stale transport cleanup race. Applying identity…     streamed
-10:42:31.044  ├  EDIT      server/services/mcp-service.mjs · +4 −1                      9 ms
-10:42:32.510  ├  TEST      node --test server/tests/mcp-service.test.mjs                 running
+10:42:31.044  ├  EDIT      runtime/services/mcp-service.mjs · +4 −1                      9 ms
+10:42:32.510  ├  TEST      node --test runtime/tests/mcp-service.test.mjs                 running
 10:42:39.824  └  SUB:01    2/3 traces show late disconnect after replacement            done
 ```
 
@@ -280,7 +280,7 @@ This variant exposes runtime capabilities through the same text entry point used
 ## Content and overflow rules
 
 - Use explicit text boxes with fixed widths from each layout; never rely on unconstrained auto-width for body text.
-- Wrap prose on spaces. Paths and commands truncate in the middle only when required, preserving filename or final command argument, for example `server/…/mcp-service.test.mjs`.
+- Wrap prose on spaces. Paths and commands truncate in the middle only when required, preserving filename or final command argument, for example `runtime/…/mcp-service.test.mjs`.
 - Maximum visible transcript line length: A `96`, B `92`, C `86` monospace characters.
 - Tool/event rows remain one line. Expanded output may use two additional lines and then show `… 4 more lines`.
 - Labels, timestamps, durations, and status values must use fixed columns and must not push adjacent text.

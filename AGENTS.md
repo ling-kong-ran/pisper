@@ -7,7 +7,7 @@ Guidance for coding agents working in the **Pisper** repository.
 Pisper is a local-first multi-agent workspace built on [Pi Coding Agent](https://github.com/earendil-works/pi/tree/main/packages/coding-agent). It ships:
 
 - a React web UI (dev server + production static assets)
-- a Node.js app server / desktop sidecar that hosts sessions, tools, MCP, skills, memory, workflows, channels, and schedules
+- a Node.js app runtime / desktop sidecar that hosts sessions, tools, MCP, skills, memory, workflows, channels, and schedules
 - a Tauri 2 desktop shell with a system WebView and a Node SEA sidecar
 - a Rust Ratatui TUI client
 
@@ -22,12 +22,12 @@ Requires **Node.js 20+** (desktop SEA packaging docs target Node 24). Runtime ag
 | `src/features/` | Feature pages (chat, config, skills, MCP/plugins, workflows, …) |
 | `src/components/ui/` | shadcn/ui primitives; prefer composing these over one-off styles |
 | `src/locales/{zh-CN,en-US}/` | Translation namespaces (`namespace:key`) |
-| `server/` | Node app server (plain ESM `.mjs`): HTTP API, runtime, services, tools |
-| `server/runtime/` | Pi agent runtime integration |
-| `server/services/` | Domain services (sessions, MCP, schedules, workflows, providers, …) |
-| `server/tools/app/` | Application-level agent tools (one module per tool) |
-| `server/tests/` | Node test suite (`tsx --test`) |
-| `shared/` | Small JS modules shared by server and client (e.g. workflow graph, release notes) |
+| `runtime/` | Node app runtime (plain ESM `.mjs`): HTTP API, agent integration, services, tools |
+| `runtime/runtime/` | Pi agent runtime integration |
+| `runtime/services/` | Domain services (sessions, MCP, schedules, workflows, providers, …) |
+| `runtime/tools/app/` | Application-level agent tools (one module per tool) |
+| `runtime/tests/` | Node test suite (`tsx --test`) |
+| `shared/` | Small JS modules shared by runtime and client (e.g. workflow graph, release notes) |
 | `src-tauri/` | Tauri 2 shell (desktop bridge, pet window, updater, CLI install) |
 | `src-tui/` | Rust TUI (`pisper` CLI) |
 | `scripts/` | SEA packaging, release, smoke tests, i18n check |
@@ -35,7 +35,7 @@ Requires **Node.js 20+** (desktop SEA packaging docs target Node 24). Runtime ag
 | `dist/` | Vite production build output |
 | `release/` | Packaged SEA / TUI / Tauri artifacts (gitignored) |
 
-**Runtime shape (desktop):** Tauri shell → `pisper-sidecar` (Node SEA) → `sidecar-runtime/` (server, Pi packages, skills, native modules). Dev web flow: `server/index.mjs` embeds Vite middleware and serves the SPA + API on `127.0.0.1:5173` by default.
+**Runtime shape (desktop):** Tauri shell → `pisper-sidecar` (Node SEA) → `sidecar-runtime/` (Pisper runtime, Pi packages, skills, native modules). Dev web flow: `runtime/index.mjs` embeds Vite middleware and serves the SPA + API on `127.0.0.1:5173` by default.
 
 Path aliases: `@/*` → `src/*`, `@shared/*` → `shared/*`.
 
@@ -59,8 +59,8 @@ npm run format              # prettier --write .
 npm run format:check        # verify Prettier formatting
 npm run i18n:check          # verify literal src keys exist in zh-CN and en-US
 npm run check               # typecheck + lint + i18n:check + format:check
-npm test                    # all server/tests/*.test.mjs tests
-npx tsx --test server/tests/foo.test.mjs  # run one or more focused tests
+npm test                    # all runtime/tests/*.test.mjs tests
+npx tsx --test runtime/tests/foo.test.mjs  # run one or more focused tests
 
 # Node SEA sidecar
 npm run sidecar:dev         # run the sidecar directly in development
@@ -83,9 +83,10 @@ npm run tui:package         # build and package the TUI distribution
 npm run tui:build           # SEA build followed by TUI packaging
 
 # Versioning and release
-npm run release -- desktop patch  # signed Tauri installers; legacy `patch` still means desktop
+npm run release -- patch          # auto-detect and publish every changed component
+npm run release -- desktop patch  # explicitly publish signed Tauri installers
 npm run release -- tui patch      # self-contained TUI bundles, no Tauri packaging
-npm run release -- server patch   # SEA/runtime bundles, no Tauri or TUI build
+npm run release -- runtime patch  # SEA/runtime bundles, no Tauri or TUI build
 npm run release -- desktop 0.4.20 # explicit component version
 ```
 
@@ -95,17 +96,17 @@ Prefer `npm run check` and `npm test` before considering a change done. Run desk
 
 Releases must ship **substantive product changes**. Do **not** cut a version when the only delta since the latest component tag is version metadata, dependency refresh, formatting, docs-only nits, or other release-script bookkeeping.
 
-Desktop, TUI, and server releases have independent versions and tags. Desktop uses `src-tauri/desktop-package.json` with `vX.Y.Z`; TUI uses `src-tui/Cargo.toml` with `tui-vX.Y.Z`; server/web uses root `package.json` with `server-vX.Y.Z`. Only desktop Releases are marked as GitHub `latest` and publish signed `latest.json` updater metadata. TUI bundles remain self-contained, so their scoped matrix packages the current server sidecar/runtime but never builds or signs Tauri installers.
+Desktop, TUI, and runtime releases have independent versions and tags. Desktop uses `src-tauri/desktop-package.json` with `vX.Y.Z`; TUI uses `src-tui/Cargo.toml` with `tui-vX.Y.Z`; runtime/web uses root `package.json` with `runtime-vX.Y.Z`. Only desktop Releases are marked as GitHub `latest` and publish signed `latest.json` updater metadata. TUI Releases keep a self-contained distribution and add a thin TUI-only updater archive; runtime Releases ship the SEA/runtime component. Every component archive is minisign-signed, while TUI builds never build or sign Tauri installers.
 
-Before running `npm run release -- <desktop|tui|server> <version>`:
+Before running `npm run release -- [desktop|tui|runtime] <version>`:
 
 1. Confirm you are on the `release` branch, the tracked working tree is clean, and local `release` exactly matches `origin/release`.
 2. Inspect `git log --oneline <latest-tag>..HEAD` and `git diff --stat <latest-tag>..HEAD`.
-3. Require at least one substantive commit since the latest tag for that component (`v*`, `tui-v*`, or `server-v*`): `feat`, `fix`, `perf`, user-facing behavior, security, or packaging that changes shipped artifacts. Pure `chore(deps)`, `chore(release)`, `style`, and docs-only commits do **not** count by themselves.
+3. Require at least one substantive commit since the latest tag for that component (`v*`, `tui-v*`, or `runtime-v*`): `feat`, `fix`, `perf`, user-facing behavior, security, or packaging that changes shipped artifacts. Pure `chore(deps)`, `chore(release)`, `style`, and docs-only commits do **not** count by themselves.
 4. If there is nothing substantive to ship, **stop**. Do not invent a patch release, do not run `npm run release` “just to push”, and do not force-publish after dependency refresh alone.
 5. When the user asks to “发布新版本” but HEAD is already the requested component's release commit / tag with no later product commits, report that the latest version is already published and wait for new work.
 
-`npm run release` enforces this gate in `scripts/release.mjs` via `scripts/release-policy.mjs`, runs only the selected component's local checks, and dispatches `.github/workflows/release.yml` with the component, exact source SHA, and target version. It must **not** bump versions, create tags, or push release metadata locally. GitHub Actions stages only that component's version files in artifacts, verifies and builds its platform packages, validates the exact asset set, then lets `github-actions[bot]` commit `chore(release-<component>): <tag>` and atomically push the `release` branch plus tag immediately before publishing a Draft Release. Any earlier failure leaves the remote version and tag unchanged; finalization failures run compensating cleanup. Do not reintroduce tag-push-triggered releases.
+`npm run release` enforces this gate in `scripts/release.mjs` via `scripts/release-policy.mjs`. Without an explicit component it compares each component with its own latest tag, dispatches every component with substantive owned changes, and runs the union of their local checks once. An explicit component still limits the release. Each dispatch passes the component, exact source SHA, and target version to `.github/workflows/release.yml`; the local script must **not** bump versions, create tags, or push release metadata. Multi-component workflows share the immutable source SHA and run in one global queue; later jobs may advance only across validated `chore(release-<component>)` commits that touch exactly that component's version files. GitHub Actions stages only that component's version files in artifacts, verifies and builds its platform packages, validates the exact asset set, then lets `github-actions[bot]` commit `chore(release-<component>): <tag>` and atomically push the `release` branch plus tag immediately before publishing a Draft Release. Any earlier failure leaves the remote version and tag unchanged; finalization failures run compensating cleanup. Do not reintroduce tag-push-triggered releases.
 
 ## Conventions
 
@@ -116,27 +117,28 @@ Before running `npm run release -- <desktop|tui|server> <version>`:
 - UI: Tailwind + shadcn (`components.json` style `radix-nova`, icons via `lucide-react`). Use `cn()` from `@/lib/utils`.
 - Feature code lives under `src/features/<area>/`; shared layout/chrome under `src/components/`.
 - i18n: `t('namespace:key')` / `translateText('namespace:key')` with **string-literal** keys only. Both `zh-CN` and `en-US` must define every key; no Chinese characters as keys. Run `npm run i18n:check` after UI copy changes.
-- Prettier: single quotes, no semicolons, trailing commas, print width 100. Note: Prettier currently ignores most of `server/`, `scripts/`, and `shared/` (see `.prettierignore`); still match nearby file style.
+- Prettier: single quotes, no semicolons, trailing commas, print width 100. Note: Prettier currently ignores most of `runtime/`, `scripts/`, and `shared/` (see `.prettierignore`); still match nearby file style.
 
-### Server (`server/`)
+### Runtime (`runtime/`)
 
-- ESM `.mjs` modules; keep API handlers in `server/http/`, domain logic in `server/services/`, Pi wiring in `server/runtime/`.
-- App tools: one module under `server/tools/app/` exporting `manifest` and a `create…Tool(context)` factory using `defineTool()`. Register in `server/tools/app/index.mjs`. Factories take `cwd`/service deps—do not couple tools directly to `AgentRuntimeService`.
-- Tests are colocated as `server/tests/*.test.mjs`. Prefer extending existing service/runtime tests when behavior changes.
+- ESM `.mjs` modules; keep API handlers in `runtime/http/`, domain logic in `runtime/services/`, Pi wiring in `runtime/runtime/`.
+- App tools: one module under `runtime/tools/app/` exporting `manifest` and a `create…Tool(context)` factory using `defineTool()`. Register in `runtime/tools/app/index.mjs`. Factories take `cwd`/service deps—do not couple tools directly to `AgentRuntimeService`.
+- Tests are colocated as `runtime/tests/*.test.mjs`. Prefer extending existing service/runtime tests when behavior changes.
 
 ### Shared / desktop / TUI
 
-- Pure shared logic that both UI and server need goes in `shared/` (with `.d.mts` types when consumed from TS).
+- Pure shared logic that both UI and runtime need goes in `shared/` (with `.d.mts` types when consumed from TS).
 - Desktop packaging and updater details: `docs/node-sea-webview.md`. Do not reintroduce Electron packaging paths.
-- TUI user-facing docs: `src-tui/README.md` / `README.en.md`. TUI versions advance only through the scoped release script; do not synchronize them to desktop or server versions.
+- TUI user-facing docs: `src-tui/README.md` / `README.en.md`. TUI versions advance only through the scoped release script; do not synchronize them to desktop or runtime versions.
 
 ## Verification expectations
 
 1. For TypeScript/UI work: `npm run check` (or at least `typecheck` + `lint` + `i18n:check` when touching strings).
-2. For server/runtime/tool/service changes: `npm test` (or the relevant test file under `server/tests/`).
+2. For runtime/runtime/tool/service changes: `npm test` (or the relevant test file under `runtime/tests/`).
 3. For TUI Rust changes: `npm run tui:check` and `npm run tui:test`.
-4. For SEA/desktop packaging changes: `npm run sidecar:sea:smoke` (and platform-specific packaging only with required Rust/Tauri toolchain).
-5. Do not invent new top-level package managers or dual lockfiles; this repo uses **npm** (`package-lock.json`).
+4. For Tauri desktop changes: `cargo test --manifest-path src-tauri/Cargo.toml` and `cargo clippy --manifest-path src-tauri/Cargo.toml --all-targets -- -D warnings`.
+5. For SEA/desktop packaging changes: `npm run sidecar:sea:smoke` (and platform-specific packaging only with required Rust/Tauri toolchain).
+6. Do not invent new top-level package managers or dual lockfiles; this repo uses **npm** (`package-lock.json`).
 
 ## Out of scope / safety
 

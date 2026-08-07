@@ -2,7 +2,7 @@ import { randomBytes } from 'node:crypto'
 import { dirname, resolve } from 'node:path'
 import { createInterface } from 'node:readline'
 import { fileURLToPath } from 'node:url'
-import { createPisperServer } from './app-server.mjs'
+import { createPisperRuntime } from './app-runtime.mjs'
 import { resolveAgentDataDir } from './data-dir-migration.mjs'
 
 const serverDir = dirname(fileURLToPath(import.meta.url))
@@ -15,7 +15,7 @@ const parentPid = Number(process.env.PISPER_PARENT_PID || 0)
 process.env.PI_SKIP_VERSION_CHECK ||= '1'
 process.env.PI_TELEMETRY ||= '0'
 
-const pisper = await createPisperServer({
+const pisper = await createPisperRuntime({
   root,
   runtimeCwd: process.env.PISPER_WORKSPACE_DIR || undefined,
   dataDir: resolveAgentDataDir(),

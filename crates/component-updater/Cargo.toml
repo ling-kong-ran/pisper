@@ -1,0 +1,21 @@
+[package]
+name = "pisper-component-updater"
+version = "0.1.0"
+description = "Signed component updater shared by Pisper desktop and TUI clients"
+authors = ["ling-kong-ran"]
+license = "MIT"
+edition = "2021"
+rust-version = "1.81"
+
+[dependencies]
+anyhow = "1"
+base64 = "0.22"
+flate2 = "1"
+fs2 = "0.4"
+minisign-verify = "0.2.5"
+reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls"] }
+semver = "1"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+tar = "0.4"
+tokio = { version = "1", features = ["fs", "rt"] }

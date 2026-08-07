@@ -245,6 +245,10 @@ chmod +x Pisper_*_linux_x86_64.AppImage
 sudo apt install ./Pisper-*-linux-amd64.deb
 ```
 
+### 分块更新
+
+桌面端的 **设置 → 更新** 是统一更新入口。点击一次 **检查更新** 会同时检查 Desktop、TUI 客户端和 Runtime；只有发现新版本的组件才会显示安装操作，因此小范围更新不必重新下载完整桌面安装包。三个组件使用独立的签名 Release 通道，Runtime 更新在重启应用后生效；独立组件不可用或启动失败时，Pisper 会继续使用桌面安装包内置的版本。
+
 <a id="tui"></a>
 
 ### 终端客户端（TUI）

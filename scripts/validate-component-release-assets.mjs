@@ -25,13 +25,15 @@ async function filesUnder(path) {
   return files
 }
 
-const label = component === 'tui' ? 'TUI' : 'Server'
-const expected = [
-  `Pisper_${label}_${version}_darwin_aarch64.tar.gz`,
-  `Pisper_${label}_${version}_darwin_x86_64.tar.gz`,
-  `Pisper_${label}_${version}_linux_x86_64.tar.gz`,
-  `Pisper_${label}_${version}_windows_x86_64.tar.gz`,
-].sort()
+const label = component === 'tui' ? 'TUI' : 'Runtime'
+const platforms = ['darwin_aarch64', 'darwin_x86_64', 'linux_x86_64', 'windows_x86_64']
+const archives = platforms.flatMap((platform) => {
+  const distribution = `Pisper_${label}_${version}_${platform}.tar.gz`
+  return component === 'tui'
+    ? [distribution, `Pisper_TUI_Component_${version}_${platform}.tar.gz`]
+    : [distribution]
+})
+const expected = archives.flatMap((archive) => [archive, `${archive}.sig`]).sort()
 const actual = (await filesUnder(directory)).map((file) => basename(file)).sort()
 const missing = expected.filter((name) => !actual.includes(name))
 const unexpected = actual.filter((name) => !expected.includes(name))

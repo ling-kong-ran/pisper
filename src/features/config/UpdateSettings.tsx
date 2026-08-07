@@ -1,6 +1,8 @@
 import { useEffect, useMemo, useState } from 'react'
 import {
+  ArrowRight,
   CheckCircle2,
+  Cpu,
   Download,
   ExternalLink,
   Handshake,
@@ -8,6 +10,7 @@ import {
   PackageCheck,
   RefreshCw,
   Rocket,
+  SquareTerminal,
   TriangleAlert,
   X,
 } from 'lucide-react'
@@ -91,6 +94,7 @@ export function UpdateSettings({
   const desktop = Boolean(info.desktop)
   const [bundled, setBundled] = useState({ version: BUILD_VERSION, date: '', notes: '' })
   const [sponsors, setSponsors] = useState<SponsorCampaign[]>([])
+  const [componentBusy, setComponentBusy] = useState<'check' | 'tui' | 'runtime' | ''>('')
   const [sponsorDismissals, setSponsorDismissals] =
     useState<Record<string, number>>(storedSponsorDismissals)
 
@@ -140,7 +144,22 @@ export function UpdateSettings({
   }
 
   const check = async () => {
-    await update?.check()
+    if (!update) return
+    setComponentBusy('check')
+    try {
+      const checks: Promise<unknown>[] = [update.check()]
+      if (desktop) checks.push(update.checkComponents())
+      const results = await Promise.allSettled(checks)
+      const failure = results.find((result) => result.status === 'rejected')
+      if (failure?.status === 'rejected') {
+        notify(
+          failure.reason instanceof Error ? failure.reason.message : String(failure.reason),
+          'error',
+        )
+      }
+    } finally {
+      setComponentBusy('')
+    }
   }
 
   const openReleases = () => update?.openReleases()
@@ -156,6 +175,17 @@ export function UpdateSettings({
 
   const install = () => update?.install()
 
+  const installComponent = async (component: 'tui' | 'runtime') => {
+    setComponentBusy(component)
+    try {
+      await update.installComponent(component)
+    } catch (error) {
+      notify(error instanceof Error ? error.message : String(error), 'error')
+    } finally {
+      setComponentBusy('')
+    }
+  }
+
   const notes =
     status.notes ||
     (desktop
@@ -168,8 +198,17 @@ export function UpdateSettings({
   const available = status.state === 'available'
   const resumable = status.state === 'error' && status.canResume && status.canDownload
   const downloaded = status.state === 'downloaded'
-  const checking = status.state === 'checking'
+  const checking = status.state === 'checking' || componentBusy === 'check'
   const downloading = status.state === 'downloading'
+  const componentAvailable = update.components.some((component) => component.state === 'available')
+  const componentError = update.components.some((component) => component.state === 'error')
+  const overallState = checking
+    ? 'checking'
+    : available || componentAvailable
+      ? 'available'
+      : status.state === 'error' || componentError
+        ? 'error'
+        : status.state
   const currentIdentifier = desktop
     ? `v${info.version}`
     : `v${info.version}${status.currentCommit ? ` · ${status.currentCommit.slice(0, 7)}` : ''}`
@@ -204,8 +243,8 @@ export function UpdateSettings({
             'red',
           ],
         }) as Record<string, [string, 'gray' | 'blue' | 'green' | 'red']>
-      )[status.state] || [t('config:updateSettings.notChecked'), 'gray'],
-    [desktop, resumable, status.state, t],
+      )[overallState] || [t('config:updateSettings.notChecked'), 'gray'],
+    [desktop, overallState, resumable, t],
   )
 
   return (
@@ -287,7 +326,7 @@ export function UpdateSettings({
         <div className="mt-5 flex flex-wrap gap-2">
           <button
             className="button primary"
-            disabled={checking || downloading}
+            disabled={checking || downloading || Boolean(componentBusy)}
             onClick={downloaded ? install : available || resumable ? download : check}
           >
             {checking || downloading ? (
@@ -303,18 +342,18 @@ export function UpdateSettings({
             ) : (
               <RefreshCw size={14} />
             )}
-            {downloaded
-              ? t('config:updateSettings.restartAndInstall')
-              : resumable
-                ? t('config:updateSettings.resumeDownload')
-                : available
-                  ? status.canDownload
-                    ? t('config:updateSettings.downloadUpdate')
-                    : desktop
-                      ? t('config:updateSettings.viewRelease')
-                      : t('config:updateSettings.viewSourceUpdates')
-                  : checking
-                    ? t('config:updateSettings.checking2')
+            {checking
+              ? t('config:updateSettings.checking2')
+              : downloaded
+                ? t('config:updateSettings.restartAndInstall')
+                : resumable
+                  ? t('config:updateSettings.resumeDownload')
+                  : available
+                    ? status.canDownload
+                      ? t('config:updateSettings.downloadUpdate')
+                      : desktop
+                        ? t('config:updateSettings.viewRelease')
+                        : t('config:updateSettings.viewSourceUpdates')
                     : t('config:updateSettings.checkForUpdates')}
           </button>
           <button className="button secondary" onClick={openReleases}>
@@ -328,6 +367,93 @@ export function UpdateSettings({
             </button>
           )}
         </div>
+        {desktop && (
+          <div className="mt-6 border-t border-[var(--border)] pt-5">
+            <SectionTitle title={t('config:updateSettings.independentComponents')} />
+            <div className="mt-3 divide-y divide-[var(--border)]">
+              {(update.components || []).map((component) => {
+                const busy = componentBusy === component.component
+                const Icon = component.component === 'tui' ? SquareTerminal : Cpu
+                const label =
+                  component.component === 'tui'
+                    ? t('config:updateSettings.tuiClient')
+                    : t('config:updateSettings.runtime')
+                const tone =
+                  component.state === 'error'
+                    ? 'red'
+                    : component.state === 'available'
+                      ? 'blue'
+                      : component.state === 'installed' || component.state === 'current'
+                        ? 'green'
+                        : 'gray'
+                const stateLabel =
+                  component.state === 'checking'
+                    ? t('config:updateSettings.checking')
+                    : component.state === 'available'
+                      ? t('config:updateSettings.updateAvailable')
+                      : component.state === 'installed'
+                        ? t('config:updateSettings.installed')
+                        : component.state === 'error'
+                          ? t('config:updateSettings.checkFailed')
+                          : component.state === 'current'
+                            ? t('config:updateSettings.upToDate')
+                            : t('config:updateSettings.notChecked')
+                return (
+                  <div
+                    className="grid min-h-[68px] items-center gap-3 py-3 sm:grid-cols-[minmax(0,1fr)_auto_auto]"
+                    key={component.component}
+                  >
+                    <div className="flex min-w-0 items-center gap-3">
+                      <Icon className="shrink-0 text-[var(--text-muted)]" size={17} />
+                      <div className="min-w-0">
+                        <strong className="block text-[14px]">{label}</strong>
+                        {component.message && (
+                          <small className="mt-0.5 block text-[12px] text-[var(--text-muted)]">
+                            {component.message}
+                          </small>
+                        )}
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2 font-mono text-[12px]">
+                      <span>v{component.currentVersion}</span>
+                      {component.availableVersion &&
+                        component.availableVersion !== component.currentVersion && (
+                          <>
+                            <ArrowRight size={12} />
+                            <span>v{component.availableVersion}</span>
+                          </>
+                        )}
+                      {component.size > 0 && component.state === 'available' && (
+                        <span className="font-sans text-[var(--text-muted)]">
+                          {formatBytes(component.size, language)}
+                        </span>
+                      )}
+                    </div>
+                    <div className="flex items-center justify-end gap-2">
+                      <Badge tone={tone}>{stateLabel}</Badge>
+                      {component.canInstall && (
+                        <button
+                          className="button secondary"
+                          disabled={Boolean(componentBusy)}
+                          onClick={() => installComponent(component.component)}
+                        >
+                          {busy ? <RefreshCw className="spin" size={14} /> : <Download size={14} />}
+                          {t('config:updateSettings.installComponent')}
+                        </button>
+                      )}
+                      {component.restartRequired && (
+                        <button className="button primary" onClick={update.restartForComponents}>
+                          <Rocket size={14} />
+                          {t('config:updateSettings.restartToApply')}
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+          </div>
+        )}
       </Panel>
 
       <Panel className="p-5">

@@ -147,15 +147,22 @@ test('release workflow stages version metadata without exposing it before all bu
   assert.match(workflow, /component:/)
   assert.match(workflow, /source_sha:/)
   assert.match(prepare, /git fetch origin release/)
-  assert.match(prepare, /git rev-parse origin\/release/)
+  assert.match(
+    prepare,
+    /node scripts\/verify-release-head\.mjs "\$RELEASE_SOURCE_SHA" origin\/release/,
+  )
   assert.match(
     prepare,
     /node scripts\/stage-release-version\.mjs "\$RELEASE_COMPONENT" "\$RELEASE_VERSION"/,
   )
   assert.match(prepare, /name: release-source/)
   assert.match(prepare, /src-tauri\/desktop-package\.json/)
-  assert.match(release, /remote_source=.*refs\/heads\/\$RELEASE_BRANCH/)
-  assert.match(release, /test "\$remote_source" = "\$RELEASE_SOURCE_SHA"/)
+  assert.match(release, /remote_source=.*origin\/\$RELEASE_BRANCH/)
+  assert.match(
+    release,
+    /node scripts\/verify-release-head\.mjs "\$RELEASE_SOURCE_SHA" "\$remote_source"/,
+  )
+  assert.match(release, /git rebase --onto "\$remote_source" "\$RELEASE_SOURCE_SHA" HEAD/)
   assert.match(release, /refs\/tags\/\$RELEASE_TAG/)
 })
 

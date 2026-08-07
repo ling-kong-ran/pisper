@@ -16,6 +16,19 @@ export type UpdateStatus = {
   releaseDate?: string
 }
 
+export type ComponentUpdateStatus = {
+  component: 'tui' | 'runtime'
+  state: string
+  currentVersion: string
+  availableVersion: string
+  message: string
+  releaseUrl: string
+  notes: string
+  size: number
+  canInstall: boolean
+  restartRequired: boolean
+}
+
 export type AppUpdateInfo = {
   desktop: boolean
   packaged: boolean
@@ -29,7 +42,11 @@ export type AppUpdateInfo = {
 export type AppUpdateController = {
   info: AppUpdateInfo
   status: UpdateStatus
+  components: ComponentUpdateStatus[]
   check: (options?: { refresh?: boolean }) => Promise<UpdateStatus>
+  checkComponents: () => Promise<ComponentUpdateStatus[]>
+  installComponent: (component: 'tui' | 'runtime') => Promise<ComponentUpdateStatus[]>
+  restartForComponents: () => Promise<unknown>
   download: () => Promise<unknown>
   install: () => unknown
   openReleases: () => Promise<boolean>
@@ -97,6 +114,10 @@ export type DesktopBridge = {
   checkForUpdates: () => Promise<UpdateStatus>
   downloadUpdate: () => Promise<UpdateStatus>
   installUpdate: () => Promise<unknown>
+  componentUpdateStatus?: () => Promise<ComponentUpdateStatus[]>
+  checkComponentUpdates?: () => Promise<ComponentUpdateStatus[]>
+  installComponentUpdate?: (component: 'tui' | 'runtime') => Promise<ComponentUpdateStatus[]>
+  restartForComponentUpdate?: () => Promise<unknown>
   openReleases: () => Promise<boolean>
   openUpdateLog?: () => Promise<unknown>
   getNotificationStatus?: () => Promise<DesktopNotificationStatus>

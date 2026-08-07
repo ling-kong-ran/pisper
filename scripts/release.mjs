@@ -1,7 +1,11 @@
 import { execFileSync } from 'node:child_process'
 import { dirname, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { assertHasSubstantiveReleaseCommits } from './release-policy.mjs'
+import { componentReleasePaths, componentReleaseSubjects } from './release-changes.mjs'
+import {
+  assertHasSubstantiveReleaseCommits,
+  isSubstantiveReleaseCommit,
+} from './release-policy.mjs'
 import {
   RELEASE_COMPONENTS,
   fallbackReleaseTag,
@@ -13,7 +17,8 @@ import {
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..')
 const npmCli = String(process.env.npm_execpath || '').trim()
 const args = process.argv.slice(2).filter((value) => !value.startsWith('--'))
-const component = RELEASE_COMPONENTS[args[0]] ? args.shift() : 'desktop'
+const requestedComponent = RELEASE_COMPONENTS[args[0]] ? args.shift() : ''
+if (args[0] === 'auto') args.shift()
 const input = args[0] || 'patch'
 
 function run(command, commandArgs, { capture = false } = {}) {
@@ -58,24 +63,31 @@ function resolveVersion(current, target) {
 }
 
 function runComponentChecks(selected) {
-  console.log(`正在执行 ${selected} 发布前检查…`)
-  if (selected === 'desktop') {
+  console.log(`正在执行 ${selected.join('、')} 发布前检查…`)
+  if (selected.includes('desktop') || selected.includes('runtime')) {
     runNpm(['test'])
     runNpm(['run', 'check'])
     runNpm(['run', 'build'])
+  }
+  if (selected.includes('desktop') || selected.includes('tui')) {
+    run('cargo', ['fmt', '--manifest-path', 'src-tui/Cargo.toml', '--', '--check'])
     runNpm(['run', 'tui:test'])
     runNpm(['run', 'tui:check'])
-    return
   }
-  if (selected === 'server') {
-    runNpm(['test'])
-    runNpm(['run', 'check'])
-    runNpm(['run', 'build'])
-    return
+  if (selected.includes('desktop')) {
+    run('cargo', ['fmt', '--manifest-path', 'src-tauri/Cargo.toml', '--', '--check'])
+    run('cargo', ['test', '--manifest-path', 'src-tauri/Cargo.toml', '--locked'])
+    run('cargo', [
+      'clippy',
+      '--manifest-path',
+      'src-tauri/Cargo.toml',
+      '--all-targets',
+      '--locked',
+      '--',
+      '-D',
+      'warnings',
+    ])
   }
-  run('cargo', ['fmt', '--manifest-path', 'src-tui/Cargo.toml', '--', '--check'])
-  runNpm(['run', 'tui:test'])
-  runNpm(['run', 'tui:check'])
 }
 
 assertVersionInput(input)
@@ -103,51 +115,75 @@ if (source !== remoteSource) {
 const tags = run('git', ['tag', '--list', '--sort=-version:refname'], { capture: true })
   .split(/\r?\n/)
   .filter(Boolean)
-const latestTag = fallbackReleaseTag(component, tags)
-if (latestTag) {
-  console.log(`正在检查自 ${latestTag} 以来的 ${component} 实质性提交…`)
-  const subjects = run('git', ['log', '--format=%s', `${latestTag}..${source}`], { capture: true })
-    .split(/\r?\n/)
-    .map((value) => value.trim())
-    .filter(Boolean)
-  const substantive = assertHasSubstantiveReleaseCommits(subjects, latestTag)
-  console.log(`已找到 ${substantive.length} 个实质性提交：`)
-  for (const subject of substantive) console.log(`  - ${subject}`)
-} else {
-  console.log(`未找到已有 ${component} 版本标签，允许作为首次组件发布继续。`)
-}
+const runGit = (gitArgs) => run('git', gitArgs, { capture: true })
+const candidates = requestedComponent ? [requestedComponent] : Object.keys(RELEASE_COMPONENTS)
+const plans = []
 
-const currentVersion = await readComponentVersion(root, component)
-const nextVersion = resolveVersion(currentVersion, input)
-if (compareVersions(nextVersion, currentVersion) <= 0) {
-  throw new Error(`新版本 ${nextVersion} 必须高于当前 ${component} 版本 ${currentVersion}。`)
-}
-const tag = releaseTag(component, nextVersion)
-if (run('git', ['tag', '--list', tag], { capture: true })) throw new Error(`标签 ${tag} 已经存在。`)
-if (latestTag) {
-  const latestVersion = releaseVersionFromTag(component, latestTag) || latestTag.slice(1)
-  if (compareVersions(nextVersion, latestVersion) <= 0) {
-    throw new Error(`新版本 ${nextVersion} 必须高于最新 ${component} 标签 ${latestTag}。`)
+for (const component of candidates) {
+  const latestTag = fallbackReleaseTag(component, tags)
+  const paths = componentReleasePaths(runGit, component, latestTag, source)
+  if (!requestedComponent && paths.length === 0) continue
+  if (requestedComponent && paths.length === 0) {
+    throw new Error(
+      `${component} 自 ${latestTag || '仓库初始提交'} 以来没有归属于该组件的变更，无需发布。`,
+    )
   }
+
+  console.log(`正在检查自 ${latestTag || '仓库初始提交'} 以来的 ${component} 实质性提交…`)
+  const subjects = componentReleaseSubjects(runGit, component, latestTag, source)
+  const substantive = requestedComponent
+    ? assertHasSubstantiveReleaseCommits(subjects, latestTag || '仓库初始提交')
+    : subjects.filter(isSubstantiveReleaseCommit)
+  if (substantive.length === 0) {
+    console.log(`${component} 只有非实质性变更，自动跳过。`)
+    continue
+  }
+  console.log(
+    `已找到 ${substantive.length} 个 ${component} 实质性提交、${paths.length} 个变更文件：`,
+  )
+  for (const subject of substantive) console.log(`  - ${subject}`)
+
+  const currentVersion = await readComponentVersion(root, component)
+  const nextVersion = resolveVersion(currentVersion, input)
+  if (compareVersions(nextVersion, currentVersion) <= 0) {
+    throw new Error(`新版本 ${nextVersion} 必须高于当前 ${component} 版本 ${currentVersion}。`)
+  }
+  const tag = releaseTag(component, nextVersion)
+  if (runGit(['tag', '--list', tag])) throw new Error(`标签 ${tag} 已经存在。`)
+  if (latestTag) {
+    const latestVersion = releaseVersionFromTag(component, latestTag) || latestTag.slice(1)
+    if (compareVersions(nextVersion, latestVersion) <= 0) {
+      throw new Error(`新版本 ${nextVersion} 必须高于最新 ${component} 标签 ${latestTag}。`)
+    }
+  }
+  plans.push({ component, nextVersion, tag })
 }
 
-runComponentChecks(component)
+if (plans.length === 0) {
+  throw new Error('未检测到 desktop、tui 或 runtime 的待发布产品变更。')
+}
 
-run('gh', [
-  'workflow',
-  'run',
-  'release.yml',
-  '--ref',
-  releaseBranch,
-  '-f',
-  `component=${component}`,
-  '-f',
-  `version=${nextVersion}`,
-  '-f',
-  `source_sha=${source}`,
-])
+const selectedComponents = plans.map(({ component }) => component)
+console.log(`${requestedComponent ? '发布组件' : '自动发布组件'}：${selectedComponents.join('、')}`)
+runComponentChecks(selectedComponents)
 
-console.log(`已请求构建 ${tag}（源提交 ${source}）。`)
-console.log(`只会执行 ${component} 对应的质量门禁和平台产物构建。`)
-console.log('版本文件、release 分支和 tag 只会在全部平台构建及资产校验成功后更新。')
-console.log('可执行 gh run list --workflow release.yml --limit 1 查看发布进度。')
+for (const { component, nextVersion, tag } of plans) {
+  run('gh', [
+    'workflow',
+    'run',
+    'release.yml',
+    '--ref',
+    releaseBranch,
+    '-f',
+    `component=${component}`,
+    '-f',
+    `version=${nextVersion}`,
+    '-f',
+    `source_sha=${source}`,
+  ])
+  console.log(`已请求构建 ${tag}（源提交 ${source}）。`)
+}
+
+console.log(`只会执行 ${selectedComponents.join('、')} 对应的质量门禁和平台产物构建。`)
+console.log('多个组件任务会按发布队列依次完成；各自的版本文件和 tag 仍在资产验证后原子更新。')
+console.log(`可执行 gh run list --workflow release.yml --limit ${plans.length} 查看发布进度。`)

@@ -12,8 +12,8 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  web-server:
-    name: Web and server
+  web-runtime:
+    name: Web and Runtime
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5

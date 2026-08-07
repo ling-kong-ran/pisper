@@ -1,5 +1,10 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import type { AppUpdateController, AppUpdateInfo, UpdateStatus } from '@/types/update'
+import type {
+  AppUpdateController,
+  AppUpdateInfo,
+  ComponentUpdateStatus,
+  UpdateStatus,
+} from '@/types/update'
 import { scheduleDesktopUpdateChecks, shouldAutomaticallyCheckForUpdates } from './auto-update'
 import { checkWebUpdates, RELEASES_URL } from './update-client'
 
@@ -18,6 +23,7 @@ export function useAppUpdate(): AppUpdateController {
   const bridge = window.pisperDesktop
   const [info, setInfo] = useState(WEB_INFO)
   const [status, setStatus] = useState<UpdateStatus>({ state: 'idle', checkedAt: null })
+  const [components, setComponents] = useState<ComponentUpdateStatus[]>([])
   const statusRef = useRef(status)
   const checkInFlightRef = useRef<Promise<UpdateStatus> | null>(null)
 
@@ -76,6 +82,12 @@ export function useAppUpdate(): AppUpdateController {
         if (!active) return
         setInfo(value)
         applyStatus(value.update || { state: 'idle', checkedAt: null })
+        void bridge
+          .componentUpdateStatus?.()
+          .then((items) => {
+            if (active) setComponents(items)
+          })
+          .catch(() => {})
         if (value.packaged) {
           stopAutomaticChecks = scheduleDesktopUpdateChecks(() => {
             if (!shouldAutomaticallyCheckForUpdates(statusRef.current.state)) return
@@ -90,6 +102,28 @@ export function useAppUpdate(): AppUpdateController {
       unsubscribe?.()
     }
   }, [applyStatus, bridge, check])
+
+  const checkComponents = useCallback(async () => {
+    if (!bridge?.checkComponentUpdates) return []
+    const items = await bridge.checkComponentUpdates()
+    setComponents(items)
+    return items
+  }, [bridge])
+
+  const installComponent = useCallback(
+    async (component: 'tui' | 'runtime') => {
+      if (!bridge?.installComponentUpdate) return []
+      const items = await bridge.installComponentUpdate(component)
+      setComponents(items)
+      return items
+    },
+    [bridge],
+  )
+
+  const restartForComponents = useCallback(
+    () => bridge?.restartForComponentUpdate?.() || Promise.resolve(false),
+    [bridge],
+  )
 
   const openReleases = useCallback(async () => {
     if (bridge) return bridge.openReleases()
@@ -108,5 +142,17 @@ export function useAppUpdate(): AppUpdateController {
 
   const install = useCallback(() => bridge?.installUpdate(), [bridge])
 
-  return { info, status, check, download, install, openReleases, openUpdateLog }
+  return {
+    info,
+    status,
+    components,
+    check,
+    checkComponents,
+    installComponent,
+    restartForComponents,
+    download,
+    install,
+    openReleases,
+    openUpdateLog,
+  }
 }

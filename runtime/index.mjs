@@ -1,6 +1,6 @@
 import { dirname, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { createPisperServer } from './app-server.mjs'
+import { createPisperRuntime } from './app-runtime.mjs'
 import { resolveAgentDataDir } from './data-dir-migration.mjs'
 import { openBrowser, shouldOpenBrowser } from './open-browser.mjs'
 
@@ -14,7 +14,7 @@ const production = process.argv.includes('--production')
 const port = Number(process.env.PORT || 5173)
 const host = process.env.HOST || '127.0.0.1'
 
-const pisper = await createPisperServer({
+const pisper = await createPisperRuntime({
   root,
   runtimeCwd: process.env.PISPER_WORKSPACE_DIR || undefined,
   dataDir,

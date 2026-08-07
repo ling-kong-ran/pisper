@@ -10,7 +10,7 @@ import { resolveGitCommit, UpdateCheckService } from './services/update-check-se
 import { WebDesktopPetService } from './services/web-desktop-pet-service.mjs'
 import { authorizeDesktopRequest } from './desktop-sidecar-auth.mjs'
 
-export async function createPisperServer({
+export async function createPisperRuntime({
   root,
   runtimeCwd = homedir(),
   dataDir = join(homedir(), '.pisper', 'agent'),

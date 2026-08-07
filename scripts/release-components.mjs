@@ -4,7 +4,7 @@ import { join } from 'node:path'
 export const RELEASE_COMPONENTS = Object.freeze({
   desktop: Object.freeze({ tagPrefix: 'v' }),
   tui: Object.freeze({ tagPrefix: 'tui-v' }),
-  server: Object.freeze({ tagPrefix: 'server-v' }),
+  runtime: Object.freeze({ tagPrefix: 'runtime-v' }),
 })
 
 export function assertReleaseComponent(value) {
@@ -12,7 +12,7 @@ export function assertReleaseComponent(value) {
     .trim()
     .toLowerCase()
   if (!RELEASE_COMPONENTS[component]) {
-    throw new Error(`发布组件无效：${value || '(empty)'}。请使用 desktop、tui 或 server。`)
+    throw new Error(`发布组件无效：${value || '(empty)'}。请使用 desktop、tui 或 runtime。`)
   }
   return component
 }
@@ -49,7 +49,7 @@ export async function readComponentVersion(root, component) {
     return JSON.parse(await readFile(join(root, 'src-tauri', 'desktop-package.json'), 'utf8'))
       .version
   }
-  if (normalized === 'server') {
+  if (normalized === 'runtime') {
     return JSON.parse(await readFile(join(root, 'package.json'), 'utf8')).version
   }
   const manifest = await readFile(join(root, 'src-tui', 'Cargo.toml'), 'utf8')

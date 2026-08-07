@@ -217,7 +217,7 @@
                           "fill": "$blue",
                           "textGrowth": "fixed-width",
                           "width": 610,
-                          "content": "server/tests/mcp-service.test.mjs",
+                          "content": "runtime/tests/mcp-service.test.mjs",
                           "fontFamily": "$mono",
                           "fontSize": 12,
                           "fontWeight": "normal"
@@ -323,7 +323,7 @@
                           "fill": "$blue",
                           "textGrowth": "fixed-width",
                           "width": 610,
-                          "content": "server/services/mcp-service.mjs  ·  +4 −1",
+                          "content": "runtime/services/mcp-service.mjs  ·  +4 −1",
                           "fontFamily": "$mono",
                           "fontSize": 12,
                           "fontWeight": "normal"
@@ -376,7 +376,7 @@
                           "fill": "$blue",
                           "textGrowth": "fixed-width",
                           "width": 610,
-                          "content": "node --test server/tests/mcp-service.test.mjs",
+                          "content": "node --test runtime/tests/mcp-service.test.mjs",
                           "fontFamily": "$mono",
                           "fontSize": 12,
                           "fontWeight": "normal"
@@ -552,7 +552,7 @@
                               "y": 8,
                               "name": "Code File",
                               "fill": "$muted",
-                              "content": "server/services/mcp-service.mjs",
+                              "content": "runtime/services/mcp-service.mjs",
                               "fontFamily": "$mono",
                               "fontSize": 11,
                               "fontWeight": "600"

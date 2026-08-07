@@ -2,7 +2,7 @@ import assert from 'node:assert/strict'
 import test from 'node:test'
 import { resolveGitCommit, UpdateCheckService } from '../services/update-check-service.mjs'
 
-test('server update checks always compare the current commit with main', async () => {
+test('runtime update checks always compare the current commit with main', async () => {
   let requests = 0
   let now = Date.parse('2026-07-23T00:00:00.000Z')
   const service = new UpdateCheckService({

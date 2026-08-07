@@ -14,9 +14,9 @@
     "node": ">=20"
   },
   "scripts": {
-    "dev": "node server/index.mjs",
+    "dev": "node runtime/index.mjs",
     "build": "vite build && node scripts/check-bundle-budget.mjs",
-    "sidecar:dev": "node server/sidecar.mjs",
+    "sidecar:dev": "node runtime/sidecar.mjs",
     "sidecar:sea": "node scripts/build-sea.mjs",
     "sidecar:sea:smoke": "node scripts/smoke-sea.mjs",
     "desktop:webview:dev": "npm run build && tauri dev",
@@ -36,9 +36,9 @@
     "i18n:check": "node scripts/check-i18n.mjs",
     "check": "npm run typecheck && npm run lint && npm run i18n:check && npm run format:check",
     "typecheck": "tsc --noEmit && tsc --noEmit -p tsconfig.node.json && tsc -p tsconfig.jscheck.json",
-    "test": "tsx --test server/tests/*.test.mjs",
-    "preview": "node server/index.mjs --production",
-    "start": "node server/index.mjs --production"
+    "test": "tsx --test runtime/tests/*.test.mjs",
+    "preview": "node runtime/index.mjs --production",
+    "start": "node runtime/index.mjs --production"
   },
   "dependencies": {
     "@earendil-works/pi-coding-agent": "^0.80.10",

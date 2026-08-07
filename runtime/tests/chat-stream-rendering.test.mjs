@@ -151,7 +151,7 @@ test('ephemeral reasoning remains rendered after a textless response completes',
 
 test('background Agent completion uses code-level UI state without prompt or custom-context injection', async () => {
   const [runtime, dispatcher, virtualTranscript, sessionState] = await Promise.all([
-    readFile('server/runtime/agent-runtime.mjs', 'utf8'),
+    readFile('runtime/runtime/agent-runtime.mjs', 'utf8'),
     readFile('src/features/chat/stream-event-dispatch.ts', 'utf8'),
     readFile('src/features/chat/VirtualMessageTranscript.tsx', 'utf8'),
     readFile('src/lib/session-state.ts', 'utf8'),
@@ -199,7 +199,7 @@ test('shared plan board uses live/session fallback and consistent effective bloc
 test('bash tool output stays multiline while terminal rendering remains bounded', async () => {
   const [runtime, dispatcher, activity, terminal, terminalOutput, styles, packageJson] =
     await Promise.all([
-      readFile('server/runtime/agent-runtime.mjs', 'utf8'),
+      readFile('runtime/runtime/agent-runtime.mjs', 'utf8'),
       readFile('src/features/chat/stream-event-dispatch.ts', 'utf8'),
       readFile('src/features/chat/AgentRunActivity.tsx', 'utf8'),
       readFile('src/components/ai-elements/terminal.tsx', 'utf8'),

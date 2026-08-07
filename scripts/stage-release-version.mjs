@@ -2,6 +2,7 @@ import { execFileSync } from 'node:child_process'
 import { readFile, writeFile } from 'node:fs/promises'
 import { dirname, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
+import { componentReleasePaths, componentReleaseSubjects } from './release-changes.mjs'
 import { assertHasSubstantiveReleaseCommits } from './release-policy.mjs'
 import {
   assertReleaseComponent,
@@ -61,7 +62,7 @@ async function stageTuiVersion(version) {
   ])
 }
 
-function stageServerVersion(version) {
+function stageRuntimeVersion(version) {
   const npmArgs = ['version', version, '--no-git-tag-version', '--ignore-scripts']
   const npmCli = String(process.env.npm_execpath || '').trim()
   if (npmCli) {
@@ -107,16 +108,18 @@ if (latestTag) {
   if (compareVersions(targetVersion, latestVersion) <= 0) {
     throw new Error(`新版本 ${targetVersion} 必须高于最新 ${component} 标签 ${latestTag}。`)
   }
-  const subjects = run('git', ['log', '--format=%s', `${latestTag}..${source}`])
-    .split(/\r?\n/)
-    .map((value) => value.trim())
-    .filter(Boolean)
+  const runGit = (args) => run('git', args)
+  const paths = componentReleasePaths(runGit, component, latestTag, source)
+  if (paths.length === 0) {
+    throw new Error(`${component} 自 ${latestTag} 以来没有归属于该组件的变更，无需发布。`)
+  }
+  const subjects = componentReleaseSubjects(runGit, component, latestTag, source)
   assertHasSubstantiveReleaseCommits(subjects, latestTag)
 }
 
 if (component === 'desktop') await stageDesktopVersion(targetVersion)
 else if (component === 'tui') await stageTuiVersion(targetVersion)
-else await stageServerVersion(targetVersion)
+else await stageRuntimeVersion(targetVersion)
 
 const stagedVersion = await readComponentVersion(root, component)
 if (stagedVersion !== targetVersion) {

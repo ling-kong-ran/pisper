@@ -7,16 +7,16 @@
   },
   "overrides": [
     {
-      "files": ["server/**", "shared/**", "scripts/**"],
+      "files": ["runtime/**", "shared/**", "scripts/**"],
       "rules": {
         "no-unused-vars": "error"
       }
     },
     {
       "files": [
-        "server/http/**",
-        "server/security/**",
-        "server/tools/**",
+        "runtime/http/**",
+        "runtime/security/**",
+        "runtime/tools/**",
         "shared/**",
         "scripts/**"
       ],

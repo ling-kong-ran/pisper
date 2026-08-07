@@ -1,4 +1,5 @@
 mod cli_manager;
+mod component_updates;
 mod desktop_bridge;
 mod desktop_pet;
 
@@ -93,16 +94,30 @@ fn development_root() -> PathBuf {
         .to_path_buf()
 }
 
-fn sidecar_command(app: &tauri::App) -> Result<Command, String> {
+fn sidecar_command(app: &tauri::App, allow_installed: bool) -> Result<(Command, bool), String> {
     let mut command;
     let app_root;
+    let using_installed;
 
     if cfg!(debug_assertions) {
+        using_installed = false;
         app_root = development_root();
         command = Command::new("node");
-        command.arg(app_root.join("server").join("sidecar.mjs"));
+        command.arg(app_root.join("runtime").join("sidecar.mjs"));
         command.current_dir(&app_root);
+    } else if allow_installed {
+        let installed = component_updates::installed_component(
+            app.handle(),
+            pisper_component_updater::Component::Runtime,
+        )
+        .ok_or_else(|| "No installed Pisper runtime component is active.".to_string())?;
+        using_installed = true;
+        app_root = installed
+            .runtime_root()
+            .ok_or_else(|| "Installed Pisper runtime payload is missing.".to_string())?;
+        command = Command::new(installed.executable());
     } else {
+        using_installed = false;
         let executable_dir = std::env::current_exe()
             .map_err(|error| error.to_string())?
             .parent()
@@ -130,11 +145,11 @@ fn sidecar_command(app: &tauri::App) -> Result<Command, String> {
         command.creation_flags(0x0800_0000);
     }
 
-    Ok(command)
+    Ok((command, using_installed))
 }
 
-fn start_sidecar(app: &tauri::App) -> Result<(Child, SidecarReady), String> {
-    let mut child = sidecar_command(app)?
+fn start_sidecar_process(mut command: Command) -> Result<(Child, SidecarReady), String> {
+    let mut child = command
         .spawn()
         .map_err(|error| format!("Failed to start Pisper sidecar: {error}"))?;
     let stdout = child
@@ -170,6 +185,35 @@ fn start_sidecar(app: &tauri::App) -> Result<(Child, SidecarReady), String> {
             let _ = child.kill();
             Err("Pisper sidecar did not become ready within 30 seconds.".to_string())
         }
+    }
+}
+
+fn start_sidecar(app: &tauri::App) -> Result<(Child, SidecarReady), String> {
+    let installed_available = component_updates::installed_component(
+        app.handle(),
+        pisper_component_updater::Component::Runtime,
+    )
+    .is_some()
+        && !cfg!(debug_assertions);
+    let (command, using_installed) = sidecar_command(app, installed_available)?;
+    match start_sidecar_process(command) {
+        Ok(result) => Ok(result),
+        Err(component_error) if using_installed => {
+            eprintln!("[component-update] Installed runtime failed; using bundled runtime: {component_error}");
+            if let Ok(root) = component_updates::components_root(app.handle()) {
+                let _ = pisper_component_updater::deactivate_component(
+                    &root,
+                    pisper_component_updater::Component::Runtime,
+                );
+            }
+            let (fallback, _) = sidecar_command(app, false)?;
+            start_sidecar_process(fallback).map_err(|fallback_error| {
+                format!(
+                    "Installed runtime failed ({component_error}); bundled runtime also failed ({fallback_error})"
+                )
+            })
+        }
+        Err(error) => Err(error),
     }
 }
 
@@ -497,6 +541,7 @@ pub fn run() {
                 .build(),
         )
         .manage(DesktopUpdateState::default())
+        .manage(component_updates::ComponentUpdateState::default())
         .manage(LifecycleState {
             quitting: AtomicBool::new(false),
         })
@@ -511,6 +556,10 @@ pub fn run() {
             desktop_bridge::desktop_check_for_updates,
             desktop_bridge::desktop_download_update,
             desktop_bridge::desktop_install_update,
+            component_updates::desktop_component_update_status,
+            component_updates::desktop_check_component_updates,
+            component_updates::desktop_install_component_update,
+            component_updates::desktop_restart_for_component_update,
             desktop_bridge::desktop_open_url,
             desktop_bridge::desktop_open_releases,
             desktop_bridge::desktop_open_update_log,

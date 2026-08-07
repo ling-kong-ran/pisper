@@ -45,7 +45,7 @@ function waitForExit(child) {
 test('desktop sidecar authenticates its WebView and shuts down through stdin', async () => {
   const dataDir = await mkdtemp(join(tmpdir(), 'pisper-sidecar-'))
   const token = 'test-sidecar-token'
-  const child = spawn(process.execPath, [resolve('server/sidecar.mjs')], {
+  const child = spawn(process.execPath, [resolve('runtime/sidecar.mjs')], {
     cwd: resolve('.'),
     env: {
       ...process.env,

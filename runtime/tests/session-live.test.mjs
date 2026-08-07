@@ -232,7 +232,7 @@ test('persisted transcript settles orphaned tools from a terminated turn', async
               type: 'toolCall',
               id: 'tool-3',
               name: 'edit',
-              arguments: { path: 'server/runtime.mjs' },
+              arguments: { path: 'runtime/runtime.mjs' },
             },
           ],
           stopReason: 'error',

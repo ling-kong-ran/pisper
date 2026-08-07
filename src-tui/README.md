@@ -26,6 +26,19 @@ release/tui/pisper-<version>-<platform>-<arch>/
 └── sidecar-runtime/
 ```
 
+## 独立更新
+
+检查或安装 TUI 客户端和 Runtime 更新：
+
+```bash
+pisper update --check
+pisper update tui
+pisper update runtime
+pisper update all
+```
+
+TUI 与 Runtime 使用独立版本和 Release 通道。更新器只接受匹配当前平台的签名组件包，验签和安全解压成功后才原子切换版本。`tui` 更新下载轻量客户端包，不会重复下载 Runtime；`runtime` 更新在下次启动时生效。无内置 sidecar 的轻量 TUI 首次启动时会安装最新的签名 Runtime 组件。
+
 ## 启动与会话
 
 在项目目录运行：
@@ -155,7 +168,7 @@ npm run tui:dev
 npm run tui:dev -- --cwd /path/to/project
 ```
 
-开发版默认运行仓库中的 `server/sidecar.mjs`。也可以连接已经运行的隔离 sidecar：
+开发版默认运行仓库中的 `runtime/sidecar.mjs`。也可以连接已经运行的隔离 sidecar：
 
 ```text
 PISPER_TUI_URL=http://127.0.0.1:<port>

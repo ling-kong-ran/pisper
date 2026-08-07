@@ -7,7 +7,7 @@ Pisper ships a Tauri 2 desktop application that uses each operating system's Web
 ```text
 Pisper / Pisper.exe        Tauri shell and system WebView lifecycle
 pisper-sidecar             Node SEA runtime and bootstrap
-sidecar-runtime/           Pisper server, Pi packages, Skills, native modules, and vendor binaries
+sidecar-runtime/           Pisper runtime, Pi packages, Skills, native modules, and vendor binaries
 ```
 
 The SEA contains Node and a small bootstrap. The application runtime remains external by design because Pi loads Skills and extensions dynamically, MCP starts external processes, and clipboard and local-process integrations require native files at stable filesystem paths. This is not an absolute single-file deployment.
@@ -39,9 +39,9 @@ npm run desktop:webview:build
 
 ### Dependency partition
 
-The root `package.json` and `package-lock.json` are the single npm dependency source for both build and runtime packaging. Keep browser source libraries and build/test tooling in `devDependencies`: Vite compiles browser imports into `dist/` before desktop packaging, so those packages are not installed as Node modules in the shipped application. Keep packages loaded by `server/`, Node-executed `shared/` modules, Skills, MCP integration, or other sidecar runtime paths in `dependencies`; `sidecar:sea` copies the root manifests and runs `npm ci --omit=dev` in `sidecar-runtime/` to install that production closure. A package used by both browser and sidecar code therefore belongs in `dependencies`.
+The root `package.json` and `package-lock.json` are the single npm dependency source for both build and runtime packaging. Keep browser source libraries and build/test tooling in `devDependencies`: Vite compiles browser imports into `dist/` before desktop packaging, so those packages are not installed as Node modules in the shipped application. Keep packages loaded by `runtime/`, Node-executed `shared/` modules, Skills, MCP integration, or other sidecar runtime paths in `dependencies`; `sidecar:sea` copies the root manifests and runs `npm ci --omit=dev` in `sidecar-runtime/` to install that production closure. A package used by both browser and sidecar code therefore belongs in `dependencies`.
 
-Do not create a second browser package manifest, npm workspace, or package-manager lockfile to represent this split. The repository supports Node.js 20 and newer for development and web/server execution, while release SEA builds continue to target Node.js 24.
+Do not create a second browser package manifest, npm workspace, or package-manager lockfile to represent this split. The repository supports Node.js 20 and newer for development and web/runtime execution, while release SEA builds continue to target Node.js 24.
 
 `desktop:webview:build` selects native bundles for its host platform:
 
@@ -79,21 +79,25 @@ Updater signatures and platform code signatures are separate. Windows Authentico
 
 ## Component Releases
 
-Desktop, TUI, and server/web versions advance independently:
+Desktop, TUI, and runtime/web versions advance independently:
 
 | Scope | Version source | Tag | Platform package |
 | --- | --- | --- | --- |
 | `desktop` | `src-tauri/desktop-package.json` | `vX.Y.Z` | Signed Tauri installer and updater |
-| `tui` | `src-tui/Cargo.toml` | `tui-vX.Y.Z` | Self-contained TUI, SEA sidecar, and runtime |
-| `server` | root `package.json` | `server-vX.Y.Z` | SEA sidecar and runtime |
+| `tui` | `src-tui/Cargo.toml` | `tui-vX.Y.Z` | Self-contained distribution plus a thin TUI update component |
+| `runtime` | root `package.json` | `runtime-vX.Y.Z` | SEA sidecar and runtime component |
 
-Run `npm run release -- <desktop|tui|server> <patch|minor|major|X.Y.Z>`. The workflow runs only the selected scope's checks and packaging. TUI keeps its sidecar/runtime in the archive so a standalone download remains usable, but it does not build Tauri. Server releases do not compile either Rust client. Desktop releases still integrate the current server and TUI sources into the application bundle.
+Run `npm run release -- <patch|minor|major|X.Y.Z>` to compare each component with its own latest tag and publish every component with substantive owned changes. Pass an explicit scope with `npm run release -- <desktop|tui|runtime> <patch|minor|major|X.Y.Z>` to limit the release. Multi-component dispatches share one immutable source SHA and complete sequentially, appending only validated component version commits. The workflow runs only the detected scopes' checks and packaging. TUI keeps its sidecar/runtime in the standalone archive so a direct download remains usable, while its thin component archive contains only the TUI executable. Runtime releases do not compile either Rust client. Desktop releases still integrate the current runtime and TUI sources into the application bundle.
 
-Only desktop Releases are marked as GitHub `latest`; this preserves `/releases/latest` and `latest.json` as desktop updater channels. TUI and server Releases are published with `--latest=false` and use their prefixed tags.
+Only desktop Releases are marked as GitHub `latest`; this preserves `/releases/latest` and `latest.json` as desktop updater channels. TUI and runtime Releases are published with `--latest=false` and use their prefixed tags.
+
+TUI and runtime component archives are signed with the same minisign key used by the Tauri updater. The shared Rust updater requires an exact tag and platform asset name, downloads both the archive and `.sig`, enforces size limits, verifies the embedded public key, rejects links and traversal during extraction, then installs under the per-user `components/<component>/versions/<version>` directory. An atomic `current.json` pointer activates the version. Desktop startup and the TUI sidecar launcher prefer these installed components and fall back to bundled binaries when no valid pointer is present. Runtime updates require an app/process restart; managed TUI launchers are refreshed immediately when possible.
+
+The desktop update settings use one check action for the desktop package, TUI client, and runtime, then expose install controls only for components with an available update. Standalone TUI users can run `pisper update [tui|runtime|all] [--check]`; a thin TUI with no bundled sidecar installs the latest signed runtime component on first startup.
 
 All scopes use four native jobs:
 
-| Platform | GitHub runner | Desktop package | TUI/server package |
+| Platform | GitHub runner | Desktop package | TUI/runtime package |
 | --- | --- | --- | --- |
 | `windows-x86_64` | `windows-latest` | NSIS | `.tar.gz` |
 | `darwin-x86_64` | `macos-15-intel` | DMG | `.tar.gz` |

@@ -54,7 +54,7 @@ function ToolPermissionSettings({ draft, onPatchDraft }: RuntimeSettingsProps) {
       <div className="permission-note">
         <ShieldCheck size={16} />
         <span>
-          <strong>{t('config:configPage.permissionsAreEnforcedByTheServer')}</strong>
+          <strong>{t('config:configPage.permissionsAreEnforcedByTheRuntime')}</strong>
           <small>
             {t(
               'config:configPage.afterSavingExistingRuntimesAreReleasedAndNewChatsUseTheLatestPolicy',

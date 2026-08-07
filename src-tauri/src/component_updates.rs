@@ -1,0 +1,264 @@
+use pisper_component_updater::{
+    resolve_installed, Component, ComponentUpdater, InstalledComponent,
+};
+use semver::Version;
+use serde::Serialize;
+use std::{collections::HashMap, path::PathBuf, sync::Mutex};
+use tauri::{AppHandle, Manager, State};
+
+use crate::{cli_manager, desktop_bridge::UPDATER_PUBLIC_KEY};
+
+#[derive(Clone, Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ComponentUpdateStatus {
+    component: Component,
+    state: String,
+    current_version: String,
+    available_version: String,
+    message: String,
+    release_url: String,
+    notes: String,
+    size: u64,
+    can_install: bool,
+    restart_required: bool,
+}
+
+impl ComponentUpdateStatus {
+    fn current(component: Component, version: String) -> Self {
+        Self {
+            component,
+            state: "idle".into(),
+            current_version: version,
+            available_version: String::new(),
+            message: String::new(),
+            release_url: "https://github.com/ling-kong-ran/pisper/releases".into(),
+            notes: String::new(),
+            size: 0,
+            can_install: false,
+            restart_required: false,
+        }
+    }
+}
+
+#[derive(Default)]
+pub struct ComponentUpdateState {
+    statuses: Mutex<HashMap<Component, ComponentUpdateStatus>>,
+}
+
+pub fn components_root(app: &AppHandle) -> Result<PathBuf, String> {
+    app.path()
+        .app_local_data_dir()
+        .map(|directory| directory.join("components"))
+        .map_err(|error| error.to_string())
+}
+
+pub fn installed_component(app: &AppHandle, component: Component) -> Option<InstalledComponent> {
+    resolve_installed(&components_root(app).ok()?, component)
+        .ok()
+        .flatten()
+}
+
+pub fn effective_version(app: &AppHandle, component: Component) -> String {
+    installed_component(app, component)
+        .map(|installed| installed.version.to_string())
+        .unwrap_or_else(|| match component {
+            Component::Tui => env!("PISPER_BUNDLED_TUI_VERSION").to_string(),
+            Component::Runtime => env!("PISPER_BUNDLED_RUNTIME_VERSION").to_string(),
+        })
+}
+
+fn updater(app: &AppHandle) -> Result<ComponentUpdater, String> {
+    ComponentUpdater::new(
+        components_root(app)?,
+        UPDATER_PUBLIC_KEY,
+        &format!("Pisper-Desktop/{}", app.package_info().version),
+    )
+    .map_err(|error| error.to_string())
+}
+
+fn snapshot(app: &AppHandle, state: &ComponentUpdateState) -> Vec<ComponentUpdateStatus> {
+    let statuses = state
+        .statuses
+        .lock()
+        .expect("component update status poisoned");
+    [Component::Tui, Component::Runtime]
+        .into_iter()
+        .map(|component| {
+            statuses.get(&component).cloned().unwrap_or_else(|| {
+                ComponentUpdateStatus::current(component, effective_version(app, component))
+            })
+        })
+        .collect()
+}
+
+fn store(state: &ComponentUpdateState, status: ComponentUpdateStatus) {
+    state
+        .statuses
+        .lock()
+        .expect("component update status poisoned")
+        .insert(status.component, status);
+}
+
+#[tauri::command]
+pub fn desktop_component_update_status(
+    app: AppHandle,
+    state: State<'_, ComponentUpdateState>,
+) -> Vec<ComponentUpdateStatus> {
+    snapshot(&app, &state)
+}
+
+#[tauri::command]
+pub async fn desktop_check_component_updates(
+    app: AppHandle,
+    state: State<'_, ComponentUpdateState>,
+) -> Result<Vec<ComponentUpdateStatus>, String> {
+    let updater = updater(&app)?;
+    for component in [Component::Tui, Component::Runtime] {
+        let current_version = effective_version(&app, component);
+        store(
+            &state,
+            ComponentUpdateStatus {
+                state: "checking".into(),
+                ..ComponentUpdateStatus::current(component, current_version.clone())
+            },
+        );
+        let status = match updater.latest(component).await {
+            Ok(release) => {
+                let current =
+                    Version::parse(&current_version).unwrap_or_else(|_| Version::new(0, 0, 0));
+                let latest = Version::parse(&release.version).map_err(|error| {
+                    format!("Invalid {} release version: {error}", component.name())
+                })?;
+                let available = latest > current;
+                ComponentUpdateStatus {
+                    component,
+                    state: if available { "available" } else { "current" }.into(),
+                    current_version,
+                    available_version: release.version,
+                    message: String::new(),
+                    release_url: release.release_url,
+                    notes: release.notes,
+                    size: release.size,
+                    can_install: available,
+                    restart_required: false,
+                }
+            }
+            Err(error) => ComponentUpdateStatus {
+                component,
+                state: "error".into(),
+                current_version,
+                message: error.to_string(),
+                ..ComponentUpdateStatus::current(component, String::new())
+            },
+        };
+        store(&state, status);
+    }
+    Ok(snapshot(&app, &state))
+}
+
+#[tauri::command]
+pub async fn desktop_install_component_update(
+    app: AppHandle,
+    state: State<'_, ComponentUpdateState>,
+    component: String,
+) -> Result<Vec<ComponentUpdateStatus>, String> {
+    let component = Component::parse(&component).map_err(|error| error.to_string())?;
+    let updater = updater(&app)?;
+    let release = updater
+        .latest(component)
+        .await
+        .map_err(|error| error.to_string())?;
+    let current_version = effective_version(&app, component);
+    let current = Version::parse(&current_version).unwrap_or_else(|_| Version::new(0, 0, 0));
+    let latest = Version::parse(&release.version).map_err(|error| error.to_string())?;
+    if latest <= current {
+        store(
+            &state,
+            ComponentUpdateStatus {
+                component,
+                state: "current".into(),
+                current_version,
+                available_version: release.version,
+                release_url: release.release_url,
+                notes: release.notes,
+                ..ComponentUpdateStatus::current(component, String::new())
+            },
+        );
+        return Ok(snapshot(&app, &state));
+    }
+    store(
+        &state,
+        ComponentUpdateStatus {
+            component,
+            state: "downloading".into(),
+            current_version: current_version.clone(),
+            available_version: release.version.clone(),
+            release_url: release.release_url.clone(),
+            notes: release.notes.clone(),
+            size: release.size,
+            ..ComponentUpdateStatus::current(component, current_version.clone())
+        },
+    );
+    let installed = match updater.install(&release).await {
+        Ok(installed) => installed,
+        Err(error) => {
+            store(
+                &state,
+                ComponentUpdateStatus {
+                    component,
+                    state: "error".into(),
+                    current_version,
+                    available_version: release.version,
+                    message: error.to_string(),
+                    release_url: release.release_url,
+                    notes: release.notes,
+                    size: release.size,
+                    can_install: true,
+                    restart_required: false,
+                },
+            );
+            return Ok(snapshot(&app, &state));
+        }
+    };
+
+    if component == Component::Tui {
+        let _ = cli_manager::refresh_managed_cli(&app);
+    }
+    store(
+        &state,
+        ComponentUpdateStatus {
+            component,
+            state: "installed".into(),
+            current_version: installed.version.to_string(),
+            available_version: installed.version.to_string(),
+            message: String::new(),
+            release_url: release.release_url,
+            notes: release.notes,
+            size: release.size,
+            can_install: false,
+            restart_required: component == Component::Runtime,
+        },
+    );
+    Ok(snapshot(&app, &state))
+}
+
+#[tauri::command]
+pub fn desktop_restart_for_component_update(app: AppHandle) -> bool {
+    crate::stop_sidecar(&app);
+    app.cleanup_before_exit();
+    app.restart()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::ComponentUpdateStatus;
+    use pisper_component_updater::Component;
+
+    #[test]
+    fn component_status_starts_idle_and_component_scoped() {
+        let status = ComponentUpdateStatus::current(Component::Runtime, "1.2.3".into());
+        assert_eq!(status.state, "idle");
+        assert_eq!(status.current_version, "1.2.3");
+        assert_eq!(status.component, Component::Runtime);
+    }
+}

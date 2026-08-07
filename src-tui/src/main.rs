@@ -1,5 +1,6 @@
 mod api;
 mod app;
+mod component_update;
 mod model;
 mod notification;
 mod paste_burst;
@@ -53,8 +54,26 @@ async fn main() {
 }
 
 async fn run() -> Result<()> {
+    let arguments = std::env::args_os().skip(1).collect::<Vec<_>>();
+    if let Some(request) = component_update::parse_update_request(&arguments)? {
+        component_update::execute(request).await?;
+        return Ok(());
+    }
     let options = launch_options()?;
-    let mut sidecar = SidecarConnection::start(&options.workspace)?;
+    if sidecar::needs_runtime_install() {
+        component_update::ensure_runtime().await?;
+    }
+    let mut sidecar = match SidecarConnection::start(&options.workspace) {
+        Ok(sidecar) => sidecar,
+        Err(error) if sidecar::needs_runtime_install() => {
+            eprintln!(
+                "Pisper runtime startup failed; reinstalling the signed component: {error:#}"
+            );
+            component_update::ensure_runtime().await?;
+            SidecarConnection::start(&options.workspace)?
+        }
+        Err(error) => return Err(error),
+    };
     let api = ApiClient::new(&sidecar.url, &sidecar.token)?;
     if options.doctor {
         let sessions = api
@@ -907,7 +926,7 @@ fn launch_options() -> Result<LaunchOptions> {
             println!("pisper {}", env!("CARGO_PKG_VERSION"));
             std::process::exit(0);
         } else if argument == "--help" || argument == "-h" {
-            println!("Pisper terminal client\n\nUsage: pisper [--cwd <directory>]\n       pisper resume\n       pisper doctor [--cwd <directory>]\n\n`pisper resume` opens an interactive list of conversations from every workspace.\n");
+            println!("Pisper terminal client\n\nUsage: pisper [--cwd <directory>]\n       pisper resume\n       pisper doctor [--cwd <directory>]\n       pisper update [tui|runtime|all] [--check]\n\n`pisper resume` opens an interactive list of conversations from every workspace.\n`pisper update` verifies and installs independently signed TUI and runtime components.\n");
             std::process::exit(0);
         } else {
             anyhow::bail!("unknown argument: {}", argument.to_string_lossy());

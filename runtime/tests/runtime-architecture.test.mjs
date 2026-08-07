@@ -7,7 +7,7 @@ const root = resolve(import.meta.dirname, '../..')
 
 test('runtime facade stays below its architecture budget', async () => {
   const [runtime, facade] = await Promise.all(
-    ['server/runtime/agent-runtime.mjs', 'server/runtime/agent-runtime-facade.mjs'].map((path) =>
+    ['runtime/runtime/agent-runtime.mjs', 'runtime/runtime/agent-runtime-facade.mjs'].map((path) =>
       readFile(resolve(root, path), 'utf8'),
     ),
   )

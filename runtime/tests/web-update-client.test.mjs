@@ -43,7 +43,7 @@ test('web update checks use the same-origin uncached API', async () => {
   assert.match(result.message, /1 个提交/)
 })
 
-test('web update checks preserve the server error detail', async () => {
+test('web update checks preserve the runtime error detail', async () => {
   await assert.rejects(
     checkWebUpdates({
       fetcher: async () => ({

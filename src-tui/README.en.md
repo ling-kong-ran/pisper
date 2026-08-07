@@ -26,6 +26,19 @@ release/tui/pisper-<version>-<platform>-<arch>/
 └── sidecar-runtime/
 ```
 
+## Independent Updates
+
+Check or install updates for the TUI client and Runtime:
+
+```bash
+pisper update --check
+pisper update tui
+pisper update runtime
+pisper update all
+```
+
+TUI and Runtime use independent versions and Release channels. The updater accepts only the signed component archive for the current platform and atomically switches versions after signature verification and safe extraction. A `tui` update downloads the thin client package without downloading Runtime again; a `runtime` update takes effect on the next launch. A thin TUI without a bundled sidecar installs the latest signed Runtime component on first startup.
+
 ## Startup and Sessions
 
 Run Pisper from a project directory:
@@ -155,7 +168,7 @@ Choose another workspace:
 npm run tui:dev -- --cwd /path/to/project
 ```
 
-Development runs `server/sidecar.mjs` by default. To connect an isolated running sidecar:
+Development runs `runtime/sidecar.mjs` by default. To connect an isolated running sidecar:
 
 ```text
 PISPER_TUI_URL=http://127.0.0.1:<port>

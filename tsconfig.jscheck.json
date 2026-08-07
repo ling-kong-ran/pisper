@@ -15,8 +15,8 @@
     "types": ["node"]
   },
   "files": [
-    "server/http/route-registry.mjs",
-    "server/runtime/workspace-directories.mjs",
+    "runtime/http/route-registry.mjs",
+    "runtime/runtime/workspace-directories.mjs",
     "shared/app-update.mjs"
   ]
 }

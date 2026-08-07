@@ -245,6 +245,10 @@ If FUSE is missing, install `libfuse2` or `libfuse2t64`, or use the `.deb` packa
 sudo apt install ./Pisper-*-linux-amd64.deb
 ```
 
+### Component Updates
+
+**Settings → Updates** in the desktop app is the unified update entry point. A single **Check for updates** action checks the Desktop package, TUI client, and Runtime together. Install controls appear only for components with a newer version, so a small component update does not require downloading the full desktop installer. Each component uses an independent signed Release channel. Runtime updates take effect after restarting the app, and Pisper falls back to the versions bundled with the desktop package if an installed component is unavailable or fails to start.
+
 <a id="tui"></a>
 
 ### Terminal Client (TUI)

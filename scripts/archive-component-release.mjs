@@ -19,7 +19,7 @@ const outputDir = join(root, 'release', 'component-artifacts')
 const stageRoot = join(root, 'release', 'component-stage')
 const directoryName = `pisper-${component}-${version}-${platform}-${arch}`
 const stage = join(stageRoot, directoryName)
-const label = component === 'tui' ? 'TUI' : 'Server'
+const label = component === 'tui' ? 'TUI' : 'Runtime'
 const archive = join(outputDir, `Pisper_${label}_${version}_${platform}_${arch}.tar.gz`)
 
 function run(command, args) {
@@ -33,7 +33,7 @@ function run(command, args) {
   })
 }
 
-async function stageServer() {
+async function stageRuntime() {
   const seaRoot = join(root, 'release', 'sea')
   const sidecar = join(seaRoot, `pisper-sidecar${executableSuffix}`)
   const runtime = join(seaRoot, 'runtime')
@@ -53,7 +53,7 @@ async function stageServer() {
     join(stage, 'manifest.json'),
     `${JSON.stringify(
       {
-        name: 'pisper-server',
+        name: 'pisper-runtime',
         version,
         platform,
         arch,
@@ -81,15 +81,49 @@ async function stageTui() {
   await cp(source, stage, { recursive: true, force: true })
 }
 
+async function createArchive(sourceDirectory, destination) {
+  await rm(destination, { force: true })
+  const archiveArgument = relative(root, destination).replaceAll('\\', '/')
+  const stageArgument = relative(root, stageRoot).replaceAll('\\', '/')
+  await run('tar', ['-czf', archiveArgument, '-C', stageArgument, sourceDirectory])
+  const bytes = (await stat(destination)).size
+  if (bytes === 0) throw new Error(`Component archive is empty: ${destination}`)
+  console.log(`Packaged Pisper ${label}: ${destination} (${bytes} bytes)`)
+}
+
 await rm(stage, { recursive: true, force: true })
 await mkdir(stage, { recursive: true })
 await mkdir(outputDir, { recursive: true })
-if (component === 'server') await stageServer()
+if (component === 'runtime') await stageRuntime()
 else await stageTui()
-await rm(archive, { force: true })
-const archiveArgument = relative(root, archive).replaceAll('\\', '/')
-const stageArgument = relative(root, stageRoot).replaceAll('\\', '/')
-await run('tar', ['-czf', archiveArgument, '-C', stageArgument, directoryName])
-const bytes = (await stat(archive)).size
-if (bytes === 0) throw new Error(`Component archive is empty: ${archive}`)
-console.log(`Packaged Pisper ${label}: ${archive} (${bytes} bytes)`)
+await createArchive(directoryName, archive)
+
+if (component === 'tui') {
+  const thinDirectoryName = `pisper-tui-component-${version}-${platform}-${arch}`
+  const thinStage = join(stageRoot, thinDirectoryName)
+  const thinArchive = join(outputDir, `Pisper_TUI_Component_${version}_${platform}_${arch}.tar.gz`)
+  await rm(thinStage, { recursive: true, force: true })
+  await mkdir(thinStage, { recursive: true })
+  await copyFile(
+    join(stage, `pisper${executableSuffix}`),
+    join(thinStage, `pisper${executableSuffix}`),
+  )
+  if (process.platform !== 'win32') await chmod(join(thinStage, 'pisper'), 0o755)
+  await writeFile(
+    join(thinStage, 'manifest.json'),
+    `${JSON.stringify(
+      {
+        name: 'pisper-tui-component',
+        version,
+        platform,
+        arch,
+        command: `pisper${executableSuffix}`,
+        layout: ['pisper'],
+      },
+      null,
+      2,
+    )}\n`,
+    'utf8',
+  )
+  await createArchive(thinDirectoryName, thinArchive)
+}

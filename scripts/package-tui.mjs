@@ -81,7 +81,7 @@ await writeFile(
     {
       name: 'pisper',
       version: tuiVersion,
-      serverVersion: packageJson.version,
+      runtimeVersion: packageJson.version,
       platform,
       arch,
       command: `pisper${executableSuffix}`,

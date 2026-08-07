@@ -10,7 +10,7 @@ on:
         options:
           - desktop
           - tui
-          - server
+          - runtime
       version:
         description: 'Component release version (X.Y.Z)'
         required: true
@@ -46,11 +46,7 @@ jobs:
         shell: bash
         run: |
           git fetch origin release
-          remote_source="$(git rev-parse origin/release)"
-          test "$remote_source" = "$RELEASE_SOURCE_SHA" || {
-            echo "release source must equal origin/release: expected $RELEASE_SOURCE_SHA, found $remote_source" >&2
-            exit 1
-          }
+          node scripts/verify-release-head.mjs "$RELEASE_SOURCE_SHA" origin/release
       - uses: actions/setup-node@v5
         with:
           node-version: 24
@@ -91,7 +87,7 @@ jobs:
           node-version: 24
           cache: npm
       - uses: dtolnay/rust-toolchain@stable
-        if: inputs.component != 'server'
+        if: inputs.component != 'runtime'
       - name: Install Linux Tauri prerequisites
         if: inputs.component == 'desktop'
         run: |
@@ -100,8 +96,8 @@ jobs:
       - name: Install Node dependencies
         if: inputs.component != 'tui'
         run: npm ci
-      - name: Check server and web
-        if: inputs.component == 'server'
+      - name: Check runtime and web
+        if: inputs.component == 'runtime'
         run: |
           npm test
           npm run check
@@ -146,8 +142,8 @@ jobs:
             os: ubuntu-22.04
     runs-on: ${{ matrix.os }}
     env:
-      TAURI_SIGNING_PRIVATE_KEY: ${{ inputs.component == 'desktop' && secrets.TAURI_SIGNING_PRIVATE_KEY || '' }}
-      TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ inputs.component == 'desktop' && secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD || '' }}
+      TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+      TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
       APPLE_CERTIFICATE: ${{ inputs.component == 'desktop' && startsWith(matrix.target, 'darwin-') && secrets.APPLE_CERTIFICATE || '' }}
       APPLE_CERTIFICATE_PASSWORD: ${{ inputs.component == 'desktop' && startsWith(matrix.target, 'darwin-') && secrets.APPLE_CERTIFICATE_PASSWORD || '' }}
       APPLE_SIGNING_IDENTITY: ${{ inputs.component == 'desktop' && startsWith(matrix.target, 'darwin-') && secrets.APPLE_SIGNING_IDENTITY || '' }}
@@ -168,9 +164,9 @@ jobs:
           node-version: 24
           cache: npm
       - uses: dtolnay/rust-toolchain@stable
-        if: inputs.component != 'server'
+        if: inputs.component != 'runtime'
       - uses: Swatinem/rust-cache@v2
-        if: inputs.component != 'server'
+        if: inputs.component != 'runtime'
         with:
           workspaces: |
             src-tauri
@@ -181,8 +177,7 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf
       - run: npm ci
-      - name: Require Tauri updater signing credentials
-        if: inputs.component == 'desktop'
+      - name: Require component signing credentials
         shell: bash
         run: |
           test -n "$TAURI_SIGNING_PRIVATE_KEY" || { echo "TAURI_SIGNING_PRIVATE_KEY is not configured." >&2; exit 1; }
@@ -200,16 +195,27 @@ jobs:
               npm run tui:package
               node scripts/archive-component-release.mjs tui
               ;;
-            server)
+            runtime)
               npm run sidecar:sea
               npm run sidecar:sea:smoke
-              node scripts/archive-component-release.mjs server
+              node scripts/archive-component-release.mjs runtime
               ;;
             *)
               echo "Unsupported release component: $RELEASE_COMPONENT" >&2
               exit 1
               ;;
           esac
+      - name: Test desktop shell on the release platform
+        if: inputs.component == 'desktop'
+        run: cargo test --manifest-path src-tauri/Cargo.toml --locked
+      - name: Sign independently updateable component archives
+        if: inputs.component != 'desktop'
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          while IFS= read -r -d '' archive; do
+            npx tauri signer sign "$archive"
+          done < <(find release/component-artifacts -type f -name '*.tar.gz' -print0)
       - uses: actions/upload-artifact@v4
         with:
           name: pisper-${{ inputs.component }}-${{ matrix.target }}
@@ -259,11 +265,9 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
 
-          remote_source="$(git ls-remote origin "refs/heads/$RELEASE_BRANCH" | cut -f1)"
-          test "$remote_source" = "$RELEASE_SOURCE_SHA" || {
-            echo "release branch moved: expected $RELEASE_SOURCE_SHA, found $remote_source" >&2
-            exit 1
-          }
+          git fetch origin "$RELEASE_BRANCH"
+          remote_source="$(git rev-parse "origin/$RELEASE_BRANCH")"
+          node scripts/verify-release-head.mjs "$RELEASE_SOURCE_SHA" "$remote_source"
           test -z "$(git ls-remote origin "refs/tags/$RELEASE_TAG")" || {
             echo "tag already exists: $RELEASE_TAG" >&2
             exit 1
@@ -272,13 +276,22 @@ jobs:
           case "$RELEASE_COMPONENT" in
             desktop) git add src-tauri/desktop-package.json ;;
             tui) git add src-tui/Cargo.toml src-tui/Cargo.lock ;;
-            server) git add package.json package-lock.json ;;
+            runtime) git add package.json package-lock.json ;;
           esac
           git diff --cached --quiet && {
             echo "staged release has no version changes" >&2
             exit 1
           }
           git commit -m "chore(release-$RELEASE_COMPONENT): $RELEASE_TAG"
+          stash_before="$(git rev-parse -q --verify refs/stash || true)"
+          git stash push --include-untracked -- public/release-notes.json release-body.md >/dev/null
+          stash_after="$(git rev-parse -q --verify refs/stash || true)"
+          if [ "$remote_source" != "$RELEASE_SOURCE_SHA" ]; then
+            git rebase --onto "$remote_source" "$RELEASE_SOURCE_SHA" HEAD
+          fi
+          if [ -n "$stash_after" ] && [ "$stash_after" != "$stash_before" ]; then
+            git stash pop >/dev/null
+          fi
           release_commit="$(git rev-parse HEAD)"
           git tag "$RELEASE_TAG"
 
@@ -291,7 +304,7 @@ jobs:
               git push --atomic \
                 --force-with-lease="refs/heads/$RELEASE_BRANCH:$release_commit" \
                 origin \
-                "$RELEASE_SOURCE_SHA:refs/heads/$RELEASE_BRANCH" \
+                "$remote_source:refs/heads/$RELEASE_BRANCH" \
                 ":refs/tags/$RELEASE_TAG" || true
             fi
             exit "$status"

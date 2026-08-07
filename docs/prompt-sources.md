@@ -31,5 +31,5 @@ reference URLs to every request prefix.
   approval policy remain enforced for the underlying tool.
 
 The source links are provider documentation and standards references. Provider behavior
-can vary by model and deployment, so `server/runtime/prompt-cache-diagnostics.mjs`
+can vary by model and deployment, so `runtime/runtime/prompt-cache-diagnostics.mjs`
 records changes to the stable prefix and request runtime configuration separately.

@@ -42,7 +42,7 @@ impl ApiClient {
             header::HeaderValue::from_str(base.as_str().trim_end_matches('/'))?,
         );
         // Keep localhost pooling below Node's default five-second keep-alive.
-        // This reuses startup requests without retaining a socket the server
+        // This reuses startup requests without retaining a socket the runtime
         // may already have expired.
         let client = Client::builder()
             .default_headers(headers)
