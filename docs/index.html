@@ -1,0 +1,335 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta
+      name="description"
+      content="Pisper 是一个本地优先的多 Agent 工作台，在桌面端和终端中并行推进会话、工具、记忆与自动化。"
+    />
+    <meta name="theme-color" content="#111312" />
+    <meta property="og:type" content="website" />
+    <meta property="og:title" content="Pisper · 多 Agent 工作台" />
+    <meta
+      property="og:description"
+      content="让多个 Agent 在同一工作台并行推进，各自拥有独立模型、上下文、目录与权限。"
+    />
+    <meta
+      property="og:image"
+      content="https://ling-kong-ran.github.io/pisper/shots/chat-grid.png"
+    />
+    <meta property="og:url" content="https://ling-kong-ran.github.io/pisper/" />
+    <link rel="canonical" href="https://ling-kong-ran.github.io/pisper/" />
+    <link rel="icon" href="brand/pisper-logo.svg" type="image/svg+xml" />
+    <link rel="preload" href="shots/welcome-dark.png" as="image" />
+    <link rel="stylesheet" href="site.css" />
+    <script src="site.js" defer></script>
+    <title>Pisper · 多 Agent 工作台</title>
+  </head>
+  <body>
+    <a class="skip-link" href="#main">跳到主要内容</a>
+
+    <header class="site-header" data-header>
+      <nav class="nav shell" aria-label="主导航">
+        <a class="brand" href="#top" aria-label="Pisper 首页">
+          <img src="brand/pisper-logo.svg" width="32" height="32" alt="" />
+          <span>Pisper</span>
+        </a>
+
+        <div class="nav-links">
+          <a href="#product">产品</a>
+          <a href="#capabilities">能力</a>
+          <a href="#terminal">终端</a>
+          <a href="https://github.com/ling-kong-ran/pisper/blob/release/README.en.md">English</a>
+        </div>
+
+        <a class="nav-download" href="https://github.com/ling-kong-ran/pisper/releases/latest">
+          下载桌面版 <span aria-hidden="true">↓</span>
+        </a>
+      </nav>
+    </header>
+
+    <main id="main">
+      <section class="hero" id="top" aria-labelledby="hero-title">
+        <img
+          class="hero-image"
+          src="shots/welcome-dark.png"
+          alt="Pisper 深色工作台，包含会话、工具、记忆、MCP、技能与工作流导航"
+          width="2558"
+          height="1380"
+        />
+        <div class="hero-shade" aria-hidden="true"></div>
+        <div class="hero-content shell">
+          <p class="eyebrow">LOCAL-FIRST · MULTI-AGENT</p>
+          <h1 id="hero-title">Pisper</h1>
+          <p class="hero-statement">多个 Agent，一处推进。</p>
+          <p class="hero-copy">
+            每个会话拥有独立模型、上下文、工作目录与权限。专注写代码，也能把工具、记忆、渠道和自动化放在同一个工作台。
+          </p>
+          <div class="hero-actions">
+            <a
+              class="button button-primary"
+              href="https://github.com/ling-kong-ran/pisper/releases/latest"
+            >
+              下载桌面版 <span aria-hidden="true">→</span>
+            </a>
+            <a class="button button-secondary" href="https://github.com/ling-kong-ran/pisper">
+              查看 GitHub
+            </a>
+          </div>
+        </div>
+        <div class="hero-foot shell" aria-label="支持平台">
+          <span>Windows</span>
+          <span>macOS</span>
+          <span>Linux</span>
+          <span>MIT Licensed</span>
+        </div>
+      </section>
+
+      <section class="signal-band" aria-label="产品形态">
+        <div class="signal-grid shell">
+          <div><strong>Desktop</strong><span>完整工作台</span></div>
+          <div><strong>TUI</strong><span>终端客户端</span></div>
+          <div><strong>Runtime</strong><span>统一能力层</span></div>
+          <div><strong>Local-first</strong><span>数据留在本机</span></div>
+        </div>
+      </section>
+
+      <section class="product-section section shell" id="product" aria-labelledby="product-title">
+        <div class="section-heading">
+          <div>
+            <p class="eyebrow eyebrow-dark">真实工作台</p>
+            <h2 id="product-title">任务复杂，界面保持清楚。</h2>
+          </div>
+          <p>
+            从并行会话到可视化工作流，Pisper 把正在发生的工作、所用能力和执行状态放在可扫描的位置。
+          </p>
+        </div>
+
+        <div class="product-tabs" role="tablist" aria-label="产品界面">
+          <button
+            type="button"
+            role="tab"
+            aria-selected="true"
+            aria-controls="product-panel"
+            id="tab-sessions"
+            data-shot="shots/chat-grid.png"
+            data-alt="Pisper 并行会话分屏"
+            data-title="并行会话"
+            data-copy="拖拽标签，向任意方向分屏。每个 Agent 独立运行，状态彼此清晰。"
+          >
+            并行会话
+          </button>
+          <button
+            type="button"
+            role="tab"
+            aria-selected="false"
+            aria-controls="product-panel"
+            id="tab-workflows"
+            data-shot="shots/workflow-builder.png"
+            data-alt="Pisper 可视化工作流编辑器"
+            data-title="可视化工作流"
+            data-copy="连接 Prompt、文件、MCP 与通知节点，把重复工作变成可运行流程。"
+          >
+            工作流
+          </button>
+          <button
+            type="button"
+            role="tab"
+            aria-selected="false"
+            aria-controls="product-panel"
+            id="tab-memory"
+            data-shot="shots/memory.png"
+            data-alt="Pisper 星忆关系视图"
+            data-title="项目记忆"
+            data-copy="检索事实、偏好和决策，让长期项目保持连续，不必反复补齐背景。"
+          >
+            星忆
+          </button>
+          <button
+            type="button"
+            role="tab"
+            aria-selected="false"
+            aria-controls="product-panel"
+            id="tab-channels"
+            data-shot="shots/channels.png"
+            data-alt="Pisper 渠道管理界面"
+            data-title="双向渠道"
+            data-copy="连接飞书与个人微信，让会话、任务和通知离开桌面后仍可继续。"
+          >
+            渠道
+          </button>
+        </div>
+
+        <figure
+          class="product-panel"
+          id="product-panel"
+          role="tabpanel"
+          aria-labelledby="tab-sessions"
+        >
+          <div class="product-shot-wrap">
+            <img
+              class="product-shot"
+              data-product-shot
+              src="shots/chat-grid.png"
+              alt="Pisper 并行会话分屏"
+              width="2558"
+              height="1380"
+            />
+          </div>
+          <figcaption>
+            <strong data-product-title>并行会话</strong>
+            <span data-product-copy
+              >拖拽标签，向任意方向分屏。每个 Agent 独立运行，状态彼此清晰。</span
+            >
+          </figcaption>
+        </figure>
+      </section>
+
+      <section
+        class="capability-section section"
+        id="capabilities"
+        aria-labelledby="capability-title"
+      >
+        <div class="shell">
+          <div class="section-heading compact-heading">
+            <div>
+              <p class="eyebrow eyebrow-dark">从对话到交付</p>
+              <h2 id="capability-title">一套完整的本地工作流。</h2>
+            </div>
+          </div>
+
+          <ol class="capability-list">
+            <li>
+              <span>01</span>
+              <div>
+                <h3>多会话与分屏</h3>
+                <p>并行推进多个任务，随时重排、恢复和聚焦。</p>
+              </div>
+            </li>
+            <li>
+              <span>02</span>
+              <div>
+                <h3>Tools、Skills 与 MCP</h3>
+                <p>按风险管理能力，按任务启用真实工具。</p>
+              </div>
+            </li>
+            <li>
+              <span>03</span>
+              <div>
+                <h3>记忆与多模态</h3>
+                <p>保留项目事实，处理图片、文档和代码资产。</p>
+              </div>
+            </li>
+            <li>
+              <span>04</span>
+              <div>
+                <h3>自动化与通知</h3>
+                <p>用定时任务和工作流组织可重复执行。</p>
+              </div>
+            </li>
+            <li>
+              <span>05</span>
+              <div>
+                <h3>会话级控制</h3>
+                <p>每个会话独立选择模型、目录、思考等级与权限。</p>
+              </div>
+            </li>
+            <li>
+              <span>06</span>
+              <div>
+                <h3>Git 与 SVN</h3>
+                <p>在工作台或终端中查看、提交和管理工作区改动。</p>
+              </div>
+            </li>
+          </ol>
+        </div>
+      </section>
+
+      <section class="component-section section" aria-labelledby="component-title">
+        <div class="shell component-layout">
+          <div class="component-intro">
+            <p class="eyebrow">独立组件更新</p>
+            <h2 id="component-title">需要更新什么，就只更新什么。</h2>
+            <p>
+              桌面端提供统一检查入口。Desktop、TUI 和 Runtime
+              分别更新、签名验证并安全切换，失败时自动回退到内置版本。
+            </p>
+          </div>
+          <div class="component-rows" aria-label="Pisper 组件">
+            <div>
+              <span>01</span><strong>Desktop</strong>
+              <p>界面、桌面集成与统一更新入口</p>
+            </div>
+            <div>
+              <span>02</span><strong>TUI</strong>
+              <p>面向终端的轻量交互客户端</p>
+            </div>
+            <div>
+              <span>03</span><strong>Runtime</strong>
+              <p>会话、工具、模型与自动化服务</p>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section
+        class="terminal-section section shell"
+        id="terminal"
+        aria-labelledby="terminal-title"
+      >
+        <div class="terminal-copy">
+          <p class="eyebrow eyebrow-dark">同一能力，两个入口</p>
+          <h2 id="terminal-title">离开桌面，也不离开上下文。</h2>
+          <p>
+            Ratatui TUI 连接同一 Runtime，保留会话用量、思考状态、工具活动、计划和 Git/SVN
+            工作区能力。
+          </p>
+          <a href="https://github.com/ling-kong-ran/pisper/blob/release/src-tui/README.md"
+            >阅读 TUI 使用指南 <span aria-hidden="true">→</span></a
+          >
+        </div>
+        <figure class="terminal-figure">
+          <img
+            src="shots/cli.png"
+            alt="Pisper TUI 终端界面"
+            width="2679"
+            height="1200"
+            loading="lazy"
+          />
+        </figure>
+      </section>
+
+      <section class="download-section" aria-labelledby="download-title">
+        <div class="shell download-inner">
+          <div>
+            <p class="eyebrow">WINDOWS · MACOS · LINUX</p>
+            <h2 id="download-title">从桌面端开始。</h2>
+            <p>安装包已包含 TUI 与 Runtime，无需单独安装 Node.js。</p>
+          </div>
+          <a
+            class="button button-light"
+            href="https://github.com/ling-kong-ran/pisper/releases/latest"
+          >
+            下载最新桌面版 <span aria-hidden="true">↓</span>
+          </a>
+        </div>
+      </section>
+    </main>
+
+    <footer class="site-footer">
+      <div class="shell footer-inner">
+        <a class="brand footer-brand" href="#top">
+          <img src="brand/pisper-logo.svg" width="28" height="28" alt="" />
+          <span>Pisper</span>
+        </a>
+        <p>Local-first multi-Agent workspace.</p>
+        <div>
+          <a href="https://github.com/ling-kong-ran/pisper">GitHub</a>
+          <a href="https://github.com/ling-kong-ran/pisper#readme">文档</a>
+          <a href="https://github.com/ling-kong-ran/pisper/blob/release/LICENSE">MIT License</a>
+        </div>
+      </div>
+    </footer>
+  </body>
+</html>
