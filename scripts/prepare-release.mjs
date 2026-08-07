@@ -9,6 +9,7 @@ const packagePath = join(root, 'package.json')
 const releaseNotesPath = join(root, 'public', 'release-notes.json')
 const releaseBodyPath = join(root, 'release-body.md')
 const tag = String(process.argv[2] || process.env.GITHUB_REF_NAME || '').trim()
+const sourceRef = String(process.argv[3] || tag).trim()
 const match = tag.match(/^v(\d+\.\d+\.\d+)$/)
 if (!match) throw new Error(`发布标签无效：${tag}。标签必须使用 vX.Y.Z 格式。`)
 
@@ -32,9 +33,15 @@ const tags = run('git', ['tag', '--list', 'v*', '--sort=-version:refname'])
   .filter((value) => /^v\d+\.\d+\.\d+$/.test(value))
 const previousTag = tags.find((value) => value !== tag)
 let source = '本地 Git 提交'
-let generated = generateLocalNotes({ tag, previousTag })
+let generated = generateLocalNotes({ tag, previousTag, sourceRef })
 if (token) {
-  const githubNotes = await generateGitHubNotes({ repository, token, tag, previousTag })
+  const githubNotes = await generateGitHubNotes({
+    repository,
+    token,
+    tag,
+    previousTag,
+    sourceRef,
+  })
   if (hasMeaningfulGeneratedNotes(githubNotes.body)) {
     generated = githubNotes
     source = 'GitHub 自动 Release Notes'
@@ -59,9 +66,11 @@ async function generateGitHubNotes({
   token: githubToken,
   tag: currentTag,
   previousTag: previous,
+  sourceRef: targetCommitish,
 }) {
   const payload = {
     tag_name: currentTag,
+    target_commitish: targetCommitish,
     configuration_file_path: '.github/release.yml',
   }
   if (previous) payload.previous_tag_name = previous
@@ -83,8 +92,8 @@ async function generateGitHubNotes({
   return response.json()
 }
 
-function generateLocalNotes({ tag: currentTag, previousTag: previous }) {
-  const range = previous ? `${previous}..${currentTag}` : currentTag
+function generateLocalNotes({ tag: currentTag, previousTag: previous, sourceRef: source }) {
+  const range = previous ? `${previous}..${source}` : source
   const subjects = run('git', ['log', range, '--pretty=format:%s'])
     .split(/\r?\n/)
     .map((value) => value.trim())

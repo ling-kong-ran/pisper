@@ -6,28 +6,26 @@ import {
   isSubstantiveReleaseCommit,
 } from '../../scripts/release-policy.mjs'
 
-test('release refreshes npm and Cargo dependencies before checks and version tagging', async () => {
+test('release validates immutable source and dispatches without versioning or tagging locally', async () => {
   const source = await readFile('scripts/release.mjs', 'utf8')
   const substantiveCheck = source.indexOf('assertHasSubstantiveReleaseCommits')
-  const npmUpdate = source.indexOf("runNpm(['update'])")
-  const cargoUpdate = source.indexOf("run('cargo', ['update'")
   const tests = source.indexOf("runNpm(['test'])")
-  const dependencyCommit = source.indexOf('chore(deps): refresh release dependencies')
-  const npmVersion = source.indexOf('const versionOutput')
+  const dispatch = source.indexOf("'workflow',\n  'run',\n  'release.yml'")
 
   assert.ok(substantiveCheck >= 0)
-  assert.ok(npmUpdate > substantiveCheck)
-  assert.ok(cargoUpdate > npmUpdate)
-  assert.ok(tests > cargoUpdate)
-  assert.ok(dependencyCommit > tests)
-  assert.ok(npmVersion > dependencyCommit)
+  assert.ok(tests > substantiveCheck)
+  assert.ok(dispatch > tests)
   assert.match(source, /runNpm\(\['run', 'check'\]\)/)
   assert.match(source, /runNpm\(\['run', 'tui:test'\]\)/)
   assert.match(source, /runNpm\(\['run', 'tui:check'\]\)/)
   assert.match(source, /PISPER_RELEASE_BRANCH \|\| 'release'/)
   assert.match(source, /--untracked-files=no/)
-  assert.match(source, /远端 \$\{branch\} 分支尚不存在，将在发布时创建/)
-  assert.match(source, /正在检查自 \$\{latestTag\} 以来的实质性提交/)
+  assert.match(source, /source !== remoteSource/)
+  assert.match(source, /`version=\$\{nextVersion\}`/)
+  assert.match(source, /`source_sha=\$\{source\}`/)
+  assert.doesNotMatch(source, /runNpm\(\['version'/)
+  assert.doesNotMatch(source, /run\('git', \['tag', (?!'--list')/)
+  assert.doesNotMatch(source, /run\('git', \['push'/)
 })
 
 test('release policy accepts product commits and rejects bookkeeping-only ranges', () => {

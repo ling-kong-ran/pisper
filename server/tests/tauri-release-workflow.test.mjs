@@ -115,14 +115,41 @@ test('desktop bundles the TUI behind the narrow CLI management bridge', async ()
   assert.match(manager, /\.local.*bin/s)
 })
 
-test('release workflow validates the exact Tauri asset set before upload', async () => {
+test('release workflow validates all assets before the bot commits, tags, and publishes', async () => {
   const workflow = await readFile('.github/workflows/release.yml', 'utf8')
   const validator = workflow.indexOf('node scripts/validate-tauri-release-assets.mjs')
-  const upload = workflow.indexOf('softprops/action-gh-release')
+  const versionCommit = workflow.indexOf('git commit -m "chore(release): $RELEASE_TAG"')
+  const atomicPush = workflow.indexOf('git push --atomic origin')
+  const draftUpload = workflow.indexOf('gh release create "$RELEASE_TAG"')
+  const publish = workflow.indexOf('gh release edit "$RELEASE_TAG"')
 
   assert.ok(validator >= 0)
-  assert.ok(upload > validator)
-  assert.doesNotMatch(workflow, /gh release download/)
+  assert.ok(versionCommit > validator)
+  assert.ok(atomicPush > versionCommit)
+  assert.ok(draftUpload > atomicPush)
+  assert.ok(publish > draftUpload)
+  assert.match(workflow, /git config user\.name "github-actions\[bot\]"/)
+  assert.match(workflow, /--verify-tag/)
+  assert.match(workflow, /--draft/)
+  assert.match(workflow, /trap rollback ERR/)
+  assert.doesNotMatch(workflow, /push:\s*\n\s*tags:/)
+  assert.doesNotMatch(workflow, /softprops\/action-gh-release|gh release download/)
+})
+
+test('release workflow stages version metadata without exposing it before all builds pass', async () => {
+  const workflow = await readFile('.github/workflows/release.yml', 'utf8')
+  const prepare = workflow.slice(workflow.indexOf('  prepare:'), workflow.indexOf('  quality:'))
+  const release = workflow.slice(workflow.indexOf('  release:'))
+
+  assert.match(workflow, /workflow_dispatch:/)
+  assert.match(workflow, /source_sha:/)
+  assert.match(prepare, /git fetch origin release/)
+  assert.match(prepare, /git rev-parse origin\/release/)
+  assert.match(prepare, /node scripts\/stage-release-version\.mjs/)
+  assert.match(prepare, /name: release-source/)
+  assert.match(release, /remote_source=.*refs\/heads\/\$RELEASE_BRANCH/)
+  assert.match(release, /test "\$remote_source" = "\$RELEASE_SOURCE_SHA"/)
+  assert.match(release, /refs\/tags\/\$RELEASE_TAG/)
 })
 
 test('release assets reject legacy updater metadata and unexpected files', async () => {

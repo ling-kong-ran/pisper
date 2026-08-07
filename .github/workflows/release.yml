@@ -1,13 +1,14 @@
 name: Release desktop apps
 
 on:
-  push:
-    tags:
-      - 'v*.*.*'
   workflow_dispatch:
     inputs:
-      tag:
-        description: 'Release tag to build'
+      version:
+        description: 'Release version (X.Y.Z)'
+        required: true
+        type: string
+      source_sha:
+        description: 'Exact release branch commit to build'
         required: true
         type: string
 
@@ -15,38 +16,70 @@ permissions:
   contents: write
 
 concurrency:
-  group: release-${{ github.ref }}
+  group: release-${{ github.repository }}
   cancel-in-progress: false
+
+env:
+  RELEASE_VERSION: ${{ inputs.version }}
+  RELEASE_TAG: v${{ inputs.version }}
+  RELEASE_SOURCE_SHA: ${{ inputs.source_sha }}
 
 jobs:
   prepare:
-    name: Prepare release
+    name: Prepare staged release
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
         with:
+          ref: ${{ inputs.source_sha }}
           fetch-depth: 0
+      - name: Verify immutable release branch source
+        shell: bash
+        run: |
+          git fetch origin release
+          remote_source="$(git rev-parse origin/release)"
+          test "$remote_source" = "$RELEASE_SOURCE_SHA" || {
+            echo "release source must equal origin/release: expected $RELEASE_SOURCE_SHA, found $remote_source" >&2
+            exit 1
+          }
       - uses: actions/setup-node@v5
         with:
           node-version: 24
-      - name: Validate version and generate release notes
-        run: node scripts/prepare-release.mjs "${{ github.ref_name }}"
+      - uses: dtolnay/rust-toolchain@stable
+      - name: Refresh staged release dependencies
+        run: |
+          npm update
+          cargo update --manifest-path src-tui/Cargo.toml
+      - name: Stage version without committing or tagging
+        run: node scripts/stage-release-version.mjs "$RELEASE_VERSION" "$RELEASE_SOURCE_SHA"
+      - name: Generate release notes from the immutable source
+        run: node scripts/prepare-release.mjs "$RELEASE_TAG" "$RELEASE_SOURCE_SHA"
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       - uses: actions/upload-artifact@v4
         with:
-          name: release-metadata
+          name: release-source
           if-no-files-found: error
           path: |
+            package.json
+            package-lock.json
+            src-tui/Cargo.toml
+            src-tui/Cargo.lock
             release-body.md
             public/release-notes.json
 
   quality:
-    name: Verify release source
+    name: Verify staged release source
     needs: prepare
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
+        with:
+          ref: ${{ inputs.source_sha }}
+      - uses: actions/download-artifact@v5
+        with:
+          name: release-source
+          path: .
       - uses: actions/setup-node@v5
         with:
           node-version: 24
@@ -102,7 +135,12 @@ jobs:
     steps:
       - uses: actions/checkout@v5
         with:
+          ref: ${{ inputs.source_sha }}
           fetch-depth: 0
+      - uses: actions/download-artifact@v5
+        with:
+          name: release-source
+          path: .
       - uses: actions/setup-node@v5
         with:
           node-version: 24
@@ -116,10 +154,6 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf
-      - uses: actions/download-artifact@v5
-        with:
-          name: release-metadata
-          path: .
       - run: npm ci
       - name: Require Tauri updater signing credentials
         shell: bash
@@ -135,19 +169,20 @@ jobs:
           path: release/tauri-artifacts
 
   release:
-    name: Publish GitHub Release
+    name: Finalize version and publish release
     needs: build
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
         with:
+          ref: ${{ inputs.source_sha }}
           fetch-depth: 0
       - uses: actions/setup-node@v5
         with:
           node-version: 24
       - uses: actions/download-artifact@v5
         with:
-          name: release-metadata
+          name: release-source
           path: .
       - uses: actions/download-artifact@v5
         with:
@@ -155,17 +190,71 @@ jobs:
           path: artifacts
           merge-multiple: true
       - name: Create multi-platform updater manifest
-        run: node scripts/create-tauri-update-manifest.mjs "${{ github.ref_name }}" artifacts --require-all --output artifacts/latest.json
+        run: node scripts/create-tauri-update-manifest.mjs "$RELEASE_TAG" artifacts --require-all --output artifacts/latest.json
       - name: Validate exact release asset set
-        run: node scripts/validate-tauri-release-assets.mjs "${{ github.ref_name }}" artifacts
-      - uses: softprops/action-gh-release@v2
-        with:
-          name: Pisper ${{ github.ref_name }}
-          body_path: release-body.md
-          fail_on_unmatched_files: true
-          make_latest: true
-          files: artifacts/**/*
-      - name: Synchronize release notes
+        run: node scripts/validate-tauri-release-assets.mjs "$RELEASE_TAG" artifacts
+      - name: Commit version, upload a draft, and publish atomically
+        shell: bash
         env:
           GH_TOKEN: ${{ github.token }}
-        run: gh release edit "${{ github.ref_name }}" --repo "${{ github.repository }}" --title "Pisper ${{ github.ref_name }}" --notes-file release-body.md --latest
+          RELEASE_BRANCH: release
+        run: |
+          set -Eeuo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+          remote_source="$(git ls-remote origin "refs/heads/$RELEASE_BRANCH" | cut -f1)"
+          test "$remote_source" = "$RELEASE_SOURCE_SHA" || {
+            echo "release branch moved: expected $RELEASE_SOURCE_SHA, found $remote_source" >&2
+            exit 1
+          }
+          test -z "$(git ls-remote origin "refs/tags/$RELEASE_TAG")" || {
+            echo "tag already exists: $RELEASE_TAG" >&2
+            exit 1
+          }
+
+          git add package.json package-lock.json src-tui/Cargo.toml src-tui/Cargo.lock
+          git diff --cached --quiet && {
+            echo "staged release has no version changes" >&2
+            exit 1
+          }
+          git commit -m "chore(release): $RELEASE_TAG"
+          release_commit="$(git rev-parse HEAD)"
+          git tag "$RELEASE_TAG"
+
+          pushed=0
+          rollback() {
+            status=$?
+            trap - ERR
+            gh release delete "$RELEASE_TAG" --yes >/dev/null 2>&1 || true
+            if [ "$pushed" = 1 ]; then
+              git push --atomic \
+                --force-with-lease="refs/heads/$RELEASE_BRANCH:$release_commit" \
+                origin \
+                "$RELEASE_SOURCE_SHA:refs/heads/$RELEASE_BRANCH" \
+                ":refs/tags/$RELEASE_TAG" || true
+            fi
+            exit "$status"
+          }
+          trap rollback ERR
+
+          git push --atomic origin \
+            "HEAD:refs/heads/$RELEASE_BRANCH" \
+            "refs/tags/$RELEASE_TAG"
+          pushed=1
+
+          mapfile -d '' assets < <(find artifacts -type f -print0)
+          gh release create "$RELEASE_TAG" \
+            --draft \
+            --verify-tag \
+            --title "Pisper $RELEASE_TAG" \
+            --notes-file release-body.md \
+            "${assets[@]}"
+          gh release edit "$RELEASE_TAG" \
+            --draft=false \
+            --latest \
+            --title "Pisper $RELEASE_TAG" \
+            --notes-file release-body.md
+
+          trap - ERR
+          echo "Published $RELEASE_TAG from $release_commit"

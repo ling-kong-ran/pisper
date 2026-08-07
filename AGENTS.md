@@ -84,7 +84,7 @@ npm run tui:build           # SEA build followed by TUI packaging
 
 # Versioning and release
 npm run version             # synchronize src-tui/Cargo.toml and Cargo.lock to package.json
-npm run release -- patch    # refresh dependencies, run release gates, bump version, tag, and push
+npm run release -- patch    # run release gates and dispatch the atomic GitHub Actions release
 npm run release -- minor
 npm run release -- major
 npm run release -- 0.4.20
@@ -98,13 +98,13 @@ Releases must ship **substantive product changes**. Do **not** cut a version whe
 
 Before running `npm run release`:
 
-1. Confirm you are on the `release` branch and the working tree is clean.
+1. Confirm you are on the `release` branch, the tracked working tree is clean, and local `release` exactly matches `origin/release`.
 2. Inspect `git log --oneline <latest-tag>..HEAD` and `git diff --stat <latest-tag>..HEAD`.
 3. Require at least one substantive commit since the latest tag: `feat`, `fix`, `perf`, user-facing behavior, security, or packaging that changes shipped artifacts. Pure `chore(deps)`, `chore(release)`, `style`, and docs-only commits do **not** count by themselves.
 4. If there is nothing substantive to ship, **stop**. Do not invent a patch release, do not run `npm run release` “just to push”, and do not force-publish after dependency refresh alone.
 5. When the user asks to “发布新版本” but HEAD is already a release commit / tag with no later product commits, report that the latest version is already published and wait for new work.
 
-`npm run release` enforces this gate in `scripts/release.mjs` via `scripts/release-policy.mjs`: after resolving the latest `v*.*.*` tag, it inspects `git log <tag>..HEAD` and **exits before dependency refresh / checks / tagging** when there are no new commits or only non-substantive ones. Dependency updates are still allowed **alongside** substantive changes, not as the sole reason to bump.
+`npm run release` enforces this gate in `scripts/release.mjs` via `scripts/release-policy.mjs`, runs local checks, and dispatches `.github/workflows/release.yml` with the exact source SHA and target version. It must **not** bump versions, create tags, or push release metadata locally. GitHub Actions stages the version and refreshed dependency locks only in artifacts, verifies and builds every platform, validates the exact signed asset set, then lets `github-actions[bot]` commit `chore(release): vX.Y.Z` and atomically push the `release` branch plus tag immediately before publishing a Draft Release. Any earlier failure leaves the remote version and tag unchanged; finalization failures run compensating cleanup. Do not reintroduce tag-push-triggered releases.
 
 ## Conventions
 
