@@ -133,6 +133,34 @@ export const sessionRuntimeRoutes = [
     },
   },
   {
+    method: 'GET',
+    path: '/api/sessions/:sessionId/vcs/changes',
+    async handler({ runtime, params, json }) {
+      json(200, await runtime.getSessionVcsChanges(params.sessionId))
+    },
+  },
+  {
+    method: 'POST',
+    path: '/api/sessions/:sessionId/vcs/commit',
+    async handler({ runtime, params, body, json }) {
+      json(200, await runtime.commitSessionVcsChanges(params.sessionId, (await body()).message))
+    },
+  },
+  {
+    method: 'POST',
+    path: '/api/sessions/:sessionId/vcs/push',
+    async handler({ runtime, params, json }) {
+      json(200, await runtime.pushSessionVcsChanges(params.sessionId))
+    },
+  },
+  {
+    method: 'POST',
+    path: '/api/sessions/:sessionId/vcs/revert',
+    async handler({ runtime, params, json }) {
+      json(200, await runtime.revertSessionVcsChanges(params.sessionId))
+    },
+  },
+  {
     method: 'PUT',
     path: '/api/sessions/:sessionId/execution-mode',
     async handler({ runtime, params, body, json }) {

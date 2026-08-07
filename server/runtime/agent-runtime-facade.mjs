@@ -415,6 +415,50 @@ export class AgentRuntimeFacade {
     return result
   }
 
+  async sessionGitCwd(id) {
+    return this.sessionWorkspaceCwd(id)
+  }
+
+  async getSessionGitChanges(id) {
+    return this.gitChanges.getChanges(await this.sessionGitCwd(id))
+  }
+
+  async commitSessionGitChanges(id, message) {
+    if (this.sessions.get(id)?.session.isStreaming)
+      throw new Error('当前会话正在运行，请完成或停止后再提交改动。')
+    return this.gitChanges.commit(await this.sessionGitCwd(id), message)
+  }
+
+  async pushSessionGitChanges(id) {
+    return this.gitChanges.push(await this.sessionGitCwd(id))
+  }
+
+  async revertSessionGitChanges(id) {
+    if (this.sessions.get(id)?.session.isStreaming)
+      throw new Error('当前会话正在运行，请完成或停止后再撤销改动。')
+    return this.gitChanges.revert(await this.sessionGitCwd(id))
+  }
+
+  async getSessionVcsChanges(id) {
+    return this.vcsChanges.getChanges(await this.sessionGitCwd(id))
+  }
+
+  async commitSessionVcsChanges(id, message) {
+    if (this.sessions.get(id)?.session.isStreaming)
+      throw new Error('当前会话正在运行，请完成或停止后再提交改动。')
+    return this.vcsChanges.commit(await this.sessionGitCwd(id), message)
+  }
+
+  async pushSessionVcsChanges(id) {
+    return this.vcsChanges.push(await this.sessionGitCwd(id))
+  }
+
+  async revertSessionVcsChanges(id) {
+    if (this.sessions.get(id)?.session.isStreaming)
+      throw new Error('当前会话正在运行，请完成或停止后再撤销改动。')
+    return this.vcsChanges.revert(await this.sessionGitCwd(id))
+  }
+
   async getSkillsDashboard(sessionId = '') {
     return this.skills.dashboard({ cwd: await this.sessionWorkspaceCwd(sessionId) })
   }

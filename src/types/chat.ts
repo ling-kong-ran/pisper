@@ -79,6 +79,7 @@ export type SessionState = EntityRecord & {
   plan: Plan | null
   executionMode: string | null
   contextUsage: EntityRecord | null
+  sessionUsage: EntityRecord | null
   promptCache: EntityRecord | null
   compaction: EntityRecord | null
   streaming: boolean

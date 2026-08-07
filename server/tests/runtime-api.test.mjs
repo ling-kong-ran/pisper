@@ -337,6 +337,48 @@ test('session model and thinking APIs delegate current-session changes to the ru
   ])
 })
 
+test('session VCS APIs delegate Git/SVN change actions to the runtime', async () => {
+  const calls = []
+  const runtime = {
+    async getSessionVcsChanges(id) {
+      calls.push(['changes', id])
+      return { id, vcs: 'svn', isRepo: true, files: [], diff: '' }
+    },
+    async commitSessionVcsChanges(id, message) {
+      calls.push(['commit', id, message])
+      return { id, vcs: 'svn', isRepo: true, files: [], diff: '' }
+    },
+    async pushSessionVcsChanges(id) {
+      calls.push(['push', id])
+      return { id, vcs: 'git', isRepo: true, files: [], diff: '' }
+    },
+    async revertSessionVcsChanges(id) {
+      calls.push(['revert', id])
+      return { id, vcs: 'svn', isRepo: true, files: [], diff: '' }
+    },
+  }
+  const handler = createApiHandler(runtime)
+  for (const [method, path, body] of [
+    ['GET', '/api/sessions/session-vcs/vcs/changes'],
+    ['POST', '/api/sessions/session-vcs/vcs/commit', { message: 'SVN changes' }],
+    ['POST', '/api/sessions/session-vcs/vcs/push', {}],
+    ['POST', '/api/sessions/session-vcs/vcs/revert', {}],
+  ]) {
+    const output = response()
+    assert.equal(
+      await handler(request(method, body), output, new URL(`http://localhost${path}`)),
+      true,
+    )
+    assert.equal(output.status, 200)
+  }
+  assert.deepEqual(calls, [
+    ['changes', 'session-vcs'],
+    ['commit', 'session-vcs', 'SVN changes'],
+    ['push', 'session-vcs'],
+    ['revert', 'session-vcs'],
+  ])
+})
+
 test('session execution mode API delegates to the runtime', async () => {
   const calls = []
   const runtime = {

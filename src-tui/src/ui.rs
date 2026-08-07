@@ -68,6 +68,7 @@ pub fn draw_in(frame: &mut Frame, app: &App, area: Rect) {
             View::Events => {
                 render_events(frame, app, centered_width(chunks[0], CONVERSATION_WIDTH))
             }
+            View::Changes => render_changes(frame, app, chunks[0]),
         }
         render_approval(frame, app, chunks[1]);
         render_status(frame, app, chunks[2]);
@@ -112,6 +113,7 @@ pub fn draw_in(frame: &mut Frame, app: &App, area: Rect) {
     match app.view {
         View::Chat => render_chat(frame, app, chunks[0]),
         View::Events => render_events(frame, app, centered_width(chunks[0], CONVERSATION_WIDTH)),
+        View::Changes => render_changes(frame, app, chunks[0]),
     }
     if plan.height > 0 {
         render_plan(frame, app, plan);
@@ -1152,6 +1154,95 @@ fn render_events(frame: &mut Frame, app: &App, area: Rect) {
     frame.render_widget(table, inset(area, 2, 1));
 }
 
+fn render_changes(frame: &mut Frame, app: &App, area: Rect) {
+    let block = Block::default()
+        .title(" Workspace changes ")
+        .title_bottom(Span::styled(
+            if app.vcs_confirm_revert {
+                " V again to confirm revert · Esc close "
+            } else if app.vcs.as_ref().is_some_and(|changes| changes.vcs == "svn") {
+                " R refresh · C commit · V revert · Esc close "
+            } else {
+                " R refresh · C commit · P push · V revert · Esc close "
+            },
+            Style::default().fg(MUTED),
+        ))
+        .borders(Borders::ALL)
+        .border_style(Style::default().fg(if app.status_error { RED } else { ACCENT }))
+        .style(Style::default().bg(SURFACE));
+    let inner = block.inner(area);
+    frame.render_widget(block, area);
+    if inner.width == 0 || inner.height == 0 {
+        return;
+    }
+    let Some(changes) = app.vcs.as_ref() else {
+        frame.render_widget(
+            Paragraph::new(if app.vcs_loading {
+                "Loading Git/SVN workspace…"
+            } else {
+                "No workspace change data. Press R to refresh."
+            })
+            .style(Style::default().fg(MUTED)),
+            inner,
+        );
+        return;
+    };
+    let label = if changes.vcs == "svn" {
+        "SVN workspace"
+    } else if changes.vcs == "git" {
+        "Git workspace"
+    } else {
+        "No repository"
+    };
+    let files = if changes.files.is_empty() {
+        "No changed files".to_owned()
+    } else {
+        changes
+            .files
+            .iter()
+            .take(40)
+            .map(|file| format!("{} {}", file.status, file.path))
+            .collect::<Vec<_>>()
+            .join("\n")
+    };
+    let header = format!(
+        "{label} · {}{}\n{}",
+        if changes.branch.is_empty() {
+            String::new()
+        } else {
+            format!("{} · ", changes.branch)
+        },
+        if changes.files.is_empty() {
+            "clean".to_owned()
+        } else {
+            format!("{} changed", changes.files.len())
+        },
+        files
+    );
+    let sections = Layout::default()
+        .direction(Direction::Vertical)
+        .constraints([Constraint::Length(4), Constraint::Min(1)])
+        .split(inner);
+    frame.render_widget(
+        Paragraph::new(header)
+            .style(Style::default().fg(TEXT))
+            .wrap(Wrap { trim: true }),
+        sections[0],
+    );
+    let diff = if changes.diff.is_empty() {
+        "No diff available".to_owned()
+    } else {
+        changes.diff.clone()
+    };
+    frame.render_widget(
+        Paragraph::new(diff)
+            .style(Style::default().fg(MUTED))
+            .scroll((app.vcs_scroll.get(), 0))
+            .wrap(Wrap { trim: false }),
+        sections[1],
+    );
+}
+
 fn render_composer(frame: &mut Frame, app: &App, area: Rect) {
     let border = if app.status_error {
         RED
@@ -1200,7 +1291,35 @@ fn render_composer(frame: &mut Frame, app: &App, area: Rect) {
         Paragraph::new(input).style(Style::default().bg(SURFACE)),
         Rect::new(inner.x, inner.y, inner.width, 1),
     );
-    if !compact && inner.height >= 4 && !app.attachments.is_empty() {
+    if !compact && inner.height >= 4 {
+        let usage = &app.session_usage;
+        let cache = usage
+            .cache_hit_rate
+            .map(|rate| format!("cache {rate:.0}%"))
+            .unwrap_or_else(|| "cache —".to_owned());
+        let metrics = if inner.width >= 80 {
+            format!(
+                "{cache} · tokens {} · input {} · output {} · cache R/W {}/{} · reasoning {}",
+                usage.total_tokens,
+                usage.input,
+                usage.output,
+                usage.cache_read,
+                usage.cache_write,
+                usage.reasoning
+            )
+        } else {
+            format!(
+                "{cache} · tokens {} · in {} · out {}",
+                usage.total_tokens, usage.input, usage.output
+            )
+        };
+        frame.render_widget(
+            Paragraph::new(single_line(&metrics, inner.width as usize))
+                .style(Style::default().fg(MUTED).bg(SURFACE)),
+            Rect::new(inner.x, inner.y.saturating_add(1), inner.width, 1),
+        );
+    }
+    if !compact && inner.height >= 5 && !app.attachments.is_empty() {
         let names = app
             .attachments
             .iter()
@@ -1219,7 +1338,7 @@ fn render_composer(frame: &mut Frame, app: &App, area: Rect) {
                 ),
             ]))
             .style(Style::default().bg(SURFACE)),
-            Rect::new(inner.x, inner.y.saturating_add(1), inner.width, 1),
+            Rect::new(inner.x, inner.y.saturating_add(2), inner.width, 1),
         );
     }
 
@@ -3140,6 +3259,7 @@ mod tests {
             MessagePage {
                 messages: older,
                 context_usage: None,
+                session_usage: None,
                 page_info: PageInfo {
                     start: 0,
                     has_more: false,

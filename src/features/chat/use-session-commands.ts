@@ -171,10 +171,13 @@ export function useSessionCommands({
         const state = await chatApi.getThinkingLevel(sessionId)
         applyThinkingState(sessionId, state)
       } catch {
-        // Thinking controls are best-effort and should not block chat loading.
+        updateSessionState(sessionId, {
+          thinkingStatus: 'error',
+          thinkingMessage: t('chat:focusSession.thinkingLevelsLoadFailed'),
+        })
       }
     },
-    [applyThinkingState, sessionStatesRef],
+    [applyThinkingState, sessionStatesRef, t, updateSessionState],
   )
 
   const switchSessionModel = useCallback(

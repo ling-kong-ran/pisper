@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
-import { Bot, Brain, Check, Eye, Gauge, Pencil, ShieldOff } from 'lucide-react'
+import { Bot, Brain, Check, Database, Eye, Gauge, Pencil, ShieldOff, Sigma } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
 import type { I18nValues } from '@/app/i18n'
 import { useI18n } from '@/app/use-i18n'
@@ -11,6 +11,38 @@ import type { EntityRecord, ModelOption } from '@/types/chat'
 
 type Translate = (message: string, values?: I18nValues) => string
 type ExecutionModeOption = [string, string, string, LucideIcon]
+
+export function SessionUsageMetrics({ usage }: { usage?: EntityRecord | null }) {
+  const { t } = useI18n()
+  const totalTokens = Math.max(0, Number(usage?.totalTokens) || 0)
+  const cacheHitRate = Number(usage?.cacheHitRate)
+  const cacheRateKnown = usage?.cacheHitRate != null && Number.isFinite(cacheHitRate)
+  const cacheRateLabel = cacheRateKnown ? `${Math.round(Math.max(0, cacheHitRate))}%` : '—'
+  const title = t('chat:focusSession.sessionUsageDetail', {
+    input: formatTokenCount(usage?.input),
+    output: formatTokenCount(usage?.output),
+    cacheRead: formatTokenCount(usage?.cacheRead),
+    cacheWrite: formatTokenCount(usage?.cacheWrite),
+    reasoning: formatTokenCount(usage?.reasoning),
+    requests: Math.max(0, Number(usage?.requests) || 0),
+  })
+
+  return (
+    <div className="session-usage-metrics" title={title} aria-label={title}>
+      <span>
+        <Database size={12} />
+        <small>{t('chat:focusSession.cacheHitRate')}</small>
+        <strong>{cacheRateLabel}</strong>
+      </span>
+      <i aria-hidden="true" />
+      <span>
+        <Sigma size={12} />
+        <small>{t('chat:focusSession.sessionTokens')}</small>
+        <strong>{formatTokenCount(totalTokens)}</strong>
+      </span>
+    </div>
+  )
+}
 
 export function ContextUsageIndicator({
   usage,
@@ -220,15 +252,18 @@ export function SessionThinkingSelect({
   const current = value || levels[0] || 'off'
   const loading = !status && levels.length === 0
   const supported = status !== 'unsupported' && levels.length > 0
+  const fixed = supported && levels.length <= 1 && levels.includes(current)
   const title = loading
     ? t('chat:focusSession.loadingThinkingLevels')
     : !supported
       ? message || t('chat:focusSession.thinkingLevelUnsupported')
-      : disabled
-        ? t('chat:focusSession.currentThinkingLevelLevelCannotSwitchWhileRunning', {
-            level: current,
-          })
-        : t('chat:focusSession.currentThinkingLevelLevelClickToSwitch', { level: current })
+      : fixed
+        ? t('chat:focusSession.thinkingLevelFixed', { level: current })
+        : disabled
+          ? t('chat:focusSession.currentThinkingLevelLevelCannotSwitchWhileRunning', {
+              level: current,
+            })
+          : t('chat:focusSession.currentThinkingLevelLevelClickToSwitch', { level: current })
   return (
     <div
       className={`session-model-select session-thinking-select icon-only ${compact ? 'compact' : ''}`}
@@ -238,7 +273,7 @@ export function SessionThinkingSelect({
       <AppSelect
         value={current}
         onChange={(event) => onChange(event.target.value)}
-        disabled={disabled || loading || !supported}
+        disabled={disabled || loading || !supported || fixed}
         aria-label={t('chat:focusSession.currentThinkingLevel')}
       >
         {!levels.includes(current) && <option value={current}>{current}</option>}

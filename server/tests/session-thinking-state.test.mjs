@@ -2,7 +2,11 @@ import assert from 'node:assert/strict'
 import test from 'node:test'
 
 import { AgentRuntimeService } from '../runtime/agent-runtime.mjs'
-import { ProviderPreferences } from '../runtime/provider-preferences.mjs'
+import {
+  ProviderPreferences,
+  clampThinkingLevelToAvailable,
+  reconcileSessionThinkingLevel,
+} from '../runtime/provider-preferences.mjs'
 
 function preferencesFor(session) {
   return {
@@ -80,6 +84,63 @@ test('thinking updates return the authoritative persisted state', async () => {
   assert.equal(state.thinkingLevel, 'xhigh')
   assert.equal(state.status, 'supported')
   assert.deepEqual(state.availableLevels, ['off', 'xhigh', 'max'])
+})
+
+test('thinking state clamps a stale persisted level to the active model levels', async () => {
+  const session = {
+    sessionId: 'session-k3-stale-level',
+    thinkingLevel: 'medium',
+    model: { provider: 'kimi-coding', id: 'k3' },
+    getAvailableThinkingLevels: () => ['max'],
+  }
+
+  const state = await ProviderPreferences.prototype.getSessionThinkingState.call(
+    preferencesFor(session),
+    session.sessionId,
+  )
+
+  assert.equal(state.thinkingLevel, 'max')
+  assert.deepEqual(state.availableLevels, ['max'])
+  assert.equal(state.status, 'supported')
+})
+
+test('clampThinkingLevelToAvailable mirrors nearest-level semantics', () => {
+  assert.equal(clampThinkingLevelToAvailable(['max'], 'medium'), 'max')
+  assert.equal(clampThinkingLevelToAvailable(['off'], 'high'), 'off')
+  assert.equal(clampThinkingLevelToAvailable(['low', 'high'], 'medium'), 'high')
+  assert.equal(clampThinkingLevelToAvailable(['low', 'high'], 'off'), 'low')
+  assert.equal(clampThinkingLevelToAvailable(['off', 'max'], 'max'), 'max')
+  assert.equal(clampThinkingLevelToAvailable([], 'medium'), 'medium')
+  assert.equal(clampThinkingLevelToAvailable(['high'], 'unknown'), 'high')
+})
+
+test('reconcileSessionThinkingLevel persists the clamped level onto the session', () => {
+  const session = {
+    thinkingLevel: 'medium',
+    getAvailableThinkingLevels: () => ['max'],
+    setThinkingLevel(level) {
+      this.thinkingLevel = level
+    },
+  }
+  const result = reconcileSessionThinkingLevel(session)
+  assert.equal(session.thinkingLevel, 'max')
+  assert.deepEqual(result, { availableLevels: ['max'], thinkingLevel: 'max', changed: true })
+
+  const unchanged = reconcileSessionThinkingLevel(session)
+  assert.equal(unchanged.changed, false)
+})
+
+test('reconcileSessionThinkingLevel leaves sessions without configurable levels untouched', () => {
+  const session = {
+    thinkingLevel: 'medium',
+    getAvailableThinkingLevels: () => [],
+    setThinkingLevel() {
+      throw new Error('must not be called')
+    },
+  }
+  const result = reconcileSessionThinkingLevel(session)
+  assert.equal(session.thinkingLevel, 'medium')
+  assert.equal(result.changed, false)
 })
 
 test('runtime facade delegates thinking state without exposing collaborator internals', async () => {

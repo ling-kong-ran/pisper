@@ -46,7 +46,7 @@ export function GitChangesControl({
     setLoading(true)
     setError('')
     try {
-      const data = await chatApi.getGitChanges(sessionId)
+      const data = await chatApi.getVcsChanges(sessionId)
       setChanges(data)
     } catch (caught) {
       setError(isError(caught))
@@ -90,17 +90,17 @@ export function GitChangesControl({
     try {
       let data: GitChangesResponse
       if (action === 'commit') {
-        data = await chatApi.commitGitChanges(
+        data = await chatApi.commitVcsChanges(
           sessionId,
           commitMessage.trim() || DEFAULT_COMMIT_MESSAGE,
         )
         setCommitMessage('')
         setNotice(t('chat:focusSession.gitCommitted'))
       } else if (action === 'push') {
-        data = await chatApi.pushGitChanges(sessionId)
+        data = await chatApi.pushVcsChanges(sessionId)
         setNotice(t('chat:focusSession.gitPushed'))
       } else {
-        data = await chatApi.revertGitChanges(sessionId)
+        data = await chatApi.revertVcsChanges(sessionId)
         setConfirmingRevert(false)
         setNotice(t('chat:focusSession.gitReverted'))
       }
@@ -112,12 +112,17 @@ export function GitChangesControl({
     }
   }
 
+  const vcs = changes?.vcs || (changes?.isRepo ? 'git' : '')
+  const isSvn = vcs === 'svn'
   const fileCount = changes?.isRepo ? changes.files.length : 0
   const hasChanges = fileCount > 0
-  const hasCommitsToPush = Boolean(changes?.isRepo && (changes.ahead ?? 0) > 0)
+  const hasCommitsToPush = Boolean(!isSvn && changes?.isRepo && (changes.ahead ?? 0) > 0)
   const busy = Boolean(running)
+  const repoLabel = isSvn
+    ? t('chat:focusSession.vcsSvnWorkspace')
+    : changes?.branch || t('chat:focusSession.gitDetachedHead')
   const label = changes?.isRepo
-    ? `${t('chat:focusSession.gitChanges')}${changes.branch ? ` · ${changes.branch}` : ''}${hasChanges ? ` · ${t('chat:focusSession.gitFilesChanged', { count: fileCount })}` : ''}`
+    ? `${t('chat:focusSession.gitChanges')}${changes.branch ? ` · ${changes.branch}` : ''}${isSvn ? ` · ${t('chat:focusSession.vcsSvnWorkspace')}` : ''}${hasChanges ? ` · ${t('chat:focusSession.gitFilesChanged', { count: fileCount })}` : ''}`
     : t('chat:focusSession.gitChanges')
 
   return (
@@ -152,12 +157,12 @@ export function GitChangesControl({
               <strong>{t('chat:focusSession.gitChanges')}</strong>
               <small title={changes?.cwd || ''}>
                 {changes?.isRepo
-                  ? changes.branch || t('chat:focusSession.gitDetachedHead')
+                  ? repoLabel
                   : loading
                     ? t('chat:focusSession.gitLoading')
                     : error && !changes
                       ? t('chat:focusSession.gitLoadFailed')
-                      : changes?.gitAvailable === false
+                      : changes?.gitAvailable === false && changes?.svnAvailable === false
                         ? t('chat:focusSession.gitUnavailable')
                         : `${t('chat:focusSession.gitNotARepository')}${changes?.cwd ? ` · ${workspaceName(changes.cwd, language)}` : ''}`}
               </small>
@@ -247,25 +252,27 @@ export function GitChangesControl({
               )}
 
               <div className="git-changes-actions">
-                <button
-                  type="button"
-                  className="button secondary tiny"
-                  disabled={busy || (!hasCommitsToPush && !hasChanges)}
-                  title={
-                    hasCommitsToPush
-                      ? t('chat:focusSession.gitPushAhead', { count: changes.ahead || 0 })
-                      : t('chat:focusSession.gitPush')
-                  }
-                  onClick={() => void runAction('push')}
-                >
-                  {running === 'push' ? (
-                    <RefreshCw className="spin" size={12} />
-                  ) : (
-                    <Upload size={12} />
-                  )}
-                  {t('chat:focusSession.gitPush')}
-                  {hasCommitsToPush ? ` ↑${changes.ahead}` : ''}
-                </button>
+                {!isSvn && (
+                  <button
+                    type="button"
+                    className="button secondary tiny"
+                    disabled={busy || (!hasCommitsToPush && !hasChanges)}
+                    title={
+                      hasCommitsToPush
+                        ? t('chat:focusSession.gitPushAhead', { count: changes?.ahead || 0 })
+                        : t('chat:focusSession.gitPush')
+                    }
+                    onClick={() => void runAction('push')}
+                  >
+                    {running === 'push' ? (
+                      <RefreshCw className="spin" size={12} />
+                    ) : (
+                      <Upload size={12} />
+                    )}
+                    {t('chat:focusSession.gitPush')}
+                    {hasCommitsToPush ? ` ↑${changes?.ahead}` : ''}
+                  </button>
+                )}
                 {confirmingRevert ? (
                   <>
                     <button
@@ -301,7 +308,11 @@ export function GitChangesControl({
                     type="button"
                     className="button secondary tiny"
                     disabled={busy || streaming || !hasChanges}
-                    title={t('chat:focusSession.gitRevertDescription')}
+                    title={
+                      isSvn
+                        ? t('chat:focusSession.vcsRevertDescription')
+                        : t('chat:focusSession.gitRevertDescription')
+                    }
                     onClick={() => void runAction('revert')}
                   >
                     <Undo2 size={12} />

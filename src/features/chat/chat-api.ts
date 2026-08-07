@@ -36,8 +36,10 @@ type ChatConfigResponse = EntityRecord & {
 }
 
 export type GitChangesResponse = EntityRecord & {
+  vcs?: string
   isRepo: boolean
   gitAvailable?: boolean
+  svnAvailable?: boolean
   cwd?: string
   branch?: string
   hasHead?: boolean
@@ -144,6 +146,30 @@ export const chatApi = {
 
   revertGitChanges: (sessionId: string) =>
     requestJson<GitChangesResponse>(`${sessionPath(sessionId)}/git/revert`, {
+      method: 'POST',
+      data: {},
+      timeout: 60_000,
+    }),
+
+  getVcsChanges: (sessionId: string) =>
+    requestJson<GitChangesResponse>(`${sessionPath(sessionId)}/vcs/changes`),
+
+  commitVcsChanges: (sessionId: string, message: string) =>
+    requestJson<GitChangesResponse>(`${sessionPath(sessionId)}/vcs/commit`, {
+      method: 'POST',
+      data: { message },
+      timeout: 150_000,
+    }),
+
+  pushVcsChanges: (sessionId: string) =>
+    requestJson<GitChangesResponse>(`${sessionPath(sessionId)}/vcs/push`, {
+      method: 'POST',
+      data: {},
+      timeout: 150_000,
+    }),
+
+  revertVcsChanges: (sessionId: string) =>
+    requestJson<GitChangesResponse>(`${sessionPath(sessionId)}/vcs/revert`, {
       method: 'POST',
       data: {},
       timeout: 60_000,

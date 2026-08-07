@@ -1,6 +1,75 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
-import { ProjectionCache } from '../runtime/stream-projection.mjs'
+import {
+  ProjectionCache,
+  addSessionUsage,
+  emptySessionUsage,
+  summarizeSessionUsage,
+} from '../runtime/stream-projection.mjs'
+
+test('session usage aggregates provider-reported cache and token fields', () => {
+  const usage = summarizeSessionUsage([
+    { role: 'user', usage: { input: 999, totalTokens: 999 } },
+    {
+      role: 'assistant',
+      usage: {
+        input: 100,
+        output: 25,
+        cacheRead: 300,
+        cacheWrite: 100,
+        reasoning: 10,
+        totalTokens: 535,
+      },
+    },
+    {
+      role: 'assistant',
+      usage: {
+        input: 50,
+        output: 20,
+        cacheRead: 450,
+        cacheWrite: 0,
+        reasoning: 5,
+        totalTokens: 525,
+      },
+    },
+  ])
+
+  assert.deepEqual(usage, {
+    input: 150,
+    output: 45,
+    cacheRead: 750,
+    cacheWrite: 100,
+    reasoning: 15,
+    totalTokens: 1060,
+    requests: 2,
+    promptTokens: 1000,
+    cacheHitRate: 75,
+  })
+})
+
+test('session usage falls back to field totals only when provider total is absent', () => {
+  const usage = emptySessionUsage()
+  addSessionUsage(usage, {
+    input: 10,
+    output: 4,
+    cacheRead: 20,
+    cacheWrite: 2,
+    reasoning: 3,
+  })
+  addSessionUsage(usage, {
+    input: 1,
+    output: 2,
+    cacheRead: 0,
+    cacheWrite: 0,
+    reasoning: 99,
+    totalTokens: 8,
+  })
+
+  assert.equal(usage.totalTokens, 44)
+  assert.equal(usage.promptTokens, 33)
+  assert.equal(usage.cacheHitRate, (20 / 33) * 100)
+  assert.equal(usage.requests, 2)
+})
 
 test('transcript projection preserves identity until its mutable source changes', () => {
   const cache = new ProjectionCache()

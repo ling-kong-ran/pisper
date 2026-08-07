@@ -43,6 +43,7 @@ import {
   isGoalContinuationMessage,
 } from '../services/goal-service.mjs'
 import { GitChangesService } from '../services/git-changes-service.mjs'
+import { VcsChangesService } from '../services/vcs-changes-service.mjs'
 import { PlanService } from '../services/plan-service.mjs'
 import { BrowserAutomationService } from '../services/browser-automation-service.mjs'
 import {
@@ -91,6 +92,7 @@ import { ProviderPreferences } from './provider-preferences.mjs'
 import {
   MAX_LIVE_ACTIVITY_ITEMS,
   StreamProjection,
+  addSessionUsage,
   finishedCompaction,
   isInternalParentMessage,
   livePlanChanges,
@@ -409,6 +411,7 @@ export class AgentRuntimeService extends AgentRuntimeFacade {
     })
     this.goals = new GoalService({ path: join(dataDir, 'pisper-goals.json') })
     this.gitChanges = new GitChangesService()
+    this.vcsChanges = new VcsChangesService({ git: this.gitChanges })
     this.plans = new PlanService({
       path: join(dataDir, 'pisper-plans.json'),
       legacyPath: join(dataDir, 'pisper-task-lists.json'),
@@ -884,30 +887,6 @@ export class AgentRuntimeService extends AgentRuntimeFacade {
 
   async sessionWorkspaceCwd(id) {
     return this.sessionLifecycle.sessionWorkspaceCwd(id)
-  }
-
-  async sessionGitCwd(id) {
-    return this.sessionWorkspaceCwd(id)
-  }
-
-  async getSessionGitChanges(id) {
-    return this.gitChanges.getChanges(await this.sessionGitCwd(id))
-  }
-
-  async commitSessionGitChanges(id, message) {
-    if (this.sessions.get(id)?.session.isStreaming)
-      throw new Error('当前会话正在运行，请完成或停止后再提交改动。')
-    return this.gitChanges.commit(await this.sessionGitCwd(id), message)
-  }
-
-  async pushSessionGitChanges(id) {
-    return this.gitChanges.push(await this.sessionGitCwd(id))
-  }
-
-  async revertSessionGitChanges(id) {
-    if (this.sessions.get(id)?.session.isStreaming)
-      throw new Error('当前会话正在运行，请完成或停止后再撤销改动。')
-    return this.gitChanges.revert(await this.sessionGitCwd(id))
   }
 
   async disposeSessions() {
@@ -1889,6 +1868,7 @@ export class AgentRuntimeService extends AgentRuntimeFacade {
     const startedAt = new Date().toISOString()
     value.modified = startedAt
     const initialActivity = { type: 'model', stage: 'thinking', updatedAt: startedAt }
+    const sessionUsage = await this.streamProjection.getSessionTokenUsage(session.sessionId)
     const live = {
       streaming: true,
       text: '',
@@ -1905,6 +1885,7 @@ export class AgentRuntimeService extends AgentRuntimeFacade {
       activityFeed: [],
       queuedInputs: queuedSessionInputs(session),
       contextUsage: this.compactionAwareContextUsage(session),
+      sessionUsage,
       promptCache: value.promptCache,
       compaction: null,
       startedAt,
@@ -1947,6 +1928,7 @@ export class AgentRuntimeService extends AgentRuntimeFacade {
       thinkingText: live.thinkingText,
       queuedInputs: live.queuedInputs,
       contextUsage: live.contextUsage,
+      sessionUsage: live.sessionUsage,
       startedAt: live.startedAt,
       lastActivityAt: live.lastActivityAt,
     })
@@ -2051,6 +2033,10 @@ export class AgentRuntimeService extends AgentRuntimeFacade {
         emit('context_usage', live.contextUsage)
       } else if (event.type === 'message_end') {
         if (event.message?.role === 'assistant') {
+          if (event.message.usage) {
+            addSessionUsage(live.sessionUsage, event.message.usage)
+            emit('session_usage', live.sessionUsage)
+          }
           activeTextBlocks.clear()
           activeThinkingBlocks.clear()
           const finalMessage = ['stop', 'length'].includes(event.message.stopReason)
@@ -2362,6 +2348,7 @@ export class AgentRuntimeService extends AgentRuntimeFacade {
         activityFeed: live.activityFeed,
         queuedInputs: live.queuedInputs,
         contextUsage: live.contextUsage,
+        sessionUsage: live.sessionUsage,
         compaction: live.compaction,
         startedAt: live.startedAt,
         finishedAt,
@@ -2398,6 +2385,7 @@ export class AgentRuntimeService extends AgentRuntimeFacade {
         activityFeed: live.activityFeed,
         queuedInputs: live.queuedInputs,
         contextUsage: live.contextUsage,
+        sessionUsage: live.sessionUsage,
         compaction: live.compaction,
         startedAt: live.startedAt,
         finishedAt,

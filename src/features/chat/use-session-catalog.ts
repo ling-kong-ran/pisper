@@ -116,6 +116,7 @@ export function useSessionCatalog({ notify }: SessionCatalogOptions) {
           goal: created.goal || null,
           plan: planFromPayloadOr(created, null),
           contextUsage: created.contextUsage || null,
+          sessionUsage: created.sessionUsage || null,
           compaction: null,
           streaming: false,
           error: '',

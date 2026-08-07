@@ -73,6 +73,7 @@ export function reconcileTerminalStreamState(
     plan: failed ? current.plan : planFromPayloadOr(data, current.plan),
     agents: data.agents || current.agents || [],
     contextUsage: data.contextUsage ?? current.contextUsage ?? null,
+    sessionUsage: data.sessionUsage ?? current.sessionUsage ?? null,
     compaction: data.compaction ?? current.compaction ?? null,
     approvals: failed ? [] : data.approvals || [],
     tools: settleToolCalls(data.tools || current.tools, {
@@ -136,6 +137,7 @@ export function createStreamEventDispatcher({
         queuedInputs: resolveQueuedInputs(current.queuedInputs, data.queuedInputs),
         hadQueuedInput: Boolean(current.hadQueuedInput || data.queuedInputs?.length),
         contextUsage: data.contextUsage ?? current.contextUsage ?? null,
+        sessionUsage: data.sessionUsage ?? current.sessionUsage ?? null,
         runStartedAt: data.startedAt || current.runStartedAt,
         lastActivityAt: data.lastActivityAt || eventAt,
       }))
@@ -192,6 +194,8 @@ export function createStreamEventDispatcher({
       })
     } else if (event === 'context_usage') {
       updateSessionState(sessionId, { contextUsage: data })
+    } else if (event === 'session_usage') {
+      updateSessionState(sessionId, { sessionUsage: data })
     } else if (event === 'compaction_start') {
       typewriter.flush()
       toolScheduler.flush()

@@ -162,11 +162,43 @@ function claimedByOtherVisualProviderAnyKind(claims, providerId, baseUrl, modelI
   return false
 }
 
+const EXTENDED_THINKING_LEVELS = ['off', 'minimal', 'low', 'medium', 'high', 'xhigh', 'max']
+
+export function clampThinkingLevelToAvailable(availableLevels, requested) {
+  const levels = Array.isArray(availableLevels) ? availableLevels : []
+  const current = String(requested || '')
+  if (!levels.length) return current || 'off'
+  if (levels.includes(current)) return current
+  const requestedIndex = EXTENDED_THINKING_LEVELS.indexOf(current)
+  if (requestedIndex === -1) return levels[0]
+  for (let index = requestedIndex; index < EXTENDED_THINKING_LEVELS.length; index += 1) {
+    const candidate = EXTENDED_THINKING_LEVELS[index]
+    if (levels.includes(candidate)) return candidate
+  }
+  for (let index = requestedIndex - 1; index >= 0; index -= 1) {
+    const candidate = EXTENDED_THINKING_LEVELS[index]
+    if (levels.includes(candidate)) return candidate
+  }
+  return levels[0]
+}
+
+export function reconcileSessionThinkingLevel(session) {
+  const availableLevels = session.getAvailableThinkingLevels()
+  const current = String(session.thinkingLevel || '')
+  if (!availableLevels.length || availableLevels.includes(current)) {
+    return { availableLevels, thinkingLevel: current, changed: false }
+  }
+  const thinkingLevel = clampThinkingLevelToAvailable(availableLevels, current)
+  if (typeof session.setThinkingLevel === 'function') session.setThinkingLevel(thinkingLevel)
+  return { availableLevels, thinkingLevel, changed: thinkingLevel !== current }
+}
+
 function sessionThinkingState(session) {
   const availableLevels = session.getAvailableThinkingLevels()
   const supported = availableLevels.length > 0
+  const thinkingLevel = clampThinkingLevelToAvailable(availableLevels, session.thinkingLevel)
   return {
-    thinkingLevel: session.thinkingLevel,
+    thinkingLevel,
     availableLevels,
     status: supported ? 'supported' : 'unsupported',
     message: supported ? '' : 'The current model does not expose configurable thinking levels.',
@@ -296,6 +328,7 @@ export class ProviderPreferences {
     try {
       await value.session.setModel(model)
       applyPisperSystemPrompt(value.session, model)
+      reconcileSessionThinkingLevel(value.session)
     } finally {
       if (defaultProvider && defaultModel) {
         settingsManager.setDefaultModelAndProvider(defaultProvider, defaultModel)

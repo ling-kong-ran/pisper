@@ -1,4 +1,4 @@
-import { useContext, useEffect, useState } from 'react'
+import { useContext, useEffect, useRef, useState } from 'react'
 import type { IDockviewPanelProps } from 'dockview-react'
 import { AlertTriangle, MessageSquare } from 'lucide-react'
 import { useI18n } from '@/app/use-i18n'
@@ -20,6 +20,8 @@ export function SessionDockPanel({ params, api }: IDockviewPanelProps<{ sessionI
   const plan = resolveSessionPlan(sessionState, session)
   const visiblePlan = isPlanActive(plan, { streaming: state.streaming }) ? plan : null
   const loadMessages = context?.loadSessionMessages
+  const loadThinkingLevel = context?.loadSessionThinkingLevel
+  const thinkingRequestedRef = useRef('')
 
   useEffect(() => {
     setVisible(api.isVisible)
@@ -30,6 +32,24 @@ export function SessionDockPanel({ params, api }: IDockviewPanelProps<{ sessionI
   useEffect(() => {
     if (visible && sessionId) void loadMessages?.(sessionId, { limit: FOCUS_MESSAGE_PAGE_SIZE })
   }, [loadMessages, sessionId, visible])
+
+  // Self-heal thinking state for sessions loaded while streaming or after page remounts.
+  useEffect(() => {
+    if (!visible || !sessionId || !session || !loadThinkingLevel) return
+    if (state.streaming || state.thinkingStatus) return
+    if ((state.availableThinkingLevels || []).length) return
+    if (thinkingRequestedRef.current === sessionId) return
+    thinkingRequestedRef.current = sessionId
+    void loadThinkingLevel(sessionId)
+  }, [
+    loadThinkingLevel,
+    session,
+    sessionId,
+    state.availableThinkingLevels,
+    state.streaming,
+    state.thinkingStatus,
+    visible,
+  ])
 
   if (!visible) return null
 
@@ -70,6 +90,7 @@ export function SessionDockPanel({ params, api }: IDockviewPanelProps<{ sessionI
         queuedInputs={state.queuedInputs || []}
         compaction={state.compaction}
         contextUsage={state.contextUsage}
+        sessionUsage={state.sessionUsage}
         cwd={state.cwd || session.cwd}
         availableModels={context.availableModels}
         switchingModel={state.switchingModel}

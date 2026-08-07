@@ -29,6 +29,7 @@ import {
   ExecutionModeSelect,
   SessionModelSelect,
   SessionThinkingSelect,
+  SessionUsageMetrics,
 } from './FocusRuntimeControls'
 import { FocusTranscript } from './FocusTranscript'
 import { GitChangesControl } from './GitChangesControl'
@@ -64,6 +65,7 @@ export type FocusSessionProps = {
   queuedInputs: EntityRecord[]
   compaction?: EntityRecord | null
   contextUsage?: EntityRecord | null
+  sessionUsage?: EntityRecord | null
   cwd?: string
   availableModels: ModelOption[]
   switchingModel?: boolean
@@ -129,6 +131,7 @@ export function FocusSession({
   queuedInputs,
   compaction,
   contextUsage,
+  sessionUsage,
   cwd,
   availableModels,
   switchingModel,
@@ -468,6 +471,7 @@ export function FocusSession({
             )}
           </button>
         </div>
+        <SessionUsageMetrics usage={sessionUsage} />
       </form>
     </Panel>
   )

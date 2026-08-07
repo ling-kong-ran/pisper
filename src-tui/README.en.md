@@ -67,6 +67,8 @@ The diagnostic output reports the sidecar connection source, TUI launch workspac
 - `Home` / `End`, `Left` / `Right`, `Backspace` / `Delete`: edit the composer draft.
 - `Ctrl+C`: abort the active or approval-blocked run; exit only while idle.
 
+The Composer metrics row shows the active session's provider-reported cache hit rate and token totals. It is isolated per conversation and keeps input, output, cache read/write, and reasoning details bounded to the current session.
+
 Long or multiline bracketed pastes render as a compact `[Pasted text · …]` token. The complete original text, including line breaks, is still submitted to the Agent. The token can be moved across or deleted as one unit.
 
 ## Built-in Commands
@@ -78,6 +80,8 @@ Long or multiline bracketed pastes render as a compact `[Pasted text · …]` to
 | `/sessions` | Open the history picker across every workspace; press `Enter` to resume. Unavailable during a run. |
 | `/dir <directory>` | Explicitly change the active conversation directory. Relative paths resolve from its current directory; unavailable during a run. |
 | `/events` | Open the event ledger for the current TUI process. |
+| `/changes` | Inspect Git or SVN workspace changes. In the changes view, `R` refreshes, `C` commits, `P` pushes Git, and `V` twice reverts; SVN has no push operation. |
+| `/changes commit <message>` | Commit current Git/SVN workspace changes with an explicit message. |
 | `/chat` | Return to the Chat message stream. |
 | `/model` | Open the model picker and switch the active session model; unavailable during a run. |
 | `/thinking` | Refresh and open thinking levels supported by the active model; unsupported/error states explain why and can be retried. Unavailable during a run. |

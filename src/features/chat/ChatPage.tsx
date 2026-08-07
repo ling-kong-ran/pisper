@@ -154,6 +154,7 @@ export function ChatPage({
     compactSession: sessionCommands.compactSession,
     setCompactionThreshold: sessionCommands.setCompactionThreshold,
     switchSessionModel: sessionCommands.switchSessionModel,
+    loadSessionThinkingLevel: sessionCommands.loadSessionThinkingLevel,
     switchSessionThinkingLevel: sessionCommands.switchSessionThinkingLevel,
     switchSessionExecutionMode: sessionCommands.switchSessionExecutionMode,
     resolveToolApproval: sessionCommands.resolveToolApproval,

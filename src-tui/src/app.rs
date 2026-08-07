@@ -14,8 +14,9 @@ use crate::{
     api::MESSAGE_PAGE_LIMIT,
     model::{
         ChatMessage, ContextUsage, MessageAttachment, MessagePage, ModelOption, Plan, RunActivity,
-        SessionCwdUpdate, SessionModelUpdate, SessionSummary, SkillDefinition, StreamEvent,
-        ThinkingAvailability, ThinkingLevelUpdate, ToolActivity, ToolDefinition,
+        SessionCwdUpdate, SessionModelUpdate, SessionSummary, SessionUsage, SkillDefinition,
+        StreamEvent, ThinkingAvailability, ThinkingLevelUpdate, ToolActivity, ToolDefinition,
+        VcsChanges,
     },
     plan_protocol::{is_plan_update_event, plan_from_payload},
     workspace::same_workspace,
@@ -34,6 +35,7 @@ pub enum View {
     #[default]
     Chat,
     Events,
+    Changes,
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -144,6 +146,10 @@ pub enum Action {
         id: String,
         approved: bool,
     },
+    RefreshVcs,
+    CommitVcs(String),
+    PushVcs,
+    RevertVcs,
 }
 
 #[derive(Clone, Debug, Default, Deserialize, Serialize)]
@@ -179,6 +185,11 @@ pub struct App {
     pub thinking_availability: ThinkingAvailability,
     pub thinking_message: String,
     pub context_percent: Option<f64>,
+    pub session_usage: SessionUsage,
+    pub vcs: Option<VcsChanges>,
+    pub vcs_loading: bool,
+    pub vcs_confirm_revert: bool,
+    pub vcs_scroll: Cell<u16>,
     pub compacting_context: bool,
     pub confirm_model_compaction: bool,
     pub status: String,
@@ -225,6 +236,11 @@ impl App {
             thinking_availability: ThinkingAvailability::Loading,
             thinking_message: String::new(),
             context_percent: context_usage.and_then(|usage| usage.percent),
+            session_usage: SessionUsage::default(),
+            vcs: None,
+            vcs_loading: false,
+            vcs_confirm_revert: false,
+            vcs_scroll: Cell::new(0),
             compacting_context: false,
             confirm_model_compaction: false,
             sessions,
@@ -593,6 +609,7 @@ impl App {
             command("/sessions", "Resume a conversation from any workspace"),
             command("/dir", "Change the active conversation directory"),
             command("/events", "Open the event ledger"),
+            command("/changes", "Inspect Git or SVN workspace changes"),
             command("/chat", "Return to the conversation"),
             command("/model", "Switch the active session model"),
             command("/thinking", "Switch the active session thinking level"),
@@ -704,6 +721,60 @@ impl App {
         if self.settings_picker.is_some() {
             return self.handle_settings_picker(key);
         }
+        if self.view == View::Changes {
+            return match key.code {
+                KeyCode::Esc => {
+                    self.view = View::Chat;
+                    self.vcs_confirm_revert = false;
+                    Action::None
+                }
+                KeyCode::Up => {
+                    self.vcs_scroll.set(self.vcs_scroll.get().saturating_sub(1));
+                    Action::None
+                }
+                KeyCode::Down => {
+                    self.vcs_scroll.set(self.vcs_scroll.get().saturating_add(1));
+                    Action::None
+                }
+                KeyCode::PageUp => {
+                    self.vcs_scroll
+                        .set(self.vcs_scroll.get().saturating_sub(PAGE_SCROLL_STEP));
+                    Action::None
+                }
+                KeyCode::PageDown => {
+                    self.vcs_scroll
+                        .set(self.vcs_scroll.get().saturating_add(PAGE_SCROLL_STEP));
+                    Action::None
+                }
+                KeyCode::Char('r') | KeyCode::Char('R') => Action::RefreshVcs,
+                KeyCode::Char('c') | KeyCode::Char('C') => {
+                    Action::CommitVcs("Agent changes".to_owned())
+                }
+                KeyCode::Char('p') | KeyCode::Char('P') => {
+                    if self
+                        .vcs
+                        .as_ref()
+                        .is_some_and(|changes| changes.vcs == "svn")
+                    {
+                        self.status = "SVN workspace needs no push; commit is already synchronized"
+                            .to_owned();
+                        Action::None
+                    } else {
+                        Action::PushVcs
+                    }
+                }
+                KeyCode::Char('v') | KeyCode::Char('V') if self.vcs_confirm_revert => {
+                    self.vcs_confirm_revert = false;
+                    Action::RevertVcs
+                }
+                KeyCode::Char('v') | KeyCode::Char('V') => {
+                    self.vcs_confirm_revert = true;
+                    self.status = "press V again to revert workspace changes".to_owned();
+                    Action::None
+                }
+                _ => Action::None,
+            };
+        }
         if self.session_picker {
             return self.handle_session_picker(key);
         }
@@ -789,8 +860,9 @@ impl App {
                 Action::None
             }
             KeyCode::Esc => {
-                if self.view == View::Events {
+                if self.view != View::Chat {
                     self.view = View::Chat;
+                    self.vcs_confirm_revert = false;
                 } else {
                     self.clear_input();
                 }
@@ -1068,6 +1140,23 @@ impl App {
                 self.clear_input();
                 Action::None
             }
+            "/changes" => {
+                self.mark_slash_use("/changes");
+                self.view = View::Changes;
+                self.clear_input();
+                Action::RefreshVcs
+            }
+            _ if message.starts_with("/changes commit ") => {
+                let commit_message = message.trim_start_matches("/changes commit ").trim();
+                self.mark_slash_use("/changes commit");
+                self.view = View::Changes;
+                self.clear_input();
+                if commit_message.is_empty() {
+                    Action::None
+                } else {
+                    Action::CommitVcs(commit_message.to_owned())
+                }
+            }
             "/init" => {
                 if self.execution_mode == "read-only" {
                     self.status = "/init requires full-access mode to write AGENTS.md".to_owned();
@@ -1324,6 +1413,11 @@ impl App {
         self.thinking_availability = ThinkingAvailability::Loading;
         self.thinking_message.clear();
         self.context_percent = context_usage.and_then(|usage| usage.percent);
+        self.session_usage = SessionUsage::default();
+        self.vcs = None;
+        self.vcs_loading = false;
+        self.vcs_confirm_revert = false;
+        self.vcs_scroll.set(0);
         self.compacting_context = false;
         self.confirm_model_compaction = false;
         self.session = session;
@@ -1387,10 +1481,14 @@ impl App {
         let MessagePage {
             messages,
             context_usage,
+            session_usage,
             page_info,
         } = page;
         if let Some(usage) = context_usage {
             self.context_percent = usage.percent;
+        }
+        if let Some(usage) = session_usage {
+            self.session_usage = usage;
         }
         if messages.is_empty() {
             self.history_oldest_index = 0;
@@ -1571,6 +1669,12 @@ impl App {
         if is_plan_update_event(&event.name) {
             return;
         }
+        if event.name == "session_usage" {
+            if let Ok(usage) = serde_json::from_value::<SessionUsage>(event.data) {
+                self.session_usage = usage;
+            }
+            return;
+        }
         let Some(live) = self.live.as_mut() else {
             return;
         };
@@ -1668,6 +1772,11 @@ impl App {
                 self.context_percent = event.data["contextUsage"]["percent"]
                     .as_f64()
                     .or(self.context_percent);
+                if let Ok(usage) =
+                    serde_json::from_value::<SessionUsage>(event.data["sessionUsage"].clone())
+                {
+                    self.session_usage = usage;
+                }
                 self.status = "complete".to_owned();
             }
             "error" => {
@@ -1684,6 +1793,33 @@ impl App {
         } else if event.name == "error" {
             self.pending_slash_command = None;
         }
+    }
+
+    pub fn set_session_usage(&mut self, usage: SessionUsage) {
+        self.session_usage = usage;
+    }
+
+    pub fn set_vcs_loading(&mut self, loading: bool) {
+        self.vcs_loading = loading;
+        if loading {
+            self.status = "loading workspace changes".to_owned();
+            self.status_error = false;
+        }
+    }
+
+    pub fn set_vcs(&mut self, changes: VcsChanges) {
+        self.vcs_loading = false;
+        self.vcs = Some(changes);
+        self.vcs_confirm_revert = false;
+        self.vcs_scroll.set(0);
+        self.status = "workspace changes refreshed".to_owned();
+        self.status_error = false;
+    }
+
+    pub fn set_vcs_error(&mut self, error: String) {
+        self.vcs_loading = false;
+        self.status = format!("workspace changes unavailable · {error}");
+        self.status_error = true;
     }
 
     pub fn begin_context_compaction(&mut self) {
@@ -2174,6 +2310,27 @@ mod tests {
             advance_typewriter(&mut shown, &target);
         }
         assert_eq!(shown, target);
+    }
+
+    #[test]
+    fn session_usage_events_replace_only_the_active_session_totals() {
+        let mut app = test_app(Vec::new());
+        app.apply_stream_event(StreamEvent {
+            name: "session_usage".to_owned(),
+            data: json!({
+                "input": 100,
+                "output": 40,
+                "cacheRead": 75,
+                "cacheWrite": 25,
+                "reasoning": 10,
+                "totalTokens": 240,
+                "promptTokens": 200,
+                "requests": 2,
+                "cacheHitRate": 37.5
+            }),
+        });
+        assert_eq!(app.session_usage.total_tokens, 240);
+        assert_eq!(app.session_usage.cache_hit_rate, Some(37.5));
     }
 
     #[test]
@@ -2831,6 +2988,7 @@ mod tests {
             MessagePage {
                 messages: older,
                 context_usage: None,
+                session_usage: None,
                 page_info: PageInfo {
                     start: 0,
                     has_more: false,
@@ -2850,6 +3008,7 @@ mod tests {
                 ..ChatMessage::default()
             }],
             context_usage: None,
+            session_usage: None,
             page_info: PageInfo::default(),
         };
         app.apply_history_page(stale, 40);

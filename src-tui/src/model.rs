@@ -152,6 +152,8 @@ pub struct MessagePage {
     #[serde(default)]
     pub context_usage: Option<ContextUsage>,
     #[serde(default)]
+    pub session_usage: Option<SessionUsage>,
+    #[serde(default)]
     pub page_info: PageInfo,
 }
 
@@ -169,6 +171,64 @@ pub struct PageInfo {
 pub struct ContextUsage {
     #[serde(default)]
     pub percent: Option<f64>,
+}
+
+#[derive(Clone, Debug, Default, Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct SessionUsage {
+    #[serde(default)]
+    pub input: u64,
+    #[serde(default)]
+    pub output: u64,
+    #[serde(default)]
+    pub cache_read: u64,
+    #[serde(default)]
+    pub cache_write: u64,
+    #[serde(default)]
+    pub reasoning: u64,
+    #[serde(default)]
+    pub total_tokens: u64,
+    #[serde(default)]
+    pub prompt_tokens: u64,
+    #[serde(default)]
+    pub requests: u64,
+    #[serde(default)]
+    pub cache_hit_rate: Option<f64>,
+}
+
+#[derive(Clone, Debug, Default, Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct VcsFile {
+    pub path: String,
+    #[serde(default)]
+    pub status: String,
+}
+
+#[derive(Clone, Debug, Default, Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct VcsChanges {
+    #[serde(default)]
+    pub vcs: String,
+    #[serde(default)]
+    pub is_repo: bool,
+    #[serde(default)]
+    pub git_available: Option<bool>,
+    #[serde(default)]
+    pub svn_available: Option<bool>,
+    #[serde(default)]
+    pub cwd: String,
+    #[serde(default)]
+    pub branch: String,
+    #[serde(default)]
+    pub files: Vec<VcsFile>,
+    #[serde(default)]
+    pub diff: String,
+    #[serde(default)]
+    pub diff_truncated: bool,
+    #[serde(default)]
+    pub ahead: Option<u64>,
+    #[serde(default)]
+    pub error: String,
 }
 
 #[derive(Clone, Debug, Default, Deserialize)]
@@ -314,11 +374,15 @@ pub enum RuntimeEvent {
         context_usage: Option<ContextUsage>,
         error: Option<String>,
     },
+    VcsResult {
+        session_id: String,
+        result: Result<VcsChanges, String>,
+    },
 }
 
 #[cfg(test)]
 mod tests {
-    use super::{MessagePage, SessionSummary};
+    use super::{MessagePage, SessionSummary, VcsChanges};
 
     #[test]
     fn historical_tool_timestamps_accept_iso_strings_and_milliseconds() {
@@ -347,6 +411,40 @@ mod tests {
         assert_eq!(tools[0].finished_at, 0);
         assert_eq!(tools[1].started_at, 1000);
         assert_eq!(tools[1].finished_at, 1512);
+    }
+
+    #[test]
+    fn message_usage_and_vcs_contracts_deserialize_camel_case_fields() {
+        let page: MessagePage = serde_json::from_value(serde_json::json!({
+            "messages": [],
+            "sessionUsage": {
+                "input": 100,
+                "output": 40,
+                "cacheRead": 75,
+                "cacheWrite": 25,
+                "reasoning": 10,
+                "totalTokens": 240,
+                "promptTokens": 200,
+                "requests": 2,
+                "cacheHitRate": 37.5
+            }
+        }))
+        .unwrap();
+        let usage = page.session_usage.unwrap();
+        assert_eq!(usage.cache_read, 75);
+        assert_eq!(usage.total_tokens, 240);
+        assert_eq!(usage.cache_hit_rate, Some(37.5));
+
+        let changes: VcsChanges = serde_json::from_value(serde_json::json!({
+            "vcs": "svn",
+            "isRepo": true,
+            "svnAvailable": true,
+            "files": [{ "path": "docs/a & b.txt", "status": "M" }],
+            "diff": "--- a/docs/a & b.txt\n+++ b/docs/a & b.txt"
+        }))
+        .unwrap();
+        assert!(changes.is_repo);
+        assert_eq!(changes.files[0].path, "docs/a & b.txt");
     }
 
     #[test]

@@ -18,6 +18,7 @@ use crate::{
         ContextUsage, ExecutionModeUpdate, McpCatalog, MessagePage, ModelOption, PluginCatalog,
         RuntimeEvent, SessionCwdUpdate, SessionModelUpdate, SessionSummary, SessionsResponse,
         SkillDefinition, SkillsCatalog, StreamEvent, ThinkingLevelUpdate, ToolDefinition,
+        VcsChanges,
     },
     workspace::validate_session_workspace,
 };
@@ -262,6 +263,42 @@ impl ApiClient {
             reqwest::Method::PUT,
             &format!("/api/sessions/{id}/thinking-level"),
             &json!({ "level": level }),
+        )
+        .await
+    }
+
+    pub async fn vcs_changes(&self, session_id: &str) -> Result<VcsChanges> {
+        let id = encode_segment(session_id);
+        self.get_json(&format!("/api/sessions/{id}/vcs/changes"))
+            .await
+    }
+
+    pub async fn commit_vcs(&self, session_id: &str, message: &str) -> Result<VcsChanges> {
+        let id = encode_segment(session_id);
+        self.send_json(
+            reqwest::Method::POST,
+            &format!("/api/sessions/{id}/vcs/commit"),
+            &json!({ "message": message }),
+        )
+        .await
+    }
+
+    pub async fn push_vcs(&self, session_id: &str) -> Result<VcsChanges> {
+        let id = encode_segment(session_id);
+        self.send_json(
+            reqwest::Method::POST,
+            &format!("/api/sessions/{id}/vcs/push"),
+            &json!({}),
+        )
+        .await
+    }
+
+    pub async fn revert_vcs(&self, session_id: &str) -> Result<VcsChanges> {
+        let id = encode_segment(session_id);
+        self.send_json(
+            reqwest::Method::POST,
+            &format!("/api/sessions/{id}/vcs/revert"),
+            &json!({}),
         )
         .await
     }

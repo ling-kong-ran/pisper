@@ -106,9 +106,9 @@ async fn run() -> Result<()> {
     if !interactive_resume {
         validate_session_workspace(&session, None)?;
     }
-    let (messages, context_usage, thinking_state, history_start) =
+    let (messages, context_usage, session_usage, thinking_state, history_start) =
         if interactive_resume || session.id.is_empty() {
-            (Vec::new(), None, None, 0)
+            (Vec::new(), None, None, None, 0)
         } else {
             let (thinking_state, page) =
                 tokio::join!(api.thinking_state(&session.id), api.messages(&session.id));
@@ -121,6 +121,7 @@ async fn run() -> Result<()> {
             (
                 page.messages,
                 page.context_usage,
+                page.session_usage,
                 Some(thinking_state),
                 page.page_info.start,
             )
@@ -134,6 +135,9 @@ async fn run() -> Result<()> {
         Vec::new(),
     );
     app.set_history_window(history_start);
+    if let Some(usage) = session_usage {
+        app.set_session_usage(usage);
+    }
     app.set_launch_workspace(options.workspace.clone());
     if interactive_resume {
         app.open_session_picker(true);
@@ -279,6 +283,15 @@ async fn run_event_loop(
                                 error,
                             } => {
                                 app.finish_context_compaction(context_usage, error);
+                                false
+                            }
+                            RuntimeEvent::VcsResult { session_id, result } => {
+                                if app.session.id == session_id {
+                                    match result {
+                                        Ok(changes) => app.set_vcs(changes),
+                                        Err(error) => app.set_vcs_error(error),
+                                    }
+                                }
                                 false
                             }
                         };
@@ -485,6 +498,33 @@ fn draw_frame(
     Ok(())
 }
 
+enum VcsRequest {
+    Refresh,
+    Commit(String),
+    Push,
+    Revert,
+}
+
+fn spawn_vcs_request(
+    api: &ApiClient,
+    session_id: String,
+    request: VcsRequest,
+    sender: &mpsc::UnboundedSender<RuntimeEvent>,
+) {
+    let api = api.clone();
+    let sender = sender.clone();
+    tokio::spawn(async move {
+        let result = match request {
+            VcsRequest::Refresh => api.vcs_changes(&session_id).await,
+            VcsRequest::Commit(message) => api.commit_vcs(&session_id, &message).await,
+            VcsRequest::Push => api.push_vcs(&session_id).await,
+            VcsRequest::Revert => api.revert_vcs(&session_id).await,
+        }
+        .map_err(|error| format!("{error:#}"));
+        let _ = sender.send(RuntimeEvent::VcsResult { session_id, result });
+    });
+}
+
 async fn execute_action(
     action: Action,
     app: &mut App,
@@ -557,6 +597,63 @@ async fn execute_action(
         Action::ResolveApproval { id, approved } => {
             api.resolve_approval(&app.session.id, &id, approved).await?;
             app.status = if approved { "approved" } else { "denied" }.to_owned();
+        }
+        Action::RefreshVcs => {
+            if app.vcs_loading {
+                return Ok(false);
+            }
+            if app.is_draft_session() {
+                app.set_vcs_error(
+                    "workspace changes become available after the first message".to_owned(),
+                );
+            } else {
+                app.set_vcs_loading(true);
+                spawn_vcs_request(api, app.session.id.clone(), VcsRequest::Refresh, runtime_tx);
+            }
+        }
+        Action::CommitVcs(message) => {
+            if app.vcs_loading {
+                return Ok(false);
+            }
+            if app.is_draft_session() || app.is_streaming() {
+                app.set_vcs_error(
+                    "commit is available only after the active run finishes".to_owned(),
+                );
+            } else {
+                app.set_vcs_loading(true);
+                spawn_vcs_request(
+                    api,
+                    app.session.id.clone(),
+                    VcsRequest::Commit(message),
+                    runtime_tx,
+                );
+            }
+        }
+        Action::PushVcs => {
+            if app.vcs_loading {
+                return Ok(false);
+            }
+            if app.is_draft_session() || app.is_streaming() {
+                app.set_vcs_error(
+                    "push is available only after the active run finishes".to_owned(),
+                );
+            } else {
+                app.set_vcs_loading(true);
+                spawn_vcs_request(api, app.session.id.clone(), VcsRequest::Push, runtime_tx);
+            }
+        }
+        Action::RevertVcs => {
+            if app.vcs_loading {
+                return Ok(false);
+            }
+            if app.is_draft_session() || app.is_streaming() {
+                app.set_vcs_error(
+                    "revert is available only after the active run finishes".to_owned(),
+                );
+            } else {
+                app.set_vcs_loading(true);
+                spawn_vcs_request(api, app.session.id.clone(), VcsRequest::Revert, runtime_tx);
+            }
         }
         Action::NewSession => {
             let draft = draft_session(app.new_session_workspace(), &app.model, &app.thinking_level);
@@ -708,9 +805,7 @@ async fn execute_action(
                 app.open_session_picker_at(exit_on_failure, &id);
                 return Ok(false);
             }
-            let (page, thinking_state) =
-                tokio::join!(api.messages(&session.id), api.thinking_state(&session.id));
-            let page = match page {
+            let page = match api.messages(&session.id).await {
                 Ok(page) => page,
                 Err(error) => {
                     app.status = format!("cannot resume conversation · {error}");
@@ -720,9 +815,16 @@ async fn execute_action(
                 }
             };
             let history_start = page.page_info.start;
+            let session_usage = page.session_usage.clone();
             app.replace_session(session, page.messages, page.context_usage);
             app.set_history_window(history_start);
-            match thinking_state {
+            if let Some(usage) = session_usage {
+                app.set_session_usage(usage);
+            }
+            // Load thinking metadata independently from transcript loading so a slow provider
+            // cannot keep the picker stuck in a permanent loading state.
+            app.begin_thinking_load();
+            match api.thinking_state(&app.session.id).await {
                 Ok(state) => app.set_thinking_state(state),
                 Err(error) => app.set_thinking_error(format!("{error:#}")),
             }

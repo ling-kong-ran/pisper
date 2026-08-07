@@ -55,6 +55,7 @@ export class GitChangesService {
       const notRepo = /not a git repository/i.test(detail)
       const gitMissing = /ENOENT|not recognized|command not found/i.test(detail)
       return {
+        vcs: '',
         isRepo: false,
         gitAvailable: !gitMissing,
         cwd,
@@ -102,7 +103,9 @@ export class GitChangesService {
       if (aheadResult.ok) ahead = Math.max(0, Number(aheadResult.stdout.trim()) || 0)
     }
     return {
+      vcs: 'git',
       isRepo: true,
+      gitAvailable: true,
       cwd,
       branch: branchResult.ok ? branchResult.stdout.trim() : '',
       hasHead,

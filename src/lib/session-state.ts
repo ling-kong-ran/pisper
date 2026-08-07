@@ -14,6 +14,7 @@ export const DEFAULT_SESSION_STATE: SessionState = Object.freeze({
   plan: null,
   executionMode: null,
   contextUsage: null,
+  sessionUsage: null,
   promptCache: null,
   compaction: null,
   streaming: false,

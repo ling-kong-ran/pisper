@@ -303,6 +303,54 @@ export function optionalTokenCount(value) {
   return Number.isFinite(tokens) ? Math.max(0, Math.round(tokens)) : null
 }
 
+function usageTokenCount(value) {
+  const tokens = Number(value)
+  return Number.isFinite(tokens) ? Math.max(0, tokens) : 0
+}
+
+export function emptySessionUsage() {
+  return {
+    input: 0,
+    output: 0,
+    cacheRead: 0,
+    cacheWrite: 0,
+    reasoning: 0,
+    totalTokens: 0,
+    requests: 0,
+    promptTokens: 0,
+    cacheHitRate: null,
+  }
+}
+
+export function addSessionUsage(target, usage) {
+  if (!usage) return target
+  const input = usageTokenCount(usage.input)
+  const output = usageTokenCount(usage.output)
+  const cacheRead = usageTokenCount(usage.cacheRead)
+  const cacheWrite = usageTokenCount(usage.cacheWrite)
+  const reasoning = usageTokenCount(usage.reasoning)
+  const reportedTotal = usageTokenCount(usage.totalTokens ?? usage.total)
+  target.input += input
+  target.output += output
+  target.cacheRead += cacheRead
+  target.cacheWrite += cacheWrite
+  target.reasoning += reasoning
+  // Reasoning is an output detail, so adding it again would double-count generated tokens.
+  target.totalTokens += reportedTotal || input + output + cacheRead + cacheWrite
+  target.requests += 1
+  target.promptTokens = target.input + target.cacheRead + target.cacheWrite
+  target.cacheHitRate = target.promptTokens ? (target.cacheRead / target.promptTokens) * 100 : null
+  return target
+}
+
+export function summarizeSessionUsage(messages = []) {
+  const total = emptySessionUsage()
+  for (const message of messages) {
+    if (message?.role === 'assistant' && message.usage) addSessionUsage(total, message.usage)
+  }
+  return total
+}
+
 export function startedCompaction(reason, startedAt) {
   return {
     active: true,
@@ -768,6 +816,30 @@ export class StreamProjection {
     return cached
   }
 
+  async getSessionTokenUsage(id) {
+    const active = this.sessions().get(id)
+    const activePath = active?.session.sessionFile
+    const historyState = this.history()
+    let path = activePath || historyState.paths.get(id)
+    if (!path) {
+      path = (await this.findSessionInfo(id))?.path
+      if (path) historyState.paths.set(id, path)
+    }
+    if (path) {
+      try {
+        const history = await this.readSessionHistoryEntries(path)
+        return summarizeSessionUsage(
+          history.entries
+            .filter((entry) => entry?.type === 'message')
+            .map((entry) => entry.message),
+        )
+      } catch (error) {
+        if (error?.code !== 'ENOENT') throw error
+      }
+    }
+    return summarizeSessionUsage(active?.session?.messages || [])
+  }
+
   async getSessionHistoryMessages(id) {
     const active = this.sessions().get(id)
     const activePath = active?.session.sessionFile
@@ -949,6 +1021,7 @@ export class StreamProjection {
       messages: messages.slice(start, end),
       model: await this.resolveSessionModel(id),
       contextUsage: await this.getSessionContextUsage(id),
+      sessionUsage: await this.getSessionTokenUsage(id),
       pageInfo: {
         start,
         end,
@@ -1041,6 +1114,7 @@ export class StreamProjection {
       queuedInputs: live?.queuedInputs ?? queuedSessionInputs(active?.session),
       contextUsage:
         this.compactionAwareContextUsage(active?.session, live?.compaction) || page.contextUsage,
+      sessionUsage: live?.sessionUsage || page.sessionUsage,
       promptCache: live?.promptCache || active?.promptCache || null,
       compaction: live?.compaction || null,
       approvals,

@@ -67,6 +67,8 @@ pisper doctor
 - `Home` / `End`、`Left` / `Right`、`Backspace` / `Delete`：编辑 composer 草稿。
 - `Ctrl+C`：Agent 运行或等待审批时中止当前 run；空闲时退出 TUI。
 
+Composer 指标栏显示当前会话 Provider 返回的真实缓存命中率和 Token 总量，并按会话隔离 input、output、缓存读写和 reasoning 明细。
+
 长文本或多行 bracketed paste 会在 composer 中折叠为 `[Pasted text · …]`，但提交给 Agent 的仍是包含原始换行的完整文本。摘要可作为整体移动和删除。
 
 ## 内置命令
@@ -78,6 +80,8 @@ pisper doctor
 | `/sessions` | 打开跨所有 workspace 的历史会话选择器；按 `Enter` 恢复，运行期间不可切换。 |
 | `/dir <目录>` | 显式修改当前会话的工作目录；相对路径以当前会话目录为基准，运行期间不可修改。 |
 | `/events` | 打开当前 TUI 进程的事件账本。 |
+| `/changes` | 查看 Git 或 SVN 工作区改动；改动页中 `R` 刷新、`C` 提交、`P` 推送 Git、连续按两次 `V` 撤销；SVN 没有 Push。 |
+| `/changes commit <message>` | 使用指定 message 提交当前 Git/SVN 工作区改动。 |
 | `/chat` | 返回 Chat 消息流。 |
 | `/model` | 打开模型选择器并切换当前会话模型；运行期间不可切换。 |
 | `/thinking` | 刷新并打开当前模型支持的思考等级；不支持或加载失败时显示原因并可重试，运行期间不可切换。 |
