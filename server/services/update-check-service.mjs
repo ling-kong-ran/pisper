@@ -7,8 +7,8 @@ import {
   REPOSITORY_URL,
 } from '../../shared/app-update.mjs'
 
-// Keep the web source-check cache short so “检查更新” does not look stuck on stale main tips.
-const DEFAULT_CACHE_MS = 60_000
+// Update checks always compare against the current remote branch. Only an in-flight request is
+// shared, so concurrent callers do not duplicate network work without retaining stale results.
 const execFileAsync = promisify(execFile)
 
 function validCommit(value) {
@@ -50,21 +50,16 @@ export class UpdateCheckService {
     branch = DEFAULT_BRANCH,
     fetcher = fetch,
     now = () => Date.now(),
-    cacheMs = DEFAULT_CACHE_MS,
   } = {}) {
     this.currentVersion = normalizedVersion(currentVersion)
     this.currentCommit = validCommit(currentCommit)
     this.branch = branch
     this.fetcher = fetcher
     this.now = now
-    this.cacheMs = cacheMs
-    this.cached = null
     this.pending = null
   }
 
-  async check({ refresh = false } = {}) {
-    if (!refresh && this.cached && this.now() - this.cached.cachedAt < this.cacheMs)
-      return this.cached.value
+  async check(_options = {}) {
     if (this.pending) return this.pending
     this.pending = this.fetchLatest().finally(() => {
       this.pending = null
@@ -109,7 +104,6 @@ export class UpdateCheckService {
         ? `Web 源码落后 ${this.branch} ${aheadBy} 个提交，请查看更新内容后自行更新。`
         : `当前 Web 源码已同步 ${this.branch}。`,
     }
-    this.cached = { cachedAt: this.now(), value }
     return value
   }
 }

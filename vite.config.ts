@@ -16,6 +16,7 @@ const MARKDOWN_PLUGIN_PACKAGES = [
 ]
 const VENDOR_CHUNK_PRIORITIES = [
   ['vendor-react', 100],
+  ['vendor-router', 99],
   ['vendor-state', 95],
   ['vendor-ui', 94],
   ['vendor-shiki-runtime', 90],
@@ -43,11 +44,10 @@ export function vendorChunkForModule(moduleId: string) {
   const id = moduleId.replaceAll('\\', '/')
   if (!id.includes('/node_modules/') || isShikiDynamicModule(id)) return undefined
 
-  if (
-    ['react', 'react-dom', 'react-router', 'react-router-dom', 'scheduler'].some((packageName) =>
-      isPackage(id, packageName),
-    )
-  )
+  if (['react-router', 'react-router-dom'].some((packageName) => isPackage(id, packageName)))
+    return 'vendor-router'
+
+  if (['react', 'react-dom', 'scheduler'].some((packageName) => isPackage(id, packageName)))
     return 'vendor-react'
 
   if (['use-sync-external-store', 'zustand'].some((packageName) => isPackage(id, packageName)))
@@ -162,5 +162,6 @@ export default defineConfig({
   },
   define: {
     'import.meta.env.VITE_APP_VERSION': JSON.stringify(readPackageVersion()),
+    'process.env.NODE_ENV': JSON.stringify('production'),
   },
 })

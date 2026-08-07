@@ -6,13 +6,6 @@ import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select'
 import { relativeTime } from '@/lib/format'
 
 type Navigation = Array<[string, Array<[string, string, LucideIcon]>]>
@@ -253,18 +246,18 @@ export function QuickCreate({ type, close, notify }: QuickCreateProps) {
           <Label className="field-label items-start" htmlFor="quick-create-type">
             {t('navigation:appOverlays.type')}
           </Label>
-          <Select defaultValue={options[0]}>
-            <SelectTrigger id="quick-create-type" className="mt-1 w-full bg-surface-subtle">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent position="popper">
-              {options.map((option) => (
-                <SelectItem value={option} key={option}>
-                  {option}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+          <select
+            id="quick-create-type"
+            name="type"
+            defaultValue={options[0]}
+            className="mt-1 w-full bg-surface-subtle"
+          >
+            {options.map((option) => (
+              <option value={option} key={option}>
+                {option}
+              </option>
+            ))}
+          </select>
           <div className="modal-actions">
             <Button type="button" variant="secondary" onClick={close}>
               {t('navigation:appOverlays.cancel')}

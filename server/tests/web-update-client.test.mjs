@@ -16,7 +16,7 @@ test('web update versions normalize tags and compare semantic parts', () => {
   assert.equal(newerVersion('0.1.1', '0.1.2'), false)
 })
 
-test('web update checks use the same-origin cached API', async () => {
+test('web update checks use the same-origin uncached API', async () => {
   const result = await checkWebUpdates({
     refresh: true,
     fetcher: async (url, options) => {

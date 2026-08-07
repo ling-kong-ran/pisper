@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Outlet, useLocation, useNavigate, type NavigateOptions } from 'react-router-dom'
 import { createPrimaryActionRegistry } from '@/app/primary-action'
 import type { AppRouteContext } from '@/app/route-context'
@@ -9,8 +9,6 @@ import { useI18n } from '@/app/use-i18n'
 import { BrandLogo } from '@/components/BrandLogo'
 import { WebPreviewProvider } from '@/components/WebPreviewProvider'
 import { AppSidebar } from '@/components/layout/AppSidebar'
-import { CommandPalette, QuickCreate } from '@/components/layout/AppOverlays'
-import { PageHeader } from '@/components/layout/PageHeader'
 import { AppDialog } from '@/components/layout/AppDialog'
 import { StatusBar } from '@/components/layout/StatusBar'
 import { AppToast, ToastProvider, ToastViewport, type ToastTone } from '@/components/ui/toast'
@@ -30,6 +28,17 @@ import type { ChatAttachment, PendingAsset } from '@/types/chat'
 import type { NotificationSettingsData } from '@/types/notifications'
 import type { WorkflowActions } from '@/types/workflow'
 
+const CommandPalette = lazy(() =>
+  import('@/components/layout/AppOverlays').then((module) => ({
+    default: module.CommandPalette,
+  })),
+)
+const QuickCreate = lazy(() =>
+  import('@/components/layout/AppOverlays').then((module) => ({ default: module.QuickCreate })),
+)
+const PageHeader = lazy(() =>
+  import('@/components/layout/PageHeader').then((module) => ({ default: module.PageHeader })),
+)
 type ProviderConfig = {
   configured: boolean
   enabled: boolean
@@ -430,20 +439,22 @@ function App() {
             onOpenUpdates={openUpdateSettings}
           />
           <SidebarInset className="main-surface">
-            <PageHeader
-              meta={activeMeta}
-              page={page}
-              query={query}
-              setQuery={setQuery}
-              configSection={configSection}
-              onMenu={() => setMobileNav(true)}
-              onPrimary={handlePrimary}
-              searchInputRef={searchInputRef}
-              theme={theme}
-              onCycleTheme={cycleTheme}
-              workflowActions={workflowActions}
-              desktopPlatform={window.pisperDesktop?.platform || ''}
-            />
+            <Suspense fallback={null}>
+              <PageHeader
+                meta={activeMeta}
+                page={page}
+                query={query}
+                setQuery={setQuery}
+                configSection={configSection}
+                onMenu={() => setMobileNav(true)}
+                onPrimary={handlePrimary}
+                searchInputRef={searchInputRef}
+                theme={theme}
+                onCycleTheme={cycleTheme}
+                workflowActions={workflowActions}
+                desktopPlatform={window.pisperDesktop?.platform || ''}
+              />
+            </Suspense>
             <div className={`page-content page-${page}`} key={page}>
               <Outlet context={routeContext} />
             </div>
@@ -466,22 +477,24 @@ function App() {
           onClose={appDialog.close}
           onFinish={appDialog.finish}
         />
-        {paletteOpen && (
-          <CommandPalette
-            navigation={navigation}
-            onClose={() => setPaletteOpen(false)}
-            onNavigate={navigate}
-            onOpenSession={(id) => {
-              requestSessionSelection(id)
-              navigate('chat')
-            }}
-            onNewChat={() => {
-              navigate('chat')
-              requestAnimationFrame(() => requestAnimationFrame(invokePrimaryAction))
-            }}
-          />
-        )}
-        {modal && <QuickCreate type={modal} close={() => setModal(null)} notify={notify} />}
+        <Suspense fallback={null}>
+          {paletteOpen && (
+            <CommandPalette
+              navigation={navigation}
+              onClose={() => setPaletteOpen(false)}
+              onNavigate={navigate}
+              onOpenSession={(id) => {
+                requestSessionSelection(id)
+                navigate('chat')
+              }}
+              onNewChat={() => {
+                navigate('chat')
+                requestAnimationFrame(() => requestAnimationFrame(invokePrimaryAction))
+              }}
+            />
+          )}
+          {modal && <QuickCreate type={modal} close={() => setModal(null)} notify={notify} />}
+        </Suspense>
       </div>
     </ToastProvider>
   )
