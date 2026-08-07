@@ -67,7 +67,7 @@ The diagnostic output reports the sidecar connection source, TUI launch workspac
 - `Home` / `End`, `Left` / `Right`, `Backspace` / `Delete`: edit the composer draft.
 - `Ctrl+C`: abort the active or approval-blocked run; exit only while idle.
 
-The Composer metrics row shows the active session's provider-reported cache hit rate and token totals. It is isolated per conversation and keeps input, output, cache read/write, and reasoning details bounded to the current session.
+The bottom status bar shows the active session's provider-reported token total and cache hit rate in the compact form `token: 88M cache 79%`. The values remain isolated per conversation.
 
 Long or multiline bracketed pastes render as a compact `[Pasted text · …]` token. The complete original text, including line breaks, is still submitted to the Agent. The token can be moved across or deleted as one unit.
 

@@ -44,6 +44,18 @@ const PISPER_LOGO: [(&str, &str); 5] = [
     ("█     █ █████  ", "█     █████ █   █"),
 ];
 
+fn composer_height(app: &App, area: Rect) -> u16 {
+    if area.height >= 18 {
+        if app.attachments.is_empty() {
+            6
+        } else {
+            7
+        }
+    } else {
+        3
+    }
+}
+
 #[cfg(test)]
 pub fn draw(frame: &mut Frame, app: &App) {
     let area = frame.area();
@@ -89,7 +101,7 @@ pub fn draw_in(frame: &mut Frame, app: &App, area: Rect) {
         return;
     }
 
-    let composer_height = if area.height >= 18 { 7 } else { 3 };
+    let composer_height = composer_height(app, area);
     let plan_height = if matches!(app.view, View::Chat) {
         plan_panel_height(app, area)
     } else {
@@ -127,7 +139,7 @@ pub fn draw_in(frame: &mut Frame, app: &App, area: Rect) {
 
 fn render_welcome(frame: &mut Frame, app: &App, area: Rect) -> Rect {
     let body = area;
-    let composer_height: u16 = if area.height >= 18 { 7 } else { 3 };
+    let composer_height = composer_height(app, area);
     let full_logo = area.width >= 52 && body.height >= composer_height.saturating_add(8);
     let logo_height: u16 = if full_logo {
         5
@@ -1291,34 +1303,6 @@ fn render_composer(frame: &mut Frame, app: &App, area: Rect) {
         Paragraph::new(input).style(Style::default().bg(SURFACE)),
         Rect::new(inner.x, inner.y, inner.width, 1),
     );
-    if !compact && inner.height >= 4 {
-        let usage = &app.session_usage;
-        let cache = usage
-            .cache_hit_rate
-            .map(|rate| format!("cache {rate:.0}%"))
-            .unwrap_or_else(|| "cache —".to_owned());
-        let metrics = if inner.width >= 80 {
-            format!(
-                "{cache} · tokens {} · input {} · output {} · cache R/W {}/{} · reasoning {}",
-                usage.total_tokens,
-                usage.input,
-                usage.output,
-                usage.cache_read,
-                usage.cache_write,
-                usage.reasoning
-            )
-        } else {
-            format!(
-                "{cache} · tokens {} · in {} · out {}",
-                usage.total_tokens, usage.input, usage.output
-            )
-        };
-        frame.render_widget(
-            Paragraph::new(single_line(&metrics, inner.width as usize))
-                .style(Style::default().fg(MUTED).bg(SURFACE)),
-            Rect::new(inner.x, inner.y.saturating_add(1), inner.width, 1),
-        );
-    }
     if !compact && inner.height >= 5 && !app.attachments.is_empty() {
         let names = app
             .attachments
@@ -1399,28 +1383,58 @@ fn render_composer(frame: &mut Frame, app: &App, area: Rect) {
     }
 }
 
+fn compact_token_count(value: u64) -> String {
+    let (divisor, suffix) = if value >= 1_000_000_000 {
+        (1_000_000_000.0, "B")
+    } else if value >= 1_000_000 {
+        (1_000_000.0, "M")
+    } else if value >= 1_000 {
+        (1_000.0, "K")
+    } else {
+        return value.to_string();
+    };
+    let scaled = value as f64 / divisor;
+    if scaled >= 100.0 || (scaled - scaled.round()).abs() < 0.05 {
+        format!("{scaled:.0}{suffix}")
+    } else {
+        format!("{scaled:.1}{suffix}")
+    }
+}
+
 fn render_status(frame: &mut Frame, app: &App, area: Rect) {
     let columns = Layout::default()
         .direction(Direction::Horizontal)
-        .constraints([Constraint::Percentage(62), Constraint::Percentage(38)])
+        .constraints([Constraint::Percentage(72), Constraint::Percentage(28)])
         .split(area);
     let context = app
         .context_percent
         .map(|value| format!(" · {value:.0}% ctx"))
         .unwrap_or_default();
     let mode = format!("[{}]", display_execution_mode(&app.execution_mode));
+    let cache = app
+        .session_usage
+        .cache_hit_rate
+        .map(|rate| format!("{rate:.0}%"))
+        .unwrap_or_else(|| "—".to_owned());
+    let usage = format!(
+        "token: {} cache {cache}",
+        compact_token_count(app.session_usage.total_tokens)
+    );
     let full = format!(
-        "{} · {mode} · {}{context}",
+        "{} · {mode} · {}{context} · {usage}",
         display_model(&app.model),
         shorten_path(&app.cwd),
     );
-    let model_mode = format!("{} · {mode}{context}", display_model(&app.model));
+    let model_mode = format!("{} · {mode}{context} · {usage}", display_model(&app.model));
+    let mode_usage = format!("{mode} · {usage}");
     let compact = format!("{mode} · {}{context}", shorten_path(&app.cwd));
     let available = columns[0].width as usize;
     let left = if full.width() <= available {
         full
     } else if model_mode.width() <= available {
         model_mode
+    } else if mode_usage.width() <= available {
+        mode_usage
     } else if compact.width() <= available {
         compact
     } else {
@@ -2209,8 +2223,8 @@ mod tests {
     use unicode_width::UnicodeWidthStr;
 
     use super::{
-        draw, format_session_time, push_live, push_markdown, runtime_error_label, slash_menu_area,
-        visible_input, CONVERSATION_WIDTH, GREEN,
+        compact_token_count, draw, format_session_time, push_live, push_markdown,
+        runtime_error_label, slash_menu_area, visible_input, CONVERSATION_WIDTH, GREEN,
     };
     use crate::{
         app::{App, Approval, LiveTurn, PathEntry, SettingsPicker},
@@ -2537,6 +2551,65 @@ mod tests {
                 "mode missing from status at width {width}: {rows:?}"
             );
         }
+    }
+
+    #[test]
+    fn session_usage_is_compact_and_rendered_only_in_the_bottom_status() {
+        assert_eq!(compact_token_count(88_000_000), "88M");
+        assert_eq!(compact_token_count(14_853), "14.9K");
+
+        let session = SessionSummary {
+            id: "session-usage".to_owned(),
+            model: "openai/gpt-5.6-sol".to_owned(),
+            cwd: "/workspace".to_owned(),
+            execution_mode: "full-access".to_owned(),
+            ..SessionSummary::default()
+        };
+        let mut app = App::new(
+            vec![session.clone()],
+            session,
+            vec![ChatMessage {
+                role: "user".to_owned(),
+                text: "Keep usage outside the composer".to_owned(),
+                run_activity: None,
+                attachments: Vec::new(),
+            }],
+            None,
+            Vec::new(),
+            Vec::new(),
+        );
+        app.session_usage = crate::model::SessionUsage {
+            total_tokens: 88_000_000,
+            cache_hit_rate: Some(79.0),
+            input: 80_000_000,
+            output: 8_000_000,
+            reasoning: 1_000_000,
+            cache_read: 70_000_000,
+            cache_write: 2_000_000,
+            prompt_tokens: 0,
+            requests: 10,
+        };
+
+        let mut terminal = Terminal::new(TestBackend::new(120, 24)).unwrap();
+        terminal.draw(|frame| draw(frame, &app)).unwrap();
+        let rows = (0..24)
+            .map(|y| {
+                (0..120)
+                    .filter_map(|x| terminal.backend().buffer().cell((x, y)))
+                    .map(|cell| cell.symbol())
+                    .collect::<String>()
+            })
+            .collect::<Vec<_>>();
+
+        assert!(rows[23].contains("token: 88M cache 79%"));
+        assert_eq!(
+            rows.iter()
+                .filter(|row| row.contains("token: 88M cache 79%"))
+                .count(),
+            1
+        );
+        assert!(!rows.join("\n").contains("cache R/W"));
+        assert!(!rows.join("\n").contains("reasoning 1000000"));
     }
 
     #[test]
@@ -3028,7 +3101,7 @@ mod tests {
                 .filter_map(|(index, row)| row.contains("Message Pisper").then_some(index))
                 .collect::<Vec<_>>();
             let expected = if height >= 18 {
-                height.saturating_sub(7)
+                height.saturating_sub(6)
             } else {
                 height.saturating_sub(3)
             } as usize;

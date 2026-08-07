@@ -67,7 +67,7 @@ pisper doctor
 - `Home` / `End`、`Left` / `Right`、`Backspace` / `Delete`：编辑 composer 草稿。
 - `Ctrl+C`：Agent 运行或等待审批时中止当前 run；空闲时退出 TUI。
 
-Composer 指标栏显示当前会话 Provider 返回的真实缓存命中率和 Token 总量，并按会话隔离 input、output、缓存读写和 reasoning 明细。
+最底部状态栏以 `token: 88M cache 79%` 的紧凑格式显示当前会话 Provider 返回的 Token 总量和真实缓存命中率，数据按会话隔离。
 
 长文本或多行 bracketed paste 会在 composer 中折叠为 `[Pasted text · …]`，但提交给 Agent 的仍是包含原始换行的完整文本。摘要可作为整体移动和删除。
 
