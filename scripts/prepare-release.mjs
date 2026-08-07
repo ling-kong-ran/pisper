@@ -30,10 +30,24 @@ function run(command, args) {
   return execFileSync(command, args, { cwd: root, encoding: 'utf8', stdio: 'pipe' }).trim()
 }
 
+function readComponentVersionAtRef(ref) {
+  const path =
+    component === 'desktop'
+      ? 'src-tauri/desktop-package.json'
+      : component === 'tui'
+        ? 'src-tui/Cargo.toml'
+        : 'package.json'
+  const source = run('git', ['show', `${ref}:${path}`])
+  if (component !== 'tui') return JSON.parse(source).version
+  return source.match(/\[package\][\s\S]*?\r?\nversion\s*=\s*"([^"]+)"/)?.[1] || ''
+}
+
 const tags = run('git', ['tag', '--list', '--sort=-version:refname']).split(/\r?\n/).filter(Boolean)
+const baselineVersion = readComponentVersionAtRef(sourceRef)
 const previousTag = fallbackReleaseTag(
   component,
   tags.filter((value) => value !== tag),
+  baselineVersion,
 )
 let source = '本地 Git 提交'
 let generated = generateLocalNotes({ tag, previousTag, sourceRef })

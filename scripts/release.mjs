@@ -120,7 +120,8 @@ const candidates = requestedComponent ? [requestedComponent] : Object.keys(RELEA
 const plans = []
 
 for (const component of candidates) {
-  const latestTag = fallbackReleaseTag(component, tags)
+  const currentVersion = await readComponentVersion(root, component)
+  const latestTag = fallbackReleaseTag(component, tags, currentVersion)
   const paths = componentReleasePaths(runGit, component, latestTag, source)
   if (!requestedComponent && paths.length === 0) continue
   if (requestedComponent && paths.length === 0) {
@@ -143,7 +144,6 @@ for (const component of candidates) {
   )
   for (const subject of substantive) console.log(`  - ${subject}`)
 
-  const currentVersion = await readComponentVersion(root, component)
   const nextVersion = resolveVersion(currentVersion, input)
   if (compareVersions(nextVersion, currentVersion) <= 0) {
     throw new Error(`新版本 ${nextVersion} 必须高于当前 ${component} 版本 ${currentVersion}。`)

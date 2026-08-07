@@ -102,7 +102,7 @@ const tag = releaseTag(component, targetVersion)
 if (run('git', ['tag', '--list', tag])) throw new Error(`标签 ${tag} 已经存在。`)
 
 const tags = run('git', ['tag', '--list', '--sort=-version:refname']).split(/\r?\n/).filter(Boolean)
-const latestTag = fallbackReleaseTag(component, tags)
+const latestTag = fallbackReleaseTag(component, tags, currentVersion)
 if (latestTag) {
   const latestVersion = releaseVersionFromTag(component, latestTag) || latestTag.slice(1)
   if (compareVersions(targetVersion, latestVersion) <= 0) {

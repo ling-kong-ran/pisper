@@ -34,13 +34,34 @@ export function releaseVersionFromTag(component, tag) {
   return normalized === 'desktop' ? tag.slice(1) : tag.slice(normalized.length + 2)
 }
 
-export function fallbackReleaseTag(component, tags) {
+export function fallbackReleaseTag(component, tags, currentVersion = '') {
   const normalized = assertReleaseComponent(component)
   const values = Array.isArray(tags) ? tags : []
   const current = values.find((tag) => releaseTagPattern(normalized).test(tag))
   if (current) return current
   if (normalized === 'desktop') return ''
-  return values.find((tag) => /^v\d+\.\d+\.\d+$/.test(tag)) || ''
+
+  const legacyTags = values
+    .filter((tag) => /^v\d+\.\d+\.\d+$/.test(tag))
+    .sort((left, right) => {
+      const a = left.slice(1).split('.').map(Number)
+      const b = right.slice(1).split('.').map(Number)
+      for (let index = 0; index < 3; index += 1) {
+        if (a[index] !== b[index]) return b[index] - a[index]
+      }
+      return 0
+    })
+  if (!currentVersion) return legacyTags[0] || ''
+  const limit = currentVersion.split('.').map(Number)
+  return (
+    legacyTags.find((tag) => {
+      const version = tag.slice(1).split('.').map(Number)
+      for (let index = 0; index < 3; index += 1) {
+        if (version[index] !== limit[index]) return version[index] < limit[index]
+      }
+      return true
+    }) || ''
+  )
 }
 
 export async function readComponentVersion(root, component) {

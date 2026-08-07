@@ -35,12 +35,26 @@ test('desktop, TUI, and runtime own independent versions and tags', async () => 
   assert.equal(releaseVersionFromTag('runtime', 'v1.2.3'), '')
 })
 
-test('new component channels migrate from the latest legacy desktop tag', () => {
-  const tags = ['runtime-v0.4.20', 'tui-v0.4.22', 'v0.4.26', 'v0.4.25']
-  assert.equal(fallbackReleaseTag('desktop', tags), 'v0.4.26')
-  assert.equal(fallbackReleaseTag('tui', tags), 'tui-v0.4.22')
-  assert.equal(fallbackReleaseTag('runtime', tags), 'runtime-v0.4.20')
-  assert.equal(fallbackReleaseTag('tui', ['v0.4.26', 'v0.4.25']), 'v0.4.26')
+test('new component channels keep their legacy baseline after desktop advances', () => {
+  const tags = ['runtime-v0.4.20', 'tui-v0.4.22', 'v0.4.27', 'v0.4.26', 'v0.4.25']
+  assert.equal(fallbackReleaseTag('desktop', tags, '0.4.27'), 'v0.4.27')
+  assert.equal(fallbackReleaseTag('tui', tags, '0.4.26'), 'tui-v0.4.22')
+  assert.equal(fallbackReleaseTag('runtime', tags, '0.4.26'), 'runtime-v0.4.20')
+  assert.equal(fallbackReleaseTag('tui', ['v0.4.25', 'v0.4.27', 'v0.4.26'], '0.4.26'), 'v0.4.26')
+  assert.equal(fallbackReleaseTag('runtime', ['v0.4.27', 'v0.4.26'], '0.4.26'), 'v0.4.26')
+})
+
+test('component staging and notes use the immutable pre-release version as migration baseline', async () => {
+  const [release, staging, notes] = await Promise.all([
+    readFile('scripts/release.mjs', 'utf8'),
+    readFile('scripts/stage-release-version.mjs', 'utf8'),
+    readFile('scripts/prepare-release.mjs', 'utf8'),
+  ])
+
+  assert.match(release, /fallbackReleaseTag\(component, tags, currentVersion\)/)
+  assert.match(staging, /fallbackReleaseTag\(component, tags, currentVersion\)/)
+  assert.match(notes, /const baselineVersion = readComponentVersionAtRef\(sourceRef\)/)
+  assert.match(notes, /fallbackReleaseTag\([\s\S]*baselineVersion,/)
 })
 
 test('Tauri reads only the desktop version while component packagers keep their own versions', async () => {
