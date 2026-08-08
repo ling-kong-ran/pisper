@@ -3,7 +3,6 @@ import {
   AlertTriangle,
   Download,
   ExternalLink,
-  Eye,
   File,
   FileImage,
   FileVideo,
@@ -215,6 +214,7 @@ export function AssetsPage({
               <Panel className="asset-card functional" key={asset.id}>
                 <button
                   className={`asset-preview ${asset.kind} ${isVideo ? 'video' : ''}`}
+                  title={t('assets:assetsPage.preview')}
                   onClick={() => previewAsset(asset)}
                 >
                   {asset.kind === 'image' ? (
@@ -254,10 +254,6 @@ export function AssetsPage({
                   )}
                 </div>
                 <div className="asset-card-actions">
-                  <button className="button tiny" onClick={() => previewAsset(asset)}>
-                    <Eye size={13} />
-                    {t('assets:assetsPage.preview')}
-                  </button>
                   {asset.kind === 'link' ? (
                     <a className="button tiny" href={asset.url} target="_blank" rel="noreferrer">
                       <ExternalLink size={13} />
