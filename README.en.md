@@ -148,7 +148,14 @@ sudo apt install ./Pisper-*-linux-amd64.deb
 
 ### Terminal Client (TUI)
 
-After installing the desktop app, install the `pisper` command from **Settings → Terminal**. The first installation remains explicit; after later desktop updates restart Pisper, it automatically refreshes this managed terminal client:
+With Node.js 20+, you can install the terminal client independently through npm. `pisper-cli` downloads and verifies the officially signed TUI and Runtime components; the Pisper Runtime itself is not published to the npm registry:
+
+```bash
+npm install -g pisper-cli
+pisper
+```
+
+After installing the desktop app, you can also install the `pisper` command from **Settings → Terminal**. The first installation remains explicit; after later desktop updates restart Pisper, it automatically refreshes this managed terminal client:
 
 ```bash
 pisper          # start a new conversation

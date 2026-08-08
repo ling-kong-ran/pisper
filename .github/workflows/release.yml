@@ -19,9 +19,19 @@ on:
         description: 'Exact release branch commit to build'
         required: true
         type: string
+      publish_npm:
+        description: 'Publish pisper-cli after this component release'
+        required: false
+        default: false
+        type: boolean
+      npm_version:
+        description: 'pisper-cli version when publish_npm is enabled'
+        required: false
+        type: string
 
 permissions:
   contents: write
+  id-token: write
 
 concurrency:
   group: release-${{ github.repository }}
@@ -332,3 +342,15 @@ jobs:
 
           trap - ERR
           echo "Published $RELEASE_TAG from $release_commit"
+
+  publish-npm:
+    name: Publish npm CLI after ${{ inputs.component }}
+    if: inputs.publish_npm
+    needs: release
+    uses: ./.github/workflows/publish-npm.yml
+    with:
+      npm_version: ${{ inputs.npm_version }}
+      tui_version: ${{ inputs.component == 'tui' && inputs.version || '' }}
+      runtime_version: ${{ inputs.component == 'runtime' && inputs.version || '' }}
+      source_sha: ${{ inputs.source_sha }}
+    secrets: inherit

@@ -2,13 +2,18 @@ import { RELEASE_COMPONENTS, assertReleaseComponent } from './release-components
 
 const ALL_COMPONENTS = Object.freeze(Object.keys(RELEASE_COMPONENTS))
 const RELEASE_SCRIPT_PATHS = new Set([
+  'scripts/package-npm.mjs',
   'scripts/prepare-release.mjs',
   'scripts/release-changes.mjs',
   'scripts/release-components.mjs',
+  'scripts/release-npm.mjs',
   'scripts/release-policy.mjs',
   'scripts/release.mjs',
   'scripts/rename-to-pisper.mjs',
+  'scripts/stage-npm-release-version.mjs',
   'scripts/stage-release-version.mjs',
+  'scripts/validate-npm-package.mjs',
+  'scripts/validate-npm-targets.mjs',
   'scripts/verify-release-head.mjs',
 ])
 const SCRIPT_COMPONENTS = new Map([
@@ -52,6 +57,7 @@ export function releaseComponentsForPath(input) {
   const path = normalizePath(input)
   if (!path || isDocumentationOrTest(path) || RELEASE_SCRIPT_PATHS.has(path)) return []
 
+  if (path.startsWith('packages/pisper-cli/')) return []
   if (path.startsWith('crates/component-updater/')) return ['desktop', 'tui']
   if (path.startsWith('src-tauri/')) return ['desktop']
   if (path.startsWith('src-tui/')) return ['tui']
@@ -64,7 +70,9 @@ export function releaseComponentsForPath(input) {
     return ['runtime']
   }
 
-  if (path === '.github/workflows/release.yml') return []
+  if (path === '.github/workflows/release.yml' || path === '.github/workflows/publish-npm.yml') {
+    return []
+  }
   if (SCRIPT_COMPONENTS.has(path)) return [...SCRIPT_COMPONENTS.get(path)]
   if (path.startsWith('scripts/')) return [...ALL_COMPONENTS]
 

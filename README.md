@@ -148,7 +148,14 @@ sudo apt install ./Pisper-*-linux-amd64.deb
 
 ### 终端客户端（TUI）
 
-安装桌面版后，在 **设置 → 终端** 中安装 `pisper` 命令。首次安装由你主动确认；之后桌面应用更新并重启时，Pisper 会自动刷新这份已托管的终端客户端：
+使用 Node.js 20+ 时，也可通过 npm 独立安装。`pisper-cli` 会下载并验证官方签名的 TUI 与 Runtime 组件，npm registry 中不发布 Pisper Runtime：
+
+```bash
+npm install -g pisper-cli
+pisper
+```
+
+安装桌面版后，也可以在 **设置 → 终端** 中安装 `pisper` 命令。首次安装由你主动确认；之后桌面应用更新并重启时，Pisper 会自动刷新这份已托管的终端客户端：
 
 ```bash
 pisper          # 新建会话

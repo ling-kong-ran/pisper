@@ -1,0 +1,153 @@
+name: Publish npm CLI
+
+on:
+  workflow_dispatch:
+    inputs:
+      npm_version:
+        description: 'pisper-cli npm version (X.Y.Z)'
+        required: true
+        type: string
+      tui_version:
+        description: 'Signed TUI release version bundled by the installer'
+        required: false
+        type: string
+      runtime_version:
+        description: 'Signed Runtime release version installed by the installer'
+        required: false
+        type: string
+      source_sha:
+        description: 'Exact release branch commit to publish'
+        required: true
+        type: string
+  workflow_call:
+    inputs:
+      npm_version:
+        required: true
+        type: string
+      tui_version:
+        required: false
+        type: string
+      runtime_version:
+        required: false
+        type: string
+      source_sha:
+        required: true
+        type: string
+    secrets:
+      NPM_TOKEN:
+        required: false
+
+permissions:
+  contents: write
+  id-token: write
+
+concurrency:
+  group: npm-publish-${{ github.repository }}
+  cancel-in-progress: false
+
+env:
+  NPM_VERSION: ${{ inputs.npm_version }}
+  NPM_TAG: npm-v${{ inputs.npm_version }}
+  TUI_VERSION: ${{ inputs.tui_version }}
+  RUNTIME_VERSION: ${{ inputs.runtime_version }}
+  RELEASE_SOURCE_SHA: ${{ inputs.source_sha }}
+
+jobs:
+  publish:
+    name: Publish pisper-cli@${{ inputs.npm_version }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: ${{ inputs.source_sha }}
+          fetch-depth: 0
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 24
+      - name: Verify immutable release source
+        shell: bash
+        run: |
+          git fetch origin release
+          node scripts/verify-release-head.mjs "$RELEASE_SOURCE_SHA" origin/release
+      - name: Stage independent npm package version
+        run: >-
+          node scripts/stage-npm-release-version.mjs
+          "$NPM_VERSION" "$TUI_VERSION" "$RUNTIME_VERSION" "$RELEASE_SOURCE_SHA"
+      - name: Validate signed component targets
+        run: node scripts/validate-npm-targets.mjs
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+      - name: Pack and validate registry contents
+        run: npm run npm:pack:check
+      - name: Smoke-test the packed launcher and production dependencies
+        shell: bash
+        run: |
+          PISPER_CLI_SKIP_INSTALL=1 npm install \
+            --prefix release/npm/smoke \
+            release/npm/tarballs/*.tgz
+          node -e "import('./release/npm/smoke/node_modules/pisper-cli/lib/install.mjs').then(m => { if (!m.releaseAsset().startsWith('Pisper_TUI_Component_')) process.exit(1) })"
+      - name: Check whether the version is already published
+        id: registry
+        shell: bash
+        run: |
+          if npm view "pisper-cli@$NPM_VERSION" version --json >/dev/null 2>&1; then
+            echo "exists=true" >> "$GITHUB_OUTPUT"
+            echo "pisper-cli@$NPM_VERSION is already published; nothing to do."
+          else
+            echo "exists=false" >> "$GITHUB_OUTPUT"
+          fi
+      - name: Commit version metadata, tag, and publish
+        if: steps.registry.outputs.exists != 'true'
+        shell: bash
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+          RELEASE_BRANCH: release
+        run: |
+          set -Eeuo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git fetch origin "$RELEASE_BRANCH"
+          remote_source="$(git rev-parse "origin/$RELEASE_BRANCH")"
+          node scripts/verify-release-head.mjs "$RELEASE_SOURCE_SHA" "$remote_source"
+          test -z "$(git ls-remote origin "refs/tags/$NPM_TAG")" || {
+            echo "tag already exists without a published npm version: $NPM_TAG" >&2
+            exit 1
+          }
+
+          git add packages/pisper-cli/package.json
+          git diff --cached --quiet && {
+            echo "staged npm release has no version changes" >&2
+            exit 1
+          }
+          git commit -m "chore(release-npm): $NPM_TAG"
+          if [ "$remote_source" != "$RELEASE_SOURCE_SHA" ]; then
+            git rebase --onto "$remote_source" "$RELEASE_SOURCE_SHA" HEAD
+          fi
+          release_commit="$(git rev-parse HEAD)"
+          git tag "$NPM_TAG"
+
+          pushed=0
+          rollback() {
+            status=$?
+            trap - ERR
+            if [ "$pushed" = 1 ]; then
+              git push --atomic \
+                --force-with-lease="refs/heads/$RELEASE_BRANCH:$release_commit" \
+                origin \
+                "$remote_source:refs/heads/$RELEASE_BRANCH" \
+                ":refs/tags/$NPM_TAG" || true
+            fi
+            exit "$status"
+          }
+          trap rollback ERR
+          git push --atomic origin \
+            "HEAD:refs/heads/$RELEASE_BRANCH" \
+            "refs/tags/$NPM_TAG"
+          pushed=1
+
+          if [ -n "$NODE_AUTH_TOKEN" ]; then
+            printf '//registry.npmjs.org/:_authToken=%s\n' "$NODE_AUTH_TOKEN" > ~/.npmrc
+          fi
+          npm publish release/npm/tarballs/*.tgz --access public --provenance
+          trap - ERR
+          echo "Published pisper-cli@$NPM_VERSION from $release_commit"

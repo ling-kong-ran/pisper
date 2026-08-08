@@ -6,9 +6,18 @@
 
 ## Install the Terminal Command
 
-After installing the Pisper desktop app, open **Settings → Terminal** to install, repair, or uninstall the `pisper` command. Pisper installs it in a current-user directory and manages the matching `PATH` entry without administrator access.
+With Node.js 20+, install the terminal client through npm without installing the desktop app:
 
-Restart the terminal host after installing or uninstalling. Fully quit and reopen Windows Terminal, or restart the IDE that owns an integrated terminal.
+```bash
+npm install -g pisper-cli
+pisper
+```
+
+`pisper-cli` is a lightweight installer and does not carry Pisper Runtime in the npm registry. During installation it downloads the official thin TUI package and Runtime component for the current platform, verifies both with the embedded Minisign public key, and keeps only one Runtime in the standard component directory. Pisper can start offline after installation, while `pisper update` continues to update each component independently.
+
+After installing the Pisper desktop app, you can alternatively open **Settings → Terminal** to install, repair, or uninstall the `pisper` command. Pisper installs it in a current-user directory and manages the matching `PATH` entry without administrator access.
+
+After installing or uninstalling through the desktop app, restart the terminal host. Fully quit and reopen Windows Terminal, or restart the IDE that owns an integrated terminal.
 
 To build the complete distribution from source:
 

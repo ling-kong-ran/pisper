@@ -11,6 +11,7 @@ const VERSION_FILES = Object.freeze({
   desktop: Object.freeze(['src-tauri/desktop-package.json']),
   tui: Object.freeze(['src-tui/Cargo.lock', 'src-tui/Cargo.toml']),
   runtime: Object.freeze(['package-lock.json', 'package.json']),
+  npm: Object.freeze(['packages/pisper-cli/package.json']),
 })
 
 function git(args, { allowFailure = false } = {}) {
@@ -33,7 +34,7 @@ const commits = git(['rev-list', '--reverse', `${expected}..${actual}`])
   .filter(Boolean)
 for (const commit of commits) {
   const subject = git(['show', '-s', '--format=%s', commit]).stdout
-  const match = subject.match(/^chore\(release-(desktop|tui|runtime)\):\s+\S+$/)
+  const match = subject.match(/^chore\(release-(desktop|tui|runtime|npm)\):\s+\S+$/)
   if (!match) {
     throw new Error(
       `release branch contains a non-release commit after ${expected}: ${commit} ${subject}`,

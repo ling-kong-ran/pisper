@@ -27,6 +27,7 @@ Requires **Node.js 20+** (desktop SEA packaging docs target Node 24). Runtime ag
 | `runtime/services/` | Domain services (sessions, MCP, schedules, workflows, providers, …) |
 | `runtime/tools/app/` | Application-level agent tools (one module per tool) |
 | `runtime/tests/` | Node test suite (`tsx --test`) |
+| `packages/pisper-cli/` | Private source manifest and lightweight npm installer/launcher published as `pisper-cli` |
 | `shared/` | Small JS modules shared by runtime and client (e.g. workflow graph, release notes) |
 | `src-tauri/` | Tauri 2 shell (desktop bridge, pet window, updater, CLI install) |
 | `src-tui/` | Rust TUI (`pisper` CLI) |
@@ -82,12 +83,18 @@ npm run tui:stage           # build and stage the TUI with the SEA sidecar
 npm run tui:package         # build and package the TUI distribution
 npm run tui:build           # SEA build followed by TUI packaging
 
+# npm installer package
+npm run npm:pack                  # build the lightweight pisper-cli tarball
+npm run npm:pack:check            # build and validate tarball contents and behavior
+
 # Versioning and release
 npm run release -- patch          # auto-detect and publish every changed component
 npm run release -- desktop patch  # explicitly publish signed Tauri installers
 npm run release -- tui patch      # self-contained TUI bundles, no Tauri packaging
 npm run release -- runtime patch  # SEA/runtime bundles, no Tauri or TUI build
 npm run release -- desktop 0.4.20 # explicit component version
+npm run release:npm -- patch      # independently publish the pisper-cli npm installer
+npm run release -- runtime patch --publish-npm --npm-version=0.2.0 # optionally chain npm
 ```
 
 Prefer `npm run check` and `npm test` before considering a change done. Run desktop/TUI packaging only when touching those surfaces.
@@ -96,9 +103,11 @@ Prefer `npm run check` and `npm test` before considering a change done. Run desk
 
 Releases must ship **substantive product changes**. Do **not** cut a version when the only delta since the latest component tag is version metadata, dependency refresh, formatting, docs-only nits, or other release-script bookkeeping.
 
-Desktop, TUI, and runtime releases have independent versions and tags. Desktop uses `src-tauri/desktop-package.json` with `vX.Y.Z`; TUI uses `src-tui/Cargo.toml` with `tui-vX.Y.Z`; runtime/web uses root `package.json` with `runtime-vX.Y.Z`. Only desktop Releases are marked as GitHub `latest` and publish signed `latest.json` updater metadata. TUI Releases keep a self-contained distribution and add a thin TUI-only updater archive; runtime Releases ship the SEA/runtime component. Every component archive is minisign-signed, while TUI builds never build or sign Tauri installers.
+Desktop, TUI, runtime, and npm releases have independent versions and tags. Desktop uses `src-tauri/desktop-package.json` with `vX.Y.Z`; TUI uses `src-tui/Cargo.toml` with `tui-vX.Y.Z`; runtime/web uses root `package.json` with `runtime-vX.Y.Z`; the `pisper-cli` manifest uses `packages/pisper-cli/package.json` with `npm-vX.Y.Z`. Only desktop Releases are marked as GitHub `latest` and publish signed `latest.json` updater metadata. TUI Releases keep a self-contained distribution and add a thin TUI-only updater archive; runtime Releases ship the SEA/runtime component. Every component archive is minisign-signed, while TUI builds never build or sign Tauri installers.
 
-Before running `npm run release -- [desktop|tui|runtime] <version>`:
+The root package stays private. npm publishes only the lightweight package named `pisper-cli`, whose `pisper` command downloads and verifies the selected signed TUI component and Runtime release assets during installation. Do not publish the Runtime to npm, rename the package to `pisper`, bundle release archives into the npm tarball, or copy Runtime into the TUI installation. The launcher must reuse the single standard component Runtime via `PISPER_SIDECAR_PATH` and `PISPER_APP_ROOT`.
+
+Before running `npm run release -- [desktop|tui|runtime] <version>` or `npm run release:npm -- <version>`:
 
 1. Confirm you are on the `release` branch, the tracked working tree is clean, and local `release` exactly matches `origin/release`.
 2. Inspect `git log --oneline <latest-tag>..HEAD` and `git diff --stat <latest-tag>..HEAD`.
@@ -109,6 +118,8 @@ Before running `npm run release -- [desktop|tui|runtime] <version>`:
 Once `npm run release` dispatches a component, treat the remote `release` branch as frozen until the command exits and **every** selected component workflow has completed. Before committing or pushing to `release`, check `.github/workflows/release.yml` for queued or in-progress runs and account for later components in the same local release command; do not resume after only the first component finishes. Keep follow-up work uncommitted or on another branch during this window. After finalization, fetch `origin/release` and tags, fast-forward local `release`, verify that no release run remains active, and only then commit and push queued changes. Advancing `release` during this window can invalidate the workflow's atomic branch-advance check.
 
 `npm run release` enforces this gate in `scripts/release.mjs` via `scripts/release-policy.mjs`. Without an explicit component it compares each component with its own latest tag, dispatches every component with substantive owned changes, and runs the union of their local checks once. An explicit component still limits the release. Each dispatch passes the component, exact source SHA, and target version to `.github/workflows/release.yml`; the local script must **not** bump versions, create tags, or push release metadata. Multi-component workflows share the immutable source SHA and run in one global queue; later jobs may advance only across validated `chore(release-<component>)` commits that touch exactly that component's version files. GitHub Actions stages only that component's version files in artifacts, verifies and builds its platform packages, validates the exact asset set, then lets `github-actions[bot]` commit `chore(release-<component>): <tag>` and atomically push the `release` branch plus tag immediately before publishing a Draft Release. Any earlier failure leaves the remote version and tag unchanged; finalization failures run compensating cleanup. Do not reintroduce tag-push-triggered releases.
+
+`npm run release:npm -- <major|minor|patch|X.Y.Z>` dispatches `.github/workflows/publish-npm.yml`; optional `--tui=X.Y.Z` and `--runtime=X.Y.Z` select component assets. A component release chains npm only when both `--publish-npm` and `--npm-version=X.Y.Z` are supplied. npm releases require launcher changes or a changed TUI/Runtime target, and the workflow commits only `packages/pisper-cli/package.json` as `chore(release-npm): npm-vX.Y.Z`. The first registry publication requires an `NPM_TOKEN`; after the package exists, configure npm Trusted Publishing for `.github/workflows/publish-npm.yml` and retain provenance. Never commit registry credentials.
 
 ## Conventions
 
@@ -140,7 +151,8 @@ Once `npm run release` dispatches a component, treat the remote `release` branch
 3. For TUI Rust changes: `npm run tui:check` and `npm run tui:test`.
 4. For Tauri desktop changes: `cargo test --manifest-path src-tauri/Cargo.toml` and `cargo clippy --manifest-path src-tauri/Cargo.toml --all-targets -- -D warnings`.
 5. For SEA/desktop packaging changes: `npm run sidecar:sea:smoke` (and platform-specific packaging only with required Rust/Tauri toolchain).
-6. Do not invent new top-level package managers or dual lockfiles; this repo uses **npm** (`package-lock.json`).
+6. For npm installer or npm release changes: `npm run npm:pack:check`, `node scripts/validate-npm-targets.mjs`, and the focused `runtime/tests/npm-cli-package.test.mjs` test.
+7. Do not invent new top-level package managers or dual lockfiles; this repo uses **npm** (`package-lock.json`).
 
 ## Out of scope / safety
 
