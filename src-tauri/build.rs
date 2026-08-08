@@ -50,6 +50,7 @@ fn stage_windows_test_resource() {
 
 fn main() {
     println!("cargo:rerun-if-changed=updater.pubkey");
+    println!("cargo:rerun-if-changed=desktop-package.json");
     println!("cargo:rerun-if-changed=../package.json");
     println!("cargo:rerun-if-changed=../src-tui/Cargo.toml");
     println!("cargo:rerun-if-env-changed=PISPER_TAURI_UPDATER_PUBLIC_KEY");
@@ -58,6 +59,10 @@ fn main() {
     println!(
         "cargo:rustc-env=PISPER_TAURI_UPDATER_PUBLIC_KEY={}",
         updater_public_key.trim()
+    );
+    println!(
+        "cargo:rustc-env=PISPER_BUNDLED_DESKTOP_VERSION={}",
+        package_version("desktop-package.json", "json")
     );
     println!(
         "cargo:rustc-env=PISPER_BUNDLED_RUNTIME_VERSION={}",

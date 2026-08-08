@@ -23,6 +23,7 @@ const pisper = await createPisperRuntime({
   port: 0,
   host,
   desktopAuthToken: token,
+  frontendRoot: process.env.PISPER_FRONTEND_ROOT || null,
 })
 
 const bootstrapUrl = `${pisper.url}/_pisper/desktop/bootstrap?token=${encodeURIComponent(token)}`

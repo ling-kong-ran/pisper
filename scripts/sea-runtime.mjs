@@ -409,7 +409,6 @@ export async function pruneRuntime(runtimeDir, target = runtimeTarget()) {
 
 export function criticalRuntimeEntries(nativeSelection = {}) {
   const entries = [
-    ['app', 'dist/index.html'],
     ['app', 'runtime/sidecar.mjs'],
     ['skills', `${PI_CODING_AGENT}/dist/core/skills.js`],
     ['tools', `${PI_CODING_AGENT}/dist/core/tools/index.js`],

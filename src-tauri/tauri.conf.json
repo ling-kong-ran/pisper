@@ -24,6 +24,7 @@
     "targets": "all",
     "externalBin": ["binaries/pisper-sidecar", "binaries/pisper-cli"],
     "resources": {
+      "../dist/": "desktop/dist/",
       "../release/sea/runtime/": "sidecar-runtime/"
     },
     "icon": [

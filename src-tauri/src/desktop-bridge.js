@@ -66,8 +66,7 @@
       installUpdate: () => invoke('desktop_install_update'),
       componentUpdateStatus: () => invoke('desktop_component_update_status'),
       checkComponentUpdates: () => invoke('desktop_check_component_updates'),
-      installComponentUpdate: (component) =>
-        invoke('desktop_install_component_update', { component }),
+      installComponentUpdates: () => invoke('desktop_install_component_updates'),
       restartForComponentUpdate: () => invoke('desktop_restart_for_component_update'),
       openReleases: () => invoke('desktop_open_releases'),
       openUpdateLog: () => invoke('desktop_open_update_log'),

@@ -155,6 +155,7 @@ fn current_version(updater: &ComponentUpdater, component: Component) -> Option<V
         return Some(installed.version);
     }
     let value = match component {
+        Component::Desktop => None,
         Component::Tui => Some(env!("CARGO_PKG_VERSION").to_string()),
         Component::Runtime => bundled_runtime_version(),
     }?;

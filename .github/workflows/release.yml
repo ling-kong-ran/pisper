@@ -198,6 +198,7 @@ jobs:
           case "$RELEASE_COMPONENT" in
             desktop)
               npm run desktop:webview:build
+              node scripts/archive-component-release.mjs desktop
               ;;
             tui)
               npm run sidecar:sea
@@ -219,7 +220,6 @@ jobs:
         if: inputs.component == 'desktop'
         run: cargo test --manifest-path src-tauri/Cargo.toml --locked
       - name: Sign independently updateable component archives
-        if: inputs.component != 'desktop'
         shell: bash
         run: |
           set -Eeuo pipefail

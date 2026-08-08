@@ -197,6 +197,9 @@ test('release assets reject legacy updater metadata and unexpected files', async
     `Pisper_${version}_linux_x86_64.deb`,
     `Pisper_${version}_windows_x86_64-setup.exe`,
     `Pisper_${version}_windows_x86_64-setup.exe.sig`,
+    ...['darwin_aarch64', 'darwin_x86_64', 'linux_x86_64', 'windows_x86_64']
+      .map((platform) => `Pisper_Desktop_${version}_${platform}.tar.gz`)
+      .flatMap((archive) => [archive, `${archive}.sig`]),
   ]
 
   try {

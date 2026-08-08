@@ -23,13 +23,17 @@ const MAX_SIGNATURE_BYTES: u64 = 64 * 1024;
 #[derive(Clone, Copy, Debug, Eq, Hash, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
 pub enum Component {
+    Desktop,
     Tui,
     Runtime,
 }
 
 impl Component {
+    pub const ALL: [Self; 3] = [Self::Desktop, Self::Tui, Self::Runtime];
+
     pub fn parse(value: &str) -> Result<Self> {
         match value.trim().to_ascii_lowercase().as_str() {
+            "desktop" => Ok(Self::Desktop),
             "tui" => Ok(Self::Tui),
             "runtime" => Ok(Self::Runtime),
             _ => bail!("unsupported Pisper component: {value}"),
@@ -38,6 +42,7 @@ impl Component {
 
     pub fn name(self) -> &'static str {
         match self {
+            Self::Desktop => "desktop",
             Self::Tui => "tui",
             Self::Runtime => "runtime",
         }
@@ -45,6 +50,7 @@ impl Component {
 
     fn tag_prefix(self) -> &'static str {
         match self {
+            Self::Desktop => "v",
             Self::Tui => "tui-v",
             Self::Runtime => "runtime-v",
         }
@@ -52,6 +58,7 @@ impl Component {
 
     fn executable_name(self) -> &'static str {
         match (self, cfg!(windows)) {
+            (Self::Desktop, _) => "index.html",
             (Self::Tui, true) => "pisper.exe",
             (Self::Tui, false) => "pisper",
             (Self::Runtime, true) => "pisper-sidecar.exe",
@@ -98,11 +105,18 @@ pub struct InstalledComponent {
 
 impl InstalledComponent {
     pub fn executable(&self) -> PathBuf {
+        if self.component == Component::Desktop {
+            return self.root.join("dist").join(self.component.executable_name());
+        }
         self.root.join(self.component.executable_name())
     }
 
     pub fn runtime_root(&self) -> Option<PathBuf> {
         (self.component == Component::Runtime).then(|| self.root.join("sidecar-runtime"))
+    }
+
+    pub fn frontend_root(&self) -> Option<PathBuf> {
+        (self.component == Component::Desktop).then(|| self.root.join("dist"))
     }
 }
 
@@ -257,6 +271,12 @@ pub fn resolve_installed(root: &Path, component: Component) -> Result<Option<Ins
 
 pub fn component_asset_name(component: Component, version: &str) -> String {
     match component {
+        Component::Desktop => format!(
+            "Pisper_Desktop_{}_{}_{}.tar.gz",
+            version,
+            platform_name(),
+            architecture_name()
+        ),
         Component::Tui => format!(
             "Pisper_TUI_Component_{}_{}_{}.tar.gz",
             version,
@@ -460,9 +480,13 @@ fn strip_archive_root(path: &Path) -> Result<PathBuf> {
 }
 
 fn validate_layout(component: Component, root: &Path, version: &Version) -> Result<()> {
-    let executable = root.join(component.executable_name());
-    if !executable.is_file() {
-        bail!("component executable is missing: {}", executable.display());
+    let entry = if component == Component::Desktop {
+        root.join("dist").join(component.executable_name())
+    } else {
+        root.join(component.executable_name())
+    };
+    if !entry.is_file() {
+        bail!("component entry is missing: {}", entry.display());
     }
     let manifest_path = root.join("manifest.json");
     let manifest =
@@ -473,7 +497,12 @@ fn validate_layout(component: Component, root: &Path, version: &Version) -> Resu
     if manifest.version != version.to_string()
         || manifest.platform != platform_name()
         || manifest.arch != architecture_name()
-        || manifest.command != component.executable_name()
+        || manifest.command
+            != if component == Component::Desktop {
+                "dist/index.html"
+            } else {
+                component.executable_name()
+            }
     {
         bail!("component manifest does not match the requested platform and version");
     }
@@ -564,6 +593,42 @@ mod tests {
         }
     }
 
+    fn desktop_archive(version: &str) -> Vec<u8> {
+        let encoder = GzEncoder::new(Vec::new(), Compression::fast());
+        let mut builder = tar::Builder::new(encoder);
+        let contents = b"<!doctype html>";
+        let mut index_header = tar::Header::new_gnu();
+        index_header.set_size(contents.len() as u64);
+        index_header.set_mode(0o644);
+        index_header.set_cksum();
+        builder
+            .append_data(
+                &mut index_header,
+                "root/dist/index.html",
+                contents.as_slice(),
+            )
+            .unwrap();
+        let manifest = serde_json::to_vec(&serde_json::json!({
+            "version": version,
+            "platform": super::platform_name(),
+            "arch": super::architecture_name(),
+            "command": "dist/index.html",
+        }))
+        .unwrap();
+        let mut manifest_header = tar::Header::new_gnu();
+        manifest_header.set_size(manifest.len() as u64);
+        manifest_header.set_mode(0o644);
+        manifest_header.set_cksum();
+        builder
+            .append_data(
+                &mut manifest_header,
+                "root/manifest.json",
+                manifest.as_slice(),
+            )
+            .unwrap();
+        builder.into_inner().unwrap().finish().unwrap()
+    }
+
     fn tui_archive(contents: &[u8]) -> Vec<u8> {
         let encoder = GzEncoder::new(Vec::new(), Compression::fast());
         let mut builder = tar::Builder::new(encoder);
@@ -601,9 +666,31 @@ mod tests {
 
     #[test]
     fn component_assets_are_platform_specific() {
-        let name = component_asset_name(Component::Tui, "1.2.3");
-        assert!(name.starts_with("Pisper_TUI_Component_1.2.3_"));
-        assert!(name.ends_with(".tar.gz"));
+        let desktop = component_asset_name(Component::Desktop, "1.2.3");
+        assert!(desktop.starts_with("Pisper_Desktop_1.2.3_"));
+        assert!(desktop.ends_with(".tar.gz"));
+        let tui = component_asset_name(Component::Tui, "1.2.3");
+        assert!(tui.starts_with("Pisper_TUI_Component_1.2.3_"));
+        assert!(tui.ends_with(".tar.gz"));
+    }
+
+    #[test]
+    fn desktop_archives_install_only_the_frontend_payload() {
+        let directory = TestDirectory::new();
+        let version = Version::parse("1.2.3").unwrap();
+        install_archive(
+            &directory.0,
+            Component::Desktop,
+            &version,
+            &desktop_archive("1.2.3"),
+        )
+        .unwrap();
+        let installed = resolve_installed(&directory.0, Component::Desktop)
+            .unwrap()
+            .unwrap();
+        assert_eq!(installed.version, version);
+        assert!(installed.frontend_root().unwrap().join("index.html").is_file());
+        assert!(!installed.root.join("pisper-sidecar").exists());
     }
 
     #[test]

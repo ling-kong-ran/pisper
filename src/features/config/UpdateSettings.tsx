@@ -94,7 +94,7 @@ export function UpdateSettings({
   const desktop = Boolean(info.desktop)
   const [bundled, setBundled] = useState({ version: BUILD_VERSION, date: '', notes: '' })
   const [sponsors, setSponsors] = useState<SponsorCampaign[]>([])
-  const [componentBusy, setComponentBusy] = useState<'check' | 'tui' | 'runtime' | ''>('')
+  const [componentBusy, setComponentBusy] = useState<'check' | 'install' | ''>('')
   const [sponsorDismissals, setSponsorDismissals] =
     useState<Record<string, number>>(storedSponsorDismissals)
 
@@ -147,16 +147,7 @@ export function UpdateSettings({
     if (!update) return
     setComponentBusy('check')
     try {
-      const checks: Promise<unknown>[] = [update.check()]
-      if (desktop) checks.push(update.checkComponents())
-      const results = await Promise.allSettled(checks)
-      const failure = results.find((result) => result.status === 'rejected')
-      if (failure?.status === 'rejected') {
-        notify(
-          failure.reason instanceof Error ? failure.reason.message : String(failure.reason),
-          'error',
-        )
-      }
+      await update.check()
     } finally {
       setComponentBusy('')
     }
@@ -166,25 +157,18 @@ export function UpdateSettings({
   const openUpdateLog = () => update?.openUpdateLog?.()
 
   const download = async () => {
+    setComponentBusy(desktop ? 'install' : '')
     try {
-      await update?.download()
-    } catch (error) {
-      notify(error instanceof Error ? error.message : String(error), 'error')
-    }
-  }
-
-  const install = () => update?.install()
-
-  const installComponent = async (component: 'tui' | 'runtime') => {
-    setComponentBusy(component)
-    try {
-      await update.installComponent(component)
+      if (desktop) await update?.installComponents()
+      else await update?.download()
     } catch (error) {
       notify(error instanceof Error ? error.message : String(error), 'error')
     } finally {
       setComponentBusy('')
     }
   }
+
+  const install = () => update?.install()
 
   const notes =
     status.notes ||
@@ -199,16 +183,8 @@ export function UpdateSettings({
   const resumable = status.state === 'error' && status.canResume && status.canDownload
   const downloaded = status.state === 'downloaded'
   const checking = status.state === 'checking' || componentBusy === 'check'
-  const downloading = status.state === 'downloading'
-  const componentAvailable = update.components.some((component) => component.state === 'available')
-  const componentError = update.components.some((component) => component.state === 'error')
-  const overallState = checking
-    ? 'checking'
-    : available || componentAvailable
-      ? 'available'
-      : status.state === 'error' || componentError
-        ? 'error'
-        : status.state
+  const downloading = status.state === 'downloading' || componentBusy === 'install'
+  const overallState = checking ? 'checking' : downloading ? 'downloading' : status.state
   const currentIdentifier = desktop
     ? `v${info.version}`
     : `v${info.version}${status.currentCommit ? ` · ${status.currentCommit.slice(0, 7)}` : ''}`
@@ -221,6 +197,24 @@ export function UpdateSettings({
   const visibleSponsors = sponsors.filter(
     (sponsor) => (sponsorDismissals[sponsor.id] || 0) <= Date.now(),
   )
+  const componentItems = useMemo(() => {
+    const byName = new Map(update.components.map((component) => [component.component, component]))
+    return (['desktop', 'tui', 'runtime'] as const).map(
+      (component) =>
+        byName.get(component) || {
+          component,
+          state: 'idle',
+          currentVersion: component === 'desktop' ? info.version : '--',
+          availableVersion: '',
+          message: '',
+          releaseUrl: '',
+          notes: '',
+          size: 0,
+          canInstall: false,
+          restartRequired: false,
+        },
+    )
+  }, [info.version, update.components])
   const statusMeta = useMemo(
     () =>
       (
@@ -236,6 +230,7 @@ export function UpdateSettings({
           ],
           downloading: [t('config:updateSettings.downloading'), 'blue'],
           downloaded: [t('config:updateSettings.readyToRestart'), 'green'],
+          installed: [t('config:updateSettings.upToDate'), 'green'],
           error: [
             resumable
               ? t('config:updateSettings.downloadPaused')
@@ -306,7 +301,7 @@ export function UpdateSettings({
             )}
           </small>
         )}
-        {downloading && (
+        {downloading && !desktop && (
           <div className="mt-4">
             <div className="flex justify-between text-[12px] text-[var(--text-muted)]">
               <span>{t('config:updateSettings.downloadProgress')}</span>
@@ -342,15 +337,19 @@ export function UpdateSettings({
             ) : (
               <RefreshCw size={14} />
             )}
-            {checking
-              ? t('config:updateSettings.checking2')
+            {checking || downloading
+              ? downloading && desktop
+                ? t('config:updateSettings.installingUpdates')
+                : t('config:updateSettings.checking2')
               : downloaded
                 ? t('config:updateSettings.restartAndInstall')
                 : resumable
                   ? t('config:updateSettings.resumeDownload')
                   : available
                     ? status.canDownload
-                      ? t('config:updateSettings.downloadUpdate')
+                      ? desktop
+                        ? t('config:updateSettings.downloadAndInstallUpdates')
+                        : t('config:updateSettings.downloadUpdate')
                       : desktop
                         ? t('config:updateSettings.viewRelease')
                         : t('config:updateSettings.viewSourceUpdates')
@@ -369,15 +368,21 @@ export function UpdateSettings({
         </div>
         {desktop && (
           <div className="mt-6 border-t border-[var(--border)] pt-5">
-            <SectionTitle title={t('config:updateSettings.independentComponents')} />
+            <SectionTitle title={t('config:updateSettings.appComponents')} />
             <div className="mt-3 divide-y divide-[var(--border)]">
-              {(update.components || []).map((component) => {
-                const busy = componentBusy === component.component
-                const Icon = component.component === 'tui' ? SquareTerminal : Cpu
+              {componentItems.map((component) => {
+                const Icon =
+                  component.component === 'desktop'
+                    ? Laptop
+                    : component.component === 'tui'
+                      ? SquareTerminal
+                      : Cpu
                 const label =
-                  component.component === 'tui'
-                    ? t('config:updateSettings.tuiClient')
-                    : t('config:updateSettings.runtime')
+                  component.component === 'desktop'
+                    ? t('config:updateSettings.desktopFrontend')
+                    : component.component === 'tui'
+                      ? t('config:updateSettings.tuiClient')
+                      : t('config:updateSettings.runtime')
                 const tone =
                   component.state === 'error'
                     ? 'red'
@@ -389,15 +394,17 @@ export function UpdateSettings({
                 const stateLabel =
                   component.state === 'checking'
                     ? t('config:updateSettings.checking')
-                    : component.state === 'available'
-                      ? t('config:updateSettings.updateAvailable')
-                      : component.state === 'installed'
-                        ? t('config:updateSettings.installed')
-                        : component.state === 'error'
-                          ? t('config:updateSettings.checkFailed')
-                          : component.state === 'current'
-                            ? t('config:updateSettings.upToDate')
-                            : t('config:updateSettings.notChecked')
+                    : component.state === 'downloading'
+                      ? t('config:updateSettings.downloading')
+                      : component.state === 'available'
+                        ? t('config:updateSettings.updateAvailable')
+                        : component.state === 'installed'
+                          ? t('config:updateSettings.installed')
+                          : component.state === 'error'
+                            ? t('config:updateSettings.checkFailed')
+                            : component.state === 'current'
+                              ? t('config:updateSettings.upToDate')
+                              : t('config:updateSettings.notChecked')
                 return (
                   <div
                     className="grid min-h-[68px] items-center gap-3 py-3 sm:grid-cols-[minmax(0,1fr)_auto_auto]"
@@ -429,25 +436,7 @@ export function UpdateSettings({
                         </span>
                       )}
                     </div>
-                    <div className="flex items-center justify-end gap-2">
-                      <Badge tone={tone}>{stateLabel}</Badge>
-                      {component.canInstall && (
-                        <button
-                          className="button secondary"
-                          disabled={Boolean(componentBusy)}
-                          onClick={() => installComponent(component.component)}
-                        >
-                          {busy ? <RefreshCw className="spin" size={14} /> : <Download size={14} />}
-                          {t('config:updateSettings.installComponent')}
-                        </button>
-                      )}
-                      {component.restartRequired && (
-                        <button className="button primary" onClick={update.restartForComponents}>
-                          <Rocket size={14} />
-                          {t('config:updateSettings.restartToApply')}
-                        </button>
-                      )}
-                    </div>
+                    <Badge tone={tone}>{stateLabel}</Badge>
                   </div>
                 )
               })}

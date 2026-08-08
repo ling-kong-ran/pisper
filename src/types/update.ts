@@ -17,7 +17,7 @@ export type UpdateStatus = {
 }
 
 export type ComponentUpdateStatus = {
-  component: 'tui' | 'runtime'
+  component: 'desktop' | 'tui' | 'runtime'
   state: string
   currentVersion: string
   availableVersion: string
@@ -44,9 +44,7 @@ export type AppUpdateController = {
   status: UpdateStatus
   components: ComponentUpdateStatus[]
   check: (options?: { refresh?: boolean }) => Promise<UpdateStatus>
-  checkComponents: () => Promise<ComponentUpdateStatus[]>
-  installComponent: (component: 'tui' | 'runtime') => Promise<ComponentUpdateStatus[]>
-  restartForComponents: () => Promise<unknown>
+  installComponents: () => Promise<ComponentUpdateStatus[]>
   download: () => Promise<unknown>
   install: () => unknown
   openReleases: () => Promise<boolean>
@@ -116,7 +114,7 @@ export type DesktopBridge = {
   installUpdate: () => Promise<unknown>
   componentUpdateStatus?: () => Promise<ComponentUpdateStatus[]>
   checkComponentUpdates?: () => Promise<ComponentUpdateStatus[]>
-  installComponentUpdate?: (component: 'tui' | 'runtime') => Promise<ComponentUpdateStatus[]>
+  installComponentUpdates?: () => Promise<ComponentUpdateStatus[]>
   restartForComponentUpdate?: () => Promise<unknown>
   openReleases: () => Promise<boolean>
   openUpdateLog?: () => Promise<unknown>

@@ -19,6 +19,43 @@ const WEB_INFO: AppUpdateInfo = Object.freeze({
   releasesUrl: RELEASES_URL,
 })
 
+function componentStatus(items: ComponentUpdateStatus[]): UpdateStatus {
+  const checkedAt = new Date().toISOString()
+  const failed = items.filter((item) => item.state === 'error')
+  const available = items.filter((item) => item.state === 'available')
+  const checking = items.some((item) => item.state === 'checking')
+  const downloading = items.some((item) => item.state === 'downloading')
+  const installed = items.some((item) => item.state === 'installed')
+  const release = available[0] || failed[0] || items[0]
+  const notes = available
+    .map((item) => item.notes.trim())
+    .filter((value, index, values) => value && values.indexOf(value) === index)
+    .join('\n\n')
+
+  return {
+    state: failed.length
+      ? 'error'
+      : downloading
+        ? 'downloading'
+        : checking
+          ? 'checking'
+          : available.length
+            ? 'available'
+            : installed
+              ? 'installed'
+              : items.length
+                ? 'current'
+                : 'idle',
+    checkedAt,
+    message: failed.map((item) => `${item.component}: ${item.message}`).join('\n'),
+    releaseUrl: release?.releaseUrl || RELEASES_URL,
+    canDownload: available.length > 0,
+    availableVersion: release?.availableVersion,
+    notes,
+    total: available.reduce((total, item) => total + item.size, 0),
+  }
+}
+
 export function useAppUpdate(): AppUpdateController {
   const bridge = window.pisperDesktop
   const [info, setInfo] = useState(WEB_INFO)
@@ -39,9 +76,20 @@ export function useAppUpdate(): AppUpdateController {
       applyStatus({ ...statusRef.current, state: 'checking', message: '' })
       const pending = (async (): Promise<UpdateStatus> => {
         try {
-          const next: UpdateStatus = bridge
-            ? await bridge.checkForUpdates()
-            : await checkWebUpdates({ refresh })
+          if (bridge?.checkComponentUpdates) {
+            const items = await bridge.checkComponentUpdates()
+            setComponents(items)
+            const next = componentStatus(items)
+            applyStatus(next)
+            if (
+              !items.some((item) => item.state === 'error' || item.state === 'available') &&
+              items.some((item) => item.restartRequired)
+            ) {
+              await bridge.restartForComponentUpdate?.()
+            }
+            return next
+          }
+          const next = await checkWebUpdates({ refresh })
           applyStatus(next)
           return next
         } catch (error) {
@@ -73,19 +121,17 @@ export function useAppUpdate(): AppUpdateController {
       }
     }
 
-    const unsubscribe = bridge.onUpdateStatus((value) => {
-      if (active) applyStatus(value)
-    })
     bridge
       .getAppInfo()
       .then((value) => {
         if (!active) return
         setInfo(value)
-        applyStatus(value.update || { state: 'idle', checkedAt: null })
         void bridge
           .componentUpdateStatus?.()
           .then((items) => {
-            if (active) setComponents(items)
+            if (!active) return
+            setComponents(items)
+            applyStatus(componentStatus(items))
           })
           .catch(() => {})
         if (value.packaged) {
@@ -99,31 +145,23 @@ export function useAppUpdate(): AppUpdateController {
     return () => {
       active = false
       stopAutomaticChecks()
-      unsubscribe?.()
     }
   }, [applyStatus, bridge, check])
 
-  const checkComponents = useCallback(async () => {
-    if (!bridge?.checkComponentUpdates) return []
-    const items = await bridge.checkComponentUpdates()
+  const installComponents = useCallback(async () => {
+    if (!bridge?.installComponentUpdates) return []
+    applyStatus({ ...statusRef.current, state: 'downloading', message: '' })
+    const items = await bridge.installComponentUpdates()
     setComponents(items)
+    applyStatus(componentStatus(items))
+    if (
+      !items.some((item) => item.state === 'error') &&
+      items.some((item) => item.restartRequired)
+    ) {
+      await bridge.restartForComponentUpdate?.()
+    }
     return items
-  }, [bridge])
-
-  const installComponent = useCallback(
-    async (component: 'tui' | 'runtime') => {
-      if (!bridge?.installComponentUpdate) return []
-      const items = await bridge.installComponentUpdate(component)
-      setComponents(items)
-      return items
-    },
-    [bridge],
-  )
-
-  const restartForComponents = useCallback(
-    () => bridge?.restartForComponentUpdate?.() || Promise.resolve(false),
-    [bridge],
-  )
+  }, [applyStatus, bridge])
 
   const openReleases = useCallback(async () => {
     if (bridge) return bridge.openReleases()
@@ -147,9 +185,7 @@ export function useAppUpdate(): AppUpdateController {
     status,
     components,
     check,
-    checkComponents,
-    installComponent,
-    restartForComponents,
+    installComponents,
     download,
     install,
     openReleases,

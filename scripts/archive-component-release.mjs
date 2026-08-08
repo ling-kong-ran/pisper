@@ -7,9 +7,6 @@ import { assertReleaseComponent, readComponentVersion } from './release-componen
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..')
 const component = assertReleaseComponent(process.argv[2])
-if (component === 'desktop') {
-  throw new Error('Desktop artifacts are staged by scripts/stage-tauri-artifacts.mjs.')
-}
 const version = await readComponentVersion(root, component)
 const platform =
   process.platform === 'win32' ? 'windows' : process.platform === 'darwin' ? 'darwin' : 'linux'
@@ -19,7 +16,7 @@ const outputDir = join(root, 'release', 'component-artifacts')
 const stageRoot = join(root, 'release', 'component-stage')
 const directoryName = `pisper-${component}-${version}-${platform}-${arch}`
 const stage = join(stageRoot, directoryName)
-const label = component === 'tui' ? 'TUI' : 'Runtime'
+const label = component === 'desktop' ? 'Desktop' : component === 'tui' ? 'TUI' : 'Runtime'
 const archive = join(outputDir, `Pisper_${label}_${version}_${platform}_${arch}.tar.gz`)
 
 function run(command, args) {
@@ -31,6 +28,26 @@ function run(command, args) {
       else rejectRun(new Error(`${command} exited with ${signal || code}.`))
     })
   })
+}
+
+async function stageDesktop() {
+  await cp(join(root, 'dist'), join(stage, 'dist'), { recursive: true, force: true })
+  await writeFile(
+    join(stage, 'manifest.json'),
+    `${JSON.stringify(
+      {
+        name: 'pisper-desktop',
+        version,
+        platform,
+        arch,
+        command: 'dist/index.html',
+        layout: ['dist/'],
+      },
+      null,
+      2,
+    )}\n`,
+    'utf8',
+  )
 }
 
 async function stageRuntime() {
@@ -94,7 +111,8 @@ async function createArchive(sourceDirectory, destination) {
 await rm(stage, { recursive: true, force: true })
 await mkdir(stage, { recursive: true })
 await mkdir(outputDir, { recursive: true })
-if (component === 'runtime') await stageRuntime()
+if (component === 'desktop') await stageDesktop()
+else if (component === 'runtime') await stageRuntime()
 else await stageTui()
 await createArchive(directoryName, archive)
 

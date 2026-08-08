@@ -52,19 +52,30 @@ pub fn components_root(app: &AppHandle) -> Result<PathBuf, String> {
         .map_err(|error| error.to_string())
 }
 
+fn bundled_version(component: Component) -> &'static str {
+    match component {
+        Component::Desktop => env!("PISPER_BUNDLED_DESKTOP_VERSION"),
+        Component::Tui => env!("PISPER_BUNDLED_TUI_VERSION"),
+        Component::Runtime => env!("PISPER_BUNDLED_RUNTIME_VERSION"),
+    }
+}
+
+fn installed_is_newer(installed: &Version, bundled: &str) -> bool {
+    let bundled = Version::parse(bundled).unwrap_or_else(|_| Version::new(0, 0, 0));
+    installed > &bundled
+}
+
 pub fn installed_component(app: &AppHandle, component: Component) -> Option<InstalledComponent> {
-    resolve_installed(&components_root(app).ok()?, component)
+    let installed = resolve_installed(&components_root(app).ok()?, component)
         .ok()
-        .flatten()
+        .flatten()?;
+    installed_is_newer(&installed.version, bundled_version(component)).then_some(installed)
 }
 
 pub fn effective_version(app: &AppHandle, component: Component) -> String {
     installed_component(app, component)
         .map(|installed| installed.version.to_string())
-        .unwrap_or_else(|| match component {
-            Component::Tui => env!("PISPER_BUNDLED_TUI_VERSION").to_string(),
-            Component::Runtime => env!("PISPER_BUNDLED_RUNTIME_VERSION").to_string(),
-        })
+        .unwrap_or_else(|| bundled_version(component).to_string())
 }
 
 fn updater(app: &AppHandle) -> Result<ComponentUpdater, String> {
@@ -81,7 +92,7 @@ fn snapshot(app: &AppHandle, state: &ComponentUpdateState) -> Vec<ComponentUpdat
         .statuses
         .lock()
         .expect("component update status poisoned");
-    [Component::Tui, Component::Runtime]
+    Component::ALL
         .into_iter()
         .map(|component| {
             statuses.get(&component).cloned().unwrap_or_else(|| {
@@ -99,6 +110,15 @@ fn store(state: &ComponentUpdateState, status: ComponentUpdateStatus) {
         .insert(status.component, status);
 }
 
+fn restart_pending(state: &ComponentUpdateState, component: Component) -> bool {
+    state
+        .statuses
+        .lock()
+        .expect("component update status poisoned")
+        .get(&component)
+        .is_some_and(|status| status.restart_required)
+}
+
 #[tauri::command]
 pub fn desktop_component_update_status(
     app: AppHandle,
@@ -113,12 +133,14 @@ pub async fn desktop_check_component_updates(
     state: State<'_, ComponentUpdateState>,
 ) -> Result<Vec<ComponentUpdateStatus>, String> {
     let updater = updater(&app)?;
-    for component in [Component::Tui, Component::Runtime] {
+    for component in Component::ALL {
         let current_version = effective_version(&app, component);
+        let pending_restart = restart_pending(&state, component);
         store(
             &state,
             ComponentUpdateStatus {
                 state: "checking".into(),
+                restart_required: pending_restart,
                 ..ComponentUpdateStatus::current(component, current_version.clone())
             },
         );
@@ -140,7 +162,7 @@ pub async fn desktop_check_component_updates(
                     notes: release.notes,
                     size: release.size,
                     can_install: available,
-                    restart_required: false,
+                    restart_required: pending_restart,
                 }
             }
             Err(error) => ComponentUpdateStatus {
@@ -148,6 +170,7 @@ pub async fn desktop_check_component_updates(
                 state: "error".into(),
                 current_version,
                 message: error.to_string(),
+                restart_required: pending_restart,
                 ..ComponentUpdateStatus::current(component, String::new())
             },
         };
@@ -157,88 +180,123 @@ pub async fn desktop_check_component_updates(
 }
 
 #[tauri::command]
-pub async fn desktop_install_component_update(
+pub async fn desktop_install_component_updates(
     app: AppHandle,
     state: State<'_, ComponentUpdateState>,
-    component: String,
 ) -> Result<Vec<ComponentUpdateStatus>, String> {
-    let component = Component::parse(&component).map_err(|error| error.to_string())?;
     let updater = updater(&app)?;
-    let release = updater
-        .latest(component)
-        .await
-        .map_err(|error| error.to_string())?;
-    let current_version = effective_version(&app, component);
-    let current = Version::parse(&current_version).unwrap_or_else(|_| Version::new(0, 0, 0));
-    let latest = Version::parse(&release.version).map_err(|error| error.to_string())?;
-    if latest <= current {
-        store(
-            &state,
-            ComponentUpdateStatus {
-                component,
-                state: "current".into(),
-                current_version,
-                available_version: release.version,
-                release_url: release.release_url,
-                notes: release.notes,
-                ..ComponentUpdateStatus::current(component, String::new())
-            },
-        );
-        return Ok(snapshot(&app, &state));
-    }
-    store(
-        &state,
-        ComponentUpdateStatus {
-            component,
-            state: "downloading".into(),
-            current_version: current_version.clone(),
-            available_version: release.version.clone(),
-            release_url: release.release_url.clone(),
-            notes: release.notes.clone(),
-            size: release.size,
-            ..ComponentUpdateStatus::current(component, current_version.clone())
-        },
-    );
-    let installed = match updater.install(&release).await {
-        Ok(installed) => installed,
-        Err(error) => {
+    for component in Component::ALL {
+        let current_version = effective_version(&app, component);
+        let pending_restart = restart_pending(&state, component);
+        let release = match updater.latest(component).await {
+            Ok(release) => release,
+            Err(error) => {
+                store(
+                    &state,
+                    ComponentUpdateStatus {
+                        component,
+                        state: "error".into(),
+                        current_version,
+                        message: error.to_string(),
+                        restart_required: pending_restart,
+                        ..ComponentUpdateStatus::current(component, String::new())
+                    },
+                );
+                continue;
+            }
+        };
+        let current = Version::parse(&current_version).unwrap_or_else(|_| Version::new(0, 0, 0));
+        let latest = match Version::parse(&release.version) {
+            Ok(version) => version,
+            Err(error) => {
+                store(
+                    &state,
+                    ComponentUpdateStatus {
+                        component,
+                        state: "error".into(),
+                        current_version,
+                        available_version: release.version,
+                        message: error.to_string(),
+                        release_url: release.release_url,
+                        notes: release.notes,
+                        size: release.size,
+                        can_install: false,
+                        restart_required: pending_restart,
+                    },
+                );
+                continue;
+            }
+        };
+        if latest <= current {
             store(
                 &state,
                 ComponentUpdateStatus {
                     component,
-                    state: "error".into(),
+                    state: "current".into(),
                     current_version,
                     available_version: release.version,
-                    message: error.to_string(),
                     release_url: release.release_url,
                     notes: release.notes,
-                    size: release.size,
-                    can_install: true,
-                    restart_required: false,
+                    restart_required: pending_restart,
+                    ..ComponentUpdateStatus::current(component, String::new())
                 },
             );
-            return Ok(snapshot(&app, &state));
+            continue;
         }
-    };
+        store(
+            &state,
+            ComponentUpdateStatus {
+                component,
+                state: "downloading".into(),
+                current_version: current_version.clone(),
+                available_version: release.version.clone(),
+                release_url: release.release_url.clone(),
+                notes: release.notes.clone(),
+                size: release.size,
+                ..ComponentUpdateStatus::current(component, current_version.clone())
+            },
+        );
+        let installed = match updater.install(&release).await {
+            Ok(installed) => installed,
+            Err(error) => {
+                store(
+                    &state,
+                    ComponentUpdateStatus {
+                        component,
+                        state: "error".into(),
+                        current_version,
+                        available_version: release.version,
+                        message: error.to_string(),
+                        release_url: release.release_url,
+                        notes: release.notes,
+                        size: release.size,
+                        can_install: true,
+                        restart_required: pending_restart,
+                    },
+                );
+                continue;
+            }
+        };
 
-    if component == Component::Tui {
-        let _ = cli_manager::refresh_managed_cli(&app);
+        if component == Component::Tui {
+            let _ = cli_manager::refresh_managed_cli(&app);
+        }
+        store(
+            &state,
+            ComponentUpdateStatus {
+                component,
+                state: "installed".into(),
+                current_version: installed.version.to_string(),
+                available_version: installed.version.to_string(),
+                message: String::new(),
+                release_url: release.release_url,
+                notes: release.notes,
+                size: release.size,
+                can_install: false,
+                restart_required: matches!(component, Component::Desktop | Component::Runtime),
+            },
+        );
     }
-    store(
-        &state,
-        ComponentUpdateStatus {
-            component,
-            state: "installed".into(),
-            current_version: installed.version.to_string(),
-            available_version: installed.version.to_string(),
-            message: String::new(),
-            release_url: release.release_url,
-            notes: release.notes,
-            size: release.size,
-            can_install: false,
-            restart_required: component == Component::Runtime,
-        },
-    );
     Ok(snapshot(&app, &state))
 }
 
@@ -251,8 +309,25 @@ pub fn desktop_restart_for_component_update(app: AppHandle) -> bool {
 
 #[cfg(test)]
 mod tests {
-    use super::ComponentUpdateStatus;
+    use super::{installed_is_newer, ComponentUpdateStatus};
     use pisper_component_updater::Component;
+    use semver::Version;
+
+    #[test]
+    fn older_or_equal_installed_components_do_not_override_bundled_components() {
+        assert!(!installed_is_newer(
+            &Version::parse("1.1.9").unwrap(),
+            "1.2.0"
+        ));
+        assert!(!installed_is_newer(
+            &Version::parse("1.2.0").unwrap(),
+            "1.2.0"
+        ));
+        assert!(installed_is_newer(
+            &Version::parse("1.2.1").unwrap(),
+            "1.2.0"
+        ));
+    }
 
     #[test]
     fn component_status_starts_idle_and_component_scoped() {

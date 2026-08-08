@@ -20,6 +20,7 @@ export async function createPisperRuntime({
   browserAutomationDriver = null,
   runtimeEventObserver = null,
   desktopAuthToken = '',
+  frontendRoot = null,
 } = {}) {
   const appRoot = resolve(root || process.cwd())
   const cwd = resolve(runtimeCwd || homedir())
@@ -78,7 +79,7 @@ export async function createPisperRuntime({
     desktopPet,
     engineVersion,
   })
-  const serveProduction = createStaticHandler(appRoot)
+  const serveProduction = createStaticHandler(appRoot, { distRoot: frontendRoot })
   const server = createServer(async (req, res) => {
     const address = server.address()
     const activePort = typeof address === 'object' && address ? address.port : port

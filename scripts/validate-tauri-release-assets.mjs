@@ -26,7 +26,10 @@ const tauriAssets = [
   `Pisper_${version}_windows_x86_64-setup.exe`,
   `Pisper_${version}_windows_x86_64-setup.exe.sig`,
 ]
-const expected = new Set(tauriAssets)
+const componentAssets = ['darwin_aarch64', 'darwin_x86_64', 'linux_x86_64', 'windows_x86_64']
+  .map((platform) => `Pisper_Desktop_${version}_${platform}.tar.gz`)
+  .flatMap((archive) => [archive, `${archive}.sig`])
+const expected = new Set([...tauriAssets, ...componentAssets])
 
 async function filesUnder(directory) {
   const result = []

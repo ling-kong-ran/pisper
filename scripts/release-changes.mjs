@@ -17,14 +17,14 @@ const RELEASE_SCRIPT_PATHS = new Set([
   'scripts/verify-release-head.mjs',
 ])
 const SCRIPT_COMPONENTS = new Map([
-  ['scripts/archive-component-release.mjs', ['tui', 'runtime']],
-  ['scripts/build-sea.mjs', ['runtime']],
+  ['scripts/archive-component-release.mjs', ['desktop', 'tui', 'runtime']],
+  ['scripts/build-sea.mjs', ['desktop', 'runtime']],
   ['scripts/create-tauri-update-manifest.mjs', ['desktop']],
   ['scripts/package-tauri-release.mjs', ['desktop']],
   ['scripts/package-tui.mjs', ['tui']],
   ['scripts/sea-bootstrap.cjs', ['runtime']],
-  ['scripts/sea-runtime.mjs', ['runtime']],
-  ['scripts/smoke-sea.mjs', ['runtime']],
+  ['scripts/sea-runtime.mjs', ['desktop', 'runtime']],
+  ['scripts/smoke-sea.mjs', ['desktop', 'runtime']],
   ['scripts/smoke-tauri-dev.mjs', ['desktop']],
   ['scripts/stage-tauri-artifacts.mjs', ['desktop']],
   ['scripts/stage-tauri-cli.mjs', ['desktop']],
@@ -61,14 +61,9 @@ export function releaseComponentsForPath(input) {
   if (path.startsWith('crates/component-updater/')) return ['desktop', 'tui']
   if (path.startsWith('src-tauri/')) return ['desktop']
   if (path.startsWith('src-tui/')) return ['tui']
-  if (
-    path.startsWith('runtime/') ||
-    path.startsWith('shared/') ||
-    path.startsWith('src/') ||
-    path.startsWith('public/')
-  ) {
-    return ['runtime']
-  }
+  if (path.startsWith('runtime/')) return ['runtime']
+  if (path.startsWith('src/') || path.startsWith('public/')) return ['desktop']
+  if (path.startsWith('shared/')) return ['desktop', 'runtime']
 
   if (path === '.github/workflows/release.yml' || path === '.github/workflows/publish-npm.yml') {
     return []
@@ -76,14 +71,10 @@ export function releaseComponentsForPath(input) {
   if (SCRIPT_COMPONENTS.has(path)) return [...SCRIPT_COMPONENTS.get(path)]
   if (path.startsWith('scripts/')) return [...ALL_COMPONENTS]
 
-  if (
-    path === 'package.json' ||
-    path === 'package-lock.json' ||
-    path === 'index.html' ||
-    path === 'vite.config.ts'
-  ) {
-    return ['runtime']
+  if (path === 'package.json' || path === 'package-lock.json') {
+    return ['desktop', 'runtime']
   }
+  if (path === 'index.html' || path === 'vite.config.ts') return ['desktop']
 
   if (
     path.startsWith('.github/') ||

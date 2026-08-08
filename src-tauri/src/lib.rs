@@ -98,6 +98,29 @@ fn development_root() -> PathBuf {
         .to_path_buf()
 }
 
+fn frontend_root(app: &tauri::App, app_root: &Path) -> Result<PathBuf, String> {
+    if !cfg!(debug_assertions) {
+        if let Some(installed) = component_updates::installed_component(
+            app.handle(),
+            pisper_component_updater::Component::Desktop,
+        ) {
+            return installed
+                .frontend_root()
+                .ok_or_else(|| "Installed Pisper desktop payload is missing.".to_string());
+        }
+        let packaged = app
+            .path()
+            .resource_dir()
+            .map_err(|error| error.to_string())?
+            .join("desktop")
+            .join("dist");
+        if packaged.join("index.html").is_file() {
+            return Ok(packaged);
+        }
+    }
+    Ok(app_root.join("dist"))
+}
+
 fn sidecar_command(app: &tauri::App, allow_installed: bool) -> Result<(Command, bool), String> {
     let mut command;
     let app_root;
@@ -135,8 +158,10 @@ fn sidecar_command(app: &tauri::App, allow_installed: bool) -> Result<(Command, 
         command = Command::new(executable_dir.join(platform_binary_name()));
     }
 
+    let frontend_root = frontend_root(app, &app_root)?;
     command
         .env("PISPER_APP_ROOT", &app_root)
+        .env("PISPER_FRONTEND_ROOT", frontend_root)
         .env("PISPER_PARENT_PID", std::process::id().to_string())
         .env("PISPER_EXIT_ON_STDIN_CLOSE", "1")
         .stdin(Stdio::piped())
@@ -588,7 +613,7 @@ pub fn run() {
             desktop_bridge::desktop_install_update,
             component_updates::desktop_component_update_status,
             component_updates::desktop_check_component_updates,
-            component_updates::desktop_install_component_update,
+            component_updates::desktop_install_component_updates,
             component_updates::desktop_restart_for_component_update,
             desktop_bridge::desktop_open_url,
             desktop_bridge::desktop_open_releases,

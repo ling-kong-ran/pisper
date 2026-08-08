@@ -15,8 +15,8 @@ const MIME = {
   '.webp': 'image/webp',
 }
 
-export function createStaticHandler(root) {
-  const dist = resolve(join(root, 'dist'))
+export function createStaticHandler(root, { distRoot } = {}) {
+  const dist = resolve(distRoot || join(root, 'dist'))
   return async function serveProduction(_req, res, url) {
     const requested = normalize(decodeURIComponent(url.pathname)).replace(/^([/\\])+/, '')
     let file = resolve(dist, requested || 'index.html')

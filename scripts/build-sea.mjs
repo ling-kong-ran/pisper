@@ -51,7 +51,6 @@ async function stageRuntime() {
   await mkdir(runtimeDir, { recursive: true })
   await mkdir(join(runtimeDir, 'docs'), { recursive: true })
   await Promise.all([
-    cp(join(root, 'dist'), join(runtimeDir, 'dist'), { recursive: true, force: true }),
     cp(join(root, 'runtime'), join(runtimeDir, 'runtime'), { recursive: true, force: true }),
     cp(join(root, 'shared'), join(runtimeDir, 'shared'), { recursive: true, force: true }),
     copyFile(join(root, 'docs', 'sponsors.json'), join(runtimeDir, 'docs', 'sponsors.json')),

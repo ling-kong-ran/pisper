@@ -76,6 +76,24 @@ test('Tauri reads only the desktop version while component packagers keep their 
   await assert.rejects(access('scripts/sync-tui-version.mjs'), (error) => error?.code === 'ENOENT')
 })
 
+test('desktop frontend is packaged separately from the runtime payload', async () => {
+  const [archiver, seaBuilder, tauriConfigSource, shell, sidecar] = await Promise.all([
+    readFile('scripts/archive-component-release.mjs', 'utf8'),
+    readFile('scripts/build-sea.mjs', 'utf8'),
+    readFile('src-tauri/tauri.conf.json', 'utf8'),
+    readFile('src-tauri/src/lib.rs', 'utf8'),
+    readFile('runtime/sidecar.mjs', 'utf8'),
+  ])
+  const tauriConfig = JSON.parse(tauriConfigSource)
+
+  assert.match(archiver, /async function stageDesktop/)
+  assert.match(archiver, /command: 'dist\/index\.html'/)
+  assert.doesNotMatch(seaBuilder, /runtimeDir, 'dist'/)
+  assert.equal(tauriConfig.bundle.resources['../dist/'], 'desktop/dist/')
+  assert.match(shell, /PISPER_FRONTEND_ROOT/)
+  assert.match(sidecar, /frontendRoot: process\.env\.PISPER_FRONTEND_ROOT/)
+})
+
 test('release workflow builds and finalizes only the selected component channel', async () => {
   const workflow = await readFile('.github/workflows/release.yml', 'utf8')
 
@@ -83,6 +101,7 @@ test('release workflow builds and finalizes only the selected component channel'
   assert.match(workflow, /if: inputs\.component == 'desktop'/)
   assert.match(workflow, /if: inputs\.component == 'tui'/)
   assert.match(workflow, /if: inputs\.component == 'runtime'/)
+  assert.match(workflow, /node scripts\/archive-component-release\.mjs desktop/)
   assert.match(workflow, /node scripts\/archive-component-release\.mjs tui/)
   assert.match(workflow, /node scripts\/archive-component-release\.mjs runtime/)
   assert.match(workflow, /node scripts\/validate-component-release-assets\.mjs/)
@@ -128,8 +147,11 @@ test('desktop and TUI launch independently installed signed components with bund
   assert.match(updater, /component signature verification failed/)
   assert.match(updater, /component archive path escapes its root/)
   assert.match(updater, /write_pointer\(&component_root, version\)/)
+  assert.match(updater, /Self::Desktop => "v"/)
+  assert.match(updater, /Pisper_Desktop/)
   assert.match(updater, /runtime-v/)
   assert.match(updater, /Pisper_Runtime/)
+  assert.match(desktopShell, /PISPER_FRONTEND_ROOT/)
   assert.match(desktopShell, /installed_component[\s\S]*Component::Runtime/)
   assert.match(desktopShell, /Installed runtime failed; using bundled runtime/)
   assert.match(cliManager, /preferred_payload/)
@@ -139,16 +161,18 @@ test('desktop and TUI launch independently installed signed components with bund
   assert.match(tuiUpdater, /Some\("runtime"\).*UpdateSelection::Runtime/)
   assert.match(tuiSidecar, /deactivate_component/)
   assert.match(bridge, /desktop_check_component_updates/)
-  assert.match(bridge, /desktop_install_component_update/)
+  assert.match(bridge, /desktop_install_component_updates/)
   assert.match(permissions, /desktop_restart_for_component_update/)
-  assert.match(settings, /independentComponents/)
+  assert.match(settings, /appComponents/)
+  assert.doesNotMatch(settings, /installComponent\(component\.component\)/)
 })
 
 test('release paths select one or every affected component without coupling documentation', () => {
   assert.deepEqual(releaseComponentsForPath('src-tauri/src/lib.rs'), ['desktop'])
   assert.deepEqual(releaseComponentsForPath('src-tui/src/main.rs'), ['tui'])
   assert.deepEqual(releaseComponentsForPath('runtime/index.mjs'), ['runtime'])
-  assert.deepEqual(releaseComponentsForPath('src/features/chat/ChatPage.tsx'), ['runtime'])
+  assert.deepEqual(releaseComponentsForPath('src/features/chat/ChatPage.tsx'), ['desktop'])
+  assert.deepEqual(releaseComponentsForPath('shared/workflow-graph.mjs'), ['desktop', 'runtime'])
   assert.deepEqual(releaseComponentsForPath('crates/component-updater/src/lib.rs'), [
     'desktop',
     'tui',
@@ -204,6 +228,42 @@ test('release command auto-detects and dispatches every changed component', asyn
   assert.match(source, /componentReleaseSubjects/)
   assert.match(source, /`component=\$\{component\}`/)
   assert.match(source, /自动发布组件/)
+})
+
+test('desktop release validator requires installers and signed frontend components', async () => {
+  const directory = await mkdtemp(join(tmpdir(), 'pisper-desktop-assets-'))
+  const version = '1.2.3'
+  const installers = [
+    'latest.json',
+    `Pisper_${version}_darwin_aarch64.app.tar.gz`,
+    `Pisper_${version}_darwin_aarch64.app.tar.gz.sig`,
+    `Pisper_${version}_darwin_aarch64.dmg`,
+    `Pisper_${version}_darwin_x86_64.app.tar.gz`,
+    `Pisper_${version}_darwin_x86_64.app.tar.gz.sig`,
+    `Pisper_${version}_darwin_x86_64.dmg`,
+    `Pisper_${version}_linux_x86_64.AppImage`,
+    `Pisper_${version}_linux_x86_64.AppImage.sig`,
+    `Pisper_${version}_linux_x86_64.deb`,
+    `Pisper_${version}_windows_x86_64-setup.exe`,
+    `Pisper_${version}_windows_x86_64-setup.exe.sig`,
+  ]
+  const components = ['darwin_aarch64', 'darwin_x86_64', 'linux_x86_64', 'windows_x86_64']
+    .map((platform) => `Pisper_Desktop_${version}_${platform}.tar.gz`)
+    .flatMap((archive) => [archive, `${archive}.sig`])
+
+  try {
+    await Promise.all(
+      [...installers, ...components].map((name) => writeFile(join(directory, name), 'artifact')),
+    )
+    const valid = spawnSync(
+      process.execPath,
+      ['scripts/validate-tauri-release-assets.mjs', `v${version}`, directory],
+      { encoding: 'utf8' },
+    )
+    assert.equal(valid.status, 0, valid.stderr)
+  } finally {
+    await rm(directory, { recursive: true, force: true })
+  }
 })
 
 test('runtime release validator requires signed platform archives', async () => {

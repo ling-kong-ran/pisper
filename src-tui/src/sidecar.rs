@@ -11,6 +11,7 @@ use std::{
 
 use anyhow::{anyhow, Context, Result};
 use pisper_component_updater::{resolve_installed, Component};
+use semver::Version;
 use serde::Deserialize;
 
 const READY_PREFIX: &str = "PISPER_SIDECAR_READY ";
@@ -304,9 +305,13 @@ pub fn components_root() -> Result<PathBuf> {
 }
 
 pub fn installed_runtime() -> Option<pisper_component_updater::InstalledComponent> {
-    resolve_installed(&components_root().ok()?, Component::Runtime)
+    let installed = resolve_installed(&components_root().ok()?, Component::Runtime)
         .ok()
-        .flatten()
+        .flatten()?;
+    let bundled = bundled_runtime_version()
+        .and_then(|value| Version::parse(&value).ok())
+        .unwrap_or_else(|| Version::new(0, 0, 0));
+    (installed.version > bundled).then_some(installed)
 }
 
 pub fn needs_runtime_install() -> bool {
@@ -342,9 +347,6 @@ pub fn needs_runtime_install() -> bool {
 }
 
 pub fn bundled_runtime_version() -> Option<String> {
-    if let Some(installed) = installed_runtime() {
-        return Some(installed.version.to_string());
-    }
     let current_exe = std::env::current_exe().ok()?;
     let executable_dir = current_exe.parent()?;
     let candidates = [
