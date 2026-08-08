@@ -212,14 +212,13 @@ test('component release ranges exclude substantive commits owned by other compon
   ])
 })
 
-test('release command auto-detects and dispatches every changed component', async () => {
+test('release command auto-detects every changed component and rejects manual scopes', async () => {
   const source = await readFile('scripts/release.mjs', 'utf8')
 
-  assert.match(source, /const requestedComponent = RELEASE_COMPONENTS\[args\[0\]\]/)
-  assert.match(
-    source,
-    /const candidates = requestedComponent \? \[requestedComponent\] : Object\.keys\(RELEASE_COMPONENTS\)/,
-  )
+  assert.doesNotMatch(source, /requestedComponent/)
+  assert.match(source, /if \(RELEASE_COMPONENTS\[args\[0\]\]\)/)
+  assert.match(source, /const candidates = Object\.keys\(RELEASE_COMPONENTS\)/)
+  assert.match(source, /if \(paths\.length === 0\) continue/)
   assert.match(
     source,
     /for \(const \[index, \{ component, nextVersion, tag \}\] of plans\.entries\(\)\)/,

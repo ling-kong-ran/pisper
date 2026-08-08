@@ -89,12 +89,9 @@ npm run npm:pack:check            # build and validate tarball contents and beha
 
 # Versioning and release
 npm run release -- patch          # auto-detect and publish every changed component
-npm run release -- desktop patch  # explicitly publish signed Tauri installers
-npm run release -- tui patch      # self-contained TUI bundles, no Tauri packaging
-npm run release -- runtime patch  # SEA/runtime bundles, no Tauri or TUI build
-npm run release -- desktop 0.4.20 # explicit component version
+npm run release -- 0.4.31         # explicit version for every detected component
 npm run release:npm -- patch      # independently publish the pisper npm installer
-npm run release -- runtime patch --publish-npm --npm-version=0.2.0 # optionally chain npm
+npm run release -- patch --publish-npm --npm-version=0.2.0 # optionally chain npm when one component is detected
 ```
 
 Prefer `npm run check` and `npm test` before considering a change done. Run desktop/TUI packaging only when touching those surfaces.
@@ -107,17 +104,17 @@ Desktop, TUI, runtime, and npm releases have independent versions and tags. Desk
 
 The root package stays private. npm publishes only the installer/launcher package named `pisper`, whose installation downloads and verifies the selected signed TUI and Runtime components without the Desktop frontend. Do not publish the root Runtime package directly to npm, bundle release archives into the npm tarball, or copy Runtime into the TUI installation. The launcher must reuse the single standard component Runtime via `PISPER_SIDECAR_PATH` and `PISPER_APP_ROOT`.
 
-Before running `npm run release -- [desktop|tui|runtime] <version>` or `npm run release:npm -- <version>`:
+Before running `npm run release -- <version>` or `npm run release:npm -- <version>`:
 
 1. Confirm you are on the `release` branch, the tracked working tree is clean, and local `release` exactly matches `origin/release`.
 2. Inspect `git log --oneline <latest-tag>..HEAD` and `git diff --stat <latest-tag>..HEAD`.
-3. Require at least one substantive commit since the latest tag for that component (`v*`, `tui-v*`, or `runtime-v*`): `feat`, `fix`, `perf`, user-facing behavior, security, or packaging that changes shipped artifacts. Pure `chore(deps)`, `chore(release)`, `style`, and docs-only commits do **not** count by themselves.
+3. Require at least one substantive commit since the latest tag for each detected component (`v*`, `tui-v*`, or `runtime-v*`): `feat`, `fix`, `perf`, user-facing behavior, security, or packaging that changes shipped artifacts. Pure `chore(deps)`, `chore(release)`, `style`, and docs-only commits do **not** count by themselves.
 4. If there is nothing substantive to ship, **stop**. Do not invent a patch release, do not run `npm run release` “just to push”, and do not force-publish after dependency refresh alone.
-5. When the user asks to “发布新版本” but HEAD is already the requested component's release commit / tag with no later product commits, report that the latest version is already published and wait for new work.
+5. When the user asks to “发布新版本” but HEAD is already the applicable components' release commit / tag with no later product commits, report that the latest version is already published and wait for new work.
 
 Once `npm run release` dispatches a component, treat the remote `release` branch as frozen until the command exits and **every** selected component workflow has completed. Before committing or pushing to `release`, check `.github/workflows/release.yml` for queued or in-progress runs and account for later components in the same local release command; do not resume after only the first component finishes. Keep follow-up work uncommitted or on another branch during this window. After finalization, fetch `origin/release` and tags, fast-forward local `release`, verify that no release run remains active, and only then commit and push queued changes. Advancing `release` during this window can invalidate the workflow's atomic branch-advance check.
 
-`npm run release` enforces this gate in `scripts/release.mjs` via `scripts/release-policy.mjs`. Without an explicit component it compares each component with its own latest tag, dispatches every component with substantive owned changes, and runs the union of their local checks once. An explicit component still limits the release. Each dispatch passes the component, exact source SHA, and target version to `.github/workflows/release.yml`; the local script must **not** bump versions, create tags, or push release metadata. Multi-component workflows share the immutable source SHA and run in one global queue; later jobs may advance only across validated `chore(release-<component>)` commits that touch exactly that component's version files. GitHub Actions stages only that component's version files in artifacts, verifies and builds its platform packages, validates the exact asset set, then lets `github-actions[bot]` commit `chore(release-<component>): <tag>` and atomically push the `release` branch plus tag immediately before publishing a Draft Release. Any earlier failure leaves the remote version and tag unchanged; finalization failures run compensating cleanup. Do not reintroduce tag-push-triggered releases.
+`npm run release` enforces this gate in `scripts/release.mjs` via `scripts/release-policy.mjs`. It always compares each component with its own latest tag, dispatches every component with substantive owned changes, and runs the union of their local checks once. Manual component scopes are rejected so a release cannot accidentally omit another changed component. Each dispatch passes the component, exact source SHA, and target version to `.github/workflows/release.yml`; the local script must **not** bump versions, create tags, or push release metadata. Multi-component workflows share the immutable source SHA and run in one global queue; later jobs may advance only across validated `chore(release-<component>)` commits that touch exactly that component's version files. GitHub Actions stages only that component's version files in artifacts, verifies and builds its platform packages, validates the exact asset set, then lets `github-actions[bot]` commit `chore(release-<component>): <tag>` and atomically push the `release` branch plus tag immediately before publishing a Draft Release. Any earlier failure leaves the remote version and tag unchanged; finalization failures run compensating cleanup. Do not reintroduce tag-push-triggered releases.
 
 `npm run release:npm -- <major|minor|patch|X.Y.Z>` dispatches `.github/workflows/publish-npm.yml`; optional `--tui=X.Y.Z` and `--runtime=X.Y.Z` select component assets. A component release chains npm only when both `--publish-npm` and `--npm-version=X.Y.Z` are supplied. npm releases require launcher changes or a changed TUI/Runtime target, and the workflow commits only `packages/pisper/package.json` as `chore(release-npm): npm-vX.Y.Z`. npm publishing uses the repository's Trusted Publisher connection for `.github/workflows/publish-npm.yml`, GitHub OIDC, and provenance; do not add registry tokens or pass inherited Secrets into that workflow. Never commit registry credentials.
 

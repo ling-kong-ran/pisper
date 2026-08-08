@@ -89,7 +89,7 @@ export function releaseComponentsForPath(input) {
     return []
   }
 
-  // Unknown product paths are conservative: an explicit component choice is required.
+  // Unknown product paths conservatively affect every component.
   return [...ALL_COMPONENTS]
 }
 

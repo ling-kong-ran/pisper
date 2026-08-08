@@ -11,13 +11,14 @@ import {
 
 test('release validates immutable source and dispatches without versioning or tagging locally', async () => {
   const source = await readFile('scripts/release.mjs', 'utf8')
-  const substantiveCheck = source.indexOf('assertHasSubstantiveReleaseCommits')
-  const tests = source.indexOf("runNpm(['test'])")
+  const substantiveCheck = source.indexOf('subjects.filter(isSubstantiveReleaseCommit)')
+  const checks = source.indexOf('runComponentChecks(selectedComponents)')
   const dispatch = source.indexOf("'workflow'")
 
   assert.ok(substantiveCheck >= 0)
-  assert.ok(tests > substantiveCheck)
-  assert.ok(dispatch > tests)
+  assert.ok(checks > substantiveCheck)
+  assert.ok(dispatch > checks)
+  assert.match(source, /runNpm\(\['test'\]\)/)
   assert.match(source, /runNpm\(\['run', 'check'\]\)/)
   assert.match(source, /runNpm\(\['run', 'tui:test'\]\)/)
   assert.match(source, /runNpm\(\['run', 'tui:check'\]\)/)

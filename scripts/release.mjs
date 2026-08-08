@@ -3,10 +3,7 @@ import { readFile } from 'node:fs/promises'
 import { dirname, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { componentReleasePaths, componentReleaseSubjects } from './release-changes.mjs'
-import {
-  assertHasSubstantiveReleaseCommits,
-  isSubstantiveReleaseCommit,
-} from './release-policy.mjs'
+import { isSubstantiveReleaseCommit } from './release-policy.mjs'
 import {
   RELEASE_COMPONENTS,
   fallbackReleaseTag,
@@ -23,8 +20,12 @@ const requestedNpmVersion = rawArgs
   .find((value) => value.startsWith('--npm-version='))
   ?.slice('--npm-version='.length)
 const args = rawArgs.filter((value) => !value.startsWith('--'))
-const requestedComponent = RELEASE_COMPONENTS[args[0]] ? args.shift() : ''
-if (args[0] === 'auto') args.shift()
+if (RELEASE_COMPONENTS[args[0]]) {
+  throw new Error('组件由变更路径自动检测，无需指定 desktop、tui 或 runtime。')
+}
+if (args.length > 1) {
+  throw new Error('用法：npm run release -- <major|minor|patch|X.Y.Z>')
+}
 const input = args[0] || 'patch'
 
 function run(command, commandArgs, { capture = false } = {}) {
@@ -122,25 +123,18 @@ const tags = run('git', ['tag', '--list', '--sort=-version:refname'], { capture:
   .split(/\r?\n/)
   .filter(Boolean)
 const runGit = (gitArgs) => run('git', gitArgs, { capture: true })
-const candidates = requestedComponent ? [requestedComponent] : Object.keys(RELEASE_COMPONENTS)
+const candidates = Object.keys(RELEASE_COMPONENTS)
 const plans = []
 
 for (const component of candidates) {
   const currentVersion = await readComponentVersion(root, component)
   const latestTag = fallbackReleaseTag(component, tags, currentVersion)
   const paths = componentReleasePaths(runGit, component, latestTag, source)
-  if (!requestedComponent && paths.length === 0) continue
-  if (requestedComponent && paths.length === 0) {
-    throw new Error(
-      `${component} 自 ${latestTag || '仓库初始提交'} 以来没有归属于该组件的变更，无需发布。`,
-    )
-  }
+  if (paths.length === 0) continue
 
   console.log(`正在检查自 ${latestTag || '仓库初始提交'} 以来的 ${component} 实质性提交…`)
   const subjects = componentReleaseSubjects(runGit, component, latestTag, source)
-  const substantive = requestedComponent
-    ? assertHasSubstantiveReleaseCommits(subjects, latestTag || '仓库初始提交')
-    : subjects.filter(isSubstantiveReleaseCommit)
+  const substantive = subjects.filter(isSubstantiveReleaseCommit)
   if (substantive.length === 0) {
     console.log(`${component} 只有非实质性变更，自动跳过。`)
     continue
@@ -186,7 +180,7 @@ if (publishNpm) {
     throw new Error(`npm 新版本 ${npmReleaseVersion} 必须高于当前版本 ${manifest.version}。`)
   }
 }
-console.log(`${requestedComponent ? '发布组件' : '自动发布组件'}：${selectedComponents.join('、')}`)
+console.log(`自动发布组件：${selectedComponents.join('、')}`)
 runComponentChecks(selectedComponents)
 if (publishNpm) runNpm(['run', 'npm:pack:check'])
 
