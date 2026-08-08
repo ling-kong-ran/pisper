@@ -316,6 +316,7 @@ export function emptySessionUsage() {
     cacheWrite: 0,
     reasoning: 0,
     totalTokens: 0,
+    processedTokens: 0,
     requests: 0,
     promptTokens: 0,
     cacheHitRate: null,
@@ -337,6 +338,7 @@ export function addSessionUsage(target, usage) {
   target.reasoning += reasoning
   // Reasoning is an output detail, so adding it again would double-count generated tokens.
   target.totalTokens += reportedTotal || input + output + cacheRead + cacheWrite
+  target.processedTokens += input + output + cacheWrite
   target.requests += 1
   target.promptTokens = target.input + target.cacheRead + target.cacheWrite
   target.cacheHitRate = target.promptTokens ? (target.cacheRead / target.promptTokens) * 100 : null

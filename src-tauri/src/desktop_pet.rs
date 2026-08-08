@@ -68,6 +68,15 @@ pub fn create_pet_window(app: &AppHandle, bootstrap_url: &str) -> Result<(), Str
     Ok(())
 }
 
+pub(crate) fn show_pet_window(app: &AppHandle) -> Result<(), String> {
+    let window = app
+        .get_webview_window("desktop-pet")
+        .ok_or_else(|| "Desktop pet window is unavailable.".to_string())?;
+    window.show().map_err(|error| error.to_string())?;
+    window.unminimize().map_err(|error| error.to_string())?;
+    Ok(())
+}
+
 #[tauri::command]
 pub fn desktop_pet_apply_enabled(app: AppHandle, enabled: bool) -> Result<bool, String> {
     if enabled {
@@ -75,6 +84,7 @@ pub fn desktop_pet_apply_enabled(app: AppHandle, enabled: bool) -> Result<bool, 
             .try_state::<DesktopPetWindowState>()
             .ok_or_else(|| "Desktop pet window state is unavailable.".to_string())?;
         create_pet_window(&app, &state.bootstrap_url)?;
+        show_pet_window(&app)?;
     } else if let Some(window) = app.get_webview_window("desktop-pet") {
         window.destroy().map_err(|error| error.to_string())?;
     }
@@ -83,14 +93,11 @@ pub fn desktop_pet_apply_enabled(app: AppHandle, enabled: bool) -> Result<bool, 
 
 #[tauri::command]
 pub fn desktop_pet_set_visible(app: AppHandle, visible: bool) -> bool {
-    let Some(window) = app.get_webview_window("desktop-pet") else {
-        return false;
-    };
     if visible {
-        window.show().is_ok()
-    } else {
-        window.hide().is_ok()
+        return show_pet_window(&app).is_ok();
     }
+    app.get_webview_window("desktop-pet")
+        .is_some_and(|window| window.hide().is_ok())
 }
 
 #[tauri::command]

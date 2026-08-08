@@ -182,11 +182,11 @@ fn start_sidecar_process(mut command: Command) -> Result<(Child, SidecarReady), 
     match ready_rx.recv_timeout(SIDECAR_TIMEOUT) {
         Ok(Ok(ready)) => Ok((child, ready)),
         Ok(Err(error)) => {
-            let _ = child.kill();
+            force_stop_sidecar_process(&mut child);
             Err(error)
         }
         Err(_) => {
-            let _ = child.kill();
+            force_stop_sidecar_process(&mut child);
             Err("Pisper sidecar did not become ready within 30 seconds.".to_string())
         }
     }
@@ -272,6 +272,38 @@ fn remove_sidecar_descriptor(app: &AppHandle, pid: u32) {
     }
 }
 
+fn wait_for_sidecar_exit(child: &mut Child, timeout: Duration) -> bool {
+    let deadline = Instant::now() + timeout;
+    while Instant::now() < deadline {
+        match child.try_wait() {
+            Ok(Some(_)) => return true,
+            Ok(None) => thread::sleep(Duration::from_millis(50)),
+            Err(_) => return false,
+        }
+    }
+    false
+}
+
+#[cfg(windows)]
+fn terminate_sidecar_tree(pid: u32) {
+    let pid = pid.to_string();
+    let _ = Command::new("taskkill.exe")
+        .args(["/PID", pid.as_str(), "/T", "/F"])
+        .stdin(Stdio::null())
+        .stdout(Stdio::null())
+        .stderr(Stdio::null())
+        .status();
+}
+
+#[cfg(not(windows))]
+fn terminate_sidecar_tree(_: u32) {}
+
+fn force_stop_sidecar_process(child: &mut Child) {
+    terminate_sidecar_tree(child.id());
+    let _ = child.kill();
+    let _ = child.wait();
+}
+
 pub(crate) fn stop_sidecar(app: &AppHandle) {
     let Some(state) = app.try_state::<SidecarState>() else {
         return;
@@ -282,21 +314,14 @@ pub(crate) fn stop_sidecar(app: &AppHandle) {
     remove_sidecar_descriptor(app, managed.pid);
     let mut child = managed.child;
 
-    if let Some(stdin) = child.stdin.as_mut() {
+    if let Some(mut stdin) = child.stdin.take() {
         let _ = stdin.write_all(b"shutdown\n");
         let _ = stdin.flush();
     }
 
-    let deadline = Instant::now() + Duration::from_secs(5);
-    while Instant::now() < deadline {
-        match child.try_wait() {
-            Ok(Some(_)) => return,
-            Ok(None) => thread::sleep(Duration::from_millis(50)),
-            Err(_) => break,
-        }
+    if !wait_for_sidecar_exit(&mut child, Duration::from_secs(5)) {
+        force_stop_sidecar_process(&mut child);
     }
-    let _ = child.kill();
-    let _ = child.wait();
 }
 
 fn same_origin(left: &Url, right: &Url) -> bool {
@@ -417,6 +442,7 @@ fn quit_application(app: &AppHandle) {
     if let Some(state) = app.try_state::<LifecycleState>() {
         state.quitting.store(true, Ordering::SeqCst);
     }
+    stop_sidecar(app);
     app.exit(0);
 }
 
@@ -613,7 +639,8 @@ pub fn run() {
                 .and_then(|_| {
                     sync_desktop_pet_menu_enabled(app.handle(), ready.desktop_pet_running);
                     if ready.desktop_pet_running {
-                        desktop_pet::create_pet_window(app.handle(), &ready.bootstrap_url)
+                        desktop_pet::create_pet_window(app.handle(), &ready.bootstrap_url)?;
+                        desktop_pet::show_pet_window(app.handle())
                     } else {
                         Ok(())
                     }

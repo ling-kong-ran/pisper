@@ -1,10 +1,17 @@
 import { PLAN_READ_TOOL_NAMES } from '../tools/app/plan-tool-names.mjs'
 import { TOOL_CATALOG } from '../tools/registry.mjs'
 
-export const EXECUTION_MODES = new Set(['read-only', 'workspace-write', 'full-access'])
-export const DEFAULT_EXECUTION_MODE = 'workspace-write'
+export const EXECUTION_MODES = new Set([
+  'read-only',
+  'approval-required',
+  'workspace-write',
+  'full-access',
+])
+export const DEFAULT_EXECUTION_MODE = 'approval-required'
 
 const TOOL_RISK = new Map(TOOL_CATALOG.map((tool) => [tool.id, tool.risk]))
+const APPROVAL_TOOLS = new Set(['edit', 'write', 'bash'])
+const INTERNAL_APPROVAL_TOOLS = new Set(['update_plan'])
 const INTERNAL_READ_ONLY_TOOLS = new Set([
   'discover_tools',
   'call_tool',
@@ -22,15 +29,20 @@ export function normalizeExecutionMode(value, fallback = DEFAULT_EXECUTION_MODE)
 }
 
 export function permissionModeForExecutionMode(mode) {
-  if (mode === 'read-only') return 'ask'
+  if (mode === 'read-only' || mode === 'approval-required') return 'ask'
   if (mode === 'workspace-write') return 'auto'
   return 'ignore'
 }
 
 export function filterToolsForExecutionMode(names, mode, getExternalRisk = () => null) {
   const unique = [...new Set(names || [])]
-  if (mode !== 'read-only') return unique
+  if (mode !== 'read-only' && mode !== 'approval-required') return unique
   return unique.filter((name) => {
+    if (
+      mode === 'approval-required' &&
+      (APPROVAL_TOOLS.has(name) || INTERNAL_APPROVAL_TOOLS.has(name))
+    )
+      return true
     if (INTERNAL_READ_ONLY_TOOLS.has(name)) return true
     const risk = TOOL_RISK.get(name) || getExternalRisk(name)
     return risk === 'low' || risk === '低风险'

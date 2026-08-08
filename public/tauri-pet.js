@@ -70,8 +70,8 @@
       if (!response.ok) return
       status = await response.json()
       await invoke('desktop_pet_sync_menu', { enabled: Boolean(status?.enabled) })
-      render()
       await invoke('desktop_pet_apply_enabled', { enabled: Boolean(status?.running) })
+      render()
     } catch {
       // A failed preference update leaves the last durable desktop-pet state in place.
     }

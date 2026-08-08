@@ -5,15 +5,25 @@ function packageModule(relativePath) {
   return import(new URL(relativePath, packageEntryUrl).href)
 }
 
-const [compaction, modelRuntime, sessionManager, settingsManager, extensionTypes, truncate] =
-  await Promise.all([
-    packageModule('./core/compaction/index.js'),
-    packageModule('./core/model-runtime.js'),
-    packageModule('./core/session-manager.js'),
-    packageModule('./core/settings-manager.js'),
-    packageModule('./core/extensions/types.js'),
-    packageModule('./core/tools/truncate.js'),
-  ])
+const [
+  compaction,
+  modelRuntime,
+  sessionManager,
+  settingsManager,
+  extensionTypes,
+  truncate,
+  editDiff,
+  pathUtils,
+] = await Promise.all([
+  packageModule('./core/compaction/index.js'),
+  packageModule('./core/model-runtime.js'),
+  packageModule('./core/session-manager.js'),
+  packageModule('./core/settings-manager.js'),
+  packageModule('./core/extensions/types.js'),
+  packageModule('./core/tools/truncate.js'),
+  packageModule('./core/tools/edit-diff.js'),
+  packageModule('./core/tools/path-utils.js'),
+])
 
 export const calculateContextTokens = compaction.calculateContextTokens
 export const compact = compaction.compact
@@ -26,6 +36,11 @@ export const DEFAULT_MAX_BYTES = truncate.DEFAULT_MAX_BYTES
 export const DEFAULT_MAX_LINES = truncate.DEFAULT_MAX_LINES
 export const formatSize = truncate.formatSize
 export const truncateHead = truncate.truncateHead
+export const applyEditsToNormalizedContent = editDiff.applyEditsToNormalizedContent
+export const generateUnifiedPatch = editDiff.generateUnifiedPatch
+export const normalizeToLF = editDiff.normalizeToLF
+export const stripBom = editDiff.stripBom
+export const resolveToCwd = pathUtils.resolveToCwd
 
 export async function createAgentSession(options) {
   const runtime = await packageModule('./core/sdk.js')

@@ -20,7 +20,7 @@ test('session usage stays scoped to each dock panel and updates over SSE', async
   assert.match(defaults, /sessionUsage: null/)
   assert.match(dock, /sessionUsage=\{state\.sessionUsage\}/)
   assert.match(dock, /loadThinkingLevel/)
-  assert.match(focus, /<SessionUsageMetrics usage=\{sessionUsage\} \/>/)
+  assert.match(focus, /<SessionUsageMetrics usage=\{sessionUsage\} plan=\{plan\} \/>/)
   assert.match(dispatch, /event === 'session_usage'/)
   assert.match(dispatch, /sessionUsage: data/)
   assert.match(sync, /sessionUsage: data\.sessionUsage \?\? current\.sessionUsage \?\? null/)
@@ -34,9 +34,16 @@ test('composer renders the metrics as a separate row below the input controls', 
     source('../../src/index.css'),
   ])
 
-  assert.match(focus, /<\/div>\s*<SessionUsageMetrics usage=\{sessionUsage\} \/>\s*<\/form>/)
+  assert.match(
+    focus,
+    /<\/div>\s*<SessionUsageMetrics usage=\{sessionUsage\} plan=\{plan\} \/>\s*<\/form>/,
+  )
   assert.match(controls, /cacheHitRate/)
-  assert.match(controls, /formatTokenCount\(totalTokens\)/)
+  assert.match(controls, /usage\?\.processedTokens/)
+  assert.match(controls, /formatTokenCount\(processedTokens\)/)
   assert.match(controls, /formatTokenCount\(usage\?\.reasoning\)/)
+  assert.match(controls, /completedPlanItems/)
+  assert.match(controls, /chat:planBoard\.progress/)
+  assert.match(controls, /className="session-plan-progress"/)
   assert.match(css, /\.session-usage-metrics \{[^}]*justify-content: flex-start/)
 })

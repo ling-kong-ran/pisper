@@ -80,7 +80,7 @@ export function SessionDockPanel({ params, api }: IDockviewPanelProps<{ sessionI
         availableThinkingLevels={state.availableThinkingLevels || []}
         thinkingStatus={state.thinkingStatus || ''}
         thinkingMessage={state.thinkingMessage || ''}
-        executionMode={state.executionMode || session.executionMode || 'workspace-write'}
+        executionMode={state.executionMode || session.executionMode || 'approval-required'}
         goal={state.goal ?? session.goal ?? null}
         plan={visiblePlan}
         currentActivity={state.currentActivity}

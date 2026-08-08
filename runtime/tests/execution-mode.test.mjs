@@ -12,11 +12,12 @@ import { permissionRequirement } from '../services/session-permission-service.mj
 
 test('execution modes normalize and migrate legacy permission settings', () => {
   assert.equal(normalizeExecutionMode('read-only'), 'read-only')
+  assert.equal(normalizeExecutionMode('approval-required'), 'approval-required')
   assert.equal(normalizeExecutionMode('workspace-write'), 'workspace-write')
   assert.equal(normalizeExecutionMode('full-access'), 'full-access')
   assert.equal(normalizeExecutionMode('workspace'), 'workspace-write')
-  assert.equal(normalizeExecutionMode('unknown'), 'workspace-write')
-  assert.equal(DEFAULT_EXECUTION_MODE, 'workspace-write')
+  assert.equal(normalizeExecutionMode('unknown'), 'approval-required')
+  assert.equal(DEFAULT_EXECUTION_MODE, 'approval-required')
   assert.equal(migrateLegacyExecutionMode({ permissionMode: 'ignore' }), 'full-access')
   assert.equal(migrateLegacyExecutionMode({ permissionMode: 'ask' }), 'full-access')
   assert.equal(migrateLegacyExecutionMode({ executionMode: 'workspace' }), 'full-access')
@@ -25,6 +26,7 @@ test('execution modes normalize and migrate legacy permission settings', () => {
     'read-only',
   )
   assert.equal(permissionModeForExecutionMode('read-only'), 'ask')
+  assert.equal(permissionModeForExecutionMode('approval-required'), 'ask')
   assert.equal(permissionModeForExecutionMode('workspace-write'), 'auto')
   assert.equal(permissionModeForExecutionMode('full-access'), 'ignore')
 })
@@ -52,10 +54,21 @@ test('read-only execution exposes only low-risk analysis tools', () => {
     'get_plan',
     'get_task_list',
   ])
+  assert.deepEqual(filterToolsForExecutionMode(names, 'approval-required'), [
+    'read',
+    'grep',
+    'edit',
+    'bash',
+    'discover_tools',
+    'memory_search',
+    'get_plan',
+    'update_plan',
+    'get_task_list',
+  ])
   assert.deepEqual(filterToolsForExecutionMode(names, 'full-access'), names)
 })
 
-test('React exposes read-only, workspace-write, and full-access execution modes', async () => {
+test('React exposes read-only, approval-required, workspace-write, and full-access execution modes', async () => {
   const [session, controls, schedules] = await Promise.all([
     readFile(new URL('../../src/features/chat/FocusSession.tsx', import.meta.url), 'utf8'),
     readFile(new URL('../../src/features/chat/FocusRuntimeControls.tsx', import.meta.url), 'utf8'),
@@ -63,7 +76,9 @@ test('React exposes read-only, workspace-write, and full-access execution modes'
   ])
   assert.match(session, /<ExecutionModeSelect[\s\S]*?disabled=\{switchingPermission\}/)
   assert.doesNotMatch(session, /disabled=\{streaming \|\| switchingPermission\}/)
-  assert.match(controls, /'workspace-write'/)
+  assert.match(controls, /'approval-required'/)
+  assert.match(controls, /focusSession.approvalRequired/)
+  assert.match(controls, /BadgeCheck/)
   assert.match(controls, /focusSession.workspaceWrite/)
   assert.match(schedules, /\['full-access', 'read-only'\]/)
 })

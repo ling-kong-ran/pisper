@@ -1,6 +1,18 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
-import { Bot, Brain, Check, Database, Eye, Gauge, Pencil, ShieldOff, Sigma } from 'lucide-react'
+import {
+  BadgeCheck,
+  Bot,
+  Brain,
+  Check,
+  Database,
+  Eye,
+  FileCheck2,
+  Gauge,
+  ListTodo,
+  ShieldOff,
+  Sigma,
+} from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
 import type { I18nValues } from '@/app/i18n'
 import { useI18n } from '@/app/use-i18n'
@@ -12,13 +24,25 @@ import type { EntityRecord, ModelOption } from '@/types/chat'
 type Translate = (message: string, values?: I18nValues) => string
 type ExecutionModeOption = [string, string, string, LucideIcon]
 
-export function SessionUsageMetrics({ usage }: { usage?: EntityRecord | null }) {
+export function SessionUsageMetrics({
+  usage,
+  plan,
+}: {
+  usage?: EntityRecord | null
+  plan?: EntityRecord | null
+}) {
   const { t } = useI18n()
-  const totalTokens = Math.max(0, Number(usage?.totalTokens) || 0)
+  const processedTokens = Math.max(0, Number(usage?.processedTokens) || 0)
+  const planItems = Array.isArray(plan?.items) ? plan.items : []
+  const completedPlanItems = planItems.filter((item) => item?.status === 'completed').length
+  const planProgress = planItems.length
+    ? t('chat:planBoard.progress', { completed: completedPlanItems, total: planItems.length })
+    : ''
   const cacheHitRate = Number(usage?.cacheHitRate)
   const cacheRateKnown = usage?.cacheHitRate != null && Number.isFinite(cacheHitRate)
   const cacheRateLabel = cacheRateKnown ? `${Math.round(Math.max(0, cacheHitRate))}%` : '—'
   const title = t('chat:focusSession.sessionUsageDetail', {
+    processed: formatTokenCount(processedTokens),
     input: formatTokenCount(usage?.input),
     output: formatTokenCount(usage?.output),
     cacheRead: formatTokenCount(usage?.cacheRead),
@@ -27,8 +51,10 @@ export function SessionUsageMetrics({ usage }: { usage?: EntityRecord | null }) 
     requests: Math.max(0, Number(usage?.requests) || 0),
   })
 
+  const metricsTitle = [title, planProgress].filter(Boolean).join('\n')
+
   return (
-    <div className="session-usage-metrics" title={title} aria-label={title}>
+    <div className="session-usage-metrics" title={metricsTitle} aria-label={metricsTitle}>
       <span>
         <Database size={12} />
         <small>{t('chat:focusSession.cacheHitRate')}</small>
@@ -37,9 +63,18 @@ export function SessionUsageMetrics({ usage }: { usage?: EntityRecord | null }) 
       <i aria-hidden="true" />
       <span>
         <Sigma size={12} />
-        <small>{t('chat:focusSession.sessionTokens')}</small>
-        <strong>{formatTokenCount(totalTokens)}</strong>
+        <small>{t('chat:focusSession.processedTokens')}</small>
+        <strong>{formatTokenCount(processedTokens)}</strong>
       </span>
+      {planProgress && (
+        <>
+          <i aria-hidden="true" />
+          <span className="session-plan-progress" title={planProgress}>
+            <ListTodo size={12} />
+            <strong>{planProgress}</strong>
+          </span>
+        </>
+      )}
     </div>
   )
 }
@@ -296,10 +331,16 @@ function executionModeOptions(t: Translate): ExecutionModeOption[] {
       Eye,
     ],
     [
+      'approval-required',
+      t('chat:focusSession.approvalRequired'),
+      t('chat:focusSession.approvalRequiredShowsADiffBeforeWriting'),
+      FileCheck2,
+    ],
+    [
       'workspace-write',
       t('chat:focusSession.workspaceWrite'),
       t('chat:focusSession.workspaceWriteRunsCommandsWithAutomaticApproval'),
-      Pencil,
+      BadgeCheck,
     ],
     [
       'full-access',

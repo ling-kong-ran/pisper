@@ -1540,7 +1540,8 @@ export class AgentRuntimeService extends AgentRuntimeFacade {
           allowedTools: [...parentActiveToolNames(), ...(planReader ? [planReader.name] : [])],
           createCustomTools: async () => {
             const childBashTool =
-              enabledTools.includes('bash') && executionMode !== 'read-only'
+              enabledTools.includes('bash') &&
+              ['approval-required', 'workspace-write', 'full-access'].includes(executionMode)
                 ? await createPisperBashTool(effectiveCwd)
                 : null
             return {
@@ -1602,7 +1603,8 @@ export class AgentRuntimeService extends AgentRuntimeFacade {
       },
     })
     const bashTool =
-      enabledTools.includes('bash') && executionMode !== 'read-only'
+      enabledTools.includes('bash') &&
+      ['approval-required', 'workspace-write', 'full-access'].includes(executionMode)
         ? await createPisperBashTool(effectiveCwd)
         : null
     const createInheritedCustomTools = (inheritedBashTool = bashTool) => [

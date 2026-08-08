@@ -4,6 +4,7 @@ import { createHash, randomUUID } from 'node:crypto'
 import { readJson, writeJsonAtomic } from '../storage/json-file.mjs'
 import { PLAN_ALL_TOOL_NAMES } from '../tools/app/plan-tool-names.mjs'
 import { TOOL_CATALOG } from '../tools/registry.mjs'
+import { createFileChangePreview, sameFileChangeSource } from './file-change-preview.mjs'
 
 export const PERMISSION_MODES = new Set(['ask', 'auto', 'ignore'])
 export const DEFAULT_PERMISSION_MODE = 'auto'
@@ -38,6 +39,15 @@ function approvalKey({ cwd, toolName, args }) {
   return createHash('sha256')
     .update(JSON.stringify([resolve(cwd), toolName, stableValue(args)]))
     .digest('hex')
+}
+
+function isPreviewedFileChange(toolName, requirement) {
+  return Boolean(requirement && ['edit', 'write'].includes(toolName))
+}
+
+function publicFileChange(change) {
+  if (!change) return undefined
+  return { path: change.path, diff: change.diff, truncated: change.truncated }
 }
 
 function safeArgs(value, depth = 0, key = '') {
@@ -137,11 +147,13 @@ export class SessionPermissionService {
     getExecutionMode,
     getToolRisk,
     approvalPath,
+    getFileChangePreview = createFileChangePreview,
     timeoutMs = 10 * 60_000,
   } = {}) {
     this.getMode = getMode || (() => DEFAULT_PERMISSION_MODE)
     this.getExecutionMode = getExecutionMode || (() => '')
     this.getToolRisk = getToolRisk || (() => null)
+    this.getFileChangePreview = getFileChangePreview
     this.timeoutMs = timeoutMs
     this.approvalPath = approvalPath
     this.approvalWrite = Promise.resolve()
@@ -243,31 +255,71 @@ export class SessionPermissionService {
     })
     if (!requirement) return undefined
     if (requirement.block) return { block: true, reason: requirement.reason }
+    const previewedFileChange = isPreviewedFileChange(toolName, requirement)
+    let fileChange
+    if (previewedFileChange) {
+      try {
+        fileChange = await this.getFileChangePreview({ cwd, toolName, args })
+      } catch (error) {
+        return {
+          block: true,
+          reason: error instanceof Error ? error.message : String(error),
+        }
+      }
+    }
     const rememberedKey = approvalKey({ sessionId, cwd, toolName, args })
-    if (await this.hasRememberedApproval(rememberedKey)) return undefined
+    if (!previewedFileChange && (await this.hasRememberedApproval(rememberedKey))) return undefined
     const approval = await this.requestApproval({
       sessionId,
       toolName,
       toolCallId,
       args,
       mode,
+      fileChange,
       ...requirement,
       signal,
     })
     if (approval.approved) {
-      await this.rememberApproval(rememberedKey, {
-        resolvedAt: new Date().toISOString(),
-        toolName,
-        cwd: resolve(cwd),
-        command: toolName === 'bash' ? String(args?.command || '') : '',
-        args: toolName === 'bash' ? undefined : safeArgs(args),
-      })
+      if (fileChange) {
+        try {
+          const currentFileChange = await this.getFileChangePreview({ cwd, toolName, args })
+          if (!sameFileChangeSource(fileChange, currentFileChange)) {
+            return {
+              block: true,
+              reason: '目标文件在审核期间发生了变化，请重新请求修改并查看最新 Diff。',
+            }
+          }
+        } catch (error) {
+          return {
+            block: true,
+            reason: error instanceof Error ? error.message : String(error),
+          }
+        }
+      } else {
+        await this.rememberApproval(rememberedKey, {
+          resolvedAt: new Date().toISOString(),
+          toolName,
+          cwd: resolve(cwd),
+          command: toolName === 'bash' ? String(args?.command || '') : '',
+          args: toolName === 'bash' ? undefined : safeArgs(args),
+        })
+      }
       return undefined
     }
     return { block: true, reason: approval.reason || `用户拒绝执行工具 ${toolName}。` }
   }
 
-  requestApproval({ sessionId, toolName, toolCallId, args, mode, risk, reason, signal }) {
+  requestApproval({
+    sessionId,
+    toolName,
+    toolCallId,
+    args,
+    mode,
+    risk,
+    reason,
+    fileChange,
+    signal,
+  }) {
     const id = randomUUID()
     const createdAt = new Date().toISOString()
     const publicApproval = {
@@ -280,6 +332,7 @@ export class SessionPermissionService {
       risk,
       reason,
       createdAt,
+      ...(fileChange ? { fileChange: publicFileChange(fileChange) } : {}),
     }
     return new Promise((resolveApproval) => {
       let settled = false

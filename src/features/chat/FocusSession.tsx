@@ -471,7 +471,7 @@ export function FocusSession({
             )}
           </button>
         </div>
-        <SessionUsageMetrics usage={sessionUsage} />
+        <SessionUsageMetrics usage={sessionUsage} plan={plan} />
       </form>
     </Panel>
   )

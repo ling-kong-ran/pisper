@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict'
-import { mkdtemp, mkdir, readFile, rm, symlink } from 'node:fs/promises'
+import { mkdtemp, mkdir, readFile, rm, symlink, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
 import test from 'node:test'
@@ -211,6 +211,74 @@ test('pending tool approval can be accepted or denied', async () => {
     }),
     undefined,
   )
+  service.dispose()
+})
+
+test('approval-required file changes include a diff and are not remembered', async (t) => {
+  const directory = await mkdtemp(join(tmpdir(), 'pisper-permission-file-change-'))
+  const path = join(directory, 'example.txt')
+  t.after(() => rm(directory, { recursive: true, force: true }))
+  await writeFile(path, 'before\n', 'utf8')
+  const service = new SessionPermissionService({
+    getMode: () => 'ask',
+    getExecutionMode: () => 'approval-required',
+    timeoutMs: 5000,
+  })
+
+  const first = service.authorize({
+    sessionId: 'session-file-change',
+    cwd: directory,
+    toolName: 'write',
+    toolCallId: 'write-preview',
+    args: { path: 'example.txt', content: 'after\n' },
+  })
+  await new Promise((resolve) => setTimeout(resolve, 20))
+  const approval = service.getPending('session-file-change')[0]
+  assert.equal(approval.fileChange.path, 'example.txt')
+  assert.match(approval.fileChange.diff, /^diff --git a\/example\.txt b\/example\.txt$/m)
+  assert.equal(Object.hasOwn(approval.fileChange, 'sourceHash'), false)
+  service.resolve('session-file-change', approval.id, true)
+  assert.equal(await first, undefined)
+
+  const repeated = service.authorize({
+    sessionId: 'session-file-change',
+    cwd: directory,
+    toolName: 'write',
+    toolCallId: 'write-preview-again',
+    args: { path: 'example.txt', content: 'after\n' },
+  })
+  await new Promise((resolve) => setTimeout(resolve, 20))
+  assert.equal(service.getPending('session-file-change').length, 1)
+  service.resolve('session-file-change', service.getPending('session-file-change')[0].id, false)
+  assert.deepEqual(await repeated, { block: true, reason: '用户拒绝执行该工具。' })
+  service.dispose()
+})
+
+test('approval-required changes are rejected when the source file changes during review', async (t) => {
+  const directory = await mkdtemp(join(tmpdir(), 'pisper-permission-file-revision-'))
+  const path = join(directory, 'example.txt')
+  t.after(() => rm(directory, { recursive: true, force: true }))
+  await writeFile(path, 'before\n', 'utf8')
+  const service = new SessionPermissionService({
+    getMode: () => 'ask',
+    getExecutionMode: () => 'approval-required',
+    timeoutMs: 5000,
+  })
+  const pending = service.authorize({
+    sessionId: 'session-file-revision',
+    cwd: directory,
+    toolName: 'write',
+    toolCallId: 'write-revision',
+    args: { path: 'example.txt', content: 'after\n' },
+  })
+  await new Promise((resolve) => setTimeout(resolve, 20))
+  const approval = service.getPending('session-file-revision')[0]
+  await writeFile(path, 'changed elsewhere\n', 'utf8')
+  service.resolve('session-file-revision', approval.id, true)
+  assert.deepEqual(await pending, {
+    block: true,
+    reason: '目标文件在审核期间发生了变化，请重新请求修改并查看最新 Diff。',
+  })
   service.dispose()
 })
 

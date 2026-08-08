@@ -63,8 +63,9 @@ test('deleted files keep red original rows and empty modified rows', () => {
 })
 
 test('diff dialog navigates files separately and renders one side-by-side diff', async () => {
-  const [viewer, styles] = await Promise.all([
+  const [viewer, approval, styles] = await Promise.all([
     readFile('src/features/chat/GitDiffViewer.tsx', 'utf8'),
+    readFile('src/features/chat/ToolApproval.tsx', 'utf8'),
     readFile('src/index.css', 'utf8'),
   ])
   assert.match(viewer, /className="git-diff-file-nav-list"/)
@@ -83,4 +84,7 @@ test('diff dialog navigates files separately and renders one side-by-side diff',
   assert.match(styles, /\.git-diff-row \{[^}]*grid-template-columns:/)
   assert.match(styles, /\.git-diff-cell\.deleted \{ background: var\(--danger-soft\); \}/)
   assert.match(styles, /\.git-diff-cell\.added \{ background: var\(--success-soft\); \}/)
+  assert.match(approval, /const fileChange = approval\.fileChange/)
+  assert.match(approval, /<GitDiffDialog/)
+  assert.match(approval, /className="tool-approval-view-diff"/)
 })

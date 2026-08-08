@@ -1,8 +1,9 @@
-import { useRef, useState } from 'react'
-import { Check, RefreshCw, ShieldCheck } from 'lucide-react'
+import { useEffect, useRef, useState } from 'react'
+import { Check, FileDiff, RefreshCw, ShieldCheck } from 'lucide-react'
 import { useI18n } from '@/app/use-i18n'
 import { Confirmation } from '@/components/ai-elements/confirmation'
 import type { EntityRecord } from '@/types/chat'
+import { GitDiffDialog } from './GitDiffViewer'
 
 export function ToolApproval({
   approvals,
@@ -15,9 +16,15 @@ export function ToolApproval({
 }) {
   const { t } = useI18n()
   const [resolving, setResolving] = useState(false)
+  const [diffOpen, setDiffOpen] = useState(false)
   const resolvingRef = useRef(false)
   const approval = approvals[0]
+
+  useEffect(() => setDiffOpen(false), [approval?.id])
+
   if (!approval) return null
+  const fileChange = approval.fileChange
+  const diff = typeof fileChange?.diff === 'string' ? fileChange.diff : ''
 
   const resolve = async (approved: boolean) => {
     if (resolvingRef.current) return
@@ -53,10 +60,22 @@ export function ToolApproval({
         </span>
       </div>
       {!compact && (
-        <details>
-          <summary>{t('chat:focusSession.viewCallArguments')}</summary>
-          <pre>{JSON.stringify(approval.args, null, 2)}</pre>
-        </details>
+        <div className="tool-approval-details">
+          {diff && (
+            <button
+              type="button"
+              className="tool-approval-view-diff"
+              onClick={() => setDiffOpen(true)}
+            >
+              <FileDiff size={13} />
+              {t('chat:focusSession.gitViewDiff')}
+            </button>
+          )}
+          <details>
+            <summary>{t('chat:focusSession.viewCallArguments')}</summary>
+            <pre>{JSON.stringify(approval.args, null, 2)}</pre>
+          </details>
+        </div>
       )}
       <div className="tool-approval-actions">
         <button
@@ -77,6 +96,13 @@ export function ToolApproval({
           {t('chat:focusSession.allow')}
         </button>
       </div>
+      {diffOpen && (
+        <GitDiffDialog
+          diff={diff}
+          truncated={Boolean(fileChange?.truncated)}
+          onClose={() => setDiffOpen(false)}
+        />
+      )}
     </Confirmation>
   )
 }

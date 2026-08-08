@@ -41,6 +41,7 @@ test('session usage aggregates provider-reported cache and token fields', () => 
     cacheWrite: 100,
     reasoning: 15,
     totalTokens: 1060,
+    processedTokens: 295,
     requests: 2,
     promptTokens: 1000,
     cacheHitRate: 75,
@@ -66,6 +67,7 @@ test('session usage falls back to field totals only when provider total is absen
   })
 
   assert.equal(usage.totalTokens, 44)
+  assert.equal(usage.processedTokens, 19)
   assert.equal(usage.promptTokens, 33)
   assert.equal(usage.cacheHitRate, (20 / 33) * 100)
   assert.equal(usage.requests, 2)
