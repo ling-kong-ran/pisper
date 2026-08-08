@@ -15,10 +15,10 @@ use url::Url;
 
 use crate::{
     model::{
-        ContextUsage, ExecutionModeUpdate, McpCatalog, MessagePage, ModelOption, PluginCatalog,
-        RuntimeEvent, SessionCwdUpdate, SessionModelUpdate, SessionSummary, SessionsResponse,
-        SkillDefinition, SkillsCatalog, StreamEvent, ThinkingLevelUpdate, ToolDefinition,
-        VcsChanges,
+        ApiKeyUpdate, ContextUsage, ExecutionModeUpdate, McpCatalog, MessagePage, ModelOption,
+        PluginCatalog, ProviderOption, RuntimeEvent, SessionCwdUpdate, SessionModelUpdate,
+        SessionSummary, SessionsResponse, SkillDefinition, SkillsCatalog, StreamEvent,
+        ThinkingLevelUpdate, ToolDefinition, VcsChanges,
     },
     workspace::validate_session_workspace,
 };
@@ -26,6 +26,7 @@ use crate::{
 #[derive(Clone)]
 pub struct ApiClient {
     base: Url,
+    token: String,
     client: Client,
 }
 
@@ -50,7 +51,19 @@ impl ApiClient {
             .pool_idle_timeout(Duration::from_secs(4))
             .build()
             .context("failed to create HTTP client")?;
-        Ok(Self { base, client })
+        Ok(Self {
+            base,
+            token: token.to_owned(),
+            client,
+        })
+    }
+
+    pub fn bootstrap_url(&self, next: &str) -> Result<String> {
+        let mut url = self.url("/_pisper/desktop/bootstrap")?;
+        url.query_pairs_mut()
+            .append_pair("token", &self.token)
+            .append_pair("next", next);
+        Ok(url.to_string())
     }
 
     fn url(&self, path: &str) -> Result<Url> {
@@ -143,7 +156,9 @@ impl ApiClient {
         Ok(())
     }
 
-    pub async fn runtime_preferences(&self) -> Result<(String, String, Vec<ModelOption>)> {
+    pub async fn runtime_preferences(
+        &self,
+    ) -> Result<(String, String, Vec<ModelOption>, Vec<ProviderOption>)> {
         let config = self.get_json::<RuntimeConfig>("/api/config").await?;
         let default_model = match (config.provider.as_str(), config.model.as_str()) {
             ("", _) | (_, "") => String::new(),
@@ -151,15 +166,26 @@ impl ApiClient {
         };
         let models = config
             .providers
-            .into_iter()
+            .iter()
             .filter(|provider| provider.enabled && provider.provider_type == "chat")
             .flat_map(|provider| {
-                provider.models.into_iter().map(move |model| ModelOption {
+                provider.models.iter().map(move |model| ModelOption {
                     provider: provider.id.clone(),
-                    id: model.id,
-                    name: model.name,
+                    id: model.id.clone(),
+                    name: model.name.clone(),
                     reasoning: model.reasoning,
                 })
+            })
+            .collect();
+        let providers = config
+            .providers
+            .into_iter()
+            .map(|provider| ProviderOption {
+                id: provider.id,
+                name: provider.name,
+                provider_type: provider.provider_type,
+                enabled: provider.enabled,
+                configured: provider.configured,
             })
             .collect();
         Ok((
@@ -170,7 +196,22 @@ impl ApiClient {
                 config.thinking_level
             },
             models,
+            providers,
         ))
+    }
+
+    pub async fn set_provider_api_key(
+        &self,
+        provider: &str,
+        api_key: &str,
+    ) -> Result<ApiKeyUpdate> {
+        let provider = encode_segment(provider);
+        self.send_json(
+            reqwest::Method::PUT,
+            &format!("/api/providers/{provider}/api-key"),
+            &json!({ "apiKey": api_key }),
+        )
+        .await
     }
 
     pub async fn messages(&self, session_id: &str) -> Result<MessagePage> {
@@ -426,10 +467,14 @@ struct RuntimeConfig {
 #[serde(rename_all = "camelCase")]
 struct RuntimeProvider {
     id: String,
+    #[serde(default)]
+    name: String,
     #[serde(rename = "type", default)]
     provider_type: String,
     #[serde(default)]
     enabled: bool,
+    #[serde(default)]
+    configured: bool,
     #[serde(default)]
     models: Vec<RuntimeModel>,
 }

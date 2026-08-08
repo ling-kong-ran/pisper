@@ -148,6 +148,10 @@ fn spawn_sidecar(
         .stdout(Stdio::piped())
         .stderr(Stdio::piped());
 
+    if let Some(frontend_root) = configured_frontend_root() {
+        command.env("PISPER_FRONTEND_ROOT", frontend_root);
+    }
+
     #[cfg(windows)]
     {
         use std::os::windows::process::CommandExt;
@@ -302,6 +306,20 @@ pub fn components_root() -> Result<PathBuf> {
     dirs::data_local_dir()
         .map(|directory| directory.join(APP_IDENTIFIER).join("components"))
         .context("failed to locate the Pisper component directory")
+}
+
+pub fn installed_frontend() -> Option<pisper_component_updater::InstalledComponent> {
+    resolve_installed(&components_root().ok()?, Component::Desktop)
+        .ok()
+        .flatten()
+        .filter(|installed| installed.executable().is_file())
+}
+
+fn configured_frontend_root() -> Option<PathBuf> {
+    std::env::var_os("PISPER_FRONTEND_ROOT")
+        .map(PathBuf::from)
+        .or_else(|| installed_frontend()?.frontend_root())
+        .filter(|root| root.join("index.html").is_file())
 }
 
 pub fn installed_runtime() -> Option<pisper_component_updater::InstalledComponent> {

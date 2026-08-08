@@ -6,12 +6,14 @@
 
 ## Install the Terminal Command
 
-With Node.js 20+, install the Pisper CLI through npm:
+With Node.js 20+, install the Pisper CLI through npm. Installation obtains and verifies the TUI and Runtime for the current platform; it does not include the desktop shell or Web frontend:
 
 ```bash
 npm install -g pisper
 pisper
 ```
+
+Run `pisper --help` for complete first-run, resume, diagnostics, updates, and Web configuration guidance without consulting a separate README.
 
 After installing the Pisper desktop app, you can alternatively open **Settings → Terminal** to install, repair, or uninstall the `pisper` command. Pisper installs it in a current-user directory and manages the matching `PATH` entry without administrator access.
 
@@ -41,10 +43,25 @@ Check or install updates for the TUI client and Runtime:
 pisper update --check
 pisper update tui
 pisper update runtime
+pisper update web
 pisper update all
 ```
 
-TUI and Runtime use independent versions and Release channels. The updater accepts only the signed component archive for the current platform and atomically switches versions after signature verification and safe extraction. A `tui` update downloads the thin client package without downloading Runtime again; a `runtime` update takes effect on the next launch. A thin TUI without a bundled sidecar installs the latest signed Runtime component on first startup.
+TUI, Runtime, and the optional Web frontend use independent versions and signed Release channels. The updater accepts only the signed component archive for the current platform and atomically switches versions after signature verification and safe extraction. A `tui` update downloads the thin client package without downloading Runtime again; a `runtime` update takes effect on the next launch. A thin TUI without a bundled sidecar installs the latest signed Runtime component on first startup. `all` updates only TUI and Runtime; Web always remains opt-in.
+
+## Provider and Optional Web Configuration
+
+After entering the TUI for the first time, run `/apikey`, choose a Provider, and enter its API key in the separate masked input. `Enter` saves; `Esc` returns to the Provider list or cancels. The secret never enters the composer, Slash history, or ordinary Runtime configuration responses.
+
+For complete visual configuration, run:
+
+```bash
+pisper web
+```
+
+This command installs the signed Web frontend on demand, starts a Runtime bound only to `127.0.0.1`, and opens Provider settings through a one-time authenticated entry point in your default browser. Keep the Pisper terminal process running while using the browser. **Save Provider settings** saves only the current connection; only **Set as default Provider** changes the default model for later sessions. Saving configuration or switching the default does not interrupt an actively running session.
+
+After Web is installed, run `/web` in the TUI to reopen the settings page. If it is not installed yet, exit and run `pisper web` first.
 
 ## Startup and Sessions
 
@@ -105,6 +122,8 @@ Long or multiline bracketed pastes render as a compact `[Pasted text · …]` to
 | `/chat` | Return to the Chat message stream. |
 | `/model` | Open the model picker and switch the active session model; unavailable during a run. |
 | `/thinking` | Refresh and open thinking levels supported by the active model; unsupported/error states explain why and can be retried. Unavailable during a run. |
+| `/apikey` | Choose a Provider and securely save its API key in a separate masked input. |
+| `/web` | Open the authenticated local settings page in the default browser using the installed Web frontend. |
 | `/compact` | Summarize older context immediately; available only for idle sessions with enough history. |
 | `/attach` | Open the workspace file picker. |
 | `/mode` | Show the active execution mode and accepted values; it can be changed during a run. |

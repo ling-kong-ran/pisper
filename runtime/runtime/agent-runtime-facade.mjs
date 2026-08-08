@@ -507,6 +507,10 @@ export class AgentRuntimeFacade {
     return this.providerPreferences.saveConfig(input, toolsFromConfig, TOOL_PRESETS)
   }
 
+  async setProviderApiKey(id, input) {
+    return this.providerPreferences.setProviderApiKey(id, input)
+  }
+
   async setProviderEnabled(id, enabled) {
     return this.providerPreferences.setProviderEnabled(id, enabled)
   }

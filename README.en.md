@@ -148,22 +148,27 @@ sudo apt install ./Pisper-*-linux-amd64.deb
 
 ### Terminal Client (TUI)
 
-With Node.js 20+, you can install the Pisper CLI through npm:
+With Node.js 20+, you can install the Pisper CLI through npm. Installation obtains and verifies the TUI and Runtime for the current platform; it does not install the desktop shell or Web frontend:
 
 ```bash
 npm install -g pisper
 pisper
 ```
 
+After entering the TUI for the first time, use `/apikey` to choose a Provider and save its API key in a masked input. For visual configuration, run `pisper web`; Pisper installs the signed Web frontend on demand and opens an authenticated, localhost-only settings page in your default browser. **Save Provider settings** does not change the default model; only **Set as default Provider** changes the default for later sessions.
+
 After installing the desktop app, you can also install the `pisper` command from **Settings → Terminal**. The first installation remains explicit; after later desktop updates restart Pisper, it automatically refreshes this managed terminal client:
 
 ```bash
-pisper          # start a new conversation
-pisper resume   # resume from an interactive list across all workspaces
-pisper doctor   # diagnose the runtime
+pisper                 # start a new conversation
+pisper resume          # resume from a list across all workspaces
+pisper doctor          # diagnose the runtime
+pisper web             # install and open the optional Web settings
+pisper update --check  # check TUI, Runtime, and optional Web updates
+pisper --help          # show complete onboarding and command help
 ```
 
-See the **[Pisper TUI user guide](./src-tui/README.en.md)** for installation, commands, keyboard controls, attachments, execution modes, and approvals.
+`pisper update all` updates only the TUI and Runtime. Web remains opt-in and can be updated separately with `pisper update web`. See the **[Pisper TUI user guide](./src-tui/README.en.md)** for installation, commands, keyboard controls, attachments, execution modes, and approvals.
 
 ### Run from Source
 

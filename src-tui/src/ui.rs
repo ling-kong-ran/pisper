@@ -233,6 +233,9 @@ fn render_overlays(frame: &mut Frame, app: &App, composer: Rect, area: Rect) {
     if app.settings_picker.is_some() {
         render_settings_picker(frame, app, area);
     }
+    if app.api_key_dialog {
+        render_api_key_dialog(frame, app, area);
+    }
 }
 
 fn render_chat(frame: &mut Frame, app: &App, area: Rect) {
@@ -1946,6 +1949,148 @@ fn render_settings_picker(frame: &mut Frame, app: &App, area: Rect) {
     frame.render_stateful_widget(list, inner, &mut state);
 }
 
+fn render_api_key_dialog(frame: &mut Frame, app: &App, area: Rect) {
+    let width = area.width.saturating_sub(4).clamp(1, 72);
+    let height = area.height.saturating_sub(4).clamp(1, 18);
+    let popup = Rect::new(
+        area.x.saturating_add(area.width.saturating_sub(width) / 2),
+        area.y
+            .saturating_add(area.height.saturating_sub(height) / 2),
+        width,
+        height,
+    );
+    frame.render_widget(Clear, popup);
+    let title = if app.api_key_provider.is_some() {
+        " Provider API Key "
+    } else {
+        " Choose Provider "
+    };
+    let block = Block::default()
+        .title(Span::styled(
+            title,
+            Style::default().fg(ACCENT).add_modifier(Modifier::BOLD),
+        ))
+        .borders(Borders::ALL)
+        .border_style(Style::default().fg(ACCENT))
+        .style(Style::default().bg(SURFACE));
+    let inner = block.inner(popup);
+    frame.render_widget(block, popup);
+
+    if let Some(provider_id) = &app.api_key_provider {
+        let provider_name = app
+            .provider_options
+            .iter()
+            .find(|provider| &provider.id == provider_id)
+            .map(|provider| provider.name.as_str())
+            .filter(|name| !name.is_empty())
+            .unwrap_or(provider_id);
+        let sections = Layout::default()
+            .direction(Direction::Vertical)
+            .constraints([
+                Constraint::Length(2),
+                Constraint::Length(3),
+                Constraint::Min(1),
+                Constraint::Length(2),
+            ])
+            .split(inner);
+        frame.render_widget(
+            Paragraph::new(Line::from(vec![
+                Span::styled("Provider  ", Style::default().fg(MUTED)),
+                Span::styled(provider_name.to_owned(), Style::default().fg(TEXT)),
+                Span::styled(format!("  {provider_id}"), Style::default().fg(FAINT)),
+            ])),
+            sections[0],
+        );
+        let masked = "*".repeat(app.api_key_input.len().min(64));
+        let display = if masked.is_empty() {
+            "Enter API Key".to_owned()
+        } else {
+            masked
+        };
+        let input = Paragraph::new(single_line(
+            &display,
+            sections[1].width.saturating_sub(4) as usize,
+        ))
+        .style(Style::default().fg(if app.api_key_input.is_empty() {
+            MUTED
+        } else {
+            TEXT
+        }))
+        .block(
+            Block::default()
+                .borders(Borders::ALL)
+                .border_style(Style::default().fg(RULE)),
+        );
+        frame.render_widget(input, sections[1]);
+        frame.render_widget(
+            Paragraph::new("Enter save · Esc back")
+                .style(Style::default().fg(MUTED))
+                .alignment(Alignment::Center),
+            sections[3],
+        );
+        let cursor = app
+            .api_key_input
+            .len()
+            .min(sections[1].width.saturating_sub(4) as usize) as u16;
+        frame.set_cursor_position(Position::new(
+            sections[1].x.saturating_add(1).saturating_add(cursor),
+            sections[1].y.saturating_add(1),
+        ));
+        return;
+    }
+
+    let rows = if app.provider_options.is_empty() {
+        vec![ListItem::new(Span::styled(
+            " No Providers available",
+            Style::default().fg(MUTED),
+        ))]
+    } else {
+        app.provider_options
+            .iter()
+            .map(|provider| {
+                let name = if provider.name.is_empty() {
+                    provider.id.as_str()
+                } else {
+                    provider.name.as_str()
+                };
+                let state = if provider.configured {
+                    "configured"
+                } else {
+                    "API Key required"
+                };
+                ListItem::new(Line::from(vec![
+                    Span::styled(format!(" {name}"), Style::default().fg(TEXT)),
+                    Span::styled(format!("  {}", provider.id), Style::default().fg(FAINT)),
+                    Span::styled(
+                        format!("  {state}"),
+                        Style::default().fg(if provider.configured { GREEN } else { AMBER }),
+                    ),
+                    Span::styled(
+                        if provider.enabled { "" } else { "  disabled" },
+                        Style::default().fg(MUTED),
+                    ),
+                ]))
+            })
+            .collect()
+    };
+    let count = app.provider_options.len();
+    let list = List::new(rows)
+        .block(
+            Block::default()
+                .title_bottom(Span::styled(
+                    " ↑↓ choose · Enter continue · Esc cancel ",
+                    Style::default().fg(MUTED),
+                ))
+                .borders(Borders::BOTTOM)
+                .border_style(Style::default().fg(RULE)),
+        )
+        .highlight_symbol("▌")
+        .highlight_style(Style::default().bg(RAISED).fg(TEXT));
+    let mut state = ListState::default()
+        .with_selected((count > 0).then_some(app.api_key_selected.min(count.saturating_sub(1))));
+    frame.render_stateful_widget(list, inner, &mut state);
+}
+
 fn approval_detail_text(approval: &Approval) -> Text<'_> {
     let command = approval
         .args
@@ -2230,7 +2375,7 @@ mod tests {
         app::{App, Approval, LiveTurn, PathEntry, SettingsPicker},
         model::{
             ChatMessage, MessagePage, ModelOption, PageInfo, Plan, PlanCounts, PlanItem,
-            SessionSummary, ThinkingLevelUpdate, ToolActivity,
+            ProviderOption, SessionSummary, ThinkingLevelUpdate, ToolActivity,
         },
     };
 
@@ -2852,6 +2997,25 @@ mod tests {
         });
         terminal.draw(|frame| draw(frame, &app)).unwrap();
         assert!(format!("{:?}", terminal.backend().buffer()).contains("Fixed reasoning"));
+
+        app.settings_picker = None;
+        app.set_provider_options(vec![ProviderOption {
+            id: "kimi-coding".to_owned(),
+            name: "Kimi Code".to_owned(),
+            provider_type: "chat".to_owned(),
+            enabled: true,
+            configured: false,
+        }]);
+        app.open_api_key_dialog();
+        terminal.draw(|frame| draw(frame, &app)).unwrap();
+        assert!(format!("{:?}", terminal.backend().buffer()).contains("Kimi Code"));
+        app.api_key_provider = Some("kimi-coding".to_owned());
+        app.api_key_input = "do-not-render-this-secret".chars().collect();
+        terminal.draw(|frame| draw(frame, &app)).unwrap();
+        let api_key = format!("{:?}", terminal.backend().buffer());
+        assert!(api_key.contains("Provider API Key"));
+        assert!(api_key.contains("********"));
+        assert!(!api_key.contains("do-not-render-this-secret"));
     }
 
     #[test]

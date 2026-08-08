@@ -313,6 +313,58 @@ test('saving plugin tools keeps the current streaming session alive and invalida
   assert.equal(runtime.sessions.has('idle'), false)
 })
 
+test('saving Provider settings keeps the currently streaming session alive', async (t) => {
+  const directory = await mkdtemp(join(tmpdir(), 'pisper-provider-save-'))
+  let runtime
+  t.after(async () => {
+    await runtime?.dispose?.().catch(() => {})
+    await rm(directory, { recursive: true, force: true }).catch(() => {})
+  })
+  runtime = new AgentRuntimeService({ cwd: directory, dataDir: directory })
+  await runtime.init()
+  let streamingDisposed = 0
+  let idleDisposed = 0
+  const runtimeVersion = runtime.sessionRuntimeVersion
+  runtime.sessions.set('streaming', {
+    runtimeVersion,
+    session: {
+      isStreaming: true,
+      dispose: () => {
+        streamingDisposed += 1
+      },
+    },
+  })
+  runtime.sessions.set('idle', {
+    runtimeVersion,
+    session: {
+      isStreaming: false,
+      dispose: () => {
+        idleDisposed += 1
+      },
+    },
+  })
+  runtime.pauseSessionGoal = async () => {}
+  runtime.multiAgents.abortParent = () => {}
+  runtime.permissions.resolveSession = () => {}
+
+  await runtime.saveConfig({
+    provider: 'kimi-coding',
+    providerType: 'chat',
+    model: 'k3',
+    apiKey: 'provider-save-key',
+    baseUrl: 'https://api.kimi.com/coding/',
+    thinkingLevel: 'medium',
+    toolMode: 'read-only',
+    setAsDefault: true,
+  })
+
+  assert.equal(runtime.sessionRuntimeVersion, runtimeVersion + 1)
+  assert.equal(streamingDisposed, 0)
+  assert.equal(idleDisposed, 1)
+  assert.equal(runtime.sessions.has('streaming'), true)
+  assert.equal(runtime.sessions.has('idle'), false)
+})
+
 test('resource changes keep the currently streaming session alive', async (t) => {
   const directory = await mkdtemp(join(tmpdir(), 'pisper-resource-change-'))
   let runtime

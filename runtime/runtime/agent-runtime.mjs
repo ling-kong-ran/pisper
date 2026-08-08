@@ -629,7 +629,7 @@ export class AgentRuntimeService extends AgentRuntimeFacade {
         if (scopes?.allUsage) this.streamProjection.invalidateAllUsage()
         else this.streamProjection.invalidate(id, scopes)
       },
-      disposeSessions: () => this.disposeSessions(),
+      invalidateSessionRuntimes: () => this.invalidateSessionRuntimes(),
       reloadModelRuntime: () => this.reloadModelRuntime(),
       getConfig: () => this.getConfig(),
       getProviderDiscovery: () => this.getProviderDiscovery(),

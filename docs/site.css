@@ -702,6 +702,24 @@ a {
   margin-top: 0;
 }
 
+.terminal-install {
+  display: grid;
+  gap: 7px;
+  margin-top: 20px;
+  border: 1px solid #252a27;
+  border-radius: 6px;
+  padding: 14px 16px;
+  color: #d9f7a8;
+  background: #080b0d;
+  font-size: 13px;
+  line-height: 1.45;
+}
+
+.terminal-copy > p code {
+  color: var(--ink);
+  font-weight: 700;
+}
+
 .terminal-copy a {
   display: inline-block;
   margin-top: 26px;

@@ -85,7 +85,8 @@ type RuntimeStatusProps = {
   dirty: boolean
   error: string
   hasModel: boolean
-  onSave: () => void | Promise<void>
+  isDefault: boolean
+  onSave: (setAsDefault?: boolean) => void | Promise<void>
 }
 
 export function RuntimeStatus({
@@ -96,6 +97,7 @@ export function RuntimeStatus({
   dirty,
   error,
   hasModel,
+  isDefault,
   onSave,
 }: RuntimeStatusProps) {
   const { t } = useI18n()
@@ -126,24 +128,38 @@ export function RuntimeStatus({
           {error}
         </div>
       )}
-      <button
-        className="button primary wide"
-        disabled={saving || !provider.enabled || (codexOAuth && !provider.configured)}
-        onClick={onSave}
-      >
-        {saving ? <RefreshCw className="spin" size={14} /> : <Save size={14} />}
-        {saving
-          ? t('config:configPage.saving')
-          : codexOAuth && !provider.configured
-            ? t('config:configPage.loadAuthenticationToSave')
-            : provider.enabled
-              ? visualOnly
-                ? t('config:configPage.saveVisualModelSettings')
-                : hasModel
-                  ? t('config:configPage.saveAndSetAsDefaultProvider')
+      <div className="button-row">
+        <button
+          className="button primary wide"
+          disabled={saving || !provider.enabled || (codexOAuth && !provider.configured)}
+          onClick={() => onSave(false)}
+        >
+          {saving ? <RefreshCw className="spin" size={14} /> : <Save size={14} />}
+          {saving
+            ? t('config:configPage.saving')
+            : codexOAuth && !provider.configured
+              ? t('config:configPage.loadAuthenticationToSave')
+              : provider.enabled
+                ? visualOnly
+                  ? t('config:configPage.saveVisualModelSettings')
                   : t('config:configPage.saveProviderSettings')
-              : t('config:configPage.enableToSave')}
-      </button>
+                : t('config:configPage.enableToSave')}
+        </button>
+        {!visualOnly && hasModel && (
+          <button
+            className="button secondary wide"
+            disabled={
+              saving || isDefault || !provider.enabled || (codexOAuth && !provider.configured)
+            }
+            onClick={() => onSave(true)}
+          >
+            <ShieldCheck size={14} />
+            {isDefault
+              ? t('config:configPage.currentDefaultProvider')
+              : t('config:configPage.setAsDefaultProvider')}
+          </button>
+        )}
+      </div>
     </SettingsCard>
   )
 }

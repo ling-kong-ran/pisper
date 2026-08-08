@@ -167,36 +167,39 @@ export function useConfigSettings({ notify, requestConfirm, t }: UseConfigSettin
     [notify, requestConfirm, t],
   )
 
-  const save = useCallback(async () => {
-    const draft = state.draft
-    if (!draft) return
-    dispatch({ type: 'set-saving', value: true })
-    dispatch({ type: 'set-error', value: '' })
-    try {
-      const apiKey = apiKeyInputRef.current?.value || draft.apiKey
-      const saved = await apiJson<ConfigData>('/api/config', {
-        method: 'PUT',
-        body: JSON.stringify({ ...draft, apiKey }),
-      })
-      if (apiKey.trim() && !saved.apiKeyUpdated) {
-        throw new Error(t('config:configPage.apiKeyCouldNotBeUpdatedPleaseRetry'))
+  const save = useCallback(
+    async (setAsDefault = false) => {
+      const draft = state.draft
+      if (!draft) return
+      dispatch({ type: 'set-saving', value: true })
+      dispatch({ type: 'set-error', value: '' })
+      try {
+        const apiKey = apiKeyInputRef.current?.value || draft.apiKey
+        const saved = await apiJson<ConfigData>('/api/config', {
+          method: 'PUT',
+          body: JSON.stringify({ ...draft, apiKey, setAsDefault }),
+        })
+        if (apiKey.trim() && !saved.apiKeyUpdated) {
+          throw new Error(t('config:configPage.apiKeyCouldNotBeUpdatedPleaseRetry'))
+        }
+        dispatch({ type: 'save-succeeded', config: saved })
+        const provider =
+          saved.providers.find((item) => item.id === draft.provider) || saved.providers[0]
+        notify(
+          provider.type === 'visual'
+            ? t('config:configPage.visualModelSettingsSaved')
+            : setAsDefault && draft.model
+              ? t('config:configPage.agentSettingsSavedNewChatsWillUseThisModel')
+              : t('config:configPage.providerSettingsSaved'),
+        )
+      } catch (caught) {
+        dispatch({ type: 'set-error', value: errorMessage(caught) })
+      } finally {
+        dispatch({ type: 'set-saving', value: false })
       }
-      dispatch({ type: 'save-succeeded', config: saved })
-      const provider =
-        saved.providers.find((item) => item.id === draft.provider) || saved.providers[0]
-      notify(
-        provider.type === 'visual'
-          ? t('config:configPage.visualModelSettingsSaved')
-          : draft.model
-            ? t('config:configPage.agentSettingsSavedNewChatsWillUseThisModel')
-            : t('config:configPage.providerSettingsSaved'),
-      )
-    } catch (caught) {
-      dispatch({ type: 'set-error', value: errorMessage(caught) })
-    } finally {
-      dispatch({ type: 'set-saving', value: false })
-    }
-  }, [notify, state.draft, t])
+    },
+    [notify, state.draft, t],
+  )
 
   const applyImportedProvider = useCallback(
     (result: ProviderImportResult) => {

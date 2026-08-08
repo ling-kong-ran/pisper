@@ -9,6 +9,16 @@ import {
   SessionPermissionService,
 } from '../services/session-permission-service.mjs'
 
+async function waitForPending(service, sessionId, timeoutMs = 2000) {
+  const deadline = Date.now() + timeoutMs
+  while (Date.now() < deadline) {
+    const pending = service.getPending(sessionId)
+    if (pending.length) return pending
+    await new Promise((resolve) => setTimeout(resolve, 10))
+  }
+  assert.fail(`Timed out waiting for a pending approval in ${sessionId}`)
+}
+
 test('permission modes progress from ask to automatic to ignored checks', () => {
   const cwd = resolve('workspace')
   const outside = resolve(cwd, '..', 'outside.txt')
@@ -232,8 +242,7 @@ test('approval-required file changes include a diff and are not remembered', asy
     toolCallId: 'write-preview',
     args: { path: 'example.txt', content: 'after\n' },
   })
-  await new Promise((resolve) => setTimeout(resolve, 20))
-  const approval = service.getPending('session-file-change')[0]
+  const [approval] = await waitForPending(service, 'session-file-change')
   assert.equal(approval.fileChange.path, 'example.txt')
   assert.match(approval.fileChange.diff, /^diff --git a\/example\.txt b\/example\.txt$/m)
   assert.equal(Object.hasOwn(approval.fileChange, 'sourceHash'), false)
@@ -247,9 +256,9 @@ test('approval-required file changes include a diff and are not remembered', asy
     toolCallId: 'write-preview-again',
     args: { path: 'example.txt', content: 'after\n' },
   })
-  await new Promise((resolve) => setTimeout(resolve, 20))
-  assert.equal(service.getPending('session-file-change').length, 1)
-  service.resolve('session-file-change', service.getPending('session-file-change')[0].id, false)
+  const repeatedApprovals = await waitForPending(service, 'session-file-change')
+  assert.equal(repeatedApprovals.length, 1)
+  service.resolve('session-file-change', repeatedApprovals[0].id, false)
   assert.deepEqual(await repeated, { block: true, reason: '用户拒绝执行该工具。' })
   service.dispose()
 })
@@ -271,8 +280,7 @@ test('approval-required changes are rejected when the source file changes during
     toolCallId: 'write-revision',
     args: { path: 'example.txt', content: 'after\n' },
   })
-  await new Promise((resolve) => setTimeout(resolve, 20))
-  const approval = service.getPending('session-file-revision')[0]
+  const [approval] = await waitForPending(service, 'session-file-revision')
   await writeFile(path, 'changed elsewhere\n', 'utf8')
   service.resolve('session-file-revision', approval.id, true)
   assert.deepEqual(await pending, {
@@ -295,8 +303,7 @@ test('approved commands persist on disk and are reused after service recreation'
     toolCallId: 'tool-persisted',
     args: { command: 'npm test' },
   })
-  await new Promise((resolve) => setTimeout(resolve, 10))
-  const approval = firstService.getPending('session-persisted')[0]
+  const [approval] = await waitForPending(firstService, 'session-persisted')
   firstService.resolve('session-persisted', approval.id, true)
   assert.equal(await allowed, undefined)
   firstService.dispose()

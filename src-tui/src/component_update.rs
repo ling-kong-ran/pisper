@@ -15,6 +15,7 @@ const UPDATER_PUBLIC_KEY: &str = include_str!("../../src-tauri/updater.pubkey");
 pub enum UpdateSelection {
     Tui,
     Runtime,
+    Web,
     All,
 }
 
@@ -34,6 +35,7 @@ pub fn parse_update_request(arguments: &[OsString]) -> Result<Option<UpdateReque
         match argument.to_str() {
             Some("tui") => selection = UpdateSelection::Tui,
             Some("runtime") => selection = UpdateSelection::Runtime,
+            Some("web") | Some("desktop") => selection = UpdateSelection::Web,
             Some("all") => selection = UpdateSelection::All,
             Some("--check") => check_only = true,
             Some(value) => bail!("unknown update argument: {value}"),
@@ -51,12 +53,39 @@ pub async fn execute(request: UpdateRequest) -> Result<()> {
     let components = match request.selection {
         UpdateSelection::Tui => vec![Component::Tui],
         UpdateSelection::Runtime => vec![Component::Runtime],
+        UpdateSelection::Web => vec![Component::Desktop],
         UpdateSelection::All => vec![Component::Runtime, Component::Tui],
     };
     for component in components {
         update_component(&updater, component, request.check_only).await?;
     }
     Ok(())
+}
+
+pub async fn ensure_web() -> Result<InstalledComponent> {
+    let updater = updater()?;
+    let release = updater
+        .latest(Component::Desktop)
+        .await
+        .context("failed to locate a signed Pisper Web release")?;
+    let latest = Version::parse(&release.version).context("Web release version is invalid")?;
+    if let Some(installed) = updater.installed(Component::Desktop)? {
+        if installed.version >= latest {
+            println!("Pisper Web {} is already installed.", installed.version);
+            return Ok(installed);
+        }
+    }
+    println!(
+        "Downloading Pisper Web {} ({:.1} MB)...",
+        release.version,
+        release.size as f64 / 1024.0 / 1024.0
+    );
+    let installed = updater
+        .install(&release)
+        .await
+        .context("failed to install the signed Pisper Web component")?;
+    println!("Installed Pisper Web {}.", installed.version);
+    Ok(installed)
 }
 
 pub async fn ensure_runtime() -> Result<InstalledComponent> {
@@ -141,6 +170,11 @@ async fn update_component(
                 installed.version
             ),
         }
+    } else if component == Component::Desktop {
+        println!(
+            "Installed Web UI {}. It will be served by the next Pisper process.",
+            installed.version
+        );
     } else {
         println!(
             "Installed runtime {}. It will be used by the next Pisper process.",
@@ -155,7 +189,11 @@ fn current_version(updater: &ComponentUpdater, component: Component) -> Option<V
         return Some(installed.version);
     }
     let value = match component {
-        Component::Desktop => None,
+        Component::Desktop => updater
+            .installed(Component::Desktop)
+            .ok()
+            .flatten()
+            .map(|installed| installed.version.to_string()),
         Component::Tui => Some(env!("CARGO_PKG_VERSION").to_string()),
         Component::Runtime => bundled_runtime_version(),
     }?;
@@ -256,6 +294,13 @@ mod tests {
             Some(UpdateRequest {
                 selection: UpdateSelection::Runtime,
                 check_only: true,
+            })
+        );
+        assert_eq!(
+            parse_update_request(&[OsString::from("update"), OsString::from("web")]).unwrap(),
+            Some(UpdateRequest {
+                selection: UpdateSelection::Web,
+                check_only: false,
             })
         );
         assert!(parse_update_request(&[OsString::from("chat")])

@@ -222,7 +222,7 @@ export class ProviderPreferences {
     getSession,
     contextUsage,
     invalidateProjection,
-    disposeSessions,
+    invalidateSessionRuntimes,
     reloadModelRuntime,
     getConfig,
     getProviderDiscovery,
@@ -244,7 +244,7 @@ export class ProviderPreferences {
     this.getSession = getSession
     this.contextUsage = contextUsage
     this.invalidateProjection = invalidateProjection
-    this.disposeSessions = disposeSessions
+    this.invalidateSessionRuntimes = invalidateSessionRuntimes
     this.reloadModelRuntime = reloadModelRuntime
     this.getConfigFacade = getConfig
     this.getProviderDiscoveryFacade = getProviderDiscovery
@@ -460,8 +460,8 @@ export class ProviderPreferences {
       providerImports,
     })
 
-    await this.disposeSessions()
     await this.reloadModelRuntime()
+    this.invalidateSessionRuntimes()
     return {
       providerId: loaded.providerId,
       selectedModel: loaded.selectedModel,
@@ -553,6 +553,8 @@ export class ProviderPreferences {
     return {
       provider: selectedProvider,
       model: selectedModel,
+      defaultProvider: settings.defaultProvider || '',
+      defaultModel: settings.defaultModel || '',
       thinkingLevel: settings.defaultThinkingLevel || 'medium',
       toolMode: appConfig.toolMode || 'full',
       providers,
@@ -678,9 +680,9 @@ export class ProviderPreferences {
     await writeJsonAtomic(this.modelsPath, modelsJson)
 
     const settingsManager = this.getSettingsManager()
-    if (providerType !== 'visual' && model) {
-      settingsManager.setDefaultModelAndProvider(provider, model)
-    }
+    const setAsDefault = input.setAsDefault !== false
+    const defaultUpdated = setAsDefault && providerType !== 'visual' && Boolean(model)
+    if (defaultUpdated) settingsManager.setDefaultModelAndProvider(provider, model)
     settingsManager.setDefaultThinkingLevel(input.thinkingLevel || 'medium')
     await settingsManager.flush()
     const errors = settingsManager.drainErrors()
@@ -706,9 +708,32 @@ export class ProviderPreferences {
           ? { ...(currentAppConfig.providerDefaultModels || {}) }
           : { ...(currentAppConfig.providerDefaultModels || {}), [provider]: model },
     })
-    await this.disposeSessions()
     await this.reloadModelRuntime()
-    return { ...(await this.getConfigFacade()), apiKeyUpdated }
+    this.invalidateSessionRuntimes()
+    return { ...(await this.getConfigFacade()), apiKeyUpdated, defaultUpdated }
+  }
+
+  async setProviderApiKey(id, input = {}) {
+    const provider = String(id || '').trim()
+    const apiKey = String(input.apiKey || '').trim()
+    if (!provider) throw new Error('Provider 不能为空。')
+    if (!apiKey) throw new Error('API Key 不能为空。')
+    if (apiKey.length > 16_384) throw new Error('API Key 过长。')
+
+    const config = await this.getConfigFacade()
+    if (!config.providers.some((item) => item.id === provider)) {
+      throw new Error('Provider 不存在。')
+    }
+    const credentials = await readJson(this.authPath, {})
+    credentials[provider] = { type: 'api_key', key: apiKey }
+    await writeJsonAtomic(this.authPath, credentials)
+    await this.reloadModelRuntime()
+    this.invalidateSessionRuntimes()
+    return {
+      ...(await this.getConfigFacade()),
+      apiKeyUpdated: true,
+      updatedProviderId: provider,
+    }
   }
 
   async setProviderEnabled(id, enabled) {
@@ -757,6 +782,7 @@ export class ProviderPreferences {
       ...appConfig,
       disabledProviders: [...disabled],
     })
+    this.invalidateSessionRuntimes()
     return this.getConfigFacade()
   }
 
@@ -823,8 +849,8 @@ export class ProviderPreferences {
           ? { ...(appConfig.providerDefaultModels || {}) }
           : { ...(appConfig.providerDefaultModels || {}), [id]: modelId },
     })
-    await this.disposeSessions()
     await this.reloadModelRuntime()
+    this.invalidateSessionRuntimes()
     return { ...(await this.getConfigFacade()), createdProviderId: id }
   }
 
@@ -1037,8 +1063,8 @@ export class ProviderPreferences {
         models: [...catalog.models, ...added],
       })
     }
-    await this.disposeSessions()
     await this.reloadModelRuntime()
+    this.invalidateSessionRuntimes()
     return { ...(await this.getConfigFacade()), addedModelIds }
   }
 
@@ -1090,8 +1116,8 @@ export class ProviderPreferences {
         await settingsManager.flush()
       }
     }
-    await this.disposeSessions()
     await this.reloadModelRuntime()
+    this.invalidateSessionRuntimes()
     return this.getConfigFacade()
   }
 }

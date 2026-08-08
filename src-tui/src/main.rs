@@ -10,7 +10,9 @@ mod ui;
 mod workspace;
 
 use std::{
-    env, io,
+    env,
+    ffi::OsString,
+    io,
     path::{Path, PathBuf},
     time::Duration,
 };
@@ -37,6 +39,7 @@ use ratatui::{
     Terminal,
 };
 use tokio::{sync::mpsc, time::Instant};
+use zeroize::Zeroize;
 
 use crate::{
     api::ApiClient,
@@ -44,6 +47,86 @@ use crate::{
     sidecar::SidecarConnection,
     workspace::{canonical_workspace, same_workspace, validate_session_workspace},
 };
+
+const CLI_HELP: &str = "Pisper CLI
+
+Start a coding session in your terminal.
+
+Usage:
+  pisper [OPTIONS]
+  pisper resume [OPTIONS]
+  pisper doctor [OPTIONS]
+  pisper web [OPTIONS]
+  pisper update [COMPONENT] [--check]
+  pisper help [COMMAND]
+
+Commands:
+  resume    Choose and resume a conversation from any workspace
+  doctor    Check the TUI, Runtime connection, and capability catalogs
+  web       Install the signed Web UI and open Provider settings in your browser
+  update    Check for or install signed component updates
+  help      Print this help or help for a command
+
+Options:
+  --cwd <directory>  Use a specific workspace (default: current directory)
+  -h, --help         Print help
+  -V, --version      Print the installed TUI version
+
+Getting started:
+  1. Change to your project directory.
+  2. Run `pisper`. Use `/apikey` to configure a Provider in the terminal.
+  3. Type a request and press Enter. Type `/` to browse commands.
+  4. Run `pisper web` for the optional visual settings and workspace UI.
+  5. Press Ctrl+C to stop a running Agent, or press it while idle to exit.
+
+Examples:
+  pisper
+  pisper --cwd /path/to/project
+  pisper resume
+  pisper doctor
+  pisper web
+  pisper update --check
+  pisper help update";
+
+const UPDATE_HELP: &str = "Pisper component updates
+
+Check for or install independently signed TUI, Runtime, and optional Web updates.
+
+Usage:
+  pisper update [COMPONENT] [--check]
+
+Components:
+  tui      Terminal client only
+  runtime  Agent Runtime only
+  web      Optional browser UI only
+  all      TUI and Runtime (default; Web remains opt-in)
+
+Options:
+  --check      Check for updates without installing them
+  -h, --help   Print update help
+
+Examples:
+  pisper update --check
+  pisper update tui
+  pisper update runtime
+  pisper update web
+  pisper update all";
+
+const WEB_HELP: &str = "Pisper Web UI
+
+Install the independently signed Web frontend and open Provider settings in your default browser.
+The local Runtime remains bound to 127.0.0.1 and browser access uses a one-time bootstrap URL.
+
+Usage:
+  pisper web [--cwd <directory>]
+
+Options:
+  --cwd <directory>  Use a specific workspace (default: current directory)
+  -h, --help         Print Web UI help
+
+Examples:
+  pisper web
+  pisper web --cwd /path/to/project";
 
 #[tokio::main]
 async fn main() {
@@ -55,11 +138,18 @@ async fn main() {
 
 async fn run() -> Result<()> {
     let arguments = std::env::args_os().skip(1).collect::<Vec<_>>();
+    if let Some(help) = requested_help(&arguments) {
+        println!("{help}");
+        return Ok(());
+    }
     if let Some(request) = component_update::parse_update_request(&arguments)? {
         component_update::execute(request).await?;
         return Ok(());
     }
     let options = launch_options()?;
+    if options.web {
+        component_update::ensure_web().await?;
+    }
     if sidecar::needs_runtime_install() {
         component_update::ensure_runtime().await?;
     }
@@ -75,6 +165,10 @@ async fn run() -> Result<()> {
         Err(error) => return Err(error),
     };
     let api = ApiClient::new(&sidecar.url, &sidecar.token)?;
+    if options.web {
+        webbrowser::open(&api.bootstrap_url("/config")?)
+            .context("failed to open the default browser")?;
+    }
     if options.doctor {
         let sessions = api
             .sessions()
@@ -158,6 +252,9 @@ async fn run() -> Result<()> {
         app.set_session_usage(usage);
     }
     app.set_launch_workspace(options.workspace.clone());
+    if options.web {
+        app.status = "Web settings opened in the default browser".to_owned();
+    }
     if interactive_resume {
         app.open_session_picker(true);
     } else if let Some(thinking_state) = thinking_state {
@@ -186,13 +283,14 @@ async fn run_event_loop(
     tokio::spawn(async move {
         let (preferences, catalogs) =
             tokio::join!(startup_api.runtime_preferences(), startup_api.catalogs());
-        let (default_model, thinking_level, model_options) =
-            preferences.unwrap_or_else(|_| (String::new(), String::new(), Vec::new()));
+        let (default_model, thinking_level, model_options, provider_options) =
+            preferences.unwrap_or_else(|_| (String::new(), String::new(), Vec::new(), Vec::new()));
         let (tools, skills) = catalogs.unwrap_or_default();
         let _ = startup_sender.send(RuntimeEvent::StartupData {
             default_model,
             thinking_level,
             model_options,
+            provider_options,
             tools,
             skills,
         });
@@ -258,6 +356,7 @@ async fn run_event_loop(
                                 default_model,
                                 thinking_level,
                                 model_options,
+                                provider_options,
                                 tools,
                                 skills,
                             } => {
@@ -265,6 +364,7 @@ async fn run_event_loop(
                                     default_model,
                                     thinking_level,
                                     model_options,
+                                    provider_options,
                                     tools,
                                     skills,
                                 );
@@ -803,6 +903,45 @@ async fn execute_action(
                 }
             }
         }
+        Action::SaveApiKey {
+            provider,
+            mut api_key,
+        } => {
+            let result = api.set_provider_api_key(&provider, &api_key).await;
+            api_key.zeroize();
+            match result {
+                Ok(updated) if updated.api_key_updated => {
+                    let provider_id = if updated.updated_provider_id.is_empty() {
+                        provider
+                    } else {
+                        updated.updated_provider_id
+                    };
+                    app.api_key_saved(&provider_id);
+                }
+                Ok(_) => app.api_key_save_failed("Runtime did not confirm the update".to_owned()),
+                Err(error) => app.api_key_save_failed(format!("{error:#}")),
+            }
+        }
+        Action::OpenWeb => {
+            if sidecar::installed_frontend().is_none() {
+                app.status = "Web UI is not installed · exit and run `pisper web`".to_owned();
+                app.status_error = true;
+            } else {
+                match api
+                    .bootstrap_url("/config")
+                    .and_then(|url| webbrowser::open(&url).map(|_| ()).map_err(Into::into))
+                {
+                    Ok(()) => {
+                        app.status = "Web settings opened in the default browser".to_owned();
+                        app.status_error = false;
+                    }
+                    Err(error) => {
+                        app.status = format!("failed to open Web settings · {error:#}");
+                        app.status_error = true;
+                    }
+                }
+            }
+        }
         Action::SwitchSession {
             id,
             exit_on_failure,
@@ -906,6 +1045,28 @@ struct LaunchOptions {
     workspace: PathBuf,
     doctor: bool,
     resume: bool,
+    web: bool,
+}
+
+fn requested_help(arguments: &[OsString]) -> Option<&'static str> {
+    let first = arguments.first().and_then(|argument| argument.to_str());
+    if first == Some("help") {
+        return Some(
+            match arguments.get(1).and_then(|argument| argument.to_str()) {
+                Some("update") => UPDATE_HELP,
+                Some("web") => WEB_HELP,
+                _ => CLI_HELP,
+            },
+        );
+    }
+    let help_requested = arguments
+        .iter()
+        .any(|argument| argument == "--help" || argument == "-h");
+    help_requested.then_some(match first {
+        Some("update") => UPDATE_HELP,
+        Some("web") => WEB_HELP,
+        _ => CLI_HELP,
+    })
 }
 
 fn launch_options() -> Result<LaunchOptions> {
@@ -913,6 +1074,7 @@ fn launch_options() -> Result<LaunchOptions> {
     let mut workspace = None;
     let mut doctor = false;
     let mut resume = false;
+    let mut web = false;
     while let Some(argument) = args.next() {
         if argument == "--cwd" {
             workspace = Some(PathBuf::from(
@@ -922,18 +1084,20 @@ fn launch_options() -> Result<LaunchOptions> {
             doctor = true;
         } else if argument == "resume" {
             resume = true;
+        } else if argument == "web" {
+            web = true;
         } else if argument == "--version" || argument == "-V" {
             println!("pisper {}", env!("CARGO_PKG_VERSION"));
             std::process::exit(0);
         } else if argument == "--help" || argument == "-h" {
-            println!("Pisper terminal client\n\nUsage: pisper [--cwd <directory>]\n       pisper resume\n       pisper doctor [--cwd <directory>]\n       pisper update [tui|runtime|all] [--check]\n\n`pisper resume` opens an interactive list of conversations from every workspace.\n`pisper update` verifies and installs independently signed TUI and runtime components.\n");
+            println!("{CLI_HELP}");
             std::process::exit(0);
         } else {
             anyhow::bail!("unknown argument: {}", argument.to_string_lossy());
         }
     }
-    if doctor && resume {
-        anyhow::bail!("doctor and resume cannot be used together");
+    if usize::from(doctor) + usize::from(resume) + usize::from(web) > 1 {
+        anyhow::bail!("doctor, resume, and web cannot be used together");
     }
     let workspace = workspace.unwrap_or(std::env::current_dir()?);
     let workspace = canonical_workspace(&workspace)?;
@@ -941,6 +1105,7 @@ fn launch_options() -> Result<LaunchOptions> {
         workspace,
         doctor,
         resume,
+        web,
     })
 }
 
@@ -985,13 +1150,41 @@ impl Drop for TerminalSession {
 #[cfg(test)]
 mod tests {
     use super::{
-        draft_session, is_paste_shortcut, resize_area, resize_has_settled, resume_seed,
-        should_handle_key_kind, should_notify_completion, terminal_content_area,
+        draft_session, is_paste_shortcut, requested_help, resize_area, resize_has_settled,
+        resume_seed, should_handle_key_kind, should_notify_completion, terminal_content_area,
+        CLI_HELP, UPDATE_HELP, WEB_HELP,
     };
     use crate::model::SessionSummary;
     use crossterm::event::{KeyCode, KeyEvent, KeyEventKind, KeyModifiers};
     use std::time::Duration;
     use tokio::time::Instant;
+
+    #[test]
+    fn help_routes_cover_global_update_and_web_commands() {
+        use std::ffi::OsString;
+
+        assert_eq!(requested_help(&[OsString::from("--help")]), Some(CLI_HELP));
+        assert_eq!(requested_help(&[OsString::from("help")]), Some(CLI_HELP));
+        assert_eq!(
+            requested_help(&[OsString::from("help"), OsString::from("update")]),
+            Some(UPDATE_HELP)
+        );
+        assert_eq!(
+            requested_help(&[OsString::from("update"), OsString::from("-h")]),
+            Some(UPDATE_HELP)
+        );
+        assert_eq!(
+            requested_help(&[OsString::from("help"), OsString::from("web")]),
+            Some(WEB_HELP)
+        );
+        assert_eq!(
+            requested_help(&[OsString::from("web"), OsString::from("--help")]),
+            Some(WEB_HELP)
+        );
+        assert!(CLI_HELP.contains("pisper web"));
+        assert!(CLI_HELP.contains("/apikey"));
+        assert!(UPDATE_HELP.contains("web"));
+    }
 
     #[test]
     fn windows_paste_shortcuts_arm_the_paste_burst() {

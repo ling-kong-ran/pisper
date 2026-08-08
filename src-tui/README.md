@@ -6,12 +6,14 @@
 
 ## 安装终端命令
 
-使用 Node.js 20+ 时，可以直接通过 npm 安装 Pisper CLI：
+使用 Node.js 20+ 时，可以直接通过 npm 安装 Pisper CLI。安装过程会为当前平台获取并验证 TUI 与 Runtime，不包含桌面壳或 Web 前端：
 
 ```bash
 npm install -g pisper
 pisper
 ```
+
+使用 `pisper --help` 可直接查看首次使用、会话恢复、诊断、更新和 Web 配置入口，不需要另行查阅 README。
 
 安装 Pisper 桌面版后，也可以打开 **设置 → 终端**，安装、修复或卸载 `pisper` 命令。Pisper 将可执行文件安装到当前用户目录并管理对应的 `PATH` 项，不需要管理员权限。
 
@@ -41,10 +43,25 @@ release/tui/pisper-<version>-<platform>-<arch>/
 pisper update --check
 pisper update tui
 pisper update runtime
+pisper update web
 pisper update all
 ```
 
-TUI 与 Runtime 使用独立版本和 Release 通道。更新器只接受匹配当前平台的签名组件包，验签和安全解压成功后才原子切换版本。`tui` 更新下载轻量客户端包，不会重复下载 Runtime；`runtime` 更新在下次启动时生效。无内置 sidecar 的轻量 TUI 首次启动时会安装最新的签名 Runtime 组件。
+TUI、Runtime 与可选 Web 前端使用独立版本和签名 Release 通道。更新器只接受匹配当前平台的签名组件包，验签和安全解压成功后才原子切换版本。`tui` 更新下载轻量客户端包，不会重复下载 Runtime；`runtime` 更新在下次启动时生效。无内置 sidecar 的轻量 TUI 首次启动时会安装最新的签名 Runtime 组件。`all` 只更新 TUI 与 Runtime，Web 始终保持按需安装。
+
+## Provider 与可选 Web 配置
+
+首次进入 TUI 后输入 `/apikey`，先选择 Provider，再在独立掩码输入框中输入 API Key。`Enter` 保存，`Esc` 返回 Provider 列表或取消；密钥不会进入 composer、Slash 历史或 Runtime 的普通配置响应。
+
+需要完整可视化配置时运行：
+
+```bash
+pisper web
+```
+
+该命令会按需安装签名 Web 前端，启动只监听 `127.0.0.1` 的 Runtime，并通过一次性认证入口在默认浏览器打开 Provider 设置。终端中的 Pisper 进程需要在浏览器使用期间保持运行。Web 配置页的 **保存 Provider 配置** 只保存当前连接；只有 **设为默认 Provider** 会修改后续会话的默认模型。正在运行的会话不会因保存配置或切换默认模型而中断。
+
+Web 前端已安装时，可在 TUI 中输入 `/web` 再次打开配置页；尚未安装时先退出并运行 `pisper web`。
 
 ## 启动与会话
 
@@ -105,6 +122,8 @@ pisper doctor
 | `/chat` | 返回 Chat 消息流。 |
 | `/model` | 打开模型选择器并切换当前会话模型；运行期间不可切换。 |
 | `/thinking` | 刷新并打开当前模型支持的思考等级；不支持或加载失败时显示原因并可重试，运行期间不可切换。 |
+| `/apikey` | 选择 Provider，并在独立掩码输入框中安全保存 API Key。 |
+| `/web` | 使用已安装的 Web 前端，在默认浏览器打开本机认证配置页。 |
 | `/compact` | 立即摘要较早上下文；仅用于已有可压缩历史的空闲会话。 |
 | `/attach` | 打开 workspace 文件选择器。 |
 | `/mode` | 显示当前执行模式和可用参数；运行期间也可随时调整。 |

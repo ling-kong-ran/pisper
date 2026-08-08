@@ -303,6 +303,30 @@ pub struct ModelOption {
     pub reasoning: bool,
 }
 
+#[derive(Clone, Debug, Default, Deserialize, Eq, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct ProviderOption {
+    #[serde(default)]
+    pub id: String,
+    #[serde(default)]
+    pub name: String,
+    #[serde(default)]
+    pub provider_type: String,
+    #[serde(default)]
+    pub enabled: bool,
+    #[serde(default)]
+    pub configured: bool,
+}
+
+#[derive(Clone, Debug, Default, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ApiKeyUpdate {
+    #[serde(default)]
+    pub api_key_updated: bool,
+    #[serde(default)]
+    pub updated_provider_id: String,
+}
+
 #[derive(Clone, Debug, Default, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SessionModelUpdate {
@@ -361,6 +385,7 @@ pub enum RuntimeEvent {
         default_model: String,
         thinking_level: String,
         model_options: Vec<ModelOption>,
+        provider_options: Vec<ProviderOption>,
         tools: Vec<ToolDefinition>,
         skills: Vec<SkillDefinition>,
     },

@@ -148,22 +148,27 @@ sudo apt install ./Pisper-*-linux-amd64.deb
 
 ### 终端客户端（TUI）
 
-使用 Node.js 20+ 时，也可通过 npm 安装 Pisper CLI：
+使用 Node.js 20+ 时，也可通过 npm 安装 Pisper CLI。安装过程会为当前平台获取并验证 TUI 与 Runtime；不会安装桌面壳或 Web 前端：
 
 ```bash
 npm install -g pisper
 pisper
 ```
 
+首次进入 TUI 后使用 `/apikey` 选择 Provider 并在掩码输入框中保存 API Key。需要可视化配置时，运行 `pisper web`，Pisper 会按需安装签名 Web 前端并在默认浏览器打开仅监听本机的认证配置页。配置页中的 **保存 Provider 配置** 不会修改默认模型；只有点击 **设为默认 Provider** 才会切换后续会话的默认模型。
+
 安装桌面版后，也可以在 **设置 → 终端** 中安装 `pisper` 命令。首次安装由你主动确认；之后桌面应用更新并重启时，Pisper 会自动刷新这份已托管的终端客户端：
 
 ```bash
-pisper          # 新建会话
-pisper resume   # 从所有工作目录的交互列表中恢复会话
-pisper doctor   # 诊断运行环境
+pisper                 # 新建会话
+pisper resume          # 从所有工作目录的交互列表中恢复会话
+pisper doctor          # 诊断运行环境
+pisper web             # 安装并打开可选 Web 配置页
+pisper update --check  # 检查 TUI、Runtime 和可选 Web 更新
+pisper --help          # 查看完整上手和命令说明
 ```
 
-安装、命令、快捷键、附件、执行模式和审批说明见 **[Pisper TUI 使用指南](./src-tui/README.md)**。
+`pisper update all` 只更新 TUI 与 Runtime；Web 始终保持按需安装，可使用 `pisper update web` 单独更新。安装、命令、快捷键、附件、执行模式和审批说明见 **[Pisper TUI 使用指南](./src-tui/README.md)**。
 
 ### 从源码运行
 

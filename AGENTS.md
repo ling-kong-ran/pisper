@@ -143,6 +143,7 @@ Once `npm run release` dispatches a component, treat the remote `release` branch
 - Pure shared logic that both UI and runtime need goes in `shared/` (with `.d.mts` types when consumed from TS).
 - Desktop packaging and updater details: `docs/node-sea-webview.md`. Do not reintroduce Electron packaging paths.
 - TUI user-facing docs: `src-tui/README.md` / `README.en.md`. TUI versions advance only through the scoped release script; do not synchronize them to desktop or runtime versions.
+- When adding or changing a TUI top-level command, subcommand, option, or Slash command, update the corresponding `--help`/command help text and its coverage in the same change.
 
 ## Verification expectations
 

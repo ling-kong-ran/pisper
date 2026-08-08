@@ -97,6 +97,10 @@ export function ModelsSettings({
               dirty={settings.dirty}
               error={settings.error || discovery.operationError}
               hasModel={Boolean(draft.model)}
+              isDefault={
+                (config.defaultProvider || config.provider) === selectedProvider.id &&
+                (config.defaultModel || config.model) === draft.model
+              }
               onSave={settings.save}
             />
           </div>

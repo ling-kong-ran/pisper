@@ -47,6 +47,32 @@ test('model configuration exposes built-in Kimi and GLM providers', async (t) =>
   )
 })
 
+test('provider API keys update without changing the active model configuration', async (t) => {
+  const directory = await mkdtemp(join(tmpdir(), 'pisper-provider-api-key-'))
+  const runtime = new AgentRuntimeService({ cwd: directory, dataDir: directory })
+  t.after(async () => {
+    await runtime.dispose()
+    await rm(directory, { recursive: true, force: true })
+  })
+  await runtime.init()
+  const before = await runtime.getConfig()
+  const apiKey = ['terminal', 'secret', 'value'].join('-')
+
+  const saved = await runtime.setProviderApiKey('kimi-coding', { apiKey })
+  const after = runtime.settingsManager.getGlobalSettings()
+
+  assert.equal(saved.apiKeyUpdated, true)
+  assert.equal(saved.updatedProviderId, 'kimi-coding')
+  assert.equal(after.defaultProvider, before.provider)
+  assert.equal(after.defaultModel, before.model)
+  assert.equal(saved.providers.find((provider) => provider.id === 'kimi-coding').configured, true)
+  assert.equal(JSON.stringify(saved).includes(apiKey), false)
+  const credentials = JSON.parse(await readFile(join(directory, 'auth.json'), 'utf8'))
+  assert.equal(credentials['kimi-coding'].key, apiKey)
+  await assert.rejects(() => runtime.setProviderApiKey('missing', { apiKey }), /Provider 不存在/)
+  await assert.rejects(() => runtime.setProviderApiKey('openai', { apiKey: '   ' }), /不能为空/)
+})
+
 test('visual-only providers save connection settings without replacing the default chat model', async (t) => {
   const directory = await mkdtemp(join(tmpdir(), 'pisper-visual-provider-config-'))
   const runtime = new AgentRuntimeService({ cwd: directory, dataDir: directory })
@@ -136,22 +162,35 @@ test('each chat provider keeps its saved default model independently', async (t)
     model: 'relay-two-first',
   })
 
-  await runtime.saveConfig({
+  const originalDefault = runtime.settingsManager.getGlobalSettings()
+  const savedWithoutDefault = await runtime.saveConfig({
     provider: 'relay-one',
     providerType: 'chat',
     model: 'relay-one-second',
     baseUrl: 'https://relay-one.example.test/v1',
     thinkingLevel: 'medium',
     toolMode: 'read-only',
+    setAsDefault: false,
   })
-  await runtime.saveConfig({
+  const retainedDefault = runtime.settingsManager.getGlobalSettings()
+  assert.equal(savedWithoutDefault.defaultUpdated, false)
+  assert.equal(savedWithoutDefault.defaultProvider, originalDefault.defaultProvider)
+  assert.equal(savedWithoutDefault.defaultModel, originalDefault.defaultModel)
+  assert.equal(retainedDefault.defaultProvider, originalDefault.defaultProvider)
+  assert.equal(retainedDefault.defaultModel, originalDefault.defaultModel)
+
+  const savedAsDefault = await runtime.saveConfig({
     provider: 'relay-two',
     providerType: 'chat',
     model: 'relay-two-first',
     baseUrl: 'https://relay-two.example.test/v1',
     thinkingLevel: 'medium',
     toolMode: 'read-only',
+    setAsDefault: true,
   })
+  assert.equal(savedAsDefault.defaultUpdated, true)
+  assert.equal(savedAsDefault.defaultProvider, 'relay-two')
+  assert.equal(savedAsDefault.defaultModel, 'relay-two-first')
 
   const config = await runtime.getConfig()
   assert.equal(config.provider, 'relay-two')

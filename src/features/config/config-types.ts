@@ -33,11 +33,14 @@ export type ConfigData = EntityRecord & {
   providers: ProviderConfig[]
   provider: string
   model: string
+  defaultProvider?: string
+  defaultModel?: string
   thinkingLevel: string
   toolMode: string
   createdProviderId?: string
   addedModelIds?: string[]
   apiKeyUpdated?: boolean
+  defaultUpdated?: boolean
 }
 
 export type ConfigDraft = {

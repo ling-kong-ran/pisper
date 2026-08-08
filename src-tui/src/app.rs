@@ -9,14 +9,15 @@ use std::{
 use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
+use zeroize::Zeroize;
 
 use crate::{
     api::MESSAGE_PAGE_LIMIT,
     model::{
-        ChatMessage, ContextUsage, MessageAttachment, MessagePage, ModelOption, Plan, RunActivity,
-        SessionCwdUpdate, SessionModelUpdate, SessionSummary, SessionUsage, SkillDefinition,
-        StreamEvent, ThinkingAvailability, ThinkingLevelUpdate, ToolActivity, ToolDefinition,
-        VcsChanges,
+        ChatMessage, ContextUsage, MessageAttachment, MessagePage, ModelOption, Plan,
+        ProviderOption, RunActivity, SessionCwdUpdate, SessionModelUpdate, SessionSummary,
+        SessionUsage, SkillDefinition, StreamEvent, ThinkingAvailability, ThinkingLevelUpdate,
+        ToolActivity, ToolDefinition, VcsChanges,
     },
     plan_protocol::{is_plan_update_event, plan_from_payload},
     workspace::same_workspace,
@@ -115,7 +116,6 @@ struct PastedRange {
     end: usize,
 }
 
-#[derive(Debug)]
 pub enum Action {
     None,
     Quit,
@@ -150,6 +150,11 @@ pub enum Action {
     CommitVcs(String),
     PushVcs,
     RevertVcs,
+    SaveApiKey {
+        provider: String,
+        api_key: String,
+    },
+    OpenWeb,
 }
 
 #[derive(Clone, Debug, Default, Deserialize, Serialize)]
@@ -208,6 +213,11 @@ pub struct App {
     pub thinking_options: Vec<String>,
     pub settings_picker: Option<SettingsPicker>,
     pub settings_selected: usize,
+    pub provider_options: Vec<ProviderOption>,
+    pub api_key_dialog: bool,
+    pub api_key_selected: usize,
+    pub api_key_provider: Option<String>,
+    pub api_key_input: Vec<char>,
     queued_prompts: VecDeque<QueuedPrompt>,
     pasted_ranges: Vec<PastedRange>,
     slash_usage: HashMap<String, SlashUsage>,
@@ -277,6 +287,11 @@ impl App {
             thinking_options: Vec::new(),
             settings_picker: None,
             settings_selected: 0,
+            provider_options: Vec::new(),
+            api_key_dialog: false,
+            api_key_selected: 0,
+            api_key_provider: None,
+            api_key_input: Vec::new(),
             queued_prompts: VecDeque::new(),
             pasted_ranges: Vec::new(),
             slash_usage: load_slash_usage(),
@@ -347,6 +362,7 @@ impl App {
             && !self.path_picker
             && !self.session_picker
             && self.settings_picker.is_none()
+            && !self.api_key_dialog
     }
 
     pub fn is_streaming(&self) -> bool {
@@ -389,6 +405,7 @@ impl App {
         default_model: String,
         thinking_level: String,
         model_options: Vec<ModelOption>,
+        provider_options: Vec<ProviderOption>,
         tools: Vec<ToolDefinition>,
         skills: Vec<SkillDefinition>,
     ) {
@@ -403,6 +420,7 @@ impl App {
             }
         }
         self.set_model_options(model_options);
+        self.set_provider_options(provider_options);
         self.tools = tools;
         self.skills = skills;
     }
@@ -419,6 +437,58 @@ impl App {
                 .then_with(|| left.id.cmp(&right.id))
         });
         self.model_options = options;
+    }
+
+    pub fn set_provider_options(&mut self, mut options: Vec<ProviderOption>) {
+        options.sort_by(|left, right| {
+            left.provider_type
+                .cmp(&right.provider_type)
+                .then_with(|| left.name.cmp(&right.name))
+                .then_with(|| left.id.cmp(&right.id))
+        });
+        self.provider_options = options;
+    }
+
+    pub fn open_api_key_dialog(&mut self) {
+        if self.is_streaming() {
+            self.status = "Stop the active run before changing provider credentials".to_owned();
+            self.status_error = true;
+            return;
+        }
+        self.api_key_selected = self
+            .provider_options
+            .iter()
+            .position(|provider| provider.configured)
+            .unwrap_or(0);
+        self.api_key_provider = None;
+        self.clear_api_key_input();
+        self.api_key_dialog = true;
+        self.status_error = false;
+    }
+
+    pub fn api_key_saved(&mut self, provider_id: &str) {
+        if let Some(provider) = self
+            .provider_options
+            .iter_mut()
+            .find(|provider| provider.id == provider_id)
+        {
+            provider.configured = true;
+        }
+        self.api_key_dialog = false;
+        self.api_key_provider = None;
+        self.clear_api_key_input();
+        self.status = format!("API Key saved · {provider_id}");
+        self.status_error = false;
+    }
+
+    pub fn api_key_save_failed(&mut self, error: String) {
+        self.clear_api_key_input();
+        self.status = format!("API Key save failed · {error}");
+        self.status_error = true;
+    }
+
+    fn clear_api_key_input(&mut self) {
+        self.api_key_input.zeroize();
     }
 
     pub fn visible_path_entries(&self) -> Vec<&PathEntry> {
@@ -613,6 +683,8 @@ impl App {
             command("/chat", "Return to the conversation"),
             command("/model", "Switch the active session model"),
             command("/thinking", "Switch the active session thinking level"),
+            command("/apikey", "Configure a Provider API Key securely"),
+            command("/web", "Open the installed Web settings"),
             command("/compact", "Summarize older context now"),
             command("/attach", "Add image, text, code, or document files"),
             command("/mode read-only", "Allow low-risk analysis tools only"),
@@ -710,6 +782,9 @@ impl App {
                 }
                 _ => Action::None,
             };
+        }
+        if self.api_key_dialog {
+            return self.handle_api_key_dialog(key);
         }
         if key.modifiers.contains(KeyModifiers::CONTROL) && key.code == KeyCode::Char('o') {
             self.open_path_picker();
@@ -865,6 +940,68 @@ impl App {
                     self.vcs_confirm_revert = false;
                 } else {
                     self.clear_input();
+                }
+                Action::None
+            }
+            _ => Action::None,
+        }
+    }
+
+    fn handle_api_key_dialog(&mut self, key: KeyEvent) -> Action {
+        if self.api_key_provider.is_none() {
+            let count = self.provider_options.len();
+            return match key.code {
+                KeyCode::Esc => {
+                    self.api_key_dialog = false;
+                    self.clear_api_key_input();
+                    Action::None
+                }
+                KeyCode::Up => {
+                    self.api_key_selected = self.api_key_selected.saturating_sub(1);
+                    Action::None
+                }
+                KeyCode::Down => {
+                    self.api_key_selected =
+                        (self.api_key_selected + 1).min(count.saturating_sub(1));
+                    Action::None
+                }
+                KeyCode::Enter => {
+                    if let Some(provider) = self.provider_options.get(self.api_key_selected) {
+                        self.api_key_provider = Some(provider.id.clone());
+                        self.clear_api_key_input();
+                    }
+                    Action::None
+                }
+                _ => Action::None,
+            };
+        }
+
+        match key.code {
+            KeyCode::Esc => {
+                self.api_key_provider = None;
+                self.clear_api_key_input();
+                Action::None
+            }
+            KeyCode::Enter => {
+                let api_key = self.api_key_input.iter().collect::<String>();
+                if api_key.trim().is_empty() {
+                    self.status = "API Key cannot be empty".to_owned();
+                    self.status_error = true;
+                    return Action::None;
+                }
+                let provider = self.api_key_provider.clone().unwrap_or_default();
+                self.clear_api_key_input();
+                self.status = format!("saving API Key · {provider}");
+                self.status_error = false;
+                Action::SaveApiKey { provider, api_key }
+            }
+            KeyCode::Backspace => {
+                self.api_key_input.pop();
+                Action::None
+            }
+            KeyCode::Char(character) if !key.modifiers.contains(KeyModifiers::CONTROL) => {
+                if self.api_key_input.len() < 16_384 {
+                    self.api_key_input.push(character);
                 }
                 Action::None
             }
@@ -1236,6 +1373,17 @@ impl App {
                 self.clear_input();
                 Action::RefreshThinking
             }
+            "/apikey" => {
+                self.mark_slash_use("/apikey");
+                self.clear_input();
+                self.open_api_key_dialog();
+                Action::None
+            }
+            "/web" => {
+                self.mark_slash_use("/web");
+                self.clear_input();
+                Action::OpenWeb
+            }
             "/compact" => {
                 self.clear_input();
                 if self.is_draft_session() {
@@ -1381,6 +1529,12 @@ impl App {
             self.path_input.extend(value.trim().chars());
             return;
         }
+        if self.api_key_dialog && self.api_key_provider.is_some() {
+            let remaining = 16_384usize.saturating_sub(self.api_key_input.len());
+            self.api_key_input
+                .extend(value.trim().chars().take(remaining));
+            return;
+        }
         let normalized = value.replace("\r\n", "\n").replace('\r', "\n");
         let characters = normalized.chars().collect::<Vec<_>>();
         if characters.is_empty() {
@@ -1432,6 +1586,9 @@ impl App {
         self.path_entries.clear();
         self.path_selected = 0;
         self.settings_picker = None;
+        self.api_key_dialog = false;
+        self.api_key_provider = None;
+        self.clear_api_key_input();
         self.session_picker_exit_on_cancel = false;
         self.queued_prompts.clear();
         self.pending_slash_command = None;
@@ -2278,9 +2435,9 @@ mod tests {
         MAX_LOADED_MESSAGES, PAGE_SCROLL_STEP,
     };
     use crate::model::{
-        ChatMessage, ContextUsage, MessagePage, ModelOption, PageInfo, SessionCwdUpdate,
-        SessionModelUpdate, SessionSummary, StreamEvent, ThinkingAvailability, ThinkingLevelUpdate,
-        ToolDefinition,
+        ChatMessage, ContextUsage, MessagePage, ModelOption, PageInfo, ProviderOption,
+        SessionCwdUpdate, SessionModelUpdate, SessionSummary, StreamEvent, ThinkingAvailability,
+        ThinkingLevelUpdate, ToolDefinition,
     };
     use serde_json::json;
 
@@ -3067,6 +3224,54 @@ mod tests {
     }
 
     #[test]
+    fn api_key_dialog_selects_a_provider_masks_composer_input_and_supports_cancel() {
+        let mut app = test_app(Vec::new());
+        app.set_provider_options(vec![ProviderOption {
+            id: "kimi-coding".to_owned(),
+            name: "Kimi Code".to_owned(),
+            provider_type: "chat".to_owned(),
+            enabled: true,
+            configured: false,
+        }]);
+        app.set_input("/apikey");
+
+        assert!(matches!(app.submit_action(), Action::None));
+        assert!(app.api_key_dialog);
+        assert!(!app.accepts_composer_input());
+        assert!(matches!(
+            app.handle_key(KeyEvent::new(KeyCode::Enter, KeyModifiers::NONE)),
+            Action::None
+        ));
+        for character in "secret-key".chars() {
+            app.handle_key(KeyEvent::new(KeyCode::Char(character), KeyModifiers::NONE));
+        }
+        assert_eq!(app.input_text(), "");
+        assert!(matches!(
+            app.handle_key(KeyEvent::new(KeyCode::Enter, KeyModifiers::NONE)),
+            Action::SaveApiKey { provider, api_key }
+                if provider == "kimi-coding" && api_key == "secret-key"
+        ));
+
+        app.api_key_save_failed("rejected".to_owned());
+        assert!(app.api_key_input.is_empty());
+        app.handle_key(KeyEvent::new(KeyCode::Esc, KeyModifiers::NONE));
+        app.handle_key(KeyEvent::new(KeyCode::Esc, KeyModifiers::NONE));
+        assert!(!app.api_key_dialog);
+    }
+
+    #[test]
+    fn slash_catalog_lists_provider_and_web_configuration_commands() {
+        let app = test_app(Vec::new());
+        let commands = app
+            .slash_items()
+            .into_iter()
+            .map(|item| item.command)
+            .collect::<Vec<_>>();
+        assert!(commands.contains(&"/apikey".to_owned()));
+        assert!(commands.contains(&"/web".to_owned()));
+    }
+
+    #[test]
     fn draft_defaults_and_materialization_preserve_the_first_pending_turn() {
         let draft = SessionSummary {
             cwd: "/workspace".to_owned(),
@@ -3079,6 +3284,7 @@ mod tests {
         app.set_startup_data(
             "provider/model".to_owned(),
             "high".to_owned(),
+            Vec::new(),
             Vec::new(),
             Vec::new(),
             Vec::new(),

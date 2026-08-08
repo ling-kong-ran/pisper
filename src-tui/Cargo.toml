@@ -29,6 +29,8 @@ semver = "1"
 tokio = { version = "1", features = ["fs", "macros", "rt-multi-thread", "sync", "time"] }
 unicode-width = "0.2"
 url = "2"
+webbrowser = "1"
+zeroize = "1"
 
 [target.'cfg(windows)'.dependencies]
 clipboard-win = "5.4"
