@@ -50,7 +50,7 @@
 
 <p align="center">
   <a href="#overview">简介</a> ·
-  <a href="#preview">界面</a> ·
+  <a href="https://ling-kong-ran.github.io/pisper/">项目主页</a> ·
   <a href="#features">功能</a> ·
   <a href="#data-safety">数据安全</a> ·
   <a href="#desktop-pet">桌面宠物</a> ·
@@ -69,20 +69,13 @@
 
 Pisper 是基于 [Pi Coding Agent](https://github.com/earendil-works/pi/tree/main/packages/coding-agent) 的桌面与终端客户端，支持多会话、工具、Skills、MCP、自动化和会话级权限。
 
+产品介绍与界面预览：[Pisper 项目主页](https://ling-kong-ran.github.io/pisper/)。
+
 ### 三步上手
 
 1. [下载桌面版](https://github.com/ling-kong-ran/pisper/releases/latest)（Windows / macOS / Linux）
 2. 配置任意一个模型 Provider 与 API Key
 3. 新建会话，开始并行工作
-
-<a id="preview"></a>
-
-## 界面
-
-<p align="center">
-  <a href="https://ling-kong-ran.github.io/pisper/"><img src="./docs/shots/pisper-demo.gif" alt="Pisper 桌面端与 TUI 产品演示" /></a>
-  <br /><sub>多会话、资产、渠道、星忆、MCP、工作流、设置与终端客户端</sub>
-</p>
 
 <a id="features"></a>
 

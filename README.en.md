@@ -50,7 +50,7 @@ Thanks to <a href="https://matrix.000328.xyz/sign-up?aff=ZPeH">Matrix</a> for su
 
 <p align="center">
   <a href="#overview">Overview</a> ·
-  <a href="#preview">Interface</a> ·
+  <a href="https://ling-kong-ran.github.io/pisper/">Project Site</a> ·
   <a href="#features">Features</a> ·
   <a href="#data-safety">Data Safety</a> ·
   <a href="#desktop-pet">Desktop Pet</a> ·
@@ -69,20 +69,13 @@ Thanks to <a href="https://matrix.000328.xyz/sign-up?aff=ZPeH">Matrix</a> for su
 
 Pisper is a desktop and terminal client built on [Pi Coding Agent](https://github.com/earendil-works/pi/tree/main/packages/coding-agent), with multiple sessions, Tools, Skills, MCP, automation, and per-session permissions.
 
+See the [Pisper project site](https://ling-kong-ran.github.io/pisper/) for the product overview and interface preview.
+
 ### Get Started in Three Steps
 
 1. [Download the desktop app](https://github.com/ling-kong-ran/pisper/releases/latest) (Windows / macOS / Linux, no Node.js required)
 2. Configure any model provider with an API key
 3. Create a session and start working in parallel
-
-<a id="preview"></a>
-
-## Interface
-
-<p align="center">
-  <a href="https://ling-kong-ran.github.io/pisper/"><img src="./docs/shots/pisper-demo.gif" alt="Pisper desktop and TUI product tour" /></a>
-  <br /><sub>Sessions, assets, channels, memory, MCP, workflows, settings, and the terminal client</sub>
-</p>
 
 <a id="features"></a>
 
