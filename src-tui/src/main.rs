@@ -91,6 +91,7 @@ Examples:
 const UPDATE_HELP: &str = "Pisper component updates
 
 Check for or install independently signed TUI, Runtime, and optional Web updates.
+Interactive session starts also check TUI and Runtime once and ask before installing.
 
 Usage:
   pisper update [COMPONENT] [--check]
@@ -152,6 +153,9 @@ async fn run() -> Result<()> {
     }
     if sidecar::needs_runtime_install() {
         component_update::ensure_runtime().await?;
+    }
+    if !options.doctor && !options.web {
+        component_update::offer_startup_updates().await;
     }
     let mut sidecar = match SidecarConnection::start(&options.workspace) {
         Ok(sidecar) => sidecar,
@@ -1183,6 +1187,7 @@ mod tests {
         );
         assert!(CLI_HELP.contains("pisper web"));
         assert!(CLI_HELP.contains("/apikey"));
+        assert!(UPDATE_HELP.contains("ask before installing"));
         assert!(UPDATE_HELP.contains("web"));
     }
 

@@ -1,10 +1,15 @@
-use std::{ffi::OsString, fs, path::Path};
+use std::{
+    ffi::OsString,
+    fs,
+    io::{self, BufRead, IsTerminal, Write},
+    path::Path,
+};
 
 #[cfg(windows)]
 use std::process::{Command, Stdio};
 
 use anyhow::{bail, Context, Result};
-use pisper_component_updater::{Component, ComponentUpdater, InstalledComponent};
+use pisper_component_updater::{Component, ComponentUpdater, InstalledComponent, ReleaseInfo};
 use semver::Version;
 
 use crate::sidecar::{bundled_runtime_version, components_root};
@@ -60,6 +65,95 @@ pub async fn execute(request: UpdateRequest) -> Result<()> {
         update_component(&updater, component, request.check_only).await?;
     }
     Ok(())
+}
+
+pub async fn offer_startup_updates() {
+    if !io::stdin().is_terminal() || !io::stdout().is_terminal() {
+        return;
+    }
+    if let Err(error) = try_offer_startup_updates().await {
+        eprintln!("Pisper update check failed; continuing with the installed version: {error:#}");
+    }
+}
+
+struct AvailableUpdate {
+    current: Option<Version>,
+    release: ReleaseInfo,
+}
+
+async fn try_offer_startup_updates() -> Result<()> {
+    let updater = updater()?;
+    let (runtime, tui) = tokio::join!(
+        available_update(&updater, Component::Runtime),
+        available_update(&updater, Component::Tui),
+    );
+    let updates = [runtime?, tui?].into_iter().flatten().collect::<Vec<_>>();
+    if updates.is_empty() {
+        return Ok(());
+    }
+
+    println!("Pisper updates are available:");
+    for update in &updates {
+        println!(
+            "  {:<7} {} -> {} ({:.1} MB)",
+            component_label(update.release.component),
+            update
+                .current
+                .as_ref()
+                .map(ToString::to_string)
+                .unwrap_or_else(|| "not installed".to_owned()),
+            update.release.version,
+            update.release.size as f64 / 1024.0 / 1024.0,
+        );
+    }
+    print!("Install now? [Y/n] ");
+    io::stdout()
+        .flush()
+        .context("failed to display the update confirmation")?;
+    let mut response = String::new();
+    if io::stdin()
+        .lock()
+        .read_line(&mut response)
+        .context("failed to read the update confirmation")?
+        == 0
+        || !startup_confirmation(&response)
+    {
+        println!("Continuing without updating.");
+        return Ok(());
+    }
+
+    for update in &updates {
+        install_component_update(&updater, &update.release).await?;
+    }
+    Ok(())
+}
+
+async fn available_update(
+    updater: &ComponentUpdater,
+    component: Component,
+) -> Result<Option<AvailableUpdate>> {
+    let current = current_version(updater, component);
+    let release = updater
+        .latest(component)
+        .await
+        .with_context(|| format!("failed to check {} updates", component.name()))?;
+    let latest = Version::parse(&release.version).context("release version is invalid")?;
+    if current.as_ref().is_some_and(|version| version >= &latest) {
+        return Ok(None);
+    }
+    Ok(Some(AvailableUpdate { current, release }))
+}
+
+fn component_label(component: Component) -> &'static str {
+    match component {
+        Component::Desktop => "Web",
+        Component::Tui => "TUI",
+        Component::Runtime => "Runtime",
+    }
+}
+
+fn startup_confirmation(value: &str) -> bool {
+    matches!(value.trim().to_ascii_lowercase().as_str(), "" | "y" | "yes")
 }
 
 pub async fn ensure_web() -> Result<InstalledComponent> {
@@ -147,8 +241,13 @@ async fn update_component(
     if check_only {
         return Ok(());
     }
+    install_component_update(updater, &release).await
+}
+
+async fn install_component_update(updater: &ComponentUpdater, release: &ReleaseInfo) -> Result<()> {
+    let component = release.component;
     let installed = updater
-        .install(&release)
+        .install(release)
         .await
         .with_context(|| format!("failed to install {} update", component.name()))?;
     if component == Component::Tui {
@@ -272,8 +371,17 @@ fn schedule_windows_replace(staged: &Path, current: &Path) -> Result<()> {
 
 #[cfg(test)]
 mod tests {
-    use super::{parse_update_request, UpdateRequest, UpdateSelection};
+    use super::{parse_update_request, startup_confirmation, UpdateRequest, UpdateSelection};
     use std::ffi::OsString;
+
+    #[test]
+    fn startup_update_confirmation_defaults_to_yes() {
+        assert!(startup_confirmation(""));
+        assert!(startup_confirmation("y\n"));
+        assert!(startup_confirmation("YES"));
+        assert!(!startup_confirmation("n\n"));
+        assert!(!startup_confirmation("later"));
+    }
 
     #[test]
     fn update_command_selects_components_and_check_mode() {
