@@ -80,13 +80,6 @@ export function ProviderConnections({
               </span>
             </button>
             <div className="provider-list-control">
-              <SettingsBadge tone={provider.enabled && provider.configured ? 'green' : 'gray'}>
-                {!provider.enabled
-                  ? t('config:configPage.disabled2')
-                  : provider.configured
-                    ? t('config:configPage.configured')
-                    : t('config:configPage.notAuthenticated')}
-              </SettingsBadge>
               <SettingsSwitch
                 value={provider.enabled}
                 disabled={!provider.configured || toggling === provider.id}

@@ -164,5 +164,7 @@
   "workflowsPage.workflows": "工作流",
   "workflowsPage.workflowSettings": "工作流设置",
   "workflowsPage.workflowStarted": "工作流已开始运行",
-  "workflowsPage.workingDirectory": "工作目录"
+  "workflowsPage.workingDirectory": "工作目录",
+  "previewPages.noToolsAvailable": "暂无可用工具",
+  "previewPages.noRecentCalls": "暂无调用记录"
 }

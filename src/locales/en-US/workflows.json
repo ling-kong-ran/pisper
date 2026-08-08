@@ -164,5 +164,7 @@
   "workflowsPage.workflows": "Workflows",
   "workflowsPage.workflowSettings": "Workflow settings",
   "workflowsPage.workflowStarted": "Workflow started",
-  "workflowsPage.workingDirectory": "Working directory"
+  "workflowsPage.workingDirectory": "Working directory",
+  "previewPages.noToolsAvailable": "No tools available",
+  "previewPages.noRecentCalls": "No recent calls"
 }

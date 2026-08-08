@@ -65,5 +65,8 @@
   "schedulesPage.timeZone": "时区",
   "schedulesPage.workingDirectory": "工作目录",
   "schedulesPage.youCanContinueEditingTheRunTimeAndNotificationChannelsAfterCreation": "创建后可继续编辑运行时间和通知渠道。",
-  "schedulesPage.youCanContinueSettingTheRunTimeAndNotificationChannelsAfterCreation": "创建后可继续设置运行时间和通知渠道。"
+  "schedulesPage.youCanContinueSettingTheRunTimeAndNotificationChannelsAfterCreation": "创建后可继续设置运行时间和通知渠道。",
+  "schedulesPage.notificationChannelsHelp": "选择任务完成后需要通知的渠道",
+  "schedulesPage.configured": "已配置",
+  "schedulesPage.notConfigured": "未配置"
 }

@@ -26,6 +26,7 @@ export function ModelsSettings({
   const { t } = useI18n()
   const [providerModal, setProviderModal] = useState(false)
   const [modelModal, setModelModal] = useState<'discover' | 'manual' | ''>('')
+  const [detailTab, setDetailTab] = useState<'connection' | 'models' | 'policy'>('connection')
   const settings = useConfigSettings({ notify, requestConfirm, t })
   const discovery = useProviderDiscovery({
     requestConfirm,
@@ -69,41 +70,71 @@ export function ModelsSettings({
           onToggle={settings.toggleProvider}
         />
         <div className="detail-stack">
-          <CredentialSettings
-            provider={selectedProvider}
-            draft={draft}
-            toggling={settings.toggling}
-            apiKeyInputRef={settings.apiKeyInputRef}
-            onPatchDraft={settings.patchDraft}
-            onSelectProviderType={settings.selectProviderType}
-            onToggleProvider={settings.toggleProvider}
-            onDeleteProvider={settings.deleteProvider}
-          >
-            <ProviderModelCatalog
+          <div className="config-tabs">
+            <button
+              type="button"
+              className={detailTab === 'connection' ? 'active' : ''}
+              onClick={() => setDetailTab('connection')}
+            >
+              {t('config:configPage.connection')}
+            </button>
+            <button
+              type="button"
+              className={detailTab === 'models' ? 'active' : ''}
+              onClick={() => setDetailTab('models')}
+            >
+              {t('config:configPage.models')}
+            </button>
+            <button
+              type="button"
+              className={detailTab === 'policy' ? 'active' : ''}
+              onClick={() => setDetailTab('policy')}
+            >
+              {t('config:configPage.policy')}
+            </button>
+          </div>
+          {detailTab === 'connection' && (
+            <CredentialSettings
               provider={selectedProvider}
               draft={draft}
+              toggling={settings.toggling}
+              apiKeyInputRef={settings.apiKeyInputRef}
               onPatchDraft={settings.patchDraft}
-              onSelectModel={settings.selectModel}
-              onOpenModelDialog={setModelModal}
+              onSelectProviderType={settings.selectProviderType}
+              onToggleProvider={settings.toggleProvider}
+              onDeleteProvider={settings.deleteProvider}
             />
-          </CredentialSettings>
-          <div className="config-bottom">
-            <RuntimePolicySettings draft={draft} onPatchDraft={settings.patchDraft} />
-            <RuntimeStatus
-              provider={selectedProvider}
-              visualOnly={visualOnly}
-              codexOAuth={codexOAuth}
-              saving={settings.saving}
-              dirty={settings.dirty}
-              error={settings.error || discovery.operationError}
-              hasModel={Boolean(draft.model)}
-              isDefault={
-                (config.defaultProvider || config.provider) === selectedProvider.id &&
-                (config.defaultModel || config.model) === draft.model
-              }
-              onSave={settings.save}
-            />
-          </div>
+          )}
+          {detailTab === 'models' && (
+            <SettingsCard>
+              <ProviderModelCatalog
+                provider={selectedProvider}
+                draft={draft}
+                onPatchDraft={settings.patchDraft}
+                onSelectModel={settings.selectModel}
+                onOpenModelDialog={setModelModal}
+              />
+            </SettingsCard>
+          )}
+          {detailTab === 'policy' && (
+            <div className="config-bottom">
+              <RuntimePolicySettings draft={draft} onPatchDraft={settings.patchDraft} />
+              <RuntimeStatus
+                provider={selectedProvider}
+                visualOnly={visualOnly}
+                codexOAuth={codexOAuth}
+                saving={settings.saving}
+                dirty={settings.dirty}
+                error={settings.error || discovery.operationError}
+                hasModel={Boolean(draft.model)}
+                isDefault={
+                  (config.defaultProvider || config.provider) === selectedProvider.id &&
+                  (config.defaultModel || config.model) === draft.model
+                }
+                onSave={settings.save}
+              />
+            </div>
+          )}
         </div>
       </div>
       {providerModal && (

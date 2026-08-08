@@ -15,6 +15,7 @@ import {
   X,
 } from 'lucide-react'
 import MarkdownMessage from '@/components/MarkdownMessage'
+import { CliSettings } from './CliSettings'
 import {
   SettingsBadge as Badge,
   SettingsCard as Panel,
@@ -366,84 +367,84 @@ export function UpdateSettings({
             </button>
           )}
         </div>
-        {desktop && (
-          <div className="mt-6 border-t border-[var(--border)] pt-5">
-            <SectionTitle title={t('config:updateSettings.appComponents')} />
-            <div className="mt-3 divide-y divide-[var(--border)]">
-              {componentItems.map((component) => {
-                const Icon =
-                  component.component === 'desktop'
-                    ? Laptop
-                    : component.component === 'tui'
-                      ? SquareTerminal
-                      : Cpu
-                const label =
-                  component.component === 'desktop'
-                    ? t('config:updateSettings.desktopFrontend')
-                    : component.component === 'tui'
-                      ? t('config:updateSettings.tuiClient')
-                      : t('config:updateSettings.runtime')
-                const tone =
-                  component.state === 'error'
-                    ? 'red'
+        <div className="mt-6 border-t border-[var(--border)] pt-5">
+          <SectionTitle title={t('config:updateSettings.appComponents')} />
+          <div className="mt-3 divide-y divide-[var(--border)]">
+            {componentItems.map((component) => {
+              const Icon =
+                component.component === 'desktop'
+                  ? Laptop
+                  : component.component === 'tui'
+                    ? SquareTerminal
+                    : Cpu
+              const label =
+                component.component === 'desktop'
+                  ? t('config:updateSettings.desktopFrontend')
+                  : component.component === 'tui'
+                    ? t('config:updateSettings.tuiClient')
+                    : t('config:updateSettings.runtime')
+              const tone =
+                component.state === 'error'
+                  ? 'red'
+                  : component.state === 'available'
+                    ? 'blue'
+                    : component.state === 'installed' || component.state === 'current'
+                      ? 'green'
+                      : 'gray'
+              const stateLabel =
+                component.state === 'checking'
+                  ? t('config:updateSettings.checking')
+                  : component.state === 'downloading'
+                    ? t('config:updateSettings.downloading')
                     : component.state === 'available'
-                      ? 'blue'
-                      : component.state === 'installed' || component.state === 'current'
-                        ? 'green'
-                        : 'gray'
-                const stateLabel =
-                  component.state === 'checking'
-                    ? t('config:updateSettings.checking')
-                    : component.state === 'downloading'
-                      ? t('config:updateSettings.downloading')
-                      : component.state === 'available'
-                        ? t('config:updateSettings.updateAvailable')
-                        : component.state === 'installed'
-                          ? t('config:updateSettings.installed')
-                          : component.state === 'error'
-                            ? t('config:updateSettings.checkFailed')
-                            : component.state === 'current'
-                              ? t('config:updateSettings.upToDate')
-                              : t('config:updateSettings.notChecked')
-                return (
-                  <div
-                    className="grid min-h-[68px] items-center gap-3 py-3 sm:grid-cols-[minmax(0,1fr)_auto_auto]"
-                    key={component.component}
-                  >
-                    <div className="flex min-w-0 items-center gap-3">
-                      <Icon className="shrink-0 text-[var(--text-muted)]" size={17} />
-                      <div className="min-w-0">
-                        <strong className="block text-[14px]">{label}</strong>
-                        {component.message && (
-                          <small className="mt-0.5 block text-[12px] text-[var(--text-muted)]">
-                            {component.message}
-                          </small>
-                        )}
-                      </div>
-                    </div>
-                    <div className="flex items-center gap-2 font-mono text-[12px]">
-                      <span>v{component.currentVersion}</span>
-                      {component.availableVersion &&
-                        component.availableVersion !== component.currentVersion && (
-                          <>
-                            <ArrowRight size={12} />
-                            <span>v{component.availableVersion}</span>
-                          </>
-                        )}
-                      {component.size > 0 && component.state === 'available' && (
-                        <span className="font-sans text-[var(--text-muted)]">
-                          {formatBytes(component.size, language)}
-                        </span>
+                      ? t('config:updateSettings.updateAvailable')
+                      : component.state === 'installed'
+                        ? t('config:updateSettings.installed')
+                        : component.state === 'error'
+                          ? t('config:updateSettings.checkFailed')
+                          : component.state === 'current'
+                            ? t('config:updateSettings.upToDate')
+                            : t('config:updateSettings.notChecked')
+              return (
+                <div
+                  className="grid min-h-[68px] items-center gap-3 py-3 sm:grid-cols-[minmax(0,1fr)_auto_auto]"
+                  key={component.component}
+                >
+                  <div className="flex min-w-0 items-center gap-3">
+                    <Icon className="shrink-0 text-[var(--text-muted)]" size={17} />
+                    <div className="min-w-0">
+                      <strong className="block text-[14px]">{label}</strong>
+                      {component.message && (
+                        <small className="mt-0.5 block text-[12px] text-[var(--text-muted)]">
+                          {component.message}
+                        </small>
                       )}
                     </div>
-                    <Badge tone={tone}>{stateLabel}</Badge>
                   </div>
-                )
-              })}
-            </div>
+                  <div className="flex items-center gap-2 font-mono text-[12px]">
+                    <span>v{component.currentVersion}</span>
+                    {component.availableVersion &&
+                      component.availableVersion !== component.currentVersion && (
+                        <>
+                          <ArrowRight size={12} />
+                          <span>v{component.availableVersion}</span>
+                        </>
+                      )}
+                    {component.size > 0 && component.state === 'available' && (
+                      <span className="font-sans text-[var(--text-muted)]">
+                        {formatBytes(component.size, language)}
+                      </span>
+                    )}
+                  </div>
+                  <Badge tone={tone}>{stateLabel}</Badge>
+                </div>
+              )
+            })}
           </div>
-        )}
+        </div>
       </Panel>
+
+      <CliSettings notify={notify} />
 
       <Panel className="p-5">
         <div className="flex items-center justify-between gap-3">

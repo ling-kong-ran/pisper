@@ -13,7 +13,6 @@ import {
   Save,
   Search,
   Server,
-  ShieldCheck,
 } from 'lucide-react'
 import {
   AppCard as Panel,
@@ -34,6 +33,7 @@ import {
   toolName,
   toolRiskLabel,
   toolScopeLabel,
+  isHighRisk,
 } from './tool-labels'
 import type { LucideIcon } from 'lucide-react'
 import type { Notify } from '@/app/route-context'
@@ -66,25 +66,13 @@ type PluginsPageProps = {
   onStatusChange: (status: { enabled: number; total: number }) => void
 }
 
-type PluginFilter =
-  'all' | 'fileSystem' | 'search' | 'terminal' | 'visual' | 'highRisk' | 'disabled'
-const FILTERS: PluginFilter[] = [
-  'all',
-  'fileSystem',
-  'search',
-  'terminal',
-  'visual',
-  'highRisk',
-  'disabled',
-]
+type PluginFilter = 'all' | 'fileSystem' | 'search' | 'terminal'
+const FILTERS: PluginFilter[] = ['all', 'fileSystem', 'search', 'terminal']
 
 function pluginFilterLabel(filter: PluginFilter, t: ReturnType<typeof useI18n>['t']) {
   if (filter === 'fileSystem') return t('plugins:toolLabels.fileSystem')
   if (filter === 'search') return t('plugins:toolLabels.search')
   if (filter === 'terminal') return t('plugins:toolLabels.terminal')
-  if (filter === 'visual') return t('plugins:toolLabels.visual')
-  if (filter === 'highRisk') return t('plugins:toolLabels.highRisk')
-  if (filter === 'disabled') return t('plugins:pluginsPage.disabled')
   return t('plugins:pluginsPage.all')
 }
 const PRESETS: Record<string, string[]> = {
@@ -158,6 +146,7 @@ export function PluginsPage({
   const [draft, setDraft] = useState<PluginTool[]>([])
   const [selectedId, setSelectedId] = useState('read')
   const [tab, setTab] = useState<PluginFilter>('all')
+  const [statusFilter, setStatusFilter] = useState<'all' | 'highRisk' | 'disabled'>('all')
   const [saving, setSaving] = useState(false)
   const [testingSearch, setTestingSearch] = useState(false)
   const [webSearch, setWebSearch] = useState({
@@ -256,13 +245,12 @@ export function PluginsPage({
     draft[0] ||
     ({ id: '', enabled: false, risk: '', category: '', description: '' } as PluginTool)
   const filtered = draft.filter((tool) => {
-    if (tab === 'highRisk' && tool.risk !== 'high' && tool.risk !== '高风险') return false
-    if (tab === 'disabled' && tool.enabled) return false
+    if (statusFilter === 'highRisk' && !isHighRisk(tool.risk)) return false
+    if (statusFilter === 'disabled' && tool.enabled) return false
     const categoryByFilter: Partial<Record<PluginFilter, string[]>> = {
       fileSystem: ['filesystem', '文件系统'],
       search: ['search', '搜索'],
       terminal: ['terminal', '终端'],
-      visual: ['visual', '视觉'],
     }
     if (categoryByFilter[tab] && !categoryByFilter[tab]?.includes(tool.category)) return false
     return `${toolName(tool, t)} ${tool.id} ${toolDescription(tool, t)}`
@@ -273,9 +261,6 @@ export function PluginsPage({
     const tools = PRESETS[preset]
     setDraft((current) => current.map((tool) => ({ ...tool, enabled: tools.includes(tool.id) })))
   }
-  const enabledHighRisk = draft.filter(
-    (tool) => tool.enabled && (tool.risk === 'high' || tool.risk === '高风险'),
-  )
 
   return (
     <div className="plugins-page">
@@ -315,7 +300,31 @@ export function PluginsPage({
             <SectionTitle
               title={`${t('plugins:pluginsPage.toolPlugins')} · ${draft.filter((tool) => tool.enabled).length}/${draft.length}`}
             />
-            {dirty && <Badge tone="amber">{t('plugins:pluginsPage.unsaved')}</Badge>}
+            <div className="plugin-status-filters">
+              <button
+                type="button"
+                className={statusFilter === 'highRisk' ? 'active danger' : ''}
+                onClick={() =>
+                  setStatusFilter((current) => (current === 'highRisk' ? 'all' : 'highRisk'))
+                }
+              >
+                <AlertTriangle size={12} />
+                {t('plugins:toolLabels.highRisk')}
+                <strong>{draft.filter((tool) => isHighRisk(tool.risk)).length}</strong>
+              </button>
+              <button
+                type="button"
+                className={statusFilter === 'disabled' ? 'active' : ''}
+                onClick={() =>
+                  setStatusFilter((current) => (current === 'disabled' ? 'all' : 'disabled'))
+                }
+              >
+                <CircleDot size={12} />
+                {t('plugins:pluginsPage.disabled')}
+                <strong>{draft.filter((tool) => !tool.enabled).length}</strong>
+              </button>
+              {dirty && <Badge tone="amber">{t('plugins:pluginsPage.unsaved')}</Badge>}
+            </div>
           </div>
           {filtered.length ? (
             filtered.map((tool) => {
@@ -347,11 +356,6 @@ export function PluginsPage({
                       <small>{toolDescription(tool, t)}</small>
                     </span>
                   </button>
-                  <em>
-                    {tool.enabled
-                      ? t('plugins:pluginsPage.enabled')
-                      : t('plugins:pluginsPage.disable')}
-                  </em>
                   <Toggle
                     value={tool.enabled}
                     onChange={(enabled) =>
@@ -480,10 +484,6 @@ export function PluginsPage({
               [t('plugins:pluginsPage.riskLevel'), toolRiskLabel(selected.risk, t)],
               [t('plugins:pluginsPage.pathScope'), toolScopeLabel(selected, t)],
               [t('plugins:pluginsPage.capabilities'), toolCapabilityLabel(selected, t)],
-              [
-                t('plugins:pluginsPage.takesEffect'),
-                t('plugins:pluginsPage.onTheNextAgentRequestAfterSaving'),
-              ],
             ].map((row) => (
               <div className="key-value" key={row[0]}>
                 <span>{row[0]}</span>
@@ -506,6 +506,9 @@ export function PluginsPage({
                 ? t('plugins:pluginsPage.disableThisTool')
                 : t('plugins:pluginsPage.enableThisTool')}
             </button>
+            <p className="muted-copy">
+              {t('plugins:pluginsPage.onTheNextAgentRequestAfterSaving')}
+            </p>
           </Panel>
           <Panel>
             <SectionTitle title={t('plugins:pluginsPage.recentChanges')} />
@@ -530,25 +533,6 @@ export function PluginsPage({
               </div>
             )}
           </Panel>
-          <div className={`security-summary ${enabledHighRisk.length ? 'warning' : ''}`}>
-            <ShieldCheck size={18} />
-            <div>
-              <strong>{t('plugins:pluginsPage.securitySummary')}</strong>
-              <p>
-                {enabledHighRisk.length
-                  ? t(
-                      'plugins:pluginsPage.highRiskToolsEnabledFullAccessUsesCurrentUserPermissions',
-                      {
-                        count: enabledHighRisk.length,
-                        tools: enabledHighRisk
-                          .map((tool) => toolName(tool, t))
-                          .join(language === 'en-US' ? ', ' : '、'),
-                      },
-                    )
-                  : t('plugins:pluginsPage.noHighRiskToolsAreEnabledTheAgentCanOnlyReadAndSearch')}
-              </p>
-            </div>
-          </div>
         </div>
       </div>
       <button className="floating-save" disabled={!dirty || saving} onClick={save}>

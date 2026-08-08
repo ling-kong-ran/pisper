@@ -402,22 +402,25 @@ export function SchedulesPage({
           <SectionTitle title={t('schedules:schedulesPage.taskQueue')} />
           {data.tasks.length ? (
             data.tasks.map((task) => (
-              <button
-                className={`selection-item ${selectedId === task.id ? 'active' : ''}`}
-                onClick={() => setSelectedId(task.id)}
+              <div
+                className={`schedule-list-item ${selectedId === task.id ? 'active' : ''}`}
                 key={task.id}
               >
-                <div>
-                  <strong>{task.name}</strong>
-                  <Badge tone={task.enabled ? 'green' : 'gray'}>
-                    {task.enabled
-                      ? t('schedules:schedulesPage.enabled')
-                      : t('schedules:schedulesPage.pause')}
-                  </Badge>
-                </div>
-                <p>{task.prompt}</p>
-                <small>{nextRunLabel(task, language)}</small>
-              </button>
+                <button onClick={() => setSelectedId(task.id)}>
+                  <span>
+                    <div className="schedule-item-head">
+                      <strong>{task.name}</strong>
+                      <Badge tone={task.enabled ? 'green' : 'gray'}>
+                        {task.enabled
+                          ? t('schedules:schedulesPage.enabled')
+                          : t('schedules:schedulesPage.pause')}
+                      </Badge>
+                    </div>
+                    <small>{task.prompt}</small>
+                  </span>
+                  <em>{nextRunLabel(task, language)}</em>
+                </button>
+              </div>
             ))
           ) : (
             <div className="channel-route-empty">
@@ -549,40 +552,56 @@ export function SchedulesPage({
                   onChange={(executionMode) => updateDraft({ executionMode })}
                 />
               </div>
-              <div className="tag-field">
-                <span>{t('schedules:schedulesPage.notificationChannels')}</span>
-                {(
-                  Object.entries(TARGETS) as Array<
-                    [NotificationTarget, (typeof TARGETS)[NotificationTarget]]
-                  >
-                ).map(([id, target]) => {
-                  const Icon = target.Icon
-                  return (
-                    <button
-                      type="button"
-                      className={`schedule-notification-chip ${draft.notifications.includes(id) ? 'selected' : ''}`}
-                      onClick={() => toggleNotification(id)}
-                      key={id}
+              <div className="schedule-notification-section">
+                <div>
+                  <strong>{t('schedules:schedulesPage.notificationChannels')}</strong>
+                  <button type="button" className="text-button" onClick={openNotificationSettings}>
+                    {t('schedules:schedulesPage.editTemplates')}
+                  </button>
+                </div>
+                <p>{t('schedules:schedulesPage.notificationChannelsHelp')}</p>
+                <div className="schedule-notification-targets">
+                  {(
+                    Object.entries(TARGETS) as Array<
+                      [NotificationTarget, (typeof TARGETS)[NotificationTarget]]
                     >
-                      <Icon size={12} />
-                      {notificationTargetLabel(id, t)}
-                    </button>
-                  )
-                })}
-                <button
-                  type="button"
-                  className={`schedule-notification-chip ${draft.notifyOn === 'failure' ? 'selected' : ''}`}
-                  onClick={() =>
-                    updateDraft({ notifyOn: draft.notifyOn === 'failure' ? 'always' : 'failure' })
-                  }
-                >
-                  {draft.notifyOn === 'failure'
-                    ? t('schedules:schedulesPage.failuresOnly')
-                    : t('schedules:schedulesPage.completionAndFailure')}
-                </button>
-                <button type="button" className="text-button" onClick={openNotificationSettings}>
-                  {t('schedules:schedulesPage.editTemplates')}
-                </button>
+                  ).map(([id, target]) => {
+                    const Icon = target.Icon
+                    const selected = draft.notifications.includes(id)
+                    return (
+                      <button
+                        type="button"
+                        className={selected ? 'selected' : ''}
+                        onClick={() => toggleNotification(id)}
+                        key={id}
+                      >
+                        <Icon size={15} />
+                        <span>
+                          <strong>{notificationTargetLabel(id, t)}</strong>
+                          <small>
+                            {data.notificationTargets[id].enabled
+                              ? t('schedules:schedulesPage.configured')
+                              : t('schedules:schedulesPage.notConfigured')}
+                          </small>
+                        </span>
+                        <CheckCircle2 size={15} />
+                      </button>
+                    )
+                  })}
+                </div>
+                <div className="schedule-notify-mode">
+                  <button
+                    type="button"
+                    className={`schedule-notification-chip ${draft.notifyOn === 'failure' ? 'selected' : ''}`}
+                    onClick={() =>
+                      updateDraft({ notifyOn: draft.notifyOn === 'failure' ? 'always' : 'failure' })
+                    }
+                  >
+                    {draft.notifyOn === 'failure'
+                      ? t('schedules:schedulesPage.failuresOnly')
+                      : t('schedules:schedulesPage.completionAndFailure')}
+                  </button>
+                </div>
               </div>
               <div className="form-footer">
                 <span>
@@ -610,7 +629,7 @@ export function SchedulesPage({
               <SectionTitle title={t('schedules:schedulesPage.recentRuns')} />
               {runs.length ? (
                 runs.map((item) => (
-                  <div className={`activity-row ${item.status}`} key={item.id}>
+                  <div className={`schedule-run-row ${item.status}`} key={item.id}>
                     {item.status === 'running' ? (
                       <RefreshCw className="spin" size={15} />
                     ) : item.status === 'completed' ? (
@@ -636,6 +655,12 @@ export function SchedulesPage({
                           : ''}
                       </small>
                     </span>
+                    <em>
+                      {new Intl.DateTimeFormat(language, {
+                        hour: '2-digit',
+                        minute: '2-digit',
+                      }).format(new Date(item.startedAt))}
+                    </em>
                   </div>
                 ))
               ) : (

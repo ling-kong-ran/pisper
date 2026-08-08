@@ -318,5 +318,9 @@
   "updateSettings.hideSponsor": "Hide this sponsor for 30 days",
   "updateSettings.viewRelease": "View release",
   "updateSettings.viewSourceUpdates": "View source updates",
-  "updateSettings.viewUpdateDiagnosticLog": "View update diagnostic log"
+  "updateSettings.viewUpdateDiagnosticLog": "View update diagnostic log",
+  "configPage.connection": "Connection",
+  "configPage.policy": "Policy",
+  "configPage.authentication": "Authentication",
+  "configPage.endpoint": "Endpoint"
 }

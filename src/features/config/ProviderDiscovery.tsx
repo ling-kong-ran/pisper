@@ -1,4 +1,5 @@
-import { AlertTriangle, Bot, Brain, Download, RefreshCw, Server } from 'lucide-react'
+import { useState } from 'react'
+import { AlertTriangle, Bot, Brain, ChevronDown, Download, RefreshCw, Server } from 'lucide-react'
 import { useI18n } from '@/app/use-i18n'
 import { SettingsBadge, SettingsCard } from './settings-primitives'
 import type { DiscoveredProvider, DiscoveryData, DiscoveryError, Translate } from './config-types'
@@ -47,8 +48,15 @@ export function ProviderDiscovery({
   onImport,
 }: ProviderDiscoveryProps) {
   const { t } = useI18n()
+  const [collapsed, setCollapsed] = useState(false)
   const providers = discovery.providers || []
   const errors = discovery.errors || []
+  const hasImportable = providers.some(
+    (provider) => provider.importable && !provider.imported && !provider.conflict,
+  )
+  if (!hasImportable && !discovering) return null
+  const hasContent = providers.length > 0 || errors.length > 0 || Boolean(error)
+  const isCollapsed = collapsed || (!hasContent && !discovering)
   const errorLabel = (item: DiscoveryError) =>
     ['invalid_json', 'invalid_toml'].includes(item.code)
       ? t('config:configPage.invalidConfigurationFileFormat')
@@ -61,17 +69,28 @@ export function ProviderDiscovery({
   return (
     <SettingsCard className="provider-discovery-panel">
       <div className="provider-discovery-head">
-        <span className="language-settings-icon">
-          <Server size={18} />
-        </span>
-        <span>
-          <strong>{t('config:configPage.localProviderConfiguration')}</strong>
-          <small>
-            {t(
-              'config:configPage.readProviderEndpointModelAndAuthenticationFieldsFromCodexConfigTomlAndClaudeSettingsJson',
-            )}
-          </small>
-        </span>
+        <button
+          type="button"
+          className="provider-discovery-toggle"
+          aria-expanded={!isCollapsed}
+          onClick={() => setCollapsed((current) => !current)}
+        >
+          <span className="language-settings-icon">
+            <Server size={18} />
+          </span>
+          <span>
+            <strong>{t('config:configPage.localProviderConfiguration')}</strong>
+            <small>
+              {t(
+                'config:configPage.readProviderEndpointModelAndAuthenticationFieldsFromCodexConfigTomlAndClaudeSettingsJson',
+              )}
+            </small>
+          </span>
+          <ChevronDown
+            size={15}
+            className={`provider-discovery-caret ${isCollapsed ? '' : 'open'}`}
+          />
+        </button>
         <button
           type="button"
           className="button secondary tiny"
@@ -82,102 +101,104 @@ export function ProviderDiscovery({
           {t('config:configPage.rescan')}
         </button>
       </div>
-      {discovering && !providers.length ? (
-        <div className="provider-discovery-empty">
-          <RefreshCw className="spin" size={15} />
-          {t('config:configPage.scanningProviderConfigurationFiles')}
-        </div>
-      ) : providers.length ? (
-        <div className="provider-discovery-list">
-          {providers.map((provider) => {
-            const source = discoverySourceLabel(provider)
-            const busy = importing === provider.id
-            const Icon = provider.source === 'claude-config' ? Brain : Bot
-            const modelSummary = provider.models?.length
-              ? provider.models.map((model) => model.id).join(', ')
-              : t('config:configPage.noModelSpecified')
-            return (
-              <div
-                className={`provider-discovery-card ${provider.imported ? 'configured' : ''}`}
-                key={provider.id}
-              >
-                <span className={`provider-discovery-icon source-${provider.source}`}>
-                  <Icon size={17} />
-                </span>
-                <span className="provider-discovery-copy">
-                  <strong>
-                    {source} · {provider.providerName}
-                  </strong>
-                  <small>
-                    {provider.api} · {modelSummary}
-                  </small>
-                  <small>
-                    {provider.baseUrl || t('config:configPage.noBaseURLSpecified')} ·{' '}
-                    {discoveryAuthLabel(provider, t)} · {provider.location}
-                  </small>
-                </span>
-                <span className="provider-discovery-actions">
-                  {provider.imported ? (
-                    <SettingsBadge tone="green">{t('config:configPage.loaded')}</SettingsBadge>
-                  ) : provider.conflict ? (
-                    <SettingsBadge tone="amber">
-                      {t('config:configPage.conflictDetected')}
-                    </SettingsBadge>
-                  ) : provider.importable ? (
-                    <button
-                      type="button"
-                      className="button primary tiny"
-                      disabled={busy || Boolean(importing)}
-                      onClick={() => onImport(provider)}
-                    >
-                      {busy ? <RefreshCw className="spin" size={12} /> : <Download size={12} />}
-                      {busy
-                        ? t('config:configPage.loading')
-                        : t('config:configPage.loadConfiguration')}
-                    </button>
-                  ) : (
-                    <SettingsBadge tone="gray">{t('config:configPage.cannotLoad')}</SettingsBadge>
-                  )}
-                </span>
-              </div>
-            )
-          })}
-        </div>
-      ) : (
-        <div className="provider-discovery-empty">
-          <Server size={15} />
-          {t('config:configPage.noImportableCodexOrClaudeProviderConfigurationWasDetected')}
-        </div>
-      )}
-      {(error ||
-        errors.length > 0 ||
-        providers.some((provider) =>
-          provider.warnings?.some((warning) => warning.code !== 'login_auth_not_imported'),
-        )) && (
-        <div className="provider-discovery-errors" aria-live="polite">
-          {error && (
-            <span>
-              <AlertTriangle size={13} />
-              {error}
-            </span>
+      {!isCollapsed && (
+        <>
+          {discovering && !providers.length ? (
+            <div className="provider-discovery-empty">
+              <RefreshCw className="spin" size={15} />
+              {t('config:configPage.scanningProviderConfigurationFiles')}
+            </div>
+          ) : providers.length ? (
+            <div className="provider-discovery-list">
+              {providers.map((provider) => {
+                const source = discoverySourceLabel(provider)
+                const busy = importing === provider.id
+                const Icon = provider.source === 'claude-config' ? Brain : Bot
+                const modelSummary = provider.models?.length
+                  ? provider.models.map((model) => model.id).join(', ')
+                  : t('config:configPage.noModelSpecified')
+                return (
+                  <div
+                    className={`provider-discovery-card ${provider.imported || provider.conflict ? 'configured' : ''}`}
+                    key={provider.id}
+                  >
+                    <span className={`provider-discovery-icon source-${provider.source}`}>
+                      <Icon size={17} />
+                    </span>
+                    <span className="provider-discovery-copy">
+                      <strong>
+                        {source} · {provider.providerName}
+                      </strong>
+                      <small>
+                        {provider.api} · {modelSummary}
+                      </small>
+                      <small>
+                        {provider.baseUrl || t('config:configPage.noBaseURLSpecified')} ·{' '}
+                        {discoveryAuthLabel(provider, t)} · {provider.location}
+                      </small>
+                    </span>
+                    <span className="provider-discovery-actions">
+                      {provider.imported || provider.conflict ? (
+                        <SettingsBadge tone="green">{t('config:configPage.loaded')}</SettingsBadge>
+                      ) : provider.importable ? (
+                        <button
+                          type="button"
+                          className="button primary tiny"
+                          disabled={busy || Boolean(importing)}
+                          onClick={() => onImport(provider)}
+                        >
+                          {busy ? <RefreshCw className="spin" size={12} /> : <Download size={12} />}
+                          {busy
+                            ? t('config:configPage.loading')
+                            : t('config:configPage.loadConfiguration')}
+                        </button>
+                      ) : (
+                        <SettingsBadge tone="gray">
+                          {t('config:configPage.cannotLoad')}
+                        </SettingsBadge>
+                      )}
+                    </span>
+                  </div>
+                )
+              })}
+            </div>
+          ) : (
+            <div className="provider-discovery-empty">
+              <Server size={15} />
+              {t('config:configPage.noImportableCodexOrClaudeProviderConfigurationWasDetected')}
+            </div>
           )}
-          {errors.map((item, index) => (
-            <span key={`${item.source}-${item.code}-${index}`}>
-              <AlertTriangle size={13} />
-              {discoverySourceLabel(item)} · {errorLabel(item)}
-            </span>
-          ))}
-          {providers.flatMap((provider) =>
-            (provider.warnings || [])
-              .filter((warning) => warning.code !== 'login_auth_not_imported')
-              .map((warning, index) => (
-                <span key={`${provider.id}-${warning.code}-${index}`}>
+          {(error ||
+            errors.length > 0 ||
+            providers.some((provider) =>
+              provider.warnings?.some((warning) => warning.code !== 'login_auth_not_imported'),
+            )) && (
+            <div className="provider-discovery-errors" aria-live="polite">
+              {error && (
+                <span>
                   <AlertTriangle size={13} />
-                  {discoverySourceLabel(provider)} · {discoveryWarningLabel(warning.code, t)}
+                  {error}
                 </span>
-              )),
+              )}
+              {errors.map((item, index) => (
+                <span key={`${item.source}-${item.code}-${index}`}>
+                  <AlertTriangle size={13} />
+                  {discoverySourceLabel(item)} · {errorLabel(item)}
+                </span>
+              ))}
+              {providers.flatMap((provider) =>
+                (provider.warnings || [])
+                  .filter((warning) => warning.code !== 'login_auth_not_imported')
+                  .map((warning, index) => (
+                    <span key={`${provider.id}-${warning.code}-${index}`}>
+                      <AlertTriangle size={13} />
+                      {discoverySourceLabel(provider)} · {discoveryWarningLabel(warning.code, t)}
+                    </span>
+                  )),
+              )}
+            </div>
           )}
-        </div>
+        </>
       )}
     </SettingsCard>
   )

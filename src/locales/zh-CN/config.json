@@ -318,5 +318,9 @@
   "updateSettings.hideSponsor": "隐藏此赞助商 30 天",
   "updateSettings.viewRelease": "查看新版本",
   "updateSettings.viewSourceUpdates": "查看代码更新",
-  "updateSettings.viewUpdateDiagnosticLog": "查看更新诊断日志"
+  "updateSettings.viewUpdateDiagnosticLog": "查看更新诊断日志",
+  "configPage.connection": "连接",
+  "configPage.policy": "策略",
+  "configPage.authentication": "认证",
+  "configPage.endpoint": "端点"
 }

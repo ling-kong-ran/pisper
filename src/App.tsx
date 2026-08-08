@@ -254,6 +254,39 @@ function App() {
     navigate('config')
   }, [navigate])
 
+  const providerScanStarted = useRef(false)
+  useEffect(() => {
+    if (!startupReady || providerScanStarted.current) return
+    providerScanStarted.current = true
+    void (async () => {
+      try {
+        const data = await apiJson<{
+          providers?: Array<{
+            importable?: boolean
+            imported?: boolean
+            conflict?: boolean
+          }>
+        }>('/api/providers/discovery')
+        const count = (data.providers || []).filter(
+          (provider) => provider.importable && !provider.imported && !provider.conflict,
+        ).length
+        if (count <= 0) return
+        const approved = await appDialog.confirm({
+          title: t('common:app.importableProvidersTitle'),
+          message: t('common:app.importableProvidersMessage', { count }),
+          confirmLabel: t('common:app.openSettings'),
+          tone: 'primary',
+        })
+        if (approved) {
+          setConfigSection('models')
+          navigate('config')
+        }
+      } catch {
+        // 本地配置扫描失败时静默忽略，不影响启动
+      }
+    })()
+  }, [appDialog, navigate, startupReady, t])
+
   const useAsset = useCallback(
     (asset: ChatAttachment) => {
       const targetSessionId = localStorage.getItem(STORAGE_KEYS.activeSession) || ''

@@ -65,5 +65,8 @@
   "schedulesPage.timeZone": "Time zone",
   "schedulesPage.workingDirectory": "Working directory",
   "schedulesPage.youCanContinueEditingTheRunTimeAndNotificationChannelsAfterCreation": "You can continue editing the run time and notification channels after creation.",
-  "schedulesPage.youCanContinueSettingTheRunTimeAndNotificationChannelsAfterCreation": "You can continue setting the run time and notification channels after creation."
+  "schedulesPage.youCanContinueSettingTheRunTimeAndNotificationChannelsAfterCreation": "You can continue setting the run time and notification channels after creation.",
+  "schedulesPage.notificationChannelsHelp": "Choose channels to notify when the task finishes",
+  "schedulesPage.configured": "Configured",
+  "schedulesPage.notConfigured": "Not configured"
 }

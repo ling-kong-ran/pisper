@@ -305,29 +305,35 @@ export function McpPage({
       <div className="mcp-layout">
         <McpPanel className="selection-list">
           <McpSectionTitle>{t('workflows:previewPages.services')}</McpSectionTitle>
-          {visibleServices.map((service) => {
-            const [label, tone] = mcpStatusMeta(service.status, t)
-            const location =
-              service.transport === 'stdio'
-                ? service.workingDirectory || service.command
-                : service.endpoint
-            return (
-              <button
-                className={`service-row ${selected?.id === service.id ? 'active' : ''}`}
-                onClick={() => setSelectedId(service.id)}
-                key={service.id}
-              >
-                <span className="list-icon">
-                  <Server size={15} />
-                </span>
-                <span>
-                  <strong>{service.name}</strong>
-                  <small title={location}>{location}</small>
-                </span>
-                <McpBadge tone={tone}>{label}</McpBadge>
-              </button>
-            )
-          })}
+          {visibleServices.length ? (
+            visibleServices.map((service) => {
+              const [label, tone] = mcpStatusMeta(service.status, t)
+              const location =
+                service.transport === 'stdio'
+                  ? service.workingDirectory || service.command
+                  : service.endpoint
+              return (
+                <button
+                  className={`service-row ${selected?.id === service.id ? 'active' : ''}`}
+                  onClick={() => setSelectedId(service.id)}
+                  key={service.id}
+                >
+                  <span className="list-icon">
+                    <Server size={15} />
+                  </span>
+                  <span>
+                    <strong>{service.name}</strong>
+                    <small title={location}>{location}</small>
+                  </span>
+                  <McpBadge tone={tone}>{label}</McpBadge>
+                </button>
+              )
+            })
+          ) : (
+            <div className="channel-route-empty compact">
+              {t('workflows:previewPages.noServerConfigured')}
+            </div>
+          )}
         </McpPanel>
         <div className="mcp-center">
           <div className="metric-grid">
@@ -354,39 +360,46 @@ export function McpPage({
               tone="amber"
             />
           </div>
-          <McpPanel>
-            <McpSectionTitle>{t('workflows:previewPages.toolCapabilities')}</McpSectionTitle>
-            {tools.map((tool) => (
-              <div className="tool-row" key={tool.piName}>
-                <span className="list-icon">
-                  <Wrench size={15} />
-                </span>
-                <span>
-                  <strong>{tool.name}</strong>
-                  <small>
-                    {tool.serviceName} · {tool.description}
-                  </small>
-                </span>
-                <McpBadge
-                  tone={
-                    tool.risk === 'high' || tool.risk === '高风险'
-                      ? 'red'
-                      : tool.risk === 'medium' || tool.risk === '中风险'
-                        ? 'amber'
-                        : 'green'
-                  }
-                >
-                  {mcpRiskLabel(tool.risk, t)}
-                </McpBadge>
-                <Switch
-                  size="sm"
-                  checked={Boolean(tool.enabled)}
-                  disabled={busy || !tool.serviceEnabled}
-                  aria-label={t('workflows:previewPages.toggleToolName', { name: tool.name })}
-                  onCheckedChange={(enabled) => void toggleTool(tool, enabled)}
-                />
+          <McpPanel className="mcp-tools-panel">
+            <McpSectionTitle>
+              {t('workflows:previewPages.toolCapabilities')} · {tools.length}
+            </McpSectionTitle>
+            {tools.length ? (
+              tools.map((tool) => (
+                <div className="tool-row" key={tool.piName}>
+                  <span className="list-icon">
+                    <Wrench size={15} />
+                  </span>
+                  <span>
+                    <strong>{tool.name}</strong>
+                    <small>
+                      {tool.serviceName} · {tool.description}
+                    </small>
+                  </span>
+                  <McpBadge
+                    tone={
+                      tool.risk === 'high' || tool.risk === '高风险'
+                        ? 'red'
+                        : tool.risk === 'medium' || tool.risk === '中风险'
+                          ? 'amber'
+                          : 'green'
+                    }
+                  >
+                    {mcpRiskLabel(tool.risk, t)}
+                  </McpBadge>
+                  <Switch
+                    checked={Boolean(tool.enabled)}
+                    disabled={busy || !tool.serviceEnabled}
+                    aria-label={t('workflows:previewPages.toggleToolName', { name: tool.name })}
+                    onCheckedChange={(enabled) => void toggleTool(tool, enabled)}
+                  />
+                </div>
+              ))
+            ) : (
+              <div className="channel-route-empty compact">
+                {t('workflows:previewPages.noToolsAvailable')}
               </div>
-            ))}
+            )}
           </McpPanel>
         </div>
         <div className="detail-stack">
@@ -439,7 +452,6 @@ export function McpPage({
             <div className="toggle-line">
               <span>{t('workflows:previewPages.serverEnabled')}</span>
               <Switch
-                size="sm"
                 checked={Boolean(selected?.enabled)}
                 disabled={!selected || busy}
                 aria-label={t('workflows:previewPages.toggleMCPServer')}
@@ -467,21 +479,27 @@ export function McpPage({
               </Button>
             </div>
           </McpPanel>
-          <McpPanel>
+          <McpPanel className="mcp-calls-panel">
             <McpSectionTitle>{t('workflows:previewPages.recentCalls')}</McpSectionTitle>
-            {calls.map((activity) => (
-              <div className="activity-row" key={activity.id}>
-                <CircleDot size={14} />
-                <span>
-                  <strong>{activity.toolName}</strong>
-                  <small>
-                    {relativeTime(activity.timestamp, language)} ·{' '}
-                    {activity.status === 'ok' ? 'OK' : activity.error || 'Error'} ·{' '}
-                    {activity.durationMs} ms
-                  </small>
-                </span>
+            {calls.length ? (
+              calls.slice(0, 8).map((activity) => (
+                <div className="activity-row" key={activity.id}>
+                  <CircleDot size={14} />
+                  <span>
+                    <strong>{activity.toolName}</strong>
+                    <small>
+                      {relativeTime(activity.timestamp, language)} ·{' '}
+                      {activity.status === 'ok' ? 'OK' : activity.error || 'Error'} ·{' '}
+                      {activity.durationMs} ms
+                    </small>
+                  </span>
+                </div>
+              ))
+            ) : (
+              <div className="channel-route-empty compact">
+                {t('workflows:previewPages.noRecentCalls')}
               </div>
-            ))}
+            )}
           </McpPanel>
         </div>
       </div>

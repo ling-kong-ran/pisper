@@ -36,5 +36,8 @@
   "workspacePicker.switching": "切换中…",
   "workspacePicker.thisFolderHasNoSubfolders": "此目录没有子文件夹",
   "workspacePicker.toolsAndTheAgentForNameWillRunInThisDirectory": "{name} 的工具和 Agent 将在此目录运行",
-  "workspacePicker.useThisFolder": "选择此目录"
+  "workspacePicker.useThisFolder": "选择此目录",
+  "app.importableProvidersTitle": "发现可导入的提供商",
+  "app.importableProvidersMessage": "从本地 Codex/Claude 配置中检测到 {{count}} 个可导入的提供商，是否前往设置页查看？",
+  "app.openSettings": "前往设置"
 }

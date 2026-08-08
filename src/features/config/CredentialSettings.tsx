@@ -2,8 +2,13 @@ import { ChevronDown, KeyRound, ShieldCheck, Trash2 } from 'lucide-react'
 import { AppSelect } from '@/components/AppSelect'
 import { useI18n } from '@/app/use-i18n'
 import { PROVIDER_APIS } from './provider-constants'
-import { SettingsBadge, SettingsCard, SettingsSwitch } from './settings-primitives'
-import type { ReactNode, RefObject } from 'react'
+import {
+  SettingsBadge,
+  SettingsCard,
+  SettingsSectionTitle,
+  SettingsSwitch,
+} from './settings-primitives'
+import type { RefObject } from 'react'
 import type { ConfigDraft, ProviderConfig, ProviderType } from './config-types'
 
 type CredentialSettingsProps = {
@@ -11,7 +16,6 @@ type CredentialSettingsProps = {
   draft: ConfigDraft
   toggling: string
   apiKeyInputRef: RefObject<HTMLInputElement | null>
-  children: ReactNode
   onPatchDraft: (patch: Partial<ConfigDraft>) => void
   onSelectProviderType: (providerType: ProviderType) => void
   onToggleProvider: (provider: ProviderConfig, enabled: boolean) => void | Promise<void>
@@ -23,7 +27,6 @@ export function CredentialSettings({
   draft,
   toggling,
   apiKeyInputRef,
-  children,
   onPatchDraft,
   onSelectProviderType,
   onToggleProvider,
@@ -115,6 +118,7 @@ export function CredentialSettings({
         </div>
       ) : (
         <>
+          <SettingsSectionTitle title={t('config:configPage.authentication')} />
           <label className="field-label">
             {t('config:configPage.apiProtocol')}
             <span className="select-wrap">
@@ -154,6 +158,7 @@ export function CredentialSettings({
               <KeyRound size={14} />
             </span>
           </label>
+          <SettingsSectionTitle title={t('config:configPage.endpoint')} />
           <label className="field-label">
             Provider Base URL
             <input
@@ -172,7 +177,6 @@ export function CredentialSettings({
           </label>
         </>
       )}
-      {children}
     </SettingsCard>
   )
 }

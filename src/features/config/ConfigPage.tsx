@@ -1,5 +1,4 @@
 import { useI18n } from '@/app/use-i18n'
-import { CliSettings } from './CliSettings'
 import { DesktopPetSettings } from './DesktopPetSettings'
 import { LanguageSettings } from './LanguageSettings'
 import { ModelsSettings } from './ModelsSettings'
@@ -42,12 +41,6 @@ function ConfigSubnav({ section, setSection }: ConfigSubnavProps) {
         {t('config:configPage.interface')}
       </button>
       <button
-        className={section === 'terminal' ? 'active' : ''}
-        onClick={() => setSection('terminal')}
-      >
-        {t('config:configPage.terminal')}
-      </button>
-      <button
         className={section === 'desktop-pet' ? 'active' : ''}
         onClick={() => setSection('desktop-pet')}
       >
@@ -82,12 +75,6 @@ export function ConfigPage({
     )
   } else if (section === 'interface') {
     content = <LanguageSettings notify={notify} />
-  } else if (section === 'terminal') {
-    content = (
-      <div className="language-settings">
-        <CliSettings notify={notify} />
-      </div>
-    )
   } else if (section === 'desktop-pet') {
     content = <DesktopPetSettings notify={notify} />
   } else if (section === 'updates') {

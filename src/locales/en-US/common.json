@@ -36,5 +36,8 @@
   "workspacePicker.switching": "Switching…",
   "workspacePicker.thisFolderHasNoSubfolders": "This folder has no subfolders",
   "workspacePicker.toolsAndTheAgentForNameWillRunInThisDirectory": "Tools and the agent for {name} will run in this directory.",
-  "workspacePicker.useThisFolder": "Use this folder"
+  "workspacePicker.useThisFolder": "Use this folder",
+  "app.importableProvidersTitle": "Importable providers found",
+  "app.importableProvidersMessage": "Found {{count}} importable provider(s) in local Codex/Claude configs. Open settings to review?",
+  "app.openSettings": "Open settings"
 }
