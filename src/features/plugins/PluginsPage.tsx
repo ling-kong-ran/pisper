@@ -10,7 +10,6 @@ import {
   Pencil,
   Plug,
   RefreshCw,
-  Save,
   Search,
   Server,
 } from 'lucide-react'
@@ -175,6 +174,7 @@ export function PluginsPage({
       ) || JSON.stringify(webSearch) !== JSON.stringify(data.webSearch)
     : false
   const save = useCallback(async () => {
+    if (saving) return
     if (!data || !dirty) {
       if (data) notify(t('plugins:pluginsPage.noPluginPolicyChanges'))
       return
@@ -199,7 +199,7 @@ export function PluginsPage({
     } finally {
       setSaving(false)
     }
-  }, [data, dirty, draft, notify, onStatusChange, t, webSearch])
+  }, [data, dirty, draft, notify, onStatusChange, saving, t, webSearch])
 
   const testWebSearch = async () => {
     setTestingSearch(true)
@@ -295,7 +295,7 @@ export function PluginsPage({
         </div>
       </div>
       <div className="two-one-grid plugin-layout">
-        <Panel>
+        <Panel className="plugin-list-panel">
           <div className="card-head">
             <SectionTitle
               title={`${t('plugins:pluginsPage.toolPlugins')} · ${draft.filter((tool) => tool.enabled).length}/${draft.length}`}
@@ -535,14 +535,6 @@ export function PluginsPage({
           </Panel>
         </div>
       </div>
-      <button className="floating-save" disabled={!dirty || saving} onClick={save}>
-        {saving ? <RefreshCw className="spin" size={15} /> : <Save size={15} />}
-        {saving
-          ? t('plugins:pluginsPage.saving')
-          : dirty
-            ? t('plugins:pluginsPage.savePolicy')
-            : t('plugins:pluginsPage.policySaved')}
-      </button>
       {error && (
         <div className="config-error floating-error">
           <AlertTriangle size={13} />

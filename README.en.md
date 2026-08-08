@@ -153,7 +153,7 @@ pisper
 
 After entering the TUI for the first time, use `/apikey` to choose a Provider and save its API key in a masked input. For visual configuration, run `pisper web`; Pisper installs the signed Web frontend on demand and opens an authenticated, localhost-only settings page in your default browser. **Save Provider settings** does not change the default model; only **Set as default Provider** changes the default for later sessions.
 
-After installing the desktop app, you can also install the `pisper` command from **Settings → Terminal**. The first installation remains explicit; after later desktop updates restart Pisper, it automatically refreshes this managed terminal client:
+After installing the desktop app, you can also install the `pisper` command from **Settings → App updates**. The first installation remains explicit; after later desktop updates restart Pisper, it automatically refreshes this managed terminal client:
 
 ```bash
 pisper                 # start a new conversation

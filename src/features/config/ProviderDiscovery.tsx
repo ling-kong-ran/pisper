@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { AlertTriangle, Bot, Brain, ChevronDown, Download, RefreshCw, Server } from 'lucide-react'
 import { useI18n } from '@/app/use-i18n'
+import { providerDiscoveryShouldRender } from './provider-discovery-state'
 import { SettingsBadge, SettingsCard } from './settings-primitives'
 import type { DiscoveredProvider, DiscoveryData, DiscoveryError, Translate } from './config-types'
 
@@ -51,10 +52,7 @@ export function ProviderDiscovery({
   const [collapsed, setCollapsed] = useState(false)
   const providers = discovery.providers || []
   const errors = discovery.errors || []
-  const hasImportable = providers.some(
-    (provider) => provider.importable && !provider.imported && !provider.conflict,
-  )
-  if (!hasImportable && !discovering) return null
+  if (!providerDiscoveryShouldRender(discovery, discovering, error)) return null
   const hasContent = providers.length > 0 || errors.length > 0 || Boolean(error)
   const isCollapsed = collapsed || (!hasContent && !discovering)
   const errorLabel = (item: DiscoveryError) =>
@@ -119,7 +117,7 @@ export function ProviderDiscovery({
                   : t('config:configPage.noModelSpecified')
                 return (
                   <div
-                    className={`provider-discovery-card ${provider.imported || provider.conflict ? 'configured' : ''}`}
+                    className={`provider-discovery-card ${provider.imported ? 'configured' : ''}`}
                     key={provider.id}
                   >
                     <span className={`provider-discovery-icon source-${provider.source}`}>
@@ -138,8 +136,12 @@ export function ProviderDiscovery({
                       </small>
                     </span>
                     <span className="provider-discovery-actions">
-                      {provider.imported || provider.conflict ? (
+                      {provider.imported ? (
                         <SettingsBadge tone="green">{t('config:configPage.loaded')}</SettingsBadge>
+                      ) : provider.conflict ? (
+                        <SettingsBadge tone="amber">
+                          {t('config:configPage.conflictDetected')}
+                        </SettingsBadge>
                       ) : provider.importable ? (
                         <button
                           type="button"

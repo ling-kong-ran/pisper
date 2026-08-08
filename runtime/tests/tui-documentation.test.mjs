@@ -53,17 +53,16 @@ test('npm, Provider setup, and optional Web onboarding stay documented', async (
   assert.match(cliSource, /Use `\/apikey`/)
 })
 
-test('desktop CLI management has a dedicated Terminal settings section', async () => {
-  const [configPage, languageSettings, chineseReadme, englishReadme] = await Promise.all([
+test('desktop CLI management lives under App updates', async () => {
+  const [configPage, updateSettings, chineseReadme, englishReadme] = await Promise.all([
     readFile('src/features/config/ConfigPage.tsx', 'utf8'),
-    readFile('src/features/config/LanguageSettings.tsx', 'utf8'),
+    readFile('src/features/config/UpdateSettings.tsx', 'utf8'),
     readFile('README.md', 'utf8'),
     readFile('README.en.md', 'utf8'),
   ])
 
-  assert.match(configPage, /section === 'terminal'/)
-  assert.match(configPage, /<CliSettings notify=\{notify\}/)
-  assert.doesNotMatch(languageSettings, /CliSettings/)
-  assert.match(chineseReadme, /设置 → 终端/)
-  assert.match(englishReadme, /Settings → Terminal/)
+  assert.doesNotMatch(configPage, /section === 'terminal'/)
+  assert.match(updateSettings, /<CliSettings notify=\{notify\}/)
+  assert.match(chineseReadme, /设置 → 应用更新/)
+  assert.match(englishReadme, /Settings → App updates/)
 })
