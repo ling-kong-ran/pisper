@@ -1,8 +1,8 @@
 {
-  "name": "pisper-cli",
+  "name": "pisper",
   "version": "0.0.0",
   "private": true,
-  "description": "Signed npm installer and launcher for the Pisper terminal client.",
+  "description": "Pisper CLI.",
   "license": "MIT",
   "author": {
     "name": "ling-kong-ran",
@@ -41,7 +41,7 @@
   },
   "pisper": {
     "repository": "ling-kong-ran/pisper",
-    "tuiVersion": "0.4.27",
-    "runtimeVersion": "0.4.28"
+    "tuiVersion": "0.4.28",
+    "runtimeVersion": "0.4.29"
   }
 }

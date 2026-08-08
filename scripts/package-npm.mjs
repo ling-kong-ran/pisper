@@ -5,9 +5,9 @@ import process from 'node:process'
 import { fileURLToPath } from 'node:url'
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..')
-const source = join(root, 'packages', 'pisper-cli')
+const source = join(root, 'packages', 'pisper')
 const releaseRoot = join(root, 'release', 'npm')
-const stage = join(releaseRoot, 'package', 'pisper-cli')
+const stage = join(releaseRoot, 'package', 'pisper')
 const tarballs = join(releaseRoot, 'tarballs')
 
 function npm(args) {
@@ -76,7 +76,7 @@ export async function packageNpm() {
         .join('\n'),
     )
   }
-  if (result.name !== 'pisper-cli' || result.version !== manifest.version) {
+  if (result.name !== 'pisper' || result.version !== manifest.version) {
     throw new Error(`npm pack returned unexpected identity: ${result.name}@${result.version}`)
   }
 
@@ -86,7 +86,7 @@ export async function packageNpm() {
     `${JSON.stringify({ ...result, tarball }, null, 2)}\n`,
     'utf8',
   )
-  console.log(`Packed pisper-cli@${manifest.version}: ${tarball}`)
+  console.log(`Packed pisper@${manifest.version}: ${tarball}`)
   return { manifest, result, stage, tarball }
 }
 

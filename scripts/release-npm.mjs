@@ -7,7 +7,7 @@ import { assertHasSubstantiveReleaseCommits } from './release-policy.mjs'
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..')
 const manifest = JSON.parse(
-  await readFile(join(root, 'packages', 'pisper-cli', 'package.json'), 'utf8'),
+  await readFile(join(root, 'packages', 'pisper', 'package.json'), 'utf8'),
 )
 const rawArgs = process.argv.slice(2)
 const input = rawArgs.find((value) => !value.startsWith('--')) || 'patch'
@@ -98,7 +98,7 @@ const changedPaths = run(
   .filter(Boolean)
 const hasNpmChanges = changedPaths.some(
   (path) =>
-    path.startsWith('packages/pisper-cli/') ||
+    path.startsWith('packages/pisper/') ||
     path === '.github/workflows/publish-npm.yml' ||
     /^scripts\/(?:package-npm|release-npm|stage-npm-release-version|validate-npm-)/.test(path),
 )

@@ -10,7 +10,7 @@ const [sourceKey, packagedKey] = await Promise.all([
   readFile(join(stage, 'updater.pubkey'), 'utf8'),
 ])
 
-if (manifest.name !== 'pisper-cli') throw new Error('npm package name must be pisper-cli.')
+if (manifest.name !== 'pisper') throw new Error('npm package name must be pisper.')
 if (manifest.private === true) throw new Error('staged npm package must not be private.')
 if (manifest.bin?.pisper !== 'bin/pisper.mjs' || Object.keys(manifest.bin || {}).length !== 1) {
   throw new Error('npm package must expose only the pisper command.')
@@ -25,5 +25,5 @@ if (result.unpackedSize > 5 * 1024 * 1024) {
   throw new Error(`npm launcher package is unexpectedly large: ${result.unpackedSize} bytes.`)
 }
 console.log(
-  `Validated pisper-cli@${manifest.version}: ${result.entryCount} files, ${result.unpackedSize} unpacked bytes.`,
+  `Validated pisper@${manifest.version}: ${result.entryCount} files, ${result.unpackedSize} unpacked bytes.`,
 )

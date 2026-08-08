@@ -148,10 +148,10 @@ sudo apt install ./Pisper-*-linux-amd64.deb
 
 ### Terminal Client (TUI)
 
-With Node.js 20+, you can install the terminal client independently through npm. `pisper-cli` downloads and verifies the officially signed TUI and Runtime components; the Pisper Runtime itself is not published to the npm registry:
+With Node.js 20+, you can install the Pisper CLI through npm:
 
 ```bash
-npm install -g pisper-cli
+npm install -g pisper
 pisper
 ```
 

@@ -5,7 +5,7 @@ import { fileURLToPath } from 'node:url'
 import { assertHasSubstantiveReleaseCommits } from './release-policy.mjs'
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..')
-const manifestPath = join(root, 'packages', 'pisper-cli', 'package.json')
+const manifestPath = join(root, 'packages', 'pisper', 'package.json')
 const targetVersion = String(process.argv[2] || '').trim()
 const targetTuiVersion = String(process.argv[3] || '').trim()
 const targetRuntimeVersion = String(process.argv[4] || '').trim()
@@ -61,7 +61,7 @@ const changedPaths = git(
   .filter(Boolean)
 const hasNpmChanges = changedPaths.some(
   (path) =>
-    path.startsWith('packages/pisper-cli/') ||
+    path.startsWith('packages/pisper/') ||
     path === '.github/workflows/publish-npm.yml' ||
     /^scripts\/(?:package-npm|release-npm|stage-npm-release-version|validate-npm-)/.test(path),
 )

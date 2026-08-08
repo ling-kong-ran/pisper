@@ -25,11 +25,11 @@ for (const [label, value] of [
   ['Runtime', runtimeVersion],
 ]) {
   if (!/^\d+\.\d+\.\d+$/.test(value || '')) {
-    throw new Error(`pisper-cli package metadata does not contain a valid ${label} version`)
+    throw new Error(`pisper package metadata does not contain a valid ${label} version`)
   }
 }
 if (!/^[\w.-]+\/[\w.-]+$/.test(repository || '')) {
-  throw new Error('pisper-cli package metadata does not contain a valid repository')
+  throw new Error('pisper package metadata does not contain a valid repository')
 }
 
 function decodeWrapped(value) {
@@ -135,7 +135,7 @@ async function resolveCurrentComponent(root, component, minimumVersion) {
 
 async function download(url) {
   const response = await fetch(url, {
-    headers: { 'User-Agent': `pisper-cli/${packageManifest.version}` },
+    headers: { 'User-Agent': `pisper/${packageManifest.version}` },
     redirect: 'follow',
     signal: AbortSignal.timeout(600_000),
   })
@@ -183,7 +183,7 @@ async function acquireLock(lockPath, validate) {
       if (error?.code !== 'EEXIST') throw error
       if (await validate()) return null
       if (Date.now() >= deadline) {
-        throw new Error('timed out waiting for another pisper-cli installer')
+        throw new Error('timed out waiting for another Pisper installer')
       }
       await wait(250)
     }

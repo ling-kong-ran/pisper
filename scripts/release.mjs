@@ -176,7 +176,7 @@ if (publishNpm) {
     throw new Error('--publish-npm 只能与一次单组件发布一起使用。')
   }
   const manifest = JSON.parse(
-    await readFile(join(root, 'packages', 'pisper-cli', 'package.json'), 'utf8'),
+    await readFile(join(root, 'packages', 'pisper', 'package.json'), 'utf8'),
   )
   npmReleaseVersion = requestedNpmVersion || resolveVersion(manifest.version, 'patch')
   if (!/^\d+\.\d+\.\d+$/.test(npmReleaseVersion)) {
@@ -222,5 +222,5 @@ for (const [index, { component, nextVersion, tag }] of plans.entries()) {
 
 console.log(`只会执行 ${selectedComponents.join('、')} 对应的质量门禁和平台产物构建。`)
 console.log('多个组件任务会依次派发；各自的版本文件和 tag 仍在资产验证后原子更新。')
-if (publishNpm) console.log(`组件发布成功后会继续发布 pisper-cli@${npmReleaseVersion}。`)
+if (publishNpm) console.log(`组件发布成功后会继续发布 pisper@${npmReleaseVersion}。`)
 console.log(`可执行 gh run list --workflow release.yml --limit ${plans.length} 查看发布进度。`)

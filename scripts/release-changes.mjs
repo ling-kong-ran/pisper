@@ -57,7 +57,7 @@ export function releaseComponentsForPath(input) {
   const path = normalizePath(input)
   if (!path || isDocumentationOrTest(path) || RELEASE_SCRIPT_PATHS.has(path)) return []
 
-  if (path.startsWith('packages/pisper-cli/')) return []
+  if (path.startsWith('packages/pisper/')) return []
   if (path.startsWith('crates/component-updater/')) return ['desktop', 'tui']
   if (path.startsWith('src-tauri/')) return ['desktop']
   if (path.startsWith('src-tui/')) return ['tui']

@@ -11,7 +11,7 @@ const VERSION_FILES = Object.freeze({
   desktop: Object.freeze(['src-tauri/desktop-package.json']),
   tui: Object.freeze(['src-tui/Cargo.lock', 'src-tui/Cargo.toml']),
   runtime: Object.freeze(['package-lock.json', 'package.json']),
-  npm: Object.freeze(['packages/pisper-cli/package.json']),
+  npm: Object.freeze(['packages/pisper/package.json']),
 })
 
 function git(args, { allowFailure = false } = {}) {

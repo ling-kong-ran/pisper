@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
     inputs:
       npm_version:
-        description: 'pisper-cli npm version (X.Y.Z)'
+        description: 'pisper npm version (X.Y.Z)'
         required: true
         type: string
       tui_version:
@@ -54,7 +54,7 @@ env:
 
 jobs:
   publish:
-    name: Publish pisper-cli@${{ inputs.npm_version }}
+    name: Publish pisper@${{ inputs.npm_version }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
@@ -85,14 +85,14 @@ jobs:
           PISPER_CLI_SKIP_INSTALL=1 npm install \
             --prefix release/npm/smoke \
             release/npm/tarballs/*.tgz
-          node -e "import('./release/npm/smoke/node_modules/pisper-cli/lib/install.mjs').then(m => { if (!m.releaseAsset().startsWith('Pisper_TUI_Component_')) process.exit(1) })"
+          node -e "import('./release/npm/smoke/node_modules/pisper/lib/install.mjs').then(m => { if (!m.releaseAsset().startsWith('Pisper_TUI_Component_')) process.exit(1) })"
       - name: Check whether the version is already published
         id: registry
         shell: bash
         run: |
-          if npm view "pisper-cli@$NPM_VERSION" version --json >/dev/null 2>&1; then
+          if npm view "pisper@$NPM_VERSION" version --json >/dev/null 2>&1; then
             echo "exists=true" >> "$GITHUB_OUTPUT"
-            echo "pisper-cli@$NPM_VERSION is already published; nothing to do."
+            echo "pisper@$NPM_VERSION is already published; nothing to do."
           else
             echo "exists=false" >> "$GITHUB_OUTPUT"
           fi
@@ -114,7 +114,7 @@ jobs:
             exit 1
           }
 
-          git add packages/pisper-cli/package.json
+          git add packages/pisper/package.json
           git diff --cached --quiet && {
             echo "staged npm release has no version changes" >&2
             exit 1
@@ -150,4 +150,4 @@ jobs:
           fi
           npm publish release/npm/tarballs/*.tgz --access public --provenance
           trap - ERR
-          echo "Published pisper-cli@$NPM_VERSION from $release_commit"
+          echo "Published pisper@$NPM_VERSION from $release_commit"

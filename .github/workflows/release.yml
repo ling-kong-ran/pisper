@@ -20,12 +20,12 @@ on:
         required: true
         type: string
       publish_npm:
-        description: 'Publish pisper-cli after this component release'
+        description: 'Publish pisper after this component release'
         required: false
         default: false
         type: boolean
       npm_version:
-        description: 'pisper-cli version when publish_npm is enabled'
+        description: 'pisper version when publish_npm is enabled'
         required: false
         type: string
 

@@ -6,14 +6,12 @@
 
 ## 安装终端命令
 
-使用 Node.js 20+ 时，可以不安装桌面版，直接通过 npm 安装：
+使用 Node.js 20+ 时，可以直接通过 npm 安装 Pisper CLI：
 
 ```bash
-npm install -g pisper-cli
+npm install -g pisper
 pisper
 ```
-
-`pisper-cli` 是轻量安装器，不在 npm registry 中携带 Pisper Runtime。安装阶段会下载匹配当前平台的官方 TUI 薄包和 Runtime 组件，使用内置 Minisign 公钥验签，并将 Runtime 只保存在标准组件目录中。安装完成后可离线启动，后续仍可使用 `pisper update` 独立更新组件。
 
 安装 Pisper 桌面版后，也可以打开 **设置 → 终端**，安装、修复或卸载 `pisper` 命令。Pisper 将可执行文件安装到当前用户目录并管理对应的 `PATH` 项，不需要管理员权限。
 

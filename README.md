@@ -148,10 +148,10 @@ sudo apt install ./Pisper-*-linux-amd64.deb
 
 ### 终端客户端（TUI）
 
-使用 Node.js 20+ 时，也可通过 npm 独立安装。`pisper-cli` 会下载并验证官方签名的 TUI 与 Runtime 组件，npm registry 中不发布 Pisper Runtime：
+使用 Node.js 20+ 时，也可通过 npm 安装 Pisper CLI：
 
 ```bash
-npm install -g pisper-cli
+npm install -g pisper
 pisper
 ```
 

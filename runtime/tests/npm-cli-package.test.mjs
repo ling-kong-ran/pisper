@@ -7,24 +7,24 @@ import {
   releaseArchitecture,
   releasePlatform,
   supportedTarget,
-} from '../../packages/pisper-cli/lib/platform.mjs'
+} from '../../packages/pisper/lib/platform.mjs'
 import { releaseComponentsForPath } from '../../scripts/release-changes.mjs'
 
-test('pisper-cli is an isolated private source package exposing only pisper', async () => {
-  const manifest = JSON.parse(await readFile('packages/pisper-cli/package.json', 'utf8'))
+test('pisper is an isolated private source package exposing only its command', async () => {
+  const manifest = JSON.parse(await readFile('packages/pisper/package.json', 'utf8'))
 
-  assert.equal(manifest.name, 'pisper-cli')
+  assert.equal(manifest.name, 'pisper')
   assert.equal(manifest.private, true)
   assert.deepEqual(manifest.bin, { pisper: 'bin/pisper.mjs' })
   assert.match(manifest.pisper.tuiVersion, /^\d+\.\d+\.\d+$/)
   assert.match(manifest.pisper.runtimeVersion, /^\d+\.\d+\.\d+$/)
-  assert.deepEqual(releaseComponentsForPath('packages/pisper-cli/lib/install.mjs'), [])
+  assert.deepEqual(releaseComponentsForPath('packages/pisper/lib/install.mjs'), [])
 })
 
 test('npm launcher installs signed TUI and Runtime components without duplicating Runtime', async () => {
   const [installer, launcher] = await Promise.all([
-    readFile('packages/pisper-cli/lib/install.mjs', 'utf8'),
-    readFile('packages/pisper-cli/bin/pisper.mjs', 'utf8'),
+    readFile('packages/pisper/lib/install.mjs', 'utf8'),
+    readFile('packages/pisper/bin/pisper.mjs', 'utf8'),
   ])
 
   assert.match(installer, /'TUI_Component'/)
@@ -59,9 +59,9 @@ test('npm publication uses an independent provenance-enabled workflow', async ()
 
   assert.match(workflow, /id-token: write/)
   assert.match(workflow, /npm publish release\/npm\/tarballs\/\*\.tgz --access public --provenance/)
-  assert.match(workflow, /npm view "pisper-cli@\$NPM_VERSION"/)
+  assert.match(workflow, /npm view "pisper@\$NPM_VERSION"/)
   assert.match(workflow, /chore\(release-npm\): \$NPM_TAG/)
   assert.match(release, /publish-npm\.yml/)
   assert.match(release, /runtime_version=/)
-  assert.match(verifier, /packages\/pisper-cli\/package\.json/)
+  assert.match(verifier, /packages\/pisper\/package\.json/)
 })

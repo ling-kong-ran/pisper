@@ -5,7 +5,7 @@ import { fileURLToPath } from 'node:url'
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..')
 const manifest = JSON.parse(
-  await readFile(join(root, 'packages', 'pisper-cli', 'package.json'), 'utf8'),
+  await readFile(join(root, 'packages', 'pisper', 'package.json'), 'utf8'),
 )
 const repository = String(process.env.GITHUB_REPOSITORY || manifest.pisper.repository)
 const token = String(process.env.GITHUB_TOKEN || '').trim()
@@ -18,7 +18,7 @@ async function validateRelease(component, version) {
       Accept: 'application/vnd.github+json',
       ...(token ? { Authorization: `Bearer ${token}` } : {}),
       'X-GitHub-Api-Version': '2022-11-28',
-      'User-Agent': `pisper-cli/${manifest.version}`,
+      'User-Agent': `pisper/${manifest.version}`,
     },
   })
   if (!response.ok) throw new Error(`GitHub release ${tag} is unavailable: HTTP ${response.status}`)
