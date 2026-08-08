@@ -52,6 +52,7 @@ Thanks to <a href="https://matrix.000328.xyz/sign-up?aff=ZPeH">Matrix</a> for su
   <a href="#overview">Overview</a> ·
   <a href="#preview">Interface</a> ·
   <a href="#features">Features</a> ·
+  <a href="#data-safety">Data Safety</a> ·
   <a href="#desktop-pet">Desktop Pet</a> ·
   <a href="#install">Install</a> ·
   <a href="#tui">Terminal Client</a> ·
@@ -94,6 +95,20 @@ Pisper is a desktop and terminal client built on [Pi Coding Agent](https://githu
 - **Automation and channels:** schedules, visual workflows, Feishu, and personal Weixin.
 - **Desktop and terminal:** Tauri desktop app and Ratatui TUI.
 - **Permission controls:** `Read only / Full access` execution modes, one-shot approval, and credential isolation.
+
+<a id="data-safety"></a>
+
+## Data Safety & Privacy
+
+Pisper is local-first and does not provide a Pisper cloud service that hosts or relays your conversations. Sessions, memory, workflows, schedules, usage, and connection settings are stored under `~/.pisper/agent` by default. Set `PISPER_AGENT_DIR` to move this data root.
+
+- **Protected local service:** the desktop Runtime listens on `127.0.0.1` by default and uses a random bootstrap token, an `HttpOnly` / `SameSite=Strict` cookie, and Origin checks for write requests. Pi telemetry is disabled by default.
+- **Known-secret redaction:** known formats such as API keys, Bearer/JWT values, common access tokens, private keys, and database connection strings are replaced before memory persistence, secondary model-based memory extraction, and display boundaries including errors, MCP configuration, and approval summaries. Redacted values appear as `[REDACTED SECRET]` or `***`.
+- **Credential isolation:** Provider credentials, MCP headers/environment variables, and channel credentials stay in local configuration and are not echoed to the Agent through normal configuration APIs. The host Shell tool also removes common credential and Shell-injection environment variables.
+- **Controllable memory:** automatically inferred conversation memories remain pending and cannot affect recall until confirmed. You can reject candidates, delete individual memories, or delete sessions; deletion removes the associated content and retrieval data.
+- **Explicit outbound boundaries:** regular prompts, attachments, and tool results are not globally rewritten or anonymized. Model calls send the required context directly to your configured Provider. Remote MCP, Web search, image/video generation, and messaging channels send their corresponding requests to those third parties only when enabled and used. Model-based memory extraction and semantic summaries apply the known-format redaction above before calling the active Provider.
+
+> **Important boundary:** redaction is defense in depth against accidental disclosure of common credential formats. It is not complete DLP, a sandbox, or end-to-end encryption, and it cannot recognize every sensitive value in free-form text. Provider and channel credentials currently live in the local Agent data directory rather than an operating-system keychain. Protect that directory and its backups, review prompts, files, and tool arguments before sending, and follow the privacy policy of each configured third party.
 
 <a id="desktop-pet"></a>
 

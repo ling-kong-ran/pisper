@@ -5,14 +5,14 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta
       name="description"
-      content="Pisper 是一个本地优先的多 Agent 工作台，在桌面端和终端中并行推进会话、工具、记忆与自动化。"
+      content="Pisper 是一个本地优先的多 Agent 工作台，在桌面端和终端中并行推进会话、工具、记忆与自动化，并提供清晰的数据边界与已知敏感信息脱敏。"
     />
     <meta name="theme-color" content="#111312" />
     <meta property="og:type" content="website" />
     <meta property="og:title" content="Pisper · 多 Agent 工作台" />
     <meta
       property="og:description"
-      content="让多个 Agent 在同一工作台并行推进，各自拥有独立模型、上下文、目录与权限。"
+      content="让多个 Agent 在同一工作台并行推进，各自拥有独立模型、上下文、目录与权限；数据默认保存在本机。"
     />
     <meta
       property="og:image"
@@ -39,6 +39,7 @@
         <div class="nav-links">
           <a href="#product">产品</a>
           <a href="#capabilities">能力</a>
+          <a href="#safety">数据安全</a>
           <a href="#terminal">终端</a>
           <a href="https://github.com/ling-kong-ran/pisper/blob/release/README.en.md">English</a>
         </div>
@@ -91,7 +92,7 @@
           <div><strong>Desktop</strong><span>完整工作台</span></div>
           <div><strong>TUI</strong><span>终端客户端</span></div>
           <div><strong>Runtime</strong><span>统一能力层</span></div>
-          <div><strong>Local-first</strong><span>数据留在本机</span></div>
+          <div><strong>Local-first</strong><span>本机保存与控制</span></div>
         </div>
       </section>
 
@@ -246,6 +247,83 @@
         </div>
       </section>
 
+      <section class="safety-section section" id="safety" aria-labelledby="safety-title">
+        <div class="shell">
+          <div class="section-heading safety-heading">
+            <div>
+              <p class="eyebrow eyebrow-dark">数据安全与隐私</p>
+              <h2 id="safety-title">先留在本机，再由你决定发往哪里。</h2>
+            </div>
+            <p>
+              Pisper 不提供托管或中转会话的云服务。日常数据默认由本机 Runtime
+              持有，只有你配置并实际调用的 Provider、MCP、搜索或渠道会收到完成请求所需的内容。
+            </p>
+          </div>
+
+          <div class="safety-layout">
+            <div class="safety-local">
+              <p>LOCAL DATA ROOT</p>
+              <code>~/.pisper/agent</code>
+              <span>可通过 <code>PISPER_AGENT_DIR</code> 更改位置</span>
+              <small>会话、记忆、工作流、日程、用量与连接配置默认保存在这里。</small>
+            </div>
+
+            <ol class="safety-list">
+              <li>
+                <span>01</span>
+                <div>
+                  <h3>本地服务保护</h3>
+                  <p>
+                    桌面 Runtime 默认只监听 127.0.0.1，并使用随机启动 Token、受限 Cookie
+                    与写请求 Origin 校验；Pi 遥测默认关闭。
+                  </p>
+                </div>
+              </li>
+              <li>
+                <span>02</span>
+                <div>
+                  <h3>已知格式脱敏</h3>
+                  <p>
+                    常见 API Key、Bearer/JWT、访问令牌、私钥和数据库连接串会在记忆落盘、记忆二次模型处理，以及错误、MCP
+                    与审批摘要展示前被替换。
+                  </p>
+                </div>
+              </li>
+              <li>
+                <span>03</span>
+                <div>
+                  <h3>凭据与权限隔离</h3>
+                  <p>
+                    凭据保存在本机配置，不通过普通配置接口回显给 Agent；宿主 Shell
+                    会移除常见凭据环境变量。只读、完全访问和单次审批控制工具执行边界。
+                  </p>
+                </div>
+              </li>
+              <li>
+                <span>04</span>
+                <div>
+                  <h3>记忆先确认</h3>
+                  <p>
+                    自动推断的会话记忆先进入待确认区，确认前不参与召回；候选、单条记忆和会话均可拒绝或删除。
+                  </p>
+                </div>
+              </li>
+            </ol>
+          </div>
+
+          <div class="safety-boundary">
+            <strong>边界说明</strong>
+            <p>
+              脱敏只识别常见敏感格式，不是完整 DLP、沙箱或端到端加密。普通 Prompt、文件和工具结果不会被全局匿名化；发送前请自行检查，并遵守所选第三方的隐私政策。Provider
+              与渠道凭据目前位于本机 Agent 数据目录，而不是操作系统钥匙串，请保护该目录和备份。
+            </p>
+            <a href="https://github.com/ling-kong-ran/pisper/blob/release/README.md#data-safety"
+              >阅读完整说明 <span aria-hidden="true">→</span></a
+            >
+          </div>
+        </div>
+      </section>
+
       <section class="component-section section" aria-labelledby="component-title">
         <div class="shell component-layout">
           <div class="component-intro">
@@ -327,6 +405,7 @@
         <div>
           <a href="https://github.com/ling-kong-ran/pisper">GitHub</a>
           <a href="https://github.com/ling-kong-ran/pisper#readme">文档</a>
+          <a href="#safety">数据安全</a>
           <a href="https://github.com/ling-kong-ran/pisper/blob/release/LICENSE">MIT License</a>
         </div>
       </div>

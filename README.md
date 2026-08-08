@@ -52,6 +52,7 @@
   <a href="#overview">简介</a> ·
   <a href="#preview">界面</a> ·
   <a href="#features">功能</a> ·
+  <a href="#data-safety">数据安全</a> ·
   <a href="#desktop-pet">桌面宠物</a> ·
   <a href="#install">安装</a> ·
   <a href="#tui">终端客户端</a> ·
@@ -94,6 +95,20 @@ Pisper 是基于 [Pi Coding Agent](https://github.com/earendil-works/pi/tree/mai
 - **自动化与渠道**：定时任务、可视化工作流、飞书和个人微信。
 - **桌面与终端**：提供 Tauri 桌面端和 Ratatui TUI。
 - **权限控制**：支持 `只读 / 完全访问` 两种执行模式，并提供单次审批和凭据隔离。
+
+<a id="data-safety"></a>
+
+## 数据安全与隐私
+
+Pisper 是本地优先应用，不提供用于托管或中转会话的 Pisper 云服务。会话、记忆、工作流、日程、用量和连接配置默认保存在本机 `~/.pisper/agent`；可通过 `PISPER_AGENT_DIR` 更改位置。
+
+- **本地服务保护**：桌面 Runtime 默认只监听 `127.0.0.1`，使用随机启动 Token、`HttpOnly` / `SameSite=Strict` Cookie 和写请求 Origin 校验；Pi 遥测默认关闭。
+- **已知敏感信息脱敏**：API Key、Bearer/JWT、常见访问令牌、私钥和数据库连接串等已知格式，会在记忆落盘、记忆二次模型提取，以及错误、MCP 配置和审批摘要等展示边界进入前被替换。脱敏后的内容使用 `[REDACTED SECRET]` 或 `***` 标记。
+- **凭据隔离**：Provider 凭据、MCP Header/环境变量和渠道凭据保存在本机配置中，不通过普通配置接口回显给 Agent；宿主 Shell 工具也会移除常见凭据环境变量和 Shell 注入变量。
+- **记忆可控**：自动推断的会话记忆先进入待确认区，未确认前不参与召回；用户可以拒绝候选、删除单条记忆或删除会话，删除操作会清除对应正文与检索数据。
+- **外发边界明确**：普通 Prompt、附件、工具结果不会被全局改写或匿名化。调用模型时，必要上下文会直接发送到你配置的 Provider；启用远程 MCP、Web 搜索、图像/视频生成或消息渠道时，相应请求也会发送给该第三方。记忆提取和语义摘要如使用模型，会先执行上述已知格式脱敏，再调用当前 Provider。
+
+> **重要边界：** 脱敏是降低常见凭据意外泄露风险的纵深防护，不是完整的 DLP、沙箱或端到端加密，也无法识别所有自由文本中的敏感数据。Provider 和渠道凭据目前保存在本机 Agent 数据目录，而不是操作系统钥匙串；请保护该目录与备份，并在发送前检查 Prompt、文件和工具参数，同时遵守所选第三方的隐私政策。
 
 <a id="desktop-pet"></a>
 
