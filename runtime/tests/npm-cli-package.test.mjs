@@ -59,6 +59,7 @@ test('npm publication uses an independent provenance-enabled workflow', async ()
 
   assert.match(workflow, /id-token: write/)
   assert.match(workflow, /npm publish release\/npm\/tarballs\/\*\.tgz --access public --provenance/)
+  assert.doesNotMatch(workflow, /NPM_TOKEN|NODE_AUTH_TOKEN/)
   assert.match(workflow, /npm view "pisper@\$NPM_VERSION"/)
   assert.match(workflow, /chore\(release-npm\): \$NPM_TAG/)
   assert.match(release, /publish-npm\.yml/)

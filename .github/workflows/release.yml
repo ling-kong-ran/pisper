@@ -353,4 +353,3 @@ jobs:
       tui_version: ${{ inputs.component == 'tui' && inputs.version || '' }}
       runtime_version: ${{ inputs.component == 'runtime' && inputs.version || '' }}
       source_sha: ${{ inputs.source_sha }}
-    secrets: inherit
