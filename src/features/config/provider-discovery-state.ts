@@ -1,5 +1,15 @@
 import type { DiscoveryData } from './config-types'
 
+export function providerDiscoveryHasImportable(discovery: DiscoveryData) {
+  return (discovery.providers || []).some(
+    (provider) => provider.importable && !provider.imported && !provider.conflict,
+  )
+}
+
+export function providerDiscoveryShouldCollapse(discovery: DiscoveryData, discovering: boolean) {
+  return !discovering && !providerDiscoveryHasImportable(discovery)
+}
+
 export function providerDiscoveryShouldRender(
   discovery: DiscoveryData,
   discovering: boolean,
@@ -7,9 +17,7 @@ export function providerDiscoveryShouldRender(
 ) {
   const providers = discovery.providers || []
   const errors = discovery.errors || []
-  const hasImportable = providers.some(
-    (provider) => provider.importable && !provider.imported && !provider.conflict,
-  )
+  const hasImportable = providerDiscoveryHasImportable(discovery)
   const hasIssue = Boolean(
     error ||
     errors.length ||

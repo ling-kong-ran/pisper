@@ -1,7 +1,10 @@
 import { useState } from 'react'
 import { AlertTriangle, Bot, Brain, ChevronDown, Download, RefreshCw, Server } from 'lucide-react'
 import { useI18n } from '@/app/use-i18n'
-import { providerDiscoveryShouldRender } from './provider-discovery-state'
+import {
+  providerDiscoveryShouldCollapse,
+  providerDiscoveryShouldRender,
+} from './provider-discovery-state'
 import { SettingsBadge, SettingsCard } from './settings-primitives'
 import type { DiscoveredProvider, DiscoveryData, DiscoveryError, Translate } from './config-types'
 
@@ -49,12 +52,19 @@ export function ProviderDiscovery({
   onImport,
 }: ProviderDiscoveryProps) {
   const { t } = useI18n()
-  const [collapsed, setCollapsed] = useState(false)
+  const [collapsed, setCollapsed] = useState<boolean | null>(null)
   const providers = discovery.providers || []
   const errors = discovery.errors || []
   if (!providerDiscoveryShouldRender(discovery, discovering, error)) return null
-  const hasContent = providers.length > 0 || errors.length > 0 || Boolean(error)
-  const isCollapsed = collapsed || (!hasContent && !discovering)
+  const isCollapsed = collapsed ?? providerDiscoveryShouldCollapse(discovery, discovering)
+  const handleRefresh = () => {
+    setCollapsed(null)
+    return onRefresh()
+  }
+  const handleImport = (provider: DiscoveredProvider) => {
+    setCollapsed(null)
+    return onImport(provider)
+  }
   const errorLabel = (item: DiscoveryError) =>
     ['invalid_json', 'invalid_toml'].includes(item.code)
       ? t('config:configPage.invalidConfigurationFileFormat')
@@ -71,7 +81,7 @@ export function ProviderDiscovery({
           type="button"
           className="provider-discovery-toggle"
           aria-expanded={!isCollapsed}
-          onClick={() => setCollapsed((current) => !current)}
+          onClick={() => setCollapsed(!isCollapsed)}
         >
           <span className="language-settings-icon">
             <Server size={18} />
@@ -93,7 +103,7 @@ export function ProviderDiscovery({
           type="button"
           className="button secondary tiny"
           disabled={discovering || Boolean(importing)}
-          onClick={onRefresh}
+          onClick={handleRefresh}
         >
           {discovering ? <RefreshCw className="spin" size={13} /> : <RefreshCw size={13} />}
           {t('config:configPage.rescan')}
@@ -147,7 +157,7 @@ export function ProviderDiscovery({
                           type="button"
                           className="button primary tiny"
                           disabled={busy || Boolean(importing)}
-                          onClick={() => onImport(provider)}
+                          onClick={() => handleImport(provider)}
                         >
                           {busy ? <RefreshCw className="spin" size={12} /> : <Download size={12} />}
                           {busy
