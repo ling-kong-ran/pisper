@@ -6,6 +6,7 @@ import type {
   UpdateStatus,
 } from '@/types/update'
 import { scheduleDesktopUpdateChecks, shouldAutomaticallyCheckForUpdates } from './auto-update'
+import { componentUpdateStatus as componentStatus } from './component-update-state'
 import { checkWebUpdates, RELEASES_URL } from './update-client'
 
 const BUILD_VERSION = import.meta.env.VITE_APP_VERSION || '0.0.0'
@@ -19,43 +20,6 @@ const WEB_INFO: AppUpdateInfo = Object.freeze({
   releasesUrl: RELEASES_URL,
 })
 
-function componentStatus(items: ComponentUpdateStatus[]): UpdateStatus {
-  const checkedAt = new Date().toISOString()
-  const failed = items.filter((item) => item.state === 'error')
-  const available = items.filter((item) => item.state === 'available')
-  const checking = items.some((item) => item.state === 'checking')
-  const downloading = items.some((item) => item.state === 'downloading')
-  const installed = items.some((item) => item.state === 'installed')
-  const release = available[0] || failed[0] || items[0]
-  const notes = available
-    .map((item) => item.notes.trim())
-    .filter((value, index, values) => value && values.indexOf(value) === index)
-    .join('\n\n')
-
-  return {
-    state: failed.length
-      ? 'error'
-      : downloading
-        ? 'downloading'
-        : checking
-          ? 'checking'
-          : available.length
-            ? 'available'
-            : installed
-              ? 'installed'
-              : items.length
-                ? 'current'
-                : 'idle',
-    checkedAt,
-    message: failed.map((item) => `${item.component}: ${item.message}`).join('\n'),
-    releaseUrl: release?.releaseUrl || RELEASES_URL,
-    canDownload: available.length > 0,
-    availableVersion: release?.availableVersion,
-    notes,
-    total: available.reduce((total, item) => total + item.size, 0),
-  }
-}
-
 export function useAppUpdate(): AppUpdateController {
   const bridge = window.pisperDesktop
   const [info, setInfo] = useState(WEB_INFO)
@@ -63,6 +27,7 @@ export function useAppUpdate(): AppUpdateController {
   const [components, setComponents] = useState<ComponentUpdateStatus[]>([])
   const statusRef = useRef(status)
   const checkInFlightRef = useRef<Promise<UpdateStatus> | null>(null)
+  const legacyShellUpdateRef = useRef(false)
 
   const applyStatus = useCallback((value: UpdateStatus) => {
     statusRef.current = value
@@ -76,6 +41,19 @@ export function useAppUpdate(): AppUpdateController {
       applyStatus({ ...statusRef.current, state: 'checking', message: '' })
       const pending = (async (): Promise<UpdateStatus> => {
         try {
+          legacyShellUpdateRef.current = false
+          if (bridge?.checkForUpdates) {
+            try {
+              const shellUpdate = await bridge.checkForUpdates()
+              if (shellUpdate.state === 'available' && shellUpdate.canDownload) {
+                legacyShellUpdateRef.current = true
+                applyStatus(shellUpdate)
+                return shellUpdate
+              }
+            } catch {
+              // Old Shell update checks must not block signed component updates.
+            }
+          }
           if (bridge?.checkComponentUpdates) {
             const items = await bridge.checkComponentUpdates()
             setComponents(items)
@@ -149,18 +127,68 @@ export function useAppUpdate(): AppUpdateController {
   }, [applyStatus, bridge, check])
 
   const installComponents = useCallback(async () => {
-    if (!bridge?.installComponentUpdates) return []
-    applyStatus({ ...statusRef.current, state: 'downloading', message: '' })
-    const items = await bridge.installComponentUpdates()
-    setComponents(items)
-    applyStatus(componentStatus(items))
-    if (
-      !items.some((item) => item.state === 'error') &&
-      items.some((item) => item.restartRequired)
-    ) {
-      await bridge.restartForComponentUpdate?.()
+    if (legacyShellUpdateRef.current && bridge?.downloadUpdate) {
+      applyStatus({
+        ...statusRef.current,
+        state: 'downloading',
+        message: '',
+        transferred: 0,
+        percent: 0,
+      })
+      const stopStatusUpdates = bridge.onUpdateStatus?.(applyStatus)
+      try {
+        const downloaded = await bridge.downloadUpdate()
+        applyStatus(downloaded)
+        if (downloaded.state === 'downloaded' && downloaded.canInstall) {
+          await bridge.installUpdate?.()
+        }
+      } finally {
+        stopStatusUpdates?.()
+      }
+      return []
     }
-    return items
+    if (!bridge?.installComponentUpdates) return []
+    applyStatus({
+      ...statusRef.current,
+      state: 'downloading',
+      message: '',
+      transferred: 0,
+      percent: 0,
+    })
+    let pollInFlight = false
+    let installFinished = false
+    const refreshProgress = async () => {
+      if (installFinished || pollInFlight || !bridge.componentUpdateStatus) return
+      pollInFlight = true
+      try {
+        const items = await bridge.componentUpdateStatus()
+        if (installFinished) return
+        setComponents(items)
+        const next = componentStatus(items)
+        if (next.state !== 'available') applyStatus(next)
+      } catch {
+        // The install command returns the authoritative terminal state.
+      } finally {
+        pollInFlight = false
+      }
+    }
+    const poll = window.setInterval(() => void refreshProgress(), 250)
+    try {
+      const items = await bridge.installComponentUpdates()
+      installFinished = true
+      setComponents(items)
+      applyStatus(componentStatus(items))
+      if (
+        !items.some((item) => item.state === 'error') &&
+        items.some((item) => item.restartRequired)
+      ) {
+        await bridge.restartForComponentUpdate?.()
+      }
+      return items
+    } finally {
+      installFinished = true
+      window.clearInterval(poll)
+    }
   }, [applyStatus, bridge])
 
   const openReleases = useCallback(async () => {
@@ -171,14 +199,9 @@ export function useAppUpdate(): AppUpdateController {
 
   const openUpdateLog = useCallback(() => bridge?.openUpdateLog?.(), [bridge])
 
-  const download = useCallback(async () => {
-    if (!bridge || !status.canDownload) return openReleases()
-    const next = await bridge.downloadUpdate()
-    applyStatus(next)
-    return next
-  }, [applyStatus, bridge, openReleases, status.canDownload])
+  const download = useCallback(() => openReleases(), [openReleases])
 
-  const install = useCallback(() => bridge?.installUpdate(), [bridge])
+  const install = useCallback(() => openReleases(), [openReleases])
 
   return {
     info,

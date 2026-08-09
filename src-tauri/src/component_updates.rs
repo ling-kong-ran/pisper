@@ -6,7 +6,10 @@ use serde::Serialize;
 use std::{collections::HashMap, path::PathBuf, sync::Mutex};
 use tauri::{AppHandle, Manager, State};
 
-use crate::{cli_manager, desktop_bridge::UPDATER_PUBLIC_KEY};
+use crate::{
+    cli_manager,
+    desktop_bridge::{log_component_update, UPDATER_PUBLIC_KEY},
+};
 
 #[derive(Clone, Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -19,6 +22,7 @@ pub struct ComponentUpdateStatus {
     release_url: String,
     notes: String,
     size: u64,
+    transferred: u64,
     can_install: bool,
     restart_required: bool,
 }
@@ -34,6 +38,7 @@ impl ComponentUpdateStatus {
             release_url: "https://github.com/ling-kong-ran/pisper/releases".into(),
             notes: String::new(),
             size: 0,
+            transferred: 0,
             can_install: false,
             restart_required: false,
         }
@@ -132,7 +137,11 @@ pub async fn desktop_check_component_updates(
     app: AppHandle,
     state: State<'_, ComponentUpdateState>,
 ) -> Result<Vec<ComponentUpdateStatus>, String> {
-    let updater = updater(&app)?;
+    let updater = updater(&app).map_err(|error| {
+        log_component_update(&app, &format!("updater initialization failed: {error}"));
+        error
+    })?;
+    log_component_update(&app, "checking Desktop, TUI, and Runtime releases");
     for component in Component::ALL {
         let current_version = effective_version(&app, component);
         let pending_restart = restart_pending(&state, component);
@@ -161,18 +170,25 @@ pub async fn desktop_check_component_updates(
                     release_url: release.release_url,
                     notes: release.notes,
                     size: release.size,
+                    transferred: 0,
                     can_install: available,
                     restart_required: pending_restart,
                 }
             }
-            Err(error) => ComponentUpdateStatus {
-                component,
-                state: "error".into(),
-                current_version,
-                message: error.to_string(),
-                restart_required: pending_restart,
-                ..ComponentUpdateStatus::current(component, String::new())
-            },
+            Err(error) => {
+                log_component_update(
+                    &app,
+                    &format!("{} release check failed: {error:#}", component.name()),
+                );
+                ComponentUpdateStatus {
+                    component,
+                    state: "error".into(),
+                    current_version,
+                    message: format!("{error:#}"),
+                    restart_required: pending_restart,
+                    ..ComponentUpdateStatus::current(component, String::new())
+                }
+            }
         };
         store(&state, status);
     }
@@ -184,20 +200,28 @@ pub async fn desktop_install_component_updates(
     app: AppHandle,
     state: State<'_, ComponentUpdateState>,
 ) -> Result<Vec<ComponentUpdateStatus>, String> {
-    let updater = updater(&app)?;
+    let updater = updater(&app).map_err(|error| {
+        log_component_update(&app, &format!("updater initialization failed: {error}"));
+        error
+    })?;
+    log_component_update(&app, "component update batch started");
     for component in Component::ALL {
         let current_version = effective_version(&app, component);
         let pending_restart = restart_pending(&state, component);
         let release = match updater.latest(component).await {
             Ok(release) => release,
             Err(error) => {
+                log_component_update(
+                    &app,
+                    &format!("{} release check failed: {error:#}", component.name()),
+                );
                 store(
                     &state,
                     ComponentUpdateStatus {
                         component,
                         state: "error".into(),
                         current_version,
-                        message: error.to_string(),
+                        message: format!("{error:#}"),
                         restart_required: pending_restart,
                         ..ComponentUpdateStatus::current(component, String::new())
                     },
@@ -220,6 +244,7 @@ pub async fn desktop_install_component_updates(
                         release_url: release.release_url,
                         notes: release.notes,
                         size: release.size,
+                        transferred: 0,
                         can_install: false,
                         restart_required: pending_restart,
                     },
@@ -243,6 +268,15 @@ pub async fn desktop_install_component_updates(
             );
             continue;
         }
+        log_component_update(
+            &app,
+            &format!(
+                "{} {} download started ({} bytes)",
+                component.name(),
+                release.version,
+                release.size
+            ),
+        );
         store(
             &state,
             ComponentUpdateStatus {
@@ -256,9 +290,25 @@ pub async fn desktop_install_component_updates(
                 ..ComponentUpdateStatus::current(component, current_version.clone())
             },
         );
-        let installed = match updater.install(&release).await {
+        let progress_state = state.inner();
+        let installed = match updater
+            .install_with_progress(&release, |transferred, _total| {
+                let mut statuses = progress_state
+                    .statuses
+                    .lock()
+                    .expect("component update status poisoned");
+                if let Some(status) = statuses.get_mut(&component) {
+                    status.transferred = transferred;
+                }
+            })
+            .await
+        {
             Ok(installed) => installed,
             Err(error) => {
+                log_component_update(
+                    &app,
+                    &format!("{} install failed: {error:#}", component.name()),
+                );
                 store(
                     &state,
                     ComponentUpdateStatus {
@@ -266,10 +316,11 @@ pub async fn desktop_install_component_updates(
                         state: "error".into(),
                         current_version,
                         available_version: release.version,
-                        message: error.to_string(),
+                        message: format!("{error:#}"),
                         release_url: release.release_url,
                         notes: release.notes,
                         size: release.size,
+                        transferred: 0,
                         can_install: true,
                         restart_required: pending_restart,
                     },
@@ -281,6 +332,15 @@ pub async fn desktop_install_component_updates(
         if component == Component::Tui {
             let _ = cli_manager::refresh_managed_cli(&app);
         }
+        log_component_update(
+            &app,
+            &format!(
+                "{} {} downloaded, verified, and installed ({} bytes)",
+                component.name(),
+                installed.version,
+                release.size
+            ),
+        );
         store(
             &state,
             ComponentUpdateStatus {
@@ -292,6 +352,7 @@ pub async fn desktop_install_component_updates(
                 release_url: release.release_url,
                 notes: release.notes,
                 size: release.size,
+                transferred: release.size,
                 can_install: false,
                 restart_required: matches!(component, Component::Desktop | Component::Runtime),
             },
@@ -302,6 +363,7 @@ pub async fn desktop_install_component_updates(
 
 #[tauri::command]
 pub fn desktop_restart_for_component_update(app: AppHandle) -> bool {
+    log_component_update(&app, "restarting to activate Desktop or Runtime components");
     crate::stop_sidecar(&app);
     app.cleanup_before_exit();
     app.restart()
@@ -334,6 +396,7 @@ mod tests {
         let status = ComponentUpdateStatus::current(Component::Runtime, "1.2.3".into());
         assert_eq!(status.state, "idle");
         assert_eq!(status.current_version, "1.2.3");
+        assert_eq!(status.transferred, 0);
         assert_eq!(status.component, Component::Runtime);
     }
 }

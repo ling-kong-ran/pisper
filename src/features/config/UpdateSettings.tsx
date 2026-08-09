@@ -211,6 +211,7 @@ export function UpdateSettings({
           releaseUrl: '',
           notes: '',
           size: 0,
+          transferred: 0,
           canInstall: false,
           restartRequired: false,
         },
@@ -302,7 +303,7 @@ export function UpdateSettings({
             )}
           </small>
         )}
-        {downloading && !desktop && (
+        {downloading && (
           <div className="mt-4">
             <div className="flex justify-between text-[12px] text-[var(--text-muted)]">
               <span>{t('config:updateSettings.downloadProgress')}</span>

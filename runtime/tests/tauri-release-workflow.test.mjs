@@ -28,6 +28,28 @@ test('main desktop source and dependencies are Tauri-only', async () => {
   assert.doesNotMatch(seaBuild, /generate-icons|design[/\\]|join\(root, 'build'\)/)
 })
 
+test('new desktop shells use component updates while legacy clients retain release metadata', async () => {
+  const [cargo, config, library, bridge, permissions, workflow, updateHook] = await Promise.all([
+    readFile('src-tauri/Cargo.toml', 'utf8'),
+    readFile('src-tauri/tauri.conf.json', 'utf8'),
+    readFile('src-tauri/src/lib.rs', 'utf8'),
+    readFile('src-tauri/src/desktop-bridge.js', 'utf8'),
+    readFile('src-tauri/permissions/desktop.toml', 'utf8'),
+    readFile('.github/workflows/release.yml', 'utf8'),
+    readFile('src/features/updates/useAppUpdate.ts', 'utf8'),
+  ])
+
+  assert.doesNotMatch(cargo, /tauri-plugin-updater/)
+  assert.equal(JSON.parse(config).plugins?.updater, undefined)
+  assert.doesNotMatch(library, /desktop_(?:check_for|download|install)_update/)
+  assert.doesNotMatch(bridge, /checkForUpdates|downloadUpdate|installUpdate/)
+  assert.doesNotMatch(permissions, /desktop_(?:check_for|download|install)_update/)
+  assert.match(workflow, /Create multi-platform updater manifest/)
+  assert.match(workflow, /create-tauri-update-manifest\.mjs/)
+  assert.match(updateHook, /if \(bridge\?\.checkForUpdates\)/)
+  assert.match(updateHook, /legacyShellUpdateRef\.current/)
+})
+
 test('transparent desktop pet enables the required macOS Tauri API', async () => {
   const [cargo, config, desktopPet] = await Promise.all([
     readFile('src-tauri/Cargo.toml', 'utf8'),

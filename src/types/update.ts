@@ -4,6 +4,7 @@ export type UpdateStatus = {
   message?: string
   releaseUrl?: string
   canDownload?: boolean
+  canInstall?: boolean
   canResume?: boolean
   notes?: string
   currentCommit?: string
@@ -25,6 +26,7 @@ export type ComponentUpdateStatus = {
   releaseUrl: string
   notes: string
   size: number
+  transferred: number
   canInstall: boolean
   restartRequired: boolean
 }
@@ -109,9 +111,9 @@ export type DesktopBridge = {
   getCliStatus?: () => Promise<DesktopCliStatus>
   installCli?: () => Promise<DesktopCliStatus>
   uninstallCli?: () => Promise<DesktopCliStatus>
-  checkForUpdates: () => Promise<UpdateStatus>
-  downloadUpdate: () => Promise<UpdateStatus>
-  installUpdate: () => Promise<unknown>
+  checkForUpdates?: () => Promise<UpdateStatus>
+  downloadUpdate?: () => Promise<UpdateStatus>
+  installUpdate?: () => Promise<unknown>
   componentUpdateStatus?: () => Promise<ComponentUpdateStatus[]>
   checkComponentUpdates?: () => Promise<ComponentUpdateStatus[]>
   installComponentUpdates?: () => Promise<ComponentUpdateStatus[]>
@@ -131,5 +133,5 @@ export type DesktopBridge = {
   installPet?: (slug: string) => Promise<DesktopPetStatus>
   selectPet?: (slug: string) => Promise<DesktopPetStatus>
   openPetdex?: () => Promise<boolean>
-  onUpdateStatus: (callback: (status: UpdateStatus) => void) => () => void
+  onUpdateStatus?: (callback: (status: UpdateStatus) => void) => () => void
 }

@@ -19,6 +19,7 @@ const MAX_ARCHIVE_BYTES: u64 = 512 * 1024 * 1024;
 const MAX_EXTRACTED_BYTES: u64 = 2 * 1024 * 1024 * 1024;
 const MAX_ARCHIVE_ENTRIES: usize = 100_000;
 const MAX_SIGNATURE_BYTES: u64 = 64 * 1024;
+const NETWORK_ATTEMPTS: usize = 3;
 
 #[derive(Clone, Copy, Debug, Eq, Hash, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
@@ -106,7 +107,10 @@ pub struct InstalledComponent {
 impl InstalledComponent {
     pub fn executable(&self) -> PathBuf {
         if self.component == Component::Desktop {
-            return self.root.join("dist").join(self.component.executable_name());
+            return self
+                .root
+                .join("dist")
+                .join(self.component.executable_name());
         }
         self.root.join(self.component.executable_name())
     }
@@ -172,20 +176,7 @@ impl ComponentUpdater {
     }
 
     pub async fn latest(&self, component: Component) -> Result<ReleaseInfo> {
-        let releases = self
-            .client
-            .get(RELEASES_API)
-            .header(ACCEPT, "application/vnd.github+json")
-            .header(USER_AGENT, "Pisper component updater")
-            .send()
-            .await
-            .context("failed to request Pisper component releases")?
-            .error_for_status()
-            .context("Pisper component release request failed")?
-            .json::<Vec<GitHubRelease>>()
-            .await
-            .context("invalid Pisper component release response")?;
-
+        let releases = self.releases_with_retry().await?;
         releases
             .into_iter()
             .filter_map(|release| release_info(component, release))
@@ -193,9 +184,57 @@ impl ComponentUpdater {
             .ok_or_else(|| anyhow!("no signed {} release is available", component.name()))
     }
 
+    async fn releases_with_retry(&self) -> Result<Vec<GitHubRelease>> {
+        let mut last_error = None;
+        for attempt in 0..NETWORK_ATTEMPTS {
+            let result = async {
+                self.client
+                    .get(RELEASES_API)
+                    .header(ACCEPT, "application/vnd.github+json")
+                    .header(USER_AGENT, "Pisper component updater")
+                    .send()
+                    .await
+                    .context("failed to request Pisper component releases")?
+                    .error_for_status()
+                    .context("Pisper component release request failed")?
+                    .json::<Vec<GitHubRelease>>()
+                    .await
+                    .context("invalid Pisper component release response")
+            }
+            .await;
+            match result {
+                Ok(releases) => return Ok(releases),
+                Err(error) => last_error = Some(error),
+            }
+            if attempt + 1 < NETWORK_ATTEMPTS {
+                tokio::time::sleep(Duration::from_millis(250 * (attempt as u64 + 1))).await;
+            }
+        }
+        let error = last_error.unwrap_or_else(|| anyhow!("component release request failed"));
+        Err(error.context(format!(
+            "component release request failed after {NETWORK_ATTEMPTS} attempts"
+        )))
+    }
+
     pub async fn install(&self, release: &ReleaseInfo) -> Result<InstalledComponent> {
+        self.install_with_progress(release, |_, _| {}).await
+    }
+
+    pub async fn install_with_progress<F>(
+        &self,
+        release: &ReleaseInfo,
+        mut on_progress: F,
+    ) -> Result<InstalledComponent>
+    where
+        F: FnMut(u64, u64) + Send,
+    {
         let archive = self
-            .download(&release.archive_url, MAX_ARCHIVE_BYTES)
+            .download_with_progress(
+                &release.archive_url,
+                MAX_ARCHIVE_BYTES,
+                release.size,
+                &mut on_progress,
+            )
             .await?;
         let signature = self
             .download(&release.signature_url, MAX_SIGNATURE_BYTES)
@@ -215,7 +254,52 @@ impl ComponentUpdater {
     }
 
     async fn download(&self, url: &str, limit: u64) -> Result<Vec<u8>> {
-        let response = self
+        self.download_with_progress(url, limit, 0, |_, _| {}).await
+    }
+
+    async fn download_with_progress<F>(
+        &self,
+        url: &str,
+        limit: u64,
+        expected_size: u64,
+        mut on_progress: F,
+    ) -> Result<Vec<u8>>
+    where
+        F: FnMut(u64, u64),
+    {
+        let mut last_error = None;
+        for attempt in 0..NETWORK_ATTEMPTS {
+            if attempt > 0 {
+                on_progress(0, expected_size);
+            }
+            match self
+                .download_once(url, limit, expected_size, &mut on_progress)
+                .await
+            {
+                Ok(bytes) => return Ok(bytes),
+                Err(error) => last_error = Some(error),
+            }
+            if attempt + 1 < NETWORK_ATTEMPTS {
+                tokio::time::sleep(Duration::from_millis(250 * (attempt as u64 + 1))).await;
+            }
+        }
+        let error = last_error.unwrap_or_else(|| anyhow!("component download failed"));
+        Err(error.context(format!(
+            "component download failed after {NETWORK_ATTEMPTS} attempts: {url}"
+        )))
+    }
+
+    async fn download_once<F>(
+        &self,
+        url: &str,
+        limit: u64,
+        expected_size: u64,
+        mut on_progress: F,
+    ) -> Result<Vec<u8>>
+    where
+        F: FnMut(u64, u64),
+    {
+        let mut response = self
             .client
             .get(url)
             .header(ACCEPT, "application/octet-stream")
@@ -227,14 +311,23 @@ impl ComponentUpdater {
         if response.content_length().is_some_and(|size| size > limit) {
             bail!("component download exceeds the size limit");
         }
-        let bytes = response
-            .bytes()
+        let total = response.content_length().unwrap_or(expected_size);
+        let mut bytes = Vec::new();
+        while let Some(chunk) = response
+            .chunk()
             .await
-            .context("component download was interrupted")?;
-        if bytes.len() as u64 > limit {
-            bail!("component download exceeds the size limit");
+            .context("component download was interrupted")?
+        {
+            let transferred = (bytes.len() as u64)
+                .checked_add(chunk.len() as u64)
+                .context("component download size overflow")?;
+            if transferred > limit {
+                bail!("component download exceeds the size limit");
+            }
+            bytes.extend_from_slice(&chunk);
+            on_progress(transferred, total);
         }
-        Ok(bytes.to_vec())
+        Ok(bytes)
     }
 }
 
@@ -566,8 +659,11 @@ mod tests {
     use semver::Version;
     use std::{
         fs,
+        io::{Read, Write},
+        net::TcpListener,
         path::{Path, PathBuf},
-        time::{SystemTime, UNIX_EPOCH},
+        thread,
+        time::{Duration, SystemTime, UNIX_EPOCH},
     };
 
     struct TestDirectory(PathBuf);
@@ -665,6 +761,96 @@ mod tests {
     }
 
     #[test]
+    fn component_download_reports_response_progress() {
+        let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+        let address = listener.local_addr().unwrap();
+        let server = thread::spawn(move || {
+            let (mut stream, _) = listener.accept().unwrap();
+            let mut request = [0_u8; 2048];
+            let _ = stream.read(&mut request).unwrap();
+            stream
+                .write_all(b"HTTP/1.1 200 OK\r\nContent-Length: 6\r\nConnection: close\r\n\r\nabc")
+                .unwrap();
+            stream.flush().unwrap();
+            thread::sleep(Duration::from_millis(100));
+            stream.write_all(b"def").unwrap();
+        });
+        let directory = TestDirectory::new();
+        let updater = super::ComponentUpdater::new(
+            directory.0.clone(),
+            include_str!("../../../src-tauri/updater.pubkey"),
+            "Pisper progress test",
+        )
+        .unwrap();
+        let runtime = tokio::runtime::Builder::new_current_thread()
+            .enable_all()
+            .build()
+            .unwrap();
+        let mut progress = Vec::new();
+        let bytes = runtime
+            .block_on(updater.download_with_progress(
+                &format!("http://{address}/component.tar.gz"),
+                1024,
+                6,
+                |transferred, total| progress.push((transferred, total)),
+            ))
+            .unwrap();
+        server.join().unwrap();
+
+        assert_eq!(bytes, b"abcdef");
+        assert_eq!(progress.last(), Some(&(6, 6)));
+        assert!(progress.iter().all(|(_, total)| *total == 6));
+        assert!(progress.iter().any(|(transferred, _)| *transferred < 6));
+    }
+
+    #[test]
+    fn interrupted_component_download_retries_and_resets_progress() {
+        let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+        let address = listener.local_addr().unwrap();
+        let server = thread::spawn(move || {
+            for attempt in 0..2 {
+                let (mut stream, _) = listener.accept().unwrap();
+                let mut request = [0_u8; 2048];
+                let _ = stream.read(&mut request).unwrap();
+                let body = if attempt == 0 {
+                    &b"abc"[..]
+                } else {
+                    &b"abcdef"[..]
+                };
+                stream
+                    .write_all(b"HTTP/1.1 200 OK\r\nContent-Length: 6\r\nConnection: close\r\n\r\n")
+                    .unwrap();
+                stream.write_all(body).unwrap();
+            }
+        });
+        let directory = TestDirectory::new();
+        let updater = super::ComponentUpdater::new(
+            directory.0.clone(),
+            include_str!("../../../src-tauri/updater.pubkey"),
+            "Pisper retry test",
+        )
+        .unwrap();
+        let runtime = tokio::runtime::Builder::new_current_thread()
+            .enable_all()
+            .build()
+            .unwrap();
+        let mut progress = Vec::new();
+        let bytes = runtime
+            .block_on(updater.download_with_progress(
+                &format!("http://{address}/component.tar.gz"),
+                1024,
+                6,
+                |transferred, total| progress.push((transferred, total)),
+            ))
+            .unwrap();
+        server.join().unwrap();
+
+        assert_eq!(bytes, b"abcdef");
+        assert!(progress.contains(&(0, 6)));
+        assert_eq!(progress.last(), Some(&(6, 6)));
+    }
+
+    #[test]
     fn component_assets_are_platform_specific() {
         let desktop = component_asset_name(Component::Desktop, "1.2.3");
         assert!(desktop.starts_with("Pisper_Desktop_1.2.3_"));
@@ -689,7 +875,11 @@ mod tests {
             .unwrap()
             .unwrap();
         assert_eq!(installed.version, version);
-        assert!(installed.frontend_root().unwrap().join("index.html").is_file());
+        assert!(installed
+            .frontend_root()
+            .unwrap()
+            .join("index.html")
+            .is_file());
         assert!(!installed.root.join("pisper-sidecar").exists());
     }
 

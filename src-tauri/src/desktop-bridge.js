@@ -28,28 +28,6 @@
     return status
   }
 
-  const updateListeners = new Set()
-  let updatePoll = 0
-  let lastUpdate = ''
-  const pollUpdates = async () => {
-    try {
-      const status = await invoke('desktop_update_status')
-      const serialized = JSON.stringify(status)
-      if (serialized === lastUpdate) return
-      lastUpdate = serialized
-      for (const listener of updateListeners) listener(status)
-    } catch {}
-  }
-  const syncUpdatePolling = () => {
-    if (updateListeners.size && !updatePoll) {
-      updatePoll = window.setInterval(pollUpdates, 500)
-      void pollUpdates()
-    } else if (!updateListeners.size && updatePoll) {
-      window.clearInterval(updatePoll)
-      updatePoll = 0
-    }
-  }
-
   Object.defineProperty(window, 'pisperDesktop', {
     configurable: false,
     enumerable: true,
@@ -61,9 +39,6 @@
       getCliStatus: () => invoke('desktop_get_cli_status'),
       installCli: () => invoke('desktop_install_cli'),
       uninstallCli: () => invoke('desktop_uninstall_cli'),
-      checkForUpdates: () => invoke('desktop_check_for_updates'),
-      downloadUpdate: () => invoke('desktop_download_update'),
-      installUpdate: () => invoke('desktop_install_update'),
       componentUpdateStatus: () => invoke('desktop_component_update_status'),
       checkComponentUpdates: () => invoke('desktop_check_component_updates'),
       installComponentUpdates: () => invoke('desktop_install_component_updates'),
@@ -85,15 +60,6 @@
       selectPet: async (slug) =>
         syncPetWindow(await api('/api/desktop-pet/select', { method: 'POST', body: { slug } })),
       openPetdex: () => invoke('desktop_open_url', { url: 'https://petdex.dev' }),
-      onUpdateStatus(callback) {
-        if (typeof callback !== 'function') return () => {}
-        updateListeners.add(callback)
-        syncUpdatePolling()
-        return () => {
-          updateListeners.delete(callback)
-          syncUpdatePolling()
-        }
-      },
     }),
   })
 })()

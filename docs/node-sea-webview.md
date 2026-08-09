@@ -71,11 +71,11 @@ The packaging step reads `TAURI_SIGNING_PRIVATE_KEY` and `TAURI_SIGNING_PRIVATE_
 - macOS: `.app.tar.gz` and `.app.tar.gz.sig`
 - Linux: `.AppImage` and `.AppImage.sig`
 
-The release job requires `windows-x86_64`, `darwin-x86_64`, `darwin-aarch64`, and `linux-x86_64` before it generates a single `latest.json`. If updater signing secrets are absent, CI publishes installable bundles but deliberately omits `latest.json`; in-app installation remains disabled.
+The release job requires `windows-x86_64`, `darwin-x86_64`, `darwin-aarch64`, and `linux-x86_64` before it generates a single `latest.json`. If updater signing secrets are absent, CI publishes installable bundles but deliberately omits `latest.json`.
 
-Pisper checks the human-readable GitHub Release first, then enables in-app download only when signed Tauri metadata announces the exact same newer version. The Rust shell owns download progress, signature verification, installation, update logs, and sidecar shutdown. Web content never receives the private key, updater plugin permission, or downloaded installer bytes.
+`latest.json` and the signed full installers remain a compatibility upgrade path for already released clients that use the former Tauri updater. The update UI invokes that path only when an old installed Shell exposes its updater bridge. Current Shells do not register the plugin or its download commands; their in-app update path downloads only signed Desktop, TUI, and Runtime components. This keeps old installations upgradeable without retaining a second full-installer implementation in new clients.
 
-Updater signatures and platform code signatures are separate. Windows Authenticode still requires a platform certificate. macOS distribution requires `APPLE_CERTIFICATE`, `APPLE_CERTIFICATE_PASSWORD`, and notarization credentials; without them the DMG can be built but Gatekeeper will not treat it as a verified distribution. Linux AppImage/DEB packages do not require a platform certificate, while their in-app updater artifact still uses the Tauri private key.
+Updater signatures and platform code signatures are separate. Windows Authenticode still requires a platform certificate. macOS distribution requires `APPLE_CERTIFICATE`, `APPLE_CERTIFICATE_PASSWORD`, and notarization credentials; without them the DMG can be built but Gatekeeper will not treat it as a verified distribution. Linux AppImage/DEB packages do not require a platform certificate, while compatibility updater artifacts still use the Tauri private key.
 
 ## Component Releases
 
@@ -89,7 +89,7 @@ Desktop, TUI, and runtime/web versions advance independently:
 
 Run `npm run release -- <patch|minor|major|X.Y.Z>` to compare each component with its own latest tag and publish every component with substantive owned changes. Component scopes are always detected from changed product paths; the command rejects manual `desktop`, `tui`, or `runtime` scopes so a release cannot omit another changed component. Multi-component dispatches share one immutable source SHA and complete sequentially, appending only validated component version commits. The workflow runs only the detected scopes' checks and packaging. TUI keeps its sidecar/runtime in the standalone archive so a direct download remains usable, while its thin component archive contains only the TUI executable. Runtime releases do not compile either Rust client. Desktop releases still integrate the current runtime and TUI sources into the application bundle.
 
-Only desktop Releases are marked as GitHub `latest`; this preserves `/releases/latest` and `latest.json` as desktop updater channels. TUI and runtime Releases are published with `--latest=false` and use their prefixed tags.
+Only desktop Releases are marked as GitHub `latest`; this preserves `/releases/latest` and `latest.json` for legacy client upgrades. TUI and runtime Releases are published with `--latest=false` and use their prefixed tags.
 
 TUI and runtime component archives are signed with the same minisign key used by the Tauri updater. The shared Rust updater requires an exact tag and platform asset name, downloads both the archive and `.sig`, enforces size limits, verifies the embedded public key, rejects links and traversal during extraction, then installs under the per-user `components/<component>/versions/<version>` directory. An atomic `current.json` pointer activates the version. Desktop startup and the TUI sidecar launcher prefer these installed components and fall back to bundled binaries when no valid pointer is present. Runtime updates require an app/process restart; managed TUI launchers are refreshed immediately when possible.
 

@@ -26,8 +26,6 @@ use tauri::{
 };
 use tauri_plugin_opener::OpenerExt;
 
-use desktop_bridge::{DesktopUpdateState, UPDATER_PUBLIC_KEY};
-
 const READY_PREFIX: &str = "PISPER_SIDECAR_READY ";
 const SIDECAR_TIMEOUT: Duration = Duration::from_secs(30);
 const SIDECAR_DESCRIPTOR_NAME: &str = "desktop-sidecar.json";
@@ -582,11 +580,6 @@ pub fn run() {
                 .build(),
         )
         .plugin(
-            tauri_plugin_updater::Builder::new()
-                .pubkey(UPDATER_PUBLIC_KEY)
-                .build(),
-        )
-        .plugin(
             tauri_plugin_window_state::Builder::default()
                 .with_state_flags(
                     tauri_plugin_window_state::StateFlags::POSITION
@@ -595,7 +588,6 @@ pub fn run() {
                 )
                 .build(),
         )
-        .manage(DesktopUpdateState::default())
         .manage(component_updates::ComponentUpdateState::default())
         .manage(LifecycleState {
             quitting: AtomicBool::new(false),
@@ -607,10 +599,6 @@ pub fn run() {
             cli_manager::desktop_get_cli_status,
             cli_manager::desktop_install_cli,
             cli_manager::desktop_uninstall_cli,
-            desktop_bridge::desktop_update_status,
-            desktop_bridge::desktop_check_for_updates,
-            desktop_bridge::desktop_download_update,
-            desktop_bridge::desktop_install_update,
             component_updates::desktop_component_update_status,
             component_updates::desktop_check_component_updates,
             component_updates::desktop_install_component_updates,
