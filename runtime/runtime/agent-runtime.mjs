@@ -624,6 +624,7 @@ export class AgentRuntimeService extends AgentRuntimeFacade {
       },
       getSettingsManager: () => this.settingsManager,
       getSession: (id) => this.getOrCreateSession(id),
+      isSessionRunActive: (id, value) => this.sessionRunIsActive(id, value),
       contextUsage: (session, compaction) => this.compactionAwareContextUsage(session, compaction),
       invalidateProjection: (id, scopes) => {
         if (scopes?.allUsage) this.streamProjection.invalidateAllUsage()
@@ -850,6 +851,10 @@ export class AgentRuntimeService extends AgentRuntimeFacade {
 
   touchSessionRuntime(value) {
     return this.sessionLifecycle.touchSessionRuntime(value)
+  }
+
+  sessionRunIsActive(id, value = this.sessions.get(id)) {
+    return this.sessionLifecycle.sessionRunIsActive(id, value)
   }
 
   sessionRuntimeIsProtected(id, value) {
@@ -1330,7 +1335,8 @@ export class AgentRuntimeService extends AgentRuntimeFacade {
     const value = await this.getOrCreateSession(id)
     const { session } = value
     const existingLive = this.liveSessions.get(session.sessionId)
-    if (session.isStreaming) throw new Error('当前会话仍在运行，请等待完成后再压缩上下文。')
+    if (this.sessionRunIsActive(session.sessionId, value))
+      throw new Error('当前会话仍在运行，请等待完成后再压缩上下文。')
     if (existingLive?.compaction?.active) throw new Error('当前会话正在压缩上下文。')
 
     const startedAt = new Date().toISOString()
@@ -1752,7 +1758,7 @@ export class AgentRuntimeService extends AgentRuntimeFacade {
     const session = value.session
 
     // 如果会话正在运行，直接 steer 注入
-    if (session.isStreaming) {
+    if (this.sessionRunIsActive(sessionId, value)) {
       void session.steer(prompt).catch(() => {})
       return
     }
@@ -1780,7 +1786,7 @@ export class AgentRuntimeService extends AgentRuntimeFacade {
     if (!pending.length) return
     const message = pending.join('\n\n')
     // 防抖窗口内会话恰好开始运行：改为 steer 注入，避免另起一轮
-    if (value.session.isStreaming) {
+    if (this.sessionRunIsActive(sessionId, value)) {
       void value.session.steer(message).catch(() => {})
       return
     }
@@ -1789,16 +1795,19 @@ export class AgentRuntimeService extends AgentRuntimeFacade {
     await this.streamPrompt({ sessionId, message, send: () => {} })
   }
 
-  async streamPrompt({
-    sessionId,
-    message,
-    attachments = [],
-    requestedToolNames = [],
-    goalMode = false,
-    goalTokenBudget = null,
-    isolatedContext = false,
-    send,
-  }) {
+  async runSessionPrompt(
+    value,
+    {
+      sessionId,
+      message,
+      attachments = [],
+      requestedToolNames = [],
+      goalMode = false,
+      goalTokenBudget = null,
+      isolatedContext = false,
+      send,
+    },
+  ) {
     const emit = (event, data) => {
       this.streamProjection.invalidate(data?.sessionId || sessionId || '')
       send(event, data)
@@ -1808,7 +1817,6 @@ export class AgentRuntimeService extends AgentRuntimeFacade {
         // Desktop observers are best-effort and must never interrupt an Agent stream.
       }
     }
-    const value = await this.getOrCreateSession(sessionId)
     if (isolatedContext) {
       value.isolatedContext = true
       value.blockedToolNames = ISOLATED_CONTEXT_BLOCKED_TOOLS
@@ -1824,7 +1832,6 @@ export class AgentRuntimeService extends AgentRuntimeFacade {
     if (!session.model || session.model.provider === 'unknown' || session.model.id === 'unknown') {
       throw new Error('没有可用模型，请先在配置页设置 Provider、模型和 API Key。')
     }
-    if (session.isStreaming) throw new Error('当前会话仍在运行，请等待完成或先停止。')
     let goal = this.goals.get(session.sessionId)
     if (goalMode) {
       if (goal?.status === 'paused') {
@@ -2202,7 +2209,11 @@ export class AgentRuntimeService extends AgentRuntimeFacade {
         thinkingPrefix = live.thinkingText
         thinkingTurnText = ''
         live.thinkingText = thinkingPrefix
-        setLiveActivity(live, { type: 'model', stage: 'thinking', updatedAt: live.lastActivityAt })
+        setLiveActivity(live, {
+          type: 'model',
+          stage: 'thinking',
+          updatedAt: live.lastActivityAt,
+        })
         emit('thinking_reset', { thinkingText: thinkingPrefix, updatedAt: live.lastActivityAt })
         const activeGoal = this.goals.get(session.sessionId)
         goalTurnId = activeGoal?.status === 'active' ? activeGoal.id : ''
@@ -2404,8 +2415,6 @@ export class AgentRuntimeService extends AgentRuntimeFacade {
       if (this.agentEmitters.get(session.sessionId) === emit)
         this.agentEmitters.delete(session.sessionId)
       if (live.streaming) finishLiveRun(live.error)
-      this.touchSessionRuntime(value)
-      this.evictIdleSessionRuntimes(session.sessionId)
       const timer = setTimeout(() => {
         if (this.liveSessions.get(session.sessionId) === live) {
           this.liveSessions.delete(session.sessionId)

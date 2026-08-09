@@ -84,6 +84,93 @@ test('live session snapshot restores partial assistant output and tool state', a
   ])
 })
 
+test('session catalog and runtime LRU treat a live tool run as active between Pi stream turns', async (t) => {
+  const directory = await mkdtemp(join(tmpdir(), 'pisper-live-session-catalog-'))
+  t.after(() => rm(directory, { recursive: true, force: true }))
+  const runtime = new AgentRuntimeService({ cwd: directory, dataDir: directory })
+  const id = 'session-live-tool'
+  runtime.settingsManager = {
+    getGlobalSettings: () => ({
+      defaultProvider: 'openai',
+      defaultModel: 'gpt-5.4',
+      defaultThinkingLevel: 'medium',
+    }),
+  }
+  runtime.listStoredSessions = async () => [
+    {
+      id,
+      path: join(directory, 'session.jsonl'),
+      name: 'Live tool run',
+      firstMessage: 'Inspect the runtime.',
+      messageCount: 1,
+      cwd: directory,
+      created: new Date('2026-08-09T08:52:52.000Z'),
+      modified: new Date('2026-08-09T08:53:08.000Z'),
+    },
+  ]
+  const value = {
+    name: 'Live tool run',
+    cwd: directory,
+    created: '2026-08-09T08:52:52.000Z',
+    modified: '2026-08-09T08:53:08.000Z',
+    session: {
+      isStreaming: false,
+      model: { provider: 'openai', id: 'gpt-5.4' },
+      thinkingLevel: 'medium',
+      messages: [{ role: 'user', content: 'Inspect the runtime.' }],
+      dispose() {
+        throw new Error('a live run must never be disposed by the LRU')
+      },
+    },
+  }
+  runtime.sessions.set(id, value)
+  runtime.liveSessions.set(id, { streaming: true })
+
+  const [summary] = await runtime.listSessions()
+
+  assert.equal(summary.streaming, true)
+  assert.equal(runtime.sessionRunIsActive(id, value), true)
+  assert.equal(runtime.sessionRuntimeIsProtected(id, value), true)
+  assert.equal(runtime.disposeSessionRuntime(id, value), false)
+  assert.equal(runtime.sessions.get(id), value)
+})
+
+test('live tool runs block reentrant prompts and session configuration between Pi stream turns', async (t) => {
+  const directory = await mkdtemp(join(tmpdir(), 'pisper-live-session-guards-'))
+  t.after(() => rm(directory, { recursive: true, force: true }))
+  const runtime = new AgentRuntimeService({ cwd: directory, dataDir: directory })
+  await writeFile(runtime.appConfigPath, '{}', 'utf8')
+  const id = 'session-live-guards'
+  const value = {
+    session: {
+      sessionId: id,
+      isStreaming: false,
+      model: { provider: 'openai', id: 'gpt-current' },
+      thinkingLevel: 'medium',
+    },
+  }
+  runtime.sessions.set(id, value)
+  runtime.liveSessions.set(id, { streaming: true })
+  runtime.getOrCreateSession = async () => value
+  runtime.modelRuntime = {
+    getModel: () => ({ provider: 'openai', id: 'gpt-next' }),
+  }
+
+  await assert.rejects(
+    runtime.providerPreferences.setSessionModel(id, 'openai', 'gpt-next'),
+    /当前会话正在运行/,
+  )
+  await assert.rejects(
+    runtime.providerPreferences.setSessionThinkingLevel(id, 'high'),
+    /当前会话正在运行/,
+  )
+  await assert.rejects(runtime.compactSession(id), /当前会话仍在运行/)
+  await assert.rejects(
+    runtime.streamPrompt({ sessionId: id, message: 'Do not start twice.', send: () => {} }),
+    /当前会话仍在运行/,
+  )
+})
+
 test('persisted transcript binds reasoning and tool activity to the completed Agent run', async (t) => {
   const directory = await mkdtemp(join(tmpdir(), 'pisper-persisted-activity-'))
   t.after(() => rm(directory, { recursive: true, force: true }))

@@ -17,8 +17,9 @@ export function SessionDockPanel({ params, api }: IDockviewPanelProps<{ sessionI
   const session = context?.sessions.find((item) => item.id === sessionId)
   const sessionState = context?.sessionStates[sessionId]
   const state = sessionState || DEFAULT_SESSION_STATE
+  const streaming = Boolean(state.streaming || session?.streaming)
   const plan = resolveSessionPlan(sessionState, session)
-  const visiblePlan = isPlanActive(plan, { streaming: state.streaming }) ? plan : null
+  const visiblePlan = isPlanActive(plan, { streaming }) ? plan : null
   const loadMessages = context?.loadSessionMessages
   const loadThinkingLevel = context?.loadSessionThinkingLevel
   const thinkingRequestedRef = useRef('')
@@ -36,7 +37,7 @@ export function SessionDockPanel({ params, api }: IDockviewPanelProps<{ sessionI
   // Self-heal thinking state for sessions loaded while streaming or after page remounts.
   useEffect(() => {
     if (!visible || !sessionId || !session || !loadThinkingLevel) return
-    if (state.streaming || state.thinkingStatus) return
+    if (streaming || state.thinkingStatus) return
     if ((state.availableThinkingLevels || []).length) return
     if (thinkingRequestedRef.current === sessionId) return
     thinkingRequestedRef.current = sessionId
@@ -46,8 +47,8 @@ export function SessionDockPanel({ params, api }: IDockviewPanelProps<{ sessionI
     session,
     sessionId,
     state.availableThinkingLevels,
-    state.streaming,
     state.thinkingStatus,
+    streaming,
     visible,
   ])
 
@@ -97,7 +98,7 @@ export function SessionDockPanel({ params, api }: IDockviewPanelProps<{ sessionI
         switchingThinking={state.switchingThinking}
         switchingCwd={state.switchingCwd}
         switchingPermission={state.switchingPermission}
-        streaming={state.streaming}
+        streaming={streaming}
         runStartedAt={state.runStartedAt}
         lastActivityAt={state.lastActivityAt}
         runFinishedAt={state.runFinishedAt}

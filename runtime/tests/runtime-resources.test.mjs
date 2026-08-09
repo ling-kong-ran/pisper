@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict'
-import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises'
+import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import test from 'node:test'
@@ -365,7 +365,7 @@ test('saving Provider settings keeps the currently streaming session alive', asy
   assert.equal(runtime.sessions.has('idle'), false)
 })
 
-test('resource changes keep the currently streaming session alive', async (t) => {
+test('resource changes keep a live tool run even when the Pi stream flag is between turns', async (t) => {
   const directory = await mkdtemp(join(tmpdir(), 'pisper-resource-change-'))
   let runtime
   t.after(async () => {
@@ -378,12 +378,13 @@ test('resource changes keep the currently streaming session alive', async (t) =>
   runtime.sessions.set('streaming', {
     runtimeVersion: 0,
     session: {
-      isStreaming: true,
+      isStreaming: false,
       dispose: () => {
         streamingDisposed += 1
       },
     },
   })
+  runtime.liveSessions.set('streaming', { streaming: true })
   runtime.sessions.set('idle', {
     runtimeVersion: 0,
     session: {
@@ -404,7 +405,7 @@ test('resource changes keep the currently streaming session alive', async (t) =>
   assert.equal(runtime.sessions.has('idle'), false)
 })
 
-test('resident session runtime limit evicts the least-recent idle session but preserves streaming work', async (t) => {
+test('resident session runtime limit evicts only idle memory and preserves live and preflight runs', async (t) => {
   const directory = await mkdtemp(join(tmpdir(), 'pisper-session-runtime-lru-'))
   const runtime = new AgentRuntimeService({ cwd: directory, dataDir: directory })
   t.after(async () => {
@@ -421,16 +422,99 @@ test('resident session runtime limit evicts the least-recent idle session but pr
   })
   runtime.sessions.set('streaming', {
     lastAccessedAt: 2,
-    session: { isStreaming: true, dispose: () => disposed.push('streaming') },
+    session: { isStreaming: false, dispose: () => disposed.push('streaming') },
   })
-  runtime.sessions.set('new-idle', {
+  runtime.liveSessions.set('streaming', { streaming: true })
+  runtime.sessions.set('preflight', {
     lastAccessedAt: 3,
-    session: { isStreaming: false, dispose: () => disposed.push('new-idle') },
+    runActive: true,
+    session: { isStreaming: false, dispose: () => disposed.push('preflight') },
   })
 
   assert.equal(runtime.evictIdleSessionRuntimes(), 1)
   assert.deepEqual(disposed, ['old-idle'])
-  assert.deepEqual([...runtime.sessions.keys()], ['streaming', 'new-idle'])
+  assert.deepEqual([...runtime.sessions.keys()], ['streaming', 'preflight'])
+})
+
+test('LRU disposal releases only memory and leaves the persisted session transcript intact', async (t) => {
+  const directory = await mkdtemp(join(tmpdir(), 'pisper-session-runtime-persisted-'))
+  t.after(() => rm(directory, { recursive: true, force: true }))
+  const manager = SessionManager.create(directory, directory)
+  manager.appendModelChange('openai', 'gpt-test')
+  manager.appendMessage({ role: 'user', content: 'Persist this session.', timestamp: Date.now() })
+  manager.appendMessage({
+    role: 'assistant',
+    content: [{ type: 'text', text: 'Session persisted.' }],
+    provider: 'openai',
+    model: 'gpt-test',
+    api: 'openai-responses',
+    usage: {
+      input: 0,
+      output: 0,
+      cacheRead: 0,
+      cacheWrite: 0,
+      totalTokens: 0,
+      cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 },
+    },
+    stopReason: 'stop',
+    timestamp: Date.now(),
+  })
+  const sessionFile = manager.getSessionFile()
+  const runtime = new AgentRuntimeService({ cwd: directory, dataDir: directory })
+  const value = {
+    session: {
+      isStreaming: false,
+      sessionFile,
+      dispose() {},
+    },
+  }
+  runtime.sessions.set(manager.getSessionId(), value)
+
+  assert.equal(runtime.disposeSessionRuntime(manager.getSessionId(), value), true)
+  assert.equal(runtime.sessions.has(manager.getSessionId()), false)
+  assert.match(await readFile(sessionFile, 'utf8'), /Persist this session\./)
+})
+
+test('stream preflight reserves its runtime before any asynchronous prompt preparation', async (t) => {
+  const directory = await mkdtemp(join(tmpdir(), 'pisper-session-runtime-preflight-'))
+  const runtime = new AgentRuntimeService({ cwd: directory, dataDir: directory })
+  t.after(async () => {
+    runtime.sessions.clear()
+    await runtime.dispose().catch(() => {})
+    await rm(directory, { recursive: true, force: true }).catch(() => {})
+  })
+  runtime.maxResidentSessionRuntimes = 1
+  runtime.sessionRuntimeIdleTtlMs = Number.POSITIVE_INFINITY
+  const disposed = []
+  const active = {
+    lastAccessedAt: 1,
+    session: {
+      sessionId: 'active',
+      isStreaming: false,
+      model: { provider: 'openai', id: 'gpt-test' },
+      dispose: () => disposed.push('active'),
+    },
+  }
+  runtime.sessions.set('active', active)
+  runtime.sessions.set('idle', {
+    lastAccessedAt: 0,
+    session: { isStreaming: false, dispose: () => disposed.push('idle') },
+  })
+  runtime.getOrCreateSession = async () => active
+  await writeFile(runtime.appConfigPath, '{}', 'utf8')
+  runtime.selectToolsForMessage = async () => {
+    assert.equal(active.runActive, true)
+    assert.equal(runtime.evictIdleSessionRuntimes(), 1)
+    assert.equal(runtime.sessions.get('active'), active)
+    throw new Error('stop after preflight reservation check')
+  }
+
+  await assert.rejects(
+    runtime.streamPrompt({ sessionId: 'active', message: 'Reserve this runtime.', send() {} }),
+    /preflight reservation/,
+  )
+  assert.equal(active.runActive, false)
+  assert.deepEqual(disposed, ['idle'])
 })
 
 test('idle session runtime TTL releases inactive contexts and their history cache', async (t) => {

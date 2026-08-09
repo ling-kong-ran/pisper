@@ -83,9 +83,15 @@ export class SessionLifecycle {
     return value
   }
 
+  sessionRunIsActive(id, value = this.sessions.get(id)) {
+    return Boolean(
+      value?.runActive || this.liveSessions.get(id)?.streaming || value?.session?.isStreaming,
+    )
+  }
+
   sessionRuntimeIsProtected(id, value) {
     return Boolean(
-      value?.session?.isStreaming ||
+      this.sessionRunIsActive(id, value) ||
       this.getGoals().get(id)?.status === 'active' ||
       this.agentWakeupTimers.has(id) ||
       value?.pendingAgentNotifications?.length ||
@@ -94,7 +100,8 @@ export class SessionLifecycle {
   }
 
   disposeSessionRuntime(id, value) {
-    if (!value || this.sessions.get(id) !== value) return false
+    if (!value || this.sessions.get(id) !== value || this.sessionRunIsActive(id, value))
+      return false
     this.getPermissions().resolveSession(id, false, '会话运行时已从内存释放，请重新发送消息。')
     try {
       value.session.dispose()
@@ -152,7 +159,7 @@ export class SessionLifecycle {
     const state = this.getRuntimeState()
     this.setRuntimeVersion(state.sessionRuntimeVersion + 1)
     for (const [id, value] of this.sessions) {
-      if (value.session.isStreaming) continue
+      if (this.sessionRunIsActive(id, value)) continue
       this.getMultiAgents().abortParent(id)
       this.getPermissions().resolveSession(
         id,
@@ -267,7 +274,7 @@ export class SessionLifecycle {
         cwd: active?.cwd || sessionMeta[session.id]?.cwd || session.cwd || this.cwd,
         created: session.created.toISOString(),
         modified: active?.modified || session.modified.toISOString(),
-        streaming: Boolean(active?.session.isStreaming),
+        streaming: this.sessionRunIsActive(session.id, active),
       })
     })
     const persistedIds = new Set(result.map((session) => session.id))
@@ -288,7 +295,7 @@ export class SessionLifecycle {
           cwd: value.cwd || this.cwd,
           created: value.created,
           modified: value.modified,
-          streaming: Boolean(value.session.isStreaming),
+          streaming: this.sessionRunIsActive(id, value),
         }),
       )
     }
@@ -425,7 +432,7 @@ export class SessionLifecycle {
     )
       return null
     const active = this.sessions.get(id)
-    if (active?.session.isStreaming) {
+    if (this.sessionRunIsActive(id, active)) {
       throw new Error('当前会话正在运行，请完成或停止后再切换执行模式。')
     }
     const permissionMode = permissionModeForExecutionMode(executionMode)
@@ -457,7 +464,7 @@ export class SessionLifecycle {
       this.invalidateProjection(id, { transcript: false, activity: true, usage: false })
       return { id, cwd }
     }
-    if (active?.session.isStreaming) {
+    if (this.sessionRunIsActive(id, active)) {
       throw new Error('当前会话正在运行，请完成或停止后再切换工作目录。')
     }
     const activeSessionFile = active?.session.sessionFile
@@ -500,7 +507,7 @@ export class SessionLifecycle {
     if (id && this.sessions.has(id)) {
       const current = this.sessions.get(id)
       if (
-        current.session.isStreaming ||
+        this.sessionRunIsActive(id, current) ||
         (current.runtimeVersion ?? state.sessionRuntimeVersion) === state.sessionRuntimeVersion
       )
         return this.touchSessionRuntime(current)
@@ -556,7 +563,7 @@ export class SessionLifecycle {
     this.pendingSessions.delete(id)
     let sessionFile = active?.session.sessionFile
     if (active) {
-      if (active.session.isStreaming) await active.session.abort()
+      if (this.sessionRunIsActive(id, active)) await active.session.abort()
       active.session.dispose()
       this.sessions.delete(id)
     }

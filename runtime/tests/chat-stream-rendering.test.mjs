@@ -10,6 +10,7 @@ test('chat renders thinking and tool activity above one uninterrupted response b
     readFile('src/features/chat/AgentRunActivity.tsx', 'utf8'),
   ])
   assert.match(dock, /tools=\{state\.tools \|\| \[\]\}/)
+  assert.match(dock, /Boolean\(state\.streaming \|\| session\?\.streaming\)/)
   assert.match(focus, /tools: EntityRecord\[\]/)
   assert.match(focus, /activityFeed,\s+tools,\s+thinkingText,/)
   assert.doesNotMatch(message, /streamPreamble|splitAssistantStreamText|has-stream-split/)
@@ -189,7 +190,7 @@ test('shared plan board uses live/session fallback and consistent effective bloc
     readFile('src/features/chat/PlanBoard.tsx', 'utf8'),
   ])
   assert.match(dock, /resolveSessionPlan\(sessionState, session\)/)
-  assert.match(dock, /isPlanActive\(plan, \{ streaming: state\.streaming \}\)/)
+  assert.match(dock, /isPlanActive\(plan, \{ streaming \}\)/)
   assert.match(dock, /plan=\{visiblePlan\}/)
   assert.match(board, /item\.status === 'blocked' \|\| blockedBy\.length > 0/)
   assert.match(board, /view\.status === 'in_progress' && !view\.blocked/)

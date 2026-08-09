@@ -220,6 +220,7 @@ export class ProviderPreferences {
     setModelRuntime,
     getSettingsManager,
     getSession,
+    isSessionRunActive,
     contextUsage,
     invalidateProjection,
     invalidateSessionRuntimes,
@@ -242,6 +243,8 @@ export class ProviderPreferences {
     this.setModelRuntime = setModelRuntime
     this.getSettingsManager = getSettingsManager
     this.getSession = getSession
+    this.isSessionRunActive =
+      isSessionRunActive || ((_id, value) => Boolean(value?.session?.isStreaming))
     this.contextUsage = contextUsage
     this.invalidateProjection = invalidateProjection
     this.invalidateSessionRuntimes = invalidateSessionRuntimes
@@ -306,6 +309,10 @@ export class ProviderPreferences {
   }
 
   async setSessionModel(id, provider, modelId) {
+    const value = await this.getSession(id)
+    if (this.isSessionRunActive?.(id, value) ?? value.session.isStreaming) {
+      throw new Error('当前会话正在运行，请完成或停止后再切换模型。')
+    }
     const appConfig = await readJson(this.appConfigPath, {
       toolMode: 'full',
       disabledProviders: [],
@@ -316,10 +323,6 @@ export class ProviderPreferences {
     await this.modelMetadata.ensure(modelId)
     const model = this.getModelRuntime().getModel(String(provider || ''), String(modelId || ''))
     if (!model) throw new Error('指定的模型不存在。')
-    const value = await this.getSession(id)
-    if (value.session.isStreaming) {
-      throw new Error('当前会话正在运行，请完成或停止后再切换模型。')
-    }
     const settingsManager = this.getSettingsManager()
     const settings = settingsManager.getGlobalSettings()
     const defaultProvider = settings.defaultProvider
@@ -358,7 +361,7 @@ export class ProviderPreferences {
 
   async setSessionThinkingLevel(id, level) {
     const value = await this.getSession(id)
-    if (value.session.isStreaming) {
+    if (this.isSessionRunActive?.(id, value) ?? value.session.isStreaming) {
       throw new Error('当前会话正在运行，请完成或停止后再切换思考等级。')
     }
     const requested = String(level || '')

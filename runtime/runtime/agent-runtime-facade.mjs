@@ -65,6 +65,21 @@ export class AgentRuntimeFacade {
     return this.sessionLifecycle.deleteSession(id)
   }
 
+  async streamPrompt(options) {
+    const value = await this.getOrCreateSession(options.sessionId)
+    const id = value.session.sessionId
+    if (this.sessionRunIsActive(id, value))
+      throw new Error('当前会话仍在运行，请等待完成或先停止。')
+    value.runActive = true
+    try {
+      return await this.runSessionPrompt(value, options)
+    } finally {
+      value.runActive = false
+      this.touchSessionRuntime(value)
+      this.evictIdleSessionRuntimes(id)
+    }
+  }
+
   async getPlugins() {
     return this.toolPlugins.getState()
   }
@@ -424,8 +439,7 @@ export class AgentRuntimeFacade {
   }
 
   async commitSessionGitChanges(id, message) {
-    if (this.sessions.get(id)?.session.isStreaming)
-      throw new Error('当前会话正在运行，请完成或停止后再提交改动。')
+    if (this.sessionRunIsActive(id)) throw new Error('当前会话正在运行，请完成或停止后再提交改动。')
     return this.gitChanges.commit(await this.sessionGitCwd(id), message)
   }
 
@@ -434,8 +448,7 @@ export class AgentRuntimeFacade {
   }
 
   async revertSessionGitChanges(id) {
-    if (this.sessions.get(id)?.session.isStreaming)
-      throw new Error('当前会话正在运行，请完成或停止后再撤销改动。')
+    if (this.sessionRunIsActive(id)) throw new Error('当前会话正在运行，请完成或停止后再撤销改动。')
     return this.gitChanges.revert(await this.sessionGitCwd(id))
   }
 
@@ -444,8 +457,7 @@ export class AgentRuntimeFacade {
   }
 
   async commitSessionVcsChanges(id, message) {
-    if (this.sessions.get(id)?.session.isStreaming)
-      throw new Error('当前会话正在运行，请完成或停止后再提交改动。')
+    if (this.sessionRunIsActive(id)) throw new Error('当前会话正在运行，请完成或停止后再提交改动。')
     return this.vcsChanges.commit(await this.sessionGitCwd(id), message)
   }
 
@@ -454,8 +466,7 @@ export class AgentRuntimeFacade {
   }
 
   async revertSessionVcsChanges(id) {
-    if (this.sessions.get(id)?.session.isStreaming)
-      throw new Error('当前会话正在运行，请完成或停止后再撤销改动。')
+    if (this.sessionRunIsActive(id)) throw new Error('当前会话正在运行，请完成或停止后再撤销改动。')
     return this.vcsChanges.revert(await this.sessionGitCwd(id))
   }
 
