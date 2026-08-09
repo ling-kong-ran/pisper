@@ -38,6 +38,7 @@
   "schedulesPage.scheduledTrigger": "定时触发",
   "schedulesPage.completionAndFailure": "完成与失败",
   "schedulesPage.taskFailed": "任务执行失败",
+  "schedulesPage.taskInterrupted": "任务因 Pisper 重启而中断",
   "schedulesPage.createTask": "创建任务",
   "schedulesPage.manualRun": "手动运行",
   "schedulesPage.saveTask": "保存任务",

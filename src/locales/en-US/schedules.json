@@ -38,6 +38,7 @@
   "schedulesPage.scheduledTrigger": "Scheduled trigger",
   "schedulesPage.completionAndFailure": "Completion and failure",
   "schedulesPage.taskFailed": "Task failed",
+  "schedulesPage.taskInterrupted": "Task interrupted because Pisper restarted",
   "schedulesPage.createTask": "Create task",
   "schedulesPage.manualRun": "Manual run",
   "schedulesPage.saveTask": "Save task",

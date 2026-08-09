@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict'
-import { mkdtemp, rm } from 'node:fs/promises'
+import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import test from 'node:test'
@@ -17,6 +17,76 @@ async function waitFor(predicate, timeoutMs = 1500) {
     await new Promise((resolve) => setTimeout(resolve, 10))
   }
 }
+
+test('service startup reconciles stale running runs with interrupted tasks', async (t) => {
+  const directory = await mkdtemp(join(tmpdir(), 'pisper-schedule-recovery-'))
+  t.after(() => rm(directory, { recursive: true, force: true }))
+  const path = join(directory, 'schedules.json')
+  const startedAt = '2026-08-09T01:00:12.043Z'
+  await writeFile(
+    path,
+    JSON.stringify({
+      version: 1,
+      tasks: [
+        {
+          id: 'task-1',
+          name: 'Interrupted task',
+          prompt: 'test',
+          enabled: false,
+          lastStatus: 'interrupted',
+          lastRunAt: startedAt,
+        },
+        {
+          id: 'task-2',
+          name: 'Running task without history',
+          prompt: 'test',
+          enabled: false,
+          lastStatus: 'running',
+          lastRunAt: startedAt,
+        },
+      ],
+      runs: [
+        {
+          id: 'run-1',
+          taskId: 'task-1',
+          trigger: 'scheduled',
+          status: 'running',
+          startedAt,
+          finishedAt: null,
+          durationMs: 0,
+          summary: '',
+          error: '',
+          sessionId: '',
+        },
+      ],
+    }),
+  )
+  const service = new ScheduleService({
+    path,
+    cwd: directory,
+    tickMs: 60_000,
+    agent: { validateDirectory: async () => directory, prompt: async () => ({ text: 'done' }) },
+    notifications: { notify: async () => {} },
+  })
+  await service.init()
+  t.after(() => service.dispose())
+
+  const state = service.getState()
+  assert.equal(state.tasks[0].lastStatus, 'interrupted')
+  assert.match(state.tasks[0].lastError, /Pisper 重启/)
+  assert.equal(state.tasks[1].lastStatus, 'interrupted')
+  assert.match(state.tasks[1].lastError, /Pisper 重启/)
+  assert.equal(state.runs[0].status, 'interrupted')
+  assert.match(state.runs[0].error, /Pisper 重启/)
+  assert.ok(state.runs[0].finishedAt)
+  assert.ok(state.runs[0].durationMs > 0)
+
+  const persisted = JSON.parse(await readFile(path, 'utf8'))
+  assert.equal(persisted.tasks[0].lastStatus, 'interrupted')
+  assert.equal(persisted.tasks[1].lastStatus, 'interrupted')
+  assert.equal(persisted.runs[0].status, 'interrupted')
+  assert.equal(persisted.runs[0].finishedAt, state.runs[0].finishedAt)
+})
 
 test('scheduled task records notification delivery failures without changing the run result', async (t) => {
   const directory = await mkdtemp(join(tmpdir(), 'pisper-schedule-notification-failure-'))

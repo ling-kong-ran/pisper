@@ -79,7 +79,7 @@ type ScheduleRun = {
   id: string
   taskId: string
   trigger: 'manual' | 'scheduled'
-  status: 'running' | 'completed' | 'failed'
+  status: 'running' | 'completed' | 'failed' | 'interrupted'
   startedAt: string
   durationMs: number
   summary?: string
@@ -643,7 +643,9 @@ export function SchedulesPage({
                           ? t('schedules:schedulesPage.running2')
                           : item.status === 'completed'
                             ? item.summary || t('schedules:schedulesPage.taskCompleted')
-                            : item.error || t('schedules:schedulesPage.taskFailed')}
+                            : item.status === 'interrupted'
+                              ? t('schedules:schedulesPage.taskInterrupted')
+                              : item.error || t('schedules:schedulesPage.taskFailed')}
                       </strong>
                       <small>
                         {relativeTime(item.startedAt, language)} ·{' '}

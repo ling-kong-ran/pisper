@@ -8,6 +8,7 @@ const FREQUENCIES = new Set(['interval', 'daily', 'weekly', 'monthly'])
 const INTERVAL_UNITS = new Set(['minutes', 'hours', 'days'])
 const INTERVAL_MS = { minutes: 60_000, hours: 60 * 60_000, days: 24 * 60 * 60_000 }
 const NOTIFICATION_TARGETS = new Set(['browser', 'feishu', 'weixin'])
+const RESTART_INTERRUPTED_ERROR = '任务因 Pisper 重启而中断。'
 
 function defaultState() {
   return { version: 1, tasks: [], runs: [] }
@@ -184,14 +185,41 @@ export class ScheduleService {
 
   async init() {
     const stored = await readJson(this.path, defaultState())
+    const interruptedAt = new Date()
+    const runs = (Array.isArray(stored.runs) ? stored.runs : []).slice(-200).map((run) => {
+      if (run.status !== 'running') return run
+      const startedAt = new Date(run.startedAt).getTime()
+      const elapsed = Number.isFinite(startedAt)
+        ? Math.max(0, interruptedAt.getTime() - startedAt)
+        : 0
+      return {
+        ...run,
+        status: 'interrupted',
+        finishedAt: interruptedAt.toISOString(),
+        durationMs: Math.max(Number(run.durationMs) || 0, elapsed),
+        error: RESTART_INTERRUPTED_ERROR,
+      }
+    })
     this.state = {
       version: 1,
       tasks: (Array.isArray(stored.tasks) ? stored.tasks : []).map((task) => {
         const normalized = normalizeStoredTask(task, this.cwd)
-        if (normalized.lastStatus === 'running') normalized.lastStatus = 'interrupted'
+        const interruptedRun = runs.findLast(
+          (run) =>
+            run.taskId === normalized.id &&
+            run.status === 'interrupted' &&
+            (!normalized.lastRunAt || run.startedAt === normalized.lastRunAt),
+        )
+        if (normalized.lastStatus === 'running') {
+          normalized.lastStatus = 'interrupted'
+          normalized.lastError = RESTART_INTERRUPTED_ERROR
+          normalized.updatedAt = interruptedAt.toISOString()
+        }
+        if (normalized.lastStatus === 'interrupted' && interruptedRun && !normalized.lastError)
+          normalized.lastError = RESTART_INTERRUPTED_ERROR
         return normalized
       }),
-      runs: (Array.isArray(stored.runs) ? stored.runs : []).slice(-200),
+      runs,
     }
     await this.save()
     this.timer = setInterval(() => {
