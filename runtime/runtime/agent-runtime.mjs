@@ -314,27 +314,16 @@ async function resolveDirectory(input, fallback) {
   return resolveWorkspaceDirectory(input, fallback)
 }
 
-function temporarySessionTitle(message, attachments = []) {
-  const attachmentNames = attachments
-    .map((attachment) => safeAttachmentName(attachment?.name))
-    .filter(Boolean)
-  let title = String(message || '')
+export function sessionTitleFromFirstMessage(message, attachments = []) {
+  const content = String(message || '')
     .replace(/```[\s\S]*?```/g, '代码内容')
-    .replace(/https?:\/\/\S+/g, '链接')
-    .replace(
-      /^[\s，,。.!！?？]*(?:请|麻烦)?(?:你)?(?:帮我|帮忙|协助|请问|能否|可以)?[\s，,。.!！?？]*/i,
-      '',
-    )
-    .replace(/^(?:分析|查看|检查)(?:一下)?(?:这些|这个)?附件[\s，,。.!！?？]*/i, '')
-    .replace(/\s+/g, ' ')
     .trim()
-  if (
-    (!title || /^(?:分析|查看|检查)?(?:这些|这个)?附件$/i.test(title)) &&
-    attachmentNames.length
-  ) {
-    title = `分析 ${attachmentNames[0]}`
-  }
-  return cleanSessionTitle(title) || DEFAULT_SESSION_NAME
+  const firstSentence = content.match(/^.*?(?:[。！？!?]+|[.]+(?=\s|$)|\r?\n|$)/u)?.[0] || ''
+  const title = firstSentence.replace(/\s+/g, ' ').trim()
+  const attachmentName = attachments
+    .map((attachment) => safeAttachmentName(attachment?.name))
+    .find(Boolean)
+  return cleanSessionTitle(title || attachmentName) || DEFAULT_SESSION_NAME
 }
 
 async function extractDocumentText(attachment) {
@@ -1903,15 +1892,15 @@ export class AgentRuntimeService extends AgentRuntimeFacade {
     const firstTurn = !session.messages.some((item) => item.role === 'user')
     const sessionMeta = this.sessionMeta[session.sessionId]
     const mayAutoTitle = firstTurn && !sessionMeta?.manual
-    const temporaryTitle = mayAutoTitle ? temporarySessionTitle(message, attachments) : ''
-    if (temporaryTitle && temporaryTitle !== value.name) {
-      session.setSessionName(temporaryTitle)
-      value.name = temporaryTitle
-      await this.markSessionTitle(session.sessionId, temporaryTitle, false)
+    const firstMessageTitle = mayAutoTitle ? sessionTitleFromFirstMessage(message, attachments) : ''
+    if (firstMessageTitle && firstMessageTitle !== value.name) {
+      session.setSessionName(firstMessageTitle)
+      value.name = firstMessageTitle
+      await this.markSessionTitle(session.sessionId, firstMessageTitle, false)
       emit('session_title', {
         sessionId: session.sessionId,
-        name: temporaryTitle,
-        source: 'temporary',
+        name: firstMessageTitle,
+        source: 'first_message',
       })
     }
 
@@ -2306,41 +2295,12 @@ export class AgentRuntimeService extends AgentRuntimeFacade {
       const prompt = contexts.length
         ? `${message}${ATTACHMENT_MARKER}${contexts.join('\n\n')}`
         : message
-      const titlePromise = mayAutoTitle
-        ? this.generateSessionTitle(
-            session.model,
-            message,
-            safeAttachments,
-            temporaryTitle,
-            session.sessionId,
-          ).catch(() => '')
-        : null
       applyPisperSystemPrompt(session, session.model)
       await session.prompt(prompt, { images })
       const last = [...session.messages].reverse().find((item) => item.role === 'assistant')
       if (last?.errorMessage) throw new Error(last.errorMessage)
       const assistantText = textFromContent(last?.content)
       live.text = assistantText || live.text
-      // Resolve auto-title before done so clients that stop the SSE stream on `done` still receive it.
-      if (titlePromise) {
-        try {
-          const generatedTitle = await titlePromise
-          if (
-            generatedTitle &&
-            !this.sessionMeta[session.sessionId]?.manual &&
-            generatedTitle !== value.name
-          ) {
-            session.setSessionName(generatedTitle)
-            value.name = generatedTitle
-            await this.markSessionTitle(session.sessionId, generatedTitle, false)
-            emit('session_title', {
-              sessionId: session.sessionId,
-              name: generatedTitle,
-              source: 'generated',
-            })
-          }
-        } catch {}
-      }
       const finishedAt = finishLiveRun()
       live.contextUsage = this.compactionAwareContextUsage(session, live.compaction)
       emit('done', {
@@ -2423,38 +2383,6 @@ export class AgentRuntimeService extends AgentRuntimeFacade {
       timer.unref?.()
     }
   }
-  async generateSessionTitle(model, message, attachments, fallback, sessionId) {
-    const attachmentText = attachments.length
-      ? `\n附件：${attachments.map((item) => safeAttachmentName(item.name)).join('、')}`
-      : ''
-    const result = await this.modelRuntime.completeSimple(
-      model,
-      {
-        systemPrompt:
-          'You generate clear, specific session titles from the user task. Output only a Simplified Chinese title with no quotes, punctuation, explanation, or title prefix. Use at most 20 Chinese characters while preserving necessary filenames, technical terms, and error names.',
-        messages: [
-          {
-            role: 'user',
-            content: `${String(message || '').slice(0, 1200)}${attachmentText}`,
-            timestamp: Date.now(),
-          },
-        ],
-      },
-      {
-        ...(model.reasoning ? { reasoning: 'low' } : { temperature: 0.2 }),
-        maxTokens: 128,
-      },
-    )
-    if (sessionId)
-      await this.recordUsage(
-        localDayKey(result.timestamp || Date.now()),
-        `title:${sessionId}`,
-        result.usage,
-      )
-    if (result.errorMessage) return fallback
-    return cleanSessionTitle(textFromContent(result.content)) || fallback
-  }
-
   async captureConversationMemory({
     sessionId,
     cwd,

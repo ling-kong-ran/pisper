@@ -12,7 +12,6 @@ test('goal mode queues hidden continuation turns until the goal is completed', a
   const runtime = new AgentRuntimeService({ cwd: directory, dataDir: directory })
   await runtime.goals.init()
   runtime.archiveAttachments = async () => {}
-  runtime.generateSessionTitle = async () => ''
   runtime.captureConversationMemory = async () => []
   runtime.memory = { relevantContext: async () => ({ text: '' }) }
 

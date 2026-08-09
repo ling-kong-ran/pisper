@@ -7,6 +7,7 @@ import {
   AgentRuntimeService,
   installTransientStreamRetry,
   multiAgentResultAgent,
+  sessionTitleFromFirstMessage,
   waitForAgentMailbox,
 } from '../runtime/agent-runtime.mjs'
 import { applyTextPatch } from '../../src/lib/api.ts'
@@ -921,15 +922,34 @@ test('terminal Agent progress replaces its running activity instead of leaving a
   assert.deepEqual(live.agents, [])
 })
 
-test('generated session title is emitted before the terminal done event', async (t) => {
+test('session titles use the first user sentence and truncate locally', () => {
+  assert.equal(sessionTitleFromFirstMessage('请修复会话标题。然后运行测试。'), '请修复会话标题')
+  assert.equal(sessionTitleFromFirstMessage('Fix foo.ts. Then run tests.'), 'Fix foo.ts')
+  assert.equal(sessionTitleFromFirstMessage('# First line\nSecond line'), 'First line')
+  assert.equal(sessionTitleFromFirstMessage('', [{ name: 'report.pdf' }]), 'report.pdf')
+
+  const longTitle = '一二三四五六七八九十一二三四五六七八九十甲乙'
+  assert.equal(
+    sessionTitleFromFirstMessage(longTitle),
+    `${Array.from(longTitle).slice(0, 20).join('')}…`,
+  )
+})
+
+test('the first user sentence is the only automatic title event', async (t) => {
   const directory = await mkdtemp(join(tmpdir(), 'pisper-live-title-order-'))
   t.after(() => rm(directory, { recursive: true, force: true }))
   const runtime = new AgentRuntimeService({ cwd: directory, dataDir: directory })
   runtime.archiveAttachments = async () => []
   runtime.captureConversationMemory = async () => []
   runtime.memory = { relevantContext: async () => ({ text: '' }) }
-  runtime.generateSessionTitle = async () => 'Generated Title'
   runtime.markSessionTitle = async () => {}
+  let titleModelCalls = 0
+  runtime.modelRuntime = {
+    completeSimple: async () => {
+      titleModelCalls += 1
+      return { content: [{ type: 'text', text: 'Generated Title' }] }
+    },
+  }
 
   const listeners = new Set()
   const session = {
@@ -950,7 +970,11 @@ test('generated session title is emitted before the terminal done event', async 
     },
     async prompt() {
       session.isStreaming = true
-      session.messages.push({ role: 'user', content: 'Name this chat.', timestamp: 1 })
+      session.messages.push({
+        role: 'user',
+        content: 'Name this chat. Ignore this sentence.',
+        timestamp: 1,
+      })
       session.messages.push({
         role: 'assistant',
         content: [{ type: 'text', text: 'Hello' }],
@@ -964,24 +988,25 @@ test('generated session title is emitted before the terminal done event', async 
       session.isStreaming = false
     },
   }
-  const value = { session, cwd: directory, name: 'Temporary title', baseToolNames: [] }
+  const value = { session, cwd: directory, name: '新会话', baseToolNames: [] }
   runtime.sessions.set(session.sessionId, value)
   runtime.getOrCreateSession = async () => value
 
   const events = []
   await runtime.streamPrompt({
     sessionId: session.sessionId,
-    message: 'Name this chat.',
+    message: 'Name this chat. Ignore this sentence.',
     send: (event, data) => events.push({ event, data }),
   })
 
-  const titleIndex = events.findIndex(
-    (item) => item.event === 'session_title' && item.data?.source === 'generated',
-  )
+  const titleEvents = events.filter((item) => item.event === 'session_title')
+  const titleIndex = events.indexOf(titleEvents[0])
   const doneIndex = events.findIndex((item) => item.event === 'done')
-  assert.ok(titleIndex >= 0)
+  assert.equal(titleEvents.length, 1)
+  assert.equal(titleEvents[0].data.source, 'first_message')
+  assert.equal(titleEvents[0].data.name, 'Name this chat')
   assert.ok(doneIndex > titleIndex)
-  assert.equal(events[titleIndex].data.name, 'Generated Title')
+  assert.equal(titleModelCalls, 0)
 })
 
 test('stream_read_error uses the Pi turn retry path without broadening terminal errors', () => {
