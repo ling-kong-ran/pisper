@@ -25,6 +25,8 @@ generated/
 /.agents/skills/*
 !/.agents/skills/prompt-cache-optimizer/
 !/.agents/skills/prompt-cache-optimizer/**
+!/.agents/skills/screenshot-studio/
+!/.agents/skills/screenshot-studio/**
 .vesper/
 vesper-agents.json
 .pisper/
