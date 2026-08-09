@@ -1,5 +1,5 @@
 import { lazy, memo, Suspense, useEffect, useRef, useState, type ReactNode } from 'react'
-import { AlertTriangle, Check, Clock3, RefreshCw, Square } from 'lucide-react'
+import { AlertTriangle, Check, ChevronRight, Clock3, RefreshCw, Square } from 'lucide-react'
 import { useI18n } from '@/app/use-i18n'
 import { Plan } from '@/components/ai-elements/plan'
 import { Task } from '@/components/ai-elements/task'
@@ -578,9 +578,8 @@ function AgentRunActivity({
     primary.title = t('chat:agentRunActivity.currentOperationCompleted')
     primary.detail = ''
   }
-  const showOverview = Boolean(
-    streaming || activities.length || compaction?.active || error || stopped,
-  )
+  const completedActivityCount = !streaming ? activities.length : 0
+  const showOverview = Boolean(streaming || compaction?.active || error || stopped)
   const primaryDuration = formatRunDuration(runDurationMs(startedAt, finishedAt, now), language)
   const primaryDetail =
     primary.command && activities.length
@@ -608,25 +607,47 @@ function AgentRunActivity({
 
   return (
     <section className={`agent-run-activity ${compact ? 'compact' : ''}`} aria-live="polite">
-      {thinking && (
-        <div className="agent-thinking-window" data-pisper-activity-type="reasoning">
-          <div className="agent-thinking-head">
-            <span className="agent-run-status-icon">
-              <ActivityIcon tone={streaming ? 'running' : 'completed'} />
-            </span>
-            <span className="agent-run-copy">
-              <strong>{t('chat:agentRunActivity.reasoningCompleted')}</strong>
-            </span>
-            <span className="agent-run-duration">
-              <Clock3 size={12} />
-              {primaryDuration}
-            </span>
+      {thinking &&
+        (streaming ? (
+          <div className="agent-thinking-window" data-pisper-activity-type="reasoning">
+            <div className="agent-thinking-head">
+              <span className="agent-run-status-icon">
+                <ActivityIcon tone="running" />
+              </span>
+              <span className="agent-run-copy">
+                <strong>{t('chat:agentRunActivity.reasoningCompleted')}</strong>
+              </span>
+              <span className="agent-run-duration">
+                <Clock3 size={12} />
+                {primaryDuration}
+              </span>
+            </div>
+            <div ref={thinkingScrollRef} className="agent-thinking-scroll">
+              <MarkdownMessage streaming>{thinking}</MarkdownMessage>
+            </div>
           </div>
-          <div ref={thinkingScrollRef} className="agent-thinking-scroll">
-            <MarkdownMessage streaming={streaming}>{thinking}</MarkdownMessage>
-          </div>
-        </div>
-      )}
+        ) : (
+          <details
+            className="agent-thinking-window completed"
+            data-pisper-activity-type="reasoning"
+          >
+            <summary className="agent-thinking-head">
+              <span className="agent-run-status-icon">
+                <ChevronRight className="agent-run-disclosure" size={14} />
+              </span>
+              <span className="agent-run-copy">
+                <strong>{t('chat:agentRunActivity.reasoningCompleted')}</strong>
+              </span>
+              <span className="agent-run-duration">
+                <Clock3 size={12} />
+                {primaryDuration}
+              </span>
+            </summary>
+            <div ref={thinkingScrollRef} className="agent-thinking-scroll">
+              <MarkdownMessage streaming={false}>{thinking}</MarkdownMessage>
+            </div>
+          </details>
+        ))}
       {showOverview && (
         <div className={`agent-run-overview ${primary.tone}`} data-pisper-activity-type="status">
           <span className="agent-run-status-icon">
@@ -650,12 +671,35 @@ function AgentRunActivity({
           </span>
         </div>
       )}
-      {activities.length > 0 && (
+      {streaming && activities.length > 0 && (
         <div className="agent-run-feed">
           <Suspense fallback={activityCards}>
             <AnimatedList>{activityCards}</AnimatedList>
           </Suspense>
         </div>
+      )}
+      {completedActivityCount > 0 && (
+        <details className="agent-run-history">
+          <summary>
+            <span className="agent-run-status-icon">
+              <ChevronRight className="agent-run-disclosure" size={14} />
+            </span>
+            <span className="agent-run-copy">
+              <strong>
+                {t('chat:agentRunActivity.countCompletedOperations', {
+                  count: completedActivityCount,
+                })}
+              </strong>
+            </span>
+            <span className="agent-run-duration">
+              <Clock3 size={12} />
+              {primaryDuration}
+            </span>
+          </summary>
+          <div className="agent-run-feed completed">
+            <Suspense fallback={activityCards}>{activityCards}</Suspense>
+          </div>
+        </details>
       )}
     </section>
   )

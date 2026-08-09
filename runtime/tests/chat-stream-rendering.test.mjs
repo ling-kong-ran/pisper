@@ -20,7 +20,9 @@ test('chat renders thinking and tool activity above one uninterrupted response b
   assert.ok(responseIndex > activityIndex)
   assert.match(activity, /agent-thinking-window/)
   assert.match(activity, /thinkingScrollRef/)
-  assert.match(activity, /<MarkdownMessage streaming=\{streaming\}>\{thinking\}<\/MarkdownMessage>/)
+  assert.match(activity, /<MarkdownMessage streaming>\{thinking\}<\/MarkdownMessage>/)
+  assert.match(activity, /className="agent-thinking-window completed"/)
+  assert.match(activity, /className="agent-run-history"/)
 })
 
 test('composer is the sole persistent Agent run status surface', async () => {
@@ -33,6 +35,23 @@ test('composer is the sole persistent Agent run status surface', async () => {
   assert.doesNotMatch(focus, /focusSession\.agentRunning/)
   assert.match(styles, /\.focus-composer-status\.running/)
   assert.match(styles, /\.focus-composer-status\.compacting/)
+  assert.match(styles, /\.focus-session\.has-conversation \.focus-composer-status\.idle/)
+})
+
+test('conversation layout keeps Pisper identity without a persistent avatar card', async () => {
+  const [focus, message, transcript, styles] = await Promise.all([
+    readFile('src/features/chat/FocusSession.tsx', 'utf8'),
+    readFile('src/features/chat/ChatMessage.tsx', 'utf8'),
+    readFile('src/features/chat/FocusTranscript.tsx', 'utf8'),
+    readFile('src/index.css', 'utf8'),
+  ])
+  assert.match(focus, /hasConversation \? 'has-conversation' : 'is-empty'/)
+  assert.match(focus, /\{!hasConversation && \(/)
+  assert.match(message, /<BrandLogo size=\{20\} \/>/)
+  assert.doesNotMatch(message, /AgentStatusAvatar/)
+  assert.match(styles, /\.message\.agent \.message-content > \.markdown-body \{[^}]*border: 0;/)
+  assert.match(styles, /\.agent-message-mark\[data-state='thinking'\]/)
+  assert.match(transcript, /lazy\(\(\) => import\('\.\/WelcomeEffects'\)\)/)
 })
 
 test('composer send action becomes the only stop control while streaming', async () => {

@@ -58,6 +58,7 @@
   "agentRunActivity.contextIsNearingItsLimitSummarizingOlderMessages": "Context is nearing its limit; summarizing older messages",
   "agentRunActivity.countInProgress": "{count} in progress",
   "agentRunActivity.countLiveOperations": "{count} live operations",
+  "agentRunActivity.countCompletedOperations": "{count} operations completed",
   "agentRunActivity.countMoreChanges": "{count} more changes",
   "agentRunActivity.countPlanChanges": "{count} plan changes",
   "agentRunActivity.currentOperationCompleted": "Current operation completed",

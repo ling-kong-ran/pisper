@@ -58,6 +58,7 @@
   "agentRunActivity.contextIsNearingItsLimitSummarizingOlderMessages": "上下文接近上限，正在摘要较早消息",
   "agentRunActivity.countInProgress": "{count} 项进行中",
   "agentRunActivity.countLiveOperations": "{count} 项实时操作",
+  "agentRunActivity.countCompletedOperations": "已完成 {count} 项操作",
   "agentRunActivity.countMoreChanges": "还有 {count} 项变更",
   "agentRunActivity.countPlanChanges": "{count} 项计划变更",
   "agentRunActivity.currentOperationCompleted": "当前操作已完成",

@@ -1,7 +1,7 @@
 import { memo, useEffect, useState } from 'react'
 import { Download, File, X } from 'lucide-react'
 import { useI18n } from '@/app/use-i18n'
-import { AgentStatusAvatar } from '@/components/AgentStatusAvatar'
+import { BrandLogo } from '@/components/BrandLogo'
 import MarkdownMessage from '@/components/MarkdownMessage'
 import type { ChatAttachment, ChatMessage } from '@/types/chat'
 import AgentRunActivity, { type AgentRunActivityProps } from './AgentRunActivity'
@@ -164,7 +164,15 @@ export const FocusChatMessage = memo(function FocusChatMessage({
       data-pisper-streaming={streaming || undefined}
       data-pisper-error={message.error ? 'true' : undefined}
     >
-      <span>{message.role === 'agent' ? <AgentStatusAvatar state={agentState} /> : 'You'}</span>
+      <span>
+        {message.role === 'agent' ? (
+          <span className="agent-message-mark" data-state={agentState} aria-label="Pisper">
+            <BrandLogo size={20} />
+          </span>
+        ) : (
+          'You'
+        )}
+      </span>
       <div className="message-content">
         {showRunActivity && runProps && <AgentRunActivity {...runProps} />}
         {displayText && <MarkdownMessage streaming={streaming}>{displayText}</MarkdownMessage>}
