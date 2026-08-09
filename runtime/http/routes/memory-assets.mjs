@@ -1,13 +1,6 @@
 export const memoryAssetRoutes = [
   {
     method: 'GET',
-    path: '/api/directories',
-    async handler({ runtime, url, json }) {
-      json(200, await runtime.listDirectories(url.searchParams.get('path')))
-    },
-  },
-  {
-    method: 'GET',
     path: '/api/assets',
     async handler({ runtime, url, json }) {
       json(200, {

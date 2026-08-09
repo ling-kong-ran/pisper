@@ -1,5 +1,5 @@
-import { readdir, stat } from 'node:fs/promises'
-import { dirname, join, resolve, win32 } from 'node:path'
+import { stat } from 'node:fs/promises'
+import { resolve, win32 } from 'node:path'
 
 /**
  * @param {unknown} value
@@ -42,26 +42,4 @@ export async function resolveWorkspaceDirectory(
   const info = await inspectDirectory(path).catch(() => null)
   if (!info?.isDirectory()) throw new Error('工作目录不存在或不是文件夹。')
   return path
-}
-
-/**
- * @param {unknown} input
- * @param {unknown} fallback
- */
-export async function listWorkspaceDirectories(
-  input,
-  fallback,
-  { inspectDirectory = stat, readDirectory = readdir } = {},
-) {
-  const path = await resolveWorkspaceDirectory(input, fallback, { inspectDirectory })
-  const entries = await readDirectory(path, { withFileTypes: true })
-  const directories = entries
-    .filter((entry) => entry.isDirectory())
-    .map((entry) => ({ name: entry.name, path: join(path, entry.name) }))
-    .sort((left, right) =>
-      left.name.localeCompare(right.name, undefined, { numeric: true, sensitivity: 'base' }),
-    )
-    .slice(0, 300)
-  const parent = dirname(path)
-  return { path, parent: parent === path ? null : parent, directories }
 }

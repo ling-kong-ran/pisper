@@ -69,7 +69,7 @@ test('modal surfaces stay scrollable within low-height viewports', async () => {
   assert.match(styles, /\.modal-backdrop \{[^}]*overflow-y: auto;/)
   assert.match(styles, /\.modal \{[^}]*max-height: calc\(100dvh - 40px\);[^}]*overflow-y: auto;/)
   assert.match(styles, /\.modal \{ max-height: calc\(100dvh - 16px\); \}/)
-  assert.match(styles, /\.directory-browser \{ height: min\(290px,45dvh\);/)
+  assert.doesNotMatch(styles, /\.directory-browser/)
   assert.match(dialog, /max-h-\[calc\(100dvh-2rem\)\].*overflow-y-auto.*overscroll-contain/)
   assert.match(alertDialog, /max-h-\[calc\(100dvh-2rem\)\].*overflow-y-auto.*overscroll-contain/)
 })

@@ -123,7 +123,7 @@ export function SessionDockPanel({ params, api }: IDockviewPanelProps<{ sessionI
         onApproval={(approvalId: string, approved: boolean) =>
           context.resolveToolApproval(sessionId, approvalId, approved)
         }
-        onWorkspace={() => context.setWorkspaceSession(session)}
+        onWorkspace={() => void context.selectSessionWorkspace(session)}
         onRename={() => context.renameSession(session)}
         onSplitLeft={() => context.splitDockPanel(api.id, 'left')}
         onSplitRight={() => context.splitDockPanel(api.id, 'right')}

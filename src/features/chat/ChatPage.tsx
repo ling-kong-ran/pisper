@@ -7,7 +7,6 @@ import {
 } from 'dockview-react'
 import { Plus, RefreshCw } from 'lucide-react'
 import { useI18n } from '@/app/use-i18n'
-import { WorkspacePicker } from '@/components/WorkspacePicker'
 import { AppCard as Panel } from '@/components/ui/app-primitives'
 import { usePagePrimaryAction } from '@/hooks/usePagePrimaryAction'
 import type { ConfirmDialogOptions, PromptDialogOptions } from '@/hooks/useAppDialog'
@@ -158,48 +157,37 @@ export function ChatPage({
     switchSessionThinkingLevel: sessionCommands.switchSessionThinkingLevel,
     switchSessionExecutionMode: sessionCommands.switchSessionExecutionMode,
     resolveToolApproval: sessionCommands.resolveToolApproval,
-    setWorkspaceSession: sessionCommands.setWorkspaceSession,
+    selectSessionWorkspace: sessionCommands.selectSessionWorkspace,
     renameSession: sessionCommands.renameSession,
     splitDockPanel: dock.splitDockPanel,
     closeDockPanel: dock.closeDockPanel,
   }
 
   return (
-    <>
-      <div className="chat-layout dock-layout">
-        {catalog.loading ? (
-          <Panel className="empty-state">
-            <RefreshCw className="spin" size={24} />
-            <h2>{t('chat:chatPage.wakingTheAgent')}</h2>
-            <p>{t('chat:chatPage.modelsSessionsAndContextAreSettlingIntoPlace')}</p>
-          </Panel>
-        ) : (
-          <div className="chat-dock-workspace">
-            <ChatDockContext.Provider value={dockContextValue}>
-              <DockviewReact
-                className="dockview-theme-light dockview-theme-pisper"
-                components={dockComponents}
-                watermarkComponent={ChatDockWatermark}
-                leftHeaderActionsComponent={DockNewSessionAction}
-                onReady={dock.onDockReady}
-                getTabContextMenuItems={dock.getTabContextMenuItems}
-                disableFloatingGroups
-                disableDnd={dock.compactDock}
-                noPanelsOverlay="watermark"
-              />
-            </ChatDockContext.Provider>
-          </div>
-        )}
-      </div>
-      {sessionCommands.workspaceSession && (
-        <WorkspacePicker
-          session={sessionCommands.workspaceSession}
-          onClose={() => sessionCommands.setWorkspaceSession(null)}
-          onSelect={(cwd) =>
-            sessionCommands.switchSessionCwd(sessionCommands.workspaceSession!, cwd)
-          }
-        />
+    <div className="chat-layout dock-layout">
+      {catalog.loading ? (
+        <Panel className="empty-state">
+          <RefreshCw className="spin" size={24} />
+          <h2>{t('chat:chatPage.wakingTheAgent')}</h2>
+          <p>{t('chat:chatPage.modelsSessionsAndContextAreSettlingIntoPlace')}</p>
+        </Panel>
+      ) : (
+        <div className="chat-dock-workspace">
+          <ChatDockContext.Provider value={dockContextValue}>
+            <DockviewReact
+              className="dockview-theme-light dockview-theme-pisper"
+              components={dockComponents}
+              watermarkComponent={ChatDockWatermark}
+              leftHeaderActionsComponent={DockNewSessionAction}
+              onReady={dock.onDockReady}
+              getTabContextMenuItems={dock.getTabContextMenuItems}
+              disableFloatingGroups
+              disableDnd={dock.compactDock}
+              noPanelsOverlay="watermark"
+            />
+          </ChatDockContext.Provider>
+        </div>
       )}
-    </>
+    </div>
   )
 }

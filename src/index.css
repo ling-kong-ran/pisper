@@ -1079,7 +1079,6 @@ h1, h2, h3, strong { overflow-wrap: anywhere; }
 .palette-item-label { min-width: 0; flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .palette-item-hint { max-width: 180px; flex: none; overflow: hidden; color: var(--text-muted); font-size: 11px; text-overflow: ellipsis; white-space: nowrap; }
 .palette-empty { padding: 20px; color: var(--text-muted); font-size: 12px; text-align: center; }
-.workspace-modal { width: min(620px,100%); }
 .provider-config-modal { width: min(620px,100%); }
 .modal-toggle-row { display: flex; min-height: 45px; align-items: center; justify-content: space-between; gap: 12px; margin-top: 10px; border: 1px solid var(--stroke-soft); border-radius: var(--r-sm); background: var(--surface-subtle); padding: 8px 10px; }
 .modal-toggle-row > span { display: flex; flex-direction: column; gap: 3px; }
@@ -1091,12 +1090,6 @@ h1, h2, h3, strong { overflow-wrap: anywhere; }
 .desktop-pet-opacity { display: grid; grid-template-columns: 150px minmax(0,1fr); align-items: center; gap: 14px; border-top: 1px solid var(--stroke-soft); padding-top: 14px; }
 .desktop-pet-opacity > div { display: flex; align-items: center; justify-content: space-between; gap: 8px; font-size: 12px; }
 .desktop-pet-opacity > div span { color: var(--text-muted); font-variant-numeric: tabular-nums; }
-.directory-browser { height: min(290px,45dvh); min-height: 120px; overflow: auto; margin-top: 10px; border: 1px solid var(--stroke-soft); border-radius: var(--r-sm); background: var(--surface-subtle); padding: 5px; }
-.directory-browser > button { display: grid; width: 100%; height: 35px; grid-template-columns: 22px minmax(0,1fr) auto; align-items: center; border: 0; border-radius: var(--r-xs); background: transparent; padding: 0 8px; color: var(--text-muted); text-align: left; }
-.directory-browser > button:hover { background: var(--solid); color: var(--star-strong); }
-.directory-browser > button span { overflow: hidden; color: var(--text); font-size: 12px; font-weight: 600; text-overflow: ellipsis; white-space: nowrap; }
-.directory-browser > button small { font-size: 13px; }
-.directory-empty { display: flex; height: 100%; align-items: center; justify-content: center; gap: 7px; color: var(--text-muted); font-size: 12px; }
 .preview-page { display: flex; min-height: 100%; flex-direction: column; }.preview-page > .mcp-layout,.preview-page > .builder-layout { min-height: 0; flex: 1; }
 
 [data-theme='dark'] .app-startup, [data-theme='dark'] .app-shell { background: var(--bg); color: var(--text); }
@@ -1107,7 +1100,7 @@ h1, h2, h3, strong { overflow-wrap: anywhere; }
 [data-theme='dark'] .main-surface::before { background: linear-gradient(180deg,var(--main-glow-start) 0%,var(--main-glow-end) 100%); }
 [data-theme='dark'] .graph-toolbar { background: var(--solid); color: var(--text); }
 [data-theme='dark'] .button.primary, [data-theme='dark'] .send-button, [data-theme='dark'] .send-mini { color: var(--on-accent); }
-[data-theme='dark'] .button.secondary, [data-theme='dark'] .modal-toggle-row, [data-theme='dark'] .directory-browser, [data-theme='dark'] .schedule-notification-chip { background: var(--surface-subtle); }
+[data-theme='dark'] .button.secondary, [data-theme='dark'] .modal-toggle-row, [data-theme='dark'] .schedule-notification-chip { background: var(--surface-subtle); }
 [data-theme='dark'] .button.danger { background: var(--surface-subtle); color: var(--danger); }
 [data-theme='dark'] .icon-button:hover { background: var(--surface-hover); }
 [data-theme='dark'] .mini-message .markdown-body, [data-theme='dark'] .markdown-body pre, [data-theme='dark'] .tool-call-card, [data-theme='dark'] .attachment-chip, [data-theme='dark'] .template-grid button { background: var(--surface-subtle); }

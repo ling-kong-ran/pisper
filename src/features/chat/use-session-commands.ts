@@ -1,9 +1,10 @@
-import { useCallback, useState } from 'react'
+import { useCallback } from 'react'
 import { useI18n } from '@/app/use-i18n'
 import type { Notify } from '@/app/route-context'
 import type { ConfirmDialogOptions, PromptDialogOptions } from '@/hooks/useAppDialog'
 import { workspaceName } from '@/lib/format'
 import { ApiError } from '@/lib/http'
+import { pickSystemDirectory } from '@/lib/pick-system-directory'
 import type { SessionStateUpdate } from '@/lib/session-state'
 import type { ModelOption, SessionState, SessionSummary } from '@/types/chat'
 import { chatApi } from './chat-api'
@@ -38,7 +39,6 @@ export function useSessionCommands({
   syncLiveSession,
 }: SessionCommandOptions) {
   const { t, language } = useI18n()
-  const [workspaceSession, setWorkspaceSession] = useState<SessionSummary | null>(null)
 
   const updateSessionSummary = useCallback(
     (sessionId: string, update: (session: SessionSummary) => SessionSummary) => {
@@ -353,15 +353,16 @@ export function useSessionCommands({
     [notify, syncLiveSession, t, updateSessionState],
   )
 
-  const switchSessionCwd = useCallback(
-    async (session: SessionSummary, cwd: string) => {
+  const selectSessionWorkspace = useCallback(
+    async (session: SessionSummary) => {
       if (!session?.id || sessionStatesRef.current[session.id]?.streaming) return
-      updateSessionState(session.id, { switchingCwd: true, error: '' })
       try {
+        const cwd = await pickSystemDirectory(session.cwd)
+        if (!cwd) return
+        updateSessionState(session.id, { switchingCwd: true, error: '' })
         const updated = await chatApi.updateCwd(session.id, cwd)
         updateSessionState(session.id, { cwd: updated.cwd, switchingCwd: false })
         updateSessionSummary(session.id, (current) => ({ ...current, cwd: updated.cwd }))
-        setWorkspaceSession(null)
         notify(
           t('chat:chatPage.workingDirectoryChangedToWorkspace', {
             workspace: workspaceName(updated.cwd, language),
@@ -372,7 +373,6 @@ export function useSessionCommands({
           switchingCwd: false,
           error: chatErrorMessage(error),
         })
-        throw error
       }
     },
     [language, notify, sessionStatesRef, t, updateSessionState, updateSessionSummary],
@@ -400,9 +400,7 @@ export function useSessionCommands({
   )
 
   return {
-    workspaceSession,
-    setWorkspaceSession,
-    switchSessionCwd,
+    selectSessionWorkspace,
     renameSession,
     pauseGoal,
     setGoalBudget,

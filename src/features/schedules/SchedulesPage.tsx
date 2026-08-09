@@ -20,11 +20,11 @@ import {
   StatusBadge as Badge,
 } from '@/components/ui/app-primitives'
 import { AppSelect } from '@/components/AppSelect'
-import { WorkspacePicker } from '@/components/WorkspacePicker'
 import { useI18n } from '@/app/use-i18n'
 import { StarOrbit } from '@/components/StarOrbit'
 import { apiJson } from '@/lib/api'
 import { relativeTime } from '@/lib/format'
+import { pickSystemDirectory } from '@/lib/pick-system-directory'
 import { usePagePrimaryAction } from '@/hooks/usePagePrimaryAction'
 import type { FormEvent } from 'react'
 import type { Notify } from '@/app/route-context'
@@ -99,7 +99,6 @@ type ScheduleExecutionModeFieldProps = {
 }
 type ScheduleWorkspaceFieldProps = {
   value: string
-  name: string
   onChange: (value: string) => void
 }
 type ScheduleCreatorProps = {
@@ -180,9 +179,20 @@ function ScheduleExecutionModeField({ value, onChange }: ScheduleExecutionModeFi
   )
 }
 
-function ScheduleWorkspaceField({ value, name, onChange }: ScheduleWorkspaceFieldProps) {
+function ScheduleWorkspaceField({ value, onChange }: ScheduleWorkspaceFieldProps) {
   const { t } = useI18n()
-  const [open, setOpen] = useState(false)
+  const [pickerError, setPickerError] = useState('')
+
+  const browse = async () => {
+    setPickerError('')
+    try {
+      const selected = await pickSystemDirectory(value)
+      if (selected) onChange(selected)
+    } catch (error) {
+      setPickerError(error instanceof Error ? error.message : String(error))
+    }
+  }
+
   return (
     <>
       <label className="field-label">
@@ -193,26 +203,18 @@ function ScheduleWorkspaceField({ value, name, onChange }: ScheduleWorkspaceFiel
             onChange={(event) => onChange(event.target.value)}
             placeholder={t('schedules:schedulesPage.enterTheProjectSAbsolutePath')}
           />
-          <button type="button" className="button secondary" onClick={() => setOpen(true)}>
+          <button type="button" className="button secondary" onClick={() => void browse()}>
             <FolderOpen size={13} />
             {t('schedules:schedulesPage.browseDirectories')}
           </button>
         </span>
         <small>{t('schedules:schedulesPage.theScheduledAgentWillRunInThisDirectory')}</small>
       </label>
-      {open && (
-        <WorkspacePicker
-          session={{
-            id: 'schedule-workspace',
-            name: name || t('schedules:schedulesPage.schedules'),
-            cwd: value,
-          }}
-          onClose={() => setOpen(false)}
-          onSelect={(cwd) => {
-            onChange(cwd)
-            setOpen(false)
-          }}
-        />
+      {pickerError && (
+        <div className="config-error">
+          <AlertTriangle size={13} />
+          {pickerError}
+        </div>
       )}
     </>
   )
@@ -471,11 +473,7 @@ export function SchedulesPage({
                   onChange={(event) => updateDraft({ prompt: event.target.value })}
                 />
               </label>
-              <ScheduleWorkspaceField
-                value={draft.cwd}
-                name={draft.name}
-                onChange={(cwd) => updateDraft({ cwd })}
-              />
+              <ScheduleWorkspaceField value={draft.cwd} onChange={(cwd) => updateDraft({ cwd })} />
               <div className="form-grid three">
                 <label className="field-label">
                   {t('schedules:schedulesPage.frequency')}
@@ -775,7 +773,7 @@ function CreateSchedulePanel({ notificationTargets, defaultCwd, onCreated }: Sch
           placeholder={t('schedules:schedulesPage.describeTheWorkTheAgentShouldCompleteEachTime')}
         />
       </label>
-      <ScheduleWorkspaceField value={cwd} name={name} onChange={setCwd} />
+      <ScheduleWorkspaceField value={cwd} onChange={setCwd} />
       <div className="form-grid three">
         <label className="field-label">
           {t('schedules:schedulesPage.frequency')}
@@ -941,7 +939,7 @@ function CreateScheduleModal({
             placeholder={t('schedules:schedulesPage.describeTheWorkTheAgentShouldCompleteEachTime')}
           />
         </label>
-        <ScheduleWorkspaceField value={cwd} name={name} onChange={setCwd} />
+        <ScheduleWorkspaceField value={cwd} onChange={setCwd} />
         <ScheduleExecutionModeField value={executionMode} onChange={setExecutionMode} />
         {error && (
           <div className="config-error">

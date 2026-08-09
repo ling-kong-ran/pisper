@@ -1,14 +1,8 @@
 import assert from 'node:assert/strict'
-import { mkdir, mkdtemp, readFile, rm } from 'node:fs/promises'
-import { tmpdir } from 'node:os'
-import { join } from 'node:path'
+import { readFile } from 'node:fs/promises'
 import test from 'node:test'
 import { AgentRuntimeService } from '../runtime/agent-runtime.mjs'
-import {
-  listWorkspaceDirectories,
-  normalizeWorkspacePath,
-  workspacePathKey,
-} from '../runtime/workspace-directories.mjs'
+import { normalizeWorkspacePath, workspacePathKey } from '../runtime/workspace-directories.mjs'
 
 test('workspace paths remain platform-native without exposing Windows namespace prefixes', () => {
   assert.equal(
@@ -53,31 +47,19 @@ test('legacy packaged-runtime workspaces migrate to the platform user directory'
   assert.equal(saves, 1)
 })
 
-test('web workspace browsing starts at the runtime fallback and accepts absolute directories', async (t) => {
-  const home = await mkdtemp(join(tmpdir(), 'pisper-web-workspace-'))
-  const project = join(home, 'project')
-  await mkdir(project)
-  t.after(() => rm(home, { recursive: true, force: true }))
-
-  const initial = await listWorkspaceDirectories('', home)
-  assert.equal(initial.path, home)
-  assert.deepEqual(initial.directories, [{ name: 'project', path: project }])
-
-  const selected = await listWorkspaceDirectories(project, home)
-  assert.equal(selected.path, project)
-  assert.equal(selected.parent, home)
-})
-
-test('desktop and web workspace selection share the React directory picker', async () => {
-  const [cargo, shell, command, bridge, permissions, picker, schedules] = await Promise.all([
-    readFile('src-tauri/Cargo.toml', 'utf8'),
-    readFile('src-tauri/src/lib.rs', 'utf8'),
-    readFile('src-tauri/src/desktop_bridge.rs', 'utf8'),
-    readFile('src-tauri/src/desktop-bridge.js', 'utf8'),
-    readFile('src-tauri/permissions/desktop.toml', 'utf8'),
-    readFile('src/components/WorkspacePicker.tsx', 'utf8'),
-    readFile('src/features/schedules/SchedulesPage.tsx', 'utf8'),
-  ])
+test('workspace selection uses only the desktop system directory picker', async () => {
+  const [cargo, shell, command, bridge, permissions, picker, chat, schedules, routes] =
+    await Promise.all([
+      readFile('src-tauri/Cargo.toml', 'utf8'),
+      readFile('src-tauri/src/lib.rs', 'utf8'),
+      readFile('src-tauri/src/desktop_bridge.rs', 'utf8'),
+      readFile('src-tauri/src/desktop-bridge.js', 'utf8'),
+      readFile('src-tauri/permissions/desktop.toml', 'utf8'),
+      readFile('src/lib/pick-system-directory.ts', 'utf8'),
+      readFile('src/features/chat/use-session-commands.ts', 'utf8'),
+      readFile('src/features/schedules/SchedulesPage.tsx', 'utf8'),
+      readFile('runtime/http/routes/memory-assets.mjs', 'utf8'),
+    ])
   assert.match(cargo, /tauri-plugin-dialog/)
   assert.match(shell, /plugin\(tauri_plugin_dialog::init\(\)\)/)
   assert.match(shell, /desktop_bridge::desktop_pick_directory/)
@@ -86,9 +68,8 @@ test('desktop and web workspace selection share the React directory picker', asy
   assert.match(bridge, /pickDirectory: \(initialDirectory\)/)
   assert.match(permissions, /"desktop_pick_directory"/)
   assert.match(picker, /window\.pisperDesktop\?\.pickDirectory/)
-  assert.match(picker, /if \(!nativePicker \|\| nativeFailed\)/)
-  assert.match(picker, /browse\(session\.cwd \|\| ''\)/)
-  assert.match(schedules, /<WorkspacePicker/)
-  assert.match(schedules, /<ScheduleWorkspaceField value=\{cwd\}/)
-  assert.doesNotMatch(picker, /[A-Z]:\\\\/)
+  assert.match(chat, /pickSystemDirectory\(session\.cwd\)/)
+  assert.match(schedules, /pickSystemDirectory\(value\)/)
+  assert.doesNotMatch(routes, /\/api\/directories/)
+  await assert.rejects(readFile('src/components/WorkspacePicker.tsx', 'utf8'), /ENOENT/)
 })

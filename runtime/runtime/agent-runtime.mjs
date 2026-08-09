@@ -47,7 +47,6 @@ import { VcsChangesService } from '../services/vcs-changes-service.mjs'
 import { PlanService } from '../services/plan-service.mjs'
 import { BrowserAutomationService } from '../services/browser-automation-service.mjs'
 import {
-  listWorkspaceDirectories,
   normalizeWorkspacePath,
   resolveWorkspaceDirectory,
   workspacePathKey,
@@ -1435,10 +1434,6 @@ export class AgentRuntimeService extends AgentRuntimeFacade {
 
   async setSessionCwd(id, input) {
     return this.sessionLifecycle.setSessionCwd(id, input)
-  }
-
-  listDirectories(input) {
-    return listWorkspaceDirectories(input, this.cwd)
   }
 
   async getOrCreateSession(id) {
