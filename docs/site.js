@@ -91,6 +91,65 @@ for (const card of document.querySelectorAll('.spotlight-card')) {
   })
 }
 
+// Particles：hero 星尘粒子（canvas，本地实现）
+const particlesCanvas = document.querySelector('.hero-particles')
+if (particlesCanvas && !reduceMotion) {
+  const context = particlesCanvas.getContext('2d')
+  const COLORS = ['223, 255, 98', '98, 209, 220', '168, 85, 247']
+  let dots = []
+  let width = 0
+  let height = 0
+  let animationFrame = 0
+
+  const resize = () => {
+    const dpr = Math.min(window.devicePixelRatio || 1, 2)
+    const rect = particlesCanvas.parentElement.getBoundingClientRect()
+    width = rect.width
+    height = rect.height
+    particlesCanvas.width = Math.round(width * dpr)
+    particlesCanvas.height = Math.round(height * dpr)
+    context.setTransform(dpr, 0, 0, dpr, 0, 0)
+    const count = width < 700 ? 34 : 72
+    dots = Array.from({ length: count }, () => ({
+      x: Math.random() * width,
+      y: Math.random() * height,
+      r: 0.6 + Math.random() * 1.2,
+      vx: (Math.random() - 0.5) * 0.22,
+      vy: -0.08 - Math.random() * 0.18,
+      color: COLORS[Math.floor(Math.random() * COLORS.length)],
+      phase: Math.random() * Math.PI * 2,
+    }))
+  }
+
+  const tick = (time) => {
+    context.clearRect(0, 0, width, height)
+    for (const dot of dots) {
+      dot.x += dot.vx
+      dot.y += dot.vy
+      if (dot.y < -4) {
+        dot.y = height + 4
+        dot.x = Math.random() * width
+      }
+      if (dot.x < -4) dot.x = width + 4
+      if (dot.x > width + 4) dot.x = -4
+      const alpha = 0.16 + 0.3 * (0.5 + 0.5 * Math.sin(time * 0.001 + dot.phase))
+      context.beginPath()
+      context.arc(dot.x, dot.y, dot.r, 0, Math.PI * 2)
+      context.fillStyle = `rgba(${dot.color}, ${alpha})`
+      context.fill()
+    }
+    animationFrame = requestAnimationFrame(tick)
+  }
+
+  resize()
+  window.addEventListener('resize', resize, { passive: true })
+  document.addEventListener('visibilitychange', () => {
+    if (document.hidden) cancelAnimationFrame(animationFrame)
+    else animationFrame = requestAnimationFrame(tick)
+  })
+  animationFrame = requestAnimationFrame(tick)
+}
+
 // Magnetic：下载按钮磁吸
 if (!reduceMotion) {
   for (const element of document.querySelectorAll('.magnetic')) {
