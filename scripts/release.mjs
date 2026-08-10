@@ -203,7 +203,9 @@ runComponentChecks(selectedComponents)
 if (chainNpm) runNpm(['run', 'npm:pack:check'])
 
 const npmDispatchIndex = npmComponents.length
-  ? plans.findIndex(({ component }) => component === 'runtime' || component === 'tui')
+  ? plans.findLastIndex(
+      ({ component }) => component === 'runtime' || component === 'tui',
+    )
   : -1
 
 for (const [index, { component, nextVersion, tag }] of plans.entries()) {
