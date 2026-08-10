@@ -5,14 +5,14 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta
       name="description"
-      content="Pisper 是一个本地优先的多 Agent 工作台，在桌面端和终端中并行推进会话、工具、记忆与自动化，并提供清晰的数据边界与已知敏感信息脱敏。"
+      content="Pisper 是一个本地优先的 Agent 应用，在桌面端和终端中并行推进会话、工具、记忆与自动化，并提供清晰的数据边界与已知敏感信息脱敏。"
     />
     <meta name="theme-color" content="#111312" />
     <meta property="og:type" content="website" />
-    <meta property="og:title" content="Pisper · 多 Agent 工作台" />
+    <meta property="og:title" content="Pisper · 本地 Agent 应用" />
     <meta
       property="og:description"
-      content="让多个 Agent 在同一工作台并行推进，各自拥有独立模型、上下文、目录与权限；数据默认保存在本机。"
+      content="让多个 Agent 在同一应用中并行推进，各自拥有独立模型、上下文、目录与权限；数据默认保存在本机。"
     />
     <meta
       property="og:image"
@@ -24,7 +24,7 @@
     <link rel="preload" href="shots/welcome-dark.png" as="image" />
     <link rel="stylesheet" href="site.css" />
     <script src="site.js" defer></script>
-    <title>Pisper · 多 Agent 工作台</title>
+    <title>Pisper · 本地 Agent 应用</title>
   </head>
   <body>
     <a class="skip-link" href="#main">跳到主要内容</a>
@@ -44,7 +44,7 @@
           <a href="https://github.com/ling-kong-ran/pisper/blob/release/README.en.md">English</a>
         </div>
 
-        <a class="nav-download" href="https://github.com/ling-kong-ran/pisper/releases/latest">
+        <a class="nav-download magnetic" href="https://github.com/ling-kong-ran/pisper/releases/latest">
           下载桌面版 <span aria-hidden="true">↓</span>
         </a>
       </nav>
@@ -55,26 +55,27 @@
         <img
           class="hero-image"
           src="shots/welcome-dark.png"
-          alt="Pisper 深色工作台，包含会话、工具、记忆、MCP、技能与工作流导航"
+          alt="Pisper 深色 Agent 工作界面，包含会话、工具、记忆、MCP、技能与工作流导航"
           width="2558"
           height="1380"
         />
         <div class="hero-shade" aria-hidden="true"></div>
+        <div class="hero-aurora" aria-hidden="true"><i></i><i></i><i></i></div>
         <div class="hero-content shell">
-          <p class="eyebrow">LOCAL-FIRST · MULTI-AGENT</p>
+          <p class="eyebrow hero-fade-in">LOCAL-FIRST · MULTI-AGENT</p>
           <h1 id="hero-title">Pisper</h1>
-          <p class="hero-statement">多个 Agent，一处推进。</p>
-          <p class="hero-copy">
-            每个会话拥有独立模型、上下文、工作目录与权限。专注写代码，也能把工具、记忆、渠道和自动化放在同一个工作台。
+          <p class="hero-statement hero-fade-in">多个 Agent，<span class="gradient-text">一处推进。</span></p>
+          <p class="hero-copy hero-fade-in">
+            每个会话拥有独立模型、上下文、工作目录与权限。专注写代码，也能把工具、记忆、渠道和自动化放进同一个应用。
           </p>
-          <div class="hero-actions">
+          <div class="hero-actions hero-fade-in">
             <a
-              class="button button-primary"
+              class="button button-primary shiny magnetic"
               href="https://github.com/ling-kong-ran/pisper/releases/latest"
             >
               下载桌面版 <span aria-hidden="true">→</span>
             </a>
-            <a class="button button-secondary" href="https://github.com/ling-kong-ran/pisper">
+            <a class="button button-secondary magnetic" href="https://github.com/ling-kong-ran/pisper">
               查看 GitHub
             </a>
           </div>
@@ -89,7 +90,7 @@
 
       <section class="signal-band" aria-label="产品形态">
         <div class="signal-grid shell">
-          <div><strong>Desktop</strong><span>完整工作台</span></div>
+          <div><strong>Desktop</strong><span>完整桌面应用</span></div>
           <div><strong>TUI</strong><span>终端客户端</span></div>
           <div><strong>Runtime</strong><span>统一能力层</span></div>
           <div><strong>Local-first</strong><span>本机保存与控制</span></div>
@@ -99,7 +100,7 @@
       <section class="product-section section shell" id="product" aria-labelledby="product-title">
         <div class="section-heading">
           <div>
-            <p class="eyebrow eyebrow-dark">真实工作台</p>
+            <p class="eyebrow eyebrow-dark">Agent 应用</p>
             <h2 id="product-title">任务复杂，界面保持清楚。</h2>
           </div>
           <p>
@@ -241,7 +242,7 @@
         </div>
 
         <figure
-          class="product-panel"
+          class="product-panel spotlight-card"
           id="product-panel"
           role="tabpanel"
           aria-labelledby="tab-sessions"
@@ -318,7 +319,7 @@
               <span>06</span>
               <div>
                 <h3>Git 与 SVN</h3>
-                <p>在工作台或终端中查看、提交和管理工作区改动。</p>
+                <p>在桌面或终端中查看、提交和管理工作区改动。</p>
               </div>
             </li>
           </ol>
@@ -453,7 +454,7 @@
             >阅读 TUI 使用指南 <span aria-hidden="true">→</span></a
           >
         </div>
-        <figure class="terminal-figure">
+        <figure class="terminal-figure spotlight-card">
           <img
             src="shots/cli.png"
             alt="Pisper TUI 终端界面"

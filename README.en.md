@@ -8,7 +8,7 @@
 
 <h1 align="center">Pisper</h1>
 
-<p align="center"><strong>A multi-Agent workspace powered by Pi</strong></p>
+<p align="center"><strong>A local-first Agent application powered by Pi</strong></p>
 
 <p align="center">
   <img src="https://img.shields.io/badge/Node.js-17141F?style=flat-square&logo=nodedotjs&logoColor=F59E0B" alt="Node.js" />

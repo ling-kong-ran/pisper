@@ -56,3 +56,73 @@ for (const [index, tab] of tabs.entries()) {
 
 updateHeader()
 window.addEventListener('scroll', updateHeader, { passive: true })
+
+// ===== React Bits 风格特效（本地实现，无外部依赖） =====
+const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches
+
+// BlurText：标题逐字模糊入场（仅桌面端且有动画偏好时）
+if (!reduceMotion) {
+  const title = document.querySelector('#hero-title')
+  if (title) {
+    const source = title.textContent || ''
+    title.textContent = ''
+    title.setAttribute('aria-label', source)
+    source.split(/(\s+)/).forEach((word, index) => {
+      if (/^\s+$/.test(word)) {
+        title.append(word)
+        return
+      }
+      const span = document.createElement('span')
+      span.className = 'blur-word'
+      span.setAttribute('aria-hidden', 'true')
+      span.style.setProperty('--rb-delay', `${120 + index * 70}ms`)
+      span.textContent = word
+      title.append(span)
+    })
+  }
+}
+
+// SpotlightCard：产品面板与终端图跟随鼠标光斑
+for (const card of document.querySelectorAll('.spotlight-card')) {
+  card.addEventListener('pointermove', (event) => {
+    const rect = card.getBoundingClientRect()
+    card.style.setProperty('--spot-x', `${event.clientX - rect.left}px`)
+    card.style.setProperty('--spot-y', `${event.clientY - rect.top}px`)
+  })
+}
+
+// Magnetic：下载按钮磁吸
+if (!reduceMotion) {
+  for (const element of document.querySelectorAll('.magnetic')) {
+    element.addEventListener('pointermove', (event) => {
+      const rect = element.getBoundingClientRect()
+      const x = event.clientX - (rect.left + rect.width / 2)
+      const y = event.clientY - (rect.top + rect.height / 2)
+      element.style.transform = `translate(${x * 0.18}px, ${y * 0.18}px)`
+    })
+    element.addEventListener('pointerleave', () => {
+      element.style.transform = ''
+    })
+  }
+}
+
+// 滚动淡入：区块进入视口时显现
+if ('IntersectionObserver' in window && !reduceMotion) {
+  const targets = document.querySelectorAll(
+    '.section-heading, .signal-grid > div, .capability-list li, .safety-list li, .safety-local, .safety-boundary, .component-rows > div, .terminal-figure, .download-inner, .site-footer .footer-inner, .product-panel',
+  )
+  const observer = new IntersectionObserver(
+    (entries) => {
+      for (const entry of entries) {
+        if (!entry.isIntersecting) continue
+        entry.target.classList.add('in-view')
+        observer.unobserve(entry.target)
+      }
+    },
+    { threshold: 0.12 },
+  )
+  for (const target of targets) {
+    target.classList.add('reveal')
+    observer.observe(target)
+  }
+}

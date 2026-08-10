@@ -8,7 +8,7 @@
 
 <h1 align="center">Pisper</h1>
 
-<p align="center"><strong>Pi 驱动的多 Agent 工作台</strong></p>
+<p align="center"><strong>Pi 驱动的本地 Agent 应用</strong></p>
 
 <p align="center">
   <img src="https://img.shields.io/badge/Node.js-17141F?style=flat-square&logo=nodedotjs&logoColor=F59E0B" alt="Node.js" />
