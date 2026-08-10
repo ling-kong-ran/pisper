@@ -27,6 +27,7 @@
     <title>Pisper · 本地 Agent 应用</title>
   </head>
   <body>
+    <div class="scroll-progress" aria-hidden="true"></div>
     <a class="skip-link" href="#main">跳到主要内容</a>
 
     <header class="site-header" data-header>
@@ -62,6 +63,7 @@
         <div class="hero-shade" aria-hidden="true"></div>
         <div class="hero-aurora" aria-hidden="true"><i></i><i></i><i></i></div>
         <canvas class="hero-particles" aria-hidden="true"></canvas>
+        <div class="hero-stroke" aria-hidden="true">AGENT</div>
         <div class="hero-content shell">
           <p class="eyebrow hero-fade-in">LOCAL-FIRST · MULTI-AGENT</p>
           <h1 id="hero-title">Pisper</h1>
@@ -243,12 +245,12 @@
         </div>
 
         <figure
-          class="product-panel spotlight-card"
+          class="product-panel spotlight-card border-glow"
           id="product-panel"
           role="tabpanel"
           aria-labelledby="tab-sessions"
         >
-          <div class="product-shot-wrap">
+          <div class="product-shot-wrap tilt-card">
             <img
               class="product-shot"
               data-product-shot
@@ -455,7 +457,7 @@
             >阅读 TUI 使用指南 <span aria-hidden="true">→</span></a
           >
         </div>
-        <figure class="terminal-figure spotlight-card">
+        <figure class="terminal-figure spotlight-card border-glow">
           <img
             src="shots/cli.png"
             alt="Pisper TUI 终端界面"

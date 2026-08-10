@@ -1381,6 +1381,111 @@ a {
   transform: none;
 }
 
+/* ScrollProgress：顶部滚动进度条 */
+.scroll-progress {
+  position: fixed;
+  z-index: 60;
+  top: 0;
+  left: 0;
+  width: 0;
+  height: 3px;
+  background: linear-gradient(90deg, var(--lime), var(--cyan));
+  pointer-events: none;
+}
+
+/* SplitText：标题滚动逐词入场 */
+.split-target .split-word {
+  display: inline-block;
+  opacity: 0;
+  animation: site-word-in 0.5s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+  animation-delay: var(--sd, 0ms);
+}
+
+@keyframes site-word-in {
+  from {
+    opacity: 0;
+    transform: translateY(0.55em);
+    filter: blur(3px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+    filter: none;
+  }
+}
+
+/* TiltedCard：产品面板轻 3D 倾斜 */
+.tilt-card {
+  transform: perspective(1100px) rotateX(var(--tilt-x, 0deg)) rotateY(var(--tilt-y, 0deg));
+  transition:
+    transform 200ms cubic-bezier(0.22, 1, 0.36, 1),
+    opacity 180ms ease;
+  will-change: transform;
+}
+
+/* BorderGlow：卡片 hover 边框辉光 */
+.border-glow {
+  position: relative;
+}
+
+.border-glow::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  padding: 1px;
+  background: linear-gradient(
+    120deg,
+    rgba(223, 255, 98, 0),
+    rgba(223, 255, 98, 0.55),
+    rgba(98, 209, 220, 0.55),
+    rgba(223, 255, 98, 0)
+  );
+  -webkit-mask:
+    linear-gradient(#000 0 0) content-box,
+    linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+  mask:
+    linear-gradient(#000 0 0) content-box,
+    linear-gradient(#000 0 0);
+  mask-composite: exclude;
+  opacity: 0;
+  transition: opacity 260ms ease;
+  pointer-events: none;
+}
+
+.border-glow:hover::after {
+  opacity: 1;
+}
+
+/* StrokeText：hero 描边装饰大字 */
+.hero-stroke {
+  position: absolute;
+  z-index: -1;
+  right: -2%;
+  bottom: 9%;
+  color: transparent;
+  -webkit-text-stroke: 1px rgba(255, 255, 255, 0.13);
+  font-size: clamp(92px, 16vw, 216px);
+  font-weight: 800;
+  line-height: 1;
+  letter-spacing: 0.03em;
+  user-select: none;
+  pointer-events: none;
+  white-space: nowrap;
+  animation: hero-stroke-pulse 9s ease-in-out infinite;
+}
+
+@keyframes hero-stroke-pulse {
+  0%,
+  100% {
+    opacity: 0.45;
+  }
+  50% {
+    opacity: 0.85;
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   html {
     scroll-behavior: auto;
@@ -1398,16 +1503,24 @@ a {
   .hero-fade-in,
   .shiny::after,
   .magnetic,
-  .reveal {
+  .reveal,
+  .split-target .split-word,
+  .tilt-card,
+  .hero-stroke {
     animation: none !important;
     transition: none !important;
   }
 
   .blur-word,
   .hero-fade-in,
-  .reveal {
+  .reveal,
+  .split-target .split-word {
     opacity: 1 !important;
     filter: none !important;
+    transform: none !important;
+  }
+
+  .tilt-card {
     transform: none !important;
   }
 }

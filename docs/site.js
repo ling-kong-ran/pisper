@@ -185,3 +185,74 @@ if ('IntersectionObserver' in window && !reduceMotion) {
     observer.observe(target)
   }
 }
+
+// SplitText：section 标题滚动逐词入场
+if ('IntersectionObserver' in window && !reduceMotion) {
+  const splitHeads = document.querySelectorAll(
+    '.section-heading h2, .component-intro h2, .terminal-copy h2, .download-inner h2',
+  )
+  const splitObserver = new IntersectionObserver(
+    (entries) => {
+      for (const entry of entries) {
+        if (!entry.isIntersecting) continue
+        const element = entry.target
+        if (element.dataset.split) continue
+        element.dataset.split = '1'
+        const source = element.textContent || ''
+        element.textContent = ''
+        element.setAttribute('aria-label', source)
+        // 中文逐字、英文/数字逐词、保留空白
+        const tokens =
+          source.match(
+            /[\u4e00-\u9fff\u3000-\u303f\uff00-\uffef]|[A-Za-z0-9]+(?:['-][A-Za-z0-9]+)*|\s+/g,
+          ) || [source]
+        let delay = 0
+        for (const token of tokens) {
+          if (/^\s+$/.test(token)) {
+            element.append(token)
+            continue
+          }
+          const span = document.createElement('span')
+          span.className = 'split-word'
+          span.style.setProperty('--sd', `${delay}ms`)
+          span.textContent = token
+          element.append(span)
+          delay += 42
+        }
+        element.classList.add('split-target')
+        splitObserver.unobserve(element)
+      }
+    },
+    { threshold: 0.35 },
+  )
+  for (const element of splitHeads) splitObserver.observe(element)
+}
+
+// TiltedCard：产品面板轻 3D 倾斜
+if (!reduceMotion) {
+  for (const card of document.querySelectorAll('.tilt-card')) {
+    card.addEventListener('pointermove', (event) => {
+      const rect = card.getBoundingClientRect()
+      const px = (event.clientX - rect.left) / rect.width - 0.5
+      const py = (event.clientY - rect.top) / rect.height - 0.5
+      card.style.setProperty('--tilt-x', `${(-py * 4).toFixed(2)}deg`)
+      card.style.setProperty('--tilt-y', `${(px * 4).toFixed(2)}deg`)
+    })
+    card.addEventListener('pointerleave', () => {
+      card.style.setProperty('--tilt-x', '0deg')
+      card.style.setProperty('--tilt-y', '0deg')
+    })
+  }
+}
+
+// ScrollProgress：顶部滚动进度条
+const progressBar = document.querySelector('.scroll-progress')
+if (progressBar) {
+  const updateProgress = () => {
+    const max = document.documentElement.scrollHeight - window.innerHeight
+    progressBar.style.width = `${max > 0 ? (window.scrollY / max) * 100 : 0}%`
+  }
+  updateProgress()
+  window.addEventListener('scroll', updateProgress, { passive: true })
+  window.addEventListener('resize', updateProgress, { passive: true })
+}
