@@ -110,7 +110,9 @@ async function verifyArchive(component, archiveBytes, signatureBytes) {
 async function extract(destination, archivePath) {
   await rm(destination, { recursive: true, force: true })
   await mkdir(destination, { recursive: true })
-  await extractTar({ cwd: destination, file: archivePath })
+  // Component archives include their top-level directory; strip it so the
+  // payload files land directly under destination.
+  await extractTar({ cwd: destination, file: archivePath, strip: 1 })
 }
 
 async function fetchComponent({ component, version, label, assetName, stageDir }) {
