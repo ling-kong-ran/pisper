@@ -11,6 +11,10 @@ import { chatApi } from './chat-api'
 import { chatErrorMessage } from './chat-errors'
 import { announceSessionsUpdated } from './events'
 
+function looksAbsolute(value: string): boolean {
+  return /^[\/]|^[A-Za-z]:[\\/]/.test(value)
+}
+
 type SessionCommandOptions = {
   notify: Notify
   requestText: (options?: PromptDialogOptions) => Promise<string | null>
@@ -366,9 +370,10 @@ export function useSessionCommands({
       }
       try {
         let cwd = await pickSystemDirectory(session.cwd)
+        // The browser picker may only be able to return a folder name (no
+        // absolute path); ask for the full path explicitly in that case.
+        if (cwd && !looksAbsolute(cwd)) cwd = null
         if (!cwd && requestText) {
-          // Pure Web (no desktop shell): fall back to typing the path; the
-          // runtime validates that the directory exists.
           cwd = await requestText({
             title: t('chat:chatPage.workingDirectoryPath'),
             inputLabel: t('chat:chatPage.workingDirectoryPath'),

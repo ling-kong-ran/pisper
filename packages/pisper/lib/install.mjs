@@ -133,23 +133,68 @@ async function resolveCurrentComponent(root, component, minimumVersion) {
   }
 }
 
-async function download(url) {
+async function download(url, { label = url } = {}) {
   const response = await fetch(url, {
     headers: { 'User-Agent': `pisper/${packageManifest.version}` },
     redirect: 'follow',
-    signal: AbortSignal.timeout(600_000),
+    signal: AbortSignal.timeout(300_000),
   })
   if (!response.ok) throw new Error(`download failed with HTTP ${response.status}: ${url}`)
   const declaredSize = Number(response.headers.get('content-length') || 0)
   if (declaredSize > MAX_ARCHIVE_BYTES) {
     throw new Error(`download is larger than ${MAX_ARCHIVE_BYTES} bytes`)
   }
-  const bytes = Buffer.from(await response.arrayBuffer())
+  if (!response.body) {
+    const bytes = Buffer.from(await response.arrayBuffer())
+    return validateDownloadBytes(bytes, url)
+  }
+  // Stream with visible progress so a large component download never looks
+  // like an install that is stuck spinning.
+  const reader = response.body.getReader()
+  const chunks = []
+  let received = 0
+  let lastReported = 0
+  while (true) {
+    const { done, value } = await reader.read()
+    if (done) break
+    chunks.push(value)
+    received += value.length
+    const percent = declaredSize ? Math.floor((received / declaredSize) * 100) : 0
+    if (percent - lastReported >= 10 || (declaredSize && received >= declaredSize)) {
+      lastReported = percent
+      const megabytes = (received / 1024 / 1024).toFixed(1)
+      console.log(`  ${label}: ${megabytes} MB (${percent}%)`)
+    }
+  }
+  const bytes = Buffer.concat(chunks)
+  return validateDownloadBytes(bytes, url)
+}
+
+function validateDownloadBytes(bytes, url) {
   if (bytes.length === 0) throw new Error(`downloaded an empty file: ${url}`)
   if (bytes.length > MAX_ARCHIVE_BYTES) {
     throw new Error(`download is larger than ${MAX_ARCHIVE_BYTES} bytes`)
   }
   return bytes
+}
+
+async function downloadWithRetry(url, label) {
+  const attempts = Math.max(1, Number(process.env.PISPER_CLI_DOWNLOAD_ATTEMPTS) || 3)
+  let lastError
+  for (let attempt = 1; attempt <= attempts; attempt += 1) {
+    try {
+      return await download(url, { label })
+    } catch (error) {
+      lastError = error
+      const retryable =
+        error?.name === 'AbortError' ||
+        /ECONNRESET|ETIMEDOUT|EPIPE|ENOTFOUND|EAI_AGAIN|socket|network/i.test(error?.message || '')
+      if (!retryable || attempt === attempts) throw lastError
+      console.log(`  ${label}: download attempt ${attempt} failed (${error.message}); retrying…`)
+      await wait(1000 * attempt)
+    }
+  }
+  throw lastError
 }
 
 async function verifyArchive(component, archive, signatureBytes) {
@@ -229,8 +274,8 @@ async function installComponent({ root, component, version, destination, activat
       baseUrl: process.env.PISPER_CLI_DOWNLOAD_BASE_URL,
     })
     const [archive, signature] = await Promise.all([
-      download(urls.archive),
-      download(urls.signature),
+      downloadWithRetry(urls.archive, `${component} archive`),
+      downloadWithRetry(urls.signature, `${component} signature`),
     ])
     await verifyArchive(component, archive, signature)
     await writeFile(archivePath, archive, { mode: 0o600 })

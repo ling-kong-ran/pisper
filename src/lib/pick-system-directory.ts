@@ -41,17 +41,14 @@ async function absolutePathFromHandle(handle: unknown): Promise<string | null> {
   for (let guard = 0; guard < 64; guard += 1) {
     const parentRef = (current as { parent?: unknown }).parent
     let parent: unknown = null
-    if (typeof parentRef === 'function') {
-      try {
-        parent = await parentRef()
-      } catch {
-        break
-      }
-    } else if (parentRef) {
-      parent = parentRef
-    } else {
+    try {
+      // Chromium exposes `parent` on directory handles; it may be a plain
+      // value, a Promise, or a zero-arg function across versions.
+      parent = await (typeof parentRef === 'function' ? parentRef() : parentRef)
+    } catch {
       break
     }
+    if (!parent) break
     const parentName = (parent as { name?: string } | null)?.name
     if (typeof parentName !== 'string' || !parentName) break
     parts.unshift(parentName)
