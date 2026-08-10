@@ -47,7 +47,7 @@ pisper update web
 pisper update all
 ```
 
-TUI、Runtime 与可选 Web 前端使用独立版本和签名 Release 通道。普通 `pisper` 或 `pisper resume` 启动时如发现 TUI/Runtime 新版本，会先询问是否更新；确认后自动下载并安装，拒绝则继续使用当前版本。更新器只接受匹配当前平台的签名组件包，验签和安全解压成功后才原子切换版本。`tui` 更新下载轻量客户端包，不会重复下载 Runtime；`runtime` 更新在下次启动时生效。无内置 sidecar 的轻量 TUI 首次启动时会安装最新的签名 Runtime 组件。`all` 只更新 TUI 与 Runtime，Web 始终保持按需安装。
+TUI、Runtime 与可选 Web 前端使用独立版本和签名 Release 通道。普通 `pisper` 或 `pisper resume` 启动时在后台异步检查 TUI/Runtime 新版本，**不会阻塞或延迟启动**（离线或无法访问更新源时静默跳过）；发现更新时在界面状态区提示一行摘要，随时可用 `pisper update` 手动安装。更新器只接受匹配当前平台的签名组件包，验签和安全解压成功后才原子切换版本。`tui` 更新下载轻量客户端包，不会重复下载 Runtime；`runtime` 更新在下次启动时生效。无内置 sidecar 的轻量 TUI 首次启动时会安装最新的签名 Runtime 组件。`all` 只更新 TUI 与 Runtime，Web 始终保持按需安装。
 
 ## Provider 与可选 Web 配置
 

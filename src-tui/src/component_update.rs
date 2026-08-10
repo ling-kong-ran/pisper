@@ -1,9 +1,4 @@
-use std::{
-    ffi::OsString,
-    fs,
-    io::{self, BufRead, IsTerminal, Write},
-    path::Path,
-};
+use std::{ffi::OsString, fs, path::Path};
 
 #[cfg(windows)]
 use std::process::{Command, Stdio};
@@ -67,78 +62,40 @@ pub async fn execute(request: UpdateRequest) -> Result<()> {
     Ok(())
 }
 
-pub async fn offer_startup_updates() {
-    if !io::stdin().is_terminal() || !io::stdout().is_terminal() {
-        return;
-    }
-    if let Err(error) = try_offer_startup_updates().await {
-        // Offline or sandboxed machines cannot reach the release feed; that
-        // must never be visible or fatal. Enable PISPER_UPDATE_CHECK_LOG to
-        // surface the underlying error for diagnostics.
-        if std::env::var_os("PISPER_UPDATE_CHECK_LOG").is_some() {
-            eprintln!(
-                "Pisper update check failed; continuing with the installed version: {error:#}"
-            );
-        }
-    }
+/// Non-blocking update survey for the TUI. Returns one summary line per
+/// component with an available release, tolerating offline or unreachable
+/// feeds (empty result) so startup never waits on the network.
+pub async fn check_available_updates() -> Vec<String> {
+    let Ok(updater) = updater() else {
+        return Vec::new();
+    };
+    let (runtime, tui) = tokio::join!(
+        available_update(&updater, Component::Runtime),
+        available_update(&updater, Component::Tui),
+    );
+    [runtime, tui]
+        .into_iter()
+        .filter_map(Result::ok)
+        .flatten()
+        .map(|update| {
+            format!(
+                "{} {} -> {} ({:.1} MB)",
+                component_label(update.release.component),
+                update
+                    .current
+                    .as_ref()
+                    .map(ToString::to_string)
+                    .unwrap_or_else(|| "not installed".to_owned()),
+                update.release.version,
+                update.release.size as f64 / 1024.0 / 1024.0,
+            )
+        })
+        .collect()
 }
 
 struct AvailableUpdate {
     current: Option<Version>,
     release: ReleaseInfo,
-}
-
-async fn try_offer_startup_updates() -> Result<()> {
-    let updater = updater()?;
-    let (runtime, tui) = tokio::join!(
-        available_update(&updater, Component::Runtime),
-        available_update(&updater, Component::Tui),
-    );
-    // Tolerate per-component check failures (e.g. one channel unreachable) so a
-    // single offline failure never aborts the whole offer.
-    let updates = [runtime, tui]
-        .into_iter()
-        .filter_map(Result::ok)
-        .flatten()
-        .collect::<Vec<_>>();
-    if updates.is_empty() {
-        return Ok(());
-    }
-
-    println!("Pisper updates are available:");
-    for update in &updates {
-        println!(
-            "  {:<7} {} -> {} ({:.1} MB)",
-            component_label(update.release.component),
-            update
-                .current
-                .as_ref()
-                .map(ToString::to_string)
-                .unwrap_or_else(|| "not installed".to_owned()),
-            update.release.version,
-            update.release.size as f64 / 1024.0 / 1024.0,
-        );
-    }
-    print!("Install now? [Y/n] ");
-    io::stdout()
-        .flush()
-        .context("failed to display the update confirmation")?;
-    let mut response = String::new();
-    if io::stdin()
-        .lock()
-        .read_line(&mut response)
-        .context("failed to read the update confirmation")?
-        == 0
-        || !startup_confirmation(&response)
-    {
-        println!("Continuing without updating.");
-        return Ok(());
-    }
-
-    for update in &updates {
-        install_component_update(&updater, &update.release).await?;
-    }
-    Ok(())
 }
 
 async fn available_update(
@@ -163,10 +120,6 @@ fn component_label(component: Component) -> &'static str {
         Component::Tui => "TUI",
         Component::Runtime => "Runtime",
     }
-}
-
-fn startup_confirmation(value: &str) -> bool {
-    matches!(value.trim().to_ascii_lowercase().as_str(), "" | "y" | "yes")
 }
 
 pub async fn ensure_web() -> Result<InstalledComponent> {
@@ -398,17 +351,8 @@ fn schedule_windows_replace(staged: &Path, current: &Path) -> Result<()> {
 
 #[cfg(test)]
 mod tests {
-    use super::{parse_update_request, startup_confirmation, UpdateRequest, UpdateSelection};
+    use super::{parse_update_request, UpdateRequest, UpdateSelection};
     use std::ffi::OsString;
-
-    #[test]
-    fn startup_update_confirmation_defaults_to_yes() {
-        assert!(startup_confirmation(""));
-        assert!(startup_confirmation("y\n"));
-        assert!(startup_confirmation("YES"));
-        assert!(!startup_confirmation("n\n"));
-        assert!(!startup_confirmation("later"));
-    }
 
     #[test]
     fn update_command_selects_components_and_check_mode() {

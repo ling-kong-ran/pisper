@@ -154,9 +154,6 @@ async fn run() -> Result<()> {
     if sidecar::needs_runtime_install() {
         component_update::ensure_runtime().await?;
     }
-    if !options.doctor && !options.web {
-        component_update::offer_startup_updates().await;
-    }
     let mut sidecar = match SidecarConnection::start(&options.workspace) {
         Ok(sidecar) => sidecar,
         Err(error) if sidecar::needs_runtime_install() => {
@@ -299,6 +296,19 @@ async fn run_event_loop(
             skills,
         });
     });
+    // Component update checks run in the background: the release feed may be
+    // slow or unreachable (offline machines) and must never delay the TUI.
+    // Any available updates surface as an in-app notice; install via
+    // `pisper update` at any time.
+    let update_sender = runtime_tx.clone();
+    tokio::spawn(async move {
+        let updates = component_update::check_available_updates().await;
+        if !updates.is_empty() {
+            let _ = update_sender.send(RuntimeEvent::StartupUpdates {
+                message: updates.join(" · "),
+            });
+        }
+    });
     let mut animation = tokio::time::interval(Duration::from_millis(24));
     animation.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Skip);
     let mut status_animation = tokio::time::interval(Duration::from_millis(120));
@@ -416,6 +426,10 @@ async fn run_event_loop(
                                     }
                                 }
                                 false
+                            }
+                            RuntimeEvent::StartupUpdates { message } => {
+                                app.set_startup_updates(message);
+                                true
                             }
                         };
                         if terminal_event {

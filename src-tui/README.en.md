@@ -47,7 +47,7 @@ pisper update web
 pisper update all
 ```
 
-TUI, Runtime, and the optional Web frontend use independent versions and signed Release channels. When plain `pisper` or `pisper resume` finds a newer TUI or Runtime, it asks before downloading and installing the update; declining continues with the installed version. The updater accepts only the signed component archive for the current platform and atomically switches versions after signature verification and safe extraction. A `tui` update downloads the thin client package without downloading Runtime again; a `runtime` update takes effect on the next launch. A thin TUI without a bundled sidecar installs the latest signed Runtime component on first startup. `all` updates only TUI and Runtime; Web always remains opt-in.
+TUI, Runtime, and the optional Web frontend use independent versions and signed Release channels. When plain `pisper` or `pisper resume` starts, it checks for newer TUI/Runtime versions in the background without blocking or delaying startup (offline or unreachable feeds are skipped silently); available updates surface as a one-line notice in the status area and can be installed at any time with `pisper update`. The updater accepts only the signed component archive for the current platform and atomically switches versions after signature verification and safe extraction. A `tui` update downloads the thin client package without downloading Runtime again; a `runtime` update takes effect on the next launch. A thin TUI without a bundled sidecar installs the latest signed Runtime component on first startup. `all` updates only TUI and Runtime; Web always remains opt-in.
 
 ## Provider and Optional Web Configuration
 
