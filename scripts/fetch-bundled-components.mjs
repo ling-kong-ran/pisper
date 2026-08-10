@@ -11,7 +11,7 @@
 //           sidecar-runtime/        -> release/sea/runtime/
 //           runtime-size-manifest.json -> release/sea/runtime-size-manifest.json
 // Also records the bundled versions in src-tauri/desktop-package.json.
-import { chmod, cp, mkdir, readFile, rm, stat, writeFile } from 'node:fs/promises'
+import { chmod, cp, mkdir, readFile, readdir, rm, stat, writeFile } from 'node:fs/promises'
 import { dirname, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { PublicKey, Signature } from '@threema/wasm-minisign-verify'
@@ -128,6 +128,31 @@ async function fetchComponent({ component, version, label, assetName, stageDir }
   return { archivePath, tag }
 }
 
+async function removeBinShims(rootDir) {
+  const pending = [rootDir]
+  let removed = 0
+  while (pending.length) {
+    const directory = pending.pop()
+    let entries
+    try {
+      entries = await readdir(directory, { withFileTypes: true })
+    } catch {
+      continue
+    }
+    for (const entry of entries) {
+      const fullPath = join(directory, entry.name)
+      if (!entry.isDirectory()) continue
+      if (entry.name === '.bin') {
+        await rm(fullPath, { recursive: true, force: true })
+        removed += 1
+      } else {
+        pending.push(fullPath)
+      }
+    }
+  }
+  return removed
+}
+
 async function main() {
   const tuiTag = requestedTui
     ? `tui-v${validVersion(requestedTui, 'TUI')}`
@@ -209,11 +234,11 @@ async function main() {
   await cp(sidecarRuntimeSource, join(seaRoot, 'runtime'), { recursive: true })
   // npm bin shims are symlinks on POSIX and break Tauri resource mapping
   // ("resource path ... .bin/... doesn't exist"); the SEA runtime never
-  // executes them, so drop the whole .bin directory.
-  await rm(join(seaRoot, 'runtime', 'node_modules', '.bin'), {
-    recursive: true,
-    force: true,
-  })
+  // executes them, so remove every .bin directory in the closure.
+  const removedBins = await removeBinShims(join(seaRoot, 'runtime'))
+  if (removedBins > 0) {
+    console.log(`Removed ${removedBins} npm .bin shim director${removedBins === 1 ? 'y' : 'ies'}.`)
+  }
   try {
     await cp(
       join(runtimeStage, 'runtime-size-manifest.json'),
