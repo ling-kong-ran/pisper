@@ -207,6 +207,13 @@ async function main() {
   const seaRoot = join(root, 'release', 'sea')
   await rm(join(seaRoot, 'runtime'), { recursive: true, force: true })
   await cp(sidecarRuntimeSource, join(seaRoot, 'runtime'), { recursive: true })
+  // npm bin shims are symlinks on POSIX and break Tauri resource mapping
+  // ("resource path ... .bin/... doesn't exist"); the SEA runtime never
+  // executes them, so drop the whole .bin directory.
+  await rm(join(seaRoot, 'runtime', 'node_modules', '.bin'), {
+    recursive: true,
+    force: true,
+  })
   try {
     await cp(
       join(runtimeStage, 'runtime-size-manifest.json'),
