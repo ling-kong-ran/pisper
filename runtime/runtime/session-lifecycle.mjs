@@ -550,6 +550,7 @@ export class SessionLifecycle {
     }
     const value = this.sessions.get(id)
     if (!value) return false
+    value.abortedAt = Date.now()
     await this.pauseSessionGoal(id)
     this.getMultiAgents().abortParent(id)
     this.getPermissions().resolveSession(id, false, '会话已停止，工具未执行。')

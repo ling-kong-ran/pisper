@@ -102,7 +102,7 @@ The diagnostic output reports the sidecar connection source, TUI launch workspac
 - `Esc`: close a picker, clear a Slash draft, or return from Events to Chat.
 - `↑` / `↓`: scroll the conversation one row at a time; `PageUp` / `PageDown`: move eight rows. The TUI retains only the latest 100 messages so long sessions stay memory-bounded.
 - `Home` / `End`, `Left` / `Right`, `Backspace` / `Delete`: edit the composer draft.
-- `Ctrl+C`: abort the active or approval-blocked run; exit only while idle.
+- `Ctrl+C`: abort the active or approval-blocked run (if the Agent hangs without responding, the Runtime force-settles the run after a timeout); a second `Ctrl+C` while still running force-quits the TUI; exits only while idle.
 
 The bottom status bar shows the active session's provider-reported token total and cache hit rate in the compact form `token: 88M cache 79%`. The values remain isolated per conversation.
 

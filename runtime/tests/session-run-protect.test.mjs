@@ -3,7 +3,7 @@ import { mkdtemp, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import test from 'node:test'
-import { AgentRuntimeService } from '../runtime/agent-runtime.mjs'
+import { AgentRuntimeService, runPromptWithAbortGuard } from '../runtime/agent-runtime.mjs'
 
 function liveState(streaming = false) {
   return {
@@ -62,6 +62,48 @@ function seedRunningSession(runtime, id, session) {
   runtime.liveSessions.set(id, liveState(true))
   return value
 }
+
+test('abort guard force-settles a hung prompt after the abort deadline', async () => {
+  const value = { abortForceTimeoutMs: 120 }
+  value.abortedAt = Date.now()
+  await assert.rejects(
+    runPromptWithAbortGuard(value, () => new Promise(() => {})),
+    /强制中断/,
+  )
+})
+
+test('abort guard passes through a normal prompt result', async () => {
+  const value = { abortForceTimeoutMs: 120 }
+  assert.equal(await runPromptWithAbortGuard(value, () => Promise.resolve('ok')), 'ok')
+  await assert.rejects(
+    runPromptWithAbortGuard(value, () => Promise.reject(new Error('model-error'))),
+    /model-error/,
+  )
+})
+
+test('abort guard waits forever for a hung prompt when no abort happened', async () => {
+  const value = { abortForceTimeoutMs: 60 }
+  let settled = false
+  const guard = runPromptWithAbortGuard(value, () => new Promise(() => {})).then(
+    () => (settled = true),
+    () => (settled = true),
+  )
+  await new Promise((resolve) => setTimeout(resolve, 200))
+  assert.equal(settled, false, 'without an abort the guard must keep waiting')
+  value.abortedAt = Date.now()
+  await guard
+  assert.equal(settled, true, 'after the abort deadline the guard must settle')
+})
+
+test('abortSession records the abort deadline on the resident value', async (t) => {
+  const directory = await mkdtemp(join(tmpdir(), 'pisper-abort-deadline-'))
+  t.after(() => rm(directory, { recursive: true, force: true }).catch(() => {}))
+  const runtime = freshRuntime(directory)
+  const id = 'session-abort-deadline'
+  const value = seedRunningSession(runtime, id, mockSession())
+  await runtime.abortSession(id)
+  assert.ok(value.abortedAt, 'abortedAt must be recorded for the force-settle guard')
+})
 
 test('aborting a running session preserves the session and never creates a new one', async (t) => {
   const directory = await mkdtemp(join(tmpdir(), 'pisper-abort-keep-'))

@@ -102,7 +102,7 @@ pisper doctor
 - `Esc`：关闭当前选择器、清空 Slash 草稿，或从 Events 返回 Chat。
 - `↑` / `↓`：逐行翻阅消息；`PageUp` / `PageDown`：每次翻阅 8 行。TUI 仅保留最新 100 条消息，避免长会话持续占用内存。
 - `Home` / `End`、`Left` / `Right`、`Backspace` / `Delete`：编辑 composer 草稿。
-- `Ctrl+C`：Agent 运行或等待审批时中止当前 run；空闲时退出 TUI。
+- `Ctrl+C`：Agent 运行或等待审批时中止当前 run（若 Agent 卡住未在超时窗口内响应，Runtime 会强制结束该次运行）；运行中再次 `Ctrl+C` 强制退出 TUI；空闲时退出 TUI。
 
 最底部状态栏以 `token: 88M cache 79%` 的紧凑格式显示当前会话 Provider 返回的 Token 总量和真实缓存命中率，数据按会话隔离。
 

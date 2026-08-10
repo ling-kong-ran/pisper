@@ -218,6 +218,7 @@ pub struct App {
     pub api_key_selected: usize,
     pub api_key_provider: Option<String>,
     pub api_key_input: Vec<char>,
+    abort_pressed: bool,
     queued_prompts: VecDeque<QueuedPrompt>,
     pasted_ranges: Vec<PastedRange>,
     slash_usage: HashMap<String, SlashUsage>,
@@ -292,6 +293,7 @@ impl App {
             api_key_selected: 0,
             api_key_provider: None,
             api_key_input: Vec::new(),
+            abort_pressed: false,
             queued_prompts: VecDeque::new(),
             pasted_ranges: Vec::new(),
             slash_usage: load_slash_usage(),
@@ -748,7 +750,12 @@ impl App {
         if key.modifiers.contains(KeyModifiers::CONTROL) && key.code == KeyCode::Char('c') {
             return if self.is_streaming() || self.approval.is_some() {
                 self.approval = None;
-                Action::Abort
+                if self.abort_pressed {
+                    Action::Quit
+                } else {
+                    self.abort_pressed = true;
+                    Action::Abort
+                }
             } else {
                 Action::Quit
             };
@@ -1490,6 +1497,7 @@ impl App {
             .display_message
             .clone()
             .unwrap_or_else(|| prompt.message.clone());
+        self.abort_pressed = false;
         self.pending_slash_command = display_message
             .split_whitespace()
             .next()
@@ -1964,11 +1972,13 @@ impl App {
                     self.session_usage = usage;
                 }
                 self.status = "complete".to_owned();
+                self.abort_pressed = false;
             }
             "error" => {
                 live.streaming = false;
                 self.status = string_field(&event.data, "message");
                 self.status_error = true;
+                self.abort_pressed = false;
             }
             _ => {}
         }
@@ -2034,6 +2044,7 @@ impl App {
         if let Some(live) = self.live.as_mut() {
             live.streaming = false;
         }
+        self.abort_pressed = false;
         self.pending_slash_command = None;
         self.status = message;
         self.status_error = true;
@@ -2598,6 +2609,47 @@ mod tests {
         assert!(app.approval.is_none());
 
         app.live = None;
+        assert!(matches!(
+            app.handle_key(KeyEvent::new(KeyCode::Char('c'), KeyModifiers::CONTROL)),
+            Action::Quit
+        ));
+    }
+
+    #[test]
+    fn a_second_ctrl_c_while_still_streaming_forces_a_quit() {
+        let mut app = test_app(Vec::new());
+        app.live = Some(LiveTurn {
+            thinking: String::new(),
+            thinking_target: String::new(),
+            text: String::new(),
+            text_target: String::new(),
+            tools: Vec::new(),
+            streaming: true,
+        });
+
+        assert!(matches!(
+            app.handle_key(KeyEvent::new(KeyCode::Char('c'), KeyModifiers::CONTROL)),
+            Action::Abort
+        ));
+        assert!(matches!(
+            app.handle_key(KeyEvent::new(KeyCode::Char('c'), KeyModifiers::CONTROL)),
+            Action::Quit
+        ));
+    }
+
+    #[test]
+    fn a_finished_run_resets_the_forced_quit_latch() {
+        let mut app = test_app(Vec::new());
+        app.live = Some(LiveTurn {
+            thinking: String::new(),
+            thinking_target: String::new(),
+            text: String::new(),
+            text_target: String::new(),
+            tools: Vec::new(),
+            streaming: true,
+        });
+        app.handle_key(KeyEvent::new(KeyCode::Char('c'), KeyModifiers::CONTROL));
+        app.stream_failed("disconnected".to_owned());
         assert!(matches!(
             app.handle_key(KeyEvent::new(KeyCode::Char('c'), KeyModifiers::CONTROL)),
             Action::Quit

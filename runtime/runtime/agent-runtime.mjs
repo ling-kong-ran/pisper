@@ -111,6 +111,31 @@ const MAX_SESSION_TITLE_CHARS = 20
 const MAX_RESIDENT_SESSION_RUNTIMES = 3
 const SESSION_RUNTIME_IDLE_TTL_MS = 5 * 60 * 1000
 const SESSION_RUNTIME_SWEEP_INTERVAL_MS = 60 * 1000
+const ABORT_FORCE_TIMEOUT_MS = 10_000
+// 中断兜底：abort 发起后若 Agent 仍未在窗口内结束（例如卡在工具调用），
+// 强制结束本次 prompt 等待，让外层 catch 收尾并结束 SSE。
+async function runPromptWithAbortGuard(value, run) {
+  const timeoutMs = Number(value?.abortForceTimeoutMs) || ABORT_FORCE_TIMEOUT_MS
+  const runPromise = Promise.resolve().then(run)
+  while (true) {
+    const outcome = await Promise.race([
+      runPromise.then(
+        (result) => ({ done: true, result }),
+        (error) => ({ done: true, error }),
+      ),
+      new Promise((resolve) => setTimeout(() => resolve({ done: false }), 250)),
+    ])
+    if (outcome.done) {
+      if (outcome.error) throw outcome.error
+      return outcome.result
+    }
+    const abortedAt = value?.abortedAt
+    if (abortedAt && Date.now() - abortedAt >= timeoutMs) {
+      throw new Error('Agent 未能在超时时间内响应停止，本次运行已被强制中断。')
+    }
+  }
+}
+export { runPromptWithAbortGuard }
 const SESSION_HISTORY_READ_CHUNK_BYTES = 1024 * 1024
 const MAX_SESSION_HISTORY_CACHE_ENTRIES = 4
 const MAX_SESSION_HISTORY_CACHE_SOURCE_BYTES = 8 * 1024 * 1024
@@ -2296,7 +2321,7 @@ export class AgentRuntimeService extends AgentRuntimeFacade {
         ? `${message}${ATTACHMENT_MARKER}${contexts.join('\n\n')}`
         : message
       applyPisperSystemPrompt(session, session.model)
-      await session.prompt(prompt, { images })
+      await runPromptWithAbortGuard(value, () => session.prompt(prompt, { images }))
       const last = [...session.messages].reverse().find((item) => item.role === 'assistant')
       if (last?.errorMessage) throw new Error(last.errorMessage)
       const assistantText = textFromContent(last?.content)
