@@ -3,7 +3,8 @@ import { mkdir, mkdtemp, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import test from 'node:test'
-import { AgentRuntimeService, ensureSessionFilePersisted } from '../runtime/agent-runtime.mjs'
+import { AgentRuntimeService } from '../runtime/agent-runtime.mjs'
+import { ensureSessionFilePersisted } from '../runtime/session-file-persist.mjs'
 
 function freshRuntime(directory) {
   const runtime = new AgentRuntimeService({ cwd: directory, dataDir: directory })
