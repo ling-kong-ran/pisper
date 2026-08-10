@@ -20,11 +20,12 @@ import {
   StatusBadge as Badge,
 } from '@/components/ui/app-primitives'
 import { AppSelect } from '@/components/AppSelect'
+import { WorkspacePicker } from '@/components/WorkspacePicker'
 import { useI18n } from '@/app/use-i18n'
 import { StarOrbit } from '@/components/StarOrbit'
 import { apiJson } from '@/lib/api'
 import { relativeTime } from '@/lib/format'
-import { pickSystemDirectory } from '@/lib/pick-system-directory'
+import { hasSystemDirectoryPicker, pickSystemDirectory } from '@/lib/pick-system-directory'
 import { usePagePrimaryAction } from '@/hooks/usePagePrimaryAction'
 import type { FormEvent } from 'react'
 import type { Notify } from '@/app/route-context'
@@ -182,9 +183,14 @@ function ScheduleExecutionModeField({ value, onChange }: ScheduleExecutionModeFi
 function ScheduleWorkspaceField({ value, onChange }: ScheduleWorkspaceFieldProps) {
   const { t } = useI18n()
   const [pickerError, setPickerError] = useState('')
+  const [webPickerOpen, setWebPickerOpen] = useState(false)
 
   const browse = async () => {
     setPickerError('')
+    if (!hasSystemDirectoryPicker()) {
+      setWebPickerOpen(true)
+      return
+    }
     try {
       const selected = await pickSystemDirectory(value)
       if (selected) onChange(selected)
@@ -216,6 +222,13 @@ function ScheduleWorkspaceField({ value, onChange }: ScheduleWorkspaceFieldProps
           {pickerError}
         </div>
       )}
+      <WorkspacePicker
+        open={webPickerOpen}
+        initialPath={value}
+        description={t('common:workspacePicker.selectWorkspaceForSchedule')}
+        onOpenChange={setWebPickerOpen}
+        onSelect={(selected) => onChange(selected)}
+      />
     </>
   )
 }

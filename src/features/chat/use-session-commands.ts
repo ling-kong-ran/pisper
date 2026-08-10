@@ -1,19 +1,15 @@
-import { useCallback } from 'react'
+import { useCallback, useState } from 'react'
 import { useI18n } from '@/app/use-i18n'
 import type { Notify } from '@/app/route-context'
 import type { ConfirmDialogOptions, PromptDialogOptions } from '@/hooks/useAppDialog'
 import { workspaceName } from '@/lib/format'
 import { ApiError } from '@/lib/http'
-import { pickSystemDirectory } from '@/lib/pick-system-directory'
+import { hasSystemDirectoryPicker, pickSystemDirectory } from '@/lib/pick-system-directory'
 import type { SessionStateUpdate } from '@/lib/session-state'
 import type { ModelOption, SessionState, SessionSummary } from '@/types/chat'
 import { chatApi } from './chat-api'
 import { chatErrorMessage } from './chat-errors'
 import { announceSessionsUpdated } from './events'
-
-function looksAbsolute(value: string): boolean {
-  return /^[\/]|^[A-Za-z]:[\\/]/.test(value)
-}
 
 type SessionCommandOptions = {
   notify: Notify
@@ -43,6 +39,7 @@ export function useSessionCommands({
   syncLiveSession,
 }: SessionCommandOptions) {
   const { t, language } = useI18n()
+  const [workspaceSession, setWorkspaceSession] = useState<SessionSummary | null>(null)
 
   const updateSessionSummary = useCallback(
     (sessionId: string, update: (session: SessionSummary) => SessionSummary) => {
@@ -335,7 +332,7 @@ export function useSessionCommands({
         return false
       }
     },
-    [notify, requestConfirm, t, updateSessionState, updateSessionSummary],
+    [notify, requestConfirm, sessionStatesRef, t, updateSessionState, updateSessionSummary],
   )
 
   const resolveToolApproval = useCallback(
@@ -361,31 +358,15 @@ export function useSessionCommands({
     [notify, syncLiveSession, t, updateSessionState],
   )
 
-  const selectSessionWorkspace = useCallback(
-    async (session: SessionSummary) => {
-      if (!session?.id) return
-      if (sessionStatesRef.current[session.id]?.streaming) {
-        notify(t('chat:chatPage.stopTheActiveRunBeforeChangingTheWorkspace'), 'info')
-        return
-      }
+  const switchSessionCwd = useCallback(
+    async (session: SessionSummary, cwd: string) => {
+      if (!session?.id || sessionStatesRef.current[session.id]?.streaming) return
+      updateSessionState(session.id, { switchingCwd: true, error: '' })
       try {
-        let cwd = await pickSystemDirectory(session.cwd)
-        // The browser picker may only be able to return a folder name (no
-        // absolute path); ask for the full path explicitly in that case.
-        if (cwd && !looksAbsolute(cwd)) cwd = null
-        if (!cwd && requestText) {
-          cwd = await requestText({
-            title: t('chat:chatPage.workingDirectoryPath'),
-            inputLabel: t('chat:chatPage.workingDirectoryPath'),
-            placeholder: t('chat:chatPage.enterAWorkingDirectoryPath'),
-            value: session.cwd,
-          })
-        }
-        if (!cwd) return
-        updateSessionState(session.id, { switchingCwd: true, error: '' })
         const updated = await chatApi.updateCwd(session.id, cwd)
         updateSessionState(session.id, { cwd: updated.cwd, switchingCwd: false })
         updateSessionSummary(session.id, (current) => ({ ...current, cwd: updated.cwd }))
+        setWorkspaceSession(null)
         notify(
           t('chat:chatPage.workingDirectoryChangedToWorkspace', {
             workspace: workspaceName(updated.cwd, language),
@@ -396,9 +377,34 @@ export function useSessionCommands({
           switchingCwd: false,
           error: chatErrorMessage(error),
         })
+        throw error
       }
     },
-    [language, notify, requestText, sessionStatesRef, t, updateSessionState, updateSessionSummary],
+    [language, notify, sessionStatesRef, t, updateSessionState, updateSessionSummary],
+  )
+
+  const selectSessionWorkspace = useCallback(
+    async (session: SessionSummary) => {
+      if (!session?.id) return
+      if (sessionStatesRef.current[session.id]?.streaming) {
+        notify(t('chat:chatPage.stopTheActiveRunBeforeChangingTheWorkspace'), 'info')
+        return
+      }
+      if (!hasSystemDirectoryPicker()) {
+        setWorkspaceSession(session)
+        return
+      }
+      try {
+        const cwd = await pickSystemDirectory(session.cwd)
+        if (cwd) await switchSessionCwd(session, cwd)
+      } catch (error) {
+        updateSessionState(session.id, {
+          switchingCwd: false,
+          error: chatErrorMessage(error),
+        })
+      }
+    },
+    [notify, sessionStatesRef, switchSessionCwd, t, updateSessionState],
   )
 
   const renameSession = useCallback(
@@ -424,10 +430,13 @@ export function useSessionCommands({
         setGlobalError(chatErrorMessage(error))
       }
     },
-    [notify, requestText, setGlobalError, t, updateSessionSummary],
+    [notify, requestText, sessionStatesRef, setGlobalError, t, updateSessionSummary],
   )
 
   return {
+    workspaceSession,
+    setWorkspaceSession,
+    switchSessionCwd,
     selectSessionWorkspace,
     renameSession,
     pauseGoal,

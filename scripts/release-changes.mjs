@@ -3,6 +3,7 @@ import { RELEASE_COMPONENTS, assertReleaseComponent } from './release-components
 const ALL_COMPONENTS = Object.freeze(Object.keys(RELEASE_COMPONENTS))
 const RELEASE_SCRIPT_PATHS = new Set([
   'scripts/package-npm.mjs',
+  'scripts/package-npm-platforms.mjs',
   'scripts/prepare-release.mjs',
   'scripts/release-changes.mjs',
   'scripts/release-components.mjs',

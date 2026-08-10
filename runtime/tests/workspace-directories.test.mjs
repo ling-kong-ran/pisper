@@ -1,8 +1,14 @@
 import assert from 'node:assert/strict'
-import { readFile } from 'node:fs/promises'
+import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
+import { join } from 'node:path'
+import { tmpdir } from 'node:os'
 import test from 'node:test'
 import { AgentRuntimeService } from '../runtime/agent-runtime.mjs'
-import { normalizeWorkspacePath, workspacePathKey } from '../runtime/workspace-directories.mjs'
+import {
+  listWorkspaceDirectories,
+  normalizeWorkspacePath,
+  workspacePathKey,
+} from '../runtime/workspace-directories.mjs'
 
 test('workspace paths remain platform-native without exposing Windows namespace prefixes', () => {
   assert.equal(
@@ -47,19 +53,49 @@ test('legacy packaged-runtime workspaces migrate to the platform user directory'
   assert.equal(saves, 1)
 })
 
-test('workspace selection prefers the desktop picker and falls back to the browser one', async () => {
-  const [cargo, shell, command, bridge, permissions, picker, chat, schedules, routes] =
-    await Promise.all([
-      readFile('src-tauri/Cargo.toml', 'utf8'),
-      readFile('src-tauri/src/lib.rs', 'utf8'),
-      readFile('src-tauri/src/desktop_bridge.rs', 'utf8'),
-      readFile('src-tauri/src/desktop-bridge.js', 'utf8'),
-      readFile('src-tauri/permissions/desktop.toml', 'utf8'),
-      readFile('src/lib/pick-system-directory.ts', 'utf8'),
-      readFile('src/features/chat/use-session-commands.ts', 'utf8'),
-      readFile('src/features/schedules/SchedulesPage.tsx', 'utf8'),
-      readFile('runtime/http/routes/memory-assets.mjs', 'utf8'),
-    ])
+test('directory listings return validated absolute paths for Web workspace selection', async (t) => {
+  const root = await mkdtemp(join(tmpdir(), 'pisper-workspaces-'))
+  t.after(() => rm(root, { recursive: true, force: true }))
+  await Promise.all([
+    mkdir(join(root, 'zeta')),
+    mkdir(join(root, 'Alpha')),
+    writeFile(join(root, 'ignored.txt'), 'not a directory'),
+  ])
+
+  const listing = await listWorkspaceDirectories(root, root)
+
+  assert.equal(listing.path, root)
+  assert.deepEqual(
+    listing.directories.map((entry) => entry.name),
+    ['Alpha', 'zeta'],
+  )
+  assert.ok(listing.directories.every((entry) => entry.path.startsWith(root)))
+})
+
+test('workspace selection uses the desktop picker or the server-backed Web browser', async () => {
+  const [
+    cargo,
+    shell,
+    command,
+    bridge,
+    permissions,
+    picker,
+    workspacePicker,
+    chat,
+    schedules,
+    routes,
+  ] = await Promise.all([
+    readFile('src-tauri/Cargo.toml', 'utf8'),
+    readFile('src-tauri/src/lib.rs', 'utf8'),
+    readFile('src-tauri/src/desktop_bridge.rs', 'utf8'),
+    readFile('src-tauri/src/desktop-bridge.js', 'utf8'),
+    readFile('src-tauri/permissions/desktop.toml', 'utf8'),
+    readFile('src/lib/pick-system-directory.ts', 'utf8'),
+    readFile('src/components/WorkspacePicker.tsx', 'utf8'),
+    readFile('src/features/chat/use-session-commands.ts', 'utf8'),
+    readFile('src/features/schedules/SchedulesPage.tsx', 'utf8'),
+    readFile('runtime/http/routes/memory-assets.mjs', 'utf8'),
+  ])
   assert.match(cargo, /tauri-plugin-dialog/)
   assert.match(shell, /plugin\(tauri_plugin_dialog::init\(\)\)/)
   assert.match(shell, /desktop_bridge::desktop_pick_directory/)
@@ -68,14 +104,11 @@ test('workspace selection prefers the desktop picker and falls back to the brows
   assert.match(bridge, /pickDirectory: \(initialDirectory\)/)
   assert.match(permissions, /"desktop_pick_directory"/)
   assert.match(picker, /window\.pisperDesktop\?\.pickDirectory/)
-  // Pure Web must still open a native picker: the browser directory picker
-  // (File System Access) with a webkitdirectory fallback.
-  assert.match(picker, /showDirectoryPicker/)
-  assert.match(picker, /webkitdirectory/)
+  assert.doesNotMatch(picker, /showDirectoryPicker|webkitdirectory/)
+  assert.match(workspacePicker, /\/api\/directories\?path=/)
+  assert.match(chat, /setWorkspaceSession\(session\)/)
   assert.match(chat, /pickSystemDirectory\(session\.cwd\)/)
+  assert.match(schedules, /<WorkspacePicker/)
   assert.match(schedules, /pickSystemDirectory\(value\)/)
-  // The Web directory browser route backs the typed-path fallback and
-  // workspace browsing for browsers without File System Access.
   assert.match(routes, /\/api\/directories/)
-  await assert.rejects(readFile('src/components/WorkspacePicker.tsx', 'utf8'), /ENOENT/)
 })

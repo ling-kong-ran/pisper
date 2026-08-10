@@ -1,9 +1,11 @@
+import { createRequire } from 'node:module'
 import { chmod, mkdir, open, readFile, rename, rm, stat, writeFile } from 'node:fs/promises'
 import { dirname, join } from 'node:path'
 import process from 'node:process'
 import { fileURLToPath } from 'node:url'
 import { PublicKey, Signature } from '@threema/wasm-minisign-verify'
 import { x as extractTar } from 'tar'
+import { npmPlatformAlias, npmPlatformTarget, npmPlatformVersion } from './npm-platform.mjs'
 import {
   componentsRoot,
   executableName,
@@ -12,9 +14,9 @@ import {
   supportedTarget,
 } from './platform.mjs'
 
+const require = createRequire(import.meta.url)
 const packageRoot = fileURLToPath(new URL('..', import.meta.url))
 const packageManifest = JSON.parse(await readFile(join(packageRoot, 'package.json'), 'utf8'))
-const repository = packageManifest.pisper?.repository
 const tuiVersion = packageManifest.pisper?.tuiVersion
 const runtimeVersion = packageManifest.pisper?.runtimeVersion
 const MAX_ARCHIVE_BYTES = 128 * 1024 * 1024
@@ -28,9 +30,6 @@ for (const [label, value] of [
     throw new Error(`pisper package metadata does not contain a valid ${label} version`)
   }
 }
-if (!/^[\w.-]+\/[\w.-]+$/.test(repository || '')) {
-  throw new Error('pisper package metadata does not contain a valid repository')
-}
 
 function decodeWrapped(value) {
   const trimmed = String(value).trim()
@@ -40,18 +39,10 @@ function decodeWrapped(value) {
   return decoded.startsWith('untrusted comment:') ? decoded : trimmed
 }
 
-function componentAsset(component, version, platform, arch) {
+function componentAsset(component, version, platform = process.platform, arch = process.arch) {
   const target = supportedTarget(platform, arch)
   const label = component === 'tui' ? 'TUI_Component' : 'Runtime'
   return `Pisper_${label}_${version}_${target}.tar.gz`
-}
-
-function componentUrls({ component, version, platform, arch, baseUrl }) {
-  const asset = componentAsset(component, version, platform, arch)
-  const root = baseUrl
-    ? String(baseUrl).replace(/\/$/, '')
-    : `https://github.com/${repository}/releases/download/${component}-v${version}`
-  return { archive: `${root}/${asset}`, signature: `${root}/${asset}.sig` }
 }
 
 export function releaseAsset(
@@ -60,15 +51,6 @@ export function releaseAsset(
   arch = process.arch,
 ) {
   return componentAsset('tui', version, platform, arch)
-}
-
-export function releaseAssetUrls({
-  version = tuiVersion,
-  platform = process.platform,
-  arch = process.arch,
-  baseUrl = process.env.PISPER_CLI_DOWNLOAD_BASE_URL,
-} = {}) {
-  return componentUrls({ component: 'tui', version, platform, arch, baseUrl })
 }
 
 function compareVersions(left, right) {
@@ -119,82 +101,70 @@ async function validateComponent(component, version, destination) {
   return executable
 }
 
+async function installedComponent(component, version, destination) {
+  const executable = await validateComponent(component, version, destination)
+  return executable ? { version, destination, executable } : null
+}
+
 async function resolveCurrentComponent(root, component, minimumVersion) {
   try {
     const pointer = JSON.parse(await readFile(join(root, component, 'current.json'), 'utf8'))
     if (!/^\d+\.\d+\.\d+$/.test(pointer.version || '')) return null
     if (compareVersions(pointer.version, minimumVersion) < 0) return null
     const destination = join(root, component, 'versions', pointer.version)
-    const executable = await validateComponent(component, pointer.version, destination)
-    return executable ? { version: pointer.version, destination, executable } : null
+    return installedComponent(component, pointer.version, destination)
   } catch (error) {
     if (error?.code === 'ENOENT' || error instanceof SyntaxError) return null
     throw error
   }
 }
 
-async function download(url, { label = url } = {}) {
-  const response = await fetch(url, {
-    headers: { 'User-Agent': `pisper/${packageManifest.version}` },
-    redirect: 'follow',
-    signal: AbortSignal.timeout(300_000),
-  })
-  if (!response.ok) throw new Error(`download failed with HTTP ${response.status}: ${url}`)
-  const declaredSize = Number(response.headers.get('content-length') || 0)
-  if (declaredSize > MAX_ARCHIVE_BYTES) {
-    throw new Error(`download is larger than ${MAX_ARCHIVE_BYTES} bytes`)
+async function resolvePlatformBundle() {
+  const target = npmPlatformTarget()
+  const alias = npmPlatformAlias()
+  let manifestPath
+  try {
+    manifestPath = require.resolve(`${alias}/package.json`)
+  } catch (error) {
+    throw new Error(
+      `the npm platform package ${alias} is missing; reinstall pisper without --omit=optional`,
+      { cause: error },
+    )
   }
-  if (!response.body) {
-    const bytes = Buffer.from(await response.arrayBuffer())
-    return validateDownloadBytes(bytes, url)
+  const manifest = JSON.parse(await readFile(manifestPath, 'utf8'))
+  const metadata = manifest.pisperBundle
+  const expectedVersion = npmPlatformVersion(packageManifest.version)
+  if (
+    manifest.name !== 'pisper' ||
+    manifest.version !== expectedVersion ||
+    metadata?.target !== target.release ||
+    metadata?.tuiVersion !== tuiVersion ||
+    metadata?.runtimeVersion !== runtimeVersion
+  ) {
+    throw new Error(
+      `npm platform package ${alias} does not match pisper@${packageManifest.version}`,
+    )
   }
-  // Stream with visible progress so a large component download never looks
-  // like an install that is stuck spinning.
-  const reader = response.body.getReader()
-  const chunks = []
-  let received = 0
-  let lastReported = 0
-  while (true) {
-    const { done, value } = await reader.read()
-    if (done) break
-    chunks.push(value)
-    received += value.length
-    const percent = declaredSize ? Math.floor((received / declaredSize) * 100) : 0
-    if (percent - lastReported >= 10 || (declaredSize && received >= declaredSize)) {
-      lastReported = percent
-      const megabytes = (received / 1024 / 1024).toFixed(1)
-      console.log(`  ${label}: ${megabytes} MB (${percent}%)`)
-    }
-  }
-  const bytes = Buffer.concat(chunks)
-  return validateDownloadBytes(bytes, url)
+  return dirname(manifestPath)
 }
 
-function validateDownloadBytes(bytes, url) {
-  if (bytes.length === 0) throw new Error(`downloaded an empty file: ${url}`)
-  if (bytes.length > MAX_ARCHIVE_BYTES) {
-    throw new Error(`download is larger than ${MAX_ARCHIVE_BYTES} bytes`)
+async function readBundledAsset(bundleRoot, component, version) {
+  const asset = componentAsset(component, version)
+  const archivePath = join(bundleRoot, 'components', component, asset)
+  const signaturePath = `${archivePath}.sig`
+  let size
+  try {
+    size = (await stat(archivePath)).size
+  } catch (error) {
+    throw new Error(`npm platform package is missing ${component} archive ${asset}`, {
+      cause: error,
+    })
   }
-  return bytes
-}
-
-async function downloadWithRetry(url, label) {
-  const attempts = Math.max(1, Number(process.env.PISPER_CLI_DOWNLOAD_ATTEMPTS) || 3)
-  let lastError
-  for (let attempt = 1; attempt <= attempts; attempt += 1) {
-    try {
-      return await download(url, { label })
-    } catch (error) {
-      lastError = error
-      const retryable =
-        error?.name === 'AbortError' ||
-        /ECONNRESET|ETIMEDOUT|EPIPE|ENOTFOUND|EAI_AGAIN|socket|network/i.test(error?.message || '')
-      if (!retryable || attempt === attempts) throw lastError
-      console.log(`  ${label}: download attempt ${attempt} failed (${error.message}); retrying…`)
-      await wait(1000 * attempt)
-    }
+  if (size <= 0 || size > MAX_ARCHIVE_BYTES) {
+    throw new Error(`npm platform package contains an invalid ${component} archive size: ${size}`)
   }
-  throw lastError
+  const [archive, signature] = await Promise.all([readFile(archivePath), readFile(signaturePath)])
+  return { archive, signature }
 }
 
 async function verifyArchive(component, archive, signatureBytes) {
@@ -245,7 +215,14 @@ async function activateComponent(root, component, version) {
   await rename(temporary, pointer)
 }
 
-async function installComponent({ root, component, version, destination, activate = false }) {
+async function installComponent({
+  root,
+  bundleRoot,
+  component,
+  version,
+  destination,
+  activate = false,
+}) {
   const lockRoot = join(root, 'npm')
   await mkdir(lockRoot, { recursive: true })
   const lockPath = join(lockRoot, `${component}-install.lock`)
@@ -264,20 +241,14 @@ async function installComponent({ root, component, version, destination, activat
       if (activate) await activateComponent(root, component, version)
       return { version, destination, executable: existing }
     }
+
+    console.log(`pisper: installing ${component} ${version} from the npm platform package`)
     await rm(staging, { recursive: true, force: true })
     await mkdir(staging, { recursive: true })
-    const urls = componentUrls({
-      component,
-      version,
-      platform: process.platform,
-      arch: process.arch,
-      baseUrl: process.env.PISPER_CLI_DOWNLOAD_BASE_URL,
-    })
-    const [archive, signature] = await Promise.all([
-      downloadWithRetry(urls.archive, `${component} archive`),
-      downloadWithRetry(urls.signature, `${component} signature`),
-    ])
+    const { archive, signature } = await readBundledAsset(bundleRoot, component, version)
+    console.log(`pisper: verifying ${component} ${version} signature`)
     await verifyArchive(component, archive, signature)
+    console.log(`pisper: extracting ${component} ${version}`)
     await writeFile(archivePath, archive, { mode: 0o600 })
     await extractTar({
       cwd: staging,
@@ -290,12 +261,13 @@ async function installComponent({ root, component, version, destination, activat
     if (process.platform !== 'win32') await chmod(join(staging, commandName(component)), 0o755)
     const stagedExecutable = await validateComponent(component, version, staging)
     if (!stagedExecutable) {
-      throw new Error(`downloaded ${component} archive has an invalid package layout`)
+      throw new Error(`bundled ${component} archive has an invalid package layout`)
     }
     await mkdir(dirname(destination), { recursive: true })
     await rm(destination, { recursive: true, force: true })
     await rename(staging, destination)
     if (activate) await activateComponent(root, component, version)
+    console.log(`pisper: ${component} ${version} is ready`)
     return { version, destination, executable: join(destination, commandName(component)) }
   } finally {
     await lock.close()
@@ -313,31 +285,44 @@ export async function ensurePisperInstallation() {
   const runtimeDestination = join(root, 'runtime', 'versions', runtimeVersion)
   const [tui, runtime] = await Promise.all([
     resolveCurrentComponent(root, 'tui', tuiVersion).then(
-      (current) =>
-        current ||
-        installComponent({
-          root,
-          component: 'tui',
-          version: tuiVersion,
-          destination: npmTuiDestination,
-        }),
+      (current) => current || installedComponent('tui', tuiVersion, npmTuiDestination),
     ),
     resolveCurrentComponent(root, 'runtime', runtimeVersion).then(
-      (current) =>
-        current ||
-        installComponent({
-          root,
-          component: 'runtime',
-          version: runtimeVersion,
-          destination: runtimeDestination,
-          activate: true,
-        }),
+      (current) => current || installedComponent('runtime', runtimeVersion, runtimeDestination),
     ),
   ])
+  if (tui && runtime) {
+    return {
+      executable: tui.executable,
+      sidecar: runtime.executable,
+      appRoot: join(runtime.destination, 'sidecar-runtime'),
+    }
+  }
+
+  const bundleRoot = await resolvePlatformBundle()
+  const [installedTui, installedRuntime] = await Promise.all([
+    tui ||
+      installComponent({
+        root,
+        bundleRoot,
+        component: 'tui',
+        version: tuiVersion,
+        destination: npmTuiDestination,
+      }),
+    runtime ||
+      installComponent({
+        root,
+        bundleRoot,
+        component: 'runtime',
+        version: runtimeVersion,
+        destination: runtimeDestination,
+        activate: true,
+      }),
+  ])
   return {
-    executable: tui.executable,
-    sidecar: runtime.executable,
-    appRoot: join(runtime.destination, 'sidecar-runtime'),
+    executable: installedTui.executable,
+    sidecar: installedRuntime.executable,
+    appRoot: join(installedRuntime.destination, 'sidecar-runtime'),
   }
 }
 

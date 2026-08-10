@@ -144,11 +144,17 @@ sudo apt install ./Pisper-*-linux-amd64.deb
 
 ### 终端客户端（TUI）
 
-使用 Node.js 20+ 时，也可通过 npm 安装 Pisper CLI。安装过程会为当前平台获取并验证 TUI 与 Runtime；不会安装桌面壳或 Web 前端：
+使用 Node.js 20+ 时，也可通过 npm 安装 Pisper CLI。npm 会从当前配置的 registry 获取轻量启动器以及当前平台的签名 TUI 与 Runtime 包，不再从 GitHub Releases 下载；首次运行只在本地验签和解压，不会安装桌面壳或 Web 前端：
 
 ```bash
-npm install -g pisper
+npm install -g pisper --progress=true
 pisper
+```
+
+使用 npm 镜像时，平台包会走同一个 registry。动态进度条由 npm 绘制，可显式增加 `--progress=true`；需要查看请求和缓存明细时再增加 `--loglevel=info`：
+
+```bash
+npm install -g pisper --registry=https://registry.npmmirror.com --progress=true
 ```
 
 首次进入 TUI 后使用 `/provider` 选择 Provider 并在掩码输入框中保存 API Key；已知 Provider 可用 `/provider <id>` 直达（`/apikey` 为兼容别名）。需要可视化配置时，运行 `pisper web`，Pisper 会按需安装签名 Web 前端并在默认浏览器打开仅监听本机的认证配置页。配置页中的 **保存 Provider 配置** 不会修改默认模型；只有点击 **设为默认 Provider** 才会切换后续会话的默认模型。

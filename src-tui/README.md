@@ -6,11 +6,17 @@
 
 ## 安装终端命令
 
-使用 Node.js 20+ 时，可以直接通过 npm 安装 Pisper CLI。安装过程会为当前平台获取并验证 TUI 与 Runtime，不包含桌面壳或 Web 前端：
+使用 Node.js 20+ 时，可以直接通过 npm 安装 Pisper CLI。npm 会从当前配置的 registry 获取轻量启动器以及当前平台的签名 TUI 与 Runtime 包，不再从 GitHub Releases 下载；首次运行只在本地验签和解压，不包含桌面壳或 Web 前端：
 
 ```bash
-npm install -g pisper
+npm install -g pisper --progress=true
 pisper
+```
+
+使用 npm 镜像时，平台包会走同一个 registry。动态进度条由 npm 绘制，可显式增加 `--progress=true`；需要查看请求和缓存明细时再增加 `--loglevel=info`：
+
+```bash
+npm install -g pisper --registry=https://registry.npmmirror.com --progress=true
 ```
 
 使用 `pisper --help` 可直接查看首次使用、会话恢复、诊断、更新和 Web 配置入口，不需要另行查阅 README。

@@ -144,11 +144,17 @@ sudo apt install ./Pisper-*-linux-amd64.deb
 
 ### Terminal Client (TUI)
 
-With Node.js 20+, you can install the Pisper CLI through npm. Installation obtains and verifies the TUI and Runtime for the current platform; it does not install the desktop shell or Web frontend:
+With Node.js 20+, you can install the Pisper CLI through npm. npm obtains the lightweight launcher and the signed TUI and Runtime packages for the current platform from the configured registry, without downloading from GitHub Releases. The first run only verifies and extracts those local packages; it does not install the desktop shell or Web frontend:
 
 ```bash
-npm install -g pisper
+npm install -g pisper --progress=true
 pisper
+```
+
+Platform packages use the same registry when an npm mirror is configured. npm renders the dynamic progress bar; enable it explicitly with `--progress=true`, and add `--loglevel=info` only when request and cache details are needed:
+
+```bash
+npm install -g pisper --registry=https://registry.npmmirror.com --progress=true
 ```
 
 After entering the TUI for the first time, use `/provider` to choose a Provider and save its API key in a masked input; for a known Provider, `/provider <id>` skips the picker (`/apikey` remains a compatible alias). For visual configuration, run `pisper web`; Pisper installs the signed Web frontend on demand and opens an authenticated, localhost-only settings page in your default browser. **Save Provider settings** does not change the default model; only **Set as default Provider** changes the default for later sessions.

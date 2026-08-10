@@ -8,6 +8,11 @@ import {
   releasePlatform,
   supportedTarget,
 } from '../../packages/pisper/lib/platform.mjs'
+import {
+  npmPlatformAlias,
+  npmPlatformOptionalDependencies,
+  npmPlatformVersion,
+} from '../../packages/pisper/lib/npm-platform.mjs'
 import { releaseComponentsForPath } from '../../scripts/release-changes.mjs'
 
 test('pisper is an isolated private source package exposing only its command', async () => {
@@ -18,7 +23,9 @@ test('pisper is an isolated private source package exposing only its command', a
   assert.deepEqual(manifest.bin, { pisper: 'bin/pisper.mjs' })
   assert.match(manifest.pisper.tuiVersion, /^\d+\.\d+\.\d+$/)
   assert.match(manifest.pisper.runtimeVersion, /^\d+\.\d+\.\d+$/)
+  assert.equal(manifest.scripts?.postinstall, undefined)
   assert.deepEqual(releaseComponentsForPath('packages/pisper/lib/install.mjs'), [])
+  assert.deepEqual(releaseComponentsForPath('scripts/package-npm-platforms.mjs'), [])
 })
 
 test('npm launcher installs signed TUI and Runtime components without duplicating Runtime', async () => {
@@ -31,6 +38,8 @@ test('npm launcher installs signed TUI and Runtime components without duplicatin
   assert.match(installer, /`Pisper_\$\{label\}_\$\{version\}_\$\{target\}\.tar\.gz`/)
   assert.match(installer, /component: 'runtime'/)
   assert.match(installer, /sidecar-runtime', 'package\.json'/)
+  assert.match(installer, /resolvePlatformBundle/)
+  assert.doesNotMatch(installer, /\bfetch\(|github\.com|PISPER_CLI_DOWNLOAD/)
   assert.doesNotMatch(installer, /\bcopyFile\b|\bcp\(/)
   assert.match(launcher, /PISPER_SIDECAR_PATH: installation\.sidecar/)
   assert.match(launcher, /PISPER_APP_ROOT: installation\.appRoot/)
@@ -48,6 +57,14 @@ test('npm platform mapping matches signed component release assets', () => {
     /components$/,
   )
   assert.throws(() => supportedTarget('linux', 'arm64'), /does not publish a TUI package/)
+  assert.equal(npmPlatformAlias('win32', 'x64'), 'pisper-binary-win32-x64')
+  assert.equal(npmPlatformVersion('1.2.3', 'darwin', 'arm64'), '1.2.3-darwin-arm64.0')
+  assert.deepEqual(npmPlatformOptionalDependencies('1.2.3'), {
+    'pisper-binary-win32-x64': 'npm:pisper@1.2.3-win32-x64.0',
+    'pisper-binary-darwin-x64': 'npm:pisper@1.2.3-darwin-x64.0',
+    'pisper-binary-darwin-arm64': 'npm:pisper@1.2.3-darwin-arm64.0',
+    'pisper-binary-linux-x64': 'npm:pisper@1.2.3-linux-x64.0',
+  })
 })
 
 test('npm publication follows the component release workflow automatically', async () => {
@@ -58,7 +75,10 @@ test('npm publication follows the component release workflow automatically', asy
   ])
 
   assert.match(workflow, /id-token: write/)
-  assert.match(workflow, /npm publish release\/npm\/tarballs\/\*\.tgz --access public --provenance/)
+  assert.match(workflow, /node scripts\/package-npm-platforms\.mjs/)
+  assert.match(workflow, /publish_platform win32-x64/)
+  assert.match(workflow, /npm publish "release\/npm\/tarballs\/pisper-\$NPM_VERSION\.tgz"/)
+  assert.doesNotMatch(workflow, /PISPER_CLI_SKIP_INSTALL/)
   assert.doesNotMatch(workflow, /NPM_TOKEN|NODE_AUTH_TOKEN/)
   assert.match(workflow, /npm view "pisper@\$NPM_VERSION"/)
   assert.match(workflow, /chore\(release-npm\): \$NPM_TAG/)

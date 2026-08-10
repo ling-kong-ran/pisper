@@ -1,6 +1,7 @@
 import { readFile } from 'node:fs/promises'
 import { dirname, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
+import { npmPlatformOptionalDependencies } from '../packages/pisper/lib/npm-platform.mjs'
 import { packageNpm } from './package-npm.mjs'
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..')
@@ -17,6 +18,17 @@ if (manifest.bin?.pisper !== 'bin/pisper.mjs' || Object.keys(manifest.bin || {})
 }
 if (manifest.publishConfig?.access !== 'public' || manifest.publishConfig?.provenance !== true) {
   throw new Error('npm package must require public provenance publication.')
+}
+if (
+  JSON.stringify(manifest.optionalDependencies) !==
+  JSON.stringify(npmPlatformOptionalDependencies(manifest.version))
+) {
+  throw new Error(
+    'npm package must select the exact platform bundles through optional dependencies.',
+  )
+}
+if (manifest.scripts?.postinstall) {
+  throw new Error('npm package must not download or extract components from postinstall.')
 }
 if (sourceKey.trim() !== packagedKey.trim()) {
   throw new Error('npm package updater key does not match the desktop and TUI updater key.')

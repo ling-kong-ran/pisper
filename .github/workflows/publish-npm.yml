@@ -74,22 +74,57 @@ jobs:
         run: node scripts/validate-npm-targets.mjs
         env:
           GITHUB_TOKEN: ${{ github.token }}
-      - name: Pack and validate registry contents
+      - name: Pack and validate registry launcher contents
         run: npm run npm:pack:check
-      - name: Smoke-test the packed launcher and production dependencies
+      - name: Download signed component archives for npm platform packages
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          mkdir -p release/npm/component-artifacts
+          gh release download "tui-v$TUI_VERSION" \
+            --dir release/npm/component-artifacts \
+            --pattern "Pisper_TUI_Component_${TUI_VERSION}_*.tar.gz" \
+            --pattern "Pisper_TUI_Component_${TUI_VERSION}_*.tar.gz.sig"
+          gh release download "runtime-v$RUNTIME_VERSION" \
+            --dir release/npm/component-artifacts \
+            --pattern "Pisper_Runtime_${RUNTIME_VERSION}_*.tar.gz" \
+            --pattern "Pisper_Runtime_${RUNTIME_VERSION}_*.tar.gz.sig"
+      - name: Pack platform-specific npm contents
+        run: node scripts/package-npm-platforms.mjs
+      - name: Smoke-test the packed launcher without a GitHub download
         shell: bash
         run: |
-          PISPER_CLI_SKIP_INSTALL=1 npm install \
+          npm install \
             --prefix release/npm/smoke \
-            release/npm/tarballs/*.tgz
-          node -e "import('./release/npm/smoke/node_modules/pisper/lib/install.mjs').then(m => { if (!m.releaseAsset().startsWith('Pisper_TUI_Component_')) process.exit(1) })"
+            --omit=optional \
+            "release/npm/tarballs/pisper-${NPM_VERSION}.tgz"
+          platform_dir="release/npm/smoke/node_modules/pisper-binary-linux-x64"
+          mkdir -p "$platform_dir"
+          tar -xzf "release/npm/tarballs/pisper-${NPM_VERSION}-linux-x64.0.tgz" \
+            -C "$platform_dir" \
+            --strip-components=1
+          PISPER_NPM_INSTALL_DIR="$PWD/release/npm/smoke-data" node -e \
+            "import('./release/npm/smoke/node_modules/pisper/lib/install.mjs').then(async m => { const p = await m.ensurePisperInstallation(); if (!p.executable || !p.sidecar || !p.appRoot) process.exit(1) })"
       - name: Check whether the version is already published
         id: registry
         shell: bash
         run: |
+          platform_versions=(
+            "$NPM_VERSION-win32-x64.0"
+            "$NPM_VERSION-darwin-x64.0"
+            "$NPM_VERSION-darwin-arm64.0"
+            "$NPM_VERSION-linux-x64.0"
+          )
           if npm view "pisper@$NPM_VERSION" version --json >/dev/null 2>&1; then
+            for version in "${platform_versions[@]}"; do
+              npm view "pisper@$version" version --json >/dev/null 2>&1 || {
+                echo "pisper@$NPM_VERSION exists without platform package $version" >&2
+                exit 1
+              }
+            done
             echo "exists=true" >> "$GITHUB_OUTPUT"
-            echo "pisper@$NPM_VERSION is already published; nothing to do."
+            echo "pisper@$NPM_VERSION and all platform packages are already published."
           else
             echo "exists=false" >> "$GITHUB_OUTPUT"
           fi
@@ -141,6 +176,25 @@ jobs:
             "refs/tags/$NPM_TAG"
           pushed=1
 
-          npm publish release/npm/tarballs/*.tgz --access public --provenance
+          publish_platform() {
+            slug="$1"
+            version="$NPM_VERSION-$slug.0"
+            tarball="release/npm/tarballs/pisper-$version.tgz"
+            if npm view "pisper@$version" version --json >/dev/null 2>&1; then
+              echo "pisper@$version is already published; reusing it."
+            else
+              npm publish "$tarball" \
+                --access public \
+                --provenance \
+                --tag "platform-$slug"
+            fi
+          }
+          publish_platform win32-x64
+          publish_platform darwin-x64
+          publish_platform darwin-arm64
+          publish_platform linux-x64
+          npm publish "release/npm/tarballs/pisper-$NPM_VERSION.tgz" \
+            --access public \
+            --provenance
           trap - ERR
-          echo "Published pisper@$NPM_VERSION from $release_commit"
+          echo "Published pisper@$NPM_VERSION and its four npm platform packages from $release_commit"

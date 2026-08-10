@@ -3,6 +3,7 @@ import { chmod, copyFile, cp, mkdir, readFile, rm, writeFile } from 'node:fs/pro
 import { basename, dirname, join, resolve } from 'node:path'
 import process from 'node:process'
 import { fileURLToPath } from 'node:url'
+import { npmPlatformOptionalDependencies } from '../packages/pisper/lib/npm-platform.mjs'
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..')
 const source = join(root, 'packages', 'pisper')
@@ -35,6 +36,8 @@ export async function packageNpm() {
     'Runtime version',
   )
   delete manifest.private
+  delete manifest.scripts
+  manifest.optionalDependencies = npmPlatformOptionalDependencies(manifest.version)
   manifest.publishConfig = { access: 'public', provenance: true }
 
   await rm(join(releaseRoot, 'package'), { recursive: true, force: true })
@@ -58,8 +61,8 @@ export async function packageNpm() {
     'README.md',
     'bin/pisper.mjs',
     'lib/install.mjs',
+    'lib/npm-platform.mjs',
     'lib/platform.mjs',
-    'lib/postinstall.mjs',
     'package.json',
     'updater.pubkey',
   ]
