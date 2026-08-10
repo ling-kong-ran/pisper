@@ -72,6 +72,21 @@ test('abort guard force-settles a hung prompt after the abort deadline', async (
   )
 })
 
+test('abort guard disposes the agent session so hung tools are terminated', async () => {
+  let disposed = 0
+  const value = {
+    abortForceTimeoutMs: 120,
+    session: { dispose: () => (disposed += 1) },
+  }
+  value.abortedAt = Date.now()
+  await assert.rejects(
+    runPromptWithAbortGuard(value, () => new Promise(() => {})),
+    /强制中断/,
+  )
+  assert.equal(disposed, 1, 'the agent session must be disposed to kill hung tools')
+  assert.equal(value.forceDisposed, true, 'the resident must be flagged for cleanup')
+})
+
 test('abort guard passes through a normal prompt result', async () => {
   const value = { abortForceTimeoutMs: 120 }
   assert.equal(await runPromptWithAbortGuard(value, () => Promise.resolve('ok')), 'ok')

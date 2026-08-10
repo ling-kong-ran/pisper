@@ -75,8 +75,14 @@ export class AgentRuntimeFacade {
       return await this.runSessionPrompt(value, options)
     } finally {
       value.runActive = false
-      this.touchSessionRuntime(value)
-      this.evictIdleSessionRuntimes(id)
+      if (value.forceDisposed) {
+        // 强制中断已销毁 Agent 会话（终止工具进程）；释放 resident，
+        // 下次打开时从持久化 transcript 重建。
+        this.sessionLifecycle.disposeSessionRuntime(id, value)
+      } else {
+        this.touchSessionRuntime(value)
+        this.evictIdleSessionRuntimes(id)
+      }
     }
   }
 

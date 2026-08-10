@@ -131,6 +131,17 @@ async function runPromptWithAbortGuard(value, run) {
     }
     const abortedAt = value?.abortedAt
     if (abortedAt && Date.now() - abortedAt >= timeoutMs) {
+      // 强制终止：dispose 会 abort bash（kill 挂起的子进程）、中断 agent 循环等，
+      // 确保即使工具一直执行，本次运行也能被中断。
+      const session = value?.session
+      if (session && typeof session.dispose === 'function') {
+        try {
+          session.dispose()
+        } catch {
+          // 终止失败也不阻塞收尾
+        }
+        value.forceDisposed = true
+      }
       throw new Error('Agent 未能在超时时间内响应停止，本次运行已被强制中断。')
     }
   }
