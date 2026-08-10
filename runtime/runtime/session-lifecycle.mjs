@@ -99,8 +99,8 @@ export class SessionLifecycle {
     )
   }
 
-  disposeSessionRuntime(id, value) {
-    if (!value || this.sessions.get(id) !== value || this.sessionRunIsActive(id, value))
+  disposeSessionRuntime(id, value, { force = false } = {}) {
+    if (!value || this.sessions.get(id) !== value || (!force && this.sessionRunIsActive(id, value)))
       return false
     this.getPermissions().resolveSession(id, false, '会话运行时已从内存释放，请重新发送消息。')
     try {

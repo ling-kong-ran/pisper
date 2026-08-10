@@ -891,8 +891,8 @@ export class AgentRuntimeService extends AgentRuntimeFacade {
     return this.sessionLifecycle.sessionRuntimeIsProtected(id, value)
   }
 
-  disposeSessionRuntime(id, value) {
-    return this.sessionLifecycle.disposeSessionRuntime(id, value)
+  disposeSessionRuntime(id, value, options) {
+    return this.sessionLifecycle.disposeSessionRuntime(id, value, options)
   }
 
   evictIdleSessionRuntimes(exceptId = '', now = Date.now()) {

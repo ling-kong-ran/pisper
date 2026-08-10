@@ -66,19 +66,31 @@ export class AgentRuntimeFacade {
   }
 
   async streamPrompt(options) {
-    const value = await this.getOrCreateSession(options.sessionId)
-    const id = value.session.sessionId
+    let value = await this.getOrCreateSession(options.sessionId)
+    let id = value.session.sessionId
+    if (value.forceDisposed && !value.runActive) {
+      this.sessionLifecycle.disposeSessionRuntime(id, value, { force: true })
+      value = await this.getOrCreateSession(options.sessionId)
+      id = value.session.sessionId
+    }
     if (this.sessionRunIsActive(id, value))
       throw new Error('当前会话仍在运行，请等待完成或先停止。')
+    // Interruption markers belong to one prompt run. Leaving them on the resident
+    // makes the next prompt inherit the previous abort deadline.
+    delete value.abortedAt
+    delete value.forceDisposed
     value.runActive = true
     try {
       return await this.runSessionPrompt(value, options)
     } finally {
       value.runActive = false
-      if (value.forceDisposed) {
-        // 强制中断已销毁 Agent 会话（终止工具进程）；释放 resident，
-        // 下次打开时从持久化 transcript 重建。
-        this.sessionLifecycle.disposeSessionRuntime(id, value)
+      const forceDisposed = value.forceDisposed
+      delete value.abortedAt
+      delete value.forceDisposed
+      if (forceDisposed) {
+        // The disposed Agent may report isStreaming until its abandoned prompt
+        // settles, but this resident can no longer be reused.
+        this.sessionLifecycle.disposeSessionRuntime(id, value, { force: true })
       } else {
         this.touchSessionRuntime(value)
         this.evictIdleSessionRuntimes(id)

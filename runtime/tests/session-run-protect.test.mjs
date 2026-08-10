@@ -120,6 +120,98 @@ test('abortSession records the abort deadline on the resident value', async (t) 
   assert.ok(value.abortedAt, 'abortedAt must be recorded for the force-settle guard')
 })
 
+test('a new prompt clears interruption markers left by the previous run', async (t) => {
+  const directory = await mkdtemp(join(tmpdir(), 'pisper-abort-reset-'))
+  t.after(() => rm(directory, { recursive: true, force: true }).catch(() => {}))
+  const runtime = freshRuntime(directory)
+  const id = 'session-abort-reset'
+  const value = {
+    cwd: runtime.cwd,
+    name: '中断后继续',
+    session: { ...mockSession(), sessionId: id },
+    abortedAt: Date.now() - 60_000,
+  }
+  runtime.sessions.set(id, value)
+  let observed
+  runtime.runSessionPrompt = async (current) => {
+    observed = {
+      abortedAt: current.abortedAt,
+      forceDisposed: current.forceDisposed,
+    }
+  }
+
+  await runtime.streamPrompt({ sessionId: id, message: '继续发送', send: () => {} })
+
+  assert.deepEqual(observed, { abortedAt: undefined, forceDisposed: undefined })
+  assert.equal(Object.hasOwn(value, 'abortedAt'), false)
+  assert.equal(Object.hasOwn(value, 'forceDisposed'), false)
+})
+
+test('a stale force-disposed resident is rebuilt before the next prompt', async (t) => {
+  const directory = await mkdtemp(join(tmpdir(), 'pisper-abort-rebuild-'))
+  t.after(() => rm(directory, { recursive: true, force: true }).catch(() => {}))
+  const runtime = freshRuntime(directory)
+  const id = 'session-abort-rebuild'
+  let disposed = 0
+  const stale = {
+    cwd: runtime.cwd,
+    name: '待恢复会话',
+    session: {
+      ...mockSession({ dispose: () => (disposed += 1) }),
+      sessionId: id,
+      isStreaming: true,
+    },
+    forceDisposed: true,
+  }
+  const replacement = {
+    cwd: runtime.cwd,
+    name: stale.name,
+    session: { ...mockSession(), sessionId: id },
+  }
+  runtime.sessions.set(id, stale)
+  let lookups = 0
+  runtime.getOrCreateSession = async () => {
+    lookups += 1
+    if (lookups === 1) return stale
+    runtime.sessions.set(id, replacement)
+    return replacement
+  }
+  let prompted
+  runtime.runSessionPrompt = async (current) => {
+    prompted = current
+  }
+
+  await runtime.streamPrompt({ sessionId: id, message: '恢复发送', send: () => {} })
+
+  assert.equal(disposed, 1)
+  assert.equal(lookups, 2)
+  assert.equal(prompted, replacement)
+  assert.equal(runtime.sessions.get(id), replacement)
+})
+
+test('forced interruption releases a disposed resident with stale streaming state', async (t) => {
+  const directory = await mkdtemp(join(tmpdir(), 'pisper-abort-release-'))
+  t.after(() => rm(directory, { recursive: true, force: true }).catch(() => {}))
+  const runtime = freshRuntime(directory)
+  const id = 'session-abort-release'
+  let disposed = 0
+  const session = {
+    ...mockSession({ dispose: () => (disposed += 1) }),
+    sessionId: id,
+  }
+  const value = { cwd: runtime.cwd, name: '强制中断', session }
+  runtime.sessions.set(id, value)
+  runtime.runSessionPrompt = async (current) => {
+    current.forceDisposed = true
+    current.session.isStreaming = true
+  }
+
+  await runtime.streamPrompt({ sessionId: id, message: '触发强制中断', send: () => {} })
+
+  assert.equal(disposed, 1)
+  assert.equal(runtime.sessions.has(id), false, 'a disposed resident must never be reused')
+})
+
 test('aborting a running session preserves the session and never creates a new one', async (t) => {
   const directory = await mkdtemp(join(tmpdir(), 'pisper-abort-keep-'))
   t.after(() => rm(directory, { recursive: true, force: true }).catch(() => {}))
