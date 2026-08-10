@@ -379,6 +379,9 @@ export class SessionLifecycle {
     if (!title) throw new Error('会话标题不能为空。')
     const active = this.sessions.get(id)
     const pending = this.pendingSessions.get(id)
+    if (this.sessionRunIsActive(id, active)) {
+      throw new Error('当前会话正在运行，请完成或停止后再修改标题。')
+    }
     if (active) {
       active.session.setSessionName(title)
       active.name = title
@@ -409,6 +412,10 @@ export class SessionLifecycle {
       !(await this.findSessionInfo(id))
     )
       return null
+    const active = this.sessions.get(id)
+    if (this.sessionRunIsActive(id, active)) {
+      throw new Error('当前会话正在运行，请完成或停止后再切换权限模式。')
+    }
     const sessionMeta = this.getSessionMeta()
     sessionMeta[id] = { ...(sessionMeta[id] || {}), permissionMode }
     await this.saveSessionMeta()

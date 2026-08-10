@@ -280,6 +280,10 @@ export function useSessionCommands({
   const switchSessionExecutionMode = useCallback(
     async (sessionId: string, executionMode: string) => {
       if (!sessionId) return false
+      if (sessionStatesRef.current[sessionId]?.streaming) {
+        notify(t('chat:chatPage.stopTheActiveRunBeforeChangingTheExecutionMode'), 'info')
+        return false
+      }
       updateSessionState(sessionId, { switchingPermission: true, error: '' })
       try {
         if (executionMode === 'full-access') {
@@ -355,7 +359,11 @@ export function useSessionCommands({
 
   const selectSessionWorkspace = useCallback(
     async (session: SessionSummary) => {
-      if (!session?.id || sessionStatesRef.current[session.id]?.streaming) return
+      if (!session?.id) return
+      if (sessionStatesRef.current[session.id]?.streaming) {
+        notify(t('chat:chatPage.stopTheActiveRunBeforeChangingTheWorkspace'), 'info')
+        return
+      }
       try {
         const cwd = await pickSystemDirectory(session.cwd)
         if (!cwd) return
@@ -380,6 +388,11 @@ export function useSessionCommands({
 
   const renameSession = useCallback(
     async (session: SessionSummary) => {
+      if (!session?.id) return
+      if (sessionStatesRef.current[session.id]?.streaming) {
+        notify(t('chat:chatPage.stopTheActiveRunBeforeRenamingTheChat'), 'info')
+        return
+      }
       const name = await requestText({
         title: t('chat:chatPage.renameChat'),
         inputLabel: t('chat:chatPage.chatTitle'),
