@@ -236,7 +236,6 @@ if (chainNpm) runNpm(['run', 'npm:pack:check'])
 // workflow can treat the bundled-manifest refresh as a substantive installer
 // change and sync it during staging. The local script never pushes: all
 // remote changes happen inside the atomic workflow commit.
-const desktopPlan = plans.find(({ component }) => component === 'desktop')
 const tuiPlan = plans.find(({ component }) => component === 'tui')
 const runtimePlan = plans.find(({ component }) => component === 'runtime')
 const desktopTuiVersion = tuiPlan?.nextVersion || ''
