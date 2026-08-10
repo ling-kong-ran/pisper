@@ -11,8 +11,13 @@
   --lime: #dfff62;
   --cyan: #62d1dc;
   --purple: #a855f7;
+  --teal: #0d9488;
   --shell: 1180px;
   --header-height: 68px;
+  --radius: 14px;
+  --shadow-panel:
+    0 30px 70px -34px rgba(17, 19, 18, 0.3),
+    0 10px 26px -16px rgba(17, 19, 18, 0.16);
   color-scheme: light;
   font-family:
     Inter,
@@ -179,7 +184,29 @@ a {
   overflow: hidden;
   isolation: isolate;
   color: white;
-  background: var(--ink);
+  background: linear-gradient(180deg, #101211 0%, var(--ink) 100%);
+}
+
+.hero::before {
+  content: '';
+  position: absolute;
+  z-index: -1;
+  inset: 0;
+  background-image:
+    linear-gradient(rgba(255, 255, 255, 0.035) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255, 255, 255, 0.035) 1px, transparent 1px);
+  background-size: 46px 46px;
+  mask-image: radial-gradient(70% 60% at 30% 30%, #000 0%, transparent 78%);
+}
+
+.hero::after {
+  content: '';
+  position: absolute;
+  z-index: -1;
+  inset: 0;
+  background:
+    radial-gradient(560px 340px at 82% 18%, rgba(223, 255, 98, 0.14), transparent 70%),
+    radial-gradient(620px 420px at 12% 88%, rgba(98, 209, 220, 0.12), transparent 72%);
 }
 
 .hero-image {
@@ -367,9 +394,10 @@ a {
 .terminal-copy h2,
 .download-inner h2 {
   margin: 0;
-  font-size: 46px;
-  font-weight: 760;
-  line-height: 1.18;
+  font-size: 48px;
+  font-weight: 780;
+  line-height: 1.16;
+  letter-spacing: -0.02em;
 }
 
 .section-heading > p,
@@ -386,10 +414,24 @@ a {
 
 .product-tabs {
   display: flex;
-  gap: 30px;
+  gap: 10px;
+  padding: 2px 0 6px;
   overflow-x: auto;
-  border-bottom: 1px solid var(--line);
   scrollbar-width: none;
+  -webkit-mask-image: linear-gradient(
+    90deg,
+    transparent 0,
+    #000 22px,
+    #000 calc(100% - 22px),
+    transparent 100%
+  );
+  mask-image: linear-gradient(
+    90deg,
+    transparent 0,
+    #000 22px,
+    #000 calc(100% - 22px),
+    transparent 100%
+  );
 }
 
 .product-tabs::-webkit-scrollbar {
@@ -399,42 +441,58 @@ a {
 .product-tabs button {
   position: relative;
   flex: 0 0 auto;
-  padding: 0 0 14px;
-  border: 0;
-  color: #737974;
+  padding: 9px 16px;
+  border: 1px solid transparent;
+  border-radius: 999px;
+  color: #5d635e;
   background: transparent;
-  font-size: 14px;
-  font-weight: 700;
+  font-size: 13.5px;
+  font-weight: 680;
   cursor: pointer;
+  transition:
+    color 160ms ease,
+    background 160ms ease,
+    border-color 160ms ease,
+    transform 160ms ease;
 }
 
-.product-tabs button::after {
-  content: '';
-  position: absolute;
-  right: 0;
-  bottom: -1px;
-  left: 0;
-  height: 2px;
-  background: var(--ink);
-  transform: scaleX(0);
-  transform-origin: left;
-  transition: transform 180ms ease;
+.product-tabs button:hover {
+  color: var(--ink);
+  border-color: var(--line);
+  background: #e9ede9;
 }
 
 .product-tabs button[aria-selected='true'] {
-  color: var(--ink);
+  color: #ffffff;
+  border-color: var(--ink);
+  background: var(--ink);
 }
 
 .product-tabs button[aria-selected='true']::after {
+  content: '';
+  position: absolute;
+  right: 14px;
+  bottom: 5px;
+  left: 14px;
+  height: 2px;
+  border-radius: 2px;
+  background: var(--lime);
+  transform: scaleX(0);
+  transform-origin: left;
+  transition: transform 220ms ease;
+}
+
+.product-tabs button[aria-selected='true']:hover::after {
   transform: scaleX(1);
 }
 
 .product-panel {
-  margin: 24px 0 0;
+  margin: 28px 0 0;
   overflow: hidden;
   border: 1px solid var(--line);
-  border-radius: 8px;
+  border-radius: var(--radius);
   background: var(--surface);
+  box-shadow: var(--shadow-panel);
 }
 
 .product-shot-wrap {
@@ -451,29 +509,30 @@ a {
   object-fit: cover;
   transition:
     opacity 180ms ease,
-    transform 260ms ease;
+    transform 420ms cubic-bezier(0.22, 1, 0.36, 1);
 }
 
 .product-shot.is-changing {
-  opacity: 0.35;
-  transform: scale(0.995);
+  opacity: 0.3;
+  transform: scale(0.992);
 }
 
 .product-panel figcaption {
   display: grid;
-  grid-template-columns: 180px 1fr;
+  grid-template-columns: 200px 1fr;
   gap: 24px;
-  padding: 20px 24px;
+  padding: 22px 28px;
   align-items: baseline;
 }
 
 .product-panel figcaption strong {
-  font-size: 15px;
+  font-size: 16px;
 }
 
 .product-panel figcaption span {
   color: var(--muted);
   font-size: 14px;
+  line-height: 1.7;
 }
 
 .capability-section {
@@ -492,16 +551,20 @@ a {
 
 .capability-list li {
   display: grid;
-  grid-template-columns: 42px 1fr;
+  grid-template-columns: 46px 1fr;
   gap: 20px;
   padding: 28px 0 30px;
   border-top: 1px solid var(--line);
+  transition: padding-inline 200ms ease;
 }
 
 .capability-list li > span {
-  color: #789184;
-  font-size: 12px;
-  font-weight: 760;
+  color: transparent;
+  background: linear-gradient(180deg, var(--teal), #7cb24a);
+  -webkit-background-clip: text;
+  background-clip: text;
+  font-size: 13px;
+  font-weight: 800;
 }
 
 .capability-list h3 {
@@ -518,7 +581,9 @@ a {
 
 .safety-section {
   border-top: 1px solid var(--line);
-  background: #edf1ed;
+  background:
+    radial-gradient(900px 420px at 90% 0%, rgba(13, 148, 136, 0.08), transparent 65%),
+    #edf1ed;
 }
 
 .safety-heading {
@@ -588,9 +653,12 @@ a {
 }
 
 .safety-list li > span {
-  color: #789184;
-  font-size: 12px;
-  font-weight: 760;
+  color: transparent;
+  background: linear-gradient(180deg, var(--teal), #7cb24a);
+  -webkit-background-clip: text;
+  background-clip: text;
+  font-size: 13px;
+  font-weight: 800;
 }
 
 .safety-list h3 {
@@ -643,7 +711,10 @@ a {
 
 .component-section {
   color: white;
-  background: var(--ink);
+  background:
+    radial-gradient(900px 460px at 88% -12%, rgba(223, 255, 98, 0.12), transparent 62%),
+    radial-gradient(720px 420px at 6% 108%, rgba(98, 209, 220, 0.1), transparent 60%),
+    linear-gradient(180deg, #161a17 0%, #0d100e 100%);
 }
 
 .component-layout {
@@ -731,9 +802,10 @@ a {
 .terminal-figure {
   margin: 0;
   overflow: hidden;
-  border: 1px solid #252a27;
-  border-radius: 8px;
+  border: 1px solid #2b312d;
+  border-radius: var(--radius);
   background: #080b0d;
+  box-shadow: 0 34px 70px -36px rgba(8, 11, 13, 0.85);
 }
 
 .terminal-figure img {
@@ -745,7 +817,9 @@ a {
 
 .download-section {
   color: white;
-  background: #244d36;
+  background:
+    radial-gradient(760px 420px at 18% 0%, rgba(223, 255, 98, 0.1), transparent 62%),
+    linear-gradient(135deg, #1e4a31 0%, #2c6a45 55%, #1e4a31 100%);
 }
 
 .download-inner {
@@ -972,7 +1046,13 @@ a {
   }
 
   .product-tabs {
-    gap: 24px;
+    gap: 8px;
+    padding-inline: 2px;
+  }
+
+  .product-tabs button {
+    padding: 8px 13px;
+    font-size: 12.5px;
   }
 
   .product-shot-wrap {
