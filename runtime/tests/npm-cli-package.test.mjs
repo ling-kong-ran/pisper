@@ -24,7 +24,7 @@ test('pisper is an isolated private source package exposing only its command', a
   assert.match(manifest.pisper.tuiVersion, /^\d+\.\d+\.\d+$/)
   assert.match(manifest.pisper.runtimeVersion, /^\d+\.\d+\.\d+$/)
   assert.equal(manifest.scripts?.postinstall, undefined)
-  assert.deepEqual(releaseComponentsForPath('packages/pisper/lib/install.mjs'), [])
+  assert.deepEqual(releaseComponentsForPath('packages/pisper/lib/install.mjs'), ['runtime'])
   assert.deepEqual(releaseComponentsForPath('scripts/package-npm-platforms.mjs'), [])
 })
 
@@ -39,6 +39,7 @@ test('npm launcher installs signed TUI and Runtime components without duplicatin
   assert.match(installer, /component: 'runtime'/)
   assert.match(installer, /sidecar-runtime', 'package\.json'/)
   assert.match(installer, /resolvePlatformBundle/)
+  assert.match(installer, /process\.platform === 'win32' \? destination : staging/)
   assert.doesNotMatch(installer, /\bfetch\(|github\.com|PISPER_CLI_DOWNLOAD/)
   assert.doesNotMatch(installer, /\bcopyFile\b|\bcp\(/)
   assert.match(launcher, /PISPER_SIDECAR_PATH: installation\.sidecar/)

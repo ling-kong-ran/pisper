@@ -234,6 +234,8 @@ async function installComponent({
   }
 
   const staging = `${destination}.tmp-${process.pid}-${Date.now()}`
+  // Renaming a tree with paths over MAX_PATH fails on Windows even though tar can extract it.
+  const extractionRoot = process.platform === 'win32' ? destination : staging
   const archivePath = `${staging}.tar.gz`
   try {
     const existing = await validate()
@@ -243,29 +245,33 @@ async function installComponent({
     }
 
     console.log(`pisper: installing ${component} ${version} from the npm platform package`)
-    await rm(staging, { recursive: true, force: true })
-    await mkdir(staging, { recursive: true })
+    await mkdir(dirname(destination), { recursive: true })
+    await rm(extractionRoot, { recursive: true, force: true })
+    await mkdir(extractionRoot, { recursive: true })
     const { archive, signature } = await readBundledAsset(bundleRoot, component, version)
     console.log(`pisper: verifying ${component} ${version} signature`)
     await verifyArchive(component, archive, signature)
     console.log(`pisper: extracting ${component} ${version}`)
     await writeFile(archivePath, archive, { mode: 0o600 })
     await extractTar({
-      cwd: staging,
+      cwd: extractionRoot,
       file: archivePath,
       preservePaths: false,
       strict: true,
       strip: 1,
       filter: (_path, entry) => entry.type === 'File' || entry.type === 'Directory',
     })
-    if (process.platform !== 'win32') await chmod(join(staging, commandName(component)), 0o755)
-    const stagedExecutable = await validateComponent(component, version, staging)
+    if (process.platform !== 'win32') {
+      await chmod(join(extractionRoot, commandName(component)), 0o755)
+    }
+    const stagedExecutable = await validateComponent(component, version, extractionRoot)
     if (!stagedExecutable) {
       throw new Error(`bundled ${component} archive has an invalid package layout`)
     }
-    await mkdir(dirname(destination), { recursive: true })
-    await rm(destination, { recursive: true, force: true })
-    await rename(staging, destination)
+    if (extractionRoot !== destination) {
+      await rm(destination, { recursive: true, force: true })
+      await rename(staging, destination)
+    }
     if (activate) await activateComponent(root, component, version)
     console.log(`pisper: ${component} ${version} is ready`)
     return { version, destination, executable: join(destination, commandName(component)) }
