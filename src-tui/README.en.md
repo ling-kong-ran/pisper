@@ -51,7 +51,7 @@ TUI, Runtime, and the optional Web frontend use independent versions and signed 
 
 ## Provider and Optional Web Configuration
 
-After entering the TUI for the first time, run `/apikey`, choose a Provider, and enter its API key in the separate masked input. `Enter` saves; `Esc` returns to the Provider list or cancels. The secret never enters the composer, Slash history, or ordinary Runtime configuration responses.
+After entering the TUI for the first time, run `/provider`, choose a Provider, and enter its API key in the separate masked input. `Enter` saves; `Esc` returns to the Provider list or cancels. The secret never enters the composer, Slash history, or ordinary Runtime configuration responses. For a known Provider you can skip the picker with `/provider <id>`, e.g. `/provider deepseek`; `/apikey` remains a compatible alias.
 
 For complete visual configuration, run:
 
@@ -122,7 +122,7 @@ Long or multiline bracketed pastes render as a compact `[Pasted text · …]` to
 | `/chat` | Return to the Chat message stream. |
 | `/model` | Open the model picker and switch the active session model; unavailable during a run. |
 | `/thinking` | Refresh and open thinking levels supported by the active model; unsupported/error states explain why and can be retried. Unavailable during a run. |
-| `/apikey` | Choose a Provider and securely save its API key in a separate masked input. |
+| `/provider` | Choose a Provider and securely save its API key in a separate masked input; `/provider <id>` targets a Provider directly and `/apikey` remains a compatible alias. |
 | `/web` | Open the authenticated local settings page in the default browser using the installed Web frontend. |
 | `/compact` | Summarize older context immediately; available only for idle sessions with enough history. |
 | `/attach` | Open the workspace file picker. |

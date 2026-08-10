@@ -42,7 +42,7 @@ test('npm, Provider setup, and optional Web onboarding stay documented', async (
   ]) {
     assert.match(document, /npm install -g pisper/)
     assert.match(document, /pisper web/)
-    assert.match(document, /\/apikey/)
+    assert.match(document, /\/provider/)
   }
   for (const guide of [chineseTuiGuide, englishTuiGuide]) {
     assert.match(guide, /pisper update web/)
@@ -50,7 +50,7 @@ test('npm, Provider setup, and optional Web onboarding stay documented', async (
   }
   assert.match(cliSource, /pisper help \[COMMAND\]/)
   assert.match(cliSource, /pisper update web/)
-  assert.match(cliSource, /Use `\/apikey`/)
+  assert.match(cliSource, /Use `\/provider`/)
 })
 
 test('desktop CLI management lives under App updates', async () => {

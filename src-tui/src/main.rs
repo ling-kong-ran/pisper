@@ -74,7 +74,7 @@ Options:
 
 Getting started:
   1. Change to your project directory.
-  2. Run `pisper`. Use `/apikey` to configure a Provider in the terminal.
+  2. Run `pisper`. Use `/provider` to choose a Provider and save its API Key in the terminal.
   3. Type a request and press Enter. Type `/` to browse commands.
   4. Run `pisper web` for the optional visual settings and workspace UI.
   5. Press Ctrl+C to stop a running Agent, or press it while idle to exit.
@@ -1186,7 +1186,8 @@ mod tests {
             Some(WEB_HELP)
         );
         assert!(CLI_HELP.contains("pisper web"));
-        assert!(CLI_HELP.contains("/apikey"));
+        assert!(CLI_HELP.contains("/provider"));
+        assert!(!CLI_HELP.contains("/apikey"));
         assert!(UPDATE_HELP.contains("ask before installing"));
         assert!(UPDATE_HELP.contains("web"));
     }

@@ -683,7 +683,10 @@ impl App {
             command("/chat", "Return to the conversation"),
             command("/model", "Switch the active session model"),
             command("/thinking", "Switch the active session thinking level"),
-            command("/apikey", "Configure a Provider API Key securely"),
+            command(
+                "/provider",
+                "Choose a Provider and configure its API Key securely",
+            ),
             command("/web", "Open the installed Web settings"),
             command("/compact", "Summarize older context now"),
             command("/attach", "Add image, text, code, or document files"),
@@ -1373,11 +1376,37 @@ impl App {
                 self.clear_input();
                 Action::RefreshThinking
             }
-            "/apikey" => {
-                self.mark_slash_use("/apikey");
+            "/provider" | "/apikey" => {
+                self.mark_slash_use("/provider");
                 self.clear_input();
                 self.open_api_key_dialog();
                 Action::None
+            }
+            _ if message.starts_with("/provider ") || message.starts_with("/apikey ") => {
+                self.mark_slash_use("/provider");
+                self.clear_input();
+                if self.is_streaming() {
+                    self.status =
+                        "Stop the active run before changing provider credentials".to_owned();
+                    self.status_error = true;
+                    return Action::None;
+                }
+                let provider = message.split_whitespace().nth(1).unwrap_or_default();
+                if self
+                    .provider_options
+                    .iter()
+                    .any(|option| option.id == provider)
+                {
+                    self.api_key_provider = Some(provider.to_owned());
+                    self.clear_api_key_input();
+                    self.api_key_dialog = true;
+                    self.status_error = false;
+                    Action::None
+                } else {
+                    self.status = format!("provider not found · {provider}");
+                    self.status_error = true;
+                    Action::None
+                }
             }
             "/web" => {
                 self.mark_slash_use("/web");
@@ -3224,7 +3253,7 @@ mod tests {
     }
 
     #[test]
-    fn api_key_dialog_selects_a_provider_masks_composer_input_and_supports_cancel() {
+    fn provider_dialog_selects_a_provider_masks_composer_input_and_supports_cancel() {
         let mut app = test_app(Vec::new());
         app.set_provider_options(vec![ProviderOption {
             id: "kimi-coding".to_owned(),
@@ -3233,7 +3262,7 @@ mod tests {
             enabled: true,
             configured: false,
         }]);
-        app.set_input("/apikey");
+        app.set_input("/provider");
 
         assert!(matches!(app.submit_action(), Action::None));
         assert!(app.api_key_dialog);
@@ -3260,6 +3289,72 @@ mod tests {
     }
 
     #[test]
+    fn provider_command_with_an_argument_opens_that_provider_directly() {
+        let mut app = test_app(Vec::new());
+        app.set_provider_options(vec![
+            ProviderOption {
+                id: "openai".to_owned(),
+                name: "OpenAI".to_owned(),
+                provider_type: "chat".to_owned(),
+                enabled: true,
+                configured: false,
+            },
+            ProviderOption {
+                id: "deepseek".to_owned(),
+                name: "DeepSeek".to_owned(),
+                provider_type: "chat".to_owned(),
+                enabled: true,
+                configured: false,
+            },
+        ]);
+        app.set_input("/provider deepseek");
+        assert!(matches!(app.submit_action(), Action::None));
+        assert!(app.api_key_dialog);
+        assert_eq!(app.api_key_provider.as_deref(), Some("deepseek"));
+
+        // Directly in the masked input: Enter saves for the chosen provider.
+        for character in "sk-test".chars() {
+            app.handle_key(KeyEvent::new(KeyCode::Char(character), KeyModifiers::NONE));
+        }
+        assert!(matches!(
+            app.handle_key(KeyEvent::new(KeyCode::Enter, KeyModifiers::NONE)),
+            Action::SaveApiKey { provider, api_key }
+                if provider == "deepseek" && api_key == "sk-test"
+        ));
+    }
+
+    #[test]
+    fn provider_command_rejects_an_unknown_provider() {
+        let mut app = test_app(Vec::new());
+        app.set_input("/provider does-not-exist");
+        assert!(matches!(app.submit_action(), Action::None));
+        assert!(!app.api_key_dialog);
+        assert!(app.status_error);
+        assert!(app.status.contains("provider not found"));
+    }
+
+    #[test]
+    fn apikey_alias_still_opens_the_provider_dialog() {
+        let mut app = test_app(Vec::new());
+        app.set_provider_options(vec![ProviderOption {
+            id: "openai".to_owned(),
+            name: "OpenAI".to_owned(),
+            provider_type: "chat".to_owned(),
+            enabled: true,
+            configured: false,
+        }]);
+        app.set_input("/apikey");
+        assert!(matches!(app.submit_action(), Action::None));
+        assert!(app.api_key_dialog);
+        assert!(app.api_key_provider.is_none());
+
+        app.set_input("/apikey openai");
+        assert!(matches!(app.submit_action(), Action::None));
+        assert!(app.api_key_dialog);
+        assert_eq!(app.api_key_provider.as_deref(), Some("openai"));
+    }
+
+    #[test]
     fn slash_catalog_lists_provider_and_web_configuration_commands() {
         let app = test_app(Vec::new());
         let commands = app
@@ -3267,8 +3362,9 @@ mod tests {
             .into_iter()
             .map(|item| item.command)
             .collect::<Vec<_>>();
-        assert!(commands.contains(&"/apikey".to_owned()));
+        assert!(commands.contains(&"/provider".to_owned()));
         assert!(commands.contains(&"/web".to_owned()));
+        assert!(!commands.contains(&"/apikey".to_owned()));
     }
 
     #[test]

@@ -51,7 +51,7 @@ TUI、Runtime 与可选 Web 前端使用独立版本和签名 Release 通道。�
 
 ## Provider 与可选 Web 配置
 
-首次进入 TUI 后输入 `/apikey`，先选择 Provider，再在独立掩码输入框中输入 API Key。`Enter` 保存，`Esc` 返回 Provider 列表或取消；密钥不会进入 composer、Slash 历史或 Runtime 的普通配置响应。
+首次进入 TUI 后输入 `/provider`，先选择 Provider，再在独立掩码输入框中输入 API Key。`Enter` 保存，`Esc` 返回 Provider 列表或取消；密钥不会进入 composer、Slash 历史或 Runtime 的普通配置响应。已知 Provider 可直接输入 `/provider <id>` 跳过选择，例如 `/provider deepseek`；`/apikey` 保留为兼容别名，功能相同。
 
 需要完整可视化配置时运行：
 
@@ -122,7 +122,7 @@ pisper doctor
 | `/chat` | 返回 Chat 消息流。 |
 | `/model` | 打开模型选择器并切换当前会话模型；运行期间不可切换。 |
 | `/thinking` | 刷新并打开当前模型支持的思考等级；不支持或加载失败时显示原因并可重试，运行期间不可切换。 |
-| `/apikey` | 选择 Provider，并在独立掩码输入框中安全保存 API Key。 |
+| `/provider` | 选择 Provider，并在独立掩码输入框中安全保存 API Key；`/provider <id>` 可直达指定 Provider，`/apikey` 为兼容别名。 |
 | `/web` | 使用已安装的 Web 前端，在默认浏览器打开本机认证配置页。 |
 | `/compact` | 立即摘要较早上下文；仅用于已有可压缩历史的空闲会话。 |
 | `/attach` | 打开 workspace 文件选择器。 |
