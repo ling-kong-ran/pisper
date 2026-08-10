@@ -354,12 +354,22 @@ jobs:
           echo "Published $RELEASE_TAG from $release_commit"
 
   publish-npm:
-    name: Publish npm CLI after ${{ inputs.component }}
+    name: Dispatch npm CLI after ${{ inputs.component }}
     if: inputs.publish_npm
     needs: release
-    uses: ./.github/workflows/publish-npm.yml
-    with:
-      npm_version: ${{ inputs.npm_version }}
-      tui_version: ${{ inputs.tui_version || (inputs.component == 'tui' && inputs.version) || '' }}
-      runtime_version: ${{ inputs.runtime_version || (inputs.component == 'runtime' && inputs.version) || '' }}
-      source_sha: ${{ inputs.source_sha }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      actions: write
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: ${{ inputs.source_sha }}
+      - name: Dispatch the provenance-enabled npm workflow
+        shell: bash
+        run: |
+          gh workflow run publish-npm.yml --ref release \
+            -f npm_version="${{ inputs.npm_version }}" \
+            -f tui_version="${{ inputs.tui_version || (inputs.component == 'tui' && inputs.version) || '' }}" \
+            -f runtime_version="${{ inputs.runtime_version || (inputs.component == 'runtime' && inputs.version) || '' }}" \
+            -f source_sha="${{ inputs.source_sha }}"
