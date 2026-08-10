@@ -342,10 +342,15 @@ export class SessionLifecycle {
       ...(sessionMeta[id] || {}),
       name: resolvedName,
       manual: resolvedName !== DEFAULT_SESSION_NAME,
+      cwd: effectiveCwd,
       executionMode: DEFAULT_EXECUTION_MODE,
       permissionMode: permissionModeForExecutionMode(DEFAULT_EXECUTION_MODE),
     }
     await this.saveSessionMeta()
+    // The session file already exists on disk; refresh the stored-session
+    // cache so the new conversation is visible to listSessions and
+    // findSessionInfo even before its first prompt materializes it.
+    await this.listStoredSessions({ refresh: true })
     const settings = this.getSettingsManager().getGlobalSettings()
     const model =
       settings.defaultProvider && settings.defaultModel
@@ -371,7 +376,15 @@ export class SessionLifecycle {
 
   async findSessionInfo(id) {
     const sessions = await this.listStoredSessions()
-    return sessions.find((session) => session.id === id)
+    let session = sessions.find((item) => item.id === id)
+    if (!session) {
+      // The stored-session cache may have been built before this session file
+      // appeared on disk (a fresh session materialized after its first prompt).
+      // Fall back to a disk scan so freshly created sessions never read as
+      // "not found" once their resident runtime is released.
+      session = (await this.listStoredSessions({ refresh: true })).find((item) => item.id === id)
+    }
+    return session || null
   }
 
   async renameSession(id, name, { manual = true } = {}) {
@@ -529,6 +542,11 @@ export class SessionLifecycle {
         const value = await this.createSessionRuntime(pending.manager, pending.name)
         value.created = pending.created
         value.modified = pending.modified
+        // The first prompt flushed the session transcript to disk; refresh the
+        // stored-session cache so the materialized session survives resident
+        // eviction (idle sweep or forced interruption) without turning into a
+        // "session not found" on the next workspace switch.
+        await this.listStoredSessions({ refresh: true })
         return value
       } catch (error) {
         this.pendingSessions.set(id, pending)
