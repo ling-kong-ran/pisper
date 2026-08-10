@@ -28,6 +28,14 @@ on:
         description: 'pisper version when publish_npm is enabled'
         required: false
         type: string
+      tui_version:
+        description: 'pisper TUI version bound into the npm manifest'
+        required: false
+        type: string
+      runtime_version:
+        description: 'pisper Runtime version bound into the npm manifest'
+        required: false
+        type: string
 
 permissions:
   contents: write
