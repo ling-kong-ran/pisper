@@ -50,6 +50,8 @@ env:
   RELEASE_VERSION: ${{ inputs.version }}
   RELEASE_TAG: ${{ inputs.component == 'desktop' && format('v{0}', inputs.version) || format('{0}-v{1}', inputs.component, inputs.version) }}
   RELEASE_SOURCE_SHA: ${{ inputs.source_sha }}
+  RELEASE_TUI_VERSION: ${{ inputs.tui_version || '' }}
+  RELEASE_RUNTIME_VERSION: ${{ inputs.runtime_version || '' }}
 
 jobs:
   prepare:

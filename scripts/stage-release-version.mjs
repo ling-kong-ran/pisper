@@ -81,6 +81,14 @@ async function stageDesktopVersion(version) {
   const path = join(root, 'src-tauri', 'desktop-package.json')
   const value = JSON.parse(await readFile(path, 'utf8'))
   value.version = version
+  // Sync the bundled component manifest when the workflow was dispatched with
+  // the newly released TUI/Runtime versions (auto-chained installer release).
+  const tuiVersion = String(process.env.RELEASE_TUI_VERSION || '').trim()
+  const runtimeVersion = String(process.env.RELEASE_RUNTIME_VERSION || '').trim()
+  const bundled = { ...(value.bundled || {}) }
+  if (tuiVersion) bundled.tui = tuiVersion
+  if (runtimeVersion) bundled.runtime = runtimeVersion
+  value.bundled = bundled
   await writeFile(path, `${JSON.stringify(value, null, 2)}\n`, 'utf8')
 }
 
@@ -111,10 +119,21 @@ if (latestTag) {
   const runGit = (args) => run('git', args)
   const paths = componentReleasePaths(runGit, component, latestTag, source)
   if (paths.length === 0) {
-    throw new Error(`${component} 自 ${latestTag} 以来没有归属于该组件的变更，无需发布。`)
+    // The desktop installer bundles the newest published TUI/Runtime
+    // components; a dispatch carrying new component versions is a
+    // substantive installer change even when no desktop path changed.
+    const tuiVersion = String(process.env.RELEASE_TUI_VERSION || '').trim()
+    const runtimeVersion = String(process.env.RELEASE_RUNTIME_VERSION || '').trim()
+    if (component !== 'desktop' || (!tuiVersion && !runtimeVersion)) {
+      throw new Error(`${component} 自 ${latestTag} 以来没有归属于该组件的变更，无需发布。`)
+    }
+    console.log(
+      `desktop 自 ${latestTag} 无自有变更，但随 TUI ${tuiVersion || '（保持）'} / Runtime ${runtimeVersion || '（保持）'} 发布更新安装包内置组件。`,
+    )
+  } else {
+    const subjects = componentReleaseSubjects(runGit, component, latestTag, source)
+    assertHasSubstantiveReleaseCommits(subjects, latestTag)
   }
-  const subjects = componentReleaseSubjects(runGit, component, latestTag, source)
-  assertHasSubstantiveReleaseCommits(subjects, latestTag)
 }
 
 if (component === 'desktop') await stageDesktopVersion(targetVersion)

@@ -32,6 +32,20 @@ test('release validates immutable source and dispatches without versioning or ta
   assert.doesNotMatch(source, /runNpm\(\['version'/)
   assert.doesNotMatch(source, /run\('git', \['tag', (?!'--list')/)
   assert.doesNotMatch(source, /run\('git', \['push'/)
+  // A TUI/Runtime release chains the desktop installer (it bundles the newest
+  // published components); the desktop dispatch carries their versions and
+  // the local script never bumps versions or pushes.
+  assert.match(source, /安装包自动链式发布 desktop/)
+  assert.match(source, /desktopTuiVersion \|\| desktopRuntimeVersion/)
+  assert.match(source, /`tui_version=\$\{desktopTuiVersion\}`/)
+})
+
+test('desktop staging treats a component bundle refresh as a substantive change', async () => {
+  const stage = await readFile('scripts/stage-release-version.mjs', 'utf8')
+  assert.match(stage, /RELEASE_TUI_VERSION/)
+  assert.match(stage, /RELEASE_RUNTIME_VERSION/)
+  assert.match(stage, /bundled\.tui = tuiVersion/)
+  assert.match(stage, /component !== 'desktop' \|\| \(!tuiVersion && !runtimeVersion\)/)
 })
 
 test('the npm lockfile preserves third-party package registry identities', async () => {

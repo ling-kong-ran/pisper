@@ -1,5 +1,5 @@
 import { execFileSync } from 'node:child_process'
-import { readFile, writeFile } from 'node:fs/promises'
+import { readFile } from 'node:fs/promises'
 import { dirname, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { componentReleasePaths, componentReleaseSubjects } from './release-changes.mjs'
@@ -232,38 +232,15 @@ if (chainNpm) {
 runComponentChecks(selectedComponents)
 if (chainNpm) runNpm(['run', 'npm:pack:check'])
 
-// When the desktop installer ships in the same window as a TUI/Runtime
-// release, refresh the bundled component manifest so the built installer
-// records the new components and the desktop workflow passes its substantive-
-// change gate. Commit and push before dispatching so the immutable
-// source_sha check in the workflow still sees the current release HEAD.
+// The desktop dispatch carries the newly released component versions so the
+// workflow can treat the bundled-manifest refresh as a substantive installer
+// change and sync it during staging. The local script never pushes: all
+// remote changes happen inside the atomic workflow commit.
 const desktopPlan = plans.find(({ component }) => component === 'desktop')
 const tuiPlan = plans.find(({ component }) => component === 'tui')
 const runtimePlan = plans.find(({ component }) => component === 'runtime')
-if (desktopPlan && (tuiPlan || runtimePlan)) {
-  const desktopPackagePath = join(root, 'src-tauri', 'desktop-package.json')
-  const desktopPackage = JSON.parse(await readFile(desktopPackagePath, 'utf8'))
-  const currentBundled = desktopPackage.bundled || {}
-  const nextBundled = {
-    tui: tuiPlan?.nextVersion || currentBundled.tui,
-    runtime: runtimePlan?.nextVersion || currentBundled.runtime,
-  }
-  if (nextBundled.tui !== currentBundled.tui || nextBundled.runtime !== currentBundled.runtime) {
-    desktopPackage.bundled = nextBundled
-    await writeFile(desktopPackagePath, `${JSON.stringify(desktopPackage, null, 2)}\n`)
-    run('git', ['add', 'src-tauri/desktop-package.json'])
-    run('git', [
-      'commit',
-      '-m',
-      `feat(desktop): bundle TUI ${nextBundled.tui} and Runtime ${nextBundled.runtime} in the installer`,
-    ])
-    run('git', ['push', 'origin', releaseBranch])
-    source = run('git', ['rev-parse', 'HEAD'], { capture: true })
-    console.log(
-      `已更新安装包内置组件并推送（desktop ${desktopPlan.nextVersion} 将内置 TUI ${nextBundled.tui} / Runtime ${nextBundled.runtime}）。`,
-    )
-  }
-}
+const desktopTuiVersion = tuiPlan?.nextVersion || ''
+const desktopRuntimeVersion = runtimePlan?.nextVersion || ''
 
 const npmDispatchIndex = npmComponents.length
   ? plans.findLastIndex(({ component }) => component === 'runtime' || component === 'tui')
@@ -284,6 +261,14 @@ for (const [index, { component, nextVersion, tag }] of plans.entries()) {
       `version=${nextVersion}`,
       '-f',
       `source_sha=${source}`,
+      ...(component === 'desktop' && (desktopTuiVersion || desktopRuntimeVersion)
+        ? [
+            '-f',
+            `tui_version=${desktopTuiVersion}`,
+            '-f',
+            `runtime_version=${desktopRuntimeVersion}`,
+          ]
+        : []),
       ...(index === npmDispatchIndex
         ? [
             '-f',
