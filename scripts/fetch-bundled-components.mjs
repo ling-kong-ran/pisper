@@ -12,12 +12,8 @@
 //           runtime-size-manifest.json -> release/sea/runtime-size-manifest.json
 // Also records the bundled versions in src-tauri/desktop-package.json.
 import { chmod, cp, mkdir, readFile, rm, stat, writeFile } from 'node:fs/promises'
-import { createHash } from 'node:crypto'
-import { createWriteStream } from 'node:fs'
 import { dirname, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { pipeline } from 'node:stream/promises'
-import { Readable } from 'node:stream'
 import { PublicKey, Signature } from '@threema/wasm-minisign-verify'
 import { x as extractTar } from 'tar'
 import { execFileSync } from 'node:child_process'
@@ -131,7 +127,9 @@ async function fetchComponent({ component, version, label, assetName, stageDir }
 }
 
 async function main() {
-  const tuiTag = requestedTui ? `tui-v${validVersion(requestedTui, 'TUI')}` : latestVersionTag('tui')
+  const tuiTag = requestedTui
+    ? `tui-v${validVersion(requestedTui, 'TUI')}`
+    : latestVersionTag('tui')
   const runtimeTag = requestedRuntime
     ? `runtime-v${validVersion(requestedRuntime, 'Runtime')}`
     : latestVersionTag('runtime')

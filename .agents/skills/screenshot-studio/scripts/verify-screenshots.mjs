@@ -1,5 +1,5 @@
 // Verify the captured screenshots exist at 2558x1380, then replace docs/shots/.
-import { copyFileSync, readdirSync, statSync } from 'node:fs'
+import { copyFileSync, statSync } from 'node:fs'
 import { resolve } from 'node:path'
 import { spawnSync } from 'node:child_process'
 
