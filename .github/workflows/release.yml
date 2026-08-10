@@ -205,7 +205,9 @@ jobs:
         run: |
           case "$RELEASE_COMPONENT" in
             desktop)
-              npm run desktop:webview:build
+              npm run build
+              node scripts/fetch-bundled-components.mjs
+              npm run desktop:webview:package
               node scripts/archive-component-release.mjs desktop
               ;;
             tui)

@@ -159,6 +159,15 @@ if (plans.length === 0) {
   throw new Error('未检测到 desktop、tui 或 runtime 的待发布产品变更。')
 }
 
+// The desktop shell bundles the newest published TUI/Runtime components, so
+// its workflow must run after any component released in the same window.
+plans.sort((left, right) => {
+  if (left.component === right.component) return 0
+  if (left.component === 'desktop') return 1
+  if (right.component === 'desktop') return -1
+  return 0
+})
+
 const selectedComponents = plans.map(({ component }) => component)
 const npmComponents = plans.filter(
   ({ component }) => component === 'runtime' || component === 'tui',
