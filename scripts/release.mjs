@@ -15,10 +15,6 @@ import {
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..')
 const npmCli = String(process.env.npm_execpath || '').trim()
 const rawArgs = process.argv.slice(2)
-const publishNpm = rawArgs.includes('--publish-npm')
-const requestedNpmVersion = rawArgs
-  .find((value) => value.startsWith('--npm-version='))
-  ?.slice('--npm-version='.length)
 const args = rawArgs.filter((value) => !value.startsWith('--'))
 if (RELEASE_COMPONENTS[args[0]]) {
   throw new Error('组件由变更路径自动检测，无需指定 desktop、tui 或 runtime。')
@@ -164,25 +160,42 @@ if (plans.length === 0) {
 }
 
 const selectedComponents = plans.map(({ component }) => component)
+const npmComponents = plans.filter(
+  ({ component }) => component === 'runtime' || component === 'tui',
+)
+const chainNpm = npmComponents.length > 0
 let npmReleaseVersion = ''
-if (publishNpm) {
-  if (plans.length !== 1) {
-    throw new Error('--publish-npm 只能与一次单组件发布一起使用。')
-  }
+let npmTuiVersion = ''
+let npmRuntimeVersion = ''
+if (chainNpm) {
   const manifest = JSON.parse(
     await readFile(join(root, 'packages', 'pisper', 'package.json'), 'utf8'),
   )
-  npmReleaseVersion = requestedNpmVersion || resolveVersion(manifest.version, 'patch')
-  if (!/^\d+\.\d+\.\d+$/.test(npmReleaseVersion)) {
-    throw new Error('--npm-version 必须使用 X.Y.Z 格式。')
-  }
+  const npmBump = ['major', 'minor', 'patch'].includes(input) ? input : 'patch'
+  npmReleaseVersion = resolveVersion(manifest.version, npmBump)
   if (compareVersions(npmReleaseVersion, manifest.version) <= 0) {
     throw new Error(`npm 新版本 ${npmReleaseVersion} 必须高于当前版本 ${manifest.version}。`)
   }
+  npmTuiVersion =
+    npmComponents.find(({ component }) => component === 'tui')?.nextVersion ||
+    manifest.pisper.tuiVersion
+  npmRuntimeVersion =
+    npmComponents.find(({ component }) => component === 'runtime')?.nextVersion ||
+    manifest.pisper.runtimeVersion
 }
 console.log(`自动发布组件：${selectedComponents.join('、')}`)
+if (chainNpm) {
+  console.log(
+    `检测到 Runtime/TUI 组件变更，自动链式发布 pisper@${npmReleaseVersion}` +
+      `（TUI ${npmTuiVersion} / Runtime ${npmRuntimeVersion}）。`,
+  )
+}
 runComponentChecks(selectedComponents)
-if (publishNpm) runNpm(['run', 'npm:pack:check'])
+if (chainNpm) runNpm(['run', 'npm:pack:check'])
+
+const npmDispatchIndex = npmComponents.length
+  ? plans.findIndex(({ component }) => component === 'runtime' || component === 'tui')
+  : -1
 
 for (const [index, { component, nextVersion, tag }] of plans.entries()) {
   const output = run(
@@ -199,7 +212,18 @@ for (const [index, { component, nextVersion, tag }] of plans.entries()) {
       `version=${nextVersion}`,
       '-f',
       `source_sha=${source}`,
-      ...(publishNpm ? ['-f', 'publish_npm=true', '-f', `npm_version=${npmReleaseVersion}`] : []),
+      ...(index === npmDispatchIndex
+        ? [
+            '-f',
+            'publish_npm=true',
+            '-f',
+            `npm_version=${npmReleaseVersion}`,
+            '-f',
+            `tui_version=${npmTuiVersion}`,
+            '-f',
+            `runtime_version=${npmRuntimeVersion}`,
+          ]
+        : []),
     ],
     { capture: true },
   )
@@ -216,5 +240,5 @@ for (const [index, { component, nextVersion, tag }] of plans.entries()) {
 
 console.log(`只会执行 ${selectedComponents.join('、')} 对应的质量门禁和平台产物构建。`)
 console.log('多个组件任务会依次派发；各自的版本文件和 tag 仍在资产验证后原子更新。')
-if (publishNpm) console.log(`组件发布成功后会继续发布 pisper@${npmReleaseVersion}。`)
+if (chainNpm) console.log(`组件发布成功后会继续自动发布 pisper@${npmReleaseVersion}。`)
 console.log(`可执行 gh run list --workflow release.yml --limit ${plans.length} 查看发布进度。`)

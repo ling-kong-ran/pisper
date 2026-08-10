@@ -50,10 +50,10 @@ test('npm platform mapping matches signed component release assets', () => {
   assert.throws(() => supportedTarget('linux', 'arm64'), /does not publish a TUI package/)
 })
 
-test('npm publication uses an independent provenance-enabled workflow', async () => {
+test('npm publication follows the component release workflow automatically', async () => {
   const [workflow, release, verifier] = await Promise.all([
     readFile('.github/workflows/publish-npm.yml', 'utf8'),
-    readFile('scripts/release-npm.mjs', 'utf8'),
+    readFile('scripts/release.mjs', 'utf8'),
     readFile('scripts/verify-release-head.mjs', 'utf8'),
   ])
 
@@ -62,7 +62,10 @@ test('npm publication uses an independent provenance-enabled workflow', async ()
   assert.doesNotMatch(workflow, /NPM_TOKEN|NODE_AUTH_TOKEN/)
   assert.match(workflow, /npm view "pisper@\$NPM_VERSION"/)
   assert.match(workflow, /chore\(release-npm\): \$NPM_TAG/)
-  assert.match(release, /publish-npm\.yml/)
-  assert.match(release, /runtime_version=/)
+  assert.match(release, /publish_npm=true/)
+  assert.match(release, /tui_version=\$\{npmTuiVersion\}/)
+  assert.match(release, /runtime_version=\$\{npmRuntimeVersion\}/)
+  assert.doesNotMatch(release, /--publish-npm/)
+  assert.doesNotMatch(release, /--npm-version/)
   assert.match(verifier, /packages\/pisper\/package\.json/)
 })

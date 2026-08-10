@@ -350,6 +350,6 @@ jobs:
     uses: ./.github/workflows/publish-npm.yml
     with:
       npm_version: ${{ inputs.npm_version }}
-      tui_version: ${{ inputs.component == 'tui' && inputs.version || '' }}
-      runtime_version: ${{ inputs.component == 'runtime' && inputs.version || '' }}
+      tui_version: ${{ inputs.tui_version || (inputs.component == 'tui' && inputs.version) || '' }}
+      runtime_version: ${{ inputs.runtime_version || (inputs.component == 'runtime' && inputs.version) || '' }}
       source_sha: ${{ inputs.source_sha }}

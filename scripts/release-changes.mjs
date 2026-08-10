@@ -6,7 +6,6 @@ const RELEASE_SCRIPT_PATHS = new Set([
   'scripts/prepare-release.mjs',
   'scripts/release-changes.mjs',
   'scripts/release-components.mjs',
-  'scripts/release-npm.mjs',
   'scripts/release-policy.mjs',
   'scripts/release.mjs',
   'scripts/rename-to-pisper.mjs',

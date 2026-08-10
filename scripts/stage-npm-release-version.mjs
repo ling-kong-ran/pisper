@@ -63,7 +63,7 @@ const hasNpmChanges = changedPaths.some(
   (path) =>
     path.startsWith('packages/pisper/') ||
     path === '.github/workflows/publish-npm.yml' ||
-    /^scripts\/(?:package-npm|release-npm|stage-npm-release-version|validate-npm-)/.test(path),
+    /^scripts\/(?:package-npm|stage-npm-release-version|validate-npm-)/.test(path),
 )
 const changesComponentTarget =
   (targetTuiVersion && targetTuiVersion !== manifest.pisper.tuiVersion) ||
