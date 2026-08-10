@@ -420,8 +420,12 @@ async fn run_event_loop(
                         };
                         if terminal_event {
                             if let Some(action) = app.take_queued_action() {
-                                if execute_action(action, &mut app, &api, &runtime_tx).await? {
-                                    break;
+                                match execute_action(action, &mut app, &api, &runtime_tx).await {
+                                    Ok(true) => break,
+                                    Ok(false) => {}
+                                    Err(error) => {
+                                        app.stream_failed(format!("{error:#}"));
+                                    }
                                 }
                             }
                         }
@@ -684,10 +688,13 @@ async fn execute_action(
                 }
             });
         }
-        Action::Abort => {
-            api.abort(&app.session.id).await?;
-            app.status = "stopping".to_owned();
-        }
+        Action::Abort => match api.abort(&app.session.id).await {
+            Ok(()) => app.status = "stopping".to_owned(),
+            Err(error) => {
+                app.status = format!("abort failed · {error:#}");
+                app.status_error = true;
+            }
+        },
         Action::LoadOlderMessages { before } => {
             let api = api.clone();
             let session_id = app.session.id.clone();
@@ -718,8 +725,13 @@ async fn execute_action(
             });
         }
         Action::ResolveApproval { id, approved } => {
-            api.resolve_approval(&app.session.id, &id, approved).await?;
-            app.status = if approved { "approved" } else { "denied" }.to_owned();
+            match api.resolve_approval(&app.session.id, &id, approved).await {
+                Ok(()) => app.status = if approved { "approved" } else { "denied" }.to_owned(),
+                Err(error) => {
+                    app.status = format!("approval failed · {error:#}");
+                    app.status_error = true;
+                }
+            }
         }
         Action::RefreshVcs => {
             if app.vcs_loading {

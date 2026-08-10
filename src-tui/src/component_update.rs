@@ -72,7 +72,14 @@ pub async fn offer_startup_updates() {
         return;
     }
     if let Err(error) = try_offer_startup_updates().await {
-        eprintln!("Pisper update check failed; continuing with the installed version: {error:#}");
+        // Offline or sandboxed machines cannot reach the release feed; that
+        // must never be visible or fatal. Enable PISPER_UPDATE_CHECK_LOG to
+        // surface the underlying error for diagnostics.
+        if std::env::var_os("PISPER_UPDATE_CHECK_LOG").is_some() {
+            eprintln!(
+                "Pisper update check failed; continuing with the installed version: {error:#}"
+            );
+        }
     }
 }
 
@@ -87,7 +94,13 @@ async fn try_offer_startup_updates() -> Result<()> {
         available_update(&updater, Component::Runtime),
         available_update(&updater, Component::Tui),
     );
-    let updates = [runtime?, tui?].into_iter().flatten().collect::<Vec<_>>();
+    // Tolerate per-component check failures (e.g. one channel unreachable) so a
+    // single offline failure never aborts the whole offer.
+    let updates = [runtime, tui]
+        .into_iter()
+        .filter_map(Result::ok)
+        .flatten()
+        .collect::<Vec<_>>();
     if updates.is_empty() {
         return Ok(());
     }
@@ -158,17 +171,31 @@ fn startup_confirmation(value: &str) -> bool {
 
 pub async fn ensure_web() -> Result<InstalledComponent> {
     let updater = updater()?;
+    // If the Web frontend is already installed, keep using it when the release
+    // feed is unreachable (offline machines) instead of failing the launch.
+    if let Some(installed) = updater.installed(Component::Desktop)? {
+        match updater.latest(Component::Desktop).await {
+            Ok(release) => {
+                let latest =
+                    Version::parse(&release.version).context("Web release version is invalid")?;
+                if installed.version >= latest {
+                    println!("Pisper Web {} is already installed.", installed.version);
+                    return Ok(installed);
+                }
+            }
+            Err(_) => {
+                println!(
+                    "Pisper Web {} is already installed (update check unavailable).",
+                    installed.version
+                );
+                return Ok(installed);
+            }
+        }
+    }
     let release = updater
         .latest(Component::Desktop)
         .await
         .context("failed to locate a signed Pisper Web release")?;
-    let latest = Version::parse(&release.version).context("Web release version is invalid")?;
-    if let Some(installed) = updater.installed(Component::Desktop)? {
-        if installed.version >= latest {
-            println!("Pisper Web {} is already installed.", installed.version);
-            return Ok(installed);
-        }
-    }
     println!(
         "Downloading Pisper Web {} ({:.1} MB)...",
         release.version,
