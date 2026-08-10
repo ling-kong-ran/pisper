@@ -365,7 +365,17 @@ export function useSessionCommands({
         return
       }
       try {
-        const cwd = await pickSystemDirectory(session.cwd)
+        let cwd = await pickSystemDirectory(session.cwd)
+        if (!cwd && requestText) {
+          // Pure Web (no desktop shell): fall back to typing the path; the
+          // runtime validates that the directory exists.
+          cwd = await requestText({
+            title: t('chat:chatPage.workingDirectoryPath'),
+            inputLabel: t('chat:chatPage.workingDirectoryPath'),
+            placeholder: t('chat:chatPage.enterAWorkingDirectoryPath'),
+            value: session.cwd,
+          })
+        }
         if (!cwd) return
         updateSessionState(session.id, { switchingCwd: true, error: '' })
         const updated = await chatApi.updateCwd(session.id, cwd)
@@ -383,7 +393,7 @@ export function useSessionCommands({
         })
       }
     },
-    [language, notify, sessionStatesRef, t, updateSessionState, updateSessionSummary],
+    [language, notify, requestText, sessionStatesRef, t, updateSessionState, updateSessionSummary],
   )
 
   const renameSession = useCallback(

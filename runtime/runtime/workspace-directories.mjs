@@ -1,5 +1,5 @@
-import { stat } from 'node:fs/promises'
-import { resolve, win32 } from 'node:path'
+import { readdir, stat } from 'node:fs/promises'
+import { dirname, isAbsolute, join, resolve, win32 } from 'node:path'
 
 /**
  * @param {unknown} value
@@ -35,11 +35,41 @@ export async function resolveWorkspaceDirectory(
   { platform = process.platform, inspectDirectory = stat } = {},
 ) {
   const requested = normalizeWorkspacePath(input || fallback, platform)
+  const base = fallback ? normalizeWorkspacePath(fallback, platform) : ''
   const path = normalizeWorkspacePath(
-    platform === 'win32' ? win32.resolve(requested) : resolve(requested),
+    platform === 'win32'
+      ? win32.isAbsolute(requested)
+        ? win32.resolve(requested)
+        : win32.resolve(base, requested)
+      : isAbsolute(requested)
+        ? resolve(requested)
+        : resolve(base || process.cwd(), requested),
     platform,
   )
   const info = await inspectDirectory(path).catch(() => null)
   if (!info?.isDirectory()) throw new Error('工作目录不存在或不是文件夹。')
   return path
+}
+
+/**
+ * List the subdirectories of a workspace path for the Web directory browser.
+ * @param {unknown} input
+ * @param {unknown} fallback
+ */
+export async function listWorkspaceDirectories(
+  input,
+  fallback,
+  { inspectDirectory = stat, readDirectory = readdir } = {},
+) {
+  const path = await resolveWorkspaceDirectory(input, fallback, { inspectDirectory })
+  const entries = await readDirectory(path, { withFileTypes: true })
+  const directories = entries
+    .filter((entry) => entry.isDirectory())
+    .map((entry) => ({ name: entry.name, path: join(path, entry.name) }))
+    .sort((left, right) =>
+      left.name.localeCompare(right.name, undefined, { numeric: true, sensitivity: 'base' }),
+    )
+    .slice(0, 300)
+  const parent = dirname(path)
+  return { path, parent: parent === path ? null : parent, directories }
 }

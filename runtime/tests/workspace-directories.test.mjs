@@ -47,7 +47,7 @@ test('legacy packaged-runtime workspaces migrate to the platform user directory'
   assert.equal(saves, 1)
 })
 
-test('workspace selection uses only the desktop system directory picker', async () => {
+test('workspace selection prefers the desktop picker and falls back to the browser one', async () => {
   const [cargo, shell, command, bridge, permissions, picker, chat, schedules, routes] =
     await Promise.all([
       readFile('src-tauri/Cargo.toml', 'utf8'),
@@ -68,8 +68,14 @@ test('workspace selection uses only the desktop system directory picker', async 
   assert.match(bridge, /pickDirectory: \(initialDirectory\)/)
   assert.match(permissions, /"desktop_pick_directory"/)
   assert.match(picker, /window\.pisperDesktop\?\.pickDirectory/)
+  // Pure Web must still open a native picker: the browser directory picker
+  // (File System Access) with a webkitdirectory fallback.
+  assert.match(picker, /showDirectoryPicker/)
+  assert.match(picker, /webkitdirectory/)
   assert.match(chat, /pickSystemDirectory\(session\.cwd\)/)
   assert.match(schedules, /pickSystemDirectory\(value\)/)
-  assert.doesNotMatch(routes, /\/api\/directories/)
+  // The Web directory browser route backs the typed-path fallback and
+  // workspace browsing for browsers without File System Access.
+  assert.match(routes, /\/api\/directories/)
   await assert.rejects(readFile('src/components/WorkspacePicker.tsx', 'utf8'), /ENOENT/)
 })

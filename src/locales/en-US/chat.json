@@ -171,6 +171,8 @@
   "chatPage.waitingForConfiguration": "Waiting for configuration",
   "chatPage.wakingTheAgent": "Waking the Agent",
   "chatPage.workingDirectoryChangedToWorkspace": "Working directory changed to {workspace}",
+  "chatPage.workingDirectoryPath": "Working directory path",
+  "chatPage.enterAWorkingDirectoryPath": "Enter the full path to the working directory (the desktop shell offers a system picker)",
   "chatPage.stopTheActiveRunBeforeChangingTheWorkspace": "Stop the active run before changing the working directory",
   "chatPage.stopTheActiveRunBeforeRenamingTheChat": "Stop the active run before renaming the chat",
   "chatPage.stopTheActiveRunBeforeChangingTheExecutionMode": "Stop the active run before changing the execution mode",

@@ -171,6 +171,8 @@
   "chatPage.waitingForConfiguration": "等待配置",
   "chatPage.wakingTheAgent": "正在唤醒 Agent",
   "chatPage.workingDirectoryChangedToWorkspace": "工作目录已切换至 {workspace}",
+  "chatPage.workingDirectoryPath": "工作目录路径",
+  "chatPage.enterAWorkingDirectoryPath": "输入工作目录的完整路径（桌面端可从系统目录选择器选取）",
   "chatPage.stopTheActiveRunBeforeChangingTheWorkspace": "请先停止运行，再切换工作目录",
   "chatPage.stopTheActiveRunBeforeRenamingTheChat": "请先停止运行，再重命名会话",
   "chatPage.stopTheActiveRunBeforeChangingTheExecutionMode": "请先停止运行，再切换执行模式",
