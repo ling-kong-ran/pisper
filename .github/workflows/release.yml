@@ -367,6 +367,8 @@ jobs:
           ref: ${{ inputs.source_sha }}
       - name: Dispatch the provenance-enabled npm workflow
         shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
           gh workflow run publish-npm.yml --ref release \
             -f npm_version="${{ inputs.npm_version }}" \
