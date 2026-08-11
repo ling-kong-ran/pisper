@@ -1,6 +1,9 @@
 import assert from 'node:assert/strict'
-import { readFile } from 'node:fs/promises'
+import { mkdtemp, readFile, rm, utimes, writeFile } from 'node:fs/promises'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
 import test from 'node:test'
+import { acquireInstallLock } from '../../packages/pisper/lib/install.mjs'
 import {
   componentsRoot,
   executableName,
@@ -26,6 +29,25 @@ test('pisper is an isolated private source package exposing only its command', a
   assert.equal(manifest.scripts?.postinstall, undefined)
   assert.deepEqual(releaseComponentsForPath('packages/pisper/lib/install.mjs'), ['runtime'])
   assert.deepEqual(releaseComponentsForPath('scripts/package-npm-platforms.mjs'), [])
+})
+
+test('npm installer replaces a stale legacy lock instead of waiting silently', async (t) => {
+  const root = await mkdtemp(join(tmpdir(), 'pisper-npm-lock-'))
+  const lockPath = join(root, 'runtime-install.lock')
+  t.after(() => rm(root, { recursive: true, force: true }))
+  await writeFile(lockPath, '')
+  const stale = new Date(Date.now() - 11 * 60 * 1000)
+  await utimes(lockPath, stale, stale)
+
+  const lock = await acquireInstallLock(lockPath, async () => false)
+  assert.ok(lock)
+  try {
+    const metadata = JSON.parse(await readFile(lockPath, 'utf8'))
+    assert.equal(metadata.pid, process.pid)
+    assert.ok(Number.isSafeInteger(metadata.createdAt))
+  } finally {
+    await lock.close()
+  }
 })
 
 test('npm launcher installs signed TUI and Runtime components without duplicating Runtime', async () => {

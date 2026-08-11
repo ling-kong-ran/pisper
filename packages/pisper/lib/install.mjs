@@ -21,6 +21,7 @@ const tuiVersion = packageManifest.pisper?.tuiVersion
 const runtimeVersion = packageManifest.pisper?.runtimeVersion
 const MAX_ARCHIVE_BYTES = 128 * 1024 * 1024
 const INSTALL_WAIT_MS = 600_000
+const LEGACY_LOCK_GRACE_MS = 300_000
 
 for (const [label, value] of [
   ['TUI', tuiVersion],
@@ -189,14 +190,60 @@ async function wait(milliseconds) {
   await new Promise((resolve) => setTimeout(resolve, milliseconds))
 }
 
-async function acquireLock(lockPath, validate) {
+async function installerLockIsActive(lockPath) {
+  try {
+    const [raw, details] = await Promise.all([readFile(lockPath, 'utf8'), stat(lockPath)])
+    const age = Math.max(0, Date.now() - details.mtimeMs)
+    if (age >= INSTALL_WAIT_MS) return false
+
+    let metadata
+    try {
+      metadata = JSON.parse(raw)
+    } catch {
+      // Older installers created empty locks. Give a live legacy install time to finish.
+      return age < LEGACY_LOCK_GRACE_MS
+    }
+    if (!Number.isSafeInteger(metadata?.pid) || metadata.pid <= 0) {
+      return age < LEGACY_LOCK_GRACE_MS
+    }
+    try {
+      process.kill(metadata.pid, 0)
+      return true
+    } catch (error) {
+      if (error?.code === 'ESRCH') return false
+      if (error?.code === 'EPERM') return true
+      throw error
+    }
+  } catch (error) {
+    if (error?.code === 'ENOENT') return false
+    throw error
+  }
+}
+
+export async function acquireInstallLock(lockPath, validate) {
   const deadline = Date.now() + INSTALL_WAIT_MS
   while (true) {
     try {
-      return await open(lockPath, 'wx')
+      const lock = await open(lockPath, 'wx')
+      try {
+        await lock.writeFile(`${JSON.stringify({ pid: process.pid, createdAt: Date.now() })}\n`)
+        return lock
+      } catch (error) {
+        await lock.close()
+        await rm(lockPath, { force: true })
+        throw error
+      }
     } catch (error) {
       if (error?.code !== 'EEXIST') throw error
       if (await validate()) return null
+      if (!(await installerLockIsActive(lockPath))) {
+        try {
+          await rm(lockPath, { force: true })
+          continue
+        } catch (removeError) {
+          if (!['EACCES', 'EBUSY', 'EPERM'].includes(removeError?.code)) throw removeError
+        }
+      }
       if (Date.now() >= deadline) {
         throw new Error('timed out waiting for another Pisper installer')
       }
@@ -227,7 +274,7 @@ async function installComponent({
   await mkdir(lockRoot, { recursive: true })
   const lockPath = join(lockRoot, `${component}-install.lock`)
   const validate = () => validateComponent(component, version, destination)
-  const lock = await acquireLock(lockPath, validate)
+  const lock = await acquireInstallLock(lockPath, validate)
   if (!lock) {
     if (activate) await activateComponent(root, component, version)
     return { version, destination, executable: await validate() }
