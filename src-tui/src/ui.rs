@@ -2,9 +2,7 @@ use ratatui::{
     layout::{Alignment, Constraint, Direction, Layout, Position, Rect},
     style::{Color, Modifier, Style},
     text::{Line, Span, Text},
-    widgets::{
-        Block, Borders, Cell, Clear, List, ListItem, ListState, Paragraph, Row, Table, Wrap,
-    },
+    widgets::{Block, Borders, Clear, List, ListItem, ListState, Paragraph, Wrap},
     Frame,
 };
 use serde_json::Value;
@@ -12,7 +10,7 @@ use std::time::SystemTime;
 use unicode_width::{UnicodeWidthChar, UnicodeWidthStr};
 
 use crate::{
-    app::{App, Approval, LiveTurn, SettingsPicker, SlashKind, View},
+    app::{App, Approval, LiveTurn, SettingsPicker, SlashCategory, SlashKind, View},
     model::{
         ChatMessage, MessageAttachment, PlanItem, RunActivity, ThinkingAvailability, ToolActivity,
         PROVIDER_APIS,
@@ -32,17 +30,18 @@ const AMBER: Color = Color::Rgb(231, 183, 106);
 const RED: Color = Color::Rgb(240, 124, 130);
 const VIOLET: Color = Color::Rgb(192, 167, 242);
 const BLUE: Color = Color::Rgb(130, 174, 239);
+#[cfg(test)]
 const CONVERSATION_WIDTH: u16 = 110;
 const WELCOME_WIDTH: u16 = 88;
+const WELCOME_FULL_LOGO_WIDTH: u16 = 48;
 const SLASH_HEIGHT: u16 = 22;
 const ROLE_GUTTER_WIDTH: usize = 3;
 const ACTIVITY_GUTTER_WIDTH: usize = 6;
-const PISPER_LOGO: [(&str, &str); 5] = [
-    ("████  █ █████  ", "████  █████ ████ "),
-    ("█   █ █ █      ", "█   █ █     █   █"),
-    ("████  █ █████  ", "████  ████  ████ "),
-    ("█     █     █  ", "█     █     █  █ "),
-    ("█     █ █████  ", "█     █████ █   █"),
+const PISPER_LOGO: [(&str, &str); 4] = [
+    (" ___  ___  ___  ", " ___  ___  ___ "),
+    ("| _ \\|_ _|/ __| ", "| _ \\| __|| _ \\"),
+    ("|  _/ | | \\__ \\ ", "|  _/| _| |   /"),
+    ("|_|  |___||___/ ", "|_|  |___||_|_\\"),
 ];
 
 fn composer_height(app: &App, area: Rect) -> u16 {
@@ -78,9 +77,6 @@ pub fn draw_in(frame: &mut Frame, app: &App, area: Rect) {
             .split(area);
         match app.view {
             View::Chat => render_chat(frame, app, chunks[0]),
-            View::Events => {
-                render_events(frame, app, centered_width(chunks[0], CONVERSATION_WIDTH))
-            }
             View::Changes => render_changes(frame, app, chunks[0]),
         }
         render_approval(frame, app, chunks[1]);
@@ -125,7 +121,6 @@ pub fn draw_in(frame: &mut Frame, app: &App, area: Rect) {
 
     match app.view {
         View::Chat => render_chat(frame, app, chunks[0]),
-        View::Events => render_events(frame, app, centered_width(chunks[0], CONVERSATION_WIDTH)),
         View::Changes => render_changes(frame, app, chunks[0]),
     }
     if plan.height > 0 {
@@ -139,41 +134,54 @@ pub fn draw_in(frame: &mut Frame, app: &App, area: Rect) {
 }
 
 fn render_welcome(frame: &mut Frame, app: &App, area: Rect) -> Rect {
-    let body = area;
     let composer_height = composer_height(app, area);
-    let full_logo = area.width >= 52 && body.height >= composer_height.saturating_add(8);
+    let full_logo =
+        area.width >= WELCOME_FULL_LOGO_WIDTH && area.height >= composer_height.saturating_add(8);
     let logo_height: u16 = if full_logo {
-        5
-    } else if body.height >= composer_height.saturating_add(3) {
+        PISPER_LOGO.len() as u16
+    } else if area.width >= 6 && area.height >= composer_height.saturating_add(3) {
         1
     } else {
         0
     };
-    let gap = u16::from(logo_height > 0);
+    let logo_gap = match logo_height {
+        0 => 0,
+        1 => 1,
+        _ => 2,
+    };
     let content_height = logo_height
-        .saturating_add(gap)
+        .saturating_add(logo_gap)
         .saturating_add(composer_height)
         .saturating_add(1)
-        .min(body.height);
-    let content_y = body
+        .min(area.height);
+    let content_y = area
         .y
-        .saturating_add(body.height.saturating_sub(content_height) / 2);
+        .saturating_add(area.height.saturating_sub(content_height) / 2);
+    let horizontal_margin = if area.width >= 48 {
+        2
+    } else {
+        u16::from(area.width >= 28)
+    };
+    let rail_width = area
+        .width
+        .saturating_sub(horizontal_margin.saturating_mul(2))
+        .min(WELCOME_WIDTH);
     let rail = centered_width(
         Rect::new(area.x, content_y, area.width, content_height),
-        WELCOME_WIDTH,
+        rail_width,
     );
     let logo = Rect::new(rail.x, rail.y, rail.width, logo_height);
     let composer = Rect::new(
         rail.x,
-        rail.y.saturating_add(logo_height).saturating_add(gap),
+        rail.y.saturating_add(logo_height).saturating_add(logo_gap),
         rail.width,
-        composer_height.min(content_height.saturating_sub(logo_height + gap)),
+        composer_height.min(content_height.saturating_sub(logo_height + logo_gap)),
     );
     let status = Rect::new(
         rail.x,
         composer.y.saturating_add(composer.height),
         rail.width,
-        u16::from(composer.y.saturating_add(composer.height) < body.y.saturating_add(body.height)),
+        u16::from(composer.y.saturating_add(composer.height) < area.y.saturating_add(area.height)),
     );
 
     if logo.height > 0 {
@@ -188,16 +196,10 @@ fn render_welcome_logo(frame: &mut Frame, area: Rect, full: bool) {
     let lines = if full {
         PISPER_LOGO
             .iter()
-            .map(|(left, right)| {
+            .map(|(pis, per)| {
                 Line::from(vec![
-                    Span::styled(
-                        *left,
-                        Style::default().fg(ACCENT).add_modifier(Modifier::BOLD),
-                    ),
-                    Span::styled(
-                        *right,
-                        Style::default().fg(TEXT).add_modifier(Modifier::BOLD),
-                    ),
+                    Span::styled(*pis, Style::default().fg(ACCENT)),
+                    Span::styled(*per, Style::default().fg(TEXT)),
                 ])
             })
             .collect::<Vec<_>>()
@@ -1139,50 +1141,17 @@ fn wrap_text(value: &str, width: usize) -> Vec<String> {
     result
 }
 
-fn render_events(frame: &mut Frame, app: &App, area: Rect) {
-    let header = Row::new(["TYPE", "EVENT", "STATE"])
-        .style(Style::default().fg(MUTED).add_modifier(Modifier::BOLD))
-        .bottom_margin(1);
-    let rows = app.events.iter().rev().map(|event| {
-        let color = match event.state.as_str() {
-            "error" => RED,
-            "waiting" | "active" => AMBER,
-            "done" => GREEN,
-            _ => MUTED,
-        };
-        Row::new([
-            Cell::from(event.name.clone()).style(Style::default().fg(color)),
-            Cell::from(event.detail.clone()).style(Style::default().fg(TEXT)),
-            Cell::from(event.state.clone()).style(Style::default().fg(color)),
-        ])
-    });
-    let table = Table::new(
-        rows,
-        [
-            Constraint::Length(20),
-            Constraint::Min(20),
-            Constraint::Length(12),
-        ],
-    )
-    .header(header)
-    .column_spacing(2)
-    .style(Style::default().bg(BG));
-    frame.render_widget(table, inset(area, 2, 1));
-}
-
 fn render_changes(frame: &mut Frame, app: &App, area: Rect) {
+    let footer = if app.vcs_confirm_revert {
+        " V again confirm · Esc cancel "
+    } else if app.vcs.as_ref().is_some_and(|changes| changes.vcs == "svn") {
+        " ←→ file · ↑↓ diff · R refresh · C commit · V revert · Esc close "
+    } else {
+        " ←→ file · ↑↓ diff · R refresh · C commit · P push · V revert · Esc close "
+    };
     let block = Block::default()
         .title(" Workspace changes ")
-        .title_bottom(Span::styled(
-            if app.vcs_confirm_revert {
-                " V again to confirm revert · Esc close "
-            } else if app.vcs.as_ref().is_some_and(|changes| changes.vcs == "svn") {
-                " R refresh · C commit · V revert · Esc close "
-            } else {
-                " R refresh · C commit · P push · V revert · Esc close "
-            },
-            Style::default().fg(MUTED),
-        ))
+        .title_bottom(Span::styled(footer, Style::default().fg(MUTED)))
         .borders(Borders::ALL)
         .border_style(Style::default().fg(if app.status_error { RED } else { ACCENT }))
         .style(Style::default().bg(SURFACE));
@@ -1196,73 +1165,135 @@ fn render_changes(frame: &mut Frame, app: &App, area: Rect) {
             Paragraph::new(if app.vcs_loading {
                 "Loading Git/SVN workspace…"
             } else {
-                "No workspace change data. Press R to refresh."
+                "No workspace change data · R refresh"
             })
+            .alignment(Alignment::Center)
             .style(Style::default().fg(MUTED)),
             inner,
         );
         return;
     };
-    let label = if changes.vcs == "svn" {
-        "SVN workspace"
-    } else if changes.vcs == "git" {
-        "Git workspace"
-    } else {
-        "No repository"
+    let label = match changes.vcs.as_str() {
+        "svn" => "SVN",
+        "git" => "Git",
+        _ => "No repository",
     };
-    let files = if changes.files.is_empty() {
-        "No changed files".to_owned()
+    let file_position = if changes.files.is_empty() {
+        "clean".to_owned()
     } else {
-        changes
-            .files
-            .iter()
-            .take(40)
-            .map(|file| format!("{} {}", file.status, file.path))
-            .collect::<Vec<_>>()
-            .join("\n")
+        format!(
+            "file {}/{}",
+            app.vcs_selected.min(changes.files.len() - 1) + 1,
+            changes.files.len()
+        )
     };
-    let header = format!(
-        "{label} · {}{}\n{}",
-        if changes.branch.is_empty() {
-            String::new()
-        } else {
-            format!("{} · ", changes.branch)
-        },
-        if changes.files.is_empty() {
-            "clean".to_owned()
-        } else {
-            format!("{} changed", changes.files.len())
-        },
-        files
-    );
     let sections = Layout::default()
         .direction(Direction::Vertical)
-        .constraints([Constraint::Length(4), Constraint::Min(1)])
+        .constraints([
+            Constraint::Length(1),
+            Constraint::Length(u16::from(!changes.files.is_empty())),
+            Constraint::Min(1),
+        ])
         .split(inner);
     frame.render_widget(
-        Paragraph::new(header)
-            .style(Style::default().fg(TEXT))
-            .wrap(Wrap { trim: true }),
+        Paragraph::new(format!(
+            "{label} · {}{file_position} · diff {}/{}{}",
+            if changes.branch.is_empty() {
+                String::new()
+            } else {
+                format!("{} · ", changes.branch)
+            },
+            app.vcs_scroll.get().saturating_add(1),
+            app.vcs_max_scroll.get().saturating_add(1),
+            if changes.diff_truncated {
+                " · truncated"
+            } else {
+                ""
+            }
+        ))
+        .style(Style::default().fg(MUTED)),
         sections[0],
     );
-    let diff = if changes.diff.is_empty() {
-        "No diff available".to_owned()
+
+    if !changes.files.is_empty() {
+        let index = app.vcs_selected.min(changes.files.len() - 1);
+        let file = &changes.files[index];
+        let has_previous = index > 0;
+        let has_next = index + 1 < changes.files.len();
+        let navigation_width = usize::from(has_previous) * 2 + usize::from(has_next) * 2;
+        let label = single_line(
+            &format!("{} {}", file.status, file.path),
+            sections[1]
+                .width
+                .saturating_sub(navigation_width as u16)
+                .saturating_sub(2) as usize,
+        );
+        frame.render_widget(
+            Paragraph::new(Line::from(vec![
+                Span::styled(
+                    if has_previous { "← " } else { "  " },
+                    Style::default().fg(MUTED),
+                ),
+                Span::styled(
+                    format!(" {label} "),
+                    Style::default()
+                        .fg(TEXT)
+                        .bg(RAISED)
+                        .add_modifier(Modifier::BOLD),
+                ),
+                Span::styled(if has_next { " →" } else { "" }, Style::default().fg(MUTED)),
+            ]))
+            .style(Style::default().bg(SURFACE)),
+            sections[1],
+        );
+    }
+
+    let lines = if changes.diff.is_empty() {
+        vec![Line::from(Span::styled(
+            "No diff available",
+            Style::default().fg(MUTED),
+        ))]
     } else {
-        changes.diff.clone()
+        changes
+            .diff
+            .lines()
+            .map(|line| {
+                let color = if line.starts_with("+++") || line.starts_with("---") {
+                    BLUE
+                } else if line.starts_with('+') {
+                    GREEN
+                } else if line.starts_with('-') {
+                    RED
+                } else if line.starts_with("@@") {
+                    ACCENT
+                } else if line.starts_with("diff ") || line.starts_with("Index: ") {
+                    VIOLET
+                } else {
+                    MUTED
+                };
+                Line::from(Span::styled(line.to_owned(), Style::default().fg(color)))
+            })
+            .collect::<Vec<_>>()
     };
+    let max_scroll = lines.len().saturating_sub(sections[2].height as usize) as u16;
+    app.vcs_max_scroll.set(max_scroll);
+    let scroll = app.vcs_scroll.get().min(max_scroll);
+    if scroll != app.vcs_scroll.get() {
+        app.vcs_scroll.set(scroll);
+    }
     frame.render_widget(
-        Paragraph::new(diff)
-            .style(Style::default().fg(MUTED))
-            .scroll((app.vcs_scroll.get(), 0))
-            .wrap(Wrap { trim: false }),
-        sections[1],
+        Paragraph::new(Text::from(lines))
+            .scroll((scroll, 0))
+            .style(Style::default().bg(BG)),
+        sections[2],
     );
 }
 
 fn render_composer(frame: &mut Frame, app: &App, area: Rect) {
+    let focused = matches!(app.view, View::Chat) && app.accepts_composer_input();
     let border = if app.status_error {
         RED
-    } else if app.is_streaming() || !app.input.is_empty() || !app.attachments.is_empty() {
+    } else if focused {
         ACCENT
     } else {
         RULE
@@ -1292,7 +1323,9 @@ fn render_composer(frame: &mut Frame, app: &App, area: Rect) {
     let input = Line::from(vec![
         Span::styled(
             "❯ ",
-            Style::default().fg(ACCENT).add_modifier(Modifier::BOLD),
+            Style::default()
+                .fg(if focused { ACCENT } else { MUTED })
+                .add_modifier(Modifier::BOLD),
         ),
         Span::styled(
             if visible.is_empty() {
@@ -1372,11 +1405,7 @@ fn render_composer(frame: &mut Frame, app: &App, area: Rect) {
         }
     }
 
-    if !app.session_picker
-        && !app.path_picker
-        && app.settings_picker.is_none()
-        && app.approval.is_none()
-    {
+    if focused {
         frame.set_cursor_position(Position::new(
             inner
                 .x
@@ -1406,10 +1435,9 @@ fn compact_token_count(value: u64) -> String {
 }
 
 fn render_status(frame: &mut Frame, app: &App, area: Rect) {
-    let columns = Layout::default()
-        .direction(Direction::Horizontal)
-        .constraints([Constraint::Percentage(72), Constraint::Percentage(28)])
-        .split(area);
+    if area.width == 0 {
+        return;
+    }
     let context = app
         .context_percent
         .map(|value| format!(" · {value:.0}% ctx"))
@@ -1424,65 +1452,88 @@ fn render_status(frame: &mut Frame, app: &App, area: Rect) {
         "token: {} cache {cache}",
         compact_token_count(app.session_usage.total_tokens)
     );
+
+    let mut priority = Vec::new();
+    if app.queued_count() > 0 {
+        priority.push(format!("{} queued", app.queued_count()));
+    }
+    if let Some(plan) = &app.session.plan {
+        let done = plan
+            .items
+            .iter()
+            .filter(|item| item.status == "completed")
+            .count();
+        priority.push(format!("Plan {done}/{}", plan.items.len()));
+    }
+    let agents = visible_agent_count(app);
+    if agents > 0 {
+        priority.push(format!("{agents} subagent"));
+    }
+    if !app.thinking_level.is_empty() {
+        priority.push(format!("Thinking · {}", app.thinking_level));
+    }
+    let right_budget = area
+        .width
+        .saturating_sub(mode.width() as u16)
+        .saturating_sub(3)
+        .min(area.width.saturating_mul(45) / 100) as usize;
+    let mut right = String::new();
+    for part in priority {
+        let candidate = if right.is_empty() {
+            part
+        } else {
+            format!("{right} · {part}")
+        };
+        if candidate.width() <= right_budget {
+            right = candidate;
+        }
+    }
+    let gap = u16::from(!right.is_empty());
+    let right_width = right.width().min(area.width as usize) as u16;
+    let left_width = area.width.saturating_sub(right_width).saturating_sub(gap);
+    let left_area = Rect::new(area.x, area.y, left_width, area.height);
+    let right_area = Rect::new(
+        area.x.saturating_add(left_width).saturating_add(gap),
+        area.y,
+        right_width,
+        area.height,
+    );
+
     let full = format!(
-        "{} · {mode} · {}{context} · {usage}",
+        "{mode} · {} · {}{context} · {usage}",
         display_model(&app.model),
         shorten_path(&app.cwd),
     );
-    let model_mode = format!("{} · {mode}{context} · {usage}", display_model(&app.model));
+    let model_mode = format!("{mode} · {}{context} · {usage}", display_model(&app.model));
+    let mode_model = format!("{mode} · {}{context}", display_model(&app.model));
     let mode_usage = format!("{mode} · {usage}");
     let compact = format!("{mode} · {}{context}", shorten_path(&app.cwd));
-    let available = columns[0].width as usize;
+    let available = left_width as usize;
     let left = if full.width() <= available {
         full
     } else if model_mode.width() <= available {
         model_mode
-    } else if mode_usage.width() <= available {
-        mode_usage
+    } else if mode_model.width() <= available {
+        mode_model
     } else if compact.width() <= available {
         compact
+    } else if mode_usage.width() <= available {
+        mode_usage
     } else {
-        mode
-    };
-    let left_spans = vec![Span::styled(left, Style::default().fg(MUTED))];
-    frame.render_widget(Paragraph::new(Line::from(left_spans)), columns[0]);
-    let plan_progress = app
-        .session
-        .plan
-        .as_ref()
-        .map(|plan| {
-            let done = plan
-                .items
-                .iter()
-                .filter(|item| item.status == "completed")
-                .count();
-            format!("Plan · {done}/{} · ", plan.items.len())
-        })
-        .unwrap_or_default();
-    let agents = visible_agent_count(app);
-    let agents = if agents > 0 {
-        format!("{agents} subagent · ")
-    } else {
-        String::new()
-    };
-    let thinking = if app.thinking_level.is_empty() {
-        String::new()
-    } else {
-        format!("Thinking · {} · ", app.thinking_level)
+        single_line(&mode, available)
     };
     frame.render_widget(
-        Paragraph::new(format!(
-            "{thinking}{plan_progress}{agents}{}UTF-8",
-            if app.queued_count() > 0 {
-                format!("{} queued · ", app.queued_count())
-            } else {
-                String::new()
-            }
-        ))
-        .alignment(Alignment::Right)
-        .style(Style::default().fg(MUTED)),
-        columns[1],
+        Paragraph::new(left).style(Style::default().fg(MUTED)),
+        left_area,
     );
+    if right_width > 0 {
+        frame.render_widget(
+            Paragraph::new(right)
+                .alignment(Alignment::Right)
+                .style(Style::default().fg(MUTED)),
+            right_area,
+        );
+    }
 }
 
 fn slash_menu_area(composer: Rect, item_count: usize) -> Rect {
@@ -1526,16 +1577,29 @@ fn render_slash(frame: &mut Frame, app: &App, composer: Rect) {
             Constraint::Length(1),
         ])
         .split(inner);
-    let counts = slash_kind_counts(&items);
+    let counts = app.slash_kind_counts();
+    let category = |value, label| {
+        Span::styled(
+            label,
+            if app.slash_category == value {
+                Style::default()
+                    .fg(ACCENT)
+                    .bg(RAISED)
+                    .add_modifier(Modifier::BOLD)
+            } else {
+                Style::default().fg(MUTED)
+            },
+        )
+    };
     frame.render_widget(
         Paragraph::new(Line::from(vec![
-            Span::styled(
-                " ALL ",
-                Style::default().fg(ACCENT).add_modifier(Modifier::BOLD),
-            ),
-            Span::styled("  TOOLS  ", Style::default().fg(MUTED)),
-            Span::styled("SKILLS  ", Style::default().fg(MUTED)),
-            Span::styled("COMMANDS", Style::default().fg(MUTED)),
+            category(SlashCategory::All, " ALL "),
+            Span::raw(" "),
+            category(SlashCategory::Tools, " TOOLS "),
+            Span::raw(" "),
+            category(SlashCategory::Skills, " SKILLS "),
+            Span::raw(" "),
+            category(SlashCategory::Commands, " COMMANDS "),
             Span::styled(
                 format!("    {} matches", items.len()),
                 Style::default().fg(MUTED),
@@ -1587,12 +1651,12 @@ fn render_slash(frame: &mut Frame, app: &App, composer: Rect) {
 
     frame.render_widget(
         Paragraph::new(format!(
-            "TOOLS {} · SKILLS {} · COMMANDS {} · {}/{}",
+            "{}/{} · ←→ category · ↑↓ select · Tab complete · T {} · S {} · C {}",
+            selected.map_or(0, |index| index + 1),
+            items.len(),
             counts.0,
             counts.1,
-            counts.2,
-            selected.map_or(0, |index| index + 1),
-            items.len()
+            counts.2
         ))
         .style(Style::default().fg(MUTED).bg(SURFACE)),
         sections[2],
@@ -1623,69 +1687,143 @@ fn format_session_time(modified: &str, now: SystemTime) -> String {
 fn render_sessions(frame: &mut Frame, app: &App, area: Rect) {
     let popup = centered_rect(72, 64, area);
     frame.render_widget(Clear, popup);
-    let now = SystemTime::now();
-    let rows = app.sessions.iter().map(|session| {
-        let streaming = if session.streaming { " · running" } else { "" };
-        let loading = if app.session_loading.as_deref() == Some(session.id.as_str()) {
-            " · loading…"
+    let sessions = app.visible_sessions();
+    let selected = (!sessions.is_empty()).then(|| app.session_selected.min(sessions.len() - 1));
+    let block = Block::default()
+        .title(Span::styled(
+            format!(" Resume conversation · {} matches ", sessions.len()),
+            Style::default().fg(VIOLET).add_modifier(Modifier::BOLD),
+        ))
+        .title_bottom(Span::styled(
+            if app.session_loading.is_some() {
+                " Loading conversation… · Esc cancel "
+            } else {
+                " Type to search · ↑↓ choose · Enter resume · Esc close "
+            },
+            Style::default().fg(if app.session_loading.is_some() {
+                AMBER
+            } else {
+                MUTED
+            }),
+        ))
+        .borders(Borders::ALL)
+        .border_style(Style::default().fg(if app.session_loading.is_some() {
+            AMBER
         } else {
-            ""
-        };
-        let workspace = shorten_path(&session.cwd);
-        let modified = format_session_time(&session.modified, now);
-        let mut metadata = vec![Span::raw("   ")];
-        if !modified.is_empty() {
-            metadata.push(Span::styled(modified, Style::default().fg(BLUE)));
-            metadata.push(Span::styled(" · ", Style::default().fg(FAINT)));
-        }
-        metadata.push(Span::styled(workspace, Style::default().fg(MUTED)));
-        ListItem::new(vec![
-            Line::from(vec![
-                Span::styled(format!("{:<32}", session.name), Style::default().fg(TEXT)),
-                Span::styled(
-                    format!("{}{}{}", display_model(&session.model), streaming, loading),
-                    Style::default().fg(MUTED),
-                ),
-            ]),
-            Line::from(metadata),
-        ])
-    });
-    let list = List::new(rows)
+            VIOLET
+        }))
+        .style(Style::default().bg(SURFACE));
+    let inner = block.inner(popup);
+    frame.render_widget(block, popup);
+    if inner.width == 0 || inner.height == 0 {
+        return;
+    }
+    let sections = Layout::default()
+        .direction(Direction::Vertical)
+        .constraints([Constraint::Length(3), Constraint::Min(1)])
+        .split(inner);
+    let (query, query_cursor) = visible_input(
+        &app.session_query,
+        app.session_query_cursor,
+        sections[0].width.saturating_sub(4) as usize,
+    );
+    frame.render_widget(
+        Paragraph::new(Line::from(vec![
+            Span::styled("⌕ ", Style::default().fg(ACCENT)),
+            Span::styled(
+                if query.is_empty() {
+                    "Search name, model, or workspace…".to_owned()
+                } else {
+                    query
+                },
+                Style::default().fg(if app.session_query.is_empty() {
+                    MUTED
+                } else {
+                    TEXT
+                }),
+            ),
+        ]))
         .block(
             Block::default()
-                .title(Span::styled(
-                    " Resume conversation · all workspaces ",
-                    Style::default().fg(VIOLET).add_modifier(Modifier::BOLD),
-                ))
-                .title_bottom(Span::styled(
-                    if app.session_loading.is_some() {
-                        " Loading conversation… · Esc cancel "
-                    } else {
-                        " ↑↓ choose · Enter resume · Esc close "
-                    },
-                    Style::default().fg(if app.session_loading.is_some() {
-                        AMBER
-                    } else {
-                        MUTED
-                    }),
-                ))
-                .borders(Borders::ALL)
-                .border_style(Style::default().fg(if app.session_loading.is_some() {
-                    AMBER
+                .borders(Borders::BOTTOM)
+                .border_style(Style::default().fg(RULE)),
+        ),
+        sections[0],
+    );
+
+    let now = SystemTime::now();
+    let content_width = sections[1].width.saturating_sub(4) as usize;
+    let show_model = content_width >= 44;
+    let name_width = if show_model {
+        (content_width * 55 / 100).clamp(16, 38)
+    } else {
+        content_width
+    };
+    let model_width = content_width.saturating_sub(name_width);
+    let rows = if sessions.is_empty() {
+        vec![ListItem::new(Span::styled(
+            " No matching conversations",
+            Style::default().fg(MUTED),
+        ))]
+    } else {
+        sessions
+            .iter()
+            .map(|session| {
+                let streaming = if session.streaming { " · running" } else { "" };
+                let loading = if app.session_loading.as_deref() == Some(session.id.as_str()) {
+                    " · loading…"
                 } else {
-                    VIOLET
-                }))
-                .style(Style::default().bg(SURFACE)),
-        )
-        .highlight_symbol(" ❯ ")
-        .highlight_style(
-            Style::default()
-                .bg(RAISED)
-                .fg(TEXT)
-                .add_modifier(Modifier::BOLD),
-        );
-    let mut state = ListState::default().with_selected(Some(app.session_selected));
-    frame.render_stateful_widget(list, popup, &mut state);
+                    ""
+                };
+                let workspace = shorten_path(&session.cwd);
+                let modified = format_session_time(&session.modified, now);
+                let mut metadata = vec![Span::raw("   ")];
+                if !modified.is_empty() {
+                    metadata.push(Span::styled(modified, Style::default().fg(BLUE)));
+                    metadata.push(Span::styled(" · ", Style::default().fg(FAINT)));
+                }
+                metadata.push(Span::styled(
+                    single_line(&workspace, content_width.saturating_sub(3)),
+                    Style::default().fg(MUTED),
+                ));
+                let model = if show_model {
+                    single_line(
+                        &format!("{}{}{}", display_model(&session.model), streaming, loading),
+                        model_width,
+                    )
+                } else {
+                    String::new()
+                };
+                ListItem::new(vec![
+                    Line::from(vec![
+                        Span::styled(
+                            padded_single_line(&session.name, name_width),
+                            Style::default().fg(TEXT),
+                        ),
+                        Span::styled(model, Style::default().fg(MUTED)),
+                    ]),
+                    Line::from(metadata),
+                ])
+            })
+            .collect()
+    };
+    let list = List::new(rows).highlight_symbol(" ❯ ").highlight_style(
+        Style::default()
+            .bg(RAISED)
+            .fg(TEXT)
+            .add_modifier(Modifier::BOLD),
+    );
+    let mut state = ListState::default().with_selected(selected);
+    frame.render_stateful_widget(list, sections[1], &mut state);
+    if app.session_loading.is_none() {
+        frame.set_cursor_position(Position::new(
+            sections[0]
+                .x
+                .saturating_add(2)
+                .saturating_add(query_cursor as u16),
+            sections[0].y,
+        ));
+    }
 }
 
 fn render_path_picker(frame: &mut Frame, app: &App, area: Rect) {
@@ -1797,36 +1935,70 @@ fn render_path_picker(frame: &mut Frame, app: &App, area: Rect) {
         .highlight_symbol("▌")
         .highlight_style(Style::default().bg(RAISED).fg(TEXT));
     let mut state = ListState::default().with_selected(
-        (!entries.is_empty()).then_some(app.path_selected.min(entries.len().saturating_sub(1))),
+        (!entries.is_empty() && !app.attachment_list_focused)
+            .then_some(app.path_selected.min(entries.len().saturating_sub(1))),
     );
     frame.render_stateful_widget(list, sections[1], &mut state);
+    let total_size = app
+        .attachments
+        .iter()
+        .map(|attachment| attachment.size)
+        .sum();
     let selected = if app.attachments.is_empty() {
         "Selected · none".to_owned()
     } else {
+        let index = app.attachment_selected.min(app.attachments.len() - 1);
+        let attachment = &app.attachments[index];
         format!(
-            "Selected {} · {}",
+            "Selected {}/{} · {} · {} · total {}",
+            index + 1,
             app.attachments.len(),
-            app.attachments
-                .iter()
-                .map(|attachment| attachment.name.as_str())
-                .collect::<Vec<_>>()
-                .join(" · ")
+            attachment.name,
+            format_bytes(attachment.size),
+            format_bytes(total_size)
         )
     };
     frame.render_widget(
         Paragraph::new(single_line(&selected, sections[2].width as usize))
-            .style(Style::default().fg(ACCENT).bg(SURFACE))
+            .style(
+                Style::default()
+                    .fg(if app.attachment_list_focused {
+                        TEXT
+                    } else {
+                        ACCENT
+                    })
+                    .bg(if app.attachment_list_focused {
+                        RAISED
+                    } else {
+                        SURFACE
+                    })
+                    .add_modifier(if app.attachment_list_focused {
+                        Modifier::BOLD
+                    } else {
+                        Modifier::empty()
+                    }),
+            )
             .block(
                 Block::default()
                     .borders(Borders::TOP)
-                    .border_style(Style::default().fg(RULE)),
+                    .border_style(Style::default().fg(if app.attachment_list_focused {
+                        ACCENT
+                    } else {
+                        RULE
+                    })),
             ),
         sections[2],
     );
     frame.render_widget(
         Paragraph::new(vec![
             Line::from(Span::styled(
-                "↑↓ choose · Enter open/add · ←/Backspace parent · Delete remove · Esc close",
+                if app.attachment_list_focused {
+                    "←→ selected file · Delete remove · Tab browse · Esc close"
+                } else if app.attachments.is_empty() {
+                    "↑↓ choose · Enter open/add · ←/Backspace parent · Esc close"
+                } else {
+                    "↑↓ choose · Enter open/add · Tab manage selected · Esc close"
+                },
                 Style::default().fg(MUTED),
             )),
             Line::from(Span::styled(
@@ -1837,13 +2009,15 @@ fn render_path_picker(frame: &mut Frame, app: &App, area: Rect) {
         .style(Style::default().bg(SURFACE)),
         sections[3],
     );
-    frame.set_cursor_position(Position::new(
-        sections[0]
-            .x
-            .saturating_add(2)
-            .saturating_add(cursor as u16),
-        sections[0].y,
-    ));
+    if !app.attachment_list_focused {
+        frame.set_cursor_position(Position::new(
+            sections[0]
+                .x
+                .saturating_add(2)
+                .saturating_add(cursor as u16),
+            sections[0].y,
+        ));
+    }
 }
 
 fn render_settings_picker(frame: &mut Frame, app: &App, area: Rect) {
@@ -2055,7 +2229,7 @@ fn render_api_key_dialog(frame: &mut Frame, app: &App, area: Rect) {
         let base_width = sections[2].width.saturating_sub(4) as usize;
         let (base_url, base_cursor) = visible_input(
             &app.provider_base_url_input,
-            app.provider_base_url_input.len(),
+            app.provider_base_url_cursor,
             base_width,
         );
         frame.render_widget(
@@ -2065,11 +2239,19 @@ fn render_api_key_dialog(frame: &mut Frame, app: &App, area: Rect) {
                 base_url
             })
             .style(
-                Style::default().fg(if app.provider_base_url_input.is_empty() {
-                    MUTED
-                } else {
-                    TEXT
-                }),
+                Style::default()
+                    .fg(if app.provider_base_url_input.is_empty() {
+                        MUTED
+                    } else {
+                        TEXT
+                    })
+                    .bg(
+                        if app.provider_input_selected_all && app.provider_connection_field == 1 {
+                            RAISED
+                        } else {
+                            SURFACE
+                        },
+                    ),
             )
             .block(
                 Block::default()
@@ -2085,7 +2267,8 @@ fn render_api_key_dialog(frame: &mut Frame, app: &App, area: Rect) {
         );
 
         let key_width = sections[3].width.saturating_sub(4) as usize;
-        let masked = "*".repeat(app.api_key_input.len().min(key_width));
+        let masked_input = vec!['*'; app.api_key_input.len()];
+        let (masked, key_cursor) = visible_input(&masked_input, app.api_key_cursor, key_width);
         let key_placeholder = if configured {
             "Configured - leave blank to keep"
         } else {
@@ -2097,11 +2280,21 @@ fn render_api_key_dialog(frame: &mut Frame, app: &App, area: Rect) {
             } else {
                 masked
             })
-            .style(Style::default().fg(if app.api_key_input.is_empty() {
-                MUTED
-            } else {
-                TEXT
-            }))
+            .style(
+                Style::default()
+                    .fg(if app.api_key_input.is_empty() {
+                        MUTED
+                    } else {
+                        TEXT
+                    })
+                    .bg(
+                        if app.provider_input_selected_all && app.provider_connection_field == 2 {
+                            RAISED
+                        } else {
+                            SURFACE
+                        },
+                    ),
+            )
             .block(
                 Block::default()
                     .title(" API Key ")
@@ -2115,7 +2308,7 @@ fn render_api_key_dialog(frame: &mut Frame, app: &App, area: Rect) {
             sections[3],
         );
         frame.render_widget(
-            Paragraph::new("Up/Down field · Left/Right protocol · Enter save · Esc back")
+            Paragraph::new("Up/Down field · ←→ edit · Ctrl+A select · Enter save · Esc back")
                 .style(Style::default().fg(MUTED))
                 .alignment(Alignment::Center),
             sections[5],
@@ -2133,7 +2326,7 @@ fn render_api_key_dialog(frame: &mut Frame, app: &App, area: Rect) {
                 sections[3]
                     .x
                     .saturating_add(1)
-                    .saturating_add(app.api_key_input.len().min(key_width) as u16),
+                    .saturating_add(key_cursor as u16),
                 sections[3].y.saturating_add(1),
             ));
         }
@@ -2445,17 +2638,6 @@ fn visible_agent_count(app: &App) -> usize {
     historic.saturating_add(live)
 }
 
-fn slash_kind_counts(items: &[crate::app::SlashItem]) -> (usize, usize, usize) {
-    items.iter().fold((0, 0, 0), |mut counts, item| {
-        match item.kind {
-            SlashKind::Tool => counts.0 += 1,
-            SlashKind::Skill => counts.1 += 1,
-            SlashKind::Command => counts.2 += 1,
-        }
-        counts
-    })
-}
-
 fn centered_rect(percent_x: u16, percent_y: u16, area: Rect) -> Rect {
     let vertical = Layout::default()
         .direction(Direction::Vertical)
@@ -2503,6 +2685,12 @@ fn single_line(value: &str, max: usize) -> String {
     result
 }
 
+fn padded_single_line(value: &str, width: usize) -> String {
+    let mut value = single_line(value, width);
+    value.push_str(&" ".repeat(width.saturating_sub(value.width())));
+    value
+}
+
 fn shorten_path(value: &str) -> String {
     if value.width() <= 70 {
         value.to_owned()
@@ -2543,8 +2731,9 @@ mod tests {
     use unicode_width::UnicodeWidthStr;
 
     use super::{
-        compact_token_count, draw, format_session_time, push_live, push_markdown, render_slash,
-        runtime_error_label, slash_menu_area, visible_input, CONVERSATION_WIDTH, GREEN,
+        compact_token_count, draw, format_session_time, padded_single_line, push_live,
+        push_markdown, render_slash, runtime_error_label, slash_menu_area, visible_input,
+        CONVERSATION_WIDTH, GREEN,
     };
     use crate::{
         app::{App, Approval, LiveTurn, PathEntry, SettingsPicker},
@@ -2808,7 +2997,7 @@ mod tests {
         assert!(!rows.join("\n").contains("PISPER /"));
         assert!(rows
             .iter()
-            .any(|row| row.contains("gpt-5.6-sol · [full-access]")));
+            .any(|row| row.contains("[full-access] · gpt-5.6-sol")));
         assert!(rows.iter().any(|row| row.contains("Thinking · high")));
         let message_row = rows
             .iter()
@@ -3161,6 +3350,12 @@ mod tests {
     }
 
     #[test]
+    fn unicode_columns_pad_by_terminal_width() {
+        assert_eq!(padded_single_line("中文", 8).width(), 8);
+        assert_eq!(padded_single_line("conversation", 8), "convers…");
+    }
+
+    #[test]
     fn session_picker_renders_the_last_activity_time() {
         let session = SessionSummary {
             id: "session-1".to_owned(),
@@ -3417,7 +3612,8 @@ mod tests {
             .position(|row| row.contains("Message Pisper"))
             .unwrap();
 
-        assert!(rows.iter().any(|row| row.contains("████")));
+        assert!(rows.iter().any(|row| row.contains("___  ___  ___")));
+        assert!(!rows.iter().any(|row| row.contains("████")));
         assert!((18..=24).contains(&input_row));
         assert_eq!(buffer.cell((36, input_row as u16)).unwrap().symbol(), "│");
         assert_eq!(buffer.cell((123, input_row as u16)).unwrap().symbol(), "│");
@@ -3582,7 +3778,7 @@ mod tests {
             .map(|cell| cell.symbol())
             .collect::<String>();
 
-        assert!(bottom.starts_with("gpt-5.6-sol"));
+        assert!(bottom.starts_with("[full-access] · gpt-5.6-sol"));
         assert!(!bottom.contains('▁'));
         assert!(!bottom.contains('▅'));
     }

@@ -981,29 +981,8 @@ async fn execute_action(
             app.begin_thinking_load();
             let result = api.thinking_state(&app.session.id).await;
             match result {
-                Ok(state) => {
-                    let detail = format!(
-                        "session {} · model {} · current {} · available {}",
-                        app.session.id,
-                        app.model,
-                        state.thinking_level,
-                        state.available_levels.join(",")
-                    );
-                    app.set_thinking_state(state);
-                    app.record_event("THINKING", detail, "done");
-                }
-                Err(error) => {
-                    let error = format!("{error:#}");
-                    app.set_thinking_error(error.clone());
-                    app.record_event(
-                        "THINKING",
-                        format!(
-                            "session {} · model {} · load failed · {error}",
-                            app.session.id, app.model
-                        ),
-                        "error",
-                    );
-                }
+                Ok(state) => app.set_thinking_state(state),
+                Err(error) => app.set_thinking_error(format!("{error:#}")),
             }
             app.open_thinking_picker();
         }
@@ -1013,28 +992,10 @@ async fn execute_action(
                 app.set_draft_thinking_level(level);
             } else {
                 match api.set_thinking_level(&app.session.id, &level).await {
-                    Ok(updated) => {
-                        let detail = format!(
-                            "session {} · model {} · requested {level} · current {} · available {}",
-                            app.session.id,
-                            app.model,
-                            updated.thinking_level,
-                            updated.available_levels.join(",")
-                        );
-                        app.set_thinking_level(updated);
-                        app.record_event("THINKING", detail, "done");
-                    }
+                    Ok(updated) => app.set_thinking_level(updated),
                     Err(error) => {
                         app.status = format!("thinking change failed · {error}");
                         app.status_error = true;
-                        app.record_event(
-                            "THINKING",
-                            format!(
-                                "session {} · model {} · requested {level} · failed · {error}",
-                                app.session.id, app.model
-                            ),
-                            "error",
-                        );
                     }
                 }
             }

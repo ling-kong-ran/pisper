@@ -35,7 +35,6 @@ const PAGE_SCROLL_STEP: u16 = 8;
 pub enum View {
     #[default]
     Chat,
-    Events,
     Changes,
 }
 
@@ -44,6 +43,45 @@ pub enum SlashKind {
     Tool,
     Skill,
     Command,
+}
+
+#[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
+pub enum SlashCategory {
+    #[default]
+    All,
+    Tools,
+    Skills,
+    Commands,
+}
+
+impl SlashCategory {
+    fn includes(self, kind: SlashKind) -> bool {
+        matches!(self, Self::All)
+            || matches!(
+                (self, kind),
+                (Self::Tools, SlashKind::Tool)
+                    | (Self::Skills, SlashKind::Skill)
+                    | (Self::Commands, SlashKind::Command)
+            )
+    }
+
+    fn next(self) -> Self {
+        match self {
+            Self::All => Self::Tools,
+            Self::Tools => Self::Skills,
+            Self::Skills => Self::Commands,
+            Self::Commands => Self::All,
+        }
+    }
+
+    fn previous(self) -> Self {
+        match self {
+            Self::All => Self::Commands,
+            Self::Tools => Self::All,
+            Self::Skills => Self::Tools,
+            Self::Commands => Self::Skills,
+        }
+    }
 }
 
 #[derive(Clone, Debug)]
@@ -70,13 +108,6 @@ pub struct Approval {
     pub args: Value,
     pub risk: String,
     pub reason: String,
-}
-
-#[derive(Clone, Debug)]
-pub struct EventLine {
-    pub name: String,
-    pub detail: String,
-    pub state: String,
 }
 
 #[derive(Clone, Debug)]
@@ -175,8 +206,11 @@ pub struct App {
     pub input: Vec<char>,
     pub input_cursor: usize,
     pub slash_selected: usize,
+    pub slash_category: SlashCategory,
     pub session_picker: bool,
     pub session_selected: usize,
+    pub session_query: Vec<char>,
+    pub session_query_cursor: usize,
     pub session_loading: Option<String>,
     session_load_generation: u64,
     session_picker_exit_on_cancel: bool,
@@ -198,7 +232,9 @@ pub struct App {
     pub vcs: Option<VcsChanges>,
     pub vcs_loading: bool,
     pub vcs_confirm_revert: bool,
+    pub vcs_selected: usize,
     pub vcs_scroll: Cell<u16>,
+    pub vcs_max_scroll: Cell<u16>,
     pub compacting_context: bool,
     pub confirm_model_compaction: bool,
     pub status: String,
@@ -207,11 +243,11 @@ pub struct App {
     pub approval: Option<Approval>,
     pub approval_scroll: Cell<u16>,
     pub approval_max_scroll: Cell<u16>,
-    pub events: Vec<EventLine>,
     pub attachments: Vec<AttachmentDraft>,
     pub path_picker: bool,
     pub path_input: Vec<char>,
     pub attachment_selected: usize,
+    pub attachment_list_focused: bool,
     pub path_directory: PathBuf,
     pub path_entries: Vec<PathEntry>,
     pub path_selected: usize,
@@ -225,8 +261,11 @@ pub struct App {
     pub api_key_provider: Option<String>,
     pub provider_api: String,
     pub provider_base_url_input: Vec<char>,
+    pub provider_base_url_cursor: usize,
     pub provider_connection_field: usize,
     pub api_key_input: Vec<char>,
+    pub api_key_cursor: usize,
+    pub provider_input_selected_all: bool,
     abort_pressed: bool,
     queued_prompts: VecDeque<QueuedPrompt>,
     pasted_ranges: Vec<PastedRange>,
@@ -260,7 +299,9 @@ impl App {
             vcs: None,
             vcs_loading: false,
             vcs_confirm_revert: false,
+            vcs_selected: 0,
             vcs_scroll: Cell::new(0),
+            vcs_max_scroll: Cell::new(0),
             compacting_context: false,
             confirm_model_compaction: false,
             sessions,
@@ -272,8 +313,11 @@ impl App {
             input: Vec::new(),
             input_cursor: 0,
             slash_selected: 0,
+            slash_category: SlashCategory::All,
             session_picker: false,
             session_selected: 0,
+            session_query: Vec::new(),
+            session_query_cursor: 0,
             session_loading: None,
             session_load_generation: 0,
             session_picker_exit_on_cancel: false,
@@ -289,11 +333,11 @@ impl App {
             approval: None,
             approval_scroll: Cell::new(0),
             approval_max_scroll: Cell::new(0),
-            events: Vec::new(),
             attachments: Vec::new(),
             path_picker: false,
             path_input: Vec::new(),
             attachment_selected: 0,
+            attachment_list_focused: false,
             path_directory,
             path_entries: Vec::new(),
             path_selected: 0,
@@ -307,8 +351,11 @@ impl App {
             api_key_provider: None,
             provider_api: PROVIDER_APIS[0].0.to_owned(),
             provider_base_url_input: Vec::new(),
+            provider_base_url_cursor: 0,
             provider_connection_field: 2,
             api_key_input: Vec::new(),
+            api_key_cursor: 0,
+            provider_input_selected_all: false,
             abort_pressed: false,
             queued_prompts: VecDeque::new(),
             pasted_ranges: Vec::new(),
@@ -498,7 +545,9 @@ impl App {
             .map(|(api, _)| (*api).to_owned())
             .unwrap_or_else(|| PROVIDER_APIS[0].0.to_owned());
         self.provider_base_url_input = provider.base_url.chars().collect();
+        self.provider_base_url_cursor = self.provider_base_url_input.len();
         self.provider_connection_field = 2;
+        self.provider_input_selected_all = false;
         self.clear_api_key_input();
         self.api_key_provider = Some(provider_id);
     }
@@ -534,11 +583,15 @@ impl App {
 
     fn clear_api_key_input(&mut self) {
         self.api_key_input.zeroize();
+        self.api_key_cursor = 0;
+        self.provider_input_selected_all = false;
     }
 
     fn clear_provider_connection_input(&mut self) {
         self.clear_api_key_input();
         self.provider_base_url_input.clear();
+        self.provider_base_url_cursor = 0;
+        self.provider_input_selected_all = false;
         self.provider_api = PROVIDER_APIS[0].0.to_owned();
         self.provider_connection_field = 2;
     }
@@ -569,6 +622,8 @@ impl App {
     }
 
     pub fn open_session_picker_at(&mut self, exit_on_cancel: bool, selected_id: &str) {
+        self.session_query.clear();
+        self.session_query_cursor = 0;
         self.session_selected = self
             .sessions
             .iter()
@@ -577,6 +632,19 @@ impl App {
         self.session_loading = None;
         self.session_picker_exit_on_cancel = exit_on_cancel;
         self.session_picker = true;
+    }
+
+    pub fn visible_sessions(&self) -> Vec<&SessionSummary> {
+        let query = self.session_query.iter().collect::<String>().to_lowercase();
+        self.sessions
+            .iter()
+            .filter(|session| {
+                query.is_empty()
+                    || session.name.to_lowercase().contains(&query)
+                    || session.model.to_lowercase().contains(&query)
+                    || session.cwd.to_lowercase().contains(&query)
+            })
+            .collect()
     }
 
     pub fn is_current_session_load(&self, request_id: u64, session_id: &str) -> bool {
@@ -642,17 +710,6 @@ impl App {
         self.status_error = true;
     }
 
-    pub fn record_event(&mut self, name: &str, detail: String, state: &str) {
-        self.events.push(EventLine {
-            name: name.to_owned(),
-            detail,
-            state: state.to_owned(),
-        });
-        if self.events.len() > 200 {
-            self.events.drain(..self.events.len() - 200);
-        }
-    }
-
     pub fn open_thinking_picker(&mut self) {
         self.open_settings_picker(SettingsPicker::Thinking);
     }
@@ -660,6 +717,10 @@ impl App {
     pub fn open_path_picker(&mut self) {
         self.path_picker = true;
         self.path_input.clear();
+        self.attachment_list_focused = false;
+        self.attachment_selected = self
+            .attachment_selected
+            .min(self.attachments.len().saturating_sub(1));
         self.path_directory = PathBuf::from(&self.cwd);
         self.refresh_path_entries();
     }
@@ -716,6 +777,26 @@ impl App {
     }
 
     pub fn slash_items(&self) -> Vec<SlashItem> {
+        self.filtered_slash_items()
+            .into_iter()
+            .filter(|item| self.slash_category.includes(item.kind))
+            .collect()
+    }
+
+    pub fn slash_kind_counts(&self) -> (usize, usize, usize) {
+        self.filtered_slash_items()
+            .iter()
+            .fold((0, 0, 0), |mut counts, item| {
+                match item.kind {
+                    SlashKind::Tool => counts.0 += 1,
+                    SlashKind::Skill => counts.1 += 1,
+                    SlashKind::Command => counts.2 += 1,
+                }
+                counts
+            })
+    }
+
+    fn filtered_slash_items(&self) -> Vec<SlashItem> {
         let query = self
             .input_text()
             .strip_prefix('/')
@@ -745,7 +826,6 @@ impl App {
             command("/new", "Start a new conversation"),
             command("/sessions", "Resume a conversation from any workspace"),
             command("/dir", "Change the active conversation directory"),
-            command("/events", "Open the event ledger"),
             command("/changes", "Inspect Git or SVN workspace changes"),
             command("/chat", "Return to the conversation"),
             command("/model", "Switch the active session model"),
@@ -798,6 +878,15 @@ impl App {
                 .then_with(|| left.command.cmp(&right.command))
         });
         items
+    }
+
+    fn cycle_slash_category(&mut self, forward: bool) {
+        self.slash_category = if forward {
+            self.slash_category.next()
+        } else {
+            self.slash_category.previous()
+        };
+        self.slash_selected = 0;
     }
 
     pub fn handle_key(&mut self, key: KeyEvent) -> Action {
@@ -925,7 +1014,12 @@ impl App {
                     Action::None
                 }
                 KeyCode::Down => {
-                    self.vcs_scroll.set(self.vcs_scroll.get().saturating_add(1));
+                    self.vcs_scroll.set(
+                        self.vcs_scroll
+                            .get()
+                            .saturating_add(1)
+                            .min(self.vcs_max_scroll.get()),
+                    );
                     Action::None
                 }
                 KeyCode::PageUp => {
@@ -934,8 +1028,28 @@ impl App {
                     Action::None
                 }
                 KeyCode::PageDown => {
-                    self.vcs_scroll
-                        .set(self.vcs_scroll.get().saturating_add(PAGE_SCROLL_STEP));
+                    self.vcs_scroll.set(
+                        self.vcs_scroll
+                            .get()
+                            .saturating_add(PAGE_SCROLL_STEP)
+                            .min(self.vcs_max_scroll.get()),
+                    );
+                    Action::None
+                }
+                KeyCode::Home => {
+                    self.vcs_scroll.set(0);
+                    Action::None
+                }
+                KeyCode::End => {
+                    self.vcs_scroll.set(self.vcs_max_scroll.get());
+                    Action::None
+                }
+                KeyCode::Left => {
+                    self.select_vcs_file(self.vcs_selected.saturating_sub(1));
+                    Action::None
+                }
+                KeyCode::Right => {
+                    self.select_vcs_file(self.vcs_selected.saturating_add(1));
                     Action::None
                 }
                 KeyCode::Char('r') | KeyCode::Char('R') => Action::RefreshVcs,
@@ -987,6 +1101,14 @@ impl App {
                 }
                 KeyCode::Tab => {
                     self.complete_slash();
+                    return Action::None;
+                }
+                KeyCode::Right => {
+                    self.cycle_slash_category(true);
+                    return Action::None;
+                }
+                KeyCode::BackTab | KeyCode::Left => {
+                    self.cycle_slash_category(false);
                     return Action::None;
                 }
                 KeyCode::Enter => return self.choose_slash(),
@@ -1064,6 +1186,26 @@ impl App {
         }
     }
 
+    fn select_vcs_file(&mut self, index: usize) {
+        let Some(changes) = self.vcs.as_ref() else {
+            self.vcs_selected = 0;
+            self.vcs_scroll.set(0);
+            return;
+        };
+        self.vcs_selected = index.min(changes.files.len().saturating_sub(1));
+        let Some(path) = changes.files.get(self.vcs_selected).map(|file| &file.path) else {
+            self.vcs_scroll.set(0);
+            return;
+        };
+        let line = changes
+            .diff
+            .lines()
+            .position(|line| line.contains(path))
+            .unwrap_or_default();
+        self.vcs_scroll
+            .set((line.min(self.vcs_max_scroll.get() as usize)) as u16);
+    }
+
     fn handle_api_key_dialog(&mut self, key: KeyEvent) -> Action {
         if self.api_key_provider.is_none() {
             let count = self.provider_options.len();
@@ -1100,10 +1242,18 @@ impl App {
             }
             KeyCode::Tab | KeyCode::Down => {
                 self.provider_connection_field = (self.provider_connection_field + 1) % 3;
+                self.provider_input_selected_all = false;
                 Action::None
             }
             KeyCode::BackTab | KeyCode::Up => {
                 self.provider_connection_field = (self.provider_connection_field + 2) % 3;
+                self.provider_input_selected_all = false;
+                Action::None
+            }
+            KeyCode::Char('a') if key.modifiers.contains(KeyModifiers::CONTROL) => {
+                if matches!(self.provider_connection_field, 1 | 2) {
+                    self.provider_input_selected_all = true;
+                }
                 Action::None
             }
             KeyCode::Left if self.provider_connection_field == 0 => {
@@ -1112,6 +1262,58 @@ impl App {
             }
             KeyCode::Right if self.provider_connection_field == 0 => {
                 self.cycle_provider_api(true);
+                Action::None
+            }
+            KeyCode::Left if self.provider_connection_field == 1 => {
+                move_field_cursor_left(
+                    &self.provider_base_url_input,
+                    &mut self.provider_base_url_cursor,
+                    &mut self.provider_input_selected_all,
+                );
+                Action::None
+            }
+            KeyCode::Right if self.provider_connection_field == 1 => {
+                move_field_cursor_right(
+                    &self.provider_base_url_input,
+                    &mut self.provider_base_url_cursor,
+                    &mut self.provider_input_selected_all,
+                );
+                Action::None
+            }
+            KeyCode::Left if self.provider_connection_field == 2 => {
+                move_field_cursor_left(
+                    &self.api_key_input,
+                    &mut self.api_key_cursor,
+                    &mut self.provider_input_selected_all,
+                );
+                Action::None
+            }
+            KeyCode::Right if self.provider_connection_field == 2 => {
+                move_field_cursor_right(
+                    &self.api_key_input,
+                    &mut self.api_key_cursor,
+                    &mut self.provider_input_selected_all,
+                );
+                Action::None
+            }
+            KeyCode::Home if self.provider_connection_field == 1 => {
+                self.provider_base_url_cursor = 0;
+                self.provider_input_selected_all = false;
+                Action::None
+            }
+            KeyCode::End if self.provider_connection_field == 1 => {
+                self.provider_base_url_cursor = self.provider_base_url_input.len();
+                self.provider_input_selected_all = false;
+                Action::None
+            }
+            KeyCode::Home if self.provider_connection_field == 2 => {
+                self.api_key_cursor = 0;
+                self.provider_input_selected_all = false;
+                Action::None
+            }
+            KeyCode::End if self.provider_connection_field == 2 => {
+                self.api_key_cursor = self.api_key_input.len();
+                self.provider_input_selected_all = false;
                 Action::None
             }
             KeyCode::Enter => {
@@ -1124,7 +1326,11 @@ impl App {
                 }
                 let provider = self.api_key_provider.clone().unwrap_or_default();
                 let api = self.provider_api.clone();
-                let api_key = self.api_key_input.iter().collect::<String>();
+                let api_key = self
+                    .api_key_input
+                    .iter()
+                    .filter(|character| !character.is_whitespace())
+                    .collect::<String>();
                 self.clear_api_key_input();
                 self.status = format!("saving Provider connection · {provider}");
                 self.status_error = false;
@@ -1136,20 +1342,52 @@ impl App {
                 }
             }
             KeyCode::Backspace if self.provider_connection_field == 1 => {
-                self.provider_base_url_input.pop();
+                delete_field_character(
+                    &mut self.provider_base_url_input,
+                    &mut self.provider_base_url_cursor,
+                    &mut self.provider_input_selected_all,
+                    true,
+                );
+                Action::None
+            }
+            KeyCode::Delete if self.provider_connection_field == 1 => {
+                delete_field_character(
+                    &mut self.provider_base_url_input,
+                    &mut self.provider_base_url_cursor,
+                    &mut self.provider_input_selected_all,
+                    false,
+                );
                 Action::None
             }
             KeyCode::Backspace if self.provider_connection_field == 2 => {
-                self.api_key_input.pop();
+                delete_field_character(
+                    &mut self.api_key_input,
+                    &mut self.api_key_cursor,
+                    &mut self.provider_input_selected_all,
+                    true,
+                );
+                Action::None
+            }
+            KeyCode::Delete if self.provider_connection_field == 2 => {
+                delete_field_character(
+                    &mut self.api_key_input,
+                    &mut self.api_key_cursor,
+                    &mut self.provider_input_selected_all,
+                    false,
+                );
                 Action::None
             }
             KeyCode::Char(character)
                 if self.provider_connection_field == 1
                     && !key.modifiers.contains(KeyModifiers::CONTROL) =>
             {
-                if self.provider_base_url_input.len() < 4_096 {
-                    self.provider_base_url_input.push(character);
-                }
+                insert_field_characters(
+                    &mut self.provider_base_url_input,
+                    &mut self.provider_base_url_cursor,
+                    &mut self.provider_input_selected_all,
+                    std::iter::once(character),
+                    4_096,
+                );
                 Action::None
             }
             KeyCode::Char(character)
@@ -1157,9 +1395,13 @@ impl App {
                     && !character.is_whitespace()
                     && !key.modifiers.contains(KeyModifiers::CONTROL) =>
             {
-                if self.api_key_input.len() < 16_384 {
-                    self.api_key_input.push(character);
-                }
+                insert_field_characters(
+                    &mut self.api_key_input,
+                    &mut self.api_key_cursor,
+                    &mut self.provider_input_selected_all,
+                    std::iter::once(character),
+                    16_384,
+                );
                 Action::None
             }
             _ => Action::None,
@@ -1180,10 +1422,34 @@ impl App {
     }
 
     fn handle_path_picker(&mut self, key: KeyEvent) -> Action {
+        if self.attachment_list_focused {
+            match key.code {
+                KeyCode::Esc => {
+                    self.path_picker = false;
+                    self.path_input.clear();
+                    self.attachment_list_focused = false;
+                }
+                KeyCode::Tab | KeyCode::BackTab => self.attachment_list_focused = false,
+                KeyCode::Left => {
+                    self.attachment_selected = self.attachment_selected.saturating_sub(1);
+                }
+                KeyCode::Right => {
+                    self.attachment_selected = (self.attachment_selected + 1)
+                        .min(self.attachments.len().saturating_sub(1));
+                }
+                KeyCode::Delete => self.remove_selected_attachment(),
+                _ => {}
+            }
+            return Action::None;
+        }
+
         match key.code {
             KeyCode::Esc => {
                 self.path_picker = false;
                 self.path_input.clear();
+            }
+            KeyCode::Tab | KeyCode::BackTab if !self.attachments.is_empty() => {
+                self.attachment_list_focused = true;
             }
             KeyCode::Enter | KeyCode::Right => {
                 let typed = self.path_input_text();
@@ -1224,14 +1490,6 @@ impl App {
                 self.path_selected = 0;
             }
             KeyCode::Left => self.navigate_path_parent(),
-            KeyCode::Delete => {
-                if !self.attachments.is_empty() {
-                    self.attachments.remove(self.attachment_selected);
-                    self.attachment_selected = self
-                        .attachment_selected
-                        .min(self.attachments.len().saturating_sub(1));
-                }
-            }
             KeyCode::Up => {
                 self.path_selected = self.path_selected.saturating_sub(1);
             }
@@ -1246,6 +1504,20 @@ impl App {
             _ => {}
         }
         Action::None
+    }
+
+    fn remove_selected_attachment(&mut self) {
+        if self.attachments.is_empty() {
+            self.attachment_list_focused = false;
+            return;
+        }
+        let removed = self.attachments.remove(self.attachment_selected);
+        self.attachment_selected = self
+            .attachment_selected
+            .min(self.attachments.len().saturating_sub(1));
+        self.attachment_list_focused = !self.attachments.is_empty();
+        self.status = format!("Attachment removed · {}", removed.name);
+        self.status_error = false;
     }
 
     fn navigate_path_parent(&mut self) {
@@ -1377,6 +1649,8 @@ impl App {
         match key.code {
             KeyCode::Esc => {
                 self.session_picker = false;
+                self.session_query.clear();
+                self.session_query_cursor = 0;
                 if std::mem::take(&mut self.session_picker_exit_on_cancel) {
                     Action::Quit
                 } else {
@@ -1388,19 +1662,61 @@ impl App {
                 Action::None
             }
             KeyCode::Down => {
-                self.session_selected =
-                    (self.session_selected + 1).min(self.sessions.len().saturating_sub(1));
+                self.session_selected = (self.session_selected + 1)
+                    .min(self.visible_sessions().len().saturating_sub(1));
+                Action::None
+            }
+            KeyCode::Left => {
+                self.session_query_cursor = self.session_query_cursor.saturating_sub(1);
+                Action::None
+            }
+            KeyCode::Right => {
+                self.session_query_cursor =
+                    (self.session_query_cursor + 1).min(self.session_query.len());
+                Action::None
+            }
+            KeyCode::Home => {
+                self.session_query_cursor = 0;
+                Action::None
+            }
+            KeyCode::End => {
+                self.session_query_cursor = self.session_query.len();
+                Action::None
+            }
+            KeyCode::Backspace => {
+                if self.session_query_cursor > 0 {
+                    self.session_query_cursor -= 1;
+                    self.session_query.remove(self.session_query_cursor);
+                    self.session_selected = 0;
+                }
+                Action::None
+            }
+            KeyCode::Delete => {
+                if self.session_query_cursor < self.session_query.len() {
+                    self.session_query.remove(self.session_query_cursor);
+                    self.session_selected = 0;
+                }
+                Action::None
+            }
+            KeyCode::Char(character) if !key.modifiers.contains(KeyModifiers::CONTROL) => {
+                self.session_query
+                    .insert(self.session_query_cursor, character);
+                self.session_query_cursor += 1;
+                self.session_selected = 0;
                 Action::None
             }
             KeyCode::Enter => {
-                let Some(session) = self.sessions.get(self.session_selected) else {
+                let Some((id, name)) = self
+                    .visible_sessions()
+                    .get(self.session_selected)
+                    .map(|session| (session.id.clone(), session.name.clone()))
+                else {
                     return Action::None;
                 };
-                let id = session.id.clone();
                 self.session_load_generation = self.session_load_generation.wrapping_add(1);
                 let request_id = self.session_load_generation;
                 self.session_loading = Some(id.clone());
-                self.status = format!("loading conversation · {}", session.name);
+                self.status = format!("loading conversation · {name}");
                 self.status_error = false;
                 Action::SwitchSession { id, request_id }
             }
@@ -1448,12 +1764,6 @@ impl App {
                 self.mark_slash_use("/quit");
                 self.clear_input();
                 Action::Quit
-            }
-            "/events" => {
-                self.mark_slash_use("/events");
-                self.view = View::Events;
-                self.clear_input();
-                Action::None
             }
             "/chat" => {
                 self.mark_slash_use("/chat");
@@ -1697,7 +2007,6 @@ impl App {
             streaming: true,
             ..LiveTurn::default()
         });
-        self.record_event("YOU", display_message, "queued");
         self.status = "thinking".to_owned();
         self.scroll.set(0);
         Action::Submit {
@@ -1741,17 +2050,20 @@ impl App {
         }
         if self.api_key_dialog && self.api_key_provider.is_some() {
             if self.provider_connection_field == 1 {
-                let remaining = 4_096usize.saturating_sub(self.provider_base_url_input.len());
-                self.provider_base_url_input
-                    .extend(value.trim().chars().take(remaining));
+                insert_field_characters(
+                    &mut self.provider_base_url_input,
+                    &mut self.provider_base_url_cursor,
+                    &mut self.provider_input_selected_all,
+                    value.trim().chars(),
+                    4_096,
+                );
             } else if self.provider_connection_field == 2 {
-                let remaining = 16_384usize.saturating_sub(self.api_key_input.len());
-                self.api_key_input.extend(
-                    value
-                        .trim()
-                        .chars()
-                        .filter(|character| !character.is_whitespace())
-                        .take(remaining),
+                insert_field_characters(
+                    &mut self.api_key_input,
+                    &mut self.api_key_cursor,
+                    &mut self.provider_input_selected_all,
+                    value.chars().filter(|character| !character.is_whitespace()),
+                    16_384,
                 );
             }
             return;
@@ -1792,7 +2104,9 @@ impl App {
         self.vcs = None;
         self.vcs_loading = false;
         self.vcs_confirm_revert = false;
+        self.vcs_selected = 0;
         self.vcs_scroll.set(0);
+        self.vcs_max_scroll.set(0);
         self.compacting_context = false;
         self.confirm_model_compaction = false;
         self.session = session;
@@ -1803,6 +2117,8 @@ impl App {
         self.attachments.clear();
         self.path_picker = false;
         self.path_input.clear();
+        self.attachment_selected = 0;
+        self.attachment_list_focused = false;
         self.path_directory = PathBuf::from(&self.cwd);
         self.path_entries.clear();
         self.path_selected = 0;
@@ -1815,7 +2131,6 @@ impl App {
         self.session_picker_exit_on_cancel = false;
         self.queued_prompts.clear();
         self.pending_slash_command = None;
-        self.events.clear();
         self.status.clear();
         self.status_error = false;
         self.view = View::Chat;
@@ -2038,11 +2353,6 @@ impl App {
     }
 
     pub fn apply_stream_event(&mut self, event: StreamEvent) {
-        self.record_event(
-            &event.name.to_uppercase(),
-            event_detail(&event),
-            event_state(&event),
-        );
         if let Some(plan) = plan_from_payload(&event.data) {
             self.set_plan(plan);
         }
@@ -2193,9 +2503,11 @@ impl App {
 
     pub fn set_vcs(&mut self, changes: VcsChanges) {
         self.vcs_loading = false;
+        self.vcs_selected = self.vcs_selected.min(changes.files.len().saturating_sub(1));
         self.vcs = Some(changes);
         self.vcs_confirm_revert = false;
         self.vcs_scroll.set(0);
+        self.vcs_max_scroll.set(0);
         self.status = "workspace changes refreshed".to_owned();
         self.status_error = false;
     }
@@ -2378,6 +2690,7 @@ impl App {
         self.input_cursor = 0;
         self.pasted_ranges.clear();
         self.slash_selected = 0;
+        self.slash_category = SlashCategory::All;
     }
 
     fn set_input(&mut self, value: &str) {
@@ -2385,6 +2698,66 @@ impl App {
         self.input_cursor = self.input.len();
         self.pasted_ranges.clear();
         self.slash_selected = 0;
+        self.slash_category = SlashCategory::All;
+    }
+}
+
+fn insert_field_characters(
+    input: &mut Vec<char>,
+    cursor: &mut usize,
+    selected_all: &mut bool,
+    characters: impl IntoIterator<Item = char>,
+    maximum: usize,
+) {
+    let characters = characters.into_iter().collect::<Vec<_>>();
+    if characters.is_empty() {
+        return;
+    }
+    if *selected_all {
+        input.zeroize();
+        *cursor = 0;
+        *selected_all = false;
+    }
+    let remaining = maximum.saturating_sub(input.len());
+    let characters = characters.into_iter().take(remaining).collect::<Vec<_>>();
+    input.splice(*cursor..*cursor, characters.iter().copied());
+    *cursor += characters.len();
+}
+
+fn delete_field_character(
+    input: &mut Vec<char>,
+    cursor: &mut usize,
+    selected_all: &mut bool,
+    before_cursor: bool,
+) {
+    if *selected_all {
+        input.zeroize();
+        *cursor = 0;
+        *selected_all = false;
+    } else if before_cursor && *cursor > 0 {
+        *cursor -= 1;
+        input.remove(*cursor);
+    } else if !before_cursor && *cursor < input.len() {
+        input.remove(*cursor);
+    }
+}
+
+fn move_field_cursor_left(input: &[char], cursor: &mut usize, selected_all: &mut bool) {
+    if *selected_all {
+        *cursor = 0;
+        *selected_all = false;
+    } else {
+        *cursor = cursor.saturating_sub(1);
+    }
+    *cursor = (*cursor).min(input.len());
+}
+
+fn move_field_cursor_right(input: &[char], cursor: &mut usize, selected_all: &mut bool) {
+    if *selected_all {
+        *cursor = input.len();
+        *selected_all = false;
+    } else {
+        *cursor = (*cursor + 1).min(input.len());
     }
 }
 
@@ -2619,38 +2992,6 @@ fn update_tool(live: &mut LiveTurn, value: &Value, done: bool) {
     }
 }
 
-fn event_detail(event: &StreamEvent) -> String {
-    match event.name.as_str() {
-        "meta" => string_field(&event.data, "model"),
-        _ if is_plan_update_event(&event.name) => "Plan updated".to_owned(),
-        "thinking_patch" => string_field(&event.data, "text"),
-        "text_patch" | "text_delta" => "Agent response".to_owned(),
-        "tool_start" | "tool_update" | "tool_end" => {
-            let name = string_field(&event.data, "name");
-            let message = string_field(&event.data, "message");
-            [name, message]
-                .into_iter()
-                .filter(|item| !item.is_empty())
-                .collect::<Vec<_>>()
-                .join(" · ")
-        }
-        "permission_request" => string_field(&event.data, "reason"),
-        "error" => string_field(&event.data, "message"),
-        _ => event.name.replace('_', " "),
-    }
-}
-
-fn event_state(event: &StreamEvent) -> &'static str {
-    match event.name.as_str() {
-        "tool_start" | "thinking_patch" | "text_patch" | "text_delta" => "active",
-        "error" => "error",
-        "permission_request" => "waiting",
-        "done" | "tool_end" | "text_end" => "done",
-        _ if is_plan_update_event(&event.name) => "done",
-        _ => "",
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
@@ -2658,14 +2999,14 @@ mod tests {
     use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 
     use super::{
-        advance_typewriter, apply_patch, attachment_draft, Action, App, Approval, LiveTurn,
-        SettingsPicker, HISTORY_IDLE_EVICT_DELAY, HISTORY_KEEP_MESSAGES, INIT_PROMPT,
-        MAX_LOADED_MESSAGES, PAGE_SCROLL_STEP,
+        advance_typewriter, apply_patch, attachment_draft, Action, App, Approval, AttachmentDraft,
+        LiveTurn, SettingsPicker, SlashCategory, View, HISTORY_IDLE_EVICT_DELAY,
+        HISTORY_KEEP_MESSAGES, INIT_PROMPT, MAX_LOADED_MESSAGES, PAGE_SCROLL_STEP,
     };
     use crate::model::{
         ChatMessage, ContextUsage, MessagePage, ModelOption, PageInfo, ProviderOption,
         SessionCwdUpdate, SessionModelUpdate, SessionSummary, StreamEvent, ThinkingAvailability,
-        ThinkingLevelUpdate, ToolDefinition,
+        ThinkingLevelUpdate, ToolDefinition, VcsChanges, VcsFile,
     };
     use serde_json::json;
 
@@ -2988,7 +3329,6 @@ mod tests {
             } if message == INIT_PROMPT && attachment_paths.is_empty()
         ));
         assert_eq!(app.messages.last().unwrap().text, "/init");
-        assert_eq!(app.events.last().unwrap().detail, "/init");
         assert!(!app
             .messages
             .last()
@@ -3751,6 +4091,159 @@ mod tests {
         assert_eq!(app.messages.last().unwrap().text, "first message");
         assert_eq!(app.sessions.len(), 1);
         assert_eq!(app.sessions[0].id, "session-1");
+    }
+
+    #[test]
+    fn session_picker_filters_unicode_fields_and_edits_at_the_cursor() {
+        let current = SessionSummary {
+            id: "session-1".to_owned(),
+            name: "Current".to_owned(),
+            model: "openai/model".to_owned(),
+            cwd: "/workspace/current".to_owned(),
+            execution_mode: "full-access".to_owned(),
+            ..SessionSummary::default()
+        };
+        let target = SessionSummary {
+            id: "session-2".to_owned(),
+            name: "中文 session".to_owned(),
+            model: "deepseek/chat".to_owned(),
+            cwd: "/workspace/other".to_owned(),
+            execution_mode: "read-only".to_owned(),
+            ..SessionSummary::default()
+        };
+        let mut app = App::new(
+            vec![current.clone(), target],
+            current,
+            Vec::new(),
+            None,
+            Vec::new(),
+            Vec::new(),
+        );
+        app.open_session_picker(false);
+        for character in "中文".chars() {
+            app.handle_key(KeyEvent::new(KeyCode::Char(character), KeyModifiers::NONE));
+        }
+        assert_eq!(app.visible_sessions()[0].id, "session-2");
+
+        app.handle_key(KeyEvent::new(KeyCode::Left, KeyModifiers::NONE));
+        app.handle_key(KeyEvent::new(KeyCode::Char('会'), KeyModifiers::NONE));
+        assert_eq!(app.session_query.iter().collect::<String>(), "中会文");
+        app.handle_key(KeyEvent::new(KeyCode::Backspace, KeyModifiers::NONE));
+        assert_eq!(app.session_query.iter().collect::<String>(), "中文");
+        assert!(matches!(
+            app.handle_key(KeyEvent::new(KeyCode::Enter, KeyModifiers::NONE)),
+            Action::SwitchSession { id, .. } if id == "session-2"
+        ));
+    }
+
+    #[test]
+    fn provider_connection_fields_support_cursor_editing_and_select_all() {
+        let mut app = test_app(Vec::new());
+        app.set_provider_options(vec![ProviderOption {
+            id: "custom".to_owned(),
+            name: "Custom".to_owned(),
+            provider_type: "chat".to_owned(),
+            enabled: true,
+            configured: true,
+            api: "openai-responses".to_owned(),
+            base_url: "https://old.example/v1".to_owned(),
+        }]);
+        app.open_api_key_dialog();
+        app.handle_key(KeyEvent::new(KeyCode::Enter, KeyModifiers::NONE));
+        app.handle_key(KeyEvent::new(KeyCode::Up, KeyModifiers::NONE));
+        app.handle_key(KeyEvent::new(KeyCode::Char('a'), KeyModifiers::CONTROL));
+        for character in "https://new.example/v1".chars() {
+            app.handle_key(KeyEvent::new(KeyCode::Char(character), KeyModifiers::NONE));
+        }
+        app.handle_key(KeyEvent::new(KeyCode::Home, KeyModifiers::NONE));
+        app.handle_key(KeyEvent::new(KeyCode::Delete, KeyModifiers::NONE));
+        assert_eq!(
+            app.provider_base_url_input.iter().collect::<String>(),
+            "ttps://new.example/v1"
+        );
+        assert_eq!(app.provider_base_url_cursor, 0);
+    }
+
+    #[test]
+    fn attachment_picker_focus_removes_the_selected_attachment() {
+        let mut app = test_app(Vec::new());
+        app.attachments = vec![
+            AttachmentDraft {
+                path: "/workspace/one.txt".into(),
+                name: "one.txt".to_owned(),
+                kind: "text".to_owned(),
+                size: 10,
+            },
+            AttachmentDraft {
+                path: "/workspace/two.txt".into(),
+                name: "two.txt".to_owned(),
+                kind: "text".to_owned(),
+                size: 20,
+            },
+        ];
+        app.open_path_picker();
+        app.handle_key(KeyEvent::new(KeyCode::Tab, KeyModifiers::NONE));
+        assert!(app.attachment_list_focused);
+        app.handle_key(KeyEvent::new(KeyCode::Right, KeyModifiers::NONE));
+        app.handle_key(KeyEvent::new(KeyCode::Delete, KeyModifiers::NONE));
+        assert_eq!(app.attachments.len(), 1);
+        assert_eq!(app.attachments[0].name, "one.txt");
+        app.handle_key(KeyEvent::new(KeyCode::Delete, KeyModifiers::NONE));
+        assert!(app.attachments.is_empty());
+        assert!(!app.attachment_list_focused);
+    }
+
+    #[test]
+    fn changes_view_moves_between_files_and_jumps_to_their_diff() {
+        let mut app = test_app(Vec::new());
+        app.view = View::Changes;
+        app.vcs = Some(VcsChanges {
+            vcs: "git".to_owned(),
+            files: vec![
+                VcsFile {
+                    path: "src/one.rs".to_owned(),
+                    status: "M".to_owned(),
+                },
+                VcsFile {
+                    path: "src/two.rs".to_owned(),
+                    status: "A".to_owned(),
+                },
+            ],
+            diff: "diff --git a/src/one.rs b/src/one.rs\n+one\ndiff --git a/src/two.rs b/src/two.rs\n+two\n"
+                .to_owned(),
+            ..VcsChanges::default()
+        });
+        app.vcs_max_scroll.set(20);
+
+        app.handle_key(KeyEvent::new(KeyCode::Right, KeyModifiers::NONE));
+        assert_eq!(app.vcs_selected, 1);
+        assert_eq!(app.vcs_scroll.get(), 2);
+        app.handle_key(KeyEvent::new(KeyCode::Left, KeyModifiers::NONE));
+        assert_eq!(app.vcs_selected, 0);
+        assert_eq!(app.vcs_scroll.get(), 0);
+    }
+
+    #[test]
+    fn slash_categories_cycle_without_replacing_tab_completion() {
+        let mut app = test_app(vec![ToolDefinition {
+            id: "read".to_owned(),
+            name: "Read".to_owned(),
+            description: "Read a file".to_owned(),
+            enabled: true,
+        }]);
+        app.set_input("/");
+        app.handle_key(KeyEvent::new(KeyCode::Right, KeyModifiers::NONE));
+        assert_eq!(app.slash_category, SlashCategory::Tools);
+        assert!(app
+            .slash_items()
+            .iter()
+            .all(|item| item.kind == super::SlashKind::Tool));
+        app.handle_key(KeyEvent::new(KeyCode::Left, KeyModifiers::NONE));
+        assert_eq!(app.slash_category, SlashCategory::All);
+
+        app.set_input("/rea");
+        app.handle_key(KeyEvent::new(KeyCode::Tab, KeyModifiers::NONE));
+        assert_eq!(app.input_text(), "/read ");
     }
 
     fn test_app(tools: Vec<ToolDefinition>) -> App {
