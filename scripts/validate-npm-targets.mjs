@@ -24,7 +24,7 @@ async function validateRelease(component, version) {
   if (!response.ok) throw new Error(`GitHub release ${tag} is unavailable: HTTP ${response.status}`)
   const release = await response.json()
   if (release.draft) throw new Error(`GitHub release ${tag} is still a draft.`)
-  const label = component === 'tui' ? 'TUI_Component' : 'Runtime'
+  const label = component === 'tui' ? 'TUI_Component' : 'Runtime_Node'
   const names = new Set((release.assets || []).map(({ name }) => name))
   const expected = platforms.flatMap((platform) => {
     const archive = `Pisper_${label}_${version}_${platform}.tar.gz`

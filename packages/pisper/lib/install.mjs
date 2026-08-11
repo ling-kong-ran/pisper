@@ -45,7 +45,7 @@ function decodeWrapped(value) {
 
 function componentAsset(component, version, platform = process.platform, arch = process.arch) {
   const target = supportedTarget(platform, arch)
-  const label = component === 'tui' ? 'TUI_Component' : 'Runtime'
+  const label = component === 'tui' ? 'TUI_Component' : 'Runtime_Node'
   return `Pisper_${label}_${version}_${target}.tar.gz`
 }
 
@@ -77,7 +77,7 @@ async function isFile(path) {
 
 function commandName(component) {
   if (component === 'tui') return executableName()
-  return process.platform === 'win32' ? 'pisper-sidecar.exe' : 'pisper-sidecar'
+  return 'sidecar-runtime/runtime/sidecar.mjs'
 }
 
 async function validateComponent(component, version, destination) {
@@ -296,33 +296,13 @@ export async function acquireInstallLock(lockPath, validate) {
   }
 }
 
-async function activateComponent(root, component, version) {
-  const componentRoot = join(root, component)
-  const pointer = join(componentRoot, 'current.json')
-  const temporary = join(componentRoot, `current.json.tmp-${process.pid}`)
-  await mkdir(componentRoot, { recursive: true })
-  await writeFile(temporary, `${JSON.stringify({ version }, null, 2)}\n`, 'utf8')
-  await rm(pointer, { force: true })
-  await rename(temporary, pointer)
-}
-
-async function installComponent({
-  root,
-  bundleRoot,
-  component,
-  version,
-  destination,
-  activate = false,
-}) {
+async function installComponent({ root, bundleRoot, component, version, destination }) {
   const lockRoot = join(root, 'npm')
   await mkdir(lockRoot, { recursive: true })
   const lockPath = join(lockRoot, `${component}-install.lock`)
   const validate = () => validateComponent(component, version, destination)
   const lock = await acquireInstallLock(lockPath, validate)
-  if (!lock) {
-    if (activate) await activateComponent(root, component, version)
-    return { version, destination, executable: await validate() }
-  }
+  if (!lock) return { version, destination, executable: await validate() }
 
   const staging = `${destination}.tmp-${process.pid}-${Date.now()}`
   // Renaming a tree with paths over MAX_PATH fails on Windows even though tar can extract it.
@@ -330,10 +310,7 @@ async function installComponent({
   const archivePath = `${staging}.tar.gz`
   try {
     const existing = await validate()
-    if (existing) {
-      if (activate) await activateComponent(root, component, version)
-      return { version, destination, executable: existing }
-    }
+    if (existing) return { version, destination, executable: existing }
 
     console.log(`pisper: installing ${component} ${version} from the npm platform package`)
     await mkdir(dirname(destination), { recursive: true })
@@ -356,7 +333,6 @@ async function installComponent({
       await rm(destination, { recursive: true, force: true })
       await rename(staging, destination)
     }
-    if (activate) await activateComponent(root, component, version)
     console.log(`pisper: ${component} ${version} is ready`)
     return { version, destination, executable: join(destination, commandName(component)) }
   } finally {
@@ -372,19 +348,16 @@ async function installComponent({
 export async function ensurePisperInstallation() {
   const root = componentsRoot()
   const npmTuiDestination = join(root, 'npm', 'versions', tuiVersion)
-  const runtimeDestination = join(root, 'runtime', 'versions', runtimeVersion)
+  const runtimeDestination = join(root, 'npm-runtime', 'versions', runtimeVersion)
   const [tui, runtime] = await Promise.all([
     resolveCurrentComponent(root, 'tui', tuiVersion).then(
       (current) => current || installedComponent('tui', tuiVersion, npmTuiDestination),
     ),
-    resolveCurrentComponent(root, 'runtime', runtimeVersion).then(
-      (current) => current || installedComponent('runtime', runtimeVersion, runtimeDestination),
-    ),
+    installedComponent('runtime', runtimeVersion, runtimeDestination),
   ])
   if (tui && runtime) {
     return {
       executable: tui.executable,
-      sidecar: runtime.executable,
       appRoot: join(runtime.destination, 'sidecar-runtime'),
     }
   }
@@ -406,12 +379,10 @@ export async function ensurePisperInstallation() {
         component: 'runtime',
         version: runtimeVersion,
         destination: runtimeDestination,
-        activate: true,
       }),
   ])
   return {
     executable: installedTui.executable,
-    sidecar: installedRuntime.executable,
     appRoot: join(installedRuntime.destination, 'sidecar-runtime'),
   }
 }

@@ -88,6 +88,9 @@ test('desktop frontend is packaged separately from the runtime payload', async (
 
   assert.match(archiver, /async function stageDesktop/)
   assert.match(archiver, /command: 'dist\/index\.html'/)
+  assert.match(archiver, /Pisper_Runtime_Node_/)
+  assert.match(archiver, /command: 'sidecar-runtime\/runtime\/sidecar\.mjs'/)
+  assert.match(archiver, /layout: \['sidecar-runtime\/'\]/)
   assert.doesNotMatch(seaBuilder, /runtimeDir, 'dist'/)
   assert.equal(tauriConfig.bundle.resources['../dist/'], 'desktop/dist/')
   assert.match(shell, /PISPER_FRONTEND_ROOT/)
@@ -266,10 +269,13 @@ test('desktop release validator requires installers and signed frontend componen
   }
 })
 
-test('runtime release validator requires signed platform archives', async () => {
+test('runtime release validator requires signed SEA and Node platform archives', async () => {
   const directory = await mkdtemp(join(tmpdir(), 'pisper-runtime-assets-'))
   const platforms = ['darwin_aarch64', 'darwin_x86_64', 'linux_x86_64', 'windows_x86_64']
-  const archives = platforms.map((platform) => `Pisper_Runtime_1.2.3_${platform}.tar.gz`)
+  const archives = platforms.flatMap((platform) => [
+    `Pisper_Runtime_1.2.3_${platform}.tar.gz`,
+    `Pisper_Runtime_Node_1.2.3_${platform}.tar.gz`,
+  ])
   const expected = archives.flatMap((archive) => [archive, `${archive}.sig`])
 
   try {

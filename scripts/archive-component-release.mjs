@@ -116,6 +116,35 @@ else if (component === 'runtime') await stageRuntime()
 else await stageTui()
 await createArchive(directoryName, archive)
 
+if (component === 'runtime') {
+  const nodeDirectoryName = `pisper-runtime-node-${version}-${platform}-${arch}`
+  const nodeStage = join(stageRoot, nodeDirectoryName)
+  const nodeArchive = join(outputDir, `Pisper_Runtime_Node_${version}_${platform}_${arch}.tar.gz`)
+  await rm(nodeStage, { recursive: true, force: true })
+  await mkdir(nodeStage, { recursive: true })
+  await cp(join(stage, 'sidecar-runtime'), join(nodeStage, 'sidecar-runtime'), {
+    recursive: true,
+    force: true,
+  })
+  await writeFile(
+    join(nodeStage, 'manifest.json'),
+    `${JSON.stringify(
+      {
+        name: 'pisper-runtime-node',
+        version,
+        platform,
+        arch,
+        command: 'sidecar-runtime/runtime/sidecar.mjs',
+        layout: ['sidecar-runtime/'],
+      },
+      null,
+      2,
+    )}\n`,
+    'utf8',
+  )
+  await createArchive(nodeDirectoryName, nodeArchive)
+}
+
 if (component === 'tui') {
   const thinDirectoryName = `pisper-tui-component-${version}-${platform}-${arch}`
   const thinStage = join(stageRoot, thinDirectoryName)

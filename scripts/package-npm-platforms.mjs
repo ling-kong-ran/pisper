@@ -60,7 +60,7 @@ export async function packageNpmPlatforms() {
     const version = npmPlatformVersion(npmVersion, target.platform, target.arch)
     const stage = join(stageRoot, alias)
     const tuiAsset = `Pisper_TUI_Component_${tuiVersion}_${target.release}.tar.gz`
-    const runtimeAsset = `Pisper_Runtime_${runtimeVersion}_${target.release}.tar.gz`
+    const runtimeAsset = `Pisper_Runtime_Node_${runtimeVersion}_${target.release}.tar.gz`
     const files = [
       [await requireArtifact(tuiAsset), join(stage, 'components', 'tui', tuiAsset)],
       [
@@ -85,7 +85,7 @@ export async function packageNpmPlatforms() {
     const manifest = {
       name: 'pisper',
       version,
-      description: `Pisper signed TUI and Runtime bundle for ${target.slug}.`,
+      description: `Pisper signed TUI and Node Runtime bundle for ${target.slug}.`,
       license: 'MIT',
       author: launcherManifest.author,
       repository: launcherManifest.repository,

@@ -93,8 +93,8 @@ jobs:
             --pattern "Pisper_TUI_Component_${TUI_VERSION}_*.tar.gz.sig"
           gh release download "runtime-v$RUNTIME_VERSION" \
             --dir release/npm/component-artifacts \
-            --pattern "Pisper_Runtime_${RUNTIME_VERSION}_*.tar.gz" \
-            --pattern "Pisper_Runtime_${RUNTIME_VERSION}_*.tar.gz.sig"
+            --pattern "Pisper_Runtime_Node_${RUNTIME_VERSION}_*.tar.gz" \
+            --pattern "Pisper_Runtime_Node_${RUNTIME_VERSION}_*.tar.gz.sig"
       - name: Pack platform-specific npm contents
         run: node scripts/package-npm-platforms.mjs
       - name: Smoke-test the packed launcher without a GitHub download
@@ -111,7 +111,7 @@ jobs:
             -C "$platform_dir" \
             --strip-components=1
           PISPER_NPM_INSTALL_DIR="$PWD/release/npm/smoke-data" node -e \
-            "import('./release/npm/smoke/node_modules/pisper/lib/install.mjs').then(async m => { const p = await m.ensurePisperInstallation(); if (!p.executable || !p.sidecar || !p.appRoot) process.exit(1) })"
+            "import('./release/npm/smoke/node_modules/pisper/lib/install.mjs').then(async m => { const p = await m.ensurePisperInstallation(); if (!p.executable || !p.appRoot || p.sidecar) process.exit(1) })"
       - name: Check whether the version is already published
         id: registry
         shell: bash

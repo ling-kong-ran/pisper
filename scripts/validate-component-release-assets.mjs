@@ -29,9 +29,10 @@ const label = component === 'tui' ? 'TUI' : 'Runtime'
 const platforms = ['darwin_aarch64', 'darwin_x86_64', 'linux_x86_64', 'windows_x86_64']
 const archives = platforms.flatMap((platform) => {
   const distribution = `Pisper_${label}_${version}_${platform}.tar.gz`
-  return component === 'tui'
-    ? [distribution, `Pisper_TUI_Component_${version}_${platform}.tar.gz`]
-    : [distribution]
+  if (component === 'tui') {
+    return [distribution, `Pisper_TUI_Component_${version}_${platform}.tar.gz`]
+  }
+  return [distribution, `Pisper_Runtime_Node_${version}_${platform}.tar.gz`]
 })
 const expected = archives.flatMap((archive) => [archive, `${archive}.sig`]).sort()
 const actual = (await filesUnder(directory)).map((file) => basename(file)).sort()

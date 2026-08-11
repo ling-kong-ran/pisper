@@ -4,7 +4,11 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import test from 'node:test'
 import { c as createTar } from 'tar'
-import { acquireInstallLock, extractComponentArchive } from '../../packages/pisper/lib/install.mjs'
+import {
+  acquireInstallLock,
+  ensurePisperInstallation,
+  extractComponentArchive,
+} from '../../packages/pisper/lib/install.mjs'
 import {
   componentsRoot,
   executableName,
@@ -121,7 +125,7 @@ test('npm launcher prepares signed components and serves its bundled Web fronten
     readFile('packages/pisper/lib/postinstall.mjs', 'utf8'),
   ])
 
-  assert.match(installer, /'TUI_Component'/)
+  assert.match(installer, /component === 'tui' \? 'TUI_Component' : 'Runtime_Node'/)
   assert.match(installer, /`Pisper_\$\{label\}_\$\{version\}_\$\{target\}\.tar\.gz`/)
   assert.match(installer, /component: 'runtime'/)
   assert.match(installer, /sidecar-runtime', 'package\.json'/)
@@ -129,12 +133,63 @@ test('npm launcher prepares signed components and serves its bundled Web fronten
   assert.match(installer, /process\.platform === 'win32' \? destination : staging/)
   assert.doesNotMatch(installer, /\bfetch\(|github\.com|PISPER_CLI_DOWNLOAD/)
   assert.doesNotMatch(installer, /\bcopyFile\b|\bcp\(/)
-  assert.match(launcher, /PISPER_SIDECAR_PATH: installation\.sidecar/)
+  assert.match(launcher, /PISPER_RUNTIME_NODE: process\.execPath/)
+  assert.doesNotMatch(launcher, /PISPER_SIDECAR_PATH/)
   assert.match(launcher, /PISPER_APP_ROOT: installation\.appRoot/)
   assert.match(launcher, /PISPER_FRONTEND_ROOT: frontendRoot/)
   assert.match(launcher, /handleNpmUpdate/)
   assert.match(postinstall, /ensurePisperInstallation/)
   assert.doesNotMatch(postinstall, /\bfetch\(|github\.com/)
+})
+
+test('npm installation uses an isolated Node Runtime without a SEA executable', async () => {
+  const installRoot = await mkdtemp(join(tmpdir(), 'pisper-node-runtime-'))
+  const previousInstallRoot = process.env.PISPER_NPM_INSTALL_DIR
+  process.env.PISPER_NPM_INSTALL_DIR = installRoot
+  const manifest = JSON.parse(await readFile('packages/pisper/package.json', 'utf8'))
+  const root = componentsRoot()
+  const tuiDestination = join(root, 'npm', 'versions', manifest.pisper.tuiVersion)
+  const runtimeDestination = join(root, 'npm-runtime', 'versions', manifest.pisper.runtimeVersion)
+  const runtimeRoot = join(runtimeDestination, 'sidecar-runtime')
+
+  try {
+    await Promise.all([
+      mkdir(tuiDestination, { recursive: true }),
+      mkdir(join(runtimeRoot, 'runtime'), { recursive: true }),
+    ])
+    await Promise.all([
+      writeFile(join(tuiDestination, executableName()), 'test TUI'),
+      writeFile(
+        join(tuiDestination, 'manifest.json'),
+        JSON.stringify({
+          version: manifest.pisper.tuiVersion,
+          platform: releasePlatform(),
+          arch: releaseArchitecture(),
+          command: executableName(),
+        }),
+      ),
+      writeFile(join(runtimeRoot, 'package.json'), '{}'),
+      writeFile(join(runtimeRoot, 'runtime', 'sidecar.mjs'), '// test Runtime'),
+      writeFile(
+        join(runtimeDestination, 'manifest.json'),
+        JSON.stringify({
+          version: manifest.pisper.runtimeVersion,
+          platform: releasePlatform(),
+          arch: releaseArchitecture(),
+          command: 'sidecar-runtime/runtime/sidecar.mjs',
+        }),
+      ),
+    ])
+
+    const installation = await ensurePisperInstallation()
+    assert.equal(installation.executable, join(tuiDestination, executableName()))
+    assert.equal(installation.appRoot, runtimeRoot)
+    assert.equal('sidecar' in installation, false)
+  } finally {
+    if (previousInstallRoot === undefined) delete process.env.PISPER_NPM_INSTALL_DIR
+    else process.env.PISPER_NPM_INSTALL_DIR = previousInstallRoot
+    await rm(installRoot, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 })
+  }
 })
 
 test('npm platform mapping matches signed component release assets', () => {

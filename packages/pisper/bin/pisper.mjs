@@ -18,7 +18,7 @@ try {
         PISPER_APP_ROOT: installation.appRoot,
         PISPER_DISTRIBUTION: 'npm',
         PISPER_FRONTEND_ROOT: frontendRoot,
-        PISPER_SIDECAR_PATH: installation.sidecar,
+        PISPER_RUNTIME_NODE: process.execPath,
       },
       stdio: 'inherit',
       windowsHide: false,
