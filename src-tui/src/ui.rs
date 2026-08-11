@@ -1552,8 +1552,7 @@ fn render_slash(frame: &mut Frame, app: &App, composer: Rect) {
 
     let command_width = sections[1].width.saturating_sub(8).clamp(8, 34) as usize;
     let detail_width = sections[1].width.saturating_sub(8) as usize;
-    let visible_count = (sections[1].height as usize / 2).clamp(1, 8);
-    let rows = items.iter().take(visible_count).map(|item| {
+    let rows = items.iter().map(|item| {
         let (kind, color) = match item.kind {
             SlashKind::Tool => ("T", ACCENT),
             SlashKind::Skill => ("S", VIOLET),
@@ -1582,14 +1581,18 @@ fn render_slash(frame: &mut Frame, app: &App, composer: Rect) {
     let list = List::new(rows)
         .highlight_symbol("▌")
         .highlight_style(Style::default().bg(RAISED).fg(TEXT));
-    let mut state = ListState::default()
-        .with_selected(Some(app.slash_selected.min(items.len().saturating_sub(1))));
+    let selected = (!items.is_empty()).then(|| app.slash_selected.min(items.len() - 1));
+    let mut state = ListState::default().with_selected(selected);
     frame.render_stateful_widget(list, sections[1], &mut state);
 
     frame.render_widget(
         Paragraph::new(format!(
-            "TOOLS {} · SKILLS {} · COMMANDS {}                         MOST USED",
-            counts.0, counts.1, counts.2
+            "TOOLS {} · SKILLS {} · COMMANDS {} · {}/{}",
+            counts.0,
+            counts.1,
+            counts.2,
+            selected.map_or(0, |index| index + 1),
+            items.len()
         ))
         .style(Style::default().fg(MUTED).bg(SURFACE)),
         sections[2],
@@ -2466,7 +2469,7 @@ mod tests {
     use unicode_width::UnicodeWidthStr;
 
     use super::{
-        compact_token_count, draw, format_session_time, push_live, push_markdown,
+        compact_token_count, draw, format_session_time, push_live, push_markdown, render_slash,
         runtime_error_label, slash_menu_area, visible_input, CONVERSATION_WIDTH, GREEN,
     };
     use crate::{
@@ -2911,6 +2914,43 @@ mod tests {
                 assert!(title.ends_with('┐'));
             }
         }
+    }
+
+    #[test]
+    fn slash_menu_scrolls_the_selected_command_into_view() {
+        let session = SessionSummary {
+            id: "session-1".to_owned(),
+            model: "openai/gpt-5.6-sol".to_owned(),
+            cwd: "/workspace".to_owned(),
+            execution_mode: "full-access".to_owned(),
+            ..SessionSummary::default()
+        };
+        let mut app = App::new(
+            vec![session.clone()],
+            session,
+            Vec::new(),
+            None,
+            Vec::new(),
+            Vec::new(),
+        );
+        app.input = vec!['/'];
+        app.input_cursor = 1;
+        let items = app.slash_items();
+        let first = items.first().unwrap().command.clone();
+        let selected = items.last().unwrap().command.clone();
+        app.slash_selected = items.len() - 1;
+
+        let mut terminal = Terminal::new(TestBackend::new(80, 24)).unwrap();
+        terminal
+            .draw(|frame| {
+                render_slash(frame, &app, ratatui::layout::Rect::new(5, 22, 70, 2));
+            })
+            .unwrap();
+        let rendered = format!("{:?}", terminal.backend().buffer());
+
+        assert!(rendered.contains(&selected));
+        assert!(!rendered.contains(&first));
+        assert!(rendered.contains(&format!("{}/{}", items.len(), items.len())));
     }
 
     #[test]
