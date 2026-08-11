@@ -205,6 +205,8 @@ pub struct App {
     pub status_error: bool,
     pub status_frame: u64,
     pub approval: Option<Approval>,
+    pub approval_scroll: Cell<u16>,
+    pub approval_max_scroll: Cell<u16>,
     pub events: Vec<EventLine>,
     pub attachments: Vec<AttachmentDraft>,
     pub path_picker: bool,
@@ -285,6 +287,8 @@ impl App {
             status_error: false,
             status_frame: 0,
             approval: None,
+            approval_scroll: Cell::new(0),
+            approval_max_scroll: Cell::new(0),
             events: Vec::new(),
             attachments: Vec::new(),
             path_picker: false,
@@ -811,6 +815,8 @@ impl App {
         if key.modifiers.contains(KeyModifiers::CONTROL) && key.code == KeyCode::Char('c') {
             return if self.is_streaming() || self.approval.is_some() {
                 self.approval = None;
+                self.approval_scroll.set(0);
+                self.approval_max_scroll.set(0);
                 if self.abort_pressed {
                     Action::Quit
                 } else {
@@ -839,6 +845,8 @@ impl App {
             return match key.code {
                 KeyCode::Char('y') | KeyCode::Char('Y') => {
                     self.approval = None;
+                    self.approval_scroll.set(0);
+                    self.approval_max_scroll.set(0);
                     Action::ResolveApproval {
                         id: approval.id,
                         approved: true,
@@ -846,10 +854,48 @@ impl App {
                 }
                 KeyCode::Char('n') | KeyCode::Char('N') | KeyCode::Esc => {
                     self.approval = None;
+                    self.approval_scroll.set(0);
+                    self.approval_max_scroll.set(0);
                     Action::ResolveApproval {
                         id: approval.id,
                         approved: false,
                     }
+                }
+                KeyCode::Up => {
+                    self.approval_scroll
+                        .set(self.approval_scroll.get().saturating_sub(1));
+                    Action::None
+                }
+                KeyCode::Down => {
+                    self.approval_scroll.set(
+                        self.approval_scroll
+                            .get()
+                            .saturating_add(1)
+                            .min(self.approval_max_scroll.get()),
+                    );
+                    Action::None
+                }
+                KeyCode::PageUp => {
+                    self.approval_scroll
+                        .set(self.approval_scroll.get().saturating_sub(PAGE_SCROLL_STEP));
+                    Action::None
+                }
+                KeyCode::PageDown => {
+                    self.approval_scroll.set(
+                        self.approval_scroll
+                            .get()
+                            .saturating_add(PAGE_SCROLL_STEP)
+                            .min(self.approval_max_scroll.get()),
+                    );
+                    Action::None
+                }
+                KeyCode::Home => {
+                    self.approval_scroll.set(0);
+                    Action::None
+                }
+                KeyCode::End => {
+                    self.approval_scroll.set(self.approval_max_scroll.get());
+                    Action::None
                 }
                 _ => Action::None,
             };
@@ -2080,6 +2126,8 @@ impl App {
                     risk: string_field(&event.data, "risk"),
                     reason: string_field(&event.data, "reason"),
                 });
+                self.approval_scroll.set(0);
+                self.approval_max_scroll.set(0);
                 self.status = "approval required".to_owned();
             }
             "session_title" => {
@@ -2719,6 +2767,8 @@ mod tests {
                 risk: "high".to_owned(),
                 reason: "Runs as the current OS user.".to_owned(),
             });
+            app.approval_scroll.set(3);
+            app.approval_max_scroll.set(8);
 
             assert!(matches!(
                 app.handle_key(KeyEvent::new(KeyCode::Char(key), KeyModifiers::NONE)),
@@ -2726,7 +2776,36 @@ mod tests {
                     if id == "approval-1" && actual == approved
             ));
             assert!(app.approval.is_none());
+            assert_eq!(app.approval_scroll.get(), 0);
+            assert_eq!(app.approval_max_scroll.get(), 0);
         }
+    }
+
+    #[test]
+    fn approval_command_supports_bounded_keyboard_scrolling() {
+        let mut app = test_app(Vec::new());
+        app.approval = Some(Approval {
+            id: "approval-1".to_owned(),
+            tool_name: "bash".to_owned(),
+            args: json!({ "command": "one\ntwo\nthree" }),
+            risk: "high".to_owned(),
+            reason: "Runs as the current OS user.".to_owned(),
+        });
+        app.approval_max_scroll.set(12);
+
+        app.handle_key(KeyEvent::new(KeyCode::Down, KeyModifiers::NONE));
+        assert_eq!(app.approval_scroll.get(), 1);
+        app.handle_key(KeyEvent::new(KeyCode::PageDown, KeyModifiers::NONE));
+        assert!(app.approval_scroll.get() > 1);
+        app.handle_key(KeyEvent::new(KeyCode::End, KeyModifiers::NONE));
+        assert_eq!(app.approval_scroll.get(), 12);
+        app.handle_key(KeyEvent::new(KeyCode::Down, KeyModifiers::NONE));
+        assert_eq!(app.approval_scroll.get(), 12);
+        app.handle_key(KeyEvent::new(KeyCode::PageUp, KeyModifiers::NONE));
+        assert!(app.approval_scroll.get() < 12);
+        app.handle_key(KeyEvent::new(KeyCode::Home, KeyModifiers::NONE));
+        assert_eq!(app.approval_scroll.get(), 0);
+        assert!(app.approval.is_some());
     }
 
     #[test]
@@ -2846,6 +2925,8 @@ mod tests {
     #[test]
     fn permission_events_keep_the_command_for_review() {
         let mut app = test_app(Vec::new());
+        app.approval_scroll.set(4);
+        app.approval_max_scroll.set(9);
         app.set_input("run date");
         assert!(matches!(app.submit_action(), Action::Submit { .. }));
         app.apply_stream_event(StreamEvent {
@@ -2862,6 +2943,8 @@ mod tests {
         let approval = app.approval.as_ref().unwrap();
         assert_eq!(approval.args["command"], "date +%A");
         assert_eq!(approval.risk, "high");
+        assert_eq!(app.approval_scroll.get(), 0);
+        assert_eq!(app.approval_max_scroll.get(), 0);
     }
 
     #[test]

@@ -2192,7 +2192,7 @@ fn render_api_key_dialog(frame: &mut Frame, app: &App, area: Rect) {
     frame.render_stateful_widget(list, inner, &mut state);
 }
 
-fn approval_detail_text(approval: &Approval) -> Text<'_> {
+fn approval_command_text(approval: &Approval) -> Text<'static> {
     let command = approval
         .args
         .get("command")
@@ -2217,12 +2217,40 @@ fn approval_detail_text(approval: &Approval) -> Text<'_> {
     if lines.is_empty() {
         lines.push(Line::from(Span::styled("$", Style::default().fg(ACCENT))));
     }
-    lines.push(Line::default());
-    lines.push(Line::from(Span::styled(
-        &approval.reason,
-        Style::default().fg(MUTED),
-    )));
     Text::from(lines)
+}
+
+fn approval_reason_text(approval: &Approval) -> Text<'static> {
+    let risk = if approval.risk.trim().is_empty() {
+        "unspecified".to_owned()
+    } else {
+        approval.risk.clone()
+    };
+    let reason = if approval.reason.trim().is_empty() {
+        "Not provided by the runtime".to_owned()
+    } else {
+        approval.reason.clone()
+    };
+    Text::from(Line::from(vec![
+        Span::styled(
+            "Risk · ",
+            Style::default().fg(AMBER).add_modifier(Modifier::BOLD),
+        ),
+        Span::styled(risk, Style::default().fg(RED)),
+        Span::raw("   "),
+        Span::styled(
+            "Reason · ",
+            Style::default().fg(AMBER).add_modifier(Modifier::BOLD),
+        ),
+        Span::styled(reason, Style::default().fg(TEXT)),
+    ]))
+}
+
+fn approval_reason_height(approval: &Approval, width: u16) -> u16 {
+    Paragraph::new(approval_reason_text(approval))
+        .wrap(Wrap { trim: false })
+        .line_count(width.max(1))
+        .clamp(1, 3) as u16
 }
 
 fn approval_panel_height(app: &App, area: Rect) -> u16 {
@@ -2230,11 +2258,13 @@ fn approval_panel_height(app: &App, area: Rect) -> u16 {
         return 0;
     };
     let inner_width = area.width.saturating_sub(4).max(1);
-    let details = Paragraph::new(approval_detail_text(approval)).wrap(Wrap { trim: false });
-    let desired = details
-        .line_count(inner_width)
+    let command_lines = Paragraph::new(approval_command_text(approval))
+        .wrap(Wrap { trim: false })
+        .line_count(inner_width);
+    let desired = command_lines
+        .saturating_add(approval_reason_height(approval, inner_width) as usize)
         .saturating_add(3)
-        .max(7)
+        .max(8)
         .min(u16::MAX as usize) as u16;
     let chat_reserve = if area.height >= 16 { 3 } else { 0 };
     let maximum = area
@@ -2267,18 +2297,50 @@ fn render_approval(frame: &mut Frame, app: &App, area: Rect) {
     if inner.height == 0 {
         return;
     }
+
+    let action_height = 1.min(inner.height);
+    let content_height = inner.height.saturating_sub(action_height);
+    let reason_height = if content_height >= 2 {
+        approval_reason_height(approval, inner.width).min(content_height.saturating_sub(1))
+    } else {
+        0
+    };
     let rows = Layout::default()
         .direction(Direction::Vertical)
-        .constraints([Constraint::Min(1), Constraint::Length(1)])
+        .constraints([
+            Constraint::Min(1),
+            Constraint::Length(reason_height),
+            Constraint::Length(action_height),
+        ])
         .split(inner);
-    frame.render_widget(
-        Paragraph::new(approval_detail_text(approval))
-            .wrap(Wrap { trim: false })
-            .style(Style::default().bg(SURFACE)),
-        rows[0],
-    );
-    let actions = if rows[1].width >= 52 {
-        Line::from(vec![
+
+    let command = Paragraph::new(approval_command_text(approval)).wrap(Wrap { trim: false });
+    let max_scroll = command
+        .line_count(rows[0].width.max(1))
+        .saturating_sub(rows[0].height as usize)
+        .min(u16::MAX as usize) as u16;
+    app.approval_max_scroll.set(max_scroll);
+    let scroll = app.approval_scroll.get().min(max_scroll);
+    app.approval_scroll.set(scroll);
+    if rows[0].height > 0 {
+        frame.render_widget(
+            command
+                .scroll((scroll, 0))
+                .style(Style::default().bg(SURFACE)),
+            rows[0],
+        );
+    }
+    if rows[1].height > 0 {
+        frame.render_widget(
+            Paragraph::new(approval_reason_text(approval))
+                .wrap(Wrap { trim: false })
+                .style(Style::default().bg(SURFACE)),
+            rows[1],
+        );
+    }
+
+    let mut actions = if rows[2].width >= 68 {
+        vec![
             Span::styled("Press ", Style::default().fg(MUTED)),
             Span::styled(
                 "[Y]",
@@ -2292,9 +2354,9 @@ fn render_approval(frame: &mut Frame, app: &App, area: Rect) {
                 Style::default().fg(RED).add_modifier(Modifier::BOLD),
             ),
             Span::styled(" Deny", Style::default().fg(TEXT)),
-        ])
+        ]
     } else {
-        Line::from(vec![
+        vec![
             Span::styled(
                 "[Y]",
                 Style::default().fg(GREEN).add_modifier(Modifier::BOLD),
@@ -2305,12 +2367,24 @@ fn render_approval(frame: &mut Frame, app: &App, area: Rect) {
                 Style::default().fg(RED).add_modifier(Modifier::BOLD),
             ),
             Span::styled(" Deny", Style::default().fg(TEXT)),
-        ])
+        ]
     };
-    frame.render_widget(
-        Paragraph::new(actions).style(Style::default().bg(SURFACE)),
-        rows[1],
-    );
+    if max_scroll > 0 {
+        actions.push(Span::styled(
+            if rows[2].width >= 40 {
+                "  ↑↓ inspect"
+            } else {
+                "  ↑↓"
+            },
+            Style::default().fg(MUTED),
+        ));
+    }
+    if rows[2].height > 0 {
+        frame.render_widget(
+            Paragraph::new(Line::from(actions)).style(Style::default().bg(SURFACE)),
+            rows[2],
+        );
+    }
 }
 
 fn visible_input(input: &[char], cursor: usize, available: usize) -> (String, usize) {
@@ -2900,7 +2974,11 @@ mod tests {
             let rendered = rows.join("\n");
 
             assert!(rendered.contains("Approval required"));
+            assert!(rendered.contains("Risk · high"));
             assert!(rendered.contains("date +%A"));
+            assert!(rendered.contains("Reason ·"));
+            assert!(rendered.contains("Runs as"));
+            assert!(rendered.contains("current OS user"));
             assert!(rendered.contains("[Y]"));
             assert!(rendered.contains("Allow"));
             assert!(rendered.contains("[N"));
@@ -2914,6 +2992,51 @@ mod tests {
                 assert!(title.ends_with('┐'));
             }
         }
+    }
+
+    #[test]
+    fn approval_keeps_the_reason_visible_while_scrolling_long_commands() {
+        let session = SessionSummary {
+            id: "session-1".to_owned(),
+            name: "Approval".to_owned(),
+            model: "openai/gpt-5.6-sol".to_owned(),
+            cwd: "/workspace".to_owned(),
+            execution_mode: "full-access".to_owned(),
+            ..SessionSummary::default()
+        };
+        let command = (0..30)
+            .map(|index| format!("line-{index:02}"))
+            .collect::<Vec<_>>()
+            .join("\n");
+        let mut app = App::new(
+            vec![session.clone()],
+            session,
+            Vec::new(),
+            None,
+            Vec::new(),
+            Vec::new(),
+        );
+        app.approval = Some(Approval {
+            id: "approval-1".to_owned(),
+            tool_name: "bash".to_owned(),
+            args: serde_json::json!({ "command": command }),
+            risk: "high".to_owned(),
+            reason: "DO NOT HIDE THIS REASON".to_owned(),
+        });
+
+        let mut terminal = Terminal::new(TestBackend::new(80, 16)).unwrap();
+        terminal.draw(|frame| draw(frame, &app)).unwrap();
+        let first_page = format!("{:?}", terminal.backend().buffer());
+        assert!(first_page.contains("line-00"));
+        assert!(first_page.contains("DO NOT HIDE THIS REASON"));
+        assert!(app.approval_max_scroll.get() > 0);
+
+        app.approval_scroll.set(app.approval_max_scroll.get());
+        terminal.draw(|frame| draw(frame, &app)).unwrap();
+        let last_page = format!("{:?}", terminal.backend().buffer());
+        assert!(last_page.contains("line-29"));
+        assert!(last_page.contains("DO NOT HIDE THIS REASON"));
+        assert!(last_page.contains("↑↓ inspect"));
     }
 
     #[test]
