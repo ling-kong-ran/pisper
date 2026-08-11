@@ -18,7 +18,7 @@ use std::{
 };
 
 use anyhow::{Context, Result};
-use app::{Action, App};
+use app::{normalize_key_event, Action, App};
 use crossterm::{
     cursor::MoveTo,
     event::{
@@ -485,6 +485,7 @@ async fn handle_key_with_paste_burst(
     api: &ApiClient,
     runtime_tx: &mpsc::UnboundedSender<RuntimeEvent>,
 ) -> Result<bool> {
+    let key = normalize_key_event(key);
     if !should_handle_key_kind(key.kind) {
         return Ok(false);
     }
@@ -1191,9 +1192,9 @@ impl Drop for TerminalSession {
 #[cfg(test)]
 mod tests {
     use super::{
-        draft_session, is_paste_shortcut, requested_help, resize_area, resize_has_settled,
-        resume_seed, should_handle_key_kind, should_notify_completion, terminal_content_area,
-        CLI_HELP, NPM_CLI_HELP, WEB_HELP,
+        draft_session, is_paste_shortcut, normalize_key_event, requested_help, resize_area,
+        resize_has_settled, resume_seed, should_handle_key_kind, should_notify_completion,
+        terminal_content_area, CLI_HELP, NPM_CLI_HELP, WEB_HELP,
     };
     use crate::model::SessionSummary;
     use crossterm::event::{KeyCode, KeyEvent, KeyEventKind, KeyModifiers};
@@ -1252,6 +1253,15 @@ mod tests {
         assert!(should_handle_key_kind(KeyEventKind::Press));
         assert!(should_handle_key_kind(KeyEventKind::Repeat));
         assert!(!should_handle_key_kind(KeyEventKind::Release));
+    }
+
+    #[test]
+    fn raw_line_endings_normalize_before_paste_detection() {
+        for character in ['\r', '\n'] {
+            let key =
+                normalize_key_event(KeyEvent::new(KeyCode::Char(character), KeyModifiers::NONE));
+            assert_eq!(key.code, KeyCode::Enter);
+        }
     }
 
     #[test]
