@@ -6,7 +6,7 @@ use std::{
     time::{Duration, Instant, SystemTime, UNIX_EPOCH},
 };
 
-use crossterm::event::{KeyCode, KeyEvent, KeyEventKind, KeyModifiers};
+use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use zeroize::Zeroize;
@@ -30,13 +30,6 @@ const HISTORY_IDLE_EVICT_DELAY: Duration = Duration::from_secs(90);
 const HISTORY_SCROLL_MARGIN: u16 = 8;
 const LINE_SCROLL_STEP: u16 = 1;
 const PAGE_SCROLL_STEP: u16 = 8;
-
-pub(crate) fn normalize_key_event(mut key: KeyEvent) -> KeyEvent {
-    if matches!(key.code, KeyCode::Char('\r' | '\n')) {
-        key.code = KeyCode::Enter;
-    }
-    key
-}
 
 #[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
 pub enum View {
@@ -785,8 +778,7 @@ impl App {
     }
 
     pub fn handle_key(&mut self, key: KeyEvent) -> Action {
-        let key = normalize_key_event(key);
-        if !matches!(key.kind, KeyEventKind::Press | KeyEventKind::Repeat) {
+        if key.kind != crossterm::event::KeyEventKind::Press {
             return Action::None;
         }
         if key.modifiers.contains(KeyModifiers::CONTROL)
@@ -2580,7 +2572,7 @@ fn event_state(event: &StreamEvent) -> &'static str {
 mod tests {
     use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
-    use crossterm::event::{KeyCode, KeyEvent, KeyEventKind, KeyModifiers};
+    use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 
     use super::{
         advance_typewriter, apply_patch, attachment_draft, Action, App, Approval, LiveTurn,
@@ -3115,19 +3107,10 @@ mod tests {
         app.session_selected = 1;
 
         assert!(matches!(
-            app.handle_key(KeyEvent::new(KeyCode::Char('\n'), KeyModifiers::NONE)),
+            app.handle_key(KeyEvent::new(KeyCode::Enter, KeyModifiers::NONE)),
             Action::SwitchSession { id, .. } if id == "other-session"
         ));
         assert_eq!(app.new_session_workspace(), launch);
-
-        app.open_session_picker(false);
-        app.session_selected = 1;
-        let mut repeated_enter = KeyEvent::new(KeyCode::Enter, KeyModifiers::NONE);
-        repeated_enter.kind = KeyEventKind::Repeat;
-        assert!(matches!(
-            app.handle_key(repeated_enter),
-            Action::SwitchSession { id, .. } if id == "other-session"
-        ));
 
         app.set_input(&format!("/dir {}", other.display()));
         assert!(matches!(
