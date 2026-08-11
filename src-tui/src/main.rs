@@ -505,6 +505,17 @@ async fn handle_key_with_paste_burst(
         return Ok(false);
     }
 
+    if composer_active
+        && is_inline_attachment_shortcut(
+            &key,
+            app.input_text().is_empty(),
+            paste_burst.is_buffering(),
+        )
+    {
+        let action = app.handle_key(key);
+        return execute_action(action, app, api, runtime_tx).await;
+    }
+
     if composer_active {
         if key.code == KeyCode::Esc {
             paste_burst.cancel();
@@ -545,6 +556,19 @@ fn should_handle_key_kind(kind: KeyEventKind) -> bool {
 fn is_paste_shortcut(key: &KeyEvent) -> bool {
     (matches!(key.code, KeyCode::Char('v' | 'V')) && key.modifiers.contains(KeyModifiers::CONTROL))
         || (key.code == KeyCode::Insert && key.modifiers.contains(KeyModifiers::SHIFT))
+}
+
+fn is_inline_attachment_shortcut(
+    key: &KeyEvent,
+    composer_empty: bool,
+    paste_buffering: bool,
+) -> bool {
+    key.code == KeyCode::Char('+')
+        && !key
+            .modifiers
+            .intersects(KeyModifiers::CONTROL | KeyModifiers::ALT)
+        && composer_empty
+        && !paste_buffering
 }
 
 #[cfg(windows)]
@@ -1191,9 +1215,9 @@ impl Drop for TerminalSession {
 #[cfg(test)]
 mod tests {
     use super::{
-        draft_session, is_paste_shortcut, requested_help, resize_area, resize_has_settled,
-        resume_seed, should_handle_key_kind, should_notify_completion, terminal_content_area,
-        CLI_HELP, NPM_CLI_HELP, WEB_HELP,
+        draft_session, is_inline_attachment_shortcut, is_paste_shortcut, requested_help,
+        resize_area, resize_has_settled, resume_seed, should_handle_key_kind,
+        should_notify_completion, terminal_content_area, CLI_HELP, NPM_CLI_HELP, WEB_HELP,
     };
     use crate::model::SessionSummary;
     use crossterm::event::{KeyCode, KeyEvent, KeyEventKind, KeyModifiers};
@@ -1252,6 +1276,21 @@ mod tests {
         assert!(should_handle_key_kind(KeyEventKind::Press));
         assert!(should_handle_key_kind(KeyEventKind::Repeat));
         assert!(!should_handle_key_kind(KeyEventKind::Release));
+    }
+
+    #[test]
+    fn inline_attachment_shortcut_bypasses_single_character_paste_detection() {
+        let plus = KeyEvent::new(KeyCode::Char('+'), KeyModifiers::SHIFT);
+        assert!(is_inline_attachment_shortcut(&plus, true, false));
+        assert!(!is_inline_attachment_shortcut(&plus, false, false));
+        assert!(!is_inline_attachment_shortcut(&plus, true, true));
+
+        let controlled_plus = KeyEvent::new(KeyCode::Char('+'), KeyModifiers::CONTROL);
+        assert!(!is_inline_attachment_shortcut(
+            &controlled_plus,
+            true,
+            false
+        ));
     }
 
     #[test]

@@ -2977,6 +2977,11 @@ mod tests {
         app.handle_key(KeyEvent::new(KeyCode::Esc, KeyModifiers::NONE));
 
         app.clear_input();
+        app.handle_key(KeyEvent::new(KeyCode::Char('+'), KeyModifiers::SHIFT));
+        assert!(app.path_picker);
+        assert_eq!(app.input_text(), "");
+        app.handle_key(KeyEvent::new(KeyCode::Esc, KeyModifiers::NONE));
+
         app.handle_key(KeyEvent::new(KeyCode::Char('@'), KeyModifiers::NONE));
         assert!(!app.path_picker);
         assert_eq!(app.input_text(), "@");
