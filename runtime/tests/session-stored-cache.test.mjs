@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict'
-import { mkdir, mkdtemp, rm } from 'node:fs/promises'
+import { mkdir, mkdtemp, readFile, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import test from 'node:test'
@@ -17,6 +17,29 @@ function freshRuntime(directory) {
   }
   return runtime
 }
+
+test('pre-persisted sessions remain writable when the first assistant message arrives', async (t) => {
+  const directory = await mkdtemp(join(tmpdir(), 'pisper-first-assistant-'))
+  t.after(() => rm(directory, { recursive: true, force: true }))
+  const runtime = freshRuntime(directory)
+
+  const created = await runtime.createSession('首条回复', directory)
+  const pending = runtime.sessionLifecycle.pendingSessions.get(created.id)
+  await ensureSessionFilePersisted(pending.manager, '首条回复', directory)
+
+  pending.manager.appendMessage({
+    role: 'assistant',
+    content: [{ type: 'text', text: '完成' }],
+    timestamp: Date.now(),
+  })
+
+  const entries = (await readFile(pending.manager.sessionFile, 'utf8'))
+    .trim()
+    .split('\n')
+    .map((line) => JSON.parse(line))
+  assert.equal(entries.filter((entry) => entry.type === 'session').length, 1)
+  assert.equal(entries.at(-1).message.role, 'assistant')
+})
 
 test('a fresh session stays addressable after resident eviction and workspace switch', async (t) => {
   const directory = await mkdtemp(join(tmpdir(), 'pisper-stored-cache-'))

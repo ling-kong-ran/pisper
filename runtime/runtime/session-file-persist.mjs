@@ -34,4 +34,8 @@ export async function ensureSessionFilePersisted(sessionManager, name = '', cwd 
   ]
   await mkdir(dirname(file), { recursive: true })
   await writeFile(file, `${lines.map((line) => `${line}\n`).join('')}`)
+  // The manager still considers a new session unflushed and would try to
+  // recreate this file with `wx` when the first assistant message arrives.
+  // Reloading the file synchronizes its in-memory entries and persistence state.
+  sessionManager.setSessionFile(file)
 }
