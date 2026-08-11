@@ -6,22 +6,22 @@
 
 ## 安装终端命令
 
-使用 Node.js 20+ 时，可以直接通过 npm 安装 Pisper CLI。npm 会从当前配置的 registry 获取轻量启动器以及当前平台的签名 TUI 与 Runtime 包，不再从 GitHub Releases 下载；首次运行只在本地验签和解压，不包含桌面壳或 Web 前端：
+使用 Node.js 20+ 时，可以直接通过 npm 安装 Pisper CLI。npm 会从当前配置的 registry 获取轻量启动器、包内 Web 前端以及当前平台的签名 TUI 与 Runtime 包，不再从 GitHub Releases 下载；安装过程会在本地完成验签和解压，命令返回后即可运行，不包含桌面壳：
 
 ```bash
-npm install -g pisper --progress=true
+npm install -g pisper --progress=true --foreground-scripts
 pisper
 ```
 
-使用 npm 镜像时，平台包会走同一个 registry。动态进度条由 npm 绘制，可显式增加 `--progress=true`；需要查看请求和缓存明细时再增加 `--loglevel=info`：
+使用 npm 镜像时，平台包会走同一个 registry。`--progress=true` 显示 npm 下载进度，`--foreground-scripts` 显示本地验签和解压阶段；需要查看请求和缓存明细时再增加 `--loglevel=info`：
 
 ```bash
-npm install -g pisper --registry=https://registry.npmmirror.com --progress=true
+npm install -g pisper --registry=https://registry.npmmirror.com --progress=true --foreground-scripts
 ```
 
-使用 `pisper --help` 可直接查看首次使用、会话恢复、诊断、更新和 Web 配置入口，不需要另行查阅 README。
+npm 发行版使用 `pisper --help` 可直接查看首次使用、会话恢复、诊断、整体 npm 更新和 Web 配置入口，不需要另行查阅 README。
 
-安装 Pisper 桌面版后，也可以打开 **设置 → 终端**，安装、修复或卸载 `pisper` 命令。Pisper 将可执行文件安装到当前用户目录并管理对应的 `PATH` 项，不需要管理员权限。
+安装 Pisper 桌面版后，也可以打开 **设置 → 应用更新**，安装、修复或卸载 `pisper` 命令。Pisper 将可执行文件安装到当前用户目录并管理对应的 `PATH` 项，不需要管理员权限。
 
 通过桌面版安装或卸载后需要完全重启终端宿主：Windows Terminal 需退出全部窗口后重开，IDE 内置终端需重启 IDE。
 
@@ -41,19 +41,16 @@ release/tui/pisper-<version>-<platform>-<arch>/
 └── sidecar-runtime/
 ```
 
-## 独立更新
+## 发行版更新
 
-检查或安装 TUI 客户端和 Runtime 更新：
+npm 发行版提供一个整体更新入口，不提供 TUI、Runtime 或 Web 组件选择：
 
 ```bash
 pisper update --check
-pisper update tui
-pisper update runtime
-pisper update web
-pisper update all
+pisper update
 ```
 
-TUI、Runtime 与可选 Web 前端使用独立版本和签名 Release 通道。普通 `pisper` 或 `pisper resume` 启动时在后台异步检查 TUI/Runtime 新版本，**不会阻塞或延迟启动**（离线或无法访问更新源时静默跳过）；发现更新时在界面状态区提示一行摘要，随时可用 `pisper update` 手动安装。更新器只接受匹配当前平台的签名组件包，验签和安全解压成功后才原子切换版本。`tui` 更新下载轻量客户端包，不会重复下载 Runtime；`runtime` 更新在下次启动时生效。无内置 sidecar 的轻量 TUI 首次启动时会安装最新的签名 Runtime 组件。`all` 只更新 TUI 与 Runtime，Web 始终保持按需安装。
+该命令使用当前配置的 npm registry 更新 launcher、包内 Web、签名 TUI 与 Runtime 平台包。npm 安装过程会完成本地验签和解压，返回后即可直接运行。独立 TUI 不提供组件更新命令或后台更新检查；桌面发行版统一由 **设置 → 应用更新** 管理。无内置 sidecar 的独立轻量 TUI 在缺少 Runtime 时仍会安装所需的签名 Runtime，保证首次启动可用。
 
 ## Provider 与可选 Web 配置
 
@@ -65,7 +62,7 @@ TUI、Runtime 与可选 Web 前端使用独立版本和签名 Release 通道。�
 pisper web
 ```
 
-该命令会按需安装签名 Web 前端，启动只监听 `127.0.0.1` 的 Runtime，并通过一次性认证入口在默认浏览器打开 Provider 设置。终端中的 Pisper 进程需要在浏览器使用期间保持运行。Web 配置页的 **保存 Provider 配置** 只保存当前连接；只有 **设为默认 Provider** 会修改后续会话的默认模型。正在运行的会话不会因保存配置或切换默认模型而中断。
+npm 发行版会直接使用包内 Web 前端；独立 TUI 在本地没有 Web 时才安装签名 Web 组件。该命令启动只监听 `127.0.0.1` 的 Runtime，并通过一次性认证入口在默认浏览器打开 Provider 设置。终端中的 Pisper 进程需要在浏览器使用期间保持运行。Web 配置页的 **保存 Provider 配置** 只保存当前连接；只有 **设为默认 Provider** 会修改后续会话的默认模型。正在运行的会话不会因保存配置或切换默认模型而中断。
 
 Web 前端已安装时，可在 TUI 中输入 `/web` 再次打开配置页；尚未安装时先退出并运行 `pisper web`。
 

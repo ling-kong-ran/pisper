@@ -144,20 +144,22 @@ sudo apt install ./Pisper-*-linux-amd64.deb
 
 ### Terminal Client (TUI)
 
-With Node.js 20+, you can install the Pisper CLI through npm. npm obtains the lightweight launcher and the signed TUI and Runtime packages for the current platform from the configured registry, without downloading from GitHub Releases. The first run only verifies and extracts those local packages; it does not install the desktop shell or Web frontend:
+With Node.js 20+, you can install the Pisper CLI through npm. npm obtains the lightweight launcher, platform-independent Web frontend, and signed TUI and Runtime packages for the current platform from the configured registry, without downloading from GitHub Releases. Installation verifies and extracts the local component packages so Pisper is ready when the command returns; it does not install the desktop shell:
 
 ```bash
-npm install -g pisper --progress=true
+npm install -g pisper --progress=true --foreground-scripts
 pisper
+pisper update --check  # check the complete distribution through the npm registry
+pisper update          # update the launcher, Web, TUI, and Runtime through npm
 ```
 
-Platform packages use the same registry when an npm mirror is configured. npm renders the dynamic progress bar; enable it explicitly with `--progress=true`, and add `--loglevel=info` only when request and cache details are needed:
+Platform packages use the same registry when an npm mirror is configured. `--progress=true` shows npm download progress, while `--foreground-scripts` shows local signature verification and extraction; add `--loglevel=info` only when request and cache details are needed:
 
 ```bash
-npm install -g pisper --registry=https://registry.npmmirror.com --progress=true
+npm install -g pisper --registry=https://registry.npmmirror.com --progress=true --foreground-scripts
 ```
 
-After entering the TUI for the first time, use `/provider` to choose a Provider and save its API key in a masked input; for a known Provider, `/provider <id>` skips the picker (`/apikey` remains a compatible alias). For visual configuration, run `pisper web`; Pisper installs the signed Web frontend on demand and opens an authenticated, localhost-only settings page in your default browser. **Save Provider settings** does not change the default model; only **Set as default Provider** changes the default for later sessions.
+After entering the TUI for the first time, use `/provider` to choose a Provider and save its API key in a masked input; for a known Provider, `/provider <id>` skips the picker (`/apikey` remains a compatible alias). For visual configuration, run `pisper web`; Pisper uses the Web frontend bundled in the npm package and opens an authenticated, localhost-only settings page in your default browser. **Save Provider settings** does not change the default model; only **Set as default Provider** changes the default for later sessions.
 
 After installing the desktop app, you can also install the `pisper` command from **Settings → App updates**. The first installation remains explicit; after later desktop updates restart Pisper, it automatically refreshes this managed terminal client:
 
@@ -165,12 +167,11 @@ After installing the desktop app, you can also install the `pisper` command from
 pisper                 # start a new conversation
 pisper resume          # resume from a list across all workspaces
 pisper doctor          # diagnose the runtime
-pisper web             # install and open the optional Web settings
-pisper update --check  # check TUI, Runtime, and optional Web updates
+pisper web             # open Web settings
 pisper --help          # show complete onboarding and command help
 ```
 
-`pisper update all` updates only the TUI and Runtime. Web remains opt-in and can be updated separately with `pisper update web`. See the **[Pisper TUI user guide](./src-tui/README.en.md)** for installation, commands, keyboard controls, attachments, execution modes, and approvals.
+The npm distribution has one complete `pisper update` command. It uses the configured npm registry to update the launcher, Web, TUI, and Runtime; `pisper update --check` only queries and does not install, and component names are not accepted. The standalone TUI exposes no component-update command; the desktop distribution is managed through **Settings → App updates**. See the **[Pisper TUI user guide](./src-tui/README.en.md)** for installation, commands, keyboard controls, attachments, execution modes, and approvals.
 
 ### Run from Source
 

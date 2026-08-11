@@ -57,14 +57,12 @@ Usage:
   pisper resume [OPTIONS]
   pisper doctor [OPTIONS]
   pisper web [OPTIONS]
-  pisper update [COMPONENT] [--check]
   pisper help [COMMAND]
 
 Commands:
   resume    Choose and resume a conversation from any workspace
   doctor    Check the TUI, Runtime connection, and capability catalogs
-  web       Install the signed Web UI and open Provider settings in your browser
-  update    Check for or install signed component updates
+  web       Open Provider settings in your browser
   help      Print this help or help for a command
 
 Options:
@@ -85,37 +83,51 @@ Examples:
   pisper resume
   pisper doctor
   pisper web
+  pisper help web";
+
+const NPM_CLI_HELP: &str = "Pisper CLI
+
+Start a coding session in your terminal.
+
+Usage:
+  pisper [OPTIONS]
+  pisper resume [OPTIONS]
+  pisper doctor [OPTIONS]
+  pisper web [OPTIONS]
+  pisper update [--check]
+  pisper help [COMMAND]
+
+Commands:
+  resume    Choose and resume a conversation from any workspace
+  doctor    Check the TUI, Runtime connection, and capability catalogs
+  web       Open the bundled Web UI and Provider settings in your browser
+  update    Update the complete Pisper distribution through npm
+  help      Print this help or help for a command
+
+Options:
+  --cwd <directory>  Use a specific workspace (default: current directory)
+  -h, --help         Print help
+  -V, --version      Print the installed TUI version
+
+Getting started:
+  1. Change to your project directory.
+  2. Run `pisper`. Use `/provider` to choose a Provider and save its API Key in the terminal.
+  3. Type a request and press Enter. Type `/` to browse commands.
+  4. Run `pisper web` for the bundled visual settings and workspace UI.
+  5. Press Ctrl+C to stop a running Agent, or press it while idle to exit.
+
+Examples:
+  pisper
+  pisper --cwd /path/to/project
+  pisper resume
+  pisper doctor
+  pisper web
   pisper update --check
   pisper help update";
 
-const UPDATE_HELP: &str = "Pisper component updates
-
-Check for or install independently signed TUI, Runtime, and optional Web updates.
-Interactive session starts also check TUI and Runtime once and ask before installing.
-
-Usage:
-  pisper update [COMPONENT] [--check]
-
-Components:
-  tui      Terminal client only
-  runtime  Agent Runtime only
-  web      Optional browser UI only
-  all      TUI and Runtime (default; Web remains opt-in)
-
-Options:
-  --check      Check for updates without installing them
-  -h, --help   Print update help
-
-Examples:
-  pisper update --check
-  pisper update tui
-  pisper update runtime
-  pisper update web
-  pisper update all";
-
 const WEB_HELP: &str = "Pisper Web UI
 
-Install the independently signed Web frontend and open Provider settings in your default browser.
+Open the bundled or installed Web frontend and Provider settings in your default browser.
 The local Runtime remains bound to 127.0.0.1 and browser access uses a one-time bootstrap URL.
 
 Usage:
@@ -139,16 +151,15 @@ async fn main() {
 
 async fn run() -> Result<()> {
     let arguments = std::env::args_os().skip(1).collect::<Vec<_>>();
-    if let Some(help) = requested_help(&arguments) {
+    if let Some(help) = requested_help(
+        &arguments,
+        std::env::var("PISPER_DISTRIBUTION").as_deref() == Ok("npm"),
+    ) {
         println!("{help}");
         return Ok(());
     }
-    if let Some(request) = component_update::parse_update_request(&arguments)? {
-        component_update::execute(request).await?;
-        return Ok(());
-    }
     let options = launch_options()?;
-    if options.web {
+    if options.web && sidecar::configured_frontend_root().is_none() {
         component_update::ensure_web().await?;
     }
     if sidecar::needs_runtime_install() {
@@ -296,19 +307,6 @@ async fn run_event_loop(
             skills,
         });
     });
-    // Component update checks run in the background: the release feed may be
-    // slow or unreachable (offline machines) and must never delay the TUI.
-    // Any available updates surface as an in-app notice; install via
-    // `pisper update` at any time.
-    let update_sender = runtime_tx.clone();
-    tokio::spawn(async move {
-        let updates = component_update::check_available_updates().await;
-        if !updates.is_empty() {
-            let _ = update_sender.send(RuntimeEvent::StartupUpdates {
-                message: updates.join(" · "),
-            });
-        }
-    });
     let mut animation = tokio::time::interval(Duration::from_millis(24));
     animation.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Skip);
     let mut status_animation = tokio::time::interval(Duration::from_millis(120));
@@ -426,10 +424,6 @@ async fn run_event_loop(
                                     }
                                 }
                                 false
-                            }
-                            RuntimeEvent::StartupUpdates { message } => {
-                                app.set_startup_updates(message);
-                                true
                             }
                         };
                         if terminal_event {
@@ -953,7 +947,7 @@ async fn execute_action(
             }
         }
         Action::OpenWeb => {
-            if sidecar::installed_frontend().is_none() {
+            if sidecar::configured_frontend_root().is_none() {
                 app.status = "Web UI is not installed · exit and run `pisper web`".to_owned();
                 app.status_error = true;
             } else {
@@ -1078,13 +1072,13 @@ struct LaunchOptions {
     web: bool,
 }
 
-fn requested_help(arguments: &[OsString]) -> Option<&'static str> {
+fn requested_help(arguments: &[OsString], npm_distribution: bool) -> Option<&'static str> {
     let first = arguments.first().and_then(|argument| argument.to_str());
     if first == Some("help") {
         return Some(
             match arguments.get(1).and_then(|argument| argument.to_str()) {
-                Some("update") => UPDATE_HELP,
                 Some("web") => WEB_HELP,
+                _ if npm_distribution => NPM_CLI_HELP,
                 _ => CLI_HELP,
             },
         );
@@ -1093,8 +1087,8 @@ fn requested_help(arguments: &[OsString]) -> Option<&'static str> {
         .iter()
         .any(|argument| argument == "--help" || argument == "-h");
     help_requested.then_some(match first {
-        Some("update") => UPDATE_HELP,
         Some("web") => WEB_HELP,
+        _ if npm_distribution => NPM_CLI_HELP,
         _ => CLI_HELP,
     })
 }
@@ -1182,7 +1176,7 @@ mod tests {
     use super::{
         draft_session, is_paste_shortcut, requested_help, resize_area, resize_has_settled,
         resume_seed, should_handle_key_kind, should_notify_completion, terminal_content_area,
-        CLI_HELP, UPDATE_HELP, WEB_HELP,
+        CLI_HELP, NPM_CLI_HELP, WEB_HELP,
     };
     use crate::model::SessionSummary;
     use crossterm::event::{KeyCode, KeyEvent, KeyEventKind, KeyModifiers};
@@ -1190,32 +1184,34 @@ mod tests {
     use tokio::time::Instant;
 
     #[test]
-    fn help_routes_cover_global_update_and_web_commands() {
+    fn help_routes_cover_global_and_web_commands_without_component_updates() {
         use std::ffi::OsString;
 
-        assert_eq!(requested_help(&[OsString::from("--help")]), Some(CLI_HELP));
-        assert_eq!(requested_help(&[OsString::from("help")]), Some(CLI_HELP));
         assert_eq!(
-            requested_help(&[OsString::from("help"), OsString::from("update")]),
-            Some(UPDATE_HELP)
+            requested_help(&[OsString::from("--help")], false),
+            Some(CLI_HELP)
         );
         assert_eq!(
-            requested_help(&[OsString::from("update"), OsString::from("-h")]),
-            Some(UPDATE_HELP)
+            requested_help(&[OsString::from("help")], false),
+            Some(CLI_HELP)
         );
         assert_eq!(
-            requested_help(&[OsString::from("help"), OsString::from("web")]),
+            requested_help(&[OsString::from("--help")], true),
+            Some(NPM_CLI_HELP)
+        );
+        assert_eq!(
+            requested_help(&[OsString::from("help"), OsString::from("web")], false),
             Some(WEB_HELP)
         );
         assert_eq!(
-            requested_help(&[OsString::from("web"), OsString::from("--help")]),
+            requested_help(&[OsString::from("web"), OsString::from("--help")], false),
             Some(WEB_HELP)
         );
         assert!(CLI_HELP.contains("pisper web"));
+        assert!(!CLI_HELP.contains("pisper update"));
+        assert!(NPM_CLI_HELP.contains("pisper update [--check]"));
         assert!(CLI_HELP.contains("/provider"));
         assert!(!CLI_HELP.contains("/apikey"));
-        assert!(UPDATE_HELP.contains("ask before installing"));
-        assert!(UPDATE_HELP.contains("web"));
     }
 
     #[test]

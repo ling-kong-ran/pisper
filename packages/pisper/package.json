@@ -24,9 +24,13 @@
   "bin": {
     "pisper": "bin/pisper.mjs"
   },
+  "scripts": {
+    "postinstall": "node lib/postinstall.mjs"
+  },
   "files": [
     "bin/",
     "lib/",
+    "web/",
     "updater.pubkey",
     "README.md",
     "README.en.md",

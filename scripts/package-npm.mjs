@@ -36,7 +36,6 @@ export async function packageNpm() {
     'Runtime version',
   )
   delete manifest.private
-  delete manifest.scripts
   manifest.optionalDependencies = npmPlatformOptionalDependencies(manifest.version)
   manifest.publishConfig = { access: 'public', provenance: true }
 
@@ -46,6 +45,7 @@ export async function packageNpm() {
   await Promise.all([
     cp(join(source, 'bin'), join(stage, 'bin'), { recursive: true }),
     cp(join(source, 'lib'), join(stage, 'lib'), { recursive: true }),
+    cp(join(root, 'dist'), join(stage, 'web'), { recursive: true }),
     copyFile(join(source, 'updater.pubkey'), join(stage, 'updater.pubkey')),
     copyFile(join(root, 'README.md'), join(stage, 'README.md')),
     copyFile(join(root, 'README.en.md'), join(stage, 'README.en.md')),
@@ -62,13 +62,16 @@ export async function packageNpm() {
     'bin/pisper.mjs',
     'lib/install.mjs',
     'lib/npm-platform.mjs',
+    'lib/npm-update.mjs',
     'lib/platform.mjs',
+    'lib/postinstall.mjs',
     'package.json',
     'updater.pubkey',
+    'web/index.html',
   ]
   const actual = result.files.map(({ path }) => path).sort()
   const missing = expected.filter((path) => !actual.includes(path))
-  const unexpected = actual.filter((path) => !expected.includes(path))
+  const unexpected = actual.filter((path) => !expected.includes(path) && !path.startsWith('web/'))
   if (missing.length || unexpected.length) {
     throw new Error(
       [

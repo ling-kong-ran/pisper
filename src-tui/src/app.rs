@@ -200,7 +200,6 @@ pub struct App {
     pub status: String,
     pub status_error: bool,
     pub status_frame: u64,
-    pub startup_updates: Option<String>,
     pub approval: Option<Approval>,
     pub events: Vec<EventLine>,
     pub attachments: Vec<AttachmentDraft>,
@@ -276,7 +275,6 @@ impl App {
             status: String::new(),
             status_error: false,
             status_frame: 0,
-            startup_updates: None,
             approval: None,
             events: Vec::new(),
             attachments: Vec::new(),
@@ -427,10 +425,6 @@ impl App {
         self.set_provider_options(provider_options);
         self.tools = tools;
         self.skills = skills;
-    }
-
-    pub fn set_startup_updates(&mut self, message: String) {
-        self.startup_updates = Some(message);
     }
 
     pub fn is_draft_session(&self) -> bool {

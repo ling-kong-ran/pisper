@@ -45,11 +45,13 @@ test('npm, Provider setup, and optional Web onboarding stay documented', async (
     assert.match(document, /\/provider/)
   }
   for (const guide of [chineseTuiGuide, englishTuiGuide]) {
-    assert.match(guide, /pisper update web/)
+    assert.match(guide, /pisper update --check/)
     assert.match(guide, /\| `\/web`/)
+    assert.doesNotMatch(guide, /pisper update (?:tui|runtime|web|all)/)
   }
   assert.match(cliSource, /pisper help \[COMMAND\]/)
-  assert.match(cliSource, /pisper update web/)
+  assert.match(cliSource, /pisper update \[--check\]/)
+  assert.doesNotMatch(cliSource, /pisper update \[COMPONENT\]/)
   assert.match(cliSource, /Use `\/provider`/)
 })
 

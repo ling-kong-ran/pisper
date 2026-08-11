@@ -61,11 +61,16 @@ jobs:
       - uses: actions/setup-node@v5
         with:
           node-version: 24
+          cache: npm
       - name: Verify immutable release source
         shell: bash
         run: |
           git fetch origin release
           node scripts/verify-release-head.mjs "$RELEASE_SOURCE_SHA" origin/release
+      - name: Install source dependencies
+        run: npm ci
+      - name: Build bundled Web frontend
+        run: npm run build
       - name: Stage independent npm package version
         run: >-
           node scripts/stage-npm-release-version.mjs
@@ -98,6 +103,7 @@ jobs:
           npm install \
             --prefix release/npm/smoke \
             --omit=optional \
+            --ignore-scripts \
             "release/npm/tarballs/pisper-${NPM_VERSION}.tgz"
           platform_dir="release/npm/smoke/node_modules/pisper-binary-linux-x64"
           mkdir -p "$platform_dir"

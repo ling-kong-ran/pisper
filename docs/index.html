@@ -446,12 +446,14 @@
             工作区能力。Node.js 20+ 用户可直接通过 npm 安装：
           </p>
           <div class="terminal-install" aria-label="npm 安装命令">
-            <code>npm install -g pisper</code>
+            <code>npm install -g pisper --progress=true --foreground-scripts</code>
             <code>pisper</code>
+            <code>pisper update</code>
           </div>
           <p>
-            首次进入后使用 <code>/provider</code> 选择 Provider 并安全配置 API Key；运行
-            <code>pisper web</code> 可按需安装签名 Web 前端并在浏览器打开本机认证配置页。
+            npm 包含 Web、TUI 与 Runtime，安装完成后即可使用。首次进入后使用
+            <code>/provider</code> 选择 Provider 并安全配置 API Key；运行
+            <code>pisper web</code> 可直接打开包内 Web 前端和本机认证配置页。
           </p>
           <a href="https://github.com/ling-kong-ran/pisper/blob/release/src-tui/README.md"
             >阅读 TUI 使用指南 <span aria-hidden="true">→</span></a

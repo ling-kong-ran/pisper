@@ -17,6 +17,7 @@ import {
   npmPlatformOptionalDependencies,
   npmPlatformVersion,
 } from '../../packages/pisper/lib/npm-platform.mjs'
+import { handleNpmUpdate, parseNpmUpdateRequest } from '../../packages/pisper/lib/npm-update.mjs'
 import { releaseComponentsForPath } from '../../scripts/release-changes.mjs'
 
 test('pisper is an isolated private source package exposing only its command', async () => {
@@ -27,8 +28,15 @@ test('pisper is an isolated private source package exposing only its command', a
   assert.deepEqual(manifest.bin, { pisper: 'bin/pisper.mjs' })
   assert.match(manifest.pisper.tuiVersion, /^\d+\.\d+\.\d+$/)
   assert.match(manifest.pisper.runtimeVersion, /^\d+\.\d+\.\d+$/)
-  assert.equal(manifest.scripts?.postinstall, undefined)
-  assert.deepEqual(releaseComponentsForPath('packages/pisper/lib/install.mjs'), ['runtime'])
+  assert.equal(manifest.scripts?.postinstall, 'node lib/postinstall.mjs')
+  for (const path of [
+    'packages/pisper/bin/pisper.mjs',
+    'packages/pisper/lib/install.mjs',
+    'packages/pisper/lib/npm-update.mjs',
+    'packages/pisper/lib/postinstall.mjs',
+  ]) {
+    assert.deepEqual(releaseComponentsForPath(path), ['runtime'])
+  }
   assert.deepEqual(releaseComponentsForPath('scripts/package-npm-platforms.mjs'), [])
 })
 
@@ -71,10 +79,46 @@ test('npm installer uses native tar with a Node fallback', async (t) => {
   assert.equal(await readFile(join(destination, 'manifest.json'), 'utf8'), '{"version":"test"}\n')
 })
 
-test('npm launcher installs signed TUI and Runtime components without duplicating Runtime', async () => {
-  const [installer, launcher] = await Promise.all([
+test('npm update is one complete registry update without component selection', async () => {
+  assert.deepEqual(parseNpmUpdateRequest(['update']), { checkOnly: false, help: false })
+  assert.deepEqual(parseNpmUpdateRequest(['update', '--check']), {
+    checkOnly: true,
+    help: false,
+  })
+  assert.deepEqual(parseNpmUpdateRequest(['help', 'update']), { checkOnly: false, help: true })
+  assert.equal(parseNpmUpdateRequest(['doctor']), null)
+  assert.throws(() => parseNpmUpdateRequest(['update', 'runtime']), /do not accept component names/)
+
+  const logs = []
+  let installs = 0
+  const handled = await handleNpmUpdate(['update', '--check'], {
+    currentVersion: '1.2.3',
+    queryLatest: async () => '1.2.4',
+    installLatest: async () => {
+      installs += 1
+    },
+    log: (value) => logs.push(value),
+  })
+  assert.equal(handled, true)
+  assert.equal(installs, 0)
+  assert.match(logs.join('\n'), /1\.2\.3 -> 1\.2\.4/)
+
+  await handleNpmUpdate(['update'], {
+    currentVersion: '1.2.3',
+    queryLatest: async () => '1.2.4',
+    installLatest: async () => {
+      installs += 1
+    },
+    log: (value) => logs.push(value),
+  })
+  assert.equal(installs, 1)
+})
+
+test('npm launcher prepares signed components and serves its bundled Web frontend', async () => {
+  const [installer, launcher, postinstall] = await Promise.all([
     readFile('packages/pisper/lib/install.mjs', 'utf8'),
     readFile('packages/pisper/bin/pisper.mjs', 'utf8'),
+    readFile('packages/pisper/lib/postinstall.mjs', 'utf8'),
   ])
 
   assert.match(installer, /'TUI_Component'/)
@@ -87,6 +131,10 @@ test('npm launcher installs signed TUI and Runtime components without duplicatin
   assert.doesNotMatch(installer, /\bcopyFile\b|\bcp\(/)
   assert.match(launcher, /PISPER_SIDECAR_PATH: installation\.sidecar/)
   assert.match(launcher, /PISPER_APP_ROOT: installation\.appRoot/)
+  assert.match(launcher, /PISPER_FRONTEND_ROOT: frontendRoot/)
+  assert.match(launcher, /handleNpmUpdate/)
+  assert.match(postinstall, /ensurePisperInstallation/)
+  assert.doesNotMatch(postinstall, /\bfetch\(|github\.com/)
 })
 
 test('npm platform mapping matches signed component release assets', () => {
@@ -120,6 +168,7 @@ test('npm publication follows the component release workflow automatically', asy
 
   assert.match(workflow, /id-token: write/)
   assert.match(workflow, /node scripts\/package-npm-platforms\.mjs/)
+  assert.match(workflow, /--ignore-scripts/)
   assert.match(workflow, /publish_platform win32-x64/)
   assert.match(workflow, /npm publish "release\/npm\/tarballs\/pisper-\$NPM_VERSION\.tgz"/)
   assert.doesNotMatch(workflow, /PISPER_CLI_SKIP_INSTALL/)

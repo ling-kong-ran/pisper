@@ -387,12 +387,6 @@ fn render_run_state(frame: &mut Frame, app: &App, area: Rect) {
             RED,
             false,
         )
-    } else if let Some(updates) = &app.startup_updates {
-        (
-            format!("Updates: {updates} · run 'pisper update' to install"),
-            MUTED,
-            false,
-        )
     } else {
         return;
     };

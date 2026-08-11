@@ -144,20 +144,22 @@ sudo apt install ./Pisper-*-linux-amd64.deb
 
 ### 终端客户端（TUI）
 
-使用 Node.js 20+ 时，也可通过 npm 安装 Pisper CLI。npm 会从当前配置的 registry 获取轻量启动器以及当前平台的签名 TUI 与 Runtime 包，不再从 GitHub Releases 下载；首次运行只在本地验签和解压，不会安装桌面壳或 Web 前端：
+使用 Node.js 20+ 时，也可通过 npm 安装 Pisper CLI。npm 会从当前配置的 registry 获取轻量启动器、平台无关 Web 前端以及当前平台的签名 TUI 与 Runtime 包，不再从 GitHub Releases 下载；安装过程会在本地完成验签和解压，命令返回后即可运行，不会安装桌面壳：
 
 ```bash
-npm install -g pisper --progress=true
+npm install -g pisper --progress=true --foreground-scripts
 pisper
+pisper update --check  # 从 npm registry 检查完整发行版
+pisper update          # 通过 npm 更新 launcher、Web、TUI 与 Runtime
 ```
 
-使用 npm 镜像时，平台包会走同一个 registry。动态进度条由 npm 绘制，可显式增加 `--progress=true`；需要查看请求和缓存明细时再增加 `--loglevel=info`：
+使用 npm 镜像时，平台包会走同一个 registry。`--progress=true` 显示 npm 下载进度，`--foreground-scripts` 显示本地验签和解压阶段；需要查看请求和缓存明细时再增加 `--loglevel=info`：
 
 ```bash
-npm install -g pisper --registry=https://registry.npmmirror.com --progress=true
+npm install -g pisper --registry=https://registry.npmmirror.com --progress=true --foreground-scripts
 ```
 
-首次进入 TUI 后使用 `/provider` 选择 Provider 并在掩码输入框中保存 API Key；已知 Provider 可用 `/provider <id>` 直达（`/apikey` 为兼容别名）。需要可视化配置时，运行 `pisper web`，Pisper 会按需安装签名 Web 前端并在默认浏览器打开仅监听本机的认证配置页。配置页中的 **保存 Provider 配置** 不会修改默认模型；只有点击 **设为默认 Provider** 才会切换后续会话的默认模型。
+首次进入 TUI 后使用 `/provider` 选择 Provider 并在掩码输入框中保存 API Key；已知 Provider 可用 `/provider <id>` 直达（`/apikey` 为兼容别名）。需要可视化配置时，运行 `pisper web`，Pisper 会直接使用 npm 包内 Web 前端，并在默认浏览器打开仅监听本机的认证配置页。配置页中的 **保存 Provider 配置** 不会修改默认模型；只有点击 **设为默认 Provider** 才会切换后续会话的默认模型。
 
 安装桌面版后，也可以在 **设置 → 应用更新** 中安装 `pisper` 命令。首次安装由你主动确认；之后桌面应用更新并重启时，Pisper 会自动刷新这份已托管的终端客户端：
 
@@ -165,12 +167,11 @@ npm install -g pisper --registry=https://registry.npmmirror.com --progress=true
 pisper                 # 新建会话
 pisper resume          # 从所有工作目录的交互列表中恢复会话
 pisper doctor          # 诊断运行环境
-pisper web             # 安装并打开可选 Web 配置页
-pisper update --check  # 检查 TUI、Runtime 和可选 Web 更新
+pisper web             # 打开 Web 配置页
 pisper --help          # 查看完整上手和命令说明
 ```
 
-`pisper update all` 只更新 TUI 与 Runtime；Web 始终保持按需安装，可使用 `pisper update web` 单独更新。安装、命令、快捷键、附件、执行模式和审批说明见 **[Pisper TUI 使用指南](./src-tui/README.md)**。
+npm 安装版只有一个整体 `pisper update`，它使用当前配置的 npm registry 更新 launcher、Web、TUI 与 Runtime；`pisper update --check` 只查询而不安装，不接受组件名称。独立 TUI 不提供组件更新命令；桌面发行版统一由 **设置 → 应用更新** 管理。安装、命令、快捷键、附件、执行模式和审批说明见 **[Pisper TUI 使用指南](./src-tui/README.md)**。
 
 ### 从源码运行
 

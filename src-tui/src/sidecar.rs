@@ -315,7 +315,7 @@ pub fn installed_frontend() -> Option<pisper_component_updater::InstalledCompone
         .filter(|installed| installed.executable().is_file())
 }
 
-fn configured_frontend_root() -> Option<PathBuf> {
+pub fn configured_frontend_root() -> Option<PathBuf> {
     std::env::var_os("PISPER_FRONTEND_ROOT")
         .map(PathBuf::from)
         .or_else(|| installed_frontend()?.frontend_root())

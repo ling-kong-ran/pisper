@@ -403,9 +403,6 @@ pub enum RuntimeEvent {
         session_id: String,
         result: Result<VcsChanges, String>,
     },
-    StartupUpdates {
-        message: String,
-    },
 }
 
 #[cfg(test)]
