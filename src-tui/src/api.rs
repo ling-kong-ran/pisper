@@ -15,10 +15,10 @@ use url::Url;
 
 use crate::{
     model::{
-        ApiKeyUpdate, ContextUsage, ExecutionModeUpdate, McpCatalog, MessagePage, ModelOption,
-        PluginCatalog, ProviderOption, RuntimeEvent, SessionCwdUpdate, SessionModelUpdate,
-        SessionSummary, SessionsResponse, SkillDefinition, SkillsCatalog, StreamEvent,
-        ThinkingLevelUpdate, ToolDefinition, VcsChanges,
+        ContextUsage, ExecutionModeUpdate, McpCatalog, MessagePage, ModelOption, PluginCatalog,
+        ProviderConnectionUpdate, ProviderOption, RuntimeEvent, SessionCwdUpdate,
+        SessionModelUpdate, SessionSummary, SessionsResponse, SkillDefinition, SkillsCatalog,
+        StreamEvent, ThinkingLevelUpdate, ToolDefinition, VcsChanges,
     },
     workspace::validate_session_workspace,
 };
@@ -160,56 +160,21 @@ impl ApiClient {
         &self,
     ) -> Result<(String, String, Vec<ModelOption>, Vec<ProviderOption>)> {
         let config = self.get_json::<RuntimeConfig>("/api/config").await?;
-        let default_model = match (config.provider.as_str(), config.model.as_str()) {
-            ("", _) | (_, "") => String::new(),
-            (provider, model) => format!("{provider}/{model}"),
-        };
-        let models = config
-            .providers
-            .iter()
-            .filter(|provider| provider.enabled && provider.provider_type == "chat")
-            .flat_map(|provider| {
-                provider.models.iter().map(move |model| ModelOption {
-                    provider: provider.id.clone(),
-                    id: model.id.clone(),
-                    name: model.name.clone(),
-                    reasoning: model.reasoning,
-                })
-            })
-            .collect();
-        let providers = config
-            .providers
-            .into_iter()
-            .map(|provider| ProviderOption {
-                id: provider.id,
-                name: provider.name,
-                provider_type: provider.provider_type,
-                enabled: provider.enabled,
-                configured: provider.configured,
-            })
-            .collect();
-        Ok((
-            default_model,
-            if config.thinking_level.is_empty() {
-                "medium".to_owned()
-            } else {
-                config.thinking_level
-            },
-            models,
-            providers,
-        ))
+        Ok(runtime_options(config))
     }
 
-    pub async fn set_provider_api_key(
+    pub async fn set_provider_connection(
         &self,
         provider: &str,
+        api: &str,
+        base_url: &str,
         api_key: &str,
-    ) -> Result<ApiKeyUpdate> {
+    ) -> Result<ProviderConnectionUpdate> {
         let provider = encode_segment(provider);
         self.send_json(
             reqwest::Method::PUT,
-            &format!("/api/providers/{provider}/api-key"),
-            &json!({ "apiKey": api_key }),
+            &format!("/api/providers/{provider}/connection"),
+            &json!({ "api": api, "baseUrl": base_url, "apiKey": api_key }),
         )
         .await
     }
@@ -476,6 +441,10 @@ struct RuntimeProvider {
     #[serde(default)]
     configured: bool,
     #[serde(default)]
+    api: String,
+    #[serde(default)]
+    base_url: String,
+    #[serde(default)]
     models: Vec<RuntimeModel>,
 }
 
@@ -486,6 +455,53 @@ struct RuntimeModel {
     name: String,
     #[serde(default)]
     reasoning: bool,
+}
+
+fn runtime_options(
+    config: RuntimeConfig,
+) -> (String, String, Vec<ModelOption>, Vec<ProviderOption>) {
+    let default_model = match (config.provider.as_str(), config.model.as_str()) {
+        ("", _) | (_, "") => String::new(),
+        (provider, model) => format!("{provider}/{model}"),
+    };
+    let models = config
+        .providers
+        .iter()
+        .filter(|provider| {
+            provider.enabled && provider.configured && provider.provider_type == "chat"
+        })
+        .flat_map(|provider| {
+            provider.models.iter().map(move |model| ModelOption {
+                provider: provider.id.clone(),
+                id: model.id.clone(),
+                name: model.name.clone(),
+                reasoning: model.reasoning,
+            })
+        })
+        .collect();
+    let providers = config
+        .providers
+        .into_iter()
+        .map(|provider| ProviderOption {
+            id: provider.id,
+            name: provider.name,
+            provider_type: provider.provider_type,
+            enabled: provider.enabled,
+            configured: provider.configured,
+            api: provider.api,
+            base_url: provider.base_url,
+        })
+        .collect();
+    (
+        default_model,
+        if config.thinking_level.is_empty() {
+            "medium".to_owned()
+        } else {
+            config.thinking_level
+        },
+        models,
+        providers,
+    )
 }
 
 async fn prepare_attachments(paths: &[PathBuf]) -> Result<Vec<Value>> {
@@ -677,7 +693,48 @@ impl SseDecoder {
 
 #[cfg(test)]
 mod tests {
-    use super::{prepare_attachments, SseDecoder};
+    use super::{prepare_attachments, runtime_options, RuntimeConfig, SseDecoder};
+
+    #[test]
+    fn runtime_model_options_exclude_unconfigured_providers() {
+        let config = serde_json::from_value::<RuntimeConfig>(serde_json::json!({
+            "provider": "openai",
+            "model": "gpt-5",
+            "thinkingLevel": "high",
+            "providers": [
+                {
+                    "id": "openai",
+                    "name": "OpenAI",
+                    "type": "chat",
+                    "enabled": true,
+                    "configured": false,
+                    "api": "openai-responses",
+                    "baseUrl": "https://api.openai.com/v1",
+                    "models": [{ "id": "gpt-5", "name": "GPT-5" }]
+                },
+                {
+                    "id": "deepseek",
+                    "name": "DeepSeek",
+                    "type": "chat",
+                    "enabled": true,
+                    "configured": true,
+                    "api": "openai-completions",
+                    "baseUrl": "https://api.deepseek.com",
+                    "models": [{ "id": "deepseek-chat", "name": "DeepSeek Chat" }]
+                }
+            ]
+        }))
+        .unwrap();
+
+        let (default_model, thinking, models, providers) = runtime_options(config);
+        assert_eq!(default_model, "openai/gpt-5");
+        assert_eq!(thinking, "high");
+        assert_eq!(models.len(), 1);
+        assert_eq!(models[0].provider, "deepseek");
+        assert_eq!(providers.len(), 2);
+        assert_eq!(providers[0].base_url, "https://api.openai.com/v1");
+        assert_eq!(providers[1].api, "openai-completions");
+    }
 
     #[tokio::test]
     async fn prepares_text_and_image_attachments_for_the_shared_chat_protocol() {

@@ -73,6 +73,82 @@ test('provider API keys update without changing the active model configuration',
   await assert.rejects(() => runtime.setProviderApiKey('openai', { apiKey: '   ' }), /不能为空/)
 })
 
+test('provider connections update protocol, effective Base URL, and optional API Key only', async (t) => {
+  const directory = await mkdtemp(join(tmpdir(), 'pisper-provider-connection-'))
+  const runtime = new AgentRuntimeService({ cwd: directory, dataDir: directory })
+  t.after(async () => {
+    await runtime.dispose()
+    await rm(directory, { recursive: true, force: true })
+  })
+  await runtime.init()
+  const before = await runtime.getConfig()
+  const defaultBaseUrl = 'https://api.openai.com/v1'
+  const apiKey = ['terminal', 'connection', 'secret'].join('-')
+
+  const saved = await runtime.setProviderConnection('openai', {
+    api: 'openai-completions',
+    baseUrl: defaultBaseUrl,
+    apiKey,
+  })
+  assert.equal(saved.connectionUpdated, true)
+  assert.equal(saved.apiKeyUpdated, true)
+  assert.equal(saved.updatedProviderId, 'openai')
+  assert.equal(
+    saved.providers.find((provider) => provider.id === 'openai').api,
+    'openai-completions',
+  )
+  assert.equal(saved.providers.find((provider) => provider.id === 'openai').baseUrl, defaultBaseUrl)
+  assert.equal(JSON.stringify(saved).includes(apiKey), false)
+  assert.equal(saved.provider, before.provider)
+  assert.equal(saved.model, before.model)
+
+  const defaultOverlay = JSON.parse(await readFile(join(directory, 'models.json'), 'utf8'))
+  assert.equal(defaultOverlay.providers.openai.api, 'openai-completions')
+  assert.equal(defaultOverlay.providers.openai.baseUrl, undefined)
+  const credentials = JSON.parse(await readFile(join(directory, 'auth.json'), 'utf8'))
+  assert.equal(credentials.openai.key, apiKey)
+
+  const customBaseUrl = 'https://relay.example.test/v1'
+  const updated = await runtime.setProviderConnection('openai', {
+    api: 'anthropic-messages',
+    baseUrl: customBaseUrl,
+  })
+  assert.equal(updated.apiKeyUpdated, false)
+  assert.equal(
+    updated.providers.find((provider) => provider.id === 'openai').baseUrl,
+    customBaseUrl,
+  )
+  const customOverlay = JSON.parse(await readFile(join(directory, 'models.json'), 'utf8'))
+  assert.equal(customOverlay.providers.openai.api, 'anthropic-messages')
+  assert.equal(customOverlay.providers.openai.baseUrl, customBaseUrl)
+  assert.equal(JSON.parse(await readFile(join(directory, 'auth.json'), 'utf8')).openai.key, apiKey)
+
+  await assert.rejects(
+    () =>
+      runtime.setProviderConnection('openai', {
+        api: 'unsupported',
+        baseUrl: defaultBaseUrl,
+      }),
+    /不受支持/,
+  )
+  await assert.rejects(
+    () =>
+      runtime.setProviderConnection('openai', {
+        api: 'openai-responses',
+        baseUrl: 'file:///tmp/provider',
+      }),
+    /HTTP 或 HTTPS/,
+  )
+  await assert.rejects(
+    () =>
+      runtime.setProviderConnection('missing', {
+        api: 'openai-responses',
+        baseUrl: defaultBaseUrl,
+      }),
+    /Provider 不存在/,
+  )
+})
+
 test('visual-only providers save connection settings without replacing the default chat model', async (t) => {
   const directory = await mkdtemp(join(tmpdir(), 'pisper-visual-provider-config-'))
   const runtime = new AgentRuntimeService({ cwd: directory, dataDir: directory })

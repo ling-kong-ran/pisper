@@ -927,23 +927,40 @@ async fn execute_action(
                 }
             }
         }
-        Action::SaveApiKey {
+        Action::SaveProviderConnection {
             provider,
+            api: provider_api,
+            base_url,
             mut api_key,
         } => {
-            let result = api.set_provider_api_key(&provider, &api_key).await;
+            let result = api
+                .set_provider_connection(&provider, &provider_api, &base_url, &api_key)
+                .await;
             api_key.zeroize();
             match result {
-                Ok(updated) if updated.api_key_updated => {
+                Ok(updated) if updated.connection_updated => {
                     let provider_id = if updated.updated_provider_id.is_empty() {
                         provider
                     } else {
                         updated.updated_provider_id
                     };
-                    app.api_key_saved(&provider_id);
+                    app.provider_connection_saved(
+                        &provider_id,
+                        provider_api,
+                        base_url,
+                        updated.api_key_updated,
+                    );
+                    if let Ok((_, _, model_options, provider_options)) =
+                        api.runtime_preferences().await
+                    {
+                        app.set_model_options(model_options);
+                        app.set_provider_options(provider_options);
+                    }
                 }
-                Ok(_) => app.api_key_save_failed("Runtime did not confirm the update".to_owned()),
-                Err(error) => app.api_key_save_failed(format!("{error:#}")),
+                Ok(_) => app.provider_connection_save_failed(
+                    "Runtime did not confirm the update".to_owned(),
+                ),
+                Err(error) => app.provider_connection_save_failed(format!("{error:#}")),
             }
         }
         Action::OpenWeb => {

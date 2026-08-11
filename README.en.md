@@ -159,7 +159,7 @@ Platform packages use the same registry when an npm mirror is configured. `--pro
 npm install -g pisper --registry=https://registry.npmmirror.com --progress=true --foreground-scripts
 ```
 
-After entering the TUI for the first time, use `/provider` to choose a Provider and save its API key in a masked input; for a known Provider, `/provider <id>` skips the picker (`/apikey` remains a compatible alias). For visual configuration, run `pisper web`; Pisper uses the Web frontend bundled in the npm package and opens an authenticated, localhost-only settings page in your default browser. **Save Provider settings** does not change the default model; only **Set as default Provider** changes the default for later sessions.
+After entering the TUI for the first time, use `/provider` to choose a Provider and edit its protocol, effective Base URL, and masked API key. The official default Base URL is shown when no override exists, and leaving API Key blank preserves the saved secret. `/model` lists only models from configured Providers. For a known Provider, `/provider <id>` skips the picker (`/apikey` remains a compatible alias). For visual configuration, run `pisper web`; Pisper uses the Web frontend bundled in the npm package and opens an authenticated, localhost-only settings page in your default browser. **Save Provider settings** does not change the default model; only **Set as default Provider** changes the default for later sessions.
 
 After installing the desktop app, you can also install the `pisper` command from **Settings → App updates**. The first installation remains explicit; after later desktop updates restart Pisper, it automatically refreshes this managed terminal client:
 

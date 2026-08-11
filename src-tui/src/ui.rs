@@ -15,6 +15,7 @@ use crate::{
     app::{App, Approval, LiveTurn, SettingsPicker, SlashKind, View},
     model::{
         ChatMessage, MessageAttachment, PlanItem, RunActivity, ThinkingAvailability, ToolActivity,
+        PROVIDER_APIS,
     },
 };
 
@@ -1951,7 +1952,7 @@ fn render_settings_picker(frame: &mut Frame, app: &App, area: Rect) {
 
 fn render_api_key_dialog(frame: &mut Frame, app: &App, area: Rect) {
     let width = area.width.saturating_sub(4).clamp(1, 72);
-    let height = area.height.saturating_sub(4).clamp(1, 18);
+    let height = area.height.saturating_sub(4).clamp(1, 22);
     let popup = Rect::new(
         area.x.saturating_add(area.width.saturating_sub(width) / 2),
         area.y
@@ -1961,7 +1962,7 @@ fn render_api_key_dialog(frame: &mut Frame, app: &App, area: Rect) {
     );
     frame.render_widget(Clear, popup);
     let title = if app.api_key_provider.is_some() {
-        " Provider API Key "
+        " Provider Connection "
     } else {
         " Choose Provider "
     };
@@ -1977,17 +1978,21 @@ fn render_api_key_dialog(frame: &mut Frame, app: &App, area: Rect) {
     frame.render_widget(block, popup);
 
     if let Some(provider_id) = &app.api_key_provider {
-        let provider_name = app
+        let provider = app
             .provider_options
             .iter()
-            .find(|provider| &provider.id == provider_id)
+            .find(|provider| &provider.id == provider_id);
+        let provider_name = provider
             .map(|provider| provider.name.as_str())
             .filter(|name| !name.is_empty())
             .unwrap_or(provider_id);
+        let configured = provider.is_some_and(|provider| provider.configured);
         let sections = Layout::default()
             .direction(Direction::Vertical)
             .constraints([
                 Constraint::Length(2),
+                Constraint::Length(3),
+                Constraint::Length(3),
                 Constraint::Length(3),
                 Constraint::Min(1),
                 Constraint::Length(2),
@@ -2001,41 +2006,113 @@ fn render_api_key_dialog(frame: &mut Frame, app: &App, area: Rect) {
             ])),
             sections[0],
         );
-        let masked = "*".repeat(app.api_key_input.len().min(64));
-        let display = if masked.is_empty() {
-            "Enter API Key".to_owned()
-        } else {
-            masked
-        };
-        let input = Paragraph::new(single_line(
-            &display,
-            sections[1].width.saturating_sub(4) as usize,
-        ))
-        .style(Style::default().fg(if app.api_key_input.is_empty() {
-            MUTED
-        } else {
-            TEXT
-        }))
-        .block(
-            Block::default()
-                .borders(Borders::ALL)
-                .border_style(Style::default().fg(RULE)),
-        );
-        frame.render_widget(input, sections[1]);
+
+        let api_label = PROVIDER_APIS
+            .iter()
+            .find(|(api, _)| *api == app.provider_api)
+            .map(|(_, label)| *label)
+            .unwrap_or(PROVIDER_APIS[0].1);
         frame.render_widget(
-            Paragraph::new("Enter save · Esc back")
-                .style(Style::default().fg(MUTED))
-                .alignment(Alignment::Center),
+            Paragraph::new(format!("< {api_label} >"))
+                .style(Style::default().fg(TEXT))
+                .block(
+                    Block::default()
+                        .title(" Protocol ")
+                        .borders(Borders::ALL)
+                        .border_style(Style::default().fg(if app.provider_connection_field == 0 {
+                            ACCENT
+                        } else {
+                            RULE
+                        })),
+                ),
+            sections[1],
+        );
+
+        let base_width = sections[2].width.saturating_sub(4) as usize;
+        let (base_url, base_cursor) = visible_input(
+            &app.provider_base_url_input,
+            app.provider_base_url_input.len(),
+            base_width,
+        );
+        frame.render_widget(
+            Paragraph::new(if base_url.is_empty() {
+                "https://api.example.com/v1".to_owned()
+            } else {
+                base_url
+            })
+            .style(
+                Style::default().fg(if app.provider_base_url_input.is_empty() {
+                    MUTED
+                } else {
+                    TEXT
+                }),
+            )
+            .block(
+                Block::default()
+                    .title(" Base URL ")
+                    .borders(Borders::ALL)
+                    .border_style(Style::default().fg(if app.provider_connection_field == 1 {
+                        ACCENT
+                    } else {
+                        RULE
+                    })),
+            ),
+            sections[2],
+        );
+
+        let key_width = sections[3].width.saturating_sub(4) as usize;
+        let masked = "*".repeat(app.api_key_input.len().min(key_width));
+        let key_placeholder = if configured {
+            "Configured - leave blank to keep"
+        } else {
+            "Optional API Key"
+        };
+        frame.render_widget(
+            Paragraph::new(if masked.is_empty() {
+                key_placeholder.to_owned()
+            } else {
+                masked
+            })
+            .style(Style::default().fg(if app.api_key_input.is_empty() {
+                MUTED
+            } else {
+                TEXT
+            }))
+            .block(
+                Block::default()
+                    .title(" API Key ")
+                    .borders(Borders::ALL)
+                    .border_style(Style::default().fg(if app.provider_connection_field == 2 {
+                        ACCENT
+                    } else {
+                        RULE
+                    })),
+            ),
             sections[3],
         );
-        let cursor = app
-            .api_key_input
-            .len()
-            .min(sections[1].width.saturating_sub(4) as usize) as u16;
-        frame.set_cursor_position(Position::new(
-            sections[1].x.saturating_add(1).saturating_add(cursor),
-            sections[1].y.saturating_add(1),
-        ));
+        frame.render_widget(
+            Paragraph::new("Up/Down field · Left/Right protocol · Enter save · Esc back")
+                .style(Style::default().fg(MUTED))
+                .alignment(Alignment::Center),
+            sections[5],
+        );
+        if app.provider_connection_field == 1 {
+            frame.set_cursor_position(Position::new(
+                sections[2]
+                    .x
+                    .saturating_add(1)
+                    .saturating_add(base_cursor as u16),
+                sections[2].y.saturating_add(1),
+            ));
+        } else if app.provider_connection_field == 2 {
+            frame.set_cursor_position(Position::new(
+                sections[3]
+                    .x
+                    .saturating_add(1)
+                    .saturating_add(app.api_key_input.len().min(key_width) as u16),
+                sections[3].y.saturating_add(1),
+            ));
+        }
         return;
     }
 
@@ -2056,7 +2133,7 @@ fn render_api_key_dialog(frame: &mut Frame, app: &App, area: Rect) {
                 let state = if provider.configured {
                     "configured"
                 } else {
-                    "API Key required"
+                    "not configured"
                 };
                 ListItem::new(Line::from(vec![
                     Span::styled(format!(" {name}"), Style::default().fg(TEXT)),
@@ -3005,15 +3082,22 @@ mod tests {
             provider_type: "chat".to_owned(),
             enabled: true,
             configured: false,
+            api: "openai-responses".to_owned(),
+            base_url: "https://api.kimi.com/coding/".to_owned(),
         }]);
         app.open_api_key_dialog();
         terminal.draw(|frame| draw(frame, &app)).unwrap();
         assert!(format!("{:?}", terminal.backend().buffer()).contains("Kimi Code"));
         app.api_key_provider = Some("kimi-coding".to_owned());
+        app.provider_api = "openai-responses".to_owned();
+        app.provider_base_url_input = "https://api.kimi.com/coding/".chars().collect();
+        app.provider_connection_field = 2;
         app.api_key_input = "do-not-render-this-secret".chars().collect();
         terminal.draw(|frame| draw(frame, &app)).unwrap();
         let api_key = format!("{:?}", terminal.backend().buffer());
-        assert!(api_key.contains("Provider API Key"));
+        assert!(api_key.contains("Provider Connection"));
+        assert!(api_key.contains("OpenAI Responses"));
+        assert!(api_key.contains("api.kimi.com/coding/"));
         assert!(api_key.contains("********"));
         assert!(!api_key.contains("do-not-render-this-secret"));
     }

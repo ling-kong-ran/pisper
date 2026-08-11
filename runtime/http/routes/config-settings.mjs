@@ -126,6 +126,13 @@ export const configSettingsRoutes = [
   },
   {
     method: 'PUT',
+    path: '/api/providers/:providerId/connection',
+    async handler({ runtime, params, body, json }) {
+      json(200, await runtime.setProviderConnection(params.providerId, await body()))
+    },
+  },
+  {
+    method: 'PUT',
     path: '/api/providers/:providerId/api-key',
     async handler({ runtime, params, body, json }) {
       json(200, await runtime.setProviderApiKey(params.providerId, await body()))

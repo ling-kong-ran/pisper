@@ -303,6 +303,13 @@ pub struct ModelOption {
     pub reasoning: bool,
 }
 
+pub const PROVIDER_APIS: [(&str, &str); 4] = [
+    ("openai-responses", "OpenAI Responses"),
+    ("openai-completions", "OpenAI Chat Completions"),
+    ("anthropic-messages", "Anthropic Messages"),
+    ("google-generative-ai", "Google Generative AI"),
+];
+
 #[derive(Clone, Debug, Default, Deserialize, Eq, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub struct ProviderOption {
@@ -316,11 +323,17 @@ pub struct ProviderOption {
     pub enabled: bool,
     #[serde(default)]
     pub configured: bool,
+    #[serde(default)]
+    pub api: String,
+    #[serde(default)]
+    pub base_url: String,
 }
 
 #[derive(Clone, Debug, Default, Deserialize)]
 #[serde(rename_all = "camelCase")]
-pub struct ApiKeyUpdate {
+pub struct ProviderConnectionUpdate {
+    #[serde(default)]
+    pub connection_updated: bool,
     #[serde(default)]
     pub api_key_updated: bool,
     #[serde(default)]

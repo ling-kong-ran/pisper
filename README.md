@@ -159,7 +159,7 @@ pisper update          # 通过 npm 更新 launcher、Web、TUI 与 Runtime
 npm install -g pisper --registry=https://registry.npmmirror.com --progress=true --foreground-scripts
 ```
 
-首次进入 TUI 后使用 `/provider` 选择 Provider 并在掩码输入框中保存 API Key；已知 Provider 可用 `/provider <id>` 直达（`/apikey` 为兼容别名）。需要可视化配置时，运行 `pisper web`，Pisper 会直接使用 npm 包内 Web 前端，并在默认浏览器打开仅监听本机的认证配置页。配置页中的 **保存 Provider 配置** 不会修改默认模型；只有点击 **设为默认 Provider** 才会切换后续会话的默认模型。
+首次进入 TUI 后使用 `/provider` 选择 Provider，并编辑协议类型、当前生效 Base URL 和掩码 API Key；未自定义时会显示官方默认 Base URL，API Key 留空会保留原密钥。`/model` 只列出已配置 Provider 的模型。已知 Provider 可用 `/provider <id>` 直达（`/apikey` 为兼容别名）。需要可视化配置时，运行 `pisper web`，Pisper 会直接使用 npm 包内 Web 前端，并在默认浏览器打开仅监听本机的认证配置页。配置页中的 **保存 Provider 配置** 不会修改默认模型；只有点击 **设为默认 Provider** 才会切换后续会话的默认模型。
 
 安装桌面版后，也可以在 **设置 → 应用更新** 中安装 `pisper` 命令。首次安装由你主动确认；之后桌面应用更新并重启时，Pisper 会自动刷新这份已托管的终端客户端：
 

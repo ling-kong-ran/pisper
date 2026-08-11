@@ -17,7 +17,7 @@ use crate::{
         ChatMessage, ContextUsage, MessageAttachment, MessagePage, ModelOption, Plan,
         ProviderOption, RunActivity, SessionCwdUpdate, SessionModelUpdate, SessionSummary,
         SessionUsage, SkillDefinition, StreamEvent, ThinkingAvailability, ThinkingLevelUpdate,
-        ToolActivity, ToolDefinition, VcsChanges,
+        ToolActivity, ToolDefinition, VcsChanges, PROVIDER_APIS,
     },
     plan_protocol::{is_plan_update_event, plan_from_payload},
     workspace::same_workspace,
@@ -150,8 +150,10 @@ pub enum Action {
     CommitVcs(String),
     PushVcs,
     RevertVcs,
-    SaveApiKey {
+    SaveProviderConnection {
         provider: String,
+        api: String,
+        base_url: String,
         api_key: String,
     },
     OpenWeb,
@@ -217,6 +219,9 @@ pub struct App {
     pub api_key_dialog: bool,
     pub api_key_selected: usize,
     pub api_key_provider: Option<String>,
+    pub provider_api: String,
+    pub provider_base_url_input: Vec<char>,
+    pub provider_connection_field: usize,
     pub api_key_input: Vec<char>,
     abort_pressed: bool,
     queued_prompts: VecDeque<QueuedPrompt>,
@@ -292,6 +297,9 @@ impl App {
             api_key_dialog: false,
             api_key_selected: 0,
             api_key_provider: None,
+            provider_api: PROVIDER_APIS[0].0.to_owned(),
+            provider_base_url_input: Vec::new(),
+            provider_connection_field: 2,
             api_key_input: Vec::new(),
             abort_pressed: false,
             queued_prompts: VecDeque::new(),
@@ -463,34 +471,68 @@ impl App {
             .position(|provider| provider.configured)
             .unwrap_or(0);
         self.api_key_provider = None;
-        self.clear_api_key_input();
+        self.clear_provider_connection_input();
         self.api_key_dialog = true;
         self.status_error = false;
     }
 
-    pub fn api_key_saved(&mut self, provider_id: &str) {
+    fn edit_provider_connection(&mut self, provider_id: String) {
+        let Some(provider) = self
+            .provider_options
+            .iter()
+            .find(|provider| provider.id == provider_id)
+        else {
+            return;
+        };
+        self.provider_api = PROVIDER_APIS
+            .iter()
+            .find(|(api, _)| *api == provider.api)
+            .map(|(api, _)| (*api).to_owned())
+            .unwrap_or_else(|| PROVIDER_APIS[0].0.to_owned());
+        self.provider_base_url_input = provider.base_url.chars().collect();
+        self.provider_connection_field = 2;
+        self.clear_api_key_input();
+        self.api_key_provider = Some(provider_id);
+    }
+
+    pub fn provider_connection_saved(
+        &mut self,
+        provider_id: &str,
+        api: String,
+        base_url: String,
+        api_key_updated: bool,
+    ) {
         if let Some(provider) = self
             .provider_options
             .iter_mut()
             .find(|provider| provider.id == provider_id)
         {
-            provider.configured = true;
+            provider.api = api;
+            provider.base_url = base_url;
+            provider.configured |= api_key_updated;
         }
         self.api_key_dialog = false;
         self.api_key_provider = None;
-        self.clear_api_key_input();
-        self.status = format!("API Key saved · {provider_id}");
+        self.clear_provider_connection_input();
+        self.status = format!("Provider connection saved · {provider_id}");
         self.status_error = false;
     }
 
-    pub fn api_key_save_failed(&mut self, error: String) {
+    pub fn provider_connection_save_failed(&mut self, error: String) {
         self.clear_api_key_input();
-        self.status = format!("API Key save failed · {error}");
+        self.status = format!("Provider connection save failed · {error}");
         self.status_error = true;
     }
 
     fn clear_api_key_input(&mut self) {
         self.api_key_input.zeroize();
+    }
+
+    fn clear_provider_connection_input(&mut self) {
+        self.clear_api_key_input();
+        self.provider_base_url_input.clear();
+        self.provider_api = PROVIDER_APIS[0].0.to_owned();
+        self.provider_connection_field = 2;
     }
 
     pub fn visible_path_entries(&self) -> Vec<&PathEntry> {
@@ -687,7 +729,7 @@ impl App {
             command("/thinking", "Switch the active session thinking level"),
             command(
                 "/provider",
-                "Choose a Provider and configure its API Key securely",
+                "Edit a Provider protocol, Base URL, and API Key securely",
             ),
             command("/web", "Open the installed Web settings"),
             command("/compact", "Summarize older context now"),
@@ -963,7 +1005,7 @@ impl App {
             return match key.code {
                 KeyCode::Esc => {
                     self.api_key_dialog = false;
-                    self.clear_api_key_input();
+                    self.clear_provider_connection_input();
                     Action::None
                 }
                 KeyCode::Up => {
@@ -977,8 +1019,7 @@ impl App {
                 }
                 KeyCode::Enter => {
                     if let Some(provider) = self.provider_options.get(self.api_key_selected) {
-                        self.api_key_provider = Some(provider.id.clone());
-                        self.clear_api_key_input();
+                        self.edit_provider_connection(provider.id.clone());
                     }
                     Action::None
                 }
@@ -989,27 +1030,68 @@ impl App {
         match key.code {
             KeyCode::Esc => {
                 self.api_key_provider = None;
-                self.clear_api_key_input();
+                self.clear_provider_connection_input();
+                Action::None
+            }
+            KeyCode::Tab | KeyCode::Down => {
+                self.provider_connection_field = (self.provider_connection_field + 1) % 3;
+                Action::None
+            }
+            KeyCode::BackTab | KeyCode::Up => {
+                self.provider_connection_field = (self.provider_connection_field + 2) % 3;
+                Action::None
+            }
+            KeyCode::Left if self.provider_connection_field == 0 => {
+                self.cycle_provider_api(false);
+                Action::None
+            }
+            KeyCode::Right if self.provider_connection_field == 0 => {
+                self.cycle_provider_api(true);
                 Action::None
             }
             KeyCode::Enter => {
-                let api_key = self.api_key_input.iter().collect::<String>();
-                if api_key.trim().is_empty() {
-                    self.status = "API Key cannot be empty".to_owned();
+                let base_url = self.provider_base_url_input.iter().collect::<String>();
+                if base_url.trim().is_empty() {
+                    self.status = "Provider Base URL cannot be empty".to_owned();
                     self.status_error = true;
+                    self.provider_connection_field = 1;
                     return Action::None;
                 }
                 let provider = self.api_key_provider.clone().unwrap_or_default();
+                let api = self.provider_api.clone();
+                let api_key = self.api_key_input.iter().collect::<String>();
                 self.clear_api_key_input();
-                self.status = format!("saving API Key · {provider}");
+                self.status = format!("saving Provider connection · {provider}");
                 self.status_error = false;
-                Action::SaveApiKey { provider, api_key }
+                Action::SaveProviderConnection {
+                    provider,
+                    api,
+                    base_url: base_url.trim().to_owned(),
+                    api_key,
+                }
             }
-            KeyCode::Backspace => {
+            KeyCode::Backspace if self.provider_connection_field == 1 => {
+                self.provider_base_url_input.pop();
+                Action::None
+            }
+            KeyCode::Backspace if self.provider_connection_field == 2 => {
                 self.api_key_input.pop();
                 Action::None
             }
-            KeyCode::Char(character) if !key.modifiers.contains(KeyModifiers::CONTROL) => {
+            KeyCode::Char(character)
+                if self.provider_connection_field == 1
+                    && !key.modifiers.contains(KeyModifiers::CONTROL) =>
+            {
+                if self.provider_base_url_input.len() < 4_096 {
+                    self.provider_base_url_input.push(character);
+                }
+                Action::None
+            }
+            KeyCode::Char(character)
+                if self.provider_connection_field == 2
+                    && !character.is_whitespace()
+                    && !key.modifiers.contains(KeyModifiers::CONTROL) =>
+            {
                 if self.api_key_input.len() < 16_384 {
                     self.api_key_input.push(character);
                 }
@@ -1017,6 +1099,19 @@ impl App {
             }
             _ => Action::None,
         }
+    }
+
+    fn cycle_provider_api(&mut self, forward: bool) {
+        let current = PROVIDER_APIS
+            .iter()
+            .position(|(api, _)| *api == self.provider_api)
+            .unwrap_or(0);
+        let next = if forward {
+            (current + 1) % PROVIDER_APIS.len()
+        } else {
+            (current + PROVIDER_APIS.len() - 1) % PROVIDER_APIS.len()
+        };
+        self.provider_api = PROVIDER_APIS[next].0.to_owned();
     }
 
     fn handle_path_picker(&mut self, key: KeyEvent) -> Action {
@@ -1404,9 +1499,8 @@ impl App {
                     .iter()
                     .any(|option| option.id == provider)
                 {
-                    self.api_key_provider = Some(provider.to_owned());
-                    self.clear_api_key_input();
                     self.api_key_dialog = true;
+                    self.edit_provider_connection(provider.to_owned());
                     self.status_error = false;
                     Action::None
                 } else {
@@ -1567,9 +1661,20 @@ impl App {
             return;
         }
         if self.api_key_dialog && self.api_key_provider.is_some() {
-            let remaining = 16_384usize.saturating_sub(self.api_key_input.len());
-            self.api_key_input
-                .extend(value.trim().chars().take(remaining));
+            if self.provider_connection_field == 1 {
+                let remaining = 4_096usize.saturating_sub(self.provider_base_url_input.len());
+                self.provider_base_url_input
+                    .extend(value.trim().chars().take(remaining));
+            } else if self.provider_connection_field == 2 {
+                let remaining = 16_384usize.saturating_sub(self.api_key_input.len());
+                self.api_key_input.extend(
+                    value
+                        .trim()
+                        .chars()
+                        .filter(|character| !character.is_whitespace())
+                        .take(remaining),
+                );
+            }
             return;
         }
         let normalized = value.replace("\r\n", "\n").replace('\r', "\n");
@@ -3313,6 +3418,8 @@ mod tests {
             provider_type: "chat".to_owned(),
             enabled: true,
             configured: false,
+            api: "openai-responses".to_owned(),
+            base_url: "https://api.kimi.com/coding/".to_owned(),
         }]);
         app.set_input("/provider");
 
@@ -3323,17 +3430,31 @@ mod tests {
             app.handle_key(KeyEvent::new(KeyCode::Enter, KeyModifiers::NONE)),
             Action::None
         ));
-        for character in "secret-key".chars() {
-            app.handle_key(KeyEvent::new(KeyCode::Char(character), KeyModifiers::NONE));
-        }
+        assert_eq!(app.provider_api, "openai-responses");
+        assert_eq!(
+            app.provider_base_url_input.iter().collect::<String>(),
+            "https://api.kimi.com/coding/"
+        );
+        assert_eq!(app.provider_connection_field, 2);
+        app.handle_key(KeyEvent::new(KeyCode::Up, KeyModifiers::NONE));
+        app.handle_key(KeyEvent::new(KeyCode::Up, KeyModifiers::NONE));
+        app.handle_key(KeyEvent::new(KeyCode::Right, KeyModifiers::NONE));
+        assert_eq!(app.provider_api, "openai-completions");
+        app.handle_key(KeyEvent::new(KeyCode::Left, KeyModifiers::NONE));
+        app.handle_key(KeyEvent::new(KeyCode::Down, KeyModifiers::NONE));
+        app.handle_key(KeyEvent::new(KeyCode::Down, KeyModifiers::NONE));
+        app.insert_paste("  secret- key\r\n");
         assert_eq!(app.input_text(), "");
         assert!(matches!(
             app.handle_key(KeyEvent::new(KeyCode::Enter, KeyModifiers::NONE)),
-            Action::SaveApiKey { provider, api_key }
-                if provider == "kimi-coding" && api_key == "secret-key"
+            Action::SaveProviderConnection { provider, api, base_url, api_key }
+                if provider == "kimi-coding"
+                    && api == "openai-responses"
+                    && base_url == "https://api.kimi.com/coding/"
+                    && api_key == "secret-key"
         ));
 
-        app.api_key_save_failed("rejected".to_owned());
+        app.provider_connection_save_failed("rejected".to_owned());
         assert!(app.api_key_input.is_empty());
         app.handle_key(KeyEvent::new(KeyCode::Esc, KeyModifiers::NONE));
         app.handle_key(KeyEvent::new(KeyCode::Esc, KeyModifiers::NONE));
@@ -3350,6 +3471,8 @@ mod tests {
                 provider_type: "chat".to_owned(),
                 enabled: true,
                 configured: false,
+                api: "openai-responses".to_owned(),
+                base_url: "https://api.openai.com/v1".to_owned(),
             },
             ProviderOption {
                 id: "deepseek".to_owned(),
@@ -3357,6 +3480,8 @@ mod tests {
                 provider_type: "chat".to_owned(),
                 enabled: true,
                 configured: false,
+                api: "openai-completions".to_owned(),
+                base_url: "https://api.deepseek.com".to_owned(),
             },
         ]);
         app.set_input("/provider deepseek");
@@ -3364,14 +3489,17 @@ mod tests {
         assert!(app.api_key_dialog);
         assert_eq!(app.api_key_provider.as_deref(), Some("deepseek"));
 
-        // Directly in the masked input: Enter saves for the chosen provider.
+        assert_eq!(app.provider_api, "openai-completions");
         for character in "sk-test".chars() {
             app.handle_key(KeyEvent::new(KeyCode::Char(character), KeyModifiers::NONE));
         }
         assert!(matches!(
             app.handle_key(KeyEvent::new(KeyCode::Enter, KeyModifiers::NONE)),
-            Action::SaveApiKey { provider, api_key }
-                if provider == "deepseek" && api_key == "sk-test"
+            Action::SaveProviderConnection { provider, api, base_url, api_key }
+                if provider == "deepseek"
+                    && api == "openai-completions"
+                    && base_url == "https://api.deepseek.com"
+                    && api_key == "sk-test"
         ));
     }
 
@@ -3394,6 +3522,8 @@ mod tests {
             provider_type: "chat".to_owned(),
             enabled: true,
             configured: false,
+            api: "openai-responses".to_owned(),
+            base_url: "https://api.openai.com/v1".to_owned(),
         }]);
         app.set_input("/apikey");
         assert!(matches!(app.submit_action(), Action::None));

@@ -54,7 +54,7 @@ pisper update
 
 ## Provider 与可选 Web 配置
 
-首次进入 TUI 后输入 `/provider`，先选择 Provider，再在独立掩码输入框中输入 API Key。`Enter` 保存，`Esc` 返回 Provider 列表或取消；密钥不会进入 composer、Slash 历史或 Runtime 的普通配置响应。已知 Provider 可直接输入 `/provider <id>` 跳过选择，例如 `/provider deepseek`；`/apikey` 保留为兼容别名，功能相同。
+首次进入 TUI 后输入 `/provider` 并选择 Provider，即可编辑协议类型、Base URL 和 API Key。Base URL 会预填 Runtime 当前生效地址：未自定义时显示官方默认地址，已自定义时显示自定义地址；API Key 留空会保留已保存的密钥。使用 `Up`/`Down` 或 `Tab` 切换字段，使用 `Left`/`Right` 选择协议，`Enter` 保存，`Esc` 返回 Provider 列表或取消。API Key 使用独立掩码输入，粘贴时会移除空白字符，且密钥不会进入 composer、Slash 历史或 Runtime 的普通配置响应。已知 Provider 可直接输入 `/provider <id>` 跳过选择，例如 `/provider deepseek`；`/apikey` 保留为兼容别名，功能相同。
 
 需要完整可视化配置时运行：
 
@@ -123,9 +123,9 @@ pisper doctor
 | `/changes` | 查看 Git 或 SVN 工作区改动；改动页中 `R` 刷新、`C` 提交、`P` 推送 Git、连续按两次 `V` 撤销；SVN 没有 Push。 |
 | `/changes commit <message>` | 使用指定 message 提交当前 Git/SVN 工作区改动。 |
 | `/chat` | 返回 Chat 消息流。 |
-| `/model` | 打开模型选择器并切换当前会话模型；运行期间不可切换。 |
+| `/model` | 打开模型选择器并切换当前会话模型；只显示已配置 Provider 的模型，运行期间不可切换。 |
 | `/thinking` | 刷新并打开当前模型支持的思考等级；不支持或加载失败时显示原因并可重试，运行期间不可切换。 |
-| `/provider` | 选择 Provider，并在独立掩码输入框中安全保存 API Key；`/provider <id>` 可直达指定 Provider，`/apikey` 为兼容别名。 |
+| `/provider` | 编辑 Provider 的协议类型、当前生效 Base URL 和掩码 API Key；`/provider <id>` 可直达指定 Provider，`/apikey` 为兼容别名。 |
 | `/web` | 使用已安装的 Web 前端，在默认浏览器打开本机认证配置页。 |
 | `/compact` | 立即摘要较早上下文；仅用于已有可压缩历史的空闲会话。 |
 | `/attach` | 打开 workspace 文件选择器。 |

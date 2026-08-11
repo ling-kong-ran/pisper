@@ -54,7 +54,7 @@ This command uses the configured npm registry to update the launcher, bundled We
 
 ## Provider and Optional Web Configuration
 
-After entering the TUI for the first time, run `/provider`, choose a Provider, and enter its API key in the separate masked input. `Enter` saves; `Esc` returns to the Provider list or cancels. The secret never enters the composer, Slash history, or ordinary Runtime configuration responses. For a known Provider you can skip the picker with `/provider <id>`, e.g. `/provider deepseek`; `/apikey` remains a compatible alias.
+After entering the TUI for the first time, run `/provider` and choose a Provider to edit its protocol, Base URL, and API key. The Base URL is prefilled with the Runtime's effective address: the official default when there is no override, or the custom address when one is configured. Leaving API Key blank preserves the saved secret. Use `Up`/`Down` or `Tab` to move between fields, `Left`/`Right` to choose a protocol, `Enter` to save, and `Esc` to return to the Provider list or cancel. The API key uses a separate masked input, whitespace is removed when pasting, and the secret never enters the composer, Slash history, or ordinary Runtime configuration responses. For a known Provider you can skip the picker with `/provider <id>`, e.g. `/provider deepseek`; `/apikey` remains a compatible alias.
 
 For complete visual configuration, run:
 
@@ -123,9 +123,9 @@ Long or multiline bracketed pastes render as a compact `[Pasted text · …]` to
 | `/changes` | Inspect Git or SVN workspace changes. In the changes view, `R` refreshes, `C` commits, `P` pushes Git, and `V` twice reverts; SVN has no push operation. |
 | `/changes commit <message>` | Commit current Git/SVN workspace changes with an explicit message. |
 | `/chat` | Return to the Chat message stream. |
-| `/model` | Open the model picker and switch the active session model; unavailable during a run. |
+| `/model` | Open the model picker and switch the active session model; only models from configured Providers are listed, and switching is unavailable during a run. |
 | `/thinking` | Refresh and open thinking levels supported by the active model; unsupported/error states explain why and can be retried. Unavailable during a run. |
-| `/provider` | Choose a Provider and securely save its API key in a separate masked input; `/provider <id>` targets a Provider directly and `/apikey` remains a compatible alias. |
+| `/provider` | Edit a Provider's protocol, effective Base URL, and masked API key; `/provider <id>` targets a Provider directly and `/apikey` remains a compatible alias. |
 | `/web` | Open the authenticated local settings page in the default browser using the installed Web frontend. |
 | `/compact` | Summarize older context immediately; available only for idle sessions with enough history. |
 | `/attach` | Open the workspace file picker. |

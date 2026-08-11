@@ -24,6 +24,12 @@ const PROVIDER_LABELS = {
   'kimi-coding': 'Kimi Code',
   'zai-coding-cn': 'GLM',
 }
+const PROVIDER_API_IDS = new Set([
+  'openai-responses',
+  'openai-completions',
+  'anthropic-messages',
+  'google-generative-ai',
+])
 const PROVIDER_DEFAULT_BASE_URLS = {
   openai: 'https://api.openai.com/v1',
   anthropic: 'https://api.anthropic.com/v1',
@@ -601,14 +607,7 @@ export class ProviderPreferences {
     const baseUrl = String(input.baseUrl || '').trim()
     const modelBaseUrl = String(input.modelBaseUrl || '').trim()
     const organization = String(input.organization || '').trim()
-    const requestedApi = [
-      'openai-responses',
-      'openai-completions',
-      'anthropic-messages',
-      'google-generative-ai',
-    ].includes(input.api)
-      ? input.api
-      : ''
+    const requestedApi = PROVIDER_API_IDS.has(input.api) ? input.api : ''
     if (requestedApi) {
       providerOverlay.api = requestedApi
       if (Array.isArray(providerOverlay.models)) {
@@ -714,6 +713,68 @@ export class ProviderPreferences {
     await this.reloadModelRuntime()
     this.invalidateSessionRuntimes()
     return { ...(await this.getConfigFacade()), apiKeyUpdated, defaultUpdated }
+  }
+
+  async setProviderConnection(id, input = {}) {
+    const provider = String(id || '').trim()
+    const api = String(input.api || '').trim()
+    const baseUrl = String(input.baseUrl || '').trim()
+    const apiKey = String(input.apiKey || '').trim()
+    if (!provider) throw new Error('Provider 不能为空。')
+    if (!PROVIDER_API_IDS.has(api)) throw new Error('Provider API 协议不受支持。')
+    if (!baseUrl) throw new Error('Provider Base URL 不能为空。')
+    if (baseUrl.length > 4_096) throw new Error('Provider Base URL 过长。')
+    try {
+      const parsed = new URL(baseUrl)
+      if (
+        !['http:', 'https:'].includes(parsed.protocol) ||
+        parsed.username ||
+        parsed.password ||
+        parsed.hash
+      ) {
+        throw new Error()
+      }
+    } catch {
+      throw new Error('Provider Base URL 必须是有效的 HTTP 或 HTTPS 地址。')
+    }
+    if (apiKey.length > 16_384) throw new Error('API Key 过长。')
+
+    const config = await this.getConfigFacade()
+    if (!config.providers.some((item) => item.id === provider)) {
+      throw new Error('Provider 不存在。')
+    }
+
+    const modelsJson = await readJson(this.modelsPath, { providers: {} })
+    modelsJson.providers ||= {}
+    const providerOverlay = { ...(modelsJson.providers[provider] || {}), api }
+    if (Array.isArray(providerOverlay.models)) {
+      providerOverlay.models = providerOverlay.models.map((model) => ({ ...model, api }))
+    }
+    const officialBaseUrl = PROVIDER_DEFAULT_BASE_URLS[provider]
+    if (officialBaseUrl && sameBaseUrl(baseUrl, officialBaseUrl)) {
+      delete providerOverlay.baseUrl
+    } else {
+      providerOverlay.baseUrl = baseUrl
+    }
+    modelsJson.providers[provider] = providerOverlay
+    await writeJsonAtomic(this.modelsPath, modelsJson)
+
+    let apiKeyUpdated = false
+    if (apiKey) {
+      const credentials = await readJson(this.authPath, {})
+      credentials[provider] = { type: 'api_key', key: apiKey }
+      await writeJsonAtomic(this.authPath, credentials)
+      apiKeyUpdated = true
+    }
+
+    await this.reloadModelRuntime()
+    this.invalidateSessionRuntimes()
+    return {
+      ...(await this.getConfigFacade()),
+      connectionUpdated: true,
+      apiKeyUpdated,
+      updatedProviderId: provider,
+    }
   }
 
   async setProviderApiKey(id, input = {}) {
