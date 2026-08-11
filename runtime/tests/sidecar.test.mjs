@@ -45,8 +45,10 @@ function waitForExit(child) {
 test('desktop sidecar authenticates its WebView and shuts down through stdin', async () => {
   const dataDir = await mkdtemp(join(tmpdir(), 'pisper-sidecar-'))
   const token = 'test-sidecar-token'
-  const child = spawn(process.execPath, [resolve('runtime/sidecar.mjs')], {
-    cwd: resolve('.'),
+  const startedAt = performance.now()
+  const appRoot = resolve(process.env.PISPER_TEST_APP_ROOT || '.')
+  const child = spawn(process.execPath, [join(appRoot, 'runtime', 'sidecar.mjs')], {
+    cwd: appRoot,
     env: {
       ...process.env,
       PISPER_AGENT_DIR: dataDir,
@@ -59,6 +61,11 @@ test('desktop sidecar authenticates its WebView and shuts down through stdin', a
 
   try {
     const ready = await waitForReady(child)
+    const readyMs = performance.now() - startedAt
+    if (process.env.PISPER_STARTUP_GATE === '1') {
+      assert.ok(readyMs < 5_000, `sidecar readiness took ${Math.round(readyMs)}ms`)
+      assert.ok(ready.startupMs < 5_000, `reported startup took ${ready.startupMs}ms`)
+    }
     assert.match(ready.url, /^http:\/\/127\.0\.0\.1:\d+$/)
     assert.equal(
       ready.bootstrapUrl,
@@ -96,6 +103,13 @@ test('desktop sidecar authenticates its WebView and shuts down through stdin', a
 
     const authorized = await fetch(`${ready.url}/api/config`, { headers: { Cookie: cookie } })
     assert.equal(authorized.status, 200)
+    const usableMs = performance.now() - startedAt
+    if (process.env.PISPER_STARTUP_GATE === '1') {
+      assert.ok(usableMs < 5_000, `sidecar API readiness took ${Math.round(usableMs)}ms`)
+      console.log(
+        `Pisper startup gate: READY ${Math.round(readyMs)}ms, first authorized API ${Math.round(usableMs)}ms`,
+      )
+    }
     const created = await fetch(`${ready.url}/api/sessions`, {
       method: 'POST',
       headers: {
@@ -125,6 +139,6 @@ test('desktop sidecar authenticates its WebView and shuts down through stdin', a
     assert.equal(await waitForExit(child), 0)
   } finally {
     if (child.exitCode === null) child.kill()
-    await rm(dataDir, { recursive: true, force: true })
+    await rm(dataDir, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 })
   }
 })

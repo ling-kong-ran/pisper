@@ -666,10 +666,21 @@ export class AgentRuntimeService extends AgentRuntimeFacade {
     })
   }
 
-  async init() {
+  async init({ startupObserver = null } = {}) {
+    const stage = (name) => {
+      try {
+        startupObserver?.(name)
+      } catch {
+        // Diagnostics are best-effort and cannot change initialization behavior.
+      }
+    }
+
+    stage('filesystem')
     await mkdir(this.sessionDir, { recursive: true })
     await mkdir(this.assetsDir, { recursive: true })
     await cleanupRemovedLocalEmbeddingData(this.dataDir)
+
+    stage('session-state')
     this.sessionMeta = await readJson(this.sessionMetaPath, {})
     await this.migrateLegacyDefaultWorkspaces()
     await this.migrateSessionExecutionModes()
@@ -682,6 +693,8 @@ export class AgentRuntimeService extends AgentRuntimeFacade {
     this.compactionThresholdPercent = normalizeCompactionThresholdPercent(
       appConfig.compactionThresholdPercent,
     )
+
+    stage('providers')
     await migrateKimiCodeProvider({
       authPath: this.authPath,
       modelsPath: this.modelsPath,
@@ -690,15 +703,24 @@ export class AgentRuntimeService extends AgentRuntimeFacade {
     })
     await Promise.all([this.providerModelCatalog.init(), this.modelMetadata.init()])
     this.settingsManager = SettingsManager.create(this.cwd, this.dataDir)
+
+    stage('skills')
     await this.skills.init()
+    stage('mcp')
     await this.mcp.init()
+    stage('default-tools')
     await this.toolPlugins.ensureDefaultTools(['memory_search', 'memory_remember'], 'memoryToolsV1')
     await this.toolPlugins.ensureDefaultTools(['mcp_list', 'mcp_manage'], 'mcpManagementToolsV1')
     await this.toolPlugins.ensureDefaultTools(['web_search'], 'webSearchToolV1')
     await this.toolPlugins.ensureDefaultTools(['browser_automation'], 'browserAutomationToolV1')
+
+    stage('model-runtime')
     await this.reloadModelRuntime()
+    stage('memory')
     await this.memory.init()
     this.memory.setSemanticSummarizer(this.memorySummarizer)
+
+    stage('automation-services')
     await this.goals.init({ pauseActive: true })
     await this.plans.init()
     await this.multiAgents.init()
@@ -707,6 +729,7 @@ export class AgentRuntimeService extends AgentRuntimeFacade {
     await this.workflows.init()
     this.startSessionRuntimeSweeper()
     void this.refreshProviderModels().catch(() => {})
+    stage('complete')
   }
 
   async reloadModelRuntime() {

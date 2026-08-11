@@ -11,11 +11,39 @@ const root = resolve(process.env.PISPER_APP_ROOT || defaultRoot)
 const host = '127.0.0.1'
 const token = String(process.env.PISPER_DESKTOP_TOKEN || randomBytes(32).toString('base64url'))
 const parentPid = Number(process.env.PISPER_PARENT_PID || 0)
+let previousStageAt = 0
+const startupTiming = process.env.PISPER_STARTUP_TIMING === '1'
+
+function reportStartupStage(stage) {
+  if (!startupTiming) return
+  const elapsedMs = Math.round(performance.now())
+  process.stderr.write(
+    `PISPER_SIDECAR_STAGE ${JSON.stringify({
+      stage,
+      elapsedMs,
+      deltaMs: elapsedMs - previousStageAt,
+    })}\n`,
+  )
+  previousStageAt = elapsedMs
+}
 
 process.env.PI_SKIP_VERSION_CHECK ||= '1'
 process.env.PI_TELEMETRY ||= '0'
+reportStartupStage('entry')
 
-const pisper = await createPisperRuntime({
+let pisper = null
+let shuttingDown = false
+async function shutdown(code = 0) {
+  if (shuttingDown) return
+  shuttingDown = true
+  try {
+    await pisper?.close()
+  } finally {
+    process.exit(code)
+  }
+}
+
+pisper = await createPisperRuntime({
   root,
   runtimeCwd: process.env.PISPER_WORKSPACE_DIR || undefined,
   dataDir: resolveAgentDataDir(),
@@ -24,28 +52,26 @@ const pisper = await createPisperRuntime({
   host,
   desktopAuthToken: token,
   frontendRoot: process.env.PISPER_FRONTEND_ROOT || null,
+  deferRuntimeInitialization: true,
+  startupObserver: reportStartupStage,
 })
 
 const bootstrapUrl = `${pisper.url}/_pisper/desktop/bootstrap?token=${encodeURIComponent(token)}`
+reportStartupStage('ready')
 process.stdout.write(
   `PISPER_SIDECAR_READY ${JSON.stringify({
     url: pisper.url,
     bootstrapUrl,
     pid: process.pid,
     desktopPetRunning: pisper.desktopPetRunning,
+    startupMs: Math.round(performance.now()),
   })}\n`,
 )
-
-let shuttingDown = false
-async function shutdown(code = 0) {
-  if (shuttingDown) return
-  shuttingDown = true
-  try {
-    await pisper.close()
-  } finally {
-    process.exit(code)
-  }
-}
+void pisper.initialized.catch((error) => {
+  reportStartupStage('failed')
+  console.error('Pisper sidecar runtime initialization failed.', error)
+  void shutdown(1)
+})
 
 const input = createInterface({ input: process.stdin, terminal: false })
 input.on('line', (line) => {

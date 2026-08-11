@@ -15,7 +15,8 @@ use semver::Version;
 use serde::Deserialize;
 
 const READY_PREFIX: &str = "PISPER_SIDECAR_READY ";
-const START_TIMEOUT: Duration = Duration::from_secs(30);
+const START_TIMEOUT: Duration = Duration::from_secs(10);
+const EXIT_CHECK_INTERVAL: Duration = Duration::from_millis(50);
 const SIDECAR_DESCRIPTOR_NAME: &str = "desktop-sidecar.json";
 pub const APP_IDENTIFIER: &str = "com.lingkongran.pisper";
 
@@ -32,6 +33,12 @@ struct SidecarDescriptor {
     url: String,
     token: String,
     pid: u32,
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+enum SidecarCommandKind {
+    Installed,
+    Other,
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -80,11 +87,11 @@ impl SidecarConnection {
         }
 
         let token = secure_token()?;
-        let (command, app_root, using_installed) = sidecar_command(true)?;
+        let (command, app_root, command_kind) = sidecar_command(true)?;
         let first = spawn_sidecar(command, app_root, workspace, &token);
         let (child, ready) = match first {
             Ok(result) => result,
-            Err(component_error) if using_installed => {
+            Err(component_error) if command_kind == SidecarCommandKind::Installed => {
                 eprintln!(
                     "Installed Pisper runtime failed; using bundled runtime: {component_error:#}"
                 );
@@ -131,6 +138,11 @@ impl SidecarConnection {
     }
 }
 
+enum StartupEvent {
+    Ready(Result<ReadyPayload>),
+    StdoutClosed,
+}
+
 fn spawn_sidecar(
     mut command: Command,
     app_root: PathBuf,
@@ -143,6 +155,7 @@ fn spawn_sidecar(
         .env("PISPER_DESKTOP_TOKEN", token)
         .env("PISPER_PARENT_PID", std::process::id().to_string())
         .env("PISPER_EXIT_ON_STDIN_CLOSE", "1")
+        .env("PISPER_STARTUP_TIMING", "1")
         .env("PISPER_WORKSPACE_DIR", workspace)
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())
@@ -169,7 +182,7 @@ fn spawn_sidecar(
         .context("sidecar stderr was not captured")?;
     let diagnostics = Arc::new(Mutex::new(Vec::<String>::new()));
     let stderr_diagnostics = diagnostics.clone();
-    thread::spawn(move || {
+    let mut stderr_thread = Some(thread::spawn(move || {
         for line in BufReader::new(stderr).lines().map_while(Result::ok) {
             let mut lines = stderr_diagnostics
                 .lock()
@@ -179,45 +192,135 @@ fn spawn_sidecar(
                 lines.remove(0);
             }
         }
-    });
+    }));
 
-    let (ready_tx, ready_rx) = mpsc::sync_channel(1);
+    let (ready_tx, ready_rx) = mpsc::sync_channel(2);
     thread::spawn(move || {
-        let mut sent = false;
+        let mut ready_sent = false;
         for line in BufReader::new(stdout).lines().map_while(Result::ok) {
-            if !sent {
+            if !ready_sent {
                 if let Some(payload) = line.strip_prefix(READY_PREFIX) {
                     let parsed = serde_json::from_str::<ReadyPayload>(payload)
                         .map_err(|error| anyhow!("invalid sidecar readiness payload: {error}"));
-                    let _ = ready_tx.send(parsed);
-                    sent = true;
+                    let valid = parsed.is_ok();
+                    let _ = ready_tx.send(StartupEvent::Ready(parsed));
+                    ready_sent = valid;
                 }
             }
         }
+        if !ready_sent {
+            let _ = ready_tx.send(StartupEvent::StdoutClosed);
+        }
     });
 
-    match ready_rx.recv_timeout(START_TIMEOUT) {
-        Ok(Ok(ready)) => Ok((child, ready)),
-        Ok(Err(error)) => {
-            let _ = child.kill();
-            Err(error)
+    let started = Instant::now();
+    let deadline = started + START_TIMEOUT;
+    loop {
+        let remaining = deadline.saturating_duration_since(Instant::now());
+        if remaining.is_zero() {
+            return Err(stop_with_startup_error(
+                &mut child,
+                &mut stderr_thread,
+                format!(
+                    "did not become ready within {:.0} seconds",
+                    START_TIMEOUT.as_secs_f32()
+                ),
+                started.elapsed(),
+                &diagnostics,
+            ));
         }
-        Err(_) => {
-            let detail = diagnostics
-                .lock()
-                .expect("sidecar diagnostics poisoned")
-                .join("\n");
-            let _ = child.kill();
-            Err(anyhow!(
-                "Pisper sidecar did not become ready within 30 seconds{}",
-                if detail.is_empty() {
-                    String::new()
-                } else {
-                    format!("\n{detail}")
+        match ready_rx.recv_timeout(remaining.min(EXIT_CHECK_INTERVAL)) {
+            Ok(StartupEvent::Ready(Ok(ready))) => return Ok((child, ready)),
+            Ok(StartupEvent::Ready(Err(error))) => {
+                return Err(stop_with_startup_error(
+                    &mut child,
+                    &mut stderr_thread,
+                    error.to_string(),
+                    started.elapsed(),
+                    &diagnostics,
+                ));
+            }
+            Ok(StartupEvent::StdoutClosed) => {
+                let status = child
+                    .try_wait()
+                    .ok()
+                    .flatten()
+                    .map(|value| value.to_string())
+                    .unwrap_or_else(|| "without an exit status".to_owned());
+                return Err(stop_with_startup_error(
+                    &mut child,
+                    &mut stderr_thread,
+                    format!("closed its output before readiness ({status})"),
+                    started.elapsed(),
+                    &diagnostics,
+                ));
+            }
+            Err(mpsc::RecvTimeoutError::Timeout) => {
+                if let Some(status) = child
+                    .try_wait()
+                    .context("failed to inspect Pisper sidecar")?
+                {
+                    return Err(stop_with_startup_error(
+                        &mut child,
+                        &mut stderr_thread,
+                        format!("exited before readiness ({status})"),
+                        started.elapsed(),
+                        &diagnostics,
+                    ));
                 }
-            ))
+            }
+            Err(mpsc::RecvTimeoutError::Disconnected) => {
+                return Err(stop_with_startup_error(
+                    &mut child,
+                    &mut stderr_thread,
+                    "stopped reporting startup status".to_owned(),
+                    started.elapsed(),
+                    &diagnostics,
+                ));
+            }
         }
     }
+}
+
+fn stop_child(child: &mut Child) {
+    if !matches!(child.try_wait(), Ok(Some(_))) {
+        let _ = child.kill();
+    }
+    let _ = child.wait();
+}
+
+fn stop_with_startup_error(
+    child: &mut Child,
+    stderr_thread: &mut Option<thread::JoinHandle<()>>,
+    reason: String,
+    elapsed: Duration,
+    diagnostics: &Arc<Mutex<Vec<String>>>,
+) -> anyhow::Error {
+    stop_child(child);
+    if let Some(stderr_thread) = stderr_thread.take() {
+        let _ = stderr_thread.join();
+    }
+    startup_error(reason, elapsed, diagnostics)
+}
+
+fn startup_error(
+    reason: String,
+    elapsed: Duration,
+    diagnostics: &Arc<Mutex<Vec<String>>>,
+) -> anyhow::Error {
+    let detail = diagnostics
+        .lock()
+        .expect("sidecar diagnostics poisoned")
+        .join("\n");
+    anyhow!(
+        "Pisper sidecar {reason} after {:.2}s{}",
+        elapsed.as_secs_f32(),
+        if detail.is_empty() {
+            "\nNo Runtime diagnostics were produced.".to_owned()
+        } else {
+            format!("\n{detail}")
+        }
+    )
 }
 
 impl Drop for SidecarConnection {
@@ -248,13 +351,17 @@ fn desktop_sidecar_descriptor() -> Option<SidecarDescriptor> {
     Some(descriptor)
 }
 
-fn sidecar_command(allow_installed: bool) -> Result<(Command, PathBuf, bool)> {
-    if let Ok(path) = std::env::var("PISPER_SIDECAR_PATH") {
-        let executable = PathBuf::from(path);
-        let root = std::env::var("PISPER_APP_ROOT")
+fn sidecar_command(allow_installed: bool) -> Result<(Command, PathBuf, SidecarCommandKind)> {
+    if let Some(node) = std::env::var_os("PISPER_RUNTIME_NODE") {
+        let root = std::env::var_os("PISPER_APP_ROOT")
             .map(PathBuf::from)
-            .unwrap_or_else(|_| sibling_runtime(&executable));
-        return Ok((Command::new(executable), root, false));
+            .context("PISPER_APP_ROOT is required with PISPER_RUNTIME_NODE")?;
+        return runtime_node_command(node, root)
+            .map(|(command, root)| (command, root, SidecarCommandKind::Other));
+    }
+    if std::env::var_os("PISPER_SIDECAR_PATH").is_some() {
+        return configured_sea_command()
+            .map(|(command, root)| (command, root, SidecarCommandKind::Other));
     }
 
     if allow_installed {
@@ -264,7 +371,7 @@ fn sidecar_command(allow_installed: bool) -> Result<(Command, PathBuf, bool)> {
                 installed
                     .runtime_root()
                     .context("installed runtime payload is missing")?,
-                true,
+                SidecarCommandKind::Installed,
             ));
         }
     }
@@ -283,7 +390,7 @@ fn sidecar_command(allow_installed: bool) -> Result<(Command, PathBuf, bool)> {
     if !cfg!(debug_assertions) {
         if let Some(sidecar) = bundled_sidecars.into_iter().find(|path| path.is_file()) {
             let root = sibling_runtime(&sidecar);
-            return Ok((Command::new(sidecar), root, false));
+            return Ok((Command::new(sidecar), root, SidecarCommandKind::Other));
         }
     }
 
@@ -299,7 +406,33 @@ fn sidecar_command(allow_installed: bool) -> Result<(Command, PathBuf, bool)> {
     }
     let mut command = Command::new("node");
     command.arg(entry);
-    Ok((command, root, false))
+    Ok((command, root, SidecarCommandKind::Other))
+}
+
+fn configured_sea_command() -> Result<(Command, PathBuf)> {
+    let executable = std::env::var_os("PISPER_SIDECAR_PATH")
+        .map(PathBuf::from)
+        .context("PISPER_SIDECAR_PATH is not configured")?;
+    let root = std::env::var_os("PISPER_APP_ROOT")
+        .map(PathBuf::from)
+        .unwrap_or_else(|| sibling_runtime(&executable));
+    Ok((Command::new(executable), root))
+}
+
+fn runtime_node_command(
+    node: impl Into<std::ffi::OsString>,
+    root: PathBuf,
+) -> Result<(Command, PathBuf)> {
+    let entry = root.join("runtime").join("sidecar.mjs");
+    if !entry.is_file() {
+        return Err(anyhow!(
+            "Pisper Runtime entry point is missing: {}",
+            entry.display()
+        ));
+    }
+    let mut command = Command::new(node.into());
+    command.arg(entry);
+    Ok((command, root))
 }
 
 pub fn components_root() -> Result<PathBuf> {
@@ -408,4 +541,64 @@ fn secure_token() -> Result<String> {
     getrandom::getrandom(&mut bytes)
         .map_err(|error| anyhow!("failed to generate sidecar token: {error}"))?;
     Ok(bytes.iter().map(|byte| format!("{byte:02x}")).collect())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{runtime_node_command, spawn_sidecar};
+    use std::{fs, path::PathBuf, process::Command, time::Instant};
+
+    fn temporary_runtime() -> PathBuf {
+        let root = std::env::temp_dir().join(format!(
+            "pisper-runtime-command-{}-{}",
+            std::process::id(),
+            std::thread::current()
+                .name()
+                .unwrap_or("test")
+                .replace("::", "-")
+        ));
+        let runtime = root.join("runtime");
+        fs::create_dir_all(&runtime).unwrap();
+        fs::write(runtime.join("sidecar.mjs"), "// test entry\n").unwrap();
+        root
+    }
+
+    #[test]
+    fn npm_runtime_uses_node_with_the_signed_runtime_entry() {
+        let root = temporary_runtime();
+        let (command, resolved_root) =
+            runtime_node_command("node-for-test", root.clone()).expect("runtime command");
+        assert_eq!(resolved_root, root);
+        assert_eq!(command.get_program(), "node-for-test");
+        assert_eq!(
+            command.get_args().collect::<Vec<_>>(),
+            vec![root.join("runtime").join("sidecar.mjs").as_os_str()]
+        );
+        fs::remove_dir_all(root).unwrap();
+    }
+
+    #[test]
+    fn a_sidecar_that_exits_before_readiness_fails_immediately() {
+        let command = if cfg!(windows) {
+            let mut command = Command::new("cmd");
+            command.args(["/C", "echo runtime-startup-marker 1>&2 & exit /b 7"]);
+            command
+        } else {
+            let mut command = Command::new("sh");
+            command.args(["-c", "echo runtime-startup-marker >&2; exit 7"]);
+            command
+        };
+        let started = Instant::now();
+        let result = spawn_sidecar(
+            command,
+            std::env::current_dir().unwrap(),
+            &std::env::current_dir().unwrap(),
+            "test-token",
+        );
+        assert!(result.is_err());
+        assert!(started.elapsed().as_secs_f32() < 2.0);
+        let message = format!("{:#}", result.unwrap_err());
+        assert!(message.contains("before readiness") || message.contains("closed its output"));
+        assert!(message.contains("runtime-startup-marker"));
+    }
 }
