@@ -1,9 +1,10 @@
 import assert from 'node:assert/strict'
-import { mkdtemp, readFile, rm, utimes, writeFile } from 'node:fs/promises'
+import { mkdir, mkdtemp, readFile, rm, utimes, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import test from 'node:test'
-import { acquireInstallLock } from '../../packages/pisper/lib/install.mjs'
+import { c as createTar } from 'tar'
+import { acquireInstallLock, extractComponentArchive } from '../../packages/pisper/lib/install.mjs'
 import {
   componentsRoot,
   executableName,
@@ -48,6 +49,26 @@ test('npm installer replaces a stale legacy lock instead of waiting silently', a
   } finally {
     await lock.close()
   }
+})
+
+test('npm installer uses native tar with a Node fallback', async (t) => {
+  const root = await mkdtemp(join(tmpdir(), 'pisper-npm-tar-'))
+  const source = join(root, 'source')
+  const archive = join(root, 'component.tar.gz')
+  const destination = join(root, 'destination')
+  t.after(() => rm(root, { recursive: true, force: true }))
+  await mkdir(join(source, 'payload'), { recursive: true })
+  await writeFile(join(source, 'payload', 'manifest.json'), '{"version":"test"}\n')
+  await createTar({ cwd: source, file: archive, gzip: true }, ['payload'])
+
+  await mkdir(destination)
+  await extractComponentArchive(archive, destination)
+  assert.equal(await readFile(join(destination, 'manifest.json'), 'utf8'), '{"version":"test"}\n')
+
+  await rm(destination, { recursive: true, force: true })
+  await mkdir(destination)
+  await extractComponentArchive(archive, destination, join(root, 'missing-tar'))
+  assert.equal(await readFile(join(destination, 'manifest.json'), 'utf8'), '{"version":"test"}\n')
 })
 
 test('npm launcher installs signed TUI and Runtime components without duplicating Runtime', async () => {

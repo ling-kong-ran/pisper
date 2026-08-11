@@ -1,7 +1,9 @@
-import { createRequire } from 'node:module'
+import { execFile } from 'node:child_process'
 import { chmod, mkdir, open, readFile, rename, rm, stat, writeFile } from 'node:fs/promises'
+import { createRequire } from 'node:module'
 import { dirname, join } from 'node:path'
 import process from 'node:process'
+import { promisify } from 'node:util'
 import { fileURLToPath } from 'node:url'
 import { PublicKey, Signature } from '@threema/wasm-minisign-verify'
 import { x as extractTar } from 'tar'
@@ -14,6 +16,7 @@ import {
   supportedTarget,
 } from './platform.mjs'
 
+const execFileAsync = promisify(execFile)
 const require = createRequire(import.meta.url)
 const packageRoot = fileURLToPath(new URL('..', import.meta.url))
 const packageManifest = JSON.parse(await readFile(join(packageRoot, 'package.json'), 'utf8'))
@@ -186,6 +189,47 @@ async function verifyArchive(component, archive, signatureBytes) {
   }
 }
 
+function nativeTarCommand() {
+  if (process.platform === 'win32') {
+    return join(
+      process.env.SystemRoot || process.env.WINDIR || 'C:\\Windows',
+      'System32',
+      'tar.exe',
+    )
+  }
+  if (process.platform === 'darwin') return '/usr/bin/tar'
+  return 'tar'
+}
+
+async function extractWithNodeTar(archivePath, extractionRoot) {
+  await extractTar({
+    cwd: extractionRoot,
+    file: archivePath,
+    preservePaths: false,
+    strict: true,
+    strip: 1,
+    filter: (_path, entry) => entry.type === 'File' || entry.type === 'Directory',
+  })
+}
+
+export async function extractComponentArchive(
+  archivePath,
+  extractionRoot,
+  tarCommand = nativeTarCommand(),
+) {
+  try {
+    await execFileAsync(
+      tarCommand,
+      ['-xzf', archivePath, '-C', extractionRoot, '--strip-components=1'],
+      { windowsHide: true },
+    )
+  } catch {
+    await rm(extractionRoot, { recursive: true, force: true })
+    await mkdir(extractionRoot, { recursive: true })
+    await extractWithNodeTar(archivePath, extractionRoot)
+  }
+}
+
 async function wait(milliseconds) {
   await new Promise((resolve) => setTimeout(resolve, milliseconds))
 }
@@ -300,14 +344,7 @@ async function installComponent({
     await verifyArchive(component, archive, signature)
     console.log(`pisper: extracting ${component} ${version}`)
     await writeFile(archivePath, archive, { mode: 0o600 })
-    await extractTar({
-      cwd: extractionRoot,
-      file: archivePath,
-      preservePaths: false,
-      strict: true,
-      strip: 1,
-      filter: (_path, entry) => entry.type === 'File' || entry.type === 'Directory',
-    })
+    await extractComponentArchive(archivePath, extractionRoot)
     if (process.platform !== 'win32') {
       await chmod(join(extractionRoot, commandName(component)), 0o755)
     }
