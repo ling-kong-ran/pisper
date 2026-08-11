@@ -140,7 +140,7 @@ pub enum Action {
     SetThinkingLevel(String),
     SwitchSession {
         id: String,
-        exit_on_failure: bool,
+        request_id: u64,
     },
     ResolveApproval {
         id: String,
@@ -177,6 +177,8 @@ pub struct App {
     pub slash_selected: usize,
     pub session_picker: bool,
     pub session_selected: usize,
+    pub session_loading: Option<String>,
+    session_load_generation: u64,
     session_picker_exit_on_cancel: bool,
     pub view: View,
     pub scroll: Cell<u16>,
@@ -270,6 +272,8 @@ impl App {
             slash_selected: 0,
             session_picker: false,
             session_selected: 0,
+            session_loading: None,
+            session_load_generation: 0,
             session_picker_exit_on_cancel: false,
             view: View::Chat,
             scroll: Cell::new(0),
@@ -566,8 +570,23 @@ impl App {
             .iter()
             .position(|session| session.id == selected_id)
             .unwrap_or(0);
+        self.session_loading = None;
         self.session_picker_exit_on_cancel = exit_on_cancel;
         self.session_picker = true;
+    }
+
+    pub fn is_current_session_load(&self, request_id: u64, session_id: &str) -> bool {
+        self.session_load_generation == request_id
+            && self.session_loading.as_deref() == Some(session_id)
+    }
+
+    pub fn session_load_failed(&mut self, request_id: u64, session_id: &str, error: String) {
+        if !self.is_current_session_load(request_id, session_id) {
+            return;
+        }
+        self.session_loading = None;
+        self.status = format!("cannot resume conversation · {error}");
+        self.status_error = true;
     }
 
     pub fn begin_thinking_load(&mut self) {
@@ -1295,6 +1314,20 @@ impl App {
     }
 
     fn handle_session_picker(&mut self, key: KeyEvent) -> Action {
+        if self.session_loading.is_some() {
+            return if key.code == KeyCode::Esc {
+                self.session_load_generation = self.session_load_generation.wrapping_add(1);
+                self.session_loading = None;
+                self.session_picker = false;
+                if std::mem::take(&mut self.session_picker_exit_on_cancel) {
+                    Action::Quit
+                } else {
+                    Action::None
+                }
+            } else {
+                Action::None
+            };
+        }
         match key.code {
             KeyCode::Esc => {
                 self.session_picker = false;
@@ -1318,12 +1351,12 @@ impl App {
                     return Action::None;
                 };
                 let id = session.id.clone();
-                let exit_on_failure = self.session_picker_exit_on_cancel;
-                self.session_picker = false;
-                Action::SwitchSession {
-                    id,
-                    exit_on_failure,
-                }
+                self.session_load_generation = self.session_load_generation.wrapping_add(1);
+                let request_id = self.session_load_generation;
+                self.session_loading = Some(id.clone());
+                self.status = format!("loading conversation · {}", session.name);
+                self.status_error = false;
+                Action::SwitchSession { id, request_id }
             }
             _ => Action::None,
         }
@@ -1731,6 +1764,8 @@ impl App {
         self.api_key_dialog = false;
         self.api_key_provider = None;
         self.clear_api_key_input();
+        self.session_picker = false;
+        self.session_loading = None;
         self.session_picker_exit_on_cancel = false;
         self.queued_prompts.clear();
         self.pending_slash_command = None;
@@ -3128,6 +3163,46 @@ mod tests {
         assert_eq!(app.cwd, other.to_string_lossy());
         assert_eq!(app.new_session_workspace(), launch);
         std::fs::remove_dir_all(root).unwrap();
+    }
+
+    #[test]
+    fn session_picker_keeps_loading_visible_and_ignores_stale_results() {
+        let mut app = test_app(Vec::new());
+        app.open_session_picker(false);
+        let request_id = match app.handle_key(KeyEvent::new(KeyCode::Enter, KeyModifiers::NONE)) {
+            Action::SwitchSession { id, request_id } => {
+                assert_eq!(id, "session-1");
+                request_id
+            }
+            _ => panic!("expected a session switch action"),
+        };
+        assert!(app.session_picker);
+        assert_eq!(app.session_loading.as_deref(), Some("session-1"));
+
+        app.handle_key(KeyEvent::new(KeyCode::Down, KeyModifiers::NONE));
+        assert_eq!(app.session_selected, 0);
+        app.session_load_failed(request_id.wrapping_add(1), "session-1", "stale".to_owned());
+        assert_eq!(app.session_loading.as_deref(), Some("session-1"));
+
+        app.handle_key(KeyEvent::new(KeyCode::Esc, KeyModifiers::NONE));
+        assert!(!app.session_picker);
+        assert!(app.session_loading.is_none());
+    }
+
+    #[test]
+    fn current_session_load_failure_keeps_the_picker_open() {
+        let mut app = test_app(Vec::new());
+        app.open_session_picker(false);
+        let request_id = match app.handle_key(KeyEvent::new(KeyCode::Enter, KeyModifiers::NONE)) {
+            Action::SwitchSession { request_id, .. } => request_id,
+            _ => panic!("expected a session switch action"),
+        };
+
+        app.session_load_failed(request_id, "session-1", "request timed out".to_owned());
+        assert!(app.session_picker);
+        assert!(app.session_loading.is_none());
+        assert!(app.status_error);
+        assert!(app.status.contains("request timed out"));
     }
 
     #[test]

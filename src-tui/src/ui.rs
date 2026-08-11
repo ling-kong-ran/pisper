@@ -1623,6 +1623,11 @@ fn render_sessions(frame: &mut Frame, app: &App, area: Rect) {
     let now = SystemTime::now();
     let rows = app.sessions.iter().map(|session| {
         let streaming = if session.streaming { " · running" } else { "" };
+        let loading = if app.session_loading.as_deref() == Some(session.id.as_str()) {
+            " · loading…"
+        } else {
+            ""
+        };
         let workspace = shorten_path(&session.cwd);
         let modified = format_session_time(&session.modified, now);
         let mut metadata = vec![Span::raw("   ")];
@@ -1635,7 +1640,7 @@ fn render_sessions(frame: &mut Frame, app: &App, area: Rect) {
             Line::from(vec![
                 Span::styled(format!("{:<32}", session.name), Style::default().fg(TEXT)),
                 Span::styled(
-                    format!("{}{}", display_model(&session.model), streaming),
+                    format!("{}{}{}", display_model(&session.model), streaming, loading),
                     Style::default().fg(MUTED),
                 ),
             ]),
@@ -1649,8 +1654,24 @@ fn render_sessions(frame: &mut Frame, app: &App, area: Rect) {
                     " Resume conversation · all workspaces ",
                     Style::default().fg(VIOLET).add_modifier(Modifier::BOLD),
                 ))
+                .title_bottom(Span::styled(
+                    if app.session_loading.is_some() {
+                        " Loading conversation… · Esc cancel "
+                    } else {
+                        " ↑↓ choose · Enter resume · Esc close "
+                    },
+                    Style::default().fg(if app.session_loading.is_some() {
+                        AMBER
+                    } else {
+                        MUTED
+                    }),
+                ))
                 .borders(Borders::ALL)
-                .border_style(Style::default().fg(VIOLET))
+                .border_style(Style::default().fg(if app.session_loading.is_some() {
+                    AMBER
+                } else {
+                    VIOLET
+                }))
                 .style(Style::default().bg(SURFACE)),
         )
         .highlight_symbol(" ❯ ")
@@ -3000,6 +3021,13 @@ mod tests {
         let rendered = format!("{:?}", terminal.backend().buffer());
         assert!(rendered.contains("Timed conversation"));
         assert!(rendered.contains("1970-01-01"));
+
+        app.session_loading = Some("session-1".to_owned());
+        terminal.draw(|frame| draw(frame, &app)).unwrap();
+        let loading = format!("{:?}", terminal.backend().buffer());
+        assert!(loading.contains("loading…"));
+        assert!(loading.contains("Loading conversation…"));
+        assert!(loading.contains("Esc cancel"));
     }
 
     #[test]

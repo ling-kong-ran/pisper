@@ -48,6 +48,8 @@ use crate::{
     workspace::{canonical_workspace, same_workspace, validate_session_workspace},
 };
 
+const SESSION_LOAD_TIMEOUT: Duration = Duration::from_secs(15);
+
 const CLI_HELP: &str = "Pisper CLI
 
 Start a coding session in your terminal.
@@ -409,6 +411,50 @@ async fn run_event_loop(
                                 }
                                 true
                             }
+                            RuntimeEvent::SessionLoaded {
+                                request_id,
+                                session,
+                                result,
+                            } => {
+                                if app.is_current_session_load(request_id, &session.id) {
+                                    match result {
+                                        Ok(page) => {
+                                            let history_start = page.page_info.start;
+                                            let session_usage = page.session_usage.clone();
+                                            app.replace_session(
+                                                *session,
+                                                page.messages,
+                                                page.context_usage,
+                                            );
+                                            app.set_history_window(history_start);
+                                            if let Some(usage) = session_usage {
+                                                app.set_session_usage(usage);
+                                            }
+                                            app.begin_thinking_load();
+                                            spawn_session_thinking_load(
+                                                &api,
+                                                app.session.id.clone(),
+                                                &runtime_tx,
+                                            );
+                                        }
+                                        Err(error) => app.session_load_failed(
+                                            request_id,
+                                            &session.id,
+                                            error,
+                                        ),
+                                    }
+                                }
+                                false
+                            }
+                            RuntimeEvent::SessionThinkingLoaded { session_id, result } => {
+                                if app.session.id == session_id {
+                                    match result {
+                                        Ok(state) => app.set_thinking_state(state),
+                                        Err(error) => app.set_thinking_error(error),
+                                    }
+                                }
+                                false
+                            }
                             RuntimeEvent::CompactionFinished {
                                 context_usage,
                                 error,
@@ -662,6 +708,48 @@ enum VcsRequest {
     Commit(String),
     Push,
     Revert,
+}
+
+fn spawn_session_load(
+    api: &ApiClient,
+    request_id: u64,
+    session: SessionSummary,
+    sender: &mpsc::UnboundedSender<RuntimeEvent>,
+) {
+    let api = api.clone();
+    let sender = sender.clone();
+    tokio::spawn(async move {
+        let result =
+            match tokio::time::timeout(SESSION_LOAD_TIMEOUT, api.messages(&session.id)).await {
+                Ok(Ok(page)) => Ok(page),
+                Ok(Err(error)) => Err(format!("{error:#}")),
+                Err(_) => Err(format!(
+                    "request timed out after {} seconds",
+                    SESSION_LOAD_TIMEOUT.as_secs()
+                )),
+            };
+        let _ = sender.send(RuntimeEvent::SessionLoaded {
+            request_id,
+            session: Box::new(session),
+            result,
+        });
+    });
+}
+
+fn spawn_session_thinking_load(
+    api: &ApiClient,
+    session_id: String,
+    sender: &mpsc::UnboundedSender<RuntimeEvent>,
+) {
+    let api = api.clone();
+    let sender = sender.clone();
+    tokio::spawn(async move {
+        let result = api
+            .thinking_state(&session_id)
+            .await
+            .map_err(|error| format!("{error:#}"));
+        let _ = sender.send(RuntimeEvent::SessionThinkingLoaded { session_id, result });
+    });
 }
 
 fn spawn_vcs_request(
@@ -1007,50 +1095,25 @@ async fn execute_action(
                 }
             }
         }
-        Action::SwitchSession {
-            id,
-            exit_on_failure,
-        } => {
+        Action::SwitchSession { id, request_id } => {
             let Some(session) = app
                 .sessions
                 .iter()
                 .find(|session| session.id == id)
                 .cloned()
             else {
-                app.status = "conversation no longer exists".to_owned();
-                app.status_error = true;
-                app.open_session_picker_at(exit_on_failure, &id);
+                app.session_load_failed(
+                    request_id,
+                    &id,
+                    "conversation no longer exists".to_owned(),
+                );
                 return Ok(false);
             };
             if let Err(error) = validate_session_workspace(&session, None) {
-                app.status = format!("cannot resume conversation · {error}");
-                app.status_error = true;
-                app.open_session_picker_at(exit_on_failure, &id);
+                app.session_load_failed(request_id, &id, format!("{error:#}"));
                 return Ok(false);
             }
-            let page = match api.messages(&session.id).await {
-                Ok(page) => page,
-                Err(error) => {
-                    app.status = format!("cannot resume conversation · {error}");
-                    app.status_error = true;
-                    app.open_session_picker_at(exit_on_failure, &id);
-                    return Ok(false);
-                }
-            };
-            let history_start = page.page_info.start;
-            let session_usage = page.session_usage.clone();
-            app.replace_session(session, page.messages, page.context_usage);
-            app.set_history_window(history_start);
-            if let Some(usage) = session_usage {
-                app.set_session_usage(usage);
-            }
-            // Load thinking metadata independently from transcript loading so a slow provider
-            // cannot keep the picker stuck in a permanent loading state.
-            app.begin_thinking_load();
-            match api.thinking_state(&app.session.id).await {
-                Ok(state) => app.set_thinking_state(state),
-                Err(error) => app.set_thinking_error(format!("{error:#}")),
-            }
+            spawn_session_load(api, request_id, session, runtime_tx);
         }
     }
     Ok(false)

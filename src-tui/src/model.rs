@@ -408,6 +408,15 @@ pub enum RuntimeEvent {
         before: u64,
         result: Result<MessagePage, String>,
     },
+    SessionLoaded {
+        request_id: u64,
+        session: Box<SessionSummary>,
+        result: Result<MessagePage, String>,
+    },
+    SessionThinkingLoaded {
+        session_id: String,
+        result: Result<ThinkingLevelUpdate, String>,
+    },
     CompactionFinished {
         context_usage: Option<ContextUsage>,
         error: Option<String>,
