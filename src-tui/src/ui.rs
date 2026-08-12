@@ -37,11 +37,12 @@ const WELCOME_FULL_LOGO_WIDTH: u16 = 48;
 const SLASH_HEIGHT: u16 = 22;
 const ROLE_GUTTER_WIDTH: usize = 3;
 const ACTIVITY_GUTTER_WIDTH: usize = 6;
-const PISPER_LOGO: [(&str, &str); 4] = [
-    (" ___  ___  ___  ", " ___  ___  ___ "),
-    ("| _ \\|_ _|/ __| ", "| _ \\| __|| _ \\"),
-    ("|  _/ | | \\__ \\ ", "|  _/| _| |   /"),
-    ("|_|  |___||___/ ", "|_|  |___||_|_\\"),
+const PISPER_LOGO: [(&str, &str); 5] = [
+    ("████  █ █████  ", "████  █████ ████ "),
+    ("█   █ █ █      ", "█   █ █     █   █"),
+    ("████  █ █████  ", "████  ████  ████ "),
+    ("█     █     █  ", "█     █     █  █ "),
+    ("█     █ █████  ", "█     █████ █   █"),
 ];
 
 fn composer_height(app: &App, area: Rect) -> u16 {
@@ -198,8 +199,11 @@ fn render_welcome_logo(frame: &mut Frame, area: Rect, full: bool) {
             .iter()
             .map(|(pis, per)| {
                 Line::from(vec![
-                    Span::styled(*pis, Style::default().fg(ACCENT)),
-                    Span::styled(*per, Style::default().fg(TEXT)),
+                    Span::styled(
+                        *pis,
+                        Style::default().fg(ACCENT).add_modifier(Modifier::BOLD),
+                    ),
+                    Span::styled(*per, Style::default().fg(TEXT).add_modifier(Modifier::BOLD)),
                 ])
             })
             .collect::<Vec<_>>()
@@ -3612,8 +3616,8 @@ mod tests {
             .position(|row| row.contains("Message Pisper"))
             .unwrap();
 
-        assert!(rows.iter().any(|row| row.contains("___  ___  ___")));
-        assert!(!rows.iter().any(|row| row.contains("████")));
+        assert!(rows.iter().any(|row| row.contains("████  █ █████")));
+        assert!(!rows.iter().any(|row| row.contains("___  ___  ___")));
         assert!((18..=24).contains(&input_row));
         assert_eq!(buffer.cell((36, input_row as u16)).unwrap().symbol(), "│");
         assert_eq!(buffer.cell((123, input_row as u16)).unwrap().symbol(), "│");
