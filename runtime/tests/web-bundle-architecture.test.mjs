@@ -65,6 +65,14 @@ test('production build emits an audited manifest with explicit non-recursive chu
   assert.match(buildScript, /'vite'/)
 })
 
+test('desktop terminal reattaches its xterm runtime after the panel host is remounted', async () => {
+  const terminal = await readFile('src/features/terminal/TerminalPanel.tsx', 'utf8')
+
+  assert.match(terminal, /existing\.element\.parentElement !== host/)
+  assert.match(terminal, /host\.append\(existing\.element\)/)
+  assert.match(terminal, /existing\.resizeObserver\.observe\(host\)/)
+})
+
 test('route code and route-specific vendor styles remain lazy', async () => {
   const [router, routeElements, main, chat, workflows, styles] = await Promise.all([
     readFile('src/app/router.tsx', 'utf8'),

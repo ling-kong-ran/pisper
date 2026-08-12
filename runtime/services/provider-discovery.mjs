@@ -631,6 +631,7 @@ export class ProviderDiscoveryService {
             warnings: [],
             fingerprint,
             credentialPath: candidate.path,
+            credentialSize: details.size,
           },
           errors: [],
         }
@@ -679,6 +680,8 @@ export class ProviderDiscoveryService {
     if (item.kind === 'authentication') {
       let data
       try {
+        if (item.credentialSize > 1024 * 1024)
+          throw Object.assign(new Error('Credential file is too large'), { code: 'EFBIG' })
         const text = await this.readFile(item.credentialPath, 'utf8')
         if (Buffer.byteLength(text, 'utf8') > 1024 * 1024)
           throw Object.assign(new Error('Credential file is too large'), { code: 'EFBIG' })

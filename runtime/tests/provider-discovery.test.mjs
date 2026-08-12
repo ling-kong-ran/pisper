@@ -334,6 +334,32 @@ test('login import rejects API keys and incomplete OAuth sessions', async (t) =>
   )
 })
 
+test('login import rejects oversized credential files before reading their contents', async () => {
+  let reads = 0
+  const service = new ProviderDiscoveryService({
+    homeDir: '/test-home',
+    env: {},
+    statImpl: async (path) => ({
+      isFile: () => path.endsWith('auth.json'),
+      size: 1024 * 1024 + 1,
+      mtimeMs: 1,
+    }),
+    readFileImpl: async (path) => {
+      if (!path.endsWith('auth.json')) {
+        throw Object.assign(new Error('missing configuration'), { code: 'ENOENT' })
+      }
+      reads += 1
+      throw new Error('oversized credential should not be read')
+    },
+  })
+
+  const discovered = await service.discover()
+  const credential = discovered.providers.find((provider) => provider.source === 'codex-auth')
+  assert.ok(credential)
+  await assert.rejects(() => service.loadConfiguration(credential.id), /登录状态文件过大/)
+  assert.equal(reads, 0)
+})
+
 test('runtime imports provider definitions and embedded configuration credentials without overwriting conflicts', async (t) => {
   const directory = await mkdtemp(join(tmpdir(), 'pisper-provider-config-import-'))
   const privateText = privateValue('runtime')

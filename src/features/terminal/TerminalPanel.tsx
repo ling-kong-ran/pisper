@@ -156,8 +156,16 @@ export function TerminalPanel({
 
   const mountRuntime = useCallback(
     (id: string) => {
-      if (runtimesRef.current.has(id)) return runtimesRef.current.get(id)
+      const existing = runtimesRef.current.get(id)
       const host = hostsRef.current.get(id)
+      if (existing) {
+        if (host && existing.element.parentElement !== host) {
+          host.append(existing.element)
+          existing.resizeObserver.disconnect()
+          existing.resizeObserver.observe(host)
+        }
+        return existing
+      }
       if (!host) return undefined
       const element = document.createElement('div')
       element.className = 'terminal-xterm'
