@@ -370,6 +370,10 @@ fn render_plan(frame: &mut Frame, app: &App, area: Rect) {
 fn render_run_state(frame: &mut Frame, app: &App, area: Rect) {
     let (label, color, animate) = if app.approval.is_some() {
         ("Approval required".to_owned(), AMBER, false)
+    } else if app.compacting_context {
+        ("Compacting context".to_owned(), ACCENT, true)
+    } else if app.status == "context compacted" {
+        ("Context compacted".to_owned(), GREEN, false)
     } else if app.is_streaming() {
         let label = match app.status.as_str() {
             "thinking" => "Thinking".to_owned(),
@@ -2739,6 +2743,14 @@ mod tests {
         },
     };
 
+    fn buffer_text(buffer: &ratatui::buffer::Buffer) -> String {
+        buffer
+            .content
+            .iter()
+            .map(|cell| cell.symbol())
+            .collect::<String>()
+    }
+
     #[test]
     fn exhausted_provider_errors_are_concise_and_bounded() {
         let label = runtime_error_label(
@@ -2842,6 +2854,38 @@ mod tests {
         let after = terminal.backend().buffer().content[..80 * 15].to_vec();
 
         assert_eq!(before, after);
+    }
+
+    #[test]
+    fn manual_compaction_has_visible_running_and_completed_states() {
+        let session = SessionSummary {
+            id: "session-1".to_owned(),
+            model: "openai/gpt-5.6-sol".to_owned(),
+            cwd: "/workspace".to_owned(),
+            execution_mode: "full-access".to_owned(),
+            ..SessionSummary::default()
+        };
+        let mut app = App::new(
+            vec![session.clone()],
+            session,
+            vec![ChatMessage {
+                role: "user".to_owned(),
+                text: "Keep enough context to compact".to_owned(),
+                ..ChatMessage::default()
+            }],
+            None,
+            Vec::new(),
+            Vec::new(),
+        );
+        let mut terminal = Terminal::new(TestBackend::new(80, 24)).unwrap();
+
+        app.begin_context_compaction();
+        terminal.draw(|frame| draw(frame, &app)).unwrap();
+        assert!(buffer_text(terminal.backend().buffer()).contains("Compacting context"));
+
+        app.finish_context_compaction(None, None);
+        terminal.draw(|frame| draw(frame, &app)).unwrap();
+        assert!(buffer_text(terminal.backend().buffer()).contains("Context compacted"));
     }
 
     #[test]

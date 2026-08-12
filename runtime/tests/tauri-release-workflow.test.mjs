@@ -50,6 +50,16 @@ test('new desktop shells use component updates while legacy clients retain relea
   assert.match(updateHook, /legacyShellUpdateRef\.current/)
 })
 
+test('closing the macOS main window keeps it reopenable from the Dock', async () => {
+  const library = await readFile('src-tauri/src/lib.rs', 'utf8')
+
+  assert.match(
+    library,
+    /WindowEvent::CloseRequested[\s\S]*api\.prevent_close\(\)[\s\S]*window\.hide\(\)/,
+  )
+  assert.match(library, /RunEvent::Reopen \{ \.\. \}[\s\S]*show_main_window\(app\)/)
+})
+
 test('transparent desktop pet enables the required macOS Tauri API', async () => {
   const [cargo, config, desktopPet] = await Promise.all([
     readFile('src-tauri/Cargo.toml', 'utf8'),

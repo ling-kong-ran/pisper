@@ -2,6 +2,14 @@ import type { ComponentUpdateStatus, UpdateStatus } from '@/types/update'
 
 const PROGRESS_STATES = new Set(['available', 'downloading', 'installed', 'error'])
 
+export function currentDesktopVersion(
+  hostVersion: string,
+  items?: ComponentUpdateStatus[],
+): string {
+  const current = items?.find((item) => item.component === 'desktop')?.currentVersion.trim()
+  return current || hostVersion
+}
+
 function progressItems(items: ComponentUpdateStatus[]) {
   return items.filter(
     (item) => item.size > 0 && (PROGRESS_STATES.has(item.state) || item.canInstall),

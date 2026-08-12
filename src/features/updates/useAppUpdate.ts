@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type {
   AppUpdateController,
   AppUpdateInfo,
@@ -6,7 +6,10 @@ import type {
   UpdateStatus,
 } from '@/types/update'
 import { scheduleDesktopUpdateChecks, shouldAutomaticallyCheckForUpdates } from './auto-update'
-import { componentUpdateStatus as componentStatus } from './component-update-state'
+import {
+  componentUpdateStatus as componentStatus,
+  currentDesktopVersion,
+} from './component-update-state'
 import { checkWebUpdates, RELEASES_URL } from './update-client'
 
 const BUILD_VERSION = import.meta.env.VITE_APP_VERSION || '0.0.0'
@@ -103,7 +106,7 @@ export function useAppUpdate(): AppUpdateController {
       .getAppInfo()
       .then((value) => {
         if (!active) return
-        setInfo(value)
+        setInfo({ ...value, hostVersion: value.version })
         void bridge
           .componentUpdateStatus?.()
           .then((items) => {
@@ -203,8 +206,18 @@ export function useAppUpdate(): AppUpdateController {
 
   const install = useCallback(() => openReleases(), [openReleases])
 
+  const effectiveInfo = useMemo(
+    () => ({
+      ...info,
+      version: info.desktop
+        ? currentDesktopVersion(info.hostVersion || info.version, components)
+        : info.version,
+    }),
+    [components, info],
+  )
+
   return {
-    info,
+    info: effectiveInfo,
     status,
     components,
     check,

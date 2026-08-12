@@ -508,7 +508,7 @@ async fn run_event_loop(
                 }
                 resize_settled || pending_resize.is_none()
             }
-            _ = status_animation.tick(), if app.is_streaming() && !app.has_pending_render() && pending_resize.is_none() => {
+            _ = status_animation.tick(), if (app.is_streaming() || app.compacting_context) && !app.has_pending_render() && pending_resize.is_none() => {
                 app.advance_status_animation();
                 true
             }

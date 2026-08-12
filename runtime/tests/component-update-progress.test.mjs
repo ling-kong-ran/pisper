@@ -1,6 +1,9 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
-import { componentUpdateStatus } from '../../src/features/updates/component-update-state.ts'
+import {
+  componentUpdateStatus,
+  currentDesktopVersion,
+} from '../../src/features/updates/component-update-state.ts'
 
 function component(component, state, size, transferred = 0) {
   return {
@@ -17,6 +20,15 @@ function component(component, state, size, transferred = 0) {
     restartRequired: state === 'installed',
   }
 }
+
+test('desktop product version follows the active frontend component instead of the host shell', () => {
+  const items = [component('desktop', 'current', 0)]
+  items[0].currentVersion = '0.5.1'
+
+  assert.equal(currentDesktopVersion('0.4.48', items), '0.5.1')
+  assert.equal(currentDesktopVersion('0.4.48'), '0.4.48')
+  assert.equal(currentDesktopVersion('0.4.48', []), '0.4.48')
+})
 
 test('component update progress aggregates completed, active, and pending component bytes', () => {
   const status = componentUpdateStatus(

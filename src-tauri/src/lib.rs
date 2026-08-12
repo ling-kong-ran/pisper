@@ -693,7 +693,11 @@ pub fn run() {
         .build(tauri::generate_context!())
         .expect("failed to build Pisper WebView application");
     application.run(|app, event| {
-        if matches!(event, RunEvent::Exit | RunEvent::ExitRequested { .. }) {
+        #[cfg(target_os = "macos")]
+        if matches!(&event, RunEvent::Reopen { .. }) {
+            show_main_window(app);
+        }
+        if matches!(&event, RunEvent::Exit | RunEvent::ExitRequested { .. }) {
             if let Some(state) = app.try_state::<desktop_terminal::DesktopTerminalState>() {
                 desktop_terminal::close_all(&state);
             }

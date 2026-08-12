@@ -35,6 +35,7 @@ export type AppUpdateInfo = {
   desktop: boolean
   packaged: boolean
   version: string
+  hostVersion?: string
   platform: string
   arch: string
   releasesUrl: string
