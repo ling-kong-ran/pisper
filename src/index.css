@@ -757,11 +757,23 @@ details[open] > summary .agent-run-disclosure { transform: rotate(90deg); }
 .agent-run-plan-changes small { color: var(--text-secondary); }
 
 /* Team task board: shared task list with assignee + dependency chains. */
-.plan-board { display: flex; flex-direction: column; width: min(960px,100%); margin: 0 auto 16px; border: 1px solid var(--stroke-soft); border-radius: var(--r-md); background: var(--main-surface-bg); padding: 10px 14px; }
-.plan-board-summary { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; padding-bottom: 8px; border-bottom: 1px solid var(--stroke-soft); font-size: 12px; color: var(--text-secondary); }
-.plan-board-summary strong { color: var(--text); font-weight: 600; }
+.plan-board-dock { position: relative; z-index: 3; width: 100%; flex: none; border-bottom: 1px solid var(--stroke-soft); background: var(--main-surface-bg); padding: 8px max(24px,calc((100% - 900px)/2)); box-shadow: 0 12px 24px -24px var(--shadow-strong); }
+.plan-board { display: flex; flex-direction: column; width: min(900px,100%); margin: 0 auto; border: 1px solid var(--stroke-soft); border-radius: var(--r-sm); background: var(--main-surface-bg); padding: 10px 14px; }
+.plan-board-summary { display: flex; min-width: 0; align-items: center; gap: 8px; padding-bottom: 8px; border-bottom: 1px solid var(--stroke-soft); font-size: 12px; color: var(--text-secondary); }
+.plan-board-summary-icon { flex: none; color: var(--star-strong); }
+.plan-board-summary strong { flex: none; color: var(--text); font-weight: 600; }
 .plan-board-summary .blocked { color: var(--star-strong); }
-.plan-board-list { display: flex; flex-direction: column; gap: 2px; margin: 8px 0 0; padding: 0; list-style: none; }
+.plan-board-current { min-width: 0; flex: 1; overflow: hidden; color: var(--text-secondary); text-overflow: ellipsis; white-space: nowrap; }
+.plan-board-counts { display: inline-flex; flex: none; align-items: center; gap: 8px; }
+.plan-board-collapsible { padding: 0; }
+.plan-board-collapsible > .plan-board-summary { min-height: 38px; border: 0; padding: 7px 10px; cursor: pointer; list-style: none; }
+.plan-board-collapsible > .plan-board-summary::-webkit-details-marker { display: none; }
+.plan-board-collapsible > .plan-board-summary:hover { background: var(--surface-hover); }
+.plan-board-collapsible > .plan-board-summary:focus-visible { outline: 2px solid var(--accent-border); outline-offset: -2px; }
+.plan-board-chevron { flex: none; transition: transform var(--d1) var(--ease-out); }
+.plan-board-collapsible[open] .plan-board-chevron { transform: rotate(180deg); }
+.plan-board-collapsible > .plan-board-list { border-top: 1px solid var(--stroke-soft); padding: 8px 10px 10px; }
+.plan-board-list { display: flex; flex-direction: column; gap: 2px; margin: 0; padding: 8px 0 0; list-style: none; }
 .plan-board-list.is-scrollable { block-size: min(220px,34dvh); overflow-y: auto; overscroll-behavior: contain; padding-right: 4px; scrollbar-gutter: stable; }
 .plan-board-list.is-scrollable:focus-visible { outline: 2px solid var(--accent-border); outline-offset: 2px; }
 .plan-board-row { display: flex; flex-direction: column; gap: 2px; padding: 5px 6px; border-radius: var(--r-sm); }
@@ -1301,6 +1313,7 @@ details[open] > summary .agent-run-disclosure { transform: rotate(90deg); }
   .agent-run-summary { grid-template-columns: 28px minmax(0,1fr) auto; }
   .agent-run-summary > svg { display: none; }
   .focus-session.has-conversation .transcript { padding: 24px 16px; }
+  .plan-board-dock { padding-inline: 10px; }
   .focus-session.has-conversation .focus-composer-shell { width: calc(100% - 20px); }
   .focus-session.has-conversation .focus-composer { display: flex; }
   .focus-session.has-conversation .focus-composer-footer { display: flex; }
@@ -1317,6 +1330,8 @@ details[open] > summary .agent-run-disclosure { transform: rotate(90deg); }
   .context-usage-chip { grid-template-columns: auto auto; }.context-usage-chip > i { display: none; }
   .session-usage-metrics small { display: none; }
   .focus-session-head-actions .button.tiny { padding-inline: 7px; }
+  .plan-board-counts { display: none; }
+  .plan-board-collapsible > .plan-board-summary { padding-inline: 8px; }
   .transcript { padding-inline: 10px; }
   .message.agent { grid-template-columns: 22px minmax(0,1fr); column-gap: 9px; }
   .message.user .message-content { max-width: 92%; }

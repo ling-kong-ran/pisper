@@ -222,9 +222,11 @@ test('stale streaming queue errors settle the old stream and resend as a new tur
   )
 })
 
-test('shared plan board uses live/session fallback, blockers, and an active-item scroll viewport', async () => {
-  const [dock, board, catalog, styles] = await Promise.all([
+test('shared plan board stays outside the transcript with collapsible current-task context', async () => {
+  const [dock, session, transcript, board, catalog, styles] = await Promise.all([
     readFile('src/features/chat/ChatDock.tsx', 'utf8'),
+    readFile('src/features/chat/FocusSession.tsx', 'utf8'),
+    readFile('src/features/chat/FocusTranscript.tsx', 'utf8'),
     readFile('src/features/chat/PlanBoard.tsx', 'utf8'),
     readFile('src/features/chat/use-session-catalog.ts', 'utf8'),
     readFile('src/index.css', 'utf8'),
@@ -238,6 +240,16 @@ test('shared plan board uses live/session fallback, blockers, and an active-item
   assert.match(board, /data-pisper-plan-current/)
   assert.match(board, /list\.scrollTop \+= currentBounds\.bottom - listBounds\.bottom/)
   assert.match(board, /tabIndex=\{views\.length > 4 \? 0 : undefined\}/)
+  assert.match(board, /open=\{expanded\}/)
+  assert.match(board, /onToggle=\{\(event\) => setExpanded\(event\.currentTarget\.open\)\}/)
+  assert.match(board, /className="plan-board-current"/)
+  assert.match(
+    session,
+    /className="plan-board-dock"[\s\S]*<PlanBoard plan=\{plan\} collapsible \/>/,
+  )
+  assert.ok(session.indexOf('plan-board-dock') < session.indexOf('<FocusTranscript'))
+  assert.doesNotMatch(transcript, /PlanBoard|plan=\{plan\}/)
+  assert.match(styles, /\.plan-board-dock \{[^}]*flex: none;/)
   assert.match(styles, /\.plan-board-list\.is-scrollable \{[^}]*overflow-y: auto;/)
   assert.doesNotMatch(board, /unblocks:/)
 })

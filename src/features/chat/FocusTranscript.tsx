@@ -15,8 +15,7 @@ import { useI18n } from '@/app/use-i18n'
 import { BrandLogo } from '@/components/BrandLogo'
 import { useAutoScroll } from '@/hooks/useAutoScroll'
 import { workspaceName } from '@/lib/format'
-import type { ChatMessage, EntityRecord, Plan } from '@/types/chat'
-import PlanBoard from './PlanBoard'
+import type { ChatMessage, EntityRecord } from '@/types/chat'
 import { activityScrollVersion } from './run-activity'
 import {
   anchoredScrollTopAfterPrepend,
@@ -35,7 +34,6 @@ type FocusTranscriptProps = {
   hasOlder?: boolean
   loadingOlder?: boolean
   olderError?: string
-  plan?: Plan | null
   currentActivity?: EntityRecord | null
   activityFeed: EntityRecord[]
   tools: EntityRecord[]
@@ -112,7 +110,6 @@ export function FocusTranscript({
   hasOlder,
   loadingOlder,
   olderError,
-  plan,
   currentActivity,
   activityFeed,
   tools,
@@ -139,7 +136,7 @@ export function FocusTranscript({
   const textScrollBucket = Math.floor((lastMessage?.text?.length || 0) / 64)
   const activityVersion = activityScrollVersion(activityFeed)
   const thinkingScrollBucket = Math.floor(String(thinkingText || '').length / 128)
-  const transcriptVersion = `${sessionId}:${lastMessage?.id || ''}:${textScrollBucket}:${thinkingScrollBucket}:${lastMessage?.attachments?.length || 0}:${activityVersion}:${plan?.updatedAt || ''}:${compaction?.status || ''}:${compaction?.finishedAt || ''}:${error || ''}:${streaming ? '1' : '0'}`
+  const transcriptVersion = `${sessionId}:${lastMessage?.id || ''}:${textScrollBucket}:${thinkingScrollBucket}:${lastMessage?.attachments?.length || 0}:${activityVersion}:${compaction?.status || ''}:${compaction?.finishedAt || ''}:${error || ''}:${streaming ? '1' : '0'}`
   const {
     scrollRef: transcriptRef,
     scrollElement: transcriptElement,
@@ -275,7 +272,6 @@ export function FocusTranscript({
               )}
             </div>
           )}
-          {plan?.items?.length ? <PlanBoard plan={plan} /> : null}
         </div>
         {!messages.length && (
           <div className="agent-welcome">

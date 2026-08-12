@@ -34,6 +34,7 @@ import {
 import { FocusTranscript } from './FocusTranscript'
 import { GitChangesControl } from './GitChangesControl'
 import { GoalModeControl } from './GoalModeControl'
+import PlanBoard from './PlanBoard'
 import { SessionActionsMenu } from './SessionActionsMenu'
 import { ToolApproval } from './ToolApproval'
 
@@ -263,6 +264,12 @@ export function FocusSession({
         </div>
       )}
 
+      {plan?.items?.length ? (
+        <div className="plan-board-dock">
+          <PlanBoard plan={plan} collapsible />
+        </div>
+      ) : null}
+
       <FocusTranscript
         sessionId={session.id}
         messages={messages}
@@ -270,7 +277,6 @@ export function FocusSession({
         hasOlder={hasOlder}
         loadingOlder={loadingOlder}
         olderError={olderError}
-        plan={plan}
         currentActivity={currentActivity}
         activityFeed={activityFeed}
         tools={tools}

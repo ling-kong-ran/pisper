@@ -1,5 +1,13 @@
-import { memo, useLayoutEffect, useRef, type ReactNode } from 'react'
-import { Check, CircleDot, Lock, User, type LucideIcon } from 'lucide-react'
+import { memo, useLayoutEffect, useRef, useState, type ReactNode } from 'react'
+import {
+  Check,
+  ChevronDown,
+  CircleDot,
+  ListChecks,
+  Lock,
+  User,
+  type LucideIcon,
+} from 'lucide-react'
 import { useI18n } from '@/app/use-i18n'
 import type { I18nValues } from '@/app/i18n'
 import type { Plan, PlanItem } from '@/types/chat'
@@ -101,12 +109,14 @@ function PlanRow({ item, current, t }: { item: PlanItemView; current: boolean; t
 export type PlanBoardProps = {
   plan: Plan | null
   header?: ReactNode
+  collapsible?: boolean
 }
 
 /** Shared execution plan with ownership and dependency blockers. */
-function PlanBoard({ plan, header }: PlanBoardProps) {
+function PlanBoard({ plan, header, collapsible = false }: PlanBoardProps) {
   const { t } = useI18n()
   const listRef = useRef<HTMLUListElement>(null)
+  const [expanded, setExpanded] = useState(true)
   const items = plan?.items || []
   const views = buildPlanItemViews(items)
   const completed = views.filter((view) => view.status === 'completed').length
@@ -119,6 +129,7 @@ function PlanBoard({ plan, header }: PlanBoardProps) {
     views.at(-1)?.id
 
   useLayoutEffect(() => {
+    if (collapsible && !expanded) return
     const list = listRef.current
     const current = list?.querySelector<HTMLElement>('[data-pisper-plan-current="true"]')
     if (!list || !current) return
@@ -130,14 +141,21 @@ function PlanBoard({ plan, header }: PlanBoardProps) {
     } else if (currentBounds.bottom > listBounds.bottom) {
       list.scrollTop += currentBounds.bottom - listBounds.bottom
     }
-  }, [currentItemId, views.length])
+  }, [collapsible, currentItemId, expanded, views.length])
 
   if (!items.length) return null
 
-  return (
-    <section className="plan-board" aria-label={t('chat:planBoard.ariaLabel')}>
-      <div className="plan-board-summary">
-        <strong>{t('chat:planBoard.progress', { completed, total: items.length })}</strong>
+  const currentItem = views.find((view) => view.id === currentItemId)
+  const summary = (
+    <>
+      <ListChecks className="plan-board-summary-icon" size={15} />
+      <strong>{t('chat:planBoard.progress', { completed, total: items.length })}</strong>
+      {currentItem ? (
+        <span className="plan-board-current" title={currentItem.title}>
+          {currentItem.title}
+        </span>
+      ) : null}
+      <span className="plan-board-counts">
         {inProgress > 0 && (
           <span>{t('chat:planBoard.countInProgress', { count: inProgress })}</span>
         )}
@@ -146,17 +164,42 @@ function PlanBoard({ plan, header }: PlanBoardProps) {
             {t('chat:planBoard.countBlocked', { count: blockedCount })}
           </span>
         )}
-        {header}
-      </div>
-      <ul
-        ref={listRef}
-        className={`plan-board-list${views.length > 4 ? ' is-scrollable' : ''}`}
-        tabIndex={views.length > 4 ? 0 : undefined}
+      </span>
+      {header}
+      {collapsible ? <ChevronDown className="plan-board-chevron" size={15} /> : null}
+    </>
+  )
+  const list = (
+    <ul
+      ref={listRef}
+      className={`plan-board-list${views.length > 4 ? ' is-scrollable' : ''}`}
+      tabIndex={views.length > 4 ? 0 : undefined}
+    >
+      {views.map((item) => (
+        <PlanRow key={item.id} item={item} current={item.id === currentItemId} t={t} />
+      ))}
+    </ul>
+  )
+
+  if (collapsible) {
+    return (
+      <details
+        className="plan-board plan-board-collapsible"
+        open={expanded}
+        onToggle={(event) => setExpanded(event.currentTarget.open)}
       >
-        {views.map((item) => (
-          <PlanRow key={item.id} item={item} current={item.id === currentItemId} t={t} />
-        ))}
-      </ul>
+        <summary className="plan-board-summary" aria-label={t('chat:planBoard.toggleAriaLabel')}>
+          {summary}
+        </summary>
+        {list}
+      </details>
+    )
+  }
+
+  return (
+    <section className="plan-board" aria-label={t('chat:planBoard.ariaLabel')}>
+      <div className="plan-board-summary">{summary}</div>
+      {list}
     </section>
   )
 }

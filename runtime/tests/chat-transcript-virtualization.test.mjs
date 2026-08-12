@@ -106,8 +106,9 @@ test('virtualization source owns only message rows and preserves stable render b
 
   const virtualBoundary = transcriptSource.indexOf('<VirtualMessageTranscript')
   assert.ok(transcriptSource.indexOf('history-page-loader') < virtualBoundary)
-  assert.ok(transcriptSource.indexOf('<PlanBoard') < virtualBoundary)
+  assert.doesNotMatch(transcriptSource, /PlanBoard|plan-board-dock/)
   assert.ok(transcriptSource.indexOf('className="chat-error"') > virtualBoundary)
+  assert.ok(sessionSource.indexOf('plan-board-dock') < sessionSource.indexOf('<FocusTranscript'))
   assert.ok(
     sessionSource.indexOf('<FocusTranscript') < sessionSource.indexOf('focus-composer-shell'),
   )

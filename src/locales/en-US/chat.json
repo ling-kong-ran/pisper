@@ -1,5 +1,6 @@
 {
   "planBoard.ariaLabel": "Execution plan",
+  "planBoard.toggleAriaLabel": "Expand or collapse the current execution plan",
   "planBoard.progress": "Plan · {completed}/{total}",
   "planBoard.countInProgress": "{count} in progress",
   "planBoard.countBlocked": "{count} blocked",
