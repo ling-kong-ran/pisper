@@ -1455,7 +1455,9 @@ impl App {
             }
             KeyCode::Char(character)
                 if self.provider_connection_field == 1
-                    && !key.modifiers.contains(KeyModifiers::CONTROL) =>
+                    && !key
+                        .modifiers
+                        .intersects(KeyModifiers::CONTROL | KeyModifiers::ALT) =>
             {
                 insert_field_characters(
                     &mut self.provider_base_url_input,
@@ -1469,7 +1471,9 @@ impl App {
             KeyCode::Char(character)
                 if self.provider_connection_field == 2
                     && !character.is_whitespace()
-                    && !key.modifiers.contains(KeyModifiers::CONTROL) =>
+                    && !key
+                        .modifiers
+                        .intersects(KeyModifiers::CONTROL | KeyModifiers::ALT) =>
             {
                 insert_field_characters(
                     &mut self.api_key_input,
@@ -1774,7 +1778,18 @@ impl App {
                 }
                 Action::None
             }
-            KeyCode::Char(character) if !key.modifiers.contains(KeyModifiers::CONTROL) => {
+            KeyCode::Char('u') if key.modifiers.contains(KeyModifiers::CONTROL) => {
+                self.session_query.clear();
+                self.session_query_cursor = 0;
+                self.session_selected = 0;
+                Action::None
+            }
+            KeyCode::Char(character)
+                if self.session_query.len() < 256
+                    && !key
+                        .modifiers
+                        .intersects(KeyModifiers::CONTROL | KeyModifiers::ALT) =>
+            {
                 self.session_query
                     .insert(self.session_query_cursor, character);
                 self.session_query_cursor += 1;
@@ -4269,10 +4284,28 @@ mod tests {
         assert_eq!(app.session_query.iter().collect::<String>(), "中会文");
         app.handle_key(KeyEvent::new(KeyCode::Backspace, KeyModifiers::NONE));
         assert_eq!(app.session_query.iter().collect::<String>(), "中文");
+        app.handle_key(KeyEvent::new(KeyCode::Char('x'), KeyModifiers::ALT));
+        assert_eq!(app.session_query.iter().collect::<String>(), "中文");
         assert!(matches!(
             app.handle_key(KeyEvent::new(KeyCode::Enter, KeyModifiers::NONE)),
             Action::SwitchSession { id, .. } if id == "session-2"
         ));
+    }
+
+    #[test]
+    fn session_picker_caps_and_clears_the_query() {
+        let mut app = test_app(Vec::new());
+        app.open_session_picker(false);
+        for _ in 0..300 {
+            app.handle_key(KeyEvent::new(KeyCode::Char('x'), KeyModifiers::NONE));
+        }
+        assert_eq!(app.session_query.len(), 256);
+        assert_eq!(app.session_query_cursor, 256);
+
+        app.handle_key(KeyEvent::new(KeyCode::Char('u'), KeyModifiers::CONTROL));
+        assert!(app.session_query.is_empty());
+        assert_eq!(app.session_query_cursor, 0);
+        assert_eq!(app.session_selected, 0);
     }
 
     #[test]
@@ -4301,6 +4334,16 @@ mod tests {
             "ttps://new.example/v1"
         );
         assert_eq!(app.provider_base_url_cursor, 0);
+        app.handle_key(KeyEvent::new(KeyCode::Char('x'), KeyModifiers::ALT));
+        assert_eq!(
+            app.provider_base_url_input.iter().collect::<String>(),
+            "ttps://new.example/v1"
+        );
+
+        app.handle_key(KeyEvent::new(KeyCode::Down, KeyModifiers::NONE));
+        app.handle_key(KeyEvent::new(KeyCode::Char('k'), KeyModifiers::NONE));
+        app.handle_key(KeyEvent::new(KeyCode::Char('x'), KeyModifiers::ALT));
+        assert_eq!(app.api_key_input.iter().collect::<String>(), "k");
     }
 
     #[test]
