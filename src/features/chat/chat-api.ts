@@ -1,6 +1,6 @@
 import { consumeEventStream } from '@/lib/api'
 import { requestJson } from '@/lib/http'
-import type { ChatMessage, EntityRecord, SessionSummary } from '@/types/chat'
+import type { ChatMessage, EntityRecord, ResourceInvocation, SessionSummary } from '@/types/chat'
 
 export type ApiRecord = EntityRecord
 type StreamEventHandler = (event: string, data: ApiRecord) => boolean | void
@@ -85,6 +85,7 @@ export const chatApi = {
       attachments: unknown[]
       goalMode: boolean
       goalTokenBudget?: number | null
+      invocation?: ResourceInvocation | null
     },
     onEvent: StreamEventHandler,
   ) => {
@@ -107,6 +108,21 @@ export const chatApi = {
       method: 'POST',
       data: {},
       timeout: 180_000,
+    }),
+
+  getSessionWorkflowRuns: (sessionId: string) =>
+    requestJson<{ runs: EntityRecord[] }>(`${sessionPath(sessionId)}/workflow-runs`),
+
+  resolveWorkflowApproval: (runId: string, nodeId: string, approved: boolean) =>
+    requestJson<ApiRecord>(
+      `/api/workflow-runs/${encodeURIComponent(runId)}/approvals/${encodeURIComponent(nodeId)}`,
+      { method: 'POST', data: { approved } },
+    ),
+
+  stopWorkflowRun: (runId: string) =>
+    requestJson<ApiRecord>(`/api/workflow-runs/${encodeURIComponent(runId)}/stop`, {
+      method: 'POST',
+      data: {},
     }),
 
   abort: (sessionId: string) =>

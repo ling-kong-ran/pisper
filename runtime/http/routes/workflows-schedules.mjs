@@ -56,7 +56,45 @@ export const workflowScheduleRoutes = [
   },
   {
     method: 'POST',
-    path: '/api/workflows/runs/:runId/stop',
+    path: '/api/workflows/import',
+    async handler({ runtime, body, json }) {
+      json(201, await runtime.importWorkflow(await body()))
+    },
+  },
+  {
+    method: 'GET',
+    path: '/api/workflow-runs/:runId',
+    handler({ runtime, params, json }) {
+      const run = runtime.getWorkflowRun(params.runId)
+      if (!run) json(404, { error: '工作流运行不存在。' })
+      else json(200, run)
+    },
+  },
+  {
+    method: 'POST',
+    path: '/api/workflow-runs/:runId/retry',
+    async handler({ runtime, params, json }) {
+      const result = await runtime.retryWorkflowRun(params.runId)
+      if (!result) json(404, { error: '工作流运行不存在或不能重试。' })
+      else json(202, result)
+    },
+  },
+  {
+    method: 'POST',
+    path: '/api/workflow-runs/:runId/approvals/:nodeId',
+    async handler({ runtime, params, body, json }) {
+      const result = await runtime.resolveWorkflowApproval(
+        params.runId,
+        params.nodeId,
+        await body(),
+      )
+      if (!result) json(404, { error: '待审批节点不存在或已经处理。' })
+      else json(200, result)
+    },
+  },
+  {
+    method: 'POST',
+    path: '/api/workflow-runs/:runId/stop',
     async handler({ runtime, params, json }) {
       const result = await runtime.stopWorkflowRun(params.runId)
       if (!result) json(404, { error: '工作流运行不存在或已经结束。' })
@@ -66,10 +104,28 @@ export const workflowScheduleRoutes = [
   {
     method: 'POST',
     path: '/api/workflows/:workflowId/run',
-    async handler({ runtime, params, json }) {
-      const result = await runtime.runWorkflow(params.workflowId)
+    async handler({ runtime, params, body, json }) {
+      const result = await runtime.runWorkflow(params.workflowId, await body())
       if (!result) json(404, { error: '工作流不存在。' })
       else json(202, result)
+    },
+  },
+  {
+    method: 'POST',
+    path: '/api/workflows/:workflowId/duplicate',
+    async handler({ runtime, params, body, json }) {
+      const result = await runtime.duplicateWorkflow(params.workflowId, await body())
+      if (!result) json(404, { error: '工作流不存在。' })
+      else json(201, result)
+    },
+  },
+  {
+    method: 'GET',
+    path: '/api/workflows/:workflowId/export',
+    handler({ runtime, params, json }) {
+      const result = runtime.exportWorkflow(params.workflowId)
+      if (!result) json(404, { error: '工作流不存在。' })
+      else json(200, result)
     },
   },
   {

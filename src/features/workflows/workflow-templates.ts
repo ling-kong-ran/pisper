@@ -1,11 +1,14 @@
 import {
   Bell,
   Bot,
+  Braces,
+  CircleCheck,
   Code2,
   File,
   FileCode2,
   GitBranch,
   Image,
+  Network,
   Rocket,
   Search,
   Server,
@@ -31,6 +34,7 @@ export type WorkflowFilter = (typeof WORKFLOW_FILTERS)[number]
 export const NODE_TYPE_NAMES: Record<NodeKind, string> = {
   trigger: '触发器',
   prompt: '任务',
+  skill: 'Skill',
   file: '文件',
   mcp: 'MCP',
   notification: '通知',
@@ -42,8 +46,12 @@ export const NODE_TYPE_NAMES: Record<NodeKind, string> = {
 export const WORKFLOW_PALETTE = [
   { kind: 'trigger', label: '手动触发', Icon: Zap },
   { kind: 'prompt', label: '运行 Prompt', Icon: Bot },
+  { kind: 'skill', label: '调用 Skill', Icon: Braces },
   { kind: 'file', label: '读写文件', Icon: FileCode2 },
   { kind: 'mcp', label: '调用 MCP', Icon: Server },
+  { kind: 'condition', label: '条件分支', Icon: GitBranch },
+  { kind: 'parallel', label: '并行汇合', Icon: Network },
+  { kind: 'approval', label: '人工审批', Icon: CircleCheck },
   { kind: 'notification', label: '发送通知', Icon: Bell },
 ] satisfies Array<{ kind: NodeKind; label: string; Icon: LucideIcon }>
 
@@ -58,6 +66,7 @@ export function workflowFilterLabel(filter: WorkflowFilter, t: WorkflowTranslate
 
 export function nodeTypeLabel(kind: NodeKind, t: WorkflowTranslate) {
   if (kind === 'trigger') return t('workflows:workflowsPage.triggerNode')
+  if (kind === 'skill') return t('workflows:workflowsPage.skillNode')
   if (kind === 'file') return t('workflows:workflowsPage.fileNode')
   if (kind === 'mcp') return t('workflows:workflowsPage.mcpNode')
   if (kind === 'notification') return t('workflows:workflowsPage.notificationNode')
@@ -69,8 +78,12 @@ export function nodeTypeLabel(kind: NodeKind, t: WorkflowTranslate) {
 
 export function paletteLabel(kind: NodeKind, t: WorkflowTranslate) {
   if (kind === 'trigger') return t('workflows:workflowsPage.manualTrigger')
+  if (kind === 'skill') return t('workflows:workflowsPage.callSkill')
   if (kind === 'file') return t('workflows:workflowsPage.readWriteFiles')
   if (kind === 'mcp') return t('workflows:workflowsPage.callMcp')
+  if (kind === 'condition') return t('workflows:workflowsPage.conditionBranch')
+  if (kind === 'parallel') return t('workflows:workflowsPage.parallelJoin')
+  if (kind === 'approval') return t('workflows:workflowsPage.humanApproval')
   if (kind === 'notification') return t('workflows:workflowsPage.sendNotification')
   return t('workflows:workflowsPage.runPrompt')
 }
@@ -114,6 +127,12 @@ export function createWorkflowNode(
     timeoutMinutes: 20,
     failurePolicy: 'stop',
     enabled: true,
+    outputFormat: 'text',
+    skillName: '',
+    requestedToolNames: [],
+    condition: { source: 'previous', operator: 'exists', value: '' },
+    approval: { message: '', timeoutMinutes: 60 },
+    notificationTargets: [],
     ...extra,
   }
 }
@@ -321,8 +340,12 @@ export function blankWorkflow(cwd = ''): Workflow {
     name: '未命名工作流',
     description: '',
     status: 'draft',
+    revision: 1,
     cwd,
     model: null,
+    inputs: [],
+    tags: [],
+    visibility: 'private',
     notifications: [],
     nodes,
     edges: linearEdges(nodes),

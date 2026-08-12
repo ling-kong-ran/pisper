@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState, type FormEvent } from 'react'
 import {
+  Braces,
   Command,
   File,
   FolderOpen,
@@ -20,9 +21,11 @@ import type {
   EntityRecord,
   ModelOption,
   Plan,
+  ResourceInvocation,
   SessionSummary,
 } from '@/types/chat'
 import { useAttachmentSelection } from './attachments'
+import { ChatResourcePicker } from './ChatResourcePicker'
 import { requestCommandPalette } from './events'
 import {
   ContextUsageIndicator,
@@ -35,6 +38,7 @@ import { FocusTranscript } from './FocusTranscript'
 import { GitChangesControl } from './GitChangesControl'
 import { GoalModeControl } from './GoalModeControl'
 import { SessionActionsMenu } from './SessionActionsMenu'
+import { SessionWorkflowRuns } from './SessionWorkflowRuns'
 import { ToolApproval } from './ToolApproval'
 
 const DEFAULT_GOAL_TOKEN_BUDGET = 30_000
@@ -104,6 +108,7 @@ export type FocusSessionProps = {
     attachments: ChatAttachment[],
     goalMode: boolean,
     goalTokenBudget: number | null,
+    invocation?: ResourceInvocation | null,
   ) => Promise<void> | void
   onQueue?: (value: string, behavior: string) => Promise<boolean> | boolean
   onAbort: () => Promise<void> | void
@@ -176,6 +181,8 @@ export function FocusSession({
   const [queueing, setQueueing] = useState(false)
   const [compactingManually, setCompactingManually] = useState(false)
   const [scrollRequest, setScrollRequest] = useState(0)
+  const [resourcePickerOpen, setResourcePickerOpen] = useState(false)
+  const [invocation, setInvocation] = useState<ResourceInvocation | null>(null)
   const selection = useAttachmentSelection()
   const addSelectedAttachments = selection.addAttachments
   const promptRef = useRef<HTMLTextAreaElement>(null)
@@ -185,6 +192,8 @@ export function FocusSession({
     setGoalArmed(false)
     setQueueing(false)
     setCompactingManually(false)
+    setInvocation(null)
+    setResourcePickerOpen(false)
   }, [session.id])
 
   useEffect(() => {
@@ -220,7 +229,7 @@ export function FocusSession({
 
   const submit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
-    if (!value.trim() && !selection.attachments.length) return
+    if (!value.trim() && !selection.attachments.length && !invocation) return
     if (streaming) {
       if (!value.trim() || queueing) return
       setQueueing(true)
@@ -233,10 +242,11 @@ export function FocusSession({
       if (promptRef.current) promptRef.current.style.height = 'auto'
       return
     }
-    onSend(value, selection.attachments, goalArmed, goalArmed ? goalTokenBudget : null)
+    onSend(value, selection.attachments, goalArmed, goalArmed ? goalTokenBudget : null, invocation)
     requestTranscriptBottom()
     setValue('')
     setGoalArmed(false)
+    setInvocation(null)
     if (promptRef.current) promptRef.current.style.height = 'auto'
     selection.clearAttachments()
   }
@@ -307,6 +317,23 @@ export function FocusSession({
             </div>
           </QueueSection>
         )}
+        <SessionWorkflowRuns sessionId={session.id} />
+        {invocation && (
+          <div className={`composer-resource-chip ${invocation.kind}`}>
+            <Braces size={13} />
+            <span>
+              {invocation.kind === 'skill' ? 'Skill' : t('chat:resourcePicker.workflow')} ·{' '}
+              {invocation.resourceName}
+            </span>
+            <button
+              type="button"
+              aria-label={t('chat:resourcePicker.remove')}
+              onClick={() => setInvocation(null)}
+            >
+              <X size={13} />
+            </button>
+          </div>
+        )}
         <AttachmentTray attachments={selection.attachments} onRemove={selection.removeAttachment} />
         {selection.attachmentError && (
           <span className="attachment-error">{selection.attachmentError}</span>
@@ -363,6 +390,16 @@ export function FocusSession({
               >
                 <Command size={16} />
                 <kbd>{COMMAND_PALETTE_SHORTCUT}</kbd>
+              </button>
+              <button
+                type="button"
+                className="resource-picker-trigger"
+                title={t('chat:resourcePicker.open')}
+                aria-label={t('chat:resourcePicker.open')}
+                onClick={() => setResourcePickerOpen(true)}
+                disabled={streaming}
+              >
+                <Braces size={16} />
               </button>
               <button
                 type="button"
@@ -489,7 +526,8 @@ export function FocusSession({
               }
               onClick={streaming ? onAbort : undefined}
               disabled={
-                !streaming && (queueing || (!value.trim() && !selection.attachments.length))
+                !streaming &&
+                (queueing || (!value.trim() && !selection.attachments.length && !invocation))
               }
             >
               {streaming ? (
@@ -504,6 +542,12 @@ export function FocusSession({
         </div>
         <SessionUsageMetrics usage={sessionUsage} plan={plan} />
       </form>
+      <ChatResourcePicker
+        open={resourcePickerOpen}
+        sessionId={session.id}
+        onClose={() => setResourcePickerOpen(false)}
+        onSelect={setInvocation}
+      />
     </Panel>
   )
 }

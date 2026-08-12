@@ -359,7 +359,7 @@ export function useWorkflowEditor({
     if (!currentRun || currentRun.status !== 'running') return
     setBusy(true)
     try {
-      await apiJson(`/api/workflows/runs/${encodeURIComponent(currentRun.id)}/stop`, {
+      await apiJson(`/api/workflow-runs/${encodeURIComponent(currentRun.id)}/stop`, {
         method: 'POST',
         body: '{}',
       })

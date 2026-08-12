@@ -1,4 +1,4 @@
-import { Bell, Bot, ChevronDown, Copy, MessageCircle, Trash2 } from 'lucide-react'
+import { Bell, Bot, ChevronDown, Copy, MessageCircle, Plus, Trash2 } from 'lucide-react'
 import { AppSelect } from '@/components/AppSelect'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardTitle } from '@/components/ui/card'
@@ -10,6 +10,7 @@ import type {
   Workflow,
   WorkflowEdge,
   WorkflowNode,
+  WorkflowInputType,
   WorkflowRun,
   WorkflowsData,
 } from './types'
@@ -68,6 +69,43 @@ function WorkflowSettings({
             onChange={(event) => onUpdateDraft({ cwd: event.target.value })}
           />
         </label>
+        <div className="form-grid three">
+          <label className="field-label">
+            {t('workflows:workflowsPage.visibility')}
+            <span className="select-wrap">
+              <AppSelect
+                value={draft.visibility}
+                onChange={(event) =>
+                  onUpdateDraft({
+                    visibility: event.target.value === 'shared' ? 'shared' : 'private',
+                  })
+                }
+              >
+                <option value="private">{t('workflows:workflowsPage.private')}</option>
+                <option value="shared">{t('workflows:workflowsPage.shared')}</option>
+              </AppSelect>
+              <ChevronDown size={13} />
+            </span>
+          </label>
+          <label className="field-label">
+            {t('workflows:workflowsPage.tags')}
+            <Input
+              value={draft.tags.join(', ')}
+              onChange={(event) =>
+                onUpdateDraft({
+                  tags: event.target.value
+                    .split(',')
+                    .map((value) => value.trim())
+                    .filter(Boolean),
+                })
+              }
+            />
+          </label>
+          <label className="field-label">
+            {t('workflows:workflowsPage.revision')}
+            <Input value={`v${draft.revision}`} disabled />
+          </label>
+        </div>
         <label className="field-label">
           {t('workflows:workflowsPage.defaultModel')}
           <span className="select-wrap">
@@ -95,6 +133,91 @@ function WorkflowSettings({
             <ChevronDown size={13} />
           </span>
         </label>
+        <div className="workflow-inputs-editor">
+          <div className="card-head">
+            <strong>{t('workflows:workflowsPage.inputParameters')}</strong>
+            <Button
+              size="icon-xs"
+              variant="ghost"
+              title={t('workflows:workflowsPage.addInput')}
+              onClick={() =>
+                onUpdateDraft({
+                  inputs: [
+                    ...draft.inputs,
+                    {
+                      id: crypto.randomUUID(),
+                      name: `input_${draft.inputs.length + 1}`,
+                      label: t('workflows:workflowsPage.newInput'),
+                      type: 'string',
+                      required: false,
+                      defaultValue: '',
+                      description: '',
+                    },
+                  ],
+                })
+              }
+            >
+              <Plus />
+            </Button>
+          </div>
+          {draft.inputs.map((input) => (
+            <div className="workflow-input-row" key={input.id}>
+              <Input
+                value={input.name}
+                aria-label={t('workflows:workflowsPage.parameterName')}
+                onChange={(event) =>
+                  onUpdateDraft({
+                    inputs: draft.inputs.map((item) =>
+                      item.id === input.id ? { ...item, name: event.target.value } : item,
+                    ),
+                  })
+                }
+              />
+              <AppSelect
+                value={input.type}
+                aria-label={t('workflows:workflowsPage.parameterType')}
+                onChange={(event) =>
+                  onUpdateDraft({
+                    inputs: draft.inputs.map((item) =>
+                      item.id === input.id
+                        ? { ...item, type: event.target.value as WorkflowInputType }
+                        : item,
+                    ),
+                  })
+                }
+              >
+                <option value="string">String</option>
+                <option value="text">Text</option>
+                <option value="number">Number</option>
+                <option value="boolean">Boolean</option>
+              </AppSelect>
+              <label className="workflow-required-input">
+                <input
+                  type="checkbox"
+                  checked={input.required}
+                  onChange={(event) =>
+                    onUpdateDraft({
+                      inputs: draft.inputs.map((item) =>
+                        item.id === input.id ? { ...item, required: event.target.checked } : item,
+                      ),
+                    })
+                  }
+                />
+                {t('workflows:workflowsPage.required')}
+              </label>
+              <Button
+                size="icon-xs"
+                variant="ghost"
+                title={t('workflows:workflowsPage.delete')}
+                onClick={() =>
+                  onUpdateDraft({ inputs: draft.inputs.filter((item) => item.id !== input.id) })
+                }
+              >
+                <Trash2 />
+              </Button>
+            </div>
+          ))}
+        </div>
         {(
           Object.entries(NOTIFICATION_TARGETS) as Array<[NotificationTarget, { Icon: typeof Bell }]>
         ).map(([id, target]) => {
@@ -263,17 +386,153 @@ function SelectedNode({
                 </span>
               </label>
             </div>
-            {['prompt', 'file', 'mcp', 'condition'].includes(node.kind) && (
-              <label className="field-label">
-                Prompt
-                <Textarea
-                  value={node.prompt}
-                  onChange={(event) => onUpdateNode({ prompt: event.target.value })}
-                  placeholder={t(
-                    'workflows:workflowsPage.describeTheWorkTheAgentShouldCompleteInThisNode',
-                  )}
-                />
-              </label>
+            {['prompt', 'skill', 'file', 'mcp'].includes(node.kind) && (
+              <>
+                {node.kind === 'skill' && (
+                  <label className="field-label">
+                    Skill
+                    <span className="select-wrap">
+                      <AppSelect
+                        value={node.skillName}
+                        onChange={(event) => onUpdateNode({ skillName: event.target.value })}
+                      >
+                        <option value="">{t('workflows:workflowsPage.chooseSkill')}</option>
+                        {catalog.skills.map((skill) => (
+                          <option value={skill.name} key={skill.id}>
+                            {skill.name}
+                          </option>
+                        ))}
+                      </AppSelect>
+                      <ChevronDown size={13} />
+                    </span>
+                  </label>
+                )}
+                {node.kind === 'mcp' && (
+                  <label className="field-label">
+                    {t('workflows:workflowsPage.mcpToolNames')}
+                    <Input
+                      value={node.requestedToolNames.join(', ')}
+                      onChange={(event) =>
+                        onUpdateNode({
+                          requestedToolNames: event.target.value
+                            .split(',')
+                            .map((value) => value.trim())
+                            .filter(Boolean),
+                        })
+                      }
+                      placeholder="server.tool_name"
+                    />
+                  </label>
+                )}
+                <label className="field-label">
+                  Prompt
+                  <Textarea
+                    value={node.prompt}
+                    onChange={(event) => onUpdateNode({ prompt: event.target.value })}
+                    placeholder={t(
+                      'workflows:workflowsPage.describeTheWorkTheAgentShouldCompleteInThisNode',
+                    )}
+                  />
+                </label>
+                <label className="field-label">
+                  {t('workflows:workflowsPage.outputFormat')}
+                  <span className="select-wrap">
+                    <AppSelect
+                      value={node.outputFormat}
+                      onChange={(event) =>
+                        onUpdateNode({
+                          outputFormat: event.target.value === 'json' ? 'json' : 'text',
+                        })
+                      }
+                    >
+                      <option value="text">Text</option>
+                      <option value="json">JSON</option>
+                    </AppSelect>
+                    <ChevronDown size={13} />
+                  </span>
+                </label>
+              </>
+            )}
+            {node.kind === 'condition' && (
+              <div className="form-grid three">
+                <label className="field-label">
+                  {t('workflows:workflowsPage.dataPath')}
+                  <Input
+                    value={node.condition.source}
+                    onChange={(event) =>
+                      onUpdateNode({ condition: { ...node.condition, source: event.target.value } })
+                    }
+                    placeholder="inputs.approved"
+                  />
+                </label>
+                <label className="field-label">
+                  {t('workflows:workflowsPage.operator')}
+                  <span className="select-wrap">
+                    <AppSelect
+                      value={node.condition.operator}
+                      onChange={(event) =>
+                        onUpdateNode({
+                          condition: {
+                            ...node.condition,
+                            operator: event.target.value as typeof node.condition.operator,
+                          },
+                        })
+                      }
+                    >
+                      {[
+                        'exists',
+                        'not_exists',
+                        'equals',
+                        'not_equals',
+                        'contains',
+                        'greater_than',
+                        'less_than',
+                      ].map((operator) => (
+                        <option value={operator} key={operator}>
+                          {operator}
+                        </option>
+                      ))}
+                    </AppSelect>
+                    <ChevronDown size={13} />
+                  </span>
+                </label>
+                <label className="field-label">
+                  {t('workflows:workflowsPage.comparisonValue')}
+                  <Input
+                    value={String(node.condition.value ?? '')}
+                    onChange={(event) =>
+                      onUpdateNode({ condition: { ...node.condition, value: event.target.value } })
+                    }
+                  />
+                </label>
+              </div>
+            )}
+            {node.kind === 'approval' && (
+              <>
+                <label className="field-label">
+                  {t('workflows:workflowsPage.approvalMessage')}
+                  <Textarea
+                    value={node.approval.message}
+                    onChange={(event) =>
+                      onUpdateNode({ approval: { ...node.approval, message: event.target.value } })
+                    }
+                  />
+                </label>
+                <label className="field-label">
+                  {t('workflows:workflowsPage.approvalTimeout')}
+                  <Input
+                    type="number"
+                    min="1"
+                    max="10080"
+                    value={node.approval.timeoutMinutes}
+                    onChange={(event) =>
+                      onUpdateNode({
+                        approval: { ...node.approval, timeoutMinutes: Number(event.target.value) },
+                      })
+                    }
+                  />
+                </label>
+              </>
             )}
             <div className="button-row">
               <Button size="sm" variant="secondary" onClick={onCopy}>

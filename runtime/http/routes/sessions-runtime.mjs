@@ -263,15 +263,43 @@ export const sessionRuntimeRoutes = [
     },
   },
   {
+    method: 'GET',
+    path: '/api/sessions/:sessionId/workflow-runs',
+    handler({ runtime, params, json }) {
+      json(200, runtime.getSessionWorkflowRuns(params.sessionId))
+    },
+  },
+  {
     method: 'POST',
     path: '/api/chat',
     async handler({ runtime, body, startSse, sendSse }) {
       const input = await body()
-      if (!String(input.message || '').trim()) throw new Error('消息不能为空。')
+      const message = String(input.message || '').trim()
+      const invocation =
+        input.invocation && typeof input.invocation === 'object' ? input.invocation : null
+      if (!message && !invocation) throw new Error('消息或资源调用不能为空。')
       startSse()
+      if (invocation?.kind === 'workflow') {
+        const result = await runtime.runWorkflow(String(invocation.resourceId || ''), {
+          trigger: 'chat',
+          inputs: invocation.arguments,
+          sourceSessionId: String(input.sessionId || ''),
+          sourceMessage: message,
+        })
+        if (!result) throw new Error('工作流不存在。')
+        sendSse('invocation_started', { invocation, run: result.run })
+        sendSse('done', {
+          sessionId: String(input.sessionId || ''),
+          text: '',
+          invocation: { ...invocation, runId: result.run.id },
+        })
+        return
+      }
+      const skillName = invocation?.kind === 'skill' ? String(invocation.resourceName || '') : ''
+      const prompt = skillName ? `/skill:${skillName}${message ? `\n${message}` : ''}` : message
       await runtime.streamPrompt({
         sessionId: input.sessionId,
-        message: String(input.message).trim(),
+        message: prompt,
         attachments: input.attachments,
         requestedToolNames: input.requestedToolNames,
         goalMode: Boolean(input.goalMode),

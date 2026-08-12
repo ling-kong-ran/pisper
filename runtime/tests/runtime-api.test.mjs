@@ -229,6 +229,63 @@ test('chat API forwards explicit Tool requests as structured runtime input', asy
   assert.match(output.body, /event: done/)
 })
 
+test('chat API dispatches structured Skill and workflow invocations', async () => {
+  const prompts = []
+  const workflows = []
+  const runtime = {
+    async streamPrompt(input) {
+      prompts.push(input)
+      input.send('done', { text: 'complete' })
+    },
+    async runWorkflow(id, options) {
+      workflows.push([id, options])
+      return { run: { id: 'run-1', status: 'running' } }
+    },
+  }
+  const handler = createApiHandler(runtime)
+  const skillOutput = response()
+  await handler(
+    request('POST', {
+      sessionId: 'session-1',
+      message: '检查这个改动',
+      invocation: { kind: 'skill', resourceId: 'review', resourceName: 'code-review' },
+    }),
+    skillOutput,
+    new URL('http://localhost/api/chat'),
+  )
+  assert.equal(prompts.length, 1)
+  assert.equal(prompts[0].message, '/skill:code-review\n检查这个改动')
+
+  const workflowOutput = response()
+  await handler(
+    request('POST', {
+      sessionId: 'session-1',
+      message: '准备发布',
+      invocation: {
+        kind: 'workflow',
+        resourceId: 'release',
+        resourceName: '发布准备',
+        arguments: { channel: 'beta' },
+      },
+    }),
+    workflowOutput,
+    new URL('http://localhost/api/chat'),
+  )
+  assert.deepEqual(workflows, [
+    [
+      'release',
+      {
+        trigger: 'chat',
+        inputs: { channel: 'beta' },
+        sourceSessionId: 'session-1',
+        sourceMessage: '准备发布',
+      },
+    ],
+  ])
+  assert.match(workflowOutput.body, /event: invocation_started/)
+  assert.match(workflowOutput.body, /"runId":"run-1"/)
+})
+
 test('session creation forwards the CLI workspace to the shared runtime', async () => {
   const calls = []
   const runtime = {

@@ -136,7 +136,10 @@ export function SessionDockPanel({ params, api }: IDockviewPanelProps<{ sessionI
           attachments: ChatAttachment[],
           goalMode: boolean,
           goalTokenBudget: number | null,
-        ) => context.sendPrompt(value, sessionId, attachments, goalMode, goalTokenBudget)}
+          invocation,
+        ) =>
+          context.sendPrompt(value, sessionId, attachments, goalMode, goalTokenBudget, invocation)
+        }
         onQueue={(value: string, behavior: string) =>
           context.queuePrompt(value, sessionId, behavior)
         }

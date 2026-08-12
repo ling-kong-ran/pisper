@@ -74,15 +74,36 @@ function WorkflowNodeCard({ data, selected }: NodeProps<WorkflowFlowNode>) {
           aria-label={data.inputLabel}
         />
       )}
-      {!data.compact && (
-        <Handle
-          id="output"
-          className="flow-port output"
-          type="source"
-          position={Position.Right}
-          title={data.outputLabel}
-          aria-label={data.outputLabel}
-        />
+      {!data.compact && data.kind === 'condition' ? (
+        <>
+          <Handle
+            id="true"
+            className="flow-port output condition-true"
+            type="source"
+            position={Position.Right}
+            title="true"
+            aria-label="true"
+          />
+          <Handle
+            id="false"
+            className="flow-port output condition-false"
+            type="source"
+            position={Position.Bottom}
+            title="false"
+            aria-label="false"
+          />
+        </>
+      ) : (
+        !data.compact && (
+          <Handle
+            id="output"
+            className="flow-port output"
+            type="source"
+            position={Position.Right}
+            title={data.outputLabel}
+            aria-label={data.outputLabel}
+          />
+        )
       )}
       <small>{data.typeLabel}</small>
       <strong>{data.label}</strong>

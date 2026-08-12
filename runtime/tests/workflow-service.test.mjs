@@ -217,6 +217,229 @@ test('failed nodes can retry and skip without terminating the workflow', async (
   await rm(directory, { recursive: true, force: true })
 })
 
+test('workflow inputs, JSON output, and condition ports select only the matching branch', async () => {
+  const directory = await mkdtemp(join(tmpdir(), 'pisper-workflow-condition-'))
+  const prompts = []
+  const service = new WorkflowService({
+    path: join(directory, 'workflows.json'),
+    cwd: directory,
+    agent: {
+      validateDirectory: async (value) => value,
+      abort: async () => true,
+      prompt: async (input) => {
+        prompts.push(input.message)
+        return { sessionId: `condition-${prompts.length}`, text: '{"accepted":true}', assets: [] }
+      },
+    },
+    notifications: { notify: async () => {} },
+  })
+  await service.init()
+  const workflow = await service.create({
+    name: '条件流程',
+    status: 'published',
+    inputs: [
+      { id: 'approved', name: 'approved', label: '是否批准', type: 'boolean', required: true },
+    ],
+    nodes: [
+      { id: 'trigger', kind: 'trigger', label: '触发器' },
+      {
+        id: 'condition',
+        kind: 'condition',
+        label: '检查批准状态',
+        condition: { source: 'inputs.approved', operator: 'equals', value: true },
+      },
+      {
+        id: 'accepted',
+        kind: 'prompt',
+        label: '批准分支',
+        prompt: '执行批准分支',
+        outputFormat: 'json',
+      },
+      { id: 'rejected', kind: 'prompt', label: '拒绝分支', prompt: '执行拒绝分支' },
+    ],
+    edges: [
+      { id: 'trigger-condition', source: 'trigger', target: 'condition' },
+      { id: 'condition-accepted', source: 'condition', sourcePort: 'true', target: 'accepted' },
+      { id: 'condition-rejected', source: 'condition', sourcePort: 'false', target: 'rejected' },
+    ],
+  })
+  const run = await service.runNow(workflow.id, { inputs: { approved: true } })
+  await waitFor(() => service.getRun(run.id)?.status === 'completed')
+  const completed = service.getRun(run.id)
+  assert.equal(prompts.length, 1)
+  assert.match(prompts[0], /执行批准分支/)
+  assert.deepEqual(completed.inputs, { approved: true })
+  assert.equal(completed.nodes.find((node) => node.id === 'condition').selectedPort, 'true')
+  assert.deepEqual(completed.nodes.find((node) => node.id === 'accepted').output, {
+    accepted: true,
+  })
+  assert.equal(completed.nodes.find((node) => node.id === 'rejected').status, 'skipped')
+  assert.equal(
+    completed.nodes.find((node) => node.id === 'rejected').skipReason,
+    'branch_not_selected',
+  )
+  await service.dispose()
+  await rm(directory, { recursive: true, force: true })
+})
+
+test('parallel branches start together and join after both complete', async () => {
+  const directory = await mkdtemp(join(tmpdir(), 'pisper-workflow-parallel-'))
+  const started = []
+  const releases = new Map()
+  const service = new WorkflowService({
+    path: join(directory, 'workflows.json'),
+    cwd: directory,
+    agent: {
+      validateDirectory: async (value) => value,
+      abort: async () => true,
+      prompt: ({ message, onSession }) =>
+        new Promise((resolve) => {
+          const branch = message.includes('分支 A') ? 'a' : 'b'
+          started.push(branch)
+          onSession?.(`parallel-${branch}`)
+          releases.set(branch, () =>
+            resolve({ sessionId: `parallel-${branch}`, text: branch, assets: [] }),
+          )
+        }),
+    },
+    notifications: { notify: async () => {} },
+  })
+  await service.init()
+  const workflow = await service.create({
+    name: '并行流程',
+    nodes: [
+      { id: 'trigger', kind: 'trigger', label: '触发器' },
+      { id: 'parallel', kind: 'parallel', label: '并行启动' },
+      { id: 'a', kind: 'prompt', label: '分支 A', prompt: '分支 A' },
+      { id: 'b', kind: 'prompt', label: '分支 B', prompt: '分支 B' },
+      { id: 'join', kind: 'notification', label: '汇总' },
+    ],
+    edges: [
+      { id: 'trigger-parallel', source: 'trigger', target: 'parallel' },
+      { id: 'parallel-a', source: 'parallel', target: 'a' },
+      { id: 'parallel-b', source: 'parallel', target: 'b' },
+      { id: 'a-join', source: 'a', target: 'join' },
+      { id: 'b-join', source: 'b', target: 'join' },
+    ],
+  })
+  const run = await service.runNow(workflow.id)
+  await waitFor(() => started.length === 2)
+  assert.deepEqual(new Set(started), new Set(['a', 'b']))
+  assert.equal(service.getRun(run.id).status, 'running')
+  releases.get('a')()
+  await new Promise((resolve) => setTimeout(resolve, 20))
+  assert.equal(service.getRun(run.id).status, 'running')
+  releases.get('b')()
+  await waitFor(() => service.getRun(run.id)?.status === 'completed')
+  assert.equal(service.getRun(run.id).nodes.find((node) => node.id === 'join').status, 'completed')
+  await service.dispose()
+  await rm(directory, { recursive: true, force: true })
+})
+
+test('approval nodes pause a run and resume after approval', async () => {
+  const directory = await mkdtemp(join(tmpdir(), 'pisper-workflow-approval-'))
+  let promptCalls = 0
+  const service = new WorkflowService({
+    path: join(directory, 'workflows.json'),
+    cwd: directory,
+    agent: {
+      validateDirectory: async (value) => value,
+      abort: async () => true,
+      prompt: async () => {
+        promptCalls += 1
+        return { sessionId: 'approval-session', text: '已发布', assets: [] }
+      },
+    },
+    notifications: { notify: async () => {} },
+  })
+  await service.init()
+  const workflow = await service.create({
+    name: '审批流程',
+    nodes: [
+      { id: 'trigger', kind: 'trigger', label: '触发器' },
+      {
+        id: 'approval',
+        kind: 'approval',
+        label: '发布审批',
+        approval: { message: '确认发布？', timeoutMinutes: 1 },
+      },
+      { id: 'publish', kind: 'prompt', label: '发布', prompt: '执行发布' },
+    ],
+    edges: [
+      { id: 'trigger-approval', source: 'trigger', target: 'approval' },
+      { id: 'approval-publish', source: 'approval', target: 'publish' },
+    ],
+  })
+  const run = await service.runNow(workflow.id)
+  await waitFor(() => service.getRun(run.id)?.status === 'waiting_approval')
+  assert.equal(promptCalls, 0)
+  assert.equal(
+    service.getRun(run.id).nodes.find((node) => node.id === 'approval').status,
+    'waiting_approval',
+  )
+  assert.ok(await service.resolveApproval(run.id, 'approval', true, '可以发布'))
+  await waitFor(() => service.getRun(run.id)?.status === 'completed')
+  assert.equal(promptCalls, 1)
+  assert.deepEqual(service.getRun(run.id).nodes.find((node) => node.id === 'approval').output, {
+    approved: true,
+    comment: '可以发布',
+  })
+  await service.dispose()
+  await rm(directory, { recursive: true, force: true })
+})
+
+test('workflow revisions remain attached to runs and duplicate preserves graph connections', async () => {
+  const directory = await mkdtemp(join(tmpdir(), 'pisper-workflow-version-'))
+  const service = new WorkflowService({
+    path: join(directory, 'workflows.json'),
+    cwd: directory,
+    agent: {
+      validateDirectory: async (value) => value,
+      abort: async () => true,
+      prompt: async () => ({ sessionId: 'version-session', text: 'done', assets: [] }),
+    },
+    notifications: { notify: async () => {} },
+  })
+  await service.init()
+  const workflow = await service.create({
+    name: '版本流程',
+    status: 'published',
+    visibility: 'shared',
+    tags: ['release'],
+    nodes: [
+      { id: 'trigger', kind: 'trigger', label: '触发器' },
+      { id: 'task', kind: 'prompt', label: '任务', prompt: '执行任务' },
+    ],
+    edges: [{ id: 'trigger-task', source: 'trigger', target: 'task' }],
+  })
+  const firstRun = await service.runNow(workflow.id)
+  await waitFor(() => service.getRun(firstRun.id)?.status === 'completed')
+  const updated = await service.update(workflow.id, { description: '第二版' })
+  assert.equal(updated.revision, 2)
+  assert.equal(service.getRun(firstRun.id).workflowRevision, 1)
+
+  const duplicate = await service.duplicate(workflow.id)
+  assert.equal(duplicate.revision, 1)
+  assert.equal(duplicate.status, 'draft')
+  assert.equal(duplicate.nodes.length, 2)
+  assert.equal(duplicate.edges.length, 1)
+  assert.equal(duplicate.edges[0].source, duplicate.nodes[0].id)
+  assert.equal(duplicate.edges[0].target, duplicate.nodes[1].id)
+
+  const exported = service.exportWorkflow(workflow.id)
+  assert.equal(exported.format, 'pisper-workflow')
+  assert.equal(exported.workflow.visibility, 'shared')
+  assert.equal(exported.workflow.id, undefined)
+  const imported = await service.importWorkflow(exported)
+  assert.equal(imported.status, 'draft')
+  assert.equal(imported.visibility, 'private')
+  assert.equal(imported.nodes.length, 2)
+  assert.equal(imported.edges.length, 1)
+  await assert.rejects(() => service.importWorkflow({ format: 'other' }), /有效的 Pisper 工作流/)
+  await service.dispose()
+  await rm(directory, { recursive: true, force: true })
+})
+
 test('active workflow runs can abort their Agent session', async () => {
   const directory = await mkdtemp(join(tmpdir(), 'pisper-workflow-stop-'))
   let rejectPrompt

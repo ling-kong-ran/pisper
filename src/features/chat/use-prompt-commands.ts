@@ -9,7 +9,7 @@ import {
   createToolUpdateScheduler,
   createTypewriterDisplay,
 } from '@/lib/streaming-ui'
-import type { ChatAttachment, SessionState, SessionSummary } from '@/types/chat'
+import type { ChatAttachment, ResourceInvocation, SessionState, SessionSummary } from '@/types/chat'
 import { chatApi } from './chat-api'
 import { chatErrorMessage, isEndedSessionQueueError } from './chat-errors'
 import { pushCurrentActivity, settleToolCalls } from './run-activity'
@@ -62,10 +62,13 @@ export function usePromptCommands({
       attachments: ChatAttachment[] = [],
       goalMode = false,
       goalTokenBudget: number | null = null,
+      invocation: ResourceInvocation | null = null,
     ) => {
       const prompt =
-        text.trim() || (attachments.length ? t('chat:chatPage.pleaseAnalyzeTheseAttachments') : '')
-      if (!prompt) return
+        text.trim() ||
+        (attachments.length ? t('chat:chatPage.pleaseAnalyzeTheseAttachments') : '') ||
+        (invocation ? invocation.resourceName : '')
+      if (!prompt && !invocation) return
       let sessionId = requestedSessionId
       if (!sessionId) sessionId = await createSession()
       if (!sessionId || sessionStatesRef.current[sessionId]?.streaming) return
@@ -85,6 +88,7 @@ export function usePromptCommands({
         id: `user-${Date.now()}`,
         role: 'user',
         text: prompt,
+        invocation,
         attachments: attachments.map(({ id, kind, name, mimeType, size, data }) => ({
           id,
           kind,
@@ -225,7 +229,7 @@ export function usePromptCommands({
 
       try {
         await chatApi.openStream(
-          { sessionId, message: prompt, attachments, goalMode, goalTokenBudget },
+          { sessionId, message: prompt, attachments, goalMode, goalTokenBudget, invocation },
           dispatcher.dispatch,
         )
         typewriter.setTarget(streamState.responseText)

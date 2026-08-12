@@ -115,6 +115,7 @@ export class AgentRuntimeFacade {
     model,
     executionMode,
     isolatedContext = false,
+    requestedToolNames,
     onSession,
   }) {
     let id = String(sessionId || '')
@@ -153,6 +154,7 @@ export class AgentRuntimeFacade {
       message,
       attachments,
       isolatedContext,
+      requestedToolNames,
       send: (event, data) => {
         if ((event === 'meta' || event === 'done') && data?.sessionId) actualId = data.sessionId
         if (event === 'text_delta') text += data?.delta || ''
@@ -338,8 +340,12 @@ export class AgentRuntimeFacade {
   async getWorkflows() {
     const config = await this.getConfig()
     const notificationSettings = await this.notificationSettings.getState()
+    const skills = await this.skills.dashboard({ cwd: this.cwd })
     return {
       ...this.workflows.getState(),
+      skills: skills.skills
+        .filter((skill) => skill.enabled && skill.command)
+        .map((skill) => ({ id: skill.id, name: skill.name, description: skill.description })),
       cwd: this.cwd,
       models: config.providers
         .filter((provider) => provider.type !== 'visual' && provider.enabled && provider.configured)
@@ -374,9 +380,41 @@ export class AgentRuntimeFacade {
     return this.workflows.remove(id)
   }
 
-  async runWorkflow(id) {
-    const run = await this.workflows.runNow(id)
+  async runWorkflow(id, input = {}) {
+    const run = await this.workflows.runNow(id, input)
     return run ? { started: true, run } : null
+  }
+
+  getWorkflowRun(id) {
+    return this.workflows.getRun(id)
+  }
+
+  async retryWorkflowRun(id) {
+    const run = await this.workflows.retryRun(id)
+    return run ? { started: true, run } : null
+  }
+
+  async resolveWorkflowApproval(runId, nodeId, input) {
+    const run = await this.workflows.resolveApproval(runId, nodeId, input?.approved, input?.comment)
+    return run ? { resolved: true, run } : null
+  }
+
+  async duplicateWorkflow(id, input) {
+    const workflow = await this.workflows.duplicate(id, input)
+    return workflow ? { workflow, state: await this.getWorkflows() } : null
+  }
+
+  exportWorkflow(id) {
+    return this.workflows.exportWorkflow(id)
+  }
+
+  async importWorkflow(input) {
+    const workflow = await this.workflows.importWorkflow(input)
+    return { workflow, state: await this.getWorkflows() }
+  }
+
+  getSessionWorkflowRuns(sessionId) {
+    return { runs: this.workflows.getState({ sessionId }).runs }
   }
 
   async stopWorkflowRun(id) {

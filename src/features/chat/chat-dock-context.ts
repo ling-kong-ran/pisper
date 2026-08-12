@@ -3,6 +3,7 @@ import type {
   ChatAttachment,
   ModelOption,
   PendingAsset,
+  ResourceInvocation,
   SessionState,
   SessionSummary,
 } from '@/types/chat'
@@ -26,6 +27,7 @@ export type ChatDockContextValue = {
     attachments?: ChatAttachment[],
     goalMode?: boolean,
     goalTokenBudget?: number | null,
+    invocation?: ResourceInvocation | null,
   ) => Promise<void>
   queuePrompt: (value: string, sessionId: string, behavior?: string) => Promise<boolean>
   abort: (sessionId: string) => Promise<void>

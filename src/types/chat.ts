@@ -25,6 +25,15 @@ export type PendingAsset = {
   targetSessionId?: string
 }
 
+export type ResourceInvocation = {
+  kind: 'skill' | 'workflow'
+  resourceId: string
+  resourceName: string
+  arguments?: Record<string, unknown>
+  behavior?: 'foreground' | 'background'
+  runId?: string
+}
+
 export type ChatMessage = EntityRecord & {
   id: string
   role: string

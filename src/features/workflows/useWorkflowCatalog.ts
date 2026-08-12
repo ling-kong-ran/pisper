@@ -16,6 +16,7 @@ export const EMPTY_WORKFLOWS_DATA: WorkflowsData = {
     weixin: { enabled: false },
   },
   models: [],
+  skills: [],
   cwd: '',
 }
 
@@ -90,13 +91,13 @@ export function useWorkflowCatalog({
   )
 
   const runWorkflow = useCallback(
-    async (workflow: Workflow) => {
+    async (workflow: Workflow, inputs: Record<string, unknown> = {}) => {
       setBusyId(workflow.id)
       setError('')
       try {
         await apiJson(`/api/workflows/${encodeURIComponent(workflow.id)}/run`, {
           method: 'POST',
-          body: '{}',
+          body: JSON.stringify({ inputs }),
         })
         await load()
         notify(t('workflows:workflowsPage.workflowStarted'))
@@ -116,12 +117,115 @@ export function useWorkflowCatalog({
       setBusyId(run.id)
       setError('')
       try {
-        await apiJson(`/api/workflows/runs/${encodeURIComponent(run.id)}/stop`, {
+        await apiJson(`/api/workflow-runs/${encodeURIComponent(run.id)}/stop`, {
           method: 'POST',
           body: '{}',
         })
         await load()
         notify(t('workflows:workflowsPage.stoppingWorkflow'), 'info')
+      } catch (caught) {
+        const message = workflowErrorMessage(caught)
+        setError(message)
+        notify(message, 'error')
+      } finally {
+        setBusyId('')
+      }
+    },
+    [load, notify, t],
+  )
+
+  const retryRun = useCallback(
+    async (run: WorkflowRun) => {
+      setBusyId(run.id)
+      try {
+        await apiJson(`/api/workflow-runs/${encodeURIComponent(run.id)}/retry`, {
+          method: 'POST',
+          body: '{}',
+        })
+        await load()
+        notify(t('workflows:workflowsPage.workflowStarted'))
+      } catch (caught) {
+        const message = workflowErrorMessage(caught)
+        setError(message)
+        notify(message, 'error')
+      } finally {
+        setBusyId('')
+      }
+    },
+    [load, notify, t],
+  )
+
+  const resolveApproval = useCallback(
+    async (run: WorkflowRun, nodeId: string, approved: boolean) => {
+      setBusyId(nodeId)
+      try {
+        await apiJson(
+          `/api/workflow-runs/${encodeURIComponent(run.id)}/approvals/${encodeURIComponent(nodeId)}`,
+          { method: 'POST', body: JSON.stringify({ approved }) },
+        )
+        await load()
+      } catch (caught) {
+        const message = workflowErrorMessage(caught)
+        setError(message)
+        notify(message, 'error')
+      } finally {
+        setBusyId('')
+      }
+    },
+    [load, notify],
+  )
+
+  const duplicateWorkflow = useCallback(
+    async (workflow: Workflow) => {
+      setBusyId(workflow.id)
+      try {
+        await apiJson(`/api/workflows/${encodeURIComponent(workflow.id)}/duplicate`, {
+          method: 'POST',
+          body: '{}',
+        })
+        await load()
+        notify(t('workflows:workflowsPage.workflowDuplicated'))
+      } catch (caught) {
+        const message = workflowErrorMessage(caught)
+        setError(message)
+        notify(message, 'error')
+      } finally {
+        setBusyId('')
+      }
+    },
+    [load, notify, t],
+  )
+
+  const exportWorkflow = useCallback(
+    async (workflow: Workflow) => {
+      try {
+        const exported = await apiJson<Record<string, unknown>>(
+          `/api/workflows/${encodeURIComponent(workflow.id)}/export`,
+        )
+        const blob = new Blob([JSON.stringify(exported, null, 2)], { type: 'application/json' })
+        const url = URL.createObjectURL(blob)
+        const anchor = document.createElement('a')
+        anchor.href = url
+        anchor.download = `${workflow.name.replace(/[\\/:*?"<>|]/g, '-')}.pisper-workflow.json`
+        anchor.click()
+        URL.revokeObjectURL(url)
+      } catch (caught) {
+        notify(workflowErrorMessage(caught), 'error')
+      }
+    },
+    [notify],
+  )
+
+  const importWorkflow = useCallback(
+    async (value: unknown) => {
+      setBusyId('import')
+      try {
+        await apiJson('/api/workflows/import', {
+          method: 'POST',
+          body: JSON.stringify(value),
+        })
+        await load()
+        notify(t('workflows:workflowsPage.workflowImported'))
       } catch (caught) {
         const message = workflowErrorMessage(caught)
         setError(message)
@@ -171,6 +275,11 @@ export function useWorkflowCatalog({
     latestRun,
     runWorkflow,
     stopRun,
+    retryRun,
+    resolveApproval,
+    duplicateWorkflow,
+    exportWorkflow,
+    importWorkflow,
     removeWorkflow,
   }
 }

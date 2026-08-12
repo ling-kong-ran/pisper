@@ -1,4 +1,4 @@
-import { useCallback, useEffect } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import '@xyflow/react/dist/style.css'
 import { AlertTriangle, RefreshCw } from 'lucide-react'
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom'
@@ -11,11 +11,12 @@ import type { Notify } from '@/app/route-context'
 import type { ConfirmDialogOptions } from '@/hooks/useAppDialog'
 import { WorkflowEditorCanvas } from './WorkflowEditorCanvas'
 import {
-  WorkflowFilters,
-  WorkflowListPanel,
-  WorkflowPreviewPanel,
-  WorkflowQueueSummary,
-  WorkflowTemplateSidebar,
+  WorkflowAssetList,
+  WorkflowOperationsSummary,
+  WorkflowRunHistory,
+  WorkflowTemplateGallery,
+  WorkflowViewTabs,
+  type WorkflowView,
 } from './WorkflowListSidebar'
 import { WorkflowNodeInspector } from './WorkflowNodeInspector'
 import { WorkflowRunningNotice } from './WorkflowRunControls'
@@ -61,6 +62,7 @@ function WorkflowLoading({ label }: { label: string }) {
 export function WorkflowsPage({ notify, requestConfirm, query = '' }: WorkflowsPageProps) {
   const { t, language } = useI18n()
   const navigate = useNavigate()
+  const [view, setView] = useState<WorkflowView>('workflows')
   const catalog = useWorkflowCatalog({ notify, requestConfirm, query })
 
   if (catalog.loading) {
@@ -70,35 +72,44 @@ export function WorkflowsPage({ notify, requestConfirm, query = '' }: WorkflowsP
   return (
     <div className="workflows-page">
       <WorkflowError message={catalog.error} />
-      <WorkflowFilters filter={catalog.filter} t={t} onChange={catalog.setFilter} />
-      <div className="workflow-top">
-        <WorkflowTemplateSidebar
+      <div className="workflow-page-toolbar">
+        <WorkflowViewTabs value={view} t={t} onChange={setView} />
+        <WorkflowOperationsSummary data={catalog.data} t={t} />
+      </div>
+      {view === 'workflows' ? (
+        <WorkflowAssetList
+          workflows={catalog.visibleWorkflows}
+          runs={catalog.data.runs}
+          busyId={catalog.busyId}
+          language={language}
+          t={t}
+          onRun={(workflow) => void catalog.runWorkflow(workflow)}
+          onEdit={(workflowId) => navigate(workflowPath(workflowId))}
+          onDuplicate={(workflow) => void catalog.duplicateWorkflow(workflow)}
+          onExport={(workflow) => void catalog.exportWorkflow(workflow)}
+          onImport={(value) => void catalog.importWorkflow(value)}
+          onDelete={(workflow) => void catalog.removeWorkflow(workflow)}
+        />
+      ) : view === 'runs' ? (
+        <WorkflowRunHistory
+          runs={catalog.data.runs}
+          busyId={catalog.busyId}
+          language={language}
+          t={t}
+          onStop={(run) => void catalog.stopRun(run)}
+          onRetry={(run) => void catalog.retryRun(run)}
+          onApproval={(run, nodeId, approved) =>
+            void catalog.resolveApproval(run, nodeId, approved)
+          }
+        />
+      ) : (
+        <WorkflowTemplateGallery
           t={t}
           onOpenTemplate={(templateId) =>
             navigate(`${workflowPath('new')}?template=${encodeURIComponent(templateId)}`)
           }
         />
-        <WorkflowPreviewPanel
-          workflow={catalog.data.workflows[0]}
-          t={t}
-          onStartBlank={() => navigate(workflowPath('new'))}
-        />
-      </div>
-      <div className="workflow-bottom">
-        <WorkflowListPanel
-          workflows={catalog.visibleWorkflows}
-          filter={catalog.filter}
-          busyId={catalog.busyId}
-          language={language}
-          latestRun={catalog.latestRun}
-          t={t}
-          onRun={(workflow) => void catalog.runWorkflow(workflow)}
-          onStop={(run) => void catalog.stopRun(run)}
-          onEdit={(workflowId) => navigate(workflowPath(workflowId))}
-          onDelete={(workflow) => void catalog.removeWorkflow(workflow)}
-        />
-        <WorkflowQueueSummary data={catalog.data} t={t} />
-      </div>
+      )}
     </div>
   )
 }
