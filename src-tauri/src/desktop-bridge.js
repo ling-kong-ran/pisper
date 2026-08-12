@@ -8,6 +8,47 @@
     return internals.invoke(command, args)
   }
 
+  class Channel {
+    constructor(onmessage) {
+      this.onmessage = onmessage || (() => {})
+      this.index = 0
+      this.pending = []
+      this.endIndex = undefined
+      this.id = window.__TAURI_INTERNALS__.transformCallback((event) => {
+        const index = event.index
+        if ('end' in event) {
+          if (index === this.index) this.cleanup()
+          else this.endIndex = index
+          return
+        }
+        if (index === this.index) {
+          this.deliver(event.message)
+          while (this.index in this.pending) {
+            const message = this.pending[this.index]
+            delete this.pending[this.index]
+            this.deliver(message)
+          }
+          if (this.index === this.endIndex) this.cleanup()
+        } else {
+          this.pending[index] = event.message
+        }
+      })
+    }
+
+    deliver(message) {
+      this.onmessage(message)
+      this.index += 1
+    }
+
+    cleanup() {
+      window.__TAURI_INTERNALS__.unregisterCallback(this.id)
+    }
+
+    toJSON() {
+      return `__CHANNEL__:${this.id}`
+    }
+  }
+
   const api = async (path, options = {}) => {
     const response = await fetch(path, {
       ...options,
@@ -49,6 +90,17 @@
       openNotificationSettings: () => invoke('desktop_open_notification_settings'),
       showNotification: (notification) =>
         invoke('desktop_show_notification', { input: notification }),
+      terminalProfiles: () => invoke('desktop_terminal_profiles'),
+      terminalCreate: (options, onEvent) => {
+        const channel = new Channel(onEvent)
+        return invoke('desktop_terminal_create', { input: options, onEvent: channel })
+      },
+      terminalWrite: (terminalId, data) =>
+        invoke('desktop_terminal_write', { terminalId, data: Array.from(data) }),
+      terminalResize: (terminalId, cols, rows) =>
+        invoke('desktop_terminal_resize', { terminalId, cols, rows }),
+      terminalClose: (terminalId) => invoke('desktop_terminal_close', { terminalId }),
+      terminalCloseAll: () => invoke('desktop_terminal_close_all'),
       getPetStatus: () => api('/api/desktop-pet'),
       setPetEnabled: async (enabled) =>
         syncPetWindow(await api('/api/desktop-pet/enabled', { method: 'POST', body: { enabled } })),

@@ -1,15 +1,4 @@
-import {
-  Brain,
-  CalendarClock,
-  FolderOpen,
-  MessageSquare,
-  Plug,
-  RadioTower,
-  Server,
-  Settings,
-  Sparkles,
-  Workflow,
-} from 'lucide-react'
+import { CalendarClock, FolderOpen, MessageSquare, Workflow } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
 import type { PageId } from './routes'
 
@@ -24,23 +13,9 @@ export function getNavigation(t: Translate = (value) => value): Navigation {
       [
         ['chat', t('navigation:navigation.chat'), MessageSquare],
         ['assets', t('navigation:navigation.assets'), FolderOpen],
-        ['channels', t('navigation:navigation.channels'), RadioTower],
+        ['workflows', t('navigation:navigation.workflows'), Workflow],
         ['schedules', t('navigation:navigation.schedules'), CalendarClock],
       ],
-    ],
-    [
-      t('navigation:navigation.capabilities'),
-      [
-        ['plugins', t('navigation:navigation.tools'), Plug],
-        ['memory', t('navigation:navigation.memory'), Brain],
-        ['mcp', t('navigation:navigation.mcp'), Server],
-        ['skills', t('navigation:navigation.skills'), Sparkles],
-        ['workflows', t('navigation:navigation.workflows'), Workflow],
-      ],
-    ],
-    [
-      t('navigation:navigation.system'),
-      [['config', t('navigation:navigation.settings'), Settings]],
     ],
   ]
 }

@@ -98,7 +98,7 @@ pisper doctor
 
 ## Composer 与消息流
 
-- `Enter`：提交消息；Agent 运行期间提交的消息进入 FIFO 队列，并在当前 run 正常结束后依次发送。
+- `Enter`：提交消息；Agent 运行期间提交的无附件文本会立即追加到当前 run，与桌面端使用相同的 Runtime `steer` 队列。带附件的消息会保留到当前 run 结束后发送，避免丢失附件。
 - `/`：打开由 runtime Tools、已启用 Skills 和内置命令合并而成的 Slash 列表。
 - `Up` / `Down`：移动 Slash、会话、模型、思考等级或文件选择器中的选中项。
 - `Tab`：仅在 Slash 列表打开时补全当前候选。

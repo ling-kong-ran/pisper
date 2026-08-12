@@ -34,9 +34,10 @@ test('vendor chunk classification is stable and preserves Shiki dynamic modules'
 })
 
 test('production build emits an audited manifest with explicit non-recursive chunk ownership', async () => {
-  const [config, packageJson] = await Promise.all([
+  const [config, packageJson, buildScript] = await Promise.all([
     readFile('vite.config.ts', 'utf8'),
     readFile('package.json', 'utf8'),
+    readFile('scripts/build-frontend.mjs', 'utf8'),
   ])
   const scripts = JSON.parse(packageJson).scripts
 
@@ -44,7 +45,12 @@ test('production build emits an audited manifest with explicit non-recursive chu
   assert.match(config, /codeSplitting:/)
   assert.match(config, /includeDependenciesRecursively: false/)
   assert.match(config, /VENDOR_CHUNK_PRIORITIES\.map/)
-  assert.match(scripts.build, /vite build && node scripts\/check-bundle-budget\.mjs/)
+  assert.match(
+    scripts.build,
+    /node scripts\/build-frontend\.mjs && node scripts\/check-bundle-budget\.mjs/,
+  )
+  assert.match(buildScript, /NODE_ENV: 'production'/)
+  assert.match(buildScript, /'vite'/)
 })
 
 test('route code and route-specific vendor styles remain lazy', async () => {

@@ -76,6 +76,7 @@ function passingReport() {
   fileMetrics.set('assets/index.css', { raw: 1, gzip: 1 })
 
   return {
+    developmentJsxFiles: [],
     entryClosure: new Set(['index.html']),
     entryKey: 'index.html',
     fileMetrics,
@@ -95,6 +96,17 @@ function passingReport() {
 
 test('bundle budget accepts lazy routes and split Shiki/React Bits assets', () => {
   assert.deepEqual(validateBundle(passingReport()), [])
+})
+
+test('bundle budget rejects development JSX runtime output', () => {
+  const report = passingReport()
+  report.developmentJsxFiles.push('assets/index.js')
+
+  assert.ok(
+    validateBundle(report).includes(
+      'development JSX runtime emitted in production: assets/index.js',
+    ),
+  )
 })
 
 test('bundle budget rejects size, eager vendor, and CSS ownership regressions', () => {

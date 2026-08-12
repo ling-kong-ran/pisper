@@ -1,0 +1,11 @@
+[[permission]]
+identifier = "allow-pisper-desktop-terminal"
+description = "Allows the main authenticated Pisper desktop WebView to manage local PTY terminals."
+commands.allow = [
+  "desktop_terminal_profiles",
+  "desktop_terminal_create",
+  "desktop_terminal_write",
+  "desktop_terminal_resize",
+  "desktop_terminal_close",
+  "desktop_terminal_close_all",
+]

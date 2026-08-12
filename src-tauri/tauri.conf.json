@@ -10,7 +10,7 @@
     "windows": [],
     "macOSPrivateApi": true,
     "security": {
-      "capabilities": ["desktop-runtime"],
+      "capabilities": ["desktop-runtime", "desktop-terminal"],
       "csp": null
     }
   },

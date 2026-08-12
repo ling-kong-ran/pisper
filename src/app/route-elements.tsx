@@ -109,7 +109,6 @@ export async function configRoute() {
         notify={context.notify}
         registerPrimaryAction={context.registerPrimaryAction}
         section={context.configSection}
-        setSection={context.setConfigSection}
         onBrowserNotificationChange={context.setNotificationSettings}
         requestConfirm={context.requestConfirm}
         update={context.appUpdate}

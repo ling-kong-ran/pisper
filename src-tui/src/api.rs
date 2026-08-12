@@ -335,6 +335,18 @@ impl ApiClient {
             .context_usage)
     }
 
+    pub async fn queue_session_input(&self, session_id: &str, message: &str) -> Result<usize> {
+        let id = encode_segment(session_id);
+        let response: QueueInputResponse = self
+            .send_json(
+                reqwest::Method::POST,
+                &format!("/api/sessions/{id}/input"),
+                &json!({ "message": message, "behavior": "steer" }),
+            )
+            .await?;
+        Ok(response.queued_inputs.len())
+    }
+
     pub async fn abort(&self, session_id: &str) -> Result<()> {
         let id = encode_segment(session_id);
         let _: Value = self
@@ -406,6 +418,13 @@ impl ApiClient {
         }
         Ok(())
     }
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct QueueInputResponse {
+    #[serde(default)]
+    queued_inputs: Vec<Value>,
 }
 
 #[derive(Deserialize)]

@@ -1,4 +1,3 @@
-import { useI18n } from '@/app/use-i18n'
 import { DesktopPetSettings } from './DesktopPetSettings'
 import { LanguageSettings } from './LanguageSettings'
 import { ModelsSettings } from './ModelsSettings'
@@ -13,54 +12,15 @@ type ConfigPageProps = {
   notify: Notify
   registerPrimaryAction: (action: () => void) => () => void
   section: string
-  setSection: (section: string) => void
   onBrowserNotificationChange?: (settings: NotificationSettingsData) => void
   requestConfirm: (options?: ConfirmDialogOptions) => Promise<boolean>
   update: AppUpdateController
-}
-
-type ConfigSubnavProps = Pick<ConfigPageProps, 'section' | 'setSection'>
-
-function ConfigSubnav({ section, setSection }: ConfigSubnavProps) {
-  const { t } = useI18n()
-  return (
-    <div className="config-subnav">
-      <button className={section === 'models' ? 'active' : ''} onClick={() => setSection('models')}>
-        {t('config:configPage.models')}
-      </button>
-      <button
-        className={section === 'notifications' ? 'active' : ''}
-        onClick={() => setSection('notifications')}
-      >
-        {t('config:configPage.notifications')}
-      </button>
-      <button
-        className={section === 'interface' ? 'active' : ''}
-        onClick={() => setSection('interface')}
-      >
-        {t('config:configPage.interface')}
-      </button>
-      <button
-        className={section === 'desktop-pet' ? 'active' : ''}
-        onClick={() => setSection('desktop-pet')}
-      >
-        {t('config:configPage.desktopPet')}
-      </button>
-      <button
-        className={section === 'updates' ? 'active' : ''}
-        onClick={() => setSection('updates')}
-      >
-        {t('config:configPage.appUpdates')}
-      </button>
-    </div>
-  )
 }
 
 export function ConfigPage({
   notify,
   registerPrimaryAction,
   section,
-  setSection,
   onBrowserNotificationChange,
   requestConfirm,
   update,
@@ -89,10 +49,5 @@ export function ConfigPage({
     )
   }
 
-  return (
-    <>
-      <ConfigSubnav section={section} setSection={setSection} />
-      {content}
-    </>
-  )
+  return content
 }

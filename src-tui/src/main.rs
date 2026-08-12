@@ -808,6 +808,15 @@ async fn execute_action(
                 }
             });
         }
+        Action::QueueInput { message } => {
+            match api.queue_session_input(&app.session.id, &message).await {
+                Ok(queued_count) => app.queue_input_succeeded(message, queued_count),
+                Err(error) if format!("{error:#}").contains("当前会话已经结束运行") => {
+                    app.defer_input_after_run(message);
+                }
+                Err(error) => app.queue_input_failed(message, format!("{error:#}")),
+            }
+        }
         Action::Abort => match api.abort(&app.session.id).await {
             Ok(()) => app.status = "stopping".to_owned(),
             Err(error) => {

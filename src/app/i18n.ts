@@ -10,6 +10,7 @@ import enNavigation from '@/locales/en-US/navigation.json' with { type: 'json' }
 import enPlugins from '@/locales/en-US/plugins.json' with { type: 'json' }
 import enSchedules from '@/locales/en-US/schedules.json' with { type: 'json' }
 import enSkills from '@/locales/en-US/skills.json' with { type: 'json' }
+import enTerminal from '@/locales/en-US/terminal.json' with { type: 'json' }
 import enWorkflows from '@/locales/en-US/workflows.json' with { type: 'json' }
 import zhAssets from '@/locales/zh-CN/assets.json' with { type: 'json' }
 import zhChannels from '@/locales/zh-CN/channels.json' with { type: 'json' }
@@ -21,6 +22,7 @@ import zhNavigation from '@/locales/zh-CN/navigation.json' with { type: 'json' }
 import zhPlugins from '@/locales/zh-CN/plugins.json' with { type: 'json' }
 import zhSchedules from '@/locales/zh-CN/schedules.json' with { type: 'json' }
 import zhSkills from '@/locales/zh-CN/skills.json' with { type: 'json' }
+import zhTerminal from '@/locales/zh-CN/terminal.json' with { type: 'json' }
 import zhWorkflows from '@/locales/zh-CN/workflows.json' with { type: 'json' }
 import { STORAGE_KEYS } from './storage.ts'
 
@@ -49,6 +51,7 @@ export const I18N_NAMESPACES = Object.freeze([
   'plugins',
   'schedules',
   'skills',
+  'terminal',
   'workflows',
 ] as const)
 export type I18nNamespace = (typeof I18N_NAMESPACES)[number]
@@ -82,6 +85,7 @@ void i18n.use(initReactI18next).init({
       plugins: zhPlugins,
       schedules: zhSchedules,
       skills: zhSkills,
+      terminal: zhTerminal,
       workflows: zhWorkflows,
     },
     'en-US': {
@@ -95,6 +99,7 @@ void i18n.use(initReactI18next).init({
       plugins: enPlugins,
       schedules: enSchedules,
       skills: enSkills,
+      terminal: enTerminal,
       workflows: enWorkflows,
     },
   },

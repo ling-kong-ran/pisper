@@ -31,6 +31,8 @@ export const router = createHashRouter([
       { path: PAGE_PATHS.channels, lazy: channelsRoute },
       { path: PAGE_PATHS.schedules, lazy: schedulesRoute },
       { path: PAGE_PATHS.config, lazy: configRoute },
+      { path: '/config/:configSection', lazy: configRoute },
+      { path: '/config', element: <Navigate to={PAGE_PATHS.config} replace /> },
       { path: PAGE_PATHS.plugins, lazy: pluginsRoute },
       { path: PAGE_PATHS.memory, lazy: memoryRoute },
       { path: PAGE_PATHS.mcp, lazy: mcpRoute },

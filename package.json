@@ -15,7 +15,7 @@
   },
   "scripts": {
     "dev": "node runtime/index.mjs",
-    "build": "vite build && node scripts/check-bundle-budget.mjs",
+    "build": "node scripts/build-frontend.mjs && node scripts/check-bundle-budget.mjs",
     "sidecar:dev": "node runtime/sidecar.mjs",
     "sidecar:sea": "node scripts/build-sea.mjs",
     "sidecar:sea:smoke": "node scripts/smoke-sea.mjs",
@@ -69,6 +69,9 @@
     "@types/react": "^19.2.17",
     "@types/react-dom": "^19.2.3",
     "@vitejs/plugin-react": "^6.0.3",
+    "@xterm/addon-fit": "^0.11.0",
+    "@xterm/addon-web-links": "^0.12.0",
+    "@xterm/xterm": "^6.0.0",
     "@xyflow/react": "^12.11.2",
     "ai": "^7.0.37",
     "class-variance-authority": "^0.7.1",

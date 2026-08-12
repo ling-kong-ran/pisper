@@ -103,6 +103,31 @@ export type DesktopPetStatus = {
   spriteUrl?: string
 }
 
+export type DesktopTerminalProfile = {
+  id: string
+  label: string
+  default: boolean
+}
+
+export type DesktopTerminalEvent =
+  | { type: 'output'; terminalId: string; data: number[] }
+  | { type: 'exit'; terminalId: string; code: number | null }
+  | { type: 'error'; terminalId: string; message: string }
+
+export type DesktopTerminalCreateOptions = {
+  terminalId: string
+  profileId: string
+  cwd: string
+  cols: number
+  rows: number
+}
+
+export type DesktopTerminalCreated = {
+  terminalId: string
+  profileId: string
+  cwd: string
+}
+
 export type DesktopBridge = {
   platform?: string
   getAppInfo: () => Promise<AppUpdateInfo>
@@ -126,6 +151,15 @@ export type DesktopBridge = {
     title: string
     body: string
   }) => Promise<DesktopNotificationResult>
+  terminalProfiles?: () => Promise<DesktopTerminalProfile[]>
+  terminalCreate?: (
+    options: DesktopTerminalCreateOptions,
+    onEvent: (event: DesktopTerminalEvent) => void,
+  ) => Promise<DesktopTerminalCreated>
+  terminalWrite?: (terminalId: string, data: Uint8Array) => Promise<void>
+  terminalResize?: (terminalId: string, cols: number, rows: number) => Promise<void>
+  terminalClose?: (terminalId: string) => Promise<boolean>
+  terminalCloseAll?: () => Promise<number>
   getPetStatus?: () => Promise<DesktopPetStatus>
   setPetEnabled?: (enabled: boolean) => Promise<DesktopPetStatus>
   setPetOpacity?: (opacity: number) => Promise<DesktopPetStatus>

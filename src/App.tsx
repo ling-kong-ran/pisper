@@ -24,6 +24,13 @@ import { useAppDialog } from '@/hooks/useAppDialog'
 import { useAppUpdate } from '@/features/updates/useAppUpdate'
 import { SidebarInset, SidebarProvider } from '@/components/ui/sidebar'
 import { useUiStore, type ThemeMode } from '@/stores/ui-store'
+import { readStoredTerminalPanel } from '@/features/terminal/terminal-state'
+import {
+  CONFIG_SECTIONS,
+  SETTINGS_PAGES,
+  SettingsShell,
+  type SettingsDestination,
+} from '@/features/config/SettingsShell'
 import type { ChatAttachment, PendingAsset } from '@/types/chat'
 import type { NotificationSettingsData } from '@/types/notifications'
 import type { WorkflowActions } from '@/types/workflow'
@@ -38,6 +45,11 @@ const QuickCreate = lazy(() =>
 )
 const PageHeader = lazy(() =>
   import('@/components/layout/PageHeader').then((module) => ({ default: module.PageHeader })),
+)
+const TerminalPanel = lazy(() =>
+  import('@/features/terminal/TerminalPanel').then((module) => ({
+    default: module.TerminalPanel,
+  })),
 )
 type ProviderConfig = {
   configured: boolean
@@ -101,6 +113,14 @@ function isEditableTarget(target: EventTarget | null) {
   )
 }
 
+function decodePathSegment(value: string) {
+  try {
+    return decodeURIComponent(value)
+  } catch {
+    return ''
+  }
+}
+
 function App() {
   const { t } = useI18n()
   const location = useLocation()
@@ -108,6 +128,7 @@ function App() {
   const navigation = useMemo(() => getNavigation(t), [t])
   const pageMeta = useMemo(() => getPageMeta(t), [t])
   const page = pageFromPath(location.pathname) || 'chat'
+  const startupPageRef = useRef(page)
   const [query, setQuery] = useState('')
   const [activeSessionId, setActiveSessionId] = useState(
     () => localStorage.getItem(STORAGE_KEYS.activeSession) || '',
@@ -121,7 +142,11 @@ function App() {
   const density = useUiStore((state) => state.density)
   const [toast, setToast] = useState<ToastState | null>(null)
   const [modal, setModal] = useState<string | null>(null)
-  const [configSection, setConfigSection] = useState('models')
+  const requestedConfigSection =
+    page === 'config' ? decodePathSegment(location.pathname.split('/')[2] || 'models') : 'models'
+  const configSection = CONFIG_SECTIONS.has(requestedConfigSection)
+    ? requestedConfigSection
+    : 'models'
   const [pendingAsset, setPendingAsset] = useState<PendingAsset | null>(null)
   const [pluginStats, setPluginStats] = useState<PluginStats | null>(null)
   const [startupReady, setStartupReady] = useState(false)
@@ -132,6 +157,27 @@ function App() {
     templates: [],
   })
   const [workflowActions, setWorkflowActions] = useState<WorkflowActions | null>(null)
+  const terminalLabels = useMemo(
+    () => ({
+      terminal: t('terminal:terminalPanel.terminal'),
+      resizeTerminal: t('terminal:terminalPanel.resizeTerminal'),
+      hideTerminal: t('terminal:terminalPanel.hideTerminal'),
+      showTerminal: t('terminal:terminalPanel.showTerminal'),
+      newTerminal: t('terminal:terminalPanel.newTerminal'),
+      closeTerminal: t('terminal:terminalPanel.closeTerminal'),
+      maximizeTerminal: t('terminal:terminalPanel.maximizeTerminal'),
+      openTerminal: t('terminal:terminalPanel.openTerminal'),
+      usesActiveSessionWorkspace: t('terminal:terminalPanel.usesActiveSessionWorkspace'),
+      starting: t('terminal:terminalPanel.starting'),
+      processExited: (code: number | null) =>
+        t('terminal:terminalPanel.processExited', { code: code ?? '-' }),
+    }),
+    [t],
+  )
+  const [terminalOpen, setTerminalOpen] = useState(() => Boolean(readStoredTerminalPanel().open))
+  const [terminalHeight, setTerminalHeight] = useState(() =>
+    Math.max(180, Math.min(640, Number(readStoredTerminalPanel().height) || 300)),
+  )
   const browserEventCursor = useRef('')
   const [primaryActions] = useState(createPrimaryActionRegistry)
   const searchInputRef = useRef<HTMLInputElement>(null)
@@ -141,6 +187,13 @@ function App() {
   useEffect(() => {
     document.documentElement.dataset.density = density
   }, [density])
+
+  useEffect(() => {
+    localStorage.setItem(
+      STORAGE_KEYS.terminalPanel,
+      JSON.stringify({ open: terminalOpen, height: terminalHeight }),
+    )
+  }, [terminalHeight, terminalOpen])
 
   useEffect(() => {
     const apply = () => {
@@ -244,15 +297,35 @@ function App() {
     [routerNavigate],
   )
 
-  const openUpdateSettings = useCallback(() => {
-    setConfigSection('updates')
-    navigate('config')
-  }, [navigate])
+  useEffect(() => {
+    if (page === 'config' && requestedConfigSection !== configSection) {
+      routerNavigate(`/config/${configSection}`, { replace: true })
+    }
+  }, [configSection, page, requestedConfigSection, routerNavigate])
 
-  const openNotificationSettings = useCallback(() => {
-    setConfigSection('notifications')
-    navigate('config')
-  }, [navigate])
+  const setConfigSection = useCallback(
+    (section: string) => {
+      const nextSection = CONFIG_SECTIONS.has(section) ? section : 'models'
+      routerNavigate(`/config/${nextSection}`)
+      setQuery('')
+    },
+    [routerNavigate],
+  )
+
+  const openUpdateSettings = useCallback(() => setConfigSection('updates'), [setConfigSection])
+
+  const openNotificationSettings = useCallback(
+    () => setConfigSection('notifications'),
+    [setConfigSection],
+  )
+
+  const navigateSettings = useCallback(
+    (destination: SettingsDestination) => {
+      if (destination.type === 'config') setConfigSection(destination.id)
+      else navigate(destination.id)
+    },
+    [navigate, setConfigSection],
+  )
 
   const providerScanStarted = useRef(false)
   useEffect(() => {
@@ -279,13 +352,18 @@ function App() {
         })
         if (approved) {
           setConfigSection('models')
-          navigate('config')
         }
       } catch {
         // 本地配置扫描失败时静默忽略，不影响启动
       }
     })()
-  }, [appDialog, navigate, startupReady, t])
+  }, [appDialog, setConfigSection, startupReady, t])
+
+  const resolveActiveSessionCwd = useCallback(async () => {
+    if (!activeSessionId) return ''
+    const data = await apiJson<{ sessions?: Array<{ id: string; cwd?: string }> }>('/api/sessions')
+    return data.sessions?.find((session) => session.id === activeSessionId)?.cwd || ''
+  }, [activeSessionId])
 
   const useAsset = useCallback(
     (asset: ChatAttachment) => {
@@ -336,6 +414,14 @@ function App() {
       if (modifier && event.key.toLowerCase() === 'k' && !appDialog.dialog && !modal) {
         event.preventDefault()
         openCommandPalette()
+      } else if (
+        modifier &&
+        event.key === '`' &&
+        window.pisperDesktop?.terminalProfiles &&
+        !(event.target instanceof HTMLElement && event.target.closest('.terminal-panel'))
+      ) {
+        event.preventDefault()
+        setTerminalOpen((value) => !value)
       } else if (modifier && event.key.toLowerCase() === 'n' && !isEditableTarget(event.target)) {
         event.preventDefault()
         handlePrimary()
@@ -369,7 +455,7 @@ function App() {
         if (!hasUsableProvider(config)) {
           primaryActions.clear()
           primaryActions.invoke()
-          navigate('config', { replace: true })
+          if (!SETTINGS_PAGES.has(startupPageRef.current)) navigate('config', { replace: true })
         }
       })
       .catch(() => {})
@@ -486,11 +572,35 @@ function App() {
                 onCycleTheme={cycleTheme}
                 workflowActions={workflowActions}
                 desktopPlatform={window.pisperDesktop?.platform || ''}
+                terminalOpen={terminalOpen}
+                onToggleTerminal={() => setTerminalOpen((value) => !value)}
               />
             </Suspense>
             <div className={`page-content page-${page}`} key={page}>
-              <Outlet context={routeContext} />
+              {SETTINGS_PAGES.has(page) ? (
+                <SettingsShell
+                  activePage={page}
+                  configSection={configSection}
+                  onNavigate={navigateSettings}
+                >
+                  <Outlet context={routeContext} />
+                </SettingsShell>
+              ) : (
+                <Outlet context={routeContext} />
+              )}
             </div>
+            {window.pisperDesktop?.terminalProfiles && (
+              <Suspense fallback={null}>
+                <TerminalPanel
+                  open={terminalOpen}
+                  height={terminalHeight}
+                  labels={terminalLabels}
+                  resolveActiveSessionCwd={resolveActiveSessionCwd}
+                  onOpenChange={setTerminalOpen}
+                  onHeightChange={setTerminalHeight}
+                />
+              </Suspense>
+            )}
           </SidebarInset>
         </SidebarProvider>
         <StatusBar page={page} pluginStats={pluginStats} />

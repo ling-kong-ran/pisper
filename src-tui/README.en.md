@@ -98,7 +98,7 @@ The diagnostic output reports the sidecar connection source, TUI launch workspac
 
 ## Composer and Message Stream
 
-- `Enter`: submit a message. Messages submitted during an active run enter a FIFO queue and are sent in order after the run finishes normally.
+- `Enter`: submit a message. Plain text submitted during an active run is appended immediately through the same Runtime `steer` queue as the desktop app. Messages with attachments wait until the active run finishes so their attachments are preserved.
 - `/`: open the combined list of runtime Tools, enabled Skills, and built-in commands.
 - `Up` / `Down`: move through Slash, session, model, thinking-level, or file choices.
 - `Tab`: complete the highlighted candidate only while the Slash list is open.

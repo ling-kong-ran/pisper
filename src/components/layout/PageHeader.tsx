@@ -10,6 +10,7 @@ import {
   Search,
   Square,
   Sun,
+  TerminalSquare,
   Play,
   type LucideIcon,
 } from 'lucide-react'
@@ -43,6 +44,8 @@ type PageHeaderProps = {
   searchInputRef: RefObject<HTMLInputElement | null>
   workflowActions: WorkflowActions | null
   desktopPlatform: string
+  terminalOpen: boolean
+  onToggleTerminal: () => void
 }
 
 export function PageHeader({
@@ -58,6 +61,8 @@ export function PageHeader({
   searchInputRef,
   workflowActions,
   desktopPlatform,
+  terminalOpen,
+  onToggleTerminal,
 }: PageHeaderProps) {
   const { t } = useI18n()
   const primaryActions: Partial<Record<string, [string, LucideIcon]>> = {
@@ -149,6 +154,17 @@ export function PageHeader({
               return <PrimaryIcon size={15} />
             })()}
             {primary[0]}
+          </button>
+        )}
+        {desktop && (
+          <button
+            className={`icon-button terminal-toggle ${terminalOpen ? 'active' : ''}`}
+            title={t('navigation:pageHeader.toggleTerminal')}
+            aria-label={t('navigation:pageHeader.toggleTerminal')}
+            aria-pressed={terminalOpen}
+            onClick={onToggleTerminal}
+          >
+            <TerminalSquare size={16} />
           </button>
         )}
         <button

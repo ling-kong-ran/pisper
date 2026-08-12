@@ -3,11 +3,13 @@ import { useQuery } from '@tanstack/react-query'
 import {
   ChevronRight,
   Download,
+  FolderClosed,
   ExternalLink,
   PanelLeftClose,
   PanelLeftOpen,
   RefreshCw,
   Rocket,
+  Settings,
   X,
   type LucideIcon,
 } from 'lucide-react'
@@ -20,13 +22,15 @@ import {
   requestSessionSelection,
 } from '@/features/chat/events'
 import { apiJson } from '@/lib/api'
-import { relativeTime } from '@/lib/format'
+import { relativeTime, workspaceName } from '@/lib/format'
+import { SETTINGS_PAGES } from '@/features/config/SettingsShell'
 import { Sidebar as ShadcnSidebar, useSidebar } from '@/components/ui/sidebar'
 
 type SessionSummary = {
   id: string
   name?: string
   modified: string
+  cwd?: string
 }
 
 type SidebarUpdate = {
@@ -51,7 +55,12 @@ type AppSidebarProps = {
   onOpenUpdates: () => void
 }
 
-const RECENT_SESSION_LIMIT = 15
+const RECENT_SESSION_LIMIT = 24
+
+function workspaceKey(cwd = '') {
+  const normalized = cwd.trim().replace(/\\/g, '/').replace(/\/+$/, '')
+  return /^[A-Za-z]:\//.test(normalized) ? normalized.toLowerCase() : normalized
+}
 
 export function AppSidebar({
   page,
@@ -65,10 +74,12 @@ export function AppSidebar({
   const { t, language } = useI18n()
   const { isMobile, setOpenMobile } = useSidebar()
   const [historyExpanded, setHistoryExpanded] = useState(true)
+  const [collapsedWorkspaces, setCollapsedWorkspaces] = useState<Set<string>>(() => new Set())
   const [activeSessionId, setActiveSessionId] = useState(
     () => localStorage.getItem(STORAGE_KEYS.activeSession) || '',
   )
   const active = page === 'workflowCreate' ? 'workflows' : page === 'chatHistory' ? 'chat' : page
+  const settingsActive = SETTINGS_PAGES.has(page)
 
   const { data: sidebarSessionData, refetch: refreshSessions } = useQuery<{
     sessions: SessionSummary[]
@@ -84,6 +95,16 @@ export function AppSidebar({
       ),
     [sidebarSessionData],
   )
+  const sessionGroups = useMemo(() => {
+    const groups = new Map<string, { key: string; cwd: string; sessions: SessionSummary[] }>()
+    for (const session of sessions.slice(0, RECENT_SESSION_LIMIT)) {
+      const key = workspaceKey(session.cwd) || '__no_workspace__'
+      const group = groups.get(key) || { key, cwd: session.cwd || '', sessions: [] }
+      group.sessions.push(session)
+      groups.set(key, group)
+    }
+    return [...groups.values()]
+  }, [sessions])
 
   useEffect(() => {
     const refresh = () => {
@@ -118,6 +139,15 @@ export function AppSidebar({
   const navigateFromSidebar = (id: string) => {
     navigate(id)
     if (isMobile) setOpenMobile(false)
+  }
+
+  const toggleWorkspace = (key: string) => {
+    setCollapsedWorkspaces((current) => {
+      const next = new Set(current)
+      if (next.has(key)) next.delete(key)
+      else next.add(key)
+      return next
+    })
   }
 
   return (
@@ -175,17 +205,40 @@ export function AppSidebar({
             </div>
             {historyExpanded && (
               <div className="nav-history-list" id="sidebar-recent-sessions">
-                {sessions.slice(0, RECENT_SESSION_LIMIT).map((session) => (
-                  <button
-                    className={`nav-history-item ${session.id === activeSessionId ? 'active-session' : ''}`}
-                    aria-current={session.id === activeSessionId ? 'page' : undefined}
-                    title={`${session.name || t('navigation:appSidebar.untitledChat')} · ${relativeTime(session.modified, language)}`}
-                    onClick={() => openRecentSession(session.id)}
-                    key={session.id}
-                  >
-                    <span>{session.name || t('navigation:appSidebar.untitledChat')}</span>
-                  </button>
-                ))}
+                {sessionGroups.map((group) => {
+                  const groupCollapsed = collapsedWorkspaces.has(group.key)
+                  return (
+                    <div className="nav-workspace-group" key={group.key}>
+                      <button
+                        className="nav-workspace-heading"
+                        aria-expanded={!groupCollapsed}
+                        onClick={() => toggleWorkspace(group.key)}
+                        title={group.cwd || t('navigation:appSidebar.noWorkspace')}
+                      >
+                        <ChevronRight className={groupCollapsed ? '' : 'is-open'} size={13} />
+                        <FolderClosed size={13} />
+                        <span>
+                          {group.cwd
+                            ? workspaceName(group.cwd, language)
+                            : t('navigation:appSidebar.noWorkspace')}
+                        </span>
+                        <small>{group.sessions.length}</small>
+                      </button>
+                      {!groupCollapsed &&
+                        group.sessions.map((session) => (
+                          <button
+                            className={`nav-history-item ${session.id === activeSessionId ? 'active-session' : ''}`}
+                            aria-current={session.id === activeSessionId ? 'page' : undefined}
+                            title={`${session.name || t('navigation:appSidebar.untitledChat')} · ${relativeTime(session.modified, language)}`}
+                            onClick={() => openRecentSession(session.id)}
+                            key={session.id}
+                          >
+                            <span>{session.name || t('navigation:appSidebar.untitledChat')}</span>
+                          </button>
+                        ))}
+                    </div>
+                  )
+                })}
                 {!sessions.length && (
                   <span className="nav-history-empty">
                     {t('navigation:appSidebar.noChatHistoryYet')}
@@ -196,6 +249,15 @@ export function AppSidebar({
           </section>
         </div>
         <div className="mt-auto grid gap-2">
+          <button
+            className={`sidebar-settings ${settingsActive ? 'active' : ''}`}
+            title={t('navigation:navigation.settings')}
+            aria-current={settingsActive ? 'page' : undefined}
+            onClick={() => navigateFromSidebar('config')}
+          >
+            <Settings size={16} />
+            {!collapsed && <span>{t('navigation:navigation.settings')}</span>}
+          </button>
           <SidebarUpdateStatus update={update} collapsed={collapsed} onOpen={onOpenUpdates} />
           <button
             className="sidebar-collapse !mt-0"

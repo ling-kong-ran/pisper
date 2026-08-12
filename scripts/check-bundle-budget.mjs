@@ -132,6 +132,12 @@ export async function inspectBundle(distDirectory = resolve('dist')) {
   const jsFiles = unique(
     records.map(([, record]) => record.file).filter((file) => file.endsWith('.js')),
   )
+  const developmentJsxFiles = []
+  for (const file of jsFiles) {
+    if (file.includes('vendor-react')) continue
+    const contents = await readFile(resolve(distDirectory, file), 'utf8')
+    if (/\.jsxDEV\)\(/.test(contents)) developmentJsxFiles.push(file)
+  }
   const initialJsGzip = initialFiles.reduce((total, file) => total + fileMetrics.get(file).gzip, 0)
   const totalCssGzip = cssFiles.reduce((total, file) => total + fileMetrics.get(file).gzip, 0)
   const largestJs = jsFiles
@@ -152,6 +158,7 @@ export async function inspectBundle(distDirectory = resolve('dist')) {
 
   return {
     cssFiles,
+    developmentJsxFiles,
     entryClosure,
     entryKey,
     fileMetrics,
@@ -173,6 +180,11 @@ export function validateBundle(report, budgets = BUNDLE_BUDGETS) {
   }
 
   const entry = report.manifest[report.entryKey]
+  if (report.developmentJsxFiles.length) {
+    failures.push(
+      `development JSX runtime emitted in production: ${report.developmentJsxFiles.join(', ')}`,
+    )
+  }
   check('total CSS gzip', report.totalCssGzip, budgets.totalCssGzip)
   check('entry file gzip', report.fileMetrics.get(entry.file).gzip, budgets.entryFileGzip)
   check('entry static JS gzip', report.initialJsGzip, budgets.entryStaticJsGzip)

@@ -1,0 +1,13 @@
+{
+  "terminalPanel.terminal": "Terminal",
+  "terminalPanel.resizeTerminal": "Resize terminal",
+  "terminalPanel.hideTerminal": "Hide terminal (Ctrl+`)",
+  "terminalPanel.showTerminal": "Show terminal (Ctrl+`)",
+  "terminalPanel.newTerminal": "New terminal",
+  "terminalPanel.closeTerminal": "Close terminal",
+  "terminalPanel.maximizeTerminal": "Expand terminal panel",
+  "terminalPanel.openTerminal": "Open terminal",
+  "terminalPanel.usesActiveSessionWorkspace": "New terminals use the active session workspace",
+  "terminalPanel.starting": "Starting shell...",
+  "terminalPanel.processExited": "Process exited with code {code}"
+}

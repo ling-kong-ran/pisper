@@ -24,6 +24,7 @@ serde = { version = "1", features = ["derive"] }
 semver = "1"
 serde_json = "1"
 pisper-component-updater = { path = "../crates/component-updater" }
+portable-pty = "0.9"
 tauri = { version = "2.11.5", features = ["tray-icon", "macos-private-api"] }
 tauri-plugin-dialog = "2.7.2"
 tauri-plugin-notification = "2.3.3"

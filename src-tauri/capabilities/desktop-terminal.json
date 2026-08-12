@@ -1,0 +1,10 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "desktop-terminal",
+  "description": "Allows only the main Pisper desktop window to manage local PTY terminals.",
+  "windows": ["main"],
+  "remote": {
+    "urls": ["http://127.0.0.1:*/*"]
+  },
+  "permissions": ["allow-pisper-desktop-terminal"]
+}

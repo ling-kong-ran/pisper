@@ -164,6 +164,9 @@ pub enum Action {
         requested_tool: Option<String>,
         attachment_paths: Vec<PathBuf>,
     },
+    QueueInput {
+        message: String,
+    },
     Abort,
     NewSession,
     SetCwd(PathBuf),
@@ -279,6 +282,7 @@ pub struct App {
     pub provider_input_selected_all: bool,
     abort_pressed: bool,
     queued_prompts: VecDeque<QueuedPrompt>,
+    runtime_queued_count: usize,
     pasted_ranges: Vec<PastedRange>,
     slash_usage: HashMap<String, SlashUsage>,
     slash_usage_path: Option<PathBuf>,
@@ -377,6 +381,7 @@ impl App {
             provider_input_selected_all: false,
             abort_pressed: false,
             queued_prompts: VecDeque::new(),
+            runtime_queued_count: 0,
             pasted_ranges: Vec::new(),
             slash_usage: load_slash_usage(),
             slash_usage_path: slash_usage_path(),
@@ -481,7 +486,7 @@ impl App {
     }
 
     pub fn queued_count(&self) -> usize {
-        self.queued_prompts.len()
+        self.queued_prompts.len() + self.runtime_queued_count
     }
 
     pub fn set_startup_data(
@@ -2042,15 +2047,19 @@ impl App {
             _ if self.is_streaming() => {
                 let requested_tool = self.requested_tool(&message);
                 let attachments = std::mem::take(&mut self.attachments);
-                self.queued_prompts.push_back(QueuedPrompt {
-                    message,
-                    display_message: None,
-                    requested_tool,
-                    attachments,
-                });
                 self.clear_input();
-                self.status = format!("{} message(s) queued", self.queued_prompts.len());
-                Action::None
+                if attachments.is_empty() && requested_tool.is_none() {
+                    Action::QueueInput { message }
+                } else {
+                    self.queued_prompts.push_back(QueuedPrompt {
+                        message,
+                        display_message: None,
+                        requested_tool,
+                        attachments,
+                    });
+                    self.status = format!("{} message(s) queued", self.queued_count());
+                    Action::None
+                }
             }
             _ => {
                 let requested_tool = self.requested_tool(&message);
@@ -2116,6 +2125,41 @@ impl App {
             .then(|| self.queued_prompts.pop_front())
             .flatten()
             .map(|prompt| self.start_prompt(prompt))
+    }
+
+    pub fn queue_input_succeeded(&mut self, message: String, queued_count: usize) {
+        self.push_transcript_message(ChatMessage {
+            role: "user".to_owned(),
+            text: message,
+            ..ChatMessage::default()
+        });
+        self.runtime_queued_count = queued_count;
+        self.status = if queued_count > 0 {
+            format!("{} message(s) queued", self.queued_count())
+        } else {
+            "append sent".to_owned()
+        };
+        self.status_error = false;
+        self.scroll.set(0);
+    }
+
+    pub fn defer_input_after_run(&mut self, message: String) {
+        self.queued_prompts.push_back(QueuedPrompt {
+            message,
+            display_message: None,
+            requested_tool: None,
+            attachments: Vec::new(),
+        });
+        self.status = format!("{} message(s) queued", self.queued_count());
+        self.status_error = false;
+    }
+
+    pub fn queue_input_failed(&mut self, message: String, error: String) {
+        if self.input.is_empty() {
+            self.set_input(&message);
+        }
+        self.status = format!("append failed · {error}");
+        self.status_error = true;
     }
 
     fn requested_tool(&self, message: &str) -> Option<String> {
@@ -2221,6 +2265,7 @@ impl App {
         self.session_loading = None;
         self.session_picker_exit_on_cancel = false;
         self.queued_prompts.clear();
+        self.runtime_queued_count = 0;
         self.pending_slash_command = None;
         self.status.clear();
         self.status_error = false;
@@ -2530,6 +2575,13 @@ impl App {
                 self.status = "streaming".to_owned();
             }
             "context_usage" => self.context_percent = event.data["percent"].as_f64(),
+            "queue_update" => {
+                self.runtime_queued_count = event.data["queuedInputs"]
+                    .as_array()
+                    .map(Vec::len)
+                    .unwrap_or_default();
+                self.status = format!("{} message(s) queued", self.queued_count());
+            }
             "permission_request" => {
                 sync_live_display(live);
                 self.approval = Some(Approval {
@@ -2554,6 +2606,7 @@ impl App {
                 }
             }
             "done" => {
+                self.runtime_queued_count = 0;
                 self.status_error = false;
                 if event.data["text"].is_string() {
                     live.text_target = string_field(&event.data, "text");
@@ -2576,6 +2629,7 @@ impl App {
                 self.abort_pressed = false;
             }
             "error" => {
+                self.runtime_queued_count = 0;
                 live.streaming = false;
                 self.status = string_field(&event.data, "message");
                 self.status_error = true;
@@ -2647,6 +2701,7 @@ impl App {
         if let Some(live) = self.live.as_mut() {
             live.streaming = false;
         }
+        self.runtime_queued_count = 0;
         self.abort_pressed = false;
         self.pending_slash_command = None;
         self.status = message;
@@ -3808,23 +3863,20 @@ mod tests {
     }
 
     #[test]
-    fn messages_submitted_during_a_run_are_sent_fifo_after_completion() {
+    fn messages_submitted_during_a_run_are_queued_in_the_active_runtime() {
         let mut app = test_app(Vec::new());
         app.set_input("first");
         assert!(matches!(app.submit_action(), Action::Submit { .. }));
         app.set_input("second");
-        assert!(matches!(app.submit_action(), Action::None));
-        assert_eq!(app.queued_count(), 1);
-
-        app.apply_stream_event(StreamEvent {
-            name: "done".to_owned(),
-            data: json!({ "text": "first answer", "tools": [], "contextUsage": {} }),
-        });
         assert!(matches!(
-            app.take_queued_action(),
-            Some(Action::Submit { message, .. }) if message == "second"
+            app.submit_action(),
+            Action::QueueInput { message } if message == "second"
         ));
         assert_eq!(app.queued_count(), 0);
+
+        app.queue_input_succeeded("second".to_owned(), 1);
+        assert_eq!(app.queued_count(), 1);
+        assert!(app.take_queued_action().is_none());
         assert_eq!(
             app.messages
                 .iter()
@@ -3832,6 +3884,30 @@ mod tests {
                 .count(),
             2
         );
+
+        app.apply_stream_event(StreamEvent {
+            name: "queue_update".to_owned(),
+            data: json!({ "queuedInputs": [] }),
+        });
+        assert_eq!(app.queued_count(), 0);
+        app.apply_stream_event(StreamEvent {
+            name: "done".to_owned(),
+            data: json!({ "text": "final answer", "tools": [], "contextUsage": {} }),
+        });
+        assert!(app.take_queued_action().is_none());
+    }
+
+    #[test]
+    fn a_failed_runtime_append_restores_the_composer_draft() {
+        let mut app = test_app(Vec::new());
+        app.set_input("first");
+        assert!(matches!(app.submit_action(), Action::Submit { .. }));
+        app.set_input("second");
+        assert!(matches!(app.submit_action(), Action::QueueInput { .. }));
+
+        app.queue_input_failed("second".to_owned(), "network unavailable".to_owned());
+        assert_eq!(app.input_text(), "second");
+        assert!(app.status_error);
     }
 
     #[test]

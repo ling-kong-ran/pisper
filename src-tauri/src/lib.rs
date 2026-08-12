@@ -2,6 +2,7 @@ mod cli_manager;
 mod component_updates;
 mod desktop_bridge;
 mod desktop_pet;
+mod desktop_terminal;
 
 #[cfg(all(test, target_os = "windows"))]
 #[link(name = "pisper_test_resource", kind = "static")]
@@ -589,6 +590,7 @@ pub fn run() {
                 .build(),
         )
         .manage(component_updates::ComponentUpdateState::default())
+        .manage(desktop_terminal::DesktopTerminalState::default())
         .manage(LifecycleState {
             quitting: AtomicBool::new(false),
         })
@@ -609,6 +611,12 @@ pub fn run() {
             desktop_bridge::desktop_get_notification_status,
             desktop_bridge::desktop_open_notification_settings,
             desktop_bridge::desktop_show_notification,
+            desktop_terminal::desktop_terminal_profiles,
+            desktop_terminal::desktop_terminal_create,
+            desktop_terminal::desktop_terminal_write,
+            desktop_terminal::desktop_terminal_resize,
+            desktop_terminal::desktop_terminal_close,
+            desktop_terminal::desktop_terminal_close_all,
             desktop_pet::desktop_pet_apply_enabled,
             desktop_pet::desktop_pet_set_visible,
             desktop_pet::desktop_pet_start_dragging,
@@ -686,6 +694,9 @@ pub fn run() {
         .expect("failed to build Pisper WebView application");
     application.run(|app, event| {
         if matches!(event, RunEvent::Exit | RunEvent::ExitRequested { .. }) {
+            if let Some(state) = app.try_state::<desktop_terminal::DesktopTerminalState>() {
+                desktop_terminal::close_all(&state);
+            }
             stop_sidecar(app);
         }
     });

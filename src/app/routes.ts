@@ -10,7 +10,7 @@ export const PAGE_PATHS = Object.freeze({
   skills: '/skills',
   workflows: '/workflows',
   workflowCreate: '/workflows/new',
-  config: '/config',
+  config: '/config/models',
 } as const)
 
 export type PageId = keyof typeof PAGE_PATHS
@@ -28,6 +28,7 @@ export function pagePath(page: string) {
 export function pageFromPath(pathname: string): PageId | null {
   const normalized = pathname.length > 1 ? pathname.replace(/\/+$/, '') : pathname
   if (/^\/workflows\/[^/]+$/.test(normalized)) return 'workflowCreate'
+  if (/^\/config(?:\/[^/]+)?$/.test(normalized)) return 'config'
   return PATH_PAGES.get(normalized) || null
 }
 
