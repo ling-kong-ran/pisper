@@ -206,6 +206,15 @@ export function useConfigSettings({ notify, requestConfirm, t }: UseConfigSettin
       const imported =
         result.config.providers.find((item) => item.id === result.providerId) ||
         result.config.providers[0]
+      if (result.kind === 'authentication') {
+        dispatch({ type: 'refresh-succeeded', config: result.config })
+        notify(
+          t('config:configPage.nameLoginStateHasBeenLoadedIntoPisper', {
+            name: imported.name,
+          }),
+        )
+        return
+      }
       dispatch({
         type: 'replace',
         config: result.config,
@@ -312,11 +321,24 @@ export function useProviderDiscovery({
   const importProvider = useCallback(
     async (provider: DiscoveredProvider) => {
       const source =
-        provider.source === 'codex-config' ? 'Codex config.toml' : 'Claude settings.json'
+        provider.source === 'codex-config'
+          ? 'Codex config.toml'
+          : provider.source === 'claude-config'
+            ? 'Claude settings.json'
+            : provider.source === 'codex-auth'
+              ? 'Codex login'
+              : 'Claude login'
+      const authentication = provider.kind === 'authentication'
       const approved = await requestConfirm({
-        title: t('config:configPage.loadProviderConfiguration'),
-        message: t('config:configPage.loadThisProviderConfigurationFromSource', { source }),
-        confirmLabel: t('config:configPage.loadConfiguration'),
+        title: authentication
+          ? t('config:configPage.loadLoginState')
+          : t('config:configPage.loadProviderConfiguration'),
+        message: authentication
+          ? t('config:configPage.loadOfficialProviderLoginStateFromSource', { source })
+          : t('config:configPage.loadThisProviderConfigurationFromSource', { source }),
+        confirmLabel: authentication
+          ? t('config:configPage.loadLoginState')
+          : t('config:configPage.loadConfiguration'),
       })
       if (!approved) return
       setImporting(provider.id)

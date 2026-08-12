@@ -21,7 +21,12 @@ import {
   npmPlatformOptionalDependencies,
   npmPlatformVersion,
 } from '../../packages/pisper/lib/npm-platform.mjs'
-import { handleNpmUpdate, parseNpmUpdateRequest } from '../../packages/pisper/lib/npm-update.mjs'
+import {
+  handleNpmHelp,
+  handleNpmUpdate,
+  parseNpmHelpRequest,
+  parseNpmUpdateRequest,
+} from '../../packages/pisper/lib/npm-update.mjs'
 import { releaseComponentsForPath } from '../../scripts/release-changes.mjs'
 
 test('pisper is an isolated private source package exposing only its command', async () => {
@@ -84,6 +89,13 @@ test('npm installer uses native tar with a Node fallback', async (t) => {
 })
 
 test('npm update is one complete registry update without component selection', async () => {
+  assert.equal(parseNpmHelpRequest(['--help']), true)
+  assert.equal(parseNpmHelpRequest(['help']), true)
+  assert.equal(parseNpmHelpRequest(['help', 'web']), false)
+  const help = []
+  assert.equal(handleNpmHelp(['--help'], { log: (value) => help.push(value) }), true)
+  assert.match(help.join('\n'), /pisper update \[--check\]/)
+
   assert.deepEqual(parseNpmUpdateRequest(['update']), { checkOnly: false, help: false })
   assert.deepEqual(parseNpmUpdateRequest(['update', '--check']), {
     checkOnly: true,
@@ -137,6 +149,7 @@ test('npm launcher prepares signed components and serves its bundled Web fronten
   assert.doesNotMatch(launcher, /PISPER_SIDECAR_PATH/)
   assert.match(launcher, /PISPER_APP_ROOT: installation\.appRoot/)
   assert.match(launcher, /PISPER_FRONTEND_ROOT: frontendRoot/)
+  assert.match(launcher, /handleNpmHelp/)
   assert.match(launcher, /handleNpmUpdate/)
   assert.match(postinstall, /ensurePisperInstallation/)
   assert.doesNotMatch(postinstall, /\bfetch\(|github\.com/)

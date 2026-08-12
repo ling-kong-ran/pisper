@@ -465,11 +465,22 @@ pub fn installed_runtime() -> Option<pisper_component_updater::InstalledComponen
     (installed.version > bundled).then_some(installed)
 }
 
+fn runtime_is_externally_managed(
+    remote_url: bool,
+    sidecar_path: bool,
+    runtime_node: bool,
+    desktop_sidecar: bool,
+) -> bool {
+    remote_url || sidecar_path || runtime_node || desktop_sidecar
+}
+
 pub fn needs_runtime_install() -> bool {
-    if std::env::var_os("PISPER_TUI_URL").is_some()
-        || std::env::var_os("PISPER_SIDECAR_PATH").is_some()
-        || desktop_sidecar_descriptor().is_some()
-    {
+    if runtime_is_externally_managed(
+        std::env::var_os("PISPER_TUI_URL").is_some(),
+        std::env::var_os("PISPER_SIDECAR_PATH").is_some(),
+        std::env::var_os("PISPER_RUNTIME_NODE").is_some(),
+        desktop_sidecar_descriptor().is_some(),
+    ) {
         return false;
     }
     if installed_runtime().is_some() {
@@ -545,7 +556,7 @@ fn secure_token() -> Result<String> {
 
 #[cfg(test)]
 mod tests {
-    use super::{runtime_node_command, spawn_sidecar};
+    use super::{runtime_is_externally_managed, runtime_node_command, spawn_sidecar};
     use std::{fs, path::PathBuf, process::Command, time::Instant};
 
     fn temporary_runtime() -> PathBuf {
@@ -575,6 +586,12 @@ mod tests {
             vec![root.join("runtime").join("sidecar.mjs").as_os_str()]
         );
         fs::remove_dir_all(root).unwrap();
+    }
+
+    #[test]
+    fn npm_node_runtime_skips_the_standalone_runtime_installer() {
+        assert!(runtime_is_externally_managed(false, false, true, false));
+        assert!(!runtime_is_externally_managed(false, false, false, false));
     }
 
     #[test]

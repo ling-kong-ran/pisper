@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict'
-import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
+import { mkdir, mkdtemp, readFile, rm, stat, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import test from 'node:test'
@@ -19,6 +19,11 @@ function storedCredential(value) {
   result.type = 'api_key'
   result.key = value
   return result
+}
+
+function fakeJwt(payload) {
+  const encode = (value) => Buffer.from(JSON.stringify(value)).toString('base64url')
+  return `${encode({ alg: 'none', typ: 'JWT' })}.${encode(payload)}.test-signature`
 }
 
 test('provider discovery reads Codex and Claude configuration without exposing private values', async (t) => {
@@ -146,6 +151,189 @@ test('Codex TOML parser accepts unrelated array tables from current desktop conf
   ])
 })
 
+test('OAuth login discovery stays secret until explicit import and targets official providers only', async (t) => {
+  const home = await mkdtemp(join(tmpdir(), 'pisper-provider-oauth-'))
+  t.after(() => rm(home, { recursive: true, force: true }))
+  await mkdir(join(home, '.codex'), { recursive: true })
+  await mkdir(join(home, '.claude'), { recursive: true })
+
+  const codexAccess = fakeJwt({
+    exp: Math.floor(Date.now() / 1000) + 3600,
+    'https://api.openai.com/auth': { chatgpt_account_id: 'account-test' },
+  })
+  const codexRefresh = privateValue('codex-refresh')
+  const claudeAccess = privateValue('claude-access')
+  const claudeRefresh = privateValue('claude-refresh')
+  const codexPath = join(home, '.codex', 'auth.json')
+  const claudePath = join(home, '.claude', '.credentials.json')
+  await writeFile(
+    codexPath,
+    JSON.stringify({
+      OPENAI_API_KEY: null,
+      tokens: { access_token: codexAccess, refresh_token: codexRefresh },
+    }),
+    'utf8',
+  )
+  await writeFile(
+    claudePath,
+    JSON.stringify({
+      claudeAiOauth: {
+        accessToken: claudeAccess,
+        refreshToken: claudeRefresh,
+        expiresAt: Date.now() + 3600_000,
+      },
+    }),
+    'utf8',
+  )
+
+  const reads = []
+  const service = new ProviderDiscoveryService({
+    homeDir: home,
+    env: {},
+    readFileImpl: async (path, encoding) => {
+      reads.push(path)
+      return readFile(path, encoding)
+    },
+  })
+  const discovered = await service.discover()
+  assert.equal(reads.includes(codexPath), false)
+  assert.equal(reads.includes(claudePath), false)
+  assert.deepEqual(
+    discovered.providers.map((item) => [item.source, item.providerId, item.kind]),
+    [
+      ['codex-auth', 'openai-codex', 'authentication'],
+      ['claude-auth', 'anthropic', 'authentication'],
+    ],
+  )
+  const publicJson = JSON.stringify(discovered)
+  for (const secret of [codexAccess, codexRefresh, claudeAccess, claudeRefresh])
+    assert.equal(publicJson.includes(secret), false)
+
+  const codex = await service.loadConfiguration(discovered.providers[0].id)
+  const claude = await service.loadConfiguration(discovered.providers[1].id)
+  assert.equal(codex.kind, 'authentication')
+  assert.equal(codex.providerId, 'openai-codex')
+  assert.equal(codex.credential.type, 'oauth')
+  assert.equal(codex.credential.accountId, 'account-test')
+  assert.equal(codex.credential.refresh, codexRefresh)
+  assert.equal(claude.kind, 'authentication')
+  assert.equal(claude.providerId, 'anthropic')
+  assert.equal(claude.credential.type, 'oauth')
+  assert.equal(claude.credential.refresh, claudeRefresh)
+  assert.equal(reads.filter((path) => path === codexPath).length, 1)
+  assert.equal(reads.filter((path) => path === claudePath).length, 1)
+})
+
+test('runtime imports OAuth login without creating a custom Provider or overwriting auth', async (t) => {
+  const directory = await mkdtemp(join(tmpdir(), 'pisper-provider-oauth-import-'))
+  const credential = {
+    type: 'oauth',
+    access: privateValue('oauth-access'),
+    refresh: privateValue('oauth-refresh'),
+    expires: Date.now() + 3600_000,
+    accountId: 'account-test',
+  }
+  const providerDiscovery = {
+    async discover() {
+      return {
+        providers: [
+          {
+            id: 'codex-auth-test',
+            kind: 'authentication',
+            providerId: 'openai-codex',
+            providerName: 'OpenAI Codex',
+            source: 'codex-auth',
+            location: '~/.codex/auth.json',
+            authType: 'oauth',
+            importable: true,
+            fingerprint: 'oauth-fingerprint',
+          },
+        ],
+        errors: [],
+      }
+    },
+    async loadConfiguration(id) {
+      assert.equal(id, 'codex-auth-test')
+      return {
+        kind: 'authentication',
+        providerId: 'openai-codex',
+        source: 'codex-auth',
+        fingerprint: 'oauth-fingerprint',
+        selectedModel: '',
+        credential,
+      }
+    },
+  }
+  const runtime = new AgentRuntimeService({ cwd: directory, dataDir: directory, providerDiscovery })
+  t.after(async () => {
+    await runtime.dispose()
+    await rm(directory, { recursive: true, force: true })
+  })
+  await runtime.init()
+
+  const imported = await runtime.importDiscoveredProvider('codex-auth-test')
+  assert.equal(imported.kind, 'authentication')
+  assert.equal(imported.providerId, 'openai-codex')
+  assert.equal(imported.discovery.providers[0].imported, true)
+  assert.equal(
+    imported.config.providers.find((provider) => provider.id === 'openai-codex').configured,
+    true,
+  )
+  const authPath = join(directory, 'auth.json')
+  const auth = JSON.parse(await readFile(authPath, 'utf8'))
+  assert.deepEqual(auth['openai-codex'], credential)
+  if (process.platform !== 'win32') assert.equal((await stat(authPath)).mode & 0o777, 0o600)
+  await assert.rejects(() => readFile(join(directory, 'models.json'), 'utf8'), /ENOENT/)
+
+  auth['openai-codex'] = storedCredential(privateValue('existing-auth'))
+  await writeFile(authPath, JSON.stringify(auth), 'utf8')
+  await assert.rejects(
+    () => runtime.importDiscoveredProvider('codex-auth-test'),
+    /认证，不会自动覆盖/,
+  )
+
+  delete auth['openai-codex']
+  await writeFile(authPath, JSON.stringify(auth), 'utf8')
+  await writeFile(
+    join(directory, 'models.json'),
+    JSON.stringify({
+      providers: {
+        'openai-codex': {
+          baseUrl: 'https://relay.example.test/v1',
+          models: [{ id: 'gpt-test', baseUrl: 'https://relay.example.test/v1' }],
+        },
+      },
+    }),
+    'utf8',
+  )
+  await assert.rejects(
+    () => runtime.importDiscoveredProvider('codex-auth-test'),
+    /避免登录凭据外发/,
+  )
+})
+
+test('login import rejects API keys and incomplete OAuth sessions', async (t) => {
+  const home = await mkdtemp(join(tmpdir(), 'pisper-provider-oauth-invalid-'))
+  t.after(() => rm(home, { recursive: true, force: true }))
+  await mkdir(join(home, '.codex'), { recursive: true })
+  await mkdir(join(home, '.claude'), { recursive: true })
+  await writeFile(join(home, '.codex', 'auth.json'), JSON.stringify({ OPENAI_API_KEY: 'test' }))
+  await writeFile(
+    join(home, '.claude', '.credentials.json'),
+    JSON.stringify({ claudeAiOauth: { accessToken: 'access-only' } }),
+  )
+  const service = new ProviderDiscoveryService({ homeDir: home, env: {} })
+  const discovered = await service.discover()
+  await assert.rejects(
+    () => service.loadConfiguration(discovered.providers[0].id),
+    /Codex 登录状态缺少可续期/,
+  )
+  await assert.rejects(
+    () => service.loadConfiguration(discovered.providers[1].id),
+    /Claude 登录状态缺少可续期/,
+  )
+})
+
 test('runtime imports provider definitions and embedded configuration credentials without overwriting conflicts', async (t) => {
   const directory = await mkdtemp(join(tmpdir(), 'pisper-provider-config-import-'))
   const privateText = privateValue('runtime')
@@ -263,7 +451,7 @@ test('provider discovery API exposes scan and import endpoints', async () => {
   assert.deepEqual(calls, ['discover', 'import:codex-config-company'])
 })
 
-test('provider discovery reports invalid configuration files without falling back to login files or ambient auth', async (t) => {
+test('provider discovery reports invalid configuration files without exposing login files or ambient auth', async (t) => {
   const home = await mkdtemp(join(tmpdir(), 'pisper-provider-config-invalid-'))
   t.after(() => rm(home, { recursive: true, force: true }))
   await mkdir(join(home, '.codex'), { recursive: true })
@@ -286,7 +474,11 @@ test('provider discovery reports invalid configuration files without falling bac
     env: { ANTHROPIC_API_KEY: privateValue('ambient') },
   })
   const discovered = await service.discover()
-  assert.equal(discovered.providers.length, 0)
+  assert.equal(discovered.providers.length, 2)
+  assert.deepEqual(
+    discovered.providers.map((item) => item.kind),
+    ['authentication', 'authentication'],
+  )
   assert.equal(
     discovered.errors.some(
       (error) => error.source === 'codex-config' && error.code === 'invalid_toml',

@@ -1,4 +1,4 @@
-import { copyFile, mkdir, readFile, rename, unlink, writeFile } from 'node:fs/promises'
+import { chmod, copyFile, mkdir, readFile, rename, unlink, writeFile } from 'node:fs/promises'
 import { dirname } from 'node:path'
 
 export async function readJson(path, fallback) {
@@ -23,16 +23,21 @@ function sleep(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms))
 }
 
-export async function writeJsonAtomic(path, value) {
+export async function writeJsonAtomic(path, value, { mode } = {}) {
   await mkdir(dirname(path), { recursive: true })
   const temporary = `${path}.${process.pid}.${Date.now()}.tmp`
-  await writeFile(temporary, `${JSON.stringify(value, null, 2)}\n`, 'utf8')
+  const posixMode = process.platform === 'win32' ? undefined : mode
+  await writeFile(temporary, `${JSON.stringify(value, null, 2)}\n`, {
+    encoding: 'utf8',
+    ...(posixMode === undefined ? {} : { mode: posixMode }),
+  })
 
   let lastError
   for (let attempt = 0; attempt < 5; attempt += 1) {
+    let replaced = false
     try {
       await rename(temporary, path)
-      return
+      replaced = true
     } catch (error) {
       lastError = error
       if (!isReplaceConflict(error)) break
@@ -40,12 +45,16 @@ export async function writeJsonAtomic(path, value) {
         // Windows cannot reliably rename over an existing path; replace via copy.
         await copyFile(temporary, path)
         await unlink(temporary).catch(() => {})
-        return
+        replaced = true
       } catch (replaceError) {
         lastError = replaceError
         if (!isReplaceConflict(replaceError) && replaceError?.code !== 'ENOENT') break
         await sleep(20 * (attempt + 1))
       }
+    }
+    if (replaced) {
+      if (posixMode !== undefined) await chmod(path, posixMode)
+      return
     }
   }
 

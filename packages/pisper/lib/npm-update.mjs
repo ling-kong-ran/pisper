@@ -28,6 +28,42 @@ function npmInvocation(arguments_) {
   return { command: 'npm', arguments: arguments_ }
 }
 
+const NPM_CLI_HELP = `Pisper CLI
+
+Start a coding session in your terminal.
+
+Usage:
+  pisper [OPTIONS]
+  pisper resume [OPTIONS]
+  pisper doctor [OPTIONS]
+  pisper web [OPTIONS]
+  pisper update [--check]
+  pisper help [COMMAND]
+
+Commands:
+  resume    Choose and resume a conversation from any workspace
+  doctor    Check the TUI, Runtime connection, and capability catalogs
+  web       Open the bundled Web UI and Provider settings in your browser
+  update    Update the complete Pisper distribution through npm
+  help      Print this help or help for a command
+
+Options:
+  --cwd <directory>  Use a specific workspace (default: current directory)
+  -h, --help         Print help
+  -V, --version      Print the installed TUI version
+
+Getting started:
+  1. Change to your project directory.
+  2. Run \`pisper\`. Use \`/provider\` to choose a Provider and save its API Key.
+  3. Type a request and press Enter. Type \`/\` to browse commands.
+  4. Run \`pisper web\` for the bundled visual settings and workspace UI.
+  5. Run \`pisper update\` to update through the configured npm registry.`
+
+export function parseNpmHelpRequest(arguments_) {
+  if (arguments_.length === 1 && ['help', '--help', '-h'].includes(arguments_[0])) return true
+  return false
+}
+
 export function parseNpmUpdateRequest(arguments_) {
   if (arguments_[0] === 'help' && arguments_[1] === 'update' && arguments_.length === 2) {
     return { checkOnly: false, help: true }
@@ -84,6 +120,12 @@ async function installLatestVersion() {
       }
     })
   })
+}
+
+export function handleNpmHelp(arguments_, { log = console.log } = {}) {
+  if (!parseNpmHelpRequest(arguments_)) return false
+  log(NPM_CLI_HELP)
+  return true
 }
 
 export async function handleNpmUpdate(

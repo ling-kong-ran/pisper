@@ -23,15 +23,23 @@ test('TUI guides cover every built-in Slash command and the current screenshot',
 })
 
 test('npm, Provider setup, and optional Web onboarding stay documented', async () => {
-  const [cliSource, chineseReadme, englishReadme, chineseTuiGuide, englishTuiGuide, projectPage] =
-    await Promise.all([
-      readFile('src-tui/src/main.rs', 'utf8'),
-      readFile('README.md', 'utf8'),
-      readFile('README.en.md', 'utf8'),
-      readFile('src-tui/README.md', 'utf8'),
-      readFile('src-tui/README.en.md', 'utf8'),
-      readFile('docs/index.html', 'utf8'),
-    ])
+  const [
+    cliSource,
+    npmUpdateSource,
+    chineseReadme,
+    englishReadme,
+    chineseTuiGuide,
+    englishTuiGuide,
+    projectPage,
+  ] = await Promise.all([
+    readFile('src-tui/src/main.rs', 'utf8'),
+    readFile('packages/pisper/lib/npm-update.mjs', 'utf8'),
+    readFile('README.md', 'utf8'),
+    readFile('README.en.md', 'utf8'),
+    readFile('src-tui/README.md', 'utf8'),
+    readFile('src-tui/README.en.md', 'utf8'),
+    readFile('docs/index.html', 'utf8'),
+  ])
 
   for (const document of [
     chineseReadme,
@@ -50,8 +58,10 @@ test('npm, Provider setup, and optional Web onboarding stay documented', async (
     assert.doesNotMatch(guide, /pisper update (?:tui|runtime|web|all)/)
   }
   assert.match(cliSource, /pisper help \[COMMAND\]/)
-  assert.match(cliSource, /pisper update \[--check\]/)
-  assert.doesNotMatch(cliSource, /pisper update \[COMPONENT\]/)
+  assert.doesNotMatch(cliSource, /  pisper update/)
+  assert.doesNotMatch(cliSource, /  update\s+Update/)
+  assert.match(npmUpdateSource, /pisper update \[--check\]/)
+  assert.doesNotMatch(npmUpdateSource, /pisper update \[COMPONENT\]/)
   assert.match(cliSource, /Use `\/provider`/)
 })
 

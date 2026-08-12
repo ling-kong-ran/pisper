@@ -87,46 +87,6 @@ Examples:
   pisper web
   pisper help web";
 
-const NPM_CLI_HELP: &str = "Pisper CLI
-
-Start a coding session in your terminal.
-
-Usage:
-  pisper [OPTIONS]
-  pisper resume [OPTIONS]
-  pisper doctor [OPTIONS]
-  pisper web [OPTIONS]
-  pisper update [--check]
-  pisper help [COMMAND]
-
-Commands:
-  resume    Choose and resume a conversation from any workspace
-  doctor    Check the TUI, Runtime connection, and capability catalogs
-  web       Open the bundled Web UI and Provider settings in your browser
-  update    Update the complete Pisper distribution through npm
-  help      Print this help or help for a command
-
-Options:
-  --cwd <directory>  Use a specific workspace (default: current directory)
-  -h, --help         Print help
-  -V, --version      Print the installed TUI version
-
-Getting started:
-  1. Change to your project directory.
-  2. Run `pisper`. Use `/provider` to choose a Provider and save its API Key in the terminal.
-  3. Type a request and press Enter. Type `/` to browse commands.
-  4. Run `pisper web` for the bundled visual settings and workspace UI.
-  5. Press Ctrl+C to stop a running Agent, or press it while idle to exit.
-
-Examples:
-  pisper
-  pisper --cwd /path/to/project
-  pisper resume
-  pisper doctor
-  pisper web
-  pisper update --check
-  pisper help update";
-
 const WEB_HELP: &str = "Pisper Web UI
 
 Open the bundled or installed Web frontend and Provider settings in your default browser.
@@ -153,10 +113,7 @@ async fn main() {
 
 async fn run() -> Result<()> {
     let arguments = std::env::args_os().skip(1).collect::<Vec<_>>();
-    if let Some(help) = requested_help(
-        &arguments,
-        std::env::var("PISPER_DISTRIBUTION").as_deref() == Ok("npm"),
-    ) {
+    if let Some(help) = requested_help(&arguments) {
         println!("{help}");
         return Ok(());
     }
@@ -1146,13 +1103,12 @@ struct LaunchOptions {
     web: bool,
 }
 
-fn requested_help(arguments: &[OsString], npm_distribution: bool) -> Option<&'static str> {
+fn requested_help(arguments: &[OsString]) -> Option<&'static str> {
     let first = arguments.first().and_then(|argument| argument.to_str());
     if first == Some("help") {
         return Some(
             match arguments.get(1).and_then(|argument| argument.to_str()) {
                 Some("web") => WEB_HELP,
-                _ if npm_distribution => NPM_CLI_HELP,
                 _ => CLI_HELP,
             },
         );
@@ -1162,7 +1118,6 @@ fn requested_help(arguments: &[OsString], npm_distribution: bool) -> Option<&'st
         .any(|argument| argument == "--help" || argument == "-h");
     help_requested.then_some(match first {
         Some("web") => WEB_HELP,
-        _ if npm_distribution => NPM_CLI_HELP,
         _ => CLI_HELP,
     })
 }
@@ -1250,7 +1205,7 @@ mod tests {
     use super::{
         draft_session, is_inline_attachment_shortcut, is_paste_shortcut, requested_help,
         resize_area, resize_has_settled, resume_seed, should_handle_key_kind,
-        should_notify_completion, terminal_content_area, CLI_HELP, NPM_CLI_HELP, WEB_HELP,
+        should_notify_completion, terminal_content_area, CLI_HELP, WEB_HELP,
     };
     use crate::model::SessionSummary;
     use crossterm::event::{KeyCode, KeyEvent, KeyEventKind, KeyModifiers};
@@ -1261,29 +1216,18 @@ mod tests {
     fn help_routes_cover_global_and_web_commands_without_component_updates() {
         use std::ffi::OsString;
 
+        assert_eq!(requested_help(&[OsString::from("--help")]), Some(CLI_HELP));
+        assert_eq!(requested_help(&[OsString::from("help")]), Some(CLI_HELP));
         assert_eq!(
-            requested_help(&[OsString::from("--help")], false),
-            Some(CLI_HELP)
-        );
-        assert_eq!(
-            requested_help(&[OsString::from("help")], false),
-            Some(CLI_HELP)
-        );
-        assert_eq!(
-            requested_help(&[OsString::from("--help")], true),
-            Some(NPM_CLI_HELP)
-        );
-        assert_eq!(
-            requested_help(&[OsString::from("help"), OsString::from("web")], false),
+            requested_help(&[OsString::from("help"), OsString::from("web")]),
             Some(WEB_HELP)
         );
         assert_eq!(
-            requested_help(&[OsString::from("web"), OsString::from("--help")], false),
+            requested_help(&[OsString::from("web"), OsString::from("--help")]),
             Some(WEB_HELP)
         );
         assert!(CLI_HELP.contains("pisper web"));
         assert!(!CLI_HELP.contains("pisper update"));
-        assert!(NPM_CLI_HELP.contains("pisper update [--check]"));
         assert!(CLI_HELP.contains("/provider"));
         assert!(!CLI_HELP.contains("/apikey"));
     }

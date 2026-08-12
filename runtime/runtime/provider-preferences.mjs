@@ -6,6 +6,7 @@ import { applyPisperSystemPrompt } from '../prompts/pisper-system-prompt.mjs'
 
 const KNOWN_PROVIDERS = [
   'openai',
+  'openai-codex',
   'anthropic',
   'google',
   'deepseek',
@@ -16,6 +17,7 @@ const KNOWN_PROVIDERS = [
 ]
 const PROVIDER_LABELS = {
   openai: 'OpenAI',
+  'openai-codex': 'OpenAI Codex',
   anthropic: 'Anthropic',
   google: 'Google',
   deepseek: 'DeepSeek',
@@ -24,6 +26,28 @@ const PROVIDER_LABELS = {
   'kimi-coding': 'Kimi Code',
   'zai-coding-cn': 'GLM',
 }
+const OFFICIAL_OAUTH_HOSTS = {
+  'openai-codex': 'chatgpt.com',
+  anthropic: 'api.anthropic.com',
+}
+
+function hasNonOfficialOAuthEndpoint(providerId, overlay) {
+  const expectedHost = OFFICIAL_OAUTH_HOSTS[providerId]
+  if (!expectedHost) return true
+  const values = [
+    overlay?.baseUrl,
+    ...(Array.isArray(overlay?.models) ? overlay.models.map((model) => model?.baseUrl) : []),
+  ].filter(Boolean)
+  return values.some((value) => {
+    try {
+      const url = new URL(value)
+      return url.protocol !== 'https:' || url.hostname !== expectedHost || Boolean(url.port)
+    } catch {
+      return true
+    }
+  })
+}
+
 const PROVIDER_API_IDS = new Set([
   'openai-responses',
   'openai-completions',
@@ -32,6 +56,7 @@ const PROVIDER_API_IDS = new Set([
 ])
 const PROVIDER_DEFAULT_BASE_URLS = {
   openai: 'https://api.openai.com/v1',
+  'openai-codex': 'https://chatgpt.com/backend-api',
   anthropic: 'https://api.anthropic.com/v1',
   google: 'https://generativelanguage.googleapis.com/v1beta',
   deepseek: 'https://api.deepseek.com',
@@ -408,16 +433,23 @@ export class ProviderPreferences {
     return {
       ...discovery,
       providers: discovery.providers.map((provider) => {
+        const importedFingerprint = appConfig.providerImports?.[provider.id]?.fingerprint
         const imported =
-          Boolean(modelsJson.providers?.[provider.providerId]) &&
-          appConfig.providerImports?.[provider.id]?.fingerprint === provider.fingerprint
+          importedFingerprint === provider.fingerprint &&
+          (provider.kind === 'authentication'
+            ? Boolean(credentials[provider.providerId])
+            : Boolean(modelsJson.providers?.[provider.providerId]))
+        const conflict =
+          provider.kind === 'authentication'
+            ? Boolean(credentials[provider.providerId]) && !imported
+            : Boolean(modelsJson.providers?.[provider.providerId]) && !imported
         return {
           ...provider,
           configured:
             Boolean(credentials[provider.providerId]) ||
             modelRuntime.hasConfiguredAuth(provider.providerId),
           imported,
-          conflict: Boolean(modelsJson.providers?.[provider.providerId]) && !imported,
+          conflict,
         }
       }),
     }
@@ -437,6 +469,14 @@ export class ProviderPreferences {
     modelsJson.providers ||= {}
     const existingProvider = modelsJson.providers[loaded.providerId]
     if (
+      loaded.kind === 'authentication' &&
+      hasNonOfficialOAuthEndpoint(loaded.providerId, existingProvider)
+    )
+      throw new Error(
+        '该官方 Provider 配置了自定义 Base URL。为避免登录凭据外发，请先为中转站使用独立 Provider ID。',
+      )
+    if (
+      loaded.kind !== 'authentication' &&
       existingProvider &&
       JSON.stringify(existingProvider) !== JSON.stringify(loaded.providerConfig)
     )
@@ -448,11 +488,13 @@ export class ProviderPreferences {
     )
       throw new Error('Pisper 已存在该 Provider 的认证，不会自动覆盖。')
 
-    modelsJson.providers[loaded.providerId] = loaded.providerConfig
-    await writeJsonAtomic(this.modelsPath, modelsJson)
+    if (loaded.kind !== 'authentication') {
+      modelsJson.providers[loaded.providerId] = loaded.providerConfig
+      await writeJsonAtomic(this.modelsPath, modelsJson)
+    }
     if (loaded.credential && !credentials[loaded.providerId]) {
       credentials[loaded.providerId] = loaded.credential
-      await writeJsonAtomic(this.authPath, credentials)
+      await writeJsonAtomic(this.authPath, credentials, { mode: 0o600 })
     }
 
     const disabledProviders = new Set(appConfig.disabledProviders || [])
@@ -472,6 +514,7 @@ export class ProviderPreferences {
     await this.reloadModelRuntime()
     this.invalidateSessionRuntimes()
     return {
+      kind: loaded.kind,
       providerId: loaded.providerId,
       selectedModel: loaded.selectedModel,
       config: await this.getConfigFacade(),

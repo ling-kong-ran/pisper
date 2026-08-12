@@ -58,6 +58,7 @@ export type ConfigDraft = {
 
 export type DiscoveredProvider = EntityRecord & {
   id: string
+  kind?: 'configuration' | 'authentication'
   source: string
   providerName: string
   authType?: string
@@ -76,6 +77,7 @@ export type DiscoveryError = { source: string; code: string }
 export type DiscoveryData = { providers: DiscoveredProvider[]; errors: DiscoveryError[] }
 
 export type ProviderImportResult = {
+  kind?: 'configuration' | 'authentication'
   config: ConfigData
   discovery: DiscoveryData
   providerId: string

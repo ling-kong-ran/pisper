@@ -1,5 +1,5 @@
 import { createHash } from 'node:crypto'
-import { readFile } from 'node:fs/promises'
+import { readFile, stat } from 'node:fs/promises'
 import { homedir } from 'node:os'
 import { join, resolve } from 'node:path'
 
@@ -20,6 +20,55 @@ function apiKeyCredential(input) {
   value.type = 'api_key'
   value.key = input
   return value
+}
+
+function decodeJwtPayload(token) {
+  try {
+    const parts = String(token || '').split('.')
+    if (parts.length !== 3) return null
+    return JSON.parse(Buffer.from(parts[1], 'base64url').toString('utf8'))
+  } catch {
+    return null
+  }
+}
+
+function oauthExpiry(value, accessToken) {
+  if (Number.isFinite(value) && value > 0) return value < 10_000_000_000 ? value * 1000 : value
+  if (typeof value === 'string' && value.trim()) {
+    const numeric = Number(value)
+    if (Number.isFinite(numeric) && numeric > 0)
+      return numeric < 10_000_000_000 ? numeric * 1000 : numeric
+    const timestamp = Date.parse(value)
+    if (Number.isFinite(timestamp)) return timestamp
+  }
+  const jwtExpiry = decodeJwtPayload(accessToken)?.exp
+  return Number.isFinite(jwtExpiry) && jwtExpiry > 0 ? jwtExpiry * 1000 : 0
+}
+
+function codexOAuthCredential(data) {
+  const tokens = data?.tokens
+  const access = nonEmptyString(tokens?.access_token, tokens?.accessToken)
+  const refresh = nonEmptyString(tokens?.refresh_token, tokens?.refreshToken)
+  const payload = decodeJwtPayload(access)
+  const accountId = nonEmptyString(
+    tokens?.account_id,
+    tokens?.accountId,
+    payload?.['https://api.openai.com/auth']?.chatgpt_account_id,
+  )
+  const expires = oauthExpiry(tokens?.expires_at ?? tokens?.expiresAt, access)
+  if (!access || !refresh || !expires || !accountId)
+    throw new Error('Codex 登录状态缺少可续期的 OAuth 凭据。请在 Codex 中重新登录后再导入。')
+  return { type: 'oauth', access, refresh, expires, accountId }
+}
+
+function claudeOAuthCredential(data) {
+  const oauth = data?.claudeAiOauth
+  const access = nonEmptyString(oauth?.accessToken, oauth?.access_token)
+  const refresh = nonEmptyString(oauth?.refreshToken, oauth?.refresh_token)
+  const expires = oauthExpiry(oauth?.expiresAt ?? oauth?.expires_at, access)
+  if (!access || !refresh || !expires)
+    throw new Error('Claude 登录状态缺少可续期的 OAuth 凭据。请在 Claude Code 中重新登录后再导入。')
+  return { type: 'oauth', access, refresh, expires }
 }
 
 function providerProfileId(value, fallback) {
@@ -402,6 +451,7 @@ function normalizeClaudeConfig(data, location) {
 function publicDiscovery(item) {
   return {
     id: item.id,
+    kind: item.kind || 'configuration',
     providerId: item.providerId,
     providerName: item.providerName,
     source: item.source,
@@ -431,10 +481,16 @@ function uniqueCandidates(candidates) {
 }
 
 export class ProviderDiscoveryService {
-  constructor({ homeDir = homedir(), env = process.env, readFileImpl = readFile } = {}) {
+  constructor({
+    homeDir = homedir(),
+    env = process.env,
+    readFileImpl = readFile,
+    statImpl = stat,
+  } = {}) {
     this.homeDir = homeDir
     this.env = env
     this.readFile = readFileImpl
+    this.stat = statImpl
   }
 
   codexCandidates() {
@@ -446,11 +502,34 @@ export class ProviderDiscoveryService {
     ])
   }
 
-  claudeCandidates() {
-    const root = this.env.CLAUDE_CONFIG_DIR
+  claudeRoot() {
+    return this.env.CLAUDE_CONFIG_DIR
       ? { path: this.env.CLAUDE_CONFIG_DIR, label: '$CLAUDE_CONFIG_DIR' }
       : { path: join(this.homeDir, '.claude'), label: '~/.claude' }
+  }
+
+  claudeCandidates() {
+    const root = this.claudeRoot()
     return [{ path: join(root.path, 'settings.json'), location: `${root.label}/settings.json` }]
+  }
+
+  codexAuthCandidates() {
+    return uniqueCandidates([
+      ...(this.env.CODEX_HOME
+        ? [{ path: join(this.env.CODEX_HOME, 'auth.json'), location: '$CODEX_HOME/auth.json' }]
+        : []),
+      { path: join(this.homeDir, '.codex', 'auth.json'), location: '~/.codex/auth.json' },
+    ])
+  }
+
+  claudeAuthCandidates() {
+    const root = this.claudeRoot()
+    return [
+      {
+        path: join(root.path, '.credentials.json'),
+        location: `${root.label}/.credentials.json`,
+      },
+    ]
   }
 
   async readCandidate(candidate, source, parser) {
@@ -520,11 +599,69 @@ export class ProviderDiscoveryService {
     )
   }
 
+  async discoverCredential(candidates, source, providerId, providerName) {
+    for (const candidate of candidates) {
+      try {
+        const details = await this.stat(candidate.path)
+        if (!details.isFile()) continue
+        const fingerprint = stableFingerprint({
+          source,
+          providerId,
+          location: candidate.location,
+          size: details.size,
+          modified: Math.round(details.mtimeMs),
+        })
+        return {
+          item: {
+            id: `${source}-${fingerprint.slice(0, 12)}`,
+            kind: 'authentication',
+            providerId,
+            providerName,
+            source,
+            sourceLabel: source === 'codex-auth' ? 'Codex login' : 'Claude login',
+            location: candidate.location,
+            api: 'oauth',
+            baseUrl: '',
+            models: [],
+            selectedModel: '',
+            authType: 'oauth',
+            authVariable: null,
+            credentialPresent: true,
+            importable: true,
+            warnings: [],
+            fingerprint,
+            credentialPath: candidate.path,
+          },
+          errors: [],
+        }
+      } catch (error) {
+        if (error?.code === 'ENOENT' || error?.code === 'ENOTDIR') continue
+        return {
+          item: null,
+          errors: [
+            { source, code: 'unreadable', message: 'Login credential file could not be read' },
+          ],
+        }
+      }
+    }
+    return { item: null, errors: [] }
+  }
+
   async discoverInternal() {
-    const [codex, claude] = await Promise.all([this.discoverCodex(), this.discoverClaude()])
+    const [codex, claude, codexAuth, claudeAuth] = await Promise.all([
+      this.discoverCodex(),
+      this.discoverClaude(),
+      this.discoverCredential(
+        this.codexAuthCandidates(),
+        'codex-auth',
+        'openai-codex',
+        'OpenAI Codex',
+      ),
+      this.discoverCredential(this.claudeAuthCandidates(), 'claude-auth', 'anthropic', 'Anthropic'),
+    ])
     return {
-      items: [codex.item, claude.item].filter(Boolean),
-      errors: [...codex.errors, ...claude.errors],
+      items: [codex.item, claude.item, codexAuth.item, claudeAuth.item].filter(Boolean),
+      errors: [...codex.errors, ...claude.errors, ...codexAuth.errors, ...claudeAuth.errors],
     }
   }
 
@@ -539,14 +676,36 @@ export class ProviderDiscoveryService {
     if (!item)
       throw new Error('Discovered provider configuration is no longer available or has changed')
     if (!item.importable) throw new Error('This provider configuration cannot be imported')
-    const loaded = {
+    if (item.kind === 'authentication') {
+      let data
+      try {
+        const text = await this.readFile(item.credentialPath, 'utf8')
+        if (Buffer.byteLength(text, 'utf8') > 1024 * 1024)
+          throw Object.assign(new Error('Credential file is too large'), { code: 'EFBIG' })
+        data = JSON.parse(text)
+      } catch (error) {
+        if (error instanceof SyntaxError) throw new Error('登录状态文件格式无效。')
+        if (error?.code === 'EFBIG') throw new Error('登录状态文件过大，无法导入。')
+        throw new Error('登录状态文件已不可读取。')
+      }
+      return {
+        kind: 'authentication',
+        providerId: item.providerId,
+        source: item.source,
+        fingerprint: item.fingerprint,
+        selectedModel: '',
+        credential:
+          item.source === 'codex-auth' ? codexOAuthCredential(data) : claudeOAuthCredential(data),
+      }
+    }
+    return {
+      kind: 'configuration',
       providerId: item.providerId,
       source: item.source,
       fingerprint: item.fingerprint,
       providerConfig: item.providerConfig,
       selectedModel: item.selectedModel,
+      credential: item.credential,
     }
-    loaded.credential = item.credential
-    return loaded
   }
 }

@@ -18,7 +18,10 @@ type ProviderDiscoveryProps = {
 }
 
 function discoverySourceLabel(provider: Pick<DiscoveredProvider, 'source'>) {
-  return provider.source === 'codex-config' ? 'Codex config.toml' : 'Claude settings.json'
+  if (provider.source === 'codex-config') return 'Codex config.toml'
+  if (provider.source === 'claude-config') return 'Claude settings.json'
+  if (provider.source === 'codex-auth') return 'Codex login'
+  return 'Claude login'
 }
 
 function discoveryAuthLabel(provider: DiscoveredProvider, t: Translate) {
@@ -26,6 +29,7 @@ function discoveryAuthLabel(provider: DiscoveredProvider, t: Translate) {
     return t('config:configPage.keyVariableName', { name: provider.authVariable })
   if (provider.authType === 'bearer' || provider.authType === 'api_key')
     return t('config:configPage.authenticationIncludedInConfiguration')
+  if (provider.authType === 'oauth') return t('config:configPage.loginStateFileDetected')
   if (provider.authType === 'external-login') return t('config:configPage.authenticationRequired')
   return t('config:configPage.noAuthenticationInConfiguration')
 }
@@ -121,10 +125,13 @@ export function ProviderDiscovery({
               {providers.map((provider) => {
                 const source = discoverySourceLabel(provider)
                 const busy = importing === provider.id
-                const Icon = provider.source === 'claude-config' ? Brain : Bot
-                const modelSummary = provider.models?.length
-                  ? provider.models.map((model) => model.id).join(', ')
-                  : t('config:configPage.noModelSpecified')
+                const Icon = provider.source.startsWith('claude-') ? Brain : Bot
+                const modelSummary =
+                  provider.kind === 'authentication'
+                    ? t('config:configPage.officialProviderAuthenticationOnly')
+                    : provider.models?.length
+                      ? provider.models.map((model) => model.id).join(', ')
+                      : t('config:configPage.noModelSpecified')
                 return (
                   <div
                     className={`provider-discovery-card ${provider.imported ? 'configured' : ''}`}
@@ -141,8 +148,10 @@ export function ProviderDiscovery({
                         {provider.api} · {modelSummary}
                       </small>
                       <small>
-                        {provider.baseUrl || t('config:configPage.noBaseURLSpecified')} ·{' '}
-                        {discoveryAuthLabel(provider, t)} · {provider.location}
+                        {provider.kind === 'authentication'
+                          ? t('config:configPage.officialEndpointOnly')
+                          : provider.baseUrl || t('config:configPage.noBaseURLSpecified')}{' '}
+                        · {discoveryAuthLabel(provider, t)} · {provider.location}
                       </small>
                     </span>
                     <span className="provider-discovery-actions">
@@ -162,7 +171,9 @@ export function ProviderDiscovery({
                           {busy ? <RefreshCw className="spin" size={12} /> : <Download size={12} />}
                           {busy
                             ? t('config:configPage.loading')
-                            : t('config:configPage.loadConfiguration')}
+                            : provider.kind === 'authentication'
+                              ? t('config:configPage.loadLoginState')
+                              : t('config:configPage.loadConfiguration')}
                         </button>
                       ) : (
                         <SettingsBadge tone="gray">

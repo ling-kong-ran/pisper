@@ -4,13 +4,13 @@ import { spawn } from 'node:child_process'
 import process from 'node:process'
 import { fileURLToPath } from 'node:url'
 import { ensurePisperInstallation } from '../lib/install.mjs'
-import { handleNpmUpdate } from '../lib/npm-update.mjs'
+import { handleNpmHelp, handleNpmUpdate } from '../lib/npm-update.mjs'
 
 const frontendRoot = fileURLToPath(new URL('../web', import.meta.url))
 
 try {
   const arguments_ = process.argv.slice(2)
-  if (!(await handleNpmUpdate(arguments_))) {
+  if (!handleNpmHelp(arguments_) && !(await handleNpmUpdate(arguments_))) {
     const installation = await ensurePisperInstallation()
     const child = spawn(installation.executable, arguments_, {
       env: {
