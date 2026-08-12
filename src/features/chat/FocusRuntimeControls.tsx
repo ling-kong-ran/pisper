@@ -19,7 +19,8 @@ import { useI18n } from '@/app/use-i18n'
 import { AppSelect } from '@/components/AppSelect'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { formatTokenCount } from '@/lib/format'
-import type { EntityRecord, ModelOption } from '@/types/chat'
+import type { EntityRecord, ModelOption, Plan } from '@/types/chat'
+import PlanBoard from './PlanBoard'
 
 type Translate = (message: string, values?: I18nValues) => string
 type ExecutionModeOption = [string, string, string, LucideIcon]
@@ -29,7 +30,7 @@ export function SessionUsageMetrics({
   plan,
 }: {
   usage?: EntityRecord | null
-  plan?: EntityRecord | null
+  plan?: Plan | null
 }) {
   const { t } = useI18n()
   const processedTokens = Math.max(0, Number(usage?.processedTokens) || 0)
@@ -69,10 +70,27 @@ export function SessionUsageMetrics({
       {planProgress && (
         <>
           <i aria-hidden="true" />
-          <span className="session-plan-progress" title={planProgress}>
-            <ListTodo size={12} />
-            <strong>{planProgress}</strong>
-          </span>
+          <Popover>
+            <PopoverTrigger asChild>
+              <button
+                type="button"
+                className="session-plan-progress"
+                title={t('chat:planBoard.openCurrentPlan', { progress: planProgress })}
+                aria-label={t('chat:planBoard.openCurrentPlan', { progress: planProgress })}
+              >
+                <ListTodo size={12} />
+                <strong>{planProgress}</strong>
+              </button>
+            </PopoverTrigger>
+            <PopoverContent
+              className="session-plan-popover"
+              align="start"
+              side="top"
+              sideOffset={7}
+            >
+              <PlanBoard plan={plan ?? null} />
+            </PopoverContent>
+          </Popover>
         </>
       )}
     </div>

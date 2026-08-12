@@ -20,9 +20,37 @@ test('chat renders thinking and tool activity above one uninterrupted response b
   assert.ok(responseIndex > activityIndex)
   assert.match(activity, /agent-thinking-window/)
   assert.match(activity, /thinkingScrollRef/)
-  assert.match(activity, /<MarkdownMessage streaming>\{thinking\}<\/MarkdownMessage>/)
-  assert.match(activity, /className="agent-thinking-window completed"/)
+  assert.match(activity, /<MarkdownMessage streaming=\{streaming\}>\{thinking\}<\/MarkdownMessage>/)
+  assert.match(
+    activity,
+    /className=\{`agent-thinking-window \$\{streaming \? 'running' : 'completed'\}`\}/,
+  )
+  assert.match(activity, /agentRunActivity\.reasoningInProgress/)
+  assert.match(activity, /className="agent-thinking-dots"/)
+  assert.doesNotMatch(activity, /agent-thinking-window[^>]*open/)
   assert.match(activity, /className="agent-run-history"/)
+})
+
+test('tool activity uses a polished three-row scroll viewport without truncating records', async () => {
+  const [activity, styles] = await Promise.all([
+    readFile('src/features/chat/AgentRunActivity.tsx', 'utf8'),
+    readFile('src/index.css', 'utf8'),
+  ])
+  assert.match(activity, /ref=\{liveFeedRef\}[\s\S]*className="agent-run-feed live"/)
+  assert.match(activity, /tabIndex=\{activities\.length > 3 \? 0 : undefined\}/)
+  assert.match(activity, /if \(!streaming \|\| !activities\.length\) return undefined/)
+  assert.match(activity, /node\.scrollTop = node\.scrollHeight/)
+  assert.match(styles, /\.agent-run-feed \{[^}]*max-height: 126px;[^}]*overflow-y: auto;/)
+  assert.match(styles, /\.agent-run-feed \{[^}]*border-left: 1px solid/)
+  assert.doesNotMatch(styles, /\.agent-run-feed \{[^}]*background:/)
+  assert.doesNotMatch(styles, /\.agent-run-feed\.live \{/)
+  assert.doesNotMatch(styles, /\.agent-run-summary\.current \{[^}]*background:/)
+  assert.doesNotMatch(styles, /\.agent-thinking-window\.running \{[^}]*background:/)
+  assert.doesNotMatch(
+    styles,
+    /\.agent-run-history \.agent-run-feed\.completed \{[^}]*max-height: none;/,
+  )
+  assert.match(activity, /activityPlan\?\.items\?\.length[\s\S]*planCleared/)
 })
 
 test('composer is the sole persistent Agent run status surface', async () => {
@@ -222,11 +250,12 @@ test('stale streaming queue errors settle the old stream and resend as a new tur
   )
 })
 
-test('shared plan board stays outside the transcript with collapsible current-task context', async () => {
-  const [dock, session, transcript, board, catalog, styles] = await Promise.all([
+test('shared plan board opens from the composer progress metric', async () => {
+  const [dock, session, transcript, controls, board, catalog, styles] = await Promise.all([
     readFile('src/features/chat/ChatDock.tsx', 'utf8'),
     readFile('src/features/chat/FocusSession.tsx', 'utf8'),
     readFile('src/features/chat/FocusTranscript.tsx', 'utf8'),
+    readFile('src/features/chat/FocusRuntimeControls.tsx', 'utf8'),
     readFile('src/features/chat/PlanBoard.tsx', 'utf8'),
     readFile('src/features/chat/use-session-catalog.ts', 'utf8'),
     readFile('src/index.css', 'utf8'),
@@ -243,13 +272,14 @@ test('shared plan board stays outside the transcript with collapsible current-ta
   assert.match(board, /open=\{expanded\}/)
   assert.match(board, /onToggle=\{\(event\) => setExpanded\(event\.currentTarget\.open\)\}/)
   assert.match(board, /className="plan-board-current"/)
-  assert.match(
-    session,
-    /className="plan-board-dock"[\s\S]*<PlanBoard plan=\{plan\} collapsible \/>/,
-  )
-  assert.ok(session.indexOf('plan-board-dock') < session.indexOf('<FocusTranscript'))
+  assert.match(session, /<SessionUsageMetrics usage=\{sessionUsage\} plan=\{plan\} \/>/)
+  assert.doesNotMatch(session, /PlanBoard|plan-board-dock/)
   assert.doesNotMatch(transcript, /PlanBoard|plan=\{plan\}/)
-  assert.match(styles, /\.plan-board-dock \{[^}]*flex: none;/)
+  assert.match(controls, /<PopoverTrigger asChild>/)
+  assert.match(controls, /className="session-plan-progress"/)
+  assert.match(controls, /<PlanBoard plan=\{plan \?\? null\} \/>/)
+  assert.match(styles, /\.session-plan-popover \{[^}]*max-height:/)
+  assert.doesNotMatch(styles, /\.plan-board-dock/)
   assert.match(styles, /\.plan-board-list\.is-scrollable \{[^}]*overflow-y: auto;/)
   assert.doesNotMatch(board, /unblocks:/)
 })

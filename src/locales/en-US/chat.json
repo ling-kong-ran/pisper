@@ -1,5 +1,6 @@
 {
   "planBoard.ariaLabel": "Execution plan",
+  "planBoard.openCurrentPlan": "View current plan, {progress}",
   "planBoard.toggleAriaLabel": "Expand or collapse the current execution plan",
   "planBoard.progress": "Plan · {completed}/{total}",
   "planBoard.countInProgress": "{count} in progress",
@@ -71,7 +72,10 @@
   "agentRunActivity.preparingTheResponse": "Preparing the response",
   "agentRunActivity.processingToolResult": "Processing tool result",
   "agentRunActivity.reasoningAboutTheNextStep": "Reasoning about the next step",
+  "agentRunActivity.reasoningInProgress": "Thinking",
   "agentRunActivity.reasoningCompleted": "Reasoning",
+  "agentRunActivity.toggleReasoning": "Expand or collapse reasoning",
+  "agentRunActivity.toolActivityAriaLabel": "Tool activity",
   "agentRunActivity.removedTitle": "Removed: {title}",
   "agentRunActivity.retryingRequest": "Retrying request",
   "agentRunActivity.runStopped": "Run stopped",

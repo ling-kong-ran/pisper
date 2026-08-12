@@ -1,5 +1,6 @@
 {
   "planBoard.ariaLabel": "执行计划",
+  "planBoard.openCurrentPlan": "查看当前计划，{progress}",
   "planBoard.toggleAriaLabel": "展开或折叠当前执行计划",
   "planBoard.progress": "Plan · {completed}/{total}",
   "planBoard.countInProgress": "{count} 进行中",
@@ -71,7 +72,10 @@
   "agentRunActivity.preparingTheResponse": "正在整理回复",
   "agentRunActivity.processingToolResult": "正在处理工具结果",
   "agentRunActivity.reasoningAboutTheNextStep": "正在推理下一步",
+  "agentRunActivity.reasoningInProgress": "思考中",
   "agentRunActivity.reasoningCompleted": "思考过程",
+  "agentRunActivity.toggleReasoning": "展开或折叠思考过程",
+  "agentRunActivity.toolActivityAriaLabel": "工具使用记录",
   "agentRunActivity.removedTitle": "移除：{title}",
   "agentRunActivity.retryingRequest": "正在重试请求",
   "agentRunActivity.runStopped": "已停止运行",

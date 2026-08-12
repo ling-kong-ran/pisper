@@ -12,6 +12,7 @@ import type { EntityRecord } from '@/types/chat'
 import {
   activityDurationMs,
   activityRenderKey,
+  activityScrollVersion,
   agentActivityState,
   formatRunDuration,
   primaryRunActivity,
@@ -257,11 +258,14 @@ function activityPresentation(
     output = cleanInline(activity.message)
   } else if (activity.type === 'plan') {
     tone = 'plan'
-    title = t('chat:agentRunActivity.planUpdated')
+    const activityPlan = planFromActivity(activity)
+    title = activityPlan?.items?.length
+      ? t('chat:agentRunActivity.planUpdated')
+      : t('chat:agentRunActivity.planCleared')
     changes = activity.changes || EMPTY_LIST
     detail = changes.length
       ? t('chat:agentRunActivity.countPlanChanges', { count: changes.length })
-      : planProgress(planFromActivity(activity), t)
+      : planProgress(activityPlan, t)
   } else if (activity.type === 'agent') {
     const agent = activity.agent || {}
     const name = agent.canonicalName || agent.taskName || t('chat:agentRunActivity.subagent')
@@ -542,6 +546,7 @@ function AgentRunActivity({
   const now = useRunActivityClock(streaming)
   const thinking = String(thinkingText || '').trim()
   const thinkingScrollRef = useRef<HTMLDivElement>(null)
+  const liveFeedRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
     if (!thinking) return undefined
@@ -553,6 +558,16 @@ function AgentRunActivity({
   }, [thinking])
 
   const activities = activityFeed.length ? activityFeed : tools
+  const activityVersion = activityScrollVersion(activities)
+
+  useEffect(() => {
+    if (!streaming || !activities.length) return undefined
+    const frame = window.requestAnimationFrame(() => {
+      const node = liveFeedRef.current
+      if (node) node.scrollTop = node.scrollHeight
+    })
+    return () => window.cancelAnimationFrame(frame)
+  }, [activityVersion, activities.length, streaming])
   if (!streaming && !thinking && !activities.length) return null
 
   const primaryActivity = primaryRunActivity({
@@ -607,47 +622,42 @@ function AgentRunActivity({
 
   return (
     <section className={`agent-run-activity ${compact ? 'compact' : ''}`} aria-live="polite">
-      {thinking &&
-        (streaming ? (
-          <div className="agent-thinking-window" data-pisper-activity-type="reasoning">
-            <div className="agent-thinking-head">
-              <span className="agent-run-status-icon">
-                <ActivityIcon tone="running" />
-              </span>
-              <span className="agent-run-copy">
-                <strong>{t('chat:agentRunActivity.reasoningCompleted')}</strong>
-              </span>
-              <span className="agent-run-duration">
-                <Clock3 size={12} />
-                {primaryDuration}
-              </span>
-            </div>
-            <div ref={thinkingScrollRef} className="agent-thinking-scroll">
-              <MarkdownMessage streaming>{thinking}</MarkdownMessage>
-            </div>
-          </div>
-        ) : (
-          <details
-            className="agent-thinking-window completed"
-            data-pisper-activity-type="reasoning"
+      {thinking && (
+        <details
+          className={`agent-thinking-window ${streaming ? 'running' : 'completed'}`}
+          data-pisper-activity-type="reasoning"
+        >
+          <summary
+            className="agent-thinking-head"
+            aria-label={t('chat:agentRunActivity.toggleReasoning')}
           >
-            <summary className="agent-thinking-head">
-              <span className="agent-run-status-icon">
-                <ChevronRight className="agent-run-disclosure" size={14} />
-              </span>
-              <span className="agent-run-copy">
-                <strong>{t('chat:agentRunActivity.reasoningCompleted')}</strong>
-              </span>
-              <span className="agent-run-duration">
-                <Clock3 size={12} />
-                {primaryDuration}
-              </span>
-            </summary>
-            <div ref={thinkingScrollRef} className="agent-thinking-scroll">
-              <MarkdownMessage streaming={false}>{thinking}</MarkdownMessage>
-            </div>
-          </details>
-        ))}
+            <span className="agent-run-status-icon">
+              <ChevronRight className="agent-run-disclosure" size={14} />
+            </span>
+            <span className="agent-run-copy">
+              <strong>
+                {streaming
+                  ? t('chat:agentRunActivity.reasoningInProgress')
+                  : t('chat:agentRunActivity.reasoningCompleted')}
+                {streaming ? (
+                  <span className="agent-thinking-dots" aria-hidden="true">
+                    <i />
+                    <i />
+                    <i />
+                  </span>
+                ) : null}
+              </strong>
+            </span>
+            <span className="agent-run-duration">
+              <Clock3 size={12} />
+              {primaryDuration}
+            </span>
+          </summary>
+          <div ref={thinkingScrollRef} className="agent-thinking-scroll">
+            <MarkdownMessage streaming={streaming}>{thinking}</MarkdownMessage>
+          </div>
+        </details>
+      )}
       {showOverview && (
         <div className={`agent-run-overview ${primary.tone}`} data-pisper-activity-type="status">
           <span className="agent-run-status-icon">
@@ -672,7 +682,12 @@ function AgentRunActivity({
         </div>
       )}
       {streaming && activities.length > 0 && (
-        <div className="agent-run-feed">
+        <div
+          ref={liveFeedRef}
+          className="agent-run-feed live"
+          aria-label={t('chat:agentRunActivity.toolActivityAriaLabel')}
+          tabIndex={activities.length > 3 ? 0 : undefined}
+        >
           <Suspense fallback={activityCards}>
             <AnimatedList>{activityCards}</AnimatedList>
           </Suspense>
@@ -696,7 +711,11 @@ function AgentRunActivity({
               {primaryDuration}
             </span>
           </summary>
-          <div className="agent-run-feed completed">
+          <div
+            className="agent-run-feed completed"
+            aria-label={t('chat:agentRunActivity.toolActivityAriaLabel')}
+            tabIndex={activities.length > 3 ? 0 : undefined}
+          >
             <Suspense fallback={activityCards}>{activityCards}</Suspense>
           </div>
         </details>
