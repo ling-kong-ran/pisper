@@ -12,6 +12,7 @@ import {
 import { useI18n } from '@/app/use-i18n'
 import { workspaceName } from '@/lib/format'
 import type { SessionSummary } from '@/types/chat'
+import { useViewportMenuOffset } from './use-viewport-menu-offset'
 
 export function SessionActionsMenu({
   session,
@@ -41,6 +42,9 @@ export function SessionActionsMenu({
   const { t, language } = useI18n()
   const [open, setOpen] = useState(false)
   const rootRef = useRef<HTMLDivElement>(null)
+  const menuRef = useRef<HTMLDivElement>(null)
+
+  useViewportMenuOffset(open, menuRef)
 
   useEffect(() => {
     if (!open) return undefined
@@ -105,7 +109,7 @@ export function SessionActionsMenu({
         <MoreHorizontal size={17} />
       </button>
       {open && (
-        <div className="permission-mode-menu session-actions-menu" role="menu">
+        <div ref={menuRef} className="permission-mode-menu session-actions-menu" role="menu">
           {splitActions.map(([Icon, label, description, action]) => (
             <button
               type="button"

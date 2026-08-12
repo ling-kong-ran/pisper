@@ -4,6 +4,7 @@ import { useI18n } from '@/app/use-i18n'
 import { AppSwitch as Toggle } from '@/components/ui/app-primitives'
 import { formatTokenCount } from '@/lib/format'
 import type { EntityRecord } from '@/types/chat'
+import { useViewportMenuOffset } from './use-viewport-menu-offset'
 
 const MIN_GOAL_TOKEN_BUDGET = 1_000
 export const DEFAULT_GOAL_TOKEN_BUDGET = 30_000
@@ -27,6 +28,7 @@ export function GoalModeControl({
   const [open, setOpen] = useState(false)
   const [savingBudget, setSavingBudget] = useState(false)
   const rootRef = useRef<HTMLDivElement>(null)
+  const menuRef = useRef<HTMLDivElement>(null)
   const active = goal?.status === 'active'
   const enabled = active || armed
   const hasExistingGoal = Boolean(goal?.id)
@@ -74,6 +76,8 @@ export function GoalModeControl({
     }
   }, [open])
 
+  useViewportMenuOffset(open, menuRef)
+
   const saveBudget = async () => {
     if (savingBudget || !budgetDirty) return
     if (hasExistingGoal && onSaveTokenBudget) {
@@ -103,7 +107,12 @@ export function GoalModeControl({
         <Target size={14} />
       </button>
       {open && (
-        <div className="goal-mode-menu" role="dialog" aria-label={t('chat:focusSession.goalMode')}>
+        <div
+          ref={menuRef}
+          className="goal-mode-menu"
+          role="dialog"
+          aria-label={t('chat:focusSession.goalMode')}
+        >
           <div className="goal-mode-menu-row">
             <span className="goal-mode-menu-icon">
               <Target size={15} />

@@ -206,6 +206,8 @@
   "chatPage.stopTheActiveRunBeforeChangingTheExecutionMode": "请先停止运行，再切换执行模式",
   "focusSession.addAttachment": "添加附件",
   "focusSession.openCommandPaletteShortcut": "打开命令面板（{shortcut}）",
+  "focusSession.moreTools": "更多工具",
+  "focusSession.commands": "命令",
   "focusSession.addGuidanceForTheRunningAgentShiftEnterForANewLine": "向正在运行的 Agent 追加说明，Shift + Enter 换行",
   "focusSession.allow": "允许",
   "focusSession.allowOnce": "本次允许",

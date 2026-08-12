@@ -13,6 +13,7 @@ import { useI18n } from '@/app/use-i18n'
 import { workspaceName } from '@/lib/format'
 import { chatApi, type GitChangesResponse } from './chat-api'
 import { GitDiffDialog } from './GitDiffViewer'
+import { useViewportMenuOffset } from './use-viewport-menu-offset'
 
 const DEFAULT_COMMIT_MESSAGE = 'Agent changes'
 
@@ -40,6 +41,9 @@ export function GitChangesControl({
   const [error, setError] = useState('')
   const [notice, setNotice] = useState('')
   const rootRef = useRef<HTMLDivElement>(null)
+  const menuRef = useRef<HTMLDivElement>(null)
+
+  useViewportMenuOffset(open, menuRef)
 
   const load = useCallback(async () => {
     if (!sessionId) return
@@ -145,6 +149,7 @@ export function GitChangesControl({
       </button>
       {open && (
         <div
+          ref={menuRef}
           className="git-changes-menu"
           role="dialog"
           aria-label={t('chat:focusSession.gitChanges')}

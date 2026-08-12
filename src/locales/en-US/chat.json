@@ -206,6 +206,8 @@
   "chatPage.stopTheActiveRunBeforeChangingTheExecutionMode": "Stop the active run before changing the execution mode",
   "focusSession.addAttachment": "Add attachment",
   "focusSession.openCommandPaletteShortcut": "Open command palette ({shortcut})",
+  "focusSession.moreTools": "More tools",
+  "focusSession.commands": "Commands",
   "focusSession.addGuidanceForTheRunningAgentShiftEnterForANewLine": "Add guidance for the running agent; Shift + Enter for a new line",
   "focusSession.allow": "Allow",
   "focusSession.allowOnce": "Allow once",

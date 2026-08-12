@@ -20,6 +20,23 @@ test('icon-only composer model control hides the Radix Select trigger content', 
   )
 })
 
+test('composer collapses low-frequency controls into an animated tool tray', async () => {
+  const [session, tray, styles] = await Promise.all([
+    readFile('src/features/chat/FocusSession.tsx', 'utf8'),
+    readFile('src/features/chat/ComposerToolTray.tsx', 'utf8'),
+    readFile('src/index.css', 'utf8'),
+  ])
+
+  assert.match(session, /className={`composer-tools-trigger/)
+  assert.match(session, /<ComposerToolTray[\s\S]*open={toolsOpen}/)
+  assert.match(session, /aria-expanded={toolsOpen}/)
+  assert.match(tray, /import\('@\/components\/react-bits\/AnimatedList'\)/)
+  assert.match(tray, /<Suspense fallback={tray}>/)
+  assert.match(tray, /<AnimatedList/)
+  assert.match(styles, /\.composer-tool-tray \{[^}]*flex-wrap: wrap;/)
+  assert.match(styles, /\.focus-composer-footer \{[^}]*display: flex;/)
+})
+
 test('composer exposes a session thinking-level control wired to the shared API', async () => {
   const [controls, session, api, styles] = await Promise.all([
     readFile('src/features/chat/FocusRuntimeControls.tsx', 'utf8'),
