@@ -28,6 +28,15 @@ const MAX_LOADED_MESSAGES: usize = MESSAGE_PAGE_LIMIT * 4;
 const HISTORY_KEEP_MESSAGES: usize = MESSAGE_PAGE_LIMIT * 2;
 const HISTORY_IDLE_EVICT_DELAY: Duration = Duration::from_secs(90);
 const HISTORY_SCROLL_MARGIN: u16 = 8;
+
+fn current_plan_item_index(plan: &Plan) -> usize {
+    plan.items
+        .iter()
+        .position(|item| item.status == "in_progress")
+        .or_else(|| plan.items.iter().position(|item| item.status == "blocked"))
+        .or_else(|| plan.items.iter().position(|item| item.status == "pending"))
+        .unwrap_or_else(|| plan.items.len().saturating_sub(1))
+}
 const LINE_SCROLL_STEP: u16 = 1;
 const PAGE_SCROLL_STEP: u16 = 8;
 
@@ -217,6 +226,8 @@ pub struct App {
     pub view: View,
     pub scroll: Cell<u16>,
     pub render_max_scroll: Cell<u16>,
+    pub plan_scroll: Cell<u16>,
+    pub plan_max_scroll: Cell<u16>,
     history_oldest_index: u64,
     history_loading: bool,
     history_touched_at: Option<Instant>,
@@ -286,6 +297,12 @@ impl App {
         let path_directory = PathBuf::from(&session.cwd);
         let mut messages = messages;
         cap_message_count(&mut messages);
+        let initial_plan_scroll = session
+            .plan
+            .as_ref()
+            .map(current_plan_item_index)
+            .unwrap_or_default()
+            .min(u16::MAX as usize) as u16;
         Self {
             model: session.model.clone(),
             cwd: session.cwd.clone(),
@@ -324,6 +341,8 @@ impl App {
             view: View::Chat,
             scroll: Cell::new(0),
             render_max_scroll: Cell::new(0),
+            plan_scroll: Cell::new(initial_plan_scroll),
+            plan_max_scroll: Cell::new(0),
             history_oldest_index: 0,
             history_loading: false,
             history_touched_at: None,
@@ -1114,6 +1133,63 @@ impl App {
                 KeyCode::Enter => return self.choose_slash(),
                 _ => {}
             }
+        }
+        if self.view == View::Chat
+            && key.modifiers.contains(KeyModifiers::ALT)
+            && matches!(
+                key.code,
+                KeyCode::Up
+                    | KeyCode::Down
+                    | KeyCode::PageUp
+                    | KeyCode::PageDown
+                    | KeyCode::Home
+                    | KeyCode::End
+            )
+            && self
+                .session
+                .plan
+                .as_ref()
+                .is_some_and(|plan| !plan.items.is_empty())
+        {
+            return match key.code {
+                KeyCode::Up => {
+                    self.plan_scroll
+                        .set(self.plan_scroll.get().saturating_sub(LINE_SCROLL_STEP));
+                    Action::None
+                }
+                KeyCode::Down => {
+                    self.plan_scroll.set(
+                        self.plan_scroll
+                            .get()
+                            .saturating_add(LINE_SCROLL_STEP)
+                            .min(self.plan_max_scroll.get()),
+                    );
+                    Action::None
+                }
+                KeyCode::PageUp => {
+                    self.plan_scroll
+                        .set(self.plan_scroll.get().saturating_sub(PAGE_SCROLL_STEP));
+                    Action::None
+                }
+                KeyCode::PageDown => {
+                    self.plan_scroll.set(
+                        self.plan_scroll
+                            .get()
+                            .saturating_add(PAGE_SCROLL_STEP)
+                            .min(self.plan_max_scroll.get()),
+                    );
+                    Action::None
+                }
+                KeyCode::Home => {
+                    self.plan_scroll.set(0);
+                    Action::None
+                }
+                KeyCode::End => {
+                    self.plan_scroll.set(self.plan_max_scroll.get());
+                    Action::None
+                }
+                _ => Action::None,
+            };
         }
         match key.code {
             KeyCode::Enter => self.submit_action(),
@@ -2135,6 +2211,7 @@ impl App {
         self.status_error = false;
         self.view = View::Chat;
         self.scroll.set(0);
+        self.follow_current_plan_item();
     }
 
     pub fn set_history_window(&mut self, oldest_loaded_index: u64) {
@@ -2341,6 +2418,16 @@ impl App {
         self.status_error = false;
     }
 
+    fn follow_current_plan_item(&self) {
+        let Some(plan) = self.session.plan.as_ref() else {
+            self.plan_scroll.set(0);
+            self.plan_max_scroll.set(0);
+            return;
+        };
+        self.plan_scroll
+            .set(current_plan_item_index(plan).min(u16::MAX as usize) as u16);
+    }
+
     pub fn set_plan(&mut self, plan: Option<Plan>) {
         self.session.plan = plan.clone();
         if let Some(session) = self
@@ -2350,6 +2437,7 @@ impl App {
         {
             session.plan = plan;
         }
+        self.follow_current_plan_item();
     }
 
     pub fn apply_stream_event(&mut self, event: StreamEvent) {
@@ -3004,9 +3092,9 @@ mod tests {
         HISTORY_KEEP_MESSAGES, INIT_PROMPT, MAX_LOADED_MESSAGES, PAGE_SCROLL_STEP,
     };
     use crate::model::{
-        ChatMessage, ContextUsage, MessagePage, ModelOption, PageInfo, ProviderOption,
-        SessionCwdUpdate, SessionModelUpdate, SessionSummary, StreamEvent, ThinkingAvailability,
-        ThinkingLevelUpdate, ToolDefinition, VcsChanges, VcsFile,
+        ChatMessage, ContextUsage, MessagePage, ModelOption, PageInfo, Plan, PlanCounts, PlanItem,
+        ProviderOption, SessionCwdUpdate, SessionModelUpdate, SessionSummary, StreamEvent,
+        ThinkingAvailability, ThinkingLevelUpdate, ToolDefinition, VcsChanges, VcsFile,
     };
     use serde_json::json;
 
@@ -3729,6 +3817,57 @@ mod tests {
                 .count(),
             2
         );
+    }
+
+    #[test]
+    fn plan_updates_follow_the_current_item_and_alt_arrows_scroll_the_plan_only() {
+        let session = SessionSummary {
+            id: "session-plan".to_owned(),
+            plan: Some(Plan {
+                items: (0..8)
+                    .map(|index| PlanItem {
+                        id: format!("item-{index}"),
+                        title: format!("Task {index}"),
+                        status: if index == 6 {
+                            "in_progress".to_owned()
+                        } else if index < 6 {
+                            "completed".to_owned()
+                        } else {
+                            "pending".to_owned()
+                        },
+                        ..PlanItem::default()
+                    })
+                    .collect(),
+                counts: PlanCounts {
+                    completed: 6,
+                    in_progress: 1,
+                    pending: 1,
+                    total: 8,
+                    ..PlanCounts::default()
+                },
+                updated_at: None,
+            }),
+            ..SessionSummary::default()
+        };
+        let mut app = App::new(
+            vec![session.clone()],
+            session,
+            Vec::new(),
+            None,
+            Vec::new(),
+            Vec::new(),
+        );
+        assert_eq!(app.plan_scroll.get(), 6);
+        app.plan_max_scroll.set(5);
+        app.scroll.set(3);
+
+        app.handle_key(KeyEvent::new(KeyCode::Up, KeyModifiers::ALT));
+        assert_eq!(app.plan_scroll.get(), 5);
+        assert_eq!(app.scroll.get(), 3);
+        app.handle_key(KeyEvent::new(KeyCode::Home, KeyModifiers::ALT));
+        assert_eq!(app.plan_scroll.get(), 0);
+        app.handle_key(KeyEvent::new(KeyCode::End, KeyModifiers::ALT));
+        assert_eq!(app.plan_scroll.get(), 5);
     }
 
     #[test]

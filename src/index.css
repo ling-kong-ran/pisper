@@ -741,6 +741,8 @@ details[open] > summary .agent-run-disclosure { transform: rotate(90deg); }
 .plan-board-summary strong { color: var(--text); font-weight: 600; }
 .plan-board-summary .blocked { color: var(--star-strong); }
 .plan-board-list { display: flex; flex-direction: column; gap: 2px; margin: 8px 0 0; padding: 0; list-style: none; }
+.plan-board-list.is-scrollable { block-size: min(220px,34dvh); overflow-y: auto; overscroll-behavior: contain; padding-right: 4px; scrollbar-gutter: stable; }
+.plan-board-list.is-scrollable:focus-visible { outline: 2px solid var(--accent-border); outline-offset: 2px; }
 .plan-board-row { display: flex; flex-direction: column; gap: 2px; padding: 5px 6px; border-radius: var(--r-sm); }
 .plan-board-row.blocked { opacity: .72; }
 .plan-board-row-head { display: flex; align-items: center; gap: 8px; min-width: 0; }

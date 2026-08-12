@@ -1,4 +1,4 @@
-import { memo, type ReactNode } from 'react'
+import { memo, useLayoutEffect, useRef, type ReactNode } from 'react'
 import { Check, CircleDot, Lock, User, type LucideIcon } from 'lucide-react'
 import { useI18n } from '@/app/use-i18n'
 import type { I18nValues } from '@/app/i18n'
@@ -59,9 +59,14 @@ function StatusBadge({ status, t }: { status: string | undefined; t: Translate }
   )
 }
 
-function PlanRow({ item, t }: { item: PlanItemView; t: Translate }) {
+function PlanRow({ item, current, t }: { item: PlanItemView; current: boolean; t: Translate }) {
   return (
-    <li className={`plan-board-row ${item.blocked ? 'blocked' : ''}`} data-pisper-plan-id={item.id}>
+    <li
+      className={`plan-board-row ${item.blocked ? 'blocked' : ''}`}
+      aria-current={current ? 'step' : undefined}
+      data-pisper-plan-current={current ? 'true' : undefined}
+      data-pisper-plan-id={item.id}
+    >
       <div className="plan-board-row-head">
         <StatusBadge status={item.blocked ? 'blocked' : item.status} t={t} />
         <span className="plan-board-title" title={item.title}>
@@ -101,12 +106,33 @@ export type PlanBoardProps = {
 /** Shared execution plan with ownership and dependency blockers. */
 function PlanBoard({ plan, header }: PlanBoardProps) {
   const { t } = useI18n()
+  const listRef = useRef<HTMLUListElement>(null)
   const items = plan?.items || []
-  if (!items.length) return null
   const views = buildPlanItemViews(items)
   const completed = views.filter((view) => view.status === 'completed').length
   const inProgress = views.filter((view) => view.status === 'in_progress' && !view.blocked).length
   const blockedCount = views.filter((view) => view.blocked).length
+  const currentItemId =
+    views.find((view) => view.status === 'in_progress' && !view.blocked)?.id ??
+    views.find((view) => view.blocked)?.id ??
+    views.find((view) => view.status === 'pending')?.id ??
+    views.at(-1)?.id
+
+  useLayoutEffect(() => {
+    const list = listRef.current
+    const current = list?.querySelector<HTMLElement>('[data-pisper-plan-current="true"]')
+    if (!list || !current) return
+
+    const listBounds = list.getBoundingClientRect()
+    const currentBounds = current.getBoundingClientRect()
+    if (currentBounds.top < listBounds.top) {
+      list.scrollTop -= listBounds.top - currentBounds.top
+    } else if (currentBounds.bottom > listBounds.bottom) {
+      list.scrollTop += currentBounds.bottom - listBounds.bottom
+    }
+  }, [currentItemId, views.length])
+
+  if (!items.length) return null
 
   return (
     <section className="plan-board" aria-label={t('chat:planBoard.ariaLabel')}>
@@ -122,9 +148,13 @@ function PlanBoard({ plan, header }: PlanBoardProps) {
         )}
         {header}
       </div>
-      <ul className="plan-board-list">
+      <ul
+        ref={listRef}
+        className={`plan-board-list${views.length > 4 ? ' is-scrollable' : ''}`}
+        tabIndex={views.length > 4 ? 0 : undefined}
+      >
         {views.map((item) => (
-          <PlanRow key={item.id} item={item} t={t} />
+          <PlanRow key={item.id} item={item} current={item.id === currentItemId} t={t} />
         ))}
       </ul>
     </section>

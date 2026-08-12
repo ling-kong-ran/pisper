@@ -198,6 +198,7 @@ export function useSessionCatalog({ notify }: SessionCatalogOptions) {
         for (const session of list) {
           updateSessionState(session.id, {
             agents: session.agents || [],
+            plan: planFromPayloadOr(session, null),
             ...(session.streaming
               ? { streaming: true, recovering: true, loaded: false, error: '' }
               : {}),

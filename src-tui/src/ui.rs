@@ -12,7 +12,7 @@ use unicode_width::{UnicodeWidthChar, UnicodeWidthStr};
 use crate::{
     app::{App, Approval, LiveTurn, SettingsPicker, SlashCategory, SlashKind, View},
     model::{
-        ChatMessage, MessageAttachment, PlanItem, RunActivity, ThinkingAvailability, ToolActivity,
+        ChatMessage, MessageAttachment, RunActivity, ThinkingAvailability, ToolActivity,
         PROVIDER_APIS,
     },
 };
@@ -288,16 +288,6 @@ fn plan_panel_height(app: &App, area: Rect) -> u16 {
     1 + maximum_items
 }
 
-fn plan_item_rank(item: &PlanItem) -> u8 {
-    match item.status.as_str() {
-        "in_progress" => 0,
-        "blocked" => 1,
-        "pending" => 2,
-        "completed" => 3,
-        _ => 2,
-    }
-}
-
 fn render_plan(frame: &mut Frame, app: &App, area: Rect) {
     let Some(plan) = app.session.plan.as_ref() else {
         return;
@@ -311,23 +301,25 @@ fn render_plan(frame: &mut Frame, app: &App, area: Rect) {
         .filter(|item| item.status == "completed")
         .count();
     let maximum_items = area.height.saturating_sub(1) as usize;
-    let mut items = plan.items.iter().collect::<Vec<_>>();
-    items.sort_by_key(|item| plan_item_rank(item));
-    items.truncate(maximum_items);
-    let hidden_completed = completed.saturating_sub(
-        items
-            .iter()
-            .filter(|item| item.status == "completed")
-            .count(),
-    );
+    let max_scroll = plan.items.len().saturating_sub(maximum_items);
+    app.plan_max_scroll
+        .set(max_scroll.min(u16::MAX as usize) as u16);
+    let scroll = (app.plan_scroll.get() as usize).min(max_scroll);
+    app.plan_scroll.set(scroll as u16);
+    let items = plan.items.iter().skip(scroll).take(maximum_items);
     let mut lines = vec![Line::from(vec![
         Span::styled(
             format!(" Plan · {completed}/{}", plan.items.len()),
             Style::default().fg(VIOLET).add_modifier(Modifier::BOLD),
         ),
         Span::styled(
-            if hidden_completed > 0 {
-                format!(" · {hidden_completed} completed folded")
+            if max_scroll > 0 {
+                format!(
+                    " · {}-{}/{} · Alt+↑/↓",
+                    scroll + 1,
+                    (scroll + maximum_items).min(plan.items.len()),
+                    plan.items.len()
+                )
             } else {
                 String::new()
             },
@@ -3493,7 +3485,7 @@ mod tests {
     }
 
     #[test]
-    fn plan_panel_is_compact_at_terminal_sizes_and_disappears_when_cleared() {
+    fn plan_panel_is_compact_scrollable_and_disappears_when_cleared() {
         for (width, height) in [(80, 24), (120, 40)] {
             let session = SessionSummary {
                 id: "session-plan".to_owned(),
@@ -3501,6 +3493,30 @@ mod tests {
                 cwd: "/workspace".to_owned(),
                 plan: Some(Plan {
                     items: vec![
+                        PlanItem {
+                            id: "done-1".to_owned(),
+                            title: "Inspect".to_owned(),
+                            status: "completed".to_owned(),
+                            ..PlanItem::default()
+                        },
+                        PlanItem {
+                            id: "done-2".to_owned(),
+                            title: "Design".to_owned(),
+                            status: "completed".to_owned(),
+                            ..PlanItem::default()
+                        },
+                        PlanItem {
+                            id: "done-3".to_owned(),
+                            title: "Prototype".to_owned(),
+                            status: "completed".to_owned(),
+                            ..PlanItem::default()
+                        },
+                        PlanItem {
+                            id: "done-4".to_owned(),
+                            title: "Review".to_owned(),
+                            status: "completed".to_owned(),
+                            ..PlanItem::default()
+                        },
                         PlanItem {
                             id: "active".to_owned(),
                             title: "Implement protocol".to_owned(),
@@ -3522,19 +3538,13 @@ mod tests {
                             status: "pending".to_owned(),
                             ..PlanItem::default()
                         },
-                        PlanItem {
-                            id: "done".to_owned(),
-                            title: "Inspect".to_owned(),
-                            status: "completed".to_owned(),
-                            ..PlanItem::default()
-                        },
                     ],
                     counts: PlanCounts {
                         in_progress: 1,
                         blocked: 1,
                         pending: 1,
-                        completed: 1,
-                        total: 4,
+                        completed: 4,
+                        total: 7,
                     },
                     updated_at: None,
                 }),
@@ -3565,20 +3575,21 @@ mod tests {
                 .collect::<Vec<_>>();
             let plan_row = rows
                 .iter()
-                .position(|row| row.contains("Plan · 1/4"))
+                .position(|row| row.contains("Plan · 4/7"))
                 .unwrap();
             let composer_row = rows
                 .iter()
                 .position(|row| row.contains("Message Pisper"))
                 .unwrap();
             assert!(rows.iter().any(|row| row.contains("Implement protocol")));
-            assert!(rows.iter().any(|row| row.contains("Verify migration")));
+            assert!(rows.iter().any(|row| row.contains("Alt+↑/↓")));
+            assert!(!rows.iter().any(|row| row.contains("Inspect")));
             assert!(plan_row < composer_row);
 
             app.set_plan(None);
             terminal.draw(|frame| draw(frame, &app)).unwrap();
             let cleared = format!("{:?}", terminal.backend().buffer());
-            assert!(!cleared.contains("Plan · 1/4"));
+            assert!(!cleared.contains("Plan · 4/7"));
             assert!(cleared.contains("Message Pisper"));
         }
     }

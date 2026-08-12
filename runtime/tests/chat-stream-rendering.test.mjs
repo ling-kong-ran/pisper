@@ -203,16 +203,23 @@ test('stale streaming queue errors settle the old stream and resend as a new tur
   )
 })
 
-test('shared plan board uses live/session fallback and consistent effective blockers', async () => {
-  const [dock, board] = await Promise.all([
+test('shared plan board uses live/session fallback, blockers, and an active-item scroll viewport', async () => {
+  const [dock, board, catalog, styles] = await Promise.all([
     readFile('src/features/chat/ChatDock.tsx', 'utf8'),
     readFile('src/features/chat/PlanBoard.tsx', 'utf8'),
+    readFile('src/features/chat/use-session-catalog.ts', 'utf8'),
+    readFile('src/index.css', 'utf8'),
   ])
   assert.match(dock, /resolveSessionPlan\(sessionState, session\)/)
   assert.match(dock, /isPlanActive\(plan, \{ streaming \}\)/)
   assert.match(dock, /plan=\{visiblePlan\}/)
+  assert.match(catalog, /plan: planFromPayloadOr\(session, null\)/)
   assert.match(board, /item\.status === 'blocked' \|\| blockedBy\.length > 0/)
   assert.match(board, /view\.status === 'in_progress' && !view\.blocked/)
+  assert.match(board, /data-pisper-plan-current/)
+  assert.match(board, /list\.scrollTop \+= currentBounds\.bottom - listBounds\.bottom/)
+  assert.match(board, /tabIndex=\{views\.length > 4 \? 0 : undefined\}/)
+  assert.match(styles, /\.plan-board-list\.is-scrollable \{[^}]*overflow-y: auto;/)
   assert.doesNotMatch(board, /unblocks:/)
 })
 
