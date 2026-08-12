@@ -26,6 +26,21 @@ function serviceUnavailable(res) {
   res.end(body)
 }
 
+function recoverRequestFailure(res) {
+  if (res.destroyed || res.writableEnded) return
+  if (res.headersSent) {
+    res.destroy()
+    return
+  }
+  const body = `${JSON.stringify({ error: 'Pisper request failed.' })}\n`
+  res.writeHead(500, {
+    'Cache-Control': 'no-store',
+    'Content-Type': 'application/json; charset=utf-8',
+    'Content-Length': Buffer.byteLength(body),
+  })
+  res.end(body)
+}
+
 export async function createPisperRuntime({
   root,
   runtimeCwd = homedir(),
@@ -129,7 +144,7 @@ export async function createPisperRuntime({
     startInitialization = () => initialize().then(resolveInitialized, rejectInitialized)
   })
 
-  const server = createServer(async (req, res) => {
+  const handleRequest = async (req, res) => {
     const address = server.address()
     const activePort = typeof address === 'object' && address ? address.port : port
     const origin = `http://${host}:${activePort}`
@@ -146,6 +161,13 @@ export async function createPisperRuntime({
     }
     if (vite) vite.middlewares(req, res)
     else await serveProduction(req, res, url)
+  }
+
+  const server = createServer((req, res) => {
+    // EventEmitter does not observe a Promise returned by an async request listener.
+    // Keep a rejected route or a disconnected response from becoming an uncaught process error.
+    res.on('error', () => {})
+    void handleRequest(req, res).catch(() => recoverRequestFailure(res))
   })
 
   if (!deferRuntimeInitialization) {

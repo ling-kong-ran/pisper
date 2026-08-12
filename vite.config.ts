@@ -14,6 +14,21 @@ const MARKDOWN_PLUGIN_PACKAGES = [
   '@streamdown/math',
   'katex',
 ]
+export const DEV_WATCH_IGNORES = [
+  '**/.git/**',
+  '**/.worktrees/**',
+  '**/node_modules/**',
+  '**/dist/**',
+  '**/release/**',
+  '**/src-tauri/target/**',
+  '**/src-tui/target/**',
+  '**/crates/*/target/**',
+  '**/src-tauri/binaries/**',
+  '**/src-tauri/gen/**',
+  '**/.tmp-tauri-data/**',
+  '**/generated/**',
+]
+
 const VENDOR_CHUNK_PRIORITIES = [
   ['vendor-react', 100],
   ['vendor-router', 99],
@@ -140,6 +155,11 @@ export default defineConfig({
       '@shikijs/themes',
       '@shikijs/engine-javascript',
     ],
+  },
+  server: {
+    watch: {
+      ignored: DEV_WATCH_IGNORES,
+    },
   },
   build: {
     chunkSizeWarningLimit: 900,

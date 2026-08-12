@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import { readFile } from 'node:fs/promises'
 import test from 'node:test'
-import { vendorChunkForModule } from '../../vite.config.ts'
+import { DEV_WATCH_IGNORES, vendorChunkForModule } from '../../vite.config.ts'
 
 test('vendor chunk classification is stable and preserves Shiki dynamic modules', () => {
   const modulePath = (name, file = 'index.js') => `C:/repo/node_modules/${name}/${file}`
@@ -31,6 +31,18 @@ test('vendor chunk classification is stable and preserves Shiki dynamic modules'
     vendorChunkForModule(modulePath('@shikijs/engine-oniguruma', 'dist/wasm-inlined.mjs')),
     undefined,
   )
+})
+
+test('development watcher excludes generated dependency and package trees', () => {
+  for (const pattern of [
+    '**/node_modules/**',
+    '**/release/**',
+    '**/src-tauri/target/**',
+    '**/src-tui/target/**',
+    '**/src-tauri/binaries/**',
+  ]) {
+    assert.ok(DEV_WATCH_IGNORES.includes(pattern), `missing watcher ignore: ${pattern}`)
+  }
 })
 
 test('production build emits an audited manifest with explicit non-recursive chunk ownership', async () => {
