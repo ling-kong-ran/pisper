@@ -230,6 +230,8 @@ test('release command auto-detects every changed component and rejects manual sc
   assert.match(source, /componentReleasePaths/)
   assert.match(source, /componentReleaseSubjects/)
   assert.match(source, /`component=\$\{component\}`/)
+  assert.match(source, /npmReleaseVersion = resolveVersion\(manifest\.version, input\)/)
+  assert.doesNotMatch(source, /const npmBump/)
   assert.match(source, /自动发布组件/)
 })
 

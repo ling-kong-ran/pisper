@@ -210,8 +210,7 @@ if (chainNpm) {
   const manifest = JSON.parse(
     await readFile(join(root, 'packages', 'pisper', 'package.json'), 'utf8'),
   )
-  const npmBump = ['major', 'minor', 'patch'].includes(input) ? input : 'patch'
-  npmReleaseVersion = resolveVersion(manifest.version, npmBump)
+  npmReleaseVersion = resolveVersion(manifest.version, input)
   if (compareVersions(npmReleaseVersion, manifest.version) <= 0) {
     throw new Error(`npm 新版本 ${npmReleaseVersion} 必须高于当前版本 ${manifest.version}。`)
   }
