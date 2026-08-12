@@ -84,6 +84,22 @@ test('workflow notification targets stay selectable before channel setup', async
   assert.match(notificationSwitch, /catalog\.notificationTargets\[id\]\?\.enabled/)
 })
 
+test('settings navigation replaces the main sidebar instead of nesting in page content', async () => {
+  const [app, sidebar, settingsNavigation, styles] = await Promise.all([
+    readFile('src/App.tsx', 'utf8'),
+    readFile('src/components/layout/AppSidebar.tsx', 'utf8'),
+    readFile('src/app/settings-navigation.ts', 'utf8'),
+    readFile('src/index.css', 'utf8'),
+  ])
+
+  assert.doesNotMatch(app, /SettingsShell/)
+  assert.match(app, /<div className=\{`page-content page-\$\{page\}`\} key=\{page\}>\s*<Outlet/)
+  assert.match(sidebar, /settingsActive \? \(/)
+  assert.match(sidebar, /nav-settings-back/)
+  assert.match(settingsNavigation, /getSettingsNavigation/)
+  assert.doesNotMatch(styles, /\.settings-shell|\.settings-nav|\.settings-content/)
+})
+
 test('route code and route-specific vendor styles remain lazy', async () => {
   const [router, routeElements, main, chat, workflows, styles] = await Promise.all([
     readFile('src/app/router.tsx', 'utf8'),

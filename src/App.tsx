@@ -5,6 +5,11 @@ import type { AppRouteContext } from '@/app/route-context'
 import { STORAGE_KEYS } from '@/app/storage'
 import { getNavigation, getPageMeta } from '@/app/navigation'
 import { PAGE_IDS, pageFromPath, pagePath } from '@/app/routes'
+import {
+  CONFIG_SECTIONS,
+  SETTINGS_PAGES,
+  type SettingsDestination,
+} from '@/app/settings-navigation'
 import { useI18n } from '@/app/use-i18n'
 import { BrandLogo } from '@/components/BrandLogo'
 import { WebPreviewProvider } from '@/components/WebPreviewProvider'
@@ -25,12 +30,6 @@ import { useAppUpdate } from '@/features/updates/useAppUpdate'
 import { SidebarInset, SidebarProvider } from '@/components/ui/sidebar'
 import { useUiStore, type ThemeMode } from '@/stores/ui-store'
 import { readStoredTerminalPanel } from '@/features/terminal/terminal-state'
-import {
-  CONFIG_SECTIONS,
-  SETTINGS_PAGES,
-  SettingsShell,
-  type SettingsDestination,
-} from '@/features/config/SettingsShell'
 import type { ChatAttachment, PendingAsset } from '@/types/chat'
 import type { NotificationSettingsData } from '@/types/notifications'
 import type { WorkflowActions } from '@/types/workflow'
@@ -129,6 +128,7 @@ function App() {
   const pageMeta = useMemo(() => getPageMeta(t), [t])
   const page = pageFromPath(location.pathname) || 'chat'
   const startupPageRef = useRef(page)
+  const lastWorkbenchPathRef = useRef(SETTINGS_PAGES.has(page) ? '/chat' : location.pathname)
   const [query, setQuery] = useState('')
   const [activeSessionId, setActiveSessionId] = useState(
     () => localStorage.getItem(STORAGE_KEYS.activeSession) || '',
@@ -326,6 +326,15 @@ function App() {
     },
     [navigate, setConfigSection],
   )
+
+  useEffect(() => {
+    if (!SETTINGS_PAGES.has(page)) lastWorkbenchPathRef.current = location.pathname
+  }, [location.pathname, page])
+
+  const exitSettings = useCallback(() => {
+    routerNavigate(lastWorkbenchPathRef.current)
+    setQuery('')
+  }, [routerNavigate])
 
   const providerScanStarted = useRef(false)
   useEffect(() => {
@@ -550,8 +559,11 @@ function App() {
         >
           <AppSidebar
             page={page}
+            configSection={configSection}
             navigation={navigation}
             navigate={navigate}
+            navigateSettings={navigateSettings}
+            onExitSettings={exitSettings}
             collapsed={sidebarCollapsed}
             onToggleCollapse={toggleSidebarCollapsed}
             update={appUpdate}
@@ -577,17 +589,7 @@ function App() {
               />
             </Suspense>
             <div className={`page-content page-${page}`} key={page}>
-              {SETTINGS_PAGES.has(page) ? (
-                <SettingsShell
-                  activePage={page}
-                  configSection={configSection}
-                  onNavigate={navigateSettings}
-                >
-                  <Outlet context={routeContext} />
-                </SettingsShell>
-              ) : (
-                <Outlet context={routeContext} />
-              )}
+              <Outlet context={routeContext} />
             </div>
             {window.pisperDesktop?.terminalProfiles && (
               <Suspense fallback={null}>

@@ -56,6 +56,7 @@
   "appOverlays.type": "类型",
   "appOverlays.untitledChat": "未命名会话",
   "appSidebar.closeNavigation": "关闭导航",
+  "appSidebar.backToWorkbench": "返回工作台",
   "appSidebar.collapseSidebar": "收起侧栏",
   "appSidebar.countCommitsBehindBranch": "落后 {branch} {count} 个提交",
   "appSidebar.downloading": "正在下载",

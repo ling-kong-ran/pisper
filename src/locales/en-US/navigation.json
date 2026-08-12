@@ -56,6 +56,7 @@
   "appOverlays.type": "Type",
   "appOverlays.untitledChat": "Untitled chat",
   "appSidebar.closeNavigation": "Close navigation",
+  "appSidebar.backToWorkbench": "Back to workbench",
   "appSidebar.collapseSidebar": "Collapse sidebar",
   "appSidebar.countCommitsBehindBranch": "{count} commits behind {branch}",
   "appSidebar.downloading": "Downloading",
