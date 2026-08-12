@@ -94,6 +94,16 @@ function pathInside(root, target) {
   return result === '' || (!result.startsWith(`..${sep}`) && result !== '..' && !isAbsolute(result))
 }
 
+function projectSkillsDir(cwd) {
+  return join(resolve(cwd), '.pisper', 'skills')
+}
+
+function skillResourceRank(resource) {
+  if (resource.metadata?.origin === 'package') return 4
+  const scopeRank = resource.metadata?.scope === 'project' ? 0 : 2
+  return scopeRank + (resource.metadata?.source === 'auto' ? 1 : 0)
+}
+
 async function validateSkillSource(path) {
   const pending = [path]
   let entries = 0
@@ -234,17 +244,39 @@ export class SkillsService {
     this.dashboardCache = null
   }
 
+  applyResourceMetadata(current, resources) {
+    const metadataByPath = new Map(
+      resources.map((item) => [normalizedPath(item.path), item.metadata || {}]),
+    )
+    return {
+      ...current,
+      skills: current.skills.map((skill) => {
+        const resource = resources.find((item) => pathInside(item.path, skill.filePath))
+        const metadata = resource?.metadata || metadataByPath.get(normalizedPath(skill.filePath))
+        return metadata
+          ? { ...skill, sourceInfo: { ...(skill.sourceInfo || {}), ...metadata } }
+          : skill
+      }),
+    }
+  }
+
   async createResourceLoader(
     cwd = this.cwd,
     { includeDisabled = false, appendSystemPrompt = '' } = {},
   ) {
     const settingsManager = this.getSettingsManager(cwd)
+    const resources = await this.resolveSkillResources(cwd)
     const loader = await createDefaultResourceLoader({
       cwd,
       agentDir: this.agentDir,
       ...(settingsManager ? { settingsManager } : {}),
       ...(this.extensionFactories.length ? { extensionFactories: this.extensionFactories } : {}),
-      skillsOverride: (current) => this.applySkillOverrides(current, { includeDisabled }),
+      noSkills: true,
+      additionalSkillPaths: resources.map((item) => item.path),
+      skillsOverride: (current) =>
+        this.applySkillOverrides(this.applyResourceMetadata(current, resources), {
+          includeDisabled,
+        }),
       ...(appendSystemPrompt
         ? { appendSystemPromptOverride: (base) => [...base, appendSystemPrompt] }
         : {}),
@@ -254,17 +286,50 @@ export class SkillsService {
   }
 
   async resolveSkillResources(cwd = this.cwd) {
+    let resources = []
     try {
       const manager = await this.packageManager(cwd)
       const resolved = await manager.resolve()
-      return resolved.skills
+      resources = resolved.skills
         .filter((item) => item.enabled)
         .map((item) => ({ ...item, path: mapSkillResourcePath(item) }))
-        .filter((item) => item.path)
+        .filter((item) => item.path && item.metadata?.source !== 'auto')
     } catch {
-      // SettingsManager may not be ready during early bootstrap; fall back to default skill roots.
-      return []
+      // SettingsManager may not be ready during early bootstrap; Pisper roots still load directly.
     }
+
+    const defaults = [
+      {
+        path: this.skillsDir,
+        enabled: true,
+        metadata: {
+          source: 'auto',
+          scope: 'user',
+          origin: 'top-level',
+          baseDir: this.agentDir,
+        },
+      },
+      {
+        path: projectSkillsDir(cwd),
+        enabled: true,
+        metadata: {
+          source: 'auto',
+          scope: 'project',
+          origin: 'top-level',
+          baseDir: join(resolve(cwd), '.pisper'),
+        },
+      },
+    ].filter((item) => existsSync(item.path))
+
+    const seen = new Set()
+    return [...resources, ...defaults]
+      .sort((left, right) => skillResourceRank(left) - skillResourceRank(right))
+      .filter((item) => {
+        const key = normalizedPath(item.path)
+        if (seen.has(key)) return false
+        seen.add(key)
+        return true
+      })
   }
 
   async discover(cwd = this.cwd) {
@@ -273,22 +338,11 @@ export class SkillsService {
       cwd,
       agentDir: this.agentDir,
       skillPaths: resources.map((item) => item.path),
-      // package resolve already auto-discovers user/project skill roots when settings are available.
-      includeDefaults: resources.length === 0,
+      includeDefaults: false,
     })
-    const metadataByPath = new Map(
-      resources.map((item) => [normalizedPath(item.path), item.metadata || {}]),
-    )
-    const scoped = {
-      ...loaded,
-      skills: loaded.skills.map((skill) => {
-        const metadata = metadataByPath.get(normalizedPath(skill.filePath))
-        return metadata
-          ? { ...skill, sourceInfo: { ...(skill.sourceInfo || {}), ...metadata } }
-          : skill
-      }),
-    }
-    return this.applySkillOverrides(scoped, { includeDisabled: true })
+    return this.applySkillOverrides(this.applyResourceMetadata(loaded, resources), {
+      includeDisabled: true,
+    })
   }
 
   async publicSkill(skill, cwd = this.cwd) {
@@ -350,6 +404,10 @@ export class SkillsService {
     const globalSkills = skills.filter((skill) => skill.sourceInfo?.scope !== 'project')
     return {
       cwd: resolve(cwd),
+      locations: {
+        global: this.skillsDir,
+        project: projectSkillsDir(cwd),
+      },
       skills,
       diagnostics: discovered.diagnostics.map((item) => ({
         type: item.type,

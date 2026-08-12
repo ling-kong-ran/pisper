@@ -6,6 +6,7 @@ build
 coverage
 package-lock.json
 .agents
+.pisper/skills
 .worktrees
 docs
 public

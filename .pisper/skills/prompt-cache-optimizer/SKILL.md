@@ -34,7 +34,7 @@ When no provider tokenizer is available, use Pisper's conservative estimate of `
 Run the bundled baseline helper from the repository root:
 
 ```bash
-node .agents/skills/prompt-cache-optimizer/scripts/measure-tool-overhead.mjs
+node .pisper/skills/prompt-cache-optimizer/scripts/measure-tool-overhead.mjs
 ```
 
 ## Optimization workflow

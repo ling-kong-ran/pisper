@@ -223,15 +223,31 @@ test('skills dashboard separates global skills from the requested project worksp
     'global-helper',
     'Available in every project.',
   )
+  await writeSkill(join(agentDir, 'skills', 'shared-helper'), 'shared-helper', 'Global version.')
   await writeSkill(
-    join(projectA, '.agents', 'skills', 'project-a-helper'),
+    join(projectA, '.pisper', 'skills', 'project-a-helper'),
     'project-a-helper',
     'Available only in project A.',
   )
   await writeSkill(
-    join(projectB, '.agents', 'skills', 'project-b-helper'),
+    join(projectA, '.pisper', 'skills', 'shared-helper'),
+    'shared-helper',
+    'Project version.',
+  )
+  await writeSkill(
+    join(projectB, '.pisper', 'skills', 'project-b-helper'),
     'project-b-helper',
     'Available only in project B.',
+  )
+  await writeSkill(
+    join(projectA, '.agents', 'skills', 'legacy-agents-helper'),
+    'legacy-agents-helper',
+    'Must not be loaded by Pisper.',
+  )
+  await writeSkill(
+    join(projectA, '.pi', 'skills', 'legacy-pi-helper'),
+    'legacy-pi-helper',
+    'Must not be loaded by Pisper.',
   )
 
   const service = new SkillsService({
@@ -244,9 +260,13 @@ test('skills dashboard separates global skills from the requested project worksp
 
   const dashboardA = await service.dashboard({ cwd: projectA, force: true })
   assert.equal(dashboardA.cwd, projectA)
+  assert.deepEqual(dashboardA.locations, {
+    global: join(agentDir, 'skills'),
+    project: join(projectA, '.pisper', 'skills'),
+  })
   assert.deepEqual(
     new Set(dashboardA.skills.map((skill) => skill.name)),
-    new Set(['global-helper', 'project-a-helper']),
+    new Set(['global-helper', 'shared-helper', 'project-a-helper']),
   )
   assert.equal(
     dashboardA.skills.find((skill) => skill.name === 'global-helper')?.sourceInfo?.scope,
@@ -256,18 +276,30 @@ test('skills dashboard separates global skills from the requested project worksp
     dashboardA.skills.find((skill) => skill.name === 'project-a-helper')?.sourceInfo?.scope,
     'project',
   )
+  assert.equal(
+    dashboardA.skills.find((skill) => skill.name === 'shared-helper')?.description,
+    'Project version.',
+  )
+  assert.equal(
+    dashboardA.skills.some((skill) => skill.name === 'legacy-agents-helper'),
+    false,
+  )
+  assert.equal(
+    dashboardA.skills.some((skill) => skill.name === 'legacy-pi-helper'),
+    false,
+  )
   assert.equal(dashboardA.counts.global, 1)
-  assert.equal(dashboardA.counts.project, 1)
+  assert.equal(dashboardA.counts.project, 2)
 
   const dashboardB = await service.dashboard({ cwd: projectB, force: true })
   assert.deepEqual(
     new Set(dashboardB.skills.map((skill) => skill.name)),
-    new Set(['global-helper', 'project-b-helper']),
+    new Set(['global-helper', 'shared-helper', 'project-b-helper']),
   )
   assert.equal(
     dashboardB.skills.some((skill) => skill.name === 'project-a-helper'),
     false,
   )
-  assert.equal(dashboardB.counts.global, 1)
+  assert.equal(dashboardB.counts.global, 2)
   assert.equal(dashboardB.counts.project, 1)
 })

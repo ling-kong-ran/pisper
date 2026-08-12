@@ -32,7 +32,7 @@ This skill is for screenshot refresh work only. Do not run it during ordinary im
 ### 1. Start an isolated dev instance
 
 ```bash
-node .agents/skills/screenshot-studio/scripts/start-isolated-server.mjs
+node .pisper/skills/screenshot-studio/scripts/start-isolated-server.mjs
 ```
 
 This starts `runtime/index.mjs` on port `5180` with a fresh agent data dir under `generated/screenshot-agent/` and waits for `/api/health`. It prints the PID. Re-run it to restart (it kills the previous instance).
@@ -40,7 +40,7 @@ This starts `runtime/index.mjs` on port `5180` with a fresh agent data dir under
 ### 2. Seed fictional demo data
 
 ```bash
-node .agents/skills/screenshot-studio/scripts/seed-demo-data.mjs
+node .pisper/skills/screenshot-studio/scripts/seed-demo-data.mjs
 ```
 
 Creates through the real runtime APIs (never by editing the UI): six sessions, three with injected conversation transcripts, three empty; link + generated-image assets; a memory space with nodes; schedules; workflows (one published); and a configured OpenAI-compatible provider. Writes the created ids to `generated/screenshot-run/state.json`.
@@ -48,7 +48,7 @@ Creates through the real runtime APIs (never by editing the UI): six sessions, t
 ### 2b. Restart the isolated instance
 
 ```bash
-node .agents/skills/screenshot-studio/scripts/start-isolated-server.mjs
+node .pisper/skills/screenshot-studio/scripts/start-isolated-server.mjs
 ```
 
 Run it again after seeding. API-created sessions live in memory only; restarting drops the pending entries so the JSONL transcripts become the single source of truth (message counts and conversation text).
@@ -56,7 +56,7 @@ Run it again after seeding. API-created sessions live in memory only; restarting
 ### 3. Capture every page
 
 ```bash
-node .agents/skills/screenshot-studio/scripts/capture-screenshots.mjs
+node .pisper/skills/screenshot-studio/scripts/capture-screenshots.mjs
 ```
 
 Visits every route referenced by `docs/index.html` and `docs/show.html`, applies the localStorage presets, opens the split dock via the real tab context menu, selects the memory space, and saves `generated/screenshot-run/*.png`.
@@ -64,7 +64,7 @@ Visits every route referenced by `docs/index.html` and `docs/show.html`, applies
 ### 4. Verify and replace
 
 ```bash
-node .agents/skills/screenshot-studio/scripts/verify-screenshots.mjs
+node .pisper/skills/screenshot-studio/scripts/verify-screenshots.mjs
 ```
 
 Asserts every expected shot exists at `2558x1380`, then copies them into `docs/shots/`. Confirm `docs/index.html` width/height attributes still match. Do not commit without the user's request.

@@ -26,7 +26,12 @@ type Skill = EntityRecord & {
 }
 
 type SkillPackage = EntityRecord & { source: string; scope?: string; installed?: boolean }
-type SkillsData = EntityRecord & { cwd?: string; skills: Skill[]; packages?: SkillPackage[] }
+type SkillsData = EntityRecord & {
+  cwd?: string
+  locations?: { global?: string; project?: string }
+  skills: Skill[]
+  packages?: SkillPackage[]
+}
 type SkillsPageProps = {
   notify: Notify
   query?: string
@@ -357,6 +362,7 @@ export function SkillsPage({
               globalSkills,
               allGlobalSkills,
               t('skills:skillsPage.noGlobalSkills'),
+              data?.locations?.global || '~/.pisper/agent/skills',
             )}
           {filter !== 'global' &&
             renderSkillScope(
@@ -364,7 +370,8 @@ export function SkillsPage({
               projectSkills,
               allProjectSkills,
               t('skills:skillsPage.noProjectSkills'),
-              data?.cwd || '',
+              data?.locations?.project ||
+                (data?.cwd ? `${data.cwd.replace(/[\\/]$/, '')}/.pisper/skills` : ''),
             )}
         </Panel>
         <Panel>

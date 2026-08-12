@@ -6,9 +6,9 @@ import test from 'node:test'
 import { formatSkillsForPrompt, loadSkills } from '@earendil-works/pi-coding-agent'
 
 const execFileAsync = promisify(execFile)
-const skillPath = resolve('.agents/skills/prompt-cache-optimizer/SKILL.md')
+const skillPath = resolve('.pisper/skills/prompt-cache-optimizer/SKILL.md')
 const scriptPath = resolve(
-  '.agents/skills/prompt-cache-optimizer/scripts/measure-tool-overhead.mjs',
+  '.pisper/skills/prompt-cache-optimizer/scripts/measure-tool-overhead.mjs',
 )
 
 test('prompt cache optimizer skill is hidden from default model context and remains explicitly invocable', () => {
