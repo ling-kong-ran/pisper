@@ -57,6 +57,11 @@ async function optionalFile(filePath) {
   }
 }
 
+// Tauri embeds dist as-is. Rebuild and audit it here so a prior dev server
+// cannot leak development JSX into an otherwise successful installer.
+await run(process.execPath, [path.join(root, 'scripts', 'build-frontend.mjs')])
+await run(process.execPath, [path.join(root, 'scripts', 'check-bundle-budget.mjs')])
+
 const desktopPackage = JSON.parse(
   await readFile(path.join(root, 'src-tauri', 'desktop-package.json'), 'utf8'),
 )

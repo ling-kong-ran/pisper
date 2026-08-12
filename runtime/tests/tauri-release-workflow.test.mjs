@@ -97,6 +97,17 @@ test('Windows test harnesses reuse the valid Tauri resource without replacing bi
   assert.doesNotMatch(binary, /pisper_test_resource/)
 })
 
+test('desktop packaging rebuilds and audits production assets before invoking Tauri', async () => {
+  const packager = await readFile('scripts/package-tauri-release.mjs', 'utf8')
+  const frontendBuild = packager.indexOf("path.join(root, 'scripts', 'build-frontend.mjs')")
+  const bundleAudit = packager.indexOf("path.join(root, 'scripts', 'check-bundle-budget.mjs')")
+  const tauriBuild = packager.indexOf("const buildArgs = [tauriCli, 'build'")
+
+  assert.ok(frontendBuild >= 0)
+  assert.ok(bundleAudit > frontendBuild)
+  assert.ok(tauriBuild > bundleAudit)
+})
+
 test('Windows GNU packages carry the WebView2 loader through an explicit Rust target', async () => {
   const [packager, staging] = await Promise.all([
     readFile('scripts/package-tauri-release.mjs', 'utf8'),
