@@ -185,6 +185,8 @@
   "focusSession.autoCompactionThresholdAboutPercent": "Auto-compaction threshold: about {percent}%",
   "focusSession.automaticContextCompactionIsDisabled": "Automatic context compaction is disabled",
   "focusSession.cannotSwitchWhileTheAgentIsRunning": "Cannot switch while the agent is running",
+  "focusSession.changeDirectory": "Change folder",
+  "focusSession.changeWorkingDirectoryWorkspace": "Change working directory: {workspace}",
   "focusSession.chatActions": "Chat actions",
   "focusSession.closeTab": "Close tab",
   "focusSession.compactContextNow": "Compact context now",
@@ -314,6 +316,7 @@
   "focusSession.waitingForInput": "Waiting for input",
   "focusSession.reviewThisContentAndSuggestImprovements": "Review the following content, identify issues, and suggest improvements:",
   "focusSession.writeTests": "Write tests",
+  "focusSession.workingDirectory": "Working directory",
   "focusSession.writeUnitTestsForTheFollowingCode": "Write unit tests for the following code:",
   "focusSession.writeWhatYouWantToAccomplishShiftEnterForANewLine": "Write what you want to accomplish; Shift + Enter for a new line"
 }

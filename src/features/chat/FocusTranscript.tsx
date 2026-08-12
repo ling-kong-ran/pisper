@@ -9,11 +9,12 @@ import {
   type ReactNode,
   type UIEvent,
 } from 'react'
-import { AlertTriangle, ArrowDown, RefreshCw } from 'lucide-react'
+import { AlertTriangle, ArrowDown, FolderOpen, RefreshCw } from 'lucide-react'
 import type { I18nValues } from '@/app/i18n'
 import { useI18n } from '@/app/use-i18n'
 import { BrandLogo } from '@/components/BrandLogo'
 import { useAutoScroll } from '@/hooks/useAutoScroll'
+import { workspaceName } from '@/lib/format'
 import type { ChatMessage, EntityRecord, Plan } from '@/types/chat'
 import PlanBoard from './PlanBoard'
 import { activityScrollVersion } from './run-activity'
@@ -48,8 +49,11 @@ type FocusTranscriptProps = {
   runNotice?: string
   error?: string
   scrollRequest?: number
+  cwd?: string
+  switchingCwd?: boolean
   onLoadOlder?: () => Promise<boolean> | boolean
   onPromptSelect: (prompt: string) => void
+  onWorkspace: () => void
 }
 
 function WelcomeFallback({ children, title }: { children: ReactNode; title: string }) {
@@ -122,10 +126,13 @@ export function FocusTranscript({
   runNotice,
   error,
   scrollRequest,
+  cwd,
+  switchingCwd,
   onLoadOlder,
   onPromptSelect,
+  onWorkspace,
 }: FocusTranscriptProps) {
-  const { t } = useI18n()
+  const { t, language } = useI18n()
   const prependSnapshot = useRef<TranscriptPrependSnapshot | null>(null)
   const transcriptPrefixRef = useRef<HTMLDivElement>(null)
   const lastMessage = messages[messages.length - 1]
@@ -206,6 +213,22 @@ export function FocusTranscript({
   const welcomeContent = (
     <>
       <p>{t('chat:focusSession.readyToWorkWithTheCurrentDirectoryAndHelpCompleteTheTask')}</p>
+      <button
+        type="button"
+        className="welcome-workspace"
+        data-target-cursor
+        title={cwd}
+        aria-label={t('chat:focusSession.changeWorkingDirectoryWorkspace', {
+          workspace: cwd || workspaceName(cwd, language),
+        })}
+        onClick={onWorkspace}
+        disabled={switchingCwd}
+      >
+        {switchingCwd ? <RefreshCw className="spin" size={14} /> : <FolderOpen size={14} />}
+        <span>{t('chat:focusSession.workingDirectory')}</span>
+        <strong>{workspaceName(cwd, language)}</strong>
+        <small>{t('chat:focusSession.changeDirectory')}</small>
+      </button>
       <div className="welcome-chips">
         {welcomeChips(t).map((chip) => (
           <button

@@ -38,6 +38,25 @@ test('composer is the sole persistent Agent run status surface', async () => {
   assert.match(styles, /\.focus-session\.has-conversation \.focus-composer-status\.idle/)
 })
 
+test('new chats expose their working directory in the welcome surface', async () => {
+  const [focus, transcript, styles, chinese, english] = await Promise.all([
+    readFile('src/features/chat/FocusSession.tsx', 'utf8'),
+    readFile('src/features/chat/FocusTranscript.tsx', 'utf8'),
+    readFile('src/index.css', 'utf8'),
+    readFile('src/locales/zh-CN/chat.json', 'utf8'),
+    readFile('src/locales/en-US/chat.json', 'utf8'),
+  ])
+  assert.match(focus, /cwd=\{cwd\}/)
+  assert.match(focus, /onWorkspace=\{onWorkspace\}/)
+  assert.match(transcript, /className="welcome-workspace"/)
+  assert.match(transcript, /workspaceName\(cwd, language\)/)
+  assert.match(styles, /\.welcome-workspace \{[^}]*background: transparent;/)
+  assert.match(styles, /@container \(max-width: 470px\)[\s\S]*\.welcome-workspace/)
+  assert.doesNotMatch(focus, /className="workspace-chip"/)
+  assert.match(chinese, /"focusSession\.workingDirectory": "工作目录"/)
+  assert.match(english, /"focusSession\.workingDirectory": "Working directory"/)
+})
+
 test('conversation layout keeps Pisper identity without a persistent avatar card', async () => {
   const [focus, message, transcript, styles] = await Promise.all([
     readFile('src/features/chat/FocusSession.tsx', 'utf8'),

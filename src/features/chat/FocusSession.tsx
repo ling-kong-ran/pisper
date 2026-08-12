@@ -245,17 +245,6 @@ export function FocusSession({
     <Panel className={`focus-session ${hasConversation ? 'has-conversation' : 'is-empty'}`}>
       {!hasConversation && (
         <div className="card-head">
-          <div className="session-runtime-meta">
-            <button
-              className="workspace-chip"
-              title={cwd}
-              onClick={onWorkspace}
-              disabled={streaming || switchingCwd}
-            >
-              <FolderOpen size={11} />
-              {workspaceName(cwd, language)}
-            </button>
-          </div>
           <div className="focus-session-head-actions">
             <SessionActionsMenu
               session={session}
@@ -295,8 +284,11 @@ export function FocusSession({
         runNotice={runNotice}
         error={error}
         scrollRequest={scrollRequest}
+        cwd={cwd}
+        switchingCwd={switchingCwd}
         onLoadOlder={onLoadOlder}
         onPromptSelect={applyWelcomeChip}
+        onWorkspace={onWorkspace}
       />
 
       <form className="focus-composer-shell" onSubmit={submit}>

@@ -185,6 +185,8 @@
   "focusSession.autoCompactionThresholdAboutPercent": "自动压缩阈值约 {percent}%",
   "focusSession.automaticContextCompactionIsDisabled": "自动上下文压缩未启用",
   "focusSession.cannotSwitchWhileTheAgentIsRunning": "Agent 运行期间不能切换",
+  "focusSession.changeDirectory": "更改目录",
+  "focusSession.changeWorkingDirectoryWorkspace": "更改工作目录：{workspace}",
   "focusSession.chatActions": "会话操作",
   "focusSession.closeTab": "关闭标签",
   "focusSession.compactContextNow": "立即压缩上下文",
@@ -314,6 +316,7 @@
   "focusSession.waitingForInput": "等待输入",
   "focusSession.reviewThisContentAndSuggestImprovements": "检查以下内容，找出问题并提出改进建议：",
   "focusSession.writeTests": "写单测",
+  "focusSession.workingDirectory": "工作目录",
   "focusSession.writeUnitTestsForTheFollowingCode": "为以下代码编写单元测试：",
   "focusSession.writeWhatYouWantToAccomplishShiftEnterForANewLine": "写下你想完成的事，Shift + Enter 换行"
 }
