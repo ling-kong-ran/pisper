@@ -153,23 +153,56 @@ function setNested(target, path, value) {
   current[path.at(-1)] = value
 }
 
+function resolveTomlTable(target, path, arrayTable) {
+  let current = target
+  for (const [index, key] of path.entries()) {
+    const last = index === path.length - 1
+    if (last && arrayTable) {
+      if (current[key] === undefined) current[key] = []
+      if (!Array.isArray(current[key])) throw new SyntaxError('TOML table type conflicts')
+      const entry = {}
+      current[key].push(entry)
+      return entry
+    }
+    if (current[key] === undefined) current[key] = {}
+    if (Array.isArray(current[key])) {
+      const entry = current[key].at(-1)
+      if (!entry || typeof entry !== 'object') throw new SyntaxError('Invalid TOML array table')
+      current = entry
+    } else {
+      if (!current[key] || typeof current[key] !== 'object')
+        throw new SyntaxError('TOML table type conflicts')
+      current = current[key]
+    }
+  }
+  return current
+}
+
 export function parseCodexToml(input) {
   const result = {}
-  let table = []
+  let table = result
   for (const rawLine of String(input || '').split(/\r?\n/)) {
     const line = stripTomlComment(rawLine).trim()
     if (!line) continue
-    if (line.startsWith('[') && line.endsWith(']')) {
-      if (line.startsWith('[['))
-        throw new SyntaxError('TOML array tables are not supported in provider configuration')
-      table = tomlKeyParts(line.slice(1, -1))
+    if (line.startsWith('[[')) {
+      if (!line.endsWith(']]')) throw new SyntaxError('Invalid TOML array table')
+      const path = tomlKeyParts(line.slice(2, -2))
+      if (!path.length) throw new SyntaxError('Invalid TOML array table')
+      table = resolveTomlTable(result, path, true)
+      continue
+    }
+    if (line.startsWith('[')) {
+      if (!line.endsWith(']')) throw new SyntaxError('Invalid TOML table')
+      const path = tomlKeyParts(line.slice(1, -1))
+      if (!path.length) throw new SyntaxError('Invalid TOML table')
+      table = resolveTomlTable(result, path, false)
       continue
     }
     const assignment = tomlAssignmentIndex(line)
     if (assignment < 0) throw new SyntaxError('Invalid TOML assignment')
     const key = tomlKeyParts(line.slice(0, assignment))
     if (!key.length) throw new SyntaxError('Invalid TOML key')
-    setNested(result, [...table, ...key], parseTomlValue(line.slice(assignment + 1)))
+    setNested(table, key, parseTomlValue(line.slice(assignment + 1)))
   }
   return result
 }

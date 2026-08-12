@@ -41,6 +41,10 @@ test('provider discovery reads Codex and Claude configuration without exposing p
       'base_url = "https://codex.example.test/v1"',
       'wire_api = "responses"',
       'env_key = "CODEX_COMPANY_TOKEN"',
+      '',
+      '[[skills.config]]',
+      'path = "/Users/example/.codex/skills/company/SKILL.md"',
+      'enabled = false',
     ].join('\n'),
     'utf8',
   )
@@ -111,6 +115,35 @@ test('Codex TOML parser supports quoted provider tables and inline values', () =
     'X-Client': 'pisper',
     'X-Mode': 'test',
   })
+})
+
+test('Codex TOML parser accepts unrelated array tables from current desktop configurations', () => {
+  const parsed = parseCodexToml(
+    [
+      'model_provider = "custom"',
+      'model = "gpt-5.5"',
+      '[model_providers.custom]',
+      'base_url = "https://icode.example.test/v1"',
+      'requires_openai_auth = true',
+      'wire_api = "responses"',
+      '[plugins."documents@openai-primary-runtime"]',
+      'enabled = true',
+      '[[skills.config]]',
+      'path = "/Users/example/.codex/skills/one/SKILL.md"',
+      'enabled = false',
+      '[[skills.config]]',
+      'path = "/Users/example/.codex/skills/two/SKILL.md"',
+      'enabled = true',
+    ].join('\n'),
+  )
+
+  assert.equal(parsed.model, 'gpt-5.5')
+  assert.equal(parsed.model_providers.custom.wire_api, 'responses')
+  assert.equal(parsed.plugins['documents@openai-primary-runtime'].enabled, true)
+  assert.deepEqual(parsed.skills.config, [
+    { path: '/Users/example/.codex/skills/one/SKILL.md', enabled: false },
+    { path: '/Users/example/.codex/skills/two/SKILL.md', enabled: true },
+  ])
 })
 
 test('runtime imports provider definitions and embedded configuration credentials without overwriting conflicts', async (t) => {
