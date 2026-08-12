@@ -108,8 +108,12 @@ function WorkflowSettings({
               <Switch
                 size="sm"
                 checked={draft.notifications.includes(id)}
-                disabled={!catalog.notificationTargets[id]?.enabled}
                 aria-label={notificationTargetLabel(id, t)}
+                title={
+                  catalog.notificationTargets[id]?.enabled
+                    ? t('workflows:workflowsPage.notificationChannelConfigured')
+                    : t('workflows:workflowsPage.notificationChannelNotConfigured')
+                }
                 onCheckedChange={() => onToggleNotification(id)}
               />
             </div>

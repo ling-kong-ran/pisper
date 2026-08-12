@@ -361,6 +361,8 @@ fn create_main_window(app: &tauri::App, ready: &SidecarReady) -> Result<(), Stri
     let new_window_app = app.handle().clone();
 
     WebviewWindowBuilder::new(app, "main", WebviewUrl::External(url))
+        // Tauri's native Windows file-drop handler intercepts HTML5 drag events used by React Flow.
+        .disable_drag_drop_handler()
         .title("Pisper")
         .inner_size(1440.0, 920.0)
         .min_inner_size(980.0, 680.0)

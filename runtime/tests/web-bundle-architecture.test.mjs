@@ -73,6 +73,17 @@ test('desktop terminal reattaches its xterm runtime after the panel host is remo
   assert.match(terminal, /existing\.resizeObserver\.observe\(host\)/)
 })
 
+test('workflow notification targets stay selectable before channel setup', async () => {
+  const inspector = await readFile('src/features/workflows/WorkflowNodeInspector.tsx', 'utf8')
+  const notificationSwitch = inspector.match(
+    /<Switch\s+size="sm"[\s\S]*?onCheckedChange=\{\(\) => onToggleNotification\(id\)\}/,
+  )?.[0]
+
+  assert.ok(notificationSwitch)
+  assert.doesNotMatch(notificationSwitch, /disabled=/)
+  assert.match(notificationSwitch, /catalog\.notificationTargets\[id\]\?\.enabled/)
+})
+
 test('route code and route-specific vendor styles remain lazy', async () => {
   const [router, routeElements, main, chat, workflows, styles] = await Promise.all([
     readFile('src/app/router.tsx', 'utf8'),

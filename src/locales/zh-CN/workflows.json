@@ -5,6 +5,8 @@
   "workflowsPage.fileNode": "文件",
   "workflowsPage.mcpNode": "MCP",
   "workflowsPage.notificationNode": "通知",
+  "workflowsPage.notificationChannelConfigured": "渠道已配置",
+  "workflowsPage.notificationChannelNotConfigured": "渠道尚未配置，可先选择并稍后在通知设置中配置",
   "workflowsPage.conditionNode": "判断",
   "workflowsPage.parallelNode": "并行",
   "workflowsPage.approvalNode": "审批",

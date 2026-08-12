@@ -50,6 +50,16 @@ test('new desktop shells use component updates while legacy clients retain relea
   assert.match(updateHook, /legacyShellUpdateRef\.current/)
 })
 
+test('main desktop window leaves HTML5 drag and drop to the webview', async () => {
+  const library = await readFile('src-tauri/src/lib.rs', 'utf8')
+  const mainWindow = library.slice(
+    library.indexOf('WebviewWindowBuilder::new(app, "main"'),
+    library.indexOf('fn show_main_window'),
+  )
+
+  assert.match(mainWindow, /\.disable_drag_drop_handler\(\)/)
+})
+
 test('closing the macOS main window keeps it reopenable from the Dock', async () => {
   const library = await readFile('src-tauri/src/lib.rs', 'utf8')
 

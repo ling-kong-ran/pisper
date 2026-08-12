@@ -5,6 +5,8 @@
   "workflowsPage.fileNode": "File",
   "workflowsPage.mcpNode": "MCP",
   "workflowsPage.notificationNode": "Notification",
+  "workflowsPage.notificationChannelConfigured": "Channel configured",
+  "workflowsPage.notificationChannelNotConfigured": "Channel not configured; you can select it now and configure notifications later",
   "workflowsPage.conditionNode": "Condition",
   "workflowsPage.parallelNode": "Parallel",
   "workflowsPage.approvalNode": "Approval",
