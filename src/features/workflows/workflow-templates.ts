@@ -123,6 +123,7 @@ export function createWorkflowNode(
     x,
     y,
     model: null,
+    executionMode: 'full-access',
     retries: 0,
     timeoutMinutes: 20,
     failurePolicy: 'stop',

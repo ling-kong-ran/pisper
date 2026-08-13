@@ -45,7 +45,13 @@ test('workflows persist and execute Agent nodes in order with completion notific
     nodes: [
       { id: 'trigger', kind: 'trigger', label: '手动触发' },
       { id: 'test', kind: 'prompt', label: '运行测试', prompt: '运行测试' },
-      { id: 'report', kind: 'prompt', label: '生成报告', prompt: '生成报告' },
+      {
+        id: 'report',
+        kind: 'prompt',
+        label: '生成报告',
+        prompt: '生成报告',
+        executionMode: 'workspace-write',
+      },
       { id: 'notify', kind: 'notification', label: '通知' },
     ],
   })
@@ -60,7 +66,7 @@ test('workflows persist and execute Agent nodes in order with completion notific
   assert.equal(prompts[0].executionMode, 'full-access')
   assert.equal(prompts[0].isolatedContext, true)
   assert.equal(prompts[1].sessionId, 'workflow-session')
-  assert.equal(prompts[1].executionMode, 'full-access')
+  assert.equal(prompts[1].executionMode, 'workspace-write')
   assert.equal(prompts[1].isolatedContext, true)
   assert.equal(completed.completedNodes, 4)
   assert.equal(completed.summary, '完成 2')
@@ -76,6 +82,8 @@ test('workflows persist and execute Agent nodes in order with completion notific
   await restored.init()
   assert.equal(restored.getState().workflows[0].name, '发布检查')
   assert.equal(restored.getState().workflows[0].edges.length, 3)
+  assert.equal(restored.getState().workflows[0].nodes[1].executionMode, 'full-access')
+  assert.equal(restored.getState().workflows[0].nodes[2].executionMode, 'workspace-write')
   await service.dispose()
   await restored.dispose()
   await rm(directory, { recursive: true, force: true })

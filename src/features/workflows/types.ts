@@ -13,6 +13,7 @@ export const WORKFLOW_NODE_KINDS = [
 export type NodeKind = (typeof WORKFLOW_NODE_KINDS)[number]
 export type NotificationTarget = 'browser' | 'feishu' | 'weixin'
 export type WorkflowInputType = 'string' | 'number' | 'boolean' | 'text'
+export type WorkflowExecutionMode = 'read-only' | 'workspace-write' | 'full-access'
 
 export type WorkflowInput = {
   id: string
@@ -32,6 +33,7 @@ export type WorkflowNode = {
   x: number
   y: number
   model: { provider: string; model: string } | null
+  executionMode: WorkflowExecutionMode
   retries: number
   timeoutMinutes: number
   failurePolicy: 'stop' | 'skip'

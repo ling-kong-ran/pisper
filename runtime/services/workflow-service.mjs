@@ -22,6 +22,7 @@ const AGENT_KINDS = new Set(['prompt', 'skill', 'file', 'mcp'])
 const NOTIFICATION_TARGETS = new Set(['browser', 'feishu', 'weixin'])
 const FAILURE_POLICIES = new Set(['stop', 'skip'])
 const OUTPUT_FORMATS = new Set(['text', 'json'])
+const WORKFLOW_EXECUTION_MODES = new Set(['read-only', 'workspace-write', 'full-access'])
 const CONDITION_OPERATORS = new Set([
   'exists',
   'not_exists',
@@ -88,6 +89,9 @@ function normalizeNode(node, index) {
     x: Math.max(0, Math.min(4000, Number(node?.x) || 0)),
     y: Math.max(0, Math.min(4000, Number(node?.y) || 0)),
     model: normalizeModel(node?.model),
+    executionMode: WORKFLOW_EXECUTION_MODES.has(node?.executionMode)
+      ? node.executionMode
+      : 'full-access',
     retries: Math.max(0, Math.min(3, Number(node?.retries) || 0)),
     timeoutMinutes: Math.max(1, Math.min(240, Number(node?.timeoutMinutes) || 20)),
     failurePolicy: FAILURE_POLICIES.has(node?.failurePolicy) ? node.failurePolicy : 'stop',
@@ -801,7 +805,7 @@ export class WorkflowService {
           cwd: workflow.cwd,
           title: `工作流 · ${workflow.name}`,
           model: node.model || workflow.model,
-          executionMode: 'full-access',
+          executionMode: node.executionMode,
           isolatedContext: true,
           requestedToolNames: node.requestedToolNames,
           onSession: (sessionId) => {

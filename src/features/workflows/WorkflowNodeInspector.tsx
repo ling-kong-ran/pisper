@@ -19,6 +19,7 @@ import type {
   NotificationTarget,
   Workflow,
   WorkflowEdge,
+  WorkflowExecutionMode,
   WorkflowNode,
   WorkflowInputType,
   WorkflowRun,
@@ -32,6 +33,24 @@ const NOTIFICATION_TARGETS = {
   browser: { Icon: Bell },
   feishu: { Icon: Bot },
   weixin: { Icon: MessageCircle },
+}
+
+const WORKFLOW_EXECUTION_MODES: WorkflowExecutionMode[] = [
+  'read-only',
+  'workspace-write',
+  'full-access',
+]
+
+function executionModeLabel(mode: WorkflowExecutionMode, t: WorkflowTranslate) {
+  if (mode === 'read-only') return t('workflows:workflowsPage.readOnly')
+  if (mode === 'workspace-write') return t('workflows:workflowsPage.workspaceWrite')
+  return t('workflows:workflowsPage.fullAccess')
+}
+
+function executionModeHelp(mode: WorkflowExecutionMode, t: WorkflowTranslate) {
+  if (mode === 'read-only') return t('workflows:workflowsPage.readOnlyHelp')
+  if (mode === 'workspace-write') return t('workflows:workflowsPage.workspaceWriteHelp')
+  return t('workflows:workflowsPage.fullAccessHelp')
 }
 
 function notificationTargetLabel(target: NotificationTarget, t: WorkflowTranslate) {
@@ -505,6 +524,27 @@ function SelectedNode({
             </div>
             {['prompt', 'skill', 'file', 'mcp'].includes(node.kind) && (
               <>
+                <label className="field-label">
+                  {t('workflows:workflowsPage.executionMode')}
+                  <span className="select-wrap">
+                    <AppSelect
+                      value={node.executionMode}
+                      onChange={(event) =>
+                        onUpdateNode({
+                          executionMode: event.target.value as WorkflowExecutionMode,
+                        })
+                      }
+                    >
+                      {WORKFLOW_EXECUTION_MODES.map((mode) => (
+                        <option value={mode} key={mode}>
+                          {executionModeLabel(mode, t)}
+                        </option>
+                      ))}
+                    </AppSelect>
+                    <ChevronDown size={13} />
+                  </span>
+                  <small>{executionModeHelp(node.executionMode, t)}</small>
+                </label>
                 {node.kind === 'skill' && (
                   <label className="field-label">
                     Skill
