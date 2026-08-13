@@ -38,6 +38,36 @@ test('permission modes progress from ask to automatic to ignored checks', () => 
   assert.match(
     permissionRequirement({
       mode: 'ask',
+      executionMode: 'approval-required',
+      cwd,
+      toolName: 'skill_create',
+      args: { name: 'project-helper', scope: 'project' },
+    }).reason,
+    /需要确认/,
+  )
+  assert.match(
+    permissionRequirement({
+      mode: 'auto',
+      executionMode: 'workspace-write',
+      cwd,
+      toolName: 'skill_create',
+      args: { name: 'global-helper', scope: 'global' },
+    }).reason,
+    /完全访问模式/,
+  )
+  assert.equal(
+    permissionRequirement({
+      mode: 'ignore',
+      executionMode: 'full-access',
+      cwd,
+      toolName: 'skill_create',
+      args: { name: 'global-helper', scope: 'global' },
+    }),
+    null,
+  )
+  assert.match(
+    permissionRequirement({
+      mode: 'ask',
       cwd,
       toolName: 'spawn_agent',
       args: { message: 'inspect the repository' },

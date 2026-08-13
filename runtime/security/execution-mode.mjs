@@ -10,7 +10,7 @@ export const EXECUTION_MODES = new Set([
 export const DEFAULT_EXECUTION_MODE = 'approval-required'
 
 const TOOL_RISK = new Map(TOOL_CATALOG.map((tool) => [tool.id, tool.risk]))
-const APPROVAL_TOOLS = new Set(['edit', 'write', 'bash'])
+const APPROVAL_TOOLS = new Set(['edit', 'write', 'bash', 'skill_create'])
 const INTERNAL_APPROVAL_TOOLS = new Set(['update_plan'])
 const INTERNAL_READ_ONLY_TOOLS = new Set([
   'discover_tools',

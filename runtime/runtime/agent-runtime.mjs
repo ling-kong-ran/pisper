@@ -720,6 +720,7 @@ export class AgentRuntimeService extends AgentRuntimeFacade {
     await this.toolPlugins.ensureDefaultTools(['mcp_list', 'mcp_manage'], 'mcpManagementToolsV1')
     await this.toolPlugins.ensureDefaultTools(['web_search'], 'webSearchToolV1')
     await this.toolPlugins.ensureDefaultTools(['browser_automation'], 'browserAutomationToolV1')
+    await this.toolPlugins.ensureDefaultTools(['skill_create'], 'skillCreateToolV1')
 
     stage('model-runtime')
     await this.reloadModelRuntime()
@@ -1668,6 +1669,8 @@ export class AgentRuntimeService extends AgentRuntimeFacade {
           browserAutomationService: this.browserAutomation,
           browserSessionId: runtimeSessionId,
           visualGenerationService: this.visualGeneration,
+          skillsRuntime: this.skills,
+          onSkillsChanged: () => this.invalidateSessionRuntimes(),
           onGeneratedFile: ({ path }) =>
             runtimeValue && runtimeSession
               ? this.recordGeneratedFile(runtimeSession.sessionId, runtimeValue, path)

@@ -7,6 +7,7 @@ import {
   createBrowserAutomationTool,
   manifest as browserAutomationManifest,
 } from './browser-automation.mjs'
+import { createSkillCreateTool, manifest as skillCreateManifest } from './skill-create.mjs'
 
 // Multi-agent tools are internal runtime tools (like goal/plan) and are intentionally
 // omitted from the plugins catalog so they stay hidden from the frontend tool list.
@@ -14,6 +15,7 @@ export const APP_TOOL_CATALOG = [
   webSearchManifest,
   browserAutomationManifest,
   visualGenerateManifest,
+  skillCreateManifest,
   ...memoryManifests,
   ...mcpManifests,
 ]
@@ -23,6 +25,7 @@ const APP_TOOL_FACTORIES = {
   [webSearchManifest.id]: createWebSearchTool,
   [browserAutomationManifest.id]: createBrowserAutomationTool,
   [visualGenerateManifest.id]: createVisualGenerateTool,
+  [skillCreateManifest.id]: createSkillCreateTool,
   ...memoryFactories,
   ...mcpFactories,
 }

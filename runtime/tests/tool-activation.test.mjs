@@ -16,6 +16,7 @@ const available = [
   'memory_remember',
   'mcp_list',
   'mcp_manage',
+  'skill_create',
   'spawn_agent',
   'list_agents',
   'send_message',

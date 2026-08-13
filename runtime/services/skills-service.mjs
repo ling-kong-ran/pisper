@@ -1,6 +1,16 @@
 import { createHash } from 'node:crypto'
 import { existsSync, statSync } from 'node:fs'
-import { cp, lstat, mkdir, readFile, readdir, rm } from 'node:fs/promises'
+import {
+  cp,
+  lstat,
+  mkdir,
+  readFile,
+  readdir,
+  realpath,
+  rm,
+  rmdir,
+  writeFile,
+} from 'node:fs/promises'
 import { homedir } from 'node:os'
 import { basename, dirname, extname, isAbsolute, join, relative, resolve, sep } from 'node:path'
 import {
@@ -16,6 +26,9 @@ const MAX_SKILLS_PER_INSTALL = 100
 const MAX_SKILL_FILES = 10_000
 const MAX_SKILL_BYTES = 256 * 1024 * 1024
 const DASHBOARD_CACHE_TTL_MS = 3_000
+const MAX_SKILL_DESCRIPTION_CHARS = 1_024
+const MAX_SKILL_INSTRUCTIONS_CHARS = 100_000
+const SKILL_NAME_PATTERN = /^[a-z0-9]+(?:-[a-z0-9]+)*$/
 
 function clone(value) {
   return JSON.parse(JSON.stringify(value))
@@ -92,6 +105,21 @@ async function pathExists(path) {
 function pathInside(root, target) {
   const result = relative(resolve(root), resolve(target))
   return result === '' || (!result.startsWith(`..${sep}`) && result !== '..' && !isAbsolute(result))
+}
+
+async function canonicalPath(input) {
+  let target = resolve(input)
+  const suffix = []
+  while (!(await pathExists(target))) {
+    const parent = dirname(target)
+    if (parent === target) break
+    suffix.unshift(basename(target))
+    target = parent
+  }
+  try {
+    target = await realpath(target)
+  } catch {}
+  return resolve(target, ...suffix)
 }
 
 function projectSkillsDir(cwd) {
@@ -204,6 +232,7 @@ export class SkillsService {
     this.extensionFactories = extensionFactories
     this.state = { version: SKILLS_STATE_VERSION, overrides: {}, installed: {} }
     this.write = Promise.resolve()
+    this.createWrite = Promise.resolve()
     this.dashboardCache = null
     this.dashboardInflight = new Map()
   }
@@ -467,6 +496,76 @@ export class SkillsService {
     await this.save()
     this.invalidateDashboardCache()
     return this.publicSkill(skill, cwd)
+  }
+
+  async create(input = {}, { cwd = this.cwd } = {}) {
+    const task = () => this.createValidatedSkill(input, cwd)
+    this.createWrite = this.createWrite.catch(() => {}).then(task)
+    return this.createWrite
+  }
+
+  async createValidatedSkill(input, cwd) {
+    const name = String(input.name || '').trim()
+    const description = String(input.description || '').trim()
+    const instructions = String(input.instructions || '').trim()
+    const requestedScope = String(input.scope || 'project')
+    if (!['project', 'global'].includes(requestedScope))
+      throw new Error('技能作用域必须为 project 或 global。')
+    const scope = requestedScope
+    if (!name || name.length > 64 || !SKILL_NAME_PATTERN.test(name)) {
+      throw new Error(
+        '技能名称必须为 1-64 位小写字母、数字或连字符，且不能以连字符开头、结尾或包含连续连字符。',
+      )
+    }
+    if (!description) throw new Error('技能描述不能为空。')
+    if (description.length > MAX_SKILL_DESCRIPTION_CHARS)
+      throw new Error(`技能描述不能超过 ${MAX_SKILL_DESCRIPTION_CHARS} 个字符。`)
+    if (!instructions) throw new Error('技能说明不能为空。')
+    if (instructions.length > MAX_SKILL_INSTRUCTIONS_CHARS)
+      throw new Error(`技能说明不能超过 ${MAX_SKILL_INSTRUCTIONS_CHARS} 个字符。`)
+
+    const existing = (await this.discover(cwd)).skills.find((skill) => skill.name === name)
+    if (existing) throw new Error(`技能 ${name} 已存在，不能覆盖。`)
+
+    const root = scope === 'global' ? this.skillsDir : projectSkillsDir(cwd)
+    if (scope === 'project' && !pathInside(await canonicalPath(cwd), await canonicalPath(root))) {
+      throw new Error('项目技能目录通过符号链接指向当前工作目录之外，无法创建技能。')
+    }
+    const directory = join(root, name)
+    if (await pathExists(directory)) throw new Error(`技能目录 ${directory} 已存在，不能覆盖。`)
+    await mkdir(root, { recursive: true })
+    try {
+      await mkdir(directory)
+    } catch (error) {
+      if (error?.code === 'EEXIST') throw new Error(`技能目录 ${directory} 已存在，不能覆盖。`)
+      throw error
+    }
+
+    const filePath = join(directory, 'SKILL.md')
+    const content = `---\nname: ${name}\ndescription: ${JSON.stringify(description)}\n---\n\n${instructions}\n`
+    try {
+      await writeFile(filePath, content, { encoding: 'utf8', flag: 'wx' })
+      const discovered = await this.discover(cwd)
+      const skill = discovered.skills.find(
+        (item) => item.name === name && normalizedPath(item.filePath) === normalizedPath(filePath),
+      )
+      if (!skill) {
+        const diagnostic = discovered.diagnostics.find(
+          (item) => normalizedPath(item.path || '') === normalizedPath(filePath),
+        )
+        throw new Error(diagnostic?.message || '创建后的 SKILL.md 未通过 Agent Skills 发现与验证。')
+      }
+      this.invalidateDashboardCache()
+      return {
+        ...(await this.publicSkill(skill, cwd)),
+        scope,
+        directory,
+      }
+    } catch (error) {
+      await rm(filePath, { force: true }).catch(() => {})
+      await rmdir(directory).catch(() => {})
+      throw error
+    }
   }
 
   async resolveInstallSkills(source, cwd) {

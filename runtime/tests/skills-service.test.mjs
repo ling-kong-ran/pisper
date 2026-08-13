@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict'
-import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises'
+import { mkdir, mkdtemp, readFile, rm, symlink, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import test from 'node:test'
@@ -72,6 +72,128 @@ test('skills service discovers Pi skills and applies persistent enable/invocatio
   )
   assert.equal(restoredSkill.enabled, true)
   assert.equal(restoredSkill.modelInvocationEnabled, false)
+})
+
+test('skills service creates validated project and global skills without overwriting', async (t) => {
+  const directory = await mkdtemp(join(tmpdir(), 'pisper-skill-create-'))
+  t.after(() => rm(directory, { recursive: true, force: true }))
+  const agentDir = join(directory, 'agent')
+  const cwd = join(directory, 'workspace')
+  await mkdir(cwd, { recursive: true })
+
+  const service = new SkillsService({
+    path: join(agentDir, 'pisper-skills.json'),
+    agentDir,
+    cwd,
+    getSettingsManager: () => SettingsManager.inMemory({ enableSkillCommands: true }),
+  })
+  await service.init()
+
+  const project = await service.create({
+    name: 'release-helper',
+    description: 'Creates release notes from commits. Use for product releases.',
+    instructions: '# Release Helper\n\n1. Inspect commits.\n2. Write concise notes.',
+  })
+  assert.equal(project.scope, 'project')
+  assert.equal(project.filePath, join(cwd, '.pisper', 'skills', 'release-helper', 'SKILL.md'))
+  assert.equal(project.command, '/skill:release-helper')
+  assert.match(
+    await readFile(project.filePath, 'utf8'),
+    /^---\nname: release-helper\ndescription: "Creates release notes from commits\. Use for product releases\."\n---/,
+  )
+
+  const global = await service.create({
+    name: 'global-helper',
+    description: 'Applies a reusable workflow. Use across projects.',
+    instructions: '# Global Helper\n\nFollow the reusable workflow.',
+    scope: 'global',
+  })
+  assert.equal(global.scope, 'global')
+  assert.equal(global.filePath, join(agentDir, 'skills', 'global-helper', 'SKILL.md'))
+
+  await assert.rejects(
+    service.create({
+      name: 'release-helper',
+      description: 'Replacement description.',
+      instructions: '# Replacement',
+    }),
+    /已存在.*不能覆盖/,
+  )
+  assert.match(await readFile(project.filePath, 'utf8'), /Inspect commits/)
+})
+
+test('skills service rejects invalid create input and occupied directories', async (t) => {
+  const directory = await mkdtemp(join(tmpdir(), 'pisper-skill-create-invalid-'))
+  t.after(() => rm(directory, { recursive: true, force: true }))
+  const agentDir = join(directory, 'agent')
+  const cwd = join(directory, 'workspace')
+  await mkdir(join(cwd, '.pisper', 'skills', 'occupied'), { recursive: true })
+
+  const service = new SkillsService({
+    path: join(agentDir, 'pisper-skills.json'),
+    agentDir,
+    cwd,
+    getSettingsManager: () => SettingsManager.inMemory(),
+  })
+  await service.init()
+
+  await assert.rejects(
+    service.create({ name: '../escape', description: 'Invalid.', instructions: '# Invalid' }),
+    /技能名称必须/,
+  )
+  await assert.rejects(
+    service.create({
+      name: 'invalid-scope',
+      description: 'Invalid.',
+      instructions: '# Invalid',
+      scope: 'shared',
+    }),
+    /作用域必须为 project 或 global/,
+  )
+  await assert.rejects(
+    service.create({ name: 'empty-description', instructions: '# Invalid' }),
+    /技能描述不能为空/,
+  )
+  await assert.rejects(
+    service.create({ name: 'empty-instructions', description: 'Invalid.' }),
+    /技能说明不能为空/,
+  )
+  await assert.rejects(
+    service.create({ name: 'occupied', description: 'Occupied.', instructions: '# Occupied' }),
+    /目录.*已存在.*不能覆盖/,
+  )
+})
+
+test('skills service rejects project Skill directories linked outside the workspace', async (t) => {
+  const directory = await mkdtemp(join(tmpdir(), 'pisper-skill-create-link-'))
+  t.after(() => rm(directory, { recursive: true, force: true }))
+  const agentDir = join(directory, 'agent')
+  const cwd = join(directory, 'workspace')
+  const outside = join(directory, 'outside')
+  await mkdir(join(cwd, '.pisper'), { recursive: true })
+  await mkdir(outside)
+  await symlink(
+    outside,
+    join(cwd, '.pisper', 'skills'),
+    process.platform === 'win32' ? 'junction' : 'dir',
+  )
+
+  const service = new SkillsService({
+    path: join(agentDir, 'pisper-skills.json'),
+    agentDir,
+    cwd,
+    getSettingsManager: () => SettingsManager.inMemory(),
+  })
+  await service.init()
+
+  await assert.rejects(
+    service.create({
+      name: 'escaped-helper',
+      description: 'Must remain in the workspace.',
+      instructions: '# Escaped Helper',
+    }),
+    /符号链接指向当前工作目录之外/,
+  )
 })
 
 test('skills service installs Pi package skill resources through DefaultPackageManager-compatible resolution', async (t) => {
