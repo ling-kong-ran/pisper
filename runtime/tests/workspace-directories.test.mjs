@@ -120,6 +120,8 @@ test('workspace selection uses the desktop picker or the server-backed Web brows
   assert.match(shell, /plugin\(tauri_plugin_dialog::init\(\)\)/)
   assert.match(shell, /desktop_bridge::desktop_pick_directory/)
   assert.match(shell, /desktop_bridge::desktop_pick_files/)
+  assert.match(command, /pub async fn desktop_pick_directory/)
+  assert.match(command, /pub async fn desktop_pick_files/)
   assert.match(command, /app\.dialog\(\)\.file\(\)/)
   assert.match(command, /blocking_pick_folder\(\)/)
   assert.match(command, /blocking_pick_files\(\)/)

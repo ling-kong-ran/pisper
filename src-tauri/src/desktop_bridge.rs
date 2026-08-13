@@ -140,7 +140,7 @@ pub async fn desktop_pick_directory(
 }
 
 #[tauri::command]
-pub fn desktop_pick_files(app: AppHandle, initial_directory: Option<String>) -> Vec<String> {
+pub async fn desktop_pick_files(app: AppHandle, initial_directory: Option<String>) -> Vec<String> {
     let mut dialog = app.dialog().file();
     if let Some(initial_directory) = initial_directory.filter(|value| !value.trim().is_empty()) {
         let path = PathBuf::from(initial_directory);
