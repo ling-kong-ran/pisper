@@ -168,6 +168,7 @@ function App() {
       maximizeTerminal: t('terminal:terminalPanel.maximizeTerminal'),
       openTerminal: t('terminal:terminalPanel.openTerminal'),
       usesActiveSessionWorkspace: t('terminal:terminalPanel.usesActiveSessionWorkspace'),
+      orphanedTerminal: t('terminal:terminalPanel.orphanedTerminal'),
       starting: t('terminal:terminalPanel.starting'),
       processExited: (code: number | null) =>
         t('terminal:terminalPanel.processExited', { code: code ?? '-' }),
@@ -368,11 +369,11 @@ function App() {
     })()
   }, [appDialog, setConfigSection, startupReady, t])
 
-  const resolveActiveSessionCwd = useCallback(async () => {
-    if (!activeSessionId) return ''
+  const resolveSessionCwd = useCallback(async (sessionId: string) => {
+    if (!sessionId) return ''
     const data = await apiJson<{ sessions?: Array<{ id: string; cwd?: string }> }>('/api/sessions')
-    return data.sessions?.find((session) => session.id === activeSessionId)?.cwd || ''
-  }, [activeSessionId])
+    return data.sessions?.find((session) => session.id === sessionId)?.cwd || ''
+  }, [])
 
   const useAsset = useCallback(
     (asset: ChatAttachment) => {
@@ -597,7 +598,8 @@ function App() {
                   open={terminalOpen}
                   height={terminalHeight}
                   labels={terminalLabels}
-                  resolveActiveSessionCwd={resolveActiveSessionCwd}
+                  activeSessionId={activeSessionId}
+                  resolveSessionCwd={resolveSessionCwd}
                   onOpenChange={setTerminalOpen}
                   onHeightChange={setTerminalHeight}
                 />

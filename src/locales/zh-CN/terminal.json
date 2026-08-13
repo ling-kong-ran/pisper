@@ -8,6 +8,7 @@
   "terminalPanel.maximizeTerminal": "增大终端面板",
   "terminalPanel.openTerminal": "打开终端",
   "terminalPanel.usesActiveSessionWorkspace": "新终端使用当前活动会话的工作目录",
+  "terminalPanel.orphanedTerminal": "未关联",
   "terminalPanel.starting": "正在启动 Shell...",
   "terminalPanel.processExited": "进程已退出，代码 {code}"
 }

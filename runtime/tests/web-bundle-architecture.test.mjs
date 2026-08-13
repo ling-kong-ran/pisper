@@ -73,6 +73,30 @@ test('desktop terminal reattaches its xterm runtime after the panel host is remo
   assert.match(terminal, /existing\.resizeObserver\.observe\(host\)/)
 })
 
+test('desktop terminals are scoped to the active chat session without stopping hidden processes', async () => {
+  const [app, terminal, scope] = await Promise.all([
+    readFile('src/App.tsx', 'utf8'),
+    readFile('src/features/terminal/TerminalPanel.tsx', 'utf8'),
+    readFile('src/features/terminal/terminal-session-scope.ts', 'utf8'),
+  ])
+
+  assert.match(app, /activeSessionId=\{activeSessionId\}/)
+  assert.match(app, /resolveSessionCwd=\{resolveSessionCwd\}/)
+  assert.match(terminal, /sessionId: string/)
+  assert.match(terminal, /const visibleTabs = visibleSessionTerminals\(tabs, activeSessionId\)/)
+  assert.match(
+    terminal,
+    /const activeId = activeSessionTerminalId\(tabs, activeIds, activeSessionId\)/,
+  )
+  assert.match(
+    terminal,
+    /setActiveIds\(\(current\) => \(\{ \.\.\.current, \[sessionId\]: id \}\)\)/,
+  )
+  assert.match(terminal, /visibleTabs\.map\(\(tab\) =>/)
+  assert.match(scope, /terminal\.sessionId === activeSessionId/)
+  assert.doesNotMatch(terminal, /activeSessionId[\s\S]{0,100}terminalClose/)
+})
+
 test('opening the desktop terminal preserves a shrinkable chat workbench above it', async () => {
   const [terminal, styles] = await Promise.all([
     readFile('src/features/terminal/TerminalPanel.tsx', 'utf8'),
@@ -84,6 +108,28 @@ test('opening the desktop terminal preserves a shrinkable chat workbench above i
   assert.match(styles, /\.page-content\.page-chat \{ display: flex;/)
   assert.match(styles, /\.chat-layout \{[^}]*min-height: 0;[^}]*flex: 1;/)
   assert.doesNotMatch(styles, /\.chat-layout \{[^}]*min-height: 510px;/)
+})
+
+test('desktop terminal keeps its collapsed row and follows the active color theme', async () => {
+  const [terminal, styles] = await Promise.all([
+    readFile('src/features/terminal/TerminalPanel.tsx', 'utf8'),
+    readFile('src/index.css', 'utf8'),
+  ])
+
+  assert.match(styles, /--terminal-bg: #f8fafc;/)
+  assert.match(styles, /:root\[data-theme='dark'\][\s\S]*?--terminal-bg: #111318;/)
+  assert.match(styles, /\.terminal-panel \{[^}]*flex: 0 0 35px;/)
+  assert.match(
+    styles,
+    /\.terminal-toolbar \{[^}]*border-bottom: 1px solid var\(--terminal-border\)/,
+  )
+  assert.match(styles, /\.terminal-title,\.terminal-tab \{[^}]*color: var\(--terminal-muted\)/)
+  assert.match(
+    styles,
+    /\.terminal-xterm \.xterm \.xterm-viewport \{ background-color: var\(--terminal-bg\); \}/,
+  )
+  assert.match(terminal, /document\.documentElement\.dataset\.theme === 'dark'/)
+  assert.match(terminal, /background: color\('--terminal-bg'/)
 })
 
 test('workflow notifications separate system permission from external channel setup', async () => {

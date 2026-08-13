@@ -15,12 +15,21 @@ import type {
   DesktopTerminalProfile,
   DesktopTerminalCreated,
 } from '@/types/update'
+import { SESSIONS_UPDATED_EVENT } from '@/features/chat/events'
+import { apiJson } from '@/lib/api'
+import {
+  activeSessionTerminalId,
+  markOrphanedSessionTerminals,
+  visibleSessionTerminals,
+} from '@/features/terminal/terminal-session-scope'
 
 type TerminalTab = {
   id: string
   title: string
   profileId: string
   cwd: string
+  sessionId: string
+  orphaned: boolean
   status: 'starting' | 'running' | 'exited' | 'error'
   exitCode?: number | null
   error?: string
@@ -44,6 +53,7 @@ export type TerminalPanelLabels = {
   maximizeTerminal: string
   openTerminal: string
   usesActiveSessionWorkspace: string
+  orphanedTerminal: string
   starting: string
   processExited: (code: number | null) => string
 }
@@ -52,7 +62,8 @@ type TerminalPanelProps = {
   open: boolean
   height: number
   labels: TerminalPanelLabels
-  resolveActiveSessionCwd: () => Promise<string>
+  activeSessionId: string
+  resolveSessionCwd: (sessionId: string) => Promise<string>
   onOpenChange: (open: boolean) => void
   onHeightChange: (height: number) => void
 }
@@ -77,27 +88,50 @@ function maximumTerminalHeight(viewportHeight: number) {
 function terminalTheme() {
   const style = getComputedStyle(document.documentElement)
   const color = (name: string, fallback: string) => style.getPropertyValue(name).trim() || fallback
+  const dark = document.documentElement.dataset.theme === 'dark'
+  const ansi = dark
+    ? {
+        black: '#111318',
+        red: '#f87171',
+        green: '#86efac',
+        yellow: '#fde68a',
+        blue: '#93c5fd',
+        magenta: '#d8b4fe',
+        cyan: '#67e8f9',
+        white: '#e5e7eb',
+        brightBlack: '#6b7280',
+        brightRed: '#fca5a5',
+        brightGreen: '#bbf7d0',
+        brightYellow: '#fef08a',
+        brightBlue: '#bfdbfe',
+        brightMagenta: '#e9d5ff',
+        brightCyan: '#a5f3fc',
+        brightWhite: '#f9fafb',
+      }
+    : {
+        black: '#1f2937',
+        red: '#b91c1c',
+        green: '#15803d',
+        yellow: '#a16207',
+        blue: '#1d4ed8',
+        magenta: '#7e22ce',
+        cyan: '#0e7490',
+        white: '#64748b',
+        brightBlack: '#64748b',
+        brightRed: '#dc2626',
+        brightGreen: '#16a34a',
+        brightYellow: '#ca8a04',
+        brightBlue: '#2563eb',
+        brightMagenta: '#9333ea',
+        brightCyan: '#0891b2',
+        brightWhite: '#334155',
+      }
   return {
-    background: color('--terminal-bg', '#111318'),
-    foreground: color('--terminal-fg', '#e5e7eb'),
-    cursor: color('--terminal-cursor', '#7dd3fc'),
-    selectionBackground: color('--terminal-selection', '#334155'),
-    black: '#111318',
-    red: '#f87171',
-    green: '#86efac',
-    yellow: '#fde68a',
-    blue: '#93c5fd',
-    magenta: '#d8b4fe',
-    cyan: '#67e8f9',
-    white: '#e5e7eb',
-    brightBlack: '#6b7280',
-    brightRed: '#fca5a5',
-    brightGreen: '#bbf7d0',
-    brightYellow: '#fef08a',
-    brightBlue: '#bfdbfe',
-    brightMagenta: '#e9d5ff',
-    brightCyan: '#a5f3fc',
-    brightWhite: '#f9fafb',
+    background: color('--terminal-bg', dark ? '#111318' : '#f8fafc'),
+    foreground: color('--terminal-fg', dark ? '#e5e7eb' : '#1f2937'),
+    cursor: color('--terminal-cursor', dark ? '#7dd3fc' : '#1783ff'),
+    selectionBackground: color('--terminal-selection', dark ? '#334155' : '#bfdbfe'),
+    ...ansi,
   }
 }
 
@@ -115,26 +149,33 @@ export function TerminalPanel({
   open,
   height,
   labels,
-  resolveActiveSessionCwd,
+  activeSessionId,
+  resolveSessionCwd,
   onOpenChange,
   onHeightChange,
 }: TerminalPanelProps) {
   const bridge = window.pisperDesktop
   const [profiles, setProfiles] = useState<DesktopTerminalProfile[]>([])
   const [tabs, setTabs] = useState<TerminalTab[]>([])
-  const [activeId, setActiveId] = useState('')
+  const [activeIds, setActiveIds] = useState<Record<string, string>>({})
   const [profileMenuOpen, setProfileMenuOpen] = useState(false)
   const [panelError, setPanelError] = useState('')
   const hostsRef = useRef<Map<string, HTMLDivElement>>(new Map())
   const runtimesRef = useRef<Map<string, TerminalRuntime>>(new Map())
   const outputBufferRef = useRef<Map<string, Uint8Array[]>>(new Map())
   const liveTerminalIdsRef = useRef<Set<string>>(new Set())
-  const activeIdRef = useRef(activeId)
+  const activeIdRef = useRef('')
   const openRef = useRef(open)
+  const visibleTabs = visibleSessionTerminals(tabs, activeSessionId)
+  const activeId = activeSessionTerminalId(tabs, activeIds, activeSessionId)
   activeIdRef.current = activeId
   openRef.current = open
 
-  const activeTab = tabs.find((tab) => tab.id === activeId)
+  const activeTab = visibleTabs.find((tab) => tab.id === activeId)
+  const selectTerminal = useCallback(
+    (id: string) => setActiveIds((current) => ({ ...current, [activeSessionId]: id })),
+    [activeSessionId],
+  )
 
   useEffect(() => {
     if (!open) return
@@ -245,6 +286,24 @@ export function TerminalPanel({
   }, [activeId, mountRuntime, open])
 
   useEffect(() => {
+    const markDeletedSessions = () => {
+      void apiJson<{ sessions?: Array<{ id: string }> }>('/api/sessions')
+        .then((data) =>
+          setTabs((current) =>
+            markOrphanedSessionTerminals(
+              current,
+              (data.sessions || []).map((session) => session.id),
+              activeSessionId,
+            ),
+          ),
+        )
+        .catch(() => {})
+    }
+    window.addEventListener(SESSIONS_UPDATED_EVENT, markDeletedSessions)
+    return () => window.removeEventListener(SESSIONS_UPDATED_EVENT, markDeletedSessions)
+  }, [activeSessionId])
+
+  useEffect(() => {
     const observer = new MutationObserver(() => {
       for (const runtime of runtimesRef.current.values())
         runtime.terminal.options.theme = terminalTheme()
@@ -304,18 +363,21 @@ export function TerminalPanel({
       setProfileMenuOpen(false)
       setPanelError('')
       onOpenChange(true)
-      const cwd = await resolveActiveSessionCwd().catch(() => '')
+      const sessionId = activeSessionId
+      const cwd = await resolveSessionCwd(sessionId).catch(() => '')
       const id = terminalId()
       const tab: TerminalTab = {
         id,
         profileId: profile.id,
         title: terminalTitle(profile, cwd),
         cwd,
+        sessionId,
+        orphaned: false,
         status: 'starting',
       }
       liveTerminalIdsRef.current.add(id)
       setTabs((current) => [...current, tab])
-      setActiveId(id)
+      setActiveIds((current) => ({ ...current, [sessionId]: id }))
       await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()))
       const runtime = mountRuntime(id)
       runtime?.terminal.write(`\x1b[90m${labels.starting}\x1b[0m\r\n`)
@@ -360,6 +422,7 @@ export function TerminalPanel({
       }
     },
     [
+      activeSessionId,
       bridge,
       handleTerminalEvent,
       labels.starting,
@@ -367,7 +430,7 @@ export function TerminalPanel({
       onOpenChange,
       profiles,
       resizeRuntime,
-      resolveActiveSessionCwd,
+      resolveSessionCwd,
     ],
   )
 
@@ -378,13 +441,18 @@ export function TerminalPanel({
       disposeRuntime(id)
       outputBufferRef.current.delete(id)
       setTabs((current) => {
-        const index = current.findIndex((tab) => tab.id === id)
-        const next = current.filter((tab) => tab.id !== id)
-        setActiveId((currentActive) => {
-          if (currentActive !== id) return currentActive
-          return next[Math.min(index, next.length - 1)]?.id || ''
+        const closing = current.find((tab) => tab.id === id)
+        const visible = closing
+          ? visibleSessionTerminals(current, closing.sessionId).filter((tab) => tab.id !== id)
+          : []
+        setActiveIds((currentActive) => {
+          const next = { ...currentActive }
+          for (const [sessionId, terminalId] of Object.entries(next)) {
+            if (terminalId === id) next[sessionId] = visible[0]?.id || ''
+          }
+          return next
         })
-        return next
+        return current.filter((tab) => tab.id !== id)
       })
     },
     [bridge, disposeRuntime],
@@ -433,22 +501,24 @@ export function TerminalPanel({
         >
           <TerminalSquare size={15} />
           <span>{labels.terminal}</span>
-          {tabs.length > 0 && <small>{tabs.length}</small>}
+          {visibleTabs.length > 0 && <small>{visibleTabs.length}</small>}
           <ChevronDown className={open ? '' : '-rotate-90'} size={14} />
         </button>
         {open && (
           <div className="terminal-tabs" role="tablist">
-            {tabs.map((tab) => (
+            {visibleTabs.map((tab) => (
               <button
                 className={`terminal-tab ${activeId === tab.id ? 'active' : ''}`}
                 role="tab"
                 aria-selected={activeId === tab.id}
                 title={tab.cwd || tab.title}
-                onClick={() => setActiveId(tab.id)}
+                onClick={() => selectTerminal(tab.id)}
                 key={tab.id}
               >
                 <i data-status={tab.status} />
-                <span>{tab.title}</span>
+                <span>
+                  {tab.orphaned ? `${labels.orphanedTerminal} · ${tab.title}` : tab.title}
+                </span>
                 <X
                   size={13}
                   aria-label={labels.closeTerminal}
@@ -511,7 +581,7 @@ export function TerminalPanel({
       </div>
       {open && (
         <div className="terminal-content">
-          {!tabs.length ? (
+          {!visibleTabs.length ? (
             <button
               className="terminal-empty"
               onClick={() => void createTerminal()}
@@ -522,7 +592,7 @@ export function TerminalPanel({
               <span>{labels.usesActiveSessionWorkspace}</span>
             </button>
           ) : (
-            tabs.map((tab) => (
+            visibleTabs.map((tab) => (
               <div
                 className={`terminal-host ${activeId === tab.id ? 'active' : ''}`}
                 ref={(element) => {
