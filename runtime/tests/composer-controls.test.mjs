@@ -20,21 +20,53 @@ test('icon-only composer model control hides the Radix Select trigger content', 
   )
 })
 
-test('composer collapses low-frequency controls into an animated tool tray', async () => {
-  const [session, tray, styles] = await Promise.all([
+test('composer expands low-frequency controls horizontally with React Bits AnimatedContent', async () => {
+  const [session, tray, animatedContent, styles] = await Promise.all([
     readFile('src/features/chat/FocusSession.tsx', 'utf8'),
     readFile('src/features/chat/ComposerToolTray.tsx', 'utf8'),
+    readFile('src/components/react-bits/AnimatedContent.tsx', 'utf8'),
     readFile('src/index.css', 'utf8'),
   ])
 
   assert.match(session, /className={`composer-tools-trigger/)
   assert.match(session, /<ComposerToolTray[\s\S]*open={toolsOpen}/)
   assert.match(session, /aria-expanded={toolsOpen}/)
-  assert.match(tray, /import\('@\/components\/react-bits\/AnimatedList'\)/)
-  assert.match(tray, /<Suspense fallback={tray}>/)
-  assert.match(tray, /<AnimatedList/)
-  assert.match(styles, /\.composer-tool-tray \{[^}]*flex-wrap: wrap;/)
-  assert.match(styles, /\.focus-composer-footer \{[^}]*display: flex;/)
+  assert.match(tray, /import\('@\/components\/react-bits\/AnimatedContent'\)/)
+  assert.match(tray, /<Suspense fallback={null}>/)
+  assert.match(tray, /direction="horizontal"/)
+  assert.match(animatedContent, /width: direction === 'horizontal' \? 0 : 'auto'/)
+  assert.match(animatedContent, /useReducedMotion/)
+  assert.doesNotMatch(animatedContent, /<AnimatePresence initial={false}>/)
+  assert.match(styles, /\.composer-tool-tray \{[^}]*display: flex;/)
+  assert.match(
+    styles,
+    /\.composer-tool-tray \.command-palette-trigger \{[^}]*width: 38px;[^}]*min-width: 38px;/,
+  )
+  assert.match(
+    styles,
+    /\.composer-tool-tray \.command-palette-trigger kbd \{[^}]*clip-path: inset\(50%\);/,
+  )
+  assert.doesNotMatch(session, /<span>{t\('chat:focusSession.commands'\)}<\/span>/)
+  assert.doesNotMatch(
+    styles,
+    /\.composer-tool-tray \.command-palette-trigger \{[^}]*min-width: 112px;/,
+  )
+  assert.doesNotMatch(styles, /\.composer-tool-tray \{[^}]*flex-wrap: wrap;/)
+  assert.match(session, /<ExecutionModeSelect[\s\S]*<div className="focus-composer-quick-actions">/)
+  assert.match(session, /toolsOpen \? <ChevronsLeft[^:]+: <ChevronsRight/)
+  assert.match(
+    styles,
+    /\.focus-composer-footer\.tools-open \.focus-composer-quick-actions \{[^}]*flex: 1;/,
+  )
+  assert.doesNotMatch(
+    styles,
+    /\.focus-composer-footer\.tools-open \.focus-composer-secondary[^}]*display: none/,
+  )
+  assert.match(
+    session,
+    /className="focus-composer-status"[\s\S]*composer-workspace-status[\s\S]*<SessionUsageMetrics/,
+  )
+  assert.doesNotMatch(tray, /composer-workspace/)
 })
 
 test('composer exposes a session thinking-level control wired to the shared API', async () => {

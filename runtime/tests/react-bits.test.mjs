@@ -3,6 +3,7 @@ import { readFile } from 'node:fs/promises'
 import test from 'node:test'
 
 const COMPONENTS = [
+  'AnimatedContent',
   'AnimatedList',
   'AsciiText',
   'Aurora',

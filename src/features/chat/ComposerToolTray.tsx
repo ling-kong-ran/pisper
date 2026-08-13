@@ -1,8 +1,8 @@
 import { lazy, Suspense, type ReactNode } from 'react'
 
-const AnimatedList = lazy(() =>
-  import('@/components/react-bits/AnimatedList').then((module) => ({
-    default: module.AnimatedList,
+const AnimatedContent = lazy(() =>
+  import('@/components/react-bits/AnimatedContent').then((module) => ({
+    default: module.AnimatedContent,
   })),
 )
 
@@ -24,8 +24,19 @@ export function ComposerToolTray({
   ) : null
 
   return (
-    <Suspense fallback={tray}>
-      <AnimatedList className="composer-tool-tray-motion">{tray}</AnimatedList>
+    <Suspense fallback={null}>
+      <AnimatedContent
+        show={open}
+        direction="horizontal"
+        reverse
+        distance={18}
+        duration={0.24}
+        initialOpacity={0}
+        scale={0.96}
+        className="composer-tool-tray-motion"
+      >
+        {tray}
+      </AnimatedContent>
     </Suspense>
   )
 }

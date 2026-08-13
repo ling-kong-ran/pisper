@@ -1,11 +1,12 @@
 import { useEffect, useRef, useState, type FormEvent } from 'react'
 import {
   Braces,
+  ChevronsLeft,
+  ChevronsRight,
   Command,
   File,
   FolderOpen,
   Minimize2,
-  MoreHorizontal,
   Paperclip,
   RefreshCw,
   Send,
@@ -191,6 +192,9 @@ export function FocusSession({
   const promptRef = useRef<HTMLTextAreaElement>(null)
   const hasConversation = messages.length > 0
   const toolTrayId = `composer-tool-tray-${session.id}`
+  const quickActionsLabel = toolsOpen
+    ? t('chat:focusSession.collapseQuickActions')
+    : t('chat:focusSession.expandQuickActions')
 
   useEffect(() => {
     setGoalArmed(false)
@@ -389,115 +393,8 @@ export function FocusSession({
                 : t('chat:focusSession.writeWhatYouWantToAccomplishShiftEnterForANewLine')
             }
           />
-          <ComposerToolTray
-            open={toolsOpen}
-            label={t('chat:focusSession.moreTools')}
-            trayId={toolTrayId}
-          >
-            <button
-              type="button"
-              className="command-palette-trigger"
-              title={t('chat:focusSession.openCommandPaletteShortcut', {
-                shortcut: COMMAND_PALETTE_SHORTCUT,
-              })}
-              aria-label={t('chat:focusSession.openCommandPaletteShortcut', {
-                shortcut: COMMAND_PALETTE_SHORTCUT,
-              })}
-              onClick={requestCommandPalette}
-            >
-              <Command size={16} />
-              <span>{t('chat:focusSession.commands')}</span>
-              <kbd>{COMMAND_PALETTE_SHORTCUT}</kbd>
-            </button>
-            {hasConversation && (
-              <button
-                type="button"
-                className="composer-workspace"
-                title={cwd}
-                onClick={onWorkspace}
-                disabled={streaming || switchingCwd}
-              >
-                <FolderOpen size={14} />
-                <span>{workspaceName(cwd, language)}</span>
-              </button>
-            )}
-            <SessionThinkingSelect
-              value={thinkingLevel || 'medium'}
-              levels={availableThinkingLevels || []}
-              status={thinkingStatus}
-              message={thinkingMessage}
-              onChange={onThinkingLevelChange}
-              disabled={streaming || switchingThinking || switchingModel}
-            />
-            <GoalModeControl
-              goal={goal}
-              armed={goalArmed}
-              tokenBudget={goalTokenBudget}
-              onTokenBudgetChange={setGoalTokenBudget}
-              onSaveTokenBudget={(tokenBudget) => onGoalBudgetChange?.(tokenBudget)}
-              onChange={(enabled) => {
-                if (!enabled && goal?.status === 'active') void onGoalPause?.()
-                else setGoalArmed(enabled)
-              }}
-            />
-            <GitChangesControl sessionId={session.id} streaming={streaming} />
-            <button
-              type="button"
-              className="compact-context-trigger"
-              title={
-                streaming
-                  ? t('chat:focusSession.manualCompactionWaitForRun')
-                  : compactingManually || compaction?.active
-                    ? t('chat:focusSession.compactingContext')
-                    : t('chat:focusSession.compactContextNow')
-              }
-              aria-label={t('chat:focusSession.compactContextNow')}
-              disabled={
-                !onCompact ||
-                streaming ||
-                compactingManually ||
-                Boolean(compaction?.active) ||
-                messages.length === 0
-              }
-              onClick={() => void compactContext()}
-            >
-              {compactingManually || compaction?.active ? (
-                <RefreshCw className="spin" size={14} />
-              ) : (
-                <Minimize2 size={14} />
-              )}
-            </button>
-            {hasConversation && (
-              <div className="focus-composer-session-actions">
-                <SessionActionsMenu
-                  session={session}
-                  canSplit={canSplit}
-                  streaming={streaming}
-                  switchingCwd={switchingCwd}
-                  onSplitLeft={onSplitLeft}
-                  onSplitRight={onSplitRight}
-                  onSplitTop={onSplitTop}
-                  onSplitBottom={onSplitBottom}
-                  onClosePanel={onClosePanel}
-                  onWorkspace={onWorkspace}
-                  onRename={onRename}
-                />
-              </div>
-            )}
-          </ComposerToolTray>
-          <div className="focus-composer-footer">
+          <div className={`focus-composer-footer ${toolsOpen ? 'tools-open' : ''}`}>
             <div className="focus-composer-leading">
-              <button
-                type="button"
-                className={`composer-tools-trigger ${toolsOpen ? 'active' : ''}`}
-                title={t('chat:focusSession.moreTools')}
-                aria-label={t('chat:focusSession.moreTools')}
-                aria-expanded={toolsOpen}
-                aria-controls={toolTrayId}
-                onClick={() => setToolsOpen((open) => !open)}
-              >
-                <MoreHorizontal size={17} />
-              </button>
               <button
                 type="button"
                 className="resource-picker-trigger"
@@ -541,6 +438,102 @@ export function FocusSession({
                 disabled={switchingPermission}
               />
             </div>
+            <div className="focus-composer-quick-actions">
+              <button
+                type="button"
+                className={`composer-tools-trigger ${toolsOpen ? 'active' : ''}`}
+                title={quickActionsLabel}
+                aria-label={quickActionsLabel}
+                aria-expanded={toolsOpen}
+                aria-controls={toolTrayId}
+                onClick={() => setToolsOpen((open) => !open)}
+              >
+                {toolsOpen ? <ChevronsLeft size={17} /> : <ChevronsRight size={17} />}
+              </button>
+              <ComposerToolTray
+                open={toolsOpen}
+                label={t('chat:focusSession.quickActions')}
+                trayId={toolTrayId}
+              >
+                <button
+                  type="button"
+                  className="command-palette-trigger"
+                  title={t('chat:focusSession.openCommandPaletteShortcut', {
+                    shortcut: COMMAND_PALETTE_SHORTCUT,
+                  })}
+                  aria-label={t('chat:focusSession.openCommandPaletteShortcut', {
+                    shortcut: COMMAND_PALETTE_SHORTCUT,
+                  })}
+                  onClick={requestCommandPalette}
+                >
+                  <Command size={16} />
+                  <kbd>{COMMAND_PALETTE_SHORTCUT}</kbd>
+                </button>
+                <SessionThinkingSelect
+                  value={thinkingLevel || 'medium'}
+                  levels={availableThinkingLevels || []}
+                  status={thinkingStatus}
+                  message={thinkingMessage}
+                  onChange={onThinkingLevelChange}
+                  disabled={streaming || switchingThinking || switchingModel}
+                />
+                <GoalModeControl
+                  goal={goal}
+                  armed={goalArmed}
+                  tokenBudget={goalTokenBudget}
+                  onTokenBudgetChange={setGoalTokenBudget}
+                  onSaveTokenBudget={(tokenBudget) => onGoalBudgetChange?.(tokenBudget)}
+                  onChange={(enabled) => {
+                    if (!enabled && goal?.status === 'active') void onGoalPause?.()
+                    else setGoalArmed(enabled)
+                  }}
+                />
+                <GitChangesControl sessionId={session.id} streaming={streaming} />
+                <button
+                  type="button"
+                  className="compact-context-trigger"
+                  title={
+                    streaming
+                      ? t('chat:focusSession.manualCompactionWaitForRun')
+                      : compactingManually || compaction?.active
+                        ? t('chat:focusSession.compactingContext')
+                        : t('chat:focusSession.compactContextNow')
+                  }
+                  aria-label={t('chat:focusSession.compactContextNow')}
+                  disabled={
+                    !onCompact ||
+                    streaming ||
+                    compactingManually ||
+                    Boolean(compaction?.active) ||
+                    messages.length === 0
+                  }
+                  onClick={() => void compactContext()}
+                >
+                  {compactingManually || compaction?.active ? (
+                    <RefreshCw className="spin" size={14} />
+                  ) : (
+                    <Minimize2 size={14} />
+                  )}
+                </button>
+                {hasConversation && (
+                  <div className="focus-composer-session-actions">
+                    <SessionActionsMenu
+                      session={session}
+                      canSplit={canSplit}
+                      streaming={streaming}
+                      switchingCwd={switchingCwd}
+                      onSplitLeft={onSplitLeft}
+                      onSplitRight={onSplitRight}
+                      onSplitTop={onSplitTop}
+                      onSplitBottom={onSplitBottom}
+                      onClosePanel={onClosePanel}
+                      onWorkspace={onWorkspace}
+                      onRename={onRename}
+                    />
+                  </div>
+                )}
+              </ComposerToolTray>
+            </div>
             <div className="focus-composer-secondary">
               <ContextUsageIndicator
                 usage={contextUsage}
@@ -570,7 +563,24 @@ export function FocusSession({
             </button>
           </div>
         </div>
-        <SessionUsageMetrics usage={sessionUsage} plan={plan} />
+        <div className="focus-composer-status">
+          {hasConversation && (
+            <button
+              type="button"
+              className="composer-workspace-status"
+              title={cwd}
+              aria-label={t('chat:focusSession.changeWorkingDirectoryWorkspace', {
+                workspace: workspaceName(cwd, language),
+              })}
+              onClick={onWorkspace}
+              disabled={streaming || switchingCwd}
+            >
+              <FolderOpen size={12} />
+              <span>{workspaceName(cwd, language)}</span>
+            </button>
+          )}
+          <SessionUsageMetrics usage={sessionUsage} plan={plan} />
+        </div>
       </form>
       <ChatResourcePicker
         open={resourcePickerOpen}

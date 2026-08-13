@@ -2,7 +2,7 @@ import { useCallback, useEffect, useState } from 'react'
 import '@xyflow/react/dist/style.css'
 import { AlertTriangle, RefreshCw } from 'lucide-react'
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom'
-import { workflowPath } from '@/app/routes'
+import { PAGE_PATHS, workflowPath } from '@/app/routes'
 import { useI18n } from '@/app/use-i18n'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Card } from '@/components/ui/card'
@@ -188,6 +188,7 @@ export function WorkflowBuilder({
           onDeleteEdge={editor.removeSelectedEdge}
           onCopyNode={editor.copyNode}
           onDeleteNode={editor.deleteNode}
+          onOpenChannels={() => navigate(PAGE_PATHS.channels)}
         />
       </div>
     </div>

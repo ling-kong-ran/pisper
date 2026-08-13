@@ -73,15 +73,28 @@ test('desktop terminal reattaches its xterm runtime after the panel host is remo
   assert.match(terminal, /existing\.resizeObserver\.observe\(host\)/)
 })
 
-test('workflow notification targets stay selectable before channel setup', async () => {
-  const inspector = await readFile('src/features/workflows/WorkflowNodeInspector.tsx', 'utf8')
+test('workflow notifications require each target channel to be enabled', async () => {
+  const [inspector, editor, switchPrimitive] = await Promise.all([
+    readFile('src/features/workflows/WorkflowNodeInspector.tsx', 'utf8'),
+    readFile('src/features/workflows/useWorkflowEditor.ts', 'utf8'),
+    readFile('src/components/ui/switch.tsx', 'utf8'),
+  ])
   const notificationSwitch = inspector.match(
-    /<Switch\s+size="sm"[\s\S]*?onCheckedChange=\{\(\) => onToggleNotification\(id\)\}/,
+    /<Switch[\s\S]*?onCheckedChange=\{\(\) => onToggleNotification\(id\)\}/,
   )?.[0]
 
   assert.ok(notificationSwitch)
-  assert.doesNotMatch(notificationSwitch, /disabled=/)
-  assert.match(notificationSwitch, /catalog\.notificationTargets\[id\]\?\.enabled/)
+  assert.match(
+    notificationSwitch,
+    /checked=\{targetEnabled && draft\.notifications\.includes\(id\)\}/,
+  )
+  assert.match(notificationSwitch, /disabled=\{!targetEnabled\}/)
+  assert.doesNotMatch(notificationSwitch, /size="sm"/)
+  assert.match(inspector, /noNotificationChannelsEnabled/)
+  assert.match(inspector, /onOpenChannels/)
+  assert.match(editor, /!catalog\.notificationTargets\[target\]\?\.enabled/)
+  assert.match(editor, /notificationTargets\.filter/)
+  assert.match(switchPrimitive, /inline-flex min-h-0! shrink-0/)
 })
 
 test('settings navigation replaces the main sidebar instead of nesting in page content', async () => {

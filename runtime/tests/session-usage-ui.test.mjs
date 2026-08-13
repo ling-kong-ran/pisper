@@ -36,7 +36,7 @@ test('composer renders the metrics as a separate row below the input controls', 
 
   assert.match(
     focus,
-    /<\/div>\s*<SessionUsageMetrics usage=\{sessionUsage\} plan=\{plan\} \/>\s*<\/form>/,
+    /className="focus-composer-status"[\s\S]*composer-workspace-status[\s\S]*<SessionUsageMetrics usage=\{sessionUsage\} plan=\{plan\} \/>[\s\S]*<\/form>/,
   )
   assert.match(controls, /cacheHitRate/)
   assert.match(controls, /usage\?\.processedTokens/)

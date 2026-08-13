@@ -286,14 +286,14 @@ export function useWorkflowEditor({
 
   const toggleNotification = useCallback(
     (target: NotificationTarget) => {
-      if (!draft) return
+      if (!draft || !catalog.notificationTargets[target]?.enabled) return
       updateDraft({
         notifications: draft.notifications.includes(target)
           ? draft.notifications.filter((item) => item !== target)
           : [...draft.notifications, target],
       })
     },
-    [draft, updateDraft],
+    [catalog.notificationTargets, draft, updateDraft],
   )
 
   const saveWorkflow = useCallback(
@@ -302,7 +302,22 @@ export function useWorkflowEditor({
       setBusy(true)
       setError('')
       try {
-        const payload = { ...draft, status }
+        const enabledTargets = new Set(
+          Object.entries(catalog.notificationTargets)
+            .filter(([, target]) => target.enabled)
+            .map(([id]) => id),
+        )
+        const payload = {
+          ...draft,
+          status,
+          notifications: draft.notifications.filter((target) => enabledTargets.has(target)),
+          nodes: draft.nodes.map((node) => ({
+            ...node,
+            notificationTargets: node.notificationTargets.filter((target) =>
+              enabledTargets.has(target),
+            ),
+          })),
+        }
         const result = draft.id
           ? await apiJson<WorkflowMutationResult>(
               `/api/workflows/${encodeURIComponent(draft.id)}`,
@@ -332,7 +347,7 @@ export function useWorkflowEditor({
         setBusy(false)
       }
     },
-    [draft, notify, onCreated, t],
+    [catalog.notificationTargets, draft, notify, onCreated, t],
   )
 
   const runWorkflow = useCallback(async () => {

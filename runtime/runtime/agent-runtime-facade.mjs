@@ -8,6 +8,36 @@ import {
 
 export const ISOLATED_CONTEXT_BLOCKED_TOOLS = ['memory_search', 'memory_remember']
 
+export function enabledNotificationTargets(notificationSettings) {
+  return new Set([
+    ...(notificationSettings.browser?.enabled ? ['browser'] : []),
+    ...(notificationSettings.connections?.feishu?.enabled ? ['feishu'] : []),
+    ...(notificationSettings.connections?.weixin?.enabled ? ['weixin'] : []),
+  ])
+}
+
+export function filterWorkflowNotificationTargets(input, enabledTargets) {
+  if (!input || typeof input !== 'object') return input
+  return {
+    ...input,
+    notifications: Array.isArray(input.notifications)
+      ? input.notifications.filter((target) => enabledTargets.has(target))
+      : input.notifications,
+    nodes: Array.isArray(input.nodes)
+      ? input.nodes.map((node) =>
+          node && typeof node === 'object' && Array.isArray(node.notificationTargets)
+            ? {
+                ...node,
+                notificationTargets: node.notificationTargets.filter((target) =>
+                  enabledTargets.has(target),
+                ),
+              }
+            : node,
+        )
+      : input.nodes,
+  }
+}
+
 export class AgentRuntimeFacade {
   resolveDefaultModel() {
     return this.providerPreferences.resolveDefaultModel()
@@ -367,12 +397,19 @@ export class AgentRuntimeFacade {
   }
 
   async createWorkflow(input) {
-    const workflow = await this.workflows.create(input)
+    const notificationSettings = await this.notificationSettings.getState()
+    const workflow = await this.workflows.create(
+      filterWorkflowNotificationTargets(input, enabledNotificationTargets(notificationSettings)),
+    )
     return { workflow, state: await this.getWorkflows() }
   }
 
   async updateWorkflow(id, input) {
-    const workflow = await this.workflows.update(id, input)
+    const notificationSettings = await this.notificationSettings.getState()
+    const workflow = await this.workflows.update(
+      id,
+      filterWorkflowNotificationTargets(input, enabledNotificationTargets(notificationSettings)),
+    )
     return workflow ? { workflow, state: await this.getWorkflows() } : null
   }
 

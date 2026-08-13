@@ -1,3 +1,4 @@
+export { AnimatedContent } from './AnimatedContent'
 export { AnimatedList } from './AnimatedList'
 export { AsciiText } from './AsciiText'
 export { Aurora } from './Aurora'

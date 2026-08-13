@@ -1,5 +1,15 @@
-import { Bell, Bot, ChevronDown, Copy, MessageCircle, Plus, Trash2 } from 'lucide-react'
+import {
+  AlertTriangle,
+  Bell,
+  Bot,
+  ChevronDown,
+  Copy,
+  MessageCircle,
+  Plus,
+  Trash2,
+} from 'lucide-react'
 import { AppSelect } from '@/components/AppSelect'
+import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
@@ -35,13 +45,19 @@ function WorkflowSettings({
   t,
   onUpdateDraft,
   onToggleNotification,
+  onOpenChannels,
 }: {
   draft: Workflow
   catalog: WorkflowsData
   t: WorkflowTranslate
   onUpdateDraft: (patch: Partial<Workflow>) => void
   onToggleNotification: (target: NotificationTarget) => void
+  onOpenChannels: () => void
 }) {
+  const hasNotificationTarget = Object.values(catalog.notificationTargets).some(
+    (target) => target.enabled,
+  )
+
   return (
     <Card size="sm" className="workflow-card gap-0 py-0">
       <CardContent className="p-3.5">
@@ -218,10 +234,22 @@ function WorkflowSettings({
             </div>
           ))}
         </div>
+        {!hasNotificationTarget && (
+          <Alert className="workflow-notification-alert">
+            <AlertTriangle />
+            <AlertDescription>
+              {t('workflows:workflowsPage.noNotificationChannelsEnabled')}
+              <Button type="button" variant="link" size="sm" onClick={onOpenChannels}>
+                {t('workflows:workflowsPage.openChannelSettings')}
+              </Button>
+            </AlertDescription>
+          </Alert>
+        )}
         {(
           Object.entries(NOTIFICATION_TARGETS) as Array<[NotificationTarget, { Icon: typeof Bell }]>
         ).map(([id, target]) => {
           const Icon = target.Icon
+          const targetEnabled = Boolean(catalog.notificationTargets[id]?.enabled)
           return (
             <div className="toggle-line" key={id}>
               <span>
@@ -229,13 +257,13 @@ function WorkflowSettings({
                 {notificationTargetLabel(id, t)}
               </span>
               <Switch
-                size="sm"
-                checked={draft.notifications.includes(id)}
+                checked={targetEnabled && draft.notifications.includes(id)}
+                disabled={!targetEnabled}
                 aria-label={notificationTargetLabel(id, t)}
                 title={
-                  catalog.notificationTargets[id]?.enabled
-                    ? t('workflows:workflowsPage.notificationChannelConfigured')
-                    : t('workflows:workflowsPage.notificationChannelNotConfigured')
+                  targetEnabled
+                    ? t('workflows:workflowsPage.notificationChannelEnabled')
+                    : t('workflows:workflowsPage.notificationChannelNotEnabled')
                 }
                 onCheckedChange={() => onToggleNotification(id)}
               />
@@ -571,6 +599,7 @@ export function WorkflowNodeInspector({
   onDeleteEdge,
   onCopyNode,
   onDeleteNode,
+  onOpenChannels,
 }: {
   draft: Workflow
   catalog: WorkflowsData
@@ -585,6 +614,7 @@ export function WorkflowNodeInspector({
   onDeleteEdge: () => void
   onCopyNode: () => void
   onDeleteNode: () => void
+  onOpenChannels: () => void
 }) {
   return (
     <div className="detail-stack inspector">
@@ -594,6 +624,7 @@ export function WorkflowNodeInspector({
         t={t}
         onUpdateDraft={onUpdateDraft}
         onToggleNotification={onToggleNotification}
+        onOpenChannels={onOpenChannels}
       />
       {selectedEdge && (
         <SelectedConnection edge={selectedEdge} nodes={draft.nodes} t={t} onDelete={onDeleteEdge} />
