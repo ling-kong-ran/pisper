@@ -768,6 +768,8 @@ export class WorkflowService {
           cwd: workflow.cwd,
           title: `工作流 · ${workflow.name}`,
           model: node.model || workflow.model,
+          executionMode: 'full-access',
+          isolatedContext: true,
           requestedToolNames: node.requestedToolNames,
           onSession: (sessionId) => {
             activeSessionId = sessionId

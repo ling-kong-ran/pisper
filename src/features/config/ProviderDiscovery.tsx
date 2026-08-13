@@ -74,9 +74,11 @@ export function ProviderDiscovery({
       ? t('config:configPage.invalidConfigurationFileFormat')
       : item.code === 'unsupported_config'
         ? t('config:configPage.noImportableProviderConfigurationWasFound')
-        : item.code === 'file_too_large'
-          ? t('config:configPage.configurationFileIsTooLarge')
-          : t('config:configPage.unableToReadTheConfigurationFile')
+        : item.code === 'invalid_login_state'
+          ? t('config:configPage.incompleteLoginState')
+          : item.code === 'file_too_large'
+            ? t('config:configPage.configurationFileIsTooLarge')
+            : t('config:configPage.unableToReadTheConfigurationFile')
 
   return (
     <SettingsCard className="provider-discovery-panel">

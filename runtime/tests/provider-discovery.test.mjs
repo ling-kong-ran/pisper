@@ -196,8 +196,8 @@ test('OAuth login discovery stays secret until explicit import and targets offic
     },
   })
   const discovered = await service.discover()
-  assert.equal(reads.includes(codexPath), false)
-  assert.equal(reads.includes(claudePath), false)
+  assert.equal(reads.filter((path) => path === codexPath).length, 1)
+  assert.equal(reads.filter((path) => path === claudePath).length, 1)
   assert.deepEqual(
     discovered.providers.map((item) => [item.source, item.providerId, item.kind]),
     [
@@ -210,6 +210,8 @@ test('OAuth login discovery stays secret until explicit import and targets offic
     assert.equal(publicJson.includes(secret), false)
 
   const codex = await service.loadConfiguration(discovered.providers[0].id)
+  assert.equal(reads.filter((path) => path === codexPath).length, 2)
+  assert.equal(reads.filter((path) => path === claudePath).length, 2)
   const claude = await service.loadConfiguration(discovered.providers[1].id)
   assert.equal(codex.kind, 'authentication')
   assert.equal(codex.providerId, 'openai-codex')
@@ -220,8 +222,44 @@ test('OAuth login discovery stays secret until explicit import and targets offic
   assert.equal(claude.providerId, 'anthropic')
   assert.equal(claude.credential.type, 'oauth')
   assert.equal(claude.credential.refresh, claudeRefresh)
-  assert.equal(reads.filter((path) => path === codexPath).length, 1)
-  assert.equal(reads.filter((path) => path === claudePath).length, 1)
+  assert.equal(reads.filter((path) => path === codexPath).length, 3)
+  assert.equal(reads.filter((path) => path === claudePath).length, 3)
+})
+
+test('OAuth import rescans and validates the current credential file', async (t) => {
+  const home = await mkdtemp(join(tmpdir(), 'pisper-provider-oauth-rescan-'))
+  t.after(() => rm(home, { recursive: true, force: true }))
+  await mkdir(join(home, '.codex'), { recursive: true })
+  const authPath = join(home, '.codex', 'auth.json')
+  const access = fakeJwt({
+    exp: Math.floor(Date.now() / 1000) + 3600,
+    'https://api.openai.com/auth': { chatgpt_account_id: 'account-test' },
+  })
+  const auth = (refresh) =>
+    JSON.stringify({ tokens: { access_token: access, refresh_token: refresh } })
+  await writeFile(authPath, auth('refresh-before-scan'), 'utf8')
+
+  const service = new ProviderDiscoveryService({
+    homeDir: home,
+    env: {},
+    statImpl: async (path) => {
+      const details = await stat(path)
+      return path === authPath ? { isFile: () => details.isFile(), size: 100, mtimeMs: 1 } : details
+    },
+  })
+  const discovered = await service.discover()
+  const candidate = discovered.providers.find((provider) => provider.source === 'codex-auth')
+  assert.ok(candidate)
+
+  await writeFile(authPath, auth('refresh-after-scan'), 'utf8')
+  const loaded = await service.loadConfiguration(candidate.id)
+  assert.equal(loaded.credential.refresh, 'refresh-after-scan')
+
+  await writeFile(authPath, JSON.stringify({ OPENAI_API_KEY: 'api-key-only' }), 'utf8')
+  await assert.rejects(
+    () => service.loadConfiguration(candidate.id),
+    /no longer available or has changed/,
+  )
 })
 
 test('runtime imports OAuth login without creating a custom Provider or overwriting auth', async (t) => {
@@ -312,7 +350,7 @@ test('runtime imports OAuth login without creating a custom Provider or overwrit
   )
 })
 
-test('login import rejects API keys and incomplete OAuth sessions', async (t) => {
+test('login discovery ignores API keys and rejects incomplete OAuth sessions', async (t) => {
   const home = await mkdtemp(join(tmpdir(), 'pisper-provider-oauth-invalid-'))
   t.after(() => rm(home, { recursive: true, force: true }))
   await mkdir(join(home, '.codex'), { recursive: true })
@@ -324,14 +362,21 @@ test('login import rejects API keys and incomplete OAuth sessions', async (t) =>
   )
   const service = new ProviderDiscoveryService({ homeDir: home, env: {} })
   const discovered = await service.discover()
-  await assert.rejects(
-    () => service.loadConfiguration(discovered.providers[0].id),
-    /Codex 登录状态缺少可续期/,
+  assert.equal(
+    discovered.providers.some((provider) => provider.source === 'codex-auth'),
+    false,
   )
-  await assert.rejects(
-    () => service.loadConfiguration(discovered.providers[1].id),
-    /Claude 登录状态缺少可续期/,
+  assert.equal(
+    discovered.providers.some((provider) => provider.source === 'claude-auth'),
+    false,
   )
+  assert.deepEqual(discovered.errors, [
+    {
+      source: 'claude-auth',
+      code: 'invalid_login_state',
+      message: 'OAuth login state is incomplete',
+    },
+  ])
 })
 
 test('login import rejects oversized credential files before reading their contents', async () => {
@@ -354,9 +399,14 @@ test('login import rejects oversized credential files before reading their conte
   })
 
   const discovered = await service.discover()
-  const credential = discovered.providers.find((provider) => provider.source === 'codex-auth')
-  assert.ok(credential)
-  await assert.rejects(() => service.loadConfiguration(credential.id), /登录状态文件过大/)
+  assert.equal(
+    discovered.providers.some((provider) => provider.source === 'codex-auth'),
+    false,
+  )
+  assert.equal(
+    discovered.errors.some((error) => error.code === 'file_too_large'),
+    true,
+  )
   assert.equal(reads, 0)
 })
 
@@ -500,11 +550,7 @@ test('provider discovery reports invalid configuration files without exposing lo
     env: { ANTHROPIC_API_KEY: privateValue('ambient') },
   })
   const discovered = await service.discover()
-  assert.equal(discovered.providers.length, 2)
-  assert.deepEqual(
-    discovered.providers.map((item) => item.kind),
-    ['authentication', 'authentication'],
-  )
+  assert.equal(discovered.providers.length, 0)
   assert.equal(
     discovered.errors.some(
       (error) => error.source === 'codex-config' && error.code === 'invalid_toml',

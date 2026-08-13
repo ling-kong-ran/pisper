@@ -55,7 +55,7 @@ export function ModelsSettings({
       <ProviderDiscovery
         discovery={discovery.discovery}
         discovering={discovery.discovering}
-        error={discovery.error}
+        error={discovery.error || discovery.operationError}
         importing={discovery.importing}
         onRefresh={discovery.refresh}
         onImport={discovery.importProvider}
@@ -125,7 +125,7 @@ export function ModelsSettings({
                 codexOAuth={codexOAuth}
                 saving={settings.saving}
                 dirty={settings.dirty}
-                error={settings.error || discovery.operationError}
+                error={settings.error}
                 hasModel={Boolean(draft.model)}
                 isDefault={
                   (config.defaultProvider || config.provider) === selectedProvider.id &&

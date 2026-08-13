@@ -39,6 +39,6 @@
   "webPreview.url": "预览地址",
   "webPreview.urlPlaceholder": "输入网址…",
   "app.importableProvidersTitle": "发现可导入的提供商",
-  "app.importableProvidersMessage": "从本地 Codex/Claude 配置中检测到 {{count}} 个可导入的提供商，是否前往设置页查看？",
+  "app.importableProvidersMessage": "从本地 Codex/Claude 配置中检测到 {count} 个可导入的提供商，是否前往设置页查看？",
   "app.openSettings": "前往设置"
 }

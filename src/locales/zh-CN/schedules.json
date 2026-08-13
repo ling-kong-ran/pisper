@@ -71,6 +71,8 @@
   "schedulesPage.selectPublishedWorkflow": "选择已发布的工作流",
   "schedulesPage.noPublishedWorkflows": "暂无已发布的工作流。请先在工作流页面发布一个工作流。",
   "schedulesPage.workflowUsesItsOwnRuntimeSettings": "工作目录、模型和执行参数由工作流自身配置决定。",
+  "schedulesPage.workflowInputs": "工作流输入",
+  "schedulesPage.workflowInputsHelp": "仅保存到当前任务，每次运行时传入所选工作流。",
   "schedulesPage.youCanContinueEditingTheRunTimeAndNotificationChannelsAfterCreation": "创建后可继续编辑运行时间和通知渠道。",
   "schedulesPage.youCanContinueSettingTheRunTimeAndNotificationChannelsAfterCreation": "创建后可继续设置运行时间和通知渠道。",
   "schedulesPage.notificationChannelsHelp": "选择任务完成后需要通知的渠道",

@@ -604,6 +604,39 @@ export class ProviderDiscoveryService {
       try {
         const details = await this.stat(candidate.path)
         if (!details.isFile()) continue
+        if (details.size > 1024 * 1024)
+          return {
+            item: null,
+            errors: [
+              { source, code: 'file_too_large', message: 'Login credential file is too large' },
+            ],
+          }
+        const text = await this.readFile(candidate.path, 'utf8')
+        if (Buffer.byteLength(text, 'utf8') > 1024 * 1024)
+          return {
+            item: null,
+            errors: [
+              { source, code: 'file_too_large', message: 'Login credential file is too large' },
+            ],
+          }
+        const data = JSON.parse(text)
+        const hasOAuthData =
+          source === 'codex-auth'
+            ? Boolean(data?.tokens && typeof data.tokens === 'object')
+            : Boolean(data?.claudeAiOauth && typeof data.claudeAiOauth === 'object')
+        if (!hasOAuthData) return { item: null, errors: [] }
+        let credential
+        try {
+          credential =
+            source === 'codex-auth' ? codexOAuthCredential(data) : claudeOAuthCredential(data)
+        } catch {
+          return {
+            item: null,
+            errors: [
+              { source, code: 'invalid_login_state', message: 'OAuth login state is incomplete' },
+            ],
+          }
+        }
         const fingerprint = stableFingerprint({
           source,
           providerId,
@@ -630,8 +663,7 @@ export class ProviderDiscoveryService {
             importable: true,
             warnings: [],
             fingerprint,
-            credentialPath: candidate.path,
-            credentialSize: details.size,
+            credential,
           },
           errors: [],
         }
@@ -640,7 +672,14 @@ export class ProviderDiscoveryService {
         return {
           item: null,
           errors: [
-            { source, code: 'unreadable', message: 'Login credential file could not be read' },
+            {
+              source,
+              code: error instanceof SyntaxError ? 'invalid_json' : 'unreadable',
+              message:
+                error instanceof SyntaxError
+                  ? 'Login credential file has invalid syntax'
+                  : 'Login credential file could not be read',
+            },
           ],
         }
       }
@@ -678,27 +717,13 @@ export class ProviderDiscoveryService {
       throw new Error('Discovered provider configuration is no longer available or has changed')
     if (!item.importable) throw new Error('This provider configuration cannot be imported')
     if (item.kind === 'authentication') {
-      let data
-      try {
-        if (item.credentialSize > 1024 * 1024)
-          throw Object.assign(new Error('Credential file is too large'), { code: 'EFBIG' })
-        const text = await this.readFile(item.credentialPath, 'utf8')
-        if (Buffer.byteLength(text, 'utf8') > 1024 * 1024)
-          throw Object.assign(new Error('Credential file is too large'), { code: 'EFBIG' })
-        data = JSON.parse(text)
-      } catch (error) {
-        if (error instanceof SyntaxError) throw new Error('登录状态文件格式无效。')
-        if (error?.code === 'EFBIG') throw new Error('登录状态文件过大，无法导入。')
-        throw new Error('登录状态文件已不可读取。')
-      }
       return {
         kind: 'authentication',
         providerId: item.providerId,
         source: item.source,
         fingerprint: item.fingerprint,
         selectedModel: '',
-        credential:
-          item.source === 'codex-auth' ? codexOAuthCredential(data) : claudeOAuthCredential(data),
+        credential: item.credential,
       }
     }
     return {

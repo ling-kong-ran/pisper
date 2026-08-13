@@ -98,6 +98,7 @@ import {
   MAX_LIVE_ACTIVITY_ITEMS,
   StreamProjection,
   addSessionUsage,
+  beginTextBlock,
   finishedCompaction,
   isInternalParentMessage,
   livePlanChanges,
@@ -2004,15 +2005,14 @@ export class AgentRuntimeService extends AgentRuntimeFacade {
       startedAt: live.startedAt,
       lastActivityAt: live.lastActivityAt,
     })
-
-    let goalTurnId = ''
-    let goalTurnStartedAt = 0
-    let continuationQueued = false
-    let budgetSummaryQueued = false
-    let thinkingPrefix = ''
-    let thinkingTurnText = ''
-    const activeTextBlocks = new Set()
-    const activeThinkingBlocks = new Set()
+    let goalTurnId = '',
+      goalTurnStartedAt = 0
+    let continuationQueued = false,
+      budgetSummaryQueued = false
+    let thinkingPrefix = '',
+      thinkingTurnText = ''
+    const activeTextBlocks = new Set(),
+      activeThinkingBlocks = new Set()
     const streamBlockIndex = (update) =>
       Number.isInteger(update?.contentIndex) ? update.contentIndex : 0
     const appendThinking = (delta) => {
@@ -2059,9 +2059,9 @@ export class AgentRuntimeService extends AgentRuntimeFacade {
       if (event.type === 'message_update') {
         const update = event.assistantMessageEvent
         const blockIndex = streamBlockIndex(update)
-        if (update.type === 'text_start') activeTextBlocks.add(blockIndex)
+        if (update.type === 'text_start') beginTextBlock(activeTextBlocks, blockIndex, live, emit)
         if (update.type === 'text_delta') {
-          activeTextBlocks.add(blockIndex)
+          beginTextBlock(activeTextBlocks, blockIndex, live, emit)
           const delta = String(update.delta || '')
           live.text += delta
           setLiveActivity(live, {

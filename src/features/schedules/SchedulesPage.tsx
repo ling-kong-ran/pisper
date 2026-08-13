@@ -322,42 +322,48 @@ function ScheduleTargetFields({
             </small>
           </label>
           {workflow?.inputs.length ? (
-            <div className="schedule-workflow-inputs">
-              {workflow.inputs.map((input) => (
-                <label className="field-label" key={input.id}>
-                  {input.label}
-                  {input.required ? ' *' : ''}
-                  {input.type === 'boolean' ? (
-                    <input
-                      type="checkbox"
-                      checked={Boolean(workflowInputs[input.name])}
-                      onChange={(event) =>
-                        onChange({
-                          workflowInputs: {
-                            ...workflowInputs,
-                            [input.name]: event.target.checked,
-                          },
-                        })
-                      }
-                    />
-                  ) : (
-                    <input
-                      type={input.type === 'number' ? 'number' : 'text'}
-                      required={input.required}
-                      value={String(workflowInputs[input.name] ?? '')}
-                      onChange={(event) =>
-                        onChange({
-                          workflowInputs: {
-                            ...workflowInputs,
-                            [input.name]: event.target.value,
-                          },
-                        })
-                      }
-                    />
-                  )}
-                  {input.description && <small>{input.description}</small>}
-                </label>
-              ))}
+            <div className="schedule-workflow-inputs-section">
+              <div className="schedule-workflow-inputs-heading">
+                <strong>{t('schedules:schedulesPage.workflowInputs')}</strong>
+                <small>{t('schedules:schedulesPage.workflowInputsHelp')}</small>
+              </div>
+              <div className="schedule-workflow-inputs">
+                {workflow.inputs.map((input) => (
+                  <label className="field-label" key={input.id}>
+                    {input.label}
+                    {input.required ? ' *' : ''}
+                    {input.type === 'boolean' ? (
+                      <input
+                        type="checkbox"
+                        checked={Boolean(workflowInputs[input.name])}
+                        onChange={(event) =>
+                          onChange({
+                            workflowInputs: {
+                              ...workflowInputs,
+                              [input.name]: event.target.checked,
+                            },
+                          })
+                        }
+                      />
+                    ) : (
+                      <input
+                        type={input.type === 'number' ? 'number' : 'text'}
+                        required={input.required}
+                        value={String(workflowInputs[input.name] ?? '')}
+                        onChange={(event) =>
+                          onChange({
+                            workflowInputs: {
+                              ...workflowInputs,
+                              [input.name]: event.target.value,
+                            },
+                          })
+                        }
+                      />
+                    )}
+                    {input.description && <small>{input.description}</small>}
+                  </label>
+                ))}
+              </div>
             </div>
           ) : null}
         </>

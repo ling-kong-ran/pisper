@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict'
+import { readFile } from 'node:fs/promises'
 import test from 'node:test'
 import {
   providerDiscoveryShouldCollapse,
@@ -69,4 +70,14 @@ test('provider discovery remains visible for loading, importable, error, and con
     ),
     true,
   )
+})
+
+test('provider import errors render in the discovery panel instead of the Provider detail form', async () => {
+  const modelsSettings = await readFile('src/features/config/ModelsSettings.tsx', 'utf8')
+  assert.match(
+    modelsSettings,
+    /<ProviderDiscovery[\s\S]*?error=\{discovery\.error \|\| discovery\.operationError\}/,
+  )
+  assert.match(modelsSettings, /<RuntimeStatus[\s\S]*?error=\{settings\.error\}/)
+  assert.doesNotMatch(modelsSettings, /error=\{settings\.error \|\| discovery\.operationError\}/)
 })

@@ -42,6 +42,13 @@ export function liveThinkingTail(value) {
   return String(value || '').slice(-MAX_LIVE_THINKING_CHARS)
 }
 
+export function beginTextBlock(activeBlocks, blockIndex, live, emit) {
+  if (activeBlocks.has(blockIndex)) return
+  activeBlocks.add(blockIndex)
+  if (live.text) emit('text_patch', { start: 0, text: '', updatedAt: live.lastActivityAt })
+  live.text = ''
+}
+
 function liveActivityKey(activity) {
   if (!activity?.type) return ''
   if (activity.type === 'tool') return `tool:${activity.id || activity.name || ''}`
