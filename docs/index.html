@@ -459,9 +459,17 @@
             工作区能力。Node.js 20+ 用户可直接通过 npm 安装：
           </p>
           <div class="terminal-install" aria-label="npm 安装命令">
-            <code>npm install -g pisper --progress=true --foreground-scripts</code>
-            <code>pisper</code>
-            <code>pisper update</code>
+            <code data-install-command>npm i -g pisper</code>
+            <button
+              type="button"
+              class="terminal-copy-button"
+              data-copy-install
+              aria-label="复制 npm 安装命令"
+            >
+              <span class="terminal-copy-icon" aria-hidden="true">⧉</span>
+              <span data-copy-label>复制</span>
+            </button>
+            <span class="sr-only" data-copy-status aria-live="polite"></span>
           </div>
           <p>
             npm 包含 Web、TUI 与 Runtime，安装完成后即可使用。首次进入后使用

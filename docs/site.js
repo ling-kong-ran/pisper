@@ -57,6 +57,56 @@ for (const [index, tab] of tabs.entries()) {
 updateHeader()
 window.addEventListener('scroll', updateHeader, { passive: true })
 
+const installCommand = document.querySelector('[data-install-command]')
+const copyInstallButton = document.querySelector('[data-copy-install]')
+const copyInstallLabel = copyInstallButton?.querySelector('[data-copy-label]')
+const copyInstallStatus = document.querySelector('[data-copy-status]')
+let copyResetTimer = 0
+
+async function copyText(value) {
+  if (navigator.clipboard?.writeText) {
+    await navigator.clipboard.writeText(value)
+    return
+  }
+
+  const input = document.createElement('textarea')
+  input.value = value
+  input.setAttribute('readonly', '')
+  input.style.position = 'fixed'
+  input.style.opacity = '0'
+  document.body.append(input)
+  input.select()
+  const copied = document.execCommand('copy')
+  input.remove()
+  if (!copied) throw new Error('copy command was rejected')
+}
+
+copyInstallButton?.addEventListener('click', async () => {
+  const command = installCommand?.textContent?.trim()
+  if (!command) return
+
+  window.clearTimeout(copyResetTimer)
+  try {
+    await copyText(command)
+    copyInstallButton.classList.add('is-copied')
+    copyInstallLabel.textContent = '已复制'
+    copyInstallStatus.textContent = `已复制：${command}`
+  } catch {
+    const selection = window.getSelection()
+    const range = document.createRange()
+    range.selectNodeContents(installCommand)
+    selection?.removeAllRanges()
+    selection?.addRange(range)
+    copyInstallLabel.textContent = '已选中'
+    copyInstallStatus.textContent = '自动复制失败，已选中安装命令，请手动复制'
+  }
+
+  copyResetTimer = window.setTimeout(() => {
+    copyInstallButton.classList.remove('is-copied')
+    copyInstallLabel.textContent = '复制'
+  }, 2000)
+})
+
 // ===== React Bits 风格特效（本地实现，无外部依赖） =====
 const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches
 

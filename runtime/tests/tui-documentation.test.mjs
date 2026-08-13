@@ -41,17 +41,16 @@ test('npm, Provider setup, and optional Web onboarding stay documented', async (
     readFile('docs/index.html', 'utf8'),
   ])
 
-  for (const document of [
-    chineseReadme,
-    englishReadme,
-    chineseTuiGuide,
-    englishTuiGuide,
-    projectPage,
-  ]) {
+  for (const document of [chineseReadme, englishReadme, chineseTuiGuide, englishTuiGuide]) {
     assert.match(document, /npm install -g pisper/)
     assert.match(document, /pisper web/)
     assert.match(document, /\/provider/)
   }
+  assert.match(projectPage, /npm i -g pisper/)
+  assert.doesNotMatch(projectPage, /npm install -g pisper/)
+  assert.match(projectPage, /data-copy-install/)
+  assert.match(projectPage, /pisper web/)
+  assert.match(projectPage, /\/provider/)
   for (const guide of [chineseTuiGuide, englishTuiGuide]) {
     assert.match(guide, /pisper update --check/)
     assert.match(guide, /\| `\/web`/)
