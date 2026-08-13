@@ -19,7 +19,7 @@ use crate::{
         SessionUsage, SkillDefinition, StreamEvent, ThinkingAvailability, ThinkingLevelUpdate,
         ToolActivity, ToolDefinition, VcsChanges, PROVIDER_APIS,
     },
-    plan_protocol::{is_plan_update_event, plan_from_payload},
+    plan_protocol::{active_plan, is_plan_update_event, plan_from_payload},
     workspace::same_workspace,
 };
 
@@ -298,6 +298,12 @@ impl App {
         tools: Vec<ToolDefinition>,
         skills: Vec<SkillDefinition>,
     ) -> Self {
+        let mut sessions = sessions;
+        let mut session = session;
+        session.plan = active_plan(session.plan.take());
+        if let Some(summary) = sessions.iter_mut().find(|summary| summary.id == session.id) {
+            summary.plan.clone_from(&session.plan);
+        }
         let path_directory = PathBuf::from(&session.cwd);
         let mut messages = messages;
         cap_message_count(&mut messages);
@@ -2223,10 +2229,18 @@ impl App {
 
     pub fn replace_session(
         &mut self,
-        session: SessionSummary,
+        mut session: SessionSummary,
         messages: Vec<ChatMessage>,
         context_usage: Option<ContextUsage>,
     ) {
+        session.plan = active_plan(session.plan.take());
+        if let Some(summary) = self
+            .sessions
+            .iter_mut()
+            .find(|summary| summary.id == session.id)
+        {
+            summary.plan.clone_from(&session.plan);
+        }
         self.model = session.model.clone();
         self.cwd = session.cwd.clone();
         self.execution_mode = session.execution_mode.clone();
@@ -2374,7 +2388,8 @@ impl App {
         self.history_oldest_index = self.history_oldest_index.saturating_add(excess as u64);
     }
 
-    pub fn materialize_session(&mut self, session: SessionSummary) {
+    pub fn materialize_session(&mut self, mut session: SessionSummary) {
+        session.plan = active_plan(session.plan.take());
         self.model.clone_from(&session.model);
         self.cwd.clone_from(&session.cwd);
         self.execution_mode.clone_from(&session.execution_mode);
@@ -2489,6 +2504,7 @@ impl App {
     }
 
     pub fn set_plan(&mut self, plan: Option<Plan>) {
+        let plan = active_plan(plan);
         self.session.plan = plan.clone();
         if let Some(session) = self
             .sessions
@@ -3797,7 +3813,7 @@ mod tests {
     }
 
     #[test]
-    fn plan_events_update_items_in_place_and_clear_legacy_state() {
+    fn completed_plan_events_clear_state_and_later_plans_reappear() {
         let mut app = test_app(Vec::new());
         app.set_input("implement the plan");
         assert!(matches!(app.submit_action(), Action::Submit { .. }));
@@ -3815,6 +3831,8 @@ mod tests {
         });
         assert_eq!(app.session.plan.as_ref().unwrap().items[0].title, "Inspect");
 
+        app.plan_scroll.set(4);
+        app.plan_max_scroll.set(8);
         app.apply_stream_event(StreamEvent {
             name: "plan_update".to_owned(),
             data: json!({
@@ -3824,9 +3842,21 @@ mod tests {
                 }
             }),
         });
-        let plan = app.session.plan.as_ref().unwrap();
-        assert_eq!(plan.items.len(), 1);
-        assert_eq!(plan.items[0].status, "completed");
+        assert!(app.session.plan.is_none());
+        assert!(app.sessions[0].plan.is_none());
+        assert_eq!(app.plan_scroll.get(), 0);
+        assert_eq!(app.plan_max_scroll.get(), 0);
+
+        app.apply_stream_event(StreamEvent {
+            name: "plan_update".to_owned(),
+            data: json!({
+                "plan": {
+                    "items": [{ "id": "two", "title": "Ship", "status": "pending", "note": "", "assignee": "", "dependsOn": [] }],
+                    "counts": { "pending": 1, "inProgress": 0, "completed": 0, "blocked": 0, "total": 1 }
+                }
+            }),
+        });
+        assert_eq!(app.session.plan.as_ref().unwrap().items[0].id, "two");
 
         app.apply_stream_event(StreamEvent {
             name: "task_list_update".to_owned(),

@@ -2,6 +2,14 @@ use serde_json::Value;
 
 use crate::model::Plan;
 
+pub fn active_plan(plan: Option<Plan>) -> Option<Plan> {
+    plan.filter(|plan| {
+        plan.items
+            .iter()
+            .any(|item| item.status.as_str() != "completed")
+    })
+}
+
 pub fn plan_from_payload(data: &Value) -> Option<Option<Plan>> {
     let value = data.get("plan").or_else(|| data.get("taskList"))?;
     if value.is_null() {
@@ -16,7 +24,8 @@ pub fn is_plan_update_event(event: &str) -> bool {
 
 #[cfg(test)]
 mod tests {
-    use super::{is_plan_update_event, plan_from_payload};
+    use super::{active_plan, is_plan_update_event, plan_from_payload};
+    use crate::model::{Plan, PlanItem};
 
     #[test]
     fn accepts_one_release_of_plan_protocol_aliases() {
@@ -36,5 +45,26 @@ mod tests {
             plan_from_payload(&serde_json::json!({ "plan": null })),
             Some(None)
         );
+    }
+
+    #[test]
+    fn completed_and_empty_plans_are_not_active() {
+        assert!(active_plan(Some(Plan::default())).is_none());
+        assert!(active_plan(Some(Plan {
+            items: vec![PlanItem {
+                status: "completed".to_owned(),
+                ..PlanItem::default()
+            }],
+            ..Plan::default()
+        }))
+        .is_none());
+        assert!(active_plan(Some(Plan {
+            items: vec![PlanItem {
+                status: "blocked".to_owned(),
+                ..PlanItem::default()
+            }],
+            ..Plan::default()
+        }))
+        .is_some());
     }
 }

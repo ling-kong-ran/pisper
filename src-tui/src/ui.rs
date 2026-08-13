@@ -3529,7 +3529,7 @@ mod tests {
     }
 
     #[test]
-    fn plan_panel_is_compact_scrollable_and_disappears_when_cleared() {
+    fn plan_panel_is_compact_scrollable_and_disappears_when_completed() {
         for (width, height) in [(80, 24), (120, 40)] {
             let session = SessionSummary {
                 id: "session-plan".to_owned(),
@@ -3630,10 +3630,25 @@ mod tests {
             assert!(!rows.iter().any(|row| row.contains("Inspect")));
             assert!(plan_row < composer_row);
 
-            app.set_plan(None);
+            app.set_plan(Some(Plan {
+                items: vec![PlanItem {
+                    id: "done".to_owned(),
+                    title: "Finished".to_owned(),
+                    status: "completed".to_owned(),
+                    ..PlanItem::default()
+                }],
+                counts: PlanCounts {
+                    completed: 1,
+                    total: 1,
+                    ..PlanCounts::default()
+                },
+                updated_at: None,
+            }));
             terminal.draw(|frame| draw(frame, &app)).unwrap();
             let cleared = format!("{:?}", terminal.backend().buffer());
-            assert!(!cleared.contains("Plan · 4/7"));
+            assert!(app.session.plan.is_none());
+            assert!(!cleared.contains("Plan ·"));
+            assert!(!cleared.contains("Plan 1/1"));
             assert!(cleared.contains("Message Pisper"));
         }
     }
