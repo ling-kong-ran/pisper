@@ -1,11 +1,7 @@
-// Verify the captured screenshots exist at 2558x1380, then replace docs/shots/.
-import { copyFileSync, statSync } from 'node:fs'
+// Verify every captured PNG before replacing any file under docs/shots/.
+import { copyFileSync, readFileSync, statSync } from 'node:fs'
 import { resolve } from 'node:path'
-import { spawnSync } from 'node:child_process'
-
-const ROOT = resolve(import.meta.dirname, '../../../..')
-const RUN_DIR = resolve(ROOT, 'generated/screenshot-run')
-const SHOTS_DIR = resolve(ROOT, 'docs/shots')
+import { RUN_DIR, SHOTS_DIR } from './screenshot-config.mjs'
 
 // Web shots captured by capture-screenshots.mjs. TUI/demo assets stay untouched.
 const WEB_SHOTS = [
@@ -24,44 +20,49 @@ const WEB_SHOTS = [
   'plugins',
   'schedules',
   'skills',
+  'terminal',
   'welcome-dark',
   'workflow-builder',
   'workflows',
 ]
+const EXPECTED_SIZE = '2558x1380'
+const PNG_SIGNATURE = Buffer.from([137, 80, 78, 71, 13, 10, 26, 10])
 
-// Read PNG dimensions via PowerShell (System.Drawing) — zero new dependencies.
 function dimensions(file) {
-  const script = `Add-Type -AssemblyName System.Drawing; $img=[System.Drawing.Image]::FromFile('${file}'); Write-Output ($img.Width.ToString()+'x'+$img.Height.ToString()); $img.Dispose()`
-  const result = spawnSync('powershell', ['-NoProfile', '-Command', script], {
-    encoding: 'utf8',
-    timeout: 30_000,
-  })
-  if (result.status !== 0) throw new Error(`dimension probe failed: ${result.stderr || result.stdout}`)
-  return result.stdout.trim()
+  const data = readFileSync(file)
+  if (data.length < 24 || !data.subarray(0, 8).equals(PNG_SIGNATURE)) {
+    throw new Error('invalid PNG signature')
+  }
+  if (data.toString('ascii', 12, 16) !== 'IHDR') throw new Error('missing PNG IHDR')
+  return `${data.readUInt32BE(16)}x${data.readUInt32BE(20)}`
 }
 
+const verified = []
 let failed = false
 for (const name of WEB_SHOTS) {
   const source = resolve(RUN_DIR, `${name}.png`)
   try {
     statSync(source)
-  } catch {
-    console.error(`MISSING ${name}.png`)
+    const size = dimensions(source)
+    if (size !== EXPECTED_SIZE) {
+      console.error(`BAD SIZE ${name}.png -> ${size} (expected ${EXPECTED_SIZE})`)
+      failed = true
+      continue
+    }
+    verified.push({ name, source, size })
+  } catch (error) {
+    console.error(`INVALID ${name}.png -> ${error instanceof Error ? error.message : String(error)}`)
     failed = true
-    continue
   }
-  const size = dimensions(source)
-  if (size !== '2558x1380') {
-    console.error(`BAD SIZE ${name}.png -> ${size} (expected 2558x1380)`)
-    failed = true
-    continue
-  }
+}
+
+if (failed || verified.length !== WEB_SHOTS.length) {
+  console.error('Screenshot verification failed; docs/shots was not modified.')
+  process.exit(1)
+}
+
+for (const { name, source, size } of verified) {
   copyFileSync(source, resolve(SHOTS_DIR, `${name}.png`))
   console.log(`replaced docs/shots/${name}.png (${size})`)
 }
-
-if (failed) {
-  console.error('One or more screenshots failed verification; nothing else was touched.')
-  process.exit(1)
-}
-console.log('All Web screenshots verified and replaced.')
+console.log(`All ${verified.length} Web screenshots verified and replaced.`)

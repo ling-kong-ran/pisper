@@ -6,13 +6,12 @@
 import { mkdirSync, writeFileSync } from 'node:fs'
 import { deflateSync } from 'node:zlib'
 import { resolve } from 'node:path'
+import { AGENT_DIR, BASE_URL, RUN_DIR, WORKSPACE_DIR } from './screenshot-config.mjs'
 
-const ROOT = resolve(import.meta.dirname, '../../../..')
-const BASE = `http://127.0.0.1:${process.env.SCREENSHOT_PORT || 5180}`
-const SESSION_DIR = resolve(ROOT, 'generated/screenshot-agent/sessions')
-const RUN_DIR = resolve(ROOT, 'generated/screenshot-run')
+const SESSION_DIR = resolve(AGENT_DIR, 'sessions')
 const STATE_PATH = resolve(RUN_DIR, 'state.json')
-const CWD = 'E:/code/pi-coder'
+const CWD = WORKSPACE_DIR
+const DISPLAY_CWD = '.'
 
 const NAMES = [
   '调研向量数据库选型',
@@ -24,7 +23,7 @@ const NAMES = [
 ]
 
 async function api(path, { method = 'GET', body } = {}) {
-  const res = await fetch(`${BASE}${path}`, {
+  const res = await fetch(`${BASE_URL}${path}`, {
     method,
     headers: body ? { 'Content-Type': 'application/json' } : undefined,
     body: body ? JSON.stringify(body) : undefined,
@@ -305,7 +304,7 @@ for (const task of [
   { name: '依赖安全公告巡检', prompt: '检查依赖库是否有新的安全公告并汇总。', frequency: 'daily', time: '18:00', timezone: 'Asia/Hong_Kong' },
   { name: '每周数据备份提醒', prompt: '提醒执行本地数据备份并核对备份文件。', frequency: 'weekly', dayOfWeek: 5, time: '21:00', timezone: 'Asia/Hong_Kong' },
 ]) {
-  await api('/api/schedules', { method: 'POST', body: task })
+  await api('/api/schedules', { method: 'POST', body: { ...task, cwd: DISPLAY_CWD } })
 }
 console.log('schedules created')
 
@@ -316,6 +315,7 @@ await api('/api/workflows', {
     name: '每日摘要自动生成',
     description: '定时汇总渠道消息并生成摘要推送。',
     status: 'published',
+    cwd: DISPLAY_CWD,
     nodes: [
       { id: 'n1', kind: 'trigger', label: '每日触发', x: 80, y: 120 },
       { id: 'n2', kind: 'prompt', label: '生成摘要', prompt: '汇总各渠道今日消息并生成 200 字摘要。', x: 340, y: 120 },
@@ -333,6 +333,7 @@ await api('/api/workflows', {
     name: '发布检查流水线',
     description: '运行检查、构建并汇总结果。',
     status: 'draft',
+    cwd: DISPLAY_CWD,
     nodes: [
       { id: 'a1', kind: 'prompt', label: '运行质量检查', prompt: '运行 npm run check 并汇总失败项。', x: 80, y: 120 },
       { id: 'a2', kind: 'prompt', label: '构建产物', prompt: '执行 npm run build 并核对 bundle 预算。', x: 360, y: 120 },
@@ -367,7 +368,7 @@ const state = {
   welcomeSessionId: sessions[3],
   memorySpaceId: space?.id,
   workflowId: published?.id || '',
-  cwd: CWD,
+  cwd: DISPLAY_CWD,
 }
 mkdirSync(RUN_DIR, { recursive: true })
 writeFileSync(STATE_PATH, JSON.stringify(state, null, 2) + '\n')

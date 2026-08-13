@@ -32,10 +32,10 @@ This skill is for screenshot refresh work only. Do not run it during ordinary im
 ### 1. Start an isolated dev instance
 
 ```bash
-node .pisper/skills/screenshot-studio/scripts/start-isolated-server.mjs
+node .pisper/skills/screenshot-studio/scripts/start-isolated-server.mjs --reset
 ```
 
-This starts `runtime/index.mjs` on port `5180` with a fresh agent data dir under `generated/screenshot-agent/` and waits for `/api/health`. It prints the PID. Re-run it to restart (it kills the previous instance).
+This stops any prior Skill-owned process, clears only the configured screenshot agent/run directories, starts `runtime/index.mjs`, and waits for `/api/health`. Defaults are port `5180` and repository-relative directories under `generated/`; no project path is hard-coded.
 
 ### 2. Seed fictional demo data
 
@@ -59,7 +59,7 @@ Run it again after seeding. API-created sessions live in memory only; restarting
 node .pisper/skills/screenshot-studio/scripts/capture-screenshots.mjs
 ```
 
-Visits every route referenced by `docs/index.html` and `docs/show.html`, applies the localStorage presets, opens the split dock via the real tab context menu, selects the memory space, and saves `generated/screenshot-run/*.png`.
+Visits every route referenced by `docs/index.html` and `docs/show.html`, applies the localStorage presets, opens the split dock via the real tab context menu, selects the memory space, and saves the PNGs to the configured run directory. The desktop terminal shot uses the real `TerminalPanel` with a screenshot-only bridge and deterministic fictional output; it never starts a host shell.
 
 ### 4. Verify and replace
 
@@ -67,7 +67,15 @@ Visits every route referenced by `docs/index.html` and `docs/show.html`, applies
 node .pisper/skills/screenshot-studio/scripts/verify-screenshots.mjs
 ```
 
-Asserts every expected shot exists at `2558x1380`, then copies them into `docs/shots/`. Confirm `docs/index.html` width/height attributes still match. Do not commit without the user's request.
+Parses each PNG's IHDR directly in Node, asserts every expected shot exists at `2558x1380`, and copies nothing until the full set passes. It then replaces the configured docs shot directory. Confirm `docs/index.html` width/height attributes still match. Do not commit without the user's request.
+
+### 5. Stop the isolated instance
+
+```bash
+node .pisper/skills/screenshot-studio/scripts/start-isolated-server.mjs --stop
+```
+
+The PID file belongs only to this Skill. Do not kill unrelated processes by port.
 
 ## Hard-won constraints
 
@@ -90,18 +98,25 @@ Asserts every expected shot exists at `2558x1380`, then copies them into `docs/s
 6. **Dock split uses real UI.** The split layout cannot be reliably injected via localStorage. Open `pisper-tiled-sessions` with two session ids, then right-click the second tab (`.dv-tab`) and click the `.dv-context-menu-item` labeled `拆分到右侧`.
 
 7. **localStorage presets** (set before first navigation):
-   - `pisper-theme` = `light` (or `dark` for `welcome-dark.png`)
+   - `pisper-ui` = Zustand persist payload with `state.theme` set to `light` (or `dark` for `welcome-dark.png`), `state.sidebarCollapsed` set to `false`, and `state.density` set to `comfortable`
+   - `pisper-theme` = the same theme for legacy migration compatibility
    - `pisper-language` = `zh-CN`
    - `pisper-sidebar-collapsed` = `false`
    - `pisper-active-session` = the session to open
    - `pisper-tiled-sessions` = `[]` (or the two ids for the split)
    - remove `pisper-chat-dock-layout-v1`
+   - reload after changing the theme because hash navigation alone does not recreate the persisted UI store
 
-8. **Viewport math.** `1279x690` × `deviceScaleFactor 2` = `2558x1380`, matching every existing asset and the `width`/`height` attributes in `docs/index.html`.
+8. **Browser discovery.** Playwright tries installed Edge and Chrome channels, then bundled Chromium. Set `SCREENSHOT_BROWSER_PATH` for an explicit executable or `SCREENSHOT_BROWSER_CHANNEL` for another Chromium channel; never add a machine-specific executable path to the script.
+
+9. **Portable configuration.** `screenshot-config.mjs` owns all paths and network defaults. Optional overrides are `SCREENSHOT_PORT`, `SCREENSHOT_HOST`, `SCREENSHOT_BASE_URL`, `SCREENSHOT_AGENT_DIR`, `SCREENSHOT_RUN_DIR`, `SCREENSHOT_SHOTS_DIR`, and `SCREENSHOT_WORKSPACE_DIR`. Relative path overrides resolve from the repository root.
+
+10. **Viewport math.** `1279x690` × `deviceScaleFactor 2` = `2558x1380`, matching every existing asset and the `width`/`height` attributes in `docs/index.html`.
 
 ## Verification expectations
 
-- All 18 Web shots replaced; `cli.png` + `pisper-demo.gif` untouched.
+- All 19 Web shots replaced; `cli.png` + `pisper-demo.gif` untouched.
 - Every file exactly `2558x1380`.
-- `git status` shows only `docs/shots/*.png` (plus `generated/` which is gitignored).
-- `npm run check` unaffected (no source change). Report any changed references in `docs/index.html` / `docs/show.html`.
+- `terminal.png` shows the real desktop terminal panel bound to the active chat session, with only fictional output and repository-relative labels.
+- `git status` shows screenshot assets, intentional docs references, and Skill maintenance changes only; configured run/agent directories remain gitignored.
+- Product source remains unchanged. Report changed references in `docs/index.html` / `docs/show.html`.

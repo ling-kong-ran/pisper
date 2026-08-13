@@ -2,24 +2,19 @@
 // Requires the isolated server (start-isolated-server.mjs) and seeded data
 // (seed-demo-data.mjs, which writes generated/screenshot-run/state.json).
 // Saves PNGs to generated/screenshot-run/.
-import { chromium } from 'playwright-core'
 import { readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
+import { launchScreenshotBrowser } from './browser-launch.mjs'
+import { BASE_URL, RUN_DIR } from './screenshot-config.mjs'
 
-const ROOT = resolve(import.meta.dirname, '../../../..')
-const baseUrl = `http://127.0.0.1:${process.env.SCREENSHOT_PORT || 5180}`
-const outDir = resolve(ROOT, 'generated/screenshot-run')
-const state = JSON.parse(readFileSync(resolve(outDir, 'state.json'), 'utf8'))
+const state = JSON.parse(readFileSync(resolve(RUN_DIR, 'state.json'), 'utf8'))
 
 const S1 = state.conversationSessionId
 const S2 = state.splitSessionId
 const S4 = state.welcomeSessionId
 const WF_PUBLISHED = state.workflowId
 
-const browser = await chromium.launch({
-  headless: true,
-  executablePath: 'C:/Program Files (x86)/Microsoft/Edge/Application/msedge.exe',
-})
+const browser = await launchScreenshotBrowser()
 const context = await browser.newContext({
   viewport: { width: 1279, height: 690 },
   deviceScaleFactor: 2,
@@ -37,23 +32,100 @@ await page.route('**/api/providers/discovery', (route) =>
   }),
 )
 
+// Keep the update page deterministic and independent from GitHub availability.
+await page.route('**/api/app-update*', (route) =>
+  route.fulfill({
+    status: 200,
+    contentType: 'application/json',
+    body: JSON.stringify({
+      state: 'current',
+      branch: 'main',
+      message: '当前 Web 源码已同步 main。',
+      checkedAt: '2026-08-14T12:00:00.000Z',
+    }),
+  }),
+)
+
 // Stable locale + sidebar baseline for every shot.
 await page.addInitScript(() => {
   localStorage.setItem('pisper-language', 'zh-CN')
   localStorage.setItem('pisper-sidebar-collapsed', 'false')
+  if (!localStorage.getItem('pisper-ui')) {
+    localStorage.setItem(
+      'pisper-ui',
+      JSON.stringify({
+        state: { sidebarCollapsed: false, theme: 'light', density: 'comfortable' },
+        version: 0,
+      }),
+    )
+  }
+  if (localStorage.getItem('pisper-screenshot-terminal') !== '1') return
+
+  const output = [
+    '\u001b[1;34mpisper\u001b[0m \u001b[90mrelease\u001b[0m $ npm run check',
+    '',
+    '> pisper@0.5.1 check',
+    '> npm run typecheck && npm run lint && npm run i18n:check',
+    '',
+    '\u001b[32mPASS\u001b[0m TypeScript    \u001b[32mPASS\u001b[0m Lint    \u001b[32mPASS\u001b[0m i18n',
+    '',
+    '\u001b[1;34mpisper\u001b[0m \u001b[90mrelease\u001b[0m $ git status --short',
+    '\u001b[32m M\u001b[0m src/features/terminal/TerminalPanel.tsx',
+    '\u001b[1;34mpisper\u001b[0m \u001b[90mrelease\u001b[0m $ ',
+  ].join('\r\n')
+  window.pisperDesktop = {
+    platform: 'desktop',
+    getAppInfo: async () => ({
+      desktop: true,
+      packaged: true,
+      version: '0.5.1',
+      platform: 'desktop',
+      arch: 'x86_64',
+      releasesUrl: 'https://github.com/ling-kong-ran/pisper/releases',
+    }),
+    openReleases: async () => true,
+    terminalProfiles: async () => [{ id: 'shell', label: 'Shell', default: true }],
+    terminalCreate: async (options, onEvent) => {
+      window.setTimeout(
+        () =>
+          onEvent({
+            type: 'output',
+            terminalId: options.terminalId,
+            data: Array.from(new TextEncoder().encode(output)),
+          }),
+        80,
+      )
+      return {
+        terminalId: options.terminalId,
+        profileId: options.profileId,
+        cwd: options.cwd,
+      }
+    },
+    terminalWrite: async () => {},
+    terminalResize: async () => {},
+    terminalClose: async () => true,
+    terminalCloseAll: async () => 1,
+  }
 })
 
 async function goto(path) {
-  await page.goto(`${baseUrl}/#${path}`)
+  await page.goto(`${BASE_URL}/#${path}`)
   await page.waitForLoadState('networkidle')
   await page.waitForTimeout(1100)
 }
 
 async function chatState({ theme = 'light', activeSession = '', tiled = [] }) {
-  await page.goto(`${baseUrl}/`)
+  await page.goto(`${BASE_URL}/`)
   await page.evaluate(
     ({ theme, activeSession, tiled }) => {
       localStorage.setItem('pisper-theme', theme)
+      localStorage.setItem(
+        'pisper-ui',
+        JSON.stringify({
+          state: { sidebarCollapsed: false, theme, density: 'comfortable' },
+          version: 0,
+        }),
+      )
       if (activeSession) localStorage.setItem('pisper-active-session', activeSession)
       else localStorage.removeItem('pisper-active-session')
       localStorage.setItem('pisper-tiled-sessions', JSON.stringify(tiled))
@@ -61,10 +133,11 @@ async function chatState({ theme = 'light', activeSession = '', tiled = [] }) {
     },
     { theme, activeSession, tiled },
   )
+  await page.reload({ waitUntil: 'domcontentloaded' })
 }
 
 async function shot(name) {
-  await page.screenshot({ path: resolve(outDir, `${name}.png`) })
+  await page.screenshot({ path: resolve(RUN_DIR, `${name}.png`) })
   console.log(`captured ${name}`)
 }
 
@@ -97,6 +170,34 @@ await chatState({ activeSession: S1 })
 await goto('/chat')
 await shot('chat')
 
+// terminal: the real desktop TerminalPanel with a deterministic screenshot-only bridge
+await page.evaluate(() => {
+  localStorage.setItem('pisper-screenshot-terminal', '1')
+  localStorage.setItem('pisper-terminal-panel', JSON.stringify({ open: true, height: 260 }))
+})
+await page.reload({ waitUntil: 'networkidle' })
+await page.waitForTimeout(1100)
+const terminalEmpty = page.locator('.terminal-empty').first()
+await terminalEmpty.waitFor({ state: 'visible' })
+await terminalEmpty.click()
+try {
+  await page.waitForSelector('.terminal-tab', { state: 'visible' })
+} catch (error) {
+  const debug = await page.evaluate(() => ({
+    bridge: Boolean(window.pisperDesktop?.terminalProfiles),
+    panel: document.querySelector('.terminal-panel')?.className || '',
+    panelText: document.querySelector('.terminal-panel')?.textContent?.trim() || '',
+  }))
+  throw new Error(`Terminal screenshot did not open: ${JSON.stringify(debug)}`, { cause: error })
+}
+await page.waitForTimeout(800)
+await shot('terminal')
+await page.evaluate(() => {
+  localStorage.removeItem('pisper-screenshot-terminal')
+  localStorage.setItem('pisper-terminal-panel', JSON.stringify({ open: false, height: 260 }))
+})
+await page.reload({ waitUntil: 'networkidle' })
+
 // history
 await goto('/chat/history')
 await shot('history')
@@ -111,6 +212,11 @@ await shot('channels')
 
 // schedules
 await goto('/schedules')
+const scheduleCwd = page.getByLabel('工作目录').first()
+if (await scheduleCwd.count()) {
+  await scheduleCwd.fill('.')
+  await scheduleCwd.blur()
+}
 await shot('schedules')
 
 // plugins
@@ -140,6 +246,11 @@ await shot('workflows')
 
 // workflow builder: open the published workflow
 await goto(`/workflows/${WF_PUBLISHED}`)
+const workflowCwd = page.getByLabel('工作目录').first()
+if (await workflowCwd.count()) {
+  await workflowCwd.fill('.')
+  await workflowCwd.blur()
+}
 await page.waitForTimeout(600)
 await shot('workflow-builder')
 
