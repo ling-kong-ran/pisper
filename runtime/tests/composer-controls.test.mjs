@@ -64,7 +64,7 @@ test('composer expands low-frequency controls horizontally with React Bits Anima
   )
   assert.match(
     session,
-    /className="focus-composer-status"[\s\S]*composer-workspace-status[\s\S]*<SessionUsageMetrics/,
+    /className="focus-composer-meta"[\s\S]*composer-workspace-status[\s\S]*<SessionUsageMetrics/,
   )
   assert.doesNotMatch(tray, /composer-workspace/)
 })

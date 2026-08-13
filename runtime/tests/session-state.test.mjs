@@ -88,12 +88,10 @@ test('cleared plans do not fall back to stale session list data', () => {
   assert.equal(resolveSessionPlan({ loaded: true, taskList: null }, { plan: stale }), null)
 })
 
-test('fully completed plans hide when idle but stay visible while streaming', () => {
+test('persisted plans stay visible after an idle runtime restart', () => {
   const completed = { items: [{ id: 'a', title: 'Done', status: 'completed' }] }
-  assert.equal(isPlanActive(completed, { streaming: false }), false)
+  assert.equal(isPlanActive(completed, { streaming: false }), true)
   assert.equal(isPlanActive(completed, { streaming: true }), true)
-  assert.equal(
-    isPlanActive({ items: [{ id: 'a', title: 'Todo', status: 'pending' }] }, { streaming: false }),
-    true,
-  )
+  assert.equal(isPlanActive({ items: [] }, { streaming: false }), false)
+  assert.equal(isPlanActive(null, { streaming: false }), false)
 })

@@ -25,6 +25,7 @@ import type {
   WorkflowsData,
 } from './types'
 import { WorkflowLatestRun } from './WorkflowRunControls'
+import type { DesktopNotificationPermission } from '@/types/update'
 import type { WorkflowTranslate } from './workflow-templates'
 
 const NOTIFICATION_TARGETS = {
@@ -44,19 +45,25 @@ function WorkflowSettings({
   catalog,
   t,
   onUpdateDraft,
+  systemNotificationPermission,
   onToggleNotification,
   onOpenChannels,
+  onOpenSystemNotificationSettings,
 }: {
   draft: Workflow
   catalog: WorkflowsData
   t: WorkflowTranslate
   onUpdateDraft: (patch: Partial<Workflow>) => void
-  onToggleNotification: (target: NotificationTarget) => void
+  systemNotificationPermission: DesktopNotificationPermission
+  onToggleNotification: (target: NotificationTarget) => void | Promise<void>
   onOpenChannels: () => void
+  onOpenSystemNotificationSettings: () => void
 }) {
-  const hasNotificationTarget = Object.values(catalog.notificationTargets).some(
-    (target) => target.enabled,
+  const hasExternalNotificationTarget = ['feishu', 'weixin'].some(
+    (target) => catalog.notificationTargets[target as NotificationTarget]?.enabled,
   )
+  const systemNotificationAvailable =
+    systemNotificationPermission === 'default' || systemNotificationPermission === 'granted'
 
   return (
     <Card size="sm" className="workflow-card gap-0 py-0">
@@ -234,13 +241,32 @@ function WorkflowSettings({
             </div>
           ))}
         </div>
-        {!hasNotificationTarget && (
+        {!hasExternalNotificationTarget && (
           <Alert className="workflow-notification-alert">
             <AlertTriangle />
             <AlertDescription>
-              {t('workflows:workflowsPage.noNotificationChannelsEnabled')}
+              {t('workflows:workflowsPage.noExternalNotificationChannelsEnabled')}
               <Button type="button" variant="link" size="sm" onClick={onOpenChannels}>
                 {t('workflows:workflowsPage.openChannelSettings')}
+              </Button>
+            </AlertDescription>
+          </Alert>
+        )}
+        {(systemNotificationPermission === 'denied' ||
+          systemNotificationPermission === 'unsupported') && (
+          <Alert className="workflow-notification-alert">
+            <AlertTriangle />
+            <AlertDescription>
+              {systemNotificationPermission === 'unsupported'
+                ? t('workflows:workflowsPage.systemNotificationsUnsupported')
+                : t('workflows:workflowsPage.systemNotificationPermissionRequired')}
+              <Button
+                type="button"
+                variant="link"
+                size="sm"
+                onClick={onOpenSystemNotificationSettings}
+              >
+                {t('workflows:workflowsPage.openSystemNotificationSettings')}
               </Button>
             </AlertDescription>
           </Alert>
@@ -249,7 +275,10 @@ function WorkflowSettings({
           Object.entries(NOTIFICATION_TARGETS) as Array<[NotificationTarget, { Icon: typeof Bell }]>
         ).map(([id, target]) => {
           const Icon = target.Icon
-          const targetEnabled = Boolean(catalog.notificationTargets[id]?.enabled)
+          const targetEnabled =
+            id === 'browser'
+              ? systemNotificationAvailable
+              : Boolean(catalog.notificationTargets[id]?.enabled)
           return (
             <div className="toggle-line" key={id}>
               <span>
@@ -257,15 +286,27 @@ function WorkflowSettings({
                 {notificationTargetLabel(id, t)}
               </span>
               <Switch
-                checked={targetEnabled && draft.notifications.includes(id)}
+                checked={
+                  targetEnabled &&
+                  (id !== 'browser' ||
+                    (systemNotificationPermission === 'granted' &&
+                      catalog.notificationTargets.browser.enabled)) &&
+                  draft.notifications.includes(id)
+                }
                 disabled={!targetEnabled}
                 aria-label={notificationTargetLabel(id, t)}
                 title={
-                  targetEnabled
-                    ? t('workflows:workflowsPage.notificationChannelEnabled')
-                    : t('workflows:workflowsPage.notificationChannelNotEnabled')
+                  id === 'browser'
+                    ? targetEnabled
+                      ? catalog.notificationTargets.browser.enabled
+                        ? t('workflows:workflowsPage.systemNotificationsEnabled')
+                        : t('workflows:workflowsPage.systemNotificationReady')
+                      : t('workflows:workflowsPage.systemNotificationPermissionRequired')
+                    : targetEnabled
+                      ? t('workflows:workflowsPage.notificationChannelEnabled')
+                      : t('workflows:workflowsPage.notificationChannelNotEnabled')
                 }
-                onCheckedChange={() => onToggleNotification(id)}
+                onCheckedChange={() => void onToggleNotification(id)}
               />
             </div>
           )
@@ -595,11 +636,13 @@ export function WorkflowNodeInspector({
   t,
   onUpdateDraft,
   onUpdateNode,
+  systemNotificationPermission,
   onToggleNotification,
   onDeleteEdge,
   onCopyNode,
   onDeleteNode,
   onOpenChannels,
+  onOpenSystemNotificationSettings,
 }: {
   draft: Workflow
   catalog: WorkflowsData
@@ -610,11 +653,13 @@ export function WorkflowNodeInspector({
   t: WorkflowTranslate
   onUpdateDraft: (patch: Partial<Workflow>) => void
   onUpdateNode: (patch: Partial<WorkflowNode>) => void
-  onToggleNotification: (target: NotificationTarget) => void
+  systemNotificationPermission: DesktopNotificationPermission
+  onToggleNotification: (target: NotificationTarget) => void | Promise<void>
   onDeleteEdge: () => void
   onCopyNode: () => void
   onDeleteNode: () => void
   onOpenChannels: () => void
+  onOpenSystemNotificationSettings: () => void
 }) {
   return (
     <div className="detail-stack inspector">
@@ -623,8 +668,10 @@ export function WorkflowNodeInspector({
         catalog={catalog}
         t={t}
         onUpdateDraft={onUpdateDraft}
+        systemNotificationPermission={systemNotificationPermission}
         onToggleNotification={onToggleNotification}
         onOpenChannels={onOpenChannels}
+        onOpenSystemNotificationSettings={onOpenSystemNotificationSettings}
       />
       {selectedEdge && (
         <SelectedConnection edge={selectedEdge} nodes={draft.nodes} t={t} onDelete={onDeleteEdge} />

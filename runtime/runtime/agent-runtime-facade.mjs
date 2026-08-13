@@ -16,6 +16,14 @@ export function enabledNotificationTargets(notificationSettings) {
   ])
 }
 
+export function createScheduleWorkflowAdapter(workflows) {
+  return {
+    list: () => workflows.getState().workflows,
+    run: (id, options) => workflows.runNow(id, options),
+    getRun: (id) => workflows.getRun(id),
+  }
+}
+
 export function filterWorkflowNotificationTargets(input, enabledTargets) {
   if (!input || typeof input !== 'object') return input
   return {
@@ -329,6 +337,16 @@ export class AgentRuntimeFacade {
     return {
       ...this.schedules.getState(),
       defaultCwd: this.cwd,
+      workflows: this.workflows
+        .getState()
+        .workflows.filter((workflow) => workflow.status === 'published')
+        .map(({ id, name, description, revision, inputs }) => ({
+          id,
+          name,
+          description,
+          revision,
+          inputs,
+        })),
       models: config.providers
         .filter((provider) => provider.type !== 'visual' && provider.enabled && provider.configured)
         .flatMap((provider) =>

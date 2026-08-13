@@ -35,11 +35,31 @@ type NotificationTarget = 'browser' | 'feishu' | 'weixin'
 type ScheduleFrequency = 'interval' | 'daily' | 'weekly' | 'monthly'
 type IntervalUnit = 'minutes' | 'hours' | 'days'
 type ScheduleExecutionMode = 'full-access' | 'read-only'
+type ScheduleTargetType = 'prompt' | 'workflow'
 type ScheduleStatus = 'idle' | 'running' | 'completed' | 'failed' | 'interrupted'
+type ScheduleWorkflowInput = {
+  id: string
+  name: string
+  label: string
+  type: 'string' | 'text' | 'number' | 'boolean'
+  required: boolean
+  defaultValue: unknown
+  description?: string
+}
+type ScheduleWorkflow = {
+  id: string
+  name: string
+  description: string
+  revision: number
+  inputs: ScheduleWorkflowInput[]
+}
 type ScheduleTask = {
   id: string
   name: string
+  targetType: ScheduleTargetType
   prompt: string
+  workflowId: string
+  workflowInputs: Record<string, unknown>
   enabled: boolean
   frequency: ScheduleFrequency
   intervalValue: number
@@ -61,7 +81,10 @@ type ScheduleDraft = Pick<
   ScheduleTask,
   | 'id'
   | 'name'
+  | 'targetType'
   | 'prompt'
+  | 'workflowId'
+  | 'workflowInputs'
   | 'enabled'
   | 'frequency'
   | 'intervalValue'
@@ -85,12 +108,14 @@ type ScheduleRun = {
   durationMs: number
   summary?: string
   error?: string
+  workflowRunId?: string
 }
 type NotificationTargets = Record<NotificationTarget, { enabled: boolean }>
 type SchedulesData = {
   tasks: ScheduleTask[]
   runs: ScheduleRun[]
   notificationTargets: NotificationTargets
+  workflows: ScheduleWorkflow[]
   defaultCwd: string
 }
 type ScheduleMutationResult = { task: ScheduleTask; state: SchedulesData }
@@ -104,6 +129,7 @@ type ScheduleWorkspaceFieldProps = {
 }
 type ScheduleCreatorProps = {
   notificationTargets: NotificationTargets
+  workflows: ScheduleWorkflow[]
   defaultCwd: string
   onCreated: (result: ScheduleMutationResult) => void
 }
@@ -180,6 +206,166 @@ function ScheduleExecutionModeField({ value, onChange }: ScheduleExecutionModeFi
   )
 }
 
+function workflowInputDefaults(workflow?: ScheduleWorkflow) {
+  return Object.fromEntries(
+    (workflow?.inputs || []).map((input) => [input.name, input.defaultValue ?? '']),
+  )
+}
+
+function scheduleTargetValid(
+  targetType: ScheduleTargetType,
+  prompt: string,
+  workflowId: string,
+  workflowInputs: Record<string, unknown>,
+  workflows: ScheduleWorkflow[],
+) {
+  if (targetType === 'prompt') return Boolean(prompt.trim())
+  const workflow = workflows.find((item) => item.id === workflowId)
+  if (!workflow) return false
+  return workflow.inputs.every((input) => {
+    const value = Object.hasOwn(workflowInputs, input.name)
+      ? workflowInputs[input.name]
+      : input.defaultValue
+    return !input.required || (value !== undefined && value !== null && value !== '')
+  })
+}
+
+function ScheduleTargetFields({
+  targetType,
+  prompt,
+  workflowId,
+  workflowInputs,
+  workflows,
+  onChange,
+}: {
+  targetType: ScheduleTargetType
+  prompt: string
+  workflowId: string
+  workflowInputs: Record<string, unknown>
+  workflows: ScheduleWorkflow[]
+  onChange: (patch: {
+    targetType?: ScheduleTargetType
+    prompt?: string
+    workflowId?: string
+    workflowInputs?: Record<string, unknown>
+  }) => void
+}) {
+  const { t } = useI18n()
+  const workflow = workflows.find((item) => item.id === workflowId)
+  return (
+    <div className="schedule-target-fields">
+      <label className="field-label">
+        {t('schedules:schedulesPage.executionTarget')}
+        <span className="select-wrap">
+          <AppSelect
+            value={targetType}
+            onChange={(event) => {
+              const nextTarget = event.target.value as ScheduleTargetType
+              const nextWorkflow = workflows[0]
+              onChange(
+                nextTarget === 'workflow'
+                  ? {
+                      targetType: nextTarget,
+                      workflowId: workflowId || nextWorkflow?.id || '',
+                      workflowInputs: workflowId
+                        ? workflowInputs
+                        : workflowInputDefaults(nextWorkflow),
+                    }
+                  : { targetType: nextTarget },
+              )
+            }}
+          >
+            <option value="prompt">Prompt</option>
+            <option value="workflow">{t('schedules:schedulesPage.workflow')}</option>
+          </AppSelect>
+          <ChevronDown size={13} />
+        </span>
+      </label>
+      {targetType === 'prompt' ? (
+        <label className="field-label">
+          Prompt
+          <textarea
+            value={prompt}
+            onChange={(event) => onChange({ prompt: event.target.value })}
+            placeholder={t('schedules:schedulesPage.describeTheWorkTheAgentShouldCompleteEachTime')}
+          />
+        </label>
+      ) : (
+        <>
+          <label className="field-label">
+            {t('schedules:schedulesPage.workflow')}
+            <span className="select-wrap">
+              <AppSelect
+                value={workflowId}
+                onChange={(event) => {
+                  const nextWorkflow = workflows.find((item) => item.id === event.target.value)
+                  onChange({
+                    workflowId: event.target.value,
+                    workflowInputs: workflowInputDefaults(nextWorkflow),
+                  })
+                }}
+              >
+                <option value="">{t('schedules:schedulesPage.selectPublishedWorkflow')}</option>
+                {workflows.map((item) => (
+                  <option value={item.id} key={item.id}>
+                    {item.name} · v{item.revision}
+                  </option>
+                ))}
+              </AppSelect>
+              <ChevronDown size={13} />
+            </span>
+            <small>
+              {workflow?.description ||
+                (workflows.length
+                  ? t('schedules:schedulesPage.workflowUsesItsOwnRuntimeSettings')
+                  : t('schedules:schedulesPage.noPublishedWorkflows'))}
+            </small>
+          </label>
+          {workflow?.inputs.length ? (
+            <div className="schedule-workflow-inputs">
+              {workflow.inputs.map((input) => (
+                <label className="field-label" key={input.id}>
+                  {input.label}
+                  {input.required ? ' *' : ''}
+                  {input.type === 'boolean' ? (
+                    <input
+                      type="checkbox"
+                      checked={Boolean(workflowInputs[input.name])}
+                      onChange={(event) =>
+                        onChange({
+                          workflowInputs: {
+                            ...workflowInputs,
+                            [input.name]: event.target.checked,
+                          },
+                        })
+                      }
+                    />
+                  ) : (
+                    <input
+                      type={input.type === 'number' ? 'number' : 'text'}
+                      required={input.required}
+                      value={String(workflowInputs[input.name] ?? '')}
+                      onChange={(event) =>
+                        onChange({
+                          workflowInputs: {
+                            ...workflowInputs,
+                            [input.name]: event.target.value,
+                          },
+                        })
+                      }
+                    />
+                  )}
+                  {input.description && <small>{input.description}</small>}
+                </label>
+              ))}
+            </div>
+          ) : null}
+        </>
+      )}
+    </div>
+  )
+}
+
 function ScheduleWorkspaceField({ value, onChange }: ScheduleWorkspaceFieldProps) {
   const { t } = useI18n()
   const [pickerError, setPickerError] = useState('')
@@ -237,7 +423,10 @@ function taskDraft(task: ScheduleTask): ScheduleDraft {
   return {
     id: task.id,
     name: task.name,
+    targetType: task.targetType || 'prompt',
     prompt: task.prompt,
+    workflowId: task.workflowId || '',
+    workflowInputs: task.workflowInputs || {},
     enabled: task.enabled,
     frequency: task.frequency,
     intervalValue: task.intervalValue || 1,
@@ -278,6 +467,7 @@ export function SchedulesPage({
       feishu: { enabled: false },
       weixin: { enabled: false },
     },
+    workflows: [],
     defaultCwd: '',
   })
   const [selectedId, setSelectedId] = useState('')
@@ -314,6 +504,7 @@ export function SchedulesPage({
   }, [data.tasks, load])
 
   const selected = data.tasks.find((task) => task.id === selectedId)
+  const availableWorkflows = data.workflows || []
   useEffect(() => {
     setDraft((current) =>
       selected ? (current?.id === selected.id ? current : taskDraft(selected)) : null,
@@ -431,7 +622,12 @@ export function SchedulesPage({
                           : t('schedules:schedulesPage.pause')}
                       </Badge>
                     </div>
-                    <small>{task.prompt}</small>
+                    <small>
+                      {task.targetType === 'workflow'
+                        ? availableWorkflows.find((workflow) => workflow.id === task.workflowId)
+                            ?.name || t('schedules:schedulesPage.workflowUnavailable')
+                        : task.prompt}
+                    </small>
                   </span>
                   <em>{nextRunLabel(task, language)}</em>
                 </button>
@@ -479,14 +675,20 @@ export function SchedulesPage({
                   </button>
                 </div>
               </div>
-              <label className="field-label">
-                Prompt
-                <textarea
-                  value={draft.prompt}
-                  onChange={(event) => updateDraft({ prompt: event.target.value })}
+              <ScheduleTargetFields
+                targetType={draft.targetType}
+                prompt={draft.prompt}
+                workflowId={draft.workflowId}
+                workflowInputs={draft.workflowInputs}
+                workflows={availableWorkflows}
+                onChange={updateDraft}
+              />
+              {draft.targetType === 'prompt' && (
+                <ScheduleWorkspaceField
+                  value={draft.cwd}
+                  onChange={(cwd) => updateDraft({ cwd })}
                 />
-              </label>
-              <ScheduleWorkspaceField value={draft.cwd} onChange={(cwd) => updateDraft({ cwd })} />
+              )}
               <div className="form-grid three">
                 <label className="field-label">
                   {t('schedules:schedulesPage.frequency')}
@@ -558,10 +760,12 @@ export function SchedulesPage({
                     <ChevronDown size={13} />
                   </span>
                 </label>
-                <ScheduleExecutionModeField
-                  value={draft.executionMode}
-                  onChange={(executionMode) => updateDraft({ executionMode })}
-                />
+                {draft.targetType === 'prompt' && (
+                  <ScheduleExecutionModeField
+                    value={draft.executionMode}
+                    onChange={(executionMode) => updateDraft({ executionMode })}
+                  />
+                )}
               </div>
               <div className="schedule-notification-section">
                 <div>
@@ -626,7 +830,16 @@ export function SchedulesPage({
                 </span>
                 <button
                   className="button dark"
-                  disabled={saving || !draft.prompt.trim()}
+                  disabled={
+                    saving ||
+                    !scheduleTargetValid(
+                      draft.targetType,
+                      draft.prompt,
+                      draft.workflowId,
+                      draft.workflowInputs,
+                      availableWorkflows,
+                    )
+                  }
                   onClick={save}
                 >
                   {saving ? <RefreshCw className="spin" size={14} /> : null}
@@ -687,6 +900,7 @@ export function SchedulesPage({
         ) : (
           <CreateSchedulePanel
             notificationTargets={data.notificationTargets}
+            workflows={availableWorkflows}
             defaultCwd={data.defaultCwd}
             onCreated={(result) => {
               setData(result.state)
@@ -699,6 +913,7 @@ export function SchedulesPage({
       {createOpen && (
         <CreateScheduleModal
           notificationTargets={data.notificationTargets}
+          workflows={availableWorkflows}
           defaultCwd={data.defaultCwd}
           onClose={() => setCreateOpen(false)}
           onCreated={(result) => {
@@ -713,10 +928,18 @@ export function SchedulesPage({
   )
 }
 
-function CreateSchedulePanel({ notificationTargets, defaultCwd, onCreated }: ScheduleCreatorProps) {
+function CreateSchedulePanel({
+  notificationTargets,
+  workflows,
+  defaultCwd,
+  onCreated,
+}: ScheduleCreatorProps) {
   const { t } = useI18n()
   const [name, setName] = useState('')
+  const [targetType, setTargetType] = useState<ScheduleTargetType>('prompt')
   const [prompt, setPrompt] = useState('')
+  const [workflowId, setWorkflowId] = useState('')
+  const [workflowInputs, setWorkflowInputs] = useState<Record<string, unknown>>({})
   const [cwd, setCwd] = useState(defaultCwd || '')
   const [frequency, setFrequency] = useState<ScheduleFrequency>('daily')
   const [time, setTime] = useState('09:00')
@@ -738,7 +961,10 @@ function CreateSchedulePanel({ notificationTargets, defaultCwd, onCreated }: Sch
           method: 'POST',
           body: JSON.stringify({
             name,
+            targetType,
             prompt,
+            workflowId,
+            workflowInputs,
             cwd,
             enabled: true,
             frequency,
@@ -778,15 +1004,20 @@ function CreateSchedulePanel({ notificationTargets, defaultCwd, onCreated }: Sch
           placeholder={t('schedules:schedulesPage.forExampleDailyCodeReview')}
         />
       </label>
-      <label className="field-label">
-        Prompt
-        <textarea
-          value={prompt}
-          onChange={(event) => setPrompt(event.target.value)}
-          placeholder={t('schedules:schedulesPage.describeTheWorkTheAgentShouldCompleteEachTime')}
-        />
-      </label>
-      <ScheduleWorkspaceField value={cwd} onChange={setCwd} />
+      <ScheduleTargetFields
+        targetType={targetType}
+        prompt={prompt}
+        workflowId={workflowId}
+        workflowInputs={workflowInputs}
+        workflows={workflows}
+        onChange={(patch) => {
+          if (patch.targetType) setTargetType(patch.targetType)
+          if (patch.prompt !== undefined) setPrompt(patch.prompt)
+          if (patch.workflowId !== undefined) setWorkflowId(patch.workflowId)
+          if (patch.workflowInputs !== undefined) setWorkflowInputs(patch.workflowInputs)
+        }}
+      />
+      {targetType === 'prompt' && <ScheduleWorkspaceField value={cwd} onChange={setCwd} />}
       <div className="form-grid three">
         <label className="field-label">
           {t('schedules:schedulesPage.frequency')}
@@ -845,7 +1076,9 @@ function CreateSchedulePanel({ notificationTargets, defaultCwd, onCreated }: Sch
             <ChevronDown size={13} />
           </span>
         </label>
-        <ScheduleExecutionModeField value={executionMode} onChange={setExecutionMode} />
+        {targetType === 'prompt' && (
+          <ScheduleExecutionModeField value={executionMode} onChange={setExecutionMode} />
+        )}
       </div>
       {error && (
         <div className="config-error">
@@ -857,7 +1090,11 @@ function CreateSchedulePanel({ notificationTargets, defaultCwd, onCreated }: Sch
         <span>{t('schedules:schedulesPage.enabledAutomaticallyAfterCreation')}</span>
         <button
           className="button dark"
-          disabled={saving || !name.trim() || !prompt.trim()}
+          disabled={
+            saving ||
+            !name.trim() ||
+            !scheduleTargetValid(targetType, prompt, workflowId, workflowInputs, workflows)
+          }
           onClick={create}
         >
           {saving ? <RefreshCw className="spin" size={14} /> : <Plus size={14} />}
@@ -870,13 +1107,17 @@ function CreateSchedulePanel({ notificationTargets, defaultCwd, onCreated }: Sch
 
 function CreateScheduleModal({
   notificationTargets,
+  workflows,
   defaultCwd,
   onClose,
   onCreated,
 }: CreateScheduleModalProps) {
   const { t } = useI18n()
   const [name, setName] = useState('')
+  const [targetType, setTargetType] = useState<ScheduleTargetType>('prompt')
   const [prompt, setPrompt] = useState('')
+  const [workflowId, setWorkflowId] = useState('')
+  const [workflowInputs, setWorkflowInputs] = useState<Record<string, unknown>>({})
   const [cwd, setCwd] = useState(defaultCwd || '')
   const [executionMode, setExecutionMode] = useState<ScheduleExecutionMode>('full-access')
   const [saving, setSaving] = useState(false)
@@ -894,7 +1135,10 @@ function CreateScheduleModal({
           method: 'POST',
           body: JSON.stringify({
             name,
+            targetType,
             prompt,
+            workflowId,
+            workflowInputs,
             cwd,
             enabled: true,
             frequency: 'daily',
@@ -944,16 +1188,25 @@ function CreateScheduleModal({
             placeholder={t('schedules:schedulesPage.forExampleDailyCodeReview')}
           />
         </label>
-        <label className="field-label">
-          Prompt
-          <textarea
-            value={prompt}
-            onChange={(event) => setPrompt(event.target.value)}
-            placeholder={t('schedules:schedulesPage.describeTheWorkTheAgentShouldCompleteEachTime')}
-          />
-        </label>
-        <ScheduleWorkspaceField value={cwd} onChange={setCwd} />
-        <ScheduleExecutionModeField value={executionMode} onChange={setExecutionMode} />
+        <ScheduleTargetFields
+          targetType={targetType}
+          prompt={prompt}
+          workflowId={workflowId}
+          workflowInputs={workflowInputs}
+          workflows={workflows}
+          onChange={(patch) => {
+            if (patch.targetType) setTargetType(patch.targetType)
+            if (patch.prompt !== undefined) setPrompt(patch.prompt)
+            if (patch.workflowId !== undefined) setWorkflowId(patch.workflowId)
+            if (patch.workflowInputs !== undefined) setWorkflowInputs(patch.workflowInputs)
+          }}
+        />
+        {targetType === 'prompt' && (
+          <>
+            <ScheduleWorkspaceField value={cwd} onChange={setCwd} />
+            <ScheduleExecutionModeField value={executionMode} onChange={setExecutionMode} />
+          </>
+        )}
         {error && (
           <div className="config-error">
             <AlertTriangle size={13} />
@@ -964,7 +1217,14 @@ function CreateScheduleModal({
           <button type="button" className="button secondary" onClick={onClose}>
             {t('schedules:schedulesPage.cancel')}
           </button>
-          <button className="button primary" disabled={saving || !name.trim() || !prompt.trim()}>
+          <button
+            className="button primary"
+            disabled={
+              saving ||
+              !name.trim() ||
+              !scheduleTargetValid(targetType, prompt, workflowId, workflowInputs, workflows)
+            }
+          >
             {saving ? <RefreshCw className="spin" size={14} /> : <Plus size={14} />}
             {saving
               ? t('schedules:schedulesPage.creating')

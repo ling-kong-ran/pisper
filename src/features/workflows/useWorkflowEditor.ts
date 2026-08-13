@@ -1,8 +1,15 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useI18n } from '@/app/use-i18n'
 import { apiJson } from '@/lib/api'
+import {
+  getBrowserNotificationPermission,
+  prepareBrowserNotifications,
+  requestBrowserNotificationPermission,
+} from '@/lib/browser-notifications'
 import { wouldCreateWorkflowCycle } from '@shared/workflow-graph.mjs'
 import type { Notify } from '@/app/route-context'
+import type { NotificationSettingsData } from '@/types/notifications'
+import type { DesktopNotificationPermission } from '@/types/update'
 import type {
   NodeKind,
   NotificationTarget,
@@ -40,6 +47,40 @@ export function useWorkflowEditor({
   const [loading, setLoading] = useState(true)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
+  const desktopNotifications = Boolean(window.pisperDesktop?.showNotification)
+  const [systemNotificationPermission, setSystemNotificationPermission] =
+    useState<DesktopNotificationPermission>(() =>
+      desktopNotifications ? 'checking' : getBrowserNotificationPermission(),
+    )
+
+  const refreshSystemNotificationPermission = useCallback(async () => {
+    if (!desktopNotifications) {
+      setSystemNotificationPermission(getBrowserNotificationPermission())
+      return
+    }
+    const getStatus = window.pisperDesktop?.getNotificationStatus
+    if (!getStatus) {
+      setSystemNotificationPermission('granted')
+      return
+    }
+    try {
+      const result = await getStatus()
+      const permission = result?.permission
+      setSystemNotificationPermission(
+        permission === 'default' ||
+          permission === 'denied' ||
+          permission === 'granted' ||
+          permission === 'checking' ||
+          permission === 'unsupported'
+          ? permission
+          : result?.supported === false
+            ? 'unsupported'
+            : 'granted',
+      )
+    } catch {
+      setSystemNotificationPermission('unsupported')
+    }
+  }, [desktopNotifications])
 
   const load = useCallback(async () => {
     try {
@@ -75,6 +116,13 @@ export function useWorkflowEditor({
   useEffect(() => {
     void load()
   }, [load])
+
+  useEffect(() => {
+    void refreshSystemNotificationPermission()
+    const refresh = () => void refreshSystemNotificationPermission()
+    window.addEventListener('focus', refresh)
+    return () => window.removeEventListener('focus', refresh)
+  }, [refreshSystemNotificationPermission])
 
   const currentRun = useMemo(
     () =>
@@ -285,15 +333,89 @@ export function useWorkflowEditor({
   }, [removeNodes, selectedNode])
 
   const toggleNotification = useCallback(
-    (target: NotificationTarget) => {
-      if (!draft || !catalog.notificationTargets[target]?.enabled) return
-      updateDraft({
-        notifications: draft.notifications.includes(target)
-          ? draft.notifications.filter((item) => item !== target)
-          : [...draft.notifications, target],
-      })
+    async (target: NotificationTarget) => {
+      if (!draft) return
+      if (target !== 'browser') {
+        if (draft.notifications.includes(target)) {
+          updateDraft({
+            notifications: draft.notifications.filter((item) => item !== target),
+          })
+          return
+        }
+        if (!catalog.notificationTargets[target]?.enabled) return
+        updateDraft({ notifications: [...draft.notifications, target] })
+        return
+      }
+      if (
+        draft.notifications.includes(target) &&
+        catalog.notificationTargets.browser.enabled &&
+        systemNotificationPermission === 'granted'
+      ) {
+        updateDraft({
+          notifications: draft.notifications.filter((item) => item !== target),
+        })
+        return
+      }
+
+      let permission = systemNotificationPermission
+      if (desktopNotifications) {
+        await refreshSystemNotificationPermission()
+        const status = await window.pisperDesktop?.getNotificationStatus?.()
+        permission = status?.permission || (status?.supported === false ? 'unsupported' : 'granted')
+      } else {
+        permission = await requestBrowserNotificationPermission()
+        setSystemNotificationPermission(permission)
+        if (permission === 'granted') {
+          try {
+            await prepareBrowserNotifications()
+          } catch (caught) {
+            notify(workflowErrorMessage(caught), 'error')
+            return
+          }
+        }
+      }
+      if (permission !== 'granted') {
+        notify(
+          permission === 'unsupported'
+            ? t('workflows:workflowsPage.systemNotificationsUnsupported')
+            : t('workflows:workflowsPage.systemNotificationPermissionRequired'),
+          'error',
+        )
+        return
+      }
+
+      try {
+        const settings = await apiJson<NotificationSettingsData>(
+          '/api/settings/notifications/browser',
+          { method: 'PATCH', body: JSON.stringify({ enabled: true }) },
+        )
+        setCatalog((current) => ({
+          ...current,
+          notificationTargets: {
+            ...current.notificationTargets,
+            browser: { enabled: settings.browser.enabled },
+          },
+        }))
+        updateDraft({
+          notifications: draft.notifications.includes(target)
+            ? draft.notifications
+            : [...draft.notifications, target],
+        })
+        notify(t('workflows:workflowsPage.systemNotificationsEnabled'))
+      } catch (caught) {
+        notify(workflowErrorMessage(caught), 'error')
+      }
     },
-    [catalog.notificationTargets, draft, updateDraft],
+    [
+      catalog.notificationTargets,
+      desktopNotifications,
+      draft,
+      notify,
+      refreshSystemNotificationPermission,
+      systemNotificationPermission,
+      t,
+      updateDraft,
+    ],
   )
 
   const saveWorkflow = useCallback(
@@ -304,7 +426,13 @@ export function useWorkflowEditor({
       try {
         const enabledTargets = new Set(
           Object.entries(catalog.notificationTargets)
-            .filter(([, target]) => target.enabled)
+            .filter(
+              ([id, target]) =>
+                target.enabled &&
+                (id !== 'browser' ||
+                  systemNotificationPermission === 'granted' ||
+                  systemNotificationPermission === 'checking'),
+            )
             .map(([id]) => id),
         )
         const payload = {
@@ -347,7 +475,7 @@ export function useWorkflowEditor({
         setBusy(false)
       }
     },
-    [catalog.notificationTargets, draft, notify, onCreated, t],
+    [catalog.notificationTargets, draft, notify, onCreated, systemNotificationPermission, t],
   )
 
   const runWorkflow = useCallback(async () => {
@@ -403,6 +531,7 @@ export function useWorkflowEditor({
     busy,
     running,
     error,
+    systemNotificationPermission,
     updateDraft,
     updateNode,
     addEdge,

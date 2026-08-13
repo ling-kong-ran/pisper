@@ -73,28 +73,57 @@ test('desktop terminal reattaches its xterm runtime after the panel host is remo
   assert.match(terminal, /existing\.resizeObserver\.observe\(host\)/)
 })
 
-test('workflow notifications require each target channel to be enabled', async () => {
+test('workflow notifications separate system permission from external channel setup', async () => {
   const [inspector, editor, switchPrimitive] = await Promise.all([
     readFile('src/features/workflows/WorkflowNodeInspector.tsx', 'utf8'),
     readFile('src/features/workflows/useWorkflowEditor.ts', 'utf8'),
     readFile('src/components/ui/switch.tsx', 'utf8'),
   ])
   const notificationSwitch = inspector.match(
-    /<Switch[\s\S]*?onCheckedChange=\{\(\) => onToggleNotification\(id\)\}/,
+    /<Switch[\s\S]*?onCheckedChange=\{\(\) => void onToggleNotification\(id\)\}/,
   )?.[0]
 
   assert.ok(notificationSwitch)
   assert.match(
-    notificationSwitch,
-    /checked=\{targetEnabled && draft\.notifications\.includes\(id\)\}/,
+    inspector,
+    /id === 'browser'[\s\S]*?systemNotificationAvailable[\s\S]*?catalog\.notificationTargets\[id\]\?\.enabled/,
+  )
+  assert.match(
+    inspector,
+    /systemNotificationPermission === 'default' \|\| systemNotificationPermission === 'granted'/,
   )
   assert.match(notificationSwitch, /disabled=\{!targetEnabled\}/)
   assert.doesNotMatch(notificationSwitch, /size="sm"/)
-  assert.match(inspector, /noNotificationChannelsEnabled/)
+  assert.match(inspector, /noExternalNotificationChannelsEnabled/)
+  assert.match(inspector, /systemNotificationPermissionRequired/)
   assert.match(inspector, /onOpenChannels/)
-  assert.match(editor, /!catalog\.notificationTargets\[target\]\?\.enabled/)
+  assert.match(inspector, /onOpenSystemNotificationSettings/)
+  assert.match(editor, /target !== 'browser'/)
+  assert.match(editor, /requestBrowserNotificationPermission/)
+  assert.match(editor, /\/api\/settings\/notifications\/browser/)
   assert.match(editor, /notificationTargets\.filter/)
   assert.match(switchPrimitive, /inline-flex min-h-0! shrink-0/)
+})
+
+test('scheduled tasks use structured prompt or workflow targets across every form', async () => {
+  const [schedules, facade, runtime] = await Promise.all([
+    readFile('src/features/schedules/SchedulesPage.tsx', 'utf8'),
+    readFile('runtime/runtime/agent-runtime-facade.mjs', 'utf8'),
+    readFile('runtime/runtime/agent-runtime.mjs', 'utf8'),
+  ])
+
+  assert.equal(schedules.match(/<ScheduleTargetFields/g)?.length, 3)
+  assert.match(schedules, /type ScheduleTargetType = 'prompt' \| 'workflow'/)
+  assert.match(schedules, /workflowInputs: Record<string, unknown>/)
+  assert.match(schedules, /scheduleTargetValid\(/)
+  assert.match(schedules, /targetType === 'prompt'/)
+  assert.match(facade, /\.filter\(\(workflow\) => workflow\.status === 'published'\)/)
+  assert.match(facade, /\.map\(\(\{ id, name, description, revision, inputs \}\)/)
+  assert.match(facade, /createScheduleWorkflowAdapter[\s\S]*?list:[\s\S]*?run:[\s\S]*?getRun:/)
+  assert.match(runtime, /workflows: createScheduleWorkflowAdapter\(this\.workflows\)/)
+  assert.ok(
+    runtime.indexOf('await this.workflows.init()') < runtime.indexOf('await this.schedules.init()'),
+  )
 })
 
 test('settings navigation replaces the main sidebar instead of nesting in page content', async () => {

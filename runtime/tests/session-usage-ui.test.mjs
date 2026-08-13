@@ -27,7 +27,7 @@ test('session usage stays scoped to each dock panel and updates over SSE', async
   assert.match(sync, /sessionUsage: data\.sessionUsage \?\? latest\.sessionUsage \?\? null/)
 })
 
-test('composer renders the metrics as a separate row below the input controls', async () => {
+test('composer renders unframed metrics as a separate row below the input controls', async () => {
   const [focus, controls, css] = await Promise.all([
     source('../../src/features/chat/FocusSession.tsx'),
     source('../../src/features/chat/FocusRuntimeControls.tsx'),
@@ -36,7 +36,7 @@ test('composer renders the metrics as a separate row below the input controls', 
 
   assert.match(
     focus,
-    /className="focus-composer-status"[\s\S]*composer-workspace-status[\s\S]*<SessionUsageMetrics usage=\{sessionUsage\} plan=\{plan\} \/>[\s\S]*<\/form>/,
+    /className="focus-composer-meta"[\s\S]*composer-workspace-status[\s\S]*<SessionUsageMetrics usage=\{sessionUsage\} plan=\{plan\} \/>[\s\S]*<\/form>/,
   )
   assert.match(controls, /cacheHitRate/)
   assert.match(controls, /usage\?\.processedTokens/)
@@ -49,5 +49,10 @@ test('composer renders the metrics as a separate row below the input controls', 
   assert.match(controls, /<PopoverTrigger asChild>/)
   assert.match(controls, /<PlanBoard plan=\{plan \?\? null\} \/>/)
   assert.match(css, /\.session-usage-metrics \{[^}]*justify-content: flex-start/)
+  const metaStyles = css.match(/\.focus-composer-meta \{[^}]*\}/)?.[0] || ''
+  assert.ok(metaStyles)
+  assert.doesNotMatch(metaStyles, /border:|background:|box-shadow:/)
+  assert.match(css, /\.composer-workspace-status \{[^}]*border: 0;[^}]*background: transparent;/)
+  assert.doesNotMatch(css, /\.composer-workspace-status:hover[^}]*background:/)
   assert.match(css, /\.session-plan-popover \{[^}]*max-height:/)
 })

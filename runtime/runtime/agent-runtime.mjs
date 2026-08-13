@@ -86,7 +86,11 @@ import {
   normalizeCompactionThresholdPercent,
   pisperCompactionExtension,
 } from './compaction-policy.mjs'
-import { AgentRuntimeFacade, ISOLATED_CONTEXT_BLOCKED_TOOLS } from './agent-runtime-facade.mjs'
+import {
+  AgentRuntimeFacade,
+  ISOLATED_CONTEXT_BLOCKED_TOOLS,
+  createScheduleWorkflowAdapter,
+} from './agent-runtime-facade.mjs'
 import { ToolActivation } from './tool-activation.mjs'
 import { SessionLifecycle } from './session-lifecycle.mjs'
 import { ProviderPreferences } from './provider-preferences.mjs'
@@ -471,15 +475,6 @@ export class AgentRuntimeService extends AgentRuntimeFacade {
       browserEventsPath: join(dataDir, 'pisper-browser-notifications.json'),
       channels: this.channels,
     })
-    this.schedules = new ScheduleService({
-      path: join(dataDir, 'pisper-schedules.json'),
-      cwd,
-      agent: {
-        prompt: (input) => this.promptFromChannel({ sessionId: '', ...input }),
-        validateDirectory: (input) => resolveDirectory(input, this.cwd),
-      },
-      notifications: this.notificationSettings,
-    })
     this.workflows = new WorkflowService({
       path: join(dataDir, 'pisper-workflows.json'),
       cwd,
@@ -488,6 +483,16 @@ export class AgentRuntimeService extends AgentRuntimeFacade {
         abort: (sessionId) => this.abortSession(sessionId),
         validateDirectory: (input) => resolveDirectory(input, this.cwd),
       },
+      notifications: this.notificationSettings,
+    })
+    this.schedules = new ScheduleService({
+      path: join(dataDir, 'pisper-schedules.json'),
+      cwd,
+      agent: {
+        prompt: (input) => this.promptFromChannel({ sessionId: '', ...input }),
+        validateDirectory: (input) => resolveDirectory(input, this.cwd),
+      },
+      workflows: createScheduleWorkflowAdapter(this.workflows),
       notifications: this.notificationSettings,
     })
     this.sessions = new Map()
@@ -725,8 +730,8 @@ export class AgentRuntimeService extends AgentRuntimeFacade {
     await this.plans.init()
     await this.multiAgents.init()
     await this.channels.init()
-    await this.schedules.init()
     await this.workflows.init()
+    await this.schedules.init()
     this.startSessionRuntimeSweeper()
     void this.refreshProviderModels().catch(() => {})
     stage('complete')
@@ -2432,7 +2437,6 @@ export class AgentRuntimeService extends AgentRuntimeFacade {
         startedAt: live.startedAt,
         finishedAt,
       })
-      // Terminal snapshot already delivered over SSE; avoid a second bare error event from the HTTP handler.
       return
     } finally {
       unsubscribe()

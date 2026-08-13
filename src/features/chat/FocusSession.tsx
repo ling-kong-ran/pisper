@@ -563,7 +563,7 @@ export function FocusSession({
             </button>
           </div>
         </div>
-        <div className="focus-composer-status">
+        <div className="focus-composer-meta">
           {hasConversation && (
             <button
               type="button"

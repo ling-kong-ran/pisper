@@ -120,10 +120,7 @@ export function resolveSessionPlan(
 
 export function isPlanActive(
   plan: Plan | null | undefined,
-  { streaming = false }: { streaming?: boolean } = {},
+  _options: { streaming?: boolean } = {},
 ) {
-  const items = plan?.items || []
-  if (!items.length) return false
-  if (streaming) return true
-  return items.some((item) => item?.status !== 'completed')
+  return Boolean(plan?.items?.length)
 }

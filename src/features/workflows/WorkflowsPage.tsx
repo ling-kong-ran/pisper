@@ -182,6 +182,7 @@ export function WorkflowBuilder({
           currentRun={editor.currentRun}
           language={language}
           t={t}
+          systemNotificationPermission={editor.systemNotificationPermission}
           onUpdateDraft={editor.updateDraft}
           onUpdateNode={editor.updateNode}
           onToggleNotification={editor.toggleNotification}
@@ -189,6 +190,13 @@ export function WorkflowBuilder({
           onCopyNode={editor.copyNode}
           onDeleteNode={editor.deleteNode}
           onOpenChannels={() => navigate(PAGE_PATHS.channels)}
+          onOpenSystemNotificationSettings={() => {
+            if (window.pisperDesktop?.openNotificationSettings) {
+              void window.pisperDesktop.openNotificationSettings()
+              return
+            }
+            navigate('/config/notifications')
+          }}
         />
       </div>
     </div>

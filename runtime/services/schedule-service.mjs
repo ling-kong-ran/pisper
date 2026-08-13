@@ -8,7 +8,10 @@ const FREQUENCIES = new Set(['interval', 'daily', 'weekly', 'monthly'])
 const INTERVAL_UNITS = new Set(['minutes', 'hours', 'days'])
 const INTERVAL_MS = { minutes: 60_000, hours: 60 * 60_000, days: 24 * 60 * 60_000 }
 const NOTIFICATION_TARGETS = new Set(['browser', 'feishu', 'weixin'])
+const SCHEDULE_TARGETS = new Set(['prompt', 'workflow'])
+const TERMINAL_WORKFLOW_STATUSES = new Set(['completed', 'failed', 'cancelled', 'interrupted'])
 const RESTART_INTERRUPTED_ERROR = '任务因 Pisper 重启而中断。'
+const SHUTDOWN_INTERRUPTED_ERROR = '任务因 Pisper 关闭而中断。'
 
 function defaultState() {
   return { version: 1, tasks: [], runs: [] }
@@ -108,7 +111,19 @@ function normalizeStoredTask(task, cwd) {
   const normalized = {
     id: String(task.id || randomUUID()),
     name: String(task.name || '未命名任务').slice(0, 120),
+    targetType: SCHEDULE_TARGETS.has(task.targetType) ? task.targetType : 'prompt',
     prompt: String(task.prompt || '').slice(0, 100_000),
+    workflowId: String(task.workflowId || '').slice(0, 200),
+    workflowInputs:
+      task.workflowInputs &&
+      typeof task.workflowInputs === 'object' &&
+      !Array.isArray(task.workflowInputs)
+        ? Object.fromEntries(
+            Object.entries(task.workflowInputs)
+              .slice(0, 100)
+              .map(([key, value]) => [String(key).slice(0, 120), value]),
+          )
+        : {},
     enabled: task.enabled !== false,
     frequency,
     intervalValue: Math.min(10_000, Math.max(1, Number(task.intervalValue) || 1)),
@@ -170,10 +185,11 @@ function nextRunLabel(task) {
 }
 
 export class ScheduleService {
-  constructor({ path, cwd, agent, notifications, tickMs = 15_000 }) {
+  constructor({ path, cwd, agent, workflows, notifications, tickMs = 15_000 }) {
     this.path = path
     this.cwd = cwd
     this.agent = agent
+    this.workflows = workflows
     this.notifications = notifications
     this.tickMs = tickMs
     this.state = defaultState()
@@ -181,6 +197,7 @@ export class ScheduleService {
     this.timer = null
     this.running = new Set()
     this.executions = new Set()
+    this.disposed = false
   }
 
   async init() {
@@ -244,13 +261,42 @@ export class ScheduleService {
   async normalizeInput(input, current = {}) {
     const merged = { ...current, ...input }
     const name = String(merged.name || '').trim()
+    const targetType = SCHEDULE_TARGETS.has(merged.targetType) ? merged.targetType : 'prompt'
     const prompt = String(merged.prompt || '').trim()
+    const workflowId = String(merged.workflowId || '').trim()
+    const workflowInputs =
+      merged.workflowInputs &&
+      typeof merged.workflowInputs === 'object' &&
+      !Array.isArray(merged.workflowInputs)
+        ? merged.workflowInputs
+        : {}
     if (!name) throw new Error('任务名称不能为空。')
-    if (!prompt) throw new Error('任务 Prompt 不能为空。')
-    if (Object.hasOwn(input || {}, 'cwd'))
+    if (targetType === 'prompt' && !prompt) throw new Error('任务 Prompt 不能为空。')
+    if (targetType === 'workflow') {
+      if (!workflowId) throw new Error('请选择要运行的工作流。')
+      const workflow = this.workflows?.list().find((item) => item.id === workflowId)
+      if (!workflow) throw new Error('选择的工作流不存在。')
+      if (workflow.status !== 'published') throw new Error('定时任务只能调用已发布的工作流。')
+      const missingInput = (workflow.inputs || []).find((definition) => {
+        const value = Object.hasOwn(workflowInputs, definition.name)
+          ? workflowInputs[definition.name]
+          : definition.defaultValue
+        return definition.required && (value === undefined || value === null || value === '')
+      })
+      if (missingInput) throw new Error(`工作流输入「${missingInput.label}」不能为空。`)
+    }
+    if (targetType === 'prompt' && Object.hasOwn(input || {}, 'cwd'))
       merged.cwd = await this.agent.validateDirectory(input.cwd)
     const task = normalizeStoredTask(
-      { ...merged, name, prompt, updatedAt: new Date().toISOString() },
+      {
+        ...merged,
+        name,
+        targetType,
+        prompt,
+        workflowId,
+        workflowInputs,
+        updatedAt: new Date().toISOString(),
+      },
       this.cwd,
     )
     task.nextRunAt = task.enabled ? calculateNextRun(task) : null
@@ -329,6 +375,7 @@ export class ScheduleService {
       summary: '',
       error: '',
       sessionId: '',
+      workflowRunId: '',
     }
     this.state.runs.push(run)
     this.state.runs = this.state.runs.slice(-200)
@@ -347,20 +394,24 @@ export class ScheduleService {
     let event = 'schedule.completed'
     let data
     try {
-      const result = await this.agent.prompt({
-        message: task.prompt,
-        cwd: task.cwd,
-        title: `定时任务 · ${task.name}`,
-        model: task.model,
-        executionMode: task.executionMode,
-        isolatedContext: true,
-      })
+      const result =
+        task.targetType === 'workflow'
+          ? await this.executeWorkflow(task, run)
+          : await this.agent.prompt({
+              message: task.prompt,
+              cwd: task.cwd,
+              title: `定时任务 · ${task.name}`,
+              model: task.model,
+              executionMode: task.executionMode,
+              isolatedContext: true,
+            })
       const summary = String(result.text || '任务已完成。')
         .trim()
         .slice(0, 1200)
       run.status = 'completed'
       run.summary = summary
       run.sessionId = result.sessionId || ''
+      run.workflowRunId = result.workflowRunId || ''
       task.lastStatus = 'completed'
       task.lastSummary = summary
       task.lastError = ''
@@ -374,11 +425,12 @@ export class ScheduleService {
         },
       }
     } catch (error) {
-      event = 'schedule.failed'
+      const interrupted = error?.code === 'SCHEDULE_INTERRUPTED'
+      event = interrupted ? 'schedule.interrupted' : 'schedule.failed'
       const message = error instanceof Error ? error.message : String(error)
-      run.status = 'failed'
+      run.status = interrupted ? 'interrupted' : 'failed'
       run.error = message
-      task.lastStatus = 'failed'
+      task.lastStatus = interrupted ? 'interrupted' : 'failed'
       task.lastError = message
       data = {
         task: {
@@ -395,7 +447,8 @@ export class ScheduleService {
       task.updatedAt = new Date().toISOString()
       if (
         task.notifications.length &&
-        (event === 'schedule.failed' || task.notifyOn === 'always')
+        (event === 'schedule.failed' ||
+          (event === 'schedule.completed' && task.notifyOn === 'always'))
       ) {
         try {
           await this.notifications.notify(event, data, { platforms: task.notifications })
@@ -412,7 +465,41 @@ export class ScheduleService {
     }
   }
 
+  async executeWorkflow(task, scheduleRun) {
+    const workflow = this.workflows?.list().find((item) => item.id === task.workflowId)
+    if (!workflow) throw new Error('选择的工作流不存在。')
+    if (workflow.status !== 'published') throw new Error('定时任务只能调用已发布的工作流。')
+    const workflowRun = await this.workflows.run(task.workflowId, {
+      trigger: 'schedule',
+      sourceMessage: task.name,
+      inputs: task.workflowInputs,
+    })
+    if (!workflowRun) throw new Error('选择的工作流不存在。')
+    scheduleRun.workflowRunId = workflowRun.id
+    await this.save()
+
+    while (true) {
+      if (this.disposed)
+        throw Object.assign(new Error(SHUTDOWN_INTERRUPTED_ERROR), {
+          code: 'SCHEDULE_INTERRUPTED',
+        })
+      const current = this.workflows.getRun(workflowRun.id)
+      if (!current) throw new Error('工作流运行记录不存在。')
+      if (TERMINAL_WORKFLOW_STATUSES.has(current.status)) {
+        if (current.status !== 'completed')
+          throw new Error(current.error || `工作流运行${current.status}。`)
+        return {
+          text: current.summary || '工作流已完成。',
+          sessionId: current.sessionId || '',
+          workflowRunId: current.id,
+        }
+      }
+      await new Promise((resolve) => setTimeout(resolve, 250))
+    }
+  }
+
   async dispose() {
+    this.disposed = true
     clearInterval(this.timer)
     this.timer = null
     await Promise.allSettled([...this.executions])
