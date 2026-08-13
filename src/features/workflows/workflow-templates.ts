@@ -132,6 +132,7 @@ export function createWorkflowNode(
     requestedToolNames: [],
     condition: { source: 'previous', operator: 'exists', value: '' },
     approval: { message: '', timeoutMinutes: 60 },
+    notification: { title: '', content: '' },
     notificationTargets: [],
     ...extra,
   }

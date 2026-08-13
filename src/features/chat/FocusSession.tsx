@@ -26,7 +26,7 @@ import type {
   ResourceInvocation,
   SessionSummary,
 } from '@/types/chat'
-import { useAttachmentSelection } from './attachments'
+import { pathAttachments, useAttachmentSelection } from './attachments'
 import { ChatResourcePicker } from './ChatResourcePicker'
 import { ComposerToolTray } from './ComposerToolTray'
 import { requestCommandPalette } from './events'
@@ -40,6 +40,7 @@ import {
 import { FocusTranscript } from './FocusTranscript'
 import { GitChangesControl } from './GitChangesControl'
 import { GoalModeControl } from './GoalModeControl'
+import { PathAttachmentPicker } from './PathAttachmentPicker'
 import { SessionActionsMenu } from './SessionActionsMenu'
 import { SessionWorkflowRuns } from './SessionWorkflowRuns'
 import { ToolApproval } from './ToolApproval'
@@ -185,6 +186,7 @@ export function FocusSession({
   const [compactingManually, setCompactingManually] = useState(false)
   const [scrollRequest, setScrollRequest] = useState(0)
   const [resourcePickerOpen, setResourcePickerOpen] = useState(false)
+  const [pathPickerOpen, setPathPickerOpen] = useState(false)
   const [toolsOpen, setToolsOpen] = useState(false)
   const [invocation, setInvocation] = useState<ResourceInvocation | null>(null)
   const selection = useAttachmentSelection()
@@ -233,6 +235,19 @@ export function FocusSession({
 
   const requestTranscriptBottom = () => {
     setScrollRequest((current) => current + 1)
+  }
+
+  const choosePathAttachments = async () => {
+    if (window.pisperDesktop?.pickFiles) {
+      try {
+        const paths = await window.pisperDesktop.pickFiles(cwd)
+        selection.addAttachments(pathAttachments(paths || []))
+      } catch (caught) {
+        selection.setError(caught)
+      }
+      return
+    }
+    setPathPickerOpen(true)
   }
 
   const compactContext = async () => {
@@ -401,7 +416,6 @@ export function FocusSession({
                 title={t('chat:resourcePicker.open')}
                 aria-label={t('chat:resourcePicker.open')}
                 onClick={() => setResourcePickerOpen(true)}
-                disabled={streaming}
               >
                 <Braces size={16} />
               </button>
@@ -410,20 +424,12 @@ export function FocusSession({
                 className="attach-trigger"
                 title={t('chat:focusSession.addAttachment')}
                 aria-label={t('chat:focusSession.addAttachment')}
-                onClick={() => selection.inputRef.current?.click()}
+                onClick={() => void choosePathAttachments()}
                 disabled={streaming}
               >
                 <Paperclip size={17} />
                 {selection.attachments.length > 0 && <i>{selection.attachments.length}</i>}
               </button>
-              <input
-                ref={selection.inputRef}
-                className="sr-only"
-                type="file"
-                multiple
-                accept="image/*,.txt,.md,.json,.js,.jsx,.ts,.tsx,.css,.html,.xml,.yaml,.yml,.csv,.log,.py,.java,.go,.rs,.sh,.ps1,.toml,.sql,.pdf,.docx,.pptx,.xlsx,.odt,.odp,.ods,.rtf,.epub"
-                onChange={selection.chooseFiles}
-              />
             </div>
             <div className="focus-composer-runtime">
               <SessionModelSelect
@@ -588,6 +594,12 @@ export function FocusSession({
         onClose={() => setResourcePickerOpen(false)}
         onSelect={setInvocation}
       />
+      <PathAttachmentPicker
+        open={pathPickerOpen}
+        initialPath={cwd}
+        onOpenChange={setPathPickerOpen}
+        onSelect={(paths) => selection.addAttachments(pathAttachments(paths))}
+      />
     </Panel>
   )
 }
@@ -617,12 +629,14 @@ function AttachmentTray({
           <span>
             <strong>{attachment.name}</strong>
             <small>
-              {attachment.kind === 'image'
-                ? t('chat:focusSession.image')
-                : attachment.kind === 'document'
-                  ? t('chat:focusSession.document')
-                  : t('chat:focusSession.text')}{' '}
-              · {formatFileSize(attachment.size)}
+              {attachment.kind === 'path'
+                ? t('chat:focusSession.localPath')
+                : attachment.kind === 'image'
+                  ? t('chat:focusSession.image')
+                  : attachment.kind === 'document'
+                    ? t('chat:focusSession.document')
+                    : t('chat:focusSession.text')}
+              {attachment.kind !== 'path' ? ` · ${formatFileSize(attachment.size)}` : ''}
               {attachment.truncated ? ` · ${t('chat:focusSession.truncated')}` : ''}
             </small>
           </span>

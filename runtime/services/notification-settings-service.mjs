@@ -85,16 +85,23 @@ export class NotificationSettingsService {
     return { events: index >= 0 ? events.slice(index + 1) : events.slice(-20), latestId }
   }
 
-  async notify(event, data, { platforms } = {}) {
+  async notify(event, data, { platforms, title, content } = {}) {
     const selected = new Set(platforms || ['feishu', 'weixin', 'browser'])
     const template = this.channels.getState().templates.find((item) => item.id === event)
     if (!template?.enabled) return []
+    const contentOverride = typeof content === 'string' ? content.slice(0, 12_000) : undefined
+    const titleOverride = typeof title === 'string' ? title.slice(0, 160) : undefined
     const results = await this.channels.notify(event, data, {
       platforms: [...selected].filter((platform) => platform !== 'browser'),
+      ...(contentOverride === undefined ? {} : { content: contentOverride }),
     })
     if (selected.has('browser')) {
       const rendered = this.channels.renderNotification(event, 'browser', data)
-      await this.publishBrowser(rendered.title, rendered.content, event)
+      await this.publishBrowser(
+        titleOverride || rendered.title,
+        contentOverride ?? rendered.content,
+        event,
+      )
     }
     const failures = results.filter((result) => result.status === 'rejected')
     if (failures.length) {

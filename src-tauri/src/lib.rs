@@ -599,6 +599,7 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             desktop_bridge::desktop_get_app_info,
             desktop_bridge::desktop_pick_directory,
+            desktop_bridge::desktop_pick_files,
             desktop_bridge::desktop_set_language,
             cli_manager::desktop_get_cli_status,
             cli_manager::desktop_install_cli,

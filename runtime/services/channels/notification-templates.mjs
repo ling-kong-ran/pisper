@@ -1,9 +1,16 @@
 export const NOTIFICATION_EVENTS = {
   'chat.completed': {
     name: '对话完成',
-    description: '对话页面中的 Agent 完成回复后发送',
+    description: 'Agent 完成回复后发送',
     variables: ['chat.title', 'chat.summary', 'chat.model'],
     defaultContent: '💬 对话「{{chat.title}}」已完成\n\n{{chat.summary}}\n\n模型：{{chat.model}}',
+  },
+  'chat.waiting': {
+    name: '等待用户确认',
+    description: 'Agent 暂停运行并等待用户确认时发送',
+    variables: ['chat.title', 'chat.tool', 'chat.reason', 'chat.model'],
+    defaultContent:
+      '⏸️ 对话「{{chat.title}}」正在等待你的确认\n\n操作：{{chat.tool}}\n原因：{{chat.reason}}\n\n模型：{{chat.model}}',
   },
   'schedule.completed': {
     name: '定时任务完成',
@@ -39,6 +46,8 @@ const SAMPLE_DATA = {
   chat: {
     title: '修复渠道通知',
     summary: '实现已完成，测试和构建均已通过。',
+    tool: 'bash',
+    reason: '需要确认后才能执行此操作。',
     model: 'openai/gpt-5.4',
   },
   task: {

@@ -52,11 +52,13 @@ export function ChatResourcePicker({
   const [selected, setSelected] = useState<Resource | null>(null)
   const [argumentsValue, setArgumentsValue] = useState<Record<string, unknown>>({})
   const [loading, setLoading] = useState(false)
+  const [error, setError] = useState('')
 
   useEffect(() => {
     if (!open) return
     let active = true
     setLoading(true)
+    setError('')
     Promise.all([
       apiJson<{ skills?: SkillResource[] }>(
         `/api/skills?sessionId=${encodeURIComponent(sessionId)}`,
@@ -85,6 +87,11 @@ export function ChatResourcePicker({
               inputs: workflow.inputs || [],
             })),
         ])
+      })
+      .catch((caught) => {
+        if (!active) return
+        setResources([])
+        setError(caught instanceof Error ? caught.message : String(caught))
       })
       .finally(() => active && setLoading(false))
     return () => {
@@ -121,7 +128,11 @@ export function ChatResourcePicker({
 
   return (
     <Dialog open={open} onOpenChange={(value) => !value && onClose()}>
-      <DialogContent className="chat-resource-dialog gap-0 p-0 ring-0" showCloseButton={false}>
+      <DialogContent
+        className="chat-resource-dialog z-[220] gap-0 p-0 ring-0"
+        overlayClassName="z-[220]"
+        showCloseButton={false}
+      >
         <div className="chat-resource-head">
           <div>
             <DialogTitle>{t('chat:resourcePicker.title')}</DialogTitle>
@@ -171,7 +182,11 @@ export function ChatResourcePicker({
                 )
               })}
               {!visible.length && (
-                <p>{loading ? t('chat:resourcePicker.loading') : t('chat:resourcePicker.empty')}</p>
+                <p>
+                  {loading
+                    ? t('chat:resourcePicker.loading')
+                    : error || t('chat:resourcePicker.empty')}
+                </p>
               )}
             </div>
           </div>
@@ -218,7 +233,9 @@ export function ChatResourcePicker({
                     ))}
                   </div>
                 )}
-                <Button onClick={confirm}>{t('chat:resourcePicker.useResource')}</Button>
+                <Button className="chat-resource-confirm" onClick={confirm}>
+                  {t('chat:resourcePicker.useResource')}
+                </Button>
               </>
             ) : (
               <p>{t('chat:resourcePicker.chooseResource')}</p>

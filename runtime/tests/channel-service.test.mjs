@@ -356,6 +356,13 @@ test('notification templates use platform-specific content and the latest channe
   )
   assert.equal(gateways.weixin.sent.length, weixinSendCount)
   assert.equal(gateways.feishu.sent.at(-1).peerId, 'chat-latest')
+  await service.notify(
+    'schedule.completed',
+    { task: { name: '忽略模板', summary: '忽略模板' } },
+    { platforms: ['feishu', 'weixin'], content: '节点自定义正文' },
+  )
+  assert.deepEqual(gateways.feishu.sent.at(-1).input, { markdown: '节点自定义正文' })
+  assert.deepEqual(gateways.weixin.sent.at(-1).input, { text: '节点自定义正文' })
   const tested = await service.testNotification('schedule.completed', 'weixin')
   assert.equal(tested.sent, 1)
   assert.match(tested.preview, /发现 2 个待处理问题/)

@@ -47,6 +47,35 @@ export function filterWorkflowNotificationTargets(input, enabledTargets) {
 }
 
 export class AgentRuntimeFacade {
+  async archiveAttachments(sessionId, sessionName, attachments = []) {
+    const archived = []
+    for (const attachment of attachments) {
+      if (attachment.kind === 'path') {
+        archived.push(null)
+        continue
+      }
+      try {
+        const created = await this.createAsset({
+          name: attachment.name,
+          mimeType: attachment.mimeType,
+          data: attachment.data,
+          text: attachment.kind === 'text' ? attachment.text : undefined,
+          source: 'attachment',
+          sessionId,
+          sessionName,
+        })
+        const stored = this.assetIndex.assets.find((asset) => asset.id === created.id)
+        archived.push(
+          stored ? { id: stored.id, path: stored.storagePath || stored.filePath || '' } : null,
+        )
+      } catch {
+        // Asset archival must not block the chat request.
+        archived.push(null)
+      }
+    }
+    return archived
+  }
+
   resolveDefaultModel() {
     return this.providerPreferences.resolveDefaultModel()
   }

@@ -81,6 +81,69 @@ test('workflows persist and execute Agent nodes in order with completion notific
   await rm(directory, { recursive: true, force: true })
 })
 
+test('notification nodes render configured content from inputs and upstream results', async (t) => {
+  const directory = await mkdtemp(join(tmpdir(), 'pisper-workflow-notification-'))
+  t.after(() => rm(directory, { recursive: true, force: true }))
+  const notifications = []
+  const service = new WorkflowService({
+    path: join(directory, 'workflows.json'),
+    cwd: directory,
+    agent: {
+      validateDirectory: async (value) => value,
+      abort: async () => true,
+      prompt: async () => ({ sessionId: 'notification-session', text: '构建通过', assets: [] }),
+    },
+    notifications: {
+      notify: async (...args) => notifications.push(args),
+    },
+  })
+  await service.init()
+  const workflow = await service.create({
+    name: '发布检查',
+    inputs: [
+      {
+        id: 'environment',
+        name: 'environment',
+        label: '环境',
+        type: 'string',
+        required: true,
+      },
+    ],
+    nodes: [
+      { id: 'trigger', kind: 'trigger', label: '触发器' },
+      { id: 'build', kind: 'prompt', label: '构建', prompt: '执行构建' },
+      {
+        id: 'notify',
+        kind: 'notification',
+        label: '通知结果',
+        notification: {
+          title: '{{workflow.name}} · {{inputs.environment}}',
+          content:
+            '环境：{{inputs.environment}}\n结果：{{previous.summary}}\n输出：{{nodes.build.output}}',
+        },
+        notificationTargets: ['browser', 'feishu'],
+      },
+    ],
+  })
+
+  const run = await service.runNow(workflow.id, { inputs: { environment: '生产' } })
+  await waitFor(() => notifications.length === 1 && service.getRun(run.id)?.status === 'completed')
+
+  assert.equal(notifications[0][0], 'workflow.completed')
+  assert.equal(notifications[0][1].workflow.summary, '环境：生产\n结果：构建通过\n输出：构建通过')
+  assert.deepEqual(notifications[0][2], {
+    platforms: ['browser', 'feishu'],
+    title: '发布检查 · 生产',
+    content: '环境：生产\n结果：构建通过\n输出：构建通过',
+  })
+  const completed = service.getRun(run.id)
+  assert.equal(
+    completed.nodes.find((node) => node.id === 'notify').summary,
+    notifications[0][2].content,
+  )
+  await service.dispose()
+})
+
 test('workflow edges determine execution order independently from canvas node order', async () => {
   const directory = await mkdtemp(join(tmpdir(), 'pisper-workflow-graph-'))
   const prompts = []

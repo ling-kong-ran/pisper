@@ -61,6 +61,18 @@ const DEFAULT_COLS = 100
 const DEFAULT_ROWS = 24
 const MIN_HEIGHT = 180
 const MAX_HEIGHT = 640
+const WORKBENCH_RESERVED_HEIGHT = 420
+
+function maximumTerminalHeight(viewportHeight: number) {
+  return Math.max(
+    MIN_HEIGHT,
+    Math.min(
+      MAX_HEIGHT,
+      Math.floor(viewportHeight * 0.62),
+      viewportHeight - WORKBENCH_RESERVED_HEIGHT,
+    ),
+  )
+}
 
 function terminalTheme() {
   const style = getComputedStyle(document.documentElement)
@@ -123,6 +135,17 @@ export function TerminalPanel({
   openRef.current = open
 
   const activeTab = tabs.find((tab) => tab.id === activeId)
+
+  useEffect(() => {
+    if (!open) return
+    const clampHeight = () => {
+      const maximum = maximumTerminalHeight(window.innerHeight)
+      if (height > maximum) onHeightChange(maximum)
+    }
+    clampHeight()
+    window.addEventListener('resize', clampHeight)
+    return () => window.removeEventListener('resize', clampHeight)
+  }, [height, onHeightChange, open])
   const supported = Boolean(bridge?.terminalProfiles && bridge.terminalCreate)
 
   useEffect(() => {
@@ -372,7 +395,7 @@ export function TerminalPanel({
     const startY = event.clientY
     const startHeight = height
     const move = (moveEvent: PointerEvent) => {
-      const maximum = Math.min(MAX_HEIGHT, Math.floor(window.innerHeight * 0.7))
+      const maximum = maximumTerminalHeight(window.innerHeight)
       onHeightChange(
         Math.max(MIN_HEIGHT, Math.min(maximum, startHeight + startY - moveEvent.clientY)),
       )
@@ -471,9 +494,7 @@ export function TerminalPanel({
               className="icon-button"
               title={labels.maximizeTerminal}
               aria-label={labels.maximizeTerminal}
-              onClick={() =>
-                onHeightChange(Math.min(MAX_HEIGHT, Math.floor(window.innerHeight * 0.7)))
-              }
+              onClick={() => onHeightChange(maximumTerminalHeight(window.innerHeight))}
             >
               <Maximize2 size={14} />
             </button>

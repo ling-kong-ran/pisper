@@ -10,6 +10,7 @@ export type ChatAttachment = EntityRecord & {
   mimeType?: string
   size?: number
   data?: string
+  path?: string
 }
 
 export type ModelOption = {

@@ -1,6 +1,6 @@
 import { mkdir, open, readFile, stat, unlink, writeFile } from 'node:fs/promises'
 import { createHash, randomUUID } from 'node:crypto'
-import { basename, extname, join, resolve, sep } from 'node:path'
+import { basename, extname, isAbsolute, join, resolve, sep } from 'node:path'
 import { createAgentSession, SessionManager, SettingsManager } from './pi-coding-agent.mjs'
 import { ensureSessionFilePersisted } from './session-file-persist.mjs'
 import {
@@ -49,6 +49,7 @@ import { PlanService } from '../services/plan-service.mjs'
 import { BrowserAutomationService } from '../services/browser-automation-service.mjs'
 import {
   listWorkspaceDirectories,
+  listWorkspaceEntries,
   normalizeWorkspacePath,
   resolveWorkspaceDirectory,
   workspacePathKey,
@@ -1185,31 +1186,6 @@ export class AgentRuntimeService extends AgentRuntimeFacade {
     return this.publicAsset(asset)
   }
 
-  async archiveAttachments(sessionId, sessionName, attachments = []) {
-    const archived = []
-    for (const attachment of attachments) {
-      try {
-        const created = await this.createAsset({
-          name: attachment.name,
-          mimeType: attachment.mimeType,
-          data: attachment.data,
-          text: attachment.kind === 'text' ? attachment.text : undefined,
-          source: 'attachment',
-          sessionId,
-          sessionName,
-        })
-        const stored = this.assetIndex.assets.find((asset) => asset.id === created.id)
-        archived.push(
-          stored ? { id: stored.id, path: stored.storagePath || stored.filePath || '' } : null,
-        )
-      } catch {
-        // Asset archival must not block the chat request.
-        archived.push(null)
-      }
-    }
-    return archived
-  }
-
   async recordGeneratedFile(sessionId, value, filePath) {
     const fileInfo = await stat(filePath).catch(() => null)
     if (!fileInfo?.isFile()) return
@@ -1498,6 +1474,10 @@ export class AgentRuntimeService extends AgentRuntimeFacade {
 
   listDirectories(input) {
     return listWorkspaceDirectories(input, this.cwd)
+  }
+
+  listWorkspaceEntries(input) {
+    return listWorkspaceEntries(input, this.cwd)
   }
 
   async getOrCreateSession(id) {
@@ -2351,7 +2331,13 @@ export class AgentRuntimeService extends AgentRuntimeFacade {
       if (activeGoal?.status === 'active') contexts.push(goalContinuationPrompt(activeGoal))
       for (const [attachmentIndex, attachment] of safeAttachments.entries()) {
         const name = safeAttachmentName(attachment.name)
-        if (attachment.kind === 'image') {
+        if (attachment.kind === 'path') {
+          const path = normalizeWorkspacePath(attachment.path)
+          if (!path || !isAbsolute(path)) throw new Error(`${name} 不是有效的本地绝对路径`)
+          contexts.push(
+            `[Local path attachment] ${name}\nPath: ${path}\nThis attachment is a path reference only. Read it with available workspace tools when needed.`,
+          )
+        } else if (attachment.kind === 'image') {
           const data = String(attachment.data || '')
           const mimeType = String(attachment.mimeType || '')
           if (!mimeType.startsWith('image/') || !data) throw new Error(`${name} 不是有效图片`)

@@ -73,6 +73,19 @@ test('desktop terminal reattaches its xterm runtime after the panel host is remo
   assert.match(terminal, /existing\.resizeObserver\.observe\(host\)/)
 })
 
+test('opening the desktop terminal preserves a shrinkable chat workbench above it', async () => {
+  const [terminal, styles] = await Promise.all([
+    readFile('src/features/terminal/TerminalPanel.tsx', 'utf8'),
+    readFile('src/index.css', 'utf8'),
+  ])
+
+  assert.match(terminal, /WORKBENCH_RESERVED_HEIGHT = 420/)
+  assert.match(terminal, /maximumTerminalHeight\(window\.innerHeight\)/)
+  assert.match(styles, /\.page-content\.page-chat \{ display: flex;/)
+  assert.match(styles, /\.chat-layout \{[^}]*min-height: 0;[^}]*flex: 1;/)
+  assert.doesNotMatch(styles, /\.chat-layout \{[^}]*min-height: 510px;/)
+})
+
 test('workflow notifications separate system permission from external channel setup', async () => {
   const [inspector, editor, switchPrimitive] = await Promise.all([
     readFile('src/features/workflows/WorkflowNodeInspector.tsx', 'utf8'),
@@ -80,10 +93,14 @@ test('workflow notifications separate system permission from external channel se
     readFile('src/components/ui/switch.tsx', 'utf8'),
   ])
   const notificationSwitch = inspector.match(
-    /<Switch[\s\S]*?onCheckedChange=\{\(\) => void onToggleNotification\(id\)\}/,
+    /function NodeNotificationSettings[\s\S]*?<Switch[\s\S]*?onCheckedChange=\{\(\) => void onToggleNotification\(id\)\}/,
+  )?.[0]
+  const workflowSettings = inspector.match(
+    /function WorkflowSettings[\s\S]*?function NodeNotificationSettings/,
   )?.[0]
 
   assert.ok(notificationSwitch)
+  assert.ok(workflowSettings)
   assert.match(
     inspector,
     /id === 'browser'[\s\S]*?systemNotificationAvailable[\s\S]*?catalog\.notificationTargets\[id\]\?\.enabled/,
@@ -93,16 +110,40 @@ test('workflow notifications separate system permission from external channel se
     /systemNotificationPermission === 'default' \|\| systemNotificationPermission === 'granted'/,
   )
   assert.match(notificationSwitch, /disabled=\{!targetEnabled\}/)
-  assert.doesNotMatch(notificationSwitch, /size="sm"/)
+  assert.match(notificationSwitch, /node\.notificationTargets\.includes\(id\)/)
+  assert.match(notificationSwitch, /node\.notification\.content/)
+  assert.doesNotMatch(notificationSwitch, /draft\.notifications\.includes\(id\)/)
+  assert.doesNotMatch(workflowSettings, /onToggleNotification/)
   assert.match(inspector, /noExternalNotificationChannelsEnabled/)
   assert.match(inspector, /systemNotificationPermissionRequired/)
   assert.match(inspector, /onOpenChannels/)
   assert.match(inspector, /onOpenSystemNotificationSettings/)
-  assert.match(editor, /target !== 'browser'/)
+  assert.match(editor, /selectedNode\.kind !== 'notification'/)
+  assert.match(editor, /updateNode\(\{ notificationTargets:/)
   assert.match(editor, /requestBrowserNotificationPermission/)
   assert.match(editor, /\/api\/settings\/notifications\/browser/)
   assert.match(editor, /notificationTargets\.filter/)
   assert.match(switchPrimitive, /inline-flex min-h-0! shrink-0/)
+})
+
+test('chat resource picker remains visible above dock splits with a readable primary action', async () => {
+  const [picker, dialog, styles, focusSession] = await Promise.all([
+    readFile('src/features/chat/ChatResourcePicker.tsx', 'utf8'),
+    readFile('src/components/ui/dialog.tsx', 'utf8'),
+    readFile('src/index.css', 'utf8'),
+    readFile('src/features/chat/FocusSession.tsx', 'utf8'),
+  ])
+
+  assert.match(picker, /className="chat-resource-dialog z-\[220\]/)
+  assert.match(picker, /overlayClassName="z-\[220\]"/)
+  assert.match(picker, /className="chat-resource-confirm"/)
+  assert.match(dialog, /overlayClassName/)
+  assert.match(styles, /\.chat-resource-confirm \{[^}]*color: var\(--on-accent\)/)
+  assert.match(focusSession, /onClick=\{\(\) => setResourcePickerOpen\(true\)\}/)
+  assert.doesNotMatch(
+    focusSession.match(/className="resource-picker-trigger"[\s\S]*?<\/button>/)?.[0] || '',
+    /disabled=\{streaming\}/,
+  )
 })
 
 test('scheduled tasks use structured prompt or workflow targets across every form', async () => {

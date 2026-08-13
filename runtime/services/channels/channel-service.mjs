@@ -501,10 +501,11 @@ export class ChannelService {
     return { title: definition.name, content: renderNotificationTemplate(variant.content, data) }
   }
 
-  async notify(event, data, { platforms } = {}) {
+  async notify(event, data, { platforms, content } = {}) {
     const template = this.state.templates[event]
     if (!template?.enabled) return []
     const selected = platforms ? new Set(platforms) : PLATFORMS
+    const contentOverride = typeof content === 'string' ? content.slice(0, 12_000) : null
     const deliveries = []
     for (const platform of PLATFORMS) {
       if (!selected.has(platform)) continue
@@ -512,12 +513,13 @@ export class ChannelService {
       if (!connection?.enabled) continue
       const scope = this.latestScope(platform)
       if (!scope) continue
-      const { content } = this.renderNotification(event, platform, data)
+      const renderedContent =
+        contentOverride ?? this.renderNotification(event, platform, data).content
       deliveries.push({
         platform,
         promise: this.gateways[platform].sendToPeer(
           scope.peerId,
-          platform === 'feishu' ? { markdown: content } : { text: content },
+          platform === 'feishu' ? { markdown: renderedContent } : { text: renderedContent },
           scope,
         ),
       })

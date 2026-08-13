@@ -1,4 +1,6 @@
-use crate::app::App;
+use notify_rust::Notification;
+
+use crate::app::{App, Approval};
 
 const MAX_NOTIFICATION_SUMMARY_CHARS: usize = 320;
 
@@ -9,11 +11,22 @@ pub struct ChatCompletion {
     pub model: String,
 }
 
-pub fn chat_completion(app: &App) -> ChatCompletion {
-    let title = match app.session.name.trim() {
+#[derive(Debug, Eq, PartialEq)]
+pub struct ChatWaiting {
+    pub title: String,
+    pub tool: String,
+    pub reason: String,
+    pub model: String,
+}
+
+fn chat_title(app: &App) -> &str {
+    match app.session.name.trim() {
         "" | "New conversation" => "Pisper conversation",
         name => name,
-    };
+    }
+}
+
+pub fn chat_completion(app: &App) -> ChatCompletion {
     let response = app
         .live
         .as_ref()
@@ -23,7 +36,7 @@ pub fn chat_completion(app: &App) -> ChatCompletion {
     let summary = response.split_whitespace().collect::<Vec<_>>().join(" ");
 
     ChatCompletion {
-        title: title.to_owned(),
+        title: chat_title(app).to_owned(),
         summary: summary
             .chars()
             .take(MAX_NOTIFICATION_SUMMARY_CHARS)
@@ -32,16 +45,32 @@ pub fn chat_completion(app: &App) -> ChatCompletion {
     }
 }
 
+pub fn chat_waiting(app: &App, approval: &Approval) -> ChatWaiting {
+    ChatWaiting {
+        title: chat_title(app).to_owned(),
+        tool: approval.tool_name.clone(),
+        reason: approval.reason.trim().to_owned(),
+        model: app.model.clone(),
+    }
+}
+
+pub fn show_system(title: &str, body: &str) {
+    let _ = Notification::new()
+        .appname("Pisper")
+        .summary(title)
+        .body(body)
+        .show();
+}
+
 #[cfg(test)]
 mod tests {
-    use super::chat_completion;
+    use super::{chat_completion, chat_waiting};
     use crate::{
-        app::{App, LiveTurn},
+        app::{App, Approval, LiveTurn},
         model::SessionSummary,
     };
 
-    #[test]
-    fn completion_notifications_use_the_session_title_and_final_response() {
+    fn test_app() -> App {
         let session = SessionSummary {
             id: "session-1".to_owned(),
             name: "Resize audit".to_owned(),
@@ -50,14 +79,19 @@ mod tests {
             execution_mode: "full-access".to_owned(),
             ..SessionSummary::default()
         };
-        let mut app = App::new(
+        App::new(
             vec![session.clone()],
             session,
             Vec::new(),
             None,
             Vec::new(),
             Vec::new(),
-        );
+        )
+    }
+
+    #[test]
+    fn completion_notifications_use_the_session_title_and_final_response() {
+        let mut app = test_app();
         app.live = Some(LiveTurn {
             text_target: "The resize fix is complete.\nAll tests passed.".to_owned(),
             ..LiveTurn::default()
@@ -68,6 +102,28 @@ mod tests {
             super::ChatCompletion {
                 title: "Resize audit".to_owned(),
                 summary: "The resize fix is complete. All tests passed.".to_owned(),
+                model: "provider/model".to_owned(),
+            }
+        );
+    }
+
+    #[test]
+    fn waiting_notifications_describe_the_pending_approval() {
+        let app = test_app();
+        let approval = Approval {
+            id: "approval-1".to_owned(),
+            tool_name: "bash".to_owned(),
+            args: serde_json::json!({ "command": "npm test" }),
+            risk: "high".to_owned(),
+            reason: "Runs a command outside the workspace.".to_owned(),
+        };
+
+        assert_eq!(
+            chat_waiting(&app, &approval),
+            super::ChatWaiting {
+                title: "Resize audit".to_owned(),
+                tool: "bash".to_owned(),
+                reason: "Runs a command outside the workspace.".to_owned(),
                 model: "provider/model".to_owned(),
             }
         );

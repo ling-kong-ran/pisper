@@ -63,18 +63,59 @@ export const configSettingsRoutes = [
     path: '/api/settings/notifications/chat-completed',
     async handler({ runtime, body, json }) {
       const input = await body()
-      await runtime.notifyChannels(
-        'chat.completed',
-        {
-          chat: {
-            title: notificationText(input.title, 'Pisper conversation', 160),
-            summary: notificationText(input.summary, 'The Agent has finished responding.', 1_000),
-            model: notificationText(input.model, 'unknown', 160),
+      const settings = await runtime.getNotificationSettings()
+      let channelError = ''
+      try {
+        await runtime.notifyChannels(
+          'chat.completed',
+          {
+            chat: {
+              title: notificationText(input.title, 'Pisper conversation', 160),
+              summary: notificationText(input.summary, 'The Agent has finished responding.', 1_000),
+              model: notificationText(input.model, 'unknown', 160),
+            },
           },
-        },
-        { platforms: ['browser'] },
-      )
-      json(202, { accepted: true })
+          { platforms: ['feishu', 'weixin'] },
+        )
+      } catch (error) {
+        channelError = error instanceof Error ? error.message : String(error)
+      }
+      json(202, {
+        accepted: true,
+        systemNotificationEnabled: settings.browser?.enabled === true,
+        channelError,
+      })
+    },
+  },
+  {
+    method: 'POST',
+    path: '/api/settings/notifications/chat-waiting',
+    async handler({ runtime, body, json }) {
+      const input = await body()
+      const title = notificationText(input.title, 'Pisper conversation', 160)
+      const settings = await runtime.getNotificationSettings()
+      let channelError = ''
+      try {
+        await runtime.notifyChannels(
+          'chat.waiting',
+          {
+            chat: {
+              title,
+              tool: notificationText(input.tool, 'Agent action', 160),
+              reason: notificationText(input.reason, 'Your confirmation is required.', 1_000),
+              model: notificationText(input.model, 'unknown', 160),
+            },
+          },
+          { platforms: ['feishu', 'weixin'] },
+        )
+      } catch (error) {
+        channelError = error instanceof Error ? error.message : String(error)
+      }
+      json(202, {
+        accepted: true,
+        systemNotificationEnabled: settings.browser?.enabled === true,
+        channelError,
+      })
     },
   },
   {

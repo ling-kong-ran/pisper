@@ -133,6 +133,7 @@ export type DesktopBridge = {
   platform?: string
   getAppInfo: () => Promise<AppUpdateInfo>
   pickDirectory?: (initialDirectory?: string) => Promise<string | null>
+  pickFiles?: (initialDirectory?: string) => Promise<string[]>
   setLanguage?: (language: string) => Promise<string>
   getCliStatus?: () => Promise<DesktopCliStatus>
   installCli?: () => Promise<DesktopCliStatus>

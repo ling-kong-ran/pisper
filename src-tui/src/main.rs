@@ -10,6 +10,7 @@ mod ui;
 mod workspace;
 
 use std::{
+    collections::HashSet,
     env,
     ffi::OsString,
     io,
@@ -279,6 +280,7 @@ async fn run_event_loop(
     let mut last_resize_at = None;
     let mut resize_to_draw = None;
     let mut paste_burst = PasteBurst::default();
+    let mut notified_approval_ids = HashSet::new();
     loop {
         if redraw {
             draw_frame(terminal, &app, resize_to_draw.take(), jetbrains_terminal)?;
@@ -344,16 +346,56 @@ async fn run_event_loop(
                             RuntimeEvent::Stream(event) => {
                                 let terminal = matches!(event.name.as_str(), "done" | "error");
                                 let completed = event.name == "done";
+                                let permission_requested = event.name == "permission_request";
                                 app.apply_stream_event(event);
+                                if permission_requested {
+                                    if let Some(approval) = app.approval.as_ref() {
+                                        if notified_approval_ids.insert(approval.id.clone()) {
+                                            let waiting = notification::chat_waiting(&app, approval);
+                                            if let Ok(dispatch) = api
+                                                .notify_chat_waiting(
+                                                    &waiting.title,
+                                                    &waiting.tool,
+                                                    &waiting.reason,
+                                                    &waiting.model,
+                                                )
+                                                .await
+                                            {
+                                                if dispatch.system_notification_enabled {
+                                                    notification::show_system(
+                                                        &format!(
+                                                            "{} · Waiting for confirmation",
+                                                            waiting.title
+                                                        ),
+                                                        &format!(
+                                                            "{} requires confirmation. {}",
+                                                            waiting.tool, waiting.reason
+                                                        ),
+                                                    );
+                                                }
+                                                let _ = dispatch.channel_error;
+                                            }
+                                        }
+                                    }
+                                }
                                 if should_notify_completion(completed, app.queued_count()) {
                                     let completion = notification::chat_completion(&app);
-                                    let _ = api
+                                    if let Ok(dispatch) = api
                                         .notify_chat_completed(
                                             &completion.title,
                                             &completion.summary,
                                             &completion.model,
                                         )
-                                        .await;
+                                        .await
+                                    {
+                                        if dispatch.system_notification_enabled {
+                                            notification::show_system(
+                                                &format!("{} · Agent completed", completion.title),
+                                                &completion.summary,
+                                            );
+                                        }
+                                        let _ = dispatch.channel_error;
+                                    }
                                 }
                                 terminal
                             }

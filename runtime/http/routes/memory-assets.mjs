@@ -8,6 +8,13 @@ export const memoryAssetRoutes = [
   },
   {
     method: 'GET',
+    path: '/api/workspace-entries',
+    async handler({ runtime, url, json }) {
+      json(200, await runtime.listWorkspaceEntries(url.searchParams.get('path')))
+    },
+  },
+  {
+    method: 'GET',
     path: '/api/assets',
     async handler({ runtime, url, json }) {
       json(200, {

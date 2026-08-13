@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
-import { clipboardImageFiles } from '../../src/features/chat/attachments.ts'
+import { clipboardImageFiles, pathAttachments } from '../../src/features/chat/attachments.ts'
 
 test('clipboard image files are selected without treating other files as attachments', () => {
   const image = { name: 'screenshot.png', type: 'image/png' }
@@ -24,4 +24,21 @@ test('plain text clipboard data does not trigger attachment handling', () => {
     clipboardImageFiles({ files: [], items: [{ kind: 'string', type: 'text/plain' }] }),
     [],
   )
+})
+
+test('selected files become path-only attachments without content or size fields', () => {
+  assert.deepEqual(pathAttachments(['E:\\workspace\\large.bin', '/workspace/notes.md']), [
+    {
+      id: 'path:E:\\workspace\\large.bin',
+      kind: 'path',
+      name: 'large.bin',
+      path: 'E:\\workspace\\large.bin',
+    },
+    {
+      id: 'path:/workspace/notes.md',
+      kind: 'path',
+      name: 'notes.md',
+      path: '/workspace/notes.md',
+    },
+  ])
 })

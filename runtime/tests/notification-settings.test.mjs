@@ -85,6 +85,49 @@ test('browser notification events use the configured template queue', async (t) 
   assert.equal((await service.getBrowserEvents(first.latestId)).events.length, 0)
 })
 
+test('one-off notification content overrides channel templates and browser rendering', async (t) => {
+  const directory = await mkdtemp(join(tmpdir(), 'pisper-notification-override-'))
+  const path = join(directory, 'pisper.json')
+  const browserEventsPath = join(directory, 'browser-events.json')
+  t.after(() => rm(directory, { recursive: true, force: true }))
+  await writeFile(path, JSON.stringify({ notifications: { browser: { enabled: true } } }))
+  const calls = []
+  const channels = {
+    getState: () => ({
+      templates: [{ id: 'workflow.completed', enabled: true }],
+      connections: {},
+      scopes: [],
+    }),
+    notify: async (...args) => {
+      calls.push(args)
+      return []
+    },
+    renderNotification: () => ({ title: '工作流完成', content: '全局模板正文' }),
+  }
+  const service = new NotificationSettingsService({ path, browserEventsPath, channels })
+
+  await service.notify(
+    'workflow.completed',
+    { workflow: { name: 'release' } },
+    {
+      platforms: ['feishu', 'browser'],
+      title: '发布检查',
+      content: '生产环境构建通过',
+    },
+  )
+
+  assert.deepEqual(calls, [
+    [
+      'workflow.completed',
+      { workflow: { name: 'release' } },
+      { platforms: ['feishu'], content: '生产环境构建通过' },
+    ],
+  ])
+  const browser = await service.getBrowserEvents('missing')
+  assert.equal(browser.events[0].title, '发布检查')
+  assert.equal(browser.events[0].body, '生产环境构建通过')
+})
+
 test('browser template tests return a system-notification payload without queueing a duplicate event', async (t) => {
   const directory = await mkdtemp(join(tmpdir(), 'pisper-browser-template-test-'))
   const path = join(directory, 'pisper.json')
@@ -110,7 +153,7 @@ test('browser template tests return a system-notification payload without queuei
   assert.equal((await service.getBrowserEvents('missing')).events.length, 0)
 })
 
-test('TUI chat completion uses the desktop browser-notification queue only', async () => {
+test('TUI chat completion reports system-notification state and sends active channels', async () => {
   const route = configSettingsRoutes.find(
     (item) => item.path === '/api/settings/notifications/chat-completed',
   )
@@ -118,6 +161,7 @@ test('TUI chat completion uses the desktop browser-notification queue only', asy
   let response
   await route.handler({
     runtime: {
+      getNotificationSettings: async () => ({ browser: { enabled: true } }),
       notifyChannels: async (...args) => calls.push(args),
     },
     body: async () => ({
@@ -140,10 +184,62 @@ test('TUI chat completion uses the desktop browser-notification queue only', asy
           model: 'provider/model',
         },
       },
-      { platforms: ['browser'] },
+      { platforms: ['feishu', 'weixin'] },
     ],
   ])
-  assert.deepEqual(response, { status: 202, value: { accepted: true } })
+  assert.deepEqual(response, {
+    status: 202,
+    value: { accepted: true, systemNotificationEnabled: true, channelError: '' },
+  })
+})
+
+test('TUI approval waiting notification includes context and does not fail on channel errors', async () => {
+  const route = configSettingsRoutes.find(
+    (item) => item.path === '/api/settings/notifications/chat-waiting',
+  )
+  const calls = []
+  let response
+  await route.handler({
+    runtime: {
+      getNotificationSettings: async () => ({ browser: { enabled: false } }),
+      notifyChannels: async (...args) => {
+        calls.push(args)
+        throw new Error('weixin unavailable')
+      },
+    },
+    body: async () => ({
+      title: 'Release audit',
+      tool: 'bash',
+      reason: 'Runs a command outside the workspace.',
+      model: 'provider/model',
+    }),
+    json: (status, value) => {
+      response = { status, value }
+    },
+  })
+
+  assert.deepEqual(calls, [
+    [
+      'chat.waiting',
+      {
+        chat: {
+          title: 'Release audit',
+          tool: 'bash',
+          reason: 'Runs a command outside the workspace.',
+          model: 'provider/model',
+        },
+      },
+      { platforms: ['feishu', 'weixin'] },
+    ],
+  ])
+  assert.deepEqual(response, {
+    status: 202,
+    value: {
+      accepted: true,
+      systemNotificationEnabled: false,
+      channelError: 'weixin unavailable',
+    },
+  })
 })
 
 test('channel notification failures are reported after other targets are attempted', async (t) => {

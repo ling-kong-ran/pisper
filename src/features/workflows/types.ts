@@ -46,6 +46,7 @@ export type WorkflowNode = {
     value: unknown
   }
   approval: { message: string; timeoutMinutes: number }
+  notification: { title: string; content: string }
   notificationTargets: NotificationTarget[]
 }
 

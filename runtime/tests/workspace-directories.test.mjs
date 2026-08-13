@@ -6,6 +6,7 @@ import test from 'node:test'
 import { AgentRuntimeService } from '../runtime/agent-runtime.mjs'
 import {
   listWorkspaceDirectories,
+  listWorkspaceEntries,
   normalizeWorkspacePath,
   workspacePathKey,
 } from '../runtime/workspace-directories.mjs'
@@ -72,6 +73,25 @@ test('directory listings return validated absolute paths for Web workspace selec
   assert.ok(listing.directories.every((entry) => entry.path.startsWith(root)))
 })
 
+test('workspace entry listings expose paths for directories and files without size metadata', async (t) => {
+  const root = await mkdtemp(join(tmpdir(), 'pisper-workspace-files-'))
+  t.after(() => rm(root, { recursive: true, force: true }))
+  await Promise.all([
+    mkdir(join(root, 'Folder')),
+    writeFile(join(root, 'large.bin'), 'content is never returned'),
+    writeFile(join(root, 'notes.md'), '# Notes'),
+  ])
+
+  const listing = await listWorkspaceEntries(root, root)
+
+  assert.deepEqual(listing.directories, [{ name: 'Folder', path: join(root, 'Folder') }])
+  assert.deepEqual(listing.files, [
+    { name: 'large.bin', path: join(root, 'large.bin') },
+    { name: 'notes.md', path: join(root, 'notes.md') },
+  ])
+  assert.ok(listing.files.every((entry) => !('size' in entry) && !('content' in entry)))
+})
+
 test('workspace selection uses the desktop picker or the server-backed Web browser', async () => {
   const [
     cargo,
@@ -99,10 +119,14 @@ test('workspace selection uses the desktop picker or the server-backed Web brows
   assert.match(cargo, /tauri-plugin-dialog/)
   assert.match(shell, /plugin\(tauri_plugin_dialog::init\(\)\)/)
   assert.match(shell, /desktop_bridge::desktop_pick_directory/)
+  assert.match(shell, /desktop_bridge::desktop_pick_files/)
   assert.match(command, /app\.dialog\(\)\.file\(\)/)
   assert.match(command, /blocking_pick_folder\(\)/)
+  assert.match(command, /blocking_pick_files\(\)/)
   assert.match(bridge, /pickDirectory: \(initialDirectory\)/)
+  assert.match(bridge, /pickFiles: \(initialDirectory\)/)
   assert.match(permissions, /"desktop_pick_directory"/)
+  assert.match(permissions, /"desktop_pick_files"/)
   assert.match(picker, /window\.pisperDesktop\?\.pickDirectory/)
   assert.doesNotMatch(picker, /showDirectoryPicker|webkitdirectory/)
   assert.match(workspacePicker, /\/api\/directories\?path=/)
@@ -111,4 +135,5 @@ test('workspace selection uses the desktop picker or the server-backed Web brows
   assert.match(schedules, /<WorkspacePicker/)
   assert.match(schedules, /pickSystemDirectory\(value\)/)
   assert.match(routes, /\/api\/directories/)
+  assert.match(routes, /\/api\/workspace-entries/)
 })

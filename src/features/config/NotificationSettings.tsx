@@ -61,6 +61,7 @@ function notificationChannelLabel(
 
 function notificationTemplateName(id: string, fallback: string, t: Translate) {
   if (id === 'chat.completed') return t('config:notificationSettings.chatCompleted')
+  if (id === 'chat.waiting') return t('config:notificationSettings.chatWaiting')
   if (id === 'schedule.completed') return t('config:notificationSettings.scheduleCompleted')
   if (id === 'schedule.failed') return t('config:notificationSettings.scheduleFailed')
   if (id === 'workflow.completed') return t('config:notificationSettings.workflowCompleted')
@@ -70,6 +71,7 @@ function notificationTemplateName(id: string, fallback: string, t: Translate) {
 
 function notificationTemplateDescription(id: string, fallback: string, t: Translate) {
   if (id === 'chat.completed') return t('config:notificationSettings.chatCompletedDescription')
+  if (id === 'chat.waiting') return t('config:notificationSettings.chatWaitingDescription')
   if (id === 'schedule.completed')
     return t('config:notificationSettings.scheduleCompletedDescription')
   if (id === 'schedule.failed') return t('config:notificationSettings.scheduleFailedDescription')
@@ -85,6 +87,8 @@ function renderPreview(content: string, t: Translate) {
     'chat.summary': t(
       'config:notificationSettings.implementationIsCompleteTestsAndBuildHavePassed',
     ),
+    'chat.tool': 'bash',
+    'chat.reason': t('config:notificationSettings.confirmationIsRequired'),
     'chat.model': 'openai/gpt-5.4',
     'task.name': t('config:notificationSettings.dailyCodeReview'),
     'task.summary': t('config:notificationSettings.found2IssuesToAddressTheReportHasBeenArchived'),
@@ -450,15 +454,11 @@ function NotificationTemplates({
   const latestScope = data.scopes.find((scope) => scope.platform === platform)
   const canTest =
     platform === 'browser' ? data.browser.enabled && permission === 'granted' : Boolean(latestScope)
-  const visibleChannels =
-    selected?.id === 'chat.completed' ? { browser: CHANNELS.browser } : CHANNELS
+  const visibleChannels = CHANNELS
 
   useEffect(() => {
     setContent(variant?.content || '')
   }, [eventId, platform, variant?.content])
-  useEffect(() => {
-    if (selected?.id === 'chat.completed' && platform !== 'browser') setPlatform('browser')
-  }, [platform, selected?.id])
   if (!selected) return null
 
   const save = async () => {
@@ -554,9 +554,7 @@ function NotificationTemplates({
             }
           />
         </div>
-        <div
-          className={`channel-template-platforms ${selected.id === 'chat.completed' ? 'single' : ''}`}
-        >
+        <div className="channel-template-platforms">
           {(
             Object.entries(visibleChannels) as Array<[NotificationPlatform, ChannelDefinition]>
           ).map(([id, channel]) => {

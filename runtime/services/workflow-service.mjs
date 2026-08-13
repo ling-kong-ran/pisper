@@ -79,6 +79,7 @@ function normalizeNode(node, index) {
   const kind = NODE_KINDS.has(node?.kind) ? node.kind : 'prompt'
   const condition = node?.condition || {}
   const approval = node?.approval || {}
+  const notification = node?.notification || {}
   return {
     id: String(node?.id || randomUUID()),
     kind,
@@ -105,6 +106,10 @@ function normalizeNode(node, index) {
         1,
         Math.min(10_080, Number(approval.timeoutMinutes) || Number(node?.timeoutMinutes) || 60),
       ),
+    },
+    notification: {
+      title: boundedString(notification.title, 160),
+      content: boundedString(notification.content, 12_000),
     },
     notificationTargets: normalizeStringArray(node?.notificationTargets).filter((target) =>
       NOTIFICATION_TARGETS.has(target),
@@ -255,6 +260,22 @@ function getPathValue(source, context) {
   const offset = ['inputs', 'previous'].includes(segments[0]) ? 1 : segments[0] === 'nodes' ? 2 : 0
   for (const segment of segments.slice(offset)) value = value?.[segment]
   return value
+}
+
+function renderWorkflowTemplate(template, context) {
+  return String(template || '').replace(/\{\{\s*([\w.-]+)\s*\}\}/g, (_match, path) => {
+    const segments = path.split('.').filter(Boolean)
+    let value
+    if (segments[0] === 'inputs') value = context.inputs
+    else if (segments[0] === 'previous') value = context.previous
+    else if (segments[0] === 'nodes') value = context.nodes[segments[1]]
+    else if (segments[0] === 'workflow') value = context.workflow
+    else if (segments[0] === 'run') value = context.run
+    else return `{{${path}}}`
+    const offset = segments[0] === 'nodes' ? 2 : 1
+    for (const segment of segments.slice(offset)) value = value?.[segment]
+    return value == null ? `{{${path}}}` : serializeValue(value)
+  })
 }
 
 function evaluateCondition(condition, context) {
@@ -696,23 +717,35 @@ export class WorkflowService {
         nodeRun.summary = decision.comment || '审批已通过。'
       } else if (node.kind === 'notification') {
         nodeRun.output = predecessors.map((item) => item.output)
-        nodeRun.summary =
+        const fallbackContent =
           predecessors
             .map((item) => item.summary)
             .filter(Boolean)
             .join('\n') || '通知已发送。'
+        const templateContext = {
+          inputs: run.inputs,
+          previous: predecessors.at(-1) || null,
+          nodes: Object.fromEntries([...nodeRuns]),
+          workflow: { id: workflow.id, name: workflow.name, description: workflow.description },
+          run: { id: run.id, startedAt: run.startedAt },
+        }
+        const content =
+          renderWorkflowTemplate(node.notification.content, templateContext).trim() ||
+          fallbackContent
+        const title = renderWorkflowTemplate(node.notification.title, templateContext).trim()
+        nodeRun.summary = boundedString(content, 1200)
         if (node.notificationTargets.length) {
           await this.notifications.notify(
             'workflow.completed',
             {
               workflow: {
                 name: workflow.name,
-                summary: nodeRun.summary,
+                summary: content,
                 duration: durationLabel(Date.now() - Date.parse(run.startedAt)),
                 runId: run.id,
               },
             },
-            { platforms: node.notificationTargets },
+            { platforms: node.notificationTargets, title: title || undefined, content },
           )
         }
       } else if (AGENT_KINDS.has(node.kind)) {

@@ -76,6 +76,7 @@
     value: Object.freeze({
       getAppInfo: () => invoke('desktop_get_app_info'),
       pickDirectory: (initialDirectory) => invoke('desktop_pick_directory', { initialDirectory }),
+      pickFiles: (initialDirectory) => invoke('desktop_pick_files', { initialDirectory }),
       setLanguage: (language) => invoke('desktop_set_language', { language }),
       getCliStatus: () => invoke('desktop_get_cli_status'),
       installCli: () => invoke('desktop_install_cli'),

@@ -334,26 +334,23 @@ export function useWorkflowEditor({
 
   const toggleNotification = useCallback(
     async (target: NotificationTarget) => {
-      if (!draft) return
+      if (!selectedNode || selectedNode.kind !== 'notification') return
+      const targets = selectedNode.notificationTargets
       if (target !== 'browser') {
-        if (draft.notifications.includes(target)) {
-          updateDraft({
-            notifications: draft.notifications.filter((item) => item !== target),
-          })
+        if (targets.includes(target)) {
+          updateNode({ notificationTargets: targets.filter((item) => item !== target) })
           return
         }
         if (!catalog.notificationTargets[target]?.enabled) return
-        updateDraft({ notifications: [...draft.notifications, target] })
+        updateNode({ notificationTargets: [...targets, target] })
         return
       }
       if (
-        draft.notifications.includes(target) &&
+        targets.includes(target) &&
         catalog.notificationTargets.browser.enabled &&
         systemNotificationPermission === 'granted'
       ) {
-        updateDraft({
-          notifications: draft.notifications.filter((item) => item !== target),
-        })
+        updateNode({ notificationTargets: targets.filter((item) => item !== target) })
         return
       }
 
@@ -396,10 +393,8 @@ export function useWorkflowEditor({
             browser: { enabled: settings.browser.enabled },
           },
         }))
-        updateDraft({
-          notifications: draft.notifications.includes(target)
-            ? draft.notifications
-            : [...draft.notifications, target],
+        updateNode({
+          notificationTargets: targets.includes(target) ? targets : [...targets, target],
         })
         notify(t('workflows:workflowsPage.systemNotificationsEnabled'))
       } catch (caught) {
@@ -409,12 +404,12 @@ export function useWorkflowEditor({
     [
       catalog.notificationTargets,
       desktopNotifications,
-      draft,
       notify,
       refreshSystemNotificationPermission,
+      selectedNode,
       systemNotificationPermission,
       t,
-      updateDraft,
+      updateNode,
     ],
   )
 

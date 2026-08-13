@@ -789,6 +789,61 @@ test('image attachments reach the Pi prompt when the selected model supports ima
   assert.match(observedPrompt, /Local path:/)
 })
 
+test('local path attachments reach the prompt without reading or archiving file content', async (t) => {
+  const directory = await mkdtemp(join(tmpdir(), 'pisper-path-prompt-'))
+  t.after(() => rm(directory, { recursive: true, force: true }))
+  const runtime = new AgentRuntimeService({ cwd: directory, dataDir: directory })
+  let createAssetCalls = 0
+  runtime.createAsset = async () => {
+    createAssetCalls += 1
+    throw new Error('path attachments must not be archived')
+  }
+  runtime.captureConversationMemory = async () => []
+  runtime.memory = { relevantContext: async () => ({ text: '' }) }
+
+  let observedPrompt = ''
+  const session = {
+    sessionId: 'session-path-prompt',
+    isStreaming: false,
+    model: { provider: 'openai', id: 'gpt-5.4' },
+    thinkingLevel: 'medium',
+    messages: [],
+    agent: { state: { systemPrompt: 'Base prompt' } },
+    getActiveToolNames: () => [],
+    setActiveToolsByName: () => {},
+    setSessionName: () => {},
+    subscribe() {
+      return () => {}
+    },
+    async prompt(prompt) {
+      observedPrompt = prompt
+      session.messages.push({
+        role: 'assistant',
+        content: [{ type: 'text', text: 'Path received.' }],
+        stopReason: 'stop',
+        timestamp: 2,
+      })
+    },
+  }
+  const value = { session, cwd: directory, name: 'Path prompt', baseToolNames: [] }
+  runtime.sessions.set(session.sessionId, value)
+  runtime.getOrCreateSession = async () => value
+  const path = join(directory, 'arbitrarily-large.bin')
+
+  await runtime.streamPrompt({
+    sessionId: session.sessionId,
+    message: 'Inspect this file when needed.',
+    attachments: [
+      { kind: 'path', name: 'arbitrarily-large.bin', path, size: Number.MAX_SAFE_INTEGER },
+    ],
+    send: () => {},
+  })
+
+  assert.equal(createAssetCalls, 0)
+  assert.match(observedPrompt, /\[Local path attachment\] arbitrarily-large\.bin/)
+  assert.match(observedPrompt, new RegExp(path.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')))
+})
+
 test('background Agent results remain durable without entering parent prompts or custom context', async (t) => {
   const directory = await mkdtemp(join(tmpdir(), 'pisper-agent-mailbox-passive-'))
   t.after(() => rm(directory, { recursive: true, force: true }))

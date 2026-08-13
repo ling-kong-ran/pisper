@@ -141,19 +141,37 @@ impl ApiClient {
         title: &str,
         summary: &str,
         model: &str,
-    ) -> Result<()> {
-        let _: Value = self
-            .send_json(
-                reqwest::Method::POST,
-                "/api/settings/notifications/chat-completed",
-                &json!({
-                    "title": title,
-                    "summary": summary,
-                    "model": model,
-                }),
-            )
-            .await?;
-        Ok(())
+    ) -> Result<NotificationDispatch> {
+        self.send_json(
+            reqwest::Method::POST,
+            "/api/settings/notifications/chat-completed",
+            &json!({
+                "title": title,
+                "summary": summary,
+                "model": model,
+            }),
+        )
+        .await
+    }
+
+    pub async fn notify_chat_waiting(
+        &self,
+        title: &str,
+        tool: &str,
+        reason: &str,
+        model: &str,
+    ) -> Result<NotificationDispatch> {
+        self.send_json(
+            reqwest::Method::POST,
+            "/api/settings/notifications/chat-waiting",
+            &json!({
+                "title": title,
+                "tool": tool,
+                "reason": reason,
+                "model": model,
+            }),
+        )
+        .await
     }
 
     pub async fn runtime_preferences(
@@ -418,6 +436,15 @@ impl ApiClient {
         }
         Ok(())
     }
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct NotificationDispatch {
+    #[serde(default)]
+    pub system_notification_enabled: bool,
+    #[serde(default)]
+    pub channel_error: String,
 }
 
 #[derive(Deserialize)]

@@ -61,15 +61,38 @@ export async function listWorkspaceDirectories(
   fallback,
   { inspectDirectory = stat, readDirectory = readdir } = {},
 ) {
+  const listing = await listWorkspaceEntries(input, fallback, {
+    inspectDirectory,
+    readDirectory,
+  })
+  return { path: listing.path, parent: listing.parent, directories: listing.directories }
+}
+
+/**
+ * List directories and files without reading file contents or inspecting file sizes.
+ * @param {unknown} input
+ * @param {unknown} fallback
+ */
+export async function listWorkspaceEntries(
+  input,
+  fallback,
+  { inspectDirectory = stat, readDirectory = readdir } = {},
+) {
   const path = await resolveWorkspaceDirectory(input, fallback, { inspectDirectory })
   const entries = await readDirectory(path, { withFileTypes: true })
+  /** @param {{ name: string }} left @param {{ name: string }} right */
+  const byName = (left, right) =>
+    left.name.localeCompare(right.name, undefined, { numeric: true, sensitivity: 'base' })
   const directories = entries
     .filter((entry) => entry.isDirectory())
     .map((entry) => ({ name: entry.name, path: join(path, entry.name) }))
-    .sort((left, right) =>
-      left.name.localeCompare(right.name, undefined, { numeric: true, sensitivity: 'base' }),
-    )
+    .sort(byName)
     .slice(0, 300)
+  const files = entries
+    .filter((entry) => entry.isFile())
+    .map((entry) => ({ name: entry.name, path: join(path, entry.name) }))
+    .sort(byName)
+    .slice(0, 500)
   const parent = dirname(path)
-  return { path, parent: parent === path ? null : parent, directories }
+  return { path, parent: parent === path ? null : parent, directories, files }
 }

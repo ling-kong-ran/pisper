@@ -140,6 +140,27 @@ pub async fn desktop_pick_directory(
 }
 
 #[tauri::command]
+pub fn desktop_pick_files(app: AppHandle, initial_directory: Option<String>) -> Vec<String> {
+    let mut dialog = app.dialog().file();
+    if let Some(initial_directory) = initial_directory.filter(|value| !value.trim().is_empty()) {
+        let path = PathBuf::from(initial_directory);
+        if path.is_dir() {
+            dialog = dialog.set_directory(path);
+        }
+    }
+    if let Some(window) = app.get_webview_window("main") {
+        dialog = dialog.set_parent(&window);
+    }
+    dialog
+        .blocking_pick_files()
+        .unwrap_or_default()
+        .into_iter()
+        .filter_map(|path| path.simplified().into_path().ok())
+        .map(|path| path.to_string_lossy().into_owned())
+        .collect()
+}
+
+#[tauri::command]
 pub fn desktop_set_language(app: AppHandle, language: String) -> String {
     let normalized = match language.as_str() {
         "en-US" => "en-US",
