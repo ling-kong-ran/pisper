@@ -93,6 +93,52 @@ export const integrationRoutes = [
   },
   {
     method: 'POST',
+    path: '/api/plugins/inspect',
+    async handler({ runtime, body, json }) {
+      json(200, await runtime.inspectPlugin(await body()))
+    },
+  },
+  {
+    method: 'POST',
+    path: '/api/plugins/install',
+    async handler({ runtime, body, json }) {
+      json(201, await runtime.installPlugin(await body()))
+    },
+  },
+  {
+    method: 'PATCH',
+    path: '/api/plugins/:pluginId',
+    async handler({ runtime, params, body, json }) {
+      const input = await body()
+      if (typeof input.enabled !== 'boolean') throw new Error('插件启用状态无效。')
+      json(200, await runtime.setPluginEnabled(params.pluginId, input.enabled))
+    },
+  },
+  {
+    method: 'PATCH',
+    path: '/api/plugins/:pluginId/capabilities/:capabilityName',
+    async handler({ runtime, params, body, json }) {
+      const input = await body()
+      if (typeof input.enabled !== 'boolean') throw new Error('插件能力启用状态无效。')
+      json(
+        200,
+        await runtime.setPluginCapabilityEnabled(
+          params.pluginId,
+          params.capabilityName,
+          input.enabled,
+        ),
+      )
+    },
+  },
+  {
+    method: 'DELETE',
+    path: '/api/plugins/:pluginId',
+    async handler({ runtime, params, json }) {
+      json(200, await runtime.uninstallPlugin(params.pluginId))
+    },
+  },
+  {
+    method: 'POST',
     path: '/api/plugins/web-search/test',
     async handler({ runtime, body, json }) {
       const result = await runtime.testWebSearch(await body())

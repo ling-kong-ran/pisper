@@ -41,6 +41,7 @@ test('read-only execution exposes only low-risk analysis tools', () => {
     'memory_search',
     'memory_remember',
     'skill_create',
+    'plugin_create',
     'get_plan',
     'update_plan',
     'get_task_list',
@@ -67,6 +68,10 @@ test('read-only execution exposes only low-risk analysis tools', () => {
     'update_plan',
     'get_task_list',
   ])
+  assert.equal(
+    filterToolsForExecutionMode(names, 'workspace-write').includes('plugin_create'),
+    false,
+  )
   assert.deepEqual(filterToolsForExecutionMode(names, 'full-access'), names)
 })
 

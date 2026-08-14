@@ -55,7 +55,7 @@ import {
   workspacePathKey,
 } from './workspace-directories.mjs'
 import { assetMessageAttachment } from '../services/session-assets.mjs'
-import { createAppTools, createMultiAgentTools, toolsFromConfig } from '../tools/registry.mjs'
+import { createAppTools, createMultiAgentTools } from '../tools/registry.mjs'
 import { createGoalTools, GOAL_TOOL_NAMES } from '../tools/app/goal.mjs'
 import {
   createPlanTools,
@@ -424,7 +424,7 @@ export class AgentRuntimeService extends AgentRuntimeFacade {
     })
     this.settingsPath = join(dataDir, 'settings.json')
     this.appConfigPath = join(dataDir, 'pisper.json')
-    this.toolPlugins = new ToolPluginService(this.appConfigPath)
+    this.toolPlugins = new ToolPluginService(this.appConfigPath, { dataDir })
     this.webSearch = new WebSearchService({ configPath: this.appConfigPath })
     this.visualGeneration = new VisualGenerationService({
       modelsPath: this.modelsPath,
@@ -525,7 +525,7 @@ export class AgentRuntimeService extends AgentRuntimeFacade {
         this.sessionMeta[sessionId]?.permissionMode ||
         permissionModeForExecutionMode(this.getSessionExecutionMode(sessionId)),
       getExecutionMode: (sessionId) => this.getSessionExecutionMode(sessionId),
-      getToolRisk: (toolName) => this.mcp.getToolRisk(toolName),
+      getToolRisk: (toolName) => this.getToolRisk(toolName),
     })
     this.multiAgents = new MultiAgentService({
       path: join(dataDir, 'pisper-agents.json'),
@@ -583,7 +583,7 @@ export class AgentRuntimeService extends AgentRuntimeFacade {
     })
     this.toolActivation = new ToolActivation({
       getExecutionMode: (id) => this.getSessionExecutionMode(id),
-      getToolRisk: (name) => this.mcp.getToolRisk(name),
+      getToolRisk: (name) => this.getToolRisk(name),
       getSessionMeta: () => this.sessionMeta,
       saveSessionMeta: () => this.saveSessionMeta(),
       getGoal: (id) => this.goals.get(id),
@@ -716,11 +716,7 @@ export class AgentRuntimeService extends AgentRuntimeFacade {
     stage('mcp')
     await this.mcp.init()
     stage('default-tools')
-    await this.toolPlugins.ensureDefaultTools(['memory_search', 'memory_remember'], 'memoryToolsV1')
-    await this.toolPlugins.ensureDefaultTools(['mcp_list', 'mcp_manage'], 'mcpManagementToolsV1')
-    await this.toolPlugins.ensureDefaultTools(['web_search'], 'webSearchToolV1')
-    await this.toolPlugins.ensureDefaultTools(['browser_automation'], 'browserAutomationToolV1')
-    await this.toolPlugins.ensureDefaultTools(['skill_create'], 'skillCreateToolV1')
+    await this.initializeToolPlugins()
 
     stage('model-runtime')
     await this.reloadModelRuntime()
@@ -1506,8 +1502,8 @@ export class AgentRuntimeService extends AgentRuntimeFacade {
       this.sessionMeta[runtimeSessionId]?.cwd,
       sessionManager.getCwd() || this.cwd,
     )
-    const enabledTools = toolsFromConfig(appConfig)
     const executionMode = this.getSessionExecutionMode(runtimeSessionId)
+    const enabledTools = this.toolPlugins.enabledTools(appConfig, executionMode)
     const [resourceLoader, mcpTools] = await Promise.all([
       this.skills.createResourceLoader(effectiveCwd),
       this.mcp.createToolDefinitions(),
@@ -1515,8 +1511,17 @@ export class AgentRuntimeService extends AgentRuntimeFacade {
     const stableMcpTools = [...mcpTools].sort((left, right) =>
       String(left.name || '').localeCompare(String(right.name || '')),
     )
+    const pluginTools = this.toolPlugins.createToolDefinitions({
+      cwd: effectiveCwd,
+      sessionId: runtimeSessionId,
+      enabledTools,
+    })
     const baseToolNames = [
-      ...new Set([...enabledTools, ...stableMcpTools.map((tool) => tool.name)]),
+      ...new Set([
+        ...enabledTools,
+        ...stableMcpTools.map((tool) => tool.name),
+        ...pluginTools.map((tool) => tool.name),
+      ]),
     ]
     const promotedToolNames = mergePromotedToolNames({
       availableToolNames: [...baseToolNames, ...MULTI_AGENT_TOOL_NAMES],
@@ -1576,7 +1581,7 @@ export class AgentRuntimeService extends AgentRuntimeFacade {
       return filterToolsForExecutionMode(
         baseToolNames.filter((name) => active.has(name)),
         this.getSessionExecutionMode(runtimeSessionId),
-        (toolName) => this.mcp.getToolRisk(toolName),
+        (toolName) => this.getToolRisk(toolName),
       )
     }
     const multiAgentRuntime = {
@@ -1623,7 +1628,7 @@ export class AgentRuntimeService extends AgentRuntimeFacade {
         const optionalToolNames = filterToolsForExecutionMode(
           this.optionalToolNames(runtimeValue),
           this.getSessionExecutionMode(runtimeSession.sessionId),
-          (toolName) => this.mcp.getToolRisk(toolName),
+          (toolName) => this.getToolRisk(toolName),
         )
         const staticHotToolNames = new Set(hotToolNames(optionalToolNames))
         const activeToolNames = new Set(runtimeSession.getActiveToolNames())
@@ -1671,6 +1676,9 @@ export class AgentRuntimeService extends AgentRuntimeFacade {
           visualGenerationService: this.visualGeneration,
           skillsRuntime: this.skills,
           onSkillsChanged: () => this.invalidateSessionRuntimes(),
+          pluginRuntime: this.toolPlugins,
+          executionMode,
+          onPluginsChanged: () => this.invalidateSessionRuntimes(),
           onGeneratedFile: ({ path }) =>
             runtimeValue && runtimeSession
               ? this.recordGeneratedFile(runtimeSession.sessionId, runtimeValue, path)
@@ -1687,6 +1695,7 @@ export class AgentRuntimeService extends AgentRuntimeFacade {
         }),
       ),
       ...schemaOnlyToolDefinitions(stableMcpTools),
+      ...schemaOnlyToolDefinitions(pluginTools),
       ...(inheritedBashTool ? [inheritedBashTool] : []),
     ]
     const inheritedCustomTools = createInheritedCustomTools()
@@ -1694,7 +1703,7 @@ export class AgentRuntimeService extends AgentRuntimeFacade {
     const toolGateway = createRuntimeToolGateway({
       tools: callableTools,
       getExecutionMode: (sessionId) => this.getSessionExecutionMode(sessionId),
-      getToolRisk: (name) => this.mcp.getToolRisk(name),
+      getToolRisk: (name) => this.getToolRisk(name),
       authorize: (input) => this.permissions.authorize({ cwd: effectiveCwd, ...input }),
       sessionId: runtimeSessionId,
     })

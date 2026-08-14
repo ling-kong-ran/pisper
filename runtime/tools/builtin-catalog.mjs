@@ -108,6 +108,7 @@ export const TOOL_PRESETS = {
     'write',
     'bash',
     'skill_create',
+    'plugin_create',
     'web_search',
     'browser_automation',
     'generate_visual',

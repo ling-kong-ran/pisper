@@ -169,6 +169,20 @@ export class AgentRuntimeFacade {
     return this.toolPlugins.getState()
   }
 
+  async initializeToolPlugins() {
+    await this.toolPlugins.init()
+    await this.toolPlugins.ensureDefaultTools(['memory_search', 'memory_remember'], 'memoryToolsV1')
+    await this.toolPlugins.ensureDefaultTools(['mcp_list', 'mcp_manage'], 'mcpManagementToolsV1')
+    await this.toolPlugins.ensureDefaultTools(['web_search'], 'webSearchToolV1')
+    await this.toolPlugins.ensureDefaultTools(['browser_automation'], 'browserAutomationToolV1')
+    await this.toolPlugins.ensureDefaultTools(['skill_create'], 'skillCreateToolV1')
+    await this.toolPlugins.ensureDefaultTools(['plugin_create'], 'pluginCreateToolV1')
+  }
+
+  getToolRisk(name) {
+    return this.toolPlugins.getToolRisk(name) || this.mcp.getToolRisk(name)
+  }
+
   testWebSearch(input) {
     return this.webSearch.test(input)
   }
@@ -528,12 +542,41 @@ export class AgentRuntimeFacade {
     await this.sandbox?.close?.()
     this.pendingSessions.clear()
     await this.mcp.dispose()
+    this.toolPlugins.dispose()
     this.memory.dispose()
     await Promise.allSettled([this.sessionMetaWrite, this.usageWrite, this.assetWrite])
   }
 
   async savePlugins(input) {
     const result = await this.toolPlugins.saveState(input)
+    this.invalidateSessionRuntimes()
+    return result
+  }
+
+  inspectPlugin(input) {
+    return this.toolPlugins.inspect(input?.path)
+  }
+
+  async installPlugin(input) {
+    const result = await this.toolPlugins.install(input?.inspectionId)
+    this.invalidateSessionRuntimes()
+    return result
+  }
+
+  async setPluginEnabled(id, enabled) {
+    const result = await this.toolPlugins.setPluginEnabled(id, enabled)
+    this.invalidateSessionRuntimes()
+    return result
+  }
+
+  async setPluginCapabilityEnabled(id, name, enabled) {
+    const result = await this.toolPlugins.setCapabilityEnabled(id, name, enabled)
+    this.invalidateSessionRuntimes()
+    return result
+  }
+
+  async uninstallPlugin(id) {
+    const result = await this.toolPlugins.uninstall(id)
     this.invalidateSessionRuntimes()
     return result
   }
