@@ -21,6 +21,7 @@ import { ProviderModelDiscoveryService } from '../services/provider-model-discov
 import { ScheduleService } from '../services/schedule-service.mjs'
 import { WorkflowService } from '../services/workflow-service.mjs'
 import { SkillsService } from '../services/skills-service.mjs'
+import { WorkspaceTrustService } from '../services/workspace-trust-service.mjs'
 import {
   PERMISSION_MODES,
   SessionPermissionService,
@@ -120,8 +121,6 @@ const MAX_RESIDENT_SESSION_RUNTIMES = 3
 const SESSION_RUNTIME_IDLE_TTL_MS = 5 * 60 * 1000
 const SESSION_RUNTIME_SWEEP_INTERVAL_MS = 60 * 1000
 const ABORT_FORCE_TIMEOUT_MS = 10_000
-// 中断兜底：abort 发起后若 Agent 仍未在窗口内结束（例如卡在工具调用），
-// 强制结束本次 prompt 等待，让外层 catch 收尾并结束 SSE。
 async function runPromptWithAbortGuard(value, run) {
   const timeoutMs = Number(value?.abortForceTimeoutMs) || ABORT_FORCE_TIMEOUT_MS
   const runPromise = Promise.resolve().then(run)
@@ -139,15 +138,11 @@ async function runPromptWithAbortGuard(value, run) {
     }
     const abortedAt = value?.abortedAt
     if (abortedAt && Date.now() - abortedAt >= timeoutMs) {
-      // 强制终止：dispose 会 abort bash（kill 挂起的子进程）、中断 agent 循环等，
-      // 确保即使工具一直执行，本次运行也能被中断。
       const session = value?.session
       if (session && typeof session.dispose === 'function') {
         try {
           session.dispose()
-        } catch {
-          // 终止失败也不阻塞收尾
-        }
+        } catch {}
         value.forceDisposed = true
       }
       throw new Error('Agent 未能在超时时间内响应停止，本次运行已被强制中断。')
@@ -449,6 +444,7 @@ export class AgentRuntimeService extends AgentRuntimeFacade {
       legacyPath: join(dataDir, 'pisper-task-lists.json'),
     })
     this.browserAutomation = new BrowserAutomationService({ driver: browserAutomationDriver })
+    this.workspaceTrust = new WorkspaceTrustService({ agentDir: dataDir })
     this.goalEmitters = new Map()
     this.agentEmitters = new Map()
     this.mcp = new McpService({ path: join(dataDir, 'pisper-mcp.json'), cwd })
@@ -459,7 +455,9 @@ export class AgentRuntimeService extends AgentRuntimeFacade {
       getSettingsManager: (skillsCwd = this.cwd) => {
         if (!this.settingsManager || workspacePathKey(skillsCwd) === workspacePathKey(this.cwd))
           return this.settingsManager
-        return SettingsManager.create(skillsCwd, this.dataDir)
+        return SettingsManager.create(skillsCwd, this.dataDir, {
+          projectTrusted: this.workspaceTrust.isTrusted(skillsCwd),
+        })
       },
       extensionFactories: [pisperPromptExtension, pisperCompactionExtension],
     })
@@ -709,7 +707,9 @@ export class AgentRuntimeService extends AgentRuntimeFacade {
       appConfigPath: this.appConfigPath,
     })
     await Promise.all([this.providerModelCatalog.init(), this.modelMetadata.init()])
-    this.settingsManager = SettingsManager.create(this.cwd, this.dataDir)
+    this.settingsManager = SettingsManager.create(this.cwd, this.dataDir, {
+      projectTrusted: this.workspaceTrust.isTrusted(this.cwd),
+    })
 
     stage('skills')
     await this.skills.init()

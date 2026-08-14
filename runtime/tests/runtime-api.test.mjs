@@ -162,6 +162,55 @@ test('session derivation API forwards the persisted turn boundary and display na
   ])
 })
 
+test('workspace trust APIs resolve and persist a session-scoped decision', async () => {
+  const calls = []
+  const runtime = {
+    async getWorkspaceTrust(sessionId) {
+      calls.push(['get', sessionId])
+      return { cwd: '/project', decision: null, requiresDecision: true }
+    },
+    async setWorkspaceTrust(sessionId, trusted) {
+      calls.push(['set', sessionId, trusted])
+      return { cwd: '/project', decision: trusted, trusted }
+    },
+  }
+  const handler = createApiHandler(runtime)
+
+  const getResponse = response()
+  assert.equal(
+    await handler(
+      request('GET'),
+      getResponse,
+      new URL('http://localhost/api/sessions/session%201/workspace-trust'),
+    ),
+    true,
+  )
+  assert.deepEqual(JSON.parse(getResponse.body), {
+    cwd: '/project',
+    decision: null,
+    requiresDecision: true,
+  })
+
+  const putResponse = response()
+  assert.equal(
+    await handler(
+      request('PUT', { trusted: true }),
+      putResponse,
+      new URL('http://localhost/api/sessions/session%201/workspace-trust'),
+    ),
+    true,
+  )
+  assert.deepEqual(JSON.parse(putResponse.body), {
+    cwd: '/project',
+    decision: true,
+    trusted: true,
+  })
+  assert.deepEqual(calls, [
+    ['get', 'session 1'],
+    ['set', 'session 1', true],
+  ])
+})
+
 test('skills APIs forward the active session scope for global and project discovery', async () => {
   const calls = []
   const runtime = {

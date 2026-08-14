@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict'
+import { existsSync } from 'node:fs'
 import { mkdir, mkdtemp, readFile, rm, symlink, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
@@ -72,6 +73,64 @@ test('skills service discovers Pi skills and applies persistent enable/invocatio
   )
   assert.equal(restoredSkill.enabled, true)
   assert.equal(restoredSkill.modelInvocationEnabled, false)
+})
+
+test('skills service excludes untrusted project skills from discovery and runtime loading', async (t) => {
+  const directory = await mkdtemp(join(tmpdir(), 'pisper-untrusted-skills-'))
+  t.after(() => rm(directory, { recursive: true, force: true }))
+  const agentDir = join(directory, 'agent')
+  const cwd = join(directory, 'workspace')
+  await writeSkill(join(agentDir, 'skills', 'global-helper'), 'global-helper', 'Global helper.')
+  await writeSkill(
+    join(cwd, '.pisper', 'skills', 'project-helper'),
+    'project-helper',
+    'Project helper.',
+  )
+  const extensionMarker = join(directory, 'extension-loaded')
+  await mkdir(join(cwd, '.pi', 'extensions'), { recursive: true })
+  await writeFile(
+    join(cwd, '.pi', 'extensions', 'project-extension.ts'),
+    `import { writeFileSync } from 'node:fs'\nwriteFileSync(${JSON.stringify(extensionMarker)}, 'loaded')\nexport default function () {}\n`,
+    'utf8',
+  )
+
+  const settingsManager = SettingsManager.inMemory({}, { projectTrusted: false })
+  const service = new SkillsService({
+    path: join(agentDir, 'pisper-skills.json'),
+    agentDir,
+    cwd,
+    getSettingsManager: () => settingsManager,
+  })
+  await service.init()
+
+  const restricted = await service.discover(cwd)
+  assert.deepEqual(
+    restricted.skills.map((skill) => skill.name),
+    ['global-helper'],
+  )
+  const restrictedLoader = await service.createResourceLoader(cwd)
+  assert.deepEqual(
+    restrictedLoader.getSkills().skills.map((skill) => skill.name),
+    ['global-helper'],
+  )
+  assert.equal(existsSync(extensionMarker), false)
+  await assert.rejects(
+    service.create({
+      name: 'new-project-skill',
+      description: 'Project only.',
+      instructions: 'Run.',
+    }),
+    /先信任当前工作区/,
+  )
+
+  settingsManager.setProjectTrusted(true)
+  const trusted = await service.discover(cwd)
+  assert.deepEqual(trusted.skills.map((skill) => skill.name).sort(), [
+    'global-helper',
+    'project-helper',
+  ])
+  await service.createResourceLoader(cwd)
+  assert.equal(existsSync(extensionMarker), true)
 })
 
 test('skills service creates validated project and global skills without overwriting', async (t) => {

@@ -21,6 +21,17 @@ type CompactionPreferenceResponse = {
   maxPercent: number
 }
 
+export type WorkspaceTrustStatus = {
+  cwd: string
+  decision: boolean | null
+  trusted: boolean
+  restricted: boolean
+  requiresDecision: boolean
+  decisionPath: string
+  inherited: boolean
+  resources: string[]
+}
+
 type ChatConfigResponse = EntityRecord & {
   provider?: string
   model?: string
@@ -65,6 +76,15 @@ export const chatApi = {
     requestJson<SessionSummary>(`${sessionPath(sessionId)}/derive`, {
       method: 'POST',
       data: { boundaryEntryId, name },
+    }),
+
+  getWorkspaceTrust: (sessionId: string) =>
+    requestJson<WorkspaceTrustStatus>(`${sessionPath(sessionId)}/workspace-trust`),
+
+  setWorkspaceTrust: (sessionId: string, trusted: boolean) =>
+    requestJson<WorkspaceTrustStatus>(`${sessionPath(sessionId)}/workspace-trust`, {
+      method: 'PUT',
+      data: { trusted },
     }),
 
   getConfig: () => requestJson<ChatConfigResponse>('/api/config'),

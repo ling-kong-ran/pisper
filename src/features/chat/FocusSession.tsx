@@ -45,6 +45,7 @@ import { PathAttachmentPicker } from './PathAttachmentPicker'
 import { SessionActionsMenu } from './SessionActionsMenu'
 import { SessionWorkflowRuns } from './SessionWorkflowRuns'
 import { ToolApproval } from './ToolApproval'
+import { WorkspaceTrustNotice } from './WorkspaceTrustNotice'
 
 const DEFAULT_GOAL_TOKEN_BUDGET = 30_000
 const COMMAND_PALETTE_SHORTCUT =
@@ -339,6 +340,7 @@ export function FocusSession({
       />
 
       <form className="focus-composer-shell" onSubmit={submit}>
+        <WorkspaceTrustNotice sessionId={session.id} cwd={cwd} streaming={streaming} />
         <ToolApproval approvals={approvals} onResolve={onApproval} />
         {streaming && queuedInputs.length > 0 && (
           <QueueSection asChild defaultOpen>

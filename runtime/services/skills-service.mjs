@@ -294,7 +294,10 @@ export class SkillsService {
     { includeDisabled = false, appendSystemPrompt = '' } = {},
   ) {
     const settingsManager = this.getSettingsManager(cwd)
-    const resources = await this.resolveSkillResources(cwd)
+    const resources = (await this.resolveSkillResources(cwd)).filter(
+      (item) =>
+        item.metadata?.scope !== 'project' || settingsManager?.isProjectTrusted?.() !== false,
+    )
     const loader = await createDefaultResourceLoader({
       cwd,
       agentDir: this.agentDir,
@@ -362,7 +365,11 @@ export class SkillsService {
   }
 
   async discover(cwd = this.cwd) {
-    const resources = await this.resolveSkillResources(cwd)
+    const settingsManager = this.getSettingsManager(cwd)
+    const resources = (await this.resolveSkillResources(cwd)).filter(
+      (item) =>
+        item.metadata?.scope !== 'project' || settingsManager?.isProjectTrusted?.() !== false,
+    )
     const loaded = await loadSkills({
       cwd,
       agentDir: this.agentDir,
@@ -512,6 +519,8 @@ export class SkillsService {
     if (!['project', 'global'].includes(requestedScope))
       throw new Error('技能作用域必须为 project 或 global。')
     const scope = requestedScope
+    if (scope === 'project' && this.getSettingsManager(cwd)?.isProjectTrusted?.() === false)
+      throw new Error('请先信任当前工作区，再创建项目技能。')
     if (!name || name.length > 64 || !SKILL_NAME_PATTERN.test(name)) {
       throw new Error(
         '技能名称必须为 1-64 位小写字母、数字或连字符，且不能以连字符开头、结尾或包含连续连字符。',

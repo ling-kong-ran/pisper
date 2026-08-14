@@ -1,6 +1,7 @@
 import { filterToolsForExecutionMode } from '../security/execution-mode.mjs'
 import { readJson, writeJsonAtomic } from '../storage/json-file.mjs'
 import { TOOL_PRESETS, toolsFromConfig } from '../tools/registry.mjs'
+import { workspacePathKey } from './workspace-directories.mjs'
 import {
   MAX_COMPACTION_THRESHOLD_PERCENT,
   MIN_COMPACTION_THRESHOLD_PERCENT,
@@ -48,6 +49,36 @@ export function filterWorkflowNotificationTargets(input, enabledTargets) {
 }
 
 export class AgentRuntimeFacade {
+  async workspaceTrustCwd(sessionId) {
+    const id = String(sessionId || '').trim()
+    const known =
+      id &&
+      (this.sessions.has(id) ||
+        this.pendingSessions.has(id) ||
+        this.sessionMeta[id] ||
+        (await this.findSessionInfo(id)))
+    if (!known) throw new Error('会话不存在。')
+    return this.sessionWorkspaceCwd(id)
+  }
+
+  async getWorkspaceTrust(sessionId) {
+    return this.workspaceTrust.getStatus(await this.workspaceTrustCwd(sessionId))
+  }
+
+  async setWorkspaceTrust(sessionId, trusted) {
+    if (this.sessionRunIsActive(sessionId))
+      throw new Error('当前会话正在运行，请等待完成或停止后再更改工作区信任。')
+    const cwd = await this.workspaceTrustCwd(sessionId)
+    const status = this.workspaceTrust.setTrusted(cwd, trusted)
+    if (workspacePathKey(cwd) === workspacePathKey(this.cwd)) {
+      this.settingsManager.setProjectTrusted(status.trusted)
+      await this.settingsManager.reload()
+    }
+    this.skills.invalidateDashboardCache()
+    this.invalidateSessionRuntimes()
+    return status
+  }
+
   deriveSession(id, boundaryEntryId, name) {
     return this.sessionLifecycle.deriveSession(id, boundaryEntryId, name)
   }
