@@ -91,6 +91,8 @@ export type SessionState = EntityRecord & {
   agents: EntityRecord[]
   currentActivity: EntityRecord | null
   activityFeed: EntityRecord[]
+  lifecycle: EntityRecord | null
+  sessionTreeRevision: number
   thinkingText: string
   queuedInputs: EntityRecord[]
   hadQueuedInput: boolean

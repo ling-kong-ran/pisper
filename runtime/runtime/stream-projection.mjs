@@ -1148,6 +1148,8 @@ export class StreamProjection {
           .filter((agent) => ['queued', 'starting', 'running'].includes(agent.status)),
       currentActivity: live?.currentActivity || null,
       activityFeed: live?.activityFeed || [],
+      lifecycle: live?.lifecycle || null,
+      sessionTreeRevision: Number(live?.sessionTreeRevision || 0),
       thinkingText: live?.thinkingText || '',
       queuedInputs: live?.queuedInputs ?? queuedSessionInputs(active?.session),
       contextUsage:

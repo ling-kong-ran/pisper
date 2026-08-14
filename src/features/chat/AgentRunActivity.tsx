@@ -306,10 +306,13 @@ function activityPresentation(
       detail = t('chat:agentRunActivity.noNewProgressForCountS', {
         count: Math.floor(inactiveMs / 1000),
       })
-    } else if (activity.stage === 'responding')
+    } else if (activity.stage === 'starting') title = t('chat:agentRunActivity.startingTheModel')
+    else if (activity.stage === 'responding')
       title = t('chat:agentRunActivity.preparingTheResponse')
     else if (activity.stage === 'processing_result')
       title = t('chat:agentRunActivity.processingToolResult')
+    else if (activity.stage === 'waiting_retry') title = t('chat:agentRunActivity.waitingToRetry')
+    else if (activity.stage === 'finalizing') title = t('chat:agentRunActivity.finalizingTheRun')
     else if (activity.stage === 'working') title = t('chat:agentRunActivity.advancingTheTask')
     else
       title = String(thinkingText || '').trim()

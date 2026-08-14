@@ -76,11 +76,15 @@ test('live and terminal reconciliation preserve explicit Plan clears', () => {
       ],
       agents: [],
       plan: null,
+      lifecycle: { phase: 'completed', event: 'runtime_done', turn: 2 },
+      sessionTreeRevision: 4,
     },
     '2026-08-02T01:00:00.000Z',
   )
   assert.equal(live.plan, null)
   assert.equal(live.streaming, false)
+  assert.equal(live.lifecycle.event, 'runtime_done')
+  assert.equal(live.sessionTreeRevision, 4)
   assert.deepEqual(live.activityFeed, [{ type: 'agent', id: 'child' }])
 
   const terminal = reconcileTerminalStreamState(current, {
@@ -137,6 +141,25 @@ test('stream dispatcher applies Plan updates in place and clears them on done', 
   assert.equal(sessions[0].plan, plan)
   assert.equal(state.currentActivity.type, 'plan')
 
+  dispatcher.dispatch('retry', { attempt: 1, maxAttempts: 3, message: 'Temporary error' })
+  assert.ok(state.runNotice)
+  dispatcher.dispatch('agent_lifecycle', {
+    lifecycle: {
+      phase: 'thinking',
+      event: 'turn_start',
+      turn: 2,
+      updatedAt: '2026-08-02T02:00:30.000Z',
+    },
+    currentActivity: { type: 'model', stage: 'thinking' },
+  })
+  assert.equal(state.lifecycle.event, 'turn_start')
+  assert.equal(state.runNotice, '')
+  dispatcher.dispatch('thinking_level_changed', { level: 'high' })
+  assert.equal(state.thinkingLevel, 'high')
+  assert.equal(sessions[0].thinkingLevel, 'high')
+  dispatcher.dispatch('session_tree_changed', { revision: 3 })
+  assert.equal(state.sessionTreeRevision, 3)
+
   const keepStreaming = dispatcher.dispatch('done', {
     text: 'complete',
     plan: null,
@@ -149,6 +172,8 @@ test('stream dispatcher applies Plan updates in place and clears them on done', 
   assert.equal(state.plan, null)
   assert.equal(sessions[0].plan, null)
   assert.equal(state.messages[0].text, 'complete')
+  assert.equal(state.lifecycle.phase, 'completed')
+  assert.equal(state.lifecycle.event, 'runtime_done')
 })
 
 test('chat facade and focus layout stay below their architecture budgets', async () => {

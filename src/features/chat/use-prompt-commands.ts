@@ -210,6 +210,12 @@ export function usePromptCommands({
           runNotice: '',
           currentActivity: { type: 'model', stage: 'thinking', updatedAt: runStartedAt },
           activityFeed: [],
+          lifecycle: {
+            phase: 'starting',
+            event: 'prompt_submitted',
+            turn: 0,
+            updatedAt: runStartedAt,
+          },
           thinkingText: '',
           hadQueuedInput: false,
           compaction: null,

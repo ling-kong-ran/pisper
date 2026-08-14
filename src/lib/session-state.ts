@@ -8,6 +8,8 @@ export const DEFAULT_SESSION_STATE: SessionState = Object.freeze({
   agents: [],
   currentActivity: null,
   activityFeed: [],
+  lifecycle: null,
+  sessionTreeRevision: 0,
   thinkingText: '',
   queuedInputs: [],
   hadQueuedInput: false,

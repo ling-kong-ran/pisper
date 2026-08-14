@@ -486,6 +486,7 @@ test('stream completion publishes an authoritative terminal snapshot', async (t)
     },
     async prompt() {
       session.isStreaming = true
+      for (const listener of listeners) listener({ type: 'agent_start' })
       for (const listener of listeners) listener({ type: 'compaction_start', reason: 'threshold' })
       for (const listener of listeners)
         listener({
@@ -572,6 +573,11 @@ test('stream completion publishes an authoritative terminal snapshot', async (t)
       for (const listener of listeners) listener({ type: 'turn_start' })
       for (const listener of listeners)
         listener({
+          type: 'message_start',
+          message: { role: 'assistant', content: [], timestamp: 2 },
+        })
+      for (const listener of listeners)
+        listener({
           type: 'message_update',
           assistantMessageEvent: { type: 'thinking_start', contentIndex: 0 },
         })
@@ -613,6 +619,11 @@ test('stream completion publishes an authoritative terminal snapshot', async (t)
         })
       textAtBlockEnd = streamedResponse()
       for (const listener of listeners) listener({ type: 'message_end', message: assistant })
+      for (const listener of listeners)
+        listener({ type: 'turn_end', message: assistant, toolResults: [] })
+      for (const listener of listeners)
+        listener({ type: 'agent_end', messages: [assistant], willRetry: false })
+      for (const listener of listeners) listener({ type: 'agent_settled' })
       session.isStreaming = false
     },
   }
@@ -628,6 +639,8 @@ test('stream completion publishes an authoritative terminal snapshot', async (t)
 
   const meta = events.find((item) => item.event === 'meta')?.data
   assert.equal(meta.plan.sessionId, session.sessionId)
+  assert.equal(meta.lifecycle.event, 'prompt_submitted')
+  assert.equal(meta.sessionTreeRevision, 0)
   assert.equal(Object.hasOwn(meta, 'taskList'), false)
   const compactionStart = events.find((item) => item.event === 'compaction_start')?.data
   const compactionEnd = events.find((item) => item.event === 'compaction_end')?.data
@@ -662,6 +675,13 @@ test('stream completion publishes an authoritative terminal snapshot', async (t)
   const textEndEvents = events.filter((item) => item.event === 'text_end')
   assert.ok(textEndEvents.some((item) => item.data.text === 'Final answer'))
   assert.ok(textEndEvents.some((item) => item.data.final === true))
+  const lifecycleEvents = events
+    .filter((item) => item.event === 'agent_lifecycle')
+    .map((item) => item.data.lifecycle.event)
+  assert.ok(lifecycleEvents.includes('agent_start'))
+  assert.ok(lifecycleEvents.includes('message_start'))
+  assert.ok(lifecycleEvents.includes('turn_end'))
+  assert.ok(lifecycleEvents.includes('agent_settled'))
   const toolStart = events.find((item) => item.event === 'tool_start')?.data
   const toolUpdate = events.find((item) => item.event === 'tool_update')?.data
   const toolEnd = events.find((item) => item.event === 'tool_end')?.data
@@ -670,6 +690,9 @@ test('stream completion publishes an authoritative terminal snapshot', async (t)
   assert.equal(toolEnd.output, '\u001b[32mfirst line\u001b[0m\nsecond line\ncomplete')
   const done = events.find((item) => item.event === 'done')?.data
   assert.equal(done.text, 'Final answer')
+  assert.equal(done.lifecycle.event, 'runtime_done')
+  assert.equal(done.lifecycle.turn, 2)
+  assert.equal(done.sessionTreeRevision, 0)
   assert.equal(done.tools[0].status, 'done')
   assert.equal(done.tools[0].output, toolEnd.output)
   assert.deepEqual(done.compaction, compactionEnd)
@@ -679,6 +702,9 @@ test('stream completion publishes an authoritative terminal snapshot', async (t)
   const live = await runtime.getSessionLive(session.sessionId)
   assert.equal(live.streaming, false)
   assert.equal(live.finishedAt, done.finishedAt)
+  assert.equal(live.lifecycle.phase, 'completed')
+  assert.equal(live.lifecycle.event, 'runtime_done')
+  assert.equal(live.lifecycle.turn, 2)
   assert.equal(live.tools[0].status, 'done')
   assert.equal(live.currentActivity, null)
   assert.equal(live.plan.sessionId, session.sessionId)
@@ -1176,10 +1202,13 @@ test('stream failures emit a single terminal error snapshot without throwing', a
   const errors = events.filter((item) => item.event === 'error')
   assert.equal(errors.length, 1)
   assert.equal(errors[0].data.message, 'model failed')
+  assert.equal(errors[0].data.lifecycle.phase, 'failed')
+  assert.equal(errors[0].data.lifecycle.event, 'runtime_error')
   assert.equal(errors[0].data.tools.length, 0)
   const live = await runtime.getSessionLive(session.sessionId)
   assert.equal(live.streaming, false)
   assert.equal(live.error, 'model failed')
+  assert.equal(live.lifecycle.event, 'runtime_error')
 })
 
 test('context usage reports the current window share and earlier automatic compaction threshold', async (t) => {

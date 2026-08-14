@@ -72,6 +72,8 @@ export function reconcileLiveSnapshot(
       : data.currentActivity?.type === 'agent'
         ? data.currentActivity
         : null,
+    lifecycle: data.lifecycle ?? current.lifecycle ?? null,
+    sessionTreeRevision: Number(data.sessionTreeRevision ?? current.sessionTreeRevision ?? 0),
     activityFeed: data.streaming
       ? data.activityFeed || current.activityFeed || []
       : (data.activityFeed || []).filter((activity: EntityRecord) => activity.type === 'agent'),

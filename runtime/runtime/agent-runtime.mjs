@@ -94,6 +94,11 @@ import {
   createScheduleWorkflowAdapter,
 } from './agent-runtime-facade.mjs'
 import { ToolActivation } from './tool-activation.mjs'
+import {
+  bridgeAgentSessionEvent,
+  createLiveRunState,
+  finishAgentLifecycle,
+} from './agent-event-bridge.mjs'
 import { SessionLifecycle } from './session-lifecycle.mjs'
 import { ProviderPreferences } from './provider-preferences.mjs'
 import {
@@ -1932,30 +1937,18 @@ export class AgentRuntimeService extends AgentRuntimeFacade {
 
     const startedAt = new Date().toISOString()
     value.modified = startedAt
-    const initialActivity = { type: 'model', stage: 'thinking', updatedAt: startedAt }
-    const sessionUsage = await this.streamProjection.getSessionTokenUsage(session.sessionId)
-    const live = {
-      streaming: true,
-      text: '',
-      thinkingText: '',
-      tools: [],
-      assets: [],
-      error: '',
+    const live = createLiveRunState({
+      startedAt,
       goal,
       plan: this.plans.get(session.sessionId),
       agents: this.multiAgents
         .summaries(session.sessionId)
         .filter((agent) => ['queued', 'starting', 'running'].includes(agent.status)),
-      currentActivity: initialActivity,
-      activityFeed: [],
       queuedInputs: queuedSessionInputs(session),
       contextUsage: this.compactionAwareContextUsage(session),
-      sessionUsage,
+      sessionUsage: await this.streamProjection.getSessionTokenUsage(session.sessionId),
       promptCache: value.promptCache,
-      compaction: null,
-      startedAt,
-      lastActivityAt: startedAt,
-    }
+    })
     this.liveSessions.set(session.sessionId, live)
     this.streamProjection.invalidate(session.sessionId)
     this.goalEmitters.set(session.sessionId, emit)
@@ -1990,6 +1983,8 @@ export class AgentRuntimeService extends AgentRuntimeFacade {
       agents: live.agents,
       currentActivity: live.currentActivity,
       activityFeed: live.activityFeed,
+      lifecycle: live.lifecycle,
+      sessionTreeRevision: live.sessionTreeRevision || 0,
       thinkingText: live.thinkingText,
       queuedInputs: live.queuedInputs,
       contextUsage: live.contextUsage,
@@ -1998,8 +1993,8 @@ export class AgentRuntimeService extends AgentRuntimeFacade {
       lastActivityAt: live.lastActivityAt,
     })
     let goalTurnId = '',
-      goalTurnStartedAt = 0
-    let continuationQueued = false,
+      goalTurnStartedAt = 0,
+      continuationQueued = false,
       budgetSummaryQueued = false
     let thinkingPrefix = '',
       thinkingTurnText = ''
@@ -2022,6 +2017,7 @@ export class AgentRuntimeService extends AgentRuntimeFacade {
       live.streaming = false
       live.finishedAt = finishedAt
       live.lastActivityAt = finishedAt
+      live.lifecycle = finishAgentLifecycle(live.lifecycle, error, finishedAt)
       live.tools = live.tools.map((tool) =>
         tool.status === 'running'
           ? {
@@ -2048,6 +2044,7 @@ export class AgentRuntimeService extends AgentRuntimeFacade {
     }
     const unsubscribe = session.subscribe((event) => {
       live.lastActivityAt = new Date().toISOString()
+      bridgeAgentSessionEvent(event, live, emit)
       if (event.type === 'message_update') {
         const update = event.assistantMessageEvent
         const blockIndex = streamBlockIndex(update)
@@ -2391,6 +2388,8 @@ export class AgentRuntimeService extends AgentRuntimeFacade {
         agents: live.agents,
         currentActivity: live.currentActivity,
         activityFeed: live.activityFeed,
+        lifecycle: live.lifecycle,
+        sessionTreeRevision: live.sessionTreeRevision || 0,
         queuedInputs: live.queuedInputs,
         contextUsage: live.contextUsage,
         sessionUsage: live.sessionUsage,
@@ -2428,6 +2427,8 @@ export class AgentRuntimeService extends AgentRuntimeFacade {
         agents: live.agents,
         currentActivity: live.currentActivity,
         activityFeed: live.activityFeed,
+        lifecycle: live.lifecycle,
+        sessionTreeRevision: live.sessionTreeRevision || 0,
         queuedInputs: live.queuedInputs,
         contextUsage: live.contextUsage,
         sessionUsage: live.sessionUsage,

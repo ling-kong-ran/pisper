@@ -59,6 +59,7 @@ export function reconcileTerminalStreamState(
   { agentId, responseText, data, finishedAt, error }: TerminalStateOptions,
 ): SessionState {
   const failed = Boolean(error)
+  const lifecycle = data.lifecycle || current.lifecycle || {}
   return {
     ...current,
     streaming: false,
@@ -66,6 +67,13 @@ export function reconcileTerminalStreamState(
     lastActivityAt: finishedAt,
     ...(failed ? {} : { runNotice: '' }),
     currentActivity: data.currentActivity?.type === 'agent' ? data.currentActivity : null,
+    lifecycle: {
+      ...lifecycle,
+      phase: failed ? 'failed' : 'completed',
+      event: failed ? 'runtime_error' : 'runtime_done',
+      updatedAt: finishedAt,
+    },
+    sessionTreeRevision: Number(data.sessionTreeRevision ?? current.sessionTreeRevision ?? 0),
     activityFeed: (data.activityFeed || []).filter(
       (activity: EntityRecord) => activity.type === 'agent',
     ),
@@ -133,6 +141,8 @@ export function createStreamEventDispatcher({
         agents: data.agents || current.agents || [],
         currentActivity: data.currentActivity || current.currentActivity || null,
         activityFeed: data.activityFeed || current.activityFeed || [],
+        lifecycle: data.lifecycle ?? current.lifecycle ?? null,
+        sessionTreeRevision: Number(data.sessionTreeRevision ?? current.sessionTreeRevision ?? 0),
         thinkingText: data.thinkingText ?? current.thinkingText ?? '',
         queuedInputs: resolveQueuedInputs(current.queuedInputs, data.queuedInputs),
         hadQueuedInput: Boolean(current.hadQueuedInput || data.queuedInputs?.length),
@@ -192,6 +202,36 @@ export function createStreamEventDispatcher({
           lastActivityAt: data.agent?.lastActivityAt || eventAt,
         }
       })
+    } else if (event === 'agent_lifecycle') {
+      updateSessionState(sessionId, (current) => {
+        const lifecycle = data.lifecycle || current.lifecycle
+        const retryFinished = lifecycle?.event === 'auto_retry_end'
+        const retryRestarted =
+          lifecycle?.event === 'turn_start' &&
+          (current.lifecycle?.phase === 'retrying' || current.currentActivity?.type === 'retry')
+        return {
+          ...current,
+          lifecycle,
+          currentActivity: data.currentActivity || current.currentActivity,
+          lastActivityAt: lifecycle?.updatedAt || eventAt,
+          runNotice:
+            retryFinished && lifecycle?.retry?.success
+              ? ''
+              : retryFinished && lifecycle?.retry?.message
+                ? lifecycle.retry.message
+                : retryRestarted
+                  ? ''
+                  : current.runNotice,
+        }
+      })
+    } else if (event === 'session_tree_changed') {
+      updateSessionState(sessionId, {
+        sessionTreeRevision: Number(data.revision || 0),
+        lastActivityAt: eventAt,
+      })
+    } else if (event === 'thinking_level_changed') {
+      updateSessionState(sessionId, { thinkingLevel: data.level, lastActivityAt: eventAt })
+      updateSessionSummary((session) => ({ ...session, thinkingLevel: data.level }))
     } else if (event === 'context_usage') {
       updateSessionState(sessionId, { contextUsage: data })
     } else if (event === 'session_usage') {
