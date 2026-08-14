@@ -141,7 +141,10 @@ export function WorkspaceTrustNotice({
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>{t('chat:focusSession.gitCancel')}</AlertDialogCancel>
-            <AlertDialogAction onClick={() => void decide(true)}>
+            <AlertDialogAction
+              className="workspace-trust-confirm"
+              onClick={() => void decide(true)}
+            >
               {t('chat:focusSession.trustWorkspace')}
             </AlertDialogAction>
           </AlertDialogFooter>
