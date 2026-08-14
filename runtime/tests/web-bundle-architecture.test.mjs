@@ -186,8 +186,17 @@ test('chat resource picker remains visible above dock splits with a readable pri
   assert.match(picker, /apiJson<PluginsData>\(`\/api\/plugins\?sessionId=/)
   assert.match(picker, /kind: 'tool'/)
   assert.match(picker, /callableToolNames\.has\(capability\.name\)/)
+  assert.match(picker, /<Tabs value=\{category\}/)
+  assert.match(picker, /value="all"/)
+  assert.match(picker, /value="skill"/)
+  assert.match(picker, /value="tool"/)
+  assert.match(picker, /value="workflow"/)
   assert.match(dialog, /overlayClassName/)
   assert.match(styles, /\.chat-resource-confirm \{[^}]*color: var\(--on-accent\)/)
+  assert.match(styles, /\.chat-resource-body \{[^}]*min-height: 0;[^}]*overflow: hidden;/)
+  assert.match(styles, /\.chat-resource-list \{[^}]*flex: 1 1 0;[^}]*overflow-y: auto;/)
+  assert.match(styles, /\.chat-resource-list \{[^}]*touch-action: pan-y;/)
+  assert.match(styles, /chat-resource-tabs[^}]*\[data-state='active'\]/)
   assert.match(focusSession, /onClick=\{\(\) => setResourcePickerOpen\(true\)\}/)
   assert.doesNotMatch(
     focusSession.match(/className="resource-picker-trigger"[\s\S]*?<\/button>/)?.[0] || '',

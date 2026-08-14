@@ -4,6 +4,7 @@ import { useI18n } from '@/app/use-i18n'
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
+import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import type { PluginsData } from '@/features/plugins/plugin-types'
 import { toolDescription, toolName } from '@/features/plugins/tool-labels'
 import { apiJson } from '@/lib/api'
@@ -33,6 +34,8 @@ type WorkflowResource = {
   inputs?: WorkflowInput[]
 }
 
+type ResourceCategory = 'all' | 'skill' | 'tool' | 'workflow'
+
 type Resource =
   | { kind: 'skill'; id: string; name: string; description: string; inputs: WorkflowInput[] }
   | { kind: 'workflow'; id: string; name: string; description: string; inputs: WorkflowInput[] }
@@ -58,6 +61,7 @@ export function ChatResourcePicker({
 }) {
   const { t } = useI18n()
   const [resources, setResources] = useState<Resource[]>([])
+  const [category, setCategory] = useState<ResourceCategory>('all')
   const [query, setQuery] = useState('')
   const [selected, setSelected] = useState<Resource | null>(null)
   const [argumentsValue, setArgumentsValue] = useState<Record<string, unknown>>({})
@@ -67,6 +71,10 @@ export function ChatResourcePicker({
   useEffect(() => {
     if (!open) return
     let active = true
+    setCategory('all')
+    setQuery('')
+    setSelected(null)
+    setArgumentsValue({})
     setLoading(true)
     setError('')
     Promise.all([
@@ -127,16 +135,33 @@ export function ChatResourcePicker({
     }
   }, [open, sessionId, t])
 
+  const categoryCounts = useMemo(
+    () => ({
+      all: resources.length,
+      skill: resources.filter((resource) => resource.kind === 'skill').length,
+      tool: resources.filter((resource) => resource.kind === 'tool').length,
+      workflow: resources.filter((resource) => resource.kind === 'workflow').length,
+    }),
+    [resources],
+  )
+
   const visible = useMemo(() => {
     const needle = query.trim().toLowerCase()
     return resources.filter(
       (resource) =>
-        !needle ||
-        `${resource.name} ${resource.id} ${resource.description} ${resource.kind === 'tool' ? resource.sourceName : ''}`
-          .toLowerCase()
-          .includes(needle),
+        (category === 'all' || resource.kind === category) &&
+        (!needle ||
+          `${resource.name} ${resource.id} ${resource.description} ${resource.kind === 'tool' ? resource.sourceName : ''}`
+            .toLowerCase()
+            .includes(needle)),
     )
-  }, [query, resources])
+  }, [category, query, resources])
+
+  const changeCategory = (value: string) => {
+    const next = value as ResourceCategory
+    setCategory(next)
+    if (selected && next !== 'all' && selected.kind !== next) setSelected(null)
+  }
 
   const choose = (resource: Resource) => {
     setSelected(resource)
@@ -180,6 +205,26 @@ export function ChatResourcePicker({
         </div>
         <div className="chat-resource-body">
           <div className="chat-resource-browser">
+            <Tabs value={category} onValueChange={changeCategory} className="chat-resource-tabs">
+              <TabsList aria-label={t('chat:resourcePicker.categories')}>
+                <TabsTrigger value="all">
+                  {t('chat:resourcePicker.all')}
+                  <small>{categoryCounts.all}</small>
+                </TabsTrigger>
+                <TabsTrigger value="skill">
+                  {t('chat:resourcePicker.skill')}
+                  <small>{categoryCounts.skill}</small>
+                </TabsTrigger>
+                <TabsTrigger value="tool">
+                  {t('chat:resourcePicker.tool')}
+                  <small>{categoryCounts.tool}</small>
+                </TabsTrigger>
+                <TabsTrigger value="workflow">
+                  {t('chat:resourcePicker.workflow')}
+                  <small>{categoryCounts.workflow}</small>
+                </TabsTrigger>
+              </TabsList>
+            </Tabs>
             <label className="chat-resource-search">
               <Search size={15} />
               <input
@@ -196,7 +241,11 @@ export function ChatResourcePicker({
                 return (
                   <button
                     type="button"
-                    className={selected?.id === resource.id ? 'active' : ''}
+                    className={
+                      selected?.kind === resource.kind && selected.id === resource.id
+                        ? 'active'
+                        : ''
+                    }
                     key={`${resource.kind}:${resource.id}`}
                     onClick={() => choose(resource)}
                   >
