@@ -1,12 +1,12 @@
 import { useEffect, useId, useMemo, useState, type RefObject } from 'react'
-import { Braces, FileText, Slash } from 'lucide-react'
+import { Braces, FileText } from 'lucide-react'
 import { useI18n } from '@/app/use-i18n'
 import { chatApi, type SessionCommand } from './chat-api'
 
-function commandDraft(command: SessionCommand, value: string) {
+export function commandDraft(invocation: string, value: string) {
   const slash = value.match(/^\/[^\s]*(?:\s+([\s\S]*))?$/)
   const argumentsText = (slash ? slash[1] || '' : value).trim()
-  return `${command.invocation}${argumentsText ? ` ${argumentsText}` : ' '}`
+  return `${invocation}${argumentsText ? ` ${argumentsText}` : ' '}`
 }
 
 export function ComposerCommandMenu({
@@ -23,18 +23,15 @@ export function ComposerCommandMenu({
   const { t, language } = useI18n()
   const menuId = useId()
   const typedCommand = value.match(/^\/([^\s]*)$/)
-  const [manualOpen, setManualOpen] = useState(false)
   const [dismissedValue, setDismissedValue] = useState('')
   const [commands, setCommands] = useState<SessionCommand[] | null>(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState(false)
   const [activeIndex, setActiveIndex] = useState(0)
-  const automaticOpen = Boolean(typedCommand && dismissedValue !== value)
-  const open = manualOpen || automaticOpen
+  const open = Boolean(typedCommand && dismissedValue !== value)
   const query = typedCommand?.[1] || ''
 
   useEffect(() => {
-    setManualOpen(false)
     setDismissedValue('')
     setCommands(null)
     setError(false)
@@ -76,13 +73,11 @@ export function ComposerCommandMenu({
   }, [query, commands])
 
   const close = () => {
-    setManualOpen(false)
     setDismissedValue(value)
   }
   const select = (command: SessionCommand) => {
-    const next = commandDraft(command, value)
+    const next = commandDraft(command.invocation, value)
     onChange(next)
-    setManualOpen(false)
     setDismissedValue(next)
     requestAnimationFrame(() => {
       const input = inputRef.current
@@ -123,17 +118,6 @@ export function ComposerCommandMenu({
     return () => document.removeEventListener('keydown', onKeyDown, true)
   })
 
-  const toggle = () => {
-    if (open) {
-      close()
-      return
-    }
-    setCommands(null)
-    setError(false)
-    setDismissedValue('')
-    setManualOpen(true)
-    requestAnimationFrame(() => inputRef.current?.focus())
-  }
   const scopeLabels = {
     user: t('chat:commands.scope.user'),
     project: t('chat:commands.scope.project'),
@@ -143,17 +127,6 @@ export function ComposerCommandMenu({
 
   return (
     <>
-      <button
-        type="button"
-        className={`resource-picker-trigger composer-command-trigger ${open ? 'active' : ''}`}
-        title={t('chat:commands.open')}
-        aria-label={t('chat:commands.open')}
-        aria-expanded={open}
-        aria-controls={menuId}
-        onClick={toggle}
-      >
-        <Slash size={17} />
-      </button>
       {open && (
         <div
           className="permission-mode-menu composer-command-menu"

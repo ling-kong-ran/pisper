@@ -29,7 +29,7 @@ import type {
 } from '@/types/chat'
 import { pathAttachments, useAttachmentSelection } from './attachments'
 import { ChatResourcePicker } from './ChatResourcePicker'
-import { ComposerCommandMenu } from './ComposerCommandMenu'
+import { commandDraft, ComposerCommandMenu } from './ComposerCommandMenu'
 import { ComposerToolTray } from './ComposerToolTray'
 import { requestCommandPalette } from './events'
 import {
@@ -618,6 +618,9 @@ export function FocusSession({
         sessionId={session.id}
         onClose={() => setResourcePickerOpen(false)}
         onSelect={setInvocation}
+        onCommandSelect={(commandInvocation) =>
+          applyWelcomeChip(commandDraft(commandInvocation, value))
+        }
       />
       <SessionTreeDialog
         open={sessionTreeOpen}

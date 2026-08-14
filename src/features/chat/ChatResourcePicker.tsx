@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { Braces, Search, Workflow, Wrench, X } from 'lucide-react'
+import { Braces, FileText, Search, Workflow, Wrench, X } from 'lucide-react'
 import { useI18n } from '@/app/use-i18n'
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from '@/components/ui/dialog'
@@ -9,14 +9,8 @@ import type { PluginsData } from '@/features/plugins/plugin-types'
 import { toolDescription, toolName } from '@/features/plugins/tool-labels'
 import { apiJson } from '@/lib/api'
 import type { ResourceInvocation } from '@/types/chat'
+import { chatApi } from './chat-api'
 
-type SkillResource = {
-  id: string
-  name: string
-  description?: string
-  enabled?: boolean
-  command?: string
-}
 type WorkflowInput = {
   id: string
   name: string
@@ -34,30 +28,31 @@ type WorkflowResource = {
   inputs?: WorkflowInput[]
 }
 
-type ResourceCategory = 'all' | 'skill' | 'tool' | 'workflow'
+type ResourceCategory = 'all' | 'prompt' | 'skill' | 'tool' | 'workflow'
 
-type Resource =
-  | { kind: 'skill'; id: string; name: string; description: string; inputs: WorkflowInput[] }
-  | { kind: 'workflow'; id: string; name: string; description: string; inputs: WorkflowInput[] }
-  | {
-      kind: 'tool'
-      id: string
-      name: string
-      description: string
-      inputs: WorkflowInput[]
-      sourceName: string
-    }
+type Resource = {
+  kind: Exclude<ResourceCategory, 'all'>
+  id: string
+  name: string
+  description: string
+  inputs: WorkflowInput[]
+  argumentHint?: string
+  invocation?: string
+  sourceName?: string
+}
 
 export function ChatResourcePicker({
   open,
   sessionId,
   onClose,
   onSelect,
+  onCommandSelect,
 }: {
   open: boolean
   sessionId: string
   onClose: () => void
   onSelect: (invocation: ResourceInvocation) => void
+  onCommandSelect: (invocation: string) => void
 }) {
   const { t } = useI18n()
   const [resources, setResources] = useState<Resource[]>([])
@@ -78,25 +73,23 @@ export function ChatResourcePicker({
     setLoading(true)
     setError('')
     Promise.all([
-      apiJson<{ skills?: SkillResource[] }>(
-        `/api/skills?sessionId=${encodeURIComponent(sessionId)}`,
-      ),
+      chatApi.getSessionCommands(sessionId),
       apiJson<{ workflows?: WorkflowResource[] }>('/api/workflows'),
       apiJson<PluginsData>(`/api/plugins?sessionId=${encodeURIComponent(sessionId)}`),
     ])
-      .then(([skillData, workflowData, pluginData]) => {
+      .then(([commandData, workflowData, pluginData]) => {
         if (!active) return
         const callableToolNames = new Set(pluginData.callableToolNames || [])
         setResources([
-          ...(skillData.skills || [])
-            .filter((skill) => skill.enabled && skill.command)
-            .map<Resource>((skill) => ({
-              kind: 'skill',
-              id: skill.id,
-              name: skill.name,
-              description: skill.description || '',
-              inputs: [],
-            })),
+          ...(commandData.commands || []).map<Resource>((command) => ({
+            kind: command.source,
+            id: command.name,
+            name: command.name,
+            description: command.description || '',
+            inputs: [],
+            argumentHint: command.argumentHint,
+            invocation: command.invocation,
+          })),
           ...(workflowData.workflows || [])
             .filter((workflow) => workflow.status === 'published')
             .map<Resource>((workflow) => ({
@@ -138,6 +131,7 @@ export function ChatResourcePicker({
   const categoryCounts = useMemo(
     () => ({
       all: resources.length,
+      prompt: resources.filter((resource) => resource.kind === 'prompt').length,
       skill: resources.filter((resource) => resource.kind === 'skill').length,
       tool: resources.filter((resource) => resource.kind === 'tool').length,
       workflow: resources.filter((resource) => resource.kind === 'workflow').length,
@@ -172,6 +166,11 @@ export function ChatResourcePicker({
 
   const confirm = () => {
     if (!selected) return
+    if (selected.kind === 'prompt') {
+      onCommandSelect(selected.invocation || `/${selected.name}`)
+      onClose()
+      return
+    }
     onSelect({
       kind: selected.kind,
       resourceId: selected.id,
@@ -211,6 +210,10 @@ export function ChatResourcePicker({
                   {t('chat:resourcePicker.all')}
                   <small>{categoryCounts.all}</small>
                 </TabsTrigger>
+                <TabsTrigger value="prompt">
+                  {t('chat:resourcePicker.prompt')}
+                  <small>{categoryCounts.prompt}</small>
+                </TabsTrigger>
                 <TabsTrigger value="skill">
                   {t('chat:resourcePicker.skill')}
                   <small>{categoryCounts.skill}</small>
@@ -237,7 +240,13 @@ export function ChatResourcePicker({
             <div className="chat-resource-list">
               {visible.map((resource) => {
                 const Icon =
-                  resource.kind === 'skill' ? Braces : resource.kind === 'tool' ? Wrench : Workflow
+                  resource.kind === 'prompt'
+                    ? FileText
+                    : resource.kind === 'skill'
+                      ? Braces
+                      : resource.kind === 'tool'
+                        ? Wrench
+                        : Workflow
                 return (
                   <button
                     type="button"
@@ -257,11 +266,13 @@ export function ChatResourcePicker({
                       <small>{resource.description}</small>
                     </span>
                     <em>
-                      {resource.kind === 'skill'
-                        ? 'Skill'
-                        : resource.kind === 'tool'
-                          ? t('chat:resourcePicker.tool')
-                          : t('chat:resourcePicker.workflow')}
+                      {resource.kind === 'prompt'
+                        ? t('chat:resourcePicker.prompt')
+                        : resource.kind === 'skill'
+                          ? 'Skill'
+                          : resource.kind === 'tool'
+                            ? t('chat:resourcePicker.tool')
+                            : t('chat:resourcePicker.workflow')}
                     </em>
                   </button>
                 )
@@ -318,8 +329,13 @@ export function ChatResourcePicker({
                     ))}
                   </div>
                 )}
+                {selected.kind === 'prompt' && selected.argumentHint && (
+                  <code className="chat-resource-argument-hint">{selected.argumentHint}</code>
+                )}
                 <Button className="chat-resource-confirm" onClick={confirm}>
-                  {t('chat:resourcePicker.useResource')}
+                  {selected.kind === 'prompt'
+                    ? t('chat:resourcePicker.insertPrompt')
+                    : t('chat:resourcePicker.useResource')}
                 </Button>
               </>
             ) : (
