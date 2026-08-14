@@ -1,10 +1,15 @@
 import { memo, useEffect, useState } from 'react'
-import { Download, File, GitFork, LoaderCircle, X } from 'lucide-react'
+import { Check, Download, File, GitFork, LoaderCircle, Tag, Trash2, X } from 'lucide-react'
 import { useI18n } from '@/app/use-i18n'
 import { BrandLogo } from '@/components/BrandLogo'
 import MarkdownMessage from '@/components/MarkdownMessage'
+import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
+import { Popover, PopoverContent, PopoverTitle, PopoverTrigger } from '@/components/ui/popover'
 import type { ChatAttachment, ChatMessage } from '@/types/chat'
 import AgentRunActivity, { type AgentRunActivityProps } from './AgentRunActivity'
+import { chatErrorMessage } from './chat-errors'
+import { chatApi, type SessionTreeNode } from './chat-api'
 import { Message as AiMessage } from '@/components/ai-elements/message-shell'
 
 type ImagePreview = { attachment: ChatAttachment; source: string }
@@ -129,7 +134,116 @@ export function MessageAttachments({
   )
 }
 
+function findTreeNode(nodes: SessionTreeNode[], entryId: string): SessionTreeNode | null {
+  for (const node of nodes) {
+    if (node.id === entryId) return node
+    const child = findTreeNode(node.children, entryId)
+    if (child) return child
+  }
+  return null
+}
+
+function MessageTreeLabel({ sessionId, entryId }: { sessionId: string; entryId: string }) {
+  const { t } = useI18n()
+  const [open, setOpen] = useState(false)
+  const [label, setLabel] = useState('')
+  const [savedLabel, setSavedLabel] = useState('')
+  const [loading, setLoading] = useState(false)
+  const [saving, setSaving] = useState(false)
+  const [error, setError] = useState('')
+
+  useEffect(() => {
+    if (!open) return
+    let active = true
+    setLoading(true)
+    setError('')
+    void chatApi
+      .getSessionTree(sessionId)
+      .then((tree) => {
+        if (!active) return
+        const currentLabel = findTreeNode(tree.roots, entryId)?.label || ''
+        setLabel(currentLabel)
+        setSavedLabel(currentLabel)
+      })
+      .catch((reason) => active && setError(chatErrorMessage(reason)))
+      .finally(() => active && setLoading(false))
+    return () => {
+      active = false
+    }
+  }, [entryId, open, sessionId])
+
+  const save = async () => {
+    if (saving || loading) return
+    setSaving(true)
+    setError('')
+    try {
+      const tree = await chatApi.setSessionTreeLabel(sessionId, entryId, label)
+      const nextLabel = findTreeNode(tree.roots, entryId)?.label || ''
+      setLabel(nextLabel)
+      setSavedLabel(nextLabel)
+      setOpen(false)
+    } catch (reason) {
+      setError(chatErrorMessage(reason))
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  return (
+    <Popover open={open} onOpenChange={setOpen}>
+      <PopoverTrigger asChild>
+        <button
+          type="button"
+          className={`icon-button${savedLabel ? ' active' : ''}`}
+          title={t('chat:chatMessage.labelThisTurn')}
+          aria-label={t('chat:chatMessage.labelThisTurn')}
+          data-pisper-label-entry={entryId}
+        >
+          <Tag size={14} />
+        </button>
+      </PopoverTrigger>
+      <PopoverContent className="message-label-popover" align="end" sideOffset={6}>
+        <form
+          onSubmit={(event) => {
+            event.preventDefault()
+            void save()
+          }}
+        >
+          <PopoverTitle>{t('chat:sessionTree.nodeLabel')}</PopoverTitle>
+          <Input
+            autoFocus
+            value={label}
+            maxLength={80}
+            disabled={loading || saving}
+            placeholder={t('chat:sessionTree.labelPlaceholder')}
+            onChange={(event) => setLabel(event.target.value)}
+          />
+          {error && <small className="danger-text">{error}</small>}
+          <div className="message-label-actions">
+            <Button
+              type="button"
+              size="icon-sm"
+              variant="ghost"
+              title={t('chat:sessionTree.removeLabel')}
+              aria-label={t('chat:sessionTree.removeLabel')}
+              disabled={!label || loading || saving}
+              onClick={() => setLabel('')}
+            >
+              <Trash2 />
+            </Button>
+            <Button className="message-label-save" type="submit" disabled={loading || saving}>
+              {saving ? <LoaderCircle className="spin" /> : <Check />}
+              {saving ? t('chat:sessionTree.savingLabel') : t('chat:sessionTree.saveLabel')}
+            </Button>
+          </div>
+        </form>
+      </PopoverContent>
+    </Popover>
+  )
+}
+
 type FocusChatMessageProps = {
+  sessionId: string
   message: ChatMessage
   agentState: string
   showRunActivity: boolean
@@ -139,6 +253,7 @@ type FocusChatMessageProps = {
 
 function focusPropsEqual(prev: FocusChatMessageProps, next: FocusChatMessageProps) {
   return (
+    prev.sessionId === next.sessionId &&
     prev.message === next.message &&
     prev.agentState === next.agentState &&
     prev.showRunActivity === next.showRunActivity &&
@@ -148,6 +263,7 @@ function focusPropsEqual(prev: FocusChatMessageProps, next: FocusChatMessageProp
 }
 
 export const FocusChatMessage = memo(function FocusChatMessage({
+  sessionId,
   message,
   agentState,
   showRunActivity,
@@ -190,6 +306,7 @@ export const FocusChatMessage = memo(function FocusChatMessage({
           className="chat-history-actions message-actions"
           style={{ gridColumn: 2, gridRow: 2, paddingRight: 0 }}
         >
+          <MessageTreeLabel sessionId={sessionId} entryId={message.turnBoundaryEntryId} />
           <button
             type="button"
             className="icon-button"

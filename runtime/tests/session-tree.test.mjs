@@ -181,6 +181,22 @@ test('runtime navigation uses AgentSession tree semantics and survives a cold re
     flatNodes(labeled.roots).find((node) => node.id === entries.firstAssistant)?.label,
     'Resume here',
   )
+  await runtime.setSessionTreeLabel(created.id, entries.firstUser, 'Resume user message')
+  const labelMatches = await runtime.searchSessionTreeLabels('resume')
+  assert.deepEqual(labelMatches, [
+    {
+      sessionId: created.id,
+      sessionName: 'Tree fixture',
+      sessionCreated: created.created,
+      sessionModified: labelMatches[0].sessionModified,
+      entryId: entries.firstAssistant,
+      label: 'Resume here',
+      summary: 'First answer',
+      nodeTimestamp: labelMatches[0].nodeTimestamp,
+      active: true,
+    },
+  ])
+  assert.deepEqual(await runtime.searchSessionTreeLabels('missing'), [])
   const active = runtime.sessions.get(created.id)
   const entryCount = active.session.sessionManager.getEntries().length
   await runtime.setSessionTreeLabel(created.id, entries.firstAssistant, 'Resume here')

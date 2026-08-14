@@ -1,3 +1,5 @@
+import { isCompletedTurnBoundaryMessage } from './session-derivation.mjs'
+
 const TREE_NAVIGATION_CUSTOM_TYPE = 'pisper.session-tree-position'
 const MAX_NODE_TEXT = 320
 
@@ -39,7 +41,7 @@ function messageProjection(message) {
     kind: role === 'user' ? 'user' : role === 'assistant' ? 'assistant' : 'message',
     role,
     text,
-    status: '',
+    status: isCompletedTurnBoundaryMessage(message) ? 'completed' : '',
   }
 }
 
@@ -126,6 +128,29 @@ export function projectSessionTree(manager, { sessionId = '', streaming = false 
     streaming: Boolean(streaming),
     roots,
   }
+}
+
+export function projectSessionTreeLabels(manager, session = {}) {
+  const tree = projectSessionTree(manager, { sessionId: session.id || '' })
+  const labels = []
+  const visit = (node) => {
+    if (node.label && node.kind === 'assistant' && node.status === 'completed') {
+      labels.push({
+        sessionId: tree.sessionId,
+        sessionName: String(session.name || ''),
+        sessionCreated: String(session.created || ''),
+        sessionModified: String(session.modified || ''),
+        entryId: node.id,
+        label: node.label,
+        summary: node.text,
+        nodeTimestamp: String(node.timestamp || ''),
+        active: node.active,
+      })
+    }
+    node.children.forEach(visit)
+  }
+  tree.roots.forEach(visit)
+  return labels
 }
 
 export function appendTreePosition(manager, targetId) {

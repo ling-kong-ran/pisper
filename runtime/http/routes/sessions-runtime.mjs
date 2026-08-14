@@ -32,6 +32,17 @@ export const sessionRuntimeRoutes = [
     },
   },
   {
+    method: 'GET',
+    path: '/api/session-labels',
+    async handler({ runtime, url, json }) {
+      json(200, {
+        labels: await runtime.searchSessionTreeLabels(url.searchParams.get('query'), {
+          limit: url.searchParams.get('limit'),
+        }),
+      })
+    },
+  },
+  {
     method: 'POST',
     path: '/api/sessions',
     async handler({ runtime, body, json }) {

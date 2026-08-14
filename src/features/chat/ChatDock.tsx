@@ -92,6 +92,7 @@ export function SessionDockPanel({ params, api }: IDockviewPanelProps<{ sessionI
         compaction={state.compaction}
         contextUsage={state.contextUsage}
         sessionUsage={state.sessionUsage}
+        sessionTreeRevision={state.sessionTreeRevision}
         cwd={state.cwd || session.cwd}
         availableModels={context.availableModels}
         switchingModel={state.switchingModel}

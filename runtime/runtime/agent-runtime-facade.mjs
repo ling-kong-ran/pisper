@@ -101,6 +101,10 @@ export class AgentRuntimeFacade {
     return this.sessionLifecycle.getSessionTree(id)
   }
 
+  searchSessionTreeLabels(query, options) {
+    return this.sessionLifecycle.searchSessionTreeLabels(query, options)
+  }
+
   navigateSessionTree(id, targetEntryId, options) {
     return this.sessionLifecycle.navigateSessionTree(id, targetEntryId, options)
   }

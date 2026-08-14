@@ -1,4 +1,12 @@
-import { memo, useCallback, useLayoutEffect, useRef, useState, type RefObject } from 'react'
+import {
+  memo,
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useRef,
+  useState,
+  type RefObject,
+} from 'react'
 import { useVirtualizer } from '@tanstack/react-virtual'
 import { resolveMessageRunActivity } from '@/lib/session-state'
 import type { ChatMessage } from '@/types/chat'
@@ -7,13 +15,16 @@ import { FocusChatMessage } from './ChatMessage'
 import { TRANSCRIPT_ESTIMATED_ROW_HEIGHT, TRANSCRIPT_OVERSCAN } from './transcript-virtualization'
 
 type VirtualMessageTranscriptProps = {
+  sessionId: string
   messages: ChatMessage[]
   streaming?: boolean
   latestRunProps: AgentRunActivityProps
   measurementVersion: unknown
   scrollElement: HTMLDivElement | null
   prefixRef: RefObject<HTMLDivElement | null>
+  targetEntryId?: string
   onContentSizeChange: () => void
+  onTargetLocated: (entryId: string) => void
   onDerive: (boundaryEntryId: string) => Promise<void> | void
 }
 
@@ -58,16 +69,20 @@ function useTranscriptScrollMargin(
 }
 
 export const VirtualMessageTranscript = memo(function VirtualMessageTranscript({
+  sessionId,
   messages,
   streaming,
   latestRunProps,
   measurementVersion,
   scrollElement,
   prefixRef,
+  targetEntryId,
   onContentSizeChange,
+  onTargetLocated,
   onDerive,
 }: VirtualMessageTranscriptProps) {
   const listRef = useRef<HTMLDivElement>(null)
+  const [highlightedEntryId, setHighlightedEntryId] = useState('')
   const messagesRef = useRef(messages)
   messagesRef.current = messages
   const scrollMargin = useTranscriptScrollMargin(scrollElement, prefixRef, listRef)
@@ -99,6 +114,27 @@ export const VirtualMessageTranscript = memo(function VirtualMessageTranscript({
     if (element) virtualizer.measureElement(element)
   }, [lastMessage, measurementVersion, virtualizer])
 
+  useEffect(() => {
+    if (!targetEntryId) return undefined
+    const targetIndex = messages.findIndex(
+      (message) => message.turnBoundaryEntryId === targetEntryId,
+    )
+    if (targetIndex < 0) return undefined
+    virtualizer.scrollToIndex(targetIndex, { align: 'center' })
+    setHighlightedEntryId(targetEntryId)
+    const frame = window.requestAnimationFrame(() => {
+      virtualizer.scrollToIndex(targetIndex, { align: 'center' })
+      onTargetLocated(targetEntryId)
+    })
+    return () => window.cancelAnimationFrame(frame)
+  }, [messages, onTargetLocated, targetEntryId, virtualizer])
+
+  useEffect(() => {
+    if (!highlightedEntryId) return undefined
+    const timer = window.setTimeout(() => setHighlightedEntryId(''), 2200)
+    return () => window.clearTimeout(timer)
+  }, [highlightedEntryId])
+
   return (
     <div
       className="virtual-transcript-list"
@@ -120,14 +156,20 @@ export const VirtualMessageTranscript = memo(function VirtualMessageTranscript({
         const runProps = resolveMessageRunActivity(message, isLatestAgent, latestRunProps)
         return (
           <div
-            className="virtual-transcript-item"
+            className={`virtual-transcript-item ${message.turnBoundaryEntryId === highlightedEntryId ? 'targeted' : ''}`}
             data-index={virtualItem.index}
+            data-pisper-target-entry={
+              message.turnBoundaryEntryId === highlightedEntryId
+                ? message.turnBoundaryEntryId
+                : undefined
+            }
             data-pisper-virtual-item={message.id}
             key={virtualItem.key}
             ref={virtualizer.measureElement}
             style={{ top: `${virtualItem.start - scrollMargin}px` }}
           >
             <FocusChatMessage
+              sessionId={sessionId}
               message={message}
               agentState={agentState}
               showRunActivity={Boolean(runProps)}

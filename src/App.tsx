@@ -17,6 +17,7 @@ import { AppSidebar } from '@/components/layout/AppSidebar'
 import { AppDialog } from '@/components/layout/AppDialog'
 import { StatusBar } from '@/components/layout/StatusBar'
 import { AppToast, ToastProvider, ToastViewport, type ToastTone } from '@/components/ui/toast'
+import { chatApi } from '@/features/chat/chat-api'
 import {
   ACTIVE_SESSION_CHANGED_EVENT,
   COMMAND_PALETTE_REQUESTED_EVENT,
@@ -630,9 +631,16 @@ function App() {
               navigation={navigation}
               onClose={() => setPaletteOpen(false)}
               onNavigate={navigate}
-              onOpenSession={(id) => {
-                requestSessionSelection(id)
-                navigate('chat')
+              onOpenSession={async (id, targetEntryId, targetActive) => {
+                try {
+                  if (targetEntryId && !targetActive) {
+                    await chatApi.navigateSessionTree(id, targetEntryId, false)
+                  }
+                  requestSessionSelection(id, 'open', targetEntryId)
+                  navigate('chat')
+                } catch {
+                  notify(t('navigation:appOverlays.openLabeledTurnFailed'), 'error')
+                }
               }}
               onNewChat={() => {
                 navigate('chat')

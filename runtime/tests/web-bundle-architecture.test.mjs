@@ -247,6 +247,38 @@ test('scheduled tasks use structured prompt or workflow targets across every for
   )
 })
 
+test('session labels are searchable from Ctrl K and resolve through virtualized chat history', async () => {
+  const [palette, app, events, transcript, virtualTranscript, treeDialog, chatMessage, routes] =
+    await Promise.all([
+      readFile('src/components/layout/AppOverlays.tsx', 'utf8'),
+      readFile('src/App.tsx', 'utf8'),
+      readFile('src/features/chat/events.ts', 'utf8'),
+      readFile('src/features/chat/FocusTranscript.tsx', 'utf8'),
+      readFile('src/features/chat/VirtualMessageTranscript.tsx', 'utf8'),
+      readFile('src/features/chat/SessionTreeDialog.tsx', 'utf8'),
+      readFile('src/features/chat/ChatMessage.tsx', 'utf8'),
+      readFile('runtime/http/routes/sessions-runtime.mjs', 'utf8'),
+    ])
+
+  assert.match(palette, /searchSessionTreeLabels\(keyword, 12\)/)
+  assert.match(palette, /label\.sessionName/)
+  assert.match(palette, /sessionCreated \|\| label\.sessionModified/)
+  assert.match(palette, /label\.nodeTimestamp/)
+  assert.match(app, /targetEntryId && !targetActive/)
+  assert.match(app, /navigateSessionTree\(id, targetEntryId, false\)/)
+  assert.match(events, /STORAGE_KEYS\.sessionMessageTarget/)
+  assert.match(transcript, /message\.turnBoundaryEntryId === targetEntryId/)
+  assert.match(transcript, /if \(hasOlder\)/)
+  assert.match(virtualTranscript, /virtualizer\.scrollToIndex\(targetIndex/)
+  assert.match(virtualTranscript, /data-pisper-target-entry/)
+  assert.match(treeDialog, /node\.branchPoint/)
+  assert.match(treeDialog, /session-tree-children/)
+  assert.match(treeDialog, /sessionTree\.searchPlaceholder/)
+  assert.match(chatMessage, /data-pisper-label-entry/)
+  assert.match(chatMessage, /setSessionTreeLabel\(sessionId, entryId, label\)/)
+  assert.match(routes, /path: '\/api\/session-labels'/)
+})
+
 test('settings navigation replaces the main sidebar instead of nesting in page content', async () => {
   const [app, sidebar, settingsNavigation, styles] = await Promise.all([
     readFile('src/App.tsx', 'utf8'),

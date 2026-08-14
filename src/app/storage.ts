@@ -5,6 +5,7 @@ export const STORAGE_KEYS = Object.freeze({
   tiledSessions: 'pisper-tiled-sessions',
   chatDockLayout: 'pisper-chat-dock-layout-v1',
   sessionOpenRequest: 'pisper-session-open-request',
+  sessionMessageTarget: 'pisper-session-message-target',
   webPreviewRequest: 'pisper-web-preview-request',
   language: 'pisper-language',
   sidebarCollapsed: 'pisper-sidebar-collapsed',

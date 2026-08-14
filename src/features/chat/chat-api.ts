@@ -51,6 +51,18 @@ export type SessionTreeNavigationResponse = SessionTreeResponse & {
   editorText: string | null
 }
 
+export type SessionTreeLabelMatch = {
+  sessionId: string
+  sessionName: string
+  sessionCreated: string
+  sessionModified: string
+  entryId: string
+  label: string
+  summary: string
+  nodeTimestamp: string
+  active: boolean
+}
+
 export type WorkspaceTrustStatus = {
   cwd: string
   decision: boolean | null
@@ -115,6 +127,11 @@ const sessionPath = (sessionId: string) => `/api/sessions/${encodeURIComponent(s
 
 export const chatApi = {
   listSessions: () => requestJson<SessionListResponse>('/api/sessions'),
+
+  searchSessionTreeLabels: (query: string, limit = 20) => {
+    const params = new URLSearchParams({ query, limit: String(limit) })
+    return requestJson<{ labels: SessionTreeLabelMatch[] }>(`/api/session-labels?${params}`)
+  },
 
   createSession: (name: string, cwd = '') =>
     requestJson<SessionSummary>('/api/sessions', {

@@ -162,6 +162,32 @@ test('session derivation API forwards the persisted turn boundary and display na
   ])
 })
 
+test('session label search API returns the runtime-owned cross-session index', async () => {
+  const calls = []
+  const runtime = {
+    async searchSessionTreeLabels(query, options) {
+      calls.push([query, options])
+      return [{ sessionId: 'session-1', entryId: 'entry-1', label: 'Checkpoint' }]
+    },
+  }
+  const handler = createApiHandler(runtime)
+  const output = response()
+
+  assert.equal(
+    await handler(
+      request('GET'),
+      output,
+      new URL('http://localhost/api/session-labels?query=check&limit=12'),
+    ),
+    true,
+  )
+  assert.equal(output.status, 200)
+  assert.deepEqual(JSON.parse(output.body), {
+    labels: [{ sessionId: 'session-1', entryId: 'entry-1', label: 'Checkpoint' }],
+  })
+  assert.deepEqual(calls, [['check', { limit: '12' }]])
+})
+
 test('session tree APIs read, navigate, and label Pi tree entries', async () => {
   const calls = []
   const tree = { sessionId: 'session 1', leafId: 'leaf-1', roots: [] }

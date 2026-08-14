@@ -44,7 +44,7 @@ import { GitChangesControl } from './GitChangesControl'
 import { GoalModeControl } from './GoalModeControl'
 import { PathAttachmentPicker } from './PathAttachmentPicker'
 import { SessionActionsMenu } from './SessionActionsMenu'
-import { SessionTreeDialog } from './SessionTreeDialog'
+import { SessionTreeControl } from './SessionTreeControl'
 import { SessionWorkflowRuns } from './SessionWorkflowRuns'
 import { ToolApproval } from './ToolApproval'
 import { WorkspaceTrustNotice } from './WorkspaceTrustNotice'
@@ -78,6 +78,7 @@ export type FocusSessionProps = {
   compaction?: EntityRecord | null
   contextUsage?: EntityRecord | null
   sessionUsage?: EntityRecord | null
+  sessionTreeRevision?: number
   cwd?: string
   availableModels: ModelOption[]
   switchingModel?: boolean
@@ -147,6 +148,7 @@ export function FocusSession({
   compaction,
   contextUsage,
   sessionUsage,
+  sessionTreeRevision,
   cwd,
   availableModels,
   switchingModel,
@@ -316,6 +318,20 @@ export function FocusSession({
           </div>
         </div>
       )}
+
+      <SessionTreeControl
+        visible={hasConversation}
+        open={sessionTreeOpen}
+        sessionId={session.id}
+        streaming={Boolean(streaming)}
+        revision={sessionTreeRevision}
+        onOpenChange={setSessionTreeOpen}
+        onNavigated={async (editorText) => {
+          if (editorText !== null) applyWelcomeChip(editorText)
+          await onTreeNavigated?.()
+          requestTranscriptBottom()
+        }}
+      />
 
       <FocusTranscript
         sessionId={session.id}
@@ -621,17 +637,6 @@ export function FocusSession({
         onCommandSelect={(commandInvocation) =>
           applyWelcomeChip(commandDraft(commandInvocation, value))
         }
-      />
-      <SessionTreeDialog
-        open={sessionTreeOpen}
-        sessionId={session.id}
-        streaming={Boolean(streaming)}
-        onClose={() => setSessionTreeOpen(false)}
-        onNavigated={async (editorText) => {
-          if (editorText !== null) applyWelcomeChip(editorText)
-          await onTreeNavigated?.()
-          requestTranscriptBottom()
-        }}
       />
       <PathAttachmentPicker
         open={pathPickerOpen}

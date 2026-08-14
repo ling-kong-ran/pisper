@@ -6,7 +6,11 @@ import {
   permissionModeForExecutionMode,
 } from '../security/execution-mode.mjs'
 import { isCompletedTurnBoundaryMessage } from './session-derivation.mjs'
-import { appendTreePosition, projectSessionTree } from './session-tree.mjs'
+import {
+  appendTreePosition,
+  projectSessionTree,
+  projectSessionTreeLabels,
+} from './session-tree.mjs'
 
 const DEFAULT_SESSION_NAME = '新会话'
 const MAX_RESIDENT_SESSION_RUNTIMES = 3
@@ -417,6 +421,36 @@ export class SessionLifecycle {
       sessionId,
       streaming: this.sessionRunIsActive(sessionId, this.sessions.get(sessionId)),
     })
+  }
+
+  async searchSessionTreeLabels(query, options = {}) {
+    const keyword = String(query || '')
+      .replace(/\s+/g, ' ')
+      .trim()
+      .toLocaleLowerCase()
+      .slice(0, 80)
+    if (!keyword) return []
+    const requestedLimit = Number(options?.limit)
+    const limit = Number.isFinite(requestedLimit)
+      ? Math.max(1, Math.min(50, Math.floor(requestedLimit)))
+      : 20
+    const sessions = (await this.listSessions()).sort(
+      (left, right) => Date.parse(right.modified || '') - Date.parse(left.modified || ''),
+    )
+    const matches = []
+    for (const session of sessions) {
+      try {
+        const manager = await this.sessionTreeManager(session.id)
+        for (const label of projectSessionTreeLabels(manager, session)) {
+          if (!label.label.toLocaleLowerCase().includes(keyword)) continue
+          matches.push(label)
+          if (matches.length >= limit) return matches
+        }
+      } catch {
+        // A session may be deleted between the catalog and tree reads.
+      }
+    }
+    return matches
   }
 
   async navigateSessionTree(id, targetEntryId, options = {}) {

@@ -310,10 +310,13 @@ export function useChatDock({
       if (!sessionId) return
       localStorage.removeItem(STORAGE_KEYS.sessionOpenRequest)
       openSessionInDock(sessionId, detail?.disposition || 'open')
+      if (detail?.targetEntryId) {
+        void loadSessionMessages(sessionId, { force: true, limit: FOCUS_MESSAGE_PAGE_SIZE })
+      }
     }
     window.addEventListener(SESSION_SELECTED_EVENT, selectSession)
     return () => window.removeEventListener(SESSION_SELECTED_EVENT, selectSession)
-  }, [openSessionInDock])
+  }, [loadSessionMessages, openSessionInDock])
 
   useEffect(() => {
     const openPreview = (event: Event) => {
@@ -402,8 +405,15 @@ export function useChatDock({
     localStorage.removeItem(STORAGE_KEYS.chatMode)
     const request = pendingDockRequestRef.current || consumeSessionSelectionRequest()
     pendingDockRequestRef.current = null
-    if (request) openSessionInDock(request.sessionId, request.disposition)
-    else {
+    if (request) {
+      openSessionInDock(request.sessionId, request.disposition)
+      if (request.targetEntryId) {
+        void loadSessionMessages(request.sessionId, {
+          force: true,
+          limit: FOCUS_MESSAGE_PAGE_SIZE,
+        })
+      }
+    } else {
       const preferredPanel =
         api.getPanel(storedLayout?.activePanelId || panelIdForSession(activeId)) || api.panels[0]
       preferredPanel?.api.setActive()
@@ -415,6 +425,7 @@ export function useChatDock({
   }, [
     activeId,
     dockReady,
+    loadSessionMessages,
     loading,
     openSessionInDock,
     openWebPreviewInDock,

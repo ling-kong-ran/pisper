@@ -18,7 +18,11 @@ export type DockLayoutEnvelope = {
   activePanelId: string
   layout: DockLayout
 }
-export type SessionOpenRequest = { sessionId: string; disposition: SessionOpenDisposition }
+export type SessionOpenRequest = {
+  sessionId: string
+  disposition: SessionOpenDisposition
+  targetEntryId?: string
+}
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
@@ -83,10 +87,15 @@ export function dockPositionForDisposition(
 export function createSessionOpenRequest(
   sessionId: string,
   disposition: string = 'open',
+  targetEntryId = '',
 ): SessionOpenRequest | null {
   if (!sessionId || !SESSION_OPEN_DISPOSITIONS.includes(disposition as SessionOpenDisposition))
     return null
-  return { sessionId, disposition: disposition as SessionOpenDisposition }
+  return {
+    sessionId,
+    disposition: disposition as SessionOpenDisposition,
+    ...(targetEntryId ? { targetEntryId } : {}),
+  }
 }
 
 export function parseSessionOpenRequest(raw: unknown): SessionOpenRequest | null {
@@ -96,7 +105,8 @@ export function parseSessionOpenRequest(raw: unknown): SessionOpenRequest | null
     if (!isRecord(value)) return null
     const sessionId = typeof value.sessionId === 'string' ? value.sessionId : ''
     const disposition = typeof value.disposition === 'string' ? value.disposition : 'open'
-    return createSessionOpenRequest(sessionId, disposition)
+    const targetEntryId = typeof value.targetEntryId === 'string' ? value.targetEntryId : ''
+    return createSessionOpenRequest(sessionId, disposition, targetEntryId)
   } catch {
     return null
   }

@@ -42,14 +42,23 @@ test('session open requests accept horizontal and vertical dispositions', () => 
     sessionId: 'alpha',
     disposition: 'above',
   })
+  assert.deepEqual(createSessionOpenRequest('alpha', 'open', 'entry-1'), {
+    sessionId: 'alpha',
+    disposition: 'open',
+    targetEntryId: 'entry-1',
+  })
   assert.deepEqual(parseSessionOpenRequest('{"sessionId":"beta","disposition":"right"}'), {
     sessionId: 'beta',
     disposition: 'right',
   })
-  assert.deepEqual(parseSessionOpenRequest('{"sessionId":"beta","disposition":"below"}'), {
-    sessionId: 'beta',
-    disposition: 'below',
-  })
+  assert.deepEqual(
+    parseSessionOpenRequest('{"sessionId":"beta","disposition":"below","targetEntryId":"entry-2"}'),
+    {
+      sessionId: 'beta',
+      disposition: 'below',
+      targetEntryId: 'entry-2',
+    },
+  )
   assert.equal(createSessionOpenRequest('alpha', 'top'), null)
   assert.equal(parseSessionOpenRequest('{"sessionId":"alpha","disposition":"bottom"}'), null)
 })

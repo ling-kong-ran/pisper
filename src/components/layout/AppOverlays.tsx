@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState, type FormEvent, type KeyboardEvent } from 'react'
-import { MessageSquare, Plus, Search, X, type LucideIcon } from 'lucide-react'
+import { MessageSquare, Plus, Search, Tag, X, type LucideIcon } from 'lucide-react'
 import { useI18n } from '@/app/use-i18n'
 import { apiJson } from '@/lib/api'
 import { Button } from '@/components/ui/button'
@@ -7,6 +7,7 @@ import { Dialog, DialogContent, DialogDescription, DialogTitle } from '@/compone
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { relativeTime } from '@/lib/format'
+import { chatApi, type SessionTreeLabelMatch } from '@/features/chat/chat-api'
 
 type Navigation = Array<[string, Array<[string, string, LucideIcon]>]>
 
@@ -22,6 +23,8 @@ type CommandEntry = {
   Icon: LucideIcon
   label: string
   hint: string
+  meta?: string
+  title?: string
   run: () => void
 }
 
@@ -29,7 +32,7 @@ type CommandPaletteProps = {
   navigation: Navigation
   onClose: () => void
   onNavigate: (page: string) => void
-  onOpenSession: (sessionId: string) => void
+  onOpenSession: (sessionId: string, targetEntryId?: string, targetActive?: boolean) => void
   onNewChat: () => void
 }
 
@@ -43,6 +46,7 @@ export function CommandPalette({
   const { t, language } = useI18n()
   const [query, setQuery] = useState('')
   const [sessions, setSessions] = useState<SessionSummary[]>([])
+  const [labelMatches, setLabelMatches] = useState<SessionTreeLabelMatch[]>([])
   const [activeIndex, setActiveIndex] = useState(0)
 
   useEffect(() => {
@@ -56,6 +60,25 @@ export function CommandPalette({
       active = false
     }
   }, [])
+
+  useEffect(() => {
+    const keyword = query.trim()
+    if (!keyword) {
+      setLabelMatches([])
+      return undefined
+    }
+    let active = true
+    const timer = window.setTimeout(() => {
+      void chatApi
+        .searchSessionTreeLabels(keyword, 12)
+        .then((data) => active && setLabelMatches(data.labels || []))
+        .catch(() => active && setLabelMatches([]))
+    }, 140)
+    return () => {
+      active = false
+      window.clearTimeout(timer)
+    }
+  }, [query])
 
   const entries = useMemo(() => {
     const keyword = query.trim().toLocaleLowerCase(language)
@@ -84,6 +107,27 @@ export function CommandPalette({
         }
       }
     }
+    const formatTimestamp = (value: string) => {
+      const timestamp = Date.parse(value)
+      if (!Number.isFinite(timestamp)) return t('navigation:appOverlays.unknownTime')
+      return new Intl.DateTimeFormat(language, {
+        dateStyle: 'medium',
+        timeStyle: 'short',
+      }).format(timestamp)
+    }
+    for (const label of labelMatches) {
+      const sessionTime = formatTimestamp(label.sessionCreated || label.sessionModified)
+      const nodeTime = formatTimestamp(label.nodeTimestamp)
+      result.push({
+        id: `label:${label.sessionId}:${label.entryId}`,
+        Icon: Tag,
+        label: label.label,
+        hint: label.sessionName || t('navigation:appOverlays.untitledChat'),
+        meta: t('navigation:appOverlays.labelResultTimes', { sessionTime, nodeTime }),
+        title: label.summary || label.label,
+        run: () => onOpenSession(label.sessionId, label.entryId, label.active),
+      })
+    }
     for (const session of [...sessions].sort(
       (a, b) => Date.parse(b.modified) - Date.parse(a.modified),
     )) {
@@ -98,7 +142,7 @@ export function CommandPalette({
       if (result.filter((entry) => entry.id.startsWith('session:')).length >= 8) break
     }
     return result
-  }, [language, navigation, onNavigate, onNewChat, onOpenSession, query, sessions, t])
+  }, [labelMatches, language, navigation, onNavigate, onNewChat, onOpenSession, query, sessions, t])
 
   useEffect(() => {
     setActiveIndex(0)
@@ -156,7 +200,8 @@ export function CommandPalette({
           {entries.map((entry, index) => (
             <button
               type="button"
-              className={`palette-item ${index === selectedIndex ? 'active' : ''}`}
+              className={`palette-item ${entry.meta ? 'has-meta' : ''} ${index === selectedIndex ? 'active' : ''}`}
+              title={entry.title}
               role="option"
               aria-selected={index === selectedIndex}
               onMouseEnter={() => setActiveIndex(index)}
@@ -164,7 +209,10 @@ export function CommandPalette({
               key={entry.id}
             >
               <entry.Icon size={15} />
-              <span className="palette-item-label">{entry.label}</span>
+              <span className="palette-item-copy">
+                <span className="palette-item-label">{entry.label}</span>
+                {entry.meta && <small>{entry.meta}</small>}
+              </span>
               <span className="palette-item-hint">{entry.hint}</span>
             </button>
           ))}

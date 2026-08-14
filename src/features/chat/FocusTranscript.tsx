@@ -6,6 +6,7 @@ import {
   useLayoutEffect,
   useMemo,
   useRef,
+  useState,
   type ReactNode,
   type UIEvent,
 } from 'react'
@@ -16,6 +17,12 @@ import { BrandLogo } from '@/components/BrandLogo'
 import { useAutoScroll } from '@/hooks/useAutoScroll'
 import { workspaceName } from '@/lib/format'
 import type { ChatMessage, EntityRecord } from '@/types/chat'
+import { type SessionOpenRequest } from './dock-layout'
+import {
+  SESSION_SELECTED_EVENT,
+  clearSessionMessageTarget,
+  getSessionMessageTarget,
+} from './events'
 import { activityScrollVersion } from './run-activity'
 import {
   anchoredScrollTopAfterPrepend,
@@ -136,6 +143,7 @@ export function FocusTranscript({
   const { t, language } = useI18n()
   const prependSnapshot = useRef<TranscriptPrependSnapshot | null>(null)
   const transcriptPrefixRef = useRef<HTMLDivElement>(null)
+  const [targetEntryId, setTargetEntryId] = useState(() => getSessionMessageTarget(sessionId))
   const lastMessage = messages[messages.length - 1]
   const textScrollBucket = Math.floor((lastMessage?.text?.length || 0) / 64)
   const activityVersion = activityScrollVersion(activityFeed)
@@ -205,6 +213,30 @@ export function FocusTranscript({
     node.scrollTop = anchoredScrollTopAfterPrepend(snapshot, node.scrollHeight)
     prependSnapshot.current = null
   }, [messageStart, transcriptRef])
+
+  useEffect(() => {
+    setTargetEntryId(getSessionMessageTarget(sessionId))
+    const receiveTarget = (event: Event) => {
+      const request = (event as CustomEvent<SessionOpenRequest>).detail
+      if (request?.sessionId === sessionId && request.targetEntryId) {
+        setTargetEntryId(request.targetEntryId)
+      }
+    }
+    window.addEventListener(SESSION_SELECTED_EVENT, receiveTarget)
+    return () => window.removeEventListener(SESSION_SELECTED_EVENT, receiveTarget)
+  }, [sessionId])
+
+  useEffect(() => {
+    if (!targetEntryId || messageStart == null) return
+    if (messages.some((message) => message.turnBoundaryEntryId === targetEntryId)) return
+    if (loadingOlder) return
+    if (hasOlder) {
+      void loadOlder()
+      return
+    }
+    clearSessionMessageTarget(sessionId, targetEntryId)
+    setTargetEntryId('')
+  }, [hasOlder, loadOlder, loadingOlder, messageStart, messages, sessionId, targetEntryId])
 
   useEffect(() => {
     if (scrollRequest) scrollToBottom('smooth')
@@ -302,13 +334,19 @@ export function FocusTranscript({
         {messages.length > 0 && (
           <VirtualMessageTranscript
             key={sessionId}
+            sessionId={sessionId}
             messages={messages}
             streaming={streaming}
             latestRunProps={latestRunProps}
             measurementVersion={transcriptVersion}
             scrollElement={transcriptElement}
             prefixRef={transcriptPrefixRef}
+            targetEntryId={targetEntryId}
             onContentSizeChange={maintainBottom}
+            onTargetLocated={(entryId) => {
+              clearSessionMessageTarget(sessionId, entryId)
+              setTargetEntryId('')
+            }}
             onDerive={onDerive}
           />
         )}
