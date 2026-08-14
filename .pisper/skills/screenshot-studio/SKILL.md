@@ -115,7 +115,7 @@ The PID file belongs only to this Skill. Do not kill unrelated processes by port
 
 ## Verification expectations
 
-- All 19 Web shots replaced; `cli.png` + `pisper-demo.gif` untouched.
+- All 22 Web shots replaced; `cli.png` + `pisper-demo.gif` untouched.
 - Every file exactly `2558x1380`.
 - `terminal.png` shows the real desktop terminal panel bound to the active chat session, with only fictional output and repository-relative labels.
 - `git status` shows screenshot assets, intentional docs references, and Skill maintenance changes only; configured run/agent directories remain gitignored.

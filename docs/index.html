@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta
       name="description"
-      content="Pisper 是一个本地优先的 Agent 应用，在桌面端和终端中并行推进会话、工具、记忆与自动化，并提供清晰的数据边界与已知敏感信息脱敏。"
+      content="Pisper 是一个本地优先的 Agent 应用，在桌面端和终端中并行推进任务，并用会话树、独立衍生与稳定 Turn 标签保留每条有效思路。"
     />
     <meta name="theme-color" content="#111312" />
     <meta property="og:type" content="website" />
@@ -69,7 +69,7 @@
           <h1 id="hero-title">Pisper</h1>
           <p class="hero-statement hero-fade-in">多个 Agent，<span class="gradient-text">一处推进。</span></p>
           <p class="hero-copy hero-fade-in">
-            每个会话拥有独立模型、上下文、工作目录与权限。专注写代码，也能把工具、记忆、渠道和自动化放进同一个应用。
+            每个会话拥有独立模型、上下文、工作目录与权限。沿会话树回到任意完成 Turn，保留分支、衍生新会话，再用标签跨会话直达关键决策。
           </p>
           <div class="hero-actions hero-fade-in">
             <a
@@ -104,10 +104,10 @@
         <div class="section-heading">
           <div>
             <p class="eyebrow eyebrow-dark">Agent 应用</p>
-            <h2 id="product-title">任务复杂，界面保持清楚。</h2>
+            <h2 id="product-title">每条思路，都能继续。</h2>
           </div>
           <p>
-            从并行会话到可视化工作流，Pisper 把正在发生的工作、所用能力和执行状态放在可扫描的位置。
+            看见对话如何分叉，在稳定 Turn 上留下标签，切换原有分支或衍生独立会话。Pisper 让长任务保持可追踪，也让关键上下文随时可达。
           </p>
         </div>
 
@@ -124,6 +124,45 @@
             data-copy="拖拽标签，向任意方向分屏。每个 Agent 独立运行，状态彼此清晰。"
           >
             并行会话
+          </button>
+          <button
+            type="button"
+            role="tab"
+            aria-selected="false"
+            aria-controls="product-panel"
+            id="tab-session-tree"
+            data-shot="shots/session-tree.png"
+            data-alt="Pisper Pi 原生会话树分支视图"
+            data-title="会话树"
+            data-copy="把长对话压缩为连续主干和真实分叉。沿活动路径浏览，在任意已完成 Turn 继续原分支，不改写源会话。"
+          >
+            会话树
+          </button>
+          <button
+            type="button"
+            role="tab"
+            aria-selected="false"
+            aria-controls="product-panel"
+            id="tab-turn-label"
+            data-shot="shots/turn-label.png"
+            data-alt="Pisper 已完成 Turn 标签编辑器"
+            data-title="稳定 Turn 标签"
+            data-copy="在已完成的 Assistant Turn 上保存、回填或清除标签；标签绑定持久化边界，不依赖临时消息 ID。"
+          >
+            Turn 标签
+          </button>
+          <button
+            type="button"
+            role="tab"
+            aria-selected="false"
+            aria-controls="product-panel"
+            id="tab-session-labels"
+            data-shot="shots/session-labels.png"
+            data-alt="Pisper Ctrl K 跨会话标签搜索"
+            data-title="跨会话直达"
+            data-copy="在 Ctrl K 中按标签搜索所有会话，区分同名结果，并自动切换分支、加载历史、滚动到对应 Turn。"
+          >
+            跨会话定位
           </button>
           <button
             type="button"
@@ -299,22 +338,22 @@
             <li>
               <span>01</span>
               <div>
-                <h3>多会话与分屏</h3>
-                <p>并行推进多个任务，随时重排、恢复和聚焦。</p>
+                <h3>分支、衍生与标签</h3>
+                <p>浏览 Pi 原生会话树，切换分支或从稳定 Turn 衍生，再用标签跨会话定位。</p>
               </div>
             </li>
             <li>
               <span>02</span>
               <div>
-                <h3>Tools、Skills 与 MCP</h3>
-                <p>按风险管理能力，按任务启用真实工具。</p>
+                <h3>多会话与分屏</h3>
+                <p>并行推进多个 Agent，随时重排、恢复和聚焦。</p>
               </div>
             </li>
             <li>
               <span>03</span>
               <div>
-                <h3>记忆与多模态</h3>
-                <p>保留项目事实，处理图片、文档和代码资产。</p>
+                <h3>Tools、Skills 与 MCP</h3>
+                <p>统一发现 Prompt、Skill、工具和工作流，按风险启用真实能力。</p>
               </div>
             </li>
             <li>

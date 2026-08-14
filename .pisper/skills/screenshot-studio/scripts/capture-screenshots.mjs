@@ -170,6 +170,40 @@ await chatState({ activeSession: S1 })
 await goto('/chat')
 await shot('chat')
 
+// turn-label: label editor sits beside the independent-session derive action
+const turnLabelButton = page.getByRole('button', { name: '标记此轮' }).last()
+await turnLabelButton.click()
+await page.locator('.message-label-popover').waitFor({ state: 'visible' })
+await page.waitForTimeout(300)
+await shot('turn-label')
+await page.keyboard.press('Escape')
+
+// session-tree: real Pi branch graph with stable turn labels and active-path projection
+const treeEntry = page.locator('.focus-session-tree-entry').first()
+await treeEntry.waitFor({ state: 'visible' })
+await treeEntry.click()
+await page.locator('.session-tree-dialog').waitFor({ state: 'visible' })
+await page.waitForTimeout(500)
+await shot('session-tree')
+await page.keyboard.press('Escape')
+await page.locator('.session-tree-dialog').waitFor({ state: 'hidden' })
+
+// session-labels: Ctrl K searches the runtime-owned cross-session label index
+await page.keyboard.press('Control+K')
+const paletteInput = page.locator('.palette-input input')
+await paletteInput.waitFor({ state: 'visible' })
+await paletteInput.fill('两周验证计划')
+await page.waitForTimeout(500)
+await shot('session-labels')
+const labelResult = page.locator('.palette-item.has-meta').first()
+await labelResult.click()
+await page.locator('.virtual-transcript-item.targeted').waitFor({ state: 'visible' })
+console.log('verified cross-session label navigation and target highlight')
+
+// Restore the primary conversation before capturing the desktop terminal.
+await chatState({ activeSession: S1 })
+await goto('/chat')
+
 // terminal: the real desktop TerminalPanel with a deterministic screenshot-only bridge
 await page.evaluate(() => {
   localStorage.setItem('pisper-screenshot-terminal', '1')

@@ -121,7 +121,7 @@ function iso(ms) {
 function fileName(ms, id) {
   return `${iso(ms).replace(/[:.]/g, '-')}_${id}.jsonl`
 }
-function writeTranscript(sessionId, name, pairs) {
+function writeTranscript(sessionId, name, pairs, { branches = [], labels = [] } = {}) {
   mkdirSync(SESSION_DIR, { recursive: true })
   const baseMs = Date.now() - 1000 * 60 * 60 * 6
   const events = []
@@ -147,6 +147,7 @@ function writeTranscript(sessionId, name, pairs) {
   })
   prev = modelId
   let t = baseMs + 1000
+  const turns = []
   for (const [userText, assistantBlocks] of pairs) {
     const userEventId = hex8()
     events.push({
@@ -179,10 +180,57 @@ function writeTranscript(sessionId, name, pairs) {
       id: assistantId,
       parentId: prev,
       timestamp: iso(t),
-      message: { role: 'assistant', content, timestamp: t },
+      message: { role: 'assistant', content, stopReason: 'stop', timestamp: t },
     })
+    turns.push({ userId: userEventId, assistantId })
     prev = assistantId
     t += 8000
+  }
+
+  const branchPoint = turns[0]?.assistantId
+  for (const [userText, assistantText] of branches) {
+    if (!branchPoint) break
+    const userId = hex8()
+    events.push({
+      type: 'message',
+      id: userId,
+      parentId: branchPoint,
+      timestamp: iso(t),
+      message: { role: 'user', content: [{ type: 'text', text: userText }], timestamp: t },
+    })
+    t += 7000
+    const assistantId = hex8()
+    events.push({
+      type: 'message',
+      id: assistantId,
+      parentId: userId,
+      timestamp: iso(t),
+      message: {
+        role: 'assistant',
+        content: [{ type: 'text', text: assistantText }],
+        stopReason: 'stop',
+        timestamp: t,
+      },
+    })
+    turns.push({ userId, assistantId })
+    prev = assistantId
+    t += 7000
+  }
+
+  for (const [turnIndex, label] of labels) {
+    const targetId = turns[turnIndex]?.assistantId
+    if (!targetId) continue
+    const labelId = hex8()
+    events.push({
+      type: 'label',
+      id: labelId,
+      parentId: prev,
+      timestamp: iso(t),
+      targetId,
+      label,
+    })
+    prev = labelId
+    t += 1000
   }
   writeFileSync(
     resolve(SESSION_DIR, fileName(baseMs, sessionId)),
@@ -233,7 +281,24 @@ writeTranscript(sessions[0], NAMES[0], [
       },
     ],
   ],
-])
+], {
+  branches: [
+    [
+      '如果优先考虑完全离线与数据主权，结论会变化吗？',
+      '会。把“数据不出内网”设为硬约束后，优先级应调整为 **Qdrant > Milvus > Pinecone**。Qdrant 的单节点部署和备份链路更短，适合先小规模上线；当写入吞吐和多租户隔离成为主要矛盾时，再评估迁移到 Milvus 集群。',
+    ],
+    [
+      '先给我一个两周内可以完成的验证计划。',
+      '建议拆成两个阶段：\n\n1. **第 1 周：基线验证**：导入 100 万条脱敏向量，记录 P50/P95 延迟、Recall@10、索引时间和峰值内存。\n2. **第 2 周：故障与扩容**：演练备份恢复、滚动升级和容量翻倍，最终用同一份评分表评审。\n\n验收门槛可以设为 P95 小于 80 ms、Recall@10 大于 0.92、恢复时间小于 30 分钟。',
+    ],
+  ],
+  labels: [
+    [0, '选型基线'],
+    [1, '千万级容量'],
+    [2, '离线部署'],
+    [3, '两周验证计划'],
+  ],
+})
 
 writeTranscript(sessions[1], NAMES[1], [
   [
@@ -256,7 +321,7 @@ writeTranscript(sessions[1], NAMES[1], [
       },
     ],
   ],
-])
+], { labels: [[1, '两周验证计划']] })
 
 writeTranscript(sessions[2], NAMES[2], [
   [
@@ -268,7 +333,7 @@ writeTranscript(sessions[2], NAMES[2], [
       },
     ],
   ],
-])
+], { labels: [[0, '发布说明定稿']] })
 
 writeEmptyTranscript(sessions[3], NAMES[3])
 writeEmptyTranscript(sessions[4], NAMES[4])
