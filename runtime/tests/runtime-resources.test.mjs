@@ -53,6 +53,67 @@ test('blank chat sessions stay lightweight until an Agent is first required', as
   assert.equal(activated.created, created.created)
 })
 
+test('main runtime binds discovered Pi Extensions into the session lifecycle', async (t) => {
+  const directory = await mkdtemp(join(tmpdir(), 'pisper-runtime-extension-'))
+  const markerPath = join(directory, 'extension-started.txt')
+  let runtime
+  t.after(async () => {
+    await runtime?.dispose()
+    await rm(directory, { recursive: true, force: true })
+  })
+  await mkdir(join(directory, 'extensions'), { recursive: true })
+  await writeFile(
+    join(directory, 'extensions', 'lifecycle.ts'),
+    `import { writeFile } from 'node:fs/promises'
+import { Type } from 'typebox'
+export default function (pi) {
+  pi.registerTool({
+    name: 'extension_fixture_echo',
+    label: 'Extension fixture echo',
+    description: 'Fixture Extension tool',
+    parameters: Type.Object({ text: Type.String() }),
+    async execute(_id, params) {
+      return { content: [{ type: 'text', text: params.text }], details: {} }
+    },
+  })
+  pi.on('session_start', async () => {
+    await writeFile(${JSON.stringify(markerPath)}, 'started', 'utf8')
+    throw new Error('fixture session_start failure')
+  })
+}
+`,
+    'utf8',
+  )
+
+  runtime = new AgentRuntimeService({ cwd: directory, dataDir: directory })
+  await runtime.init()
+  const manager = SessionManager.inMemory(directory)
+  runtime.sessionMeta[manager.getSessionId()] = { executionMode: 'full-access' }
+  const value = await runtime.createSessionRuntime(manager)
+
+  assert.equal(await readFile(markerPath, 'utf8'), 'started')
+  assert.equal(value.session.getActiveToolNames().includes('extension_fixture_echo'), false)
+  assert.ok(runtime.optionalToolNames(value).includes('extension_fixture_echo'))
+  const discovery = await value.session
+    .getToolDefinition('discover_tools')
+    .execute(
+      'extension-fixture-discovery',
+      { query: 'extension_fixture_echo', limit: 5 },
+      new AbortController().signal,
+    )
+  assert.match(discovery.content[0].text, /extension_fixture_echo/)
+  const result = await value.session
+    .getToolDefinition('extension_fixture_echo')
+    .execute('extension-fixture-call', { text: 'extension works' }, new AbortController().signal)
+  assert.equal(result.content[0].text, 'extension works')
+  assert.ok(value.session.hasExtensionHandlers('session_start'))
+  assert.match(
+    runtime.extensions.runtimeDiagnosticsFor(directory).find((item) => item.phase === 'event')
+      ?.message || '',
+    /fixture session_start failure/,
+  )
+})
+
 test('main runtime keeps discovered cold MCP tools for the rest of the session while child resources remain available', async (t) => {
   const directory = await mkdtemp(join(tmpdir(), 'pisper-runtime-resources-'))
   let runtime

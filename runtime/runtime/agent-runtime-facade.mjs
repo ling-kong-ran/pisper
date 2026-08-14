@@ -75,6 +75,7 @@ export class AgentRuntimeFacade {
       await this.settingsManager.reload()
     }
     this.skills.invalidateDashboardCache()
+    this.extensions.invalidate()
     this.invalidateSessionRuntimes()
     return status
   }
@@ -699,6 +700,55 @@ export class AgentRuntimeFacade {
   async revertSessionVcsChanges(id) {
     if (this.sessionRunIsActive(id)) throw new Error('当前会话正在运行，请完成或停止后再撤销改动。')
     return this.vcsChanges.revert(await this.sessionGitCwd(id))
+  }
+
+  async getExtensionsDashboard(sessionId = '') {
+    return this.extensions.dashboard({ cwd: await this.sessionWorkspaceCwd(sessionId) })
+  }
+
+  async installExtension(input, sessionId = '') {
+    const cwd = await this.sessionWorkspaceCwd(sessionId)
+    const result = await this.extensions.install(input, { cwd })
+    this.skills.invalidateDashboardCache()
+    this.invalidateSessionRuntimes()
+    return result
+  }
+
+  async updateExtension(id, enabled, sessionId = '') {
+    const cwd = await this.sessionWorkspaceCwd(sessionId)
+    const result = await this.extensions.updateExtension(id, enabled, { cwd })
+    if (result) {
+      this.skills.invalidateDashboardCache()
+      this.invalidateSessionRuntimes()
+    }
+    return result
+  }
+
+  async updateExtensionPackage(id, sessionId = '') {
+    const cwd = await this.sessionWorkspaceCwd(sessionId)
+    const result = await this.extensions.updatePackage(id, { cwd })
+    if (result) {
+      this.skills.invalidateDashboardCache()
+      this.invalidateSessionRuntimes()
+    }
+    return result
+  }
+
+  async removeExtensionPackage(id, sessionId = '') {
+    const cwd = await this.sessionWorkspaceCwd(sessionId)
+    const removed = await this.extensions.removePackage(id, { cwd })
+    if (!removed) return null
+    this.skills.invalidateDashboardCache()
+    this.invalidateSessionRuntimes()
+    return this.extensions.dashboard({ cwd, force: true })
+  }
+
+  async reloadExtensions(sessionId = '') {
+    const cwd = await this.sessionWorkspaceCwd(sessionId)
+    this.extensions.invalidate()
+    this.skills.invalidateDashboardCache()
+    this.invalidateSessionRuntimes()
+    return this.extensions.dashboard({ cwd, force: true })
   }
 
   async getSkillsDashboard(sessionId = '') {

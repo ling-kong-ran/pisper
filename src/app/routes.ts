@@ -5,6 +5,7 @@ export const PAGE_PATHS = Object.freeze({
   channels: '/channels',
   schedules: '/schedules',
   plugins: '/plugins',
+  extensions: '/extensions',
   memory: '/memory',
   mcp: '/mcp',
   skills: '/skills',

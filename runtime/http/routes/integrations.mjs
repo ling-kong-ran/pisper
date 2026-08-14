@@ -86,6 +86,69 @@ export const integrationRoutes = [
   },
   {
     method: 'GET',
+    path: '/api/extensions',
+    async handler({ runtime, url, json }) {
+      json(200, await runtime.getExtensionsDashboard(url.searchParams.get('sessionId') || ''))
+    },
+  },
+  {
+    method: 'POST',
+    path: '/api/extensions/install',
+    async handler({ runtime, url, body, json }) {
+      json(
+        201,
+        await runtime.installExtension(await body(), url.searchParams.get('sessionId') || ''),
+      )
+    },
+  },
+  {
+    method: 'POST',
+    path: '/api/extensions/reload',
+    async handler({ runtime, url, json }) {
+      json(200, await runtime.reloadExtensions(url.searchParams.get('sessionId') || ''))
+    },
+  },
+  {
+    method: 'PATCH',
+    path: '/api/extensions/:extensionId',
+    async handler({ runtime, params, url, body, json }) {
+      const input = await body()
+      if (typeof input.enabled !== 'boolean') throw new Error('Extension 启用状态无效。')
+      const result = await runtime.updateExtension(
+        params.extensionId,
+        input.enabled,
+        url.searchParams.get('sessionId') || '',
+      )
+      if (!result) json(404, { error: 'Extension 不存在。' })
+      else json(200, result)
+    },
+  },
+  {
+    method: 'POST',
+    path: '/api/extensions/packages/:packageId/update',
+    async handler({ runtime, params, url, json }) {
+      const result = await runtime.updateExtensionPackage(
+        params.packageId,
+        url.searchParams.get('sessionId') || '',
+      )
+      if (!result) json(404, { error: 'Extension Package 不存在。' })
+      else json(200, result)
+    },
+  },
+  {
+    method: 'DELETE',
+    path: '/api/extensions/packages/:packageId',
+    async handler({ runtime, params, url, json }) {
+      const result = await runtime.removeExtensionPackage(
+        params.packageId,
+        url.searchParams.get('sessionId') || '',
+      )
+      if (!result) json(404, { error: 'Extension Package 不存在。' })
+      else json(200, result)
+    },
+  },
+  {
+    method: 'GET',
     path: '/api/plugins',
     async handler({ runtime, url, json }) {
       json(200, await runtime.getPlugins(url.searchParams.get('sessionId') || ''))
