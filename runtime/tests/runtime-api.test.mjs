@@ -200,6 +200,27 @@ test('skills APIs forward the active session scope for global and project discov
   ])
 })
 
+test('plugins API forwards the active session scope for callable Tool filtering', async () => {
+  const calls = []
+  const runtime = {
+    async getPlugins(sessionId) {
+      calls.push(sessionId)
+      return { plugins: [], callableToolNames: ['read'] }
+    },
+  }
+  const handler = createApiHandler(runtime)
+  const output = response()
+
+  await handler(
+    request('GET'),
+    output,
+    new URL('http://localhost/api/plugins?sessionId=session%201'),
+  )
+
+  assert.deepEqual(calls, ['session 1'])
+  assert.deepEqual(JSON.parse(output.body).callableToolNames, ['read'])
+})
+
 test('chat API forwards explicit Tool requests as structured runtime input', async () => {
   const calls = []
   const runtime = {
@@ -229,7 +250,7 @@ test('chat API forwards explicit Tool requests as structured runtime input', asy
   assert.match(output.body, /event: done/)
 })
 
-test('chat API dispatches structured Skill and workflow invocations', async () => {
+test('chat API dispatches structured Skill, Tool, and workflow invocations', async () => {
   const prompts = []
   const workflows = []
   const runtime = {
@@ -255,6 +276,24 @@ test('chat API dispatches structured Skill and workflow invocations', async () =
   )
   assert.equal(prompts.length, 1)
   assert.equal(prompts[0].message, '/skill:code-review\n检查这个改动')
+
+  const toolOutput = response()
+  await handler(
+    request('POST', {
+      sessionId: 'session-1',
+      message: '查看当前项目信息',
+      invocation: {
+        kind: 'tool',
+        resourceId: 'project_package_info',
+        resourceName: 'Project Package Info',
+      },
+    }),
+    toolOutput,
+    new URL('http://localhost/api/chat'),
+  )
+  assert.equal(prompts.length, 2)
+  assert.equal(prompts[1].message, '查看当前项目信息')
+  assert.deepEqual(prompts[1].requestedToolNames, ['project_package_info'])
 
   const workflowOutput = response()
   await handler(

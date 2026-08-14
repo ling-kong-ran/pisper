@@ -87,8 +87,8 @@ export const integrationRoutes = [
   {
     method: 'GET',
     path: '/api/plugins',
-    async handler({ runtime, json }) {
-      json(200, await runtime.getPlugins())
+    async handler({ runtime, url, json }) {
+      json(200, await runtime.getPlugins(url.searchParams.get('sessionId') || ''))
     },
   },
   {

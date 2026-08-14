@@ -41,6 +41,7 @@ export type PluginChange = EntityRecord & {
 export type PluginsData = EntityRecord & {
   plugins: InstalledPlugin[]
   enabledTools: string[]
+  callableToolNames?: string[]
   presets: Record<string, string[]>
   webSearch: WebSearchSettings
   changes: PluginChange[]

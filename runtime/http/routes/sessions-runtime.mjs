@@ -296,12 +296,13 @@ export const sessionRuntimeRoutes = [
         return
       }
       const skillName = invocation?.kind === 'skill' ? String(invocation.resourceName || '') : ''
+      const toolName = invocation?.kind === 'tool' ? String(invocation.resourceId || '') : ''
       const prompt = skillName ? `/skill:${skillName}${message ? `\n${message}` : ''}` : message
       await runtime.streamPrompt({
         sessionId: input.sessionId,
         message: prompt,
         attachments: input.attachments,
-        requestedToolNames: input.requestedToolNames,
+        requestedToolNames: toolName ? [toolName] : input.requestedToolNames,
         goalMode: Boolean(input.goalMode),
         goalTokenBudget: input.goalTokenBudget == null ? null : Number(input.goalTokenBudget),
         send: sendSse,

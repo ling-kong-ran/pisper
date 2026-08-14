@@ -11,6 +11,7 @@ import {
   RefreshCw,
   Send,
   Square,
+  Wrench,
   X,
 } from 'lucide-react'
 import { useI18n } from '@/app/use-i18n'
@@ -353,10 +354,14 @@ export function FocusSession({
         <SessionWorkflowRuns sessionId={session.id} />
         {invocation && (
           <div className={`composer-resource-chip ${invocation.kind}`}>
-            <Braces size={13} />
+            {invocation.kind === 'tool' ? <Wrench size={13} /> : <Braces size={13} />}
             <span>
-              {invocation.kind === 'skill' ? 'Skill' : t('chat:resourcePicker.workflow')} ·{' '}
-              {invocation.resourceName}
+              {invocation.kind === 'skill'
+                ? 'Skill'
+                : invocation.kind === 'tool'
+                  ? t('chat:resourcePicker.tool')
+                  : t('chat:resourcePicker.workflow')}{' '}
+              · {invocation.resourceName}
             </span>
             <button
               type="button"

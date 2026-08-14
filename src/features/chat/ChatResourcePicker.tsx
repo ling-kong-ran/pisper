@@ -1,9 +1,11 @@
 import { useEffect, useMemo, useState } from 'react'
-import { Braces, Search, Workflow, X } from 'lucide-react'
+import { Braces, Search, Workflow, Wrench, X } from 'lucide-react'
 import { useI18n } from '@/app/use-i18n'
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
+import type { PluginsData } from '@/features/plugins/plugin-types'
+import { toolDescription, toolName } from '@/features/plugins/tool-labels'
 import { apiJson } from '@/lib/api'
 import type { ResourceInvocation } from '@/types/chat'
 
@@ -34,6 +36,14 @@ type WorkflowResource = {
 type Resource =
   | { kind: 'skill'; id: string; name: string; description: string; inputs: WorkflowInput[] }
   | { kind: 'workflow'; id: string; name: string; description: string; inputs: WorkflowInput[] }
+  | {
+      kind: 'tool'
+      id: string
+      name: string
+      description: string
+      inputs: WorkflowInput[]
+      sourceName: string
+    }
 
 export function ChatResourcePicker({
   open,
@@ -64,9 +74,11 @@ export function ChatResourcePicker({
         `/api/skills?sessionId=${encodeURIComponent(sessionId)}`,
       ),
       apiJson<{ workflows?: WorkflowResource[] }>('/api/workflows'),
+      apiJson<PluginsData>(`/api/plugins?sessionId=${encodeURIComponent(sessionId)}`),
     ])
-      .then(([skillData, workflowData]) => {
+      .then(([skillData, workflowData, pluginData]) => {
         if (!active) return
+        const callableToolNames = new Set(pluginData.callableToolNames || [])
         setResources([
           ...(skillData.skills || [])
             .filter((skill) => skill.enabled && skill.command)
@@ -86,6 +98,22 @@ export function ChatResourcePicker({
               description: workflow.description || '',
               inputs: workflow.inputs || [],
             })),
+          ...(pluginData.plugins || []).flatMap((plugin) =>
+            (plugin.capabilities || [])
+              .filter((capability) => callableToolNames.has(capability.name))
+              .map<Resource>((capability) => ({
+                kind: 'tool',
+                id: capability.name,
+                name: capability.id
+                  ? toolName(capability, t)
+                  : String(capability.label || capability.name),
+                description: capability.id
+                  ? toolDescription(capability, t)
+                  : capability.description,
+                inputs: [],
+                sourceName: plugin.name,
+              })),
+          ),
         ])
       })
       .catch((caught) => {
@@ -97,13 +125,16 @@ export function ChatResourcePicker({
     return () => {
       active = false
     }
-  }, [open, sessionId])
+  }, [open, sessionId, t])
 
   const visible = useMemo(() => {
     const needle = query.trim().toLowerCase()
     return resources.filter(
       (resource) =>
-        !needle || `${resource.name} ${resource.description}`.toLowerCase().includes(needle),
+        !needle ||
+        `${resource.name} ${resource.id} ${resource.description} ${resource.kind === 'tool' ? resource.sourceName : ''}`
+          .toLowerCase()
+          .includes(needle),
     )
   }, [query, resources])
 
@@ -160,7 +191,8 @@ export function ChatResourcePicker({
             </label>
             <div className="chat-resource-list">
               {visible.map((resource) => {
-                const Icon = resource.kind === 'skill' ? Braces : Workflow
+                const Icon =
+                  resource.kind === 'skill' ? Braces : resource.kind === 'tool' ? Wrench : Workflow
                 return (
                   <button
                     type="button"
@@ -176,7 +208,11 @@ export function ChatResourcePicker({
                       <small>{resource.description}</small>
                     </span>
                     <em>
-                      {resource.kind === 'skill' ? 'Skill' : t('chat:resourcePicker.workflow')}
+                      {resource.kind === 'skill'
+                        ? 'Skill'
+                        : resource.kind === 'tool'
+                          ? t('chat:resourcePicker.tool')
+                          : t('chat:resourcePicker.workflow')}
                     </em>
                   </button>
                 )

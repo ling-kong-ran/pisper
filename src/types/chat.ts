@@ -27,7 +27,7 @@ export type PendingAsset = {
 }
 
 export type ResourceInvocation = {
-  kind: 'skill' | 'workflow'
+  kind: 'skill' | 'workflow' | 'tool'
   resourceId: string
   resourceName: string
   arguments?: Record<string, unknown>

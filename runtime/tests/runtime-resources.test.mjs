@@ -132,6 +132,15 @@ test('main runtime keeps discovered cold MCP tools for the rest of the session w
   assert.deepEqual(value.promotedToolNames, [])
   assert.equal(value.session.agent.state.systemPrompt, hotSystemPrompt)
 
+  await runtime.selectToolsForMessage(value, 'Use the selected memory search tool.', {
+    requestedToolNames: ['memory_search'],
+  })
+  assert.deepEqual(value.requestedToolNames, ['memory_search'])
+  assert.equal(value.session.getActiveToolNames().includes('memory_search'), false)
+  assert.deepEqual(value.session.getActiveToolNames(), hotToolNames)
+  assert.equal(value.session.agent.state.systemPrompt, hotSystemPrompt)
+  await runtime.selectToolsForMessage(value, 'Return to the stable tool prefix.')
+
   const discovery = await value.session
     .getToolDefinition('discover_tools')
     .execute(
@@ -199,6 +208,32 @@ test('main runtime keeps discovered cold MCP tools for the rest of the session w
   })
   assert.ok(childLoader.getSkills().skills.some((skill) => skill.name === 'runtime-skill'))
   assert.ok(childLoader.getAppendSystemPrompt().includes('CHILD AGENT PROMPT'))
+})
+
+test('plugin catalog derives callable Tool names from the session execution policy', async () => {
+  const runtime = Object.create(AgentRuntimeService.prototype)
+  runtime.toolPlugins = {
+    async getState() {
+      return {
+        plugins: [],
+        enabledTools: ['read', 'edit', 'generate_visual', 'plugin_create'],
+      }
+    },
+    enabledTools(config, mode) {
+      assert.equal(mode, 'approval-required')
+      return config.enabledTools
+    },
+  }
+  runtime.getSessionExecutionMode = (sessionId) => {
+    assert.equal(sessionId, 'session-1')
+    return 'approval-required'
+  }
+  runtime.getToolRisk = (name) =>
+    ({ read: 'low', edit: 'high', generate_visual: 'high', plugin_create: 'high' })[name]
+
+  const result = await runtime.getPlugins('session-1')
+
+  assert.deepEqual(result.callableToolNames, ['read', 'edit'])
 })
 
 test('explicit client tool requests activate only the structured tool names', async () => {

@@ -1,3 +1,4 @@
+import { filterToolsForExecutionMode } from '../security/execution-mode.mjs'
 import { readJson, writeJsonAtomic } from '../storage/json-file.mjs'
 import { TOOL_PRESETS, toolsFromConfig } from '../tools/registry.mjs'
 import {
@@ -165,8 +166,20 @@ export class AgentRuntimeFacade {
     }
   }
 
-  async getPlugins() {
-    return this.toolPlugins.getState()
+  async getPlugins(sessionId = '') {
+    const state = await this.toolPlugins.getState()
+    if (!sessionId) return state
+    const executionMode = this.getSessionExecutionMode(sessionId)
+    const enabledToolNames = this.toolPlugins.enabledTools(
+      { enabledTools: state.enabledTools },
+      executionMode,
+    )
+    return {
+      ...state,
+      callableToolNames: filterToolsForExecutionMode(enabledToolNames, executionMode, (name) =>
+        this.getToolRisk(name),
+      ),
+    }
   }
 
   async initializeToolPlugins() {
