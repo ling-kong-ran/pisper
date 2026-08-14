@@ -29,6 +29,7 @@ import type {
 } from '@/types/chat'
 import { pathAttachments, useAttachmentSelection } from './attachments'
 import { ChatResourcePicker } from './ChatResourcePicker'
+import { ComposerCommandMenu } from './ComposerCommandMenu'
 import { ComposerToolTray } from './ComposerToolTray'
 import { requestCommandPalette } from './events'
 import {
@@ -427,6 +428,12 @@ export function FocusSession({
           />
           <div className={`focus-composer-footer ${toolsOpen ? 'tools-open' : ''}`}>
             <div className="focus-composer-leading">
+              <ComposerCommandMenu
+                sessionId={session.id}
+                value={value}
+                onChange={setValue}
+                inputRef={promptRef}
+              />
               <button
                 type="button"
                 className="resource-picker-trigger"

@@ -86,6 +86,12 @@ test('skills service trust gates project skills while Pi Extensions stay disable
     'project-helper',
     'Project helper.',
   )
+  await mkdir(join(cwd, '.pisper', 'prompts'), { recursive: true })
+  await writeFile(
+    join(cwd, '.pisper', 'prompts', 'project-review.md'),
+    '---\ndescription: Review this project\nargument-hint: "<path>"\n---\nReview $1.\n',
+    'utf8',
+  )
   const extensionMarker = join(directory, 'extension-loaded')
   await mkdir(join(cwd, '.pi', 'extensions'), { recursive: true })
   await writeFile(
@@ -113,6 +119,7 @@ test('skills service trust gates project skills while Pi Extensions stay disable
     restrictedLoader.getSkills().skills.map((skill) => skill.name),
     ['global-helper'],
   )
+  assert.deepEqual(restrictedLoader.getPrompts().prompts, [])
   assert.equal(existsSync(extensionMarker), false)
   await assert.rejects(
     service.create({
@@ -129,7 +136,13 @@ test('skills service trust gates project skills while Pi Extensions stay disable
     'global-helper',
     'project-helper',
   ])
-  await service.createResourceLoader(cwd)
+  const trustedLoader = await service.createResourceLoader(cwd)
+  assert.deepEqual(
+    trustedLoader
+      .getPrompts()
+      .prompts.map((prompt) => [prompt.name, prompt.argumentHint, prompt.sourceInfo.scope]),
+    [['project-review', '<path>', 'project']],
+  )
   assert.equal(existsSync(extensionMarker), false)
 })
 

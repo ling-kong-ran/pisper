@@ -204,6 +204,24 @@ test('chat resource picker remains visible above dock splits with a readable pri
   )
 })
 
+test('chat Composer discovers Runtime Slash commands without exposing templates to the client', async () => {
+  const [menu, focusSession, chatApi, routes] = await Promise.all([
+    readFile('src/features/chat/ComposerCommandMenu.tsx', 'utf8'),
+    readFile('src/features/chat/FocusSession.tsx', 'utf8'),
+    readFile('src/features/chat/chat-api.ts', 'utf8'),
+    readFile('runtime/http/routes/sessions-runtime.mjs', 'utf8'),
+  ])
+
+  assert.match(menu, /chatApi\s*\.getSessionCommands\(sessionId\)/)
+  assert.match(menu, /event\.key === 'ArrowDown'/)
+  assert.match(menu, /event\.key === 'Tab'/)
+  assert.match(menu, /command\.invocation/)
+  assert.doesNotMatch(menu, /command\.content|command\.filePath/)
+  assert.match(focusSession, /<ComposerCommandMenu/)
+  assert.match(chatApi, /getSessionCommands:/)
+  assert.match(routes, /\/api\/sessions\/:sessionId\/commands/)
+})
+
 test('scheduled tasks use structured prompt or workflow targets across every form', async () => {
   const [schedules, facade, runtime] = await Promise.all([
     readFile('src/features/schedules/SchedulesPage.tsx', 'utf8'),

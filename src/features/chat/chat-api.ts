@@ -62,6 +62,26 @@ export type WorkspaceTrustStatus = {
   resources: string[]
 }
 
+export type SessionCommand = {
+  name: string
+  invocation: string
+  description: string
+  argumentHint: string
+  source: 'prompt' | 'skill'
+  scope: 'user' | 'project' | 'package' | 'custom'
+}
+
+export type SessionCommandsResponse = {
+  sessionId: string
+  commands: SessionCommand[]
+  counts: {
+    total: number
+    prompts: number
+    skills: number
+    diagnostics: number
+  }
+}
+
 type ChatConfigResponse = EntityRecord & {
   provider?: string
   model?: string
@@ -132,6 +152,9 @@ export const chatApi = {
       method: 'PUT',
       data: { trusted },
     }),
+
+  getSessionCommands: (sessionId: string) =>
+    requestJson<SessionCommandsResponse>(`${sessionPath(sessionId)}/commands`),
 
   getConfig: () => requestJson<ChatConfigResponse>('/api/config'),
 

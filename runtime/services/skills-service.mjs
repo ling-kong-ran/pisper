@@ -126,6 +126,30 @@ function projectSkillsDir(cwd) {
   return join(resolve(cwd), '.pisper', 'skills')
 }
 
+function projectPromptsDir(cwd) {
+  return join(resolve(cwd), '.pisper', 'prompts')
+}
+
+function applyProjectPromptMetadata(current, promptDir) {
+  return {
+    ...current,
+    prompts: current.prompts.map((prompt) =>
+      pathInside(promptDir, prompt.filePath)
+        ? {
+            ...prompt,
+            sourceInfo: {
+              source: 'auto',
+              scope: 'project',
+              origin: 'top-level',
+              baseDir: dirname(promptDir),
+              path: prompt.filePath,
+            },
+          }
+        : prompt,
+    ),
+  }
+}
+
 function skillResourceRank(resource) {
   if (resource.metadata?.origin === 'package') return 4
   const scopeRank = resource.metadata?.scope === 'project' ? 0 : 2
@@ -294,10 +318,11 @@ export class SkillsService {
     { includeDisabled = false, appendSystemPrompt = '' } = {},
   ) {
     const settingsManager = this.getSettingsManager(cwd)
+    const projectTrusted = settingsManager?.isProjectTrusted?.() !== false
     const resources = (await this.resolveSkillResources(cwd)).filter(
-      (item) =>
-        item.metadata?.scope !== 'project' || settingsManager?.isProjectTrusted?.() !== false,
+      (item) => item.metadata?.scope !== 'project' || projectTrusted,
     )
+    const promptDir = projectPromptsDir(cwd)
     const loader = await createDefaultResourceLoader({
       cwd,
       agentDir: this.agentDir,
@@ -306,6 +331,12 @@ export class SkillsService {
       noExtensions: true,
       noSkills: true,
       additionalSkillPaths: resources.map((item) => item.path),
+      ...(projectTrusted && existsSync(promptDir)
+        ? {
+            additionalPromptTemplatePaths: [promptDir],
+            promptsOverride: (current) => applyProjectPromptMetadata(current, promptDir),
+          }
+        : {}),
       skillsOverride: (current) =>
         this.applySkillOverrides(this.applyResourceMetadata(current, resources), {
           includeDisabled,

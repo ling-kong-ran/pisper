@@ -263,6 +263,34 @@ test('workspace trust APIs resolve and persist a session-scoped decision', async
   ])
 })
 
+test('session commands API returns the Runtime-authoritative Slash command catalog', async () => {
+  const calls = []
+  const catalog = {
+    sessionId: 'session 1',
+    commands: [{ name: 'review', invocation: '/review', source: 'prompt' }],
+    counts: { total: 1, prompts: 1, skills: 0, diagnostics: 0 },
+  }
+  const runtime = {
+    async getSessionCommands(sessionId) {
+      calls.push(sessionId)
+      return catalog
+    },
+  }
+  const handler = createApiHandler(runtime)
+  const output = response()
+
+  assert.equal(
+    await handler(
+      request('GET'),
+      output,
+      new URL('http://localhost/api/sessions/session%201/commands'),
+    ),
+    true,
+  )
+  assert.deepEqual(JSON.parse(output.body), catalog)
+  assert.deepEqual(calls, ['session 1'])
+})
+
 test('skills APIs forward the active session scope for global and project discovery', async () => {
   const calls = []
   const runtime = {

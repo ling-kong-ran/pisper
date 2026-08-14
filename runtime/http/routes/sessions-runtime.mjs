@@ -97,6 +97,13 @@ export const sessionRuntimeRoutes = [
     },
   },
   {
+    method: 'GET',
+    path: '/api/sessions/:sessionId/commands',
+    async handler({ runtime, params, json }) {
+      json(200, await runtime.getSessionCommands(params.sessionId))
+    },
+  },
+  {
     method: 'PUT',
     path: '/api/sessions/:sessionId/workspace-trust',
     async handler({ runtime, params, body, json }) {
