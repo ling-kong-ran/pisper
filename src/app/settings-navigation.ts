@@ -52,7 +52,7 @@ export function getSettingsNavigation(t: Translate): SettingsNavigationGroup[] {
       items: [
         {
           key: 'page:plugins',
-          label: t('navigation:navigation.tools'),
+          label: t('navigation:navigation.plugins'),
           icon: Plug,
           destination: { type: 'page', id: 'plugins' },
         },

@@ -34,7 +34,7 @@ export function getPageMeta(t: Translate = (value) => value): Record<PageId, Pag
       t('navigation:navigation.schedulesDescription'),
     ],
     config: [t('navigation:navigation.settings'), t('navigation:navigation.settingsDescription')],
-    plugins: [t('navigation:navigation.tools'), t('navigation:navigation.toolsDescription')],
+    plugins: [t('navigation:navigation.plugins'), t('navigation:navigation.pluginsDescription')],
     memory: [t('navigation:navigation.memory'), t('navigation:navigation.memoryDescription')],
     mcp: [t('navigation:navigation.mcp'), t('navigation:navigation.mcpDescription')],
     skills: [t('navigation:navigation.skills'), t('navigation:navigation.skillsDescription')],
