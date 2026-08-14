@@ -4,6 +4,27 @@ Pisper 本地插件是一个包含 `pisper-plugin.json` 和 JavaScript 入口文
 
 当前版本只支持本地目录安装，不支持插件市场、npm/Git 下载、自动更新、原生模块、生命周期脚本、Provider 注入、TUI UI 或覆盖内置工具。
 
+## 插件安装自由
+
+Pisper 不把插件来源限制在固定仓库或市场，当前支持两种本地优先的安装方式：
+
+1. **任意本地目录安装**：开发者或用户可以在任意普通目录中准备 `pisper-plugin.json` 和入口代码，然后在“插件”页面选择“安装插件”，输入或选择该目录。Pisper 会先进行不执行代码的静态预检，展示能力和风险，确认后再复制到全局插件安装目录。
+2. **自然语言创建 DIY 插件**：在“完全访问”模式下，直接告诉 Pisper 想要的能力，例如“创建一个汇总当前项目 package.json 信息的插件并安装”。Agent 会调用内置 `plugin_create`，生成规范清单和代码、执行同一套预检并全局安装，无需用户手写模板。
+
+两种方式安装的插件都对所有项目可用。插件实际执行时，`context.cwd` 始终是当前会话的工作目录；新增工具从下一次 Agent 请求开始可用。
+
+### 可安装示例
+
+仓库提供了一个只读示例插件：[`examples/local-plugins/project-package-info`](../examples/local-plugins/project-package-info)。它提供 `project_package_info` 工具，读取当前项目根目录的 `package.json` 并返回项目名、版本、描述、包管理器和 npm scripts。
+
+测试步骤：
+
+1. 打开 Pisper 的“插件”页面，点击“安装插件”。
+2. 输入示例目录的绝对路径，例如克隆仓库位于 `E:\code\pi-coder` 时，路径为 `E:\code\pi-coder\examples\local-plugins\project-package-info`。
+3. 点击“检查插件”，核对清单、工具和高风险提示，再确认安装。
+4. 新建或继续一个“完全访问”会话，让 Agent“使用 `project_package_info` 查看当前项目信息”。
+5. 测试完成后，可在任一该插件工具的展开详情中点击“卸载插件”；这会一次移除插件提供的全部工具。
+
 ## 清单
 
 在插件目录根部创建 `pisper-plugin.json`：
@@ -81,9 +102,9 @@ export async function execute({ toolName, arguments: input, context }) {
 
 用户可以直接要求 Pisper 创建所需能力，例如“创建一个读取项目版本号的本地插件并安装”。Agent 应使用 `plugin_create`，而不是手工拼接清单后绕过统一预检。
 
-## 安装与安全
+## 安全边界
 
-在 Pisper 的“插件”页面选择“安装插件”，输入或选择插件目录，先执行静态检查，再确认安装。检查完成后如果来源目录发生变化，安装会被拒绝并要求重新检查。
+本地目录安装会先执行静态检查；检查完成后如果来源目录发生变化，安装会被拒绝并要求重新检查。自然语言创建也必须通过相同预检，不能绕过 manifest、Schema、路径、体积或工具名冲突规则。
 
 插件代码虽然在独立 Worker 中运行，但这不是操作系统沙箱。它仍可使用当前系统用户有权访问的文件和网络，也可以加载 Node.js 模块。因此第三方插件固定视为高风险，只会在会话的“完全访问”执行模式下提供给 Agent。只安装来源可信且已审阅的代码。
 

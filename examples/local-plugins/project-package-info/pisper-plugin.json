@@ -1,0 +1,22 @@
+{
+  "schemaVersion": 1,
+  "id": "example.project-package-info",
+  "name": "Project Package Info",
+  "version": "1.0.0",
+  "description": "Read package metadata from the current chat workspace.",
+  "entry": "index.mjs",
+  "permissions": ["workspace-read"],
+  "tools": [
+    {
+      "name": "project_package_info",
+      "label": "Project package info",
+      "description": "Read the current project's package.json and return its name, version, description, package manager, and npm script names. Use when the user asks for basic Node.js project metadata.",
+      "scope": "The package.json file at the root of the current chat workspace",
+      "parameters": {
+        "type": "object",
+        "properties": {},
+        "additionalProperties": false
+      }
+    }
+  ]
+}

@@ -3,6 +3,7 @@ import { mkdtemp, mkdir, readFile, rm, writeFile } from 'node:fs/promises'
 import os from 'node:os'
 import { join } from 'node:path'
 import test from 'node:test'
+import { fileURLToPath } from 'node:url'
 
 import { ToolPluginService } from '../services/tool-plugin-service.mjs'
 
@@ -55,6 +56,30 @@ async function withService(run) {
     await rm(root, { recursive: true, force: true })
   }
 }
+
+test('shipped project package info example installs and reads the active workspace', async () => {
+  await withService(async ({ service }) => {
+    const repositoryRoot = fileURLToPath(new URL('../..', import.meta.url))
+    const source = join(repositoryRoot, 'examples', 'local-plugins', 'project-package-info')
+    const inspection = await service.inspect(source)
+    assert.equal(inspection.plugin.id, 'example.project-package-info')
+    assert.deepEqual(
+      inspection.plugin.capabilities.map((tool) => tool.name),
+      ['project_package_info'],
+    )
+
+    await service.install(inspection.inspectionId)
+    const [definition] = service.createToolDefinitions({
+      cwd: repositoryRoot,
+      sessionId: 'example-session',
+      enabledTools: ['project_package_info'],
+    })
+    const result = await definition.execute('example-call', {})
+    assert.equal(result.details.name, 'pisper')
+    assert.match(result.details.version, /^\d+\.\d+\.\d+/)
+    assert.equal(result.details.scripts.includes('dev'), true)
+  })
+})
 
 test('plugin definitions create global source, install, and execute without overwriting', async () => {
   await withService(async ({ root, dataDir, service }) => {
