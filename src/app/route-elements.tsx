@@ -137,26 +137,6 @@ export async function pluginsRoute() {
   return { Component: PluginsRoute }
 }
 
-export async function extensionsRoute() {
-  const { ExtensionsPage } = await import('@/features/extensions/ExtensionsPage')
-
-  function ExtensionsRoute() {
-    const context = useAppRouteContext()
-    return (
-      <ExtensionsPage
-        query={context.query}
-        activeSessionId={context.activeSessionId}
-        notify={context.notify}
-        registerPrimaryAction={context.registerPrimaryAction}
-        requestText={context.requestText}
-        requestConfirm={context.requestConfirm}
-      />
-    )
-  }
-
-  return { Component: ExtensionsRoute }
-}
-
 export async function memoryRoute() {
   const { MemoryPage } = await import('@/features/memory/MemoryPage')
 

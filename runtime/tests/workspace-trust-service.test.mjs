@@ -43,7 +43,7 @@ test('workspace trust detects project resources and persists inherited decisions
   })
 })
 
-test('workspace trust recognizes Pi project extensions without loading them', async (t) => {
+test('workspace trust ignores Pi project extensions while external Extensions are disabled', async (t) => {
   const directory = await mkdtemp(join(tmpdir(), 'pisper-pi-trust-'))
   t.after(() => rm(directory, { recursive: true, force: true }))
   const cwd = join(directory, 'workspace')
@@ -55,7 +55,8 @@ test('workspace trust recognizes Pi project extensions without loading them', as
   )
 
   const status = new WorkspaceTrustService({ agentDir: join(directory, 'agent') }).getStatus(cwd)
-  assert.equal(status.requiresDecision, true)
+  assert.equal(status.requiresDecision, false)
+  assert.equal(status.restricted, false)
   assert.equal(status.trusted, false)
-  assert.deepEqual(status.resources, ['extensions'])
+  assert.deepEqual(status.resources, [])
 })

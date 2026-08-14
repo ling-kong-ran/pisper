@@ -2,8 +2,6 @@ import { mkdir, open, readFile, stat, unlink, writeFile } from 'node:fs/promises
 import { createHash, randomUUID } from 'node:crypto'
 import { basename, extname, isAbsolute, join, resolve, sep } from 'node:path'
 import { createAgentSession, SessionManager, SettingsManager } from './pi-coding-agent.mjs'
-import { bindSessionExtensions, extensionToolNames } from './session-extensions.mjs'
-import { createWorkspaceResourceServices } from './workspace-resource-services.mjs'
 import { ensureSessionFilePersisted } from './session-file-persist.mjs'
 import {
   capturePromptCacheShape,
@@ -22,6 +20,7 @@ import { ModelMetadataService } from '../services/model-metadata-service.mjs'
 import { ProviderModelDiscoveryService } from '../services/provider-model-discovery-service.mjs'
 import { ScheduleService } from '../services/schedule-service.mjs'
 import { WorkflowService } from '../services/workflow-service.mjs'
+import { SkillsService } from '../services/skills-service.mjs'
 import { WorkspaceTrustService } from '../services/workspace-trust-service.mjs'
 import {
   PERMISSION_MODES,
@@ -193,6 +192,7 @@ const ASSET_DOCUMENT_EXTENSIONS = new Set([
 const IMAGE_EXTENSIONS = new Set(['.png', '.jpg', '.jpeg', '.gif', '.webp', '.bmp', '.svg'])
 const TRANSIENT_STREAM_READ_ERROR_PATTERN = /\bstream[_\s-]?read[_\s-]?error\b/i
 const PISPER_STREAM_RETRY_PATCH = Symbol('pisper.stream-retry-patch')
+
 export function installTransientStreamRetry(session) {
   if (
     !session ||
@@ -212,6 +212,7 @@ export function installTransientStreamRetry(session) {
   session[PISPER_STREAM_RETRY_PATCH] = true
   return session
 }
+
 export function storedSessionModel(sessionManager) {
   let model = null
   for (const entry of sessionManager?.getBranch?.() || []) {
@@ -447,15 +448,19 @@ export class AgentRuntimeService extends AgentRuntimeFacade {
     this.goalEmitters = new Map()
     this.agentEmitters = new Map()
     this.mcp = new McpService({ path: join(dataDir, 'pisper-mcp.json'), cwd })
-    const resources = createWorkspaceResourceServices({
+    this.skills = new SkillsService({
+      path: join(dataDir, 'pisper-skills.json'),
       agentDir: dataDir,
       cwd,
-      getPrimarySettings: () => this.settingsManager,
-      isProjectTrusted: (targetCwd) => this.workspaceTrust.isTrusted(targetCwd),
+      getSettingsManager: (skillsCwd = this.cwd) => {
+        if (!this.settingsManager || workspacePathKey(skillsCwd) === workspacePathKey(this.cwd))
+          return this.settingsManager
+        return SettingsManager.create(skillsCwd, this.dataDir, {
+          projectTrusted: this.workspaceTrust.isTrusted(skillsCwd),
+        })
+      },
       extensionFactories: [pisperPromptExtension, pisperCompactionExtension],
     })
-    this.skills = resources.skills
-    this.extensions = resources.extensions
     this.channels = new ChannelService({
       path: join(dataDir, 'pisper-channels.json'),
       cwd,
@@ -1516,7 +1521,6 @@ export class AgentRuntimeService extends AgentRuntimeFacade {
         ...enabledTools,
         ...stableMcpTools.map((tool) => tool.name),
         ...pluginTools.map((tool) => tool.name),
-        ...extensionToolNames(resourceLoader),
       ]),
     ]
     const promotedToolNames = mergePromotedToolNames({
@@ -1732,12 +1736,6 @@ export class AgentRuntimeService extends AgentRuntimeFacade {
         ...planTools,
         ...multiAgentTools,
       ],
-    })
-    await bindSessionExtensions({
-      session,
-      sessionId: runtimeSessionId,
-      cwd: effectiveCwd,
-      extensions: this.extensions,
     })
     installTransientStreamRetry(session)
     installTurnBoundaryCompaction(session)

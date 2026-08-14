@@ -72,7 +72,6 @@ export function PageHeader({
     schedules: [t('navigation:pageHeader.newTask'), Plus],
     config: [t('navigation:pageHeader.addProvider'), Plus],
     plugins: [t('navigation:pageHeader.savePolicy'), Save],
-    extensions: [t('navigation:pageHeader.installExtension'), Plus],
     memory: [t('navigation:pageHeader.addMemory'), Plus],
     mcp: [t('navigation:pageHeader.addService'), Plus],
     skills: [t('navigation:pageHeader.installSkill'), Plus],

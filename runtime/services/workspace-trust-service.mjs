@@ -8,7 +8,6 @@ import {
 
 const PI_PROJECT_RESOURCES = [
   ['settings', 'settings.json'],
-  ['extensions', 'extensions'],
   ['skills', 'skills'],
   ['prompts', 'prompts'],
   ['themes', 'themes'],
@@ -18,7 +17,6 @@ const PI_PROJECT_RESOURCES = [
 
 const PISPER_PROJECT_RESOURCES = [
   ['skills', 'skills'],
-  ['extensions', 'extensions'],
   ['prompts', 'prompts'],
 ]
 
@@ -46,7 +44,10 @@ function projectResourceKinds(cwd) {
     if (parent === current) break
     current = parent
   }
-  if (!kinds.size && hasTrustRequiringProjectResources(root)) kinds.add('projectResources')
+  const onlyDisabledPiExtensions = existsSync(join(root, '.pi', 'extensions'))
+  if (!kinds.size && !onlyDisabledPiExtensions && hasTrustRequiringProjectResources(root)) {
+    kinds.add('projectResources')
+  }
   return [...kinds].sort()
 }
 

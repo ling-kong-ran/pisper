@@ -1,7 +1,6 @@
 import {
   Bell,
   Bot,
-  Braces,
   Brain,
   Monitor,
   Plug,
@@ -33,15 +32,7 @@ export const CONFIG_SECTIONS = new Set([
   'updates',
 ])
 
-export const SETTINGS_PAGES = new Set([
-  'config',
-  'channels',
-  'plugins',
-  'extensions',
-  'memory',
-  'mcp',
-  'skills',
-])
+export const SETTINGS_PAGES = new Set(['config', 'channels', 'plugins', 'memory', 'mcp', 'skills'])
 
 export function getSettingsNavigation(t: Translate): SettingsNavigationGroup[] {
   return [
@@ -64,12 +55,6 @@ export function getSettingsNavigation(t: Translate): SettingsNavigationGroup[] {
           label: t('navigation:navigation.plugins'),
           icon: Plug,
           destination: { type: 'page', id: 'plugins' },
-        },
-        {
-          key: 'page:extensions',
-          label: t('navigation:navigation.extensions'),
-          icon: Braces,
-          destination: { type: 'page', id: 'extensions' },
         },
         {
           key: 'page:mcp',

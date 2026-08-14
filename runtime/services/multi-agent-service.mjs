@@ -331,6 +331,7 @@ async function createAgentResourceLoader({
     agentDir: agentDir || cwd,
     ...(settingsManager ? { settingsManager } : {}),
     extensionFactories: [pisperPromptExtension, pisperCompactionExtension],
+    noExtensions: true,
     appendSystemPromptOverride: (base) => [...base, appendSystemPrompt],
   })
   await loader.reload()

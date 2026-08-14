@@ -393,7 +393,6 @@ function App() {
         'config',
         'assets',
         'plugins',
-        'extensions',
         'channels',
         'schedules',
         'memory',

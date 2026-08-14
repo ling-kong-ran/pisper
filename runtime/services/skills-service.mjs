@@ -303,6 +303,7 @@ export class SkillsService {
       agentDir: this.agentDir,
       ...(settingsManager ? { settingsManager } : {}),
       ...(this.extensionFactories.length ? { extensionFactories: this.extensionFactories } : {}),
+      noExtensions: true,
       noSkills: true,
       additionalSkillPaths: resources.map((item) => item.path),
       skillsOverride: (current) =>

@@ -5,7 +5,6 @@ import enChannels from '@/locales/en-US/channels.json' with { type: 'json' }
 import enChat from '@/locales/en-US/chat.json' with { type: 'json' }
 import enCommon from '@/locales/en-US/common.json' with { type: 'json' }
 import enConfig from '@/locales/en-US/config.json' with { type: 'json' }
-import enExtensions from '@/locales/en-US/extensions.json' with { type: 'json' }
 import enMemory from '@/locales/en-US/memory.json' with { type: 'json' }
 import enNavigation from '@/locales/en-US/navigation.json' with { type: 'json' }
 import enPlugins from '@/locales/en-US/plugins.json' with { type: 'json' }
@@ -18,7 +17,6 @@ import zhChannels from '@/locales/zh-CN/channels.json' with { type: 'json' }
 import zhChat from '@/locales/zh-CN/chat.json' with { type: 'json' }
 import zhCommon from '@/locales/zh-CN/common.json' with { type: 'json' }
 import zhConfig from '@/locales/zh-CN/config.json' with { type: 'json' }
-import zhExtensions from '@/locales/zh-CN/extensions.json' with { type: 'json' }
 import zhMemory from '@/locales/zh-CN/memory.json' with { type: 'json' }
 import zhNavigation from '@/locales/zh-CN/navigation.json' with { type: 'json' }
 import zhPlugins from '@/locales/zh-CN/plugins.json' with { type: 'json' }
@@ -49,7 +47,6 @@ export const I18N_NAMESPACES = Object.freeze([
   'navigation',
   'chat',
   'config',
-  'extensions',
   'memory',
   'plugins',
   'schedules',
@@ -84,7 +81,6 @@ void i18n.use(initReactI18next).init({
       navigation: zhNavigation,
       chat: zhChat,
       config: zhConfig,
-      extensions: zhExtensions,
       memory: zhMemory,
       plugins: zhPlugins,
       schedules: zhSchedules,
@@ -99,7 +95,6 @@ void i18n.use(initReactI18next).init({
       navigation: enNavigation,
       chat: enChat,
       config: enConfig,
-      extensions: enExtensions,
       memory: enMemory,
       plugins: enPlugins,
       schedules: enSchedules,

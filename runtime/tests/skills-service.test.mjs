@@ -75,7 +75,7 @@ test('skills service discovers Pi skills and applies persistent enable/invocatio
   assert.equal(restoredSkill.modelInvocationEnabled, false)
 })
 
-test('skills service excludes untrusted project skills from discovery and runtime loading', async (t) => {
+test('skills service trust gates project skills while Pi Extensions stay disabled', async (t) => {
   const directory = await mkdtemp(join(tmpdir(), 'pisper-untrusted-skills-'))
   t.after(() => rm(directory, { recursive: true, force: true }))
   const agentDir = join(directory, 'agent')
@@ -130,7 +130,7 @@ test('skills service excludes untrusted project skills from discovery and runtim
     'project-helper',
   ])
   await service.createResourceLoader(cwd)
-  assert.equal(existsSync(extensionMarker), true)
+  assert.equal(existsSync(extensionMarker), false)
 })
 
 test('skills service creates validated project and global skills without overwriting', async (t) => {
