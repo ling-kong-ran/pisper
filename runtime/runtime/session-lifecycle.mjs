@@ -6,6 +6,7 @@ import {
   permissionModeForExecutionMode,
 } from '../security/execution-mode.mjs'
 import { isCompletedTurnBoundaryMessage } from './session-derivation.mjs'
+import { appendTreePosition, projectSessionTree } from './session-tree.mjs'
 
 const DEFAULT_SESSION_NAME = '新会话'
 const MAX_RESIDENT_SESSION_RUNTIMES = 3
@@ -392,6 +393,109 @@ export class SessionLifecycle {
       plan: this.getPlans().get(id),
       agents: [],
       contextUsage: null,
+    }
+  }
+
+  async sessionTreeManager(id) {
+    const sessionId = String(id || '').trim()
+    if (!sessionId) throw new Error('会话不存在。')
+    const active = this.sessions.get(sessionId)
+    if (active?.session?.sessionManager) return active.session.sessionManager
+    const pending = this.pendingSessions.get(sessionId)
+    if (pending?.manager) return pending.manager
+    const info = await this.findSessionInfo(sessionId)
+    if (!info?.path) throw new Error('会话不存在。')
+    const manager = this.openStoredSession(info.path)
+    if (manager.getSessionId() !== sessionId) throw new Error('会话标识不匹配。')
+    return manager
+  }
+
+  async getSessionTree(id) {
+    const sessionId = String(id || '').trim()
+    const manager = await this.sessionTreeManager(sessionId)
+    return projectSessionTree(manager, {
+      sessionId,
+      streaming: this.sessionRunIsActive(sessionId, this.sessions.get(sessionId)),
+    })
+  }
+
+  async navigateSessionTree(id, targetEntryId, options = {}) {
+    const sessionId = String(id || '').trim()
+    const entryId = String(targetEntryId || '').trim()
+    if (!sessionId || !entryId) throw new Error('会话树节点无效。')
+    const existing = this.sessions.get(sessionId)
+    if (this.sessionRunIsActive(sessionId, existing)) {
+      throw new Error('当前会话正在运行，请等待完成或停止后再切换分支。')
+    }
+    const value = await this.getOrCreateSession(sessionId)
+    if (this.sessionRunIsActive(sessionId, value)) {
+      throw new Error('当前会话正在运行，请等待完成或停止后再切换分支。')
+    }
+    const manager = value.session.sessionManager
+    if (!manager.getEntry(entryId)) throw new Error('会话树节点不存在。')
+    if (manager.getLeafId() === entryId) {
+      return {
+        ...projectSessionTree(manager, { sessionId, streaming: false }),
+        cancelled: false,
+        editorText: null,
+      }
+    }
+
+    value.runActive = true
+    try {
+      const result = await value.session.navigateTree(entryId, {
+        summarize: Boolean(options?.summarize),
+      })
+      if (!result.cancelled && !result.summaryEntry) appendTreePosition(manager, entryId)
+      value.modified = new Date().toISOString()
+      this.sessionHistoryPaths.delete(sessionId)
+      this.sessionContextUsageCache.delete(sessionId)
+      if (value.session.sessionFile) this.sessionHistoryCache.delete(value.session.sessionFile)
+      this.invalidateProjection(sessionId)
+      await this.listStoredSessions({ refresh: true })
+      return {
+        ...projectSessionTree(manager, { sessionId, streaming: false }),
+        cancelled: Boolean(result.cancelled),
+        editorText: typeof result.editorText === 'string' ? result.editorText : null,
+      }
+    } finally {
+      value.runActive = false
+    }
+  }
+
+  async setSessionTreeLabel(id, targetEntryId, label) {
+    const sessionId = String(id || '').trim()
+    const entryId = String(targetEntryId || '').trim()
+    const normalizedLabel = String(label || '')
+      .replace(/\s+/g, ' ')
+      .trim()
+    if (!sessionId || !entryId) throw new Error('会话树节点无效。')
+    if (normalizedLabel.length > 80) throw new Error('节点标签不能超过 80 个字符。')
+    const existing = this.sessions.get(sessionId)
+    if (this.sessionRunIsActive(sessionId, existing)) {
+      throw new Error('当前会话正在运行，请等待完成或停止后再修改标签。')
+    }
+    const value = await this.getOrCreateSession(sessionId)
+    if (this.sessionRunIsActive(sessionId, value)) {
+      throw new Error('当前会话正在运行，请等待完成或停止后再修改标签。')
+    }
+    const manager = value.session.sessionManager
+    if (!manager.getEntry(entryId)) throw new Error('会话树节点不存在。')
+    if ((manager.getLabel(entryId) || '') === normalizedLabel) {
+      return projectSessionTree(manager, { sessionId, streaming: false })
+    }
+    value.runActive = true
+    try {
+      manager.appendLabelChange(entryId, normalizedLabel || undefined)
+      value.modified = new Date().toISOString()
+      this.sessionHistoryPaths.delete(sessionId)
+      this.sessionContextUsageCache.delete(sessionId)
+      if (value.session.sessionFile) this.sessionHistoryCache.delete(value.session.sessionFile)
+      this.invalidateProjection(sessionId)
+      await this.listStoredSessions({ refresh: true })
+      return projectSessionTree(manager, { sessionId, streaming: false })
+    } finally {
+      value.runActive = false
     }
   }
 

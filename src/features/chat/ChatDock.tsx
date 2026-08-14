@@ -126,6 +126,7 @@ export function SessionDockPanel({ params, api }: IDockviewPanelProps<{ sessionI
         onWorkspace={() => void context.selectSessionWorkspace(session)}
         onRename={() => context.renameSession(session)}
         onDerive={(boundaryEntryId: string) => context.deriveSession(session, boundaryEntryId)}
+        onTreeNavigated={() => context.reloadSessionBranch(sessionId)}
         onSplitLeft={() => context.splitDockPanel(api.id, 'left')}
         onSplitRight={() => context.splitDockPanel(api.id, 'right')}
         onSplitTop={() => context.splitDockPanel(api.id, 'above')}

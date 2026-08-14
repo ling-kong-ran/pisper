@@ -43,6 +43,7 @@ import { GitChangesControl } from './GitChangesControl'
 import { GoalModeControl } from './GoalModeControl'
 import { PathAttachmentPicker } from './PathAttachmentPicker'
 import { SessionActionsMenu } from './SessionActionsMenu'
+import { SessionTreeDialog } from './SessionTreeDialog'
 import { SessionWorkflowRuns } from './SessionWorkflowRuns'
 import { ToolApproval } from './ToolApproval'
 import { WorkspaceTrustNotice } from './WorkspaceTrustNotice'
@@ -105,6 +106,7 @@ export type FocusSessionProps = {
   onWorkspace: () => void
   onRename: () => void
   onDerive: (boundaryEntryId: string) => Promise<void> | void
+  onTreeNavigated?: () => Promise<void> | void
   onSplitLeft: () => void
   onSplitRight: () => void
   onSplitTop: () => void
@@ -173,6 +175,7 @@ export function FocusSession({
   onWorkspace,
   onRename,
   onDerive,
+  onTreeNavigated,
   onSplitLeft,
   onSplitRight,
   onSplitTop,
@@ -191,6 +194,7 @@ export function FocusSession({
   const [scrollRequest, setScrollRequest] = useState(0)
   const [resourcePickerOpen, setResourcePickerOpen] = useState(false)
   const [pathPickerOpen, setPathPickerOpen] = useState(false)
+  const [sessionTreeOpen, setSessionTreeOpen] = useState(false)
   const [toolsOpen, setToolsOpen] = useState(false)
   const [invocation, setInvocation] = useState<ResourceInvocation | null>(null)
   const selection = useAttachmentSelection()
@@ -208,6 +212,7 @@ export function FocusSession({
     setCompactingManually(false)
     setInvocation(null)
     setResourcePickerOpen(false)
+    setSessionTreeOpen(false)
     setToolsOpen(false)
   }, [session.id])
 
@@ -305,6 +310,7 @@ export function FocusSession({
               onClosePanel={onClosePanel}
               onWorkspace={onWorkspace}
               onRename={onRename}
+              onSessionTree={() => setSessionTreeOpen(true)}
             />
           </div>
         </div>
@@ -546,6 +552,7 @@ export function FocusSession({
                       onClosePanel={onClosePanel}
                       onWorkspace={onWorkspace}
                       onRename={onRename}
+                      onSessionTree={() => setSessionTreeOpen(true)}
                     />
                   </div>
                 )}
@@ -604,6 +611,17 @@ export function FocusSession({
         sessionId={session.id}
         onClose={() => setResourcePickerOpen(false)}
         onSelect={setInvocation}
+      />
+      <SessionTreeDialog
+        open={sessionTreeOpen}
+        sessionId={session.id}
+        streaming={Boolean(streaming)}
+        onClose={() => setSessionTreeOpen(false)}
+        onNavigated={async (editorText) => {
+          if (editorText !== null) applyWelcomeChip(editorText)
+          await onTreeNavigated?.()
+          requestTranscriptBottom()
+        }}
       />
       <PathAttachmentPicker
         open={pathPickerOpen}

@@ -162,6 +162,58 @@ test('session derivation API forwards the persisted turn boundary and display na
   ])
 })
 
+test('session tree APIs read, navigate, and label Pi tree entries', async () => {
+  const calls = []
+  const tree = { sessionId: 'session 1', leafId: 'leaf-1', roots: [] }
+  const runtime = {
+    async getSessionTree(sessionId) {
+      calls.push(['get', sessionId])
+      return tree
+    },
+    async navigateSessionTree(sessionId, entryId, options) {
+      calls.push(['navigate', sessionId, entryId, options])
+      return { ...tree, editorText: 'Edit me', cancelled: false }
+    },
+    async setSessionTreeLabel(sessionId, entryId, label) {
+      calls.push(['label', sessionId, entryId, label])
+      return tree
+    },
+  }
+  const handler = createApiHandler(runtime)
+  const url = (suffix) => new URL(`http://localhost/api/sessions/session%201/tree${suffix}`)
+
+  const getResponse = response()
+  assert.equal(await handler(request('GET'), getResponse, url('')), true)
+  assert.deepEqual(JSON.parse(getResponse.body), tree)
+
+  const navigateResponse = response()
+  assert.equal(
+    await handler(
+      request('POST', { targetEntryId: 'entry-1', summarize: true }),
+      navigateResponse,
+      url('/navigate'),
+    ),
+    true,
+  )
+  assert.deepEqual(JSON.parse(navigateResponse.body), {
+    ...tree,
+    editorText: 'Edit me',
+    cancelled: false,
+  })
+
+  const labelResponse = response()
+  assert.equal(
+    await handler(request('PUT', { label: 'Checkpoint' }), labelResponse, url('/labels/entry%202')),
+    true,
+  )
+  assert.deepEqual(JSON.parse(labelResponse.body), tree)
+  assert.deepEqual(calls, [
+    ['get', 'session 1'],
+    ['navigate', 'session 1', 'entry-1', { summarize: true }],
+    ['label', 'session 1', 'entry 2', 'Checkpoint'],
+  ])
+})
+
 test('workspace trust APIs resolve and persist a session-scoped decision', async () => {
   const calls = []
   const runtime = {

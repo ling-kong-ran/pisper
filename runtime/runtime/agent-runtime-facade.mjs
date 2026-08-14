@@ -84,6 +84,18 @@ export class AgentRuntimeFacade {
     return this.sessionLifecycle.deriveSession(id, boundaryEntryId, name)
   }
 
+  getSessionTree(id) {
+    return this.sessionLifecycle.getSessionTree(id)
+  }
+
+  navigateSessionTree(id, targetEntryId, options) {
+    return this.sessionLifecycle.navigateSessionTree(id, targetEntryId, options)
+  }
+
+  setSessionTreeLabel(id, targetEntryId, label) {
+    return this.sessionLifecycle.setSessionTreeLabel(id, targetEntryId, label)
+  }
+
   async archiveAttachments(sessionId, sessionName, attachments = []) {
     const archived = []
     for (const attachment of attachments) {

@@ -1,0 +1,135 @@
+const TREE_NAVIGATION_CUSTOM_TYPE = 'pisper.session-tree-position'
+const MAX_NODE_TEXT = 320
+
+function boundedText(value, limit = MAX_NODE_TEXT) {
+  const text = String(value || '')
+    .replace(/\s+/g, ' ')
+    .trim()
+  if (text.length <= limit) return text
+  return `${text.slice(0, Math.max(0, limit - 1)).trimEnd()}…`
+}
+
+function contentText(content) {
+  if (typeof content === 'string') return content
+  if (!Array.isArray(content)) return ''
+  return content
+    .filter((part) => part?.type === 'text' && typeof part.text === 'string')
+    .map((part) => part.text)
+    .join('\n')
+}
+
+function messageProjection(message) {
+  const role = String(message?.role || 'message')
+  if (role === 'toolResult') {
+    return {
+      kind: 'tool',
+      role,
+      text: boundedText(message?.toolName || message?.toolCallId || ''),
+      status: message?.isError ? 'error' : 'completed',
+    }
+  }
+  const text = boundedText(contentText(message?.content))
+  if (role === 'assistant' && !text && Array.isArray(message?.content)) {
+    const tools = message.content
+      .filter((part) => part?.type === 'toolCall' && typeof part.name === 'string')
+      .map((part) => part.name)
+    return { kind: 'assistant', role, text: boundedText(tools.join(', ')), status: '' }
+  }
+  return {
+    kind: role === 'user' ? 'user' : role === 'assistant' ? 'assistant' : 'message',
+    role,
+    text,
+    status: '',
+  }
+}
+
+function entryProjection(entry) {
+  if (entry.type === 'message') return messageProjection(entry.message)
+  if (entry.type === 'branch_summary') {
+    return { kind: 'summary', role: '', text: boundedText(entry.summary), status: '' }
+  }
+  if (entry.type === 'compaction') {
+    return { kind: 'compaction', role: '', text: boundedText(entry.summary), status: '' }
+  }
+  if (entry.type === 'custom_message') {
+    return {
+      kind: entry.display ? 'extension' : 'metadata',
+      role: '',
+      text: entry.display ? boundedText(contentText(entry.content)) : '',
+      status: '',
+    }
+  }
+  if (entry.type === 'model_change') {
+    return {
+      kind: 'settings',
+      role: '',
+      text: boundedText(`${entry.provider}/${entry.modelId}`),
+      status: '',
+    }
+  }
+  if (entry.type === 'thinking_level_change') {
+    return { kind: 'settings', role: '', text: boundedText(entry.thinkingLevel), status: '' }
+  }
+  if (entry.type === 'session_info') {
+    return { kind: 'metadata', role: '', text: boundedText(entry.name), status: '' }
+  }
+  if (entry.type === 'label') {
+    return { kind: 'label', role: '', text: boundedText(entry.label), status: '' }
+  }
+  if (entry.type === 'custom' && entry.customType === TREE_NAVIGATION_CUSTOM_TYPE) {
+    return { kind: 'position', role: '', text: '', status: '' }
+  }
+  if (entry.type === 'custom') {
+    return { kind: 'extension', role: '', text: boundedText(entry.customType), status: '' }
+  }
+  return { kind: 'metadata', role: '', text: boundedText(entry.type), status: '' }
+}
+
+function projectNode(node, activeIds, leafId) {
+  const children = (node.children || []).map((child) => projectNode(child, activeIds, leafId))
+  const entry = node.entry
+  const projected = entryProjection(entry)
+  return {
+    id: entry.id,
+    parentId: entry.parentId || null,
+    type: entry.type,
+    kind: projected.kind,
+    role: projected.role,
+    text: projected.text,
+    status: projected.status,
+    label: boundedText(node.label, 80),
+    timestamp: entry.timestamp || '',
+    active: activeIds.has(entry.id),
+    leaf: entry.id === leafId,
+    branchPoint: children.length > 1,
+    children,
+  }
+}
+
+export function projectSessionTree(manager, { sessionId = '', streaming = false } = {}) {
+  const leafId = manager.getLeafId() || null
+  const activeIds = new Set(manager.getBranch().map((entry) => entry.id))
+  const roots = manager.getTree().map((node) => projectNode(node, activeIds, leafId))
+  let nodeCount = 0
+  let branchCount = 0
+  const visit = (node) => {
+    nodeCount += 1
+    branchCount += Math.max(0, node.children.length - 1)
+    node.children.forEach(visit)
+  }
+  roots.forEach(visit)
+  return {
+    sessionId: sessionId || manager.getSessionId(),
+    leafId,
+    nodeCount,
+    branchCount,
+    streaming: Boolean(streaming),
+    roots,
+  }
+}
+
+export function appendTreePosition(manager, targetId) {
+  return manager.appendCustomEntry(TREE_NAVIGATION_CUSTOM_TYPE, { targetId })
+}
+
+export { TREE_NAVIGATION_CUSTOM_TYPE }

@@ -21,6 +21,36 @@ type CompactionPreferenceResponse = {
   maxPercent: number
 }
 
+export type SessionTreeNode = {
+  id: string
+  parentId: string | null
+  type: string
+  kind: string
+  role: string
+  text: string
+  status: string
+  label: string
+  timestamp: string
+  active: boolean
+  leaf: boolean
+  branchPoint: boolean
+  children: SessionTreeNode[]
+}
+
+export type SessionTreeResponse = {
+  sessionId: string
+  leafId: string | null
+  nodeCount: number
+  branchCount: number
+  streaming: boolean
+  roots: SessionTreeNode[]
+}
+
+export type SessionTreeNavigationResponse = SessionTreeResponse & {
+  cancelled: boolean
+  editorText: string | null
+}
+
 export type WorkspaceTrustStatus = {
   cwd: string
   decision: boolean | null
@@ -77,6 +107,22 @@ export const chatApi = {
       method: 'POST',
       data: { boundaryEntryId, name },
     }),
+
+  getSessionTree: (sessionId: string) =>
+    requestJson<SessionTreeResponse>(`${sessionPath(sessionId)}/tree`),
+
+  navigateSessionTree: (sessionId: string, targetEntryId: string, summarize: boolean) =>
+    requestJson<SessionTreeNavigationResponse>(`${sessionPath(sessionId)}/tree/navigate`, {
+      method: 'POST',
+      data: { targetEntryId, summarize },
+      timeout: 180_000,
+    }),
+
+  setSessionTreeLabel: (sessionId: string, entryId: string, label: string) =>
+    requestJson<SessionTreeResponse>(
+      `${sessionPath(sessionId)}/tree/labels/${encodeURIComponent(entryId)}`,
+      { method: 'PUT', data: { label } },
+    ),
 
   getWorkspaceTrust: (sessionId: string) =>
     requestJson<WorkspaceTrustStatus>(`${sessionPath(sessionId)}/workspace-trust`),

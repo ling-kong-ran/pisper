@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import {
   FolderOpen,
+  GitBranch,
   MoreHorizontal,
   PanelBottom,
   PanelLeft,
@@ -26,6 +27,7 @@ export function SessionActionsMenu({
   onClosePanel,
   onWorkspace,
   onRename,
+  onSessionTree,
 }: {
   session: SessionSummary
   canSplit?: boolean
@@ -38,6 +40,7 @@ export function SessionActionsMenu({
   onClosePanel: () => void
   onWorkspace: () => void
   onRename: () => void
+  onSessionTree: () => void
 }) {
   const { t, language } = useI18n()
   const [open, setOpen] = useState(false)
@@ -140,6 +143,22 @@ export function SessionActionsMenu({
                 {streaming
                   ? t('chat:focusSession.cannotSwitchWhileTheAgentIsRunning')
                   : workspaceName(session?.cwd, language)}
+              </small>
+            </span>
+          </button>
+          <button
+            type="button"
+            role="menuitem"
+            disabled={streaming}
+            onClick={() => run(onSessionTree)}
+          >
+            <GitBranch size={15} />
+            <span>
+              <strong>{t('chat:sessionTree.menu')}</strong>
+              <small>
+                {streaming
+                  ? t('chat:sessionTree.waitForRun')
+                  : t('chat:sessionTree.menuDescription')}
               </small>
             </span>
           </button>

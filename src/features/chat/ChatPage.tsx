@@ -67,6 +67,7 @@ export function ChatPage({
   })
 
   const createSessionRecord = catalog.createSessionRecord
+  const loadSessionMessages = liveSync.loadSessionMessages
   const refreshSessions = catalog.refreshSessions
   const setGlobalError = catalog.setGlobalError
   const updateSessions = catalog.updateSessions
@@ -140,6 +141,14 @@ export function ChatPage({
     [notify, openSessionInDock, refreshSessions, requestConfirm, setGlobalError, t, updateSessions],
   )
 
+  const reloadSessionBranch = useCallback(
+    async (sessionId: string) => {
+      await loadSessionMessages(sessionId, { force: true })
+      await refreshSessions(sessionId)
+    },
+    [loadSessionMessages, refreshSessions],
+  )
+
   const DockNewSessionAction = useMemo(
     () =>
       function DockNewSessionAction({ group }: IDockviewHeaderActionsProps) {
@@ -194,6 +203,7 @@ export function ChatPage({
     selectSessionWorkspace: sessionCommands.selectSessionWorkspace,
     renameSession: sessionCommands.renameSession,
     deriveSession,
+    reloadSessionBranch,
     splitDockPanel: dock.splitDockPanel,
     closeDockPanel: dock.closeDockPanel,
   }

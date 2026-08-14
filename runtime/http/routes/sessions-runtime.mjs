@@ -56,6 +56,41 @@ export const sessionRuntimeRoutes = [
   },
   {
     method: 'GET',
+    path: '/api/sessions/:sessionId/tree',
+    async handler({ runtime, params, json }) {
+      json(200, await runtime.getSessionTree(params.sessionId))
+    },
+  },
+  {
+    method: 'POST',
+    path: '/api/sessions/:sessionId/tree/navigate',
+    async handler({ runtime, params, body, json }) {
+      const input = await body()
+      if (typeof input.targetEntryId !== 'string' || !input.targetEntryId.trim()) {
+        throw new Error('targetEntryId 不能为空。')
+      }
+      if (input.summarize != null && typeof input.summarize !== 'boolean') {
+        throw new Error('summarize 必须是布尔值。')
+      }
+      json(
+        200,
+        await runtime.navigateSessionTree(params.sessionId, input.targetEntryId, {
+          summarize: Boolean(input.summarize),
+        }),
+      )
+    },
+  },
+  {
+    method: 'PUT',
+    path: '/api/sessions/:sessionId/tree/labels/:entryId',
+    async handler({ runtime, params, body, json }) {
+      const input = await body()
+      if (typeof input.label !== 'string') throw new Error('label 必须是字符串。')
+      json(200, await runtime.setSessionTreeLabel(params.sessionId, params.entryId, input.label))
+    },
+  },
+  {
+    method: 'GET',
     path: '/api/sessions/:sessionId/workspace-trust',
     async handler({ runtime, params, json }) {
       json(200, await runtime.getWorkspaceTrust(params.sessionId))
