@@ -1,5 +1,5 @@
 import { memo, useEffect, useState } from 'react'
-import { Download, File, X } from 'lucide-react'
+import { Download, File, GitFork, LoaderCircle, X } from 'lucide-react'
 import { useI18n } from '@/app/use-i18n'
 import { BrandLogo } from '@/components/BrandLogo'
 import MarkdownMessage from '@/components/MarkdownMessage'
@@ -134,6 +134,7 @@ type FocusChatMessageProps = {
   agentState: string
   showRunActivity: boolean
   runProps: RunProps | null
+  onDerive: (boundaryEntryId: string) => Promise<void> | void
 }
 
 function focusPropsEqual(prev: FocusChatMessageProps, next: FocusChatMessageProps) {
@@ -141,7 +142,8 @@ function focusPropsEqual(prev: FocusChatMessageProps, next: FocusChatMessageProp
     prev.message === next.message &&
     prev.agentState === next.agentState &&
     prev.showRunActivity === next.showRunActivity &&
-    prev.runProps === next.runProps
+    prev.runProps === next.runProps &&
+    prev.onDerive === next.onDerive
   )
 }
 
@@ -150,7 +152,10 @@ export const FocusChatMessage = memo(function FocusChatMessage({
   agentState,
   showRunActivity,
   runProps,
+  onDerive,
 }: FocusChatMessageProps) {
+  const { t } = useI18n()
+  const [deriving, setDeriving] = useState(false)
   const streaming = Boolean(message.streaming)
   const fullText = message.text || ''
   const displayText = fullText || (!showRunActivity ? String(message.error || '') : '')
@@ -180,6 +185,33 @@ export const FocusChatMessage = memo(function FocusChatMessage({
           <MessageAttachments attachments={message.attachments} />
         )}
       </div>
+      {message.role === 'agent' && message.turnBoundaryEntryId && !streaming && (
+        <div
+          className="chat-history-actions message-actions"
+          style={{ gridColumn: 2, gridRow: 2, paddingRight: 0 }}
+        >
+          <button
+            type="button"
+            className="icon-button"
+            title={t('chat:chatMessage.deriveFromHere')}
+            aria-label={t('chat:chatMessage.deriveFromHere')}
+            data-pisper-derive-entry={message.turnBoundaryEntryId}
+            disabled={deriving}
+            onClick={async () => {
+              const boundaryEntryId = message.turnBoundaryEntryId
+              if (!boundaryEntryId) return
+              setDeriving(true)
+              try {
+                await onDerive(boundaryEntryId)
+              } finally {
+                setDeriving(false)
+              }
+            }}
+          >
+            {deriving ? <LoaderCircle className="spin" size={14} /> : <GitFork size={14} />}
+          </button>
+        </div>
+      )}
     </AiMessage>
   )
 }, focusPropsEqual)

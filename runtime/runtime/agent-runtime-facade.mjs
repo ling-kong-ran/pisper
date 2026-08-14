@@ -48,6 +48,10 @@ export function filterWorkflowNotificationTargets(input, enabledTargets) {
 }
 
 export class AgentRuntimeFacade {
+  deriveSession(id, boundaryEntryId, name) {
+    return this.sessionLifecycle.deriveSession(id, boundaryEntryId, name)
+  }
+
   async archiveAttachments(sessionId, sessionName, attachments = []) {
     const archived = []
     for (const attachment of attachments) {

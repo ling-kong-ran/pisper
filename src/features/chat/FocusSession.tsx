@@ -103,6 +103,7 @@ export type FocusSessionProps = {
   onApproval: (approvalId: string, approved: boolean) => Promise<void> | void
   onWorkspace: () => void
   onRename: () => void
+  onDerive: (boundaryEntryId: string) => Promise<void> | void
   onSplitLeft: () => void
   onSplitRight: () => void
   onSplitTop: () => void
@@ -170,6 +171,7 @@ export function FocusSession({
   onApproval,
   onWorkspace,
   onRename,
+  onDerive,
   onSplitLeft,
   onSplitRight,
   onSplitTop,
@@ -328,8 +330,10 @@ export function FocusSession({
         error={error}
         scrollRequest={scrollRequest}
         cwd={cwd}
+        lineage={session.lineage}
         switchingCwd={switchingCwd}
         onLoadOlder={onLoadOlder}
+        onDerive={onDerive}
         onPromptSelect={applyWelcomeChip}
         onWorkspace={onWorkspace}
       />

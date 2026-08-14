@@ -40,6 +40,21 @@ export const sessionRuntimeRoutes = [
     },
   },
   {
+    method: 'POST',
+    path: '/api/sessions/:sessionId/derive',
+    async handler({ runtime, params, body, json }) {
+      const input = await body()
+      json(
+        201,
+        await runtime.deriveSession(
+          params.sessionId,
+          String(input.boundaryEntryId || ''),
+          String(input.name || ''),
+        ),
+      )
+    },
+  },
+  {
     method: 'PUT',
     path: '/api/sessions/:sessionId/model',
     async handler({ runtime, params, body, json }) {

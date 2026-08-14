@@ -12,8 +12,9 @@ import { AppCard as Panel } from '@/components/ui/app-primitives'
 import { usePagePrimaryAction } from '@/hooks/usePagePrimaryAction'
 import type { ConfirmDialogOptions, PromptDialogOptions } from '@/hooks/useAppDialog'
 import type { Notify } from '@/app/route-context'
-import type { PendingAsset } from '@/types/chat'
+import type { PendingAsset, SessionSummary } from '@/types/chat'
 import { ChatDockWatermark, SessionDockPanel } from './ChatDock'
+import { chatApi } from './chat-api'
 import { WebPreviewDockPanel } from './WebPreviewDockPanel'
 import { ChatDockContext, type ChatDockContextValue } from './chat-dock-context'
 import { useChatDock } from './use-chat-dock'
@@ -21,6 +22,7 @@ import { useLiveSessionSync } from './use-live-session-sync'
 import { usePromptCommands } from './use-prompt-commands'
 import { useSessionCatalog } from './use-session-catalog'
 import { useSessionCommands } from './use-session-commands'
+import { mergeSessionLists } from './session-list'
 
 type ChatPageProps = {
   notify: Notify
@@ -65,6 +67,9 @@ export function ChatPage({
   })
 
   const createSessionRecord = catalog.createSessionRecord
+  const refreshSessions = catalog.refreshSessions
+  const setGlobalError = catalog.setGlobalError
+  const updateSessions = catalog.updateSessions
   const openSessionInDock = dock.openSessionInDock
   const moveSessionToGroup = dock.moveSessionToGroup
   const createSession = useCallback(
@@ -106,6 +111,34 @@ export function ChatPage({
     setGlobalError: catalog.setGlobalError,
     syncLiveSession: liveSync.syncLiveSession,
   })
+  const deriveSession = useCallback(
+    async (session: SessionSummary, boundaryEntryId: string) => {
+      if (!session?.id || !boundaryEntryId) return
+      const confirmed = await requestConfirm({
+        title: t('chat:chatPage.deriveChat'),
+        message: t('chat:chatPage.deriveChatDescription'),
+        confirmLabel: t('chat:chatPage.derive'),
+      })
+      if (!confirmed) return
+      try {
+        setGlobalError('')
+        const derived = await chatApi.deriveSession(
+          session.id,
+          boundaryEntryId,
+          t('chat:chatPage.derivedSessionName', {
+            name: session.name || t('chat:chatPage.newChat'),
+          }),
+        )
+        updateSessions((current) => mergeSessionLists(current, [derived]))
+        openSessionInDock(derived.id)
+        await refreshSessions(derived.id)
+        notify(t('chat:chatPage.derivedChatCreated'))
+      } catch (error) {
+        setGlobalError(error instanceof Error ? error.message : String(error))
+      }
+    },
+    [notify, openSessionInDock, refreshSessions, requestConfirm, setGlobalError, t, updateSessions],
+  )
 
   const DockNewSessionAction = useMemo(
     () =>
@@ -160,6 +193,7 @@ export function ChatPage({
     resolveToolApproval: sessionCommands.resolveToolApproval,
     selectSessionWorkspace: sessionCommands.selectSessionWorkspace,
     renameSession: sessionCommands.renameSession,
+    deriveSession,
     splitDockPanel: dock.splitDockPanel,
     closeDockPanel: dock.closeDockPanel,
   }

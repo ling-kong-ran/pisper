@@ -41,6 +41,7 @@ export type ChatMessage = EntityRecord & {
   text?: string
   streaming?: boolean
   attachments?: ChatAttachment[]
+  turnBoundaryEntryId?: string
 }
 
 export type ToolActivity = EntityRecord & {
@@ -74,6 +75,13 @@ export type SessionSummary = EntityRecord & {
   cwd?: string
   streaming?: boolean
   plan?: Plan | null
+  lineage?: {
+    parentSessionId?: string
+    sourceEntryId?: string
+    sourceSessionName?: string
+    derivedAt?: string | null
+    childSessionIds?: string[]
+  } | null
 }
 
 export type SessionState = EntityRecord & {

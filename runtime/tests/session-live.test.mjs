@@ -292,8 +292,11 @@ test('persisted transcript binds reasoning and tool activity to the completed Ag
   assert.equal(firstRun.tools[0].name, 'bash')
   assert.equal(firstRun.tools[0].status, 'done')
   assert.equal(firstRun.tools[0].output, 'all tests passed')
+  assert.equal(page.messages[2].turnBoundaryEntryId, 'message-5')
   assert.equal(page.messages[4].runActivity.thinkingText, 'Handle only the new round.')
   assert.equal(page.messages[4].runActivity.tools.length, 0)
+  assert.equal(page.messages[4].turnBoundaryEntryId, 'message-7')
+  assert.equal(page.messages[6].turnBoundaryEntryId, undefined)
   assert.equal(
     page.messages[6].runActivity.thinkingText,
     'Persist activity before the final response.',

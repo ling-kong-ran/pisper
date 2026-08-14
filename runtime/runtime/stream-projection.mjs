@@ -10,6 +10,7 @@ import { PLAN_ALL_TOOL_NAMES } from '../tools/app/plan.mjs'
 import { attachGeneratedAssets } from '../services/session-assets.mjs'
 import { permissionModeForExecutionMode } from '../security/execution-mode.mjs'
 import { effectiveCompactionSettings } from './compaction-policy.mjs'
+import { isCompletedTurnBoundaryMessage } from './session-derivation.mjs'
 
 export const MAX_LIVE_ACTIVITY_ITEMS = 6
 export const MAX_LIVE_THINKING_CHARS = 6_000
@@ -172,7 +173,7 @@ function serializedTimestamp(value) {
   return Number.isNaN(date.getTime()) ? null : date.toISOString()
 }
 
-export function serializeTranscriptMessages(messages, resolveImageUrl = null) {
+export function serializeTranscriptMessages(messages, resolveImageUrl = null, entryIds = []) {
   const result = []
   let thinkingParts = []
   let tools = new Map()
@@ -286,6 +287,10 @@ export function serializeTranscriptMessages(messages, resolveImageUrl = null) {
           timestamp: message.timestamp || null,
           error: message.errorMessage || null,
           attachments: [],
+        }
+        const boundaryEntryId = String(entryIds[index] || '')
+        if (boundaryEntryId && isCompletedTurnBoundaryMessage(message)) {
+          item.turnBoundaryEntryId = boundaryEntryId
         }
         result.push(item)
         runResultIndex = result.length - 1
@@ -713,15 +718,37 @@ export class StreamProjection {
     let messages
     if (active) {
       this.touchSessionRuntime(active)
-      messages = this.cache.transcript(id, active.session.messages, () =>
-        serializeTranscriptMessages(active.session.messages),
-      )
+      const source = active.session.messages
+      messages = this.cache.transcript(id, source, () => {
+        const entryIdByMessage = new Map(
+          (active.session.sessionManager?.getBranch?.() || [])
+            .filter((entry) => entry?.type === 'message')
+            .map((entry) => [entry.message, entry.id]),
+        )
+        return serializeTranscriptMessages(
+          source,
+          null,
+          source.map((message) => entryIdByMessage.get(message) || ''),
+        )
+      })
     } else {
       const info = await this.findSessionInfo(id)
       if (!info) return []
       const manager = this.openStoredSession(info.path)
       const source = manager.buildSessionContext().messages
-      messages = this.cache.transcript(id, source, () => serializeTranscriptMessages(source))
+      const entryIdByMessage = new Map(
+        manager
+          .getBranch()
+          .filter((entry) => entry?.type === 'message')
+          .map((entry) => [entry.message, entry.id]),
+      )
+      messages = this.cache.transcript(id, source, () =>
+        serializeTranscriptMessages(
+          source,
+          null,
+          source.map((message) => entryIdByMessage.get(message) || ''),
+        ),
+      )
     }
     return this.withGeneratedAssets(id, messages)
   }
@@ -902,9 +929,11 @@ export class StreamProjection {
     }
     let messages = history.serializedSize === history.size ? history.serializedMessages : null
     if (!messages) {
+      const messageEntries = branch.filter((entry) => entry?.type === 'message')
       messages = serializeTranscriptMessages(
-        branch.filter((entry) => entry?.type === 'message').map((entry) => entry.message),
+        messageEntries.map((entry) => entry.message),
         resolveImageUrl,
+        messageEntries.map((entry) => entry.id),
       )
       history.serializedSize = history.size
       history.serializedMessages = messages

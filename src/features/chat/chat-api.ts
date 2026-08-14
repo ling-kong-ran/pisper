@@ -61,6 +61,12 @@ export const chatApi = {
       data: { name, ...(cwd ? { cwd } : {}) },
     }),
 
+  deriveSession: (sessionId: string, boundaryEntryId: string, name: string) =>
+    requestJson<SessionSummary>(`${sessionPath(sessionId)}/derive`, {
+      method: 'POST',
+      data: { boundaryEntryId, name },
+    }),
+
   getConfig: () => requestJson<ChatConfigResponse>('/api/config'),
 
   updateCompactionPreference: (thresholdPercent: number) =>

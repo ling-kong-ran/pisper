@@ -135,6 +135,33 @@ test('manual session compaction API returns the runtime projection', async () =>
   assert.deepEqual(calls, ['session-1'])
 })
 
+test('session derivation API forwards the persisted turn boundary and display name', async () => {
+  const calls = []
+  const result = { id: 'derived-1', name: 'Source · Derived' }
+  const runtime = {
+    async deriveSession(sessionId, boundaryEntryId, name) {
+      calls.push({ sessionId, boundaryEntryId, name })
+      return result
+    },
+  }
+  const handler = createApiHandler(runtime)
+  const output = response()
+
+  assert.equal(
+    await handler(
+      request('POST', { boundaryEntryId: 'entry-1', name: 'Source · Derived' }),
+      output,
+      new URL('http://localhost/api/sessions/source-1/derive'),
+    ),
+    true,
+  )
+  assert.equal(output.status, 201)
+  assert.deepEqual(JSON.parse(output.body), result)
+  assert.deepEqual(calls, [
+    { sessionId: 'source-1', boundaryEntryId: 'entry-1', name: 'Source · Derived' },
+  ])
+})
+
 test('skills APIs forward the active session scope for global and project discovery', async () => {
   const calls = []
   const runtime = {

@@ -9,7 +9,7 @@ import {
   type ReactNode,
   type UIEvent,
 } from 'react'
-import { AlertTriangle, ArrowDown, FolderOpen, RefreshCw } from 'lucide-react'
+import { AlertTriangle, ArrowDown, FolderOpen, GitFork, RefreshCw } from 'lucide-react'
 import type { I18nValues } from '@/app/i18n'
 import { useI18n } from '@/app/use-i18n'
 import { BrandLogo } from '@/components/BrandLogo'
@@ -48,8 +48,10 @@ type FocusTranscriptProps = {
   error?: string
   scrollRequest?: number
   cwd?: string
+  lineage?: EntityRecord | null
   switchingCwd?: boolean
   onLoadOlder?: () => Promise<boolean> | boolean
+  onDerive: (boundaryEntryId: string) => Promise<void> | void
   onPromptSelect: (prompt: string) => void
   onWorkspace: () => void
 }
@@ -124,8 +126,10 @@ export function FocusTranscript({
   error,
   scrollRequest,
   cwd,
+  lineage,
   switchingCwd,
   onLoadOlder,
+  onDerive,
   onPromptSelect,
   onWorkspace,
 }: FocusTranscriptProps) {
@@ -252,6 +256,19 @@ export function FocusTranscript({
         onWheel={cancelProgrammaticScroll}
       >
         <div className="transcript-prefix" ref={transcriptPrefixRef}>
+          {lineage?.parentSessionId && (
+            <div
+              className="history-page-loader session-lineage"
+              data-pisper-parent-session={lineage.parentSessionId}
+            >
+              <GitFork size={13} />
+              <span>
+                {t('chat:focusSession.derivedFromSession', {
+                  name: lineage.sourceSessionName || t('chat:focusSession.unknownSourceSession'),
+                })}
+              </span>
+            </div>
+          )}
           {(hasOlder || loadingOlder || olderError) && (
             <div className="history-page-loader">
               {olderError ? (
@@ -292,6 +309,7 @@ export function FocusTranscript({
             scrollElement={transcriptElement}
             prefixRef={transcriptPrefixRef}
             onContentSizeChange={maintainBottom}
+            onDerive={onDerive}
           />
         )}
         {error && (

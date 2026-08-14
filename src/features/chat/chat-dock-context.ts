@@ -42,6 +42,7 @@ export type ChatDockContextValue = {
   resolveToolApproval: (sessionId: string, approvalId: string, approved: boolean) => Promise<void>
   selectSessionWorkspace: (session: SessionSummary) => Promise<void>
   renameSession: (session: SessionSummary) => Promise<void>
+  deriveSession: (session: SessionSummary, boundaryEntryId: string) => Promise<void>
   splitDockPanel: (panelId: string, direction: Exclude<SessionOpenDisposition, 'open'>) => void
   closeDockPanel: (panelId: string) => void
 }

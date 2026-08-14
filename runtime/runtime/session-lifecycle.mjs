@@ -5,6 +5,7 @@ import {
   DEFAULT_EXECUTION_MODE,
   permissionModeForExecutionMode,
 } from '../security/execution-mode.mjs'
+import { isCompletedTurnBoundaryMessage } from './session-derivation.mjs'
 
 const DEFAULT_SESSION_NAME = '新会话'
 const MAX_RESIDENT_SESSION_RUNTIMES = 3
@@ -243,6 +244,12 @@ export class SessionLifecycle {
         ? `${settings.defaultProvider}/${settings.defaultModel}`
         : ''
     const defaultThinkingLevel = settings.defaultThinkingLevel || 'medium'
+    const childrenByParent = new Map()
+    for (const [childId, meta] of Object.entries(sessionMeta)) {
+      const parentId = String(meta?.parentSessionId || '')
+      if (!parentId) continue
+      childrenByParent.set(parentId, [...(childrenByParent.get(parentId) || []), childId])
+    }
     const sessionValue = (id, value) => ({
       permissionMode:
         sessionMeta[id]?.permissionMode ||
@@ -253,6 +260,17 @@ export class SessionLifecycle {
       agents: multiAgents
         .summaries(id)
         .filter((agent) => ['queued', 'starting', 'running'].includes(agent.status)),
+      lineage: sessionMeta[id]?.parentSessionId
+        ? {
+            parentSessionId: sessionMeta[id].parentSessionId,
+            sourceEntryId: sessionMeta[id].derivedFromEntryId || '',
+            sourceSessionName: sessionMeta[id].derivedFromSessionName || '',
+            derivedAt: sessionMeta[id].derivedAt || null,
+            childSessionIds: childrenByParent.get(id) || [],
+          }
+        : childrenByParent.has(id)
+          ? { childSessionIds: childrenByParent.get(id) }
+          : null,
       ...value,
     })
     const result = sessions.map((session) => {
@@ -270,7 +288,10 @@ export class SessionLifecycle {
             ).length
           : session.messageCount,
         model: contextModel,
-        thinkingLevel: active?.session.thinkingLevel || defaultThinkingLevel,
+        thinkingLevel:
+          active?.session.thinkingLevel ||
+          sessionMeta[session.id]?.thinkingLevel ||
+          defaultThinkingLevel,
         cwd: active?.cwd || sessionMeta[session.id]?.cwd || session.cwd || this.cwd,
         created: session.created.toISOString(),
         modified: active?.modified || session.modified.toISOString(),
@@ -371,6 +392,110 @@ export class SessionLifecycle {
       plan: this.getPlans().get(id),
       agents: [],
       contextUsage: null,
+    }
+  }
+
+  async deriveSession(id, boundaryEntryId, name) {
+    const sourceId = String(id || '').trim()
+    const entryId = String(boundaryEntryId || '').trim()
+    if (!sourceId || !entryId) throw new Error('衍生边界无效。')
+    const active = this.sessions.get(sourceId)
+    if (this.sessionRunIsActive(sourceId, active)) {
+      throw new Error('当前会话正在运行，请等待完成或停止后再衍生。')
+    }
+    if (this.pendingSessions.has(sourceId)) throw new Error('当前会话还没有可衍生的完整回复。')
+
+    const info = await this.findSessionInfo(sourceId)
+    const sourcePath = active?.session?.sessionFile || info?.path
+    const sourceFile = sourcePath ? await stat(sourcePath).catch(() => null) : null
+    if (!sourceFile?.isFile()) throw new Error('源会话不存在或尚未持久化。')
+    if (this.sessionRunIsActive(sourceId, this.sessions.get(sourceId))) {
+      throw new Error('当前会话正在运行，请等待完成或停止后再衍生。')
+    }
+
+    const manager = this.openStoredSession(sourcePath)
+    if (manager.getSessionId() !== sourceId) throw new Error('源会话标识不匹配。')
+    const branch = manager.getBranch()
+    const boundary = branch.find((entry) => entry?.id === entryId)
+    if (boundary?.type !== 'message' || !isCompletedTurnBoundaryMessage(boundary.message)) {
+      throw new Error('只能从已完成的 Agent 回复衍生会话。')
+    }
+
+    const sessionMeta = this.getSessionMeta()
+    const sourceMeta = sessionMeta[sourceId] || {}
+    const sourceName =
+      active?.name || sourceMeta.name || info?.name || info?.firstMessage || DEFAULT_SESSION_NAME
+    const derivedName =
+      this.cleanSessionTitle(name) || `${this.cleanSessionTitle(sourceName)} · 衍生`
+    const context = manager.buildSessionContext()
+    const now = new Date().toISOString()
+    let derivedPath = ''
+    let derivedId = ''
+    try {
+      derivedPath = manager.createBranchedSession(entryId) || ''
+      derivedId = manager.getSessionId()
+      if (!derivedPath || !derivedId || derivedId === sourceId) {
+        throw new Error('无法创建衍生会话文件。')
+      }
+      manager.appendSessionInfo(derivedName)
+      const model =
+        sourceMeta.model ||
+        (context.model?.provider && context.model.modelId
+          ? `${context.model.provider}/${context.model.modelId}`
+          : '')
+      const executionMode = this.getExecutionMode(sourceId)
+      sessionMeta[derivedId] = {
+        name: derivedName,
+        manual: true,
+        cwd: sourceMeta.cwd || active?.cwd || info?.cwd || manager.getCwd() || this.cwd,
+        executionMode,
+        permissionMode: sourceMeta.permissionMode || permissionModeForExecutionMode(executionMode),
+        ...(model ? { model } : {}),
+        thinkingLevel:
+          context.thinkingLevel ||
+          this.getSettingsManager().getGlobalSettings().defaultThinkingLevel ||
+          'medium',
+        parentSessionId: sourceId,
+        derivedFromEntryId: entryId,
+        derivedFromSessionName: sourceName,
+        derivedAt: now,
+      }
+      await this.saveSessionMeta()
+    } catch (error) {
+      if (derivedId && sessionMeta[derivedId]) delete sessionMeta[derivedId]
+      if (derivedPath) await unlink(derivedPath).catch(() => {})
+      throw error
+    }
+
+    this.invalidateProjection(derivedId)
+    await this.listStoredSessions({ refresh: true })
+    const derived = (await this.listSessions()).find((session) => session.id === derivedId)
+    if (derived) return derived
+    return {
+      id: derivedId,
+      name: derivedName,
+      firstMessage: info?.firstMessage || '',
+      messageCount: context.messages.filter((message) =>
+        ['user', 'assistant'].includes(message.role),
+      ).length,
+      model: sessionMeta[derivedId].model || '',
+      thinkingLevel: context.thinkingLevel,
+      cwd: sessionMeta[derivedId].cwd,
+      created: now,
+      modified: now,
+      streaming: false,
+      permissionMode: sessionMeta[derivedId].permissionMode,
+      executionMode: sessionMeta[derivedId].executionMode,
+      goal: null,
+      plan: null,
+      agents: [],
+      lineage: {
+        parentSessionId: sourceId,
+        sourceEntryId: entryId,
+        sourceSessionName: sourceName,
+        derivedAt: now,
+        childSessionIds: [],
+      },
     }
   }
 
