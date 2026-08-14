@@ -31,7 +31,7 @@ test('chat renders thinking and tool activity above one uninterrupted response b
   assert.match(activity, /className="agent-run-history"/)
 })
 
-test('tool activity uses a polished three-row scroll viewport without truncating records', async () => {
+test('tool activity uses a polished scroll viewport without truncating records', async () => {
   const [activity, styles] = await Promise.all([
     readFile('src/features/chat/AgentRunActivity.tsx', 'utf8'),
     readFile('src/index.css', 'utf8'),
@@ -40,11 +40,12 @@ test('tool activity uses a polished three-row scroll viewport without truncating
   assert.match(activity, /tabIndex=\{activities\.length > 3 \? 0 : undefined\}/)
   assert.match(activity, /if \(!streaming \|\| !activities\.length\) return undefined/)
   assert.match(activity, /node\.scrollTop = node\.scrollHeight/)
-  assert.match(styles, /\.agent-run-feed \{[^}]*max-height: 126px;[^}]*overflow-y: auto;/)
-  assert.match(styles, /\.agent-run-feed \{[^}]*border-left: 1px solid/)
+  assert.match(styles, /\.agent-run-feed \{[^}]*max-height: 184px;[^}]*overflow-y: auto;/)
+  assert.match(styles, /\.agent-run-feed \{[^}]*gap: 4px;/)
+  assert.match(styles, /\.agent-run-feed:has\(\.agent-run-command-output\[open\]\) \{[^}]*max-height: 320px;/)
   assert.doesNotMatch(styles, /\.agent-run-feed \{[^}]*background:/)
   assert.doesNotMatch(styles, /\.agent-run-feed\.live \{/)
-  assert.doesNotMatch(styles, /\.agent-run-summary\.current \{[^}]*background:/)
+  assert.match(styles, /\.agent-run-summary\.current \{[^}]*background:/)
   assert.doesNotMatch(styles, /\.agent-thinking-window\.running \{[^}]*background:/)
   assert.doesNotMatch(
     styles,
@@ -284,31 +285,26 @@ test('shared plan board opens from the composer progress metric', async () => {
   assert.doesNotMatch(board, /unblocks:/)
 })
 
-test('bash tool output stays multiline while terminal rendering remains bounded', async () => {
-  const [runtime, dispatcher, activity, terminal, terminalOutput, styles, packageJson] =
-    await Promise.all([
-      readFile('runtime/runtime/agent-runtime.mjs', 'utf8'),
-      readFile('src/features/chat/stream-event-dispatch.ts', 'utf8'),
-      readFile('src/features/chat/AgentRunActivity.tsx', 'utf8'),
-      readFile('src/components/ai-elements/terminal.tsx', 'utf8'),
-      readFile('src/lib/terminal-output.ts', 'utf8'),
-      readFile('src/index.css', 'utf8'),
-      readFile('package.json', 'utf8'),
-    ])
+test('bash tool output stays multiline in a bounded theme-aware result block', async () => {
+  const [runtime, dispatcher, activity, terminalOutput, styles, packageJson] = await Promise.all([
+    readFile('runtime/runtime/agent-runtime.mjs', 'utf8'),
+    readFile('src/features/chat/stream-event-dispatch.ts', 'utf8'),
+    readFile('src/features/chat/AgentRunActivity.tsx', 'utf8'),
+    readFile('src/lib/terminal-output.ts', 'utf8'),
+    readFile('src/index.css', 'utf8'),
+    readFile('package.json', 'utf8'),
+  ])
   assert.match(runtime, /const rawOutput = textFromContent\(event\.partialResult\?\.content\)/)
   assert.match(runtime, /event\.toolName === 'bash' \? \{ output: rawOutput \} : \{\}/)
   assert.match(runtime, /const resultOutput = event\.toolName === 'bash'/)
   assert.match(dispatcher, /data\.output !== undefined \? \{ output: data\.output \} : \{\}/)
-  assert.match(activity, /import\('@\/components\/ai-elements\/terminal'\)/)
+  assert.doesNotMatch(activity, /components\/ai-elements\/terminal/)
   assert.match(activity, /activity\.name === 'bash'/)
-  assert.match(activity, /output=\{String\(activity\.output \|\| ''\)\}/)
-  assert.doesNotMatch(terminal, /ansi-to-react/)
-  assert.match(terminal, /\{display\.text\}/)
-  assert.match(terminal, /TERMINAL_STREAM_PAINT_INTERVAL_MS = 500/)
-  assert.match(terminal, /setRenderedOutput\(latestOutputRef\.current\)/)
-  assert.match(terminal, /containerRef\.current\.scrollTop = containerRef\.current\.scrollHeight/)
+  assert.match(activity, /terminalDisplayOutput\(output\)/)
+  assert.match(activity, /className="agent-run-command-output"/)
   assert.match(terminalOutput, /MAX_TERMINAL_DISPLAY_CHARS = 4_000/)
-  assert.match(styles, /\.agent-run-terminal \{/)
+  assert.match(styles, /\.agent-run-command-output \{/)
+  assert.match(styles, /\.agent-run-command-output > pre \{[^}]*max-height: 112px;/)
   assert.equal(JSON.parse(packageJson).dependencies['ansi-to-react'], undefined)
 })
 

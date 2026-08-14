@@ -1,12 +1,12 @@
 import { lazy, memo, Suspense, useEffect, useRef, useState, type ReactNode } from 'react'
-import { AlertTriangle, Check, ChevronRight, Clock3, RefreshCw, Square } from 'lucide-react'
+import { AlertTriangle, Check, ChevronRight, Clock3, Code2, RefreshCw, Square } from 'lucide-react'
 import { useI18n } from '@/app/use-i18n'
 import { Plan } from '@/components/ai-elements/plan'
 import { Task } from '@/components/ai-elements/task'
-import { Tool } from '@/components/ai-elements/tool'
 import MarkdownMessage from '@/components/MarkdownMessage'
 import { formatTokenCount } from '@/lib/format'
 import { isPlanReadTool, isPlanWriteTool, planFromActivity } from '@/lib/plan-protocol'
+import { terminalDisplayOutput } from '@/lib/terminal-output'
 import type { I18nValues } from '@/app/i18n'
 import type { EntityRecord } from '@/types/chat'
 import {
@@ -20,9 +20,6 @@ import {
 } from './run-activity'
 
 const EMPTY_LIST: EntityRecord[] = []
-const Terminal = lazy(() =>
-  import('@/components/ai-elements/terminal').then((module) => ({ default: module.Terminal })),
-)
 const AnimatedList = lazy(() =>
   import('@/components/react-bits/AnimatedList').then((module) => ({
     default: module.AnimatedList,
@@ -344,12 +341,9 @@ function ActivityElement({
 }) {
   if (activity.type === 'tool') {
     return (
-      <Tool
-        className={`${className} !mb-0 !rounded-none !border-0`}
-        data-pisper-activity-type="tool"
-      >
+      <div className={className} data-pisper-activity-type="tool">
         {children}
-      </Tool>
+      </div>
     )
   }
   if (activity.type === 'plan') {
@@ -373,6 +367,49 @@ function ActivityElement({
     <div className={className} data-pisper-activity-type={activity.type}>
       {children}
     </div>
+  )
+}
+
+function CommandOutput({
+  output,
+  streaming,
+  t,
+}: {
+  output: unknown
+  streaming: boolean
+  t: Translate
+}) {
+  const display = terminalDisplayOutput(output)
+  const outputRef = useRef<HTMLPreElement>(null)
+
+  useEffect(() => {
+    if (!streaming) return undefined
+    const frame = window.requestAnimationFrame(() => {
+      const node = outputRef.current
+      if (node) node.scrollTop = node.scrollHeight
+    })
+    return () => window.cancelAnimationFrame(frame)
+  }, [display.text, streaming])
+
+  if (!display.text.trim()) return null
+
+  return (
+    <details
+      className="agent-run-command-output"
+      data-truncated={display.truncated || undefined}
+      open={streaming || undefined}
+    >
+      <summary>
+        <Code2 size={13} />
+        <span>
+          {streaming
+            ? t('chat:agentRunActivity.liveCommandOutput')
+            : t('chat:agentRunActivity.commandOutput')}
+        </span>
+        <ChevronRight className="agent-run-disclosure" size={13} />
+      </summary>
+      <pre ref={outputRef}>{display.text}</pre>
+    </details>
   )
 }
 
@@ -464,7 +501,7 @@ const ActivityCard = memo(function ActivityCard({
     now,
   })
   const duration = formatRunDuration(activityDurationMs(activity, runStartedAt, now), language)
-  const showTerminal = activity.name === 'bash' && latest
+  const showCommandOutput = activity.name === 'bash' && latest && Boolean(activity.output)
   return (
     <ActivityElement
       activity={activity}
@@ -499,31 +536,24 @@ const ActivityCard = memo(function ActivityCard({
             )}
           </span>
         )}
-        {!showTerminal && presentation.output && presentation.output !== presentation.detail && (
-          <small className="agent-run-output" title={presentation.output}>
-            {presentation.output}
-          </small>
-        )}
+        {!showCommandOutput &&
+          presentation.output &&
+          presentation.output !== presentation.detail && (
+            <small className="agent-run-output" title={presentation.output}>
+              {presentation.output}
+            </small>
+          )}
       </span>
       <span className="agent-run-duration">
         <Clock3 size={12} />
         {duration}
       </span>
-      {showTerminal && (
-        <Suspense
-          fallback={
-            <pre className="agent-run-terminal agent-run-terminal-fallback">
-              {String(activity.output || '')}
-            </pre>
-          }
-        >
-          <Terminal
-            autoScroll
-            className="agent-run-terminal"
-            isStreaming={Boolean(streaming && activity.status === 'running')}
-            output={String(activity.output || '')}
-          />
-        </Suspense>
+      {showCommandOutput && (
+        <CommandOutput
+          output={activity.output}
+          streaming={Boolean(streaming && activity.status === 'running')}
+          t={t}
+        />
       )}
     </ActivityElement>
   )
