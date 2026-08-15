@@ -10,6 +10,7 @@ import {
   appendTreePosition,
   projectSessionTree,
   projectSessionTreeLabels,
+  scanSessionTreeLabels,
 } from './session-tree.mjs'
 
 const DEFAULT_SESSION_NAME = '新会话'
@@ -434,20 +435,24 @@ export class SessionLifecycle {
     const limit = Number.isFinite(requestedLimit)
       ? Math.max(1, Math.min(50, Math.floor(requestedLimit)))
       : 20
+    // 流式只扫 label 行 + id→parentId 索引，不加载会话树或消息内容。
+    const storedById = new Map((await this.listStoredSessions()).map((s) => [s.id, s]))
     const sessions = (await this.listSessions()).sort(
       (left, right) => Date.parse(right.modified || '') - Date.parse(left.modified || ''),
     )
     const matches = []
     for (const session of sessions) {
+      const stored = storedById.get(session.id)
+      if (!stored?.path) continue
       try {
-        const manager = await this.sessionTreeManager(session.id)
-        for (const label of projectSessionTreeLabels(manager, session)) {
+        const labels = await scanSessionTreeLabels(stored.path, session)
+        for (const label of labels) {
           if (!label.label.toLocaleLowerCase().includes(keyword)) continue
           matches.push(label)
           if (matches.length >= limit) return matches
         }
       } catch {
-        // A session may be deleted between the catalog and tree reads.
+        // A session may be deleted between the catalog and file scans.
       }
     }
     return matches
@@ -538,22 +543,19 @@ export class SessionLifecycle {
     const entryId = String(boundaryEntryId || '').trim()
     if (!sourceId || !entryId) throw new Error('衍生边界无效。')
     const active = this.sessions.get(sourceId)
-    if (this.sessionRunIsActive(sourceId, active)) {
-      throw new Error('当前会话正在运行，请等待完成或停止后再衍生。')
-    }
     if (this.pendingSessions.has(sourceId)) throw new Error('当前会话还没有可衍生的完整回复。')
 
     const info = await this.findSessionInfo(sourceId)
     const sourcePath = active?.session?.sessionFile || info?.path
     const sourceFile = sourcePath ? await stat(sourcePath).catch(() => null) : null
     if (!sourceFile?.isFile()) throw new Error('源会话不存在或尚未持久化。')
-    if (this.sessionRunIsActive(sourceId, this.sessions.get(sourceId))) {
-      throw new Error('当前会话正在运行，请等待完成或停止后再衍生。')
-    }
 
+    // 从已完成的历史节点衍生时，即使源会话仍在流式生成也允许：
+    // 历史节点已持久化到磁盘，openStoredSession 只会读到最新写入点，
+    // 而 createBranchedSession 在独立的 manager 副本上写新文件，不触碰源会话。
     const manager = this.openStoredSession(sourcePath)
     if (manager.getSessionId() !== sourceId) throw new Error('源会话标识不匹配。')
-    const branch = manager.getBranch()
+    const branch = manager.getBranch(entryId)
     const boundary = branch.find((entry) => entry?.id === entryId)
     if (boundary?.type !== 'message' || !isCompletedTurnBoundaryMessage(boundary.message)) {
       throw new Error('只能从已完成的 Agent 回复衍生会话。')

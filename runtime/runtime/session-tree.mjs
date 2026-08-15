@@ -1,3 +1,5 @@
+import { createReadStream } from 'node:fs'
+import { createInterface } from 'node:readline'
 import { isCompletedTurnBoundaryMessage } from './session-derivation.mjs'
 
 const TREE_NAVIGATION_CUSTOM_TYPE = 'pisper.session-tree-position'
@@ -152,6 +154,80 @@ export function projectSessionTreeLabels(manager, session = {}) {
 
 export function appendTreePosition(manager, targetId) {
   return manager.appendCustomEntry(TREE_NAVIGATION_CUSTOM_TYPE, { targetId })
+}
+
+export async function scanSessionTreeLabels(path, session = {}) {
+  if (!path) return []
+  const labelEntries = []
+  const parentById = new Map()
+  const assistantIds = new Set()
+  let header = null
+  let name = ''
+  let lastId = ''
+  const lines = createInterface({
+    input: createReadStream(path, { encoding: 'utf8' }),
+    crlfDelay: Infinity,
+  })
+  const field = (line, key) => {
+    const needle = `"${key}":"`
+    const start = line.indexOf(needle)
+    if (start < 0) return null
+    const from = start + needle.length
+    const end = line.indexOf('"', from)
+    return end < 0 ? null : line.slice(from, end)
+  }
+  for await (const line of lines) {
+    if (line.startsWith('{"type":"session"')) {
+      if (!header) {
+        try {
+          header = JSON.parse(line)
+        } catch {}
+      }
+      continue
+    }
+    if (line.startsWith('{"type":"session_info"')) {
+      try {
+        const entry = JSON.parse(line)
+        if (entry.name) name = entry.name
+      } catch {}
+      continue
+    }
+    if (line.startsWith('{"type":"label"')) {
+      try {
+        const entry = JSON.parse(line)
+        if (entry.label && entry.targetId) {
+          labelEntries.push({ entryId: entry.targetId, label: entry.label, timestamp: entry.timestamp })
+        }
+      } catch {}
+      continue
+    }
+    const id = field(line, 'id')
+    if (!id) continue
+    lastId = id
+    parentById.set(id, field(line, 'parentId'))
+    if (line.startsWith('{"type":"message"') && line.includes('"role":"assistant"')) {
+      assistantIds.add(id)
+    }
+  }
+  const completed = labelEntries.filter((labelEntry) => assistantIds.has(labelEntry.entryId))
+  if (!completed.length) return []
+  const activeIds = new Set()
+  for (let cursor = lastId; cursor; cursor = parentById.get(cursor) || '') {
+    if (activeIds.has(cursor)) break
+    activeIds.add(cursor)
+  }
+  const iso = (value) => (value instanceof Date ? value.toISOString() : String(value || ''))
+  return completed.map((labelEntry) => ({
+    sessionId: session.id || header?.id || '',
+    sessionName: String(session.name || name || ''),
+    sessionCreated: iso(session.created || header?.timestamp),
+    sessionModified: iso(session.modified),
+    entryId: labelEntry.entryId,
+    label: labelEntry.label,
+    summary: '',
+    nodeTimestamp: String(labelEntry.timestamp || ''),
+    active: activeIds.has(labelEntry.entryId),
+  }))
 }
 
 export { TREE_NAVIGATION_CUSTOM_TYPE }

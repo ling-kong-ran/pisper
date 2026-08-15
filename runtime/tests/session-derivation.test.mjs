@@ -105,9 +105,11 @@ test('session derivation extracts a completed turn without changing its source s
   const sourceSummary = summaries.find((session) => session.id === sourceId)
   assert.deepEqual(sourceSummary.lineage.childSessionIds, [derived.id])
 
+  // 源会话流式生成期间，仍可从已完成的历史节点衍生（历史节点已持久化）。
   runtime.liveSessions.set(sourceId, { streaming: true })
-  await assert.rejects(
-    runtime.deriveSession(sourceId, firstBoundaryId, 'Running derivation'),
-    /当前会话正在运行/,
-  )
+  const duringRun = await runtime.deriveSession(sourceId, firstBoundaryId, 'Running derivation')
+  assert.notEqual(duringRun.id, sourceId)
+  assert.equal(duringRun.lineage.sourceEntryId, firstBoundaryId)
+  assert.equal(duringRun.lineage.parentSessionId, sourceId)
+  runtime.liveSessions.delete(sourceId)
 })

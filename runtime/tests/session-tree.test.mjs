@@ -203,7 +203,7 @@ test('runtime navigation uses AgentSession tree semantics and survives a cold re
       sessionModified: labelMatches[0].sessionModified,
       entryId: entries.firstAssistant,
       label: 'Resume here',
-      summary: 'First answer',
+      summary: '',
       nodeTimestamp: labelMatches[0].nodeTimestamp,
       active: true,
     },
