@@ -1,7 +1,7 @@
 import { mkdir, open, readFile, stat, unlink, writeFile } from 'node:fs/promises'
 import { createHash, randomUUID } from 'node:crypto'
 import { basename, extname, isAbsolute, join, resolve, sep } from 'node:path'
-import { createAgentSession, SessionManager, SettingsManager } from './pi-coding-agent.mjs'
+import { createAgentSession, createCompressedReadTool, SessionManager, SettingsManager } from './pi-coding-agent.mjs'
 import { ensureSessionFilePersisted } from './session-file-persist.mjs'
 import {
   capturePromptCacheShape,
@@ -1734,6 +1734,7 @@ export class AgentRuntimeService extends AgentRuntimeFacade {
         ...MULTI_AGENT_TOOL_NAMES,
       ],
       customTools: [
+        await createCompressedReadTool(effectiveCwd),
         ...inheritedCustomTools,
         toolDiscovery,
         toolGateway,

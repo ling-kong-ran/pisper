@@ -1,3 +1,6 @@
+import { constants } from 'node:fs'
+import { access as fsAccess, readFile as fsReadFile } from 'node:fs/promises'
+
 // The public entry eagerly loads CLI/TUI modules; resolve focused headless modules and defer Agent-only code.
 const packageEntryUrl = import.meta.resolve('@earendil-works/pi-coding-agent')
 
@@ -69,4 +72,49 @@ export async function loadSkills(options) {
 export async function createBashTool(cwd, options) {
   const runtime = await packageModule('./core/tools/bash.js')
   return runtime.createBashTool(cwd, options)
+}
+
+export async function createReadTool(cwd, options) {
+  const runtime = await packageModule('./core/tools/read.js')
+  return runtime.createReadTool(cwd, options)
+}
+
+export async function resizeImage(bytes, mimeType, options) {
+  const runtime = await packageModule('./utils/image-resize.js')
+  return runtime.resizeImage(bytes, mimeType, options)
+}
+
+export async function detectSupportedImageMimeTypeFromFile(filePath) {
+  const runtime = await packageModule('./utils/mime.js')
+  return runtime.detectSupportedImageMimeTypeFromFile(filePath)
+}
+
+const COMPACTABLE_IMAGE_MIME = new Set(['image/png', 'image/jpeg'])
+
+// 覆盖内置 read：读图时用 1024px/1MB 的更激进上限压降 base64，其余行为与 Pi 内置 read 一致。
+export async function createCompressedReadTool(cwd) {
+  const readImage = async (filePath) => {
+    const buffer = await fsReadFile(filePath)
+    let mimeType
+    try {
+      mimeType = await detectSupportedImageMimeTypeFromFile(filePath)
+    } catch {
+      mimeType = undefined
+    }
+    if (!mimeType || !COMPACTABLE_IMAGE_MIME.has(mimeType)) return buffer
+    const resized = await resizeImage(buffer, mimeType, {
+      maxWidth: 1024,
+      maxHeight: 1024,
+      maxBytes: 1024 * 1024,
+    })
+    if (!resized?.data || (resized.mimeType && resized.mimeType !== mimeType)) return buffer
+    return Buffer.from(resized.data, 'base64')
+  }
+  return createReadTool(cwd, {
+    operations: {
+      readFile: readImage,
+      access: (path) => fsAccess(path, constants.R_OK),
+      detectImageMimeType: detectSupportedImageMimeTypeFromFile,
+    },
+  })
 }
