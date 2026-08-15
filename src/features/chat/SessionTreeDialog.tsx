@@ -315,8 +315,10 @@ export function SessionTreeDialog({
   }, [open])
 
   // 首次切到「全部标记」页签时拉取跨会话标记列表（搜索索引已持久化，代价很低）。
+  // 注意：marksLoading 只作防重入守卫，不能进依赖数组——effect 内同步 setState
+  // 会触发重跑并把在途请求的 active 置 false，导致永远停在加载态。
   useEffect(() => {
-    if (!open || view !== 'marks' || marksLoaded || marksLoading) return
+    if (!open || view !== 'marks' || marksLoaded) return
     let active = true
     setMarksLoading(true)
     setError('')
@@ -332,7 +334,7 @@ export function SessionTreeDialog({
     return () => {
       active = false
     }
-  }, [open, view, marksLoaded, marksLoading])
+  }, [open, view, marksLoaded])
 
   const visibleMarks = useMemo(() => {
     const needle = query.trim().toLocaleLowerCase(language)
