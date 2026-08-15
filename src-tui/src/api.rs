@@ -722,7 +722,9 @@ impl SseDecoder {
             self.event.clear();
             return Ok(());
         }
-        let data = serde_json::from_str(&self.data_lines.join("\n"))
+        let raw = self.data_lines.join("\n");
+        let data = serde_json::from_str(&raw)
+            .or_else(|_| serde_json::from_str(&repair_json_surrogates(&raw)))
             .context("invalid JSON in SSE event")?;
         events.push(StreamEvent {
             name: if self.event.is_empty() {
@@ -737,9 +739,106 @@ impl SseDecoder {
     }
 }
 
+/// Older runtimes could emit a lone `\uDxxx` escape when UTF-16 code-unit
+/// slicing cut a surrogate pair in half. Browsers tolerate it, but serde_json
+/// rejects it and aborts the whole stream. Repair lone surrogate escapes to
+/// U+FFFD so a version-mismatched runtime still degrades gracefully.
+fn repair_json_surrogates(input: &str) -> String {
+    let bytes = input.as_bytes();
+    let mut out = String::with_capacity(input.len());
+    let mut in_string = false;
+    let mut i = 0;
+    while i < bytes.len() {
+        let b = bytes[i];
+        if b == b'"' {
+            in_string = !in_string;
+            out.push('"');
+            i += 1;
+            continue;
+        }
+        if b == b'\\' && in_string {
+            if i + 1 < bytes.len() {
+                match bytes[i + 1] {
+                    b'"' | b'\\' | b'/' | b'b' | b'f' | b'n' | b'r' | b't' => {
+                        out.push('\\');
+                        out.push(bytes[i + 1] as char);
+                        i += 2;
+                        continue;
+                    }
+                    b'u' => {
+                        if let Some(hex) = parse_hex4(bytes, i + 2) {
+                            if is_high_surrogate(hex) {
+                                if peek_low_surrogate(bytes, i + 6).is_some() {
+                                    out.push_str(&input[i..i + 12]);
+                                    i += 12;
+                                } else {
+                                    out.push_str("\\ufffd");
+                                    i += 6;
+                                }
+                                continue;
+                            }
+                            if is_low_surrogate(hex) {
+                                out.push_str("\\ufffd");
+                                i += 6;
+                                continue;
+                            }
+                            out.push_str(&input[i..i + 6]);
+                            i += 6;
+                            continue;
+                        }
+                    }
+                    _ => {}
+                }
+            }
+            out.push('\\');
+            i += 1;
+            continue;
+        }
+        let ch = input[i..].chars().next().unwrap();
+        out.push(ch);
+        i += ch.len_utf8();
+    }
+    out
+}
+
+fn parse_hex4(bytes: &[u8], start: usize) -> Option<u16> {
+    if start + 4 > bytes.len() {
+        return None;
+    }
+    let mut value = 0u16;
+    for &b in &bytes[start..start + 4] {
+        let digit = match b {
+            b'0'..=b'9' => b - b'0',
+            b'a'..=b'f' => b - b'a' + 10,
+            b'A'..=b'F' => b - b'A' + 10,
+            _ => return None,
+        };
+        value = value * 16 + u16::from(digit);
+    }
+    Some(value)
+}
+
+fn peek_low_surrogate(bytes: &[u8], start: usize) -> Option<u16> {
+    if start + 6 > bytes.len() || bytes[start] != b'\\' || bytes[start + 1] != b'u' {
+        return None;
+    }
+    let hex = parse_hex4(bytes, start + 2)?;
+    is_low_surrogate(hex).then_some(hex)
+}
+
+fn is_high_surrogate(value: u16) -> bool {
+    (0xD800..=0xDBFF).contains(&value)
+}
+
+fn is_low_surrogate(value: u16) -> bool {
+    (0xDC00..=0xDFFF).contains(&value)
+}
+
 #[cfg(test)]
 mod tests {
-    use super::{prepare_attachments, runtime_options, RuntimeConfig, SseDecoder};
+    use super::{
+        prepare_attachments, repair_json_surrogates, runtime_options, RuntimeConfig, SseDecoder,
+    };
 
     #[test]
     fn runtime_model_options_exclude_unconfigured_providers() {
@@ -825,5 +924,46 @@ mod tests {
         assert_eq!(events[0].name, "text_patch");
         assert_eq!(events[0].data["text"], "hello");
         assert_eq!(events[1].name, "done");
+    }
+
+    #[test]
+    fn repair_json_surrogates_normalises_lone_escapes_and_keeps_pairs() {
+        // Lone high surrogate becomes U+FFFD.
+        assert_eq!(
+            repair_json_surrogates("{\"delta\":\"\\ud83d\"}"),
+            "{\"delta\":\"\\ufffd\"}"
+        );
+        // Lone low surrogate becomes U+FFFD.
+        assert_eq!(
+            repair_json_surrogates("{\"delta\":\"\\ude00\"}"),
+            "{\"delta\":\"\\ufffd\"}"
+        );
+        // A valid pair is preserved byte-for-byte.
+        let pair = "{\"delta\":\"\\ud83d\\ude00\"}";
+        assert_eq!(repair_json_surrogates(pair), pair);
+        // Escaped quotes and backslashes do not flip the in-string state.
+        assert_eq!(
+            repair_json_surrogates("{\"a\":\"\\\"\\ud83d\"}"),
+            "{\"a\":\"\\\"\\ufffd\"}"
+        );
+        // Non-surrogate \u escapes are untouched.
+        assert_eq!(
+            repair_json_surrogates("{\"a\":\"\\u4e2d\"}"),
+            "{\"a\":\"\\u4e2d\"}"
+        );
+    }
+
+    #[test]
+    fn sse_decoder_recovers_from_lone_surrogate_escapes() {
+        let mut decoder = SseDecoder::default();
+        let events = decoder
+            .push(
+                b"event: text_delta\ndata: {\"delta\":\"\\ud83d\"}\n\n",
+                true,
+            )
+            .unwrap();
+        assert_eq!(events.len(), 1);
+        assert_eq!(events[0].name, "text_delta");
+        assert_eq!(events[0].data["delta"], "\u{FFFD}");
     }
 }

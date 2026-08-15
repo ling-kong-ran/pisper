@@ -132,6 +132,7 @@ When a detected component is **Runtime** or **TUI**, `npm run release` automatic
 - ESM `.mjs` modules; keep API handlers in `runtime/http/`, domain logic in `runtime/services/`, Pi wiring in `runtime/runtime/`.
 - App tools: one module under `runtime/tools/app/` exporting `manifest` and a `create…Tool(context)` factory using `defineTool()`. Register in `runtime/tools/app/index.mjs`. Factories take `cwd`/service deps—do not couple tools directly to `AgentRuntimeService`.
 - Tests are colocated as `runtime/tests/*.test.mjs`. Prefer extending existing service/runtime tests when behavior changes.
+- Runtime changes must stay compatible with **both** clients: the React web UI (`src/`) and the Rust TUI (`src-tui/`). Anything the runtime emits over HTTP (JSON bodies and SSE frames) must be strict, valid JSON/UTF-8 that both `JSON.parse` and `serde_json` accept — the browser tolerates lone surrogates and other lenient encodings that `serde_json` rejects and that tear down the whole TUI stream. When touching runtime wire output, run `npm test` and `npm run tui:check` / `npm run tui:test`.
 
 ### Shared / desktop / TUI
 
