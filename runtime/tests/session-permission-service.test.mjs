@@ -359,6 +359,55 @@ test('approved commands persist on disk and are reused after service recreation'
   secondService.dispose()
 })
 
+test('approved dangerous bash commands are reused even with a different timeout', async () => {
+  const service = new SessionPermissionService({
+    getMode: () => 'auto',
+    getExecutionMode: () => 'workspace-write',
+    timeoutMs: 5000,
+  })
+  const cwd = resolve('workspace')
+
+  // First run of a dangerous command requires approval.
+  const first = service.authorize({
+    sessionId: 'session-danger',
+    cwd,
+    toolName: 'bash',
+    toolCallId: 'danger-1',
+    args: { command: 'rm -rf node_modules', timeout: 30 },
+  })
+  const [approval] = await waitForPending(service, 'session-danger')
+  assert.match(approval.reason, /命令守卫拦截/)
+  service.resolve('session-danger', approval.id, true)
+  assert.equal(await first, undefined)
+
+  // The same command with a different timeout reuses the approval (no prompt).
+  assert.equal(
+    await service.authorize({
+      sessionId: 'session-danger',
+      cwd,
+      toolName: 'bash',
+      toolCallId: 'danger-2',
+      args: { command: 'rm -rf node_modules', timeout: 60 },
+    }),
+    undefined,
+  )
+  assert.deepEqual(service.getPending('session-danger'), [])
+
+  // A different dangerous command still requires its own approval.
+  const other = service.authorize({
+    sessionId: 'session-danger',
+    cwd,
+    toolName: 'bash',
+    toolCallId: 'danger-3',
+    args: { command: 'rm -rf dist' },
+  })
+  const [approval2] = await waitForPending(service, 'session-danger')
+  assert.match(approval2.reason, /命令守卫拦截/)
+  service.resolve('session-danger', approval2.id, true)
+  assert.equal(await other, undefined)
+  service.dispose()
+})
+
 test('approval API treats a repeated resolution as an idempotent success', async () => {
   const calls = []
   const handler = createApiHandler({
@@ -416,4 +465,41 @@ test('session hook preserves upstream tool blockers before permission checks', a
   assert.deepEqual(result, { block: true, reason: 'extension blocked' })
   assert.deepEqual(service.getPending('session-hook'), [])
   service.dispose()
+})
+
+test('command guard blocks catastrophic bash and routes recursive rm to approval', () => {
+  const cwd = resolve('workspace')
+  // Catastrophic command is blocked outright.
+  assert.deepEqual(
+    permissionRequirement({
+      mode: 'auto',
+      executionMode: 'workspace-write',
+      cwd,
+      toolName: 'bash',
+      args: { command: 'rm -rf /' },
+    }),
+    { block: true, risk: 'high', reason: '命令守卫拦截：递归删除根目录或家目录。' },
+  )
+  // Relative recursive rm requires approval even in automatic mode.
+  assert.deepEqual(
+    permissionRequirement({
+      mode: 'auto',
+      executionMode: 'workspace-write',
+      cwd,
+      toolName: 'bash',
+      args: { command: 'rm -rf node_modules' },
+    }),
+    { risk: 'high', reason: '命令守卫拦截：递归删除（rm -r）。请确认后执行。' },
+  )
+  // Ordinary bash stays approval-free in automatic mode.
+  assert.equal(
+    permissionRequirement({
+      mode: 'auto',
+      executionMode: 'workspace-write',
+      cwd,
+      toolName: 'bash',
+      args: { command: 'ls -la' },
+    }),
+    null,
+  )
 })

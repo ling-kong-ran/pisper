@@ -1,6 +1,7 @@
 import { createBashTool } from '../runtime/pi-coding-agent.mjs'
 import { Type } from 'typebox'
 import { applyWindowsUtf8Environment } from './windows-utf8-bash.mjs'
+import { formatGuardError, guardCommand } from './command-guard.mjs'
 
 const HOST_BASH_SCHEMA = Type.Object({
   command: Type.String({ description: 'Shell command to execute' }),
@@ -52,14 +53,19 @@ export function hostCommandEnvironment(environment = {}) {
 
 export async function createPisperBashTool(cwd, { platform = process.platform } = {}) {
   const localTool = await createBashTool(cwd, {
-    spawnHook: (context) =>
-      applyWindowsUtf8Environment(
+    spawnHook: (context) => {
+      const decision = guardCommand(context.command, { platform })
+      if (decision.blocked && decision.severity === 'block') {
+        throw new Error(formatGuardError(decision, context.command))
+      }
+      return applyWindowsUtf8Environment(
         {
           ...context,
           env: hostCommandEnvironment(context.env),
         },
         platform,
-      ),
+      )
+    },
   })
   return {
     ...localTool,

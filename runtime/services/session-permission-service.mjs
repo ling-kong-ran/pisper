@@ -5,6 +5,7 @@ import { readJson, writeJsonAtomic } from '../storage/json-file.mjs'
 import { PLAN_ALL_TOOL_NAMES } from '../tools/app/plan-tool-names.mjs'
 import { TOOL_CATALOG } from '../tools/registry.mjs'
 import { createFileChangePreview, sameFileChangeSource } from './file-change-preview.mjs'
+import { guardCommand } from '../tools/command-guard.mjs'
 
 export const PERMISSION_MODES = new Set(['ask', 'auto', 'ignore'])
 export const DEFAULT_PERMISSION_MODE = 'auto'
@@ -36,8 +37,14 @@ function stableValue(value) {
 }
 
 function approvalKey({ cwd, toolName, args }) {
+  // For bash, remember the approval on the command text only, so an identical
+  // command with a different timeout still reuses the user's earlier approval.
+  const normalizedArgs =
+    toolName === 'bash' && args && typeof args === 'object'
+      ? { command: String(args.command || '') }
+      : args
   return createHash('sha256')
-    .update(JSON.stringify([resolve(cwd), toolName, stableValue(args)]))
+    .update(JSON.stringify([resolve(cwd), toolName, stableValue(normalizedArgs)]))
     .digest('hex')
 }
 
@@ -116,6 +123,14 @@ export function permissionRequirement({ mode, executionMode, cwd, toolName, args
     }
   }
   if (['read', 'ls', 'grep', 'find'].includes(toolName)) return null
+  if (toolName === 'bash') {
+    const decision = guardCommand(String(args?.command || ''))
+    if (decision.blocked) {
+      const reason = `命令守卫拦截：${decision.reason}。`
+      if (decision.severity === 'block') return { block: true, risk: 'high', reason }
+      return { risk: 'high', reason: `${reason}请确认后执行。` }
+    }
+  }
   if (mode === 'auto') {
     if (
       toolName === 'browser_automation' &&
