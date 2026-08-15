@@ -233,14 +233,31 @@ export function validateBundle(report, budgets = BUNDLE_BUDGETS) {
   const entryCss = new Set(entry.css || [])
   if ([...entryCss].some((file) => file.includes('react-bits')))
     failures.push('React Bits CSS is owned by the application entry')
-  for (const source of REACT_BITS_DYNAMIC_SOURCES) {
-    const css = report.manifest[source]?.css || []
-    if (!css.some((file) => file.includes('react-bits')))
+  // 多个页面共用 React Bits 组件时，CSS 会随共享 chunk 一起打包；
+  // 只要消费方的静态依赖闭包里能加载到 react-bits CSS 即视为归属正确。
+  const transitiveCss = (key) => {
+    const visited = new Set()
+    const css = new Set()
+    const walk = (current) => {
+      if (visited.has(current)) return
+      visited.add(current)
+      const record = report.manifest[current]
+      if (!record) return
+      for (const file of record.css || []) css.add(file)
+      for (const imported of record.imports || []) walk(imported)
+    }
+    walk(key)
+    return css
+  }
+  for (const source of [
+    ...REACT_BITS_DYNAMIC_SOURCES,
+    'src/features/chat/ChatHistoryPage.tsx',
+    'src/features/chat/LabelsPage.tsx',
+  ]) {
+    const css = transitiveCss(source)
+    if (![...css].some((file) => file.includes('react-bits')))
       failures.push(`React Bits CSS is not attached to its consumer: ${source}`)
   }
-  const historyCss = report.manifest['src/features/chat/ChatHistoryPage.tsx']?.css || []
-  if (!historyCss.some((file) => file.includes('react-bits')))
-    failures.push('React Bits CSS is not attached to ChatHistoryPage')
 
   return failures
 }

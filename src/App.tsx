@@ -393,6 +393,7 @@ function App() {
         'chat',
         'config',
         'assets',
+        'labels',
         'plugins',
         'channels',
         'schedules',

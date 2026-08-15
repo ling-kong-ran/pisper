@@ -181,6 +181,23 @@ function MessageTreeLabel({ sessionId, entryId }: { sessionId: string; entryId: 
     }
   }
 
+  const remove = async () => {
+    if (saving || loading) return
+    setSaving(true)
+    setError('')
+    try {
+      const tree = await chatApi.setSessionTreeLabel(sessionId, entryId, '')
+      const nextLabel = tree.nodes.find((node) => node.id === entryId)?.label || ''
+      setLabel(nextLabel)
+      setSavedLabel(nextLabel)
+      setOpen(false)
+    } catch (reason) {
+      setError(chatErrorMessage(reason))
+    } finally {
+      setSaving(false)
+    }
+  }
+
   return (
     <Popover open={open} onOpenChange={setOpen}>
       <Tooltip>
@@ -224,8 +241,8 @@ function MessageTreeLabel({ sessionId, entryId }: { sessionId: string; entryId: 
               variant="ghost"
               title={t('chat:sessionTree.removeLabel')}
               aria-label={t('chat:sessionTree.removeLabel')}
-              disabled={!label || loading || saving}
-              onClick={() => setLabel('')}
+              disabled={loading || saving}
+              onClick={() => void remove()}
             >
               <Trash2 />
             </Button>

@@ -139,7 +139,11 @@ test('production Markdown surfaces delegate to one Streamdown adapter', async ()
   assert.match(adapter, /mode="streaming"/)
   assert.match(adapter, /plugins=\{streamdownPlugins\}/)
   assert.doesNotMatch(adapter, /ReactMarkdown|streaming-plain|prepareMarkdown/)
-  assert.match(pluginConfig, /createCodePlugin\(\{ themes: \['github-dark', 'github-dark'\] \}\)/)
+  // 代码高亮走自持有界插件（单例 highlighter + LRU token 缓存），
+  // 不再委托 @streamdown/code 的无界缓存实现。
+  assert.match(pluginConfig, /createBoundedCodePlugin\(\)/)
+  assert.match(pluginConfig, /MAX_TOKEN_CACHE_ENTRIES/)
+  assert.match(pluginConfig, /\['github-dark', 'github-dark'\]/)
   assert.match(pluginConfig, /\{ cjk, code: streamdownCode, math \}/)
   assert.match(chat, /<MarkdownMessage streaming=\{streaming\}>/)
   assert.match(activity, /<MarkdownMessage streaming=\{streaming\}>\{thinking\}<\/MarkdownMessage>/)

@@ -1,6 +1,7 @@
 export const PAGE_PATHS = Object.freeze({
   chat: '/chat',
   chatHistory: '/chat/history',
+  labels: '/labels',
   assets: '/assets',
   channels: '/channels',
   schedules: '/schedules',

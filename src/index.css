@@ -1199,6 +1199,7 @@ details[open] > summary .agent-run-disclosure { transform: rotate(90deg); }
 .palette-item-copy > small { overflow: hidden; color: var(--text-muted); font-size: 10px; text-overflow: ellipsis; white-space: nowrap; }
 .palette-item-hint { max-width: 180px; flex: none; overflow: hidden; color: var(--text-muted); font-size: 11px; text-overflow: ellipsis; white-space: nowrap; }
 .palette-empty { padding: 20px; color: var(--text-muted); font-size: 12px; text-align: center; }
+.palette-empty.palette-searching { padding: 8px 12px; }
 .provider-config-modal { width: min(620px,100%); }
 .modal-toggle-row { display: flex; min-height: 45px; align-items: center; justify-content: space-between; gap: 12px; margin-top: 10px; border: 1px solid var(--stroke-soft); border-radius: var(--r-sm); background: var(--surface-subtle); padding: 8px 10px; }
 .modal-toggle-row > span { display: flex; flex-direction: column; gap: 3px; }
@@ -1447,6 +1448,13 @@ details[open] > summary .agent-run-disclosure { transform: rotate(90deg); }
 }
 
 .memory-candidates-panel { min-height: 0; }
+.memory-auto-approve-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; border-bottom: 1px solid var(--stroke-soft); padding: 8px 0 10px; }
+.memory-auto-approve-row label { display: flex; min-width: 0; flex-direction: column; gap: 2px; }
+.memory-auto-approve-row label span { font-size: 12px; font-weight: 600; }
+.memory-auto-approve-row label small { color: var(--text-muted); font-size: 10px; line-height: 1.4; }
+.memory-auto-approve-input { display: flex; flex: none; align-items: center; gap: 5px; }
+.memory-auto-approve-input input { width: 64px; border: 1px solid var(--stroke-soft); border-radius: 6px; background: var(--surface-muted); padding: 4px 6px; color: var(--text); font-size: 12px; text-align: right; }
+.memory-auto-approve-input em { color: var(--text-muted); font-size: 11px; font-style: normal; }
 .memory-candidate-list { display: flex; max-height: 300px; flex-direction: column; gap: 8px; overflow: auto; }
 .memory-candidate { display: flex; flex-direction: column; gap: 5px; border: 1px solid var(--stroke-soft); border-radius: 8px; background: var(--surface-muted); padding: 8px; }
 .memory-candidate > strong { font-size: 12px; }.memory-candidate > span,.memory-candidate > small { color: var(--text-muted); font-size: 11px; line-height: 1.45; }

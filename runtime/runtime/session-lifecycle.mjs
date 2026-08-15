@@ -1,5 +1,5 @@
-import { stat, unlink } from 'node:fs/promises'
-import { resolve, sep } from 'node:path'
+import { readFile, rename, stat, unlink, writeFile } from 'node:fs/promises'
+import { dirname, resolve, sep } from 'node:path'
 import { SessionManager } from './pi-coding-agent.mjs'
 import {
   DEFAULT_EXECUTION_MODE,
@@ -8,6 +8,7 @@ import {
 import { isCompletedTurnBoundaryMessage } from './session-derivation.mjs'
 import {
   appendTreePosition,
+  isLineBoundary,
   projectSessionTree,
   scanSessionTreeLabels,
 } from './session-tree.mjs'
@@ -82,6 +83,14 @@ export class SessionLifecycle {
     this.invalidateProjection = invalidateProjection
     this.getRuntimeState = getRuntimeState
     this.setRuntimeVersion = setRuntimeVersion
+    // 会话文件标签扫描缓存：path → { mtimeMs, size, scannedBytes, lastId,
+    // activeChain, assistantIds, entries }。扫描结果同步持久化到索引文件，
+    // 重启后只需 stat 校验，不再全量遍历会话文件。
+    this.sessionLabelScanCache = new Map()
+    this.sessionLabelScans = new Map()
+    this.sessionLabelIndex = null
+    this.sessionLabelIndexDirty = false
+    this.sessionLabelIndexFlush = null
   }
 
   touchSessionRuntime(value) {
@@ -159,6 +168,12 @@ export class SessionLifecycle {
       this.invalidateProjection(id)
     }
     this.sessions.clear()
+    // 等标签索引的异步落盘链写完后才允许退出，避免临时文件残留。
+    if (this.sessionLabelIndexFlush) {
+      try {
+        await this.sessionLabelIndexFlush
+      } catch {}
+    }
   }
 
   invalidateSessionRuntimes() {
@@ -423,35 +438,189 @@ export class SessionLifecycle {
     })
   }
 
+  sessionLabelIndexPath() {
+    return resolve(dirname(this.sessionDir), 'pisper-session-label-index.json')
+  }
+
+  async ensureSessionLabelIndex() {
+    if (this.sessionLabelIndex) return this.sessionLabelIndex
+    let files = {}
+    try {
+      const parsed = JSON.parse(await readFile(this.sessionLabelIndexPath(), 'utf8'))
+      if (parsed && parsed.version === 1 && parsed.files && typeof parsed.files === 'object') {
+        files = parsed.files
+      }
+    } catch {
+      // 索引不存在或损坏时从零重建。
+    }
+    // 磁盘索引中的快照直接装入内存缓存：重启后只要文件 (mtime, size)
+    // 未变，搜索就完全不需要读会话文件。
+    for (const [path, snapshot] of Object.entries(files)) {
+      if (
+        !snapshot ||
+        !Array.isArray(snapshot.entries) ||
+        !Array.isArray(snapshot.activeChain) ||
+        !Array.isArray(snapshot.assistantIds)
+      )
+        continue
+      this.sessionLabelScanCache.set(path, snapshot)
+    }
+    this.sessionLabelIndex = files
+    this.sessionLabelIndexDirty = false
+    return this.sessionLabelIndex
+  }
+
+  flushSessionLabelIndex() {
+    if (!this.sessionLabelIndexDirty || !this.sessionLabelIndex) return
+    this.sessionLabelIndexDirty = false
+    const snapshot = JSON.stringify({ version: 1, files: this.sessionLabelIndex })
+    // 串行化写入：并发变更按顺序落盘，后写者胜。
+    this.sessionLabelIndexFlush = (this.sessionLabelIndexFlush || Promise.resolve())
+      .then(async () => {
+        const target = this.sessionLabelIndexPath()
+        const tmp = `${target}.${process.pid}.${Date.now()}.tmp`
+        try {
+          await writeFile(tmp, snapshot)
+          await rename(tmp, target)
+        } catch {
+          this.sessionLabelIndexDirty = true
+        }
+      })
+      .catch(() => {})
+    return this.sessionLabelIndexFlush
+  }
+
+  async rescanSessionLabelFile(path, fileStats, cached) {
+    // 文件变大且上次扫描边界在完整行尾时只扫新追加的字节；否则（变小、
+    // 原地重写、边界在半行中间）全量扫描，保证增量边界可靠。
+    const canTail = Boolean(
+      cached && cached.size < fileStats.size && (await isLineBoundary(path, cached.scannedBytes)),
+    )
+    const scanned = await scanSessionTreeLabels(path, canTail ? { previous: cached } : {})
+    const entries = scanned.labels.map((entry) => ({
+      sessionId: entry.sessionId,
+      sessionName: entry.sessionName,
+      sessionCreated: entry.sessionCreated,
+      entryId: entry.entryId,
+      label: entry.label,
+      nodeTimestamp: entry.nodeTimestamp,
+      active: entry.active,
+    }))
+    const next = {
+      mtimeMs: fileStats.mtimeMs,
+      size: fileStats.size,
+      scannedBytes: scanned.scannedBytes,
+      lastId: scanned.lastId,
+      activeChain: scanned.activeChain,
+      assistantIds: scanned.assistantIds,
+      entries,
+    }
+    this.sessionLabelScanCache.set(path, next)
+    while (this.sessionLabelScanCache.size > 400) {
+      const oldest = this.sessionLabelScanCache.keys().next().value
+      if (!oldest) break
+      this.sessionLabelScanCache.delete(oldest)
+      delete this.sessionLabelIndex?.[oldest]
+    }
+    const index = await this.ensureSessionLabelIndex()
+    index[path] = next
+    this.sessionLabelIndexDirty = true
+    void this.flushSessionLabelIndex()
+    return entries
+  }
+
+  async sessionTreeLabelEntries(path) {
+    let fileStats = null
+    try {
+      fileStats = await stat(path)
+    } catch {
+      // 文件在目录列举与扫描之间被删除。
+      this.sessionLabelScanCache.delete(path)
+      const index = await this.ensureSessionLabelIndex()
+      if (index[path]) {
+        delete index[path]
+        this.sessionLabelIndexDirty = true
+        void this.flushSessionLabelIndex()
+      }
+      return []
+    }
+    const cached = this.sessionLabelScanCache.get(path)
+    if (cached && cached.mtimeMs === fileStats.mtimeMs && cached.size === fileStats.size)
+      return cached.entries
+    // 同一文件的并发扫描共享一次结果（连续按键会触发多次搜索）。
+    let inflight = this.sessionLabelScans.get(path)
+    if (!inflight) {
+      inflight = this.rescanSessionLabelFile(path, fileStats, cached)
+      this.sessionLabelScans.set(path, inflight)
+      void inflight.finally(() => {
+        if (this.sessionLabelScans.get(path) === inflight) this.sessionLabelScans.delete(path)
+      })
+    }
+    return inflight
+  }
+
   async searchSessionTreeLabels(query, options = {}) {
     const keyword = String(query || '')
       .replace(/\s+/g, ' ')
       .trim()
       .toLocaleLowerCase()
       .slice(0, 80)
-    if (!keyword) return []
     const requestedLimit = Number(options?.limit)
+    // 空关键字 = 列出全部标签（标签页用）；有关键字时默认限制 20 条。
     const limit = Number.isFinite(requestedLimit)
-      ? Math.max(1, Math.min(50, Math.floor(requestedLimit)))
-      : 20
-    // 流式只扫 label 行 + id→parentId 索引，不加载会话树或消息内容。
+      ? Math.max(1, Math.min(1000, Math.floor(requestedLimit)))
+      : keyword
+        ? 20
+        : 500
+    // 流式只扫 label 行 + id→parentId 索引，不加载会话树或消息内容；
+    // 扫描结果按文件 (mtime, size) 缓存，未变化的会话不会重复读取；
+    // 冷启动时按批次并发扫描（每批 8 个文件），把首次搜索延迟压下去。
     const storedById = new Map((await this.listStoredSessions()).map((s) => [s.id, s]))
     const sessions = (await this.listSessions()).sort(
       (left, right) => Date.parse(right.modified || '') - Date.parse(left.modified || ''),
     )
-    const matches = []
+    const candidates = []
     for (const session of sessions) {
       const stored = storedById.get(session.id)
       if (!stored?.path) continue
-      try {
-        const labels = await scanSessionTreeLabels(stored.path, session)
-        for (const label of labels) {
-          if (!label.label.toLocaleLowerCase().includes(keyword)) continue
-          matches.push(label)
+      candidates.push({ session, path: stored.path })
+    }
+    const matches = []
+    const SCAN_CONCURRENCY = 8
+    for (
+      let start = 0;
+      start < candidates.length && matches.length < limit;
+      start += SCAN_CONCURRENCY
+    ) {
+      const batch = candidates.slice(start, start + SCAN_CONCURRENCY)
+      const found = await Promise.all(
+        batch.map(async ({ session, path }) => {
+          try {
+            const entries = await this.sessionTreeLabelEntries(path)
+            return entries
+              .filter((entry) => entry.label.toLocaleLowerCase().includes(keyword))
+              .map((entry) => ({ session, entry }))
+          } catch {
+            // A session may be deleted between the catalog and file scans.
+            return []
+          }
+        }),
+      )
+      for (const group of found) {
+        for (const { session, entry } of group) {
+          matches.push({
+            sessionId: session.id || entry.sessionId,
+            sessionName: String(session.name || entry.sessionName || ''),
+            sessionCreated: String(session.created || entry.sessionCreated || ''),
+            sessionModified: String(session.modified || ''),
+            entryId: entry.entryId,
+            label: entry.label,
+            summary: '',
+            nodeTimestamp: entry.nodeTimestamp,
+            active: entry.active,
+          })
           if (matches.length >= limit) return matches
         }
-      } catch {
-        // A session may be deleted between the catalog and file scans.
       }
     }
     return matches

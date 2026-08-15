@@ -9,6 +9,7 @@ import {
   Search,
   Settings,
   Tag,
+  Trash2,
   TreePine,
   User,
   Wrench,
@@ -396,6 +397,19 @@ export function SessionTreeDialog({
     }
   }
 
+  const removeLabel = async () => {
+    if (!selected || savingLabel) return
+    setSavingLabel(true)
+    setError('')
+    try {
+      setData(await chatApi.setSessionTreeLabel(sessionId, selected.id, ''))
+    } catch (reason) {
+      setError(chatErrorMessage(reason))
+    } finally {
+      setSavingLabel(false)
+    }
+  }
+
   const navigate = async () => {
     if (!selected || navigating || selected.leaf || streaming || data?.streaming) return
     setNavigating(true)
@@ -464,7 +478,11 @@ export function SessionTreeDialog({
                 placeholder={t('chat:sessionTree.searchPlaceholder')}
               />
             </label>
-            <div className="session-tree-viewport" data-testid="session-tree-list" ref={viewportRef}>
+            <div
+              className="session-tree-viewport"
+              data-testid="session-tree-list"
+              ref={viewportRef}
+            >
               {segments.length > 0 ? (
                 <div className="session-tree-canvas">
                   {segments.map((segment) => (
@@ -519,6 +537,16 @@ export function SessionTreeDialog({
                           ? t('chat:sessionTree.savingLabel')
                           : t('chat:sessionTree.saveLabel')}
                       </Button>
+                      {Boolean(selected.label) && (
+                        <Button
+                          variant="outline"
+                          disabled={savingLabel || streaming || Boolean(data?.streaming)}
+                          onClick={() => void removeLabel()}
+                        >
+                          <Trash2 size={14} />
+                          {t('chat:sessionTree.removeLabel')}
+                        </Button>
+                      )}
                     </>
                   )}
                   <label className="session-tree-summary-option">

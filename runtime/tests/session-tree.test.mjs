@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict'
-import { mkdtemp, rm } from 'node:fs/promises'
+import { mkdtemp, readFile, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import test from 'node:test'
@@ -195,20 +195,40 @@ test('runtime navigation uses AgentSession tree semantics and survives a cold re
   )
   await runtime.setSessionTreeLabel(created.id, entries.firstUser, 'Resume user message')
   const labelMatches = await runtime.searchSessionTreeLabels('resume')
-  assert.deepEqual(labelMatches, [
-    {
-      sessionId: created.id,
-      sessionName: 'Tree fixture',
-      sessionCreated: created.created,
-      sessionModified: labelMatches[0].sessionModified,
-      entryId: entries.firstAssistant,
-      label: 'Resume here',
-      summary: '',
-      nodeTimestamp: labelMatches[0].nodeTimestamp,
-      active: true,
-    },
-  ])
+  assert.equal(labelMatches.length, 1)
+  const [resumeMatch] = labelMatches
+  assert.equal(resumeMatch.sessionId, created.id)
+  assert.equal(resumeMatch.sessionName, 'Tree fixture')
+  assert.equal(resumeMatch.entryId, entries.firstAssistant)
+  assert.equal(resumeMatch.label, 'Resume here')
+  assert.equal(resumeMatch.summary, '')
+  assert.equal(resumeMatch.active, true)
+  // 目录时间戳与 createSession 返回值可能有毫秒级漂移，只做容差断言。
+  assert.ok(
+    Math.abs(Date.parse(resumeMatch.sessionCreated) - Date.parse(created.created)) < 5000,
+    'sessionCreated should match the catalog within tolerance',
+  )
+  assert.ok(Date.parse(resumeMatch.nodeTimestamp) > 0)
   assert.deepEqual(await runtime.searchSessionTreeLabels('missing'), [])
+  // 文件 (mtime, size) 变化使扫描缓存失效：绕过 setSessionTreeLabel 直接追加
+  // label 条目后，搜索仍应读到最新内容；user 消息上的标签不计入结果。
+  const labelManager = runtime.sessions.get(created.id).session.sessionManager
+  labelManager.appendLabelChange(entries.firstUser, 'Resume user checkpoint')
+  assert.deepEqual(await runtime.searchSessionTreeLabels('user checkpoint'), [])
+  labelManager.appendLabelChange(entries.alternateAssistant, 'Resume alternate')
+  const rescanned = await runtime.searchSessionTreeLabels('alternate')
+  assert.equal(rescanned.length, 1)
+  assert.equal(rescanned[0].entryId, entries.alternateAssistant)
+  assert.equal(rescanned[0].label, 'Resume alternate')
+  // 缓存命中路径返回一致结果
+  assert.deepEqual(await runtime.searchSessionTreeLabels('alternate'), rescanned)
+  // 删除：空标签写入墓碑后，搜索与全量列表都不再返回该标签。
+  await runtime.setSessionTreeLabel(created.id, entries.alternateAssistant, '')
+  assert.deepEqual(await runtime.searchSessionTreeLabels('alternate'), [])
+  const allLabels = await runtime.searchSessionTreeLabels('')
+  assert.equal(allLabels.length, 1)
+  assert.equal(allLabels[0].entryId, entries.firstAssistant)
+  assert.equal(allLabels[0].label, 'Resume here')
   const active = runtime.sessions.get(created.id)
   const entryCount = active.session.sessionManager.getEntries().length
   await runtime.setSessionTreeLabel(created.id, entries.firstAssistant, 'Resume here')
@@ -220,4 +240,16 @@ test('runtime navigation uses AgentSession tree semantics and survives a cold re
   )
   active.runActive = false
   await assert.rejects(runtime.navigateSessionTree(created.id, 'missing-entry'), /节点不存在/)
+  // 持久化索引：重启后的首次搜索无需重扫会话文件，直接命中磁盘索引。
+  const indexPath = join(directory, 'pisper-session-label-index.json')
+  const indexRaw = JSON.parse(await readFile(indexPath, 'utf8'))
+  assert.equal(indexRaw.version, 1)
+  assert.ok(Object.keys(indexRaw.files).length >= 1)
+  await runtime.dispose()
+  runtime = new AgentRuntimeService({ cwd: directory, dataDir: directory })
+  await runtime.init()
+  const fromIndex = await runtime.searchSessionTreeLabels('')
+  assert.equal(fromIndex.length, 1)
+  assert.equal(fromIndex[0].entryId, entries.firstAssistant)
+  assert.equal(fromIndex[0].label, 'Resume here')
 })

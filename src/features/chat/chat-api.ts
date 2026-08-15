@@ -132,6 +132,9 @@ export const chatApi = {
     return requestJson<{ labels: SessionTreeLabelMatch[] }>(`/api/session-labels?${params}`)
   },
 
+  listSessionTreeLabels: (limit = 500) =>
+    requestJson<{ labels: SessionTreeLabelMatch[] }>(`/api/session-labels?limit=${limit}`),
+
   createSession: (name: string, cwd = '') =>
     requestJson<SessionSummary>('/api/sessions', {
       method: 'POST',

@@ -1,4 +1,5 @@
 import { createReadStream } from 'node:fs'
+import { open, stat } from 'node:fs/promises'
 import { createInterface } from 'node:readline'
 import { isCompletedTurnBoundaryMessage } from './session-derivation.mjs'
 
@@ -156,18 +157,59 @@ export function appendTreePosition(manager, targetId) {
   return manager.appendCustomEntry(TREE_NAVIGATION_CUSTOM_TYPE, { targetId })
 }
 
-export async function scanSessionTreeLabels(path, session = {}) {
-  if (!path) return []
-  const labelEntries = []
+export async function isLineBoundary(path, offset) {
+  if (!path || offset <= 0) return true
+  const handle = await open(path, 'r')
+  try {
+    const buffer = Buffer.alloc(1)
+    const { bytesRead } = await handle.read(buffer, 0, 1, offset - 1)
+    return bytesRead === 1 && buffer[0] === 0x0a
+  } catch {
+    return false
+  } finally {
+    await handle.close()
+  }
+}
+
+async function readFileRange(path, fromOffset) {
+  const handle = await open(path, 'r')
+  try {
+    const { size } = await handle.stat()
+    if (size < fromOffset) return { text: '', size, valid: false }
+    const length = size - fromOffset
+    const buffer = Buffer.alloc(length)
+    await handle.read(buffer, 0, length, fromOffset)
+    return { text: buffer.toString('utf8'), size, valid: true }
+  } finally {
+    await handle.close()
+  }
+}
+
+/**
+ * 扫描会话文件中的标签条目。
+ *
+ * 会话文件是追加写的 JSONL：全量扫描流式逐行读；传入 previous（上次扫描
+ * 快照）且文件变大时只读新追加的字节，把扫描成本从整文件降到增量。
+ *
+ * 返回 { labels, scannedBytes, lastId, activeChain, assistantIds }：labels 是
+ * 已解析的最终标签（含墓碑合并），其余字段是供下次增量扫描使用的快照。
+ */
+export async function scanSessionTreeLabels(path, options = {}) {
+  const session = options.session || {}
+  const previous = options.previous || null
+  const tailScan = Boolean(previous)
+  const fromOffset = tailScan ? Number(previous.scannedBytes) || 0 : 0
+  if (!path) return { labels: [], scannedBytes: 0, lastId: '', activeChain: [], assistantIds: [] }
+
+  const labelChanges = []
   const parentById = new Map()
-  const assistantIds = new Set()
+  const newIds = new Set()
+  const assistantIds = new Set(previous?.assistantIds || [])
   let header = null
   let name = ''
-  let lastId = ''
-  const lines = createInterface({
-    input: createReadStream(path, { encoding: 'utf8' }),
-    crlfDelay: Infinity,
-  })
+  let lastId = previous?.lastId || ''
+  let fileSize = 0
+
   const field = (line, key) => {
     const needle = `"${key}":"`
     const start = line.indexOf(needle)
@@ -176,58 +218,143 @@ export async function scanSessionTreeLabels(path, session = {}) {
     const end = line.indexOf('"', from)
     return end < 0 ? null : line.slice(from, end)
   }
-  for await (const line of lines) {
+
+  const processLine = (line) => {
+    if (!line) return
     if (line.startsWith('{"type":"session"')) {
       if (!header) {
         try {
           header = JSON.parse(line)
         } catch {}
       }
-      continue
+      return
     }
     if (line.startsWith('{"type":"session_info"')) {
       try {
         const entry = JSON.parse(line)
         if (entry.name) name = entry.name
       } catch {}
-      continue
+      return
     }
     if (line.startsWith('{"type":"label"')) {
       try {
         const entry = JSON.parse(line)
-        if (entry.label && entry.targetId) {
-          labelEntries.push({ entryId: entry.targetId, label: entry.label, timestamp: entry.timestamp })
+        // 标签条目也是树节点（appendLabelChange 会推进 leaf），其 id/parentId
+        // 参与活动链重建，否则后续消息追加后链会断开。
+        if (entry.id) {
+          lastId = entry.id
+          newIds.add(entry.id)
+          parentById.set(entry.id, entry.parentId ?? null)
+        }
+        if (entry.targetId) {
+          // 空 label 是删除墓碑（JSON.stringify 会丢掉 undefined 的 label 字段），
+          // 必须收集进变更日志，最后一个条目才代表该节点的最终标签。
+          labelChanges.push({
+            entryId: entry.targetId,
+            label: String(entry.label || ''),
+            timestamp: entry.timestamp,
+          })
         }
       } catch {}
-      continue
+      return
     }
+    if (!line.startsWith('{')) return
     const id = field(line, 'id')
-    if (!id) continue
+    if (!id) return
     lastId = id
+    newIds.add(id)
     parentById.set(id, field(line, 'parentId'))
     if (line.startsWith('{"type":"message"') && line.includes('"role":"assistant"')) {
       assistantIds.add(id)
     }
   }
-  const completed = labelEntries.filter((labelEntry) => assistantIds.has(labelEntry.entryId))
-  if (!completed.length) return []
-  const activeIds = new Set()
-  for (let cursor = lastId; cursor; cursor = parentById.get(cursor) || '') {
-    if (activeIds.has(cursor)) break
-    activeIds.add(cursor)
+
+  if (tailScan) {
+    const range = await readFileRange(path, fromOffset)
+    fileSize = range.size
+    // 文件变小（截断/重写）时增量边界不可信，退回全量扫描。
+    if (!range.valid) {
+      const full = await scanSessionTreeLabels(path, { session })
+      full.scannedBytes = full.scannedBytes || fileSize
+      return full
+    }
+    for (const line of range.text.split(/\r?\n/)) processLine(line)
+  } else {
+    fileSize = (await stat(path)).size
+    const lines = createInterface({
+      input: createReadStream(path, { encoding: 'utf8' }),
+      crlfDelay: Infinity,
+    })
+    for await (const line of lines) processLine(line)
   }
+
+  // 活动链：从 lastId 沿 parentId 走到根。增量扫描时新条目的父链只存在于
+  // 新字节里，走到旧区域后应衔接上次快照的 activeChain；接不上说明文件被
+  // 重写，退回全量扫描。
+  let activeChain
+  if (tailScan) {
+    const chain = []
+    let cursor = lastId
+    let consistent = false
+    while (cursor) {
+      chain.push(cursor)
+      const parent = parentById.get(cursor)
+      if (!parent) {
+        consistent = cursor === previous.lastId && newIds.size === 0
+        activeChain = consistent ? previous.activeChain : null
+        break
+      }
+      if (!newIds.has(parent)) {
+        consistent = parent === previous.lastId
+        activeChain = consistent ? chain.concat(previous.activeChain) : null
+        break
+      }
+      cursor = parent
+    }
+    if (!activeChain) {
+      return scanSessionTreeLabels(path, { session })
+    }
+  } else {
+    const chain = []
+    const seen = new Set()
+    for (let cursor = lastId; cursor; cursor = parentById.get(cursor) || '') {
+      if (seen.has(cursor)) break
+      seen.add(cursor)
+      chain.push(cursor)
+    }
+    activeChain = chain
+  }
+
+  // 同一节点的多次标记/删除按文件顺序最后写入者生效，空标签视为已删除。
+  const labelsByTarget = new Map()
+  for (const entry of previous?.entries || []) {
+    labelsByTarget.set(entry.entryId, {
+      entryId: entry.entryId,
+      label: entry.label,
+      timestamp: entry.nodeTimestamp,
+    })
+  }
+  for (const labelEntry of labelChanges) labelsByTarget.set(labelEntry.entryId, labelEntry)
+  const activeIds = new Set(activeChain)
   const iso = (value) => (value instanceof Date ? value.toISOString() : String(value || ''))
-  return completed.map((labelEntry) => ({
-    sessionId: session.id || header?.id || '',
-    sessionName: String(session.name || name || ''),
-    sessionCreated: iso(session.created || header?.timestamp),
-    sessionModified: iso(session.modified),
-    entryId: labelEntry.entryId,
-    label: labelEntry.label,
-    summary: '',
-    nodeTimestamp: String(labelEntry.timestamp || ''),
-    active: activeIds.has(labelEntry.entryId),
-  }))
+  const labels = [...labelsByTarget.values()]
+    .filter((labelEntry) => Boolean(labelEntry.label) && assistantIds.has(labelEntry.entryId))
+    .map((labelEntry) => ({
+      sessionId: session.id || header?.id || '',
+      sessionName: String(session.name || name || ''),
+      sessionCreated: iso(session.created || header?.timestamp),
+      entryId: labelEntry.entryId,
+      label: labelEntry.label,
+      nodeTimestamp: String(labelEntry.timestamp || ''),
+      active: activeIds.has(labelEntry.entryId),
+    }))
+  return {
+    labels,
+    scannedBytes: fileSize,
+    lastId,
+    activeChain,
+    assistantIds: [...assistantIds],
+  }
 }
 
 export { TREE_NAVIGATION_CUSTOM_TYPE }

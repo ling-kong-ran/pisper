@@ -47,6 +47,7 @@ export function CommandPalette({
   const [query, setQuery] = useState('')
   const [sessions, setSessions] = useState<SessionSummary[]>([])
   const [labelMatches, setLabelMatches] = useState<SessionTreeLabelMatch[]>([])
+  const [labelsSearching, setLabelsSearching] = useState(false)
   const [activeIndex, setActiveIndex] = useState(0)
 
   useEffect(() => {
@@ -65,14 +66,24 @@ export function CommandPalette({
     const keyword = query.trim()
     if (!keyword) {
       setLabelMatches([])
+      setLabelsSearching(false)
       return undefined
     }
     let active = true
+    setLabelsSearching(true)
     const timer = window.setTimeout(() => {
       void chatApi
         .searchSessionTreeLabels(keyword, 12)
-        .then((data) => active && setLabelMatches(data.labels || []))
-        .catch(() => active && setLabelMatches([]))
+        .then((data) => {
+          if (!active) return
+          setLabelMatches(data.labels || [])
+          setLabelsSearching(false)
+        })
+        .catch(() => {
+          if (!active) return
+          setLabelMatches([])
+          setLabelsSearching(false)
+        })
     }, 140)
     return () => {
       active = false
@@ -217,7 +228,16 @@ export function CommandPalette({
             </button>
           ))}
           {!entries.length && (
-            <div className="palette-empty">{t('navigation:appOverlays.noMatchingResults')}</div>
+            <div className="palette-empty">
+              {labelsSearching
+                ? t('navigation:appOverlays.searchingLabels')
+                : t('navigation:appOverlays.noMatchingResults')}
+            </div>
+          )}
+          {entries.length > 0 && labelsSearching && (
+            <div aria-live="polite" className="palette-empty palette-searching">
+              {t('navigation:appOverlays.searchingLabels')}
+            </div>
           )}
         </div>
       </DialogContent>
