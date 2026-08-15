@@ -295,7 +295,7 @@ export function createStreamEventDispatcher({
         lastActivityAt: data.updatedAt || eventAt,
       })
     } else if (event === 'thinking_patch') {
-      state.thinkingText = applyTextPatch(state.thinkingText, data)
+      state.thinkingText = applyTextPatch(state.thinkingText, data).slice(-MAX_LIVE_THINKING_CHARS)
       const displayedThinking = [state.thinkingPrefix, state.thinkingText]
         .filter(Boolean)
         .join('\n\n')

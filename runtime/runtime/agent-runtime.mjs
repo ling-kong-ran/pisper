@@ -2004,7 +2004,7 @@ export class AgentRuntimeService extends AgentRuntimeFacade {
     const streamBlockIndex = (update) =>
       Number.isInteger(update?.contentIndex) ? update.contentIndex : 0
     const appendThinking = (delta) => {
-      thinkingTurnText += String(delta || '')
+      thinkingTurnText = liveThinkingTail(thinkingTurnText + String(delta || ''))
       const next = liveThinkingTail([thinkingPrefix, thinkingTurnText].filter(Boolean).join('\n\n'))
       let start = 0
       const limit = Math.min(live.thinkingText.length, next.length)
@@ -2139,6 +2139,9 @@ export class AgentRuntimeService extends AgentRuntimeFacade {
           ...(event.toolName === 'bash' ? { output: '' } : {}),
         }
         live.tools.push(tool)
+        if (live.tools.length > MAX_LIVE_ACTIVITY_ITEMS) {
+          live.tools = live.tools.slice(-MAX_LIVE_ACTIVITY_ITEMS)
+        }
         setLiveActivity(live, tool)
         emit('tool_start', {
           id: event.toolCallId,
@@ -2148,7 +2151,7 @@ export class AgentRuntimeService extends AgentRuntimeFacade {
           ...(event.toolName === 'bash' ? { output: '' } : {}),
         })
       } else if (event.type === 'tool_execution_update') {
-        const rawOutput = textFromContent(event.partialResult?.content)
+        const rawOutput = liveThinkingTail(textFromContent(event.partialResult?.content))
         const message = rawOutput.replace(/\s+/g, ' ').trim().slice(0, 180)
         const outputPatch = event.toolName === 'bash' ? { output: rawOutput } : {}
         const agent = multiAgentResultAgent(event.toolName, event.partialResult?.details)
@@ -2196,7 +2199,7 @@ export class AgentRuntimeService extends AgentRuntimeFacade {
             emit('generated_asset', attachment)
           }
         }
-        const resultOutput = event.toolName === 'bash' ? textFromContent(event.result?.content) : ''
+        const resultOutput = event.toolName === 'bash' ? liveThinkingTail(textFromContent(event.result?.content)) : ''
         const resultMessage = event.isError
           ? resultOutput || textFromContent(event.result?.content) || '工具执行失败。'
           : ''
