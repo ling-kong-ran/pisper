@@ -154,7 +154,7 @@ export function createTypewriterDisplay(
   } = {},
 ) {
   const scheduleFrame: typeof requestAnimationFrame =
-    requestFrame || ((callback) => setTimeout(() => callback(now()), 32))
+    requestFrame || ((callback) => setTimeout(() => callback(now()), 50))
   const cancelScheduled = cancelFrame || clearTimeout
   const hasDocument = typeof document !== 'undefined'
   const isVisible = () => !hasDocument || document.visibilityState === 'visible'

@@ -1,4 +1,5 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useVirtualizer } from '@tanstack/react-virtual'
 import {
   Bot,
   Bookmark,
@@ -33,6 +34,10 @@ type TreeSegment = {
 }
 
 const conversationKinds = new Set(['user', 'assistant', 'summary', 'compaction', 'position'])
+const TREE_ROW_HEIGHT = 56
+const TREE_OVERSCAN = 12
+const TREE_VIRTUALIZE_THRESHOLD = 120
+const TREE_TRACK_SCROLL_MARGIN = 26
 
 function buildDisplayTree(nodes: SessionTreeNode[]): DisplayNode[] {
   const roots: DisplayNode[] = []
@@ -136,52 +141,95 @@ function nodeIcon(node: SessionTreeNode) {
 
 function SessionTreeSegment({
   segment,
+  viewportRef,
   selectedId,
   typeLabel,
   stateLabel,
   onSelect,
 }: {
   segment: TreeSegment
+  viewportRef: React.RefObject<HTMLDivElement | null>
   selectedId: string
   typeLabel: (node: SessionTreeNode) => string
   stateLabel: (node: SessionTreeNode) => string
   onSelect: (id: string) => void
 }) {
+  const { nodes, children } = segment
+  const shouldVirtualize = nodes.length > TREE_VIRTUALIZE_THRESHOLD
+
+  const virtualizer = useVirtualizer<HTMLDivElement, HTMLDivElement>({
+    count: nodes.length,
+    getScrollElement: () => viewportRef.current,
+    estimateSize: () => TREE_ROW_HEIGHT,
+    getItemKey: (index) => nodes[index]?.id ?? `tree-node-${index}`,
+    overscan: TREE_OVERSCAN,
+    scrollMargin: TREE_TRACK_SCROLL_MARGIN,
+    enabled: shouldVirtualize,
+    useAnimationFrameWithResizeObserver: true,
+  })
+
+  const renderNode = (node: DisplayNode) => {
+    const Icon = nodeIcon(node)
+    return (
+      <button
+        type="button"
+        className={`session-tree-node${node.id === selectedId ? ' selected' : ''}${node.active ? ' active' : ''}${node.leaf ? ' leaf' : ''}`}
+        data-kind={node.kind}
+        data-pisper-tree-entry={node.id}
+        key={node.id}
+        onClick={() => onSelect(node.id)}
+      >
+        <span className="session-tree-marker">
+          <Icon size={14} />
+        </span>
+        <span className="session-tree-node-copy">
+          <strong>{node.label || node.text || typeLabel(node)}</strong>
+          <small>{node.label && node.text ? node.text : typeLabel(node)}</small>
+        </span>
+        <span className="session-tree-node-state">
+          {node.label && <Bookmark size={12} />}
+          {stateLabel(node)}
+        </span>
+      </button>
+    )
+  }
+
+  useEffect(() => {
+    if (!shouldVirtualize || !selectedId) return
+    const index = nodes.findIndex((node) => node.id === selectedId)
+    if (index < 0) return
+    virtualizer.scrollToIndex(index, { align: 'center' })
+  }, [selectedId, nodes, shouldVirtualize, virtualizer])
+
   return (
     <div className={`session-tree-segment${segment.active ? ' active' : ''}`}>
       <div className="session-tree-track">
-        {segment.nodes.map((node) => {
-          const Icon = nodeIcon(node)
-          return (
-            <button
-              type="button"
-              className={`session-tree-node${node.id === selectedId ? ' selected' : ''}${node.active ? ' active' : ''}${node.leaf ? ' leaf' : ''}`}
-              data-kind={node.kind}
-              data-pisper-tree-entry={node.id}
-              key={node.id}
-              onClick={() => onSelect(node.id)}
-            >
-              <span className="session-tree-marker">
-                <Icon size={14} />
-              </span>
-              <span className="session-tree-node-copy">
-                <strong>{node.label || node.text || typeLabel(node)}</strong>
-                <small>{node.label && node.text ? node.text : typeLabel(node)}</small>
-              </span>
-              <span className="session-tree-node-state">
-                {node.label && <Bookmark size={12} />}
-                {stateLabel(node)}
-              </span>
-            </button>
-          )
-        })}
+        {shouldVirtualize ? (
+          <div
+            className="session-tree-track-virtual"
+            style={{ height: `${virtualizer.getTotalSize()}px` }}
+          >
+            {virtualizer.getVirtualItems().map((virtualItem) => (
+              <div
+                className="session-tree-virtual-item"
+                key={virtualItem.key}
+                style={{ top: `${virtualItem.start - TREE_TRACK_SCROLL_MARGIN}px` }}
+              >
+                {renderNode(nodes[virtualItem.index])}
+              </div>
+            ))}
+          </div>
+        ) : (
+          nodes.map(renderNode)
+        )}
       </div>
-      {segment.children.length > 0 && (
+      {children.length > 0 && (
         <div className="session-tree-children">
-          {segment.children.map((child) => (
+          {children.map((child) => (
             <div className={`session-tree-child${child.active ? ' active' : ''}`} key={child.id}>
               <SessionTreeSegment
                 segment={child}
+                viewportRef={viewportRef}
                 selectedId={selectedId}
                 typeLabel={typeLabel}
                 stateLabel={stateLabel}
@@ -219,6 +267,7 @@ export function SessionTreeDialog({
   const [savingLabel, setSavingLabel] = useState(false)
   const [navigating, setNavigating] = useState(false)
   const [error, setError] = useState('')
+  const viewportRef = useRef<HTMLDivElement | null>(null)
 
   useEffect(() => {
     if (!open || !sessionId) return
@@ -244,6 +293,16 @@ export function SessionTreeDialog({
       cancelled = true
     }
   }, [open, sessionId])
+
+  // Release the (potentially 10k+ node) tree payload as soon as the dialog closes.
+  useEffect(() => {
+    if (open) return
+    setData(null)
+    setSelectedId('')
+    setLabel('')
+    setSummarize(false)
+    setError('')
+  }, [open])
 
   const annotatedRoots = useMemo(() => buildDisplayTree(data?.nodes || []), [data])
   const typeLabel = useCallback(
@@ -283,8 +342,8 @@ export function SessionTreeDialog({
         .includes(needle)
     })
   }, [annotatedRoots, language, query, typeLabel, view])
-  const visibleNodes = useMemo(() => flattenTree(visibleRoots), [visibleRoots])
   const segments = useMemo(() => visibleRoots.map(createSegment), [visibleRoots])
+  const visibleNodes = useMemo(() => flattenTree(visibleRoots), [visibleRoots])
   const allNodes = useMemo(() => flattenTree(annotatedRoots), [annotatedRoots])
   const selected = allNodes.find((node) => node.id === selectedId) || null
   const canLabelSelected = selected?.kind === 'assistant' && selected.status === 'completed'
@@ -405,12 +464,13 @@ export function SessionTreeDialog({
                 placeholder={t('chat:sessionTree.searchPlaceholder')}
               />
             </label>
-            <div className="session-tree-viewport" data-testid="session-tree-list">
+            <div className="session-tree-viewport" data-testid="session-tree-list" ref={viewportRef}>
               {segments.length > 0 ? (
                 <div className="session-tree-canvas">
                   {segments.map((segment) => (
                     <SessionTreeSegment
                       segment={segment}
+                      viewportRef={viewportRef}
                       selectedId={selectedId}
                       typeLabel={typeLabel}
                       stateLabel={stateLabel}

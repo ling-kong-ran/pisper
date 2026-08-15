@@ -2,7 +2,7 @@ import { isValidElement, memo, useState, type ComponentProps, type ReactNode } f
 import { Check, Copy } from 'lucide-react'
 import { CodeBlock, Streamdown, useIsCodeFenceIncomplete, type Components } from 'streamdown'
 import { useI18n } from '@/app/use-i18n'
-import { streamdownPlugins } from '@/lib/streamdown'
+import { createIncrementalBlockParser, streamdownPlugins } from '@/lib/streamdown'
 import { cn } from '@/lib/utils'
 
 const MARKDOWN_COMPONENTS: Components = {
@@ -104,6 +104,42 @@ function MarkdownCopyButton({ source }: { source: string }) {
   )
 }
 
+/**
+ * 流式期间未闭合代码块的轻量渲染：结构与 streamdown CodeBlock 一致，
+ * 但只做纯文本展示。这样 typewriter 每次刷新（约 48ms）不会触发 shiki
+ * 高亮——增长中的代码每变一次都会产生一份 token 结果，开销和驻留内存
+ * 都很可观。围栏闭合（isIncomplete 变为 false）后再挂载 CodeBlock 高亮。
+ */
+function StreamingCodeBlock({ language, source }: { language: string; source: string }) {
+  return (
+    <div
+      className="my-4 flex w-full flex-col gap-2 rounded-xl border border-border bg-sidebar p-2"
+      data-incomplete="true"
+      data-language={language}
+      data-streamdown="code-block"
+      style={{ contentVisibility: 'auto', containIntrinsicSize: 'auto 200px' }}
+    >
+      <div
+        className="flex h-8 items-center justify-between text-muted-foreground text-xs"
+        data-language={language}
+        data-streamdown="code-block-header"
+      >
+        <span className="ml-1 font-mono lowercase">{language}</span>
+        <MarkdownCopyButton source={source} />
+      </div>
+      <div
+        className="overflow-x-auto rounded-md border border-border bg-background p-4 text-sm"
+        data-language={language}
+        data-streamdown="code-block-body"
+      >
+        <pre className="bg-transparent">
+          <code>{source}</code>
+        </pre>
+      </div>
+    </div>
+  )
+}
+
 function MarkdownCode({
   children,
   className,
@@ -121,6 +157,7 @@ function MarkdownCode({
 
   const source = textContent(children).replace(/\n$/, '')
   const language = languageName(className)
+  if (isIncomplete) return <StreamingCodeBlock language={language} source={source} />
   return (
     <CodeBlock code={source} isIncomplete={isIncomplete} language={language} lineNumbers={false}>
       <MarkdownCopyButton source={source} />
@@ -136,6 +173,7 @@ export type MarkdownMessageProps = {
 
 function MarkdownMessage({ children, className, streaming = false }: MarkdownMessageProps) {
   const source = String(children ?? '')
+  const [parseBlocks] = useState(() => createIncrementalBlockParser())
   return (
     <div
       className={cn('markdown-body', streaming && 'markdown-streaming', className)}
@@ -148,6 +186,7 @@ function MarkdownMessage({ children, className, streaming = false }: MarkdownMes
         isAnimating={streaming}
         lineNumbers={false}
         mode="streaming"
+        parseMarkdownIntoBlocksFn={parseBlocks}
         plugins={streamdownPlugins}
         remend={STREAMDOWN_REMEND}
       >
