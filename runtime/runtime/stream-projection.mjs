@@ -24,6 +24,10 @@ const MAX_SESSION_HISTORY_CACHE_ESTIMATED_BYTES = 48 * 1024 * 1024
 const SESSION_HISTORY_CACHE_MEMORY_MULTIPLIER = 4
 const MAX_PROJECTION_CACHE_ENTRIES = 8
 const MAX_PROJECTION_CACHE_BYTES = 24 * 1024 * 1024
+// Bounded only to keep the cold-session context-usage map from growing forever.
+// Entries are small and purely derived; eviction never participates in session
+// existence checks (findSessionInfo already ran before the cache is consulted).
+const MAX_SESSION_CONTEXT_USAGE_CACHE_ENTRIES = 64
 const ATTACHMENT_MARKER = '\n\n---\nAttachment context (injected by Pisper):\n'
 
 export function isInternalParentMessage(content) {
@@ -779,6 +783,21 @@ export class StreamProjection {
     }
   }
 
+  trimSessionContextUsageCache(protectedId = '') {
+    const history = this.history()
+    const maximum = MAX_SESSION_CONTEXT_USAGE_CACHE_ENTRIES
+    const cache = history.contextUsageCache
+    const candidates = () =>
+      [...cache.entries()]
+        .filter(([id]) => id !== protectedId)
+        .sort((left, right) => (left[1].touchedAt || 0) - (right[1].touchedAt || 0))
+    while (cache.size > maximum) {
+      const oldest = candidates()[0]?.[0]
+      if (oldest === undefined) break
+      cache.delete(oldest)
+    }
+  }
+
   async readSessionHistoryEntries(path) {
     const file = await stat(path)
     const history = this.history()
@@ -1022,8 +1041,10 @@ export class StreamProjection {
       cached?.path === info.path &&
       cached.size === fileStat.size &&
       cached.mtimeMs === fileStat.mtimeMs
-    )
+    ) {
+      cached.touchedAt = Date.now()
       return cached.value
+    }
     const manager = this.openStoredSession(info.path)
     const context = manager.buildSessionContext()
     const globalSettings = this.settingsManager()?.getGlobalSettings?.() || {}
@@ -1039,7 +1060,9 @@ export class StreamProjection {
       size: fileStat?.size || 0,
       mtimeMs: fileStat?.mtimeMs || 0,
       value,
+      touchedAt: Date.now(),
     })
+    this.trimSessionContextUsageCache(id)
     return value
   }
 
