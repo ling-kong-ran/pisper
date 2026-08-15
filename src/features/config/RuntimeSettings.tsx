@@ -1,4 +1,12 @@
-import { AlertTriangle, ChevronDown, RefreshCw, Save, ShieldCheck } from 'lucide-react'
+import {
+  AlertTriangle,
+  CheckCircle2,
+  ChevronDown,
+  CircleAlert,
+  RefreshCw,
+  Save,
+  ShieldCheck,
+} from 'lucide-react'
 import { APP_NAME } from '@/app/brand'
 import { useI18n } from '@/app/use-i18n'
 import { AppSelect } from '@/components/AppSelect'
@@ -77,7 +85,7 @@ export function RuntimePolicySettings(props: RuntimeSettingsProps) {
   )
 }
 
-type RuntimeStatusProps = {
+type ProviderSettingsActionsProps = {
   provider: ProviderConfig
   visualOnly: boolean
   codexOAuth: boolean
@@ -89,7 +97,7 @@ type RuntimeStatusProps = {
   onSave: (setAsDefault?: boolean) => void | Promise<void>
 }
 
-export function RuntimeStatus({
+export function ProviderSettingsActions({
   provider,
   visualOnly,
   codexOAuth,
@@ -99,10 +107,65 @@ export function RuntimeStatus({
   hasModel,
   isDefault,
   onSave,
-}: RuntimeStatusProps) {
+}: ProviderSettingsActionsProps) {
   const { t } = useI18n()
   return (
-    <SettingsCard className="usage-card" data-dirty={dirty || undefined}>
+    <div className="provider-save-bar" data-dirty={dirty || undefined}>
+      <div className="provider-save-state">
+        {dirty ? <CircleAlert size={17} /> : <CheckCircle2 size={17} />}
+        <span>
+          <strong>
+            {dirty ? t('config:configPage.unsavedChanges') : t('config:configPage.allChangesSaved')}
+          </strong>
+          <small>{provider.name}</small>
+        </span>
+      </div>
+      <div className="provider-save-actions">
+        {!visualOnly && hasModel && (
+          <button
+            className="button secondary"
+            disabled={saving || !dirty || isDefault || (codexOAuth && !provider.configured)}
+            onClick={() => onSave(true)}
+          >
+            <ShieldCheck size={14} />
+            {isDefault
+              ? t('config:configPage.currentDefaultProvider')
+              : t('config:configPage.setAsDefaultProvider')}
+          </button>
+        )}
+        <button
+          className="button primary"
+          disabled={saving || !dirty || (codexOAuth && !provider.configured)}
+          onClick={() => onSave(false)}
+        >
+          {saving ? <RefreshCw className="spin" size={14} /> : <Save size={14} />}
+          {saving
+            ? t('config:configPage.saving')
+            : codexOAuth && !provider.configured
+              ? t('config:configPage.loadAuthenticationToSave')
+              : visualOnly
+                ? t('config:configPage.saveVisualModelSettings')
+                : t('config:configPage.saveProviderSettings')}
+        </button>
+      </div>
+      {error && (
+        <div className="config-error">
+          <AlertTriangle size={13} />
+          {error}
+        </div>
+      )}
+    </div>
+  )
+}
+
+type RuntimeStatusProps = {
+  provider: ProviderConfig
+}
+
+export function RuntimeStatus({ provider }: RuntimeStatusProps) {
+  const { t } = useI18n()
+  return (
+    <SettingsCard className="usage-card">
       <SettingsSectionTitle title={t('config:configPage.runtimeStatus')} />
       <div className="usage-number">
         <span>Engine</span>
@@ -121,44 +184,6 @@ export function RuntimeStatus({
         <strong>
           {provider.enabled ? t('config:configPage.enabled') : t('config:configPage.disabled')}
         </strong>
-      </div>
-      {error && (
-        <div className="config-error">
-          <AlertTriangle size={13} />
-          {error}
-        </div>
-      )}
-      <div className="button-row">
-        <button
-          className="button primary wide"
-          disabled={saving || !provider.enabled || (codexOAuth && !provider.configured)}
-          onClick={() => onSave(false)}
-        >
-          {saving ? <RefreshCw className="spin" size={14} /> : <Save size={14} />}
-          {saving
-            ? t('config:configPage.saving')
-            : codexOAuth && !provider.configured
-              ? t('config:configPage.loadAuthenticationToSave')
-              : provider.enabled
-                ? visualOnly
-                  ? t('config:configPage.saveVisualModelSettings')
-                  : t('config:configPage.saveProviderSettings')
-                : t('config:configPage.enableToSave')}
-        </button>
-        {!visualOnly && hasModel && (
-          <button
-            className="button secondary wide"
-            disabled={
-              saving || isDefault || !provider.enabled || (codexOAuth && !provider.configured)
-            }
-            onClick={() => onSave(true)}
-          >
-            <ShieldCheck size={14} />
-            {isDefault
-              ? t('config:configPage.currentDefaultProvider')
-              : t('config:configPage.setAsDefaultProvider')}
-          </button>
-        )}
       </div>
     </SettingsCard>
   )

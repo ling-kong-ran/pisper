@@ -732,6 +732,7 @@ export class AgentRuntimeService extends AgentRuntimeFacade {
 
     stage('model-runtime')
     await this.reloadModelRuntime()
+    await this.reconcileDefaultModel()
     stage('memory')
     await this.memory.init()
     this.memory.setSemanticSummarizer(this.memorySummarizer)

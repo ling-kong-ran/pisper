@@ -16,8 +16,7 @@
 
 // Leading environment assignments and modifier commands, stripped repeatedly
 // (e.g. `sudo env FOO=1 rm -rf /`).
-const LEADING_RE =
-  /^(?:(?:[A-Za-z_][A-Za-z0-9_]*=\S+|sudo|doas|command|nohup|env|time|xargs)\s+)+/
+const LEADING_RE = /^(?:(?:[A-Za-z_][A-Za-z0-9_]*=\S+|sudo|doas|command|nohup|env|time|xargs)\s+)+/
 
 // Filesystem root, home directory, and system directories used as deletion /
 // permission-change targets.
@@ -253,9 +252,7 @@ const RULES = [
     test(segments) {
       return segments.some((seg) => {
         const { program, args } = parseSegment(seg)
-        return (
-          programIs(program, 'rm') && hasRecursiveFlag(args) && hasRootOrHomeTarget(seg)
-        )
+        return programIs(program, 'rm') && hasRecursiveFlag(args) && hasRootOrHomeTarget(seg)
       })
     },
   },
@@ -318,7 +315,10 @@ const RULES = [
         const { program, args } = parseSegment(seg)
         if (!programIs(program, 'chmod')) return false
         if (!hasRootOrHomeTarget(seg)) return false
-        return hasRecursiveFlag(args) || args.some((a) => /^7{3,4}$/.test(a) || a === 'a+rwx' || a === '777')
+        return (
+          hasRecursiveFlag(args) ||
+          args.some((a) => /^7{3,4}$/.test(a) || a === 'a+rwx' || a === '777')
+        )
       })
     },
   },
@@ -330,9 +330,7 @@ const RULES = [
     test(segments) {
       return segments.some((seg) => {
         const { program, args } = parseSegment(seg)
-        return (
-          programIs(program, 'chown') && hasRecursiveFlag(args) && hasRootOrHomeTarget(seg)
-        )
+        return programIs(program, 'chown') && hasRecursiveFlag(args) && hasRootOrHomeTarget(seg)
       })
     },
   },
@@ -446,9 +444,13 @@ const RULES = [
     hint: 'download the script, inspect it, then run it explicitly',
     test(segments, masked) {
       return (
-        /(?:curl|wget)\b[^;&|\n]*\|\s*(?:sudo\s+)?(?:sh|bash|zsh|dash|ksh|python\d*|perl|ruby|node|npm|deno)\b/i.test(masked) ||
+        /(?:curl|wget)\b[^;&|\n]*\|\s*(?:sudo\s+)?(?:sh|bash|zsh|dash|ksh|python\d*|perl|ruby|node|npm|deno)\b/i.test(
+          masked,
+        ) ||
         /(?:sh|bash|zsh|source|\.)\s+<\s*\(\s*(?:curl|wget)\b/i.test(masked) ||
-        /(?:eval|sh|bash|zsh)\b[^;&|\n]*(?:\$\s*\(\s*(?:curl|wget)\b|`\s*(?:curl|wget)\b)/i.test(masked)
+        /(?:eval|sh|bash|zsh)\b[^;&|\n]*(?:\$\s*\(\s*(?:curl|wget)\b|`\s*(?:curl|wget)\b)/i.test(
+          masked,
+        )
       )
     },
   },
@@ -507,7 +509,8 @@ const RULES = [
     reason: '关机或重启系统',
     hint: 'confirm with the user before powering off or rebooting',
     test(segments) {
-      const REBOOT = /^(?:shutdown|reboot|poweroff|halt|init|telinit|restart-computer|stop-computer)$/i
+      const REBOOT =
+        /^(?:shutdown|reboot|poweroff|halt|init|telinit|restart-computer|stop-computer)$/i
       return segments.some((seg) => {
         const { program, args } = parseSegment(seg)
         if (REBOOT.test(program)) return true

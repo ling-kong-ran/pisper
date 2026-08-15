@@ -149,6 +149,95 @@ test('provider connections update protocol, effective Base URL, and optional API
   )
 })
 
+test('saving an unauthenticated Provider fails before changing configuration', async (t) => {
+  const directory = await mkdtemp(join(tmpdir(), 'pisper-provider-save-incomplete-'))
+  const runtime = new AgentRuntimeService({ cwd: directory, dataDir: directory })
+  t.after(async () => {
+    await runtime.dispose()
+    await rm(directory, { recursive: true, force: true })
+  })
+  await runtime.init()
+  const created = await runtime.createProvider({
+    id: 'incomplete-relay',
+    name: 'Incomplete Relay',
+    api: 'openai-responses',
+    baseUrl: 'https://incomplete-relay.example.test/v1',
+    model: 'incomplete-relay-model',
+    enabled: false,
+  })
+  const before = await runtime.getConfig()
+  const incomplete = created.providers.find((provider) => provider.id === 'incomplete-relay')
+  assert.equal(incomplete.configured, false)
+  assert.equal(incomplete.enabled, false)
+
+  await assert.rejects(
+    () =>
+      runtime.saveConfig({
+        provider: 'incomplete-relay',
+        providerType: 'chat',
+        model: 'incomplete-relay-model',
+        api: 'openai-responses',
+        baseUrl: 'https://incomplete-relay.example.test/v1',
+        thinkingLevel: 'xhigh',
+        toolMode: 'read-only',
+        setAsDefault: false,
+        enabled: true,
+      }),
+    /填写 API Key 或加载 Provider 认证/,
+  )
+
+  const after = await runtime.getConfig()
+  const unchanged = after.providers.find((provider) => provider.id === 'incomplete-relay')
+  assert.equal(unchanged.configured, false)
+  assert.equal(unchanged.enabled, false)
+  assert.equal(after.toolMode, before.toolMode)
+  assert.equal(after.thinkingLevel, before.thinkingLevel)
+  assert.equal(after.defaultProvider, before.defaultProvider)
+  assert.equal(after.defaultModel, before.defaultModel)
+})
+
+test('saving Provider settings explicitly enables a disabled Provider', async (t) => {
+  const directory = await mkdtemp(join(tmpdir(), 'pisper-provider-save-enable-'))
+  const runtime = new AgentRuntimeService({ cwd: directory, dataDir: directory })
+  t.after(async () => {
+    await runtime.dispose()
+    await rm(directory, { recursive: true, force: true })
+  })
+  await runtime.init()
+  const before = await runtime.getConfig()
+  const created = await runtime.createProvider({
+    id: 'disabled-relay',
+    name: 'Disabled Relay',
+    api: 'openai-responses',
+    baseUrl: 'https://disabled-relay.example.test/v1',
+    apiKey: 'disabled-relay-key',
+    model: 'disabled-relay-model',
+    enabled: false,
+  })
+  assert.equal(
+    created.providers.find((provider) => provider.id === 'disabled-relay').enabled,
+    false,
+  )
+  assert.equal(created.defaultProvider, before.defaultProvider)
+  assert.equal(created.defaultModel, before.defaultModel)
+
+  const saved = await runtime.saveConfig({
+    provider: 'disabled-relay',
+    providerType: 'chat',
+    model: 'disabled-relay-model',
+    api: 'openai-responses',
+    baseUrl: 'https://disabled-relay.example.test/v1',
+    thinkingLevel: 'medium',
+    toolMode: 'read-only',
+    setAsDefault: false,
+    enabled: true,
+  })
+
+  assert.equal(saved.providers.find((provider) => provider.id === 'disabled-relay').enabled, true)
+  assert.equal(saved.defaultProvider, before.defaultProvider)
+  assert.equal(saved.defaultModel, before.defaultModel)
+})
+
 test('visual-only providers save connection settings without replacing the default chat model', async (t) => {
   const directory = await mkdtemp(join(tmpdir(), 'pisper-visual-provider-config-'))
   const runtime = new AgentRuntimeService({ cwd: directory, dataDir: directory })

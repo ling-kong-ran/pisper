@@ -618,6 +618,9 @@ export class ProviderPreferences {
     const provider = String(input.provider || '').trim()
     const model = String(input.model || '').trim()
     if (!provider) throw new Error('Provider 不能为空。')
+    if (this.providerState.refreshPromise) {
+      await this.providerState.refreshPromise.catch(() => {})
+    }
     const currentAppConfig = await readJson(this.appConfigPath, {
       toolMode: 'full',
       disabledProviders: [],
@@ -628,10 +631,25 @@ export class ProviderPreferences {
         ? input.providerType
         : currentAppConfig.providerTypes?.[provider] ||
           inferredProviderType(existingOverlay.providers?.[provider] || {})
-    if ((currentAppConfig.disabledProviders || []).includes(provider)) {
+    const disabledProviders = new Set(currentAppConfig.disabledProviders || [])
+    if (input.enabled === true) disabledProviders.delete(provider)
+    if (disabledProviders.has(provider) && input.setAsDefault !== false) {
       throw new Error('请先启用该 Provider，再将其设为默认配置。')
     }
 
+    const providerOverlay = { ...(existingOverlay.providers?.[provider] || {}) }
+    const baseUrl = String(input.baseUrl || '').trim()
+    const modelBaseUrl = String(input.modelBaseUrl || '').trim()
+    const organization = String(input.organization || '').trim()
+    const requestedApi = PROVIDER_API_IDS.has(input.api) ? input.api : ''
+    if (!baseUrl && !PROVIDER_DEFAULT_BASE_URLS[provider]) {
+      throw new Error('请先填写 Provider Base URL，再保存。')
+    }
+    if (providerType !== 'visual' && !model) {
+      throw new Error('请先选择一个对话模型，再保存。')
+    }
+
+    const modelRuntime = this.getModelRuntime()
     const credentials = await readJson(this.authPath, {})
     let apiKeyUpdated = false
     if (input.clearApiKey) {
@@ -642,15 +660,16 @@ export class ProviderPreferences {
       credentials[provider] = { type: 'api_key', key: input.apiKey.trim() }
       apiKeyUpdated = true
     }
+    const hasAuthentication =
+      Boolean(configuredProviderSecret(credentials[provider], providerOverlay)) ||
+      modelRuntime.hasConfiguredAuth(provider)
+    if (!hasAuthentication) {
+      throw new Error('请先填写 API Key 或加载 Provider 认证，再保存。')
+    }
     if (apiKeyUpdated) await writeJsonAtomic(this.authPath, credentials)
 
     const modelsJson = existingOverlay
     modelsJson.providers ||= {}
-    const providerOverlay = { ...(modelsJson.providers[provider] || {}) }
-    const baseUrl = String(input.baseUrl || '').trim()
-    const modelBaseUrl = String(input.modelBaseUrl || '').trim()
-    const organization = String(input.organization || '').trim()
-    const requestedApi = PROVIDER_API_IDS.has(input.api) ? input.api : ''
     if (requestedApi) {
       providerOverlay.api = requestedApi
       if (Array.isArray(providerOverlay.models)) {
@@ -660,7 +679,6 @@ export class ProviderPreferences {
         }))
       }
     }
-    const modelRuntime = this.getModelRuntime()
     const runtimeModel = model ? modelRuntime.getModel(provider, model) : null
     if (model && !runtimeModel) {
       providerOverlay.name ||= String(input.providerName || provider)
@@ -743,7 +761,7 @@ export class ProviderPreferences {
         requestedToolMode === 'custom'
           ? toolsFromConfig(currentAppConfig)
           : toolPresets[requestedToolMode],
-      disabledProviders: [...new Set(currentAppConfig.disabledProviders || [])],
+      disabledProviders: [...disabledProviders],
       providerTypes: {
         ...(currentAppConfig.providerTypes || {}),
         [provider]: providerType,

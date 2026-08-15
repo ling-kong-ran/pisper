@@ -78,6 +78,6 @@ test('provider import errors render in the discovery panel instead of the Provid
     modelsSettings,
     /<ProviderDiscovery[\s\S]*?error=\{discovery\.error \|\| discovery\.operationError\}/,
   )
-  assert.match(modelsSettings, /<RuntimeStatus[\s\S]*?error=\{settings\.error\}/)
+  assert.match(modelsSettings, /<ProviderSettingsActions[\s\S]*?error=\{settings\.error\}/)
   assert.doesNotMatch(modelsSettings, /error=\{settings\.error \|\| discovery\.operationError\}/)
 })

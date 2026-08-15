@@ -78,7 +78,7 @@ export function useConfigSettings({ notify, requestConfirm, t }: UseConfigSettin
         type: 'replace',
         config: state.config,
         draft: draftForProvider(state.config, provider, state.draft),
-        dirty: true,
+        dirty: false,
       })
     },
     [state.config, state.draft],
@@ -170,23 +170,47 @@ export function useConfigSettings({ notify, requestConfirm, t }: UseConfigSettin
   const save = useCallback(
     async (setAsDefault = false) => {
       const draft = state.draft
-      if (!draft) return
+      if (!draft || !state.dirty) return
+      const provider = state.config?.providers.find((item) => item.id === draft.provider)
+      const apiKey = apiKeyInputRef.current?.value || draft.apiKey
+      if (!draft.baseUrl.trim()) {
+        dispatch({
+          type: 'set-error',
+          value: t('config:configPage.enterProviderBaseURLBeforeSaving'),
+        })
+        return
+      }
+      if (draft.providerType !== 'visual' && !draft.model.trim()) {
+        dispatch({
+          type: 'set-error',
+          value: t('config:configPage.selectAChatModelBeforeSaving'),
+        })
+        return
+      }
+      if (!provider?.configured && !apiKey.trim()) {
+        dispatch({
+          type: 'set-error',
+          value: t('config:configPage.completeProviderAuthenticationBeforeSaving'),
+        })
+        return
+      }
       dispatch({ type: 'set-saving', value: true })
       dispatch({ type: 'set-error', value: '' })
       try {
-        const apiKey = apiKeyInputRef.current?.value || draft.apiKey
         const saved = await apiJson<ConfigData>('/api/config', {
           method: 'PUT',
-          body: JSON.stringify({ ...draft, apiKey, setAsDefault }),
+          body: JSON.stringify({ ...draft, apiKey, setAsDefault, enabled: true }),
         })
         if (apiKey.trim() && !saved.apiKeyUpdated) {
           throw new Error(t('config:configPage.apiKeyCouldNotBeUpdatedPleaseRetry'))
         }
+        const savedProvider = saved.providers.find((item) => item.id === draft.provider)
+        if (!savedProvider?.configured || !savedProvider.enabled) {
+          throw new Error(t('config:configPage.providerWasNotReadyAfterSaving'))
+        }
         dispatch({ type: 'save-succeeded', config: saved })
-        const provider =
-          saved.providers.find((item) => item.id === draft.provider) || saved.providers[0]
         notify(
-          provider.type === 'visual'
+          savedProvider.type === 'visual'
             ? t('config:configPage.visualModelSettingsSaved')
             : setAsDefault && draft.model
               ? t('config:configPage.agentSettingsSavedNewChatsWillUseThisModel')
@@ -198,7 +222,7 @@ export function useConfigSettings({ notify, requestConfirm, t }: UseConfigSettin
         dispatch({ type: 'set-saving', value: false })
       }
     },
-    [notify, state.draft, t],
+    [notify, state.config, state.dirty, state.draft, t],
   )
 
   const applyImportedProvider = useCallback(
