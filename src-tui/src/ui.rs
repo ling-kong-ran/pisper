@@ -30,13 +30,13 @@ const AMBER: Color = Color::Rgb(231, 183, 106);
 const RED: Color = Color::Rgb(240, 124, 130);
 const VIOLET: Color = Color::Rgb(192, 167, 242);
 const BLUE: Color = Color::Rgb(130, 174, 239);
-#[cfg(test)]
 const CONVERSATION_WIDTH: u16 = 110;
 const WELCOME_WIDTH: u16 = 88;
 const WELCOME_FULL_LOGO_WIDTH: u16 = 48;
 const SLASH_HEIGHT: u16 = 22;
 const ROLE_GUTTER_WIDTH: usize = 3;
-const ACTIVITY_GUTTER_WIDTH: usize = 6;
+const ACTIVITY_GUTTER_WIDTH: usize = 3;
+const SPINNER_FRAMES: [&str; 8] = ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧"];
 const PISPER_LOGO: [(&str, &str); 5] = [
     ("████  █ █████  ", "████  █████ ████ "),
     ("█   █ █ █      ", "█   █ █     █   █"),
@@ -375,15 +375,7 @@ fn render_run_state(frame: &mut Frame, app: &App, area: Rect) {
     } else if app.status == "context compacted" {
         ("Context compacted".to_owned(), GREEN, false)
     } else if app.is_streaming() {
-        let label = match app.status.as_str() {
-            "thinking" => "Thinking".to_owned(),
-            "streaming" => "Responding".to_owned(),
-            value if value.starts_with("running ") => {
-                format!("Running {}", value.trim_start_matches("running "))
-            }
-            _ => "Running".to_owned(),
-        };
-        (label, ACCENT, true)
+        return;
     } else if app.status_error {
         (
             runtime_error_label(&app.status, area.width.saturating_sub(2) as usize),
@@ -395,20 +387,29 @@ fn render_run_state(frame: &mut Frame, app: &App, area: Rect) {
     };
 
     let line = if animate {
-        const FRAMES: [&str; 8] = ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧"];
-        let frame = FRAMES[(app.status_frame as usize / 5) % FRAMES.len()];
-        let dots = ".".repeat((app.status_frame as usize / 10) % 3 + 1);
         Line::from(vec![
             Span::styled(
-                format!("{frame} "),
+                format!("{} ", spinner_frame(app.status_frame)),
                 Style::default().fg(color).add_modifier(Modifier::BOLD),
             ),
-            Span::styled(format!("{label}{dots}"), Style::default().fg(color)),
+            Span::styled(label, Style::default().fg(color)),
         ])
     } else {
         Line::from(Span::styled(label, Style::default().fg(color)))
     };
     frame.render_widget(Paragraph::new(line).style(Style::default().bg(BG)), area);
+}
+
+fn active_run_label(app: &App) -> String {
+    match app.status.as_str() {
+        "thinking" => "Thinking".to_owned(),
+        "streaming" => "Responding".to_owned(),
+        value if value.starts_with("running ") => format!(
+            "Running {}",
+            single_line(value.trim_start_matches("running "), 18)
+        ),
+        _ => "Running".to_owned(),
+    }
 }
 
 fn runtime_error_label(error: &str, width: usize) -> String {
@@ -428,10 +429,52 @@ fn runtime_error_label(error: &str, width: usize) -> String {
     )
 }
 
+fn spinner_frame(animation_frame: u64) -> &'static str {
+    SPINNER_FRAMES[(animation_frame as usize / 5) % SPINNER_FRAMES.len()]
+}
+
+#[derive(Default)]
+struct ActivityRail {
+    started: bool,
+    last_row: Option<(usize, bool)>,
+}
+
+impl ActivityRail {
+    fn push(&mut self, lines: &mut Vec<Line<'static>>, mut content: Vec<Span<'static>>) {
+        let prefix = if self.started { "├─ " } else { "╭─ " };
+        self.started = true;
+        self.last_row = Some((lines.len(), true));
+        let mut spans = vec![Span::styled(prefix, Style::default().fg(FAINT))];
+        spans.append(&mut content);
+        lines.push(Line::from(spans));
+    }
+
+    fn continuation(&mut self, lines: &mut Vec<Line<'static>>, mut content: Vec<Span<'static>>) {
+        self.last_row = Some((lines.len(), false));
+        let mut spans = vec![Span::styled("│  ", Style::default().fg(FAINT))];
+        spans.append(&mut content);
+        lines.push(Line::from(spans));
+    }
+
+    fn close_last(&self, lines: &mut [Line<'static>]) {
+        let Some((index, branch)) = self.last_row else {
+            return;
+        };
+        let Some(prefix) = lines[index].spans.first_mut() else {
+            return;
+        };
+        *prefix = Span::styled(
+            if branch { "╰─ " } else { "╰  " },
+            Style::default().fg(FAINT),
+        );
+    }
+}
+
 fn push_message(lines: &mut Vec<Line<'static>>, message: &ChatMessage, width: usize) {
+    let prose_width = width.min(CONVERSATION_WIDTH as usize);
     if message.role == "user" {
-        push_labeled_text(lines, "›", BLUE, &message.text, width, false);
-        push_attachment_lines(lines, &message.attachments, width);
+        push_labeled_text(lines, "›", BLUE, &message.text, prose_width, false);
+        push_attachment_lines(lines, &message.attachments, prose_width);
         lines.push(Line::default());
         return;
     }
@@ -442,9 +485,9 @@ fn push_message(lines: &mut Vec<Line<'static>>, message: &ChatMessage, width: us
         push_activity(lines, activity, width);
     }
     if !message.text.is_empty() {
-        push_markdown(lines, "●", ACCENT, &message.text, width);
+        push_markdown(lines, "●", ACCENT, &message.text, prose_width);
     }
-    push_attachment_lines(lines, &message.attachments, width);
+    push_attachment_lines(lines, &message.attachments, prose_width);
     lines.push(Line::default());
 }
 
@@ -457,13 +500,46 @@ fn push_live(
     animation_frame: u64,
 ) {
     let (thinking_rows, tool_rows) = live_activity_budget(viewport_rows);
+    let tool_running = live.tools.iter().any(|tool| tool.status == "running");
+    let thinking_active = thinking && !tool_running;
+    let mut rail = ActivityRail::default();
     if !live.thinking.is_empty() || (thinking && live.text.is_empty()) {
-        push_thinking(lines, &live.thinking, thinking, width, thinking_rows);
+        push_thinking(
+            lines,
+            &mut rail,
+            &live.thinking,
+            thinking_active,
+            width,
+            thinking_rows,
+            animation_frame,
+        );
     }
-    push_tool_group(lines, &live.tools, width, tool_rows, animation_frame);
-    push_tool_agents(lines, &live.tools);
+    push_tool_group(
+        lines,
+        &mut rail,
+        &live.tools,
+        width,
+        tool_rows,
+        animation_frame,
+    );
+    push_tool_agents(lines, &mut rail, &live.tools, width);
+    if rail.started && !thinking_active && !tool_running && !live.text.is_empty() {
+        rail.push(
+            lines,
+            vec![Span::styled("response", Style::default().fg(MUTED))],
+        );
+        rail.close_last(lines);
+    } else if rail.started && !live.streaming {
+        rail.close_last(lines);
+    }
     if !live.text.is_empty() {
-        push_markdown(lines, "●", ACCENT, &live.text, width);
+        push_markdown(
+            lines,
+            "●",
+            ACCENT,
+            &live.text,
+            width.min(CONVERSATION_WIDTH as usize),
+        );
     }
 }
 
@@ -477,22 +553,47 @@ fn live_activity_budget(viewport_rows: usize) -> (usize, usize) {
 }
 
 fn push_activity(lines: &mut Vec<Line<'static>>, activity: &RunActivity, width: usize) {
+    let mut rail = ActivityRail::default();
     if !activity.thinking_text.is_empty() {
-        push_thinking(lines, &activity.thinking_text, false, width, 2);
+        push_thinking(
+            lines,
+            &mut rail,
+            &activity.thinking_text,
+            false,
+            width,
+            2,
+            0,
+        );
     }
-    push_tool_group(lines, &activity.tools, width, 3, 0);
+    push_tool_group(lines, &mut rail, &activity.tools, width, 3, 0);
     if activity.agents.is_empty() {
-        push_tool_agents(lines, &activity.tools);
+        push_tool_agents(lines, &mut rail, &activity.tools, width);
     } else {
-        push_agent_values(lines, activity.agents.iter());
+        push_agent_values(lines, &mut rail, activity.agents.iter(), width);
     }
+    rail.close_last(lines);
 }
 
-fn push_tool_agents(lines: &mut Vec<Line<'static>>, tools: &[ToolActivity]) {
-    push_agent_values(lines, tools.iter().filter_map(|tool| tool.agent.as_ref()));
+fn push_tool_agents(
+    lines: &mut Vec<Line<'static>>,
+    rail: &mut ActivityRail,
+    tools: &[ToolActivity],
+    width: usize,
+) {
+    push_agent_values(
+        lines,
+        rail,
+        tools.iter().filter_map(|tool| tool.agent.as_ref()),
+        width,
+    );
 }
 
-fn push_agent_values<'a>(lines: &mut Vec<Line<'static>>, agents: impl Iterator<Item = &'a Value>) {
+fn push_agent_values<'a>(
+    lines: &mut Vec<Line<'static>>,
+    rail: &mut ActivityRail,
+    agents: impl Iterator<Item = &'a Value>,
+    width: usize,
+) {
     for agent in agents {
         let name = ["canonicalName", "taskName", "name"]
             .into_iter()
@@ -507,78 +608,91 @@ fn push_agent_values<'a>(lines: &mut Vec<Line<'static>>, agents: impl Iterator<I
             "failed" => ("×", RED),
             _ => ("●", AMBER),
         };
-        lines.push(Line::from(vec![
-            activity_label_span("SUB", VIOLET),
-            Span::styled(format!("{glyph}  "), Style::default().fg(color)),
-            Span::styled(name.to_owned(), Style::default().fg(VIOLET)),
-            Span::styled(format!("  ·  {status}"), Style::default().fg(MUTED)),
-        ]));
+        let name_color = if matches!(status, "completed" | "done") {
+            MUTED
+        } else {
+            VIOLET
+        };
+        rail.push(
+            lines,
+            vec![
+                Span::styled(format!("{glyph} "), Style::default().fg(color)),
+                Span::styled(name.to_owned(), Style::default().fg(name_color)),
+                Span::styled(format!("  ·  {status}"), Style::default().fg(MUTED)),
+            ],
+        );
         let detail = agent
             .get("output")
             .and_then(Value::as_str)
             .or_else(|| agent.get("message").and_then(Value::as_str))
             .unwrap_or("isolated context · inherited execution mode");
-        lines.push(Line::from(vec![
-            activity_gutter(),
-            Span::styled("└ ", Style::default().fg(FAINT)),
-            Span::styled(single_line(detail, 80), Style::default().fg(MUTED)),
-        ]));
+        let detail_width = width.saturating_sub(ACTIVITY_GUTTER_WIDTH + 3).max(4);
+        rail.continuation(
+            lines,
+            vec![
+                Span::raw("   "),
+                Span::styled(
+                    single_line(detail, detail_width),
+                    Style::default().fg(MUTED),
+                ),
+            ],
+        );
     }
 }
 
 fn push_thinking(
     lines: &mut Vec<Line<'static>>,
+    rail: &mut ActivityRail,
     value: &str,
     active: bool,
     width: usize,
     max_lines: usize,
+    animation_frame: u64,
 ) {
-    let content_width = width.saturating_sub(ACTIVITY_GUTTER_WIDTH).max(12);
+    let label = if width >= 32 { "thinking" } else { "think" };
+    let content_indent = 2 + label.width() + 2;
+    let content_width = width
+        .saturating_sub(ACTIVITY_GUTTER_WIDTH + content_indent)
+        .max(4);
     let content = wrapped_tail(value, content_width, max_lines);
     let label_style = if active {
-        Style::default()
-            .fg(AMBER)
-            .add_modifier(Modifier::BOLD | Modifier::SLOW_BLINK)
-    } else {
         Style::default().fg(AMBER).add_modifier(Modifier::BOLD)
+    } else {
+        Style::default().fg(MUTED).add_modifier(Modifier::BOLD)
     };
-    let first = content.first().cloned().unwrap_or_default();
-    lines.push(Line::from(vec![
-        Span::styled(format!("{:<ACTIVITY_GUTTER_WIDTH$}", "THINK"), label_style),
-        Span::styled(first, Style::default().fg(TEXT)),
-    ]));
-    for line in content.into_iter().skip(1) {
-        lines.push(Line::from(vec![
-            activity_gutter(),
-            Span::styled(line, Style::default().fg(TEXT)),
-        ]));
+    let mut first = vec![
+        Span::styled(
+            format!(
+                "{} ",
+                if active {
+                    spinner_frame(animation_frame)
+                } else {
+                    "◆"
+                }
+            ),
+            Style::default().fg(if active { AMBER } else { FAINT }),
+        ),
+        Span::styled(label.to_owned(), label_style),
+    ];
+    if let Some(content) = content.first() {
+        first.push(Span::raw("  "));
+        first.push(Span::styled(content.clone(), Style::default().fg(MUTED)));
     }
-    if active && value.is_empty() {
-        if let Some(last) = lines.last_mut() {
-            last.spans
-                .push(Span::styled("Thinking…", Style::default().fg(MUTED)));
-        }
+    rail.push(lines, first);
+    for content in content.into_iter().skip(1) {
+        rail.continuation(
+            lines,
+            vec![
+                Span::raw(" ".repeat(content_indent)),
+                Span::styled(content, Style::default().fg(MUTED)),
+            ],
+        );
     }
 }
 
 fn wrapped_tail(value: &str, width: usize, max_lines: usize) -> Vec<String> {
-    let mut wrapped = Vec::new();
-    for source in value.lines().map(str::trim).filter(|line| !line.is_empty()) {
-        let mut line = String::new();
-        let mut line_width = 0;
-        for character in source.chars() {
-            let character_width = UnicodeWidthChar::width(character).unwrap_or(0);
-            if line_width + character_width > width && !line.is_empty() {
-                wrapped.push(std::mem::take(&mut line));
-                line_width = 0;
-            }
-            line.push(character);
-            line_width += character_width;
-        }
-        if !line.is_empty() {
-            wrapped.push(line);
-        }
-    }
+    let mut wrapped = wrap_text(value, width);
+    wrapped.retain(|line| !line.is_empty());
     if wrapped.len() > max_lines {
         wrapped.drain(..wrapped.len() - max_lines);
         if let Some(first) = wrapped.first_mut() {
@@ -590,6 +704,7 @@ fn wrapped_tail(value: &str, width: usize, max_lines: usize) -> Vec<String> {
 
 fn push_tool_group(
     lines: &mut Vec<Line<'static>>,
+    rail: &mut ActivityRail,
     tools: &[ToolActivity],
     width: usize,
     max_rows: usize,
@@ -598,59 +713,77 @@ fn push_tool_group(
     if tools.is_empty() || max_rows == 0 {
         return;
     }
-    if max_rows == 1 {
-        lines.push(tool_line(
-            tools.last().expect("tools is not empty"),
-            width,
-            true,
-            animation_frame,
-        ));
-        return;
+    let active_index = tools.iter().rposition(|tool| tool.status == "running");
+    let reserve_summary = tools.len() > max_rows && max_rows > 1;
+    let tool_capacity = max_rows.saturating_sub(usize::from(reserve_summary));
+    let mut selected = Vec::with_capacity(tool_capacity);
+    if let Some(index) = active_index {
+        selected.push(index);
     }
-    let visible_rows = tools.len().min(max_rows);
-    let tool_rows = if tools.len() > max_rows {
-        visible_rows.saturating_sub(1)
-    } else {
-        visible_rows
-    };
-    let hidden = tools.len().saturating_sub(tool_rows);
-    if hidden > 0 {
-        lines.push(Line::from(vec![
-            activity_label_span("TOOL", ACCENT),
-            Span::styled("│  ", Style::default().fg(RULE)),
-            Span::styled(
-                format!(
-                    "{hidden} earlier tool{}",
-                    if hidden == 1 { "" } else { "s" }
+    for index in (0..tools.len()).rev() {
+        if selected.len() >= tool_capacity {
+            break;
+        }
+        if Some(index) != active_index {
+            selected.push(index);
+        }
+    }
+    selected.sort_unstable();
+    let hidden = tools.len().saturating_sub(selected.len());
+    if reserve_summary {
+        let completed = tools.iter().filter(|tool| tool.status == "done").count();
+        let active = tools.iter().filter(|tool| tool.status == "running").count();
+        let active = if active > 0 {
+            format!(" · {active} active")
+        } else {
+            String::new()
+        };
+        rail.push(
+            lines,
+            vec![
+                Span::styled("… ", Style::default().fg(FAINT)),
+                Span::styled(
+                    format!("{hidden} earlier · {completed} completed{active}"),
+                    Style::default().fg(MUTED),
                 ),
-                Style::default().fg(MUTED),
-            ),
-        ]));
+            ],
+        );
     }
-    for (index, tool) in tools
-        .iter()
-        .skip(tools.len().saturating_sub(tool_rows))
-        .enumerate()
-    {
-        lines.push(tool_line(
-            tool,
-            width,
-            hidden == 0 && index == 0,
-            animation_frame,
-        ));
+    for index in selected {
+        rail.push(
+            lines,
+            tool_spans(
+                &tools[index],
+                width,
+                Some(index) == active_index,
+                animation_frame,
+            ),
+        );
     }
 }
 
-fn tool_line(
+fn tool_spans(
     tool: &ToolActivity,
     width: usize,
-    show_label: bool,
+    animate: bool,
     animation_frame: u64,
-) -> Line<'static> {
-    const NAME_WIDTH: usize = 9;
-    const META_WIDTH: usize = 11;
-    const PREFIX_WIDTH: usize = ACTIVITY_GUTTER_WIDTH + 3 + 2 + NAME_WIDTH;
-
+) -> Vec<Span<'static>> {
+    let name_width = match width {
+        0..=43 => 7,
+        44..=59 => 10,
+        60..=79 => 12,
+        80..=109 => 15,
+        _ => 18,
+    };
+    let meta_width = if width >= 72 {
+        10
+    } else if width >= 48 {
+        8
+    } else {
+        0
+    };
+    let available = width.saturating_sub(ACTIVITY_GUTTER_WIDTH);
+    let detail_width = available.saturating_sub(2 + name_width + meta_width);
     let status_color = match tool.status.as_str() {
         "error" => RED,
         "done" => GREEN,
@@ -659,46 +792,44 @@ fn tool_line(
     let status_glyph = match tool.status.as_str() {
         "error" => "×",
         "done" => "✓",
-        _ => {
-            const FRAMES: [&str; 8] = ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧"];
-            FRAMES[(animation_frame as usize / 3) % FRAMES.len()]
-        }
+        "running" if animate => spinner_frame(animation_frame),
+        _ => "•",
     };
-    let detail_width = width.saturating_sub(PREFIX_WIDTH + META_WIDTH).max(8);
-    let detail = tool_detail(tool, detail_width);
-    let detail_padding = detail_width.saturating_sub(detail.width());
-    let name = single_line(&tool.name.to_lowercase(), NAME_WIDTH.saturating_sub(1));
-    let name_padding = NAME_WIDTH.saturating_sub(name.width());
-    Line::from(vec![
-        if show_label {
-            activity_label_span("TOOL", ACCENT)
-        } else {
-            activity_gutter()
-        },
-        Span::styled("│  ", Style::default().fg(RULE)),
+    let name = single_line(&tool.name.to_lowercase(), name_width.saturating_sub(1));
+    let name_padding = name_width.saturating_sub(name.width());
+    let name_style = if tool.status == "running" && animate {
+        Style::default().fg(ACCENT).add_modifier(Modifier::BOLD)
+    } else {
+        Style::default().fg(MUTED)
+    };
+    let mut spans = vec![
         Span::styled(
             format!("{status_glyph} "),
             Style::default()
                 .fg(status_color)
                 .add_modifier(Modifier::BOLD),
         ),
-        Span::styled(
-            format!("{name}{}", " ".repeat(name_padding)),
-            Style::default().fg(ACCENT),
-        ),
-        Span::styled(
+        Span::styled(format!("{name}{}", " ".repeat(name_padding)), name_style),
+    ];
+    if detail_width > 0 {
+        let detail = tool_detail(tool, detail_width);
+        let detail_padding = detail_width.saturating_sub(detail.width());
+        spans.push(Span::styled(
             format!("{detail}{}", " ".repeat(detail_padding)),
-            Style::default().fg(BLUE),
-        ),
-        Span::styled(
-            format!("{:>META_WIDTH$}", tool_duration(tool)),
             Style::default().fg(if tool.status == "running" {
-                ACCENT
-            } else {
                 MUTED
+            } else {
+                FAINT
             }),
-        ),
-    ])
+        ));
+    }
+    if meta_width > 0 {
+        spans.push(Span::styled(
+            format!("{:>meta_width$}", tool_duration(tool)),
+            Style::default().fg(MUTED),
+        ));
+    }
+    spans
 }
 
 fn tool_duration(tool: &ToolActivity) -> String {
@@ -746,16 +877,8 @@ fn role_label_span(label: &str, color: Color) -> Span<'static> {
     padded_label_span(label, ROLE_GUTTER_WIDTH, color)
 }
 
-fn activity_label_span(label: &str, color: Color) -> Span<'static> {
-    padded_label_span(label, ACTIVITY_GUTTER_WIDTH, color)
-}
-
 fn role_gutter() -> Span<'static> {
     Span::raw(" ".repeat(ROLE_GUTTER_WIDTH))
-}
-
-fn activity_gutter() -> Span<'static> {
-    Span::raw(" ".repeat(ACTIVITY_GUTTER_WIDTH))
 }
 
 fn push_labeled_text(
@@ -1108,7 +1231,28 @@ fn format_bytes(size: u64) -> String {
     }
 }
 
+fn hard_wrap_word(value: &str, width: usize) -> Vec<String> {
+    let width = width.max(1);
+    let mut chunks = Vec::new();
+    let mut current = String::new();
+    let mut current_width = 0;
+    for character in value.chars() {
+        let character_width = UnicodeWidthChar::width(character).unwrap_or(0);
+        if current_width + character_width > width && !current.is_empty() {
+            chunks.push(std::mem::take(&mut current));
+            current_width = 0;
+        }
+        current.push(character);
+        current_width += character_width;
+    }
+    if !current.is_empty() {
+        chunks.push(current);
+    }
+    chunks
+}
+
 fn wrap_text(value: &str, width: usize) -> Vec<String> {
+    let width = width.max(1);
     let mut result = Vec::new();
     for source in value.lines() {
         if source.is_empty() {
@@ -1119,6 +1263,19 @@ fn wrap_text(value: &str, width: usize) -> Vec<String> {
         let mut current_width = 0;
         for word in source.split_whitespace() {
             let word_width = word.width();
+            if word_width > width {
+                if !current.is_empty() {
+                    result.push(std::mem::take(&mut current));
+                    current_width = 0;
+                }
+                let mut chunks = hard_wrap_word(word, width);
+                if let Some(last) = chunks.pop() {
+                    result.extend(chunks);
+                    current_width = last.width();
+                    current = last;
+                }
+                continue;
+            }
             let separator = usize::from(!current.is_empty());
             if current_width + separator + word_width > width && !current.is_empty() {
                 result.push(std::mem::take(&mut current));
@@ -1293,7 +1450,7 @@ fn render_composer(frame: &mut Frame, app: &App, area: Rect) {
     let focused = matches!(app.view, View::Chat) && app.accepts_composer_input();
     let border = if app.status_error {
         RED
-    } else if focused {
+    } else if focused && !app.is_streaming() {
         ACCENT
     } else {
         RULE
@@ -1372,8 +1529,10 @@ fn render_composer(frame: &mut Frame, app: &App, area: Rect) {
         );
         let queue = if app.queued_count() > 0 {
             format!("    {} queued", app.queued_count())
+        } else if app.is_streaming() && inner.width >= 52 {
+            "    Ctrl+C stop · Enter steer".to_owned()
         } else if app.is_streaming() {
-            "    current run active".to_owned()
+            "    Ctrl+C stop".to_owned()
         } else if app.slash_open() {
             "    Tab complete · Enter select".to_owned()
         } else {
@@ -1381,10 +1540,7 @@ fn render_composer(frame: &mut Frame, app: &App, area: Rect) {
         };
         let controls = Line::from(vec![
             Span::styled("+ attach  / commands", Style::default().fg(MUTED)),
-            Span::styled(
-                queue,
-                Style::default().fg(if app.is_streaming() { ACCENT } else { MUTED }),
-            ),
+            Span::styled(queue, Style::default().fg(MUTED)),
         ]);
         frame.render_widget(
             Paragraph::new(controls).style(Style::default().bg(SURFACE)),
@@ -1454,6 +1610,9 @@ fn render_status(frame: &mut Frame, app: &App, area: Rect) {
     );
 
     let mut priority = Vec::new();
+    if app.is_streaming() {
+        priority.push(active_run_label(app));
+    }
     if app.queued_count() > 0 {
         priority.push(format!("{} queued", app.queued_count()));
     }
@@ -1469,7 +1628,7 @@ fn render_status(frame: &mut Frame, app: &App, area: Rect) {
     if agents > 0 {
         priority.push(format!("{agents} subagent"));
     }
-    if !app.thinking_level.is_empty() {
+    if !app.is_streaming() && !app.thinking_level.is_empty() {
         priority.push(format!("Thinking · {}", app.thinking_level));
     }
     let right_budget = area
@@ -2732,8 +2891,8 @@ mod tests {
 
     use super::{
         compact_token_count, draw, format_session_time, padded_single_line, push_live,
-        push_markdown, render_slash, runtime_error_label, slash_menu_area, visible_input,
-        CONVERSATION_WIDTH, GREEN,
+        push_markdown, push_message, render_slash, runtime_error_label, slash_menu_area,
+        visible_input, ACCENT, CONVERSATION_WIDTH, GREEN, MUTED, RULE,
     };
     use crate::{
         app::{App, Approval, LiveTurn, PathEntry, SettingsPicker},
@@ -2749,6 +2908,49 @@ mod tests {
             .iter()
             .map(|cell| cell.symbol())
             .collect::<String>()
+    }
+
+    fn buffer_rows(buffer: &ratatui::buffer::Buffer, width: u16, height: u16) -> Vec<String> {
+        (0..height)
+            .map(|y| {
+                (0..width)
+                    .filter_map(|x| buffer.cell((x, y)))
+                    .map(|cell| cell.symbol())
+                    .collect::<String>()
+            })
+            .collect()
+    }
+
+    fn render_test_buffer(app: &App, width: u16, height: u16) -> ratatui::buffer::Buffer {
+        let mut terminal = Terminal::new(TestBackend::new(width, height)).unwrap();
+        terminal.draw(|frame| draw(frame, app)).unwrap();
+        terminal.backend().buffer().clone()
+    }
+
+    fn live_test_app(status: &str, live: LiveTurn) -> App {
+        let session = SessionSummary {
+            id: "session-live-ui".to_owned(),
+            model: "openai/gpt-5.6-sol".to_owned(),
+            cwd: "/workspace".to_owned(),
+            execution_mode: "full-access".to_owned(),
+            thinking_level: "high".to_owned(),
+            ..SessionSummary::default()
+        };
+        let mut app = App::new(
+            vec![session.clone()],
+            session,
+            vec![ChatMessage {
+                role: "user".to_owned(),
+                text: "Polish the streaming view".to_owned(),
+                ..ChatMessage::default()
+            }],
+            None,
+            Vec::new(),
+            Vec::new(),
+        );
+        app.status = status.to_owned();
+        app.live = Some(live);
+        app
     }
 
     #[test]
@@ -2904,14 +3106,20 @@ mod tests {
         );
 
         assert_eq!(lines.len(), 1);
-        assert!(lines[0]
+        let rendered = lines[0]
             .spans
             .iter()
-            .any(|span| span.content.contains("THINK")));
+            .map(|span| span.content.as_ref())
+            .collect::<String>();
+        assert!(rendered.starts_with("╭─ ⠋ thinking"));
+        assert!(!lines
+            .iter()
+            .flat_map(|line| &line.spans)
+            .any(|span| span.style.add_modifier.contains(Modifier::SLOW_BLINK)));
     }
 
     #[test]
-    fn live_thinking_is_expanded_before_the_response_and_uses_terminal_blink() {
+    fn live_thinking_is_expanded_before_the_response_with_one_spinner() {
         let mut lines = Vec::new();
         push_live(
             &mut lines,
@@ -2937,17 +3145,19 @@ mod tests {
                     .collect::<String>()
             })
             .collect::<Vec<_>>();
-        assert!(rendered[0].contains("THINK"));
+        assert!(rendered[0].starts_with("╭─ ⠋ thinking"));
         assert!(rendered[0].contains("Inspect the runtime."));
+        assert!(rendered[1].starts_with("│"));
         assert!(rendered[1].contains("Trace the event stream."));
         assert!(rendered
             .last()
             .unwrap()
             .contains("The implementation is ready."));
-        assert!(lines[0].spans[0]
-            .style
-            .add_modifier
-            .contains(Modifier::SLOW_BLINK));
+        assert_eq!(rendered.join("\n").matches('⠋').count(), 1);
+        assert!(!lines
+            .iter()
+            .flat_map(|line| &line.spans)
+            .any(|span| span.style.add_modifier.contains(Modifier::SLOW_BLINK)));
     }
 
     #[test]
@@ -2985,10 +3195,195 @@ mod tests {
                     .collect::<String>()
             })
             .collect::<Vec<_>>();
-        assert!(rendered[0].contains("THINK"));
-        assert!(rendered[1].contains("7 earlier tools"));
-        assert!(rendered[2].contains("tool-7"));
+        assert!(rendered[0].starts_with("╭─ ◆ thinking"));
+        assert!(rendered[1].contains("7 earlier · 7 completed · 1 active"));
+        assert!(rendered[2].starts_with("├─ ⠋ tool-7"));
+        assert_eq!(rendered.join("\n").matches('⠋').count(), 1);
         assert!(lines.iter().all(|line| line.width() <= 48));
+    }
+
+    #[test]
+    fn live_activity_uses_responsive_columns_and_quiet_completed_tools() {
+        let mut lines = Vec::new();
+        push_live(
+            &mut lines,
+            &LiveTurn {
+                tools: vec![
+                    ToolActivity {
+                        name: "read_workspace_manifest".to_owned(),
+                        status: "done".to_owned(),
+                        message: "src-tui/Cargo.toml".to_owned(),
+                        started_at: 1_000,
+                        finished_at: 1_018,
+                        ..ToolActivity::default()
+                    },
+                    ToolActivity {
+                        name: "bash".to_owned(),
+                        status: "running".to_owned(),
+                        message: "npm run tui:test".to_owned(),
+                        ..ToolActivity::default()
+                    },
+                ],
+                streaming: true,
+                ..LiveTurn::default()
+            },
+            false,
+            120,
+            20,
+            0,
+        );
+
+        let spans = lines
+            .iter()
+            .flat_map(|line| &line.spans)
+            .collect::<Vec<_>>();
+        let completed = spans
+            .iter()
+            .find(|span| span.content.contains("read_workspace"))
+            .unwrap();
+        let active = spans
+            .iter()
+            .find(|span| span.content.trim() == "bash")
+            .unwrap();
+        let completed_detail = spans
+            .iter()
+            .find(|span| span.content.contains("src-tui/Cargo.toml"))
+            .unwrap();
+        assert_eq!(completed.style.fg, Some(MUTED));
+        assert_eq!(active.style.fg, Some(ACCENT));
+        assert_eq!(completed_detail.style.fg, Some(super::FAINT));
+        assert!(lines.iter().all(|line| line.width() <= 120));
+    }
+
+    #[test]
+    fn wide_conversations_bound_prose_without_narrowing_activity() {
+        let mut prose = Vec::new();
+        push_message(
+            &mut prose,
+            &ChatMessage {
+                role: "agent".to_owned(),
+                text: (0..36)
+                    .map(|index| format!("word-{index}"))
+                    .collect::<Vec<_>>()
+                    .join(" "),
+                ..ChatMessage::default()
+            },
+            160,
+        );
+        assert!(prose
+            .iter()
+            .all(|line| line.width() <= CONVERSATION_WIDTH as usize));
+
+        let mut activity = Vec::new();
+        push_live(
+            &mut activity,
+            &LiveTurn {
+                tools: vec![ToolActivity {
+                    name: "bash".to_owned(),
+                    status: "running".to_owned(),
+                    message: "cargo test".to_owned(),
+                    ..ToolActivity::default()
+                }],
+                streaming: true,
+                ..LiveTurn::default()
+            },
+            false,
+            160,
+            20,
+            0,
+        );
+        assert_eq!(activity[0].width(), 160);
+    }
+
+    #[test]
+    fn live_visual_states_hold_at_wide_standard_and_compact_sizes() {
+        for (width, height) in [(120, 30), (80, 24), (48, 16)] {
+            let thinking = live_test_app(
+                "thinking",
+                LiveTurn {
+                    streaming: true,
+                    ..LiveTurn::default()
+                },
+            );
+            let thinking_buffer = render_test_buffer(&thinking, width, height);
+            let thinking_rows = buffer_rows(&thinking_buffer, width, height);
+            let thinking_text = thinking_rows.join("\n");
+            assert!(thinking_text.contains("╭─ ⠋ thinking"));
+            assert!(thinking_rows.last().unwrap().contains("Thinking"));
+            assert!(!thinking_text.contains("THINK"));
+            assert!(!thinking_text.contains("current run active"));
+            let composer_y = if height >= 18 { height - 7 } else { height - 4 };
+            assert_eq!(
+                thinking_buffer.cell((0, composer_y)).unwrap().fg,
+                RULE,
+                "streaming composer border should stay quiet at {width}x{height}"
+            );
+            if height >= 18 {
+                assert!(thinking_text.contains("Ctrl+C stop · Enter steer"));
+            }
+
+            let running = live_test_app(
+                "running bash",
+                LiveTurn {
+                    thinking: "Inspect the current rendering hierarchy.".to_owned(),
+                    tools: vec![
+                        ToolActivity {
+                            name: "read".to_owned(),
+                            status: "done".to_owned(),
+                            message: "src-tui/src/ui.rs".to_owned(),
+                            ..ToolActivity::default()
+                        },
+                        ToolActivity {
+                            name: "bash".to_owned(),
+                            status: "running".to_owned(),
+                            message: "npm run tui:test".to_owned(),
+                            ..ToolActivity::default()
+                        },
+                    ],
+                    streaming: true,
+                    ..LiveTurn::default()
+                },
+            );
+            let running_buffer = render_test_buffer(&running, width, height);
+            let running_rows = buffer_rows(&running_buffer, width, height);
+            let running_text = running_rows.join("\n");
+            assert!(running_text.contains("╭─ ◆ thinking"));
+            assert!(running_text.contains("✓ read"));
+            assert!(running_text.contains("⠋ bash"));
+            assert!(running_rows.last().unwrap().contains("Running bash"));
+            assert_eq!(running_text.matches('⠋').count(), 1);
+            assert!(!running_text.contains("TOOL"));
+
+            let responding = live_test_app(
+                "streaming",
+                LiveTurn {
+                    thinking: "Inspect the current rendering hierarchy.".to_owned(),
+                    tools: vec![ToolActivity {
+                        name: "read".to_owned(),
+                        status: "done".to_owned(),
+                        message: "src-tui/src/ui.rs".to_owned(),
+                        ..ToolActivity::default()
+                    }],
+                    text: "The hierarchy is now stable.".to_owned(),
+                    text_target: "The hierarchy is now stable.".to_owned(),
+                    streaming: true,
+                    ..LiveTurn::default()
+                },
+            );
+            let responding_buffer = render_test_buffer(&responding, width, height);
+            let responding_rows = buffer_rows(&responding_buffer, width, height);
+            let responding_text = responding_rows.join("\n");
+            assert!(responding_text.contains("╰─ response"));
+            assert!(responding_text.contains("●  The hierarchy is now stable."));
+            assert!(responding_rows.last().unwrap().contains("Responding"));
+
+            let mut error = live_test_app("stream_read_error", LiveTurn::default());
+            error.live = None;
+            error.status_error = true;
+            let error_buffer = render_test_buffer(&error, width, height);
+            let error_text = buffer_rows(&error_buffer, width, height).join("\n");
+            assert!(error_text.contains("Response stream interrupted"));
+        }
     }
 
     #[test]
@@ -3038,19 +3433,20 @@ mod tests {
         assert!(rows
             .iter()
             .any(|row| row.contains("[full-access] · gpt-5.6-sol")));
-        assert!(rows.iter().any(|row| row.contains("Thinking · high")));
+        assert!(rows.last().unwrap().contains("Thinking"));
+        assert!(!rows.last().unwrap().contains("Thinking · high"));
         let message_row = rows
             .iter()
             .position(|row| row.contains("Pisper is ready."))
             .unwrap();
         let thinking_row = rows
             .iter()
-            .rposition(|row| row.contains("⠋ Thinking."))
+            .rposition(|row| row.contains("╭─ ⠋ thinking"))
             .unwrap();
         assert!(rows[message_row].starts_with("●  Pisper is ready."));
         assert!(
-            rows[thinking_row].starts_with("⠋ Thinking."),
-            "run state is not left aligned: {}",
+            rows[thinking_row].starts_with("╭─ ⠋ thinking"),
+            "activity rail is not left aligned: {}",
             rows[thinking_row]
         );
         assert!(
@@ -3059,9 +3455,9 @@ mod tests {
         );
         assert!(
             message_row < thinking_row,
-            "message crossed into the run state"
+            "message crossed into the activity rail"
         );
-        assert!(thinking_row < 17, "run state crossed into the composer");
+        assert!(thinking_row < 17, "activity rail crossed into the composer");
     }
 
     #[test]
@@ -3390,9 +3786,16 @@ mod tests {
     }
 
     #[test]
-    fn unicode_columns_pad_by_terminal_width() {
+    fn unicode_columns_pad_and_wrap_by_terminal_width() {
         assert_eq!(padded_single_line("中文", 8).width(), 8);
         assert_eq!(padded_single_line("conversation", 8), "convers…");
+        assert_eq!(
+            super::wrap_text("rendering hierarchy", 9),
+            ["rendering", "hierarchy"]
+        );
+        assert!(super::wrap_text("持续渲染中的上下文", 6)
+            .iter()
+            .all(|line| line.width() <= 6));
     }
 
     #[test]
