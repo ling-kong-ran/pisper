@@ -1,7 +1,12 @@
 import { mkdir, open, readFile, stat, unlink, writeFile } from 'node:fs/promises'
 import { createHash, randomUUID } from 'node:crypto'
 import { basename, extname, isAbsolute, join, resolve, sep } from 'node:path'
-import { createAgentSession, createCompressedReadTool, SessionManager, SettingsManager } from './pi-coding-agent.mjs'
+import {
+  createAgentSession,
+  createCompressedReadTool,
+  SessionManager,
+  SettingsManager,
+} from './pi-coding-agent.mjs'
 import { ensureSessionFilePersisted } from './session-file-persist.mjs'
 import {
   capturePromptCacheShape,
@@ -28,7 +33,7 @@ import {
 } from '../services/session-permission-service.mjs'
 import { ToolPluginService } from '../services/tool-plugin-service.mjs'
 import { WebSearchService } from '../services/web-search-service.mjs'
-import { extractConversationMemories } from '../services/memory/conversation-memory.mjs'
+import { captureConversationMemory, localDayKey } from './conversation-memory-capture.mjs'
 import { LocalMemoryRuntime } from '../services/memory/local-memory-runtime.mjs'
 import { createSemanticMemorySummarizer } from '../services/memory/semantic-memory.mjs'
 import { VisualGenerationService } from '../services/visual-generation/index.mjs'
@@ -90,8 +95,10 @@ import {
 } from './compaction-policy.mjs'
 import {
   AgentRuntimeFacade,
+  DEFAULT_MEMORY_AUTO_APPROVE_CONFIDENCE,
   ISOLATED_CONTEXT_BLOCKED_TOOLS,
   createScheduleWorkflowAdapter,
+  normalizeMemoryAutoApproveConfidence,
 } from './agent-runtime-facade.mjs'
 import { ToolActivation } from './tool-activation.mjs'
 import {
@@ -321,14 +328,6 @@ function cleanSessionTitle(value) {
     .trim()
   return truncateTitle(title)
 }
-
-function localDayKey(value = new Date()) {
-  const date = value instanceof Date ? value : new Date(value)
-  if (Number.isNaN(date.getTime())) return ''
-  const pad = (part) => String(part).padStart(2, '0')
-  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`
-}
-
 function promptCacheTools(session) {
   const names = session?.getActiveToolNames?.() || []
   if (typeof session?.getToolDefinition === 'function')
@@ -436,7 +435,11 @@ export class AgentRuntimeService extends AgentRuntimeFacade {
     this.usagePath = join(dataDir, 'pisper-usage.json')
     this.assetsDir = join(dataDir, 'pisper-assets')
     this.assetIndexPath = join(dataDir, 'pisper-assets.json')
-    this.memory = new LocalMemoryRuntime({ path: join(dataDir, 'pisper-memory.sqlite'), cwd })
+    this.memory = new LocalMemoryRuntime({
+      path: join(dataDir, 'pisper-memory.sqlite'),
+      cwd,
+      getAutoApproveConfidence: () => this.memoryAutoApproveConfidence / 100,
+    })
     this.memorySummarizer = createSemanticMemorySummarizer({
       getModelRuntime: () => this.modelRuntime,
       getDefaultModel: () => this.resolveDefaultModel(),
@@ -521,6 +524,7 @@ export class AgentRuntimeService extends AgentRuntimeFacade {
     this.modelRuntime = null
     this.settingsManager = null
     this.compactionThresholdPercent = DEFAULT_COMPACTION_THRESHOLD_PERCENT
+    this.memoryAutoApproveConfidence = DEFAULT_MEMORY_AUTO_APPROVE_CONFIDENCE
     this.sessionMeta = {}
     this.permissions = new SessionPermissionService({
       approvalPath: join(dataDir, 'pisper-approvals.json'),
@@ -702,6 +706,9 @@ export class AgentRuntimeService extends AgentRuntimeFacade {
     const appConfig = await readJson(this.appConfigPath, {})
     this.compactionThresholdPercent = normalizeCompactionThresholdPercent(
       appConfig.compactionThresholdPercent,
+    )
+    this.memoryAutoApproveConfidence = normalizeMemoryAutoApproveConfidence(
+      appConfig.memoryAutoApproveConfidence,
     )
 
     stage('providers')
@@ -2199,7 +2206,8 @@ export class AgentRuntimeService extends AgentRuntimeFacade {
             emit('generated_asset', attachment)
           }
         }
-        const resultOutput = event.toolName === 'bash' ? liveThinkingTail(textFromContent(event.result?.content)) : ''
+        const resultOutput =
+          event.toolName === 'bash' ? liveThinkingTail(textFromContent(event.result?.content)) : ''
         const resultMessage = event.isError
           ? resultOutput || textFromContent(event.result?.content) || '工具执行失败。'
           : ''
@@ -2464,38 +2472,7 @@ export class AgentRuntimeService extends AgentRuntimeFacade {
       timer.unref?.()
     }
   }
-  async captureConversationMemory({
-    sessionId,
-    cwd,
-    model,
-    user,
-    assistant,
-    sourceTimestamp = '',
-  }) {
-    const result = await extractConversationMemories({
-      modelRuntime: this.modelRuntime,
-      model,
-      user,
-      assistant,
-    })
-    if (result.usage)
-      await this.recordUsage(
-        localDayKey(result.timestamp || Date.now()),
-        `memory:${sessionId}:${result.timestamp || Date.now()}`,
-        result.usage,
-      )
-    if (!result.memories.length) return []
-    const projectSpaceId = await this.memory.ensureWorkspaceSpace(cwd)
-    return result.memories.map((item, index) =>
-      this.memory.propose({
-        ...item,
-        spaceId: item.scope === 'global' ? 'global' : projectSpaceId,
-        cwd,
-        sessionId,
-        sourceId: `${sessionId}:${sourceTimestamp || result.timestamp || Date.now()}:${index}`,
-        sourceTimestamp: sourceTimestamp || new Date(result.timestamp || Date.now()).toISOString(),
-        sourceType: 'conversation',
-      }),
-    )
+  async captureConversationMemory(input) {
+    return captureConversationMemory(this, input)
   }
 }

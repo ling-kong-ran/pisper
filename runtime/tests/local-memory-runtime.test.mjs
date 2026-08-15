@@ -188,6 +188,80 @@ test('automatic conversation memories remain pending and cannot affect recall be
   })
 })
 
+test('high-confidence candidates auto-approve above the configured threshold', async () => {
+  await withMemory(async (memory, cwd) => {
+    const spaceId = await memory.ensureWorkspaceSpace(cwd)
+    // 默认阈值 60：置信度 0.9 的候选免审直入。
+    const stored = memory.propose({
+      spaceId,
+      title: 'UI 技术栈',
+      content: '项目 UI 使用 Tailwind。',
+      topic: 'project.ui.stack',
+      sourceType: 'conversation',
+      evidence: '项目 UI 使用 Tailwind。',
+      confidence: 0.9,
+    })
+    assert.equal(stored.status, 'active')
+    assert.equal(stored.sourceType, 'auto_approved')
+    assert.equal(stored.autoApproved, true)
+    assert.equal(memory.candidateInbox().count, 0)
+    assert.ok(memory.search('Tailwind', { cwd }).length >= 1)
+    // 等于阈值即自动确认；低于阈值仍待用户确认。
+    const boundary = memory.propose({
+      spaceId,
+      title: '测试框架',
+      content: '项目使用 node:test。',
+      topic: 'project.test.framework',
+      sourceType: 'conversation',
+      evidence: '项目使用 node:test。',
+      confidence: 0.6,
+    })
+    assert.equal(boundary.status, 'active')
+    const pending = memory.propose({
+      spaceId,
+      title: '部署平台',
+      content: '项目可能部署到 Fly.io。',
+      topic: 'project.deploy.platform',
+      sourceType: 'conversation',
+      evidence: '项目可能部署到 Fly.io。',
+      confidence: 0.59,
+    })
+    assert.equal(pending.status, 'pending')
+    assert.equal(memory.candidateInbox().count, 1)
+  })
+})
+
+test('auto-approve threshold is configurable and bounded', async () => {
+  await withMemory(
+    async (memory, cwd) => {
+      const spaceId = await memory.ensureWorkspaceSpace(cwd)
+      // 阈值 80：0.7 仍需确认，0.8 直接入库。
+      const pending = memory.propose({
+        spaceId,
+        title: '缓存策略',
+        content: '缓存键使用内容哈希。',
+        topic: 'project.cache.strategy',
+        sourceType: 'conversation',
+        evidence: '缓存键使用内容哈希。',
+        confidence: 0.7,
+      })
+      assert.equal(pending.status, 'pending')
+      const stored = memory.propose({
+        spaceId,
+        title: '并发模型',
+        content: '并发模型采用单线程事件循环。',
+        topic: 'project.concurrency.model',
+        sourceType: 'conversation',
+        evidence: '并发模型采用单线程事件循环。',
+        confidence: 0.8,
+      })
+      assert.equal(stored.status, 'active')
+      assert.equal(memory.candidateInbox().count, 1)
+    },
+    { getAutoApproveConfidence: () => 0.8 },
+  )
+})
+
 test('candidate acceptance and rejection scrub candidate content and retain minimal tombstones', async () => {
   await withMemory(async (memory, cwd) => {
     const spaceId = await memory.ensureWorkspaceSpace(cwd)
@@ -197,7 +271,7 @@ test('candidate acceptance and rejection scrub candidate content and retain mini
       content: '项目使用 pnpm。',
       topic: 'project.package_manager',
       evidence: '项目使用 pnpm。',
-      confidence: 0.9,
+      confidence: 0.4,
     })
     const rejected = memory.propose({
       spaceId,

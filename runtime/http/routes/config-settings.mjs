@@ -39,6 +39,20 @@ export const configSettingsRoutes = [
   },
   {
     method: 'GET',
+    path: '/api/settings/memory',
+    handler({ runtime, json }) {
+      json(200, runtime.getMemoryPreference())
+    },
+  },
+  {
+    method: 'PATCH',
+    path: '/api/settings/memory',
+    async handler({ runtime, body, json }) {
+      json(200, await runtime.updateMemoryPreference(await body()))
+    },
+  },
+  {
+    method: 'GET',
     path: '/api/settings/notifications',
     async handler({ runtime, json }) {
       json(200, await runtime.getNotificationSettings())

@@ -161,6 +161,17 @@ export function createMemoryRememberTool({ cwd, memoryRuntime, getUserMessage } 
           'Proposed by the Agent in the background; reviewing the candidate does not block the original task.',
         confidence: 0.5,
       })
+      if (candidate?.autoApproved) {
+        return {
+          content: [
+            {
+              type: 'text',
+              text: `Stored in long-term memory (confidence above the auto-approve threshold): ${candidate.title}\nMemory ID: ${candidate.id}`,
+            },
+          ],
+          details: { ...candidate, mode: 'stored' },
+        }
+      }
       return {
         content: [
           {

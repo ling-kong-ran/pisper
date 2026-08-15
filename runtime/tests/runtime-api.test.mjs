@@ -107,6 +107,52 @@ test('compaction preference APIs expose and update the threshold percentage', as
   assert.deepEqual(calls, [['get'], ['update', 75]])
 })
 
+test('memory preference APIs expose and update the auto-approve confidence', async () => {
+  const calls = []
+  const runtime = {
+    getMemoryPreference() {
+      calls.push(['get'])
+      return { autoApproveConfidence: 60, minConfidence: 0, maxConfidence: 100 }
+    },
+    async updateMemoryPreference(input) {
+      calls.push(['update', input.autoApproveConfidence])
+      return {
+        autoApproveConfidence: input.autoApproveConfidence,
+        minConfidence: 0,
+        maxConfidence: 100,
+      }
+    },
+  }
+  const handler = createApiHandler(runtime)
+
+  const getResponse = response()
+  assert.equal(
+    await handler(request('GET'), getResponse, new URL('http://localhost/api/settings/memory')),
+    true,
+  )
+  assert.deepEqual(JSON.parse(getResponse.body), {
+    autoApproveConfidence: 60,
+    minConfidence: 0,
+    maxConfidence: 100,
+  })
+
+  const patchResponse = response()
+  assert.equal(
+    await handler(
+      request('PATCH', { autoApproveConfidence: 75 }),
+      patchResponse,
+      new URL('http://localhost/api/settings/memory'),
+    ),
+    true,
+  )
+  assert.deepEqual(JSON.parse(patchResponse.body), {
+    autoApproveConfidence: 75,
+    minConfidence: 0,
+    maxConfidence: 100,
+  })
+  assert.deepEqual(calls, [['get'], ['update', 75]])
+})
+
 test('manual session compaction API returns the runtime projection', async () => {
   const calls = []
   const result = {

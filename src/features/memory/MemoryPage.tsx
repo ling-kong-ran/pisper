@@ -4,6 +4,7 @@ import {
   ChevronDown,
   ChevronRight,
   FileCode2,
+  LoaderCircle,
   Pencil,
   Plus,
   RefreshCw,
@@ -217,6 +218,8 @@ export function MemoryPage({
   const [spaceModal, setSpaceModal] = useState<Partial<MemorySpace> | null>(null)
   const [hoveredId, setHoveredId] = useState('')
   const [resolvingCandidateId, setResolvingCandidateId] = useState('')
+  const [autoApproveConfidence, setAutoApproveConfidence] = useState<number | null>(null)
+  const [savingThreshold, setSavingThreshold] = useState(false)
   const stageRef = useRef<HTMLDivElement | null>(null)
   const parallaxFrame = useRef(0)
   usePagePrimaryAction(registerPrimaryAction, () =>
@@ -268,6 +271,35 @@ export function MemoryPage({
   useEffect(() => {
     load(spaceId)
   }, [load, spaceId])
+
+  useEffect(() => {
+    let active = true
+    apiJson<{ autoApproveConfidence: number }>('/api/settings/memory')
+      .then((preference) => active && setAutoApproveConfidence(preference.autoApproveConfidence))
+      .catch(() => active && setAutoApproveConfidence(60))
+    return () => {
+      active = false
+    }
+  }, [])
+
+  const saveAutoApproveConfidence = async () => {
+    const value = autoApproveConfidence
+    if (value === null || savingThreshold) return
+    const normalized = Math.min(100, Math.max(0, Math.round(value)))
+    if (normalized !== value) setAutoApproveConfidence(normalized)
+    setSavingThreshold(true)
+    try {
+      await apiJson('/api/settings/memory', {
+        method: 'PATCH',
+        body: { autoApproveConfidence: normalized },
+      })
+      notify(t('memory:memoryPage.autoApproveSaved'))
+    } catch (thresholdError) {
+      setError(errorMessage(thresholdError))
+    } finally {
+      setSavingThreshold(false)
+    }
+  }
 
   const selected = data.nodes.find((node) => node.id === selectedId) || null
   const stars = useMemo(() => galaxyLayout(data.nodes, spaceId), [data.nodes, spaceId])
@@ -447,6 +479,37 @@ export function MemoryPage({
               </button>
             )}
           </div>
+          {autoApproveConfidence !== null && (
+            <div className="memory-auto-approve-row">
+              <label>
+                <span>{t('memory:memoryPage.autoApproveThreshold')}</span>
+                <small>{t('memory:memoryPage.autoApproveThresholdHint')}</small>
+              </label>
+              <span className="memory-auto-approve-input">
+                <input
+                  type="number"
+                  min={0}
+                  max={100}
+                  step={5}
+                  value={autoApproveConfidence}
+                  disabled={savingThreshold}
+                  aria-label={t('memory:memoryPage.autoApproveThreshold')}
+                  onChange={(event) =>
+                    setAutoApproveConfidence(event.target.value ? Number(event.target.value) : 0)
+                  }
+                  onBlur={() => void saveAutoApproveConfidence()}
+                  onKeyDown={(event) => {
+                    if (event.key === 'Enter') {
+                      event.preventDefault()
+                      void saveAutoApproveConfidence()
+                    }
+                  }}
+                />
+                <em>%</em>
+                {savingThreshold && <LoaderCircle className="spin" size={12} />}
+              </span>
+            </div>
+          )}
           <div className="memory-candidate-list">
             {(data.candidates || []).map((candidate) => (
               <div className="memory-candidate" key={candidate.id}>

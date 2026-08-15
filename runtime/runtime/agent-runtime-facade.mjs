@@ -11,6 +11,19 @@ import {
 
 export const ISOLATED_CONTEXT_BLOCKED_TOOLS = ['memory_search', 'memory_remember']
 
+export const DEFAULT_MEMORY_AUTO_APPROVE_CONFIDENCE = 60
+export const MIN_MEMORY_AUTO_APPROVE_CONFIDENCE = 0
+export const MAX_MEMORY_AUTO_APPROVE_CONFIDENCE = 100
+
+export function normalizeMemoryAutoApproveConfidence(value) {
+  const requested = Number(value)
+  if (!Number.isFinite(requested)) return DEFAULT_MEMORY_AUTO_APPROVE_CONFIDENCE
+  return Math.min(
+    MAX_MEMORY_AUTO_APPROVE_CONFIDENCE,
+    Math.max(MIN_MEMORY_AUTO_APPROVE_CONFIDENCE, Math.round(requested)),
+  )
+}
+
 export function enabledNotificationTargets(notificationSettings) {
   return new Set([
     ...(notificationSettings.browser?.enabled ? ['browser'] : []),
@@ -407,6 +420,35 @@ export class AgentRuntimeFacade {
       minPercent: MIN_COMPACTION_THRESHOLD_PERCENT,
       maxPercent: MAX_COMPACTION_THRESHOLD_PERCENT,
     }
+  }
+
+  getMemoryPreference() {
+    return {
+      autoApproveConfidence: this.memoryAutoApproveConfidence,
+      minConfidence: MIN_MEMORY_AUTO_APPROVE_CONFIDENCE,
+      maxConfidence: MAX_MEMORY_AUTO_APPROVE_CONFIDENCE,
+    }
+  }
+
+  async updateMemoryPreference(input) {
+    const requested = Number(input?.autoApproveConfidence)
+    if (
+      !Number.isFinite(requested) ||
+      requested < MIN_MEMORY_AUTO_APPROVE_CONFIDENCE ||
+      requested > MAX_MEMORY_AUTO_APPROVE_CONFIDENCE
+    ) {
+      throw new Error(
+        `记忆自动确认阈值必须在 ${MIN_MEMORY_AUTO_APPROVE_CONFIDENCE} 到 ${MAX_MEMORY_AUTO_APPROVE_CONFIDENCE} 之间。`,
+      )
+    }
+    const autoApproveConfidence = normalizeMemoryAutoApproveConfidence(requested)
+    const appConfig = await readJson(this.appConfigPath, {})
+    await writeJsonAtomic(this.appConfigPath, {
+      ...appConfig,
+      memoryAutoApproveConfidence: autoApproveConfidence,
+    })
+    this.memoryAutoApproveConfidence = autoApproveConfidence
+    return this.getMemoryPreference()
   }
 
   async updateCompactionPreference(input) {

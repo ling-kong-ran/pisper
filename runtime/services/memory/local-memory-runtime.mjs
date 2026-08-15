@@ -13,12 +13,14 @@ const TRUSTED_SOURCE_TYPES = new Set([
   'manual',
   'user_confirmed',
   'conversation_confirmed',
+  'auto_approved',
   'tool_verified',
 ])
 const SOURCE_AUTHORITIES = {
   manual: 100,
   user_confirmed: 100,
   conversation_confirmed: 100,
+  auto_approved: 90,
   tool_verified: 80,
   agent: 40,
   conversation: 20,
@@ -36,6 +38,8 @@ const BROAD_TOPIC_SEGMENTS = new Set([
 const CANDIDATE_RETENTION_DAYS = 30
 const TOMBSTONE_RETENTION_DAYS = 90
 const SEMANTIC_BATCH_SIZE = 16
+// 置信度达到该阈值（0-1）的候选记忆免审直入，低于阈值才需要用户确认。
+const DEFAULT_AUTO_APPROVE_CONFIDENCE = 0.6
 
 function cleanText(value, maxLength) {
   return String(value || '')
@@ -217,6 +221,7 @@ export class LocalMemoryRuntime {
     cwd,
     fullTextSearchInitializer = initializeMemoryFullTextSearch,
     semanticSummarizer = null,
+    getAutoApproveConfidence = () => DEFAULT_AUTO_APPROVE_CONFIDENCE,
   } = {}) {
     this.path = path
     this.cwd = resolve(cwd)
@@ -224,6 +229,7 @@ export class LocalMemoryRuntime {
     this.ftsAvailable = false
     this.fullTextSearchInitializer = fullTextSearchInitializer
     this.semanticSummarizer = semanticSummarizer
+    this.getAutoApproveConfidence = getAutoApproveConfidence
     this.semanticQueue = new Set()
     this.semanticPromise = null
     this.semanticGeneration = 0
@@ -592,6 +598,16 @@ export class LocalMemoryRuntime {
       )
       .get(spaceId, identityKey)
     if (existing?.fingerprint === fingerprint) return this.getCandidate(existing.id)
+    const confidence = Math.min(1, Math.max(0, Number(input.confidence) || 0.5))
+    // 置信度达到阈值的候选免审直入：走 trusted 路径落库，权限 90 低于
+    // 用户确认（100），更高权限记忆冲突时仍会退回候选等用户确认。
+    if (sourceType !== 'auto_approved') {
+      const threshold = Math.min(1, Math.max(0, Number(this.getAutoApproveConfidence()) || 0))
+      if (confidence >= threshold) {
+        const memory = this.remember({ ...input, sourceType: 'auto_approved' })
+        if (memory) return memory.status === 'pending' ? memory : { ...memory, autoApproved: true }
+      }
+    }
     const values = [
       title,
       content,
@@ -605,7 +621,7 @@ export class LocalMemoryRuntime {
       safeText(input.cwd, 1000),
       Math.min(1, Math.max(0.1, Number(input.importance) || 0.5)),
       safeText(input.evidence, 2000),
-      Math.min(1, Math.max(0, Number(input.confidence) || 0.5)),
+      confidence,
       safeText(input.sourceTimestamp, 80),
       cleanText(input.expiresAt, 80) || dateAfterDays(CANDIDATE_RETENTION_DAYS),
       now,
