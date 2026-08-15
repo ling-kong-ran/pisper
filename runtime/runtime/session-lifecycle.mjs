@@ -9,7 +9,6 @@ import { isCompletedTurnBoundaryMessage } from './session-derivation.mjs'
 import {
   appendTreePosition,
   projectSessionTree,
-  projectSessionTreeLabels,
   scanSessionTreeLabels,
 } from './session-tree.mjs'
 

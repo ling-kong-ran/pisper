@@ -19,16 +19,24 @@ type SessionSyncOptions = {
   ) => SessionSummary[]
 }
 
+export const MAX_FOCUS_MESSAGES = 200
+
 export function reconcileMessagePage(current: SessionState, data: ApiRecord) {
   const incomingStart = Number(data.pageInfo?.start) || 0
   const currentStart = Number.isInteger(current.messageStart) ? current.messageStart : null
   const preservePrefix = currentStart != null && currentStart <= incomingStart
   const prefixLength = preservePrefix ? Math.max(0, incomingStart - currentStart) : 0
-  const messageStart = preservePrefix ? currentStart : incomingStart
+  let messageStart = preservePrefix ? currentStart : incomingStart
+  let messages = preservePrefix
+    ? [...current.messages.slice(0, prefixLength), ...data.messages]
+    : data.messages
+  const overflow = Math.max(0, messages.length - MAX_FOCUS_MESSAGES)
+  if (overflow) {
+    messages = messages.slice(overflow)
+    messageStart += overflow
+  }
   return {
-    messages: preservePrefix
-      ? [...current.messages.slice(0, prefixLength), ...data.messages]
-      : data.messages,
+    messages,
     messageStart,
     hasOlder: messageStart > 0,
     olderCursor: messageStart > 0 ? String(messageStart) : null,
@@ -213,10 +221,12 @@ export function useLiveSessionSync({
         updateSessionState(id, (latest) => {
           const existingIds = new Set(latest.messages.map((message) => message.id))
           const older = data.messages.filter((message) => !existingIds.has(message.id))
+          const merged = [...older, ...latest.messages]
+          const overflow = Math.max(0, merged.length - MAX_FOCUS_MESSAGES)
           return {
             ...latest,
-            messages: [...older, ...latest.messages],
-            messageStart: data.pageInfo.start,
+            messages: overflow ? merged.slice(overflow) : merged,
+            messageStart: data.pageInfo.start + overflow,
             hasOlder: data.pageInfo.hasMore,
             olderCursor: data.pageInfo.nextCursor,
             loadingOlder: false,
