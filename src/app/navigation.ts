@@ -1,4 +1,4 @@
-import { CalendarClock, FolderOpen, MessageSquare, Tag, Workflow } from 'lucide-react'
+import { CalendarClock, FolderOpen, MessageSquare, Workflow } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
 import type { PageId } from './routes'
 
@@ -12,7 +12,6 @@ export function getNavigation(t: Translate = (value) => value): Navigation {
       t('navigation:navigation.workbench'),
       [
         ['chat', t('navigation:navigation.chat'), MessageSquare],
-        ['labels', t('navigation:navigation.labels'), Tag],
         ['assets', t('navigation:navigation.assets'), FolderOpen],
         ['workflows', t('navigation:navigation.workflows'), Workflow],
         ['schedules', t('navigation:navigation.schedules'), CalendarClock],
@@ -28,7 +27,6 @@ export function getPageMeta(t: Translate = (value) => value): Record<PageId, Pag
       t('navigation:navigation.chatHistory'),
       t('navigation:navigation.chatHistoryDescription'),
     ],
-    labels: [t('navigation:navigation.labels'), t('navigation:navigation.labelsDescription')],
     assets: [t('navigation:navigation.assets'), t('navigation:navigation.assetsDescription')],
     channels: [t('navigation:navigation.channels'), t('navigation:navigation.channelsDescription')],
     schedules: [

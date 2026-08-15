@@ -45,24 +45,6 @@ export async function chatHistoryRoute() {
   return { Component: ChatHistoryRoute }
 }
 
-export async function labelsRoute() {
-  const { LabelsPage } = await import('@/features/chat/LabelsPage')
-
-  function LabelsRoute() {
-    const context = useAppRouteContext()
-    return (
-      <LabelsPage
-        query={context.query}
-        navigate={context.navigate}
-        notify={context.notify}
-        requestConfirm={context.requestConfirm}
-      />
-    )
-  }
-
-  return { Component: LabelsRoute }
-}
-
 export async function assetsRoute() {
   const { AssetsPage } = await import('@/features/assets/AssetsPage')
 

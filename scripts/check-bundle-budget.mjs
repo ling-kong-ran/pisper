@@ -249,11 +249,7 @@ export function validateBundle(report, budgets = BUNDLE_BUDGETS) {
     walk(key)
     return css
   }
-  for (const source of [
-    ...REACT_BITS_DYNAMIC_SOURCES,
-    'src/features/chat/ChatHistoryPage.tsx',
-    'src/features/chat/LabelsPage.tsx',
-  ]) {
+  for (const source of [...REACT_BITS_DYNAMIC_SOURCES, 'src/features/chat/ChatHistoryPage.tsx']) {
     const css = transitiveCss(source)
     if (![...css].some((file) => file.includes('react-bits')))
       failures.push(`React Bits CSS is not attached to its consumer: ${source}`)

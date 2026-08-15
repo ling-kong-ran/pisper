@@ -20,9 +20,15 @@ import { Dialog, DialogContent, DialogDescription, DialogTitle } from '@/compone
 import { Input } from '@/components/ui/input'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { chatErrorMessage } from './chat-errors'
-import { chatApi, type SessionTreeNode, type SessionTreeResponse } from './chat-api'
+import {
+  chatApi,
+  type SessionTreeLabelMatch,
+  type SessionTreeNode,
+  type SessionTreeResponse,
+} from './chat-api'
+import { requestSessionSelection } from './events'
 
-type TreeView = 'conversation' | 'branches' | 'labeled' | 'all'
+type TreeView = 'conversation' | 'branches' | 'labeled' | 'all' | 'marks'
 type DisplayNode = Omit<SessionTreeNode, 'children'> & {
   children: DisplayNode[]
   branchRelated: boolean
@@ -263,6 +269,9 @@ export function SessionTreeDialog({
   const [query, setQuery] = useState('')
   const [selectedId, setSelectedId] = useState('')
   const [label, setLabel] = useState('')
+  const [allMarks, setAllMarks] = useState<SessionTreeLabelMatch[]>([])
+  const [marksLoaded, setMarksLoaded] = useState(false)
+  const [marksLoading, setMarksLoading] = useState(false)
   const [summarize, setSummarize] = useState(false)
   const [loading, setLoading] = useState(false)
   const [savingLabel, setSavingLabel] = useState(false)
@@ -304,6 +313,55 @@ export function SessionTreeDialog({
     setSummarize(false)
     setError('')
   }, [open])
+
+  // 首次切到「全部标记」页签时拉取跨会话标记列表（搜索索引已持久化，代价很低）。
+  useEffect(() => {
+    if (!open || view !== 'marks' || marksLoaded || marksLoading) return
+    let active = true
+    setMarksLoading(true)
+    setError('')
+    void chatApi
+      .listSessionTreeLabels(500)
+      .then((result) => {
+        if (!active) return
+        setAllMarks(result.labels || [])
+        setMarksLoaded(true)
+      })
+      .catch((reason) => active && setError(chatErrorMessage(reason)))
+      .finally(() => active && setMarksLoading(false))
+    return () => {
+      active = false
+    }
+  }, [open, view, marksLoaded, marksLoading])
+
+  const visibleMarks = useMemo(() => {
+    const needle = query.trim().toLocaleLowerCase(language)
+    if (!needle) return allMarks
+    return allMarks.filter((mark) =>
+      `${mark.label} ${mark.sessionName}`.toLocaleLowerCase(language).includes(needle),
+    )
+  }, [allMarks, language, query])
+
+  const openMark = async (mark: SessionTreeLabelMatch) => {
+    try {
+      if (!mark.active) {
+        await chatApi.navigateSessionTree(mark.sessionId, mark.entryId, false)
+      }
+      requestSessionSelection(mark.sessionId, 'open', mark.entryId)
+      onClose()
+    } catch (reason) {
+      setError(chatErrorMessage(reason))
+    }
+  }
+
+  const markTime = (value: string) => {
+    const timestamp = Date.parse(value)
+    if (!Number.isFinite(timestamp)) return t('navigation:appOverlays.unknownTime')
+    return new Intl.DateTimeFormat(language, {
+      dateStyle: 'medium',
+      timeStyle: 'short',
+    }).format(timestamp)
+  }
 
   const annotatedRoots = useMemo(() => buildDisplayTree(data?.nodes || []), [data])
   const typeLabel = useCallback(
@@ -468,6 +526,7 @@ export function SessionTreeDialog({
                 <TabsTrigger value="branches">{t('chat:sessionTree.branches')}</TabsTrigger>
                 <TabsTrigger value="labeled">{t('chat:sessionTree.labeled')}</TabsTrigger>
                 <TabsTrigger value="all">{t('chat:sessionTree.all')}</TabsTrigger>
+                <TabsTrigger value="marks">{t('chat:sessionTree.allMarks')}</TabsTrigger>
               </TabsList>
             </Tabs>
             <label className="chat-resource-search session-tree-search">
@@ -478,124 +537,163 @@ export function SessionTreeDialog({
                 placeholder={t('chat:sessionTree.searchPlaceholder')}
               />
             </label>
-            <div
-              className="session-tree-viewport"
-              data-testid="session-tree-list"
-              ref={viewportRef}
-            >
-              {segments.length > 0 ? (
-                <div className="session-tree-canvas">
-                  {segments.map((segment) => (
-                    <SessionTreeSegment
-                      segment={segment}
-                      viewportRef={viewportRef}
-                      selectedId={selectedId}
-                      typeLabel={typeLabel}
-                      stateLabel={stateLabel}
-                      onSelect={setSelectedId}
-                      key={segment.id}
-                    />
-                  ))}
-                </div>
-              ) : (
-                <p className="session-tree-empty">
-                  {loading ? t('chat:sessionTree.loading') : error || t('chat:sessionTree.empty')}
-                </p>
-              )}
-            </div>
-          </div>
-          <div className="chat-resource-config session-tree-inspector">
-            {selected ? (
-              <>
-                <div>
-                  <span className="session-tree-selection-kind">
-                    {typeLabel(selected)}
-                    {stateLabel(selected) && <em>{stateLabel(selected)}</em>}
-                  </span>
-                  <strong>{selected.label || typeLabel(selected)}</strong>
-                  <p>{selected.text || t('chat:sessionTree.noPreview')}</p>
-                </div>
-                <div className="chat-resource-inputs">
-                  {canLabelSelected && (
-                    <>
-                      <label>
-                        <span>{t('chat:sessionTree.nodeLabel')}</span>
-                        <Input
-                          value={label}
-                          maxLength={80}
-                          placeholder={t('chat:sessionTree.labelPlaceholder')}
-                          onChange={(event) => setLabel(event.target.value)}
-                        />
-                      </label>
-                      <Button
-                        variant="outline"
-                        disabled={savingLabel || streaming || Boolean(data?.streaming)}
-                        onClick={() => void saveLabel()}
-                      >
+            {view === 'marks' ? (
+              <div className="session-tree-marks" data-testid="session-tree-marks-list">
+                {error && <p className="danger-text session-tree-marks-error">{error}</p>}
+                {marksLoading ? (
+                  <p className="session-tree-empty">{t('chat:sessionTree.loadingMarks')}</p>
+                ) : visibleMarks.length ? (
+                  visibleMarks.map((mark) => (
+                    <button
+                      type="button"
+                      className={`session-tree-mark${mark.active ? ' active' : ''}`}
+                      key={`${mark.sessionId}:${mark.entryId}`}
+                      onClick={() => void openMark(mark)}
+                    >
+                      <span className="session-tree-marker">
                         <Tag size={14} />
-                        {savingLabel
-                          ? t('chat:sessionTree.savingLabel')
-                          : t('chat:sessionTree.saveLabel')}
-                      </Button>
-                      {Boolean(selected.label) && (
+                      </span>
+                      <span className="session-tree-node-copy">
+                        <strong>{mark.label}</strong>
+                        <small>
+                          {mark.sessionName || t('navigation:appOverlays.untitledChat')}
+                        </small>
+                        <small>
+                          {t('chat:sessionTree.markTimes', {
+                            sessionTime: markTime(mark.sessionModified),
+                            nodeTime: markTime(mark.nodeTimestamp),
+                          })}
+                        </small>
+                      </span>
+                      {mark.active && <em>{t('chat:sessionTree.markActive')}</em>}
+                    </button>
+                  ))
+                ) : (
+                  <p className="session-tree-empty">{t('chat:sessionTree.noMarksYet')}</p>
+                )}
+              </div>
+            ) : (
+              <div
+                className="session-tree-viewport"
+                data-testid="session-tree-list"
+                ref={viewportRef}
+              >
+                {segments.length > 0 ? (
+                  <div className="session-tree-canvas">
+                    {segments.map((segment) => (
+                      <SessionTreeSegment
+                        segment={segment}
+                        viewportRef={viewportRef}
+                        selectedId={selectedId}
+                        typeLabel={typeLabel}
+                        stateLabel={stateLabel}
+                        onSelect={setSelectedId}
+                        key={segment.id}
+                      />
+                    ))}
+                  </div>
+                ) : (
+                  <p className="session-tree-empty">
+                    {loading ? t('chat:sessionTree.loading') : error || t('chat:sessionTree.empty')}
+                  </p>
+                )}
+              </div>
+            )}
+          </div>
+          {view !== 'marks' && (
+            <div className="chat-resource-config session-tree-inspector">
+              {selected ? (
+                <>
+                  <div>
+                    <span className="session-tree-selection-kind">
+                      {typeLabel(selected)}
+                      {stateLabel(selected) && <em>{stateLabel(selected)}</em>}
+                    </span>
+                    <strong>{selected.label || typeLabel(selected)}</strong>
+                    <p>{selected.text || t('chat:sessionTree.noPreview')}</p>
+                  </div>
+                  <div className="chat-resource-inputs">
+                    {canLabelSelected && (
+                      <>
+                        <label>
+                          <span>{t('chat:sessionTree.nodeLabel')}</span>
+                          <Input
+                            value={label}
+                            maxLength={80}
+                            placeholder={t('chat:sessionTree.labelPlaceholder')}
+                            onChange={(event) => setLabel(event.target.value)}
+                          />
+                        </label>
                         <Button
                           variant="outline"
                           disabled={savingLabel || streaming || Boolean(data?.streaming)}
-                          onClick={() => void removeLabel()}
+                          onClick={() => void saveLabel()}
                         >
-                          <Trash2 size={14} />
-                          {t('chat:sessionTree.removeLabel')}
+                          <Tag size={14} />
+                          {savingLabel
+                            ? t('chat:sessionTree.savingLabel')
+                            : t('chat:sessionTree.saveLabel')}
                         </Button>
-                      )}
-                    </>
+                        {Boolean(selected.label) && (
+                          <Button
+                            variant="outline"
+                            disabled={savingLabel || streaming || Boolean(data?.streaming)}
+                            onClick={() => void removeLabel()}
+                          >
+                            <Trash2 size={14} />
+                            {t('chat:sessionTree.removeLabel')}
+                          </Button>
+                        )}
+                      </>
+                    )}
+                    <label className="session-tree-summary-option">
+                      <span>{t('chat:sessionTree.abandonedBranchSummary')}</span>
+                      <input
+                        type="checkbox"
+                        checked={summarize}
+                        disabled={selected.leaf || streaming || Boolean(data?.streaming)}
+                        onChange={(event) => setSummarize(event.target.checked)}
+                      />
+                      <small>{t('chat:sessionTree.abandonedBranchSummaryHint')}</small>
+                    </label>
+                  </div>
+                  <p>{t('chat:sessionTree.sideEffectsRemain')}</p>
+                  {selected.timestamp && (
+                    <p>
+                      {new Intl.DateTimeFormat(language, {
+                        dateStyle: 'medium',
+                        timeStyle: 'short',
+                      }).format(new Date(selected.timestamp))}
+                    </p>
                   )}
-                  <label className="session-tree-summary-option">
-                    <span>{t('chat:sessionTree.abandonedBranchSummary')}</span>
-                    <input
-                      type="checkbox"
-                      checked={summarize}
-                      disabled={selected.leaf || streaming || Boolean(data?.streaming)}
-                      onChange={(event) => setSummarize(event.target.checked)}
-                    />
-                    <small>{t('chat:sessionTree.abandonedBranchSummaryHint')}</small>
-                  </label>
-                </div>
-                <p>{t('chat:sessionTree.sideEffectsRemain')}</p>
-                {selected.timestamp && (
-                  <p>
-                    {new Intl.DateTimeFormat(language, {
-                      dateStyle: 'medium',
-                      timeStyle: 'short',
-                    }).format(new Date(selected.timestamp))}
-                  </p>
-                )}
-                {error && <p className="danger-text">{error}</p>}
-                <Button
-                  className="chat-resource-confirm"
-                  disabled={navigating || selected.leaf || streaming || Boolean(data?.streaming)}
-                  onClick={() => void navigate()}
-                >
-                  <GitBranch size={15} />
-                  {navigating
-                    ? t('chat:sessionTree.navigating')
-                    : selected.leaf
-                      ? t('chat:sessionTree.currentPosition')
-                      : t('chat:sessionTree.continueFromNode')}
+                  {error && <p className="danger-text">{error}</p>}
+                  <Button
+                    className="chat-resource-confirm"
+                    disabled={navigating || selected.leaf || streaming || Boolean(data?.streaming)}
+                    onClick={() => void navigate()}
+                  >
+                    <GitBranch size={15} />
+                    {navigating
+                      ? t('chat:sessionTree.navigating')
+                      : selected.leaf
+                        ? t('chat:sessionTree.currentPosition')
+                        : t('chat:sessionTree.continueFromNode')}
+                  </Button>
+                </>
+              ) : (
+                <p>
+                  {loading
+                    ? t('chat:sessionTree.loading')
+                    : error || t('chat:sessionTree.chooseNode')}
+                </p>
+              )}
+              {error && !selected && (
+                <Button variant="outline" onClick={() => void refresh()}>
+                  {t('chat:sessionTree.retry')}
                 </Button>
-              </>
-            ) : (
-              <p>
-                {loading
-                  ? t('chat:sessionTree.loading')
-                  : error || t('chat:sessionTree.chooseNode')}
-              </p>
-            )}
-            {error && !selected && (
-              <Button variant="outline" onClick={() => void refresh()}>
-                {t('chat:sessionTree.retry')}
-              </Button>
-            )}
-          </div>
+              )}
+            </div>
+          )}
         </div>
       </DialogContent>
     </Dialog>

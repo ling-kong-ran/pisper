@@ -5,7 +5,6 @@ import { BUNDLE_BUDGETS, validateBundle } from '../../scripts/check-bundle-budge
 const ROUTE_SOURCES = [
   'src/features/chat/ChatPage.tsx',
   'src/features/chat/ChatHistoryPage.tsx',
-  'src/features/chat/LabelsPage.tsx',
   'src/features/assets/AssetsPage.tsx',
   'src/features/channels/ChannelsPage.tsx',
   'src/features/schedules/SchedulesPage.tsx',
@@ -47,7 +46,6 @@ function passingReport() {
     manifest[source] = { file: `assets/${source.split('/').at(-1)}.js`, isDynamicEntry: true }
   }
   manifest['src/features/chat/ChatHistoryPage.tsx'].css = ['assets/react-bits.css']
-  manifest['src/features/chat/LabelsPage.tsx'].css = ['assets/react-bits.css']
   for (const source of REACT_BITS_SOURCES) {
     manifest[source] = {
       file: `assets/${source.split('/').at(-1)}.js`,

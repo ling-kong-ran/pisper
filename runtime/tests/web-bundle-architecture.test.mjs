@@ -311,8 +311,8 @@ test('route code and route-specific vendor styles remain lazy', async () => {
     readFile('src/index.css', 'utf8'),
   ])
 
-  assert.equal(routeElements.match(/await import\(/g)?.length, 13)
-  assert.ok((router.match(/lazy: \w+Route/g)?.length || 0) >= 13)
+  assert.equal(routeElements.match(/await import\(/g)?.length, 12)
+  assert.ok((router.match(/lazy: \w+Route/g)?.length || 0) >= 12)
   assert.doesNotMatch(router, /from '@\/features\//)
   assert.doesNotMatch(main, /react-bits\.css|dockview\.css|@xyflow\/react\/dist\/style\.css/)
   assert.match(chat, /import 'dockview-react\/dist\/styles\/dockview\.css'/)
