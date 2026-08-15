@@ -82,7 +82,7 @@ See the [Pisper project site](https://ling-kong-ran.github.io/pisper/) for the p
 ## Features
 
 - **Multiple sessions:** independent models, context, workspaces, and permissions with Dock splits and layout restoration.
-- **Plugins, Skills, and MCP:** install plugins from any local directory or create globally available DIY plugins in natural language, with tool capabilities and call permissions managed in one place.
+- **Plugins, Skills, and MCP:** install plugins from any local directory or create globally available DIY plugins in natural language, with tool capabilities and call permissions managed in one place. See the [plugin authoring guide](./docs/plugin-authoring.en.md).
 - **Subagents:** run temporary tasks in isolated contexts and return results to the parent session.
 - **Memory and multimodal input:** retrieve project memory and process images, documents, and code.
 - **Automation and channels:** schedules, visual workflows, Feishu, and personal Weixin.
