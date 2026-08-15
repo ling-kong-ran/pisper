@@ -115,12 +115,6 @@ export function ChatPage({
   const deriveSession = useCallback(
     async (session: SessionSummary, boundaryEntryId: string) => {
       if (!session?.id || !boundaryEntryId) return
-      const confirmed = await requestConfirm({
-        title: t('chat:chatPage.deriveChat'),
-        message: t('chat:chatPage.deriveChatDescription'),
-        confirmLabel: t('chat:chatPage.derive'),
-      })
-      if (!confirmed) return
       try {
         setGlobalError('')
         const derived = await chatApi.deriveSession(
@@ -138,7 +132,7 @@ export function ChatPage({
         setGlobalError(error instanceof Error ? error.message : String(error))
       }
     },
-    [notify, openSessionInDock, refreshSessions, requestConfirm, setGlobalError, t, updateSessions],
+    [notify, openSessionInDock, refreshSessions, setGlobalError, t, updateSessions],
   )
 
   const reloadSessionBranch = useCallback(

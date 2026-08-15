@@ -193,6 +193,7 @@ test('chat facade and focus layout stay below their architecture budgets', async
   assert.match(chatPage, /useChatDock/)
   assert.match(chatPage, /useLiveSessionSync/)
   assert.match(chatPage, /usePromptCommands/)
+  assert.doesNotMatch(chatPage, /chatPage\.deriveChatDescription/)
   assert.match(focusSession, /<FocusTranscript/)
   assert.match(transcript, /scrollRequest/)
   assert.doesNotMatch(dock, /from ['"].*ChatPage/)
