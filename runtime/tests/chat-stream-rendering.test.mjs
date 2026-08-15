@@ -42,7 +42,10 @@ test('tool activity uses a polished scroll viewport without truncating records',
   assert.match(activity, /node\.scrollTop = node\.scrollHeight/)
   assert.match(styles, /\.agent-run-feed \{[^}]*max-height: 184px;[^}]*overflow-y: auto;/)
   assert.match(styles, /\.agent-run-feed \{[^}]*gap: 4px;/)
-  assert.match(styles, /\.agent-run-feed:has\(\.agent-run-command-output\[open\]\) \{[^}]*max-height: 320px;/)
+  assert.match(
+    styles,
+    /\.agent-run-feed:has\(\.agent-run-command-output\[open\]\) \{[^}]*max-height: 320px;/,
+  )
   assert.doesNotMatch(styles, /\.agent-run-feed \{[^}]*background:/)
   assert.doesNotMatch(styles, /\.agent-run-feed\.live \{/)
   assert.match(styles, /\.agent-run-summary\.current \{[^}]*background:/)
@@ -294,9 +297,15 @@ test('bash tool output stays multiline in a bounded theme-aware result block', a
     readFile('src/index.css', 'utf8'),
     readFile('package.json', 'utf8'),
   ])
-  assert.match(runtime, /const rawOutput = textFromContent\(event\.partialResult\?\.content\)/)
-  assert.match(runtime, /event\.toolName === 'bash' \? \{ output: rawOutput \} : \{\}/)
-  assert.match(runtime, /const resultOutput = event\.toolName === 'bash'/)
+  assert.match(
+    runtime,
+    /const rawOutput = liveThinkingTail\(textFromContent\(event\.partialResult\?\.content\)\)/,
+  )
+  assert.match(
+    runtime,
+    /const outputPatch = event\.toolName === 'bash' \? \{ output: rawOutput \} : \{\}/,
+  )
+  assert.match(runtime, /const resultOutput =\s*event\.toolName === 'bash'/)
   assert.match(dispatcher, /data\.output !== undefined \? \{ output: data\.output \} : \{\}/)
   assert.doesNotMatch(activity, /components\/ai-elements\/terminal/)
   assert.match(activity, /activity\.name === 'bash'/)
