@@ -5,6 +5,7 @@ import {
   Bookmark,
   FileText,
   GitBranch,
+  LoaderCircle,
   MessageSquare,
   Search,
   Settings,
@@ -28,10 +29,9 @@ import {
 } from './chat-api'
 import { requestSessionSelection } from './events'
 
-type TreeView = 'conversation' | 'branches' | 'labeled' | 'all' | 'marks'
+type TreeView = 'conversation' | 'labeled' | 'all' | 'marks'
 type DisplayNode = Omit<SessionTreeNode, 'children'> & {
   children: DisplayNode[]
-  branchRelated: boolean
 }
 type TreeSegment = {
   id: string
@@ -41,6 +41,7 @@ type TreeSegment = {
 }
 
 const conversationKinds = new Set(['user', 'assistant', 'summary', 'compaction', 'position'])
+const nonDerivableKinds = new Set(['tool', 'tool-call'])
 const TREE_ROW_HEIGHT = 56
 const TREE_OVERSCAN = 12
 const TREE_VIRTUALIZE_THRESHOLD = 120
@@ -53,7 +54,6 @@ function buildDisplayTree(nodes: SessionTreeNode[]): DisplayNode[] {
     const parent = node.parentId ? byId.get(node.parentId) : undefined
     const displayNode: DisplayNode = {
       ...node,
-      branchRelated: Boolean(parent?.branchRelated) || node.branchPoint,
       children: [],
     }
     byId.set(node.id, displayNode)
@@ -137,7 +137,7 @@ function createSegment(node: DisplayNode): TreeSegment {
 function nodeIcon(node: SessionTreeNode) {
   if (node.kind === 'user') return User
   if (node.kind === 'assistant') return Bot
-  if (node.kind === 'tool') return Wrench
+  if (node.kind === 'tool' || node.kind === 'tool-call') return Wrench
   if (node.kind === 'settings') return Settings
   if (node.kind === 'label') return Tag
   if (node.kind === 'summary' || node.kind === 'compaction') return FileText
@@ -272,6 +272,7 @@ export function SessionTreeDialog({
   const [allMarks, setAllMarks] = useState<SessionTreeLabelMatch[]>([])
   const [marksLoaded, setMarksLoaded] = useState(false)
   const [marksLoading, setMarksLoading] = useState(false)
+  const [openingMark, setOpeningMark] = useState<SessionTreeLabelMatch | null>(null)
   const [summarize, setSummarize] = useState(false)
   const [loading, setLoading] = useState(false)
   const [savingLabel, setSavingLabel] = useState(false)
@@ -310,6 +311,7 @@ export function SessionTreeDialog({
     setData(null)
     setSelectedId('')
     setLabel('')
+    setOpeningMark(null)
     setSummarize(false)
     setError('')
   }, [open])
@@ -345,14 +347,18 @@ export function SessionTreeDialog({
   }, [allMarks, language, query])
 
   const openMark = async (mark: SessionTreeLabelMatch) => {
+    if (openingMark) return
+    setOpeningMark(mark)
+    setError('')
     try {
       if (!mark.active) {
-        await chatApi.navigateSessionTree(mark.sessionId, mark.entryId, false)
+        await chatApi.navigateSessionTreeTarget(mark.sessionId, mark.entryId)
       }
       requestSessionSelection(mark.sessionId, 'open', mark.entryId)
       onClose()
     } catch (reason) {
       setError(chatErrorMessage(reason))
+      setOpeningMark(null)
     }
   }
 
@@ -372,6 +378,7 @@ export function SessionTreeDialog({
         user: t('chat:sessionTree.userMessage'),
         assistant: t('chat:sessionTree.agentMessage'),
         tool: t('chat:sessionTree.toolResult'),
+        'tool-call': t('chat:sessionTree.toolCall'),
         summary: t('chat:sessionTree.branchSummary'),
         compaction: t('chat:sessionTree.compactionSummary'),
         settings: t('chat:sessionTree.settingsChange'),
@@ -391,11 +398,9 @@ export function SessionTreeDialog({
       const inView =
         view === 'conversation'
           ? conversationKinds.has(node.kind)
-          : view === 'branches'
-            ? node.branchRelated
-            : view === 'labeled'
-              ? Boolean(node.label)
-              : true
+          : view === 'labeled'
+            ? Boolean(node.label)
+            : true
       if (!inView) return false
       if (!needle) return true
       return `${node.label} ${node.text} ${typeLabel(node)}`
@@ -408,6 +413,7 @@ export function SessionTreeDialog({
   const allNodes = useMemo(() => flattenTree(annotatedRoots), [annotatedRoots])
   const selected = allNodes.find((node) => node.id === selectedId) || null
   const canLabelSelected = selected?.kind === 'assistant' && selected.status === 'completed'
+  const canDeriveSelected = selected ? !nonDerivableKinds.has(selected.kind) : false
 
   useEffect(() => {
     setLabel(selected?.label || '')
@@ -525,7 +531,6 @@ export function SessionTreeDialog({
             >
               <TabsList>
                 <TabsTrigger value="conversation">{t('chat:sessionTree.conversation')}</TabsTrigger>
-                <TabsTrigger value="branches">{t('chat:sessionTree.branches')}</TabsTrigger>
                 <TabsTrigger value="labeled">{t('chat:sessionTree.labeled')}</TabsTrigger>
                 <TabsTrigger value="all">{t('chat:sessionTree.all')}</TabsTrigger>
                 <TabsTrigger value="marks">{t('chat:sessionTree.allMarks')}</TabsTrigger>
@@ -535,6 +540,7 @@ export function SessionTreeDialog({
               <Search size={15} />
               <input
                 value={query}
+                disabled={Boolean(openingMark)}
                 onChange={(event) => setQuery(event.target.value)}
                 placeholder={t('chat:sessionTree.searchPlaceholder')}
               />
@@ -550,10 +556,16 @@ export function SessionTreeDialog({
                       type="button"
                       className={`session-tree-mark${mark.active ? ' active' : ''}`}
                       key={`${mark.sessionId}:${mark.entryId}`}
+                      disabled={Boolean(openingMark)}
+                      aria-busy={openingMark === mark}
                       onClick={() => void openMark(mark)}
                     >
                       <span className="session-tree-marker">
-                        <Tag size={14} />
+                        {openingMark === mark ? (
+                          <LoaderCircle className="size-3.5 animate-spin" aria-hidden="true" />
+                        ) : (
+                          <Tag size={14} />
+                        )}
                       </span>
                       <span className="session-tree-node-copy">
                         <strong>{mark.label}</strong>
@@ -567,7 +579,11 @@ export function SessionTreeDialog({
                           })}
                         </small>
                       </span>
-                      {mark.active && <em>{t('chat:sessionTree.markActive')}</em>}
+                      {openingMark === mark ? (
+                        <em>{t('chat:sessionTree.navigating')}</em>
+                      ) : (
+                        mark.active && <em>{t('chat:sessionTree.markActive')}</em>
+                      )}
                     </button>
                   ))
                 ) : (
@@ -648,18 +664,20 @@ export function SessionTreeDialog({
                         )}
                       </>
                     )}
-                    <label className="session-tree-summary-option">
-                      <span>{t('chat:sessionTree.abandonedBranchSummary')}</span>
-                      <input
-                        type="checkbox"
-                        checked={summarize}
-                        disabled={selected.leaf || streaming || Boolean(data?.streaming)}
-                        onChange={(event) => setSummarize(event.target.checked)}
-                      />
-                      <small>{t('chat:sessionTree.abandonedBranchSummaryHint')}</small>
-                    </label>
+                    {canDeriveSelected && (
+                      <label className="session-tree-summary-option">
+                        <span>{t('chat:sessionTree.abandonedBranchSummary')}</span>
+                        <input
+                          type="checkbox"
+                          checked={summarize}
+                          disabled={selected.leaf || streaming || Boolean(data?.streaming)}
+                          onChange={(event) => setSummarize(event.target.checked)}
+                        />
+                        <small>{t('chat:sessionTree.abandonedBranchSummaryHint')}</small>
+                      </label>
+                    )}
                   </div>
-                  <p>{t('chat:sessionTree.sideEffectsRemain')}</p>
+                  {canDeriveSelected && <p>{t('chat:sessionTree.sideEffectsRemain')}</p>}
                   {selected.timestamp && (
                     <p>
                       {new Intl.DateTimeFormat(language, {
@@ -669,18 +687,22 @@ export function SessionTreeDialog({
                     </p>
                   )}
                   {error && <p className="danger-text">{error}</p>}
-                  <Button
-                    className="chat-resource-confirm"
-                    disabled={navigating || selected.leaf || streaming || Boolean(data?.streaming)}
-                    onClick={() => void navigate()}
-                  >
-                    <GitBranch size={15} />
-                    {navigating
-                      ? t('chat:sessionTree.navigating')
-                      : selected.leaf
-                        ? t('chat:sessionTree.currentPosition')
-                        : t('chat:sessionTree.continueFromNode')}
-                  </Button>
+                  {canDeriveSelected && (
+                    <Button
+                      className="chat-resource-confirm"
+                      disabled={
+                        navigating || selected.leaf || streaming || Boolean(data?.streaming)
+                      }
+                      onClick={() => void navigate()}
+                    >
+                      <GitBranch size={15} />
+                      {navigating
+                        ? t('chat:sessionTree.navigating')
+                        : selected.leaf
+                          ? t('chat:sessionTree.currentPosition')
+                          : t('chat:sessionTree.continueFromNode')}
+                    </Button>
+                  )}
                 </>
               ) : (
                 <p>

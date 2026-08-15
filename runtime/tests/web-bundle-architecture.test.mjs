@@ -247,25 +247,69 @@ test('scheduled tasks use structured prompt or workflow targets across every for
   )
 })
 
+test('historical sessions transition through loading before resolving the welcome or transcript', async () => {
+  const [dock, session, transcript, catalog, styles] = await Promise.all([
+    readFile('src/features/chat/ChatDock.tsx', 'utf8'),
+    readFile('src/features/chat/FocusSession.tsx', 'utf8'),
+    readFile('src/features/chat/FocusTranscript.tsx', 'utf8'),
+    readFile('src/features/chat/use-session-catalog.ts', 'utf8'),
+    readFile('src/index.css', 'utf8'),
+  ])
+
+  assert.match(dock, /transcriptLoadState=/)
+  assert.match(dock, /state\.loaded \? 'ready'/)
+  assert.match(dock, /state\.loading \|\| !state\.error \? 'loading' : 'error'/)
+  assert.match(
+    session,
+    /hasConversation = transcriptLoadState !== 'ready' \|\| messages\.length > 0/,
+  )
+  assert.match(session, /transcriptLoadState=\{transcriptLoadState\}/)
+  assert.match(transcript, /data-pisper-transcript-state=\{transcriptLoadState\}/)
+  assert.match(transcript, /transcriptLoadState === 'loading'/)
+  assert.match(transcript, /transcriptLoadState === 'ready' && !messages\.length/)
+  assert.ok(
+    transcript.indexOf("transcriptLoadState === 'loading'") <
+      transcript.indexOf("transcriptLoadState === 'ready' && !messages.length"),
+  )
+  assert.match(catalog, /loaded: true/)
+  assert.match(styles, /\.session-history-loading/)
+  assert.match(styles, /\.transcript-reveal/)
+  assert.match(styles, /@keyframes transcript-stage-enter/)
+})
+
 test('session labels are searchable from Ctrl K and resolve through virtualized chat history', async () => {
-  const [palette, app, events, transcript, virtualTranscript, treeDialog, chatMessage, routes] =
-    await Promise.all([
-      readFile('src/components/layout/AppOverlays.tsx', 'utf8'),
-      readFile('src/App.tsx', 'utf8'),
-      readFile('src/features/chat/events.ts', 'utf8'),
-      readFile('src/features/chat/FocusTranscript.tsx', 'utf8'),
-      readFile('src/features/chat/VirtualMessageTranscript.tsx', 'utf8'),
-      readFile('src/features/chat/SessionTreeDialog.tsx', 'utf8'),
-      readFile('src/features/chat/ChatMessage.tsx', 'utf8'),
-      readFile('runtime/http/routes/sessions-runtime.mjs', 'utf8'),
-    ])
+  const [
+    palette,
+    app,
+    events,
+    transcript,
+    virtualTranscript,
+    treeDialog,
+    chatMessage,
+    chatPage,
+    chatApi,
+    routes,
+  ] = await Promise.all([
+    readFile('src/components/layout/AppOverlays.tsx', 'utf8'),
+    readFile('src/App.tsx', 'utf8'),
+    readFile('src/features/chat/events.ts', 'utf8'),
+    readFile('src/features/chat/FocusTranscript.tsx', 'utf8'),
+    readFile('src/features/chat/VirtualMessageTranscript.tsx', 'utf8'),
+    readFile('src/features/chat/SessionTreeDialog.tsx', 'utf8'),
+    readFile('src/features/chat/ChatMessage.tsx', 'utf8'),
+    readFile('src/features/chat/ChatPage.tsx', 'utf8'),
+    readFile('src/features/chat/chat-api.ts', 'utf8'),
+    readFile('runtime/http/routes/sessions-runtime.mjs', 'utf8'),
+  ])
 
   assert.match(palette, /searchSessionTreeLabels\(keyword, 12\)/)
   assert.match(palette, /label\.sessionName/)
   assert.match(palette, /sessionCreated \|\| label\.sessionModified/)
   assert.match(palette, /label\.nodeTimestamp/)
   assert.match(app, /targetEntryId && !targetActive/)
-  assert.match(app, /navigateSessionTree\(id, targetEntryId, false\)/)
+  assert.match(app, /navigateSessionTreeTarget\(id, targetEntryId\)/)
+  assert.match(palette, /pendingEntryId/)
+  assert.match(palette, /appOverlays\.locatingLabel/)
   assert.match(events, /STORAGE_KEYS\.sessionMessageTarget/)
   assert.match(transcript, /message\.turnBoundaryEntryId === targetEntryId/)
   assert.match(transcript, /if \(hasOlder\)/)
@@ -275,14 +319,29 @@ test('session labels are searchable from Ctrl K and resolve through virtualized 
   assert.match(treeDialog, /session-tree-children/)
   assert.match(treeDialog, /sessionTree\.searchPlaceholder/)
   assert.match(treeDialog, /buildDisplayTree\(data\?\.nodes \|\| \[\]\)/)
+  assert.doesNotMatch(
+    treeDialog.match(/const conversationKinds = new Set\(\[[^\]]+\]\)/)?.[0] || '',
+    /'tool(?:-call)?'/,
+  )
+  assert.match(treeDialog, /nonDerivableKinds = new Set\(\['tool', 'tool-call'\]\)/)
+  assert.match(treeDialog, /canDeriveSelected/)
+  assert.doesNotMatch(treeDialog, /branchRelated|value="branches"/)
+  assert.match(treeDialog, /navigateSessionTree\(sessionId, selected\.id, summarize\)/)
+  assert.match(treeDialog, /navigateSessionTreeTarget\(mark\.sessionId, mark\.entryId\)/)
   assert.match(chatMessage, /data-pisper-label-entry/)
+  assert.match(chatMessage, /data-pisper-derive-entry/)
+  assert.match(chatMessage, /onBranchFromHere\(boundaryEntryId\)/)
   assert.match(chatMessage, /setSessionTreeLabel\(sessionId, entryId, label\)/)
+  assert.match(chatPage, /navigateSessionTree\(session\.id, boundaryEntryId, false\)/)
+  assert.match(chatApi, /navigateSessionTreeTarget:/)
+  assert.match(chatApi, /includeTree: false/)
   assert.equal([...chatMessage.matchAll(/<TooltipContent side="top" sideOffset=\{6\}>/g)].length, 2)
   assert.doesNotMatch(
     chatMessage,
     /title=\{t\('chat:chatMessage\.(?:labelThisTurn|deriveFromHere)'\)\}/,
   )
   assert.match(routes, /path: '\/api\/session-labels'/)
+  assert.match(routes, /input\.includeTree === false/)
 })
 
 test('settings navigation replaces the main sidebar instead of nesting in page content', async () => {

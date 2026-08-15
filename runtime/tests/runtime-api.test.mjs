@@ -244,7 +244,8 @@ test('session tree APIs read, navigate, and label Pi tree entries', async () => 
     },
     async navigateSessionTree(sessionId, entryId, options) {
       calls.push(['navigate', sessionId, entryId, options])
-      return { ...tree, editorText: 'Edit me', cancelled: false }
+      const navigation = { editorText: 'Edit me', cancelled: false }
+      return options.includeTree === false ? navigation : { ...tree, ...navigation }
     },
     async setSessionTreeLabel(sessionId, entryId, label) {
       calls.push(['label', sessionId, entryId, label])
@@ -273,6 +274,20 @@ test('session tree APIs read, navigate, and label Pi tree entries', async () => 
     cancelled: false,
   })
 
+  const compactNavigateResponse = response()
+  assert.equal(
+    await handler(
+      request('POST', { targetEntryId: 'entry-2', includeTree: false }),
+      compactNavigateResponse,
+      url('/navigate'),
+    ),
+    true,
+  )
+  assert.deepEqual(JSON.parse(compactNavigateResponse.body), {
+    editorText: 'Edit me',
+    cancelled: false,
+  })
+
   const labelResponse = response()
   assert.equal(
     await handler(request('PUT', { label: 'Checkpoint' }), labelResponse, url('/labels/entry%202')),
@@ -282,6 +297,7 @@ test('session tree APIs read, navigate, and label Pi tree entries', async () => 
   assert.deepEqual(calls, [
     ['get', 'session 1'],
     ['navigate', 'session 1', 'entry-1', { summarize: true }],
+    ['navigate', 'session 1', 'entry-2', { summarize: false, includeTree: false }],
     ['label', 'session 1', 'entry 2', 'Checkpoint'],
   ])
 })

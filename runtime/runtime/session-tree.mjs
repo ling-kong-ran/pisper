@@ -34,11 +34,18 @@ function messageProjection(message) {
     }
   }
   const text = boundedText(contentText(message?.content))
-  if (role === 'assistant' && !text && Array.isArray(message?.content)) {
+  if (role === 'assistant' && Array.isArray(message?.content)) {
     const tools = message.content
       .filter((part) => part?.type === 'toolCall' && typeof part.name === 'string')
       .map((part) => part.name)
-    return { kind: 'assistant', role, text: boundedText(tools.join(', ')), status: '' }
+    if (tools.length > 0) {
+      return {
+        kind: 'tool-call',
+        role,
+        text: boundedText([text, tools.join(', ')].filter(Boolean).join(' · ')),
+        status: '',
+      }
+    }
   }
   return {
     kind: role === 'user' ? 'user' : role === 'assistant' ? 'assistant' : 'message',

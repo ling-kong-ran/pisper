@@ -263,7 +263,8 @@ type FocusChatMessageProps = {
   agentState: string
   showRunActivity: boolean
   runProps: RunProps | null
-  onDerive: (boundaryEntryId: string) => Promise<void> | void
+  sessionStreaming?: boolean
+  onBranchFromHere: (boundaryEntryId: string) => Promise<void> | void
 }
 
 function focusPropsEqual(prev: FocusChatMessageProps, next: FocusChatMessageProps) {
@@ -273,7 +274,8 @@ function focusPropsEqual(prev: FocusChatMessageProps, next: FocusChatMessageProp
     prev.agentState === next.agentState &&
     prev.showRunActivity === next.showRunActivity &&
     prev.runProps === next.runProps &&
-    prev.onDerive === next.onDerive
+    prev.sessionStreaming === next.sessionStreaming &&
+    prev.onBranchFromHere === next.onBranchFromHere
   )
 }
 
@@ -283,10 +285,11 @@ export const FocusChatMessage = memo(function FocusChatMessage({
   agentState,
   showRunActivity,
   runProps,
-  onDerive,
+  sessionStreaming,
+  onBranchFromHere,
 }: FocusChatMessageProps) {
   const { t } = useI18n()
-  const [deriving, setDeriving] = useState(false)
+  const [branching, setBranching] = useState(false)
   const streaming = Boolean(message.streaming)
   const fullText = message.text || ''
   const displayText = fullText || (!showRunActivity ? String(message.error || '') : '')
@@ -329,19 +332,19 @@ export const FocusChatMessage = memo(function FocusChatMessage({
                 className="icon-button"
                 aria-label={t('chat:chatMessage.deriveFromHere')}
                 data-pisper-derive-entry={message.turnBoundaryEntryId}
-                disabled={deriving}
+                disabled={branching || sessionStreaming}
                 onClick={async () => {
                   const boundaryEntryId = message.turnBoundaryEntryId
                   if (!boundaryEntryId) return
-                  setDeriving(true)
+                  setBranching(true)
                   try {
-                    await onDerive(boundaryEntryId)
+                    await onBranchFromHere(boundaryEntryId)
                   } finally {
-                    setDeriving(false)
+                    setBranching(false)
                   }
                 }}
               >
-                {deriving ? <LoaderCircle className="spin" size={14} /> : <GitFork size={14} />}
+                {branching ? <LoaderCircle className="spin" size={14} /> : <GitFork size={14} />}
               </button>
             </TooltipTrigger>
             <TooltipContent side="top" sideOffset={6}>

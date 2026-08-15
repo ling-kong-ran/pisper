@@ -53,6 +53,7 @@
   "appOverlays.noMatchingResults": "无匹配结果",
   "appOverlays.openLabeledTurnFailed": "无法打开此标记所在的回复",
   "appOverlays.labelResultTimes": "会话 {sessionTime} · 节点 {nodeTime}",
+  "appOverlays.locatingLabel": "正在定位标记…",
   "appOverlays.savePluginPolicy": "保存插件策略",
   "appOverlays.searchPagesChatsOrActions": "搜索页面、会话、标记或操作",
   "appOverlays.searchingLabels": "正在搜索会话标记…",

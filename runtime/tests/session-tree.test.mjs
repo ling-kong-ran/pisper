@@ -64,7 +64,7 @@ function appendConversation(manager) {
 test('session tree projection exposes stable branches without tool arguments or custom data', () => {
   const manager = SessionManager.inMemory(process.cwd())
   const entries = appendConversation(manager)
-  manager.appendMessage({
+  const toolCallEntry = manager.appendMessage({
     role: 'assistant',
     content: [
       {
@@ -91,6 +91,7 @@ test('session tree projection exposes stable branches without tool arguments or 
   assert.equal(nodes.find((node) => node.id === entries.originalAssistant)?.active, false)
   assert.equal(nodes.find((node) => node.id === entries.alternateAssistant)?.active, true)
   assert.equal(nodes.find((node) => node.id === entries.firstAssistant)?.label, 'Decision point')
+  assert.equal(nodes.find((node) => node.id === toolCallEntry)?.kind, 'tool-call')
   assert.match(JSON.stringify(tree), /read/)
   assert.doesNotMatch(JSON.stringify(tree), /secret-token|private-custom-data|secret\.txt/)
 })
@@ -157,6 +158,25 @@ test('runtime navigation uses AgentSession tree semantics and survives a cold re
   assert.equal(before.branchCount, 1)
   assert.equal(before.leafId, entries.alternateAssistant)
 
+  // Match a persisted labeled chat: runtime materialization is outside the navigation measurement.
+  await runtime.getOrCreateSession(created.id)
+  const listStoredSessions = runtime.listStoredSessions.bind(runtime)
+  let catalogRefreshes = 0
+  runtime.listStoredSessions = (options) => {
+    if (options?.refresh) catalogRefreshes += 1
+    return listStoredSessions(options)
+  }
+  const compactNavigation = await runtime.navigateSessionTree(
+    created.id,
+    entries.originalAssistant,
+    {
+      summarize: false,
+      includeTree: false,
+    },
+  )
+  assert.deepEqual(compactNavigation, { cancelled: false, editorText: null })
+  assert.equal(catalogRefreshes, 0)
+
   const navigated = await runtime.navigateSessionTree(created.id, entries.originalAssistant, {
     summarize: false,
   })
@@ -169,6 +189,7 @@ test('runtime navigation uses AgentSession tree semantics and survives a cold re
     navigated.nodes.find((node) => node.id === entries.alternateAssistant)?.active,
     false,
   )
+  assert.equal(catalogRefreshes, 0)
 
   await runtime.dispose()
   runtime = new AgentRuntimeService({ cwd: directory, dataDir: directory })

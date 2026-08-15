@@ -98,6 +98,19 @@ export class SessionLifecycle {
     return value
   }
 
+  touchStoredSession(id, modified) {
+    const state = this.getRuntimeState()
+    const cache = state.storedSessionsCache
+    if (!Array.isArray(cache)) return
+    const index = cache.findIndex((session) => session.id === id)
+    if (index < 0) return
+    const timestamp = new Date(modified)
+    if (!Number.isFinite(timestamp.getTime())) return
+    const next = [...cache]
+    next[index] = { ...next[index], modified: timestamp }
+    state.storedSessionsCache = next
+  }
+
   sessionRunIsActive(id, value = this.sessions.get(id)) {
     return Boolean(
       value?.runActive || this.liveSessions.get(id)?.streaming || value?.session?.isStreaming,
@@ -641,11 +654,10 @@ export class SessionLifecycle {
     const manager = value.session.sessionManager
     if (!manager.getEntry(entryId)) throw new Error('会话树节点不存在。')
     if (manager.getLeafId() === entryId) {
-      return {
-        ...projectSessionTree(manager, { sessionId, streaming: false }),
-        cancelled: false,
-        editorText: null,
-      }
+      const navigation = { cancelled: false, editorText: null }
+      return options?.includeTree === false
+        ? navigation
+        : { ...projectSessionTree(manager, { sessionId, streaming: false }), ...navigation }
     }
 
     value.runActive = true
@@ -655,16 +667,18 @@ export class SessionLifecycle {
       })
       if (!result.cancelled && !result.summaryEntry) appendTreePosition(manager, entryId)
       value.modified = new Date().toISOString()
+      this.touchStoredSession(sessionId, value.modified)
       this.sessionHistoryPaths.delete(sessionId)
       this.sessionContextUsageCache.delete(sessionId)
       if (value.session.sessionFile) this.sessionHistoryCache.delete(value.session.sessionFile)
       this.invalidateProjection(sessionId)
-      await this.listStoredSessions({ refresh: true })
-      return {
-        ...projectSessionTree(manager, { sessionId, streaming: false }),
+      const navigation = {
         cancelled: Boolean(result.cancelled),
         editorText: typeof result.editorText === 'string' ? result.editorText : null,
       }
+      return options?.includeTree === false
+        ? navigation
+        : { ...projectSessionTree(manager, { sessionId, streaming: false }), ...navigation }
     } finally {
       value.runActive = false
     }
@@ -695,11 +709,11 @@ export class SessionLifecycle {
     try {
       manager.appendLabelChange(entryId, normalizedLabel || undefined)
       value.modified = new Date().toISOString()
+      this.touchStoredSession(sessionId, value.modified)
       this.sessionHistoryPaths.delete(sessionId)
       this.sessionContextUsageCache.delete(sessionId)
       if (value.session.sessionFile) this.sessionHistoryCache.delete(value.session.sessionFile)
       this.invalidateProjection(sessionId)
-      await this.listStoredSessions({ refresh: true })
       return projectSessionTree(manager, { sessionId, streaming: false })
     } finally {
       value.runActive = false

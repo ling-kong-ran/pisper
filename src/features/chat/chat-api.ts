@@ -45,10 +45,12 @@ export type SessionTreeResponse = {
   nodes: SessionTreeNode[]
 }
 
-export type SessionTreeNavigationResponse = SessionTreeResponse & {
+export type SessionTreeNavigationResult = {
   cancelled: boolean
   editorText: string | null
 }
+
+export type SessionTreeNavigationResponse = SessionTreeResponse & SessionTreeNavigationResult
 
 export type SessionTreeLabelMatch = {
   sessionId: string
@@ -154,6 +156,13 @@ export const chatApi = {
     requestJson<SessionTreeNavigationResponse>(`${sessionPath(sessionId)}/tree/navigate`, {
       method: 'POST',
       data: { targetEntryId, summarize },
+      timeout: 180_000,
+    }),
+
+  navigateSessionTreeTarget: (sessionId: string, targetEntryId: string) =>
+    requestJson<SessionTreeNavigationResult>(`${sessionPath(sessionId)}/tree/navigate`, {
+      method: 'POST',
+      data: { targetEntryId, summarize: false, includeTree: false },
       timeout: 180_000,
     }),
 

@@ -39,7 +39,7 @@ import {
   SessionThinkingSelect,
   SessionUsageMetrics,
 } from './FocusRuntimeControls'
-import { FocusTranscript } from './FocusTranscript'
+import { FocusTranscript, type TranscriptLoadState } from './FocusTranscript'
 import { GitChangesControl } from './GitChangesControl'
 import { GoalModeControl } from './GoalModeControl'
 import { PathAttachmentPicker } from './PathAttachmentPicker'
@@ -50,14 +50,12 @@ import { ToolApproval } from './ToolApproval'
 import { WorkspaceTrustNotice } from './WorkspaceTrustNotice'
 
 const DEFAULT_GOAL_TOKEN_BUDGET = 30_000
-const COMMAND_PALETTE_SHORTCUT =
-  typeof navigator !== 'undefined' && /Mac|iPhone|iPad/.test(navigator.platform)
-    ? '\u2318 K'
-    : 'Ctrl K'
-
+const USES_COMMAND_KEY = /Mac|iPhone|iPad/.test(globalThis.navigator?.platform || '')
+const COMMAND_PALETTE_SHORTCUT = USES_COMMAND_KEY ? '\u2318 K' : 'Ctrl K'
 export type FocusSessionProps = {
   session: SessionSummary
   messages: ChatMessage[]
+  transcriptLoadState?: TranscriptLoadState
   messageStart?: number | null
   hasOlder?: boolean
   loadingOlder?: boolean
@@ -107,7 +105,7 @@ export type FocusSessionProps = {
   onApproval: (approvalId: string, approved: boolean) => Promise<void> | void
   onWorkspace: () => void
   onRename: () => void
-  onDerive: (boundaryEntryId: string) => Promise<void> | void
+  onBranchFromHere: (boundaryEntryId: string) => Promise<void> | void
   onTreeNavigated?: () => Promise<void> | void
   onSplitLeft: () => void
   onSplitRight: () => void
@@ -128,6 +126,7 @@ export type FocusSessionProps = {
 export function FocusSession({
   session,
   messages,
+  transcriptLoadState = 'ready',
   messageStart,
   hasOlder,
   loadingOlder,
@@ -177,7 +176,7 @@ export function FocusSession({
   onApproval,
   onWorkspace,
   onRename,
-  onDerive,
+  onBranchFromHere,
   onTreeNavigated,
   onSplitLeft,
   onSplitRight,
@@ -203,7 +202,7 @@ export function FocusSession({
   const selection = useAttachmentSelection()
   const addSelectedAttachments = selection.addAttachments
   const promptRef = useRef<HTMLTextAreaElement>(null)
-  const hasConversation = messages.length > 0
+  const hasConversation = transcriptLoadState !== 'ready' || messages.length > 0
   const toolTrayId = `composer-tool-tray-${session.id}`
   const quickActionsLabel = toolsOpen
     ? t('chat:focusSession.collapseQuickActions')
@@ -320,7 +319,7 @@ export function FocusSession({
       )}
 
       <SessionTreeControl
-        visible={hasConversation}
+        visible={messages.length > 0}
         open={sessionTreeOpen}
         sessionId={session.id}
         streaming={Boolean(streaming)}
@@ -336,6 +335,7 @@ export function FocusSession({
       <FocusTranscript
         sessionId={session.id}
         messages={messages}
+        transcriptLoadState={transcriptLoadState}
         messageStart={messageStart}
         hasOlder={hasOlder}
         loadingOlder={loadingOlder}
@@ -357,7 +357,7 @@ export function FocusSession({
         lineage={session.lineage}
         switchingCwd={switchingCwd}
         onLoadOlder={onLoadOlder}
-        onDerive={onDerive}
+        onBranchFromHere={onBranchFromHere}
         onPromptSelect={applyWelcomeChip}
         onWorkspace={onWorkspace}
       />

@@ -72,6 +72,9 @@ export function SessionDockPanel({ params, api }: IDockviewPanelProps<{ sessionI
       <FocusSession
         session={session}
         messages={state.messages || []}
+        transcriptLoadState={
+          state.loaded ? 'ready' : state.loading || !state.error ? 'loading' : 'error'
+        }
         messageStart={state.messageStart}
         hasOlder={state.hasOlder}
         loadingOlder={state.loadingOlder}
@@ -126,7 +129,9 @@ export function SessionDockPanel({ params, api }: IDockviewPanelProps<{ sessionI
         }
         onWorkspace={() => void context.selectSessionWorkspace(session)}
         onRename={() => context.renameSession(session)}
-        onDerive={(boundaryEntryId: string) => context.deriveSession(session, boundaryEntryId)}
+        onBranchFromHere={(boundaryEntryId: string) =>
+          context.branchFromEntry(session, boundaryEntryId)
+        }
         onTreeNavigated={() => context.reloadSessionBranch(sessionId)}
         onSplitLeft={() => context.splitDockPanel(api.id, 'left')}
         onSplitRight={() => context.splitDockPanel(api.id, 'right')}

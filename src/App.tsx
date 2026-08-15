@@ -634,12 +634,13 @@ function App() {
               onOpenSession={async (id, targetEntryId, targetActive) => {
                 try {
                   if (targetEntryId && !targetActive) {
-                    await chatApi.navigateSessionTree(id, targetEntryId, false)
+                    await chatApi.navigateSessionTreeTarget(id, targetEntryId)
                   }
                   requestSessionSelection(id, 'open', targetEntryId)
                   navigate('chat')
-                } catch {
+                } catch (error) {
                   notify(t('navigation:appOverlays.openLabeledTurnFailed'), 'error')
+                  throw error
                 }
               }}
               onNewChat={() => {

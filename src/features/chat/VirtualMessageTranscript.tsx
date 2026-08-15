@@ -25,7 +25,7 @@ type VirtualMessageTranscriptProps = {
   targetEntryId?: string
   onContentSizeChange: () => void
   onTargetLocated: (entryId: string) => void
-  onDerive: (boundaryEntryId: string) => Promise<void> | void
+  onBranchFromHere: (boundaryEntryId: string) => Promise<void> | void
 }
 
 function measuredElementHeight(element: HTMLDivElement, entry?: ResizeObserverEntry) {
@@ -79,7 +79,7 @@ export const VirtualMessageTranscript = memo(function VirtualMessageTranscript({
   targetEntryId,
   onContentSizeChange,
   onTargetLocated,
-  onDerive,
+  onBranchFromHere,
 }: VirtualMessageTranscriptProps) {
   const listRef = useRef<HTMLDivElement>(null)
   const [highlightedEntryId, setHighlightedEntryId] = useState('')
@@ -174,7 +174,8 @@ export const VirtualMessageTranscript = memo(function VirtualMessageTranscript({
               agentState={agentState}
               showRunActivity={Boolean(runProps)}
               runProps={runProps}
-              onDerive={onDerive}
+              sessionStreaming={streaming}
+              onBranchFromHere={onBranchFromHere}
             />
           </div>
         )

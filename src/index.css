@@ -668,6 +668,19 @@ h1, h2, h3, strong { overflow-wrap: anywhere; }
 .session-dock-panel .focus-session > .card-head .session-runtime-meta { margin-top: 0; }
 .transcript { min-height: 0; flex: 1; overflow: auto; margin: 0; border: 0; padding: 26px max(24px,calc((100% - 960px)/2)); scroll-padding-bottom: 28px; }
 .transcript-prefix { display: flow-root; width: 100%; }
+.transcript-reveal { animation: transcript-reveal-enter .22s var(--ease-out) both; }
+.session-history-loading { display: grid; min-height: 100%; place-content: center; justify-items: center; gap: 9px; color: var(--text-muted); text-align: center; animation: transcript-stage-enter .18s var(--ease-out) both; }
+.session-history-loading > strong { color: var(--text-soft); font-size: 13px; font-weight: 650; }
+.session-history-loading-mark { position: relative; display: grid; width: 58px; height: 58px; place-items: center; }
+.session-history-loading-logo { color: var(--text); }
+.session-history-loading-ring { position: absolute; width: 58px; height: 58px; color: var(--star-strong); opacity: .62; animation: spin 1.1s linear infinite; }
+.session-history-loading-lines { display: grid; width: min(360px,66vw); justify-items: center; gap: 7px; margin-top: 9px; }
+.session-history-loading-lines > i { display: block; width: 100%; height: 4px; border-radius: var(--r-pill); background: var(--stroke); transform-origin: center; animation: session-history-line-pulse 1.6s ease-in-out infinite; }
+.session-history-loading-lines > i:nth-child(2) { width: 78%; animation-delay: .14s; }
+.session-history-loading-lines > i:nth-child(3) { width: 54%; animation-delay: .28s; }
+@keyframes transcript-stage-enter { from { opacity: 0; transform: translateY(7px); } to { opacity: 1; transform: translateY(0); } }
+@keyframes transcript-reveal-enter { from { opacity: 0; } to { opacity: 1; } }
+@keyframes session-history-line-pulse { 0%,100% { opacity: .28; transform: scaleX(.94); } 50% { opacity: .72; transform: scaleX(1); } }
 .virtual-transcript-list { position: relative; width: 100%; }
 .virtual-transcript-item { position: absolute; left: 0; display: flow-root; width: 100%; border-radius: var(--r-sm); }
 .virtual-transcript-item.targeted { background: var(--star-soft); box-shadow: inset 3px 0 0 var(--star-strong); }

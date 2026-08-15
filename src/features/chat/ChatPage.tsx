@@ -22,7 +22,6 @@ import { useLiveSessionSync } from './use-live-session-sync'
 import { usePromptCommands } from './use-prompt-commands'
 import { useSessionCatalog } from './use-session-catalog'
 import { useSessionCommands } from './use-session-commands'
-import { mergeSessionLists } from './session-list'
 
 type ChatPageProps = {
   notify: Notify
@@ -70,7 +69,6 @@ export function ChatPage({
   const loadSessionMessages = liveSync.loadSessionMessages
   const refreshSessions = catalog.refreshSessions
   const setGlobalError = catalog.setGlobalError
-  const updateSessions = catalog.updateSessions
   const openSessionInDock = dock.openSessionInDock
   const moveSessionToGroup = dock.moveSessionToGroup
   const createSession = useCallback(
@@ -112,35 +110,28 @@ export function ChatPage({
     setGlobalError: catalog.setGlobalError,
     syncLiveSession: liveSync.syncLiveSession,
   })
-  const deriveSession = useCallback(
-    async (session: SessionSummary, boundaryEntryId: string) => {
-      if (!session?.id || !boundaryEntryId) return
-      try {
-        setGlobalError('')
-        const derived = await chatApi.deriveSession(
-          session.id,
-          boundaryEntryId,
-          t('chat:chatPage.derivedSessionName', {
-            name: session.name || t('chat:chatPage.newChat'),
-          }),
-        )
-        updateSessions((current) => mergeSessionLists(current, [derived]))
-        openSessionInDock(derived.id)
-        await refreshSessions(derived.id)
-        notify(t('chat:chatPage.derivedChatCreated'))
-      } catch (error) {
-        setGlobalError(error instanceof Error ? error.message : String(error))
-      }
-    },
-    [notify, openSessionInDock, refreshSessions, setGlobalError, t, updateSessions],
-  )
-
   const reloadSessionBranch = useCallback(
     async (sessionId: string) => {
       await loadSessionMessages(sessionId, { force: true })
       await refreshSessions(sessionId)
     },
     [loadSessionMessages, refreshSessions],
+  )
+
+  const branchFromEntry = useCallback(
+    async (session: SessionSummary, boundaryEntryId: string) => {
+      if (!session?.id || !boundaryEntryId) return
+      try {
+        setGlobalError('')
+        const result = await chatApi.navigateSessionTree(session.id, boundaryEntryId, false)
+        if (result.cancelled) return
+        await reloadSessionBranch(session.id)
+        notify(t('chat:chatPage.branchedFromNode'))
+      } catch (error) {
+        setGlobalError(error instanceof Error ? error.message : String(error))
+      }
+    },
+    [notify, reloadSessionBranch, setGlobalError, t],
   )
 
   const DockNewSessionAction = useMemo(
@@ -196,7 +187,7 @@ export function ChatPage({
     resolveToolApproval: sessionCommands.resolveToolApproval,
     selectSessionWorkspace: sessionCommands.selectSessionWorkspace,
     renameSession: sessionCommands.renameSession,
-    deriveSession,
+    branchFromEntry,
     reloadSessionBranch,
     splitDockPanel: dock.splitDockPanel,
     closeDockPanel: dock.closeDockPanel,

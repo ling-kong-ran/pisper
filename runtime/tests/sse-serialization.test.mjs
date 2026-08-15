@@ -16,17 +16,18 @@ test('replaceLoneSurrogates normalises lone high and low surrogates', () => {
 })
 
 test('replaceLoneSurrogates repairs a mix without touching plain text', () => {
-  assert.equal(
-    replaceLoneSurrogates('前\ud83d后\ud83d\ude00末\ude00'),
-    '前\ufffd后😀末\ufffd',
-  )
+  assert.equal(replaceLoneSurrogates('前\ud83d后\ud83d\ude00末\ude00'), '前\ufffd后😀末\ufffd')
   assert.equal(replaceLoneSurrogates('plain ascii'), 'plain ascii')
   assert.equal(replaceLoneSurrogates(''), '')
 })
 
 test('sseSend emits strict JSON even when payloads contain lone surrogates', () => {
   const chunks = []
-  const res = { write(chunk) { chunks.push(chunk) } }
+  const res = {
+    write(chunk) {
+      chunks.push(chunk)
+    },
+  }
   sseSend(res, 'text_delta', { delta: '\ud83d' })
   const frame = chunks.join('')
   assert.ok(frame.startsWith('event: text_delta\ndata: '))
@@ -36,7 +37,11 @@ test('sseSend emits strict JSON even when payloads contain lone surrogates', () 
 
 test('sseSend keeps valid surrogate pairs as parseable JSON', () => {
   const chunks = []
-  const res = { write(chunk) { chunks.push(chunk) } }
+  const res = {
+    write(chunk) {
+      chunks.push(chunk)
+    },
+  }
   sseSend(res, 'text_delta', { delta: '你好😀' })
   const frame = chunks.join('')
   const jsonText = frame.slice('event: text_delta\ndata: '.length).replace(/\n+$/, '')

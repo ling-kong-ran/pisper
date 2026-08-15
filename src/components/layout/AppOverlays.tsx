@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState, type FormEvent, type KeyboardEvent } from 'react'
-import { MessageSquare, Plus, Search, Tag, X, type LucideIcon } from 'lucide-react'
+import { LoaderCircle, MessageSquare, Plus, Search, Tag, X, type LucideIcon } from 'lucide-react'
 import { useI18n } from '@/app/use-i18n'
 import { apiJson } from '@/lib/api'
 import { Button } from '@/components/ui/button'
@@ -25,14 +25,18 @@ type CommandEntry = {
   hint: string
   meta?: string
   title?: string
-  run: () => void
+  run: () => void | Promise<void>
 }
 
 type CommandPaletteProps = {
   navigation: Navigation
   onClose: () => void
   onNavigate: (page: string) => void
-  onOpenSession: (sessionId: string, targetEntryId?: string, targetActive?: boolean) => void
+  onOpenSession: (
+    sessionId: string,
+    targetEntryId?: string,
+    targetActive?: boolean,
+  ) => Promise<void>
   onNewChat: () => void
 }
 
@@ -49,6 +53,7 @@ export function CommandPalette({
   const [labelMatches, setLabelMatches] = useState<SessionTreeLabelMatch[]>([])
   const [labelsSearching, setLabelsSearching] = useState(false)
   const [activeIndex, setActiveIndex] = useState(0)
+  const [pendingEntryId, setPendingEntryId] = useState('')
 
   useEffect(() => {
     let active = true
@@ -159,12 +164,26 @@ export function CommandPalette({
     setActiveIndex(0)
   }, [query])
   const selectedIndex = Math.min(activeIndex, Math.max(0, entries.length - 1))
-  const runEntry = (entry?: CommandEntry) => {
-    if (!entry) return
-    onClose()
-    entry.run()
+  const runEntry = async (entry?: CommandEntry) => {
+    if (!entry || pendingEntryId) return
+    if (!entry.id.startsWith('label:')) {
+      onClose()
+      void entry.run()
+      return
+    }
+    setPendingEntryId(entry.id)
+    try {
+      await entry.run()
+      onClose()
+    } catch {
+      setPendingEntryId('')
+    }
   }
   const onKeyDown = (event: KeyboardEvent<HTMLInputElement>) => {
+    if (pendingEntryId) {
+      event.preventDefault()
+      return
+    }
     if (event.key === 'ArrowDown') {
       event.preventDefault()
       setActiveIndex((current) => (entries.length ? (current + 1) % entries.length : 0))
@@ -175,7 +194,7 @@ export function CommandPalette({
       )
     } else if (event.key === 'Enter') {
       event.preventDefault()
-      runEntry(entries[selectedIndex])
+      void runEntry(entries[selectedIndex])
     } else if (event.key === 'Escape') {
       event.preventDefault()
       onClose()
@@ -183,9 +202,10 @@ export function CommandPalette({
   }
 
   return (
-    <Dialog open onOpenChange={(open) => !open && onClose()}>
+    <Dialog open onOpenChange={(open) => !open && !pendingEntryId && onClose()}>
       <DialogContent
         showCloseButton={false}
+        aria-busy={Boolean(pendingEntryId)}
         className="command-palette top-[16vh]! max-w-[calc(100vw-40px)]! translate-y-0! gap-0 p-0 ring-0 max-sm:top-[8vh]! sm:max-w-[560px]!"
       >
         <DialogTitle className="sr-only">{t('navigation:appOverlays.commandPalette')}</DialogTitle>
@@ -197,11 +217,23 @@ export function CommandPalette({
           <input
             autoFocus
             value={query}
+            disabled={Boolean(pendingEntryId)}
             onChange={(event) => setQuery(event.target.value)}
             onKeyDown={onKeyDown}
             placeholder={t('navigation:appOverlays.searchPagesChatsOrActions')}
           />
-          <kbd>Esc</kbd>
+          {pendingEntryId ? (
+            <span
+              className="flex shrink-0 items-center gap-1.5 text-xs"
+              role="status"
+              aria-live="polite"
+            >
+              <LoaderCircle className="size-3.5 animate-spin" aria-hidden="true" />
+              {t('navigation:appOverlays.locatingLabel')}
+            </span>
+          ) : (
+            <kbd>Esc</kbd>
+          )}
         </label>
         <div
           className="palette-list"
@@ -215,16 +247,26 @@ export function CommandPalette({
               title={entry.title}
               role="option"
               aria-selected={index === selectedIndex}
-              onMouseEnter={() => setActiveIndex(index)}
-              onClick={() => runEntry(entry)}
+              disabled={Boolean(pendingEntryId)}
+              aria-busy={pendingEntryId === entry.id}
+              onMouseEnter={() => !pendingEntryId && setActiveIndex(index)}
+              onClick={() => void runEntry(entry)}
               key={entry.id}
             >
-              <entry.Icon size={15} />
+              {pendingEntryId === entry.id ? (
+                <LoaderCircle className="size-[15px] animate-spin" aria-hidden="true" />
+              ) : (
+                <entry.Icon size={15} />
+              )}
               <span className="palette-item-copy">
                 <span className="palette-item-label">{entry.label}</span>
                 {entry.meta && <small>{entry.meta}</small>}
               </span>
-              <span className="palette-item-hint">{entry.hint}</span>
+              <span className="palette-item-hint">
+                {pendingEntryId === entry.id
+                  ? t('navigation:appOverlays.locatingLabel')
+                  : entry.hint}
+              </span>
             </button>
           ))}
           {!entries.length && (

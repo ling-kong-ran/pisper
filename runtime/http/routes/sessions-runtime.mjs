@@ -83,10 +83,14 @@ export const sessionRuntimeRoutes = [
       if (input.summarize != null && typeof input.summarize !== 'boolean') {
         throw new Error('summarize 必须是布尔值。')
       }
+      if (input.includeTree != null && typeof input.includeTree !== 'boolean') {
+        throw new Error('includeTree 必须是布尔值。')
+      }
       json(
         200,
         await runtime.navigateSessionTree(params.sessionId, input.targetEntryId, {
           summarize: Boolean(input.summarize),
+          ...(input.includeTree === false ? { includeTree: false } : {}),
         }),
       )
     },

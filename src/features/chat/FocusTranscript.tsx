@@ -10,7 +10,14 @@ import {
   type ReactNode,
   type UIEvent,
 } from 'react'
-import { AlertTriangle, ArrowDown, FolderOpen, GitFork, RefreshCw } from 'lucide-react'
+import {
+  AlertTriangle,
+  ArrowDown,
+  FolderOpen,
+  GitFork,
+  LoaderCircle,
+  RefreshCw,
+} from 'lucide-react'
 import type { I18nValues } from '@/app/i18n'
 import { useI18n } from '@/app/use-i18n'
 import { BrandLogo } from '@/components/BrandLogo'
@@ -34,9 +41,12 @@ const WelcomeEffects = lazy(() => import('./WelcomeEffects'))
 
 type Translate = (message: string, values?: I18nValues) => string
 
+export type TranscriptLoadState = 'loading' | 'ready' | 'error'
+
 type FocusTranscriptProps = {
   sessionId: string
   messages: ChatMessage[]
+  transcriptLoadState?: TranscriptLoadState
   messageStart?: number | null
   hasOlder?: boolean
   loadingOlder?: boolean
@@ -58,7 +68,7 @@ type FocusTranscriptProps = {
   lineage?: EntityRecord | null
   switchingCwd?: boolean
   onLoadOlder?: () => Promise<boolean> | boolean
-  onDerive: (boundaryEntryId: string) => Promise<void> | void
+  onBranchFromHere: (boundaryEntryId: string) => Promise<void> | void
   onPromptSelect: (prompt: string) => void
   onWorkspace: () => void
 }
@@ -71,6 +81,23 @@ function WelcomeFallback({ children, title }: { children: ReactNode; title: stri
       </div>
       <h2>{title}</h2>
       {children}
+    </div>
+  )
+}
+
+function TranscriptLoading({ label }: { label: string }) {
+  return (
+    <div className="session-history-loading" role="status" aria-live="polite">
+      <div className="session-history-loading-mark" aria-hidden="true">
+        <BrandLogo size={28} className="session-history-loading-logo" />
+        <LoaderCircle className="session-history-loading-ring" />
+      </div>
+      <strong>{label}</strong>
+      <div className="session-history-loading-lines" aria-hidden="true">
+        <i />
+        <i />
+        <i />
+      </div>
     </div>
   )
 }
@@ -115,6 +142,7 @@ function welcomeChips(t: Translate) {
 export function FocusTranscript({
   sessionId,
   messages,
+  transcriptLoadState = 'ready',
   messageStart,
   hasOlder,
   loadingOlder,
@@ -136,7 +164,7 @@ export function FocusTranscript({
   lineage,
   switchingCwd,
   onLoadOlder,
-  onDerive,
+  onBranchFromHere,
   onPromptSelect,
   onWorkspace,
 }: FocusTranscriptProps) {
@@ -281,6 +309,8 @@ export function FocusTranscript({
     <>
       <div
         className="transcript"
+        data-pisper-transcript-state={transcriptLoadState}
+        aria-busy={transcriptLoadState === 'loading'}
         ref={setTranscriptRef}
         onPointerDown={cancelProgrammaticScroll}
         onScroll={handleTranscriptScroll}
@@ -322,7 +352,10 @@ export function FocusTranscript({
             </div>
           )}
         </div>
-        {!messages.length && (
+        {transcriptLoadState === 'loading' && (
+          <TranscriptLoading label={t('chat:focusSession.loadingConversationHistory')} />
+        )}
+        {transcriptLoadState === 'ready' && !messages.length && (
           <div className="agent-welcome">
             <Suspense
               fallback={<WelcomeFallback title={welcomeTitle}>{welcomeContent}</WelcomeFallback>}
@@ -331,24 +364,26 @@ export function FocusTranscript({
             </Suspense>
           </div>
         )}
-        {messages.length > 0 && (
-          <VirtualMessageTranscript
-            key={sessionId}
-            sessionId={sessionId}
-            messages={messages}
-            streaming={streaming}
-            latestRunProps={latestRunProps}
-            measurementVersion={transcriptVersion}
-            scrollElement={transcriptElement}
-            prefixRef={transcriptPrefixRef}
-            targetEntryId={targetEntryId}
-            onContentSizeChange={maintainBottom}
-            onTargetLocated={(entryId) => {
-              clearSessionMessageTarget(sessionId, entryId)
-              setTargetEntryId('')
-            }}
-            onDerive={onDerive}
-          />
+        {transcriptLoadState === 'ready' && messages.length > 0 && (
+          <div className="transcript-reveal">
+            <VirtualMessageTranscript
+              key={sessionId}
+              sessionId={sessionId}
+              messages={messages}
+              streaming={streaming}
+              latestRunProps={latestRunProps}
+              measurementVersion={transcriptVersion}
+              scrollElement={transcriptElement}
+              prefixRef={transcriptPrefixRef}
+              targetEntryId={targetEntryId}
+              onContentSizeChange={maintainBottom}
+              onTargetLocated={(entryId) => {
+                clearSessionMessageTarget(sessionId, entryId)
+                setTargetEntryId('')
+              }}
+              onBranchFromHere={onBranchFromHere}
+            />
+          </div>
         )}
         {error && (
           <div className="chat-error">
