@@ -6,10 +6,11 @@ import MarkdownMessage from '@/components/MarkdownMessage'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Popover, PopoverContent, PopoverTitle, PopoverTrigger } from '@/components/ui/popover'
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import type { ChatAttachment, ChatMessage } from '@/types/chat'
 import AgentRunActivity, { type AgentRunActivityProps } from './AgentRunActivity'
 import { chatErrorMessage } from './chat-errors'
-import { chatApi, type SessionTreeNode } from './chat-api'
+import { chatApi } from './chat-api'
 import { Message as AiMessage } from '@/components/ai-elements/message-shell'
 
 type ImagePreview = { attachment: ChatAttachment; source: string }
@@ -134,15 +135,6 @@ export function MessageAttachments({
   )
 }
 
-function findTreeNode(nodes: SessionTreeNode[], entryId: string): SessionTreeNode | null {
-  for (const node of nodes) {
-    if (node.id === entryId) return node
-    const child = findTreeNode(node.children, entryId)
-    if (child) return child
-  }
-  return null
-}
-
 function MessageTreeLabel({ sessionId, entryId }: { sessionId: string; entryId: string }) {
   const { t } = useI18n()
   const [open, setOpen] = useState(false)
@@ -161,7 +153,7 @@ function MessageTreeLabel({ sessionId, entryId }: { sessionId: string; entryId: 
       .getSessionTree(sessionId)
       .then((tree) => {
         if (!active) return
-        const currentLabel = findTreeNode(tree.roots, entryId)?.label || ''
+        const currentLabel = tree.nodes.find((node) => node.id === entryId)?.label || ''
         setLabel(currentLabel)
         setSavedLabel(currentLabel)
       })
@@ -178,7 +170,7 @@ function MessageTreeLabel({ sessionId, entryId }: { sessionId: string; entryId: 
     setError('')
     try {
       const tree = await chatApi.setSessionTreeLabel(sessionId, entryId, label)
-      const nextLabel = findTreeNode(tree.roots, entryId)?.label || ''
+      const nextLabel = tree.nodes.find((node) => node.id === entryId)?.label || ''
       setLabel(nextLabel)
       setSavedLabel(nextLabel)
       setOpen(false)
@@ -191,17 +183,23 @@ function MessageTreeLabel({ sessionId, entryId }: { sessionId: string; entryId: 
 
   return (
     <Popover open={open} onOpenChange={setOpen}>
-      <PopoverTrigger asChild>
-        <button
-          type="button"
-          className={`icon-button${savedLabel ? ' active' : ''}`}
-          title={t('chat:chatMessage.labelThisTurn')}
-          aria-label={t('chat:chatMessage.labelThisTurn')}
-          data-pisper-label-entry={entryId}
-        >
-          <Tag size={14} />
-        </button>
-      </PopoverTrigger>
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <PopoverTrigger asChild>
+            <button
+              type="button"
+              className={`icon-button${savedLabel ? ' active' : ''}`}
+              aria-label={t('chat:chatMessage.labelThisTurn')}
+              data-pisper-label-entry={entryId}
+            >
+              <Tag size={14} />
+            </button>
+          </PopoverTrigger>
+        </TooltipTrigger>
+        <TooltipContent side="top" sideOffset={6}>
+          {t('chat:chatMessage.labelThisTurn')}
+        </TooltipContent>
+      </Tooltip>
       <PopoverContent className="message-label-popover" align="end" sideOffset={6}>
         <form
           onSubmit={(event) => {
@@ -307,26 +305,32 @@ export const FocusChatMessage = memo(function FocusChatMessage({
           style={{ gridColumn: 2, gridRow: 2, paddingRight: 0 }}
         >
           <MessageTreeLabel sessionId={sessionId} entryId={message.turnBoundaryEntryId} />
-          <button
-            type="button"
-            className="icon-button"
-            title={t('chat:chatMessage.deriveFromHere')}
-            aria-label={t('chat:chatMessage.deriveFromHere')}
-            data-pisper-derive-entry={message.turnBoundaryEntryId}
-            disabled={deriving}
-            onClick={async () => {
-              const boundaryEntryId = message.turnBoundaryEntryId
-              if (!boundaryEntryId) return
-              setDeriving(true)
-              try {
-                await onDerive(boundaryEntryId)
-              } finally {
-                setDeriving(false)
-              }
-            }}
-          >
-            {deriving ? <LoaderCircle className="spin" size={14} /> : <GitFork size={14} />}
-          </button>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <button
+                type="button"
+                className="icon-button"
+                aria-label={t('chat:chatMessage.deriveFromHere')}
+                data-pisper-derive-entry={message.turnBoundaryEntryId}
+                disabled={deriving}
+                onClick={async () => {
+                  const boundaryEntryId = message.turnBoundaryEntryId
+                  if (!boundaryEntryId) return
+                  setDeriving(true)
+                  try {
+                    await onDerive(boundaryEntryId)
+                  } finally {
+                    setDeriving(false)
+                  }
+                }}
+              >
+                {deriving ? <LoaderCircle className="spin" size={14} /> : <GitFork size={14} />}
+              </button>
+            </TooltipTrigger>
+            <TooltipContent side="top" sideOffset={6}>
+              {t('chat:chatMessage.deriveFromHere')}
+            </TooltipContent>
+          </Tooltip>
         </div>
       )}
     </AiMessage>

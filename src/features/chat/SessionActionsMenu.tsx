@@ -1,13 +1,13 @@
 import { useEffect, useRef, useState } from 'react'
 import {
   FolderOpen,
-  GitBranch,
   MoreHorizontal,
   PanelBottom,
   PanelLeft,
   PanelRight,
   PanelTop,
   Pencil,
+  TreePine,
   X,
 } from 'lucide-react'
 import { useI18n } from '@/app/use-i18n'
@@ -152,7 +152,7 @@ export function SessionActionsMenu({
             disabled={streaming}
             onClick={() => run(onSessionTree)}
           >
-            <GitBranch size={15} />
+            <TreePine size={15} />
             <span>
               <strong>{t('chat:sessionTree.menu')}</strong>
               <small>

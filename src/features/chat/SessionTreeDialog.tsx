@@ -8,6 +8,7 @@ import {
   Search,
   Settings,
   Tag,
+  TreePine,
   User,
   Wrench,
 } from 'lucide-react'
@@ -33,29 +34,55 @@ type TreeSegment = {
 
 const conversationKinds = new Set(['user', 'assistant', 'summary', 'compaction', 'position'])
 
-function annotateTree(nodes: SessionTreeNode[], inBranch = false): DisplayNode[] {
-  return nodes.map((node) => {
-    const branchRelated = inBranch || node.branchPoint
-    return {
+function buildDisplayTree(nodes: SessionTreeNode[]): DisplayNode[] {
+  const roots: DisplayNode[] = []
+  const byId = new Map<string, DisplayNode>()
+  for (const node of nodes) {
+    const parent = node.parentId ? byId.get(node.parentId) : undefined
+    const displayNode: DisplayNode = {
       ...node,
-      branchRelated,
-      children: annotateTree(node.children, branchRelated),
+      branchRelated: Boolean(parent?.branchRelated) || node.branchPoint,
+      children: [],
     }
-  })
+    byId.set(node.id, displayNode)
+    if (parent) parent.children.push(displayNode)
+    else roots.push(displayNode)
+  }
+  return roots
+}
+
+function flattenTree(nodes: DisplayNode[]): DisplayNode[] {
+  const flattened: DisplayNode[] = []
+  const stack = [...nodes].reverse()
+  while (stack.length > 0) {
+    const node = stack.pop()
+    if (!node) continue
+    flattened.push(node)
+    for (let index = node.children.length - 1; index >= 0; index -= 1) {
+      stack.push(node.children[index])
+    }
+  }
+  return flattened
 }
 
 function filterTree(
   nodes: DisplayNode[],
   predicate: (node: DisplayNode) => boolean,
 ): DisplayNode[] {
-  return nodes.flatMap((node) => {
-    const children = filterTree(node.children, predicate)
-    return predicate(node) ? [{ ...node, children }] : children
-  })
-}
-
-function flattenTree(nodes: DisplayNode[]): DisplayNode[] {
-  return nodes.flatMap((node) => [node, ...flattenTree(node.children)])
+  const roots: DisplayNode[] = []
+  const visibleAncestor = new Map<string, DisplayNode | null>()
+  for (const node of flattenTree(nodes)) {
+    const parent = node.parentId ? visibleAncestor.get(node.parentId) || null : null
+    if (!predicate(node)) {
+      visibleAncestor.set(node.id, parent)
+      continue
+    }
+    const visibleNode = { ...node, children: [] }
+    visibleAncestor.set(node.id, visibleNode)
+    if (parent) parent.children.push(visibleNode)
+    else roots.push(visibleNode)
+  }
+  return roots
 }
 
 function createSegment(node: DisplayNode): TreeSegment {
@@ -65,12 +92,34 @@ function createSegment(node: DisplayNode): TreeSegment {
     cursor = cursor.children[0]
     nodes.push(cursor)
   }
-  return {
+  const segment: TreeSegment = {
     id: node.id,
     nodes,
-    children: cursor.children.map(createSegment),
+    children: [],
     active: nodes.some((entry) => entry.active),
   }
+  const stack = [{ segment, children: cursor.children }]
+  while (stack.length > 0) {
+    const current = stack.pop()
+    if (!current) continue
+    for (const child of current.children) {
+      const childNodes = [child]
+      let childCursor = child
+      while (childCursor.children.length === 1) {
+        childCursor = childCursor.children[0]
+        childNodes.push(childCursor)
+      }
+      const childSegment: TreeSegment = {
+        id: child.id,
+        nodes: childNodes,
+        children: [],
+        active: childNodes.some((entry) => entry.active),
+      }
+      current.segment.children.push(childSegment)
+      stack.push({ segment: childSegment, children: childCursor.children })
+    }
+  }
+  return segment
 }
 
 function nodeIcon(node: SessionTreeNode) {
@@ -130,7 +179,7 @@ function SessionTreeSegment({
       {segment.children.length > 0 && (
         <div className="session-tree-children">
           {segment.children.map((child) => (
-            <div className="session-tree-child" key={child.id}>
+            <div className={`session-tree-child${child.active ? ' active' : ''}`} key={child.id}>
               <SessionTreeSegment
                 segment={child}
                 selectedId={selectedId}
@@ -183,7 +232,7 @@ export function SessionTreeDialog({
       .then((next) => {
         if (cancelled) return
         setData(next)
-        setSelectedId(next.leafId || next.roots[0]?.id || '')
+        setSelectedId(next.leafId || next.nodes[0]?.id || '')
       })
       .catch((reason) => {
         if (!cancelled) setError(chatErrorMessage(reason))
@@ -196,7 +245,7 @@ export function SessionTreeDialog({
     }
   }, [open, sessionId])
 
-  const annotatedRoots = useMemo(() => annotateTree(data?.roots || []), [data])
+  const annotatedRoots = useMemo(() => buildDisplayTree(data?.nodes || []), [data])
   const typeLabel = useCallback(
     (node: SessionTreeNode) => {
       const known: Record<string, string> = {
@@ -267,7 +316,7 @@ export function SessionTreeDialog({
     try {
       const next = await chatApi.getSessionTree(sessionId)
       setData(next)
-      setSelectedId(next.leafId || next.roots[0]?.id || '')
+      setSelectedId(next.leafId || next.nodes[0]?.id || '')
     } catch (reason) {
       setError(chatErrorMessage(reason))
     } finally {
@@ -320,7 +369,12 @@ export function SessionTreeDialog({
       <DialogContent className="chat-resource-dialog session-tree-dialog" showCloseButton>
         <div className="chat-resource-head session-tree-head">
           <div>
-            <DialogTitle>{t('chat:sessionTree.title')}</DialogTitle>
+            <div className="session-tree-title">
+              <span>
+                <TreePine size={17} />
+              </span>
+              <DialogTitle>{t('chat:sessionTree.title')}</DialogTitle>
+            </div>
             <DialogDescription>
               {t('chat:sessionTree.description', {
                 nodes: data?.nodeCount || 0,

@@ -34,7 +34,6 @@ export type SessionTreeNode = {
   active: boolean
   leaf: boolean
   branchPoint: boolean
-  children: SessionTreeNode[]
 }
 
 export type SessionTreeResponse = {
@@ -43,7 +42,7 @@ export type SessionTreeResponse = {
   nodeCount: number
   branchCount: number
   streaming: boolean
-  roots: SessionTreeNode[]
+  nodes: SessionTreeNode[]
 }
 
 export type SessionTreeNavigationResponse = SessionTreeResponse & {

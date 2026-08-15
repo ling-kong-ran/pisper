@@ -176,6 +176,11 @@ test('stream dispatcher applies Plan updates in place and clears them on done', 
   assert.equal(state.lifecycle.event, 'runtime_done')
 })
 
+test('dock split handles stay contained below global overlays', async () => {
+  const styles = await readFile(resolve(root, 'src/index.css'), 'utf8')
+  assert.match(styles, /\.chat-dock-workspace \{[^}]*isolation: isolate;/)
+})
+
 test('chat facade and focus layout stay below their architecture budgets', async () => {
   const [chatPage, focusSession, transcript, dock, liveSync, promptCommands] = await Promise.all(
     [

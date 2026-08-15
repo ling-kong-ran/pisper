@@ -190,7 +190,7 @@ test('session label search API returns the runtime-owned cross-session index', a
 
 test('session tree APIs read, navigate, and label Pi tree entries', async () => {
   const calls = []
-  const tree = { sessionId: 'session 1', leafId: 'leaf-1', roots: [] }
+  const tree = { sessionId: 'session 1', leafId: 'leaf-1', nodes: [] }
   const runtime = {
     async getSessionTree(sessionId) {
       calls.push(['get', sessionId])

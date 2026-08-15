@@ -274,8 +274,14 @@ test('session labels are searchable from Ctrl K and resolve through virtualized 
   assert.match(treeDialog, /node\.branchPoint/)
   assert.match(treeDialog, /session-tree-children/)
   assert.match(treeDialog, /sessionTree\.searchPlaceholder/)
+  assert.match(treeDialog, /buildDisplayTree\(data\?\.nodes \|\| \[\]\)/)
   assert.match(chatMessage, /data-pisper-label-entry/)
   assert.match(chatMessage, /setSessionTreeLabel\(sessionId, entryId, label\)/)
+  assert.equal([...chatMessage.matchAll(/<TooltipContent side="top" sideOffset=\{6\}>/g)].length, 2)
+  assert.doesNotMatch(
+    chatMessage,
+    /title=\{t\('chat:chatMessage\.(?:labelThisTurn|deriveFromHere)'\)\}/,
+  )
   assert.match(routes, /path: '\/api\/session-labels'/)
 })
 

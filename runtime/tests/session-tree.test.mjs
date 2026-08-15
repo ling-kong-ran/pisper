@@ -61,10 +61,6 @@ function appendConversation(manager) {
   }
 }
 
-function flatNodes(roots) {
-  return roots.flatMap((node) => [node, ...flatNodes(node.children)])
-}
-
 test('session tree projection exposes stable branches without tool arguments or custom data', () => {
   const manager = SessionManager.inMemory(process.cwd())
   const entries = appendConversation(manager)
@@ -89,7 +85,7 @@ test('session tree projection exposes stable branches without tool arguments or 
   manager.appendLabelChange(entries.firstAssistant, 'Decision point')
 
   const tree = projectSessionTree(manager)
-  const nodes = flatNodes(tree.roots)
+  const nodes = tree.nodes
   assert.equal(tree.branchCount, 1)
   assert.equal(nodes.find((node) => node.id === entries.firstAssistant)?.branchPoint, true)
   assert.equal(nodes.find((node) => node.id === entries.originalAssistant)?.active, false)
@@ -97,6 +93,37 @@ test('session tree projection exposes stable branches without tool arguments or 
   assert.equal(nodes.find((node) => node.id === entries.firstAssistant)?.label, 'Decision point')
   assert.match(JSON.stringify(tree), /read/)
   assert.doesNotMatch(JSON.stringify(tree), /secret-token|private-custom-data|secret\.txt/)
+})
+
+test('session tree projection stays stack-safe for deep linear sessions', () => {
+  const depth = 7_000
+  const entries = []
+  let root = null
+  let cursor = null
+  for (let index = 0; index < depth; index += 1) {
+    const entry = {
+      id: `entry-${index}`,
+      parentId: index > 0 ? `entry-${index - 1}` : null,
+      type: 'custom',
+      customType: 'fixture.deep-entry',
+      timestamp: new Date(index).toISOString(),
+    }
+    const node = { entry, children: [], label: undefined }
+    if (cursor) cursor.children.push(node)
+    else root = node
+    cursor = node
+    entries.push(entry)
+  }
+  const tree = projectSessionTree({
+    getBranch: () => entries,
+    getLeafId: () => entries.at(-1).id,
+    getSessionId: () => 'deep-session',
+    getTree: () => [root],
+  })
+  assert.equal(tree.nodeCount, depth)
+  assert.equal(tree.nodes.length, depth)
+  assert.equal(tree.nodes.at(-1).leaf, true)
+  assert.doesNotThrow(() => JSON.stringify(tree))
 })
 
 test('session tree position entries persist a selected Pi leaf without entering model context', () => {
@@ -136,16 +163,10 @@ test('runtime navigation uses AgentSession tree semantics and survives a cold re
   assert.equal(navigated.cancelled, false)
   assert.equal(navigated.editorText, null)
   assert.notEqual(navigated.leafId, entries.originalAssistant)
+  assert.equal(navigated.nodes.find((node) => node.id === navigated.leafId)?.kind, 'position')
+  assert.equal(navigated.nodes.find((node) => node.id === entries.originalAssistant)?.active, true)
   assert.equal(
-    flatNodes(navigated.roots).find((node) => node.id === navigated.leafId)?.kind,
-    'position',
-  )
-  assert.equal(
-    flatNodes(navigated.roots).find((node) => node.id === entries.originalAssistant)?.active,
-    true,
-  )
-  assert.equal(
-    flatNodes(navigated.roots).find((node) => node.id === entries.alternateAssistant)?.active,
+    navigated.nodes.find((node) => node.id === entries.alternateAssistant)?.active,
     false,
   )
 
@@ -154,23 +175,14 @@ test('runtime navigation uses AgentSession tree semantics and survives a cold re
   await runtime.init()
   const reloaded = await runtime.getSessionTree(created.id)
   assert.equal(reloaded.leafId, navigated.leafId)
-  assert.equal(
-    flatNodes(reloaded.roots).find((node) => node.id === entries.originalAssistant)?.active,
-    true,
-  )
+  assert.equal(reloaded.nodes.find((node) => node.id === entries.originalAssistant)?.active, true)
 
   const fromUser = await runtime.navigateSessionTree(created.id, entries.originalUser, {
     summarize: false,
   })
   assert.equal(fromUser.editorText, 'Original follow-up')
-  assert.equal(
-    flatNodes(fromUser.roots).find((node) => node.id === entries.firstAssistant)?.active,
-    true,
-  )
-  assert.equal(
-    flatNodes(fromUser.roots).find((node) => node.id === entries.originalUser)?.active,
-    false,
-  )
+  assert.equal(fromUser.nodes.find((node) => node.id === entries.firstAssistant)?.active, true)
+  assert.equal(fromUser.nodes.find((node) => node.id === entries.originalUser)?.active, false)
 
   const labeled = await runtime.setSessionTreeLabel(
     created.id,
@@ -178,7 +190,7 @@ test('runtime navigation uses AgentSession tree semantics and survives a cold re
     'Resume here',
   )
   assert.equal(
-    flatNodes(labeled.roots).find((node) => node.id === entries.firstAssistant)?.label,
+    labeled.nodes.find((node) => node.id === entries.firstAssistant)?.label,
     'Resume here',
   )
   await runtime.setSessionTreeLabel(created.id, entries.firstUser, 'Resume user message')

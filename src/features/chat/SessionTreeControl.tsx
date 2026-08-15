@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { GitBranch } from 'lucide-react'
+import { TreePine } from 'lucide-react'
 import { useI18n } from '@/app/use-i18n'
 import { chatApi } from './chat-api'
 import { SessionTreeDialog } from './SessionTreeDialog'
@@ -46,7 +46,8 @@ export function SessionTreeControl({
         aria-label={t('chat:sessionTree.menu')}
         onClick={() => onOpenChange(true)}
       >
-        <GitBranch size={16} />
+        <TreePine size={16} />
+        <span>{t('chat:sessionTree.menu')}</span>
         {branches > 0 && <i>{branches}</i>}
       </button>
       <SessionTreeDialog

@@ -88,7 +88,6 @@ function entryProjection(entry) {
 }
 
 function projectNode(node, activeIds, leafId) {
-  const children = (node.children || []).map((child) => projectNode(child, activeIds, leafId))
   const entry = node.entry
   const projected = entryProjection(entry)
   return {
@@ -103,53 +102,51 @@ function projectNode(node, activeIds, leafId) {
     timestamp: entry.timestamp || '',
     active: activeIds.has(entry.id),
     leaf: entry.id === leafId,
-    branchPoint: children.length > 1,
-    children,
+    branchPoint: (node.children || []).length > 1,
   }
 }
 
 export function projectSessionTree(manager, { sessionId = '', streaming = false } = {}) {
   const leafId = manager.getLeafId() || null
   const activeIds = new Set(manager.getBranch().map((entry) => entry.id))
-  const roots = manager.getTree().map((node) => projectNode(node, activeIds, leafId))
-  let nodeCount = 0
+  const roots = manager.getTree()
+  const nodes = []
+  const stack = [...roots].reverse()
   let branchCount = 0
-  const visit = (node) => {
-    nodeCount += 1
-    branchCount += Math.max(0, node.children.length - 1)
-    node.children.forEach(visit)
+  while (stack.length > 0) {
+    const node = stack.pop()
+    const children = node.children || []
+    nodes.push(projectNode(node, activeIds, leafId))
+    branchCount += Math.max(0, children.length - 1)
+    for (let index = children.length - 1; index >= 0; index -= 1) stack.push(children[index])
   }
-  roots.forEach(visit)
   return {
     sessionId: sessionId || manager.getSessionId(),
     leafId,
-    nodeCount,
+    nodeCount: nodes.length,
     branchCount,
     streaming: Boolean(streaming),
-    roots,
+    nodes,
   }
 }
 
 export function projectSessionTreeLabels(manager, session = {}) {
   const tree = projectSessionTree(manager, { sessionId: session.id || '' })
   const labels = []
-  const visit = (node) => {
-    if (node.label && node.kind === 'assistant' && node.status === 'completed') {
-      labels.push({
-        sessionId: tree.sessionId,
-        sessionName: String(session.name || ''),
-        sessionCreated: String(session.created || ''),
-        sessionModified: String(session.modified || ''),
-        entryId: node.id,
-        label: node.label,
-        summary: node.text,
-        nodeTimestamp: String(node.timestamp || ''),
-        active: node.active,
-      })
-    }
-    node.children.forEach(visit)
+  for (const node of tree.nodes) {
+    if (!node.label || node.kind !== 'assistant' || node.status !== 'completed') continue
+    labels.push({
+      sessionId: tree.sessionId,
+      sessionName: String(session.name || ''),
+      sessionCreated: String(session.created || ''),
+      sessionModified: String(session.modified || ''),
+      entryId: node.id,
+      label: node.label,
+      summary: node.text,
+      nodeTimestamp: String(node.timestamp || ''),
+      active: node.active,
+    })
   }
-  tree.roots.forEach(visit)
   return labels
 }
 
