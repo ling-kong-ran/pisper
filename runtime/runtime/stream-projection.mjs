@@ -185,6 +185,7 @@ export function serializeTranscriptMessages(messages, resolveImageUrl = null, en
   let lastActivityAt = null
   let lastActivityMessage = null
   let runResultIndex = null
+  let pendingRunItem = null
 
   const hasActivity = () => thinkingParts.length > 0 || tools.size > 0
   const resetRun = () => {
@@ -194,10 +195,16 @@ export function serializeTranscriptMessages(messages, resolveImageUrl = null, en
     lastActivityAt = null
     lastActivityMessage = null
     runResultIndex = null
+    pendingRunItem = null
   }
   const finishRun = ({ terminal = false } = {}) => {
     if (!hasActivity()) return
     let item = runResultIndex == null ? null : result[runResultIndex]
+    if (!item && pendingRunItem) {
+      item = pendingRunItem
+      result.push(item)
+      runResultIndex = result.length - 1
+    }
     if (!item) {
       const { message, index } = lastActivityMessage || { message: {}, index: result.length }
       item = {
@@ -283,14 +290,20 @@ export function serializeTranscriptMessages(messages, resolveImageUrl = null, en
       const terminal = message.stopReason
         ? message.stopReason !== 'toolUse'
         : toolCalls.length === 0
-      if (serialized || (terminal && hasActivity())) {
+      // Pi persists one assistant message per model turn. Tool-using runs can therefore
+      // contain several commentary text blocks, while the live UI intentionally replaces
+      // the same response body for each block. Keep only the latest non-terminal block as
+      // a candidate and emit one ChatMessage when the run reaches its terminal response.
+      if (!terminal && serialized && hasActivity()) {
+        pendingRunItem = serialized
+      } else if (serialized || (terminal && hasActivity())) {
         const item = serialized || {
           id: `${message.role}-${message.timestamp || index}-${index}`,
           role: 'agent',
-          text: '',
+          text: pendingRunItem?.text || '',
           timestamp: message.timestamp || null,
           error: message.errorMessage || null,
-          attachments: [],
+          attachments: pendingRunItem?.attachments || [],
         }
         const boundaryEntryId = String(entryIds[index] || '')
         if (boundaryEntryId && isCompletedTurnBoundaryMessage(message)) {

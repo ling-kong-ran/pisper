@@ -28,7 +28,37 @@ test('live session snapshot restores partial assistant output and tool state', a
     session: {
       isStreaming: true,
       model: { provider: 'openai', id: 'gpt-5.4' },
-      messages: [{ role: 'user', content: '继续处理', timestamp: 1 }],
+      messages: [
+        { role: 'user', content: '继续处理', timestamp: 1 },
+        {
+          role: 'assistant',
+          content: [
+            { type: 'thinking', thinking: '先检查导入。' },
+            { type: 'text', text: '补上 open/stat 导入：' },
+            { type: 'toolCall', id: 'tool-0', name: 'read', arguments: { path: 'runtime.mjs' } },
+          ],
+          stopReason: 'toolUse',
+          timestamp: 2,
+        },
+        {
+          role: 'toolResult',
+          toolCallId: 'tool-0',
+          toolName: 'read',
+          content: [{ type: 'text', text: 'source' }],
+          isError: false,
+          timestamp: 3,
+        },
+        {
+          role: 'assistant',
+          content: [
+            { type: 'thinking', thinking: '继续修改调用方。' },
+            { type: 'text', text: '重写 session-lifecycle.mjs 的调用方：' },
+            { type: 'toolCall', id: 'tool-1', name: 'bash', arguments: { command: 'npm test' } },
+          ],
+          stopReason: 'toolUse',
+          timestamp: 4,
+        },
+      ],
     },
   })
   runtime.liveSessions.set('session-live', {
@@ -69,8 +99,15 @@ test('live session snapshot restores partial assistant output and tool state', a
   })
   const live = await runtime.getSessionLive('session-live')
   assert.equal(live.streaming, true)
+  assert.equal(live.messages.length, 2)
   assert.equal(live.messages.at(-1).role, 'agent')
   assert.equal(live.messages.at(-1).text, '正在处理剩余测试…')
+  assert.equal(
+    live.messages.some((message) =>
+      ['补上 open/stat 导入：', '重写 session-lifecycle.mjs 的调用方：'].includes(message.text),
+    ),
+    false,
+  )
   assert.equal(live.thinkingText, '先检查失败测试，再修复实现。')
   assert.deepEqual(live.tools, [
     { type: 'tool', id: 'tool-1', name: 'bash', args: { command: 'npm test' }, status: 'running' },
@@ -187,6 +224,7 @@ test('persisted transcript binds reasoning and tool activity to the completed Ag
           role: 'assistant',
           content: [
             { type: 'thinking', thinking: 'Inspect the implementation.' },
+            { type: 'text', text: '先运行测试。' },
             { type: 'toolCall', id: 'tool-1', name: 'bash', arguments: { command: 'npm test' } },
           ],
           stopReason: 'toolUse',
@@ -283,6 +321,10 @@ test('persisted transcript binds reasoning and tool activity to the completed Ag
       'Recover an interrupted run.',
       '',
     ],
+  )
+  assert.equal(
+    page.messages.some((message) => message.text === '先运行测试。'),
+    false,
   )
   const firstRun = page.messages[2].runActivity
   assert.equal(
