@@ -45,13 +45,9 @@ const PISPER_LOGO: [(&str, &str); 5] = [
     ("█     █ █████  ", "█     █████ █   █"),
 ];
 
-fn composer_height(app: &App, area: Rect) -> u16 {
+fn composer_height(area: Rect) -> u16 {
     if area.height >= 18 {
-        if app.attachments.is_empty() {
-            6
-        } else {
-            7
-        }
+        4
     } else {
         3
     }
@@ -99,7 +95,7 @@ pub fn draw_in(frame: &mut Frame, app: &App, area: Rect) {
         return;
     }
 
-    let composer_height = composer_height(app, area);
+    let composer_height = composer_height(area);
     let plan_height = if matches!(app.view, View::Chat) {
         plan_panel_height(app, area)
     } else {
@@ -135,7 +131,7 @@ pub fn draw_in(frame: &mut Frame, app: &App, area: Rect) {
 }
 
 fn render_welcome(frame: &mut Frame, app: &App, area: Rect) -> Rect {
-    let composer_height = composer_height(app, area);
+    let composer_height = composer_height(area);
     let full_logo =
         area.width >= WELCOME_FULL_LOGO_WIDTH && area.height >= composer_height.saturating_add(8);
     let logo_height: u16 = if full_logo {
@@ -1447,57 +1443,102 @@ fn render_changes(frame: &mut Frame, app: &App, area: Rect) {
 }
 
 fn render_composer(frame: &mut Frame, app: &App, area: Rect) {
+    if area.width == 0 || area.height == 0 {
+        return;
+    }
+    if area.width < 8 || area.height < 3 {
+        let input = if app.input.is_empty() {
+            "❯".to_owned()
+        } else {
+            format!("❯ {}", app.input_text())
+        };
+        frame.render_widget(
+            Paragraph::new(single_line(&input, area.width as usize))
+                .style(Style::default().fg(ACCENT).bg(BG)),
+            area,
+        );
+        return;
+    }
+
+    frame.render_widget(Block::default().style(Style::default().bg(BG)), area);
     let focused = matches!(app.view, View::Chat) && app.accepts_composer_input();
-    let border = if app.status_error {
+    let has_draft = !app.input.is_empty() || !app.attachments.is_empty();
+    let command_mode = app.slash_open();
+    let rail_color = if app.status_error {
         RED
-    } else if focused && !app.is_streaming() {
+    } else if focused && has_draft {
         ACCENT
     } else {
         RULE
     };
-    let compact = area.height < 5;
-    let composer = Block::default()
-        .borders(if compact {
-            Borders::TOP | Borders::BOTTOM
+    let controls_offset = area.height - 2;
+    let attachment_offset = (!app.attachments.is_empty() && area.height >= 4)
+        .then_some(controls_offset.saturating_sub(1));
+
+    for offset in 0..area.height {
+        let y = area.y.saturating_add(offset);
+        if offset == area.height - 1 {
+            frame.render_widget(
+                Paragraph::new(Line::from(vec![
+                    Span::styled("╰", Style::default().fg(rail_color)),
+                    Span::styled(
+                        "─".repeat(area.width.saturating_sub(1) as usize),
+                        Style::default().fg(RULE),
+                    ),
+                ]))
+                .style(Style::default().bg(BG)),
+                Rect::new(area.x, y, area.width, 1),
+            );
+            continue;
+        }
+        let marker = if offset == 0 {
+            "╭─ "
+        } else if offset == controls_offset || attachment_offset == Some(offset) {
+            "├─ "
         } else {
-            Borders::ALL
-        })
-        .border_style(Style::default().fg(border))
-        .style(Style::default().bg(SURFACE));
-    let inner = composer.inner(area);
-    frame.render_widget(composer, area);
-    if inner.width == 0 || inner.height == 0 {
-        return;
+            "│  "
+        };
+        frame.render_widget(
+            Paragraph::new(marker).style(Style::default().fg(rail_color).bg(BG)),
+            Rect::new(area.x, y, 3, 1),
+        );
     }
 
+    let content = Rect::new(
+        area.x.saturating_add(3),
+        area.y,
+        area.width.saturating_sub(3),
+        area.height.saturating_sub(1),
+    );
     let prompt_width = 2usize;
-    let available = inner
+    let available = content
         .width
         .saturating_sub(prompt_width as u16)
         .saturating_sub(1) as usize;
     let (composer_input, composer_cursor) = app.composer_input();
     let (visible, cursor_width) = visible_input(&composer_input, composer_cursor, available);
-    let input = Line::from(vec![
-        Span::styled(
-            "❯ ",
-            Style::default()
-                .fg(if focused { ACCENT } else { MUTED })
-                .add_modifier(Modifier::BOLD),
-        ),
-        Span::styled(
-            if visible.is_empty() {
-                "Message Pisper…".to_owned()
-            } else {
-                visible
-            },
-            Style::default().fg(if app.input.is_empty() { MUTED } else { TEXT }),
-        ),
-    ]);
     frame.render_widget(
-        Paragraph::new(input).style(Style::default().bg(SURFACE)),
-        Rect::new(inner.x, inner.y, inner.width, 1),
+        Paragraph::new(Line::from(vec![
+            Span::styled(
+                "❯ ",
+                Style::default()
+                    .fg(if focused { ACCENT } else { MUTED })
+                    .add_modifier(Modifier::BOLD),
+            ),
+            Span::styled(
+                if visible.is_empty() {
+                    "Message Pisper…".to_owned()
+                } else {
+                    visible
+                },
+                Style::default().fg(if app.input.is_empty() { MUTED } else { TEXT }),
+            ),
+        ]))
+        .style(Style::default().bg(BG)),
+        Rect::new(content.x, content.y, content.width, 1),
     );
-    if !compact && inner.height >= 5 && !app.attachments.is_empty() {
+
+    if let Some(offset) = attachment_offset {
         let names = app
             .attachments
             .iter()
@@ -1511,63 +1552,83 @@ fn render_composer(frame: &mut Frame, app: &App, area: Rect) {
                     Style::default().fg(ACCENT).add_modifier(Modifier::BOLD),
                 ),
                 Span::styled(
-                    single_line(&names, inner.width.saturating_sub(5) as usize),
+                    single_line(&names, content.width.saturating_sub(5) as usize),
                     Style::default().fg(MUTED),
                 ),
             ]))
-            .style(Style::default().bg(SURFACE)),
-            Rect::new(inner.x, inner.y.saturating_add(2), inner.width, 1),
+            .style(Style::default().bg(BG)),
+            Rect::new(content.x, area.y.saturating_add(offset), content.width, 1),
         );
     }
 
-    if !compact && inner.height >= 4 {
-        let separator_y = inner.y.saturating_add(inner.height.saturating_sub(2));
-        frame.render_widget(
-            Paragraph::new("─".repeat(inner.width as usize))
-                .style(Style::default().fg(RULE).bg(SURFACE)),
-            Rect::new(inner.x, separator_y, inner.width, 1),
-        );
-        let queue = if app.queued_count() > 0 {
-            format!("    {} queued", app.queued_count())
-        } else if app.is_streaming() && inner.width >= 52 {
-            "    Ctrl+C stop · Enter steer".to_owned()
-        } else if app.is_streaming() {
-            "    Ctrl+C stop".to_owned()
-        } else if app.slash_open() {
-            "    Tab complete · Enter select".to_owned()
+    let base_controls = if attachment_offset.is_none() && !app.attachments.is_empty() {
+        format!("+{} attached  / commands", app.attachments.len())
+    } else {
+        "+ attach  / commands".to_owned()
+    };
+    let prioritize_hint = app.queued_count() > 0 || app.is_streaming() || app.slash_open();
+    let controls_hint = if app.queued_count() > 0 {
+        format!("{} queued", app.queued_count())
+    } else if app.is_streaming() {
+        "Ctrl+C stop · Enter steer".to_owned()
+    } else if app.slash_open() {
+        "Tab complete · Enter select".to_owned()
+    } else {
+        "Enter submit".to_owned()
+    };
+    let full_controls = format!("{base_controls}    {controls_hint}");
+    let controls_width = content.width.saturating_sub(4) as usize;
+    let controls = if full_controls.width() <= controls_width {
+        full_controls
+    } else if prioritize_hint && controls_hint.width() <= controls_width {
+        controls_hint
+    } else if base_controls.width() <= controls_width {
+        base_controls
+    } else if prioritize_hint {
+        single_line(&controls_hint, controls_width)
+    } else {
+        single_line(&base_controls, controls_width)
+    };
+    frame.render_widget(
+        Paragraph::new(controls).style(Style::default().fg(MUTED).bg(BG)),
+        Rect::new(
+            content.x,
+            area.y.saturating_add(controls_offset),
+            controls_width as u16,
+            1,
+        ),
+    );
+
+    if content.width >= 4 {
+        let submit_ready = focused && has_draft && !command_mode;
+        let submit_style = if submit_ready {
+            Style::default()
+                .fg(BG)
+                .bg(ACCENT)
+                .add_modifier(Modifier::BOLD)
         } else {
-            "    Enter submit".to_owned()
+            Style::default().fg(MUTED).bg(RAISED)
         };
-        let controls = Line::from(vec![
-            Span::styled("+ attach  / commands", Style::default().fg(MUTED)),
-            Span::styled(queue, Style::default().fg(MUTED)),
-        ]);
         frame.render_widget(
-            Paragraph::new(controls).style(Style::default().bg(SURFACE)),
-            Rect::new(inner.x, separator_y.saturating_add(1), inner.width, 1),
+            Paragraph::new("↑")
+                .alignment(Alignment::Center)
+                .style(submit_style),
+            Rect::new(
+                content.x.saturating_add(content.width.saturating_sub(3)),
+                area.y.saturating_add(controls_offset),
+                3,
+                1,
+            ),
         );
-        if inner.width >= 4 {
-            frame.render_widget(
-                Paragraph::new("↑")
-                    .alignment(Alignment::Center)
-                    .style(Style::default().fg(ACCENT).bg(RAISED)),
-                Rect::new(
-                    inner.x.saturating_add(inner.width.saturating_sub(3)),
-                    separator_y.saturating_add(1),
-                    3,
-                    1,
-                ),
-            );
-        }
     }
 
     if focused {
         frame.set_cursor_position(Position::new(
-            inner
+            content
                 .x
                 .saturating_add(prompt_width as u16)
                 .saturating_add(cursor_width as u16),
-            inner.y,
+            content.y,
         ));
     }
 }
@@ -2892,10 +2953,10 @@ mod tests {
     use super::{
         compact_token_count, draw, format_session_time, padded_single_line, push_live,
         push_markdown, push_message, render_slash, runtime_error_label, slash_menu_area,
-        visible_input, ACCENT, CONVERSATION_WIDTH, GREEN, MUTED, RULE,
+        visible_input, ACCENT, BG, CONVERSATION_WIDTH, GREEN, MUTED, RAISED, RED, RULE,
     };
     use crate::{
-        app::{App, Approval, LiveTurn, PathEntry, SettingsPicker},
+        app::{App, Approval, AttachmentDraft, LiveTurn, PathEntry, SettingsPicker},
         model::{
             ChatMessage, MessagePage, ModelOption, PageInfo, Plan, PlanCounts, PlanItem,
             ProviderOption, SessionSummary, ThinkingLevelUpdate, ToolActivity,
@@ -2925,6 +2986,24 @@ mod tests {
         let mut terminal = Terminal::new(TestBackend::new(width, height)).unwrap();
         terminal.draw(|frame| draw(frame, app)).unwrap();
         terminal.backend().buffer().clone()
+    }
+
+    fn welcome_test_app() -> App {
+        let session = SessionSummary {
+            id: "session-welcome-ui".to_owned(),
+            model: "openai/gpt-5.6-sol".to_owned(),
+            cwd: "/workspace".to_owned(),
+            execution_mode: "full-access".to_owned(),
+            ..SessionSummary::default()
+        };
+        App::new(
+            vec![session.clone()],
+            session,
+            Vec::new(),
+            None,
+            Vec::new(),
+            Vec::new(),
+        )
     }
 
     fn live_test_app(status: &str, live: LiveTurn) -> App {
@@ -3312,15 +3391,14 @@ mod tests {
             assert!(thinking_rows.last().unwrap().contains("Thinking"));
             assert!(!thinking_text.contains("THINK"));
             assert!(!thinking_text.contains("current run active"));
-            let composer_y = if height >= 18 { height - 7 } else { height - 4 };
+            let composer_y = if height >= 18 { height - 5 } else { height - 4 };
+            assert_eq!(thinking_buffer.cell((0, composer_y)).unwrap().symbol(), "╭");
             assert_eq!(
                 thinking_buffer.cell((0, composer_y)).unwrap().fg,
                 RULE,
-                "streaming composer border should stay quiet at {width}x{height}"
+                "streaming composer rail should stay quiet at {width}x{height}"
             );
-            if height >= 18 {
-                assert!(thinking_text.contains("Ctrl+C stop · Enter steer"));
-            }
+            assert!(thinking_text.contains("Ctrl+C stop · Enter steer"));
 
             let running = live_test_app(
                 "running bash",
@@ -3383,7 +3461,33 @@ mod tests {
             let error_buffer = render_test_buffer(&error, width, height);
             let error_text = buffer_rows(&error_buffer, width, height).join("\n");
             assert!(error_text.contains("Response stream interrupted"));
+            assert_eq!(error_buffer.cell((0, composer_y)).unwrap().fg, RED);
         }
+    }
+
+    #[test]
+    fn active_composer_rail_prioritizes_run_and_queue_controls_when_narrow() {
+        let mut app = live_test_app(
+            "thinking",
+            LiveTurn {
+                streaming: true,
+                ..LiveTurn::default()
+            },
+        );
+        let streaming = render_test_buffer(&app, 48, 16);
+        let streaming_rows = buffer_rows(&streaming, 48, 16);
+        assert!(streaming_rows
+            .iter()
+            .any(|row| row.starts_with("├─ Ctrl+C stop · Enter steer")));
+        assert_eq!(streaming.cell((46, 13)).unwrap().bg, RAISED);
+
+        app.queue_input_succeeded("Queued direction".to_owned(), 1);
+        let queued = render_test_buffer(&app, 36, 16);
+        let queued_rows = buffer_rows(&queued, 36, 16);
+        assert!(queued_rows.iter().any(|row| row.starts_with("├─ 1 queued")));
+        assert!(!queued_rows
+            .iter()
+            .any(|row| row.starts_with("├─ Ctrl+C stop")));
     }
 
     #[test]
@@ -4057,47 +4161,99 @@ mod tests {
     }
 
     #[test]
-    fn empty_session_centers_the_brand_and_composer() {
-        let session = SessionSummary {
-            id: "session-1".to_owned(),
-            model: "openai/gpt-5.6-sol".to_owned(),
-            cwd: "/workspace".to_owned(),
-            execution_mode: "full-access".to_owned(),
-            ..SessionSummary::default()
-        };
-        let app = App::new(
-            vec![session.clone()],
-            session,
-            Vec::new(),
-            None,
-            Vec::new(),
-            Vec::new(),
+    fn empty_session_centers_the_brand_and_open_composer_rail() {
+        let app = welcome_test_app();
+        let buffer = render_test_buffer(&app, 160, 40);
+        let rows = buffer_rows(&buffer, 160, 40);
+        let input_row = rows
+            .iter()
+            .position(|row| row.contains("Message Pisper"))
+            .unwrap();
+        let controls_row = input_row + 2;
+        let bottom_row = input_row + 3;
+
+        assert!(rows.iter().any(|row| row.contains("████  █ █████")));
+        assert!(!rows.iter().any(|row| row.contains("___  ___  ___")));
+        assert!((18..=24).contains(&input_row));
+        assert!(rows[input_row]
+            .trim_start()
+            .starts_with("╭─ ❯ Message Pisper"));
+        assert!(rows[controls_row]
+            .trim_start()
+            .starts_with("├─ + attach  / commands"));
+        assert!(rows[bottom_row].trim_start().starts_with("╰────"));
+        assert_eq!(buffer.cell((36, input_row as u16)).unwrap().fg, RULE);
+        assert_eq!(buffer.cell((123, input_row as u16)).unwrap().symbol(), " ");
+        assert_eq!(
+            buffer.cell((122, controls_row as u16)).unwrap().symbol(),
+            "↑"
         );
-        let mut terminal = Terminal::new(TestBackend::new(160, 40)).unwrap();
-        terminal.draw(|frame| draw(frame, &app)).unwrap();
-        let buffer = terminal.backend().buffer();
-        let rows = (0..40)
-            .map(|y| {
-                (0..160)
-                    .filter_map(|x| buffer.cell((x, y)))
-                    .map(|cell| cell.symbol())
-                    .collect::<String>()
-            })
-            .collect::<Vec<_>>();
+        assert_eq!(buffer.cell((122, controls_row as u16)).unwrap().fg, MUTED);
+        assert_eq!(buffer.cell((122, controls_row as u16)).unwrap().bg, RAISED);
+        assert_eq!(buffer.cell((123, bottom_row as u16)).unwrap().symbol(), "─");
+    }
+
+    #[test]
+    fn welcome_composer_rail_responds_to_draft_and_command_input() {
+        let mut app = welcome_test_app();
+        let empty = render_test_buffer(&app, 80, 24);
+        let empty_rows = buffer_rows(&empty, 80, 24);
+        let input_row = empty_rows
+            .iter()
+            .position(|row| row.contains("Message Pisper"))
+            .unwrap() as u16;
+        let controls_row = input_row + 2;
+        assert_eq!(empty.cell((2, input_row)).unwrap().fg, RULE);
+        assert_eq!(empty.cell((76, controls_row)).unwrap().bg, RAISED);
+
+        app.input = "Review this change".chars().collect();
+        app.input_cursor = app.input.len();
+        let ready = render_test_buffer(&app, 80, 24);
+        assert_eq!(ready.cell((2, input_row)).unwrap().fg, ACCENT);
+        assert_eq!(ready.cell((2, input_row + 1)).unwrap().fg, ACCENT);
+        assert_eq!(ready.cell((76, controls_row)).unwrap().symbol(), "↑");
+        assert_eq!(ready.cell((76, controls_row)).unwrap().fg, BG);
+        assert_eq!(ready.cell((76, controls_row)).unwrap().bg, ACCENT);
+        assert!(buffer_text(&ready).contains("Review this change"));
+
+        app.input = vec!['/'];
+        app.input_cursor = 1;
+        let command = render_test_buffer(&app, 80, 24);
+        assert_eq!(command.cell((2, input_row)).unwrap().fg, ACCENT);
+        assert_eq!(command.cell((76, controls_row)).unwrap().fg, MUTED);
+        assert_eq!(command.cell((76, controls_row)).unwrap().bg, RAISED);
+        assert!(buffer_text(&command).contains("Tab complete"));
+    }
+
+    #[test]
+    fn welcome_composer_rail_gives_attachments_their_own_branch() {
+        let mut app = welcome_test_app();
+        app.attachments.push(AttachmentDraft {
+            path: "/workspace/mock.png".into(),
+            name: "mock.png".to_owned(),
+            kind: "image".to_owned(),
+            size: 1_024,
+        });
+        let buffer = render_test_buffer(&app, 80, 24);
+        let rows = buffer_rows(&buffer, 80, 24);
         let input_row = rows
             .iter()
             .position(|row| row.contains("Message Pisper"))
             .unwrap();
 
-        assert!(rows.iter().any(|row| row.contains("████  █ █████")));
-        assert!(!rows.iter().any(|row| row.contains("___  ___  ___")));
-        assert!((18..=24).contains(&input_row));
-        assert_eq!(buffer.cell((36, input_row as u16)).unwrap().symbol(), "│");
-        assert_eq!(buffer.cell((123, input_row as u16)).unwrap().symbol(), "│");
+        assert!(rows[input_row + 1]
+            .trim_start()
+            .starts_with("├─ +1 mock.png"));
+        assert!(rows[input_row + 2]
+            .trim_start()
+            .starts_with("├─ + attach  / commands"));
+        assert!(rows[input_row + 3].trim_start().starts_with("╰────"));
+        assert_eq!(buffer.cell((2, input_row as u16)).unwrap().fg, ACCENT);
+        assert_eq!(buffer.cell((76, input_row as u16 + 2)).unwrap().bg, ACCENT);
     }
 
     #[test]
-    fn active_conversation_moves_the_composer_to_the_full_width_bottom() {
+    fn active_conversation_uses_the_full_width_responsive_composer_rail() {
         let session = SessionSummary {
             id: "session-1".to_owned(),
             model: "openai/gpt-5.6-sol".to_owned(),
@@ -4105,7 +4261,7 @@ mod tests {
             execution_mode: "full-access".to_owned(),
             ..SessionSummary::default()
         };
-        let app = App::new(
+        let mut app = App::new(
             vec![session.clone()],
             session,
             vec![ChatMessage {
@@ -4118,22 +4274,51 @@ mod tests {
             Vec::new(),
             Vec::new(),
         );
-        let mut terminal = Terminal::new(TestBackend::new(160, 40)).unwrap();
-        terminal.draw(|frame| draw(frame, &app)).unwrap();
-        let buffer = terminal.backend().buffer();
-        let input_row = (0..40)
-            .find(|y| {
-                (0..160)
-                    .filter_map(|x| buffer.cell((x, *y)))
-                    .map(|cell| cell.symbol())
-                    .collect::<String>()
-                    .contains("Message Pisper")
-            })
-            .unwrap();
+        let empty = render_test_buffer(&app, 160, 40);
+        let rows = buffer_rows(&empty, 160, 40);
+        let input_row = rows
+            .iter()
+            .position(|row| row.contains("Message Pisper"))
+            .unwrap() as u16;
+        let controls_row = input_row + 2;
+        let bottom_row = input_row + 3;
 
-        assert!(input_row >= 32);
-        assert_eq!(buffer.cell((0, input_row)).unwrap().symbol(), "│");
-        assert_eq!(buffer.cell((159, input_row)).unwrap().symbol(), "│");
+        assert_eq!(input_row, 35);
+        assert!(rows[input_row as usize].starts_with("╭─ ❯ Message Pisper"));
+        assert!(rows[controls_row as usize].starts_with("├─ + attach  / commands"));
+        assert!(rows[bottom_row as usize].starts_with("╰────"));
+        assert_eq!(empty.cell((0, input_row)).unwrap().fg, RULE);
+        assert_eq!(empty.cell((159, input_row)).unwrap().symbol(), " ");
+        assert_eq!(empty.cell((158, controls_row)).unwrap().fg, MUTED);
+        assert_eq!(empty.cell((158, controls_row)).unwrap().bg, RAISED);
+        assert_eq!(empty.cell((159, bottom_row)).unwrap().symbol(), "─");
+
+        app.input = "Steer the active run".chars().collect();
+        app.input_cursor = app.input.len();
+        let ready = render_test_buffer(&app, 160, 40);
+        assert_eq!(ready.cell((0, input_row)).unwrap().fg, ACCENT);
+        assert_eq!(ready.cell((158, controls_row)).unwrap().fg, BG);
+        assert_eq!(ready.cell((158, controls_row)).unwrap().bg, ACCENT);
+
+        app.input.clear();
+        app.input_cursor = 0;
+        app.attachments.push(AttachmentDraft {
+            path: "/workspace/mock.png".into(),
+            name: "mock.png".to_owned(),
+            kind: "image".to_owned(),
+            size: 1_024,
+        });
+        let attached = render_test_buffer(&app, 160, 40);
+        let attached_rows = buffer_rows(&attached, 160, 40);
+        assert_eq!(
+            attached_rows
+                .iter()
+                .position(|row| row.contains("Message Pisper"))
+                .unwrap(),
+            input_row as usize
+        );
+        assert!(attached_rows[input_row as usize + 1].starts_with("├─ +1 mock.png"));
+        assert!(attached_rows[controls_row as usize].starts_with("├─ + attach  / commands"));
     }
 
     #[test]
@@ -4213,9 +4398,9 @@ mod tests {
                 .filter_map(|(index, row)| row.contains("Message Pisper").then_some(index))
                 .collect::<Vec<_>>();
             let expected = if height >= 18 {
-                height.saturating_sub(6)
+                height.saturating_sub(5)
             } else {
-                height.saturating_sub(3)
+                height.saturating_sub(4)
             } as usize;
             assert_eq!(input_rows, [expected]);
         }
@@ -4306,34 +4491,40 @@ mod tests {
     }
 
     #[test]
-    fn narrow_terminal_keeps_the_welcome_logo_and_composer() {
-        let session = SessionSummary {
-            id: "session-1".to_owned(),
-            model: "openai/gpt-5.6-sol".to_owned(),
-            cwd: "/workspace".to_owned(),
-            execution_mode: "full-access".to_owned(),
-            ..SessionSummary::default()
-        };
-        let app = App::new(
-            vec![session.clone()],
-            session,
-            Vec::new(),
-            None,
-            Vec::new(),
-            Vec::new(),
-        );
-        let backend = TestBackend::new(36, 12);
-        let mut terminal = Terminal::new(backend).unwrap();
-        terminal.draw(|frame| draw(frame, &app)).unwrap();
-        let rendered = terminal
-            .backend()
-            .buffer()
-            .content
+    fn narrow_terminal_keeps_the_compact_welcome_rail_clear() {
+        let mut app = welcome_test_app();
+        let buffer = render_test_buffer(&app, 36, 12);
+        let rows = buffer_rows(&buffer, 36, 12);
+        let rendered = rows.join("\n");
+        let input_row = rows
             .iter()
-            .map(|cell| cell.symbol())
-            .collect::<String>();
+            .position(|row| row.contains("Message Pisper"))
+            .unwrap();
+
         assert!(rendered.contains("PISPER"));
-        assert!(rendered.contains("Message Pisper"));
+        assert!(rows[input_row]
+            .trim_start()
+            .starts_with("╭─ ❯ Message Pisper"));
+        assert!(rows[input_row + 1]
+            .trim_start()
+            .starts_with("├─ + attach  / commands"));
+        assert!(rows[input_row + 1].contains('↑'));
+        assert!(!rows[input_row + 1].contains("Enter↑"));
+        assert!(rows[input_row + 2].trim_start().starts_with("╰────"));
+        assert!(rows.iter().all(|row| row.width() == 36));
+
+        app.attachments.push(AttachmentDraft {
+            path: "/workspace/mock.png".into(),
+            name: "mock.png".to_owned(),
+            kind: "image".to_owned(),
+            size: 1_024,
+        });
+        let attached = render_test_buffer(&app, 36, 12);
+        assert!(buffer_text(&attached).contains("+1 attached"));
+        assert_eq!(
+            attached.cell((33, input_row as u16 + 1)).unwrap().bg,
+            ACCENT
+        );
     }
 
     #[test]
