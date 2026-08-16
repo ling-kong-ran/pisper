@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
   Check,
-  ChevronDown,
   ChevronRight,
   FileCode2,
   LoaderCircle,
@@ -13,7 +12,12 @@ import {
   ZoomIn,
   ZoomOut,
 } from 'lucide-react'
-import { AppCard as Panel, AppSectionTitle as SectionTitle } from '@/components/ui/app-primitives'
+import {
+  AppCard as Panel,
+  AppSectionTitle as SectionTitle,
+  AppCardHeader,
+  AppError,
+} from '@/components/ui/app-primitives'
 import { AppSelect } from '@/components/AppSelect'
 import { useI18n } from '@/app/use-i18n'
 import { StarOrbit } from '@/components/StarOrbit'
@@ -23,6 +27,10 @@ import type { CSSProperties, FormEvent, PointerEvent as ReactPointerEvent } from
 import type { Notify } from '@/app/route-context'
 import type { I18nValues } from '@/app/i18n'
 import type { ConfirmDialogOptions } from '@/hooks/useAppDialog'
+
+import { Button } from '@/components/ui/button'
+
+import { FieldLabel } from '@/components/ui/field'
 
 type Translate = (message: string, values?: I18nValues) => string
 type MemoryType = 'concept' | 'file' | 'risk' | 'preference' | 'decision' | 'fact' | 'task'
@@ -97,6 +105,8 @@ type GalaxyStarStyle = CSSProperties & {
   '--twinkle-delay': string
   '--enter-delay': string
   '--depth': number
+  '--g-star-color': string
+  '--g-star-glow': string
 }
 
 const GALAXY_VIEW = { width: 600, height: 420, cx: 300, cy: 206 }
@@ -123,7 +133,6 @@ function memoryTypeLabel(type: MemoryType, t: Translate) {
   return t('memory:memoryPage.conceptType')
 }
 
-// 与 index.css 中的 --g-* 星辰色保持一致，用于连线渐变
 const STAR_COLORS: Record<MemoryType, string> = {
   concept: 'var(--g-concept)',
   file: 'var(--g-file)',
@@ -132,6 +141,15 @@ const STAR_COLORS: Record<MemoryType, string> = {
   decision: 'var(--g-decision)',
   fact: 'var(--g-fact)',
   task: 'var(--g-task)',
+}
+const STAR_GLOWS: Record<MemoryType, string> = {
+  concept: 'var(--g-concept-glow)',
+  file: 'var(--g-file-glow)',
+  risk: 'var(--g-risk-glow)',
+  preference: 'var(--g-preference-glow)',
+  decision: 'var(--g-decision-glow)',
+  fact: 'var(--g-fact-glow)',
+  task: 'var(--g-task-glow)',
 }
 
 function hashSeed(text: string) {
@@ -410,19 +428,20 @@ export function MemoryPage({
   }
 
   return (
-    <div className="memory-layout">
-      <div className="memory-left-stack">
-        <Panel className="wiki-panel">
-          <div className="card-head">
+    <div className="memory-layout max-[1150px]:grid-cols-[220px_minmax(340px,1fr)] max-[650px]:grid-cols-[1fr] grid min-h-[100%] grid-cols-[230px_minmax(360px,1fr)_290px] gap-[12px]">
+      <div className="flex min-w-0 flex-col gap-[12px]">
+        <Panel className="wiki-panel [&_>_button]:grid [&_>_button]:w-full [&_>_button]:grid-cols-[minmax(0,1fr)_auto_auto] [&_>_button]:items-center [&_>_button]:gap-[6px] [&_>_button]:border-0 [&_>_button]:[border-top:1px_solid_var(--stroke-soft)] [&_>_button]:bg-transparent [&_>_button]:p-[9px_5px] [&_>_button]:text-left [&_>_button]:text-[12px] [&_>_button.active]:rounded-[var(--r-xs)] [&_>_button.active]:bg-[var(--accent-soft)] [&_>_button_small]:text-[var(--text-muted)] [&_>_button_small]:text-[13px]">
+          <AppCardHeader>
             <SectionTitle title={t('memory:memoryPage.memorySpaces')} />
-            <button
-              className="icon-button"
+            <Button
+              variant="ghost"
+              size="icon"
               title={t('memory:memoryPage.newMemorySpace')}
               onClick={() => setSpaceModal({})}
             >
               <Plus size={13} />
-            </button>
-          </div>
+            </Button>
+          </AppCardHeader>
           {data.spaces.map((space) => (
             <button
               className={space.id === spaceId ? 'active' : ''}
@@ -438,7 +457,7 @@ export function MemoryPage({
             </button>
           ))}
           {selectedSpace && (
-            <div className="memory-space-actions">
+            <div className="memory-space-actions [&_button]:inline-flex [&_button]:items-center [&_button]:gap-[4px] [&_button]:border-0 [&_button]:bg-transparent [&_button]:text-[var(--text-soft)] [&_button]:text-[13px] [&_button.danger]:text-[var(--danger)] flex gap-[6px] [margin-top:10px] [border-top:1px_solid_var(--stroke-soft)] [padding-top:9px]">
               <button onClick={() => setSpaceModal(selectedSpace)}>
                 <Pencil size={12} />
                 {t('memory:memoryPage.rename')}
@@ -454,38 +473,41 @@ export function MemoryPage({
         </Panel>
         <Panel className="memory-legend-panel">
           <SectionTitle title={t('memory:memoryPage.memoryMapTypes')} />
-          <div className="galaxy-legend">
+          <div className="galaxy-legend [&_span]:flex [&_span]:items-center [&_span]:gap-[7px] [&_span]:text-[var(--text-soft)] [&_span]:text-[12px] grid grid-cols-[repeat(2,minmax(0,1fr))] gap-[8px_10px] [margin-top:11px]">
             {MEMORY_TYPES.map((type) => (
               <span key={type}>
-                <i className={`g-dot g-${type}`} />
+                <i
+                  className={`g-dot [&.g-concept]:bg-[var(--g-concept)] [&.g-concept]:shadow-[0_0_5px_var(--g-concept-glow)] [&.g-file]:bg-[var(--g-file)] [&.g-file]:shadow-[0_0_5px_var(--g-file-glow)] [&.g-risk]:bg-[var(--g-risk)] [&.g-risk]:shadow-[0_0_5px_var(--g-risk-glow)] [&.g-preference]:bg-[var(--g-preference)] [&.g-preference]:shadow-[0_0_5px_var(--g-preference-glow)] [&.g-decision]:bg-[var(--g-decision)] [&.g-decision]:shadow-[0_0_5px_var(--g-decision-glow)] [&.g-fact]:bg-[var(--g-fact)] [&.g-fact]:shadow-[0_0_5px_var(--g-fact-glow)] [&.g-task]:bg-[var(--g-task)] [&.g-task]:shadow-[0_0_5px_var(--g-task-glow)] inline-block w-[7px] h-[7px] flex-none rounded-[50%] g-${type}`}
+                />
                 {memoryTypeLabel(type, t)}
               </span>
             ))}
           </div>
         </Panel>
-        <Panel className="memory-candidates-panel">
-          <div className="card-head">
+        <Panel className="min-h-0">
+          <AppCardHeader>
             <SectionTitle
               title={`${t('memory:memoryPage.memoryDrafts')} · ${data.candidates?.length || 0}`}
             />
             {Boolean(data.candidates?.length) && (
-              <button
-                className="button secondary tiny"
+              <Button
+                variant="outline"
+                className="bg-surface-subtle"
                 disabled={Boolean(resolvingCandidateId)}
                 onClick={ignoreAllCandidates}
               >
                 <X size={12} />
                 {t('memory:memoryPage.ignoreAll')}
-              </button>
+              </Button>
             )}
-          </div>
+          </AppCardHeader>
           {autoApproveConfidence !== null && (
-            <div className="memory-auto-approve-row">
+            <div className="memory-auto-approve-row [&_label]:flex [&_label]:min-w-0 [&_label]:flex-col [&_label]:gap-[2px] [&_label_span]:text-[12px] [&_label_span]:font-[600] [&_label_small]:text-[var(--text-muted)] [&_label_small]:text-[10px] [&_label_small]:leading-[1.4] flex items-center justify-between gap-[10px] [border-bottom:1px_solid_var(--stroke-soft)] [padding:8px_0_10px]">
               <label>
                 <span>{t('memory:memoryPage.autoApproveThreshold')}</span>
                 <small>{t('memory:memoryPage.autoApproveThresholdHint')}</small>
               </label>
-              <span className="memory-auto-approve-input">
+              <span className="memory-auto-approve-input [&_input]:w-[64px] [&_input]:[border:1px_solid_var(--stroke-soft)] [&_input]:rounded-[6px] [&_input]:bg-[var(--surface-muted)] [&_input]:p-[4px_6px] [&_input]:text-[var(--text)] [&_input]:text-[12px] [&_input]:text-right [&_em]:text-[var(--text-muted)] [&_em]:text-[11px] [&_em]:[font-style:normal] flex flex-none items-center gap-[5px]">
                 <input
                   type="number"
                   min={0}
@@ -506,13 +528,16 @@ export function MemoryPage({
                   }}
                 />
                 <em>%</em>
-                {savingThreshold && <LoaderCircle className="spin" size={12} />}
+                {savingThreshold && <LoaderCircle className="animate-spin" size={12} />}
               </span>
             </div>
           )}
-          <div className="memory-candidate-list">
+          <div className="flex max-h-[300px] flex-col gap-[8px] overflow-auto">
             {(data.candidates || []).map((candidate) => (
-              <div className="memory-candidate" key={candidate.id}>
+              <div
+                className="memory-candidate [&_>_strong]:text-[12px] [&_>_span]:text-[var(--text-muted)] [&_>_span]:text-[11px] [&_>_span]:leading-[1.45] [&_>_small]:text-[var(--text-muted)] [&_>_small]:text-[11px] [&_>_small]:leading-[1.45] [&_>_div]:flex [&_>_div]:gap-[6px] [&_button]:inline-flex [&_button]:items-center [&_button]:gap-[4px] [&_button]:[border:1px_solid_var(--stroke-soft)] [&_button]:rounded-[6px] [&_button]:bg-transparent [&_button]:p-[4px_7px] [&_button]:text-[var(--text)] [&_button]:text-[11px] [&_button.danger]:text-[var(--danger)] flex flex-col gap-[5px] [border:1px_solid_var(--stroke-soft)] rounded-[8px] bg-[var(--surface-muted)] [padding:8px]"
+                key={candidate.id}
+              >
                 <strong>{candidate.title}</strong>
                 <small>
                   {spaceLabel(
@@ -574,11 +599,11 @@ export function MemoryPage({
         </Panel>
       </div>
       <Panel
-        className="graph-panel galaxy-panel"
+        className="graph-panel before:[content:''] before:absolute before:z-[0] before:inset-0 before:pointer-events-none before:bg-[url('/memory-galaxy-background.webp')] before:[background-position:center_48%] before:[background-size:cover] before:bg-no-repeat before:[filter:saturate(.62)_contrast(1.08)] before:[mix-blend-mode:screen] before:opacity-[.42] after:[content:''] after:absolute after:z-[0] after:inset-0 after:pointer-events-none after:[background-image:radial-gradient(var(--galaxy-dot)_.9px,transparent_1.2px),_radial-gradient(var(--galaxy-dot-dim)_.8px,transparent_1.2px),_radial-gradient(var(--galaxy-dot)_1.2px,transparent_1.6px)] after:[background-position:0_0,_37px_53px,_71px_19px] after:[background-size:96px_96px,_152px_152px,_236px_236px] after:[animation:galaxy-field-twinkle_6.4s_ease-in-out_infinite] after:opacity-[.7] before:inset-[-8%] before:[animation:galaxy-background-drift_34s_ease-in-out_infinite_alternate] before:[will-change:transform] after:[animation:galaxy-field-drift_15s_ease-in-out_infinite_alternate] after:[will-change:background-position,opacity] max-[650px]:min-h-[430px] relative min-h-[500px] overflow-hidden [border-color:var(--galaxy-border)] [background-color:var(--galaxy-bg)] [background-image:radial-gradient(ellipse_46%_40%_at_50%_48%,_var(--galaxy-core),_transparent_72%),_radial-gradient(ellipse_62%_48%_at_16%_6%,_var(--galaxy-nebula-a),_transparent_70%),_radial-gradient(ellipse_56%_52%_at_88%_98%,_var(--galaxy-nebula-b),_transparent_72%)] p-0 [backdrop-filter:none] galaxy-panel"
         onPointerMove={handleParallax}
         onPointerLeave={resetParallax}
       >
-        <div className="graph-toolbar">
+        <div className="graph-toolbar [&_button]:grid [&_button]:w-[32px] [&_button]:h-[32px] [&_button]:place-items-center [&_button]:border-0 [&_button]:bg-transparent [&_button]:text-[12px] [.galaxy-panel_&]:border-[var(--galaxy-toolbar-border)] [.galaxy-panel_&]:bg-[var(--galaxy-toolbar-bg)] [.galaxy-panel_&]:text-[var(--galaxy-toolbar-text)] [.galaxy-panel_&]:[backdrop-filter:blur(9px)] [.galaxy-panel_&_button:hover]:bg-[var(--galaxy-toolbar-hover)] dark:bg-[var(--solid)] dark:text-[var(--text)] absolute z-[4] [top:10px] [left:10px] flex gap-[3px] [padding:3px] [border:1px_solid_var(--stroke)] rounded-[var(--r-xs)] bg-[var(--solid)]">
           <button
             title={t('memory:memoryPage.addMemory')}
             onClick={() => setNodeModal({ spaceId })}
@@ -598,21 +623,36 @@ export function MemoryPage({
             <ZoomOut size={13} />
           </button>
           <button title={t('memory:memoryPage.refresh')} onClick={() => load(spaceId)}>
-            <RefreshCw className={loading ? 'spin' : ''} size={13} />
+            <RefreshCw className={loading ? 'animate-spin' : ''} size={13} />
           </button>
         </div>
         <div
-          className={`galaxy-stage ${focusId ? 'has-focus' : ''}`}
+          className={`galaxy-stage [&_>_svg]:absolute [&_>_svg]:inset-0 [&_>_svg]:w-full [&_>_svg]:h-full [&_>_svg]:overflow-visible [&_>_svg]:z-[1] [&_>_svg]:[transform:translate3d(calc(var(--px,0)_*_9px),calc(var(--py,0)_*_6px),0)] [&_>_svg]:[transition:transform_.9s_var(--ease-out)] absolute z-[1] inset-0 [transform-origin:50%_50%] [transition:transform_var(--d2)_var(--ease-out)] ${focusId ? 'has-focus' : ''}`}
           ref={stageRef}
           style={{ transform: `scale(${zoom})` }}
         >
-          <i className="galaxy-spiral" aria-hidden="true" />
-          <i className="galaxy-core" aria-hidden="true" />
-          <i className="galaxy-aurora galaxy-aurora-one" aria-hidden="true" />
-          <i className="galaxy-aurora galaxy-aurora-two" aria-hidden="true" />
-          <i className="galaxy-aurora galaxy-aurora-three" aria-hidden="true" />
+          <i
+            className="galaxy-spiral absolute z-[0] block pointer-events-none [left:9%] [top:13%] w-[82%] h-[74%] rounded-[50%] bg-[conic-gradient(from_-18deg,transparent_0deg,var(--galaxy-nebula-a)_28deg,transparent_68deg,var(--galaxy-nebula-b)_118deg,transparent_170deg,var(--galaxy-nebula-a)_224deg,transparent_278deg,var(--galaxy-nebula-b)_322deg,transparent_360deg)] [filter:blur(13px)] [mask-image:radial-gradient(ellipse,transparent_0%,transparent_15%,var(--g-star-core)_38%,transparent_74%)] [-webkit-mask-image:radial-gradient(ellipse,transparent_0%,transparent_15%,var(--g-star-core)_38%,transparent_74%)] [mix-blend-mode:screen] opacity-[.38] [animation:galaxy-spiral-turn_42s_linear_infinite] [will-change:transform]"
+            aria-hidden="true"
+          />
+          <i
+            className="galaxy-core absolute z-[0] block pointer-events-none before:[content:''] before:absolute before:left-[50%] before:top-[50%] before:w-[46px] before:h-[46px] before:rounded-[50%] before:bg-[radial-gradient(circle,rgba(255,255,255,.82),rgba(191,219,254,.3)_55%,transparent_76%)] before:[filter:blur(6px)] before:[transform:translate(-50%,-50%)] [left:50%] [top:49%] w-[34%] h-[40%] rounded-[50%] bg-[radial-gradient(ellipse,rgba(219,232,255,.3)_0%,rgba(126,156,255,.15)_36%,transparent_70%)] [filter:blur(9px)] [mix-blend-mode:screen] [transform:translate(-50%,-50%)] [animation:galaxy-core-breathe_7.5s_ease-in-out_infinite] [will-change:transform,opacity]"
+            aria-hidden="true"
+          />
+          <i
+            className="galaxy-aurora absolute z-[0] block pointer-events-none w-[46%] h-[31%] rounded-[50%] [filter:blur(21px)] [mix-blend-mode:screen] opacity-[.42] [will-change:transform,opacity] [left:8%] [top:20%] bg-[radial-gradient(ellipse,var(--galaxy-nebula-a),transparent_70%)] [animation:galaxy-aurora-drift_18s_ease-in-out_infinite_alternate]"
+            aria-hidden="true"
+          />
+          <i
+            className="galaxy-aurora absolute z-[0] block pointer-events-none w-[46%] h-[31%] rounded-[50%] [filter:blur(21px)] [mix-blend-mode:screen] opacity-[.42] [will-change:transform,opacity] [right:5%] [bottom:14%] bg-[radial-gradient(ellipse,var(--galaxy-nebula-b),transparent_70%)] [animation:galaxy-aurora-drift_23s_ease-in-out_-9s_infinite_alternate-reverse]"
+            aria-hidden="true"
+          />
+          <i
+            className="galaxy-aurora absolute z-[0] block pointer-events-none w-[46%] h-[31%] rounded-[50%] [filter:blur(21px)] [mix-blend-mode:screen] opacity-[.42] [will-change:transform,opacity] galaxy-aurora-three left-[30%] top-[60%] !w-[40%] !h-[27%] bg-[radial-gradient(ellipse,var(--galaxy-nebula-c),transparent_70%)] [animation:galaxy-aurora-drift_27s_ease-in-out_-14s_infinite_alternate]"
+            aria-hidden="true"
+          />
           <svg viewBox="0 0 600 420" preserveAspectRatio="none" aria-hidden="true">
-            <g className="galaxy-orbits">
+            <g className="galaxy-orbits [&_ellipse]:[fill:none] [&_ellipse]:[stroke:var(--galaxy-line)] [&_ellipse]:[stroke-width:.72] [&_ellipse]:[stroke-dasharray:3_7] [&_ellipse]:opacity-[.52] [transform-box:fill-box] [transform-origin:center] [animation:galaxy-orbit-drift_90s_linear_infinite]">
               <ellipse cx="300" cy="206" rx="205" ry="122" transform="rotate(-8 300 206)" />
               <ellipse cx="300" cy="206" rx="154" ry="88" transform="rotate(18 300 206)" />
               <ellipse cx="300" cy="206" rx="95" ry="54" transform="rotate(-24 300 206)" />
@@ -653,12 +693,15 @@ export function MemoryPage({
               return (
                 <g key={link.id}>
                   <path
-                    className={`link-path ${active ? 'active' : ''}`}
+                    className={`link-path [.galaxy-stage_>_svg_&]:[fill:none] [.galaxy-stage_>_svg_&]:[stroke-width:1.05] [.galaxy-stage_>_svg_&]:[stroke-dasharray:3_5] [.galaxy-stage_>_svg_&]:opacity-[.5] [.galaxy-stage_>_svg_&]:[animation:galaxy-link-flow_30s_linear_infinite] [.galaxy-stage_>_svg_&]:[transition:opacity_var(--d2)_var(--ease-out)] [.galaxy-stage_>_svg_&.active]:[stroke-width:1.55] [.galaxy-stage_>_svg_&.active]:[stroke-dasharray:none] [.galaxy-stage_>_svg_&.active]:opacity-100 [.galaxy-stage_>_svg_&.active]:[filter:drop-shadow(0_0_3.5px_var(--galaxy-line-active))] [.galaxy-stage.has-focus_&]:opacity-[.14] [.galaxy-stage.has-focus_&.active]:opacity-100 ${active ? 'active' : ''}`}
                     d={path}
                     stroke={`url(#lg-${index})`}
                   />
                   {active && (
-                    <circle className="link-pulse" r="2.1">
+                    <circle
+                      className="link-pulse [.galaxy-stage_>_svg_&]:[fill:var(--g-star-core)] [.galaxy-stage_>_svg_&]:[filter:drop-shadow(0_0_4px_var(--galaxy-line-active))] [.galaxy-stage_>_svg_&]:pointer-events-none"
+                      r="2.1"
+                    >
                       <animateMotion dur="2.8s" repeatCount="indefinite" path={path} />
                     </circle>
                   )}
@@ -666,12 +709,21 @@ export function MemoryPage({
               )
             })}
           </svg>
-          <i className="galaxy-meteor" aria-hidden="true" />
-          <i className="galaxy-meteor meteor-two" aria-hidden="true" />
-          <i className="galaxy-meteor meteor-three" aria-hidden="true" />
+          <i
+            className="galaxy-meteor before:[content:''] before:absolute before:top-[50%] before:left-[1px] before:w-[72px] before:h-[1px] before:bg-[linear-gradient(90deg,transparent,var(--galaxy-dot))] before:[transform:translateY(-50%)] absolute [top:14%] [left:80%] w-[2.4px] h-[2.4px] rounded-[50%] bg-[var(--galaxy-label-active)] shadow-[0_0_7px_1px_var(--galaxy-dot)] opacity-0 pointer-events-none [animation:galaxy-meteor_12s_linear_infinite] z-[3]"
+            aria-hidden="true"
+          />
+          <i
+            className="galaxy-meteor before:[content:''] before:absolute before:top-[50%] before:left-[1px] before:w-[72px] before:h-[1px] before:bg-[linear-gradient(90deg,transparent,var(--galaxy-dot))] before:[transform:translateY(-50%)] absolute [top:14%] [left:80%] w-[2.4px] h-[2.4px] rounded-[50%] bg-[var(--galaxy-label-active)] shadow-[0_0_7px_1px_var(--galaxy-dot)] opacity-0 pointer-events-none [animation:galaxy-meteor_12s_linear_infinite] z-[3] meteor-two [.galaxy-meteor&]:top-[63%] [.galaxy-meteor&]:left-[89%] [.galaxy-meteor&]:[animation:galaxy-meteor-b_17s_linear_4.5s_infinite]"
+            aria-hidden="true"
+          />
+          <i
+            className="galaxy-meteor before:[content:''] before:absolute before:top-[50%] before:left-[1px] before:w-[72px] before:h-[1px] before:bg-[linear-gradient(90deg,transparent,var(--galaxy-dot))] before:[transform:translateY(-50%)] absolute [top:14%] [left:80%] w-[2.4px] h-[2.4px] rounded-[50%] bg-[var(--galaxy-label-active)] shadow-[0_0_7px_1px_var(--galaxy-dot)] opacity-0 pointer-events-none [animation:galaxy-meteor_12s_linear_infinite] z-[3] meteor-three [.galaxy-meteor&]:top-[7%] [.galaxy-meteor&]:left-[36%] [.galaxy-meteor&]:[animation:galaxy-meteor-c_23s_linear_11s_infinite]"
+            aria-hidden="true"
+          />
           {stars.map(({ node, x, y, twinkle }, index) => (
             <button
-              className={`galaxy-star star-${node.type} ${selectedId === node.id ? 'active' : ''} ${focusId && node.id !== focusId && !focusRelatedIds.has(node.id) ? 'dimmed' : ''}`}
+              className={`galaxy-star focus-visible:rounded-[50%] focus-visible:[outline-color:var(--galaxy-line-active)] before:[content:''] before:absolute before:w-[calc(var(--star-size)_+_26px)] before:h-[calc(var(--star-size)_+_26px)] before:rounded-[50%] before:bg-[radial-gradient(circle,var(--g-star-glow),transparent_68%)] before:[filter:blur(3px)] before:opacity-[.76] before:pointer-events-none [&.active::after]:[content:''] [&.active::after]:absolute [&.active::after]:w-[calc(var(--star-size)_+_31px)] [&.active::after]:h-[calc(var(--star-size)_+_31px)] [&.active::after]:[border:1px_solid_var(--g-star-glow)] [&.active::after]:rounded-[50%] [&.active::after]:pointer-events-none [&.active::after]:[animation:galaxy-star-selection-pulse_2.3s_var(--ease-out)_infinite] [&:hover::before]:opacity-100 [&.active::before]:opacity-100 absolute z-[2] grid w-[52px] h-[52px] min-w-0 min-h-[52px] place-items-center [transform:translate(-50%,-50%)_translate3d(calc(var(--px,0)_*_(9px_+_var(--depth,0)_*_7px)),calc(var(--py,0)_*_(6px_+_var(--depth,0)_*_5px)),0)] border-0 rounded-[50%] bg-transparent p-0 cursor-pointer [transition:transform_.9s_var(--ease-out),opacity_.45s_var(--ease-out),filter_.45s_var(--ease-out)] [animation:galaxy-star-enter_.72s_var(--ease-out)_var(--enter-delay,0ms)_backwards] ${selectedId === node.id ? 'active' : ''}    ${focusId && node.id !== focusId && !focusRelatedIds.has(node.id) ? 'dimmed [.galaxy-stage.has-focus_.galaxy-star&]:opacity-[.32] [.galaxy-stage.has-focus_.galaxy-star&]:[filter:saturate(.4)_brightness(.82)]' : ''}`}
               onClick={() => setSelectedId(node.id)}
               onMouseEnter={() => setHoveredId(node.id)}
               onMouseLeave={() => setHoveredId('')}
@@ -683,30 +735,53 @@ export function MemoryPage({
                   '--twinkle-delay': `${twinkle}s`,
                   '--enter-delay': `${index * 55}ms`,
                   '--depth': (hashSeed(node.id) % 100) / 100,
+                  '--g-star-color': STAR_COLORS[node.type],
+                  '--g-star-glow': STAR_GLOWS[node.type],
                 } as GalaxyStarStyle
               }
               title={node.content}
               key={node.id}
             >
-              {selectedId === node.id && <i className="orbit-ring" aria-hidden="true" />}
-              {selectedId === node.id && <i className="dash-ring" aria-hidden="true" />}
-              <svg className="star-core" viewBox="0 0 32 32" aria-hidden="true">
+              {selectedId === node.id && (
+                <i
+                  className="orbit-ring [.galaxy-star_&]:absolute [.galaxy-star_&]:left-[50%] [.galaxy-star_&]:top-[50%] [.galaxy-star_&]:w-[calc(var(--star-size)_+_36px)] [.galaxy-star_&]:h-[calc(var(--star-size)_+_36px)] [.galaxy-star_&]:[border:1px_solid_var(--galaxy-line-active)] [.galaxy-star_&]:rounded-[50%] [.galaxy-star_&]:pointer-events-none [.galaxy-star_&]:[transform:translate(-50%,-50%)_rotate(-22deg)_scaleY(.44)] [.galaxy-star_&]:[animation:galaxy-selected-orbit_6s_linear_infinite] [.galaxy-star_&]:opacity-[.8] [.galaxy-star_&::before]:[content:''] [.galaxy-star_&::before]:absolute [.galaxy-star_&::before]:top-[-2.2px] [.galaxy-star_&::before]:left-[50%] [.galaxy-star_&::before]:w-[4.4px] [.galaxy-star_&::before]:h-[4.4px] [.galaxy-star_&::before]:ml-[-2.2px] [.galaxy-star_&::before]:rounded-[50%] [.galaxy-star_&::before]:bg-[var(--g-star-color)] [.galaxy-star_&::before]:shadow-[0_0_6px_1px_var(--g-star-glow)]"
+                  aria-hidden="true"
+                />
+              )}
+              {selectedId === node.id && (
+                <i
+                  className="dash-ring [.galaxy-star_&]:absolute [.galaxy-star_&]:left-[50%] [.galaxy-star_&]:top-[50%] [.galaxy-star_&]:w-[calc(var(--star-size)_+_23px)] [.galaxy-star_&]:h-[calc(var(--star-size)_+_23px)] [.galaxy-star_&]:[border:1px_dashed_var(--g-star-glow)] [.galaxy-star_&]:rounded-[50%] [.galaxy-star_&]:opacity-[.9] [.galaxy-star_&]:pointer-events-none [.galaxy-star_&]:[transform:translate(-50%,-50%)] [.galaxy-star_&]:[animation:galaxy-dash-spin_16s_linear_infinite]"
+                  aria-hidden="true"
+                />
+              )}
+              <svg
+                className="star-core [.galaxy-star_&]:relative [.galaxy-star_&]:block [.galaxy-star_&]:w-[var(--star-size)] [.galaxy-star_&]:h-[var(--star-size)] [.galaxy-star_&]:rounded-[50%] [.galaxy-star_&]:bg-[radial-gradient(circle_at_38%_34%,var(--g-star-core)_0%,var(--g-star-color)_52%,transparent_80%)] [.galaxy-star_&]:shadow-[0_0_7px_1px_var(--g-star-glow),0_0_20px_3px_var(--g-star-glow)] [.galaxy-star_&]:[transition:transform_var(--d2)_var(--ease-spring)] [.galaxy-star_&]:[animation:galaxy-star-twinkle_3.8s_ease-in-out_var(--twinkle-delay)_infinite] [.galaxy-star_&::before]:[content:''] [.galaxy-star_&::before]:absolute [.galaxy-star_&::before]:left-[50%] [.galaxy-star_&::before]:top-[50%] [.galaxy-star_&::before]:rounded-[var(--r-pill)] [.galaxy-star_&::before]:opacity-[.86] [.galaxy-star_&::before]:[transform:translate(-50%,-50%)] [.galaxy-star_&::after]:[content:''] [.galaxy-star_&::after]:absolute [.galaxy-star_&::after]:left-[50%] [.galaxy-star_&::after]:top-[50%] [.galaxy-star_&::after]:rounded-[var(--r-pill)] [.galaxy-star_&::after]:opacity-[.86] [.galaxy-star_&::after]:[transform:translate(-50%,-50%)] [.galaxy-star_&::before]:w-[1.4px] [.galaxy-star_&::before]:h-[calc(var(--star-size)_+_19px)] [.galaxy-star_&::before]:bg-[linear-gradient(180deg,transparent,var(--g-star-glow)_52%,transparent)] [.galaxy-star_&::after]:w-[calc(var(--star-size)_+_19px)] [.galaxy-star_&::after]:h-[1.4px] [.galaxy-star_&::after]:bg-[linear-gradient(90deg,transparent,var(--g-star-glow)_52%,transparent)] [.galaxy-star:hover_&]:[transform:scale(1.28)] [.galaxy-star.active_&]:[transform:scale(1.22)] [.galaxy-star.active_&]:[animation:galaxy-star-pulse_2.3s_var(--ease-out)_infinite] [.galaxy-star_&]:overflow-visible [.galaxy-star_&]:rounded-[0] [.galaxy-star_&]:bg-transparent [.galaxy-star_&]:shadow-[none] [.galaxy-star_&]:[filter:drop-shadow(0_0_3px_var(--g-star-glow))_drop-shadow(0_0_8px_var(--g-star-glow))] [.galaxy-star_&]:origin-[center] [.galaxy-star.active_&]:[transform:scale(1.32)] [.galaxy-star.active_&]:[animation:galaxy-star-twinkle_2.1s_ease-in-out_var(--twinkle-delay)_infinite]"
+                viewBox="0 0 32 32"
+                aria-hidden="true"
+              >
                 <path
-                  className="star-ray"
+                  className="star-ray [.galaxy-star_.star-core_&]:[fill:var(--g-star-glow)] [.galaxy-star_.star-core_&]:opacity-[.58] [.galaxy-star_.star-core_&]:[transform-box:fill-box] [.galaxy-star_.star-core_&]:origin-[center] [.galaxy-star_.star-core_&]:[transform:scale(1.45)] [.galaxy-star.active_.star-core_&]:opacity-[.88] [.galaxy-star.active_.star-core_&]:[transform:scale(1.82)]"
                   d="M16 0 L19.7 12.3 L32 16 L19.7 19.7 L16 32 L12.3 19.7 L0 16 L12.3 12.3 Z"
                 />
                 <path
-                  className="star-shape"
+                  className="star-shape [.galaxy-star_.star-core_&]:[fill:var(--g-star-color)]"
                   d="M16 2 L18.8 13.2 L30 16 L18.8 18.8 L16 30 L13.2 18.8 L2 16 L13.2 13.2 Z"
                 />
-                <circle className="star-heart" cx="16" cy="16" r="3.2" />
+                <circle
+                  className="star-heart [.galaxy-star_.star-core_&]:[fill:var(--g-star-core)]"
+                  cx="16"
+                  cy="16"
+                  r="3.2"
+                />
               </svg>
-              <span className="star-label">{node.title}</span>
+              <span className="star-label [.galaxy-stage.has-focus_.galaxy-star.dimmed_&]:opacity-[.3] [.galaxy-stage.has-focus_.galaxy-star.dimmed_&]:[transition:opacity_.45s_var(--ease-out)] [.galaxy-star_&]:absolute [.galaxy-star_&]:top-[calc(50%_+_17px)] [.galaxy-star_&]:left-[50%] [.galaxy-star_&]:max-w-[120px] [.galaxy-star_&]:overflow-hidden [.galaxy-star_&]:text-[var(--galaxy-label)] [.galaxy-star_&]:text-[11px] [.galaxy-star_&]:leading-[1.35] [.galaxy-star_&]:pointer-events-none [.galaxy-star_&]:text-ellipsis [.galaxy-star_&]:[text-shadow:0_1px_7px_var(--galaxy-bg)] [.galaxy-star_&]:[transform:translateX(-50%)] [.galaxy-star_&]:[transition:color_var(--d1)_var(--ease-out)] [.galaxy-star_&]:whitespace-nowrap [.galaxy-star:hover_&]:text-[var(--galaxy-label-active)] [.galaxy-star.active_&]:text-[var(--galaxy-label-active)] [.galaxy-star.active_&]:font-[700]">
+                {node.title}
+              </span>
             </button>
           ))}
         </div>
         {!!stars.length && (
-          <span className="galaxy-count">
+          <span className="absolute z-[3] [right:12px] [bottom:9px] [border:1px_solid_var(--galaxy-toolbar-border)] rounded-[var(--r-pill)] bg-[rgba(12,11,20,.52)] [padding:3px_10px] text-[var(--galaxy-label)] text-[11px] tracking-[.5px] pointer-events-none [backdrop-filter:blur(6px)]">
             ✦{' '}
             {t('memory:memoryPage.visibleTotalMemories', {
               visible: stars.length,
@@ -715,7 +790,7 @@ export function MemoryPage({
           </span>
         )}
         {!loading && !stars.length && (
-          <div className="memory-empty">
+          <div className="memory-empty [.galaxy-panel_&]:text-[var(--galaxy-label)] [.galaxy-panel_&]:[--stroke:var(--galaxy-toolbar-border)] [.galaxy-panel_&]:[--control-muted:var(--galaxy-label)] [.galaxy-panel_&]:[--star:var(--g-decision)] [.galaxy-panel_&]:[--text-muted:var(--galaxy-label)] absolute z-[3] inset-0 grid [align-content:center] justify-items-center gap-[8px] text-[var(--text-muted)] text-[12px] pointer-events-none">
             <StarOrbit size={44} />
             <span>
               {t(
@@ -725,21 +800,25 @@ export function MemoryPage({
           </div>
         )}
       </Panel>
-      <div className="detail-stack">
+      <div className="detail-stack flex min-w-0 flex-col gap-[12px] [.mcp-layout_>_&]:min-h-0 max-[1150px]:[.memory-layout_>_&]:[grid-column:1/-1] max-[1150px]:[.memory-layout_>_&]:grid max-[1150px]:[.memory-layout_>_&]:grid-cols-[repeat(2,minmax(0,1fr))] max-[1150px]:[.mcp-layout_>_&]:[grid-column:1/-1] max-[1150px]:[.mcp-layout_>_&]:grid max-[1150px]:[.mcp-layout_>_&]:grid-cols-[repeat(2,minmax(0,1fr))] max-[1150px]:[.skills-layout_>_&]:[grid-column:1/-1] max-[1150px]:[.skills-layout_>_&]:grid max-[1150px]:[.skills-layout_>_&]:grid-cols-[repeat(2,minmax(0,1fr))] max-[650px]:[.memory-layout_>_&]:[grid-column:auto] max-[650px]:[.memory-layout_>_&]:grid-cols-[1fr] max-[650px]:[.mcp-layout_>_&]:[grid-column:auto] max-[650px]:[.mcp-layout_>_&]:grid-cols-[1fr] max-[650px]:[.skills-layout_>_&]:[grid-column:auto] max-[650px]:[.skills-layout_>_&]:grid-cols-[1fr]">
         <Panel>
           <SectionTitle title={t('memory:memoryPage.selectedMemory')} />
           {selected ? (
             <>
               <h2>{selected.title}</h2>
-              <p className="muted-copy">{selected.content}</p>
-              <div className="key-value">
+              <p className="muted-copy m-[8px_0_14px] text-[var(--text-muted)] text-[12px] leading-[1.55]">
+                {selected.content}
+              </p>
+              <div className="key-value [&:first-of-type]:mt-[7px] [&_span]:text-[var(--text-muted)] [&_button]:flex [&_button]:items-center [&_button]:gap-[4px] [&_button]:border-0 [&_button]:bg-transparent [&_button]:text-[var(--text-soft)] [&_button]:text-[12px] [&_strong]:min-w-0 [&_strong]:overflow-hidden [&_strong]:text-[13px] [&_strong]:text-ellipsis [&_strong]:whitespace-nowrap flex min-h-[31px] items-center justify-between gap-[10px] [border-top:1px_solid_var(--stroke-soft)] text-[13px]">
                 <span>{t('memory:memoryPage.memoryType')}</span>
-                <strong className="type-with-dot">
-                  <i className={`g-dot g-${selected.type}`} />
+                <strong className="inline-flex items-center gap-[6px]">
+                  <i
+                    className={`g-dot [&.g-concept]:bg-[var(--g-concept)] [&.g-concept]:shadow-[0_0_5px_var(--g-concept-glow)] [&.g-file]:bg-[var(--g-file)] [&.g-file]:shadow-[0_0_5px_var(--g-file-glow)] [&.g-risk]:bg-[var(--g-risk)] [&.g-risk]:shadow-[0_0_5px_var(--g-risk-glow)] [&.g-preference]:bg-[var(--g-preference)] [&.g-preference]:shadow-[0_0_5px_var(--g-preference-glow)] [&.g-decision]:bg-[var(--g-decision)] [&.g-decision]:shadow-[0_0_5px_var(--g-decision-glow)] [&.g-fact]:bg-[var(--g-fact)] [&.g-fact]:shadow-[0_0_5px_var(--g-fact-glow)] [&.g-task]:bg-[var(--g-task)] [&.g-task]:shadow-[0_0_5px_var(--g-task-glow)] inline-block w-[7px] h-[7px] flex-none rounded-[50%] g-${selected.type}`}
+                  />
                   {memoryTypeLabel(selected.type, t)}
                 </strong>
               </div>
-              <div className="key-value">
+              <div className="key-value [&:first-of-type]:mt-[7px] [&_span]:text-[var(--text-muted)] [&_button]:flex [&_button]:items-center [&_button]:gap-[4px] [&_button]:border-0 [&_button]:bg-transparent [&_button]:text-[var(--text-soft)] [&_button]:text-[12px] [&_strong]:min-w-0 [&_strong]:overflow-hidden [&_strong]:text-[13px] [&_strong]:text-ellipsis [&_strong]:whitespace-nowrap flex min-h-[31px] items-center justify-between gap-[10px] [border-top:1px_solid_var(--stroke-soft)] text-[13px]">
                 <span>{t('memory:memoryPage.source')}</span>
                 <strong>
                   {selected.sourceType === 'conversation_confirmed'
@@ -751,46 +830,49 @@ export function MemoryPage({
                         : t('memory:memoryPage.addedManually')}
                 </strong>
               </div>
-              <div className="key-value">
+              <div className="key-value [&:first-of-type]:mt-[7px] [&_span]:text-[var(--text-muted)] [&_button]:flex [&_button]:items-center [&_button]:gap-[4px] [&_button]:border-0 [&_button]:bg-transparent [&_button]:text-[var(--text-soft)] [&_button]:text-[12px] [&_strong]:min-w-0 [&_strong]:overflow-hidden [&_strong]:text-[13px] [&_strong]:text-ellipsis [&_strong]:whitespace-nowrap flex min-h-[31px] items-center justify-between gap-[10px] [border-top:1px_solid_var(--stroke-soft)] text-[13px]">
                 <span>{t('memory:memoryPage.authority')}</span>
                 <strong>{selected.authority ?? 0}/100</strong>
               </div>
               {selected.evidence && (
-                <div className="key-value">
+                <div className="key-value [&:first-of-type]:mt-[7px] [&_span]:text-[var(--text-muted)] [&_button]:flex [&_button]:items-center [&_button]:gap-[4px] [&_button]:border-0 [&_button]:bg-transparent [&_button]:text-[var(--text-soft)] [&_button]:text-[12px] [&_strong]:min-w-0 [&_strong]:overflow-hidden [&_strong]:text-[13px] [&_strong]:text-ellipsis [&_strong]:whitespace-nowrap flex min-h-[31px] items-center justify-between gap-[10px] [border-top:1px_solid_var(--stroke-soft)] text-[13px]">
                   <span>{t('memory:memoryPage.evidence')}</span>
                   <strong>{selected.evidence}</strong>
                 </div>
               )}
-              <div className="key-value">
+              <div className="key-value [&:first-of-type]:mt-[7px] [&_span]:text-[var(--text-muted)] [&_button]:flex [&_button]:items-center [&_button]:gap-[4px] [&_button]:border-0 [&_button]:bg-transparent [&_button]:text-[var(--text-soft)] [&_button]:text-[12px] [&_strong]:min-w-0 [&_strong]:overflow-hidden [&_strong]:text-[13px] [&_strong]:text-ellipsis [&_strong]:whitespace-nowrap flex min-h-[31px] items-center justify-between gap-[10px] [border-top:1px_solid_var(--stroke-soft)] text-[13px]">
                 <span>{t('memory:memoryPage.created')}</span>
                 <strong>{formatMemoryTime(selected.createdAt, language)}</strong>
               </div>
-              <div className="key-value">
+              <div className="key-value [&:first-of-type]:mt-[7px] [&_span]:text-[var(--text-muted)] [&_button]:flex [&_button]:items-center [&_button]:gap-[4px] [&_button]:border-0 [&_button]:bg-transparent [&_button]:text-[var(--text-soft)] [&_button]:text-[12px] [&_strong]:min-w-0 [&_strong]:overflow-hidden [&_strong]:text-[13px] [&_strong]:text-ellipsis [&_strong]:whitespace-nowrap flex min-h-[31px] items-center justify-between gap-[10px] [border-top:1px_solid_var(--stroke-soft)] text-[13px]">
                 <span>{t('memory:memoryPage.relatedMemories')}</span>
                 <strong>{t('memory:memoryPage.count', { count: relatedNodeIds.size })}</strong>
               </div>
-              <div className="button-row">
-                <button className="button primary" onClick={() => setNodeModal(selected)}>
+              <div className="mt-[15px] flex gap-2 max-[650px]:flex-wrap">
+                <Button size="lg" onClick={() => setNodeModal(selected)}>
                   <Pencil size={14} />
                   {t('memory:memoryPage.edit')}
-                </button>
-                <button className="button danger" onClick={() => deleteNode(selected)}>
+                </Button>
+                <Button variant="destructive" size="lg" onClick={() => deleteNode(selected)}>
                   <Trash2 size={14} />
                   {t('memory:memoryPage.delete')}
-                </button>
+                </Button>
               </div>
             </>
           ) : (
-            <p className="muted-copy">
+            <p className="muted-copy m-[8px_0_14px] text-[var(--text-muted)] text-[12px] leading-[1.55]">
               {t('memory:memoryPage.selectAMemoryInTheMapToViewItsDetails')}
             </p>
           )}
-          {error && <div className="config-error">{error}</div>}
+          {error && <AppError>{error}</AppError>}
         </Panel>
         <Panel>
           <SectionTitle title={t('memory:memoryPage.relatedFiles')} />
           {relatedFiles.map((file) => (
-            <div className="file-row" key={file.id}>
+            <div
+              className="file-row [&_span]:flex [&_span]:min-w-0 [&_span]:flex-col [&_span]:gap-[3px] [&_strong]:text-[13px] [&_small]:text-[var(--text-muted)] [&_small]:text-[13px] [&_button]:border-0 [&_button]:bg-transparent [&_button]:text-[var(--text-soft)] [&_button]:text-[13px] grid grid-cols-[auto_minmax(0,1fr)_auto_auto_auto] items-center gap-[6px] [border-top:1px_solid_var(--stroke-soft)] [padding:8px_0]"
+              key={file.id}
+            >
               <FileCode2 size={15} />
               <span>
                 <strong>{file.title}</strong>
@@ -806,7 +888,9 @@ export function MemoryPage({
             </div>
           ))}
           {!relatedFiles.length && (
-            <p className="muted-copy">{t('memory:memoryPage.thisMemoryHasNoRelatedFiles')}</p>
+            <p className="muted-copy m-[8px_0_14px] text-[var(--text-muted)] text-[12px] leading-[1.55]">
+              {t('memory:memoryPage.thisMemoryHasNoRelatedFiles')}
+            </p>
           )}
         </Panel>
       </div>
@@ -873,109 +957,110 @@ function MemoryNodeModal({ spaces, node, initialSpaceId, onClose, onSaved }: Mem
   }
   return (
     <div
-      className="modal-backdrop"
+      className="modal-backdrop max-[650px]:p-[8px] fixed z-[70] inset-0 grid place-items-center overflow-y-auto bg-[var(--modal-overlay)] [backdrop-filter:blur(3px)] [padding:20px] [overscroll-behavior:contain] [animation:fade-in_var(--d1)_var(--ease-out)]"
       onMouseDown={(event) => event.target === event.currentTarget && onClose()}
     >
-      <form className="modal" onSubmit={submit}>
-        <div className="card-head">
+      <form
+        className="modal !w-[min(430px,100%)] max-h-[calc(100dvh_-_40px)] overflow-y-auto [overscroll-behavior:contain] [border:1px_solid_var(--surface-highlight)] rounded-[var(--r-md)] bg-[var(--solid)] p-[18px] shadow-[0_26px_70px_-25px_var(--shadow-strong)] [animation:modal-in_var(--d2)_var(--ease-out)] max-[650px]:max-h-[calc(100dvh_-_16px)]"
+        onSubmit={submit}
+      >
+        <AppCardHeader>
           <div>
             <h2>{node ? t('memory:memoryPage.editMemory') : t('memory:memoryPage.addMemory')}</h2>
             <p>{t('memory:memoryPage.lightUpIdeasWorthKeepingAsMemoriesYouCanReturnToLater')}</p>
           </div>
-          <button
+          <Button
             type="button"
-            className="icon-button"
+            variant="ghost"
+            size="icon"
             aria-label={t('memory:memoryPage.closeDialog')}
             onClick={onClose}
           >
             <X size={17} />
-          </button>
-        </div>
-        <label className="field-label">
+          </Button>
+        </AppCardHeader>
+        <FieldLabel variant="control">
           {t('memory:memoryPage.memorySpace')}
-          <span className="select-wrap">
-            <AppSelect
-              value={draft.spaceId}
-              onChange={(event) => setDraft({ ...draft, spaceId: event.target.value })}
-            >
-              {spaces.map((space) => (
-                <option value={space.id} key={space.id}>
-                  {spaceLabel(space, t)}
-                </option>
-              ))}
-            </AppSelect>
-            <ChevronDown size={13} />
-          </span>
-        </label>
-        <label className="field-label">
+          <AppSelect
+            value={draft.spaceId}
+            onChange={(event) => setDraft({ ...draft, spaceId: event.target.value })}
+          >
+            {spaces.map((space) => (
+              <option value={space.id} key={space.id}>
+                {spaceLabel(space, t)}
+              </option>
+            ))}
+          </AppSelect>
+        </FieldLabel>
+        <FieldLabel variant="control">
           {t('memory:memoryPage.memoryTitle')}
           <input
             value={draft.title}
             onChange={(event) => setDraft({ ...draft, title: event.target.value })}
             placeholder={t('memory:memoryPage.forExampleProjectUIConstraints')}
           />
-        </label>
-        <label className="field-label">
+        </FieldLabel>
+        <FieldLabel variant="control">
           {t('memory:memoryPage.memoryContent')}
           <textarea
             value={draft.content}
             onChange={(event) => setDraft({ ...draft, content: event.target.value })}
             placeholder={t('memory:memoryPage.recordStandaloneReusableMemoryForFutureChats')}
           />
-        </label>
-        <div className="form-grid">
-          <label className="field-label">
+        </FieldLabel>
+        <div className="form-grid grid gap-[9px]">
+          <FieldLabel variant="control">
             {t('memory:memoryPage.memoryType')}
-            <span className="select-wrap">
-              <AppSelect
-                value={draft.type}
-                onChange={(event) => setDraft({ ...draft, type: event.target.value as MemoryType })}
-              >
-                {MEMORY_TYPES.map((value) => (
-                  <option value={value} key={value}>
-                    {memoryTypeLabel(value, t)}
-                  </option>
-                ))}
-              </AppSelect>
-              <ChevronDown size={13} />
-            </span>
-          </label>
-          <label className="field-label">
+            <AppSelect
+              value={draft.type}
+              onChange={(event) => setDraft({ ...draft, type: event.target.value as MemoryType })}
+            >
+              {MEMORY_TYPES.map((value) => (
+                <option value={value} key={value}>
+                  {memoryTypeLabel(value, t)}
+                </option>
+              ))}
+            </AppSelect>
+          </FieldLabel>
+          <FieldLabel variant="control">
             {t('memory:memoryPage.importance')}
-            <span className="select-wrap">
-              <AppSelect
-                value={draft.importance}
-                onChange={(event) => setDraft({ ...draft, importance: Number(event.target.value) })}
-              >
-                <option value="0.3">{t('memory:memoryPage.normal')}</option>
-                <option value="0.5">{t('memory:memoryPage.common')}</option>
-                <option value="0.8">{t('memory:memoryPage.important')}</option>
-                <option value="1">{t('memory:memoryPage.strict')}</option>
-              </AppSelect>
-              <ChevronDown size={13} />
-            </span>
-          </label>
+            <AppSelect
+              value={draft.importance}
+              onChange={(event) => setDraft({ ...draft, importance: Number(event.target.value) })}
+            >
+              <option value="0.3">{t('memory:memoryPage.normal')}</option>
+              <option value="0.5">{t('memory:memoryPage.common')}</option>
+              <option value="0.8">{t('memory:memoryPage.important')}</option>
+              <option value="1">{t('memory:memoryPage.strict')}</option>
+            </AppSelect>
+          </FieldLabel>
         </div>
-        <label className="field-label">
+        <FieldLabel variant="control">
           {t('memory:memoryPage.relatedFilePath')}
           <input
             value={draft.sourcePath}
             onChange={(event) => setDraft({ ...draft, sourcePath: event.target.value })}
             placeholder={t('memory:memoryPage.optionalForExampleECodeProjectREADMEMd')}
           />
-        </label>
-        {error && <div className="config-error">{error}</div>}
-        <div className="modal-actions">
-          <button type="button" className="button secondary" onClick={onClose}>
+        </FieldLabel>
+        {error && <AppError>{error}</AppError>}
+        <div className="flex justify-end gap-[8px] [margin-top:18px]">
+          <Button
+            type="button"
+            variant="outline"
+            size="lg"
+            className="bg-surface-subtle"
+            onClick={onClose}
+          >
             {t('memory:memoryPage.cancel')}
-          </button>
-          <button
-            className="button primary"
+          </Button>
+          <Button
+            size="lg"
             disabled={saving || !draft.spaceId || !draft.title.trim() || !draft.content.trim()}
           >
-            {saving ? <RefreshCw className="spin" size={14} /> : <Pencil size={14} />}
+            {saving ? <RefreshCw className="animate-spin" size={14} /> : <Pencil size={14} />}
             {saving ? t('memory:memoryPage.saving') : t('memory:memoryPage.save')}
-          </button>
+          </Button>
         </div>
       </form>
     </div>
@@ -1013,11 +1098,14 @@ function MemorySpaceModal({ space, onClose, onSaved }: MemorySpaceModalProps) {
   }
   return (
     <div
-      className="modal-backdrop"
+      className="modal-backdrop max-[650px]:p-[8px] fixed z-[70] inset-0 grid place-items-center overflow-y-auto bg-[var(--modal-overlay)] [backdrop-filter:blur(3px)] [padding:20px] [overscroll-behavior:contain] [animation:fade-in_var(--d1)_var(--ease-out)]"
       onMouseDown={(event) => event.target === event.currentTarget && onClose()}
     >
-      <form className="modal" onSubmit={submit}>
-        <div className="card-head">
+      <form
+        className="modal !w-[min(430px,100%)] max-h-[calc(100dvh_-_40px)] overflow-y-auto [overscroll-behavior:contain] [border:1px_solid_var(--surface-highlight)] rounded-[var(--r-md)] bg-[var(--solid)] p-[18px] shadow-[0_26px_70px_-25px_var(--shadow-strong)] [animation:modal-in_var(--d2)_var(--ease-out)] max-[650px]:max-h-[calc(100dvh_-_16px)]"
+        onSubmit={submit}
+      >
+        <AppCardHeader>
           <div>
             <h2>
               {space
@@ -1030,16 +1118,17 @@ function MemorySpaceModal({ space, onClose, onSaved }: MemorySpaceModalProps) {
               )}
             </p>
           </div>
-          <button
+          <Button
             type="button"
-            className="icon-button"
+            variant="ghost"
+            size="icon"
             aria-label={t('memory:memoryPage.closeDialog')}
             onClick={onClose}
           >
             <X size={17} />
-          </button>
-        </div>
-        <label className="field-label">
+          </Button>
+        </AppCardHeader>
+        <FieldLabel variant="control">
           {t('memory:memoryPage.memorySpaceName')}
           <input
             value={name}
@@ -1047,16 +1136,22 @@ function MemorySpaceModal({ space, onClose, onSaved }: MemorySpaceModalProps) {
             placeholder={t('memory:memoryPage.forExampleProductDesignGuidelines')}
             autoFocus
           />
-        </label>
-        {error && <div className="config-error">{error}</div>}
-        <div className="modal-actions">
-          <button type="button" className="button secondary" onClick={onClose}>
+        </FieldLabel>
+        {error && <AppError>{error}</AppError>}
+        <div className="flex justify-end gap-[8px] [margin-top:18px]">
+          <Button
+            type="button"
+            variant="outline"
+            size="lg"
+            className="bg-surface-subtle"
+            onClick={onClose}
+          >
             {t('memory:memoryPage.cancel')}
-          </button>
-          <button className="button primary" disabled={saving || !name.trim()}>
-            {saving ? <RefreshCw className="spin" size={14} /> : <Plus size={14} />}
+          </Button>
+          <Button size="lg" disabled={saving || !name.trim()}>
+            {saving ? <RefreshCw className="animate-spin" size={14} /> : <Plus size={14} />}
             {saving ? t('memory:memoryPage.saving') : t('memory:memoryPage.save')}
-          </button>
+          </Button>
         </div>
       </form>
     </div>

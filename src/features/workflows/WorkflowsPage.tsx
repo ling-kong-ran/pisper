@@ -5,7 +5,6 @@ import { useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { PAGE_PATHS, workflowPath } from '@/app/routes'
 import { useI18n } from '@/app/use-i18n'
 import { Alert, AlertDescription } from '@/components/ui/alert'
-import { Card } from '@/components/ui/card'
 import { usePagePrimaryAction } from '@/hooks/usePagePrimaryAction'
 import type { Notify } from '@/app/route-context'
 import type { ConfirmDialogOptions } from '@/hooks/useAppDialog'
@@ -22,6 +21,8 @@ import { WorkflowNodeInspector } from './WorkflowNodeInspector'
 import { WorkflowRunningNotice } from './WorkflowRunControls'
 import { useWorkflowCatalog } from './useWorkflowCatalog'
 import { useWorkflowEditor } from './useWorkflowEditor'
+
+import { AppEmptyState } from '@/components/ui/app-primitives'
 
 type WorkflowsPageProps = {
   notify: Notify
@@ -52,10 +53,13 @@ function WorkflowError({ message }: { message: string }) {
 
 function WorkflowLoading({ label }: { label: string }) {
   return (
-    <Card size="sm" className="workflow-card empty-state gap-2 py-4">
-      <RefreshCw className="spin" size={23} />
+    <AppEmptyState
+      size="sm"
+      className="workflow-card [&_h2]:text-[16px] [&_h2]:tracking-[-.02em] [.detail-stack_>_&]:[flex:0_0_auto] [border:1px_solid_var(--stroke)] rounded-[var(--r-xs)] bg-[var(--panel)] text-[var(--text)] shadow-[0_1px_2px_var(--sh-edge),0_14px_32px_-24px_var(--shadow)] gap-2 py-4"
+    >
+      <RefreshCw className="animate-spin" size={23} />
       <h2>{label}</h2>
-    </Card>
+    </AppEmptyState>
   )
 }
 
@@ -70,9 +74,9 @@ export function WorkflowsPage({ notify, requestConfirm, query = '' }: WorkflowsP
   }
 
   return (
-    <div className="workflows-page">
+    <div className="workflows-page flex min-h-[100%] flex-col gap-[12px]">
       <WorkflowError message={catalog.error} />
-      <div className="workflow-page-toolbar">
+      <div className="workflow-page-toolbar max-[650px]:items-stretch max-[650px]:flex-col max-[650px]:gap-[8px] flex min-w-0 items-center justify-between gap-[16px]">
         <WorkflowViewTabs value={view} t={t} onChange={setView} />
         <WorkflowOperationsSummary data={catalog.data} t={t} />
       </div>
@@ -154,12 +158,12 @@ export function WorkflowBuilder({
   }
 
   return (
-    <div className="preview-page workflow-editor-page">
+    <div className="preview-page flex min-h-[100%] flex-col workflow-editor-page">
       <WorkflowError message={editor.error} />
       {editor.running && editor.currentRun && (
         <WorkflowRunningNotice run={editor.currentRun} t={t} />
       )}
-      <div className="builder-layout">
+      <div className="builder-layout [.preview-page_>_&]:min-h-0 [.preview-page_>_&]:flex-1 max-[1150px]:grid-cols-[180px_minmax(460px,1fr)] max-[900px]:grid-cols-[180px_minmax(520px,1fr)] max-[900px]:overflow-auto max-[650px]:flex max-[650px]:min-w-0 max-[650px]:flex-col max-[650px]:overflow-visible max-[650px]:[.page-workflowCreate_&]:w-[900px] grid min-h-[100%] grid-cols-[205px_minmax(480px,1fr)_300px] gap-[12px]">
         <WorkflowEditorCanvas
           draft={editor.draft}
           selectedNodeId={editor.selectedNodeId}

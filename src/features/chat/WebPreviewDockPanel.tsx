@@ -91,7 +91,10 @@ export function WebPreviewDockPanel({ params, api }: IDockviewPanelProps<WebPrev
 
   if (!currentUrl) {
     return (
-      <div className="web-preview-panel web-preview-empty" onFocusCapture={() => api.setActive()}>
+      <div
+        className="web-preview-panel [&_>_div]:rounded-[0] w-full h-full min-w-0 min-h-0 overflow-hidden bg-[var(--panel)] web-preview-empty [&_strong]:text-[var(--text)] [&_strong]:text-[13px] flex flex-col items-center justify-center gap-[8px] text-[var(--text-muted)]"
+        onFocusCapture={() => api.setActive()}
+      >
         <Globe2 size={24} />
         <strong>{t('common:webPreview.title')}</strong>
       </div>
@@ -99,7 +102,10 @@ export function WebPreviewDockPanel({ params, api }: IDockviewPanelProps<WebPrev
   }
 
   return (
-    <div className="web-preview-panel" onFocusCapture={() => api.setActive()}>
+    <div
+      className="web-preview-panel [&_>_div]:rounded-[0] w-full h-full min-w-0 min-h-0 overflow-hidden bg-[var(--panel)]"
+      onFocusCapture={() => api.setActive()}
+    >
       <WebPreview
         className="rounded-none border-0"
         defaultUrl={currentUrl}
@@ -130,7 +136,7 @@ export function WebPreviewDockPanel({ params, api }: IDockviewPanelProps<WebPrev
           >
             <RefreshCw />
           </WebPreviewNavigationButton>
-          <div className="web-preview-address">
+          <div className="web-preview-address [&_>_svg]:w-[14px] [&_>_svg]:h-[14px] [&_>_svg]:flex-none [&_>_svg]:text-[var(--text-muted)] flex min-w-0 flex-1 items-center gap-[7px] [margin:0_3px]">
             <Globe2 aria-hidden="true" />
             <WebPreviewUrl
               aria-label={t('common:webPreview.url')}
@@ -152,19 +158,21 @@ export function WebPreviewDockPanel({ params, api }: IDockviewPanelProps<WebPrev
           title={t('common:webPreview.title')}
           loading={
             loading ? (
-              <div className="web-preview-loading">
+              <div className="absolute inset-0 grid place-items-center overflow-hidden bg-[color-mix(in_srgb,var(--panel)_86%,transparent)] text-[var(--text-muted)] text-[12px] [backdrop-filter:blur(3px)]">
                 <Suspense fallback={null}>
                   <Threads />
                 </Suspense>
-                <span className="web-preview-loading-copy">
-                  <LoaderCircle className="spin" size={18} />
+                <span className="relative z-[1] flex items-center gap-[8px] [border:1px_solid_var(--stroke-soft)] rounded-[var(--r-pill)] bg-[color-mix(in_srgb,var(--panel)_82%,transparent)] [padding:7px_11px] shadow-[var(--sh-1)]">
+                  <LoaderCircle className="animate-spin" size={18} />
                   <span>{t('common:webPreview.loading')}</span>
                 </span>
               </div>
             ) : null
           }
         />
-        <div className="web-preview-notice">{t('common:webPreview.embedNotice')}</div>
+        <div className="flex-none [border-top:1px_solid_var(--stroke-soft)] bg-[var(--surface-subtle)] [padding:5px_10px] text-[var(--text-muted)] text-[10px] leading-[1.4]">
+          {t('common:webPreview.embedNotice')}
+        </div>
       </WebPreview>
     </div>
   )

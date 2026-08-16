@@ -8,7 +8,7 @@ import {
 import { Plus, RefreshCw } from 'lucide-react'
 import { useI18n } from '@/app/use-i18n'
 import { WorkspacePicker } from '@/components/WorkspacePicker'
-import { AppCard as Panel } from '@/components/ui/app-primitives'
+import { AppEmptyState } from '@/components/ui/app-primitives'
 import { usePagePrimaryAction } from '@/hooks/usePagePrimaryAction'
 import type { ConfirmDialogOptions, PromptDialogOptions } from '@/hooks/useAppDialog'
 import type { Notify } from '@/app/route-context'
@@ -141,7 +141,7 @@ export function ChatPage({
         return (
           <button
             type="button"
-            className="dock-new-session"
+            className="dock-new-session hover:bg-[var(--surface-hover)] hover:text-[var(--text)] focus-visible:relative focus-visible:z-[1] focus-visible:[outline:2px_solid_var(--focus)] focus-visible:[outline-offset:-2px] grid w-[36px] h-[35px] flex-none place-items-center border-0 [border-left:1px_solid_var(--stroke-soft)] bg-transparent text-[var(--text-muted)] cursor-pointer"
             title={label}
             aria-label={label}
             onPointerDown={(event) => event.stopPropagation()}
@@ -195,15 +195,15 @@ export function ChatPage({
 
   return (
     <>
-      <div className="chat-layout dock-layout">
+      <div className="chat-layout max-[900px]:grid-cols-[minmax(0,1fr)] max-[650px]:flex max-[650px]:flex-col max-[650px]:min-h-0 relative grid w-full min-w-0 min-h-0 flex-1 grid-cols-[minmax(0,1fr)] gap-[0] dock-layout">
         {catalog.loading ? (
-          <Panel className="empty-state">
-            <RefreshCw className="spin" size={24} />
+          <AppEmptyState>
+            <RefreshCw className="animate-spin" size={24} />
             <h2>{t('chat:chatPage.wakingTheAgent')}</h2>
             <p>{t('chat:chatPage.modelsSessionsAndContextAreSettlingIntoPlace')}</p>
-          </Panel>
+          </AppEmptyState>
         ) : (
-          <div className="chat-dock-workspace">
+          <div className="chat-dock-workspace max-[650px]:[flex:1_1_0] max-[650px]:min-h-0 relative min-w-0 min-h-0 [isolation:isolate] overflow-hidden [border:1px_solid_var(--stroke-soft)] rounded-[var(--r-md)] bg-[var(--panel)]">
             <ChatDockContext.Provider value={dockContextValue}>
               <DockviewReact
                 className="dockview-theme-light dockview-theme-pisper"

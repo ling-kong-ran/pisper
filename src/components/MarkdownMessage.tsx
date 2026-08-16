@@ -2,6 +2,7 @@ import { isValidElement, memo, useState, type ComponentProps, type ReactNode } f
 import { Check, Copy } from 'lucide-react'
 import { CodeBlock, Streamdown, useIsCodeFenceIncomplete, type Components } from 'streamdown'
 import { useI18n } from '@/app/use-i18n'
+import { Button } from '@/components/ui/button'
 import { createIncrementalBlockParser, streamdownPlugins } from '@/lib/streamdown'
 import { cn } from '@/lib/utils'
 
@@ -91,8 +92,11 @@ function MarkdownCopyButton({ source }: { source: string }) {
   }
 
   return (
-    <button
+    <Button
       type="button"
+      variant="ghost"
+      size="sm"
+      className="h-7 gap-1 px-[7px] text-[11px] font-bold text-[var(--code-toolbar-text)] hover:bg-white/10 hover:text-[var(--code-toolbar-text)]"
       data-streamdown="code-block-copy-button"
       onClick={copy}
       aria-label={t('common:markdownMessage.copyCode')}
@@ -100,7 +104,7 @@ function MarkdownCopyButton({ source }: { source: string }) {
     >
       {copied ? <Check size={13} /> : <Copy size={13} />}
       {copied ? t('common:markdownMessage.copied') : t('common:markdownMessage.copy')}
-    </button>
+    </Button>
   )
 }
 

@@ -3,21 +3,15 @@ import { readFile } from 'node:fs/promises'
 import test from 'node:test'
 
 test('icon-only composer model control hides the Radix Select trigger content', async () => {
-  const [component, styles] = await Promise.all([
-    readFile('src/features/chat/FocusRuntimeControls.tsx', 'utf8'),
-    readFile('src/index.css', 'utf8'),
-  ])
+  const component = await readFile('src/features/chat/FocusRuntimeControls.tsx', 'utf8')
 
-  assert.match(component, /<div\s+className=\{`session-model-select icon-only/)
+  assert.match(component, /<div\s+className=\{`session-model-select[^`]*icon-only/)
   assert.doesNotMatch(component, /<label\s+className=\{`session-model-select icon-only/)
   assert.match(
-    styles,
-    /\.session-model-select\.icon-only \[data-slot='select-trigger'\] \{[^}]*position: absolute;[^}]*inset: 0;[^}]*opacity: 0;/,
+    component,
+    /session-model-select&_[^`]*select-trigger[^`]*absolute[^`]*inset-0[^`]*opacity-0/,
   )
-  assert.match(
-    styles,
-    /\.session-model-select\.icon-only \{[^}]*min-width: 38px;[^}]*overflow: hidden;/,
-  )
+  assert.match(component, /session-model-select&\]:min-w-\[38px\][^`]*overflow-hidden/)
 })
 
 test('composer expands low-frequency controls horizontally with React Bits AnimatedContent', async () => {
@@ -37,44 +31,31 @@ test('composer expands low-frequency controls horizontally with React Bits Anima
   assert.match(animatedContent, /width: direction === 'horizontal' \? 0 : 'auto'/)
   assert.match(animatedContent, /useReducedMotion/)
   assert.doesNotMatch(animatedContent, /<AnimatePresence initial={false}>/)
-  assert.match(styles, /\.composer-tool-tray \{[^}]*display: flex;/)
-  assert.match(
-    styles,
-    /\.composer-tool-tray \.command-palette-trigger \{[^}]*width: 38px;[^}]*min-width: 38px;/,
-  )
-  assert.match(
-    styles,
-    /\.composer-tool-tray \.command-palette-trigger kbd \{[^}]*clip-path: inset\(50%\);/,
-  )
+  assert.match(tray, /composer-tool-tray[^"\n]*flex/)
+  assert.match(session, /command-palette-trigger[^"\n]*composer-tool-tray_&\]:w-\[38px\]/)
+  assert.match(session, /command-palette-trigger[^"\n]*clip-path:inset\(50%\)/)
   assert.doesNotMatch(session, /<span>{t\('chat:focusSession.commands'\)}<\/span>/)
   assert.doesNotMatch(
     styles,
     /\.composer-tool-tray \.command-palette-trigger \{[^}]*min-width: 112px;/,
   )
   assert.doesNotMatch(styles, /\.composer-tool-tray \{[^}]*flex-wrap: wrap;/)
-  assert.match(session, /<ExecutionModeSelect[\s\S]*<div className="focus-composer-quick-actions">/)
-  assert.match(session, /toolsOpen \? <ChevronsLeft[^:]+: <ChevronsRight/)
-  assert.match(
-    styles,
-    /\.focus-composer-footer\.tools-open \.focus-composer-quick-actions \{[^}]*flex: 1;/,
-  )
-  assert.doesNotMatch(
-    styles,
-    /\.focus-composer-footer\.tools-open \.focus-composer-secondary[^}]*display: none/,
-  )
   assert.match(
     session,
-    /className="focus-composer-meta"[\s\S]*composer-workspace-status[\s\S]*<SessionUsageMetrics/,
+    /<ExecutionModeSelect[\s\S]*<div className="focus-composer-quick-actions[^"\n]*">/,
   )
+  assert.match(session, /toolsOpen \? <ChevronsLeft[^:]+: <ChevronsRight/)
+  assert.match(session, /focus-composer-quick-actions[^"\n]*tools-open_&\]:flex-1/)
+  assert.doesNotMatch(session, /focus-composer-secondary[^"\n]*tools-open_&\]:hidden/)
+  assert.match(session, /composer-workspace-status[\s\S]*<SessionUsageMetrics/)
   assert.doesNotMatch(tray, /composer-workspace/)
 })
 
 test('composer exposes a session thinking-level control wired to the shared API', async () => {
-  const [controls, session, api, styles] = await Promise.all([
+  const [controls, session, api] = await Promise.all([
     readFile('src/features/chat/FocusRuntimeControls.tsx', 'utf8'),
     readFile('src/features/chat/FocusSession.tsx', 'utf8'),
     readFile('src/features/chat/chat-api.ts', 'utf8'),
-    readFile('src/index.css', 'utf8'),
   ])
 
   assert.match(controls, /export function SessionThinkingSelect/)
@@ -84,5 +65,5 @@ test('composer exposes a session thinking-level control wired to the shared API'
   assert.match(api, /getThinkingLevel/)
   assert.match(api, /setThinkingLevel/)
   assert.match(api, /thinking-level/)
-  assert.match(styles, /\.focus-composer \.session-thinking-select/)
+  assert.match(controls, /session-thinking-select[^`\n]*\.focus-composer_&\]:flex-none/)
 })

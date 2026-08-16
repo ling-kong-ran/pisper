@@ -42,14 +42,24 @@ const MCP_BADGE_TONES: Record<McpTone, string> = {
 
 function McpPanel({ className, children }: { className?: string; children: ReactNode }) {
   return (
-    <Card size="sm" className={cn('workflow-card gap-0 p-3.5 py-3.5', className)}>
+    <Card
+      size="sm"
+      className={cn(
+        'workflow-card [&_h2]:text-[16px] [&_h2]:tracking-[-.02em] [.detail-stack_>_&]:[flex:0_0_auto] [border:1px_solid_var(--stroke)] rounded-[var(--r-xs)] bg-[var(--panel)] text-[var(--text)] shadow-[0_1px_2px_var(--sh-edge),0_14px_32px_-24px_var(--shadow)] gap-0 p-3.5 py-3.5',
+        className,
+      )}
+    >
       {children}
     </Card>
   )
 }
 
 function McpSectionTitle({ children }: { children: ReactNode }) {
-  return <CardTitle className="workflow-section-title">{children}</CardTitle>
+  return (
+    <CardTitle className="workflow-section-title [.selection-list_&]:mb-[8px] [.node-library_&]:mb-[8px] text-[var(--text-soft)] text-[13px] font-[700] leading-[1.4]">
+      {children}
+    </CardTitle>
+  )
 }
 
 function McpMetric({
@@ -64,7 +74,13 @@ function McpMetric({
   tone: 'blue' | 'green' | 'amber'
 }) {
   return (
-    <Card size="sm" className={cn('workflow-card metric gap-0 p-3 py-3', tone)}>
+    <Card
+      size="sm"
+      className={cn(
+        "workflow-card [&_h2]:text-[16px] [&_h2]:tracking-[-.02em] [.detail-stack_>_&]:[flex:0_0_auto] [border:1px_solid_var(--stroke)] rounded-[var(--r-xs)] bg-[var(--panel)] text-[var(--text)] shadow-[0_1px_2px_var(--sh-edge),0_14px_32px_-24px_var(--shadow)] metric [transition:transform_var(--d2)_var(--ease-out),_box-shadow_var(--d2)_var(--ease-out),_border-color_var(--d2)_var(--ease-out)] hover:[transform:translateY(-2px)] hover:shadow-[var(--sh-2)] hover:border-[var(--star-border)] [&_small]:[grid-column:1/-1] [&_small]:text-[var(--text-muted)] [&_small]:text-[13px] [&_strong]:mt-[5px] [&_strong]:font-[ui-monospace,_SFMono-Regular,_Consolas,_'Liberation_Mono',_monospace] [&_strong]:text-[23px] [&_span]:[align-self:end] [&_span]:text-[var(--text-muted)] [&_span]:text-[13px] [&.blue_strong]:text-[var(--star-strong)] [&.green_strong]:text-[var(--success)] [&.amber_strong]:text-[var(--amber)] grid grid-cols-[1fr_auto] [padding:12px] gap-0 p-3 py-3",
+        tone,
+      )}
+    >
       <small>{label}</small>
       <strong>{value}</strong>
       <span>{note}</span>
@@ -301,9 +317,9 @@ export function McpPage({
   }
 
   return (
-    <div className="preview-page">
-      <div className="mcp-layout">
-        <McpPanel className="selection-list">
+    <div className="preview-page flex min-h-[100%] flex-col">
+      <div className="mcp-layout [.preview-page_>_&]:min-h-0 [.preview-page_>_&]:flex-1 max-[1150px]:grid-cols-[220px_minmax(340px,1fr)] max-[650px]:grid-cols-[1fr] grid min-h-[100%] grid-cols-[230px_minmax(320px,1fr)_300px] gap-[12px]">
+        <McpPanel className="selection-list [.config-layout_>_&]:max-h-[calc(100dvh_-_280px)] [.config-layout_>_&]:overflow-y-auto max-[900px]:max-h-[300px] min-h-0 overflow-auto">
           <McpSectionTitle>{t('workflows:previewPages.services')}</McpSectionTitle>
           {visibleServices.length ? (
             visibleServices.map((service) => {
@@ -314,11 +330,11 @@ export function McpPage({
                   : service.endpoint
               return (
                 <button
-                  className={`service-row ${selected?.id === service.id ? 'active' : ''}`}
+                  className={`service-row grid w-full grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-[9px] border-0 [border-top:1px_solid_var(--stroke-soft)] bg-transparent p-[10px_8px] text-left hover:rounded-[var(--r-sm)] hover:bg-[var(--accent-soft)] [&.active]:rounded-[var(--r-sm)] [&.active]:bg-[var(--accent-soft)] [&_>_span:nth-child(2)]:flex [&_>_span:nth-child(2)]:flex-col [&_>_span:nth-child(2)]:gap-[3px] [&_strong]:text-[13px] [&_small]:text-[var(--text-muted)] [&_small]:text-[13px] [&_small]:overflow-hidden [&_small]:text-ellipsis [&_small]:whitespace-nowrap ${selected?.id === service.id ? 'active' : ''}`}
                   onClick={() => setSelectedId(service.id)}
                   key={service.id}
                 >
-                  <span className="list-icon">
+                  <span className="list-icon [.chat-resource-list_&]:grid [.chat-resource-list_&]:w-[28px] [.chat-resource-list_&]:h-[28px] [.chat-resource-list_&]:place-items-center [.chat-resource-list_&]:rounded-[var(--r-sm)] [.chat-resource-list_&]:bg-[var(--surface-subtle)] [.chat-resource-list_&]:text-[var(--star-strong)] [.session-workflow-summary_&]:grid [.session-workflow-summary_&]:w-[28px] [.session-workflow-summary_&]:h-[28px] [.session-workflow-summary_&]:place-items-center [.session-workflow-summary_&]:rounded-[var(--r-sm)] [.session-workflow-summary_&]:bg-[var(--surface-subtle)] [.session-workflow-summary_&]:text-[var(--star-strong)] grid w-[27px] h-[27px] place-items-center rounded-[var(--r-sm)] bg-[var(--accent-soft)] text-[var(--star-strong)] [.workflow-template-gallery_&]:grid [.workflow-template-gallery_&]:w-[32px] [.workflow-template-gallery_&]:h-[32px] [.workflow-template-gallery_&]:place-items-center [.workflow-template-gallery_&]:rounded-[var(--r-sm)] [.workflow-template-gallery_&]:bg-[var(--surface-subtle)] [.workflow-template-gallery_&]:text-[var(--star-strong)]">
                     <Server size={15} />
                   </span>
                   <span>
@@ -330,13 +346,13 @@ export function McpPage({
               )
             })
           ) : (
-            <div className="channel-route-empty compact">
+            <div className="channel-route-empty [&_strong]:mt-[9px] [&_strong]:text-[var(--text)] [&_strong]:text-[12px] [&_span]:mt-[4px] [&_span]:text-[13px] [&.compact]:min-h-[110px] [.workflow-assets-panel_&]:min-h-[150px] [.workflow-assets-panel_&]:border-0 [.workflow-assets-panel_&]:bg-transparent grid min-h-[185px] place-content-center justify-items-center text-[var(--text-muted)] text-center compact">
               {t('workflows:previewPages.noServerConfigured')}
             </div>
           )}
         </McpPanel>
-        <div className="mcp-center">
-          <div className="metric-grid">
+        <div className="mcp-center max-[650px]:min-w-0 flex min-w-0 flex-col gap-[12px]">
+          <div className="metric-grid max-[650px]:grid-cols-[1fr] grid grid-cols-[repeat(3,minmax(0,1fr))] gap-[9px]">
             <McpMetric
               value={String(metrics.onlineServices)}
               label={t('workflows:previewPages.onlineServices')}
@@ -360,14 +376,17 @@ export function McpPage({
               tone="amber"
             />
           </div>
-          <McpPanel className="mcp-tools-panel">
+          <McpPanel className="mcp-tools-panel [.mcp-center_>_&]:flex-1 [.mcp-center_>_&]:min-h-0 [.mcp-center_>_&]:overflow-y-auto">
             <McpSectionTitle>
               {t('workflows:previewPages.toolCapabilities')} · {tools.length}
             </McpSectionTitle>
             {tools.length ? (
               tools.map((tool) => (
-                <div className="tool-row" key={tool.piName}>
-                  <span className="list-icon">
+                <div
+                  className="tool-row [&_>_span:nth-child(2)]:flex [&_>_span:nth-child(2)]:flex-col [&_>_span:nth-child(2)]:gap-[3px] [&_strong]:text-[13px] [&_small]:text-[var(--text-muted)] [&_small]:text-[13px] [&_small]:overflow-hidden [&_small]:text-ellipsis [&_small]:whitespace-nowrap grid min-h-[48px] grid-cols-[auto_minmax(0,1fr)_auto_auto] items-center gap-[8px] [border-top:1px_solid_var(--stroke-soft)] [padding:6px_2px]"
+                  key={tool.piName}
+                >
+                  <span className="list-icon [.chat-resource-list_&]:grid [.chat-resource-list_&]:w-[28px] [.chat-resource-list_&]:h-[28px] [.chat-resource-list_&]:place-items-center [.chat-resource-list_&]:rounded-[var(--r-sm)] [.chat-resource-list_&]:bg-[var(--surface-subtle)] [.chat-resource-list_&]:text-[var(--star-strong)] [.session-workflow-summary_&]:grid [.session-workflow-summary_&]:w-[28px] [.session-workflow-summary_&]:h-[28px] [.session-workflow-summary_&]:place-items-center [.session-workflow-summary_&]:rounded-[var(--r-sm)] [.session-workflow-summary_&]:bg-[var(--surface-subtle)] [.session-workflow-summary_&]:text-[var(--star-strong)] grid w-[27px] h-[27px] place-items-center rounded-[var(--r-sm)] bg-[var(--accent-soft)] text-[var(--star-strong)] [.workflow-template-gallery_&]:grid [.workflow-template-gallery_&]:w-[32px] [.workflow-template-gallery_&]:h-[32px] [.workflow-template-gallery_&]:place-items-center [.workflow-template-gallery_&]:rounded-[var(--r-sm)] [.workflow-template-gallery_&]:bg-[var(--surface-subtle)] [.workflow-template-gallery_&]:text-[var(--star-strong)]">
                     <Wrench size={15} />
                   </span>
                   <span>
@@ -396,17 +415,17 @@ export function McpPage({
                 </div>
               ))
             ) : (
-              <div className="channel-route-empty compact">
+              <div className="channel-route-empty [&_strong]:mt-[9px] [&_strong]:text-[var(--text)] [&_strong]:text-[12px] [&_span]:mt-[4px] [&_span]:text-[13px] [&.compact]:min-h-[110px] [.workflow-assets-panel_&]:min-h-[150px] [.workflow-assets-panel_&]:border-0 [.workflow-assets-panel_&]:bg-transparent grid min-h-[185px] place-content-center justify-items-center text-[var(--text-muted)] text-center compact">
                 {t('workflows:previewPages.noToolsAvailable')}
               </div>
             )}
           </McpPanel>
         </div>
-        <div className="detail-stack">
+        <div className="detail-stack flex min-w-0 flex-col gap-[12px] [.mcp-layout_>_&]:min-h-0 max-[1150px]:[.memory-layout_>_&]:[grid-column:1/-1] max-[1150px]:[.memory-layout_>_&]:grid max-[1150px]:[.memory-layout_>_&]:grid-cols-[repeat(2,minmax(0,1fr))] max-[1150px]:[.mcp-layout_>_&]:[grid-column:1/-1] max-[1150px]:[.mcp-layout_>_&]:grid max-[1150px]:[.mcp-layout_>_&]:grid-cols-[repeat(2,minmax(0,1fr))] max-[1150px]:[.skills-layout_>_&]:[grid-column:1/-1] max-[1150px]:[.skills-layout_>_&]:grid max-[1150px]:[.skills-layout_>_&]:grid-cols-[repeat(2,minmax(0,1fr))] max-[650px]:[.memory-layout_>_&]:[grid-column:auto] max-[650px]:[.memory-layout_>_&]:grid-cols-[1fr] max-[650px]:[.mcp-layout_>_&]:[grid-column:auto] max-[650px]:[.mcp-layout_>_&]:grid-cols-[1fr] max-[650px]:[.skills-layout_>_&]:[grid-column:auto] max-[650px]:[.skills-layout_>_&]:grid-cols-[1fr]">
           <McpPanel>
             <McpSectionTitle>{t('workflows:previewPages.currentService')}</McpSectionTitle>
             <h2>{selected?.name || t('workflows:previewPages.noServerConfigured')}</h2>
-            <p className="muted-copy">
+            <p className="muted-copy m-[8px_0_14px] text-[var(--text-muted)] text-[12px] leading-[1.55]">
               {selected?.error ||
                 (selected
                   ? t(
@@ -444,12 +463,15 @@ export function McpPage({
               ],
               [t('workflows:previewPages.authentication'), mcpAuthLabel(selected, t)],
             ].map((row) => (
-              <div className="key-value" key={row[0]}>
+              <div
+                className="key-value [&:first-of-type]:mt-[7px] [&_span]:text-[var(--text-muted)] [&_button]:flex [&_button]:items-center [&_button]:gap-[4px] [&_button]:border-0 [&_button]:bg-transparent [&_button]:text-[var(--text-soft)] [&_button]:text-[12px] [&_strong]:min-w-0 [&_strong]:overflow-hidden [&_strong]:text-[13px] [&_strong]:text-ellipsis [&_strong]:whitespace-nowrap flex min-h-[31px] items-center justify-between gap-[10px] [border-top:1px_solid_var(--stroke-soft)] text-[13px]"
+                key={row[0]}
+              >
                 <span>{row[0]}</span>
                 <strong title={row[1]}>{row[1]}</strong>
               </div>
             ))}
-            <div className="toggle-line">
+            <div className="toggle-line [&_>_span]:flex [&_>_span]:items-center [&_>_span]:gap-[7px] [&_>_span]:text-[12px] flex min-h-[34px] items-center justify-between [border-top:1px_solid_var(--stroke-soft)]">
               <span>{t('workflows:previewPages.serverEnabled')}</span>
               <Switch
                 checked={Boolean(selected?.enabled)}
@@ -458,14 +480,14 @@ export function McpPage({
                 onCheckedChange={(enabled) => void toggleServer(enabled)}
               />
             </div>
-            <div className="button-row">
+            <div className="mt-[15px] flex gap-2 max-[650px]:flex-wrap">
               <Button
                 size="sm"
                 variant="secondary"
                 disabled={!selected?.enabled || busy}
                 onClick={testConnection}
               >
-                <RefreshCw className={busy ? 'spin' : ''} data-icon="inline-start" />
+                <RefreshCw className={busy ? 'animate-spin' : ''} data-icon="inline-start" />
                 {t('workflows:previewPages.testConnection')}
               </Button>
               <Button
@@ -479,11 +501,14 @@ export function McpPage({
               </Button>
             </div>
           </McpPanel>
-          <McpPanel className="mcp-calls-panel">
+          <McpPanel className="mcp-calls-panel [.mcp-layout_&]:flex-1 [.mcp-layout_&]:min-h-0 [.mcp-layout_&]:overflow-y-auto">
             <McpSectionTitle>{t('workflows:previewPages.recentCalls')}</McpSectionTitle>
             {calls.length ? (
               calls.slice(0, 8).map((activity) => (
-                <div className="activity-row" key={activity.id}>
+                <div
+                  className="activity-row [&_span]:flex [&_span]:min-w-0 [&_span]:flex-col [&_span]:gap-[3px] [&_strong]:text-[13px] [&_small]:text-[var(--text-muted)] [&_small]:text-[13px] [&_span]:text-[var(--text)] [&.failed]:text-[var(--danger)] [&.running]:text-[var(--star-strong)] grid grid-cols-[auto_minmax(0,1fr)] items-center gap-[9px] [border-top:1px_solid_var(--stroke-soft)] [padding:9px_2px] text-[var(--success)]"
+                  key={activity.id}
+                >
                   <CircleDot size={14} />
                   <span>
                     <strong>{activity.toolName}</strong>
@@ -496,7 +521,7 @@ export function McpPage({
                 </div>
               ))
             ) : (
-              <div className="channel-route-empty compact">
+              <div className="channel-route-empty [&_strong]:mt-[9px] [&_strong]:text-[var(--text)] [&_strong]:text-[12px] [&_span]:mt-[4px] [&_span]:text-[13px] [&.compact]:min-h-[110px] [.workflow-assets-panel_&]:min-h-[150px] [.workflow-assets-panel_&]:border-0 [.workflow-assets-panel_&]:bg-transparent grid min-h-[185px] place-content-center justify-items-center text-[var(--text-muted)] text-center compact">
                 {t('workflows:previewPages.noRecentCalls')}
               </div>
             )}

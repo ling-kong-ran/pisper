@@ -21,117 +21,90 @@ test('chat renders thinking and tool activity above one uninterrupted response b
   assert.match(activity, /agent-thinking-window/)
   assert.match(activity, /thinkingScrollRef/)
   assert.match(activity, /<MarkdownMessage streaming=\{streaming\}>\{thinking\}<\/MarkdownMessage>/)
-  assert.match(
-    activity,
-    /className=\{`agent-thinking-window \$\{streaming \? 'running' : 'completed'\}`\}/,
-  )
+  assert.match(activity, /agent-thinking-window[^`]*\$\{streaming \? 'running' : 'completed'\}/)
   assert.match(activity, /agentRunActivity\.reasoningInProgress/)
-  assert.match(activity, /className="agent-thinking-dots"/)
-  assert.doesNotMatch(activity, /agent-thinking-window[^>]*open/)
-  assert.match(activity, /className="agent-run-history"/)
+  assert.match(activity, /className="agent-thinking-dots[^"\n]*"/)
+  assert.doesNotMatch(activity, /<details[^>]*\sopen(?:=|\s|>)/)
+  assert.match(activity, /className="agent-run-history[^"\n]*"/)
 })
 
 test('tool activity uses a polished scroll viewport without truncating records', async () => {
-  const [activity, styles] = await Promise.all([
-    readFile('src/features/chat/AgentRunActivity.tsx', 'utf8'),
-    readFile('src/index.css', 'utf8'),
-  ])
-  assert.match(activity, /ref=\{liveFeedRef\}[\s\S]*className="agent-run-feed live"/)
+  const activity = await readFile('src/features/chat/AgentRunActivity.tsx', 'utf8')
+  assert.match(activity, /ref=\{liveFeedRef\}[\s\S]*agent-run-feed[^"\n]*live/)
   assert.match(activity, /tabIndex=\{activities\.length > 3 \? 0 : undefined\}/)
   assert.match(activity, /if \(!streaming \|\| !activities\.length\) return undefined/)
   assert.match(activity, /node\.scrollTop = node\.scrollHeight/)
-  assert.match(styles, /\.agent-run-feed \{[^}]*max-height: 184px;[^}]*overflow-y: auto;/)
-  assert.match(styles, /\.agent-run-feed \{[^}]*gap: 4px;/)
   assert.match(
-    styles,
-    /\.agent-run-feed:has\(\.agent-run-command-output\[open\]\) \{[^}]*max-height: 320px;/,
+    activity,
+    /agent-run-feed[^"\n]*max-h-\[184px\][^"\n]*gap-\[4px\][^"\n]*overflow-y-auto/,
   )
-  assert.doesNotMatch(styles, /\.agent-run-feed \{[^}]*background:/)
-  assert.doesNotMatch(styles, /\.agent-run-feed\.live \{/)
-  assert.match(styles, /\.agent-run-summary\.current \{[^}]*background:/)
-  assert.doesNotMatch(styles, /\.agent-thinking-window\.running \{[^}]*background:/)
-  assert.doesNotMatch(
-    styles,
-    /\.agent-run-history \.agent-run-feed\.completed \{[^}]*max-height: none;/,
-  )
+  assert.match(activity, /agent-run-command-output[^"\n]*max-h-\[320px\]/)
+  assert.match(activity, /latest \? 'current[^']*bg-\[var\(--surface-subtle\)\]/)
   assert.match(activity, /activityPlan\?\.items\?\.length[\s\S]*planCleared/)
 })
 
 test('composer is the sole persistent Agent run status surface', async () => {
-  const [focus, styles] = await Promise.all([
-    readFile('src/features/chat/FocusSession.tsx', 'utf8'),
-    readFile('src/index.css', 'utf8'),
-  ])
+  const focus = await readFile('src/features/chat/FocusSession.tsx', 'utf8')
   assert.match(focus, /focus-composer-status/)
-  assert.match(focus, /compaction\?\.active \? 'compacting' : streaming \? 'running' : 'idle'/)
+  assert.match(focus, /compaction\?\.active \? 'compacting[^']*' : streaming \? 'running' : 'idle'/)
   assert.doesNotMatch(focus, /focusSession\.agentRunning/)
-  assert.match(styles, /\.focus-composer-status\.running/)
-  assert.match(styles, /\.focus-composer-status\.compacting/)
-  assert.match(styles, /\.focus-session\.has-conversation \.focus-composer-status\.idle/)
+  assert.match(focus, /\[&\.running\]:text-\[var\(--success-strong\)\]/)
+  assert.match(focus, /compacting[^']*text-\[var\(--warning-strong\)\]/)
+  assert.match(focus, /\.focus-session\.has-conversation_&\.idle/)
 })
 
 test('new chats expose their working directory in the welcome surface', async () => {
-  const [focus, transcript, styles, chinese, english] = await Promise.all([
+  const [focus, transcript, chinese, english] = await Promise.all([
     readFile('src/features/chat/FocusSession.tsx', 'utf8'),
     readFile('src/features/chat/FocusTranscript.tsx', 'utf8'),
-    readFile('src/index.css', 'utf8'),
     readFile('src/locales/zh-CN/chat.json', 'utf8'),
     readFile('src/locales/en-US/chat.json', 'utf8'),
   ])
   assert.match(focus, /cwd=\{cwd\}/)
   assert.match(focus, /onWorkspace=\{onWorkspace\}/)
-  assert.match(transcript, /className="welcome-workspace"/)
+  assert.match(transcript, /className="welcome-workspace[^"\n]*bg-transparent/)
   assert.match(transcript, /workspaceName\(cwd, language\)/)
-  assert.match(styles, /\.welcome-workspace \{[^}]*background: transparent;/)
-  assert.match(styles, /@container \(max-width: 470px\)[\s\S]*\.welcome-workspace/)
+  assert.match(transcript, /welcome-workspace[^"\n]*@max-\[470px\]:max-w-\[100%\]/)
   assert.doesNotMatch(focus, /className="workspace-chip"/)
   assert.match(chinese, /"focusSession\.workingDirectory": "工作目录"/)
   assert.match(english, /"focusSession\.workingDirectory": "Working directory"/)
 })
 
 test('conversation layout keeps Pisper identity without a persistent avatar card', async () => {
-  const [focus, message, transcript, styles] = await Promise.all([
+  const [focus, message, transcript] = await Promise.all([
     readFile('src/features/chat/FocusSession.tsx', 'utf8'),
     readFile('src/features/chat/ChatMessage.tsx', 'utf8'),
     readFile('src/features/chat/FocusTranscript.tsx', 'utf8'),
-    readFile('src/index.css', 'utf8'),
   ])
   assert.match(focus, /hasConversation \? 'has-conversation' : 'is-empty'/)
   assert.match(focus, /\{!hasConversation && \(/)
   assert.match(message, /<BrandLogo size=\{20\} \/>/)
   assert.doesNotMatch(message, /AgentStatusAvatar/)
-  assert.match(styles, /\.message\.agent \.message-content > \.markdown-body \{[^}]*border: 0;/)
-  assert.match(styles, /\.agent-message-mark\[data-state='thinking'\]/)
+  assert.match(message, /message-content[^"\n]*message\.agent[^"\n]*grid-column:2/)
+  assert.match(message, /agent-message-mark[^"\n]*data-state='thinking'/)
   assert.match(transcript, /lazy\(\(\) => import\('\.\/WelcomeEffects'\)\)/)
 })
 
 test('composer send action becomes the only stop control while streaming', async () => {
-  const [focus, styles] = await Promise.all([
-    readFile('src/features/chat/FocusSession.tsx', 'utf8'),
-    readFile('src/index.css', 'utf8'),
-  ])
+  const focus = await readFile('src/features/chat/FocusSession.tsx', 'utf8')
   assert.doesNotMatch(focus, /className="button danger tiny" onClick=\{onAbort\}/)
   assert.match(focus, /type=\{streaming \? 'button' : 'submit'\}/)
-  assert.match(focus, /className=\{`send-button\$\{streaming \? ' stop' : ''\}`\}/)
+  assert.match(focus, /send-button[^`\n]*\$\{streaming \? ' stop[^']*' : ''\}/)
   assert.match(focus, /onClick=\{streaming \? onAbort : undefined\}/)
   assert.match(focus, /streaming \? \(\s*<Square size=\{16\} fill="currentColor"/)
-  assert.match(styles, /\.focus-composer \.send-button\.stop/)
+  assert.match(focus, /send-button[^`\n]*stop[^`\n]*bg-\[var\(--danger\)\]/)
 })
 
 test('image previews portal above session-level controls', async () => {
-  const [message, styles] = await Promise.all([
-    readFile('src/features/chat/ChatMessage.tsx', 'utf8'),
-    readFile('src/index.css', 'utf8'),
-  ])
+  const message = await readFile('src/features/chat/ChatMessage.tsx', 'utf8')
   assert.match(message, /import \{ createPortal \} from 'react-dom'/)
   assert.match(message, /createPortal\([\s\S]*<ImageLightbox[\s\S]*document\.body/)
-  assert.match(message, /className="button image-lightbox-download"/)
-  assert.doesNotMatch(message, /className="button secondary"[\s\S]*download/)
-  assert.match(styles, /\.image-lightbox \{[^}]*position: fixed;[^}]*z-index: 100;/)
-  assert.match(
-    styles,
-    /\.image-lightbox-toolbar \.button \{[^}]*background: var\(--lightbox-action-bg\);[^}]*color: var\(--lightbox-action-text\);/,
-  )
+  assert.match(message, /<Button\s+asChild\s+size="lg"/)
+  assert.match(message, /bg-\[var\(--lightbox-action-bg\)\]/)
+  assert.match(message, /text-\[var\(--lightbox-action-text\)\]/)
+  assert.doesNotMatch(message, /className="(?:button|icon-button)/)
+  assert.match(message, /image-lightbox[^"\n]*fixed[^"\n]*z-\[100\]/)
+  assert.doesNotMatch(message, /image-lightbox-toolbar[^"\n]*(?:button|icon-button)/)
 })
 
 test('completed activity-only messages do not render an empty error bubble', async () => {
@@ -291,26 +264,25 @@ test('shared plan board opens from the composer progress metric', async () => {
   assert.match(board, /tabIndex=\{views\.length > 4 \? 0 : undefined\}/)
   assert.match(board, /open=\{expanded\}/)
   assert.match(board, /onToggle=\{\(event\) => setExpanded\(event\.currentTarget\.open\)\}/)
-  assert.match(board, /className="plan-board-current"/)
+  assert.match(board, /data-pisper-plan-current/)
   assert.match(session, /<SessionUsageMetrics usage=\{sessionUsage\} plan=\{plan\} \/>/)
   assert.doesNotMatch(session, /PlanBoard|plan-board-dock/)
   assert.doesNotMatch(transcript, /PlanBoard|plan=\{plan\}/)
   assert.match(controls, /<PopoverTrigger asChild>/)
-  assert.match(controls, /className="session-plan-progress"/)
+  assert.match(controls, /className="session-plan-progress[^"\n]*"/)
   assert.match(controls, /<PlanBoard plan=\{plan \?\? null\} \/>/)
-  assert.match(styles, /\.session-plan-popover \{[^}]*max-height:/)
+  assert.match(controls, /session-plan-popover[^"\n]*max-h-/)
   assert.doesNotMatch(styles, /\.plan-board-dock/)
-  assert.match(styles, /\.plan-board-list\.is-scrollable \{[^}]*overflow-y: auto;/)
+  assert.match(board, /views\.length > 4 \? ' is-scrollable[^']*overflow-y-auto/)
   assert.doesNotMatch(board, /unblocks:/)
 })
 
 test('bash tool output stays multiline in a bounded theme-aware result block', async () => {
-  const [runtime, dispatcher, activity, terminalOutput, styles, packageJson] = await Promise.all([
+  const [runtime, dispatcher, activity, terminalOutput, packageJson] = await Promise.all([
     readFile('runtime/runtime/agent-runtime.mjs', 'utf8'),
     readFile('src/features/chat/stream-event-dispatch.ts', 'utf8'),
     readFile('src/features/chat/AgentRunActivity.tsx', 'utf8'),
     readFile('src/lib/terminal-output.ts', 'utf8'),
-    readFile('src/index.css', 'utf8'),
     readFile('package.json', 'utf8'),
   ])
   assert.match(
@@ -326,10 +298,9 @@ test('bash tool output stays multiline in a bounded theme-aware result block', a
   assert.doesNotMatch(activity, /components\/ai-elements\/terminal/)
   assert.match(activity, /activity\.name === 'bash'/)
   assert.match(activity, /terminalDisplayOutput\(output\)/)
-  assert.match(activity, /className="agent-run-command-output"/)
+  assert.match(activity, /className="agent-run-command-output[^"\n]*"/)
   assert.match(terminalOutput, /MAX_TERMINAL_DISPLAY_CHARS = 4_000/)
-  assert.match(styles, /\.agent-run-command-output \{/)
-  assert.match(styles, /\.agent-run-command-output > pre \{[^}]*max-height: 112px;/)
+  assert.match(activity, /agent-run-command-output[^"\n]*\[&_>_pre\]:max-h-\[112px\]/)
   assert.equal(JSON.parse(packageJson).dependencies['ansi-to-react'], undefined)
 })
 

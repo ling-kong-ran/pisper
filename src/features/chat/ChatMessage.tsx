@@ -33,33 +33,40 @@ function ImageLightbox({ attachment, source, onClose }: ImagePreview & { onClose
   }, [onClose])
   return (
     <div
-      className="image-lightbox"
+      className="image-lightbox [&_>_img]:w-full [&_>_img]:h-full [&_>_img]:min-h-0 [&_>_img]:object-contain fixed z-[100] inset-0 grid grid-rows-[auto_minmax(0,1fr)] gap-[12px] bg-[var(--lightbox-bg)] [padding:18px_24px_24px] [backdrop-filter:blur(8px)]"
       role="dialog"
       aria-modal="true"
       aria-label={t('chat:chatMessage.fullScreenImagePreview')}
       onMouseDown={(event) => event.target === event.currentTarget && onClose()}
     >
-      <div className="image-lightbox-toolbar">
+      <div className="image-lightbox-toolbar [&_>_span]:overflow-hidden [&_>_span]:text-[13px] [&_>_span]:font-[700] [&_>_span]:text-ellipsis [&_>_span]:whitespace-nowrap [&_>_div]:flex [&_>_div]:flex-none [&_>_div]:items-center [&_>_div]:gap-[8px] flex min-w-0 items-center justify-between gap-[16px] text-[var(--on-ink)]">
         <span title={attachment.name}>
           {attachment.name || t('chat:chatMessage.generatedImage')}
         </span>
         <div>
-          <a
-            className="button image-lightbox-download"
-            href={attachment.downloadUrl || source}
-            download={attachment.name || 'generated-image'}
+          <Button
+            asChild
+            size="lg"
+            className="border border-[var(--lightbox-action-border)] bg-[var(--lightbox-action-bg)] text-[var(--lightbox-action-text)] shadow-[0_8px_24px_var(--lightbox-action-shadow)] hover:bg-[var(--accent-soft)] hover:text-[var(--star-strong)]"
           >
-            <Download size={14} />
-            {t('chat:chatMessage.downloadOriginal')}
-          </a>
-          <button
+            <a
+              href={attachment.downloadUrl || source}
+              download={attachment.name || 'generated-image'}
+            >
+              <Download size={14} />
+              {t('chat:chatMessage.downloadOriginal')}
+            </a>
+          </Button>
+          <Button
             type="button"
-            className="icon-button"
+            variant="ghost"
+            size="icon-lg"
+            className="bg-[var(--lightbox-control-bg)] text-[var(--on-ink)] hover:bg-[var(--lightbox-control-bg)] hover:text-[var(--on-ink)]"
             aria-label={t('chat:chatMessage.closePreview')}
             onClick={onClose}
           >
             <X size={18} />
-          </button>
+          </Button>
         </div>
       </div>
       <img
@@ -82,7 +89,9 @@ export function MessageAttachments({
   const [preview, setPreview] = useState<ImagePreview | null>(null)
   return (
     <>
-      <div className={`message-attachments ${compact ? 'compact' : ''}`}>
+      <div
+        className={`message-attachments flex flex-wrap gap-[6px] [margin-top:6px] ${compact ? 'compact' : ''}`}
+      >
         {attachments.map((attachment, index) => {
           const key = attachment.id || index
           const source =
@@ -92,7 +101,7 @@ export function MessageAttachments({
             return (
               <button
                 type="button"
-                className="generated-media"
+                className="generated-media [.message-attachments_&]:flex [.message-attachments_&]:w-[min(360px,100%)] [.message-attachments_&]:flex-col [.message-attachments_&]:gap-[5px] [.message-attachments_&]:text-[var(--text-muted)] [.message-attachments_&]:no-underline [.message-attachments_button&]:border-0 [.message-attachments_button&]:bg-transparent [.message-attachments_button&]:p-0 [.message-attachments_button&]:text-left [.message-attachments_button&]:[cursor:zoom-in] [.message-attachments_&_img]:w-full [.message-attachments_&_img]:max-h-[320px] [.message-attachments_&_img]:[border:1px_solid_var(--stroke)] [.message-attachments_&_img]:rounded-[var(--r-sm)] [.message-attachments_&_img]:object-contain [.message-attachments_&_img]:bg-[var(--media-bg)] [.message-attachments_&_video]:w-full [.message-attachments_&_video]:max-h-[320px] [.message-attachments_&_video]:[border:1px_solid_var(--stroke)] [.message-attachments_&_video]:rounded-[var(--r-sm)] [.message-attachments_&_video]:object-contain [.message-attachments_&_video]:bg-[var(--media-bg)] [.message-attachments_&_small]:overflow-hidden [.message-attachments_&_small]:text-[13px] [.message-attachments_&_small]:text-ellipsis [.message-attachments_&_small]:whitespace-nowrap [.message-attachments.compact_&]:w-[min(190px,100%)] [.message-attachments.compact_&_img]:max-h-[130px] [.message-attachments.compact_&_video]:max-h-[130px]"
                 onClick={() => setPreview({ attachment, source })}
                 title={t('chat:chatMessage.openFullScreenPreview')}
                 key={key}
@@ -108,14 +117,17 @@ export function MessageAttachments({
             )
           if (attachment.kind === 'video' && source)
             return (
-              <div className="generated-media video" key={key}>
+              <div
+                className="generated-media [.message-attachments_&]:flex [.message-attachments_&]:w-[min(360px,100%)] [.message-attachments_&]:flex-col [.message-attachments_&]:gap-[5px] [.message-attachments_&]:text-[var(--text-muted)] [.message-attachments_&]:no-underline [.message-attachments_button&]:border-0 [.message-attachments_button&]:bg-transparent [.message-attachments_button&]:p-0 [.message-attachments_button&]:text-left [.message-attachments_button&]:[cursor:zoom-in] [.message-attachments_&_img]:w-full [.message-attachments_&_img]:max-h-[320px] [.message-attachments_&_img]:[border:1px_solid_var(--stroke)] [.message-attachments_&_img]:rounded-[var(--r-sm)] [.message-attachments_&_img]:object-contain [.message-attachments_&_img]:bg-[var(--media-bg)] [.message-attachments_&_video]:w-full [.message-attachments_&_video]:max-h-[320px] [.message-attachments_&_video]:[border:1px_solid_var(--stroke)] [.message-attachments_&_video]:rounded-[var(--r-sm)] [.message-attachments_&_video]:object-contain [.message-attachments_&_video]:bg-[var(--media-bg)] [.message-attachments_&_small]:overflow-hidden [.message-attachments_&_small]:text-[13px] [.message-attachments_&_small]:text-ellipsis [.message-attachments_&_small]:whitespace-nowrap [.message-attachments.compact_&]:w-[min(190px,100%)] [.message-attachments.compact_&_img]:max-h-[130px] [.message-attachments.compact_&_video]:max-h-[130px] video"
+                key={key}
+              >
                 <video controls preload="metadata" src={source} />
                 <small>{attachment.name || t('chat:chatMessage.generatedVideo')}</small>
               </div>
             )
           return (
             <a
-              className="message-file-attachment"
+              className="message-file-attachment [.message-attachments_&]:inline-flex [.message-attachments_&]:items-center [.message-attachments_&]:gap-[5px] [.message-attachments_&]:[border:1px_solid_var(--stroke)] [.message-attachments_&]:rounded-[var(--r-xs)] [.message-attachments_&]:bg-[var(--solid)] [.message-attachments_&]:p-[5px_7px] [.message-attachments_&]:text-[var(--text-tertiary)] [.message-attachments_&]:text-[13px] [.message-attachments_&]:no-underline"
               href={attachment.downloadUrl || undefined}
               key={key}
             >
@@ -206,21 +218,27 @@ function MessageTreeLabel({ sessionId, entryId }: { sessionId: string; entryId: 
       <Tooltip>
         <TooltipTrigger asChild>
           <PopoverTrigger asChild>
-            <button
+            <Button
               type="button"
-              className={`icon-button${savedLabel ? ' active' : ''}`}
+              variant="ghost"
+              size="icon"
+              className={savedLabel ? 'bg-surface-hover text-brand' : undefined}
               aria-label={t('chat:chatMessage.labelThisTurn')}
               data-pisper-label-entry={entryId}
             >
               <Tag size={14} />
-            </button>
+            </Button>
           </PopoverTrigger>
         </TooltipTrigger>
         <TooltipContent side="top" sideOffset={6}>
           {t('chat:chatMessage.labelThisTurn')}
         </TooltipContent>
       </Tooltip>
-      <PopoverContent className="message-label-popover" align="end" sideOffset={6}>
+      <PopoverContent
+        className="message-label-popover [&_form]:grid [&_form]:gap-[10px] [&_[data-slot='popover-title']]:text-[12px]"
+        align="end"
+        sideOffset={6}
+      >
         <form
           onSubmit={(event) => {
             event.preventDefault()
@@ -237,7 +255,7 @@ function MessageTreeLabel({ sessionId, entryId }: { sessionId: string; entryId: 
             onChange={(event) => setLabel(event.target.value)}
           />
           {error && <small className="danger-text">{error}</small>}
-          <div className="message-label-actions">
+          <div className="message-label-actions flex items-center justify-between gap-[8px]">
             <Button
               type="button"
               size="icon-sm"
@@ -249,8 +267,12 @@ function MessageTreeLabel({ sessionId, entryId }: { sessionId: string; entryId: 
             >
               <Trash2 />
             </Button>
-            <Button className="message-label-save" type="submit" disabled={loading || saving}>
-              {saving ? <LoaderCircle className="spin" /> : <Check />}
+            <Button
+              className="message-label-save [.message-label-actions_&]:min-w-[104px] [.message-label-actions_&]:text-[var(--primary-foreground)]"
+              type="submit"
+              disabled={loading || saving}
+            >
+              {saving ? <LoaderCircle className="animate-spin" /> : <Check />}
               {saving ? t('chat:sessionTree.savingLabel') : t('chat:sessionTree.saveLabel')}
             </Button>
           </div>
@@ -300,7 +322,7 @@ export const FocusChatMessage = memo(function FocusChatMessage({
   return (
     <AiMessage
       from={message.role === 'agent' ? 'assistant' : 'user'}
-      className={`message ${message.role} ${message.error ? 'has-error' : ''}`}
+      className={`message [&.user]:items-end [&.user_>_span]:hidden [&.agent]:grid [&.agent]:grid-cols-[24px_minmax(0,1fr)] [&.agent]:[align-items:start] [&.agent]:gap-x-[12px] [&_>_span]:flex [&_>_span]:items-center [&_>_span]:gap-[5px] [&_>_span]:p-0 [&_>_span]:text-[var(--text-muted)] [&_>_span]:text-[12px] [&_>_span]:font-[600] [&.agent_>_span]:[grid-column:1] [&.agent_>_span]:[grid-row:1] [&.agent_>_span]:justify-center [&.agent_>_span]:pt-[4px] @max-[470px]:[&.agent]:grid-cols-[22px_minmax(0,1fr)] @max-[470px]:[&.agent]:gap-x-[9px] flex w-[min(900px,100%)] flex-col items-start gap-[6px] [margin:0_auto_30px] ${message.role}    ${message.error ? 'has-error' : ''}`}
       data-pisper-message-id={message.id}
       data-pisper-role={message.role}
       data-pisper-streaming={streaming || undefined}
@@ -308,14 +330,18 @@ export const FocusChatMessage = memo(function FocusChatMessage({
     >
       <span>
         {message.role === 'agent' ? (
-          <span className="agent-message-mark" data-state={agentState} aria-label="Pisper">
+          <span
+            className="agent-message-mark [&[data-state='thinking']]:opacity-100 [&[data-state='thinking']]:[animation:agent-message-pulse_1.8s_ease-in-out_infinite] [&[data-state='waiting']]:opacity-[.9] grid w-[22px] h-[22px] place-items-center rounded-[var(--r-xs)] text-[var(--text-muted)] opacity-[.72] [transition:opacity_var(--d1)_var(--ease-out),_transform_var(--d1)_var(--ease-out)]"
+            data-state={agentState}
+            aria-label="Pisper"
+          >
             <BrandLogo size={20} />
           </span>
         ) : (
           'You'
         )}
       </span>
-      <div className="message-content">
+      <div className="message-content [.message.agent_&]:w-full [.message.agent_&]:[grid-column:2] [.message.agent_&]:[grid-row:1] [.message.user_&]:w-[fit-content] [.message.user_&]:max-w-[76%] @max-[700px]:[.message.user_&]:max-w-[86%] @max-[470px]:[.message.user_&]:max-w-[92%] max-[650px]:[.message.user_&]:max-w-[86%] relative min-w-0">
         {showRunActivity && runProps && <AgentRunActivity {...runProps} />}
         {displayText && <MarkdownMessage streaming={streaming}>{displayText}</MarkdownMessage>}
         {message.attachments && message.attachments.length > 0 && (
@@ -324,15 +350,16 @@ export const FocusChatMessage = memo(function FocusChatMessage({
       </div>
       {message.role === 'agent' && message.turnBoundaryEntryId && !streaming && (
         <div
-          className="chat-history-actions message-actions"
+          className="chat-history-actions [&_button]:grid [&_button]:w-[30px] [&_button]:h-[30px] [&_button]:min-h-[30px] [&_button]:place-items-center [&_button]:border-0 [&_button]:rounded-[var(--r-xs)] [&_button]:bg-transparent [&_button]:text-[var(--text-muted)] [&_button:hover]:bg-[var(--solid)] [&_button:hover]:text-[var(--text)] [&_button.active]:bg-[var(--star-soft)] [&_button.active]:text-[var(--star-strong)] [&_button.danger:hover]:bg-[var(--danger-soft)] [&_button.danger:hover]:text-[var(--danger)] max-[650px]:pr-[4px] flex items-center gap-[2px] [padding-right:8px] message-actions"
           style={{ gridColumn: 2, gridRow: 2, paddingRight: 0 }}
         >
           <MessageTreeLabel sessionId={sessionId} entryId={message.turnBoundaryEntryId} />
           <Tooltip>
             <TooltipTrigger asChild>
-              <button
+              <Button
                 type="button"
-                className="icon-button"
+                variant="ghost"
+                size="icon"
                 aria-label={t('chat:chatMessage.deriveFromHere')}
                 data-pisper-derive-entry={message.turnBoundaryEntryId}
                 disabled={branching || sessionStreaming}
@@ -347,8 +374,12 @@ export const FocusChatMessage = memo(function FocusChatMessage({
                   }
                 }}
               >
-                {branching ? <LoaderCircle className="spin" size={14} /> : <GitFork size={14} />}
-              </button>
+                {branching ? (
+                  <LoaderCircle className="animate-spin" size={14} />
+                ) : (
+                  <GitFork size={14} />
+                )}
+              </Button>
             </TooltipTrigger>
             <TooltipContent side="top" sideOffset={6}>
               {t('chat:chatMessage.deriveFromHere')}
@@ -370,13 +401,13 @@ export const MiniChatMessage = memo(function MiniChatMessage({ message }: MiniCh
   return (
     <AiMessage
       from={message.role === 'agent' ? 'assistant' : 'user'}
-      className={`mini-message ${message.role}`}
+      className={`mini-message [&_>_span]:pt-[5px] [&_>_span]:text-[var(--text-muted)] [&_>_span]:font-[ui-monospace,_SFMono-Regular,_Consolas,_'Liberation_Mono',_monospace] [&_>_span]:text-[13px] [&_>_span]:font-[600] [&_>_span]:[text-transform:uppercase] [&.agent_>_span::before]:[content:'✦'] [&.agent_>_span::before]:mr-[4px] [&.agent_>_span::before]:text-[var(--star)] grid grid-cols-[34px_minmax(0,1fr)] gap-[6px] [margin-bottom:6px] [align-items:start] ${message.role}`}
       data-pisper-message-id={message.id}
       data-pisper-role={message.role}
       data-pisper-streaming={message.streaming || undefined}
     >
       <span>{message.role === 'agent' ? 'Pisper' : 'You'}</span>
-      <div className="mini-message-content">
+      <div className="min-w-0">
         {(message.text || !message.streaming) && (
           <MarkdownMessage streaming={message.streaming}>{message.text}</MarkdownMessage>
         )}

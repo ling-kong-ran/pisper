@@ -64,7 +64,7 @@ export function AppSelect({
     >
       <SelectTrigger
         className={cn(
-          'h-full min-h-0 w-full rounded-[inherit] border-0 bg-transparent px-2.5 py-0 text-[12px] font-normal text-[var(--text)] shadow-none focus-visible:border-[var(--focus)] focus-visible:ring-2 focus-visible:ring-[var(--focus-ring)] [&>svg]:hidden',
+          'h-[31px] min-h-0 w-full rounded-[var(--r-xs)] border border-[var(--stroke)] bg-[var(--surface-subtle)] px-2.5 py-0 text-[12px] font-normal text-[var(--text)] shadow-none focus-visible:border-[var(--focus)] focus-visible:ring-2 focus-visible:ring-[var(--focus-ring)] dark:bg-[var(--solid)] [&>svg]:size-[13px] [&>svg]:text-[var(--text-muted)]',
           className,
         )}
         {...ariaProps}

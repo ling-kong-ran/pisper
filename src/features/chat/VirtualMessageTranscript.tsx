@@ -137,7 +137,7 @@ export const VirtualMessageTranscript = memo(function VirtualMessageTranscript({
 
   return (
     <div
-      className="virtual-transcript-list"
+      className="relative w-full"
       data-pisper-transcript-size={messages.length}
       data-pisper-rendered-count={virtualItems.length}
       ref={listRef}
@@ -156,7 +156,7 @@ export const VirtualMessageTranscript = memo(function VirtualMessageTranscript({
         const runProps = resolveMessageRunActivity(message, isLatestAgent, latestRunProps)
         return (
           <div
-            className={`virtual-transcript-item ${message.turnBoundaryEntryId === highlightedEntryId ? 'targeted' : ''}`}
+            className={`virtual-transcript-item absolute left-0 [display:flow-root] w-full rounded-[var(--r-sm)] ${message.turnBoundaryEntryId === highlightedEntryId ? 'targeted [.virtual-transcript-item&]:bg-[var(--star-soft)] [.virtual-transcript-item&]:shadow-[inset_3px_0_0_var(--star-strong)]' : ''}`}
             data-index={virtualItem.index}
             data-pisper-target-entry={
               message.turnBoundaryEntryId === highlightedEntryId

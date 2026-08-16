@@ -23,6 +23,8 @@ import {
   visibleSessionTerminals,
 } from '@/features/terminal/terminal-session-scope'
 
+import { Button } from '@/components/ui/button'
+
 type TerminalTab = {
   id: string
   title: string
@@ -480,22 +482,22 @@ export function TerminalPanel({
 
   return (
     <section
-      className={`terminal-panel ${open ? 'is-open' : ''}`}
+      className={`terminal-panel [&.is-open]:min-h-[180px] [&.is-open]:basis-[auto] relative z-[3] flex min-h-[35px] [flex:0_0_35px] flex-col [border-top:1px_solid_var(--stroke)] bg-[var(--terminal-bg)] text-[var(--terminal-fg)] ${open ? 'is-open' : ''}`}
       style={open ? { height } : undefined}
       aria-label={labels.terminal}
     >
       {open && (
         <div
-          className="terminal-resize-handle"
+          className="terminal-resize-handle after:absolute after:top-[3px] after:right-[47%] after:left-[47%] after:h-[2px] after:rounded-[1px] after:bg-transparent after:[content:''] [&:hover::after]:bg-[var(--brand-blue)] absolute z-[4] [top:-4px] right-0 left-0 h-[8px] [cursor:ns-resize]"
           role="separator"
           aria-orientation="horizontal"
           aria-label={labels.resizeTerminal}
           onPointerDown={beginResize}
         />
       )}
-      <div className="terminal-toolbar">
+      <div className="flex h-[34px] [flex:0_0_34px] items-center gap-[4px] [border-bottom:1px_solid_var(--terminal-border)] [padding:0_6px]">
         <button
-          className="terminal-title"
+          className="terminal-title flex h-[27px] min-h-[27px] items-center gap-[6px] border-0 rounded-[4px] bg-transparent text-[var(--terminal-muted)] text-[12px] hover:bg-[var(--terminal-hover)] hover:text-[var(--terminal-fg)] [&_small]:min-w-[17px] [&_small]:rounded-[8px] [&_small]:bg-[var(--terminal-active)] [&_small]:p-[1px_5px] [&_small]:!text-[9px] [&_small]:text-center max-[650px]:[&_>_span]:hidden [flex:0_0_auto] [padding:0_7px] font-[650]"
           title={open ? labels.hideTerminal : labels.showTerminal}
           onClick={() => onOpenChange(!open)}
         >
@@ -505,10 +507,13 @@ export function TerminalPanel({
           <ChevronDown className={open ? '' : '-rotate-90'} size={14} />
         </button>
         {open && (
-          <div className="terminal-tabs" role="tablist">
+          <div
+            className="terminal-tabs [&::-webkit-scrollbar]:hidden flex min-w-0 [flex:1_1_auto] items-center gap-[2px] overflow-x-auto [scrollbar-width:none]"
+            role="tablist"
+          >
             {visibleTabs.map((tab) => (
               <button
-                className={`terminal-tab ${activeId === tab.id ? 'active' : ''}`}
+                className={`terminal-tab flex h-[27px] min-h-[27px] items-center gap-[6px] border-0 rounded-[4px] bg-transparent text-[var(--terminal-muted)] text-[12px] hover:bg-[var(--terminal-hover)] hover:text-[var(--terminal-fg)] [&.active]:bg-[var(--terminal-active)] [&.active]:text-[var(--terminal-fg)] [&_>_i]:w-[6px] [&_>_i]:h-[6px] [&_>_i]:[flex:0_0_6px] [&_>_i]:rounded-[50%] [&_>_i]:bg-[#6b7280] [&_>_i[data-status='running']]:bg-[#22c55e] [&_>_i[data-status='starting']]:bg-[#eab308] [&_>_i[data-status='error']]:bg-[#ef4444] [&_span]:overflow-hidden [&_span]:flex-1 [&_span]:text-ellipsis [&_span]:whitespace-nowrap [&_>_svg]:[flex:0_0_auto] [&_>_svg]:opacity-0 [&:hover_>_svg]:opacity-[.75] [&.active_>_svg]:opacity-[.75] max-[900px]:max-w-[150px] max-[900px]:basis-[150px] max-[650px]:max-w-[120px] max-[650px]:basis-[120px] max-w-[190px] [flex:0_1_190px] justify-start [padding:0_7px] ${activeId === tab.id ? 'active' : ''}`}
                 role="tab"
                 aria-selected={activeId === tab.id}
                 title={tab.cwd || tab.title}
@@ -531,11 +536,12 @@ export function TerminalPanel({
             ))}
           </div>
         )}
-        <div className="terminal-actions">
+        <div className="flex [flex:0_0_auto] items-center gap-[2px]">
           {open && (
-            <div className="terminal-profile-menu-root">
-              <button
-                className="icon-button"
+            <div className="relative">
+              <Button
+                variant="ghost"
+                size="icon"
                 title={labels.newTerminal}
                 aria-label={labels.newTerminal}
                 disabled={!profiles.length}
@@ -546,9 +552,9 @@ export function TerminalPanel({
                 }
               >
                 <Plus size={15} />
-              </button>
+              </Button>
               {profileMenuOpen && (
-                <div className="terminal-profile-menu">
+                <div className="terminal-profile-menu [&_button]:flex [&_button]:w-full [&_button]:min-h-[32px] [&_button]:items-center [&_button]:gap-[9px] [&_button]:border-0 [&_button]:rounded-[4px] [&_button]:bg-transparent [&_button]:p-[0_8px] [&_button]:text-[12px] [&_button]:text-left [&_button:hover]:bg-[var(--surface-hover)] absolute z-[10] right-0 [bottom:calc(100%_+_7px)] w-[210px] overflow-hidden [border:1px_solid_var(--stroke)] rounded-[var(--r-xs)] bg-[var(--solid)] shadow-[var(--sh-floating)] text-[var(--text)] [padding:4px]">
                   {profiles.map((profile) => (
                     <button onClick={() => void createTerminal(profile)} key={profile.id}>
                       <TerminalSquare size={14} />
@@ -560,30 +566,32 @@ export function TerminalPanel({
             </div>
           )}
           {open && activeTab && (
-            <button
-              className="icon-button"
+            <Button
+              variant="ghost"
+              size="icon"
               title={labels.maximizeTerminal}
               aria-label={labels.maximizeTerminal}
               onClick={() => onHeightChange(maximumTerminalHeight(window.innerHeight))}
             >
               <Maximize2 size={14} />
-            </button>
+            </Button>
           )}
-          <button
-            className="icon-button"
+          <Button
+            variant="ghost"
+            size="icon"
             title={open ? labels.hideTerminal : labels.showTerminal}
             aria-label={open ? labels.hideTerminal : labels.showTerminal}
             onClick={() => onOpenChange(!open)}
           >
             {open ? <Minus size={15} /> : <TerminalSquare size={15} />}
-          </button>
+          </Button>
         </div>
       </div>
       {open && (
-        <div className="terminal-content">
+        <div className="relative min-h-0 flex-1 overflow-hidden">
           {!visibleTabs.length ? (
             <button
-              className="terminal-empty"
+              className="terminal-empty hover:text-[var(--terminal-fg)] [&_strong]:text-[13px] flex w-full h-full min-h-[120px] items-center justify-center flex-col gap-[7px] border-0 bg-transparent text-[var(--terminal-muted)] text-[12px]"
               onClick={() => void createTerminal()}
               disabled={!profiles.length}
             >
@@ -594,7 +602,7 @@ export function TerminalPanel({
           ) : (
             visibleTabs.map((tab) => (
               <div
-                className={`terminal-host ${activeId === tab.id ? 'active' : ''}`}
+                className={`terminal-host [&.active]:block absolute inset-0 hidden [padding:7px_8px_3px] ${activeId === tab.id ? 'active' : ''}`}
                 ref={(element) => {
                   if (element) hostsRef.current.set(tab.id, element)
                   else hostsRef.current.delete(tab.id)
@@ -605,7 +613,11 @@ export function TerminalPanel({
               />
             ))
           )}
-          {panelError && <div className="terminal-error">{panelError}</div>}
+          {panelError && (
+            <div className="absolute [right:8px] [bottom:8px] max-w-[min(440px,80%)] [border:1px_solid_var(--terminal-error-border)] rounded-[5px] bg-[var(--terminal-error-bg)] [padding:7px_9px] text-[var(--terminal-error-fg)] text-[11px]">
+              {panelError}
+            </div>
+          )}
         </div>
       )}
     </section>

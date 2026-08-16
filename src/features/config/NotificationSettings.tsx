@@ -20,6 +20,12 @@ import type { I18nValues } from '@/app/i18n'
 import type { Notify } from '@/app/route-context'
 import type { NotificationPlatform, NotificationSettingsData } from '@/types/notifications'
 
+import { Button } from '@/components/ui/button'
+
+import { FieldLabel } from '@/components/ui/field'
+
+import { AppCardHeader, AppError, AppEmptyState, AppNotice } from '@/components/ui/app-primitives'
+
 type Translate = (message: string, values?: I18nValues) => string
 type NotificationPermissionState = NotificationPermission | 'checking' | 'unsupported'
 type ChannelDefinition = {
@@ -336,10 +342,10 @@ export function NotificationSettings({
 
   if (loading)
     return (
-      <Panel className="empty-state">
-        <RefreshCw className="spin" size={23} />
+      <AppEmptyState>
+        <RefreshCw className="animate-spin" size={23} />
         <h2>{t('config:notificationSettings.loadingNotificationSettings')}</h2>
-      </Panel>
+      </AppEmptyState>
     )
   const permissionLabel =
     permission === 'granted'
@@ -361,16 +367,18 @@ export function NotificationSettings({
         : 'red'
 
   return (
-    <div className="notification-settings">
+    <div className="flex flex-col gap-[12px]">
       {error && (
-        <div className="config-error">
+        <AppError>
           <AlertTriangle size={13} />
           {error}
-        </div>
+        </AppError>
       )}
       <Panel className="browser-notification-card">
-        <div className="notification-option">
-          <span className={`provider-icon ${data.browser.enabled ? 'blue' : ''}`}>
+        <div className="notification-option [&_>_div]:flex [&_>_div]:min-w-0 [&_>_div]:flex-col [&_>_div]:gap-[4px] [&_strong]:text-[13px] [&_small]:text-[var(--text-muted)] [&_small]:text-[12px] [&_small]:leading-[1.45] grid grid-cols-[auto_minmax(0,1fr)_auto_auto] items-center gap-[11px]">
+          <span
+            className={`provider-icon [&_svg]:w-[19px] [&.green]:bg-[var(--success-soft)] [&.green]:text-[var(--success)] [&.blue]:bg-[var(--brand-blue-soft)] [&.blue]:text-[var(--brand-blue-strong)] [.notification-option_&:not(.blue)]:bg-[var(--surface-muted)] [.notification-option_&:not(.blue)]:text-[var(--text-muted)] grid w-[38px] h-[38px] place-items-center rounded-[var(--r-md)] ${data.browser.enabled ? 'blue' : ''}`}
+          >
             {data.browser.enabled ? <Bell size={18} /> : <BellOff size={18} />}
           </span>
           <div>
@@ -388,7 +396,7 @@ export function NotificationSettings({
             onChange={updateBrowser}
           />
         </div>
-        <div className="permission-note">
+        <AppNotice>
           <ShieldCheck size={15} />
           <span>
             <strong>
@@ -406,22 +414,29 @@ export function NotificationSettings({
                   )}
             </small>
           </span>
-        </div>
-        <div className="button-row">
+        </AppNotice>
+        <div className="mt-[15px] flex gap-2 max-[650px]:flex-wrap">
           {desktop && permission === 'denied' && (
-            <button className="button secondary" onClick={openDesktopNotificationSettings}>
+            <Button
+              variant="outline"
+              size="lg"
+              className="bg-surface-subtle"
+              onClick={openDesktopNotificationSettings}
+            >
               <ShieldCheck size={14} />
               {t('config:notificationSettings.openSystemNotificationSettings')}
-            </button>
+            </Button>
           )}
-          <button
-            className="button secondary"
+          <Button
+            variant="outline"
+            size="lg"
+            className="bg-surface-subtle"
             disabled={!data.browser.enabled || permission !== 'granted'}
             onClick={testNotification}
           >
             <Bell size={14} />
             {t('config:notificationSettings.sendTestNotification')}
-          </button>
+          </Button>
         </div>
       </Panel>
       <NotificationTemplates
@@ -509,19 +524,19 @@ function NotificationTemplates({
   }
 
   return (
-    <div className="two-one-grid channel-template-layout">
+    <div className="two-one-grid max-[900px]:grid-cols-[1fr] grid grid-cols-[minmax(0,2fr)_minmax(260px,1fr)] gap-[12px] [margin-top:0]">
       <Panel>
-        <div className="channel-section-head">
+        <div className="channel-section-head [&_>_span]:text-[var(--text-muted)] [&_>_span]:text-[13px] flex items-center justify-between gap-[8px] [margin-bottom:8px]">
           <SectionTitle title={t('config:notificationSettings.notificationTemplates')} />
           <span>{t('config:notificationSettings.sharedByChatsScheduledTasksAndWorkflows')}</span>
         </div>
         {data.templates.map((template) => (
           <button
-            className={`channel-template-row ${template.id === selected.id ? 'selected' : ''}`}
+            className={`channel-template-row hover:rounded-[var(--r-sm)] hover:bg-[var(--accent-soft)] [&.selected]:rounded-[var(--r-sm)] [&.selected]:bg-[var(--accent-soft)] [&_>_span:nth-child(2)]:flex [&_>_span:nth-child(2)]:min-w-0 [&_>_span:nth-child(2)]:flex-col [&_>_span:nth-child(2)]:gap-[4px] [&_strong]:text-[13px] [&_small]:text-[var(--text-muted)] [&_small]:text-[13px] grid w-full min-h-[58px] grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-[9px] border-0 [border-top:1px_solid_var(--stroke-soft)] bg-transparent [padding:8px_6px] text-left ${template.id === selected.id ? 'selected' : ''}`}
             onClick={() => setEventId(template.id)}
             key={template.id}
           >
-            <span className="route-icon">
+            <span className="route-icon grid w-[27px] h-[27px] place-items-center rounded-[var(--r-sm)] bg-[var(--accent-soft)] text-[var(--star-strong)]">
               <Send size={14} />
             </span>
             <span>
@@ -536,8 +551,8 @@ function NotificationTemplates({
           </button>
         ))}
       </Panel>
-      <Panel className="channel-template-editor">
-        <div className="card-head">
+      <Panel className="channel-template-editor [&_textarea]:min-h-[118px] [&_textarea]:font-[ui-monospace,_SFMono-Regular,_Consolas,_'Liberation_Mono',_monospace] [&_textarea]:leading-[1.55]">
+        <AppCardHeader>
           <div>
             <h2>{notificationTemplateName(selected.id, selected.name, t)}</h2>
             <p>{notificationTemplateDescription(selected.id, selected.description, t)}</p>
@@ -553,8 +568,8 @@ function NotificationTemplates({
               }))
             }
           />
-        </div>
-        <div className="channel-template-platforms">
+        </AppCardHeader>
+        <div className="channel-template-platforms [&_>_button]:flex [&_>_button]:min-h-[36px] [&_>_button]:items-center [&_>_button]:justify-between [&_>_button]:gap-[7px] [&_>_button]:[border:1px_solid_var(--stroke)] [&_>_button]:rounded-[var(--r-sm)] [&_>_button]:bg-[var(--surface-subtle)] [&_>_button]:p-[0_9px] [&_>_button]:text-[12px] [&_>_button]:font-[700] [&_>_button.active]:border-[var(--focus)] [&_>_button.active]:bg-[var(--accent-soft)] [&_>_button.active]:text-[var(--star-strong)] max-[650px]:grid-cols-[1fr] grid grid-cols-[repeat(3,minmax(0,1fr))] gap-[7px] [margin-top:13px]">
           {(
             Object.entries(visibleChannels) as Array<[NotificationPlatform, ChannelDefinition]>
           ).map(([id, channel]) => {
@@ -579,29 +594,35 @@ function NotificationTemplates({
             )
           })}
         </div>
-        <label className="field-label">
+        <FieldLabel variant="control">
           {t('config:notificationSettings.messageContent')}
           <textarea value={content} onChange={(event) => setContent(event.target.value)} />
-        </label>
-        <div className="channel-template-vars">
+        </FieldLabel>
+        <div className="channel-template-vars [&_>_span]:mr-[3px] [&_>_span]:text-[var(--text-muted)] [&_>_span]:text-[13px] [&_code]:rounded-[var(--r-xs)] [&_code]:bg-[var(--template-code-bg)] [&_code]:text-[var(--template-code-text)] [&_code]:p-[3px_5px] [&_code]:font-[ui-monospace,_SFMono-Regular,_Consolas,_'Liberation_Mono',_monospace] [&_code]:text-[13px] flex flex-wrap items-center gap-[5px] [margin-top:10px]">
           <span>{t('config:notificationSettings.availableVariables')}</span>
           {selected.variables.map((variable) => (
             <code key={variable}>{`{{${variable}}}`}</code>
           ))}
         </div>
-        <div className="channel-template-preview">
+        <div className="channel-template-preview [&_>_small]:text-[var(--text-muted)] [&_>_small]:text-[13px] [&_pre]:m-[7px_0_0] [&_pre]:overflow-auto [&_pre]:text-[var(--text-soft)] [&_pre]:font-[inherit] [&_pre]:text-[12px] [&_pre]:leading-[1.55] [&_pre]:whitespace-pre-wrap [margin-top:10px] [border:1px_solid_var(--stroke-soft)] rounded-[var(--r-sm)] bg-[var(--surface-subtle)] [padding:9px]">
           <small>{t('config:notificationSettings.preview')}</small>
           <pre>{renderPreview(content, t)}</pre>
         </div>
-        <div className="modal-actions">
-          <button className="button secondary" disabled={saving || !canTest} onClick={test}>
+        <div className="flex justify-end gap-[8px] [margin-top:18px]">
+          <Button
+            variant="outline"
+            size="lg"
+            className="bg-surface-subtle"
+            disabled={saving || !canTest}
+            onClick={test}
+          >
             <Send size={14} />
             {t('config:notificationSettings.sendTest')}
-          </button>
-          <button className="button primary" disabled={saving || !content.trim()} onClick={save}>
-            {saving ? <RefreshCw className="spin" size={14} /> : <Save size={14} />}
+          </Button>
+          <Button size="lg" disabled={saving || !content.trim()} onClick={save}>
+            {saving ? <RefreshCw className="animate-spin" size={14} /> : <Save size={14} />}
             {t('config:notificationSettings.saveTemplate')}
-          </button>
+          </Button>
         </div>
       </Panel>
     </div>

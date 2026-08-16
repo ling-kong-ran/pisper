@@ -42,7 +42,7 @@ export function AgentStatusAvatar({
 
   return (
     <span
-      className={`agent-status-avatar is-${resolvedState} ${className}`.trim()}
+      className={`agent-status-avatar [--agent-avatar-size:32px] [--agent-gaze-x:0px] [--agent-gaze-y:0px] inline-grid w-[var(--agent-avatar-size)] h-[var(--agent-avatar-size)] [contain:paint] overflow-hidden flex-none place-items-center cursor-default [transition:transform_var(--d1)_var(--ease-out)] hover:[transform:translateY(-1px)_rotate(-2deg)_scale(1.055)] active:[transform:translateY(0)_rotate(1deg)_scale(.94)] [&_svg]:block [&_svg]:w-full [&_svg]:h-full [&_svg]:overflow-hidden is-${resolvedState}    ${className}`.trim()}
       data-state={resolvedState}
       role="img"
       aria-label={label}
@@ -86,7 +86,7 @@ export function AgentStatusAvatar({
         </defs>
 
         <path
-          className="agent-status-aura"
+          className="agent-status-aura [transform-box:view-box] origin-[center] [.agent-status-avatar.is-waiting_&]:opacity-[.18] [.agent-status-avatar.is-thinking_&]:[animation:agent-aura-think_1.8s_ease-in-out_infinite] opacity-[.08]"
           d={BODY_PATH}
           fill="none"
           stroke="var(--agent-aura)"
@@ -99,7 +99,7 @@ export function AgentStatusAvatar({
           opacity="0.14"
           transform="translate(0 1.4)"
         />
-        <g className="agent-status-body-shell">
+        <g className="agent-status-body-shell [transform-box:view-box] origin-[center]">
           <path
             className="agent-status-body"
             d={BODY_PATH}
@@ -110,7 +110,7 @@ export function AgentStatusAvatar({
           />
           <path d={BODY_PATH} fill={`url(#${warmthGradientId})`} />
           <ellipse
-            className="agent-status-shine"
+            className="agent-status-shine [transform-box:fill-box] origin-[center]"
             cx="12.7"
             cy="9.8"
             rx="6.8"
@@ -121,13 +121,17 @@ export function AgentStatusAvatar({
           />
         </g>
 
-        <g className="agent-status-cheeks" fill="var(--agent-cheek)" opacity="0.22">
+        <g
+          className="agent-status-cheeks [transform-box:fill-box] origin-[center]"
+          fill="var(--agent-cheek)"
+          opacity="0.22"
+        >
           <ellipse cx="10.2" cy="23.1" rx="2.2" ry="1.25" />
           <ellipse cx="29.3" cy="23.1" rx="2.2" ry="1.25" />
         </g>
 
-        <g className="agent-status-gaze">
-          <g className="agent-status-eyes">
+        <g className="[transform:translate(var(--agent-gaze-x),var(--agent-gaze-y))] [transition:transform_120ms_var(--ease-out)]">
+          <g className="agent-status-eyes [transform-box:fill-box] origin-[center]">
             <rect x="12.2" y="14.2" width="3.8" height="6.8" rx="1.9" fill="var(--agent-face)" />
             <rect x="23.3" y="14.2" width="3.8" height="6.8" rx="1.9" fill="var(--agent-face)" />
             <circle cx="13.5" cy="15.6" r="0.65" fill="var(--agent-eye-highlight)" opacity="0.9" />
@@ -136,7 +140,7 @@ export function AgentStatusAvatar({
         </g>
 
         <path
-          className="agent-status-mouth-smile"
+          className="agent-status-mouth-smile [transition:opacity_var(--d1)_var(--ease-out),_transform_var(--d1)_var(--ease-out)] [.agent-status-avatar.is-thinking_&]:opacity-0"
           d="M17.6 24.1C18.9 25.3 21 25.3 22.3 24.1"
           fill="none"
           stroke="var(--agent-face)"
@@ -144,7 +148,7 @@ export function AgentStatusAvatar({
           strokeLinecap="round"
         />
         <ellipse
-          className="agent-status-mouth-think"
+          className="agent-status-mouth-think [transform-box:fill-box] origin-[center] [transition:opacity_var(--d1)_var(--ease-out),_transform_var(--d1)_var(--ease-out)] [.agent-status-avatar.is-thinking_&]:opacity-[.82] [.agent-status-avatar.is-thinking_&]:[transform:scale(1)] opacity-0 [transform:scale(.4)]"
           cx="20"
           cy="24.5"
           rx="1.25"
@@ -153,7 +157,7 @@ export function AgentStatusAvatar({
         />
 
         <g
-          className="agent-status-spark"
+          className="agent-status-spark [transform-box:fill-box] origin-[center] [transform-origin:33px_7px]"
           fill="var(--agent-spark-fill)"
           stroke="var(--agent-spark-stroke)"
           strokeWidth="0.45"

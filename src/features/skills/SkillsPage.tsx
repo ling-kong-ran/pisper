@@ -7,7 +7,10 @@ import {
   AppSwitch as Toggle,
   SegmentedTabs as Segmented,
   StatusBadge as Badge,
+  AppCardHeader,
+  AppEmptyState,
 } from '@/components/ui/app-primitives'
+import { Button } from '@/components/ui/button'
 import { usePagePrimaryAction } from '@/hooks/usePagePrimaryAction'
 import { apiJson } from '@/lib/api'
 import type { Notify } from '@/app/route-context'
@@ -175,12 +178,12 @@ export function SkillsPage({
 
   if (loading && !data) {
     return (
-      <div className="skills-page">
-        <Panel className="empty-state">
-          <RefreshCw className="spin" size={23} />
+      <div className="skills-page flex min-h-[100%] flex-col gap-[12px]">
+        <AppEmptyState>
+          <RefreshCw className="animate-spin" size={23} />
           <h2>{t('skills:skillsPage.loadingSkills')}</h2>
           <p>{t('skills:skillsPage.scanningSkillDirectoriesAndConfiguredPackages')}</p>
-        </Panel>
+        </AppEmptyState>
       </div>
     )
   }
@@ -301,8 +304,8 @@ export function SkillsPage({
     emptyMessage: string,
     workspace = '',
   ) => (
-    <section className="skill-scope">
-      <div className="skill-scope-head">
+    <section className="skill-scope [.skill-scope_+_&]:[border-top:1px_solid_var(--stroke)] [.skill-scope_+_&]:pt-[14px]">
+      <div className="skill-scope-head [&_>_div]:min-w-0 [&_small]:block [&_small]:overflow-hidden [&_small]:text-[var(--text-muted)] [&_small]:font-[ui-monospace,_SFMono-Regular,_Consolas,_'Liberation_Mono',_monospace] [&_small]:text-[11px] [&_small]:text-ellipsis [&_small]:whitespace-nowrap [&_>_span]:min-w-[24px] [&_>_span]:text-[var(--text-muted)] [&_>_span]:text-[12px] [&_>_span]:font-[600] [&_>_span]:text-right flex min-w-0 items-start justify-between gap-[10px]">
         <div>
           <SectionTitle title={title} />
           {workspace && <small title={workspace}>{workspace}</small>}
@@ -314,11 +317,14 @@ export function SkillsPage({
           const Icon = skillIcon(skill)
           return (
             <div
-              className={`skill-row ${selected?.id === skill.id ? 'selected' : ''}`}
+              className={`skill-row grid w-full grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-[9px] border-0 [border-top:1px_solid_var(--stroke-soft)] bg-transparent p-[10px_8px] text-left hover:rounded-[var(--r-sm)] hover:bg-[var(--accent-soft)] [&.selected]:rounded-[var(--r-sm)] [&.selected]:bg-[var(--accent-soft)] [&_>_span:nth-child(2)]:flex [&_>_span:nth-child(2)]:flex-col [&_>_span:nth-child(2)]:gap-[3px] [&_strong]:text-[13px] [&_small]:text-[var(--text-muted)] [&_small]:text-[13px] grid-cols-[minmax(0,1fr)_auto] [padding-block:4px] ${selected?.id === skill.id ? 'selected' : ''}`}
               key={skill.id}
             >
-              <button className="skill-row-main" onClick={() => setSelectedId(skill.id)}>
-                <span className="list-icon">
+              <button
+                className="skill-row-main [&_>_span:nth-child(2)]:flex [&_>_span:nth-child(2)]:min-w-0 [&_>_span:nth-child(2)]:flex-col [&_>_span:nth-child(2)]:gap-[3px] grid min-w-0 grid-cols-[auto_minmax(0,1fr)] items-center gap-[9px] border-0 bg-transparent [padding:6px_4px] text-left"
+                onClick={() => setSelectedId(skill.id)}
+              >
+                <span className="list-icon [.chat-resource-list_&]:grid [.chat-resource-list_&]:w-[28px] [.chat-resource-list_&]:h-[28px] [.chat-resource-list_&]:place-items-center [.chat-resource-list_&]:rounded-[var(--r-sm)] [.chat-resource-list_&]:bg-[var(--surface-subtle)] [.chat-resource-list_&]:text-[var(--star-strong)] [.session-workflow-summary_&]:grid [.session-workflow-summary_&]:w-[28px] [.session-workflow-summary_&]:h-[28px] [.session-workflow-summary_&]:place-items-center [.session-workflow-summary_&]:rounded-[var(--r-sm)] [.session-workflow-summary_&]:bg-[var(--surface-subtle)] [.session-workflow-summary_&]:text-[var(--star-strong)] grid w-[27px] h-[27px] place-items-center rounded-[var(--r-sm)] bg-[var(--accent-soft)] text-[var(--star-strong)] [.workflow-template-gallery_&]:grid [.workflow-template-gallery_&]:w-[32px] [.workflow-template-gallery_&]:h-[32px] [.workflow-template-gallery_&]:place-items-center [.workflow-template-gallery_&]:rounded-[var(--r-sm)] [.workflow-template-gallery_&]:bg-[var(--surface-subtle)] [.workflow-template-gallery_&]:text-[var(--star-strong)]">
                   <Icon size={15} />
                 </span>
                 <span>
@@ -336,7 +342,7 @@ export function SkillsPage({
           )
         })
       ) : (
-        <p className="muted-copy skills-empty-copy">
+        <p className="muted-copy m-[8px_0_14px] text-[var(--text-muted)] text-[12px] leading-[1.55] skills-empty-copy !m-[8px_2px_4px]">
           {allScopedSkills.length
             ? t('skills:skillsPage.noSkillsMatchTheCurrentFilter')
             : emptyMessage}
@@ -346,7 +352,7 @@ export function SkillsPage({
   )
 
   return (
-    <div className="skills-page">
+    <div className="skills-page flex min-h-[100%] flex-col gap-[12px]">
       <Segmented
         options={SKILL_FILTERS.map((item) => skillFilterLabel(item, t))}
         value={skillFilterLabel(filter, t)}
@@ -354,8 +360,8 @@ export function SkillsPage({
           setFilter(SKILL_FILTERS.find((item) => skillFilterLabel(item, t) === label) || 'all')
         }
       />
-      <div className="skills-layout">
-        <Panel className="skill-scopes-panel">
+      <div className="skills-layout max-[1150px]:grid-cols-[repeat(2,minmax(0,1fr))] max-[650px]:grid-cols-[1fr] grid min-h-0 flex-1 grid-cols-[minmax(240px,.85fr)_minmax(290px,1.05fr)_minmax(280px,1fr)] gap-[12px]">
+        <Panel className="flex flex-col gap-[16px]">
           {filter !== 'project' &&
             renderSkillScope(
               t('skills:skillsPage.globalSkills'),
@@ -375,16 +381,19 @@ export function SkillsPage({
             )}
         </Panel>
         <Panel>
-          <div className="card-head">
+          <AppCardHeader>
             <SectionTitle title={t('skills:skillsPage.configuredSkillPackages')} />
-            <span className="skills-package-count">
+            <span className="text-[var(--text-muted)] text-[12px] font-[600]">
               {t('skills:skillsPage.countSkillPackages', { count: packages.length })}
             </span>
-          </div>
+          </AppCardHeader>
           {packages.length ? (
             packages.map((item) => (
-              <div className="market-row" key={item.source}>
-                <span className="list-icon">
+              <div
+                className="market-row [&_>_span:nth-child(2)]:flex [&_>_span:nth-child(2)]:flex-col [&_>_span:nth-child(2)]:gap-[3px] [&_strong]:text-[13px] [&_small]:text-[var(--text-muted)] [&_small]:text-[13px] [&_strong]:overflow-hidden [&_strong]:text-ellipsis [&_strong]:whitespace-nowrap grid min-h-[48px] grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-[8px] [border-top:1px_solid_var(--stroke-soft)] [padding:6px_2px]"
+                key={item.source}
+              >
+                <span className="list-icon [.chat-resource-list_&]:grid [.chat-resource-list_&]:w-[28px] [.chat-resource-list_&]:h-[28px] [.chat-resource-list_&]:place-items-center [.chat-resource-list_&]:rounded-[var(--r-sm)] [.chat-resource-list_&]:bg-[var(--surface-subtle)] [.chat-resource-list_&]:text-[var(--star-strong)] [.session-workflow-summary_&]:grid [.session-workflow-summary_&]:w-[28px] [.session-workflow-summary_&]:h-[28px] [.session-workflow-summary_&]:place-items-center [.session-workflow-summary_&]:rounded-[var(--r-sm)] [.session-workflow-summary_&]:bg-[var(--surface-subtle)] [.session-workflow-summary_&]:text-[var(--star-strong)] grid w-[27px] h-[27px] place-items-center rounded-[var(--r-sm)] bg-[var(--accent-soft)] text-[var(--star-strong)] [.workflow-template-gallery_&]:grid [.workflow-template-gallery_&]:w-[32px] [.workflow-template-gallery_&]:h-[32px] [.workflow-template-gallery_&]:place-items-center [.workflow-template-gallery_&]:rounded-[var(--r-sm)] [.workflow-template-gallery_&]:bg-[var(--surface-subtle)] [.workflow-template-gallery_&]:text-[var(--star-strong)]">
                   <Package size={15} />
                 </span>
                 <span>
@@ -395,18 +404,18 @@ export function SkillsPage({
               </div>
             ))
           ) : (
-            <p className="muted-copy skills-empty-copy">
+            <p className="muted-copy m-[8px_0_14px] text-[var(--text-muted)] text-[12px] leading-[1.55] skills-empty-copy !m-[8px_2px_4px]">
               {t(
                 'skills:skillsPage.noSkillPackagesAreConfiguredYetAfterYouInstallASkillItsSourceWillAppearHere',
               )}
             </p>
           )}
         </Panel>
-        <div className="detail-stack">
+        <div className="detail-stack flex min-w-0 flex-col gap-[12px] [.mcp-layout_>_&]:min-h-0 max-[1150px]:[.memory-layout_>_&]:[grid-column:1/-1] max-[1150px]:[.memory-layout_>_&]:grid max-[1150px]:[.memory-layout_>_&]:grid-cols-[repeat(2,minmax(0,1fr))] max-[1150px]:[.mcp-layout_>_&]:[grid-column:1/-1] max-[1150px]:[.mcp-layout_>_&]:grid max-[1150px]:[.mcp-layout_>_&]:grid-cols-[repeat(2,minmax(0,1fr))] max-[1150px]:[.skills-layout_>_&]:[grid-column:1/-1] max-[1150px]:[.skills-layout_>_&]:grid max-[1150px]:[.skills-layout_>_&]:grid-cols-[repeat(2,minmax(0,1fr))] max-[650px]:[.memory-layout_>_&]:[grid-column:auto] max-[650px]:[.memory-layout_>_&]:grid-cols-[1fr] max-[650px]:[.mcp-layout_>_&]:[grid-column:auto] max-[650px]:[.mcp-layout_>_&]:grid-cols-[1fr] max-[650px]:[.skills-layout_>_&]:[grid-column:auto] max-[650px]:[.skills-layout_>_&]:grid-cols-[1fr]">
           <Panel>
             <SectionTitle title={t('skills:skillsPage.selectedSkill')} />
             <h2>{selected?.name || t('skills:skillsPage.noSkillAvailable')}</h2>
-            <p className="muted-copy">
+            <p className="muted-copy m-[8px_0_14px] text-[var(--text-muted)] text-[12px] leading-[1.55]">
               {selected?.description || t('skills:skillsPage.addGlobalOrProjectSkill')}
             </p>
             {[
@@ -431,13 +440,18 @@ export function SkillsPage({
               [t('skills:skillsPage.version'), selected?.version || 'latest'],
               [t('skills:skillsPage.source'), selected?.source || '—'],
             ].map((row) => (
-              <div className="key-value" key={row[0]}>
+              <div
+                className="key-value [&:first-of-type]:mt-[7px] [&_span]:text-[var(--text-muted)] [&_button]:flex [&_button]:items-center [&_button]:gap-[4px] [&_button]:border-0 [&_button]:bg-transparent [&_button]:text-[var(--text-soft)] [&_button]:text-[12px] [&_strong]:min-w-0 [&_strong]:overflow-hidden [&_strong]:text-[13px] [&_strong]:text-ellipsis [&_strong]:whitespace-nowrap flex min-h-[31px] items-center justify-between gap-[10px] [border-top:1px_solid_var(--stroke-soft)] text-[13px]"
+                key={row[0]}
+              >
                 <span>{row[0]}</span>
                 <strong>{row[1]}</strong>
               </div>
             ))}
-            <button
-              className={`button ${selected?.removable ? 'danger' : 'primary'} wide`}
+            <Button
+              variant={selected?.removable ? 'destructive' : 'default'}
+              size="lg"
+              className="w-full"
               disabled={busy}
               onClick={selected?.removable ? uninstallSkill : saveSettings}
             >
@@ -445,7 +459,7 @@ export function SkillsPage({
               {selected?.removable
                 ? t('skills:skillsPage.uninstallSkill')
                 : t('skills:skillsPage.saveSettings')}
-            </button>
+            </Button>
           </Panel>
           <Panel>
             <SectionTitle title={t('skills:skillsPage.triggerConditions')} />
@@ -474,7 +488,10 @@ export function SkillsPage({
                 ],
               ] as Array<[string, boolean, boolean, ((checked: boolean) => void)?]>
             ).map(([item, checked, disabled, onChange]) => (
-              <label className="check-row" key={item}>
+              <label
+                className="check-row [&_input]:[accent-color:var(--star-strong)] flex items-center gap-[7px] [border-top:1px_solid_var(--stroke-soft)] [padding:8px_2px] text-[12px]"
+                key={item}
+              >
                 <input
                   type="checkbox"
                   checked={checked}

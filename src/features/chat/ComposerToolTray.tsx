@@ -18,7 +18,11 @@ export function ComposerToolTray({
   trayId: string
 }) {
   const tray = open ? (
-    <div id={trayId} className="composer-tool-tray" aria-label={label}>
+    <div
+      id={trayId}
+      className="composer-tool-tray @max-[700px]:gap-[3px] @max-[470px]:gap-[2px] flex min-w-0 items-center gap-[5px] [padding-left:1px]"
+      aria-label={label}
+    >
       {children}
     </div>
   ) : null
@@ -33,7 +37,7 @@ export function ComposerToolTray({
         duration={0.24}
         initialOpacity={0}
         scale={0.96}
-        className="composer-tool-tray-motion"
+        className="min-w-0 max-w-[calc(100%_-_40px)] flex-1 [transform-origin:left_center]"
       >
         {tray}
       </AnimatedContent>

@@ -164,7 +164,10 @@ test('production Markdown surfaces delegate to one Streamdown adapter', async ()
 })
 
 test('Markdown styling covers Streamdown controls, task lists, and math', async () => {
-  const css = await readFile(new URL('src/index.css', ROOT), 'utf8')
+  const [css, markdown] = await Promise.all([
+    readFile(new URL('src/index.css', ROOT), 'utf8'),
+    readFile(new URL('src/components/MarkdownMessage.tsx', ROOT), 'utf8'),
+  ])
   assert.match(css, /@source "\.\.\/node_modules\/streamdown\/dist\/\*\.js";/)
   assert.match(
     css,
@@ -173,7 +176,10 @@ test('Markdown styling covers Streamdown controls, task lists, and math', async 
   assert.match(css, /text-decoration-thickness: 1px;/)
   assert.match(css, /\.markdown-body \.task-list-item/)
   assert.match(css, /\.markdown-body \.katex-display/)
-  assert.match(css, /\[data-streamdown='code-block-copy-button'\]/)
+  assert.match(markdown, /data-streamdown="code-block-copy-button"/)
+  assert.match(markdown, /text-\[var\(--code-toolbar-text\)\]/)
+  assert.match(markdown, /hover:bg-white\/10/)
+  assert.doesNotMatch(css, /\[data-streamdown='code-block-copy-button'\]/)
   assert.match(css, /\[data-streamdown='code-block-body'\] code > span \{ display: block;/)
   assert.doesNotMatch(css, /streaming-plain|code-block-toolbar|\.hljs-/)
 })

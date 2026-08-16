@@ -3,7 +3,6 @@ import {
   AlertTriangle,
   Bot,
   CheckCircle2,
-  ChevronDown,
   ExternalLink,
   FolderOpen,
   MessageCircle,
@@ -21,6 +20,10 @@ import {
   AppSectionTitle as SectionTitle,
   AppSwitch as Toggle,
   StatusBadge as Badge,
+  AppCardHeader,
+  AppError,
+  AppEmptyState,
+  AppNotice,
 } from '@/components/ui/app-primitives'
 import { AppSelect } from '@/components/AppSelect'
 import { useI18n } from '@/app/use-i18n'
@@ -32,6 +35,10 @@ import { usePagePrimaryAction } from '@/hooks/usePagePrimaryAction'
 import type { LucideIcon } from 'lucide-react'
 import type { Notify } from '@/app/route-context'
 import type { ConfirmDialogOptions } from '@/hooks/useAppDialog'
+
+import { Button } from '@/components/ui/button'
+
+import { FieldLabel } from '@/components/ui/field'
 
 type ChannelPlatform = 'feishu' | 'weixin'
 type ChannelStatus = 'idle' | 'connecting' | 'connected' | 'reconnecting' | 'failed'
@@ -357,21 +364,21 @@ export function ChannelsPage({ notify, registerPrimaryAction, requestConfirm }: 
 
   if (loading)
     return (
-      <Panel className="empty-state">
-        <RefreshCw className="spin" size={23} />
+      <AppEmptyState>
+        <RefreshCw className="animate-spin" size={23} />
         <h2>{t('channels:channelsPage.loadingChannels')}</h2>
-      </Panel>
+      </AppEmptyState>
     )
   const selectedConnection = data.connections?.[selectedPlatform]
   return (
-    <div className="channel-page">
+    <div className="flex flex-col gap-[12px]">
       {error && (
-        <div className="config-error">
+        <AppError>
           <AlertTriangle size={13} />
           {error}
-        </div>
+        </AppError>
       )}
-      <div className="channel-cards">
+      <div className="channel-cards max-[900px]:grid-cols-[1fr] max-[650px]:grid-cols-[1fr] grid grid-cols-[repeat(2,minmax(0,1fr))] gap-[12px]">
         {PROVIDER_ENTRIES.map(([platform, provider]) => {
           const connection = data.connections?.[platform]
           const status = connection?.status || 'idle'
@@ -379,15 +386,17 @@ export function ChannelsPage({ notify, registerPrimaryAction, requestConfirm }: 
           const Icon = provider.Icon
           return (
             <Panel
-              className={`provider-card channel-platform-card ${selectedPlatform === platform ? 'selected' : ''}`}
+              className={`provider-card channel-platform-card [transition:transform_var(--d2)_var(--ease-out),_box-shadow_var(--d2)_var(--ease-out),_border-color_var(--d2)_var(--ease-out)] hover:[transform:translateY(-2px)] hover:shadow-[var(--sh-2)] hover:border-[var(--star-border)] [&.selected]:border-[var(--accent-border)] [&.selected]:shadow-[0_10px_30px_-24px_var(--blue),0_0_0_2px_var(--selection-ring)] cursor-pointer [transition:border-color_var(--d1)_var(--ease-out),box-shadow_var(--d1)_var(--ease-out)] ${selectedPlatform === platform ? 'selected' : ''}`}
               key={platform}
               onClick={() => {
                 setSelectedPlatform(platform)
                 setCwd(connection?.defaultCwd || '')
               }}
             >
-              <div className="provider-title">
-                <span className={`provider-icon ${provider.tone}`}>
+              <div className="provider-title [&_h2]:text-[14px] [&_p]:mt-[3px] [&_p]:text-[var(--text-muted)] [&_p]:text-[12px] grid grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-[10px] [margin-bottom:10px]">
+                <span
+                  className={`provider-icon [&_svg]:w-[19px] [&.green]:bg-[var(--success-soft)] [&.green]:text-[var(--success)] [&.blue]:bg-[var(--brand-blue-soft)] [&.blue]:text-[var(--brand-blue-strong)] [.notification-option_&:not(.blue)]:bg-[var(--surface-muted)] [.notification-option_&:not(.blue)]:text-[var(--text-muted)] grid w-[38px] h-[38px] place-items-center rounded-[var(--r-md)] ${provider.tone}`}
+                >
                   <Icon />
                 </span>
                 <div>
@@ -396,20 +405,24 @@ export function ChannelsPage({ notify, registerPrimaryAction, requestConfirm }: 
                 </div>
                 <Badge tone={tone}>{channelStatusLabel(status, t)}</Badge>
               </div>
-              <label className="field-label">
+              <FieldLabel variant="control">
                 {t('channels:channelsPage.twoWayCapability')}
-                <span className="channel-summary-field">{providerCapability(platform, t)}</span>
-              </label>
-              <label className="field-label">
+                <span className="flex min-h-[31px] items-center overflow-hidden [border:1px_solid_var(--stroke)] rounded-[var(--r-xs)] bg-[var(--surface-subtle)] [padding:0_9px] text-[var(--text-tertiary)] text-[12px] font-[400] text-ellipsis whitespace-nowrap">
+                  {providerCapability(platform, t)}
+                </span>
+              </FieldLabel>
+              <FieldLabel variant="control">
                 {t('channels:channelsPage.replyModel')}
-                <span className="channel-summary-field">
+                <span className="flex min-h-[31px] items-center overflow-hidden [border:1px_solid_var(--stroke)] rounded-[var(--r-xs)] bg-[var(--surface-subtle)] [padding:0_9px] text-[var(--text-tertiary)] text-[12px] font-[400] text-ellipsis whitespace-nowrap">
                   {connection?.replyModel
                     ? `${connection.replyModel.provider}/${connection.replyModel.model}`
                     : t('channels:channelsPage.useApplicationDefaultModel')}
                 </span>
-              </label>
-              <button
-                className={`button wide channel-provider-connect ${connection ? 'secondary' : 'primary'}`}
+              </FieldLabel>
+              <Button
+                variant={connection ? 'outline' : 'default'}
+                size="lg"
+                className="[margin-top:12px] w-full"
                 disabled={starting === platform}
                 onClick={(event) => {
                   event.stopPropagation()
@@ -417,7 +430,7 @@ export function ChannelsPage({ notify, registerPrimaryAction, requestConfirm }: 
                 }}
               >
                 {starting === platform ? (
-                  <RefreshCw className="spin" size={14} />
+                  <RefreshCw className="animate-spin" size={14} />
                 ) : (
                   <Plus size={14} />
                 )}
@@ -428,29 +441,32 @@ export function ChannelsPage({ notify, registerPrimaryAction, requestConfirm }: 
                   : t('channels:channelsPage.connectNameByQRCode', {
                       name: providerName(platform, t),
                     })}
-              </button>
+              </Button>
             </Panel>
           )
         })}
       </div>
 
-      <div className="two-one-grid">
+      <div className="two-one-grid max-[900px]:grid-cols-[1fr] grid grid-cols-[minmax(0,2fr)_minmax(260px,1fr)] gap-[12px]">
         <Panel>
-          <div className="channel-section-head">
+          <div className="channel-section-head [&_>_span]:text-[var(--text-muted)] [&_>_span]:text-[13px] flex items-center justify-between gap-[8px] [margin-bottom:8px]">
             <SectionTitle title={t('channels:channelsPage.channelChats')} />
             <span>{t('channels:channelsPage.countLinked', { count: data.scopes.length })}</span>
           </div>
           {data.scopes.length ? (
             data.scopes.map((scope) => (
-              <div className="route-row" key={scope.key}>
-                <span className="route-icon">
+              <div
+                className="route-row [&_div]:flex [&_div]:flex-col [&_div]:gap-[3px] [&_strong]:text-[13px] [&_small]:text-[var(--text-muted)] [&_small]:text-[13px] grid grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-[9px] [border-top:1px_solid_var(--stroke-soft)] [padding:10px_2px]"
+                key={scope.key}
+              >
+                <span className="route-icon grid w-[27px] h-[27px] place-items-center rounded-[var(--r-sm)] bg-[var(--accent-soft)] text-[var(--star-strong)]">
                   {scope.platform === 'feishu' ? (
                     <MessageSquare size={14} />
                   ) : (
                     <MessageCircle size={14} />
                   )}
                 </span>
-                <div className="channel-route-copy">
+                <div className="channel-route-copy [.route-row_&]:flex [.route-row_&]:min-w-0 [.route-row_&]:flex-col [.route-row_&]:gap-[3px] [&_strong]:overflow-hidden [&_strong]:text-ellipsis [&_strong]:whitespace-nowrap [&_small]:overflow-hidden [&_small]:text-ellipsis [&_small]:whitespace-nowrap">
                   <strong>
                     {scope.title}{' '}
                     <Badge tone={scope.platform === 'feishu' ? 'blue' : 'green'}>
@@ -465,20 +481,21 @@ export function ChannelsPage({ notify, registerPrimaryAction, requestConfirm }: 
                     {scope.model || t('channels:channelsPage.defaultModel')} · {scope.cwd}
                   </small>
                 </div>
-                <div className="channel-route-controls">
+                <div className="channel-route-controls [.route-row_&]:flex [.route-row_&]:flex-row [.route-row_&]:items-center [.route-row_&]:gap-[4px]">
                   <Badge tone="green">{t('channels:channelsPage.twoWay')}</Badge>
-                  <button
-                    className="icon-button danger"
+                  <Button
+                    variant="destructive"
+                    size="icon"
                     title={t('channels:channelsPage.resetChat')}
                     onClick={() => resetScope(scope)}
                   >
                     <Trash2 size={13} />
-                  </button>
+                  </Button>
                 </div>
               </div>
             ))
           ) : (
-            <div className="channel-route-empty">
+            <div className="channel-route-empty [&_strong]:mt-[9px] [&_strong]:text-[var(--text)] [&_strong]:text-[12px] [&_span]:mt-[4px] [&_span]:text-[13px] [&.compact]:min-h-[110px] [.workflow-assets-panel_&]:min-h-[150px] [.workflow-assets-panel_&]:border-0 [.workflow-assets-panel_&]:bg-transparent grid min-h-[185px] place-content-center justify-items-center text-[var(--text-muted)] text-center">
               <StarOrbit size={38} />
               <strong>{t('channels:channelsPage.waitingForTheFirstReplyFromAfar')}</strong>
               <span>
@@ -489,8 +506,8 @@ export function ChannelsPage({ notify, registerPrimaryAction, requestConfirm }: 
             </div>
           )}
         </Panel>
-        <Panel className="test-panel">
-          <div className="channel-section-head">
+        <Panel className="test-panel [&_>_p]:m-[8px_0_12px] [&_>_p]:text-[var(--text-muted)] [&_>_p]:text-[12px] [&_>_p]:leading-[1.5]">
+          <div className="channel-section-head [&_>_span]:text-[var(--text-muted)] [&_>_span]:text-[13px] flex items-center justify-between gap-[8px] [margin-bottom:8px]">
             <SectionTitle
               title={t('channels:channelsPage.nameSettings', {
                 name: providerName(selectedPlatform, t),
@@ -500,8 +517,10 @@ export function ChannelsPage({ notify, registerPrimaryAction, requestConfirm }: 
           </div>
           {selectedConnection ? (
             <>
-              <div className={`channel-live-status ${selectedConnection.status}`}>
-                <span className="channel-status-dot" />
+              <div
+                className={`channel-live-status [&_>_div]:flex [&_>_div]:min-w-0 [&_>_div]:flex-col [&_>_div]:gap-[3px] [&_strong]:text-[13px] [&_small]:overflow-hidden [&_small]:text-[var(--text-muted)] [&_small]:text-[13px] [&_small]:text-ellipsis [&_small]:whitespace-nowrap flex items-center gap-[9px] [margin:11px_0_12px] [border:1px_solid_var(--stroke-soft)] rounded-[var(--r-sm)] bg-[var(--surface-subtle)] [padding:10px] ${selectedConnection.status}`}
+              >
+                <span className="channel-status-dot [.channel-live-status.connected_&]:bg-[var(--status-green)] [.channel-live-status.connected_&]:shadow-[0_0_0_4px_var(--success-soft)] [.channel-live-status.connecting_&]:bg-[var(--amber)] [.channel-live-status.connecting_&]:shadow-[0_0_0_4px_var(--warning-soft)] [.channel-live-status.connecting_&]:[animation:pulse-dot_1.2s_infinite] [.channel-live-status.reconnecting_&]:bg-[var(--amber)] [.channel-live-status.reconnecting_&]:shadow-[0_0_0_4px_var(--warning-soft)] [.channel-live-status.reconnecting_&]:[animation:pulse-dot_1.2s_infinite] [.channel-live-status.failed_&]:bg-[var(--danger)] [.channel-live-status.failed_&]:shadow-[0_0_0_4px_var(--danger-soft)] w-[8px] h-[8px] [flex:0_0_auto] rounded-[var(--r-pill)] bg-[var(--status-muted)] shadow-[0_0_0_4px_var(--surface-muted)]" />
                 <div>
                   <strong>{channelStatusLabel(selectedConnection.status, t)}</strong>
                   <small>
@@ -514,7 +533,7 @@ export function ChannelsPage({ notify, registerPrimaryAction, requestConfirm }: 
                   </small>
                 </div>
               </div>
-              <div className="modal-toggle-row">
+              <div className="modal-toggle-row [&_>_span]:flex [&_>_span]:flex-col [&_>_span]:gap-[3px] [&_strong]:text-[13px] [&_small]:text-[var(--text-muted)] [&_small]:text-[13px] dark:bg-[var(--surface-subtle)] flex min-h-[45px] items-center justify-between gap-[12px] [margin-top:10px] [border:1px_solid_var(--stroke-soft)] rounded-[var(--r-sm)] bg-[var(--surface-subtle)] [padding:8px_10px]">
                 <span>
                   <strong>{t('channels:channelsPage.enableThisChannel')}</strong>
                   <small>
@@ -535,75 +554,67 @@ export function ChannelsPage({ notify, registerPrimaryAction, requestConfirm }: 
                   }
                 />
               </div>
-              <label className="field-label">
+              <FieldLabel variant="control">
                 {t('channels:channelsPage.replyModel')}
-                <span className="select-wrap">
-                  <AppSelect
-                    value={
-                      selectedConnection.replyModel
-                        ? `${selectedConnection.replyModel.provider}/${selectedConnection.replyModel.model}`
-                        : ''
-                    }
-                    onChange={(event) => {
-                      const [provider, ...parts] = event.target.value.split('/')
-                      update(
-                        selectedPlatform,
-                        {
-                          replyModel: event.target.value
-                            ? { provider, model: parts.join('/') }
-                            : null,
-                        },
-                        t('channels:channelsPage.channelReplyModelUpdated'),
-                      )
-                    }}
-                  >
-                    <option value="">
-                      {t('channels:channelsPage.useApplicationDefaultModel')}
+                <AppSelect
+                  value={
+                    selectedConnection.replyModel
+                      ? `${selectedConnection.replyModel.provider}/${selectedConnection.replyModel.model}`
+                      : ''
+                  }
+                  onChange={(event) => {
+                    const [provider, ...parts] = event.target.value.split('/')
+                    update(
+                      selectedPlatform,
+                      {
+                        replyModel: event.target.value
+                          ? { provider, model: parts.join('/') }
+                          : null,
+                      },
+                      t('channels:channelsPage.channelReplyModelUpdated'),
+                    )
+                  }}
+                >
+                  <option value="">{t('channels:channelsPage.useApplicationDefaultModel')}</option>
+                  {data.models.map((model) => (
+                    <option
+                      value={`${model.provider}/${model.model}`}
+                      key={`${model.provider}/${model.model}`}
+                    >
+                      {model.label}
                     </option>
-                    {data.models.map((model) => (
-                      <option
-                        value={`${model.provider}/${model.model}`}
-                        key={`${model.provider}/${model.model}`}
-                      >
-                        {model.label}
-                      </option>
-                    ))}
-                  </AppSelect>
-                  <ChevronDown size={13} />
-                </span>
-              </label>
-              <label className="field-label">
+                  ))}
+                </AppSelect>
+              </FieldLabel>
+              <FieldLabel variant="control">
                 {t('channels:channelsPage.accessScope')}
-                <span className="select-wrap">
-                  <AppSelect
-                    value={selectedConnection.accessMode}
-                    onChange={(event) =>
-                      update(
-                        selectedPlatform,
-                        { accessMode: event.target.value === 'all' ? 'all' : 'owner' },
-                        t('channels:channelsPage.accessScopeUpdated'),
-                      )
-                    }
-                  >
-                    <option value="owner" disabled={!selectedConnection.ownerConfigured}>
-                      {t('channels:channelsPage.qrCodeOwnerOnly')}
-                    </option>
-                    <option value="all">
-                      {selectedPlatform === 'feishu'
-                        ? t('channels:channelsPage.allMembersInTheCurrentTenant')
-                        : t('channels:channelsPage.allWeChatUsersWhoMessageTheBot')}
-                    </option>
-                  </AppSelect>
-                  <ChevronDown size={13} />
-                </span>
-              </label>
-              <label className="field-label">
+                <AppSelect
+                  value={selectedConnection.accessMode}
+                  onChange={(event) =>
+                    update(
+                      selectedPlatform,
+                      { accessMode: event.target.value === 'all' ? 'all' : 'owner' },
+                      t('channels:channelsPage.accessScopeUpdated'),
+                    )
+                  }
+                >
+                  <option value="owner" disabled={!selectedConnection.ownerConfigured}>
+                    {t('channels:channelsPage.qrCodeOwnerOnly')}
+                  </option>
+                  <option value="all">
+                    {selectedPlatform === 'feishu'
+                      ? t('channels:channelsPage.allMembersInTheCurrentTenant')
+                      : t('channels:channelsPage.allWeChatUsersWhoMessageTheBot')}
+                  </option>
+                </AppSelect>
+              </FieldLabel>
+              <FieldLabel variant="control">
                 {t('channels:channelsPage.defaultWorkingDirectoryForNewChats')}
-                <span className="channel-setting-input">
+                <span className="channel-setting-input [&_input]:min-w-0 [&_input]:border-0 [&_input]:[outline:0] [&_input]:bg-transparent [&_input]:font-[ui-monospace,_SFMono-Regular,_Consolas,_'Liberation_Mono',_monospace] [&_input]:text-[12px] dark:[&_input]:bg-[var(--solid)] dark:[&_input]:text-[var(--text)] grid h-[34px] grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-[7px] [border:1px_solid_var(--stroke)] rounded-[var(--r-xs)] bg-[var(--surface-subtle)] [padding:3px_3px_3px_9px] text-[var(--text-muted)]">
                   <FolderOpen size={13} />
                   <input value={cwd} onChange={(event) => setCwd(event.target.value)} />
-                  <button
-                    className="button tiny"
+                  <Button
+                    variant="outline"
                     disabled={saving || cwd === selectedConnection.defaultCwd}
                     onClick={() =>
                       update(
@@ -614,10 +625,10 @@ export function ChannelsPage({ notify, registerPrimaryAction, requestConfirm }: 
                     }
                   >
                     {t('channels:channelsPage.save')}
-                  </button>
+                  </Button>
                 </span>
-              </label>
-              <div className="permission-note">
+              </FieldLabel>
+              <AppNotice>
                 <ShieldCheck size={15} />
                 <span>
                   <strong>{t('channels:channelsPage.localSecurityBoundary')}</strong>
@@ -627,20 +638,22 @@ export function ChannelsPage({ notify, registerPrimaryAction, requestConfirm }: 
                     )}
                   </small>
                 </span>
-              </div>
-              <div className="button-row">
-                <button
-                  className="button secondary"
+              </AppNotice>
+              <div className="mt-[15px] flex gap-2 max-[650px]:flex-wrap">
+                <Button
+                  variant="outline"
+                  size="lg"
+                  className="bg-surface-subtle"
                   onClick={() => reconnect(selectedPlatform)}
                   disabled={saving}
                 >
                   <RefreshCw size={14} />
                   {t('channels:channelsPage.reconnect')}
-                </button>
-                <button className="button danger" onClick={() => remove(selectedPlatform)}>
+                </Button>
+                <Button variant="destructive" size="lg" onClick={() => remove(selectedPlatform)}>
                   <Unplug size={14} />
                   {t('channels:channelsPage.disconnect')}
-                </button>
+                </Button>
               </div>
             </>
           ) : (
@@ -653,23 +666,24 @@ export function ChannelsPage({ notify, registerPrimaryAction, requestConfirm }: 
                   },
                 )}
               </p>
-              <div className="test-summary">
+              <div className="test-summary [.test-panel_&]:min-w-0 [.test-panel_&:last-of-type]:overflow-hidden [.test-panel_&:last-of-type]:text-ellipsis [.test-panel_&:last-of-type]:whitespace-nowrap flex items-center gap-[6px] [margin-top:8px] text-[var(--text-soft)] text-[12px]">
                 <CheckCircle2 size={14} />
                 {t('channels:channelsPage.trueTwoWayMessagingNoNotificationWebhookRequired')}
               </div>
-              <div className="test-summary">
+              <div className="test-summary [.test-panel_&]:min-w-0 [.test-panel_&:last-of-type]:overflow-hidden [.test-panel_&:last-of-type]:text-ellipsis [.test-panel_&:last-of-type]:whitespace-nowrap flex items-center gap-[6px] [margin-top:8px] text-[var(--text-soft)] text-[12px]">
                 <CheckCircle2 size={14} />
                 {t('channels:channelsPage.eachContactOrChatMapsToAnIndependentAgentSession')}
               </div>
-              <button
-                className="button primary wide"
+              <Button
+                size="lg"
+                className="w-full"
                 onClick={() => beginOnboarding(selectedPlatform)}
               >
                 <Zap size={15} />
                 {t('channels:channelsPage.connectNameByQRCode', {
                   name: providerName(selectedPlatform, t),
                 })}
-              </button>
+              </Button>
             </>
           )}
         </Panel>
@@ -704,11 +718,11 @@ function OnboardingModal({ job, onClose, onRetry, notify }: OnboardingModalProps
   }
   return (
     <div
-      className="modal-backdrop"
+      className="modal-backdrop max-[650px]:p-[8px] fixed z-[70] inset-0 grid place-items-center overflow-y-auto bg-[var(--modal-overlay)] [backdrop-filter:blur(3px)] [padding:20px] [overscroll-behavior:contain] [animation:fade-in_var(--d1)_var(--ease-out)]"
       onMouseDown={(event) => event.target === event.currentTarget && onClose()}
     >
-      <section className="modal feishu-onboard-modal">
-        <div className="card-head">
+      <section className="modal !w-[min(430px,100%)] max-h-[calc(100dvh_-_40px)] overflow-y-auto [overscroll-behavior:contain] [border:1px_solid_var(--surface-highlight)] rounded-[var(--r-md)] bg-[var(--solid)] p-[18px] shadow-[0_26px_70px_-25px_var(--shadow-strong)] [animation:modal-in_var(--d2)_var(--ease-out)] max-[650px]:max-h-[calc(100dvh_-_16px)] feishu-onboard-modal w-[min(470px,100%)]">
+        <AppCardHeader>
           <div>
             <h2>
               {t('channels:channelsPage.connectNameByQRCode', {
@@ -723,15 +737,18 @@ function OnboardingModal({ job, onClose, onRetry, notify }: OnboardingModalProps
                 : t('channels:channelsPage.signInToPersonalWeChatThroughTencentILinkBot')}
             </p>
           </div>
-          <button
-            className="icon-button"
+          <Button
+            variant="ghost"
+            size="icon"
             aria-label={t('channels:channelsPage.closeDialog')}
             onClick={onClose}
           >
             <X size={17} />
-          </button>
-        </div>
-        <div className={`feishu-qr-stage ${job.status}`}>
+          </Button>
+        </AppCardHeader>
+        <div
+          className={`feishu-qr-stage [&_img]:w-[248px] [&_img]:max-w-[86%] [&_img]:[border:1px_solid_var(--stroke-soft)] [&_img]:rounded-[var(--r-md)] [&_img]:bg-[var(--lightbox-action-bg)] [&_img]:p-[8px] [&_img]:shadow-[0_12px_30px_-24px_var(--ink-strong)] [&_strong]:text-[13px] [&_p]:max-w-[330px] [&_p]:text-[var(--danger)] [&_p]:text-[12px] [&_p]:leading-[1.5] [&_small]:text-[var(--text-muted)] [&_small]:text-[13px] [&.completed]:text-[var(--success)] [&.failed]:text-[var(--danger)] flex min-h-[min(330px,52dvh)] flex-col items-center justify-center gap-[10px] [margin-top:14px] [border:1px_solid_var(--stroke-soft)] rounded-[var(--r-md)] bg-[linear-gradient(180deg,var(--surface-highlight),var(--surface-subtle))] [padding:18px] text-center ${job.status}`}
+        >
           {job.qrDataUrl ? (
             <img
               src={job.qrDataUrl}
@@ -742,7 +759,7 @@ function OnboardingModal({ job, onClose, onRetry, notify }: OnboardingModalProps
           ) : job.status === 'failed' ? (
             <AlertTriangle size={42} />
           ) : (
-            <RefreshCw className="spin" size={32} />
+            <RefreshCw className="animate-spin" size={32} />
           )}
           <strong>{onboardingStatusLabel(job.status, t)}</strong>
           {job.error && <p>{job.error}</p>}
@@ -755,29 +772,31 @@ function OnboardingModal({ job, onClose, onRetry, notify }: OnboardingModalProps
           )}
         </div>
         {job.needsVerifyCode && (
-          <div className="weixin-verify-code">
+          <div className="weixin-verify-code [&_input]:min-w-0 [&_input]:h-[34px] [&_input]:[border:1px_solid_var(--stroke)] [&_input]:rounded-[var(--r-sm)] [&_input]:bg-[var(--solid)] [&_input]:p-[0_10px] [&_input]:text-[var(--text)] [&_input]:font-[ui-monospace,_SFMono-Regular,_Consolas,_'Liberation_Mono',_monospace] [&_input]:text-[13px] [&_input]:tracking-[.08em] grid grid-cols-[minmax(0,1fr)_auto] gap-[7px] [margin-top:9px]">
             <input
               value={code}
               onChange={(event) => setCode(event.target.value.replace(/\D/g, '').slice(0, 8))}
               placeholder={t('channels:channelsPage.enterTheNumberShownOnYourPhone')}
             />
-            <button className="button primary" disabled={!code} onClick={submitCode}>
+            <Button size="lg" disabled={!code} onClick={submitCode}>
               {t('channels:channelsPage.submitPairingCode')}
-            </button>
+            </Button>
           </div>
         )}
         {job.qrUrl && !terminal && (
-          <a
-            className="button secondary wide feishu-open-link"
-            href={job.qrUrl}
-            target="_blank"
-            rel="noreferrer"
+          <Button
+            asChild
+            variant="outline"
+            size="lg"
+            className="[margin-top:9px] no-underline w-full bg-surface-subtle"
           >
-            <ExternalLink size={14} />
-            {t('channels:channelsPage.cannotScanOpenTheSignInLink')}
-          </a>
+            <a href={job.qrUrl} target="_blank" rel="noreferrer">
+              <ExternalLink size={14} />
+              {t('channels:channelsPage.cannotScanOpenTheSignInLink')}
+            </a>
+          </Button>
         )}
-        <div className="permission-note">
+        <AppNotice>
           <ShieldCheck size={15} />
           <span>
             <strong>{t('channels:channelsPage.persistentTwoWayConnection')}</strong>
@@ -789,16 +808,16 @@ function OnboardingModal({ job, onClose, onRetry, notify }: OnboardingModalProps
                   )}
             </small>
           </span>
-        </div>
-        <div className="modal-actions">
-          <button className="button secondary" onClick={onClose}>
+        </AppNotice>
+        <div className="flex justify-end gap-[8px] [margin-top:18px]">
+          <Button variant="outline" size="lg" className="bg-surface-subtle" onClick={onClose}>
             {terminal ? t('channels:channelsPage.off') : t('channels:channelsPage.cancel')}
-          </button>
+          </Button>
           {job.status === 'failed' && (
-            <button className="button primary" onClick={onRetry}>
+            <Button size="lg" onClick={onRetry}>
               <RefreshCw size={14} />
               {t('channels:channelsPage.generateANewQRCode')}
-            </button>
+            </Button>
           )}
         </div>
       </section>

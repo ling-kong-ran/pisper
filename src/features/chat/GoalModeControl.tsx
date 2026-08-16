@@ -6,6 +6,8 @@ import { formatTokenCount } from '@/lib/format'
 import type { EntityRecord } from '@/types/chat'
 import { useViewportMenuOffset } from './use-viewport-menu-offset'
 
+import { Button } from '@/components/ui/button'
+
 const MIN_GOAL_TOKEN_BUDGET = 1_000
 export const DEFAULT_GOAL_TOKEN_BUDGET = 30_000
 
@@ -93,11 +95,11 @@ export function GoalModeControl({
   return (
     <div
       ref={rootRef}
-      className={`goal-mode-select ${open ? 'open' : ''} ${active || armed ? 'active' : ''}`}
+      className={`goal-mode-select [.composer-tool-tray_&]:w-[38px] [.composer-tool-tray_&]:min-w-[38px] [.composer-tool-tray_&]:h-[38px] [.composer-tool-tray_&]:flex-none @max-[700px]:[.composer-tool-tray_&]:w-[32px] @max-[700px]:[.composer-tool-tray_&]:min-w-[32px] @max-[700px]:[.composer-tool-tray_&]:h-[32px] @max-[700px]:[.composer-tool-tray_&]:p-0 @max-[470px]:[.composer-tool-tray_&]:w-[28px] @max-[470px]:[.composer-tool-tray_&]:min-w-[28px] @max-[470px]:[.composer-tool-tray_&]:h-[28px] relative w-[38px] h-[38px] text-[var(--text-tertiary)] ${open ? 'open' : ''}    ${active || armed ? 'active' : ''}`}
     >
       <button
         type="button"
-        className="goal-mode-trigger"
+        className="goal-mode-trigger hover:border-[var(--accent-border)] hover:bg-[var(--accent-soft)] hover:text-[var(--star-strong)] [.goal-mode-select.open_&]:border-[var(--accent-border)] [.goal-mode-select.open_&]:bg-[var(--accent-soft)] [.goal-mode-select.open_&]:text-[var(--star-strong)] [.goal-mode-select.active_&]:text-[var(--star-strong)] @max-[700px]:[.composer-tool-tray_&]:w-[32px] @max-[700px]:[.composer-tool-tray_&]:h-[32px] @max-[470px]:[.composer-tool-tray_&]:w-[28px] @max-[470px]:[.composer-tool-tray_&]:h-[28px] grid w-full h-full place-items-center [border:1px_solid_transparent] rounded-[var(--r-sm)] bg-[var(--surface-muted)] text-inherit cursor-pointer"
         title={label}
         aria-label={label}
         aria-haspopup="dialog"
@@ -109,12 +111,12 @@ export function GoalModeControl({
       {open && (
         <div
           ref={menuRef}
-          className="goal-mode-menu"
+          className="goal-mode-menu [translate:var(--menu-x-offset,_0px)_0] [&_strong]:text-[12px] [&_small]:overflow-hidden [&_small]:text-[var(--text-muted)] [&_small]:text-[11px] [&_small]:text-ellipsis [&_small]:whitespace-nowrap [&_p]:m-[1px_7px_4px_47px] [&_p]:text-[var(--text-muted)] [&_p]:text-[11px] max-[650px]:[.focus-composer_&]:right-[auto] max-[650px]:[.focus-composer_&]:left-0 max-[650px]:[.focus-composer_&]:w-[min(250px,calc(100vw_-_76px))] absolute z-[35] [bottom:calc(100%_+_8px)] left-0 w-[min(250px,calc(100vw_-_28px))] overflow-hidden [border:1px_solid_var(--stroke)] rounded-[var(--r-md)] bg-[var(--solid)] [padding:5px] shadow-[0_18px_42px_-18px_var(--menu-shadow)]"
           role="dialog"
           aria-label={t('chat:focusSession.goalMode')}
         >
-          <div className="goal-mode-menu-row">
-            <span className="goal-mode-menu-icon">
+          <div className="goal-mode-menu-row hover:bg-[var(--accent-soft)] [&_>_span:nth-child(2)]:flex [&_>_span:nth-child(2)]:min-w-0 [&_>_span:nth-child(2)]:flex-col [&_>_span:nth-child(2)]:gap-[2px] grid min-h-[48px] grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-[8px] rounded-[var(--r-sm)] [padding:6px_7px]">
+            <span className="goal-mode-menu-icon [.goal-mode-select.active_&]:bg-[var(--star-soft)] [.goal-mode-select.active_&]:text-[var(--star-strong)] grid w-[32px] h-[32px] place-items-center rounded-[var(--r-sm)] bg-[var(--surface-muted)] text-[var(--text-muted)]">
               <Target size={15} />
             </span>
             <span>
@@ -132,7 +134,7 @@ export function GoalModeControl({
             />
           </div>
           {usage && <p>{usage}</p>}
-          <div className="goal-mode-budget-row">
+          <div className="goal-mode-budget-row [&_label]:text-[var(--text-secondary)] [&_label]:text-[11px] [&_label]:font-[600] [&_input]:w-full [&_input]:min-w-0 [&_input]:[border:1px_solid_var(--stroke)] [&_input]:rounded-[var(--r-sm)] [&_input]:bg-[var(--surface-muted)] [&_input]:p-[5px_7px] [&_input]:text-inherit [&_input]:text-[12px] [&_input:focus]:border-[var(--focus)] [&_input:focus]:[outline:none] grid grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-[6px] [margin:2px_7px_2px]">
             <label htmlFor="goal-token-budget-input">
               {t('chat:focusSession.goalTokenBudget')}
             </label>
@@ -151,18 +153,23 @@ export function GoalModeControl({
               }}
             />
             {hasExistingGoal && budgetDirty && (
-              <button
+              <Button
                 type="button"
-                className="button secondary tiny"
+                variant="outline"
+                className="bg-surface-subtle"
                 disabled={savingBudget}
                 onClick={() => void saveBudget()}
               >
-                {savingBudget ? <RefreshCw className="spin" size={12} /> : <Check size={12} />}
+                {savingBudget ? (
+                  <RefreshCw className="animate-spin" size={12} />
+                ) : (
+                  <Check size={12} />
+                )}
                 {t('chat:focusSession.goalBudgetSave')}
-              </button>
+              </Button>
             )}
           </div>
-          <small className="goal-mode-budget-hint">
+          <small className="block [margin:0_7px_5px] text-[var(--text-muted)] text-[10px]">
             {hasExistingGoal
               ? t('chat:focusSession.goalTokenBudgetUpdateHint')
               : t('chat:focusSession.goalTokenBudgetHint', {

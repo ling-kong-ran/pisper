@@ -56,7 +56,7 @@ export function SessionDockPanel({ params, api }: IDockviewPanelProps<{ sessionI
 
   if (!context || !session) {
     return (
-      <div className="session-dock-missing">
+      <div className="session-dock-missing flex h-full min-h-[180px] items-center justify-center gap-[8px] text-[var(--text-muted)] text-[12px]">
         <AlertTriangle size={16} />
         {context ? 'Session unavailable' : 'Loading session'}
       </div>
@@ -68,7 +68,10 @@ export function SessionDockPanel({ params, api }: IDockviewPanelProps<{ sessionI
       ? context.pendingAsset.asset
       : null
   return (
-    <div className="session-dock-panel" onFocusCapture={() => api.setActive()}>
+    <div
+      className="session-dock-panel w-full h-full min-w-0 min-h-0 overflow-hidden [container-type:inline-size] bg-[var(--panel)]"
+      onFocusCapture={() => api.setActive()}
+    >
       <FocusSession
         session={session}
         messages={state.messages || []}
@@ -160,7 +163,7 @@ export function SessionDockPanel({ params, api }: IDockviewPanelProps<{ sessionI
 export function ChatDockWatermark() {
   const { t } = useI18n()
   return (
-    <div className="chat-dock-watermark">
+    <div className="chat-dock-watermark flex h-full min-h-[180px] items-center justify-center gap-[8px] text-[var(--text-muted)] text-[12px] [&_strong]:text-[var(--text)] [&_strong]:text-[14px] [&_span]:max-w-[320px] [&_span]:leading-[1.55] flex-col text-center">
       <MessageSquare size={34} />
       <strong>{t('chat:chatDock.openAChatToBegin')}</strong>
       <span>{t('chat:chatDock.openAChatFromTheSessionListOrSplitItInAnyDirection')}</span>

@@ -5,9 +5,11 @@ import { apiJson } from '@/lib/api'
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
+import { FieldLabel } from '@/components/ui/field'
 import { relativeTime } from '@/lib/format'
 import { chatApi, type SessionTreeLabelMatch } from '@/features/chat/chat-api'
+
+import { AppCardHeader } from '@/components/ui/app-primitives'
 
 type Navigation = Array<[string, Array<[string, string, LucideIcon]>]>
 
@@ -206,13 +208,13 @@ export function CommandPalette({
       <DialogContent
         showCloseButton={false}
         aria-busy={Boolean(pendingEntryId)}
-        className="command-palette top-[16vh]! max-w-[calc(100vw-40px)]! translate-y-0! gap-0 p-0 ring-0 max-sm:top-[8vh]! sm:max-w-[560px]!"
+        className="command-palette max-[650px]:w-full w-[min(560px,calc(100vw_-_40px))] overflow-hidden [border:1px_solid_var(--surface-highlight)] rounded-[var(--r-md)] bg-[var(--solid)] shadow-[0_28px_80px_-24px_var(--shadow-strong)] [animation:modal-in_var(--d2)_var(--ease-out)] top-[16vh]! max-w-[calc(100vw-40px)]! translate-y-0! gap-0 p-0 ring-0 max-sm:top-[8vh]! sm:max-w-[560px]!"
       >
         <DialogTitle className="sr-only">{t('navigation:appOverlays.commandPalette')}</DialogTitle>
         <DialogDescription className="sr-only">
           {t('navigation:appOverlays.searchPagesChatsOrActions')}
         </DialogDescription>
-        <label className="palette-input">
+        <label className="palette-input [&_input]:w-full [&_input]:min-w-0 [&_input]:border-0 [&_input]:[outline:0] [&_input]:bg-transparent [&_input]:text-[var(--text)] [&_input]:text-[14px] [&_kbd]:flex-none [&_kbd]:[border:1px_solid_var(--stroke)] [&_kbd]:rounded-[5px] [&_kbd]:bg-[var(--surface-subtle)] [&_kbd]:p-[1px_5px] [&_kbd]:text-[var(--text-muted)] [&_kbd]:font-[inherit] [&_kbd]:text-[10px] flex h-[46px] items-center gap-[9px] [border-bottom:1px_solid_var(--stroke-soft)] [padding:0_14px] text-[var(--text-muted)]">
           <Search size={16} />
           <input
             autoFocus
@@ -236,14 +238,14 @@ export function CommandPalette({
           )}
         </label>
         <div
-          className="palette-list"
+          className="max-h-[min(380px,50vh)] overflow-y-auto [padding:6px]"
           role="listbox"
           aria-label={t('navigation:appOverlays.commandPalette')}
         >
           {entries.map((entry, index) => (
             <button
               type="button"
-              className={`palette-item ${entry.meta ? 'has-meta' : ''} ${index === selectedIndex ? 'active' : ''}`}
+              className={`palette-item [&_>_svg]:flex-none [&_>_svg]:text-[var(--text-muted)] [&.active]:bg-[var(--star-soft)] [&.active]:text-[var(--text)] [&.active_>_svg]:text-[var(--star-strong)] flex w-full items-center gap-[10px] border-0 rounded-[var(--r-sm)] bg-transparent [padding:9px_10px] text-[var(--text-secondary)] text-[13px] text-left cursor-pointer ${entry.meta ? 'has-meta' : ''}    ${index === selectedIndex ? 'active' : ''}`}
               title={entry.title}
               role="option"
               aria-selected={index === selectedIndex}
@@ -258,11 +260,13 @@ export function CommandPalette({
               ) : (
                 <entry.Icon size={15} />
               )}
-              <span className="palette-item-copy">
-                <span className="palette-item-label">{entry.label}</span>
+              <span className="palette-item-copy [&_>_small]:overflow-hidden [&_>_small]:text-[var(--text-muted)] [&_>_small]:text-[10px] [&_>_small]:text-ellipsis [&_>_small]:whitespace-nowrap flex min-w-0 flex-1 flex-col gap-[2px]">
+                <span className="min-w-0 overflow-hidden text-ellipsis whitespace-nowrap">
+                  {entry.label}
+                </span>
                 {entry.meta && <small>{entry.meta}</small>}
               </span>
-              <span className="palette-item-hint">
+              <span className="palette-item-hint max-[650px]:max-w-[34vw] max-w-[180px] flex-none overflow-hidden text-[var(--text-muted)] text-[11px] text-ellipsis whitespace-nowrap">
                 {pendingEntryId === entry.id
                   ? t('navigation:appOverlays.locatingLabel')
                   : entry.hint}
@@ -270,14 +274,17 @@ export function CommandPalette({
             </button>
           ))}
           {!entries.length && (
-            <div className="palette-empty">
+            <div className="palette-empty [padding:20px] text-[var(--text-muted)] text-[12px] text-center">
               {labelsSearching
                 ? t('navigation:appOverlays.searchingLabels')
                 : t('navigation:appOverlays.noMatchingResults')}
             </div>
           )}
           {entries.length > 0 && labelsSearching && (
-            <div aria-live="polite" className="palette-empty palette-searching">
+            <div
+              aria-live="polite"
+              className="palette-empty [padding:20px] text-[var(--text-muted)] text-[12px] text-center palette-searching [.palette-empty&]:p-[8px_12px]"
+            >
               {t('navigation:appOverlays.searchingLabels')}
             </div>
           )}
@@ -321,10 +328,10 @@ export function QuickCreate({ type, close, notify }: QuickCreateProps) {
     <Dialog open onOpenChange={(open) => !open && close()}>
       <DialogContent
         showCloseButton={false}
-        className="modal max-w-[430px]! gap-0 rounded-dialog border-surface-highlight p-[18px] shadow-dialog ring-0"
+        className="modal !w-[min(430px,100%)] max-h-[calc(100dvh_-_40px)] overflow-y-auto [overscroll-behavior:contain] [border:1px_solid_var(--surface-highlight)] rounded-[var(--r-md)] bg-[var(--solid)] p-[18px] shadow-[0_26px_70px_-25px_var(--shadow-strong)] [animation:modal-in_var(--d2)_var(--ease-out)] max-[650px]:max-h-[calc(100dvh_-_16px)] max-w-[430px]! gap-0 rounded-dialog border-surface-highlight shadow-dialog ring-0"
       >
         <form onSubmit={submit}>
-          <div className="card-head">
+          <AppCardHeader>
             <div>
               <DialogTitle>{title}</DialogTitle>
               <DialogDescription>
@@ -341,21 +348,21 @@ export function QuickCreate({ type, close, notify }: QuickCreateProps) {
             >
               <X className="size-[17px]" />
             </Button>
-          </div>
-          <Label className="field-label items-start">
+          </AppCardHeader>
+          <FieldLabel variant="control" className="items-start">
             {t('navigation:appOverlays.name')}
             <Input name="name" placeholder={t('navigation:appOverlays.enterAName')} />
-          </Label>
-          <Label className="field-label items-start">
+          </FieldLabel>
+          <FieldLabel variant="control" className="items-start">
             {t('navigation:appOverlays.description')}
             <Input
               name="description"
               placeholder={t('navigation:appOverlays.addAShortDescription')}
             />
-          </Label>
-          <Label className="field-label items-start" htmlFor="quick-create-type">
+          </FieldLabel>
+          <FieldLabel variant="control" className="items-start" htmlFor="quick-create-type">
             {t('navigation:appOverlays.type')}
-          </Label>
+          </FieldLabel>
           <select
             id="quick-create-type"
             name="type"
@@ -368,7 +375,7 @@ export function QuickCreate({ type, close, notify }: QuickCreateProps) {
               </option>
             ))}
           </select>
-          <div className="modal-actions">
+          <div className="flex justify-end gap-[8px] [margin-top:18px]">
             <Button type="button" variant="secondary" onClick={close}>
               {t('navigation:appOverlays.cancel')}
             </Button>

@@ -36,7 +36,7 @@ test('composer renders unframed metrics as a separate row below the input contro
 
   assert.match(
     focus,
-    /className="focus-composer-meta"[\s\S]*composer-workspace-status[\s\S]*<SessionUsageMetrics usage=\{sessionUsage\} plan=\{plan\} \/>[\s\S]*<\/form>/,
+    /composer-workspace-status[\s\S]*<SessionUsageMetrics usage=\{sessionUsage\} plan=\{plan\} \/>[\s\S]*<\/form>/,
   )
   assert.match(controls, /cacheHitRate/)
   assert.match(controls, /usage\?\.processedTokens/)
@@ -44,15 +44,18 @@ test('composer renders unframed metrics as a separate row below the input contro
   assert.match(controls, /formatTokenCount\(usage\?\.reasoning\)/)
   assert.match(controls, /completedPlanItems/)
   assert.match(controls, /chat:planBoard\.progress/)
-  assert.match(controls, /className="session-plan-progress"/)
+  assert.match(controls, /className="session-plan-progress[^"\n]*"/)
   assert.match(controls, /chat:planBoard\.openCurrentPlan/)
   assert.match(controls, /<PopoverTrigger asChild>/)
   assert.match(controls, /<PlanBoard plan=\{plan \?\? null\} \/>/)
-  assert.match(css, /\.session-usage-metrics \{[^}]*justify-content: flex-start/)
-  const metaStyles = css.match(/\.focus-composer-meta \{[^}]*\}/)?.[0] || ''
-  assert.ok(metaStyles)
-  assert.doesNotMatch(metaStyles, /border:|background:|box-shadow:/)
-  assert.match(css, /\.composer-workspace-status \{[^}]*border: 0;[^}]*background: transparent;/)
-  assert.doesNotMatch(css, /\.composer-workspace-status:hover[^}]*background:/)
-  assert.match(css, /\.session-plan-popover \{[^}]*max-height:/)
+  assert.match(controls, /session-usage-metrics[^"\n]*justify-start/)
+  const metricsRow = focus.match(/<div className="flex min-w-0 min-h-\[26px\][^"\n]*"/)?.[0] || ''
+  assert.ok(metricsRow)
+  assert.doesNotMatch(metricsRow, /border|bg-|shadow/)
+  assert.match(focus, /composer-workspace-status[^"\n]*border-0[^"\n]*bg-transparent/)
+  assert.match(controls, /session-plan-popover[^"\n]*max-h-/)
+  assert.doesNotMatch(
+    css,
+    /\.session-usage-metrics|\.focus-composer-meta|\.composer-workspace-status/,
+  )
 })

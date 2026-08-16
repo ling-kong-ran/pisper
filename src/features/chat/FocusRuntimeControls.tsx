@@ -55,7 +55,11 @@ export function SessionUsageMetrics({
   const metricsTitle = [title, planProgress].filter(Boolean).join('\n')
 
   return (
-    <div className="session-usage-metrics" title={metricsTitle} aria-label={metricsTitle}>
+    <div
+      className="session-usage-metrics [&_>_span]:inline-flex [&_>_span]:min-w-0 [&_>_span]:items-center [&_>_span]:gap-[4px] [&_>_span]:whitespace-nowrap [&_small]:text-inherit [&_small]:text-[inherit] [&_strong]:text-[var(--text-secondary)] [&_strong]:text-[11px] [&_strong]:[font-variant-numeric:tabular-nums] [&_strong]:font-[600] [&_svg]:text-[var(--text-tertiary)] [&_svg]:opacity-[.9] [&_>_i]:w-[1px] [&_>_i]:h-[10px] [&_>_i]:bg-[var(--border-subtle,var(--stroke-soft,#ddd))] @max-[470px]:[&_small]:hidden flex min-w-0 min-h-[26px] items-center justify-start gap-[10px] m-0 text-inherit text-[10px]"
+      title={metricsTitle}
+      aria-label={metricsTitle}
+    >
       <span>
         <Database size={12} />
         <small>{t('chat:focusSession.cacheHitRate')}</small>
@@ -74,7 +78,7 @@ export function SessionUsageMetrics({
             <PopoverTrigger asChild>
               <button
                 type="button"
-                className="session-plan-progress"
+                className="session-plan-progress inline-flex min-w-0 items-center gap-[4px] whitespace-nowrap hover:bg-[var(--surface-hover)] hover:text-[var(--star-strong)] data-[state=open]:bg-[var(--surface-hover)] data-[state=open]:text-[var(--star-strong)] focus-visible:[outline:2px_solid_var(--accent-border)] focus-visible:[outline-offset:1px] min-h-[24px] border-0 rounded-[var(--r-xs)] bg-transparent [padding:2px_5px] text-inherit cursor-pointer"
                 title={t('chat:planBoard.openCurrentPlan', { progress: planProgress })}
                 aria-label={t('chat:planBoard.openCurrentPlan', { progress: planProgress })}
               >
@@ -83,7 +87,7 @@ export function SessionUsageMetrics({
               </button>
             </PopoverTrigger>
             <PopoverContent
-              className="session-plan-popover"
+              className="session-plan-popover w-[min(440px,calc(100vw_-_24px))] max-h-[min(360px,55dvh)] overflow-auto [padding:6px]"
               align="start"
               side="top"
               sideOffset={7}
@@ -186,7 +190,7 @@ export function ContextUsageIndicator({
       <PopoverTrigger asChild>
         <button
           type="button"
-          className={`context-usage-chip ${tone}`}
+          className={`context-usage-chip hover:opacity-100 [&_>_svg]:opacity-[.72] [&_>_span]:inline-flex [&_>_span]:[align-items:baseline] [&_>_span]:gap-[4px] [&_>_span]:whitespace-nowrap [&_>_span_strong]:text-inherit [&_>_span_strong]:text-[11px] [&_>_span_strong]:font-[500] [&_>_span_small]:text-inherit [&_>_span_small]:text-[10px] [&_>_span_small]:font-[600] [&_>_i]:block [&_>_i]:w-[24px] [&_>_i]:h-[2px] [&_>_i]:overflow-hidden [&_>_i]:rounded-[var(--r-pill)] [&_>_i]:bg-[var(--stroke-soft)] [&_>_i_>_b]:block [&_>_i_>_b]:h-full [&_>_i_>_b]:rounded-[inherit] [&_>_i_>_b]:bg-[var(--text-muted)] [&_>_i_>_b]:[transition:width_var(--d2)_var(--ease-out)] [&.warning_>_span_small]:text-[var(--warning-strong)] [&.warning_>_i_>_b]:bg-[var(--warning-strong)] [&.danger_>_span_small]:text-[var(--danger)] [&.danger_>_i_>_b]:bg-[var(--danger)] [&.unknown_>_i_>_b]:!w-[0] @max-[470px]:grid-cols-[auto_auto] @max-[470px]:[&_>_i]:hidden grid h-[24px] flex-none grid-cols-[auto_auto_24px] items-center gap-[4px] border-0 bg-transparent [padding:0_2px] text-[var(--text-tertiary)] text-[10px] opacity-[.78] cursor-pointer [transition:opacity_var(--d1)_var(--ease-out)] ${tone}`}
           aria-label={label}
           title={label}
         >
@@ -200,8 +204,12 @@ export function ContextUsageIndicator({
           </i>
         </button>
       </PopoverTrigger>
-      <PopoverContent className="context-usage-popover" align="end" sideOffset={8}>
-        <div className="context-threshold-heading">
+      <PopoverContent
+        className="context-usage-popover [&_input[type='range']]:w-full [&_input[type='range']]:h-[20px] [&_input[type='range']]:m-0 [&_input[type='range']]:[accent-color:var(--brand-blue-strong)] [&_input[type='range']]:cursor-pointer [&_>_small]:min-h-[16px] [&_>_small]:text-[var(--text-muted)] [&_>_small]:text-[10px] [&_>_small]:leading-[1.4] [&_>_small.error]:text-[var(--danger)] w-[248px] gap-[8px] [padding:12px]"
+        align="end"
+        sideOffset={8}
+      >
+        <div className="context-threshold-heading flex items-center justify-between [&_output]:text-[var(--brand-blue-strong)] [&_output]:[font-variant-numeric:tabular-nums] text-[var(--text)] text-[12px] font-[600]">
           <span>{t('chat:focusSession.autoCompactionThreshold')}</span>
           <output>{draftThreshold}%</output>
         </div>
@@ -224,7 +232,10 @@ export function ContextUsageIndicator({
             }
           }}
         />
-        <div className="context-threshold-scale" aria-hidden="true">
+        <div
+          className="context-threshold-scale flex items-center justify-between text-[var(--text-tertiary)] text-[10px]"
+          aria-hidden="true"
+        >
           <span>50%</span>
           <span>95%</span>
         </div>
@@ -257,7 +268,7 @@ export function SessionModelSelect({
     : value.split('/').at(-1)
   return (
     <div
-      className={`session-model-select icon-only ${compact ? 'compact' : ''}`}
+      className={`session-model-select [&.compact]:max-w-[118px] [&.compact]:h-[32px] [&.compact]:rounded-[var(--r-xs)] [&_[data-slot='select-trigger']]:w-full [&_[data-slot='select-trigger']]:h-full [&_[data-slot='select-trigger']]:min-h-0 [&_[data-slot='select-trigger']]:overflow-hidden [&_[data-slot='select-trigger']]:border-0 [&_[data-slot='select-trigger']]:[outline:0] [&_[data-slot='select-trigger']]:bg-transparent [&_[data-slot='select-trigger']]:p-[0_22px_0_8px] [&_[data-slot='select-trigger']]:text-inherit [&_[data-slot='select-trigger']]:text-[13px] [&_[data-slot='select-trigger']]:font-[600] [&_[data-slot='select-trigger']]:text-ellipsis [&_[data-slot='select-trigger']]:whitespace-nowrap [&.compact_[data-slot='select-trigger']]:text-[12px] [&_>_svg]:absolute [&_>_svg]:right-[6px] [&_>_svg]:flex-none [&_>_svg]:pointer-events-none [&:has([data-slot='select-trigger']:disabled)]:[cursor:not-allowed] [&:has([data-slot='select-trigger']:disabled)]:opacity-[.55] [.focus-composer_&]:w-[38px] [.focus-composer_&]:min-w-[38px] [.focus-composer_&]:h-[38px] [.focus-composer_&]:rounded-[var(--r-sm)] [.focus-session.has-conversation_.focus-composer_&]:w-[36px] [.focus-session.has-conversation_.focus-composer_&]:min-w-[36px] [.focus-session.has-conversation_.focus-composer_&]:h-[36px] dark:bg-[var(--accent-soft)] @max-[700px]:[.focus-composer-footer.tools-open_&]:hidden relative flex max-w-[170px] h-[30px] items-center rounded-[var(--r-xs)] bg-[var(--accent-soft)] text-[var(--star-strong)] icon-only [.session-model-select&]:w-[38px] [.session-model-select&]:min-w-[38px] [.session-model-select&]:max-w-[none] [.session-model-select&]:overflow-hidden [.session-model-select&]:flex-none [.session-model-select&]:justify-center [.session-model-select&]:bg-[var(--surface-muted)] [.session-model-select&]:text-[var(--text-muted)] [.session-model-select&.compact]:w-[32px] [.session-model-select&.compact]:min-w-[32px] [.session-model-select&:hover]:bg-[var(--star-soft)] [.session-model-select&:hover]:text-[var(--star-strong)] [.session-model-select&_>_svg]:[position:static] [.session-model-select&_[data-slot='select-trigger']]:absolute [.session-model-select&_[data-slot='select-trigger']]:inset-0 [.session-model-select&_[data-slot='select-trigger']]:w-full [.session-model-select&_[data-slot='select-trigger']]:h-full [.session-model-select&_[data-slot='select-trigger']]:min-h-0 [.session-model-select&_[data-slot='select-trigger']]:p-0 [.session-model-select&_[data-slot='select-trigger']]:opacity-0 [.session-model-select&_[data-slot='select-trigger']]:cursor-pointer [[data-theme='dark']_.session-model-select&]:bg-[var(--surface-muted)] [.permission-mode-select&]:min-w-0 [.permission-mode-select.compact&]:min-w-0 [.permission-mode-trigger&]:relative [.permission-mode-trigger&]:w-[38px] [.permission-mode-trigger&]:grid-cols-[1fr] [.permission-mode-trigger&]:[justify-items:center] [.permission-mode-trigger&]:p-0 [.permission-mode-select.compact_.permission-mode-trigger&]:w-[32px] [.permission-mode-trigger&.mode-auto]:text-[var(--star-strong)] [.permission-mode-trigger&.mode-ignore]:text-[var(--danger)] [.permission-mode-trigger&.mode-full-access]:text-[var(--danger)] [.focus-session.has-conversation_.focus-composer_.permission-mode-trigger&]:w-[36px] [.focus-session.has-conversation_.focus-composer_.permission-mode-trigger&]:h-[36px] @max-[700px]:[.focus-composer_.permission-mode-trigger&]:w-[36px] max-[650px]:[.focus-composer_.permission-mode-trigger&]:w-[36px] ${compact ? 'compact' : ''}`}
       title={
         disabled
           ? t('chat:focusSession.currentModelModelCannotSwitchWhileRunning', {
@@ -319,7 +330,7 @@ export function SessionThinkingSelect({
           : t('chat:focusSession.currentThinkingLevelLevelClickToSwitch', { level: current })
   return (
     <div
-      className={`session-model-select session-thinking-select icon-only ${compact ? 'compact' : ''}`}
+      className={`session-model-select [&.compact]:max-w-[118px] [&.compact]:h-[32px] [&.compact]:rounded-[var(--r-xs)] [&_[data-slot='select-trigger']]:w-full [&_[data-slot='select-trigger']]:h-full [&_[data-slot='select-trigger']]:min-h-0 [&_[data-slot='select-trigger']]:overflow-hidden [&_[data-slot='select-trigger']]:border-0 [&_[data-slot='select-trigger']]:[outline:0] [&_[data-slot='select-trigger']]:bg-transparent [&_[data-slot='select-trigger']]:p-[0_22px_0_8px] [&_[data-slot='select-trigger']]:text-inherit [&_[data-slot='select-trigger']]:text-[13px] [&_[data-slot='select-trigger']]:font-[600] [&_[data-slot='select-trigger']]:text-ellipsis [&_[data-slot='select-trigger']]:whitespace-nowrap [&.compact_[data-slot='select-trigger']]:text-[12px] [&_>_svg]:absolute [&_>_svg]:right-[6px] [&_>_svg]:flex-none [&_>_svg]:pointer-events-none [&:has([data-slot='select-trigger']:disabled)]:[cursor:not-allowed] [&:has([data-slot='select-trigger']:disabled)]:opacity-[.55] [.focus-composer_&]:w-[38px] [.focus-composer_&]:min-w-[38px] [.focus-composer_&]:h-[38px] [.focus-composer_&]:rounded-[var(--r-sm)] [.focus-session.has-conversation_.focus-composer_&]:w-[36px] [.focus-session.has-conversation_.focus-composer_&]:min-w-[36px] [.focus-session.has-conversation_.focus-composer_&]:h-[36px] dark:bg-[var(--accent-soft)] @max-[700px]:[.focus-composer-footer.tools-open_&]:hidden relative flex max-w-[170px] h-[30px] items-center rounded-[var(--r-xs)] bg-[var(--accent-soft)] text-[var(--star-strong)] session-thinking-select [.composer-tool-tray_&]:w-[38px] [.composer-tool-tray_&]:min-w-[38px] [.composer-tool-tray_&]:h-[38px] [.composer-tool-tray_&]:flex-none [.focus-composer_&]:flex-none @max-[700px]:[.composer-tool-tray_&]:w-[32px] @max-[700px]:[.composer-tool-tray_&]:min-w-[32px] @max-[700px]:[.composer-tool-tray_&]:h-[32px] @max-[700px]:[.composer-tool-tray_&]:p-0 @max-[470px]:[.composer-tool-tray_&]:w-[28px] @max-[470px]:[.composer-tool-tray_&]:min-w-[28px] @max-[470px]:[.composer-tool-tray_&]:h-[28px] icon-only [.session-model-select&]:w-[38px] [.session-model-select&]:min-w-[38px] [.session-model-select&]:max-w-[none] [.session-model-select&]:overflow-hidden [.session-model-select&]:flex-none [.session-model-select&]:justify-center [.session-model-select&]:bg-[var(--surface-muted)] [.session-model-select&]:text-[var(--text-muted)] [.session-model-select&.compact]:w-[32px] [.session-model-select&.compact]:min-w-[32px] [.session-model-select&:hover]:bg-[var(--star-soft)] [.session-model-select&:hover]:text-[var(--star-strong)] [.session-model-select&_>_svg]:[position:static] [.session-model-select&_[data-slot='select-trigger']]:absolute [.session-model-select&_[data-slot='select-trigger']]:inset-0 [.session-model-select&_[data-slot='select-trigger']]:w-full [.session-model-select&_[data-slot='select-trigger']]:h-full [.session-model-select&_[data-slot='select-trigger']]:min-h-0 [.session-model-select&_[data-slot='select-trigger']]:p-0 [.session-model-select&_[data-slot='select-trigger']]:opacity-0 [.session-model-select&_[data-slot='select-trigger']]:cursor-pointer [[data-theme='dark']_.session-model-select&]:bg-[var(--surface-muted)] [.permission-mode-select&]:min-w-0 [.permission-mode-select.compact&]:min-w-0 [.permission-mode-trigger&]:relative [.permission-mode-trigger&]:w-[38px] [.permission-mode-trigger&]:grid-cols-[1fr] [.permission-mode-trigger&]:[justify-items:center] [.permission-mode-trigger&]:p-0 [.permission-mode-select.compact_.permission-mode-trigger&]:w-[32px] [.permission-mode-trigger&.mode-auto]:text-[var(--star-strong)] [.permission-mode-trigger&.mode-ignore]:text-[var(--danger)] [.permission-mode-trigger&.mode-full-access]:text-[var(--danger)] [.focus-session.has-conversation_.focus-composer_.permission-mode-trigger&]:w-[36px] [.focus-session.has-conversation_.focus-composer_.permission-mode-trigger&]:h-[36px] @max-[700px]:[.focus-composer_.permission-mode-trigger&]:w-[36px] max-[650px]:[.focus-composer_.permission-mode-trigger&]:w-[36px] ${compact ? 'compact' : ''}`}
       title={title}
     >
       <Brain size={compact ? 11 : 14} />
@@ -437,11 +448,13 @@ export function ExecutionModeSelect({
     createPortal(
       <div
         ref={menuRef}
-        className="permission-mode-menu execution-mode-menu !fixed !right-auto !bottom-auto z-[80]"
+        className="permission-mode-menu [&_>_button]:grid [&_>_button]:w-full [&_>_button]:min-h-[48px] [&_>_button]:grid-cols-[auto_minmax(0,1fr)_auto] [&_>_button]:items-center [&_>_button]:gap-[8px] [&_>_button]:border-0 [&_>_button]:rounded-[var(--r-sm)] [&_>_button]:bg-transparent [&_>_button]:text-[var(--text)] [&_>_button]:p-[6px_7px] [&_>_button]:text-left [&_>_button:hover]:bg-[var(--accent-soft)] [&_>_button.active]:bg-[var(--accent-soft)] [&_>_button_>_span:nth-child(2)]:flex [&_>_button_>_span:nth-child(2)]:min-w-0 [&_>_button_>_span:nth-child(2)]:flex-col [&_>_button_>_span:nth-child(2)]:gap-[2px] [&_strong]:text-[13px] [&_small]:text-[var(--text-muted)] [&_small]:text-[13px] [&_small]:leading-[1.4] [&_>_button_>_svg]:text-[var(--star-strong)] max-[650px]:[.focus-composer_&]:right-[auto] max-[650px]:[.focus-composer_&]:left-0 max-[650px]:[.focus-composer_&]:w-[min(250px,calc(100vw_-_76px))] absolute z-[35] right-0 [bottom:calc(100%_+_8px)] w-[250px] overflow-hidden [border:1px_solid_var(--stroke)] rounded-[var(--r-md)] bg-[var(--solid)] [padding:5px] shadow-[0_18px_42px_-18px_var(--menu-shadow)] execution-mode-menu !fixed !right-auto !bottom-auto z-[80]"
         style={menuPosition}
         role="menu"
       >
-        <div className="execution-mode-menu-title">{t('chat:focusSession.executionMode')}</div>
+        <div className="[padding:6px_8px_4px] text-[var(--text-muted)] text-[11px] font-[700] tracking-[.04em] [text-transform:uppercase]">
+          {t('chat:focusSession.executionMode')}
+        </div>
         {options.map(([mode, label, description, Icon]) => (
           <button
             type="button"
@@ -454,7 +467,9 @@ export function ExecutionModeSelect({
             }}
             key={mode}
           >
-            <span className={`permission-level level-${mode}`}>
+            <span
+              className={`permission-level [&.level-auto]:bg-[var(--accent-soft)] [&.level-auto]:text-[var(--star-strong)] [&.level-ignore]:bg-[var(--danger-soft)] [&.level-ignore]:text-[var(--danger)] [&.level-full-access]:bg-[var(--danger-soft)] [&.level-full-access]:text-[var(--danger)] grid w-[32px] h-[32px] place-items-center rounded-[var(--r-sm)] bg-[var(--surface-muted)] text-[var(--text-muted)] level-${mode}`}
+            >
               <Icon size={13} />
             </span>
             <span>
@@ -472,11 +487,11 @@ export function ExecutionModeSelect({
     <>
       <div
         ref={rootRef}
-        className={`permission-mode-select execution-mode-select icon-only ${compact ? 'compact' : ''} ${open ? 'open' : ''}`}
+        className={`permission-mode-select [&.compact]:min-w-[68px] [&.compact]:h-[32px] [.focus-composer_&]:h-[38px] [.focus-session.has-conversation_.focus-composer_&]:h-[36px] @max-[700px]:[.focus-composer_&]:min-w-0 max-[650px]:[.focus-composer_&]:min-w-0 relative min-w-[78px] h-[32px] text-[var(--text-tertiary)] execution-mode-select icon-only [.session-model-select&]:w-[38px] [.session-model-select&]:min-w-[38px] [.session-model-select&]:max-w-[none] [.session-model-select&]:overflow-hidden [.session-model-select&]:flex-none [.session-model-select&]:justify-center [.session-model-select&]:bg-[var(--surface-muted)] [.session-model-select&]:text-[var(--text-muted)] [.session-model-select&.compact]:w-[32px] [.session-model-select&.compact]:min-w-[32px] [.session-model-select&:hover]:bg-[var(--star-soft)] [.session-model-select&:hover]:text-[var(--star-strong)] [.session-model-select&_>_svg]:[position:static] [.session-model-select&_[data-slot='select-trigger']]:absolute [.session-model-select&_[data-slot='select-trigger']]:inset-0 [.session-model-select&_[data-slot='select-trigger']]:w-full [.session-model-select&_[data-slot='select-trigger']]:h-full [.session-model-select&_[data-slot='select-trigger']]:min-h-0 [.session-model-select&_[data-slot='select-trigger']]:p-0 [.session-model-select&_[data-slot='select-trigger']]:opacity-0 [.session-model-select&_[data-slot='select-trigger']]:cursor-pointer [[data-theme='dark']_.session-model-select&]:bg-[var(--surface-muted)] [.permission-mode-select&]:min-w-0 [.permission-mode-select.compact&]:min-w-0 [.permission-mode-trigger&]:relative [.permission-mode-trigger&]:w-[38px] [.permission-mode-trigger&]:grid-cols-[1fr] [.permission-mode-trigger&]:[justify-items:center] [.permission-mode-trigger&]:p-0 [.permission-mode-select.compact_.permission-mode-trigger&]:w-[32px] [.permission-mode-trigger&.mode-auto]:text-[var(--star-strong)] [.permission-mode-trigger&.mode-ignore]:text-[var(--danger)] [.permission-mode-trigger&.mode-full-access]:text-[var(--danger)] [.focus-session.has-conversation_.focus-composer_.permission-mode-trigger&]:w-[36px] [.focus-session.has-conversation_.focus-composer_.permission-mode-trigger&]:h-[36px] @max-[700px]:[.focus-composer_.permission-mode-trigger&]:w-[36px] max-[650px]:[.focus-composer_.permission-mode-trigger&]:w-[36px] ${compact ? 'compact' : ''}    ${open ? 'open' : ''}`}
       >
         <button
           type="button"
-          className={`permission-mode-trigger icon-only mode-${current[0]}`}
+          className={`permission-mode-trigger hover:border-[var(--accent-border)] hover:bg-[var(--accent-soft)] hover:text-[var(--star-strong)] [.permission-mode-select.open_&]:border-[var(--accent-border)] [.permission-mode-select.open_&]:bg-[var(--accent-soft)] [.permission-mode-select.open_&]:text-[var(--star-strong)] disabled:[cursor:not-allowed] disabled:opacity-[.55] [.permission-mode-select.compact_&]:gap-[3px] [.permission-mode-select.compact_&]:rounded-[var(--r-xs)] [.permission-mode-select.compact_&]:p-[0_4px] [.permission-mode-select.compact_&]:text-[13px] [.focus-composer_&]:rounded-[var(--r-sm)] dark:hover:bg-[var(--accent-soft)] grid w-full h-full grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-[5px] [border:1px_solid_transparent] rounded-[var(--r-sm)] bg-[var(--surface-muted)] text-inherit [padding:0_7px] text-[12px] font-[700] icon-only [.session-model-select&]:w-[38px] [.session-model-select&]:min-w-[38px] [.session-model-select&]:max-w-[none] [.session-model-select&]:overflow-hidden [.session-model-select&]:flex-none [.session-model-select&]:justify-center [.session-model-select&]:bg-[var(--surface-muted)] [.session-model-select&]:text-[var(--text-muted)] [.session-model-select&.compact]:w-[32px] [.session-model-select&.compact]:min-w-[32px] [.session-model-select&:hover]:bg-[var(--star-soft)] [.session-model-select&:hover]:text-[var(--star-strong)] [.session-model-select&_>_svg]:[position:static] [.session-model-select&_[data-slot='select-trigger']]:absolute [.session-model-select&_[data-slot='select-trigger']]:inset-0 [.session-model-select&_[data-slot='select-trigger']]:w-full [.session-model-select&_[data-slot='select-trigger']]:h-full [.session-model-select&_[data-slot='select-trigger']]:min-h-0 [.session-model-select&_[data-slot='select-trigger']]:p-0 [.session-model-select&_[data-slot='select-trigger']]:opacity-0 [.session-model-select&_[data-slot='select-trigger']]:cursor-pointer [[data-theme='dark']_.session-model-select&]:bg-[var(--surface-muted)] [.permission-mode-select&]:min-w-0 [.permission-mode-select.compact&]:min-w-0 [.permission-mode-trigger&]:relative [.permission-mode-trigger&]:w-[38px] [.permission-mode-trigger&]:grid-cols-[1fr] [.permission-mode-trigger&]:[justify-items:center] [.permission-mode-trigger&]:p-0 [.permission-mode-select.compact_.permission-mode-trigger&]:w-[32px] [.permission-mode-trigger&.mode-auto]:text-[var(--star-strong)] [.permission-mode-trigger&.mode-ignore]:text-[var(--danger)] [.permission-mode-trigger&.mode-full-access]:text-[var(--danger)] [.focus-session.has-conversation_.focus-composer_.permission-mode-trigger&]:w-[36px] [.focus-session.has-conversation_.focus-composer_.permission-mode-trigger&]:h-[36px] @max-[700px]:[.focus-composer_.permission-mode-trigger&]:w-[36px] max-[650px]:[.focus-composer_.permission-mode-trigger&]:w-[36px] mode-${current[0]}`}
           title={t('chat:focusSession.executionModeModeDescription', {
             mode: current[1],
             description: current[2],

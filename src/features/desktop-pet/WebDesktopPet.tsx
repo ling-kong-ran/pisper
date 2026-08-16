@@ -135,7 +135,7 @@ export function WebDesktopPet() {
 
   return (
     <div
-      className={`web-desktop-pet ${pointer.current ? 'dragging' : ''}`}
+      className={`web-desktop-pet max-[640px]:[transform:scale(0.75)] max-[640px]:origin-[bottom_right] fixed z-[70] w-[192px] h-[288px] cursor-grab [touch-action:none] select-none [filter:drop-shadow(0_12px_14px_rgb(15_23_42_/_0.16))] ${pointer.current ? 'dragging [.web-desktop-pet&]:cursor-grabbing' : ''}`}
       style={{ left: position.x, top: position.y, opacity: status.opacity ?? 1 }}
       onPointerDown={(event) => {
         if (event.button !== 0) return
@@ -168,12 +168,18 @@ export function WebDesktopPet() {
         name: status.selectedName || status.selectedSlug,
       })}
     >
-      <div className={`web-desktop-pet-bubble ${bubble ? 'visible' : ''}`} role="status">
+      <div
+        className={`web-desktop-pet-bubble motion-reduce:[transition:none] absolute z-[2] [left:50%] [bottom:210px] max-w-[180px] [padding:6px_10px] [transform:translateX(-50%)_translateY(4px)] [border:1px_solid_color-mix(in_srgb,_var(--stroke)_75%,_transparent)] rounded-[10px] bg-[color-mix(in_srgb,_var(--surface)_94%,_transparent)] shadow-[0_8px_24px_rgb(15_23_42_/_0.2)] text-[var(--text)] text-[11px] leading-[1.4] opacity-0 pointer-events-none text-center [transition:opacity_0.18s_ease,_transform_0.18s_ease] whitespace-nowrap ${bubble ? 'visible [.web-desktop-pet-bubble&]:opacity-100 [.web-desktop-pet-bubble&]:[transform:translateX(-50%)_translateY(0)]' : ''}`}
+        role="status"
+      >
         {bubble}
       </div>
-      <div className="web-desktop-pet-frame" role="img">
+      <div
+        className="absolute left-0 bottom-0 w-[192px] h-[208px] [contain:layout_paint] overflow-hidden"
+        role="img"
+      >
         <div
-          className="web-desktop-pet-sprite"
+          className="web-desktop-pet-sprite [--pet-sprite-y:calc(var(--pet-row)_*_-208px)] [--pet-sprite-end-x:calc(var(--pet-frames)_*_-192px)] w-[192px] h-[208px] [background-image:var(--pet-sprite-url)] [background-repeat:no-repeat] [background-size:var(--pet-sheet-width,_1536px)_var(--pet-sheet-height,_1872px)] [image-rendering:pixelated] [transform:translateZ(0)] origin-[top_left] [will-change:background-position] [animation:web-pet-state_var(--pet-duration)_steps(var(--pet-frames))_infinite] motion-reduce:[animation:none]"
           style={
             {
               '--pet-sprite-url': `url("${status.spriteUrl}")`,

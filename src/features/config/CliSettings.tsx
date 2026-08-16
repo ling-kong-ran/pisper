@@ -5,6 +5,10 @@ import { SettingsBadge as Badge, SettingsCard as Panel } from './settings-primit
 import type { Notify } from '@/app/route-context'
 import type { DesktopCliStatus } from '@/types/update'
 
+import { Button } from '@/components/ui/button'
+
+import { AppError, AppNotice } from '@/components/ui/app-primitives'
+
 export function CliSettings({ notify }: { notify: Notify }) {
   const { t } = useI18n()
   const bridge = window.pisperDesktop
@@ -73,9 +77,9 @@ export function CliSettings({ notify }: { notify: Notify }) {
             : t('config:cliSettings.notInstalled')
 
   return (
-    <Panel className="language-settings-card cli-settings-card">
-      <div className="language-settings-heading cli-settings-heading">
-        <span className="language-settings-icon">
+    <Panel className="[padding:18px] cli-settings-card">
+      <div className="language-settings-heading flex items-start gap-[11px] [&_h2]:text-[16px] [&_p]:mt-[4px] [&_p]:text-[var(--text-muted)] [&_p]:text-[13px] [&_p]:leading-[1.55] cli-settings-heading !grid grid-cols-[auto_minmax(0,1fr)_auto]">
+        <span className="grid w-[38px] h-[38px] [flex:0_0_auto] place-items-center rounded-[11px] bg-[var(--star-soft)] text-[var(--star-strong)]">
           <Terminal size={19} />
         </span>
         <div>
@@ -96,7 +100,7 @@ export function CliSettings({ notify }: { notify: Notify }) {
       </div>
 
       {status && (
-        <div className="permission-note language-settings-note cli-settings-status">
+        <AppNotice className="[margin-top:15px] cli-settings-status [&_small]:[overflow-wrap:anywhere]">
           {status.installed && !status.needsRepair ? (
             <CheckCircle2 size={16} />
           ) : (
@@ -117,37 +121,39 @@ export function CliSettings({ notify }: { notify: Notify }) {
               </small>
             )}
           </span>
-        </div>
+        </AppNotice>
       )}
 
-      {error && <div className="config-error">{error}</div>}
+      {error && <AppError>{error}</AppError>}
 
       {supported && (
-        <div className="button-row cli-settings-actions">
+        <div className="mt-3.5 flex justify-end gap-2 max-[650px]:flex-wrap">
           {status?.installed && (
-            <button
+            <Button
               type="button"
-              className="button secondary"
+              variant="outline"
+              size="lg"
+              className="bg-surface-subtle"
               disabled={Boolean(busy)}
               onClick={() => void uninstall()}
             >
               {busy === 'uninstall' ? (
-                <RefreshCw className="spin" size={14} />
+                <RefreshCw className="animate-spin" size={14} />
               ) : (
                 <Trash2 size={14} />
               )}
               {t('config:cliSettings.uninstall')}
-            </button>
+            </Button>
           )}
           {(!status?.installed || status.needsRepair) && (
-            <button
+            <Button
               type="button"
-              className="button primary"
+              size="lg"
               disabled={Boolean(busy) || loading || status?.supported === false}
               onClick={() => void install()}
             >
               {busy === 'install' ? (
-                <RefreshCw className="spin" size={14} />
+                <RefreshCw className="animate-spin" size={14} />
               ) : status?.needsRepair ? (
                 <Wrench size={14} />
               ) : (
@@ -156,12 +162,12 @@ export function CliSettings({ notify }: { notify: Notify }) {
               {status?.needsRepair
                 ? t('config:cliSettings.repair')
                 : t('config:cliSettings.install')}
-            </button>
+            </Button>
           )}
         </div>
       )}
       {supported && (
-        <small className="language-settings-storage">
+        <small className="block [margin:9px_1px_0] text-[var(--text-muted)] text-[12px]">
           {t('config:cliSettings.restartTerminal')}
         </small>
       )}

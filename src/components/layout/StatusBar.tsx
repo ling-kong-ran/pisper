@@ -106,12 +106,12 @@ export function StatusBar({ page, pluginStats }: StatusBarProps) {
     : t('navigation:statusBar.calculatingTodaySTokenUsage')
 
   return (
-    <footer className="status-bar">
-      <span className="status-model">
+    <footer className="status-bar [&_em]:text-[var(--star-strong)] [&_em]:font-[ui-monospace,_SFMono-Regular,_Consolas,_'Liberation_Mono',_monospace] [&_em]:[font-style:normal] [&_em]:font-[700] [&_em::before]:[content:'✦'] [&_em::before]:mr-[4px] [&_em::before]:text-[var(--star)] [&_em::before]:text-[9px] [&_em.amber]:text-[var(--text-muted)] [&_em.amber]:font-[inherit] [&_em.amber::before]:[content:none] max-[900px]:hidden flex h-[28px] flex-none items-center justify-between gap-[12px] [border-top:1px_solid_var(--stroke)] bg-[var(--sidebar-bg)] [padding:0_14px] text-[var(--text-muted)] text-[11px]">
+      <span className="status-model [.status-bar_&]:flex [.status-bar_&]:min-w-0 [.status-bar_&]:items-center [.status-bar_&]:gap-[6px] [.status-bar_&]:overflow-hidden [.status-bar_&]:text-ellipsis [.status-bar_&]:whitespace-nowrap">
         <Bot size={12} />
         {modelLabel || t('navigation:statusBar.noModelConfigured')}
       </span>
-      <span className="status-usage">
+      <span className="status-usage [.status-bar_&]:flex [.status-bar_&]:flex-none [.status-bar_&]:items-center [.status-bar_&]:gap-[6px]">
         {['skills', 'mcp', 'workflows', 'workflowCreate'].includes(page) ? (
           <>
             {t('navigation:statusBar.nativeRuntime')} <em>{t('navigation:statusBar.connected')}</em>

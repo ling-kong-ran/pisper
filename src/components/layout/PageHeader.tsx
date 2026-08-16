@@ -17,6 +17,9 @@ import {
 import { useI18n } from '@/app/use-i18n'
 import type { ThemeMode } from '@/stores/ui-store'
 import { SidebarTrigger } from '@/components/ui/sidebar'
+import { cn } from '@/lib/utils'
+
+import { Button } from '@/components/ui/button'
 
 const THEME_META: Record<ThemeMode, LucideIcon> = {
   system: Clock,
@@ -90,33 +93,55 @@ export function PageHeader({
 
   return (
     <header
-      className={`page-header ${desktop ? '[-webkit-app-region:drag]' : ''} ${desktopPlatform === 'darwin' ? 'pl-[74px]' : ''}`}
+      className={cn(
+        'relative z-[2] flex min-h-14 flex-none items-center gap-3.5 px-6 pt-[9px] pb-[7px] in-data-[density=compact]:min-h-[50px] in-data-[density=compact]:pt-1.5 in-data-[density=compact]:pb-[5px] max-[650px]:min-h-[126px] max-[650px]:flex-wrap max-[650px]:content-center max-[650px]:gap-2.5 max-[650px]:px-4 max-[650px]:py-2.5',
+        page === 'chat' &&
+          'min-h-[52px] px-5 pt-2 pb-1.5 in-data-[density=compact]:min-h-[46px] max-[650px]:min-h-[126px] max-[650px]:px-4 max-[650px]:pt-3.5 max-[650px]:pb-2.5',
+        desktop && '[-webkit-app-region:drag]',
+        desktopPlatform === 'darwin' && 'pl-[74px]',
+      )}
     >
       <SidebarTrigger
-        className={`mobile-menu ${desktop ? '[-webkit-app-region:no-drag]' : ''}`}
+        className={cn(
+          'hidden size-[34px] place-items-center rounded-[var(--r-sm)] border border-[var(--stroke)] bg-[var(--solid)] max-[900px]:grid',
+          desktop && '[-webkit-app-region:no-drag]',
+        )}
         onClick={onMenu}
       >
         <Menu size={19} />
       </SidebarTrigger>
-      <div className="title-block">
-        <h1>{meta[0]}</h1>
-        <p>{meta[1]}</p>
+      <div className="mr-auto flex min-w-[170px] items-baseline gap-2.5 max-[650px]:block max-[650px]:min-w-0 max-[650px]:flex-1">
+        <h1 className="text-base leading-[1.15] font-bold tracking-[0] max-[650px]:text-[21px]">
+          {meta[0]}
+        </h1>
+        <p className="mt-0 min-w-0 overflow-hidden text-[12px] text-ellipsis whitespace-nowrap text-[var(--text-muted)] max-[650px]:mt-[3px] max-[650px]:whitespace-normal">
+          {meta[1]}
+        </p>
       </div>
       <div
-        className={`header-actions ${desktop ? '[-webkit-app-region:no-drag]' : ''} ${desktopPlatform && desktopPlatform !== 'darwin' ? 'pr-[138px]' : ''}`}
+        className={cn(
+          'flex min-w-0 items-center justify-end gap-2 max-[650px]:grid max-[650px]:w-full max-[650px]:grid-cols-[minmax(0,1fr)_auto] max-[650px]:justify-stretch',
+          page === 'workflowCreate' &&
+            'max-[650px]:grid-cols-[repeat(3,auto)] max-[650px]:justify-end',
+          desktop && '[-webkit-app-region:no-drag]',
+          desktopPlatform && desktopPlatform !== 'darwin' && 'pr-[138px]',
+        )}
       >
         {page === 'workflowCreate' ? (
           <>
-            <button
-              className="button secondary"
+            <Button
+              variant="outline"
+              size="lg"
+              className="bg-surface-subtle max-[650px]:col-auto max-[650px]:row-start-1"
               disabled={!workflowActions || workflowActions.busy || workflowActions.running}
               onClick={() => workflowActions?.save()}
             >
               <Save size={15} />
               {t('navigation:pageHeader.saveDraft')}
-            </button>
-            <button
-              className="button dark"
+            </Button>
+            <Button
+              size="lg"
+              className="max-[650px]:col-auto max-[650px]:row-start-1"
               disabled={!workflowActions || workflowActions.busy}
               onClick={() => workflowActions?.run()}
             >
@@ -124,12 +149,16 @@ export function PageHeader({
               {workflowActions?.running
                 ? t('navigation:pageHeader.stop')
                 : t('navigation:pageHeader.testRun')}
-            </button>
+            </Button>
           </>
         ) : page === 'chat' ? null : (
-          <label className="search-box" title={t('navigation:pageHeader.search')}>
+          <label
+            className="flex h-[34px] w-[min(250px,24vw)] items-center gap-[7px] rounded-[var(--r-sm)] border border-[var(--stroke)] bg-[var(--search-bg)] px-2.5 text-[var(--text-muted)] focus-within:border-[var(--focus)] focus-within:shadow-[0_0_0_3px_var(--focus-ring)] in-data-[density=compact]:h-[30px] max-[900px]:w-[190px] max-[650px]:col-start-1 max-[650px]:row-start-1 max-[650px]:w-full max-[650px]:min-w-0"
+            title={t('navigation:pageHeader.search')}
+          >
             <Search size={15} />
             <input
+              className="w-full min-w-0 border-0 bg-transparent text-[13px] text-[var(--text)] outline-none"
               ref={searchInputRef}
               value={query}
               onChange={(event) => setQuery(event.target.value)}
@@ -144,8 +173,9 @@ export function PageHeader({
           </label>
         )}
         {primary && (
-          <button
-            className="button primary"
+          <Button
+            size="lg"
+            className="max-[650px]:col-start-2 max-[650px]:row-start-1"
             title={t('navigation:pageHeader.primaryActionShortcut', { action: primary[0] })}
             onClick={onPrimary}
           >
@@ -154,21 +184,25 @@ export function PageHeader({
               return <PrimaryIcon size={15} />
             })()}
             {primary[0]}
-          </button>
+          </Button>
         )}
         {desktop && (
-          <button
-            className={`icon-button terminal-toggle ${terminalOpen ? 'active' : ''}`}
+          <Button
+            variant="ghost"
+            size="icon"
+            className={terminalOpen ? 'bg-surface-hover text-brand' : undefined}
             title={t('navigation:pageHeader.toggleTerminal')}
             aria-label={t('navigation:pageHeader.toggleTerminal')}
             aria-pressed={terminalOpen}
             onClick={onToggleTerminal}
           >
             <TerminalSquare size={16} />
-          </button>
+          </Button>
         )}
-        <button
-          className="icon-button theme-toggle"
+        <Button
+          variant="outline"
+          size="icon"
+          className="bg-[var(--solid)] max-[650px]:absolute max-[650px]:top-3.5 max-[650px]:right-4"
           title={t('navigation:pageHeader.themeThemeClickToSwitch', { theme: themeLabel })}
           aria-label={t('navigation:pageHeader.themeThemeClickToSwitchThemes', {
             theme: themeLabel,
@@ -176,7 +210,7 @@ export function PageHeader({
           onClick={onCycleTheme}
         >
           <ThemeIcon size={16} />
-        </button>
+        </Button>
       </div>
     </header>
   )

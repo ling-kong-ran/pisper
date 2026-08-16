@@ -28,10 +28,11 @@ test('business UI no longer depends on the legacy primitive barrel', async () =>
 })
 
 test('app primitives compose shadcn controls and share project Tailwind tokens', async () => {
-  const [primitives, settings, styles] = await Promise.all([
+  const [primitives, settings, styles, schedules] = await Promise.all([
     readFile('src/components/ui/app-primitives.tsx', 'utf8'),
     readFile('src/features/config/settings-primitives.tsx', 'utf8'),
     readFile('src/index.css', 'utf8'),
+    readFile('src/features/schedules/SchedulesPage.tsx', 'utf8'),
   ])
 
   for (const primitive of ['badge', 'card', 'switch', 'tabs']) {
@@ -43,32 +44,39 @@ test('app primitives compose shadcn controls and share project Tailwind tokens',
   assert.match(styles, /--ring: var\(--focus\)/)
   assert.match(styles, /--shadow-surface: var\(--sh-surface\)/)
   assert.match(
-    styles,
-    /\.split-list-detail\.schedule-layout \{ grid-template-columns: 1fr; overflow-x: visible; \}/,
+    schedules,
+    /split-list-detail[^"\n]*max-\[650px\]:\[\.split-list-detail&\]:grid-cols-\[1fr\]/,
   )
+  assert.match(schedules, /max-\[650px\]:\[\.split-list-detail&\]:\[overflow-x:visible\]/)
   assert.doesNotMatch(styles, /\.panel(?:\W|$)/)
   assert.doesNotMatch(styles, /\.toast(?:\W|$)/)
 })
 
 test('desktop shell fills the WebView through the root percentage height chain', async () => {
-  const styles = await readFile('src/index.css', 'utf8')
-
-  const appShellRule = styles.match(/\.app-shell \{([^}]*)\}/)?.[1] || ''
+  const [styles, app] = await Promise.all([
+    readFile('src/index.css', 'utf8'),
+    readFile('src/App.tsx', 'utf8'),
+  ])
   assert.match(styles, /html, body, #root \{[^}]*height: 100%;/)
-  assert.match(appShellRule, /(?:^|;)\s*height: 100%;/)
-  assert.doesNotMatch(appShellRule, /(?:^|;)\s*height: 100dvh;/)
+  assert.match(app, /app-shell[^"\n]*h-full/)
+  assert.doesNotMatch(app, /app-shell\s+h-\[100dvh\]/)
 })
 
 test('modal surfaces stay scrollable within low-height viewports', async () => {
-  const [styles, dialog, alertDialog] = await Promise.all([
+  const [styles, dialog, alertDialog, overlays, assets] = await Promise.all([
     readFile('src/index.css', 'utf8'),
     readFile('src/components/ui/dialog.tsx', 'utf8'),
     readFile('src/components/ui/alert-dialog.tsx', 'utf8'),
+    readFile('src/components/layout/AppOverlays.tsx', 'utf8'),
+    readFile('src/features/assets/AssetsPage.tsx', 'utf8'),
   ])
 
-  assert.match(styles, /\.modal-backdrop \{[^}]*overflow-y: auto;/)
-  assert.match(styles, /\.modal \{[^}]*max-height: calc\(100dvh - 40px\);[^}]*overflow-y: auto;/)
-  assert.match(styles, /\.modal \{ max-height: calc\(100dvh - 16px\); \}/)
+  assert.match(assets, /modal-backdrop[^"\n]*overflow-y-auto/)
+  assert.match(
+    overlays,
+    /className="modal[^"\n]*max-h-\[calc\(100dvh_-_40px\)\][^"\n]*overflow-y-auto/,
+  )
+  assert.match(overlays, /max-\[650px\]:max-h-\[calc\(100dvh_-_16px\)\]/)
   assert.doesNotMatch(styles, /\.directory-browser/)
   assert.match(dialog, /max-h-\[calc\(100dvh-2rem\)\].*overflow-y-auto.*overscroll-contain/)
   assert.match(alertDialog, /max-h-\[calc\(100dvh-2rem\)\].*overflow-y-auto.*overscroll-contain/)

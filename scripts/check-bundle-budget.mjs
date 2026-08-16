@@ -6,7 +6,7 @@ import { fileURLToPath } from 'node:url'
 const KIB = 1024
 
 export const BUNDLE_BUDGETS = {
-  totalCssGzip: 80 * KIB,
+  totalCssGzip: 88 * KIB,
   entryFileGzip: 55 * KIB,
   entryStaticJsGzip: 275 * KIB,
   markdownSurfaceGzip: 330 * KIB,

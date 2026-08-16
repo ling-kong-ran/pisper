@@ -90,13 +90,20 @@ function FieldContent({ className, ...props }: React.ComponentProps<'div'>) {
   )
 }
 
-function FieldLabel({ className, ...props }: React.ComponentProps<typeof Label>) {
+function FieldLabel({
+  className,
+  variant = 'default',
+  ...props
+}: React.ComponentProps<typeof Label> & { variant?: 'default' | 'control' }) {
   return (
     <Label
       data-slot="field-label"
+      data-variant={variant}
       className={cn(
-        'group/field-label peer/field-label flex w-fit gap-2 leading-snug group-data-[disabled=true]/field:opacity-50 has-data-checked:border-primary/30 has-data-checked:bg-primary/5 has-[>[data-slot=field]]:rounded-lg has-[>[data-slot=field]]:border *:data-[slot=field]:p-2.5 dark:has-data-checked:border-primary/20 dark:has-data-checked:bg-primary/10',
-        'has-[>[data-slot=field]]:w-full has-[>[data-slot=field]]:flex-col',
+        variant === 'default' &&
+          'group/field-label peer/field-label flex w-fit gap-2 leading-snug group-data-[disabled=true]/field:opacity-50 has-data-checked:border-primary/30 has-data-checked:bg-primary/5 has-[>[data-slot=field]]:rounded-lg has-[>[data-slot=field]]:border *:data-[slot=field]:p-2.5 dark:has-data-checked:border-primary/20 dark:has-data-checked:bg-primary/10 has-[>[data-slot=field]]:w-full has-[>[data-slot=field]]:flex-col',
+        variant === 'control' &&
+          'mt-2.5 flex w-full min-w-0 flex-col items-stretch gap-[5px] text-[12px] font-semibold text-[var(--text-secondary)] [&_input]:h-[31px] [&_input]:w-full [&_input]:rounded-[var(--r-xs)] [&_input]:border [&_input]:border-[var(--stroke)] [&_input]:bg-[var(--surface-subtle)] [&_input]:px-[9px] [&_input]:text-[12px] [&_input]:font-normal [&_input]:text-[var(--text)] [&_textarea]:min-h-[66px] [&_textarea]:w-full [&_textarea]:resize-y [&_textarea]:rounded-[var(--r-xs)] [&_textarea]:border [&_textarea]:border-[var(--stroke)] [&_textarea]:bg-[var(--surface-subtle)] [&_textarea]:px-[9px] [&_textarea]:py-2 [&_textarea]:text-[12px] [&_textarea]:leading-[1.45] [&_textarea]:font-normal [&_textarea]:text-[var(--text)] dark:[&_input]:bg-[var(--solid)] dark:[&_textarea]:bg-[var(--solid)]',
         className,
       )}
       {...props}

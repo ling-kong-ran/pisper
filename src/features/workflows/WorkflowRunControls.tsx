@@ -7,6 +7,8 @@ import { cn } from '@/lib/utils'
 import type { Workflow, WorkflowRun } from './types'
 import type { WorkflowTranslate } from './workflow-templates'
 
+import { AppNotice } from '@/components/ui/app-primitives'
+
 function workflowRunProgress(run?: WorkflowRun) {
   if (!run) return 0
   if (run.status === 'completed') return 100
@@ -47,14 +49,14 @@ export function WorkflowRunActions({
         value={progress}
         aria-label={`${workflow.name}: ${progress}%`}
         className={cn(
-          'workflow-run-progress',
+          'workflow-run-progress max-[650px]:[.workflows-page_&]:[grid-column:1] h-[5px] bg-[var(--progress-track)]',
           run?.status === 'completed' &&
             '[&_[data-slot=progress-indicator]]:bg-[var(--status-green)]',
           run?.status === 'failed' && '[&_[data-slot=progress-indicator]]:bg-[var(--amber)]',
         )}
       />
       <em>{progress}%</em>
-      <div className="workflow-run-actions">
+      <div className="workflow-run-actions max-[650px]:[.workflows-page_&]:[grid-column:1/-1] max-[650px]:[.workflows-page_&]:flex-wrap flex items-center gap-[3px]">
         {running ? (
           <Button
             size="xs"
@@ -96,8 +98,8 @@ export function WorkflowRunActions({
 
 export function WorkflowRunningNotice({ run, t }: { run: WorkflowRun; t: WorkflowTranslate }) {
   return (
-    <div className="permission-note" role="status">
-      <RefreshCw className="spin" size={16} />
+    <AppNotice role="status">
+      <RefreshCw className="animate-spin" size={16} />
       <span>
         <strong>{t('workflows:workflowsPage.workflowRunning')}</strong>
         <small>
@@ -108,7 +110,7 @@ export function WorkflowRunningNotice({ run, t }: { run: WorkflowRun; t: Workflo
           })}
         </small>
       </span>
-    </div>
+    </AppNotice>
   )
 }
 
@@ -122,15 +124,20 @@ export function WorkflowLatestRun({
   t: WorkflowTranslate
 }) {
   return (
-    <Card size="sm" className="workflow-card gap-0 py-0">
+    <Card
+      size="sm"
+      className="workflow-card [&_h2]:text-[16px] [&_h2]:tracking-[-.02em] [.detail-stack_>_&]:[flex:0_0_auto] [border:1px_solid_var(--stroke)] rounded-[var(--r-xs)] bg-[var(--panel)] text-[var(--text)] shadow-[0_1px_2px_var(--sh-edge),0_14px_32px_-24px_var(--shadow)] gap-0 py-0"
+    >
       <CardContent className="p-3.5">
-        <CardTitle className="workflow-section-title">
+        <CardTitle className="workflow-section-title [.selection-list_&]:mb-[8px] [.node-library_&]:mb-[8px] text-[var(--text-soft)] text-[13px] font-[700] leading-[1.4]">
           {t('workflows:workflowsPage.latestRun')}
         </CardTitle>
         {run ? (
-          <div className={`activity-row ${run.status}`}>
+          <div
+            className={`activity-row [&_span]:flex [&_span]:min-w-0 [&_span]:flex-col [&_span]:gap-[3px] [&_strong]:text-[13px] [&_small]:text-[var(--text-muted)] [&_small]:text-[13px] [&_span]:text-[var(--text)] [&.failed]:text-[var(--danger)] [&.running]:text-[var(--star-strong)] grid grid-cols-[auto_minmax(0,1fr)] items-center gap-[9px] [border-top:1px_solid_var(--stroke-soft)] [padding:9px_2px] text-[var(--success)] ${run.status}`}
+          >
             {run.status === 'running' ? (
-              <RefreshCw className="spin" size={15} />
+              <RefreshCw className="animate-spin" size={15} />
             ) : run.status === 'completed' ? (
               <CheckCircle2 size={15} />
             ) : (
@@ -150,7 +157,9 @@ export function WorkflowLatestRun({
             </span>
           </div>
         ) : (
-          <p className="muted-copy">{t('workflows:workflowsPage.noRunHistory')}</p>
+          <p className="muted-copy m-[8px_0_14px] text-[var(--text-muted)] text-[12px] leading-[1.55]">
+            {t('workflows:workflowsPage.noRunHistory')}
+          </p>
         )}
       </CardContent>
     </Card>

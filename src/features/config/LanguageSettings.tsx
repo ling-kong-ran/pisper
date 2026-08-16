@@ -6,6 +6,8 @@ import type { LucideIcon } from 'lucide-react'
 import type { SupportedLanguage } from '@/app/i18n'
 import type { Notify } from '@/app/route-context'
 
+import { AppNotice } from '@/components/ui/app-primitives'
+
 function languageName(language: SupportedLanguage, t: ReturnType<typeof useI18n>['t']) {
   return language === 'en-US'
     ? t('config:languageSettings.english')
@@ -59,10 +61,10 @@ export function LanguageSettings({ notify }: { notify: Notify }) {
   ]
 
   return (
-    <div className="language-settings">
-      <Panel className="language-settings-card">
-        <div className="language-settings-heading">
-          <span className="language-settings-icon">
+    <div className="flex w-[min(100%,_760px)] flex-col gap-[12px]">
+      <Panel className="[padding:18px]">
+        <div className="language-settings-heading flex items-start gap-[11px] [&_h2]:text-[16px] [&_p]:mt-[4px] [&_p]:text-[var(--text-muted)] [&_p]:text-[13px] [&_p]:leading-[1.55]">
+          <span className="grid w-[38px] h-[38px] [flex:0_0_auto] place-items-center rounded-[11px] bg-[var(--star-soft)] text-[var(--star-strong)]">
             <Languages size={19} />
           </span>
           <div>
@@ -75,7 +77,7 @@ export function LanguageSettings({ notify }: { notify: Notify }) {
           </div>
         </div>
         <div
-          className="language-choice-grid"
+          className="language-choice-grid max-[650px]:grid-cols-[1fr] grid grid-cols-[repeat(2,_minmax(0,_1fr))] gap-[9px] [margin-top:18px]"
           role="radiogroup"
           aria-label={t('config:languageSettings.displayLanguage')}
         >
@@ -84,18 +86,18 @@ export function LanguageSettings({ notify }: { notify: Notify }) {
             return (
               <button
                 type="button"
-                className={`language-choice ${selected ? 'selected' : ''}`}
+                className={`language-choice hover:border-[var(--star)] hover:bg-[var(--accent-soft)] hover:[transform:translateY(-1px)] [&.selected]:border-[var(--star)] [&.selected]:bg-[var(--star-soft)] [&.selected]:shadow-[0_0_0_3px_var(--accent-ring)] grid min-h-[80px] grid-cols-[auto_minmax(0,_1fr)_auto] items-center gap-[10px] [border:1px_solid_var(--stroke)] rounded-[var(--r-sm)] bg-[var(--surface-subtle)] [padding:11px] text-[var(--text)] text-left [transition:border-color_var(--d1)_var(--ease-out),_background_var(--d1)_var(--ease-out),_box-shadow_var(--d1)_var(--ease-out),_transform_var(--d1)_var(--ease-out)] ${selected ? 'selected' : ''}`}
                 role="radio"
                 aria-checked={selected}
                 onClick={() => selectLanguage(option.value)}
                 key={option.value}
               >
                 <span
-                  className={`language-choice-mark ${option.value === 'en-US' ? 'english' : ''}`}
+                  className={`language-choice-mark grid w-[34px] h-[34px] place-items-center rounded-[9px] bg-[var(--solid)] text-[var(--star-strong)] text-[12px] font-[800] tracking-[.03em] ${option.value === 'en-US' ? 'english [.language-choice-mark&]:bg-[var(--brand-blue-soft)] [.language-choice-mark&]:text-[var(--brand-blue-strong)]' : ''}`}
                 >
                   {option.shortName}
                 </span>
-                <span className="language-choice-copy">
+                <span className="language-choice-copy [&_strong]:text-[13px] [&_small]:text-[var(--text-muted)] [&_small]:text-[12px] flex min-w-0 flex-col gap-[3px]">
                   <strong>{languageName(option.value, t)}</strong>
                   <small>
                     {option.value === 'zh-CN'
@@ -104,7 +106,7 @@ export function LanguageSettings({ notify }: { notify: Notify }) {
                   </small>
                 </span>
                 {selected && (
-                  <span className="language-choice-check">
+                  <span className="grid w-[21px] h-[21px] place-items-center rounded-[50%] bg-[var(--star)] text-[var(--on-accent)]">
                     <Check size={15} />
                   </span>
                 )}
@@ -112,7 +114,7 @@ export function LanguageSettings({ notify }: { notify: Notify }) {
             )
           })}
         </div>
-        <div className="permission-note language-settings-note">
+        <AppNotice className="[margin-top:15px]">
           <Languages size={16} />
           <span>
             <strong>
@@ -124,14 +126,14 @@ export function LanguageSettings({ notify }: { notify: Notify }) {
               )}
             </small>
           </span>
-        </div>
-        <small className="language-settings-storage">
+        </AppNotice>
+        <small className="block [margin:9px_1px_0] text-[var(--text-muted)] text-[12px]">
           {t('config:languageSettings.languagePreferenceIsStoredInThisBrowser')}
         </small>
       </Panel>
-      <Panel className="language-settings-card density-settings-card">
-        <div className="language-settings-heading">
-          <span className="language-settings-icon">
+      <Panel className="[padding:18px] density-settings-card">
+        <div className="language-settings-heading flex items-start gap-[11px] [&_h2]:text-[16px] [&_p]:mt-[4px] [&_p]:text-[var(--text-muted)] [&_p]:text-[13px] [&_p]:leading-[1.55]">
+          <span className="grid w-[38px] h-[38px] [flex:0_0_auto] place-items-center rounded-[11px] bg-[var(--star-soft)] text-[var(--star-strong)]">
             <FoldVertical size={19} />
           </span>
           <div>
@@ -144,7 +146,7 @@ export function LanguageSettings({ notify }: { notify: Notify }) {
           </div>
         </div>
         <div
-          className="language-choice-grid"
+          className="language-choice-grid max-[650px]:grid-cols-[1fr] grid grid-cols-[repeat(2,_minmax(0,_1fr))] gap-[9px] [margin-top:18px]"
           role="radiogroup"
           aria-label={t('config:languageSettings.interfaceDensity')}
         >
@@ -153,21 +155,21 @@ export function LanguageSettings({ notify }: { notify: Notify }) {
             return (
               <button
                 type="button"
-                className={`language-choice ${selected ? 'selected' : ''}`}
+                className={`language-choice hover:border-[var(--star)] hover:bg-[var(--accent-soft)] hover:[transform:translateY(-1px)] [&.selected]:border-[var(--star)] [&.selected]:bg-[var(--star-soft)] [&.selected]:shadow-[0_0_0_3px_var(--accent-ring)] grid min-h-[80px] grid-cols-[auto_minmax(0,_1fr)_auto] items-center gap-[10px] [border:1px_solid_var(--stroke)] rounded-[var(--r-sm)] bg-[var(--surface-subtle)] [padding:11px] text-[var(--text)] text-left [transition:border-color_var(--d1)_var(--ease-out),_background_var(--d1)_var(--ease-out),_box-shadow_var(--d1)_var(--ease-out),_transform_var(--d1)_var(--ease-out)] ${selected ? 'selected' : ''}`}
                 role="radio"
                 aria-checked={selected}
                 onClick={() => selectDensity(value)}
                 key={value}
               >
-                <span className="language-choice-mark">
+                <span className="language-choice-mark grid w-[34px] h-[34px] place-items-center rounded-[9px] bg-[var(--solid)] text-[var(--star-strong)] text-[12px] font-[800] tracking-[.03em]">
                   <Icon size={16} />
                 </span>
-                <span className="language-choice-copy">
+                <span className="language-choice-copy [&_strong]:text-[13px] [&_small]:text-[var(--text-muted)] [&_small]:text-[12px] flex min-w-0 flex-col gap-[3px]">
                   <strong>{label}</strong>
                   <small>{description}</small>
                 </span>
                 {selected && (
-                  <span className="language-choice-check">
+                  <span className="grid w-[21px] h-[21px] place-items-center rounded-[50%] bg-[var(--star)] text-[var(--on-accent)]">
                     <Check size={15} />
                   </span>
                 )}
@@ -175,7 +177,7 @@ export function LanguageSettings({ notify }: { notify: Notify }) {
             )
           })}
         </div>
-        <div className="permission-note language-settings-note">
+        <AppNotice className="[margin-top:15px]">
           <FoldVertical size={16} />
           <span>
             <strong>
@@ -188,7 +190,7 @@ export function LanguageSettings({ notify }: { notify: Notify }) {
               {t('config:languageSettings.thisSettingOnlyAffectsTheInterfaceInThisBrowser')}
             </small>
           </span>
-        </div>
+        </AppNotice>
       </Panel>
     </div>
   )

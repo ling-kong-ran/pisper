@@ -21,6 +21,8 @@ import {
   AppSwitch as Toggle,
   SegmentedTabs as Segmented,
   StatusBadge as Badge,
+  AppError,
+  AppEmptyState,
 } from '@/components/ui/app-primitives'
 import {
   AlertDialog,
@@ -52,6 +54,8 @@ import type {
   PluginsData,
   WebSearchSettings,
 } from '@/features/plugins/plugin-types'
+
+import { Button } from '@/components/ui/button'
 
 type PluginsPageProps = {
   query?: string
@@ -147,7 +151,7 @@ function WebSearchEditor({
 }) {
   const { t } = useI18n()
   return (
-    <div className="plugin-tool-config">
+    <div className="plugin-tool-config [&_label]:grid [&_label]:gap-[5px] [&_label]:text-[var(--text-muted)] [&_label]:text-[11px] [&_label]:font-[600] [&_select]:w-full [&_select]:h-[34px] [&_select]:[border:1px_solid_var(--stroke)] [&_select]:rounded-[var(--r-xs)] [&_select]:bg-[var(--solid)] [&_select]:p-[0_8px] [&_select]:text-[var(--text)] [&_select]:text-[12px] [&_input]:w-full [&_input]:h-[34px] [&_input]:[border:1px_solid_var(--stroke)] [&_input]:rounded-[var(--r-xs)] [&_input]:bg-[var(--solid)] [&_input]:p-[0_8px] [&_input]:text-[var(--text)] [&_input]:text-[12px] grid gap-[9px] [border-top:1px_solid_var(--stroke)] [padding-top:10px]">
       <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
         <label>
           {t('plugins:pluginsPage.defaultLanguage')}
@@ -182,10 +186,17 @@ function WebSearchEditor({
           />
         </label>
       </div>
-      <button type="button" className="button secondary" disabled={testing} onClick={onTest}>
-        {testing ? <RefreshCw className="spin" size={14} /> : <Globe2 size={14} />}
+      <Button
+        type="button"
+        variant="outline"
+        size="lg"
+        className="justify-self-end bg-surface-subtle"
+        disabled={testing}
+        onClick={onTest}
+      >
+        {testing ? <RefreshCw className="animate-spin" size={14} /> : <Globe2 size={14} />}
         {testing ? t('plugins:pluginsPage.testing') : t('plugins:pluginsPage.testConnection')}
-      </button>
+      </Button>
     </div>
   )
 }
@@ -360,16 +371,16 @@ export function PluginsPage({
 
   if (!data) {
     return (
-      <div className="empty-state">
-        <RefreshCw className="spin" size={24} />
+      <AppEmptyState>
+        <RefreshCw className="animate-spin" size={24} />
         <h2>{t('plugins:pluginsPage.loadingToolPlugins')}</h2>
         {error && (
-          <div className="config-error">
+          <AppError>
             <AlertTriangle size={13} />
             {error}
-          </div>
+          </AppError>
         )}
-      </div>
+      </AppEmptyState>
     )
   }
 
@@ -389,8 +400,8 @@ export function PluginsPage({
   })
 
   return (
-    <div className="plugins-page plugin-catalog-page">
-      <div className="plugin-toolbar">
+    <div className="plugins-page flex min-h-[100%] flex-col gap-[12px] max-[900px]:h-auto h-full min-h-0 overflow-y-auto [scrollbar-gutter:stable]">
+      <div className="plugin-toolbar max-[650px]:items-stretch max-[650px]:flex-col flex items-center justify-between gap-[12px]">
         <Segmented
           options={SOURCE_FILTERS.map((source) => sourceLabel(source, t))}
           value={sourceLabel(sourceFilter, t)}
@@ -401,7 +412,7 @@ export function PluginsPage({
           }
         />
         <div className="flex flex-wrap items-center justify-end gap-2">
-          <div className="plugin-presets">
+          <div className="plugin-presets [&_>_span]:p-[0_6px] [&_>_span]:text-[var(--text-muted)] [&_>_span]:text-[13px] [&_button]:h-[27px] [&_button]:border-0 [&_button]:rounded-[var(--r-xs)] [&_button]:bg-transparent [&_button]:p-[0_9px] [&_button]:text-[var(--text-muted)] [&_button]:text-[12px] [&_button]:font-[600] [&_button:hover]:bg-[var(--accent-soft)] [&_button:hover]:text-[var(--star-strong)] [&_button.active]:bg-[var(--accent-soft)] [&_button.active]:text-[var(--star-strong)] max-[650px]:min-w-0 max-[650px]:overflow-x-auto flex items-center gap-[4px] [border:1px_solid_var(--stroke)] rounded-[var(--r-sm)] bg-[var(--solid)] [padding:3px]">
             <span>{t('plugins:pluginsPage.presets')}</span>
             {['read-only', 'workspace', 'full'].map((preset) => (
               <button
@@ -414,23 +425,25 @@ export function PluginsPage({
               </button>
             ))}
           </div>
-          <button
+          <Button
             type="button"
-            className="button secondary"
+            variant="outline"
+            size="lg"
+            className="bg-surface-subtle"
             onClick={() => requireSavedPluginState() && setInstallOpen(true)}
           >
             <PackagePlus size={15} />
             {t('plugins:pluginsPage.installPlugin')}
-          </button>
+          </Button>
         </div>
       </div>
 
-      <div className="plugin-catalog-heading">
+      <div className="plugin-catalog-heading [&_>_span]:flex [&_>_span]:items-center [&_>_span]:gap-[7px] [&_strong]:text-[13px] [&_small]:text-[var(--text-muted)] [&_small]:text-[12px] [&_small]:[font-variant-numeric:tabular-nums] max-[650px]:items-start flex items-center justify-between gap-[12px] [padding:2px]">
         <span>
           <strong>{t('plugins:pluginsPage.toolCatalog')}</strong>
           <small>{filtered.length}</small>
         </span>
-        <span className="plugin-catalog-summary">
+        <span className="plugin-catalog-summary text-[var(--text-muted)] text-[12px] [font-variant-numeric:tabular-nums] [&_>_i]:w-[7px] [&_>_i]:h-[7px] [&_>_i]:rounded-[50%] [&_>_i]:bg-[var(--status-green)] max-[650px]:flex-wrap max-[650px]:justify-end">
           <i />
           {entries.filter((tool) => tool.enabled).length}/{entries.length}{' '}
           {t('plugins:pluginsPage.enabled2')}
@@ -439,30 +452,34 @@ export function PluginsPage({
       </div>
 
       {filtered.length ? (
-        <div className="plugin-tool-grid">
+        <div className="plugin-tool-grid max-[650px]:grid-cols-[minmax(0,1fr)] grid grid-cols-[repeat(auto-fill,minmax(310px,1fr))] [align-items:start] gap-[10px] [padding-bottom:4px]">
           {filtered.map((tool) => {
             const open = expandedName === tool.name
             const Icon = TOOL_ICONS[tool.name] || Plug
             return (
-              <article className="plugin-tool-card" data-open={open || undefined} key={tool.name}>
-                <div className="plugin-tool-card-head">
+              <article
+                className="plugin-tool-card [&[data-open]]:border-[var(--stroke-hover)] [&[data-open]]:shadow-[var(--sh-1)] min-w-0 overflow-hidden [border:1px_solid_var(--stroke)] rounded-[var(--r-sm)] bg-[var(--solid)]"
+                data-open={open || undefined}
+                key={tool.name}
+              >
+                <div className="plugin-tool-card-head hover:bg-[var(--surface-hover)] [.plugin-tool-card[data-open]_>_&]:bg-[var(--surface-hover)] max-[650px]:grid-cols-[minmax(0,1fr)_auto] max-[650px]:[padding-inline:8px] grid min-h-[56px] grid-cols-[minmax(0,1fr)_auto] items-center gap-[10px] [padding:7px_10px]">
                   <button
                     type="button"
-                    className="plugin-tool-disclosure"
+                    className="grid min-w-0 h-full grid-cols-[32px_minmax(0,1fr)] items-center gap-[9px] border-0 bg-transparent p-0 text-inherit text-left"
                     aria-expanded={open}
                     onClick={() =>
                       setExpandedName((current) => (current === tool.name ? '' : tool.name))
                     }
                   >
-                    <span className="plugin-tool-icon">
+                    <span className="grid w-[32px] h-[32px] place-items-center rounded-[var(--r-xs)] bg-[var(--surface-muted)] text-[var(--text-soft)]">
                       <Icon size={15} />
                     </span>
-                    <span className="plugin-tool-title">
+                    <span className="plugin-tool-title [&_strong]:overflow-hidden [&_strong]:text-ellipsis [&_strong]:whitespace-nowrap [&_small]:overflow-hidden [&_small]:text-ellipsis [&_small]:whitespace-nowrap [&_strong]:text-[13px] [&_small]:text-[var(--text-muted)] [&_small]:text-[11px] flex min-w-0 flex-col gap-[2px]">
                       <strong title={displayToolName(tool, t)}>{displayToolName(tool, t)}</strong>
                       <small>{displayPluginName(tool, t)}</small>
                     </span>
                   </button>
-                  <span className="plugin-tool-trailing">
+                  <span className="plugin-tool-trailing [&_>_i]:w-[7px] [&_>_i]:h-[7px] [&_>_i]:rounded-[50%] [&_>_i]:bg-[var(--status-muted)] [&_>_i[data-enabled]]:bg-[var(--status-green)] max-[650px]:gap-[5px] inline-flex items-center gap-[7px]">
                     <i data-enabled={tool.enabled || undefined} />
                     {!tool.pluginBuiltIn && (
                       <Badge tone="amber">{t('plugins:pluginsPage.local')}</Badge>
@@ -473,7 +490,7 @@ export function PluginsPage({
                     />
                     <button
                       type="button"
-                      className="plugin-tool-chevron"
+                      className="plugin-tool-chevron hover:bg-[var(--surface-muted)] hover:text-[var(--text)] [&_svg]:[transition:transform_var(--d1)_var(--ease-out)] [&[aria-expanded='true']_svg]:[transform:rotate(180deg)] grid w-[24px] h-[24px] place-items-center border-0 rounded-[var(--r-xs)] bg-transparent text-[var(--text-muted)]"
                       aria-label={t('plugins:pluginsPage.toggleToolDetails', {
                         name: displayToolName(tool, t),
                       })}
@@ -488,7 +505,7 @@ export function PluginsPage({
                 </div>
 
                 {open && (
-                  <div className="plugin-tool-details">
+                  <div className="plugin-tool-details [&_>_p]:m-0 [&_>_p]:text-[var(--text-soft)] [&_>_p]:text-[12px] [&_>_p]:leading-[1.55] [&_>_code]:[overflow-wrap:anywhere] [&_>_code]:text-[var(--text)] [&_>_code]:text-[11px] [&_dl]:grid [&_dl]:grid-cols-[78px_minmax(0,1fr)] [&_dl]:gap-[6px_10px] [&_dl]:m-0 [&_dl_div]:[display:contents] [&_dt]:text-[var(--text-muted)] [&_dt]:text-[11px] [&_dd]:min-w-0 [&_dd]:m-0 [&_dd]:[overflow-wrap:anywhere] [&_dd]:text-[var(--text-soft)] [&_dd]:text-[12px] max-[650px]:[&_dl]:grid-cols-[68px_minmax(0,1fr)] grid gap-[9px] [border-top:1px_solid_var(--stroke)] bg-[var(--surface-subtle)] [padding:11px_13px_13px]">
                     <p>{toolDescription({ id: tool.name, description: tool.description }, t)}</p>
                     <code>{tool.name}</code>
                     <dl>
@@ -501,7 +518,7 @@ export function PluginsPage({
                       </div>
                       <div>
                         <dt>{t('plugins:pluginsPage.riskLevel')}</dt>
-                        <dd className={isHighRisk(tool.risk) ? 'danger' : ''}>
+                        <dd className={isHighRisk(tool.risk) ? 'text-[var(--danger)]' : ''}>
                           {toolRiskLabel(tool.risk, t)}
                         </dd>
                       </div>
@@ -518,7 +535,7 @@ export function PluginsPage({
                     </dl>
 
                     {!tool.pluginBuiltIn && (
-                      <div className="plugin-tool-warning">
+                      <div className="plugin-tool-warning [&_svg]:flex-none [&_svg]:mt-[1px] flex items-start gap-[7px] rounded-[var(--r-xs)] bg-[var(--warning-soft)] [padding:8px] text-[var(--warning-strong)] text-[11px] leading-[1.5]">
                         <ShieldAlert size={14} />
                         <span>{t('plugins:pluginsPage.localPluginSecurityWarning')}</span>
                       </div>
@@ -534,14 +551,16 @@ export function PluginsPage({
                     )}
 
                     {!tool.pluginBuiltIn && (
-                      <button
+                      <Button
                         type="button"
-                        className="button danger plugin-tool-remove"
+                        variant="destructive"
+                        size="lg"
+                        className="[justify-self:end]"
                         onClick={() => requireSavedPluginState() && setRemoveTarget(tool)}
                       >
                         <Trash2 size={14} />
                         {t('plugins:pluginsPage.uninstallPlugin')}
-                      </button>
+                      </Button>
                     )}
                   </div>
                 )}
@@ -550,7 +569,9 @@ export function PluginsPage({
           })}
         </div>
       ) : (
-        <div className="plugin-empty">{t('plugins:pluginsPage.noMatchingTools')}</div>
+        <div className="plugin-empty [&.compact]:min-h-[90px] grid min-h-[180px] place-items-center text-[var(--text-muted)] text-[12px]">
+          {t('plugins:pluginsPage.noMatchingTools')}
+        </div>
       )}
 
       <PluginInstallDialog open={installOpen} onOpenChange={setInstallOpen} onInstalled={load} />
@@ -570,7 +591,7 @@ export function PluginsPage({
           <AlertDialogFooter>
             <AlertDialogCancel disabled={removing}>{t('common:ui.cancel')}</AlertDialogCancel>
             <AlertDialogAction variant="destructive" disabled={removing} onClick={uninstall}>
-              {removing && <LoaderCircle className="spin" size={14} />}
+              {removing && <LoaderCircle className="animate-spin" size={14} />}
               {t('plugins:pluginsPage.uninstallPlugin')}
             </AlertDialogAction>
           </AlertDialogFooter>
@@ -578,10 +599,10 @@ export function PluginsPage({
       </AlertDialog>
 
       {error && (
-        <div className="config-error floating-error">
+        <AppError className="fixed z-[21] [right:24px] [bottom:24px] max-w-[360px] shadow-[0_12px_28px_-18px_var(--floating-shadow)]">
           <AlertTriangle size={13} />
           {error}
-        </div>
+        </AppError>
       )}
     </div>
   )

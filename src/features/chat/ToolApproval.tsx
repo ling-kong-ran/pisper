@@ -5,6 +5,8 @@ import { Confirmation } from '@/components/ai-elements/confirmation'
 import type { EntityRecord } from '@/types/chat'
 import { GitDiffDialog } from './GitDiffViewer'
 
+import { Button } from '@/components/ui/button'
+
 export function ToolApproval({
   approvals,
   onResolve,
@@ -42,7 +44,7 @@ export function ToolApproval({
     <Confirmation
       approval={{ id: approval.id }}
       state="approval-requested"
-      className={`tool-approval ${compact ? 'compact' : ''}`}
+      className={`tool-approval [&_>_div:first-child]:flex [&_>_div:first-child]:min-w-0 [&_>_div:first-child]:items-center [&_>_div:first-child]:gap-[8px] [&_>_div:first-child_>_span]:flex [&_>_div:first-child_>_span]:min-w-0 [&_>_div:first-child_>_span]:flex-col [&_>_div:first-child_>_span]:gap-[2px] [&_strong]:text-[13px] [&_small]:overflow-hidden [&_small]:text-[13px] [&_small]:text-ellipsis [&_small]:whitespace-nowrap [&_details]:min-w-0 [&_details]:text-[13px] [&_summary]:cursor-pointer [&_pre]:max-h-[130px] [&_pre]:overflow-auto [&_pre]:mt-[6px] [&_pre]:rounded-[var(--r-xs)] [&_pre]:bg-[var(--warning-code-bg)] [&_pre]:text-[var(--warning-soft)] [&_pre]:p-[8px] [&_pre]:font-[ui-monospace,_SFMono-Regular,_Consolas,_'Liberation_Mono',_monospace] [&_pre]:text-[13px] [&_pre]:whitespace-pre-wrap [&.compact]:grid-cols-[minmax(0,1fr)_auto] [&.compact]:p-[6px_7px] [&.compact_strong]:text-[13px] [&.compact_small]:text-[13px] grid grid-cols-[minmax(0,1fr)_auto] items-center gap-[8px] [border:1px_solid_var(--warning-border)] rounded-[var(--r-sm)] bg-[var(--warning-soft)] text-[var(--warning-strong)] [padding:9px_10px] ${compact ? 'compact' : ''}`}
       data-pisper-approval-id={approval.id}
     >
       <div>
@@ -60,11 +62,11 @@ export function ToolApproval({
         </span>
       </div>
       {!compact && (
-        <div className="tool-approval-details">
+        <div className="flex [grid-column:1/-1] items-center gap-[10px]">
           {diff && (
             <button
               type="button"
-              className="tool-approval-view-diff"
+              className="tool-approval-view-diff hover:border-[var(--accent-border)] hover:bg-[var(--accent-soft)] hover:text-[var(--star-strong)] inline-flex min-h-[28px] flex-none items-center gap-[6px] [border:1px_solid_var(--warning-border)] rounded-[var(--r-sm)] bg-[var(--surface-muted)] [padding:4px_7px] text-[var(--text-secondary)] text-[12px] font-[600] cursor-pointer"
               onClick={() => setDiffOpen(true)}
             >
               <FileDiff size={13} />
@@ -77,24 +79,21 @@ export function ToolApproval({
           </details>
         </div>
       )}
-      <div className="tool-approval-actions">
-        <button
+      <div className="flex gap-[5px]">
+        <Button
           type="button"
-          className="button secondary"
+          variant="outline"
+          size="lg"
+          className="bg-surface-subtle"
           disabled={resolving}
           onClick={() => resolve(false)}
         >
           {t('chat:focusSession.deny')}
-        </button>
-        <button
-          type="button"
-          className="button primary"
-          disabled={resolving}
-          onClick={() => resolve(true)}
-        >
-          {resolving ? <RefreshCw className="spin" size={12} /> : <Check size={12} />}
+        </Button>
+        <Button type="button" size="lg" disabled={resolving} onClick={() => resolve(true)}>
+          {resolving ? <RefreshCw className="animate-spin" size={12} /> : <Check size={12} />}
           {t('chat:focusSession.allow')}
-        </button>
+        </Button>
       </div>
       {diffOpen && (
         <GitDiffDialog

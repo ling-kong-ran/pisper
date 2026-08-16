@@ -15,6 +15,8 @@ import { chatApi, type GitChangesResponse } from './chat-api'
 import { GitDiffDialog } from './GitDiffViewer'
 import { useViewportMenuOffset } from './use-viewport-menu-offset'
 
+import { Button } from '@/components/ui/button'
+
 const DEFAULT_COMMIT_MESSAGE = 'Agent changes'
 
 type GitAction = 'commit' | 'push' | 'revert'
@@ -132,11 +134,11 @@ export function GitChangesControl({
   return (
     <div
       ref={rootRef}
-      className={`git-changes-select ${open ? 'open' : ''} ${hasChanges ? 'active' : ''}`}
+      className={`git-changes-select [.composer-tool-tray_&]:w-[38px] [.composer-tool-tray_&]:min-w-[38px] [.composer-tool-tray_&]:h-[38px] [.composer-tool-tray_&]:flex-none @max-[700px]:[.composer-tool-tray_&]:w-[32px] @max-[700px]:[.composer-tool-tray_&]:min-w-[32px] @max-[700px]:[.composer-tool-tray_&]:h-[32px] @max-[700px]:[.composer-tool-tray_&]:p-0 @max-[470px]:[.composer-tool-tray_&]:w-[28px] @max-[470px]:[.composer-tool-tray_&]:min-w-[28px] @max-[470px]:[.composer-tool-tray_&]:h-[28px] relative flex-none w-[38px] h-[38px] text-[var(--text-tertiary)] ${open ? 'open' : ''}    ${hasChanges ? 'active' : ''}`}
     >
       <button
         type="button"
-        className="git-changes-trigger"
+        className="git-changes-trigger hover:border-[var(--accent-border)] hover:bg-[var(--accent-soft)] hover:text-[var(--star-strong)] [.git-changes-select.open_&]:border-[var(--accent-border)] [.git-changes-select.open_&]:bg-[var(--accent-soft)] [.git-changes-select.open_&]:text-[var(--star-strong)] [.git-changes-select.active_&]:text-[var(--star-strong)] [&_>_i]:absolute [&_>_i]:top-[-4px] [&_>_i]:right-[-6px] [&_>_i]:min-w-[15px] [&_>_i]:rounded-[var(--r-pill)] [&_>_i]:bg-[var(--star-strong)] [&_>_i]:p-[1px_4px] [&_>_i]:text-[var(--on-accent)] [&_>_i]:text-[9px] [&_>_i]:[font-style:normal] [&_>_i]:font-[700] [&_>_i]:leading-[1.3] [&_>_i]:text-center @max-[700px]:[.composer-tool-tray_&]:w-[32px] @max-[700px]:[.composer-tool-tray_&]:h-[32px] @max-[470px]:[.composer-tool-tray_&]:w-[28px] @max-[470px]:[.composer-tool-tray_&]:h-[28px] relative grid w-full h-full place-items-center [border:1px_solid_transparent] rounded-[var(--r-sm)] bg-[var(--surface-muted)] text-inherit cursor-pointer"
         title={label}
         aria-label={label}
         aria-haspopup="dialog"
@@ -150,12 +152,12 @@ export function GitChangesControl({
       {open && (
         <div
           ref={menuRef}
-          className="git-changes-menu"
+          className="git-changes-menu [translate:var(--menu-x-offset,_0px)_0] max-[650px]:[.focus-composer_&]:right-[auto] max-[650px]:[.focus-composer_&]:left-0 max-[650px]:[.focus-composer_&]:w-[min(340px,calc(100vw_-_76px))] absolute z-[35] [bottom:calc(100%_+_8px)] left-0 w-[min(340px,calc(100vw_-_28px))] overflow-hidden [border:1px_solid_var(--stroke)] rounded-[var(--r-md)] bg-[var(--solid)] [padding:5px] shadow-[0_18px_42px_-18px_var(--menu-shadow)]"
           role="dialog"
           aria-label={t('chat:focusSession.gitChanges')}
         >
-          <div className="git-changes-menu-head">
-            <span className="git-changes-menu-icon">
+          <div className="git-changes-menu-head hover:bg-[var(--accent-soft)] [&_>_span:nth-child(2)]:flex [&_>_span:nth-child(2)]:min-w-0 [&_>_span:nth-child(2)]:flex-col [&_>_span:nth-child(2)]:gap-[2px] [&_strong]:text-[12px] [&_small]:overflow-hidden [&_small]:text-[var(--text-muted)] [&_small]:text-[11px] [&_small]:text-ellipsis [&_small]:whitespace-nowrap grid min-h-[44px] grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-[8px] rounded-[var(--r-sm)] [padding:6px_7px]">
+            <span className="git-changes-menu-icon [.git-changes-select.active_&]:bg-[var(--star-soft)] [.git-changes-select.active_&]:text-[var(--star-strong)] grid w-[32px] h-[32px] place-items-center rounded-[var(--r-sm)] bg-[var(--surface-muted)] text-[var(--text-muted)]">
               <GitBranch size={15} />
             </span>
             <span>
@@ -172,29 +174,47 @@ export function GitChangesControl({
                         : `${t('chat:focusSession.gitNotARepository')}${changes?.cwd ? ` · ${workspaceName(changes.cwd, language)}` : ''}`}
               </small>
             </span>
-            <button
+            <Button
               type="button"
-              className="icon-button"
+              variant="ghost"
+              size="icon"
               title={t('chat:focusSession.gitRefresh')}
               aria-label={t('chat:focusSession.gitRefresh')}
               disabled={loading || busy}
               onClick={() => void load()}
             >
-              <RefreshCw className={loading ? 'spin' : ''} size={13} />
-            </button>
+              <RefreshCw className={loading ? 'animate-spin' : ''} size={13} />
+            </Button>
           </div>
 
-          {error && <p className="git-changes-error">{error}</p>}
-          {!error && changes?.error && <p className="git-changes-error">{changes.error}</p>}
-          {notice && !error && <p className="git-changes-notice">{notice}</p>}
+          {error && (
+            <p className="[margin:2px_7px_4px] text-[var(--danger,_#d64545)] text-[11px]">
+              {error}
+            </p>
+          )}
+          {!error && changes?.error && (
+            <p className="[margin:2px_7px_4px] text-[var(--danger,_#d64545)] text-[11px]">
+              {changes.error}
+            </p>
+          )}
+          {notice && !error && (
+            <p className="[margin:2px_7px_4px] text-[var(--success,_#2e9e63)] text-[11px]">
+              {notice}
+            </p>
+          )}
 
           {changes?.isRepo && (
             <>
               {hasChanges ? (
-                <div className="git-changes-file-list">
+                <div className="git-changes-file-list [&_>_small]:p-[3px_5px] [&_>_small]:text-[var(--text-muted)] flex max-h-[168px] flex-col gap-[1px] [margin:2px_4px] overflow-y-auto">
                   {changes.files.slice(0, 60).map((file) => (
-                    <div className="git-changes-file" key={`${file.status}-${file.path}`}>
-                      <code className="git-changes-file-status">{file.status}</code>
+                    <div
+                      className="git-changes-file hover:bg-[var(--accent-soft)] [&_>_span]:overflow-hidden [&_>_span]:text-[var(--text-secondary)] [&_>_span]:text-ellipsis [&_>_span]:whitespace-nowrap grid grid-cols-[26px_minmax(0,1fr)] items-center gap-[6px] rounded-[var(--r-sm)] [padding:3px_5px] text-[11px]"
+                      key={`${file.status}-${file.path}`}
+                    >
+                      <code className="text-[var(--star-strong)] text-[10px] font-[700]">
+                        {file.status}
+                      </code>
                       <span title={file.path}>{file.path}</span>
                     </div>
                   ))}
@@ -205,11 +225,13 @@ export function GitChangesControl({
                   )}
                 </div>
               ) : (
-                <p className="git-changes-empty">{t('chat:focusSession.gitNoChanges')}</p>
+                <p className="[margin:4px_7px] text-[var(--text-muted)] text-[11px]">
+                  {t('chat:focusSession.gitNoChanges')}
+                </p>
               )}
 
               {hasChanges && (
-                <div className="git-changes-commit-row">
+                <div className="git-changes-commit-row [&_input]:w-full [&_input]:min-w-0 [&_input]:[border:1px_solid_var(--stroke)] [&_input]:rounded-[var(--r-sm)] [&_input]:bg-[var(--surface-muted)] [&_input]:p-[5px_7px] [&_input]:text-inherit [&_input]:text-[12px] [&_input:focus]:border-[var(--focus)] [&_input:focus]:[outline:none] grid grid-cols-[minmax(0,1fr)_auto] gap-[6px] [margin:4px_7px]">
                   <input
                     value={commitMessage}
                     placeholder={t('chat:focusSession.gitCommitMessagePlaceholder')}
@@ -221,9 +243,8 @@ export function GitChangesControl({
                       }
                     }}
                   />
-                  <button
+                  <Button
                     type="button"
-                    className="button primary tiny"
                     disabled={busy || streaming}
                     title={
                       streaming
@@ -233,19 +254,19 @@ export function GitChangesControl({
                     onClick={() => void runAction('commit')}
                   >
                     {running === 'commit' ? (
-                      <RefreshCw className="spin" size={12} />
+                      <RefreshCw className="animate-spin" size={12} />
                     ) : (
                       <GitCommitHorizontal size={12} />
                     )}
                     {t('chat:focusSession.gitCommit')}
-                  </button>
+                  </Button>
                 </div>
               )}
 
               {hasChanges && (
                 <button
                   type="button"
-                  className="git-changes-view-diff"
+                  className="git-changes-view-diff hover:border-[var(--accent-border)] hover:bg-[var(--accent-soft)] hover:text-[var(--star-strong)] flex w-[calc(100%_-_14px)] min-h-[30px] items-center gap-[7px] [margin:4px_7px] [border:1px_solid_var(--stroke)] rounded-[var(--r-sm)] bg-[var(--surface-muted)] [padding:5px_8px] text-[var(--text-secondary)] text-[11px] font-[600] cursor-pointer"
                   onClick={() => {
                     setDiffOpen(true)
                     setOpen(false)
@@ -256,11 +277,12 @@ export function GitChangesControl({
                 </button>
               )}
 
-              <div className="git-changes-actions">
+              <div className="flex flex-wrap gap-[6px] [margin:5px_7px_6px]">
                 {!isSvn && (
-                  <button
+                  <Button
                     type="button"
-                    className="button secondary tiny"
+                    variant="outline"
+                    className="bg-surface-subtle"
                     disabled={busy || (!hasCommitsToPush && !hasChanges)}
                     title={
                       hasCommitsToPush
@@ -270,19 +292,19 @@ export function GitChangesControl({
                     onClick={() => void runAction('push')}
                   >
                     {running === 'push' ? (
-                      <RefreshCw className="spin" size={12} />
+                      <RefreshCw className="animate-spin" size={12} />
                     ) : (
                       <Upload size={12} />
                     )}
                     {t('chat:focusSession.gitPush')}
                     {hasCommitsToPush ? ` ↑${changes?.ahead}` : ''}
-                  </button>
+                  </Button>
                 )}
                 {confirmingRevert ? (
                   <>
-                    <button
+                    <Button
                       type="button"
-                      className="button danger tiny"
+                      variant="destructive"
                       disabled={busy || streaming}
                       title={
                         streaming
@@ -292,26 +314,28 @@ export function GitChangesControl({
                       onClick={() => void runAction('revert')}
                     >
                       {running === 'revert' ? (
-                        <RefreshCw className="spin" size={12} />
+                        <RefreshCw className="animate-spin" size={12} />
                       ) : (
                         <Check size={12} />
                       )}
                       {t('chat:focusSession.gitConfirmRevert')}
-                    </button>
-                    <button
+                    </Button>
+                    <Button
                       type="button"
-                      className="button secondary tiny"
+                      variant="outline"
+                      className="bg-surface-subtle"
                       disabled={busy}
                       onClick={() => setConfirmingRevert(false)}
                     >
                       <X size={12} />
                       {t('chat:focusSession.gitCancel')}
-                    </button>
+                    </Button>
                   </>
                 ) : (
-                  <button
+                  <Button
                     type="button"
-                    className="button secondary tiny"
+                    variant="outline"
+                    className="bg-surface-subtle"
                     disabled={busy || streaming || !hasChanges}
                     title={
                       isSvn
@@ -322,7 +346,7 @@ export function GitChangesControl({
                   >
                     <Undo2 size={12} />
                     {t('chat:focusSession.gitRevert')}
-                  </button>
+                  </Button>
                 )}
               </div>
             </>

@@ -58,7 +58,7 @@ function WorkflowNodeCard({ data, selected }: NodeProps<WorkflowFlowNode>) {
   return (
     <div
       className={cn(
-        'flow-node',
+        'flow-node [.workflow-mini-map_&.compact]:w-[100px] [.workflow-mini-map_&.compact]:min-h-[42px] [.workflow-mini-map_&.compact]:p-[5px_8px] [.workflow-mini-map_&.compact]:cursor-default [.workflow-mini-map_&.compact_small]:text-[11px] [.workflow-mini-map_&.compact_strong]:max-w-[100%] [.workflow-mini-map_&.compact_strong]:overflow-hidden [.workflow-mini-map_&.compact_strong]:text-[12px] [.workflow-mini-map_&.compact_strong]:text-ellipsis [.workflow-mini-map_&.compact_strong]:whitespace-nowrap [&_small]:text-[var(--text-muted)] [&_small]:text-[13px] [&_strong]:text-[13px] [&.active]:border-[var(--star)] [&.active]:[animation:star-node-pulse_2.4s_var(--ease-out)_infinite] [&.type-condition]:border-[var(--warning-border)] [&.type-condition]:bg-[var(--warning-subtle)] [&.type-parallel]:border-[var(--violet-border)] [&.type-parallel]:bg-[var(--violet-soft)] [&.type-approval]:border-[var(--approval-border)] [&.type-approval]:bg-[var(--success-subtle)] [&.type-notification]:border-[var(--notification-border)] [&.type-notification]:bg-[var(--notification-soft)] dark:[&.type-condition]:bg-[var(--warning-soft)] dark:[&.type-并行]:bg-[var(--violet-soft)] dark:[&.type-审批]:bg-[var(--success-subtle)] dark:[&.type-通知]:bg-[var(--notification-soft)] relative flex w-[120px] min-h-[49px] flex-col items-start justify-center gap-[3px] [border:1px_solid_var(--accent-border)] rounded-[var(--r-sm)] bg-[var(--accent-soft)] [padding:7px_10px] text-left shadow-[0_8px_18px_-14px_var(--node-shadow)] cursor-grab',
         `type-${data.kind}`,
         selected && 'active',
         data.compact && 'compact',
@@ -67,7 +67,7 @@ function WorkflowNodeCard({ data, selected }: NodeProps<WorkflowFlowNode>) {
       {!data.compact && data.kind !== 'trigger' && (
         <Handle
           id="input"
-          className="flow-port input"
+          className="flow-port after:absolute after:[content:''] after:inset-[-8px] absolute z-[3] w-[12px] h-[12px] [border:2px_solid_var(--solid)] rounded-[50%] bg-[var(--text)] [cursor:crosshair] input [.flow-port&]:top-[50%] [.flow-port&]:left-[-7px] [.flow-port&]:[transform:translateY(-50%)]"
           type="target"
           position={Position.Left}
           title={data.inputLabel}
@@ -78,7 +78,7 @@ function WorkflowNodeCard({ data, selected }: NodeProps<WorkflowFlowNode>) {
         <>
           <Handle
             id="true"
-            className="flow-port output condition-true"
+            className="flow-port after:absolute after:[content:''] after:inset-[-8px] absolute z-[3] w-[12px] h-[12px] [border:2px_solid_var(--solid)] rounded-[50%] bg-[var(--text)] [cursor:crosshair] output [.flow-port&]:top-[50%] [.flow-port&]:right-[-7px] [.flow-port&]:[transform:translateY(-50%)] condition-true"
             type="source"
             position={Position.Right}
             title="true"
@@ -86,7 +86,7 @@ function WorkflowNodeCard({ data, selected }: NodeProps<WorkflowFlowNode>) {
           />
           <Handle
             id="false"
-            className="flow-port output condition-false"
+            className="flow-port after:absolute after:[content:''] after:inset-[-8px] absolute z-[3] w-[12px] h-[12px] [border:2px_solid_var(--solid)] rounded-[50%] bg-[var(--text)] [cursor:crosshair] output [.flow-port&]:top-[50%] [.flow-port&]:right-[-7px] [.flow-port&]:[transform:translateY(-50%)] condition-false"
             type="source"
             position={Position.Bottom}
             title="false"
@@ -97,7 +97,7 @@ function WorkflowNodeCard({ data, selected }: NodeProps<WorkflowFlowNode>) {
         !data.compact && (
           <Handle
             id="output"
-            className="flow-port output"
+            className="flow-port after:absolute after:[content:''] after:inset-[-8px] absolute z-[3] w-[12px] h-[12px] [border:2px_solid_var(--solid)] rounded-[50%] bg-[var(--text)] [cursor:crosshair] output [.flow-port&]:top-[50%] [.flow-port&]:right-[-7px] [.flow-port&]:[transform:translateY(-50%)]"
             type="source"
             position={Position.Right}
             title={data.outputLabel}
@@ -283,7 +283,7 @@ function WorkflowCanvasInner({
   )
 
   return (
-    <div className="workflow-react-flow">
+    <div className="workflow-react-flow absolute inset-0">
       <ReactFlow<WorkflowFlowNode, WorkflowFlowEdge>
         nodes={flowNodes}
         edges={flowEdges}
@@ -322,7 +322,7 @@ function WorkflowCanvasInner({
           color="var(--canvas-grid)"
         />
         <MiniMap
-          className="workflow-react-flow-minimap"
+          className="workflow-react-flow-minimap [border:1px_solid_var(--stroke)] rounded-[var(--r-sm)] !bg-[var(--surface-subtle)]"
           nodeColor={nodeColor}
           nodeStrokeWidth={3}
           pannable
@@ -330,7 +330,9 @@ function WorkflowCanvasInner({
         />
         <Controls position="top-left" showInteractive={false} />
       </ReactFlow>
-      <div className="canvas-hint">{hint}</div>
+      <div className="absolute z-[5] [left:12px] [bottom:10px] text-[var(--text-muted)] text-[12px] pointer-events-none">
+        {hint}
+      </div>
     </div>
   )
 }

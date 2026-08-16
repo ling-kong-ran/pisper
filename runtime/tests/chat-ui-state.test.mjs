@@ -83,21 +83,20 @@ test('a session can be added to and removed from the tiled set', () => {
 })
 
 test('the chat composer exposes the global command palette shortcut', async () => {
-  const [app, events, focus, styles, english, chinese] = await Promise.all([
+  const [app, events, focus, english, chinese] = await Promise.all([
     readFile('src/App.tsx', 'utf8'),
     readFile('src/features/chat/events.ts', 'utf8'),
     readFile('src/features/chat/FocusSession.tsx', 'utf8'),
-    readFile('src/index.css', 'utf8'),
     readFile('src/locales/en-US/chat.json', 'utf8').then(JSON.parse),
     readFile('src/locales/zh-CN/chat.json', 'utf8').then(JSON.parse),
   ])
 
   assert.match(events, /COMMAND_PALETTE_REQUESTED_EVENT/)
   assert.match(app, /addEventListener\(COMMAND_PALETTE_REQUESTED_EVENT, openCommandPalette\)/)
-  assert.match(focus, /className="command-palette-trigger"/)
+  assert.match(focus, /className="command-palette-trigger[^"\n]*"/)
   assert.match(focus, /onClick=\{requestCommandPalette\}/)
   assert.match(focus, /<kbd>\{COMMAND_PALETTE_SHORTCUT\}<\/kbd>/)
-  assert.match(styles, /\.command-palette-trigger kbd/)
+  assert.match(focus, /command-palette-trigger[^"\n]*composer-tool-tray_&_kbd/)
   assert.equal(
     english['focusSession.openCommandPaletteShortcut'],
     'Open command palette ({shortcut})',
@@ -106,6 +105,6 @@ test('the chat composer exposes the global command palette shortcut', async () =
 })
 
 test('the git changes badge uses the theme-aware contrasting text color', async () => {
-  const styles = await readFile('src/index.css', 'utf8')
-  assert.match(styles, /\.git-changes-trigger > i \{[^}]*color: var\(--on-accent\)/)
+  const controls = await readFile('src/features/chat/GitChangesControl.tsx', 'utf8')
+  assert.match(controls, /git-changes-trigger[^"\n]*\[&_>_i\]:text-\[var\(--on-accent\)\]/)
 })

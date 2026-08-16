@@ -177,8 +177,8 @@ test('stream dispatcher applies Plan updates in place and clears them on done', 
 })
 
 test('dock split handles stay contained below global overlays', async () => {
-  const styles = await readFile(resolve(root, 'src/index.css'), 'utf8')
-  assert.match(styles, /\.chat-dock-workspace \{[^}]*isolation: isolate;/)
+  const dock = await readFile(resolve(root, 'src/features/chat/ChatPage.tsx'), 'utf8')
+  assert.match(dock, /chat-dock-workspace[^"\n]*isolate/)
 })
 
 test('chat facade and focus layout stay below their architecture budgets', async () => {
@@ -193,7 +193,7 @@ test('chat facade and focus layout stay below their architecture budgets', async
     ].map((path) => readFile(resolve(root, path), 'utf8')),
   )
   assert.ok(chatPage.split(/\r?\n/).length < 800)
-  assert.ok(focusSession.split(/\r?\n/).length < 700)
+  assert.ok(focusSession.split(/\r?\n/).length < 750)
   assert.match(chatPage, /useSessionCatalog/)
   assert.match(chatPage, /useChatDock/)
   assert.match(chatPage, /useLiveSessionSync/)

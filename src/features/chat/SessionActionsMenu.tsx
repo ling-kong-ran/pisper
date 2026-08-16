@@ -15,6 +15,8 @@ import { workspaceName } from '@/lib/format'
 import type { SessionSummary } from '@/types/chat'
 import { useViewportMenuOffset } from './use-viewport-menu-offset'
 
+import { Button } from '@/components/ui/button'
+
 export function SessionActionsMenu({
   session,
   canSplit,
@@ -98,10 +100,11 @@ export function SessionActionsMenu({
   ] as const
 
   return (
-    <div ref={rootRef} className="session-actions-menu-root">
-      <button
+    <div ref={rootRef} className="relative flex-none">
+      <Button
         type="button"
-        className="icon-button"
+        variant="ghost"
+        size="icon"
         title={t('chat:focusSession.chatActions')}
         aria-label={t('chat:focusSession.openChatActionsMenu')}
         aria-haspopup="menu"
@@ -110,9 +113,13 @@ export function SessionActionsMenu({
         onClick={() => setOpen((visible) => !visible)}
       >
         <MoreHorizontal size={17} />
-      </button>
+      </Button>
       {open && (
-        <div ref={menuRef} className="permission-mode-menu session-actions-menu" role="menu">
+        <div
+          ref={menuRef}
+          className="permission-mode-menu [&_>_button]:grid [&_>_button]:w-full [&_>_button]:min-h-[48px] [&_>_button]:grid-cols-[auto_minmax(0,1fr)_auto] [&_>_button]:items-center [&_>_button]:gap-[8px] [&_>_button]:border-0 [&_>_button]:rounded-[var(--r-sm)] [&_>_button]:bg-transparent [&_>_button]:text-[var(--text)] [&_>_button]:p-[6px_7px] [&_>_button]:text-left [&_>_button:hover]:bg-[var(--accent-soft)] [&_>_button.active]:bg-[var(--accent-soft)] [&_>_button_>_span:nth-child(2)]:flex [&_>_button_>_span:nth-child(2)]:min-w-0 [&_>_button_>_span:nth-child(2)]:flex-col [&_>_button_>_span:nth-child(2)]:gap-[2px] [&_strong]:text-[13px] [&_small]:text-[var(--text-muted)] [&_small]:text-[13px] [&_small]:leading-[1.4] [&_>_button_>_svg]:text-[var(--star-strong)] max-[650px]:[.focus-composer_&]:right-[auto] max-[650px]:[.focus-composer_&]:left-0 max-[650px]:[.focus-composer_&]:w-[min(250px,calc(100vw_-_76px))] absolute z-[35] right-0 [bottom:calc(100%_+_8px)] w-[250px] overflow-hidden [border:1px_solid_var(--stroke)] rounded-[var(--r-md)] bg-[var(--solid)] [padding:5px] shadow-[0_18px_42px_-18px_var(--menu-shadow)] session-actions-menu [.permission-mode-menu&]:top-[calc(100%_+_8px)] [.permission-mode-menu&]:bottom-[auto] [.permission-mode-menu&]:w-[250px] [&_>_button:disabled]:[cursor:not-allowed] [&_>_button:disabled]:opacity-[.5] [translate:var(--menu-x-offset,_0px)_0] [.composer-tool-tray_.focus-composer-session-actions_.permission-mode-menu&]:top-[auto] [.composer-tool-tray_.focus-composer-session-actions_.permission-mode-menu&]:bottom-[calc(100%_+_8px)]"
+          role="menu"
+        >
           {splitActions.map(([Icon, label, description, action]) => (
             <button
               type="button"

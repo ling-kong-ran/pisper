@@ -92,5 +92,14 @@ export function AsciiText({ text, className, characters = '.:-=+*#%@' }: AsciiTe
     return () => resizeObserver.disconnect()
   }, [characters, text])
 
-  return <canvas ref={canvasRef} className={cn('rb-ascii-text', className)} aria-hidden="true" />
+  return (
+    <canvas
+      ref={canvasRef}
+      className={cn(
+        "rb-ascii-text [.agent-welcome_&]:mt-[-7px] [:root[data-theme='light']_.agent-welcome_&]:text-[color-mix(in_srgb,_var(--brand-blue-strong)_58%,_var(--text))] [:root[data-theme='light']_.agent-welcome_&]:[filter:drop-shadow(0_0_8px_rgba(23,131,255,.12))] [:root[data-theme='light']_.agent-welcome_&]:opacity-[.78]",
+        className,
+      )}
+      aria-hidden="true"
+    />
+  )
 }

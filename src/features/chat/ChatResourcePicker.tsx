@@ -184,11 +184,11 @@ export function ChatResourcePicker({
   return (
     <Dialog open={open} onOpenChange={(value) => !value && onClose()}>
       <DialogContent
-        className="chat-resource-dialog z-[220] gap-0 p-0 ring-0"
+        className="chat-resource-dialog w-[min(820px,calc(100vw_-_32px))] h-[min(600px,calc(100dvh_-_32px))] max-w-[820px] grid-rows-[auto_minmax(0,1fr)] overflow-hidden max-[650px]:w-[calc(100vw_-_16px)] max-[650px]:h-[calc(100dvh_-_16px)] z-[220] gap-0 p-0 ring-0"
         overlayClassName="z-[220]"
         showCloseButton={false}
       >
-        <div className="chat-resource-head">
+        <div className="chat-resource-head [&_[data-slot='dialog-title']]:text-[16px] [&_[data-slot='dialog-description']]:mt-[3px] [&_[data-slot='dialog-description']]:text-[12px] max-[650px]:p-[14px] flex items-start justify-between gap-[16px] [border-bottom:1px_solid_var(--stroke-soft)] [padding:17px_18px_14px]">
           <div>
             <DialogTitle>{t('chat:resourcePicker.title')}</DialogTitle>
             <DialogDescription>{t('chat:resourcePicker.description')}</DialogDescription>
@@ -202,9 +202,13 @@ export function ChatResourcePicker({
             <X />
           </Button>
         </div>
-        <div className="chat-resource-body">
-          <div className="chat-resource-browser">
-            <Tabs value={category} onValueChange={changeCategory} className="chat-resource-tabs">
+        <div className="chat-resource-body grid min-h-0 grid-cols-[minmax(0,1.1fr)_minmax(260px,.9fr)] overflow-hidden max-[650px]:grid-cols-[1fr] max-[650px]:grid-rows-[minmax(0,1fr)_minmax(190px,auto)] max-[650px]:overflow-hidden">
+          <div className="chat-resource-browser flex min-w-0 min-h-0 flex-col [border-right:1px_solid_var(--stroke-soft)] p-[12px] max-[650px]:min-h-0 max-[650px]:[border-right:0] max-[650px]:[border-bottom:1px_solid_var(--stroke-soft)]">
+            <Tabs
+              value={category}
+              onValueChange={changeCategory}
+              className="chat-resource-tabs [&_[data-slot='tabs-list']]:grid [&_[data-slot='tabs-list']]:w-full [&_[data-slot='tabs-list']]:h-[36px] [&_[data-slot='tabs-list']]:grid-cols-[repeat(5,minmax(0,1fr))] [&_[data-slot='tabs-list']]:[border:1px_solid_var(--stroke-soft)] [&_[data-slot='tabs-list']]:rounded-[var(--r-sm)] [&_[data-slot='tabs-list']]:bg-[var(--surface-muted)] [&_[data-slot='tabs-trigger']]:min-w-0 [&_[data-slot='tabs-trigger']]:gap-[5px] [&_[data-slot='tabs-trigger']]:rounded-[var(--r-xs)] [&_[data-slot='tabs-trigger']]:[padding-inline:6px] [&_[data-slot='tabs-trigger']]:text-[11px] [&_[data-slot='tabs-trigger'][data-state='active']]:bg-[var(--solid)] [&_[data-slot='tabs-trigger'][data-state='active']]:text-[var(--text)] [&_[data-slot='tabs-trigger']_small]:text-[var(--text-muted)] [&_[data-slot='tabs-trigger']_small]:text-[10px] [&_[data-slot='tabs-trigger']_small]:font-[500] w-full"
+            >
               <TabsList aria-label={t('chat:resourcePicker.categories')}>
                 <TabsTrigger value="all">
                   {t('chat:resourcePicker.all')}
@@ -228,7 +232,7 @@ export function ChatResourcePicker({
                 </TabsTrigger>
               </TabsList>
             </Tabs>
-            <label className="chat-resource-search">
+            <label className="chat-resource-search [&:focus-within]:border-[var(--focus)] [&:focus-within]:shadow-[0_0_0_2px_var(--focus-ring)] [&_input]:w-full [&_input]:h-[36px] [&_input]:border-0 [&_input]:[outline:0] [&_input]:bg-transparent [&_input]:text-[var(--text)] [&_input]:text-[13px] flex items-center gap-[7px] [margin-top:8px] [border:1px_solid_var(--stroke)] rounded-[var(--r-sm)] [padding:0_10px] text-[var(--text-muted)]">
               <Search size={15} />
               <input
                 autoFocus
@@ -237,7 +241,7 @@ export function ChatResourcePicker({
                 placeholder={t('chat:resourcePicker.search')}
               />
             </label>
-            <div className="chat-resource-list">
+            <div className="chat-resource-list [&_>_button]:grid [&_>_button]:w-full [&_>_button]:grid-cols-[30px_minmax(0,1fr)_auto] [&_>_button]:items-center [&_>_button]:gap-[8px] [&_>_button]:[border:1px_solid_transparent] [&_>_button]:rounded-[var(--r-sm)] [&_>_button]:bg-transparent [&_>_button]:p-[8px] [&_>_button]:text-[var(--text)] [&_>_button]:text-left [&_>_button]:cursor-pointer [&_>_button:hover]:bg-[var(--surface-hover)] [&_>_button.active]:border-[var(--focus)] [&_>_button.active]:bg-[var(--blue-soft)] [&_button_>_span:nth-child(2)]:flex [&_button_>_span:nth-child(2)]:min-w-0 [&_button_>_span:nth-child(2)]:flex-col [&_button_>_span:nth-child(2)]:gap-[2px] [&_strong]:overflow-hidden [&_strong]:text-[13px] [&_strong]:text-ellipsis [&_strong]:whitespace-nowrap [&_small]:overflow-hidden [&_small]:text-[var(--text-muted)] [&_small]:text-[11px] [&_small]:text-ellipsis [&_small]:whitespace-nowrap [&_em]:text-[var(--text-muted)] [&_em]:text-[10px] [&_em]:[font-style:normal] [&_>_p]:m-[auto] [&_>_p]:text-[var(--text-muted)] [&_>_p]:text-[12px] flex min-h-0 [flex:1_1_0] flex-col gap-[3px] overflow-y-auto [overscroll-behavior:contain] [scrollbar-gutter:stable] [touch-action:pan-y] [margin-top:9px]">
               {visible.map((resource) => {
                 const Icon =
                   resource.kind === 'prompt'
@@ -258,7 +262,7 @@ export function ChatResourcePicker({
                     key={`${resource.kind}:${resource.id}`}
                     onClick={() => choose(resource)}
                   >
-                    <span className="list-icon">
+                    <span className="list-icon [.chat-resource-list_&]:grid [.chat-resource-list_&]:w-[28px] [.chat-resource-list_&]:h-[28px] [.chat-resource-list_&]:place-items-center [.chat-resource-list_&]:rounded-[var(--r-sm)] [.chat-resource-list_&]:bg-[var(--surface-subtle)] [.chat-resource-list_&]:text-[var(--star-strong)] [.session-workflow-summary_&]:grid [.session-workflow-summary_&]:w-[28px] [.session-workflow-summary_&]:h-[28px] [.session-workflow-summary_&]:place-items-center [.session-workflow-summary_&]:rounded-[var(--r-sm)] [.session-workflow-summary_&]:bg-[var(--surface-subtle)] [.session-workflow-summary_&]:text-[var(--star-strong)] grid w-[27px] h-[27px] place-items-center rounded-[var(--r-sm)] bg-[var(--accent-soft)] text-[var(--star-strong)] [.workflow-template-gallery_&]:grid [.workflow-template-gallery_&]:w-[32px] [.workflow-template-gallery_&]:h-[32px] [.workflow-template-gallery_&]:place-items-center [.workflow-template-gallery_&]:rounded-[var(--r-sm)] [.workflow-template-gallery_&]:bg-[var(--surface-subtle)] [.workflow-template-gallery_&]:text-[var(--star-strong)]">
                       <Icon size={15} />
                     </span>
                     <span>
@@ -286,7 +290,7 @@ export function ChatResourcePicker({
               )}
             </div>
           </div>
-          <div className="chat-resource-config">
+          <div className="chat-resource-config [&_>_p]:m-[auto] [&_>_p]:text-[var(--text-muted)] [&_>_p]:text-[12px] [&_>_div:first-child]:flex [&_>_div:first-child]:flex-col [&_>_div:first-child]:gap-[4px] [&_strong]:text-[14px] [&_p]:text-[var(--text-muted)] [&_p]:text-[12px] max-[650px]:min-h-0 max-[650px]:max-h-[230px] flex min-w-0 min-h-0 flex-col gap-[16px] overflow-y-auto [overscroll-behavior:contain] [padding:18px]">
             {selected ? (
               <>
                 <div>
@@ -294,7 +298,7 @@ export function ChatResourcePicker({
                   <p>{selected.description || t('chat:resourcePicker.noDescription')}</p>
                 </div>
                 {selected.kind === 'workflow' && selected.inputs.length > 0 && (
-                  <div className="chat-resource-inputs">
+                  <div className="chat-resource-inputs [&_label]:grid [&_label]:gap-[5px] [&_label]:text-[12px] [&_label]:font-[600] [&_input[type='checkbox']]:w-[16px] [&_input[type='checkbox']]:h-[16px] [&_input[type='checkbox']]:[accent-color:var(--blue)] flex flex-col gap-[11px]">
                     {selected.inputs.map((input) => (
                       <label key={input.id}>
                         <span>
@@ -330,9 +334,14 @@ export function ChatResourcePicker({
                   </div>
                 )}
                 {selected.kind === 'prompt' && selected.argumentHint && (
-                  <code className="chat-resource-argument-hint">{selected.argumentHint}</code>
+                  <code className="w-fit max-w-[100%] [overflow-wrap:anywhere] rounded-[var(--r-xs)] bg-[var(--surface-muted)] text-[var(--text-secondary)] [padding:5px_7px] text-[11px]">
+                    {selected.argumentHint}
+                  </code>
                 )}
-                <Button className="chat-resource-confirm" onClick={confirm}>
+                <Button
+                  className="chat-resource-confirm hover:bg-[var(--star-hover)] hover:text-[var(--on-accent)] min-w-[112px] min-h-[36px] self-start bg-[var(--star)] text-[var(--on-accent)] font-[650]"
+                  onClick={confirm}
+                >
                   {selected.kind === 'prompt'
                     ? t('chat:resourcePicker.insertPrompt')
                     : t('chat:resourcePicker.useResource')}

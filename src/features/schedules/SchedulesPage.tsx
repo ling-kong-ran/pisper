@@ -4,7 +4,6 @@ import {
   Bell,
   Bot,
   CheckCircle2,
-  ChevronDown,
   FolderOpen,
   MessageCircle,
   Play,
@@ -18,6 +17,9 @@ import {
   AppSectionTitle as SectionTitle,
   AppSwitch as Toggle,
   StatusBadge as Badge,
+  AppCardHeader,
+  AppError,
+  AppEmptyState,
 } from '@/components/ui/app-primitives'
 import { AppSelect } from '@/components/AppSelect'
 import { WorkspacePicker } from '@/components/WorkspacePicker'
@@ -30,6 +32,10 @@ import { usePagePrimaryAction } from '@/hooks/usePagePrimaryAction'
 import type { FormEvent } from 'react'
 import type { Notify } from '@/app/route-context'
 import type { ConfirmDialogOptions } from '@/hooks/useAppDialog'
+
+import { Button } from '@/components/ui/button'
+
+import { FieldLabel } from '@/components/ui/field'
 
 type NotificationTarget = 'browser' | 'feishu' | 'weixin'
 type ScheduleFrequency = 'interval' | 'daily' | 'weekly' | 'monthly'
@@ -184,25 +190,22 @@ function notificationTargetLabel(target: NotificationTarget, t: ReturnType<typeo
 function ScheduleExecutionModeField({ value, onChange }: ScheduleExecutionModeFieldProps) {
   const { t } = useI18n()
   return (
-    <label className="field-label">
+    <FieldLabel variant="control">
       {t('schedules:schedulesPage.executionMode')}
-      <span className="select-wrap">
-        <AppSelect
-          value={value}
-          onChange={(event) => onChange(event.target.value as ScheduleExecutionMode)}
-        >
-          {SCHEDULE_EXECUTION_MODES.map((mode) => (
-            <option value={mode} key={mode}>
-              {mode === 'full-access'
-                ? t('schedules:schedulesPage.fullAccess')
-                : t('schedules:schedulesPage.readOnly')}
-            </option>
-          ))}
-        </AppSelect>
-        <ChevronDown size={13} />
-      </span>
+      <AppSelect
+        value={value}
+        onChange={(event) => onChange(event.target.value as ScheduleExecutionMode)}
+      >
+        {SCHEDULE_EXECUTION_MODES.map((mode) => (
+          <option value={mode} key={mode}>
+            {mode === 'full-access'
+              ? t('schedules:schedulesPage.fullAccess')
+              : t('schedules:schedulesPage.readOnly')}
+          </option>
+        ))}
+      </AppSelect>
       <small>{executionModeHelp(value, t)}</small>
-    </label>
+    </FieldLabel>
   )
 }
 
@@ -253,83 +256,85 @@ function ScheduleTargetFields({
   const { t } = useI18n()
   const workflow = workflows.find((item) => item.id === workflowId)
   return (
-    <div className="schedule-target-fields">
-      <label className="field-label">
+    <div className="grid gap-[10px]">
+      <FieldLabel variant="control">
         {t('schedules:schedulesPage.executionTarget')}
-        <span className="select-wrap">
-          <AppSelect
-            value={targetType}
-            onChange={(event) => {
-              const nextTarget = event.target.value as ScheduleTargetType
-              const nextWorkflow = workflows[0]
-              onChange(
-                nextTarget === 'workflow'
-                  ? {
-                      targetType: nextTarget,
-                      workflowId: workflowId || nextWorkflow?.id || '',
-                      workflowInputs: workflowId
-                        ? workflowInputs
-                        : workflowInputDefaults(nextWorkflow),
-                    }
-                  : { targetType: nextTarget },
-              )
-            }}
-          >
-            <option value="prompt">Prompt</option>
-            <option value="workflow">{t('schedules:schedulesPage.workflow')}</option>
-          </AppSelect>
-          <ChevronDown size={13} />
-        </span>
-      </label>
+        <AppSelect
+          value={targetType}
+          onChange={(event) => {
+            const nextTarget = event.target.value as ScheduleTargetType
+            const nextWorkflow = workflows[0]
+            onChange(
+              nextTarget === 'workflow'
+                ? {
+                    targetType: nextTarget,
+                    workflowId: workflowId || nextWorkflow?.id || '',
+                    workflowInputs: workflowId
+                      ? workflowInputs
+                      : workflowInputDefaults(nextWorkflow),
+                  }
+                : { targetType: nextTarget },
+            )
+          }}
+        >
+          <option value="prompt">Prompt</option>
+          <option value="workflow">{t('schedules:schedulesPage.workflow')}</option>
+        </AppSelect>
+      </FieldLabel>
       {targetType === 'prompt' ? (
-        <label className="field-label">
+        <FieldLabel variant="control">
           Prompt
           <textarea
             value={prompt}
             onChange={(event) => onChange({ prompt: event.target.value })}
             placeholder={t('schedules:schedulesPage.describeTheWorkTheAgentShouldCompleteEachTime')}
           />
-        </label>
+        </FieldLabel>
       ) : (
         <>
-          <label className="field-label">
+          <FieldLabel variant="control">
             {t('schedules:schedulesPage.workflow')}
-            <span className="select-wrap">
-              <AppSelect
-                value={workflowId}
-                onChange={(event) => {
-                  const nextWorkflow = workflows.find((item) => item.id === event.target.value)
-                  onChange({
-                    workflowId: event.target.value,
-                    workflowInputs: workflowInputDefaults(nextWorkflow),
-                  })
-                }}
-              >
-                <option value="">{t('schedules:schedulesPage.selectPublishedWorkflow')}</option>
-                {workflows.map((item) => (
-                  <option value={item.id} key={item.id}>
-                    {item.name} · v{item.revision}
-                  </option>
-                ))}
-              </AppSelect>
-              <ChevronDown size={13} />
-            </span>
+            <AppSelect
+              value={workflowId}
+              onChange={(event) => {
+                const nextWorkflow = workflows.find((item) => item.id === event.target.value)
+                onChange({
+                  workflowId: event.target.value,
+                  workflowInputs: workflowInputDefaults(nextWorkflow),
+                })
+              }}
+            >
+              <option value="">{t('schedules:schedulesPage.selectPublishedWorkflow')}</option>
+              {workflows.map((item) => (
+                <option value={item.id} key={item.id}>
+                  {item.name} · v{item.revision}
+                </option>
+              ))}
+            </AppSelect>
             <small>
               {workflow?.description ||
                 (workflows.length
                   ? t('schedules:schedulesPage.workflowUsesItsOwnRuntimeSettings')
                   : t('schedules:schedulesPage.noPublishedWorkflows'))}
             </small>
-          </label>
+          </FieldLabel>
           {workflow?.inputs.length ? (
-            <div className="schedule-workflow-inputs-section">
-              <div className="schedule-workflow-inputs-heading">
+            <div className="grid gap-[8px]">
+              <div className="schedule-workflow-inputs-heading [&_strong]:text-[12px] [&_small]:text-[var(--text-muted)] [&_small]:text-[11px] [&_small]:text-right max-[650px]:items-start max-[650px]:flex-col max-[650px]:gap-[2px] max-[650px]:[&_small]:text-left flex [align-items:baseline] justify-between gap-[12px]">
                 <strong>{t('schedules:schedulesPage.workflowInputs')}</strong>
                 <small>{t('schedules:schedulesPage.workflowInputsHelp')}</small>
               </div>
-              <div className="schedule-workflow-inputs">
+              <div className="schedule-workflow-inputs [&_input[type='checkbox']]:w-[16px] [&_input[type='checkbox']]:h-[16px] [&_input[type='checkbox']]:[justify-self:end] max-[650px]:grid-cols-[1fr] grid grid-cols-[repeat(2,minmax(0,1fr))] gap-[8px]">
                 {workflow.inputs.map((input) => (
-                  <label className="field-label" key={input.id}>
+                  <FieldLabel
+                    variant="control"
+                    className={
+                      input.type === 'boolean'
+                        ? 'grid grid-cols-[minmax(0,1fr)_auto] items-center'
+                        : undefined
+                    }
+                    key={input.id}
+                  >
                     {input.label}
                     {input.required ? ' *' : ''}
                     {input.type === 'boolean' ? (
@@ -361,7 +366,7 @@ function ScheduleTargetFields({
                       />
                     )}
                     {input.description && <small>{input.description}</small>}
-                  </label>
+                  </FieldLabel>
                 ))}
               </div>
             </div>
@@ -393,26 +398,32 @@ function ScheduleWorkspaceField({ value, onChange }: ScheduleWorkspaceFieldProps
 
   return (
     <>
-      <label className="field-label">
+      <FieldLabel variant="control">
         {t('schedules:schedulesPage.workingDirectory')}
-        <span className="schedule-workspace-input">
+        <span className="schedule-workspace-input [&_input]:min-w-0 [&_input]:font-[ui-monospace,_SFMono-Regular,_Consolas,_'Liberation_Mono',_monospace] grid grid-cols-[minmax(0,1fr)_auto] gap-[6px]">
           <input
             value={value}
             onChange={(event) => onChange(event.target.value)}
             placeholder={t('schedules:schedulesPage.enterTheProjectSAbsolutePath')}
           />
-          <button type="button" className="button secondary" onClick={() => void browse()}>
+          <Button
+            type="button"
+            variant="outline"
+            size="lg"
+            className="bg-surface-subtle"
+            onClick={() => void browse()}
+          >
             <FolderOpen size={13} />
             {t('schedules:schedulesPage.browseDirectories')}
-          </button>
+          </Button>
         </span>
         <small>{t('schedules:schedulesPage.theScheduledAgentWillRunInThisDirectory')}</small>
-      </label>
+      </FieldLabel>
       {pickerError && (
-        <div className="config-error">
+        <AppError>
           <AlertTriangle size={13} />
           {pickerError}
-        </div>
+        </AppError>
       )}
       <WorkspacePicker
         open={webPickerOpen}
@@ -596,31 +607,31 @@ export function SchedulesPage({
 
   if (loading)
     return (
-      <Panel className="empty-state">
-        <RefreshCw className="spin" size={23} />
+      <AppEmptyState>
+        <RefreshCw className="animate-spin" size={23} />
         <h2>{t('schedules:schedulesPage.loadingScheduledTasks')}</h2>
-      </Panel>
+      </AppEmptyState>
     )
   return (
     <>
       {error && (
-        <div className="config-error">
+        <AppError>
           <AlertTriangle size={13} />
           {error}
-        </div>
+        </AppError>
       )}
-      <div className="split-list-detail schedule-layout">
-        <Panel className="selection-list">
+      <div className="split-list-detail grid min-h-[100%] grid-cols-[330px_minmax(0,1fr)] gap-[12px] max-[900px]:grid-cols-[1fr] schedule-layout !grid-cols-[310px_minmax(0,1fr)] max-[900px]:[.split-list-detail&]:grid-cols-[280px_minmax(420px,1fr)] max-[900px]:[.split-list-detail&]:overflow-x-auto max-[650px]:[.split-list-detail&]:grid-cols-[1fr] max-[650px]:[.split-list-detail&]:[overflow-x:visible]">
+        <Panel className="selection-list [.config-layout_>_&]:max-h-[calc(100dvh_-_280px)] [.config-layout_>_&]:overflow-y-auto max-[900px]:max-h-[300px] min-h-0 overflow-auto">
           <SectionTitle title={t('schedules:schedulesPage.taskQueue')} />
           {data.tasks.length ? (
             data.tasks.map((task) => (
               <div
-                className={`schedule-list-item ${selectedId === task.id ? 'active' : ''}`}
+                className={`schedule-list-item hover:bg-[var(--accent-soft)] [&.active]:bg-[var(--accent-soft)] [&_>_button]:grid [&_>_button]:min-w-0 [&_>_button]:min-h-[68px] [&_>_button]:grid-cols-[minmax(0,1fr)_auto] [&_>_button]:items-center [&_>_button]:gap-[8px] [&_>_button]:border-0 [&_>_button]:bg-transparent [&_>_button]:p-[6px_2px] [&_>_button]:text-left [&_>_button_>_span]:flex [&_>_button_>_span]:min-w-0 [&_>_button_>_span]:flex-col [&_>_button_>_span]:gap-[5px] [&_strong]:overflow-hidden [&_strong]:text-ellipsis [&_strong]:whitespace-nowrap [&_small]:overflow-hidden [&_small]:text-ellipsis [&_small]:whitespace-nowrap [&_strong]:text-[13px] [&_small]:text-[var(--text-muted)] [&_small]:text-[13px] [&_em]:flex [&_em]:items-center [&_em]:gap-[4px] [&_em]:text-[var(--text-muted)] [&_em]:text-[13px] [&_em]:[font-style:normal] grid grid-cols-[minmax(0,1fr)_auto] items-center gap-[5px] [border-top:1px_solid_var(--stroke-soft)] rounded-[var(--r-sm)] [padding:3px_5px] ${selectedId === task.id ? 'active' : ''}`}
                 key={task.id}
               >
                 <button onClick={() => setSelectedId(task.id)}>
                   <span>
-                    <div className="schedule-item-head">
+                    <div className="schedule-item-head [.schedule-list-item_&]:flex [.schedule-list-item_&]:min-w-0 [.schedule-list-item_&]:items-center [.schedule-list-item_&]:gap-[6px] [.schedule-list-item_&_strong]:flex-1 [.schedule-list-item_&_strong]:min-w-0">
                       <strong>{task.name}</strong>
                       <Badge tone={task.enabled ? 'green' : 'gray'}>
                         {task.enabled
@@ -640,7 +651,7 @@ export function SchedulesPage({
               </div>
             ))
           ) : (
-            <div className="channel-route-empty">
+            <div className="channel-route-empty [&_strong]:mt-[9px] [&_strong]:text-[var(--text)] [&_strong]:text-[12px] [&_span]:mt-[4px] [&_span]:text-[13px] [&.compact]:min-h-[110px] [.workflow-assets-panel_&]:min-h-[150px] [.workflow-assets-panel_&]:border-0 [.workflow-assets-panel_&]:bg-transparent grid min-h-[185px] place-content-center justify-items-center text-[var(--text-muted)] text-center">
               <StarOrbit size={38} />
               <strong>{t('schedules:schedulesPage.theTimelineIsStillUnlit')}</strong>
               <span>
@@ -652,35 +663,36 @@ export function SchedulesPage({
           )}
         </Panel>
         {selected && draft ? (
-          <div className="detail-stack">
+          <div className="detail-stack flex min-w-0 flex-col gap-[12px] [.mcp-layout_>_&]:min-h-0 max-[1150px]:[.memory-layout_>_&]:[grid-column:1/-1] max-[1150px]:[.memory-layout_>_&]:grid max-[1150px]:[.memory-layout_>_&]:grid-cols-[repeat(2,minmax(0,1fr))] max-[1150px]:[.mcp-layout_>_&]:[grid-column:1/-1] max-[1150px]:[.mcp-layout_>_&]:grid max-[1150px]:[.mcp-layout_>_&]:grid-cols-[repeat(2,minmax(0,1fr))] max-[1150px]:[.skills-layout_>_&]:[grid-column:1/-1] max-[1150px]:[.skills-layout_>_&]:grid max-[1150px]:[.skills-layout_>_&]:grid-cols-[repeat(2,minmax(0,1fr))] max-[650px]:[.memory-layout_>_&]:[grid-column:auto] max-[650px]:[.memory-layout_>_&]:grid-cols-[1fr] max-[650px]:[.mcp-layout_>_&]:[grid-column:auto] max-[650px]:[.mcp-layout_>_&]:grid-cols-[1fr] max-[650px]:[.skills-layout_>_&]:[grid-column:auto] max-[650px]:[.skills-layout_>_&]:grid-cols-[1fr]">
             <Panel>
-              <div className="card-head">
+              <AppCardHeader>
                 <h2>{draft.name}</h2>
-                <div className="schedule-head-actions">
+                <div className="flex items-center gap-[6px] gap-[5px]">
                   <Toggle value={draft.enabled} onChange={(enabled) => updateDraft({ enabled })} />
-                  <button
-                    className="button dark"
+                  <Button
+                    size="lg"
                     disabled={saving || selected.lastStatus === 'running'}
                     onClick={run}
                   >
                     {selected.lastStatus === 'running' ? (
-                      <RefreshCw className="spin" size={14} />
+                      <RefreshCw className="animate-spin" size={14} />
                     ) : (
                       <Play size={14} />
                     )}
                     {selected.lastStatus === 'running'
                       ? t('schedules:schedulesPage.running')
                       : t('schedules:schedulesPage.runNow')}
-                  </button>
-                  <button
-                    className="icon-button danger"
+                  </Button>
+                  <Button
+                    variant="destructive"
+                    size="icon"
                     title={t('schedules:schedulesPage.deleteTask')}
                     onClick={remove}
                   >
                     <Trash2 size={14} />
-                  </button>
+                  </Button>
                 </div>
-              </div>
+              </AppCardHeader>
               <ScheduleTargetFields
                 targetType={draft.targetType}
                 prompt={draft.prompt}
@@ -695,29 +707,26 @@ export function SchedulesPage({
                   onChange={(cwd) => updateDraft({ cwd })}
                 />
               )}
-              <div className="form-grid three">
-                <label className="field-label">
+              <div className="form-grid grid gap-[9px] three [.form-grid&]:grid-cols-[repeat(3,minmax(0,1fr))] max-[650px]:[.form-grid&]:grid-cols-[1fr]">
+                <FieldLabel variant="control">
                   {t('schedules:schedulesPage.frequency')}
-                  <span className="select-wrap">
-                    <AppSelect
-                      value={draft.frequency}
-                      onChange={(event) =>
-                        updateDraft({ frequency: event.target.value as ScheduleFrequency })
-                      }
-                    >
-                      {Object.keys(FREQUENCIES).map((value) => (
-                        <option value={value} key={value}>
-                          {frequencyLabel(value as ScheduleFrequency, t)}
-                        </option>
-                      ))}
-                    </AppSelect>
-                    <ChevronDown size={13} />
-                  </span>
-                </label>
+                  <AppSelect
+                    value={draft.frequency}
+                    onChange={(event) =>
+                      updateDraft({ frequency: event.target.value as ScheduleFrequency })
+                    }
+                  >
+                    {Object.keys(FREQUENCIES).map((value) => (
+                      <option value={value} key={value}>
+                        {frequencyLabel(value as ScheduleFrequency, t)}
+                      </option>
+                    ))}
+                  </AppSelect>
+                </FieldLabel>
                 {draft.frequency === 'interval' ? (
-                  <label className="field-label">
+                  <FieldLabel variant="control">
                     {t('schedules:schedulesPage.runInterval')}
-                    <span className="schedule-interval-input">
+                    <span className="schedule-interval-input [&_input]:w-full [&_input]:min-w-0 [&_input]:h-full [&_input]:border-0 [&_input]:[outline:0] [&_input]:bg-transparent [&_input]:p-[0_9px] [&_input]:text-[var(--text)] [&_select]:h-full [&_select]:border-0 [&_select]:[border-left:1px_solid_var(--stroke)] [&_select]:[outline:0] [&_select]:bg-[var(--solid)] [&_select]:p-[0_8px] [&_select]:text-[var(--text-tertiary)] [&_select]:text-[12px] [&_[data-slot='select-trigger']]:w-auto [&_[data-slot='select-trigger']]:min-w-[74px] [&_[data-slot='select-trigger']]:[border-left:1px_solid_var(--stroke)] [&_[data-slot='select-trigger']]:rounded-[0] [&_[data-slot='select-trigger']]:bg-[var(--solid)] [&_[data-slot='select-trigger']]:text-[var(--text-tertiary)] grid h-[31px] grid-cols-[minmax(0,1fr)_auto] overflow-hidden [border:1px_solid_var(--stroke)] rounded-[var(--r-xs)] bg-[var(--surface-subtle)]">
                       <input
                         type="number"
                         min="1"
@@ -739,33 +748,30 @@ export function SchedulesPage({
                         ))}
                       </AppSelect>
                     </span>
-                  </label>
+                  </FieldLabel>
                 ) : (
-                  <label className="field-label">
+                  <FieldLabel variant="control">
                     {t('schedules:schedulesPage.time')}
                     <input
                       type="time"
                       value={draft.time}
                       onChange={(event) => updateDraft({ time: event.target.value })}
                     />
-                  </label>
+                  </FieldLabel>
                 )}
-                <label className="field-label">
+                <FieldLabel variant="control">
                   {t('schedules:schedulesPage.timeZone')}
-                  <span className="select-wrap">
-                    <AppSelect
-                      value={draft.timezone}
-                      onChange={(event) => updateDraft({ timezone: event.target.value })}
-                    >
-                      {TIMEZONES.map((timezone) => (
-                        <option value={timezone} key={timezone}>
-                          {timezone}
-                        </option>
-                      ))}
-                    </AppSelect>
-                    <ChevronDown size={13} />
-                  </span>
-                </label>
+                  <AppSelect
+                    value={draft.timezone}
+                    onChange={(event) => updateDraft({ timezone: event.target.value })}
+                  >
+                    {TIMEZONES.map((timezone) => (
+                      <option value={timezone} key={timezone}>
+                        {timezone}
+                      </option>
+                    ))}
+                  </AppSelect>
+                </FieldLabel>
                 {draft.targetType === 'prompt' && (
                   <ScheduleExecutionModeField
                     value={draft.executionMode}
@@ -773,15 +779,19 @@ export function SchedulesPage({
                   />
                 )}
               </div>
-              <div className="schedule-notification-section">
+              <div className="schedule-notification-section [&_>_div:first-child]:flex [&_>_div:first-child]:items-center [&_>_div:first-child]:justify-between [&_>_div:first-child]:gap-[8px] [&_>_div:first-child_strong]:text-[13px] [&_>_p]:mt-[4px] [&_>_p]:text-[var(--text-muted)] [&_>_p]:text-[13px] [margin-top:13px] [border-top:1px_solid_var(--stroke-soft)] [padding-top:12px]">
                 <div>
                   <strong>{t('schedules:schedulesPage.notificationChannels')}</strong>
-                  <button type="button" className="text-button" onClick={openNotificationSettings}>
+                  <button
+                    type="button"
+                    className="text-button hover:text-[var(--text)] border-0 bg-transparent text-[var(--text-soft)] text-[12px] font-[600] [text-decoration:underline] [text-underline-offset:2px]"
+                    onClick={openNotificationSettings}
+                  >
                     {t('schedules:schedulesPage.editTemplates')}
                   </button>
                 </div>
                 <p>{t('schedules:schedulesPage.notificationChannelsHelp')}</p>
-                <div className="schedule-notification-targets">
+                <div className="schedule-notification-targets [&_>_button]:grid [&_>_button]:min-h-[52px] [&_>_button]:grid-cols-[auto_minmax(0,1fr)_auto] [&_>_button]:items-center [&_>_button]:gap-[7px] [&_>_button]:[border:1px_solid_var(--stroke)] [&_>_button]:rounded-[var(--r-sm)] [&_>_button]:bg-[var(--surface-subtle)] [&_>_button]:p-[7px_8px] [&_>_button]:text-left [&_>_button_>_span]:flex [&_>_button_>_span]:min-w-0 [&_>_button_>_span]:flex-col [&_>_button_>_span]:gap-[3px] [&_strong]:text-[13px] [&_small]:overflow-hidden [&_small]:text-[var(--text-muted)] [&_small]:text-[13px] [&_small]:text-ellipsis [&_small]:whitespace-nowrap [&_>_button_>_svg:last-child]:text-[var(--control-muted)] [&_>_button.selected]:border-[var(--focus)] [&_>_button.selected]:bg-[var(--accent-soft)] [&_>_button.selected]:text-[var(--star-strong)] [&_>_button.selected_>_svg:last-child]:text-[var(--success)] max-[650px]:grid-cols-[1fr] grid grid-cols-[repeat(3,minmax(0,1fr))] gap-[7px] [margin-top:9px]">
                   {(
                     Object.entries(TARGETS) as Array<
                       [NotificationTarget, (typeof TARGETS)[NotificationTarget]]
@@ -810,10 +820,10 @@ export function SchedulesPage({
                     )
                   })}
                 </div>
-                <div className="schedule-notify-mode">
+                <div className="flex items-center gap-[6px] [margin-top:9px]">
                   <button
                     type="button"
-                    className={`schedule-notification-chip ${draft.notifyOn === 'failure' ? 'selected' : ''}`}
+                    className={`schedule-notification-chip [&.selected]:border-[var(--control-selected-border)] [&.selected]:bg-[var(--control-selected-bg)] [&.selected]:text-[var(--control-selected-text)] [&.selected]:shadow-[var(--sh-1)] dark:bg-[var(--surface-subtle)] inline-flex h-[32px] items-center gap-[4px] [border:1px_solid_var(--stroke)] rounded-[var(--r-pill)] bg-[var(--surface-subtle)] text-[var(--text-muted)] [padding:0_10px] text-[13px] font-[600] ${draft.notifyOn === 'failure' ? 'selected' : ''}`}
                     onClick={() =>
                       updateDraft({ notifyOn: draft.notifyOn === 'failure' ? 'always' : 'failure' })
                     }
@@ -824,7 +834,7 @@ export function SchedulesPage({
                   </button>
                 </div>
               </div>
-              <div className="form-footer">
+              <div className="form-footer [&_>_span]:text-[var(--text-muted)] [&_>_span]:text-[13px] flex items-center justify-between gap-[10px] [margin-top:10px]">
                 <span>
                   {selected.lastRunAt
                     ? t('schedules:schedulesPage.lastRunTime', {
@@ -834,8 +844,8 @@ export function SchedulesPage({
                         time: nextRunLabel(selected, language),
                       })}
                 </span>
-                <button
-                  className="button dark"
+                <Button
+                  size="lg"
                   disabled={
                     saving ||
                     !scheduleTargetValid(
@@ -848,20 +858,23 @@ export function SchedulesPage({
                   }
                   onClick={save}
                 >
-                  {saving ? <RefreshCw className="spin" size={14} /> : null}
+                  {saving ? <RefreshCw className="animate-spin" size={14} /> : null}
                   {saving
                     ? t('schedules:schedulesPage.saving')
                     : t('schedules:schedulesPage.saveTask')}
-                </button>
+                </Button>
               </div>
             </Panel>
             <Panel>
               <SectionTitle title={t('schedules:schedulesPage.recentRuns')} />
               {runs.length ? (
                 runs.map((item) => (
-                  <div className={`schedule-run-row ${item.status}`} key={item.id}>
+                  <div
+                    className={`schedule-run-row [&_>_svg]:text-[var(--text-muted)] [&.completed_>_svg]:text-[var(--success)] [&.failed_>_svg]:text-[var(--danger)] [&.running_>_svg]:text-[var(--star-strong)] [&_>_span]:flex [&_>_span]:min-w-0 [&_>_span]:flex-col [&_>_span]:gap-[4px] [&_strong]:[display:-webkit-box] [&_strong]:overflow-hidden [&_strong]:text-[12px] [&_strong]:leading-[1.4] [&_strong]:[-webkit-box-orient:vertical] [&_strong]:[-webkit-line-clamp:2] [&_small]:text-[var(--text-muted)] [&_small]:text-[13px] [&_a]:text-[var(--text-soft)] [&_a]:text-[13px] [&_a]:[text-decoration:underline] [&_a]:[text-underline-offset:2px] [&_>_em]:text-[var(--text-muted)] [&_>_em]:text-[12px] [&_>_em]:[font-style:normal] [&_>_em]:whitespace-nowrap grid grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-[9px] [border-top:1px_solid_var(--stroke-soft)] [padding:10px_2px] ${item.status}`}
+                    key={item.id}
+                  >
                     {item.status === 'running' ? (
-                      <RefreshCw className="spin" size={15} />
+                      <RefreshCw className="animate-spin" size={15} />
                     ) : item.status === 'completed' ? (
                       <CheckCircle2 size={15} />
                     ) : (
@@ -896,7 +909,7 @@ export function SchedulesPage({
                   </div>
                 ))
               ) : (
-                <div className="channel-route-empty compact">
+                <div className="channel-route-empty [&_strong]:mt-[9px] [&_strong]:text-[var(--text)] [&_strong]:text-[12px] [&_span]:mt-[4px] [&_span]:text-[13px] [&.compact]:min-h-[110px] [.workflow-assets-panel_&]:min-h-[150px] [.workflow-assets-panel_&]:border-0 [.workflow-assets-panel_&]:bg-transparent grid min-h-[185px] place-content-center justify-items-center text-[var(--text-muted)] text-center compact">
                   <StarOrbit size={32} />
                   <strong>{t('schedules:schedulesPage.noRunHistory')}</strong>
                 </div>
@@ -992,7 +1005,7 @@ function CreateSchedulePanel({
   }
   return (
     <Panel>
-      <div className="card-head">
+      <AppCardHeader>
         <div>
           <h2>{t('schedules:schedulesPage.newScheduledTask')}</h2>
           <p>
@@ -1001,15 +1014,15 @@ function CreateSchedulePanel({
             )}
           </p>
         </div>
-      </div>
-      <label className="field-label">
+      </AppCardHeader>
+      <FieldLabel variant="control">
         {t('schedules:schedulesPage.taskName')}
         <input
           value={name}
           onChange={(event) => setName(event.target.value)}
           placeholder={t('schedules:schedulesPage.forExampleDailyCodeReview')}
         />
-      </label>
+      </FieldLabel>
       <ScheduleTargetFields
         targetType={targetType}
         prompt={prompt}
@@ -1024,27 +1037,24 @@ function CreateSchedulePanel({
         }}
       />
       {targetType === 'prompt' && <ScheduleWorkspaceField value={cwd} onChange={setCwd} />}
-      <div className="form-grid three">
-        <label className="field-label">
+      <div className="form-grid grid gap-[9px] three [.form-grid&]:grid-cols-[repeat(3,minmax(0,1fr))] max-[650px]:[.form-grid&]:grid-cols-[1fr]">
+        <FieldLabel variant="control">
           {t('schedules:schedulesPage.frequency')}
-          <span className="select-wrap">
-            <AppSelect
-              value={frequency}
-              onChange={(event) => setFrequency(event.target.value as ScheduleFrequency)}
-            >
-              {Object.keys(FREQUENCIES).map((value) => (
-                <option value={value} key={value}>
-                  {frequencyLabel(value as ScheduleFrequency, t)}
-                </option>
-              ))}
-            </AppSelect>
-            <ChevronDown size={13} />
-          </span>
-        </label>
+          <AppSelect
+            value={frequency}
+            onChange={(event) => setFrequency(event.target.value as ScheduleFrequency)}
+          >
+            {Object.keys(FREQUENCIES).map((value) => (
+              <option value={value} key={value}>
+                {frequencyLabel(value as ScheduleFrequency, t)}
+              </option>
+            ))}
+          </AppSelect>
+        </FieldLabel>
         {frequency === 'interval' ? (
-          <label className="field-label">
+          <FieldLabel variant="control">
             {t('schedules:schedulesPage.runInterval')}
-            <span className="schedule-interval-input">
+            <span className="schedule-interval-input [&_input]:w-full [&_input]:min-w-0 [&_input]:h-full [&_input]:border-0 [&_input]:[outline:0] [&_input]:bg-transparent [&_input]:p-[0_9px] [&_input]:text-[var(--text)] [&_select]:h-full [&_select]:border-0 [&_select]:[border-left:1px_solid_var(--stroke)] [&_select]:[outline:0] [&_select]:bg-[var(--solid)] [&_select]:p-[0_8px] [&_select]:text-[var(--text-tertiary)] [&_select]:text-[12px] [&_[data-slot='select-trigger']]:w-auto [&_[data-slot='select-trigger']]:min-w-[74px] [&_[data-slot='select-trigger']]:[border-left:1px_solid_var(--stroke)] [&_[data-slot='select-trigger']]:rounded-[0] [&_[data-slot='select-trigger']]:bg-[var(--solid)] [&_[data-slot='select-trigger']]:text-[var(--text-tertiary)] grid h-[31px] grid-cols-[minmax(0,1fr)_auto] overflow-hidden [border:1px_solid_var(--stroke)] rounded-[var(--r-xs)] bg-[var(--surface-subtle)]">
               <input
                 type="number"
                 min="1"
@@ -1062,40 +1072,37 @@ function CreateSchedulePanel({
                 ))}
               </AppSelect>
             </span>
-          </label>
+          </FieldLabel>
         ) : (
-          <label className="field-label">
+          <FieldLabel variant="control">
             {t('schedules:schedulesPage.time')}
             <input type="time" value={time} onChange={(event) => setTime(event.target.value)} />
-          </label>
+          </FieldLabel>
         )}
-        <label className="field-label">
+        <FieldLabel variant="control">
           {t('schedules:schedulesPage.timeZone')}
-          <span className="select-wrap">
-            <AppSelect value={timezone} onChange={(event) => setTimezone(event.target.value)}>
-              {TIMEZONES.map((item) => (
-                <option value={item} key={item}>
-                  {item}
-                </option>
-              ))}
-            </AppSelect>
-            <ChevronDown size={13} />
-          </span>
-        </label>
+          <AppSelect value={timezone} onChange={(event) => setTimezone(event.target.value)}>
+            {TIMEZONES.map((item) => (
+              <option value={item} key={item}>
+                {item}
+              </option>
+            ))}
+          </AppSelect>
+        </FieldLabel>
         {targetType === 'prompt' && (
           <ScheduleExecutionModeField value={executionMode} onChange={setExecutionMode} />
         )}
       </div>
       {error && (
-        <div className="config-error">
+        <AppError>
           <AlertTriangle size={13} />
           {error}
-        </div>
+        </AppError>
       )}
-      <div className="form-footer">
+      <div className="form-footer [&_>_span]:text-[var(--text-muted)] [&_>_span]:text-[13px] flex items-center justify-between gap-[10px] [margin-top:10px]">
         <span>{t('schedules:schedulesPage.enabledAutomaticallyAfterCreation')}</span>
-        <button
-          className="button dark"
+        <Button
+          size="lg"
           disabled={
             saving ||
             !name.trim() ||
@@ -1103,9 +1110,9 @@ function CreateSchedulePanel({
           }
           onClick={create}
         >
-          {saving ? <RefreshCw className="spin" size={14} /> : <Plus size={14} />}
+          {saving ? <RefreshCw className="animate-spin" size={14} /> : <Plus size={14} />}
           {saving ? t('schedules:schedulesPage.creating') : t('schedules:schedulesPage.createTask')}
-        </button>
+        </Button>
       </div>
     </Panel>
   )
@@ -1164,11 +1171,14 @@ function CreateScheduleModal({
   }
   return (
     <div
-      className="modal-backdrop"
+      className="modal-backdrop max-[650px]:p-[8px] fixed z-[70] inset-0 grid place-items-center overflow-y-auto bg-[var(--modal-overlay)] [backdrop-filter:blur(3px)] [padding:20px] [overscroll-behavior:contain] [animation:fade-in_var(--d1)_var(--ease-out)]"
       onMouseDown={(event) => event.target === event.currentTarget && onClose()}
     >
-      <form className="modal" onSubmit={submit}>
-        <div className="card-head">
+      <form
+        className="modal !w-[min(430px,100%)] max-h-[calc(100dvh_-_40px)] overflow-y-auto [overscroll-behavior:contain] [border:1px_solid_var(--surface-highlight)] rounded-[var(--r-md)] bg-[var(--solid)] p-[18px] shadow-[0_26px_70px_-25px_var(--shadow-strong)] [animation:modal-in_var(--d2)_var(--ease-out)] max-[650px]:max-h-[calc(100dvh_-_16px)]"
+        onSubmit={submit}
+      >
+        <AppCardHeader>
           <div>
             <h2>{t('schedules:schedulesPage.newScheduledTask')}</h2>
             <p>
@@ -1177,23 +1187,24 @@ function CreateScheduleModal({
               )}
             </p>
           </div>
-          <button
+          <Button
             type="button"
-            className="icon-button"
+            variant="ghost"
+            size="icon"
             aria-label={t('schedules:schedulesPage.closeDialog')}
             onClick={onClose}
           >
             <X size={17} />
-          </button>
-        </div>
-        <label className="field-label">
+          </Button>
+        </AppCardHeader>
+        <FieldLabel variant="control">
           {t('schedules:schedulesPage.taskName')}
           <input
             value={name}
             onChange={(event) => setName(event.target.value)}
             placeholder={t('schedules:schedulesPage.forExampleDailyCodeReview')}
           />
-        </label>
+        </FieldLabel>
         <ScheduleTargetFields
           targetType={targetType}
           prompt={prompt}
@@ -1214,28 +1225,34 @@ function CreateScheduleModal({
           </>
         )}
         {error && (
-          <div className="config-error">
+          <AppError>
             <AlertTriangle size={13} />
             {error}
-          </div>
+          </AppError>
         )}
-        <div className="modal-actions">
-          <button type="button" className="button secondary" onClick={onClose}>
+        <div className="flex justify-end gap-[8px] [margin-top:18px]">
+          <Button
+            type="button"
+            variant="outline"
+            size="lg"
+            className="bg-surface-subtle"
+            onClick={onClose}
+          >
             {t('schedules:schedulesPage.cancel')}
-          </button>
-          <button
-            className="button primary"
+          </Button>
+          <Button
+            size="lg"
             disabled={
               saving ||
               !name.trim() ||
               !scheduleTargetValid(targetType, prompt, workflowId, workflowInputs, workflows)
             }
           >
-            {saving ? <RefreshCw className="spin" size={14} /> : <Plus size={14} />}
+            {saving ? <RefreshCw className="animate-spin" size={14} /> : <Plus size={14} />}
             {saving
               ? t('schedules:schedulesPage.creating')
               : t('schedules:schedulesPage.createTask')}
-          </button>
+          </Button>
         </div>
       </form>
     </div>

@@ -118,11 +118,16 @@ When a detected component is **Runtime** or **TUI**, `npm run release` automatic
 
 ## Conventions
 
+- **注释语言：** 代码注释一律使用中文。新增或修改 `src/`、`runtime/`、`shared/`、`src-tauri/`、`src-tui/` 等任何代码时，解释性注释（行注释、块注释、JSDoc/doc 注释）均须用中文书写；注释应说明「为什么」，而不是复述代码本身。
+
 ### Frontend (`src/`)
 
 - TypeScript strict; no unused locals/parameters.
 - Import with `@/` aliases. Under `src/**`, oxlint enforces **no relative parent imports** (`import/no-relative-parent-imports`).
 - UI: Tailwind + shadcn (`components.json` style `radix-nova`, icons via `lucide-react`). Use `cn()` from `@/lib/utils`.
+- Styling policy: use Tailwind utilities for component layout and appearance, and use or extend shadcn primitives for shared controls. Repeated utility combinations belong in a React component or typed variant, not in a new global CSS class.
+- Do **not** add page-, feature-, or control-level semantic classes to `src/index.css`, including `@apply` aliases that merely hide Tailwind utilities. Keep global CSS limited to design tokens/theme variables, resets and base element rules, keyframes, and narrowly scoped third-party or complex selector overrides that Tailwind cannot express clearly.
+- Treat existing global semantic classes as migration debt: when changing a component that uses them, migrate the touched styling to Tailwind/shadcn when the change can remain focused. Do not perform unrelated bulk rewrites solely to remove old classes.
 - Feature code lives under `src/features/<area>/`; shared layout/chrome under `src/components/`.
 - i18n: `t('namespace:key')` / `translateText('namespace:key')` with **string-literal** keys only. Both `zh-CN` and `en-US` must define every key; no Chinese characters as keys. Run `npm run i18n:check` after UI copy changes.
 - Prettier: single quotes, no semicolons, trailing commas, print width 100. Note: Prettier currently ignores most of `runtime/`, `scripts/`, and `shared/` (see `.prettierignore`); still match nearby file style.

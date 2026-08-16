@@ -17,7 +17,7 @@ import { useI18n } from '@/app/use-i18n'
 import { STORAGE_KEYS } from '@/app/storage'
 import { SpotlightCard } from '@/components/react-bits/SpotlightCard'
 import { StarOrbit } from '@/components/StarOrbit'
-import { AppCard as Panel } from '@/components/ui/app-primitives'
+import { AppCard as Panel, AppError, AppEmptyState } from '@/components/ui/app-primitives'
 import type { ConfirmDialogOptions, PromptDialogOptions } from '@/hooks/useAppDialog'
 import { apiJson } from '@/lib/api'
 import { relativeTime, workspaceName } from '@/lib/format'
@@ -30,6 +30,8 @@ import {
   requestSessionSelection,
 } from './events'
 import type { SessionOpenDisposition } from './dock-layout'
+
+import { Button } from '@/components/ui/button'
 
 type ChatHistoryPageProps = {
   query: string
@@ -164,8 +166,8 @@ export function ChatHistoryPage({
   }
 
   return (
-    <div className="chat-history-page">
-      <div className="chat-history-summary">
+    <div className="flex min-h-[100%] flex-col gap-[12px]">
+      <div className="chat-history-summary [&_>_div]:flex [&_>_div]:min-w-0 [&_>_div]:items-center [&_>_div]:gap-[10px] [&_>_div]:text-[var(--star-strong)] [&_>_div_>_span]:flex [&_>_div_>_span]:min-w-0 [&_>_div_>_span]:flex-col [&_>_div_>_span]:gap-[2px] [&_strong]:text-[var(--text)] [&_strong]:text-[13px] [&_small]:text-[var(--text-muted)] [&_small]:text-[11px] flex min-h-[52px] items-center justify-between gap-[12px] [border:1px_solid_var(--stroke)] rounded-[var(--r-md)] bg-[var(--panel)] [padding:8px_10px_8px_14px] shadow-[var(--sh-1)]">
         <div>
           <History size={18} />
           <span>
@@ -179,30 +181,39 @@ export function ChatHistoryPage({
             </small>
           </span>
         </div>
-        <button className="button secondary" onClick={load} disabled={loading}>
-          <RefreshCw className={loading ? 'spin' : ''} size={14} />
+        <Button
+          variant="outline"
+          size="lg"
+          className="bg-surface-subtle"
+          onClick={load}
+          disabled={loading}
+        >
+          <RefreshCw className={loading ? 'animate-spin' : ''} size={14} />
           {t('chat:chatHistoryPage.refresh')}
-        </button>
+        </Button>
       </div>
-      {error && <div className="config-error">{error}</div>}
+      {error && <AppError>{error}</AppError>}
       {loading && !sessions.length ? (
-        <Panel className="empty-state">
-          <RefreshCw className="spin" size={22} />
+        <AppEmptyState>
+          <RefreshCw className="animate-spin" size={22} />
           <h2>{t('chat:chatHistoryPage.loadingChatHistory')}</h2>
-        </Panel>
+        </AppEmptyState>
       ) : visible.length ? (
-        <Panel className="chat-history-list">
+        <Panel className="chat-history-list overflow-hidden !p-[5px]">
           {visible.map((session) => {
             return (
               <SpotlightCard
-                className={`chat-history-row ${session.id === activeId ? 'active' : ''}`}
+                className={`chat-history-row [.chat-history-row_+_&]:[border-top:1px_solid_var(--stroke-soft)] hover:bg-[var(--surface-subtle)] [&.active]:bg-[var(--surface-subtle)] [&.active]:shadow-[inset_3px_0_var(--brand-blue)] grid grid-cols-[minmax(0,1fr)_auto] items-center rounded-[var(--r-sm)] ${session.id === activeId ? 'active' : ''}`}
                 key={session.id}
               >
-                <button className="chat-history-open" onClick={() => openSession(session.id)}>
-                  <span className="chat-history-icon">
+                <button
+                  className="chat-history-open [&_>_svg]:text-[var(--text-muted)] max-[650px]:grid-cols-[32px_minmax(0,1fr)_auto] grid w-full min-w-0 min-h-[72px] grid-cols-[34px_minmax(0,1fr)_auto_auto] items-center gap-[10px] border-0 bg-transparent [padding:9px_10px] text-left"
+                  onClick={() => openSession(session.id)}
+                >
+                  <span className="grid w-[32px] h-[32px] place-items-center rounded-[var(--r-sm)] bg-[var(--star-soft)] text-[var(--star-strong)]">
                     <MessageSquare size={15} />
                   </span>
-                  <span className="chat-history-copy">
+                  <span className="chat-history-copy [&_strong]:overflow-hidden [&_strong]:text-ellipsis [&_strong]:whitespace-nowrap [&_>_span]:overflow-hidden [&_>_span]:text-ellipsis [&_>_span]:whitespace-nowrap [&_small]:overflow-hidden [&_small]:text-ellipsis [&_small]:whitespace-nowrap [&_strong]:text-[var(--text)] [&_strong]:text-[13px] [&_>_span]:text-[var(--text-soft)] [&_>_span]:text-[12px] [&_small]:text-[var(--text-muted)] [&_small]:text-[11px] max-[650px]:[&_>_span]:max-w-[54vw] flex min-w-0 flex-col gap-[3px]">
                     <strong title={session.name || t('chat:chatHistoryPage.untitledChat')}>
                       {session.name || t('chat:chatHistoryPage.untitledChat')}
                     </strong>
@@ -217,7 +228,7 @@ export function ChatHistoryPage({
                       {session.streaming ? ` · ${t('chat:chatHistoryPage.agentRunning')}` : ''}
                     </small>
                   </span>
-                  <span className="chat-history-meta">
+                  <span className="chat-history-meta [&_strong]:text-[var(--text-soft)] [&_strong]:text-[11px] [&_small]:text-[var(--text-muted)] [&_small]:text-[10px] max-[650px]:hidden flex min-w-[92px] flex-col items-end gap-[3px]">
                     <strong>
                       {t('chat:chatHistoryPage.countMessages', {
                         count: session.messageCount || 0,
@@ -227,7 +238,7 @@ export function ChatHistoryPage({
                   </span>
                   <ChevronRight size={15} />
                 </button>
-                <div className="chat-history-actions">
+                <div className="chat-history-actions [&_button]:grid [&_button]:w-[30px] [&_button]:h-[30px] [&_button]:min-h-[30px] [&_button]:place-items-center [&_button]:border-0 [&_button]:rounded-[var(--r-xs)] [&_button]:bg-transparent [&_button]:text-[var(--text-muted)] [&_button:hover]:bg-[var(--solid)] [&_button:hover]:text-[var(--text)] [&_button.active]:bg-[var(--star-soft)] [&_button.active]:text-[var(--star-strong)] [&_button.danger:hover]:bg-[var(--danger-soft)] [&_button.danger:hover]:text-[var(--danger)] max-[650px]:pr-[4px] flex items-center gap-[2px] [padding-right:8px]">
                   <button
                     title={t('chat:chatHistoryPage.splitToLeft')}
                     aria-label={t('chat:chatHistoryPage.splitNameToTheLeft', {
@@ -285,7 +296,7 @@ export function ChatHistoryPage({
           })}
         </Panel>
       ) : (
-        <Panel className="empty-state">
+        <AppEmptyState>
           <StarOrbit size={48} />
           <h2>
             {query
@@ -297,7 +308,7 @@ export function ChatHistoryPage({
               ? t('chat:chatHistoryPage.tryADifferentSearch')
               : t('chat:chatHistoryPage.onceAConversationBeginsItWillBeQuietlyGatheredHere')}
           </p>
-        </Panel>
+        </AppEmptyState>
       )}
     </div>
   )

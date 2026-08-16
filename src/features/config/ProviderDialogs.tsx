@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { AlertTriangle, Check, ChevronDown, Plus, RefreshCw, X } from 'lucide-react'
+import { AlertTriangle, Check, Plus, RefreshCw, X } from 'lucide-react'
 import { AppSelect } from '@/components/AppSelect'
 import { useI18n } from '@/app/use-i18n'
 import { apiJson } from '@/lib/api'
@@ -14,6 +14,12 @@ import type {
   ProviderModel,
   ProviderType,
 } from './config-types'
+
+import { Button } from '@/components/ui/button'
+
+import { FieldLabel } from '@/components/ui/field'
+
+import { AppCardHeader, AppError } from '@/components/ui/app-primitives'
 
 type ProviderConfigModalProps = {
   onClose: () => void
@@ -89,11 +95,14 @@ export function ProviderConfigModal({ onClose, onCreated }: ProviderConfigModalP
   }
   return (
     <div
-      className="modal-backdrop"
+      className="modal-backdrop max-[650px]:p-[8px] fixed z-[70] inset-0 grid place-items-center overflow-y-auto bg-[var(--modal-overlay)] [backdrop-filter:blur(3px)] [padding:20px] [overscroll-behavior:contain] [animation:fade-in_var(--d1)_var(--ease-out)]"
       onMouseDown={(event) => event.target === event.currentTarget && onClose()}
     >
-      <form className="modal provider-config-modal" onSubmit={submit}>
-        <div className="card-head">
+      <form
+        className="modal !w-[min(430px,100%)] max-h-[calc(100dvh_-_40px)] overflow-y-auto [overscroll-behavior:contain] [border:1px_solid_var(--surface-highlight)] rounded-[var(--r-md)] bg-[var(--solid)] p-[18px] shadow-[0_26px_70px_-25px_var(--shadow-strong)] [animation:modal-in_var(--d2)_var(--ease-out)] max-[650px]:max-h-[calc(100dvh_-_16px)] provider-config-modal !w-[min(620px,100%)]"
+        onSubmit={submit}
+      >
+        <AppCardHeader>
           <div>
             <h2>{t('config:configPage.addProviderConnection')}</h2>
             <p>
@@ -102,45 +111,43 @@ export function ProviderConfigModal({ onClose, onCreated }: ProviderConfigModalP
               )}
             </p>
           </div>
-          <button
+          <Button
             type="button"
-            className="icon-button"
+            variant="ghost"
+            size="icon"
             aria-label={t('config:configPage.closeDialog')}
             onClick={onClose}
           >
             <X size={17} />
-          </button>
-        </div>
-        <div className="form-grid">
-          <label className="field-label">
+          </Button>
+        </AppCardHeader>
+        <div className="form-grid grid gap-[9px]">
+          <FieldLabel variant="control">
             {t('config:configPage.displayName')}
             <input
               value={draft.name}
               onChange={(event) => updateName(event.target.value)}
               placeholder={t('config:configPage.forExampleOpenAIOfficial')}
             />
-          </label>
-          <label className="field-label">
+          </FieldLabel>
+          <FieldLabel variant="control">
             Provider ID
             <input
               value={draft.id}
               onChange={(event) => setDraft({ ...draft, id: event.target.value })}
               placeholder="openai-official"
             />
-          </label>
+          </FieldLabel>
         </div>
-        <label className="field-label">
+        <FieldLabel variant="control">
           {t('config:configPage.providerPurpose')}
-          <span className="select-wrap">
-            <AppSelect
-              value={draft.providerType}
-              onChange={(event) => updateProviderType(event.target.value as ProviderType)}
-            >
-              <option value="chat">{t('config:configPage.chatProvider')}</option>
-              <option value="visual">{t('config:configPage.visualProvider')}</option>
-            </AppSelect>
-            <ChevronDown size={13} />
-          </span>
+          <AppSelect
+            value={draft.providerType}
+            onChange={(event) => updateProviderType(event.target.value as ProviderType)}
+          >
+            <option value="chat">{t('config:configPage.chatProvider')}</option>
+            <option value="visual">{t('config:configPage.visualProvider')}</option>
+          </AppSelect>
           <small>
             {draft.providerType === 'visual'
               ? t(
@@ -148,32 +155,29 @@ export function ProviderConfigModal({ onClose, onCreated }: ProviderConfigModalP
                 )
               : t('config:configPage.usedForAgentChatAndMayAlsoIncludeVisualModels')}
           </small>
-        </label>
-        <label className="field-label">
+        </FieldLabel>
+        <FieldLabel variant="control">
           {t('config:configPage.apiProtocol')}
-          <span className="select-wrap">
-            <AppSelect
-              value={draft.api}
-              onChange={(event) => setDraft({ ...draft, api: event.target.value })}
-            >
-              {PROVIDER_APIS.map(([value, label]) => (
-                <option value={value} key={value}>
-                  {label}
-                </option>
-              ))}
-            </AppSelect>
-            <ChevronDown size={13} />
-          </span>
-        </label>
-        <label className="field-label">
+          <AppSelect
+            value={draft.api}
+            onChange={(event) => setDraft({ ...draft, api: event.target.value })}
+          >
+            {PROVIDER_APIS.map(([value, label]) => (
+              <option value={value} key={value}>
+                {label}
+              </option>
+            ))}
+          </AppSelect>
+        </FieldLabel>
+        <FieldLabel variant="control">
           Base URL
           <input
             value={draft.baseUrl}
             onChange={(event) => setDraft({ ...draft, baseUrl: event.target.value })}
             placeholder="https://api.openai.com/v1"
           />
-        </label>
-        <label className="field-label">
+        </FieldLabel>
+        <FieldLabel variant="control">
           API Key
           <input
             type="password"
@@ -181,9 +185,9 @@ export function ProviderConfigModal({ onClose, onCreated }: ProviderConfigModalP
             onChange={(event) => setDraft({ ...draft, apiKey: event.target.value })}
             placeholder={t('config:configPage.enterTheAPIKeyForThisConnection')}
           />
-        </label>
-        <div className="form-grid">
-          <label className="field-label">
+        </FieldLabel>
+        <div className="form-grid grid gap-[9px]">
+          <FieldLabel variant="control">
             {t('config:configPage.initialModelID')}
             <input
               value={draft.model}
@@ -194,33 +198,30 @@ export function ProviderConfigModal({ onClose, onCreated }: ProviderConfigModalP
                   : 'gpt-5.4 or gpt-image-1'
               }
             />
-          </label>
-          <label className="field-label">
+          </FieldLabel>
+          <FieldLabel variant="control">
             {t('config:configPage.modelName')}
             <input
               value={draft.modelName}
               onChange={(event) => setDraft({ ...draft, modelName: event.target.value })}
               placeholder={t('config:configPage.leaveBlankToUseTheModelID')}
             />
-          </label>
+          </FieldLabel>
         </div>
-        <label className="field-label">
+        <FieldLabel variant="control">
           {t('config:configPage.modelType')}
-          <span className="select-wrap">
-            <AppSelect
-              value={draft.modelKind}
-              onChange={(event) => setDraft({ ...draft, modelKind: event.target.value })}
-            >
-              {draft.providerType !== 'visual' && (
-                <option value="chat">{t('config:configPage.chat')}</option>
-              )}
-              <option value="image">{t('config:configPage.imageGenerationAndEditing')}</option>
-              <option value="video">{t('config:configPage.videoGeneration')}</option>
-            </AppSelect>
-            <ChevronDown size={13} />
-          </span>
-        </label>
-        <div className="modal-toggle-row">
+          <AppSelect
+            value={draft.modelKind}
+            onChange={(event) => setDraft({ ...draft, modelKind: event.target.value })}
+          >
+            {draft.providerType !== 'visual' && (
+              <option value="chat">{t('config:configPage.chat')}</option>
+            )}
+            <option value="image">{t('config:configPage.imageGenerationAndEditing')}</option>
+            <option value="video">{t('config:configPage.videoGeneration')}</option>
+          </AppSelect>
+        </FieldLabel>
+        <div className="modal-toggle-row [&_>_span]:flex [&_>_span]:flex-col [&_>_span]:gap-[3px] [&_strong]:text-[13px] [&_small]:text-[var(--text-muted)] [&_small]:text-[13px] dark:bg-[var(--surface-subtle)] flex min-h-[45px] items-center justify-between gap-[12px] [margin-top:10px] [border:1px_solid_var(--stroke-soft)] rounded-[var(--r-sm)] bg-[var(--surface-subtle)] [padding:8px_10px]">
           <span>
             <strong>{t('config:configPage.enableAfterCreation')}</strong>
             <small>
@@ -235,19 +236,25 @@ export function ProviderConfigModal({ onClose, onCreated }: ProviderConfigModalP
           />
         </div>
         {error && (
-          <div className="config-error">
+          <AppError>
             <AlertTriangle size={13} />
             {error}
-          </div>
+          </AppError>
         )}
-        <div className="modal-actions">
-          <button type="button" className="button secondary" onClick={onClose}>
+        <div className="flex justify-end gap-[8px] [margin-top:18px]">
+          <Button
+            type="button"
+            variant="outline"
+            size="lg"
+            className="bg-surface-subtle"
+            onClick={onClose}
+          >
             {t('config:configPage.cancel')}
-          </button>
-          <button className="button primary" disabled={saving}>
-            {saving ? <RefreshCw className="spin" size={14} /> : <Plus size={14} />}
+          </Button>
+          <Button size="lg" disabled={saving}>
+            {saving ? <RefreshCw className="animate-spin" size={14} /> : <Plus size={14} />}
             {saving ? t('config:configPage.creating') : t('config:configPage.createConnection')}
-          </button>
+          </Button>
         </div>
       </form>
     </div>
@@ -375,11 +382,14 @@ export function ProviderModelModal({
   const canSubmit = selectedIds.length > 0 || draft.id.trim()
   return (
     <div
-      className="modal-backdrop"
+      className="modal-backdrop max-[650px]:p-[8px] fixed z-[70] inset-0 grid place-items-center overflow-y-auto bg-[var(--modal-overlay)] [backdrop-filter:blur(3px)] [padding:20px] [overscroll-behavior:contain] [animation:fade-in_var(--d1)_var(--ease-out)]"
       onMouseDown={(event) => event.target === event.currentTarget && onClose()}
     >
-      <form className="modal" onSubmit={submit}>
-        <div className="card-head">
+      <form
+        className="modal !w-[min(430px,100%)] max-h-[calc(100dvh_-_40px)] overflow-y-auto [overscroll-behavior:contain] [border:1px_solid_var(--surface-highlight)] rounded-[var(--r-md)] bg-[var(--solid)] p-[18px] shadow-[0_26px_70px_-25px_var(--shadow-strong)] [animation:modal-in_var(--d2)_var(--ease-out)] max-[650px]:max-h-[calc(100dvh_-_16px)]"
+        onSubmit={submit}
+      >
+        <AppCardHeader>
           <div>
             <h2>{t('config:configPage.addModel')}</h2>
             <p>
@@ -388,17 +398,18 @@ export function ProviderModelModal({
               })}
             </p>
           </div>
-          <button
+          <Button
             type="button"
-            className="icon-button"
+            variant="ghost"
+            size="icon"
             aria-label={t('config:configPage.closeDialog')}
             onClick={onClose}
           >
             <X size={17} />
-          </button>
-        </div>
+          </Button>
+        </AppCardHeader>
         <div className="flex items-end gap-2">
-          <label className="field-label min-w-0 flex-1">
+          <FieldLabel variant="control" className="min-w-0 flex-1">
             {t('config:configPage.remoteModelCatalog')}
             <input
               value={search}
@@ -406,49 +417,49 @@ export function ProviderModelModal({
               placeholder={t('config:configPage.searchModelIDOrName')}
               disabled={!catalog.length}
             />
-          </label>
-          <button
+          </FieldLabel>
+          <Button
             type="button"
-            className="button secondary h-9 shrink-0"
+            variant="outline"
+            size="lg"
+            className="bg-surface-subtle h-9 shrink-0"
             disabled={discovering}
             onClick={discover}
           >
-            {discovering ? <RefreshCw className="spin" size={14} /> : <RefreshCw size={14} />}
+            {discovering ? (
+              <RefreshCw className="animate-spin" size={14} />
+            ) : (
+              <RefreshCw size={14} />
+            )}
             {discovering
               ? t('config:configPage.fetching')
               : catalog.length
                 ? t('config:configPage.fetchAgain')
                 : t('config:configPage.fetchFromAPI')}
-          </button>
+          </Button>
         </div>
         {catalog.length > 0 && (
-          <div className="form-grid">
-            <label className="field-label">
+          <div className="form-grid grid gap-[9px]">
+            <FieldLabel variant="control">
               {t('config:configPage.modelType')}
-              <span className="select-wrap">
-                <AppSelect value={batchKind} onChange={(event) => setBatchKind(event.target.value)}>
-                  {provider.type !== 'visual' && (
-                    <option value="chat">{t('config:configPage.chat')}</option>
-                  )}
-                  <option value="image">{t('config:configPage.imageGenerationAndEditing')}</option>
-                  <option value="video">{t('config:configPage.videoGeneration')}</option>
-                </AppSelect>
-                <ChevronDown size={13} />
-              </span>
-            </label>
-            <label className="field-label">
+              <AppSelect value={batchKind} onChange={(event) => setBatchKind(event.target.value)}>
+                {provider.type !== 'visual' && (
+                  <option value="chat">{t('config:configPage.chat')}</option>
+                )}
+                <option value="image">{t('config:configPage.imageGenerationAndEditing')}</option>
+                <option value="video">{t('config:configPage.videoGeneration')}</option>
+              </AppSelect>
+            </FieldLabel>
+            <FieldLabel variant="control">
               {t('config:configPage.apiProtocol')}
-              <span className="select-wrap">
-                <AppSelect value={batchApi} onChange={(event) => setBatchApi(event.target.value)}>
-                  {PROVIDER_APIS.map(([value, label]) => (
-                    <option value={value} key={value}>
-                      {label}
-                    </option>
-                  ))}
-                </AppSelect>
-                <ChevronDown size={13} />
-              </span>
-            </label>
+              <AppSelect value={batchApi} onChange={(event) => setBatchApi(event.target.value)}>
+                {PROVIDER_APIS.map(([value, label]) => (
+                  <option value={value} key={value}>
+                    {label}
+                  </option>
+                ))}
+              </AppSelect>
+            </FieldLabel>
           </div>
         )}
         {catalog.length > 0 && (
@@ -462,7 +473,7 @@ export function ProviderModelModal({
               return (
                 <button
                   type="button"
-                  className={`flex min-h-10 w-full items-center gap-2 rounded-[var(--r-xs)] border px-2.5 py-1.5 text-left text-[13px] ${selected ? 'border-[var(--control-selected-border)] bg-[var(--control-selected-bg)] text-[var(--control-selected-text)]' : 'border-transparent bg-transparent text-[var(--text)] hover:bg-[var(--surface-hover)]'} ${model.added ? 'cursor-default opacity-55' : ''}`}
+                  className={`flex min-h-10 w-full items-center gap-2 rounded-[var(--r-xs)] border px-2.5 py-1.5 text-left text-[13px] ${selected ? 'border-[var(--control-selected-border)] bg-[var(--control-selected-bg)] text-[var(--control-selected-text)]' : 'border-transparent bg-transparent text-[var(--text)] hover:bg-[var(--surface-hover)]'}    ${model.added ? 'cursor-default opacity-55' : ''}`}
                   role="option"
                   aria-selected={selected}
                   disabled={model.added}
@@ -499,66 +510,60 @@ export function ProviderModelModal({
           <span>{t('config:configPage.addManually')}</span>
           <span className="h-px flex-1 bg-[var(--stroke)]" />
         </div>
-        <div className="form-grid">
-          <label className="field-label">
+        <div className="form-grid grid gap-[9px]">
+          <FieldLabel variant="control">
             {t('config:configPage.modelID')}
             <input
               value={draft.id}
               onChange={(event) => setDraft({ ...draft, id: event.target.value })}
               placeholder="gpt-5.4-mini, gpt-image-1, or sora-2"
             />
-          </label>
-          <label className="field-label">
+          </FieldLabel>
+          <FieldLabel variant="control">
             {t('config:configPage.displayName')}
             <input
               value={draft.name}
               onChange={(event) => setDraft({ ...draft, name: event.target.value })}
               placeholder={t('config:configPage.leaveBlankToUseTheModelID')}
             />
-          </label>
+          </FieldLabel>
         </div>
-        <label className="field-label">
+        <FieldLabel variant="control">
           {t('config:configPage.modelBaseURL')}
           <input
             value={draft.baseUrl}
             onChange={(event) => setDraft({ ...draft, baseUrl: event.target.value })}
             placeholder={t('config:configPage.optionalLeaveBlankToInheritTheProviderBaseURL')}
           />
-        </label>
-        <label className="field-label">
+        </FieldLabel>
+        <FieldLabel variant="control">
           {t('config:configPage.apiProtocol')}
-          <span className="select-wrap">
-            <AppSelect
-              value={draft.api}
-              onChange={(event) => setDraft({ ...draft, api: event.target.value })}
-            >
-              {PROVIDER_APIS.map(([value, label]) => (
-                <option value={value} key={value}>
-                  {label}
-                </option>
-              ))}
-            </AppSelect>
-            <ChevronDown size={13} />
-          </span>
-        </label>
-        <label className="field-label">
+          <AppSelect
+            value={draft.api}
+            onChange={(event) => setDraft({ ...draft, api: event.target.value })}
+          >
+            {PROVIDER_APIS.map(([value, label]) => (
+              <option value={value} key={value}>
+                {label}
+              </option>
+            ))}
+          </AppSelect>
+        </FieldLabel>
+        <FieldLabel variant="control">
           {t('config:configPage.modelType')}
-          <span className="select-wrap">
-            <AppSelect
-              value={draft.kind}
-              onChange={(event) => setDraft({ ...draft, kind: event.target.value })}
-            >
-              {provider.type !== 'visual' && (
-                <option value="chat">{t('config:configPage.chat')}</option>
-              )}
-              <option value="image">{t('config:configPage.imageGenerationAndEditing')}</option>
-              <option value="video">{t('config:configPage.videoGeneration')}</option>
-            </AppSelect>
-            <ChevronDown size={13} />
-          </span>
-        </label>
+          <AppSelect
+            value={draft.kind}
+            onChange={(event) => setDraft({ ...draft, kind: event.target.value })}
+          >
+            {provider.type !== 'visual' && (
+              <option value="chat">{t('config:configPage.chat')}</option>
+            )}
+            <option value="image">{t('config:configPage.imageGenerationAndEditing')}</option>
+            <option value="video">{t('config:configPage.videoGeneration')}</option>
+          </AppSelect>
+        </FieldLabel>
         {draft.kind !== 'image' && draft.kind !== 'video' && (
-          <div className="modal-toggle-row">
+          <div className="modal-toggle-row [&_>_span]:flex [&_>_span]:flex-col [&_>_span]:gap-[3px] [&_strong]:text-[13px] [&_small]:text-[var(--text-muted)] [&_small]:text-[13px] dark:bg-[var(--surface-subtle)] flex min-h-[45px] items-center justify-between gap-[12px] [margin-top:10px] [border:1px_solid_var(--stroke-soft)] rounded-[var(--r-sm)] bg-[var(--surface-subtle)] [padding:8px_10px]">
             <span>
               <strong>{t('config:configPage.reasoningModel')}</strong>
               <small>{t('config:configPage.enableReasoningEffortThinkingLevel')}</small>
@@ -570,23 +575,29 @@ export function ProviderModelModal({
           </div>
         )}
         {error && (
-          <div className="config-error">
+          <AppError>
             <AlertTriangle size={13} />
             {error}
-          </div>
+          </AppError>
         )}
-        <div className="modal-actions">
-          <button type="button" className="button secondary" onClick={onClose}>
+        <div className="flex justify-end gap-[8px] [margin-top:18px]">
+          <Button
+            type="button"
+            variant="outline"
+            size="lg"
+            className="bg-surface-subtle"
+            onClick={onClose}
+          >
             {t('config:configPage.cancel')}
-          </button>
-          <button className="button primary" disabled={saving || !canSubmit}>
-            {saving ? <RefreshCw className="spin" size={14} /> : <Plus size={14} />}
+          </Button>
+          <Button size="lg" disabled={saving || !canSubmit}>
+            {saving ? <RefreshCw className="animate-spin" size={14} /> : <Plus size={14} />}
             {saving
               ? t('config:configPage.adding')
               : selectedIds.length
                 ? t('config:configPage.addCountModels', { count: selectedIds.length })
                 : t('config:configPage.addModel')}
-          </button>
+          </Button>
         </div>
       </form>
     </div>

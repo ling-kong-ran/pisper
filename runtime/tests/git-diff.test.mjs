@@ -63,28 +63,30 @@ test('deleted files keep red original rows and empty modified rows', () => {
 })
 
 test('diff dialog navigates files separately and renders one side-by-side diff', async () => {
-  const [viewer, approval, styles] = await Promise.all([
+  const [viewer, approval] = await Promise.all([
     readFile('src/features/chat/GitDiffViewer.tsx', 'utf8'),
     readFile('src/features/chat/ToolApproval.tsx', 'utf8'),
-    readFile('src/index.css', 'utf8'),
   ])
-  assert.match(viewer, /className="git-diff-file-nav-list"/)
+  assert.match(viewer, /className="git-diff-file-nav-list[^"\n]*"/)
   assert.match(viewer, /selectedEntry && \(/)
-  assert.match(viewer, /<section className="git-diff-file" key=\{selectedEntry\.file\.path\}>/)
+  assert.match(
+    viewer,
+    /<section[\s\S]*?className="min-w-\[880px\][^"\n]*"[\s\S]*?key=\{selectedEntry\.file\.path\}/,
+  )
   assert.doesNotMatch(viewer, /files\.map\(\(file/)
   assert.match(viewer, /useVirtualizer<HTMLDivElement, HTMLDivElement>/)
   assert.match(viewer, /data-pisper-diff-row-count=\{items\.length\}/)
   assert.match(viewer, /data-pisper-rendered-count=\{virtualItems\.length\}/)
   assert.match(viewer, /<DiffCell side="old" cell=\{item\.row\.old\} \/>/)
   assert.match(viewer, /<DiffCell side="next" cell=\{item\.row\.next\} \/>/)
-  assert.match(styles, /\.git-diff-workbench \{[^}]*grid-template-columns:/)
-  assert.match(styles, /\.git-diff-content \{[^}]*overflow: auto;/)
-  assert.match(styles, /\.git-diff-virtual-list \{[^}]*position: relative;/)
-  assert.match(styles, /\.git-diff-virtual-item \{[^}]*position: absolute;/)
-  assert.match(styles, /\.git-diff-row \{[^}]*grid-template-columns:/)
-  assert.match(styles, /\.git-diff-cell\.deleted \{ background: var\(--danger-soft\); \}/)
-  assert.match(styles, /\.git-diff-cell\.added \{ background: var\(--success-soft\); \}/)
+  assert.match(viewer, /git-diff-workbench[^"\n]*grid-cols-/)
+  assert.match(viewer, /className="min-w-0 min-h-0 overflow-auto/)
+  assert.match(viewer, /className="relative min-w-\[880px\] w-full"/)
+  assert.match(viewer, /className="absolute left-0 w-full"/)
+  assert.match(viewer, /className="grid min-w-\[880px\] grid-cols-/)
+  assert.match(viewer, /git-diff-cell[^`\n]*\[&\.deleted\]:bg-\[var\(--danger-soft\)\]/)
+  assert.match(viewer, /git-diff-cell[^`\n]*\[&\.added\]:bg-\[var\(--success-soft\)\]/)
   assert.match(approval, /const fileChange = approval\.fileChange/)
   assert.match(approval, /<GitDiffDialog/)
-  assert.match(approval, /className="tool-approval-view-diff"/)
+  assert.match(approval, /className="tool-approval-view-diff[^"\n]*"/)
 })

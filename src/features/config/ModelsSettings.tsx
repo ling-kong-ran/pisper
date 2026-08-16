@@ -12,6 +12,8 @@ import { useConfigSettings, useProviderDiscovery } from './useConfigSettings'
 import type { Notify } from '@/app/route-context'
 import type { ConfirmDialogOptions } from '@/hooks/useAppDialog'
 
+import { AppError, AppEmptyState } from '@/components/ui/app-primitives'
+
 type ModelsSettingsProps = {
   notify: Notify
   registerPrimaryAction: (action: () => void) => () => void
@@ -36,12 +38,12 @@ export function ModelsSettings({
 
   if (!settings.config || !settings.draft || !settings.selectedProvider) {
     return (
-      <SettingsCard className="empty-state">
-        <RefreshCw className="spin" size={24} />
+      <AppEmptyState>
+        <RefreshCw className="animate-spin" size={24} />
         <h2>{t('config:configPage.loadingModelCatalog')}</h2>
         <p>{t('config:configPage.readingProvidersAndAuthenticationStatus')}</p>
-        {settings.error && <div className="config-error">{settings.error}</div>}
-      </SettingsCard>
+        {settings.error && <AppError>{settings.error}</AppError>}
+      </AppEmptyState>
     )
   }
 
@@ -59,7 +61,7 @@ export function ModelsSettings({
         onRefresh={discovery.refresh}
         onImport={discovery.importProvider}
       />
-      <div className="split-list-detail config-layout">
+      <div className="split-list-detail grid min-h-[100%] grid-cols-[330px_minmax(0,1fr)] gap-[12px] max-[900px]:grid-cols-[1fr] config-layout !grid-cols-[300px_minmax(0,1fr)] [align-items:start]">
         <ProviderConnections
           providers={config.providers}
           selectedProviderId={draft.provider}
@@ -68,7 +70,7 @@ export function ModelsSettings({
           onSelect={settings.selectProvider}
           onToggle={settings.toggleProvider}
         />
-        <div className="detail-stack">
+        <div className="detail-stack flex min-w-0 flex-col gap-[12px] [.mcp-layout_>_&]:min-h-0 max-[1150px]:[.memory-layout_>_&]:[grid-column:1/-1] max-[1150px]:[.memory-layout_>_&]:grid max-[1150px]:[.memory-layout_>_&]:grid-cols-[repeat(2,minmax(0,1fr))] max-[1150px]:[.mcp-layout_>_&]:[grid-column:1/-1] max-[1150px]:[.mcp-layout_>_&]:grid max-[1150px]:[.mcp-layout_>_&]:grid-cols-[repeat(2,minmax(0,1fr))] max-[1150px]:[.skills-layout_>_&]:[grid-column:1/-1] max-[1150px]:[.skills-layout_>_&]:grid max-[1150px]:[.skills-layout_>_&]:grid-cols-[repeat(2,minmax(0,1fr))] max-[650px]:[.memory-layout_>_&]:[grid-column:auto] max-[650px]:[.memory-layout_>_&]:grid-cols-[1fr] max-[650px]:[.mcp-layout_>_&]:[grid-column:auto] max-[650px]:[.mcp-layout_>_&]:grid-cols-[1fr] max-[650px]:[.skills-layout_>_&]:[grid-column:auto] max-[650px]:[.skills-layout_>_&]:grid-cols-[1fr]">
           <ProviderSettingsActions
             provider={selectedProvider}
             visualOnly={visualOnly}
@@ -102,7 +104,7 @@ export function ModelsSettings({
               onOpenModelDialog={setModelModal}
             />
           </SettingsCard>
-          <div className="config-bottom">
+          <div className="config-bottom max-[900px]:grid-cols-[1fr] grid grid-cols-[minmax(0,1.5fr)_minmax(210px,.7fr)] gap-[12px]">
             <RuntimePolicySettings draft={draft} onPatchDraft={settings.patchDraft} />
             <RuntimeStatus provider={selectedProvider} />
           </div>

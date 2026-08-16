@@ -15,6 +15,8 @@ import {
 import { chatApi, type WorkspaceTrustStatus } from './chat-api'
 import { chatErrorMessage } from './chat-errors'
 
+import { Button } from '@/components/ui/button'
+
 export function WorkspaceTrustNotice({
   sessionId,
   cwd,
@@ -67,16 +69,25 @@ export function WorkspaceTrustNotice({
   if (!status) {
     if (!error) return null
     return (
-      <div className="tool-approval compact workspace-trust-notice" role="alert">
+      <div
+        className="tool-approval [&_>_div:first-child]:flex [&_>_div:first-child]:min-w-0 [&_>_div:first-child]:items-center [&_>_div:first-child]:gap-[8px] [&_>_div:first-child_>_span]:flex [&_>_div:first-child_>_span]:min-w-0 [&_>_div:first-child_>_span]:flex-col [&_>_div:first-child_>_span]:gap-[2px] [&_strong]:text-[13px] [&_small]:overflow-hidden [&_small]:text-[13px] [&_small]:text-ellipsis [&_small]:whitespace-nowrap [&_details]:min-w-0 [&_details]:text-[13px] [&_summary]:cursor-pointer [&_pre]:max-h-[130px] [&_pre]:overflow-auto [&_pre]:mt-[6px] [&_pre]:rounded-[var(--r-xs)] [&_pre]:bg-[var(--warning-code-bg)] [&_pre]:text-[var(--warning-soft)] [&_pre]:p-[8px] [&_pre]:font-[ui-monospace,_SFMono-Regular,_Consolas,_'Liberation_Mono',_monospace] [&_pre]:text-[13px] [&_pre]:whitespace-pre-wrap [&.compact]:grid-cols-[minmax(0,1fr)_auto] [&.compact]:p-[6px_7px] [&.compact_strong]:text-[13px] [&.compact_small]:text-[13px] grid grid-cols-[minmax(0,1fr)_auto] items-center gap-[8px] [border:1px_solid_var(--warning-border)] rounded-[var(--r-sm)] bg-[var(--warning-soft)] text-[var(--warning-strong)] [padding:9px_10px] compact workspace-trust-notice"
+        role="alert"
+      >
         <div>
           <ShieldAlert size={16} />
           <span>{t('chat:focusSession.workspaceTrustLoadFailed')}</span>
         </div>
-        <div className="tool-approval-actions">
-          <button type="button" className="button secondary" onClick={() => void load()}>
+        <div className="flex gap-[5px]">
+          <Button
+            type="button"
+            variant="outline"
+            size="lg"
+            className="bg-surface-subtle"
+            onClick={() => void load()}
+          >
             <RefreshCw size={12} />
             {t('chat:focusSession.retryWorkspaceTrust')}
-          </button>
+          </Button>
         </div>
       </div>
     )
@@ -86,7 +97,7 @@ export function WorkspaceTrustNotice({
   return (
     <>
       <div
-        className="tool-approval compact workspace-trust-notice"
+        className="tool-approval [&_>_div:first-child]:flex [&_>_div:first-child]:min-w-0 [&_>_div:first-child]:items-center [&_>_div:first-child]:gap-[8px] [&_>_div:first-child_>_span]:flex [&_>_div:first-child_>_span]:min-w-0 [&_>_div:first-child_>_span]:flex-col [&_>_div:first-child_>_span]:gap-[2px] [&_strong]:text-[13px] [&_small]:overflow-hidden [&_small]:text-[13px] [&_small]:text-ellipsis [&_small]:whitespace-nowrap [&_details]:min-w-0 [&_details]:text-[13px] [&_summary]:cursor-pointer [&_pre]:max-h-[130px] [&_pre]:overflow-auto [&_pre]:mt-[6px] [&_pre]:rounded-[var(--r-xs)] [&_pre]:bg-[var(--warning-code-bg)] [&_pre]:text-[var(--warning-soft)] [&_pre]:p-[8px] [&_pre]:font-[ui-monospace,_SFMono-Regular,_Consolas,_'Liberation_Mono',_monospace] [&_pre]:text-[13px] [&_pre]:whitespace-pre-wrap [&.compact]:grid-cols-[minmax(0,1fr)_auto] [&.compact]:p-[6px_7px] [&.compact_strong]:text-[13px] [&.compact_small]:text-[13px] grid grid-cols-[minmax(0,1fr)_auto] items-center gap-[8px] [border:1px_solid_var(--warning-border)] rounded-[var(--r-sm)] bg-[var(--warning-soft)] text-[var(--warning-strong)] [padding:9px_10px] compact workspace-trust-notice"
         role={status.requiresDecision ? 'alert' : 'status'}
         data-pisper-workspace-trust={status.decision === false ? 'restricted' : 'pending'}
       >
@@ -106,26 +117,22 @@ export function WorkspaceTrustNotice({
             {error && <small>{error}</small>}
           </span>
         </div>
-        <div className="tool-approval-actions">
+        <div className="flex gap-[5px]">
           {status.requiresDecision && (
-            <button
+            <Button
               type="button"
-              className="button secondary tiny"
+              variant="outline"
+              className="bg-surface-subtle"
               disabled={busy || streaming}
               onClick={() => void decide(false)}
             >
               {t('chat:focusSession.keepWorkspaceRestricted')}
-            </button>
+            </Button>
           )}
-          <button
-            type="button"
-            className="button primary tiny"
-            disabled={busy || streaming}
-            onClick={() => setConfirmOpen(true)}
-          >
-            {busy ? <RefreshCw className="spin" size={12} /> : <Check size={12} />}
+          <Button type="button" disabled={busy || streaming} onClick={() => setConfirmOpen(true)}>
+            {busy ? <RefreshCw className="animate-spin" size={12} /> : <Check size={12} />}
             {t('chat:focusSession.trustWorkspace')}
-          </button>
+          </Button>
         </div>
       </div>
       <AlertDialog open={confirmOpen} onOpenChange={setConfirmOpen}>
@@ -142,7 +149,7 @@ export function WorkspaceTrustNotice({
           <AlertDialogFooter>
             <AlertDialogCancel>{t('chat:focusSession.gitCancel')}</AlertDialogCancel>
             <AlertDialogAction
-              className="workspace-trust-confirm"
+              className="text-[var(--primary-foreground)]"
               onClick={() => void decide(true)}
             >
               {t('chat:focusSession.trustWorkspace')}

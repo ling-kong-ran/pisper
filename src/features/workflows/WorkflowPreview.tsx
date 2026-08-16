@@ -14,7 +14,12 @@ type PreviewEdge = Edge<Record<string, never>, 'default'>
 
 function PreviewNodeCard({ data }: NodeProps<PreviewNode>) {
   return (
-    <div className={cn('flow-node compact', `type-${data.kind}`)}>
+    <div
+      className={cn(
+        'flow-node [.workflow-mini-map_&.compact]:w-[100px] [.workflow-mini-map_&.compact]:min-h-[42px] [.workflow-mini-map_&.compact]:p-[5px_8px] [.workflow-mini-map_&.compact]:cursor-default [.workflow-mini-map_&.compact_small]:text-[11px] [.workflow-mini-map_&.compact_strong]:max-w-[100%] [.workflow-mini-map_&.compact_strong]:overflow-hidden [.workflow-mini-map_&.compact_strong]:text-[12px] [.workflow-mini-map_&.compact_strong]:text-ellipsis [.workflow-mini-map_&.compact_strong]:whitespace-nowrap [&_small]:text-[var(--text-muted)] [&_small]:text-[13px] [&_strong]:text-[13px] [&.active]:border-[var(--star)] [&.active]:[animation:star-node-pulse_2.4s_var(--ease-out)_infinite] [&.type-condition]:border-[var(--warning-border)] [&.type-condition]:bg-[var(--warning-subtle)] [&.type-parallel]:border-[var(--violet-border)] [&.type-parallel]:bg-[var(--violet-soft)] [&.type-approval]:border-[var(--approval-border)] [&.type-approval]:bg-[var(--success-subtle)] [&.type-notification]:border-[var(--notification-border)] [&.type-notification]:bg-[var(--notification-soft)] dark:[&.type-condition]:bg-[var(--warning-soft)] dark:[&.type-并行]:bg-[var(--violet-soft)] dark:[&.type-审批]:bg-[var(--success-subtle)] dark:[&.type-通知]:bg-[var(--notification-soft)] relative flex w-[120px] min-h-[49px] flex-col items-start justify-center gap-[3px] [border:1px_solid_var(--accent-border)] rounded-[var(--r-sm)] bg-[var(--accent-soft)] [padding:7px_10px] text-left shadow-[0_8px_18px_-14px_var(--node-shadow)] cursor-grab compact',
+        `type-${data.kind}`,
+      )}
+    >
       <small>{data.typeLabel}</small>
       <strong>{data.label}</strong>
     </div>
@@ -61,7 +66,7 @@ export function WorkflowPreview({
   )
 
   return (
-    <div className="workflow-mini-map">
+    <div className="workflow-mini-map relative h-[150px] overflow-hidden [margin-top:5px] [border:1px_solid_var(--stroke-soft)] rounded-[var(--r-sm)] bg-[var(--canvas-bg)]">
       <ReactFlow<PreviewNode, PreviewEdge>
         nodes={previewNodes}
         edges={previewEdges}

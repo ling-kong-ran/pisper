@@ -2,7 +2,7 @@
 export function BrandLogo({ size = 22, className = '' }: { size?: number; className?: string }) {
   return (
     <svg
-      className={`brand-logo-svg ${className}`}
+      className={`block flex-none text-[var(--text)] ${className}`}
       width={size}
       height={size}
       viewBox="0 0 48 48"

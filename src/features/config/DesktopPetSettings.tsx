@@ -11,6 +11,10 @@ import { apiJson } from '@/lib/api'
 import type { Notify } from '@/app/route-context'
 import type { DesktopPetCatalogItem, DesktopPetStatus } from '@/types/update'
 
+import { Button } from '@/components/ui/button'
+
+import { AppNotice } from '@/components/ui/app-primitives'
+
 type PetController = {
   getStatus: () => Promise<DesktopPetStatus>
   setEnabled: (enabled: boolean) => Promise<DesktopPetStatus>
@@ -174,10 +178,10 @@ export function DesktopPetSettings({ notify }: { notify: Notify }) {
   }
 
   return (
-    <div className="language-settings desktop-pet-settings">
-      <Panel className="language-settings-card">
-        <div className="language-settings-heading">
-          <span className="language-settings-icon">
+    <div className="flex w-[min(100%,_760px)] flex-col gap-[12px] desktop-pet-settings">
+      <Panel className="[padding:18px]">
+        <div className="language-settings-heading flex items-start gap-[11px] [&_h2]:text-[16px] [&_p]:mt-[4px] [&_p]:text-[var(--text-muted)] [&_p]:text-[13px] [&_p]:leading-[1.55]">
+          <span className="grid w-[38px] h-[38px] [flex:0_0_auto] place-items-center rounded-[11px] bg-[var(--star-soft)] text-[var(--star-strong)]">
             <Cat size={19} />
           </span>
           <div>
@@ -187,12 +191,12 @@ export function DesktopPetSettings({ notify }: { notify: Notify }) {
         </div>
 
         {!status ? (
-          <div className="permission-note language-settings-note">
-            <RefreshCw className="spin" size={16} />
+          <AppNotice className="[margin-top:15px]">
+            <RefreshCw className="animate-spin" size={16} />
             <span>{t('config:desktopPetSettings.loading')}</span>
-          </div>
+          </AppNotice>
         ) : (
-          <div className="notification-option mt-4">
+          <div className="notification-option [&_>_div]:flex [&_>_div]:min-w-0 [&_>_div]:flex-col [&_>_div]:gap-[4px] [&_strong]:text-[13px] [&_small]:text-[var(--text-muted)] [&_small]:text-[12px] [&_small]:leading-[1.45] grid grid-cols-[auto_minmax(0,1fr)_auto_auto] items-center gap-[11px] mt-4">
             <Cat size={18} />
             <div>
               <strong>{t('config:desktopPetSettings.showOnDesktop')}</strong>
@@ -217,7 +221,7 @@ export function DesktopPetSettings({ notify }: { notify: Notify }) {
         )}
 
         {status && (
-          <div className="desktop-pet-opacity mt-4">
+          <div className="desktop-pet-opacity [&_>_div]:flex [&_>_div]:items-center [&_>_div]:justify-between [&_>_div]:gap-[8px] [&_>_div]:text-[12px] [&_>_div_span]:text-[var(--text-muted)] [&_>_div_span]:[font-variant-numeric:tabular-nums] grid grid-cols-[150px_minmax(0,1fr)] items-center gap-[14px] [border-top:1px_solid_var(--stroke-soft)] [padding-top:14px] mt-4">
             <div>
               <strong>{t('config:desktopPetSettings.opacity')}</strong>
               <span>{Math.round((status.opacity ?? 1) * 100)}%</span>
@@ -234,12 +238,12 @@ export function DesktopPetSettings({ notify }: { notify: Notify }) {
           </div>
         )}
 
-        {error && <div className="attachment-error mt-3">{error}</div>}
+        {error && <div className="text-[var(--danger)] text-[13px] mt-3">{error}</div>}
       </Panel>
 
-      <Panel className="language-settings-card">
-        <div className="language-settings-heading">
-          <span className="language-settings-icon">
+      <Panel className="[padding:18px]">
+        <div className="language-settings-heading flex items-start gap-[11px] [&_h2]:text-[16px] [&_p]:mt-[4px] [&_p]:text-[var(--text-muted)] [&_p]:text-[13px] [&_p]:leading-[1.55]">
+          <span className="grid w-[38px] h-[38px] [flex:0_0_auto] place-items-center rounded-[11px] bg-[var(--star-soft)] text-[var(--star-strong)]">
             <Download size={19} />
           </span>
           <div>
@@ -247,7 +251,7 @@ export function DesktopPetSettings({ notify }: { notify: Notify }) {
             <p>{t('config:desktopPetSettings.installDescription')}</p>
           </div>
         </div>
-        <div className="workspace-path-form desktop-pet-search mt-4">
+        <div className="workspace-path-form grid h-[39px] grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-[8px] mt-[16px] [border:1px_solid_var(--stroke)] rounded-[var(--r-sm)] p-[3px_3px_3px_10px] text-[var(--text-muted)] [&_input]:min-w-0 [&_input]:border-0 [&_input]:[outline:0] [&_input]:font-[ui-monospace,_SFMono-Regular,_Consolas,_'Liberation_Mono',_monospace] [&_input]:text-[12px] dark:[&_input]:bg-[var(--solid)] dark:[&_input]:text-[var(--text)] desktop-pet-search !grid-cols-[minmax(0,1fr)_auto] mt-4">
           <input
             value={slug}
             onChange={(event) => setSlug(event.target.value)}
@@ -257,27 +261,36 @@ export function DesktopPetSettings({ notify }: { notify: Notify }) {
             placeholder={t('config:desktopPetSettings.searchPlaceholder')}
             aria-label={t('config:desktopPetSettings.petSlug')}
           />
-          <button className="button primary" disabled={busy === 'search'} onClick={searchCatalog}>
-            {busy === 'search' ? <RefreshCw className="spin" size={14} /> : <Search size={14} />}
+          <Button
+            size="lg"
+            className="min-w-[104px]"
+            disabled={busy === 'search'}
+            onClick={searchCatalog}
+          >
+            {busy === 'search' ? (
+              <RefreshCw className="animate-spin" size={14} />
+            ) : (
+              <Search size={14} />
+            )}
             {t('config:desktopPetSettings.search')}
-          </button>
+          </Button>
         </div>
         {catalog.length > 0 && (
-          <div className="language-choice-grid mt-4">
+          <div className="language-choice-grid max-[650px]:grid-cols-[1fr] grid grid-cols-[repeat(2,_minmax(0,_1fr))] gap-[9px] [margin-top:18px] mt-4">
             {catalog.map((pet) => {
               const installed = status?.installed.some((item) => item.slug === pet.slug)
               return (
                 <button
                   type="button"
-                  className="language-choice"
+                  className="language-choice hover:border-[var(--star)] hover:bg-[var(--accent-soft)] hover:[transform:translateY(-1px)] [&.selected]:border-[var(--star)] [&.selected]:bg-[var(--star-soft)] [&.selected]:shadow-[0_0_0_3px_var(--accent-ring)] grid min-h-[80px] grid-cols-[auto_minmax(0,_1fr)_auto] items-center gap-[10px] [border:1px_solid_var(--stroke)] rounded-[var(--r-sm)] bg-[var(--surface-subtle)] [padding:11px] text-[var(--text)] text-left [transition:border-color_var(--d1)_var(--ease-out),_background_var(--d1)_var(--ease-out),_box-shadow_var(--d1)_var(--ease-out),_transform_var(--d1)_var(--ease-out)]"
                   disabled={busy === 'install'}
                   onClick={() => (installed ? select(pet.slug) : install(pet.slug))}
                   key={pet.slug}
                 >
-                  <span className="language-choice-mark">
+                  <span className="language-choice-mark grid w-[34px] h-[34px] place-items-center rounded-[9px] bg-[var(--solid)] text-[var(--star-strong)] text-[12px] font-[800] tracking-[.03em]">
                     <Cat size={16} />
                   </span>
-                  <span className="language-choice-copy">
+                  <span className="language-choice-copy [&_strong]:text-[13px] [&_small]:text-[var(--text-muted)] [&_small]:text-[12px] flex min-w-0 flex-col gap-[3px]">
                     <strong>{pet.displayName}</strong>
                     <small>{pet.slug}</small>
                   </span>
@@ -291,18 +304,23 @@ export function DesktopPetSettings({ notify }: { notify: Notify }) {
             })}
           </div>
         )}
-        <div className="button-row">
-          <button className="button secondary" onClick={controller.openCatalog}>
+        <div className="mt-[15px] flex gap-2 max-[650px]:flex-wrap">
+          <Button
+            variant="outline"
+            size="lg"
+            className="bg-surface-subtle"
+            onClick={controller.openCatalog}
+          >
             <ExternalLink size={14} />
             {t('config:desktopPetSettings.browsePetdex')}
-          </button>
+          </Button>
         </div>
       </Panel>
 
       {status && status.installed.length > 0 && (
-        <Panel className="language-settings-card">
-          <div className="language-settings-heading">
-            <span className="language-settings-icon">
+        <Panel className="[padding:18px]">
+          <div className="language-settings-heading flex items-start gap-[11px] [&_h2]:text-[16px] [&_p]:mt-[4px] [&_p]:text-[var(--text-muted)] [&_p]:text-[13px] [&_p]:leading-[1.55]">
+            <span className="grid w-[38px] h-[38px] [flex:0_0_auto] place-items-center rounded-[11px] bg-[var(--star-soft)] text-[var(--star-strong)]">
               <Cat size={19} />
             </span>
             <div>
@@ -310,23 +328,26 @@ export function DesktopPetSettings({ notify }: { notify: Notify }) {
               <p>{t('config:desktopPetSettings.installedDescription')}</p>
             </div>
           </div>
-          <div className="language-choice-grid mt-4" role="radiogroup">
+          <div
+            className="language-choice-grid max-[650px]:grid-cols-[1fr] grid grid-cols-[repeat(2,_minmax(0,_1fr))] gap-[9px] [margin-top:18px] mt-4"
+            role="radiogroup"
+          >
             {status.installed.map((pet) => {
               const selected = pet.slug === status.selectedSlug
               return (
                 <button
                   type="button"
-                  className={`language-choice ${selected ? 'selected' : ''}`}
+                  className={`language-choice hover:border-[var(--star)] hover:bg-[var(--accent-soft)] hover:[transform:translateY(-1px)] [&.selected]:border-[var(--star)] [&.selected]:bg-[var(--star-soft)] [&.selected]:shadow-[0_0_0_3px_var(--accent-ring)] grid min-h-[80px] grid-cols-[auto_minmax(0,_1fr)_auto] items-center gap-[10px] [border:1px_solid_var(--stroke)] rounded-[var(--r-sm)] bg-[var(--surface-subtle)] [padding:11px] text-[var(--text)] text-left [transition:border-color_var(--d1)_var(--ease-out),_background_var(--d1)_var(--ease-out),_box-shadow_var(--d1)_var(--ease-out),_transform_var(--d1)_var(--ease-out)] ${selected ? 'selected' : ''}`}
                   role="radio"
                   aria-checked={selected}
                   disabled={busy === `select:${pet.slug}`}
                   onClick={() => select(pet.slug)}
                   key={`${pet.source}:${pet.slug}`}
                 >
-                  <span className="language-choice-mark">
+                  <span className="language-choice-mark grid w-[34px] h-[34px] place-items-center rounded-[9px] bg-[var(--solid)] text-[var(--star-strong)] text-[12px] font-[800] tracking-[.03em]">
                     <Cat size={16} />
                   </span>
-                  <span className="language-choice-copy">
+                  <span className="language-choice-copy [&_strong]:text-[13px] [&_small]:text-[var(--text-muted)] [&_small]:text-[12px] flex min-w-0 flex-col gap-[3px]">
                     <strong>{pet.name}</strong>
                     <small>{pet.slug}</small>
                   </span>

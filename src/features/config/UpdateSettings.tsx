@@ -28,6 +28,8 @@ import type { I18nValues, SupportedLanguage } from '@/app/i18n'
 import { apiJson } from '@/lib/api'
 import type { AppUpdateController, AppUpdateInfo } from '@/types/update'
 
+import { Button } from '@/components/ui/button'
+
 const BUILD_VERSION = import.meta.env.VITE_APP_VERSION || '0.0.0'
 const SPONSOR_REFRESH_MS = 15 * 60_000
 const SPONSOR_DISMISSAL_MS = 30 * 24 * 60 * 60_000
@@ -250,7 +252,7 @@ export function UpdateSettings({
       <Panel className="p-5">
         <div className="flex flex-wrap items-start justify-between gap-4">
           <div className="flex min-w-0 items-start gap-3">
-            <span className="language-settings-icon">
+            <span className="grid w-[38px] h-[38px] [flex:0_0_auto] place-items-center rounded-[11px] bg-[var(--star-soft)] text-[var(--star-strong)]">
               <PackageCheck size={19} />
             </span>
             <span className="min-w-0">
@@ -322,13 +324,13 @@ export function UpdateSettings({
           </div>
         )}
         <div className="mt-5 flex flex-wrap gap-2">
-          <button
-            className="button primary"
+          <Button
+            size="lg"
             disabled={checking || downloading || Boolean(componentBusy)}
             onClick={downloaded ? install : available || resumable ? download : check}
           >
             {checking || downloading ? (
-              <RefreshCw className="spin" size={14} />
+              <RefreshCw className="animate-spin" size={14} />
             ) : downloaded ? (
               <Rocket size={14} />
             ) : available || resumable ? (
@@ -357,16 +359,21 @@ export function UpdateSettings({
                         ? t('config:updateSettings.viewRelease')
                         : t('config:updateSettings.viewSourceUpdates')
                     : t('config:updateSettings.checkForUpdates')}
-          </button>
-          <button className="button secondary" onClick={openReleases}>
+          </Button>
+          <Button variant="outline" size="lg" className="bg-surface-subtle" onClick={openReleases}>
             <ExternalLink size={14} />
             {desktop ? 'GitHub Releases' : 'GitHub Compare'}
-          </button>
+          </Button>
           {desktop && (
-            <button className="button secondary" onClick={openUpdateLog}>
+            <Button
+              variant="outline"
+              size="lg"
+              className="bg-surface-subtle"
+              onClick={openUpdateLog}
+            >
               <ExternalLink size={14} />
               {t('config:updateSettings.viewUpdateDiagnosticLog')}
-            </button>
+            </Button>
           )}
         </div>
         <div className="mt-6 border-t border-[var(--border)] pt-5">
@@ -485,7 +492,7 @@ export function UpdateSettings({
       {visibleSponsors.length > 0 && (
         <Panel className="p-5">
           <div className="flex min-w-0 items-start gap-3">
-            <span className="language-settings-icon">
+            <span className="grid w-[38px] h-[38px] [flex:0_0_auto] place-items-center rounded-[11px] bg-[var(--star-soft)] text-[var(--star-strong)]">
               <Handshake size={19} />
             </span>
             <span className="min-w-0">
@@ -510,24 +517,23 @@ export function UpdateSettings({
                     {sponsor.description}
                   </small>
                 </span>
-                <a
-                  className="button secondary tiny"
-                  href={sponsor.href}
-                  target="_blank"
-                  rel="noopener noreferrer sponsored"
-                >
-                  <ExternalLink size={13} />
-                  {t('config:updateSettings.visitSponsor')}
-                </a>
-                <button
+                <Button asChild variant="outline" className="bg-surface-subtle">
+                  <a href={sponsor.href} target="_blank" rel="noopener noreferrer sponsored">
+                    <ExternalLink size={13} />
+                    {t('config:updateSettings.visitSponsor')}
+                  </a>
+                </Button>
+                <Button
                   type="button"
-                  className="icon-button shrink-0"
+                  variant="ghost"
+                  size="icon"
+                  className="shrink-0"
                   aria-label={t('config:updateSettings.hideSponsor')}
                   title={t('config:updateSettings.hideSponsor')}
                   onClick={() => dismissSponsor(sponsor.id)}
                 >
                   <X size={15} />
-                </button>
+                </Button>
               </div>
             ))}
           </div>

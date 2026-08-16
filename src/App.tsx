@@ -541,19 +541,19 @@ function App() {
 
   if (!startupReady)
     return (
-      <div className="app-startup">
-        <BrandLogo size={30} className="startup-logo" />
+      <div className="app-startup dark:bg-[var(--bg)] dark:text-[var(--text)] flex w-full min-h-[100vh] items-center justify-center gap-[10px] bg-[var(--bg)] text-[var(--text-muted)] text-[13px]">
+        <BrandLogo size={30} className="startup-logo [.app-startup_&]:mr-[2px]" />
         <strong>{t('common:app.wakingPisper')}</strong>
       </div>
     )
 
   return (
     <ToastProvider duration={2800} swipeDirection="right">
-      <div className="app-shell">
+      <div className="app-shell dark:bg-[var(--bg)] dark:text-[var(--text)] max-[900px]:min-h-[100dvh] max-[900px]:h-auto max-[900px]:overflow-visible flex w-full h-full min-h-[600px] flex-col overflow-hidden bg-[var(--bg)]">
         <WebPreviewProvider />
         <WebDesktopPet />
         <SidebarProvider
-          className="app-body"
+          className="app-body max-[900px]:h-[100dvh] max-[900px]:min-h-[620px] max-[900px]:flex-none max-[650px]:h-[100dvh] max-[650px]:min-h-0 max-[650px]:flex-none flex min-h-0 flex-1"
           open={!sidebarCollapsed}
           onOpenChange={(open) => setSidebarCollapsed(!open)}
           openMobile={mobileNav}
@@ -571,7 +571,7 @@ function App() {
             update={appUpdate}
             onOpenUpdates={openUpdateSettings}
           />
-          <SidebarInset className="main-surface">
+          <SidebarInset className="main-surface before:[content:''] before:absolute before:z-[-1] before:inset-[0_0_auto] before:h-[220px] before:bg-[linear-gradient(180deg,var(--main-glow-start)_0%,var(--main-glow-end)_100%)] before:pointer-events-none dark:bg-[var(--main-surface-bg)] dark:before:bg-[linear-gradient(180deg,var(--main-glow-start)_0%,var(--main-glow-end)_100%)] dark:[background-image:radial-gradient(rgba(255,_255,_255,_.05)_1px,_transparent_1.3px),_radial-gradient(rgba(255,_255,_255,_.025)_1px,_transparent_1.3px)] dark:[background-size:26px_26px,_41px_41px] dark:[background-position:0_0,_13px_20px] relative flex min-w-0 flex-1 h-full flex-col overflow-hidden [border-left:0] bg-[var(--main-surface-bg)] shadow-[inset_0_1px_0_var(--main-surface-inset),_0_20px_60px_-28px_var(--main-surface-shadow)]">
             <Suspense fallback={null}>
               <PageHeader
                 meta={activeMeta}
@@ -590,7 +590,10 @@ function App() {
                 onToggleTerminal={() => setTerminalOpen((value) => !value)}
               />
             </Suspense>
-            <div className={`page-content page-${page}`} key={page}>
+            <div
+              className={`page-content [&.page-chat]:flex [&.page-chat]:overflow-hidden [&.page-chat]:p-[0_18px_14px] [&.page-workflowCreate]:[padding-inline:24px] min-[651px]:[[data-density='compact']_&]:pb-[14px] max-[900px]:p-[0_16px_18px] max-[650px]:overflow-x-hidden max-[650px]:[&.page-chat]:p-[0_8px_8px] max-[650px]:[&.page-workflowCreate]:overflow-auto flex-1 min-h-0 overflow-auto [padding:0_max(24px,_calc((100%_-_1320px)_/_2))_24px] [scrollbar-color:var(--control-muted)_transparent] [animation:page-in_var(--d2)_var(--ease-out)] page-${page}`}
+              key={page}
+            >
               <Outlet context={routeContext} />
             </div>
             {window.pisperDesktop?.terminalProfiles && (

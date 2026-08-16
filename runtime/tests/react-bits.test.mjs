@@ -47,6 +47,7 @@ test('React Bits effects are lazy, CSS-owned, and preserve core UI fallbacks', a
     preview,
     main,
     shinyText,
+    aurora,
     appStyles,
     bitsStyles,
   ] = await Promise.all([
@@ -58,6 +59,7 @@ test('React Bits effects are lazy, CSS-owned, and preserve core UI fallbacks', a
     readFile('src/features/chat/WebPreviewDockPanel.tsx', 'utf8'),
     readFile('src/main.tsx', 'utf8'),
     readFile('src/components/react-bits/ShinyText.tsx', 'utf8'),
+    readFile('src/components/react-bits/Aurora.tsx', 'utf8'),
     readFile('src/index.css', 'utf8'),
     readFile('src/components/react-bits/react-bits.css', 'utf8'),
   ])
@@ -79,8 +81,8 @@ test('React Bits effects are lazy, CSS-owned, and preserve core UI fallbacks', a
   assert.match(preview, /<Suspense fallback=\{null\}>/)
   assert.doesNotMatch(main, /react-bits\.css/)
   assert.match(shinyText, /import '\.\/react-bits\.css'/)
-  assert.match(appStyles, /:root\[data-theme='light'\] \.agent-welcome-content/)
-  assert.match(appStyles, /:root\[data-theme='light'\] \.agent-welcome \.rb-aurora i/)
+  assert.match(focus, /agent-welcome-content[^"\n]*:root\[data-theme='light'\]/)
+  assert.match(aurora, /rb-aurora[^"\n]*:root\[data-theme='light'\]/)
 
   const auroraRule = bitsStyles.match(/\.rb-aurora i \{([^}]+)\}/)?.[1] || ''
   assert.match(auroraRule, /radial-gradient/)

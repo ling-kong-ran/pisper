@@ -1,4 +1,4 @@
-import { ChevronDown, KeyRound, ShieldCheck, Trash2 } from 'lucide-react'
+import { KeyRound, ShieldCheck, Trash2 } from 'lucide-react'
 import { AppSelect } from '@/components/AppSelect'
 import { useI18n } from '@/app/use-i18n'
 import { PROVIDER_APIS } from './provider-constants'
@@ -10,6 +10,12 @@ import {
 } from './settings-primitives'
 import type { RefObject } from 'react'
 import type { ConfigDraft, ProviderConfig, ProviderType } from './config-types'
+
+import { Button } from '@/components/ui/button'
+
+import { FieldLabel } from '@/components/ui/field'
+
+import { AppCardHeader } from '@/components/ui/app-primitives'
 
 type CredentialSettingsProps = {
   provider: ProviderConfig
@@ -38,7 +44,7 @@ export function CredentialSettings({
 
   return (
     <SettingsCard>
-      <div className="card-head">
+      <AppCardHeader>
         <div>
           <h2>{provider.name}</h2>
           <p>
@@ -48,7 +54,7 @@ export function CredentialSettings({
             )}
           </p>
         </div>
-        <div className="provider-header-status">
+        <div className="provider-header-status flex items-center justify-between gap-[8px] flex-none">
           <SettingsBadge
             tone={!provider.enabled ? 'gray' : provider.configured ? 'green' : 'amber'}
           >
@@ -66,28 +72,26 @@ export function CredentialSettings({
             onChange={(enabled) => onToggleProvider(provider, enabled)}
           />
           {provider.custom && (
-            <button
-              className="icon-button danger"
+            <Button
+              variant="destructive"
+              size="icon"
               title={t('config:configPage.deleteProvider')}
               onClick={() => onDeleteProvider(provider)}
             >
               <Trash2 size={14} />
-            </button>
+            </Button>
           )}
         </div>
-      </div>
-      <label className="field-label">
+      </AppCardHeader>
+      <FieldLabel variant="control">
         {t('config:configPage.providerPurpose')}
-        <span className="select-wrap">
-          <AppSelect
-            value={draft.providerType}
-            onChange={(event) => onSelectProviderType(event.target.value as ProviderType)}
-          >
-            <option value="chat">{t('config:configPage.chatProvider')}</option>
-            <option value="visual">{t('config:configPage.visualProvider')}</option>
-          </AppSelect>
-          <ChevronDown size={13} />
-        </span>
+        <AppSelect
+          value={draft.providerType}
+          onChange={(event) => onSelectProviderType(event.target.value as ProviderType)}
+        >
+          <option value="chat">{t('config:configPage.chatProvider')}</option>
+          <option value="visual">{t('config:configPage.visualProvider')}</option>
+        </AppSelect>
         <small>
           {visualOnly
             ? t(
@@ -95,9 +99,9 @@ export function CredentialSettings({
               )
             : t('config:configPage.usedForAgentChatAndMayAlsoIncludeVisualModels')}
         </small>
-      </label>
+      </FieldLabel>
       {codexOAuth ? (
-        <div className="oauth-provider-note">
+        <div className="oauth-provider-note [&_>_span]:flex [&_>_span]:min-w-0 [&_>_span]:flex-col [&_>_span]:gap-[3px] [&_strong]:text-[var(--text)] [&_strong]:text-[12px] [&_small]:text-[var(--text-muted)] [&_small]:text-[12px] [&_small]:leading-[1.45] flex items-start gap-[9px] [margin-top:14px] [border:1px_solid_var(--star-border)] rounded-[var(--r-sm)] bg-[var(--star-soft)] [padding:10px_11px] text-[var(--star-strong)]">
           <ShieldCheck size={17} />
           <span>
             <strong>
@@ -119,25 +123,22 @@ export function CredentialSettings({
       ) : (
         <>
           <SettingsSectionTitle title={t('config:configPage.authentication')} />
-          <label className="field-label">
+          <FieldLabel variant="control">
             {t('config:configPage.apiProtocol')}
-            <span className="select-wrap">
-              <AppSelect
-                value={draft.api}
-                onChange={(event) => onPatchDraft({ api: event.target.value })}
-              >
-                {PROVIDER_APIS.map(([value, label]) => (
-                  <option value={value} key={value}>
-                    {label}
-                  </option>
-                ))}
-              </AppSelect>
-              <ChevronDown size={13} />
-            </span>
-          </label>
-          <label className="field-label">
+            <AppSelect
+              value={draft.api}
+              onChange={(event) => onPatchDraft({ api: event.target.value })}
+            >
+              {PROVIDER_APIS.map(([value, label]) => (
+                <option value={value} key={value}>
+                  {label}
+                </option>
+              ))}
+            </AppSelect>
+          </FieldLabel>
+          <FieldLabel variant="control">
             API Key
-            <span className="input-wrap">
+            <span className="input-wrap [&_button]:absolute [&_button]:right-[3px] [&_button]:top-[3px] [&_button]:grid [&_button]:w-[32px] [&_button]:h-[32px] [&_button]:place-items-center [&_button]:border-0 [&_button]:bg-transparent [&_button]:text-[var(--text-muted)] [&_>_svg]:absolute [&_>_svg]:right-[9px] [&_>_svg]:top-[8px] [&_>_svg]:text-[var(--text-muted)] relative flex">
               <input
                 ref={apiKeyInputRef}
                 type="password"
@@ -157,24 +158,24 @@ export function CredentialSettings({
               />
               <KeyRound size={14} />
             </span>
-          </label>
+          </FieldLabel>
           <SettingsSectionTitle title={t('config:configPage.endpoint')} />
-          <label className="field-label">
+          <FieldLabel variant="control">
             Provider Base URL
             <input
               value={draft.baseUrl}
               onChange={(event) => onPatchDraft({ baseUrl: event.target.value })}
               placeholder={t('config:configPage.defaultEndpointForModelsInThisConnection')}
             />
-          </label>
-          <label className="field-label">
+          </FieldLabel>
+          <FieldLabel variant="control">
             Organization
             <input
               value={draft.organization}
               onChange={(event) => onPatchDraft({ organization: event.target.value })}
               placeholder={t('config:configPage.optionalUsedOnlyForOpenAIOrganization')}
             />
-          </label>
+          </FieldLabel>
         </>
       )}
     </SettingsCard>

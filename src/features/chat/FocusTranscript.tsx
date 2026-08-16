@@ -37,6 +37,8 @@ import {
 } from './transcript-virtualization'
 import { VirtualMessageTranscript } from './VirtualMessageTranscript'
 
+import { Button } from '@/components/ui/button'
+
 const WelcomeEffects = lazy(() => import('./WelcomeEffects'))
 
 type Translate = (message: string, values?: I18nValues) => string
@@ -75,9 +77,12 @@ type FocusTranscriptProps = {
 
 function WelcomeFallback({ children, title }: { children: ReactNode; title: string }) {
   return (
-    <div className="agent-welcome-content">
-      <div className="welcome-visual">
-        <BrandLogo size={54} className="welcome-logo" />
+    <div className="agent-welcome-content [:root[data-theme='light']_&]:[border:1px_solid_color-mix(in_srgb,_var(--brand-blue)_13%,_var(--stroke))] [:root[data-theme='light']_&]:rounded-[32px] [:root[data-theme='light']_&]:bg-[radial-gradient(circle_at_16%_8%,_color-mix(in_srgb,_var(--brand-blue)_10%,_transparent),_transparent_38%),_radial-gradient(circle_at_88%_92%,_rgba(139,_92,_246,_.08),_transparent_42%),_rgba(255,255,255,.82)] [:root[data-theme='light']_&]:shadow-[0_28px_72px_-48px_rgba(30,64,175,.3),_0_8px_26px_-22px_rgba(15,23,42,.22)] [:root[data-theme='light']_&]:[backdrop-filter:blur(12px)] grid w-full max-w-[640px] place-items-center [padding:28px]">
+      <div className="welcome-visual [:root[data-theme='light']_&]:relative [:root[data-theme='light']_&::before]:absolute [:root[data-theme='light']_&::before]:top-[-8px] [:root[data-theme='light']_&::before]:w-[78px] [:root[data-theme='light']_&::before]:h-[78px] [:root[data-theme='light']_&::before]:[border:1px_solid_rgba(23,131,255,.12)] [:root[data-theme='light']_&::before]:rounded-[28px] [:root[data-theme='light']_&::before]:bg-[linear-gradient(145deg,_rgba(255,255,255,.94),_rgba(239,246,255,.76))] [:root[data-theme='light']_&::before]:shadow-[0_18px_42px_-26px_rgba(23,131,255,.48)] [:root[data-theme='light']_&::before]:[content:''] [:root[data-theme='light']_&::before]:[transform:rotate(8deg)] grid min-h-[144px] place-items-center">
+        <BrandLogo
+          size={54}
+          className="welcome-logo [.agent-welcome_&]:relative [.agent-welcome_&]:z-[1] [.agent-welcome_&]:text-[var(--text)] [:root[data-theme='light']_.agent-welcome_&]:[filter:drop-shadow(0_8px_14px_rgba(23,131,255,.12))]"
+        />
       </div>
       <h2>{title}</h2>
       {children}
@@ -87,13 +92,20 @@ function WelcomeFallback({ children, title }: { children: ReactNode; title: stri
 
 function TranscriptLoading({ label }: { label: string }) {
   return (
-    <div className="session-history-loading" role="status" aria-live="polite">
-      <div className="session-history-loading-mark" aria-hidden="true">
-        <BrandLogo size={28} className="session-history-loading-logo" />
-        <LoaderCircle className="session-history-loading-ring" />
+    <div
+      className="session-history-loading [&_>_strong]:text-[var(--text-soft)] [&_>_strong]:text-[13px] [&_>_strong]:font-[650] grid min-h-[100%] place-content-center justify-items-center gap-[9px] text-[var(--text-muted)] text-center [animation:transcript-stage-enter_.18s_var(--ease-out)_both]"
+      role="status"
+      aria-live="polite"
+    >
+      <div className="relative grid w-[58px] h-[58px] place-items-center" aria-hidden="true">
+        <BrandLogo size={28} className="text-[var(--text)]" />
+        <LoaderCircle className="absolute w-[58px] h-[58px] text-[var(--star-strong)] opacity-[.62] [animation:spin_1.1s_linear_infinite]" />
       </div>
       <strong>{label}</strong>
-      <div className="session-history-loading-lines" aria-hidden="true">
+      <div
+        className="session-history-loading-lines [&_>_i]:block [&_>_i]:w-full [&_>_i]:h-[4px] [&_>_i]:rounded-[var(--r-pill)] [&_>_i]:bg-[var(--stroke)] [&_>_i]:origin-[center] [&_>_i]:[animation:session-history-line-pulse_1.6s_ease-in-out_infinite] [&_>_i:nth-child(2)]:w-[78%] [&_>_i:nth-child(2)]:[animation-delay:.14s] [&_>_i:nth-child(3)]:w-[54%] [&_>_i:nth-child(3)]:[animation-delay:.28s] grid w-[min(360px,66vw)] justify-items-center gap-[7px] [margin-top:9px]"
+        aria-hidden="true"
+      >
         <i />
         <i />
         <i />
@@ -276,7 +288,7 @@ export function FocusTranscript({
       <p>{t('chat:focusSession.readyToWorkWithTheCurrentDirectoryAndHelpCompleteTheTask')}</p>
       <button
         type="button"
-        className="welcome-workspace"
+        className="welcome-workspace [&_>_svg]:flex-none [&_>_span]:flex-none [&_>_strong]:min-w-0 [&_>_strong]:overflow-hidden [&_>_strong]:text-[var(--text-soft)] [&_>_strong]:text-[12px] [&_>_strong]:text-ellipsis [&_>_small]:flex-none [&_>_small]:ml-[3px] [&_>_small]:text-[var(--star-strong)] [&_>_small]:text-[12px] [&_>_small]:font-[700] hover:bg-[var(--surface-hover)] hover:text-[var(--text)] [&:hover_>_strong]:text-[var(--text)] focus-visible:[outline:2px_solid_var(--brand-blue)] focus-visible:[outline-offset:1px] disabled:[cursor:wait] disabled:opacity-[.62] @max-[470px]:max-w-[100%] @max-[470px]:[&_>_span]:hidden flex max-w-[min(440px,100%)] min-h-[32px] items-center gap-[6px] overflow-hidden [margin-top:14px] border-0 rounded-[var(--r-xs)] bg-transparent [padding:4px_7px] text-[var(--text-muted)] text-[12px] whitespace-nowrap [transition:background_var(--d1)_var(--ease-out),_color_var(--d1)_var(--ease-out)]"
         data-target-cursor
         title={cwd}
         aria-label={t('chat:focusSession.changeWorkingDirectoryWorkspace', {
@@ -285,12 +297,12 @@ export function FocusTranscript({
         onClick={onWorkspace}
         disabled={switchingCwd}
       >
-        {switchingCwd ? <RefreshCw className="spin" size={14} /> : <FolderOpen size={14} />}
+        {switchingCwd ? <RefreshCw className="animate-spin" size={14} /> : <FolderOpen size={14} />}
         <span>{t('chat:focusSession.workingDirectory')}</span>
         <strong>{workspaceName(cwd, language)}</strong>
         <small>{t('chat:focusSession.changeDirectory')}</small>
       </button>
-      <div className="welcome-chips">
+      <div className="welcome-chips [&_button]:min-h-[38px] [&_button]:[border:1px_solid_var(--stroke)] [&_button]:rounded-[var(--r-pill)] [&_button]:bg-[var(--solid)] [&_button]:p-[0_17px] [&_button]:text-[var(--text-soft)] [&_button]:text-[13px] [&_button]:font-[650] [&_button]:[transition:var(--d1)_var(--ease-out)] [&_button:hover]:border-[var(--star-border)] [&_button:hover]:bg-[var(--star-soft)] [&_button:hover]:text-[var(--star-strong)] [:root[data-theme='light']_&_button]:border-[rgba(148,163,184,.38)] [:root[data-theme='light']_&_button]:bg-[rgba(255,255,255,.88)] [:root[data-theme='light']_&_button]:shadow-[0_8px_20px_-18px_rgba(15,23,42,.45)] [:root[data-theme='light']_&_button:hover]:border-[rgba(23,131,255,.34)] [:root[data-theme='light']_&_button:hover]:bg-[#fff] [:root[data-theme='light']_&_button:hover]:text-[var(--brand-blue-strong)] [:root[data-theme='light']_&_button:hover]:shadow-[0_12px_24px_-18px_rgba(23,131,255,.55)] [:root[data-theme='light']_&_button:hover]:[transform:translateY(-1px)] flex max-w-[540px] flex-wrap justify-center gap-[9px] [margin-top:22px]">
         {welcomeChips(t).map((chip) => (
           <button
             type="button"
@@ -308,7 +320,7 @@ export function FocusTranscript({
   return (
     <>
       <div
-        className="transcript"
+        className="transcript [.focus-session.has-conversation_&]:p-[30px_max(24px,calc((100%_-_900px)/2))] [.focus-session.has-conversation_&]:[scroll-padding-bottom:32px] @max-[700px]:p-[20px_14px] @max-[700px]:[.focus-session.has-conversation_&]:p-[24px_16px] @max-[470px]:[padding-inline:10px] max-[650px]:p-[20px_14px] min-h-0 flex-1 overflow-auto m-0 border-0 [padding:26px_max(24px,calc((100%_-_960px)/2))] [scroll-padding-bottom:28px]"
         data-pisper-transcript-state={transcriptLoadState}
         aria-busy={transcriptLoadState === 'loading'}
         ref={setTranscriptRef}
@@ -317,10 +329,10 @@ export function FocusTranscript({
         onTouchStart={cancelProgrammaticScroll}
         onWheel={cancelProgrammaticScroll}
       >
-        <div className="transcript-prefix" ref={transcriptPrefixRef}>
+        <div className="[display:flow-root] w-full" ref={transcriptPrefixRef}>
           {lineage?.parentSessionId && (
             <div
-              className="history-page-loader session-lineage"
+              className="history-page-loader flex w-[min(960px,100%)] min-h-[42px] items-center justify-center gap-[7px] [margin:0_auto_18px] text-[var(--text-muted)] text-[12px] session-lineage"
               data-pisper-parent-session={lineage.parentSessionId}
             >
               <GitFork size={13} />
@@ -332,22 +344,37 @@ export function FocusTranscript({
             </div>
           )}
           {(hasOlder || loadingOlder || olderError) && (
-            <div className="history-page-loader">
+            <div className="history-page-loader flex w-[min(960px,100%)] min-h-[42px] items-center justify-center gap-[7px] [margin:0_auto_18px] text-[var(--text-muted)] text-[12px]">
               {olderError ? (
-                <button type="button" className="button secondary" onClick={loadOlder}>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="lg"
+                  className="bg-surface-subtle"
+                  onClick={loadOlder}
+                >
                   <RefreshCw size={13} />
                   {t('chat:focusSession.retryOlderMessages')}
-                </button>
+                </Button>
               ) : loadingOlder ? (
                 <>
-                  <RefreshCw className="spin" size={14} />
+                  <RefreshCw className="animate-spin" size={14} />
                   {t('chat:focusSession.loadingOlderMessages')}
                 </>
               ) : (
-                <button type="button" className="button secondary" onClick={loadOlder}>
-                  <ArrowDown className="history-up-arrow" size={14} />
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="lg"
+                  className="bg-surface-subtle"
+                  onClick={loadOlder}
+                >
+                  <ArrowDown
+                    className="history-up-arrow [.history-page-loader_&]:[transform:rotate(180deg)]"
+                    size={14}
+                  />
                   {t('chat:focusSession.loadOlderMessages')}
-                </button>
+                </Button>
               )}
             </div>
           )}
@@ -356,7 +383,7 @@ export function FocusTranscript({
           <TranscriptLoading label={t('chat:focusSession.loadingConversationHistory')} />
         )}
         {transcriptLoadState === 'ready' && !messages.length && (
-          <div className="agent-welcome">
+          <div className="agent-welcome [&_h2]:mt-[16px] [&_h2]:text-[var(--text)] [&_h2]:text-[clamp(26px,_2.3vw,_30px)] [&_h2]:leading-[1.25] [&_p]:max-w-[620px] [&_p]:mt-[12px] [&_p]:text-[15px] [&_p]:leading-[1.7] [:root[data-theme='light']_&_h2]:text-[#172033] [:root[data-theme='light']_&_h2]:tracking-[-.025em] [:root[data-theme='light']_&_p]:text-[#526077] relative grid min-h-[100%] place-content-center justify-items-center overflow-hidden text-[var(--text-muted)] text-center">
             <Suspense
               fallback={<WelcomeFallback title={welcomeTitle}>{welcomeContent}</WelcomeFallback>}
             >
@@ -365,7 +392,7 @@ export function FocusTranscript({
           </div>
         )}
         {transcriptLoadState === 'ready' && messages.length > 0 && (
-          <div className="transcript-reveal">
+          <div className="[animation:transcript-reveal-enter_.22s_var(--ease-out)_both]">
             <VirtualMessageTranscript
               key={sessionId}
               sessionId={sessionId}
@@ -386,21 +413,23 @@ export function FocusTranscript({
           </div>
         )}
         {error && (
-          <div className="chat-error">
+          <div className="flex w-[min(960px,100%)] items-center gap-[7px] [margin:8px_auto] rounded-[var(--r-sm)] bg-[var(--danger-soft)] text-[var(--danger)] [padding:9px_11px] text-[13px]">
             <AlertTriangle size={14} />
             {error}
           </div>
         )}
       </div>
       {hasUnread && (
-        <button
+        <Button
           type="button"
-          className="button secondary jump-to-latest"
+          variant="outline"
+          size="lg"
+          className="bg-surface-subtle self-center flex-none min-h-[32px] [margin:-2px_auto_6px] [border-color:var(--accent-border)] text-[var(--star-strong)] shadow-[0_8px_18px_-14px_var(--shadow)]"
           onClick={() => scrollToBottom('smooth')}
         >
           <ArrowDown size={14} />
           {t('chat:focusSession.newContent')}
-        </button>
+        </Button>
       )}
     </>
   )

@@ -180,20 +180,20 @@ function SessionTreeSegment({
     return (
       <button
         type="button"
-        className={`session-tree-node${node.id === selectedId ? ' selected' : ''}${node.active ? ' active' : ''}${node.leaf ? ' leaf' : ''}`}
+        className={`session-tree-node hover:border-[var(--stroke-hover)] hover:bg-[var(--solid)] [&.selected]:border-[var(--focus)] [&.selected]:bg-[var(--solid)] [&.selected]:shadow-[0_0_0_2px_var(--focus-ring),0_8px_20px_-18px_var(--shadow)] relative z-[1] grid w-[220px] min-h-[48px] grid-cols-[30px_minmax(0,1fr)_auto] items-center gap-[8px] [border:1px_solid_var(--stroke-soft)] rounded-[var(--r-sm)] bg-[color-mix(in_srgb,var(--solid)_94%,transparent)] text-[var(--text)] [padding:6px_8px_6px_2px] text-left shadow-[0_4px_14px_-13px_var(--shadow)] cursor-pointer ${node.id === selectedId ? ' selected' : ''}${node.active ? ' active' : ''}${node.leaf ? ' leaf' : ''}`}
         data-kind={node.kind}
         data-pisper-tree-entry={node.id}
         key={node.id}
         onClick={() => onSelect(node.id)}
       >
-        <span className="session-tree-marker">
+        <span className="session-tree-marker [.session-tree-node[data-kind='user']_&]:bg-[var(--star-soft)] [.session-tree-node[data-kind='user']_&]:text-[var(--star-strong)] [.session-tree-node[data-kind='assistant']_&]:bg-[var(--brand-blue-soft)] [.session-tree-node[data-kind='assistant']_&]:text-[var(--brand-blue-strong)] [.session-tree-node[data-kind='tool']_&]:bg-[var(--warning-soft)] [.session-tree-node[data-kind='tool']_&]:text-[var(--warning-strong)] [.session-tree-node[data-kind='summary']_&]:bg-[var(--violet-soft)] [.session-tree-node[data-kind='summary']_&]:text-[var(--violet-strong)] [.session-tree-node[data-kind='compaction']_&]:bg-[var(--violet-soft)] [.session-tree-node[data-kind='compaction']_&]:text-[var(--violet-strong)] [.session-tree-node.active_&]:border-[var(--brand-blue-border)] [.session-tree-node.active_&]:shadow-[0_0_0_2px_var(--brand-blue-soft)] [.session-tree-node.leaf_&]:bg-[var(--star)] [.session-tree-node.leaf_&]:text-[var(--on-accent)] [.session-tree-mark.active_&]:border-[var(--brand-blue-border)] [.session-tree-mark.active_&]:shadow-[0_0_0_2px_var(--brand-blue-soft)] relative z-[2] grid w-[26px] h-[26px] place-items-center [justify-self:center] [border:2px_solid_var(--surface-subtle)] rounded-[50%] bg-[var(--surface-muted)] text-[var(--text-muted)]">
           <Icon size={14} />
         </span>
-        <span className="session-tree-node-copy">
+        <span className="session-tree-node-copy [&_strong]:overflow-hidden [&_strong]:text-ellipsis [&_strong]:whitespace-nowrap [&_small]:overflow-hidden [&_small]:text-ellipsis [&_small]:whitespace-nowrap [&_strong]:text-[12px] [&_strong]:font-[650] [&_small]:text-[var(--text-muted)] [&_small]:text-[10px] flex min-w-0 flex-col gap-[2px]">
           <strong>{node.label || node.text || typeLabel(node)}</strong>
           <small>{node.label && node.text ? node.text : typeLabel(node)}</small>
         </span>
-        <span className="session-tree-node-state">
+        <span className="session-tree-node-state [.session-tree-node.active_&]:text-[var(--brand-blue-strong)] [.session-tree-node.leaf_&]:text-[var(--brand-blue-strong)] inline-flex min-w-0 items-center gap-[4px] text-[var(--text-muted)] text-[9px] [text-transform:uppercase]">
           {node.label && <Bookmark size={12} />}
           {stateLabel(node)}
         </span>
@@ -209,16 +209,15 @@ function SessionTreeSegment({
   }, [selectedId, nodes, shouldVirtualize, virtualizer])
 
   return (
-    <div className={`session-tree-segment${segment.active ? ' active' : ''}`}>
-      <div className="session-tree-track">
+    <div
+      className={`session-tree-segment relative flex min-w-[220px] flex-col items-center ${segment.active ? ' active' : ''}`}
+    >
+      <div className="session-tree-track before:absolute before:z-[0] before:top-[22px] before:bottom-[22px] before:left-[50%] before:w-[2px] before:rounded-[var(--r-pill)] before:bg-[var(--stroke)] before:[content:''] before:[transform:translateX(-1px)] [.session-tree-segment.active_>_&::before]:bg-[color-mix(in_srgb,var(--brand-blue)_64%,var(--stroke))] relative z-[1] grid w-[220px] gap-[8px]">
         {shouldVirtualize ? (
-          <div
-            className="session-tree-track-virtual"
-            style={{ height: `${virtualizer.getTotalSize()}px` }}
-          >
+          <div className="relative w-[220px]" style={{ height: `${virtualizer.getTotalSize()}px` }}>
             {virtualizer.getVirtualItems().map((virtualItem) => (
               <div
-                className="session-tree-virtual-item"
+                className="absolute top-0 left-0 w-[220px]"
                 key={virtualItem.key}
                 style={{ top: `${virtualItem.start - TREE_TRACK_SCROLL_MARGIN}px` }}
               >
@@ -231,9 +230,12 @@ function SessionTreeSegment({
         )}
       </div>
       {children.length > 0 && (
-        <div className="session-tree-children">
+        <div className="session-tree-children before:absolute before:top-0 before:left-[50%] before:w-[2px] before:h-[14px] before:rounded-[var(--r-pill)] before:bg-[var(--stroke)] before:[content:''] before:[transform:translateX(-1px)] [.session-tree-segment.active_>_&::before]:bg-[color-mix(in_srgb,var(--brand-blue)_64%,var(--stroke))] relative flex items-start justify-center [margin-top:0] [padding-top:28px]">
           {children.map((child) => (
-            <div className={`session-tree-child${child.active ? ' active' : ''}`} key={child.id}>
+            <div
+              className={`session-tree-child before:absolute before:top-0 before:w-[50%] before:h-[14px] before:[border-top:2px_solid_var(--stroke)] before:[content:''] after:absolute after:top-0 after:w-[50%] after:h-[14px] after:[border-top:2px_solid_var(--stroke)] after:[content:''] before:right-[50%] after:left-[50%] after:[border-left:2px_solid_var(--stroke)] [&:first-child::before]:[border-top-color:transparent] [&:last-child::after]:[border-top-color:transparent] [&.active::before]:border-[color-mix(in_srgb,var(--brand-blue)_64%,var(--stroke))] [&.active::after]:border-[color-mix(in_srgb,var(--brand-blue)_64%,var(--stroke))] [&.active:first-child::before]:[border-top-color:transparent] [&.active:last-child::after]:[border-top-color:transparent] relative flex [padding:14px_12px_0]${child.active ? ' active' : ''}`}
+              key={child.id}
+            >
               <SessionTreeSegment
                 segment={child}
                 viewportRef={viewportRef}
@@ -505,10 +507,13 @@ export function SessionTreeDialog({
 
   return (
     <Dialog open={open} onOpenChange={(nextOpen) => !nextOpen && onClose()}>
-      <DialogContent className="chat-resource-dialog session-tree-dialog" showCloseButton>
-        <div className="chat-resource-head session-tree-head">
+      <DialogContent
+        className="chat-resource-dialog w-[min(820px,calc(100vw_-_32px))] h-[min(600px,calc(100dvh_-_32px))] max-w-[820px] grid-rows-[auto_minmax(0,1fr)] overflow-hidden max-[650px]:w-[calc(100vw_-_16px)] max-[650px]:h-[calc(100dvh_-_16px)] session-tree-dialog !w-[min(1120px,calc(100vw_-_32px))] !h-[min(760px,calc(100dvh_-_32px))] !max-w-[1120px]"
+        showCloseButton
+      >
+        <div className="chat-resource-head [&_[data-slot='dialog-title']]:text-[16px] [&_[data-slot='dialog-description']]:mt-[3px] [&_[data-slot='dialog-description']]:text-[12px] max-[650px]:p-[14px] flex items-start justify-between gap-[16px] [border-bottom:1px_solid_var(--stroke-soft)] [padding:17px_18px_14px] session-tree-head max-[650px]:items-start">
           <div>
-            <div className="session-tree-title">
+            <div className="session-tree-title [&_>_span]:grid [&_>_span]:w-[30px] [&_>_span]:h-[30px] [&_>_span]:place-items-center [&_>_span]:rounded-[var(--r-sm)] [&_>_span]:bg-[var(--success-soft)] [&_>_span]:text-[var(--success)] flex items-center gap-[9px]">
               <span>
                 <TreePine size={17} />
               </span>
@@ -522,10 +527,10 @@ export function SessionTreeDialog({
             </DialogDescription>
           </div>
         </div>
-        <div className="chat-resource-body session-tree-layout">
-          <div className="chat-resource-browser session-tree-browser">
+        <div className="chat-resource-body grid min-h-0 grid-cols-[minmax(0,1.1fr)_minmax(260px,.9fr)] overflow-hidden max-[650px]:grid-cols-[1fr] max-[650px]:grid-rows-[minmax(0,1fr)_minmax(190px,auto)] max-[650px]:overflow-hidden session-tree-layout !grid-cols-[minmax(0,1fr)_292px] bg-[var(--surface-subtle)] max-[650px]:grid-rows-[minmax(0,1fr)_minmax(210px,auto)]">
+          <div className="chat-resource-browser flex min-w-0 min-h-0 flex-col [border-right:1px_solid_var(--stroke-soft)] p-[12px] max-[650px]:min-h-0 max-[650px]:[border-right:0] max-[650px]:[border-bottom:1px_solid_var(--stroke-soft)] session-tree-browser ![border-right:0] !p-0 bg-transparent">
             <Tabs
-              className="chat-resource-tabs session-tree-tabs"
+              className="chat-resource-tabs [&_[data-slot='tabs-list']]:grid [&_[data-slot='tabs-list']]:w-full [&_[data-slot='tabs-list']]:h-[36px] [&_[data-slot='tabs-list']]:grid-cols-[repeat(5,minmax(0,1fr))] [&_[data-slot='tabs-list']]:[border:1px_solid_var(--stroke-soft)] [&_[data-slot='tabs-list']]:rounded-[var(--r-sm)] [&_[data-slot='tabs-list']]:bg-[var(--surface-muted)] [&_[data-slot='tabs-trigger']]:min-w-0 [&_[data-slot='tabs-trigger']]:gap-[5px] [&_[data-slot='tabs-trigger']]:rounded-[var(--r-xs)] [&_[data-slot='tabs-trigger']]:[padding-inline:6px] [&_[data-slot='tabs-trigger']]:text-[11px] [&_[data-slot='tabs-trigger'][data-state='active']]:bg-[var(--solid)] [&_[data-slot='tabs-trigger'][data-state='active']]:text-[var(--text)] [&_[data-slot='tabs-trigger']_small]:text-[var(--text-muted)] [&_[data-slot='tabs-trigger']_small]:text-[10px] [&_[data-slot='tabs-trigger']_small]:font-[500] w-full session-tree-tabs [padding:12px_12px_0]"
               value={view}
               onValueChange={(value) => setView(value as TreeView)}
             >
@@ -536,7 +541,7 @@ export function SessionTreeDialog({
                 <TabsTrigger value="marks">{t('chat:sessionTree.allMarks')}</TabsTrigger>
               </TabsList>
             </Tabs>
-            <label className="chat-resource-search session-tree-search">
+            <label className="chat-resource-search [&:focus-within]:border-[var(--focus)] [&:focus-within]:shadow-[0_0_0_2px_var(--focus-ring)] [&_input]:w-full [&_input]:h-[36px] [&_input]:border-0 [&_input]:[outline:0] [&_input]:bg-transparent [&_input]:text-[var(--text)] [&_input]:text-[13px] flex items-center gap-[7px] [margin-top:8px] [border:1px_solid_var(--stroke)] rounded-[var(--r-sm)] [padding:0_10px] text-[var(--text-muted)] flex-none [margin:8px_12px_0] bg-[var(--solid)]">
               <Search size={15} />
               <input
                 value={query}
@@ -546,28 +551,33 @@ export function SessionTreeDialog({
               />
             </label>
             {view === 'marks' ? (
-              <div className="session-tree-marks" data-testid="session-tree-marks-list">
-                {error && <p className="danger-text session-tree-marks-error">{error}</p>}
+              <div
+                className="flex min-w-0 min-h-0 [flex:1_1_0] flex-col gap-[8px] overflow-auto [overscroll-behavior:contain] [padding:12px_14px]"
+                data-testid="session-tree-marks-list"
+              >
+                {error && <p className="danger-text [margin:0_2px]">{error}</p>}
                 {marksLoading ? (
-                  <p className="session-tree-empty">{t('chat:sessionTree.loadingMarks')}</p>
+                  <p className="grid min-h-[180px] place-items-center text-[var(--text-muted)] text-[12px]">
+                    {t('chat:sessionTree.loadingMarks')}
+                  </p>
                 ) : visibleMarks.length ? (
                   visibleMarks.map((mark) => (
                     <button
                       type="button"
-                      className={`session-tree-mark${mark.active ? ' active' : ''}`}
+                      className={`session-tree-mark hover:border-[var(--stroke-hover)] hover:bg-[var(--solid)] [&.active]:border-[var(--brand-blue-border)] [&_>_em]:rounded-[var(--r-xs)] [&_>_em]:bg-[var(--brand-blue-soft)] [&_>_em]:text-[var(--brand-blue-strong)] [&_>_em]:p-[2px_6px] [&_>_em]:text-[10px] [&_>_em]:[font-style:normal] grid grid-cols-[30px_minmax(0,1fr)_auto] items-center gap-[8px] [border:1px_solid_var(--stroke-soft)] rounded-[var(--r-sm)] bg-[color-mix(in_srgb,var(--solid)_94%,transparent)] text-[var(--text)] [padding:8px_10px_8px_4px] text-left cursor-pointer ${mark.active ? ' active' : ''}`}
                       key={`${mark.sessionId}:${mark.entryId}`}
                       disabled={Boolean(openingMark)}
                       aria-busy={openingMark === mark}
                       onClick={() => void openMark(mark)}
                     >
-                      <span className="session-tree-marker">
+                      <span className="session-tree-marker [.session-tree-node[data-kind='user']_&]:bg-[var(--star-soft)] [.session-tree-node[data-kind='user']_&]:text-[var(--star-strong)] [.session-tree-node[data-kind='assistant']_&]:bg-[var(--brand-blue-soft)] [.session-tree-node[data-kind='assistant']_&]:text-[var(--brand-blue-strong)] [.session-tree-node[data-kind='tool']_&]:bg-[var(--warning-soft)] [.session-tree-node[data-kind='tool']_&]:text-[var(--warning-strong)] [.session-tree-node[data-kind='summary']_&]:bg-[var(--violet-soft)] [.session-tree-node[data-kind='summary']_&]:text-[var(--violet-strong)] [.session-tree-node[data-kind='compaction']_&]:bg-[var(--violet-soft)] [.session-tree-node[data-kind='compaction']_&]:text-[var(--violet-strong)] [.session-tree-node.active_&]:border-[var(--brand-blue-border)] [.session-tree-node.active_&]:shadow-[0_0_0_2px_var(--brand-blue-soft)] [.session-tree-node.leaf_&]:bg-[var(--star)] [.session-tree-node.leaf_&]:text-[var(--on-accent)] [.session-tree-mark.active_&]:border-[var(--brand-blue-border)] [.session-tree-mark.active_&]:shadow-[0_0_0_2px_var(--brand-blue-soft)] relative z-[2] grid w-[26px] h-[26px] place-items-center [justify-self:center] [border:2px_solid_var(--surface-subtle)] rounded-[50%] bg-[var(--surface-muted)] text-[var(--text-muted)]">
                         {openingMark === mark ? (
                           <LoaderCircle className="size-3.5 animate-spin" aria-hidden="true" />
                         ) : (
                           <Tag size={14} />
                         )}
                       </span>
-                      <span className="session-tree-node-copy">
+                      <span className="session-tree-node-copy [&_strong]:overflow-hidden [&_strong]:text-ellipsis [&_strong]:whitespace-nowrap [&_small]:overflow-hidden [&_small]:text-ellipsis [&_small]:whitespace-nowrap [&_strong]:text-[12px] [&_strong]:font-[650] [&_small]:text-[var(--text-muted)] [&_small]:text-[10px] flex min-w-0 flex-col gap-[2px]">
                         <strong>{mark.label}</strong>
                         <small>
                           {mark.sessionName || t('navigation:appOverlays.untitledChat')}
@@ -587,17 +597,19 @@ export function SessionTreeDialog({
                     </button>
                   ))
                 ) : (
-                  <p className="session-tree-empty">{t('chat:sessionTree.noMarksYet')}</p>
+                  <p className="grid min-h-[180px] place-items-center text-[var(--text-muted)] text-[12px]">
+                    {t('chat:sessionTree.noMarksYet')}
+                  </p>
                 )}
               </div>
             ) : (
               <div
-                className="session-tree-viewport"
+                className="min-w-0 min-h-0 [flex:1_1_0] overflow-auto [overscroll-behavior:contain] [scrollbar-gutter:stable]"
                 data-testid="session-tree-list"
                 ref={viewportRef}
               >
                 {segments.length > 0 ? (
-                  <div className="session-tree-canvas">
+                  <div className="session-tree-canvas max-[650px]:min-w-[460px] max-[650px]:[padding-inline:12px] flex w-[max-content] min-w-[100%] items-start justify-center gap-[36px] [padding:26px_28px_48px]">
                     {segments.map((segment) => (
                       <SessionTreeSegment
                         segment={segment}
@@ -611,7 +623,7 @@ export function SessionTreeDialog({
                     ))}
                   </div>
                 ) : (
-                  <p className="session-tree-empty">
+                  <p className="grid min-h-[180px] place-items-center text-[var(--text-muted)] text-[12px]">
                     {loading ? t('chat:sessionTree.loading') : error || t('chat:sessionTree.empty')}
                   </p>
                 )}
@@ -619,18 +631,18 @@ export function SessionTreeDialog({
             )}
           </div>
           {view !== 'marks' && (
-            <div className="chat-resource-config session-tree-inspector">
+            <div className="chat-resource-config [&_>_p]:m-[auto] [&_>_p]:text-[var(--text-muted)] [&_>_p]:text-[12px] [&_>_div:first-child]:flex [&_>_div:first-child]:flex-col [&_>_div:first-child]:gap-[4px] [&_strong]:text-[14px] [&_p]:text-[var(--text-muted)] [&_p]:text-[12px] max-[650px]:min-h-0 max-[650px]:max-h-[230px] flex min-w-0 min-h-0 flex-col gap-[16px] overflow-y-auto [overscroll-behavior:contain] [padding:18px] session-tree-inspector max-[650px]:max-h-[250px] [margin:12px_12px_12px_0] [border-left:0] rounded-[var(--r-md)] bg-[color-mix(in_srgb,var(--solid)_88%,var(--surface-subtle))] shadow-[0_10px_28px_-26px_var(--shadow)]">
               {selected ? (
                 <>
                   <div>
-                    <span className="session-tree-selection-kind">
+                    <span className="session-tree-selection-kind [&_em]:rounded-[var(--r-xs)] [&_em]:bg-[var(--brand-blue-soft)] [&_em]:text-[var(--brand-blue-strong)] [&_em]:p-[2px_5px] [&_em]:[font-style:normal] flex items-center justify-between gap-[8px] text-[var(--text-muted)] text-[10px] [text-transform:uppercase]">
                       {typeLabel(selected)}
                       {stateLabel(selected) && <em>{stateLabel(selected)}</em>}
                     </span>
                     <strong>{selected.label || typeLabel(selected)}</strong>
                     <p>{selected.text || t('chat:sessionTree.noPreview')}</p>
                   </div>
-                  <div className="chat-resource-inputs">
+                  <div className="chat-resource-inputs [&_label]:grid [&_label]:gap-[5px] [&_label]:text-[12px] [&_label]:font-[600] [&_input[type='checkbox']]:w-[16px] [&_input[type='checkbox']]:h-[16px] [&_input[type='checkbox']]:[accent-color:var(--blue)] flex flex-col gap-[11px]">
                     {canLabelSelected && (
                       <>
                         <label>
@@ -665,7 +677,7 @@ export function SessionTreeDialog({
                       </>
                     )}
                     {canDeriveSelected && (
-                      <label className="session-tree-summary-option">
+                      <label className="session-tree-summary-option [&_small]:[grid-column:1/-1] [&_small]:text-[var(--text-muted)] [&_small]:font-[400] [&_small]:leading-[1.45] grid-cols-[minmax(0,1fr)_auto] items-center">
                         <span>{t('chat:sessionTree.abandonedBranchSummary')}</span>
                         <input
                           type="checkbox"
@@ -689,7 +701,7 @@ export function SessionTreeDialog({
                   {error && <p className="danger-text">{error}</p>}
                   {canDeriveSelected && (
                     <Button
-                      className="chat-resource-confirm"
+                      className="chat-resource-confirm hover:bg-[var(--star-hover)] hover:text-[var(--on-accent)] min-w-[112px] min-h-[36px] self-start bg-[var(--star)] text-[var(--on-accent)] font-[650]"
                       disabled={
                         navigating || selected.leaf || streaming || Boolean(data?.streaming)
                       }

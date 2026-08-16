@@ -98,16 +98,15 @@ test('desktop terminals are scoped to the active chat session without stopping h
 })
 
 test('opening the desktop terminal preserves a shrinkable chat workbench above it', async () => {
-  const [terminal, styles] = await Promise.all([
-    readFile('src/features/terminal/TerminalPanel.tsx', 'utf8'),
-    readFile('src/index.css', 'utf8'),
-  ])
+  const terminal = await readFile('src/features/terminal/TerminalPanel.tsx', 'utf8')
 
   assert.match(terminal, /WORKBENCH_RESERVED_HEIGHT = 420/)
   assert.match(terminal, /maximumTerminalHeight\(window\.innerHeight\)/)
-  assert.match(styles, /\.page-content\.page-chat \{ display: flex;/)
-  assert.match(styles, /\.chat-layout \{[^}]*min-height: 0;[^}]*flex: 1;/)
-  assert.doesNotMatch(styles, /\.chat-layout \{[^}]*min-height: 510px;/)
+  const app = await readFile('src/App.tsx', 'utf8')
+  const chat = await readFile('src/features/chat/ChatPage.tsx', 'utf8')
+  assert.match(app, /page-content[^"\n]*\[&\.page-chat\]:flex/)
+  assert.match(chat, /chat-layout[^"\n]*min-h-0[^"\n]*flex-1/)
+  assert.doesNotMatch(chat, /chat-layout[^"\n]*min-h-\[510px\]/)
 })
 
 test('desktop terminal keeps its collapsed row and follows the active color theme', async () => {
@@ -118,12 +117,9 @@ test('desktop terminal keeps its collapsed row and follows the active color them
 
   assert.match(styles, /--terminal-bg: #f8fafc;/)
   assert.match(styles, /:root\[data-theme='dark'\][\s\S]*?--terminal-bg: #111318;/)
-  assert.match(styles, /\.terminal-panel \{[^}]*flex: 0 0 35px;/)
-  assert.match(
-    styles,
-    /\.terminal-toolbar \{[^}]*border-bottom: 1px solid var\(--terminal-border\)/,
-  )
-  assert.match(styles, /\.terminal-title,\.terminal-tab \{[^}]*color: var\(--terminal-muted\)/)
+  assert.match(terminal, /terminal-panel[^`\n]*\[flex:0_0_35px\]/)
+  assert.match(terminal, /\[border-bottom:1px_solid_var\(--terminal-border\)\]/)
+  assert.match(terminal, /terminal-title[^"\n]*text-\[var\(--terminal-muted\)\]/)
   assert.match(
     styles,
     /\.terminal-xterm \.xterm \.xterm-viewport \{ background-color: var\(--terminal-bg\); \}/,
@@ -173,33 +169,31 @@ test('workflow notifications separate system permission from external channel se
 })
 
 test('chat resource picker remains visible above dock splits with a readable primary action', async () => {
-  const [picker, dialog, styles, focusSession] = await Promise.all([
+  const [picker, dialog, focusSession] = await Promise.all([
     readFile('src/features/chat/ChatResourcePicker.tsx', 'utf8'),
     readFile('src/components/ui/dialog.tsx', 'utf8'),
-    readFile('src/index.css', 'utf8'),
     readFile('src/features/chat/FocusSession.tsx', 'utf8'),
   ])
 
-  assert.match(picker, /className="chat-resource-dialog z-\[220\]/)
+  assert.match(picker, /className="chat-resource-dialog[^"\n]*z-\[220\]/)
   assert.match(picker, /overlayClassName="z-\[220\]"/)
-  assert.match(picker, /className="chat-resource-confirm"/)
+  assert.match(picker, /className="chat-resource-confirm[^"\n]*text-\[var\(--on-accent\)\]/)
   assert.match(picker, /apiJson<PluginsData>\(`\/api\/plugins\?sessionId=/)
   assert.match(picker, /chatApi\.getSessionCommands\(sessionId\)/)
   assert.match(picker, /onCommandSelect\(selected\.invocation/)
   assert.match(picker, /kind: 'tool'/)
   assert.match(picker, /callableToolNames\.has\(capability\.name\)/)
-  assert.match(picker, /<Tabs value=\{category\}/)
+  assert.match(picker, /<Tabs\s+value=\{category\}/)
   assert.match(picker, /value="all"/)
   assert.match(picker, /value="prompt"/)
   assert.match(picker, /value="skill"/)
   assert.match(picker, /value="tool"/)
   assert.match(picker, /value="workflow"/)
   assert.match(dialog, /overlayClassName/)
-  assert.match(styles, /\.chat-resource-confirm \{[^}]*color: var\(--on-accent\)/)
-  assert.match(styles, /\.chat-resource-body \{[^}]*min-height: 0;[^}]*overflow: hidden;/)
-  assert.match(styles, /\.chat-resource-list \{[^}]*flex: 1 1 0;[^}]*overflow-y: auto;/)
-  assert.match(styles, /\.chat-resource-list \{[^}]*touch-action: pan-y;/)
-  assert.match(styles, /chat-resource-tabs[^}]*\[data-state='active'\]/)
+  assert.match(picker, /chat-resource-body[^"\n]*min-h-0[^"\n]*overflow-hidden/)
+  assert.match(picker, /chat-resource-list[^"\n]*\[flex:1_1_0\][^"\n]*overflow-y-auto/)
+  assert.match(picker, /chat-resource-list[^"\n]*\[touch-action:pan-y\]/)
+  assert.match(picker, /chat-resource-tabs[^"\n]*data-state='active'/)
   assert.match(focusSession, /onClick=\{\(\) => setResourcePickerOpen\(true\)\}/)
   assert.doesNotMatch(
     focusSession.match(/className="resource-picker-trigger"[\s\S]*?<\/button>/)?.[0] || '',
@@ -272,8 +266,8 @@ test('historical sessions transition through loading before resolving the welcom
       transcript.indexOf("transcriptLoadState === 'ready' && !messages.length"),
   )
   assert.match(catalog, /loaded: true/)
-  assert.match(styles, /\.session-history-loading/)
-  assert.match(styles, /\.transcript-reveal/)
+  assert.match(transcript, /session-history-loading[^"\n]*transcript-stage-enter/)
+  assert.match(transcript, /transcript-reveal-enter/)
   assert.match(styles, /@keyframes transcript-stage-enter/)
 })
 
@@ -353,7 +347,10 @@ test('settings navigation replaces the main sidebar instead of nesting in page c
   ])
 
   assert.doesNotMatch(app, /SettingsShell/)
-  assert.match(app, /<div className=\{`page-content page-\$\{page\}`\} key=\{page\}>\s*<Outlet/)
+  assert.match(
+    app,
+    /<div[\s\S]*?className=\{`page-content[^`]*page-\$\{page\}`\}[\s\S]*?key=\{page\}[\s\S]*?<Outlet/,
+  )
   assert.match(sidebar, /settingsActive \? \(/)
   assert.match(sidebar, /nav-settings-back/)
   assert.match(settingsNavigation, /getSettingsNavigation/)

@@ -13,6 +13,10 @@ import { apiJson } from '@/lib/api'
 import { hasSystemDirectoryPicker, pickSystemDirectory } from '@/lib/pick-system-directory'
 import type { PluginInspection } from '@/features/plugins/plugin-types'
 
+import { Button } from '@/components/ui/button'
+
+import { AppError } from '@/components/ui/app-primitives'
+
 function formatBytes(value: number) {
   if (value < 1024) return `${value} B`
   if (value < 1024 * 1024) return `${(value / 1024).toFixed(1)} KB`
@@ -118,14 +122,16 @@ export function PluginInstallDialog({ open, onOpenChange, onInstalled }: PluginI
                 }}
               />
               {hasSystemDirectoryPicker() && (
-                <button
+                <Button
                   type="button"
-                  className="button secondary icon-button size-10 shrink-0"
+                  variant="ghost"
+                  size="icon"
+                  className="size-10 shrink-0"
                   title={t('plugins:pluginsPage.chooseDirectory')}
                   onClick={chooseDirectory}
                 >
                   <FolderOpen size={16} />
-                </button>
+                </Button>
               )}
             </span>
           </label>
@@ -170,30 +176,32 @@ export function PluginInstallDialog({ open, onOpenChange, onInstalled }: PluginI
           )}
 
           {error && (
-            <div className="config-error m-0">
+            <AppError className="m-0">
               <AlertTriangle size={14} />
               <span>{error}</span>
-            </div>
+            </AppError>
           )}
         </div>
 
         <DialogFooter>
-          <button
+          <Button
             type="button"
-            className="button secondary"
+            variant="outline"
+            size="lg"
+            className="bg-surface-subtle"
             disabled={busy}
             onClick={() => onOpenChange(false)}
           >
             {t('common:ui.cancel')}
-          </button>
-          <button
+          </Button>
+          <Button
             type="button"
-            className="button primary"
+            size="lg"
             disabled={busy || (!inspection && !path.trim())}
             onClick={inspection ? install : inspect}
           >
             {busy ? (
-              <LoaderCircle className="spin" size={15} />
+              <LoaderCircle className="animate-spin" size={15} />
             ) : inspection ? (
               <PackagePlus size={15} />
             ) : (
@@ -204,7 +212,7 @@ export function PluginInstallDialog({ open, onOpenChange, onInstalled }: PluginI
               : inspection
                 ? t('plugins:pluginsPage.installPlugin')
                 : t('plugins:pluginsPage.inspectPlugin')}
-          </button>
+          </Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>

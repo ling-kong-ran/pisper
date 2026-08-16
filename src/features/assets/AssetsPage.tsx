@@ -15,7 +15,13 @@ import {
 } from 'lucide-react'
 import { STORAGE_KEYS } from '@/app/storage'
 import { useI18n } from '@/app/use-i18n'
-import { AppCard as Panel, SegmentedTabs as Segmented } from '@/components/ui/app-primitives'
+import {
+  AppCard as Panel,
+  SegmentedTabs as Segmented,
+  AppCardHeader,
+  AppError,
+  AppEmptyState,
+} from '@/components/ui/app-primitives'
 import { StarOrbit } from '@/components/StarOrbit'
 import { usePagePrimaryAction } from '@/hooks/usePagePrimaryAction'
 import { apiJson } from '@/lib/api'
@@ -23,6 +29,10 @@ import { formatFileSize } from '@/lib/format'
 import type { Notify } from '@/app/route-context'
 import type { ConfirmDialogOptions } from '@/hooks/useAppDialog'
 import type { ChatAttachment, EntityRecord } from '@/types/chat'
+
+import { Button } from '@/components/ui/button'
+
+import { FieldLabel } from '@/components/ui/field'
 
 type Asset = ChatAttachment & {
   id: string
@@ -169,8 +179,8 @@ export function AssetsPage({
   }
 
   return (
-    <div className="asset-page">
-      <div className="asset-toolbar">
+    <div className="asset-page flex min-h-[100%] flex-col gap-[12px]">
+      <div className="asset-toolbar [&_>_div:last-child]:flex [&_>_div:last-child]:gap-[7px] max-[650px]:items-stretch max-[650px]:flex-col max-[650px]:[&_>_div:last-child]:justify-end flex items-center justify-between gap-[12px]">
         <Segmented
           options={ASSET_TABS.map((item) => assetTabLabel(item, t))}
           value={assetTabLabel(tab, t)}
@@ -179,7 +189,7 @@ export function AssetsPage({
           }
         />
       </div>
-      <div className="asset-summary">
+      <div className="asset-summary [&_strong]:text-[var(--text)] [&_strong]:text-[13px] max-[650px]:items-start max-[650px]:flex-col flex items-center justify-between gap-[12px] text-[var(--text-muted)] text-[12px]">
         <span>
           <strong>{assets.length}</strong> {t('assets:assetsPage.assets')}
         </span>
@@ -188,18 +198,18 @@ export function AssetsPage({
         </span>
       </div>
       {error && (
-        <div className="config-error">
+        <AppError>
           <AlertTriangle size={13} />
           {error}
-        </div>
+        </AppError>
       )}
       {loading ? (
-        <Panel className="empty-state">
-          <RefreshCw className="spin" size={23} />
+        <AppEmptyState>
+          <RefreshCw className="animate-spin" size={23} />
           <h2>{t('assets:assetsPage.loadingAssets')}</h2>
-        </Panel>
+        </AppEmptyState>
       ) : assets.length ? (
-        <div className="asset-grid functional">
+        <div className="asset-grid max-[650px]:grid-cols-[1fr] functional grid auto-rows-[292px] grid-cols-[repeat(auto-fill,minmax(260px,1fr))] content-start items-start gap-3">
           {assets.map((asset) => {
             const isVideo = asset.mimeType?.startsWith('video/')
             const Icon =
@@ -211,19 +221,30 @@ export function AssetsPage({
                     ? Link2
                     : File
             return (
-              <Panel className="asset-card functional" key={asset.id}>
+              <Panel
+                className="asset-card [transition:transform_var(--d2)_var(--ease-out),_box-shadow_var(--d2)_var(--ease-out),_border-color_var(--d2)_var(--ease-out)] hover:[transform:translateY(-2px)] hover:shadow-[var(--sh-2)] hover:border-[var(--star-border)] [&_>_strong]:text-[13px] [&_>_span]:m-[5px_0_10px] [&_>_span]:text-[var(--text-muted)] [&_>_span]:text-[12px] [&_>_div:last-child]:flex [&_>_div:last-child]:gap-[6px] [&_>_div:last-child]:mt-[auto] max-[650px]:min-h-[200px] functional flex h-[292px] min-h-0 flex-col overflow-hidden"
+                key={asset.id}
+              >
                 <button
-                  className={`asset-preview ${asset.kind} ${isVideo ? 'video' : ''}`}
+                  className={`asset-preview [&.blue]:bg-[var(--asset-preview-blue-bg)] [&.blue]:text-[var(--asset-preview-blue-text)] [&.violet]:bg-[var(--asset-preview-violet-bg)] [&.violet]:text-[var(--violet-strong)] [&.yellow]:bg-[var(--warning-soft)] [&.yellow]:text-[var(--amber)] [&.red]:bg-[var(--danger-soft)] [&.red]:text-[var(--danger)] [.asset-card.functional_&::after]:absolute [.asset-card.functional_&::after]:inset-0 [.asset-card.functional_&::after]:rounded-[var(--r-sm)] [.asset-card.functional_&::after]:bg-[rgba(0,_0,_0,_0)] [.asset-card.functional_&::after]:[transition:background_var(--d1)_var(--ease-out)] [.asset-card.functional_&::after]:[content:''] [.asset-card.functional_&::after]:pointer-events-none [.asset-card.functional_&:hover::after]:bg-[rgba(0,_0,_0,_.16)] [.asset-card.functional_&.image]:bg-[var(--surface-hover)] [.asset-card.functional_&.link]:bg-[var(--surface-hover)] [.asset-card.functional_&.link]:text-[var(--success)] [.asset-card.functional_&.file]:bg-[var(--surface-hover)] [.asset-card.functional_&.file]:text-[var(--violet-strong)] [.asset-card.functional_&_img]:relative [.asset-card.functional_&_img]:z-[0] [.asset-card.functional_&_img]:w-full [.asset-card.functional_&_img]:h-full [.asset-card.functional_&_img]:rounded-[var(--r-sm)] [.asset-card.functional_&_img]:object-cover [.asset-card.functional_&_video]:relative [.asset-card.functional_&_video]:z-[0] [.asset-card.functional_&_video]:w-full [.asset-card.functional_&_video]:h-full [.asset-card.functional_&_video]:rounded-[var(--r-sm)] [.asset-card.functional_&_video]:object-cover ${asset.kind}    ${isVideo ? 'video' : ''} relative -mx-1.5 -mt-1.5 mb-2.5 grid h-44 min-h-0 w-[calc(100%+12px)] shrink-0 place-items-center overflow-hidden rounded-[var(--r-sm)] border-0 bg-[var(--surface-hover)] text-[var(--text-muted)]`}
                   title={t('assets:assetsPage.preview')}
                   onClick={() => previewAsset(asset)}
                 >
                   {asset.kind === 'image' ? (
-                    <img
-                      src={`/api/assets/${encodeURIComponent(asset.id)}/download?inline=1`}
-                      alt=""
-                    />
+                    <>
+                      <Icon className="absolute" size={38} />
+                      <img
+                        className="block size-full min-h-0 object-cover"
+                        src={`/api/assets/${encodeURIComponent(asset.id)}/download?inline=1`}
+                        alt=""
+                        onError={(event) => {
+                          event.currentTarget.hidden = true
+                        }}
+                      />
+                    </>
                   ) : isVideo ? (
                     <video
+                      className="block size-full min-h-0 object-cover"
                       src={`/api/assets/${encodeURIComponent(asset.id)}/download?inline=1`}
                       muted
                       preload="metadata"
@@ -232,7 +253,7 @@ export function AssetsPage({
                     <Icon size={38} />
                   )}
                 </button>
-                <div className="asset-card-copy">
+                <div className="asset-card-copy [&_strong]:overflow-hidden [&_strong]:text-[13px] [&_strong]:text-ellipsis [&_strong]:whitespace-nowrap [&_span]:overflow-hidden [&_span]:text-[var(--text-muted)] [&_span]:text-[13px] [&_span]:text-ellipsis [&_span]:whitespace-nowrap [&_small]:overflow-hidden [&_small]:text-[var(--text-muted)] [&_small]:text-[13px] [&_small]:text-ellipsis [&_small]:whitespace-nowrap flex min-w-0 flex-col gap-[4px]">
                   <strong title={asset.name}>{asset.name}</strong>
                   <span>
                     {asset.kind === 'link'
@@ -253,39 +274,42 @@ export function AssetsPage({
                     </small>
                   )}
                 </div>
-                <div className="asset-card-actions">
+                <div className="asset-card-actions [.asset-card.functional:hover_&]:opacity-100 [.asset-card.functional:hover_&]:[transform:translateY(0)] [.asset-card.functional:focus-within_&]:opacity-100 [.asset-card.functional:focus-within_&]:[transform:translateY(0)] [&_a]:no-underline flex flex-wrap items-center gap-[5px] [margin-top:auto] [padding-top:10px] opacity-0 [transform:translateY(4px)] [transition:opacity_var(--d1)_var(--ease-out),_transform_var(--d1)_var(--ease-out)]">
                   {asset.kind === 'link' ? (
-                    <a className="button tiny" href={asset.url} target="_blank" rel="noreferrer">
-                      <ExternalLink size={13} />
-                      {t('assets:assetsPage.open')}
-                    </a>
+                    <Button asChild variant="outline">
+                      <a href={asset.url} target="_blank" rel="noreferrer">
+                        <ExternalLink size={13} />
+                        {t('assets:assetsPage.open')}
+                      </a>
+                    </Button>
                   ) : (
-                    <a
-                      className="button tiny"
-                      href={`/api/assets/${encodeURIComponent(asset.id)}/download`}
-                    >
-                      <Download size={13} />
-                      {t('assets:assetsPage.download')}
-                    </a>
+                    <Button asChild variant="outline">
+                      <a href={`/api/assets/${encodeURIComponent(asset.id)}/download`}>
+                        <Download size={13} />
+                        {t('assets:assetsPage.download')}
+                      </a>
+                    </Button>
                   )}
-                  <button className="button tiny primary" onClick={() => attachAsset(asset)}>
+                  <Button onClick={() => attachAsset(asset)}>
                     <Paperclip size={13} />
                     {t('assets:assetsPage.useInChat')}
-                  </button>
-                  <button
-                    className="icon-button danger"
+                  </Button>
+                  <Button
+                    variant="destructive"
+                    size="icon"
+                    className="ml-auto"
                     title={t('assets:assetsPage.deleteAsset')}
                     onClick={() => deleteAsset(asset)}
                   >
                     <Trash2 size={13} />
-                  </button>
+                  </Button>
                 </div>
               </Panel>
             )
           })}
         </div>
       ) : (
-        <Panel className="empty-state">
+        <AppEmptyState>
           <StarOrbit size={46} />
           <h2>{t('assets:assetsPage.nothingHasGatheredHereYet')}</h2>
           <p>
@@ -293,11 +317,11 @@ export function AssetsPage({
               'assets:assetsPage.bringInALinkOrAttachAFileInAConversationPisperWillGatherTheOutputsCreatedAlongTheWay',
             )}
           </p>
-          <button className="button primary" onClick={() => setLinkModal(true)}>
+          <Button size="lg" className="mt-4" onClick={() => setLinkModal(true)}>
             <Link2 size={14} />
             {t('assets:assetsPage.addLink')}
-          </button>
-        </Panel>
+          </Button>
+        </AppEmptyState>
       )}
       {preview && (
         <AssetPreviewModal
@@ -333,11 +357,11 @@ function AssetPreviewModal({
   const isVideo = asset.mimeType?.startsWith('video/')
   return (
     <div
-      className="modal-backdrop"
+      className="modal-backdrop max-[650px]:p-[8px] fixed z-[70] inset-0 grid place-items-center overflow-y-auto bg-[var(--modal-overlay)] [backdrop-filter:blur(3px)] [padding:20px] [overscroll-behavior:contain] [animation:fade-in_var(--d1)_var(--ease-out)]"
       onMouseDown={(event) => event.target === event.currentTarget && onClose()}
     >
-      <section className="modal asset-preview-modal">
-        <div className="card-head">
+      <section className="modal !w-[min(430px,100%)] max-h-[calc(100dvh_-_40px)] overflow-y-auto [overscroll-behavior:contain] [border:1px_solid_var(--surface-highlight)] rounded-[var(--r-md)] bg-[var(--solid)] p-[18px] shadow-[0_26px_70px_-25px_var(--shadow-strong)] [animation:modal-in_var(--d2)_var(--ease-out)] max-[650px]:max-h-[calc(100dvh_-_16px)] asset-preview-modal w-[min(96vw,1600px)]">
+        <AppCardHeader>
           <div>
             <h2>{asset.name}</h2>
             <p>
@@ -346,15 +370,16 @@ function AssetPreviewModal({
                 : `${asset.mimeType} · ${formatFileSize(asset.size)}`}
             </p>
           </div>
-          <button
-            className="icon-button"
+          <Button
+            variant="ghost"
+            size="icon"
             aria-label={t('assets:assetsPage.closeDialog')}
             onClick={onClose}
           >
             <X size={17} />
-          </button>
-        </div>
-        <div className="asset-modal-content">
+          </Button>
+        </AppCardHeader>
+        <div className="asset-modal-content [&_>_img]:max-w-[100%] [&_>_img]:max-h-[76vh] [&_>_img]:rounded-[var(--r-sm)] [&_>_img]:object-contain [&_>_video]:max-w-[100%] [&_>_video]:max-h-[76vh] [&_>_video]:rounded-[var(--r-sm)] [&_>_video]:object-contain [&_>_pre]:w-full [&_>_pre]:h-full [&_>_pre]:m-0 [&_>_pre]:overflow-auto [&_>_pre]:whitespace-pre-wrap [&_>_pre]:font-[ui-monospace,_SFMono-Regular,_Consolas,_'Liberation_Mono',_monospace] [&_>_pre]:text-[12px] [&_>_pre]:leading-[1.55] [&_>_a]:flex [&_>_a]:items-center [&_>_a]:gap-[7px] [&_>_a]:text-[var(--text-soft)] [&_>_a]:text-[12px] [&_>_a]:[text-decoration:underline] [&_>_a]:[text-underline-offset:2px] [&_>_a]:[word-break:break-all] grid min-h-[min(420px,60dvh)] max-h-[82dvh] place-items-center overflow-auto [margin-top:14px] [border:1px_solid_var(--stroke-soft)] rounded-[var(--r-sm)] bg-[var(--surface-subtle)] [padding:12px]">
           {asset.kind === 'image' ? (
             <img
               src={`/api/assets/${encodeURIComponent(asset.id)}/download?inline=1`}
@@ -370,7 +395,7 @@ function AssetPreviewModal({
           ) : asset.text ? (
             <pre>{asset.text}</pre>
           ) : (
-            <div className="asset-file-preview">
+            <div className="asset-file-preview [&_strong]:text-[var(--text)] [&_strong]:text-[13px] [&_span]:text-[12px] [&_span]:leading-[1.55] flex max-w-[400px] flex-col items-center gap-[9px] text-[var(--text-muted)] text-center">
               <File size={42} />
               <strong>{asset.name}</strong>
               <span>
@@ -381,20 +406,19 @@ function AssetPreviewModal({
             </div>
           )}
         </div>
-        <div className="modal-actions">
+        <div className="flex justify-end gap-[8px] [margin-top:18px]">
           {asset.kind !== 'link' && (
-            <a
-              className="button secondary"
-              href={`/api/assets/${encodeURIComponent(asset.id)}/download`}
-            >
-              <Download size={14} />
-              {t('assets:assetsPage.download')}
-            </a>
+            <Button asChild variant="outline" size="lg" className="bg-surface-subtle">
+              <a href={`/api/assets/${encodeURIComponent(asset.id)}/download`}>
+                <Download size={14} />
+                {t('assets:assetsPage.download')}
+              </a>
+            </Button>
           )}
-          <button className="button primary" onClick={onUse}>
+          <Button size="lg" onClick={onUse}>
             <Paperclip size={14} />
             {t('assets:assetsPage.useInChat')}
-          </button>
+          </Button>
         </div>
       </section>
     </div>
@@ -425,54 +449,64 @@ function AssetLinkModal({ onClose, onCreated }: { onClose: () => void; onCreated
   }
   return (
     <div
-      className="modal-backdrop"
+      className="modal-backdrop max-[650px]:p-[8px] fixed z-[70] inset-0 grid place-items-center overflow-y-auto bg-[var(--modal-overlay)] [backdrop-filter:blur(3px)] [padding:20px] [overscroll-behavior:contain] [animation:fade-in_var(--d1)_var(--ease-out)]"
       onMouseDown={(event) => event.target === event.currentTarget && onClose()}
     >
-      <form className="modal" onSubmit={submit}>
-        <div className="card-head">
+      <form
+        className="modal !w-[min(430px,100%)] max-h-[calc(100dvh_-_40px)] overflow-y-auto [overscroll-behavior:contain] [border:1px_solid_var(--surface-highlight)] rounded-[var(--r-md)] bg-[var(--solid)] p-[18px] shadow-[0_26px_70px_-25px_var(--shadow-strong)] [animation:modal-in_var(--d2)_var(--ease-out)] max-[650px]:max-h-[calc(100dvh_-_16px)]"
+        onSubmit={submit}
+      >
+        <AppCardHeader>
           <div>
             <h2>{t('assets:assetsPage.addLinkAsset')}</h2>
             <p>{t('assets:assetsPage.linksCanBeArchivedOpenedOrAddedToAChatAsContext')}</p>
           </div>
-          <button
+          <Button
             type="button"
-            className="icon-button"
+            variant="ghost"
+            size="icon"
             aria-label={t('assets:assetsPage.closeDialog')}
             onClick={onClose}
           >
             <X size={17} />
-          </button>
-        </div>
-        <label className="field-label">
+          </Button>
+        </AppCardHeader>
+        <FieldLabel variant="control">
           {t('assets:assetsPage.name')}
           <input
             value={name}
             onChange={(event) => setName(event.target.value)}
             placeholder={t('assets:assetsPage.forExampleOpenAIAPIDocs')}
           />
-        </label>
-        <label className="field-label">
+        </FieldLabel>
+        <FieldLabel variant="control">
           URL
           <input
             value={url}
             onChange={(event) => setUrl(event.target.value)}
             placeholder="https://example.com/docs"
           />
-        </label>
+        </FieldLabel>
         {error && (
-          <div className="config-error">
+          <AppError>
             <AlertTriangle size={13} />
             {error}
-          </div>
+          </AppError>
         )}
-        <div className="modal-actions">
-          <button type="button" className="button secondary" onClick={onClose}>
+        <div className="flex justify-end gap-[8px] [margin-top:18px]">
+          <Button
+            type="button"
+            variant="outline"
+            size="lg"
+            className="bg-surface-subtle"
+            onClick={onClose}
+          >
             {t('assets:assetsPage.cancel')}
-          </button>
-          <button className="button primary" disabled={saving || !url.trim()}>
-            {saving ? <RefreshCw className="spin" size={14} /> : <Plus size={14} />}
+          </Button>
+          <Button size="lg" disabled={saving || !url.trim()}>
+            {saving ? <RefreshCw className="animate-spin" size={14} /> : <Plus size={14} />}
             {saving ? t('assets:assetsPage.adding') : t('assets:assetsPage.addLink')}
-          </button>
+          </Button>
         </div>
       </form>
     </div>
