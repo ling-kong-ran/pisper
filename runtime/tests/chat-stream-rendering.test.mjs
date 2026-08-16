@@ -118,6 +118,22 @@ test('composer send action becomes the only stop control while streaming', async
   assert.match(styles, /\.focus-composer \.send-button\.stop/)
 })
 
+test('image previews portal above session-level controls', async () => {
+  const [message, styles] = await Promise.all([
+    readFile('src/features/chat/ChatMessage.tsx', 'utf8'),
+    readFile('src/index.css', 'utf8'),
+  ])
+  assert.match(message, /import \{ createPortal \} from 'react-dom'/)
+  assert.match(message, /createPortal\([\s\S]*<ImageLightbox[\s\S]*document\.body/)
+  assert.match(message, /className="button image-lightbox-download"/)
+  assert.doesNotMatch(message, /className="button secondary"[\s\S]*download/)
+  assert.match(styles, /\.image-lightbox \{[^}]*position: fixed;[^}]*z-index: 100;/)
+  assert.match(
+    styles,
+    /\.image-lightbox-toolbar \.button \{[^}]*background: var\(--lightbox-action-bg\);[^}]*color: var\(--lightbox-action-text\);/,
+  )
+})
+
 test('completed activity-only messages do not render an empty error bubble', async () => {
   const message = await readFile('src/features/chat/ChatMessage.tsx', 'utf8')
   assert.match(message, /const displayText = fullText \|\| \(!showRunActivity/)

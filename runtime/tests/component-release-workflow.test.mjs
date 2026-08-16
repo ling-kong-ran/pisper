@@ -170,6 +170,8 @@ test('desktop and TUI launch independently installed signed components with bund
   assert.match(bridge, /desktop_install_component_updates/)
   assert.match(permissions, /desktop_restart_for_component_update/)
   assert.match(settings, /appComponents/)
+  assert.match(settings, /bundled\.version === info\.version \? bundled : null/)
+  assert.match(settings, /bundledCurrent\?\.notes/)
   assert.doesNotMatch(settings, /installComponent\(component\.component\)/)
 })
 

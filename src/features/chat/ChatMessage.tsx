@@ -1,4 +1,5 @@
 import { memo, useEffect, useState } from 'react'
+import { createPortal } from 'react-dom'
 import { Check, Download, File, GitFork, LoaderCircle, Tag, Trash2, X } from 'lucide-react'
 import { useI18n } from '@/app/use-i18n'
 import { BrandLogo } from '@/components/BrandLogo'
@@ -44,7 +45,7 @@ function ImageLightbox({ attachment, source, onClose }: ImagePreview & { onClose
         </span>
         <div>
           <a
-            className="button secondary"
+            className="button image-lightbox-download"
             href={attachment.downloadUrl || source}
             download={attachment.name || 'generated-image'}
           >
@@ -124,13 +125,15 @@ export function MessageAttachments({
           )
         })}
       </div>
-      {preview && (
-        <ImageLightbox
-          attachment={preview.attachment}
-          source={preview.source}
-          onClose={() => setPreview(null)}
-        />
-      )}
+      {preview &&
+        createPortal(
+          <ImageLightbox
+            attachment={preview.attachment}
+            source={preview.source}
+            onClose={() => setPreview(null)}
+          />,
+          document.body,
+        )}
     </>
   )
 }

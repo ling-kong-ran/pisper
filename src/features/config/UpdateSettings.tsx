@@ -171,10 +171,11 @@ export function UpdateSettings({
 
   const install = () => update?.install()
 
+  const bundledCurrent = bundled.version === info.version ? bundled : null
   const notes =
     status.notes ||
     (desktop
-      ? bundled.notes || t('config:updateSettings.noReleaseNotesAreAvailableForThisVersion')
+      ? bundledCurrent?.notes || t('config:updateSettings.noReleaseNotesAreAvailableForThisVersion')
       : status.state === 'current'
         ? t('config:updateSettings.theCurrentWebSourceIsSyncedWithBranch', {
             branch: status.branch || 'main',
@@ -190,7 +191,7 @@ export function UpdateSettings({
     ? `v${info.version}`
     : `v${info.version}${status.currentCommit ? ` · ${status.currentCommit.slice(0, 7)}` : ''}`
   const latestIdentifier = desktop
-    ? `v${status.availableVersion || bundled.version || info.version}`
+    ? `v${status.availableVersion || bundledCurrent?.version || info.version}`
     : status.availableCommit?.slice(0, 7) ||
       status.currentCommit?.slice(0, 7) ||
       bundled.version ||
@@ -465,14 +466,14 @@ export function UpdateSettings({
             {available || resumable || downloaded || downloading
               ? latestIdentifier
               : desktop
-                ? `v${bundled.version || info.version}`
+                ? `v${bundledCurrent?.version || info.version}`
                 : status.currentCommit?.slice(0, 7) || t('config:updateSettings.notChecked')}
           </span>
         </div>
-        {(status.releaseDate || (desktop && bundled.date)) && (
+        {(status.releaseDate || (desktop && bundledCurrent?.date)) && (
           <small className="mt-2 block text-[12px] text-[var(--text-muted)]">
             {new Intl.DateTimeFormat(language, { dateStyle: 'long' }).format(
-              new Date(status.releaseDate || bundled.date),
+              new Date(status.releaseDate || bundledCurrent?.date || ''),
             )}
           </small>
         )}
