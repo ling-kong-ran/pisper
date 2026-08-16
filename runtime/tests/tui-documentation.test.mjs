@@ -18,8 +18,14 @@ test('TUI guides cover every built-in Slash command and the current screenshot',
     assert.ok(chinese.includes(`| \`${command}`), `Chinese guide is missing ${command}`)
     assert.ok(english.includes(`| \`${command}`), `English guide is missing ${command}`)
   }
-  assert.match(chinese, /\.\.\/docs\/shots\/cli\.png/)
-  assert.match(english, /\.\.\/docs\/shots\/cli\.png/)
+  assert.match(
+    chinese,
+    /https:\/\/raw\.githubusercontent\.com\/ling-kong-ran\/pisper\/release\/docs\/shots\/cli\.png/,
+  )
+  assert.match(
+    english,
+    /https:\/\/raw\.githubusercontent\.com\/ling-kong-ran\/pisper\/release\/docs\/shots\/cli\.png/,
+  )
 })
 
 test('npm, Provider setup, and optional Web onboarding stay documented', async () => {

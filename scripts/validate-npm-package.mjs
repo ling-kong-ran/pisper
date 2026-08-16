@@ -6,11 +6,24 @@ import { packageNpm } from './package-npm.mjs'
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..')
 const { manifest, result, stage } = await packageNpm()
-const [sourceKey, packagedKey, postinstall, webIndex] = await Promise.all([
+const [
+  sourceKey,
+  packagedKey,
+  postinstall,
+  webIndex,
+  sourceChineseReadme,
+  sourceEnglishReadme,
+  packagedChineseReadme,
+  packagedEnglishReadme,
+] = await Promise.all([
   readFile(join(root, 'src-tauri', 'updater.pubkey'), 'utf8'),
   readFile(join(stage, 'updater.pubkey'), 'utf8'),
   readFile(join(stage, 'lib', 'postinstall.mjs'), 'utf8'),
   readFile(join(stage, 'web', 'index.html'), 'utf8'),
+  readFile(join(root, 'src-tui', 'README.md'), 'utf8'),
+  readFile(join(root, 'src-tui', 'README.en.md'), 'utf8'),
+  readFile(join(stage, 'README.md'), 'utf8'),
+  readFile(join(stage, 'README.en.md'), 'utf8'),
 ])
 
 if (manifest.name !== 'pisper') throw new Error('npm package name must be pisper.')
@@ -43,6 +56,12 @@ if (sourceKey.trim() !== packagedKey.trim()) {
 }
 if (!webIndex.includes('<div id="root"></div>')) {
   throw new Error('npm package does not contain the built Web frontend.')
+}
+if (
+  sourceChineseReadme !== packagedChineseReadme ||
+  sourceEnglishReadme !== packagedEnglishReadme
+) {
+  throw new Error('npm package README files must match the TUI guides.')
 }
 if (result.size > 8 * 1024 * 1024 || result.unpackedSize > 16 * 1024 * 1024) {
   throw new Error(

@@ -79,7 +79,7 @@ export async function packageNpmPlatforms() {
     await Promise.all(files.map(([sourcePath, destination]) => copyFile(sourcePath, destination)))
     await Promise.all([
       copyFile(join(root, 'LICENSE'), join(stage, 'LICENSE')),
-      copyFile(join(root, 'README.en.md'), join(stage, 'README.md')),
+      copyFile(join(root, 'src-tui', 'README.en.md'), join(stage, 'README.md')),
     ])
 
     const manifest = {

@@ -1,8 +1,8 @@
 # Pisper TUI
 
-![Pisper TUI welcome screen](../docs/shots/cli.png)
+![Pisper TUI welcome screen](https://raw.githubusercontent.com/ling-kong-ran/pisper/release/docs/shots/cli.png)
 
-[中文指南](./README.md)
+[中文指南](https://github.com/ling-kong-ran/pisper/blob/release/src-tui/README.md)
 
 ## Install the Terminal Command
 
@@ -119,7 +119,6 @@ Long or multiline bracketed pastes render as a compact `[Pasted text · …]` to
 | `/new` | Create an empty conversation in the TUI launch workspace; unavailable during a run. |
 | `/sessions` | Open the history picker across every workspace; press `Enter` to resume. Unavailable during a run. |
 | `/dir <directory>` | Explicitly change the active conversation directory. Relative paths resolve from its current directory; unavailable during a run. |
-| `/events` | Open the event ledger for the current TUI process. |
 | `/changes` | Inspect Git or SVN workspace changes. In the changes view, `R` refreshes, `C` commits, `P` pushes Git, and `V` twice reverts; SVN has no push operation. |
 | `/changes commit <message>` | Commit current Git/SVN workspace changes with an explicit message. |
 | `/chat` | Return to the Chat message stream. |

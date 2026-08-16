@@ -1,8 +1,8 @@
 # Pisper TUI
 
-![Pisper TUI 启动画面](../docs/shots/cli.png)
+![Pisper TUI 启动画面](https://raw.githubusercontent.com/ling-kong-ran/pisper/release/docs/shots/cli.png)
 
-[English guide](./README.en.md)
+[English guide](https://github.com/ling-kong-ran/pisper/blob/release/src-tui/README.en.md)
 
 ## 安装终端命令
 
@@ -119,7 +119,6 @@ pisper doctor
 | `/new` | 在 TUI 启动时的 workspace 新建空会话；运行期间不可执行。 |
 | `/sessions` | 打开跨所有 workspace 的历史会话选择器；按 `Enter` 恢复，运行期间不可切换。 |
 | `/dir <目录>` | 显式修改当前会话的工作目录；相对路径以当前会话目录为基准，运行期间不可修改。 |
-| `/events` | 打开当前 TUI 进程的事件账本。 |
 | `/changes` | 查看 Git 或 SVN 工作区改动；改动页中 `R` 刷新、`C` 提交、`P` 推送 Git、连续按两次 `V` 撤销；SVN 没有 Push。 |
 | `/changes commit <message>` | 使用指定 message 提交当前 Git/SVN 工作区改动。 |
 | `/chat` | 返回 Chat 消息流。 |

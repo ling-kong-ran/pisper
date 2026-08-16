@@ -47,8 +47,8 @@ export async function packageNpm() {
     cp(join(source, 'lib'), join(stage, 'lib'), { recursive: true }),
     cp(join(root, 'dist'), join(stage, 'web'), { recursive: true }),
     copyFile(join(source, 'updater.pubkey'), join(stage, 'updater.pubkey')),
-    copyFile(join(root, 'README.md'), join(stage, 'README.md')),
-    copyFile(join(root, 'README.en.md'), join(stage, 'README.en.md')),
+    copyFile(join(root, 'src-tui', 'README.md'), join(stage, 'README.md')),
+    copyFile(join(root, 'src-tui', 'README.en.md'), join(stage, 'README.en.md')),
     copyFile(join(root, 'LICENSE'), join(stage, 'LICENSE')),
     writeFile(join(stage, 'package.json'), `${JSON.stringify(manifest, null, 2)}\n`, 'utf8'),
   ])
