@@ -451,14 +451,15 @@
               脱敏只识别常见敏感格式，不是完整 DLP、沙箱或端到端加密。普通 Prompt、文件和工具结果不会被全局匿名化；发送前请自行检查，并遵守所选第三方的隐私政策。Provider
               与渠道凭据目前位于本机 Agent 数据目录，而不是操作系统钥匙串，请保护该目录和备份。
             </p>
-            <a href="https://github.com/ling-kong-ran/pisper/blob/release/README.md#data-safety"
-              >阅读完整说明 <span aria-hidden="true">→</span></a
-            >
           </div>
         </div>
       </section>
 
-      <section class="component-section section" aria-labelledby="component-title">
+      <section
+        class="component-section section"
+        id="updates"
+        aria-labelledby="component-title"
+      >
         <div class="shell component-layout">
           <div class="component-intro">
             <p class="eyebrow">独立组件更新</p>
@@ -519,15 +520,42 @@
             >阅读 TUI 使用指南 <span aria-hidden="true">→</span></a
           >
         </div>
-        <figure class="terminal-figure spotlight-card border-glow">
-          <img
-            src="shots/cli.png"
-            alt="Pisper TUI 终端界面"
-            width="2679"
-            height="1200"
-            loading="lazy"
-          />
-        </figure>
+        <div class="terminal-gallery" aria-label="Pisper TUI 界面">
+          <figure class="terminal-figure spotlight-card border-glow">
+            <a
+              href="shots/cli.png"
+              target="_blank"
+              rel="noopener noreferrer"
+              aria-label="查看完整 Pisper TUI 欢迎页截图"
+            >
+              <img
+                src="shots/cli.png"
+                alt="Pisper TUI 欢迎页，显示工作区、输入框、模型和执行模式"
+                width="3082"
+                height="1506"
+                loading="lazy"
+              />
+            </a>
+            <figcaption>欢迎页</figcaption>
+          </figure>
+          <figure class="terminal-figure spotlight-card border-glow">
+            <a
+              href="shots/cli-chat.png"
+              target="_blank"
+              rel="noopener noreferrer"
+              aria-label="查看完整 Pisper TUI Chat 截图"
+            >
+              <img
+                src="shots/cli-chat.png"
+                alt="Pisper TUI Chat 页面，显示思考、工具调用和实时回答"
+                width="3082"
+                height="1506"
+                loading="lazy"
+              />
+            </a>
+            <figcaption>Chat 与实时活动</figcaption>
+          </figure>
+        </div>
       </section>
 
       <section class="download-section" aria-labelledby="download-title">

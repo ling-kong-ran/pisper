@@ -124,7 +124,7 @@ pub fn draw_in(frame: &mut Frame, app: &App, area: Rect) {
         render_plan(frame, app, plan);
     }
     render_run_state(frame, app, run_state);
-    render_composer(frame, app, composer);
+    render_composer(frame, app, composer, false);
     render_status(frame, app, status);
 
     render_overlays(frame, app, composer, area);
@@ -141,13 +141,20 @@ fn render_welcome(frame: &mut Frame, app: &App, area: Rect) -> Rect {
     } else {
         0
     };
-    let logo_gap = match logo_height {
-        0 => 0,
-        1 => 1,
-        _ => 2,
-    };
-    let content_height = logo_height
+    let workspace_height = u16::from(
+        area.width >= 12
+            && area.height
+                >= composer_height
+                    .saturating_add(logo_height)
+                    .saturating_add(3),
+    );
+    let logo_gap = u16::from(logo_height > 0);
+    let workspace_gap = u16::from(workspace_height > 0);
+    let leading_height = logo_height
         .saturating_add(logo_gap)
+        .saturating_add(workspace_height)
+        .saturating_add(workspace_gap);
+    let content_height = leading_height
         .saturating_add(composer_height)
         .saturating_add(1)
         .min(area.height);
@@ -168,11 +175,17 @@ fn render_welcome(frame: &mut Frame, app: &App, area: Rect) -> Rect {
         rail_width,
     );
     let logo = Rect::new(rail.x, rail.y, rail.width, logo_height);
-    let composer = Rect::new(
+    let workspace = Rect::new(
         rail.x,
         rail.y.saturating_add(logo_height).saturating_add(logo_gap),
         rail.width,
-        composer_height.min(content_height.saturating_sub(logo_height + logo_gap)),
+        workspace_height,
+    );
+    let composer = Rect::new(
+        rail.x,
+        rail.y.saturating_add(leading_height),
+        rail.width,
+        composer_height.min(content_height.saturating_sub(leading_height)),
     );
     let status = Rect::new(
         rail.x,
@@ -184,8 +197,11 @@ fn render_welcome(frame: &mut Frame, app: &App, area: Rect) -> Rect {
     if logo.height > 0 {
         render_welcome_logo(frame, logo, full_logo);
     }
-    render_composer(frame, app, composer);
-    render_status(frame, app, status);
+    if workspace.height > 0 {
+        render_welcome_workspace(frame, app, workspace);
+    }
+    render_composer(frame, app, composer, true);
+    render_welcome_status(frame, app, status);
     composer
 }
 
@@ -221,6 +237,54 @@ fn render_welcome_logo(frame: &mut Frame, area: Rect, full: bool) {
             .style(Style::default().bg(BG)),
         area,
     );
+}
+
+fn render_welcome_workspace(frame: &mut Frame, app: &App, area: Rect) {
+    let path = single_line(&shorten_path(&app.cwd), area.width as usize);
+    frame.render_widget(
+        Paragraph::new(path)
+            .alignment(Alignment::Center)
+            .style(Style::default().fg(FAINT).bg(BG)),
+        area,
+    );
+}
+
+fn render_welcome_status(frame: &mut Frame, app: &App, area: Rect) {
+    if area.width == 0 {
+        return;
+    }
+    let mode = format!("[{}]", display_execution_mode(&app.execution_mode));
+    let full_left = format!("{mode} · {}", display_model(&app.model));
+    let right = if app.thinking_level.is_empty() {
+        String::new()
+    } else {
+        format!("Thinking · {}", app.thinking_level)
+    };
+    let gap = u16::from(!right.is_empty());
+    let right_width = right.width().min(area.width as usize / 2) as u16;
+    let left_width = area.width.saturating_sub(right_width).saturating_sub(gap);
+    let left = if full_left.width() <= left_width as usize {
+        full_left
+    } else {
+        single_line(&mode, left_width as usize)
+    };
+    frame.render_widget(
+        Paragraph::new(left).style(Style::default().fg(MUTED).bg(BG)),
+        Rect::new(area.x, area.y, left_width, area.height),
+    );
+    if right_width > 0 {
+        frame.render_widget(
+            Paragraph::new(single_line(&right, right_width as usize))
+                .alignment(Alignment::Right)
+                .style(Style::default().fg(MUTED).bg(BG)),
+            Rect::new(
+                area.x.saturating_add(left_width).saturating_add(gap),
+                area.y,
+                right_width,
+                area.height,
+            ),
+        );
+    }
 }
 
 fn render_overlays(frame: &mut Frame, app: &App, composer: Rect, area: Rect) {
@@ -436,11 +500,20 @@ struct ActivityRail {
 }
 
 impl ActivityRail {
-    fn push(&mut self, lines: &mut Vec<Line<'static>>, mut content: Vec<Span<'static>>) {
+    fn push(&mut self, lines: &mut Vec<Line<'static>>, content: Vec<Span<'static>>) {
+        self.push_with_color(lines, content, FAINT);
+    }
+
+    fn push_with_color(
+        &mut self,
+        lines: &mut Vec<Line<'static>>,
+        mut content: Vec<Span<'static>>,
+        color: Color,
+    ) {
         let prefix = if self.started { "├─ " } else { "╭─ " };
         self.started = true;
         self.last_row = Some((lines.len(), true));
-        let mut spans = vec![Span::styled(prefix, Style::default().fg(FAINT))];
+        let mut spans = vec![Span::styled(prefix, Style::default().fg(color))];
         spans.append(&mut content);
         lines.push(Line::from(spans));
     }
@@ -459,10 +532,8 @@ impl ActivityRail {
         let Some(prefix) = lines[index].spans.first_mut() else {
             return;
         };
-        *prefix = Span::styled(
-            if branch { "╰─ " } else { "╰  " },
-            Style::default().fg(FAINT),
-        );
+        let style = prefix.style;
+        *prefix = Span::styled(if branch { "╰─ " } else { "╰  " }, style);
     }
 }
 
@@ -520,9 +591,13 @@ fn push_live(
     );
     push_tool_agents(lines, &mut rail, &live.tools, width);
     if rail.started && !thinking_active && !tool_running && !live.text.is_empty() {
-        rail.push(
+        rail.push_with_color(
             lines,
-            vec![Span::styled("response", Style::default().fg(MUTED))],
+            vec![Span::styled(
+                "response",
+                Style::default().fg(ACCENT).add_modifier(Modifier::BOLD),
+            )],
+            ACCENT,
         );
         rail.close_last(lines);
     } else if rail.started && !live.streaming {
@@ -609,13 +684,19 @@ fn push_agent_values<'a>(
         } else {
             VIOLET
         };
-        rail.push(
+        let rail_color = match status {
+            "failed" => RED,
+            "completed" | "done" => FAINT,
+            _ => VIOLET,
+        };
+        rail.push_with_color(
             lines,
             vec![
                 Span::styled(format!("{glyph} "), Style::default().fg(color)),
                 Span::styled(name.to_owned(), Style::default().fg(name_color)),
                 Span::styled(format!("  ·  {status}"), Style::default().fg(MUTED)),
             ],
+            rail_color,
         );
         let detail = agent
             .get("output")
@@ -674,7 +755,7 @@ fn push_thinking(
         first.push(Span::raw("  "));
         first.push(Span::styled(content.clone(), Style::default().fg(MUTED)));
     }
-    rail.push(lines, first);
+    rail.push_with_color(lines, first, if active { AMBER } else { FAINT });
     for content in content.into_iter().skip(1) {
         rail.continuation(
             lines,
@@ -746,14 +827,16 @@ fn push_tool_group(
         );
     }
     for index in selected {
-        rail.push(
+        let active = Some(index) == active_index;
+        let rail_color = match tools[index].status.as_str() {
+            "running" if active => ACCENT,
+            "error" => RED,
+            _ => FAINT,
+        };
+        rail.push_with_color(
             lines,
-            tool_spans(
-                &tools[index],
-                width,
-                Some(index) == active_index,
-                animation_frame,
-            ),
+            tool_spans(&tools[index], width, active, animation_frame),
+            rail_color,
         );
     }
 }
@@ -1442,7 +1525,7 @@ fn render_changes(frame: &mut Frame, app: &App, area: Rect) {
     );
 }
 
-fn render_composer(frame: &mut Frame, app: &App, area: Rect) {
+fn render_composer(frame: &mut Frame, app: &App, area: Rect, welcome: bool) {
     if area.width == 0 || area.height == 0 {
         return;
     }
@@ -1464,19 +1547,19 @@ fn render_composer(frame: &mut Frame, app: &App, area: Rect) {
     let focused = matches!(app.view, View::Chat) && app.accepts_composer_input();
     let has_draft = !app.input.is_empty() || !app.attachments.is_empty();
     let command_mode = app.slash_open();
-    let rail_color = if app.status_error {
-        RED
-    } else if focused && has_draft {
-        ACCENT
-    } else {
-        RULE
-    };
     let controls_offset = area.height - 2;
     let attachment_offset = (!app.attachments.is_empty() && area.height >= 4)
         .then_some(controls_offset.saturating_sub(1));
 
     for offset in 0..area.height {
         let y = area.y.saturating_add(offset);
+        let rail_color = if app.status_error {
+            RED
+        } else if focused && (has_draft || (welcome && offset == 0)) {
+            ACCENT
+        } else {
+            RULE
+        };
         if offset == area.height - 1 {
             frame.render_widget(
                 Paragraph::new(Line::from(vec![
@@ -1660,15 +1743,22 @@ fn render_status(frame: &mut Frame, app: &App, area: Rect) {
         .map(|value| format!(" · {value:.0}% ctx"))
         .unwrap_or_default();
     let mode = format!("[{}]", display_execution_mode(&app.execution_mode));
-    let cache = app
-        .session_usage
-        .cache_hit_rate
-        .map(|rate| format!("{rate:.0}%"))
-        .unwrap_or_else(|| "—".to_owned());
-    let usage = format!(
-        "token: {} cache {cache}",
-        compact_token_count(app.session_usage.total_tokens)
-    );
+    let usage = if app.session_usage.requests > 0
+        || app.session_usage.total_tokens > 0
+        || app.session_usage.cache_hit_rate.is_some()
+    {
+        let cache = app
+            .session_usage
+            .cache_hit_rate
+            .map(|rate| format!("{rate:.0}%"))
+            .unwrap_or_else(|| "—".to_owned());
+        format!(
+            " · token: {} cache {cache}",
+            compact_token_count(app.session_usage.total_tokens)
+        )
+    } else {
+        String::new()
+    };
 
     let mut priority = Vec::new();
     if app.is_streaming() {
@@ -1720,19 +1810,26 @@ fn render_status(frame: &mut Frame, app: &App, area: Rect) {
     );
 
     let full = format!(
-        "{mode} · {} · {}{context} · {usage}",
+        "{mode} · {} · {}{context}{usage}",
         display_model(&app.model),
         shorten_path(&app.cwd),
     );
-    let model_mode = format!("{mode} · {}{context} · {usage}", display_model(&app.model));
+    let workspace = format!(
+        "{mode} · {} · {}{context}",
+        display_model(&app.model),
+        shorten_path(&app.cwd),
+    );
+    let model_usage = format!("{mode} · {}{context}{usage}", display_model(&app.model));
     let mode_model = format!("{mode} · {}{context}", display_model(&app.model));
-    let mode_usage = format!("{mode} · {usage}");
     let compact = format!("{mode} · {}{context}", shorten_path(&app.cwd));
+    let mode_usage = format!("{mode}{usage}");
     let available = left_width as usize;
     let left = if full.width() <= available {
         full
-    } else if model_mode.width() <= available {
-        model_mode
+    } else if workspace.width() <= available {
+        workspace
+    } else if model_usage.width() <= available {
+        model_usage
     } else if mode_model.width() <= available {
         mode_model
     } else if compact.width() <= available {
@@ -2912,12 +3009,17 @@ fn padded_single_line(value: &str, width: usize) -> String {
 }
 
 fn shorten_path(value: &str) -> String {
-    if value.width() <= 70 {
-        value.to_owned()
+    let normalized = if let Some(path) = value.strip_prefix(r"\\?\UNC\") {
+        format!(r"\\{path}")
+    } else {
+        value.strip_prefix(r"\\?\").unwrap_or(value).to_owned()
+    };
+    if normalized.width() <= 70 {
+        normalized
     } else {
         format!(
             "…{}",
-            value
+            normalized
                 .chars()
                 .rev()
                 .take(68)
@@ -2952,8 +3054,9 @@ mod tests {
 
     use super::{
         compact_token_count, draw, format_session_time, padded_single_line, push_live,
-        push_markdown, push_message, render_slash, runtime_error_label, slash_menu_area,
-        visible_input, ACCENT, BG, CONVERSATION_WIDTH, GREEN, MUTED, RAISED, RED, RULE,
+        push_markdown, push_message, render_slash, runtime_error_label, shorten_path,
+        slash_menu_area, visible_input, ACCENT, AMBER, BG, CONVERSATION_WIDTH, FAINT, GREEN, MUTED,
+        RAISED, RED, RULE,
     };
     use crate::{
         app::{App, Approval, AttachmentDraft, LiveTurn, PathEntry, SettingsPicker},
@@ -2994,6 +3097,7 @@ mod tests {
             model: "openai/gpt-5.6-sol".to_owned(),
             cwd: "/workspace".to_owned(),
             execution_mode: "full-access".to_owned(),
+            thinking_level: "high".to_owned(),
             ..SessionSummary::default()
         };
         App::new(
@@ -3052,6 +3156,11 @@ mod tests {
 
     #[test]
     fn session_times_stay_compact_and_handle_invalid_values() {
+        assert_eq!(shorten_path(r"\\?\E:\code\pi-coder"), r"E:\code\pi-coder");
+        assert_eq!(
+            shorten_path(r"\\?\UNC\server\share\project"),
+            r"\\server\share\project"
+        );
         let now = humantime::parse_rfc3339("2026-08-04T12:00:00Z").unwrap();
         assert_eq!(format_session_time("2026-08-04T11:59:30Z", now), "just now");
         assert_eq!(format_session_time("2026-08-04T11:55:00Z", now), "5m ago");
@@ -3388,9 +3497,16 @@ mod tests {
             let thinking_rows = buffer_rows(&thinking_buffer, width, height);
             let thinking_text = thinking_rows.join("\n");
             assert!(thinking_text.contains("╭─ ⠋ thinking"));
+            let thinking_row = thinking_rows
+                .iter()
+                .position(|row| row.contains("╭─ ⠋ thinking"))
+                .unwrap() as u16;
+            assert_eq!(thinking_buffer.cell((0, thinking_row)).unwrap().fg, AMBER);
             assert!(thinking_rows.last().unwrap().contains("Thinking"));
             assert!(!thinking_text.contains("THINK"));
             assert!(!thinking_text.contains("current run active"));
+            assert!(!thinking_text.contains("token: 0"));
+            assert!(!thinking_text.contains("cache —"));
             let composer_y = if height >= 18 { height - 5 } else { height - 4 };
             assert_eq!(thinking_buffer.cell((0, composer_y)).unwrap().symbol(), "╭");
             assert_eq!(
@@ -3428,6 +3544,16 @@ mod tests {
             assert!(running_text.contains("╭─ ◆ thinking"));
             assert!(running_text.contains("✓ read"));
             assert!(running_text.contains("⠋ bash"));
+            let completed_row = running_rows
+                .iter()
+                .position(|row| row.contains("✓ read"))
+                .unwrap() as u16;
+            let active_row = running_rows
+                .iter()
+                .position(|row| row.contains("⠋ bash"))
+                .unwrap() as u16;
+            assert_eq!(running_buffer.cell((0, completed_row)).unwrap().fg, FAINT);
+            assert_eq!(running_buffer.cell((0, active_row)).unwrap().fg, ACCENT);
             assert!(running_rows.last().unwrap().contains("Running bash"));
             assert_eq!(running_text.matches('⠋').count(), 1);
             assert!(!running_text.contains("TOOL"));
@@ -3452,6 +3578,14 @@ mod tests {
             let responding_rows = buffer_rows(&responding_buffer, width, height);
             let responding_text = responding_rows.join("\n");
             assert!(responding_text.contains("╰─ response"));
+            let response_row = responding_rows
+                .iter()
+                .position(|row| row.contains("╰─ response"))
+                .unwrap() as u16;
+            assert_eq!(
+                responding_buffer.cell((0, response_row)).unwrap().fg,
+                ACCENT
+            );
             assert!(responding_text.contains("●  The hierarchy is now stable."));
             assert!(responding_rows.last().unwrap().contains("Responding"));
 
@@ -3536,7 +3670,8 @@ mod tests {
         assert!(!rows.join("\n").contains("PISPER /"));
         assert!(rows
             .iter()
-            .any(|row| row.contains("[full-access] · gpt-5.6-sol")));
+            .any(|row| row.contains("[full-access] · gpt-5.6-sol · /workspace")));
+        assert!(!rows.last().unwrap().contains("token: 0"));
         assert!(rows.last().unwrap().contains("Thinking"));
         assert!(!rows.last().unwrap().contains("Thinking · high"));
         let message_row = rows
@@ -4174,6 +4309,14 @@ mod tests {
 
         assert!(rows.iter().any(|row| row.contains("████  █ █████")));
         assert!(!rows.iter().any(|row| row.contains("___  ___  ___")));
+        assert!(rows[..input_row]
+            .iter()
+            .any(|row| row.trim() == "/workspace"));
+        assert!(!rows.join("\n").contains("token: 0"));
+        assert!(!rows.join("\n").contains("cache —"));
+        assert!(rows.iter().any(|row| {
+            row.contains("[full-access] · gpt-5.6-sol") && row.contains("Thinking · high")
+        }));
         assert!((18..=24).contains(&input_row));
         assert!(rows[input_row]
             .trim_start()
@@ -4182,7 +4325,8 @@ mod tests {
             .trim_start()
             .starts_with("├─ + attach  / commands"));
         assert!(rows[bottom_row].trim_start().starts_with("╰────"));
-        assert_eq!(buffer.cell((36, input_row as u16)).unwrap().fg, RULE);
+        assert_eq!(buffer.cell((36, input_row as u16)).unwrap().fg, ACCENT);
+        assert_eq!(buffer.cell((36, input_row as u16 + 1)).unwrap().fg, RULE);
         assert_eq!(buffer.cell((123, input_row as u16)).unwrap().symbol(), " ");
         assert_eq!(
             buffer.cell((122, controls_row as u16)).unwrap().symbol(),
@@ -4203,7 +4347,8 @@ mod tests {
             .position(|row| row.contains("Message Pisper"))
             .unwrap() as u16;
         let controls_row = input_row + 2;
-        assert_eq!(empty.cell((2, input_row)).unwrap().fg, RULE);
+        assert_eq!(empty.cell((2, input_row)).unwrap().fg, ACCENT);
+        assert_eq!(empty.cell((2, input_row + 1)).unwrap().fg, RULE);
         assert_eq!(empty.cell((76, controls_row)).unwrap().bg, RAISED);
 
         app.input = "Review this change".chars().collect();
@@ -4511,6 +4656,8 @@ mod tests {
         assert!(rows[input_row + 1].contains('↑'));
         assert!(!rows[input_row + 1].contains("Enter↑"));
         assert!(rows[input_row + 2].trim_start().starts_with("╰────"));
+        assert_eq!(buffer.cell((1, input_row as u16)).unwrap().fg, ACCENT);
+        assert_eq!(buffer.cell((1, input_row as u16 + 1)).unwrap().fg, RULE);
         assert!(rows.iter().all(|row| row.width() == 36));
 
         app.attachments.push(AttachmentDraft {

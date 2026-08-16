@@ -67,37 +67,19 @@ Thanks to <a href="https://matrix.000328.xyz/sign-up?aff=ZPeH">Matrix</a> for su
 
 ## Overview
 
-Pisper is a desktop and terminal client built on [Pi Coding Agent](https://github.com/earendil-works/pi/tree/main/packages/coding-agent), with multiple sessions, Tools, Skills, MCP, automation, and per-session permissions.
-
-See the [Pisper project site](https://ling-kong-ran.github.io/pisper/) for the product overview and interface preview.
-
-### Get Started in Three Steps
-
-1. [Download the desktop app](https://github.com/ling-kong-ran/pisper/releases/latest) (Windows / macOS / Linux, no Node.js required)
-2. Configure any model provider with an API key
-3. Create a session and start working in parallel
+The product overview, interface preview, and onboarding entry point are maintained on the [Pisper project site](https://ling-kong-ran.github.io/pisper/).
 
 <a id="features"></a>
 
 ## Features
 
-- **Multiple sessions:** independent models, context, workspaces, and permissions with Dock splits and layout restoration.
-- **Plugins, Skills, and MCP:** install plugins from any local directory or create globally available DIY plugins in natural language, with tool capabilities and call permissions managed in one place. See the [plugin authoring guide](./docs/plugin-authoring.en.md).
-- **Subagents:** run temporary tasks in isolated contexts and return results to the parent session.
-- **Memory and multimodal input:** retrieve project memory and process images, documents, and code.
-- **Automation and channels:** schedules, visual workflows, Feishu, and personal Weixin.
-- **Desktop and terminal:** Tauri desktop app and Ratatui TUI.
-- **Permission controls:** `Read only / Full access` execution modes, one-shot approval, and credential isolation.
+See the [product and capabilities sections](https://ling-kong-ran.github.io/pisper/#product) for the complete feature overview and interface demos. Plugin details live in the [local plugin guide](./docs/local-plugins.md) and [plugin authoring guide](./docs/plugin-authoring.en.md).
 
 <a id="data-safety"></a>
 
 ## Data Safety & Privacy
 
-Pisper is local-first and does not provide a cloud service that hosts or relays conversations. Sessions and settings are stored under `~/.pisper/agent` by default; set `PISPER_AGENT_DIR` to move them.
-
-- The Runtime listens on `127.0.0.1` by default, and Pi telemetry is disabled by default.
-- Model calls and enabled remote services such as MCP, Web search, and messaging receive the data required for each request.
-- Common credential formats are redacted at storage and display boundaries, but this is not a replacement for DLP or end-to-end encryption. Protect the local Agent data directory and its backups.
+Local data boundaries, third-party data flows, credential redaction coverage, and limitations are documented in the [project site's data safety section](https://ling-kong-ran.github.io/pisper/#safety).
 
 <a id="desktop-pet"></a>
 
@@ -111,7 +93,7 @@ Pisper supports [Petdex](https://petdex.dev)-compatible pets. Install and manage
 
 ### Desktop (Recommended)
 
-Download a Windows, macOS, or Linux installer from [GitHub Releases](https://github.com/ling-kong-ran/pisper/releases/latest). It works out of the box — no separate Node.js install is required.
+See the [Pisper project site](https://ling-kong-ran.github.io/pisper/) for desktop downloads, supported platforms, and basic installation guidance.
 
 #### If macOS Refuses to Open Pisper
 
@@ -138,40 +120,13 @@ sudo apt install ./Pisper-*-linux-amd64.deb
 
 ### Component Updates
 
-**Settings → Updates** in the desktop app is the unified update entry point. A single **Check for updates** action checks the Desktop package, TUI client, and Runtime together. Install controls appear only for components with a newer version, so a small component update does not require downloading the full desktop installer. Each component uses an independent signed Release channel. Runtime updates take effect after restarting the app, and Pisper falls back to the versions bundled with the desktop package if an installed component is unavailable or fails to start.
+See the [project site](https://ling-kong-ran.github.io/pisper/#updates) for the independent Desktop, TUI, and Runtime update model.
 
 <a id="tui"></a>
 
 ### Terminal Client (TUI)
 
-With Node.js 20+, you can install the Pisper CLI through npm. npm obtains the lightweight launcher, platform-independent Web frontend, and signed TUI and Runtime packages for the current platform from the configured registry, without downloading from GitHub Releases. Installation verifies and extracts the local component packages so Pisper is ready when the command returns; it does not install the desktop shell:
-
-```bash
-npm install -g pisper --progress=true --foreground-scripts
-pisper
-pisper update --check  # check the complete distribution through the npm registry
-pisper update          # update the launcher, Web, TUI, and Runtime through npm
-```
-
-Platform packages use the same registry when an npm mirror is configured. `--progress=true` shows npm download progress, while `--foreground-scripts` shows local signature verification and extraction; add `--loglevel=info` only when request and cache details are needed:
-
-```bash
-npm install -g pisper --registry=https://registry.npmmirror.com --progress=true --foreground-scripts
-```
-
-After entering the TUI for the first time, use `/provider` to choose a Provider and edit its protocol, effective Base URL, and masked API key. The official default Base URL is shown when no override exists, and leaving API Key blank preserves the saved secret. `/model` lists only models from configured Providers. For a known Provider, `/provider <id>` skips the picker (`/apikey` remains a compatible alias). For visual configuration, run `pisper web`; Pisper uses the Web frontend bundled in the npm package and opens an authenticated, localhost-only settings page in your default browser. **Save Provider settings** does not change the default model; only **Set as default Provider** changes the default for later sessions.
-
-After installing the desktop app, you can also install the `pisper` command from **Settings → App updates**. The first installation remains explicit; after later desktop updates restart Pisper, it automatically refreshes this managed terminal client:
-
-```bash
-pisper                 # start a new conversation
-pisper resume          # resume from a list across all workspaces
-pisper doctor          # diagnose the runtime
-pisper web             # open Web settings
-pisper --help          # show complete onboarding and command help
-```
-
-The npm distribution has one complete `pisper update` command. It uses the configured npm registry to update the launcher, Web, TUI, and Runtime; `pisper update --check` only queries and does not install, and component names are not accepted. The standalone TUI exposes no component-update command; the desktop distribution is managed through **Settings → App updates**. See the **[Pisper TUI user guide](./src-tui/README.en.md)** for installation, commands, keyboard controls, attachments, execution modes, and approvals.
+See the [project site's terminal section](https://ling-kong-ran.github.io/pisper/#terminal) for the installation entry point. The **[Pisper TUI user guide](./src-tui/README.en.md)** covers installation, updates, commands, keyboard controls, attachments, Provider setup, execution modes, and approvals.
 
 ### Run from Source
 

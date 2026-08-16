@@ -687,7 +687,7 @@ a {
 
 .safety-boundary {
   display: grid;
-  grid-template-columns: 112px minmax(0, 1fr) auto;
+  grid-template-columns: 112px minmax(0, 1fr);
   gap: 28px;
   align-items: start;
   margin-top: 56px;
@@ -705,19 +705,6 @@ a {
   color: var(--muted);
   font-size: 13px;
   line-height: 1.75;
-}
-
-.safety-boundary a {
-  padding-bottom: 2px;
-  border-bottom: 1px solid currentColor;
-  font-size: 13px;
-  font-weight: 720;
-  white-space: nowrap;
-  transition: color 160ms ease;
-}
-
-.safety-boundary a:hover {
-  color: var(--purple);
 }
 
 .component-section {
@@ -861,6 +848,12 @@ a {
   font-weight: 720;
 }
 
+.terminal-gallery {
+  display: grid;
+  min-width: 0;
+  gap: 18px;
+}
+
 .terminal-figure {
   margin: 0;
   overflow: hidden;
@@ -870,11 +863,24 @@ a {
   box-shadow: 0 34px 70px -36px rgba(8, 11, 13, 0.85);
 }
 
+.terminal-figure a {
+  display: block;
+}
+
 .terminal-figure img {
   width: 100%;
   height: auto;
-  aspect-ratio: 2679 / 1200;
+  aspect-ratio: 3082 / 1506;
   object-fit: cover;
+}
+
+.terminal-figure figcaption {
+  padding: 10px 14px;
+  border-top: 1px solid #2b312d;
+  color: #b9c0ba;
+  background: #111512;
+  font-size: 12px;
+  font-weight: 680;
 }
 
 .download-section {
@@ -1170,12 +1176,6 @@ a {
 
   .terminal-section {
     gap: 34px;
-  }
-
-  .terminal-figure img {
-    aspect-ratio: 16 / 10;
-    object-fit: cover;
-    object-position: center;
   }
 
   .download-inner {

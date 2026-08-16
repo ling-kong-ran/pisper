@@ -2,6 +2,10 @@
 
 ![Pisper TUI 启动画面](https://raw.githubusercontent.com/ling-kong-ran/pisper/release/docs/shots/cli.png)
 
+![Pisper TUI Chat 与实时活动](https://raw.githubusercontent.com/ling-kong-ran/pisper/release/docs/shots/cli-chat.png)
+
+[GitHub 项目主页](https://github.com/ling-kong-ran/pisper)
+
 [English guide](https://github.com/ling-kong-ran/pisper/blob/release/src-tui/README.en.md)
 
 ## 安装终端命令
@@ -102,7 +106,7 @@ pisper doctor
 - `/`：打开由 runtime Tools、已启用 Skills 和内置命令合并而成的 Slash 列表。
 - `Up` / `Down`：移动 Slash、会话、模型、思考等级或文件选择器中的选中项。
 - `Tab`：仅在 Slash 列表打开时补全当前候选。
-- `Esc`：关闭当前选择器、清空 Slash 草稿，或从 Events 返回 Chat。
+- `Esc`：关闭当前选择器、清空 Slash 草稿，或从 Changes 返回 Chat。
 - `↑` / `↓`：逐行翻阅消息；`PageUp` / `PageDown`：每次翻阅 8 行。TUI 仅保留最新 100 条消息，避免长会话持续占用内存。
 - `Home` / `End`、`Left` / `Right`、`Backspace` / `Delete`：编辑 composer 草稿。
 - `Ctrl+C`：Agent 运行或等待审批时中止当前 run（若 Agent 卡住未在超时窗口内响应，Runtime 会强制结束该次运行）；运行中再次 `Ctrl+C` 强制退出 TUI；空闲时退出 TUI。

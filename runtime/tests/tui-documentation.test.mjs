@@ -4,12 +4,13 @@ import test from 'node:test'
 
 const commandPattern = /command\(\s*"([^"]+)"/g
 
-test('TUI guides cover every built-in Slash command and the current screenshot', async () => {
+test('TUI guides cover every built-in Slash command and the current screenshots', async () => {
   const [source, chinese, english] = await Promise.all([
     readFile('src-tui/src/app.rs', 'utf8'),
     readFile('src-tui/README.md', 'utf8'),
     readFile('src-tui/README.en.md', 'utf8'),
     access('docs/shots/cli.png'),
+    access('docs/shots/cli-chat.png'),
   ])
   const commands = [...source.matchAll(commandPattern)].map((match) => match[1])
 
@@ -26,6 +27,13 @@ test('TUI guides cover every built-in Slash command and the current screenshot',
     english,
     /https:\/\/raw\.githubusercontent\.com\/ling-kong-ran\/pisper\/release\/docs\/shots\/cli\.png/,
   )
+  for (const guide of [chinese, english]) {
+    assert.match(
+      guide,
+      /https:\/\/raw\.githubusercontent\.com\/ling-kong-ran\/pisper\/release\/docs\/shots\/cli-chat\.png/,
+    )
+    assert.match(guide, /https:\/\/github\.com\/ling-kong-ran\/pisper/)
+  }
 })
 
 test('npm, Provider setup, and optional Web onboarding stay documented', async () => {
@@ -47,10 +55,14 @@ test('npm, Provider setup, and optional Web onboarding stay documented', async (
     readFile('docs/index.html', 'utf8'),
   ])
 
-  for (const document of [chineseReadme, englishReadme, chineseTuiGuide, englishTuiGuide]) {
-    assert.match(document, /npm install -g pisper/)
-    assert.match(document, /pisper web/)
-    assert.match(document, /\/provider/)
+  for (const guide of [chineseTuiGuide, englishTuiGuide]) {
+    assert.match(guide, /npm install -g pisper/)
+    assert.match(guide, /pisper web/)
+    assert.match(guide, /\/provider/)
+  }
+  for (const readme of [chineseReadme, englishReadme]) {
+    assert.match(readme, /https:\/\/ling-kong-ran\.github\.io\/pisper\//)
+    assert.doesNotMatch(readme, /npm install -g pisper|pisper web|\/provider/)
   }
   assert.match(projectPage, /npm i -g pisper/)
   assert.doesNotMatch(projectPage, /npm install -g pisper/)
@@ -71,15 +83,15 @@ test('npm, Provider setup, and optional Web onboarding stay documented', async (
 })
 
 test('desktop CLI management lives under App updates', async () => {
-  const [configPage, updateSettings, chineseReadme, englishReadme] = await Promise.all([
+  const [configPage, updateSettings, chineseGuide, englishGuide] = await Promise.all([
     readFile('src/features/config/ConfigPage.tsx', 'utf8'),
     readFile('src/features/config/UpdateSettings.tsx', 'utf8'),
-    readFile('README.md', 'utf8'),
-    readFile('README.en.md', 'utf8'),
+    readFile('src-tui/README.md', 'utf8'),
+    readFile('src-tui/README.en.md', 'utf8'),
   ])
 
   assert.doesNotMatch(configPage, /section === 'terminal'/)
   assert.match(updateSettings, /<CliSettings notify=\{notify\}/)
-  assert.match(chineseReadme, /设置 → 应用更新/)
-  assert.match(englishReadme, /Settings → App updates/)
+  assert.match(chineseGuide, /设置 → 应用更新/)
+  assert.match(englishGuide, /Settings → App updates/)
 })

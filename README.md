@@ -67,37 +67,19 @@
 
 ## 简介
 
-Pisper 是基于 [Pi Coding Agent](https://github.com/earendil-works/pi/tree/main/packages/coding-agent) 的桌面与终端客户端，支持多会话、工具、Skills、MCP、自动化和会话级权限。
-
-产品介绍与界面预览：[Pisper 项目主页](https://ling-kong-ran.github.io/pisper/)。
-
-### 三步上手
-
-1. [下载桌面版](https://github.com/ling-kong-ran/pisper/releases/latest)（Windows / macOS / Linux）
-2. 配置任意一个模型 Provider 与 API Key
-3. 新建会话，开始并行工作
+产品介绍、界面预览与上手入口统一维护在 [Pisper 项目主页](https://ling-kong-ran.github.io/pisper/)。
 
 <a id="features"></a>
 
 ## 功能
 
-- **多会话**：独立模型、上下文、工作目录和权限，支持 Dock 分屏与布局恢复。
-- **插件、Skills 与 MCP**：可从任意本地目录自由安装插件，也可用自然语言创建并全局安装 DIY 插件，同时统一管理工具能力与调用权限。使用说明见[本地插件指南](./docs/local-plugins.md)；插件规范与格式见[插件开发指南](./docs/plugin-authoring.md)。
-- **Subagent**：在隔离上下文中执行临时任务，完成后将结果返回父会话。
-- **记忆与多模态**：检索项目记忆，处理图片、文档和代码。
-- **自动化与渠道**：定时任务、可视化工作流、飞书和个人微信。
-- **桌面与终端**：提供 Tauri 桌面端和 Ratatui TUI。
-- **权限控制**：支持 `只读 / 完全访问` 两种执行模式，并提供单次审批和凭据隔离。
+完整能力说明与界面演示见[项目主页的产品与能力部分](https://ling-kong-ran.github.io/pisper/#product)。插件使用与开发细节见[本地插件指南](./docs/local-plugins.md)和[插件开发指南](./docs/plugin-authoring.md)。
 
 <a id="data-safety"></a>
 
 ## 数据安全与隐私
 
-Pisper 是本地优先应用，不提供托管或中转会话的云服务。会话和配置默认保存在本机 `~/.pisper/agent`，也可通过 `PISPER_AGENT_DIR` 更改位置。
-
-- Runtime 默认只监听 `127.0.0.1`，Pi 遥测默认关闭。
-- 调用模型或启用远程 MCP、Web 搜索和消息渠道时，必要数据会发送给你配置的第三方。
-- 常见凭据格式会在存储和展示边界脱敏，但这不能替代 DLP 或端到端加密。凭据保存在本机 Agent 数据目录，请妥善保护该目录和备份。
+本地数据边界、第三方数据流向、凭据脱敏范围与限制统一说明在[项目主页的数据安全部分](https://ling-kong-ran.github.io/pisper/#safety)。
 
 <a id="desktop-pet"></a>
 
@@ -111,7 +93,7 @@ Pisper 支持 [Petdex](https://petdex.dev) 兼容宠物，可在 **设置 → �
 
 ### 桌面版（推荐）
 
-前往 [GitHub Releases](https://github.com/ling-kong-ran/pisper/releases/latest) 下载 Windows、macOS 或 Linux 安装包，开箱即用，无需额外安装 Node.js。
+桌面版下载、支持平台和基础安装说明见 [Pisper 项目主页](https://ling-kong-ran.github.io/pisper/)。
 
 #### macOS 无法打开
 
@@ -138,40 +120,13 @@ sudo apt install ./Pisper-*-linux-amd64.deb
 
 ### 分块更新
 
-桌面端的 **设置 → 更新** 是统一更新入口。点击一次 **检查更新** 会同时检查 Desktop、TUI 客户端和 Runtime；只有发现新版本的组件才会显示安装操作，因此小范围更新不必重新下载完整桌面安装包。三个组件使用独立的签名 Release 通道，Runtime 更新在重启应用后生效；独立组件不可用或启动失败时，Pisper 会继续使用桌面安装包内置的版本。
+Desktop、TUI 与 Runtime 的独立更新方式见[项目主页](https://ling-kong-ran.github.io/pisper/#updates)。
 
 <a id="tui"></a>
 
 ### 终端客户端（TUI）
 
-使用 Node.js 20+ 时，也可通过 npm 安装 Pisper CLI。npm 会从当前配置的 registry 获取轻量启动器、平台无关 Web 前端以及当前平台的签名 TUI 与 Runtime 包，不再从 GitHub Releases 下载；安装过程会在本地完成验签和解压，命令返回后即可运行，不会安装桌面壳：
-
-```bash
-npm install -g pisper --progress=true --foreground-scripts
-pisper
-pisper update --check  # 从 npm registry 检查完整发行版
-pisper update          # 通过 npm 更新 launcher、Web、TUI 与 Runtime
-```
-
-使用 npm 镜像时，平台包会走同一个 registry。`--progress=true` 显示 npm 下载进度，`--foreground-scripts` 显示本地验签和解压阶段；需要查看请求和缓存明细时再增加 `--loglevel=info`：
-
-```bash
-npm install -g pisper --registry=https://registry.npmmirror.com --progress=true --foreground-scripts
-```
-
-首次进入 TUI 后使用 `/provider` 选择 Provider，并编辑协议类型、当前生效 Base URL 和掩码 API Key；未自定义时会显示官方默认 Base URL，API Key 留空会保留原密钥。`/model` 只列出已配置 Provider 的模型。已知 Provider 可用 `/provider <id>` 直达（`/apikey` 为兼容别名）。需要可视化配置时，运行 `pisper web`，Pisper 会直接使用 npm 包内 Web 前端，并在默认浏览器打开仅监听本机的认证配置页。配置页中的 **保存 Provider 配置** 不会修改默认模型；只有点击 **设为默认 Provider** 才会切换后续会话的默认模型。
-
-安装桌面版后，也可以在 **设置 → 应用更新** 中安装 `pisper` 命令。首次安装由你主动确认；之后桌面应用更新并重启时，Pisper 会自动刷新这份已托管的终端客户端：
-
-```bash
-pisper                 # 新建会话
-pisper resume          # 从所有工作目录的交互列表中恢复会话
-pisper doctor          # 诊断运行环境
-pisper web             # 打开 Web 配置页
-pisper --help          # 查看完整上手和命令说明
-```
-
-npm 安装版只有一个整体 `pisper update`，它使用当前配置的 npm registry 更新 launcher、Web、TUI 与 Runtime；`pisper update --check` 只查询而不安装，不接受组件名称。独立 TUI 不提供组件更新命令；桌面发行版统一由 **设置 → 应用更新** 管理。安装、命令、快捷键、附件、执行模式和审批说明见 **[Pisper TUI 使用指南](./src-tui/README.md)**。
+终端安装入口见[项目主页](https://ling-kong-ran.github.io/pisper/#terminal)；完整安装、更新、命令、快捷键、附件、Provider 配置、执行模式与审批说明见 **[Pisper TUI 使用指南](./src-tui/README.md)**。
 
 ### 从源码运行
 

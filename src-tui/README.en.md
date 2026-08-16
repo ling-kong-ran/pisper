@@ -2,6 +2,10 @@
 
 ![Pisper TUI welcome screen](https://raw.githubusercontent.com/ling-kong-ran/pisper/release/docs/shots/cli.png)
 
+![Pisper TUI chat and live activity](https://raw.githubusercontent.com/ling-kong-ran/pisper/release/docs/shots/cli-chat.png)
+
+[GitHub project home](https://github.com/ling-kong-ran/pisper)
+
 [中文指南](https://github.com/ling-kong-ran/pisper/blob/release/src-tui/README.md)
 
 ## Install the Terminal Command
@@ -102,7 +106,7 @@ The diagnostic output reports the sidecar connection source, TUI launch workspac
 - `/`: open the combined list of runtime Tools, enabled Skills, and built-in commands.
 - `Up` / `Down`: move through Slash, session, model, thinking-level, or file choices.
 - `Tab`: complete the highlighted candidate only while the Slash list is open.
-- `Esc`: close a picker, clear a Slash draft, or return from Events to Chat.
+- `Esc`: close a picker, clear a Slash draft, or return from Changes to Chat.
 - `↑` / `↓`: scroll the conversation one row at a time; `PageUp` / `PageDown`: move eight rows. The TUI retains only the latest 100 messages so long sessions stay memory-bounded.
 - `Home` / `End`, `Left` / `Right`, `Backspace` / `Delete`: edit the composer draft.
 - `Ctrl+C`: abort the active or approval-blocked run (if the Agent hangs without responding, the Runtime force-settles the run after a timeout); a second `Ctrl+C` while still running force-quits the TUI; exits only while idle.
