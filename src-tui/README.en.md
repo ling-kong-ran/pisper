@@ -4,13 +4,13 @@
 
 ![Pisper TUI chat and live activity](https://ling-kong-ran.github.io/pisper/shots/cli-chat.png)
 
-[GitHub project home](https://github.com/ling-kong-ran/pisper)
+[Project home](https://ling-kong-ran.github.io/pisper/) · [GitHub repository](https://github.com/ling-kong-ran/pisper)
 
 [中文指南](https://github.com/ling-kong-ran/pisper/blob/release/src-tui/README.md)
 
 ## Install the Terminal Command
 
-With Node.js 20+, install the Pisper CLI through npm. npm obtains the lightweight launcher, bundled Web frontend, and signed TUI and Runtime packages for the current platform from the configured registry, without downloading from GitHub Releases. Installation completes local signature verification and extraction so Pisper is ready when the command returns; it does not include the desktop shell:
+Requires Node.js 20+. Install Pisper, then run `pisper`:
 
 ```bash
 npm install -g pisper --progress=true --foreground-scripts
@@ -22,8 +22,6 @@ Platform packages use the same registry when an npm mirror is configured. `--pro
 ```bash
 npm install -g pisper --registry=https://registry.npmmirror.com --progress=true --foreground-scripts
 ```
-
-Run `pisper --help` in the npm distribution for complete first-run, resume, diagnostics, complete npm updates, and Web configuration guidance without consulting a separate README.
 
 After installing the Pisper desktop app, you can alternatively open **Settings → App updates** to install, repair, or uninstall the `pisper` command. Pisper installs it in a current-user directory and manages the matching `PATH` entry without administrator access.
 
@@ -47,14 +45,14 @@ release/tui/pisper-<version>-<platform>-<arch>/
 
 ## Distribution Updates
 
-The npm distribution provides one complete update entry point without TUI, Runtime, or Web component selection:
+Check or update an npm installation of Pisper:
 
 ```bash
 pisper update --check
 pisper update
 ```
 
-This command uses the configured npm registry to update the launcher, bundled Web frontend, and signed TUI and Runtime platform packages. npm installation completes local signature verification and extraction so Pisper is ready when the command returns. The standalone TUI exposes no component-update command or background update check; the desktop distribution is managed through **Settings → App updates**. A standalone thin TUI without a bundled sidecar can still install its required signed Runtime so its first startup succeeds.
+The command uses the configured npm registry. Manage desktop updates under **Settings → App updates**.
 
 ## Provider and Optional Web Configuration
 
@@ -66,7 +64,7 @@ For complete visual configuration, run:
 pisper web
 ```
 
-The npm distribution uses its bundled Web frontend directly; a standalone TUI installs the signed Web component only when no local Web frontend exists. This command starts a Runtime bound only to `127.0.0.1` and opens Provider settings through a one-time authenticated entry point in your default browser. Keep the Pisper terminal process running while using the browser. **Save Provider settings** saves only the current connection; only **Set as default Provider** changes the default model for later sessions. Saving configuration or switching the default does not interrupt an actively running session.
+This opens local Provider settings in your default browser. Keep the Pisper terminal process running while using the browser. **Save Provider settings** saves the current connection; **Set as default Provider** changes the default model for later sessions.
 
 After Web is installed, run `/web` in the TUI to reopen the settings page. If it is not installed yet, exit and run `pisper web` first.
 

@@ -4,13 +4,13 @@
 
 ![Pisper TUI Chat 与实时活动](https://ling-kong-ran.github.io/pisper/shots/cli-chat.png)
 
-[GitHub 项目主页](https://github.com/ling-kong-ran/pisper)
+[项目主页](https://ling-kong-ran.github.io/pisper/) · [GitHub 仓库](https://github.com/ling-kong-ran/pisper)
 
 [English guide](https://github.com/ling-kong-ran/pisper/blob/release/src-tui/README.en.md)
 
 ## 安装终端命令
 
-使用 Node.js 20+ 时，可以直接通过 npm 安装 Pisper CLI。npm 会从当前配置的 registry 获取轻量启动器、包内 Web 前端以及当前平台的签名 TUI 与 Runtime 包，不再从 GitHub Releases 下载；安装过程会在本地完成验签和解压，命令返回后即可运行，不包含桌面壳：
+需要 Node.js 20+。安装后直接运行 `pisper`：
 
 ```bash
 npm install -g pisper --progress=true --foreground-scripts
@@ -22,8 +22,6 @@ pisper
 ```bash
 npm install -g pisper --registry=https://registry.npmmirror.com --progress=true --foreground-scripts
 ```
-
-npm 发行版使用 `pisper --help` 可直接查看首次使用、会话恢复、诊断、整体 npm 更新和 Web 配置入口，不需要另行查阅 README。
 
 安装 Pisper 桌面版后，也可以打开 **设置 → 应用更新**，安装、修复或卸载 `pisper` 命令。Pisper 将可执行文件安装到当前用户目录并管理对应的 `PATH` 项，不需要管理员权限。
 
@@ -47,14 +45,14 @@ release/tui/pisper-<version>-<platform>-<arch>/
 
 ## 发行版更新
 
-npm 发行版提供一个整体更新入口，不提供 TUI、Runtime 或 Web 组件选择：
+检查或更新 npm 安装的 Pisper：
 
 ```bash
 pisper update --check
 pisper update
 ```
 
-该命令使用当前配置的 npm registry 更新 launcher、包内 Web、签名 TUI 与 Runtime 平台包。npm 安装过程会完成本地验签和解压，返回后即可直接运行。独立 TUI 不提供组件更新命令或后台更新检查；桌面发行版统一由 **设置 → 应用更新** 管理。无内置 sidecar 的独立轻量 TUI 在缺少 Runtime 时仍会安装所需的签名 Runtime，保证首次启动可用。
+命令使用当前配置的 npm registry。桌面版更新在 **设置 → 应用更新** 中管理。
 
 ## Provider 与可选 Web 配置
 
@@ -66,7 +64,7 @@ pisper update
 pisper web
 ```
 
-npm 发行版会直接使用包内 Web 前端；独立 TUI 在本地没有 Web 时才安装签名 Web 组件。该命令启动只监听 `127.0.0.1` 的 Runtime，并通过一次性认证入口在默认浏览器打开 Provider 设置。终端中的 Pisper 进程需要在浏览器使用期间保持运行。Web 配置页的 **保存 Provider 配置** 只保存当前连接；只有 **设为默认 Provider** 会修改后续会话的默认模型。正在运行的会话不会因保存配置或切换默认模型而中断。
+该命令在默认浏览器打开本机 Provider 设置；浏览器使用期间需保持终端中的 Pisper 进程运行。**保存 Provider 配置**只保存当前连接，**设为默认 Provider**才会修改后续会话的默认模型。
 
 Web 前端已安装时，可在 TUI 中输入 `/web` 再次打开配置页；尚未安装时先退出并运行 `pisper web`。
 

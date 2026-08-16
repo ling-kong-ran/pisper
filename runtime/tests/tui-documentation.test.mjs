@@ -19,6 +19,8 @@ test('TUI guides cover every built-in Slash command and the current screenshots'
     assert.ok(chinese.includes(`| \`${command}`), `Chinese guide is missing ${command}`)
     assert.ok(english.includes(`| \`${command}`), `English guide is missing ${command}`)
   }
+  assert.match(chinese, /\[项目主页\]\(https:\/\/ling-kong-ran\.github\.io\/pisper\/\)/)
+  assert.match(english, /\[Project home\]\(https:\/\/ling-kong-ran\.github\.io\/pisper\/\)/)
   for (const guide of [chinese, english]) {
     assert.match(guide, /https:\/\/ling-kong-ran\.github\.io\/pisper\/shots\/cli\.png/)
     assert.match(guide, /https:\/\/ling-kong-ran\.github\.io\/pisper\/shots\/cli-chat\.png/)
