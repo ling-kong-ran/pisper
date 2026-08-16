@@ -281,10 +281,6 @@ export function useSessionCommands({
   const switchSessionExecutionMode = useCallback(
     async (sessionId: string, executionMode: string) => {
       if (!sessionId) return false
-      if (sessionStatesRef.current[sessionId]?.streaming) {
-        notify(t('chat:chatPage.stopTheActiveRunBeforeChangingTheExecutionMode'), 'info')
-        return false
-      }
       updateSessionState(sessionId, { switchingPermission: true, error: '' })
       try {
         if (executionMode === 'full-access') {
@@ -332,7 +328,7 @@ export function useSessionCommands({
         return false
       }
     },
-    [notify, requestConfirm, sessionStatesRef, t, updateSessionState, updateSessionSummary],
+    [notify, requestConfirm, t, updateSessionState, updateSessionSummary],
   )
 
   const resolveToolApproval = useCallback(

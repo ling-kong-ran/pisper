@@ -76,9 +76,10 @@ test('read-only execution exposes only low-risk analysis tools', () => {
 })
 
 test('React exposes read-only, approval-required, workspace-write, and full-access execution modes', async () => {
-  const [session, controls, schedules] = await Promise.all([
+  const [session, controls, commands, schedules] = await Promise.all([
     readFile(new URL('../../src/features/chat/FocusSession.tsx', import.meta.url), 'utf8'),
     readFile(new URL('../../src/features/chat/FocusRuntimeControls.tsx', import.meta.url), 'utf8'),
+    readFile(new URL('../../src/features/chat/use-session-commands.ts', import.meta.url), 'utf8'),
     readFile(new URL('../../src/features/schedules/SchedulesPage.tsx', import.meta.url), 'utf8'),
   ])
   assert.match(session, /<ExecutionModeSelect[\s\S]*?disabled=\{switchingPermission\}/)
@@ -87,6 +88,7 @@ test('React exposes read-only, approval-required, workspace-write, and full-acce
   assert.match(controls, /focusSession.approvalRequired/)
   assert.match(controls, /BadgeCheck/)
   assert.match(controls, /focusSession.workspaceWrite/)
+  assert.doesNotMatch(commands, /stopTheActiveRunBeforeChangingTheExecutionMode/)
   assert.match(schedules, /\['full-access', 'read-only'\]/)
 })
 

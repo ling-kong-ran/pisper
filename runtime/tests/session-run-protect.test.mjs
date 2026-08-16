@@ -259,7 +259,7 @@ test('renaming a running session is rejected and keeps the session intact', asyn
   assert.equal(runtime.sessionRunIsActive(id), true, 'run state must survive a rejected rename')
 })
 
-test('a running session rejects an execution-mode switch and survives it', async (t) => {
+test('a running session switches execution mode without dropping its active runtime', async (t) => {
   const directory = await mkdtemp(join(tmpdir(), 'pisper-mode-keep-'))
   t.after(() => rm(directory, { recursive: true, force: true }).catch(() => {}))
   const runtime = freshRuntime(directory)
@@ -271,16 +271,16 @@ test('a running session rejects an execution-mode switch and survives it', async
     'runActive + live.streaming must mark the session as active',
   )
 
-  let outcome = 'pending'
-  try {
-    const result = await runtime.setSessionExecutionMode(id, 'read-only')
-    outcome = `resolved:${JSON.stringify(result)}`
-  } catch (error) {
-    outcome = `rejected:${error.message}`
-  }
-  assert.match(outcome, /^rejected:/, `execution-mode switch must be rejected, got ${outcome}`)
+  const mode = await runtime.setSessionExecutionMode(id, 'read-only')
+  assert.deepEqual(mode, {
+    id,
+    executionMode: 'read-only',
+    permissionMode: 'ask',
+  })
   assert.equal(runtime.sessions.get(id), value, 'resident runtime must be preserved')
   assert.equal(runtime.sessionRunIsActive(id), true)
+  assert.equal(runtime.getSessionExecutionMode(id), 'read-only')
+  assert.equal(value.runtimeVersion, -1, 'the next prompt must rebuild the mode-specific tools')
 
   await assert.rejects(() => runtime.setSessionPermission(id, 'ask'), /运行/)
   assert.equal(runtime.sessions.get(id), value, 'permission change must not drop the runtime')

@@ -899,20 +899,24 @@ export class SessionLifecycle {
     )
       return null
     const active = this.sessions.get(id)
-    if (this.sessionRunIsActive(id, active)) {
-      throw new Error('当前会话正在运行，请完成或停止后再切换执行模式。')
-    }
+    const running = this.sessionRunIsActive(id, active)
     const permissionMode = permissionModeForExecutionMode(executionMode)
     const sessionMeta = this.getSessionMeta()
     sessionMeta[id] = { ...(sessionMeta[id] || {}), executionMode, permissionMode }
     await this.saveSessionMeta()
-    if (active) this.disposeSessionRuntime(id, active)
+    if (running) {
+      // Authorization reads session metadata for every tool call. Keep this run alive,
+      // then force the next prompt to rebuild the mode-specific tool catalog.
+      active.runtimeVersion = -1
+    } else if (active) {
+      this.disposeSessionRuntime(id, active)
+    }
     this.getPermissions().resolveSession(
       id,
       executionMode === 'full-access',
       executionMode === 'full-access'
         ? '已切换为完全访问。'
-        : '执行模式已切换，请重新发起工具调用。',
+        : '执行模式已切换，请按新权限重新发起工具调用。',
     )
     this.invalidateProjection(id, { transcript: false, activity: true, usage: false })
     return { id, executionMode, permissionMode }
