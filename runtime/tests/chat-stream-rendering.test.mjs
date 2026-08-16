@@ -247,7 +247,7 @@ test('stale streaming queue errors settle the old stream and resend as a new tur
   assert.match(queueHandler, /isEndedSessionQueueError\(error\)/)
   assert.match(queueHandler, /if \(activeStream\) await activeStream\.promise/)
   assert.match(queueHandler, /await loadSessionMessages\(sessionId, \{ force: true \}\)/)
-  assert.match(queueHandler, /void sendPrompt\(message, sessionId\)/)
+  assert.match(queueHandler, /void sendPrompt\(message, sessionId, attachments\)/)
   assert.doesNotMatch(
     queueHandler,
     /notify\(chatErrorMessage\(error\), 'error'\)[\s\S]*isEndedSessionQueueError/,

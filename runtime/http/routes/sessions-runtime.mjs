@@ -335,6 +335,7 @@ export const sessionRuntimeRoutes = [
         200,
         await runtime.queueSessionMessage(params.sessionId, {
           message: input.message,
+          attachments: input.attachments,
           behavior: input.behavior,
         }),
       )

@@ -4,12 +4,48 @@ import type { ChatAttachment } from '@/types/chat'
 
 const MAX_ATTACHMENT_BYTES = 10 * 1024 * 1024
 const MAX_TOTAL_ATTACHMENT_BYTES = 20 * 1024 * 1024
+const TEXT_EXTENSIONS = new Set([
+  'txt',
+  'md',
+  'json',
+  'js',
+  'jsx',
+  'ts',
+  'tsx',
+  'css',
+  'html',
+  'xml',
+  'yaml',
+  'yml',
+  'csv',
+  'log',
+  'py',
+  'java',
+  'go',
+  'rs',
+  'sh',
+  'ps1',
+  'toml',
+  'sql',
+])
+const IMAGE_EXTENSIONS = new Set(['png', 'jpg', 'jpeg', 'gif', 'webp', 'bmp', 'svg'])
+const DOCUMENT_EXTENSIONS = new Set([
+  'pdf',
+  'docx',
+  'pptx',
+  'xlsx',
+  'odt',
+  'odp',
+  'ods',
+  'rtf',
+  'epub',
+])
 
-export function clipboardImageFiles(clipboardData: DataTransfer | null | undefined): File[] {
-  const files = [...(clipboardData?.files || [])].filter((file) => file.type?.startsWith('image/'))
+export function clipboardFiles(clipboardData: DataTransfer | null | undefined): File[] {
+  const files = [...(clipboardData?.files || [])]
   if (files.length) return files
   return [...(clipboardData?.items || [])]
-    .filter((item) => item.kind === 'file' && item.type?.startsWith('image/'))
+    .filter((item) => item.kind === 'file')
     .map((item) => item.getAsFile?.())
     .filter((file): file is File => Boolean(file))
 }
@@ -20,13 +56,16 @@ function fileToBase64(file: File, t: Translate) {
   return new Promise<string>((resolve, reject) => {
     const reader = new FileReader()
     reader.onload = () => resolve(String(reader.result).split(',')[1] || '')
-    reader.onerror = () =>
-      reject(reader.error || new Error(t('chat:attachments.couldNotReadImage')))
+    reader.onerror = () => reject(reader.error || new Error(t('chat:attachments.couldNotReadFile')))
     reader.readAsDataURL(file)
   })
 }
 
-async function prepareClipboardImages(
+function fileExtension(name: string) {
+  return name.toLowerCase().split('.').at(-1) || ''
+}
+
+async function prepareClipboardFiles(
   fileList: Iterable<File>,
   t: Translate,
 ): Promise<ChatAttachment[]> {
@@ -35,15 +74,33 @@ async function prepareClipboardImages(
   for (const file of files) {
     if (file.size > MAX_ATTACHMENT_BYTES)
       throw new Error(t('chat:attachments.nameExceedsThe10MBLimit', { name: file.name }))
-    if (!file.type.startsWith('image/')) continue
-    attachments.push({
+    const extension = fileExtension(file.name)
+    const common = {
       id: `${file.name}-${file.lastModified}-${file.size}`,
-      kind: 'image',
       name: file.name,
-      mimeType: file.type,
+      mimeType: file.type || 'application/octet-stream',
       size: file.size,
-      data: await fileToBase64(file, t),
-    })
+    }
+    if (file.type.startsWith('image/') || IMAGE_EXTENSIONS.has(extension)) {
+      attachments.push({ ...common, kind: 'image', data: await fileToBase64(file, t) })
+    } else if (
+      file.type.startsWith('text/') ||
+      file.type === 'application/json' ||
+      TEXT_EXTENSIONS.has(extension)
+    ) {
+      attachments.push({ ...common, kind: 'text', text: await file.text() })
+    } else if (DOCUMENT_EXTENSIONS.has(extension)) {
+      attachments.push({
+        ...common,
+        kind: 'document',
+        extension,
+        data: await fileToBase64(file, t),
+      })
+    } else {
+      throw new Error(
+        t('chat:attachments.nameIsNotSupportedChooseAnImageOrTextCodeFile', { name: file.name }),
+      )
+    }
   }
   return attachments
 }
@@ -65,25 +122,32 @@ export function pathAttachments(paths: Iterable<string>): ChatAttachment[] {
     }))
 }
 
-export function useAttachmentSelection() {
+export function useAttachmentSelection(
+  initialAttachments: ChatAttachment[] = [],
+  onAttachmentsChange?: (attachments: ChatAttachment[]) => void,
+) {
   const t = useCallback(
     (message: string, values?: I18nValues) => translateText(message, storedLanguage(), values),
     [],
   )
-  const [attachments, setAttachments] = useState<ChatAttachment[]>([])
+  const [attachments, setAttachments] = useState<ChatAttachment[]>(() => [...initialAttachments])
   const [attachmentError, setAttachmentError] = useState('')
-  const attachmentsRef = useRef<ChatAttachment[]>([])
+  const attachmentsRef = useRef<ChatAttachment[]>([...initialAttachments])
 
-  const replaceAttachments = useCallback((items: ChatAttachment[]) => {
-    attachmentsRef.current = items
-    setAttachments(items)
-  }, [])
+  const replaceAttachments = useCallback(
+    (items: ChatAttachment[]) => {
+      attachmentsRef.current = items
+      setAttachments(items)
+      onAttachmentsChange?.(items)
+    },
+    [onAttachmentsChange],
+  )
 
-  const addClipboardImages = useCallback(
+  const addClipboardFiles = useCallback(
     async (fileList: Iterable<File> | null | undefined) => {
       try {
         setAttachmentError('')
-        const prepared = await prepareClipboardImages(fileList || [], t)
+        const prepared = await prepareClipboardFiles(fileList || [], t)
         const combined = [...attachmentsRef.current, ...prepared].slice(0, 8)
         const binaryBytes = combined
           .filter((item) => item.kind !== 'path')
@@ -100,14 +164,14 @@ export function useAttachmentSelection() {
     [replaceAttachments, t],
   )
 
-  const pasteImages = useCallback(
+  const pasteFiles = useCallback(
     (event: ClipboardEvent<HTMLElement>) => {
-      const images = clipboardImageFiles(event.clipboardData)
-      if (!images.length) return
+      const files = clipboardFiles(event.clipboardData)
+      if (!files.length) return
       event.preventDefault()
-      void addClipboardImages(images)
+      void addClipboardFiles(files)
     },
-    [addClipboardImages],
+    [addClipboardFiles],
   )
 
   const removeAttachment = useCallback(
@@ -138,10 +202,11 @@ export function useAttachmentSelection() {
   return {
     attachments,
     attachmentError,
-    pasteImages,
+    pasteFiles,
     removeAttachment,
     clearAttachments,
     addAttachments,
+    replaceAttachments,
     setError,
   }
 }

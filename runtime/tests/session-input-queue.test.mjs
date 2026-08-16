@@ -39,6 +39,7 @@ test('running sessions accept steering and follow-up user messages through the P
   const steering = []
   const followUp = []
   const session = {
+    sessionId: 'session-1',
     isStreaming: true,
     pendingMessageCount: 2,
     getSteeringMessages: () => steering,
@@ -50,6 +51,7 @@ test('running sessions accept steering and follow-up user messages through the P
     },
   }
   runtime = new AgentRuntimeService({ cwd: directory, dataDir: directory })
+  runtime.archiveAttachments = async () => [null, { path: join(directory, 'diagram.png') }]
   const selections = []
   runtime.selectToolsForMessage = (_value, message, options) => {
     selections.push({ message, options })
@@ -59,6 +61,10 @@ test('running sessions accept steering and follow-up user messages through the P
   assert.deepEqual(
     await runtime.queueSessionMessage('session-1', {
       message: 'Focus on the Windows path.',
+      attachments: [
+        { kind: 'text', name: 'notes.md', text: 'Use the Win32 path.' },
+        { kind: 'image', name: 'diagram.png', mimeType: 'image/png', data: 'aW1hZ2U=' },
+      ],
       behavior: 'steer',
     }),
     {
@@ -68,8 +74,14 @@ test('running sessions accept steering and follow-up user messages through the P
       queuedInputs: [{ behavior: 'steer', text: 'Focus on the Windows path.' }],
     },
   )
-  assert.equal(calls[0].message, 'Focus on the Windows path.')
-  assert.deepEqual(calls[0].options, { streamingBehavior: 'steer', source: 'interactive' })
+  assert.match(calls[0].message, /^Focus on the Windows path\./)
+  assert.match(calls[0].message, /\[Text attachment: notes\.md\]\nUse the Win32 path\./)
+  assert.match(calls[0].message, /\[Image attachment\] diagram\.png/)
+  assert.deepEqual(calls[0].options, {
+    images: [{ type: 'image', data: 'aW1hZ2U=', mimeType: 'image/png' }],
+    streamingBehavior: 'steer',
+    source: 'interactive',
+  })
   assert.deepEqual(selections[0], {
     message: 'Focus on the Windows path.',
     options: { preserveRequested: true },
@@ -79,7 +91,11 @@ test('running sessions accept steering and follow-up user messages through the P
     message: 'Then update the tests.',
     behavior: 'followUp',
   })
-  assert.equal(calls[1].options.streamingBehavior, 'followUp')
+  assert.deepEqual(calls[1].options, {
+    images: [],
+    streamingBehavior: 'followUp',
+    source: 'interactive',
+  })
 
   session.isStreaming = false
   await assert.rejects(
@@ -100,7 +116,11 @@ test('session input API delegates queued messages without opening another SSE re
   const res = response()
   assert.equal(
     await handler(
-      request('POST', { message: 'Keep going, but skip packaging.', behavior: 'steer' }),
+      request('POST', {
+        message: 'Keep going, but skip packaging.',
+        attachments: [{ kind: 'path', name: 'notes.md', path: '/workspace/notes.md' }],
+        behavior: 'steer',
+      }),
       res,
       new URL('http://localhost/api/sessions/session%201/input'),
     ),
@@ -116,7 +136,11 @@ test('session input API delegates queued messages without opening another SSE re
   assert.deepEqual(calls, [
     {
       id: 'session 1',
-      input: { message: 'Keep going, but skip packaging.', behavior: 'steer' },
+      input: {
+        message: 'Keep going, but skip packaging.',
+        attachments: [{ kind: 'path', name: 'notes.md', path: '/workspace/notes.md' }],
+        behavior: 'steer',
+      },
     },
   ])
 })

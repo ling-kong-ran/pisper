@@ -1,8 +1,8 @@
 # Pisper TUI
 
-![Pisper TUI 启动画面](https://raw.githubusercontent.com/ling-kong-ran/pisper/release/docs/shots/cli.png)
+![Pisper TUI 启动画面](https://ling-kong-ran.github.io/pisper/shots/cli.png)
 
-![Pisper TUI Chat 与实时活动](https://raw.githubusercontent.com/ling-kong-ran/pisper/release/docs/shots/cli-chat.png)
+![Pisper TUI Chat 与实时活动](https://ling-kong-ran.github.io/pisper/shots/cli-chat.png)
 
 [GitHub 项目主页](https://github.com/ling-kong-ran/pisper)
 

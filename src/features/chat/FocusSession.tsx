@@ -27,9 +27,10 @@ import type {
   ResourceInvocation,
   SessionSummary,
 } from '@/types/chat'
-import { pathAttachments, useAttachmentSelection } from './attachments'
+import { pathAttachments } from './attachments'
 import { ChatResourcePicker } from './ChatResourcePicker'
 import { commandDraft, ComposerCommandMenu } from './ComposerCommandMenu'
+import { useComposerDraft } from './composer-drafts'
 import { ComposerToolTray } from './ComposerToolTray'
 import { requestCommandPalette } from './events'
 import {
@@ -119,7 +120,11 @@ export type FocusSessionProps = {
     goalTokenBudget: number | null,
     invocation?: ResourceInvocation | null,
   ) => Promise<void> | void
-  onQueue?: (value: string, behavior: string) => Promise<boolean> | boolean
+  onQueue?: (
+    value: string,
+    attachments: ChatAttachment[],
+    behavior: string,
+  ) => Promise<boolean> | boolean
   onAbort: () => Promise<void> | void
 }
 
@@ -188,7 +193,7 @@ export function FocusSession({
   onAbort,
 }: FocusSessionProps) {
   const { t, language } = useI18n()
-  const [value, setValue] = useState('')
+  const { value, updateValue, selection, clearDraft } = useComposerDraft(session.id)
   const [goalArmed, setGoalArmed] = useState(false)
   const [goalTokenBudget, setGoalTokenBudget] = useState(DEFAULT_GOAL_TOKEN_BUDGET)
   const [queueing, setQueueing] = useState(false)
@@ -199,7 +204,6 @@ export function FocusSession({
   const [sessionTreeOpen, setSessionTreeOpen] = useState(false)
   const [toolsOpen, setToolsOpen] = useState(false)
   const [invocation, setInvocation] = useState<ResourceInvocation | null>(null)
-  const selection = useAttachmentSelection()
   const addSelectedAttachments = selection.addAttachments
   const promptRef = useRef<HTMLTextAreaElement>(null)
   const hasConversation = transcriptLoadState !== 'ready' || messages.length > 0
@@ -223,7 +227,6 @@ export function FocusSession({
     addSelectedAttachments([pendingAsset])
     onAssetConsumed?.()
   }, [pendingAsset, onAssetConsumed, addSelectedAttachments])
-
   useEffect(() => {
     if (!toolsOpen) return undefined
     const close = (event: KeyboardEvent) => {
@@ -234,7 +237,7 @@ export function FocusSession({
   }, [toolsOpen])
 
   const applyWelcomeChip = (prompt: string) => {
-    setValue(prompt)
+    updateValue(prompt)
     requestAnimationFrame(() => {
       const element = promptRef.current
       if (!element) return
@@ -247,7 +250,6 @@ export function FocusSession({
   const requestTranscriptBottom = () => {
     setScrollRequest((current) => current + 1)
   }
-
   const choosePathAttachments = async () => {
     if (window.pisperDesktop?.pickFiles) {
       try {
@@ -275,12 +277,12 @@ export function FocusSession({
     event.preventDefault()
     if (!value.trim() && !selection.attachments.length && !invocation) return
     if (streaming) {
-      if (!value.trim() || queueing) return
+      if ((!value.trim() && !selection.attachments.length) || queueing) return
       setQueueing(true)
-      const queued = await onQueue?.(value, 'steer')
+      const queued = await onQueue?.(value, selection.attachments, 'steer')
       setQueueing(false)
       if (!queued) return
-      setValue('')
+      clearDraft()
       setGoalArmed(false)
       requestTranscriptBottom()
       if (promptRef.current) promptRef.current.style.height = 'auto'
@@ -288,11 +290,10 @@ export function FocusSession({
     }
     onSend(value, selection.attachments, goalArmed, goalArmed ? goalTokenBudget : null, invocation)
     requestTranscriptBottom()
-    setValue('')
+    clearDraft()
     setGoalArmed(false)
     setInvocation(null)
     if (promptRef.current) promptRef.current.style.height = 'auto'
-    selection.clearAttachments()
   }
 
   return (
@@ -425,11 +426,11 @@ export function FocusSession({
             rows={1}
             value={value}
             onChange={(event) => {
-              setValue(event.target.value)
+              updateValue(event.target.value)
               event.currentTarget.style.height = 'auto'
               event.currentTarget.style.height = `${Math.min(event.currentTarget.scrollHeight, 220)}px`
             }}
-            onPaste={streaming ? undefined : selection.pasteImages}
+            onPaste={selection.pasteFiles}
             onKeyDown={(event) => {
               if (event.key === 'Enter' && !event.shiftKey) {
                 event.preventDefault()
@@ -447,7 +448,7 @@ export function FocusSession({
               <ComposerCommandMenu
                 sessionId={session.id}
                 value={value}
-                onChange={setValue}
+                onChange={updateValue}
                 inputRef={promptRef}
               />
               <button
@@ -465,7 +466,6 @@ export function FocusSession({
                 title={t('chat:focusSession.addAttachment')}
                 aria-label={t('chat:focusSession.addAttachment')}
                 onClick={() => void choosePathAttachments()}
-                disabled={streaming}
               >
                 <Paperclip size={17} />
                 {selection.attachments.length > 0 && <i>{selection.attachments.length}</i>}

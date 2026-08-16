@@ -1,6 +1,12 @@
 import { consumeEventStream } from '@/lib/api'
 import { requestJson } from '@/lib/http'
-import type { ChatMessage, EntityRecord, ResourceInvocation, SessionSummary } from '@/types/chat'
+import type {
+  ChatAttachment,
+  ChatMessage,
+  EntityRecord,
+  ResourceInvocation,
+  SessionSummary,
+} from '@/types/chat'
 
 export type ApiRecord = EntityRecord
 type StreamEventHandler = (event: string, data: ApiRecord) => boolean | void
@@ -220,10 +226,15 @@ export const chatApi = {
     await consumeEventStream(response, onEvent)
   },
 
-  queueInput: (sessionId: string, message: string, behavior: string) =>
+  queueInput: (
+    sessionId: string,
+    message: string,
+    attachments: ChatAttachment[],
+    behavior: string,
+  ) =>
     requestJson<ApiRecord>(`${sessionPath(sessionId)}/input`, {
       method: 'POST',
-      data: { message, behavior },
+      data: { message, attachments, behavior },
     }),
 
   compactSession: (sessionId: string) =>

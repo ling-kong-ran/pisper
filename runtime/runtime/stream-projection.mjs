@@ -132,10 +132,10 @@ export function queuedSessionInputs(session) {
   return [
     ...steering
       .filter((text) => !isInternalParentMessage(text))
-      .map((text) => ({ behavior: 'steer', text })),
+      .map((text) => ({ behavior: 'steer', text: text.split(ATTACHMENT_MARKER)[0] })),
     ...followUp
       .filter((text) => !isInternalParentMessage(text))
-      .map((text) => ({ behavior: 'followUp', text })),
+      .map((text) => ({ behavior: 'followUp', text: text.split(ATTACHMENT_MARKER)[0] })),
   ]
 }
 

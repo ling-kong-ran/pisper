@@ -364,11 +364,18 @@ export function usePromptCommands({
   )
 
   const queuePrompt = useCallback(
-    async (text: string, sessionId: string, behavior = 'steer') => {
-      const message = String(text || '').trim()
+    async (
+      text: string,
+      sessionId: string,
+      attachments: ChatAttachment[] = [],
+      behavior = 'steer',
+    ) => {
+      const message =
+        String(text || '').trim() ||
+        (attachments.length ? t('chat:chatPage.pleaseAnalyzeTheseAttachments') : '')
       if (!sessionId || !message) return false
       try {
-        const result = await chatApi.queueInput(sessionId, message, behavior)
+        const result = await chatApi.queueInput(sessionId, message, attachments, behavior)
         const queuedAt = new Date().toISOString()
         const queuedMessage = {
           id: `interactive-user-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
@@ -376,6 +383,14 @@ export function usePromptCommands({
           text: message,
           queuedAt,
           streamingBehavior: result.behavior || behavior,
+          attachments: attachments.map(({ id, kind, name, mimeType, size, data }) => ({
+            id,
+            kind,
+            name,
+            mimeType,
+            size,
+            data: kind === 'image' ? data : undefined,
+          })),
         }
         updateSessionState(sessionId, (current) => ({
           ...current,
@@ -397,14 +412,14 @@ export function usePromptCommands({
             hadQueuedInput: false,
           })
           await loadSessionMessages(sessionId, { force: true })
-          void sendPrompt(message, sessionId)
+          void sendPrompt(message, sessionId, attachments)
           return true
         }
         notify(chatErrorMessage(error), 'error')
         return false
       }
     },
-    [loadSessionMessages, notify, sendPrompt, syncLiveSession, updateSessionState],
+    [loadSessionMessages, notify, sendPrompt, syncLiveSession, t, updateSessionState],
   )
 
   const abort = useCallback(

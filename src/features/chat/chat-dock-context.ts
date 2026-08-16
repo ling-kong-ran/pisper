@@ -29,7 +29,12 @@ export type ChatDockContextValue = {
     goalTokenBudget?: number | null,
     invocation?: ResourceInvocation | null,
   ) => Promise<void>
-  queuePrompt: (value: string, sessionId: string, behavior?: string) => Promise<boolean>
+  queuePrompt: (
+    value: string,
+    sessionId: string,
+    attachments?: ChatAttachment[],
+    behavior?: string,
+  ) => Promise<boolean>
   abort: (sessionId: string) => Promise<void>
   pauseGoal: (sessionId: string) => Promise<void>
   setGoalBudget: (sessionId: string, tokenBudget: number) => Promise<void>

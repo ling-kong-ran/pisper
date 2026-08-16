@@ -1795,17 +1795,66 @@ export class AgentRuntimeService extends AgentRuntimeFacade {
     return value
   }
 
-  async queueSessionMessage(id, { message, behavior = 'steer' } = {}) {
+  async preparePromptAttachments(value, attachments = []) {
+    const safeAttachments = Array.isArray(attachments) ? attachments.slice(0, 8) : []
+    const archivedAttachments = await this.archiveAttachments(
+      value.session.sessionId,
+      value.name,
+      safeAttachments,
+    )
+    const images = []
+    const contexts = []
+    for (const [attachmentIndex, attachment] of safeAttachments.entries()) {
+      const name = safeAttachmentName(attachment.name)
+      if (attachment.kind === 'path') {
+        const path = normalizeWorkspacePath(attachment.path)
+        if (!path || !isAbsolute(path)) throw new Error(`${name} 不是有效的本地绝对路径`)
+        contexts.push(
+          `[Local path attachment] ${name}\nPath: ${path}\nThis attachment is a path reference only. Read it with available workspace tools when needed.`,
+        )
+      } else if (attachment.kind === 'image') {
+        const data = String(attachment.data || '')
+        const mimeType = String(attachment.mimeType || '')
+        if (!mimeType.startsWith('image/') || !data) throw new Error(`${name} 不是有效图片`)
+        if (data.length > 15_000_000) throw new Error(`${name} 图片数据过大`)
+        images.push({ type: 'image', data, mimeType })
+        const localPath = archivedAttachments[attachmentIndex]?.path
+        contexts.push(
+          `[Image attachment] ${name}${localPath ? `\nLocal path: ${localPath}\nTo edit this image, pass this path in generate_visual sourceImages.` : ''}`,
+        )
+      } else if (attachment.kind === 'text') {
+        const text = String(attachment.text || '').slice(0, MAX_EXTRACTED_CHARS)
+        contexts.push(
+          `[Text attachment: ${name}]\n${text}${attachment.truncated ? '\n(Content truncated)' : ''}`,
+        )
+      } else if (attachment.kind === 'document') {
+        const text = await extractDocumentText(attachment)
+        contexts.push(`[Document attachment: ${name}]\n${text}`)
+      }
+    }
+    return { images, contexts }
+  }
+
+  async queueSessionMessage(id, { message, attachments = [], behavior = 'steer' } = {}) {
     const value = this.sessions.get(id)
     if (!value) throw new Error('会话不存在或尚未加载。')
     const text = String(message || '').trim()
-    if (!text) throw new Error('消息不能为空。')
+    if (!text && !attachments.length) throw new Error('消息不能为空。')
     if (text.length > 12_000) throw new Error('运行中追加消息不能超过 12000 个字符。')
     if (!value.session.isStreaming) throw new Error('当前会话已经结束运行，请作为新消息发送。')
     const streamingBehavior = behavior === 'followUp' ? 'followUp' : 'steer'
-    await this.selectToolsForMessage(value, text, { preserveRequested: true })
-    value.pendingUserMessage = text
-    await value.session.prompt(text, { streamingBehavior, source: 'interactive' })
+    const displayText = text || '请分析这些附件。'
+    const prepared = await this.preparePromptAttachments(value, attachments)
+    const prompt = prepared.contexts.length
+      ? `${displayText}${ATTACHMENT_MARKER}${prepared.contexts.join('\n\n')}`
+      : displayText
+    await this.selectToolsForMessage(value, displayText, { preserveRequested: true })
+    value.pendingUserMessage = displayText
+    await value.session.prompt(prompt, {
+      images: prepared.images,
+      streamingBehavior,
+      source: 'interactive',
+    })
     value.modified = new Date().toISOString()
     return {
       queued: true,
@@ -2330,13 +2379,8 @@ export class AgentRuntimeService extends AgentRuntimeFacade {
     })
     this.permissions.attachEmitter(session.sessionId, emit)
     try {
-      const safeAttachments = Array.isArray(attachments) ? attachments.slice(0, 8) : []
-      const archivedAttachments = await this.archiveAttachments(
-        session.sessionId,
-        value.name,
-        safeAttachments,
-      )
-      const images = []
+      const preparedAttachments = await this.preparePromptAttachments(value, attachments)
+      const images = preparedAttachments.images
       const contexts = []
       if (value.requestedToolNames?.length) {
         contexts.push(
@@ -2351,34 +2395,7 @@ export class AgentRuntimeService extends AgentRuntimeFacade {
       if (memoryContext.text) contexts.push(memoryContext.text)
       const activeGoal = sharedContextEnabled ? this.goals.get(session.sessionId) : null
       if (activeGoal?.status === 'active') contexts.push(goalContinuationPrompt(activeGoal))
-      for (const [attachmentIndex, attachment] of safeAttachments.entries()) {
-        const name = safeAttachmentName(attachment.name)
-        if (attachment.kind === 'path') {
-          const path = normalizeWorkspacePath(attachment.path)
-          if (!path || !isAbsolute(path)) throw new Error(`${name} 不是有效的本地绝对路径`)
-          contexts.push(
-            `[Local path attachment] ${name}\nPath: ${path}\nThis attachment is a path reference only. Read it with available workspace tools when needed.`,
-          )
-        } else if (attachment.kind === 'image') {
-          const data = String(attachment.data || '')
-          const mimeType = String(attachment.mimeType || '')
-          if (!mimeType.startsWith('image/') || !data) throw new Error(`${name} 不是有效图片`)
-          if (data.length > 15_000_000) throw new Error(`${name} 图片数据过大`)
-          images.push({ type: 'image', data, mimeType })
-          const localPath = archivedAttachments[attachmentIndex]?.path
-          contexts.push(
-            `[Image attachment] ${name}${localPath ? `\nLocal path: ${localPath}\nTo edit this image, pass this path in generate_visual sourceImages.` : ''}`,
-          )
-        } else if (attachment.kind === 'text') {
-          const text = String(attachment.text || '').slice(0, MAX_EXTRACTED_CHARS)
-          contexts.push(
-            `[Text attachment: ${name}]\n${text}${attachment.truncated ? '\n(Content truncated)' : ''}`,
-          )
-        } else if (attachment.kind === 'document') {
-          const text = await extractDocumentText(attachment)
-          contexts.push(`[Document attachment: ${name}]\n${text}`)
-        }
-      }
+      contexts.push(...preparedAttachments.contexts)
       const prompt = contexts.length
         ? `${message}${ATTACHMENT_MARKER}${contexts.join('\n\n')}`
         : message
