@@ -22,6 +22,7 @@ test('composer expands low-frequency controls horizontally with React Bits Anima
     readFile('src/index.css', 'utf8'),
   ])
 
+  assert.match(session, /focus-composer[^"\n]*\[&_textarea\]:\[outline:0\]!/)
   assert.match(session, /className={`composer-tools-trigger/)
   assert.match(session, /<ComposerToolTray[\s\S]*open={toolsOpen}/)
   assert.match(session, /aria-expanded={toolsOpen}/)
