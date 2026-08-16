@@ -16,6 +16,29 @@ function progressItems(items: ComponentUpdateStatus[]) {
   )
 }
 
+function releaseNotesBody(value: string) {
+  return value
+    .replace(/\r/g, '')
+    .split('\n')
+    .filter(
+      (line) =>
+        !/^\s*#{1,6}\s+Pisper\s+(?:Desktop|TUI|Runtime)\s+v?\d+\.\d+\.\d+\s*$/i.test(line) &&
+        !/^\s*#{1,6}\s+What['’]?s Changed\s*$/i.test(line) &&
+        !/^\s*(?:\*\*)?(?:Full Changelog|完整变更)(?:\*\*)?\s*[:：].*$/i.test(line),
+    )
+    .join('\n')
+    .replace(/\n{3,}/g, '\n\n')
+    .trim()
+}
+
+function componentReleaseNotes(items: ComponentUpdateStatus[]) {
+  const bodies = items
+    .filter((item) => item.state === 'available' || item.state === 'downloading')
+    .map((item) => releaseNotesBody(item.notes))
+    .filter((value, index, values) => value && values.indexOf(value) === index)
+  return bodies.length ? `## What's Changed\n\n${bodies.join('\n\n')}` : ''
+}
+
 export function componentUpdateStatus(
   items: ComponentUpdateStatus[],
   checkedAt = new Date().toISOString(),
@@ -26,11 +49,7 @@ export function componentUpdateStatus(
   const downloading = items.filter((item) => item.state === 'downloading')
   const installed = items.some((item) => item.state === 'installed')
   const release = downloading[0] || available[0] || failed[0] || items[0]
-  const notes = items
-    .filter((item) => item.state === 'available' || item.state === 'downloading')
-    .map((item) => item.notes.trim())
-    .filter((value, index, values) => value && values.indexOf(value) === index)
-    .join('\n\n')
+  const notes = componentReleaseNotes(items)
   const progress = progressItems(items)
   const total = progress.reduce((sum, item) => sum + item.size, 0)
   const transferred = progress.reduce((sum, item) => {

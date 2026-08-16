@@ -46,6 +46,57 @@ test('component update progress aggregates completed, active, and pending compon
   assert.equal(status.percent, 35)
 })
 
+test('component update notes collapse repeated release bodies into one concise changelog', () => {
+  const desktop = component('desktop', 'available', 20)
+  desktop.notes = [
+    '## Pisper Desktop 0.5.6',
+    '',
+    "## What's Changed",
+    '',
+    '- feat(chat): queue attachments and retain drafts',
+    '- feat(tui): refine welcome and live activity UI',
+    '',
+    '**完整变更**：https://example.test/desktop',
+  ].join('\n')
+  const tui = component('tui', 'available', 30)
+  tui.notes = desktop.notes.replace('Desktop 0.5.6', 'TUI 0.5.4').replace('/desktop', '/tui')
+  const runtime = component('runtime', 'available', 50)
+  runtime.notes = desktop.notes
+    .replace('Desktop 0.5.6', 'Runtime 0.5.6')
+    .replace('/desktop', '/runtime')
+
+  const status = componentUpdateStatus([desktop, tui, runtime])
+
+  assert.equal(
+    status.notes,
+    [
+      "## What's Changed",
+      '',
+      '- feat(chat): queue attachments and retain drafts',
+      '- feat(tui): refine welcome and live activity UI',
+    ].join('\n'),
+  )
+})
+
+test('component update notes retain distinct component changes without compare-link noise', () => {
+  const desktop = component('desktop', 'available', 20)
+  desktop.notes = "## Pisper Desktop 1.0.0\n\n## What's Changed\n\n- Desktop fix"
+  const tui = component('tui', 'available', 30)
+  tui.notes = [
+    '## Pisper TUI 1.0.0',
+    '',
+    "## What's Changed",
+    '',
+    '- TUI fix',
+    '',
+    '**Full Changelog**: https://example.test/tui',
+  ].join('\n')
+
+  const status = componentUpdateStatus([desktop, tui])
+
+  assert.equal(status.notes, "## What's Changed\n\n- Desktop fix\n\n- TUI fix")
+})
+
 test('remaining component downloads keep the batch active after another component fails', () => {
   const status = componentUpdateStatus([
     component('desktop', 'error', 20),
