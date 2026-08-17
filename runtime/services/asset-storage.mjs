@@ -39,6 +39,14 @@ async function readablePath(value) {
   return info?.isFile() ? { path, info } : null
 }
 
+async function firstReadablePath(values) {
+  for (const value of values) {
+    const readable = await readablePath(value)
+    if (readable) return readable
+  }
+  return null
+}
+
 function hashBuffer(buffer) {
   return createHash('sha256').update(buffer).digest('hex')
 }
@@ -234,23 +242,35 @@ export async function archiveGeneratedAsset({
 
 export async function reconcileAssetIndex({ assets, assetsDir, save }) {
   const entries = []
+  const removed = new Set()
+  const cleanupPaths = new Set()
   for (const asset of assets) {
     if (asset.kind === 'link') continue
     const stored = await readablePath(asset.storagePath)
-    const source = stored || (await readablePath(asset.filePath))
+    const source =
+      stored ||
+      (await firstReadablePath([
+        asset.filePath,
+        ...assetReferences(asset).map((reference) => reference.filePath),
+      ]))
     const storagePath = stored ? managedAssetPath(stored.path, assetsDir) : null
     const hash =
       storagePath && asset.hash
         ? asset.hash
         : source
           ? await hashFile(source.path).catch(() => null)
-          : asset.hash
-    if (!hash) continue
+          : null
+    if (!source || !hash) {
+      removed.add(asset)
+      const cleanupPath = managedAssetPath(asset.storagePath, assetsDir)
+      if (cleanupPath) cleanupPaths.add(cleanupPath)
+      continue
+    }
     entries.push({
       asset,
       hash,
-      info: source?.info || null,
-      sourcePath: source?.path || null,
+      info: source.info,
+      sourcePath: source.path,
       storagePath,
     })
   }
@@ -262,9 +282,7 @@ export async function reconcileAssetIndex({ assets, assetsDir, save }) {
     groups.set(entry.hash, group)
   }
 
-  const removed = new Set()
-  const redundantPaths = new Set()
-  let changed = false
+  let changed = removed.size > 0
   for (const group of groups.values()) {
     const [first] = group
     const canonical = first.asset
@@ -303,17 +321,20 @@ export async function reconcileAssetIndex({ assets, assetsDir, save }) {
       mergeAssetReferences(canonical, duplicate.asset)
       removed.add(duplicate.asset)
       const duplicatePath = managedAssetPath(duplicate.storagePath, assetsDir)
-      if (duplicatePath && duplicatePath !== storagePath) redundantPaths.add(duplicatePath)
+      if (duplicatePath && duplicatePath !== storagePath) cleanupPaths.add(duplicatePath)
       changed = true
     }
   }
 
   if (!changed) return false
   const remaining = assets.filter((asset) => !removed.has(asset))
+  const retainedPaths = new Set(
+    remaining.map((asset) => managedAssetPath(asset.storagePath, assetsDir)).filter(Boolean),
+  )
   assets.splice(0, assets.length, ...remaining)
   await save()
-  for (const filePath of redundantPaths) {
-    if (managedAssetPath(filePath, assetsDir)) await unlink(filePath).catch(() => {})
+  for (const filePath of cleanupPaths) {
+    if (!retainedPaths.has(filePath)) await unlink(filePath).catch(() => {})
   }
   return true
 }

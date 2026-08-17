@@ -110,18 +110,74 @@ test('uploaded files deduplicate by content across names and sources', async (t)
   assert.equal(currentAssets[0].sessionName, 'Second session')
 })
 
-test('legacy reconciliation merges readable duplicates and preserves missing records', async (t) => {
+test('asset operations wait for background legacy reconciliation', async (t) => {
+  const { runtime, workspace } = await createFixture(t)
+  const sourcePath = join(workspace, 'legacy.txt')
+  await writeFile(sourcePath, 'legacy content')
+  runtime.assetIndex = {
+    assets: [
+      {
+        id: 'legacy',
+        kind: 'file',
+        name: 'legacy.txt',
+        mimeType: 'text/plain',
+        size: 0,
+        filePath: sourcePath,
+        source: 'agent',
+        sessionId: 'session-1',
+        sessionName: 'Legacy',
+        created: '2026-01-01T00:00:00.000Z',
+        modified: '2026-01-01T00:00:00.000Z',
+      },
+    ],
+  }
+
+  let releaseSave = () => {}
+  let markSaveStarted = () => {}
+  const saveGate = new Promise((resolve) => {
+    releaseSave = resolve
+  })
+  const saveStarted = new Promise((resolve) => {
+    markSaveStarted = resolve
+  })
+  runtime.saveAssetIndex = async () => {
+    markSaveStarted()
+    await saveGate
+  }
+
+  const reconciliation = runtime.startAssetReconciliation()
+  assert.equal(runtime.findAsset('legacy').storagePath, undefined)
+  await saveStarted
+  let listSettled = false
+  const listed = runtime.listAssets().then((assets) => {
+    listSettled = true
+    return assets
+  })
+  await new Promise((resolve) => setImmediate(resolve))
+  assert.equal(listSettled, false)
+
+  releaseSave()
+  assert.equal(await reconciliation, true)
+  assert.equal((await listed)[0].id, 'legacy')
+  assert.match(runtime.findAsset('legacy').hash, /^[a-f0-9]{64}$/)
+  assert.ok(runtime.findAsset('legacy').storagePath)
+})
+
+test('legacy reconciliation merges readable duplicates and removes unreadable records', async (t) => {
   const { assetsDir, workspace } = await createFixture(t)
   const currentStorage = join(assetsDir, 'current.png')
   const oldStorage = join(assetsDir, 'old.png')
   const oldSource = join(workspace, 'old-source.png')
   const uniqueSource = join(workspace, 'unique.txt')
+  const referenceSource = join(workspace, 'reference-source.bin')
   const missingSource = join(workspace, 'missing.bin')
+  const recoverable = Buffer.from('recoverable reference content')
   await Promise.all([
     writeFile(currentStorage, PNG),
     writeFile(oldStorage, PNG),
     writeFile(oldSource, PNG),
     writeFile(uniqueSource, 'unique legacy content'),
+    writeFile(referenceSource, recoverable),
   ])
 
   const assets = [
@@ -178,17 +234,57 @@ test('legacy reconciliation merges readable duplicates and preserves missing rec
       modified: '2025-12-01T00:00:00.000Z',
     },
     {
+      id: 'recovered',
+      kind: 'file',
+      name: 'recovered.bin',
+      mimeType: 'application/octet-stream',
+      size: 0,
+      filePath: missingSource,
+      source: 'agent',
+      sessionId: 'session-5',
+      sessionName: 'Recovered',
+      created: '2025-11-01T00:00:00.000Z',
+      modified: '2025-11-01T00:00:00.000Z',
+      references: [
+        {
+          source: 'agent',
+          sessionId: 'session-6',
+          sessionName: 'Reference',
+          name: 'reference-source.bin',
+          kind: 'file',
+          mimeType: 'application/octet-stream',
+          size: recoverable.length,
+          filePath: referenceSource,
+          created: '2025-10-01T00:00:00.000Z',
+        },
+      ],
+    },
+    {
       id: 'missing',
       kind: 'file',
       name: 'missing.bin',
       mimeType: 'application/octet-stream',
       size: 1,
+      hash: 'f'.repeat(64),
       filePath: missingSource,
       source: 'agent',
-      sessionId: 'session-5',
+      sessionId: 'session-7',
       sessionName: 'Missing',
-      created: '2025-11-01T00:00:00.000Z',
-      modified: '2025-11-01T00:00:00.000Z',
+      created: '2025-09-01T00:00:00.000Z',
+      modified: '2025-09-01T00:00:00.000Z',
+    },
+    {
+      id: 'link',
+      kind: 'link',
+      name: 'Project site',
+      url: 'https://ling-kong-ran.github.io/pisper/',
+      mimeType: 'text/uri-list',
+      size: 0,
+      source: 'upload',
+      sessionId: '',
+      sessionName: '',
+      created: '2025-08-01T00:00:00.000Z',
+      modified: '2025-08-01T00:00:00.000Z',
     },
   ]
   let saves = 0
@@ -205,7 +301,7 @@ test('legacy reconciliation merges readable duplicates and preserves missing rec
   assert.equal(saves, 1)
   assert.deepEqual(
     assets.map((asset) => asset.id),
-    ['current', 'unique', 'missing'],
+    ['current', 'unique', 'recovered', 'link'],
   )
   assert.match(assets[0].hash, /^[a-f0-9]{64}$/)
   assert.equal(assets[0].size, PNG.length)
@@ -218,11 +314,22 @@ test('legacy reconciliation merges readable duplicates and preserves missing rec
   assert.deepEqual(await readFile(oldSource), PNG)
   assert.equal((await readdir(assetsDir)).includes('old.png'), false)
 
-  assert.match(assets[1].hash, /^[a-f0-9]{64}$/)
-  assert.notEqual(assets[1].storagePath, resolve(uniqueSource))
-  assert.deepEqual(await readFile(assets[1].storagePath), Buffer.from('unique legacy content'))
-  assert.equal(assets[2].hash, undefined)
-  assert.equal(assets[2].storagePath, undefined)
+  const unique = assets.find((asset) => asset.id === 'unique')
+  const recovered = assets.find((asset) => asset.id === 'recovered')
+  assert.match(unique.hash, /^[a-f0-9]{64}$/)
+  assert.notEqual(unique.storagePath, resolve(uniqueSource))
+  assert.deepEqual(await readFile(unique.storagePath), Buffer.from('unique legacy content'))
+  assert.match(recovered.hash, /^[a-f0-9]{64}$/)
+  assert.notEqual(recovered.storagePath, resolve(referenceSource))
+  assert.deepEqual(await readFile(recovered.storagePath), recoverable)
+  assert.equal(
+    assets.some((asset) => asset.id === 'missing'),
+    false,
+  )
+  assert.equal(
+    assets.find((asset) => asset.id === 'link').url,
+    'https://ling-kong-ran.github.io/pisper/',
+  )
   assert.equal(await reconcile(), false)
   assert.equal(saves, 1)
 })

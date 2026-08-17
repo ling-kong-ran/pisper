@@ -550,6 +550,7 @@ export class AgentRuntimeService extends AgentRuntimeFacade {
     this.usageWrite = Promise.resolve()
     this.assetIndex = { assets: [] }
     this.assetWrite = Promise.resolve()
+    this.assetReconcile = Promise.resolve(false)
     this.providerState = { refreshPromise: null }
     Object.defineProperty(this, 'providerModelRefreshPromise', {
       configurable: true,
@@ -704,11 +705,7 @@ export class AgentRuntimeService extends AgentRuntimeFacade {
     this.usageLedger.sessionScans ||= {}
     this.assetIndex = await readJson(this.assetIndexPath, { assets: [] })
     this.assetIndex.assets = Array.isArray(this.assetIndex.assets) ? this.assetIndex.assets : []
-    await assetStorage.reconcileAssetIndex({
-      assets: this.assetIndex.assets,
-      assetsDir: this.assetsDir,
-      save: () => this.saveAssetIndex(),
-    })
+    this.startAssetReconciliation()
     const appConfig = await readJson(this.appConfigPath, {})
     this.compactionThresholdPercent = normalizeCompactionThresholdPercent(
       appConfig.compactionThresholdPercent,
@@ -1122,11 +1119,29 @@ export class AgentRuntimeService extends AgentRuntimeFacade {
     return this.assetWrite
   }
 
+  startAssetReconciliation() {
+    this.assetReconcile = Promise.resolve()
+      .then(() => {
+        const assets = structuredClone(this.assetIndex.assets)
+        return assetStorage.reconcileAssetIndex({
+          assets,
+          assetsDir: this.assetsDir,
+          save: async () => {
+            this.assetIndex.assets = assets
+            await this.saveAssetIndex()
+          },
+        })
+      })
+      .catch(() => false)
+    return this.assetReconcile
+  }
+
   publicAsset(asset) {
     return assetStorage.publicAsset(asset)
   }
 
   async createAsset(input) {
+    await this.assetReconcile
     const now = new Date().toISOString()
     const source = String(input.source || 'upload')
     if (input.kind === 'link' || input.url) {
@@ -1183,6 +1198,7 @@ export class AgentRuntimeService extends AgentRuntimeFacade {
   }
 
   async recordGeneratedFile(sessionId, value, filePath) {
+    await this.assetReconcile
     const name = basename(filePath)
     const asset = await assetStorage.archiveGeneratedAsset({
       assets: this.assetIndex.assets,
@@ -1199,6 +1215,7 @@ export class AgentRuntimeService extends AgentRuntimeFacade {
   }
 
   async listAssets({ query = '', kind = '', sessionId = '' } = {}) {
+    await this.assetReconcile
     const needle = String(query || '')
       .trim()
       .toLowerCase()
@@ -1220,6 +1237,7 @@ export class AgentRuntimeService extends AgentRuntimeFacade {
   }
 
   async getAssetContent(id) {
+    await this.assetReconcile
     const asset = this.findAsset(id)
     if (!asset) return null
     if (asset.kind === 'link') {
@@ -1281,6 +1299,7 @@ export class AgentRuntimeService extends AgentRuntimeFacade {
   }
 
   async getAssetDownload(id) {
+    await this.assetReconcile
     const asset = this.findAsset(id)
     if (!asset || asset.kind === 'link') return null
     return {
@@ -1290,6 +1309,7 @@ export class AgentRuntimeService extends AgentRuntimeFacade {
   }
 
   async deleteAsset(id) {
+    await this.assetReconcile
     const index = this.assetIndex.assets.findIndex((asset) => asset.id === id)
     if (index < 0) return false
     const [asset] = this.assetIndex.assets.splice(index, 1)

@@ -664,7 +664,12 @@ export class AgentRuntimeFacade {
     await this.mcp.dispose()
     this.toolPlugins.dispose()
     this.memory.dispose()
-    await Promise.allSettled([this.sessionMetaWrite, this.usageWrite, this.assetWrite])
+    await Promise.allSettled([
+      this.sessionMetaWrite,
+      this.usageWrite,
+      this.assetReconcile,
+      this.assetWrite,
+    ])
   }
 
   async savePlugins(input) {
