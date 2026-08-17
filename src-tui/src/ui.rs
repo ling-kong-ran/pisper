@@ -6,7 +6,7 @@ use ratatui::{
     Frame,
 };
 use serde_json::Value;
-use std::time::SystemTime;
+use std::{sync::OnceLock, time::SystemTime};
 use unicode_width::{UnicodeWidthChar, UnicodeWidthStr};
 
 use crate::{
@@ -34,9 +34,130 @@ const CONVERSATION_WIDTH: u16 = 110;
 const WELCOME_WIDTH: u16 = 88;
 const WELCOME_FULL_LOGO_WIDTH: u16 = 48;
 const SLASH_HEIGHT: u16 = 22;
-const ROLE_GUTTER_WIDTH: usize = 3;
+const PICKER_HIGHLIGHT: &str = "▌";
+const ROLE_GUTTER_WIDTH: usize = 0;
 const ACTIVITY_GUTTER_WIDTH: usize = 3;
 const SPINNER_FRAMES: [&str; 8] = ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧"];
+const RUN_ANIMATION_FRAMES: [&str; 10] = [
+    "◆◇····",
+    "◇◆◇···",
+    "·◇◆◇··",
+    "··◇◆◇·",
+    "···◇◆◇",
+    "····◇◆",
+    "···◇◆◇",
+    "··◇◆◇·",
+    "·◇◆◇··",
+    "◇◆◇···",
+];
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+enum TerminalTheme {
+    TrueColor,
+    Ansi256,
+    Monochrome,
+}
+
+static TERMINAL_THEME: OnceLock<TerminalTheme> = OnceLock::new();
+
+fn terminal_theme() -> TerminalTheme {
+    if cfg!(test) {
+        return TerminalTheme::TrueColor;
+    }
+    *TERMINAL_THEME.get_or_init(|| {
+        let requested = std::env::var("PISPER_TUI_THEME").ok();
+        if std::env::var_os("NO_COLOR").is_some()
+            || matches!(requested.as_deref(), Some("mono" | "monochrome"))
+        {
+            TerminalTheme::Monochrome
+        } else if matches!(requested.as_deref(), Some("truecolor" | "24bit"))
+            || std::env::var("COLORTERM").is_ok_and(|value| {
+                value.eq_ignore_ascii_case("truecolor") || value.eq_ignore_ascii_case("24bit")
+            })
+        {
+            TerminalTheme::TrueColor
+        } else if matches!(requested.as_deref(), Some("ansi" | "ansi256"))
+            || std::env::var("TERM").is_ok_and(|term| term.contains("256color"))
+        {
+            TerminalTheme::Ansi256
+        } else if std::env::var("TERM").is_ok_and(|term| term == "dumb") {
+            TerminalTheme::Monochrome
+        } else {
+            TerminalTheme::TrueColor
+        }
+    })
+}
+
+fn apply_terminal_theme(frame: &mut Frame, area: Rect) {
+    let theme = terminal_theme();
+    if theme == TerminalTheme::TrueColor {
+        return;
+    }
+
+    let buffer = frame.buffer_mut();
+    for y in area.y..area.bottom() {
+        for x in area.x..area.right() {
+            if let Some(cell) = buffer.cell_mut((x, y)) {
+                cell.set_fg(theme.map_foreground(cell.fg));
+                cell.set_bg(theme.map_background(cell.bg));
+            }
+        }
+    }
+}
+
+impl TerminalTheme {
+    fn map_foreground(self, color: Color) -> Color {
+        match self {
+            Self::TrueColor => color,
+            Self::Ansi256 => match color {
+                BG => Color::Indexed(233),
+                SURFACE => Color::Indexed(235),
+                RAISED => Color::Indexed(237),
+                RULE => Color::Indexed(240),
+                TEXT => Color::Indexed(253),
+                MUTED => Color::Indexed(250),
+                FAINT => Color::Indexed(244),
+                ACCENT => Color::Indexed(81),
+                GREEN => Color::Indexed(114),
+                AMBER => Color::Indexed(221),
+                RED => Color::Indexed(203),
+                VIOLET => Color::Indexed(183),
+                BLUE => Color::Indexed(111),
+                other => other,
+            },
+            Self::Monochrome => match color {
+                TEXT | MUTED => Color::White,
+                ACCENT | GREEN | AMBER | RED | VIOLET | BLUE => Color::Gray,
+                _ => Color::DarkGray,
+            },
+        }
+    }
+
+    fn map_background(self, color: Color) -> Color {
+        match self {
+            Self::TrueColor => color,
+            Self::Ansi256 => match color {
+                BG => Color::Indexed(233),
+                SURFACE => Color::Indexed(235),
+                RAISED => Color::Indexed(237),
+                RULE => Color::Indexed(240),
+                ACCENT => Color::Indexed(81),
+                GREEN => Color::Indexed(114),
+                AMBER => Color::Indexed(221),
+                RED => Color::Indexed(203),
+                VIOLET => Color::Indexed(183),
+                BLUE => Color::Indexed(111),
+                other => other,
+            },
+            Self::Monochrome => match color {
+                RAISED | RULE => Color::DarkGray,
+                ACCENT | GREEN | AMBER | RED | VIOLET | BLUE => Color::White,
+                _ => Color::Black,
+            },
+        }
+    }
+}
+
 const PISPER_LOGO: [(&str, &str); 5] = [
     ("████  █ █████  ", "████  █████ ████ "),
     ("█   █ █ █      ", "█   █ █     █   █"),
@@ -60,6 +181,11 @@ pub fn draw(frame: &mut Frame, app: &App) {
 }
 
 pub fn draw_in(frame: &mut Frame, app: &App, area: Rect) {
+    draw_content(frame, app, area);
+    apply_terminal_theme(frame, area);
+}
+
+fn draw_content(frame: &mut Frame, app: &App, area: Rect) {
     frame.render_widget(Block::default().style(Style::default().bg(BG)), area);
 
     if app.approval.is_some() {
@@ -250,41 +376,7 @@ fn render_welcome_workspace(frame: &mut Frame, app: &App, area: Rect) {
 }
 
 fn render_welcome_status(frame: &mut Frame, app: &App, area: Rect) {
-    if area.width == 0 {
-        return;
-    }
-    let mode = format!("[{}]", display_execution_mode(&app.execution_mode));
-    let full_left = format!("{mode} · {}", display_model(&app.model));
-    let right = if app.thinking_level.is_empty() {
-        String::new()
-    } else {
-        format!("Thinking · {}", app.thinking_level)
-    };
-    let gap = u16::from(!right.is_empty());
-    let right_width = right.width().min(area.width as usize / 2) as u16;
-    let left_width = area.width.saturating_sub(right_width).saturating_sub(gap);
-    let left = if full_left.width() <= left_width as usize {
-        full_left
-    } else {
-        single_line(&mode, left_width as usize)
-    };
-    frame.render_widget(
-        Paragraph::new(left).style(Style::default().fg(MUTED).bg(BG)),
-        Rect::new(area.x, area.y, left_width, area.height),
-    );
-    if right_width > 0 {
-        frame.render_widget(
-            Paragraph::new(single_line(&right, right_width as usize))
-                .alignment(Alignment::Right)
-                .style(Style::default().fg(MUTED).bg(BG)),
-            Rect::new(
-                area.x.saturating_add(left_width).saturating_add(gap),
-                area.y,
-                right_width,
-                area.height,
-            ),
-        );
-    }
+    render_status(frame, app, area);
 }
 
 fn render_overlays(frame: &mut Frame, app: &App, composer: Rect, area: Rect) {
@@ -341,8 +433,11 @@ fn plan_panel_height(app: &App, area: Rect) -> u16 {
     let Some(plan) = app.session.plan.as_ref() else {
         return 0;
     };
-    if plan.items.is_empty() || area.height < 18 {
+    if plan.items.is_empty() || area.height < 12 {
         return 0;
+    }
+    if area.width < 64 {
+        return 2;
     }
     let maximum_items = if area.height >= 36 { 5 } else { 3 };
     1 + maximum_items
@@ -352,7 +447,7 @@ fn render_plan(frame: &mut Frame, app: &App, area: Rect) {
     let Some(plan) = app.session.plan.as_ref() else {
         return;
     };
-    if area.height == 0 || plan.items.is_empty() {
+    if area.height < 2 || plan.items.is_empty() {
         return;
     }
     let completed = plan
@@ -360,71 +455,106 @@ fn render_plan(frame: &mut Frame, app: &App, area: Rect) {
         .iter()
         .filter(|item| item.status == "completed")
         .count();
+    let compact = area.width < 64;
     let maximum_items = area.height.saturating_sub(1) as usize;
-    let max_scroll = plan.items.len().saturating_sub(maximum_items);
+    let current = plan
+        .items
+        .iter()
+        .position(|item| item.status == "in_progress")
+        .or_else(|| plan.items.iter().position(|item| item.status == "blocked"))
+        .or_else(|| plan.items.iter().position(|item| item.status == "pending"))
+        .unwrap_or_default();
+    let max_scroll = if compact {
+        0
+    } else {
+        plan.items.len().saturating_sub(maximum_items)
+    };
     app.plan_max_scroll
         .set(max_scroll.min(u16::MAX as usize) as u16);
-    let scroll = (app.plan_scroll.get() as usize).min(max_scroll);
-    app.plan_scroll.set(scroll as u16);
-    let items = plan.items.iter().skip(scroll).take(maximum_items);
-    let mut lines = vec![Line::from(vec![
-        Span::styled(
-            format!(" Plan · {completed}/{}", plan.items.len()),
+    let scroll = if compact {
+        current
+    } else {
+        (app.plan_scroll.get() as usize).min(max_scroll)
+    };
+    if !compact {
+        app.plan_scroll.set(scroll as u16);
+    }
+
+    let title = if max_scroll > 0 {
+        format!(
+            " Plan  {completed}/{}  ·  {}-{}/{}  ·  Alt+↑/↓ ",
+            plan.items.len(),
+            scroll + 1,
+            (scroll + maximum_items).min(plan.items.len()),
+            plan.items.len()
+        )
+    } else {
+        format!(" Plan  {completed}/{} ", plan.items.len())
+    };
+    let block = Block::default()
+        .title(Span::styled(
+            title,
             Style::default().fg(VIOLET).add_modifier(Modifier::BOLD),
-        ),
-        Span::styled(
-            if max_scroll > 0 {
-                format!(
-                    " · {}-{}/{} · Alt+↑/↓",
-                    scroll + 1,
-                    (scroll + maximum_items).min(plan.items.len()),
-                    plan.items.len()
-                )
-            } else {
-                String::new()
-            },
-            Style::default().fg(MUTED),
-        ),
-    ])];
-    for item in items {
+        ))
+        .borders(Borders::TOP)
+        .border_style(Style::default().fg(RULE));
+    let inner = block.inner(area);
+    frame.render_widget(block, area);
+
+    let mut lines = Vec::new();
+    for item in plan.items.iter().skip(scroll).take(maximum_items) {
         let (symbol, color) = match item.status.as_str() {
             "completed" => ("✓", GREEN),
             "in_progress" => ("●", ACCENT),
             "blocked" => ("!", RED),
             _ => ("○", MUTED),
         };
-        let mut detail = Vec::new();
+        let mut metadata = Vec::new();
         if !item.assignee.is_empty() {
-            detail.push(format!("@{}", item.assignee));
+            metadata.push(format!("@{}", item.assignee));
         }
         if !item.depends_on.is_empty() {
-            detail.push(format!("waits {}", item.depends_on.join(",")));
+            metadata.push(format!("waits {}", item.depends_on.join(",")));
         }
-        if area.width >= 100 && !item.note.is_empty() {
-            detail.push(item.note.clone());
+        if inner.width >= 100 && !item.note.is_empty() {
+            metadata.push(item.note.clone());
         }
-        let detail = if detail.is_empty() {
-            String::new()
-        } else {
-            format!(" · {}", detail.join(" · "))
-        };
-        let available = area.width.saturating_sub(5) as usize;
+        let metadata = metadata.join(" · ");
+        let prefix = format!(" {symbol} ");
+        let available = inner.width.saturating_sub(prefix.width() as u16) as usize;
+        let title_budget = available.saturating_sub(metadata.width().saturating_add(2));
+        let item_title = single_line(
+            &item.title,
+            if metadata.is_empty() {
+                available
+            } else {
+                title_budget
+            },
+        );
+        let gap = available
+            .saturating_sub(item_title.width())
+            .saturating_sub(metadata.width());
         lines.push(Line::from(vec![
-            Span::styled(format!(" {symbol} "), Style::default().fg(color)),
+            Span::styled(prefix, Style::default().fg(color)),
             Span::styled(
-                single_line(&format!("{}{detail}", item.title), available),
-                Style::default().fg(if item.status == "in_progress" {
-                    TEXT
-                } else {
-                    MUTED
-                }),
+                item_title,
+                Style::default()
+                    .fg(if item.status == "in_progress" {
+                        TEXT
+                    } else {
+                        MUTED
+                    })
+                    .add_modifier(if item.status == "in_progress" {
+                        Modifier::BOLD
+                    } else {
+                        Modifier::empty()
+                    }),
             ),
+            Span::raw(" ".repeat(gap)),
+            Span::styled(metadata, Style::default().fg(FAINT)),
         ]));
     }
-    frame.render_widget(
-        Paragraph::new(lines).style(Style::default().bg(SURFACE)),
-        area,
-    );
+    frame.render_widget(Paragraph::new(lines).style(Style::default().bg(BG)), inner);
 }
 
 fn render_run_state(frame: &mut Frame, app: &App, area: Rect) {
@@ -460,18 +590,6 @@ fn render_run_state(frame: &mut Frame, app: &App, area: Rect) {
     frame.render_widget(Paragraph::new(line).style(Style::default().bg(BG)), area);
 }
 
-fn active_run_label(app: &App) -> String {
-    match app.status.as_str() {
-        "thinking" => "Thinking".to_owned(),
-        "streaming" => format!("{} Responding", spinner_frame(app.status_frame)),
-        value if value.starts_with("running ") => format!(
-            "Running {}",
-            single_line(value.trim_start_matches("running "), 18)
-        ),
-        _ => "Running".to_owned(),
-    }
-}
-
 fn runtime_error_label(error: &str, width: usize) -> String {
     let normalized = error.to_lowercase();
     let label = if normalized.contains("overloaded") {
@@ -490,7 +608,25 @@ fn runtime_error_label(error: &str, width: usize) -> String {
 }
 
 fn spinner_frame(animation_frame: u64) -> &'static str {
-    SPINNER_FRAMES[(animation_frame as usize / 5) % SPINNER_FRAMES.len()]
+    SPINNER_FRAMES[(animation_frame as usize / 2) % SPINNER_FRAMES.len()]
+}
+
+fn run_animation_frame(animation_frame: u64) -> &'static str {
+    RUN_ANIMATION_FRAMES[animation_frame as usize % RUN_ANIMATION_FRAMES.len()]
+}
+
+fn run_animation_spans(animation_frame: u64) -> Vec<Span<'static>> {
+    run_animation_frame(animation_frame)
+        .chars()
+        .map(|character| {
+            let color = match character {
+                '◆' => ACCENT,
+                '◇' => BLUE,
+                _ => FAINT,
+            };
+            Span::styled(character.to_string(), Style::default().fg(color))
+        })
+        .collect()
 }
 
 #[derive(Default)]
@@ -540,7 +676,7 @@ impl ActivityRail {
 fn push_message(lines: &mut Vec<Line<'static>>, message: &ChatMessage, width: usize) {
     let prose_width = width.min(CONVERSATION_WIDTH as usize);
     if message.role == "user" {
-        push_labeled_text(lines, "›", BLUE, &message.text, prose_width, false);
+        push_labeled_text(lines, "", BLUE, &message.text, prose_width, false);
         push_attachment_lines(lines, &message.attachments, prose_width);
         lines.push(Line::default());
         return;
@@ -552,7 +688,7 @@ fn push_message(lines: &mut Vec<Line<'static>>, message: &ChatMessage, width: us
         push_activity(lines, activity, width);
     }
     if !message.text.is_empty() {
-        push_markdown(lines, "●", ACCENT, &message.text, prose_width);
+        push_markdown(lines, "", ACCENT, &message.text, prose_width);
     }
     push_attachment_lines(lines, &message.attachments, prose_width);
     lines.push(Line::default());
@@ -606,7 +742,7 @@ fn push_live(
     if !live.text.is_empty() {
         push_markdown(
             lines,
-            "●",
+            "",
             ACCENT,
             &live.text,
             width.min(CONVERSATION_WIDTH as usize),
@@ -971,9 +1107,9 @@ fn push_labeled_text(
     let content_width = width.saturating_sub(ROLE_GUTTER_WIDTH).max(8);
     let wrapped = wrap_text(value, content_width);
     let text_style = if bold {
-        Style::default().fg(TEXT).add_modifier(Modifier::BOLD)
+        Style::default().fg(color).add_modifier(Modifier::BOLD)
     } else {
-        Style::default().fg(TEXT)
+        Style::default().fg(color)
     };
     for (index, line) in wrapped.into_iter().enumerate() {
         lines.push(Line::from(vec![
@@ -1047,16 +1183,18 @@ fn push_markdown(
             } else {
                 ("│ ", trimmed, Style::default().fg(TEXT).bg(RAISED))
             };
-            push_markdown_line(
-                lines,
-                &mut label_used,
-                label,
-                color,
-                vec![
-                    Span::styled(marker, Style::default().fg(FAINT).bg(RAISED)),
-                    Span::styled(single_line(code, content_width.saturating_sub(2)), style),
-                ],
-            );
+            for chunk in wrap_code_line(code, content_width.saturating_sub(2)) {
+                push_markdown_line(
+                    lines,
+                    &mut label_used,
+                    label,
+                    color,
+                    vec![
+                        Span::styled(marker, Style::default().fg(FAINT).bg(RAISED)),
+                        Span::styled(chunk, style),
+                    ],
+                );
+            }
             continue;
         }
         if trimmed.trim().is_empty() {
@@ -1132,6 +1270,32 @@ fn push_markdown(
             )],
         );
     }
+}
+
+fn wrap_code_line(value: &str, width: usize) -> Vec<String> {
+    if width == 0 {
+        return vec![String::new()];
+    }
+    let expanded = value.replace('\t', "    ");
+    if expanded.is_empty() {
+        return vec![String::new()];
+    }
+
+    let mut rows = Vec::new();
+    let mut row = String::new();
+    let mut row_width = 0usize;
+    for character in expanded.chars() {
+        let character_width = UnicodeWidthChar::width(character).unwrap_or_default();
+        if row_width > 0 && row_width.saturating_add(character_width) > width {
+            rows.push(row);
+            row = String::new();
+            row_width = 0;
+        }
+        row.push(character);
+        row_width = row_width.saturating_add(character_width);
+    }
+    rows.push(row);
+    rows
 }
 
 fn push_markdown_line(
@@ -1735,122 +1899,90 @@ fn compact_token_count(value: u64) -> String {
 }
 
 fn render_status(frame: &mut Frame, app: &App, area: Rect) {
-    if area.width == 0 {
+    if area.width == 0 || area.height == 0 {
         return;
     }
-    let context = app
-        .context_percent
-        .map(|value| format!(" · {value:.0}% ctx"))
-        .unwrap_or_default();
-    let mode = format!("[{}]", display_execution_mode(&app.execution_mode));
-    let usage = if app.session_usage.requests > 0
+
+    let activity = status_activity(app);
+    let metrics = status_metrics(app);
+    let mut spans = Vec::new();
+    if status_is_running(app) {
+        spans.extend(run_animation_spans(app.status_frame));
+        spans.push(Span::raw("  "));
+    } else if let Some((label, color)) = activity {
+        spans.push(Span::styled(
+            label,
+            Style::default().fg(color).add_modifier(Modifier::BOLD),
+        ));
+        spans.push(Span::raw("  "));
+    }
+    spans.push(Span::styled(
+        format!("[{}]", display_execution_mode(&app.execution_mode)),
+        Style::default().fg(MUTED),
+    ));
+    spans.push(Span::raw("  "));
+    spans.push(Span::styled(
+        display_model(&app.model).to_owned(),
+        Style::default().fg(TEXT),
+    ));
+    if !app.thinking_level.is_empty() {
+        spans.push(Span::raw("  "));
+        spans.push(Span::styled(
+            app.thinking_level.clone(),
+            Style::default().fg(AMBER).add_modifier(Modifier::BOLD),
+        ));
+    }
+    if !metrics.is_empty() {
+        spans.push(Span::styled("  ·  ", Style::default().fg(FAINT)));
+        spans.push(Span::styled(metrics, Style::default().fg(MUTED)));
+    }
+    frame.render_widget(
+        Paragraph::new(Line::from(spans)).style(Style::default().bg(BG)),
+        area,
+    );
+}
+
+fn status_is_running(app: &App) -> bool {
+    app.approval.is_none() && !app.status_error && app.is_running_state()
+}
+
+fn status_activity(app: &App) -> Option<(String, Color)> {
+    if app.approval.is_some() {
+        return Some(("Approval required".to_owned(), AMBER));
+    }
+    if app.status_error {
+        return Some((single_line(&app.status, 28), RED));
+    }
+    None
+}
+
+fn status_metrics(app: &App) -> String {
+    let mut metrics = Vec::new();
+    if app.session_usage.requests > 0
         || app.session_usage.total_tokens > 0
         || app.session_usage.cache_hit_rate.is_some()
     {
-        let cache = app
-            .session_usage
-            .cache_hit_rate
-            .map(|rate| format!("{rate:.0}%"))
-            .unwrap_or_else(|| "—".to_owned());
-        format!(
-            " · token: {} cache {cache}",
-            compact_token_count(app.session_usage.total_tokens)
-        )
-    } else {
-        String::new()
-    };
-
-    let mut priority = Vec::new();
-    if app.is_streaming() {
-        priority.push(active_run_label(app));
+        metrics.push(compact_token_count(app.session_usage.total_tokens));
+        if let Some(rate) = app.session_usage.cache_hit_rate {
+            metrics.push(format!("cache {:.0}%", rate));
+        }
+    } else if let Some(percent) = app.context_percent {
+        metrics.push(format!("ctx {:.0}%", percent));
     }
     if app.queued_count() > 0 {
-        priority.push(format!("{} queued", app.queued_count()));
+        metrics.push(format!("queued {}", app.queued_count()));
     }
-    if let Some(plan) = &app.session.plan {
-        let done = plan
-            .items
-            .iter()
-            .filter(|item| item.status == "completed")
-            .count();
-        priority.push(format!("Plan {done}/{}", plan.items.len()));
+    if app.approval_count() > 1 {
+        metrics.push(format!("approval 1/{}", app.approval_count()));
     }
-    let agents = visible_agent_count(app);
-    if agents > 0 {
-        priority.push(format!("{agents} subagent"));
-    }
-    if !app.is_streaming() && !app.thinking_level.is_empty() {
-        priority.push(format!("Thinking · {}", app.thinking_level));
-    }
-    let right_budget = area
-        .width
-        .saturating_sub(mode.width() as u16)
-        .saturating_sub(3)
-        .min(area.width.saturating_mul(45) / 100) as usize;
-    let mut right = String::new();
-    for part in priority {
-        let candidate = if right.is_empty() {
-            part
-        } else {
-            format!("{right} · {part}")
-        };
-        if candidate.width() <= right_budget {
-            right = candidate;
-        }
-    }
-    let gap = u16::from(!right.is_empty());
-    let right_width = right.width().min(area.width as usize) as u16;
-    let left_width = area.width.saturating_sub(right_width).saturating_sub(gap);
-    let left_area = Rect::new(area.x, area.y, left_width, area.height);
-    let right_area = Rect::new(
-        area.x.saturating_add(left_width).saturating_add(gap),
-        area.y,
-        right_width,
-        area.height,
-    );
+    metrics.join(" · ")
+}
 
-    let full = format!(
-        "{mode} · {} · {}{context}{usage}",
-        display_model(&app.model),
-        shorten_path(&app.cwd),
-    );
-    let workspace = format!(
-        "{mode} · {} · {}{context}",
-        display_model(&app.model),
-        shorten_path(&app.cwd),
-    );
-    let model_usage = format!("{mode} · {}{context}{usage}", display_model(&app.model));
-    let mode_model = format!("{mode} · {}{context}", display_model(&app.model));
-    let compact = format!("{mode} · {}{context}", shorten_path(&app.cwd));
-    let mode_usage = format!("{mode}{usage}");
-    let available = left_width as usize;
-    let left = if full.width() <= available {
-        full
-    } else if workspace.width() <= available {
-        workspace
-    } else if model_usage.width() <= available {
-        model_usage
-    } else if mode_model.width() <= available {
-        mode_model
-    } else if compact.width() <= available {
-        compact
-    } else if mode_usage.width() <= available {
-        mode_usage
-    } else {
-        single_line(&mode, available)
-    };
-    frame.render_widget(
-        Paragraph::new(left).style(Style::default().fg(MUTED)),
-        left_area,
-    );
-    if right_width > 0 {
-        frame.render_widget(
-            Paragraph::new(right)
-                .alignment(Alignment::Right)
-                .style(Style::default().fg(MUTED)),
-            right_area,
-        );
-    }
+fn picker_highlight_style() -> Style {
+    Style::default()
+        .bg(RAISED)
+        .fg(TEXT)
+        .add_modifier(Modifier::BOLD)
 }
 
 fn slash_menu_area(composer: Rect, item_count: usize) -> Rect {
@@ -1875,10 +2007,10 @@ fn render_slash(frame: &mut Frame, app: &App, composer: Rect) {
     let block = Block::default()
         .title(Span::styled(
             format!(" /{} ", app.input_text().trim_start_matches('/')),
-            Style::default().fg(TEXT).add_modifier(Modifier::BOLD),
+            Style::default().fg(ACCENT).add_modifier(Modifier::BOLD),
         ))
         .borders(Borders::ALL)
-        .border_style(Style::default().fg(RULE))
+        .border_style(Style::default().fg(ACCENT))
         .style(Style::default().bg(SURFACE));
     let inner = block.inner(area);
     frame.render_widget(block, area);
@@ -1960,8 +2092,8 @@ fn render_slash(frame: &mut Frame, app: &App, composer: Rect) {
         ])
     });
     let list = List::new(rows)
-        .highlight_symbol("▌")
-        .highlight_style(Style::default().bg(RAISED).fg(TEXT));
+        .highlight_symbol(PICKER_HIGHLIGHT)
+        .highlight_style(picker_highlight_style());
     let selected = (!items.is_empty()).then(|| app.slash_selected.min(items.len() - 1));
     let mut state = ListState::default().with_selected(selected);
     frame.render_stateful_widget(list, sections[1], &mut state);
@@ -2009,7 +2141,7 @@ fn render_sessions(frame: &mut Frame, app: &App, area: Rect) {
     let block = Block::default()
         .title(Span::styled(
             format!(" Resume conversation · {} matches ", sessions.len()),
-            Style::default().fg(VIOLET).add_modifier(Modifier::BOLD),
+            Style::default().fg(ACCENT).add_modifier(Modifier::BOLD),
         ))
         .title_bottom(Span::styled(
             if app.session_loading.is_some() {
@@ -2027,7 +2159,7 @@ fn render_sessions(frame: &mut Frame, app: &App, area: Rect) {
         .border_style(Style::default().fg(if app.session_loading.is_some() {
             AMBER
         } else {
-            VIOLET
+            ACCENT
         }))
         .style(Style::default().bg(SURFACE));
     let inner = block.inner(popup);
@@ -2124,12 +2256,9 @@ fn render_sessions(frame: &mut Frame, app: &App, area: Rect) {
             })
             .collect()
     };
-    let list = List::new(rows).highlight_symbol(" ❯ ").highlight_style(
-        Style::default()
-            .bg(RAISED)
-            .fg(TEXT)
-            .add_modifier(Modifier::BOLD),
-    );
+    let list = List::new(rows)
+        .highlight_symbol(PICKER_HIGHLIGHT)
+        .highlight_style(picker_highlight_style());
     let mut state = ListState::default().with_selected(selected);
     frame.render_stateful_widget(list, sections[1], &mut state);
     if app.session_loading.is_none() {
@@ -2249,8 +2378,8 @@ fn render_path_picker(frame: &mut Frame, app: &App, area: Rect) {
             .collect()
     };
     let list = List::new(rows)
-        .highlight_symbol("▌")
-        .highlight_style(Style::default().bg(RAISED).fg(TEXT));
+        .highlight_symbol(PICKER_HIGHLIGHT)
+        .highlight_style(picker_highlight_style());
     let mut state = ListState::default().with_selected(
         (!entries.is_empty() && !app.attachment_list_focused)
             .then_some(app.path_selected.min(entries.len().saturating_sub(1))),
@@ -2356,10 +2485,10 @@ fn render_settings_picker(frame: &mut Frame, app: &App, area: Rect) {
     let block = Block::default()
         .title(Span::styled(
             title,
-            Style::default().fg(VIOLET).add_modifier(Modifier::BOLD),
+            Style::default().fg(ACCENT).add_modifier(Modifier::BOLD),
         ))
         .borders(Borders::ALL)
-        .border_style(Style::default().fg(VIOLET))
+        .border_style(Style::default().fg(ACCENT))
         .style(Style::default().bg(SURFACE));
     let inner = block.inner(popup);
     frame.render_widget(block, popup);
@@ -2458,8 +2587,8 @@ fn render_settings_picker(frame: &mut Frame, app: &App, area: Rect) {
                 .borders(Borders::BOTTOM)
                 .border_style(Style::default().fg(RULE)),
         )
-        .highlight_symbol("▌")
-        .highlight_style(Style::default().bg(RAISED).fg(TEXT));
+        .highlight_symbol(PICKER_HIGHLIGHT)
+        .highlight_style(picker_highlight_style());
     let mut state = ListState::default()
         .with_selected((count > 0).then_some(app.settings_selected.min(count.saturating_sub(1))));
     frame.render_stateful_widget(list, inner, &mut state);
@@ -2695,8 +2824,8 @@ fn render_api_key_dialog(frame: &mut Frame, app: &App, area: Rect) {
                 .borders(Borders::BOTTOM)
                 .border_style(Style::default().fg(RULE)),
         )
-        .highlight_symbol("▌")
-        .highlight_style(Style::default().bg(RAISED).fg(TEXT));
+        .highlight_symbol(PICKER_HIGHLIGHT)
+        .highlight_style(picker_highlight_style());
     let mut state = ListState::default()
         .with_selected((count > 0).then_some(app.api_key_selected.min(count.saturating_sub(1))));
     frame.render_stateful_widget(list, inner, &mut state);
@@ -2730,12 +2859,37 @@ fn approval_command_text(approval: &Approval) -> Text<'static> {
     Text::from(lines)
 }
 
-fn approval_reason_text(approval: &Approval) -> Text<'static> {
-    let risk = if approval.risk.trim().is_empty() {
-        "unspecified".to_owned()
+fn approval_risk(approval: &Approval) -> (String, Color) {
+    let risk = approval.risk.trim();
+    let color = if risk.eq_ignore_ascii_case("high") || risk.eq_ignore_ascii_case("critical") {
+        RED
+    } else if risk.eq_ignore_ascii_case("low") {
+        GREEN
+    } else if risk.is_empty() {
+        MUTED
     } else {
-        approval.risk.clone()
+        AMBER
     };
+    (
+        if risk.is_empty() {
+            "Unspecified".to_owned()
+        } else if risk.eq_ignore_ascii_case("critical") {
+            "Critical".to_owned()
+        } else if risk.eq_ignore_ascii_case("high") {
+            "High".to_owned()
+        } else if risk.eq_ignore_ascii_case("medium") {
+            "Medium".to_owned()
+        } else if risk.eq_ignore_ascii_case("low") {
+            "Low".to_owned()
+        } else {
+            risk.to_owned()
+        },
+        color,
+    )
+}
+
+fn approval_reason_text(approval: &Approval) -> Text<'static> {
+    let (risk, risk_color) = approval_risk(approval);
     let reason = if approval.reason.trim().is_empty() {
         "Not provided by the runtime".to_owned()
     } else {
@@ -2746,7 +2900,7 @@ fn approval_reason_text(approval: &Approval) -> Text<'static> {
             "Risk · ",
             Style::default().fg(AMBER).add_modifier(Modifier::BOLD),
         ),
-        Span::styled(risk, Style::default().fg(RED)),
+        Span::styled(risk, Style::default().fg(risk_color)),
         Span::raw("   "),
         Span::styled(
             "Reason · ",
@@ -2789,18 +2943,31 @@ fn render_approval(frame: &mut Frame, app: &App, area: Rect) {
     let Some(approval) = &app.approval else {
         return;
     };
-    let risk = if approval.risk.is_empty() {
-        String::new()
+    let (risk, risk_color) = approval_risk(approval);
+    let risk_title = if risk == "Unspecified" {
+        "Unspecified risk".to_owned()
     } else {
-        format!(" · {} risk", approval.risk)
+        format!("{risk} risk")
+    };
+    let position = if app.approval_count() > 1 {
+        format!("  1/{}", app.approval_count())
+    } else {
+        String::new()
     };
     let block = Block::default()
-        .title(format!(
-            " Approval required · {}{risk} ",
-            approval.tool_name
-        ))
+        .title(Line::from(vec![
+            Span::styled(
+                format!(" Approval{position} "),
+                Style::default().fg(AMBER).add_modifier(Modifier::BOLD),
+            ),
+            Span::styled(format!(" {risk_title} "), Style::default().fg(risk_color)),
+            Span::styled(
+                format!(" {} ", approval.tool_name),
+                Style::default().fg(TEXT),
+            ),
+        ]))
         .borders(Borders::ALL)
-        .border_style(Style::default().fg(AMBER))
+        .border_style(Style::default().fg(risk_color))
         .style(Style::default().bg(SURFACE));
     let inner = block.inner(area);
     frame.render_widget(block, area);
@@ -2849,34 +3016,37 @@ fn render_approval(frame: &mut Frame, app: &App, area: Rect) {
         );
     }
 
-    let mut actions = if rows[2].width >= 68 {
+    let mut actions = if app.approval_is_resolving() {
+        vec![Span::styled(
+            "Resolving approval...",
+            Style::default().fg(AMBER).add_modifier(Modifier::BOLD),
+        )]
+    } else if rows[2].width >= 68 {
         vec![
             Span::styled("Press ", Style::default().fg(MUTED)),
-            Span::styled(
-                "[Y]",
-                Style::default().fg(GREEN).add_modifier(Modifier::BOLD),
-            ),
-            Span::styled(" Allow once     ", Style::default().fg(TEXT)),
-            Span::styled("[N]", Style::default().fg(RED).add_modifier(Modifier::BOLD)),
-            Span::styled(" Deny     ", Style::default().fg(TEXT)),
-            Span::styled(
-                "[Esc]",
-                Style::default().fg(RED).add_modifier(Modifier::BOLD),
-            ),
-            Span::styled(" Deny", Style::default().fg(TEXT)),
-        ]
-    } else {
-        vec![
-            Span::styled(
-                "[Y]",
-                Style::default().fg(GREEN).add_modifier(Modifier::BOLD),
-            ),
-            Span::styled(" Allow  ", Style::default().fg(TEXT)),
             Span::styled(
                 "[N/Esc]",
                 Style::default().fg(RED).add_modifier(Modifier::BOLD),
             ),
-            Span::styled(" Deny", Style::default().fg(TEXT)),
+            Span::styled(" Deny     ", Style::default().fg(TEXT)),
+            Span::styled(
+                "[Y]",
+                Style::default().fg(risk_color).add_modifier(Modifier::BOLD),
+            ),
+            Span::styled(" Allow once", Style::default().fg(TEXT)),
+        ]
+    } else {
+        vec![
+            Span::styled(
+                "[N/Esc]",
+                Style::default().fg(RED).add_modifier(Modifier::BOLD),
+            ),
+            Span::styled(" Deny  ", Style::default().fg(TEXT)),
+            Span::styled(
+                "[Y]",
+                Style::default().fg(risk_color).add_modifier(Modifier::BOLD),
+            ),
+            Span::styled(" Allow", Style::default().fg(TEXT)),
         ]
     };
     if max_scroll > 0 {
@@ -2942,17 +3112,6 @@ fn centered_width(area: Rect, maximum: u16) -> Rect {
         width,
         area.height,
     )
-}
-
-fn visible_agent_count(app: &App) -> usize {
-    let historic = app
-        .messages
-        .iter()
-        .filter_map(|message| message.run_activity.as_ref())
-        .map(|activity| activity.agents.len())
-        .sum::<usize>();
-    let live = app.live.as_ref().map(|_| 0).unwrap_or_default();
-    historic.saturating_add(live)
 }
 
 fn centered_rect(percent_x: u16, percent_y: u16, area: Rect) -> Rect {
@@ -3055,8 +3214,8 @@ mod tests {
     use super::{
         compact_token_count, draw, format_session_time, padded_single_line, push_live,
         push_markdown, push_message, render_slash, runtime_error_label, shorten_path,
-        slash_menu_area, visible_input, ACCENT, AMBER, BG, CONVERSATION_WIDTH, FAINT, GREEN, MUTED,
-        RAISED, RED, RULE,
+        slash_menu_area, visible_input, wrap_code_line, TerminalTheme, ACCENT, AMBER, BG, BLUE,
+        CONVERSATION_WIDTH, FAINT, GREEN, MUTED, RAISED, RED, RULE, TEXT,
     };
     use crate::{
         app::{App, Approval, AttachmentDraft, LiveTurn, PathEntry, SettingsPicker},
@@ -3202,6 +3361,76 @@ mod tests {
             .iter()
             .flat_map(|line| &line.spans)
             .any(|span| { span.content.contains("+new") && span.style.fg == Some(GREEN) }));
+    }
+
+    #[test]
+    fn long_code_lines_wrap_without_losing_content() {
+        let source = "const result = alpha_beta_gamma_delta + epsilon_zeta_eta_theta;";
+        let rows = wrap_code_line(source, 14);
+        assert!(rows.len() > 1);
+        assert!(rows.iter().all(|row| row.width() <= 14));
+        assert_eq!(rows.concat(), source);
+        assert!(!rows.iter().any(|row| row.contains('…')));
+    }
+
+    #[test]
+    fn terminal_themes_preserve_semantic_contrast_without_truecolor() {
+        assert_eq!(
+            TerminalTheme::Ansi256.map_foreground(ACCENT),
+            ratatui::style::Color::Indexed(81)
+        );
+        assert_eq!(
+            TerminalTheme::Monochrome.map_foreground(TEXT),
+            ratatui::style::Color::White
+        );
+        assert_eq!(
+            TerminalTheme::Monochrome.map_background(RAISED),
+            ratatui::style::Color::DarkGray
+        );
+        assert_eq!(TerminalTheme::TrueColor.map_foreground(BLUE), BLUE);
+    }
+
+    #[test]
+    fn conversation_roles_use_color_and_spacing_without_visible_labels() {
+        let session = SessionSummary {
+            id: "session-role-style".to_owned(),
+            model: "provider/model".to_owned(),
+            cwd: "/workspace".to_owned(),
+            ..SessionSummary::default()
+        };
+        let app = App::new(
+            vec![session.clone()],
+            session,
+            vec![
+                ChatMessage {
+                    role: "user".to_owned(),
+                    text: "Inspect the renderer".to_owned(),
+                    ..ChatMessage::default()
+                },
+                ChatMessage {
+                    role: "agent".to_owned(),
+                    text: "The renderer is stable".to_owned(),
+                    ..ChatMessage::default()
+                },
+            ],
+            None,
+            Vec::new(),
+            Vec::new(),
+        );
+        let buffer = render_test_buffer(&app, 80, 20);
+        let rows = buffer_rows(&buffer, 80, 20);
+        let user_row = rows
+            .iter()
+            .position(|row| row.starts_with("Inspect the renderer"))
+            .unwrap() as u16;
+        let agent_row = rows
+            .iter()
+            .position(|row| row.starts_with("The renderer is stable"))
+            .unwrap() as u16;
+        assert_eq!(buffer.cell((0, user_row)).unwrap().fg, BLUE);
+        assert_eq!(buffer.cell((0, agent_row)).unwrap().fg, TEXT);
+        assert!(!rows.join("\n").contains("YOU"));
+        assert!(!rows.join("\n").contains("PIS  "));
     }
 
     #[test]
@@ -3502,7 +3731,13 @@ mod tests {
                 .position(|row| row.contains("╭─ ⠋ thinking"))
                 .unwrap() as u16;
             assert_eq!(thinking_buffer.cell((0, thinking_row)).unwrap().fg, AMBER);
-            assert!(thinking_rows.last().unwrap().contains("Thinking"));
+            assert!(thinking_rows
+                .last()
+                .unwrap()
+                .trim_start()
+                .starts_with("◆◇····"));
+            assert!(thinking_rows.last().unwrap().contains("gpt-5.6-sol  high"));
+            assert!(!thinking_rows.last().unwrap().contains("Thinking"));
             assert!(!thinking_text.contains("THINK"));
             assert!(!thinking_text.contains("current run active"));
             assert!(!thinking_text.contains("token: 0"));
@@ -3554,7 +3789,12 @@ mod tests {
                 .unwrap() as u16;
             assert_eq!(running_buffer.cell((0, completed_row)).unwrap().fg, FAINT);
             assert_eq!(running_buffer.cell((0, active_row)).unwrap().fg, ACCENT);
-            assert!(running_rows.last().unwrap().contains("Running bash"));
+            assert!(running_rows
+                .last()
+                .unwrap()
+                .trim_start()
+                .starts_with("◆◇····"));
+            assert!(!running_rows.last().unwrap().contains("Running bash"));
             assert_eq!(running_text.matches('⠋').count(), 1);
             assert!(!running_text.contains("TOOL"));
 
@@ -3586,8 +3826,14 @@ mod tests {
                 responding_buffer.cell((0, response_row)).unwrap().fg,
                 ACCENT
             );
-            assert!(responding_text.contains("●  The hierarchy is now stable."));
-            assert!(responding_rows.last().unwrap().contains("Responding"));
+            assert!(responding_text.contains("The hierarchy is now stable."));
+            assert!(!responding_text.contains("PIS  The hierarchy"));
+            assert!(responding_rows
+                .last()
+                .unwrap()
+                .trim_start()
+                .starts_with("◆◇····"));
+            assert!(!responding_rows.last().unwrap().contains("Responding"));
 
             let mut error = live_test_app("stream_read_error", LiveTurn::default());
             error.live = None;
@@ -3670,10 +3916,12 @@ mod tests {
         assert!(!rows.join("\n").contains("PISPER /"));
         assert!(rows
             .iter()
-            .any(|row| row.contains("[full-access] · gpt-5.6-sol · /workspace")));
+            .any(|row| row.contains("[full-access]  gpt-5.6-sol")));
         assert!(!rows.last().unwrap().contains("token: 0"));
-        assert!(rows.last().unwrap().contains("Thinking"));
-        assert!(!rows.last().unwrap().contains("Thinking · high"));
+        assert!(rows.last().unwrap().trim_start().starts_with("◆◇····"));
+        assert!(!rows.last().unwrap().contains("Thinking"));
+        assert!(rows.last().unwrap().contains("gpt-5.6-sol  high"));
+        assert!(rows.last().unwrap().contains("ctx 4%"));
         let message_row = rows
             .iter()
             .position(|row| row.contains("Pisper is ready."))
@@ -3682,7 +3930,7 @@ mod tests {
             .iter()
             .rposition(|row| row.contains("╭─ ⠋ thinking"))
             .unwrap();
-        assert!(rows[message_row].starts_with("●  Pisper is ready."));
+        assert!(rows[message_row].starts_with("Pisper is ready."));
         assert!(
             rows[thinking_row].starts_with("╭─ ⠋ thinking"),
             "activity rail is not left aligned: {}",
@@ -3785,10 +4033,10 @@ mod tests {
             })
             .collect::<Vec<_>>();
 
-        assert!(rows[23].contains("token: 88M cache 79%"));
+        assert!(rows[23].contains("88M · cache 79%"));
         assert_eq!(
             rows.iter()
-                .filter(|row| row.contains("token: 88M cache 79%"))
+                .filter(|row| row.contains("88M · cache 79%"))
                 .count(),
             1
         );
@@ -3837,11 +4085,12 @@ mod tests {
                 .collect::<Vec<_>>();
             let rendered = rows.join("\n");
 
-            assert!(rendered.contains("Approval required"));
-            assert!(rendered.contains("Risk · high"));
+            assert!(rendered.contains("Approval"));
+            assert!(rendered.contains("High risk"));
+            assert!(rendered.contains("Risk · High"));
             assert!(rendered.contains("date +%A"));
             assert!(rendered.contains("Reason ·"));
-            assert!(rendered.contains("Runs as"));
+            assert!(rendered.contains("Runs"));
             assert!(rendered.contains("current OS user"));
             assert!(rendered.contains("[Y]"));
             assert!(rendered.contains("Allow"));
@@ -3850,7 +4099,7 @@ mod tests {
             if width > CONVERSATION_WIDTH {
                 let title = rows
                     .iter()
-                    .find(|row| row.contains("Approval required"))
+                    .find(|row| row.contains("Approval") && row.contains("High risk"))
                     .unwrap();
                 assert!(title.starts_with('┌'));
                 assert!(title.ends_with('┐'));
@@ -4261,7 +4510,7 @@ mod tests {
                 .collect::<Vec<_>>();
             let plan_row = rows
                 .iter()
-                .position(|row| row.contains("Plan · 4/7"))
+                .position(|row| row.contains("Plan  4/7"))
                 .unwrap();
             let composer_row = rows
                 .iter()
@@ -4289,7 +4538,7 @@ mod tests {
             terminal.draw(|frame| draw(frame, &app)).unwrap();
             let cleared = format!("{:?}", terminal.backend().buffer());
             assert!(app.session.plan.is_none());
-            assert!(!cleared.contains("Plan ·"));
+            assert!(!cleared.contains("Plan  "));
             assert!(!cleared.contains("Plan 1/1"));
             assert!(cleared.contains("Message Pisper"));
         }
@@ -4315,7 +4564,8 @@ mod tests {
         assert!(!rows.join("\n").contains("token: 0"));
         assert!(!rows.join("\n").contains("cache —"));
         assert!(rows.iter().any(|row| {
-            row.contains("[full-access] · gpt-5.6-sol") && row.contains("Thinking · high")
+            row.trim_start()
+                .starts_with("[full-access]  gpt-5.6-sol  high")
         }));
         assert!((18..=24).contains(&input_row));
         assert!(rows[input_row]
@@ -4552,12 +4802,13 @@ mod tests {
     }
 
     #[test]
-    fn responding_status_bar_keeps_animating_without_a_pulse_bar() {
+    fn running_status_bar_uses_the_pisper_scanner_without_phase_text() {
         let session = SessionSummary {
             id: "session-1".to_owned(),
             model: "openai/gpt-5.6-sol".to_owned(),
             cwd: "/workspace".to_owned(),
             execution_mode: "full-access".to_owned(),
+            thinking_level: "high".to_owned(),
             ..SessionSummary::default()
         };
         let mut app = App::new(
@@ -4593,11 +4844,21 @@ mod tests {
             .map(|cell| cell.symbol())
             .collect::<String>();
 
-        assert!(bottom.starts_with("[full-access] · gpt-5.6-sol"));
-        assert!(bottom.contains("⠋ Responding"));
-        assert!(next_bottom.contains("⠙ Responding"));
-        assert!(!bottom.contains('▁'));
-        assert!(!bottom.contains('▅'));
+        assert!(bottom.trim_start().starts_with("◆◇····"));
+        assert!(bottom.contains("[full-access]  gpt-5.6-sol  high"));
+        assert!(next_bottom.trim_start().starts_with("◇◆◇···"));
+        assert!(!bottom.contains("Thinking"));
+        assert!(!bottom.contains("Responding"));
+
+        app.live = None;
+        app.status = "running bash".to_owned();
+        terminal.draw(|frame| draw(frame, &app)).unwrap();
+        let tool_bottom = (0..80)
+            .filter_map(|x| terminal.backend().buffer().cell((x, 23)))
+            .map(|cell| cell.symbol())
+            .collect::<String>();
+        assert!(tool_bottom.trim_start().starts_with("◇◆◇···"));
+        assert!(!tool_bottom.contains("Running bash"));
     }
 
     #[test]
@@ -4638,9 +4899,9 @@ mod tests {
             .iter()
             .find(|row| row.contains("Existing history"))
             .unwrap();
-        assert!(message.starts_with("●  Existing history"));
+        assert!(message.starts_with("Existing history"));
         let content_byte = message.find("Existing history").unwrap();
-        assert_eq!(message[..content_byte].width(), 3);
+        assert_eq!(message[..content_byte].width(), 0);
         assert!(!rows.join("\n").contains("Header must stay hidden"));
         assert!(!rows.join("\n").contains("╭─────────╮"));
     }

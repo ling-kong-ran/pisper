@@ -38,6 +38,15 @@ fn current_plan_item_index(plan: &Plan) -> usize {
         .unwrap_or_else(|| plan.items.len().saturating_sub(1))
 }
 const LINE_SCROLL_STEP: u16 = 1;
+
+fn env_flag(name: &str) -> bool {
+    std::env::var(name).is_ok_and(|value| {
+        matches!(
+            value.trim().to_ascii_lowercase().as_str(),
+            "1" | "true" | "yes" | "on"
+        )
+    })
+}
 const PAGE_SCROLL_STEP: u16 = 8;
 
 #[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
@@ -254,7 +263,10 @@ pub struct App {
     pub status: String,
     pub status_error: bool,
     pub status_frame: u64,
+    reduced_motion: bool,
     pub approval: Option<Approval>,
+    pending_approvals: VecDeque<Approval>,
+    approval_resolving: bool,
     pub approval_scroll: Cell<u16>,
     pub approval_max_scroll: Cell<u16>,
     pub attachments: Vec<AttachmentDraft>,
@@ -359,7 +371,10 @@ impl App {
             status: String::new(),
             status_error: false,
             status_frame: 0,
+            reduced_motion: env_flag("PISPER_TUI_REDUCED_MOTION"),
             approval: None,
+            pending_approvals: VecDeque::new(),
+            approval_resolving: false,
             approval_scroll: Cell::new(0),
             approval_max_scroll: Cell::new(0),
             attachments: Vec::new(),
@@ -464,6 +479,13 @@ impl App {
         self.live.as_ref().is_some_and(|turn| turn.streaming)
     }
 
+    pub fn is_running_state(&self) -> bool {
+        self.is_streaming()
+            || self.compacting_context
+            || matches!(self.status.as_str(), "thinking" | "streaming")
+            || self.status.starts_with("running ")
+    }
+
     pub fn has_pending_render(&self) -> bool {
         self.live.as_ref().is_some_and(|turn| {
             turn.text != turn.text_target || turn.thinking != turn.thinking_target
@@ -472,14 +494,27 @@ impl App {
 
     pub fn advance_stream_render(&mut self) {
         if let Some(live) = self.live.as_mut() {
-            advance_typewriter(&mut live.thinking, &live.thinking_target);
-            advance_typewriter(&mut live.text, &live.text_target);
+            if self.reduced_motion || self.scroll.get() > 0 {
+                live.thinking.clone_from(&live.thinking_target);
+                live.text.clone_from(&live.text_target);
+            } else {
+                advance_typewriter(&mut live.thinking, &live.thinking_target);
+                advance_typewriter(&mut live.text, &live.text_target);
+            }
         }
-        self.status_frame = self.status_frame.wrapping_add(1);
+        if !self.reduced_motion {
+            self.status_frame = self.status_frame.wrapping_add(1);
+        }
     }
 
     pub fn advance_status_animation(&mut self) {
-        self.status_frame = self.status_frame.wrapping_add(5);
+        if !self.reduced_motion {
+            self.status_frame = self.status_frame.wrapping_add(1);
+        }
+    }
+
+    pub fn reduced_motion(&self) -> bool {
+        self.reduced_motion
     }
 
     pub fn slash_open(&self) -> bool {
@@ -493,6 +528,68 @@ impl App {
 
     pub fn queued_count(&self) -> usize {
         self.queued_prompts.len() + self.runtime_queued_count
+    }
+
+    pub fn approval_count(&self) -> usize {
+        usize::from(self.approval.is_some()) + self.pending_approvals.len()
+    }
+
+    pub fn approval_by_id(&self, id: &str) -> Option<&Approval> {
+        self.approval
+            .iter()
+            .chain(self.pending_approvals.iter())
+            .find(|approval| approval.id == id)
+    }
+
+    pub fn approval_is_resolving(&self) -> bool {
+        self.approval_resolving
+    }
+
+    fn enqueue_approval(&mut self, approval: Approval) {
+        if self
+            .approval
+            .as_ref()
+            .is_some_and(|item| item.id == approval.id)
+        {
+            self.approval = Some(approval);
+        } else if let Some(existing) = self
+            .pending_approvals
+            .iter_mut()
+            .find(|item| item.id == approval.id)
+        {
+            *existing = approval;
+        } else if self.approval.is_none() {
+            self.approval = Some(approval);
+        } else {
+            self.pending_approvals.push_back(approval);
+        }
+    }
+
+    pub fn approval_resolution_succeeded(&mut self, id: &str) {
+        if self
+            .approval
+            .as_ref()
+            .is_some_and(|approval| approval.id == id)
+        {
+            self.approval = self.pending_approvals.pop_front();
+            self.approval_resolving = false;
+            self.approval_scroll.set(0);
+            self.approval_max_scroll.set(0);
+        } else {
+            self.pending_approvals.retain(|approval| approval.id != id);
+        }
+    }
+
+    pub fn approval_resolution_failed(&mut self) {
+        self.approval_resolving = false;
+    }
+
+    fn clear_approvals(&mut self) {
+        self.approval = None;
+        self.pending_approvals.clear();
+        self.approval_resolving = false;
+        self.approval_scroll.set(0);
+        self.approval_max_scroll.set(0);
     }
 
     pub fn set_startup_data(
@@ -920,8 +1017,33 @@ impl App {
     }
 
     pub fn handle_key(&mut self, key: KeyEvent) -> Action {
-        if key.kind != crossterm::event::KeyEventKind::Press {
+        if key.kind == crossterm::event::KeyEventKind::Release {
             return Action::None;
+        }
+        if key.kind == crossterm::event::KeyEventKind::Repeat {
+            let navigation = matches!(
+                key.code,
+                KeyCode::Backspace
+                    | KeyCode::Delete
+                    | KeyCode::Left
+                    | KeyCode::Right
+                    | KeyCode::Up
+                    | KeyCode::Down
+                    | KeyCode::PageUp
+                    | KeyCode::PageDown
+                    | KeyCode::Home
+                    | KeyCode::End
+            );
+            let composer_character = matches!(key.code, KeyCode::Char(_))
+                && self.view == View::Chat
+                && self.accepts_composer_input()
+                && !self.confirm_model_compaction
+                && !key
+                    .modifiers
+                    .intersects(KeyModifiers::CONTROL | KeyModifiers::ALT);
+            if !navigation && !composer_character {
+                return Action::None;
+            }
         }
         if key.modifiers.contains(KeyModifiers::CONTROL)
             && key.code == KeyCode::Char('c')
@@ -933,9 +1055,7 @@ impl App {
         }
         if key.modifiers.contains(KeyModifiers::CONTROL) && key.code == KeyCode::Char('c') {
             return if self.is_streaming() || self.approval.is_some() {
-                self.approval = None;
-                self.approval_scroll.set(0);
-                self.approval_max_scroll.set(0);
+                self.clear_approvals();
                 if self.abort_pressed {
                     Action::Quit
                 } else {
@@ -962,19 +1082,19 @@ impl App {
         }
         if let Some(approval) = self.approval.clone() {
             return match key.code {
-                KeyCode::Char('y') | KeyCode::Char('Y') => {
-                    self.approval = None;
-                    self.approval_scroll.set(0);
-                    self.approval_max_scroll.set(0);
+                KeyCode::Char('y') | KeyCode::Char('Y') if !self.approval_resolving => {
+                    self.approval_resolving = true;
+                    self.status = "resolving approval".to_owned();
                     Action::ResolveApproval {
                         id: approval.id,
                         approved: true,
                     }
                 }
-                KeyCode::Char('n') | KeyCode::Char('N') | KeyCode::Esc => {
-                    self.approval = None;
-                    self.approval_scroll.set(0);
-                    self.approval_max_scroll.set(0);
+                KeyCode::Char('n') | KeyCode::Char('N') | KeyCode::Esc
+                    if !self.approval_resolving =>
+                {
+                    self.approval_resolving = true;
+                    self.status = "resolving approval".to_owned();
                     Action::ResolveApproval {
                         id: approval.id,
                         approved: false,
@@ -2263,6 +2383,7 @@ impl App {
         cap_message_count(&mut self.messages);
         self.reset_history_window();
         self.live = None;
+        self.clear_approvals();
         self.attachments.clear();
         self.path_picker = false;
         self.path_input.clear();
@@ -2529,6 +2650,10 @@ impl App {
             }
             return;
         }
+        if event.name == "permission_resolved" {
+            self.approval_resolution_succeeded(&string_field(&event.data, "id"));
+            return;
+        }
         let Some(live) = self.live.as_mut() else {
             return;
         };
@@ -2600,7 +2725,7 @@ impl App {
             }
             "permission_request" => {
                 sync_live_display(live);
-                self.approval = Some(Approval {
+                self.enqueue_approval(Approval {
                     id: string_field(&event.data, "id"),
                     tool_name: string_field(&event.data, "toolName"),
                     args: event.data["args"].clone(),
@@ -2654,10 +2779,12 @@ impl App {
             _ => {}
         }
         if event.name == "done" {
+            self.clear_approvals();
             if let Some(command) = self.pending_slash_command.take() {
                 self.mark_slash_use(&command);
             }
         } else if event.name == "error" {
+            self.clear_approvals();
             self.pending_slash_command = None;
         }
     }
@@ -2717,6 +2844,7 @@ impl App {
         if let Some(live) = self.live.as_mut() {
             live.streaming = false;
         }
+        self.clear_approvals();
         self.runtime_queued_count = 0;
         self.abort_pressed = false;
         self.pending_slash_command = None;
@@ -3252,6 +3380,34 @@ mod tests {
     }
 
     #[test]
+    fn reduced_motion_and_scrollback_skip_incremental_stream_reveal() {
+        let mut reduced = test_app(Vec::new());
+        reduced.reduced_motion = true;
+        reduced.live = Some(LiveTurn {
+            thinking_target: "Inspect the entire response".to_owned(),
+            text_target: "Render it without animation".to_owned(),
+            streaming: true,
+            ..LiveTurn::default()
+        });
+        reduced.advance_stream_render();
+        let live = reduced.live.as_ref().unwrap();
+        assert_eq!(live.thinking, live.thinking_target);
+        assert_eq!(live.text, live.text_target);
+        assert_eq!(reduced.status_frame, 0);
+
+        let mut scrolled = test_app(Vec::new());
+        scrolled.scroll.set(1);
+        scrolled.live = Some(LiveTurn {
+            text_target: "Do not animate below the visible history".to_owned(),
+            streaming: true,
+            ..LiveTurn::default()
+        });
+        scrolled.advance_stream_render();
+        let live = scrolled.live.as_ref().unwrap();
+        assert_eq!(live.text, live.text_target);
+    }
+
+    #[test]
     fn mode_command_changes_the_current_session_without_calling_the_agent() {
         let mut app = test_app(Vec::new());
         app.set_input("keep running");
@@ -3269,6 +3425,25 @@ mod tests {
         assert_eq!(app.session.execution_mode, "full-access");
         assert_eq!(app.status, "mode changed · full-access");
         assert!(!app.status_error);
+    }
+
+    #[test]
+    fn safe_key_repeats_edit_the_composer_without_repeating_commands() {
+        let mut app = test_app(Vec::new());
+        app.set_input("ab");
+        let mut backspace = KeyEvent::new(KeyCode::Backspace, KeyModifiers::NONE);
+        backspace.kind = crossterm::event::KeyEventKind::Repeat;
+        assert!(matches!(app.handle_key(backspace), Action::None));
+        assert_eq!(app.input_text(), "a");
+
+        let mut character = KeyEvent::new(KeyCode::Char('x'), KeyModifiers::NONE);
+        character.kind = crossterm::event::KeyEventKind::Repeat;
+        app.handle_key(character);
+        assert_eq!(app.input_text(), "ax");
+
+        let mut quit = KeyEvent::new(KeyCode::Char('c'), KeyModifiers::CONTROL);
+        quit.kind = crossterm::event::KeyEventKind::Repeat;
+        assert!(matches!(app.handle_key(quit), Action::None));
     }
 
     #[test]
@@ -3290,6 +3465,15 @@ mod tests {
                 Action::ResolveApproval { id, approved: actual }
                     if id == "approval-1" && actual == approved
             ));
+            assert!(app.approval.is_some());
+            assert!(app.approval_is_resolving());
+            assert!(matches!(
+                app.handle_key(KeyEvent::new(KeyCode::Char(key), KeyModifiers::NONE)),
+                Action::None
+            ));
+            app.approval_resolution_failed();
+            assert!(!app.approval_is_resolving());
+            app.approval_resolution_succeeded("approval-1");
             assert!(app.approval.is_none());
             assert_eq!(app.approval_scroll.get(), 0);
             assert_eq!(app.approval_max_scroll.get(), 0);
@@ -3460,6 +3644,56 @@ mod tests {
         assert_eq!(approval.risk, "high");
         assert_eq!(app.approval_scroll.get(), 0);
         assert_eq!(app.approval_max_scroll.get(), 0);
+    }
+
+    #[test]
+    fn permission_events_queue_requests_and_remove_resolved_items_by_id() {
+        let mut app = test_app(Vec::new());
+        app.set_input("run tools");
+        assert!(matches!(app.submit_action(), Action::Submit { .. }));
+        for id in ["approval-1", "approval-2"] {
+            app.apply_stream_event(StreamEvent {
+                name: "permission_request".to_owned(),
+                data: json!({
+                    "id": id,
+                    "toolName": "bash",
+                    "args": { "command": id },
+                    "risk": "high",
+                    "reason": "Runs as the current OS user."
+                }),
+            });
+        }
+
+        assert_eq!(app.approval_count(), 2);
+        assert_eq!(
+            app.approval.as_ref().map(|item| item.id.as_str()),
+            Some("approval-1")
+        );
+        assert!(app.approval_by_id("approval-2").is_some());
+        assert!(matches!(
+            app.handle_key(KeyEvent::new(KeyCode::Char('y'), KeyModifiers::NONE)),
+            Action::ResolveApproval { id, approved: true } if id == "approval-1"
+        ));
+        assert!(app.approval_is_resolving());
+
+        app.apply_stream_event(StreamEvent {
+            name: "permission_resolved".to_owned(),
+            data: json!({ "id": "approval-2", "approved": false }),
+        });
+        assert_eq!(app.approval_count(), 1);
+        assert!(app.approval_is_resolving());
+        assert_eq!(
+            app.approval.as_ref().map(|item| item.id.as_str()),
+            Some("approval-1")
+        );
+
+        app.apply_stream_event(StreamEvent {
+            name: "permission_resolved".to_owned(),
+            data: json!({ "id": "approval-1", "approved": true }),
+        });
+        assert_eq!(app.approval_count(), 0);
+        assert!(!app.approval_is_resolving());
+        assert!(app.approval.is_none());
     }
 
     #[test]

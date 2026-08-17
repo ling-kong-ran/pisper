@@ -267,9 +267,9 @@ async fn run_event_loop(
             skills,
         });
     });
-    let mut animation = tokio::time::interval(Duration::from_millis(24));
+    let mut animation = tokio::time::interval(Duration::from_millis(60));
     animation.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Skip);
-    let mut status_animation = tokio::time::interval(Duration::from_millis(120));
+    let mut status_animation = tokio::time::interval(Duration::from_millis(80));
     status_animation.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Skip);
     let mut history_eviction = tokio::time::interval(Duration::from_secs(5));
     history_eviction.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Skip);
@@ -346,62 +346,100 @@ async fn run_event_loop(
                             RuntimeEvent::Stream(event) => {
                                 let terminal = matches!(event.name.as_str(), "done" | "error");
                                 let completed = event.name == "done";
-                                let permission_requested = event.name == "permission_request";
+                                let approval_event = matches!(
+                                    event.name.as_str(),
+                                    "permission_request" | "permission_resolved"
+                                )
+                                .then(|| {
+                                    (
+                                        event.name.clone(),
+                                        event.data["id"].as_str().unwrap_or_default().to_owned(),
+                                    )
+                                });
                                 app.apply_stream_event(event);
-                                if permission_requested {
-                                    if let Some(approval) = app.approval.as_ref() {
-                                        if notified_approval_ids.insert(approval.id.clone()) {
-                                            let waiting = notification::chat_waiting(&app, approval);
-                                            if let Ok(dispatch) = api
-                                                .notify_chat_waiting(
-                                                    &waiting.title,
-                                                    &waiting.tool,
-                                                    &waiting.reason,
-                                                    &waiting.model,
-                                                )
-                                                .await
-                                            {
-                                                if dispatch.system_notification_enabled {
-                                                    notification::show_system(
-                                                        &format!(
-                                                            "{} · Waiting for confirmation",
-                                                            waiting.title
-                                                        ),
-                                                        &format!(
-                                                            "{} requires confirmation. {}",
-                                                            waiting.tool, waiting.reason
-                                                        ),
-                                                    );
-                                                }
-                                                let _ = dispatch.channel_error;
-                                            }
+                                if let Some((name, approval_id)) = approval_event {
+                                    if name == "permission_resolved" {
+                                        notified_approval_ids.remove(&approval_id);
+                                    } else if !approval_id.is_empty()
+                                        && notified_approval_ids.insert(approval_id.clone())
+                                    {
+                                        if let Some(approval) = app.approval_by_id(&approval_id) {
+                                            spawn_waiting_notification(
+                                                &api,
+                                                notification::chat_waiting(&app, approval),
+                                            );
                                         }
                                     }
                                 }
                                 if should_notify_completion(completed, app.queued_count()) {
-                                    let completion = notification::chat_completion(&app);
-                                    if let Ok(dispatch) = api
-                                        .notify_chat_completed(
-                                            &completion.title,
-                                            &completion.summary,
-                                            &completion.model,
-                                        )
-                                        .await
-                                    {
-                                        if dispatch.system_notification_enabled {
-                                            notification::show_system(
-                                                &format!("{} · Agent completed", completion.title),
-                                                &completion.summary,
-                                            );
-                                        }
-                                        let _ = dispatch.channel_error;
-                                    }
+                                    spawn_completion_notification(
+                                        &api,
+                                        notification::chat_completion(&app),
+                                    );
+                                }
+                                if terminal {
+                                    notified_approval_ids.clear();
                                 }
                                 terminal
                             }
                             RuntimeEvent::StreamFailed(message) => {
                                 app.stream_failed(message);
                                 true
+                            }
+                            RuntimeEvent::QueueInputFinished {
+                                session_id,
+                                message,
+                                result,
+                            } => {
+                                if app.session.id != session_id {
+                                    false
+                                } else {
+                                    match result {
+                                        Ok(queued_count) => {
+                                            app.queue_input_succeeded(message, queued_count);
+                                            false
+                                        }
+                                        Err(error) if is_ended_session_queue_error(&error) => {
+                                            app.defer_input_after_run(message);
+                                            !app.is_streaming()
+                                        }
+                                        Err(error) => {
+                                            app.queue_input_failed(message, error);
+                                            false
+                                        }
+                                    }
+                                }
+                            }
+                            RuntimeEvent::AbortFinished { session_id, result } => {
+                                if app.session.id == session_id {
+                                    match result {
+                                        Ok(()) if app.is_streaming() => {
+                                            app.status = "stopping".to_owned();
+                                            app.status_error = false;
+                                        }
+                                        Ok(()) => {}
+                                        Err(error) if app.is_streaming() => {
+                                            app.status = format!("abort failed · {error}");
+                                            app.status_error = true;
+                                        }
+                                        Err(_) => {}
+                                    }
+                                }
+                                false
+                            }
+                            RuntimeEvent::ExecutionModeFinished { session_id, result } => {
+                                if app.session.id == session_id {
+                                    match result {
+                                        Ok(updated) => {
+                                            app.set_execution_mode(updated.execution_mode)
+                                        }
+                                        Err(error) => {
+                                            app.status = format!("mode change failed · {error}");
+                                            app.status_error = true;
+                                        }
+                                    }
+                                }
+                                false
                             }
                             RuntimeEvent::HistoryPage { before, result } => {
                                 match result {
@@ -461,6 +499,33 @@ async fn run_event_loop(
                                 app.finish_context_compaction(context_usage, error);
                                 false
                             }
+                            RuntimeEvent::ApprovalResolved {
+                                session_id,
+                                approval_id,
+                                approved,
+                                result,
+                            } => {
+                                if app.session.id == session_id {
+                                    match result {
+                                        Ok(()) => {
+                                            app.approval_resolution_succeeded(&approval_id);
+                                            app.status = if approved {
+                                                "approved"
+                                            } else {
+                                                "denied"
+                                            }
+                                            .to_owned();
+                                            app.status_error = false;
+                                        }
+                                        Err(error) => {
+                                            app.approval_resolution_failed();
+                                            app.status = format!("approval failed · {error}");
+                                            app.status_error = true;
+                                        }
+                                    }
+                                }
+                                false
+                            }
                             RuntimeEvent::VcsResult { session_id, result } => {
                                 if app.session.id == session_id {
                                     match result {
@@ -507,7 +572,7 @@ async fn run_event_loop(
                 }
                 resize_settled || pending_resize.is_none()
             }
-            _ = status_animation.tick(), if (app.is_streaming() || app.compacting_context) && !app.has_pending_render() && pending_resize.is_none() => {
+            _ = status_animation.tick(), if app.is_running_state() && !app.has_pending_render() && !app.reduced_motion() && pending_resize.is_none() => {
                 app.advance_status_animation();
                 true
             }
@@ -539,7 +604,7 @@ async fn handle_key_with_paste_burst(
 
     apply_paste_flush(paste_burst.flush_if_due(now), app);
 
-    if composer_active && is_paste_shortcut(&key) {
+    if composer_active && key.kind == KeyEventKind::Press && is_paste_shortcut(&key) {
         apply_paste_flush(paste_burst.flush(), app);
         if let Some(text) = read_clipboard_text().map(normalize_clipboard_text) {
             app.insert_paste(&text);
@@ -551,12 +616,19 @@ async fn handle_key_with_paste_burst(
     }
 
     if composer_active
+        && key.kind == KeyEventKind::Press
         && is_inline_attachment_shortcut(
             &key,
             app.input_text().is_empty(),
             paste_burst.is_buffering(),
         )
     {
+        let action = app.handle_key(key);
+        return execute_action(action, app, api, runtime_tx).await;
+    }
+
+    if composer_active && key.kind == KeyEventKind::Repeat {
+        apply_paste_flush(paste_burst.flush(), app);
         let action = app.handle_key(key);
         return execute_action(action, app, api, runtime_tx).await;
     }
@@ -638,6 +710,56 @@ fn apply_paste_flush(result: FlushResult, app: &mut App) {
 
 fn should_notify_completion(completed: bool, queued_count: usize) -> bool {
     completed && queued_count == 0
+}
+
+fn is_ended_session_queue_error(error: &str) -> bool {
+    let normalized = error.to_lowercase();
+    normalized.contains("当前会话已经结束运行")
+        || (normalized.contains("session")
+            && ["ended", "finished", "no longer running"]
+                .iter()
+                .any(|value| normalized.contains(value)))
+}
+
+fn spawn_waiting_notification(api: &ApiClient, waiting: notification::ChatWaiting) {
+    let api = api.clone();
+    tokio::spawn(async move {
+        let Ok(dispatch) = api
+            .notify_chat_waiting(
+                &waiting.title,
+                &waiting.tool,
+                &waiting.reason,
+                &waiting.model,
+            )
+            .await
+        else {
+            return;
+        };
+        if dispatch.system_notification_enabled {
+            let title = format!("{} · Waiting for confirmation", waiting.title);
+            let body = format!("{} requires confirmation. {}", waiting.tool, waiting.reason);
+            tokio::task::spawn_blocking(move || notification::show_system(&title, &body));
+        }
+        let _ = dispatch.channel_error;
+    });
+}
+
+fn spawn_completion_notification(api: &ApiClient, completion: notification::ChatCompletion) {
+    let api = api.clone();
+    tokio::spawn(async move {
+        let Ok(dispatch) = api
+            .notify_chat_completed(&completion.title, &completion.summary, &completion.model)
+            .await
+        else {
+            return;
+        };
+        if dispatch.system_notification_enabled {
+            let title = format!("{} · Agent completed", completion.title);
+            let body = completion.summary;
+            tokio::task::spawn_blocking(move || notification::show_system(&title, &body));
+        }
+        let _ = dispatch.channel_error;
+    });
 }
 
 fn resize_area(width: u16, height: u16) -> Option<Rect> {
@@ -792,10 +914,12 @@ async fn execute_action(
             let api = api.clone();
             let sender = runtime_tx.clone();
             let session_id = app.session.id.clone();
+            let workspace = PathBuf::from(&app.cwd);
             tokio::spawn(async move {
                 if let Err(error) = api
                     .stream_chat(
                         session_id,
+                        workspace,
                         message,
                         requested_tool,
                         attachment_paths,
@@ -808,21 +932,33 @@ async fn execute_action(
             });
         }
         Action::QueueInput { message } => {
-            match api.queue_session_input(&app.session.id, &message).await {
-                Ok(queued_count) => app.queue_input_succeeded(message, queued_count),
-                Err(error) if format!("{error:#}").contains("当前会话已经结束运行") => {
-                    app.defer_input_after_run(message);
-                }
-                Err(error) => app.queue_input_failed(message, format!("{error:#}")),
-            }
+            let api = api.clone();
+            let sender = runtime_tx.clone();
+            let session_id = app.session.id.clone();
+            tokio::spawn(async move {
+                let result = api
+                    .queue_session_input(&session_id, &message)
+                    .await
+                    .map_err(|error| format!("{error:#}"));
+                let _ = sender.send(RuntimeEvent::QueueInputFinished {
+                    session_id,
+                    message,
+                    result,
+                });
+            });
         }
-        Action::Abort => match api.abort(&app.session.id).await {
-            Ok(()) => app.status = "stopping".to_owned(),
-            Err(error) => {
-                app.status = format!("abort failed · {error:#}");
-                app.status_error = true;
-            }
-        },
+        Action::Abort => {
+            let api = api.clone();
+            let sender = runtime_tx.clone();
+            let session_id = app.session.id.clone();
+            tokio::spawn(async move {
+                let result = api
+                    .abort(&session_id)
+                    .await
+                    .map_err(|error| format!("{error:#}"));
+                let _ = sender.send(RuntimeEvent::AbortFinished { session_id, result });
+            });
+        }
         Action::LoadOlderMessages { before } => {
             let api = api.clone();
             let session_id = app.session.id.clone();
@@ -853,13 +989,21 @@ async fn execute_action(
             });
         }
         Action::ResolveApproval { id, approved } => {
-            match api.resolve_approval(&app.session.id, &id, approved).await {
-                Ok(()) => app.status = if approved { "approved" } else { "denied" }.to_owned(),
-                Err(error) => {
-                    app.status = format!("approval failed · {error:#}");
-                    app.status_error = true;
-                }
-            }
+            let api = api.clone();
+            let sender = runtime_tx.clone();
+            let session_id = app.session.id.clone();
+            tokio::spawn(async move {
+                let result = api
+                    .resolve_approval(&session_id, &id, approved)
+                    .await
+                    .map_err(|error| format!("{error:#}"));
+                let _ = sender.send(RuntimeEvent::ApprovalResolved {
+                    session_id,
+                    approval_id: id,
+                    approved,
+                    result,
+                });
+            });
         }
         Action::RefreshVcs => {
             if app.vcs_loading {
@@ -954,13 +1098,16 @@ async fn execute_action(
             if app.is_draft_session() {
                 app.set_execution_mode(mode);
             } else {
-                match api.set_execution_mode(&app.session.id, &mode).await {
-                    Ok(updated) => app.set_execution_mode(updated.execution_mode),
-                    Err(error) => {
-                        app.status = format!("mode change failed · {error}");
-                        app.status_error = true;
-                    }
-                }
+                let api = api.clone();
+                let sender = runtime_tx.clone();
+                let session_id = app.session.id.clone();
+                tokio::spawn(async move {
+                    let result = api
+                        .set_execution_mode(&session_id, &mode)
+                        .await
+                        .map_err(|error| format!("{error:#}"));
+                    let _ = sender.send(RuntimeEvent::ExecutionModeFinished { session_id, result });
+                });
             }
         }
         Action::SetModel { provider, model } => {
@@ -1245,9 +1392,10 @@ impl Drop for TerminalSession {
 #[cfg(test)]
 mod tests {
     use super::{
-        draft_session, is_inline_attachment_shortcut, is_paste_shortcut, requested_help,
-        resize_area, resize_has_settled, resume_seed, should_handle_key_kind,
-        should_notify_completion, terminal_content_area, CLI_HELP, WEB_HELP,
+        draft_session, is_ended_session_queue_error, is_inline_attachment_shortcut,
+        is_paste_shortcut, requested_help, resize_area, resize_has_settled, resume_seed,
+        should_handle_key_kind, should_notify_completion, terminal_content_area, CLI_HELP,
+        WEB_HELP,
     };
     use crate::model::SessionSummary;
     use crossterm::event::{KeyCode, KeyEvent, KeyEventKind, KeyModifiers};
@@ -1310,6 +1458,17 @@ mod tests {
             true,
             false
         ));
+    }
+
+    #[test]
+    fn ended_session_queue_errors_accept_runtime_languages() {
+        assert!(is_ended_session_queue_error(
+            "当前会话已经结束运行，请作为新消息发送。"
+        ));
+        assert!(is_ended_session_queue_error(
+            "Session has finished and is no longer running"
+        ));
+        assert!(!is_ended_session_queue_error("Provider request failed"));
     }
 
     #[test]

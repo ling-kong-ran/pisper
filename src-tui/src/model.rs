@@ -404,6 +404,19 @@ pub enum RuntimeEvent {
     },
     Stream(StreamEvent),
     StreamFailed(String),
+    QueueInputFinished {
+        session_id: String,
+        message: String,
+        result: Result<usize, String>,
+    },
+    AbortFinished {
+        session_id: String,
+        result: Result<(), String>,
+    },
+    ExecutionModeFinished {
+        session_id: String,
+        result: Result<ExecutionModeUpdate, String>,
+    },
     HistoryPage {
         before: u64,
         result: Result<MessagePage, String>,
@@ -420,6 +433,12 @@ pub enum RuntimeEvent {
     CompactionFinished {
         context_usage: Option<ContextUsage>,
         error: Option<String>,
+    },
+    ApprovalResolved {
+        session_id: String,
+        approval_id: String,
+        approved: bool,
+        result: Result<(), String>,
     },
     VcsResult {
         session_id: String,

@@ -105,11 +105,13 @@ pisper doctor
 - `Up` / `Down`：移动 Slash、会话、模型、思考等级或文件选择器中的选中项。
 - `Tab`：仅在 Slash 列表打开时补全当前候选。
 - `Esc`：关闭当前选择器、清空 Slash 草稿，或从 Changes 返回 Chat。
-- `↑` / `↓`：逐行翻阅消息；`PageUp` / `PageDown`：每次翻阅 8 行。TUI 仅保留最新 100 条消息，避免长会话持续占用内存。
+- `↑` / `↓`：逐行翻阅消息；`PageUp` / `PageDown`：每次翻阅 8 行。历史消息按需分页加载，内存中最多保留 160 条，空闲后回收到最近 80 条，避免长会话持续占用内存。
 - `Home` / `End`、`Left` / `Right`、`Backspace` / `Delete`：编辑 composer 草稿。
 - `Ctrl+C`：Agent 运行或等待审批时中止当前 run（若 Agent 卡住未在超时窗口内响应，Runtime 会强制结束该次运行）；运行中再次 `Ctrl+C` 强制退出 TUI；空闲时退出 TUI。
 
-最底部状态栏以 `token: 88M cache 79%` 的紧凑格式显示当前会话 Provider 返回的 Token 总量和真实缓存命中率，数据按会话隔离。
+最底部状态栏整体左对齐。会话运行期间，最左侧使用固定宽度的双向菱形扫描动画，不再显示 `Thinking`、`Responding` 等阶段文字；之后依次显示执行模式、模型、思考等级和指标，例如 `◆◇····  [full-access]  gpt-5.6-sol  high  ·  88M  ·  cache 79%`。队列和审批位置追加在指标之后，数据按会话隔离。
+
+TUI 默认使用终端真彩色，并在 `TERM` 表明仅支持 256 色时自动降级。可用 `PISPER_TUI_THEME=ansi256` 强制 256 色，或用 `PISPER_TUI_THEME=monochrome` / `NO_COLOR=1` 使用单色模式。设置 `PISPER_TUI_REDUCED_MOTION=1` 会关闭装饰动画并立即显示完整流式文本；翻阅历史消息时也会暂停逐字揭示。
 
 长文本或多行 bracketed paste 会在 composer 中折叠为 `[Pasted text · …]`，但提交给 Agent 的仍是包含原始换行的完整文本。摘要可作为整体移动和删除。
 
@@ -139,7 +141,7 @@ pisper doctor
 
 `/init` 会让 Agent 先检查项目结构、命令和约定，再生成项目专属的 `AGENTS.md`，而不是写入固定模板。已有文件会在保留有效说明的基础上谨慎更新，且该任务不会修改其他项目文件。`read-only` 模式下不能运行；`full-access` 模式下以当前系统用户权限执行。命令完成后使用 `/new`，可让新会话从启动时加载生成的项目说明。
 
-Agent 创建结构化 Plan 后，TUI 会在消息流和 Composer 之间原位显示步骤、负责人、依赖和状态；窄终端折叠已完成项，底部保留 `Plan · 完成数/总数`。
+Agent 创建结构化 Plan 后，TUI 会在消息流和 Composer 之间原位显示步骤、负责人、依赖和状态；窄终端只保留当前项，顶部细分隔显示 `Plan 完成数/总数`。
 
 ## 附件
 

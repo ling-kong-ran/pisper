@@ -28,6 +28,7 @@ pub struct ApiClient {
     base: Url,
     token: String,
     client: Client,
+    stream_client: Client,
 }
 
 impl ApiClient {
@@ -42,19 +43,29 @@ impl ApiClient {
             header::ORIGIN,
             header::HeaderValue::from_str(base.as_str().trim_end_matches('/'))?,
         );
-        // Keep localhost pooling below Node's default five-second keep-alive.
-        // This reuses startup requests without retaining a socket the runtime
-        // may already have expired.
+        // 本机 Runtime 默认保持连接五秒；缩短连接池空闲时间可复用启动请求，
+        // 同时避免继续持有已被 Runtime 回收的连接。
         let client = Client::builder()
-            .default_headers(headers)
+            .default_headers(headers.clone())
             .no_proxy()
+            .connect_timeout(Duration::from_secs(3))
+            .timeout(Duration::from_secs(15))
             .pool_idle_timeout(Duration::from_secs(4))
             .build()
             .context("failed to create HTTP client")?;
+        // 对话流可能持续很久，因此只限制建连时间，由 SSE 心跳和终态协议决定结束。
+        let stream_client = Client::builder()
+            .default_headers(headers)
+            .no_proxy()
+            .connect_timeout(Duration::from_secs(5))
+            .pool_idle_timeout(Duration::from_secs(4))
+            .build()
+            .context("failed to create streaming HTTP client")?;
         Ok(Self {
             base,
             token: token.to_owned(),
             client,
+            stream_client,
         })
     }
 
@@ -398,14 +409,15 @@ impl ApiClient {
     pub async fn stream_chat(
         &self,
         session_id: String,
+        workspace: PathBuf,
         message: String,
         requested_tool: Option<String>,
         attachment_paths: Vec<PathBuf>,
         sender: mpsc::UnboundedSender<RuntimeEvent>,
     ) -> Result<()> {
-        let attachments = prepare_attachments(&attachment_paths).await?;
+        let attachments = prepare_attachments(&workspace, &attachment_paths).await?;
         let response = self
-            .client
+            .stream_client
             .post(self.url("/api/chat")?)
             .json(&json!({
                 "sessionId": session_id,
@@ -423,18 +435,15 @@ impl ApiClient {
         let mut decoder = SseDecoder::default();
         let mut body = response.bytes_stream();
         while let Some(chunk) = body.next().await {
-            for event in decoder.push(&chunk?, false)? {
-                let terminal = matches!(event.name.as_str(), "done" | "error");
-                let _ = sender.send(RuntimeEvent::Stream(event));
-                if terminal {
-                    return Ok(());
-                }
+            if forward_stream_events(decoder.push(&chunk?, false)?, &sender) {
+                return Ok(());
             }
         }
-        for event in decoder.push(&[], true)? {
-            let _ = sender.send(RuntimeEvent::Stream(event));
+        if forward_stream_events(decoder.push(&[], true)?, &sender) {
+            Ok(())
+        } else {
+            bail!("response stream ended before a terminal event")
         }
-        Ok(())
     }
 }
 
@@ -550,14 +559,41 @@ fn runtime_options(
     )
 }
 
-async fn prepare_attachments(paths: &[PathBuf]) -> Result<Vec<Value>> {
+fn forward_stream_events(
+    events: Vec<StreamEvent>,
+    sender: &mpsc::UnboundedSender<RuntimeEvent>,
+) -> bool {
+    let mut terminal = false;
+    for event in events {
+        terminal |= matches!(event.name.as_str(), "done" | "error");
+        let _ = sender.send(RuntimeEvent::Stream(event));
+    }
+    terminal
+}
+
+async fn prepare_attachments(workspace: &Path, paths: &[PathBuf]) -> Result<Vec<Value>> {
     if paths.len() > 8 {
         bail!("attachment limit exceeded (maximum 8)");
     }
+    let workspace = tokio::fs::canonicalize(workspace)
+        .await
+        .with_context(|| format!("failed to resolve workspace {}", workspace.display()))?;
     let mut result = Vec::with_capacity(paths.len());
     let mut total_size = 0u64;
-    for path in paths {
-        let metadata = tokio::fs::metadata(path)
+    for requested_path in paths {
+        // 附件可能在排队期间被替换，因此必须在真正读取前重新验证工作区边界。
+        let path = tokio::fs::canonicalize(requested_path)
+            .await
+            .with_context(|| {
+                format!("failed to resolve attachment {}", requested_path.display())
+            })?;
+        if !path.starts_with(&workspace) {
+            bail!(
+                "attachment is outside the current workspace: {}",
+                path.display()
+            );
+        }
+        let metadata = tokio::fs::metadata(&path)
             .await
             .with_context(|| format!("failed to inspect attachment {}", path.display()))?;
         if !metadata.is_file() {
@@ -570,14 +606,17 @@ async fn prepare_attachments(paths: &[PathBuf]) -> Result<Vec<Value>> {
         if total_size > 20 * 1024 * 1024 {
             bail!("total attachment size exceeds 20 MiB");
         }
-        let bytes = tokio::fs::read(path)
+        let bytes = tokio::fs::read(&path)
             .await
             .with_context(|| format!("failed to read attachment {}", path.display()))?;
-        let name = path
+        if bytes.len() as u64 != metadata.len() || bytes.len() > 10 * 1024 * 1024 {
+            bail!("attachment changed while being read: {}", path.display());
+        }
+        let name = requested_path
             .file_name()
             .map(|value| value.to_string_lossy().into_owned())
             .unwrap_or_else(|| "attachment".to_owned());
-        let extension = attachment_extension(path);
+        let extension = attachment_extension(&path);
         let common = json!({
             "id": format!("{}-{}", name, metadata.len()),
             "name": name,
@@ -589,7 +628,8 @@ async fn prepare_attachments(paths: &[PathBuf]) -> Result<Vec<Value>> {
             attachment.insert("mimeType".to_owned(), json!(mime_type));
             attachment.insert("data".to_owned(), json!(BASE64.encode(bytes)));
         } else if is_text_extension(&extension) {
-            let text = String::from_utf8_lossy(&bytes);
+            let text = String::from_utf8(bytes)
+                .with_context(|| format!("text attachment is not UTF-8: {}", path.display()))?;
             let truncated = text.chars().count() > 200_000;
             let text = text.chars().take(200_000).collect::<String>();
             attachment.insert("kind".to_owned(), json!("text"));
@@ -668,11 +708,14 @@ fn encode_segment(value: &str) -> String {
     utf8_percent_encode(value, NON_ALPHANUMERIC).to_string()
 }
 
+const MAX_SSE_PENDING_BYTES: usize = 8 * 1024 * 1024;
+
 #[derive(Default)]
 struct SseDecoder {
     buffer: Vec<u8>,
     event: String,
     data_lines: Vec<String>,
+    pending_event_bytes: usize,
 }
 
 impl SseDecoder {
@@ -686,6 +729,9 @@ impl SseDecoder {
                 line.pop();
             }
             self.process_line(&line, &mut events)?;
+        }
+        if self.buffer.len() > MAX_SSE_PENDING_BYTES {
+            bail!("SSE line exceeds the {} byte limit", MAX_SSE_PENDING_BYTES);
         }
         if final_chunk {
             if !self.buffer.is_empty() {
@@ -712,7 +758,11 @@ impl SseDecoder {
         match field {
             "event" => self.event = value.to_owned(),
             "data" => self.data_lines.push(value.to_owned()),
-            _ => {}
+            _ => return Ok(()),
+        }
+        self.pending_event_bytes = self.pending_event_bytes.saturating_add(line.len());
+        if self.pending_event_bytes > MAX_SSE_PENDING_BYTES {
+            bail!("SSE event exceeds the {} byte limit", MAX_SSE_PENDING_BYTES);
         }
         Ok(())
     }
@@ -720,6 +770,7 @@ impl SseDecoder {
     fn dispatch(&mut self, events: &mut Vec<StreamEvent>) -> Result<()> {
         if self.data_lines.is_empty() {
             self.event.clear();
+            self.pending_event_bytes = 0;
             return Ok(());
         }
         let raw = self.data_lines.join("\n");
@@ -735,14 +786,14 @@ impl SseDecoder {
             data,
         });
         self.data_lines.clear();
+        self.pending_event_bytes = 0;
         Ok(())
     }
 }
 
-/// Older runtimes could emit a lone `\uDxxx` escape when UTF-16 code-unit
-/// slicing cut a surrogate pair in half. Browsers tolerate it, but serde_json
-/// rejects it and aborts the whole stream. Repair lone surrogate escapes to
-/// U+FFFD so a version-mismatched runtime still degrades gracefully.
+/// 旧版 Runtime 按 UTF-16 code unit 截断时，可能产生孤立的 `\uDxxx` 转义。
+/// 浏览器会容忍该输入，但 serde_json 会拒绝并中止整个流；这里将孤立代理项
+/// 修复为 U+FFFD，使版本不匹配时仍能保持流可用。
 fn repair_json_surrogates(input: &str) -> String {
     let bytes = input.as_bytes();
     let mut out = String::with_capacity(input.len());
@@ -837,8 +888,11 @@ fn is_low_surrogate(value: u16) -> bool {
 #[cfg(test)]
 mod tests {
     use super::{
-        prepare_attachments, repair_json_surrogates, runtime_options, RuntimeConfig, SseDecoder,
+        forward_stream_events, prepare_attachments, repair_json_surrogates, runtime_options,
+        RuntimeConfig, SseDecoder, MAX_SSE_PENDING_BYTES,
     };
+    use crate::model::RuntimeEvent;
+    use tokio::sync::mpsc;
 
     #[test]
     fn runtime_model_options_exclude_unconfigured_providers() {
@@ -898,13 +952,59 @@ mod tests {
             .unwrap();
         tokio::fs::write(&image, [1u8, 2, 3]).await.unwrap();
 
-        let attachments = prepare_attachments(&[text, image]).await.unwrap();
+        let attachments = prepare_attachments(&directory, &[text, image])
+            .await
+            .unwrap();
         assert_eq!(attachments[0]["kind"], "text");
         assert_eq!(attachments[0]["text"], "# Notes\nUTF-8 中文");
         assert_eq!(attachments[1]["kind"], "image");
         assert_eq!(attachments[1]["mimeType"], "image/png");
         assert_eq!(attachments[1]["data"], "AQID");
         tokio::fs::remove_dir_all(directory).await.unwrap();
+    }
+
+    #[tokio::test]
+    async fn rejects_attachments_outside_the_workspace_and_invalid_utf8() {
+        let root = std::env::temp_dir().join(format!(
+            "pisper-tui-attachment-boundary-{}",
+            std::process::id()
+        ));
+        let workspace = root.join("workspace");
+        tokio::fs::create_dir_all(&workspace).await.unwrap();
+        let outside = root.join("outside.md");
+        tokio::fs::write(&outside, "secret").await.unwrap();
+        let error = prepare_attachments(&workspace, &[outside])
+            .await
+            .unwrap_err()
+            .to_string();
+        assert!(error.contains("outside the current workspace"));
+
+        let invalid = workspace.join("invalid.md");
+        tokio::fs::write(&invalid, [0xff, 0xfe]).await.unwrap();
+        let error = prepare_attachments(&workspace, &[invalid])
+            .await
+            .unwrap_err()
+            .to_string();
+        assert!(error.contains("not UTF-8"));
+        tokio::fs::remove_dir_all(root).await.unwrap();
+    }
+
+    #[test]
+    fn forwards_terminal_events_and_rejects_unbounded_sse_lines() {
+        let (sender, mut receiver) = mpsc::unbounded_channel();
+        let terminal = forward_stream_events(
+            vec![crate::model::StreamEvent {
+                name: "done".to_owned(),
+                data: serde_json::json!({}),
+            }],
+            &sender,
+        );
+        assert!(terminal);
+        assert!(matches!(receiver.try_recv(), Ok(RuntimeEvent::Stream(_))));
+
+        let mut decoder = SseDecoder::default();
+        let oversized = vec![b'a'; MAX_SSE_PENDING_BYTES + 1];
+        assert!(decoder.push(&oversized, false).is_err());
     }
 
     #[test]

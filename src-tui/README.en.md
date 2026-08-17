@@ -105,11 +105,13 @@ The diagnostic output reports the sidecar connection source, TUI launch workspac
 - `Up` / `Down`: move through Slash, session, model, thinking-level, or file choices.
 - `Tab`: complete the highlighted candidate only while the Slash list is open.
 - `Esc`: close a picker, clear a Slash draft, or return from Changes to Chat.
-- `↑` / `↓`: scroll the conversation one row at a time; `PageUp` / `PageDown`: move eight rows. The TUI retains only the latest 100 messages so long sessions stay memory-bounded.
+- `↑` / `↓`: scroll the conversation one row at a time; `PageUp` / `PageDown`: move eight rows. History loads on demand; the TUI keeps at most 160 messages in memory and evicts back to the latest 80 after an idle period.
 - `Home` / `End`, `Left` / `Right`, `Backspace` / `Delete`: edit the composer draft.
 - `Ctrl+C`: abort the active or approval-blocked run (if the Agent hangs without responding, the Runtime force-settles the run after a timeout); a second `Ctrl+C` while still running force-quits the TUI; exits only while idle.
 
-The bottom status bar shows the active session's provider-reported token total and cache hit rate in the compact form `token: 88M cache 79%`. The values remain isolated per conversation.
+The bottom status bar is left-aligned. While a session is running, a fixed-width bidirectional diamond scanner appears at the far left instead of phase labels such as `Thinking` or `Responding`. Execution mode, model, thinking level, and metrics follow, for example `◆◇····  [full-access]  gpt-5.6-sol  high  ·  88M  ·  cache 79%`. Queue and approval positions follow the metrics. The values remain isolated per conversation.
+
+The TUI uses terminal truecolor by default and automatically falls back when `TERM` advertises only 256 colors. Set `PISPER_TUI_THEME=ansi256` to force the 256-color palette, or use `PISPER_TUI_THEME=monochrome` / `NO_COLOR=1` for monochrome output. `PISPER_TUI_REDUCED_MOTION=1` disables decorative animation and reveals streamed text immediately; scrolling through history also pauses incremental reveal.
 
 Long or multiline bracketed pastes render as a compact `[Pasted text · …]` token. The complete original text, including line breaks, is still submitted to the Agent. The token can be moved across or deleted as one unit.
 
@@ -139,7 +141,7 @@ Candidates are sorted by prefix match and local usage frequency. `Tab` completes
 
 `/init` asks the Agent to inspect the project structure, commands, and conventions before writing repository-specific guidance instead of a fixed template. It carefully preserves useful content in an existing `AGENTS.md` and does not modify other project files. The command is unavailable in `read-only` mode and runs with current-user permissions in `full-access` mode. After it completes, use `/new` to start a session that loads the generated project guidance at startup.
 
-When the Agent creates a structured Plan, the TUI updates its items, owners, dependencies, and statuses in place between the transcript and Composer. Narrow terminals fold completed items and retain `Plan · completed/total` in the footer.
+When the Agent creates a structured Plan, the TUI updates its items, owners, dependencies, and statuses in place between the transcript and Composer. Narrow terminals keep only the current item, with `Plan completed/total` in the thin top divider.
 
 ## Attachments
 
