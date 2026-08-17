@@ -8,6 +8,7 @@ import {
 import { isGoalContinuationMessage } from '../services/goal-service.mjs'
 import { PLAN_ALL_TOOL_NAMES } from '../tools/app/plan.mjs'
 import { attachGeneratedAssets } from '../services/session-assets.mjs'
+import { assetHasSource, generatedAssetsForSession } from '../services/asset-storage.mjs'
 import { permissionModeForExecutionMode } from '../security/execution-mode.mjs'
 import { effectiveCompactionSettings } from './compaction-policy.mjs'
 import { isCompletedTurnBoundaryMessage } from './session-derivation.mjs'
@@ -713,14 +714,7 @@ export class StreamProjection {
   }
 
   generatedAssets(sessionId) {
-    return this.assetIndex()
-      .assets.filter(
-        (asset) =>
-          asset.sessionId === sessionId &&
-          asset.source === 'agent' &&
-          /^(?:image|video)\//.test(asset.mimeType || ''),
-      )
-      .sort((left, right) => new Date(left.created).getTime() - new Date(right.created).getTime())
+    return generatedAssetsForSession(this.assetIndex().assets, sessionId)
   }
 
   withGeneratedAssets(sessionId, messages) {
@@ -942,7 +936,7 @@ export class StreamProjection {
       if (!assetUrlByHash) {
         assetUrlByHash = new Map()
         for (const asset of this.assetIndex().assets) {
-          if (asset.source === 'attachment' && asset.hash) {
+          if (assetHasSource(asset, 'attachment') && asset.hash) {
             assetUrlByHash.set(
               asset.hash,
               `/api/assets/${encodeURIComponent(asset.id)}/download?inline=1`,

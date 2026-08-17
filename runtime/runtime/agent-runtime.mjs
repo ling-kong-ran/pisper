@@ -1,5 +1,5 @@
-import { mkdir, open, readFile, stat, unlink, writeFile } from 'node:fs/promises'
-import { createHash, randomUUID } from 'node:crypto'
+import { mkdir, open, readFile, stat, unlink } from 'node:fs/promises'
+import { randomUUID } from 'node:crypto'
 import { basename, extname, isAbsolute, join, resolve, sep } from 'node:path'
 import {
   createAgentSession,
@@ -61,7 +61,7 @@ import {
   workspacePathKey,
 } from './workspace-directories.mjs'
 import { assetMessageAttachment } from '../services/session-assets.mjs'
-import { archiveGeneratedAsset } from '../services/asset-storage.mjs'
+import * as assetStorage from '../services/asset-storage.mjs'
 import { createAppTools, createMultiAgentTools } from '../tools/registry.mjs'
 import { createGoalTools, GOAL_TOOL_NAMES } from '../tools/app/goal.mjs'
 import {
@@ -704,6 +704,11 @@ export class AgentRuntimeService extends AgentRuntimeFacade {
     this.usageLedger.sessionScans ||= {}
     this.assetIndex = await readJson(this.assetIndexPath, { assets: [] })
     this.assetIndex.assets = Array.isArray(this.assetIndex.assets) ? this.assetIndex.assets : []
+    await assetStorage.reconcileAssetIndex({
+      assets: this.assetIndex.assets,
+      assetsDir: this.assetsDir,
+      save: () => this.saveAssetIndex(),
+    })
     const appConfig = await readJson(this.appConfigPath, {})
     this.compactionThresholdPercent = normalizeCompactionThresholdPercent(
       appConfig.compactionThresholdPercent,
@@ -1118,10 +1123,7 @@ export class AgentRuntimeService extends AgentRuntimeFacade {
   }
 
   publicAsset(asset) {
-    if (!asset) return null
-    const publicValue = { ...asset }
-    delete publicValue.storagePath
-    return publicValue
+    return assetStorage.publicAsset(asset)
   }
 
   async createAsset(input) {
@@ -1159,47 +1161,30 @@ export class AgentRuntimeService extends AgentRuntimeFacade {
         : Buffer.from(String(input.data || ''), 'base64')
     if (!buffer.length) throw new Error(`${name} 内容为空。`)
     if (buffer.length > MAX_ASSET_BYTES) throw new Error(`${name} 超过 24 MB 资产限制。`)
-    const hash = createHash('sha256').update(buffer).digest('hex')
-    const duplicate = this.assetIndex.assets.find(
-      (asset) => asset.hash === hash && asset.name === name,
-    )
-    if (duplicate) {
-      duplicate.modified = now
-      if (input.sessionId && !duplicate.sessionId) duplicate.sessionId = input.sessionId
-      if (input.sessionName && !duplicate.sessionName) duplicate.sessionName = input.sessionName
-      await this.saveAssetIndex()
-      return this.publicAsset(duplicate)
-    }
-    const id = randomUUID()
-    const extension = extname(name).slice(0, 12)
-    const storagePath = join(this.assetsDir, `${id}${extension}`)
-    await writeFile(storagePath, buffer)
     const mimeType = String(input.mimeType || mimeFromName(name))
-    const asset = {
-      id,
-      kind:
-        mimeType.startsWith('image/') || IMAGE_EXTENSIONS.has(extname(name).toLowerCase())
-          ? 'image'
-          : 'file',
+    const kind =
+      mimeType.startsWith('image/') || IMAGE_EXTENSIONS.has(extname(name).toLowerCase())
+        ? 'image'
+        : 'file'
+    const asset = await assetStorage.storeAssetBuffer({
+      assets: this.assetIndex.assets,
+      assetsDir: this.assetsDir,
+      buffer,
       name,
+      kind,
       mimeType,
-      size: buffer.length,
-      hash,
-      storagePath,
       source,
-      sessionId: input.sessionId || '',
-      sessionName: input.sessionName || '',
+      sessionId: input.sessionId,
+      sessionName: input.sessionName,
       created: now,
-      modified: now,
-    }
-    this.assetIndex.assets.unshift(asset)
+    })
     await this.saveAssetIndex()
     return this.publicAsset(asset)
   }
 
   async recordGeneratedFile(sessionId, value, filePath) {
     const name = basename(filePath)
-    const asset = await archiveGeneratedAsset({
+    const asset = await assetStorage.archiveGeneratedAsset({
       assets: this.assetIndex.assets,
       assetsDir: this.assetsDir,
       filePath,
@@ -1217,14 +1202,16 @@ export class AgentRuntimeService extends AgentRuntimeFacade {
     const needle = String(query || '')
       .trim()
       .toLowerCase()
-    const assets = this.assetIndex.assets.filter((asset) => {
-      if (kind && asset.kind !== kind) return false
-      if (sessionId && asset.sessionId !== sessionId) return false
-      return (
-        !needle ||
-        `${asset.name} ${asset.sessionName} ${asset.url || ''}`.toLowerCase().includes(needle)
-      )
-    })
+    const assets = this.assetIndex.assets
+      .map((asset) => (sessionId ? assetStorage.assetForSession(asset, sessionId) : asset))
+      .filter(Boolean)
+      .filter((asset) => {
+        if (kind && asset.kind !== kind) return false
+        return (
+          !needle ||
+          `${asset.name} ${asset.sessionName} ${asset.url || ''}`.toLowerCase().includes(needle)
+        )
+      })
     return assets.map((asset) => this.publicAsset(asset))
   }
 
@@ -2235,9 +2222,7 @@ export class AgentRuntimeService extends AgentRuntimeFacade {
           event.result?.details?.path
         ) {
           const generatedPath = resolve(event.result.details.path)
-          const asset = this.assetIndex.assets.find(
-            (item) => item.filePath && resolve(item.filePath) === generatedPath,
-          )
+          const asset = assetStorage.findAssetByFilePath(this.assetIndex.assets, generatedPath)
           if (asset) {
             const attachment = assetMessageAttachment(asset)
             live.assets = [...live.assets.filter((item) => item.id !== attachment.id), attachment]
