@@ -81,6 +81,52 @@ test('a fresh session stays addressable after resident eviction and workspace sw
   assert.equal(info.id, created.id)
 })
 
+test('createSession updates the stored-session cache incrementally without a rescan', async (t) => {
+  const directory = await mkdtemp(join(tmpdir(), 'pisper-incremental-cache-'))
+  t.after(() => rm(directory, { recursive: true, force: true }))
+  const runtime = freshRuntime(directory)
+
+  // 预热缓存，模拟长驻进程的首次快照；包装 listStoredSessions 统计 refresh。
+  await runtime.listStoredSessions()
+  let rescans = 0
+  const originalListStored = runtime.listStoredSessions.bind(runtime)
+  runtime.listStoredSessions = (options) => {
+    if (options?.refresh) rescans += 1
+    return originalListStored(options)
+  }
+  runtime.createSessionRuntime = async (manager, name) => {
+    const now = new Date().toISOString()
+    return {
+      manager,
+      name,
+      session: { messages: [], sessionFile: manager.getSessionFile() },
+      cwd: directory,
+      created: now,
+      modified: now,
+    }
+  }
+
+  const created = await runtime.createSession('增量缓存会话', directory)
+  // 新建会话不得触发全量重扫。
+  assert.equal(rescans, 0)
+  const sessions = await runtime.listSessions()
+  const listed = sessions.find((item) => item.id === created.id)
+  assert.ok(listed, 'newly created session must be visible without a rescan')
+  assert.equal(listed.name, '增量缓存会话')
+  assert.equal(listed.messageCount, 0)
+
+  // 物化（模拟第一次 prompt 写盘）后同样无需重扫，且仍可被列出。
+  const pending = runtime.sessionLifecycle.pendingSessions.get(created.id)
+  await ensureSessionFilePersisted(pending.manager, '增量缓存会话', directory)
+  await runtime.getOrCreateSession(created.id)
+  assert.equal(rescans, 0)
+  const after = await runtime.listSessions()
+  assert.ok(
+    after.some((item) => item.id === created.id),
+    'materialized session stays listed',
+  )
+})
+
 test('createSession persists the workspace so idle eviction does not reset cwd', async (t) => {
   const directory = await mkdtemp(join(tmpdir(), 'pisper-stored-cwd-'))
   t.after(() => rm(directory, { recursive: true, force: true }))

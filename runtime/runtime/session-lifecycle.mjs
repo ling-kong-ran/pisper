@@ -40,6 +40,7 @@ export class SessionLifecycle {
     resolveDirectory,
     cleanSessionTitle,
     listStoredSessions,
+    upsertStoredSession,
     openStoredSession,
     saveSessionMeta,
     saveUsageLedger,
@@ -72,6 +73,7 @@ export class SessionLifecycle {
     this.resolveDirectory = resolveDirectory
     this.cleanSessionTitle = cleanSessionTitle
     this.listStoredSessions = listStoredSessions
+    this.upsertStoredSession = upsertStoredSession
     this.openStoredSession = openStoredSession
     this.saveSessionMeta = saveSessionMeta
     this.saveUsageLedger = saveUsageLedger
@@ -401,10 +403,21 @@ export class SessionLifecycle {
       permissionMode: permissionModeForExecutionMode(DEFAULT_EXECUTION_MODE),
     }
     await this.saveSessionMeta()
-    // The session file already exists on disk; refresh the stored-session
-    // cache so the new conversation is visible to listSessions and
-    // findSessionInfo even before its first prompt materializes it.
-    await this.listStoredSessions({ refresh: true })
+    // 新会话文件已落盘；把它的信息增量插入存储会话缓存，使 listSessions /
+    // findSessionInfo 立即可见，而无需为单个新文件全量重扫所有会话（listAll
+    // 会逐行读完每个 .jsonl，会话多时非常慢）。
+    this.upsertStoredSession({
+      path: manager.getSessionFile(),
+      id,
+      cwd: effectiveCwd,
+      name: resolvedName,
+      parentSessionPath: undefined,
+      created: new Date(now),
+      modified: new Date(now),
+      messageCount: 0,
+      firstMessage: '',
+      allMessagesText: '',
+    })
     const settings = this.getSettingsManager().getGlobalSettings()
     const model =
       settings.defaultProvider && settings.defaultModel
@@ -790,7 +803,35 @@ export class SessionLifecycle {
     }
 
     this.invalidateProjection(derivedId)
-    await this.listStoredSessions({ refresh: true })
+    // 衍生会话文件已写入；用内存中的条目统计消息数后增量插入缓存，
+    // 避免全量重扫。buildSessionContext 基于 openStoredSession 已加载的
+    // fileEntries，不会重读磁盘。
+    let derivedMessages = []
+    let derivedInfoOk = true
+    try {
+      derivedMessages = manager.buildSessionContext().messages || []
+    } catch {
+      // 上下文构造失败时回退到全量重扫，保证衍生会话仍可被列出。
+      derivedInfoOk = false
+      await this.listStoredSessions({ refresh: true })
+    }
+    if (derivedInfoOk) {
+      const firstUser = derivedMessages.find((message) => message?.role === 'user')
+      this.upsertStoredSession({
+        path: derivedPath,
+        id: derivedId,
+        cwd: sessionMeta[derivedId]?.cwd,
+        name: derivedName,
+        parentSessionPath: sourcePath,
+        created: new Date(now),
+        modified: new Date(now),
+        messageCount: derivedMessages.filter((message) =>
+          ['user', 'assistant'].includes(message?.role),
+        ).length,
+        firstMessage: firstUser ? String(firstUser.content || '') : '',
+        allMessagesText: '',
+      })
+    }
     const derived = (await this.listSessions()).find((session) => session.id === derivedId)
     if (derived) return derived
     return {
@@ -993,11 +1034,24 @@ export class SessionLifecycle {
         const value = await this.createSessionRuntime(pending.manager, pending.name)
         value.created = pending.created
         value.modified = pending.modified
-        // The first prompt flushed the session transcript to disk; refresh the
-        // stored-session cache so the materialized session survives resident
-        // eviction (idle sweep or forced interruption) without turning into a
-        // "session not found" on the next workspace switch.
-        await this.listStoredSessions({ refresh: true })
+        // 第一次 prompt 已将会话写盘；把最新信息增量插入存储会话缓存，使该
+        // 会话在常驻运行时被回收（闲置清扫/强制中断）后仍可被列出与查找，
+        // 无需全量重扫所有会话文件。
+        const messages = value.session?.messages || []
+        const firstUser = messages.find((message) => message?.role === 'user')
+        this.upsertStoredSession({
+          path: pending.manager.getSessionFile() || value.session?.sessionFile,
+          id,
+          cwd: value.cwd,
+          name: value.name,
+          parentSessionPath: undefined,
+          created: new Date(value.created),
+          modified: new Date(value.modified),
+          messageCount: messages.filter((message) => ['user', 'assistant'].includes(message?.role))
+            .length,
+          firstMessage: firstUser ? String(firstUser.content || '') : '',
+          allMessagesText: '',
+        })
         return value
       } catch (error) {
         this.pendingSessions.set(id, pending)

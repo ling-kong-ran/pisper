@@ -8,6 +8,7 @@ import {
   SettingsManager,
 } from './pi-coding-agent.mjs'
 import { ensureSessionFilePersisted } from './session-file-persist.mjs'
+import { upsertStoredSessionCache } from './stored-session-cache.mjs'
 import {
   capturePromptCacheShape,
   comparePromptCacheShapes,
@@ -637,6 +638,7 @@ export class AgentRuntimeService extends AgentRuntimeFacade {
       resolveDirectory,
       cleanSessionTitle,
       listStoredSessions: (options) => this.listStoredSessions(options),
+      upsertStoredSession: (info) => this.upsertStoredSession(info),
       openStoredSession: (path) => this.openStoredSession(path),
       saveSessionMeta: () => this.saveSessionMeta(),
       saveUsageLedger: () => this.saveUsageLedger(),
@@ -835,6 +837,11 @@ export class AgentRuntimeService extends AgentRuntimeFacade {
         this.storedSessionsPromise = null
       })
     return this.storedSessionsPromise
+  }
+
+  upsertStoredSession(info) {
+    // 只做增量插入，避免新建/物化单个会话时全量重扫所有会话文件。
+    upsertStoredSessionCache(this.storedSessionsCache, info)
   }
 
   openStoredSession(path) {
