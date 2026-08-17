@@ -209,7 +209,7 @@ export function AssetsPage({
           <h2>{t('assets:assetsPage.loadingAssets')}</h2>
         </AppEmptyState>
       ) : assets.length ? (
-        <div className="asset-grid max-[650px]:grid-cols-[1fr] functional grid auto-rows-[292px] grid-cols-[repeat(auto-fill,minmax(260px,1fr))] content-start items-start gap-3">
+        <div className="asset-grid max-[650px]:grid-cols-[1fr] functional grid auto-rows-[minmax(292px,auto)] grid-cols-[repeat(auto-fill,minmax(260px,1fr))] content-start gap-3">
           {assets.map((asset) => {
             const isVideo = asset.mimeType?.startsWith('video/')
             const Icon =
@@ -222,7 +222,7 @@ export function AssetsPage({
                     : File
             return (
               <Panel
-                className="asset-card [transition:transform_var(--d2)_var(--ease-out),_box-shadow_var(--d2)_var(--ease-out),_border-color_var(--d2)_var(--ease-out)] hover:[transform:translateY(-2px)] hover:shadow-[var(--sh-2)] hover:border-[var(--star-border)] [&_>_strong]:text-[13px] [&_>_span]:m-[5px_0_10px] [&_>_span]:text-[var(--text-muted)] [&_>_span]:text-[12px] [&_>_div:last-child]:flex [&_>_div:last-child]:gap-[6px] [&_>_div:last-child]:mt-[auto] max-[650px]:min-h-[200px] functional flex h-[292px] min-h-0 flex-col overflow-hidden"
+                className="asset-card [transition:transform_var(--d2)_var(--ease-out),_box-shadow_var(--d2)_var(--ease-out),_border-color_var(--d2)_var(--ease-out)] hover:[transform:translateY(-2px)] hover:shadow-[var(--sh-2)] hover:border-[var(--star-border)] [&_>_strong]:text-[13px] [&_>_span]:m-[5px_0_10px] [&_>_span]:text-[var(--text-muted)] [&_>_span]:text-[12px] [&_>_div:last-child]:flex [&_>_div:last-child]:gap-[6px] [&_>_div:last-child]:mt-[auto] max-[650px]:min-h-[200px] functional flex h-full min-h-[292px] flex-col overflow-hidden"
                 key={asset.id}
               >
                 <button
@@ -274,7 +274,7 @@ export function AssetsPage({
                     </small>
                   )}
                 </div>
-                <div className="asset-card-actions [.asset-card.functional:hover_&]:opacity-100 [.asset-card.functional:hover_&]:[transform:translateY(0)] [.asset-card.functional:focus-within_&]:opacity-100 [.asset-card.functional:focus-within_&]:[transform:translateY(0)] [&_a]:no-underline flex flex-wrap items-center gap-[5px] [margin-top:auto] [padding-top:10px] opacity-0 [transform:translateY(4px)] [transition:opacity_var(--d1)_var(--ease-out),_transform_var(--d1)_var(--ease-out)]">
+                <div className="asset-card-actions flex-none [.asset-card.functional:hover_&]:opacity-100 [.asset-card.functional:hover_&]:[transform:translateY(0)] [.asset-card.functional:focus-within_&]:opacity-100 [.asset-card.functional:focus-within_&]:[transform:translateY(0)] [&_a]:no-underline flex flex-wrap items-center gap-[5px] [margin-top:auto] [padding-top:10px] opacity-0 [transform:translateY(4px)] [transition:opacity_var(--d1)_var(--ease-out),_transform_var(--d1)_var(--ease-out)]">
                   {asset.kind === 'link' ? (
                     <Button asChild variant="outline">
                       <a href={asset.url} target="_blank" rel="noreferrer">
