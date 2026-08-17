@@ -463,7 +463,7 @@ fn render_run_state(frame: &mut Frame, app: &App, area: Rect) {
 fn active_run_label(app: &App) -> String {
     match app.status.as_str() {
         "thinking" => "Thinking".to_owned(),
-        "streaming" => "Responding".to_owned(),
+        "streaming" => format!("{} Responding", spinner_frame(app.status_frame)),
         value if value.starts_with("running ") => format!(
             "Running {}",
             single_line(value.trim_start_matches("running "), 18)
@@ -4552,7 +4552,7 @@ mod tests {
     }
 
     #[test]
-    fn streaming_status_bar_shows_no_pulse_animation() {
+    fn responding_status_bar_keeps_animating_without_a_pulse_bar() {
         let session = SessionSummary {
             id: "session-1".to_owned(),
             model: "openai/gpt-5.6-sol".to_owned(),
@@ -4577,6 +4577,7 @@ mod tests {
             streaming: true,
             ..LiveTurn::default()
         });
+        app.status = "streaming".to_owned();
         let mut terminal = Terminal::new(TestBackend::new(80, 24)).unwrap();
         terminal.draw(|frame| draw(frame, &app)).unwrap();
         let buffer = terminal.backend().buffer();
@@ -4585,7 +4586,16 @@ mod tests {
             .map(|cell| cell.symbol())
             .collect::<String>();
 
+        app.advance_status_animation();
+        terminal.draw(|frame| draw(frame, &app)).unwrap();
+        let next_bottom = (0..80)
+            .filter_map(|x| terminal.backend().buffer().cell((x, 23)))
+            .map(|cell| cell.symbol())
+            .collect::<String>();
+
         assert!(bottom.starts_with("[full-access] · gpt-5.6-sol"));
+        assert!(bottom.contains("⠋ Responding"));
+        assert!(next_bottom.contains("⠙ Responding"));
         assert!(!bottom.contains('▁'));
         assert!(!bottom.contains('▅'));
     }
