@@ -1,3 +1,13 @@
+//! sidecar（Node 运行时进程）的定位、启动与生命周期管理。
+//!
+//! 连接来源按优先级分为三种：
+//! 1. 环境变量 `PISPER_TUI_URL`（远程/外部托管的运行时）；
+//! 2. 桌面版 sidecar 描述文件（`desktop-sidecar.json`，由桌面壳写入）；
+//! 3. 本进程 spawn 的 TUI sidecar（独立 TUI 发行）。
+//!
+//! 独立发行时优先使用已安装的签名 Runtime 组件，失败后回退到随二进制
+//! 捆绑的 sidecar；两种都没有才在开发模式下用 `node runtime/sidecar.mjs`。
+
 use std::{
     fs,
     io::{BufRead, BufReader, Write},
@@ -14,18 +24,24 @@ use pisper_component_updater::{resolve_installed, Component};
 use semver::Version;
 use serde::Deserialize;
 
+// sidecar 就绪时在 stdout 打印的前缀，TUI 据此解析监听地址。
 const READY_PREFIX: &str = "PISPER_SIDECAR_READY ";
+// 启动等待就绪的超时。
 const START_TIMEOUT: Duration = Duration::from_secs(10);
+// 等待期间检查子进程是否提前退出的轮询间隔。
 const EXIT_CHECK_INTERVAL: Duration = Duration::from_millis(50);
+// 桌面版 sidecar 描述文件名（位于系统数据目录下的应用目录中）。
 const SIDECAR_DESCRIPTOR_NAME: &str = "desktop-sidecar.json";
 pub const APP_IDENTIFIER: &str = "com.lingkongran.pisper";
 
+/// sidecar 就绪负载：监听 URL。
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
 struct ReadyPayload {
     url: String,
 }
 
+/// 桌面版写入的描述文件：提供 sidecar 的 URL、访问令牌与进程号。
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
 struct SidecarDescriptor {
@@ -35,20 +51,27 @@ struct SidecarDescriptor {
     pid: u32,
 }
 
+/// sidecar 命令的类别：已安装组件 vs 其他来源，
+/// 用于启动失败时决定是否值得回退到捆绑运行时。
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 enum SidecarCommandKind {
     Installed,
     Other,
 }
 
+/// sidecar 连接来源分类（用于 doctor 输出与诊断）。
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum ConnectionKind {
+    /// 来自 `PISPER_TUI_URL` 的外部运行时。
     Remote,
+    /// 桌面版托管、经描述文件发现的 sidecar。
     Desktop,
+    /// 本进程 spawn 的 sidecar。
     Spawned,
 }
 
 impl ConnectionKind {
+    /// 连接来源的展示标签。
     pub fn label(self) -> &'static str {
         match self {
             Self::Remote => "PISPER_TUI_URL",
@@ -58,6 +81,7 @@ impl ConnectionKind {
     }
 }
 
+/// 一个已就绪的 sidecar 连接（自 spawn 时还持有子进程句柄，用于优雅关闭）。
 pub struct SidecarConnection {
     pub url: String,
     pub token: String,
@@ -66,6 +90,9 @@ pub struct SidecarConnection {
 }
 
 impl SidecarConnection {
+    /// 按优先级选择连接来源并启动（或复用）sidecar。
+    /// 自 spawn 路径在就绪前会等待 `PISPER_SIDECAR_READY` 输出，
+    /// 若已安装的签名运行时启动失败，自动停用该组件并回退到捆绑运行时。
     pub fn start(workspace: &Path) -> Result<Self> {
         if let Ok(url) = std::env::var("PISPER_TUI_URL") {
             let token = std::env::var("PISPER_TUI_TOKEN")
@@ -117,6 +144,8 @@ impl SidecarConnection {
         })
     }
 
+    /// 优雅关闭自 spawn 的 sidecar：先向 stdin 写 `shutdown` 让运行时自行收尾，
+    /// 限时 5 秒；超时未退出才强杀。
     pub fn shutdown(&mut self) {
         let Some(mut child) = self.child.take() else {
             return;
@@ -138,11 +167,15 @@ impl SidecarConnection {
     }
 }
 
+/// sidecar 启动期的 stdout 事件。
 enum StartupEvent {
     Ready(Result<ReadyPayload>),
     StdoutClosed,
 }
 
+/// 以子进程方式启动 sidecar 并等待就绪。
+/// 环境变量用于把工作区、令牌、退出条件等注入运行时；
+/// 同时后台收集 stderr 诊断输出，供启动失败时给出可读的错误信息。
 fn spawn_sidecar(
     mut command: Command,
     app_root: PathBuf,
@@ -289,6 +322,8 @@ fn stop_child(child: &mut Child) {
     let _ = child.wait();
 }
 
+/// 启动失败的统一收尾：停止子进程、回收 stderr 线程，
+/// 然后把失败原因连同收集到的诊断输出一并构造为错误。
 fn stop_with_startup_error(
     child: &mut Child,
     stderr_thread: &mut Option<thread::JoinHandle<()>>,
@@ -303,6 +338,7 @@ fn stop_with_startup_error(
     startup_error(reason, elapsed, diagnostics)
 }
 
+/// 组装启动失败错误：包含原因、耗时与子进程的 stderr 诊断。
 fn startup_error(
     reason: String,
     elapsed: Duration,
@@ -323,12 +359,16 @@ fn startup_error(
     )
 }
 
+/// 连接被丢弃时自动关闭 sidecar，避免遗留孤儿进程。
 impl Drop for SidecarConnection {
     fn drop(&mut self) {
         self.shutdown();
     }
 }
 
+/// 发现并验证桌面版 sidecar 描述文件。
+/// 校验严格：版本号、令牌长度、回环地址都须匹配，且端口必须真的可连接；
+/// 描述文件失效（进程已退出）时直接删除，避免下次启动继续命中坏描述。
 fn desktop_sidecar_descriptor() -> Option<SidecarDescriptor> {
     let path = dirs::data_local_dir()?
         .join(APP_IDENTIFIER)
@@ -351,6 +391,9 @@ fn desktop_sidecar_descriptor() -> Option<SidecarDescriptor> {
     Some(descriptor)
 }
 
+/// 解析 sidecar 启动命令，按优先级：
+/// `PISPER_RUNTIME_NODE` → `PISPER_SIDECAR_PATH` → 已安装签名运行时 →
+/// 随可执行文件捆绑的 sidecar → 开发模式下的 `node runtime/sidecar.mjs`。
 fn sidecar_command(allow_installed: bool) -> Result<(Command, PathBuf, SidecarCommandKind)> {
     if let Some(node) = std::env::var_os("PISPER_RUNTIME_NODE") {
         let root = std::env::var_os("PISPER_APP_ROOT")
@@ -409,6 +452,7 @@ fn sidecar_command(allow_installed: bool) -> Result<(Command, PathBuf, SidecarCo
     Ok((command, root, SidecarCommandKind::Other))
 }
 
+/// 由 `PISPER_SIDECAR_PATH` 指向的 SEA 可执行文件构造命令。
 fn configured_sea_command() -> Result<(Command, PathBuf)> {
     let executable = std::env::var_os("PISPER_SIDECAR_PATH")
         .map(PathBuf::from)
@@ -419,6 +463,7 @@ fn configured_sea_command() -> Result<(Command, PathBuf)> {
     Ok((Command::new(executable), root))
 }
 
+/// 由 `PISPER_RUNTIME_NODE`（Node 可执行文件）+ 应用根目录构造开发命令。
 fn runtime_node_command(
     node: impl Into<std::ffi::OsString>,
     root: PathBuf,
@@ -435,12 +480,14 @@ fn runtime_node_command(
     Ok((command, root))
 }
 
+/// 组件安装根目录（系统数据目录下的 `components`）。
 pub fn components_root() -> Result<PathBuf> {
     dirs::data_local_dir()
         .map(|directory| directory.join(APP_IDENTIFIER).join("components"))
         .context("failed to locate the Pisper component directory")
 }
 
+/// 已安装的 Web 前端组件（必须是完整可执行文件形态，且真正存在）。
 pub fn installed_frontend() -> Option<pisper_component_updater::InstalledComponent> {
     resolve_installed(&components_root().ok()?, Component::Desktop)
         .ok()
@@ -448,6 +495,8 @@ pub fn installed_frontend() -> Option<pisper_component_updater::InstalledCompone
         .filter(|installed| installed.executable().is_file())
 }
 
+/// 前端静态资源根目录：环境变量显式指定优先，其次用已安装组件；
+/// 必须含 `index.html` 才算有效，否则视为未配置。
 pub fn configured_frontend_root() -> Option<PathBuf> {
     std::env::var_os("PISPER_FRONTEND_ROOT")
         .map(PathBuf::from)
@@ -455,6 +504,8 @@ pub fn configured_frontend_root() -> Option<PathBuf> {
         .filter(|root| root.join("index.html").is_file())
 }
 
+/// 已安装的签名 Runtime 组件；仅当其版本高于捆绑版本时才采用，
+/// 避免用过时的已安装组件覆盖更新的捆绑运行时。
 pub fn installed_runtime() -> Option<pisper_component_updater::InstalledComponent> {
     let installed = resolve_installed(&components_root().ok()?, Component::Runtime)
         .ok()
@@ -465,6 +516,7 @@ pub fn installed_runtime() -> Option<pisper_component_updater::InstalledComponen
     (installed.version > bundled).then_some(installed)
 }
 
+/// 运行时是否由外部管理（无需 TUI 负责安装）。
 fn runtime_is_externally_managed(
     remote_url: bool,
     sidecar_path: bool,
@@ -474,6 +526,8 @@ fn runtime_is_externally_managed(
     remote_url || sidecar_path || runtime_node || desktop_sidecar
 }
 
+/// 是否需要安装 Runtime 组件：
+/// 外部管理（远程/桌面/显式路径）或已有签名组件/捆绑 sidecar/开发入口时不需要。
 pub fn needs_runtime_install() -> bool {
     if runtime_is_externally_managed(
         std::env::var_os("PISPER_TUI_URL").is_some(),
@@ -508,6 +562,7 @@ pub fn needs_runtime_install() -> bool {
     !root.join("runtime").join("sidecar.mjs").is_file()
 }
 
+/// 读取捆绑（或仓库根目录）Runtime 的版本号，用于与已安装组件比较。
 pub fn bundled_runtime_version() -> Option<String> {
     let current_exe = std::env::current_exe().ok()?;
     let executable_dir = current_exe.parent()?;
@@ -532,6 +587,7 @@ pub fn bundled_runtime_version() -> Option<String> {
     })
 }
 
+/// 与 sidecar 可执行文件同目录的 `sidecar-runtime` 应用根目录。
 fn sibling_runtime(executable: &Path) -> PathBuf {
     executable
         .parent()
@@ -539,6 +595,7 @@ fn sibling_runtime(executable: &Path) -> PathBuf {
         .join("sidecar-runtime")
 }
 
+/// 平台对应的 sidecar 可执行文件名。
 fn platform_sidecar_name() -> &'static str {
     if cfg!(windows) {
         "pisper-sidecar.exe"
@@ -547,6 +604,8 @@ fn platform_sidecar_name() -> &'static str {
     }
 }
 
+/// 生成 32 字节随机令牌：用作 sidecar 的访问凭证（随请求 cookie 回传）。
+/// 使用密码学安全随机源，避免可预测令牌被本地其他进程冒用。
 fn secure_token() -> Result<String> {
     let mut bytes = [0_u8; 32];
     getrandom::getrandom(&mut bytes)

@@ -1,3 +1,9 @@
+//! 与 sidecar HTTP API 交互的客户端：REST 调用、SSE 对话流解码、附件准备。
+//!
+//! 所有请求都以 cookie（`__pisper_desktop=<token>`）与 Origin 头完成鉴权；
+//! 对话流是长连接 SSE，其余请求为普通 JSON。路径段一律经过百分号编码，
+//! 因为会话 id / Provider id 可能包含 URL 保留字符。
+
 use std::{
     path::{Path, PathBuf},
     time::Duration,
@@ -23,6 +29,9 @@ use crate::{
     workspace::validate_session_workspace,
 };
 
+/// sidecar HTTP API 客户端（可廉价克隆，内部共享连接池）。
+/// `client` 用于普通 REST 请求，`stream_client` 用于长连接 SSE 对话流，
+/// 两者的超时策略不同，避免短请求的超时设置误杀长时间空闲的对话流。
 #[derive(Clone)]
 pub struct ApiClient {
     base: Url,
@@ -32,6 +41,7 @@ pub struct ApiClient {
 }
 
 impl ApiClient {
+    /// 创建客户端：解析 base URL、注入鉴权头，并按用途构造两类连接池。
     pub fn new(base: &str, token: &str) -> Result<Self> {
         let base = Url::parse(base).context("invalid sidecar URL")?;
         let mut headers = header::HeaderMap::new();
@@ -69,6 +79,8 @@ impl ApiClient {
         })
     }
 
+    /// 构造一次性的浏览器引导 URL（`pisper web` 用）：
+    /// 携带桌面令牌，浏览器借此完成对本地 Runtime 的一次性鉴权。
     pub fn bootstrap_url(&self, next: &str) -> Result<String> {
         let mut url = self.url("/_pisper/desktop/bootstrap")?;
         url.query_pairs_mut()
@@ -77,12 +89,14 @@ impl ApiClient {
         Ok(url.to_string())
     }
 
+    /// 拼接 API 路径（去掉前导斜杠后 join，确保 base 上的子路径被保留）。
     fn url(&self, path: &str) -> Result<Url> {
         self.base
             .join(path.trim_start_matches('/'))
             .context("invalid API path")
     }
 
+    /// 从错误响应中提取人类可读的 `error` 字段；取不到时退回状态码描述。
     async fn response_error(response: Response) -> anyhow::Error {
         let status = response.status();
         let body = response.json::<Value>().await.unwrap_or_default();
@@ -94,6 +108,7 @@ impl ApiClient {
         anyhow!(message)
     }
 
+    /// GET JSON 并反序列化（响应非 2xx 时统一转成错误）。
     async fn get_json<T: DeserializeOwned>(&self, path: &str) -> Result<T> {
         let response = self.client.get(self.url(path)?).send().await?;
         if !response.status().is_success() {
@@ -102,6 +117,7 @@ impl ApiClient {
         response.json::<T>().await.context("invalid API response")
     }
 
+    /// 发送 JSON 请求体并反序列化响应。
     async fn send_json<T: DeserializeOwned, B: Serialize>(
         &self,
         method: reqwest::Method,
@@ -120,6 +136,7 @@ impl ApiClient {
         response.json::<T>().await.context("invalid API response")
     }
 
+    /// 列出全部会话。
     pub async fn sessions(&self) -> Result<Vec<SessionSummary>> {
         Ok(self
             .get_json::<SessionsResponse>("/api/sessions")
@@ -127,6 +144,8 @@ impl ApiClient {
             .sessions)
     }
 
+    /// 创建会话；返回前校验 sidecar 确认的工作区与请求一致，
+    /// 防止 sidecar 把会话挂到了别的工作区。
     pub async fn create_session(
         &self,
         name: &str,
@@ -143,10 +162,12 @@ impl ApiClient {
         Ok(session)
     }
 
+    /// 拉取运行时诊断信息（doctor 命令用）。
     pub async fn runtime_diagnostics(&self) -> Result<Value> {
         self.get_json("/api/runtime/diagnostics").await
     }
 
+    /// 上报「对话完成」通知事件（是否弹系统通知由 Runtime 决定）。
     pub async fn notify_chat_completed(
         &self,
         title: &str,
@@ -165,6 +186,7 @@ impl ApiClient {
         .await
     }
 
+    /// 上报「等待审批」通知事件。
     pub async fn notify_chat_waiting(
         &self,
         title: &str,
@@ -185,6 +207,7 @@ impl ApiClient {
         .await
     }
 
+    /// 读取运行配置，返回默认模型、默认思考级别、模型与 Provider 目录。
     pub async fn runtime_preferences(
         &self,
     ) -> Result<(String, String, Vec<ModelOption>, Vec<ProviderOption>)> {
@@ -192,6 +215,7 @@ impl ApiClient {
         Ok(runtime_options(config))
     }
 
+    /// 更新 Provider 连接（协议/Base URL/API Key）。
     pub async fn set_provider_connection(
         &self,
         provider: &str,
@@ -208,10 +232,12 @@ impl ApiClient {
         .await
     }
 
+    /// 获取会话最新一页消息。
     pub async fn messages(&self, session_id: &str) -> Result<MessagePage> {
         self.messages_page(session_id, None).await
     }
 
+    /// 分页获取历史消息（`before` 为游标）。
     pub async fn messages_page(
         &self,
         session_id: &str,
@@ -225,6 +251,8 @@ impl ApiClient {
         self.get_json(&path).await
     }
 
+    /// 合并拉取工具/Skill 目录：插件工具、MCP 工具、技能；
+    /// 只保留已启用且可用的项，MCP 工具统一映射为 `ToolDefinition`。
     pub async fn catalogs(&self) -> Result<(Vec<ToolDefinition>, Vec<SkillDefinition>)> {
         let (plugins, mcp, skills) = tokio::try_join!(
             self.get_json::<PluginCatalog>("/api/plugins"),
@@ -257,6 +285,7 @@ impl ApiClient {
         ))
     }
 
+    /// 切换会话工作区。
     pub async fn set_session_cwd(&self, session_id: &str, cwd: &Path) -> Result<SessionCwdUpdate> {
         let id = encode_segment(session_id);
         self.send_json(
@@ -267,6 +296,7 @@ impl ApiClient {
         .await
     }
 
+    /// 切换会话模型。
     pub async fn set_session_model(
         &self,
         session_id: &str,
@@ -282,12 +312,14 @@ impl ApiClient {
         .await
     }
 
+    /// 查询会话当前思考级别状态。
     pub async fn thinking_state(&self, session_id: &str) -> Result<ThinkingLevelUpdate> {
         let id = encode_segment(session_id);
         self.get_json(&format!("/api/sessions/{id}/thinking-level"))
             .await
     }
 
+    /// 设置会话思考级别。
     pub async fn set_thinking_level(
         &self,
         session_id: &str,
@@ -302,12 +334,14 @@ impl ApiClient {
         .await
     }
 
+    /// 查询工作区版本控制变更。
     pub async fn vcs_changes(&self, session_id: &str) -> Result<VcsChanges> {
         let id = encode_segment(session_id);
         self.get_json(&format!("/api/sessions/{id}/vcs/changes"))
             .await
     }
 
+    /// 提交工作区变更。
     pub async fn commit_vcs(&self, session_id: &str, message: &str) -> Result<VcsChanges> {
         let id = encode_segment(session_id);
         self.send_json(
@@ -318,6 +352,7 @@ impl ApiClient {
         .await
     }
 
+    /// 推送工作区变更。
     pub async fn push_vcs(&self, session_id: &str) -> Result<VcsChanges> {
         let id = encode_segment(session_id);
         self.send_json(
@@ -328,6 +363,7 @@ impl ApiClient {
         .await
     }
 
+    /// 回退工作区变更。
     pub async fn revert_vcs(&self, session_id: &str) -> Result<VcsChanges> {
         let id = encode_segment(session_id);
         self.send_json(
@@ -338,6 +374,7 @@ impl ApiClient {
         .await
     }
 
+    /// 设置会话执行模式。
     pub async fn set_execution_mode(
         &self,
         session_id: &str,
@@ -352,6 +389,7 @@ impl ApiClient {
         .await
     }
 
+    /// 压缩会话上下文，返回压缩后的上下文占用（可能为空）。
     pub async fn compact_session(&self, session_id: &str) -> Result<Option<ContextUsage>> {
         let id = encode_segment(session_id);
         Ok(self
@@ -364,6 +402,7 @@ impl ApiClient {
             .context_usage)
     }
 
+    /// 向运行中的会话排队追加输入，返回当前排队数。
     pub async fn queue_session_input(&self, session_id: &str, message: &str) -> Result<usize> {
         let id = encode_segment(session_id);
         let response: QueueInputResponse = self
@@ -376,6 +415,7 @@ impl ApiClient {
         Ok(response.queued_inputs.len())
     }
 
+    /// 中止会话当前运行。
     pub async fn abort(&self, session_id: &str) -> Result<()> {
         let id = encode_segment(session_id);
         let _: Value = self
@@ -388,6 +428,7 @@ impl ApiClient {
         Ok(())
     }
 
+    /// 解析一个待审批的权限请求。
     pub async fn resolve_approval(
         &self,
         session_id: &str,
@@ -406,6 +447,8 @@ impl ApiClient {
         Ok(())
     }
 
+    /// 建立对话流：POST `/api/chat` 后逐块消费 SSE，
+    /// 每个事件（含终态 `done`/`error`）经 sender 转发回主事件循环。
     pub async fn stream_chat(
         &self,
         session_id: String,
@@ -447,6 +490,7 @@ impl ApiClient {
     }
 }
 
+/// 通知分发结果：系统通知是否开启、渠道错误信息（供诊断）。
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct NotificationDispatch {
@@ -456,6 +500,7 @@ pub struct NotificationDispatch {
     pub channel_error: String,
 }
 
+/// 排队输入响应（内部）。
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
 struct QueueInputResponse {
@@ -463,6 +508,7 @@ struct QueueInputResponse {
     queued_inputs: Vec<Value>,
 }
 
+/// 压缩响应（内部）。
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
 struct CompactSessionResponse {
@@ -470,6 +516,7 @@ struct CompactSessionResponse {
     context_usage: Option<ContextUsage>,
 }
 
+/// 运行时全局配置（内部契约，对应 `/api/config`）。
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
 struct RuntimeConfig {
@@ -483,6 +530,7 @@ struct RuntimeConfig {
     providers: Vec<RuntimeProvider>,
 }
 
+/// Provider 配置（内部契约）。
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
 struct RuntimeProvider {
@@ -503,6 +551,7 @@ struct RuntimeProvider {
     models: Vec<RuntimeModel>,
 }
 
+/// 模型配置（内部契约）。
 #[derive(Deserialize)]
 struct RuntimeModel {
     id: String,
@@ -512,6 +561,9 @@ struct RuntimeModel {
     reasoning: bool,
 }
 
+/// 把运行时配置整理为 UI 可直接使用的选项：
+/// 默认模型（`provider/model` 形式）、默认思考级别（空时取 `medium`），
+/// 只保留已启用且已配置的 chat 型 Provider 及其模型。
 fn runtime_options(
     config: RuntimeConfig,
 ) -> (String, String, Vec<ModelOption>, Vec<ProviderOption>) {
@@ -559,6 +611,8 @@ fn runtime_options(
     )
 }
 
+/// 转发一批 SSE 事件到主循环；返回是否出现了终态事件（`done`/`error`）。
+/// 即使发生终态事件也继续转发同批其余事件，保证收尾状态完整。
 fn forward_stream_events(
     events: Vec<StreamEvent>,
     sender: &mpsc::UnboundedSender<RuntimeEvent>,
@@ -571,6 +625,9 @@ fn forward_stream_events(
     terminal
 }
 
+/// 准备聊天附件：校验数量/大小/工作区边界后，按扩展名转成三种类型之一——
+/// 图片（base64 data）、文本（UTF-8，超长截断）、文档（base64 data）。
+/// 任何校验失败都会拒绝整个请求，避免半成品附件进入对话。
 async fn prepare_attachments(workspace: &Path, paths: &[PathBuf]) -> Result<Vec<Value>> {
     if paths.len() > 8 {
         bail!("attachment limit exceeded (maximum 8)");
@@ -649,6 +706,7 @@ async fn prepare_attachments(workspace: &Path, paths: &[PathBuf]) -> Result<Vec<
     Ok(result)
 }
 
+/// 提取小写扩展名（无扩展名返回空串）。
 fn attachment_extension(path: &Path) -> String {
     path.extension()
         .and_then(|value| value.to_str())
@@ -656,6 +714,7 @@ fn attachment_extension(path: &Path) -> String {
         .to_ascii_lowercase()
 }
 
+/// 图片扩展名 → MIME 类型映射。
 fn image_mime_type(extension: &str) -> Option<&'static str> {
     match extension {
         "png" => Some("image/png"),
@@ -667,6 +726,7 @@ fn image_mime_type(extension: &str) -> Option<&'static str> {
     }
 }
 
+/// 判断扩展名是否属于可按文本读取的文件类型。
 fn is_text_extension(extension: &str) -> bool {
     matches!(
         extension,
@@ -695,6 +755,7 @@ fn is_text_extension(extension: &str) -> bool {
     )
 }
 
+/// 判断扩展名是否属于可按文档（二进制）上传的文件类型。
 fn is_document_extension(extension: &str) -> bool {
     matches!(
         extension,
@@ -702,14 +763,20 @@ fn is_document_extension(extension: &str) -> bool {
     )
 }
 
+/// 历史消息每页条数（也是内存中保留消息的计量基数）。
 pub const MESSAGE_PAGE_LIMIT: usize = 40;
 
+/// URL 路径段编码：非字母数字一律百分号编码，避免会话/Provider id
+/// 中的保留字符破坏路径结构。
 fn encode_segment(value: &str) -> String {
     utf8_percent_encode(value, NON_ALPHANUMERIC).to_string()
 }
 
+// SSE 单行/单事件的字节上限，防止恶意或损坏的流撑爆内存。
 const MAX_SSE_PENDING_BYTES: usize = 8 * 1024 * 1024;
 
+/// SSE 解码器：累积字节流，按行解析 `event:`/`data:` 字段，
+/// 空行触发事件分发。支持 CRLF 与分块到达，末尾兜底处理残余行。
 #[derive(Default)]
 struct SseDecoder {
     buffer: Vec<u8>,
@@ -719,6 +786,8 @@ struct SseDecoder {
 }
 
 impl SseDecoder {
+    /// 推入一块字节；返回本块内完成解码的事件。
+    /// `final_chunk` 为真时强制处理残余数据并分发最后一个事件。
     fn push(&mut self, chunk: &[u8], final_chunk: bool) -> Result<Vec<StreamEvent>> {
         self.buffer.extend_from_slice(chunk);
         let mut events = Vec::new();
@@ -743,6 +812,8 @@ impl SseDecoder {
         Ok(events)
     }
 
+    /// 处理单行：空行分发事件；注释行（`:` 开头）跳过；
+    /// 其余按 `event`/`data` 字段累积，同时累计单事件字节数。
     fn process_line(&mut self, line: &[u8], events: &mut Vec<StreamEvent>) -> Result<()> {
         if line.is_empty() {
             return self.dispatch(events);
@@ -767,6 +838,8 @@ impl SseDecoder {
         Ok(())
     }
 
+    /// 分发当前事件：data 为空则复位；否则拼接多行 data、
+    /// 解析 JSON（失败时尝试修复孤立代理项），构造 `StreamEvent`。
     fn dispatch(&mut self, events: &mut Vec<StreamEvent>) -> Result<()> {
         if self.data_lines.is_empty() {
             self.event.clear();
@@ -1028,25 +1101,25 @@ mod tests {
 
     #[test]
     fn repair_json_surrogates_normalises_lone_escapes_and_keeps_pairs() {
-        // Lone high surrogate becomes U+FFFD.
+        // 孤立的 UTF-16 高代理项被修复为 U+FFFD。
         assert_eq!(
             repair_json_surrogates("{\"delta\":\"\\ud83d\"}"),
             "{\"delta\":\"\\ufffd\"}"
         );
-        // Lone low surrogate becomes U+FFFD.
+        // 孤立的低代理项被修复为 U+FFFD。
         assert_eq!(
             repair_json_surrogates("{\"delta\":\"\\ude00\"}"),
             "{\"delta\":\"\\ufffd\"}"
         );
-        // A valid pair is preserved byte-for-byte.
+        // 合法的代理项对逐字节保留。
         let pair = "{\"delta\":\"\\ud83d\\ude00\"}";
         assert_eq!(repair_json_surrogates(pair), pair);
-        // Escaped quotes and backslashes do not flip the in-string state.
+        // 转义的引号与反斜杠不会翻转字符串内/外状态。
         assert_eq!(
             repair_json_surrogates("{\"a\":\"\\\"\\ud83d\"}"),
             "{\"a\":\"\\\"\\ufffd\"}"
         );
-        // Non-surrogate \u escapes are untouched.
+        // 非代理项 \u 转义保持原样。
         assert_eq!(
             repair_json_surrogates("{\"a\":\"\\u4e2d\"}"),
             "{\"a\":\"\\u4e2d\"}"

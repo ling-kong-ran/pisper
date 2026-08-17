@@ -1,3 +1,9 @@
+//! TUI 程序入口：CLI 解析、sidecar 启动、事件循环与异步动作调度。
+//!
+//! 结构：`main` → `run`（启动 sidecar、初始化 App）→ `run_event_loop`
+//! （select 输入事件 / Runtime 消息 / 定时器）。所有耗时的 API 调用都以
+//! tokio 任务 + mpsc 消息的方式异步完成，事件循环本身不做阻塞 IO。
+
 mod api;
 mod app;
 mod component_update;
@@ -49,6 +55,7 @@ use crate::{
     workspace::{canonical_workspace, same_workspace, validate_session_workspace},
 };
 
+// 会话加载请求的超时：历史消息加载是用户可见操作，不能无限等待。
 const SESSION_LOAD_TIMEOUT: Duration = Duration::from_secs(15);
 
 const CLI_HELP: &str = "Pisper CLI
@@ -112,6 +119,8 @@ async fn main() {
     }
 }
 
+/// 启动流程：解析参数 → 按需安装组件 → 启动 sidecar →
+/// `web`/`doctor` 子命令直接执行并退出，否则初始化 App 进入交互事件循环。
 async fn run() -> Result<()> {
     let arguments = std::env::args_os().skip(1).collect::<Vec<_>>();
     if let Some(help) = requested_help(&arguments) {
@@ -243,6 +252,9 @@ async fn run() -> Result<()> {
     result
 }
 
+/// 核心事件循环：每轮先按需重绘，然后 select 三类输入——
+/// 键盘/粘贴/缩放事件、Runtime 异步消息、各类定时器（粘贴 flush、动画、历史回收）。
+/// 返回值表示是否退出循环。
 async fn run_event_loop(
     terminal: &mut Terminal<CrosstermBackend<io::Stdout>>,
     mut app: App,
@@ -250,6 +262,7 @@ async fn run_event_loop(
 ) -> Result<()> {
     let mut input = EventStream::new();
     let (runtime_tx, mut runtime_rx) = mpsc::unbounded_channel::<RuntimeEvent>();
+    // 启动数据（偏好/目录）与交互输入并行加载，首帧无需等待网络。
     let startup_api = api.clone();
     let startup_sender = runtime_tx.clone();
     tokio::spawn(async move {
@@ -267,24 +280,30 @@ async fn run_event_loop(
             skills,
         });
     });
+    // 60ms 流式打字机动画；错过 tick 直接跳过，避免长时间卡顿后连播追帧。
     let mut animation = tokio::time::interval(Duration::from_millis(60));
     animation.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Skip);
+    // 状态栏扫描动画（80ms）。
     let mut status_animation = tokio::time::interval(Duration::from_millis(80));
     status_animation.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Skip);
+    // 历史消息空闲回收检查（5s 一次）。
     let mut history_eviction = tokio::time::interval(Duration::from_secs(5));
     history_eviction.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Skip);
 
+    // JetBrains 终端不渲染末列（光标列），需整体让出一列，详见 `is_jetbrains_terminal`。
     let jetbrains_terminal = is_jetbrains_terminal();
     let mut redraw = true;
     let mut pending_resize = None;
     let mut last_resize_at = None;
     let mut resize_to_draw = None;
     let mut paste_burst = PasteBurst::default();
+    // 已通知过「等待审批」的请求 id 集合：同一审批只弹一次通知，避免重复打扰。
     let mut notified_approval_ids = HashSet::new();
     loop {
         if redraw {
             draw_frame(terminal, &app, resize_to_draw.take(), jetbrains_terminal)?;
         }
+        // 粘贴缓冲有截止时间时，把它并入 select 的睡眠分支，到时自动 flush。
         let paste_burst_deadline = paste_burst.deadline();
         redraw = tokio::select! {
             maybe_event = input.next() => {
@@ -304,12 +323,14 @@ async fn run_event_loop(
                         pending_resize.is_none() && !paste_burst.is_buffering()
                     }
                     Some(Ok(Event::Paste(value))) => {
+                        // bracketed-paste 事件：先取出突发缓冲，再插入粘贴内容。
                         apply_paste_flush(paste_burst.flush(), &mut app);
                         app.insert_paste(&value);
                         paste_burst.clear_after_explicit_paste();
                         pending_resize.is_none()
                     }
                     Some(Ok(Event::Resize(width, height))) => {
+                        // 终端缩放会产生连续事件，先记录区域并等待其稳定后再重绘。
                         if let Some(area) = resize_area(width, height) {
                             pending_resize = Some(area);
                             last_resize_at = Some(Instant::now());
@@ -344,8 +365,10 @@ async fn run_event_loop(
                                 false
                             }
                             RuntimeEvent::Stream(event) => {
+                                // 终态事件（done/error）时本分支返回 true，触发后续收尾。
                                 let terminal = matches!(event.name.as_str(), "done" | "error");
                                 let completed = event.name == "done";
+                                // 审批事件的去重与通知：请求到达时弹一次，解析后移除。
                                 let approval_event = matches!(
                                     event.name.as_str(),
                                     "permission_request" | "permission_resolved"
@@ -584,10 +607,13 @@ async fn run_event_loop(
     Ok(())
 }
 
+/// 统一换行符：剪贴板文本可能带 CRLF 或 CR，全部归一为 `\n`。
 fn normalize_clipboard_text(text: impl AsRef<str>) -> String {
     text.as_ref().replace("\r\n", "\n").replace('\r', "\n")
 }
 
+/// 键盘入口：先处理粘贴突发（显式粘贴快捷键、突发捕获），
+/// 其余按键交给 App 产生 Action 再异步执行。
 async fn handle_key_with_paste_burst(
     key: KeyEvent,
     paste_burst: &mut PasteBurst,
@@ -666,15 +692,18 @@ async fn handle_key_with_paste_burst(
     execute_action(action, app, api, runtime_tx).await
 }
 
+/// 只处理按下与重复两类按键事件，释放事件一律忽略。
 fn should_handle_key_kind(kind: KeyEventKind) -> bool {
     matches!(kind, KeyEventKind::Press | KeyEventKind::Repeat)
 }
 
+/// 粘贴快捷键：Ctrl+V / Ctrl+Shift+V 或 Shift+Insert。
 fn is_paste_shortcut(key: &KeyEvent) -> bool {
     (matches!(key.code, KeyCode::Char('v' | 'V')) && key.modifiers.contains(KeyModifiers::CONTROL))
         || (key.code == KeyCode::Insert && key.modifiers.contains(KeyModifiers::SHIFT))
 }
 
+/// 内联附件快捷键：输入为空、未在粘贴缓冲时按 `+` 打开附件选择器。
 fn is_inline_attachment_shortcut(
     key: &KeyEvent,
     composer_empty: bool,
@@ -688,6 +717,8 @@ fn is_inline_attachment_shortcut(
         && !paste_buffering
 }
 
+/// 读剪贴板：仅 Windows 支持直读（通过 win32 API）；
+/// 其他平台依赖终端自身的 bracketed-paste，返回 None。
 #[cfg(windows)]
 fn read_clipboard_text() -> Option<String> {
     clipboard_win::get_clipboard(clipboard_win::formats::Unicode)
@@ -700,6 +731,7 @@ fn read_clipboard_text() -> Option<String> {
     None
 }
 
+/// 把粘贴 flush 结果应用到输入框：Paste 折叠显示，Typed 普通插入。
 fn apply_paste_flush(result: FlushResult, app: &mut App) {
     match result {
         FlushResult::Paste(text) => app.insert_detected_paste(&text),
@@ -708,10 +740,13 @@ fn apply_paste_flush(result: FlushResult, app: &mut App) {
     }
 }
 
+/// 是否应发「对话完成」通知：完成且没有排队消息时才发。
 fn should_notify_completion(completed: bool, queued_count: usize) -> bool {
     completed && queued_count == 0
 }
 
+/// 识别「会话已结束」类排队错误：运行结束瞬间提交的消息会被 Runtime 拒绝，
+/// 此时把消息留到下一轮运行（defer）而不是直接失败。
 fn is_ended_session_queue_error(error: &str) -> bool {
     let normalized = error.to_lowercase();
     normalized.contains("当前会话已经结束运行")
@@ -721,6 +756,7 @@ fn is_ended_session_queue_error(error: &str) -> bool {
                 .any(|value| normalized.contains(value)))
 }
 
+/// 异步发送「等待审批」通知；系统通知开关开启时再弹本地系统通知。
 fn spawn_waiting_notification(api: &ApiClient, waiting: notification::ChatWaiting) {
     let api = api.clone();
     tokio::spawn(async move {
@@ -744,6 +780,7 @@ fn spawn_waiting_notification(api: &ApiClient, waiting: notification::ChatWaitin
     });
 }
 
+/// 异步发送「对话完成」通知。
 fn spawn_completion_notification(api: &ApiClient, completion: notification::ChatCompletion) {
     let api = api.clone();
     tokio::spawn(async move {
@@ -762,14 +799,18 @@ fn spawn_completion_notification(api: &ApiClient, completion: notification::Chat
     });
 }
 
+/// 尺寸 → 绘制区域（0 尺寸无效）。
 fn resize_area(width: u16, height: u16) -> Option<Rect> {
     (width > 0 && height > 0).then(|| Rect::new(0, 0, width, height))
 }
 
+/// 缩放是否已稳定：距最后一次缩放事件至少 80ms 才认为稳定，
+/// 避免缩放过程中反复 resize 抖动。
 fn resize_has_settled(last_resize_at: Instant, now: Instant) -> bool {
     now.saturating_duration_since(last_resize_at) >= Duration::from_millis(80)
 }
 
+/// JetBrains 终端检测：其渲染器保留最后一列，需让出一列避免换行闪动。
 fn is_jetbrains_terminal() -> bool {
     ["TERMINAL_EMULATOR", "TERM_PROGRAM"]
         .into_iter()
@@ -780,6 +821,7 @@ fn is_jetbrains_terminal() -> bool {
         })
 }
 
+/// 计算实际可用内容区：JetBrains 终端宽度减一。
 fn terminal_content_area(area: Rect, jetbrains_terminal: bool) -> Rect {
     if jetbrains_terminal && area.width > 1 {
         Rect::new(area.x, area.y, area.width - 1, area.height)
@@ -788,12 +830,15 @@ fn terminal_content_area(area: Rect, jetbrains_terminal: bool) -> Rect {
     }
 }
 
+/// 同步终端尺寸并清屏（缩放稳定后的完整重绘路径）。
 fn synchronize_terminal_size<B: Backend>(terminal: &mut Terminal<B>, area: Rect) -> Result<()> {
     terminal.resize(area)?;
     terminal.clear()?;
     Ok(())
 }
 
+/// 绘制一帧：非 JetBrains 终端用 synchronized update 包裹，
+/// 避免多段输出在慢终端上被拆成可见的多次刷新。
 fn draw_frame(
     terminal: &mut Terminal<CrosstermBackend<io::Stdout>>,
     app: &App,
@@ -824,6 +869,7 @@ fn draw_frame(
     Ok(())
 }
 
+/// VCS 请求类型：刷新 / 提交（带消息）/ 推送 / 回退。
 enum VcsRequest {
     Refresh,
     Commit(String),
@@ -831,6 +877,7 @@ enum VcsRequest {
     Revert,
 }
 
+/// 后台加载会话历史，超时与错误统一转为消息发回主循环。
 fn spawn_session_load(
     api: &ApiClient,
     request_id: u64,
@@ -857,6 +904,7 @@ fn spawn_session_load(
     });
 }
 
+/// 后台加载会话思考级别。
 fn spawn_session_thinking_load(
     api: &ApiClient,
     session_id: String,
@@ -873,6 +921,7 @@ fn spawn_session_thinking_load(
     });
 }
 
+/// 后台执行 VCS 请求并把结果发回主循环。
 fn spawn_vcs_request(
     api: &ApiClient,
     session_id: String,
@@ -893,6 +942,8 @@ fn spawn_vcs_request(
     });
 }
 
+/// 执行 App 产生的 Action。多数动作直接派发后台任务；
+/// 返回 `true` 表示需要退出事件循环（Quit）。
 async fn execute_action(
     action: Action,
     app: &mut App,
@@ -907,6 +958,7 @@ async fn execute_action(
             requested_tool,
             attachment_paths,
         } => {
+            // 草稿会话先物化为真实会话（创建 + 应用默认模型/思考级别/模式）。
             if let Err(error) = materialize_draft_session(app, api).await {
                 app.stream_failed(format!("{error:#}"));
                 return Ok(false);
@@ -1235,6 +1287,9 @@ async fn execute_action(
     Ok(false)
 }
 
+/// 把草稿会话物化为 sidecar 中的真实会话：
+/// 创建会话后按草稿上配置的模型/思考级别/执行模式逐一同步（与默认值不同才调用），
+/// 使会话一出生就带用户预选的设置。
 async fn materialize_draft_session(app: &mut App, api: &ApiClient) -> Result<()> {
     if !app.is_draft_session() {
         return Ok(());
@@ -1270,6 +1325,8 @@ async fn materialize_draft_session(app: &mut App, api: &ApiClient) -> Result<()>
     Ok(())
 }
 
+/// 构造草稿会话：尚无 id，模型/思考级别继承自当前上下文，
+/// 工作区取启动工作区，默认 full-access 模式。
 fn draft_session(workspace: &Path, model: &str, thinking_level: &str) -> SessionSummary {
     SessionSummary {
         name: "New conversation".to_owned(),
@@ -1281,10 +1338,12 @@ fn draft_session(workspace: &Path, model: &str, thinking_level: &str) -> Session
     }
 }
 
+/// `resume` 模式下的会话种子：取列表中的第一个会话。
 fn resume_seed(sessions: &[SessionSummary], resume: bool) -> Option<SessionSummary> {
     resume.then(|| sessions.first().cloned()).flatten()
 }
 
+/// 解析后的启动选项。
 struct LaunchOptions {
     workspace: PathBuf,
     doctor: bool,
@@ -1292,6 +1351,7 @@ struct LaunchOptions {
     web: bool,
 }
 
+/// 帮助请求处理：`help` / `--help` / `-h` 均返回对应帮助文本（不启动任何组件）。
 fn requested_help(arguments: &[OsString]) -> Option<&'static str> {
     let first = arguments.first().and_then(|argument| argument.to_str());
     if first == Some("help") {
@@ -1311,6 +1371,8 @@ fn requested_help(arguments: &[OsString]) -> Option<&'static str> {
     })
 }
 
+/// 解析 CLI 参数：`--cwd`/`doctor`/`resume`/`web`/版本与帮助。
+/// doctor/resume/web 互斥；未知参数直接报错。
 fn launch_options() -> Result<LaunchOptions> {
     let mut args = std::env::args_os().skip(1);
     let mut workspace = None;
@@ -1351,6 +1413,8 @@ fn launch_options() -> Result<LaunchOptions> {
     })
 }
 
+/// 终端会话管理：进入原始模式与备用屏、开启 bracketed-paste；
+/// 退出时恢复终端状态（幂等，Drop 兜底）。
 struct TerminalSession {
     terminal: Terminal<CrosstermBackend<io::Stdout>>,
     restored: bool,
@@ -1368,6 +1432,7 @@ impl TerminalSession {
         })
     }
 
+    /// 恢复终端：重复调用只执行一次。
     fn restore(&mut self) {
         if self.restored {
             return;

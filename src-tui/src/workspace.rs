@@ -1,9 +1,18 @@
+//! 工作区路径的校验与比较。
+//!
+//! 会话的工作区是安全边界：附件、工具调用都以它为准。sidecar 返回的 cwd
+//! 必须真实存在、与启动时请求的一致，否则会话不能继续，防止被恶意或错误
+//! 的 sidecar 数据把会话导向别的工作区。
+
 use std::path::{Path, PathBuf};
 
 use anyhow::{bail, Context, Result};
 
 use crate::model::SessionSummary;
 
+/// 解析并验证工作区路径：必须是真实存在的目录。
+/// 路径统一规范化（canonicalize），后续所有比较都基于解析后的绝对路径，
+/// 避免符号链接或相对路径造成「看起来相同、实则不同」的工作区。
 pub fn canonical_workspace(path: &Path) -> Result<PathBuf> {
     let workspace = path
         .canonicalize()
@@ -14,6 +23,9 @@ pub fn canonical_workspace(path: &Path) -> Result<PathBuf> {
     Ok(workspace)
 }
 
+/// 判断一个字符串路径与工作区是否指向同一位置。
+/// 用于比对 sidecar 上报的 cwd 与本地期望值；路径不存在时退化为字面量比较，
+/// 尽量给出一个合理结论而不是直接失败。
 pub fn same_workspace(value: &str, workspace: &Path) -> bool {
     let candidate = PathBuf::from(value);
     let candidate = candidate.canonicalize().unwrap_or(candidate);
@@ -23,6 +35,9 @@ pub fn same_workspace(value: &str, workspace: &Path) -> bool {
     workspace_keys_match(&candidate, &workspace)
 }
 
+/// 校验会话工作区：sidecar 返回的 cwd 不能为空、必须可解析；
+/// 若调用方显式指定了工作区，两者必须一致。
+/// 不一致时直接报错，让调用方（如会话恢复、创建会话）拒绝继续。
 pub fn validate_session_workspace(
     session: &SessionSummary,
     requested: Option<&Path>,
@@ -52,6 +67,8 @@ pub fn validate_session_workspace(
     Ok(actual)
 }
 
+/// 工作区键比较：Windows 文件系统不区分大小写，需忽略大小写；
+/// 其余平台直接按字节比较。
 fn workspace_keys_match(left: &Path, right: &Path) -> bool {
     #[cfg(windows)]
     {

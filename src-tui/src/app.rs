@@ -1,3 +1,9 @@
+//! TUI 应用状态与交互逻辑（纯状态层，不直接触碰终端）。
+//!
+//! `App` 持有会话/消息/输入/弹窗等全部 UI 状态；按键输入经 `handle_key`
+//! 转换为 `Action`（副作用动作），由事件循环异步执行后再把结果写回 `App`。
+//! 流事件经 `apply_stream_event` 直接更新状态。
+
 use std::{
     cell::Cell,
     collections::{HashMap, VecDeque},
@@ -23,12 +29,20 @@ use crate::{
     workspace::same_workspace,
 };
 
+// `/init` 的完整指令：让 Agent 分析仓库并创建/改进 AGENTS.md。
+// 真实提示语对用户隐藏，只显示 `/init` 命令本身。
 const INIT_PROMPT: &str = "/init\n\n---\nAttachment context (injected by Pisper):\nAnalyze this codebase and create or improve `AGENTS.md` in the current workspace root. The file is long-lived guidance for Pisper and other coding agents working in this repository. Inspect the repository before writing it. Capture only project-specific, durable information: the project purpose, important directories and architecture, build/test/lint/typecheck commands, coding conventions, and verification expectations. Keep it concise and practical. Do not include generic advice, temporary task details, secrets, exhaustive file listings, or information you cannot verify. If `AGENTS.md` already exists, preserve accurate useful instructions and update it carefully instead of replacing it blindly. Modify only `AGENTS.md`. After writing it, briefly summarize what you added.";
+// 内存中最多保留的消息数（约 4 页），防止长时间会话内存无限增长。
 const MAX_LOADED_MESSAGES: usize = MESSAGE_PAGE_LIMIT * 4;
+// 空闲回收后保留的消息数（约 2 页）。
 const HISTORY_KEEP_MESSAGES: usize = MESSAGE_PAGE_LIMIT * 2;
+// 历史消息空闲多久后回收（用户停止浏览更早消息时释放内存）。
 const HISTORY_IDLE_EVICT_DELAY: Duration = Duration::from_secs(90);
+// 接近顶部多少行时触发加载更早历史。
 const HISTORY_SCROLL_MARGIN: u16 = 8;
 
+/// 当前计划项的索引：优先进行中，其次阻塞，再次待办；
+/// 全部完成时指向最后一项（面板随即收起）。
 fn current_plan_item_index(plan: &Plan) -> usize {
     plan.items
         .iter()
@@ -37,8 +51,10 @@ fn current_plan_item_index(plan: &Plan) -> usize {
         .or_else(|| plan.items.iter().position(|item| item.status == "pending"))
         .unwrap_or_else(|| plan.items.len().saturating_sub(1))
 }
+// 单行滚动步长。
 const LINE_SCROLL_STEP: u16 = 1;
 
+/// 读取布尔环境变量开关（`PISPER_TUI_*`）：只有 1/true/yes/on 视为开启。
 fn env_flag(name: &str) -> bool {
     std::env::var(name).is_ok_and(|value| {
         matches!(
@@ -47,8 +63,10 @@ fn env_flag(name: &str) -> bool {
         )
     })
 }
+// 整页滚动步长。
 const PAGE_SCROLL_STEP: u16 = 8;
 
+/// 主视图：对话 / 工作区变更。
 #[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
 pub enum View {
     #[default]
@@ -56,6 +74,7 @@ pub enum View {
     Changes,
 }
 
+/// Slash 项类型：应用工具 / 技能 / 内置命令。
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum SlashKind {
     Tool,
@@ -63,6 +82,7 @@ pub enum SlashKind {
     Command,
 }
 
+/// Slash 目录筛选分类。
 #[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
 pub enum SlashCategory {
     #[default]
@@ -73,6 +93,7 @@ pub enum SlashCategory {
 }
 
 impl SlashCategory {
+    /// 当前分类是否包含指定类型的项。
     fn includes(self, kind: SlashKind) -> bool {
         matches!(self, Self::All)
             || matches!(
@@ -83,6 +104,7 @@ impl SlashCategory {
             )
     }
 
+    /// 循环到下一个分类（右箭头）。
     fn next(self) -> Self {
         match self {
             Self::All => Self::Tools,
@@ -92,6 +114,7 @@ impl SlashCategory {
         }
     }
 
+    /// 循环到上一个分类（左箭头）。
     fn previous(self) -> Self {
         match self {
             Self::All => Self::Commands,
@@ -102,13 +125,19 @@ impl SlashCategory {
     }
 }
 
+/// Slash 目录中的一条建议项。
 #[derive(Clone, Debug)]
 pub struct SlashItem {
     pub kind: SlashKind,
+    /// 输入框中被插入/提交的命令文本。
     pub command: String,
+    /// 展示用描述。
     pub detail: String,
 }
 
+/// 正在流式输出的一轮 Agent 运行。
+/// 关键设计：`*_target` 是流的真实目标文本，`*` 是已显示的文本；
+/// 打字机动画逐帧把 `*` 推向 `*_target`。
 #[derive(Clone, Debug, Default)]
 pub struct LiveTurn {
     pub thinking: String,
@@ -119,6 +148,7 @@ pub struct LiveTurn {
     pub streaming: bool,
 }
 
+/// 待用户确认的权限请求（工具审批）。
 #[derive(Clone, Debug)]
 pub struct Approval {
     pub id: String,
@@ -128,6 +158,7 @@ pub struct Approval {
     pub reason: String,
 }
 
+/// 附件草稿：发送前暂存在输入侧，提交时转成真实路径列表。
 #[derive(Clone, Debug)]
 pub struct AttachmentDraft {
     pub path: PathBuf,
@@ -136,87 +167,110 @@ pub struct AttachmentDraft {
     pub size: u64,
 }
 
+/// 附件选择器中的目录项。
 #[derive(Clone, Debug)]
 pub struct PathEntry {
     pub path: PathBuf,
     pub name: String,
     pub is_dir: bool,
     pub size: u64,
+    /// 是否支持作为附件（目录总是支持进入）。
     pub supported: bool,
 }
 
+/// 设置弹窗类型。
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum SettingsPicker {
     Model,
     Thinking,
 }
 
+/// 排队中的提示（运行期间提交的后续输入）。
 #[derive(Clone, Debug)]
 struct QueuedPrompt {
     message: String,
+    /// 显示用消息（如 `/init` 显示命令名而非真实提示语）。
     display_message: Option<String>,
     requested_tool: Option<String>,
     attachments: Vec<AttachmentDraft>,
 }
 
+/// 粘贴折叠块的源区间（`[start, end)`，对应 `input` 字符下标）。
+/// 折叠显示时整块粘贴显示为一行占位文本。
 #[derive(Clone, Debug)]
 struct PastedRange {
     start: usize,
     end: usize,
 }
 
+/// 按键产生的副作用动作；由事件循环异步执行。
+/// 设计上 App 不直接调用 API，而是产出动作让主循环统一调度。
 pub enum Action {
+    /// 无操作。
     None,
+    /// 退出程序。
     Quit,
+    /// 提交一条新消息（可附带请求工具与附件路径）。
     Submit {
         message: String,
         requested_tool: Option<String>,
         attachment_paths: Vec<PathBuf>,
     },
-    QueueInput {
-        message: String,
-    },
+    /// 向运行中的会话排队追加输入。
+    QueueInput { message: String },
+    /// 中止当前运行。
     Abort,
+    /// 新建会话（回到草稿状态）。
     NewSession,
+    /// 切换会话工作区。
     SetCwd(PathBuf),
+    /// 切换执行模式。
     SetExecutionMode(String),
-    SetModel {
-        provider: String,
-        model: String,
-    },
+    /// 切换模型。
+    SetModel { provider: String, model: String },
+    /// 刷新思考级别选项。
     RefreshThinking,
+    /// 压缩上下文。
     Compact,
-    LoadOlderMessages {
-        before: u64,
-    },
+    /// 加载更早的历史消息。
+    LoadOlderMessages { before: u64 },
+    /// 设置思考级别。
     SetThinkingLevel(String),
-    SwitchSession {
-        id: String,
-        request_id: u64,
-    },
-    ResolveApproval {
-        id: String,
-        approved: bool,
-    },
+    /// 切换到指定会话。
+    SwitchSession { id: String, request_id: u64 },
+    /// 解析一个审批请求。
+    ResolveApproval { id: String, approved: bool },
+    /// 刷新工作区变更。
     RefreshVcs,
+    /// 提交工作区变更（带提交信息）。
     CommitVcs(String),
+    /// 推送工作区变更。
     PushVcs,
+    /// 回退工作区变更。
     RevertVcs,
+    /// 保存 Provider 连接（协议/Base URL/API Key）。
     SaveProviderConnection {
         provider: String,
         api: String,
         base_url: String,
         api_key: String,
     },
+    /// 在浏览器打开 Web 设置。
     OpenWeb,
 }
 
+/// Slash 命令使用统计（持久化到 `~/.pisper/tui-slash-usage.json`，
+/// 用于目录排序：更常用的命令排前面）。
 #[derive(Clone, Debug, Default, Deserialize, Serialize)]
 struct SlashUsage {
     count: u64,
     last_used: u64,
 }
 
+/// TUI 的全部 UI 状态。
+/// 字段可分几组：会话/消息（sessions/session/messages/live）、
+/// 输入（input/input_cursor/pasted_ranges）、弹窗（session_picker/path_picker/…）、
+/// 会话元信息（model/cwd/execution_mode/…）、以及 VCS/用量/通知等辅助状态。
 pub struct App {
     pub sessions: Vec<SessionSummary>,
     pub session: SessionSummary,
@@ -302,6 +356,7 @@ pub struct App {
 }
 
 impl App {
+    /// 构造初始 App：整理计划、限制消息数、初始化输入框与各弹窗状态。
     pub fn new(
         sessions: Vec<SessionSummary>,
         session: SessionSummary,
@@ -410,10 +465,13 @@ impl App {
         }
     }
 
+    /// 输入框当前文本（未折叠）。
     pub fn input_text(&self) -> String {
         self.input.iter().collect()
     }
 
+    /// 输入框的「显示」内容与光标位置：粘贴块折叠为占位文本。
+    /// 显示层与存储层分离，既避免长粘贴占据整个输入框，又不丢失原文。
     pub fn composer_input(&self) -> (Vec<char>, usize) {
         if self.pasted_ranges.is_empty() {
             return (self.input.clone(), self.input_cursor);
@@ -467,6 +525,7 @@ impl App {
         (display, cursor)
     }
 
+    /// 输入框是否处于可接受输入状态：无审批、无路径/会话/设置/API Key 弹窗。
     pub fn accepts_composer_input(&self) -> bool {
         self.approval.is_none()
             && !self.path_picker
@@ -475,10 +534,12 @@ impl App {
             && !self.api_key_dialog
     }
 
+    /// 当前是否有运行的 Agent 回合。
     pub fn is_streaming(&self) -> bool {
         self.live.as_ref().is_some_and(|turn| turn.streaming)
     }
 
+    /// 是否处于「运行中」视觉状态（驱动状态栏动画）。
     pub fn is_running_state(&self) -> bool {
         self.is_streaming()
             || self.compacting_context
@@ -486,12 +547,15 @@ impl App {
             || self.status.starts_with("running ")
     }
 
+    /// 是否有未完成流式渲染（打字机动画需要继续推进）。
     pub fn has_pending_render(&self) -> bool {
         self.live.as_ref().is_some_and(|turn| {
             turn.text != turn.text_target || turn.thinking != turn.thinking_target
         })
     }
 
+    /// 推进流式渲染：滚动回溯或减动画模式直接跳到目标文本，
+    /// 否则按打字机步长逐步展示；同时推进状态帧计数。
     pub fn advance_stream_render(&mut self) {
         if let Some(live) = self.live.as_mut() {
             if self.reduced_motion || self.scroll.get() > 0 {
@@ -507,33 +571,40 @@ impl App {
         }
     }
 
+    /// 推进状态栏动画帧。
     pub fn advance_status_animation(&mut self) {
         if !self.reduced_motion {
             self.status_frame = self.status_frame.wrapping_add(1);
         }
     }
 
+    /// 是否开启减动画模式（`PISPER_TUI_REDUCED_MOTION`）。
     pub fn reduced_motion(&self) -> bool {
         self.reduced_motion
     }
 
+    /// Slash 目录是否打开：输入以 `/` 开头且无空白。
     pub fn slash_open(&self) -> bool {
         let input = self.input_text();
         input.starts_with('/') && !input.chars().any(char::is_whitespace)
     }
 
+    /// 路径输入框文本。
     pub fn path_input_text(&self) -> String {
         self.path_input.iter().collect()
     }
 
+    /// 排队中的消息总数（本地队列 + Runtime 侧队列）。
     pub fn queued_count(&self) -> usize {
         self.queued_prompts.len() + self.runtime_queued_count
     }
 
+    /// 待审批总数（当前可见的 + 排队中的）。
     pub fn approval_count(&self) -> usize {
         usize::from(self.approval.is_some()) + self.pending_approvals.len()
     }
 
+    /// 按 id 查找审批（含排队中的）。
     pub fn approval_by_id(&self, id: &str) -> Option<&Approval> {
         self.approval
             .iter()
@@ -541,10 +612,12 @@ impl App {
             .find(|approval| approval.id == id)
     }
 
+    /// 是否正在向 Runtime 提交审批结果。
     pub fn approval_is_resolving(&self) -> bool {
         self.approval_resolving
     }
 
+    /// 入队审批：相同 id 覆盖；当前无可见审批时直接成为可见审批。
     fn enqueue_approval(&mut self, approval: Approval) {
         if self
             .approval
@@ -565,6 +638,7 @@ impl App {
         }
     }
 
+    /// 审批解析成功：可见审批出队并展示下一个排队审批。
     pub fn approval_resolution_succeeded(&mut self, id: &str) {
         if self
             .approval
@@ -580,10 +654,12 @@ impl App {
         }
     }
 
+    /// 审批解析失败：仅复位「解析中」标记，让用户能重新按键。
     pub fn approval_resolution_failed(&mut self) {
         self.approval_resolving = false;
     }
 
+    /// 清空全部审批状态（运行结束/失败/中止时调用）。
     fn clear_approvals(&mut self) {
         self.approval = None;
         self.pending_approvals.clear();
@@ -592,6 +668,8 @@ impl App {
         self.approval_max_scroll.set(0);
     }
 
+    /// 写入启动数据：草稿会话在此阶段才拿到默认模型与思考级别，
+    /// 同时刷新工具/Skill/模型/Provider 目录。
     pub fn set_startup_data(
         &mut self,
         default_model: String,
@@ -617,10 +695,12 @@ impl App {
         self.skills = skills;
     }
 
+    /// 是否草稿会话（尚未在 sidecar 中创建）。
     pub fn is_draft_session(&self) -> bool {
         self.session.id.is_empty()
     }
 
+    /// 设置模型选项（按 Provider → 名称 → id 排序，便于选择器定位）。
     pub fn set_model_options(&mut self, mut options: Vec<ModelOption>) {
         options.sort_by(|left, right| {
             left.provider
@@ -631,6 +711,7 @@ impl App {
         self.model_options = options;
     }
 
+    /// 设置 Provider 选项（按类型 → 名称 → id 排序）。
     pub fn set_provider_options(&mut self, mut options: Vec<ProviderOption>) {
         options.sort_by(|left, right| {
             left.provider_type
@@ -641,6 +722,7 @@ impl App {
         self.provider_options = options;
     }
 
+    /// 打开 API Key 对话框：运行中禁止修改 Provider 凭据。
     pub fn open_api_key_dialog(&mut self) {
         if self.is_streaming() {
             self.status = "Stop the active run before changing provider credentials".to_owned();
@@ -658,6 +740,7 @@ impl App {
         self.status_error = false;
     }
 
+    /// 进入指定 Provider 的连接编辑态（协议/Base URL/API Key 三个字段）。
     fn edit_provider_connection(&mut self, provider_id: String) {
         let Some(provider) = self
             .provider_options
@@ -679,6 +762,7 @@ impl App {
         self.api_key_provider = Some(provider_id);
     }
 
+    /// Provider 连接保存成功：回写选项并退出对话框。
     pub fn provider_connection_saved(
         &mut self,
         provider_id: &str,
@@ -702,18 +786,21 @@ impl App {
         self.status_error = false;
     }
 
+    /// Provider 连接保存失败：清空 API Key 输入并显示错误。
     pub fn provider_connection_save_failed(&mut self, error: String) {
         self.clear_api_key_input();
         self.status = format!("Provider connection save failed · {error}");
         self.status_error = true;
     }
 
+    /// 清空 API Key 输入（敏感字段，务必清零内存）。
     fn clear_api_key_input(&mut self) {
         self.api_key_input.zeroize();
         self.api_key_cursor = 0;
         self.provider_input_selected_all = false;
     }
 
+    /// 清空 Provider 连接表单的全部输入。
     fn clear_provider_connection_input(&mut self) {
         self.clear_api_key_input();
         self.provider_base_url_input.clear();
@@ -723,6 +810,7 @@ impl App {
         self.provider_connection_field = 2;
     }
 
+    /// 附件选择器中按当前过滤词可见的条目。
     pub fn visible_path_entries(&self) -> Vec<&PathEntry> {
         let query = self.path_input_text().to_lowercase();
         self.path_entries
@@ -731,23 +819,28 @@ impl App {
             .collect()
     }
 
+    /// 可用的思考级别列表。
     pub fn thinking_levels(&self) -> &[String] {
         &self.thinking_options
     }
 
+    /// 记录启动工作区：`/new` 与全局 resume 都以它为准。
     pub fn set_launch_workspace(&mut self, workspace: PathBuf) {
         self.launch_workspace = workspace;
     }
 
+    /// 新建会话应使用的工作区。
     pub fn new_session_workspace(&self) -> &Path {
         &self.launch_workspace
     }
 
+    /// 打开会话选择器（定位到当前会话）。
     pub fn open_session_picker(&mut self, exit_on_cancel: bool) {
         let active_id = self.session.id.clone();
         self.open_session_picker_at(exit_on_cancel, &active_id);
     }
 
+    /// 打开会话选择器并定位到指定会话。
     pub fn open_session_picker_at(&mut self, exit_on_cancel: bool, selected_id: &str) {
         self.session_query.clear();
         self.session_query_cursor = 0;
@@ -761,6 +854,7 @@ impl App {
         self.session_picker = true;
     }
 
+    /// 按搜索词过滤可见会话（名称/模型/工作区）。
     pub fn visible_sessions(&self) -> Vec<&SessionSummary> {
         let query = self.session_query.iter().collect::<String>().to_lowercase();
         self.sessions
@@ -774,11 +868,14 @@ impl App {
             .collect()
     }
 
+    /// 会话加载结果是否仍有效：请求代次与会话 id 都须匹配，
+    /// 丢弃切换期间返回的过期结果。
     pub fn is_current_session_load(&self, request_id: u64, session_id: &str) -> bool {
         self.session_load_generation == request_id
             && self.session_loading.as_deref() == Some(session_id)
     }
 
+    /// 会话加载失败处理（仅当前请求才生效）。
     pub fn session_load_failed(&mut self, request_id: u64, session_id: &str, error: String) {
         if !self.is_current_session_load(request_id, session_id) {
             return;
@@ -788,6 +885,7 @@ impl App {
         self.status_error = true;
     }
 
+    /// 开始加载思考级别（复位选项并显示加载状态）。
     pub fn begin_thinking_load(&mut self) {
         self.thinking_options.clear();
         self.thinking_message.clear();
@@ -796,6 +894,8 @@ impl App {
         self.status_error = false;
     }
 
+    /// 应用思考级别状态：更新选项、可用性与当前级别；
+    /// 若正处于加载态则把状态栏切换为结果提示。
     pub fn set_thinking_state(&mut self, updated: ThinkingLevelUpdate) {
         let was_loading = self.thinking_availability == ThinkingAvailability::Loading
             && self.status == "loading thinking levels";
@@ -829,6 +929,7 @@ impl App {
         self.status_error = false;
     }
 
+    /// 思考级别加载失败：转为错误态并提示。
     pub fn set_thinking_error(&mut self, error: String) {
         self.thinking_options.clear();
         self.thinking_message.clone_from(&error);
@@ -837,10 +938,12 @@ impl App {
         self.status_error = true;
     }
 
+    /// 打开思考级别选择器。
     pub fn open_thinking_picker(&mut self) {
         self.open_settings_picker(SettingsPicker::Thinking);
     }
 
+    /// 打开附件路径选择器（定位到会话工作区）。
     pub fn open_path_picker(&mut self) {
         self.path_picker = true;
         self.path_input.clear();
@@ -852,6 +955,7 @@ impl App {
         self.refresh_path_entries();
     }
 
+    /// 刷新当前目录的条目列表：目录排前、按名称排序，支持附件类型才可选中。
     fn refresh_path_entries(&mut self) {
         self.path_entries = fs::read_dir(&self.path_directory)
             .map(|entries| {
@@ -882,6 +986,7 @@ impl App {
         self.path_selected = 0;
     }
 
+    /// 打开设置选择器（模型/思考级别）；运行中禁止修改运行时设置。
     fn open_settings_picker(&mut self, picker: SettingsPicker) {
         if self.is_streaming() {
             self.status = "Stop the active run before changing runtime settings".to_owned();
@@ -903,6 +1008,7 @@ impl App {
         };
     }
 
+    /// 当前分类下可见的 Slash 项（已按分类过滤）。
     pub fn slash_items(&self) -> Vec<SlashItem> {
         self.filtered_slash_items()
             .into_iter()
@@ -910,6 +1016,7 @@ impl App {
             .collect()
     }
 
+    /// 各类型 Slash 项数量（目录标题用）。
     pub fn slash_kind_counts(&self) -> (usize, usize, usize) {
         self.filtered_slash_items()
             .iter()
@@ -923,6 +1030,7 @@ impl App {
             })
     }
 
+    /// 构造并按相关性排序 Slash 项：前缀匹配优先、其次使用频率、再次最近使用。
     fn filtered_slash_items(&self) -> Vec<SlashItem> {
         let query = self
             .input_text()
@@ -1007,6 +1115,7 @@ impl App {
         items
     }
 
+    /// 循环切换 Slash 分类。
     fn cycle_slash_category(&mut self, forward: bool) {
         self.slash_category = if forward {
             self.slash_category.next()
@@ -1016,6 +1125,8 @@ impl App {
         self.slash_selected = 0;
     }
 
+    /// 按键总入口：按弹窗/状态优先级分发到对应处理器，
+    /// 最后回退到对话区通用按键处理。
     pub fn handle_key(&mut self, key: KeyEvent) -> Action {
         if key.kind == crossterm::event::KeyEventKind::Release {
             return Action::None;
@@ -1054,6 +1165,7 @@ impl App {
             return Action::None;
         }
         if key.modifiers.contains(KeyModifiers::CONTROL) && key.code == KeyCode::Char('c') {
+            // Ctrl+C：运行中先中止，第二次再按强制退出；空闲时直接退出。
             return if self.is_streaming() || self.approval.is_some() {
                 self.clear_approvals();
                 if self.abort_pressed {
@@ -1067,6 +1179,7 @@ impl App {
             };
         }
         if self.confirm_model_compaction {
+            // 换模型后的「是否压缩上下文」确认弹层。
             return match key.code {
                 KeyCode::Char('y') | KeyCode::Char('Y') => {
                     self.confirm_model_compaction = false;
@@ -1081,6 +1194,7 @@ impl App {
             };
         }
         if let Some(approval) = self.approval.clone() {
+            // 有可见审批时，只响应 Y/N/Esc 与滚动键。
             return match key.code {
                 KeyCode::Char('y') | KeyCode::Char('Y') if !self.approval_resolving => {
                     self.approval_resolving = true;
@@ -1143,6 +1257,7 @@ impl App {
             return self.handle_api_key_dialog(key);
         }
         if key.modifiers.contains(KeyModifiers::CONTROL) && key.code == KeyCode::Char('o') {
+            // Ctrl+O：直接打开附件选择器（不丢弃输入框草稿）。
             self.open_path_picker();
             return Action::None;
         }
@@ -1153,6 +1268,7 @@ impl App {
             return self.handle_settings_picker(key);
         }
         if self.view == View::Changes {
+            // 变更视图：文件导航、滚动、VCS 动作（含两次 V 确认回退）。
             return match key.code {
                 KeyCode::Esc => {
                     self.view = View::Chat;
@@ -1235,6 +1351,7 @@ impl App {
             return self.handle_session_picker(key);
         }
         if self.slash_open() {
+            // Slash 目录打开时的导航/补全/选择。
             match key.code {
                 KeyCode::Up => {
                     self.slash_selected = self.slash_selected.saturating_sub(1);
@@ -1282,6 +1399,7 @@ impl App {
                 .as_ref()
                 .is_some_and(|plan| !plan.items.is_empty())
         {
+            // Alt+方向键：仅滚动计划面板，与对话滚动互不干扰。
             return match key.code {
                 KeyCode::Up => {
                     self.plan_scroll
@@ -1359,6 +1477,7 @@ impl App {
                 Action::None
             }
             KeyCode::Up if self.view == View::Chat => {
+                // 上滚时靠近顶部会触发加载更早历史。
                 self.scroll
                     .set(self.scroll.get().saturating_add(LINE_SCROLL_STEP));
                 self.history_touched_at = Some(Instant::now());
@@ -1393,6 +1512,7 @@ impl App {
         }
     }
 
+    /// 选中 VCS 文件并把 diff 视口滚动到该文件的位置。
     fn select_vcs_file(&mut self, index: usize) {
         let Some(changes) = self.vcs.as_ref() else {
             self.vcs_selected = 0;
@@ -1413,6 +1533,7 @@ impl App {
             .set((line.min(self.vcs_max_scroll.get() as usize)) as u16);
     }
 
+    /// API Key 对话框按键处理：先选 Provider，进入后编辑三个字段。
     fn handle_api_key_dialog(&mut self, key: KeyEvent) -> Action {
         if self.api_key_provider.is_none() {
             let count = self.provider_options.len();
@@ -1619,6 +1740,7 @@ impl App {
         }
     }
 
+    /// 循环切换 Provider 协议（左/右箭头）。
     fn cycle_provider_api(&mut self, forward: bool) {
         let current = PROVIDER_APIS
             .iter()
@@ -1632,6 +1754,7 @@ impl App {
         self.provider_api = PROVIDER_APIS[next].0.to_owned();
     }
 
+    /// 附件路径选择器按键处理：导航目录、过滤、添加/移除附件。
     fn handle_path_picker(&mut self, key: KeyEvent) -> Action {
         if self.attachment_list_focused {
             match key.code {
@@ -1717,6 +1840,7 @@ impl App {
         Action::None
     }
 
+    /// 移除当前选中的附件。
     fn remove_selected_attachment(&mut self) {
         if self.attachments.is_empty() {
             self.attachment_list_focused = false;
@@ -1731,6 +1855,7 @@ impl App {
         self.status_error = false;
     }
 
+    /// 回到父目录（不越过工作区边界）。
     fn navigate_path_parent(&mut self) {
         let workspace = PathBuf::from(&self.cwd)
             .canonicalize()
@@ -1743,6 +1868,7 @@ impl App {
         }
     }
 
+    /// 进入子目录（同样限制在工作区内且必须是目录）。
     fn navigate_path_directory(&mut self, directory: &Path) {
         let workspace = PathBuf::from(&self.cwd)
             .canonicalize()
@@ -1757,6 +1883,7 @@ impl App {
         }
     }
 
+    /// 添加附件：校验类型/数量/去重/总大小后入列。
     fn add_attachment_path(&mut self, path: &Path) {
         match attachment_draft(&self.cwd, &path.to_string_lossy()) {
             Ok(attachment) => {
@@ -1796,6 +1923,7 @@ impl App {
         }
     }
 
+    /// 设置选择器按键处理（模型/思考级别）。
     fn handle_settings_picker(&mut self, key: KeyEvent) -> Action {
         let Some(picker) = self.settings_picker else {
             return Action::None;
@@ -1842,6 +1970,7 @@ impl App {
         }
     }
 
+    /// 会话选择器按键处理：搜索、导航、切换（含 Esc 取消逻辑）。
     fn handle_session_picker(&mut self, key: KeyEvent) -> Action {
         if self.session_loading.is_some() {
             return if key.code == KeyCode::Esc {
@@ -1946,6 +2075,8 @@ impl App {
         }
     }
 
+    /// Tab 补全当前选中的 Slash 项（命令项不带尾随空格，
+    /// 便于直接回车提交；`/dir` 例外需后续参数）。
     fn complete_slash(&mut self) {
         let items = self.slash_items();
         let Some(item) = items.get(self.slash_selected).cloned() else {
@@ -1959,6 +2090,7 @@ impl App {
         self.set_input(&completed);
     }
 
+    /// 回车选择 Slash 项：命令类直接提交，工具/技能类补全到输入框。
     fn choose_slash(&mut self) -> Action {
         let items = self.slash_items();
         let Some(item) = items.get(self.slash_selected).cloned() else {
@@ -1972,6 +2104,7 @@ impl App {
         Action::None
     }
 
+    /// 提交输入框内容：解析内置 `/` 命令，其余按普通消息发送。
     fn submit_action(&mut self) -> Action {
         let mut message = self.input_text().trim().to_owned();
         if message.is_empty() && self.attachments.is_empty() {
@@ -2201,6 +2334,8 @@ impl App {
         }
     }
 
+    /// 启动一轮提示：写入用户消息、创建流式 LiveTurn，
+    /// 并返回 Submit 动作（草稿会话由事件循环先物化再提交）。
     fn start_prompt(&mut self, prompt: QueuedPrompt) -> Action {
         let display_message = prompt
             .display_message
@@ -2246,6 +2381,7 @@ impl App {
         }
     }
 
+    /// 取出下一个排队提示（仅当当前无运行中的回合）。
     pub fn take_queued_action(&mut self) -> Option<Action> {
         (!self.is_streaming())
             .then(|| self.queued_prompts.pop_front())
@@ -2253,6 +2389,7 @@ impl App {
             .map(|prompt| self.start_prompt(prompt))
     }
 
+    /// 排队输入成功：写入用户消息并更新排队计数。
     pub fn queue_input_succeeded(&mut self, message: String, queued_count: usize) {
         self.push_transcript_message(ChatMessage {
             role: "user".to_owned(),
@@ -2269,6 +2406,7 @@ impl App {
         self.scroll.set(0);
     }
 
+    /// 排队输入因会话已结束被拒：推迟到下一轮运行再发。
     pub fn defer_input_after_run(&mut self, message: String) {
         self.queued_prompts.push_back(QueuedPrompt {
             message,
@@ -2280,6 +2418,7 @@ impl App {
         self.status_error = false;
     }
 
+    /// 排队输入失败：输入框为空时恢复草稿，便于用户重试。
     pub fn queue_input_failed(&mut self, message: String, error: String) {
         if self.input.is_empty() {
             self.set_input(&message);
@@ -2288,6 +2427,7 @@ impl App {
         self.status_error = true;
     }
 
+    /// 提取消息开头以 `/` 开头的工具名（若存在对应工具）。
     fn requested_tool(&self, message: &str) -> Option<String> {
         let command = message.split_whitespace().next()?.strip_prefix('/')?;
         self.tools
@@ -2296,14 +2436,18 @@ impl App {
             .then(|| command.to_owned())
     }
 
+    /// 显式粘贴（bracketed-paste 事件）插入。
     pub fn insert_paste(&mut self, value: &str) {
         self.insert_paste_inner(value, false);
     }
 
+    /// 检测到的粘贴（突发判定）插入：强制折叠为 Paste 块。
     pub fn insert_detected_paste(&mut self, value: &str) {
         self.insert_paste_inner(value, true);
     }
 
+    /// 插入粘贴文本：路径/Provider 表单场景直接追加到对应输入；
+    /// 输入框场景按规则折叠为 Paste 块并维护折叠区间。
     fn insert_paste_inner(&mut self, value: &str, force_range: bool) {
         if self.path_picker {
             self.path_input.extend(value.trim().chars());
@@ -2347,6 +2491,7 @@ impl App {
         self.slash_selected = 0;
     }
 
+    /// 替换为另一个会话：重置几乎所有 UI 状态（会话切换的唯一入口）。
     pub fn replace_session(
         &mut self,
         mut session: SessionSummary,
@@ -2409,10 +2554,12 @@ impl App {
         self.follow_current_plan_item();
     }
 
+    /// 记录历史窗口起点（最旧已加载消息的下标）。
     pub fn set_history_window(&mut self, oldest_loaded_index: u64) {
         self.history_oldest_index = oldest_loaded_index;
     }
 
+    /// 复位历史窗口（会话切换/替换时）。
     fn reset_history_window(&mut self) {
         self.history_oldest_index = 0;
         self.history_loading = false;
@@ -2420,10 +2567,12 @@ impl App {
         self.render_max_scroll.set(0);
     }
 
+    /// 是否还有更早的历史可加载。
     pub fn has_older_history(&self) -> bool {
         self.history_oldest_index > 0
     }
 
+    /// 滚到接近顶部且仍有更早历史时，触发一次历史加载（每个加载窗口只触发一次）。
     fn maybe_history_action(&mut self) -> Action {
         if self.view == View::Chat
             && self.has_older_history()
@@ -2440,6 +2589,8 @@ impl App {
         Action::None
     }
 
+    /// 应用一页更早历史：验证游标后前置插入；
+    /// 返回空页说明已到最早，关闭历史窗口。
     pub fn apply_history_page(&mut self, page: MessagePage, before: u64) {
         self.history_loading = false;
         if before != self.history_oldest_index {
@@ -2473,12 +2624,15 @@ impl App {
         self.cap_loaded_messages();
     }
 
+    /// 历史加载失败：复位加载态并显示错误。
     pub fn history_load_failed(&mut self, message: String) {
         self.history_loading = false;
         self.status = message;
         self.status_error = true;
     }
 
+    /// 空闲历史回收：超过保留窗口的早期消息被丢弃（仅限未在加载时），
+    /// 以限制长会话的内存占用；返回是否发生了回收。
     pub fn evict_idle_history(&mut self, now: Instant) -> bool {
         if self.history_loading {
             return false;
@@ -2500,6 +2654,7 @@ impl App {
         true
     }
 
+    /// 把消息数裁剪到内存上限（丢弃最早的超额消息）。
     fn cap_loaded_messages(&mut self) {
         let excess = self.messages.len().saturating_sub(MAX_LOADED_MESSAGES);
         if excess == 0 {
@@ -2509,6 +2664,7 @@ impl App {
         self.history_oldest_index = self.history_oldest_index.saturating_add(excess as u64);
     }
 
+    /// 物化会话：草稿 → 真实会话（`submit` 前调用），并插入会话列表。
     pub fn materialize_session(&mut self, mut session: SessionSummary) {
         session.plan = active_plan(session.plan.take());
         self.model.clone_from(&session.model);
@@ -2528,6 +2684,7 @@ impl App {
         }
     }
 
+    /// 草稿会话中预选模型（仅本地记录，物化时同步到 Runtime）。
     pub fn set_draft_model(&mut self, provider: String, model: String) {
         self.model = format!("{provider}/{model}");
         self.session.model.clone_from(&self.model);
@@ -2540,6 +2697,7 @@ impl App {
         self.status_error = false;
     }
 
+    /// 草稿会话中预选思考级别。
     pub fn set_draft_thinking_level(&mut self, level: String) {
         self.thinking_level.clone_from(&level);
         self.session.thinking_level = level;
@@ -2547,6 +2705,7 @@ impl App {
         self.status_error = false;
     }
 
+    /// 应用工作区变更（清空附件等路径相关状态）。
     pub fn set_cwd(&mut self, updated: SessionCwdUpdate) {
         self.cwd.clone_from(&updated.cwd);
         self.session.cwd.clone_from(&updated.cwd);
@@ -2567,6 +2726,7 @@ impl App {
         self.status_error = false;
     }
 
+    /// 应用执行模式变更。
     pub fn set_execution_mode(&mut self, mode: String) {
         self.mark_slash_use(&format!("/mode {mode}"));
         self.execution_mode.clone_from(&mode);
@@ -2582,6 +2742,7 @@ impl App {
         self.status_error = false;
     }
 
+    /// 应用模型变更；若已有消息则提示是否顺带压缩上下文。
     pub fn set_model(&mut self, updated: SessionModelUpdate) {
         self.model = updated.model;
         self.session.model.clone_from(&self.model);
@@ -2608,12 +2769,14 @@ impl App {
         self.status_error = false;
     }
 
+    /// 应用思考级别变更。
     pub fn set_thinking_level(&mut self, updated: ThinkingLevelUpdate) {
         self.set_thinking_state(updated);
         self.status = format!("thinking changed · {}", self.thinking_level);
         self.status_error = false;
     }
 
+    /// 让计划面板跟随当前计划项（会话切换/计划更新时调用）。
     fn follow_current_plan_item(&self) {
         let Some(plan) = self.session.plan.as_ref() else {
             self.plan_scroll.set(0);
@@ -2624,6 +2787,7 @@ impl App {
             .set(current_plan_item_index(plan).min(u16::MAX as usize) as u16);
     }
 
+    /// 设置会话计划（隐藏已全部完成的计划），并同步到会话列表。
     pub fn set_plan(&mut self, plan: Option<Plan>) {
         let plan = active_plan(plan);
         self.session.plan = plan.clone();
@@ -2637,6 +2801,8 @@ impl App {
         self.follow_current_plan_item();
     }
 
+    /// 处理一条对话流事件：先提取计划（新旧协议别名），
+    /// 再按事件名分发到状态更新；计划类事件不参与后续对话渲染。
     pub fn apply_stream_event(&mut self, event: StreamEvent) {
         if let Some(plan) = plan_from_payload(&event.data) {
             self.set_plan(plan);
@@ -2789,10 +2955,12 @@ impl App {
         }
     }
 
+    /// 记录会话 token 用量（独立事件，不依赖流式 live 回合）。
     pub fn set_session_usage(&mut self, usage: SessionUsage) {
         self.session_usage = usage;
     }
 
+    /// 设置 VCS 加载态（加载时显示状态栏提示）。
     pub fn set_vcs_loading(&mut self, loading: bool) {
         self.vcs_loading = loading;
         if loading {
@@ -2801,6 +2969,7 @@ impl App {
         }
     }
 
+    /// 应用 VCS 变更结果并复位滚动/确认态。
     pub fn set_vcs(&mut self, changes: VcsChanges) {
         self.vcs_loading = false;
         self.vcs_selected = self.vcs_selected.min(changes.files.len().saturating_sub(1));
@@ -2812,18 +2981,21 @@ impl App {
         self.status_error = false;
     }
 
+    /// VCS 请求失败：显示错误并退出加载态。
     pub fn set_vcs_error(&mut self, error: String) {
         self.vcs_loading = false;
         self.status = format!("workspace changes unavailable · {error}");
         self.status_error = true;
     }
 
+    /// 开始上下文压缩（显示进行中状态）。
     pub fn begin_context_compaction(&mut self) {
         self.compacting_context = true;
         self.status = "compacting context".to_owned();
         self.status_error = false;
     }
 
+    /// 压缩完成：成功则更新上下文占用，失败则显示错误。
     pub fn finish_context_compaction(
         &mut self,
         context_usage: Option<ContextUsage>,
@@ -2840,6 +3012,7 @@ impl App {
         }
     }
 
+    /// 对话流整体失败：结束当前回合并复位运行相关状态。
     pub fn stream_failed(&mut self, message: String) {
         if let Some(live) = self.live.as_mut() {
             live.streaming = false;
@@ -2852,6 +3025,7 @@ impl App {
         self.status_error = true;
     }
 
+    /// 把当前 LiveTurn 提交为正式消息（新一轮开始时把上一轮收进历史）。
     fn commit_live(&mut self) {
         let Some(mut live) = self.live.take() else {
             return;
@@ -2872,11 +3046,13 @@ impl App {
         });
     }
 
+    /// 追加一条消息到转写区（自动裁剪到内存上限）。
     fn push_transcript_message(&mut self, message: ChatMessage) {
         self.messages.push(message);
         self.cap_loaded_messages();
     }
 
+    /// 记录一次 Slash 命令使用并持久化（用于目录排序）。
     fn mark_slash_use(&mut self, command: &str) {
         let usage = self.slash_usage.entry(command.to_owned()).or_default();
         usage.count = usage.count.saturating_add(1);
@@ -2894,6 +3070,7 @@ impl App {
         }
     }
 
+    /// 在光标处插入一个字符（同时维护粘贴折叠区间偏移）。
     fn insert_input_character(&mut self, character: char) {
         self.shift_pasted_ranges_for_insert(self.input_cursor, 1);
         self.input.insert(self.input_cursor, character);
@@ -2901,6 +3078,7 @@ impl App {
         self.slash_selected = 0;
     }
 
+    /// 退格删除：优先整块删除光标前的粘贴块。
     fn delete_input_before_cursor(&mut self) {
         if let Some(index) = self
             .pasted_ranges
@@ -2917,6 +3095,7 @@ impl App {
         self.slash_selected = 0;
     }
 
+    /// Delete 删除：优先整块删除光标处的粘贴块。
     fn delete_input_at_cursor(&mut self) {
         if let Some(index) = self
             .pasted_ranges
@@ -2932,6 +3111,7 @@ impl App {
         self.slash_selected = 0;
     }
 
+    /// 光标左移：遇到粘贴块时跳到块首，否则逐字符。
     fn move_input_cursor_left(&mut self) {
         if let Some(range) = self
             .pasted_ranges
@@ -2944,6 +3124,7 @@ impl App {
         }
     }
 
+    /// 光标右移：遇到粘贴块时跳到块尾，否则逐字符。
     fn move_input_cursor_right(&mut self) {
         if let Some(range) = self
             .pasted_ranges
@@ -2956,6 +3137,7 @@ impl App {
         }
     }
 
+    /// 插入后把光标位置之后的折叠区间整体右移。
     fn shift_pasted_ranges_for_insert(&mut self, position: usize, amount: usize) {
         for range in &mut self.pasted_ranges {
             if range.start >= position {
@@ -2965,6 +3147,7 @@ impl App {
         }
     }
 
+    /// 删除后把光标位置之后的折叠区间整体左移。
     fn shift_pasted_ranges_after_removal(&mut self, position: usize) {
         for range in &mut self.pasted_ranges {
             if position < range.start {
@@ -2974,6 +3157,7 @@ impl App {
         }
     }
 
+    /// 移除整个粘贴块（连同原文与区间记录）。
     fn remove_pasted_range(&mut self, index: usize) {
         let range = self.pasted_ranges.remove(index);
         let removed = range.end.saturating_sub(range.start);
@@ -2987,6 +3171,7 @@ impl App {
         }
     }
 
+    /// 清空输入框（含折叠区间与 Slash 状态）。
     fn clear_input(&mut self) {
         self.input.clear();
         self.input_cursor = 0;
@@ -2995,6 +3180,7 @@ impl App {
         self.slash_category = SlashCategory::All;
     }
 
+    /// 用给定文本整体替换输入框内容。
     fn set_input(&mut self, value: &str) {
         self.input = value.chars().collect();
         self.input_cursor = self.input.len();
@@ -3004,6 +3190,7 @@ impl App {
     }
 }
 
+/// 向表单字段插入字符：全选态先清空再插入，且不超字段上限。
 fn insert_field_characters(
     input: &mut Vec<char>,
     cursor: &mut usize,
@@ -3026,6 +3213,7 @@ fn insert_field_characters(
     *cursor += characters.len();
 }
 
+/// 删除表单字段的一个字符（全选态清空整个字段）。
 fn delete_field_character(
     input: &mut Vec<char>,
     cursor: &mut usize,
@@ -3044,6 +3232,7 @@ fn delete_field_character(
     }
 }
 
+/// 表单字段光标左移（全选态先取消全选）。
 fn move_field_cursor_left(input: &[char], cursor: &mut usize, selected_all: &mut bool) {
     if *selected_all {
         *cursor = 0;
@@ -3054,6 +3243,7 @@ fn move_field_cursor_left(input: &[char], cursor: &mut usize, selected_all: &mut
     *cursor = (*cursor).min(input.len());
 }
 
+/// 表单字段光标右移（全选态先取消全选）。
 fn move_field_cursor_right(input: &[char], cursor: &mut usize, selected_all: &mut bool) {
     if *selected_all {
         *cursor = input.len();
@@ -3063,6 +3253,8 @@ fn move_field_cursor_right(input: &[char], cursor: &mut usize, selected_all: &mu
     }
 }
 
+/// 构造附件草稿：规范化路径（支持 `file://` 前缀与 Windows 盘符路径）、
+/// 校验工作区边界/文件类型/大小。
 fn attachment_draft(workspace: &str, raw_path: &str) -> Result<AttachmentDraft, String> {
     let cleaned = raw_path.trim().trim_matches(['"', '\'']);
     let file_uri_path = cleaned.strip_prefix("file://").unwrap_or(cleaned);
@@ -3106,6 +3298,7 @@ fn attachment_draft(workspace: &str, raw_path: &str) -> Result<AttachmentDraft, 
     })
 }
 
+/// 按扩展名判定附件类型（image/text/document），不支持的类型返回 None。
 fn attachment_kind(path: &Path) -> Option<&'static str> {
     let extension = path
         .extension()
@@ -3153,6 +3346,7 @@ fn attachment_kind(path: &Path) -> Option<&'static str> {
     }
 }
 
+/// 解析 `/mode <read-only|full-access>` 形式的命令，格式非法返回 None。
 fn execution_mode_command(message: &str) -> Option<&str> {
     let mut parts = message.split_whitespace();
     if parts.next()? != "/mode" {
@@ -3165,6 +3359,7 @@ fn execution_mode_command(message: &str) -> Option<&str> {
     Some(mode)
 }
 
+/// 构造一个内置命令 SlashItem。
 fn command(command: &str, detail: &str) -> SlashItem {
     SlashItem {
         kind: SlashKind::Command,
@@ -3173,6 +3368,7 @@ fn command(command: &str, detail: &str) -> SlashItem {
     }
 }
 
+/// 把消息列表裁剪到内存上限（丢弃最早的超额消息）。
 fn cap_message_count(messages: &mut Vec<ChatMessage>) {
     let excess = messages.len().saturating_sub(MAX_LOADED_MESSAGES);
     if excess > 0 {
@@ -3180,10 +3376,12 @@ fn cap_message_count(messages: &mut Vec<ChatMessage>) {
     }
 }
 
+/// Slash 使用统计文件路径（用户主目录下）。
 fn slash_usage_path() -> Option<PathBuf> {
     dirs::home_dir().map(|home| home.join(".pisper").join("tui-slash-usage.json"))
 }
 
+/// 加载 Slash 使用统计（文件缺失或损坏时用空表）。
 fn load_slash_usage() -> HashMap<String, SlashUsage> {
     slash_usage_path()
         .and_then(|path| fs::read(path).ok())
@@ -3191,6 +3389,7 @@ fn load_slash_usage() -> HashMap<String, SlashUsage> {
         .unwrap_or_default()
 }
 
+/// 从 JSON 值中取字符串字段（缺失/非字符串返回空串）。
 fn string_field(value: &Value, key: &str) -> String {
     value
         .get(key)
@@ -3199,11 +3398,15 @@ fn string_field(value: &Value, key: &str) -> String {
         .to_owned()
 }
 
+/// 同步显示文本到目标文本（流结束/工具切换时立即对齐）。
 fn sync_live_display(live: &mut LiveTurn) {
     live.thinking.clone_from(&live.thinking_target);
     live.text.clone_from(&live.text_target);
 }
 
+/// 打字机步进：把 `shown` 向 `target` 推进一小步。
+/// 目标改写（patch 替换）时先回退到公共前缀再继续；
+/// 剩余量大时步长加大，保证长文本也能较快收敛。
 fn advance_typewriter(shown: &mut String, target: &str) -> bool {
     if shown == target {
         return false;
@@ -3231,6 +3434,7 @@ fn advance_typewriter(shown: &mut String, target: &str) -> bool {
     true
 }
 
+/// 两个字符串的公共前缀字节数（按字符边界）。
 fn common_prefix_bytes(left: &str, right: &str) -> usize {
     let mut bytes = 0;
     for (left_character, right_character) in left.chars().zip(right.chars()) {
@@ -3242,6 +3446,8 @@ fn common_prefix_bytes(left: &str, right: &str) -> usize {
     bytes
 }
 
+/// 应用文本 patch：Runtime 以 UTF-16 code unit 报告 `start`，
+/// 先把目标截断到该偏移再拼上新文本。
 fn apply_patch(target: &mut String, value: &Value) {
     let utf16_start = value.get("start").and_then(Value::as_u64).unwrap_or(0) as usize;
     let start = utf16_offset_to_byte(target, utf16_start);
@@ -3254,6 +3460,7 @@ fn apply_patch(target: &mut String, value: &Value) {
     );
 }
 
+/// 把 UTF-16 code unit 偏移映射为字节偏移（按字符边界取整）。
 fn utf16_offset_to_byte(value: &str, offset: usize) -> usize {
     let mut units = 0;
     for (index, character) in value.char_indices() {
@@ -3269,6 +3476,7 @@ fn utf16_offset_to_byte(value: &str, offset: usize) -> usize {
     value.len()
 }
 
+/// 用事件负载更新工具活动（`done` 为真时写入结束时间与终态）。
 fn update_tool(live: &mut LiveTurn, value: &Value, done: bool) {
     let id = string_field(value, "id");
     let Some(tool) = live.tools.iter_mut().find(|tool| tool.id == id) else {

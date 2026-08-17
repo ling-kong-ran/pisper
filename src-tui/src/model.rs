@@ -1,6 +1,14 @@
+//! 与 Runtime HTTP API 对齐的数据契约（serde 反序列化模型）。
+//!
+//! Runtime 的 JSON 采用 camelCase，字段普遍是可选的（`#[serde(default)]`），
+//! 以便向前兼容：Runtime 新增字段时旧版 TUI 不会反序列化失败。
+//! 这里定义的所有类型都只做反序列化（`Deserialize`），不负责序列化回写。
+
 use serde::{Deserialize, Deserializer};
 use serde_json::Value;
 
+/// 会话摘要：会话列表与当前会话的基础信息。
+/// `plan` 兼容历史字段名 `taskList`（见 `plan_protocol` 模块）。
 #[derive(Clone, Debug, Default, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SessionSummary {
@@ -23,6 +31,7 @@ pub struct SessionSummary {
     pub plan: Option<Plan>,
 }
 
+/// 会话工作区变更响应（`PUT /api/sessions/{id}/cwd`）。
 #[derive(Clone, Debug, Default, Deserialize, Eq, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub struct SessionCwdUpdate {
@@ -30,6 +39,7 @@ pub struct SessionCwdUpdate {
     pub cwd: String,
 }
 
+/// 执行计划：进行中的任务列表。仅 UI 展示使用，不做逻辑约束。
 #[derive(Clone, Debug, Default, Deserialize, Eq, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub struct Plan {
@@ -41,6 +51,7 @@ pub struct Plan {
     pub updated_at: Option<String>,
 }
 
+/// 单个计划项。
 #[derive(Clone, Debug, Default, Deserialize, Eq, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub struct PlanItem {
@@ -48,16 +59,19 @@ pub struct PlanItem {
     pub id: String,
     #[serde(default)]
     pub title: String,
+    /// 状态：`pending` / `in_progress` / `completed` / `blocked`。
     #[serde(default)]
     pub status: String,
     #[serde(default)]
     pub note: String,
     #[serde(default)]
     pub assignee: String,
+    /// 依赖的其他计划项 id。
     #[serde(default)]
     pub depends_on: Vec<String>,
 }
 
+/// 计划各项状态的计数汇总（用于面板标题的进度展示）。
 #[derive(Clone, Debug, Default, Deserialize, Eq, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub struct PlanCounts {
@@ -73,9 +87,11 @@ pub struct PlanCounts {
     pub total: usize,
 }
 
+/// 单条对话消息。`run_activity` 携带 Agent 推理与工具活动明细。
 #[derive(Clone, Debug, Default, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ChatMessage {
+    /// 角色：`user` / `agent`。
     pub role: String,
     #[serde(default)]
     pub text: String,
@@ -85,6 +101,7 @@ pub struct ChatMessage {
     pub attachments: Vec<MessageAttachment>,
 }
 
+/// 消息附件元信息（图片/文本/文档）。
 #[derive(Clone, Debug, Default, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct MessageAttachment {
@@ -98,6 +115,7 @@ pub struct MessageAttachment {
     pub size: u64,
 }
 
+/// 一次 Agent 运行的活动：思考文本、工具调用、子代理。
 #[derive(Clone, Debug, Default, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct RunActivity {
@@ -105,10 +123,12 @@ pub struct RunActivity {
     pub thinking_text: String,
     #[serde(default)]
     pub tools: Vec<ToolActivity>,
+    /// 子代理信息（非结构化 Value，因字段不固定）。
     #[serde(default)]
     pub agents: Vec<Value>,
 }
 
+/// 工具调用的活动记录。
 #[derive(Clone, Debug, Default, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ToolActivity {
@@ -116,6 +136,7 @@ pub struct ToolActivity {
     pub id: String,
     #[serde(default)]
     pub name: String,
+    /// 状态：`running` / `done` / `error`。
     #[serde(default)]
     pub status: String,
     #[serde(default)]
@@ -124,14 +145,18 @@ pub struct ToolActivity {
     pub output: String,
     #[serde(default)]
     pub args: Value,
+    /// 开始时间（毫秒时间戳）。历史数据可能是 ISO 字符串，用自定义反序列化兜底。
     #[serde(default, deserialize_with = "deserialize_millis")]
     pub started_at: u64,
     #[serde(default, deserialize_with = "deserialize_millis")]
     pub finished_at: u64,
+    /// 所属子代理（存在时表示工具由子代理执行）。
     #[serde(default)]
     pub agent: Option<Value>,
 }
 
+/// 时间戳反序列化兜底：新老 Runtime 分别用毫秒数字与 ISO 字符串；
+/// 无法解析时返回 0（表示未知），绝不因时间字段拒绝整条消息。
 fn deserialize_millis<'de, D>(deserializer: D) -> Result<u64, D::Error>
 where
     D: Deserializer<'de>,
@@ -144,6 +169,7 @@ where
     })
 }
 
+/// 一页消息：包含会话用量与分页信息。
 #[derive(Clone, Debug, Default, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct MessagePage {
@@ -157,6 +183,7 @@ pub struct MessagePage {
     pub page_info: PageInfo,
 }
 
+/// 消息分页信息：`start` 是下一页的游标，`has_more` 表示是否还有更早的消息。
 #[derive(Clone, Debug, Default, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct PageInfo {
@@ -166,6 +193,7 @@ pub struct PageInfo {
     pub has_more: bool,
 }
 
+/// 上下文窗口占用比例（0-100）。
 #[derive(Clone, Debug, Default, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ContextUsage {
@@ -173,6 +201,7 @@ pub struct ContextUsage {
     pub percent: Option<f64>,
 }
 
+/// 会话 token 用量统计（用于状态栏展示）。
 #[derive(Clone, Debug, Default, Deserialize, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub struct SessionUsage {
@@ -196,14 +225,17 @@ pub struct SessionUsage {
     pub cache_hit_rate: Option<f64>,
 }
 
+/// 版本控制状态中的一个文件。
 #[derive(Clone, Debug, Default, Deserialize, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub struct VcsFile {
     pub path: String,
+    /// 变更状态：`M`（修改）/ `A`（新增）/ `D`（删除）等。
     #[serde(default)]
     pub status: String,
 }
 
+/// 工作区版本控制变更汇总（Git/SVN）。
 #[derive(Clone, Debug, Default, Deserialize, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub struct VcsChanges {
@@ -231,18 +263,21 @@ pub struct VcsChanges {
     pub error: String,
 }
 
+/// 会话列表响应。
 #[derive(Clone, Debug, Default, Deserialize)]
 pub struct SessionsResponse {
     #[serde(default)]
     pub sessions: Vec<SessionSummary>,
 }
 
+/// 插件（应用工具）目录。
 #[derive(Clone, Debug, Default, Deserialize)]
 pub struct PluginCatalog {
     #[serde(default)]
     pub tools: Vec<ToolDefinition>,
 }
 
+/// 应用工具定义（Slash 目录中的 `/tool` 项）。
 #[derive(Clone, Debug, Default, Deserialize)]
 pub struct ToolDefinition {
     pub id: String,
@@ -254,12 +289,14 @@ pub struct ToolDefinition {
     pub enabled: bool,
 }
 
+/// MCP 工具目录。
 #[derive(Clone, Debug, Default, Deserialize)]
 pub struct McpCatalog {
     #[serde(default)]
     pub tools: Vec<McpToolDefinition>,
 }
 
+/// MCP 工具定义：`pi_name` 是工具在 Slash 目录中使用的命令名。
 #[derive(Clone, Debug, Default, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct McpToolDefinition {
@@ -273,12 +310,14 @@ pub struct McpToolDefinition {
     pub available: bool,
 }
 
+/// Skill（技能）目录。
 #[derive(Clone, Debug, Default, Deserialize)]
 pub struct SkillsCatalog {
     #[serde(default)]
     pub skills: Vec<SkillDefinition>,
 }
 
+/// Skill 定义：`command` 是激活该技能的命令（如 `/skill-name`）。
 #[derive(Clone, Debug, Default, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SkillDefinition {
@@ -290,6 +329,7 @@ pub struct SkillDefinition {
     pub enabled: bool,
 }
 
+/// 可选模型项（模型选择器使用）。
 #[derive(Clone, Debug, Default, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ModelOption {
@@ -299,10 +339,13 @@ pub struct ModelOption {
     pub id: String,
     #[serde(default)]
     pub name: String,
+    /// 是否支持推理（reasoning）模式。
     #[serde(default)]
     pub reasoning: bool,
 }
 
+/// 支持的 Provider 协议（API 类型 → 展示名），
+/// 供 `/provider` 对话框循环选择协议时使用。
 pub const PROVIDER_APIS: [(&str, &str); 4] = [
     ("openai-responses", "OpenAI Responses"),
     ("openai-completions", "OpenAI Chat Completions"),
@@ -310,6 +353,7 @@ pub const PROVIDER_APIS: [(&str, &str); 4] = [
     ("google-generative-ai", "Google Generative AI"),
 ];
 
+/// Provider 选项（连接配置信息）。
 #[derive(Clone, Debug, Default, Deserialize, Eq, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub struct ProviderOption {
@@ -329,6 +373,7 @@ pub struct ProviderOption {
     pub base_url: String,
 }
 
+/// Provider 连接更新响应。
 #[derive(Clone, Debug, Default, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ProviderConnectionUpdate {
@@ -340,6 +385,7 @@ pub struct ProviderConnectionUpdate {
     pub updated_provider_id: String,
 }
 
+/// 会话模型更新响应。
 #[derive(Clone, Debug, Default, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SessionModelUpdate {
@@ -357,6 +403,7 @@ pub struct SessionModelUpdate {
     pub context_usage: Option<ContextUsage>,
 }
 
+/// 思考级别（thinking level）查询/更新结果。
 #[derive(Clone, Debug, Default, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ThinkingLevelUpdate {
@@ -370,15 +417,21 @@ pub struct ThinkingLevelUpdate {
     pub message: String,
 }
 
+/// 思考级别的可用性状态（由 TUI 本地推导，非 Runtime 返回）。
 #[derive(Clone, Debug, Default, Eq, PartialEq)]
 pub enum ThinkingAvailability {
+    /// 尚未加载。
     #[default]
     Loading,
+    /// 当前模型支持配置思考级别。
     Supported,
+    /// 当前模型不支持配置思考级别。
     Unsupported,
+    /// 查询失败，携带错误信息。
     Error(String),
 }
 
+/// 执行模式更新响应。
 #[derive(Clone, Debug, Default, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ExecutionModeUpdate {
@@ -386,14 +439,21 @@ pub struct ExecutionModeUpdate {
     pub execution_mode: String,
 }
 
+/// 一条已解码的 SSE 流事件。
 #[derive(Clone, Debug)]
 pub struct StreamEvent {
+    /// 事件名（无 `event:` 字段时默认为 `message`）。
     pub name: String,
+    /// 事件负载（JSON）。
     pub data: Value,
 }
 
+/// 事件循环中 TUI 主任务与后台任务之间的统一消息。
+/// 每个变体对应一类异步请求的终态或一条流事件。
 #[derive(Clone, Debug)]
 pub enum RuntimeEvent {
+    /// 启动数据：默认模型、思考级别、模型/Provider/工具/Skill 目录，
+    /// 用于初始化草稿会话的默认值。
     StartupData {
         default_model: String,
         thinking_level: String,
@@ -402,44 +462,55 @@ pub enum RuntimeEvent {
         tools: Vec<ToolDefinition>,
         skills: Vec<SkillDefinition>,
     },
+    /// 单条对话流事件。
     Stream(StreamEvent),
+    /// 对话流整体失败（连接中断/协议错误），需结束当前运行。
     StreamFailed(String),
+    /// 排队输入的结果（运行中发送的消息）。
     QueueInputFinished {
         session_id: String,
         message: String,
         result: Result<usize, String>,
     },
+    /// 中止运行的结果。
     AbortFinished {
         session_id: String,
         result: Result<(), String>,
     },
+    /// 执行模式变更的结果。
     ExecutionModeFinished {
         session_id: String,
         result: Result<ExecutionModeUpdate, String>,
     },
+    /// 加载更早历史消息的结果。
     HistoryPage {
         before: u64,
         result: Result<MessagePage, String>,
     },
+    /// 切换会话的结果（携带完整会话信息与消息页）。
     SessionLoaded {
         request_id: u64,
         session: Box<SessionSummary>,
         result: Result<MessagePage, String>,
     },
+    /// 加载会话思考级别的结果。
     SessionThinkingLoaded {
         session_id: String,
         result: Result<ThinkingLevelUpdate, String>,
     },
+    /// 上下文压缩（compact）的结果。
     CompactionFinished {
         context_usage: Option<ContextUsage>,
         error: Option<String>,
     },
+    /// 审批（权限请求）解析的结果。
     ApprovalResolved {
         session_id: String,
         approval_id: String,
         approved: bool,
         result: Result<(), String>,
     },
+    /// 版本控制查询/提交/推送/回退的结果。
     VcsResult {
         session_id: String,
         result: Result<VcsChanges, String>,

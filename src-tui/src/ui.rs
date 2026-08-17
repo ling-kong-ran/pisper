@@ -1,3 +1,10 @@
+//! 终端渲染层（ratatui）：把 `App` 状态绘制为 UI。
+//!
+//! 布局逻辑：普通对话视图（消息 + 计划 + 运行态 + 输入框 + 状态栏）、
+//! 欢迎视图（空会话时居中品牌）、变更视图，以及各类弹窗（Slash 目录、
+//! 会话选择、附件选择、设置、Provider 凭据、审批）。
+//! 绘制完成后统一应用主题映射（truecolor / 256 色 / 单色）。
+
 use ratatui::{
     layout::{Alignment, Constraint, Direction, Layout, Position, Rect},
     style::{Color, Modifier, Style},
@@ -17,6 +24,8 @@ use crate::{
     },
 };
 
+// 主题色板（语义色）：深色背景 + 高对比前景，
+// 具体色值由 TerminalTheme 映射到 256 色或单色。
 const BG: Color = Color::Rgb(9, 11, 15);
 const SURFACE: Color = Color::Rgb(15, 19, 25);
 const RAISED: Color = Color::Rgb(21, 27, 35);
@@ -30,14 +39,23 @@ const AMBER: Color = Color::Rgb(231, 183, 106);
 const RED: Color = Color::Rgb(240, 124, 130);
 const VIOLET: Color = Color::Rgb(192, 167, 242);
 const BLUE: Color = Color::Rgb(130, 174, 239);
+// 对话正文的最大渲染宽度（超宽终端不无限拉长行，提升可读性）。
 const CONVERSATION_WIDTH: u16 = 110;
+// 欢迎视图内容区宽度。
 const WELCOME_WIDTH: u16 = 88;
+// 完整 Logo 所需的最小宽度。
 const WELCOME_FULL_LOGO_WIDTH: u16 = 48;
+// Slash 目录最大高度。
 const SLASH_HEIGHT: u16 = 22;
+// 列表高亮符号。
 const PICKER_HIGHLIGHT: &str = "▌";
+// 角色标签占位宽度（目前为 0：不显示角色名，靠颜色区分）。
 const ROLE_GUTTER_WIDTH: usize = 0;
+// 活动轨道的左缩进宽度。
 const ACTIVITY_GUTTER_WIDTH: usize = 3;
+// 加载动画帧。
 const SPINNER_FRAMES: [&str; 8] = ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧"];
+// 运行状态栏扫描动画帧。
 const RUN_ANIMATION_FRAMES: [&str; 10] = [
     "◆◇····",
     "◇◆◇···",
@@ -51,6 +69,7 @@ const RUN_ANIMATION_FRAMES: [&str; 10] = [
     "◇◆◇···",
 ];
 
+/// 终端色彩能力：truecolor / 256 色 / 单色。
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 enum TerminalTheme {
     TrueColor,
@@ -60,6 +79,8 @@ enum TerminalTheme {
 
 static TERMINAL_THEME: OnceLock<TerminalTheme> = OnceLock::new();
 
+/// 探测终端主题：优先环境变量显式指定，其次按 `NO_COLOR`/`COLORTERM`/`TERM` 推断。
+/// 测试环境固定为 TrueColor，保证测试断言的颜色值稳定。
 fn terminal_theme() -> TerminalTheme {
     if cfg!(test) {
         return TerminalTheme::TrueColor;
@@ -88,6 +109,8 @@ fn terminal_theme() -> TerminalTheme {
     })
 }
 
+/// 按当前主题改写整帧的颜色（TrueColor 时无操作）。
+/// 在绘制完成后统一执行，避免每个 widget 各自处理主题。
 fn apply_terminal_theme(frame: &mut Frame, area: Rect) {
     let theme = terminal_theme();
     if theme == TerminalTheme::TrueColor {
@@ -106,6 +129,7 @@ fn apply_terminal_theme(frame: &mut Frame, area: Rect) {
 }
 
 impl TerminalTheme {
+    /// 前景色映射：256 色取色板最近似色，单色按语义归并为白/灰/深灰。
     fn map_foreground(self, color: Color) -> Color {
         match self {
             Self::TrueColor => color,
@@ -133,6 +157,7 @@ impl TerminalTheme {
         }
     }
 
+    /// 背景色映射（256 色与单色）。
     fn map_background(self, color: Color) -> Color {
         match self {
             Self::TrueColor => color,
@@ -158,6 +183,7 @@ impl TerminalTheme {
     }
 }
 
+// 欢迎视图的 ASCII 品牌 Logo（每行两段，组合成完整 Logo）。
 const PISPER_LOGO: [(&str, &str); 5] = [
     ("████  █ █████  ", "████  █████ ████ "),
     ("█   █ █ █      ", "█   █ █     █   █"),
@@ -166,6 +192,7 @@ const PISPER_LOGO: [(&str, &str); 5] = [
     ("█     █ █████  ", "█     █████ █   █"),
 ];
 
+/// 输入框高度：矮终端用单行，常规高度用两行留白。
 fn composer_height(area: Rect) -> u16 {
     if area.height >= 18 {
         4
@@ -180,11 +207,13 @@ pub fn draw(frame: &mut Frame, app: &App) {
     draw_in(frame, app, area);
 }
 
+/// 顶层绘制入口：绘制内容后统一应用主题。
 pub fn draw_in(frame: &mut Frame, app: &App, area: Rect) {
     draw_content(frame, app, area);
     apply_terminal_theme(frame, area);
 }
 
+/// 内容分派：审批弹层、欢迎视图与常规视图三条路径共用状态。
 fn draw_content(frame: &mut Frame, app: &App, area: Rect) {
     frame.render_widget(Block::default().style(Style::default().bg(BG)), area);
 
@@ -256,6 +285,8 @@ fn draw_content(frame: &mut Frame, app: &App, area: Rect) {
     render_overlays(frame, app, composer, area);
 }
 
+/// 欢迎视图：空会话时居中渲染 Logo、工作区、输入框与状态栏。
+/// 返回输入框区域，供弹窗定位使用。
 fn render_welcome(frame: &mut Frame, app: &App, area: Rect) -> Rect {
     let composer_height = composer_height(area);
     let full_logo =
@@ -331,6 +362,7 @@ fn render_welcome(frame: &mut Frame, app: &App, area: Rect) -> Rect {
     composer
 }
 
+/// 渲染品牌 Logo：宽终端显示完整 ASCII 大图，窄终端退化为单行文字。
 fn render_welcome_logo(frame: &mut Frame, area: Rect, full: bool) {
     let lines = if full {
         PISPER_LOGO
@@ -365,6 +397,7 @@ fn render_welcome_logo(frame: &mut Frame, area: Rect, full: bool) {
     );
 }
 
+/// 欢迎视图中的工作区路径（居中、弱化显示）。
 fn render_welcome_workspace(frame: &mut Frame, app: &App, area: Rect) {
     let path = single_line(&shorten_path(&app.cwd), area.width as usize);
     frame.render_widget(
@@ -375,10 +408,13 @@ fn render_welcome_workspace(frame: &mut Frame, app: &App, area: Rect) {
     );
 }
 
+/// 欢迎视图底部的状态栏（复用常规状态栏逻辑）。
 fn render_welcome_status(frame: &mut Frame, app: &App, area: Rect) {
     render_status(frame, app, area);
 }
 
+/// 依次渲染各弹窗层（Slash、会话、附件、设置、Provider）。
+/// 后渲染的弹窗覆盖先渲染的，顺序即视觉层级。
 fn render_overlays(frame: &mut Frame, app: &App, composer: Rect, area: Rect) {
     if app.slash_open() {
         render_slash(frame, app, composer);
@@ -397,6 +433,7 @@ fn render_overlays(frame: &mut Frame, app: &App, composer: Rect, area: Rect) {
     }
 }
 
+/// 渲染对话区：逐条消息 + 当前 LiveTurn，末行留白后按滚动偏移显示。
 fn render_chat(frame: &mut Frame, app: &App, area: Rect) {
     let mut lines = Vec::new();
     let content_width = area.width as usize;
@@ -429,6 +466,8 @@ fn render_chat(frame: &mut Frame, app: &App, area: Rect) {
     frame.render_widget(paragraph.scroll((scroll, 0)), viewport);
 }
 
+/// 计划面板高度：无计划/太矮/太窄时收起；
+/// 高终端显示 5 项，低终端 3 项，极窄终端只留标题行。
 fn plan_panel_height(app: &App, area: Rect) -> u16 {
     let Some(plan) = app.session.plan.as_ref() else {
         return 0;
@@ -443,6 +482,8 @@ fn plan_panel_height(app: &App, area: Rect) -> u16 {
     1 + maximum_items
 }
 
+/// 渲染计划面板：标题带进度与滚动范围，每项用符号/颜色区分状态，
+/// 附带 assignee/依赖/备注等元信息。
 fn render_plan(frame: &mut Frame, app: &App, area: Rect) {
     let Some(plan) = app.session.plan.as_ref() else {
         return;
@@ -557,6 +598,8 @@ fn render_plan(frame: &mut Frame, app: &App, area: Rect) {
     frame.render_widget(Paragraph::new(lines).style(Style::default().bg(BG)), inner);
 }
 
+/// 渲染运行态单行（审批/压缩中/错误等短暂状态）。
+/// 流式输出中的状态由状态栏展示，这里直接返回避免重复。
 fn render_run_state(frame: &mut Frame, app: &App, area: Rect) {
     let (label, color, animate) = if app.approval.is_some() {
         ("Approval required".to_owned(), AMBER, false)
@@ -590,6 +633,8 @@ fn render_run_state(frame: &mut Frame, app: &App, area: Rect) {
     frame.render_widget(Paragraph::new(line).style(Style::default().bg(BG)), area);
 }
 
+/// 把常见 Runtime 错误折叠成简洁的单行标签（过载/流中断/限流），
+/// 其余错误原样展示并裁剪到宽度。
 fn runtime_error_label(error: &str, width: usize) -> String {
     let normalized = error.to_lowercase();
     let label = if normalized.contains("overloaded") {
@@ -607,14 +652,17 @@ fn runtime_error_label(error: &str, width: usize) -> String {
     )
 }
 
+/// 当前帧对应的加载动画帧。
 fn spinner_frame(animation_frame: u64) -> &'static str {
     SPINNER_FRAMES[(animation_frame as usize / 2) % SPINNER_FRAMES.len()]
 }
 
+/// 当前帧对应的状态栏扫描动画帧。
 fn run_animation_frame(animation_frame: u64) -> &'static str {
     RUN_ANIMATION_FRAMES[animation_frame as usize % RUN_ANIMATION_FRAMES.len()]
 }
 
+/// 把扫描动画帧拆成带色 Span（菱形/圆点不同颜色）。
 fn run_animation_spans(animation_frame: u64) -> Vec<Span<'static>> {
     run_animation_frame(animation_frame)
         .chars()
@@ -629,6 +677,7 @@ fn run_animation_spans(animation_frame: u64) -> Vec<Span<'static>> {
         .collect()
 }
 
+/// 活动轨道：用树形符号（╭/├/╰/│）把思考、工具、子代理串成一条活动流。
 #[derive(Default)]
 struct ActivityRail {
     started: bool,
@@ -636,10 +685,12 @@ struct ActivityRail {
 }
 
 impl ActivityRail {
+    /// 推入一个分支行（弱化色）。
     fn push(&mut self, lines: &mut Vec<Line<'static>>, content: Vec<Span<'static>>) {
         self.push_with_color(lines, content, FAINT);
     }
 
+    /// 推入一个分支行并指定轨道颜色；记录最后一行供结束时闭合。
     fn push_with_color(
         &mut self,
         lines: &mut Vec<Line<'static>>,
@@ -654,6 +705,7 @@ impl ActivityRail {
         lines.push(Line::from(spans));
     }
 
+    /// 推入续行（竖线缩进，不带分支符号）。
     fn continuation(&mut self, lines: &mut Vec<Line<'static>>, mut content: Vec<Span<'static>>) {
         self.last_row = Some((lines.len(), false));
         let mut spans = vec![Span::styled("│  ", Style::default().fg(FAINT))];
@@ -661,6 +713,7 @@ impl ActivityRail {
         lines.push(Line::from(spans));
     }
 
+    /// 把最后一行（若为分支）改成闭合符号 `╰`，形成完整的树形收尾。
     fn close_last(&self, lines: &mut [Line<'static>]) {
         let Some((index, branch)) = self.last_row else {
             return;
@@ -673,6 +726,7 @@ impl ActivityRail {
     }
 }
 
+/// 把一条消息压成渲染行：用户消息带蓝色标签，Agent 消息渲染活动 + Markdown。
 fn push_message(lines: &mut Vec<Line<'static>>, message: &ChatMessage, width: usize) {
     let prose_width = width.min(CONVERSATION_WIDTH as usize);
     if message.role == "user" {
@@ -694,6 +748,7 @@ fn push_message(lines: &mut Vec<Line<'static>>, message: &ChatMessage, width: us
     lines.push(Line::default());
 }
 
+/// 把流式 LiveTurn 压成渲染行：思考、工具、子代理与正文按预算分层展示。
 fn push_live(
     lines: &mut Vec<Line<'static>>,
     live: &LiveTurn,
@@ -750,6 +805,8 @@ fn push_live(
     }
 }
 
+/// 视口行数 → （思考最大行数，工具最大行数）预算：
+/// 视口越小预算越紧，避免活动区挤占正文。
 fn live_activity_budget(viewport_rows: usize) -> (usize, usize) {
     match viewport_rows {
         0..=7 => (1, 1),
@@ -759,6 +816,7 @@ fn live_activity_budget(viewport_rows: usize) -> (usize, usize) {
     }
 }
 
+/// 把一条已提交消息的活动渲染为树形轨道。
 fn push_activity(lines: &mut Vec<Line<'static>>, activity: &RunActivity, width: usize) {
     let mut rail = ActivityRail::default();
     if !activity.thinking_text.is_empty() {
@@ -781,6 +839,7 @@ fn push_activity(lines: &mut Vec<Line<'static>>, activity: &RunActivity, width: 
     rail.close_last(lines);
 }
 
+/// 把工具中携带的子代理信息渲染为树形节点。
 fn push_tool_agents(
     lines: &mut Vec<Line<'static>>,
     rail: &mut ActivityRail,
@@ -795,6 +854,7 @@ fn push_tool_agents(
     );
 }
 
+/// 渲染子代理列表：名称/状态/输出详情，按状态着色。
 fn push_agent_values<'a>(
     lines: &mut Vec<Line<'static>>,
     rail: &mut ActivityRail,
@@ -853,6 +913,8 @@ fn push_agent_values<'a>(
     }
 }
 
+/// 渲染思考区：活动时带 spinner 与强调色，否则用静态符号；
+/// 内容按预算换行并保留尾部（旧行被截掉）。
 fn push_thinking(
     lines: &mut Vec<Line<'static>>,
     rail: &mut ActivityRail,
@@ -903,6 +965,7 @@ fn push_thinking(
     }
 }
 
+/// 文本按宽度换行后只保留尾部 `max_lines` 行（丢弃更早的内容）。
 fn wrapped_tail(value: &str, width: usize, max_lines: usize) -> Vec<String> {
     let mut wrapped = wrap_text(value, width);
     wrapped.retain(|line| !line.is_empty());
@@ -915,6 +978,8 @@ fn wrapped_tail(value: &str, width: usize, max_lines: usize) -> Vec<String> {
     wrapped
 }
 
+/// 渲染工具组：优先展示运行中的工具，其余从新到旧补位；
+/// 超预算时折叠为「N earlier · M completed」摘要行。
 fn push_tool_group(
     lines: &mut Vec<Line<'static>>,
     rail: &mut ActivityRail,
@@ -977,6 +1042,7 @@ fn push_tool_group(
     }
 }
 
+/// 构造工具单行：状态符号 + 名称 + 详情 + 耗时，按终端宽度自适应列宽。
 fn tool_spans(
     tool: &ToolActivity,
     width: usize,
@@ -1047,6 +1113,7 @@ fn tool_spans(
     spans
 }
 
+/// 工具耗时文本（完成态显示用时，运行中显示 running）。
 fn tool_duration(tool: &ToolActivity) -> String {
     if tool.finished_at > tool.started_at && tool.started_at > 0 {
         let elapsed = tool.finished_at - tool.started_at;
@@ -1062,6 +1129,7 @@ fn tool_duration(tool: &ToolActivity) -> String {
     }
 }
 
+/// 工具详情：优先取 message，其次取 args 中的第一个字符串值。
 fn tool_detail(tool: &ToolActivity, max_width: usize) -> String {
     if !tool.message.is_empty() {
         return single_line(&tool.message, max_width);
@@ -1081,6 +1149,7 @@ fn tool_detail(tool: &ToolActivity, max_width: usize) -> String {
     String::new()
 }
 
+/// 带标签的定宽 Span（用于角色标签）。
 fn padded_label_span(label: &str, width: usize, color: Color) -> Span<'static> {
     Span::styled(
         format!("{label:<width$}"),
@@ -1088,14 +1157,17 @@ fn padded_label_span(label: &str, width: usize, color: Color) -> Span<'static> {
     )
 }
 
+/// 角色标签 Span（当前宽度为 0，即不渲染标签文本）。
 fn role_label_span(label: &str, color: Color) -> Span<'static> {
     padded_label_span(label, ROLE_GUTTER_WIDTH, color)
 }
 
+/// 角色标签占位（用于非首行保持对齐）。
 fn role_gutter() -> Span<'static> {
     Span::raw(" ".repeat(ROLE_GUTTER_WIDTH))
 }
 
+/// 带标签的纯文本（逐行前缀标签，支持换行）。
 fn push_labeled_text(
     lines: &mut Vec<Line<'static>>,
     label: &str,
@@ -1123,12 +1195,15 @@ fn push_labeled_text(
     }
 }
 
+/// 带样式的文本片段（Markdown 解析中间产物）。
 #[derive(Clone)]
 struct StyledPiece {
     text: String,
     style: Style,
 }
 
+/// 轻量 Markdown 渲染：标题、列表、引用、代码块（含 diff 高亮）、
+/// 粗体/斜体/行内代码/链接。不支持完整规范，只覆盖常见对话输出。
 fn push_markdown(
     lines: &mut Vec<Line<'static>>,
     label: &str,
@@ -1272,6 +1347,7 @@ fn push_markdown(
     }
 }
 
+/// 代码行按终端宽度硬换行（制表符展开为 4 空格）。
 fn wrap_code_line(value: &str, width: usize) -> Vec<String> {
     if width == 0 {
         return vec![String::new()];
@@ -1298,6 +1374,7 @@ fn wrap_code_line(value: &str, width: usize) -> Vec<String> {
     rows
 }
 
+/// 推入一行 Markdown 渲染结果（首行带角色标签，续行仅占位）。
 fn push_markdown_line(
     lines: &mut Vec<Line<'static>>,
     label_used: &mut bool,
@@ -1315,6 +1392,7 @@ fn push_markdown_line(
     lines.push(Line::from(spans));
 }
 
+/// 解析行内 Markdown 为带样式片段（粗体/斜体/行内代码/链接）。
 fn inline_pieces(value: &str) -> Vec<StyledPiece> {
     let mut pieces = Vec::new();
     let mut buffer = String::new();
@@ -1382,6 +1460,7 @@ fn inline_pieces(value: &str) -> Vec<StyledPiece> {
     pieces
 }
 
+/// 按终端显示宽度换行（Unicode 按字符宽度计算）。
 fn wrap_styled_pieces(pieces: &[StyledPiece], width: usize) -> Vec<Vec<Span<'static>>> {
     let mut result = vec![Vec::new()];
     let mut line_width = 0usize;
@@ -1418,6 +1497,7 @@ fn wrap_styled_pieces(pieces: &[StyledPiece], width: usize) -> Vec<Vec<Span<'sta
     result
 }
 
+/// 按显示宽度切分单词，返回（能放下的一段，剩余部分）。
 fn split_at_width(value: &str, width: usize) -> (&str, &str) {
     let mut used = 0;
     for (index, character) in value.char_indices() {
@@ -1434,6 +1514,7 @@ fn split_at_width(value: &str, width: usize) -> (&str, &str) {
     (value, "")
 }
 
+/// 把消息附件渲染为 `+ name · kind · size` 行。
 fn push_attachment_lines(
     lines: &mut Vec<Line<'static>>,
     attachments: &[MessageAttachment],
@@ -1464,6 +1545,7 @@ fn push_attachment_lines(
     }
 }
 
+/// 字节数格式化（B/KiB/MiB）。
 fn format_bytes(size: u64) -> String {
     if size >= 1024 * 1024 {
         format!("{:.1} MiB", size as f64 / (1024.0 * 1024.0))
@@ -1474,6 +1556,7 @@ fn format_bytes(size: u64) -> String {
     }
 }
 
+/// 单词按宽度硬切（超宽单词也不溢出，逐字符换行）。
 fn hard_wrap_word(value: &str, width: usize) -> Vec<String> {
     let width = width.max(1);
     let mut chunks = Vec::new();
@@ -1494,6 +1577,7 @@ fn hard_wrap_word(value: &str, width: usize) -> Vec<String> {
     chunks
 }
 
+/// 通用文本换行：按空格切分，超宽单词内部硬切。
 fn wrap_text(value: &str, width: usize) -> Vec<String> {
     let width = width.max(1);
     let mut result = Vec::new();
@@ -1541,6 +1625,7 @@ fn wrap_text(value: &str, width: usize) -> Vec<String> {
     result
 }
 
+/// 渲染工作区变更视图：文件导航条 + 彩色 diff。
 fn render_changes(frame: &mut Frame, app: &App, area: Rect) {
     let footer = if app.vcs_confirm_revert {
         " V again confirm · Esc cancel "
@@ -1689,6 +1774,7 @@ fn render_changes(frame: &mut Frame, app: &App, area: Rect) {
     );
 }
 
+/// 渲染输入框（含附件行、控制提示与提交按钮），欢迎/常规两种模式。
 fn render_composer(frame: &mut Frame, app: &App, area: Rect, welcome: bool) {
     if area.width == 0 || area.height == 0 {
         return;
@@ -1880,6 +1966,7 @@ fn render_composer(frame: &mut Frame, app: &App, area: Rect, welcome: bool) {
     }
 }
 
+/// 把 token 数压缩成 K/M/B 形式（状态栏用量展示）。
 fn compact_token_count(value: u64) -> String {
     let (divisor, suffix) = if value >= 1_000_000_000 {
         (1_000_000_000.0, "B")
@@ -1898,6 +1985,7 @@ fn compact_token_count(value: u64) -> String {
     }
 }
 
+/// 渲染底部状态栏：运行动画/活动提示 + 模式/模型/思考级别/用量。
 fn render_status(frame: &mut Frame, app: &App, area: Rect) {
     if area.width == 0 || area.height == 0 {
         return;
@@ -1942,10 +2030,12 @@ fn render_status(frame: &mut Frame, app: &App, area: Rect) {
     );
 }
 
+/// 状态栏是否处于「运行中」动画态（无审批/无错误且运行中）。
 fn status_is_running(app: &App) -> bool {
     app.approval.is_none() && !app.status_error && app.is_running_state()
 }
 
+/// 状态栏的活动提示（审批中/错误）。
 fn status_activity(app: &App) -> Option<(String, Color)> {
     if app.approval.is_some() {
         return Some(("Approval required".to_owned(), AMBER));
@@ -1956,6 +2046,7 @@ fn status_activity(app: &App) -> Option<(String, Color)> {
     None
 }
 
+/// 状态栏的用量指标：token/缓存命中率/上下文占用/排队/审批。
 fn status_metrics(app: &App) -> String {
     let mut metrics = Vec::new();
     if app.session_usage.requests > 0
@@ -1978,6 +2069,7 @@ fn status_metrics(app: &App) -> String {
     metrics.join(" · ")
 }
 
+/// 列表高亮样式（统一用于各选择器）。
 fn picker_highlight_style() -> Style {
     Style::default()
         .bg(RAISED)
@@ -1985,6 +2077,7 @@ fn picker_highlight_style() -> Style {
         .add_modifier(Modifier::BOLD)
 }
 
+/// 计算 Slash 目录弹窗区域：位于输入框上方，高度随条目数自适应。
 fn slash_menu_area(composer: Rect, item_count: usize) -> Rect {
     let desired_height = (item_count.min(8) as u16)
         .saturating_mul(2)
@@ -2000,6 +2093,7 @@ fn slash_menu_area(composer: Rect, item_count: usize) -> Rect {
     )
 }
 
+/// 渲染 Slash 目录：分类页签 + 命令列表 + 底部操作提示。
 fn render_slash(frame: &mut Frame, app: &App, composer: Rect) {
     let items = app.slash_items();
     let area = slash_menu_area(composer, items.len());
@@ -2112,6 +2206,7 @@ fn render_slash(frame: &mut Frame, app: &App, composer: Rect) {
     );
 }
 
+/// 会话修改时间 → 相对时间文本（`just now`/`5m ago`/日期）。
 fn format_session_time(modified: &str, now: SystemTime) -> String {
     let Ok(timestamp) = humantime::parse_rfc3339(modified) else {
         return String::new();
@@ -2133,6 +2228,7 @@ fn format_session_time(modified: &str, now: SystemTime) -> String {
     }
 }
 
+/// 渲染会话选择器弹窗：搜索框 + 会话列表（名称/模型/工作区/时间）。
 fn render_sessions(frame: &mut Frame, app: &App, area: Rect) {
     let popup = centered_rect(72, 64, area);
     frame.render_widget(Clear, popup);
@@ -2272,6 +2368,7 @@ fn render_sessions(frame: &mut Frame, app: &App, area: Rect) {
     }
 }
 
+/// 渲染附件路径选择器：目录浏览 + 过滤 + 已选附件管理。
 fn render_path_picker(frame: &mut Frame, app: &App, area: Rect) {
     let width = area.width.saturating_sub(4).clamp(1, 96);
     let height = area.height.saturating_sub(2).clamp(1, 20);
@@ -2466,6 +2563,7 @@ fn render_path_picker(frame: &mut Frame, app: &App, area: Rect) {
     }
 }
 
+/// 渲染设置选择器（模型/思考级别）。
 fn render_settings_picker(frame: &mut Frame, app: &App, area: Rect) {
     let picker = app.settings_picker.unwrap_or(SettingsPicker::Model);
     let width = area.width.saturating_sub(4).clamp(1, 88);
@@ -2594,6 +2692,8 @@ fn render_settings_picker(frame: &mut Frame, app: &App, area: Rect) {
     frame.render_stateful_widget(list, inner, &mut state);
 }
 
+/// 渲染 Provider 凭据对话框：先选 Provider，再编辑协议/Base URL/API Key；
+/// API Key 输入一律掩码显示，绝不回显明文。
 fn render_api_key_dialog(frame: &mut Frame, app: &App, area: Rect) {
     let width = area.width.saturating_sub(4).clamp(1, 72);
     let height = area.height.saturating_sub(4).clamp(1, 22);
@@ -2831,6 +2931,7 @@ fn render_api_key_dialog(frame: &mut Frame, app: &App, area: Rect) {
     frame.render_stateful_widget(list, inner, &mut state);
 }
 
+/// 审批的命令文本（取 args 的 `command`，无则序列化整个 args）。
 fn approval_command_text(approval: &Approval) -> Text<'static> {
     let command = approval
         .args
@@ -2859,6 +2960,7 @@ fn approval_command_text(approval: &Approval) -> Text<'static> {
     Text::from(lines)
 }
 
+/// 审批风险等级 →（显示文本，颜色）。
 fn approval_risk(approval: &Approval) -> (String, Color) {
     let risk = approval.risk.trim();
     let color = if risk.eq_ignore_ascii_case("high") || risk.eq_ignore_ascii_case("critical") {
@@ -2888,6 +2990,7 @@ fn approval_risk(approval: &Approval) -> (String, Color) {
     )
 }
 
+/// 审批原因行（风险 + 原因）。
 fn approval_reason_text(approval: &Approval) -> Text<'static> {
     let (risk, risk_color) = approval_risk(approval);
     let reason = if approval.reason.trim().is_empty() {
@@ -2910,6 +3013,7 @@ fn approval_reason_text(approval: &Approval) -> Text<'static> {
     ]))
 }
 
+/// 审批原因区高度（按宽度换行后 1-3 行）。
 fn approval_reason_height(approval: &Approval, width: u16) -> u16 {
     Paragraph::new(approval_reason_text(approval))
         .wrap(Wrap { trim: false })
@@ -2917,6 +3021,7 @@ fn approval_reason_height(approval: &Approval, width: u16) -> u16 {
         .clamp(1, 3) as u16
 }
 
+/// 审批面板高度：按命令行数 + 原因行数计算，且不压垮聊天区。
 fn approval_panel_height(app: &App, area: Rect) -> u16 {
     let Some(approval) = &app.approval else {
         return 0;
@@ -2939,6 +3044,7 @@ fn approval_panel_height(app: &App, area: Rect) -> u16 {
     desired.min(maximum)
 }
 
+/// 渲染审批面板：命令（可滚动）+ 原因 + 操作提示。
 fn render_approval(frame: &mut Frame, app: &App, area: Rect) {
     let Some(approval) = &app.approval else {
         return;
@@ -3067,6 +3173,7 @@ fn render_approval(frame: &mut Frame, app: &App, area: Rect) {
     }
 }
 
+/// 计算输入框可见窗口：保证光标可见，超宽时滚动（按字符显示宽度）。
 fn visible_input(input: &[char], cursor: usize, available: usize) -> (String, usize) {
     if input.is_empty() || available == 0 {
         return (String::new(), 0);
@@ -3104,6 +3211,7 @@ fn visible_input(input: &[char], cursor: usize, available: usize) -> (String, us
     (visible, width_to_cursor.saturating_sub(hidden_width))
 }
 
+/// 区域居中（限定最大宽度）。
 fn centered_width(area: Rect, maximum: u16) -> Rect {
     let width = area.width.min(maximum);
     Rect::new(
@@ -3114,6 +3222,7 @@ fn centered_width(area: Rect, maximum: u16) -> Rect {
     )
 }
 
+/// 按百分比在区域内居中一个子矩形（弹窗布局用）。
 fn centered_rect(percent_x: u16, percent_y: u16, area: Rect) -> Rect {
     let vertical = Layout::default()
         .direction(Direction::Vertical)
@@ -3133,6 +3242,7 @@ fn centered_rect(percent_x: u16, percent_y: u16, area: Rect) -> Rect {
         .split(vertical[1])[1]
 }
 
+/// 区域内缩进。
 fn inset(area: Rect, horizontal: u16, vertical: u16) -> Rect {
     Rect::new(
         area.x.saturating_add(horizontal),
@@ -3142,6 +3252,7 @@ fn inset(area: Rect, horizontal: u16, vertical: u16) -> Rect {
     )
 }
 
+/// 单行化文本：空白折叠，超宽截断并追加省略号。
 fn single_line(value: &str, max: usize) -> String {
     if max == 0 {
         return String::new();
@@ -3161,12 +3272,14 @@ fn single_line(value: &str, max: usize) -> String {
     result
 }
 
+/// 单行化并补齐到指定宽度（列表对齐用）。
 fn padded_single_line(value: &str, width: usize) -> String {
     let mut value = single_line(value, width);
     value.push_str(&" ".repeat(width.saturating_sub(value.width())));
     value
 }
 
+/// 路径缩短：去掉 Windows `\\?\` 前缀，超宽时保留尾部。
 fn shorten_path(value: &str) -> String {
     let normalized = if let Some(path) = value.strip_prefix(r"\\?\UNC\") {
         format!(r"\\{path}")
@@ -3190,6 +3303,7 @@ fn shorten_path(value: &str) -> String {
     }
 }
 
+/// 模型展示名：取 `provider/model` 的 model 段。
 fn display_model(value: &str) -> &str {
     value
         .rsplit('/')
@@ -3198,6 +3312,7 @@ fn display_model(value: &str) -> &str {
         .unwrap_or("model")
 }
 
+/// 执行模式展示：空值退回 full-access。
 fn display_execution_mode(value: &str) -> &str {
     if value.is_empty() {
         "full-access"
