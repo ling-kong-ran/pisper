@@ -344,7 +344,7 @@ export class AgentRuntimeFacade {
       .map((asset) => ({
         id: asset.id,
         name: asset.name,
-        path: asset.filePath,
+        path: asset.storagePath,
         mimeType: asset.mimeType,
       }))
       .filter((asset) => asset.path)

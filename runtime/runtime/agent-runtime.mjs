@@ -61,6 +61,7 @@ import {
   workspacePathKey,
 } from './workspace-directories.mjs'
 import { assetMessageAttachment } from '../services/session-assets.mjs'
+import { archiveGeneratedAsset } from '../services/asset-storage.mjs'
 import { createAppTools, createMultiAgentTools } from '../tools/registry.mjs'
 import { createGoalTools, GOAL_TOOL_NAMES } from '../tools/app/goal.mjs'
 import {
@@ -1197,32 +1198,19 @@ export class AgentRuntimeService extends AgentRuntimeFacade {
   }
 
   async recordGeneratedFile(sessionId, value, filePath) {
-    const fileInfo = await stat(filePath).catch(() => null)
-    if (!fileInfo?.isFile()) return
-    const now = new Date().toISOString()
-    const existing = this.assetIndex.assets.find((asset) => asset.filePath === filePath)
-    if (existing) {
-      existing.size = fileInfo.size
-      existing.modified = now
-      existing.sessionId = sessionId
-      existing.sessionName = value.name
-      await this.saveAssetIndex()
-      return
-    }
-    this.assetIndex.assets.unshift({
-      id: randomUUID(),
-      kind: IMAGE_EXTENSIONS.has(extname(filePath).toLowerCase()) ? 'image' : 'file',
-      name: basename(filePath),
-      mimeType: mimeFromName(filePath),
-      size: fileInfo.size,
+    const name = basename(filePath)
+    const asset = await archiveGeneratedAsset({
+      assets: this.assetIndex.assets,
+      assetsDir: this.assetsDir,
       filePath,
-      source: 'agent',
+      kind: IMAGE_EXTENSIONS.has(extname(name).toLowerCase()) ? 'image' : 'file',
+      mimeType: mimeFromName(filePath),
       sessionId,
       sessionName: value.name,
-      created: now,
-      modified: now,
     })
+    if (!asset) return null
     await this.saveAssetIndex()
+    return this.publicAsset(asset)
   }
 
   async listAssets({ query = '', kind = '', sessionId = '' } = {}) {
