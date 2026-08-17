@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useRef } from 'react'
+import { useCallback, useEffect, useMemo, useRef } from 'react'
 import 'dockview-react/dist/styles/dockview.css'
 import {
   DockviewReact,
@@ -22,6 +22,7 @@ import { useLiveSessionSync } from './use-live-session-sync'
 import { usePromptCommands } from './use-prompt-commands'
 import { useSessionCatalog } from './use-session-catalog'
 import { useSessionCommands } from './use-session-commands'
+import { SESSION_CREATE_REQUESTED_EVENT, consumeSessionCreationRequest } from './events'
 
 type ChatPageProps = {
   notify: Notify
@@ -72,8 +73,8 @@ export function ChatPage({
   const openSessionInDock = dock.openSessionInDock
   const moveSessionToGroup = dock.moveSessionToGroup
   const createSession = useCallback(
-    async (targetGroup?: DockviewGroupPanel) => {
-      const sessionId = await createSessionRecord()
+    async (targetGroup?: DockviewGroupPanel, cwd = '') => {
+      const sessionId = await createSessionRecord(cwd)
       if (!sessionId) return ''
       const opened = openSessionInDock(sessionId)
       if (opened) moveSessionToGroup(sessionId, targetGroup)
@@ -82,6 +83,16 @@ export function ChatPage({
     [createSessionRecord, moveSessionToGroup, openSessionInDock],
   )
   usePagePrimaryAction(registerPrimaryAction, createSession)
+
+  useEffect(() => {
+    const createRequested = () => {
+      const request = consumeSessionCreationRequest()
+      if (request) void createSession(undefined, request.cwd)
+    }
+    window.addEventListener(SESSION_CREATE_REQUESTED_EVENT, createRequested)
+    createRequested()
+    return () => window.removeEventListener(SESSION_CREATE_REQUESTED_EVENT, createRequested)
+  }, [createSession])
 
   const promptCommands = usePromptCommands({
     browserNotify,

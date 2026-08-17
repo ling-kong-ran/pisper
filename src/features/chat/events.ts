@@ -6,11 +6,28 @@ import {
 } from './dock-layout'
 
 export const SESSION_SELECTED_EVENT = 'pisper:session-selected'
+export const SESSION_CREATE_REQUESTED_EVENT = 'pisper:session-create-requested'
 export const ACTIVE_SESSION_CHANGED_EVENT = 'pisper:active-session-changed'
 export const SESSIONS_UPDATED_EVENT = 'pisper:sessions-updated'
 export const COMMAND_PALETTE_REQUESTED_EVENT = 'pisper:command-palette-requested'
 
 type SessionMessageTarget = { sessionId: string; entryId: string }
+export type SessionCreateRequest = { cwd: string }
+
+function normalizeSessionCreateRequest(value: unknown): SessionCreateRequest | null {
+  if (!value || typeof value !== 'object') return null
+  const cwd = (value as Partial<SessionCreateRequest>).cwd
+  return typeof cwd === 'string' && cwd.trim() ? { cwd } : null
+}
+
+function parseSessionCreateRequest(raw: string | null): SessionCreateRequest | null {
+  if (!raw) return null
+  try {
+    return normalizeSessionCreateRequest(JSON.parse(raw))
+  } catch {
+    return null
+  }
+}
 
 function parseSessionMessageTarget(raw: string | null): SessionMessageTarget | null {
   if (!raw) return null
@@ -26,6 +43,20 @@ function parseSessionMessageTarget(raw: string | null): SessionMessageTarget | n
 
 export function requestCommandPalette() {
   window.dispatchEvent(new Event(COMMAND_PALETTE_REQUESTED_EVENT))
+}
+
+export function requestSessionCreation(cwd: string) {
+  const request = normalizeSessionCreateRequest({ cwd })
+  if (!request) return false
+  localStorage.setItem(STORAGE_KEYS.sessionCreateRequest, JSON.stringify(request))
+  window.dispatchEvent(new CustomEvent(SESSION_CREATE_REQUESTED_EVENT, { detail: request }))
+  return true
+}
+
+export function consumeSessionCreationRequest() {
+  const request = parseSessionCreateRequest(localStorage.getItem(STORAGE_KEYS.sessionCreateRequest))
+  localStorage.removeItem(STORAGE_KEYS.sessionCreateRequest)
+  return request
 }
 
 export function requestSessionSelection(

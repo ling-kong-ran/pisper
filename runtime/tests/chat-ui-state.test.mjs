@@ -73,6 +73,31 @@ test('new sessions inherit the most recently listed workspace', async () => {
   assert.match(api, /data: \{ name, \.\.\.\(cwd \? \{ cwd \} : \{\}\) \}/)
 })
 
+test('workspace groups create chats with their exact working directory', async () => {
+  const [sidebar, events, chatPage, catalog, storage, english, chinese] = await Promise.all([
+    readFile('src/components/layout/AppSidebar.tsx', 'utf8'),
+    readFile('src/features/chat/events.ts', 'utf8'),
+    readFile('src/features/chat/ChatPage.tsx', 'utf8'),
+    readFile('src/features/chat/use-session-catalog.ts', 'utf8'),
+    readFile('src/app/storage.ts', 'utf8'),
+    readFile('src/locales/en-US/navigation.json', 'utf8').then(JSON.parse),
+    readFile('src/locales/zh-CN/navigation.json', 'utf8').then(JSON.parse),
+  ])
+
+  assert.match(sidebar, /requestSessionCreation\(cwd\)/)
+  assert.match(sidebar, /onClick=\{\(\) => createSessionInWorkspace\(group\.cwd\)\}/)
+  assert.match(sidebar, /<Plus size=\{14\}/)
+  assert.match(storage, /sessionCreateRequest: 'pisper-session-create-request'/)
+  assert.match(events, /localStorage\.setItem\(STORAGE_KEYS\.sessionCreateRequest/)
+  assert.match(events, /localStorage\.removeItem\(STORAGE_KEYS\.sessionCreateRequest\)/)
+  assert.match(chatPage, /addEventListener\(SESSION_CREATE_REQUESTED_EVENT, createRequested\)/)
+  assert.match(chatPage, /createSession\(undefined, request\.cwd\)/)
+  assert.match(catalog, /createSessionRecord = useCallback\(\s*\(cwd = ''\) =>/)
+  assert.match(catalog, /cwd \|\| recentSessionCwd\(sessionsRef\.current\)/)
+  assert.equal(english['appSidebar.newChatInWorkspace'], 'New chat in {workspace}')
+  assert.equal(chinese['appSidebar.newChatInWorkspace'], '在 {workspace} 中新建会话')
+})
+
 test('removing a tiled session keeps the session itself available elsewhere', () => {
   assert.deepEqual(removeTiledSession(['first', 'second', 'third'], 'second'), ['first', 'third'])
 })

@@ -67,6 +67,7 @@
   "appSidebar.downloading": "正在下载",
   "appSidebar.expandSidebar": "展开侧栏",
   "appSidebar.mainNavigation": "主导航",
+  "appSidebar.newChatInWorkspace": "在 {workspace} 中新建会话",
   "appSidebar.noWorkspace": "无工作区",
   "appSidebar.noChatHistoryYet": "暂无历史会话",
   "appSidebar.readyToRestart": "等待重启安装",

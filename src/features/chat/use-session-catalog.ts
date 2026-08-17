@@ -95,64 +95,67 @@ export function useSessionCatalog({ notify }: SessionCatalogOptions) {
     [updateSessions],
   )
 
-  const createSessionRecord = useCallback(() => {
-    if (creatingSessionRef.current) return creatingSessionRef.current
-    const request = (async () => {
-      try {
-        setGlobalError('')
-        const created = await chatApi.createSession(
-          t('chat:chatPage.newChat'),
-          recentSessionCwd(sessionsRef.current),
-        )
-        setActiveId(created.id)
-        updateSessions((current) => mergeSessionLists(current, [created]))
-        updateSessionState(created.id, {
-          messages: [],
-          tools: [],
-          approvals: [],
-          queuedInputs: [],
-          permissionMode: created.permissionMode || 'ask',
-          executionMode: created.executionMode || 'approval-required',
-          goal: created.goal || null,
-          plan: planFromPayloadOr(created, null),
-          contextUsage: created.contextUsage || null,
-          sessionUsage: created.sessionUsage || null,
-          compaction: null,
-          streaming: false,
-          error: '',
-          loaded: true,
-          pageSize: FOCUS_MESSAGE_PAGE_SIZE,
-          messageStart: 0,
-          hasOlder: false,
-          olderCursor: null,
-          runStartedAt: null,
-          lastActivityAt: null,
-          runFinishedAt: null,
-          runStopped: false,
-          runNotice: '',
-        })
+  const createSessionRecord = useCallback(
+    (cwd = '') => {
+      if (creatingSessionRef.current) return creatingSessionRef.current
+      const request = (async () => {
         try {
-          await refreshSessions(created.id)
-        } catch (error) {
-          setGlobalError(
-            t('chat:chatPage.theChatWasCreatedButTheListCouldNotBeRefreshedError', {
-              error: chatErrorMessage(error),
-            }),
+          setGlobalError('')
+          const created = await chatApi.createSession(
+            t('chat:chatPage.newChat'),
+            cwd || recentSessionCwd(sessionsRef.current),
           )
+          setActiveId(created.id)
+          updateSessions((current) => mergeSessionLists(current, [created]))
+          updateSessionState(created.id, {
+            messages: [],
+            tools: [],
+            approvals: [],
+            queuedInputs: [],
+            permissionMode: created.permissionMode || 'ask',
+            executionMode: created.executionMode || 'approval-required',
+            goal: created.goal || null,
+            plan: planFromPayloadOr(created, null),
+            contextUsage: created.contextUsage || null,
+            sessionUsage: created.sessionUsage || null,
+            compaction: null,
+            streaming: false,
+            error: '',
+            loaded: true,
+            pageSize: FOCUS_MESSAGE_PAGE_SIZE,
+            messageStart: 0,
+            hasOlder: false,
+            olderCursor: null,
+            runStartedAt: null,
+            lastActivityAt: null,
+            runFinishedAt: null,
+            runStopped: false,
+            runNotice: '',
+          })
+          try {
+            await refreshSessions(created.id)
+          } catch (error) {
+            setGlobalError(
+              t('chat:chatPage.theChatWasCreatedButTheListCouldNotBeRefreshedError', {
+                error: chatErrorMessage(error),
+              }),
+            )
+          }
+          notify(t('chat:chatPage.newChatCreated'))
+          return created.id
+        } catch (error) {
+          setGlobalError(chatErrorMessage(error))
+          return ''
         }
-        notify(t('chat:chatPage.newChatCreated'))
-        return created.id
-      } catch (error) {
-        setGlobalError(chatErrorMessage(error))
-        return ''
-      }
-    })()
-    creatingSessionRef.current = request
-    void request.finally(() => {
-      if (creatingSessionRef.current === request) creatingSessionRef.current = null
-    })
-    return request
-  }, [notify, refreshSessions, t, updateSessionState, updateSessions])
+      })()
+      creatingSessionRef.current = request
+      void request.finally(() => {
+        if (creatingSessionRef.current === request) creatingSessionRef.current = null
+      })
+      return request
+    },
+    [notify, refreshSessions, t, updateSessionState, updateSessions],
+  )
 
   useEffect(() => {
     let active = true

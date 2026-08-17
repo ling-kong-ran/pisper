@@ -67,6 +67,7 @@
   "appSidebar.downloading": "Downloading",
   "appSidebar.expandSidebar": "Expand sidebar",
   "appSidebar.mainNavigation": "Main navigation",
+  "appSidebar.newChatInWorkspace": "New chat in {workspace}",
   "appSidebar.noWorkspace": "No workspace",
   "appSidebar.noChatHistoryYet": "No chat history yet",
   "appSidebar.readyToRestart": "Ready to restart",

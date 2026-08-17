@@ -8,6 +8,7 @@ import {
   ExternalLink,
   PanelLeftClose,
   PanelLeftOpen,
+  Plus,
   RefreshCw,
   Rocket,
   Settings,
@@ -20,6 +21,7 @@ import {
   ACTIVE_SESSION_CHANGED_EVENT,
   SESSION_SELECTED_EVENT,
   SESSIONS_UPDATED_EVENT,
+  requestSessionCreation,
   requestSessionSelection,
 } from '@/features/chat/events'
 import { apiJson } from '@/lib/api'
@@ -146,6 +148,12 @@ export function AppSidebar({
   const openRecentSession = (id: string) => {
     setActiveSessionId(id)
     requestSessionSelection(id)
+    navigate('chat')
+    if (isMobile) setOpenMobile(false)
+  }
+
+  const createSessionInWorkspace = (cwd: string) => {
+    if (!requestSessionCreation(cwd)) return
     navigate('chat')
     if (isMobile) setOpenMobile(false)
   }
@@ -289,26 +297,42 @@ export function AppSidebar({
                 >
                   {sessionGroups.map((group) => {
                     const groupCollapsed = collapsedWorkspaces.has(group.key)
+                    const workspaceLabel = group.cwd
+                      ? workspaceName(group.cwd, language)
+                      : t('navigation:appSidebar.noWorkspace')
                     return (
                       <div
                         className="nav-workspace-group [.nav-workspace-group_+_&]:mt-[3px]"
                         key={group.key}
                       >
-                        <button
-                          className="nav-workspace-heading [.nav-list_&]:grid [.nav-list_&]:w-full [.nav-list_&]:h-[29px] [.nav-list_&]:min-h-[29px] [.nav-list_&]:grid-cols-[13px_13px_minmax(0,1fr)_auto] [.nav-list_&]:items-center [.nav-list_&]:gap-[6px] [.nav-list_&]:p-[0_8px] [.nav-list_&]:text-[var(--text-muted)] [.nav-list_&]:text-[11px] [.nav-list_&]:font-[650] [.nav-list_&:hover]:bg-transparent [.nav-list_&:hover]:text-[var(--text)] [&_svg:first-child]:[transition:transform_var(--d1)_var(--ease-out)] [&_svg:first-child.is-open]:[transform:rotate(90deg)] [&_span]:overflow-hidden [&_span]:text-ellipsis [&_span]:whitespace-nowrap [&_small]:!text-[10px] [&_small]:[font-variant-numeric:tabular-nums]"
-                          aria-expanded={!groupCollapsed}
-                          onClick={() => toggleWorkspace(group.key)}
-                          title={group.cwd || t('navigation:appSidebar.noWorkspace')}
-                        >
-                          <ChevronRight className={groupCollapsed ? '' : 'is-open'} size={13} />
-                          <FolderClosed size={13} />
-                          <span>
-                            {group.cwd
-                              ? workspaceName(group.cwd, language)
-                              : t('navigation:appSidebar.noWorkspace')}
-                          </span>
-                          <small>{group.sessions.length}</small>
-                        </button>
+                        <div className="group/workspace flex min-w-0 items-center gap-[2px]">
+                          <button
+                            className="nav-workspace-heading [.nav-list_&]:grid [.nav-list_&]:w-auto [.nav-list_&]:min-w-0 [.nav-list_&]:h-[29px] [.nav-list_&]:min-h-[29px] [.nav-list_&]:flex-1 [.nav-list_&]:grid-cols-[13px_13px_minmax(0,1fr)_auto] [.nav-list_&]:items-center [.nav-list_&]:gap-[6px] [.nav-list_&]:p-[0_8px] [.nav-list_&]:text-[var(--text-muted)] [.nav-list_&]:text-[11px] [.nav-list_&]:font-[650] [.nav-list_&:hover]:bg-transparent [.nav-list_&:hover]:text-[var(--text)] [&_svg:first-child]:[transition:transform_var(--d1)_var(--ease-out)] [&_svg:first-child.is-open]:[transform:rotate(90deg)] [&_span]:overflow-hidden [&_span]:text-ellipsis [&_span]:whitespace-nowrap [&_small]:!text-[10px] [&_small]:[font-variant-numeric:tabular-nums]"
+                            aria-expanded={!groupCollapsed}
+                            onClick={() => toggleWorkspace(group.key)}
+                            title={group.cwd || workspaceLabel}
+                          >
+                            <ChevronRight className={groupCollapsed ? '' : 'is-open'} size={13} />
+                            <FolderClosed size={13} />
+                            <span>{workspaceLabel}</span>
+                            <small>{group.sessions.length}</small>
+                          </button>
+                          {group.cwd && (
+                            <button
+                              type="button"
+                              className="nav-workspace-create [.nav-list_&]:grid [.nav-list_&]:w-[28px] [.nav-list_&]:h-[28px] [.nav-list_&]:min-h-[28px] [.nav-list_&]:flex-none [.nav-list_&]:place-items-center [.nav-list_&]:rounded-[var(--r-xs)] [.nav-list_&]:p-0 [.nav-list_&]:text-[var(--text-muted)] [.nav-list_&:hover]:bg-[var(--surface-hover)] [.nav-list_&:hover]:text-[var(--text)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--focus)] focus-visible:ring-inset"
+                              title={t('navigation:appSidebar.newChatInWorkspace', {
+                                workspace: group.cwd,
+                              })}
+                              aria-label={t('navigation:appSidebar.newChatInWorkspace', {
+                                workspace: group.cwd,
+                              })}
+                              onClick={() => createSessionInWorkspace(group.cwd)}
+                            >
+                              <Plus size={14} />
+                            </button>
+                          )}
+                        </div>
                         {!groupCollapsed &&
                           group.sessions.map((session) => (
                             <button
