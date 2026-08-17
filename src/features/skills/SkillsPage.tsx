@@ -329,7 +329,9 @@ export function SkillsPage({
                 </span>
                 <span>
                   <strong>{skill.name}</strong>
-                  <small>{skill.description}</small>
+                  <small className="line-clamp-2" title={skill.description}>
+                    {skill.description}
+                  </small>
                 </span>
               </button>
               <Toggle
