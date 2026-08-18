@@ -188,6 +188,7 @@ impl PasteBurst {
 mod tests {
     use super::*;
 
+    /// 验证 arm 后立即输入的首字符进入粘贴缓冲（Append）。
     #[test]
     fn armed_paste_captures_the_first_character() {
         let mut burst = PasteBurst::default();
@@ -198,6 +199,7 @@ mod tests {
         assert_eq!(burst.flush(), FlushResult::Typed("a".to_owned()));
     }
 
+    /// 验证单字符在超时后按普通键入（Typed）冲刷，而非误判为粘贴。
     #[test]
     fn one_character_flushes_as_typing() {
         let mut burst = PasteBurst::default();
@@ -212,6 +214,8 @@ mod tests {
         assert!(!burst.is_buffering());
     }
 
+    /// 验证跨渲染帧（16ms）的连续快速输入仍能被识别为一次粘贴
+    /// （Windows 终端粘贴可能跨帧到达）。
     #[cfg(windows)]
     #[test]
     fn windows_paste_can_begin_across_a_render_frame() {
@@ -224,6 +228,7 @@ mod tests {
         );
     }
 
+    /// 验证快速字符 + 回车合并为一次粘贴（回车作为粘贴的终止符）。
     #[test]
     fn fast_characters_and_enter_flush_as_one_paste() {
         let mut burst = PasteBurst::default();
@@ -241,6 +246,7 @@ mod tests {
         );
     }
 
+    /// 验证 Unicode（多字节）快速输入也在回车前被识别为粘贴并完整冲刷。
     #[test]
     fn unicode_characters_activate_the_paste_before_enter() {
         let mut burst = PasteBurst::default();
@@ -255,6 +261,7 @@ mod tests {
         assert_eq!(burst.flush(), FlushResult::Paste("你好\n".to_owned()));
     }
 
+    /// 验证短而快的 Unicode 文本按普通键入处理（未达到粘贴判定阈值）。
     #[test]
     fn short_fast_unicode_text_remains_normal_input() {
         let mut burst = PasteBurst::default();
@@ -268,6 +275,7 @@ mod tests {
         assert_eq!(burst.flush(), FlushResult::Typed("一段".to_owned()));
     }
 
+    /// 验证粘贴冲刷后回车不再被捕获（后续键入按普通输入处理）。
     #[test]
     fn enter_is_not_captured_after_burst_flush() {
         let mut burst = PasteBurst::default();

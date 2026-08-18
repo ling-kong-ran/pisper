@@ -315,6 +315,8 @@ fn spawn_sidecar(
     }
 }
 
+/// 停止子进程：先尝试回收（已退出则无需 kill），未退出则强杀，
+/// 最后 wait 回收僵尸进程。
 fn stop_child(child: &mut Child) {
     if !matches!(child.try_wait(), Ok(Some(_))) {
         let _ = child.kill();
@@ -618,6 +620,7 @@ mod tests {
     use super::{runtime_is_externally_managed, runtime_node_command, spawn_sidecar};
     use std::{fs, path::PathBuf, process::Command, time::Instant};
 
+    /// 构造临时运行时目录（含一个占位 sidecar.mjs 入口），测试后由调用方清理。
     fn temporary_runtime() -> PathBuf {
         let root = std::env::temp_dir().join(format!(
             "pisper-runtime-command-{}-{}",
@@ -633,6 +636,7 @@ mod tests {
         root
     }
 
+    /// 验证 npm 运行时命令用指定 node 与签名入口启动（非独立安装器路径）。
     #[test]
     fn npm_runtime_uses_node_with_the_signed_runtime_entry() {
         let root = temporary_runtime();
@@ -647,12 +651,14 @@ mod tests {
         fs::remove_dir_all(root).unwrap();
     }
 
+    /// 验证 npm 部署的运行时标记为“外部管理”，跳过独立运行时安装器。
     #[test]
     fn npm_node_runtime_skips_the_standalone_runtime_installer() {
         assert!(runtime_is_externally_managed(false, false, true, false));
         assert!(!runtime_is_externally_managed(false, false, false, false));
     }
 
+    /// 验证 sidecar 未达就绪即退出时立即报错（不挂起等待）。
     #[test]
     fn a_sidecar_that_exits_before_readiness_fails_immediately() {
         let command = if cfg!(windows) {

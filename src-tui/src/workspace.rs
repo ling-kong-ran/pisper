@@ -85,6 +85,7 @@ mod tests {
     use super::{same_workspace, validate_session_workspace};
     use crate::model::SessionSummary;
 
+    /// 验证工作区校验：目录必须存在且与请求一致，缺失时给出明确错误。
     #[test]
     fn session_workspace_must_exist_and_match_the_request() {
         let workspace = std::env::current_dir().unwrap().canonicalize().unwrap();
@@ -116,6 +117,7 @@ mod tests {
             .contains("empty workspace"));
     }
 
+    /// 验证 Windows 下工作区路径比较不区分大小写。
     #[cfg(windows)]
     #[test]
     fn windows_workspace_comparison_is_case_insensitive() {

@@ -195,6 +195,7 @@ fn composer_height(area: Rect) -> u16 {
     }
 }
 
+/// 测试用绘制入口：以整帧为区域调用真实绘制逻辑，供断言整屏输出。
 #[cfg(test)]
 pub fn draw(frame: &mut Frame, app: &App) {
     let area = frame.area();
@@ -1253,6 +1254,8 @@ fn markdown_line_starts_with(line: &Line<'_>, expected: char) -> bool {
         == Some(expected)
 }
 
+/// 判断 Markdown 渲染行是否包含指定字符（跨所有样式片段扫描）。
+/// 供测试断言行内标记结构（如粗体符号、链接标记）是否按预期渲染。
 fn markdown_line_contains(line: &Line<'_>, expected: char) -> bool {
     line.spans
         .iter()
@@ -3486,6 +3489,7 @@ mod tests {
         },
     };
 
+    /// 把整帧 buffer 展平为纯文本（按行序拼接所有 cell），供整屏断言。
     fn buffer_text(buffer: &ratatui::buffer::Buffer) -> String {
         buffer
             .content
@@ -3494,6 +3498,7 @@ mod tests {
             .collect::<String>()
     }
 
+    /// 把 buffer 拆成逐行文本数组（按给定宽高裁剪），供逐行断言。
     fn buffer_rows(buffer: &ratatui::buffer::Buffer, width: u16, height: u16) -> Vec<String> {
         (0..height)
             .map(|y| {
@@ -3505,12 +3510,14 @@ mod tests {
             .collect()
     }
 
+    /// 用指定尺寸的 TestBackend 渲染应用并返回整帧 buffer。
     fn render_test_buffer(app: &App, width: u16, height: u16) -> ratatui::buffer::Buffer {
         let mut terminal = Terminal::new(TestBackend::new(width, height)).unwrap();
         terminal.draw(|frame| draw(frame, app)).unwrap();
         terminal.backend().buffer().clone()
     }
 
+    /// 构造“欢迎视图”测试应用（空会话、无活动），供空态 UI 断言。
     fn welcome_test_app() -> App {
         let session = SessionSummary {
             id: "session-welcome-ui".to_owned(),
@@ -3530,6 +3537,8 @@ mod tests {
         )
     }
 
+    /// 构造“运行中”测试应用：带一条用户消息与给定 LiveTurn 状态，
+    /// 供流式/工具/思考等运行态 UI 断言。
     fn live_test_app(status: &str, live: LiveTurn) -> App {
         let session = SessionSummary {
             id: "session-live-ui".to_owned(),
@@ -3556,6 +3565,7 @@ mod tests {
         app
     }
 
+    /// 验证 Provider 过载错误的展示标签简洁且不超过给定宽度。
     #[test]
     fn exhausted_provider_errors_are_concise_and_bounded() {
         let label = runtime_error_label(
@@ -3566,6 +3576,7 @@ mod tests {
         assert!(label.width() <= 48);
     }
 
+    /// 验证输入窗口滚动保证光标始终可见。
     #[test]
     fn input_window_keeps_the_cursor_visible() {
         let input: Vec<char> = "1234567890".chars().collect();
@@ -3574,6 +3585,7 @@ mod tests {
         assert_eq!(cursor, 4);
     }
 
+    /// 验证会话时间展示紧凑且非法时间值安全返回空串。
     #[test]
     fn session_times_stay_compact_and_handle_invalid_values() {
         assert_eq!(shorten_path(r"\\?\E:\code\pi-coder"), r"E:\code\pi-coder");
@@ -3593,6 +3605,7 @@ mod tests {
         assert_eq!(format_session_time("not-a-time", now), "");
     }
 
+    /// 验证 Markdown 渲染支持 GFM 结构与嵌套行内样式。
     #[test]
     fn markdown_renderer_supports_gfm_structure_and_nested_inline_styles() {
         let mut lines = Vec::new();
@@ -3629,6 +3642,7 @@ mod tests {
             && span.style.add_modifier.contains(Modifier::ITALIC)));
     }
 
+    /// 验证 Markdown 表格换行重排不破坏网格对齐。
     #[test]
     fn markdown_tables_reflow_without_breaking_the_grid() {
         let mut lines = Vec::new();
@@ -3664,6 +3678,7 @@ mod tests {
         assert!(rows.iter().any(|row| row.contains("renderer")));
     }
 
+    /// 验证长代码块换行不丢失内容。
     #[test]
     fn markdown_code_wraps_without_losing_long_content() {
         let source = "const_result=alpha_beta_gamma_delta+epsilon_zeta_eta_theta;";
@@ -3685,6 +3700,7 @@ mod tests {
         assert!(!rendered.contains('…'));
     }
 
+    /// 验证非真彩色主题下语义色对比度保持（不靠真彩色也能区分）。
     #[test]
     fn terminal_themes_preserve_semantic_contrast_without_truecolor() {
         assert_eq!(
@@ -3706,6 +3722,7 @@ mod tests {
         assert_eq!(TerminalTheme::TrueColor.map_foreground(BLUE), BLUE);
     }
 
+    /// 验证对话角色靠颜色与间距区分（不显示可见角色标签）。
     #[test]
     fn conversation_roles_use_color_and_spacing_without_visible_labels() {
         let session = SessionSummary {
@@ -3749,6 +3766,7 @@ mod tests {
         assert!(!rows.join("\n").contains("PIS  "));
     }
 
+    /// 验证流完成状态不改变转录 buffer（完成前后前 15 行一致）。
     #[test]
     fn completion_state_does_not_change_the_transcript_buffer() {
         let session = SessionSummary {
@@ -3791,6 +3809,7 @@ mod tests {
         assert_eq!(before, after);
     }
 
+    /// 验证手动压缩有可见的运行中与完成两种状态。
     #[test]
     fn manual_compaction_has_visible_running_and_completed_states() {
         let session = SessionSummary {
@@ -3823,6 +3842,7 @@ mod tests {
         assert!(buffer_text(terminal.backend().buffer()).contains("Context compacted"));
     }
 
+    /// 验证无思考 token 的流式思考不 panic，且不使用慢闪烁样式。
     #[test]
     fn live_thinking_without_reasoning_tokens_does_not_panic() {
         let mut lines = Vec::new();
@@ -3851,6 +3871,7 @@ mod tests {
             .any(|span| span.style.add_modifier.contains(Modifier::SLOW_BLINK)));
     }
 
+    /// 验证流式思考展开在回复之前且只显示一个加载指示器。
     #[test]
     fn live_thinking_is_expanded_before_the_response_with_one_spinner() {
         let mut lines = Vec::new();
@@ -3893,6 +3914,7 @@ mod tests {
             .any(|span| span.style.add_modifier.contains(Modifier::SLOW_BLINK)));
     }
 
+    /// 验证工具组在思考下方用有界的单行组展示（含已办/运行统计）。
     #[test]
     fn live_tools_use_a_bounded_single_line_group_below_thinking() {
         let tools = (0..8)
@@ -3935,6 +3957,7 @@ mod tests {
         assert!(lines.iter().all(|line| line.width() <= 48));
     }
 
+    /// 验证活动区响应式列布局，且已完成工具安静展示（不抢眼）。
     #[test]
     fn live_activity_uses_responsive_columns_and_quiet_completed_tools() {
         let mut lines = Vec::new();
@@ -3988,6 +4011,7 @@ mod tests {
         assert!(lines.iter().all(|line| line.width() <= 120));
     }
 
+    /// 验证宽屏下正文限制最大宽度，活动区仍占满整行。
     #[test]
     fn wide_conversations_bound_prose_without_narrowing_activity() {
         let mut prose = Vec::new();
@@ -4028,6 +4052,7 @@ mod tests {
         assert_eq!(activity[0].width(), 160);
     }
 
+    /// 验证流式视觉状态在宽/标准/紧凑三种终端尺寸下都保持布局。
     #[test]
     fn live_visual_states_hold_at_wide_standard_and_compact_sizes() {
         for (width, height) in [(120, 30), (80, 24), (48, 16)] {
@@ -4153,6 +4178,7 @@ mod tests {
         }
     }
 
+    /// 验证窄终端下输入框轨道优先展示停止/排队控制。
     #[test]
     fn active_composer_rail_prioritizes_run_and_queue_controls_when_narrow() {
         let mut app = live_test_app(
@@ -4178,6 +4204,7 @@ mod tests {
             .any(|row| row.starts_with("├─ Ctrl+C stop")));
     }
 
+    /// 验证短会话从顶部开始展示，含运行时元信息与状态栏（无大 Logo）。
     #[test]
     fn short_conversations_start_at_the_top_with_runtime_meta_and_status() {
         let session = SessionSummary {
@@ -4255,6 +4282,7 @@ mod tests {
         assert!(thinking_row < 17, "activity rail crossed into the composer");
     }
 
+    /// 验证窄状态栏仍保留执行模式指示（不依赖页头）。
     #[test]
     fn narrow_status_keeps_the_execution_mode_visible_without_a_header() {
         for (width, expected) in [(60, "[full-access]"), (36, "[full-access]")] {
@@ -4293,6 +4321,7 @@ mod tests {
         }
     }
 
+    /// 验证会话用量紧凑展示且只在底部状态栏出现（不进输入框区域）。
     #[test]
     fn session_usage_is_compact_and_rendered_only_in_the_bottom_status() {
         assert_eq!(compact_token_count(88_000_000), "88M");
@@ -4352,6 +4381,7 @@ mod tests {
         assert!(!rows.join("\n").contains("reasoning 1000000"));
     }
 
+    /// 验证审批面板在多种终端尺寸下都保持命令与快捷键可见。
     #[test]
     fn approval_panel_keeps_the_command_and_keys_visible_at_terminal_sizes() {
         for (width, height) in [(160, 40), (80, 24), (36, 12)] {
@@ -4415,6 +4445,7 @@ mod tests {
         }
     }
 
+    /// 验证滚动长命令时审批原因始终可见（不随命令滚动隐藏）。
     #[test]
     fn approval_keeps_the_reason_visible_while_scrolling_long_commands() {
         let session = SessionSummary {
@@ -4460,6 +4491,7 @@ mod tests {
         assert!(last_page.contains("↑↓ inspect"));
     }
 
+    /// 验证斜杠菜单滚动保证选中命令可见。
     #[test]
     fn slash_menu_scrolls_the_selected_command_into_view() {
         let session = SessionSummary {
@@ -4497,6 +4529,7 @@ mod tests {
         assert!(rendered.contains(&format!("{}/{}", items.len(), items.len())));
     }
 
+    /// 验证斜杠菜单与输入框共享内容轨道（不覆盖输入区）。
     #[test]
     fn slash_menu_shares_the_composer_content_rail() {
         let area = slash_menu_area(ratatui::layout::Rect::new(25, 30, 110, 7), 12);
@@ -4505,6 +4538,7 @@ mod tests {
         assert_eq!(area.y + area.height, 29);
     }
 
+    /// 验证 Tab 补全提示只在斜杠菜单打开时出现。
     #[test]
     fn tab_completion_hint_only_appears_with_the_slash_menu() {
         let session = SessionSummary {
@@ -4547,6 +4581,7 @@ mod tests {
         assert!(slash.contains("Tab complete · Enter select"));
     }
 
+    /// 验证对话与斜杠菜单在多种终端尺寸下都能渲染（冒烟测试）。
     #[test]
     fn conversation_and_slash_menu_render_at_terminal_sizes() {
         for (width, height) in [(160, 40), (60, 20), (36, 12)] {
@@ -4581,6 +4616,7 @@ mod tests {
         }
     }
 
+    /// 验证 Unicode 列按终端宽度补齐与换行。
     #[test]
     fn unicode_columns_pad_and_wrap_by_terminal_width() {
         assert_eq!(padded_single_line("中文", 8).width(), 8);
@@ -4594,6 +4630,7 @@ mod tests {
             .all(|line| line.width() <= 6));
     }
 
+    /// 验证会话选择器渲染最后活动时间与加载态文案。
     #[test]
     fn session_picker_renders_the_last_activity_time() {
         let session = SessionSummary {
@@ -4627,6 +4664,8 @@ mod tests {
         assert!(loading.contains("Esc cancel"));
     }
 
+    /// 验证文件/模型/思考强度/Provider 凭据各选择器渲染真实选项内容，
+    /// 且 API 密钥输入脱敏（星号遮罩，不泄露明文）。
     #[test]
     fn file_model_and_thinking_pickers_render_real_choices() {
         let session = SessionSummary {
@@ -4727,6 +4766,7 @@ mod tests {
         assert!(!api_key.contains("do-not-render-this-secret"));
     }
 
+    /// 验证计划面板紧凑可滚动，全部完成后自动消失。
     #[test]
     fn plan_panel_is_compact_scrollable_and_disappears_when_completed() {
         for (width, height) in [(80, 24), (120, 40)] {
@@ -4852,6 +4892,7 @@ mod tests {
         }
     }
 
+    /// 验证空会话居中展示品牌且输入框轨道开放。
     #[test]
     fn empty_session_centers_the_brand_and_open_composer_rail() {
         let app = welcome_test_app();
@@ -4895,6 +4936,7 @@ mod tests {
         assert_eq!(buffer.cell((123, bottom_row as u16)).unwrap().symbol(), "─");
     }
 
+    /// 验证欢迎页输入框轨道随草稿/命令输入改变状态（发送就绪/命令模式）。
     #[test]
     fn welcome_composer_rail_responds_to_draft_and_command_input() {
         let mut app = welcome_test_app();
@@ -4928,6 +4970,7 @@ mod tests {
         assert!(buffer_text(&command).contains("Tab complete"));
     }
 
+    /// 验证欢迎页附件有自己的输入框分支展示。
     #[test]
     fn welcome_composer_rail_gives_attachments_their_own_branch() {
         let mut app = welcome_test_app();
@@ -4955,6 +4998,7 @@ mod tests {
         assert_eq!(buffer.cell((76, input_row as u16 + 2)).unwrap().bg, ACCENT);
     }
 
+    /// 验证活跃会话使用全宽响应式输入框轨道（草稿/附件状态切换）。
     #[test]
     fn active_conversation_uses_the_full_width_responsive_composer_rail() {
         let session = SessionSummary {
@@ -5024,6 +5068,7 @@ mod tests {
         assert!(attached_rows[controls_row as usize].starts_with("├─ + attach  / commands"));
     }
 
+    /// 验证活跃会话输入框中粘贴文本保持折叠展示。
     #[test]
     fn active_conversation_keeps_pasted_text_collapsed_in_the_composer() {
         let session = SessionSummary {
@@ -5057,6 +5102,7 @@ mod tests {
         assert_eq!(app.input_text(), "first line\nsecond line\nthird line");
     }
 
+    /// 验证输入框在反复改变终端尺寸后保持完整（不散架/不错位）。
     #[test]
     fn composer_stays_whole_across_repeated_height_changes() {
         let session = SessionSummary {
@@ -5109,6 +5155,7 @@ mod tests {
         }
     }
 
+    /// 验证运行状态栏使用呼吸灯动画且不显示阶段文案（与工作区呼吸灯改动配套）。
     #[test]
     fn running_status_bar_uses_the_breathing_light_without_phase_text() {
         let session = SessionSummary {
@@ -5171,6 +5218,7 @@ mod tests {
         assert!(!tool_bottom.contains("Running bash"));
     }
 
+    /// 验证会话消息使用全宽左边缘（无启动 Logo 遮挡）。
     #[test]
     fn conversation_messages_use_the_full_width_left_edge_without_a_startup_logo() {
         let session = SessionSummary {
@@ -5216,6 +5264,7 @@ mod tests {
         assert!(!rows.join("\n").contains("╭─────────╮"));
     }
 
+    /// 验证窄终端下欢迎页输入框轨道保持紧凑清晰。
     #[test]
     fn narrow_terminal_keeps_the_compact_welcome_rail_clear() {
         let mut app = welcome_test_app();
@@ -5255,6 +5304,7 @@ mod tests {
         );
     }
 
+    /// 验证长会话用满整个视口（历史滚动、无 Logo）。
     #[test]
     fn long_conversations_use_the_full_viewport_without_the_logo() {
         let session = SessionSummary {
@@ -5309,6 +5359,7 @@ mod tests {
         assert!(!rendered.contains("History line 19"));
     }
 
+    /// 验证前置追加更早历史后保持可见位置不变。
     #[test]
     fn prepended_history_keeps_the_visible_position() {
         let session = SessionSummary {

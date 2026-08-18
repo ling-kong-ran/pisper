@@ -111,6 +111,7 @@ Examples:
   pisper web
   pisper web --cwd /path/to/project";
 
+/// 程序入口：执行启动流程，任何错误以非零退出码终止。
 #[tokio::main]
 async fn main() {
     if let Err(error) = run().await {
@@ -726,6 +727,7 @@ fn read_clipboard_text() -> Option<String> {
         .filter(|text: &String| !text.is_empty())
 }
 
+/// 非 Windows 平台不提供剪贴板直读（返回 None，粘贴走终端 bracketed-paste）。
 #[cfg(not(windows))]
 fn read_clipboard_text() -> Option<String> {
     None
@@ -1425,6 +1427,8 @@ struct TerminalSession {
 }
 
 impl TerminalSession {
+    /// 进入终端会话：启用 raw mode、切到备用屏、开启 bracketed-paste，
+    /// 返回包装后的 Terminal；任一步失败时中止（保持终端原状）。
     fn start() -> Result<Self> {
         enable_raw_mode()?;
         let mut stdout = io::stdout();
@@ -1453,6 +1457,7 @@ impl TerminalSession {
 }
 
 impl Drop for TerminalSession {
+    /// 兜底恢复终端（即使提前 return 也保证还原，幂等）。
     fn drop(&mut self) {
         self.restore();
     }
@@ -1471,6 +1476,7 @@ mod tests {
     use std::time::Duration;
     use tokio::time::Instant;
 
+    /// 验证 help 路由：全局命令与 web 子命令都能命中对应帮助，且不触发组件更新。
     #[test]
     fn help_routes_cover_global_and_web_commands_without_component_updates() {
         use std::ffi::OsString;
@@ -1491,6 +1497,7 @@ mod tests {
         assert!(!CLI_HELP.contains("/apikey"));
     }
 
+    /// 验证 Windows 粘贴快捷键（Ctrl+V / Shift+Insert）会武装粘贴突发检测。
     #[test]
     fn windows_paste_shortcuts_arm_the_paste_burst() {
         assert!(is_paste_shortcut(&KeyEvent::new(
@@ -1507,6 +1514,7 @@ mod tests {
         )));
     }
 
+    /// 验证按键释放事件不会冲刷粘贴突发（只处理 Press/Repeat）。
     #[test]
     fn key_releases_do_not_flush_paste_bursts() {
         assert!(should_handle_key_kind(KeyEventKind::Press));
@@ -1514,6 +1522,7 @@ mod tests {
         assert!(!should_handle_key_kind(KeyEventKind::Release));
     }
 
+    /// 验证内联附件快捷键（Shift+加号）不被单字符粘贴检测误吞。
     #[test]
     fn inline_attachment_shortcut_bypasses_single_character_paste_detection() {
         let plus = KeyEvent::new(KeyCode::Char('+'), KeyModifiers::SHIFT);
@@ -1529,6 +1538,7 @@ mod tests {
         ));
     }
 
+    /// 验证“会话已结束”排队错误识别兼容中英文运行时文案。
     #[test]
     fn ended_session_queue_errors_accept_runtime_languages() {
         assert!(is_ended_session_queue_error(
@@ -1540,6 +1550,7 @@ mod tests {
         assert!(!is_ended_session_queue_error("Provider request failed"));
     }
 
+    /// 验证完成通知只在无排队消息时发送（有排队则等最后一条）。
     #[test]
     fn completion_notifications_wait_for_the_final_queued_turn() {
         assert!(should_notify_completion(true, 0));
@@ -1547,6 +1558,7 @@ mod tests {
         assert!(!should_notify_completion(false, 0));
     }
 
+    /// 验证窗口尺寸事件保留宽高，0 值（未知尺寸）被忽略。
     #[test]
     fn resize_events_keep_the_reported_terminal_area() {
         assert_eq!(resize_area(120, 30).unwrap().width, 120);
@@ -1555,6 +1567,7 @@ mod tests {
         assert!(resize_area(120, 0).is_none());
     }
 
+    /// 验证 resize 重绘防抖：80ms 内多次 resize 合并为一次重绘。
     #[test]
     fn resize_redraw_waits_until_the_event_stream_settles() {
         let last_resize_at = Instant::now();
@@ -1568,6 +1581,7 @@ mod tests {
         ));
     }
 
+    /// 验证 JetBrains 终端下保留自动换行列（内容区少一列防折行）。
     #[test]
     fn jetbrains_terminal_reserves_the_auto_wrap_column() {
         let area = ratatui::layout::Rect::new(0, 0, 120, 30);
@@ -1575,6 +1589,7 @@ mod tests {
         assert_eq!(terminal_content_area(area, false), area);
     }
 
+    /// 验证欢迎页使用未持久化的新会话草稿（空 id、全权限模式）。
     #[test]
     fn a_fresh_logo_page_uses_an_unpersisted_session_draft() {
         let draft = draft_session(std::path::Path::new("/workspace"), "provider/model", "high");
@@ -1586,6 +1601,7 @@ mod tests {
         assert_eq!(draft.execution_mode, "full-access");
     }
 
+    /// 验证 resume 时全局会话选择器不受工作区过滤限制（跨工作区可恢复）。
     #[test]
     fn resume_seeds_the_global_picker_without_filtering_by_workspace() {
         let sessions = vec![SessionSummary {

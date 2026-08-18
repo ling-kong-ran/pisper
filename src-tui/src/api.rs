@@ -925,6 +925,7 @@ fn repair_json_surrogates(input: &str) -> String {
     out
 }
 
+/// 解析 4 位十六进制（\uXXXX 的码点），非法字符或长度不足返回 None。
 fn parse_hex4(bytes: &[u8], start: usize) -> Option<u16> {
     if start + 4 > bytes.len() {
         return None;
@@ -942,6 +943,7 @@ fn parse_hex4(bytes: &[u8], start: usize) -> Option<u16> {
     Some(value)
 }
 
+/// 探测 \uXXXX 转义是否是低位代理项（\uD800-\uDFFF 范围），用于合并代理对。
 fn peek_low_surrogate(bytes: &[u8], start: usize) -> Option<u16> {
     if start + 6 > bytes.len() || bytes[start] != b'\\' || bytes[start + 1] != b'u' {
         return None;
@@ -950,10 +952,12 @@ fn peek_low_surrogate(bytes: &[u8], start: usize) -> Option<u16> {
     is_low_surrogate(hex).then_some(hex)
 }
 
+/// 是否高位代理（\uD800-\uDBFF）。
 fn is_high_surrogate(value: u16) -> bool {
     (0xD800..=0xDBFF).contains(&value)
 }
 
+/// 是否低位代理（\uDC00-\uDFFF）。
 fn is_low_surrogate(value: u16) -> bool {
     (0xDC00..=0xDFFF).contains(&value)
 }
@@ -967,6 +971,7 @@ mod tests {
     use crate::model::RuntimeEvent;
     use tokio::sync::mpsc;
 
+    /// 验证运行时选项只包含已配置 Provider 的模型（未配置的 openai 不产生可选项）。
     #[test]
     fn runtime_model_options_exclude_unconfigured_providers() {
         let config = serde_json::from_value::<RuntimeConfig>(serde_json::json!({
@@ -1008,6 +1013,7 @@ mod tests {
         assert_eq!(providers[1].api, "openai-completions");
     }
 
+    /// 验证文本/图片附件能按共享聊天协议序列化（base64 数据、mime 推断）。
     #[tokio::test]
     async fn prepares_text_and_image_attachments_for_the_shared_chat_protocol() {
         let directory = std::env::temp_dir().join(format!(
@@ -1036,6 +1042,7 @@ mod tests {
         tokio::fs::remove_dir_all(directory).await.unwrap();
     }
 
+    /// 验证工作区外附件与非法 UTF-8 附件被拒绝。
     #[tokio::test]
     async fn rejects_attachments_outside_the_workspace_and_invalid_utf8() {
         let root = std::env::temp_dir().join(format!(
@@ -1062,6 +1069,7 @@ mod tests {
         tokio::fs::remove_dir_all(root).await.unwrap();
     }
 
+    /// 验证终端事件转发成功，且超长 SSE 行被拒绝（防止内存膨胀）。
     #[test]
     fn forwards_terminal_events_and_rejects_unbounded_sse_lines() {
         let (sender, mut receiver) = mpsc::unbounded_channel();
@@ -1080,6 +1088,7 @@ mod tests {
         assert!(decoder.push(&oversized, false).is_err());
     }
 
+    /// 验证 SSE 分块到达（CRLF + 拆包 + EOF final）能正确重组为完整事件。
     #[test]
     fn parses_chunked_crlf_and_final_records() {
         let mut decoder = SseDecoder::default();
@@ -1099,6 +1108,8 @@ mod tests {
         assert_eq!(events[1].name, "done");
     }
 
+    /// 验证 JSON 代理项修复：孤立高/低代理项替换为 U+FFFD，合法代理对
+    /// 与转义引号/普通 \u 转义保持不变。
     #[test]
     fn repair_json_surrogates_normalises_lone_escapes_and_keeps_pairs() {
         // 孤立的 UTF-16 高代理项被修复为 U+FFFD。
@@ -1126,6 +1137,7 @@ mod tests {
         );
     }
 
+    /// 验证 SSE 解码器能从孤立代理项转义中恢复（替换为 U+FFFD 而非崩溃）。
     #[test]
     fn sse_decoder_recovers_from_lone_surrogate_escapes() {
         let mut decoder = SseDecoder::default();

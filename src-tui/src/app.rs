@@ -3525,6 +3525,7 @@ mod tests {
     };
     use serde_json::json;
 
+    /// 验证文本补丁从指定位置替换文本尾部。
     #[test]
     fn text_patch_replaces_the_existing_tail() {
         let mut text = "hello wor".to_owned();
@@ -3532,6 +3533,7 @@ mod tests {
         assert_eq!(text, "hello world");
     }
 
+    /// 验证补丁偏移按 JavaScript UTF-16 单位映射（多字节字符/代理对计数一致）。
     #[test]
     fn text_patch_maps_javascript_utf16_offsets() {
         let mut text = "你好😀 wor".to_owned();
@@ -3539,6 +3541,7 @@ mod tests {
         assert_eq!(text, "你好😀 world");
     }
 
+    /// 验证打字机平滑大段 Unicode 增量并最终追上目标文本。
     #[test]
     fn typewriter_smooths_large_unicode_deltas_and_eventually_catches_up() {
         let target = format!("{}{}", "streaming ".repeat(30), "你好😀");
@@ -3553,6 +3556,7 @@ mod tests {
         assert_eq!(shown, target);
     }
 
+    /// 验证 session_usage 事件只替换活动会话的用量合计。
     #[test]
     fn session_usage_events_replace_only_the_active_session_totals() {
         let mut app = test_app(Vec::new());
@@ -3574,6 +3578,7 @@ mod tests {
         assert_eq!(app.session_usage.cache_hit_rate, Some(37.5));
     }
 
+    /// 验证 meta 事件恢复运行时维护的会话用量快照。
     #[test]
     fn meta_events_restore_the_runtime_session_usage_snapshot() {
         let mut app = test_app(Vec::new());
@@ -3603,6 +3608,7 @@ mod tests {
         assert_eq!(app.session_usage.cache_hit_rate, Some(37.5));
     }
 
+    /// 验证流事件先更新目标文本（text_target），渲染推进后才落到可见文本。
     #[test]
     fn stream_events_update_the_target_before_the_visible_text() {
         let mut app = test_app(Vec::new());
@@ -3621,6 +3627,7 @@ mod tests {
         assert!(!app.live.as_ref().unwrap().text.is_empty());
     }
 
+    /// 验证“减少动态效果”或已滚动离开底部时跳过增量显示，直接落到最终文本。
     #[test]
     fn reduced_motion_and_scrollback_skip_incremental_stream_reveal() {
         let mut reduced = test_app(Vec::new());
@@ -3649,6 +3656,7 @@ mod tests {
         assert_eq!(live.text, live.text_target);
     }
 
+    /// 验证 /mode 命令只改会话执行模式，不触发 Agent 调用。
     #[test]
     fn mode_command_changes_the_current_session_without_calling_the_agent() {
         let mut app = test_app(Vec::new());
@@ -3670,6 +3678,8 @@ mod tests {
     }
 
     #[test]
+    /// 验证按键 Repeat 事件只编辑输入框，不重复触发命令/退出等动作。
+    #[test]
     fn safe_key_repeats_edit_the_composer_without_repeating_commands() {
         let mut app = test_app(Vec::new());
         app.set_input("ab");
@@ -3688,6 +3698,7 @@ mod tests {
         assert!(matches!(app.handle_key(quit), Action::None));
     }
 
+    /// 验证 y/n 快捷键解析当前可见审批，且解决过程中/失败/成功状态流转正确。
     #[test]
     fn approval_keys_resolve_the_visible_request() {
         for (key, approved) in [('y', true), ('Y', true), ('n', false), ('N', false)] {
@@ -3722,6 +3733,7 @@ mod tests {
         }
     }
 
+    /// 验证审批面板的键盘滚动（方向键/翻页/Home/End）有界且不越界。
     #[test]
     fn approval_command_supports_bounded_keyboard_scrolling() {
         let mut app = test_app(Vec::new());
@@ -3749,6 +3761,7 @@ mod tests {
         assert!(app.approval.is_some());
     }
 
+    /// 验证首次 Ctrl+C 中止流式/清除审批，再次 Ctrl+C 才退出。
     #[test]
     fn ctrl_c_aborts_streaming_and_pending_approval_before_it_quits() {
         let mut app = test_app(Vec::new());
@@ -3775,6 +3788,7 @@ mod tests {
         ));
     }
 
+    /// 验证流式中连续两次 Ctrl+C：第一次中止，第二次强制退出。
     #[test]
     fn a_second_ctrl_c_while_still_streaming_forces_a_quit() {
         let mut app = test_app(Vec::new());
@@ -3797,6 +3811,7 @@ mod tests {
         ));
     }
 
+    /// 验证运行结束后强制退出闩锁被复位（下次 Ctrl+C 不会误触发退出）。
     #[test]
     fn a_finished_run_resets_the_forced_quit_latch() {
         let mut app = test_app(Vec::new());
@@ -3816,6 +3831,7 @@ mod tests {
         ));
     }
 
+    /// 验证粘贴文本折叠展示但提交时保留完整原文。
     #[test]
     fn pasted_text_is_collapsed_for_display_but_submitted_in_full() {
         let mut app = test_app(Vec::new());
@@ -3835,6 +3851,7 @@ mod tests {
         ));
     }
 
+    /// 验证多次独立粘贴在输入框中保持为独立的折叠块。
     #[test]
     fn independent_pastes_remain_separate_blocks() {
         let mut app = test_app(Vec::new());
@@ -3848,6 +3865,7 @@ mod tests {
         );
     }
 
+    /// 验证退格键删除整个折叠的粘贴块（而非逐字符）。
     #[test]
     fn backspace_removes_a_collapsed_paste_as_one_block() {
         let mut app = test_app(Vec::new());
@@ -3863,6 +3881,7 @@ mod tests {
         assert!(app.composer_input().0.is_empty());
     }
 
+    /// 验证审批事件保留待审命令供用户复核（滚动位置归零，便于查看）。
     #[test]
     fn permission_events_keep_the_command_for_review() {
         let mut app = test_app(Vec::new());
@@ -3888,6 +3907,7 @@ mod tests {
         assert_eq!(app.approval_max_scroll.get(), 0);
     }
 
+    /// 验证多个审批请求排队，按 id 逐个解决后从队列移除。
     #[test]
     fn permission_events_queue_requests_and_remove_resolved_items_by_id() {
         let mut app = test_app(Vec::new());
@@ -3938,6 +3958,7 @@ mod tests {
         assert!(app.approval.is_none());
     }
 
+    /// 验证 /compact 只执行一次（压缩进行中再提交被拒绝），完成后更新上下文状态。
     #[test]
     fn compact_command_runs_once_and_updates_context_status() {
         let mut app = test_app(Vec::new());
@@ -3964,6 +3985,7 @@ mod tests {
         assert!(!app.compacting_context);
     }
 
+    /// 验证 /init 以隐藏工作区指令提交，同时保留用户可见的命令行。
     #[test]
     fn init_runs_a_hidden_workspace_instruction_and_keeps_the_command_visible() {
         let mut app = test_app(Vec::new());
@@ -3987,6 +4009,7 @@ mod tests {
             .contains("Analyze this codebase"));
     }
 
+    /// 验证只读模式下 /init 被拒绝（需要 full-access）。
     #[test]
     fn init_is_rejected_in_read_only_mode() {
         let mut app = test_app(Vec::new());
@@ -3999,6 +4022,7 @@ mod tests {
         assert!(!app.is_streaming());
     }
 
+    /// 验证 /工具名 命令请求所选运行时工具。
     #[test]
     fn tool_slash_requests_the_selected_runtime_tool() {
         let mut app = test_app(vec![ToolDefinition {
@@ -4014,6 +4038,7 @@ mod tests {
         ));
     }
 
+    /// 验证 Tab 补全高亮斜杠工具但不提交。
     #[test]
     fn tab_completes_the_highlighted_slash_tool_without_submitting() {
         let mut app = test_app(vec![ToolDefinition {
@@ -4032,6 +4057,7 @@ mod tests {
         assert!(!app.is_streaming());
     }
 
+    /// 验证附件选择器限制在工作区内，选中文件以附件提交。
     #[test]
     fn attachment_picker_enforces_workspace_and_submits_selected_files() {
         let workspace = std::env::temp_dir().join(format!(
@@ -4072,6 +4098,7 @@ mod tests {
         std::fs::remove_dir_all(workspace).unwrap();
     }
 
+    /// 验证附件快捷键（Ctrl+O / Shift++）打开选择器但不丢弃输入框草稿。
     #[test]
     fn attachment_shortcuts_open_without_discarding_the_composer_draft() {
         let mut app = test_app(Vec::new());
@@ -4095,6 +4122,7 @@ mod tests {
         assert_eq!(app.input_text(), "@");
     }
 
+    /// 验证切换模型时，已有消息的会话会询问是否顺带压缩上下文。
     #[test]
     fn model_switch_offers_context_compaction_for_existing_messages() {
         let mut app = test_app(Vec::new());
@@ -4115,6 +4143,7 @@ mod tests {
         assert!(!app.confirm_model_compaction);
     }
 
+    /// 验证空会话切换模型不询问压缩（无上下文可压）。
     #[test]
     fn model_switch_does_not_offer_compaction_for_empty_sessions() {
         let mut app = test_app(Vec::new());
@@ -4125,6 +4154,7 @@ mod tests {
         assert!(!app.confirm_model_compaction);
     }
 
+    /// 验证 /model 与 /thinking 斜杠命令打开选择器并应用所选值。
     #[test]
     fn model_and_thinking_slash_commands_open_pickers_and_apply_selection() {
         let mut app = test_app(Vec::new());
@@ -4170,6 +4200,7 @@ mod tests {
         ));
     }
 
+    /// 验证思考强度空/错误状态不会回退到硬编码等级。
     #[test]
     fn thinking_empty_and_error_states_never_restore_hard_coded_levels() {
         let mut app = test_app(Vec::new());
@@ -4193,6 +4224,7 @@ mod tests {
         ));
     }
 
+    /// 验证全局恢复会话与显式 /dir 切换都保留启动时的工作区作为新会话默认。
     #[test]
     fn global_resume_and_explicit_dir_changes_preserve_the_launch_workspace() {
         let root = std::env::temp_dir().join(format!(
@@ -4238,6 +4270,7 @@ mod tests {
         std::fs::remove_dir_all(root).unwrap();
     }
 
+    /// 验证会话选择器加载中保持可见，过期请求结果被忽略。
     #[test]
     fn session_picker_keeps_loading_visible_and_ignores_stale_results() {
         let mut app = test_app(Vec::new());
@@ -4262,6 +4295,7 @@ mod tests {
         assert!(app.session_loading.is_none());
     }
 
+    /// 验证当前会话加载失败时选择器保持打开并显示错误。
     #[test]
     fn current_session_load_failure_keeps_the_picker_open() {
         let mut app = test_app(Vec::new());
@@ -4278,6 +4312,7 @@ mod tests {
         assert!(app.status.contains("request timed out"));
     }
 
+    /// 验证启动恢复选择器在取消（Esc）时退出程序。
     #[test]
     fn startup_resume_picker_exits_on_cancel() {
         let mut app = test_app(Vec::new());
@@ -4288,6 +4323,7 @@ mod tests {
         ));
     }
 
+    /// 验证计划全部完成后清除计划状态，后续新计划能重新出现（含旧字段别名）。
     #[test]
     fn completed_plan_events_clear_state_and_later_plans_reappear() {
         let mut app = test_app(Vec::new());
@@ -4341,6 +4377,7 @@ mod tests {
         assert!(app.session.plan.is_none());
     }
 
+    /// 验证工具事件保留时间戳与子代理结果。
     #[test]
     fn tool_events_preserve_timestamps_and_subagent_results() {
         let mut app = test_app(Vec::new());
@@ -4368,6 +4405,7 @@ mod tests {
         );
     }
 
+    /// 验证运行中提交的消息进入运行时队列（QueueInput），队列清空后不再有挂起动作。
     #[test]
     fn messages_submitted_during_a_run_are_queued_in_the_active_runtime() {
         let mut app = test_app(Vec::new());
@@ -4403,6 +4441,7 @@ mod tests {
         assert!(app.take_queued_action().is_none());
     }
 
+    /// 验证运行时追加失败时恢复输入框草稿并提示错误。
     #[test]
     fn a_failed_runtime_append_restores_the_composer_draft() {
         let mut app = test_app(Vec::new());
@@ -4416,6 +4455,7 @@ mod tests {
         assert!(app.status_error);
     }
 
+    /// 验证计划更新跟随当前项，Alt+方向键只滚动计划面板。
     #[test]
     fn plan_updates_follow_the_current_item_and_alt_arrows_scroll_the_plan_only() {
         let session = SessionSummary {
@@ -4467,6 +4507,7 @@ mod tests {
         assert_eq!(app.plan_scroll.get(), 5);
     }
 
+    /// 验证聊天区方向键/翻页滚动不因流更新丢失位置，回到底部再滚出。
     #[test]
     fn chat_arrow_and_page_keys_scroll_without_losing_position_to_stream_updates() {
         let mut app = test_app(Vec::new());
@@ -4491,6 +4532,7 @@ mod tests {
         assert_eq!(app.scroll.get(), 0);
     }
 
+    /// 验证转录只保留最新一页消息（超出上限时从头部裁剪）。
     #[test]
     fn transcript_retains_only_the_latest_message_page() {
         let session = SessionSummary {
@@ -4522,6 +4564,7 @@ mod tests {
         assert_eq!(app.messages.last().unwrap().text, "next message");
     }
 
+    /// 验证滚动到顶部时只请求一次更早消息页（防重复触发）。
     #[test]
     fn scrolling_near_the_top_requests_an_older_page_once() {
         let mut app = test_app(Vec::new());
@@ -4535,6 +4578,8 @@ mod tests {
         assert!(matches!(action, Action::None));
     }
 
+    /// 验证应用更早消息页后前置合并并关闭加载窗口。
+    /// 验证更早页应用后不会重复合并（过期/陈旧页被忽略）。
     #[test]
     fn applying_an_older_page_prepends_and_closes_the_window() {
         let session = SessionSummary {
@@ -4597,6 +4642,7 @@ mod tests {
         assert_eq!(app.messages.len(), 80);
     }
 
+    /// 验证闲置历史消息被驱逐以节省内存，之后仍可重新加载更早页。
     #[test]
     fn idle_history_eviction_keeps_recent_pages_and_allows_reloading() {
         let session = SessionSummary {
@@ -4635,6 +4681,7 @@ mod tests {
         assert!(matches!(action, Action::LoadOlderMessages { before: 80 }));
     }
 
+    /// 验证 Tab 补全内置命令但不执行（如 /quit 不退出）。
     #[test]
     fn tab_completes_a_builtin_command_without_executing_it() {
         let mut app = test_app(Vec::new());
@@ -4648,6 +4695,7 @@ mod tests {
         assert!(app.input_cursor > 0);
     }
 
+    /// 验证 Provider 对话框选择 Provider、屏蔽输入框（API 密钥遮罩）、支持取消。
     #[test]
     fn provider_dialog_selects_a_provider_masks_composer_input_and_supports_cancel() {
         let mut app = test_app(Vec::new());
@@ -4700,6 +4748,7 @@ mod tests {
         assert!(!app.api_key_dialog);
     }
 
+    /// 验证 /provider <name> 带参数时直接打开该 Provider 的凭据对话框。
     #[test]
     fn provider_command_with_an_argument_opens_that_provider_directly() {
         let mut app = test_app(Vec::new());
@@ -4742,6 +4791,7 @@ mod tests {
         ));
     }
 
+    /// 验证 /provider 指向未知 Provider 时拒绝并提示错误。
     #[test]
     fn provider_command_rejects_an_unknown_provider() {
         let mut app = test_app(Vec::new());
@@ -4752,6 +4802,7 @@ mod tests {
         assert!(app.status.contains("provider not found"));
     }
 
+    /// 验证 /apikey 别名仍打开 Provider 对话框（带/不带参数均可）。
     #[test]
     fn apikey_alias_still_opens_the_provider_dialog() {
         let mut app = test_app(Vec::new());
@@ -4775,6 +4826,7 @@ mod tests {
         assert_eq!(app.api_key_provider.as_deref(), Some("openai"));
     }
 
+    /// 验证斜杠目录列出 Provider 与 Web 配置命令（/apikey 别名不显示）。
     #[test]
     fn slash_catalog_lists_provider_and_web_configuration_commands() {
         let app = test_app(Vec::new());
@@ -4788,6 +4840,7 @@ mod tests {
         assert!(!commands.contains(&"/apikey".to_owned()));
     }
 
+    /// 验证草稿会话默认值及实体化时保留首条待发送消息。
     #[test]
     fn draft_defaults_and_materialization_preserve_the_first_pending_turn() {
         let draft = SessionSummary {
@@ -4829,6 +4882,7 @@ mod tests {
         assert_eq!(app.sessions[0].id, "session-1");
     }
 
+    /// 验证会话选择器过滤 Unicode 字段且支持光标处编辑。
     #[test]
     fn session_picker_filters_unicode_fields_and_edits_at_the_cursor() {
         let current = SessionSummary {
@@ -4874,6 +4928,7 @@ mod tests {
         ));
     }
 
+    /// 验证选择器查询有长度上限且 Ctrl+U 一键清空。
     #[test]
     fn session_picker_caps_and_clears_the_query() {
         let mut app = test_app(Vec::new());
@@ -4890,6 +4945,7 @@ mod tests {
         assert_eq!(app.session_selected, 0);
     }
 
+    /// 验证 Provider 连接字段支持光标编辑与全选（Ctrl+A 后输入替换）。
     #[test]
     fn provider_connection_fields_support_cursor_editing_and_select_all() {
         let mut app = test_app(Vec::new());
@@ -4928,6 +4984,7 @@ mod tests {
         assert_eq!(app.api_key_input.iter().collect::<String>(), "k");
     }
 
+    /// 验证附件选择器聚焦时删除已选附件。
     #[test]
     fn attachment_picker_focus_removes_the_selected_attachment() {
         let mut app = test_app(Vec::new());
@@ -4957,6 +5014,7 @@ mod tests {
         assert!(!app.attachment_list_focused);
     }
 
+    /// 验证变更视图在文件间移动并跳到对应 diff 位置。
     #[test]
     fn changes_view_moves_between_files_and_jumps_to_their_diff() {
         let mut app = test_app(Vec::new());
@@ -4988,6 +5046,8 @@ mod tests {
     }
 
     #[test]
+    /// 验证斜杠分类循环（右/左箭头）不影响 Tab 补全。
+    #[test]
     fn slash_categories_cycle_without_replacing_tab_completion() {
         let mut app = test_app(vec![ToolDefinition {
             id: "read".to_owned(),
@@ -5010,6 +5070,7 @@ mod tests {
         assert_eq!(app.input_text(), "/read ");
     }
 
+    /// 构造标准测试 App（一个固定会话 + 给定工具，其余字段取默认）。
     fn test_app(tools: Vec<ToolDefinition>) -> App {
         let session = SessionSummary {
             id: "session-1".to_owned(),

@@ -545,6 +545,7 @@ pub enum RuntimeEvent {
 mod tests {
     use super::{MessagePage, SessionSummary, SessionUsage, VcsChanges};
 
+    /// 验证历史工具时间戳兼容 ISO 字符串与毫秒整数两种格式（非法 ISO 归零）。
     #[test]
     fn historical_tool_timestamps_accept_iso_strings_and_milliseconds() {
         let page: MessagePage = serde_json::from_value(serde_json::json!({
@@ -574,6 +575,7 @@ mod tests {
         assert_eq!(tools[1].finished_at, 1512);
     }
 
+    /// 验证会话用量与 VCS 变更的 camelCase 字段能正确反序列化。
     #[test]
     fn message_usage_and_vcs_contracts_deserialize_camel_case_fields() {
         let page: MessagePage = serde_json::from_value(serde_json::json!({
@@ -608,6 +610,7 @@ mod tests {
         assert_eq!(changes.files[0].path, "docs/a & b.txt");
     }
 
+    /// 验证缓存命中率：服务端缺省时由 token 计数推算，无缓存时返回 0。
     #[test]
     fn session_usage_recovers_cache_rate_from_token_counts() {
         let usage = SessionUsage {
@@ -635,6 +638,7 @@ mod tests {
         assert_eq!(uncached.effective_cache_hit_rate(), Some(0.0));
     }
 
+    /// 验证会话计划兼容新（plan）旧（taskList）两种负载字段。
     #[test]
     fn session_plan_deserializes_canonical_and_legacy_fields() {
         let canonical: SessionSummary = serde_json::from_value(serde_json::json!({
