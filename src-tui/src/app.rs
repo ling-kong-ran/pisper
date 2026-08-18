@@ -3677,7 +3677,6 @@ mod tests {
         assert!(!app.status_error);
     }
 
-    #[test]
     /// 验证按键 Repeat 事件只编辑输入框，不重复触发命令/退出等动作。
     #[test]
     fn safe_key_repeats_edit_the_composer_without_repeating_commands() {
@@ -5045,7 +5044,6 @@ mod tests {
         assert_eq!(app.vcs_scroll.get(), 0);
     }
 
-    #[test]
     /// 验证斜杠分类循环（右/左箭头）不影响 Tab 补全。
     #[test]
     fn slash_categories_cycle_without_replacing_tab_completion() {
