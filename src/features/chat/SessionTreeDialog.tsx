@@ -8,6 +8,7 @@ import {
   GitBranch,
   LoaderCircle,
   MessageSquare,
+  MessageSquarePlus,
   Search,
   Settings,
   Tag,
@@ -21,6 +22,7 @@ import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import type { SessionSummary } from '@/types/chat'
 import { chatErrorMessage } from './chat-errors'
 import {
   chatApi,
@@ -259,15 +261,18 @@ export function SessionTreeDialog({
   streaming,
   onClose,
   onNavigated,
+  onCreateChildSession,
 }: {
   open: boolean
   sessionId: string
   streaming: boolean
   onClose: () => void
   onNavigated: (editorText: string | null) => Promise<void> | void
+  onCreateChildSession: (boundaryEntryId: string) => Promise<void> | void
 }) {
   const { t, language } = useI18n()
   const [data, setData] = useState<SessionTreeResponse | null>(null)
+  const [sessions, setSessions] = useState<SessionSummary[]>([])
   const [view, setView] = useState<TreeView>('conversation')
   const [query, setQuery] = useState('')
   const [selectedId, setSelectedId] = useState('')
@@ -280,6 +285,8 @@ export function SessionTreeDialog({
   const [loading, setLoading] = useState(false)
   const [savingLabel, setSavingLabel] = useState(false)
   const [navigating, setNavigating] = useState(false)
+  const [creatingChild, setCreatingChild] = useState(false)
+  const [openingRelatedId, setOpeningRelatedId] = useState('')
   const [error, setError] = useState('')
   const viewportRef = useRef<HTMLDivElement | null>(null)
 
@@ -290,11 +297,11 @@ export function SessionTreeDialog({
     setQuery('')
     setLoading(true)
     setError('')
-    void chatApi
-      .getSessionTree(sessionId)
-      .then((next) => {
+    void Promise.all([chatApi.getSessionTree(sessionId), chatApi.listSessions()])
+      .then(([next, sessionData]) => {
         if (cancelled) return
         setData(next)
+        setSessions(sessionData.sessions || [])
         setSelectedId(next.leafId || next.nodes[0]?.id || '')
       })
       .catch((reason) => {
@@ -312,6 +319,7 @@ export function SessionTreeDialog({
   useEffect(() => {
     if (open) return
     setData(null)
+    setSessions([])
     setSelectedId('')
     setLabel('')
     setOpeningMark(null)
@@ -349,8 +357,8 @@ export function SessionTreeDialog({
     )
   }, [allMarks, language, query])
 
-// 打开标签定位：非活动条目先导航到目标条目（激活分支），
-// 再请求打开会话；防重入避免重复导航。
+  // 打开标签定位：非活动条目先导航到目标条目（激活分支），
+  // 再请求打开会话；防重入避免重复导航。
   const openMark = async (mark: SessionTreeLabelMatch) => {
     if (openingMark) return
     setOpeningMark(mark)
@@ -377,7 +385,7 @@ export function SessionTreeDialog({
   }
 
   const annotatedRoots = useMemo(() => buildDisplayTree(data?.nodes || []), [data])
-// 节点类型 → 本地化标签（未知类型回退原始 type 字段）。
+  // 节点类型 → 本地化标签（未知类型回退原始 type 字段）。
   const typeLabel = useCallback(
     (node: SessionTreeNode) => {
       const known: Record<string, string> = {
@@ -418,7 +426,14 @@ export function SessionTreeDialog({
   const visibleNodes = useMemo(() => flattenTree(visibleRoots), [visibleRoots])
   const allNodes = useMemo(() => flattenTree(annotatedRoots), [annotatedRoots])
   const selected = allNodes.find((node) => node.id === selectedId) || null
+  const parentSession = data?.lineage?.parentSessionId
+    ? sessions.find((session) => session.id === data.lineage?.parentSessionId)
+    : null
+  const childSessions = (data?.lineage?.childSessionIds || [])
+    .map((childId) => sessions.find((session) => session.id === childId))
+    .filter((session): session is SessionSummary => Boolean(session))
   const canLabelSelected = selected?.kind === 'assistant' && selected.status === 'completed'
+  const canCreateChildSelected = canLabelSelected
   const canDeriveSelected = selected ? !nonDerivableKinds.has(selected.kind) : false
 
   useEffect(() => {
@@ -442,7 +457,7 @@ export function SessionTreeDialog({
     return () => cancelAnimationFrame(frame)
   }, [open, query, selectedId, view, visibleNodes.length])
 
-// 刷新会话树：拉取树数据并把选中项重置到叶子节点（或第一个节点）。
+  // 刷新会话树：拉取树数据并把选中项重置到叶子节点（或第一个节点）。
   const refresh = async () => {
     setLoading(true)
     setError('')
@@ -457,7 +472,7 @@ export function SessionTreeDialog({
     }
   }
 
-// 保存选中节点的标签；防重入（savingLabel）。
+  // 保存选中节点的标签；防重入（savingLabel）。
   const saveLabel = async () => {
     if (!selected || savingLabel) return
     setSavingLabel(true)
@@ -471,7 +486,7 @@ export function SessionTreeDialog({
     }
   }
 
-// 移除选中节点的标签（置空）；防重入。
+  // 移除选中节点的标签（置空）；防重入。
   const removeLabel = async () => {
     if (!selected || savingLabel) return
     setSavingLabel(true)
@@ -485,7 +500,38 @@ export function SessionTreeDialog({
     }
   }
 
-// 导航到选中节点（非叶子且非流式中）：切换到该历史位置继续会话。
+  // 从选中的已完成回复创建独立对话；创建成功后由外层打开新 Dock。
+  const createChild = async () => {
+    if (!selected || !canCreateChildSelected || creatingChild) return
+    setCreatingChild(true)
+    setError('')
+    try {
+      await onCreateChildSession(selected.id)
+      onClose()
+    } catch (reason) {
+      setError(chatErrorMessage(reason))
+    } finally {
+      setCreatingChild(false)
+    }
+  }
+
+  // 在谱系中打开父会话或其它独立对话；父会话需要先定位到创建边界。
+  const openRelatedSession = async (target: SessionSummary, targetEntryId = '') => {
+    if (!target.id || openingRelatedId) return
+    setOpeningRelatedId(target.id)
+    setError('')
+    try {
+      if (targetEntryId) await chatApi.navigateSessionTreeTarget(target.id, targetEntryId)
+      requestSessionSelection(target.id, 'open', targetEntryId)
+      onClose()
+    } catch (reason) {
+      setError(chatErrorMessage(reason))
+    } finally {
+      setOpeningRelatedId('')
+    }
+  }
+
+  // 导航到选中节点（非叶子且非流式中）：切换到该历史位置继续会话。
   const navigate = async () => {
     if (!selected || navigating || selected.leaf || streaming || data?.streaming) return
     setNavigating(true)
@@ -642,6 +688,41 @@ export function SessionTreeDialog({
             <div className="chat-resource-config [&_>_p]:m-[auto] [&_>_p]:text-[var(--text-muted)] [&_>_p]:text-[12px] [&_>_div:first-child]:flex [&_>_div:first-child]:flex-col [&_>_div:first-child]:gap-[4px] [&_strong]:text-[14px] [&_p]:text-[var(--text-muted)] [&_p]:text-[12px] max-[650px]:min-h-0 max-[650px]:max-h-[230px] flex min-w-0 min-h-0 flex-col gap-[16px] overflow-y-auto [overscroll-behavior:contain] [padding:18px] session-tree-inspector max-[650px]:max-h-[250px] [margin:12px_12px_12px_0] [border-left:0] rounded-[var(--r-md)] bg-[color-mix(in_srgb,var(--solid)_88%,var(--surface-subtle))] shadow-[0_10px_28px_-26px_var(--shadow)]">
               {selected ? (
                 <>
+                  {(parentSession || childSessions.length > 0) && (
+                    <div className="session-tree-lineage [&_>_strong]:text-[12px] [&_>_strong]:font-[650] [&_button]:justify-start [&_button]:text-left [&_button]:text-[11px] flex flex-col gap-[6px] [border-bottom:1px_solid_var(--stroke-soft)] [padding-bottom:12px]">
+                      <strong>{t('chat:sessionTree.conversationLineage')}</strong>
+                      {parentSession && (
+                        <Button
+                          variant="outline"
+                          disabled={Boolean(openingRelatedId)}
+                          onClick={() =>
+                            void openRelatedSession(
+                              parentSession,
+                              data?.lineage?.sourceEntryId || '',
+                            )
+                          }
+                        >
+                          <MessageSquare size={13} />
+                          {t('chat:sessionTree.returnToOriginalChat', {
+                            name: parentSession.name || t('chat:chatPage.newChat'),
+                          })}
+                        </Button>
+                      )}
+                      {childSessions.map((child) => (
+                        <Button
+                          variant="outline"
+                          disabled={Boolean(openingRelatedId)}
+                          key={child.id}
+                          onClick={() => void openRelatedSession(child)}
+                        >
+                          <MessageSquare size={13} />
+                          {t('chat:sessionTree.openSeparateChat', {
+                            name: child.name || t('chat:chatPage.newChat'),
+                          })}
+                        </Button>
+                      ))}
+                    </div>
+                  )}
                   <div>
                     <span className="session-tree-selection-kind [&_em]:rounded-[var(--r-xs)] [&_em]:bg-[var(--brand-blue-soft)] [&_em]:text-[var(--brand-blue-strong)] [&_em]:p-[2px_5px] [&_em]:[font-style:normal] flex items-center justify-between gap-[8px] text-[var(--text-muted)] text-[10px] [text-transform:uppercase]">
                       {typeLabel(selected)}
@@ -683,6 +764,18 @@ export function SessionTreeDialog({
                           </Button>
                         )}
                       </>
+                    )}
+                    {canCreateChildSelected && (
+                      <Button
+                        variant="outline"
+                        disabled={creatingChild || streaming || Boolean(data?.streaming)}
+                        onClick={() => void createChild()}
+                      >
+                        <MessageSquarePlus size={14} />
+                        {creatingChild
+                          ? t('chat:sessionTree.creatingChildChat')
+                          : t('chat:sessionTree.createChildChat')}
+                      </Button>
                     )}
                     {canDeriveSelected && (
                       <label className="session-tree-summary-option [&_small]:[grid-column:1/-1] [&_small]:text-[var(--text-muted)] [&_small]:font-[400] [&_small]:leading-[1.45] grid-cols-[minmax(0,1fr)_auto] items-center">

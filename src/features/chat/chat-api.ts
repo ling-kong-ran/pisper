@@ -44,6 +44,14 @@ export type SessionTreeNode = {
   branchPoint: boolean
 }
 
+export type SessionTreeLineage = {
+  parentSessionId: string
+  sourceEntryId: string
+  sourceSessionName: string
+  derivedAt: string | null
+  childSessionIds: string[]
+}
+
 export type SessionTreeResponse = {
   sessionId: string
   leafId: string | null
@@ -51,6 +59,7 @@ export type SessionTreeResponse = {
   branchCount: number
   streaming: boolean
   nodes: SessionTreeNode[]
+  lineage: SessionTreeLineage | null
 }
 
 export type SessionTreeNavigationResult = {

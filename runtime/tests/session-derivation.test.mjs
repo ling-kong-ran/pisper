@@ -87,6 +87,12 @@ test('session derivation extracts a completed turn without changing its source s
   assert.equal(derived.lineage.sourceEntryId, firstBoundaryId)
   assert.equal(derived.lineage.sourceSessionName, 'Source session')
 
+  const sourceTree = await runtime.getSessionTree(sourceId)
+  assert.ok(sourceTree.lineage.childSessionIds.includes(derived.id))
+  const derivedTree = await runtime.getSessionTree(derived.id)
+  assert.equal(derivedTree.lineage.parentSessionId, sourceId)
+  assert.equal(derivedTree.lineage.sourceEntryId, firstBoundaryId)
+
   const derivedInfo = await runtime.findSessionInfo(derived.id)
   const derivedManager = runtime.openStoredSession(derivedInfo.path)
   assert.equal(derivedManager.getHeader().parentSession, sourcePath)

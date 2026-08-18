@@ -72,6 +72,7 @@ type FocusTranscriptProps = {
   switchingCwd?: boolean
   onLoadOlder?: () => Promise<boolean> | boolean
   onBranchFromHere: (boundaryEntryId: string) => Promise<void> | void
+  onCreateChildSession: (boundaryEntryId: string) => Promise<void> | void
   onPromptSelect: (prompt: string) => void
   onWorkspace: () => void
 }
@@ -178,6 +179,7 @@ export function FocusTranscript({
   switchingCwd,
   onLoadOlder,
   onBranchFromHere,
+  onCreateChildSession,
   onPromptSelect,
   onWorkspace,
 }: FocusTranscriptProps) {
@@ -410,6 +412,7 @@ export function FocusTranscript({
                 setTargetEntryId('')
               }}
               onBranchFromHere={onBranchFromHere}
+              onCreateChildSession={onCreateChildSession}
             />
           </div>
         )}

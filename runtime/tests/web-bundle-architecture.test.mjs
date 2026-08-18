@@ -324,12 +324,13 @@ test('session labels are searchable from Ctrl K and resolve through virtualized 
   assert.match(treeDialog, /navigateSessionTreeTarget\(mark\.sessionId, mark\.entryId\)/)
   assert.match(chatMessage, /data-pisper-label-entry/)
   assert.match(chatMessage, /data-pisper-derive-entry/)
+  assert.match(chatMessage, /data-pisper-child-entry/)
   assert.match(chatMessage, /onBranchFromHere\(boundaryEntryId\)/)
   assert.match(chatMessage, /setSessionTreeLabel\(sessionId, entryId, label\)/)
   assert.match(chatPage, /navigateSessionTree\(session\.id, boundaryEntryId, false\)/)
   assert.match(chatApi, /navigateSessionTreeTarget:/)
   assert.match(chatApi, /includeTree: false/)
-  assert.equal([...chatMessage.matchAll(/<TooltipContent side="top" sideOffset=\{6\}>/g)].length, 2)
+  assert.equal([...chatMessage.matchAll(/<TooltipContent side="top" sideOffset=\{6\}>/g)].length, 3)
   assert.doesNotMatch(
     chatMessage,
     /title=\{t\('chat:chatMessage\.(?:labelThisTurn|deriveFromHere)'\)\}/,

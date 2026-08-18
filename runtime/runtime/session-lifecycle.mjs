@@ -472,14 +472,36 @@ export class SessionLifecycle {
     return manager
   }
 
-  // 会话树投影（带运行状态标记）。
+  // 会话谱系只读取元数据，不加载其它会话树，避免打开追忆时产生级联磁盘读取。
+  getSessionLineage(id) {
+    const sessionId = String(id || '').trim()
+    const sessionMeta = this.getSessionMeta()
+    const current = sessionMeta[sessionId] || {}
+    const childSessionIds = Object.entries(sessionMeta)
+      .filter(([, meta]) => String(meta?.parentSessionId || '') === sessionId)
+      .map(([childId]) => childId)
+    return current.parentSessionId || childSessionIds.length
+      ? {
+          parentSessionId: String(current.parentSessionId || ''),
+          sourceEntryId: String(current.derivedFromEntryId || ''),
+          sourceSessionName: String(current.derivedFromSessionName || ''),
+          derivedAt: current.derivedAt || null,
+          childSessionIds,
+        }
+      : null
+  }
+
+  // 会话树投影（带运行状态和跨会话谱系标记）。
   async getSessionTree(id) {
     const sessionId = String(id || '').trim()
     const manager = await this.sessionTreeManager(sessionId)
-    return projectSessionTree(manager, {
-      sessionId,
-      streaming: this.sessionRunIsActive(sessionId, this.sessions.get(sessionId)),
-    })
+    return {
+      ...projectSessionTree(manager, {
+        sessionId,
+        streaming: this.sessionRunIsActive(sessionId, this.sessions.get(sessionId)),
+      }),
+      lineage: this.getSessionLineage(sessionId),
+    }
   }
 
   // 标签索引路径：与会话目录同级，独立于会话文件本身。
@@ -697,7 +719,11 @@ export class SessionLifecycle {
       const navigation = { cancelled: false, editorText: null }
       return options?.includeTree === false
         ? navigation
-        : { ...projectSessionTree(manager, { sessionId, streaming: false }), ...navigation }
+        : {
+            ...projectSessionTree(manager, { sessionId, streaming: false }),
+            lineage: this.getSessionLineage(sessionId),
+            ...navigation,
+          }
     }
 
     value.runActive = true
@@ -719,7 +745,11 @@ export class SessionLifecycle {
       }
       return options?.includeTree === false
         ? navigation
-        : { ...projectSessionTree(manager, { sessionId, streaming: false }), ...navigation }
+        : {
+            ...projectSessionTree(manager, { sessionId, streaming: false }),
+            lineage: this.getSessionLineage(sessionId),
+            ...navigation,
+          }
     } finally {
       value.runActive = false
     }
@@ -745,7 +775,10 @@ export class SessionLifecycle {
     const manager = value.session.sessionManager
     if (!manager.getEntry(entryId)) throw new Error('会话树节点不存在。')
     if ((manager.getLabel(entryId) || '') === normalizedLabel) {
-      return projectSessionTree(manager, { sessionId, streaming: false })
+      return {
+        ...projectSessionTree(manager, { sessionId, streaming: false }),
+        lineage: this.getSessionLineage(sessionId),
+      }
     }
     value.runActive = true
     try {
@@ -756,7 +789,10 @@ export class SessionLifecycle {
       this.sessionContextUsageCache.delete(sessionId)
       if (value.session.sessionFile) this.sessionHistoryCache.delete(value.session.sessionFile)
       this.invalidateProjection(sessionId)
-      return projectSessionTree(manager, { sessionId, streaming: false })
+      return {
+        ...projectSessionTree(manager, { sessionId, streaming: false }),
+        lineage: this.getSessionLineage(sessionId),
+      }
     } finally {
       value.runActive = false
     }

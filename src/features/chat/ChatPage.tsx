@@ -74,8 +74,8 @@ export function ChatPage({
   const setGlobalError = catalog.setGlobalError
   const openSessionInDock = dock.openSessionInDock
   const moveSessionToGroup = dock.moveSessionToGroup
-// 新建会话：先创建记录（带可选 cwd），再在 Dock 打开，
-// 若指定了目标分组则把面板移动到该组。
+  // 新建会话：先创建记录（带可选 cwd），再在 Dock 打开，
+  // 若指定了目标分组则把面板移动到该组。
   const createSession = useCallback(
     async (targetGroup?: DockviewGroupPanel, cwd = '') => {
       const sessionId = await createSessionRecord(cwd)
@@ -125,7 +125,7 @@ export function ChatPage({
     setGlobalError: catalog.setGlobalError,
     syncLiveSession: liveSync.syncLiveSession,
   })
-// 强制重载会话分支：刷新消息 + 列表，供恢复/切换后同步。
+  // 强制重载会话分支：刷新消息 + 列表，供恢复/切换后同步。
   const reloadSessionBranch = useCallback(
     async (sessionId: string) => {
       await loadSessionMessages(sessionId, { force: true })
@@ -134,8 +134,8 @@ export function ChatPage({
     [loadSessionMessages, refreshSessions],
   )
 
-// 从边界条目派生新分支：调用运行时导航到历史条目处分支，
-// 成功后刷新列表并在 Dock 打开新会话。
+  // 从边界条目派生新分支：调用运行时导航到历史条目处分支，
+  // 成功后刷新列表并在 Dock 打开新会话。
   const branchFromEntry = useCallback(
     async (session: SessionSummary, boundaryEntryId: string) => {
       if (!session?.id || !boundaryEntryId) return
@@ -150,6 +150,31 @@ export function ChatPage({
       }
     },
     [notify, reloadSessionBranch, setGlobalError, t],
+  )
+
+  // 从已完成回复创建独立对话：命名后调用运行时 derive 接口，
+  // 新会话拥有独立上下文，创建成功后立即打开对应 Dock 面板。
+  const createChildSession = useCallback(
+    async (session: SessionSummary, boundaryEntryId: string) => {
+      if (!session?.id || !boundaryEntryId) return
+      const name = await requestText({
+        title: t('chat:chatPage.createChildChat'),
+        inputLabel: t('chat:chatPage.chatTitle'),
+        value: `${session.name || t('chat:chatPage.newChat')} · ${t('chat:chatPage.separateChatSuffix')}`,
+        confirmLabel: t('chat:chatPage.create'),
+      })
+      if (name === null) return
+      try {
+        setGlobalError('')
+        const created = await chatApi.deriveSession(session.id, boundaryEntryId, name)
+        await refreshSessions(created.id)
+        openSessionInDock(created.id)
+        notify(t('chat:chatPage.childChatCreated'))
+      } catch (error) {
+        setGlobalError(error instanceof Error ? error.message : String(error))
+      }
+    },
+    [notify, openSessionInDock, refreshSessions, requestText, setGlobalError, t],
   )
 
   const DockNewSessionAction = useMemo(
@@ -206,6 +231,7 @@ export function ChatPage({
     selectSessionWorkspace: sessionCommands.selectSessionWorkspace,
     renameSession: sessionCommands.renameSession,
     branchFromEntry,
+    createChildSession,
     reloadSessionBranch,
     splitDockPanel: dock.splitDockPanel,
     closeDockPanel: dock.closeDockPanel,

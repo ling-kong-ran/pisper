@@ -137,6 +137,9 @@ export function SessionDockPanel({ params, api }: IDockviewPanelProps<{ sessionI
         onBranchFromHere={(boundaryEntryId: string) =>
           context.branchFromEntry(session, boundaryEntryId)
         }
+        onCreateChildSession={(boundaryEntryId: string) =>
+          context.createChildSession(session, boundaryEntryId)
+        }
         onTreeNavigated={() => context.reloadSessionBranch(sessionId)}
         onSplitLeft={() => context.splitDockPanel(api.id, 'left')}
         onSplitRight={() => context.splitDockPanel(api.id, 'right')}

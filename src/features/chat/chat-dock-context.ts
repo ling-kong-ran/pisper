@@ -49,6 +49,7 @@ export type ChatDockContextValue = {
   selectSessionWorkspace: (session: SessionSummary) => Promise<void>
   renameSession: (session: SessionSummary) => Promise<void>
   branchFromEntry: (session: SessionSummary, boundaryEntryId: string) => Promise<void>
+  createChildSession: (session: SessionSummary, boundaryEntryId: string) => Promise<void>
   reloadSessionBranch: (sessionId: string) => Promise<void>
   splitDockPanel: (panelId: string, direction: Exclude<SessionOpenDisposition, 'open'>) => void
   closeDockPanel: (panelId: string) => void

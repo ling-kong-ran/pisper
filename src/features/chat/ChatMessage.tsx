@@ -2,7 +2,17 @@
 // 长代码自动展开，附件与工具调用内嵌展示。
 import { memo, useEffect, useState } from 'react'
 import { createPortal } from 'react-dom'
-import { Check, Download, File, GitFork, LoaderCircle, Tag, Trash2, X } from 'lucide-react'
+import {
+  Check,
+  Download,
+  File,
+  GitFork,
+  MessageSquarePlus,
+  LoaderCircle,
+  Tag,
+  Trash2,
+  X,
+} from 'lucide-react'
 import { useI18n } from '@/app/use-i18n'
 import { BrandLogo } from '@/components/BrandLogo'
 import MarkdownMessage from '@/components/MarkdownMessage'
@@ -181,7 +191,7 @@ function MessageTreeLabel({ sessionId, entryId }: { sessionId: string; entryId: 
     }
   }, [entryId, open, sessionId])
 
-// 保存条目标签：写入运行时并回显新标签，成功后关闭编辑；防重入。
+  // 保存条目标签：写入运行时并回显新标签，成功后关闭编辑；防重入。
   const save = async () => {
     if (saving || loading) return
     setSaving(true)
@@ -199,7 +209,7 @@ function MessageTreeLabel({ sessionId, entryId }: { sessionId: string; entryId: 
     }
   }
 
-// 移除条目标签：置空标签并同步回显；防重入。
+  // 移除条目标签：置空标签并同步回显；防重入。
   const remove = async () => {
     if (saving || loading) return
     setSaving(true)
@@ -294,6 +304,7 @@ type FocusChatMessageProps = {
   runProps: RunProps | null
   sessionStreaming?: boolean
   onBranchFromHere: (boundaryEntryId: string) => Promise<void> | void
+  onCreateChildSession: (boundaryEntryId: string) => Promise<void> | void
 }
 
 function focusPropsEqual(prev: FocusChatMessageProps, next: FocusChatMessageProps) {
@@ -304,7 +315,8 @@ function focusPropsEqual(prev: FocusChatMessageProps, next: FocusChatMessageProp
     prev.showRunActivity === next.showRunActivity &&
     prev.runProps === next.runProps &&
     prev.sessionStreaming === next.sessionStreaming &&
-    prev.onBranchFromHere === next.onBranchFromHere
+    prev.onBranchFromHere === next.onBranchFromHere &&
+    prev.onCreateChildSession === next.onCreateChildSession
   )
 }
 
@@ -316,9 +328,11 @@ export const FocusChatMessage = memo(function FocusChatMessage({
   runProps,
   sessionStreaming,
   onBranchFromHere,
+  onCreateChildSession,
 }: FocusChatMessageProps) {
   const { t } = useI18n()
   const [branching, setBranching] = useState(false)
+  const [creatingChild, setCreatingChild] = useState(false)
   const streaming = Boolean(message.streaming)
   const fullText = message.text || ''
   const displayText = fullText || (!showRunActivity ? String(message.error || '') : '')
@@ -366,7 +380,7 @@ export const FocusChatMessage = memo(function FocusChatMessage({
                 size="icon"
                 aria-label={t('chat:chatMessage.deriveFromHere')}
                 data-pisper-derive-entry={message.turnBoundaryEntryId}
-                disabled={branching || sessionStreaming}
+                disabled={branching || creatingChild || sessionStreaming}
                 onClick={async () => {
                   const boundaryEntryId = message.turnBoundaryEntryId
                   if (!boundaryEntryId) return
@@ -387,6 +401,37 @@ export const FocusChatMessage = memo(function FocusChatMessage({
             </TooltipTrigger>
             <TooltipContent side="top" sideOffset={6}>
               {t('chat:chatMessage.deriveFromHere')}
+            </TooltipContent>
+          </Tooltip>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                aria-label={t('chat:chatMessage.createChildChat')}
+                data-pisper-child-entry={message.turnBoundaryEntryId}
+                disabled={branching || creatingChild}
+                onClick={async () => {
+                  const boundaryEntryId = message.turnBoundaryEntryId
+                  if (!boundaryEntryId) return
+                  setCreatingChild(true)
+                  try {
+                    await onCreateChildSession(boundaryEntryId)
+                  } finally {
+                    setCreatingChild(false)
+                  }
+                }}
+              >
+                {creatingChild ? (
+                  <LoaderCircle className="animate-spin" size={14} />
+                ) : (
+                  <MessageSquarePlus size={14} />
+                )}
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent side="top" sideOffset={6}>
+              {t('chat:chatMessage.createChildChat')}
             </TooltipContent>
           </Tooltip>
         </div>

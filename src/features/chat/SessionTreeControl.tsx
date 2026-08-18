@@ -15,6 +15,7 @@ export function SessionTreeControl({
   revision,
   onOpenChange,
   onNavigated,
+  onCreateChildSession,
 }: {
   visible: boolean
   open: boolean
@@ -23,6 +24,7 @@ export function SessionTreeControl({
   revision?: number
   onOpenChange: (open: boolean) => void
   onNavigated: (editorText: string | null) => Promise<void> | void
+  onCreateChildSession: (boundaryEntryId: string) => Promise<void> | void
 }) {
   const { t } = useI18n()
   const [branches, setBranches] = useState(0)
@@ -61,6 +63,7 @@ export function SessionTreeControl({
         streaming={streaming}
         onClose={() => onOpenChange(false)}
         onNavigated={onNavigated}
+        onCreateChildSession={onCreateChildSession}
       />
     </>
   )
