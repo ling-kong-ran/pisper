@@ -2054,7 +2054,7 @@ fn status_metrics(app: &App) -> String {
         || app.session_usage.cache_hit_rate.is_some()
     {
         metrics.push(compact_token_count(app.session_usage.total_tokens));
-        if let Some(rate) = app.session_usage.cache_hit_rate {
+        if let Some(rate) = app.session_usage.effective_cache_hit_rate() {
             metrics.push(format!("cache {:.0}%", rate));
         }
     } else if let Some(percent) = app.context_percent {

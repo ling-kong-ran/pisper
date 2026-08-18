@@ -2840,6 +2840,11 @@ impl App {
                 self.execution_mode = string_field(&event.data, "executionMode");
                 self.thinking_level = string_field(&event.data, "thinkingLevel");
                 self.context_percent = event.data["contextUsage"]["percent"].as_f64();
+                if let Ok(usage) = serde_json::from_value::<SessionUsage>(
+                    event.data.get("sessionUsage").cloned().unwrap_or_default(),
+                ) {
+                    self.session_usage = usage;
+                }
             }
             "thinking_reset" => {
                 live.thinking_target = string_field(&event.data, "thinkingText");
@@ -3566,6 +3571,35 @@ mod tests {
             }),
         });
         assert_eq!(app.session_usage.total_tokens, 240);
+        assert_eq!(app.session_usage.cache_hit_rate, Some(37.5));
+    }
+
+    #[test]
+    fn meta_events_restore_the_runtime_session_usage_snapshot() {
+        let mut app = test_app(Vec::new());
+        app.set_input("continue");
+        assert!(matches!(app.submit_action(), Action::Submit { .. }));
+        app.apply_stream_event(StreamEvent {
+            name: "meta".to_owned(),
+            data: json!({
+                "model": "provider/model",
+                "cwd": "/workspace",
+                "executionMode": "full-access",
+                "thinkingLevel": "high",
+                "sessionUsage": {
+                    "input": 100,
+                    "output": 40,
+                    "cacheRead": 75,
+                    "cacheWrite": 25,
+                    "totalTokens": 240,
+                    "promptTokens": 200,
+                    "requests": 2,
+                    "cacheHitRate": 37.5
+                }
+            }),
+        });
+
+        assert_eq!(app.session_usage.cache_read, 75);
         assert_eq!(app.session_usage.cache_hit_rate, Some(37.5));
     }
 

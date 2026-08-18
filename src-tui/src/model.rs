@@ -225,6 +225,30 @@ pub struct SessionUsage {
     pub cache_hit_rate: Option<f64>,
 }
 
+impl SessionUsage {
+    /// 旧 Runtime 可能缺失命中率，或在已有缓存读取时错误保留零值；
+    /// 此时使用原始 token 计数恢复与 Runtime 聚合规则一致的比例。
+    pub fn effective_cache_hit_rate(&self) -> Option<f64> {
+        let reported = self
+            .cache_hit_rate
+            .filter(|rate| rate.is_finite() && *rate >= 0.0);
+        if reported.is_some_and(|rate| rate > 0.0)
+            || (reported == Some(0.0) && self.cache_read == 0)
+        {
+            return reported.map(|rate| rate.min(100.0));
+        }
+
+        let prompt_tokens = if self.prompt_tokens > 0 {
+            self.prompt_tokens
+        } else {
+            self.input
+                .saturating_add(self.cache_read)
+                .saturating_add(self.cache_write)
+        };
+        (prompt_tokens > 0).then(|| (self.cache_read as f64 / prompt_tokens as f64) * 100.0)
+    }
+}
+
 /// 版本控制状态中的一个文件。
 #[derive(Clone, Debug, Default, Deserialize, PartialEq)]
 #[serde(rename_all = "camelCase")]
@@ -519,7 +543,7 @@ pub enum RuntimeEvent {
 
 #[cfg(test)]
 mod tests {
-    use super::{MessagePage, SessionSummary, VcsChanges};
+    use super::{MessagePage, SessionSummary, SessionUsage, VcsChanges};
 
     #[test]
     fn historical_tool_timestamps_accept_iso_strings_and_milliseconds() {
@@ -582,6 +606,33 @@ mod tests {
         .unwrap();
         assert!(changes.is_repo);
         assert_eq!(changes.files[0].path, "docs/a & b.txt");
+    }
+
+    #[test]
+    fn session_usage_recovers_cache_rate_from_token_counts() {
+        let usage = SessionUsage {
+            input: 100,
+            cache_read: 75,
+            cache_write: 25,
+            prompt_tokens: 200,
+            cache_hit_rate: Some(0.0),
+            ..SessionUsage::default()
+        };
+        assert_eq!(usage.effective_cache_hit_rate(), Some(37.5));
+
+        let legacy = SessionUsage {
+            input: 100,
+            cache_read: 75,
+            cache_write: 25,
+            ..SessionUsage::default()
+        };
+        assert_eq!(legacy.effective_cache_hit_rate(), Some(37.5));
+
+        let uncached = SessionUsage {
+            input: 100,
+            ..SessionUsage::default()
+        };
+        assert_eq!(uncached.effective_cache_hit_rate(), Some(0.0));
     }
 
     #[test]
