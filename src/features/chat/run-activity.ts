@@ -1,3 +1,5 @@
+// 运行活动（run activity）归并：把 SSE 流式事件压缩成当前活动与
+// 活动轨迹，限制同时展示的活动数，计划工具/读工具不计入普通活动。
 import { isPlanReadTool, isPlanTool, planFromActivity } from '@/lib/plan-protocol'
 import type { EntityRecord, Plan, PlanItem, ToolActivity } from '@/types/chat'
 

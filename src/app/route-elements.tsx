@@ -1,3 +1,6 @@
+// 路由 → 页面的懒加载映射：每页一个 async 工厂，首屏只加载聊天页。
+// 页面组件从 Outlet 上下文取公共能力并显式透传给具体页面，保持
+// 页面与壳的依赖边界清晰（页面不直接读全局单例）。
 import { useOutletContext } from 'react-router-dom'
 import type { AppRouteContext } from './route-context'
 

@@ -1,3 +1,4 @@
+// Git 变更控制：暂存/提交等 Git 操作面板，展示变更统计。
 import { useCallback, useEffect, useRef, useState } from 'react'
 import {
   Check,

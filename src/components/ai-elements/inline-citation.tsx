@@ -1,3 +1,5 @@
+// AI 元素：行内引用轮播（carousel）——消息中 [N] 引用可切换的
+// 来源文档卡片，箭头切换 + hover 预览。
 'use client'
 
 import { Badge } from '@/components/ui/badge'

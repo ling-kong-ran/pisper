@@ -1,3 +1,5 @@
+// 路由 Outlet 上下文类型：App 壳通过 useOutletContext 向所有页面注入
+// 导航、通知、对话框、更新控制器等公共能力，页面只声明自己需要的接口。
 import type { ToastTone } from '@/components/ui/toast'
 import type { ConfirmDialogOptions, PromptDialogOptions } from '@/hooks/useAppDialog'
 import type { ChatAttachment, PendingAsset } from '@/types/chat'

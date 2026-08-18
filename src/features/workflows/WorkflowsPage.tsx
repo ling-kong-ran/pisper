@@ -1,3 +1,5 @@
+// 工作流页面：列表视图 + 编辑器（路由 /workflows/:id）的宿主，
+// 管理工作流目录、保存与运行，并向壳层注册主操作。
 import { useCallback, useEffect, useState } from 'react'
 import '@xyflow/react/dist/style.css'
 import { AlertTriangle, RefreshCw } from 'lucide-react'

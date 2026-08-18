@@ -1,3 +1,5 @@
+// 聊天 Dock 面板容器：每个 dockview 面板对应一个会话视图，
+// 负责把面板事件（关闭/激活）桥接到会话状态与布局持久化。
 import { useContext, useEffect, useRef, useState } from 'react'
 import type { IDockviewPanelProps } from 'dockview-react'
 import { AlertTriangle, MessageSquare } from 'lucide-react'

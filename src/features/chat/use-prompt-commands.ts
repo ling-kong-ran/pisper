@@ -1,3 +1,5 @@
+// 输入框斜杠命令：/new、/model 等快捷指令的执行逻辑，
+// 插入交互消息并触发相应会话操作。
 import { useCallback, useRef } from 'react'
 import { APP_NAME } from '@/app/brand'
 import { useI18n } from '@/app/use-i18n'

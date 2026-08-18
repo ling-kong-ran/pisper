@@ -1,3 +1,4 @@
+// 装饰动画组件：点击处迸发粒子火花。
 import {
   useCallback,
   useState,

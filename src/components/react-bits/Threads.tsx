@@ -1,3 +1,4 @@
+// 装饰动画组件：丝线（threads）背景动效。
 import type { ComponentProps } from 'react'
 import { cn } from '@/lib/utils'
 import './react-bits.css'

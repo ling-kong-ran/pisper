@@ -1,3 +1,4 @@
+// 桌面宠物设置：启用/透明度/宠物选择与商店浏览。
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Cat, Download, ExternalLink, RefreshCw, Search } from 'lucide-react'
 import { useI18n } from '@/app/use-i18n'

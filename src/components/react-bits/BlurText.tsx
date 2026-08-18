@@ -1,3 +1,4 @@
+// 装饰动画组件：逐字模糊到清晰的文本入场动画。
 import type { CSSProperties } from 'react'
 import { cn } from '@/lib/utils'
 import './react-bits.css'

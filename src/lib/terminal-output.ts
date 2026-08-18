@@ -1,3 +1,8 @@
+// 终端输出展示处理：
+// - stripTerminalControlSequences 去除 ANSI 控制序列（颜色/光标/OSC），
+//   只保留可打印字符，防止原始转义码污染 DOM；
+// - terminalDisplayOutput 对超长输出截尾并加省略标记，行首换行尽量
+//   保留在可见范围内，避免显示被截断的半行。
 export const MAX_TERMINAL_DISPLAY_CHARS = 4_000
 export const TERMINAL_TRUNCATION_MARKER = '… earlier output omitted …'
 

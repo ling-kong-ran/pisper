@@ -1,3 +1,4 @@
+// 工具审批：危险工具执行前的确认卡片（允许/拒绝 + 变更预览）。
 import { useEffect, useRef, useState } from 'react'
 import { Check, FileDiff, RefreshCw, ShieldCheck } from 'lucide-react'
 import { useI18n } from '@/app/use-i18n'

@@ -1,3 +1,4 @@
+// 装饰动画组件：跟随鼠标的聚光卡片（卡片边缘高亮）。
 import { useCallback, type ComponentProps, type PointerEvent } from 'react'
 import { cn } from '@/lib/utils'
 import './react-bits.css'

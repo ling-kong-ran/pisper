@@ -1,3 +1,5 @@
+// Web 预览提供器：拦截跨源链接点击（不携带修饰键/非下载），
+// 通过事件把链接交给预览面板打开；同源链接正常导航。
 import { useEffect } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import { pagePath } from '@/app/routes'

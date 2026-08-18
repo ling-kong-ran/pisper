@@ -1,3 +1,5 @@
+// AI 元素：思考过程折叠面板——流式思考文本（reasoning）可展开/收起，
+// 高亮“思考”标签，与 Agent 运行时的 thinking 事件联动。
 'use client'
 
 import { useControllableState } from '@radix-ui/react-use-controllable-state'

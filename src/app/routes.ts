@@ -1,3 +1,7 @@
+// 路由路径常量：所有页面统一从这里取路径，避免散落的硬编码字符串。
+// 配置文件页复用同一 path 前缀（/config/:section），用 section 参数切换。
+// pageFromPath 对动态段（workflowId、configSection）做正则归一化后再查表，
+// 供导航高亮与路由重定向使用；legacyHashPath 兼容旧版“#页面名”路径。
 export const PAGE_PATHS = Object.freeze({
   chat: '/chat',
   chatHistory: '/chat/history',

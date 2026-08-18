@@ -1,3 +1,5 @@
+// 定时计划页：查看/创建/启停周期任务（如每日对话/工作流运行），
+// 展示下次执行时间与历史。
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import {
   AlertTriangle,

@@ -1,3 +1,6 @@
+// Web 预览链接判定：点击外部（跨源）链接时交由预览面板打开。
+// 同源链接交给当前页面正常导航，修饰键/下载/外部行为显式忽略；
+// normalizeWebPreviewInput 负责把用户输入补全成带协议的可解析 URL。
 export type PreviewLinkIntent = {
   href: string
   baseUrl: string

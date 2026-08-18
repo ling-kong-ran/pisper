@@ -1,3 +1,4 @@
+// 装饰动画组件：列表项依次滑入的动画列表。
 import { AnimatePresence, motion } from 'motion/react'
 import { Children, type ReactNode } from 'react'
 import { cn } from '@/lib/utils'

@@ -1,3 +1,5 @@
+// 路由错误兜底页：懒加载失败 / 路径不存在时展示错误信息与重载按钮。
+// 独立为页面组件以便 react-router 在错误边界内也能正常渲染。
 import { isRouteErrorResponse, useRouteError } from 'react-router-dom'
 
 import { Button } from '@/components/ui/button'

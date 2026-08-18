@@ -1,3 +1,5 @@
+// Web 预览 Dock 面板：内嵌浏览器（地址栏 + iframe），
+// 支持前进/后退/刷新/新开，URL 状态跨会话持久。
 import { lazy, Suspense, useCallback, useEffect, useState } from 'react'
 import type { IDockviewPanelProps } from 'dockview-react'
 import { ArrowLeft, ArrowRight, ExternalLink, Globe2, LoaderCircle, RefreshCw } from 'lucide-react'

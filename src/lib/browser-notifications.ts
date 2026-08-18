@@ -1,3 +1,7 @@
+// 浏览器系统通知封装：优先走 Service Worker 的 showNotification（点击后可
+// 聚焦窗口、支持 data.url），否则退化为 window.Notification。所有类型定义
+// 都是“鸭子类型”以便测试注入 fake window/navigator；isSecureContext 不满足
+// 时（纯 HTTP）无法注册 SW，直接返回 null 表示降级。
 type NotificationPermissionState = NotificationPermission | 'unsupported'
 type NotificationInstanceLike = {
   onclick: (() => void) | null

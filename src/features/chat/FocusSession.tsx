@@ -1,3 +1,4 @@
+// 聚焦会话视图：单会话沉浸式聊天页（大输入框 + 完整转录）。
 import { useEffect, useRef, useState, type FormEvent } from 'react'
 import {
   Braces,

@@ -1,3 +1,5 @@
+// 工作流节点检查器：选中节点后的属性编辑（提示词/技能/触发器等），
+// 校验必填字段并就地写回工作流。
 import { AlertTriangle, Bell, Bot, Copy, MessageCircle, Plus, Trash2 } from 'lucide-react'
 import { AppSelect } from '@/components/AppSelect'
 import { Alert, AlertDescription } from '@/components/ui/alert'

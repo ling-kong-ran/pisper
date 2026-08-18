@@ -1,3 +1,6 @@
+// SSE 事件分发核心：把每个流式记录转换为会话状态更新。
+// 文本/思考走打字机与合并调度器，工具事件归并到活动，plan 事件更新
+// 计划面板；在事件间保留会话“正在运行”的语义。
 import { applyTextPatch } from '@/lib/api'
 import type { I18nValues } from '@/app/i18n'
 import {

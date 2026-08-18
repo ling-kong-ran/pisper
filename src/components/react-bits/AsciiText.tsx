@@ -1,3 +1,4 @@
+// 装饰动画组件：打字机式 ASCII 文本展示（终端风格的字符渐显）。
 import { useEffect, useRef } from 'react'
 import { cn } from '@/lib/utils'
 import './react-bits.css'

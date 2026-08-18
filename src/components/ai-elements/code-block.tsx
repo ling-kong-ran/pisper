@@ -1,3 +1,5 @@
+// AI 元素：代码块渲染，带语言标签与一键复制按钮，
+// 支持流式（未闭合代码围栏）时的临时样式。
 'use client'
 
 import { Button } from '@/components/ui/button'

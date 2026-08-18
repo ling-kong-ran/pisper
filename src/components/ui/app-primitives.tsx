@@ -1,3 +1,5 @@
+// 应用级 UI 原语：AppCard（卡片 + 徽标 + 描述）、AppEmptyState（空态）
+// 等跨功能页复用的组合组件。
 import { useState, type ComponentProps, type ReactNode } from 'react'
 import { Badge } from '@/components/ui/badge'
 import { Card, CardTitle } from '@/components/ui/card'

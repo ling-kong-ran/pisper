@@ -1,3 +1,4 @@
+// 目标模式控制：执行模式（交互/自动）切换与当前模式指示。
 import { useEffect, useRef, useState } from 'react'
 import { Check, RefreshCw, Target } from 'lucide-react'
 import { useI18n } from '@/app/use-i18n'

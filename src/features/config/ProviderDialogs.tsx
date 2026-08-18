@@ -1,3 +1,5 @@
+// Provider 配置对话框：新增/编辑 Provider（密钥、端点、模型列表），
+// 提交前校验必填项与端点格式。
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { AlertTriangle, Check, Plus, RefreshCw, X } from 'lucide-react'
 import { AppSelect } from '@/components/AppSelect'

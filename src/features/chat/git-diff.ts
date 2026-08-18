@@ -1,3 +1,5 @@
+// Git 差异渲染：把统一 diff 解析成带行号的单元格（上下文/新增/删除），
+// 供 Git 变更面板分片展示。
 export type GitDiffTone = 'context' | 'added' | 'deleted' | 'empty'
 
 export type GitDiffCell = {

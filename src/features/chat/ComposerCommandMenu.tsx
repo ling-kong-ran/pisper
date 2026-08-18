@@ -1,3 +1,5 @@
+// 斜杠命令菜单：输入 / 时弹出的命令选择面板（新会话/切换模型等），
+// 键盘上下选择 + 回车执行。
 import { useEffect, useId, useMemo, useState, type RefObject } from 'react'
 import { Braces, FileText } from 'lucide-react'
 import { useI18n } from '@/app/use-i18n'

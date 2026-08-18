@@ -1,3 +1,4 @@
+// RTL 方向上下文：根据 HTML dir 属性切换布局方向的原语。
 'use client'
 
 import * as React from 'react'

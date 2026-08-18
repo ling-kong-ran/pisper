@@ -1,3 +1,6 @@
+// 会话事件总线：用 window CustomEvent 在应用内广播会话选择/创建/更新等
+// 事件。请求同时写入 localStorage（跨页面/重启持久），供壳层与其他
+// 会话面板消费；consum 函数取出即删，避免重复处理。
 import { STORAGE_KEYS } from '@/app/storage'
 import {
   createSessionOpenRequest,

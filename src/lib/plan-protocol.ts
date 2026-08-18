@@ -1,3 +1,6 @@
+// Plan（计划）在 payload 中的读取协议：兼容一个历史版本的 taskList 字段。
+// undefined 表示负载里根本没提 plan（不可知），null 表示显式清空——
+// 调用方依赖这个三分语义决定是否回退到其他来源，不要简化成布尔判断。
 import type { EntityRecord, Plan } from '@/types/chat'
 
 /**

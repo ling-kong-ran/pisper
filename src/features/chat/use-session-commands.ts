@@ -1,3 +1,4 @@
+// 会话级命令：重命名/删除/清空等操作的确认与执行。
 import { useCallback, useState } from 'react'
 import { useI18n } from '@/app/use-i18n'
 import type { Notify } from '@/app/route-context'

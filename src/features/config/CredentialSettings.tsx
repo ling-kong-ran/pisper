@@ -1,3 +1,4 @@
+// 凭据管理：API 密钥的展示/编辑/删除，密钥脱敏显示。
 import { KeyRound, ShieldCheck, Trash2 } from 'lucide-react'
 import { AppSelect } from '@/components/AppSelect'
 import { useI18n } from '@/app/use-i18n'

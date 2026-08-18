@@ -1,3 +1,5 @@
+// 计划看板：把会话的计划项渲染成可勾选的进度面板，
+// 点击切换状态并通过 update_plan 事件写回。
 import { memo, useLayoutEffect, useRef, useState, type ReactNode } from 'react'
 import {
   Check,

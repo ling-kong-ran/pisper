@@ -1,3 +1,9 @@
+// 会话状态（SessionState）的纯函数工具集，供聊天页与流式同步共用：
+// - applySessionUpdate 用浅比较去重，未变化的更新返回原引用避免触发重渲染；
+// - insertInteractiveUserMessage 把交互消息插到“正在运行的 agent 消息”之前，
+//   保持时间线顺序（用户追问应出现在旧回复与后续流式输出之间）；
+// - resolveSessionPlan 优先实时会话状态，显式 null 表示已清空、不得回退到
+//   列表快照里的过期 plan。
 import { planFromPayload, planFromPayloadOr } from '@/lib/plan-protocol'
 import type { ChatMessage, EntityRecord, Plan, SessionState, SessionSummary } from '@/types/chat'
 

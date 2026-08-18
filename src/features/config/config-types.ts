@@ -1,3 +1,4 @@
+// 配置类型：运行时配置（Provider/模型/端口等）与草稿/发现的类型定义。
 import type { I18nValues } from '@/app/i18n'
 import type { EntityRecord } from '@/types/chat'
 

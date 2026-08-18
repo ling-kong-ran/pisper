@@ -1,3 +1,4 @@
+// 插件页：浏览/启停/卸载工具插件，展示启用统计与状态。
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import {
   AlertTriangle,

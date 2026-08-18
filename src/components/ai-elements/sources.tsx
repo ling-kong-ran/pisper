@@ -1,3 +1,4 @@
+// AI 元素：来源文档列表（可折叠），展示引用资料与展开/收起交互。
 'use client'
 
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible'

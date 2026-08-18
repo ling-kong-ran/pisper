@@ -1,3 +1,5 @@
+// 侧边栏布局原语（shadcn 深度定制版）：桌面固定侧栏 + 移动端抽屉，
+// 支持折叠状态与受控展开，供应用壳与设置导航复用。
 'use client'
 
 import * as React from 'react'

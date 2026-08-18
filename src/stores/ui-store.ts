@@ -1,3 +1,6 @@
+// 全局 UI 偏好（侧边栏折叠 / 主题 / 密度），持久化到 localStorage。
+// merge 阶段兼容迁移旧版本遗留的独立 localStorage key（如 pisper-theme），
+// 保证升级后用户既有设置不丢失；主题循环顺序 system → light → dark。
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
 import { STORAGE_KEYS } from '@/app/storage'

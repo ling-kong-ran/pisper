@@ -1,3 +1,4 @@
+// 键盘按键（Kbd）原语：展示快捷键组合的小型键帽样式。
 import { cn } from '@/lib/utils'
 
 function Kbd({ className, ...props }: React.ComponentProps<'kbd'>) {

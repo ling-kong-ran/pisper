@@ -1,3 +1,4 @@
+// 工作流列表侧栏：按分组展示已保存的工作流，支持新建/重命名/删除。
 import { useRef, useState } from 'react'
 import {
   Check,

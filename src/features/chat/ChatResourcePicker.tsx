@@ -1,3 +1,4 @@
+// 资源选择器：@-菜单，选择技能/工作流/工具/文件等资源注入输入框。
 import { useEffect, useMemo, useState } from 'react'
 import { Braces, FileText, Search, Workflow, Wrench, X } from 'lucide-react'
 import { useI18n } from '@/app/use-i18n'

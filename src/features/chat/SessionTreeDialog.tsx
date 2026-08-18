@@ -1,3 +1,4 @@
+// 会话树对话框：会话从属关系（父子）的树形浏览，虚拟化渲染大列表。
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useVirtualizer } from '@tanstack/react-virtual'
 import {

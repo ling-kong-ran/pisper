@@ -1,3 +1,4 @@
+// AI 元素：任务（task）列表——每个任务项带状态、搜索文件等操作。
 'use client'
 
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible'

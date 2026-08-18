@@ -1,3 +1,4 @@
+// 装饰动画组件：指针悬浮在元素上时显示准星/光环。
 import { useCallback, useRef, type FocusEvent, type PointerEvent, type ReactNode } from 'react'
 import { cn } from '@/lib/utils'
 import './react-bits.css'

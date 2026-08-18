@@ -1,3 +1,4 @@
+// 会话终端作用域：记录每个终端绑定到的会话，孤儿终端（会话已关）标记。
 export type SessionTerminal = {
   id: string
   sessionId: string

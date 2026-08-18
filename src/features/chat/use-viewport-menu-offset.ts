@@ -1,3 +1,5 @@
+// 菜单定位 hook：打开时把悬浮菜单约束在视口内（留出边距），
+// 防止菜单溢出被裁切。
 import { useLayoutEffect, type RefObject } from 'react'
 
 const VIEWPORT_GUTTER = 8

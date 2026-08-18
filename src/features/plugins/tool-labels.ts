@@ -1,3 +1,4 @@
+// 工具标签辅助：把工具 id/名称/描述映射为可翻译的展示标签。
 export type ToolLabelTranslate = (key: string, values?: Record<string, unknown>) => string
 export type ToolLabelSource =
   { id?: string; name?: string; description?: string } | null | undefined

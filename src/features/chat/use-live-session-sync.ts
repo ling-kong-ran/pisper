@@ -1,3 +1,5 @@
+// 实时会话同步 hook：维护各会话的流式状态，订阅 SSE 事件并
+// 通过 stream-event-dispatch 更新会话；会话树修订号用于重拉摘要。
 import { useCallback, useEffect, useRef } from 'react'
 import { planFromPayloadOr } from '@/lib/plan-protocol'
 import { resolveQueuedInputs } from '@/lib/session-state'

@@ -1,3 +1,5 @@
+// Agent 运行活动面板：在消息下方展示当前运行的 Agent 状态——思考文本、
+// 工具调用列表、计划预览与停止按钮，实时跟随 SSE 流更新。
 import { lazy, memo, Suspense, useEffect, useRef, useState, type ReactNode } from 'react'
 import { AlertTriangle, Check, ChevronRight, Clock3, Code2, RefreshCw, Square } from 'lucide-react'
 import { useI18n } from '@/app/use-i18n'

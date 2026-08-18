@@ -1,3 +1,4 @@
+// AI 元素：shimmer 流光占位效果（骨架屏），基于 motion 动画。
 'use client'
 
 import { cn } from '@/lib/utils'

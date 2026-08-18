@@ -1,3 +1,6 @@
+// 设置页导航：把配置分区（models/notifications/...）与独立设置页面
+// （插件/MCP/技能/记忆/渠道）组织成分组式侧边栏。destination 区分
+// “配置分区”与“独立页面”两种跳转目标，供壳层统一处理高亮。
 import {
   Bell,
   Bot,

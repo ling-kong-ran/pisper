@@ -1,3 +1,5 @@
+// 会话列表合并：以服务端列表为准，保留本地乐观插入（尚未同步的）项，
+// 避免新建会话后列表闪回。
 import type { SessionSummary } from '@/types/chat'
 
 export function mergeSessionLists(current: SessionSummary[], incoming: SessionSummary[]) {

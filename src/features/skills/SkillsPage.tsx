@@ -1,3 +1,4 @@
+// 技能页：查看/安装/卸载 Agent 技能包，展示技能说明与封面。
 import { useCallback, useEffect, useState } from 'react'
 import { FileCode2, Image, Package, RefreshCw, Save, Sparkles, Trash2, Wrench } from 'lucide-react'
 import { useI18n } from '@/app/use-i18n'

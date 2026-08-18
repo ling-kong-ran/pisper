@@ -1,3 +1,4 @@
+// AI 元素：排队中的消息/任务列表（可折叠），展示等待运行的条目。
 'use client'
 
 import { Button } from '@/components/ui/button'

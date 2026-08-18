@@ -1,3 +1,6 @@
+// 展示层格式化工具：相对时间 / token 数缩写 / 工作区名 / 文件大小。
+// 相对时间在跨天后退化为日期，避免长会话列表里出现令人困惑的“3天前”
+// 与具体日期混排；token 缩写随数量级调节精度（10万以上取整）。
 export function relativeTime(value: string | number | Date | null | undefined, locale = 'zh-CN') {
   const english = locale === 'en-US'
   if (!value) return english ? 'Just now' : '刚刚'

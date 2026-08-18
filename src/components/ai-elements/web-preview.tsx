@@ -1,3 +1,5 @@
+// AI 元素：Web 预览面板——内嵌浏览器地址栏 + iframe，
+// 支持前进/后退/刷新/新开，供 Agent 演示网页时使用。
 'use client'
 
 import { Button } from '@/components/ui/button'

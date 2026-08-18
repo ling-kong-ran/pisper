@@ -1,3 +1,5 @@
+// 全站浮层：命令面板（Cmd+K，导航/搜索/直达）与快捷创建（新会话/资源）。
+// 两个都懒加载并按需挂载，避免常驻开销；搜索会话走 React Query 缓存。
 import { useEffect, useMemo, useState, type FormEvent, type KeyboardEvent } from 'react'
 import { LoaderCircle, MessageSquare, Plus, Search, Tag, X, type LucideIcon } from 'lucide-react'
 import { useI18n } from '@/app/use-i18n'

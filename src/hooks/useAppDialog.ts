@@ -1,3 +1,6 @@
+// 应用级确认/输入对话框 hook：以 Promise 形式暴露 confirm/prompt，
+// 供非组件代码（工具调用、SSE 事件处理）同步等待用户输入。
+// 打开新对话框时先释放上一个 pending resolver（返回 null）。
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useI18n } from '@/app/use-i18n'
 

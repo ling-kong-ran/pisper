@@ -1,3 +1,4 @@
+// 通知设置：浏览器通知开关 + 事件模板（飞书/微信/浏览器渠道）配置。
 import { useCallback, useEffect, useState } from 'react'
 import { AlertTriangle, Bell, BellOff, RefreshCw, Save, Send, ShieldCheck } from 'lucide-react'
 import {

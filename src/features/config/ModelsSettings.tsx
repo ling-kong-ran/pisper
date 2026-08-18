@@ -1,3 +1,4 @@
+// 模型设置：选择默认 Provider/模型，配置推理强度与 API 端点。
 import { useState } from 'react'
 import { RefreshCw } from 'lucide-react'
 import { useI18n } from '@/app/use-i18n'

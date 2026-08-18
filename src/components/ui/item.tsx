@@ -1,3 +1,5 @@
+// 通用列表项（ListItem）原语：用 cva 定义变体的可点击/交互行，
+// 供侧边栏与命令菜单等列表复用。
 import * as React from 'react'
 import { cva, type VariantProps } from 'class-variance-authority'
 import { Slot } from 'radix-ui'

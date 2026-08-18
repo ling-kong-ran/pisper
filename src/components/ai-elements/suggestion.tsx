@@ -1,3 +1,4 @@
+// AI 元素：建议（suggestion）横向滚动条，展示可选的下一条提示建议。
 'use client'
 
 import { Button } from '@/components/ui/button'

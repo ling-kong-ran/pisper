@@ -1,3 +1,5 @@
+// 工作流领域类型：节点种类（触发器/提示词/技能等）、节点/连线的 JSON 形状
+// 与运行时执行的快照结构。
 export const WORKFLOW_NODE_KINDS = [
   'trigger',
   'prompt',

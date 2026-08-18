@@ -1,3 +1,5 @@
+// Agent 状态头像：空闲/等待/思考三种状态的 SVG 胶囊小人，带流光动画。
+// 用 useId 生成唯一渐变 id 避免多个实例在 SVG defs 中互相污染。
 import { useId, useState, type CSSProperties, type PointerEvent } from 'react'
 import { useI18n } from '@/app/use-i18n'
 

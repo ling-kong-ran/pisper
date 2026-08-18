@@ -1,3 +1,4 @@
+// 聚焦视图的运行控制条：停止/继续、上下文用量、模型切换等。
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import {

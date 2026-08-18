@@ -1,3 +1,5 @@
+// 输入草稿管理：为每个会话保存未发送的草稿（文本+附件），
+// 会话切换时恢复，附件选择统一走 useAttachmentSelection。
 import { useCallback, useEffect, useRef, useState } from 'react'
 import type { ChatAttachment } from '@/types/chat'
 import { useAttachmentSelection } from './attachments'

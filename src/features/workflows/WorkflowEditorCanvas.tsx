@@ -1,3 +1,4 @@
+// 工作流编辑器画布：节点列表侧栏 + 画布 + 属性检查器的编排布局。
 import { GripVertical } from 'lucide-react'
 import { Card, CardContent, CardTitle } from '@/components/ui/card'
 import { WorkflowCanvas } from './WorkflowCanvas'

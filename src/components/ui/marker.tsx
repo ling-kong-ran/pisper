@@ -1,3 +1,4 @@
+// 标记/徽标（Marker）原语：带变体的小型状态标识。
 import * as React from 'react'
 import { cva, type VariantProps } from 'class-variance-authority'
 import { Slot } from 'radix-ui'

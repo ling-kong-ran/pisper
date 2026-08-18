@@ -1,3 +1,4 @@
+// 会话操作菜单：打开目录/导出/归档/删除等会话级动作。
 import { useEffect, useRef, useState } from 'react'
 import {
   FolderOpen,

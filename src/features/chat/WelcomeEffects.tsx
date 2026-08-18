@@ -1,3 +1,4 @@
+// 欢迎页动效：空会话时的品牌展示与打字机/星轨装饰。
 import type { ReactNode } from 'react'
 import { BrandLogo } from '@/components/BrandLogo'
 import { AsciiText } from '@/components/react-bits/AsciiText'

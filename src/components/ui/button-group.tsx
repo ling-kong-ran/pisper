@@ -1,3 +1,4 @@
+// 按钮组：成组按钮的容器与文本变体（如工具调用旁的操作按钮组）。
 import { cva, type VariantProps } from 'class-variance-authority'
 import { Slot } from 'radix-ui'
 

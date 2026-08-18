@@ -1,3 +1,4 @@
+// 历史会话页：搜索/分页浏览历史会话列表，支持翻页与恢复。
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import {
   ChevronRight,

@@ -1,3 +1,4 @@
+// 会话打开请求 / Dock 布局事件的处理封装，供各组件复用。
 import { createContext } from 'react'
 import type {
   ChatAttachment,

@@ -1,3 +1,4 @@
+// 插件安装对话框：从本地目录安装插件（目录选择 + 校验 + 安装进度）。
 import { useEffect, useState } from 'react'
 import { AlertTriangle, CheckCircle2, FolderOpen, LoaderCircle, PackagePlus } from 'lucide-react'
 import { useI18n } from '@/app/use-i18n'

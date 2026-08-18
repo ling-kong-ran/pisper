@@ -1,3 +1,4 @@
+// Provider 发现状态辅助：判断扫描结果里是否有可导入且未冲突的项。
 import type { DiscoveryData } from './config-types'
 
 export function providerDiscoveryHasImportable(discovery: DiscoveryData) {

@@ -1,3 +1,5 @@
+// 聊天 API 客户端：封装会话列表/详情/发送/流式事件等请求。
+// consumeEventStream 逐行解析 SSE，事件按类型分发到各调度器。
 import { consumeEventStream } from '@/lib/api'
 import { requestJson } from '@/lib/http'
 import type {

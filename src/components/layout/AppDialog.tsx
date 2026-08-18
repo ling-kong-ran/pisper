@@ -1,3 +1,5 @@
+// 全局确认/输入对话框组件：由 useAppDialog 驱动，展示在应用最上层。
+// 输入框受控聚焦，Enter 确认、Esc 关闭；输入值在提交时回调 onFinish。
 import { useEffect, useRef, useState, type FormEvent } from 'react'
 import { X } from 'lucide-react'
 import { useI18n } from '@/app/use-i18n'

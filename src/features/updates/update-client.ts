@@ -1,3 +1,4 @@
+// 更新客户端：桌面桥接的更新操作封装，复用共享的发布地址常量。
 import type { UpdateStatus } from '@/types/update'
 
 export { RELEASES_URL } from '@shared/app-update.mjs'

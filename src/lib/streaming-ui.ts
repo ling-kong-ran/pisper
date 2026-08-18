@@ -1,3 +1,9 @@
+// 流式 UI 调度原语：把高频 SSE 事件合并成低频 React 更新。
+// - createStreamingTextScheduler：文本增量合并（约 20fps）；
+// - createToolUpdateScheduler：同一 tool id 的多次更新合并成一条 patch；
+// - createTypewriterDisplay：打字机式平滑展示，目标落后太多时加速追赶、
+//   剩余极少时直接补齐；文本被重写（redaction）时先对齐公共前缀再重排。
+// 定时器在页面不可见时挂起，切回前台再恢复，避免后台空转。
 type ActivityTimestamp = string | null
 type ToolPatch = Record<string, unknown>
 

@@ -1,3 +1,5 @@
+// AI 元素：工具确认（ToolUIPart confirmation）——需要用户批准的操作，
+// 提供允许/拒绝按钮与文案，完成后收起。
 'use client'
 
 import { Alert, AlertDescription } from '@/components/ui/alert'

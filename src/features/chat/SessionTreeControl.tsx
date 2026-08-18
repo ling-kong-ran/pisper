@@ -1,3 +1,4 @@
+// 会话树开关：会话列表与树形视图的切换控件。
 import { useEffect, useState } from 'react'
 import { TreePine } from 'lucide-react'
 import { useI18n } from '@/app/use-i18n'

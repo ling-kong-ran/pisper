@@ -1,3 +1,7 @@
+// 自动滚动 hook：内容增长时保持在底部，用户向上翻时暂停并标记未读。
+// 程序化滚动用专门的标记窗口（两帧后清除）与用户滚动区分开——否则
+// scrollTo 触发的滚动事件会被误判为“用户向上滚动”，导致贴底状态被
+// 错误翻转、自动滚动永久失效。滚动跳帧合并在 rAF 内，减少远程桌面闪烁。
 import { useCallback, useEffect, useRef, useState, type UIEvent } from 'react'
 
 export function useAutoScroll(

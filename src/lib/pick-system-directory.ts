@@ -1,3 +1,5 @@
+// 桌面桥接目录选择：只有 Tauri 桌面壳提供 pickDirectory 时才可用，
+// 纯 Web 环境走 WorkspacePicker（浏览器无系统级目录选择能力）。
 /** Return whether the desktop shell can provide an absolute directory path. */
 export function hasSystemDirectoryPicker(): boolean {
   return typeof window !== 'undefined' && typeof window.pisperDesktop?.pickDirectory === 'function'

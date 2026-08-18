@@ -1,3 +1,4 @@
+// 输入框工具栏：附件/资源/命令等按钮的容器，装饰动画懒加载。
 import { lazy, Suspense, type ReactNode } from 'react'
 
 const AnimatedContent = lazy(() =>

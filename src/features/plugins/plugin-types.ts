@@ -1,3 +1,4 @@
+// 插件领域类型：插件能力（工具）的声明与运行时状态。
 import type { EntityRecord } from '@/types/chat'
 
 export type PluginCapability = EntityRecord & {

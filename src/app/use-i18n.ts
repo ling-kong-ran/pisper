@@ -1,3 +1,6 @@
+// 语言偏好 hook：包装 react-i18next，返回当前语言与切换方法。
+// 统一用 translateText 的固定语言路径，避免组件间因实例状态不一致
+// 而读到不同语言；语言切换即时生效（changeLanguage）。
 import { useCallback } from 'react'
 import { useTranslation } from 'react-i18next'
 import {

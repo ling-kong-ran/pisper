@@ -1,3 +1,5 @@
+// AI 元素：计划面板——把计划项渲染成卡片列表（状态徽标/依赖/说明），
+// 点击项可更新计划状态，与运行时 plan_update 事件联动。
 'use client'
 
 import { Button } from '@/components/ui/button'

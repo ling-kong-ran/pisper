@@ -1,3 +1,5 @@
+// 工作区信任提示：首次进入未信任工作区时的安全确认横幅，
+// 引导用户理解 Agent 在该目录的执行权限。
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { Check, RefreshCw, ShieldAlert } from 'lucide-react'
 import { useI18n } from '@/app/use-i18n'

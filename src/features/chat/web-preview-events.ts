@@ -1,3 +1,5 @@
+// Web 预览开关事件：跨组件广播预览请求，地址先规范化再校验，
+// 非法输入返回 null 表示不打开。
 import { STORAGE_KEYS } from '@/app/storage'
 import { normalizeWebPreviewInput } from '@/lib/web-preview'
 

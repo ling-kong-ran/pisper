@@ -1,3 +1,5 @@
+// 底部状态栏：展示活动会话模型/上下文用量（按需轮询与事件刷新）、
+// 插件启用统计与项目外链；点击打开对应设置页。
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { Bot } from 'lucide-react'
 import { STORAGE_KEYS } from '@/app/storage'

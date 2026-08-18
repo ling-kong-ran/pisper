@@ -1,3 +1,7 @@
+// i18n 初始化：内置 zh-CN / en-US 两套 JSON 资源并按命名空间加载。
+// keySeparator 关闭（key 即完整字符串），nsSeparator 用冒号——与全库
+// t('namespace:key') 调用约定一致；translateText 供非 React 场景（如
+// 工具函数、SSE 事件派发）直接取固定语言的翻译。
 import i18next from 'i18next'
 import { initReactI18next } from 'react-i18next'
 import enAssets from '@/locales/en-US/assets.json' with { type: 'json' }

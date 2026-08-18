@@ -1,3 +1,5 @@
+// 终端面板：桌面桥接的 xterm 终端，按会话绑定工作目录，
+// 支持多标签、缩放与断开重连提示。
 import {
   useCallback,
   useEffect,

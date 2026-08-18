@@ -1,3 +1,4 @@
+// AI 元素：检查点（checkpoint）消息展示，含恢复/继续操作按钮。
 'use client'
 
 import { Button } from '@/components/ui/button'

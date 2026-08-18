@@ -1,3 +1,5 @@
+// AI 元素：工具调用卡片——展示工具名、参数、状态（运行/成功/失败）与
+// 可展开的调用详情，是 Agent 工具活动在消息流里的视觉呈现。
 'use client'
 
 import { Badge } from '@/components/ui/badge'

@@ -1,3 +1,4 @@
+// 工作流预览：只读渲染工作流图为静态预览（无编辑交互）。
 import { MarkerType, ReactFlow, type Edge, type Node, type NodeProps } from '@xyflow/react'
 import { useMemo } from 'react'
 import { cn } from '@/lib/utils'

@@ -1,3 +1,5 @@
+// 表单字段（Field）原语：标签/描述/错误信息的字段布局，
+// 用 context 共享状态给输入控件，供设置表单复用。
 import { useMemo } from 'react'
 import { cva, type VariantProps } from 'class-variance-authority'
 

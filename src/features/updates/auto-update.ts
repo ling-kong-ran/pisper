@@ -1,3 +1,5 @@
+// 自动更新策略：启动延迟 + 周期检查的定时配置，
+// 检查中/下载中/已下载等状态阻塞自动重检。
 export const DESKTOP_UPDATE_INITIAL_DELAY_MS = 15_000
 export const DESKTOP_UPDATE_INTERVAL_MS = 6 * 60 * 60_000
 

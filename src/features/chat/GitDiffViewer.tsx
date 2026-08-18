@@ -1,3 +1,4 @@
+// Git 差异查看器：虚拟化渲染统一 diff，支持逐块展开与滚动。
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { useVirtualizer } from '@tanstack/react-virtual'

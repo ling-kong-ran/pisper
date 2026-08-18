@@ -1,3 +1,6 @@
+// 语言 Provider：挂载 i18next 实例，并把语言偏好同步到桌面壳：
+// 写入 localStorage 持久化，同步 <html lang>，并通知 Tauri 桥接层
+// 更新系统菜单/外壳文案的语言。
 import { useEffect, type ReactNode } from 'react'
 import { I18nextProvider, useTranslation } from 'react-i18next'
 import { STORAGE_KEYS } from './storage'

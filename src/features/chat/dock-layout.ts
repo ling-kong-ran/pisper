@@ -1,3 +1,6 @@
+// Dock 布局协议：多会话分屏（dockview）的布局序列化/反序列化，
+// 以及会话面板 id 与会话 id 的互转、打开位置的语义映射。
+// 布局 envelope 带版本号与引擎标识，解析失败时安全返回 null 回退默认。
 export const CHAT_DOCK_LAYOUT_VERSION = 1
 export const SESSION_OPEN_DISPOSITIONS = Object.freeze([
   'open',

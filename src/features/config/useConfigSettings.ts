@@ -1,3 +1,4 @@
+// 配置加载 hook：拉取配置数据、管理草稿与保存，返回给配置页使用。
 import { useCallback, useEffect, useMemo, useReducer, useRef, useState } from 'react'
 import { apiJson } from '@/lib/api'
 import {

@@ -1,3 +1,5 @@
+// 会话目录 hook：拉取/刷新会话列表，维护会话状态缓存（含实时流），
+// 处理会话树的展开与定位，并负责新会话的创建（含工作区分组）。
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { APP_NAME } from '@/app/brand'
 import { STORAGE_KEYS } from '@/app/storage'

@@ -1,3 +1,5 @@
+// 单条聊天消息：Markdown 渲染 + 消息操作（复制/下载/删除/跳转），
+// 长代码自动展开，附件与工具调用内嵌展示。
 import { memo, useEffect, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { Check, Download, File, GitFork, LoaderCircle, Tag, Trash2, X } from 'lucide-react'

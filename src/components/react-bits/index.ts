@@ -1,3 +1,4 @@
+// react-bits 装饰动画组件统一出口，供各页面按需引入。
 export { AnimatedContent } from './AnimatedContent'
 export { AnimatedList } from './AnimatedList'
 export { AsciiText } from './AsciiText'

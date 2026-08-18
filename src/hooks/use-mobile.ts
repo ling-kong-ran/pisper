@@ -1,3 +1,5 @@
+// 移动端断点判定：900px 以下切换为抽屉式布局。
+// 断点值须与历史布局保持一致（迁移 shadcn 期间不能改变既有交互）。
 import * as React from 'react'
 
 // Pisper's existing navigation switches to an off-canvas layout at 900px.

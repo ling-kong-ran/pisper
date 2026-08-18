@@ -1,3 +1,4 @@
+// AI 元素：消息附件展示（文件卡片/来源文档），hover 展示来源详情。
 'use client'
 
 import { Button } from '@/components/ui/button'

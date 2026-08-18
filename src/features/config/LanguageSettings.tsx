@@ -1,3 +1,4 @@
+// 语言设置：zh-CN / en-US 切换，即时生效并同步桌面壳。
 import { Check, FoldVertical, Languages, UnfoldVertical } from 'lucide-react'
 import { LANGUAGE_OPTIONS, translateText, useI18n } from '@/app/use-i18n'
 import { SettingsCard as Panel } from './settings-primitives'

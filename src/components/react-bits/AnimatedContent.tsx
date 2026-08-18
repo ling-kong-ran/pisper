@@ -1,3 +1,5 @@
+// 装饰动画组件：内容切换时的过渡动画（framer-motion），
+// 支持按方向淡入淡出/缩放，且尊重系统“减少动态效果”偏好。
 import { AnimatePresence, motion, useReducedMotion } from 'motion/react'
 import { useState, type ReactNode } from 'react'
 import { cn } from '@/lib/utils'

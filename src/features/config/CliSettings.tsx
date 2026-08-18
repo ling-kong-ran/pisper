@@ -1,3 +1,4 @@
+// CLI 安装/修复设置：检测系统 pisper CLI 状态，提供安装/卸载/修复。
 import { CheckCircle2, Download, RefreshCw, Terminal, Trash2, Wrench } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { useI18n } from '@/app/use-i18n'

@@ -1,3 +1,4 @@
+// 会话工作流运行记录：展示会话关联的工作流运行历史与状态。
 import { useCallback, useEffect, useState } from 'react'
 import {
   Check,

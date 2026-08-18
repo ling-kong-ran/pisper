@@ -1,3 +1,5 @@
+// 统一的 Select 封装：把 shadcn 的受控 Select 转成原生 <select> 语义，
+// 支持必填/禁用/无值占位，供表单与设置页复用，避免各处重复状态逻辑。
 import {
   Children,
   isValidElement,

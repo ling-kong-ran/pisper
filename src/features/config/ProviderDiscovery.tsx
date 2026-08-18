@@ -1,3 +1,4 @@
+// Provider 发现：扫描本地可导入的 Provider（Ollama 等）并展示导入入口。
 import { useState } from 'react'
 import { AlertTriangle, Bot, Brain, ChevronDown, Download, RefreshCw, Server } from 'lucide-react'
 import { useI18n } from '@/app/use-i18n'

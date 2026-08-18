@@ -1,3 +1,5 @@
+// 工作流编辑器核心 hook：节点的增删改查、连线与撤销式编辑，
+// 负责把编辑状态序列化保存到运行时。
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useI18n } from '@/app/use-i18n'
 import { apiJson } from '@/lib/api'

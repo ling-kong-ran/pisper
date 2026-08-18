@@ -1,3 +1,5 @@
+// AI 元素：上下文用量展示（输入/输出 token、上下文窗口占用进度），
+// 从 LanguageModelUsage 渲染，供长会话监控上下文消耗。
 'use client'
 
 import { Button } from '@/components/ui/button'

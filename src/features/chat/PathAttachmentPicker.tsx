@@ -1,3 +1,4 @@
+// 路径附件选择：浏览文件系统并选择路径作为附件（桌面桥接目录/文件选择）。
 import { useCallback, useEffect, useRef, useState, type FormEvent } from 'react'
 import { AlertTriangle, ArrowUp, ChevronRight, File, Folder, LoaderCircle } from 'lucide-react'
 import { useI18n } from '@/app/use-i18n'

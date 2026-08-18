@@ -1,3 +1,5 @@
+// 配置页：按分区（模型/通知/界面/桌面宠物/更新/运行时等）组织设置卡片，
+// 每个分区一个设置组件，共享设置原语（SettingsCard 等）。
 import { DesktopPetSettings } from './DesktopPetSettings'
 import { LanguageSettings } from './LanguageSettings'
 import { ModelsSettings } from './ModelsSettings'

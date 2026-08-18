@@ -1,3 +1,4 @@
+// 预览页：MCP 服务器与插件工具的只读概览（状态徽标/端点/操作）。
 import { useCallback, useEffect, useState, type ReactNode } from 'react'
 import { CircleDot, RefreshCw, Server, Trash2, Wrench } from 'lucide-react'
 import { useI18n } from '@/app/use-i18n'

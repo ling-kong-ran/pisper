@@ -1,3 +1,5 @@
+// 组件更新状态合并：把桌面/TUI/Runtime 各组件更新状态归一为
+// 统一进度视图，供设置页与更新提示使用。
 import type { ComponentUpdateStatus, UpdateStatus } from '@/types/update'
 
 const PROGRESS_STATES = new Set(['available', 'downloading', 'installed', 'error'])

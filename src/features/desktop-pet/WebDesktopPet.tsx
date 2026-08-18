@@ -1,3 +1,5 @@
+// 桌面宠物 Web 壳：在页面角落渲染桌面宠物（SVG 精灵 + 交互动画），
+// 通过桌面桥接同步启用/选择状态。
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useI18n } from '@/app/use-i18n'
 import { apiJson } from '@/lib/api'

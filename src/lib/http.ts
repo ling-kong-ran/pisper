@@ -1,3 +1,8 @@
+// 统一的 JSON API 请求层：
+// - body/data 二选一作为负载，自动 JSON 序列化并补 Content-Type；
+// - 支持外部 AbortSignal 与内置超时（默认 30s），超时/取消/网络错误统一
+//   归一为 ApiError，便于调用方用 instanceof 统一处理；
+// - 204 或空响应返回 undefined，非 JSON 响应原样返回文本。
 type ApiErrorPayload = {
   error?: string
   [key: string]: unknown

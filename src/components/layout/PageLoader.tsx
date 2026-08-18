@@ -1,3 +1,4 @@
+// 路由懒加载时的过渡占位页。
 import { RefreshCw } from 'lucide-react'
 import { useI18n } from '@/app/use-i18n'
 

@@ -1,3 +1,6 @@
+// Markdown 渲染组件：基于 streamdown 的流式解析 + 自定义组件映射
+// （代码块/链接/图片/行内引用），代码块提供复制按钮。
+// 增量 block 解析器只在末尾追加时重解析尾部，配合打字机效果保持流畅。
 import { isValidElement, memo, useState, type ComponentProps, type ReactNode } from 'react'
 import { Check, Copy } from 'lucide-react'
 import { CodeBlock, Streamdown, useIsCodeFenceIncomplete, type Components } from 'streamdown'

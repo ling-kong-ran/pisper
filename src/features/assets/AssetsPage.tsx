@@ -1,3 +1,4 @@
+// 资源（资产）页：浏览/搜索/下载工作区生成的资源文件（图片/文档等）。
 import { useCallback, useEffect, useState, type FormEvent } from 'react'
 import {
   AlertTriangle,

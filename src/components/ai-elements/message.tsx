@@ -1,3 +1,5 @@
+// AI 元素：单条消息（含 Markdown 渲染、工具调用、上下文用量、
+// 复制等操作），由 conversation 列表驱动。
 'use client'
 
 import MarkdownMessage, { type MarkdownMessageProps } from '@/components/MarkdownMessage'

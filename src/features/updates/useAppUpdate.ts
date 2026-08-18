@@ -1,3 +1,5 @@
+// 应用更新控制器 hook：向壳层提供检查/下载/安装更新与
+// 状态订阅的完整能力（AppUpdateController）。
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type {
   AppUpdateController,

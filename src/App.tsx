@@ -1,3 +1,8 @@
+// 应用外壳：持有全站共享状态（当前页/搜索词/活动会话/Toast/对话框/通知
+// 设置/更新控制器/工作流动作），组装侧边栏 + 页头 + 内容 Outlet + 状态栏，
+// 并通过 Outlet 上下文向各页面注入公共能力。启动时探测是否已配置可用
+// Provider，未配置则引导用户进设置页；同时提供全局快捷键（Cmd+K 命令面板、
+// Cmd+N 主操作、` 终端、/ 搜索、Esc 逐层关闭）与浏览器通知轮询。
 import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Outlet, useLocation, useNavigate, type NavigateOptions } from 'react-router-dom'
 import { createPrimaryActionRegistry } from '@/app/primary-action'

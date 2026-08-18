@@ -1,3 +1,4 @@
+// AI 元素：对话流容器（可滚动消息列表 + 回到底部按钮 + 导出对话）。
 'use client'
 
 import { Button } from '@/components/ui/button'

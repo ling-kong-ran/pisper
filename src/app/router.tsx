@@ -1,3 +1,6 @@
+// 路由表：全部页面挂在一个 App 壳（侧边栏 + 顶部栏 + Outlet）下。
+// 使用 hash 路由以兼容 Tauri WebView 与纯静态文件托管；每个页面走 lazy
+// 按需加载，避免首屏一次性打包所有功能页。未知路径兜底跳回聊天页。
 import { Navigate, createHashRouter } from 'react-router-dom'
 import App from '@/App'
 import { PageLoader } from '@/components/layout/PageLoader'

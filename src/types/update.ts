@@ -1,3 +1,5 @@
+// 桌面壳桥接层（window.pisperDesktop）的类型声明：更新、目录选择、
+// 语言、CLI、终端、桌面宠物、通知等能力的鸭子类型接口，供前端统一调用。
 export type UpdateStatus = {
   state: string
   checkedAt?: string | null

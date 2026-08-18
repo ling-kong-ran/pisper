@@ -1,3 +1,4 @@
+// 空态（EmptyState）原语：居中展示图标/标题/描述的空状态容器。
 import { cva, type VariantProps } from 'class-variance-authority'
 
 import { cn } from '@/lib/utils'

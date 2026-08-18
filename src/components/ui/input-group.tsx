@@ -1,3 +1,4 @@
+// 输入组（InputGroup）原语：输入框与附加元素的组合容器。
 'use client'
 
 import * as React from 'react'

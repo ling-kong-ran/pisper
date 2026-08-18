@@ -1,3 +1,5 @@
+// 侧边栏：工作台导航 + 设置分组导航 + 更新入口，支持折叠与移动端抽屉。
+// 用 React Query 拉取 Provider/会话摘要等数据；折叠状态由 ui-store 持久化。
 import { useEffect, useMemo, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import {

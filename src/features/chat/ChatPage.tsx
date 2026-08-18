@@ -1,3 +1,5 @@
+// 聊天主页面：dockview 多会话分屏布局的宿主，持有会话目录与实时
+// 同步状态，管理 Dock 的初始化/持久化与多面板交互。
 import { useCallback, useEffect, useMemo, useRef } from 'react'
 import 'dockview-react/dist/styles/dockview.css'
 import {

@@ -1,3 +1,5 @@
+// 工作流画布：基于 @xyflow/react 的节点/连线编辑器，支持拖拽建边、
+// 节点拖放与缩放，以及节点选中联动检查器。
 import { useCallback, useEffect, useMemo, useRef, type DragEvent } from 'react'
 import {
   Background,

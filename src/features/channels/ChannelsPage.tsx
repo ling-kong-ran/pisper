@@ -1,3 +1,4 @@
+// 渠道页：外部消息渠道（飞书/微信）连接管理、状态与测试。
 import { useCallback, useEffect, useState } from 'react'
 import {
   AlertTriangle,

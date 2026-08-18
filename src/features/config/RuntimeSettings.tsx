@@ -1,3 +1,4 @@
+// 运行时设置：服务端口、数据目录、启动行为等运行时参数。
 import {
   AlertTriangle,
   CheckCircle2,

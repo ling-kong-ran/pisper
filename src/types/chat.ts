@@ -1,6 +1,6 @@
-// Pisper's streaming protocol carries tool-specific extension fields that are not
-// known to the frontend ahead of time. Keep the escape hatch centralized here
-// until the runtime protocol exposes discriminated event schemas.
+// 聊天领域类型：消息/工具/计划/会话摘要/会话状态。
+// EntityRecord 是逃生口——流式协议携带前端预先未知的扩展字段，
+// 在运行时协议提供判别式事件 schema 前统一集中在这里。
 export type EntityRecord = Record<string, any>
 
 export type ChatAttachment = EntityRecord & {

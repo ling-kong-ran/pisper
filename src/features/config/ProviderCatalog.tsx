@@ -1,3 +1,5 @@
+// Provider 目录：按类别展示可用模型 Provider（Anthropic/OpenAI/本地等），
+// 支持搜索与快捷配置入口。
 import {
   AlertTriangle,
   Bot,

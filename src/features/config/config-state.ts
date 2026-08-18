@@ -1,3 +1,4 @@
+// 配置状态 reducer：管理配置草稿的加载/编辑/保存生命周期。
 import type { ConfigData, ConfigDraft, ProviderConfig } from './config-types'
 
 export type ConfigSettingsState = {

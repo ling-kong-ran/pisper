@@ -1,3 +1,5 @@
+// AI 元素：画布缩放控制（@xyflow 默认控件的主题化封装），
+// 供工作流画布使用，样式统一到项目 UI。
 'use client'
 
 import { cn } from '@/lib/utils'

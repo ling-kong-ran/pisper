@@ -1,3 +1,5 @@
+// 设置页共享原语：SettingsCard / Field 等分组卡片组件，
+// 保证各配置分区视觉一致。
 import type { ComponentProps } from 'react'
 import {
   AppCard,

@@ -1,3 +1,5 @@
+// 工作区选择对话框：支持手动输入路径与系统目录选择（桌面桥接），
+// 提交前校验目录可用性，失败时展示错误提示不关闭。
 import { useCallback, useEffect, useRef, useState, type FormEvent } from 'react'
 import { AlertTriangle, ArrowUp, Check, ChevronRight, Folder, LoaderCircle } from 'lucide-react'
 import { useI18n } from '@/app/use-i18n'

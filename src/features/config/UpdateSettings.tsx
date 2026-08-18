@@ -1,3 +1,5 @@
+// 更新设置：检查/下载/安装桌面端与组件（TUI/Runtime）更新，
+// 展示版本、变更日志与安装进度。
 import { useEffect, useMemo, useState } from 'react'
 import {
   ArrowRight,

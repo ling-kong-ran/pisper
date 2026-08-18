@@ -1,3 +1,5 @@
+// 聊天 Dock hook：基于 dockview 的多会话分屏容器，
+// 管理面板开/关/切换/聚焦与会话的映射，并持久化布局到 localStorage。
 import { useCallback, useEffect, useRef, useState } from 'react'
 import type {
   BuiltInContextMenuItem,

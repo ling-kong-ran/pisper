@@ -1,3 +1,5 @@
+// AI 元素：消息外壳——按角色（user/assistant/system）提供布局与
+// 气泡样式的基础容器。
 import type { HTMLAttributes } from 'react'
 import { cn } from '@/lib/utils'
 
