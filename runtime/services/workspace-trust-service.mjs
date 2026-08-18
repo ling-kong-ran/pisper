@@ -1,3 +1,6 @@
+// 工作区信任服务：记录并查询用户对工作目录的信任决策。
+// 信任决定是否加载 .pi/.pisper 项目级资源（设置/技能/提示词/系统提示）以及
+// 是否存在需用户确认的资源（requiresDecision），未决策时这些资源受限不可用。
 import { existsSync } from 'node:fs'
 import { homedir } from 'node:os'
 import { dirname, join, resolve } from 'node:path'
@@ -6,6 +9,7 @@ import {
   hasTrustRequiringProjectResources,
 } from '../runtime/pi-coding-agent.mjs'
 
+// 需要信任的项目级资源（.pi 目录下的配置/技能/提示词等）。
 const PI_PROJECT_RESOURCES = [
   ['settings', 'settings.json'],
   ['skills', 'skills'],
@@ -15,6 +19,7 @@ const PI_PROJECT_RESOURCES = [
   ['systemPrompt', 'APPEND_SYSTEM.md'],
 ]
 
+// Pisper 自身的项目级资源（.pisper 目录下的技能/提示词）。
 const PISPER_PROJECT_RESOURCES = [
   ['skills', 'skills'],
   ['prompts', 'prompts'],
@@ -51,6 +56,7 @@ function projectResourceKinds(cwd) {
   return [...kinds].sort()
 }
 
+// 探测目录树上实际存在的资源类型：含向上回溯祖先目录的 .agents/skills。
 export class WorkspaceTrustService {
   constructor({ agentDir } = {}) {
     this.store = new ProjectTrustStore(agentDir)

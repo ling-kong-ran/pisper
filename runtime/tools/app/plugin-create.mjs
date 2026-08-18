@@ -1,3 +1,4 @@
+// 插件创建工具：创建并安装符合规范的本地 Pisper 插件。
 import { Type } from 'typebox'
 import { defineTool } from '../../runtime/pi-coding-agent.mjs'
 

@@ -1,9 +1,12 @@
+// Provider 偏好与配置管理：负责模型运行时装配、Provider 配置（连接/密钥/模型）读写、
+// 模型发现与目录同步、默认模型对账、会话模型/思考等级切换，以及配置迁移与安全校验。
 import { readJson, writeJsonAtomic } from '../storage/json-file.mjs'
 import { ModelRuntime } from './pi-coding-agent.mjs'
 import { inferModelKind } from '../services/visual-generation/index.mjs'
 import { redactSecretText } from '../security/secret-redaction.mjs'
 import { applyPisperSystemPrompt } from '../prompts/pisper-system-prompt.mjs'
 
+// 内置 Provider 标识与展示名；其余自定义 Provider 由用户配置。
 const KNOWN_PROVIDERS = [
   'openai',
   'openai-codex',
@@ -26,11 +29,14 @@ const PROVIDER_LABELS = {
   'kimi-coding': 'Kimi Code',
   'zai-coding-cn': 'GLM',
 }
+// 官方 OAuth Provider 的合法主机：检测自定义端点时以此为准。
 const OFFICIAL_OAUTH_HOSTS = {
   'openai-codex': 'chatgpt.com',
   anthropic: 'api.anthropic.com',
 }
 
+// 检测 Provider 是否配置了非官方端点：官方 OAuth Provider 若被指向自定义 Base URL，
+// 登录凭据可能被外发到第三方中转站，导入配置前必须拦截。
 function hasNonOfficialOAuthEndpoint(providerId, overlay) {
   const expectedHost = OFFICIAL_OAUTH_HOSTS[providerId]
   if (!expectedHost) return true
@@ -48,6 +54,7 @@ function hasNonOfficialOAuthEndpoint(providerId, overlay) {
   })
 }
 
+// 支持的 API 协议与各 Provider 默认端点。
 const PROVIDER_API_IDS = new Set([
   'openai-responses',
   'openai-completions',
@@ -66,6 +73,7 @@ const PROVIDER_DEFAULT_BASE_URLS = {
   'zai-coding-cn': 'https://open.bigmodel.cn/api/paas/v4',
 }
 
+// 模型排序权重：用于在 Provider 内优先推荐新模型（无启发式时按 reasoning 区分）。
 function modelRank(provider, model) {
   const id = model.id.toLowerCase()
   if ((provider === 'openai' || provider === 'openai-codex') && id.startsWith('gpt-5')) return 100
@@ -88,6 +96,7 @@ function modelRank(provider, model) {
   return model.reasoning ? 50 : 10
 }
 
+// 自定义 Provider ID 规范化：小写、去非法字符、限长。
 function providerProfileId(value) {
   return String(value || '')
     .trim()
@@ -97,6 +106,7 @@ function providerProfileId(value) {
     .slice(0, 60)
 }
 
+// 从凭据对象/字符串中提取密钥明文。
 function credentialSecret(credential) {
   if (typeof credential === 'string') return credential.trim()
   if (!credential || typeof credential !== 'object') return ''
@@ -105,6 +115,7 @@ function credentialSecret(credential) {
   ).trim()
 }
 
+// 解析已配置密钥：显式凭据优先；其次支持 $ENV 环境变量引用。
 function configuredProviderSecret(credential, providerConfig) {
   const stored = credentialSecret(credential)
   if (stored) return stored
@@ -113,6 +124,7 @@ function configuredProviderSecret(credential, providerConfig) {
   return reference
 }
 
+// Base URL 归一化（去尾部斜杠、小写），用于端点比较。
 function normalizedProviderBaseUrl(value) {
   return String(value || '')
     .trim()
@@ -136,6 +148,7 @@ function usesCustomProviderEndpoint(providerId, providerConfig) {
   return !officialBaseUrl || !sameBaseUrl(baseUrl, officialBaseUrl)
 }
 
+// 自定义 Provider 端点（与官方默认不同）时附加 Pisper 的 User-Agent。
 function providerHeaders(providerId, providerConfig, userAgent, modelHeaders = {}) {
   const headers = { ...(providerConfig?.headers || {}), ...(modelHeaders || {}) }
   if (usesCustomProviderEndpoint(providerId, providerConfig) && !hasHeader(headers, 'user-agent'))
@@ -143,6 +156,7 @@ function providerHeaders(providerId, providerConfig, userAgent, modelHeaders = {
   return headers
 }
 
+// 由配置推断 Provider 类型：模型全为视觉模型则视为 visual，否则 chat。
 function inferredProviderType(providerConfig) {
   const models = Array.isArray(providerConfig?.models) ? providerConfig.models : []
   if (!models.length) return 'chat'
@@ -151,10 +165,12 @@ function inferredProviderType(providerConfig) {
     : 'chat'
 }
 
+// 视觉模型“占用”键：同一端点 + 同一模型 ID + 同一 kind 被视为同一个视觉模型。
 function visualModelClaimKey(baseUrl, modelId, kind) {
   return [normalizedProviderBaseUrl(baseUrl), String(modelId || '').toLowerCase(), kind].join('\0')
 }
 
+// 收集各视觉 Provider 的模型占用：用于避免同一视觉模型被多个 Provider 重复列出。
 function dedicatedVisualModelClaims(modelsJson, appConfig) {
   const claims = new Map()
   const disabled = new Set(appConfig.disabledProviders || [])
@@ -193,8 +209,10 @@ function claimedByOtherVisualProviderAnyKind(claims, providerId, baseUrl, modelI
   return false
 }
 
+// 扩展思考等级表（按强度升序），用于把请求等级收敛到模型可用等级。
 const EXTENDED_THINKING_LEVELS = ['off', 'minimal', 'low', 'medium', 'high', 'xhigh', 'max']
 
+// 把请求的思考等级收敛到模型支持列表：先向上找再向下找，找不到回退到第一个。
 export function clampThinkingLevelToAvailable(availableLevels, requested) {
   const levels = Array.isArray(availableLevels) ? availableLevels : []
   const current = String(requested || '')
@@ -213,6 +231,7 @@ export function clampThinkingLevelToAvailable(availableLevels, requested) {
   return levels[0]
 }
 
+// 对齐会话思考等级：当前等级不在可用列表时收敛并写回会话。
 export function reconcileSessionThinkingLevel(session) {
   const availableLevels = session.getAvailableThinkingLevels()
   const current = String(session.thinkingLevel || '')
@@ -224,6 +243,7 @@ export function reconcileSessionThinkingLevel(session) {
   return { availableLevels, thinkingLevel, changed: thinkingLevel !== current }
 }
 
+// 会话思考状态（含可用等级与支持性说明），供前端展示。
 function sessionThinkingState(session) {
   const availableLevels = session.getAvailableThinkingLevels()
   const supported = availableLevels.length > 0
@@ -237,6 +257,8 @@ function sessionThinkingState(session) {
   }
 }
 
+// ProviderPreferences：模型运行时/Provider 配置的读写中枢，所有配置变更后
+// 都会重载模型运行时并使会话运行时失效（下次会话按新配置重建）。
 export class ProviderPreferences {
   constructor({
     authPath,
@@ -287,6 +309,8 @@ export class ProviderPreferences {
     this.providerState = providerState
   }
 
+  // 重载模型运行时：读取 models.json 的覆盖配置（Base URL/Header/上下文窗口等）
+  // 装饰进引擎运行时，然后重建 ModelRuntime。
   async reload() {
     const modelsJson = await readJson(this.modelsPath, { providers: {} })
     const modelRuntime = await ModelRuntime.create({
@@ -339,6 +363,7 @@ export class ProviderPreferences {
     this.invalidateProjection('', { allUsage: true })
   }
 
+  // 切换会话模型：校验运行状态/停用 Provider，切换后重对齐思考等级与系统提示。
   async setSessionModel(id, provider, modelId) {
     const value = await this.getSession(id)
     if (this.isSessionRunActive?.(id, value) ?? value.session.isStreaming) {
@@ -413,6 +438,7 @@ export class ProviderPreferences {
     return { id: value.session.sessionId, ...sessionThinkingState(value.session) }
   }
 
+  // 默认模型解析：从全局设置取默认 Provider/模型。
   resolveDefaultModel() {
     const settings = this.getSettingsManager()?.getGlobalSettings?.() || {}
     const provider = settings.defaultProvider
@@ -422,6 +448,7 @@ export class ProviderPreferences {
     return modelRuntime.getModel(String(provider), String(modelId)) || null
   }
 
+  // 发现外部 Provider 配置（CLI 登录/文件导入等），标注已导入/冲突状态。
   async getProviderDiscovery() {
     const modelRuntime = this.getModelRuntime()
     const [discovery, credentials, modelsJson, appConfig] = await Promise.all([
@@ -455,6 +482,7 @@ export class ProviderPreferences {
     }
   }
 
+  // 导入发现的 Provider：官方 OAuth Provider 带自定义端点时拒绝导入（防凭据外发）。
   async importDiscoveredProvider(discoveryId) {
     const loaded = await this.providerDiscovery.loadConfiguration(String(discoveryId || '').trim())
     const [credentials, modelsJson, appConfig] = await Promise.all([
@@ -522,6 +550,7 @@ export class ProviderPreferences {
     }
   }
 
+  // 完整配置视图：Provider 列表（含默认选中项）、工具模式、API Key 是否已配置。
   async getConfig() {
     const settings = this.getSettingsManager().getGlobalSettings()
     const modelRuntime = this.getModelRuntime()
@@ -614,6 +643,7 @@ export class ProviderPreferences {
     }
   }
 
+  // 保存配置：连接信息/模型定义/默认模型/工具模式一次性写入三个配置文件。
   async saveConfig(input, toolsFromConfig, toolPresets) {
     const provider = String(input.provider || '').trim()
     const model = String(input.model || '').trim()
@@ -776,6 +806,7 @@ export class ProviderPreferences {
     return { ...(await this.getConfigFacade()), apiKeyUpdated, defaultUpdated }
   }
 
+  // 设置 Provider 连接（API 协议 + Base URL + 可选密钥）。
   async setProviderConnection(id, input = {}) {
     const provider = String(id || '').trim()
     const api = String(input.api || '').trim()
@@ -838,6 +869,7 @@ export class ProviderPreferences {
     }
   }
 
+  // 仅更新 API Key。
   async setProviderApiKey(id, input = {}) {
     const provider = String(id || '').trim()
     const apiKey = String(input.apiKey || '').trim()
@@ -861,6 +893,7 @@ export class ProviderPreferences {
     }
   }
 
+  // 启用/停用 Provider：停用默认 Provider 时自动切换到其他已配置的 chat Provider。
   async setProviderEnabled(id, enabled) {
     const provider = String(id || '').trim()
     const modelRuntime = this.getModelRuntime()
@@ -911,6 +944,7 @@ export class ProviderPreferences {
     return this.getConfigFacade()
   }
 
+  // 新建自定义 Provider（含初始模型与密钥）。
   async createProvider(input) {
     const id = providerProfileId(input.id || input.name)
     const name = String(input.name || '').trim()
@@ -979,6 +1013,7 @@ export class ProviderPreferences {
     return { ...(await this.getConfigFacade()), createdProviderId: id }
   }
 
+  // 默认模型对账：把配置视图选中的默认模型写回全局设置。
   async reconcileDefaultModel() {
     const settingsManager = this.getSettingsManager()
     const settings = settingsManager.getGlobalSettings()
@@ -994,6 +1029,8 @@ export class ProviderPreferences {
     return config
   }
 
+  // 后台刷新各 Provider 的模型目录：跳过未配置密钥/未显式连接的 Provider，
+  // 并发执行并去重（refreshPromise 保证同一时间只有一次刷新）。
   async refreshProviderModels() {
     if (this.providerState.refreshPromise) return this.providerState.refreshPromise
     const refresh = async () => {
@@ -1052,6 +1089,8 @@ export class ProviderPreferences {
     return pending
   }
 
+  // 单 Provider 模型发现：拉取远程模型列表，与当前目录同步（新增/移除），
+  // 仅在 Base URL 与已配置一致时才自动同步。
   async discoverProviderModels(providerId, input = {}) {
     const provider = String(providerId || '').trim()
     const modelRuntime = this.getModelRuntime()
@@ -1125,6 +1164,7 @@ export class ProviderPreferences {
     }
   }
 
+  // 手动添加模型（批量）：跳过已存在项，视觉 Provider 拒绝 chat 模型。
   async addProviderModels(providerId, inputs, { skipExisting = true } = {}) {
     const provider = String(providerId || '').trim()
     const modelRuntime = this.getModelRuntime()
@@ -1193,6 +1233,7 @@ export class ProviderPreferences {
     return { ...(await this.getConfigFacade()), addedModelIds }
   }
 
+  // 删除自定义 Provider：内置 Provider 不可删，同时清理密钥/配置/目录/默认设置。
   async deleteProvider(id) {
     const provider = String(id || '').trim()
     if (KNOWN_PROVIDERS.includes(provider)) {

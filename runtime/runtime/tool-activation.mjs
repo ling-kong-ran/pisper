@@ -7,6 +7,8 @@ import { selectedToolNames } from '../tools/tool-activation.mjs'
 import { filterToolsForExecutionMode } from '../security/execution-mode.mjs'
 import { applyPisperSystemPrompt } from '../prompts/pisper-system-prompt.mjs'
 
+// 工具激活策略：根据执行模式/目标状态/用户请求动态启用工具，并同步系统提示。
+// 工具在会话中可能被“提升”（promoted）——即模型可直接调用，而非常驻可见。
 export class ToolActivation {
   constructor({
     getExecutionMode,
@@ -24,6 +26,7 @@ export class ToolActivation {
     this.promoteTools = promoteTools
   }
 
+  // 可选工具集合：基础工具 + 计划兼容工具 + 多 Agent 工具，扣除隔离上下文屏蔽项。
   optionalToolNames(value) {
     const blockedToolNames = new Set(value?.blockedToolNames || [])
     return [
@@ -33,6 +36,7 @@ export class ToolActivation {
     ].filter((name) => !blockedToolNames.has(name))
   }
 
+  // 同步目标工具开关：目标激活时启用目标相关工具，否则关闭。
   syncGoalTools(value, goal) {
     if (!value?.session) return
     const mode = this.getExecutionMode(value.session.sessionId)
@@ -55,6 +59,7 @@ export class ToolActivation {
     value.session.setActiveToolsByName(filterToolsForExecutionMode(names, mode, this.getToolRisk))
   }
 
+  // 提升指定工具：按执行模式过滤后路由，同步目标工具与系统提示。
   async promoteSessionTools(value, toolNames = []) {
     if (!value?.session) return { routedToolNames: [] }
     const availableToolNames = this.optionalToolNames(value)
@@ -68,6 +73,7 @@ export class ToolActivation {
     return { routedToolNames }
   }
 
+  // 按消息请求选择工具：累积用户显式请求的工具名，并刷新激活工具集。
   async selectToolsForMessage(
     value,
     _message,

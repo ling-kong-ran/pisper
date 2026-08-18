@@ -1,3 +1,5 @@
+// 浏览器自动化服务：通过浏览器驱动执行打开页面/点击/输入/截图/提取文本等操作，
+// 供 browser_automation 工具使用；所有输入（URL/选择器/尺寸）都经过安全校验。
 import { access, mkdir } from 'node:fs/promises'
 import { constants as fsConstants } from 'node:fs'
 import { basename, join, resolve } from 'node:path'
@@ -12,6 +14,7 @@ function safeDimension(value, fallback, minimum, maximum) {
   return Number.isFinite(parsed) ? Math.min(maximum, Math.max(minimum, parsed)) : fallback
 }
 
+// URL 安全校验：仅允许 http/https。
 function safeUrl(value) {
   const url = new URL(String(value || '').trim())
   if (!['http:', 'https:'].includes(url.protocol))
@@ -19,6 +22,7 @@ function safeUrl(value) {
   return url.href
 }
 
+// 选择器安全校验：非空且限长。
 function safeSelector(value) {
   const selector = String(value || '').trim()
   if (!selector) throw new Error('A selector is required for this browser action.')

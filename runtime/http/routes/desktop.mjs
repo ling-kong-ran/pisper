@@ -1,3 +1,4 @@
+// 桌面路由：应用更新检查、赞助内容、桌面宠物皮肤等桌面专属 API。
 function requireDesktopPet(services) {
   if (!services.desktopPet) throw new Error('桌面宠物服务尚未初始化。')
   return services.desktopPet

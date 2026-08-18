@@ -1,3 +1,7 @@
+// AgentRuntimeFacade：AgentRuntimeService 的“门面”基类。
+// 把各领域服务（记忆/目标/计划/多 Agent/渠道/工作流/定时/插件/MCP/技能/Provider 等）
+// 的调用组织成 HTTP API 层可直接调用的方法集合；子类 AgentRuntimeService 在
+// 构造器里完成依赖装配后，这些方法即成为对外接口。
 import { filterToolsForExecutionMode } from '../security/execution-mode.mjs'
 import { readJson, writeJsonAtomic } from '../storage/json-file.mjs'
 import { TOOL_PRESETS, toolsFromConfig } from '../tools/registry.mjs'
@@ -9,12 +13,15 @@ import {
   normalizeCompactionThresholdPercent,
 } from './compaction-policy.mjs'
 
+// 隔离上下文模式（工作流/渠道的独立子任务）下屏蔽的记忆相关工具：
+// 子任务不应读写主会话的长期记忆。
 export const ISOLATED_CONTEXT_BLOCKED_TOOLS = ['memory_search', 'memory_remember']
 
 export const DEFAULT_MEMORY_AUTO_APPROVE_CONFIDENCE = 60
 export const MIN_MEMORY_AUTO_APPROVE_CONFIDENCE = 0
 export const MAX_MEMORY_AUTO_APPROVE_CONFIDENCE = 100
 
+// 记忆自动确认阈值归一化：非法输入回退默认值，并限制在 [0, 100] 区间。
 export function normalizeMemoryAutoApproveConfidence(value) {
   const requested = Number(value)
   if (!Number.isFinite(requested)) return DEFAULT_MEMORY_AUTO_APPROVE_CONFIDENCE
@@ -24,6 +31,7 @@ export function normalizeMemoryAutoApproveConfidence(value) {
   )
 }
 
+// 已启用的通知渠道集合（浏览器/飞书/微信）。
 export function enabledNotificationTargets(notificationSettings) {
   return new Set([
     ...(notificationSettings.browser?.enabled ? ['browser'] : []),
@@ -32,6 +40,7 @@ export function enabledNotificationTargets(notificationSettings) {
   ])
 }
 
+// 定时任务 → 工作流适配器：把 WorkflowService 暴露成 ScheduleService 需要的接口。
 export function createScheduleWorkflowAdapter(workflows) {
   return {
     list: () => workflows.getState().workflows,
@@ -40,6 +49,8 @@ export function createScheduleWorkflowAdapter(workflows) {
   }
 }
 
+// 工作流通知目标过滤：剔除未启用的通知渠道（浏览器/飞书/微信），
+// 防止配置了但没连通的渠道在运行时静默失败。
 export function filterWorkflowNotificationTargets(input, enabledTargets) {
   if (!input || typeof input !== 'object') return input
   return {
@@ -63,6 +74,7 @@ export function filterWorkflowNotificationTargets(input, enabledTargets) {
 }
 
 export class AgentRuntimeFacade {
+  // 解析会话对应的工作目录；会话不存在时抛错。
   async workspaceTrustCwd(sessionId) {
     const id = String(sessionId || '').trim()
     const known =
@@ -79,6 +91,7 @@ export class AgentRuntimeFacade {
     return this.workspaceTrust.getStatus(await this.workspaceTrustCwd(sessionId))
   }
 
+  // 切换工作区信任：影响该目录下的技能/设置加载（trusted 决定项目级技能是否可执行）。
   async setWorkspaceTrust(sessionId, trusted) {
     if (this.sessionRunIsActive(sessionId))
       throw new Error('当前会话正在运行，请等待完成或停止后再更改工作区信任。')
@@ -126,6 +139,8 @@ export class AgentRuntimeFacade {
     return this.sessionLifecycle.setSessionTreeLabel(id, targetEntryId, label)
   }
 
+  // 归档附件：上传类附件落盘为资产；路径引用型附件跳过（只保留引用）。
+  // 归档失败不阻塞聊天（best-effort）。
   async archiveAttachments(sessionId, sessionName, attachments = []) {
     const archived = []
     for (const attachment of attachments) {
@@ -211,6 +226,7 @@ export class AgentRuntimeFacade {
     return this.sessionLifecycle.deleteSession(id)
   }
 
+  // 流式执行一次会话提示：拿到会话运行时 → 校验未在运行 → 执行并清理中止标记。
   async streamPrompt(options) {
     let value = await this.getOrCreateSession(options.sessionId)
     let id = value.session.sessionId
@@ -221,8 +237,7 @@ export class AgentRuntimeFacade {
     }
     if (this.sessionRunIsActive(id, value))
       throw new Error('当前会话仍在运行，请等待完成或先停止。')
-    // Interruption markers belong to one prompt run. Leaving them on the resident
-    // makes the next prompt inherit the previous abort deadline.
+    // 中止标记只属于单次运行：留在常驻运行时上会让下一次 prompt 继承上次的截止时间。
     delete value.abortedAt
     delete value.forceDisposed
     value.runActive = true
@@ -234,8 +249,8 @@ export class AgentRuntimeFacade {
       delete value.abortedAt
       delete value.forceDisposed
       if (forceDisposed) {
-        // The disposed Agent may report isStreaming until its abandoned prompt
-        // settles, but this resident can no longer be reused.
+        // 被强制 dispose 的 Agent 在其遗留 prompt 落定前可能仍报告 isStreaming，
+        // 但这个常驻运行时已不可复用，直接释放。
         this.sessionLifecycle.disposeSessionRuntime(id, value, { force: true })
       } else {
         this.touchSessionRuntime(value)
@@ -260,6 +275,7 @@ export class AgentRuntimeFacade {
     }
   }
 
+  // 默认工具集合初始化：为记忆/MCP 管理/Web 搜索等能力登记默认工具开关。
   async initializeToolPlugins() {
     await this.toolPlugins.init()
     await this.toolPlugins.ensureDefaultTools(['memory_search', 'memory_remember'], 'memoryToolsV1')
@@ -278,6 +294,7 @@ export class AgentRuntimeFacade {
     return this.webSearch.test(input)
   }
 
+  // 渠道（飞书/微信）发起的会话提示：不存在则建会话，支持隔离上下文与指定模型。
   async promptFromChannel({
     sessionId,
     message,
@@ -644,6 +661,7 @@ export class AgentRuntimeFacade {
     return this.notificationSettings.notify(event, data, options)
   }
 
+  // 全局关闭流程：清理定时器、后台服务与挂起的写盘任务，保证进程可干净退出。
   async dispose() {
     if (this.sessionRuntimeSweepTimer) clearInterval(this.sessionRuntimeSweepTimer)
     this.sessionRuntimeSweepTimer = null

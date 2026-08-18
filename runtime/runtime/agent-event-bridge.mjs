@@ -1,5 +1,9 @@
+// Agent 会话事件桥接：把 Pi 引擎的低层会话事件（消息增量/工具执行/回合生命周期等）
+// 归一化为前端 SSE 事件与实时状态（live）更新。所有文本都经过清洗与长度限制，
+// 保证经 HTTP 输出的 JSON 严格合法（serde_json 可解析）。
 const MAX_EVENT_TEXT_CHARS = 240
 
+// 事件类型 → 前端事件通道的映射；不在映射中的事件会被忽略。
 export const AGENT_SESSION_EVENT_CHANNELS = Object.freeze({
   agent_start: 'agent_lifecycle',
   agent_end: 'agent_lifecycle',
@@ -22,6 +26,7 @@ export const AGENT_SESSION_EVENT_CHANNELS = Object.freeze({
   thinking_level_changed: 'thinking_level_changed',
 })
 
+// 需要“直接投影”到前端的事件：这些事件通过专用通道推送，不额外发 agent_lifecycle。
 const DIRECT_EVENT_TYPES = new Set([
   'tool_execution_start',
   'tool_execution_update',
@@ -32,6 +37,7 @@ const DIRECT_EVENT_TYPES = new Set([
   'auto_retry_start',
 ])
 
+// 事件文本清洗：控制字符替换为空格、压缩空白、限长，防止注入控制序列或破坏 JSON。
 function safeEventText(value, maxChars = MAX_EVENT_TEXT_CHARS) {
   return [...String(value || '')]
     .map((character) => {
@@ -44,6 +50,7 @@ function safeEventText(value, maxChars = MAX_EVENT_TEXT_CHARS) {
     .slice(0, maxChars)
 }
 
+// 安全的标识符：只保留字母数字与 . _ : -，其余清空。
 function safeId(value) {
   const id = safeEventText(value, 160)
   return /^[A-Za-z0-9._:-]+$/.test(id) ? id : ''
@@ -72,6 +79,7 @@ function hasDirectProjection(event) {
   )
 }
 
+// 计算事件对应的生命周期阶段（thinking/responding/using_tool/compacting…）。
 function lifecyclePhase(event, current) {
   if (event.type === 'agent_start') return 'starting'
   if (event.type === 'turn_start') return 'thinking'
@@ -104,6 +112,7 @@ function lifecyclePhase(event, current) {
   return current?.phase || 'starting'
 }
 
+// 生命周期阶段 → 前端活动类型映射。
 function lifecycleActivity(lifecycle) {
   const stages = {
     starting: 'starting',
@@ -119,6 +128,7 @@ function lifecycleActivity(lifecycle) {
   return stage ? { type: 'model', stage, updatedAt: lifecycle.updatedAt } : null
 }
 
+// 初始生命周期状态。
 export function initialAgentLifecycle(updatedAt) {
   return {
     phase: 'starting',
@@ -128,6 +138,7 @@ export function initialAgentLifecycle(updatedAt) {
   }
 }
 
+// 构造一次运行（run）的实时状态快照，供前端通过 SSE 增量更新。
 export function createLiveRunState({
   startedAt,
   goal,
@@ -161,6 +172,7 @@ export function createLiveRunState({
   }
 }
 
+// 运行结束：标记生命周期为完成/失败。
 export function finishAgentLifecycle(current, error, updatedAt) {
   return {
     ...(current || initialAgentLifecycle(updatedAt)),
@@ -171,6 +183,7 @@ export function finishAgentLifecycle(current, error, updatedAt) {
   }
 }
 
+// 核心桥接函数：把单个会话事件应用（apply）到 live 状态并 emit 对应前端事件。
 export function bridgeAgentSessionEvent(event, live, emit) {
   if (!event?.type || !AGENT_SESSION_EVENT_CHANNELS[event.type]) return null
   const updatedAt = live.lastActivityAt || new Date().toISOString()

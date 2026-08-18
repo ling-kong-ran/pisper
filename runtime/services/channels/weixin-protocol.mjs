@@ -1,3 +1,5 @@
+// 微信协议层：消息编解码、媒体加密传输、同步缓冲区协议。
+// 协议形状与媒体加解密遵循腾讯 MIT 开源实现 @tencent-weixin/openclaw-weixin 2.4.6。
 // Protocol shapes and media crypto follow Tencent's MIT-licensed
 // @tencent-weixin/openclaw-weixin 2.4.6 implementation.
 import { createCipheriv, createDecipheriv, createHash, randomBytes, randomUUID } from 'node:crypto'

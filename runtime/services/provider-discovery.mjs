@@ -1,3 +1,5 @@
+// Provider 发现：从本机已有的 CLI 登录态（Codex/Claude）发现 Provider 凭据与模型配置，
+// 供用户在配置页一键导入；解析各类凭据/配置文件的格式并兼容多版本。
 import { createHash } from 'node:crypto'
 import { readFile, stat } from 'node:fs/promises'
 import { homedir } from 'node:os'
@@ -493,6 +495,7 @@ export class ProviderDiscoveryService {
     this.stat = statImpl
   }
 
+  // Codex 配置目录候选。
   codexCandidates() {
     return uniqueCandidates([
       ...(this.env.CODEX_HOME
@@ -508,6 +511,7 @@ export class ProviderDiscoveryService {
       : { path: join(this.homeDir, '.claude'), label: '~/.claude' }
   }
 
+  // Claude 配置目录候选。
   claudeCandidates() {
     const root = this.claudeRoot()
     return [{ path: join(root.path, 'settings.json'), location: `${root.label}/settings.json` }]
@@ -532,6 +536,7 @@ export class ProviderDiscoveryService {
     ]
   }
 
+  // 发现并解析单个凭据候选文件。
   async readCandidate(candidate, source, parser) {
     try {
       const text = await this.readFile(candidate.path, 'utf8')
@@ -560,6 +565,7 @@ export class ProviderDiscoveryService {
     }
   }
 
+  // 按优先级顺序尝试各候选，返回第一个可解析的配置。
   async discoverFirst(candidates, source, parser, normalize) {
     const errors = []
     for (const candidate of candidates) {
@@ -705,11 +711,13 @@ export class ProviderDiscoveryService {
     }
   }
 
+  // 汇总发现结果：Codex/Claude 认证与模型配置，含冲突检测。
   async discover() {
     const result = await this.discoverInternal()
     return { providers: result.items.map(publicDiscovery), errors: result.errors }
   }
 
+  // 加载指定发现项的完整配置（供导入）。
   async loadConfiguration(discoveryId) {
     const result = await this.discoverInternal()
     const item = result.items.find((candidate) => candidate.id === discoveryId)

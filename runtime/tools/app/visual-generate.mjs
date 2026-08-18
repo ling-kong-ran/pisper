@@ -1,3 +1,4 @@
+// 视觉生成工具：图像/视频生成与编辑，产物写入工作区 generated/visuals。
 import { defineTool } from '../../runtime/pi-coding-agent.mjs'
 import { Type } from 'typebox'
 

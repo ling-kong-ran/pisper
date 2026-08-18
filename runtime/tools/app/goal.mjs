@@ -1,6 +1,7 @@
 import { defineTool } from '../../runtime/pi-coding-agent.mjs'
 import { Type } from 'typebox'
 
+// 目标工具：get_goal / update_goal（证据审计后完成目标）。
 export const GOAL_TOOL_NAMES = Object.freeze(['get_goal', 'update_goal'])
 
 export function createGoalTools({ getGoal, completeGoal }) {

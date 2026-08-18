@@ -1,3 +1,6 @@
+// MCP 服务：管理 MCP 服务器配置（stdio/SSE/streamable HTTP），
+// 生成工具定义注入会话，并把工具调用转发到远端 MCP 服务器。
+// SDK 懒加载，只有配置了 MCP 服务器时才引入 @modelcontextprotocol/sdk。
 import { createHash, randomUUID } from 'node:crypto'
 import { stat } from 'node:fs/promises'
 import { isAbsolute, resolve } from 'node:path'
@@ -23,6 +26,7 @@ const MAX_MCP_TIMEOUT_MS = 10 * 60_000
 const MAX_MCP_IMAGE_BYTES = 10 * 1024 * 1024
 const STDERR_ATTACHED = Symbol('pisperMcpStderrAttached')
 
+// 懒加载 MCP SDK：四种传输模块一次性导入并缓存。
 let mcpSdkPromise
 function loadMcpSdk() {
   mcpSdkPromise ||= Promise.all([
@@ -482,6 +486,7 @@ export function parseMcpServerInput(input, cwd = process.cwd()) {
 
 export class McpService {
   constructor({ path, cwd, createClient, createTransport } = {}) {
+    // 依赖注入：createClient/createTransport 便于测试替换真实 MCP SDK。
     this.path = path
     this.cwd = cwd || process.cwd()
     this.createClient =
@@ -541,12 +546,14 @@ export class McpService {
   }
 
   async init() {
+    // 加载服务器配置并按需预连。
     this.state = normalizeState(
       await readJson(this.path, { version: MCP_STATE_VERSION, servers: [], calls: [] }),
     )
     this.calls = this.state.calls
   }
 
+  // 校验服务器配置：命令/URL/环境变量安全性与格式。
   async validateServer(server) {
     if (server.transport !== 'stdio') return server
     if (hasControlCharacters(server.command))
@@ -645,6 +652,7 @@ export class McpService {
     return normalizeTools(tools)
   }
 
+  // 确保服务器连接就绪（必要时重建）。
   async ensureConnected(id, { force = false, signal } = {}) {
     const server = this.getServer(id)
     if (!server) throw new Error('MCP 服务不存在。')
@@ -903,6 +911,7 @@ export class McpService {
     void this.save().catch(() => {})
   }
 
+  // 工具 → 定义转换：注入工具描述与 schema，供会话装配。
   createToolDefinition(server, tool) {
     const name = piToolName(server, tool)
     const service = this
@@ -988,6 +997,7 @@ export class McpService {
     })
   }
 
+  // 汇总全部已启用工具的 MCP 工具定义（会话运行时装配时调用）。
   async createToolDefinitions() {
     await this.refreshAll()
     const definitions = []

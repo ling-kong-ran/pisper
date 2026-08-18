@@ -1,3 +1,4 @@
+// 配置与设置路由：Provider/模型配置、压缩/记忆偏好、通知设置等。
 const notificationChannels = ['feishu', 'weixin', 'browser']
 
 function notificationText(value, fallback, maxLength) {

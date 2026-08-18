@@ -1,3 +1,7 @@
+// bash 命令级安全守卫：命令在真正执行前的第一道保守字符串分析。
+// 注意：这不是安全边界——混淆命令（替换/别名/eval/编码载荷）可绕过字符串解析，
+// 必须配合操作系统沙箱（Linux bwrap/Landlock、Windows AppContainer）才能真正强制。
+// 每条规则有严重度：block（灾难性/不可逆，无条件拒绝）、warn（可恢复破坏，转人工审批）。
 /**
  * Command-level safety guard for the Pisper bash tool.
  *

@@ -1,3 +1,5 @@
+// 静态资源处理器：生产环境托管 dist 构建产物，含目录索引、SPA 回退（未知路径
+// 返回应用壳 index.html）与路径穿越防护（禁止访问 dist 之外的文件）。
 import { createReadStream } from 'node:fs'
 import { stat } from 'node:fs/promises'
 import { extname, join, normalize, resolve, sep } from 'node:path'
@@ -29,7 +31,7 @@ export function createStaticHandler(root, { distRoot } = {}) {
       file = join(file, 'index.html')
       info = await stat(file).catch(() => null)
     }
-    // SPA fallback: unknown paths are served the application shell.
+    // SPA 回退：未知路径一律返回应用壳 index.html。
     if (!info?.isFile()) {
       file = join(dist, 'index.html')
       info = await stat(file).catch(() => null)
@@ -38,7 +40,7 @@ export function createStaticHandler(root, { distRoot } = {}) {
       json(res, 404, { error: '文件不存在。' })
       return
     }
-    // Vite emits content-hashed bundles under assets/, safe to cache forever.
+    // Vite 的 content-hash 产物位于 assets/ 下，可以无限期缓存。
     const hashed = file.includes(`${sep}assets${sep}`)
     res.writeHead(200, {
       'Content-Type': MIME[extname(file)] || 'application/octet-stream',

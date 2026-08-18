@@ -1,3 +1,5 @@
+// 通知设置服务：统一管理通知渠道（浏览器/飞书/微信）的启用状态、模板与事件记录，
+// 并负责把运行事件转发到各渠道。
 import { randomUUID } from 'node:crypto'
 import { readJson, writeJsonAtomic } from '../storage/json-file.mjs'
 import { sampleNotificationData } from './channels/notification-templates.mjs'

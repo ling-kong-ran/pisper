@@ -1,3 +1,6 @@
+// PlanService：会话计划（任务列表）持久化与校验。
+// 计划项支持状态机（pending/in_progress/completed/blocked）与依赖关系（dependsOn），
+// 写入时校验依赖图无环；提供旧版 task-list 存储的自动迁移。
 import { randomUUID } from 'node:crypto'
 import { copyFile, mkdir, rename, rm, stat } from 'node:fs/promises'
 import { dirname } from 'node:path'
@@ -14,6 +17,7 @@ export const MAX_PLAN_DEPENDS_ON = 20
 const STATUS_SET = new Set(PLAN_STATUSES)
 const MISSING_STORE = Symbol('missing-plan-store')
 
+// 原子备份：复制到临时文件再 rename，保证备份文件要么完整要么不存在。
 async function atomicBackup(source, target) {
   try {
     const existing = await stat(target)
@@ -40,6 +44,7 @@ function nowIso(now = Date.now()) {
   return new Date(now).toISOString()
 }
 
+// 计划项 ID 规范化：非法格式回退为新 UUID。
 function normalizedId(value) {
   const id = String(value || '').trim()
   return /^[a-zA-Z0-9._:-]{1,80}$/.test(id) ? id : randomUUID()
@@ -73,6 +78,7 @@ function normalizedDependsOn(value) {
   return ids
 }
 
+// 依赖图校验：自引用/未知依赖/环都抛错，防止计划状态机进入不可推进状态。
 function validateDependencyGraph(items) {
   const byId = new Map(items.map((item) => [item.id, item]))
   for (const item of items) {
@@ -101,6 +107,7 @@ function validateDependencyGraph(items) {
   for (const item of items) visit(item.id)
 }
 
+// 计划计数：依赖未完成（dependencyBlocked）的项计入 blocked 而非其自身状态。
 function planCounts(items) {
   const byId = new Map(items.map((item) => [item.id, item]))
   const dependencyBlocked = (item) =>
@@ -160,6 +167,7 @@ function publicPlan(sessionId, value) {
   }
 }
 
+// 兼容旧存储格式：既接受 plans 也接受 lists 键。
 function persistedPlans(input) {
   if (!input || typeof input !== 'object') return null
   if (input.plans && typeof input.plans === 'object' && !Array.isArray(input.plans))
@@ -203,6 +211,7 @@ export class PlanService {
     this.legacyMigrationPending = false
   }
 
+// 从磁盘加载：优先新存储；缺失时读旧版 task-list 并标记待迁移。
   async init() {
     const stored = await readJson(this.path, MISSING_STORE)
     if (stored !== MISSING_STORE) {
@@ -231,6 +240,7 @@ export class PlanService {
     }
   }
 
+  // 落盘前先备份旧存储（仅迁移路径），随后原子写入新文件。
   async persist(snapshot) {
     if (this.legacyMigrationPending) await atomicBackup(this.legacyPath, `${this.legacyPath}.bak`)
     await writeJsonAtomic(this.path, snapshot)
@@ -248,6 +258,7 @@ export class PlanService {
     return publicPlan(id, this.state.plans[id])
   }
 
+  // 整体替换会话计划：校验长度/去重/依赖图后写盘；空数组 = 删除计划。
   async replace(sessionId, input = []) {
     const id = String(sessionId || '')
     if (!id) throw new Error('Plan requires a session.')

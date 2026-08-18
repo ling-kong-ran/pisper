@@ -1,3 +1,5 @@
+// 视觉生成服务：图像/视频生成的总入口——模型选择、驱动分发、失败回退、
+// 结果保存与资产登记；按 provider 协议分派到各驱动实现。
 import { runVisualDriver } from './driver-registry.mjs'
 import { VisualModelCatalog } from './model-selection.mjs'
 import { saveVisualOutput } from './output.mjs'
@@ -11,6 +13,7 @@ const UNAVAILABLE_VISUAL_PATTERN =
 const SAFETY_REJECTION_PATTERN =
   /(?:content policy|safety system|moderation|内容安全|安全策略|审核拒绝|违规内容)/i
 
+// 可回退的错误判定：瞬时错误/模型不可用可回退到备选模型，安全拒绝不可回退。
 function canFallbackFrom(error, signal) {
   if (signal?.aborted) return false
   const message = String(error?.message || error || '')

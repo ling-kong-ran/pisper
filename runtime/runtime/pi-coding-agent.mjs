@@ -1,7 +1,10 @@
+// Pi 引擎的头部模块：只加载引擎的聚焦头部子模块（headless 核心），
+// 避免直接 import 引擎入口时拉起 CLI/TUI 相关模块导致启动变慢或引入副作用。
+// 这里集中 re-export 引擎的核心能力，供 Pisper 其余代码统一使用。
 import { constants } from 'node:fs'
 import { access as fsAccess, readFile as fsReadFile } from 'node:fs/promises'
 
-// The public entry eagerly loads CLI/TUI modules; resolve focused headless modules and defer Agent-only code.
+// 引擎入口包会急切加载 CLI/TUI 模块；这里改为解析包内文件 URL 并按需 import 聚焦的头部模块。
 const packageEntryUrl = import.meta.resolve('@earendil-works/pi-coding-agent')
 
 function packageModule(relativePath) {
@@ -49,6 +52,7 @@ export const normalizeToLF = editDiff.normalizeToLF
 export const stripBom = editDiff.stripBom
 export const resolveToCwd = pathUtils.resolveToCwd
 
+// 惰性加载的引擎子模块：每个都只在首次调用时 import，减少启动开销。
 export async function createAgentSession(options) {
   const runtime = await packageModule('./core/sdk.js')
   return runtime.createAgentSession(options)

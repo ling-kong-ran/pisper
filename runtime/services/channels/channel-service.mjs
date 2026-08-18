@@ -1,3 +1,5 @@
+// 渠道服务：统一管理飞书/微信渠道的接入、消息收发、模板通知与作用域控制。
+// 渠道收到的消息通过 agent.prompt 转成会话运行，并支持附件（图片/文件）。
 import { extname } from 'node:path'
 import { readJson, writeJsonAtomic } from '../../storage/json-file.mjs'
 import { FeishuGateway } from './feishu-gateway.mjs'

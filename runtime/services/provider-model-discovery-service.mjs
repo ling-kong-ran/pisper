@@ -1,9 +1,12 @@
+// Provider 模型发现：调用各 Provider 的 /models 端点拉取远程模型列表，
+// 自动推断模型能力（kind/reasoning/上下文窗口），错误信息先脱敏再返回。
 import { redactSecretText } from '../security/secret-redaction.mjs'
 import { inferModelKind } from './visual-generation/index.mjs'
 
 const DEFAULT_TIMEOUT_MS = 12_000
 const DEFAULT_MAX_RESPONSE_BYTES = 2 * 1024 * 1024
 
+// 由 Base URL 构造 /models 端点 URL。
 function modelsUrl(baseUrl) {
   let url
   try {

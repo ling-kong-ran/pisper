@@ -1,3 +1,5 @@
+// 网页桌面宠物服务：管理宠物皮肤（从 petdex 拉取清单与素材）、
+// 把 Agent 运行事件映射为宠物状态，供 Web 端与桌面端展示。
 import {
   mkdirSync,
   readFileSync,

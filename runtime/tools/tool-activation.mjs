@@ -1,3 +1,4 @@
+// 工具激活辅助：热门工具集合与 schema-only 工具定义清洗（去掉 prompt 指南字段）。
 import { PLAN_TOOL_NAMES } from './app/plan-tool-names.mjs'
 
 const HOT_TOOL_SET = new Set([

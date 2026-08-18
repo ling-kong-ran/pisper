@@ -1,3 +1,5 @@
+// New API 视觉驱动：适配 New API 中转站的图像/视频生成协议，
+// 附带针对中转站常见转发错误的友好提示。
 import { generateOpenAICompatible } from './openai-compatible.mjs'
 
 function errorText(value) {

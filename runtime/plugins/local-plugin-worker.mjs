@@ -1,3 +1,5 @@
+// 本地插件 Worker：第三方插件在隔离的 worker_thread 中执行，
+// 插件必须导出 execute 函数；错误经序列化回传给主线程。
 import { parentPort, workerData } from 'node:worker_threads'
 
 function serializeError(error) {

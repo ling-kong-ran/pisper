@@ -1,3 +1,4 @@
+// Web 搜索工具：无需 API Key 的 Bing RSS 搜索。
 import { defineTool } from '../../runtime/pi-coding-agent.mjs'
 import { Type } from 'typebox'
 

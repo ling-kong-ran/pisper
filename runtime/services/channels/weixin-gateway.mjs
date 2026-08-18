@@ -1,3 +1,5 @@
+// 微信网关：基于微信开放平台协议的机器人接入（同步缓冲区轮询 + 媒体收发），
+// 与飞书网关对等，供 weixin 渠道使用。
 import { WeixinProtocol, weixinMediaItems, weixinTextFromItems } from './weixin-protocol.mjs'
 
 function abortableDelay(ms, signal) {

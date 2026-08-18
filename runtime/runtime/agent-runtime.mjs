@@ -1,3 +1,7 @@
+// AgentRuntimeService：Pisper 的核心服务类，串起 Pi 引擎会话、工具、服务与外部 API。
+// 职责包括：会话创建/生命周期管理、消息流式执行与实时事件桥接、上下文压缩、
+// 多 Agent 协作、目标(Goal)/计划(Plan)、记忆、资产、权限审批、Provider/模型偏好等。
+// 对外暴露的能力被 HTTP API（runtime/http/）与 agent-runtime-facade 包装层消费。
 import { mkdir, open, readFile, stat, unlink } from 'node:fs/promises'
 import { randomUUID } from 'node:crypto'
 import { basename, extname, isAbsolute, join, resolve, sep } from 'node:path'
@@ -125,16 +129,24 @@ import {
   startedCompaction,
   textFromContent,
 } from './stream-projection.mjs'
+// 注入到消息末尾的附件上下文标记，供模型区分“用户原文”与“系统注入的上下文”。
 const ATTACHMENT_MARKER = '\n\n---\nAttachment context (injected by Pisper):\n'
+// 附件文本/文档提取后的最大字符数，防止超大文件撑爆上下文。
 const MAX_EXTRACTED_CHARS = 400_000
+// 资产（上传文件）存储上限；聊天中直接注入的资产另有更严格的限制。
 const MAX_ASSET_BYTES = 24 * 1024 * 1024
 const MAX_CHAT_ASSET_BYTES = 10 * 1024 * 1024
 const DEFAULT_SESSION_NAME = '新会话'
 const MAX_SESSION_TITLE_CHARS = 20
+// 常驻会话运行时（resident runtime）的上限：会话关闭后运行时不会立即销毁，
+// 而是保留最近使用的一批以加速重新打开；超出的空闲运行时被周期回收。
 const MAX_RESIDENT_SESSION_RUNTIMES = 3
 const SESSION_RUNTIME_IDLE_TTL_MS = 5 * 60 * 1000
 const SESSION_RUNTIME_SWEEP_INTERVAL_MS = 60 * 1000
+// 强制中断会话的宽限期：正常停止信号超时后仍不退出时，直接 dispose 会话。
 const ABORT_FORCE_TIMEOUT_MS = 10_000
+// 中止护栏：模型未在 abortForceTimeoutMs 内响应停止时强制销毁会话。
+// 每 250ms 轮询一次，避免长任务卡在“已请求停止却仍运行”的状态。
 async function runPromptWithAbortGuard(value, run) {
   const timeoutMs = Number(value?.abortForceTimeoutMs) || ABORT_FORCE_TIMEOUT_MS
   const runPromise = Promise.resolve().then(run)
@@ -165,9 +177,11 @@ async function runPromptWithAbortGuard(value, run) {
 }
 export { runPromptWithAbortGuard }
 const SESSION_HISTORY_READ_CHUNK_BYTES = 1024 * 1024
+// 历史消息缓存：限制条目数与源文件大小，避免大量会话文件导致内存膨胀。
 const MAX_SESSION_HISTORY_CACHE_ENTRIES = 4
 const MAX_SESSION_HISTORY_CACHE_SOURCE_BYTES = 8 * 1024 * 1024
 const MAX_SESSION_HISTORY_CACHE_ESTIMATED_BYTES = 48 * 1024 * 1024
+// 可按文本提取的附件扩展名集合（区别于需 officeparser 解析的文档类型）。
 const ASSET_TEXT_EXTENSIONS = new Set([
   '.txt',
   '.md',
@@ -192,6 +206,7 @@ const ASSET_TEXT_EXTENSIONS = new Set([
   '.toml',
   '.sql',
 ])
+// 需要 officeparser 解析的办公文档扩展名集合。
 const ASSET_DOCUMENT_EXTENSIONS = new Set([
   '.pdf',
   '.docx',
@@ -204,9 +219,13 @@ const ASSET_DOCUMENT_EXTENSIONS = new Set([
   '.epub',
 ])
 const IMAGE_EXTENSIONS = new Set(['.png', '.jpg', '.jpeg', '.gif', '.webp', '.bmp', '.svg'])
+// 部分上游（模型网关）在流式中断时会报 “stream read error” 之类的瞬时错误，
+// 该错误可安全重试，用 Symbol 标记避免重复打补丁。
 const TRANSIENT_STREAM_READ_ERROR_PATTERN = /\bstream[_\s-]?read[_\s-]?error\b/i
 const PISPER_STREAM_RETRY_PATCH = Symbol('pisper.stream-retry-patch')
 
+// 给会话打上瞬时流错误重试补丁：命中“stream read error”时视为可重试错误，
+// 交给 Pi 引擎的内置重试机制处理；同一会话只打一次补丁。
 export function installTransientStreamRetry(session) {
   if (
     !session ||
@@ -227,6 +246,8 @@ export function installTransientStreamRetry(session) {
   return session
 }
 
+// 从会话分支记录中推导最后一次使用的模型（model_change 或 assistant 消息携带）。
+// 用于恢复会话时还原其模型选择。
 export function storedSessionModel(sessionManager) {
   let model = null
   for (const entry of sessionManager?.getBranch?.() || []) {
@@ -250,6 +271,7 @@ export function storedSessionModelId(sessionManager) {
   return storedSessionModel(sessionManager)?.modelId || ''
 }
 
+// 解析 “provider/modelId” 形式的模型引用；格式非法时返回 null。
 function parseSessionModelRef(value) {
   const raw = String(value || '').trim()
   if (!raw) return null
@@ -261,10 +283,12 @@ function parseSessionModelRef(value) {
   }
 }
 
+// 会话模型解析优先级：会话分支记录 > 会话元数据的 model 字段。
 function resolveSessionModelRef(sessionManager, sessionMeta = {}) {
   return storedSessionModel(sessionManager) || parseSessionModelRef(sessionMeta.model) || null
 }
 
+// 从多 Agent 工具的执行结果中提取 Agent 摘要信息，供实时活动流展示。
 export function multiAgentResultAgent(toolName, details) {
   if (!MULTI_AGENT_TOOL_NAMES.includes(toolName) || !details) return null
   if (toolName === 'wait_agent') return details.agent?.id ? details.agent : null
@@ -273,18 +297,21 @@ export function multiAgentResultAgent(toolName, details) {
   return null
 }
 
+// 等待 Agent 完成并确认（acknowledge）结果：确认后 Agent 不再进入“完成”提示流。
 export async function waitForAgentMailbox(multiAgents, sessionId, timeoutMs, target) {
   const result = await multiAgents.wait(sessionId, timeoutMs, target)
   if (!result.timedOut && result.agent) await multiAgents.acknowledge(sessionId, [result.agent])
   return result
 }
 
+// 附件名清洗：去掉换行与尖括号等可能破坏 Markdown/文件名的字符，并限制长度。
 function safeAttachmentName(name) {
   return String(name || '附件')
     .replace(/[\r\n<>]/g, '_')
     .slice(0, 180)
 }
 
+// 依据扩展名推断 MIME 类型；未知类型回退到二进制流。
 function mimeFromName(name) {
   const extension = extname(String(name || '')).toLowerCase()
   return (
@@ -313,6 +340,7 @@ function mimeFromName(name) {
   )
 }
 
+// 标题截断：按 Unicode 码点截断（避免截断代理对产生乱码），超出部分以省略号结尾。
 function truncateTitle(value) {
   const characters = Array.from(String(value || '').trim())
   return characters.length > MAX_SESSION_TITLE_CHARS
@@ -320,6 +348,8 @@ function truncateTitle(value) {
     : characters.join('')
 }
 
+// 从首条消息清洗出会话标题：取第一句、去掉 Markdown 列表前缀与“标题：”等引导词、
+// 去除首尾标点，供自动命名使用。
 function cleanSessionTitle(value) {
   const title = String(value || '')
     .split(/\r?\n/)[0]
@@ -337,6 +367,7 @@ function promptCacheTools(session) {
   return session?.agent?.state?.tools || []
 }
 
+// 把各种来源的用量数据规整为统一的非负数值结构，缺省字段补 0。
 function normalizedUsage(usage) {
   const number = (value) => (Number.isFinite(Number(value)) ? Math.max(0, Number(value)) : 0)
   return {
@@ -359,6 +390,7 @@ async function resolveDirectory(input, fallback) {
   return resolveWorkspaceDirectory(input, fallback)
 }
 
+// 由首条消息生成会话标题：去掉代码块、取第一句，失败时回退到附件名或默认名。
 export function sessionTitleFromFirstMessage(message, attachments = []) {
   const content = String(message || '')
     .replace(/```[\s\S]*?```/g, '代码内容')
@@ -371,6 +403,8 @@ export function sessionTitleFromFirstMessage(message, attachments = []) {
   return cleanSessionTitle(title || attachmentName) || DEFAULT_SESSION_NAME
 }
 
+// 解析办公文档附件：base64 解码后交给 officeparser 提取文本。
+// 模块是懒加载的，只有真正收到文档附件时才引入依赖。
 async function extractDocumentText(attachment) {
   const buffer = Buffer.from(String(attachment.data || ''), 'base64')
   if (!buffer.length) throw new Error(`${safeAttachmentName(attachment.name)} 内容为空`)
@@ -387,6 +421,8 @@ async function extractDocumentText(attachment) {
 }
 
 export class AgentRuntimeService extends AgentRuntimeFacade {
+  // 构造器只做依赖装配：把所有服务/路径/配置对象挂到 this 上，不做 IO。
+  // 真正的文件读写与初始化在 init() 中按阶段进行。
   constructor({
     cwd,
     dataDir,
@@ -685,6 +721,7 @@ export class AgentRuntimeService extends AgentRuntimeFacade {
   }
 
   async init({ startupObserver = null } = {}) {
+    // 初始化按阶段推进：阶段回调仅用于诊断打点，绝不能改变初始化行为。
     const stage = (name) => {
       try {
         startupObserver?.(name)
@@ -694,11 +731,13 @@ export class AgentRuntimeService extends AgentRuntimeFacade {
     }
 
     stage('filesystem')
+    // 先建目录与清理旧数据，保证后续文件读写路径都存在。
     await mkdir(this.sessionDir, { recursive: true })
     await mkdir(this.assetsDir, { recursive: true })
     await cleanupRemovedLocalEmbeddingData(this.dataDir)
 
     stage('session-state')
+    // 从磁盘加载会话元数据/用量/资产索引，并执行老版本数据迁移。
     this.sessionMeta = await readJson(this.sessionMetaPath, {})
     await this.migrateLegacyDefaultWorkspaces()
     await this.migrateSessionExecutionModes()
@@ -717,6 +756,7 @@ export class AgentRuntimeService extends AgentRuntimeFacade {
     )
 
     stage('providers')
+    // 兼容历史 KimiCode Provider 配置，再加载模型目录/元数据。
     await migrateKimiCodeProvider({
       authPath: this.authPath,
       modelsPath: this.modelsPath,
@@ -736,6 +776,7 @@ export class AgentRuntimeService extends AgentRuntimeFacade {
     await this.initializeToolPlugins()
 
     stage('model-runtime')
+    // 模型运行时就绪后对齐默认模型，再初始化记忆（记忆的语义摘要依赖模型）。
     await this.reloadModelRuntime()
     await this.reconcileDefaultModel()
     stage('memory')
@@ -743,6 +784,8 @@ export class AgentRuntimeService extends AgentRuntimeFacade {
     this.memory.setSemanticSummarizer(this.memorySummarizer)
 
     stage('automation-services')
+    // 自动化服务（目标/计划/多 Agent/渠道/工作流/定时任务）逐个就绪；
+    // 目标以暂停态初始化，避免启动即恢复历史未完成任务。
     await this.goals.init({ pauseActive: true })
     await this.plans.init()
     await this.multiAgents.init()
@@ -755,9 +798,11 @@ export class AgentRuntimeService extends AgentRuntimeFacade {
   }
 
   async reloadModelRuntime() {
+    // 委托给 ProviderPreferences：统一处理 Provider 鉴权与模型运行时装配。
     return this.providerPreferences.reload()
   }
 
+  // 目标状态变化时：更新实时状态、失效投影缓存，并通知前端（goal_update 事件）。
   emitGoalUpdate(sessionId, goal, send = this.goalEmitters.get(sessionId)) {
     const live = this.liveSessions.get(sessionId)
     if (live) live.goal = goal || null
@@ -767,6 +812,7 @@ export class AgentRuntimeService extends AgentRuntimeFacade {
     } catch {}
   }
 
+  // 计划更新：对比新旧计划生成变更摘要（livePlanChanges）供前端增量展示。
   emitPlanUpdate(sessionId, plan, send = this.planEmitters.get(sessionId)) {
     const live = this.liveSessions.get(sessionId)
     const nextPlan = plan || this.plans.get(sessionId)
@@ -787,6 +833,7 @@ export class AgentRuntimeService extends AgentRuntimeFacade {
     } catch {}
   }
 
+  // Agent 状态更新：把多 Agent 摘要同步进实时状态，并推送给前端活动流。
   emitAgentUpdate(sessionId, agent, send = this.agentEmitters.get(sessionId)) {
     const allAgents = this.multiAgents.summaries(sessionId)
     const updatedAgent = allAgents.find((item) => item.id === agent?.id) || null
@@ -821,6 +868,7 @@ export class AgentRuntimeService extends AgentRuntimeFacade {
     )
   }
 
+  // 列出磁盘上的全部会话：带缓存与并发去重（同一次扫描只跑一遍）。
   listStoredSessions({ refresh = false } = {}) {
     if (refresh) {
       this.storedSessionsCache = null
@@ -862,6 +910,7 @@ export class AgentRuntimeService extends AgentRuntimeFacade {
     if (changed) await this.saveSessionMeta()
   }
 
+  // 会话执行模式/权限模式的历史迁移：老版本可能缺失或使用已废弃的执行模式。
   async migrateSessionExecutionModes() {
     const sessions = await this.listStoredSessions()
     let changed = false
@@ -982,6 +1031,7 @@ export class AgentRuntimeService extends AgentRuntimeFacade {
     return this.sessionLifecycle.invalidateSessionRuntimes()
   }
 
+  // 会话元数据持久化：写盘串行化（链式 Promise），防止并发写覆盖。
   saveSessionMeta() {
     const snapshot = JSON.parse(JSON.stringify(this.sessionMeta))
     this.sessionMetaWrite = this.sessionMetaWrite
@@ -1003,6 +1053,7 @@ export class AgentRuntimeService extends AgentRuntimeFacade {
     return this.usageWrite
   }
 
+  // 记录单条用量：同一 key 只记一次（幂等）；历史超过 45 天的按天清理。
   async recordUsage(day, key, usage) {
     if (!day || !key) return false
     const normalized = normalizedUsage(usage)
@@ -1020,6 +1071,8 @@ export class AgentRuntimeService extends AgentRuntimeFacade {
     return true
   }
 
+  // 增量扫描会话历史文件中的用量：从上次扫描位置继续读，按换行切分逐条解析，
+  // 只在会话文件追加场景下工作，避免每次都全量重读。
   async scanSessionUsage(info, day) {
     const file = await stat(info.path)
     const scans = this.usageLedger.sessionScans
@@ -1094,6 +1147,7 @@ export class AgentRuntimeService extends AgentRuntimeFacade {
     return changed
   }
 
+  // 汇总今日用量：先增量扫描今日有改动的会话，再聚合各记录。
   async getTodayUsage() {
     const day = localDayKey()
     const sessions = await this.listStoredSessions()
@@ -1116,6 +1170,7 @@ export class AgentRuntimeService extends AgentRuntimeFacade {
     return { day, ...totals }
   }
 
+  // 资产索引保存：版本号递增并失效资产投影缓存，写盘同样串行化。
   saveAssetIndex() {
     this.assetProjectionRevision += 1
     this.streamProjection.invalidateAssets()
@@ -1126,6 +1181,7 @@ export class AgentRuntimeService extends AgentRuntimeFacade {
     return this.assetWrite
   }
 
+  // 启动时对账资产索引：删除磁盘上已不存在的孤儿资产记录。
   startAssetReconciliation() {
     this.assetReconcile = Promise.resolve()
       .then(() => {
@@ -1147,6 +1203,7 @@ export class AgentRuntimeService extends AgentRuntimeFacade {
     return assetStorage.publicAsset(asset)
   }
 
+  // 创建资产（上传文件或链接）：链接去重后直接入库；文件走 base64 存储。
   async createAsset(input) {
     await this.assetReconcile
     const now = new Date().toISOString()
@@ -1378,6 +1435,8 @@ export class AgentRuntimeService extends AgentRuntimeFacade {
     return this.streamProjection.getSessionLive(id)
   }
 
+  // 手动触发上下文压缩：压缩期间以 live.compaction 状态对外可见，
+  // 失败时保留压缩状态与错误信息，便于前端展示与重试。
   async compactSession(id) {
     const value = await this.getOrCreateSession(id)
     const { session } = value
@@ -1496,7 +1555,10 @@ export class AgentRuntimeService extends AgentRuntimeFacade {
     return this.sessionLifecycle.getOrCreateSession(id)
   }
 
+  // 创建会话运行时（resident runtime）：为会话装配模型、工具、网关、权限与目标/计划/多 Agent 工具，
+  // 并返回可运行的会话对象。这是“打开一个会话”的核心路径。
   async createSessionRuntime(sessionManager, name) {
+    // 首选模型解析：会话历史 > 元数据；无鉴权/不可用的模型会回退到默认模型。
     const settings = this.settingsManager.getGlobalSettings()
     const runtimeSessionId = sessionManager.getSessionId()
     const preferredModelRef = resolveSessionModelRef(
@@ -1518,6 +1580,7 @@ export class AgentRuntimeService extends AgentRuntimeFacade {
       sessionManager.getCwd() || this.cwd,
     )
     const executionMode = this.getSessionExecutionMode(runtimeSessionId)
+    // 并行准备资源加载器与 MCP 工具定义；MCP 工具按名称排序保证工具列表稳定（利于缓存命中）。
     const enabledTools = this.toolPlugins.enabledTools(appConfig, executionMode)
     const [resourceLoader, mcpTools] = await Promise.all([
       this.skills.createResourceLoader(effectiveCwd),
@@ -1564,16 +1627,15 @@ export class AgentRuntimeService extends AgentRuntimeFacade {
       },
     })
     const planReader = planTools.find((tool) => tool.name === 'get_plan')
-    // Pi persists session files lazily (first assistant message). A fresh
-    // conversation interrupted before the model replied would otherwise have
-    // no file on disk; make sure the session is addressable and recoverable
-    // once its resident runtime is released.
+    // Pi 引擎惰性持久化会话文件（首条助手消息时才写盘）。若对话在模型回复前被打断，
+    // 磁盘上将没有文件；这里强制先落盘，保证会话在常驻运行时被释放后仍可寻址/恢复。
     await ensureSessionFilePersisted(sessionManager, name, effectiveCwd)
     const installSubagentPermissions = (subagentSession) =>
       this.permissions.install(subagentSession, {
         sessionId: runtimeSession.sessionId,
         cwd: effectiveCwd,
       })
+    // 子 Agent 用量归账：写入用量账本，并同步到目标预算。
     const accountSubagentUsage = async ({ id, runNumber, runUsage, completedAt }) => {
       await this.recordUsage(
         localDayKey(completedAt),
@@ -1599,6 +1661,7 @@ export class AgentRuntimeService extends AgentRuntimeFacade {
         (toolName) => this.getToolRisk(toolName),
       )
     }
+    // 多 Agent 运行时适配：把 MultiAgentService 包装成 Pi 会话可调用的工具接口。
     const multiAgentRuntime = {
       spawn: (input) => {
         if (!runtimeSession?.model) throw new Error('当前会话没有可用模型，无法启动 Agent。')
@@ -1715,6 +1778,8 @@ export class AgentRuntimeService extends AgentRuntimeFacade {
     ]
     const inheritedCustomTools = createInheritedCustomTools()
     const callableTools = new Map(inheritedCustomTools.map((tool) => [tool.name, tool]))
+    // 工具网关：集中管控工具调用（按执行模式过滤 + 权限审批），
+    // 让 Pi 会话通过单一 tool_gateway 工具间接调用应用工具。
     const toolGateway = createRuntimeToolGateway({
       tools: callableTools,
       getExecutionMode: (sessionId) => this.getSessionExecutionMode(sessionId),
@@ -1756,6 +1821,7 @@ export class AgentRuntimeService extends AgentRuntimeFacade {
     installTransientStreamRetry(session)
     installTurnBoundaryCompaction(session)
     const now = new Date().toISOString()
+    // 会话运行时值：缓存会话快照，供后续消息/查询直接使用，避免重复装配。
     const value = {
       session,
       modelFallbackMessage,
@@ -1786,6 +1852,7 @@ export class AgentRuntimeService extends AgentRuntimeFacade {
     this.syncGoalTools(value, this.goals.get(session.sessionId))
     this.permissions.install(session, { sessionId: session.sessionId, cwd: effectiveCwd })
     applyPisperSystemPrompt(session, session.model)
+    // 捕获提示词缓存形态：对比形状变化以诊断 prompt cache 失效原因。
     value.promptCache = capturePromptCacheShape({
       systemPrompt: session.agent.state.systemPrompt,
       tools: promptCacheTools(session),
@@ -1797,6 +1864,7 @@ export class AgentRuntimeService extends AgentRuntimeFacade {
     return value
   }
 
+  // 整理消息附件：归档附件并转成模型可理解的上下文片段（文本/图片/文档/本地路径）。
   async preparePromptAttachments(value, attachments = []) {
     const safeAttachments = Array.isArray(attachments) ? attachments.slice(0, 8) : []
     const archivedAttachments = await this.archiveAttachments(
@@ -1837,6 +1905,8 @@ export class AgentRuntimeService extends AgentRuntimeFacade {
     return { images, contexts }
   }
 
+  // 向运行中的会话追加消息（steer/followUp）：会话必须正在流式运行，
+  // 否则走新的 runSessionPrompt 路径。
   async queueSessionMessage(id, { message, attachments = [], behavior = 'steer' } = {}) {
     const value = this.sessions.get(id)
     if (!value) throw new Error('会话不存在或尚未加载。')
@@ -1916,6 +1986,8 @@ export class AgentRuntimeService extends AgentRuntimeFacade {
     await this.streamPrompt({ sessionId, message, send: () => {} })
   }
 
+  // 手动发起一轮会话运行：构造实时状态（live），订阅会话事件并桥接为
+  // 前端 SSE 事件（文本增量、工具执行、压缩、用量、目标/计划/Agent 等）。
   async runSessionPrompt(
     value,
     {
@@ -1947,6 +2019,7 @@ export class AgentRuntimeService extends AgentRuntimeFacade {
       toolMode: 'full',
       disabledProviders: [],
     })
+    // 前置校验：停用的 Provider、不可用模型都直接拒绝，避免发起注定失败的调用。
     if ((appConfig.disabledProviders || []).includes(session.model?.provider)) {
       throw new Error('当前会话使用的 Provider 已停用，请先启用或切换模型。')
     }
@@ -1954,6 +2027,7 @@ export class AgentRuntimeService extends AgentRuntimeFacade {
       throw new Error('没有可用模型，请先在配置页设置 Provider、模型和 API Key。')
     }
     let goal = this.goals.get(session.sessionId)
+    // 目标模式：暂停态恢复或新开目标；预算可在恢复时更新。
     if (goalMode) {
       if (goal?.status === 'paused') {
         if (goalTokenBudget != null) await this.goals.setBudget(session.sessionId, goalTokenBudget)
@@ -1975,7 +2049,8 @@ export class AgentRuntimeService extends AgentRuntimeFacade {
       }),
     )
     value.pendingUserMessage = String(message || '')
-    // Drop stale plans from previous turns unless a Goal is actively driving multi-turn work or this is an internal wakeup turn.
+    // 上一轮的陈旧计划在无目标驱动时清空，避免残留计划误导本轮行为。
+    // 内部唤醒轮（Agent 完成/目标延续）保留计划。
     const keepPlan =
       goal?.status === 'active' ||
       isGoalContinuationMessage(message) ||
@@ -2014,6 +2089,7 @@ export class AgentRuntimeService extends AgentRuntimeFacade {
     this.goalEmitters.set(session.sessionId, emit)
     this.planEmitters.set(session.sessionId, emit)
     this.agentEmitters.set(session.sessionId, emit)
+    // 首条用户消息自动命名（用户手动改过标题则跳过）。
     const firstTurn = !session.messages.some((item) => item.role === 'user')
     const sessionMeta = this.sessionMeta[session.sessionId]
     const mayAutoTitle = firstTurn && !sessionMeta?.manual
@@ -2058,8 +2134,10 @@ export class AgentRuntimeService extends AgentRuntimeFacade {
       budgetSummaryQueued = false
     let thinkingPrefix = '',
       thinkingTurnText = ''
+    // 流式文本/思考分块记账：多个并发内容块（如并行工具调用后的多段文本）需要独立跟踪。
     const activeTextBlocks = new Set(),
       activeThinkingBlocks = new Set()
+    // 思考文本以“增量补丁 + 行尾裁剪”的方式同步，减少前端渲染压力。
     const streamBlockIndex = (update) =>
       Number.isInteger(update?.contentIndex) ? update.contentIndex : 0
     const appendThinking = (delta) => {
@@ -2072,6 +2150,7 @@ export class AgentRuntimeService extends AgentRuntimeFacade {
       live.thinkingText = next
       emit('thinking_patch', { start, text: next.slice(start) })
     }
+    // 收尾：标记本轮结束、修正仍在 running 的工具状态，并把后台 Agent 活动带出来。
     const finishLiveRun = (error = '') => {
       const finishedAt = new Date().toISOString()
       live.streaming = false
@@ -2105,6 +2184,7 @@ export class AgentRuntimeService extends AgentRuntimeFacade {
     const unsubscribe = session.subscribe((event) => {
       live.lastActivityAt = new Date().toISOString()
       bridgeAgentSessionEvent(event, live, emit)
+      // 文本/思考流事件：维护分块状态并把增量转发给前端。
       if (event.type === 'message_update') {
         const update = event.assistantMessageEvent
         const blockIndex = streamBlockIndex(update)
@@ -2140,6 +2220,7 @@ export class AgentRuntimeService extends AgentRuntimeFacade {
           activeThinkingBlocks.delete(blockIndex)
         }
       } else if (event.type === 'compaction_start') {
+        // 上下文压缩开始/结束：同步 live 状态并广播。
         live.compaction = startedCompaction(event.reason, live.lastActivityAt)
         setLiveActivity(live, {
           type: 'compaction',
@@ -2184,6 +2265,7 @@ export class AgentRuntimeService extends AgentRuntimeFacade {
         ]
         emit('queue_update', { queuedInputs: live.queuedInputs })
       } else if (event.type === 'tool_execution_start') {
+        // 工具执行开始：记录工具状态与活动项；bash 工具附带输出缓冲。
         activeTextBlocks.clear()
         activeThinkingBlocks.clear()
         const toolStartedAt = live.lastActivityAt
@@ -2210,6 +2292,7 @@ export class AgentRuntimeService extends AgentRuntimeFacade {
           ...(event.toolName === 'bash' ? { output: '' } : {}),
         })
       } else if (event.type === 'tool_execution_update') {
+        // 工具执行中：更新输出与摘要消息；多 Agent 工具的 partialResult 带 Agent 信息。
         const rawOutput = liveThinkingTail(textFromContent(event.partialResult?.content))
         const message = rawOutput.replace(/\s+/g, ' ').trim().slice(0, 180)
         const outputPatch = event.toolName === 'bash' ? { output: rawOutput } : {}
@@ -2243,6 +2326,7 @@ export class AgentRuntimeService extends AgentRuntimeFacade {
           ...(agent ? { agent } : {}),
         })
       } else if (event.type === 'tool_execution_end') {
+        // 工具执行结束：生成的图片/可视化结果登记为资产，并推送 generated_asset。
         if (
           !event.isError &&
           ['generate_visual', 'browser_automation'].includes(event.toolName) &&
@@ -2319,6 +2403,7 @@ export class AgentRuntimeService extends AgentRuntimeFacade {
           ...(resultAgent ? { agent: resultAgent } : {}),
         })
       } else if (event.type === 'turn_start') {
+        // 新一轮开始：重置思考文本（保留前缀），并为目标用量归账准备计时。
         activeThinkingBlocks.clear()
         thinkingPrefix = live.thinkingText
         thinkingTurnText = ''
@@ -2333,6 +2418,7 @@ export class AgentRuntimeService extends AgentRuntimeFacade {
         goalTurnId = activeGoal?.status === 'active' ? activeGoal.id : ''
         goalTurnStartedAt = Date.now()
       } else if (event.type === 'turn_end') {
+        // 一轮结束：把本轮的 token 用量与耗时计入目标预算。
         if (!goalTurnId) return
         const accounting = this.goals.account(session.sessionId, {
           goalId: goalTurnId,
@@ -2350,6 +2436,7 @@ export class AgentRuntimeService extends AgentRuntimeFacade {
         }
         void accounting.catch(() => {})
       } else if (event.type === 'agent_end') {
+        // 目标模式下的多轮延续：正常结束时用延续提示再驱动一轮，直到目标完成/预算耗尽。
         if (event.willRetry) return
         const finalAssistant = [...(event.messages || [])]
           .reverse()
@@ -2381,6 +2468,7 @@ export class AgentRuntimeService extends AgentRuntimeFacade {
     try {
       const preparedAttachments = await this.preparePromptAttachments(value, attachments)
       const images = preparedAttachments.images
+      // 组装注入上下文：请求的可选工具、记忆检索结果、活动目标延续提示、附件上下文。
       const contexts = []
       if (value.requestedToolNames?.length) {
         contexts.push(
@@ -2400,8 +2488,10 @@ export class AgentRuntimeService extends AgentRuntimeFacade {
         ? `${message}${ATTACHMENT_MARKER}${contexts.join('\n\n')}`
         : message
       applyPisperSystemPrompt(session, session.model)
+      // 真正的模型调用：带中止护栏，超时未停止则强制销毁会话。
       await runPromptWithAbortGuard(value, () => session.prompt(prompt, { images }))
       const last = [...session.messages].reverse().find((item) => item.role === 'assistant')
+      // 模型返回的最后一轮若带错误信息，视为本轮失败。
       if (last?.errorMessage) throw new Error(last.errorMessage)
       const assistantText = textFromContent(last?.content)
       live.text = assistantText || live.text
@@ -2428,6 +2518,7 @@ export class AgentRuntimeService extends AgentRuntimeFacade {
         finishedAt,
       })
       if (!value.isolatedContext && value.enabledTools?.includes('memory_remember')) {
+        // 非隔离上下文时，把本轮对话摘要写入长期记忆。
         void this.captureConversationMemory({
           sessionId: session.sessionId,
           cwd: value.cwd,
@@ -2438,6 +2529,7 @@ export class AgentRuntimeService extends AgentRuntimeFacade {
         }).catch(() => {})
       }
     } catch (error) {
+      // 出错路径：清空排队输入、记录错误、暂停活动目标并广播 error 事件。
       session.clearQueue?.()
       live.queuedInputs = []
       live.error = error instanceof Error ? error.message : String(error)
@@ -2468,6 +2560,8 @@ export class AgentRuntimeService extends AgentRuntimeFacade {
       })
       return
     } finally {
+      // 无论成败：退订事件、清理发射器，并在 60 秒后移除 live 状态（延迟是为了
+      // 让前端有足够时间消费完成事件后再从实时视图回落到历史视图）。
       unsubscribe()
       this.permissions.detachEmitter(session.sessionId, emit)
       if (this.goalEmitters.get(session.sessionId) === emit)

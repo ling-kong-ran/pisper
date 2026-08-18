@@ -1,3 +1,4 @@
+// OpenAI 兼容视觉驱动：适用于 OpenAI/OpenRouter 等 OpenAI 协议兼容的图像/视频生成。
 import { basename } from 'node:path'
 import OpenAI, { toFile } from 'openai'
 

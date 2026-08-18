@@ -1,8 +1,7 @@
-// JSON.stringify emits a literal `\uDxxx` escape for a lone surrogate that can
-// arise when UTF-16 code-unit slicing (e.g. String.prototype.slice) cuts a
-// surrogate pair in half. Browsers tolerate it; Rust's serde_json rejects it and
-// tears down the whole TUI stream. Normalise lone surrogates to U+FFFD before
-// any response leaves the runtime so both clients always receive strict JSON.
+// JSON.stringify 对孤立代理项（lone surrogate）会输出字面量 \uDxxx 转义。
+// 浏览器容忍它，但 Rust 的 serde_json 会拒绝并摧毁整个 TUI 流。
+// 因此在任何响应离开运行时之前，把所有孤立代理项归一化为 U+FFFD，
+// 保证两个客户端（Web/TUI）都收到严格合法的 JSON。
 export function replaceLoneSurrogates(value) {
   let index = 0
   while (index < value.length) {
@@ -41,6 +40,7 @@ export function replaceLoneSurrogates(value) {
   return result
 }
 
+// 统一 JSON 响应：序列化时清洗字符串中的孤立代理项。
 function jsonReplacer(_key, value) {
   return typeof value === 'string' ? replaceLoneSurrogates(value) : value
 }

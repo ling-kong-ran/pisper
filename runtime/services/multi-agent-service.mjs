@@ -1,3 +1,6 @@
+// 多 Agent 服务：父会话可派生隔离上下文的子 Agent（spawn），子 Agent 独立运行、
+// 通过邮箱（mailbox）收发消息；服务负责注册表持久化、并发限制、运行/中断/回收
+// 生命周期管理，以及子 Agent 会话的定时释放（保留期后销毁）。
 import { randomUUID } from 'node:crypto'
 import {
   createAgentSession,
@@ -49,6 +52,7 @@ const ACTIVE_AGENT_STATUSES = new Set(['queued', 'starting', 'running'])
 const TERMINAL_AGENT_STATUSES = new Set(['completed', 'failed', 'interrupted'])
 const RESTART_INTERRUPTION_REASON = 'Agent was interrupted because Pisper restarted.'
 
+// 子 Agent 系统提示：强调隔离上下文、只做委派任务、可验证结果、遵守父会话约束。
 export const MULTI_AGENT_SYSTEM_PROMPT = `You are a Pisper subagent working in an isolated context on one delegated task.
 
 Guidelines:
@@ -110,6 +114,7 @@ function emptyUsage() {
   return { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, reasoning: 0, totalTokens: 0 }
 }
 
+// 记录持久化：只保留可序列化字段（去掉函数/会话对象），供重启后恢复列表。
 function durableRecord(record) {
   return {
     id: record.id,
@@ -424,6 +429,8 @@ export class MultiAgentService {
   }
 
   setCompletionNotifier(notifier) {
+    // 完成通知回调：Agent 结束时通知父会话（注入隐藏消息或触发唤醒）。
+    this.completionNotifier = notifier
     this.completionNotifier = typeof notifier === 'function' ? notifier : null
   }
 
@@ -437,6 +444,8 @@ export class MultiAgentService {
   }
 
   async init() {
+    // 加载注册表、清理遗留 active 状态（重启后视为 interrupted），并补偿队列。
+    
     if (!this.path) return
     const state = await readJson(this.path, null)
     this.sequence = 0
@@ -493,6 +502,7 @@ export class MultiAgentService {
     return this.write
   }
 
+  // 邮箱入队：Agent 完成后把结果投递到父会话邮箱。
   enqueueMailbox(agent) {
     const mailboxId = `${agent.id}:${agent.resultVersion}`
     const existing = this.mailbox.get(mailboxId)
@@ -680,6 +690,7 @@ export class MultiAgentService {
     await this.save()
   }
 
+  // 等待 Agent 结果（wait_agent）：从邮箱取结果或超时。
   async wait(parentSessionId, timeoutMs = 15_000, target = '') {
     const current = this.list(parentSessionId)
     const targetRecord = target ? this.find(parentSessionId, target) : null
@@ -725,6 +736,7 @@ export class MultiAgentService {
     })
   }
 
+  // 派生子 Agent：校验并发/数量/轮次上限，排队执行，返回 Agent 记录。
   async spawn({
     parentSessionId,
     cwd,
@@ -810,6 +822,7 @@ export class MultiAgentService {
     return publicRecord(record)
   }
 
+  // 启动子 Agent 运行：创建隔离会话、注入工具，执行到结束并归账。
   async startRun(record, message) {
     this.clearTerminalSessionTimer(record)
     const generation = ++record.runGeneration
@@ -1095,6 +1108,7 @@ export class MultiAgentService {
     return record.restartChain
   }
 
+  // 中断 Agent：标记记录并尝试中止其会话。
   interrupt(parentSessionId, target, reason = 'Agent was interrupted.', schedule = true) {
     const record = this.find(parentSessionId, target)
     if (!record) throw new Error(`Unknown agent: ${target}`)
@@ -1131,6 +1145,7 @@ export class MultiAgentService {
     return terminal
   }
 
+  // 父会话中止/删除时终止其全部子 Agent。
   abortParent(parentSessionId) {
     let count = 0
     for (const record of this.records.values()) {
@@ -1148,6 +1163,7 @@ export class MultiAgentService {
     return count
   }
 
+  // 清理父会话的全部 Agent 记录（删除会话时调用）。
   async removeParent(parentSessionId) {
     this.abortParent(parentSessionId)
     for (const [id, record] of this.records) {

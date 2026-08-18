@@ -1,3 +1,5 @@
+// 工具插件服务：管理工具插件的安装、启用与工具定义生成，
+// 维护内置工具目录（TOOL_CATALOG）与第三方插件的合并视图。
 import { createHash, randomUUID } from 'node:crypto'
 import {
   cp,
@@ -300,6 +302,7 @@ export class ToolPluginService {
   }
 
   async init() {
+    // 加载插件状态（含内置工具默认开关）。
     await mkdir(this.pluginRoot, { recursive: true })
     const pluginRootInfo = await lstat(this.pluginRoot)
     if (pluginRootInfo.isSymbolicLink() || !pluginRootInfo.isDirectory()) {
@@ -323,6 +326,7 @@ export class ToolPluginService {
     this.workers.clear()
   }
 
+  // 注册默认工具开关（幂等）：首次运行时启用指定内置工具。
   async ensureDefaultTools(toolIds, migrationKey) {
     const appConfig = await readJson(this.configPath, { toolMode: 'full' })
     if (appConfig[migrationKey]) return
@@ -373,6 +377,7 @@ export class ToolPluginService {
     }
   }
 
+  // 检查插件包：解析清单/入口/能力，生成可安装的检查结果。
   async inspect(sourcePath) {
     const requestedPath = String(sourcePath || '').trim()
     if (!requestedPath) throw new Error('请选择插件目录。')
@@ -413,6 +418,7 @@ export class ToolPluginService {
     }
   }
 
+  // 安装已检查的插件：解包到插件目录并激活。
   async install(inspectionId) {
     const inspection = this.inspections.get(String(inspectionId || ''))
     if (!inspection || inspection.expiresAt < Date.now())
@@ -777,6 +783,7 @@ export class ToolPluginService {
     return false
   }
 
+  // 按执行模式过滤出的启用工具列表。
   enabledTools(appConfig, executionMode) {
     const builtIns = toolsFromConfig(appConfig)
     if (executionMode !== 'full-access') return builtIns

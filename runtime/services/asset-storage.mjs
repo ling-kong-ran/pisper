@@ -1,3 +1,5 @@
+// 资产存储：管理资产目录中的文件资产（上传/生成/链接），维护资产索引 JSON，
+// 提供存储、去重（内容哈希）、归档生成文件、会话归属与孤儿资产对账。
 import { createHash, randomUUID } from 'node:crypto'
 import { createReadStream } from 'node:fs'
 import { copyFile, stat, unlink, writeFile } from 'node:fs/promises'
@@ -13,6 +15,7 @@ function assetReferences(asset) {
   return Array.isArray(asset.references) ? asset.references : []
 }
 
+// 对公开 API 隐藏内部字段（存储路径/引用关系）。
 export function publicAsset(asset) {
   if (!asset) return null
   const publicValue = { ...asset }

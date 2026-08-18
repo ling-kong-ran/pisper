@@ -1,3 +1,5 @@
+// 路由注册表：声明式注册路由（方法 + 路径 + 约束），编译为分段匹配器，
+// 支持路径参数与参数取值约束（where），匹配时按特异性排序。
 /**
  * @typedef {{ type: 'static', value: string }} StaticRouteSegment
  * @typedef {{ type: 'parameter', name: string, values: Set<string> | null }} ParameterRouteSegment
@@ -9,6 +11,7 @@
  * @typedef {{ register: (definition: RouteDefinition) => RouteRegistry, match: (method: string, pathname: string) => RouteMatch | null }} RouteRegistry
  */
 
+// 解析路由路径为分段（静态段 / :参数段），并校验参数约束。
 /**
  * @param {string} path
  * @param {Record<string, string[]>} [where]

@@ -1,3 +1,5 @@
+// 任务列表兼容层：为旧版 TaskListService 命名提供一次性兼容包装，
+// 实际实现已迁移到 plan-service.mjs。新代码请直接使用 PlanService。
 /**
  * @deprecated One-release compatibility wrapper. Use plan-service.mjs and PlanService.
  */

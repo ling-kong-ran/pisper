@@ -1,3 +1,6 @@
+// 工作流服务：有向无环图（DAG）工作流的定义、持久化、执行与审批。
+// 节点类型包括 agent（调用会话）/命令/消息/条件，支持重试、人工审批节点、
+// 通知（浏览器/飞书/微信）与运行记录。
 import { randomUUID } from 'node:crypto'
 import { readJson, writeJsonAtomic } from '../storage/json-file.mjs'
 import {
@@ -343,6 +346,7 @@ export class WorkflowService {
   }
 
   async init() {
+    // 加载工作流与运行记录；恢复运行中的工作流执行。
     const stored = await readJson(this.path, defaultState())
     this.state = {
       version: STATE_VERSION,
@@ -389,6 +393,7 @@ export class WorkflowService {
     return run ? clone(run) : null
   }
 
+  // 规范化工作流输入：校验字段/节点/边，生成唯一 ID。
   async normalizeInput(input, current = {}) {
     const merged = { ...current, ...input }
     const name = String(merged.name || '').trim()
@@ -495,6 +500,7 @@ export class WorkflowService {
     return true
   }
 
+  // 立即运行工作流：校验发布状态、构建图并排队执行。
   async runNow(id, options = {}) {
     const workflow = this.state.workflows.find((item) => item.id === id)
     if (!workflow) return null
@@ -595,6 +601,7 @@ export class WorkflowService {
     return this.getRun(runId)
   }
 
+  // 执行工作流：按拓扑序遍历图节点，处理前置依赖与并发。
   async execute(workflow, run, graph, record) {
     const started = Date.now()
     const nodeRuns = new Map(run.nodes.map((item) => [item.id, item]))
@@ -682,6 +689,7 @@ export class WorkflowService {
     }
   }
 
+  // 执行单个节点：agent 节点调会话，命令节点调 shell，消息节点转发通知。
   async executeNode(workflow, run, graph, record, node, nodeRuns) {
     if (record.cancelled) throw cancelledError()
     const nodeRun = nodeRuns.get(node.id)
@@ -859,6 +867,7 @@ export class WorkflowService {
     if (lastError) throw lastError
   }
 
+  // 人工审批节点：挂起直到用户在 API 层批准/驳回。
   waitForApproval(run, node, nodeRun, record) {
     run.status = 'waiting_approval'
     nodeRun.status = 'waiting_approval'
@@ -893,6 +902,7 @@ export class WorkflowService {
     })
   }
 
+  // 运行事件通知：向已启用的通知渠道广播。
   notifyRun(event, workflow, run, failedNode = null) {
     const data =
       event === 'workflow.completed'

@@ -1,3 +1,6 @@
+// Pisper 系统提示注入：在 Pi 引擎的基础系统提示基础上，把身份替换为 Pisper、
+// 把文档指引替换为 Pisper 运行时文档，并追加 <pisper_runtime> 约束块
+// （当前运行时/工具/技能等协议信息，每次会话注入前都会刷新）。
 const RUNTIME_BLOCK = /\n*<pisper_runtime>[\s\S]*?<\/pisper_runtime>\n*/g
 const PI_OPENING =
   'You are an expert coding assistant operating inside pi, a coding agent harness. You help users by reading files, executing commands, editing code, and writing new files.'
@@ -25,6 +28,7 @@ function modelIdentity(model) {
   }
 }
 
+// 注入系统提示：替换旧运行时块、把 Pi 标识替换为 Pisper，再追加运行时约束。
 export function pisperSystemPrompt(basePrompt, model) {
   const identity = modelIdentity(model)
   const prompt = String(basePrompt || '')

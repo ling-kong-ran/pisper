@@ -1,3 +1,5 @@
+// 对话记忆抽取：识别用户消息中的记忆意图，调用模型抽取候选记忆。
+// 消息先脱敏、evidence 必须逐字来自原文，防止密钥入库与模型编造。
 import { containsSecretText, redactSecretText } from '../../security/secret-redaction.mjs'
 
 function textContent(content) {
@@ -36,6 +38,7 @@ function exactEvidence(value, user, assistant) {
     : ''
 }
 
+// 是否应抽取：消息足够长且命中记忆相关关键词（记住/偏好/决定/不再使用等）。
 export function shouldExtractConversationMemory(user, _assistant = '') {
   const value = String(user || '').trim()
   if (value.length < 8) return false
@@ -44,6 +47,8 @@ export function shouldExtractConversationMemory(user, _assistant = '') {
   )
 }
 
+// 抽取候选记忆：跳过无意图的消息；结果限制 3 条并清洗字段；
+// evidence 必须逐字出现在原文中，且不含脱敏标记。
 export async function extractConversationMemories({ modelRuntime, model, user, assistant }) {
   if (!modelRuntime || !model || !shouldExtractConversationMemory(user, assistant))
     return { memories: [], usage: null, timestamp: Date.now() }

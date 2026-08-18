@@ -1,3 +1,5 @@
+// 协议探测：访问站点根路径检测是否为 New API 网关（带缓存与超时），
+// 用于驱动分发前确定协议。
 const detectionCache = new Map()
 
 function rootUrl(baseUrl) {

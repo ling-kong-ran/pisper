@@ -1,3 +1,7 @@
+// 应用工具目录与工厂注册：汇总 Pisper 自研工具（记忆/MCP/搜索/浏览器/视觉/技能/插件）
+// 的清单与创建工厂，按启用列表生成工具定义。
+// 多 Agent 工具是内部运行时工具（与 goal/plan 一样），刻意不进插件目录，
+// 避免在前端工具列表中出现。
 import { createVisualGenerateTool, manifest as visualGenerateManifest } from './visual-generate.mjs'
 import { factories as memoryFactories, manifests as memoryManifests } from './memory.mjs'
 import { createMultiAgentTools } from './multi-agent.mjs'

@@ -1,5 +1,7 @@
 import { createBashTool } from '../runtime/pi-coding-agent.mjs'
 
+// Windows UTF-8 环境修正：保证 Windows 上子进程输出按 UTF-8 编码，
+// 避免中文/emoji 在 GBK 默认环境下乱码。
 export const WINDOWS_UTF8_ENV = Object.freeze({
   PYTHONIOENCODING: 'utf-8',
   PYTHONUTF8: '1',

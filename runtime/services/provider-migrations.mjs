@@ -1,3 +1,5 @@
+// Provider 配置迁移：把历史版本的 Provider 配置（如 moonshotai-cn → kimi-coding）
+// 迁移到当前命名，避免用户旧配置失效。
 import { readJson, writeJsonAtomic } from '../storage/json-file.mjs'
 
 const KIMI_CODE_MODEL_MAP = {

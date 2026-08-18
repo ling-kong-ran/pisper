@@ -1,3 +1,5 @@
+// API 处理器：注册所有路由，统一封装请求上下文（JSON/SSE/错误脱敏），
+// 并把请求分发给对应的路由处理器。
 import { redactSecretText } from '../security/secret-redaction.mjs'
 import { bodyJson, json as sendJson, sseSend } from './response.mjs'
 import { createRouteRegistry } from './route-registry.mjs'
@@ -17,10 +19,12 @@ const registry = createRouteRegistry([
   ...desktopRoutes,
 ])
 
+// 错误信息对外统一脱敏，避免把密钥/令牌泄漏到响应体。
 function publicError(error) {
   return redactSecretText(error instanceof Error ? error.message : String(error))
 }
 
+// 构建路由处理上下文：提供 JSON 响应、SSE 启动/发送、请求体解析等工具。
 function createHandlerContext({ runtime, services, req, res, url, params }) {
   let sseStarted = false
   return {

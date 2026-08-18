@@ -1,7 +1,10 @@
+// 视觉模型选择与目录：模型类型完全由用户显式选择，不再按 ID 猜测；
+// 提供按 Provider 筛选可用图像/视频模型的能力。
 import { readJson } from '../../storage/json-file.mjs'
 
 // 不再按模型 ID 猜测用途：类型完全由用户在添加时显式选择。
 // 保留函数签名以兼容既有调用点与历史配置（'auto' 或缺省一律按对话模型处理）。
+// 模型用途推断：显式指定才返回对应类型，否则一律按对话模型处理。
 export function inferModelKind(modelId, explicitKind = 'auto') {
   if (['chat', 'image', 'video'].includes(explicitKind)) return explicitKind
   return 'chat'

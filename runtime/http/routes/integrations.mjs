@@ -1,3 +1,4 @@
+// 集成路由：飞书/微信渠道的接入引导、消息、通知模板与插件/技能管理。
 const channelKinds = ['feishu', 'weixin']
 
 export const integrationRoutes = [

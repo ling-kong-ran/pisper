@@ -1,3 +1,5 @@
+// 飞书接入引导（onboarding）：引导用户注册应用、扫码授权，分阶段推进状态机，
+// 验证码/二维码均通过状态轮询查询。
 import { randomUUID } from 'node:crypto'
 import QRCode from 'qrcode'
 

@@ -1,3 +1,5 @@
+// 密钥脱敏：在错误信息/日志/模型输入中把疑似密钥（API Key/令牌/密码等）替换为占位符，
+// 防止密钥经提示词或错误消息外泄。
 export const REDACTED_SECRET = '[REDACTED SECRET]'
 
 const ALWAYS_SENSITIVE_KEYS = new Set([

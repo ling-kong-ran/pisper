@@ -1,3 +1,5 @@
+// 飞书网关：封装飞书长连接（WebSocket）接入、消息收发与连接状态管理。
+// SDK 懒加载：@larksuiteoapi/node-sdk 体积大，仅在飞书渠道接入时引入。
 // Lazily loaded: @larksuiteoapi/node-sdk is large and only needed once a Feishu channel connects.
 const larkSdk = () => import('@larksuiteoapi/node-sdk')
 

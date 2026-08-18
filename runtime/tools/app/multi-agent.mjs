@@ -1,3 +1,5 @@
+// 多 Agent 工具：spawn/list/send/followup/wait/interrupt 六件套，
+// 是父会话调度子 Agent 的接口（内部运行时工具，不进插件目录）。
 import { DEFAULT_MAX_BYTES, defineTool } from '../../runtime/pi-coding-agent.mjs'
 import { Type } from 'typebox'
 import {

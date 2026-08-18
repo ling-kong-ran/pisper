@@ -1,3 +1,4 @@
+// 记忆工具：memory_search（检索长期记忆）与 memory_remember（保存/排队候选记忆）。
 import { defineTool } from '../../runtime/pi-coding-agent.mjs'
 import { Type } from 'typebox'
 

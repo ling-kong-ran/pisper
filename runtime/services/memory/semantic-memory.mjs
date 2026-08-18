@@ -1,3 +1,5 @@
+// 语义记忆摘要：把记忆条目交给默认模型展开成语义检索关键词，
+// 让后续全文搜索能命中同义词/相关概念/不同表述。
 import { redactSecretText } from '../../security/secret-redaction.mjs'
 
 const SUMMARY_SYSTEM_PROMPT = [
@@ -17,6 +19,7 @@ function textFromContent(content) {
     : ''
 }
 
+// 创建语义摘要器：未配置模型运行时/默认模型时退化为空摘要（不打断记忆写入）。
 export function createSemanticMemorySummarizer({ getModelRuntime, getDefaultModel }) {
   return {
     async summarize(entries) {

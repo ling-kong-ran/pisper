@@ -1,3 +1,4 @@
+// 任务列表工具兼容包装：一次性迁移层，新代码请直接使用 plan.mjs。
 /**
  * @deprecated One-release compatibility wrapper. Use plan.mjs and createPlanTools.
  */

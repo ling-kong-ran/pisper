@@ -1,3 +1,5 @@
+// 赞助内容服务：从仓库远端拉取并校验 docs/sponsors.json（赞助商/活动文案），
+// 本地缓存并附带本地兜底文件；供前端展示社区赞助内容。
 import { mkdir, readFile, rename, writeFile } from 'node:fs/promises'
 import { dirname, join } from 'node:path'
 import { DEFAULT_BRANCH, REPOSITORY_API } from '../../shared/app-update.mjs'

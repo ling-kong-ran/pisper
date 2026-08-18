@@ -1,3 +1,6 @@
+// SessionLifecycle：会话生命周期管理——创建/列出/查找/重命名/删除会话，
+// 常驻会话运行时（resident runtime）的缓存与回收，会话树导航/标签，
+// 以及权限/执行模式/工作目录切换等元数据操作。
 import { readFile, rename, stat, unlink, writeFile } from 'node:fs/promises'
 import { dirname, resolve, sep } from 'node:path'
 import { SessionManager } from './pi-coding-agent.mjs'
@@ -113,12 +116,15 @@ export class SessionLifecycle {
     state.storedSessionsCache = next
   }
 
+  // 会话是否在运行：显式 runActive、实时流、或引擎会话 isStreaming 任一为真。
   sessionRunIsActive(id, value = this.sessions.get(id)) {
     return Boolean(
       value?.runActive || this.liveSessions.get(id)?.streaming || value?.session?.isStreaming,
     )
   }
 
+  // 会话运行时是否受保护（不可被闲置回收）：运行中、目标激活、
+  // 有待唤醒的 Agent 完成通知或活动子 Agent 时保持驻留。
   sessionRuntimeIsProtected(id, value) {
     return Boolean(
       this.sessionRunIsActive(id, value) ||
@@ -129,6 +135,7 @@ export class SessionLifecycle {
     )
   }
 
+  // 释放会话运行时：运行中且非 force 时拒绝；释放时清理权限审批、历史缓存与投影。
   disposeSessionRuntime(id, value, { force = false } = {}) {
     if (!value || this.sessions.get(id) !== value || (!force && this.sessionRunIsActive(id, value)))
       return false
@@ -145,6 +152,7 @@ export class SessionLifecycle {
     return true
   }
 
+  // 闲置回收：先按空闲 TTL 驱逐超时运行时的 LRU，再按驻留上限淘汰溢出部分。
   evictIdleSessionRuntimes(exceptId = '', now = Date.now()) {
     const state = this.getRuntimeState()
     const maximum = Math.max(
@@ -174,6 +182,7 @@ export class SessionLifecycle {
     return evicted
   }
 
+  // 关闭全部会话（进程退出路径）：暂停目标、终止子 Agent、释放权限并等标签索引落盘。
   async disposeSessions() {
     for (const [id, value] of this.sessions) {
       await this.pauseSessionGoal(id)
@@ -191,6 +200,8 @@ export class SessionLifecycle {
     }
   }
 
+  // 使会话运行时失效（工具/插件/MCP 等资源变更后）：版本号 +1，
+  // 非运行中的会话全部释放，下次打开时按新资源重建。
   invalidateSessionRuntimes() {
     const state = this.getRuntimeState()
     this.setRuntimeVersion(state.sessionRuntimeVersion + 1)
@@ -208,6 +219,7 @@ export class SessionLifecycle {
     }
   }
 
+  // 运行时诊断信息（内存/驻留会话/历史缓存），供 /api/runtime/diagnostics 使用。
   getRuntimeDiagnostics() {
     const now = Date.now()
     const memory = process.memoryUsage()
@@ -255,6 +267,7 @@ export class SessionLifecycle {
     }
   }
 
+  // 会话工作目录解析优先级：活动运行时 > 待物化会话 > 元数据 > 存储会话 > 默认 cwd。
   async sessionWorkspaceCwd(id) {
     if (!id) return this.cwd
     const activeCwd = this.sessions.get(id)?.cwd
@@ -267,6 +280,7 @@ export class SessionLifecycle {
     return stored?.cwd || this.cwd
   }
 
+  // 会话列表：磁盘会话 + 活动运行时 + 待物化会话合并，附目标/计划/Agent/血缘信息。
   async listSessions() {
     const sessions = await this.listStoredSessions()
     const settings = this.getSettingsManager().getGlobalSettings()
@@ -379,6 +393,7 @@ export class SessionLifecycle {
     return result
   }
 
+  // 创建会话：只物化 SessionManager 与元数据，真正的运行时等首次消息时才装配。
   async createSession(name, cwd) {
     const resolvedName = this.cleanSessionTitle(name) || DEFAULT_SESSION_NAME
     const effectiveCwd = await this.resolveDirectory(cwd, this.cwd)
@@ -441,6 +456,7 @@ export class SessionLifecycle {
     }
   }
 
+  // 获取会话的 SessionManager：活动运行时优先，其次待物化，最后从磁盘打开。
   async sessionTreeManager(id) {
     const sessionId = String(id || '').trim()
     if (!sessionId) throw new Error('会话不存在。')
@@ -455,6 +471,7 @@ export class SessionLifecycle {
     return manager
   }
 
+  // 会话树投影（带运行状态标记）。
   async getSessionTree(id) {
     const sessionId = String(id || '').trim()
     const manager = await this.sessionTreeManager(sessionId)
@@ -464,10 +481,12 @@ export class SessionLifecycle {
     })
   }
 
+  // 标签索引路径：与会话目录同级，独立于会话文件本身。
   sessionLabelIndexPath() {
     return resolve(dirname(this.sessionDir), 'pisper-session-label-index.json')
   }
 
+  // 加载标签索引：磁盘快照直接装入内存缓存，重启后文件 (mtime, size) 未变就无需重扫。
   async ensureSessionLabelIndex() {
     if (this.sessionLabelIndex) return this.sessionLabelIndex
     let files = {}
@@ -496,6 +515,7 @@ export class SessionLifecycle {
     return this.sessionLabelIndex
   }
 
+  // 标签索引落盘：串行化 + 临时文件 rename 原子替换。
   flushSessionLabelIndex() {
     if (!this.sessionLabelIndexDirty || !this.sessionLabelIndex) return
     this.sessionLabelIndexDirty = false
@@ -516,6 +536,7 @@ export class SessionLifecycle {
     return this.sessionLabelIndexFlush
   }
 
+  // 重新扫描单个会话文件的标签：可增量则只扫新增字节，否则全量；结果写入缓存与索引。
   async rescanSessionLabelFile(path, fileStats, cached) {
     // 文件变大且上次扫描边界在完整行尾时只扫新追加的字节；否则（变小、
     // 原地重写、边界在半行中间）全量扫描，保证增量边界可靠。
@@ -555,6 +576,7 @@ export class SessionLifecycle {
     return entries
   }
 
+  // 读取某会话文件的标签条目（带 mtime/size 缓存与并发去重）。
   async sessionTreeLabelEntries(path) {
     let fileStats = null
     try {
@@ -585,6 +607,7 @@ export class SessionLifecycle {
     return inflight
   }
 
+  // 标签搜索：空关键字列出全部；带关键字时按最近修改排序、分批并发扫描（每批 8 个文件）。
   async searchSessionTreeLabels(query, options = {}) {
     const keyword = String(query || '')
       .replace(/\s+/g, ' ')
@@ -652,6 +675,7 @@ export class SessionLifecycle {
     return matches
   }
 
+  // 树导航（切换分支）：通过引擎的 navigateTree 重建会话，可选择是否摘要新分支。
   async navigateSessionTree(id, targetEntryId, options = {}) {
     const sessionId = String(id || '').trim()
     const entryId = String(targetEntryId || '').trim()
@@ -697,6 +721,7 @@ export class SessionLifecycle {
     }
   }
 
+  // 设置节点标签：空标签 = 删除（appendLabelChange 写墓碑）；返回更新后的树。
   async setSessionTreeLabel(id, targetEntryId, label) {
     const sessionId = String(id || '').trim()
     const entryId = String(targetEntryId || '').trim()
@@ -733,6 +758,7 @@ export class SessionLifecycle {
     }
   }
 
+  // 从历史节点衍生新会话：只允许已完成回复的边界；源会话运行中也允许（基于磁盘快照分支）。
   async deriveSession(id, boundaryEntryId, name) {
     const sourceId = String(id || '').trim()
     const entryId = String(boundaryEntryId || '').trim()
@@ -862,6 +888,7 @@ export class SessionLifecycle {
     }
   }
 
+  // 查找会话信息：缓存 miss 时回退到磁盘全量扫描（新会话文件可能晚于缓存构建）。
   async findSessionInfo(id) {
     const sessions = await this.listStoredSessions()
     let session = sessions.find((item) => item.id === id)
@@ -875,6 +902,7 @@ export class SessionLifecycle {
     return session || null
   }
 
+  // 重命名会话：同时更新运行时/待物化/存储三处名称并写回元数据。
   async renameSession(id, name, { manual = true } = {}) {
     const title = this.cleanSessionTitle(name)
     if (!title) throw new Error('会话标题不能为空。')
@@ -904,6 +932,7 @@ export class SessionLifecycle {
     return { id, name: title, manual: Boolean(manual) }
   }
 
+  // 切换权限模式：非 ask 模式立即结算（approve/deny）全部待审批项。
   async setSessionPermission(id, mode, permissionModes) {
     const permissionMode = String(mode || '')
     if (!permissionModes.has(permissionMode)) throw new Error('权限模式无效。')
@@ -931,6 +960,8 @@ export class SessionLifecycle {
     return { id, permissionMode, executionMode: this.getExecutionMode(id) }
   }
 
+  // 切换执行模式：运行中则仅标记 runtimeVersion 失效（下次 prompt 重建工具集），
+  // 否则直接释放运行时；并同步权限模式。
   async setSessionExecutionMode(id, executionMode) {
     if (!executionMode) throw new Error('执行模式无效。')
     if (
@@ -963,6 +994,7 @@ export class SessionLifecycle {
     return { id, executionMode, permissionMode }
   }
 
+  // 切换会话工作目录：重建会话运行时（新 cwd 的工具/资源），保留原模型。
   async setSessionCwd(id, input) {
     const cwd = await this.resolveDirectory(input, this.cwd)
     const active = this.sessions.get(id)
@@ -1014,6 +1046,7 @@ export class SessionLifecycle {
     return { id, cwd: next.cwd }
   }
 
+  // 获取或创建会话运行时：优先活动缓存，其次待物化，再磁盘恢复，最后新建。
   async getOrCreateSession(id) {
     const state = this.getRuntimeState()
     if (id && this.sessions.has(id)) {
@@ -1065,6 +1098,7 @@ export class SessionLifecycle {
     return this.createSessionRuntime(SessionManager.create(this.cwd, this.sessionDir))
   }
 
+  // 中止会话运行：清理唤醒定时器、暂停目标、终止子 Agent、结算审批并 abort 引擎会话。
   async abortSession(id) {
     const wakeupTimer = this.agentWakeupTimers.get(id)
     if (wakeupTimer) {
@@ -1083,6 +1117,7 @@ export class SessionLifecycle {
     return true
   }
 
+  // 删除会话：清理目标/计划/浏览器会话/子 Agent/审批，删除会话文件（限定在会话目录内）。
   async deleteSession(id) {
     await this.getGoals().remove(id)
     await this.getPlans().remove(id)

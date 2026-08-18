@@ -1,3 +1,4 @@
+// xAI 视觉驱动：调用 Grok 图像/视频生成接口。
 function authHeaders(model, extra = {}) {
   return {
     Authorization: `Bearer ${model.apiKey}`,

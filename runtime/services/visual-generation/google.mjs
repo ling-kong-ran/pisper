@@ -1,3 +1,4 @@
+// Google 视觉驱动：调用 Gemini 图像/视频生成接口（REST + 长任务轮询）。
 function googleHeaders(model) {
   return { 'Content-Type': 'application/json', 'x-goog-api-key': model.apiKey, ...model.headers }
 }

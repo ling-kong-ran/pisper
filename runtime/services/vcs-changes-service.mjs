@@ -1,3 +1,4 @@
+// VCS 变更服务：Git/SVN 统一封装——自动探测工作区类型并转发到对应实现。
 import { GitChangesService } from './git-changes-service.mjs'
 import { SvnChangesService } from './svn-changes-service.mjs'
 

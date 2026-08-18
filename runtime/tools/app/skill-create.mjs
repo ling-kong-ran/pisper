@@ -1,3 +1,4 @@
+// 技能创建工具：校验并原子化创建标准 SKILL.md。
 import { Type } from 'typebox'
 import { defineTool } from '../../runtime/pi-coding-agent.mjs'
 

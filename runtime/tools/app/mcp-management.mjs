@@ -1,3 +1,4 @@
+// MCP 管理工具：mcp_list（只读）+ mcp_manage（增删改/测试/启停）。
 import { defineTool } from '../../runtime/pi-coding-agent.mjs'
 import { Type } from 'typebox'
 

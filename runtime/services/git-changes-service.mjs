@@ -1,3 +1,5 @@
+// Git 变更服务：查询工作区 Git 状态/差异，执行提交/推送/撤销；
+// 通过 execFile 调 git 并捕获错误（目录非 Git 仓库时返回 isRepo: false）。
 import { execFile } from 'node:child_process'
 import { promisify } from 'node:util'
 

@@ -1,3 +1,6 @@
+// 本地记忆运行时：基于 SQLite（node:sqlite）+ FTS5 全文索引 + 本地嵌入的长期记忆存储。
+// 提供空间（global/project/custom）、候选记忆（propose → accept/reject）、置信度自动确认、
+// 语义检索（本地嵌入 + FTS + 关键词混合排序）、墓碑（删除保留）与语义摘要队列。
 import { createHash, randomUUID } from 'node:crypto'
 import { realpathSync } from 'node:fs'
 import { basename, resolve } from 'node:path'
@@ -35,6 +38,7 @@ const BROAD_TOPIC_SEGMENTS = new Set([
   'settings',
   'user',
 ])
+// 候选记忆保留天数（超期清理）与墓碑保留天数。
 const CANDIDATE_RETENTION_DAYS = 30
 const TOMBSTONE_RETENTION_DAYS = 90
 const SEMANTIC_BATCH_SIZE = 16
@@ -237,6 +241,7 @@ export class LocalMemoryRuntime {
   }
 
   async init() {
+    // 建库/升级 schema；检测到不兼容 schema 时重置并重建。
     this.db = new DatabaseSync(this.path)
     this.db.exec('PRAGMA journal_mode = WAL; PRAGMA foreign_keys = ON; PRAGMA busy_timeout = 5000;')
     this.resetIncompatibleSchema()
@@ -578,6 +583,7 @@ export class LocalMemoryRuntime {
     }
   }
 
+  // 提出候选记忆：按置信度自动确认（≥阈值直接入库）或进入待审队列。
   propose(input = {}) {
     const title = safeText(input.title, 140)
     const content = safeText(input.content, 12_000)
@@ -651,6 +657,7 @@ export class LocalMemoryRuntime {
     return this.getCandidate(id)
   }
 
+  // 直接记住（手动输入/工具写入）：重名则更新，带来源权威度。
   remember(input = {}) {
     const title = safeText(input.title, 140)
     const content = safeText(input.content, 12_000)
@@ -741,6 +748,7 @@ export class LocalMemoryRuntime {
     return this.getMemory(id)
   }
 
+  // 接受/拒绝候选记忆：接受后入库并刷新关联链接。
   acceptCandidate(id) {
     const candidate = this.getCandidate(id)
     if (!candidate) return null
@@ -852,6 +860,7 @@ export class LocalMemoryRuntime {
     return this.getMemory(id)
   }
 
+  // 删除记忆：写入墓碑（保留删除痕迹以拒绝复活同 key 记忆）。
   forget(id, reasonCode = 'user_deleted') {
     if (!this.getMemory(id)) return false
     const now = new Date().toISOString()
@@ -894,6 +903,7 @@ export class LocalMemoryRuntime {
       )
   }
 
+  // 过期清理：候选记忆/墓碑超期删除（保留期见常量）。
   cleanupRetention() {
     const db = this.requireDb()
     const now = new Date().toISOString()
@@ -1034,6 +1044,7 @@ export class LocalMemoryRuntime {
     return ranked
   }
 
+  // 语义检索：混合评分（本地嵌入相似度 + FTS 关键词重叠）排序。
   async searchRelevant(
     query,
     { cwd = '', spaceIds = null, limit = 6, minScore = 0.08, trackAccess = true } = {},
@@ -1052,6 +1063,7 @@ export class LocalMemoryRuntime {
     return ranked
   }
 
+  // 生成注入上下文：检索相关记忆并格式化为系统注入文本。
   relevantContext(query, cwd, limit = 3) {
     if (!shouldRetrieveMemory(query)) return { text: '', memories: [] }
     return this.ensureWorkspaceSpace(cwd)
@@ -1100,6 +1112,7 @@ export class LocalMemoryRuntime {
     return this.semanticStatus()
   }
 
+  // 语义摘要队列：后台异步生成检索关键词并刷新关联链接。
   scheduleSemantic(ids) {
     if (!this.semanticSummarizer || !this.db) return
     for (const id of ids) if (id) this.semanticQueue.add(id)

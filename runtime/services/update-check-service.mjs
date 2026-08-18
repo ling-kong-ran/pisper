@@ -1,3 +1,4 @@
+// 更新检查服务：对比当前版本/提交与远端 release 分支，判断是否有新版本可更新。
 import { execFile } from 'node:child_process'
 import { promisify } from 'node:util'
 import {

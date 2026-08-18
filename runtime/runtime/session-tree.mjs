@@ -1,8 +1,11 @@
+// 会话树投影：把 Pi 的会话分支树（JSONL 文件）转成前端可渲染的树结构，
+// 并提供标签（label）条目的增量扫描——标签数量可能很多，全量重扫成本高。
 import { createReadStream } from 'node:fs'
 import { open, stat } from 'node:fs/promises'
 import { createInterface } from 'node:readline'
 import { isCompletedTurnBoundaryMessage } from './session-derivation.mjs'
 
+// 树导航用的自定义条目类型：记录“当前查看位置”以便回到上次浏览节点。
 const TREE_NAVIGATION_CUSTOM_TYPE = 'pisper.session-tree-position'
 const MAX_NODE_TEXT = 320
 
@@ -55,6 +58,7 @@ function messageProjection(message) {
   }
 }
 
+// 把单条会话记录投影为前端节点：工具结果/工具调用/分支摘要/压缩/标签等类型各取所需字段。
 function entryProjection(entry) {
   if (entry.type === 'message') return messageProjection(entry.message)
   if (entry.type === 'branch_summary') {
@@ -116,6 +120,8 @@ function projectNode(node, activeIds, leafId) {
   }
 }
 
+// 深度优先（先根后子、从右往左压栈以保证左子节点先出）投影整棵树，
+// 附带活动链、叶节点、分支点等导航信息。
 export function projectSessionTree(manager, { sessionId = '', streaming = false } = {}) {
   const leafId = manager.getLeafId() || null
   const activeIds = new Set(manager.getBranch().map((entry) => entry.id))
@@ -140,6 +146,7 @@ export function projectSessionTree(manager, { sessionId = '', streaming = false 
   }
 }
 
+// 汇总树中已完成的助手消息标签，供会话标签搜索使用。
 export function projectSessionTreeLabels(manager, session = {}) {
   const tree = projectSessionTree(manager, { sessionId: session.id || '' })
   const labels = []
@@ -160,10 +167,12 @@ export function projectSessionTreeLabels(manager, session = {}) {
   return labels
 }
 
+// 追加一个“树导航位置”自定义条目，之后可据此恢复上次的浏览位置。
 export function appendTreePosition(manager, targetId) {
   return manager.appendCustomEntry(TREE_NAVIGATION_CUSTOM_TYPE, { targetId })
 }
 
+// 判断 offset 处是否恰好是行首（前一字节是换行），用于增量读取的边界对齐。
 export async function isLineBoundary(path, offset) {
   if (!path || offset <= 0) return true
   const handle = await open(path, 'r')
@@ -178,6 +187,7 @@ export async function isLineBoundary(path, offset) {
   }
 }
 
+// 读取文件 [fromOffset, size) 区间；文件被截断（size < fromOffset）时返回 invalid。
 async function readFileRange(path, fromOffset) {
   const handle = await open(path, 'r')
   try {

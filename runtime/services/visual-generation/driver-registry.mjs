@@ -1,3 +1,5 @@
+// 驱动注册表：按协议名映射到具体驱动实现（Google/xAI/New API/OpenAI 兼容），
+// 驱动模块懒加载，首次使用时才 import。
 import { isNewAPIProvider } from './protocol-detection.mjs'
 
 const DRIVER_LOADERS = new Map([

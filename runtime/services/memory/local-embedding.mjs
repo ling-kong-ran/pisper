@@ -1,5 +1,8 @@
+// 本地嵌入：无外部模型的离线向量化方案（哈希特征 + 归一化），
+// 支撑记忆的语义检索；远程 embedding 不可用时作为降级路径。
 const DEFAULT_DIMENSIONS = 384
 
+// FNV-1a 哈希：把 token 稳定映射到向量下标。
 function hashToken(token) {
   let hash = 2166136261
   for (const character of token) {
@@ -32,6 +35,8 @@ function tokenize(value) {
   return features
 }
 
+// 分词与特征抽取：ASCII 词取整词 + 3-gram；CJK 逐字 + 2/3-gram（中文分词近似），
+// 保证同义/相似写法能产生重叠特征。
 export function localEmbedding(value, dimensions = DEFAULT_DIMENSIONS) {
   const vector = new Float32Array(dimensions)
   for (const token of tokenize(value)) {
@@ -48,10 +53,12 @@ export function localEmbedding(value, dimensions = DEFAULT_DIMENSIONS) {
   return vector
 }
 
+// 向量 → 二进制 Buffer（SQLite 存储用）。
 export function embeddingBuffer(vector) {
   return Buffer.from(vector.buffer, vector.byteOffset, vector.byteLength)
 }
 
+// Buffer → 向量（拷贝还原，避免直接包一层可能被修改的底层 buffer）。
 export function embeddingFromBuffer(buffer) {
   if (!buffer?.length) return new Float32Array()
   const bytes = Buffer.from(buffer)
@@ -64,6 +71,7 @@ export function embeddingFromBuffer(buffer) {
   )
 }
 
+// 余弦相似度（归一化后等价于点积）。
 export function cosineSimilarity(left, right) {
   const length = Math.min(left.length, right.length)
   let score = 0
@@ -71,6 +79,7 @@ export function cosineSimilarity(left, right) {
   return score
 }
 
+// 关键词重叠率：查询与文本共享 token 的比例，混合检索时作为权重。
 export function keywordOverlap(query, text) {
   const queryTokens = new Set(tokenize(query))
   if (!queryTokens.size) return 0

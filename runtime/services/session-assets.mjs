@@ -1,3 +1,5 @@
+// 会话资产附件：把资产转换为可嵌入消息的附件结构，并把生成的资产挂到对应助手消息上
+// （按时间归属到最近的 agent 消息）。
 export function assetMessageAttachment(asset) {
   const mimeType = String(asset.mimeType || '')
   const kind = mimeType.startsWith('image/')

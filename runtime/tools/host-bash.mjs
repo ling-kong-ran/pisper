@@ -1,3 +1,5 @@
+// 宿主 bash 工具：基于 Pi 引擎 createBashTool 的封装，
+// 附带命令守卫与 Windows UTF-8 环境修正，并拒绝危险的敏感环境变量覆盖。
 import { createBashTool } from '../runtime/pi-coding-agent.mjs'
 import { Type } from 'typebox'
 import { applyWindowsUtf8Environment } from './windows-utf8-bash.mjs'

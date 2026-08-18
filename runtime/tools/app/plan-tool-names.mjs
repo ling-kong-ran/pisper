@@ -1,3 +1,4 @@
+// 计划工具名常量：新命名 + 一次性兼容命名（task_list）。
 export const PLAN_TOOL_NAMES = Object.freeze(['get_plan', 'update_plan'])
 
 // One-release compatibility names. Keep these registered but inactive and undiscoverable.

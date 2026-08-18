@@ -1,3 +1,4 @@
+// 新会话文件强制落盘（语义与理由见 ensureSessionFilePersisted 的实现注释）。
 import { mkdir, stat, writeFile } from 'node:fs/promises'
 import { randomUUID } from 'node:crypto'
 import { dirname } from 'node:path'

@@ -1,3 +1,6 @@
+// 流投影：把会话的引擎内部状态（消息、工具、用量、压缩、生命周期）投影成前端可消费的
+// 视图（transcript 消息、实时快照、上下文用量、历史消息页）。带多级缓存（投影缓存/历史
+// 消息缓存/上下文用量缓存），并在源数据未变时直接命中缓存避免重复序列化。
 import { createHash } from 'node:crypto'
 import { open, stat } from 'node:fs/promises'
 import { calculateContextTokens, estimateTokens } from './pi-coding-agent.mjs'
@@ -13,6 +16,7 @@ import { permissionModeForExecutionMode } from '../security/execution-mode.mjs'
 import { effectiveCompactionSettings } from './compaction-policy.mjs'
 import { isCompletedTurnBoundaryMessage } from './session-derivation.mjs'
 
+// 活动流长度/思考文本上限：限制实时视图的内存与传输量。
 export const MAX_LIVE_ACTIVITY_ITEMS = 6
 export const MAX_LIVE_THINKING_CHARS = 6_000
 const DEFAULT_MESSAGE_PAGE_SIZE = 40
@@ -25,16 +29,17 @@ const MAX_SESSION_HISTORY_CACHE_ESTIMATED_BYTES = 48 * 1024 * 1024
 const SESSION_HISTORY_CACHE_MEMORY_MULTIPLIER = 4
 const MAX_PROJECTION_CACHE_ENTRIES = 8
 const MAX_PROJECTION_CACHE_BYTES = 24 * 1024 * 1024
-// Bounded only to keep the cold-session context-usage map from growing forever.
-// Entries are small and purely derived; eviction never participates in session
-// existence checks (findSessionInfo already ran before the cache is consulted).
+// 冷会话上下文用量缓存上限：条目很小且纯派生，驱逐不参与会话存在性判断
+// （findSessionInfo 已在查缓存前执行）。
 const MAX_SESSION_CONTEXT_USAGE_CACHE_ENTRIES = 64
 const ATTACHMENT_MARKER = '\n\n---\nAttachment context (injected by Pisper):\n'
 
+// 内部注入消息（目标延续/Agent 完成）不展示给用户，也不进入排队列表。
 export function isInternalParentMessage(content) {
   return isGoalContinuationMessage(content) || isAgentCompletionMessage(content)
 }
 
+// 从消息内容（字符串或内容块数组）中提取纯文本。
 export function textFromContent(content) {
   if (typeof content === 'string') return content
   if (!Array.isArray(content)) return ''
@@ -44,10 +49,12 @@ export function textFromContent(content) {
     .join('')
 }
 
+// 思考文本只保留尾部（流式场景下旧内容对用户已无意义），降低传输与渲染成本。
 export function liveThinkingTail(value) {
   return String(value || '').slice(-MAX_LIVE_THINKING_CHARS)
 }
 
+// 新文本块开始时清空 live.text（旧块内容已由 text_end 提交）。
 export function beginTextBlock(activeBlocks, blockIndex, live, emit) {
   if (activeBlocks.has(blockIndex)) return
   activeBlocks.add(blockIndex)
@@ -55,6 +62,7 @@ export function beginTextBlock(activeBlocks, blockIndex, live, emit) {
   live.text = ''
 }
 
+// 活动去重键：同类型同对象的活动合并，避免重复条目堆积。
 function liveActivityKey(activity) {
   if (!activity?.type) return ''
   if (activity.type === 'tool') return `tool:${activity.id || activity.name || ''}`
@@ -68,6 +76,8 @@ function liveActivityKey(activity) {
   return `${activity.type}:${activity.id || activity.updatedAt || ''}`
 }
 
+// 活动流追加：计划/Agent 事件会替换同名的工具条目（工具本身不再重复展示），
+// 并按活动键去重、只保留最近 N 条。
 export function pushLiveActivity(feed, activity) {
   const current = Array.isArray(feed) ? feed : []
   if (!['tool', 'plan', 'agent'].includes(activity?.type)) return current
@@ -93,6 +103,7 @@ export function setLiveActivity(live, activity) {
   live.activityFeed = activity ? pushLiveActivity(live.activityFeed, activity) : []
 }
 
+// 计算计划项变化摘要（新增/更新/移除），供前端展示计划变更。
 export function livePlanChanges(previous, next) {
   const previousItems = new Map((previous?.items || []).map((item) => [item.id, item]))
   const nextItems = new Map((next?.items || []).map((item) => [item.id, item]))
@@ -125,6 +136,7 @@ export function livePlanChanges(previous, next) {
   return changes
 }
 
+// 排队中的会话输入（steer/followUp），过滤内部消息并去掉附件注入标记。
 export function queuedSessionInputs(session) {
   const steering =
     typeof session?.getSteeringMessages === 'function' ? session.getSteeringMessages() : []
@@ -140,6 +152,7 @@ export function queuedSessionInputs(session) {
   ]
 }
 
+// 单条消息 → 前端消息结构；用户消息剥离注入的附件上下文，助手消息带错误信息。
 function serializeMessage(message, index, resolveImageUrl = null) {
   if (!message || !['user', 'assistant'].includes(message.role)) return null
   const rawText = textFromContent(message.content)
@@ -178,6 +191,8 @@ function serializedTimestamp(value) {
   return Number.isNaN(date.getTime()) ? null : date.toISOString()
 }
 
+// 整个会话消息流 → 前端 transcript：把工具调用/思考/文本块归并为带 runActivity 的消息，
+// 附带回合边界（turnBoundaryEntryId）供会话树定位。
 export function serializeTranscriptMessages(messages, resolveImageUrl = null, entryIds = []) {
   const result = []
   let thinkingParts = []
@@ -291,10 +306,9 @@ export function serializeTranscriptMessages(messages, resolveImageUrl = null, en
       const terminal = message.stopReason
         ? message.stopReason !== 'toolUse'
         : toolCalls.length === 0
-      // Pi persists one assistant message per model turn. Tool-using runs can therefore
-      // contain several commentary text blocks, while the live UI intentionally replaces
-      // the same response body for each block. Keep only the latest non-terminal block as
-      // a candidate and emit one ChatMessage when the run reaches its terminal response.
+      // Pi 每个模型回合持久化一条 assistant 消息，工具回合会包含多段评论文本块，
+      // 而实时 UI 有意用同一响应体替换每个块；因此只保留最新非终态块作为候选，
+      // 在回合到达终态响应时输出一条 ChatMessage。
       if (!terminal && serialized && hasActivity()) {
         pendingRunItem = serialized
       } else if (serialized || (terminal && hasActivity())) {
@@ -366,7 +380,7 @@ export function addSessionUsage(target, usage) {
   target.cacheRead += cacheRead
   target.cacheWrite += cacheWrite
   target.reasoning += reasoning
-  // Reasoning is an output detail, so adding it again would double-count generated tokens.
+  // 推理 token 属于输出的一部分，若再加一次会重复计算生成量。
   target.totalTokens += reportedTotal || input + output + cacheRead + cacheWrite
   target.processedTokens += input + output + cacheWrite
   target.requests += 1
@@ -375,6 +389,7 @@ export function addSessionUsage(target, usage) {
   return target
 }
 
+// 汇总一组消息的用量（只统计带 usage 的 assistant 消息）。
 export function summarizeSessionUsage(messages = []) {
   const total = emptySessionUsage()
   for (const message of messages) {
@@ -383,6 +398,7 @@ export function summarizeSessionUsage(messages = []) {
   return total
 }
 
+// 压缩开始状态构造。
 export function startedCompaction(reason, startedAt) {
   return {
     active: true,
@@ -399,6 +415,7 @@ export function startedCompaction(reason, startedAt) {
   }
 }
 
+// 有效助手用量：跳过中止/出错消息。
 function validAssistantUsage(message) {
   if (
     message?.role !== 'assistant' ||
@@ -410,6 +427,8 @@ function validAssistantUsage(message) {
   return calculateContextTokens(message.usage) > 0 ? message.usage : null
 }
 
+// 估算消息上下文 token：以最近的 valid usage 为锚点（锚点前用 calculateContextTokens），
+// 锚点后逐条 estimateTokens，兼顾精度与成本。
 function estimateMessageContextTokens(messages = []) {
   let usageIndex = -1
   let tokens = 0
@@ -441,6 +460,7 @@ function persistedContextUsage(manager, contextWindow) {
   return { tokens, contextWindow, percent: (tokens / contextWindow) * 100 }
 }
 
+// 压缩完成状态：合并结果字段并计算节省的 token。
 export function finishedCompaction(previous, event, finishedAt) {
   const tokensBefore = optionalTokenCount(event.result?.tokensBefore)
   const estimatedTokensAfter = optionalTokenCount(event.result?.estimatedTokensAfter)
@@ -474,6 +494,7 @@ function sameToken(left, right) {
   return left?.length === right?.length && left.every((value, index) => value === right[index])
 }
 
+// 消息指纹：用于判断消息序列是否变化（变化则缓存失效）。
 function messageToken(messages) {
   const last = messages?.at?.(-1)
   return [
@@ -506,6 +527,8 @@ function estimateProjectionBytes(value, seen = new Set()) {
   )
 }
 
+// 投影缓存：按 key + 内容指纹缓存 transcript/用量/实时快照，
+// 带条目数与估算字节上限，LRU 驱逐。
 export class ProjectionCache {
   constructor({
     maxEntries = MAX_PROJECTION_CACHE_ENTRIES,
@@ -520,6 +543,7 @@ export class ProjectionCache {
   }
 
   get(map, key, token) {
+    // 指纹不一致视为缓存失效；命中时刷新 touch 时间供 LRU 使用。
     const cached = map.get(key)
     if (!cached || !sameToken(cached.token, token)) return { hit: false, value: null }
     cached.touchedAt = Date.now()
@@ -589,6 +613,7 @@ export class ProjectionCache {
     return this.set(this.liveSnapshots, key, token, value)
   }
 
+  // 失效：可按范围（transcript/activity/usage）选择性清除。
   invalidate(key, { transcript = true, activity = true, usage = true } = {}) {
     if (transcript) {
       this.transcripts.delete(key)
@@ -616,6 +641,8 @@ export class ProjectionCache {
   }
 }
 
+// StreamProjection：会话视图投影服务——把引擎会话状态投影为前端可读的结构，
+// 并统一处理历史消息读取（增量缓存）、上下文用量、实时快照与消息分页。
 export class StreamProjection {
   constructor({
     cwd,
@@ -660,6 +687,7 @@ export class StreamProjection {
     this.cache = new ProjectionCache()
   }
 
+  // 记住会话模型：写入内存元数据；仅冷历史恢复时持久化（热路径避免与流结束写竞争）。
   rememberSessionModel(id, model, { persist = false } = {}) {
     const next = String(model || '').trim()
     if (!id || !next || /(^|\/)unknown$/i.test(next)) return next
@@ -672,6 +700,7 @@ export class StreamProjection {
     return next
   }
 
+  // 解析会话模型：活动运行时 > 元数据 > 磁盘会话上下文（并持久化结果）。
   async resolveSessionModel(id) {
     const active = this.sessions().get(id)
     if (active?.session?.model?.provider && active.session.model.id) {
@@ -724,6 +753,7 @@ export class StreamProjection {
     )
   }
 
+  // 会话消息（transcript）：活动运行时直接序列化，否则从磁盘打开会话重建。
   async getSessionMessages(id) {
     const active = this.sessions().get(id)
     let messages
@@ -764,6 +794,7 @@ export class StreamProjection {
     return this.withGeneratedAssets(id, messages)
   }
 
+  // 历史消息缓存修剪（按条目数与估算字节）。
   trimSessionHistoryCache(protectedPath = '') {
     const history = this.history()
     const maximumEntries = Math.max(
@@ -805,6 +836,8 @@ export class StreamProjection {
     }
   }
 
+  // 增量读取会话历史文件：从上次读到的位置继续，按换行对齐切分逐条解析；
+  // 文件变小/被重写（mtime 变化）时从头重建。
   async readSessionHistoryEntries(path) {
     const file = await stat(path)
     const history = this.history()
@@ -878,6 +911,7 @@ export class StreamProjection {
     return cached
   }
 
+  // 会话累计 token 用量：优先读历史文件（增量），缺失时回退到内存消息。
   async getSessionTokenUsage(id) {
     const active = this.sessions().get(id)
     const activePath = active?.session.sessionFile
@@ -902,6 +936,7 @@ export class StreamProjection {
     return summarizeSessionUsage(active?.session?.messages || [])
   }
 
+  // 历史消息：从会话文件重建当前分支（沿 parentId 回溯），图片附件按哈希映射到资产 URL。
   async getSessionHistoryMessages(id) {
     const active = this.sessions().get(id)
     const activePath = active?.session.sessionFile
@@ -967,6 +1002,7 @@ export class StreamProjection {
     return this.withGeneratedAssets(id, messages)
   }
 
+  // 上下文用量装饰：补充压缩阈值、压缩触发点等前端展示字段。
   decorateContextUsage(raw, compaction = null) {
     const contextWindow = optionalTokenCount(raw?.contextWindow)
     if (!contextWindow) return undefined
@@ -1029,6 +1065,7 @@ export class StreamProjection {
     })
   }
 
+  // 冷会话上下文用量：带 (path, size, mtime) 缓存，未变化不重读。
   async getSessionContextUsage(id, compaction = null) {
     const active = this.sessions().get(id)
     if (active) {
@@ -1073,6 +1110,7 @@ export class StreamProjection {
     return value
   }
 
+  // 消息分页（向后翻页）：before 为游标（已加载条数）。
   async getSessionMessagePage(id, { before, limit = DEFAULT_MESSAGE_PAGE_SIZE } = {}) {
     const messages = await this.getSessionHistoryMessages(id)
     const pageSize = Math.min(
@@ -1114,6 +1152,8 @@ export class StreamProjection {
     ]
   }
 
+  // 实时快照：活动运行中把 live 状态合入消息流（流式中的最后一条 assistant 消息），
+  // 供前端轮询/SSE 后全量刷新。
   async getSessionLive(id) {
     const active = this.sessions().get(id)
     if (active) this.touchSessionRuntime(active)

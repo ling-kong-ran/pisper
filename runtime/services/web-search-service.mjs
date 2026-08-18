@@ -1,3 +1,5 @@
+// Web 搜索服务：通过 Bing RSS 实现网页搜索，无 API Key 依赖；
+// 提供配置归一化、结果解析与可用性测试。
 import { readJson } from '../storage/json-file.mjs'
 
 export const DEFAULT_WEB_SEARCH_CONFIG = Object.freeze({

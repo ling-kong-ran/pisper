@@ -1,3 +1,5 @@
+// 记忆与资产路由：目录浏览、资产（上传/下载/删除）、记忆空间/候选/搜索、
+// 会话树标签等辅助能力。
 export const memoryAssetRoutes = [
   {
     method: 'GET',

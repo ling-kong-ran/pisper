@@ -1,3 +1,5 @@
+// 会话斜杠命令投影：把 Pi 引擎的 prompt 与 skill 展开成统一的命令列表
+// （/name 与 /skill:name），并清洗描述文本供前端展示。
 const MAX_COMMAND_NAME_CHARS = 128
 const MAX_COMMAND_DESCRIPTION_CHARS = 280
 const MAX_ARGUMENT_HINT_CHARS = 120
@@ -13,6 +15,7 @@ function cleanText(value, maximum) {
     .slice(0, maximum)
 }
 
+// 作用域推导：包内 prompt 为 package，project/user 分别按引擎元数据标记，其余为 custom。
 function commandScope(sourceInfo) {
   if (sourceInfo?.origin === 'package') return 'package'
   if (sourceInfo?.scope === 'project') return 'project'
@@ -20,11 +23,13 @@ function commandScope(sourceInfo) {
   return 'custom'
 }
 
+// 命令名合法性：非空且不含空白/斜杠（否则无法作为 / 命令调用）。
 function validName(value) {
   const name = cleanText(value, MAX_COMMAND_NAME_CHARS)
   return name && !/[\s/]/.test(name) ? name : ''
 }
 
+// 汇总会话的可用命令（prompt + skill），按来源排序、按调用名去重。
 export function projectSessionCommands({ sessionId, prompts = [], skills = [], diagnostics = [] }) {
   const commands = []
   const seen = new Set()

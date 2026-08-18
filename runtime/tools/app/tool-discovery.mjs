@@ -1,6 +1,8 @@
 import { defineTool } from '../../runtime/pi-coding-agent.mjs'
 import { Type } from 'typebox'
 
+// 工具发现工具：让模型按别名/关键词发现可选工具（discover_tools），
+// 配合 call_tool 网关实现按需激活。
 export const TOOL_DISCOVERY_NAME = 'discover_tools'
 
 const TOOL_ALIASES = {

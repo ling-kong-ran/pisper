@@ -1,3 +1,5 @@
+// 通知模板：各通知事件（对话完成/等待确认/定时任务等）的默认模板、变量表与渲染，
+// 支持按平台（浏览器/飞书/微信）自定义。
 export const NOTIFICATION_EVENTS = {
   'chat.completed': {
     name: '对话完成',

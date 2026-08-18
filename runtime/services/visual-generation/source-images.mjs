@@ -1,3 +1,4 @@
+// 源图片加载：图片编辑（I2V/图生图）的参考图读取，校验存在性/大小/格式。
 import { readFile, stat } from 'node:fs/promises'
 import { extname, resolve } from 'node:path'
 

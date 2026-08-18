@@ -1,3 +1,5 @@
+// 内置工具目录：Pi 引擎自带工具的元数据（风险等级/能力/来源），
+// 供工具管理界面与权限审批展示。
 export const BUILTIN_TOOL_CATALOG = [
   {
     id: 'read',

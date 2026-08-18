@@ -1,3 +1,5 @@
+// Provider 模型目录服务：把发现的模型目录（discovery 结果）同步进模型配置，
+// 并维护能力元数据（上下文窗口/思考等级/输入类型）。
 import { readJson, writeJsonAtomic } from '../storage/json-file.mjs'
 
 const DEFAULT_THINKING_LEVEL_MAP = Object.freeze({ xhigh: null, max: null })
@@ -13,6 +15,7 @@ function zeroCost() {
   return { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 }
 }
 
+// 推断上下文窗口：有特殊已知值时返回精确值，否则回退到默认。
 export function inferredContextWindow(modelId, fallback = 200_000) {
   if (/^gpt-5\.6(?:-|$)/i.test(String(modelId || ''))) return 272_000
   return Number(fallback) || 200_000

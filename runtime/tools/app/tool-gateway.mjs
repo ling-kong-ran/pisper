@@ -1,3 +1,4 @@
+// 工具网关：所有可选工具经 call_tool 间接调用（含 schema 校验与权限审批）。
 import { defineTool } from '../../runtime/pi-coding-agent.mjs'
 import { Type } from 'typebox'
 import { Check, Errors } from 'typebox/value'

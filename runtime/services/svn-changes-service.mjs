@@ -1,3 +1,5 @@
+// SVN 变更服务：与 GitChangesService 对等的 SVN 实现（status/diff/commit/push/revert），
+// 未装 svn 或非 SVN 工作区时静默降级。
 import { execFile } from 'node:child_process'
 import { readFile, rm, stat } from 'node:fs/promises'
 import { resolve, sep } from 'node:path'

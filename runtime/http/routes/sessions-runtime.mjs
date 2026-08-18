@@ -1,3 +1,5 @@
+// 会话运行时路由：健康检查、诊断、用量、会话 CRUD、会话运行（SSE 流式）、
+// 消息/历史/树/标签、权限审批、模型/工作目录切换等核心 API。
 export const sessionRuntimeRoutes = [
   {
     method: 'GET',

@@ -1,3 +1,5 @@
+// 文件变更预览：为 edit/write 等文件修改工具生成 diff 预览（统一补丁），
+// 供权限审批界面展示；支持 edit 的多次替换与 write 全文替换两种输入。
 import { createHash } from 'node:crypto'
 import { readFile } from 'node:fs/promises'
 import { relative } from 'node:path'

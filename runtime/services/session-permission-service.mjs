@@ -1,3 +1,5 @@
+// 会话权限审批服务：按工具风险与权限模式（ask/auto/ignore）决定工具调用是否需人工审批，
+// 管理待审批队列与已决审批缓存，并为文件修改类工具生成变更预览。
 import { existsSync, realpathSync } from 'node:fs'
 import { dirname, isAbsolute, join, relative, resolve, sep } from 'node:path'
 import { createHash, randomUUID } from 'node:crypto'
@@ -12,6 +14,7 @@ export const DEFAULT_PERMISSION_MODE = 'auto'
 export const RESOLVED_APPROVAL_TTL_MS = 5 * 60_000
 export const MAX_RESOLVED_APPROVALS = 256
 
+// 工具风险元数据：插件目录 + 多 Agent 内部工具（不在目录中但同样需要风险分级）。
 const TOOL_RISKS = new Map([
   ...TOOL_CATALOG.map((tool) => [tool.id, tool.risk]),
   // Internal multi-agent tools are not listed in the plugins catalog, but still need risk metadata.
@@ -36,6 +39,7 @@ function stableValue(value) {
   return value
 }
 
+// 审批键：对 bash 只按命令文本记忆审批，相同命令换超时仍复用用户之前的决定。
 function approvalKey({ cwd, toolName, args }) {
   // For bash, remember the approval on the command text only, so an identical
   // command with a different timeout still reuses the user's earlier approval.
@@ -48,6 +52,7 @@ function approvalKey({ cwd, toolName, args }) {
     .digest('hex')
 }
 
+// 文件修改类工具（edit/write）附带变更预览需求。
 function isPreviewedFileChange(toolName, requirement) {
   return Boolean(requirement && ['edit', 'write'].includes(toolName))
 }

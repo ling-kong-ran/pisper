@@ -1,5 +1,8 @@
+// 提示词缓存诊断：把系统提示/工具定义/模型运行时形态哈希化，对比形态变化以定位
+// prompt cache 未命中原因。哈希前对工具定义做稳定化排序，保证相同内容哈希一致。
 import { createHash } from 'node:crypto'
 
+// 稳定化任意值：递归排序对象键并去掉 execute 函数（不可哈希），保证同样内容哈希一致。
 function stableValue(value) {
   if (Array.isArray(value)) return value.map((item) => stableValue(item))
   if (value && typeof value === 'object')

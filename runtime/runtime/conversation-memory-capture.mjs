@@ -1,5 +1,7 @@
+// 对话记忆捕获：把一轮对话交给模型抽取候选记忆，再按作用域/会话归属写入记忆库。
 import { extractConversationMemories } from '../services/memory/conversation-memory.mjs'
 
+// 本地日期键（YYYY-MM-DD，按本地时区），用量账本等按天分桶的模块共用。
 export function localDayKey(value = new Date()) {
   const date = value instanceof Date ? value : new Date(value)
   if (Number.isNaN(date.getTime())) return ''

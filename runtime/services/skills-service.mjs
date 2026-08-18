@@ -1,3 +1,5 @@
+// 技能服务：发现/安装/更新/删除 Pi 技能（项目与用户级），
+// 构建资源加载器（提示词/技能/包管理器）供会话使用，并提供仪表盘视图。
 import { createHash } from 'node:crypto'
 import { existsSync, statSync } from 'node:fs'
 import {
@@ -262,6 +264,7 @@ export class SkillsService {
   }
 
   async init() {
+    // 加载技能状态与默认设置。
     await mkdir(this.skillsDir, { recursive: true })
     this.state = normalizeState(
       await readJson(this.path, { version: SKILLS_STATE_VERSION, overrides: {}, installed: {} }),
@@ -313,6 +316,7 @@ export class SkillsService {
     }
   }
 
+  // 为会话创建资源加载器（技能/提示词 + 可选附加系统提示）。
   async createResourceLoader(
     cwd = this.cwd,
     { includeDisabled = false, appendSystemPrompt = '' } = {},
@@ -396,6 +400,7 @@ export class SkillsService {
       })
   }
 
+  // 发现工作区中的技能（项目 .agents/skills 与用户目录）。
   async discover(cwd = this.cwd) {
     const settingsManager = this.getSettingsManager(cwd)
     const resources = (await this.resolveSkillResources(cwd)).filter(
@@ -657,6 +662,7 @@ export class SkillsService {
     return destination
   }
 
+  // 安装技能（本地路径/市场包）：校验后复制到用户或项目技能目录。
   async install(input = {}, { cwd = this.cwd } = {}) {
     const source = String(input.source || '').trim()
     if (!source) throw new Error('请输入技能目录、SKILL.md、npm 包或 git 来源。')
@@ -711,6 +717,7 @@ export class SkillsService {
     }
   }
 
+  // 删除技能。
   async remove(id, { cwd = this.cwd } = {}) {
     const skill = await this.findSkill(id, cwd)
     if (!skill) return false

@@ -1,3 +1,5 @@
+// 定时任务服务：按频率（interval/daily/weekly/monthly）调度会话 prompt 或工作流执行，
+// 支持时区、运行记录、重启后补偿未执行任务。
 import { randomUUID } from 'node:crypto'
 import { readJson, writeJsonAtomic } from '../storage/json-file.mjs'
 import { normalizeExecutionMode } from '../security/execution-mode.mjs'
@@ -17,6 +19,7 @@ function defaultState() {
   return { version: 1, tasks: [], runs: [] }
 }
 
+// 把时间戳按指定时区拆成年月日时分秒（用于计算下一触发时刻）。
 function zonedParts(value, timeZone) {
   const parts = new Intl.DateTimeFormat('en-CA', {
     timeZone,
@@ -33,6 +36,7 @@ function zonedParts(value, timeZone) {
   )
 }
 
+// 把某时区的时刻换算回 UTC 时间戳（多次迭代逼近，处理 DST 与偏移差异）。
 function zonedTimeToUtc(parts, timeZone) {
   const target = Date.UTC(parts.year, parts.month - 1, parts.day, parts.hour, parts.minute, 0)
   let guess = target

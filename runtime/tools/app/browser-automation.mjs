@@ -1,3 +1,4 @@
+// 浏览器自动化工具：隔离浏览器中的导航/检查/交互/截图。
 import { defineTool } from '../../runtime/pi-coding-agent.mjs'
 import { Type } from 'typebox'
 

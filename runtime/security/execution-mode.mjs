@@ -1,3 +1,5 @@
+// 执行模式：按模式过滤可用工具与默认权限策略。
+// 模式：read-only（只读）/ approval-required（需审批）/ workspace-write（工作区写）/ full-access（完全访问）。
 import { PLAN_READ_TOOL_NAMES } from '../tools/app/plan-tool-names.mjs'
 import { TOOL_CATALOG } from '../tools/registry.mjs'
 
@@ -29,12 +31,14 @@ export function normalizeExecutionMode(value, fallback = DEFAULT_EXECUTION_MODE)
   return EXECUTION_MODES.has(mode) ? mode : fallback
 }
 
+// 模式 → 默认权限模式映射：只读 = ignore，审批/工作区写 = ask，完全访问 = auto。
 export function permissionModeForExecutionMode(mode) {
   if (mode === 'read-only' || mode === 'approval-required') return 'ask'
   if (mode === 'workspace-write') return 'auto'
   return 'ignore'
 }
 
+// 按执行模式过滤工具：高危工具只在更高授权模式下可用；内部工具豁免。
 export function filterToolsForExecutionMode(names, mode, getExternalRisk = () => null) {
   const unique = [...new Set(names || [])].filter(
     (name) => mode === 'full-access' || !FULL_ACCESS_ONLY_TOOLS.has(name),
@@ -52,6 +56,7 @@ export function filterToolsForExecutionMode(names, mode, getExternalRisk = () =>
   })
 }
 
+// 旧版执行模式迁移（老配置缺省/别名）。
 export function migrateLegacyExecutionMode(meta = {}) {
   if (EXECUTION_MODES.has(meta.executionMode)) return meta.executionMode
   return 'full-access'

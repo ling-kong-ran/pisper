@@ -1,3 +1,4 @@
+// 视觉输出保存：把生成结果写入工作区 generated/visuals 目录，文件名带时间戳防覆盖。
 import { mkdir, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 

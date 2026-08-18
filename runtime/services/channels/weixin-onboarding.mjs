@@ -1,3 +1,4 @@
+// 微信接入引导：扫码 + 验证码 + 设备绑定（pad/bot）的多阶段登录流程。
 import { randomUUID } from 'node:crypto'
 import QRCode from 'qrcode'
 import { WeixinProtocol, WEIXIN_API_BASE, WEIXIN_CDN_BASE } from './weixin-protocol.mjs'

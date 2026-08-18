@@ -1,3 +1,5 @@
+// 模型元数据服务：从 models.dev 拉取模型目录元数据（上下文窗口/思考等级映射等），
+// 缓存到本地 JSON，供模型列表/上下文用量估算使用。
 import { readJson, writeJsonAtomic } from '../storage/json-file.mjs'
 
 const DEFAULT_ENDPOINT = 'https://models.dev/api.json'
@@ -5,6 +7,7 @@ const MAX_RESPONSE_BYTES = 1024 * 1024
 
 const TEXT_IMAGE_INPUT = Object.freeze(['text', 'image'])
 
+// 思考等级 → 供应商参数字典：不同模型族对思考参数的支持不同，按模型族映射。
 function levelMap(overrides = {}) {
   return Object.freeze({ xhigh: null, max: null, ...overrides })
 }

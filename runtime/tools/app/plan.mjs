@@ -1,3 +1,4 @@
+// 计划工具：get_plan / update_plan（含兼容命名的 task_list 版本）。
 import { defineTool } from '../../runtime/pi-coding-agent.mjs'
 import { Type } from 'typebox'
 import {
