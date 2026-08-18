@@ -160,7 +160,7 @@ export function ChatPage({
       const name = await requestText({
         title: t('chat:chatPage.createChildChat'),
         inputLabel: t('chat:chatPage.chatTitle'),
-        value: `${session.name || t('chat:chatPage.newChat')} · ${t('chat:chatPage.separateChatSuffix')}`,
+        value: `${t('chat:chatPage.separateChatSuffix')} · ${session.name || t('chat:chatPage.newChat')}`,
         confirmLabel: t('chat:chatPage.create'),
       })
       if (name === null) return

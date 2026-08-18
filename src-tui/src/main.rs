@@ -1305,7 +1305,8 @@ async fn materialize_draft_session(app: &mut App, api: &ApiClient) -> Result<()>
     let requested_thinking = app.thinking_level.clone();
     let requested_mode = app.execution_mode.clone();
     let mut session = api
-        .create_session("New conversation", Path::new(&app.cwd))
+        // 标题交给 Runtime 统一生成，首条用户消息到达后会自动命名。
+        .create_session("", Path::new(&app.cwd))
         .await?;
 
     if !requested_model.is_empty() && requested_model != session.model {
@@ -1335,7 +1336,7 @@ async fn materialize_draft_session(app: &mut App, api: &ApiClient) -> Result<()>
 /// 工作区取启动工作区，默认 full-access 模式。
 fn draft_session(workspace: &Path, model: &str, thinking_level: &str) -> SessionSummary {
     SessionSummary {
-        name: "New conversation".to_owned(),
+        name: String::new(),
         model: model.to_owned(),
         cwd: workspace.to_string_lossy().into_owned(),
         execution_mode: "full-access".to_owned(),
@@ -1595,6 +1596,7 @@ mod tests {
         let draft = draft_session(std::path::Path::new("/workspace"), "provider/model", "high");
 
         assert!(draft.id.is_empty());
+        assert!(draft.name.is_empty());
         assert_eq!(draft.cwd, "/workspace");
         assert_eq!(draft.model, "provider/model");
         assert_eq!(draft.thinking_level, "high");
