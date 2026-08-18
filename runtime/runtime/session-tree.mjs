@@ -101,17 +101,21 @@ function entryProjection(entry) {
   return { kind: 'metadata', role: '', text: boundedText(entry.type), status: '' }
 }
 
+function isTreePosition(node) {
+  return node?.entry?.type === 'custom' && node.entry.customType === TREE_NAVIGATION_CUSTOM_TYPE
+}
+
 function visibleChildren(node, leafId, positionContext) {
   const children = node?.children || []
+  const targetId = node.entry?.id
   const pending = children.filter((child) =>
-    isPendingTreePosition(child, node.entry?.id, positionContext),
+    isPendingTreePosition(child, targetId, positionContext),
   )
-  if (pending.length <= 1) return children
-  const keepId = pending.find((child) => child.entry.id === leafId)?.entry.id || pending[0].entry.id
-  return children.filter(
-    (child) =>
-      !isPendingTreePosition(child, node.entry?.id, positionContext) || child.entry.id === keepId,
-  )
+  const keepId =
+    pending.length > 1
+      ? pending.find((child) => child.entry.id === leafId)?.entry.id || pending[0].entry.id
+      : pending[0]?.entry.id
+  return children.filter((child) => !isTreePosition(child) || child.entry.id === keepId)
 }
 
 function projectNode(node, activeIds, leafId, children = node.children || []) {

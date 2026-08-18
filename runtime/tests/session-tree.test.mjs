@@ -169,18 +169,46 @@ test('session tree position reuses an unused marker and allows a new one after a
   assert.equal(manager.getEntries().length, 5)
 })
 
-test('session tree projection hides legacy duplicate pending markers', () => {
+test('session tree projection hides consumed and duplicate pending markers', () => {
   const manager = SessionManager.inMemory(process.cwd())
   manager.appendMessage({ role: 'user', content: 'Question', timestamp: Date.now() })
   const assistantId = manager.appendMessage(assistantMessage('Answer'))
   manager.branch(assistantId)
-  manager.appendCustomEntry(TREE_NAVIGATION_CUSTOM_TYPE, { targetId: assistantId })
+  const consumedMarkerId = manager.appendCustomEntry(TREE_NAVIGATION_CUSTOM_TYPE, {
+    targetId: assistantId,
+  })
   manager.branch(assistantId)
-  manager.appendCustomEntry(TREE_NAVIGATION_CUSTOM_TYPE, { targetId: assistantId })
+  const followUpId = manager.appendMessage({
+    role: 'user',
+    content: 'Follow-up',
+    timestamp: Date.now(),
+  })
+  manager.branch(assistantId)
+  const pendingMarkerId = manager.appendCustomEntry(TREE_NAVIGATION_CUSTOM_TYPE, {
+    targetId: assistantId,
+  })
+  manager.branch(assistantId)
+  const duplicatePendingMarkerId = manager.appendCustomEntry(TREE_NAVIGATION_CUSTOM_TYPE, {
+    targetId: assistantId,
+  })
+  manager.branch(pendingMarkerId)
 
   const tree = projectSessionTree(manager)
-  assert.equal(tree.nodes.filter((node) => node.kind === 'position').length, 1)
-  assert.equal(tree.nodeCount, 3)
+  const positionIds = tree.nodes.filter((node) => node.kind === 'position').map((node) => node.id)
+  assert.deepEqual(positionIds, [pendingMarkerId])
+  assert.equal(
+    tree.nodes.some((node) => node.id === consumedMarkerId),
+    false,
+  )
+  assert.equal(
+    tree.nodes.some((node) => node.id === duplicatePendingMarkerId),
+    false,
+  )
+  assert.equal(
+    tree.nodes.some((node) => node.id === followUpId),
+    true,
+  )
+  assert.equal(tree.nodeCount, 4)
 })
 
 test('runtime navigation uses AgentSession tree semantics and survives a cold reload', async (t) => {
