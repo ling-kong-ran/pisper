@@ -176,7 +176,7 @@ export function TerminalPanel({
   openRef.current = open
 
   const activeTab = visibleTabs.find((tab) => tab.id === activeId)
-// 选择活动终端：按会话维度记录当前激活的终端标签。
+  // 选择活动终端：按会话维度记录当前激活的终端标签。
   const selectTerminal = useCallback(
     (id: string) => setActiveIds((current) => ({ ...current, [activeSessionId]: id })),
     [activeSessionId],
@@ -202,7 +202,7 @@ export function TerminalPanel({
       .catch((error) => setPanelError(error instanceof Error ? error.message : String(error)))
   }, [bridge, supported])
 
-// 销毁终端运行时：断开 ResizeObserver、释放插件、销毁 xterm 与 DOM 节点。
+  // 销毁终端运行时：断开 ResizeObserver、释放插件、销毁 xterm 与 DOM 节点。
   const disposeRuntime = useCallback((id: string) => {
     const runtime = runtimesRef.current.get(id)
     if (!runtime) return
@@ -213,7 +213,7 @@ export function TerminalPanel({
     runtimesRef.current.delete(id)
   }, [])
 
-// 调整终端尺寸：仅活动且面板打开时重新 fit 并把 cols/rows 同步到桌面桥接。
+  // 调整终端尺寸：仅活动且面板打开时重新 fit 并把 cols/rows 同步到桌面桥接。
   const resizeRuntime = useCallback(
     (id: string) => {
       const runtime = runtimesRef.current.get(id)
@@ -225,8 +225,8 @@ export function TerminalPanel({
     [bridge],
   )
 
-// 挂载终端运行时：已存在则移动到新宿主 DOM；否则创建 xterm + Fit/链接
-// 插件，桥接键盘输入（onData/onBinary），并用 ResizeObserver 跟踪宿主尺寸。
+  // 挂载终端运行时：已存在则移动到新宿主 DOM；否则创建 xterm + Fit/链接
+  // 插件，桥接键盘输入（onData/onBinary），并用 ResizeObserver 跟踪宿主尺寸。
   const mountRuntime = useCallback(
     (id: string) => {
       const existing = runtimesRef.current.get(id)
@@ -332,8 +332,8 @@ export function TerminalPanel({
     }
   }, [bridge, disposeRuntime])
 
-// 处理桌面桥接终端事件：输出写入 xterm（运行时未就绪时先缓冲）；
-// 退出/错误更新标签状态并回显提示文本。
+  // 处理桌面桥接终端事件：输出写入 xterm（运行时未就绪时先缓冲）；
+  // 退出/错误更新标签状态并回显提示文本。
   const handleTerminalEvent = useCallback(
     (event: DesktopTerminalEvent) => {
       if (!liveTerminalIdsRef.current.has(event.terminalId)) return
@@ -367,8 +367,8 @@ export function TerminalPanel({
     [labels, mountRuntime],
   )
 
-// 创建终端：选默认 profile → 解析会话工作目录 → 注册标签与运行时 →
-// 调桥接 terminalCreate（附带 cols/rows）并订阅事件；创建失败回显错误。
+  // 创建终端：选默认 profile → 解析会话工作目录 → 注册标签与运行时 →
+  // 调桥接 terminalCreate（附带 cols/rows）并订阅事件；创建失败回显错误。
   const createTerminal = useCallback(
     async (requestedProfile?: DesktopTerminalProfile) => {
       const profile = requestedProfile || profiles.find((item) => item.default) || profiles[0]
@@ -447,8 +447,8 @@ export function TerminalPanel({
     ],
   )
 
-// 关闭终端：注销事件订阅、关闭桥接进程、销毁运行时，
-// 并把该会话的激活终端回退到剩余的第一个。
+  // 关闭终端：注销事件订阅、关闭桥接进程、销毁运行时，
+  // 并把该会话的激活终端回退到剩余的第一个。
   const closeTerminal = useCallback(
     async (id: string) => {
       liveTerminalIdsRef.current.delete(id)

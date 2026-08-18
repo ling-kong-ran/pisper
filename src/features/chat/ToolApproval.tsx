@@ -29,8 +29,8 @@ export function ToolApproval({
   const fileChange = approval.fileChange
   const diff = typeof fileChange?.diff === 'string' ? fileChange.diff : ''
 
-// 审批处理：把允许/拒绝回传给运行时；防重入（resolvingRef），
-// 避免用户在提交期间重复点击产生重复调用。
+  // 审批处理：把允许/拒绝回传给运行时；防重入（resolvingRef），
+  // 避免用户在提交期间重复点击产生重复调用。
   const resolve = async (approved: boolean) => {
     if (resolvingRef.current) return
     resolvingRef.current = true

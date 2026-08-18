@@ -384,7 +384,7 @@ function ScheduleWorkspaceField({ value, onChange }: ScheduleWorkspaceFieldProps
   const [pickerError, setPickerError] = useState('')
   const [webPickerOpen, setWebPickerOpen] = useState(false)
 
-// 浏览选择工作目录：桌面环境用系统选择器，否则退回 Web 输入对话框。
+  // 浏览选择工作目录：桌面环境用系统选择器，否则退回 Web 输入对话框。
   const browse = async () => {
     setPickerError('')
     if (!hasSystemDirectoryPicker()) {
@@ -498,7 +498,7 @@ export function SchedulesPage({
   const [createOpen, setCreateOpen] = useState(false)
   usePagePrimaryAction(registerPrimaryAction, () => setCreateOpen(true))
 
-// 加载计划任务与运行记录；选中项失效时回退到第一个任务。
+  // 加载计划任务与运行记录；选中项失效时回退到第一个任务。
   const load = useCallback(async () => {
     try {
       const result = await apiJson<SchedulesData>('/api/schedules')
@@ -550,7 +550,7 @@ export function SchedulesPage({
     })
   }
 
-// 保存任务编辑：PATCH 到运行时并回显最新状态。
+  // 保存任务编辑：PATCH 到运行时并回显最新状态。
   const save = async () => {
     if (!selected || !draft) return
     setSaving(true)
@@ -573,7 +573,7 @@ export function SchedulesPage({
     }
   }
 
-// 立即运行任务：POST run 后刷新列表确认状态。
+  // 立即运行任务：POST run 后刷新列表确认状态。
   const run = async () => {
     if (!selected) return
     setSaving(true)
@@ -592,7 +592,7 @@ export function SchedulesPage({
     }
   }
 
-// 删除任务（确认后），成功后清除选中。
+  // 删除任务（确认后），成功后清除选中。
   const remove = async () => {
     if (!selected) return
     const approved = await requestConfirm({
@@ -975,7 +975,7 @@ function CreateSchedulePanel({
   const [executionMode, setExecutionMode] = useState<ScheduleExecutionMode>('full-access')
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
-// 创建新任务（带工作目录草稿）。
+  // 创建新任务（带工作目录草稿）。
   const create = async () => {
     setSaving(true)
     setError('')

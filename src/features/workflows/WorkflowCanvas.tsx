@@ -210,15 +210,15 @@ function WorkflowCanvasInner({
     })
   }, [externalFlowNodes, setFlowNodes])
 
-// 批量提交节点位置：把 rAF 周期内收集的位置变化一次回调，
-// 避免拖拽过程中每个像素都触发一次状态写回。
+  // 批量提交节点位置：把 rAF 周期内收集的位置变化一次回调，
+  // 避免拖拽过程中每个像素都触发一次状态写回。
   const flushNodePositions = useCallback(() => {
     moveFrame.current = null
     pendingNodePositions.current.forEach((position, id) => onMoveNode(id, position))
     pendingNodePositions.current.clear()
   }, [onMoveNode])
 
-// 记录节点位置：先入 pending 表，再调度一帧批量回调（rAF 合并）。
+  // 记录节点位置：先入 pending 表，再调度一帧批量回调（rAF 合并）。
   const syncNodePosition = useCallback(
     (id: string, position: { x: number; y: number }) => {
       pendingNodePositions.current.set(id, position)
@@ -254,7 +254,7 @@ function WorkflowCanvasInner({
     [edges, selectedEdgeId],
   )
 
-// 连线完成回调：校验两端后转发给编辑器建立边。
+  // 连线完成回调：校验两端后转发给编辑器建立边。
   const handleConnect = useCallback(
     (connection: Connection) => {
       if (!connection.source || !connection.target) return
@@ -268,7 +268,7 @@ function WorkflowCanvasInner({
     event.dataTransfer.dropEffect = 'move'
   }, [])
 
-// 拖放新建节点：解析拖拽负载（kind/label），按鼠标位置映射为画布坐标。
+  // 拖放新建节点：解析拖拽负载（kind/label），按鼠标位置映射为画布坐标。
   const handleDrop = useCallback(
     (event: DragEvent<HTMLDivElement>) => {
       event.preventDefault()

@@ -113,8 +113,8 @@ export function useLiveSessionSync({
     activeSessions: new Set(),
   })
 
-// 同步单个会话的实时状态：本地持有流或已有同步在途时跳过（防并发）；
-// 请求期间若本地流启动（其乐观消息拥有状态）则放弃应用快照。
+  // 同步单个会话的实时状态：本地持有流或已有同步在途时跳过（防并发）；
+  // 请求期间若本地流启动（其乐观消息拥有状态）则放弃应用快照。
   const syncLiveSession = useCallback(
     async (id: string) => {
       if (!id || localStreamSessionsRef.current.has(id) || liveSyncInFlightRef.current.has(id))
@@ -156,8 +156,8 @@ export function useLiveSessionSync({
     [localStreamSessionsRef, updateSessionState, updateSessions],
   )
 
-// 加载会话消息：恢复中先走实时同步；已加载且页足够大时不重复拉取；
-// 流式中仅标记加载完成不覆盖消息（流拥有消息所有权）。
+  // 加载会话消息：恢复中先走实时同步；已加载且页足够大时不重复拉取；
+  // 流式中仅标记加载完成不覆盖消息（流拥有消息所有权）。
   const loadSessionMessages = useCallback(
     async (
       id: string,
@@ -219,7 +219,7 @@ export function useLiveSessionSync({
     [sessionStatesRef, syncLiveSession, updateSessionState, updateSessions],
   )
 
-// 加载更早消息：无游标/加载中时直接返回，成功后前置合并。
+  // 加载更早消息：无游标/加载中时直接返回，成功后前置合并。
   const loadOlderMessages = useCallback(
     async (id: string) => {
       const current = sessionStatesRef.current[id]

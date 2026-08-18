@@ -211,7 +211,7 @@ export class PlanService {
     this.legacyMigrationPending = false
   }
 
-// 从磁盘加载：优先新存储；缺失时读旧版 task-list 并标记待迁移。
+  // 从磁盘加载：优先新存储；缺失时读旧版 task-list 并标记待迁移。
   async init() {
     const stored = await readJson(this.path, MISSING_STORE)
     if (stored !== MISSING_STORE) {

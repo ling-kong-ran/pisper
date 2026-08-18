@@ -227,8 +227,8 @@ function App() {
     setSidebarCollapsed(!sidebarCollapsed)
   }
 
-// 刷新插件启用统计：拉取插件工具列表，统计启用数/总数供状态栏展示；
-// 目录不可用时静默失败，不影响其余功能。
+  // 刷新插件启用统计：拉取插件工具列表，统计启用数/总数供状态栏展示；
+  // 目录不可用时静默失败，不影响其余功能。
   const refreshPluginStats = useCallback(async () => {
     try {
       const data = await apiJson<{
@@ -243,7 +243,7 @@ function App() {
     }
   }, [])
 
-// 应用内 Toast：每次递增 id 保证连续提示正确触发切换动画。
+  // 应用内 Toast：每次递增 id 保证连续提示正确触发切换动画。
   const notify = useCallback((message: string, tone: ToastTone = 'success') => {
     toastSequence.current += 1
     setToast({ id: toastSequence.current, message, tone })
@@ -258,8 +258,8 @@ function App() {
     return () => window.removeEventListener(ACTIVE_SESSION_CHANGED_EVENT, syncActiveSession)
   }, [])
 
-// 系统通知（桌面/浏览器）：已开启浏览器通知开关才发；
-// 前台聚焦时静默（不打扰），force 强制忽略该规则；桌面桥接优先。
+  // 系统通知（桌面/浏览器）：已开启浏览器通知开关才发；
+  // 前台聚焦时静默（不打扰），force 强制忽略该规则；桌面桥接优先。
   const showSystemNotification = useCallback(
     (title: string, body: string, { force = false }: { force?: boolean } = {}) => {
       if (!notificationSettings.browser?.enabled) return
@@ -278,8 +278,8 @@ function App() {
     [notificationSettings.browser?.enabled],
   )
 
-// 按事件模板发浏览器通知：模板启用且有内容才发，
-// 渲染时替换 {{变量}} 占位符。
+  // 按事件模板发浏览器通知：模板启用且有内容才发，
+  // 渲染时替换 {{变量}} 占位符。
   const browserNotify = useCallback(
     (event: string, data: unknown, options?: { force?: boolean }) => {
       const template = notificationSettings.templates?.find((item) => item.id === event)
@@ -294,7 +294,7 @@ function App() {
     [notificationSettings.templates, showSystemNotification],
   )
 
-// 页面注册主操作（透传注册表）。
+  // 页面注册主操作（透传注册表）。
   const registerPrimaryAction = useCallback(
     (action: () => void) => {
       return primaryActions.register(action)
@@ -302,19 +302,19 @@ function App() {
     [primaryActions],
   )
 
-// 触发页面主操作（如 Cmd+N 快捷键）。
+  // 触发页面主操作（如 Cmd+N 快捷键）。
   const invokePrimaryAction = useCallback(() => {
     primaryActions.invoke()
   }, [primaryActions])
 
-// 注册工作流编辑器的动作（保存/运行），供页头按钮触发；
-// 返回注销函数，新动作注册时若仍指向旧值则清除。
+  // 注册工作流编辑器的动作（保存/运行），供页头按钮触发；
+  // 返回注销函数，新动作注册时若仍指向旧值则清除。
   const registerWorkflowActions = useCallback((actions: WorkflowActions) => {
     setWorkflowActions(actions)
     return () => setWorkflowActions((current) => (current === actions ? null : current))
   }, [])
 
-// 页面导航：只接受已知页面 id（防硬编码跳转），跳转同时清空搜索词。
+  // 页面导航：只接受已知页面 id（防硬编码跳转），跳转同时清空搜索词。
   const navigate = useCallback(
     (next: string, options?: NavigateOptions) => {
       if (!PAGE_IDS.has(next)) return
@@ -330,7 +330,7 @@ function App() {
     }
   }, [configSection, page, requestedConfigSection, routerNavigate])
 
-// 切换配置分区：未知分区回退到 models，同步路由并清空搜索词。
+  // 切换配置分区：未知分区回退到 models，同步路由并清空搜索词。
   const setConfigSection = useCallback(
     (section: string) => {
       const nextSection = CONFIG_SECTIONS.has(section) ? section : 'models'
@@ -347,7 +347,7 @@ function App() {
     [setConfigSection],
   )
 
-// 设置导航统一入口：配置分区 vs 独立设置页两种跳转。
+  // 设置导航统一入口：配置分区 vs 独立设置页两种跳转。
   const navigateSettings = useCallback(
     (destination: SettingsDestination) => {
       if (destination.type === 'config') setConfigSection(destination.id)
@@ -360,7 +360,7 @@ function App() {
     if (!SETTINGS_PAGES.has(page)) lastWorkbenchPathRef.current = location.pathname
   }, [location.pathname, page])
 
-// 退出设置页：回到进入设置前的最后一个工作台页面。
+  // 退出设置页：回到进入设置前的最后一个工作台页面。
   const exitSettings = useCallback(() => {
     routerNavigate(lastWorkbenchPathRef.current)
     setQuery('')
@@ -398,15 +398,15 @@ function App() {
     })()
   }, [appDialog, setConfigSection, startupReady, t])
 
-// 解析会话工作目录：从会话列表查 cwd（供终端绑定工作区）。
+  // 解析会话工作目录：从会话列表查 cwd（供终端绑定工作区）。
   const resolveSessionCwd = useCallback(async (sessionId: string) => {
     if (!sessionId) return ''
     const data = await apiJson<{ sessions?: Array<{ id: string; cwd?: string }> }>('/api/sessions')
     return data.sessions?.find((session) => session.id === sessionId)?.cwd || ''
   }, [])
 
-// 使用资源：把资源（附件）标记为待投递到活动会话，跳转聊天页，
-// 若已存在活动会话则触发选中事件让输入框接收。
+  // 使用资源：把资源（附件）标记为待投递到活动会话，跳转聊天页，
+  // 若已存在活动会话则触发选中事件让输入框接收。
   const useAsset = useCallback(
     (asset: ChatAttachment) => {
       const targetSessionId = localStorage.getItem(STORAGE_KEYS.activeSession) || ''
@@ -417,8 +417,8 @@ function App() {
     [navigate],
   )
 
-// 主操作分发：按当前页面决定触发哪个动作（新建会话/新建工作流/快捷创建）；
-// 配置页非 models 分区时不响应，避免误触发。
+  // 主操作分发：按当前页面决定触发哪个动作（新建会话/新建工作流/快捷创建）；
+  // 配置页非 models 分区时不响应，避免误触发。
   const handlePrimary = useCallback(() => {
     if (page === 'config' && configSection !== 'models') return
     if (

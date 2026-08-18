@@ -57,9 +57,9 @@ export function usePromptCommands({
     new Map<string, { promise: Promise<void>; resolve: () => void }>(),
   )
 
-// 发送提示词：无会话先建会话，流式中拒绝；乐观插入用户消息并
-// 注册本地流结算 Promise（供后续 wait），随后发起 SSE 流并分发事件，
-// 结束时结算终态并刷新列表。
+  // 发送提示词：无会话先建会话，流式中拒绝；乐观插入用户消息并
+  // 注册本地流结算 Promise（供后续 wait），随后发起 SSE 流并分发事件，
+  // 结束时结算终态并刷新列表。
   const sendPrompt = useCallback(
     async (
       text: string,
@@ -368,8 +368,8 @@ export function usePromptCommands({
     ],
   )
 
-// 排队输入：流式中把新提示放入队列（behavior 如 steer），
-// 乐观插入排队中的用户消息，返回是否成功入队。
+  // 排队输入：流式中把新提示放入队列（behavior 如 steer），
+  // 乐观插入排队中的用户消息，返回是否成功入队。
   const queuePrompt = useCallback(
     async (
       text: string,
@@ -429,8 +429,8 @@ export function usePromptCommands({
     [loadSessionMessages, notify, sendPrompt, syncLiveSession, t, updateSessionState],
   )
 
-// 中止会话运行：调运行时 abort 并本地结算状态（清队列、停流、
-// 中止中的压缩标记为 aborted）。
+  // 中止会话运行：调运行时 abort 并本地结算状态（清队列、停流、
+  // 中止中的压缩标记为 aborted）。
   const abort = useCallback(
     async (sessionId: string) => {
       if (!sessionId) return

@@ -110,7 +110,7 @@ export class GoalService {
     this.write = Promise.resolve()
   }
 
-// 初始化：可选项——启动时把历史 active 目标全部置为 paused（不自动恢复执行）。
+  // 初始化：可选项——启动时把历史 active 目标全部置为 paused（不自动恢复执行）。
   async init({ pauseActive = false } = {}) {
     this.state = normalizedState(await readJson(this.path, { version: 1, goals: {} }))
     let changed = false

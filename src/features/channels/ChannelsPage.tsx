@@ -197,7 +197,7 @@ export function ChannelsPage({ notify, registerPrimaryAction, requestConfirm }: 
   const [saving, setSaving] = useState(false)
   const [cwd, setCwd] = useState('')
 
-// 加载渠道连接状态，并同步选中平台的默认工作目录。
+  // 加载渠道连接状态，并同步选中平台的默认工作目录。
   const load = useCallback(async () => {
     try {
       setError('')
@@ -244,8 +244,8 @@ export function ChannelsPage({ notify, registerPrimaryAction, requestConfirm }: 
     return () => window.clearInterval(timer)
   }, [onboarding?.id, onboarding?.platform, onboarding?.status, load, notify, t])
 
-// 开始渠道对接（onboarding）：已存在连接时先确认覆盖，
-// 然后发起扫描并轮询进度直到完成/失败。
+  // 开始渠道对接（onboarding）：已存在连接时先确认覆盖，
+  // 然后发起扫描并轮询进度直到完成/失败。
   const beginOnboarding = async (platform: ChannelPlatform) => {
     const connection = data.connections?.[platform]
     if (connection) {
@@ -292,7 +292,7 @@ export function ChannelsPage({ notify, registerPrimaryAction, requestConfirm }: 
     setOnboarding(null)
   }
 
-// 更新渠道连接（启用/访问模式/工作目录/回复模型），成功后提示。
+  // 更新渠道连接（启用/访问模式/工作目录/回复模型），成功后提示。
   const update = async (
     platform: ChannelPlatform,
     patch: Partial<Pick<ChannelConnection, 'enabled' | 'accessMode' | 'defaultCwd' | 'replyModel'>>,
@@ -314,7 +314,7 @@ export function ChannelsPage({ notify, registerPrimaryAction, requestConfirm }: 
     }
   }
 
-// 重连渠道：POST reconnect；失败时回滚加载最新状态并提示。
+  // 重连渠道：POST reconnect；失败时回滚加载最新状态并提示。
   const reconnect = async (platform: ChannelPlatform) => {
     setSaving(true)
     try {
@@ -333,7 +333,7 @@ export function ChannelsPage({ notify, registerPrimaryAction, requestConfirm }: 
     }
   }
 
-// 断开渠道（确认后删除本地凭据与映射）。
+  // 断开渠道（确认后删除本地凭据与映射）。
   const remove = async (platform: ChannelPlatform) => {
     const approved = await requestConfirm({
       title: t('channels:channelsPage.disconnectName', { name: providerName(platform, t) }),

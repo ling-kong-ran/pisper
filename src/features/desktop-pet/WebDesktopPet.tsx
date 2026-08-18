@@ -63,7 +63,7 @@ export function WebDesktopPet() {
   const pointer = useRef<PointerDrag | null>(null)
   const interactionTimer = useRef<number | undefined>(undefined)
 
-// 刷新桌面宠物状态：宠物为可选功能，轮询失败不影响应用。
+  // 刷新桌面宠物状态：宠物为可选功能，轮询失败不影响应用。
   const refresh = useCallback(async () => {
     try {
       setStatus(await apiJson<DesktopPetStatus>('/api/desktop-pet'))

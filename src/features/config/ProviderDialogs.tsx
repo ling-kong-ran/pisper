@@ -78,7 +78,7 @@ export function ProviderConfigModal({ onClose, onCreated }: ProviderConfigModalP
             ? current.modelKind
             : 'chat',
     }))
-// 提交新增 Provider：POST 到运行时并回调创建结果；失败展示错误。
+  // 提交新增 Provider：POST 到运行时并回调创建结果；失败展示错误。
   const submit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
     setSaving(true)
@@ -300,8 +300,8 @@ export function ProviderModelModal({
   const connectionBaseUrl = connectionDraft.baseUrl
   const connectionApiKey = connectionDraft.apiKey
   const connectionOrganization = connectionDraft.organization
-// 发现 Provider 模型：用当前连接参数调运行时探测模型列表，
-// 成功后更新目录并同步配置；autoDiscover 时挂载即触发。
+  // 发现 Provider 模型：用当前连接参数调运行时探测模型列表，
+  // 成功后更新目录并同步配置；autoDiscover 时挂载即触发。
   const discover = useCallback(async () => {
     setDiscovering(true)
     setError('')
@@ -338,7 +338,7 @@ export function ProviderModelModal({
   useEffect(() => {
     if (autoDiscover) void discover()
   }, [autoDiscover, discover])
-// 切换候选模型选择（已添加的模型不可再选）。
+  // 切换候选模型选择（已添加的模型不可再选）。
   const toggleCandidate = (model: ProviderModel) => {
     if (model.added) return
     setSelectedIds((current) =>

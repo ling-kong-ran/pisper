@@ -445,7 +445,7 @@ export class MultiAgentService {
 
   async init() {
     // 加载注册表、清理遗留 active 状态（重启后视为 interrupted），并补偿队列。
-    
+
     if (!this.path) return
     const state = await readJson(this.path, null)
     this.sequence = 0

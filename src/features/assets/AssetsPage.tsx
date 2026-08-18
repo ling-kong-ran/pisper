@@ -112,8 +112,8 @@ export function AssetsPage({
   const [linkModal, setLinkModal] = useState(false)
   usePagePrimaryAction(registerPrimaryAction, () => setLinkModal(true))
 
-// 加载资源列表：按标签页（全部/图片/文件/链接/当前会话）与搜索词
-// 构造查询参数，current 页用活动会话 id 过滤。
+  // 加载资源列表：按标签页（全部/图片/文件/链接/当前会话）与搜索词
+  // 构造查询参数，current 页用活动会话 id 过滤。
   const loadAssets = useCallback(async () => {
     setLoading(true)
     setError('')
@@ -138,7 +138,7 @@ export function AssetsPage({
     loadAssets()
   }, [loadAssets])
 
-// 删除资源（确认后），成功后从列表本地移除。
+  // 删除资源（确认后），成功后从列表本地移除。
   const deleteAsset = async (asset: Asset) => {
     const approved = await requestConfirm({
       title: t('assets:assetsPage.deleteAsset'),
@@ -155,7 +155,7 @@ export function AssetsPage({
     }
   }
 
-// 把资源加入聊天：取内容后通过 onUse 投递到活动会话。
+  // 把资源加入聊天：取内容后通过 onUse 投递到活动会话。
   const attachAsset = async (asset: Asset) => {
     try {
       const content = await apiJson<ChatAttachment>(
@@ -168,7 +168,7 @@ export function AssetsPage({
     }
   }
 
-// 预览资源：链接直接取 URL，文本类拉取内容，其余走运行时预览。
+  // 预览资源：链接直接取 URL，文本类拉取内容，其余走运行时预览。
   const previewAsset = async (asset: Asset) => {
     let text = ''
     if (asset.kind === 'link') text = asset.url || ''

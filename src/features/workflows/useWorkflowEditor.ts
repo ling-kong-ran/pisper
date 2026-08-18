@@ -57,7 +57,7 @@ export function useWorkflowEditor({
       desktopNotifications ? 'checking' : getBrowserNotificationPermission(),
     )
 
-// 刷新系统通知权限（桌面桥接或浏览器），供触发器节点配置使用。
+  // 刷新系统通知权限（桌面桥接或浏览器），供触发器节点配置使用。
   const refreshSystemNotificationPermission = useCallback(async () => {
     if (!desktopNotifications) {
       setSystemNotificationPermission(getBrowserNotificationPermission())
@@ -87,8 +87,8 @@ export function useWorkflowEditor({
     }
   }, [desktopNotifications])
 
-// 加载工作流：按 id 取已存工作流，或按模板/空白新建草稿，
-// 并恢复选中节点与系统通知权限。
+  // 加载工作流：按 id 取已存工作流，或按模板/空白新建草稿，
+  // 并恢复选中节点与系统通知权限。
   const load = useCallback(async () => {
     try {
       const result = await apiJson<WorkflowsData>('/api/workflows')
@@ -159,12 +159,12 @@ export function useWorkflowEditor({
     [draft?.edges, selectedEdgeId],
   )
 
-// 更新草稿元数据（名称/描述等）。
+  // 更新草稿元数据（名称/描述等）。
   const updateDraft = useCallback((patch: Partial<Workflow>) => {
     setDraft((current) => (current ? { ...current, ...patch } : current))
   }, [])
 
-// 更新选中节点的字段。
+  // 更新选中节点的字段。
   const updateNode = useCallback(
     (patch: Partial<WorkflowNode>) => {
       setDraft((current) =>
@@ -181,7 +181,7 @@ export function useWorkflowEditor({
     [selectedNodeId],
   )
 
-// 选中节点（互斥清除连线选中）。
+  // 选中节点（互斥清除连线选中）。
   const selectNode = useCallback((id: string) => {
     setSelectedNodeId(id)
     setSelectedEdgeId('')
@@ -197,8 +197,8 @@ export function useWorkflowEditor({
     setSelectedEdgeId('')
   }, [])
 
-// 新增连线：拦截自环/重复连线/成环（wouldCreateWorkflowCycle），
-// 触发器不可作为目标，合法则加入草稿并选中新边。
+  // 新增连线：拦截自环/重复连线/成环（wouldCreateWorkflowCycle），
+  // 触发器不可作为目标，合法则加入草稿并选中新边。
   const addEdge = useCallback(
     (source: string, target: string, sourcePort = 'output') => {
       if (!draft || source === target) return
@@ -235,7 +235,7 @@ export function useWorkflowEditor({
     [draft, notify, t],
   )
 
-// 批量删除连线（并清空选中）。
+  // 批量删除连线（并清空选中）。
   const removeEdges = useCallback(
     (edgeIds: string[]) => {
       if (!edgeIds.length) return
@@ -255,7 +255,7 @@ export function useWorkflowEditor({
     if (selectedEdgeId) removeEdges([selectedEdgeId])
   }, [removeEdges, selectedEdgeId])
 
-// 批量删除节点：同时移除关联的入/出边。
+  // 批量删除节点：同时移除关联的入/出边。
   const removeNodes = useCallback(
     (nodeIds: string[]) => {
       if (!nodeIds.length) return
@@ -275,7 +275,7 @@ export function useWorkflowEditor({
     [clearSelection, notify, t],
   )
 
-// 新增节点：生成唯一 id 并加入草稿，随后选中新节点。
+  // 新增节点：生成唯一 id 并加入草稿，随后选中新节点。
   const addNode = useCallback(
     (kind: NodeKind, label: string, position: { x: number; y: number }) => {
       const id = crypto.randomUUID()
@@ -303,7 +303,7 @@ export function useWorkflowEditor({
     [],
   )
 
-// 移动节点（仅位置变化的项写回，避免无谓更新）。
+  // 移动节点（仅位置变化的项写回，避免无谓更新）。
   const moveNode = useCallback((id: string, position: { x: number; y: number }) => {
     setDraft((current) =>
       current
@@ -319,7 +319,7 @@ export function useWorkflowEditor({
     )
   }, [])
 
-// 复制选中节点（偏移位置 + “副本”后缀），复制后选中新节点。
+  // 复制选中节点（偏移位置 + “副本”后缀），复制后选中新节点。
   const copyNode = useCallback(() => {
     if (!selectedNode) return
     const id = crypto.randomUUID()
@@ -345,13 +345,13 @@ export function useWorkflowEditor({
     notify(t('workflows:workflowsPage.nodeDuplicated'), 'info')
   }, [notify, selectedNode, t])
 
-// 删除选中节点。
+  // 删除选中节点。
   const deleteNode = useCallback(() => {
     if (selectedNode) removeNodes([selectedNode.id])
   }, [removeNodes, selectedNode])
 
-// 切换通知目标的启停：非浏览器目标直接增删；浏览器目标开启前先
-// 获取/刷新权限，未授权提示，首次启用时顺带开启系统通知设置。
+  // 切换通知目标的启停：非浏览器目标直接增删；浏览器目标开启前先
+  // 获取/刷新权限，未授权提示，首次启用时顺带开启系统通知设置。
   const toggleNotification = useCallback(
     async (target: NotificationTarget) => {
       if (!selectedNode || selectedNode.kind !== 'notification') return
@@ -433,8 +433,8 @@ export function useWorkflowEditor({
     ],
   )
 
-// 保存工作流：过滤未启用的通知目标，新建走 POST、已有走 PATCH，
-// 保存后回写草稿（避免保存期间编辑被覆盖），新建时回调 created。
+  // 保存工作流：过滤未启用的通知目标，新建走 POST、已有走 PATCH，
+  // 保存后回写草稿（避免保存期间编辑被覆盖），新建时回调 created。
   const saveWorkflow = useCallback(
     async (status: Workflow['status'] = 'draft', quiet = false) => {
       if (!draft) return null
@@ -495,7 +495,7 @@ export function useWorkflowEditor({
     [catalog.notificationTargets, draft, notify, onCreated, systemNotificationPermission, t],
   )
 
-// 运行工作流：先静默保存（确保最新状态），再触发运行并刷新目录。
+  // 运行工作流：先静默保存（确保最新状态），再触发运行并刷新目录。
   const runWorkflow = useCallback(async () => {
     const workflow = await saveWorkflow(draft?.status || 'draft', true)
     if (!workflow) return
@@ -516,7 +516,7 @@ export function useWorkflowEditor({
     }
   }, [draft?.status, notify, saveWorkflow, t])
 
-// 停止运行中的工作流（仅当前运行且状态为 running 时）。
+  // 停止运行中的工作流（仅当前运行且状态为 running 时）。
   const stopWorkflow = useCallback(async () => {
     if (!currentRun || currentRun.status !== 'running') return
     setBusy(true)

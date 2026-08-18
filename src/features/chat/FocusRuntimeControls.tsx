@@ -168,7 +168,7 @@ export function ContextUsageIndicator({
   const label = `${usageText} · ${thresholdText}${compactionCapacityText ? ` · ${compactionCapacityText}` : ''}`
   const tokenLabel = `${usage?.tokens == null ? '—' : formatTokenCount(usage.tokens)} / ${formatTokenCount(contextWindow)}`
 
-// 保存压缩阈值：本地持久化到 store 并回调通知。
+  // 保存压缩阈值：本地持久化到 store 并回调通知。
   const saveThreshold = async (value: number) => {
     const next = Math.min(95, Math.max(50, Math.round(value)))
     setDraftThreshold(next)

@@ -81,7 +81,7 @@ export function GoalModeControl({
 
   useViewportMenuOffset(open, menuRef)
 
-// 保存 token 预算：有脏改且已存在目标模式时回调保存，防重入。
+  // 保存 token 预算：有脏改且已存在目标模式时回调保存，防重入。
   const saveBudget = async () => {
     if (savingBudget || !budgetDirty) return
     if (hasExistingGoal && onSaveTokenBudget) {
