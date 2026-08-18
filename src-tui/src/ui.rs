@@ -55,19 +55,9 @@ const ROLE_GUTTER_WIDTH: usize = 0;
 const ACTIVITY_GUTTER_WIDTH: usize = 3;
 // 加载动画帧。
 const SPINNER_FRAMES: [&str; 8] = ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧"];
-// 运行状态栏扫描动画帧。
-const RUN_ANIMATION_FRAMES: [&str; 10] = [
-    "◆◇····",
-    "◇◆◇···",
-    "·◇◆◇··",
-    "··◇◆◇·",
-    "···◇◆◇",
-    "····◇◆",
-    "···◇◆◇",
-    "··◇◆◇·",
-    "·◇◆◇··",
-    "◇◆◇···",
-];
+// 运行状态栏呼吸灯动画帧（一个完整周期：渐亮→峰值→渐暗→全暗）。
+// 字形填充度从空心到实心表达光量，模拟 LED 呼吸效果。
+const BREATHING_FRAMES: [&str; 8] = ["○", "◔", "◑", "◕", "●", "◕", "◑", "◔"];
 
 /// 终端色彩能力：truecolor / 256 色 / 单色。
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -657,24 +647,21 @@ fn spinner_frame(animation_frame: u64) -> &'static str {
     SPINNER_FRAMES[(animation_frame as usize / 2) % SPINNER_FRAMES.len()]
 }
 
-/// 当前帧对应的状态栏扫描动画帧。
+/// 当前帧对应的状态栏呼吸灯字形；每 2 tick 换一帧，呼吸节奏更舒缓。
 fn run_animation_frame(animation_frame: u64) -> &'static str {
-    RUN_ANIMATION_FRAMES[animation_frame as usize % RUN_ANIMATION_FRAMES.len()]
+    BREATHING_FRAMES[(animation_frame as usize / 2) % BREATHING_FRAMES.len()]
 }
 
-/// 把扫描动画帧拆成带色 Span（菱形/圆点不同颜色）。
+/// 呼吸灯帧样式：光量越高颜色越亮，配合字形填充度模拟灯丝呼吸。
 fn run_animation_spans(animation_frame: u64) -> Vec<Span<'static>> {
-    run_animation_frame(animation_frame)
-        .chars()
-        .map(|character| {
-            let color = match character {
-                '◆' => ACCENT,
-                '◇' => BLUE,
-                _ => FAINT,
-            };
-            Span::styled(character.to_string(), Style::default().fg(color))
-        })
-        .collect()
+    let glyph = run_animation_frame(animation_frame);
+    let style = match glyph {
+        "○" => Style::default().fg(FAINT),
+        "◔" | "◑" => Style::default().fg(MUTED),
+        "◕" => Style::default().fg(BLUE),
+        _ => Style::default().fg(ACCENT).add_modifier(Modifier::BOLD),
+    };
+    vec![Span::styled(glyph.to_owned(), style)]
 }
 
 /// 活动轨道：用树形符号（╭/├/╰/│）把思考、工具、子代理串成一条活动流。
@@ -3846,11 +3833,7 @@ mod tests {
                 .position(|row| row.contains("╭─ ⠋ thinking"))
                 .unwrap() as u16;
             assert_eq!(thinking_buffer.cell((0, thinking_row)).unwrap().fg, AMBER);
-            assert!(thinking_rows
-                .last()
-                .unwrap()
-                .trim_start()
-                .starts_with("◆◇····"));
+            assert!(thinking_rows.last().unwrap().trim_start().starts_with("○"));
             assert!(thinking_rows.last().unwrap().contains("gpt-5.6-sol  high"));
             assert!(!thinking_rows.last().unwrap().contains("Thinking"));
             assert!(!thinking_text.contains("THINK"));
@@ -3904,11 +3887,7 @@ mod tests {
                 .unwrap() as u16;
             assert_eq!(running_buffer.cell((0, completed_row)).unwrap().fg, FAINT);
             assert_eq!(running_buffer.cell((0, active_row)).unwrap().fg, ACCENT);
-            assert!(running_rows
-                .last()
-                .unwrap()
-                .trim_start()
-                .starts_with("◆◇····"));
+            assert!(running_rows.last().unwrap().trim_start().starts_with("○"));
             assert!(!running_rows.last().unwrap().contains("Running bash"));
             assert_eq!(running_text.matches('⠋').count(), 1);
             assert!(!running_text.contains("TOOL"));
@@ -3947,7 +3926,7 @@ mod tests {
                 .last()
                 .unwrap()
                 .trim_start()
-                .starts_with("◆◇····"));
+                .starts_with("○"));
             assert!(!responding_rows.last().unwrap().contains("Responding"));
 
             let mut error = live_test_app("stream_read_error", LiveTurn::default());
@@ -4033,7 +4012,7 @@ mod tests {
             .iter()
             .any(|row| row.contains("[full-access]  gpt-5.6-sol")));
         assert!(!rows.last().unwrap().contains("token: 0"));
-        assert!(rows.last().unwrap().trim_start().starts_with("◆◇····"));
+        assert!(rows.last().unwrap().trim_start().starts_with("○"));
         assert!(!rows.last().unwrap().contains("Thinking"));
         assert!(rows.last().unwrap().contains("gpt-5.6-sol  high"));
         assert!(rows.last().unwrap().contains("ctx 4%"));
@@ -4917,7 +4896,7 @@ mod tests {
     }
 
     #[test]
-    fn running_status_bar_uses_the_pisper_scanner_without_phase_text() {
+    fn running_status_bar_uses_the_breathing_light_without_phase_text() {
         let session = SessionSummary {
             id: "session-1".to_owned(),
             model: "openai/gpt-5.6-sol".to_owned(),
@@ -4952,6 +4931,8 @@ mod tests {
             .map(|cell| cell.symbol())
             .collect::<String>();
 
+        // 呼吸灯每 2 tick 换一帧：推进 2 帧后字形应从最暗变为微亮。
+        app.advance_status_animation();
         app.advance_status_animation();
         terminal.draw(|frame| draw(frame, &app)).unwrap();
         let next_bottom = (0..80)
@@ -4959,9 +4940,9 @@ mod tests {
             .map(|cell| cell.symbol())
             .collect::<String>();
 
-        assert!(bottom.trim_start().starts_with("◆◇····"));
+        assert!(bottom.trim_start().starts_with("○"));
         assert!(bottom.contains("[full-access]  gpt-5.6-sol  high"));
-        assert!(next_bottom.trim_start().starts_with("◇◆◇···"));
+        assert!(next_bottom.trim_start().starts_with("◔"));
         assert!(!bottom.contains("Thinking"));
         assert!(!bottom.contains("Responding"));
 
@@ -4972,7 +4953,7 @@ mod tests {
             .filter_map(|x| terminal.backend().buffer().cell((x, 23)))
             .map(|cell| cell.symbol())
             .collect::<String>();
-        assert!(tool_bottom.trim_start().starts_with("◇◆◇···"));
+        assert!(tool_bottom.trim_start().starts_with("◔"));
         assert!(!tool_bottom.contains("Running bash"));
     }
 
