@@ -101,13 +101,16 @@ function entryProjection(entry) {
   return { kind: 'metadata', role: '', text: boundedText(entry.type), status: '' }
 }
 
-function visibleChildren(node, leafId) {
+function visibleChildren(node, leafId, positionContext) {
   const children = node?.children || []
-  const pending = children.filter((child) => isPendingTreePosition(child, node.entry?.id))
+  const pending = children.filter((child) =>
+    isPendingTreePosition(child, node.entry?.id, positionContext),
+  )
   if (pending.length <= 1) return children
   const keepId = pending.find((child) => child.entry.id === leafId)?.entry.id || pending[0].entry.id
   return children.filter(
-    (child) => !isPendingTreePosition(child, node.entry?.id) || child.entry.id === keepId,
+    (child) =>
+      !isPendingTreePosition(child, node.entry?.id, positionContext) || child.entry.id === keepId,
   )
 }
 
@@ -136,12 +139,13 @@ export function projectSessionTree(manager, { sessionId = '', streaming = false 
   const leafId = manager.getLeafId() || null
   const activeIds = new Set(manager.getBranch().map((entry) => entry.id))
   const roots = manager.getTree()
+  const positionContext = getPositionContext(manager)
   const nodes = []
   const stack = [...roots].reverse()
   let branchCount = 0
   while (stack.length > 0) {
     const node = stack.pop()
-    const children = visibleChildren(node, leafId)
+    const children = visibleChildren(node, leafId, positionContext)
     nodes.push(projectNode(node, activeIds, leafId, children))
     branchCount += Math.max(0, children.length - 1)
     for (let index = children.length - 1; index >= 0; index -= 1) stack.push(children[index])
@@ -187,15 +191,50 @@ function hasUserMessageDescendant(node) {
   return false
 }
 
-function isPendingTreePosition(node, targetId) {
+function isEntryDescendantOf(entryId, ancestorId, entriesById) {
+  const visited = new Set()
+  let current = entriesById.get(entryId)
+  while (current?.parentId && !visited.has(current.id)) {
+    if (current.parentId === ancestorId) return true
+    visited.add(current.id)
+    current = entriesById.get(current.parentId)
+  }
+  return false
+}
+
+function hasUserMessageAfterPosition(positionId, targetId, positionContext) {
+  const { entries, entriesById } = positionContext
+  const positionIndex = entries.findIndex((entry) => entry?.id === positionId)
+  if (positionIndex < 0) return false
+  return entries
+    .slice(positionIndex + 1)
+    .some(
+      (entry) =>
+        entry?.type === 'message' &&
+        entry.message?.role === 'user' &&
+        isEntryDescendantOf(entry.id, targetId, entriesById),
+    )
+}
+
+function isPendingTreePosition(node, targetId, positionContext = null) {
   const entry = node?.entry
   return (
     entry?.type === 'custom' &&
     entry.customType === TREE_NAVIGATION_CUSTOM_TYPE &&
     entry.parentId === targetId &&
     entry.data?.targetId === targetId &&
-    !hasUserMessageDescendant(node)
+    !hasUserMessageDescendant(node) &&
+    !hasUserMessageAfterPosition(
+      entry.id,
+      targetId,
+      positionContext || { entries: [], entriesById: new Map() },
+    )
   )
+}
+
+function getPositionContext(manager) {
+  const entries = manager?.getEntries?.() || []
+  return { entries, entriesById: new Map(entries.map((entry) => [entry.id, entry])) }
 }
 
 // 查找目标节点下尚未开始新消息的分支位置；重复导航应复用它，避免制造空分支。
@@ -203,13 +242,15 @@ export function findPendingTreePosition(manager, targetId) {
   const normalizedTargetId = String(targetId || '').trim()
   if (!normalizedTargetId || !manager?.getTree) return ''
   const leafId = manager.getLeafId?.() || ''
+  const positionContext = getPositionContext(manager)
   const matches = []
   const stack = [...(manager.getTree() || [])].reverse()
   while (stack.length > 0) {
     const node = stack.pop()
     if (node?.entry?.id === normalizedTargetId) {
       for (const child of node.children || []) {
-        if (isPendingTreePosition(child, normalizedTargetId)) matches.push(child.entry.id)
+        if (isPendingTreePosition(child, normalizedTargetId, positionContext))
+          matches.push(child.entry.id)
       }
       break
     }

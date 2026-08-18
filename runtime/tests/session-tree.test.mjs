@@ -156,6 +156,7 @@ test('session tree position reuses an unused marker and allows a new one after a
   assert.equal(reusedMarkerId, firstMarkerId)
   assert.equal(manager.getEntries().length, 3)
 
+  manager.branch(assistantId)
   manager.appendMessage({
     role: 'user',
     content: 'Follow-up',
