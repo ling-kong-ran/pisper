@@ -101,7 +101,17 @@ function entryProjection(entry) {
   return { kind: 'metadata', role: '', text: boundedText(entry.type), status: '' }
 }
 
-function projectNode(node, activeIds, leafId) {
+function visibleChildren(node, leafId) {
+  const children = node?.children || []
+  const pending = children.filter((child) => isPendingTreePosition(child, node.entry?.id))
+  if (pending.length <= 1) return children
+  const keepId = pending.find((child) => child.entry.id === leafId)?.entry.id || pending[0].entry.id
+  return children.filter(
+    (child) => !isPendingTreePosition(child, node.entry?.id) || child.entry.id === keepId,
+  )
+}
+
+function projectNode(node, activeIds, leafId, children = node.children || []) {
   const entry = node.entry
   const projected = entryProjection(entry)
   return {
@@ -116,7 +126,7 @@ function projectNode(node, activeIds, leafId) {
     timestamp: entry.timestamp || '',
     active: activeIds.has(entry.id),
     leaf: entry.id === leafId,
-    branchPoint: (node.children || []).length > 1,
+    branchPoint: children.length > 1,
   }
 }
 
@@ -131,8 +141,8 @@ export function projectSessionTree(manager, { sessionId = '', streaming = false 
   let branchCount = 0
   while (stack.length > 0) {
     const node = stack.pop()
-    const children = node.children || []
-    nodes.push(projectNode(node, activeIds, leafId))
+    const children = visibleChildren(node, leafId)
+    nodes.push(projectNode(node, activeIds, leafId, children))
     branchCount += Math.max(0, children.length - 1)
     for (let index = children.length - 1; index >= 0; index -= 1) stack.push(children[index])
   }
@@ -167,9 +177,56 @@ export function projectSessionTreeLabels(manager, session = {}) {
   return labels
 }
 
+function hasUserMessageDescendant(node) {
+  const stack = [...(node?.children || [])]
+  while (stack.length > 0) {
+    const current = stack.pop()
+    if (current?.entry?.type === 'message' && current.entry.message?.role === 'user') return true
+    stack.push(...(current?.children || []))
+  }
+  return false
+}
+
+function isPendingTreePosition(node, targetId) {
+  const entry = node?.entry
+  return (
+    entry?.type === 'custom' &&
+    entry.customType === TREE_NAVIGATION_CUSTOM_TYPE &&
+    entry.parentId === targetId &&
+    entry.data?.targetId === targetId &&
+    !hasUserMessageDescendant(node)
+  )
+}
+
+// 查找目标节点下尚未开始新消息的分支位置；重复导航应复用它，避免制造空分支。
+export function findPendingTreePosition(manager, targetId) {
+  const normalizedTargetId = String(targetId || '').trim()
+  if (!normalizedTargetId || !manager?.getTree) return ''
+  const leafId = manager.getLeafId?.() || ''
+  const matches = []
+  const stack = [...(manager.getTree() || [])].reverse()
+  while (stack.length > 0) {
+    const node = stack.pop()
+    if (node?.entry?.id === normalizedTargetId) {
+      for (const child of node.children || []) {
+        if (isPendingTreePosition(child, normalizedTargetId)) matches.push(child.entry.id)
+      }
+      break
+    }
+    for (let index = (node?.children || []).length - 1; index >= 0; index -= 1)
+      stack.push(node.children[index])
+  }
+  return matches.find((id) => id === leafId) || matches[0] || ''
+}
+
 // 追加一个“树导航位置”自定义条目，之后可据此恢复上次的浏览位置。
 export function appendTreePosition(manager, targetId) {
-  return manager.appendCustomEntry(TREE_NAVIGATION_CUSTOM_TYPE, { targetId })
+  const normalizedTargetId = String(targetId || '').trim()
+  const existing = findPendingTreePosition(manager, normalizedTargetId)
+  return (
+    existing ||
+    manager.appendCustomEntry(TREE_NAVIGATION_CUSTOM_TYPE, { targetId: normalizedTargetId })
+  )
 }
 
 // 判断 offset 处是否恰好是行首（前一字节是换行），用于增量读取的边界对齐。

@@ -141,6 +141,47 @@ test('session tree position entries persist a selected Pi leaf without entering 
   assert.deepEqual(manager.buildSessionContext().messages, contextBefore)
 })
 
+test('session tree position reuses an unused marker and allows a new one after a user message', () => {
+  const manager = SessionManager.inMemory(process.cwd())
+  const userId = manager.appendMessage({
+    role: 'user',
+    content: 'Question',
+    timestamp: Date.now(),
+  })
+  const assistantId = manager.appendMessage(assistantMessage('Answer'))
+  manager.branch(assistantId)
+
+  const firstMarkerId = appendTreePosition(manager, assistantId)
+  const reusedMarkerId = appendTreePosition(manager, assistantId)
+  assert.equal(reusedMarkerId, firstMarkerId)
+  assert.equal(manager.getEntries().length, 3)
+
+  manager.appendMessage({
+    role: 'user',
+    content: 'Follow-up',
+    timestamp: Date.now(),
+  })
+  manager.branch(assistantId)
+  const secondMarkerId = appendTreePosition(manager, assistantId)
+  assert.notEqual(secondMarkerId, firstMarkerId)
+  assert.notEqual(secondMarkerId, userId)
+  assert.equal(manager.getEntries().length, 5)
+})
+
+test('session tree projection hides legacy duplicate pending markers', () => {
+  const manager = SessionManager.inMemory(process.cwd())
+  manager.appendMessage({ role: 'user', content: 'Question', timestamp: Date.now() })
+  const assistantId = manager.appendMessage(assistantMessage('Answer'))
+  manager.branch(assistantId)
+  manager.appendCustomEntry(TREE_NAVIGATION_CUSTOM_TYPE, { targetId: assistantId })
+  manager.branch(assistantId)
+  manager.appendCustomEntry(TREE_NAVIGATION_CUSTOM_TYPE, { targetId: assistantId })
+
+  const tree = projectSessionTree(manager)
+  assert.equal(tree.nodes.filter((node) => node.kind === 'position').length, 1)
+  assert.equal(tree.nodeCount, 3)
+})
+
 test('runtime navigation uses AgentSession tree semantics and survives a cold reload', async (t) => {
   const directory = await mkdtemp(join(tmpdir(), 'pisper-session-tree-'))
   let runtime = new AgentRuntimeService({ cwd: directory, dataDir: directory })
@@ -177,12 +218,15 @@ test('runtime navigation uses AgentSession tree semantics and survives a cold re
   assert.deepEqual(compactNavigation, { cancelled: false, editorText: null })
   assert.equal(catalogRefreshes, 0)
 
+  const firstTree = await runtime.getSessionTree(created.id)
   const navigated = await runtime.navigateSessionTree(created.id, entries.originalAssistant, {
     summarize: false,
   })
   assert.equal(navigated.cancelled, false)
   assert.equal(navigated.editorText, null)
   assert.notEqual(navigated.leafId, entries.originalAssistant)
+  assert.equal(navigated.leafId, firstTree.leafId)
+  assert.equal(navigated.nodeCount, firstTree.nodeCount)
   assert.equal(navigated.nodes.find((node) => node.id === navigated.leafId)?.kind, 'position')
   assert.equal(navigated.nodes.find((node) => node.id === entries.originalAssistant)?.active, true)
   assert.equal(

@@ -11,6 +11,7 @@ import {
 import { isCompletedTurnBoundaryMessage } from './session-derivation.mjs'
 import {
   appendTreePosition,
+  findPendingTreePosition,
   isLineBoundary,
   projectSessionTree,
   scanSessionTreeLabels,
@@ -690,7 +691,9 @@ export class SessionLifecycle {
     }
     const manager = value.session.sessionManager
     if (!manager.getEntry(entryId)) throw new Error('会话树节点不存在。')
-    if (manager.getLeafId() === entryId) {
+    const pendingPositionId = findPendingTreePosition(manager, entryId)
+    const navigationEntryId = pendingPositionId || entryId
+    if (manager.getLeafId() === navigationEntryId) {
       const navigation = { cancelled: false, editorText: null }
       return options?.includeTree === false
         ? navigation
@@ -699,10 +702,11 @@ export class SessionLifecycle {
 
     value.runActive = true
     try {
-      const result = await value.session.navigateTree(entryId, {
+      const result = await value.session.navigateTree(navigationEntryId, {
         summarize: Boolean(options?.summarize),
       })
-      if (!result.cancelled && !result.summaryEntry) appendTreePosition(manager, entryId)
+      if (!result.cancelled && !result.summaryEntry && !pendingPositionId)
+        appendTreePosition(manager, entryId)
       value.modified = new Date().toISOString()
       this.touchStoredSession(sessionId, value.modified)
       this.sessionHistoryPaths.delete(sessionId)
