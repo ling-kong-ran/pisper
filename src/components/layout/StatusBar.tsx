@@ -34,6 +34,7 @@ export function StatusBar({ page, pluginStats }: StatusBarProps) {
   const [modelLabel, setModelLabel] = useState('')
   const modelRequest = useRef(0)
 
+// 刷新今日用量：轮询 + 可见性恢复 + 事件推送三重刷新，失败静默。
   const refreshUsage = useCallback(async () => {
     try {
       setUsage(await apiJson<Usage>('/api/usage/today'))
@@ -55,6 +56,7 @@ export function StatusBar({ page, pluginStats }: StatusBarProps) {
     }
   }, [refreshUsage])
 
+// 刷新模型标签：并发保护（请求序号），会话模型未解析为 unknown 时按未配置处理。
   const refreshModel = useCallback(
     async (sessionId = localStorage.getItem(STORAGE_KEYS.activeSession) || '') => {
       const request = ++modelRequest.current

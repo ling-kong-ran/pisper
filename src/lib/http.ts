@@ -29,6 +29,8 @@ export class ApiError extends Error {
   }
 }
 
+// 从错误响应文本中提取结构化负载：能解析为对象则原样返回，
+// 纯字符串则包一层 error 字段，解析失败返回 undefined 让调用方降级。
 function errorPayload(text: string): ApiErrorPayload | undefined {
   if (!text) return undefined
   try {
@@ -44,6 +46,8 @@ function errorPayload(text: string): ApiErrorPayload | undefined {
   }
 }
 
+// 归一化任意异常为可展示文案：优先取 Error.message，否则字符串本身，
+// 兜底用传入的 fallback（避免把 undefined/对象直接拼进用户界面）。
 function errorMessage(error: unknown, fallback: string) {
   if (error instanceof Error && error.message) return error.message
   if (typeof error === 'string' && error) return error

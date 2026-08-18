@@ -35,6 +35,7 @@ export const SUPPORTED_LANGUAGES = ['zh-CN', 'en-US'] as const
 export type SupportedLanguage = (typeof SUPPORTED_LANGUAGES)[number]
 export type I18nValues = Record<string, unknown>
 
+// 语言守卫：确认值在受支持语言列表内（类型收窄）。
 export function isSupportedLanguage(language: unknown): language is SupportedLanguage {
   return typeof language === 'string' && SUPPORTED_LANGUAGES.includes(language as SupportedLanguage)
 }
@@ -60,6 +61,7 @@ export const I18N_NAMESPACES = Object.freeze([
 ] as const)
 export type I18nNamespace = (typeof I18N_NAMESPACES)[number]
 
+// 读取持久化语言：localStorage 里无值或值非法时回退默认语言（zh-CN）。
 export function storedLanguage(): SupportedLanguage {
   try {
     const stored = localStorage.getItem(STORAGE_KEYS.language)
@@ -117,6 +119,8 @@ void i18n.use(initReactI18next).init({
   initAsync: false,
 })
 
+// 非 React 场景翻译：固定语言取翻译，避免依赖当前组件实例状态；
+// 供事件派发、工具函数等非组件代码使用。
 export function translateText(
   message: string,
   language: SupportedLanguage = DEFAULT_LANGUAGE,

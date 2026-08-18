@@ -20,6 +20,8 @@ export type AppDialogState = {
 export type ConfirmDialogOptions = Partial<Omit<AppDialogState, 'type'>>
 export type PromptDialogOptions = Partial<Omit<AppDialogState, 'type'>>
 
+// 应用对话框（确认/输入）hook：以 Promise 暴露 confirm/prompt，
+// 非组件代码可 await 用户输入；连续打开时旧 pending 返回 null。
 export function useAppDialog() {
   const { t } = useI18n()
   const [dialog, setDialog] = useState<AppDialogState | null>(null)

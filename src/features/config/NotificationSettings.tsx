@@ -155,6 +155,8 @@ export function NotificationSettings({
   const [permission, setPermission] = useState<NotificationPermissionState>(notificationPermission)
   const [browserSaving, setBrowserSaving] = useState(false)
 
+// 刷新桌面通知权限：桥接能力缺失视为已授权，否则取真实状态；
+// 非法返回值按 supported 字段降级。
   const refreshDesktopPermission = useCallback(async () => {
     if (!desktop) return
     const getNotificationStatus = window.pisperDesktop?.getNotificationStatus
@@ -181,6 +183,7 @@ export function NotificationSettings({
     }
   }, [desktop])
 
+// 加载通知设置并同步给壳层（供 App 的浏览器通知逻辑使用）。
   const load = useCallback(async () => {
     try {
       setError('')
@@ -207,6 +210,8 @@ export function NotificationSettings({
     return () => window.removeEventListener('focus', refresh)
   }, [desktop, refreshDesktopPermission])
 
+// 切换浏览器通知开关：开启前校验环境支持与权限（桌面/浏览器分别处理），
+// 未授权时提示并回滚开关。
   const updateBrowser = async (enabled: boolean) => {
     if (enabled) {
       if (permission === 'unsupported') {
@@ -269,6 +274,8 @@ export function NotificationSettings({
     }
   }
 
+// 发送系统通知（桌面桥接或浏览器），用于测试按钮；桌面返回
+// shown=false 时同步权限状态并抛错给出失败原因。
   const sendSystemNotification = useCallback(
     async (title: string, body: string, tag = 'pisper-browser-test') => {
       if (desktop) {
@@ -289,6 +296,7 @@ export function NotificationSettings({
     [desktop, t],
   )
 
+// 测试通知：先校验权限（未授权给出对应提示），再发送一条测试通知。
   const testNotification = async () => {
     if (permission !== 'granted') {
       notify(

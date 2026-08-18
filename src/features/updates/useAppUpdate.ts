@@ -25,6 +25,8 @@ const WEB_INFO: AppUpdateInfo = Object.freeze({
   releasesUrl: RELEASES_URL,
 })
 
+// 应用更新控制器 hook：检查/下载/安装桌面与组件更新，维护状态并
+// 订阅桌面桥接推送，向壳层提供 AppUpdateController 能力。
 export function useAppUpdate(): AppUpdateController {
   const bridge = window.pisperDesktop
   const [info, setInfo] = useState(WEB_INFO)

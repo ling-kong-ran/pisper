@@ -77,6 +77,8 @@ type PluginStats = {
   total: number
 }
 
+// 是否存在可用 Provider：已配置 + 启用 + 含 chat 类模型的 Provider 至少一个。
+// 启动时据此决定是否引导用户先去配置页。
 function hasUsableProvider(config: AppConfig) {
   return Boolean(
     config?.providers?.some(
@@ -88,6 +90,8 @@ function hasUsableProvider(config: AppConfig) {
   )
 }
 
+// 渲染通知模板：把 {{a.b}} 占位符替换为事件数据中的嵌套字段值，
+// 缺字段时保留原占位符不静默消失，便于用户发现模板配置问题。
 function renderNotificationContent(content: string, data: Record<string, unknown>) {
   return String(content || '').replace(
     /\{\{\s*([\w.]+)\s*\}\}/g,
@@ -101,16 +105,19 @@ function renderNotificationContent(content: string, data: Record<string, unknown
   )
 }
 
-// 系统时间自动判断暗色：18:00–次日 8:00 为暗色，其余为亮色
+// 按时间判断暗色：18:00–次日 8:00 为暗色，用于 system 主题的时间驱动。
 function isAutoDarkByTime() {
   const hour = new Date().getHours()
   return hour >= 18 || hour < 8
 }
 
+// 主题模式 → 是否暗色：dark 恒暗；system 交给时间判断。
 function resolveDark(mode: ThemeMode) {
   return mode === 'dark' || (mode === 'system' && isAutoDarkByTime())
 }
 
+// 是否可编辑目标（输入/文本域/选择/可编辑区域）：
+// 全局快捷键在这些元素上按下时不应被拦截（保留原生输入体验）。
 function isEditableTarget(target: EventTarget | null) {
   return (
     target instanceof HTMLElement &&
@@ -118,6 +125,7 @@ function isEditableTarget(target: EventTarget | null) {
   )
 }
 
+// 安全解码路径段；非法编码返回空串而非抛错中断渲染。
 function decodePathSegment(value: string) {
   try {
     return decodeURIComponent(value)
@@ -219,6 +227,8 @@ function App() {
     setSidebarCollapsed(!sidebarCollapsed)
   }
 
+// 刷新插件启用统计：拉取插件工具列表，统计启用数/总数供状态栏展示；
+// 目录不可用时静默失败，不影响其余功能。
   const refreshPluginStats = useCallback(async () => {
     try {
       const data = await apiJson<{
@@ -233,6 +243,7 @@ function App() {
     }
   }, [])
 
+// 应用内 Toast：每次递增 id 保证连续提示正确触发切换动画。
   const notify = useCallback((message: string, tone: ToastTone = 'success') => {
     toastSequence.current += 1
     setToast({ id: toastSequence.current, message, tone })
@@ -247,6 +258,8 @@ function App() {
     return () => window.removeEventListener(ACTIVE_SESSION_CHANGED_EVENT, syncActiveSession)
   }, [])
 
+// 系统通知（桌面/浏览器）：已开启浏览器通知开关才发；
+// 前台聚焦时静默（不打扰），force 强制忽略该规则；桌面桥接优先。
   const showSystemNotification = useCallback(
     (title: string, body: string, { force = false }: { force?: boolean } = {}) => {
       if (!notificationSettings.browser?.enabled) return
@@ -265,6 +278,8 @@ function App() {
     [notificationSettings.browser?.enabled],
   )
 
+// 按事件模板发浏览器通知：模板启用且有内容才发，
+// 渲染时替换 {{变量}} 占位符。
   const browserNotify = useCallback(
     (event: string, data: unknown, options?: { force?: boolean }) => {
       const template = notificationSettings.templates?.find((item) => item.id === event)
@@ -279,6 +294,7 @@ function App() {
     [notificationSettings.templates, showSystemNotification],
   )
 
+// 页面注册主操作（透传注册表）。
   const registerPrimaryAction = useCallback(
     (action: () => void) => {
       return primaryActions.register(action)
@@ -286,15 +302,19 @@ function App() {
     [primaryActions],
   )
 
+// 触发页面主操作（如 Cmd+N 快捷键）。
   const invokePrimaryAction = useCallback(() => {
     primaryActions.invoke()
   }, [primaryActions])
 
+// 注册工作流编辑器的动作（保存/运行），供页头按钮触发；
+// 返回注销函数，新动作注册时若仍指向旧值则清除。
   const registerWorkflowActions = useCallback((actions: WorkflowActions) => {
     setWorkflowActions(actions)
     return () => setWorkflowActions((current) => (current === actions ? null : current))
   }, [])
 
+// 页面导航：只接受已知页面 id（防硬编码跳转），跳转同时清空搜索词。
   const navigate = useCallback(
     (next: string, options?: NavigateOptions) => {
       if (!PAGE_IDS.has(next)) return
@@ -310,6 +330,7 @@ function App() {
     }
   }, [configSection, page, requestedConfigSection, routerNavigate])
 
+// 切换配置分区：未知分区回退到 models，同步路由并清空搜索词。
   const setConfigSection = useCallback(
     (section: string) => {
       const nextSection = CONFIG_SECTIONS.has(section) ? section : 'models'
@@ -326,6 +347,7 @@ function App() {
     [setConfigSection],
   )
 
+// 设置导航统一入口：配置分区 vs 独立设置页两种跳转。
   const navigateSettings = useCallback(
     (destination: SettingsDestination) => {
       if (destination.type === 'config') setConfigSection(destination.id)
@@ -338,6 +360,7 @@ function App() {
     if (!SETTINGS_PAGES.has(page)) lastWorkbenchPathRef.current = location.pathname
   }, [location.pathname, page])
 
+// 退出设置页：回到进入设置前的最后一个工作台页面。
   const exitSettings = useCallback(() => {
     routerNavigate(lastWorkbenchPathRef.current)
     setQuery('')
@@ -375,12 +398,15 @@ function App() {
     })()
   }, [appDialog, setConfigSection, startupReady, t])
 
+// 解析会话工作目录：从会话列表查 cwd（供终端绑定工作区）。
   const resolveSessionCwd = useCallback(async (sessionId: string) => {
     if (!sessionId) return ''
     const data = await apiJson<{ sessions?: Array<{ id: string; cwd?: string }> }>('/api/sessions')
     return data.sessions?.find((session) => session.id === sessionId)?.cwd || ''
   }, [])
 
+// 使用资源：把资源（附件）标记为待投递到活动会话，跳转聊天页，
+// 若已存在活动会话则触发选中事件让输入框接收。
   const useAsset = useCallback(
     (asset: ChatAttachment) => {
       const targetSessionId = localStorage.getItem(STORAGE_KEYS.activeSession) || ''
@@ -391,6 +417,8 @@ function App() {
     [navigate],
   )
 
+// 主操作分发：按当前页面决定触发哪个动作（新建会话/新建工作流/快捷创建）；
+// 配置页非 models 分区时不响应，避免误触发。
   const handlePrimary = useCallback(() => {
     if (page === 'config' && configSection !== 'models') return
     if (

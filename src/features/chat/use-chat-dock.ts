@@ -96,6 +96,8 @@ export function useChatDock({
     return () => media.removeEventListener('change', update)
   }, [])
 
+// 立即持久化 Dock 布局：序列化当前布局 envelope 写入 localStorage；
+// 序列化失败时保留上一次成功内容，不抛错中断。
   const persistDockLayout = useCallback((api: DockviewApi | null = dockApiRef.current) => {
     if (!dockInitializedRef.current) return false
     window.clearTimeout(layoutSaveTimerRef.current)
@@ -117,6 +119,8 @@ export function useChatDock({
     }
   }, [])
 
+// 调度延迟保存布局：布局变化频繁（拖拽中），统一在空闲后落盘，
+// 避免每次 drag/resize 事件都触发一次序列化与写入。
   const scheduleDockLayoutSave = useCallback((api: DockviewApi | null = dockApiRef.current) => {
     if (!api || !dockInitializedRef.current) return
     let serialized: string
@@ -137,6 +141,8 @@ export function useChatDock({
     }, 180)
   }, [])
 
+// 在 Dock 打开会话：不存在则新建面板，存在则聚焦并（可选）加载消息；
+// 返回是否新开了面板，供调用方决定是否移动分组。
   const openSessionInDock = useCallback(
     (sessionId: string, disposition: SessionOpenDisposition = 'open') => {
       const session = sessionsRef.current.find((item) => item.id === sessionId)
@@ -192,6 +198,8 @@ export function useChatDock({
     [loadSessionMessages, sessionsRef, setActiveId, t],
   )
 
+// 在 Dock 打开 Web 预览面板：已存在则更新 URL 并聚焦，
+// 否则在活动面板右侧新建；Dock 未就绪时暂存请求待就绪后补开。
   const openWebPreviewInDock = useCallback(
     (request: WebPreviewOpenRequest) => {
       const api = dockApiRef.current
@@ -252,16 +260,20 @@ export function useChatDock({
     [notify, t],
   )
 
+// 关闭 Dock 面板。
   const closeDockPanel = useCallback((panelId: string) => {
     dockApiRef.current?.getPanel(panelId)?.api.close()
   }, [])
 
+// 把会话面板移动到指定分组（无目标或已在同组时忽略）。
   const moveSessionToGroup = useCallback((sessionId: string, group?: DockviewGroupPanel) => {
     if (!group) return
     const panel = dockApiRef.current?.getPanel(panelIdForSession(sessionId))
     if (panel && panel.group !== group) panel.api.moveTo({ group })
   }, [])
 
+// 面板关闭时释放会话状态：告知目录该面板已关（且未持有本地流），
+// 决定是否保留运行中的状态供重开续显。
   const releaseIfClosed = useCallback(
     (sessionId: string) => {
       const panelOpen = Boolean(dockApiRef.current?.getPanel(panelIdForSession(sessionId)))
@@ -273,6 +285,8 @@ export function useChatDock({
     [localStreamSessionsRef, releaseSessionState],
   )
 
+// Dock 就绪回调：绑定布局/面板事件（活动变更、拖拽、添加/移除），
+// 恢复上次持久化布局，并补开暂存的预览/会话请求。
   const onDockReady = useCallback(
     ({ api }: DockviewReadyEvent) => {
       if (dockApiRef.current && dockApiRef.current !== api) dockInitializedRef.current = false

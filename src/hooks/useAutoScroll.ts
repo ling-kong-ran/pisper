@@ -4,6 +4,8 @@
 // 错误翻转、自动滚动永久失效。滚动跳帧合并在 rAF 内，减少远程桌面闪烁。
 import { useCallback, useEffect, useRef, useState, type UIEvent } from 'react'
 
+// 自动滚动：contentVersion 变化且贴底时滚到底部；
+// 用户上翻后暂停并置未读标记；程序化滚动用两帧标记窗口区分于用户滚动。
 export function useAutoScroll(
   contentVersion: unknown,
   { threshold = 64 }: { threshold?: number } = {},

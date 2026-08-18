@@ -8,6 +8,8 @@ export type Translate = (message: string, values?: Record<string, unknown>) => s
 export type Navigation = Array<[string, Array<[PageId, string, LucideIcon]>]>
 export type PageMeta = readonly [string, string]
 
+// 工作台导航分组：目前只有“工作台”一组（聊天/资源/工作流/计划），
+// 数组保持顺序稳定，图标由调用方渲染。
 export function getNavigation(t: Translate = (value) => value): Navigation {
   return [
     [
@@ -22,6 +24,7 @@ export function getNavigation(t: Translate = (value) => value): Navigation {
   ]
 }
 
+// 页面元信息（标题/描述）表：供页头与文档标题使用，全部翻译化。
 export function getPageMeta(t: Translate = (value) => value): Record<PageId, PageMeta> {
   return {
     chat: [t('navigation:navigation.chat'), t('navigation:navigation.chatDescription')],

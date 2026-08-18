@@ -6,6 +6,8 @@ import * as React from 'react'
 // Keep this breakpoint aligned with the legacy layout during the shadcn migration.
 const MOBILE_BREAKPOINT = 901
 
+// 移动端判定：宽度 < 900px 视为移动端（断点须与历史布局一致，
+// 迁移 shadcn 期间不可改变既有交互边界）。
 export function useIsMobile() {
   const [isMobile, setIsMobile] = React.useState<boolean | undefined>(undefined)
 

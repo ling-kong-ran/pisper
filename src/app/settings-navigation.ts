@@ -37,6 +37,7 @@ export const CONFIG_SECTIONS = new Set([
 
 export const SETTINGS_PAGES = new Set(['config', 'channels', 'plugins', 'memory', 'mcp', 'skills'])
 
+// 设置侧边栏分组导航（Agent/能力/上下文/连接/应用）。
 export function getSettingsNavigation(t: Translate): SettingsNavigationGroup[] {
   return [
     {
@@ -127,6 +128,7 @@ export function getSettingsNavigation(t: Translate): SettingsNavigationGroup[] {
   ]
 }
 
+// 设置导航高亮键：配置分区用 config:section，独立页面用 page:id。
 export function settingsNavigationKey(page: string, configSection: string) {
   return page === 'config' ? `config:${configSection}` : `page:${page}`
 }

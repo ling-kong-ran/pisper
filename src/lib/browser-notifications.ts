@@ -38,6 +38,8 @@ type BrowserGlobalsOptions = {
 
 let serviceWorkerRegistrationPromise: Promise<ServiceWorkerRegistrationLike> | undefined
 
+// 归一化 window/navigator 引用：允许测试环境注入 fake 实现，
+// 非浏览器环境返回 undefined 让上层安全降级。
 function browserGlobals(options: BrowserGlobalsOptions = {}) {
   return {
     windowRef:
@@ -51,6 +53,7 @@ function browserGlobals(options: BrowserGlobalsOptions = {}) {
   }
 }
 
+// 读取当前通知权限；环境不支持时返回 'unsupported'。
 export function getBrowserNotificationPermission(
   options: BrowserGlobalsOptions = {},
 ): NotificationPermissionState {
@@ -60,6 +63,7 @@ export function getBrowserNotificationPermission(
   return NotificationApi.permission
 }
 
+// 请求通知权限：已是 granted/denied 直接返回，default 才弹系统询问。
 export async function requestBrowserNotificationPermission(
   options: BrowserGlobalsOptions = {},
 ): Promise<NotificationPermissionState> {
@@ -70,6 +74,8 @@ export async function requestBrowserNotificationPermission(
   return NotificationApi.requestPermission()
 }
 
+// 准备 Service Worker（注册并等待 ready），供系统通知回退链路使用；
+// 非安全上下文或没有 SW 能力时返回 null（降级为 window.Notification）。
 export async function prepareBrowserNotifications(
   options: BrowserGlobalsOptions = {},
 ): Promise<ServiceWorkerRegistrationLike | null> {
@@ -88,6 +94,8 @@ export async function prepareBrowserNotifications(
   return serviceWorkerRegistrationPromise
 }
 
+// 展示系统通知：优先 SW showNotification（点击带 data.url 可聚焦窗口），
+// 否则 window.Notification；未授权或环境不支持时抛错供调用方提示。
 export async function showBrowserSystemNotification(
   {
     title,

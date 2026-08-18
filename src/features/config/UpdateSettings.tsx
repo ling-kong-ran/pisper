@@ -148,6 +148,7 @@ export function UpdateSettings({
     }
   }
 
+// 检查更新：调控制器检查并防重入（busy 标记）。
   const check = async () => {
     if (!update) return
     setComponentBusy('check')
@@ -161,6 +162,7 @@ export function UpdateSettings({
   const openReleases = () => update?.openReleases()
   const openUpdateLog = () => update?.openUpdateLog?.()
 
+// 下载/安装更新：桌面端安装全部组件，Web 端仅下载；失败提示。
   const download = async () => {
     setComponentBusy(desktop ? 'install' : '')
     try {

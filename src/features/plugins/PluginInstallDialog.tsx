@@ -45,6 +45,7 @@ export function PluginInstallDialog({ open, onOpenChange, onInstalled }: PluginI
     setError('')
   }, [open])
 
+// 选择插件目录（桌面系统选择器），选中后清空旧的检查结果。
   const chooseDirectory = async () => {
     setError('')
     try {
@@ -58,6 +59,7 @@ export function PluginInstallDialog({ open, onOpenChange, onInstalled }: PluginI
     }
   }
 
+// 检查插件目录：调运行时解析清单与能力，校验通过才能安装。
   const inspect = async () => {
     if (!path.trim() || busy) return
     setBusy(true)
@@ -77,6 +79,7 @@ export function PluginInstallDialog({ open, onOpenChange, onInstalled }: PluginI
     }
   }
 
+// 安装插件：用检查结果 id 提交安装，完成后刷新并关闭对话框。
   const install = async () => {
     if (!inspection || busy) return
     setBusy(true)

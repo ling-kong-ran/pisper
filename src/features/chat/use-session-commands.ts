@@ -42,6 +42,7 @@ export function useSessionCommands({
   const { t, language } = useI18n()
   const [workspaceSession, setWorkspaceSession] = useState<SessionSummary | null>(null)
 
+// 更新会话摘要项（函数式），供会话命令同步列表字段。
   const updateSessionSummary = useCallback(
     (sessionId: string, update: (session: SessionSummary) => SessionSummary) => {
       updateSessions((current) =>
@@ -51,6 +52,7 @@ export function useSessionCommands({
     [updateSessions],
   )
 
+// 暂停目标模式（goal）：调运行时并同步状态与摘要。
   const pauseGoal = useCallback(
     async (sessionId: string) => {
       if (!sessionId) return
@@ -69,6 +71,7 @@ export function useSessionCommands({
     [notify, t, updateSessionState, updateSessionSummary],
   )
 
+// 设置目标模式的 token 预算。
   const setGoalBudget = useCallback(
     async (sessionId: string, tokenBudget: number) => {
       if (!sessionId) return
@@ -87,6 +90,8 @@ export function useSessionCommands({
     [notify, t, updateSessionState, updateSessionSummary],
   )
 
+// 手动压缩上下文：流式或已在压缩时忽略；先本地置“运行中”，
+// 成功后回写压缩结果与用量，失败时同步实时状态恢复。
   const compactSession = useCallback(
     async (sessionId: string) => {
       const current = sessionStatesRef.current[sessionId]
@@ -115,6 +120,7 @@ export function useSessionCommands({
     [notify, sessionStatesRef, syncLiveSession, t, updateSessionState],
   )
 
+// 更新全局压缩阈值：调运行时偏好并批量回写所有会话的压缩预算。
   const setCompactionThreshold = useCallback(
     async (thresholdPercent: number) => {
       const preference = await chatApi.updateCompactionPreference(thresholdPercent)
@@ -140,6 +146,8 @@ export function useSessionCommands({
     [replaceSessionStates, sessionStatesRef],
   )
 
+// 应用思考强度状态：模型不匹配时忽略（响应来自已切换的模型），
+// 兼容新旧字段名并同步摘要。
   const applyThinkingState = useCallback(
     (sessionId: string, payload: Record<string, unknown> = {}) => {
       const responseModel = String(payload.model || '')
@@ -166,6 +174,7 @@ export function useSessionCommands({
     [sessionStatesRef, updateSessionState, updateSessionSummary],
   )
 
+// 加载会话思考强度（流式中跳过）。
   const loadSessionThinkingLevel = useCallback(
     async (sessionId: string) => {
       if (!sessionId || sessionStatesRef.current[sessionId]?.streaming) return
@@ -182,6 +191,8 @@ export function useSessionCommands({
     [applyThinkingState, sessionStatesRef, t, updateSessionState],
   )
 
+// 切换会话模型：流式中忽略；先乐观更新（防止受控下拉回弹），
+// 成功后回写并提示是否压缩上下文，失败时回滚模型。
   const switchSessionModel = useCallback(
     async (sessionId: string, nextModel: string) => {
       const selected = availableModels.find((item) => item.key === nextModel)
@@ -242,6 +253,7 @@ export function useSessionCommands({
     ],
   )
 
+// 切换思考强度：乐观更新 → PUT → 应用响应状态，失败回滚。
   const switchSessionThinkingLevel = useCallback(
     async (sessionId: string, nextLevel: string) => {
       const level = String(nextLevel || '').trim()
@@ -279,6 +291,8 @@ export function useSessionCommands({
     [applyThinkingState, notify, sessionStatesRef, t, updateSessionState, updateSessionSummary],
   )
 
+// 切换执行模式：切到 full-access 前强制二次确认；
+// 成功后同步状态与摘要并返回是否生效。
   const switchSessionExecutionMode = useCallback(
     async (sessionId: string, executionMode: string) => {
       if (!sessionId) return false
@@ -332,6 +346,8 @@ export function useSessionCommands({
     [notify, requestConfirm, t, updateSessionState, updateSessionSummary],
   )
 
+// 处理工具审批：先本地移除待审批项（快速反馈），再 POST 结果；
+// 已在别处处理（404）时同步实时状态并提示。
   const resolveToolApproval = useCallback(
     async (sessionId: string, approvalId: string, approved: boolean) => {
       updateSessionState(sessionId, (current) => ({
@@ -355,6 +371,7 @@ export function useSessionCommands({
     [notify, syncLiveSession, t, updateSessionState],
   )
 
+// 切换会话工作目录（流式中忽略），成功后同步摘要。
   const switchSessionCwd = useCallback(
     async (session: SessionSummary, cwd: string) => {
       if (!session?.id || sessionStatesRef.current[session.id]?.streaming) return

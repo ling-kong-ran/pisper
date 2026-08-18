@@ -9,6 +9,9 @@ export type PrimaryActionRegistry = {
   clear: () => void
 }
 
+// 主操作注册表：register 覆盖当前操作并返回注销函数；
+// invoke 在无操作时置 queued 标记，等 register 到来时补触发一次，
+// 解决启动早期（页面尚未挂载）触发主操作被丢失的问题。
 export function createPrimaryActionRegistry(): PrimaryActionRegistry {
   let currentAction: PrimaryAction | null = null
   let queued = false

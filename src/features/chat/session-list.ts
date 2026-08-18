@@ -8,6 +8,7 @@ export function mergeSessionLists(current: SessionSummary[], incoming: SessionSu
   return [...incoming, ...optimistic]
 }
 
+// 最近会话的工作目录：按列表顺序找第一个有 cwd 的会话，用于新会话继承。
 export function recentSessionCwd(sessions: SessionSummary[]) {
   for (const session of sessions) {
     const cwd = typeof session.cwd === 'string' ? session.cwd.trim() : ''
@@ -16,10 +17,12 @@ export function recentSessionCwd(sessions: SessionSummary[]) {
   return ''
 }
 
+// 从平铺会话列表移除一个 id。
 export function removeTiledSession(ids: string[], sessionId: string) {
   return ids.filter((id) => id !== sessionId)
 }
 
+// 平铺会话开关：已含则移除，否则追加（保持顺序）。
 export function toggleTiledSession(ids: string[], sessionId: string) {
   return ids.includes(sessionId) ? removeTiledSession(ids, sessionId) : [...ids, sessionId]
 }

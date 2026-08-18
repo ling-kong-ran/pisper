@@ -226,6 +226,7 @@ export function PluginsPage({
   const [removing, setRemoving] = useState(false)
   const [error, setError] = useState('')
 
+// 应用插件数据：写入列表/草稿/Web 搜索配置，并向壳层上报启用统计。
   const applyData = useCallback(
     (result: PluginsData) => {
       setData(result)
@@ -240,6 +241,7 @@ export function PluginsPage({
     [onStatusChange],
   )
 
+// 加载插件列表（含工具启用状态）。
   const load = useCallback(async () => {
     setError('')
     try {
@@ -260,6 +262,7 @@ export function PluginsPage({
       JSON.stringify(webSearch) !== JSON.stringify(data.webSearch)
     : false
 
+// 保存插件策略：无改动时直接提示；否则 PUT 启停配置并刷新；防重入。
   const save = useCallback(async () => {
     if (saving) return
     if (!data || !dirty) {
@@ -284,6 +287,7 @@ export function PluginsPage({
 
   usePagePrimaryAction(registerPrimaryAction, save)
 
+// 测试 Web 搜索配置：调运行时试搜索并提示结果条数。
   const testWebSearch = async () => {
     setTestingSearch(true)
     setError('')
@@ -350,6 +354,7 @@ export function PluginsPage({
     return false
   }
 
+// 卸载插件：删除前要求先保存未提交的启用策略（dirty 拦截）。
   const uninstall = async () => {
     if (!removeTarget || removing) return
     setRemoving(true)

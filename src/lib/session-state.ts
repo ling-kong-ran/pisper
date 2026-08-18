@@ -33,6 +33,8 @@ export const DEFAULT_SESSION_STATE: SessionState = Object.freeze({
   olderCursor: null,
 })
 
+// 浅比较两个会话状态：任一字段引用不同即视为变化。
+// 用于应用更新前的去重——未变化的更新返回原引用，避免无谓重渲染。
 export function sessionStateChanged(previous?: SessionState, next?: SessionState) {
   if (previous === next) return false
   if (!previous || !next) return true
@@ -45,6 +47,8 @@ export function sessionStateChanged(previous?: SessionState, next?: SessionState
 
 export type SessionStateUpdate = Partial<SessionState> | ((current: SessionState) => SessionState)
 
+// 应用一次会话更新：支持部分对象或函数式更新，经过去重后返回新状态；
+// 无变化时返回原引用（供 React 状态比较短路）。
 export function applySessionUpdate(
   previous: SessionState | undefined,
   update: SessionStateUpdate,
@@ -54,6 +58,8 @@ export function applySessionUpdate(
   return sessionStateChanged(base, next) ? next : base
 }
 
+// 解析排队输入：incoming 为 undefined 表示“未提及”，保留现有值；
+// 为 null/数组时直接替换，保证 SSE 流里显式清空（[]）能生效。
 export function resolveQueuedInputs(
   current: EntityRecord[] | undefined,
   incoming: EntityRecord[] | null | undefined,
@@ -62,6 +68,9 @@ export function resolveQueuedInputs(
   return Array.isArray(incoming) ? incoming : []
 }
 
+// 把交互式用户消息插入消息列表：插到“最近一条 agent 消息”之前。
+// 这样用户追问出现在旧回复与后续流式输出之间，时间线顺序正确；
+// 没有活跃 agent 消息时直接追加到末尾。
 export function insertInteractiveUserMessage(
   messages: ChatMessage[] = [],
   message: ChatMessage,
@@ -79,6 +88,8 @@ export function insertInteractiveUserMessage(
   return [...current.slice(0, activeAgentIndex), message, ...current.slice(activeAgentIndex)]
 }
 
+// 会话仍处“运行中”（流式输出、恢复中或有排队/启动/运行的 agent）时，
+// 即使面板被关闭也应保留会话状态，供重新打开时无缝续显。
 export function shouldRetainClosedSessionState(state: Partial<SessionState> | undefined) {
   return Boolean(
     state?.streaming ||
@@ -87,6 +98,8 @@ export function shouldRetainClosedSessionState(state: Partial<SessionState> | un
   )
 }
 
+// 判断活动记录是否包含可展示的运行内容（有流式文本/思考/工具/agent 活动），
+// 避免渲染只有空壳的活动卡片。
 export function hasRunActivity(activity: EntityRecord | null | undefined) {
   return Boolean(
     activity &&
@@ -98,6 +111,8 @@ export function hasRunActivity(activity: EntityRecord | null | undefined) {
   )
 }
 
+// 消息的运行活动解析：最新一条 agent 消息优先展示实时活动（流式中的
+// 工具/思考），否则回退到消息自带的 runActivity 快照。
 export function resolveMessageRunActivity(
   message: ChatMessage,
   isLatestAgent: boolean,
@@ -108,8 +123,8 @@ export function resolveMessageRunActivity(
 }
 
 /**
- * Prefer live session state once a session has opened. Explicit null means
- * “cleared” and must not fall back to a stale listSessions snapshot.
+ * 计划来源解析：会话打开后优先采用实时会话状态；
+ * 显式 null 表示“已清空”，不得回退到过期的 listSessions 快照。
  */
 export function resolveSessionPlan(
   state: Partial<SessionState> | undefined,
@@ -126,6 +141,7 @@ export function resolveSessionPlan(
   return planFromPayloadOr(state as EntityRecord, null)
 }
 
+// 判断计划是否“活跃”（有待办项）：仅用于 UI 是否显示计划卡片。
 export function isPlanActive(
   plan: Plan | null | undefined,
   _options: { streaming?: boolean } = {},

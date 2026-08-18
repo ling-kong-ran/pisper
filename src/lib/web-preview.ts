@@ -13,6 +13,8 @@ export type PreviewLinkIntent = {
   behavior?: string | null
 }
 
+// 解析 Web 预览链接：基于 baseUrl 解析并只接受 http/https 协议，
+// 其余协议（javascript: 等）返回 null 防止安全风险。
 export function resolveWebPreviewUrl(href: string, baseUrl: string) {
   try {
     const url = new URL(href, baseUrl)
@@ -22,6 +24,7 @@ export function resolveWebPreviewUrl(href: string, baseUrl: string) {
   }
 }
 
+// 规范化预览输入：无协议时补 https://（或 // 协议相对），再解析为绝对 URL。
 export function normalizeWebPreviewInput(value: string, baseUrl: string) {
   const trimmed = value.trim()
   if (!trimmed) return null
@@ -30,6 +33,8 @@ export function normalizeWebPreviewInput(value: string, baseUrl: string) {
   return resolveWebPreviewUrl(candidate, baseUrl)?.href || null
 }
 
+// 判断链接点击是否应交给 Web 预览：仅“无修饰键的左键点击 + 跨源 URL”
+// 才拦截；同源导航、下载、修饰键或显式 external/ignore 行为都不拦截。
 export function shouldOpenWebPreview({
   href,
   baseUrl,

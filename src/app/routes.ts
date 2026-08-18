@@ -25,10 +25,13 @@ const PATH_PAGES = new Map<string, PageId>(
   Object.entries(PAGE_PATHS).map(([page, path]) => [path, page as PageId]),
 )
 
+// 按页面 id 取路径；未知 id 回退到聊天页，避免调用方硬编码。
 export function pagePath(page: string) {
   return PAGE_PATHS[page as PageId] || PAGE_PATHS.chat
 }
 
+// 路径 → 页面 id：先归一化尾部斜杠，再单独处理动态段
+// （/workflows/:id 与 /config/:section），其余查静态映射表。
 export function pageFromPath(pathname: string): PageId | null {
   const normalized = pathname.length > 1 ? pathname.replace(/\/+$/, '') : pathname
   if (/^\/workflows\/[^/]+$/.test(normalized)) return 'workflowCreate'
@@ -36,10 +39,13 @@ export function pageFromPath(pathname: string): PageId | null {
   return PATH_PAGES.get(normalized) || null
 }
 
+// 工作流编辑器路径（默认新建）；id 做 URL 编码防止特殊字符破坏路由。
 export function workflowPath(id = 'new') {
   return `/workflows/${encodeURIComponent(id || 'new')}`
 }
 
+// 旧版“#页面名”哈希路径迁移：命中已知页面 id 时映射到新路径，
+// 否则返回 null（保持现有路径不动），供入口启动时替换一次。
 export function legacyHashPath(hash: string): string | null {
   const legacyPage = String(hash || '').replace(/^#/, '')
   return PAGE_IDS.has(legacyPage) ? pagePath(legacyPage) : null

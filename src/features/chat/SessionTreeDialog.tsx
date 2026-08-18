@@ -349,6 +349,8 @@ export function SessionTreeDialog({
     )
   }, [allMarks, language, query])
 
+// 打开标签定位：非活动条目先导航到目标条目（激活分支），
+// 再请求打开会话；防重入避免重复导航。
   const openMark = async (mark: SessionTreeLabelMatch) => {
     if (openingMark) return
     setOpeningMark(mark)
@@ -375,6 +377,7 @@ export function SessionTreeDialog({
   }
 
   const annotatedRoots = useMemo(() => buildDisplayTree(data?.nodes || []), [data])
+// 节点类型 → 本地化标签（未知类型回退原始 type 字段）。
   const typeLabel = useCallback(
     (node: SessionTreeNode) => {
       const known: Record<string, string> = {
@@ -439,6 +442,7 @@ export function SessionTreeDialog({
     return () => cancelAnimationFrame(frame)
   }, [open, query, selectedId, view, visibleNodes.length])
 
+// 刷新会话树：拉取树数据并把选中项重置到叶子节点（或第一个节点）。
   const refresh = async () => {
     setLoading(true)
     setError('')
@@ -453,6 +457,7 @@ export function SessionTreeDialog({
     }
   }
 
+// 保存选中节点的标签；防重入（savingLabel）。
   const saveLabel = async () => {
     if (!selected || savingLabel) return
     setSavingLabel(true)
@@ -466,6 +471,7 @@ export function SessionTreeDialog({
     }
   }
 
+// 移除选中节点的标签（置空）；防重入。
   const removeLabel = async () => {
     if (!selected || savingLabel) return
     setSavingLabel(true)
@@ -479,6 +485,7 @@ export function SessionTreeDialog({
     }
   }
 
+// 导航到选中节点（非叶子且非流式中）：切换到该历史位置继续会话。
   const navigate = async () => {
     if (!selected || navigating || selected.leaf || streaming || data?.streaming) return
     setNavigating(true)

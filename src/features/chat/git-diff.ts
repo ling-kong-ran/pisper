@@ -26,6 +26,8 @@ export type GitDiffFile = {
 
 type PendingLine = { lineNumber: number; text: string }
 
+// 解析差异中的文件路径：去掉引号转义与 a/ b/ 前缀，/dev/null 视为空串；
+// Git 引号路径无法解码时保留原样。
 function decodedPath(value: string) {
   let path = String(value || '')
     .trim()
@@ -41,6 +43,7 @@ function decodedPath(value: string) {
   return path.replace(/^[ab]\//, '')
 }
 
+// 从 diff --git 头解析新旧路径（兼容引号包裹的含空格路径）。
 function pathFromDiffHeader(line: string) {
   const quoted = line.match(/^diff --git "a\/(.+)" "b\/(.+)"$/)
   if (quoted) return decodedPath(`b/${quoted[2]}`)
@@ -48,10 +51,12 @@ function pathFromDiffHeader(line: string) {
   return plain ? decodedPath(`b/${plain[2]}`) : ''
 }
 
+// 空单元格：行号与文本都为空的占位（无对应行的对比侧）。
 function emptyCell(): GitDiffCell {
   return { lineNumber: null, text: '', tone: 'empty' }
 }
 
+// 从 hunk 头解析起始行号（@@ -old,count +new,count @@）。
 function rangeStart(header: string) {
   const match = header.match(/^@@\s+-(\d+)(?:,\d+)?\s+\+(\d+)(?:,\d+)?\s+@@/)
   return {
@@ -60,6 +65,8 @@ function rangeStart(header: string) {
   }
 }
 
+// 解析统一 diff 文本：拆分为文件（diff --git 头）+ hunk（@@ 头）+
+// 行对（旧/新行号对齐成 pair），供差异查看器逐行渲染。
 export function parseUnifiedDiff(value: unknown): GitDiffFile[] {
   const lines = String(value || '')
     .replace(/\r\n/g, '\n')

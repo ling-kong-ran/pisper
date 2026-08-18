@@ -251,6 +251,8 @@ export function FocusSession({
   const requestTranscriptBottom = () => {
     setScrollRequest((current) => current + 1)
   }
+// 选择路径附件：桌面环境走系统文件选择器（pickFiles），
+// 纯 Web 环境退回路径输入对话框。
   const choosePathAttachments = async () => {
     if (window.pisperDesktop?.pickFiles) {
       try {
@@ -264,6 +266,7 @@ export function FocusSession({
     setPathPickerOpen(true)
   }
 
+// 手动压缩上下文：正在流式/已压缩进行中时忽略，防止并发压缩。
   const compactContext = async () => {
     if (!onCompact || streaming || compactingManually || compaction?.active) return
     setCompactingManually(true)
@@ -274,6 +277,8 @@ export function FocusSession({
     }
   }
 
+// 提交输入：空输入且无附件/命令不发送；流式中再次提交走“排队”（steer）
+// 路径，否则正常发送（支持目标模式与资源命令）。发送后清空草稿并回滚输入框高度。
   const submit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
     if (!value.trim() && !selection.attachments.length && !invocation) return

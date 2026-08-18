@@ -264,6 +264,7 @@ export function MemoryPage({
     stageRef.current?.style.setProperty('--py', '0')
   }
 
+// 加载记忆数据：按空间/搜索词拉取节点与候选；选中项失效时回退首节点。
   const load = useCallback(
     async (requestedSpaceId = '') => {
       setLoading(true)
@@ -350,6 +351,7 @@ export function MemoryPage({
   )
   const selectedSpace = data.spaces.find((space) => space.id === spaceId)
 
+// 删除记忆节点（确认后），成功后刷新。
   const deleteNode = async (node: MemoryNode) => {
     const approved = await requestConfirm({
       title: t('memory:memoryPage.deleteMemory'),
@@ -366,6 +368,7 @@ export function MemoryPage({
     }
   }
 
+// 处理记忆候选：接受/忽略（POST 动作）后刷新；防重入。
   const resolveCandidate = async (candidate: MemoryCandidate, action: 'accept' | 'reject') => {
     if (resolvingCandidateId) return
     setResolvingCandidateId(candidate.id)
@@ -388,6 +391,7 @@ export function MemoryPage({
     }
   }
 
+// 忽略全部候选（确认后批量处理）。
   const ignoreAllCandidates = async () => {
     if (resolvingCandidateId || !data.candidates?.length) return
     setResolvingCandidateId('__all__')

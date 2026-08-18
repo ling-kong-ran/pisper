@@ -23,6 +23,9 @@ type SessionSyncOptions = {
 
 export const MAX_FOCUS_MESSAGES = 200
 
+// 合并消息页与现有消息：若当前起点早于（等于）新页起点，说明是向后翻页，
+// 保留前缀拼接；否则以新页为准。超出上限（MAX_FOCUS_MESSAGES）时从头部
+// 截断并同步前移 messageStart（保证“更早消息”游标仍准确）。
 export function reconcileMessagePage(current: SessionState, data: ApiRecord) {
   const incomingStart = Number(data.pageInfo?.start) || 0
   const currentStart = Number.isInteger(current.messageStart) ? current.messageStart : null
@@ -45,6 +48,8 @@ export function reconcileMessagePage(current: SessionState, data: ApiRecord) {
   }
 }
 
+// 用一次实时快照（轮询/恢复）整体校准会话状态：
+// 非流式时工具调用统一结算并保留 agent 活动，流式中保留现场并清空思考。
 export function reconcileLiveSnapshot(
   current: SessionState,
   data: ApiRecord,
@@ -108,6 +113,8 @@ export function useLiveSessionSync({
     activeSessions: new Set(),
   })
 
+// 同步单个会话的实时状态：本地持有流或已有同步在途时跳过（防并发）；
+// 请求期间若本地流启动（其乐观消息拥有状态）则放弃应用快照。
   const syncLiveSession = useCallback(
     async (id: string) => {
       if (!id || localStreamSessionsRef.current.has(id) || liveSyncInFlightRef.current.has(id))
@@ -149,6 +156,8 @@ export function useLiveSessionSync({
     [localStreamSessionsRef, updateSessionState, updateSessions],
   )
 
+// 加载会话消息：恢复中先走实时同步；已加载且页足够大时不重复拉取；
+// 流式中仅标记加载完成不覆盖消息（流拥有消息所有权）。
   const loadSessionMessages = useCallback(
     async (
       id: string,
@@ -210,6 +219,7 @@ export function useLiveSessionSync({
     [sessionStatesRef, syncLiveSession, updateSessionState, updateSessions],
   )
 
+// 加载更早消息：无游标/加载中时直接返回，成功后前置合并。
   const loadOlderMessages = useCallback(
     async (id: string) => {
       const current = sessionStatesRef.current[id]

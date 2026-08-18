@@ -24,6 +24,7 @@ const AGENT_TOOLS = new Set([
   'interrupt_agent',
 ])
 
+// Agent 状态 → 展示文案与色调的映射（排队/启动/运行/完成/中断/失败）。
 export function agentActivityState(status?: string) {
   if (status === 'queued') return { titleKey: '{name} 等待调度', tone: 'waiting' }
   if (status === 'starting') return { titleKey: '{name} 正在启动', tone: 'running' }
@@ -34,6 +35,7 @@ export function agentActivityState(status?: string) {
   return { titleKey: '{name} 状态已更新', tone: 'waiting' }
 }
 
+// 时间戳归一化：非法/缺失值返回 0，避免 NaN 破坏排序与时长计算。
 function timestamp(value: unknown) {
   const source =
     typeof value === 'string' || typeof value === 'number' || value instanceof Date ? value : 0
@@ -41,10 +43,13 @@ function timestamp(value: unknown) {
   return Number.isFinite(parsed) ? parsed : 0
 }
 
+// 最近一个仍在运行的工具（按列表倒序找第一个 running）。
 export function latestRunningTool(tools: ToolActivity[] = []) {
   return [...tools].reverse().find((tool) => tool?.status === 'running') || null
 }
 
+// 推导“主活动”：压缩进行中优先，其次当前 agent 活动，
+// 否则按 工具运行 → 处理结果 → 思考 → 回复 的优先级合成 model 阶段。
 export function primaryRunActivity({
   currentActivity,
   compaction,
@@ -75,6 +80,7 @@ export function primaryRunActivity({
   return { type: 'model', stage, updatedAt: currentActivity?.updatedAt || lastActivityAt }
 }
 
+// 活动流滚动版本：把活动列表编码为字符串，用于触发滚动定位的依赖比较。
 export function activityScrollVersion(feed: EntityRecord[] = []) {
   return feed
     .map(
@@ -84,6 +90,8 @@ export function activityScrollVersion(feed: EntityRecord[] = []) {
     .join('|')
 }
 
+// 活动渲染 key：按类型取稳定标识（工具 id/agent id/plan 时间戳），
+// 供 React key 使用，避免同类活动混淆导致复用错误。
 export function activityRenderKey(activity: EntityRecord, index = 0) {
   if (activity.type === 'tool') return `tool:${activity.id || activity.name || index}`
   if (activity.type === 'agent')
@@ -93,6 +101,7 @@ export function activityRenderKey(activity: EntityRecord, index = 0) {
   return `${activity.type || 'activity'}:${activity.id || activity.startedAt || activity.createdAt || index}`
 }
 
+// 活动的稳定去重 key（不含状态，用于在活动流中定位同一条活动）。
 function activityKey(activity: EntityRecord | null | undefined) {
   if (!activity?.type) return ''
   if (activity.type === 'tool') return `tool:${activity.id || activity.name || ''}`
@@ -106,6 +115,8 @@ function activityKey(activity: EntityRecord | null | undefined) {
   return `${activity.type}:${activity.id || activity.updatedAt || ''}`
 }
 
+// 计划变更 diff：对比新旧计划项，输出 added/updated/removed 变更列表，
+// 供计划面板高亮变化并触发动画。
 export function planChanges(previous?: Plan | null, next?: Plan | null) {
   const previousItems = new Map<string, PlanItem>(
     (previous?.items || []).map((item) => [String(item.id || ''), item]),
@@ -139,6 +150,8 @@ export function planChanges(previous?: Plan | null, next?: Plan | null) {
   return changes
 }
 
+// 推入当前活动：同 key 活动合并更新，计划活动会清掉同类计划工具活动，
+// agent 活动清掉 spawn/send 等代理工具活动，最终截断到最大条数。
 export function pushCurrentActivity(
   feed: EntityRecord[] = [],
   activity: EntityRecord,
@@ -169,6 +182,8 @@ export function pushCurrentActivity(
   return next.slice(-Math.max(1, Number(maximum) || MAX_CURRENT_ACTIVITIES))
 }
 
+// 结算工具调用：把仍处于 running 的工具统一标记为 done/error 并补时间戳，
+// 用于一次回复结束或出错时兜底收尾。
 export function settleToolCalls(
   tools: ToolActivity[] = [],
   {
@@ -189,6 +204,9 @@ export function settleToolCalls(
   )
 }
 
+// 推导运行阶段：非流式按 停止/失败/完成；流式中按当前工具类型细分
+// （子代理/生成视觉/编辑/研究/普通工具），无工具时按文本推断 回复/思考，
+// 长时间无活动则标记为等待（模型或工具）。
 export function deriveRunActivity({
   streaming,
   text,
@@ -235,6 +253,8 @@ export function deriveRunActivity({
   return { stage: 'thinking', inactiveMs, activeTool: null }
 }
 
+// 找“尚未被后续进展覆盖”的最近工具错误：若该错误之后还有成功的工具
+// 或更新的活动时间，视为已恢复不展示，避免残留报错误导用户。
 export function latestUnrecoveredToolError(
   tools: ToolActivity[] = [],
   {
@@ -260,6 +280,7 @@ export function latestUnrecoveredToolError(
   return error
 }
 
+// 工具调用分组：运行中 / 出错 / 已完成（按工具名聚合计数，便于折叠展示）。
 export function groupToolCalls(tools: ToolActivity[] = []) {
   const running: ToolActivity[] = []
   const errors: ToolActivity[] = []
@@ -289,6 +310,7 @@ export function groupToolCalls(tools: ToolActivity[] = []) {
   return { running, errors, completed: [...completedByName.values()] }
 }
 
+// 运行时长（毫秒）：开始时间非法返回 0，未结束用当前时间补足。
 export function runDurationMs(startedAt: unknown, finishedAt: unknown, now = Date.now()) {
   const start = timestamp(startedAt)
   if (!start) return 0
@@ -296,6 +318,8 @@ export function runDurationMs(startedAt: unknown, finishedAt: unknown, now = Dat
   return Math.max(0, end - start)
 }
 
+// 活动时长：优先活动的开始/结束时间，未结束的 agent/tool 用完成态时间或
+// 当前时间兜底，保证运行时活动也能显示持续时长。
 export function activityDurationMs(
   activity: EntityRecord | null | undefined,
   runStartedAt: unknown,
@@ -316,6 +340,7 @@ export function activityDurationMs(
   return runDurationMs(startedAt, finishedAt, now)
 }
 
+// 时长格式化：毫秒 → 中文/英文友好文案，超 1 分钟用 m:ss、超 1 小时 h:mm:ss。
 export function formatRunDuration(milliseconds: unknown, language = 'zh-CN') {
   const totalMilliseconds = Math.max(0, Math.round(Number(milliseconds) || 0))
   if (totalMilliseconds < 1000)

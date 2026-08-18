@@ -4,6 +4,7 @@ import type { ComponentUpdateStatus, UpdateStatus } from '@/types/update'
 
 const PROGRESS_STATES = new Set(['available', 'downloading', 'installed', 'error'])
 
+// 当前桌面版版本：优先取组件状态里的 desktop 版本，否则用宿主版本。
 export function currentDesktopVersion(
   hostVersion: string,
   items?: ComponentUpdateStatus[],
@@ -12,12 +13,15 @@ export function currentDesktopVersion(
   return current || hostVersion
 }
 
+// 有进度信息的组件（有大小且处于进度状态或可安装），用于汇总进度条。
 function progressItems(items: ComponentUpdateStatus[]) {
   return items.filter(
     (item) => item.size > 0 && (PROGRESS_STATES.has(item.state) || item.canInstall),
   )
 }
 
+// 清洗发布说明：去掉版本标题/“What's Changed”等结构性噪音，
+// 压缩多余空行，只保留实际变更内容。
 function releaseNotesBody(value: string) {
   return value
     .replace(/\r/g, '')
@@ -33,6 +37,7 @@ function releaseNotesBody(value: string) {
     .trim()
 }
 
+// 合并各组件发布说明：只取 available/downloading 状态的，去重后拼接。
 function componentReleaseNotes(items: ComponentUpdateStatus[]) {
   const bodies = items
     .filter((item) => item.state === 'available' || item.state === 'downloading')
@@ -41,6 +46,8 @@ function componentReleaseNotes(items: ComponentUpdateStatus[]) {
   return bodies.length ? `## What's Changed\n\n${bodies.join('\n\n')}` : ''
 }
 
+// 汇总组件更新为统一的 UpdateStatus：聚合状态（下载中/检查中/失败等）、
+// 下载进度（含已安装组件按全量计入）与合并后的发布说明。
 export function componentUpdateStatus(
   items: ComponentUpdateStatus[],
   checkedAt = new Date().toISOString(),

@@ -20,6 +20,7 @@ import type {
   Translate,
 } from './config-types'
 
+// 归一化异常为文案（配置页共用）。
 function errorMessage(caught: unknown) {
   return caught instanceof Error ? caught.message : String(caught)
 }
@@ -30,6 +31,8 @@ type UseConfigSettingsOptions = {
   t: Translate
 }
 
+// 配置设置 hook：加载配置与模型刷新、编辑草稿、保存（含密钥）、
+// Provider 增删/启停，提供配置页所需的完整状态与操作。
 export function useConfigSettings({ notify, requestConfirm, t }: UseConfigSettingsOptions) {
   const [state, dispatch] = useReducer(configSettingsReducer, initialConfigSettingsState)
   const apiKeyInputRef = useRef<HTMLInputElement>(null)
@@ -316,6 +319,8 @@ type UseProviderDiscoveryOptions = {
   t: Translate
 }
 
+// Provider 发现 hook：扫描本地可导入 Provider、导入并回调结果，
+// 处理扫描/导入中的错误与冲突确认。
 export function useProviderDiscovery({
   requestConfirm,
   onImported,

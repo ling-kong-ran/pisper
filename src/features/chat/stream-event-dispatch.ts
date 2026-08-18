@@ -57,6 +57,9 @@ type TerminalStateOptions = {
   error?: string
 }
 
+// 收尾一回合流：把流式现场结算为终态——工具调用统一落定、生命周期标记
+// 完成/失败、agent 消息写入最终文本（失败时保留当前草稿与计划），
+// 并清理审批与进行中的活动。
 export function reconcileTerminalStreamState(
   current: SessionState,
   { agentId, responseText, data, finishedAt, error }: TerminalStateOptions,
@@ -104,6 +107,9 @@ export function reconcileTerminalStreamState(
   }
 }
 
+// 创建流事件分发器：把 SSE 流逐条记录转换为会话状态更新——
+// 文本/思考经调度器合并，工具/agent/plan 活动归并进活动流，
+// 收尾事件结算终态；同时维护排队输入与目标模式预算。
 export function createStreamEventDispatcher({
   sessionId,
   agentId,

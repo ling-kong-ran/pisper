@@ -41,6 +41,7 @@ export function useSessionCatalog({ notify }: SessionCatalogOptions) {
   const sessionStatesRef = useRef(sessionStates)
   const creatingSessionRef = useRef<Promise<string> | null>(null)
 
+// 更新会话列表（函数式或替换），同步 ref 与 state。
   const updateSessions = useCallback((update: SessionsUpdate) => {
     const current = sessionsRef.current
     const next = typeof update === 'function' ? update(current) : update
@@ -49,11 +50,13 @@ export function useSessionCatalog({ notify }: SessionCatalogOptions) {
     return next
   }, [])
 
+// 整体替换会话状态表（供批量恢复/清空）。
   const replaceSessionStates = useCallback((states: Record<string, SessionState>) => {
     sessionStatesRef.current = states
     setSessionStates(states)
   }, [])
 
+// 更新单个会话状态：经 applySessionUpdate 去重，无变化不触发渲染。
   const updateSessionState = useCallback(
     (id: string, update: SessionStateUpdate) => {
       if (!id) return
@@ -66,6 +69,8 @@ export function useSessionCatalog({ notify }: SessionCatalogOptions) {
     [replaceSessionStates],
   )
 
+// 释放会话状态：面板已关且未持有本地流、且无运行中活动时才真正丢弃，
+// 否则保留状态供重开无缝续显（返回是否释放）。
   const releaseSessionState = useCallback(
     (id: string, { panelOpen = false, localStreamOwned = false } = {}) => {
       if (!id || panelOpen || localStreamOwned) return false
@@ -80,6 +85,8 @@ export function useSessionCatalog({ notify }: SessionCatalogOptions) {
     [replaceSessionStates],
   )
 
+// 刷新会话列表：拉取后合并（保留本地乐观项），更新活动 id
+// 并广播列表更新事件；preferredId 优先。
   const refreshSessions = useCallback(
     async (preferredId?: string) => {
       const data = await chatApi.listSessions()
@@ -97,6 +104,8 @@ export function useSessionCatalog({ notify }: SessionCatalogOptions) {
     [updateSessions],
   )
 
+// 创建会话记录：cwd 缺省时继承最近会话的工作目录；
+// 用 ref 去重并发创建，成功后初始化会话状态并合并进列表。
   const createSessionRecord = useCallback(
     (cwd = '') => {
       if (creatingSessionRef.current) return creatingSessionRef.current

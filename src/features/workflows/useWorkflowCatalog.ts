@@ -21,10 +21,13 @@ export const EMPTY_WORKFLOWS_DATA: WorkflowsData = {
   cwd: '',
 }
 
+// 工作流错误归一化为可展示文案。
 export function workflowErrorMessage(caught: unknown) {
   return caught instanceof Error ? caught.message : String(caught)
 }
 
+// 工作流目录 hook：加载/搜索/新建/重命名/删除工作流，
+// 维护列表、筛选、加载状态与错误，供工作流列表页使用。
 export function useWorkflowCatalog({
   notify,
   requestConfirm,

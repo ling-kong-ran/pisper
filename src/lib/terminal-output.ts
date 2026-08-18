@@ -11,6 +11,8 @@ export type TerminalDisplayOutput = {
   truncated: boolean
 }
 
+// 去除终端输出的 ANSI 控制序列：跳过 CSI (ESC[) 与 OSC (ESC]) 转义段，
+// 仅保留可打印字符（含制表/换行），避免原始控制码注入 DOM。
 export function stripTerminalControlSequences(value: unknown) {
   const source = String(value || '')
   let result = ''
@@ -44,6 +46,8 @@ export function stripTerminalControlSequences(value: unknown) {
   return result
 }
 
+// 终端显示裁剪：超长输出保留尾部（最多 limit 字符）并加省略标记；
+// 若尾部起始处就是换行且占比例很小，从下一行开始，避免显示半行。
 export function terminalDisplayOutput(
   value: unknown,
   maximum = MAX_TERMINAL_DISPLAY_CHARS,

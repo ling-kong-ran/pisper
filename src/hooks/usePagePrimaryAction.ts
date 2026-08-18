@@ -4,6 +4,8 @@ import { useEffect, useRef } from 'react'
 
 type RegisterPrimaryAction = (action: () => void) => () => void
 
+// 把页面主操作注册到壳层：用 ref 始终触发最新 action，
+// 卸载时自动注销（注册表返回的清理函数）。
 export function usePagePrimaryAction(
   registerPrimaryAction: RegisterPrimaryAction | undefined,
   action: (() => void) | undefined,

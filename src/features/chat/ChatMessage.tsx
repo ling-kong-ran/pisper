@@ -181,6 +181,7 @@ function MessageTreeLabel({ sessionId, entryId }: { sessionId: string; entryId: 
     }
   }, [entryId, open, sessionId])
 
+// 保存条目标签：写入运行时并回显新标签，成功后关闭编辑；防重入。
   const save = async () => {
     if (saving || loading) return
     setSaving(true)
@@ -198,6 +199,7 @@ function MessageTreeLabel({ sessionId, entryId }: { sessionId: string; entryId: 
     }
   }
 
+// 移除条目标签：置空标签并同步回显；防重入。
   const remove = async () => {
     if (saving || loading) return
     setSaving(true)

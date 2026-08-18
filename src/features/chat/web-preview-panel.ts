@@ -5,6 +5,7 @@ export type WebPreviewPanelParams = {
   url?: string
 }
 
+// 预览面板标题：取 URL 的 hostname（去掉 www.）作为页签名。
 export function webPreviewPanelTitle(url: string, fallback = 'Web preview') {
   try {
     const hostname = new URL(url).hostname.replace(/^www\./i, '')

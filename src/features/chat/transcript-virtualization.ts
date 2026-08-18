@@ -8,6 +8,8 @@ export type TranscriptPrependSnapshot = {
   scrollTop: number
 }
 
+// 顶部追加更早消息后保持滚动位置：快照记录追加前的 scrollTop/高度，
+// 新位置 = 旧 scrollTop + 高度增量，防止视觉跳变。
 export function anchoredScrollTopAfterPrepend(
   snapshot: TranscriptPrependSnapshot,
   nextScrollHeight: number,

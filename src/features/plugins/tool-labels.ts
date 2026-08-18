@@ -3,6 +3,7 @@ export type ToolLabelTranslate = (key: string, values?: Record<string, unknown>)
 export type ToolLabelSource =
   { id?: string; name?: string; description?: string } | null | undefined
 
+// 内置工具名称 → 翻译标签（按工具 id 精确匹配，未知名回退工具名/id）。
 export function toolName(tool: ToolLabelSource, t: ToolLabelTranslate) {
   if (tool?.id === 'read') return t('plugins:toolLabels.read')
   if (tool?.id === 'ls') return t('plugins:toolLabels.list')
@@ -23,6 +24,7 @@ export function toolName(tool: ToolLabelSource, t: ToolLabelTranslate) {
   return String(tool?.name || tool?.id || '')
 }
 
+// 内置工具描述 → 翻译文案（同样按 id 匹配，未知回退原始描述）。
 export function toolDescription(tool: ToolLabelSource, t: ToolLabelTranslate) {
   if (tool?.id === 'read') return t('plugins:toolLabels.readDescription')
   if (tool?.id === 'ls') return t('plugins:toolLabels.listDescription')
@@ -43,6 +45,7 @@ export function toolDescription(tool: ToolLabelSource, t: ToolLabelTranslate) {
   return String(tool?.description || '')
 }
 
+// 风险等级标签：兼容中英枚举值，映射为本地化文案。
 export function toolRiskLabel(risk: string | undefined, t: ToolLabelTranslate) {
   if (risk === 'high' || risk === '高风险') return t('plugins:toolLabels.highRisk')
   if (risk === 'medium' || risk === '中风险') return t('plugins:toolLabels.mediumRisk')
@@ -50,6 +53,7 @@ export function toolRiskLabel(risk: string | undefined, t: ToolLabelTranslate) {
   return String(risk || '')
 }
 
+// 工具分类标签：兼容中英分类名，映射为本地化文案。
 export function toolCategoryLabel(category: string | undefined, t: ToolLabelTranslate) {
   if (category === 'filesystem' || category === '文件系统')
     return t('plugins:toolLabels.fileSystem')
@@ -66,6 +70,8 @@ export function toolCategoryLabel(category: string | undefined, t: ToolLabelTran
   return String(category || '')
 }
 
+// 工具作用域标签：内置工具映射为“影响范围”说明（当前工作区/系统用户/…），
+// 未知工具回退原始 scope 字段。
 export function toolScopeLabel(tool: Record<string, unknown>, t: ToolLabelTranslate) {
   if (['read', 'ls', 'grep', 'find', 'edit', 'write'].includes(String(tool.id)))
     return t('plugins:toolLabels.currentChatWorkspace')
@@ -82,6 +88,7 @@ export function toolScopeLabel(tool: Record<string, unknown>, t: ToolLabelTransl
   return String(tool.scope || '')
 }
 
+// 工具能力标签：内置工具的能力描述映射（未知回退原始 capability）。
 export function toolCapabilityLabel(tool: Record<string, unknown>, t: ToolLabelTranslate) {
   if (tool.id === 'read') return t('plugins:toolLabels.readCapability')
   if (tool.id === 'ls') return t('plugins:toolLabels.listCapability')
@@ -102,10 +109,12 @@ export function toolCapabilityLabel(tool: Record<string, unknown>, t: ToolLabelT
   return String(tool.capability || '')
 }
 
+// 是否高风险（兼容中英枚举）。
 export function isHighRisk(risk: string | undefined) {
   return risk === 'high' || risk === '高风险'
 }
 
+// 是否中风险（兼容中英枚举）。
 export function isMediumRisk(risk: string | undefined) {
   return risk === 'medium' || risk === '中风险'
 }

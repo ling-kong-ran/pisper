@@ -48,6 +48,7 @@ export function GitChangesControl({
 
   useViewportMenuOffset(open, menuRef)
 
+// 加载 Git 变更摘要（文件数/待推送/是否仓库），供面板与徽标使用。
   const load = useCallback(async () => {
     if (!sessionId) return
     setLoading(true)
@@ -85,6 +86,8 @@ export function GitChangesControl({
     // Refresh the change summary whenever a run finishes so the badge stays current.
   }, [streaming, load])
 
+// 执行 Git/VCS 动作：commit/push/revert（revert 先进入二次确认态），
+// 成功后刷新变更摘要并提示。
   const runAction = async (action: GitAction) => {
     if (!sessionId || running) return
     if (action === 'revert' && !confirmingRevert) {

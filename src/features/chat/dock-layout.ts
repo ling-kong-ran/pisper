@@ -27,14 +27,17 @@ export type SessionOpenRequest = {
   targetEntryId?: string
 }
 
+// 类型守卫：确认值是普通对象（非数组）。
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
 }
 
+// 会话面板 id：session:<id> 前缀，用于 Dock 面板与会话的映射。
 export function panelIdForSession(sessionId: string) {
   return sessionId ? `${SESSION_PANEL_PREFIX}${sessionId}` : ''
 }
 
+// 从面板（对象/字符串/id）反解会话 id：优先面板 params，再解析 id 前缀。
 export function sessionIdFromPanel(panel: DockPanelLike) {
   const fromParams = typeof panel === 'object' && panel ? panel.params?.sessionId : undefined
   if (typeof fromParams === 'string' && fromParams) return fromParams
@@ -44,6 +47,7 @@ export function sessionIdFromPanel(panel: DockPanelLike) {
     : ''
 }
 
+// 构造布局 envelope（版本 + 引擎 + 当前面板 + 序列化布局）。
 export function createDockLayoutEnvelope(
   layout: DockLayout,
   activePanelId = '',
@@ -56,6 +60,8 @@ export function createDockLayoutEnvelope(
   }
 }
 
+// 解析布局 envelope：版本/引擎/结构任一不匹配即返回 null（回退默认布局），
+// 保证旧版本或损坏的持久化布局不会让 Dock 崩溃。
 export function parseDockLayoutEnvelope(raw: unknown): DockLayoutEnvelope | null {
   if (!raw) return null
   try {
@@ -79,6 +85,7 @@ export function parseDockLayoutEnvelope(raw: unknown): DockLayoutEnvelope | null
   }
 }
 
+// 打开位置语义映射：above/below 映射为 dockview 的 top/bottom 分割。
 export function dockPositionForDisposition(
   disposition: SessionSplitDisposition,
 ): 'left' | 'right' | 'top' | 'bottom' {
@@ -87,6 +94,8 @@ export function dockPositionForDisposition(
   return disposition
 }
 
+// 构造会话打开请求：sessionId 为空或位置非法返回 null；
+// 有 targetEntryId 时附带定位目标。
 export function createSessionOpenRequest(
   sessionId: string,
   disposition: string = 'open',
@@ -101,6 +110,7 @@ export function createSessionOpenRequest(
   }
 }
 
+// 解析会话打开请求（容忍缺字段，默认 open / 空 target）。
 export function parseSessionOpenRequest(raw: unknown): SessionOpenRequest | null {
   if (!raw) return null
   try {
@@ -115,6 +125,8 @@ export function parseSessionOpenRequest(raw: unknown): SessionOpenRequest | null
   }
 }
 
+// 初始平铺会话集合：优先活动会话，再补旧版平铺列表，全部限定在合法会话内，
+// 全空时取列表第一个会话，保证 Dock 启动至少有一个面板。
 export function initialDockSessionIds({
   activeSessionId = '',
   legacyTiledSessionIds = [],

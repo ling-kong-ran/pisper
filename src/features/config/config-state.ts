@@ -21,6 +21,8 @@ export const initialConfigSettingsState: ConfigSettingsState = {
   dirty: false,
 }
 
+// 创建配置草稿：基于当前配置 + 指定 Provider 生成可编辑表单初值。
+// 模型选择优先级：偏好模型 > Provider 默认模型 > 第一个 chat 模型。
 export function createConfigDraft(
   data: ConfigData,
   provider?: ProviderConfig,
@@ -45,6 +47,8 @@ export function createConfigDraft(
   }
 }
 
+// 用最新拉取的配置刷新草稿：无草稿时按当前 Provider 新建；
+// 已有草稿则保留用户编辑（Provider 变更时同步更新 api/model 等派生字段）。
 export function refreshConfigDraft(data: ConfigData, current: ConfigDraft | null): ConfigDraft {
   if (!current) {
     const provider = data.providers.find((item) => item.id === data.provider) || data.providers[0]
@@ -69,6 +73,8 @@ export function refreshConfigDraft(data: ConfigData, current: ConfigDraft | null
   }
 }
 
+// 为指定 Provider 生成草稿：在 createConfigDraft 基础上保留当前
+// 思考强度/工具模式等全局设置（切换 Provider 不重置这些偏好）。
 export function draftForProvider(
   data: ConfigData,
   provider: ProviderConfig,
@@ -94,6 +100,8 @@ type ConfigSettingsAction =
   | { type: 'set-error'; value: string }
   | { type: 'save-succeeded'; config: ConfigData }
 
+// 配置设置 reducer：处理加载/刷新/编辑/保存等全部配置页动作，
+// 维护草稿、脏标记、加载/保存状态与错误信息。
 export function configSettingsReducer(
   state: ConfigSettingsState,
   action: ConfigSettingsAction,

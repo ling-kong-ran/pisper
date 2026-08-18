@@ -113,6 +113,7 @@ export function SkillsPage({
   const [loading, setLoading] = useState(true)
   const [, setError] = useState('')
 
+// 加载技能列表（按活动会话作用域取项目技能），失效选中回退首项。
   const load = useCallback(async () => {
     setError('')
     try {
@@ -134,6 +135,8 @@ export function SkillsPage({
     void load()
   }, [load])
 
+// 安装技能：询问来源 → 风险确认 → POST 安装并选中新技能；
+// 来源支持本地路径/npm 包/GitHub 仓库。
   const installSkill = useCallback(async () => {
     const source = await requestText?.({
       title: t('skills:skillsPage.importGlobalSkill'),
@@ -217,6 +220,7 @@ export function SkillsPage({
       `${item.source} ${item.description}`.toLowerCase().includes(query.toLowerCase()),
     )
 
+// 更新技能（启停/模型调用等）：PATCH 并就地更新列表与统计。
   const updateSkill = async (skill: Skill | null, patch: Partial<Skill>) => {
     if (!skill) return
     setBusy(true)
@@ -250,6 +254,7 @@ export function SkillsPage({
     }
   }
 
+// 保存设置并重载技能（POST reload），应用全局技能开关。
   const saveSettings = async () => {
     setBusy(true)
     setError('')
@@ -268,6 +273,7 @@ export function SkillsPage({
     }
   }
 
+// 卸载技能（确认后），仅可移除的（非内置）技能可卸载。
   const uninstallSkill = async () => {
     if (!selected?.removable) return
     const approved = await requestConfirm?.({

@@ -4,6 +4,7 @@
 import { useOutletContext } from 'react-router-dom'
 import type { AppRouteContext } from './route-context'
 
+// 从 Outlet 上下文取公共能力（壳层注入），各路由组件用它透传 props。
 function useAppRouteContext() {
   return useOutletContext<AppRouteContext>()
 }

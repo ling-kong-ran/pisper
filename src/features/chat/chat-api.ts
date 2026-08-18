@@ -134,9 +134,14 @@ export type GitChangesResponse = EntityRecord & {
 
 const sessionPath = (sessionId: string) => `/api/sessions/${encodeURIComponent(sessionId)}`
 
+// 聊天 API 客户端：按领域分组封装所有会话/树/审批/目标模式/Git/工作流运行
+// 等 HTTP 调用。全部走 requestJson（自动超时与错误归一化），
+// 流式接口 openStream 单独用 fetch + consumeEventStream 消费 SSE。
 export const chatApi = {
+  // —— 会话目录与消息 ——
   listSessions: () => requestJson<SessionListResponse>('/api/sessions'),
 
+  // 搜索会话树标签（供命令面板/跳转）。
   searchSessionTreeLabels: (query: string, limit = 20) => {
     const params = new URLSearchParams({ query, limit: String(limit) })
     return requestJson<{ labels: SessionTreeLabelMatch[] }>(`/api/session-labels?${params}`)
@@ -157,6 +162,7 @@ export const chatApi = {
       data: { boundaryEntryId, name },
     }),
 
+  // —— 会话树（分支/标签/导航）——
   getSessionTree: (sessionId: string) =>
     requestJson<SessionTreeResponse>(`${sessionPath(sessionId)}/tree`),
 
@@ -209,6 +215,7 @@ export const chatApi = {
     return requestJson<MessagePageResponse>(`${sessionPath(sessionId)}/messages?${params}`)
   },
 
+  // —— 流式对话与排队 ——
   openStream: async (
     input: {
       sessionId: string
@@ -279,6 +286,7 @@ export const chatApi = {
       data: { action: 'set-budget', tokenBudget },
     }),
 
+  // —— Git / VCS 变更 ——
   getGitChanges: (sessionId: string) =>
     requestJson<GitChangesResponse>(`${sessionPath(sessionId)}/git/changes`),
 
@@ -327,6 +335,7 @@ export const chatApi = {
       timeout: 60_000,
     }),
 
+  // —— 会话运行控制（模型/思考/执行模式/审批/目录）——
   updateModel: (sessionId: string, provider: string, model: string) =>
     requestJson<ApiRecord>(`${sessionPath(sessionId)}/model`, {
       method: 'PUT',

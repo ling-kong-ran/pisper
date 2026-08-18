@@ -19,6 +19,8 @@ export {
   translateText,
 } from './i18n'
 
+// 语言偏好 hook：从 i18next 实例解析当前语言（非法值回退默认），
+// 提供 t/setLanguage；t 用固定语言路径，组件间不会因实例状态漂移。
 export function useI18n() {
   const { i18n: instance } = useTranslation()
   const language = isSupportedLanguage(instance.resolvedLanguage)

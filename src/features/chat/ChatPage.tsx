@@ -74,6 +74,8 @@ export function ChatPage({
   const setGlobalError = catalog.setGlobalError
   const openSessionInDock = dock.openSessionInDock
   const moveSessionToGroup = dock.moveSessionToGroup
+// 新建会话：先创建记录（带可选 cwd），再在 Dock 打开，
+// 若指定了目标分组则把面板移动到该组。
   const createSession = useCallback(
     async (targetGroup?: DockviewGroupPanel, cwd = '') => {
       const sessionId = await createSessionRecord(cwd)
@@ -123,6 +125,7 @@ export function ChatPage({
     setGlobalError: catalog.setGlobalError,
     syncLiveSession: liveSync.syncLiveSession,
   })
+// 强制重载会话分支：刷新消息 + 列表，供恢复/切换后同步。
   const reloadSessionBranch = useCallback(
     async (sessionId: string) => {
       await loadSessionMessages(sessionId, { force: true })
@@ -131,6 +134,8 @@ export function ChatPage({
     [loadSessionMessages, refreshSessions],
   )
 
+// 从边界条目派生新分支：调用运行时导航到历史条目处分支，
+// 成功后刷新列表并在 Dock 打开新会话。
   const branchFromEntry = useCallback(
     async (session: SessionSummary, boundaryEntryId: string) => {
       if (!session?.id || !boundaryEntryId) return

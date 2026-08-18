@@ -9,6 +9,8 @@ export type WebPreviewOpenRequest = {
   url: string
 }
 
+// 发起 Web 预览：规范化 URL（非法返回 null 不触发），
+// 持久化请求到 localStorage 并广播事件给预览面板。
 export function requestWebPreview(url: string) {
   const normalized = normalizeWebPreviewInput(url, window.location.href)
   if (!normalized) return null
@@ -18,6 +20,7 @@ export function requestWebPreview(url: string) {
   return request
 }
 
+// 消费 Web 预览请求：取出即删（跨重启只处理一次），无请求返回 null。
 export function consumeWebPreviewRequest(): WebPreviewOpenRequest | null {
   const raw = localStorage.getItem(STORAGE_KEYS.webPreviewRequest)
   localStorage.removeItem(STORAGE_KEYS.webPreviewRequest)

@@ -158,9 +158,17 @@ export function ContextUsageIndicator({
   const thresholdText = usage?.autoCompactEnabled
     ? t('chat:focusSession.autoCompactionThresholdAboutPercent', { percent: currentThreshold })
     : t('chat:focusSession.automaticContextCompactionIsDisabled')
-  const label = `${usageText} · ${thresholdText}`
+  const compactionCapacityText =
+    usage?.autoCompactEnabled && usage.compactionCapacityPercent != null
+      ? t('chat:focusSession.contextUsageToCompactionTokensPercent', {
+          percent: Math.round(Number(usage.compactionCapacityPercent)),
+          tokens: formatTokenCount(usage.remainingBeforeCompaction),
+        })
+      : ''
+  const label = `${usageText} · ${thresholdText}${compactionCapacityText ? ` · ${compactionCapacityText}` : ''}`
   const tokenLabel = `${usage?.tokens == null ? '—' : formatTokenCount(usage.tokens)} / ${formatTokenCount(contextWindow)}`
 
+// 保存压缩阈值：本地持久化到 store 并回调通知。
   const saveThreshold = async (value: number) => {
     const next = Math.min(95, Math.max(50, Math.round(value)))
     setDraftThreshold(next)
@@ -210,6 +218,9 @@ export function ContextUsageIndicator({
         align="end"
         sideOffset={8}
       >
+        {compactionCapacityText && (
+          <small className="text-[var(--text-muted)]">{compactionCapacityText}</small>
+        )}
         <div className="context-threshold-heading flex items-center justify-between [&_output]:text-[var(--brand-blue-strong)] [&_output]:[font-variant-numeric:tabular-nums] text-[var(--text)] text-[12px] font-[600]">
           <span>{t('chat:focusSession.autoCompactionThreshold')}</span>
           <output>{draftThreshold}%</output>

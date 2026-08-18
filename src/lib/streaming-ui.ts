@@ -7,6 +7,9 @@
 type ActivityTimestamp = string | null
 type ToolPatch = Record<string, unknown>
 
+// 定时调度器：只在“页面可见且无待触发任务”时启动定时器，
+// 页面隐藏时挂起、回前台再补触发，避免后台标签页空转；
+// 也支持立即冲刷与取消。
 function createTimerScheduler(flush: () => void, intervalMs: number) {
   let timer: ReturnType<typeof setTimeout> | null = null
   let waitingForVisibility = false
@@ -59,6 +62,8 @@ function createTimerScheduler(flush: () => void, intervalMs: number) {
 }
 
 /** Coalesce high-frequency streaming text into ~20fps React updates. */
+// 流式文本合并调度器：把高频文本增量合并成 ~20fps 的一次回调，
+// 携带最近一次活动时间戳，供渲染层节流更新。
 export function createStreamingTextScheduler(
   onFlush: (text: string, activityAt: ActivityTimestamp) => void,
   { intervalMs = 48 }: { intervalMs?: number } = {},
@@ -92,6 +97,8 @@ export function createStreamingTextScheduler(
 }
 
 /** Merge rapid tool_update events by tool id before hitting React state. */
+// 工具事件合并调度器：同一工具 id 的多次 patch 合并成一条，
+// 按 interval 批量回调，减少 React 更新次数。
 export function createToolUpdateScheduler(
   onFlush: (batch: Map<string, ToolPatch>, activityAt: ActivityTimestamp) => void,
   { intervalMs = 80 }: { intervalMs?: number } = {},
@@ -125,6 +132,7 @@ export function createToolUpdateScheduler(
   }
 }
 
+// 两串文本公共前缀长度（按字符码比较），用于打字机重排对齐。
 function commonPrefixLength(left: string, right: string) {
   const limit = Math.min(left.length, right.length)
   let index = 0
