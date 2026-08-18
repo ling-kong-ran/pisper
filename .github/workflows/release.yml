@@ -306,7 +306,15 @@ jobs:
           }
           git commit -m "chore(release-$RELEASE_COMPONENT): $RELEASE_TAG"
           stash_before="$(git rev-parse -q --verify refs/stash || true)"
-          git stash push --include-untracked -- public/release-notes.json release-body.md >/dev/null
+          stash_paths=()
+          for path in public/release-notes.json release-body.md; do
+            if [ -e "$path" ]; then
+              stash_paths+=("$path")
+            fi
+          done
+          if [ "${#stash_paths[@]}" -gt 0 ]; then
+            git stash push --include-untracked -- "${stash_paths[@]}" >/dev/null
+          fi
           stash_after="$(git rev-parse -q --verify refs/stash || true)"
           if [ "$remote_source" != "$RELEASE_SOURCE_SHA" ]; then
             git rebase --onto "$remote_source" "$RELEASE_SOURCE_SHA" HEAD
