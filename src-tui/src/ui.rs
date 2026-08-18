@@ -140,9 +140,12 @@ impl TerminalTheme {
                 other => other,
             },
             Self::Monochrome => match color {
+                Color::Reset => Color::Reset,
+                Color::Black => Color::Black,
                 TEXT | MUTED => Color::White,
                 ACCENT | GREEN | AMBER | RED | VIOLET | BLUE => Color::Gray,
-                _ => Color::DarkGray,
+                Color::DarkGray | BG | SURFACE | RAISED | RULE | FAINT => Color::DarkGray,
+                _ => Color::Gray,
             },
         }
     }
@@ -165,6 +168,7 @@ impl TerminalTheme {
                 other => other,
             },
             Self::Monochrome => match color {
+                Color::Reset => Color::Reset,
                 RAISED | RULE => Color::DarkGray,
                 ACCENT | GREEN | AMBER | RED | VIOLET | BLUE => Color::White,
                 _ => Color::Black,
@@ -233,7 +237,7 @@ fn draw_content(frame: &mut Frame, app: &App, area: Rect) {
             .session
             .plan
             .as_ref()
-            .map_or(true, |plan| plan.items.is_empty())
+            .is_none_or(|plan| plan.items.is_empty())
     {
         let composer = render_welcome(frame, app, area);
         render_overlays(frame, app, composer, area);
@@ -1189,8 +1193,7 @@ struct StyledPiece {
     style: Style,
 }
 
-/// 轻量 Markdown 渲染：标题、列表、引用、代码块（含 diff 高亮）、
-/// 粗体/斜体/行内代码/链接。不支持完整规范，只覆盖常见对话输出。
+/// 使用标准 CommonMark/GFM 渲染器生成终端文本，再按当前对话宽度安全换行。
 fn push_markdown(
     lines: &mut Vec<Line<'static>>,
     label: &str,
@@ -1199,166 +1202,333 @@ fn push_markdown(
     width: usize,
 ) {
     let content_width = width.saturating_sub(ROLE_GUTTER_WIDTH).max(8);
+    let rendered = tui_markdown::from_str(value);
+    let first_content = rendered
+        .lines
+        .iter()
+        .position(|line| line.width() > 0)
+        .unwrap_or(rendered.lines.len());
+    let last_content = rendered
+        .lines
+        .iter()
+        .rposition(|line| line.width() > 0)
+        .map_or(first_content, |index| index + 1);
     let mut label_used = false;
-    let mut code_language = None::<String>;
-    for source in value.lines() {
-        let trimmed = source.trim_end();
-        if let Some(fence) = trimmed.trim_start().strip_prefix("```") {
-            if code_language.is_none() {
-                code_language = Some(fence.trim().to_owned());
-                let language = code_language
-                    .as_deref()
-                    .filter(|value| !value.is_empty())
-                    .unwrap_or("code");
-                push_markdown_line(
-                    lines,
-                    &mut label_used,
-                    label,
-                    color,
-                    vec![Span::styled(
-                        format!("┌─ {language}"),
-                        Style::default().fg(MUTED).bg(RAISED),
-                    )],
-                );
-            } else {
-                push_markdown_line(
-                    lines,
-                    &mut label_used,
-                    label,
-                    color,
-                    vec![Span::styled(
-                        "└".to_owned() + &"─".repeat(content_width.saturating_sub(1)),
-                        Style::default().fg(RULE).bg(RAISED),
-                    )],
-                );
-                code_language = None;
+    let mut index = first_content;
+
+    while index < last_content {
+        let source = &rendered.lines[index];
+        if markdown_line_starts_with(source, '┌') && markdown_line_contains(source, '┬') {
+            let table_end = rendered.lines[index..last_content]
+                .iter()
+                .position(|line| {
+                    markdown_line_starts_with(line, '└') && markdown_line_contains(line, '┴')
+                })
+                .map_or(index + 1, |offset| index + offset + 1);
+            for row in fit_markdown_table(&rendered.lines[index..table_end], content_width) {
+                push_markdown_line(lines, &mut label_used, label, color, row.spans);
             }
+            index = table_end;
             continue;
         }
-        if code_language.is_some() {
-            let (marker, code, style) = if trimmed.starts_with('+') {
-                ("│ ", trimmed, Style::default().fg(GREEN).bg(RAISED))
-            } else if trimmed.starts_with('-') {
-                ("│ ", trimmed, Style::default().fg(RED).bg(RAISED))
-            } else if trimmed.starts_with("@@") {
-                ("│ ", trimmed, Style::default().fg(AMBER).bg(RAISED))
-            } else {
-                ("│ ", trimmed, Style::default().fg(TEXT).bg(RAISED))
-            };
-            for chunk in wrap_code_line(code, content_width.saturating_sub(2)) {
-                push_markdown_line(
-                    lines,
-                    &mut label_used,
-                    label,
-                    color,
-                    vec![
-                        Span::styled(marker, Style::default().fg(FAINT).bg(RAISED)),
-                        Span::styled(chunk, style),
-                    ],
-                );
-            }
-            continue;
-        }
-        if trimmed.trim().is_empty() {
+        if source.width() == 0 {
             lines.push(Line::default());
+            index += 1;
             continue;
         }
-        let leading = trimmed.trim_start();
-        let heading_marks = leading
-            .chars()
-            .take_while(|character| *character == '#')
-            .count();
-        if (1..=6).contains(&heading_marks)
-            && leading
-                .chars()
-                .nth(heading_marks)
-                .is_some_and(char::is_whitespace)
-        {
-            let text = leading[heading_marks..].trim();
-            let style = Style::default().fg(TEXT).add_modifier(Modifier::BOLD);
-            push_markdown_line(
-                lines,
-                &mut label_used,
-                label,
-                color,
-                vec![
-                    Span::styled(
-                        format!("{} ", "#".repeat(heading_marks.min(2))),
-                        Style::default().fg(ACCENT).add_modifier(Modifier::BOLD),
-                    ),
-                    Span::styled(text.to_owned(), style),
-                ],
-            );
-            continue;
-        }
-        let numbered = leading.split_once(". ").filter(|(number, _)| {
-            !number.is_empty() && number.chars().all(|value| value.is_ascii_digit())
-        });
-        let (prefix, body, prefix_style) = if let Some(body) = leading
-            .strip_prefix("- ")
-            .or_else(|| leading.strip_prefix("* "))
-        {
-            ("• ".to_owned(), body, Style::default().fg(ACCENT))
-        } else if let Some((number, body)) = numbered {
-            (format!("{number}. "), body, Style::default().fg(ACCENT))
-        } else if let Some(body) = leading.strip_prefix("> ") {
-            ("│ ".to_owned(), body, Style::default().fg(VIOLET))
-        } else {
-            (String::new(), leading, Style::default())
-        };
-        let mut pieces = inline_pieces(body);
-        if !prefix.is_empty() {
-            pieces.insert(
-                0,
-                StyledPiece {
-                    text: prefix,
-                    style: prefix_style,
-                },
-            );
-        }
+        let pieces = markdown_line_pieces(source);
         for wrapped in wrap_styled_pieces(&pieces, content_width) {
             push_markdown_line(lines, &mut label_used, label, color, wrapped);
         }
-    }
-    if code_language.is_some() {
-        push_markdown_line(
-            lines,
-            &mut label_used,
-            label,
-            color,
-            vec![Span::styled(
-                "└".to_owned() + &"─".repeat(content_width.saturating_sub(1)),
-                Style::default().fg(RULE).bg(RAISED),
-            )],
-        );
+        index += 1;
     }
 }
 
-/// 代码行按终端宽度硬换行（制表符展开为 4 空格）。
-fn wrap_code_line(value: &str, width: usize) -> Vec<String> {
-    if width == 0 {
-        return vec![String::new()];
+/// 判断 Markdown 渲染行的首个字符，用于识别表格边界。
+fn markdown_line_starts_with(line: &Line<'_>, expected: char) -> bool {
+    line.spans
+        .iter()
+        .flat_map(|span| span.content.chars())
+        .next()
+        == Some(expected)
+}
+
+fn markdown_line_contains(line: &Line<'_>, expected: char) -> bool {
+    line.spans
+        .iter()
+        .flat_map(|span| span.content.chars())
+        .any(|character| character == expected)
+}
+
+/// 把 Markdown 行转换为拥有独立生命周期的样式片段。
+fn markdown_line_pieces(line: &Line<'_>) -> Vec<StyledPiece> {
+    line.spans
+        .iter()
+        .map(|span| StyledPiece {
+            text: span.content.to_string(),
+            style: line.style.patch(span.style),
+        })
+        .collect()
+}
+
+/// 表格单元格：保留每个字符的样式，便于重新分配列宽后换行。
+type MarkdownTableCell = Vec<(char, Style)>;
+
+#[derive(Clone)]
+struct MarkdownTableRow {
+    cells: Vec<MarkdownTableCell>,
+    header: bool,
+}
+
+/// 按可用宽度重排 tui-markdown 的自然宽度表格，避免边框被普通文本换行拆散。
+fn fit_markdown_table(source: &[Line<'_>], width: usize) -> Vec<Line<'static>> {
+    let mut header = true;
+    let mut rows = Vec::new();
+    let mut border_style = Style::default().fg(Color::DarkGray);
+    for line in source {
+        if markdown_line_starts_with(line, '├') {
+            header = false;
+        } else if markdown_line_starts_with(line, '│') {
+            rows.push(MarkdownTableRow {
+                cells: markdown_table_cells(line),
+                header,
+            });
+        } else if let Some(span) = line.spans.first() {
+            border_style = line.style.patch(span.style);
+        }
     }
-    let expanded = value.replace('\t', "    ");
-    if expanded.is_empty() {
-        return vec![String::new()];
+    let columns = rows.iter().map(|row| row.cells.len()).max().unwrap_or(0);
+    if columns == 0 {
+        return Vec::new();
     }
 
-    let mut rows = Vec::new();
-    let mut row = String::new();
-    let mut row_width = 0usize;
-    for character in expanded.chars() {
-        let character_width = UnicodeWidthChar::width(character).unwrap_or_default();
-        if row_width > 0 && row_width.saturating_add(character_width) > width {
-            rows.push(row);
-            row = String::new();
-            row_width = 0;
-        }
-        row.push(character);
-        row_width = row_width.saturating_add(character_width);
+    let overhead = columns.saturating_mul(3).saturating_add(1);
+    if width < overhead.saturating_add(columns.saturating_mul(3)) {
+        return markdown_table_as_key_values(&rows, width);
     }
-    rows.push(row);
-    rows
+    let column_widths = (0..columns)
+        .map(|column| {
+            rows.iter()
+                .filter_map(|row| row.cells.get(column))
+                .map(|cell| styled_characters_width(cell))
+                .max()
+                .unwrap_or(1)
+                .max(1)
+        })
+        .collect::<Vec<_>>();
+    let header_widths = rows
+        .iter()
+        .find(|row| row.header)
+        .map(|row| {
+            (0..columns)
+                .map(|column| {
+                    row.cells
+                        .get(column)
+                        .map(|cell| styled_characters_width(cell))
+                        .unwrap_or(1)
+                        .max(1)
+                })
+                .collect::<Vec<_>>()
+        })
+        .unwrap_or_else(|| vec![1; columns]);
+    let content_budget = width.saturating_sub(overhead);
+    let mut column_widths = column_widths;
+    while column_widths.iter().sum::<usize>() > content_budget {
+        let Some((index, _)) = column_widths
+            .iter()
+            .enumerate()
+            .filter(|(index, value)| **value > header_widths[*index])
+            .max_by_key(|(_, value)| **value)
+        else {
+            break;
+        };
+        column_widths[index] -= 1;
+    }
+    while column_widths.iter().sum::<usize>() > content_budget {
+        let Some((index, _)) = column_widths
+            .iter()
+            .enumerate()
+            .filter(|(_, value)| **value > 1)
+            .max_by_key(|(_, value)| **value)
+        else {
+            break;
+        };
+        column_widths[index] -= 1;
+    }
+
+    let mut output = vec![markdown_table_border(
+        '┌',
+        '┬',
+        '┐',
+        &column_widths,
+        border_style,
+    )];
+    for (row_index, row) in rows.iter().enumerate() {
+        output.extend(markdown_table_row(row, &column_widths, border_style));
+        if row.header && rows.get(row_index + 1).is_some_and(|next| !next.header) {
+            output.push(markdown_table_border(
+                '├',
+                '┼',
+                '┤',
+                &column_widths,
+                border_style,
+            ));
+        }
+    }
+    output.push(markdown_table_border(
+        '└',
+        '┴',
+        '┘',
+        &column_widths,
+        border_style,
+    ));
+    output
+}
+
+/// 从 `│ ... │` 行切出单元格，并移除渲染器添加的一层左右填充。
+fn markdown_table_cells(line: &Line<'_>) -> Vec<MarkdownTableCell> {
+    let mut cells = Vec::new();
+    let mut cell = MarkdownTableCell::new();
+    let mut inside = false;
+    for span in &line.spans {
+        let style = line.style.patch(span.style);
+        for character in span.content.chars() {
+            if character == '│' {
+                if inside {
+                    while cell
+                        .first()
+                        .is_some_and(|(character, _)| character.is_whitespace())
+                    {
+                        cell.remove(0);
+                    }
+                    while cell
+                        .last()
+                        .is_some_and(|(character, _)| character.is_whitespace())
+                    {
+                        cell.pop();
+                    }
+                    cells.push(std::mem::take(&mut cell));
+                }
+                inside = true;
+            } else if inside {
+                cell.push((character, style));
+            }
+        }
+    }
+    cells
+}
+
+/// 绘制一条宽度稳定的表格边框。
+fn markdown_table_border(
+    left: char,
+    middle: char,
+    right: char,
+    widths: &[usize],
+    style: Style,
+) -> Line<'static> {
+    let mut border = String::new();
+    border.push(left);
+    for (index, width) in widths.iter().enumerate() {
+        border.push_str(&"─".repeat(width.saturating_add(2)));
+        border.push(if index + 1 == widths.len() {
+            right
+        } else {
+            middle
+        });
+    }
+    Line::from(Span::styled(border, style))
+}
+
+/// 绘制一行表格；单元格内容独立换行，所有列在每个视觉行保持同宽。
+fn markdown_table_row(
+    row: &MarkdownTableRow,
+    widths: &[usize],
+    border_style: Style,
+) -> Vec<Line<'static>> {
+    let wrapped = widths
+        .iter()
+        .enumerate()
+        .map(|(index, width)| {
+            let pieces = row
+                .cells
+                .get(index)
+                .map(markdown_table_cell_pieces)
+                .unwrap_or_default();
+            wrap_styled_pieces(&pieces, *width)
+        })
+        .collect::<Vec<_>>();
+    let height = wrapped.iter().map(Vec::len).max().unwrap_or(1);
+    (0..height)
+        .map(|line_index| {
+            let mut spans = vec![Span::styled("│", border_style)];
+            for (column, width) in widths.iter().enumerate() {
+                spans.push(Span::raw(" "));
+                if let Some(content) = wrapped[column].get(line_index) {
+                    spans.extend(content.iter().cloned());
+                    let content_width = content.iter().map(Span::width).sum::<usize>();
+                    spans.push(Span::raw(" ".repeat(width.saturating_sub(content_width))));
+                } else {
+                    spans.push(Span::raw(" ".repeat(*width)));
+                }
+                spans.push(Span::raw(" "));
+                spans.push(Span::styled("│", border_style));
+            }
+            Line::from(spans)
+        })
+        .collect()
+}
+
+/// 极窄终端不强画网格，改为 `表头: 值`，确保内容和层级仍可阅读。
+fn markdown_table_as_key_values(rows: &[MarkdownTableRow], width: usize) -> Vec<Line<'static>> {
+    let headers = rows.iter().find(|row| row.header);
+    let data = rows.iter().filter(|row| !row.header).collect::<Vec<_>>();
+    let display_rows = if data.is_empty() {
+        rows.iter().collect::<Vec<_>>()
+    } else {
+        data
+    };
+    let display_count = display_rows.len();
+    let mut output = Vec::new();
+    for (row_index, row) in display_rows.into_iter().enumerate() {
+        for (column, cell) in row.cells.iter().enumerate() {
+            let mut pieces = headers
+                .and_then(|header| header.cells.get(column))
+                .map(markdown_table_cell_pieces)
+                .unwrap_or_default();
+            if !pieces.is_empty() {
+                pieces.push(StyledPiece {
+                    text: ": ".to_owned(),
+                    style: Style::default(),
+                });
+            }
+            pieces.extend(markdown_table_cell_pieces(cell));
+            output.extend(
+                wrap_styled_pieces(&pieces, width)
+                    .into_iter()
+                    .map(Line::from),
+            );
+        }
+        if row_index + 1 < display_count {
+            output.push(Line::default());
+        }
+    }
+    output
+}
+
+/// 把单元格字符重新合并成样式片段。
+fn markdown_table_cell_pieces(cell: &MarkdownTableCell) -> Vec<StyledPiece> {
+    let mut pieces = Vec::<StyledPiece>::new();
+    for (character, style) in cell {
+        if let Some(last) = pieces.last_mut().filter(|piece| piece.style == *style) {
+            last.text.push(*character);
+        } else {
+            pieces.push(StyledPiece {
+                text: character.to_string(),
+                style: *style,
+            });
+        }
+    }
+    pieces
 }
 
 /// 推入一行 Markdown 渲染结果（首行带角色标签，续行仅占位）。
@@ -1379,126 +1549,115 @@ fn push_markdown_line(
     lines.push(Line::from(spans));
 }
 
-/// 解析行内 Markdown 为带样式片段（粗体/斜体/行内代码/链接）。
-fn inline_pieces(value: &str) -> Vec<StyledPiece> {
-    let mut pieces = Vec::new();
-    let mut buffer = String::new();
-    let mut strong = false;
-    let mut emphasis = false;
-    let mut code = false;
-    let flush = |pieces: &mut Vec<StyledPiece>, buffer: &mut String, strong, emphasis, code| {
-        if buffer.is_empty() {
-            return;
-        }
-        let mut style = if code {
-            Style::default().fg(AMBER).bg(RAISED)
-        } else {
-            Style::default().fg(TEXT)
-        };
-        if strong {
-            style = style.add_modifier(Modifier::BOLD);
-        }
-        if emphasis {
-            style = style.add_modifier(Modifier::ITALIC);
-        }
-        pieces.push(StyledPiece {
-            text: std::mem::take(buffer),
-            style,
-        });
-    };
-    let mut rest = value;
-    while !rest.is_empty() {
-        if rest.starts_with("**") {
-            flush(&mut pieces, &mut buffer, strong, emphasis, code);
-            strong = !strong;
-            rest = &rest[2..];
-        } else if rest.starts_with('`') {
-            flush(&mut pieces, &mut buffer, strong, emphasis, code);
-            code = !code;
-            rest = &rest[1..];
-        } else if rest.starts_with('*') {
-            flush(&mut pieces, &mut buffer, strong, emphasis, code);
-            emphasis = !emphasis;
-            rest = &rest[1..];
-        } else if rest.starts_with('[') && !code {
-            let link = rest
-                .find("](")
-                .and_then(|middle| rest[middle + 2..].find(')').map(|end| (middle, end)));
-            if let Some((middle, end)) = link {
-                flush(&mut pieces, &mut buffer, strong, emphasis, code);
-                pieces.push(StyledPiece {
-                    text: rest[1..middle].to_owned(),
-                    style: Style::default()
-                        .fg(ACCENT)
-                        .add_modifier(Modifier::UNDERLINED),
-                });
-                rest = &rest[middle + 2 + end + 1..];
-            } else {
-                buffer.push('[');
-                rest = &rest[1..];
-            }
-        } else {
-            let character = rest.chars().next().expect("rest is not empty");
-            buffer.push(character);
-            rest = &rest[character.len_utf8()..];
-        }
-    }
-    flush(&mut pieces, &mut buffer, strong, emphasis, code);
-    pieces
-}
-
-/// 按终端显示宽度换行（Unicode 按字符宽度计算）。
+/// 按终端显示宽度换行，同时保留跨 Span 的原始词边界和样式。
 fn wrap_styled_pieces(pieces: &[StyledPiece], width: usize) -> Vec<Vec<Span<'static>>> {
     let mut result = vec![Vec::new()];
     let mut line_width = 0usize;
+    let mut pending_whitespace = Vec::<(char, Style)>::new();
+    let mut word = Vec::<(char, Style)>::new();
+    let mut seen_word = false;
+
     for piece in pieces {
-        for word in piece.text.split_whitespace() {
-            let mut remaining = word;
-            loop {
-                let separator = usize::from(line_width > 0);
-                let available = width.saturating_sub(line_width + separator);
-                if available == 0 {
-                    result.push(Vec::new());
-                    line_width = 0;
-                    continue;
-                }
-                let (part, rest) = split_at_width(remaining, available);
-                if line_width > 0 {
-                    result.last_mut().expect("line exists").push(Span::raw(" "));
-                    line_width += 1;
-                }
-                result
-                    .last_mut()
-                    .expect("line exists")
-                    .push(Span::styled(part.to_owned(), piece.style));
-                line_width += part.width();
-                if rest.is_empty() {
-                    break;
-                }
+        for character in piece.text.chars() {
+            if character == '\n' {
+                flush_styled_word(
+                    &mut result,
+                    &mut line_width,
+                    &mut word,
+                    &mut pending_whitespace,
+                    &mut seen_word,
+                    width,
+                );
                 result.push(Vec::new());
                 line_width = 0;
-                remaining = rest;
+                pending_whitespace.clear();
+                seen_word = false;
+            } else if character.is_whitespace() {
+                flush_styled_word(
+                    &mut result,
+                    &mut line_width,
+                    &mut word,
+                    &mut pending_whitespace,
+                    &mut seen_word,
+                    width,
+                );
+                if character == '\t' {
+                    pending_whitespace.extend(std::iter::repeat_n((' ', piece.style), 4));
+                } else {
+                    pending_whitespace.push((character, piece.style));
+                }
+            } else {
+                word.push((character, piece.style));
             }
         }
     }
+    flush_styled_word(
+        &mut result,
+        &mut line_width,
+        &mut word,
+        &mut pending_whitespace,
+        &mut seen_word,
+        width,
+    );
     result
 }
 
-/// 按显示宽度切分单词，返回（能放下的一段，剩余部分）。
-fn split_at_width(value: &str, width: usize) -> (&str, &str) {
-    let mut used = 0;
-    for (index, character) in value.char_indices() {
-        let next = used + character.width().unwrap_or(0);
-        if next > width {
-            if index == 0 {
-                let end = character.len_utf8();
-                return (&value[..end], &value[end..]);
-            }
-            return (&value[..index], &value[index..]);
-        }
-        used = next;
+/// 把一个保留样式的词放入当前行；超长词按 Unicode 显示宽度完整续行。
+fn flush_styled_word(
+    rows: &mut Vec<Vec<Span<'static>>>,
+    line_width: &mut usize,
+    word: &mut Vec<(char, Style)>,
+    pending_whitespace: &mut Vec<(char, Style)>,
+    seen_word: &mut bool,
+    width: usize,
+) {
+    if word.is_empty() {
+        return;
     }
-    (value, "")
+    let word_width = styled_characters_width(word);
+    let whitespace_width = styled_characters_width(pending_whitespace);
+    if *seen_word
+        && *line_width > 0
+        && line_width.saturating_add(whitespace_width + word_width) > width
+    {
+        rows.push(Vec::new());
+        *line_width = 0;
+        pending_whitespace.clear();
+    } else {
+        for (character, style) in pending_whitespace.drain(..) {
+            push_styled_character(rows.last_mut().expect("line exists"), character, style);
+            *line_width = line_width.saturating_add(character.width().unwrap_or_default());
+        }
+    }
+
+    for (character, style) in word.drain(..) {
+        let character_width = character.width().unwrap_or_default();
+        if *line_width > 0 && line_width.saturating_add(character_width) > width {
+            rows.push(Vec::new());
+            *line_width = 0;
+        }
+        push_styled_character(rows.last_mut().expect("line exists"), character, style);
+        *line_width = line_width.saturating_add(character_width);
+    }
+    pending_whitespace.clear();
+    *seen_word = true;
+}
+
+/// 计算保留样式字符序列的终端显示宽度。
+fn styled_characters_width(characters: &[(char, Style)]) -> usize {
+    characters
+        .iter()
+        .map(|(character, _)| character.width().unwrap_or_default())
+        .sum()
+}
+
+/// 合并相邻同样式字符，避免按字符换行产生大量细碎 Span。
+fn push_styled_character(spans: &mut Vec<Span<'static>>, character: char, style: Style) {
+    if let Some(last) = spans.last_mut().filter(|span| span.style == style) {
+        last.content.to_mut().push(character);
+    } else {
+        spans.push(Span::styled(character.to_string(), style));
+    }
 }
 
 /// 把消息附件渲染为 `+ name · kind · size` 行。
@@ -3316,8 +3475,8 @@ mod tests {
     use super::{
         compact_token_count, draw, format_session_time, padded_single_line, push_live,
         push_markdown, push_message, render_slash, runtime_error_label, shorten_path,
-        slash_menu_area, visible_input, wrap_code_line, TerminalTheme, ACCENT, AMBER, BG, BLUE,
-        CONVERSATION_WIDTH, FAINT, GREEN, MUTED, RAISED, RED, RULE, TEXT,
+        slash_menu_area, visible_input, TerminalTheme, ACCENT, AMBER, BG, BLUE, CONVERSATION_WIDTH,
+        FAINT, MUTED, RAISED, RED, RULE, TEXT,
     };
     use crate::{
         app::{App, Approval, AttachmentDraft, LiveTurn, PathEntry, SettingsPicker},
@@ -3435,13 +3594,13 @@ mod tests {
     }
 
     #[test]
-    fn markdown_renderer_styles_headings_lists_and_diffs() {
+    fn markdown_renderer_supports_gfm_structure_and_nested_inline_styles() {
         let mut lines = Vec::new();
         push_markdown(
             &mut lines,
             "●",
             super::ACCENT,
-            "## Root cause\n\n- Keep **cleanup** scoped.\n\n```diff\n-old\n+new\n```",
+            "## Root cause\n\n- [x] Keep **cleanup and *tests*** scoped.\n  - Preserve [the link](https://example.com).\n\n| File | State |\n| --- | ---: |\n| ui.rs | ready |\n\n```rust\nlet value = 42;\n```",
             80,
         );
         let rendered = lines
@@ -3456,23 +3615,74 @@ mod tests {
             .join("\n");
         assert!(rendered.contains("●"));
         assert!(rendered.contains("## Root cause"));
-        assert!(rendered.contains("• Keep cleanup scoped."));
-        assert!(rendered.contains("┌─ diff"));
-        assert!(rendered.contains("+new"));
-        assert!(lines
-            .iter()
-            .flat_map(|line| &line.spans)
-            .any(|span| { span.content.contains("+new") && span.style.fg == Some(GREEN) }));
+        assert!(rendered.contains("- [x] Keep cleanup and tests scoped."));
+        assert!(rendered.contains("\n    - Preserve the link (https://example.com)."));
+        assert!(rendered.contains("ui.rs"));
+        assert!(rendered.contains("ready"));
+        assert!(rendered.contains("```rust"));
+        assert!(rendered.contains("let value = 42;"));
+        assert!(lines.iter().all(|line| line.width() <= 80));
+        assert!(lines.iter().flat_map(|line| &line.spans).any(|span| span
+            .content
+            .contains("tests")
+            && span.style.add_modifier.contains(Modifier::BOLD)
+            && span.style.add_modifier.contains(Modifier::ITALIC)));
     }
 
     #[test]
-    fn long_code_lines_wrap_without_losing_content() {
-        let source = "const result = alpha_beta_gamma_delta + epsilon_zeta_eta_theta;";
-        let rows = wrap_code_line(source, 14);
-        assert!(rows.len() > 1);
-        assert!(rows.iter().all(|row| row.width() <= 14));
-        assert_eq!(rows.concat(), source);
-        assert!(!rows.iter().any(|row| row.contains('…')));
+    fn markdown_tables_reflow_without_breaking_the_grid() {
+        let mut lines = Vec::new();
+        push_markdown(
+            &mut lines,
+            "",
+            super::ACCENT,
+            "| Package | Description |\n| --- | --- |\n| tui-markdown | Standards-based terminal renderer |",
+            26,
+        );
+        let rows = lines
+            .iter()
+            .map(|line| {
+                line.spans
+                    .iter()
+                    .map(|span| span.content.as_ref())
+                    .collect::<String>()
+            })
+            .collect::<Vec<_>>();
+        assert!(rows.iter().all(|row| row.width() <= 26));
+        assert!(rows
+            .first()
+            .is_some_and(|row| row.starts_with('┌') && row.ends_with('┐')));
+        assert!(rows
+            .last()
+            .is_some_and(|row| row.starts_with('└') && row.ends_with('┘')));
+        assert!(rows
+            .iter()
+            .filter(|row| row.starts_with('│'))
+            .all(|row| row.ends_with('│') && row.matches('│').count() == 3));
+        assert!(rows.iter().any(|row| row.contains("Standards")));
+        assert!(rows.iter().any(|row| row.contains("terminal")));
+        assert!(rows.iter().any(|row| row.contains("renderer")));
+    }
+
+    #[test]
+    fn markdown_code_wraps_without_losing_long_content() {
+        let source = "const_result=alpha_beta_gamma_delta+epsilon_zeta_eta_theta;";
+        let mut lines = Vec::new();
+        push_markdown(
+            &mut lines,
+            "",
+            super::ACCENT,
+            &format!("```text\n{source}\n```"),
+            14,
+        );
+        let rendered = lines
+            .iter()
+            .flat_map(|line| &line.spans)
+            .map(|span| span.content.as_ref())
+            .collect::<String>();
+        assert!(lines.iter().all(|line| line.width() <= 14));
+        assert!(rendered.contains(source));
+        assert!(!rendered.contains('…'));
     }
 
     #[test]
@@ -3488,6 +3698,10 @@ mod tests {
         assert_eq!(
             TerminalTheme::Monochrome.map_background(RAISED),
             ratatui::style::Color::DarkGray
+        );
+        assert_eq!(
+            TerminalTheme::Monochrome.map_foreground(ratatui::style::Color::Cyan),
+            ratatui::style::Color::Gray
         );
         assert_eq!(TerminalTheme::TrueColor.map_foreground(BLUE), BLUE);
     }

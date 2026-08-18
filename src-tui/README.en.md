@@ -188,6 +188,8 @@ The active Slash list is authoritative for Skill names. The runtime loads the ma
 
 ## Local Development
 
+Building the TUI from source requires Rust 1.88 or newer.
+
 Run from source in the current directory:
 
 ```bash

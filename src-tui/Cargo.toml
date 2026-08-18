@@ -5,7 +5,7 @@ description = "Terminal client for Pisper"
 authors = ["ling-kong-ran"]
 license = "MIT"
 edition = "2021"
-rust-version = "1.81"
+rust-version = "1.88"
 
 [[bin]]
 name = "pisper"
@@ -14,7 +14,7 @@ path = "src/main.rs"
 [dependencies]
 anyhow = "1"
 base64 = "0.22"
-crossterm = { version = "0.28", features = ["event-stream"] }
+crossterm = { version = "0.29", features = ["event-stream"] }
 dirs = "6"
 futures-util = "0.3"
 getrandom = "0.2"
@@ -22,13 +22,14 @@ humantime = "2"
 notify-rust = "=4.11.3"
 percent-encoding = "2"
 pisper-component-updater = { path = "../crates/component-updater" }
-ratatui = { version = "0.29", features = ["unstable-rendered-line-info"] }
+ratatui = { version = "0.30", default-features = false, features = ["crossterm_0_29", "unstable-rendered-line-info"] }
 reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls", "stream"] }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 semver = "1"
-time = "=0.3.36"
+time = "=0.3.47"
 tokio = { version = "1", features = ["fs", "macros", "rt-multi-thread", "sync", "time"] }
+tui-markdown = "0.3.9"
 unicode-width = "0.2"
 url = "2"
 webbrowser = "1"

@@ -831,7 +831,11 @@ fn terminal_content_area(area: Rect, jetbrains_terminal: bool) -> Rect {
 }
 
 /// 同步终端尺寸并清屏（缩放稳定后的完整重绘路径）。
-fn synchronize_terminal_size<B: Backend>(terminal: &mut Terminal<B>, area: Rect) -> Result<()> {
+fn synchronize_terminal_size<B>(terminal: &mut Terminal<B>, area: Rect) -> Result<()>
+where
+    B: Backend,
+    B::Error: Send + Sync + 'static,
+{
     terminal.resize(area)?;
     terminal.clear()?;
     Ok(())
