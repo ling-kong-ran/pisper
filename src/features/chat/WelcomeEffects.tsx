@@ -9,7 +9,7 @@ type WelcomeEffectsProps = {
   titles: string[]
 }
 
-const ROTATE_MS = 4200
+const ROTATE_MS = 60 * 60 * 1000
 const FADE_MS = 320
 
 // 轮换标题:先整体淡出(透明度+模糊),换词后靠 BlurText 重挂载播入场。

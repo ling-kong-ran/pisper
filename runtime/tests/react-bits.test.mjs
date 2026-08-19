@@ -67,6 +67,7 @@ test('React Bits effects are lazy, CSS-owned, and preserve core UI fallbacks', a
   assert.match(focus, /fallback=\{\s*<WelcomeFallback/)
   assert.match(focus, /data-target-cursor/)
   assert.match(welcome, /radial-gradient\(560px_380px_at_50%_24%/)
+  assert.match(welcome, /const ROTATE_MS = 60 \* 60 \* 1000/)
   assert.doesNotMatch(welcome, /<Aurora\s*\/>/)
   assert.match(welcome, /<WelcomeBrandStage \/>/)
   assert.match(welcome, /<BlurText/)
