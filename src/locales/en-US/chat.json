@@ -393,7 +393,7 @@
   "focusSession.image": "Image",
   "focusSession.localPath": "Local path",
   "focusSession.keepTheHistoryAndCloseOnlyThisView": "Keep the history and close only this view",
-  "focusSession.letSBeginWithASparkOfAnIdea": "Let’s begin with a spark of an idea",
+  "focusSession.letSBeginWithASparkOfAnIdea": "Give every idea its own branch",
   "focusSession.loadingConversationHistory": "Loading conversation history…",
   "focusSession.loadingOlderMessages": "Loading older messages…",
   "focusSession.manualCompactionWaitForRun": "Wait for the current run to finish before compacting context",

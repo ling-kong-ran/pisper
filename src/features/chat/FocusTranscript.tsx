@@ -14,10 +14,17 @@ import {
 import {
   AlertTriangle,
   ArrowDown,
+  Bug,
+  Code2,
+  FileText,
+  FlaskConical,
   FolderOpen,
   GitFork,
-  LoaderCircle,
+  Layers,
+  ListChecks,
   RefreshCw,
+  SearchCheck,
+  Wand2,
 } from 'lucide-react'
 import type { I18nValues } from '@/app/i18n'
 import { useI18n } from '@/app/use-i18n'
@@ -37,6 +44,7 @@ import {
   type TranscriptPrependSnapshot,
 } from './transcript-virtualization'
 import { VirtualMessageTranscript } from './VirtualMessageTranscript'
+import { WelcomeBrandStage } from './welcome-brand'
 
 import { Button } from '@/components/ui/button'
 
@@ -79,14 +87,13 @@ type FocusTranscriptProps = {
 
 function WelcomeFallback({ children, title }: { children: ReactNode; title: string }) {
   return (
-    <div className="agent-welcome-content [:root[data-theme='light']_&]:[border:1px_solid_color-mix(in_srgb,_var(--brand-blue)_13%,_var(--stroke))] [:root[data-theme='light']_&]:rounded-[32px] [:root[data-theme='light']_&]:bg-[radial-gradient(circle_at_16%_8%,_color-mix(in_srgb,_var(--brand-blue)_10%,_transparent),_transparent_38%),_radial-gradient(circle_at_88%_92%,_rgba(139,_92,_246,_.08),_transparent_42%),_rgba(255,255,255,.82)] [:root[data-theme='light']_&]:shadow-[0_28px_72px_-48px_rgba(30,64,175,.3),_0_8px_26px_-22px_rgba(15,23,42,.22)] [:root[data-theme='light']_&]:[backdrop-filter:blur(12px)] grid w-full max-w-[640px] place-items-center [padding:28px]">
-      <div className="welcome-visual [:root[data-theme='light']_&]:relative [:root[data-theme='light']_&::before]:absolute [:root[data-theme='light']_&::before]:top-[-8px] [:root[data-theme='light']_&::before]:w-[78px] [:root[data-theme='light']_&::before]:h-[78px] [:root[data-theme='light']_&::before]:[border:1px_solid_rgba(23,131,255,.12)] [:root[data-theme='light']_&::before]:rounded-[28px] [:root[data-theme='light']_&::before]:bg-[linear-gradient(145deg,_rgba(255,255,255,.94),_rgba(239,246,255,.76))] [:root[data-theme='light']_&::before]:shadow-[0_18px_42px_-26px_rgba(23,131,255,.48)] [:root[data-theme='light']_&::before]:[content:''] [:root[data-theme='light']_&::before]:[transform:rotate(8deg)] grid min-h-[144px] place-items-center">
-        <BrandLogo
-          size={54}
-          className="welcome-logo [.agent-welcome_&]:relative [.agent-welcome_&]:z-[1] [.agent-welcome_&]:text-[var(--text)] [:root[data-theme='light']_.agent-welcome_&]:[filter:drop-shadow(0_8px_14px_rgba(23,131,255,.12))]"
-        />
+    <div className="agent-welcome-content grid w-full max-w-[680px] place-items-center [padding:12px_20px_30px]">
+      <div className="[animation:transcript-stage-enter_.5s_var(--ease-out)_both]">
+        <WelcomeBrandStage />
       </div>
-      <h2>{title}</h2>
+      <h2 className="bg-[linear-gradient(100deg,#8B5CF6,#A855F7_48%,#EC4899)] bg-clip-text text-transparent">
+        {title}
+      </h2>
       {children}
     </div>
   )
@@ -95,22 +102,27 @@ function WelcomeFallback({ children, title }: { children: ReactNode; title: stri
 function TranscriptLoading({ label }: { label: string }) {
   return (
     <div
-      className="session-history-loading [&_>_strong]:text-[var(--text-soft)] [&_>_strong]:text-[13px] [&_>_strong]:font-[650] grid min-h-[100%] place-content-center justify-items-center gap-[9px] text-[var(--text-muted)] text-center [animation:transcript-stage-enter_.18s_var(--ease-out)_both]"
+      className="session-history-loading grid min-h-[100%] place-content-center justify-items-center gap-[24px] text-[var(--text-muted)] [animation:transcript-stage-enter_.18s_var(--ease-out)_both]"
       role="status"
       aria-live="polite"
     >
-      <div className="relative grid w-[58px] h-[58px] place-items-center" aria-hidden="true">
-        <BrandLogo size={28} className="text-[var(--text)]" />
-        <LoaderCircle className="absolute w-[58px] h-[58px] text-[var(--star-strong)] opacity-[.62] [animation:spin_1.1s_linear_infinite]" />
+      {/* 品牌行:Logo + 状态文案 + 思考点 */}
+      <div className="flex items-center gap-[10px]">
+        <span className="grid h-[34px] w-[34px] place-items-center rounded-[11px] border border-[color-mix(in_srgb,#A855F7_24%,var(--stroke))] bg-[var(--solid)] shadow-[var(--sh-1)]">
+          <BrandLogo size={19} />
+        </span>
+        <strong className="text-[13px] font-[650] text-[var(--text-soft)]">{label}</strong>
+        <span className="flex items-end gap-[3px] pb-[3px]" aria-hidden="true">
+          <i className="block h-[4px] w-[4px] rounded-full bg-[#A855F7] [animation:agent-thinking-dot_1.2s_ease-in-out_infinite]" />
+          <i className="block h-[4px] w-[4px] rounded-full bg-[#A855F7] [animation:agent-thinking-dot_1.2s_ease-in-out_.16s_infinite]" />
+          <i className="block h-[4px] w-[4px] rounded-full bg-[#A855F7] [animation:agent-thinking-dot_1.2s_ease-in-out_.32s_infinite]" />
+        </span>
       </div>
-      <strong>{label}</strong>
-      <div
-        className="session-history-loading-lines [&_>_i]:block [&_>_i]:w-full [&_>_i]:h-[4px] [&_>_i]:rounded-[var(--r-pill)] [&_>_i]:bg-[var(--stroke)] [&_>_i]:origin-[center] [&_>_i]:[animation:session-history-line-pulse_1.6s_ease-in-out_infinite] [&_>_i:nth-child(2)]:w-[78%] [&_>_i:nth-child(2)]:[animation-delay:.14s] [&_>_i:nth-child(3)]:w-[54%] [&_>_i:nth-child(3)]:[animation-delay:.28s] grid w-[min(360px,66vw)] justify-items-center gap-[7px] [margin-top:9px]"
-        aria-hidden="true"
-      >
-        <i />
-        <i />
-        <i />
+      {/* 会话骨架:比起三条进度线,消息泡形状更能传达「对话正在成形」 */}
+      <div className="grid w-[min(560px,78vw)] gap-[12px]" aria-hidden="true">
+        <div className="h-[52px] w-[68%] rounded-[16px_16px_16px_5px] border border-[var(--stroke-soft)] bg-[var(--surface-muted)] [animation:agent-message-pulse_1.9s_ease-in-out_infinite]" />
+        <div className="h-[40px] w-[46%] justify-self-end rounded-[16px_16px_5px_16px] bg-[var(--user-bubble-bg)] opacity-[.14] [animation:agent-message-pulse_1.9s_ease-in-out_.25s_infinite]" />
+        <div className="h-[46px] w-[58%] rounded-[16px_16px_16px_5px] border border-[var(--stroke-soft)] bg-[var(--surface-muted)] [animation:agent-message-pulse_1.9s_ease-in-out_.5s_infinite]" />
       </div>
     </div>
   )
@@ -119,34 +131,42 @@ function TranscriptLoading({ label }: { label: string }) {
 function welcomeChips(t: Translate) {
   return [
     {
+      icon: Code2,
       label: t('chat:focusSession.explainCode'),
       prompt: t('chat:focusSession.explainHowThisCodeWorks'),
     },
     {
+      icon: FlaskConical,
       label: t('chat:focusSession.writeTests'),
       prompt: t('chat:focusSession.writeUnitTestsForTheFollowingCode'),
     },
     {
+      icon: Wand2,
       label: t('chat:focusSession.refactor'),
       prompt: t('chat:focusSession.refactorThisCodeAndExplainTheImprovements'),
     },
     {
+      icon: Bug,
       label: t('chat:focusSession.findABug'),
       prompt: t('chat:focusSession.helpMeLocateAndFixThisBug'),
     },
     {
+      icon: FileText,
       label: t('chat:focusSession.summarize'),
       prompt: t('chat:focusSession.summarizeContentAndExtractKeyPoints'),
     },
     {
+      icon: ListChecks,
       label: t('chat:focusSession.makeAPlan'),
       prompt: t('chat:focusSession.makeAClearActionablePlanForThisGoal'),
     },
     {
+      icon: Layers,
       label: t('chat:focusSession.organizeInformation'),
       prompt: t('chat:focusSession.organizeThisInformationIntoAClearStructure'),
     },
     {
+      icon: SearchCheck,
       label: t('chat:focusSession.findIssues'),
       prompt: t('chat:focusSession.reviewThisContentAndSuggestImprovements'),
     },
@@ -291,7 +311,7 @@ export function FocusTranscript({
       <p>{t('chat:focusSession.readyToWorkWithTheCurrentDirectoryAndHelpCompleteTheTask')}</p>
       <button
         type="button"
-        className="welcome-workspace [&_>_svg]:flex-none [&_>_span]:flex-none [&_>_strong]:min-w-0 [&_>_strong]:overflow-hidden [&_>_strong]:text-[var(--text-soft)] [&_>_strong]:text-[12px] [&_>_strong]:text-ellipsis [&_>_small]:flex-none [&_>_small]:ml-[3px] [&_>_small]:text-[var(--star-strong)] [&_>_small]:text-[12px] [&_>_small]:font-[700] hover:bg-[var(--surface-hover)] hover:text-[var(--text)] [&:hover_>_strong]:text-[var(--text)] focus-visible:[outline:2px_solid_var(--brand-blue)] focus-visible:[outline-offset:1px] disabled:[cursor:wait] disabled:opacity-[.62] @max-[470px]:max-w-[100%] @max-[470px]:[&_>_span]:hidden flex max-w-[min(440px,100%)] min-h-[32px] items-center gap-[6px] overflow-hidden [margin-top:14px] border-0 rounded-[var(--r-xs)] bg-transparent [padding:4px_7px] text-[var(--text-muted)] text-[12px] whitespace-nowrap [transition:background_var(--d1)_var(--ease-out),_color_var(--d1)_var(--ease-out)]"
+        className="welcome-workspace [&_>_svg]:flex-none [&_>_span]:flex-none [&_>_strong]:min-w-0 [&_>_strong]:overflow-hidden [&_>_strong]:text-[var(--text-soft)] [&_>_strong]:text-[12.5px] [&_>_strong]:text-ellipsis [&_>_small]:flex-none [&_>_small]:ml-[3px] [&_>_small]:text-[#A855F7] [&_>_small]:text-[12px] [&_>_small]:font-[700] hover:border-[var(--stroke-hover)] hover:bg-[var(--surface-hover)] hover:text-[var(--text)] [&:hover_>_strong]:text-[var(--text)] focus-visible:[outline:2px_solid_var(--brand-blue)] focus-visible:[outline-offset:1px] disabled:[cursor:wait] disabled:opacity-[.62] @max-[470px]:max-w-[100%] @max-[470px]:[&_>_span]:hidden flex max-w-[min(460px,100%)] min-h-[36px] items-center gap-[7px] overflow-hidden [margin-top:18px] border border-[var(--stroke)] rounded-[var(--r-pill)] bg-[var(--solid)] [padding:6px_14px] text-[var(--text-muted)] text-[12.5px] whitespace-nowrap shadow-[var(--sh-1)] [transition:background_var(--d1)_var(--ease-out),_color_var(--d1)_var(--ease-out),_border-color_var(--d1)_var(--ease-out)] [animation:transcript-stage-enter_.55s_var(--ease-out)_both] [animation-delay:240ms]"
         data-target-cursor
         title={cwd}
         aria-label={t('chat:focusSession.changeWorkingDirectoryWorkspace', {
@@ -305,14 +325,20 @@ export function FocusTranscript({
         <strong>{workspaceName(cwd, language)}</strong>
         <small>{t('chat:focusSession.changeDirectory')}</small>
       </button>
-      <div className="welcome-chips [&_button]:min-h-[38px] [&_button]:[border:1px_solid_var(--stroke)] [&_button]:rounded-[var(--r-pill)] [&_button]:bg-[var(--solid)] [&_button]:p-[0_17px] [&_button]:text-[var(--text-soft)] [&_button]:text-[13px] [&_button]:font-[650] [&_button]:[transition:var(--d1)_var(--ease-out)] [&_button:hover]:border-[var(--star-border)] [&_button:hover]:bg-[var(--star-soft)] [&_button:hover]:text-[var(--star-strong)] [:root[data-theme='light']_&_button]:border-[rgba(148,163,184,.38)] [:root[data-theme='light']_&_button]:bg-[rgba(255,255,255,.88)] [:root[data-theme='light']_&_button]:shadow-[0_8px_20px_-18px_rgba(15,23,42,.45)] [:root[data-theme='light']_&_button:hover]:border-[rgba(23,131,255,.34)] [:root[data-theme='light']_&_button:hover]:bg-[#fff] [:root[data-theme='light']_&_button:hover]:text-[var(--brand-blue-strong)] [:root[data-theme='light']_&_button:hover]:shadow-[0_12px_24px_-18px_rgba(23,131,255,.55)] [:root[data-theme='light']_&_button:hover]:[transform:translateY(-1px)] flex max-w-[540px] flex-wrap justify-center gap-[9px] [margin-top:22px]">
-        {welcomeChips(t).map((chip) => (
+      <div className="welcome-chips flex max-w-[560px] flex-wrap justify-center gap-[9px] [margin-top:24px]">
+        {welcomeChips(t).map((chip, index) => (
           <button
             type="button"
             key={chip.label}
             data-target-cursor
             onClick={() => onPromptSelect(chip.prompt)}
+            className="group inline-flex min-h-[38px] items-center gap-[7px] rounded-[var(--r-pill)] border border-[var(--stroke)] bg-[var(--solid)] px-[16px] text-[13px] font-[620] text-[var(--text-soft)] shadow-[var(--sh-1)] [transition:all_var(--d1)_var(--ease-out)] hover:-translate-y-[1px] hover:border-[color-mix(in_srgb,#A855F7_45%,var(--stroke))] hover:text-[var(--text)] hover:shadow-[0_10px_24px_-16px_rgba(168,85,247,.5)] [animation:transcript-stage-enter_.55s_var(--ease-out)_both]"
+            style={{ animationDelay: `${300 + index * 45}ms` }}
           >
+            <chip.icon
+              size={14}
+              className="text-[var(--text-muted)] [transition:color_var(--d1)_var(--ease-out)] group-hover:text-[#A855F7]"
+            />
             {chip.label}
           </button>
         ))}
@@ -386,7 +412,7 @@ export function FocusTranscript({
           <TranscriptLoading label={t('chat:focusSession.loadingConversationHistory')} />
         )}
         {transcriptLoadState === 'ready' && !messages.length && (
-          <div className="agent-welcome [&_h2]:mt-[16px] [&_h2]:text-[var(--text)] [&_h2]:text-[clamp(26px,_2.3vw,_30px)] [&_h2]:leading-[1.25] [&_p]:max-w-[620px] [&_p]:mt-[12px] [&_p]:text-[15px] [&_p]:leading-[1.7] [:root[data-theme='light']_&_h2]:text-[#172033] [:root[data-theme='light']_&_h2]:tracking-[-.025em] [:root[data-theme='light']_&_p]:text-[#526077] relative grid min-h-[100%] place-content-center justify-items-center overflow-hidden text-[var(--text-muted)] text-center">
+          <div className="agent-welcome [&_h2]:mt-[18px] [&_h2]:text-[clamp(28px,_3vw,_38px)] [&_h2]:font-[800] [&_h2]:leading-[1.2] [&_h2]:tracking-[-.02em] [&_p]:max-w-[600px] [&_p]:mt-[14px] [&_p]:text-[15px] [&_p]:leading-[1.75] relative grid min-h-[100%] place-content-center justify-items-center overflow-hidden text-[var(--text-muted)] text-center">
             <Suspense
               fallback={<WelcomeFallback title={welcomeTitle}>{welcomeContent}</WelcomeFallback>}
             >

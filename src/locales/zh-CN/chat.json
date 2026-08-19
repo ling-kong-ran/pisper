@@ -391,7 +391,7 @@
   "focusSession.image": "图片",
   "focusSession.localPath": "本机路径",
   "focusSession.keepTheHistoryAndCloseOnlyThisView": "保留历史记录，仅关闭当前视图",
-  "focusSession.letSBeginWithASparkOfAnIdea": "让我们从一束想法开始",
+  "focusSession.letSBeginWithASparkOfAnIdea": "给每个想法，开一条分支",
   "focusSession.loadingConversationHistory": "正在载入会话记录…",
   "focusSession.loadingOlderMessages": "正在加载更早消息…",
   "focusSession.manualCompactionWaitForRun": "请等待当前运行完成后再压缩上下文",
