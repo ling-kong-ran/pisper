@@ -232,6 +232,15 @@ impl ApiClient {
         .await
     }
 
+    /// 获取图片附件原始字节：支持 Runtime 返回的相对下载地址。
+    pub async fn image_bytes(&self, source: &str) -> Result<Vec<u8>> {
+        let response = self.client.get(self.url(source)?).send().await?;
+        if !response.status().is_success() {
+            return Err(Self::response_error(response).await);
+        }
+        Ok(response.bytes().await?.to_vec())
+    }
+
     /// 获取会话最新一页消息。
     pub async fn messages(&self, session_id: &str) -> Result<MessagePage> {
         self.messages_page(session_id, None).await

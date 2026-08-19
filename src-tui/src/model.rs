@@ -113,7 +113,16 @@ pub struct MessageAttachment {
     pub mime_type: String,
     #[serde(default)]
     pub size: u64,
+    /// 历史附件由 Runtime 返回的受保护下载地址。
+    #[serde(default)]
+    pub url: String,
+    /// 当前 TUI 新消息使用的工作区内本地路径。
+    #[serde(default)]
+    pub path: String,
 }
+
+/// 图片缓存直接复用 `image` 的稳定解码结果，缩放与终端绘制交给 `ratatui-image`。
+pub type ImageThumbnail = image::DynamicImage;
 
 /// 一次 Agent 运行的活动：思考文本、工具调用、子代理。
 #[derive(Clone, Debug, Default, Deserialize)]
@@ -488,6 +497,11 @@ pub enum RuntimeEvent {
     },
     /// 单条对话流事件。
     Stream(StreamEvent),
+    /// 图片附件缩略图加载结果。
+    ImageThumbnailLoaded {
+        key: String,
+        result: Result<ImageThumbnail, String>,
+    },
     /// 对话流整体失败（连接中断/协议错误），需结束当前运行。
     StreamFailed(String),
     /// 排队输入的结果（运行中发送的消息）。

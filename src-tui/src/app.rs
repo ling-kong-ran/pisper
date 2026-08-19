@@ -20,8 +20,8 @@ use zeroize::Zeroize;
 use crate::{
     api::MESSAGE_PAGE_LIMIT,
     model::{
-        ChatMessage, ContextUsage, MessageAttachment, MessagePage, ModelOption, Plan,
-        ProviderOption, RunActivity, SessionCwdUpdate, SessionModelUpdate, SessionSummary,
+        ChatMessage, ContextUsage, ImageThumbnail, MessageAttachment, MessagePage, ModelOption,
+        Plan, ProviderOption, RunActivity, SessionCwdUpdate, SessionModelUpdate, SessionSummary,
         SessionUsage, SkillDefinition, StreamEvent, ThinkingAvailability, ThinkingLevelUpdate,
         ToolActivity, ToolDefinition, VcsChanges, PROVIDER_APIS,
     },
@@ -275,6 +275,7 @@ pub struct App {
     pub sessions: Vec<SessionSummary>,
     pub session: SessionSummary,
     pub messages: Vec<ChatMessage>,
+    pub image_thumbnails: HashMap<String, ImageThumbnail>,
     pub live: Option<LiveTurn>,
     pub tools: Vec<ToolDefinition>,
     pub skills: Vec<SkillDefinition>,
@@ -401,6 +402,7 @@ impl App {
             sessions,
             session,
             messages,
+            image_thumbnails: HashMap::new(),
             live: None,
             tools,
             skills,
@@ -2355,6 +2357,7 @@ impl App {
                 kind: attachment.kind.clone(),
                 name: attachment.name.clone(),
                 size: attachment.size,
+                path: attachment.path.to_string_lossy().into_owned(),
                 ..MessageAttachment::default()
             })
             .collect();
@@ -2525,6 +2528,7 @@ impl App {
         self.confirm_model_compaction = false;
         self.session = session;
         self.messages = messages;
+        self.image_thumbnails.clear();
         cap_message_count(&mut self.messages);
         self.reset_history_window();
         self.live = None;
@@ -2552,6 +2556,31 @@ impl App {
         self.view = View::Chat;
         self.scroll.set(0);
         self.follow_current_plan_item();
+    }
+
+    /// 返回当前消息中需要加载的图片来源；来源本身也是缓存键。
+    pub fn thumbnail_sources(&self) -> Vec<(String, String)> {
+        self.messages
+            .iter()
+            .flat_map(|message| message.attachments.iter())
+            .filter(|attachment| attachment.kind == "image")
+            .filter_map(|attachment| {
+                let source = if !attachment.url.is_empty() {
+                    attachment.url.clone()
+                } else {
+                    attachment.path.clone()
+                };
+                (!source.is_empty() && !self.image_thumbnails.contains_key(&source))
+                    .then_some((source.clone(), source))
+            })
+            .collect()
+    }
+
+    /// 写入解码后的缩略图；失败时不写入缓存，后续仍可重试。
+    pub fn apply_image_thumbnail(&mut self, key: String, thumbnail: Option<ImageThumbnail>) {
+        if let Some(thumbnail) = thumbnail {
+            self.image_thumbnails.insert(key, thumbnail);
+        }
     }
 
     /// 记录历史窗口起点（最旧已加载消息的下标）。

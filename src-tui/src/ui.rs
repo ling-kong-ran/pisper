@@ -6,21 +6,23 @@
 //! 绘制完成后统一应用主题映射（truecolor / 256 色 / 单色）。
 
 use ratatui::{
-    layout::{Alignment, Constraint, Direction, Layout, Position, Rect},
+    buffer::Buffer,
+    layout::{Alignment, Constraint, Direction, Layout, Position, Rect, Size},
     style::{Color, Modifier, Style},
     text::{Line, Span, Text},
-    widgets::{Block, Borders, Clear, List, ListItem, ListState, Paragraph, Wrap},
+    widgets::{Block, Borders, Clear, List, ListItem, ListState, Paragraph, Widget, Wrap},
     Frame,
 };
+use ratatui_image::{picker::Picker, Image as TerminalImage, Resize};
 use serde_json::Value;
-use std::{sync::OnceLock, time::SystemTime};
+use std::{collections::HashMap, sync::OnceLock, time::SystemTime};
 use unicode_width::{UnicodeWidthChar, UnicodeWidthStr};
 
 use crate::{
     app::{App, Approval, LiveTurn, SettingsPicker, SlashCategory, SlashKind, View},
     model::{
-        ChatMessage, MessageAttachment, RunActivity, ThinkingAvailability, ToolActivity,
-        PROVIDER_APIS,
+        ChatMessage, ImageThumbnail, MessageAttachment, RunActivity, ThinkingAvailability,
+        ToolActivity, PROVIDER_APIS,
     },
 };
 
@@ -442,7 +444,7 @@ fn render_chat(frame: &mut Frame, app: &App, area: Rect) {
     let mut lines = Vec::new();
     let content_width = area.width as usize;
     for message in &app.messages {
-        push_message(&mut lines, message, content_width);
+        push_message(&mut lines, message, content_width, &app.image_thumbnails);
     }
     if let Some(live) = &app.live {
         push_live(
@@ -736,11 +738,16 @@ impl ActivityRail {
 }
 
 /// 把一条消息压成渲染行：用户消息带蓝色标签，Agent 消息渲染活动 + Markdown。
-fn push_message(lines: &mut Vec<Line<'static>>, message: &ChatMessage, width: usize) {
+fn push_message(
+    lines: &mut Vec<Line<'static>>,
+    message: &ChatMessage,
+    width: usize,
+    thumbnails: &HashMap<String, ImageThumbnail>,
+) {
     let prose_width = width.min(CONVERSATION_WIDTH as usize);
     if message.role == "user" {
         push_labeled_text(lines, "", BLUE, &message.text, prose_width, false);
-        push_attachment_lines(lines, &message.attachments, prose_width);
+        push_attachment_lines(lines, &message.attachments, prose_width, thumbnails);
         lines.push(Line::default());
         return;
     }
@@ -753,7 +760,7 @@ fn push_message(lines: &mut Vec<Line<'static>>, message: &ChatMessage, width: us
     if !message.text.is_empty() {
         push_markdown(lines, "", ACCENT, &message.text, prose_width);
     }
-    push_attachment_lines(lines, &message.attachments, prose_width);
+    push_attachment_lines(lines, &message.attachments, prose_width, thumbnails);
     lines.push(Line::default());
 }
 
@@ -1680,13 +1687,24 @@ fn push_styled_character(spans: &mut Vec<Span<'static>>, character: char, style:
     }
 }
 
-/// 把消息附件渲染为 `+ name · kind · size` 行。
+/// 把消息附件渲染为缩略图和元信息行；没有可用缩略图时保留文本降级。
 fn push_attachment_lines(
     lines: &mut Vec<Line<'static>>,
     attachments: &[MessageAttachment],
     width: usize,
+    thumbnails: &HashMap<String, ImageThumbnail>,
 ) {
     for attachment in attachments {
+        if attachment.kind == "image" {
+            let source = if !attachment.url.is_empty() {
+                &attachment.url
+            } else {
+                &attachment.path
+            };
+            if let Some(thumbnail) = thumbnails.get(source) {
+                push_image_thumbnail(lines, thumbnail, width);
+            }
+        }
         let kind = if attachment.kind.is_empty() {
             attachment.mime_type.split('/').next().unwrap_or("file")
         } else {
@@ -1708,6 +1726,42 @@ fn push_attachment_lines(
                 Style::default().fg(MUTED),
             ),
         ]));
+    }
+}
+
+/// 使用 `ratatui-image` 的 half-block 后端生成消息行，统一处理缩放和像素比例。
+fn push_image_thumbnail(lines: &mut Vec<Line<'static>>, thumbnail: &ImageThumbnail, width: usize) {
+    let display_width = width
+        .min(CONVERSATION_WIDTH as usize)
+        .saturating_sub(1)
+        .min(64);
+    if display_width == 0 {
+        return;
+    }
+    let picker = Picker::halfblocks();
+    let Ok(protocol) = picker.new_protocol(
+        thumbnail.clone(),
+        Size::new(display_width as u16, 32),
+        Resize::Fit(None),
+    ) else {
+        return;
+    };
+    let image_size = protocol.size();
+    let area = Rect::new(0, 0, image_size.width, image_size.height);
+    let mut buffer = Buffer::empty(area);
+    TerminalImage::new(&protocol)
+        .allow_clipping(true)
+        .render(area, &mut buffer);
+    for y in 0..area.height {
+        let mut spans = vec![role_gutter()];
+        for x in 0..area.width {
+            let cell = &buffer[(x, y)];
+            spans.push(Span::styled(
+                cell.symbol().to_owned(),
+                Style::default().fg(cell.fg).bg(cell.bg),
+            ));
+        }
+        lines.push(Line::from(spans));
     }
 }
 
@@ -3490,6 +3544,7 @@ fn display_execution_mode(value: &str) -> &str {
 #[cfg(test)]
 mod tests {
     use ratatui::{backend::TestBackend, style::Modifier, Terminal};
+    use std::collections::HashMap;
     use unicode_width::UnicodeWidthStr;
 
     use super::{
@@ -4043,6 +4098,7 @@ mod tests {
                 ..ChatMessage::default()
             },
             160,
+            &HashMap::new(),
         );
         assert!(prose
             .iter()

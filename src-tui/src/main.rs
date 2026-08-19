@@ -39,7 +39,7 @@ use crossterm::{
     },
 };
 use futures_util::StreamExt;
-use model::{RuntimeEvent, SessionSummary};
+use model::{ImageThumbnail, RuntimeEvent, SessionSummary};
 use ratatui::{
     backend::{Backend, CrosstermBackend},
     layout::Rect,
@@ -300,7 +300,13 @@ async fn run_event_loop(
     let mut paste_burst = PasteBurst::default();
     // 已通知过「等待审批」的请求 id 集合：同一审批只弹一次通知，避免重复打扰。
     let mut notified_approval_ids = HashSet::new();
+    let mut pending_thumbnail_keys = HashSet::new();
     loop {
+        for (key, source) in app.thumbnail_sources() {
+            if pending_thumbnail_keys.insert(key.clone()) {
+                spawn_thumbnail_load(&api, key, source, &runtime_tx);
+            }
+        }
         if redraw {
             draw_frame(terminal, &app, resize_to_draw.take(), jetbrains_terminal)?;
         }
@@ -406,6 +412,12 @@ async fn run_event_loop(
                                 }
                                 terminal
                             }
+                            RuntimeEvent::ImageThumbnailLoaded { key, result } => {
+                                if let Ok(thumbnail) = result {
+                                    app.apply_image_thumbnail(key, Some(thumbnail));
+                                }
+                                true
+                            }
                             RuntimeEvent::StreamFailed(message) => {
                                 app.stream_failed(message);
                                 true
@@ -480,6 +492,7 @@ async fn run_event_loop(
                                 if app.is_current_session_load(request_id, &session.id) {
                                     match result {
                                         Ok(page) => {
+                                            pending_thumbnail_keys.clear();
                                             let history_start = page.page_info.start;
                                             let session_usage = page.session_usage.clone();
                                             app.replace_session(
@@ -631,7 +644,10 @@ async fn handle_key_with_paste_burst(
 
     apply_paste_flush(paste_burst.flush_if_due(now), app);
 
-    if composer_active && key.kind == KeyEventKind::Press && is_paste_shortcut(&key) {
+    if (composer_active || app.path_picker)
+        && key.kind == KeyEventKind::Press
+        && is_paste_shortcut(&key)
+    {
         apply_paste_flush(paste_burst.flush(), app);
         if let Some(text) = read_clipboard_text().map(normalize_clipboard_text) {
             app.insert_paste(&text);
@@ -873,6 +889,35 @@ fn draw_frame(
     draw_result?;
     end_result?;
     Ok(())
+}
+
+/// 异步加载并解码图片，避免阻塞终端事件循环。
+fn spawn_thumbnail_load(
+    api: &ApiClient,
+    key: String,
+    source: String,
+    sender: &mpsc::UnboundedSender<RuntimeEvent>,
+) {
+    let api = api.clone();
+    let sender = sender.clone();
+    tokio::spawn(async move {
+        let result = async {
+            let bytes = if source.starts_with('/') {
+                api.image_bytes(&source).await?
+            } else {
+                tokio::fs::read(&source).await?
+            };
+            decode_thumbnail(&bytes).map_err(|error| anyhow::anyhow!("{error}"))
+        }
+        .await
+        .map_err(|error: anyhow::Error| format!("{error:#}"));
+        let _ = sender.send(RuntimeEvent::ImageThumbnailLoaded { key, result });
+    });
+}
+
+/// 解码图片；尺寸适配和终端像素渲染交给 `ratatui-image`。
+fn decode_thumbnail(bytes: &[u8]) -> Result<ImageThumbnail, image::ImageError> {
+    image::load_from_memory(bytes)
 }
 
 /// VCS 请求类型：刷新 / 提交（带消息）/ 推送 / 回退。
