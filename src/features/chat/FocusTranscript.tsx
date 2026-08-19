@@ -303,21 +303,39 @@ export function FocusTranscript({
     if (scrollRequest) scrollToBottom('smooth')
   }, [scrollRequest, scrollToBottom])
 
-  const welcomeTitles = useMemo(
-    () => [
-      t('chat:focusSession.letSBeginWithASparkOfAnIdea'),
-      t('chat:focusSession.contextInHandBranchesAtWill'),
-      t('chat:focusSession.seeEveryLineOfThoughtThrough'),
-      t('chat:focusSession.runEveryBranchKeepWhatWorks'),
-    ],
-    [t],
-  )
+  // 轮换标题 = 时段问候(首条) + 随机抽取的三条能力建议。
+  // 覆盖插件/MCP/定时任务/工作流/星忆/并行,不再只讲分支一个特性。
+  const welcomeTitles = useMemo(() => {
+    const hour = new Date().getHours()
+    const greeting =
+      hour >= 23 || hour < 5
+        ? t('chat:focusSession.timeLateNight')
+        : hour < 11
+          ? t('chat:focusSession.timeMorning')
+          : hour < 14
+            ? t('chat:focusSession.timeLunch')
+            : hour < 18
+              ? t('chat:focusSession.timeAfternoon')
+              : t('chat:focusSession.timeEvening')
+    const pool = [
+      t('chat:focusSession.feelLikeBuildingAPlugin'),
+      t('chat:focusSession.letAgentWriteItsOwnTool'),
+      t('chat:focusSession.wireUpAnMcpServer'),
+      t('chat:focusSession.scheduleTheRepetitiveWork'),
+      t('chat:focusSession.turnRepeatedWorkIntoAWorkflow'),
+      t('chat:focusSession.branchOutAndRunInParallel'),
+      t('chat:focusSession.letMemoryRememberYou'),
+    ]
+    // 每次挂载随机抽三条,同一会话不同时刻看到的组合也不同
+    const picked = [...pool].sort(() => Math.random() - 0.5).slice(0, 3)
+    return [greeting, ...picked]
+  }, [t])
   const welcomeContent = (
     <>
       <p>{t('chat:focusSession.readyToWorkWithTheCurrentDirectoryAndHelpCompleteTheTask')}</p>
       <button
         type="button"
-        className="welcome-workspace [&_>_svg]:flex-none [&_>_span]:flex-none [&_>_strong]:min-w-0 [&_>_strong]:overflow-hidden [&_>_strong]:text-[var(--text-soft)] [&_>_strong]:text-[12.5px] [&_>_strong]:text-ellipsis [&_>_small]:flex-none [&_>_small]:ml-[3px] [&_>_small]:text-[#A855F7] [&_>_small]:text-[12px] [&_>_small]:font-[700] hover:border-[var(--stroke-hover)] hover:bg-[var(--surface-hover)] hover:text-[var(--text)] [&:hover_>_strong]:text-[var(--text)] focus-visible:[outline:2px_solid_var(--brand-blue)] focus-visible:[outline-offset:1px] disabled:[cursor:wait] disabled:opacity-[.62] @max-[470px]:max-w-[100%] @max-[470px]:[&_>_span]:hidden flex max-w-[min(460px,100%)] min-h-[36px] items-center gap-[7px] overflow-hidden [margin-top:18px] border border-[var(--stroke)] rounded-[var(--r-pill)] bg-[var(--solid)] [padding:6px_14px] text-[var(--text-muted)] text-[12.5px] whitespace-nowrap shadow-[var(--sh-1)] [transition:background_var(--d1)_var(--ease-out),_color_var(--d1)_var(--ease-out),_border-color_var(--d1)_var(--ease-out)] [animation:transcript-stage-enter_.55s_var(--ease-out)_both] [animation-delay:240ms]"
+        className="welcome-workspace [&_>_svg]:flex-none [&_>_span]:flex-none [&_>_strong]:min-w-0 [&_>_strong]:overflow-hidden [&_>_strong]:text-[var(--text-soft)] [&_>_strong]:text-[12.5px] [&_>_strong]:text-ellipsis [&_>_small]:flex-none [&_>_small]:ml-[3px] [&_>_small]:text-[#0f766e] [:root[data-theme='dark']_&_>_small]:text-[#5eead4] [&_>_small]:text-[12px] [&_>_small]:font-[700] hover:border-[var(--stroke-hover)] hover:bg-[var(--surface-hover)] hover:text-[var(--text)] [&:hover_>_strong]:text-[var(--text)] focus-visible:[outline:2px_solid_var(--brand-blue)] focus-visible:[outline-offset:1px] disabled:[cursor:wait] disabled:opacity-[.62] @max-[470px]:max-w-[100%] @max-[470px]:[&_>_span]:hidden flex max-w-[min(460px,100%)] min-h-[36px] items-center gap-[7px] overflow-hidden [margin-top:18px] border border-[var(--stroke)] rounded-[var(--r-pill)] bg-[var(--solid)] [padding:6px_14px] text-[var(--text-muted)] text-[12.5px] whitespace-nowrap shadow-[var(--sh-1)] [transition:background_var(--d1)_var(--ease-out),_color_var(--d1)_var(--ease-out),_border-color_var(--d1)_var(--ease-out)] [animation:transcript-stage-enter_.55s_var(--ease-out)_both] [animation-delay:240ms]"
         data-target-cursor
         title={cwd}
         aria-label={t('chat:focusSession.changeWorkingDirectoryWorkspace', {
