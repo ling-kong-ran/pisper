@@ -93,3 +93,52 @@ test('discover_tools returns matches without any activation callback', async () 
   assert.equal(result.details.matches[0].name, 'web_search')
   assert.equal(result.details.activated, undefined)
 })
+
+const browserTool = {
+  name: 'browser_automation',
+  label: 'Browser Automation',
+  description: 'Navigate, inspect, click, type, wait, and capture screenshots.',
+  active: false,
+}
+
+test('optional tool search understands natural CJK phrasing with inserted particles', () => {
+  // 「截个图」插入虚字,连续子串匹配会漏;跳跃二元组应兜住 alias「网页截图」
+  assert.equal(
+    searchOptionalTools([...tools, browserTool], '帮我截个图', 1)[0].name,
+    'browser_automation',
+  )
+  assert.equal(
+    searchOptionalTools([...tools, browserTool], '想打开网页点一下', 1)[0].name,
+    'browser_automation',
+  )
+})
+
+test('CJK fuzzy scoring never outranks exact name matches', () => {
+  const results = searchOptionalTools([browserTool, ...tools], 'web_search', 2)
+  assert.equal(results[0].name, 'web_search')
+})
+
+test('discover_tools includes compact parameter signatures', async () => {
+  const toolWithSchema = {
+    name: 'web_search',
+    label: 'Web Search',
+    description: 'Search the public web.',
+    active: false,
+    required: ['query'],
+    parameters: {
+      type: 'object',
+      properties: {
+        query: { type: 'string' },
+        limit: { type: 'integer' },
+      },
+      required: ['query'],
+    },
+  }
+  const tool = createToolDiscoveryTool({ listTools: () => [toolWithSchema] })
+  const result = await tool.execute(
+    'discover-sig',
+    { query: 'web_search', limit: 1 },
+    new AbortController().signal,
+  )
+  assert.match(result.content[0].text, /params: query: string, limit\?: integer/)
+})

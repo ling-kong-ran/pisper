@@ -54,7 +54,10 @@ test('npm, Provider setup, and optional Web onboarding stay documented', async (
   }
   for (const readme of [chineseReadme, englishReadme]) {
     assert.match(readme, /https:\/\/ling-kong-ran\.github\.io\/pisper\//)
-    assert.doesNotMatch(readme, /npm install -g pisper|pisper web|\/provider/)
+    // 根 README 改为自带三分钟上手(转化导向):必须包含 npm 入口,
+    // 同时仍链接 TUI 指南作为命令/快捷键的权威文档。
+    assert.match(readme, /npm (?:i|install) -g pisper/)
+    assert.match(readme, /src-tui\/README/)
   }
   assert.match(projectPage, /npm i -g pisper/)
   assert.doesNotMatch(projectPage, /npm install -g pisper/)

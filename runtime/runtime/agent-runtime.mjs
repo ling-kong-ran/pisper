@@ -1421,18 +1421,20 @@ export class AgentRuntimeService extends AgentRuntimeFacade {
     const stableMcpTools = [...mcpTools].sort((left, right) =>
       String(left.name || '').localeCompare(String(right.name || '')),
     )
-    const pluginTools = this.toolPlugins.createToolDefinitions({
+    // 与 MCP 工具一样按名称排序:启用顺序/文件顺序不该改变稳定前缀,
+    // 否则同样的工具集也会因顺序变化而 prompt cache miss。
+    const pluginTools = [...this.toolPlugins.createToolDefinitions({
       cwd: effectiveCwd,
       sessionId: runtimeSessionId,
       enabledTools,
-    })
+    })].sort((left, right) => String(left.name || '').localeCompare(String(right.name || '')))
     const baseToolNames = [
       ...new Set([
         ...enabledTools,
         ...stableMcpTools.map((tool) => tool.name),
         ...pluginTools.map((tool) => tool.name),
       ]),
-    ]
+    ].sort((left, right) => left.localeCompare(right))
     const promotedToolNames = mergePromotedToolNames({
       availableToolNames: [...baseToolNames, ...MULTI_AGENT_TOOL_NAMES],
       promotedToolNames: this.sessionMeta[runtimeSessionId]?.promotedToolNames || [],
@@ -1563,6 +1565,8 @@ export class AgentRuntimeService extends AgentRuntimeFacade {
               required: Array.isArray(definition.parameters?.required)
                 ? definition.parameters.required
                 : [],
+              // 透传 schema,供 discover 结果生成参数签名
+              parameters: definition.parameters,
             }
           })
           .filter(Boolean)
