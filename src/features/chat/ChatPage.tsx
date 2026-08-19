@@ -145,6 +145,7 @@ export function ChatPage({
         const result = await chatApi.navigateSessionTree(session.id, boundaryEntryId, false)
         if (result.cancelled) return
         await reloadSessionBranch(session.id)
+        setRecallPulse((current) => ({ sessionId: session.id, token: current.token + 1 }))
         notify(t('chat:chatPage.branchedFromNode'))
       } catch (error) {
         setGlobalError(error instanceof Error ? error.message : String(error))
@@ -170,6 +171,7 @@ export function ChatPage({
         const created = await chatApi.deriveSession(session.id, boundaryEntryId, name)
         await refreshSessions(created.id)
         setRecallPulse((current) => ({ sessionId: session.id, token: current.token + 1 }))
+        await new Promise<void>((resolve) => window.setTimeout(resolve, 550))
         openSessionInDock(created.id)
         notify(t('chat:chatPage.childChatCreated'))
       } catch (error) {
