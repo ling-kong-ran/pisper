@@ -145,6 +145,7 @@ function App() {
   const cycleTheme = useUiStore((state) => state.cycleTheme)
   const density = useUiStore((state) => state.density)
   const accent = useUiStore((state) => state.accent)
+  const customAccent = useUiStore((state) => state.customAccent)
   const fontScale = useUiStore((state) => state.fontScale)
   const radius = useUiStore((state) => state.radius)
   const motion = useUiStore((state) => state.motion)
@@ -194,8 +195,8 @@ function App() {
   const appDialog = useAppDialog()
   const appUpdate = useAppUpdate()
   useEffect(() => {
-    applyUiPreferenceAttributes({ accent, density, fontScale, motion, radius })
-  }, [accent, density, fontScale, motion, radius])
+    applyUiPreferenceAttributes({ accent, density, fontScale, motion, radius, customAccent })
+  }, [accent, density, fontScale, motion, radius, customAccent])
 
   useEffect(() => {
     localStorage.setItem(

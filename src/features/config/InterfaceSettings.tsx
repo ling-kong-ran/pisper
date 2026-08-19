@@ -1,4 +1,5 @@
-// 界面客制化入口：只开放受设计 Token 约束的预设，确保组合后仍满足可读性与组件一致性。
+// 界面客制化入口:预设受设计 Token 约束;自定义强调色由即时派生的变量规则保证可读性。
+import { useEffect, useState } from 'react'
 import {
   Activity,
   Check,
@@ -14,6 +15,7 @@ import {
   UnfoldVertical,
 } from 'lucide-react'
 import { useI18n } from '@/app/use-i18n'
+import { normalizeHexColor } from '@/lib/custom-accent'
 import { LanguageSettings } from './LanguageSettings'
 import { SettingsCard as Panel } from './settings-primitives'
 import { Button } from '@/components/ui/button'
@@ -146,6 +148,7 @@ const ACCENT_SWATCHES: Record<AccentPreset, string> = {
   teal: '#0f766e',
   violet: '#7557c8',
   coral: '#c94f5d',
+  custom: '#1677e8', // 仅兜底,渲染时以 customAccent 为准
 }
 
 export function InterfaceSettings({ notify }: { notify: Notify }) {
@@ -153,12 +156,14 @@ export function InterfaceSettings({ notify }: { notify: Notify }) {
   const theme = useUiStore((state) => state.theme)
   const density = useUiStore((state) => state.density)
   const accent = useUiStore((state) => state.accent)
+  const customAccent = useUiStore((state) => state.customAccent)
   const fontScale = useUiStore((state) => state.fontScale)
   const radius = useUiStore((state) => state.radius)
   const motion = useUiStore((state) => state.motion)
   const setTheme = useUiStore((state) => state.setTheme)
   const setDensity = useUiStore((state) => state.setDensity)
   const setAccent = useUiStore((state) => state.setAccent)
+  const setCustomAccent = useUiStore((state) => state.setCustomAccent)
   const setFontScale = useUiStore((state) => state.setFontScale)
   const setRadius = useUiStore((state) => state.setRadius)
   const setMotion = useUiStore((state) => state.setMotion)
@@ -168,9 +173,21 @@ export function InterfaceSettings({ notify }: { notify: Notify }) {
     theme !== DEFAULT_UI_PREFERENCES.theme ||
     density !== DEFAULT_UI_PREFERENCES.density ||
     accent !== DEFAULT_UI_PREFERENCES.accent ||
+    customAccent !== DEFAULT_UI_PREFERENCES.customAccent ||
     fontScale !== DEFAULT_UI_PREFERENCES.fontScale ||
     radius !== DEFAULT_UI_PREFERENCES.radius ||
     motion !== DEFAULT_UI_PREFERENCES.motion
+
+  // HEX 草稿:允许中间态输入,只有完整 6 位才落库生效
+  const [hexDraft, setHexDraft] = useState(customAccent)
+  useEffect(() => setHexDraft(customAccent), [customAccent])
+  const normalizedDraft = normalizeHexColor(hexDraft)
+  const hexInvalid = Boolean(hexDraft.trim()) && !normalizedDraft
+  const commitHex = (value: string) => {
+    setHexDraft(value)
+    const normalized = normalizeHexColor(value)
+    if (normalized) update(setCustomAccent)(normalized)
+  }
 
   const announceChange = () => notify(t('config:interfaceSettings.preferencesUpdated'))
   const update =
@@ -249,6 +266,7 @@ export function InterfaceSettings({ notify }: { notify: Notify }) {
     { value: 'teal', label: t('config:interfaceSettings.accentTeal') },
     { value: 'violet', label: t('config:interfaceSettings.accentViolet') },
     { value: 'coral', label: t('config:interfaceSettings.accentCoral') },
+    { value: 'custom', label: t('config:interfaceSettings.accentCustom') },
   ]
 
   const fontOptions: Array<{ value: FontScale; label: string }> = [
@@ -314,13 +332,42 @@ export function InterfaceSettings({ notify }: { notify: Notify }) {
               >
                 <span
                   className="size-3.5 rounded-full border border-black/10 shadow-sm"
-                  style={{ backgroundColor: ACCENT_SWATCHES[option.value] }}
+                  style={{
+                    backgroundColor:
+                      option.value === 'custom' ? customAccent : ACCENT_SWATCHES[option.value],
+                  }}
                 />
                 {option.label}
                 {accent === option.value && <Check size={13} />}
               </button>
             ))}
           </div>
+          {accent === 'custom' && (
+            <div className="mt-3 flex flex-wrap items-center gap-3 rounded-[var(--r-sm)] border border-[var(--stroke)] bg-[var(--surface-subtle)] p-3">
+              <input
+                type="color"
+                value={normalizeHexColor(customAccent) || '#1677e8'}
+                onChange={(event) => update(setCustomAccent)(event.target.value)}
+                aria-label={t('config:interfaceSettings.customAccentColor')}
+                className="h-9 w-14 cursor-pointer rounded-[var(--r-xs)] border border-[var(--stroke)] bg-[var(--solid)] p-1"
+              />
+              <input
+                type="text"
+                value={hexDraft}
+                onChange={(event) => commitHex(event.target.value)}
+                spellCheck={false}
+                aria-label={t('config:interfaceSettings.customAccentHex')}
+                className={`h-9 w-[116px] rounded-[var(--r-xs)] border bg-[var(--solid)] px-2.5 font-mono text-[12.5px] text-[var(--text)] ${hexInvalid ? 'border-[var(--danger)]' : 'border-[var(--stroke)]'}`}
+              />
+              <span
+                className={`text-[12px] ${hexInvalid ? 'text-[var(--danger)]' : 'text-[var(--text-muted)]'}`}
+              >
+                {hexInvalid
+                  ? t('config:interfaceSettings.invalidAccentColor')
+                  : t('config:interfaceSettings.customAccentHint')}
+              </span>
+            </div>
+          )}
         </div>
 
         <div className="mt-5 grid grid-cols-[minmax(0,1fr)_minmax(260px,.72fr)] gap-4 border-t border-[var(--stroke-soft)] pt-4 max-[720px]:grid-cols-1">

@@ -64,10 +64,11 @@ test('React Bits effects are lazy, CSS-owned, and preserve core UI fallbacks', a
     readFile('src/components/react-bits/react-bits.css', 'utf8'),
   ])
   assert.match(focus, /lazy\(\(\) => import\('\.\/WelcomeEffects'\)\)/)
-  assert.match(focus, /fallback=\{<WelcomeFallback/)
+  assert.match(focus, /fallback=\{\s*<WelcomeFallback/)
   assert.match(focus, /data-target-cursor/)
-  assert.match(welcome, /<Aurora \/>/)
-  assert.match(welcome, /<AsciiText text="PISPER" \/>/)
+  assert.match(welcome, /radial-gradient\(560px_380px_at_50%_24%/)
+  assert.doesNotMatch(welcome, /<Aurora\s*\/>/)
+  assert.match(welcome, /<WelcomeBrandStage \/>/)
   assert.match(welcome, /<BlurText/)
   assert.match(welcome, /<TargetCursor/)
   assert.match(activity, /import\('@\/components\/react-bits\/ShinyText'\)/)
@@ -81,7 +82,8 @@ test('React Bits effects are lazy, CSS-owned, and preserve core UI fallbacks', a
   assert.match(preview, /<Suspense fallback=\{null\}>/)
   assert.doesNotMatch(main, /react-bits\.css/)
   assert.match(shinyText, /import '\.\/react-bits\.css'/)
-  assert.match(focus, /agent-welcome-content[^"\n]*:root\[data-theme='light'\]/)
+  assert.match(focus, /agent-welcome-content[^"\n]*max-w-\[680px\]/)
+  assert.match(focus, /agent-welcome-content[\s\S]*text-\[var\(--accent-strong\)\]/)
   assert.match(aurora, /rb-aurora[^"\n]*:root\[data-theme='light'\]/)
 
   const auroraRule = bitsStyles.match(/\.rb-aurora i \{([^}]+)\}/)?.[1] || ''

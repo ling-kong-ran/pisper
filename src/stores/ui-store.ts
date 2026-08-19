@@ -6,7 +6,7 @@ import { STORAGE_KEYS } from '@/app/storage'
 
 export type ThemeMode = 'system' | 'scheduled' | 'light' | 'dark'
 export type DensityMode = 'comfortable' | 'compact'
-export type AccentPreset = 'neutral' | 'blue' | 'teal' | 'violet' | 'coral'
+export type AccentPreset = 'neutral' | 'blue' | 'teal' | 'violet' | 'coral' | 'custom'
 export type FontScale = 'small' | 'default' | 'large'
 export type RadiusMode = 'sharp' | 'default' | 'soft'
 export type MotionMode = 'system' | 'full' | 'reduced'
@@ -15,6 +15,7 @@ export const DEFAULT_UI_PREFERENCES = {
   theme: 'system',
   density: 'comfortable',
   accent: 'neutral',
+  customAccent: '#1677e8',
   fontScale: 'default',
   radius: 'default',
   motion: 'system',
@@ -22,6 +23,7 @@ export const DEFAULT_UI_PREFERENCES = {
   theme: ThemeMode
   density: DensityMode
   accent: AccentPreset
+  customAccent: string
   fontScale: FontScale
   radius: RadiusMode
   motion: MotionMode
@@ -32,6 +34,7 @@ type UiState = {
   theme: ThemeMode
   density: DensityMode
   accent: AccentPreset
+  customAccent: string
   fontScale: FontScale
   radius: RadiusMode
   motion: MotionMode
@@ -41,6 +44,8 @@ type UiState = {
   cycleTheme: () => void
   setDensity: (density: DensityMode) => void
   setAccent: (accent: AccentPreset) => void
+  // 设置任意 HEX 并立即切到自定义档
+  setCustomAccent: (hex: string) => void
   setFontScale: (fontScale: FontScale) => void
   setRadius: (radius: RadiusMode) => void
   setMotion: (motion: MotionMode) => void
@@ -49,7 +54,14 @@ type UiState = {
 
 type PersistedUiState = Pick<
   UiState,
-  'sidebarCollapsed' | 'theme' | 'density' | 'accent' | 'fontScale' | 'radius' | 'motion'
+  | 'sidebarCollapsed'
+  | 'theme'
+  | 'density'
+  | 'accent'
+  | 'customAccent'
+  | 'fontScale'
+  | 'radius'
+  | 'motion'
 >
 
 const THEME_SEQUENCE: ThemeMode[] = ['system', 'scheduled', 'light', 'dark']
@@ -68,6 +80,7 @@ export const useUiStore = create<UiState>()(
         })),
       setDensity: (density) => set({ density }),
       setAccent: (accent) => set({ accent }),
+      setCustomAccent: (customAccent) => set({ accent: 'custom', customAccent }),
       setFontScale: (fontScale) => set({ fontScale }),
       setRadius: (radius) => set({ radius }),
       setMotion: (motion) => set({ motion }),
@@ -86,11 +99,21 @@ export const useUiStore = create<UiState>()(
             version === 0 && stored.theme === 'system' ? 'scheduled' : (stored.theme ?? 'system'),
         }
       },
-      partialize: ({ sidebarCollapsed, theme, density, accent, fontScale, radius, motion }) => ({
+      partialize: ({
         sidebarCollapsed,
         theme,
         density,
         accent,
+        customAccent,
+        fontScale,
+        radius,
+        motion,
+      }) => ({
+        sidebarCollapsed,
+        theme,
+        density,
+        accent,
+        customAccent,
         fontScale,
         radius,
         motion,
@@ -113,6 +136,7 @@ export const useUiStore = create<UiState>()(
           sidebarCollapsed: stored?.sidebarCollapsed ?? legacySidebar === '1',
           density: stored?.density ?? (legacyDensity === 'compact' ? 'compact' : current.density),
           accent: stored?.accent ?? current.accent,
+          customAccent: stored?.customAccent ?? current.customAccent,
           fontScale: stored?.fontScale ?? current.fontScale,
           radius: stored?.radius ?? current.radius,
           motion: stored?.motion ?? current.motion,
