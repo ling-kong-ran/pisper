@@ -76,16 +76,12 @@ const DEFAULT_COLS = 100
 const DEFAULT_ROWS = 24
 const MIN_HEIGHT = 180
 const MAX_HEIGHT = 640
-const WORKBENCH_RESERVED_HEIGHT = 420
+const CHAT_RESERVED_HEIGHT = 420
 
 function maximumTerminalHeight(viewportHeight: number) {
   return Math.max(
     MIN_HEIGHT,
-    Math.min(
-      MAX_HEIGHT,
-      Math.floor(viewportHeight * 0.62),
-      viewportHeight - WORKBENCH_RESERVED_HEIGHT,
-    ),
+    Math.min(MAX_HEIGHT, Math.floor(viewportHeight * 0.62), viewportHeight - CHAT_RESERVED_HEIGHT),
   )
 }
 

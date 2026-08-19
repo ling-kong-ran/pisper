@@ -132,7 +132,7 @@ function App() {
   const pageMeta = useMemo(() => getPageMeta(t), [t])
   const page = pageFromPath(location.pathname) || 'chat'
   const startupPageRef = useRef(page)
-  const lastWorkbenchPathRef = useRef(SETTINGS_PAGES.has(page) ? '/chat' : location.pathname)
+  const lastAppPathRef = useRef(SETTINGS_PAGES.has(page) ? '/chat' : location.pathname)
   const [query, setQuery] = useState('')
   const [activeSessionId, setActiveSessionId] = useState(
     () => localStorage.getItem(STORAGE_KEYS.activeSession) || '',
@@ -359,12 +359,12 @@ function App() {
   )
 
   useEffect(() => {
-    if (!SETTINGS_PAGES.has(page)) lastWorkbenchPathRef.current = location.pathname
+    if (!SETTINGS_PAGES.has(page)) lastAppPathRef.current = location.pathname
   }, [location.pathname, page])
 
-  // 退出设置页：回到进入设置前的最后一个工作台页面。
+  // 退出设置页：回到进入设置前的最后一个应用页面。
   const exitSettings = useCallback(() => {
-    routerNavigate(lastWorkbenchPathRef.current)
+    routerNavigate(lastAppPathRef.current)
     setQuery('')
   }, [routerNavigate])
 

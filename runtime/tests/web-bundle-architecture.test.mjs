@@ -97,10 +97,10 @@ test('desktop terminals are scoped to the active chat session without stopping h
   assert.doesNotMatch(terminal, /activeSessionId[\s\S]{0,100}terminalClose/)
 })
 
-test('opening the desktop terminal preserves a shrinkable chat workbench above it', async () => {
+test('opening the desktop terminal preserves a shrinkable chat layout above it', async () => {
   const terminal = await readFile('src/features/terminal/TerminalPanel.tsx', 'utf8')
 
-  assert.match(terminal, /WORKBENCH_RESERVED_HEIGHT = 420/)
+  assert.match(terminal, /CHAT_RESERVED_HEIGHT = 420/)
   assert.match(terminal, /maximumTerminalHeight\(window\.innerHeight\)/)
   const app = await readFile('src/App.tsx', 'utf8')
   const chat = await readFile('src/features/chat/ChatPage.tsx', 'utf8')

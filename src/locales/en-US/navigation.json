@@ -1,5 +1,5 @@
 {
-  "navigation.workbench": "Workbench",
+  "navigation.app": "App",
   "navigation.capabilities": "Capabilities",
   "navigation.system": "System",
   "navigation.chat": "Chats",
@@ -61,7 +61,7 @@
   "appOverlays.untitledChat": "Untitled chat",
   "appOverlays.unknownTime": "Unknown time",
   "appSidebar.closeNavigation": "Close navigation",
-  "appSidebar.backToWorkbench": "Back to workbench",
+  "appSidebar.backToApp": "Back to app",
   "appSidebar.collapseSidebar": "Collapse sidebar",
   "appSidebar.countCommitsBehindBranch": "{count} commits behind {branch}",
   "appSidebar.downloading": "Downloading",

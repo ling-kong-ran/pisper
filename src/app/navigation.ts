@@ -8,12 +8,12 @@ export type Translate = (message: string, values?: Record<string, unknown>) => s
 export type Navigation = Array<[string, Array<[PageId, string, LucideIcon]>]>
 export type PageMeta = readonly [string, string]
 
-// 工作台导航分组：目前只有“工作台”一组（聊天/资源/工作流/计划），
+// 应用导航分组：目前只有“应用”一组（聊天/资源/工作流/计划），
 // 数组保持顺序稳定，图标由调用方渲染。
 export function getNavigation(t: Translate = (value) => value): Navigation {
   return [
     [
-      t('navigation:navigation.workbench'),
+      t('navigation:navigation.app'),
       [
         ['chat', t('navigation:navigation.chat'), MessageSquare],
         ['assets', t('navigation:navigation.assets'), FolderOpen],

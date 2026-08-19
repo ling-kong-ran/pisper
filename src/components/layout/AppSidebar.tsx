@@ -1,4 +1,4 @@
-// 侧边栏：工作台导航 + 设置分组导航 + 更新入口，支持折叠与移动端抽屉。
+// 侧边栏：应用导航 + 设置分组导航 + 更新入口，支持折叠与移动端抽屉。
 // 用 React Query 拉取 Provider/会话摘要等数据；折叠状态由 ui-store 持久化。
 import { useEffect, useMemo, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
@@ -206,11 +206,11 @@ export function AppSidebar({
             >
               <button
                 className="nav-settings-back [.nav-list_&]:mb-[13px] [.nav-list_&]:[border-bottom:1px_solid_var(--stroke-soft)] [.nav-list_&]:rounded-[0] [.nav-list_&]:p-[0_8px_10px] [.nav-list_&]:text-[var(--text)] [.nav-list_&]:font-[650] [.nav-list_&:hover]:bg-transparent [.nav-list_&:hover]:text-[var(--star-strong)]"
-                title={t('navigation:appSidebar.backToWorkbench')}
+                title={t('navigation:appSidebar.backToApp')}
                 onClick={exitSettings}
               >
                 <ArrowLeft size={16} />
-                <span>{t('navigation:appSidebar.backToWorkbench')}</span>
+                <span>{t('navigation:appSidebar.backToApp')}</span>
               </button>
               {settingsNavigation.map((group) => (
                 <div

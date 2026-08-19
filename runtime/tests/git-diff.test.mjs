@@ -79,7 +79,7 @@ test('diff dialog navigates files separately and renders one side-by-side diff',
   assert.match(viewer, /data-pisper-rendered-count=\{virtualItems\.length\}/)
   assert.match(viewer, /<DiffCell side="old" cell=\{item\.row\.old\} \/>/)
   assert.match(viewer, /<DiffCell side="next" cell=\{item\.row\.next\} \/>/)
-  assert.match(viewer, /git-diff-workbench[^"\n]*grid-cols-/)
+  assert.match(viewer, /git-diff-layout[^"\n]*grid-cols-/)
   assert.match(viewer, /className="min-w-0 min-h-0 overflow-auto/)
   assert.match(viewer, /className="relative min-w-\[880px\] w-full"/)
   assert.match(viewer, /className="absolute left-0 w-full"/)

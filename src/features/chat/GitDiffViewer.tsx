@@ -255,7 +255,7 @@ export function GitDiffDialog({
             </div>
           </div>
         ) : (
-          <div className="git-diff-workbench max-[760px]:grid-rows-[minmax(112px,26vh)_minmax(0,1fr)] max-[760px]:grid-cols-[minmax(0,1fr)] grid min-w-0 min-h-0 flex-1 grid-cols-[252px_minmax(0,1fr)] overflow-hidden">
+          <div className="git-diff-layout max-[760px]:grid-rows-[minmax(112px,26vh)_minmax(0,1fr)] max-[760px]:grid-cols-[minmax(0,1fr)] grid min-w-0 min-h-0 flex-1 grid-cols-[252px_minmax(0,1fr)] overflow-hidden">
             <nav
               className="git-diff-file-nav max-[760px]:[border-right:0] max-[760px]:[border-bottom:1px_solid_var(--stroke)] flex min-w-0 min-h-0 flex-col overflow-hidden [border-right:1px_solid_var(--stroke)] bg-[var(--surface-muted)]"
               aria-label={t('chat:focusSession.gitDiffChangedFiles')}

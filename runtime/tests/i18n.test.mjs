@@ -4,7 +4,7 @@ import { i18n, translateText } from '../../src/app/i18n.ts'
 
 test('English interface translations resolve static and interpolated messages', () => {
   assert.equal(translateText('navigation:navigation.settings', 'en-US'), 'Settings')
-  assert.equal(translateText('navigation:navigation.workbench', 'en-US'), 'Workbench')
+  assert.equal(translateText('navigation:navigation.app', 'en-US'), 'App')
   assert.equal(translateText('navigation:navigation.chat', 'en-US'), 'Chats')
   assert.equal(translateText('plugins:toolLabels.read', 'en-US'), 'Read files')
   assert.equal(
