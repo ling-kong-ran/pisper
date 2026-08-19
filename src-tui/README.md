@@ -109,7 +109,7 @@ pisper doctor
 - `Home` / `End`、`Left` / `Right`、`Backspace` / `Delete`：编辑 composer 草稿。
 - `Ctrl+C`：Agent 运行或等待审批时中止当前 run（若 Agent 卡住未在超时窗口内响应，Runtime 会强制结束该次运行）；运行中再次 `Ctrl+C` 强制退出 TUI；空闲时退出 TUI。
 
-最底部状态栏整体左对齐。会话运行期间，最左侧使用单个呼吸灯动画（亮度由暗到亮再到暗循环，例如 `○ ◔ ◑ ◕ ●`），不再显示 `Thinking`、`Responding` 等阶段文字；之后依次显示执行模式、模型、思考等级和指标，例如 `●  [full-access]  gpt-5.6-sol  high  ·  88M  ·  cache 79%`。队列和审批位置追加在指标之后，数据按会话隔离。
+最底部状态栏整体左对齐。会话运行期间，最左侧显示一段彩色能量波，波峰沿固定宽度的柱段来回移动，例如 `▁▂▄▆█▆▄`，不再显示 `Thinking`、`Responding` 等阶段文字；之后依次显示执行模式、模型、思考等级和指标，例如 `▁▂▄▆█▆▄  [full-access]  gpt-5.6-sol  high  ·  88M  ·  cache 79%`。队列和审批位置追加在指标之后，数据按会话隔离。
 
 TUI 默认使用终端真彩色，并在 `TERM` 表明仅支持 256 色时自动降级。可用 `PISPER_TUI_THEME=ansi256` 强制 256 色，或用 `PISPER_TUI_THEME=monochrome` / `NO_COLOR=1` 使用单色模式。设置 `PISPER_TUI_REDUCED_MOTION=1` 会关闭装饰动画并立即显示完整流式文本；翻阅历史消息时也会暂停逐字揭示。
 
