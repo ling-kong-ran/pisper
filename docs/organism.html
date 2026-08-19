@@ -1,0 +1,1253 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ORGANISM — a living single-page life form</title>
+<meta name="description" content="A single-page digital organism: raw WebGL2 raymarching, spring physics, procedural WebAudio, zero dependencies, one file.">
+<meta name="theme-color" content="#050308">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Ccircle cx='16' cy='16' r='10' fill='%238b7bff'/%3E%3C/svg%3E">
+<style>
+/* ============================================================
+   设计令牌:全部视觉都从这里派生,方便整体调性微调
+   ============================================================ */
+:root{
+  --bg:#050308;
+  --ink:#f4f1ff;
+  --dim:rgba(244,241,255,.62);
+  --line:rgba(244,241,255,.12);
+  --acc:#8b7bff;
+  --acc2:#00e0c6;
+  --ease:cubic-bezier(.19,1,.22,1);
+}
+*,*::before,*::after{box-sizing:border-box}
+html{scroll-behavior:smooth}
+/* 用 clip 而非 hidden,避免把 body 变成滚动容器导致 sticky 失效 */
+html,body{overflow-x:clip}
+body{
+  margin:0;
+  background:var(--bg);
+  color:var(--ink);
+  font-family:"Avenir Next","Helvetica Neue",Helvetica,Arial,"PingFang SC","Microsoft YaHei",sans-serif;
+  -webkit-font-smoothing:antialiased;
+  min-height:100vh;
+}
+::selection{background:var(--acc);color:var(--bg)}
+:focus-visible{outline:2px solid var(--acc2);outline-offset:3px;border-radius:4px}
+
+/* ============================================================
+   画布层:GL 在底,粒子在中,内容在上
+   ============================================================ */
+canvas.gl,canvas.fx{
+  position:fixed;inset:0;width:100%;height:100%;
+  pointer-events:none;
+}
+canvas.gl{z-index:0}
+canvas.fx{z-index:1;mix-blend-mode:screen}
+
+/* WebGL 不可用时的兜底:CSS 渐变生命体,保证页面依然成立 */
+body.no-gl canvas.gl{display:none}
+body.no-gl::before{
+  content:"";position:fixed;inset:-20%;z-index:0;
+  background:
+    radial-gradient(42% 52% at 50% 46%,rgba(139,123,255,.34),transparent 70%),
+    radial-gradient(30% 40% at 62% 58%,rgba(0,224,198,.20),transparent 70%),
+    var(--bg);
+  animation:breath 7s ease-in-out infinite;
+}
+@keyframes breath{0%,100%{transform:scale(1)}50%{transform:scale(1.08)}}
+
+/* ============================================================
+   顶栏:difference 混合保证在任何场景色上都清晰
+   ============================================================ */
+header{
+  position:fixed;top:0;left:0;right:0;z-index:6;
+  display:flex;justify-content:space-between;align-items:center;
+  padding:1.1rem 1.5rem;mix-blend-mode:difference;
+}
+.brand{
+  display:flex;align-items:center;gap:.6rem;
+  color:var(--ink);text-decoration:none;
+  font-size:.78rem;font-weight:700;letter-spacing:.42em;text-transform:uppercase;
+}
+.brand .dot{
+  width:9px;height:9px;border-radius:50%;background:var(--ink);
+  animation:pulse 2.4s ease-in-out infinite;
+}
+@keyframes pulse{0%,100%{transform:scale(1);opacity:1}50%{transform:scale(1.7);opacity:.5}}
+.controls{display:flex;gap:.6rem}
+.ctl{
+  appearance:none;background:transparent;border:1px solid rgba(244,241,255,.4);
+  color:var(--ink);border-radius:999px;padding:.55rem 1rem;
+  font:inherit;font-size:.66rem;letter-spacing:.24em;text-transform:uppercase;
+  display:flex;align-items:center;gap:.5rem;
+  transition:background .25s,color .25s,transform .25s;
+}
+.ctl:hover{background:var(--ink);color:#000}
+.ctl[aria-pressed="true"]{background:var(--ink);color:#000}
+/* 均衡器小图标:仅开启声音时跳动 */
+.snd{display:flex;align-items:flex-end;gap:2px;height:12px}
+.snd i{width:2px;height:4px;background:currentColor}
+.snd.on i{animation:eq .9s ease-in-out infinite}
+.snd.on i:nth-child(2){animation-delay:.15s}
+.snd.on i:nth-child(3){animation-delay:.3s}
+.snd.on i:nth-child(4){animation-delay:.45s}
+@keyframes eq{0%,100%{height:4px}50%{height:12px}}
+
+/* 顶部阅读进度条:scaleX 只走合成器,不触发布局 */
+#bar{
+  position:fixed;top:0;left:0;right:0;height:2px;z-index:7;
+  background:linear-gradient(90deg,var(--acc),var(--acc2));
+  transform:scaleX(0);transform-origin:0 50%;pointer-events:none;
+}
+
+/* ============================================================
+   右侧场景轨道:宽屏才显示,移动端不遮挡内容
+   ============================================================ */
+.rail{
+  position:fixed;right:1.3rem;top:50%;transform:translateY(-50%);z-index:6;
+  display:flex;flex-direction:column;gap:1.15rem;mix-blend-mode:difference;
+}
+.rail a{
+  display:flex;align-items:center;flex-direction:row-reverse;gap:.7rem;
+  text-decoration:none;color:var(--dim);
+}
+.rail i{
+  width:8px;height:8px;border-radius:50%;background:rgba(244,241,255,.32);
+  transition:transform .3s,background .3s,box-shadow .3s;
+}
+.rail a.on i{background:#fff;transform:scale(1.5);box-shadow:0 0 14px var(--acc)}
+.rail span{
+  font-size:.62rem;letter-spacing:.24em;text-transform:uppercase;
+  opacity:0;transform:translateX(6px);transition:opacity .3s,transform .3s;
+}
+.rail a:hover span,.rail a.on span,.rail a:focus-visible span{opacity:1;transform:none}
+@media (max-width:760px){.rail{display:none}}
+
+/* ============================================================
+   场景结构:每个 scene 超过一屏,内部 stage sticky 钉住,
+   靠 JS 视差与 GL 形态变化完成「翻页式」叙事
+   ============================================================ */
+main{position:relative;z-index:2}
+.scene{position:relative;min-height:135vh}
+.scene:first-child{min-height:105vh}
+.scene:last-child{min-height:115vh}
+.stage{
+  position:sticky;top:0;height:100vh;
+  display:flex;flex-direction:column;justify-content:center;
+  padding:0 8vw;overflow:hidden;
+}
+/* 背景幽灵序号:超大描边数字,慢速视差营造纵深 */
+.ghost{
+  position:absolute;right:1vw;top:50%;transform:translateY(-50%);
+  font-size:min(36vw,30rem);font-weight:800;line-height:1;
+  color:transparent;-webkit-text-stroke:1px rgba(244,241,255,.09);
+  pointer-events:none;user-select:none;
+}
+.inner{max-width:60rem;will-change:transform}
+.kicker{
+  margin:0 0 1.2rem;font-size:.72rem;letter-spacing:.38em;
+  text-transform:uppercase;color:var(--dim);
+}
+.display{
+  margin:0 0 1.6rem;font-weight:800;letter-spacing:-.03em;line-height:.95;
+  font-size:clamp(3.2rem,12.5vw,11.5rem);text-transform:uppercase;
+}
+.display em{
+  font-family:Georgia,"Times New Roman",serif;font-style:italic;
+  font-weight:400;letter-spacing:0;
+}
+.outline{color:transparent;-webkit-text-stroke:2px var(--ink)}
+.grad{
+  background:linear-gradient(100deg,#8b7bff 0%,#00e0c6 38%,#ff6ad5 68%,#ffd166 100%);
+  -webkit-background-clip:text;background-clip:text;color:transparent;
+}
+.lede{
+  max-width:36ch;margin:0 0 2.2rem;
+  font-size:clamp(1rem,1.35vw,1.3rem);line-height:1.75;color:var(--dim);
+}
+/* 字符级揭示:外层 clip-path 负责入场,内层 transform 留给物理引擎 */
+.chars .cw{
+  display:inline-block;
+  clip-path:inset(-12% -6% 115% -6%);
+  transition:clip-path 1s var(--ease);transition-delay:calc(var(--i)*55ms);
+}
+.chars.in .cw{clip-path:inset(-12% -6% -30% -6%)}
+.chars .char{display:inline-block;will-change:transform}
+/* 通用上浮揭示 */
+.reveal{
+  opacity:0;transform:translateY(56px);
+  transition:opacity .9s var(--ease),transform .9s var(--ease);
+  transition-delay:var(--d,0ms);
+}
+.reveal.in{opacity:1;transform:none}
+
+.hint{
+  position:absolute;bottom:2.4rem;left:50%;transform:translateX(-50%);
+  margin:0;font-size:.66rem;letter-spacing:.4em;text-transform:uppercase;color:var(--dim);
+  display:flex;flex-direction:column;align-items:center;gap:.9rem;
+}
+.hint::after{
+  content:"";width:1px;height:3.2rem;background:var(--dim);
+  animation:drop 1.8s var(--ease) infinite;transform-origin:top;
+}
+@keyframes drop{0%{transform:scaleY(0)}45%{transform:scaleY(1)}100%{transform:scaleY(0);transform-origin:bottom}}
+
+/* 刺激按钮:与生命体直接交互的入口 */
+.btn{
+  appearance:none;background:transparent;border:1px solid rgba(244,241,255,.4);
+  color:var(--ink);border-radius:999px;padding:1rem 2.2rem;
+  font:inherit;font-size:.74rem;letter-spacing:.3em;text-transform:uppercase;
+  transition:background .25s,color .25s,transform .2s;user-select:none;
+}
+.btn:hover{background:var(--ink);color:#000;transform:scale(1.05)}
+.btn:active{transform:scale(.94)}
+.btn .o{display:inline-block;margin-right:.7em;color:var(--acc2)}
+
+/* ============================================================
+   跑马灯:速度由滚动速度驱动,像生命体的心电图
+   ============================================================ */
+.marquee{
+  position:relative;z-index:2;overflow:hidden;
+  padding:1.6rem 0;border-top:1px solid var(--line);border-bottom:1px solid var(--line);
+}
+.marquee-track{
+  display:flex;gap:3.5rem;white-space:nowrap;width:max-content;
+  font-size:clamp(1.3rem,2.8vw,2.4rem);font-weight:700;
+  letter-spacing:.1em;text-transform:uppercase;color:rgba(244,241,255,.35);
+  will-change:transform;
+}
+.marquee-track b{color:var(--acc);font-weight:700}
+
+/* ============================================================
+   遥测面板:把内部物理量暴露出来,强调「仪器感」
+   ============================================================ */
+.telemetry{
+  display:flex;flex-wrap:wrap;gap:2.5rem;margin-top:1rem;
+  font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+}
+.telemetry div{display:flex;flex-direction:column;gap:.35rem;min-width:6.5rem}
+.telemetry b{font-size:1.5rem;font-weight:600;color:var(--acc2);font-variant-numeric:tabular-nums}
+.telemetry span{font-size:.62rem;letter-spacing:.28em;text-transform:uppercase;color:var(--dim)}
+
+.credits{margin-top:3rem;font-size:.72rem;letter-spacing:.14em;color:var(--dim);line-height:2}
+.credits kbd{
+  border:1px solid var(--line);border-radius:4px;padding:.05em .45em;
+  font-family:inherit;font-size:.9em;
+}
+
+/* ============================================================
+   自定义光标:点即时跟随,环带弹簧滞后;细指针设备才接管
+   ============================================================ */
+.cursor{position:fixed;left:0;top:0;z-index:99;pointer-events:none;mix-blend-mode:difference}
+.cursor-dot,.cursor-ring{position:fixed;left:0;top:0;border-radius:50%}
+.cursor-dot{width:6px;height:6px;background:#fff}
+.cursor-ring{
+  width:38px;height:38px;border:1px solid #fff;
+  display:flex;align-items:center;justify-content:center;
+  transition:width .3s var(--ease),height .3s var(--ease),opacity .3s;
+}
+.cursor-label{
+  font-size:.6rem;letter-spacing:.22em;text-transform:uppercase;color:#fff;
+  opacity:0;transition:opacity .25s;user-select:none;
+}
+.cursor.big .cursor-ring{width:88px;height:88px}
+.cursor.big .cursor-label{opacity:1}
+.cursor.down .cursor-ring{width:26px;height:26px}
+@media (pointer:coarse){.cursor{display:none}}
+@media (pointer:fine){body,a,button,[data-cursor]{cursor:none}}
+body.reduced .cursor-ring{transition:none}
+
+/* 点击涟漪 */
+.ripple{
+  position:fixed;z-index:98;width:10px;height:10px;margin:-5px 0 0 -5px;
+  border:1px solid rgba(255,255,255,.85);border-radius:50%;pointer-events:none;
+  animation:rip .7s ease-out forwards;mix-blend-mode:screen;
+}
+@keyframes rip{to{width:130px;height:130px;margin:-65px 0 0 -65px;opacity:0}}
+
+/* 开机动画:首帧渲染完成后淡出 */
+.boot{
+  position:fixed;inset:0;z-index:200;background:var(--bg);
+  display:grid;place-items:center;transition:opacity 1s ease .15s;
+}
+.boot span{
+  font-size:clamp(2rem,6vw,4rem);font-weight:800;letter-spacing:.5em;
+  animation:pulse 1.2s ease-in-out infinite;
+}
+body.booted .boot{opacity:0;pointer-events:none}
+
+/* 屏幕阅读器专用 */
+.sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+.skip{
+  position:fixed;top:-4rem;left:1rem;z-index:300;background:var(--ink);color:#000;
+  padding:.6rem 1rem;border-radius:6px;font-size:.8rem;transition:top .2s;
+}
+.skip:focus{top:1rem}
+
+/* ============================================================
+   减弱动态:系统偏好与用户开关双通道
+   ============================================================ */
+@media (prefers-reduced-motion:reduce){
+  html{scroll-behavior:auto}
+  *,*::before,*::after{animation-duration:.001s!important;transition-duration:.001s!important}
+}
+body.reduced{scroll-behavior:auto}
+body.reduced .hint::after,body.reduced .brand .dot{animation:none}
+</style>
+</head>
+<body>
+
+<a class="skip" href="#genesis">Skip to content</a>
+
+<canvas class="gl" id="glCanvas" aria-hidden="true"></canvas>
+<canvas class="fx" id="fxCanvas" aria-hidden="true"></canvas>
+<div id="bar" aria-hidden="true"></div>
+
+<header>
+  <a class="brand mag" href="#genesis" data-cursor="HOME">
+    <span class="dot" aria-hidden="true"></span>Organism
+  </a>
+  <div class="controls">
+    <button class="ctl mag" id="sndBtn" type="button" aria-pressed="false" data-cursor="LISTEN">
+      <span class="snd" id="sndIcon" aria-hidden="true"><i></i><i></i><i></i><i></i></span>
+      <span id="sndTxt">sound off</span>
+    </button>
+    <button class="ctl mag" id="motBtn" type="button" aria-pressed="false" data-cursor="CALM">calm</button>
+  </div>
+</header>
+
+<nav class="rail" aria-label="Scenes">
+  <a href="#genesis"   class="mag" data-cursor="01"><i aria-hidden="true"></i><span>genesis</span></a>
+  <a href="#division"  class="mag" data-cursor="02"><i aria-hidden="true"></i><span>division</span></a>
+  <a href="#signal"    class="mag" data-cursor="03"><i aria-hidden="true"></i><span>signal</span></a>
+  <a href="#bloom"     class="mag" data-cursor="04"><i aria-hidden="true"></i><span>bloom</span></a>
+  <a href="#sentience" class="mag" data-cursor="05"><i aria-hidden="true"></i><span>sentience</span></a>
+</nav>
+
+<main id="content">
+
+  <!-- 01 起源:标题字符带弹簧物理 -->
+  <section class="scene" id="genesis" data-name="Genesis" aria-label="Scene 1, Genesis">
+    <div class="stage">
+      <div class="ghost" aria-hidden="true">01</div>
+      <div class="inner">
+        <p class="kicker reveal">01 — Genesis · a page that is alive</p>
+        <h1 class="display chars" id="heroTitle">ORGANISM</h1>
+        <p class="lede reveal" style="--d:140ms">
+          A single-page life form, breathing at sixty frames per second.
+          Raw WebGL. No images. No libraries. One file.
+        </p>
+        <p class="lede reveal" style="--d:260ms;font-size:.85rem;letter-spacing:.1em">
+          Touch the title — it pushes back.
+        </p>
+      </div>
+      <p class="hint reveal" style="--d:400ms">scroll to feed it</p>
+    </div>
+  </section>
+
+  <!-- 02 分裂:滚动让细胞分离 -->
+  <section class="scene" id="division" data-name="Division" aria-label="Scene 2, Division">
+    <div class="stage">
+      <div class="ghost" aria-hidden="true">02</div>
+      <div class="inner">
+        <p class="kicker reveal">02 — Division · attention is nutrient</p>
+        <h2 class="display chars outline">ADAPT</h2>
+        <p class="lede reveal">
+          Attention is its only nutrient. Move, and it moves. Scroll, and it remembers.
+          Every gesture you make rewrites its geometry in real time.
+        </p>
+        <button class="btn mag stim reveal" type="button" data-cursor="TOUCH">
+          <span class="o" aria-hidden="true">◉</span>stimulate
+        </button>
+      </div>
+    </div>
+  </section>
+
+  <div class="marquee" aria-hidden="true">
+    <div class="marquee-track" id="marqueeTrack">
+      <span>living system <b>✺</b> self-organizing <b>✺</b> born in your browser <b>✺</b> zero dependencies <b>✺</b> one file <b>✺</b></span>
+    </div>
+  </div>
+
+  <!-- 03 信号:遥测把内部状态暴露给用户 -->
+  <section class="scene" id="signal" data-name="Signal" aria-label="Scene 3, Signal">
+    <div class="stage">
+      <div class="ghost" aria-hidden="true">03</div>
+      <div class="inner">
+        <p class="kicker reveal">03 — Signal · your hand becomes weather</p>
+        <h2 class="display chars">SIGNAL</h2>
+        <p class="lede reveal">
+          It listens without ears — measuring your velocity, your rhythm, your intent.
+          Below: its nervous system, live.
+        </p>
+        <div class="telemetry reveal" aria-hidden="true">
+          <div><b id="tVel">0.000</b><span>velocity</span></div>
+          <div><b id="tFps">60</b><span>frames / s</span></div>
+          <div><b id="tDpr">1.00</b><span>resolution</span></div>
+          <div><b id="tCell">1</b><span>cells</span></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 04 绽放:色彩饱和度与细节噪声在此达到峰值 -->
+  <section class="scene" id="bloom" data-name="Bloom" aria-label="Scene 4, Bloom">
+    <div class="stage">
+      <div class="ghost" aria-hidden="true">04</div>
+      <div class="inner">
+        <p class="kicker reveal">04 — Bloom · pressure becomes color</p>
+        <h2 class="display chars grad">BLOOM</h2>
+        <p class="lede reveal">
+          Feed it speed and it answers in light. Push it hard enough
+          and the membrane sings.
+        </p>
+        <button class="btn mag stim reveal" type="button" data-cursor="TOUCH">
+          <span class="o" aria-hidden="true">◉</span>stimulate
+        </button>
+      </div>
+    </div>
+  </section>
+
+  <!-- 05 知觉:收束、平静、回望 -->
+  <section class="scene" id="sentience" data-name="Sentience" aria-label="Scene 5, Sentience">
+    <div class="stage">
+      <div class="ghost" aria-hidden="true">05</div>
+      <div class="inner">
+        <p class="kicker reveal">05 — Sentience</p>
+        <h2 class="display chars">AWAKE</h2>
+        <p class="lede reveal">Now it watches back.</p>
+        <button class="btn mag reveal" id="againBtn" type="button" data-cursor="REBORN" style="--d:120ms">
+          ↺ return to genesis
+        </button>
+        <p class="credits reveal" style="--d:240ms">
+          Built with raw WebGL2 raymarching · procedural WebAudio · spring physics.<br>
+          Zero dependencies, zero assets, one HTML file.
+          Press <kbd>1</kbd>–<kbd>5</kbd> to jump between scenes.
+        </p>
+      </div>
+    </div>
+  </section>
+
+</main>
+
+<div class="cursor" aria-hidden="true">
+  <div class="cursor-ring"><span class="cursor-label" id="cursorLabel"></span></div>
+  <div class="cursor-dot"></div>
+</div>
+
+<div class="sr" id="srStatus" role="status" aria-live="polite"></div>
+<div class="boot" aria-hidden="true"><span>O</span></div>
+
+<noscript>
+  <p style="position:fixed;inset:auto 0 0 0;z-index:300;background:#f4f1ff;color:#050308;padding:1rem;text-align:center;margin:0">
+    This organism needs JavaScript to stay alive.
+  </p>
+</noscript>
+
+<script>
+(() => {
+'use strict'
+
+/* ============================================================
+   工具函数
+   ============================================================ */
+const $  = (s, r = document) => r.querySelector(s)
+const $$ = (s, r = document) => [...r.querySelectorAll(s)]
+const clamp = (v, a, b) => v < a ? a : v > b ? b : v
+const lerp  = (a, b, t) => a + (b - a) * t
+// 帧率无关的指数平滑:高刷屏与低刷屏手感一致
+const damp = (a, b, lambda, dt) => lerp(a, b, 1 - Math.exp(-lambda * dt))
+// 与 GLSL 相同的 smoothstep,用于 JS 侧复刻「细胞数」等遥测
+const sstep = (a, b, x) => { const t = clamp((x - a) / (b - a), 0, 1); return t * t * (3 - 2 * t) }
+
+const reduceMQ   = matchMedia('(prefers-reduced-motion: reduce)')
+const finePointer = matchMedia('(pointer: fine)').matches
+let reduced = reduceMQ.matches
+if (reduced) document.body.classList.add('reduced')
+
+/* ============================================================
+   WebGL2 渲染器:单个全屏三角形 + 光线步进 SDF
+   场景形态完全由 uScroll / uVel / uPulse / uMouse 驱动
+   ============================================================ */
+const VERT = `#version 300 es
+layout(location=0) in vec2 aPos;
+void main(){ gl_Position = vec4(aPos, 0.0, 1.0); }`
+
+const FRAG = `#version 300 es
+precision highp float;
+
+uniform vec2  uRes;
+uniform float uTime;
+uniform float uScroll;
+uniform float uVel;
+uniform float uPulse;
+uniform vec2  uMouse;
+
+out vec4 frag;
+
+float hash13(vec3 p){
+  p = fract(p * 0.3183099 + vec3(0.11, 0.17, 0.13));
+  p *= 17.0;
+  return fract(p.x * p.y * p.z * (p.x + p.y + p.z));
+}
+
+float noise3(vec3 x){
+  vec3 i = floor(x);
+  vec3 f = fract(x);
+  f = f * f * (3.0 - 2.0 * f);
+  float n000 = hash13(i);
+  float n100 = hash13(i + vec3(1.0, 0.0, 0.0));
+  float n010 = hash13(i + vec3(0.0, 1.0, 0.0));
+  float n110 = hash13(i + vec3(1.0, 1.0, 0.0));
+  float n001 = hash13(i + vec3(0.0, 0.0, 1.0));
+  float n101 = hash13(i + vec3(1.0, 0.0, 1.0));
+  float n011 = hash13(i + vec3(0.0, 1.0, 1.0));
+  float n111 = hash13(i + vec3(1.0, 1.0, 1.0));
+  float nx00 = mix(n000, n100, f.x);
+  float nx10 = mix(n010, n110, f.x);
+  float nx01 = mix(n001, n101, f.x);
+  float nx11 = mix(n011, n111, f.x);
+  return mix(mix(nx00, nx10, f.y), mix(nx01, nx11, f.y), f.z);
+}
+
+float fbm(vec3 p){
+  float r = 0.0;
+  float a = 0.5;
+  for (int i = 0; i < 3; i++){
+    r += a * noise3(p);
+    p = p * 2.03 + vec3(1.7, 9.2, 3.1);
+    a *= 0.5;
+  }
+  return r;
+}
+
+float smin(float a, float b, float k){
+  float h = clamp(0.5 + 0.5 * (b - a) / k, 0.0, 1.0);
+  return mix(b, a, h) - k * h * (1.0 - h);
+}
+
+vec3 pal(float t, vec3 a, vec3 b, vec3 c, vec3 d){
+  return a + b * cos(6.28318 * (c * t + d));
+}
+
+float map(vec3 p){
+  float t = uTime * 0.35;
+  float breathe = 1.0 + 0.06 * sin(uTime * 1.2) + uPulse * 0.05 * sin(uTime * 9.0);
+  vec3 q = p / breathe;
+  float warp = 0.25 + 0.75 * smoothstep(0.15, 0.85, uScroll);
+  warp *= 1.0 - 0.45 * smoothstep(0.92, 1.0, uScroll);
+  q += (0.10 + 0.26 * warp) * vec3(
+    sin(q.y * 2.1 + t * 1.7),
+    sin(q.z * 1.8 + t * 1.3),
+    sin(q.x * 2.3 + t * 1.1));
+  float d = length(q) - 1.0;
+  float divide = smoothstep(0.10, 0.45, uScroll) * (1.0 - smoothstep(0.75, 0.95, uScroll));
+  for (int i = 0; i < 4; i++){
+    float fi = float(i);
+    vec3 off = vec3(
+      sin(t * 0.9 + fi * 1.71),
+      cos(t * 0.7 + fi * 2.33),
+      sin(t * 0.8 + fi * 3.07)) * (0.30 + 0.95 * divide);
+    d = smin(d, length(q - off) - (0.30 - 0.10 * divide), 0.50 - 0.26 * divide);
+  }
+  float detail = mix(0.04, 0.20, smoothstep(0.55, 0.80, uScroll)) + uPulse * 0.10;
+  d -= fbm(q * 2.6 + t * 0.6) * detail;
+  d -= uPulse * 0.12;
+  return d * 0.75;
+}
+
+vec3 calcNormal(vec3 p){
+  vec2 e = vec2(0.0016, -0.0016);
+  return normalize(
+    e.xyy * map(p + e.xyy) +
+    e.yyx * map(p + e.yyx) +
+    e.yxy * map(p + e.yxy) +
+    e.xxx * map(p + e.xxx));
+}
+
+void main(){
+  vec2 uv = (gl_FragCoord.xy * 2.0 - uRes) / min(uRes.x, uRes.y);
+  uv += (vec2(hash13(vec3(gl_FragCoord.xy, uTime)),
+              hash13(vec3(gl_FragCoord.yx, uTime + 7.0))) - 0.5) * uPulse * 0.03;
+
+  float ang = uTime * 0.06 + uScroll * 2.4;
+  vec3 ro = vec3(2.9 * sin(ang), 0.15 + uMouse.y * 0.4, 2.9 * cos(ang));
+  vec3 ta = vec3(0.0);
+  vec3 fwd = normalize(ta - ro);
+  vec3 rgt = normalize(cross(fwd, vec3(0.0, 1.0, 0.0)));
+  vec3 up  = cross(rgt, fwd);
+  vec3 rd  = normalize(uv.x * rgt + uv.y * up + 1.4 * fwd);
+  rd = normalize(rd + vec3(uMouse * 0.05, 0.0));
+
+  float t = 0.0;
+  float glow = 0.0;
+  float d = 0.0;
+  bool hit = false;
+  vec3 p = ro;
+  for (int i = 0; i < 88; i++){
+    p = ro + rd * t;
+    d = map(p);
+    glow += exp(-max(d, 0.0) * 6.0) * 0.012;
+    if (d < 0.0012){ hit = true; break; }
+    t += d;
+    if (t > 7.0) break;
+  }
+
+  float bg = fbm(rd * 3.0 + vec3(0.0, uTime * 0.02, 0.0));
+  vec3 col = mix(vec3(0.012, 0.008, 0.030), vec3(0.050, 0.020, 0.090), bg);
+  float star = pow(noise3(rd * 90.0), 18.0);
+  col += vec3(0.8, 0.9, 1.2) * star * 1.4;
+
+  if (hit){
+    vec3 n = calcNormal(p);
+    vec3 ldir = normalize(vec3(0.6, 0.8, 0.5));
+    float dif  = clamp(dot(n, ldir), 0.0, 1.0);
+    float fres = pow(1.0 - clamp(dot(n, -rd), 0.0, 1.0), 3.0);
+    float hue  = n.y * 0.5 + fres * 0.7 + uScroll * 1.6 + uTime * 0.03;
+    vec3 tint  = pal(hue,
+      vec3(0.5, 0.5, 0.5),
+      vec3(0.5, 0.5, 0.5),
+      vec3(1.0, 1.0, 1.0),
+      vec3(0.00 + uScroll * 0.20, 0.33, 0.67 + uScroll * 0.10));
+    col = tint * (0.12 + dif * 0.80) + tint * fres * 1.5;
+    vec3 hv = normalize(ldir - rd);
+    col += vec3(1.0) * pow(clamp(dot(n, hv), 0.0, 1.0), 60.0) * 0.9;
+  }
+
+  vec3 glowCol = pal(uScroll * 2.0 + 0.3,
+    vec3(0.45, 0.35, 0.55),
+    vec3(0.35, 0.35, 0.35),
+    vec3(1.0, 1.0, 1.0),
+    vec3(0.0, 0.33, 0.67));
+  col += glowCol * glow * (1.1 + uVel * 2.0 + uPulse * 2.5);
+  col += glowCol * uVel * 0.25 * pow(1.0 - abs(uv.y), 8.0);
+
+  float sat = 1.0 + 0.55 * smoothstep(0.55, 0.80, uScroll) + uPulse * 0.4;
+  col = mix(vec3(dot(col, vec3(0.3333))), col, sat);
+  col = max(col, 0.0);
+
+  float vig = 1.0 - dot(uv * 0.55, uv * 0.55);
+  col *= clamp(vig, 0.0, 1.0);
+
+  float gr = hash13(vec3(gl_FragCoord.xy, fract(uTime) * 100.0));
+  col += (gr - 0.5) * 0.045;
+  col = max(col, 0.0);
+
+  col = col / (1.0 + col);
+  col = pow(col, vec3(0.4545));
+  frag = vec4(col, 1.0);
+}`
+
+function compileShader(gl, type, src){
+  const s = gl.createShader(type)
+  gl.shaderSource(s, src)
+  gl.compileShader(s)
+  if (!gl.getShaderParameter(s, gl.COMPILE_STATUS)){
+    console.error('shader error:', gl.getShaderInfoLog(s))
+    return null
+  }
+  return s
+}
+
+function createGL(canvas){
+  const gl = canvas.getContext('webgl2', {
+    alpha: false, antialias: false, depth: false, powerPreference: 'high-performance'
+  })
+  if (!gl) return null
+  const vs = compileShader(gl, gl.VERTEX_SHADER, VERT)
+  const fs = compileShader(gl, gl.FRAGMENT_SHADER, FRAG)
+  if (!vs || !fs) return null
+  const prog = gl.createProgram()
+  gl.attachShader(prog, vs)
+  gl.attachShader(prog, fs)
+  gl.linkProgram(prog)
+  if (!gl.getProgramParameter(prog, gl.LINK_STATUS)){
+    console.error('link error:', gl.getProgramInfoLog(prog))
+    return null
+  }
+  // 全屏三角形:比四边形少一个顶点,也无需索引
+  const vao = gl.createVertexArray()
+  gl.bindVertexArray(vao)
+  const buf = gl.createBuffer()
+  gl.bindBuffer(gl.ARRAY_BUFFER, buf)
+  gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1, -1, 3, -1, -1, 3]), gl.STATIC_DRAW)
+  gl.enableVertexAttribArray(0)
+  gl.vertexAttribPointer(0, 2, gl.FLOAT, false, 0, 0)
+
+  const u = {}
+  for (const name of ['uRes', 'uTime', 'uScroll', 'uVel', 'uPulse', 'uMouse'])
+    u[name] = gl.getUniformLocation(prog, name)
+
+  canvas.addEventListener('webglcontextlost', e => {
+    e.preventDefault()
+    document.body.classList.add('no-gl')
+  })
+
+  return {
+    resize(w, h){
+      canvas.width = Math.max(1, Math.round(w))
+      canvas.height = Math.max(1, Math.round(h))
+    },
+    draw(st){
+      gl.viewport(0, 0, canvas.width, canvas.height)
+      gl.useProgram(prog)
+      gl.uniform2f(u.uRes, canvas.width, canvas.height)
+      gl.uniform1f(u.uTime, st.time)
+      gl.uniform1f(u.uScroll, st.scroll)
+      gl.uniform1f(u.uVel, st.vel)
+      gl.uniform1f(u.uPulse, st.pulse)
+      gl.uniform2f(u.uMouse, st.mx, st.my)
+      gl.bindVertexArray(vao)
+      gl.drawArrays(gl.TRIANGLES, 0, 3)
+    }
+  }
+}
+
+const glCanvas = $('#glCanvas')
+const fxCanvas = $('#fxCanvas')
+const glr = createGL(glCanvas)
+if (!glr) document.body.classList.add('no-gl')
+
+/* 自适应分辨率:帧率不足时逐级降 DPR,充裕时回升;
+   与其掉帧卡顿,不如让像素「呼吸」 */
+const dprSteps = [...new Set([Math.min(devicePixelRatio || 1, 1.5), 1.25, 1, 0.8, 0.66])]
+let dprIdx = 0
+let lastQChange = 0
+
+function resizeCanvases(){
+  const dpr = dprSteps[dprIdx]
+  if (glr) glr.resize(innerWidth * dpr, innerHeight * dpr)
+  const fdpr = Math.min(devicePixelRatio || 1, 2)
+  fxCanvas.width  = Math.round(innerWidth * fdpr)
+  fxCanvas.height = Math.round(innerHeight * fdpr)
+}
+
+/* ============================================================
+   程序化音频:全部合成,无音频文件
+   滚动速度→滤波亮度,场景切换→五声音阶拨弦
+   ============================================================ */
+let sound = null
+function createSound(){
+  const AC = window.AudioContext || window.webkitAudioContext
+  if (!AC) return null
+  const ctx = new AC()
+  const master = ctx.createGain()
+  master.gain.value = 0
+  const comp = ctx.createDynamicsCompressor()
+  master.connect(comp)
+  comp.connect(ctx.destination)
+
+  // 低音心跳:LFO 直挂 gain 参数,零定时器
+  const sub = ctx.createOscillator()
+  sub.type = 'sine'
+  sub.frequency.value = 36.71 // D1
+  const subGain = ctx.createGain()
+  subGain.gain.value = 0
+  const subLFO = ctx.createOscillator()
+  subLFO.frequency.value = 0.55
+  const subLFOGain = ctx.createGain()
+  subLFOGain.gain.value = 0.10
+  subLFO.connect(subLFOGain)
+  subLFOGain.connect(subGain.gain)
+  sub.connect(subGain)
+  subGain.connect(master)
+
+  // 双失谐锯齿垫 → 低通:暗色氛围基底
+  const o1 = ctx.createOscillator(); o1.type = 'sawtooth'; o1.frequency.value = 73.42 // D2
+  const o2 = ctx.createOscillator(); o2.type = 'sawtooth'; o2.frequency.value = 73.42 * 1.008
+  const filt = ctx.createBiquadFilter()
+  filt.type = 'lowpass'; filt.frequency.value = 240; filt.Q.value = 8
+  const padGain = ctx.createGain()
+  padGain.gain.value = 0.05
+  const lfo = ctx.createOscillator()
+  lfo.frequency.value = 0.07
+  const lfoGain = ctx.createGain()
+  lfoGain.gain.value = 120
+  lfo.connect(lfoGain)
+  lfoGain.connect(filt.frequency)
+  o1.connect(filt); o2.connect(filt)
+  filt.connect(padGain)
+  padGain.connect(master)
+
+  // 呼吸噪声:循环噪声缓冲 + 带通,速度越快越「喘息」
+  const noiseBuf = ctx.createBuffer(1, ctx.sampleRate * 2, ctx.sampleRate)
+  const nd = noiseBuf.getChannelData(0)
+  for (let i = 0; i < nd.length; i++) nd[i] = Math.random() * 2 - 1
+  const noise = ctx.createBufferSource()
+  noise.buffer = noiseBuf
+  noise.loop = true
+  const bp = ctx.createBiquadFilter()
+  bp.type = 'bandpass'; bp.frequency.value = 900; bp.Q.value = 0.8
+  const nGain = ctx.createGain()
+  nGain.gain.value = 0.012
+  noise.connect(bp); bp.connect(nGain); nGain.connect(master)
+
+  for (const n of [sub, subLFO, o1, o2, lfo, noise]) n.start()
+
+  // D 小调五声:任何时机触发都不会难听
+  const pent = [146.83, 174.61, 196.0, 220.0, 261.63]
+  function pluck(i, vol = 0.16){
+    if (ctx.state === 'suspended') ctx.resume()
+    const f = pent[((i % pent.length) + pent.length) % pent.length] * (i >= 5 ? 2 : 1)
+    const t = ctx.currentTime
+    const g = ctx.createGain()
+    g.gain.setValueAtTime(0.0001, t)
+    g.gain.exponentialRampToValueAtTime(vol, t + 0.012)
+    g.gain.exponentialRampToValueAtTime(0.0001, t + 0.9)
+    const a = ctx.createOscillator(); a.type = 'triangle'; a.frequency.value = f
+    const b = ctx.createOscillator(); b.type = 'sine'; b.frequency.value = f * 2.01
+    a.connect(g); b.connect(g)
+    g.connect(master)
+    a.start(t); b.start(t)
+    a.stop(t + 1); b.stop(t + 1)
+  }
+
+  return {
+    pluck,
+    setOn(on){
+      if (on && ctx.state === 'suspended') ctx.resume()
+      master.gain.setTargetAtTime(on ? 0.14 : 0, ctx.currentTime, 0.25)
+    },
+    update(vel, scroll, pulse){
+      const t = ctx.currentTime
+      filt.frequency.setTargetAtTime(240 + scroll * 900 + vel * 2600 + pulse * 1500, t, 0.08)
+      nGain.gain.setTargetAtTime(0.012 + vel * 0.15 + pulse * 0.10, t, 0.10)
+      padGain.gain.setTargetAtTime(0.05 + scroll * 0.03, t, 0.20)
+    }
+  }
+}
+
+const sndBtn = $('#sndBtn'), sndIcon = $('#sndIcon'), sndTxt = $('#sndTxt')
+let soundOn = false
+sndBtn.addEventListener('click', () => {
+  if (!sound) sound = createSound()
+  soundOn = !soundOn && !!sound
+  if (sound) sound.setOn(soundOn)
+  sndBtn.setAttribute('aria-pressed', String(soundOn))
+  sndIcon.classList.toggle('on', soundOn)
+  sndTxt.textContent = soundOn ? 'sound on' : 'sound off'
+  if (soundOn) sound.pluck(4, 0.18)
+})
+
+/* ============================================================
+   减弱动态开关:与系统偏好并联,用户可随时覆盖
+   ============================================================ */
+const motBtn = $('#motBtn')
+function applyReduced(){
+  document.body.classList.toggle('reduced', reduced)
+  motBtn.setAttribute('aria-pressed', String(reduced))
+  motBtn.textContent = reduced ? 'alive' : 'calm'
+}
+motBtn.addEventListener('click', () => { reduced = !reduced; applyReduced() })
+reduceMQ.addEventListener?.('change', e => { reduced = e.matches; applyReduced() })
+applyReduced()
+
+/* ============================================================
+   文本切分:外层 .cw 负责 clip 入场,内层 .char 留给物理
+   ============================================================ */
+function wrapChars(el){
+  const text = el.textContent
+  el.textContent = ''
+  const chars = []
+  let i = 0
+  for (const ch of text){
+    const cw = document.createElement('span')
+    cw.className = 'cw'
+    cw.style.setProperty('--i', i++)
+    const c = document.createElement('span')
+    c.className = 'char'
+    c.textContent = ch
+    cw.appendChild(c)
+    el.appendChild(cw)
+    chars.push(c)
+  }
+  return chars
+}
+$$('.chars').forEach(el => wrapChars(el))
+// 标题字符的弹簧质点:鼠标斥力 + 回位弹簧
+const heroChars = $$('#heroTitle .char').map(el => ({ el, x: 0, y: 0, vx: 0, vy: 0 }))
+
+const io = new IntersectionObserver(entries => {
+  for (const e of entries) e.target.classList.toggle('in', e.isIntersecting)
+}, { threshold: 0.2 })
+$$('.chars, .reveal').forEach(el => io.observe(el))
+
+/* ============================================================
+   自定义光标 + 磁性元素 + 点击涟漪
+   ============================================================ */
+const cursorEl = $('.cursor'), dotEl = $('.cursor-dot'), ringEl = $('.cursor-ring')
+const cursorLabel = $('#cursorLabel')
+const mouse = { x: innerWidth / 2, y: innerHeight / 2, nx: 0, ny: 0 }
+let ringX = mouse.x, ringY = mouse.y
+
+addEventListener('pointermove', e => {
+  mouse.x = e.clientX
+  mouse.y = e.clientY
+  mouse.nx = (e.clientX / innerWidth) * 2 - 1
+  mouse.ny = -((e.clientY / innerHeight) * 2 - 1)
+}, { passive: true })
+
+document.addEventListener('mouseover', e => {
+  const t = e.target.closest?.('[data-cursor]')
+  cursorEl.classList.toggle('big', !!t)
+  cursorLabel.textContent = t ? t.dataset.cursor : ''
+})
+addEventListener('pointerdown', e => {
+  cursorEl.classList.add('down')
+  if (!finePointer || reduced) return
+  ripple(e.clientX, e.clientY)
+  spawnBurst(e.clientX, e.clientY, 14)
+  pulse = Math.min(1, pulse + 0.25) // 每次点击都是一次喂食
+}, { passive: true })
+addEventListener('pointerup', () => cursorEl.classList.remove('down'), { passive: true })
+
+function ripple(x, y){
+  const r = document.createElement('div')
+  r.className = 'ripple'
+  r.style.left = x + 'px'
+  r.style.top = y + 'px'
+  document.body.appendChild(r)
+  r.addEventListener('animationend', () => r.remove())
+}
+
+// 磁性吸附:按钮朝光标轻微偏移,像被引力捕捉
+$$('.mag').forEach(el => {
+  el.addEventListener('pointermove', e => {
+    if (reduced) return
+    const r = el.getBoundingClientRect()
+    const dx = e.clientX - (r.left + r.width / 2)
+    const dy = e.clientY - (r.top + r.height / 2)
+    el.style.transform = `translate(${dx * 0.18}px, ${dy * 0.18}px)`
+  })
+  el.addEventListener('pointerleave', () => { el.style.transform = '' })
+})
+
+function updateCursor(dt){
+  if (!finePointer) return
+  dotEl.style.transform = `translate3d(${mouse.x}px,${mouse.y}px,0) translate(-50%,-50%)`
+  ringX = reduced ? mouse.x : damp(ringX, mouse.x, 14, dt)
+  ringY = reduced ? mouse.y : damp(ringY, mouse.y, 14, dt)
+  ringEl.style.transform = `translate3d(${ringX}px,${ringY}px,0) translate(-50%,-50%)`
+}
+
+/* ============================================================
+   标题字符弹簧物理:每个字符都是受鼠标斥力的质点
+   ============================================================ */
+const heroTitle = $('#heroTitle')
+function updateLetters(){
+  if (reduced || !finePointer || !heroChars.length) return
+  const hr = heroTitle.getBoundingClientRect()
+  if (hr.bottom < -120 || hr.top > innerHeight + 120) return
+  for (const L of heroChars){
+    const r = L.el.getBoundingClientRect()
+    // rect 已包含自身位移,减去才是「家」的位置
+    const cx = r.left + r.width / 2 - L.x
+    const cy = r.top + r.height / 2 - L.y
+    const dx = cx - mouse.x
+    const dy = cy - mouse.y
+    const dist = Math.hypot(dx, dy) || 1
+    const R = 150
+    let fx = 0, fy = 0
+    if (dist < R){
+      const f = (1 - dist / R) * 2.4
+      fx += dx / dist * f
+      fy += dy / dist * f
+    }
+    if (pulse > 0){ // 「刺激」冲击波:随机抖动模拟细胞膜震颤
+      fx += (Math.random() - 0.5) * pulse * 7
+      fy += (Math.random() - 0.5) * pulse * 7
+    }
+    L.vx = (L.vx + fx - L.x * 0.16) * 0.86
+    L.vy = (L.vy + fy - L.y * 0.16) * 0.86
+    L.x += L.vx
+    L.y += L.vy
+    L.el.style.transform =
+      `translate3d(${L.x.toFixed(2)}px,${L.y.toFixed(2)}px,0) rotate(${(L.vx * 0.5).toFixed(2)}deg)`
+  }
+}
+function kickLetters(){
+  for (const L of heroChars){
+    L.vx += (Math.random() - 0.5) * 14
+    L.vy += (Math.random() - 0.5) * 14
+  }
+}
+
+/* ============================================================
+   孢子粒子层:上浮、避鼠、近邻连线构成神经网
+   ============================================================ */
+const fctx = fxCanvas.getContext('2d')
+const pts = []
+const bursts = []
+let fxDirty = false
+
+function seedPts(){
+  pts.length = 0
+  const n = finePointer ? 110 : 50
+  for (let i = 0; i < n; i++){
+    pts.push({
+      x: Math.random() * fxCanvas.width,
+      y: Math.random() * fxCanvas.height,
+      r: 0.6 + Math.random() * 1.6,
+      sp: 0.4 + Math.random() * 1.0,
+      ph: Math.random() * 6.2832
+    })
+  }
+}
+function spawnBurst(cx, cy, n = 16){
+  const d = fxCanvas.width / innerWidth
+  for (let i = 0; i < n; i++){
+    const a = Math.random() * 6.2832
+    const sp = (80 + Math.random() * 260) * d
+    bursts.push({
+      x: cx * d, y: cy * d,
+      vx: Math.cos(a) * sp, vy: Math.sin(a) * sp,
+      r: 1 + Math.random() * 2, life: 0.5 + Math.random() * 0.4
+    })
+  }
+}
+
+function updateParticles(dt){
+  if (!fctx) return
+  if (reduced){ // 静态模式:只清一次屏,不再每帧重绘
+    if (fxDirty){ fctx.clearRect(0, 0, fxCanvas.width, fxCanvas.height); fxDirty = false }
+    return
+  }
+  fxDirty = true
+  const w = fxCanvas.width, h = fxCanvas.height
+  const d = w / innerWidth
+  fctx.clearRect(0, 0, w, h)
+  const rise = (14 + vel * 260) * dt * d
+  const mxp = mouse.x * d, myp = mouse.y * d
+
+  for (const p of pts){
+    p.y -= rise * p.sp
+    p.x += Math.sin(simTime * 0.4 + p.ph) * 0.12 * d
+    if (finePointer){
+      const dx = p.x - mxp, dy = p.y - myp
+      const d2 = dx * dx + dy * dy
+      const R = 120 * d
+      if (d2 < R * R && d2 > 0.01){
+        const dd = Math.sqrt(d2)
+        const f = (1 - dd / R) * 2.4 * d
+        p.x += dx / dd * f
+        p.y += dy / dd * f
+      }
+    }
+    if (p.y < -10){ p.y = h + 10; p.x = Math.random() * w }
+    if (p.x < -10) p.x = w + 10
+    else if (p.x > w + 10) p.x = -10
+  }
+
+  // 神经连线:先轴对齐粗判再算距离,避免每对都开方
+  const L = 90 * d, L2 = L * L
+  fctx.strokeStyle = 'rgba(180,170,255,0.13)'
+  fctx.lineWidth = d
+  fctx.beginPath()
+  for (let i = 0; i < pts.length; i++){
+    const a = pts[i]
+    for (let j = i + 1; j < pts.length; j++){
+      const b = pts[j]
+      const dx = a.x - b.x
+      if (dx > L || dx < -L) continue
+      const dy = a.y - b.y
+      if (dy > L || dy < -L) continue
+      if (dx * dx + dy * dy < L2){ fctx.moveTo(a.x, a.y); fctx.lineTo(b.x, b.y) }
+    }
+  }
+  fctx.stroke()
+
+  fctx.fillStyle = 'rgba(230,225,255,0.55)'
+  for (const p of pts){
+    fctx.beginPath()
+    fctx.arc(p.x, p.y, p.r * d, 0, 6.2832)
+    fctx.fill()
+  }
+
+  for (let i = bursts.length - 1; i >= 0; i--){
+    const b = bursts[i]
+    b.x += b.vx * dt; b.y += b.vy * dt
+    b.vx *= 0.94; b.vy *= 0.94
+    b.life -= dt
+    if (b.life <= 0){ bursts.splice(i, 1); continue }
+    fctx.fillStyle = `rgba(200,190,255,${(b.life * 0.9).toFixed(3)})`
+    fctx.beginPath()
+    fctx.arc(b.x, b.y, b.r * d, 0, 6.2832)
+    fctx.fill()
+  }
+}
+
+/* ============================================================
+   跑马灯:基础速度 + 滚动速度加成,取模无缝循环
+   ============================================================ */
+const track = $('#marqueeTrack')
+track.innerHTML += track.innerHTML // 复制一份,取模回绕
+let marqueeX = 0, marqueeHalf = 0
+function updateMarquee(dt){
+  if (!marqueeHalf) return
+  const speed = reduced ? 0 : (34 + vel * 1500)
+  marqueeX = (marqueeX - speed * dt) % marqueeHalf
+  track.style.transform = `translate3d(${marqueeX.toFixed(1)}px,0,0)`
+}
+
+/* ============================================================
+   场景系统:sticky 视差 + 活动场景检测 + 无障播报
+   ============================================================ */
+const sections = $$('.scene').map((el, i) => ({
+  el,
+  inner: $('.inner', el),
+  ghost: $('.ghost', el),
+  name: el.dataset.name || `Scene ${i + 1}`,
+  top: 0, height: 0
+}))
+const railLinks = $$('.rail a')
+const srStatus = $('#srStatus')
+const bar = $('#bar')
+let sceneIdx = -1
+let maxScroll = 1
+
+function measure(){
+  const sy = scrollY
+  for (const s of sections){
+    const r = s.el.getBoundingClientRect()
+    s.top = r.top + sy
+    s.height = r.height
+  }
+  maxScroll = Math.max(1, document.documentElement.scrollHeight - innerHeight)
+  marqueeHalf = track.scrollWidth / 2
+  resizeCanvases()
+}
+
+function onScene(i){
+  railLinks.forEach((a, j) => a.classList.toggle('on', j === i))
+  srStatus.textContent = `Scene ${i + 1}: ${sections[i].name}`
+  document.body.dataset.scene = i
+  if (soundOn && sound) sound.pluck(i, 0.10)
+}
+
+function updateSections(spx){
+  const vh = innerHeight
+  let idx = 0
+  for (let i = 0; i < sections.length; i++){
+    const s = sections[i]
+    if (spx + vh * 0.5 >= s.top) idx = i
+    const start = s.top - vh, end = s.top + s.height
+    if (spx < start || spx > end) continue
+    const p = (spx - start) / (end - start)
+    const off = p - 0.5
+    if (s.inner) s.inner.style.transform = `translate3d(0,${(-off * 60).toFixed(1)}px,0)`
+    if (s.ghost) s.ghost.style.transform = `translateY(calc(-50% + ${(off * vh * 0.35).toFixed(1)}px))`
+  }
+  if (idx !== sceneIdx){ sceneIdx = idx; onScene(idx) }
+}
+
+/* 刺激按钮:脉冲喂给 GL、粒子、音频与标题字符 */
+let pulse = 0
+$$('.stim').forEach(btn => btn.addEventListener('click', e => {
+  pulse = 1
+  kickLetters()
+  spawnBurst(e.clientX, e.clientY, 26)
+  if (soundOn && sound) sound.pluck(sceneIdx + 2, 0.22)
+}))
+$('#againBtn').addEventListener('click', () =>
+  scrollTo({ top: 0, behavior: reduced ? 'auto' : 'smooth' }))
+
+// 数字键 1–5 跳转场景:键盘用户也能「遛」这个生命体
+addEventListener('keydown', e => {
+  if (e.metaKey || e.ctrlKey || e.altKey) return
+  const n = parseInt(e.key, 10)
+  if (n >= 1 && n <= sections.length)
+    scrollTo({ top: sections[n - 1].top + 1, behavior: reduced ? 'auto' : 'smooth' })
+})
+
+/* ============================================================
+   遥测面板:把物理量实时暴露,强化「仪器」叙事
+   ============================================================ */
+const tVel = $('#tVel'), tFps = $('#tFps'), tDpr = $('#tDpr'), tCell = $('#tCell')
+let telTick = 0
+function updateTelemetry(){
+  if ((telTick = (telTick + 1) % 6) !== 0) return
+  tVel.textContent = vel.toFixed(3)
+  tFps.textContent = String(Math.round(fps))
+  tDpr.textContent = dprSteps[dprIdx].toFixed(2)
+  const divide = sstep(0.10, 0.45, smooth) * (1 - sstep(0.75, 0.95, smooth))
+  tCell.textContent = String(1 + Math.round(divide * 4))
+}
+
+/* ============================================================
+   自适应画质:每 0.5s 评估一次,掉帧降 DPR、充裕回升,
+   2s 冷却避免来回震荡
+   ============================================================ */
+function autoQuality(now){
+  if (now - lastQChange < 2000) return
+  if (fps < 45 && dprIdx < dprSteps.length - 1){
+    dprIdx++; lastQChange = now; resizeCanvases()
+  } else if (fps > 57 && dprIdx > 0){
+    dprIdx--; lastQChange = now; resizeCanvases()
+  }
+}
+
+/* ============================================================
+   主循环:单一 rAF 驱动所有系统,避免多回路争抢
+   ============================================================ */
+let last = performance.now()
+let simTime = 0
+let smooth = 0, vel = 0, prevTarget = 0
+let smx = 0, smy = 0
+let fps = 60, fpsAcc = 0, fpsFrames = 0
+let booted = false
+
+function frame(now){
+  requestAnimationFrame(frame)
+  const dt = clamp((now - last) / 1000, 0.0001, 0.05)
+  last = now
+
+  fpsAcc += dt; fpsFrames++
+  if (fpsAcc >= 0.5){
+    fps = fpsFrames / fpsAcc
+    fpsAcc = 0; fpsFrames = 0
+    autoQuality(now)
+  }
+
+  // 滚动物理:目标值即真实滚动,平滑值驱动视觉,
+  // 速度是「情绪」,喂给 GL / 粒子 / 音频 / 跑马灯
+  const target = clamp(scrollY / maxScroll, 0, 1)
+  const instVel = Math.abs(target - prevTarget) / dt
+  prevTarget = target
+  vel = damp(vel, clamp(instVel * 0.06, 0, 1), 6, dt)
+  smooth = reduced ? target : damp(smooth, target, 7, dt)
+  if (!reduced) simTime += dt // 减弱动态时冻结时间,画面静止但仍响应滚动
+  pulse = Math.max(0, pulse - dt * 1.2)
+  smx = damp(smx, mouse.nx, 8, dt)
+  smy = damp(smy, mouse.ny, 8, dt)
+
+  if (glr) glr.draw({ time: simTime, scroll: smooth, vel, pulse, mx: smx, my: smy })
+  updateCursor(dt)
+  updateLetters()
+  updateParticles(dt)
+  updateMarquee(dt)
+  updateSections(smooth * maxScroll)
+  bar.style.transform = `scaleX(${smooth.toFixed(4)})`
+  if (soundOn && sound) sound.update(vel, smooth, pulse)
+  updateTelemetry()
+
+  if (!booted){
+    booted = true
+    document.body.classList.add('booted')
+  }
+}
+
+addEventListener('resize', measure, { passive: true })
+addEventListener('load', measure)
+if (document.fonts?.ready) document.fonts.ready.then(measure)
+
+measure()
+seedPts()
+requestAnimationFrame(frame)
+// 兜底:即使首帧异常也移除开机遮罩,不阻塞内容
+setTimeout(() => document.body.classList.add('booted'), 1500)
+
+})()
+</script>
+</body>
+</html>

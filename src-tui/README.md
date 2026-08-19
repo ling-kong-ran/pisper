@@ -76,7 +76,7 @@ Web 前端已安装时，可在 TUI 中输入 `/web` 再次打开配置页；尚
 pisper
 ```
 
-普通 `pisper` 始终创建空会话，不会自动打开历史记录。显式使用 `resume` 会打开跨所有 workspace 的交互式会话列表；使用方向键选择，按 `Enter` 恢复，按 `Esc` 退出：
+普通 `pisper` 始终创建空会话，不会自动打开历史记录。显式使用 `resume` 会打开跨所有目录的交互式会话列表；使用方向键选择，按 `Enter` 恢复，按 `Esc` 退出：
 
 ```bash
 pisper resume
@@ -96,7 +96,7 @@ pisper --cwd /path/to/project
 pisper doctor
 ```
 
-诊断输出会列出 sidecar 连接来源、TUI 启动目录、sidecar runtime fallback 目录，以及该 workspace 的最近会话目录，便于定位目录继承问题。
+诊断输出会列出 sidecar 连接来源、TUI 启动目录、sidecar runtime fallback 目录，以及该目录下最近的会话，便于定位目录继承问题。
 
 ## Composer 与消息流
 
@@ -119,9 +119,9 @@ TUI 默认使用终端真彩色，并在 `TERM` 表明仅支持 256 色时自动
 
 | 命令 | 作用 |
 | :--- | :--- |
-| `/init` | 分析当前项目并创建或完善 workspace 根目录的 `AGENTS.md`。 |
-| `/new` | 在 TUI 启动时的 workspace 新建空会话；运行期间不可执行。 |
-| `/sessions` | 打开跨所有 workspace 的历史会话选择器；按 `Enter` 恢复，运行期间不可切换。 |
+| `/init` | 分析当前项目并创建或完善项目根目录的 `AGENTS.md`。 |
+| `/new` | 在 TUI 启动目录新建空会话；运行期间不可执行。 |
+| `/sessions` | 打开跨所有目录的历史会话选择器；按 `Enter` 恢复，运行期间不可切换。 |
 | `/dir <目录>` | 显式修改当前会话的工作目录；相对路径以当前会话目录为基准，运行期间不可修改。 |
 | `/changes` | 查看 Git 或 SVN 工作区改动；改动页中 `R` 刷新、`C` 提交、`P` 推送 Git、连续按两次 `V` 撤销；SVN 没有 Push。 |
 | `/changes commit <message>` | 使用指定 message 提交当前 Git/SVN 工作区改动。 |
@@ -131,7 +131,7 @@ TUI 默认使用终端真彩色，并在 `TERM` 表明仅支持 256 色时自动
 | `/provider` | 编辑 Provider 的协议类型、当前生效 Base URL 和掩码 API Key；`/provider <id>` 可直达指定 Provider，`/apikey` 为兼容别名。 |
 | `/web` | 使用已安装的 Web 前端，在默认浏览器打开本机认证配置页。 |
 | `/compact` | 立即摘要较早上下文；仅用于已有可压缩历史的空闲会话。 |
-| `/attach` | 打开 workspace 文件选择器。 |
+| `/attach` | 打开当前目录的文件选择器。 |
 | `/mode` | 显示当前执行模式和可用参数；运行期间也可随时调整。 |
 | `/mode read-only` | 只开放低风险分析工具，不允许修改项目。 |
 | `/mode full-access` | 允许本机文件、网络和 Shell 完整访问。 |
@@ -155,11 +155,11 @@ Agent 创建结构化 Plan 后，TUI 会在消息流和 Composer 之间原位显
 
 - `Up` / `Down`：选择文件或目录。
 - `Enter` / `Right`：进入目录或添加文件。
-- `Left`：返回上级目录，但不会越过当前 workspace。
+- `Left`：返回上级目录，但不会越过当前目录。
 - `Delete`：移除当前已选附件。
 - `Esc`：关闭选择器并保留 composer 草稿。
 
-安全限制与桌面端一致：最多 8 个文件，单文件不超过 10 MiB，总计不超过 20 MiB；只允许 workspace 内的图片、UTF-8 文本/代码和支持的文档。仅当当前模型明确支持图片输入时，图片才会作为视觉输入发送。
+安全限制与桌面端一致：最多 8 个文件，单文件不超过 10 MiB，总计不超过 20 MiB；只允许当前目录内的图片、UTF-8 文本/代码和支持的文档。仅当当前模型明确支持图片输入时，图片才会作为视觉输入发送。
 
 ## Tool 与 Skill
 
@@ -174,7 +174,7 @@ Tool 示例：
 /mcp_pencil_get_editor_state_f9837b9b 读取当前 Pencil 画布状态
 ```
 
-TUI 只把首个 Slash token 作为结构化 `requestedToolNames` 请求发送给 runtime。Agent 仍负责生成参数和调用 Tool，Slash 选择不会绕过 Tool 开关或当前执行模式；附件仍限制在当前 workspace 内。
+TUI 只把首个 Slash token 作为结构化 `requestedToolNames` 请求发送给 runtime。Agent 仍负责生成参数和调用 Tool，Slash 选择不会绕过 Tool 开关或当前执行模式；附件仍限制在当前目录内。
 
 Skill 示例：
 

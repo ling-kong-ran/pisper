@@ -1,0 +1,882 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>粒子场 · PARTICLE FIELD — 12 万粒子的文字成形术</title>
+<meta name="description" content="GPU 粒子剧场:transform feedback 驱动的十二万粒子,文字成形、鼠标力场、漩涡与引爆,单文件零依赖。">
+<meta name="theme-color" content="#030208">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Ccircle cx='10' cy='12' r='3' fill='%238b7bff'/%3E%3Ccircle cx='22' cy='9' r='2' fill='%2300e0c6'/%3E%3Ccircle cx='18' cy='22' r='2.5' fill='%23ff6ad5'/%3E%3C/svg%3E">
+<style>
+/* ============================================================
+   设计令牌:与 organism.html 同族,保持系列感
+   ============================================================ */
+:root{
+  --bg:#030208;
+  --ink:#f4f1ff;
+  --dim:rgba(244,241,255,.6);
+  --line:rgba(244,241,255,.14);
+  --acc:#8b7bff;
+  --acc2:#00e0c6;
+  --ease:cubic-bezier(.19,1,.22,1);
+}
+*,*::before,*::after{box-sizing:border-box}
+html,body{height:100%;overflow:hidden}
+body{
+  margin:0;background:var(--bg);color:var(--ink);
+  font-family:"Avenir Next","Helvetica Neue",Helvetica,Arial,"PingFang SC","Microsoft YaHei",sans-serif;
+  -webkit-font-smoothing:antialiased;
+}
+::selection{background:var(--acc);color:var(--bg)}
+:focus-visible{outline:2px solid var(--acc2);outline-offset:3px;border-radius:4px}
+
+canvas.field{
+  position:fixed;inset:0;width:100%;height:100%;
+  cursor:crosshair;touch-action:none; /* 接管触摸手势,避免双击缩放干扰 */
+}
+
+/* WebGL2 缺失时的兜底说明 */
+.no-gl .fallback{display:grid}
+.fallback{
+  position:fixed;inset:0;display:none;place-items:center;z-index:50;
+  background:var(--bg);text-align:center;padding:2rem;line-height:2;color:var(--dim);
+}
+
+/* ============================================================
+   UI 层:容器不挡指针,只有控件本身可点
+   ============================================================ */
+.ui{position:fixed;z-index:10;pointer-events:none}
+.ui > *{pointer-events:auto}
+
+header.ui{
+  top:0;left:0;right:0;
+  display:flex;justify-content:space-between;align-items:center;
+  padding:1.1rem 1.5rem;mix-blend-mode:difference;pointer-events:none;
+}
+.brand{
+  display:flex;align-items:center;gap:.6rem;
+  font-size:.78rem;font-weight:700;letter-spacing:.42em;text-transform:uppercase;
+}
+.brand .dot{
+  width:9px;height:9px;border-radius:50%;background:var(--ink);
+  animation:pulse 2.4s ease-in-out infinite;
+}
+@keyframes pulse{0%,100%{transform:scale(1);opacity:1}50%{transform:scale(1.7);opacity:.5}}
+.controls{display:flex;gap:.6rem;pointer-events:auto}
+
+button{
+  appearance:none;background:transparent;border:1px solid rgba(244,241,255,.38);
+  color:var(--ink);border-radius:999px;padding:.55rem 1rem;
+  font:inherit;font-size:.68rem;letter-spacing:.2em;text-transform:uppercase;
+  transition:background .25s,color .25s,transform .2s,border-color .25s;
+}
+button:hover{background:var(--ink);color:#000}
+button:active{transform:scale(.94)}
+button[aria-pressed="true"]{background:var(--ink);color:#000}
+.sbtn.on{border-color:var(--acc2);color:var(--acc2)}
+
+/* 底部坞:毛玻璃面板承载所有塑形控件 */
+.dock{
+  left:50%;bottom:1.4rem;transform:translateX(-50%);
+  display:flex;flex-wrap:wrap;justify-content:center;align-items:center;gap:.6rem;
+  max-width:min(92vw,46rem);padding:.8rem 1rem;
+  background:rgba(10,6,20,.5);border:1px solid var(--line);border-radius:1.2rem;
+  backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);
+}
+.dock input{
+  appearance:none;background:rgba(244,241,255,.07);border:1px solid var(--line);
+  border-radius:999px;color:var(--ink);padding:.6rem 1.1rem;
+  font:inherit;font-size:.8rem;letter-spacing:.08em;width:15rem;max-width:52vw;
+  transition:border-color .25s,background .25s;
+}
+.dock input:focus{outline:none;border-color:var(--acc2);background:rgba(244,241,255,.12)}
+.dock input::placeholder{color:var(--dim)}
+.shapes{display:flex;gap:.5rem}
+
+.hint{
+  left:50%;bottom:6.6rem;transform:translateX(-50%);
+  font-size:.66rem;letter-spacing:.3em;text-transform:uppercase;color:var(--dim);
+  white-space:nowrap;pointer-events:none;mix-blend-mode:difference;
+  transition:opacity 1s;
+}
+.tele{
+  right:1.2rem;bottom:1.2rem;pointer-events:none;
+  font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+  font-size:.68rem;color:var(--dim);text-align:right;line-height:1.9;
+  font-variant-numeric:tabular-nums;
+}
+.tele b{color:var(--acc2);font-weight:600}
+
+@media (max-width:640px){
+  .hint{display:none}
+  .tele{display:none}
+  .dock{bottom:.9rem;gap:.45rem;padding:.6rem .8rem}
+  .dock input{width:11rem}
+}
+
+/* 开机淡入 */
+.boot{
+  position:fixed;inset:0;z-index:200;background:var(--bg);
+  display:grid;place-items:center;transition:opacity .9s ease .1s;pointer-events:none;
+}
+.boot span{
+  font-size:clamp(1.6rem,5vw,3.2rem);font-weight:800;letter-spacing:.5em;
+  animation:pulse 1.2s ease-in-out infinite;
+}
+body.booted .boot{opacity:0}
+
+.sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+
+@media (prefers-reduced-motion:reduce){
+  *,*::before,*::after{animation-duration:.001s!important;transition-duration:.001s!important}
+}
+</style>
+</head>
+<body>
+
+<canvas class="field" id="field" aria-hidden="true"></canvas>
+
+<div class="fallback" role="alert">
+  <p>这个粒子剧场需要 WebGL2。<br>Your browser does not support WebGL2 — the particles refuse to assemble.</p>
+</div>
+
+<header class="ui">
+  <div class="brand"><span class="dot" aria-hidden="true"></span>particle field · 粒子场</div>
+  <div class="controls">
+    <button id="sndBtn" type="button" aria-pressed="false">音效 off</button>
+    <button id="calmBtn" type="button" aria-pressed="false">calm</button>
+  </div>
+</header>
+
+<p class="hint" id="hint">移动驱散 · 按住成涡 · 双击引爆 · 空格换形 · C 换色</p>
+
+<div class="ui dock" role="group" aria-label="粒子控制台">
+  <input id="txt" type="text" maxlength="14" placeholder="输入文字,回车成形 · type &amp; enter" aria-label="自定义文字">
+  <div class="shapes">
+    <button class="sbtn" type="button" data-s="word" title="切换文字 (Space)">Aa</button>
+    <button class="sbtn" type="button" data-s="heart" title="心形">♥</button>
+    <button class="sbtn" type="button" data-s="galaxy" title="银河">✦</button>
+    <button class="sbtn" type="button" data-s="ring" title="光环">◯</button>
+  </div>
+  <button id="palBtn" type="button" title="换色 (C)">换色 · <span id="palName">紫电</span></button>
+  <button id="autoBtn" type="button" aria-pressed="true">auto</button>
+</div>
+
+<div class="ui tele" aria-hidden="true">
+  <b id="tN">0</b> pts<br>
+  <b id="tFps">60</b> fps
+</div>
+
+<div class="sr" id="srStatus" role="status" aria-live="polite"></div>
+<div class="boot" aria-hidden="true"><span>✦</span></div>
+
+<noscript>
+  <p style="position:fixed;inset:0;z-index:300;background:#030208;color:#f4f1ff;display:grid;place-items:center;margin:0">
+    粒子需要 JavaScript 才能存活。
+  </p>
+</noscript>
+
+<script>
+(() => {
+'use strict'
+
+/* ============================================================
+   工具
+   ============================================================ */
+const $ = (s, r = document) => r.querySelector(s)
+const clamp = (v, a, b) => v < a ? a : v > b ? b : v
+const lerp = (a, b, t) => a + (b - a) * t
+// 帧率无关平滑,保证 144Hz 与 60Hz 下手感一致
+const damp = (a, b, l, dt) => lerp(a, b, 1 - Math.exp(-l * dt))
+// 近似高斯:三次均匀分布叠加,比 Box-Muller 便宜
+const gauss = () => (Math.random() + Math.random() + Math.random() - 1.5) * 0.8
+
+const reduceMQ = matchMedia('(prefers-reduced-motion: reduce)')
+const finePointer = matchMedia('(pointer: fine)').matches
+let reduced = reduceMQ.matches
+
+/* ============================================================
+   着色器:更新(transform feedback)/ 渲染(点精灵)/ 拖尾(渐隐)
+   ============================================================ */
+const UPDATE_VS = `#version 300 es
+precision highp float;
+
+layout(location=0) in vec4 aPosVel; // xy=位置 zw=速度
+layout(location=1) in vec2 aTarget; // 归巢目标
+layout(location=2) in float aSeed;  // 个体差异
+
+uniform float uDt;
+uniform float uTime;
+uniform float uSpringK;
+uniform float uDamp;
+uniform float uWobble;
+uniform float uMouseForce;
+uniform float uSwirl;
+uniform float uScatter;
+uniform vec2  uMouse;
+uniform vec4  uBlast;   // xy=爆心 z=强度
+uniform float uAspect;
+
+out vec4 vPosVel;
+
+// 错相正弦流场:廉价的「生命力」扰动
+vec2 flow(vec2 p, float t){
+  return vec2(
+    sin(p.y * 3.1 + t * 0.9) + sin(p.y * 7.3 - t * 1.7) * 0.5,
+    cos(p.x * 2.7 - t * 0.8) + cos(p.x * 6.1 + t * 1.3) * 0.5
+  );
+}
+
+void main(){
+  vec2 pos = aPosVel.xy;
+  vec2 vel = aPosVel.zw;
+
+  // 归巢弹簧:形状成形的核心力
+  vec2 F = (aTarget - pos) * uSpringK * (0.6 + aSeed * 0.8);
+  F += flow(pos * (1.0 + aSeed), uTime + aSeed * 17.0) * uWobble;
+
+  // 换形冲击:沿种子方向的随机踢,制造「炸开再聚拢」
+  F += vec2(sin(aSeed * 127.1 + uTime), cos(aSeed * 311.7 - uTime)) * uScatter;
+
+  // 鼠标力场:径向推/拉 + 切向漩涡
+  vec2 md = pos - uMouse;
+  float d = length(md);
+  float R = 0.30;
+  if (d < R && d > 1e-4){
+    float f = 1.0 - d / R;
+    vec2 dir = md / d;
+    F += dir * f * f * uMouseForce;
+    F += vec2(-dir.y, dir.x) * f * uSwirl;
+  }
+
+  // 定点爆破:高斯衰减的径向冲击波
+  float bl = length(pos - uBlast.xy);
+  if (uBlast.z > 0.001 && bl > 1e-4)
+    F += (pos - uBlast.xy) / bl * exp(-bl * bl * 5.0) * uBlast.z;
+
+  // 椭圆软边界:防止粒子永久飞出视野
+  float far = length(vec2(pos.x / max(uAspect, 1e-3), pos.y));
+  if (far > 1.5) F -= (pos / max(length(pos), 1e-3)) * (far - 1.5) * 26.0;
+
+  vel = (vel + F * uDt) * clamp(1.0 - uDamp * uDt, 0.0, 1.0);
+  pos += vel * uDt;
+  vPosVel = vec4(pos, vel);
+}`
+
+// transform feedback 程序只需要顶点着色器,但挂个空 FS 以兼容保守驱动
+const UPDATE_FS = `#version 300 es
+precision mediump float;
+out vec4 o;
+void main(){ o = vec4(0.0); }`
+
+const RENDER_VS = `#version 300 es
+precision highp float;
+
+layout(location=0) in vec4 aPosVel;
+layout(location=2) in float aSeed;
+
+uniform float uDpr;
+uniform float uAspect;
+uniform vec3 uColA; // 基色(慢速)
+uniform vec3 uColB; // 热色(高速)
+uniform vec3 uColC; // 点缀(种子)
+
+out vec3 vColor;
+
+void main(){
+  vec2 pos = aPosVel.xy;
+  float speed = length(aPosVel.zw);
+  gl_Position = vec4(pos.x / uAspect, pos.y, 0.0, 1.0);
+  float t = clamp(speed * 0.06, 0.0, 1.0);
+  vec3 col = mix(uColA, uColB, t);
+  vColor = mix(col, uColC, aSeed * aSeed * 0.55);
+  gl_PointSize = (1.3 + aSeed * 2.4 + t * 2.2) * uDpr;
+}`
+
+const RENDER_FS = `#version 300 es
+precision mediump float;
+in vec3 vColor;
+out vec4 frag;
+void main(){
+  float d = length(gl_PointCoord - 0.5);
+  float a = smoothstep(0.5, 0.04, d);
+  frag = vec4(vColor * a * 0.85, 1.0); // 预乘亮度,配合 ONE,ONE 加法混合
+}`
+
+// 全屏三角形:用 gl_VertexID 免顶点缓冲
+const FADE_VS = `#version 300 es
+void main(){
+  vec2 p = vec2(float((gl_VertexID << 1) & 2), float(gl_VertexID & 2));
+  gl_Position = vec4(p * 2.0 - 1.0, 0.0, 1.0);
+}`
+
+const FADE_FS = `#version 300 es
+precision mediump float;
+uniform float uFade;
+uniform vec3 uBg;
+out vec4 frag;
+void main(){ frag = vec4(uBg, uFade); }`
+
+/* ============================================================
+   GL 初始化
+   ============================================================ */
+const canvas = $('#field')
+const gl = canvas.getContext('webgl2', {
+  alpha: false, antialias: false, depth: false, stencil: false,
+  powerPreference: 'high-performance'
+})
+if (!gl){
+  document.body.classList.add('no-gl')
+  return
+}
+
+function compile(type, src){
+  const s = gl.createShader(type)
+  gl.shaderSource(s, src)
+  gl.compileShader(s)
+  if (!gl.getShaderParameter(s, gl.COMPILE_STATUS)){
+    console.error(gl.getShaderInfoLog(s))
+    return null
+  }
+  return s
+}
+function makeProgram(vsSrc, fsSrc, tfOut){
+  const p = gl.createProgram()
+  gl.attachShader(p, compile(gl.VERTEX_SHADER, vsSrc))
+  gl.attachShader(p, compile(gl.FRAGMENT_SHADER, fsSrc))
+  if (tfOut) gl.transformFeedbackVaryings(p, tfOut, gl.INTERLEAVED_ATTRIBS)
+  gl.linkProgram(p)
+  if (!gl.getProgramParameter(p, gl.LINK_STATUS)){
+    console.error(gl.getProgramInfoLog(p))
+    return null
+  }
+  return p
+}
+const U = (prog, names) => {
+  const o = {}
+  for (const n of names) o[n] = gl.getUniformLocation(prog, n)
+  return o
+}
+
+const progUpdate = makeProgram(UPDATE_VS, UPDATE_FS, ['vPosVel'])
+const uUpd = U(progUpdate, ['uDt','uTime','uSpringK','uDamp','uWobble','uMouseForce','uSwirl','uScatter','uMouse','uBlast','uAspect'])
+const progRender = makeProgram(RENDER_VS, RENDER_FS)
+const uRen = U(progRender, ['uDpr','uAspect','uColA','uColB','uColC'])
+const progFade = makeProgram(FADE_VS, FADE_FS)
+const uFad = U(progFade, ['uFade','uBg'])
+const emptyVAO = gl.createVertexArray()
+
+/* ============================================================
+   粒子系统:双缓冲状态 + 静态目标/种子,ping-pong 更新
+   ============================================================ */
+let sys = null
+let src = 0
+
+function makeBuf(data, usage){
+  const b = gl.createBuffer()
+  gl.bindBuffer(gl.ARRAY_BUFFER, b)
+  gl.bufferData(gl.ARRAY_BUFFER, data, usage)
+  return b
+}
+
+function buildSystem(N){
+  const prevPts = sys ? sys.lastPts : null // 画质重建不能丢形状,先救出来
+  if (sys){
+    for (const b of sys.stateBufs) gl.deleteBuffer(b)
+    gl.deleteBuffer(sys.targetBuf)
+    gl.deleteBuffer(sys.seedBuf)
+    for (const v of sys.vaos) gl.deleteVertexArray(v)
+    gl.deleteTransformFeedback(sys.tf)
+  }
+  const seeds = new Float32Array(N)
+  const state = new Float32Array(N * 4)
+  for (let i = 0; i < N; i++){
+    seeds[i] = Math.random()
+    // 初始撒在圆盘里,首次成形时从四周飞入,自带开场戏
+    const a = Math.random() * 6.2832, r = Math.sqrt(Math.random()) * 1.3
+    state[i * 4]     = Math.cos(a) * r * worldAspect
+    state[i * 4 + 1] = Math.sin(a) * r
+  }
+  sys = {
+    N,
+    stateBufs: [makeBuf(state, gl.DYNAMIC_COPY), makeBuf(state, gl.DYNAMIC_COPY)],
+    targetBuf: makeBuf(new Float32Array(N * 2), gl.DYNAMIC_DRAW),
+    seedBuf: makeBuf(seeds, gl.STATIC_DRAW),
+    vaos: [], tf: gl.createTransformFeedback(),
+    lastPts: null
+  }
+  for (let i = 0; i < 2; i++){
+    const v = gl.createVertexArray()
+    gl.bindVertexArray(v)
+    gl.bindBuffer(gl.ARRAY_BUFFER, sys.stateBufs[i])
+    gl.enableVertexAttribArray(0)
+    gl.vertexAttribPointer(0, 4, gl.FLOAT, false, 0, 0)
+    gl.bindBuffer(gl.ARRAY_BUFFER, sys.targetBuf)
+    gl.enableVertexAttribArray(1)
+    gl.vertexAttribPointer(1, 2, gl.FLOAT, false, 0, 0)
+    gl.bindBuffer(gl.ARRAY_BUFFER, sys.seedBuf)
+    gl.enableVertexAttribArray(2)
+    gl.vertexAttribPointer(2, 1, gl.FLOAT, false, 0, 0)
+    sys.vaos.push(v)
+  }
+  gl.bindVertexArray(null)
+  if (prevPts) applyTargets(prevPts) // 重建后恢复原形状
+}
+
+// 把一组世界坐标目标点写入 GPU,粒子数多于点数时取模复用并加微抖动
+function applyTargets(pts){
+  sys.lastPts = pts
+  const N = sys.N, n = pts.length / 2
+  const arr = new Float32Array(N * 2)
+  for (let i = 0; i < N; i++){
+    const j = (i % n) * 2
+    arr[i * 2]     = pts[j]     + (Math.random() - 0.5) * 0.004
+    arr[i * 2 + 1] = pts[j + 1] + (Math.random() - 0.5) * 0.004
+  }
+  gl.bindBuffer(gl.ARRAY_BUFFER, sys.targetBuf)
+  gl.bufferData(gl.ARRAY_BUFFER, arr, gl.DYNAMIC_DRAW)
+}
+
+/* ============================================================
+   形状采样:文字走离屏 canvas,几何形状走参数方程
+   ============================================================ */
+let worldAspect = 1
+const textCanvas = document.createElement('canvas')
+textCanvas.width = 1200
+textCanvas.height = 600
+const textCtx = textCanvas.getContext('2d', { willReadFrequently: true })
+
+// 把画布像素栅格映射为世界坐标,宽高超限时整体等比收缩
+function rasterToPoints(W, H){
+  const img = textCtx.getImageData(0, 0, W, H).data
+  const raw = []
+  const step = 3 // 采样步长:密度与点数平衡
+  for (let y = 0; y < H; y += step)
+    for (let x = 0; x < W; x += step)
+      if (img[(y * W + x) * 4 + 3] > 128) raw.push(x, y)
+  if (raw.length < 8) return shapeRing() // 空白输入兜底
+  // Fisher-Yates 洗牌(按点对),避免取模复用时出现条带
+  for (let i = raw.length - 2; i > 0; i -= 2){
+    const j = ((Math.random() * ((i >> 1) + 1)) | 0) << 1
+    const tx = raw[i]; raw[i] = raw[j]; raw[j] = tx
+    const ty = raw[i + 1]; raw[i + 1] = raw[j + 1]; raw[j + 1] = ty
+  }
+  let spanY = 1.4, spanX = spanY * (W / H)
+  const maxHalfX = worldAspect * 0.92
+  if (spanX / 2 > maxHalfX){
+    const s = maxHalfX * 2 / spanX
+    spanX *= s; spanY *= s
+  }
+  const out = new Float32Array(raw.length)
+  for (let i = 0; i < raw.length; i += 2){
+    out[i]     = (raw[i] / W - 0.5) * spanX
+    out[i + 1] = (0.5 - raw[i + 1] / H) * spanY
+  }
+  return out
+}
+
+function sampleText(str){
+  const W = textCanvas.width, H = textCanvas.height
+  const c = textCtx
+  c.clearRect(0, 0, W, H)
+  c.fillStyle = '#fff'
+  c.textAlign = 'center'
+  c.textBaseline = 'middle'
+  let size = H * 0.6
+  const setFont = s => c.font = `900 ${s}px "Avenir Next","Helvetica Neue","PingFang SC","Hiragino Sans GB","Microsoft YaHei",sans-serif`
+  setFont(size)
+  const maxW = W * 0.92
+  while (c.measureText(str).width > maxW && size > 24){ size *= 0.93; setFont(size) }
+  c.fillText(str, W / 2, H / 2 + size * 0.04)
+  return rasterToPoints(W, H)
+}
+
+function shapeHeart(){
+  const n = 14000, out = new Float32Array(n * 2)
+  for (let i = 0; i < n; i++){
+    const t = Math.random() * 6.2832
+    const r = Math.sqrt(Math.random()) // 实心填充:面积均匀
+    const hx = Math.pow(Math.sin(t), 3)
+    const hy = -(13 * Math.cos(t) - 5 * Math.cos(2 * t) - 2 * Math.cos(3 * t) - Math.cos(4 * t)) / 16
+    out[i * 2]     = hx * r * 0.62
+    out[i * 2 + 1] = hy * r * 0.62
+  }
+  return out
+}
+
+function shapeGalaxy(){
+  const n = 20000, arms = 3, out = new Float32Array(n * 2)
+  for (let i = 0; i < n; i++){
+    let x, y
+    if (i % 7 === 0){ // 中央核球
+      x = gauss() * 0.10; y = gauss() * 0.08
+    } else {
+      const arm = i % arms
+      const t = Math.pow(Math.random(), 0.7)
+      const ang = arm * 2.0944 + t * 4.6
+      const r = 0.10 + t * 0.80
+      const spread = (1 - t) * 0.09 + 0.02
+      const g = gauss() * spread
+      x = Math.cos(ang) * r + Math.cos(ang + 1.5708) * g
+      y = (Math.sin(ang) * r + Math.sin(ang + 1.5708) * g) * 0.62 // 压扁成侧视银盘
+    }
+    out[i * 2] = x * 0.95
+    out[i * 2 + 1] = y
+  }
+  return out
+}
+
+function shapeRing(){
+  const n = 12000, out = new Float32Array(n * 2)
+  for (let i = 0; i < n; i++){
+    const a = Math.random() * 6.2832
+    const r = 0.66 + gauss() * 0.03
+    out[i * 2]     = Math.cos(a) * r * Math.min(worldAspect, 1.2)
+    out[i * 2 + 1] = Math.sin(a) * r
+  }
+  return out
+}
+
+/* ============================================================
+   调色板:基色/热色/点缀 三色一组,滚轮与 C 键轮换
+   ============================================================ */
+const palettes = [
+  { name: '紫电', bg: [0.016, 0.008, 0.035], a: [0.10, 0.06, 0.30], b: [0.55, 0.45, 1.00], c: [0.00, 0.90, 0.80] },
+  { name: '极光', bg: [0.004, 0.020, 0.016], a: [0.02, 0.16, 0.13], b: [0.00, 0.88, 0.65], c: [0.55, 0.95, 1.00] },
+  { name: '熔岩', bg: [0.030, 0.008, 0.006], a: [0.26, 0.05, 0.05], b: [1.00, 0.42, 0.15], c: [1.00, 0.85, 0.30] },
+  { name: '樱花', bg: [0.028, 0.010, 0.024], a: [0.26, 0.08, 0.21], b: [1.00, 0.42, 0.72], c: [0.75, 0.60, 1.00] },
+  { name: '雪原', bg: [0.010, 0.012, 0.020], a: [0.16, 0.17, 0.20], b: [0.95, 0.95, 0.98], c: [0.60, 0.80, 1.00] }
+]
+let palIdx = 0
+const palName = $('#palName')
+function applyPalette(){
+  const p = palettes[palIdx]
+  palName.textContent = p.name
+  gl.clearColor(p.bg[0], p.bg[1], p.bg[2], 1)
+  gl.clear(gl.COLOR_BUFFER_BIT) // 换色时清一次,避免旧残影混色
+}
+
+/* ============================================================
+   交互状态:鼠标/触摸、按住成涡、爆破、换形冲击
+   ============================================================ */
+const mouse = { x: 0, y: 0, speed: 0 }
+let holding = false
+let scatter = 0
+const blast = { x: 0, y: 0, s: 0 }
+
+function toWorld(cx, cy){
+  return [((cx / innerWidth) * 2 - 1) * worldAspect, -((cy / innerHeight) * 2 - 1)]
+}
+let lastMx = 0, lastMy = 0
+addEventListener('pointermove', e => {
+  const [wx, wy] = toWorld(e.clientX, e.clientY)
+  mouse.speed = Math.min(2, Math.hypot(e.clientX - lastMx, e.clientY - lastMy) * 0.02)
+  lastMx = e.clientX; lastMy = e.clientY
+  mouse.x = wx; mouse.y = wy
+}, { passive: true })
+
+addEventListener('pointerdown', e => {
+  if (e.target !== canvas) return // 只响应画布区域,不抢 UI 的点击
+  holding = true
+  const [wx, wy] = toWorld(e.clientX, e.clientY)
+  blast.x = wx; blast.y = wy; blast.s = 14 // 轻点即小爆,即时反馈
+}, { passive: true })
+addEventListener('pointerup', () => { holding = false }, { passive: true })
+addEventListener('pointercancel', () => { holding = false }, { passive: true })
+addEventListener('dblclick', e => {
+  const [wx, wy] = toWorld(e.clientX, e.clientY)
+  blast.x = wx; blast.y = wy; blast.s = 85
+})
+
+/* ============================================================
+   换形编排:文字轮播 / 自定义输入 / 几何形状
+   ============================================================ */
+const words = ['HELLO', '你好', '粒子', 'STUNNING', '惊艳', 'FIELD', '无限', '✦']
+let wordIdx = 0
+let auto = true
+let lastMorph = 0
+const srStatus = $('#srStatus')
+const shapeBtns = [...document.querySelectorAll('.sbtn')]
+
+function morphTo(pts, label){
+  applyTargets(pts)
+  scatter = 26                    // 换形冲击:炸开再聚拢,整场的华彩段落
+  blast.x = 0; blast.y = 0; blast.s = 10
+  lastMorph = performance.now()
+  srStatus.textContent = '成形:' + label
+  if (soundOn && sound) sound.whoosh()
+}
+
+function morphWord(str){
+  const w = str || words[wordIdx++ % words.length]
+  morphTo(sampleText(w), w)
+  markShape('word')
+}
+function markShape(key){
+  shapeBtns.forEach(b => b.classList.toggle('on', b.dataset.s === key))
+}
+function stopAuto(){
+  auto = false
+  autoBtn.setAttribute('aria-pressed', 'false')
+}
+
+shapeBtns.forEach(b => b.addEventListener('click', () => {
+  stopAuto()
+  const k = b.dataset.s
+  if (k === 'word') morphWord()
+  else if (k === 'heart'){ morphTo(shapeHeart(), '心形'); markShape(k) }
+  else if (k === 'galaxy'){ morphTo(shapeGalaxy(), '银河'); markShape(k) }
+  else { morphTo(shapeRing(), '光环'); markShape(k) }
+}))
+
+const txt = $('#txt')
+txt.addEventListener('keydown', e => {
+  if (e.key !== 'Enter') return
+  const v = txt.value.trim()
+  if (v){ stopAuto(); morphWord(v) }
+  else { auto = true; autoBtn.setAttribute('aria-pressed', 'true') }
+})
+
+const autoBtn = $('#autoBtn')
+autoBtn.addEventListener('click', () => {
+  auto = !auto
+  autoBtn.setAttribute('aria-pressed', String(auto))
+  if (auto) lastMorph = 0 // 立即触发下一次轮播
+})
+
+$('#palBtn').addEventListener('click', () => {
+  palIdx = (palIdx + 1) % palettes.length
+  applyPalette()
+})
+
+addEventListener('keydown', e => {
+  if (e.target === txt) return // 输入框打字不劫持
+  if (e.key === ' '){ e.preventDefault(); stopAuto(); morphWord() }
+  else if (e.key === 'c' || e.key === 'C'){ palIdx = (palIdx + 1) % palettes.length; applyPalette() }
+  else if (e.key === 'b' || e.key === 'B'){ blast.x = 0; blast.y = 0; blast.s = 85 }
+})
+
+// 滚轮换色:单屏应用没有滚动冲突,顺手拿走
+let wheelLock = 0
+addEventListener('wheel', () => {
+  const now = performance.now()
+  if (now - wheelLock < 280) return
+  wheelLock = now
+  palIdx = (palIdx + 1) % palettes.length
+  applyPalette()
+}, { passive: true })
+
+/* ============================================================
+   声音:环境垫 + 换形呼啸,交互能量驱动滤波亮度
+   ============================================================ */
+let sound = null, soundOn = false
+function createSound(){
+  const AC = window.AudioContext || window.webkitAudioContext
+  if (!AC) return null
+  const ctx = new AC()
+  const master = ctx.createGain()
+  master.gain.value = 0
+  master.connect(ctx.destination)
+
+  // 双三角微失谐垫:粒子的「背景嗡鸣」
+  const o1 = ctx.createOscillator(); o1.type = 'triangle'; o1.frequency.value = 110
+  const o2 = ctx.createOscillator(); o2.type = 'triangle'; o2.frequency.value = 110.6
+  const filt = ctx.createBiquadFilter()
+  filt.type = 'lowpass'; filt.frequency.value = 260; filt.Q.value = 2
+  const g = ctx.createGain(); g.gain.value = 0.05
+  o1.connect(filt); o2.connect(filt); filt.connect(g); g.connect(master)
+
+  // 循环噪声源,给呼啸复用
+  const nb = ctx.createBuffer(1, ctx.sampleRate, ctx.sampleRate)
+  const nd = nb.getChannelData(0)
+  for (let i = 0; i < nd.length; i++) nd[i] = Math.random() * 2 - 1
+  o1.start(); o2.start()
+
+  return {
+    setOn(on){
+      if (on && ctx.state === 'suspended') ctx.resume()
+      master.gain.setTargetAtTime(on ? 0.5 : 0, ctx.currentTime, 0.2)
+    },
+    update(energy){
+      filt.frequency.setTargetAtTime(240 + energy * 900, ctx.currentTime, 0.1)
+    },
+    whoosh(){
+      if (ctx.state === 'suspended') ctx.resume()
+      const t = ctx.currentTime
+      const src = ctx.createBufferSource(); src.buffer = nb
+      const bp = ctx.createBiquadFilter()
+      bp.type = 'bandpass'; bp.Q.value = 1.2
+      bp.frequency.setValueAtTime(280, t)
+      bp.frequency.exponentialRampToValueAtTime(2600, t + 0.45)
+      const wg = ctx.createGain()
+      wg.gain.setValueAtTime(0.0001, t)
+      wg.gain.exponentialRampToValueAtTime(0.30, t + 0.06)
+      wg.gain.exponentialRampToValueAtTime(0.0001, t + 0.6)
+      src.connect(bp); bp.connect(wg); wg.connect(master)
+      src.start(t); src.stop(t + 0.7)
+    }
+  }
+}
+const sndBtn = $('#sndBtn')
+sndBtn.addEventListener('click', () => {
+  if (!sound) sound = createSound()
+  soundOn = !soundOn && !!sound
+  if (sound) sound.setOn(soundOn)
+  sndBtn.setAttribute('aria-pressed', String(soundOn))
+  sndBtn.textContent = soundOn ? '音效 on' : '音效 off'
+})
+
+/* ============================================================
+   减弱动态:系统偏好 + calm 开关
+   ============================================================ */
+const calmBtn = $('#calmBtn')
+function applyCalm(){
+  calmBtn.setAttribute('aria-pressed', String(reduced))
+  calmBtn.textContent = reduced ? 'alive' : 'calm'
+}
+calmBtn.addEventListener('click', () => { reduced = !reduced; applyCalm() })
+reduceMQ.addEventListener?.('change', e => { reduced = e.matches; applyCalm() })
+applyCalm()
+
+/* ============================================================
+   自适应画质:按帧率在档位间升降,重建粒子系统
+   ============================================================ */
+const tiers = [160000, 120000, 80000, 50000, 30000, 20000]
+let tierIdx = finePointer ? 1 : 3
+let lastQChange = 0
+const tN = $('#tN'), tFps = $('#tFps')
+
+function autoQuality(now){
+  if (now - lastQChange < 3000) return
+  if (fps < 40 && tierIdx < tiers.length - 1){
+    tierIdx++; lastQChange = now
+    buildSystem(tiers[tierIdx])
+  } else if (fps > 58 && tierIdx > (finePointer ? 1 : 3)){
+    tierIdx--; lastQChange = now
+    buildSystem(tiers[tierIdx])
+  }
+}
+
+/* ============================================================
+   尺寸:画布按 DPR 分配,世界纵横比随窗口更新
+   ============================================================ */
+function resize(){
+  const dpr = Math.min(devicePixelRatio || 1, 1.6)
+  canvas.width = Math.round(innerWidth * dpr)
+  canvas.height = Math.round(innerHeight * dpr)
+  worldAspect = canvas.width / canvas.height
+  gl.viewport(0, 0, canvas.width, canvas.height)
+  applyPalette() // 顺带清屏,重置拖尾
+  if (sys && sys.lastPts) applyTargets(sys.lastPts) // 纵横比变化后重新适配
+}
+let resizeTimer = 0
+addEventListener('resize', () => {
+  clearTimeout(resizeTimer)
+  resizeTimer = setTimeout(resize, 250) // 防抖,避免拖窗口时反复重建
+}, { passive: true })
+
+/* ============================================================
+   主循环:TF 更新 → 拖尾渐隐 → 加法混合绘点
+   ============================================================ */
+let last = performance.now()
+let simTime = 0
+let fps = 60, fpsAcc = 0, fpsFrames = 0
+let energy = 0
+let booted = false
+
+function frame(now){
+  requestAnimationFrame(frame)
+  const dt = clamp((now - last) / 1000, 0.0001, 0.05)
+  last = now
+  fpsAcc += dt; fpsFrames++
+  if (fpsAcc >= 0.5){
+    fps = fpsFrames / fpsAcc
+    fpsAcc = 0; fpsFrames = 0
+    autoQuality(now)
+    tN.textContent = sys.N.toLocaleString()
+    tFps.textContent = String(Math.round(fps))
+  }
+
+  simTime += dt * (reduced ? 0.15 : 1) // calm 模式慢速呼吸而非完全冻结
+  scatter *= Math.exp(-7 * dt)
+  blast.s *= Math.exp(-5 * dt)
+  mouse.speed *= Math.exp(-4 * dt)
+  energy = damp(energy, clamp(mouse.speed + blast.s * 0.02 + scatter * 0.03, 0, 1.5), 4, dt)
+
+  // 自动轮播:空闲时每 4.8s 换一个词
+  if (auto && !reduced && !holding && now - lastMorph > 4800) morphWord()
+
+  const dpr = Math.min(devicePixelRatio || 1, 1.6)
+  const pal = palettes[palIdx]
+
+  // —— 更新 pass:光栅化关闭,纯粹的状态递推 ——
+  gl.useProgram(progUpdate)
+  gl.uniform1f(uUpd.uDt, Math.min(dt, 0.033))
+  gl.uniform1f(uUpd.uTime, simTime)
+  gl.uniform1f(uUpd.uSpringK, reduced ? 10.0 : 7.0)
+  gl.uniform1f(uUpd.uDamp, 3.4)
+  gl.uniform1f(uUpd.uWobble, reduced ? 0.12 : 0.55)
+  gl.uniform1f(uUpd.uMouseForce, holding ? -34.0 : 42.0)
+  gl.uniform1f(uUpd.uSwirl, holding ? 30.0 : 0.0)
+  gl.uniform1f(uUpd.uScatter, scatter)
+  gl.uniform2f(uUpd.uMouse, mouse.x, mouse.y)
+  gl.uniform4f(uUpd.uBlast, blast.x, blast.y, blast.s, 0)
+  gl.uniform1f(uUpd.uAspect, worldAspect)
+
+  const dst = 1 - src
+  gl.bindVertexArray(sys.vaos[src])
+  gl.bindTransformFeedback(gl.TRANSFORM_FEEDBACK, sys.tf)
+  gl.bindBufferBase(gl.TRANSFORM_FEEDBACK_BUFFER, 0, sys.stateBufs[dst])
+  gl.enable(gl.RASTERIZER_DISCARD)
+  gl.beginTransformFeedback(gl.POINTS)
+  gl.drawArrays(gl.POINTS, 0, sys.N)
+  gl.endTransformFeedback()
+  gl.disable(gl.RASTERIZER_DISCARD)
+  gl.bindTransformFeedback(gl.TRANSFORM_FEEDBACK, null)
+  gl.bindBufferBase(gl.TRANSFORM_FEEDBACK_BUFFER, 0, null)
+
+  // —— 拖尾 pass:半透明黑盖住上一帧 ——
+  gl.enable(gl.BLEND)
+  gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA)
+  gl.useProgram(progFade)
+  gl.uniform1f(uFad.uFade, reduced ? 0.34 : 0.16)
+  gl.uniform3f(uFad.uBg, pal.bg[0], pal.bg[1], pal.bg[2])
+  gl.bindVertexArray(emptyVAO)
+  gl.drawArrays(gl.TRIANGLES, 0, 3)
+
+  // —— 渲染 pass:加法混合的发光点精灵 ——
+  gl.blendFunc(gl.ONE, gl.ONE)
+  gl.useProgram(progRender)
+  gl.uniform1f(uRen.uDpr, dpr)
+  gl.uniform1f(uRen.uAspect, worldAspect)
+  gl.uniform3f(uRen.uColA, pal.a[0], pal.a[1], pal.a[2])
+  gl.uniform3f(uRen.uColB, pal.b[0], pal.b[1], pal.b[2])
+  gl.uniform3f(uRen.uColC, pal.c[0], pal.c[1], pal.c[2])
+  gl.bindVertexArray(sys.vaos[dst])
+  gl.drawArrays(gl.POINTS, 0, sys.N)
+  gl.bindVertexArray(null)
+
+  src = dst // ping-pong
+
+  if (soundOn && sound) sound.update(energy)
+  if (!booted){
+    booted = true
+    document.body.classList.add('booted')
+  }
+}
+
+/* ============================================================
+   启动:先建系统,延时首成形,粒子从圆盘飞入文字
+   ============================================================ */
+resize()
+buildSystem(tiers[tierIdx])
+requestAnimationFrame(frame)
+setTimeout(() => morphWord(), 450)
+setTimeout(() => document.body.classList.add('booted'), 1500) // 兜底摘开机幕
+// 提示语 10s 后淡出,不挡画面
+setTimeout(() => { $('#hint').style.opacity = '0' }, 10000)
+
+})()
+</script>
+</body>
+</html>

@@ -76,7 +76,7 @@ Run Pisper from a project directory:
 pisper
 ```
 
-Plain `pisper` always creates an empty conversation. It never restores history automatically. Use `resume` explicitly to open an interactive list containing conversations from every workspace; use the arrow keys to select one, press `Enter` to resume, or press `Esc` to exit:
+Plain `pisper` always creates an empty conversation. It never restores history automatically. Use `resume` explicitly to open an interactive list containing conversations from every directory; use the arrow keys to select one, press `Enter` to resume, or press `Esc` to exit:
 
 ```bash
 pisper resume
@@ -84,7 +84,7 @@ pisper resume
 
 When no history exists, `pisper resume` reports that condition and exits without creating a conversation. Resuming uses the conversation's saved working directory without rewriting it to the TUI launch directory. After entering a conversation, `/dir <directory>` explicitly changes its working directory; relative paths resolve from the current conversation directory.
 
-Create a new conversation for another workspace:
+Create a new conversation for another directory:
 
 ```bash
 pisper --cwd /path/to/project
@@ -96,7 +96,7 @@ Inspect sidecar, authentication, and capability status:
 pisper doctor
 ```
 
-The diagnostic output reports the sidecar connection source, TUI launch workspace, sidecar runtime fallback workspace, and the latest matching session workspace so directory inheritance failures are visible.
+The diagnostic output reports the sidecar connection source, TUI launch directory, sidecar runtime fallback directory, and the latest matching session directory so directory inheritance failures are visible.
 
 ## Composer and Message Stream
 
@@ -119,19 +119,19 @@ Long or multiline bracketed pastes render as a compact `[Pasted text · …]` to
 
 | Command | Action |
 | :--- | :--- |
-| `/init` | Analyze the current project and create or improve `AGENTS.md` at the workspace root. |
-| `/new` | Create an empty conversation in the TUI launch workspace; unavailable during a run. |
-| `/sessions` | Open the history picker across every workspace; press `Enter` to resume. Unavailable during a run. |
+| `/init` | Analyze the current project and create or improve `AGENTS.md` at the project root. |
+| `/new` | Create an empty conversation in the TUI launch directory; unavailable during a run. |
+| `/sessions` | Open the history picker across every directory; press `Enter` to resume. Unavailable during a run. |
 | `/dir <directory>` | Explicitly change the active conversation directory. Relative paths resolve from its current directory; unavailable during a run. |
-| `/changes` | Inspect Git or SVN workspace changes. In the changes view, `R` refreshes, `C` commits, `P` pushes Git, and `V` twice reverts; SVN has no push operation. |
-| `/changes commit <message>` | Commit current Git/SVN workspace changes with an explicit message. |
+| `/changes` | Inspect Git or SVN changes. In the changes view, `R` refreshes, `C` commits, `P` pushes Git, and `V` twice reverts; SVN has no push operation. |
+| `/changes commit <message>` | Commit current Git/SVN changes with an explicit message. |
 | `/chat` | Return to the Chat message stream. |
 | `/model` | Open the model picker and switch the active session model; only models from configured Providers are listed, and switching is unavailable during a run. |
 | `/thinking` | Refresh and open thinking levels supported by the active model; unsupported/error states explain why and can be retried. Unavailable during a run. |
 | `/provider` | Edit a Provider's protocol, effective Base URL, and masked API key; `/provider <id>` targets a Provider directly and `/apikey` remains a compatible alias. |
 | `/web` | Open the authenticated local settings page in the default browser using the installed Web frontend. |
 | `/compact` | Summarize older context immediately; available only for idle sessions with enough history. |
-| `/attach` | Open the workspace file picker. |
+| `/attach` | Open the file picker for the current directory. |
 | `/mode` | Show the active execution mode and accepted values; it can be changed during a run. |
 | `/mode read-only` | Expose low-risk analysis tools only. |
 | `/mode full-access` | Allow unrestricted local files, network, and Shell access. |
@@ -155,11 +155,11 @@ File picker controls:
 
 - `Up` / `Down`: select a file or directory.
 - `Enter` / `Right`: enter a directory or add a file.
-- `Left`: move to the parent without leaving the active workspace.
+- `Left`: move to the parent without leaving the active directory.
 - `Delete`: remove the selected attachment.
 - `Esc`: close the picker while preserving the composer draft.
 
-The desktop attachment boundary is shared by the TUI: up to 8 files, 10 MiB per file, and 20 MiB total. Files must be workspace-local images, UTF-8 text/code, or supported documents. Images become visual input only when the active model explicitly supports images.
+The desktop attachment boundary is shared by the TUI: up to 8 files, 10 MiB per file, and 20 MiB total. Files must be directory-local images, UTF-8 text/code, or supported documents. Images become visual input only when the active model explicitly supports images.
 
 ## Tools and Skills
 
@@ -174,7 +174,7 @@ Tool examples:
 /mcp_pencil_get_editor_state_f9837b9b inspect the current Pencil canvas
 ```
 
-The TUI sends the first Slash token through the structured `requestedToolNames` field. The Agent still generates arguments and performs the call. Slash selection never bypasses Tool settings or the active execution mode; attachments remain limited to the current workspace.
+The TUI sends the first Slash token through the structured `requestedToolNames` field. The Agent still generates arguments and performs the call. Slash selection never bypasses Tool settings or the active execution mode; attachments remain limited to the current directory.
 
 Skill example:
 
@@ -196,7 +196,7 @@ Run from source in the current directory:
 npm run tui:dev
 ```
 
-Choose another workspace:
+Choose another directory:
 
 ```bash
 npm run tui:dev -- --cwd /path/to/project

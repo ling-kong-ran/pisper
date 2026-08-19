@@ -4,7 +4,7 @@ Guidance for coding agents working in the **Pisper** repository.
 
 ## Project
 
-Pisper is a local-first multi-agent workspace built on [Pi Coding Agent](https://github.com/earendil-works/pi/tree/main/packages/coding-agent). It ships:
+Pisper is a local-first multi-agent app built on [Pi Coding Agent](https://github.com/earendil-works/pi/tree/main/packages/coding-agent). It ships:
 
 - a React web UI (dev server + production static assets)
 - a Node.js app runtime / desktop sidecar that hosts sessions, tools, MCP, skills, memory, workflows, channels, and schedules
