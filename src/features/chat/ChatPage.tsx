@@ -1,6 +1,6 @@
 // 聊天主页面：dockview 多会话分屏布局的宿主，持有会话目录与实时
 // 同步状态，管理 Dock 的初始化/持久化与多面板交互。
-import { useCallback, useEffect, useMemo, useRef } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import 'dockview-react/dist/styles/dockview.css'
 import {
   DockviewReact,
@@ -74,6 +74,7 @@ export function ChatPage({
   const setGlobalError = catalog.setGlobalError
   const openSessionInDock = dock.openSessionInDock
   const moveSessionToGroup = dock.moveSessionToGroup
+  const [recallPulse, setRecallPulse] = useState({ sessionId: '', token: 0 })
   // 新建会话：先创建记录（带可选 cwd），再在 Dock 打开，
   // 若指定了目标分组则把面板移动到该组。
   const createSession = useCallback(
@@ -168,6 +169,7 @@ export function ChatPage({
         setGlobalError('')
         const created = await chatApi.deriveSession(session.id, boundaryEntryId, name)
         await refreshSessions(created.id)
+        setRecallPulse((current) => ({ sessionId: session.id, token: current.token + 1 }))
         openSessionInDock(created.id)
         notify(t('chat:chatPage.childChatCreated'))
       } catch (error) {
@@ -212,6 +214,8 @@ export function ChatPage({
     globalError: catalog.globalError,
     activeId: catalog.activeId,
     compactDock: dock.compactDock,
+    sessionTreePulseSessionId: recallPulse.sessionId,
+    sessionTreePulseToken: recallPulse.token,
     pendingAsset,
     onAssetConsumed,
     loadSessionMessages: liveSync.loadSessionMessages,

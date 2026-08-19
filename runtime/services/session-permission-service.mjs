@@ -117,6 +117,12 @@ export function permissionRequirement({ mode, executionMode, cwd, toolName, args
       reason: 'skill_create 只有在完全访问模式下才能创建全局技能。',
     }
   }
+  if (toolName === 'plugin_create') {
+    return {
+      risk: 'high',
+      reason: 'plugin_create 将创建并安装全局插件，需要确认后执行。',
+    }
+  }
   if (
     ['read', 'ls', 'grep', 'find', 'edit', 'write'].includes(toolName) &&
     pathOutsideWorkspace(cwd, filePath)
@@ -145,7 +151,7 @@ export function permissionRequirement({ mode, executionMode, cwd, toolName, args
     }
     return null
   }
-  if (['edit', 'write', 'skill_create'].includes(toolName)) {
+  if (['edit', 'write', 'skill_create', 'plugin_create'].includes(toolName)) {
     return {
       risk: 'high',
       reason: `${toolName} 将修改当前工作区中的文件，需要确认后执行。`,

@@ -17,6 +17,7 @@ const available = [
   'mcp_list',
   'mcp_manage',
   'skill_create',
+  'plugin_create',
   'spawn_agent',
   'list_agents',
   'send_message',

@@ -13,6 +13,7 @@ export function SessionTreeControl({
   sessionId,
   streaming,
   revision,
+  pulseToken,
   onOpenChange,
   onNavigated,
   onCreateChildSession,
@@ -22,12 +23,21 @@ export function SessionTreeControl({
   sessionId: string
   streaming: boolean
   revision?: number
+  pulseToken?: number
   onOpenChange: (open: boolean) => void
   onNavigated: (editorText: string | null) => Promise<void> | void
   onCreateChildSession: (boundaryEntryId: string) => Promise<void> | void
 }) {
   const { t } = useI18n()
   const [branches, setBranches] = useState(0)
+  const [pulsing, setPulsing] = useState(false)
+
+  useEffect(() => {
+    if (!pulseToken) return
+    setPulsing(true)
+    const timeout = window.setTimeout(() => setPulsing(false), 1800)
+    return () => window.clearTimeout(timeout)
+  }, [pulseToken])
 
   useEffect(() => {
     if (!visible || streaming) return
@@ -48,8 +58,9 @@ export function SessionTreeControl({
         type="button"
         variant="ghost"
         size="icon"
-        className="focus-session-tree-entry hover:border-[var(--brand-blue-border)] hover:bg-[var(--solid)] hover:text-[var(--brand-blue-strong)] [&_>_span]:text-[11px] [&_>_span]:font-[650] [&_>_span]:whitespace-nowrap [&_i]:grid [&_i]:min-w-[17px] [&_i]:h-[17px] [&_i]:place-items-center [&_i]:rounded-[var(--r-pill)] [&_i]:bg-[var(--brand-blue-soft)] [&_i]:text-[var(--brand-blue-strong)] [&_i]:p-[0_4px] [&_i]:text-[9px] [&_i]:[font-style:normal] [&_i]:[font-variant-numeric:tabular-nums] absolute z-[6] [top:12px] [right:18px] inline-flex w-auto min-w-[32px] h-[32px] items-center gap-[6px] [border:1px_solid_var(--stroke)] rounded-[var(--r-pill)] bg-[color-mix(in_srgb,var(--solid)_90%,transparent)] text-[var(--text-muted)] [padding:0_10px_0_8px] shadow-[var(--sh-1)] [backdrop-filter:blur(10px)]"
+        className={`focus-session-tree-entry hover:border-[var(--brand-blue-border)] hover:bg-[var(--solid)] hover:text-[var(--brand-blue-strong)] [&_>_span]:text-[11px] [&_>_span]:font-[650] [&_>_span]:whitespace-nowrap [&_i]:grid [&_i]:min-w-[17px] [&_i]:h-[17px] [&_i]:place-items-center [&_i]:rounded-[var(--r-pill)] [&_i]:bg-[var(--brand-blue-soft)] [&_i]:text-[var(--brand-blue-strong)] [&_i]:p-[0_4px] [&_i]:text-[9px] [&_i]:[font-style:normal] [&_i]:[font-variant-numeric:tabular-nums] absolute z-[6] [top:12px] [right:18px] inline-flex w-auto min-w-[32px] h-[32px] items-center gap-[6px] [border:1px_solid_var(--stroke)] rounded-[var(--r-pill)] bg-[color-mix(in_srgb,var(--solid)_90%,transparent)] text-[var(--text-muted)] [padding:0_10px_0_8px] shadow-[var(--sh-1)] [backdrop-filter:blur(10px)] motion-reduce:[animation:none] ${pulsing ? '[animation:session-tree-new-node-pulse_1.8s_var(--ease-out)]' : ''}`}
         title={t('chat:sessionTree.menuDescription')}
+        data-pisper-recall-pulse={pulsing || undefined}
         aria-label={t('chat:sessionTree.menu')}
         onClick={() => onOpenChange(true)}
       >

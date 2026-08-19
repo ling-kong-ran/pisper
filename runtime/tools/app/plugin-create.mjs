@@ -62,14 +62,15 @@ const toolDefinition = Type.Object({
   ),
 })
 
-export function createPluginCreateTool({ pluginRuntime, executionMode, onPluginsChanged } = {}) {
+export function createPluginCreateTool({ pluginRuntime, onPluginsChanged } = {}) {
   return defineTool({
     name: manifest.id,
     label: manifest.name,
-    description: manifest.description,
-    promptSnippet: 'Create, validate, and install a globally available local Pisper plugin',
+    description: `${manifest.description} This is the registered tool for creating reusable Pisper plugins and new Agent tools; the call requires user approval unless execution is already in full-access mode.`,
+    promptSnippet:
+      'Create, validate, and install a globally available local Pisper plugin with plugin_create',
     promptGuidelines: [
-      'Use plugin_create when the user explicitly asks to create and install a reusable Pisper plugin or new Agent tool. Do not use it for ordinary scripts or one-off code changes.',
+      'Use plugin_create directly when the user explicitly asks to create and install a reusable Pisper plugin or new Agent tool. Do not substitute ordinary scripts or one-off code changes.',
       'A plugin is one installable unit that may provide multiple related tools. Define every tool with a precise description, object JSON Schema, and honest scope.',
       'entryCode must export async function execute({ toolName, arguments: input, context }). Return a string or a Pi tool result with a content array.',
       'Use context.cwd for the current workspace, context.sessionId for the chat identity, and context.dataDir for persistent plugin-owned data.',
@@ -128,9 +129,6 @@ export function createPluginCreateTool({ pluginRuntime, executionMode, onPlugins
       ),
     }),
     async execute(_toolCallId, params) {
-      if (executionMode !== 'full-access') {
-        throw new Error('plugin_create 仅在“完全访问”执行模式下可用。')
-      }
       if (!pluginRuntime?.create) throw new Error('Pisper plugin runtime is not initialized.')
       const result = await pluginRuntime.create(params)
       await onPluginsChanged?.(result)

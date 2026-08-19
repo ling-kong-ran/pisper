@@ -18,6 +18,8 @@ export type ChatDockContextValue = {
   globalError: string
   activeId: string
   compactDock: boolean
+  sessionTreePulseSessionId: string
+  sessionTreePulseToken: number
   pendingAsset: PendingAsset | null
   onAssetConsumed: () => void
   loadSessionMessages: (id: string, options?: { force?: boolean; limit?: number }) => Promise<void>

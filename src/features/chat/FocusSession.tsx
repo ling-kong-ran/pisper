@@ -79,6 +79,7 @@ export type FocusSessionProps = {
   contextUsage?: EntityRecord | null
   sessionUsage?: EntityRecord | null
   sessionTreeRevision?: number
+  sessionTreePulse?: number
   cwd?: string
   availableModels: ModelOption[]
   switchingModel?: boolean
@@ -155,6 +156,7 @@ export function FocusSession({
   contextUsage,
   sessionUsage,
   sessionTreeRevision,
+  sessionTreePulse,
   cwd,
   availableModels,
   switchingModel,
@@ -335,6 +337,7 @@ export function FocusSession({
         sessionId={session.id}
         streaming={Boolean(streaming)}
         revision={sessionTreeRevision}
+        pulseToken={sessionTreePulse}
         onOpenChange={setSessionTreeOpen}
         onNavigated={async (editorText) => {
           if (editorText !== null) applyWelcomeChip(editorText)

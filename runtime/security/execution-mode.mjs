@@ -12,8 +12,7 @@ export const EXECUTION_MODES = new Set([
 export const DEFAULT_EXECUTION_MODE = 'approval-required'
 
 const TOOL_RISK = new Map(TOOL_CATALOG.map((tool) => [tool.id, tool.risk]))
-const APPROVAL_TOOLS = new Set(['edit', 'write', 'bash', 'skill_create'])
-const FULL_ACCESS_ONLY_TOOLS = new Set(['plugin_create'])
+const APPROVAL_TOOLS = new Set(['edit', 'write', 'bash', 'skill_create', 'plugin_create'])
 const INTERNAL_APPROVAL_TOOLS = new Set(['update_plan'])
 const INTERNAL_READ_ONLY_TOOLS = new Set([
   'discover_tools',
@@ -40,9 +39,7 @@ export function permissionModeForExecutionMode(mode) {
 
 // 按执行模式过滤工具：高危工具只在更高授权模式下可用；内部工具豁免。
 export function filterToolsForExecutionMode(names, mode, getExternalRisk = () => null) {
-  const unique = [...new Set(names || [])].filter(
-    (name) => mode === 'full-access' || !FULL_ACCESS_ONLY_TOOLS.has(name),
-  )
+  const unique = [...new Set(names || [])]
   if (mode !== 'read-only' && mode !== 'approval-required') return unique
   return unique.filter((name) => {
     if (

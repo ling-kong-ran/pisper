@@ -94,6 +94,7 @@ export const TOOL_PRESETS = {
     'edit',
     'write',
     'skill_create',
+    'plugin_create',
     'web_search',
     'browser_automation',
     'memory_search',

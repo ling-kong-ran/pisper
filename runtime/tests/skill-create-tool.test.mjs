@@ -17,6 +17,7 @@ test('skill_create delegates structured input and invalidates Skill resources af
   const tool = createSkillCreateTool({
     cwd: '/workspace',
     skillsRuntime: {
+      skillsDir: '/agent/skills',
       async create(input, options) {
         calls.push({ input, options })
         return {
@@ -32,6 +33,10 @@ test('skill_create delegates structured input and invalidates Skill resources af
       calls.push({ changed: result.name })
     },
   })
+
+  assert.match(tool.description, /\.pisper\/skills\/<name>\/SKILL\.md/)
+  assert.match(tool.description, /\/agent\/skills\/<name>\/SKILL\.md/)
+  assert.match(tool.promptGuidelines.join('\n'), /without YAML frontmatter/)
 
   const result = await tool.execute('skill-1', {
     name: 'release-helper',

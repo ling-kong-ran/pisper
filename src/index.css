@@ -433,6 +433,8 @@ h1, h2, h3, strong { overflow-wrap: anywhere; }
 @keyframes transcript-stage-enter { from { opacity: 0; transform: translateY(7px); } to { opacity: 1; transform: translateY(0); } }
 @keyframes transcript-reveal-enter { from { opacity: 0; } to { opacity: 1; } }
 @keyframes session-history-line-pulse { 0%,100% { opacity: .28; transform: scaleX(.94); } 50% { opacity: .72; transform: scaleX(1); } }
+/* 衍生会话写入追忆后，用一次扩散环把注意力带回关联入口。 */
+@keyframes session-tree-new-node-pulse { 0% { box-shadow: 0 0 0 0 var(--brand-blue-border), var(--sh-1); } 62% { box-shadow: 0 0 0 8px transparent, var(--sh-1); } 100% { box-shadow: var(--sh-1); } }
 @keyframes agent-message-pulse { 50% { opacity: .58; transform: translateY(-1px); } }
 .message-content > .markdown-body { min-height: 34px; overflow-wrap: anywhere; border-radius: var(--r-md); background: transparent; padding: 3px 0; font-size: 14px; line-height: 1.72; }
 .message.user .message-content > .markdown-body { border: 1px solid var(--stroke-soft); border-radius: var(--r-md); background: var(--user-bubble-bg); color: var(--user-bubble-text); padding: 9px 13px; box-shadow: none; }

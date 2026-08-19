@@ -45,6 +45,26 @@ const TOOL_ALIASES = {
   memory_remember: ['remember', 'save memory', '记住', '保存记忆', '写入记忆', '星忆'],
   mcp_list: ['mcp', 'mcp services', 'mcp tools', 'mcp 服务', 'mcp 工具'],
   mcp_manage: ['mcp configuration', 'configure mcp', 'mcp 配置', '管理 mcp', '添加 mcp'],
+  skill_create: [
+    'skill',
+    'create skill',
+    'agent skill',
+    'skill.md',
+    '技能',
+    '创建技能',
+    '编写技能',
+    '可复用能力',
+  ],
+  plugin_create: [
+    'plugin',
+    'create plugin',
+    'agent tool',
+    '插件',
+    '创建插件',
+    '创建工具',
+    '生成工具',
+    '可复用工具',
+  ],
   spawn_agent: [
     'subagent',
     'delegate',
@@ -137,7 +157,10 @@ function formatMatch(tool) {
     Array.isArray(tool.required) && tool.required.length
       ? `; required: ${tool.required.join(', ')}`
       : ''
-  return `- ${tool.name}: ${tool.description || tool.label || 'Optional tool'}${required}`
+  const invocation = tool.active
+    ? '; active: call this tool directly'
+    : '; inactive: call through call_tool'
+  return `- ${tool.name}: ${tool.description || tool.label || 'Optional tool'}${required}${invocation}`
 }
 
 export function createToolDiscoveryTool({ listTools }) {
@@ -171,7 +194,7 @@ export function createToolDiscoveryTool({ listTools }) {
         }
       }
       const text = [
-        'Matching optional tools. Call one through call_tool with its exact name:',
+        'Matching tools. Call active tools directly; call inactive tools through call_tool with their exact names:',
         ...matches.map((tool) => formatMatch(tool)),
       ].join('\n')
       return {

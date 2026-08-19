@@ -22,14 +22,16 @@ const input = {
   entryCode: 'export async function execute() { return "1.0.0" }\n',
 }
 
-test('plugin_create is a full-access-only high-risk app tool', () => {
+test('plugin_create is an approval-gated high-risk app tool', () => {
   assert.equal(manifest.risk, 'high')
   assert.ok(TOOL_CATALOG.some((tool) => tool.id === 'plugin_create'))
   assert.equal(TOOL_PRESETS['read-only'].includes('plugin_create'), false)
-  assert.equal(TOOL_PRESETS.workspace.includes('plugin_create'), false)
+  assert.equal(TOOL_PRESETS.workspace.includes('plugin_create'), true)
   assert.equal(TOOL_PRESETS.full.includes('plugin_create'), true)
   assert.equal(createAppTools({ enabledTools: ['plugin_create'] })[0]?.name, 'plugin_create')
-  assert.deepEqual(filterToolsForExecutionMode(['plugin_create'], 'workspace-write'), [])
+  assert.deepEqual(filterToolsForExecutionMode(['plugin_create'], 'workspace-write'), [
+    'plugin_create',
+  ])
   assert.deepEqual(filterToolsForExecutionMode(['plugin_create'], 'full-access'), ['plugin_create'])
 })
 
@@ -61,7 +63,20 @@ test('plugin_create delegates structured input and invalidates plugin tools afte
   assert.deepEqual(result.details.tools, ['example_version'])
 })
 
-test('plugin_create refuses execution outside full-access mode', async () => {
-  const tool = createPluginCreateTool({ executionMode: 'workspace-write' })
-  await assert.rejects(tool.execute('plugin-2', input), /完全访问/)
+test('plugin_create can execute after the permission layer approves it', async () => {
+  const tool = createPluginCreateTool({
+    pluginRuntime: {
+      async create(value) {
+        return {
+          id: value.id,
+          name: value.name,
+          version: '1.0.0',
+          sourcePath: '/agent/plugin-sources/example.release',
+          tools: ['example_version'],
+        }
+      },
+    },
+  })
+  const result = await tool.execute('plugin-2', input)
+  assert.match(result.content[0].text, /Created and installed plugin/)
 })

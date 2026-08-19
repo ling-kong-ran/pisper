@@ -25,6 +25,18 @@ const tools = [
     description: 'Echo fixture text through a remote MCP service.',
     active: false,
   },
+  {
+    name: 'skill_create',
+    label: 'Skill Create',
+    description: 'Create a reusable Agent Skill in the project or global skills directory.',
+    active: false,
+  },
+  {
+    name: 'plugin_create',
+    label: 'Plugin Create',
+    description: 'Create a reusable Pisper plugin and new Agent tools.',
+    active: false,
+  },
 ]
 
 test('optional tool search understands capability aliases and exact dynamic tool labels', () => {
@@ -37,6 +49,8 @@ test('optional tool search understands capability aliases and exact dynamic tool
     searchOptionalTools(tools, 'MCP fixture echo', 1)[0].name,
     'mcp_fixture_echo_12345678',
   )
+  assert.equal(searchOptionalTools(tools, '创建技能', 1)[0].name, 'skill_create')
+  assert.equal(searchOptionalTools(tools, '生成工具', 1)[0].name, 'plugin_create')
 })
 
 test('discover_tools returns stable gateway matches without activating schemas', async () => {
@@ -52,7 +66,21 @@ test('discover_tools returns stable gateway matches without activating schemas',
     ['generate_visual'],
   )
   assert.equal(result.details.activated, undefined)
-  assert.match(result.content[0].text, /Call one through call_tool/)
+  assert.match(result.content[0].text, /inactive: call through call_tool/)
+})
+
+test('discover_tools describes direct invocation for active tools', async () => {
+  const tool = createToolDiscoveryTool({
+    listTools: () =>
+      tools.map((item) => (item.name === 'skill_create' ? { ...item, active: true } : item)),
+  })
+  const result = await tool.execute(
+    'discover-active',
+    { query: '创建技能', limit: 1 },
+    new AbortController().signal,
+  )
+  assert.equal(result.details.matches[0].name, 'skill_create')
+  assert.match(result.content[0].text, /active: call this tool directly/)
 })
 
 test('discover_tools returns matches without any activation callback', async () => {

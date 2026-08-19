@@ -90,7 +90,8 @@ export function AppDialog({
               </Button>
               <Button
                 type="submit"
-                variant={dialog.tone === 'danger' ? 'destructive' : 'secondary'}
+                variant={dialog.tone === 'danger' ? 'destructive' : 'default'}
+                className={dialog.tone === 'danger' ? undefined : 'text-primary-foreground'}
                 disabled={dialog.type === 'prompt' && !value.trim()}
               >
                 {dialog.confirmLabel || t('common:ui.confirm')}

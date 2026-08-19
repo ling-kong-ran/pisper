@@ -22,6 +22,8 @@ export function SessionDockPanel({ params, api }: IDockviewPanelProps<{ sessionI
   const streaming = Boolean(state.streaming || session?.streaming)
   const plan = resolveSessionPlan(sessionState, session)
   const visiblePlan = isPlanActive(plan, { streaming }) ? plan : null
+  const sessionTreePulse =
+    context?.sessionTreePulseSessionId === sessionId ? context.sessionTreePulseToken : 0
   const loadMessages = context?.loadSessionMessages
   const loadThinkingLevel = context?.loadSessionThinkingLevel
   const thinkingRequestedRef = useRef('')
@@ -101,6 +103,7 @@ export function SessionDockPanel({ params, api }: IDockviewPanelProps<{ sessionI
         contextUsage={state.contextUsage}
         sessionUsage={state.sessionUsage}
         sessionTreeRevision={state.sessionTreeRevision}
+        sessionTreePulse={sessionTreePulse}
         cwd={state.cwd || session.cwd}
         availableModels={context.availableModels}
         switchingModel={state.switchingModel}

@@ -64,13 +64,14 @@ test('read-only execution exposes only low-risk analysis tools', () => {
     'discover_tools',
     'memory_search',
     'skill_create',
+    'plugin_create',
     'get_plan',
     'update_plan',
     'get_task_list',
   ])
   assert.equal(
     filterToolsForExecutionMode(names, 'workspace-write').includes('plugin_create'),
-    false,
+    true,
   )
   assert.deepEqual(filterToolsForExecutionMode(names, 'full-access'), names)
 })
@@ -90,6 +91,20 @@ test('React exposes read-only, approval-required, workspace-write, and full-acce
   assert.match(controls, /focusSession.workspaceWrite/)
   assert.doesNotMatch(commands, /stopTheActiveRunBeforeChangingTheExecutionMode/)
   assert.match(schedules, /\['full-access', 'read-only'\]/)
+})
+
+test('plugin_create still requests approval outside full-access', () => {
+  const requirement = permissionRequirement({
+    mode: 'auto',
+    executionMode: 'workspace-write',
+    cwd: process.cwd(),
+    toolName: 'plugin_create',
+    args: { id: 'example.plugin', tools: [], entryCode: '' },
+  })
+  assert.deepEqual(requirement, {
+    risk: 'high',
+    reason: 'plugin_create 将创建并安装全局插件，需要确认后执行。',
+  })
 })
 
 test('full-access execution does not request per-tool approval', () => {
