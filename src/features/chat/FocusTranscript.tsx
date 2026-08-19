@@ -91,9 +91,7 @@ function WelcomeFallback({ children, title }: { children: ReactNode; title: stri
       <div className="[animation:transcript-stage-enter_.5s_var(--ease-out)_both]">
         <WelcomeBrandStage />
       </div>
-      <h2 className="bg-[linear-gradient(100deg,#8B5CF6,#A855F7_48%,#EC4899)] bg-clip-text text-transparent">
-        {title}
-      </h2>
+      <h2 className="text-[var(--accent-strong)]">{title}</h2>
       {children}
     </div>
   )
@@ -305,7 +303,15 @@ export function FocusTranscript({
     if (scrollRequest) scrollToBottom('smooth')
   }, [scrollRequest, scrollToBottom])
 
-  const welcomeTitle = t('chat:focusSession.letSBeginWithASparkOfAnIdea')
+  const welcomeTitles = useMemo(
+    () => [
+      t('chat:focusSession.letSBeginWithASparkOfAnIdea'),
+      t('chat:focusSession.contextInHandBranchesAtWill'),
+      t('chat:focusSession.seeEveryLineOfThoughtThrough'),
+      t('chat:focusSession.runEveryBranchKeepWhatWorks'),
+    ],
+    [t],
+  )
   const welcomeContent = (
     <>
       <p>{t('chat:focusSession.readyToWorkWithTheCurrentDirectoryAndHelpCompleteTheTask')}</p>
@@ -414,9 +420,11 @@ export function FocusTranscript({
         {transcriptLoadState === 'ready' && !messages.length && (
           <div className="agent-welcome [&_h2]:mt-[18px] [&_h2]:text-[clamp(28px,_3vw,_38px)] [&_h2]:font-[800] [&_h2]:leading-[1.2] [&_h2]:tracking-[-.02em] [&_p]:max-w-[600px] [&_p]:mt-[14px] [&_p]:text-[15px] [&_p]:leading-[1.75] relative grid min-h-[100%] place-content-center justify-items-center overflow-hidden text-[var(--text-muted)] text-center">
             <Suspense
-              fallback={<WelcomeFallback title={welcomeTitle}>{welcomeContent}</WelcomeFallback>}
+              fallback={
+                <WelcomeFallback title={welcomeTitles[0]}>{welcomeContent}</WelcomeFallback>
+              }
             >
-              <WelcomeEffects title={welcomeTitle}>{welcomeContent}</WelcomeEffects>
+              <WelcomeEffects titles={welcomeTitles}>{welcomeContent}</WelcomeEffects>
             </Suspense>
           </div>
         )}

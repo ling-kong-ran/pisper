@@ -1,15 +1,39 @@
-// 欢迎页动效:空会话时的品牌舞台与入场动效。
-import type { ReactNode } from 'react'
+// 欢迎页动效:空会话时的品牌舞台、轮换标题与入场动效。
+import { useEffect, useState, type ReactNode } from 'react'
 import { BlurText } from '@/components/react-bits/BlurText'
 import { TargetCursor } from '@/components/react-bits/TargetCursor'
 import { WelcomeBrandStage } from './welcome-brand'
 
 type WelcomeEffectsProps = {
   children: ReactNode
-  title: string
+  titles: string[]
 }
 
-export default function WelcomeEffects({ children, title }: WelcomeEffectsProps) {
+const ROTATE_MS = 4200
+const FADE_MS = 320
+
+// 轮换标题:先整体淡出(透明度+模糊),换词后靠 BlurText 重挂载播入场。
+// 减弱动态时冻结在首句,不做任何定时切换。
+function useRotatingTitle(titles: string[]) {
+  const [index, setIndex] = useState(0)
+  const [leaving, setLeaving] = useState(false)
+  useEffect(() => {
+    if (titles.length < 2) return
+    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return
+    const timer = window.setInterval(() => {
+      setLeaving(true)
+      window.setTimeout(() => {
+        setIndex((current) => (current + 1) % titles.length)
+        setLeaving(false)
+      }, FADE_MS)
+    }, ROTATE_MS)
+    return () => window.clearInterval(timer)
+  }, [titles.length])
+  return { title: titles[index] || titles[0] || '', leaving }
+}
+
+export default function WelcomeEffects({ children, titles }: WelcomeEffectsProps) {
+  const { title, leaving } = useRotatingTitle(titles)
   return (
     <>
       {/* 品牌色环境光:紫/粉两团定点光晕托住舞台,
@@ -23,10 +47,14 @@ export default function WelcomeEffects({ children, title }: WelcomeEffectsProps)
         <div className="[animation:transcript-stage-enter_.5s_var(--ease-out)_both]">
           <WelcomeBrandStage />
         </div>
-        {/* 渐变必须落在每个词上:词元有 blur/filter 动画,
-            祖先 bg-clip:text 会被后代 filter 打断导致文字隐形 */}
-        <h2 className="[&_.rb-blur-text-word]:bg-[linear-gradient(100deg,#8B5CF6,#A855F7_48%,#EC4899)] [&_.rb-blur-text-word]:bg-clip-text [&_.rb-blur-text-word]:text-transparent [animation:transcript-stage-enter_.55s_var(--ease-out)_both] [animation-delay:70ms]">
-          <BlurText text={title} />
+        <h2 className="text-[var(--accent-strong)] [animation:transcript-stage-enter_.55s_var(--ease-out)_both] [animation-delay:70ms]">
+          <span
+            className={`block [transition:opacity_.32s_ease,filter_.32s_ease,transform_.32s_ease] ${
+              leaving ? 'translate-y-[4px] opacity-0 blur-[6px]' : 'opacity-100 blur-0'
+            }`}
+          >
+            <BlurText key={title} text={title} />
+          </span>
         </h2>
         {children}
       </TargetCursor>
