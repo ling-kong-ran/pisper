@@ -5,6 +5,7 @@ import {
   Link2,
   Menu,
   Clock,
+  MonitorCog,
   Moon,
   Plus,
   Rocket,
@@ -24,7 +25,8 @@ import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
 
 const THEME_META: Record<ThemeMode, LucideIcon> = {
-  system: Clock,
+  system: MonitorCog,
+  scheduled: Clock,
   light: Sun,
   dark: Moon,
 }
@@ -90,7 +92,9 @@ export function PageHeader({
       ? t('navigation:pageHeader.light')
       : theme === 'dark'
         ? t('navigation:pageHeader.dark')
-        : t('navigation:pageHeader.system')
+        : theme === 'scheduled'
+          ? t('navigation:pageHeader.scheduled')
+          : t('navigation:pageHeader.system')
   const desktop = Boolean(desktopPlatform)
 
   return (

@@ -1,7 +1,7 @@
 // 配置页：按分区（模型/通知/界面/桌面宠物/更新/运行时等）组织设置卡片，
 // 每个分区一个设置组件，共享设置原语（SettingsCard 等）。
 import { DesktopPetSettings } from './DesktopPetSettings'
-import { LanguageSettings } from './LanguageSettings'
+import { InterfaceSettings } from './InterfaceSettings'
 import { ModelsSettings } from './ModelsSettings'
 import { NotificationSettings } from './NotificationSettings'
 import { UpdateSettings } from './UpdateSettings'
@@ -36,7 +36,7 @@ export function ConfigPage({
       />
     )
   } else if (section === 'interface') {
-    content = <LanguageSettings notify={notify} />
+    content = <InterfaceSettings notify={notify} />
   } else if (section === 'desktop-pet') {
     content = <DesktopPetSettings notify={notify} />
   } else if (section === 'updates') {

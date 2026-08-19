@@ -115,6 +115,9 @@
   --d1: 140ms;
   --d2: 220ms;
   --d3: 360ms;
+  --app-font-size: 13px;
+  --app-small-size: 12px;
+  --app-message-font-size: 14px;
 
   /* ── 表面与场景：侧栏/内容区/卡片三层递进 ── */
   --sidebar-bg: #f8f9fa;
@@ -407,11 +410,139 @@
     --agent-shadow: #5f24b8;
 }
 
+/* 客制化预设只覆写语义 Token，确保浅色和暗色主题仍共享同一组件实现。 */
+:root[data-accent='blue'] {
+  --star: #1677e8;
+  --star-hover: #0f69d3;
+  --star-strong: #0f69d3;
+  --star-soft: #edf6ff;
+  --star-border: #b8d9ff;
+  --on-accent: #fff;
+  --brand-blue: #1677e8;
+  --brand-blue-hover: #0f69d3;
+  --brand-blue-strong: #0f69d3;
+  --brand-blue-soft: #edf6ff;
+  --brand-blue-border: #cfe5ff;
+  --accent-ring: rgba(22, 119, 232, .16);
+  --focus: #1677e8;
+  --focus-ring: rgba(22, 119, 232, .18);
+}
+
+:root[data-accent='teal'] {
+  --star: #0f766e;
+  --star-hover: #0b625c;
+  --star-strong: #0f6b64;
+  --star-soft: #ecfdf9;
+  --star-border: #99e4d8;
+  --on-accent: #fff;
+  --brand-blue: #0d9488;
+  --brand-blue-hover: #0f766e;
+  --brand-blue-strong: #0f766e;
+  --brand-blue-soft: #ecfdf9;
+  --brand-blue-border: #b8eee5;
+  --accent-ring: rgba(15, 118, 110, .16);
+  --focus: #0d9488;
+  --focus-ring: rgba(13, 148, 136, .18);
+}
+
+:root[data-accent='violet'] {
+  --star: #7557c8;
+  --star-hover: #6547b7;
+  --star-strong: #6547b7;
+  --star-soft: #f5f1ff;
+  --star-border: #d9cdf8;
+  --on-accent: #fff;
+  --brand-blue: #8063d4;
+  --brand-blue-hover: #7557c8;
+  --brand-blue-strong: #6547b7;
+  --brand-blue-soft: #f5f1ff;
+  --brand-blue-border: #e1d8f8;
+  --accent-ring: rgba(117, 87, 200, .16);
+  --focus: #8063d4;
+  --focus-ring: rgba(128, 99, 212, .18);
+}
+
+:root[data-accent='coral'] {
+  --star: #c94f5d;
+  --star-hover: #b6404d;
+  --star-strong: #b6404d;
+  --star-soft: #fff1f2;
+  --star-border: #f3c1c7;
+  --on-accent: #fff;
+  --brand-blue: #d65b68;
+  --brand-blue-hover: #c94f5d;
+  --brand-blue-strong: #b6404d;
+  --brand-blue-soft: #fff1f2;
+  --brand-blue-border: #f7d1d5;
+  --accent-ring: rgba(201, 79, 93, .16);
+  --focus: #d65b68;
+  --focus-ring: rgba(214, 91, 104, .18);
+}
+
+:root[data-theme='dark'][data-accent='blue'],
+:root[data-theme='dark'][data-accent='teal'],
+:root[data-theme='dark'][data-accent='violet'],
+:root[data-theme='dark'][data-accent='coral'] {
+  --star: var(--brand-blue);
+  --star-hover: var(--brand-blue-hover);
+  --star-strong: var(--brand-blue-strong);
+  --star-soft: color-mix(in srgb, var(--brand-blue) 15%, transparent);
+  --star-border: color-mix(in srgb, var(--brand-blue) 38%, transparent);
+  --on-accent: #fff;
+  --brand-blue-soft: color-mix(in srgb, var(--brand-blue) 15%, transparent);
+  --brand-blue-border: color-mix(in srgb, var(--brand-blue) 34%, transparent);
+}
+
+:root[data-theme='dark'][data-accent='blue'] {
+  --brand-blue: #62a9f2;
+  --brand-blue-hover: #7bb8f5;
+  --brand-blue-strong: #93c5fd;
+}
+:root[data-theme='dark'][data-accent='teal'] {
+  --brand-blue: #4dc9bd;
+  --brand-blue-hover: #67d6cb;
+  --brand-blue-strong: #86e1d8;
+}
+:root[data-theme='dark'][data-accent='violet'] {
+  --brand-blue: #a991ea;
+  --brand-blue-hover: #b8a4ef;
+  --brand-blue-strong: #c8b9f4;
+}
+:root[data-theme='dark'][data-accent='coral'] {
+  --brand-blue: #ef8994;
+  --brand-blue-hover: #f19ca5;
+  --brand-blue-strong: #f5b0b7;
+}
+
+:root[data-font-scale='small'] {
+  --app-font-size: 12px;
+  --app-small-size: 11px;
+  --app-message-font-size: 13px;
+}
+:root[data-font-scale='large'] {
+  --app-font-size: 14px;
+  --app-small-size: 13px;
+  --app-message-font-size: 15px;
+}
+
+:root[data-radius='sharp'] {
+  --r-xs: 3px;
+  --r-sm: 5px;
+  --r-md: 8px;
+  --r-lg: 12px;
+}
+:root[data-radius='soft'] {
+  --r-xs: 9px;
+  --r-sm: 13px;
+  --r-md: 18px;
+  --r-lg: 24px;
+}
+
 * { box-sizing: border-box; }
 html, body, #root { width: 100%; height: 100%; min-width: 320px; min-height: 100%; margin: 0; }
-body { overflow: hidden; font-size: 13px; line-height: 1.5; }
+body { overflow: hidden; font-size: var(--app-font-size); line-height: 1.5; }
 :root[data-page-visibility='hidden'] *, :root[data-page-visibility='hidden'] *::before, :root[data-page-visibility='hidden'] *::after { animation-play-state: paused !important; }
-small { font-size: 12px !important; line-height: 1.45; }
+small { font-size: var(--app-small-size) !important; line-height: 1.45; }
 button, input, textarea, select { font: inherit; }
 button, a, select { -webkit-tap-highlight-color: transparent; }
 button:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
@@ -436,7 +567,7 @@ h1, h2, h3, strong { overflow-wrap: anywhere; }
 /* 衍生会话写入追忆后，用一次扩散环把注意力带回关联入口。 */
 @keyframes session-tree-new-node-pulse { 0% { box-shadow: 0 0 0 0 var(--brand-blue-border), var(--sh-1); } 62% { box-shadow: 0 0 0 8px transparent, var(--sh-1); } 100% { box-shadow: var(--sh-1); } }
 @keyframes agent-message-pulse { 50% { opacity: .58; transform: translateY(-1px); } }
-.message-content > .markdown-body { min-height: 34px; overflow-wrap: anywhere; border-radius: var(--r-md); background: transparent; padding: 3px 0; font-size: 14px; line-height: 1.72; }
+.message-content > .markdown-body { min-height: 34px; overflow-wrap: anywhere; border-radius: var(--r-md); background: transparent; padding: 3px 0; font-size: var(--app-message-font-size); line-height: 1.72; }
 .message.user .message-content > .markdown-body { border: 1px solid var(--stroke-soft); border-radius: var(--r-md); background: var(--user-bubble-bg); color: var(--user-bubble-text); padding: 9px 13px; box-shadow: none; }
 .message.user .markdown-body h1,.message.user .markdown-body h2,.message.user .markdown-body h3,.message.user .markdown-body h4,.message.user .markdown-body a { color: var(--user-bubble-text); }
 .message.user .markdown-body code { background: var(--user-bubble-code); }
@@ -523,7 +654,7 @@ h1, h2, h3, strong { overflow-wrap: anywhere; }
 @keyframes spin { to { transform: rotate(360deg); } }
 
 @container (max-width: 700px) {
-  .message-content > .markdown-body { font-size: 13px; }
+  .message-content > .markdown-body { font-size: var(--app-message-font-size); }
 
 }
 
@@ -531,10 +662,11 @@ h1, h2, h3, strong { overflow-wrap: anywhere; }
   body { overflow: auto; }
 }
 
-@media (max-width: 650px) {.message-content > .markdown-body { font-size: 13px; }
+@media (max-width: 650px) {.message-content > .markdown-body { font-size: var(--app-message-font-size); }
 }
 
-@media (prefers-reduced-motion: reduce) { *,*::before,*::after { scroll-behavior: auto!important; animation-duration: .01ms!important; transition-duration: .01ms!important; } }
+:root[data-motion='reduced'] *, :root[data-motion='reduced'] *::before, :root[data-motion='reduced'] *::after { scroll-behavior: auto!important; animation-duration: .01ms!important; animation-iteration-count: 1!important; transition-duration: .01ms!important; }
+@media (prefers-reduced-motion: reduce) { :root:not([data-motion='full']) *, :root:not([data-motion='full']) *::before, :root:not([data-motion='full']) *::after { scroll-behavior: auto!important; animation-duration: .01ms!important; animation-iteration-count: 1!important; transition-duration: .01ms!important; } }
 
 @theme inline {
   --font-heading: var(--font-sans);

@@ -16,6 +16,7 @@ import {
   type SettingsDestination,
 } from '@/app/settings-navigation'
 import { useI18n } from '@/app/use-i18n'
+import { applyUiPreferenceAttributes, resolveDarkTheme } from '@/app/ui-preferences'
 import { BrandLogo } from '@/components/BrandLogo'
 import { WebPreviewProvider } from '@/components/WebPreviewProvider'
 import { AppSidebar } from '@/components/layout/AppSidebar'
@@ -34,7 +35,7 @@ import { showBrowserSystemNotification } from '@/lib/browser-notifications'
 import { useAppDialog } from '@/hooks/useAppDialog'
 import { useAppUpdate } from '@/features/updates/useAppUpdate'
 import { SidebarInset, SidebarProvider } from '@/components/ui/sidebar'
-import { useUiStore, type ThemeMode } from '@/stores/ui-store'
+import { useUiStore } from '@/stores/ui-store'
 import { readStoredTerminalPanel } from '@/features/terminal/terminal-state'
 import type { ChatAttachment, PendingAsset } from '@/types/chat'
 import type { NotificationSettingsData } from '@/types/notifications'
@@ -105,17 +106,6 @@ function renderNotificationContent(content: string, data: Record<string, unknown
   )
 }
 
-// 按时间判断暗色：18:00–次日 8:00 为暗色，用于 system 主题的时间驱动。
-function isAutoDarkByTime() {
-  const hour = new Date().getHours()
-  return hour >= 18 || hour < 8
-}
-
-// 主题模式 → 是否暗色：dark 恒暗；system 交给时间判断。
-function resolveDark(mode: ThemeMode) {
-  return mode === 'dark' || (mode === 'system' && isAutoDarkByTime())
-}
-
 // 是否可编辑目标（输入/文本域/选择/可编辑区域）：
 // 全局快捷键在这些元素上按下时不应被拦截（保留原生输入体验）。
 function isEditableTarget(target: EventTarget | null) {
@@ -154,6 +144,10 @@ function App() {
   const theme = useUiStore((state) => state.theme)
   const cycleTheme = useUiStore((state) => state.cycleTheme)
   const density = useUiStore((state) => state.density)
+  const accent = useUiStore((state) => state.accent)
+  const fontScale = useUiStore((state) => state.fontScale)
+  const radius = useUiStore((state) => state.radius)
+  const motion = useUiStore((state) => state.motion)
   const [toast, setToast] = useState<ToastState | null>(null)
   const [modal, setModal] = useState<string | null>(null)
   const requestedConfigSection =
@@ -200,8 +194,8 @@ function App() {
   const appDialog = useAppDialog()
   const appUpdate = useAppUpdate()
   useEffect(() => {
-    document.documentElement.dataset.density = density
-  }, [density])
+    applyUiPreferenceAttributes({ accent, density, fontScale, motion, radius })
+  }, [accent, density, fontScale, motion, radius])
 
   useEffect(() => {
     localStorage.setItem(
@@ -211,16 +205,23 @@ function App() {
   }, [terminalHeight, terminalOpen])
 
   useEffect(() => {
+    const media = window.matchMedia('(prefers-color-scheme: dark)')
     const apply = () => {
-      const dark = resolveDark(theme)
+      const dark = resolveDarkTheme(theme, media.matches)
       document.documentElement.dataset.theme = dark ? 'dark' : 'light'
       document.documentElement.classList.toggle('dark', dark)
     }
     apply()
-    if (theme !== 'system') return undefined
-    // 时间驱动：每分钟重新评估，以在 18:00 / 8:00 边界自动切换主题
-    const timer = window.setInterval(apply, 60_000)
-    return () => window.clearInterval(timer)
+    if (theme === 'system') {
+      media.addEventListener('change', apply)
+      return () => media.removeEventListener('change', apply)
+    }
+    if (theme === 'scheduled') {
+      // 时间边界按分钟重新评估，避免长期打开应用时主题停留在旧状态。
+      const timer = window.setInterval(apply, 60_000)
+      return () => window.clearInterval(timer)
+    }
+    return undefined
   }, [theme])
 
   const toggleSidebarCollapsed = () => {

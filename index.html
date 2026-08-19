@@ -8,28 +8,43 @@
     <title>Pisper</title>
     <script>
       try {
-        // 读取主题选择：优先 zustand persist (pisper-ui)，回退旧键 pisper-theme，默认 system
-        let theme = ''
+        // React 挂载前应用持久化偏好，避免主题和客制化选项出现首帧闪烁。
+        let stored = {}
+        let version = 0
         try {
           const raw = JSON.parse(localStorage.getItem('pisper-ui') || '{}')
-          const t = raw && raw.state && raw.state.theme
-          if (t === 'system' || t === 'light' || t === 'dark') theme = t
+          stored = (raw && raw.state) || {}
+          version = Number(raw && raw.version) || 0
         } catch {}
-        if (!theme) {
+        let theme = stored.theme
+        if (version === 0 && theme === 'system') theme = 'scheduled'
+        if (!['system', 'scheduled', 'light', 'dark'].includes(theme)) {
           const legacy = localStorage.getItem('pisper-theme')
-          if (legacy === 'system' || legacy === 'light' || legacy === 'dark') theme = legacy
+          theme = ['system', 'light', 'dark'].includes(legacy) ? legacy : 'system'
+          if (theme === 'system' && legacy) theme = 'scheduled'
         }
-        if (!theme) theme = 'system'
-        let dark
-        if (theme === 'dark') dark = true
-        else if (theme === 'light') dark = false
-        else {
-          // system：按系统时间，18:00–次日 8:00 为暗色
+        let dark = theme === 'dark'
+        if (theme === 'system') dark = window.matchMedia('(prefers-color-scheme: dark)').matches
+        if (theme === 'scheduled') {
           const hour = new Date().getHours()
           dark = hour >= 18 || hour < 8
         }
-        document.documentElement.dataset.theme = dark ? 'dark' : 'light'
-        document.documentElement.classList.toggle('dark', dark)
+        const root = document.documentElement
+        root.dataset.theme = dark ? 'dark' : 'light'
+        root.classList.toggle('dark', dark)
+        root.dataset.accent = ['neutral', 'blue', 'teal', 'violet', 'coral'].includes(stored.accent)
+          ? stored.accent
+          : 'neutral'
+        root.dataset.density = stored.density === 'compact' ? 'compact' : 'comfortable'
+        root.dataset.fontScale = ['small', 'default', 'large'].includes(stored.fontScale)
+          ? stored.fontScale
+          : 'default'
+        root.dataset.radius = ['sharp', 'default', 'soft'].includes(stored.radius)
+          ? stored.radius
+          : 'default'
+        root.dataset.motion = ['system', 'full', 'reduced'].includes(stored.motion)
+          ? stored.motion
+          : 'system'
         const storedLanguage = localStorage.getItem('pisper-language')
         document.documentElement.lang = storedLanguage === 'en-US' ? 'en-US' : 'zh-CN'
       } catch {}

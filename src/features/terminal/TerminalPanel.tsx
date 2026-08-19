@@ -319,7 +319,7 @@ export function TerminalPanel({
     })
     observer.observe(document.documentElement, {
       attributes: true,
-      attributeFilter: ['data-theme'],
+      attributeFilter: ['data-theme', 'data-accent'],
     })
     return () => observer.disconnect()
   }, [])
