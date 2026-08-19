@@ -1423,11 +1423,13 @@ export class AgentRuntimeService extends AgentRuntimeFacade {
     )
     // 与 MCP 工具一样按名称排序:启用顺序/文件顺序不该改变稳定前缀,
     // 否则同样的工具集也会因顺序变化而 prompt cache miss。
-    const pluginTools = [...this.toolPlugins.createToolDefinitions({
-      cwd: effectiveCwd,
-      sessionId: runtimeSessionId,
-      enabledTools,
-    })].sort((left, right) => String(left.name || '').localeCompare(String(right.name || '')))
+    const pluginTools = [
+      ...this.toolPlugins.createToolDefinitions({
+        cwd: effectiveCwd,
+        sessionId: runtimeSessionId,
+        enabledTools,
+      }),
+    ].sort((left, right) => String(left.name || '').localeCompare(String(right.name || '')))
     const baseToolNames = [
       ...new Set([
         ...enabledTools,
