@@ -25,6 +25,8 @@ console.log('==> 构建前端产物')
 run('npm', ['run', 'build'])
 
 console.log(`==> 构建 Android APK（${release ? 'release' : 'debug'}，${target}）`)
+// 桌面打包声明（sidecar/资源）由 src-tauri/tauri.android.conf.json 在 Android 构建时覆盖；
+// --config 再覆盖一层双保险（两者内容一致）。
 const args = [
   'tauri',
   'android',
@@ -32,7 +34,6 @@ const args = [
   '--apk',
   '--target',
   target,
-  // 移动端不打 sidecar/更新器资源：覆盖桌面打包的产物清单。
   '--config',
   '{"bundle":{"externalBin":[],"resources":{}}}',
 ]
