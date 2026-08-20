@@ -6,6 +6,7 @@ import {
   Bot,
   Brain,
   Monitor,
+  MonitorSmartphone,
   Plug,
   RadioTower,
   RefreshCw,
@@ -33,6 +34,7 @@ export const CONFIG_SECTIONS = new Set([
   'interface',
   'desktop-pet',
   'updates',
+  'remote-access',
 ])
 
 export const SETTINGS_PAGES = new Set(['config', 'channels', 'plugins', 'memory', 'mcp', 'skills'])
@@ -93,6 +95,12 @@ export function getSettingsNavigation(t: Translate): SettingsNavigationGroup[] {
           label: t('navigation:navigation.channels'),
           icon: RadioTower,
           destination: { type: 'page', id: 'channels' },
+        },
+        {
+          key: 'config:remote-access',
+          label: t('config:configPage.remoteAccess'),
+          icon: MonitorSmartphone,
+          destination: { type: 'config', id: 'remote-access' },
         },
         {
           key: 'config:notifications',

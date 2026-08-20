@@ -6,7 +6,7 @@ use serde::Serialize;
 use std::{collections::HashMap, path::PathBuf, sync::Mutex};
 use tauri::{AppHandle, Manager, State};
 
-use crate::{
+use crate::desktop_shell::{
     cli_manager,
     desktop_bridge::{log_component_update, UPDATER_PUBLIC_KEY},
 };
@@ -364,7 +364,7 @@ pub async fn desktop_install_component_updates(
 #[tauri::command]
 pub fn desktop_restart_for_component_update(app: AppHandle) -> bool {
     log_component_update(&app, "restarting to activate Desktop or Runtime components");
-    crate::stop_sidecar(&app);
+    crate::desktop_shell::stop_sidecar(&app);
     app.cleanup_before_exit();
     app.restart()
 }

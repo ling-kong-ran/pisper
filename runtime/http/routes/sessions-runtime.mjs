@@ -9,6 +9,9 @@ export const sessionRuntimeRoutes = [
         ok: true,
         engine: '@earendil-works/pi-coding-agent',
         version: services.engineVersion,
+        // 客户端版本握手：同大版本内服务端承诺前向兼容。
+        apiVersion: 1,
+        minClientVersion: 1,
       })
     },
   },
@@ -363,13 +366,15 @@ export const sessionRuntimeRoutes = [
   {
     method: 'POST',
     path: '/api/chat',
-    async handler({ runtime, body, startSse, sendSse }) {
+    async handler({ runtime, body, startSse, sendSse, startRun }) {
       const input = await body()
       const message = String(input.message || '').trim()
       const invocation =
         input.invocation && typeof input.invocation === 'object' ? input.invocation : null
       if (!message && !invocation) throw new Error('消息或资源调用不能为空。')
       startSse()
+      // 登记为可重挂的 run：首帧发出 runId，客户端断线后可按游标续传。
+      startRun({ kind: 'chat', sessionId: String(input.sessionId || '') })
       if (invocation?.kind === 'workflow') {
         const result = await runtime.runWorkflow(String(invocation.resourceId || ''), {
           trigger: 'chat',

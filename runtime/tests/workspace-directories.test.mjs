@@ -106,9 +106,9 @@ test('workspace selection uses the desktop picker or the server-backed Web brows
     routes,
   ] = await Promise.all([
     readFile('src-tauri/Cargo.toml', 'utf8'),
-    readFile('src-tauri/src/lib.rs', 'utf8'),
-    readFile('src-tauri/src/desktop_bridge.rs', 'utf8'),
-    readFile('src-tauri/src/desktop-bridge.js', 'utf8'),
+    readFile('src-tauri/src/desktop_shell/mod.rs', 'utf8'),
+    readFile('src-tauri/src/desktop_shell/desktop_bridge.rs', 'utf8'),
+    readFile('src-tauri/src/desktop_shell/desktop-bridge.js', 'utf8'),
     readFile('src-tauri/permissions/desktop.toml', 'utf8'),
     readFile('src/lib/pick-system-directory.ts', 'utf8'),
     readFile('src/components/WorkspacePicker.tsx', 'utf8'),

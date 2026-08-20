@@ -83,7 +83,7 @@ test('desktop frontend is packaged separately from the runtime payload', async (
     readFile('scripts/archive-component-release.mjs', 'utf8'),
     readFile('scripts/build-sea.mjs', 'utf8'),
     readFile('src-tauri/tauri.conf.json', 'utf8'),
-    readFile('src-tauri/src/lib.rs', 'utf8'),
+    readFile('src-tauri/src/desktop_shell/mod.rs', 'utf8'),
     readFile('runtime/sidecar.mjs', 'utf8'),
   ])
   const tauriConfig = JSON.parse(tauriConfigSource)
@@ -139,12 +139,12 @@ test('desktop and TUI launch independently installed signed components with bund
     settings,
   ] = await Promise.all([
     readFile('crates/component-updater/src/lib.rs', 'utf8'),
-    readFile('src-tauri/src/lib.rs', 'utf8'),
-    readFile('src-tauri/src/cli_manager.rs', 'utf8'),
+    readFile('src-tauri/src/desktop_shell/mod.rs', 'utf8'),
+    readFile('src-tauri/src/desktop_shell/cli_manager.rs', 'utf8'),
     readFile('src-tui/src/main.rs', 'utf8'),
     readFile('src-tui/src/component_update.rs', 'utf8'),
     readFile('src-tui/src/sidecar.rs', 'utf8'),
-    readFile('src-tauri/src/desktop-bridge.js', 'utf8'),
+    readFile('src-tauri/src/desktop_shell/desktop-bridge.js', 'utf8'),
     readFile('src-tauri/permissions/desktop.toml', 'utf8'),
     readFile('src/features/config/UpdateSettings.tsx', 'utf8'),
   ])

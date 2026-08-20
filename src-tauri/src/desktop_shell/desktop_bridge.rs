@@ -166,7 +166,7 @@ pub fn desktop_set_language(app: AppHandle, language: String) -> String {
         "en-US" => "en-US",
         _ => "zh-CN",
     };
-    crate::set_tray_language(&app, normalized);
+    crate::desktop_shell::set_tray_language(&app, normalized);
     normalized.into()
 }
 

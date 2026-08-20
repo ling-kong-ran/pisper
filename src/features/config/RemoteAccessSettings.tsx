@@ -1,0 +1,243 @@
+// 远程访问设置：开关局域网监听、展示接入地址与证书指纹、
+// 生成配对二维码、管理已配对设备（吊销）。数据全部来自 runtime 的 /api/remote/*。
+import { useCallback, useEffect, useState } from 'react'
+import { MonitorSmartphone, QrCode, RefreshCw, ShieldCheck, Smartphone } from 'lucide-react'
+import { useI18n } from '@/app/use-i18n'
+import type { Notify } from '@/app/route-context'
+import { apiJson } from '@/lib/api'
+import { relativeTime } from '@/lib/format'
+import { SettingsCard as Panel, SettingsSwitch as Switch } from './settings-primitives'
+import { Button } from '@/components/ui/button'
+
+type RemoteEndpoint = { t: string; url: string }
+
+type RemoteStatus = {
+  apiVersion: number
+  enabled: boolean
+  listening: boolean
+  host: string
+  port: number
+  fingerprint: string | null
+  deviceName: string
+  endpoints: RemoteEndpoint[]
+  mdns: { advertising: boolean; error: string | null }
+  error: string | null
+}
+
+type RemoteDevice = {
+  id: string
+  name: string
+  createdAt: string
+  lastSeenAt: string
+  revokedAt: string | null
+  current: boolean
+}
+
+type PairingCode = {
+  code: string
+  expiresAt: string
+  qrDataUrl: string
+}
+
+export function RemoteAccessSettings({ notify }: { notify: Notify }) {
+  const { t, language } = useI18n()
+  const [status, setStatus] = useState<RemoteStatus | null>(null)
+  const [devices, setDevices] = useState<RemoteDevice[]>([])
+  const [pairing, setPairing] = useState<PairingCode | null>(null)
+  const [busy, setBusy] = useState(false)
+  const [loadError, setLoadError] = useState('')
+
+  const refresh = useCallback(async () => {
+    try {
+      const [nextStatus, nextDevices] = await Promise.all([
+        apiJson<RemoteStatus>('/api/remote/status'),
+        apiJson<{ devices: RemoteDevice[] }>('/api/remote/devices'),
+      ])
+      setStatus(nextStatus)
+      setDevices(nextDevices.devices.filter((device) => !device.revokedAt))
+      setLoadError('')
+    } catch {
+      setLoadError(t('config:remoteAccess.loadFailed'))
+    }
+  }, [t])
+
+  useEffect(() => {
+    void refresh()
+  }, [refresh])
+
+  const toggleEnabled = async (enabled: boolean) => {
+    setBusy(true)
+    try {
+      await apiJson('/api/remote/enabled', { method: 'PUT', body: { enabled } })
+      if (!enabled) setPairing(null)
+      await refresh()
+    } catch (error) {
+      notify(t('config:remoteAccess.toggleFailed', { message: String(error) }), 'error')
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  const generatePairingCode = async () => {
+    setBusy(true)
+    try {
+      const result = await apiJson<PairingCode>('/api/remote/pairing-code', { method: 'POST' })
+      setPairing(result)
+    } catch (error) {
+      notify(t('config:remoteAccess.pairingFailed', { message: String(error) }), 'error')
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  const revokeDevice = async (device: RemoteDevice) => {
+    if (!window.confirm(t('config:remoteAccess.revokeConfirm', { name: device.name }))) return
+    try {
+      await apiJson(`/api/remote/devices/${encodeURIComponent(device.id)}/revoke`, {
+        method: 'POST',
+      })
+      await refresh()
+    } catch (error) {
+      notify(t('config:remoteAccess.revokeFailed', { message: String(error) }), 'error')
+    }
+  }
+
+  if (loadError) {
+    return <Panel className="p-4 text-[13px] text-[var(--text-muted)]">{loadError}</Panel>
+  }
+  if (!status) return null
+
+  return (
+    <div className="flex flex-col gap-4">
+      <Panel className="flex flex-col gap-3 p-4">
+        <div className="flex items-center justify-between gap-3">
+          <div className="flex items-start gap-[11px]">
+            <span className="grid size-[38px] flex-none place-items-center rounded-[var(--r-sm)] bg-[var(--star-soft)] text-[var(--star-strong)]">
+              <MonitorSmartphone size={19} />
+            </span>
+            <div>
+              <h2 className="text-[16px]">{t('config:remoteAccess.title')}</h2>
+              <p className="mt-1 text-[13px] leading-[1.55] text-[var(--text-muted)]">
+                {t('config:remoteAccess.description')}
+              </p>
+            </div>
+          </div>
+          <Switch
+            value={status.enabled && status.listening}
+            disabled={busy}
+            onChange={(checked) => void toggleEnabled(checked)}
+            ariaLabel={t('config:remoteAccess.title')}
+          />
+        </div>
+        {status.error ? (
+          <p className="rounded-[var(--r-sm)] bg-[var(--danger-soft)] px-3 py-2 text-[12px] text-[var(--danger)]">
+            {t('config:remoteAccess.listenFailed', { message: status.error })}
+          </p>
+        ) : null}
+        {status.listening ? (
+          <div className="flex flex-col gap-1.5 text-[12px] text-[var(--text-muted)]">
+            <div className="flex items-center gap-2">
+              <ShieldCheck size={14} className="flex-none" />
+              <span>{t('config:remoteAccess.fingerprint')}</span>
+              <code className="break-all text-[11px]">{status.fingerprint}</code>
+            </div>
+            {status.endpoints.map((endpoint) => (
+              <div key={endpoint.url} className="flex items-center gap-2">
+                <span className="w-10 flex-none rounded border border-[var(--border)] px-1 text-center text-[10px] uppercase">
+                  {endpoint.t}
+                </span>
+                <code className="break-all text-[11px]">{endpoint.url}</code>
+              </div>
+            ))}
+          </div>
+        ) : null}
+      </Panel>
+
+      {status.listening ? (
+        <Panel className="flex flex-col gap-3 p-4">
+          <div className="flex items-center justify-between gap-3">
+            <div className="flex items-center gap-2 text-[14px]">
+              <QrCode size={16} />
+              {t('config:remoteAccess.pairing')}
+            </div>
+            <Button size="sm" disabled={busy} onClick={() => void generatePairingCode()}>
+              {pairing ? t('config:remoteAccess.regenerate') : t('config:remoteAccess.generateQr')}
+            </Button>
+          </div>
+          <p className="text-[12px] leading-[1.6] text-[var(--text-muted)]">
+            {t('config:remoteAccess.pairingDescription')}
+          </p>
+          {pairing ? (
+            <div className="flex flex-col items-center gap-3 py-2">
+              {pairing.qrDataUrl ? (
+                <img
+                  src={pairing.qrDataUrl}
+                  alt={t('config:remoteAccess.qrAlt')}
+                  className="size-56 rounded-[var(--r-sm)] bg-white p-2"
+                />
+              ) : null}
+              <div className="text-center">
+                <div className="font-mono text-[20px] tracking-[0.2em]">{pairing.code}</div>
+                <div className="mt-1 text-[11px] text-[var(--text-muted)]">
+                  {t('config:remoteAccess.codeExpiresAt', {
+                    time: relativeTime(pairing.expiresAt, language),
+                  })}
+                </div>
+              </div>
+            </div>
+          ) : null}
+        </Panel>
+      ) : null}
+
+      <Panel className="flex flex-col gap-3 p-4">
+        <div className="flex items-center justify-between gap-3">
+          <div className="flex items-center gap-2 text-[14px]">
+            <Smartphone size={16} />
+            {t('config:remoteAccess.devices')}
+          </div>
+          <Button
+            size="sm"
+            variant="ghost"
+            onClick={() => void refresh()}
+            aria-label={t('config:remoteAccess.refresh')}
+          >
+            <RefreshCw size={14} />
+          </Button>
+        </div>
+        {devices.length === 0 ? (
+          <p className="text-[12px] text-[var(--text-muted)]">
+            {t('config:remoteAccess.noDevices')}
+          </p>
+        ) : (
+          <ul className="flex flex-col gap-2">
+            {devices.map((device) => (
+              <li
+                key={device.id}
+                className="flex items-center justify-between gap-3 rounded-[var(--r-sm)] border border-[var(--border)] px-3 py-2"
+              >
+                <div className="min-w-0">
+                  <div className="truncate text-[13px]">
+                    {device.name}
+                    {device.current ? (
+                      <span className="ml-2 text-[11px] text-[var(--text-muted)]">
+                        {t('config:remoteAccess.currentDevice')}
+                      </span>
+                    ) : null}
+                  </div>
+                  <div className="text-[11px] text-[var(--text-muted)]">
+                    {t('config:remoteAccess.lastSeen', {
+                      time: relativeTime(device.lastSeenAt, language),
+                    })}
+                  </div>
+                </div>
+                <Button size="sm" variant="ghost" onClick={() => void revokeDevice(device)}>
+                  {t('config:remoteAccess.revoke')}
+                </Button>
+              </li>
+            ))}
+          </ul>
+        )}
+      </Panel>
+    </div>
+  )
+}

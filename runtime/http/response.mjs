@@ -65,6 +65,9 @@ export async function bodyJson(req) {
   return JSON.parse(Buffer.concat(chunks).toString('utf8'))
 }
 
-export function sseSend(res, event, data) {
-  res.write(`event: ${event}\ndata: ${JSON.stringify(data, jsonReplacer)}\n\n`)
+// 发送一帧 SSE：id 非空时写入标准 `id:` 行（run 游标），
+// 旧客户端会忽略未知字段，保持前向兼容。
+export function sseSend(res, event, data, id = null) {
+  const idLine = id == null ? '' : `id: ${id}\n`
+  res.write(`${idLine}event: ${event}\ndata: ${JSON.stringify(data, jsonReplacer)}\n\n`)
 }

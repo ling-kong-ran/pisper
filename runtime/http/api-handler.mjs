@@ -7,14 +7,19 @@ import { configSettingsRoutes } from './routes/config-settings.mjs'
 import { desktopRoutes } from './routes/desktop.mjs'
 import { integrationRoutes } from './routes/integrations.mjs'
 import { memoryAssetRoutes } from './routes/memory-assets.mjs'
+import { remoteRoutes } from './routes/remote.mjs'
+import { runRoutes } from './routes/runs.mjs'
 import { sessionRuntimeRoutes } from './routes/sessions-runtime.mjs'
 import { workflowScheduleRoutes } from './routes/workflows-schedules.mjs'
+import { RunRegistry } from '../services/run-registry.mjs'
 
 const registry = createRouteRegistry([
   ...sessionRuntimeRoutes,
   ...configSettingsRoutes,
   ...workflowScheduleRoutes,
   ...memoryAssetRoutes,
+  ...remoteRoutes,
+  ...runRoutes,
   ...integrationRoutes,
   ...desktopRoutes,
 ])
@@ -25,8 +30,11 @@ function publicError(error) {
 }
 
 // 构建路由处理上下文：提供 JSON 响应、SSE 启动/发送、请求体解析等工具。
+// startRun 把当前 SSE 流登记为可重挂的 run：发送 run 头帧（游标 0，不入缓冲），
+// 之后的 sendSse 自动带上游标并写入环形缓冲，供断线重挂补发。
 function createHandlerContext({ runtime, services, req, res, url, params }) {
   let sseStarted = false
+  let activeRun = null
   return {
     context: {
       runtime,
@@ -49,7 +57,21 @@ function createHandlerContext({ runtime, services, req, res, url, params }) {
         sseStarted = true
       },
       sendSse(event, data) {
-        if (!res.destroyed && !res.writableEnded) sseSend(res, event, data)
+        // 先入缓冲再写出：客户端断开时写出为空操作，但缓冲继续累积，保证可重挂。
+        let cursor = null
+        if (activeRun) cursor = services.runs.record(activeRun, event, data)
+        if (!res.destroyed && !res.writableEnded) sseSend(res, event, data, cursor)
+      },
+      startRun(meta = {}) {
+        activeRun = services.runs.begin(meta)
+        if (!res.destroyed && !res.writableEnded) {
+          sseSend(res, 'run', { runId: activeRun.id, ...meta, cursor: 0 })
+        }
+        return { runId: activeRun.id }
+      },
+      endRun() {
+        if (activeRun) services.runs.close(activeRun)
+        activeRun = null
       },
     },
     isSse: () => sseStarted,
@@ -58,9 +80,25 @@ function createHandlerContext({ runtime, services, req, res, url, params }) {
 
 export function createApiHandler(
   runtime,
-  { updates, sponsors, desktopPet, engineVersion = 'unknown' } = {},
+  {
+    updates,
+    sponsors,
+    desktopPet,
+    engineVersion = 'unknown',
+    remoteAccess,
+    remoteControl,
+    runs,
+  } = {},
 ) {
-  const services = { updates, sponsors, desktopPet, engineVersion }
+  const services = {
+    updates,
+    sponsors,
+    desktopPet,
+    engineVersion,
+    remoteAccess,
+    remoteControl,
+    runs: runs || new RunRegistry(),
+  }
   return async function handleApi(req, res, url) {
     if (!url.pathname.startsWith('/api/')) return false
 
@@ -87,7 +125,11 @@ export function createApiHandler(
         sendJson(res, 400, { error: publicError(error) })
       }
     }
-    if (handlerContext?.isSse() && !res.writableEnded) res.end()
+    if (handlerContext?.isSse()) {
+      // SSE 结束前关闭 run：终态帧（done/error）已在上方记录，此后进入重放保留期。
+      handlerContext.context.endRun?.()
+      if (!res.writableEnded) res.end()
+    }
     return true
   }
 }

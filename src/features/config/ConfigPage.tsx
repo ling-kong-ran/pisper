@@ -4,6 +4,7 @@ import { DesktopPetSettings } from './DesktopPetSettings'
 import { InterfaceSettings } from './InterfaceSettings'
 import { ModelsSettings } from './ModelsSettings'
 import { NotificationSettings } from './NotificationSettings'
+import { RemoteAccessSettings } from './RemoteAccessSettings'
 import { UpdateSettings } from './UpdateSettings'
 import type { Notify } from '@/app/route-context'
 import type { ConfirmDialogOptions } from '@/hooks/useAppDialog'
@@ -39,6 +40,8 @@ export function ConfigPage({
     content = <InterfaceSettings notify={notify} />
   } else if (section === 'desktop-pet') {
     content = <DesktopPetSettings notify={notify} />
+  } else if (section === 'remote-access') {
+    content = <RemoteAccessSettings notify={notify} />
   } else if (section === 'updates') {
     content = <UpdateSettings notify={notify} update={update} />
   } else {

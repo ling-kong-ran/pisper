@@ -120,9 +120,9 @@ test('Web pet service installs validated resources and publishes Agent state', a
 
 test('Tauri pet and tray menus preserve desktop pet controls', async () => {
   const [shell, petShell, desktopBridge, petRenderer, permissions] = await Promise.all([
-    readFile(new URL('src-tauri/src/lib.rs', ROOT), 'utf8'),
-    readFile(new URL('src-tauri/src/desktop_pet.rs', ROOT), 'utf8'),
-    readFile(new URL('src-tauri/src/desktop-bridge.js', ROOT), 'utf8'),
+    readFile(new URL('src-tauri/src/desktop_shell/mod.rs', ROOT), 'utf8'),
+    readFile(new URL('src-tauri/src/desktop_shell/desktop_pet.rs', ROOT), 'utf8'),
+    readFile(new URL('src-tauri/src/desktop_shell/desktop-bridge.js', ROOT), 'utf8'),
     readFile(new URL('public/tauri-pet.js', ROOT), 'utf8'),
     readFile(new URL('src-tauri/permissions/desktop.toml', ROOT), 'utf8'),
   ])

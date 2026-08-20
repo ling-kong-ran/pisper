@@ -1,0 +1,14 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "mobile-bridge",
+  "description": "Mobile connect page: pairing, QR scanning, notifications.",
+  "windows": ["main"],
+  "permissions": [
+    "core:default",
+    "allow-pisper-mobile-bridge",
+    "barcode-scanner:allow-scan",
+    "barcode-scanner:allow-check-permissions",
+    "barcode-scanner:allow-request-permissions",
+    "notification:default"
+  ]
+}

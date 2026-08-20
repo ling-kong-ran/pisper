@@ -32,8 +32,8 @@ test('new desktop shells use component updates while legacy clients retain relea
   const [cargo, config, library, bridge, permissions, workflow, updateHook] = await Promise.all([
     readFile('src-tauri/Cargo.toml', 'utf8'),
     readFile('src-tauri/tauri.conf.json', 'utf8'),
-    readFile('src-tauri/src/lib.rs', 'utf8'),
-    readFile('src-tauri/src/desktop-bridge.js', 'utf8'),
+    readFile('src-tauri/src/desktop_shell/mod.rs', 'utf8'),
+    readFile('src-tauri/src/desktop_shell/desktop-bridge.js', 'utf8'),
     readFile('src-tauri/permissions/desktop.toml', 'utf8'),
     readFile('.github/workflows/release.yml', 'utf8'),
     readFile('src/features/updates/useAppUpdate.ts', 'utf8'),
@@ -51,7 +51,7 @@ test('new desktop shells use component updates while legacy clients retain relea
 })
 
 test('main desktop window leaves HTML5 drag and drop to the webview', async () => {
-  const library = await readFile('src-tauri/src/lib.rs', 'utf8')
+  const library = await readFile('src-tauri/src/desktop_shell/mod.rs', 'utf8')
   const mainWindow = library.slice(
     library.indexOf('WebviewWindowBuilder::new(app, "main"'),
     library.indexOf('fn show_main_window'),
@@ -61,7 +61,7 @@ test('main desktop window leaves HTML5 drag and drop to the webview', async () =
 })
 
 test('closing the macOS main window keeps it reopenable from the Dock', async () => {
-  const library = await readFile('src-tauri/src/lib.rs', 'utf8')
+  const library = await readFile('src-tauri/src/desktop_shell/mod.rs', 'utf8')
 
   assert.match(
     library,
@@ -74,7 +74,7 @@ test('transparent desktop pet enables the required macOS Tauri API', async () =>
   const [cargo, config, desktopPet] = await Promise.all([
     readFile('src-tauri/Cargo.toml', 'utf8'),
     readFile('src-tauri/tauri.conf.json', 'utf8'),
-    readFile('src-tauri/src/desktop_pet.rs', 'utf8'),
+    readFile('src-tauri/src/desktop_shell/desktop_pet.rs', 'utf8'),
   ])
 
   assert.match(desktopPet, /\.transparent\(true\)/)
@@ -95,7 +95,7 @@ test('release quality stages both desktop sidecars before checking Rust', async 
 test('Windows test harnesses reuse the valid Tauri resource without replacing binary input', async () => {
   const [build, library, binary] = await Promise.all([
     readFile('src-tauri/build.rs', 'utf8'),
-    readFile('src-tauri/src/lib.rs', 'utf8'),
+    readFile('src-tauri/src/desktop_shell/mod.rs', 'utf8'),
     readFile('src-tauri/src/main.rs', 'utf8'),
   ])
 
@@ -133,8 +133,8 @@ test('Windows GNU packages carry the WebView2 loader through an explicit Rust ta
 
 test('desktop startup refreshes only an existing managed TUI installation', async () => {
   const [manager, desktop] = await Promise.all([
-    readFile('src-tauri/src/cli_manager.rs', 'utf8'),
-    readFile('src-tauri/src/lib.rs', 'utf8'),
+    readFile('src-tauri/src/desktop_shell/cli_manager.rs', 'utf8'),
+    readFile('src-tauri/src/desktop_shell/mod.rs', 'utf8'),
   ])
 
   assert.match(manager, /pub fn refresh_managed_cli\(app: &AppHandle\)/)
@@ -159,9 +159,9 @@ test('desktop bundles the TUI behind the narrow CLI management bridge', async ()
   const [configSource, packageSource, bridge, permissions, manager] = await Promise.all([
     readFile('src-tauri/tauri.conf.json', 'utf8'),
     readFile('package.json', 'utf8'),
-    readFile('src-tauri/src/desktop-bridge.js', 'utf8'),
+    readFile('src-tauri/src/desktop_shell/desktop-bridge.js', 'utf8'),
     readFile('src-tauri/permissions/desktop.toml', 'utf8'),
-    readFile('src-tauri/src/cli_manager.rs', 'utf8'),
+    readFile('src-tauri/src/desktop_shell/cli_manager.rs', 'utf8'),
   ])
   const config = JSON.parse(configSource)
   const packageJson = JSON.parse(packageSource)

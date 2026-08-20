@@ -84,7 +84,9 @@ fn bundled_payload() -> Result<PathBuf, String> {
 }
 
 fn preferred_payload(app: &AppHandle) -> Result<(PathBuf, String), String> {
-    if let Some(installed) = crate::component_updates::installed_component(app, Component::Tui) {
+    if let Some(installed) =
+        crate::desktop_shell::component_updates::installed_component(app, Component::Tui)
+    {
         return Ok((installed.executable(), installed.version.to_string()));
     }
     Ok((
@@ -94,7 +96,8 @@ fn preferred_payload(app: &AppHandle) -> Result<(PathBuf, String), String> {
 }
 
 fn preferred_runtime(app: &AppHandle) -> Result<(PathBuf, PathBuf), String> {
-    if let Some(installed) = crate::component_updates::installed_component(app, Component::Runtime)
+    if let Some(installed) =
+        crate::desktop_shell::component_updates::installed_component(app, Component::Runtime)
     {
         return Ok((
             installed.executable(),
@@ -175,7 +178,7 @@ fn shell_quote(path: &Path) -> String {
 
 #[cfg(not(windows))]
 fn expected_launcher(app: &AppHandle) -> Result<String, String> {
-    if crate::component_updates::installed_component(app, Component::Tui).is_none() {
+    if crate::desktop_shell::component_updates::installed_component(app, Component::Tui).is_none() {
         if let Some(app_image) = std::env::var_os("APPIMAGE").map(PathBuf::from) {
             if app_image.is_file() {
                 return Ok(format!(

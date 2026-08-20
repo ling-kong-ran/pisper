@@ -16,6 +16,8 @@ const dataDir = resolveAgentDataDir()
 const production = process.argv.includes('--production')
 const port = Number(process.env.PORT || 5173)
 const host = process.env.HOST || '127.0.0.1'
+// --remote / PISPER_REMOTE=1：启用远程访问（局域网 HTTPS + 设备配对），供移动端连接。
+const remoteFlag = process.argv.includes('--remote') || process.env.PISPER_REMOTE === '1'
 
 const pisper = await createPisperRuntime({
   root,
@@ -24,10 +26,20 @@ const pisper = await createPisperRuntime({
   production,
   port,
   host,
+  remote: remoteFlag ? { enabled: true } : {},
 })
 console.log('')
 console.log(`Pisper 已启动：${pisper.url}`)
 console.log(`数据目录：${pisper.dataDir}`)
+const remoteStatus = pisper.remoteControl.status()
+if (remoteStatus.listening) {
+  console.log('远程访问已开启，移动端可用以下地址连接：')
+  for (const endpoint of remoteStatus.endpoints) console.log(`  [${endpoint.t}] ${endpoint.url}`)
+  console.log(`证书指纹：${remoteStatus.fingerprint}`)
+  console.log('在「设置 → 远程访问」中生成配对二维码。')
+} else if (remoteStatus.enabled) {
+  console.log(`远程访问启动失败：${remoteStatus.error || '未知原因'}`)
+}
 // 仅在显式设置 PISPER_OPEN_BROWSER=1 且非 CI 环境时自动打开浏览器，
 // 避免在无人值守/远程场景下意外拉起浏览器窗口。
 if (shouldOpenBrowser({ host })) {
