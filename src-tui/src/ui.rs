@@ -46,7 +46,7 @@ const CONVERSATION_WIDTH: u16 = 110;
 // 欢迎视图内容区宽度。
 const WELCOME_WIDTH: u16 = 88;
 // 完整 Logo 所需的最小宽度。
-const WELCOME_FULL_LOGO_WIDTH: u16 = 48;
+const WELCOME_FULL_LOGO_WIDTH: u16 = 64;
 // Slash 目录最大高度。
 const SLASH_HEIGHT: u16 = 22;
 // 列表高亮符号。
@@ -188,13 +188,33 @@ impl TerminalTheme {
     }
 }
 
-// 欢迎视图的 ASCII 品牌 Logo（每行两段，组合成完整 Logo）。
-const PISPER_LOGO: [(&str, &str); 5] = [
-    ("████  █ █████  ", "████  █████ ████ "),
-    ("█   █ █ █      ", "█   █ █     █   █"),
-    ("████  █ █████  ", "████  ████  ████ "),
-    ("█     █     █  ", "█     █     █  █ "),
-    ("█     █ █████  ", "█     █████ █   █"),
+// 欢迎视图的 ASCII 品牌 Logo（每行三段，组合成完整 Logo）。
+const PISPER_CODE_LOGO: [(&str, &str, &str); 5] = [
+    (
+        "████  █ █████  ",
+        "████  █████ ████ ",
+        "   ███  ████  ████  █████",
+    ),
+    (
+        "█   █ █ █      ",
+        "█   █ █     █   █",
+        "  █    █    █ █   █ █    ",
+    ),
+    (
+        "████  █ █████  ",
+        "████  ████  ████ ",
+        "  █    █    █ █   █ ████ ",
+    ),
+    (
+        "█     █     █  ",
+        "█     █     █  █ ",
+        "  █    █    █ █   █ █    ",
+    ),
+    (
+        "█     █ █████  ",
+        "█     █████ █   █",
+        "   ███  ████  ████  █████",
+    ),
 ];
 
 /// 输入框高度：矮终端用单行，常规高度用两行留白。
@@ -298,7 +318,7 @@ fn render_welcome(frame: &mut Frame, app: &App, area: Rect) -> Rect {
     let full_logo =
         area.width >= WELCOME_FULL_LOGO_WIDTH && area.height >= composer_height.saturating_add(8);
     let logo_height: u16 = if full_logo {
-        PISPER_LOGO.len() as u16
+        PISPER_CODE_LOGO.len() as u16
     } else if area.width >= 6 && area.height >= composer_height.saturating_add(3) {
         1
     } else {
@@ -371,15 +391,19 @@ fn render_welcome(frame: &mut Frame, app: &App, area: Rect) -> Rect {
 /// 渲染品牌 Logo：宽终端显示完整 ASCII 大图，窄终端退化为单行文字。
 fn render_welcome_logo(frame: &mut Frame, area: Rect, full: bool) {
     let lines = if full {
-        PISPER_LOGO
+        PISPER_CODE_LOGO
             .iter()
-            .map(|(pis, per)| {
+            .map(|(pis, per, code)| {
                 Line::from(vec![
                     Span::styled(
                         *pis,
                         Style::default().fg(ACCENT).add_modifier(Modifier::BOLD),
                     ),
                     Span::styled(*per, Style::default().fg(TEXT).add_modifier(Modifier::BOLD)),
+                    Span::styled(
+                        *code,
+                        Style::default().fg(MUTED).add_modifier(Modifier::BOLD),
+                    ),
                 ])
             })
             .collect::<Vec<_>>()
@@ -392,6 +416,10 @@ fn render_welcome_logo(frame: &mut Frame, area: Rect, full: bool) {
             Span::styled(
                 "PER",
                 Style::default().fg(TEXT).add_modifier(Modifier::BOLD),
+            ),
+            Span::styled(
+                " CODE",
+                Style::default().fg(MUTED).add_modifier(Modifier::BOLD),
             ),
         ])]
     };
@@ -5364,7 +5392,7 @@ mod tests {
             .position(|row| row.contains("Message Pisper"))
             .unwrap();
 
-        assert!(rendered.contains("PISPER"));
+        assert!(rendered.contains("PISPER CODE"));
         assert!(rows[input_row]
             .trim_start()
             .starts_with("╭─ ❯ Message Pisper"));

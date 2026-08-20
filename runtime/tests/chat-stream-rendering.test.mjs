@@ -93,6 +93,9 @@ test('composer send action becomes the only stop control while streaming', async
   assert.match(focus, /onClick=\{streaming \? onAbort : undefined\}/)
   assert.match(focus, /streaming \? \(\s*<Square size=\{16\} fill="currentColor"/)
   assert.match(focus, /send-button[^`\n]*stop[^`\n]*bg-\[var\(--danger\)\]/)
+  assert.match(focus, /disabled:opacity-100/)
+  assert.match(focus, /focus-composer_&:disabled[^`\n]*bg-\[var\(--surface-muted\)\]/)
+  assert.match(focus, /focus-composer_&:disabled[^`\n]*text-\[var\(--text-muted\)\]/)
 })
 
 test('image previews portal above session-level controls', async () => {
