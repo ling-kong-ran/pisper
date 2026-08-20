@@ -5,6 +5,41 @@ Runtime、Tauri 壳、前端三方均按本文档实现；任何一方需要偏�
 
 配套设计背景见各节引用；本文档只定义**协议与行为**，不约束内部实现。
 
+## 0. 落地状态（2026-08，release-app 分支）
+
+第一阶段已实现并验证：
+
+- Runtime：`--remote` / `PISPER_REMOTE=1` 远程模式；**双监听**（回环 HTTP 不变 +
+  独立 LAN HTTPS 监听，默认 5174）；配对码/设备令牌/吊销（§4）；自签证书 + 指纹（§7）；
+  mDNS 广播（§5.1）；SSE run 模型与重挂（§6）。
+- 前端：设置 →「远程访问」分区（开关、配对二维码、设备管理）；移动端 viewport-fit 与安全区。
+- Tauri 壳：`mobile` 模块（本地回环代理：rustls 指纹锁定 + Bearer 注入 + SSE 透传）、
+  配对命令、内置连接页（`public/connect.html`，扫码/手动）、barcode-scanner 插件与权限。
+
+**与早期设计稿的差异（已落地版本为准）：**
+
+1. **主 UI 由桌面端经代理托管**，不内置于壳：WebView 加载 `http://127.0.0.1:<代理端口>`，
+   代理转发一切（含静态资源）。UI 与 Runtime 版本永远一致，§8 版本握手暂作保留能力。
+   壳内置的仅有连接页（离线可用，保留了原 B2 的核心诉求）。
+2. IPv6 不做主动可达性探测：Teredo/6to4 伪地址在枚举时过滤，其余交给移动端并发探测择优。
+3. 手动配对的指纹核对采用前缀匹配（≥16 位十六进制），完整指纹仅由二维码携带。
+4. 吊销时发起吊销的当前请求不被断开（保证 204 正常返回），其余活跃连接按契约断开。
+
+**构建 APK（Windows）：**
+
+```bash
+# 一次性：准备 JDK 17 + Android SDK（platforms;android-34, build-tools, platform-tools）
+#         + NDK 26.3 + rustup target add aarch64-linux-android x86_64-linux-android ...
+#         并设置 JAVA_HOME / ANDROID_HOME / NDK_HOME
+npm run android:init          # 生成 gen/android 并应用清单定制（幂等）
+npm run android:apk           # debug APK（MuMu 模拟器，x86_64）
+node scripts/build-mobile-android.mjs --release --target aarch64   # 真机 release
+```
+
+> Windows 注意：`tauri android build` 需要创建符号链接，须先在
+> 「设置 → 系统 → 开发者选项 → 开发人员模式」中开启开发者模式（免重启）。
+> MuMu 安装：`adb connect 127.0.0.1:7555 && adb install <apk>`。
+
 ## 1. 范围与非目标
 
 ### 范围内
