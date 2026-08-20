@@ -5,40 +5,47 @@
 import { join, dirname } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { spawnSync } from 'node:child_process'
+import { assertAndroidEnv, resolveAndroidEnv } from './android-env.mjs'
+
+const env = resolveAndroidEnv()
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..')
 const release = process.argv.includes('--release')
 const targetIndex = process.argv.indexOf('--target')
 const target = targetIndex >= 0 ? process.argv[targetIndex + 1] : 'x86_64'
 
-const run = (command, args) => {
+const run = (command, args, { shell = process.platform === 'win32' } = {}) => {
   const result = spawnSync(command, args, {
     cwd: root,
     stdio: 'inherit',
-    shell: process.platform === 'win32',
-    env: process.env,
+    shell,
+    env,
   })
   if (result.status !== 0) process.exit(result.status ?? 1)
 }
+
+assertAndroidEnv(env)
 
 console.log('==> 构建前端产物')
 run('npm', ['run', 'build'])
 
 console.log(`==> 构建 Android APK（${release ? 'release' : 'debug'}，${target}）`)
-// 桌面打包声明（sidecar/资源）由 src-tauri/tauri.android.conf.json 在 Android 构建时覆盖；
-// --config 再覆盖一层双保险（两者内容一致）。
+// 桌面打包声明（sidecar/资源）用 --config 内联 JSON 覆盖。
+// 注意：不能走 shell/npx（Windows 下会吞引号），直接以 node 跑 CLI 入口。
+const tauriCli = join(root, 'node_modules', '@tauri-apps', 'cli', 'tauri.js')
 const args = [
-  'tauri',
+  tauriCli,
   'android',
   'build',
   '--apk',
   '--target',
   target,
   '--config',
-  '{"bundle":{"externalBin":[],"resources":{}}}',
+  '{"bundle":{"externalBin":[],"resources":[]}}',
 ]
 if (!release) args.push('--debug')
-run('npx', args)
+// node 直接执行：不走 shell，保证 --config 的内联 JSON 原样传递。
+run(process.execPath, args, { shell: false })
 
 console.log('')
 console.log('APK 输出目录：src-tauri/gen/android/app/build/outputs/apk/')

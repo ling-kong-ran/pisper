@@ -15,7 +15,10 @@ pub fn run() {
     desktop_shell::run()
 }
 
+// mobile_entry_point：Tauri 移动端要求的生命周期入口宏，
+// 导出 Android/iOS 原生侧调用的符号（cfg(mobile) 由 tauri-build 设置）。
 #[cfg(any(target_os = "android", target_os = "ios"))]
+#[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     mobile::run_mobile()
 }

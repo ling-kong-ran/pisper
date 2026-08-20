@@ -6,6 +6,9 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { spawnSync } from 'node:child_process'
+import { assertAndroidEnv, resolveAndroidEnv } from './android-env.mjs'
+
+const env = resolveAndroidEnv()
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..')
 const androidDir = join(root, 'src-tauri', 'gen', 'android')
@@ -21,11 +24,13 @@ const networkConfigPath = join(
 )
 
 if (!existsSync(manifestPath)) {
+  assertAndroidEnv(env)
   console.log('gen/android 不存在，运行 tauri android init …')
   const result = spawnSync('npx', ['tauri', 'android', 'init'], {
     cwd: root,
     stdio: 'inherit',
     shell: process.platform === 'win32',
+    env,
   })
   if (result.status !== 0) {
     console.error('tauri android init 失败：请确认 JAVA_HOME / ANDROID_HOME / NDK_HOME 已配置。')
