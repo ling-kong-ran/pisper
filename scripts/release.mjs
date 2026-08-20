@@ -155,21 +155,19 @@ for (const component of candidates) {
   plans.push({ component, nextVersion, tag })
 }
 
-const desktopPackage = JSON.parse(
-  await readFile(join(root, 'src-tauri', 'desktop-package.json'), 'utf8'),
-)
-const tuiPlan = plans.find(({ component }) => component === 'tui')
-const runtimePlan = plans.find(({ component }) => component === 'runtime')
-const desktopTuiVersion = tuiPlan?.nextVersion || (await readComponentVersion(root, 'tui'))
-const desktopRuntimeVersion =
-  runtimePlan?.nextVersion || (await readComponentVersion(root, 'runtime'))
-const bundledTuiVersion = String(desktopPackage.bundled?.tui || '')
-const bundledRuntimeVersion = String(desktopPackage.bundled?.runtime || '')
-const desktopBundleNeedsRefresh =
-  bundledTuiVersion !== desktopTuiVersion || bundledRuntimeVersion !== desktopRuntimeVersion
+if (plans.length === 0) {
+  throw new Error('未检测到 desktop、tui 或 runtime 的待发布产品变更。')
+}
 
-// 桌面安装包必须始终内置当前 TUI 与 Runtime；中断后的补发也由同一自动检测入口恢复。
-if (!plans.some(({ component }) => component === 'desktop') && desktopBundleNeedsRefresh) {
+// The desktop installer bundles the newest published TUI/Runtime components,
+// so whenever either ships a substantive release the installer must be
+// re-released too, otherwise downloads keep carrying the previous component
+// fixes. Chain desktop automatically when TUI/Runtime change but the desktop
+// surface itself did not.
+if (
+  !plans.some(({ component }) => component === 'desktop') &&
+  plans.some(({ component }) => component === 'tui' || component === 'runtime')
+) {
   const desktopCurrent = await readComponentVersion(root, 'desktop')
   const desktopNext = resolveVersion(desktopCurrent, input)
   const desktopTag = releaseTag('desktop', desktopNext)
@@ -187,13 +185,8 @@ if (!plans.some(({ component }) => component === 'desktop') && desktopBundleNeed
   }
   plans.push({ component: 'desktop', nextVersion: desktopNext, tag: desktopTag })
   console.log(
-    `Desktop 内置组件落后（TUI ${bundledTuiVersion || '未记录'} -> ${desktopTuiVersion}，` +
-      `Runtime ${bundledRuntimeVersion || '未记录'} -> ${desktopRuntimeVersion}），安装包自动链式发布 desktop ${desktopNext}。`,
+    `检测到 TUI/Runtime 变更，安装包自动链式发布 desktop ${desktopNext}（内置最新组件）。`,
   )
-}
-
-if (plans.length === 0) {
-  throw new Error('未检测到 desktop、tui 或 runtime 的待发布产品变更。')
 }
 
 // The desktop shell bundles the newest published TUI/Runtime components, so
@@ -238,7 +231,14 @@ if (chainNpm) {
 runComponentChecks(selectedComponents)
 if (chainNpm) runNpm(['run', 'npm:pack:check'])
 
-// Desktop 工作流接收精确组件版本，使其在暂存版本文件时同步内置清单。
+// The desktop dispatch carries the newly released component versions so the
+// workflow can treat the bundled-manifest refresh as a substantive installer
+// change and sync it during staging. The local script never pushes: all
+// remote changes happen inside the atomic workflow commit.
+const tuiPlan = plans.find(({ component }) => component === 'tui')
+const runtimePlan = plans.find(({ component }) => component === 'runtime')
+const desktopTuiVersion = tuiPlan?.nextVersion || ''
+const desktopRuntimeVersion = runtimePlan?.nextVersion || ''
 
 const npmDispatchIndex = npmComponents.length
   ? plans.findLastIndex(({ component }) => component === 'runtime' || component === 'tui')
