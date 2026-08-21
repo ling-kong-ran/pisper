@@ -154,6 +154,24 @@ fn mobile_forget_server(
     Ok(state_dto(&state))
 }
 
+/// 连接页的地址：Android 上 Tauri 资产源是 http://tauri.localhost，iOS 是 tauri://localhost。
+/// 前端（经代理访问的桌面 UI）用它跳回配对/服务器管理页。
+#[tauri::command]
+fn mobile_connect_url() -> String {
+    #[cfg(target_os = "android")]
+    {
+        "http://tauri.localhost/connect.html".to_string()
+    }
+    #[cfg(target_os = "ios")]
+    {
+        "tauri://localhost/connect.html".to_string()
+    }
+    #[cfg(not(any(target_os = "android", target_os = "ios")))]
+    {
+        String::new()
+    }
+}
+
 fn default_device_name() -> String {
     #[cfg(target_os = "ios")]
     {
@@ -214,6 +232,7 @@ pub fn run_mobile() {
             mobile_pair_manual,
             mobile_select_server,
             mobile_forget_server,
+            mobile_connect_url,
         ])
         .build(tauri::generate_context!())
         .expect("failed to build Pisper mobile application")

@@ -17,6 +17,15 @@ export const sessionRuntimeRoutes = [
   },
   {
     method: 'GET',
+    path: '/api/client-info',
+    handler({ req, json }) {
+      // 移动端代理会注入 X-Pisper-Client 头；其余流量一律视为普通 Web 客户端。
+      const client = req.headers['x-pisper-client'] === 'mobile-app' ? 'mobile-app' : 'web'
+      json(200, { client })
+    },
+  },
+  {
+    method: 'GET',
     path: '/api/runtime/diagnostics',
     handler({ runtime, json }) {
       json(200, runtime.getRuntimeDiagnostics())

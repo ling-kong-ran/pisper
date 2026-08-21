@@ -1,8 +1,11 @@
 {
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "mobile-bridge",
-  "description": "Mobile connect page: pairing, QR scanning, notifications.",
+  "description": "Mobile bridge: pairing page (app origin) and proxied UI (remote origin) can manage servers and post notifications.",
   "windows": ["main"],
+  "remote": {
+    "urls": ["http://127.0.0.1:*/*"]
+  },
   "permissions": [
     "core:default",
     "allow-pisper-mobile-bridge",

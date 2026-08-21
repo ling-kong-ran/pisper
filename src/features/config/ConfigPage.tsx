@@ -3,6 +3,7 @@
 import { DesktopPetSettings } from './DesktopPetSettings'
 import { InterfaceSettings } from './InterfaceSettings'
 import { ModelsSettings } from './ModelsSettings'
+import { MobileServerSettings } from './MobileServerSettings'
 import { NotificationSettings } from './NotificationSettings'
 import { RemoteAccessSettings } from './RemoteAccessSettings'
 import { UpdateSettings } from './UpdateSettings'
@@ -40,6 +41,8 @@ export function ConfigPage({
     content = <InterfaceSettings notify={notify} />
   } else if (section === 'desktop-pet') {
     content = <DesktopPetSettings notify={notify} />
+  } else if (section === 'mobile-server') {
+    content = <MobileServerSettings />
   } else if (section === 'remote-access') {
     content = <RemoteAccessSettings notify={notify} />
   } else if (section === 'updates') {

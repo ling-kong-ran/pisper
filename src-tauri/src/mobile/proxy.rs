@@ -165,6 +165,8 @@ async fn forward(
         }
         outgoing = outgoing.header(name, value);
     }
+    // 标记流量来源：runtime/前端据此把设置页换成移动端形态（服务器切换而非发码管理）。
+    outgoing = outgoing.header("X-Pisper-Client", "mobile-app");
 
     let response = match outgoing.body(body_bytes).send().await {
         Ok(response) => response,

@@ -35,6 +35,7 @@ import {
   type SettingsDestination,
 } from '@/app/settings-navigation'
 import { Sidebar as ShadcnSidebar, useSidebar } from '@/components/ui/sidebar'
+import { useIsMobileApp } from '@/stores/client-store'
 
 type SessionSummary = {
   id: string
@@ -96,7 +97,8 @@ export function AppSidebar({
   )
   const active = page === 'workflowCreate' ? 'workflows' : page === 'chatHistory' ? 'chat' : page
   const settingsActive = SETTINGS_PAGES.has(page)
-  const settingsNavigation = useMemo(() => getSettingsNavigation(t), [t])
+  const mobileApp = useIsMobileApp()
+  const settingsNavigation = useMemo(() => getSettingsNavigation(t, { mobileApp }), [t, mobileApp])
   const activeSettingsKey = settingsNavigationKey(page, configSection)
 
   const { data: sidebarSessionData, refetch: refreshSessions } = useQuery<{

@@ -5,14 +5,14 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta
       name="description"
-      content="Pisper 是本地优先的多 Agent 应用：像管理代码分支一样管理 Agent 的思路。并行会话、追忆分支、本地插件生成，数据默认不出机。"
+      content="Pisper 是本地优先的多 Agent 应用：并行会话、追忆分支、本地插件生成，手机扫码直连桌面。数据默认不出机。"
     />
     <meta name="theme-color" content="#0b0c0c" />
     <meta property="og:type" content="website" />
     <meta property="og:title" content="Pisper · 给每个想法，开一条分支" />
     <meta
       property="og:description"
-      content="本地优先的多 Agent 应用：并行会话、追忆分支、本地插件生成。数据默认保存在本机。"
+      content="本地优先的多 Agent 应用：并行会话、追忆分支、本地插件生成，手机扫码直连桌面。数据默认保存在本机。"
     />
     <meta
       property="og:image"
@@ -42,6 +42,7 @@
           <a href="#capabilities">能力</a>
           <a href="#safety">安全</a>
           <a href="#terminal">终端</a>
+          <a href="#mobile">移动端</a>
           <a href="https://github.com/ling-kong-ran/pisper/blob/release/README.en.md">English</a>
         </div>
         <a class="nav-download magnetic" href="https://github.com/ling-kong-ran/pisper/releases/latest">
@@ -219,8 +220,8 @@
           <li class="reveal" style="--d:400ms">
             <span>06</span>
             <div>
-              <h3>两端不脱节</h3>
-              <p>桌面与 TUI 共享同一 Runtime，Git / SVN 工作区都在。</p>
+              <h3>多端不脱节</h3>
+              <p>桌面、TUI 与手机共享同一 Runtime，Git / SVN 工作区都在。</p>
             </div>
           </li>
         </ol>
@@ -340,6 +341,56 @@
               <img src="shots/cli-chat.png" alt="Pisper TUI Chat 页面" width="3082" height="1506" loading="lazy" />
             </a>
             <figcaption>Chat 与实时活动</figcaption>
+          </figure>
+        </div>
+      </section>
+
+      <!-- 移动端 -->
+      <section class="section shell terminal-section" id="mobile" data-morph="手机" aria-labelledby="mobile-title">
+        <div class="terminal-copy reveal">
+          <p class="eyebrow">移动端 · MOBILE</p>
+          <h2 id="mobile-title">把手机接进桌面，不经过云。</h2>
+          <p>
+            手机是客户端，桌面是主机：会话、记忆与数据都留在电脑上，手机经局域网直连。
+            没有账号，没有云中转 —— 扫码配对即连，出门也能走 Tailscale 组网或 IPv6 直连。
+          </p>
+          <ol class="mobile-points">
+            <li>
+              <span>01</span>
+              <div>
+                <h3>扫码即连</h3>
+                <p>桌面生成一次性配对二维码，手机 App 扫码完成信任绑定。配对码 5 分钟过期，用一次即废。</p>
+              </div>
+            </li>
+            <li>
+              <span>02</span>
+              <div>
+                <h3>指纹锁定</h3>
+                <p>全程 TLS，证书指纹随二维码带外校验；设备令牌只存哈希，吊销即刻生效。</p>
+              </div>
+            </li>
+            <li>
+              <span>03</span>
+              <div>
+                <h3>断线续传</h3>
+                <p>事件流带游标：切网、锁屏、切后台，回来按游标补齐，一条不丢。</p>
+              </div>
+            </li>
+            <li>
+              <span>04</span>
+              <div>
+                <h3>不经过云</h3>
+                <p>局域网内零依赖；异地走你自己的 Tailscale 组网或公网 IPv6，还是没有服务器成本。</p>
+              </div>
+            </li>
+          </ol>
+        </div>
+        <div class="terminal-gallery" aria-label="Pisper 移动端界面">
+          <figure class="terminal-figure phone-figure reveal">
+            <a href="shots/mobile-chat3.png" target="_blank" rel="noopener noreferrer" aria-label="查看完整移动端截图">
+              <img src="shots/mobile-chat3.png" alt="Pisper 移动端会话界面" width="1440" height="2560" loading="lazy" />
+            </a>
+            <figcaption>手机上的完整 Pisper</figcaption>
           </figure>
         </div>
       </section>

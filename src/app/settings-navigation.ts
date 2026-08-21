@@ -35,12 +35,17 @@ export const CONFIG_SECTIONS = new Set([
   'desktop-pet',
   'updates',
   'remote-access',
+  'mobile-server',
 ])
 
 export const SETTINGS_PAGES = new Set(['config', 'channels', 'plugins', 'memory', 'mcp', 'skills'])
 
 // 设置侧边栏分组导航（Agent/能力/上下文/连接/应用）。
-export function getSettingsNavigation(t: Translate): SettingsNavigationGroup[] {
+// mobileApp 为 true 时（手机经代理访问），「远程访问」管理面换成「服务器」切换页。
+export function getSettingsNavigation(
+  t: Translate,
+  { mobileApp = false }: { mobileApp?: boolean } = {},
+): SettingsNavigationGroup[] {
   return [
     {
       label: t('config:settingsShell.agent'),
@@ -96,12 +101,19 @@ export function getSettingsNavigation(t: Translate): SettingsNavigationGroup[] {
           icon: RadioTower,
           destination: { type: 'page', id: 'channels' },
         },
-        {
-          key: 'config:remote-access',
-          label: t('config:configPage.remoteAccess'),
-          icon: MonitorSmartphone,
-          destination: { type: 'config', id: 'remote-access' },
-        },
+        mobileApp
+          ? {
+              key: 'config:mobile-server',
+              label: t('config:configPage.mobileServer'),
+              icon: MonitorSmartphone,
+              destination: { type: 'config', id: 'mobile-server' },
+            }
+          : {
+              key: 'config:remote-access',
+              label: t('config:configPage.remoteAccess'),
+              icon: MonitorSmartphone,
+              destination: { type: 'config', id: 'remote-access' },
+            },
         {
           key: 'config:notifications',
           label: t('config:configPage.notifications'),

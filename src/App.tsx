@@ -36,6 +36,7 @@ import { useAppDialog } from '@/hooks/useAppDialog'
 import { useAppUpdate } from '@/features/updates/useAppUpdate'
 import { SidebarInset, SidebarProvider } from '@/components/ui/sidebar'
 import { useUiStore } from '@/stores/ui-store'
+import { useClientStore } from '@/stores/client-store'
 import { readStoredTerminalPanel } from '@/features/terminal/terminal-state'
 import type { ChatAttachment, PendingAsset } from '@/types/chat'
 import type { NotificationSettingsData } from '@/types/notifications'
@@ -257,6 +258,8 @@ function App() {
       setActiveSessionId(id ?? localStorage.getItem(STORAGE_KEYS.activeSession) ?? '')
     }
     window.addEventListener(ACTIVE_SESSION_CHANGED_EVENT, syncActiveSession)
+    // 识别客户端形态（手机 App / 桌面浏览器）：决定设置页形态与通知通道。
+    void useClientStore.getState().load()
     return () => window.removeEventListener(ACTIVE_SESSION_CHANGED_EVENT, syncActiveSession)
   }, [])
 
@@ -268,6 +271,12 @@ function App() {
       if (!force && document.visibilityState === 'visible' && document.hasFocus()) return
       if (window.pisperDesktop?.showNotification) {
         void window.pisperDesktop.showNotification({ title, body }).catch(() => {})
+        return
+      }
+      // 移动端壳：走 Tauri 本地通知插件（Android WebView 不支持 Notification Web API）。
+      const tauriNotification = window.__TAURI__?.plugins?.notification
+      if (tauriNotification?.notify) {
+        void tauriNotification.notify({ title, body }).catch(() => {})
         return
       }
       void showBrowserSystemNotification({

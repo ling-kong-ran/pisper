@@ -444,6 +444,7 @@ main,
 .safety-list li,
 .safety-boundary,
 .component-rows > div,
+.mobile-points li,
 .terminal-figure,
 .download-inner,
 .terminal-install {
@@ -880,6 +881,49 @@ main,
   padding: 12px 6px 4px;
   color: var(--faint);
   font-size: 13px;
+}
+
+/* 移动端版块：手机截图限宽居中，配对要点复用编号行风格 */
+.mobile-points {
+  list-style: none;
+  margin: 20px 0 0;
+  padding: 0;
+  display: grid;
+  gap: 12px;
+}
+
+.mobile-points li {
+  display: flex;
+  gap: 16px;
+  padding: 16px 18px;
+}
+
+.mobile-points li > span {
+  color: var(--lime);
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 13px;
+  padding-top: 2px;
+}
+
+.mobile-points h3 {
+  margin: 0 0 4px;
+  font-size: 15px;
+}
+
+.mobile-points p {
+  margin: 0;
+  color: var(--dim);
+  font-size: 13px;
+  line-height: 1.7;
+}
+
+.phone-figure {
+  max-width: 300px;
+  justify-self: center;
+}
+
+.phone-figure img {
+  border-radius: 18px;
 }
 
 /* ============================================================
