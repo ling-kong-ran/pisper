@@ -15,6 +15,7 @@ on:
         type: string
 
 permissions:
+  actions: write
   contents: write
 
 concurrency:
@@ -273,3 +274,7 @@ jobs:
 
           trap - ERR
           echo "Published $RELEASE_TAG from $release_commit"
+
+          # GITHUB_TOKEN 推送不会触发 push 工作流，需显式刷新首页下载清单。
+          gh workflow run pages.yml --ref "$RELEASE_BRANCH" || \
+            echo "::warning::App 已发布，但首页部署派发失败，请手动运行 pages.yml。"
