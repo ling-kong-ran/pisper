@@ -1,7 +1,9 @@
 {
-  "version": "0.1.1",
-  "tag": "app-v0.1.1",
-  "url": "https://github.com/ling-kong-ran/pisper/releases/tag/app-v0.1.1",
+  "version": "0.1.2",
+  "tag": "app-v0.1.2",
+  "url": "https://github.com/ling-kong-ran/pisper/releases/tag/app-v0.1.2",
   "apk": "app-universal-release-signed.apk",
-  "ipa": "pisper-ios-unsigned.ipa"
+  "ipa": "pisper-ios-unsigned.ipa",
+  "notes": "- feat(remote): add Iroh access and mobile App updates\n- fix(app): 发布后显式刷新首页下载清单",
+  "releaseDate": "2026-08-21"
 }
