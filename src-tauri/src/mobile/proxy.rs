@@ -290,7 +290,9 @@ mod tests {
                 };
                 let acceptor = acceptor.clone();
                 tokio::spawn(async move {
+                    eprintln!("[proxy-sse] accepted upstream connection");
                     let mut stream = acceptor.accept(stream).await.unwrap();
+                    eprintln!("[proxy-sse] upstream TLS established");
                     // 读请求头（本测试不涉及请求体）。
                     let mut head = Vec::new();
                     let mut buf = [0u8; 1024];
@@ -305,6 +307,10 @@ mod tests {
                         }
                     }
                     let request_text = String::from_utf8_lossy(&head);
+                    eprintln!(
+                        "[proxy-sse] request received: {}",
+                        request_text.lines().next().unwrap_or_default()
+                    );
                     assert!(
                         request_text.contains("authorization: Bearer pst_test"),
                         "代理必须注入 Bearer 头，实际请求：{request_text}"
@@ -345,6 +351,7 @@ mod tests {
                             stream.write_all(frame).await.unwrap();
                             stream.write_all(b"\r\n").await.unwrap();
                             stream.flush().await.unwrap();
+                            eprintln!("[proxy-sse] first frame written");
                             // 等测试端确认收到第一帧后再发第二帧：确定性证明不缓冲。
                             if let Some(gate) = SSE_GATE.get() {
                                 let _ = gate.acquire().await;
@@ -467,6 +474,7 @@ mod tests {
         let mut stream = tokio::net::TcpStream::connect(("127.0.0.1", port))
             .await
             .unwrap();
+        eprintln!("[proxy-sse] client connected to proxy");
         stream
             .write_all(b"GET /api/chat HTTP/1.1\r\nhost: 127.0.0.1\r\nconnection: close\r\n\r\n")
             .await
