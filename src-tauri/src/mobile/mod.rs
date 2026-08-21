@@ -194,7 +194,7 @@ pub fn run_mobile() {
     let builder = tauri::Builder::default().plugin(tauri_plugin_notification::init());
     #[cfg(any(target_os = "android", target_os = "ios"))]
     let builder = builder.plugin(tauri_plugin_barcode_scanner::init());
-    builder
+    let builder = builder
         .setup(|app| {
             let store_path = app
                 .path()
