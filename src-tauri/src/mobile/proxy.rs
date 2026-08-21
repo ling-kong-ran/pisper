@@ -230,13 +230,15 @@ pub async fn start_proxy(store: Arc<SharedStore>) -> Result<Arc<ProxyHandle>, St
         client_cache: Mutex::new(None),
     });
     let server = handle.clone();
-    tauri::async_runtime::spawn(async move {
+    // 监听器绑定在哪个 Tokio reactor，就必须留在哪个运行时驱动；
+    // 测试运行时与 Tauri 全局运行时不同，跨运行时移动会在部分平台卡住 I/O。
+    tokio::spawn(async move {
         loop {
             let Ok((stream, _)) = listener.accept().await else {
                 continue;
             };
             let proxy = server.clone();
-            tauri::async_runtime::spawn(async move {
+            tokio::spawn(async move {
                 let io = TokioIo::new(stream);
                 let service = service_fn(move |request| {
                     let proxy = proxy.clone();
@@ -469,7 +471,7 @@ mod tests {
         assert!(String::from_utf8_lossy(&raw).contains("无法连接"));
     }
 
-    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    #[tokio::test]
     async fn sse_streams_incrementally() {
         SSE_GATE.set(tokio::sync::Semaphore::new(0)).ok();
         let (url, fingerprint) = spawn_upstream("sse").await;
