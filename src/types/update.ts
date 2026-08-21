@@ -5,6 +5,7 @@ export type UpdateStatus = {
   checkedAt?: string | null
   message?: string
   releaseUrl?: string
+  downloadUrl?: string
   canDownload?: boolean
   canInstall?: boolean
   canResume?: boolean
@@ -35,6 +36,7 @@ export type ComponentUpdateStatus = {
 
 export type AppUpdateInfo = {
   desktop: boolean
+  mobile?: boolean
   packaged: boolean
   version: string
   hostVersion?: string

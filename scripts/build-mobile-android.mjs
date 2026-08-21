@@ -2,6 +2,7 @@
 // 移动端不打包 sidecar/外部资源，用 --config 覆盖掉桌面专属的产物声明。
 // 用法：node scripts/build-mobile-android.mjs [--release] [--target x86_64|aarch64|...]
 // 环境：需要 JAVA_HOME / ANDROID_HOME / NDK_HOME（Windows 上 symlink 需要开发者模式）。
+import { readFileSync } from 'node:fs'
 import { join, dirname } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { spawnSync } from 'node:child_process'
@@ -11,6 +12,9 @@ const env = resolveAndroidEnv()
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..')
 const release = process.argv.includes('--release')
+const mobileVersion = JSON.parse(
+  readFileSync(join(root, 'src-tauri', 'mobile-package.json'), 'utf8'),
+).version
 const targetIndex = process.argv.indexOf('--target')
 const target = targetIndex >= 0 ? process.argv[targetIndex + 1] : 'x86_64'
 
@@ -41,7 +45,7 @@ const args = [
   '--target',
   target,
   '--config',
-  '{"bundle":{"externalBin":[],"resources":[]}}',
+  JSON.stringify({ version: mobileVersion, bundle: { externalBin: [], resources: [] } }),
 ]
 if (!release) args.push('--debug')
 // node 直接执行：不走 shell，保证 --config 的内联 JSON 原样传递。

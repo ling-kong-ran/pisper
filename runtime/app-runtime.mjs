@@ -16,6 +16,7 @@ import { authorizeDesktopRequest } from './desktop-sidecar-auth.mjs'
 import { authorizeRemoteRequest } from './remote-auth.mjs'
 import { ensureRemoteCertificate } from './remote-tls.mjs'
 import { collectRemoteEndpoints, remoteDeviceName } from './remote-endpoints.mjs'
+import { readIrohTunnelStatus } from './iroh-endpoint.mjs'
 
 // 启动诊断回调必须无副作用：即使观察者抛错也不能影响运行时可用性。
 function notifyStartup(observer, stage) {
@@ -100,6 +101,13 @@ export async function createPisperRuntime({
     status() {
       const address = remoteServer?.address()
       const activePort = typeof address === 'object' && address ? address.port : remotePort
+      const iroh = readIrohTunnelStatus(remote.irohStatusFile)
+      const endpoints = remoteServer
+        ? [
+            ...collectRemoteEndpoints({ port: activePort, tls: true }),
+            ...(iroh.available ? [iroh.endpoint] : []),
+          ]
+        : []
       return {
         enabled: remoteAccess.isEnabled(),
         listening: Boolean(remoteServer),
@@ -108,7 +116,13 @@ export async function createPisperRuntime({
         tls: true,
         fingerprint: remoteTls?.fingerprint || null,
         deviceName: remoteDeviceName(),
-        endpoints: remoteServer ? collectRemoteEndpoints({ port: activePort, tls: true }) : [],
+        endpoints,
+        iroh: {
+          available: iroh.available,
+          relayConnected: iroh.relayConnected,
+          nodeId: iroh.nodeId,
+          error: iroh.error,
+        },
         mdns: mdns.status(),
         error: remoteError,
       }

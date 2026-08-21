@@ -6,6 +6,7 @@
 
 #[cfg(not(any(target_os = "android", target_os = "ios")))]
 mod desktop_shell;
+pub mod iroh_tunnel;
 // mobile 模块在所有平台编译：代理逻辑与平台无关，这样可以在桌面主机上
 // 直接 cargo check / cargo test 验证移动端代理，无需 Android 工具链。
 pub mod mobile;

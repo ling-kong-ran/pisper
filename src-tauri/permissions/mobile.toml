@@ -1,6 +1,6 @@
 [[permission]]
 identifier = "allow-pisper-mobile-bridge"
-description = "Allows the mobile connect page to manage pairing and server selection."
+description = "Allows the mobile shell to manage pairing, server selection, and App updates."
 commands.allow = [
   "mobile_state",
   "mobile_pair",
@@ -8,4 +8,7 @@ commands.allow = [
   "mobile_select_server",
   "mobile_forget_server",
   "mobile_connect_url",
+  "mobile_app_info",
+  "mobile_check_app_update",
+  "mobile_open_app_update",
 ]

@@ -16,9 +16,9 @@ export function shouldAutomaticallyCheckForUpdates(state: string) {
   return !AUTOMATIC_CHECK_BLOCKED_STATES.has(state)
 }
 
-// 安排桌面端自动检查：启动延迟一次 + 周期检查，同一时刻只允许一次检查
+// 安排原生 App 自动检查：启动延迟一次 + 周期检查，同一时刻只允许一次检查
 // 在跑（checking 防重入）；返回清理函数供卸载时取消定时器。
-export function scheduleDesktopUpdateChecks(
+export function scheduleAppUpdateChecks(
   check: () => Promise<unknown> | unknown,
   scheduler: UpdateCheckScheduler = window,
 ) {
@@ -45,3 +45,6 @@ export function scheduleDesktopUpdateChecks(
     scheduler.clearInterval(intervalTimer)
   }
 }
+
+// 保留旧导出，避免已有集成与测试在同一版本中失效。
+export const scheduleDesktopUpdateChecks = scheduleAppUpdateChecks

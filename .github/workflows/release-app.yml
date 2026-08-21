@@ -126,10 +126,9 @@ jobs:
           path: app-universal-release-signed.apk*
 
   ios:
-    name: Build iOS app (unsigned, best-effort)
+    name: Build iOS app (unsigned)
     needs: prepare
     runs-on: macos-latest
-    continue-on-error: true
     steps:
       - uses: actions/checkout@v5
         with:
@@ -145,12 +144,14 @@ jobs:
         run: npm ci
       - name: Build frontend
         run: npm run build
+      - name: Generate shared mobile icons
+        run: node scripts/sync-mobile-icons.mjs
       - name: Prepare iOS project
         run: npx tauri ios init
       - name: Build unsigned iOS app
         run: |
           npx tauri ios build --ci --no-sign \
-            --config '{"bundle":{"externalBin":[],"resources":[]}}'
+            --config '{"version":"${{ inputs.version }}","bundle":{"externalBin":[],"resources":[]}}'
       - name: Package iOS artifacts
         env:
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
@@ -169,7 +170,7 @@ jobs:
       - uses: actions/upload-artifact@v4
         with:
           name: app-ios
-          if-no-files-found: warn
+          if-no-files-found: error
           path: |
             pisper-ios-*
             README-ios.txt
@@ -177,7 +178,7 @@ jobs:
   publish:
     name: Publish $RELEASE_TAG
     needs: [prepare, android, ios]
-    if: ${{ always() && needs.prepare.result == 'success' && needs.android.result == 'success' }}
+    if: ${{ always() && needs.prepare.result == 'success' && needs.android.result == 'success' && needs.ios.result == 'success' }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
@@ -199,13 +200,15 @@ jobs:
         with:
           name: app-ios
           path: artifacts
-        continue-on-error: true
       - name: Validate required assets
         shell: bash
         run: |
           set -Eeuo pipefail
           test -f artifacts/app-universal-release-signed.apk
           test -f artifacts/app-universal-release-signed.apk.minisig
+          test -f artifacts/pisper-ios-unsigned.ipa
+          test -f artifacts/pisper-ios-unsigned.ipa.minisig
+          test -f artifacts/README-ios.txt
           ls -la artifacts
       - name: Commit app version, upload a draft, and publish atomically
         shell: bash

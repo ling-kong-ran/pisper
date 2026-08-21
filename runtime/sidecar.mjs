@@ -77,6 +77,7 @@ process.stdout.write(
     bootstrapUrl,
     pid: process.pid,
     desktopPetRunning: pisper.desktopPetRunning,
+    remoteEnabled: pisper.remoteControl.status().enabled,
     startupMs: Math.round(performance.now()),
   })}\n`,
 )

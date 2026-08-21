@@ -7,7 +7,7 @@ import type {
   ComponentUpdateStatus,
   UpdateStatus,
 } from '@/types/update'
-import { scheduleDesktopUpdateChecks, shouldAutomaticallyCheckForUpdates } from './auto-update'
+import { scheduleAppUpdateChecks, shouldAutomaticallyCheckForUpdates } from './auto-update'
 import {
   componentUpdateStatus as componentStatus,
   currentDesktopVersion,
@@ -29,12 +29,16 @@ const WEB_INFO: AppUpdateInfo = Object.freeze({
 // 订阅桌面桥接推送，向壳层提供 AppUpdateController 能力。
 export function useAppUpdate(): AppUpdateController {
   const bridge = window.pisperDesktop
+  const mobileInvoke = bridge
+    ? undefined
+    : (window.__TAURI__?.core?.invoke ?? window.__TAURI_INTERNALS__?.invoke)
   const [info, setInfo] = useState(WEB_INFO)
   const [status, setStatus] = useState<UpdateStatus>({ state: 'idle', checkedAt: null })
   const [components, setComponents] = useState<ComponentUpdateStatus[]>([])
   const statusRef = useRef(status)
   const checkInFlightRef = useRef<Promise<UpdateStatus> | null>(null)
   const legacyShellUpdateRef = useRef(false)
+  const mobileModeRef = useRef(false)
 
   const applyStatus = useCallback((value: UpdateStatus) => {
     statusRef.current = value
@@ -74,6 +78,11 @@ export function useAppUpdate(): AppUpdateController {
             }
             return next
           }
+          if (mobileModeRef.current && mobileInvoke) {
+            const next = await mobileInvoke<UpdateStatus>('mobile_check_app_update', { refresh })
+            applyStatus(next)
+            return next
+          }
           const next = await checkWebUpdates({ refresh })
           applyStatus(next)
           return next
@@ -93,16 +102,61 @@ export function useAppUpdate(): AppUpdateController {
       })
       return pending
     },
-    [applyStatus, bridge],
+    [applyStatus, bridge, mobileInvoke],
   )
 
   useEffect(() => {
     let active = true
     let stopAutomaticChecks = () => {}
+    let stopVisibilityChecks = () => {}
+
+    const scheduleChecks = () => {
+      stopAutomaticChecks = scheduleAppUpdateChecks(() => {
+        if (!shouldAutomaticallyCheckForUpdates(statusRef.current.state)) return
+        return check({ refresh: false })
+      })
+    }
+
     if (!bridge) {
-      void check({ refresh: false })
+      const checkWebSource = () => {
+        if (!active) return
+        void check({ refresh: false })
+      }
+      if (!mobileInvoke) {
+        checkWebSource()
+        return () => {
+          active = false
+        }
+      }
+
+      void mobileInvoke<AppUpdateInfo>('mobile_app_info')
+        .then((value) => {
+          if (!active) return
+          if (!value.mobile) {
+            checkWebSource()
+            return
+          }
+          mobileModeRef.current = true
+          setInfo(value)
+          setComponents([])
+          if (value.update) applyStatus(value.update)
+          void check({ refresh: false })
+          scheduleChecks()
+
+          const checkWhenVisible = () => {
+            if (document.visibilityState !== 'visible') return
+            if (!shouldAutomaticallyCheckForUpdates(statusRef.current.state)) return
+            void check({ refresh: false })
+          }
+          document.addEventListener('visibilitychange', checkWhenVisible)
+          stopVisibilityChecks = () =>
+            document.removeEventListener('visibilitychange', checkWhenVisible)
+        })
+        .catch(checkWebSource)
       return () => {
         active = false
+        stopAutomaticChecks()
+        stopVisibilityChecks()
       }
     }
 
@@ -119,19 +173,14 @@ export function useAppUpdate(): AppUpdateController {
             applyStatus(componentStatus(items))
           })
           .catch(() => {})
-        if (value.packaged) {
-          stopAutomaticChecks = scheduleDesktopUpdateChecks(() => {
-            if (!shouldAutomaticallyCheckForUpdates(statusRef.current.state)) return
-            return check()
-          })
-        }
+        if (value.packaged) scheduleChecks()
       })
       .catch(() => {})
     return () => {
       active = false
       stopAutomaticChecks()
     }
-  }, [applyStatus, bridge, check])
+  }, [applyStatus, bridge, check, mobileInvoke])
 
   const installComponents = useCallback(async () => {
     if (legacyShellUpdateRef.current && bridge?.downloadUpdate) {
@@ -200,15 +249,24 @@ export function useAppUpdate(): AppUpdateController {
 
   const openReleases = useCallback(async () => {
     if (bridge) return bridge.openReleases()
-    window.open(status.releaseUrl || RELEASES_URL, '_blank', 'noopener,noreferrer')
+    const url = status.releaseUrl || info.releasesUrl || RELEASES_URL
+    if (mobileModeRef.current && mobileInvoke) {
+      return mobileInvoke<boolean>('mobile_open_app_update', { url })
+    }
+    window.open(url, '_blank', 'noopener,noreferrer')
     return true
-  }, [bridge, status.releaseUrl])
+  }, [bridge, info.releasesUrl, mobileInvoke, status.releaseUrl])
 
   const openUpdateLog = useCallback(() => bridge?.openUpdateLog?.(), [bridge])
 
-  const download = useCallback(() => openReleases(), [openReleases])
+  const download = useCallback(() => {
+    if (mobileModeRef.current && mobileInvoke && status.downloadUrl) {
+      return mobileInvoke<boolean>('mobile_open_app_update', { url: status.downloadUrl })
+    }
+    return openReleases()
+  }, [mobileInvoke, openReleases, status.downloadUrl])
 
-  const install = useCallback(() => openReleases(), [openReleases])
+  const install = useCallback(() => download(), [download])
 
   const effectiveInfo = useMemo(
     () => ({

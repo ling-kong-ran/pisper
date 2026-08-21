@@ -64,11 +64,17 @@ function storedSponsorDismissals() {
 }
 
 function platformLabel(info: AppUpdateInfo, t: Translate) {
-  if (!info.desktop) return t('config:updateSettings.browserMode')
+  if (!info.desktop && !info.mobile) return t('config:updateSettings.browserMode')
   const platform =
-    ({ win32: 'Windows', darwin: 'macOS', linux: 'Linux' } as Record<string, string>)[
-      info.platform
-    ] || info.platform
+    (
+      {
+        win32: 'Windows',
+        darwin: 'macOS',
+        linux: 'Linux',
+        android: 'Android',
+        ios: 'iOS',
+      } as Record<string, string>
+    )[info.platform] || info.platform
   return `${platform} · ${info.arch}`
 }
 
@@ -97,6 +103,8 @@ export function UpdateSettings({
   }
   const status = update?.status || { state: 'idle' }
   const desktop = Boolean(info.desktop)
+  const mobile = Boolean(info.mobile)
+  const nativeApp = desktop || mobile
   const [bundled, setBundled] = useState({ version: BUILD_VERSION, date: '', notes: '' })
   const [sponsors, setSponsors] = useState<SponsorCampaign[]>([])
   const [componentBusy, setComponentBusy] = useState<'check' | 'install' | ''>('')
@@ -180,7 +188,7 @@ export function UpdateSettings({
   const bundledCurrent = bundled.version === info.version ? bundled : null
   const notes =
     status.notes ||
-    (desktop
+    (nativeApp
       ? bundledCurrent?.notes || t('config:updateSettings.noReleaseNotesAreAvailableForThisVersion')
       : status.state === 'current'
         ? t('config:updateSettings.theCurrentWebSourceIsSyncedWithBranch', {
@@ -193,10 +201,10 @@ export function UpdateSettings({
   const checking = status.state === 'checking' || componentBusy === 'check'
   const downloading = status.state === 'downloading' || componentBusy === 'install'
   const overallState = checking ? 'checking' : downloading ? 'downloading' : status.state
-  const currentIdentifier = desktop
+  const currentIdentifier = nativeApp
     ? `v${info.version}`
     : `v${info.version}${status.currentCommit ? ` · ${status.currentCommit.slice(0, 7)}` : ''}`
-  const latestIdentifier = desktop
+  const latestIdentifier = nativeApp
     ? `v${status.availableVersion || bundledCurrent?.version || info.version}`
     : status.availableCommit?.slice(0, 7) ||
       status.currentCommit?.slice(0, 7) ||
@@ -232,7 +240,7 @@ export function UpdateSettings({
           checking: [t('config:updateSettings.checking'), 'blue'],
           current: [t('config:updateSettings.upToDate'), 'green'],
           available: [
-            desktop
+            nativeApp
               ? t('config:updateSettings.updateAvailable')
               : t('config:updateSettings.sourceUpdatesAvailable'),
             'blue',
@@ -248,7 +256,7 @@ export function UpdateSettings({
           ],
         }) as Record<string, [string, 'gray' | 'blue' | 'green' | 'red']>
       )[overallState] || [t('config:updateSettings.notChecked'), 'gray'],
-    [desktop, overallState, resumable, t],
+    [nativeApp, overallState, resumable, t],
   )
 
   return (
@@ -270,7 +278,7 @@ export function UpdateSettings({
         <div className="mt-5 grid gap-2 sm:grid-cols-3">
           <div className="rounded-[var(--r-sm)] bg-[var(--surface-muted)] p-3">
             <small className="text-[12px] text-[var(--text-muted)]">
-              {desktop
+              {nativeApp
                 ? t('config:updateSettings.currentVersion')
                 : t('config:updateSettings.currentSource')}
             </small>
@@ -287,7 +295,7 @@ export function UpdateSettings({
               {t('config:updateSettings.updateChannel')}
             </small>
             <strong className="mt-1 block text-[14px]">
-              {desktop ? 'Stable' : status.branch || 'main'}
+              {nativeApp ? 'Stable' : status.branch || 'main'}
             </strong>
           </div>
         </div>
@@ -359,14 +367,14 @@ export function UpdateSettings({
                       ? desktop
                         ? t('config:updateSettings.downloadAndInstallUpdates')
                         : t('config:updateSettings.downloadUpdate')
-                      : desktop
+                      : nativeApp
                         ? t('config:updateSettings.viewRelease')
                         : t('config:updateSettings.viewSourceUpdates')
                     : t('config:updateSettings.checkForUpdates')}
           </Button>
           <Button variant="outline" size="lg" className="bg-surface-subtle" onClick={openReleases}>
             <ExternalLink size={14} />
-            {desktop ? 'GitHub Releases' : 'GitHub Compare'}
+            {nativeApp ? 'GitHub Releases' : 'GitHub Compare'}
           </Button>
           {desktop && (
             <Button
@@ -380,90 +388,92 @@ export function UpdateSettings({
             </Button>
           )}
         </div>
-        <div className="mt-6 border-t border-[var(--border)] pt-5">
-          <SectionTitle title={t('config:updateSettings.appComponents')} />
-          <div className="mt-3 divide-y divide-[var(--border)]">
-            {componentItems.map((component) => {
-              const Icon =
-                component.component === 'desktop'
-                  ? Laptop
-                  : component.component === 'tui'
-                    ? SquareTerminal
-                    : Cpu
-              const label =
-                component.component === 'desktop'
-                  ? t('config:updateSettings.desktopFrontend')
-                  : component.component === 'tui'
-                    ? t('config:updateSettings.tuiClient')
-                    : t('config:updateSettings.runtime')
-              const tone =
-                component.state === 'error'
-                  ? 'red'
-                  : component.state === 'available'
-                    ? 'blue'
-                    : component.state === 'installed' || component.state === 'current'
-                      ? 'green'
-                      : 'gray'
-              const stateLabel =
-                component.state === 'checking'
-                  ? t('config:updateSettings.checking')
-                  : component.state === 'downloading'
-                    ? t('config:updateSettings.downloading')
+        {!mobile && (
+          <div className="mt-6 border-t border-[var(--border)] pt-5">
+            <SectionTitle title={t('config:updateSettings.appComponents')} />
+            <div className="mt-3 divide-y divide-[var(--border)]">
+              {componentItems.map((component) => {
+                const Icon =
+                  component.component === 'desktop'
+                    ? Laptop
+                    : component.component === 'tui'
+                      ? SquareTerminal
+                      : Cpu
+                const label =
+                  component.component === 'desktop'
+                    ? t('config:updateSettings.desktopFrontend')
+                    : component.component === 'tui'
+                      ? t('config:updateSettings.tuiClient')
+                      : t('config:updateSettings.runtime')
+                const tone =
+                  component.state === 'error'
+                    ? 'red'
                     : component.state === 'available'
-                      ? t('config:updateSettings.updateAvailable')
-                      : component.state === 'installed'
-                        ? t('config:updateSettings.installed')
-                        : component.state === 'error'
-                          ? t('config:updateSettings.checkFailed')
-                          : component.state === 'current'
-                            ? t('config:updateSettings.upToDate')
-                            : t('config:updateSettings.notChecked')
-              return (
-                <div
-                  className="grid min-h-[68px] items-center gap-3 py-3 sm:grid-cols-[minmax(0,1fr)_auto_auto]"
-                  key={component.component}
-                >
-                  <div className="flex min-w-0 items-center gap-3">
-                    <Icon className="shrink-0 text-[var(--text-muted)]" size={17} />
-                    <div className="min-w-0">
-                      <strong className="block text-[14px]">{label}</strong>
-                      {component.message && (
-                        <small className="mt-0.5 block text-[12px] text-[var(--text-muted)]">
-                          {component.message}
-                        </small>
+                      ? 'blue'
+                      : component.state === 'installed' || component.state === 'current'
+                        ? 'green'
+                        : 'gray'
+                const stateLabel =
+                  component.state === 'checking'
+                    ? t('config:updateSettings.checking')
+                    : component.state === 'downloading'
+                      ? t('config:updateSettings.downloading')
+                      : component.state === 'available'
+                        ? t('config:updateSettings.updateAvailable')
+                        : component.state === 'installed'
+                          ? t('config:updateSettings.installed')
+                          : component.state === 'error'
+                            ? t('config:updateSettings.checkFailed')
+                            : component.state === 'current'
+                              ? t('config:updateSettings.upToDate')
+                              : t('config:updateSettings.notChecked')
+                return (
+                  <div
+                    className="grid min-h-[68px] items-center gap-3 py-3 sm:grid-cols-[minmax(0,1fr)_auto_auto]"
+                    key={component.component}
+                  >
+                    <div className="flex min-w-0 items-center gap-3">
+                      <Icon className="shrink-0 text-[var(--text-muted)]" size={17} />
+                      <div className="min-w-0">
+                        <strong className="block text-[14px]">{label}</strong>
+                        {component.message && (
+                          <small className="mt-0.5 block text-[12px] text-[var(--text-muted)]">
+                            {component.message}
+                          </small>
+                        )}
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2 font-mono text-[12px]">
+                      <span>v{component.currentVersion}</span>
+                      {component.availableVersion &&
+                        component.availableVersion !== component.currentVersion && (
+                          <>
+                            <ArrowRight size={12} />
+                            <span>v{component.availableVersion}</span>
+                          </>
+                        )}
+                      {component.size > 0 && component.state === 'available' && (
+                        <span className="font-sans text-[var(--text-muted)]">
+                          {formatBytes(component.size, language)}
+                        </span>
                       )}
                     </div>
+                    <Badge tone={tone}>{stateLabel}</Badge>
                   </div>
-                  <div className="flex items-center gap-2 font-mono text-[12px]">
-                    <span>v{component.currentVersion}</span>
-                    {component.availableVersion &&
-                      component.availableVersion !== component.currentVersion && (
-                        <>
-                          <ArrowRight size={12} />
-                          <span>v{component.availableVersion}</span>
-                        </>
-                      )}
-                    {component.size > 0 && component.state === 'available' && (
-                      <span className="font-sans text-[var(--text-muted)]">
-                        {formatBytes(component.size, language)}
-                      </span>
-                    )}
-                  </div>
-                  <Badge tone={tone}>{stateLabel}</Badge>
-                </div>
-              )
-            })}
+                )
+              })}
+            </div>
           </div>
-        </div>
+        )}
       </Panel>
 
-      <CliSettings notify={notify} />
+      {!mobile && <CliSettings notify={notify} />}
 
       <Panel className="p-5">
         <div className="flex items-center justify-between gap-3">
           <SectionTitle
             title={
-              desktop
+              nativeApp
                 ? available || resumable || downloaded || downloading
                   ? t('config:updateSettings.newVersionReleaseNotes')
                   : t('config:updateSettings.currentReleaseNotes')
@@ -476,12 +486,12 @@ export function UpdateSettings({
             <CheckCircle2 size={13} />
             {available || resumable || downloaded || downloading
               ? latestIdentifier
-              : desktop
+              : nativeApp
                 ? `v${bundledCurrent?.version || info.version}`
                 : status.currentCommit?.slice(0, 7) || t('config:updateSettings.notChecked')}
           </span>
         </div>
-        {(status.releaseDate || (desktop && bundledCurrent?.date)) && (
+        {(status.releaseDate || (nativeApp && bundledCurrent?.date)) && (
           <small className="mt-2 block text-[12px] text-[var(--text-muted)]">
             {new Intl.DateTimeFormat(language, { dateStyle: 'long' }).format(
               new Date(status.releaseDate || bundledCurrent?.date || ''),

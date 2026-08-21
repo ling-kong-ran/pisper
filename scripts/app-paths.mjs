@@ -4,8 +4,10 @@ export const APP_TAG_PREFIX = 'app-v'
 export const APP_VERSION_FILE = 'src-tauri/mobile-package.json'
 
 // App 独有路径：这些变更只触发 App 发版，与 desktop 组件无关。
-const APP_OWNED_PREFIXES = [
+const APP_EXCLUSIVE_PREFIXES = [
   'src-tauri/src/mobile/',
+  'src-tauri/icons/android/',
+  'src-tauri/icons/ios/',
   'src-tauri/permissions/mobile.toml',
   'src-tauri/capabilities/mobile-bridge.json',
   'src-tauri/tauri.android.conf.json',
@@ -15,11 +17,20 @@ const APP_OWNED_PREFIXES = [
   'scripts/android-env.mjs',
   'scripts/setup-mobile-android.mjs',
   'scripts/build-mobile-android.mjs',
+  'scripts/sync-mobile-icons.mjs',
   'scripts/app-paths.mjs',
   'scripts/release-app.mjs',
   'scripts/prepare-app-release.mjs',
   '.github/workflows/release-app.yml',
 ]
+
+// 这些 Rust 文件由 Desktop 与 App 共用，两个发布通道都必须看到它们的变更。
+const APP_SHARED_FILES = new Set([
+  'src-tauri/Cargo.lock',
+  'src-tauri/Cargo.toml',
+  'src-tauri/src/iroh_tunnel.rs',
+  'src-tauri/src/lib.rs',
+])
 
 export function normalizeRepoPath(path) {
   return String(path || '')
@@ -28,12 +39,17 @@ export function normalizeRepoPath(path) {
     .replace(/^\.\//, '')
 }
 
-export function isAppOwnedPath(input) {
+export function isAppExclusivePath(input) {
   const path = normalizeRepoPath(input)
   if (!path) return false
-  return APP_OWNED_PREFIXES.some((prefix) =>
+  return APP_EXCLUSIVE_PREFIXES.some((prefix) =>
     prefix.endsWith('/') ? path.startsWith(prefix) : path === prefix,
   )
+}
+
+export function isAppOwnedPath(input) {
+  const path = normalizeRepoPath(input)
+  return isAppExclusivePath(path) || APP_SHARED_FILES.has(path)
 }
 
 export function appTagPattern() {

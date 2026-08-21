@@ -748,16 +748,35 @@ if (!reduceMotion) {
   }
 }
 
-// 移动端下载按钮：从 docs/latest-app.json（App 发版工作流维护）读取最新版本地址，
-// 失败时保持指向 Releases 列表页的兜底链接。
+// App 发版工作流维护 latest-app.json；页面只从清单读取当前 Release 和版本，
+// 再按稳定资产名生成直链。加载失败时保留 Releases 列表页的兜底链接。
+function appReleaseAssetUrl(releaseUrl, assetName) {
+  const fileName = String(assetName || '').trim()
+  if (!fileName || fileName.includes('/') || fileName.includes('\\')) return releaseUrl
+  const releaseBase = releaseUrl.replace(/\/+$/, '')
+  const assetBase = releaseBase.replace('/releases/tag/', '/releases/download/')
+  if (assetBase === releaseBase) return releaseUrl
+  return `${assetBase}/${encodeURIComponent(fileName)}`
+}
+
 fetch('latest-app.json', { cache: 'no-store' })
   .then((response) => (response.ok ? response.json() : null))
   .then((manifest) => {
-    if (!manifest || !manifest.url) return
-    for (const link of document.querySelectorAll('[data-app-download]')) {
-      link.href = manifest.url
-      const label = link.querySelector('[data-app-version]')
-      if (label && manifest.version) label.textContent = manifest.version
+    const releaseUrl = String(manifest?.url || '').trim()
+    if (!releaseUrl) return
+
+    const assets = {
+      android: manifest.apk,
+      ios: manifest.ipa,
     }
+    for (const link of document.querySelectorAll('[data-app-download]')) {
+      const platform = link.dataset.appDownload
+      const assetName = assets[platform] || link.dataset.appAsset
+      link.href = appReleaseAssetUrl(releaseUrl, assetName)
+      const label = link.querySelector('[data-app-version]')
+      const version = String(manifest.version || '').replace(/^v/i, '')
+      if (label && version) label.textContent = ` v${version}`
+    }
+    for (const link of document.querySelectorAll('[data-app-release]')) link.href = releaseUrl
   })
   .catch(() => {})

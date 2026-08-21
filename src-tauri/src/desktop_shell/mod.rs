@@ -14,7 +14,7 @@ use std::{
     process::{Child, Command, Stdio},
     sync::{
         atomic::{AtomicBool, Ordering},
-        mpsc, Mutex,
+        mpsc, Arc, Mutex,
     },
     thread,
     time::{Duration, Instant},
@@ -40,6 +40,8 @@ pub(crate) struct SidecarReady {
     pub(crate) pid: u32,
     #[serde(default, rename = "desktopPetRunning")]
     pub(crate) desktop_pet_running: bool,
+    #[serde(default, rename = "remoteEnabled")]
+    pub(crate) remote_enabled: bool,
 }
 
 #[derive(serde::Deserialize, serde::Serialize)]
@@ -57,6 +59,19 @@ struct ManagedSidecar {
 }
 
 struct SidecarState(Mutex<Option<ManagedSidecar>>);
+struct DesktopTunnelState {
+    server: Mutex<Option<Arc<crate::iroh_tunnel::TunnelServer>>>,
+    enabled: AtomicBool,
+}
+
+#[derive(serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+struct DesktopTunnelStatus {
+    version: u8,
+    endpoint: Option<crate::iroh_tunnel::TunnelEndpoint>,
+    error: Option<String>,
+}
+
 struct LifecycleState {
     quitting: AtomicBool,
 }
@@ -158,11 +173,17 @@ fn sidecar_command(app: &tauri::App, allow_installed: bool) -> Result<(Command, 
     }
 
     let frontend_root = frontend_root(app, &app_root)?;
+    let tunnel_status_path = app
+        .path()
+        .app_local_data_dir()
+        .map_err(|error| error.to_string())?
+        .join("iroh-tunnel-status.json");
     command
         .env("PISPER_APP_ROOT", &app_root)
         .env("PISPER_FRONTEND_ROOT", frontend_root)
         .env("PISPER_PARENT_PID", std::process::id().to_string())
         .env("PISPER_EXIT_ON_STDIN_CLOSE", "1")
+        .env("PISPER_IROH_STATUS_FILE", tunnel_status_path)
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())
         .stderr(Stdio::piped());
@@ -242,6 +263,123 @@ fn start_sidecar(app: &tauri::App) -> Result<(Child, SidecarReady), String> {
             })
         }
         Err(error) => Err(error),
+    }
+}
+
+fn tunnel_status_path(app: &AppHandle) -> Result<PathBuf, String> {
+    Ok(app
+        .path()
+        .app_local_data_dir()
+        .map_err(|error| error.to_string())?
+        .join("iroh-tunnel-status.json"))
+}
+
+fn write_tunnel_status(
+    path: &Path,
+    endpoint: Option<crate::iroh_tunnel::TunnelEndpoint>,
+    error: Option<String>,
+) -> Result<(), String> {
+    if let Some(parent) = path.parent() {
+        std::fs::create_dir_all(parent).map_err(|error| error.to_string())?;
+    }
+    let temporary = path.with_extension("json.tmp");
+    let payload = serde_json::to_vec(&DesktopTunnelStatus {
+        version: 1,
+        endpoint,
+        error,
+    })
+    .map_err(|error| error.to_string())?;
+    std::fs::write(&temporary, payload).map_err(|error| error.to_string())?;
+    std::fs::rename(temporary, path).map_err(|error| error.to_string())
+}
+
+fn start_desktop_tunnel(app: &AppHandle) {
+    let Some(state) = app.try_state::<DesktopTunnelState>() else {
+        return;
+    };
+    if state.enabled.swap(true, Ordering::SeqCst) {
+        return;
+    }
+    let Ok(data_dir) = app.path().app_local_data_dir() else {
+        state.enabled.store(false, Ordering::SeqCst);
+        return;
+    };
+    let status_path = data_dir.join("iroh-tunnel-status.json");
+    let secret = match crate::iroh_tunnel::load_or_create_secret(&data_dir.join("iroh-secret.key"))
+    {
+        Ok(secret) => secret,
+        Err(error) => {
+            state.enabled.store(false, Ordering::SeqCst);
+            let _ = write_tunnel_status(&status_path, None, Some(error));
+            return;
+        }
+    };
+    let app = app.clone();
+    tauri::async_runtime::spawn(async move {
+        let server = match crate::iroh_tunnel::start_server(
+            "127.0.0.1:5174".parse().expect("固定回环地址必须有效"),
+            secret,
+            iroh::RelayMode::Default,
+        )
+        .await
+        {
+            Ok(server) => Arc::new(server),
+            Err(error) => {
+                if let Some(state) = app.try_state::<DesktopTunnelState>() {
+                    state.enabled.store(false, Ordering::SeqCst);
+                }
+                let _ = write_tunnel_status(&status_path, None, Some(error));
+                return;
+            }
+        };
+        let Some(state) = app.try_state::<DesktopTunnelState>() else {
+            return;
+        };
+        if !state.enabled.load(Ordering::SeqCst) {
+            return;
+        }
+        *state.server.lock().expect("desktop tunnel state poisoned") = Some(server.clone());
+
+        // 先公布直连信息；relay 就绪后再次覆盖，移动端即可跨公网连接。
+        let initial = server.endpoint(Duration::from_millis(300)).await;
+        if !state.enabled.load(Ordering::SeqCst) {
+            return;
+        }
+        let _ = write_tunnel_status(&status_path, Some(initial.clone()), None);
+        if initial.relay_url.is_none() {
+            let complete = server.endpoint(Duration::from_secs(20)).await;
+            if state.enabled.load(Ordering::SeqCst) {
+                let _ = write_tunnel_status(&status_path, Some(complete), None);
+            }
+        }
+    });
+}
+
+fn stop_desktop_tunnel(app: &AppHandle) {
+    if let Some(state) = app.try_state::<DesktopTunnelState>() {
+        state.enabled.store(false, Ordering::SeqCst);
+        let server = state
+            .server
+            .lock()
+            .expect("desktop tunnel state poisoned")
+            .take();
+        if let Some(server) = server {
+            tauri::async_runtime::spawn(async move {
+                server.shutdown().await;
+            });
+        }
+    }
+    if let Ok(path) = tunnel_status_path(app) {
+        let _ = std::fs::remove_file(path);
+    }
+}
+
+#[tauri::command]
+fn desktop_iroh_set_enabled(app: AppHandle, enabled: bool) {
+    if enabled {
+        start_desktop_tunnel(&app);
+    } else {
+        stop_desktop_tunnel(&app);
     }
 }
 
@@ -626,6 +764,7 @@ pub fn run() {
             desktop_pet::desktop_pet_show_context_menu,
             desktop_pet::desktop_pet_sync_menu,
             desktop_pet::desktop_show_main_window,
+            desktop_iroh_set_enabled,
         ])
         .setup(move |app| {
             if let Some(args) = cli_args_for_setup.as_deref() {
@@ -644,6 +783,13 @@ pub fn run() {
                 eprintln!("Failed to refresh the managed Pisper CLI: {error}");
             }
 
+            app.manage(DesktopTunnelState {
+                server: Mutex::new(None),
+                enabled: AtomicBool::new(false),
+            });
+            if let Ok(path) = tunnel_status_path(app.handle()) {
+                let _ = std::fs::remove_file(path);
+            }
             let (child, ready) = start_sidecar(app)?;
             app.manage(SidecarState(Mutex::new(Some(ManagedSidecar {
                 child,
@@ -652,6 +798,9 @@ pub fn run() {
             app.manage(desktop_pet::DesktopPetWindowState::new(
                 ready.bootstrap_url.clone(),
             ));
+            if ready.remote_enabled {
+                start_desktop_tunnel(app.handle());
+            }
             if let Err(error) = publish_sidecar_descriptor(app.handle(), &ready) {
                 stop_sidecar(app.handle());
                 return Err(error.into());
@@ -704,6 +853,7 @@ pub fn run() {
             if let Some(state) = app.try_state::<desktop_terminal::DesktopTerminalState>() {
                 desktop_terminal::close_all(&state);
             }
+            stop_desktop_tunnel(app);
             stop_sidecar(app);
         }
     });

@@ -2,12 +2,16 @@
 // （与 connect 页调扫码插件同一模式）。与浏览器 Notification/SW 通道并列，
 // 仅在 Tauri 壳内可用；桌面壳有 pisperDesktop 桥接，优先级更高。
 
+function tauriInvoke() {
+  return window.__TAURI__?.core?.invoke ?? window.__TAURI_INTERNALS__?.invoke
+}
+
 export function tauriNotificationAvailable(): boolean {
-  return typeof window !== 'undefined' && Boolean(window.__TAURI__?.core?.invoke)
+  return typeof window !== 'undefined' && Boolean(tauriInvoke())
 }
 
 function invoke<T>(command: string, args?: unknown): Promise<T> {
-  const call = window.__TAURI__?.core?.invoke
+  const call = tauriInvoke()
   if (!call) return Promise.reject(new Error('Tauri IPC is unavailable.'))
   return call<T>(command, args)
 }

@@ -7,7 +7,7 @@
 </p>
 
 <p align="center">
-  本地优先的多 Agent 应用：像管理代码分支一样管理 Agent 的思路 —— 从任意已完成 Turn 长出分支，并行推进，数据留在本机。
+  跨桌面、终端与手机的多 Agent 应用：像管理代码分支一样管理 Agent 的思路，从任意已完成 Turn 长出分支，并行推进。
 </p>
 
 <p align="center">
@@ -22,6 +22,11 @@
   <a href="https://github.com/ling-kong-ran/pisper/releases/latest">
     <img src="https://img.shields.io/badge/下载桌面版-自带%20TUI%20与%20Runtime-F59E0B?style=for-the-badge&logo=github&logoColor=17141F" alt="下载 Pisper 桌面版" />
   </a>
+</p>
+
+<p align="center">
+  <a href="https://ling-kong-ran.github.io/pisper/#mobile">移动端下载</a> ·
+  <a href="https://github.com/ling-kong-ran/pisper/releases?q=app-v">App Releases</a>
 </p>
 
 <p align="center">
@@ -45,7 +50,8 @@
 - **工具冷热分明。** 核心工具常驻上下文；插件、MCP 与技能经 discover/call 网关按需激活、用完即退 —— 能力再丰富，也不把上下文塞成杂物间。
 - **前缀稳，缓存才热。** 工具定义稳定化排序、提示词形态哈希诊断，尽量吃满 Provider 的 prompt cache —— 长会话更快、更省。
 - **缺什么能力，直接说。** Pisper 会自己编写、校验并安装本地插件，下一轮对话就能调用。
-- **数据默认不出机。** Runtime 只听 127.0.0.1，敏感格式自动脱敏，记忆先审后用 —— 你的上下文，你说了算。
+- **手机直连桌面。** 显式开启远程访问后，Android / iOS App 通过局域网 HTTPS 扫码配对；使用时优先走 LAN，离开局域网后自动回退到 Iroh P2P。TLS 指纹锁定、设备 Bearer 令牌和可恢复 SSE 在两条路径上保持不变。
+- **数据默认不出机。** Runtime 默认只听 127.0.0.1，敏感格式自动脱敏，记忆先审后用 —— 你的上下文，你说了算。
 
 <a id="features"></a>
 
@@ -55,7 +61,17 @@
 | --- | --- |
 | 并行会话分屏 · 追忆分支树 · 稳定 Turn 标签 · Ctrl+K 跨会话直达 · 会话级模型/目录/权限 | 本地插件自动生成 · MCP 服务 · 技能中心 · 多 Provider 模型配置 |
 | **⚡ 自动化与通知** | **🖥️ 终端与桌面一体** |
-| 可视化工作流 · 定时任务 · 飞书 / 个人微信双向渠道 · 星忆项目记忆 · Git 与 SVN 工作区 | Ratatui TUI 直连同一 Runtime · 桌面宠物（Petdex）· Desktop / TUI / Runtime 独立更新 |
+| 可视化工作流 · 定时任务 · 飞书 / 个人微信双向渠道 · 星忆项目记忆 · Git 与 SVN 工作区 | Ratatui TUI 与 Android / iOS App 直连同一 Runtime · 桌面宠物（Petdex）· Desktop / TUI / Runtime 独立更新 |
+
+<a id="pi-runtime"></a>
+
+## 🧠 基于 Pi Coding Agent 深度构建
+
+Pisper 以 [Pi Coding Agent](https://github.com/earendil-works/pi/tree/main/packages/coding-agent) 作为底层 Agent Runtime。在 Pi 提供的模型接入与工具执行基础上，Pisper 围绕真实的多 Agent 工作持续做深度产品化与优化：
+
+- **运行时与会话编排**：把独立会话、并行执行、Turn 分支、工作目录与权限策略组织成可持续运行的多 Agent 工作台。
+- **上下文与性能**：通过工具冷热分层、discover/call 按需加载、稳定工具定义与提示词形态诊断，减少上下文占用并提高 Provider prompt cache 命中率。
+- **完整产品层**：在同一 Runtime 上提供 Desktop、Ratatui TUI 与移动端体验，并扩展工作流、定时任务、记忆、MCP、技能、插件和双向渠道。
 
 ## 📸 界面预览
 
@@ -75,6 +91,14 @@
   <tr>
     <td align="center">工作流：把重复工作连成流程</td>
     <td align="center">TUI：离开桌面，上下文不走</td>
+  </tr>
+  <tr>
+    <td><a href="docs/shots/config-remote-access.png"><img src="docs/shots/config-remote-access.png" alt="远程访问与已配对设备" /></a></td>
+    <td><a href="docs/shots/config-about.png"><img src="docs/shots/config-about.png" alt="Pisper 关于页" /></a></td>
+  </tr>
+  <tr>
+    <td align="center">设备连接：LAN 优先、P2P 回退与设备管理</td>
+    <td align="center">关于：版本、项目链接与开源许可证</td>
   </tr>
 </table>
 
@@ -115,7 +139,22 @@ sudo apt install ./Pisper-*-linux-amd64.deb
 
 </details>
 
-### 方式二：npm（Node.js 20+）
+### 方式二：移动端 App
+
+移动端是桌面 Pisper 的远程客户端，**不会在手机上运行 Runtime**；使用时电脑需保持 Pisper 运行。项目主页从 `docs/latest-app.json` 读取当前 App Release，下载入口不会写死版本号：
+
+| 平台 | 下载 | 安装状态 |
+| --- | --- | --- |
+| Android | [下载已签名 APK](https://ling-kong-ran.github.io/pisper/#mobile) | 已签名通用 APK，可直接安装；首次侧载时按系统提示允许安装未知来源应用。 |
+| iOS | [下载未签名 IPA](https://ling-kong-ran.github.io/pisper/#mobile) | **未签名**，不能直接安装；需使用 AltStore、Sideloadly 或自己的 Apple 开发者账号重签。 |
+
+1. 建议首次配对时让手机与电脑接入同一局域网，在桌面端打开 **设置 → 远程访问**。
+2. 开启远程访问并等待 P2P relay 就绪，再生成配对二维码；配对码 5 分钟过期且只能使用一次。
+3. 在手机 App 点「扫码配对」。扫码会保存 LAN 与 Iroh endpoint；无法扫码时可手动填写 HTTPS 地址、配对码和 TLS 指纹，但手动方式只添加该地址。
+
+配对后，手机经本地回环代理访问桌面 UI；代理优先探测 LAN，失败时回退到 Iroh，并始终校验桌面证书指纹、注入设备 Bearer 令牌。详细流程、安全边界与排障见 **[移动端使用指南](./docs/mobile.md)**。
+
+### 方式三：npm（Node.js 20+）
 
 ```bash
 npm i -g pisper
@@ -124,7 +163,7 @@ pisper web   # 打开 Web 前端与本机配置页
 
 首次进入使用 `/provider` 选择 Provider 并配置 API Key。完整命令、快捷键与审批说明见 **[TUI 使用指南](./src-tui/README.md)**。
 
-### 方式三：从源码运行
+### 方式四：从源码运行
 
 <details>
 <summary>展开</summary>
@@ -155,7 +194,7 @@ npm run desktop:webview:build
 
 Pisper 没有「我们的云」。日常数据默认由本机 Runtime 持有，只有你配置并实际调用的 Provider、MCP、搜索或渠道，才会收到完成请求所需的内容。
 
-- **只听本机**：默认绑定 127.0.0.1，随机启动 Token、受限 Cookie 与写请求 Origin 校验；Pi 遥测默认关闭。
+- **默认只听本机**：常规入口绑定 127.0.0.1，使用随机启动 Token、受限 Cookie 与写请求 Origin 校验；只有你开启远程访问后，才会额外启动 LAN HTTPS 与 Iroh P2P endpoint。Iroh 只承载原始加密字节，上层仍由 TLS 指纹和设备 Bearer 令牌保护。Pi 遥测默认关闭。
 - **敏感先脱敏**：常见 API Key、Bearer/JWT、私钥与连接串，在记忆落盘与摘要展示前被替换。
 - **权限有边界**：只读、完全访问、单次审批三档；凭据不经普通接口回显给 Agent，宿主 Shell 会移除常见凭据环境变量。
 - **记忆需确认**：自动推断的记忆先进入待确认区，你点头之前不参与召回。
@@ -170,6 +209,7 @@ Desktop、TUI、Runtime 各自独立版本、独立签名、独立更新，失�
 
 - [项目主页](https://ling-kong-ran.github.io/pisper/) · 产品介绍与界面演示
 - [TUI 使用指南](./src-tui/README.md) · 终端安装、命令与快捷键
+- [移动端使用指南](./docs/mobile.md) · Android / iOS 安装、局域网配对、安全模型与排障
 - [本地插件指南](./docs/local-plugins.md) · [插件开发指南](./docs/plugin-authoring.md)
 - [桌面宠物（Petdex）](./docs/petdex-integration.md)
 
@@ -177,7 +217,7 @@ Desktop、TUI、Runtime 各自独立版本、独立签名、独立更新，失�
 
 ## 🛠️ 开发
 
-主要技术栈：React、TypeScript、Tauri、Rust、Node SEA 与 [Pi Coding Agent](https://github.com/earendil-works/pi/tree/main/packages/coding-agent)。
+底层 Agent Runtime 基于 [Pi Coding Agent](https://github.com/earendil-works/pi/tree/main/packages/coding-agent) 深度集成；产品层主要使用 React、TypeScript、Tauri、Rust 与 Node SEA。
 
 ```bash
 npm run check   # typecheck + lint + i18n + format

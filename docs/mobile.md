@@ -1,363 +1,170 @@
-# Pisper 移动端：第一阶段互联契约
+# Pisper 移动端使用指南
 
-本文档是移动端第一阶段（T0 局域网 + T1 IPv6 + T2 Tailscale 检测）的**实现契约**。
-Runtime、Tauri 壳、前端三方均按本文档实现；任何一方需要偏离时，先改文档再改代码。
+Pisper 移动端是桌面 Pisper 的远程客户端。Agent Runtime、会话、记忆、工作流和
+Provider 配置仍由电脑持有；手机不运行 Runtime，也不把这些数据同步到 Pisper 云服务。
 
-配套设计背景见各节引用；本文档只定义**协议与行为**，不约束内部实现。
+Android / iOS App 优先通过局域网直连桌面；局域网不可达时，可通过内置 Iroh P2P 隧道建立连接。Pisper 不运营账号或中转服务，Iroh relay 仅承载仍受 TLS 保护的隧道字节。
 
-## 0. 落地状态（2026-08，release-app 分支）
+![Pisper 移动端会话界面](./shots/mobile-chat3.png)
 
-第一阶段已实现并验证：
+## 下载与安装
 
-- Runtime：`--remote` / `PISPER_REMOTE=1` 远程模式；**双监听**（回环 HTTP 不变 +
-  独立 LAN HTTPS 监听，默认 5174）；配对码/设备令牌/吊销（§4）；自签证书 + 指纹（§7）；
-  mDNS 广播（§5.1）；SSE run 模型与重挂（§6）。
-- 前端：设置 →「远程访问」分区（开关、配对二维码、设备管理）；移动端 viewport-fit 与安全区。
-- Tauri 壳：`mobile` 模块（本地回环代理：rustls 指纹锁定 + Bearer 注入 + SSE 透传）、
-  配对命令、内置连接页（`public/connect.html`，扫码/手动）、barcode-scanner 插件与权限。
-
-**与早期设计稿的差异（已落地版本为准）：**
-
-1. **主 UI 由桌面端经代理托管**，不内置于壳：WebView 加载 `http://127.0.0.1:<代理端口>`，
-   代理转发一切（含静态资源）。UI 与 Runtime 版本永远一致，§8 版本握手暂作保留能力。
-   壳内置的仅有连接页（离线可用，保留了原 B2 的核心诉求）。
-2. IPv6 不做主动可达性探测：Teredo/6to4 伪地址在枚举时过滤，其余交给移动端并发探测择优。
-3. 手动配对的指纹核对采用前缀匹配（≥16 位十六进制），完整指纹仅由二维码携带。
-4. 吊销时发起吊销的当前请求不被断开（保证 204 正常返回），其余活跃连接按契约断开。
-
-**构建 APK（Windows）：**
-
-```bash
-# 一次性：准备 JDK 17 + Android SDK（platforms;android-34, build-tools, platform-tools）
-#         + NDK 26.3 + rustup target add aarch64-linux-android x86_64-linux-android ...
-#         并设置 JAVA_HOME / ANDROID_HOME / NDK_HOME
-npm run android:init          # 生成 gen/android 并应用清单定制（幂等）
-npm run android:apk           # debug APK（MuMu 模拟器，x86_64）
-node scripts/build-mobile-android.mjs --release --target aarch64   # 真机 release
-```
-
-> Windows 注意：`tauri android build` 需要创建符号链接，须先在
-> 「设置 → 系统 → 开发者选项 → 开发人员模式」中开启开发者模式（免重启）。
-> MuMu 安装：`adb connect 127.0.0.1:7555 && adb install <apk>`。
-
-## 1. 范围与非目标
-
-### 范围内
-
-- 移动端作为**桌面 Runtime 的远程客户端**（本机不跑 Agent Runtime）。
-- 连通档位：T0 局域网直连（mDNS 发现）、T1 公网 IPv6 直连、T2 Tailscale 网卡检测与引导。
-- 配对协议（A2）、发现与二维码（A5）、SSE 断线续传（A6）、TLS/指纹 pinning、版本握手。
-
-### 非目标（后续阶段）
-
-- 移动端本机运行 Runtime（阶段二/三）。
-- 内置 P2P 隧道（T3，Iroh/WebRTC）与兜底中继（T4）。本文档的 endpoint 模型和壳内
-  `Transport` 抽象为其预留扩展点，但不定义其行为。
-- APNs/FCM 远程推送（阶段一用"回前台重连 + 未读标记"代替）。
-
-## 2. 术语与角色
-
-| 术语 | 含义 |
-| --- | --- |
-| **桌面端 / Runtime** | 运行在桌面设备上的 `runtime/` HTTP 服务，唯一事实数据源。 |
-| **移动端 / 壳** | Tauri 2 Android/iOS 应用。内含静态 UI 包 + Rust 本地代理，**不启动 sidecar**。 |
-| **本地代理** | 壳内 Rust 组件，监听 `127.0.0.1` 随机端口，向所选 endpoint 转发并做 TLS 指纹 pinning。WebView 只连本地代理。 |
-| **endpoint** | 一个可连的 Runtime 地址，带类型标记：`lan` / `v6` / `ts` / `tunnel`（预留）。 |
-| **配对码** | 一次性、短时效的配对凭据，由桌面端生成，扫码或手输交给移动端。 |
-| **设备令牌** | 配对成功后移动端持有的长期凭据（Bearer token），可吊销。 |
-| **run** | 一次 `POST /api/chat` 引发的流式执行单元，有唯一 `runId`，事件可重挂。 |
-| **游标（cursor）** | SSE 事件帧的单调递增序号，用于断线续传。 |
-
-## 3. 拓扑
-
-```
-┌──────────────────────── 移动端 ────────────────────────┐
-│  WebView (内置 UI 包)                                   │
-│    │ http://127.0.0.1:<随机端口>  (明文，仅回环)         │
-│    ▼                                                    │
-│  Rust 本地代理 ── TLS + 指纹 pinning ──► 所选 endpoint  │
-└─────────────────────────────────────────────────────────┘
-                           │  lan / v6 / ts / tunnel(预留)
-                           ▼
-┌──────────────────────── 桌面端 ────────────────────────┐
-│  Runtime HTTP API（绑定 0.0.0.0，强制鉴权）              │
-│  mDNS 广播 _pisper._tcp                                 │
-└─────────────────────────────────────────────────────────┘
-```
-
-关键约束：
-
-- WebView **永远不直接连远端地址**。Android WebView 拒绝自签证书且不允许以
-  "忽略证书错误"方式上架；所有 TLS 终结在本地代理。
-- 本地代理对 SSE 必须**关闭缓冲、禁用空闲超时**，逐字节透传。
-- 本地代理是 `Transport` 抽象的插入点：`DirectTls | Tailscale | IrohTunnel(预留)`。
-
-## 4. A2 配对协议
-
-### 4.1 数据模型
-
-Runtime 在数据目录持久化 `paired_devices`（JSON 或 sqlite，实现自定）：
-
-```jsonc
-{
-  "devices": [
-    {
-      "id": "dev_01J...",            // 服务端生成，nanoid
-      "name": "iPhone 15",           // 配对时移动端自报，可改
-      "tokenHash": "sha256:...",     // 只存哈希，永不存明文令牌
-      "createdAt": "2025-01-01T00:00:00Z",
-      "lastSeenAt": "2025-01-02T00:00:00Z",
-      "revokedAt": null
-    }
-  ],
-  "pairingCode": {                   // 至多一个进行中的配对码
-    "codeHash": "sha256:...",
-    "expiresAt": "2025-01-01T00:05:00Z"
-  }
-}
-```
-
-### 4.2 API
-
-所有路径以 `/api/remote/` 为前缀。错误统一为 `{ "error": "<message>", "code": "<machine_code>" }`。
-
-#### `POST /api/remote/pairing-code`（桌面端本地调用）
-
-桌面 WebView 调（走现有 Cookie 通道）生成配对码。**已有进行中配对码时作废旧码。**
-
-响应 `200`：
-
-```json
-{
-  "code": "ABCD-EFGH",          // 8 字符 Crockford Base32，无 0/O/1/I/L，连字符仅展示用
-  "expiresAt": "2025-01-01T00:05:00Z",
-  "qrPayload": { }               // 见 §5.2，桌面端可直接渲染
-}
-```
-
-#### `POST /api/remote/pair`（移动端调用，无需任何既有凭据）
-
-请求：
-
-```json
-{
-  "code": "ABCDEFGH",            // 归一化：去连字符、大写
-  "deviceName": "iPhone 15"
-}
-```
-
-响应 `201`：
-
-```json
-{
-  "deviceId": "dev_01J...",
-  "token": "pst_01J...",         // 仅在此时返回一次，移动端须存入 Keychain/Keystore
-  "serverName": "工作室台式机",
-  "apiVersion": 1
-}
-```
-
-错误：
-
-| HTTP | code | 含义 |
+| 平台 | 资产 | 安装说明 |
 | --- | --- | --- |
-| 400 | `invalid_request` | 缺字段或格式非法 |
-| 403 | `pairing_code_invalid` | 配对码错误或已被使用 |
-| 410 | `pairing_code_expired` | 配对码已过期（TTL 5 分钟） |
-| 429 | `pairing_rate_limited` | 同一来源 IP 连续失败 ≥5 次，冷却 60 秒 |
+| Android | [从项目主页下载已签名 APK](https://ling-kong-ran.github.io/pisper/#mobile) | 官方 Release 提供的已签名通用 APK，可直接安装。首次侧载时，Android 可能要求允许当前浏览器或文件管理器安装未知来源应用。 |
+| iOS | [从项目主页下载未签名 IPA](https://ling-kong-ran.github.io/pisper/#mobile) | 未签名构建，不含可直接用于真机安装的 provisioning profile。必须使用 AltStore、Sideloadly 或自己的 Apple 开发者账号重签后安装。 |
 
-配对码验证用常量时间比较；验证成功即消费（一次性），与过期清理共用一个检查点。
+Release 同时提供资产的 Minisign 签名文件。iOS IPA 的“未签名”描述的是 Apple 代码签名与
+设备安装状态，不表示它是 Android 那样可直接安装的正式签名包。
 
-#### `GET /api/remote/devices`（任意已认证通道）
+后续版本请从[项目首页](https://ling-kong-ran.github.io/pisper/#mobile)或
+[App Releases](https://github.com/ling-kong-ran/pisper/releases?q=app-v)进入。项目首页的版本和下载地址由
+`docs/latest-app.json` 更新，不依赖页面内写死的版本号。
 
-响应 `200`：`{ "devices": [ { "id", "name", "createdAt", "lastSeenAt", "revokedAt", "current": true } ] }`。
-`current` 标记发起本请求的设备自身。
+## App 更新
 
-#### `POST /api/remote/devices/:id/revoke`（Cookie 通道，或设备吊销自身）
+移动 App 启动后会自动检查独立的 `app-v*` 发布通道，并在回到前台及每 6 小时再次检查。也可以在
+**设置 -> 应用更新** 中手动检查、查看当前与最新 App 版本，并打开当前平台对应的安装包。
 
-响应 `204`。吊销即刻生效：该设备令牌的进行中请求允许完成，**新请求一律 401**；
-SSE 长连接在 30 秒内被主动断开。
+- Android 会打开 GitHub Release 中已签名的 APK，下载后由 Android 系统确认安装。应用不会绕过系统的未知来源安装授权。
+- iOS 会打开未签名 IPA；受 Apple 签名机制限制，仍需使用 AltStore、Sideloadly 或开发者账号重签后安装，不能在 App 内静默替换。
+- 更新清单仅接受 Pisper GitHub Release 的 HTTPS 地址、匹配的 `app-v<version>` 标签和安全资产名。Android 最终还会校验 APK 的应用签名。
 
-### 4.3 认证通道规则
+## 三步配对
 
-| 通道 | 凭据 | 适用 | Origin 校验 |
-| --- | --- | --- | --- |
-| Cookie（现有 `desktop-sidecar-auth`） | HttpOnly Cookie | 桌面 WebView | 非幂等请求强制校验 |
-| Bearer（新增） | `Authorization: Bearer pst_...` | 移动端 / 远程客户端 | 豁免（令牌不随浏览器自动携带，无 CSRF 面） |
+开始前，请把桌面 Pisper 与移动 App 更新到兼容版本。建议首次配对时让手机与电脑连接同一个可信局域网；电脑需要在使用手机期间保持开机并运行 Pisper。
 
-- 两条通道共用同一套常量时间比较；Bearer 比对的是 `sha256(token)`。
-- 远程模式（§7）下**未配置任何凭据时拒绝启动**，防止裸奔暴露。
-- `lastSeenAt` 在每次 Bearer 认证成功时刷新（节流：最多每分钟一次）。
+1. 在桌面端打开 **设置 -> 远程访问**，开启远程访问。页面会显示 LAN HTTPS 地址、证书指纹和 P2P 状态；默认远程端口是 `5174`。
+2. 等待页面显示“P2P relay 已就绪”，再点击生成配对二维码。每次生成都会使上一个配对码失效；新配对码 5 分钟后过期，成功使用一次后立即作废。
+3. 打开手机 App，点击“扫码配对”并允许相机权限。App 会保存 LAN 与 Iroh endpoint、TLS 指纹和配对码，验证桌面证书后完成绑定并进入 Pisper 主界面。
 
-## 5. A5 发现与二维码
+### 手动配对
 
-### 5.1 mDNS 广播（T0）
+无法扫码时，在手机连接页填写桌面设置页显示的：
 
-- 服务类型：`_pisper._tcp.local`，实例名 = 设备名。
-- TXT 记录（全部小写键）：
+- 完整 HTTPS 地址，例如 `https://192.168.1.5:5174`；
+- 8 位配对码；
+- TLS SHA-256 指纹。手动输入至少需要前 16 位十六进制字符，建议输入并核对完整指纹。
 
-| 键 | 含义 |
-| --- | --- |
-| `v` | 协议版本，当前为 `1` |
-| `fp` | TLS 证书 SHA-256 指纹，`SHA256:<hex>` 大写无分隔 |
-| `name` | 设备名（UTF-8） |
-| `tls` | `1` 表示该端口要求 TLS |
+不要把 `https://` 改成 `http://`，也不要为了连接成功而忽略指纹不匹配。指纹错误通常表示填错了
+服务器、桌面端数据目录或证书已经变化，应回到桌面设置页重新核对并配对。
 
-- 依赖选纯 JS 实现（`@homebridge/ciao` 或 `bonjour-service`），禁止引入需要原生编译的 mDNS 模块。
-- 远程模式关闭时不得广播。
+## 连接方式
 
-### 5.2 二维码 payload（版本化 JSON）
+桌面端保留原有的本机回环 HTTP 入口，并在用户开启远程访问后额外启动 LAN HTTPS 与 Iroh endpoint：
 
-```json
-{
-  "v": 1,
-  "name": "工作室台式机",
-  "endpoints": [
-    { "t": "lan", "url": "https://192.168.1.5:5173" },
-    { "t": "v6",  "url": "https://[240e::xxxx]:5173" },
-    { "t": "ts",  "url": "http://100.64.x.x:5173" }
-  ],
-  "fp": "SHA256:AB12...",
-  "code": "ABCD-EFGH"
-}
+```text
+Mobile WebView
+    |
+    | http://127.0.0.1:<random-port>  (app-local loopback only)
+    v
+Mobile Rust proxy
+    |                               |
+    | LAN TCP                       | Iroh QUIC / relay (fallback)
+    v                               v
+    +---- pinned TLS + Bearer ------+
+                    |
+                    v
+Desktop Runtime HTTPS (default port 5174)
 ```
 
-规则：
+- WebView 不直接信任桌面端自签证书，而是只访问 App 内的随机回环端口。
+- Rust 本地代理校验配对时保存的证书指纹，向桌面端请求注入设备 Bearer 令牌，并按字节透传静态资源、API 响应和 SSE 事件流。Iroh 只替换 TCP 路径，不终止或改写 TLS。
+- 主界面资源由桌面端经代理提供，因此移动端看到的 UI 与所连接 Runtime 保持一致；App 内置的只是
+  离线可用的连接与服务器管理页。
+- Runtime 会广播 `_pisper._tcp.local` mDNS 服务，并在二维码中按建议顺序列出 LAN、IPv6、Tailscale 与 Iroh endpoint。
+- 代理按 LAN/直接地址在前、Iroh 在后的顺序健康检查。网络切换后会重新探测；电脑离线、远程访问关闭或 P2P relay 不可达时，手机无法使用 Pisper。
+- Iroh 会先尝试 UDP 洞穿，失败时使用其公共 relay。Pisper 不需要部署中转服务器；relay 看到的是 QUIC 隧道流量，而隧道内仍是指纹锁定的 TLS。
 
-- `v` 未知或大于客户端支持版本 → 提示"请升级 App"，**不得**尝试猜测解析。
-- `endpoints` 按桌面端建议优先级排列；移动端仍需逐个探测，选择策略见 §5.3。
-- `ts` 类型 endpoint 允许 `http://`（WireGuard 已加密），其余类型必须 `https://`。
-- 二维码只是载体；同一 payload 也提供"复制文本"，移动端支持手输配对码 + 手动填地址的兜底路径。
-- 未知顶层字段必须忽略（前向兼容）。
+## 配对与认证模型
 
-### 5.3 地址枚举与选择
+### 配对码
 
-桌面端枚举规则：
+配对码是短时、一次性的 8 字符凭据。Runtime 任意时刻只保留一个有效配对码的 SHA-256 哈希，校验
+采用常量时间比较；同一来源连续失败会触发 60 秒冷却。远程 HTTPS 入口上，
+`POST /api/remote/pair` 是唯一无需已有设备凭据的 API。
 
-1. LAN IPv4：所有非回环私网地址。
-2. 公网 IPv6：**必须探测入站可达性**（如向公网 echo 服务发起回连验证），只有地址存在不算数；
-   不可达的 v6 地址不得写入 payload。
-3. Tailscale：优先 `tailscale status --json`（超时 2 秒，失败视为未安装）；
-   检测到 tailnet IPv4（`100.64.0.0/10`）即加入 payload；未安装但桌面端检测到移动端场景时，
-   在设置页给安装引导。
+二维码同时携带地址、完整 TLS 指纹和配对码。App 在发送配对请求前就使用该指纹锁定 TLS 连接，
+不会先建立一个“忽略证书错误”的连接再交换令牌。
 
-移动端选择策略：按 `lan → v6 → ts` 顺序并发探测（`GET /api/health`，超时 3 秒），
-取第一个通过 TLS 指纹校验的；全部失败进入" unreachable "状态页并给出排查清单
-（同网/AP 隔离/防火墙/Tailscale 引导）。
+### 设备令牌
 
-## 6. A6 SSE 断线续传契约
+配对成功后，Runtime 只返回一次 `pst_...` 设备令牌：
 
-### 6.1 背景
+- 桌面端只在 `~/.pisper/agent/remote-access.json` 中保存令牌的 SHA-256 哈希；
+- 移动端把令牌、端点和指纹保存在 App 私有数据目录的服务器档案中；
+- 本地代理为远程请求添加 `Authorization: Bearer pst_...`；
+- Bearer 请求不使用浏览器 Cookie，因此不依赖 Cookie 的 Origin/CSRF 防护；
+- 桌面设置页可以吊销设备。吊销后新请求立即返回 `401`，该设备的活跃长连接也会被断开。
 
-现状是**每请求流**：`POST /api/chat` 直接返回当轮事件流。移动网络下连接必断，
-因此引入 run 模型：**流与请求解耦，事件可重挂**。
+移动端令牌当前保存在 App 私有目录，而不是系统 Keychain/Keystore。不要备份、导出或分享 App 私有
+数据；设备丢失时应立即在桌面端吊销对应设备。
 
-### 6.2 run 模型
+在手机连接页“删除”一个桌面端，只会删除手机本地保存的服务器档案。要让令牌在桌面端失效，仍需
+在桌面 **设置 -> 远程访问 -> 已配对设备** 中执行吊销。关闭远程访问则会停止 LAN HTTPS 监听和
+mDNS 广播，但建议同时吊销不再使用的设备。
 
-`POST /api/chat` 行为变更（对旧客户端保持兼容，见 §6.6）：
+### TLS 指纹
 
-- 响应仍为 `text/event-stream`，但**第一帧必须是**：
+桌面 Runtime 首次启用远程访问时生成并持久化自签证书。App 不依赖系统 CA，而是比对配对二维码或
+手动输入中获得的 SHA-256 指纹。只要证书文件和数据目录不变，指纹就应保持稳定。
 
-```
-event: run
-data: {"runId":"run_01J...","sessionId":"...","cursor":0}
-```
+重新安装桌面端、切换 `PISPER_AGENT_DIR` 或删除远程证书可能改变指纹。遇到变化时应重新核对并配对，
+不能增加“信任所有证书”或“忽略错误”的例外。
 
-- 此后每帧携带 SSE 标准 `id:` 行，值为**该 run 内单调递增的整数游标**（从 1 开始）：
+## SSE 断线恢复
 
-```
-id: 1
-event: snapshot
-data: {...}
+聊天流使用可重挂的 run 协议，连接与 Agent 执行生命周期分离：
 
-id: 2
-event: message_patch
-data: {...}
-```
+1. `POST /api/chat` 的首帧包含 `runId`，后续业务帧使用 SSE `id:` 携带单调递增游标。
+2. 连接中断不会终止 Runtime 中的 run。客户端可请求
+   `GET /api/runs/:runId/events?after=<cursor>`，补发游标之后的缓存事件并继续接收实时事件。
+3. Runtime 为每个 run 最多缓存 512 个事件或 1 MiB；终态后保留 10 分钟。若所需事件已经被挤出，
+   服务端先发送 `resync_required`，客户端应重新加载会话快照。
+4. run 不存在或缓存已经清理时返回 `409 run_not_resumable`，同样需要从持久化会话状态恢复。
+5. 移动端本地代理不解析或重组 SSE，只做及时的字节流透传，避免代理缓冲破坏事件边界和恢复游标。
 
-- run 终态帧：`done` 或 `error`（现有语义不变），终态后游标停止增长。
+这套机制降低切后台、锁屏和网络抖动造成的增量事件缺口，但不是无限期离线队列。超过缓冲或保留期限
+时，以桌面 Runtime 中持久化的会话为准。
 
-### 6.3 重挂端点
+## 安全边界
 
-`GET /api/runs/:runId/events?after=<cursor>`
+- 远程访问默认关闭；关闭时 Runtime 只通过原有回环入口服务桌面客户端，桌面壳同时停止 Iroh endpoint 并撤下配对元数据。
+- 开启后会监听所选网卡的 HTTPS 端口并连接 Iroh 网络。局域网设备能看到端口和 mDNS 广播，Iroh peer 能尝试打开隧道；没有有效配对码或设备 Bearer 令牌仍不能调用受保护 API。
+- TLS 指纹锁定保护手机到桌面的链路不被同网中间人替换证书；它不检查电脑本身、手机系统或
+  Provider 是否可信。
+- Pisper 不提供端到端加密的模型调用。你主动使用的模型 Provider、MCP、搜索、渠道和工具仍会收到
+  完成请求所需的数据。
+- 自签 TLS、Bearer 认证和 App 私有目录不能替代受信任的局域网、设备锁屏、磁盘加密、系统更新与
+  可靠备份。
 
-- 返回 `text/event-stream`；先发 `after < cursor ≤ latest` 之间的全部缓存事件，然后继续实时推送。
-- `after` 缺省或为 0：等同于全量重放（从缓存最早事件开始）。
-- run 不存在或缓存已清理：返回 `409`，body 为 `{ "error": "...", "code": "run_not_resumable" }`，
-  客户端应回退到重新拉取会话快照（现有 `GET /api/sessions/:id/tree` 等只读接口）。
+## 排障
 
-### 6.4 服务端缓冲策略
+### 手机无法连接桌面
 
-- 每个 run 一个 ring buffer：上限 **512 事件或 1 MiB**（先到为准）；溢出时丢弃最旧事件，
-  并在重挂响应开头插入：
+- 确认桌面 Pisper 正在运行，远程访问状态显示“已监听”，并能看到 `https://...:5174` 地址。
+- 局域网路径需要手机与电脑同网；访客 Wi-Fi、AP 隔离和企业网络策略可能禁止设备互访。
+- 异地连接时确认桌面设置显示“P2P relay 已就绪”，手机网络允许 UDP/HTTPS 出站；受限网络可能阻断洞穿并影响 relay。
+- 允许桌面防火墙放行 Pisper 的远程 HTTPS 端口和 Iroh UDP 流量。若修改了端口，以设置页显示值为准。
+- 不要在手机浏览器中直接打开自签 HTTPS 地址来判断 App 是否可用；App 通过自己的指纹锁定代理连接。
 
-```
-event: resync_required
-data: {"reason":"buffer_overflow","runId":"run_01J..."}
-```
+### 配对码无效或过期
 
-  客户端收到 `resync_required` 必须放弃本地增量状态，走快照重建。
-- run 终态后缓存保留 **10 分钟**，随后清理（清理后重挂返回 409）。
-- 所有帧序列化继续走现有 `jsonReplacer`（孤立代理项清洗），保证 `serde_json` 可解析——
-  这是 TUI 兼容红线，新增帧类型同样适用。
+- 回到桌面端重新生成二维码，并只使用最新的一张。生成新码会立即作废旧码。
+- 连续输错后等待至少 60 秒再试。
+- 检查手机时间和桌面时间是否明显异常，然后重新生成配对码。
 
-### 6.5 客户端语义
+### 指纹不匹配
 
-- 移动端记录每个 run 已收到的最大游标；断线重连用 `?after=<maxCursor>` 重挂。
-- 收到重复游标的事件必须幂等丢弃（以游标去重，不以内容去重）。
-- 本地代理不得解析/重组 SSE 帧，只透传字节；游标逻辑只在 WebView 内的 UI 层。
+- 停止连接并对照桌面设置页核对完整指纹。
+- 如果桌面端证书确实发生变化，在手机连接页删除旧服务器档案，再使用新二维码重新配对。
+- 不要通过关闭 TLS 校验解决问题。
 
-### 6.6 兼容旧客户端（Web 桌面 / TUI）
+### iOS IPA 无法安装
 
-- 旧客户端忽略 `id:` 行和未知 `run` 帧即可，无需改动——这是选 SSE 标准 `id:` 字段的原因。
-- 验收时必须跑 `npm test` 与 `npm run tui:check`，确认 TUI 消费不受影响。
+这是未签名 IPA 的预期行为。使用 AltStore、Sideloadly 或 Apple 开发者账号重签，并确保所用证书、
+设备 UDID 与 provisioning profile 满足对应工具的要求。Pisper Release 不提供 Apple 分发签名。
 
-## 7. 远程模式与 TLS
+## 后续方向
 
-- 开启：`--remote` 或 `PISPER_REMOTE=1`；绑定 `0.0.0.0`（可用 `HOST` 覆盖为具体网卡）。
-- 远程模式强制：①存在至少一种有效凭据（桌面 token 或任一未吊销设备令牌），否则拒绝启动；
-  ②默认要求 TLS。
-- 证书：首次启动生成自签证书并持久化（指纹稳定，重新安装才变化）；
-  `GET /api/health` 响应头携带 `X-Pisper-Cert-Fingerprint` 供调试，但**客户端只能信任配对时获得的指纹**。
-- `remote.tls = auto | required | off`：`auto` 对 `ts`/tunnel 类型 endpoint 允许明文回环转发，其余强制 TLS。
-
-## 8. 版本握手
-
-- `GET /api/health` 响应体扩展：`{ "ok": true, "apiVersion": 1, "minClientVersion": 1, "engineVersion": "..." }`。
-- 壳内置 UI 包带 `clientVersion`；`clientVersion < minClientVersion` → UI 显示"请升级 App"全屏页；
-  `apiVersion > clientVersion` → 仅提示，不阻断（服务端承诺同大版本内前向兼容）。
-
-## 9. 安全模型要点
-
-1. 配对码：一次性、5 分钟 TTL、Crockford Base32（2⁴⁰ 空间）、常量时间比较、按源 IP 限流。
-2. 设备令牌：服务端只存 SHA-256 哈希；移动端存 Keychain/Keystore；吊销即时生效。
-3. TLS 指纹随配对二维码带外传递（TOFU）；此后一切连接校验指纹，不依赖系统 CA。
-4. Bearer 通道豁免 Origin 校验；Cookie 通道维持现有 Origin 校验不变。
-5. 配对接口是唯一无需凭据的远程入口，攻击面收敛于此：除限流外，错误响应不得区分
-   "码不存在"与"码已过期"之外的任何内部状态。
-
-## 10. 验收清单
-
-### Runtime
-
-- [ ] `npm test` 新增：配对码一次性/过期/限流/吊销后 401；重挂端点游标语义；buffer 溢出 `resync_required`。
-- [ ] `npm run tui:check` 通过（SSE 帧变更对 TUI 透明）。
-- [ ] 未配置凭据时 `--remote` 拒绝启动。
-
-### Tauri 壳
-
-- [ ] Android/iOS 真机：扫码 → 指纹确认 → 配对 → 聊天流式渲染。
-- [ ] 切 4G 后自动按优先级重选 endpoint；锁屏 5 分钟回前台按游标续传不丢帧。
-- [ ] 自签证书场景无任何"忽略证书错误"代码路径。
-
-### 前端
-
-- [ ] `npm run check`（含 i18n）通过；新增 key 双语齐全。
-- [ ] 桌面端设置页可展示二维码、设备列表、吊销；移动端有配对/服务器管理/手动兜底页。
-
-## 11. 开放问题
-
-- 中继/T3 落地后，`endpoints` 增加 `{ "t": "tunnel", "url": "iroh:<nodeId>" }`，由本地代理解析——契约已预留，细节另文。
-- 多桌面同时在线时的 mDNS 实例冲突处理（当前假设实例名唯一，冲突时追加序号）。
-- run 缓存 10 分钟 TTL 是否覆盖"锁屏过夜早上继续看"的场景——若不够，需要终态事件落盘，
-  属于阶段一之后的增强。
+当前移动端仍是桌面 Runtime 的客户端。未来可评估在移动设备本机运行受限 Runtime、系统级后台推送，以及用户自托管 Iroh relay；这些方向不改变现有配对凭据与 TLS 指纹模型。

@@ -9,6 +9,7 @@ pub mod pairing;
 pub mod pinning;
 pub mod proxy;
 pub mod store;
+pub mod update;
 
 use std::sync::{Arc, Mutex};
 
@@ -21,6 +22,7 @@ use pairing::QrPayload;
 pub struct MobileShared {
     store: Arc<SharedStore>,
     proxy: Arc<proxy::ProxyHandle>,
+    tunnels: Arc<crate::iroh_tunnel::TunnelBridgePool>,
 }
 
 #[derive(Serialize)]
@@ -38,6 +40,7 @@ struct MobileStateDto {
     paired: bool,
     proxy_url: String,
     active_id: Option<String>,
+    active_transport: Option<String>,
     servers: Vec<ServerDto>,
 }
 
@@ -65,6 +68,7 @@ fn state_dto(shared: &MobileShared) -> MobileStateDto {
         paired: active_id.is_some(),
         proxy_url: format!("http://127.0.0.1:{}", shared.proxy.port),
         active_id,
+        active_transport: shared.proxy.active_transport(),
         servers,
     }
 }
@@ -85,7 +89,7 @@ async fn mobile_pair(
     let device_name = device_name
         .filter(|name| !name.trim().is_empty())
         .unwrap_or_else(default_device_name);
-    let profile = pairing::pair(&payload, &device_name).await?;
+    let profile = pairing::pair(&payload, &device_name, Some(state.tunnels.as_ref())).await?;
     let store = state.store.clone();
     store
         .lock()
@@ -109,17 +113,14 @@ async fn mobile_pair_manual(
     let payload = QrPayload {
         v: 1,
         name: String::new(),
-        endpoints: vec![store::ServerEndpoint {
-            kind: "lan".into(),
-            url,
-        }],
+        endpoints: vec![store::ServerEndpoint::lan(url)],
         fp: fingerprint,
         code,
     };
     let device_name = device_name
         .filter(|name| !name.trim().is_empty())
         .unwrap_or_else(default_device_name);
-    let profile = pairing::pair(&payload, &device_name).await?;
+    let profile = pairing::pair(&payload, &device_name, Some(state.tunnels.as_ref())).await?;
     state
         .store
         .lock()
@@ -191,19 +192,34 @@ pub fn run_mobile() {
     let _ = rustls::crypto::ring::default_provider().install_default();
 
     // 扫码插件整个 crate 是 cfg(mobile) 的，桌面构建时不能注册。
-    let builder = tauri::Builder::default().plugin(tauri_plugin_notification::init());
+    let builder = tauri::Builder::default()
+        .plugin(tauri_plugin_notification::init())
+        .plugin(tauri_plugin_opener::init());
     #[cfg(any(target_os = "android", target_os = "ios"))]
     let builder = builder.plugin(tauri_plugin_barcode_scanner::init());
     let builder = builder
         .setup(|app| {
-            let store_path = app
+            let data_dir = app
                 .path()
                 .app_data_dir()
-                .map_err(|error| error.to_string())?
-                .join("pisper-mobile.json");
-            let store = Arc::new(Mutex::new(ProfileStore::load(&store_path)));
+                .map_err(|error| error.to_string())?;
+            let store = Arc::new(Mutex::new(ProfileStore::load(
+                &data_dir.join("pisper-mobile.json"),
+            )));
+            let tunnel_secret = crate::iroh_tunnel::load_or_create_secret(
+                &data_dir.join("iroh-mobile-secret.key"),
+            )?;
+            let tunnels = Arc::new(tauri::async_runtime::block_on(
+                crate::iroh_tunnel::TunnelBridgePool::start(
+                    tunnel_secret,
+                    iroh::RelayMode::Default,
+                ),
+            )?);
             // 代理必须先于窗口创建就绪：窗口初始地址依赖代理端口。
-            let proxy = tauri::async_runtime::block_on(proxy::start_proxy(store.clone()))?;
+            let proxy = tauri::async_runtime::block_on(proxy::start_proxy(
+                store.clone(),
+                Some(tunnels.clone()),
+            ))?;
             let paired = store
                 .lock()
                 .map(|store| store.active().is_some())
@@ -211,7 +227,10 @@ pub fn run_mobile() {
             app.manage(MobileShared {
                 store,
                 proxy: proxy.clone(),
+                tunnels,
             });
+            app.manage(update::MobileUpdateState::default());
+            update::start_automatic_checks(app.handle().clone());
 
             let initial = if paired {
                 WebviewUrl::External(
@@ -233,6 +252,9 @@ pub fn run_mobile() {
             mobile_select_server,
             mobile_forget_server,
             mobile_connect_url,
+            update::mobile_app_info,
+            update::mobile_check_app_update,
+            update::mobile_open_app_update,
         ]);
 
     // generate_context! 每个 crate 只能展开一次（macOS 会嵌入 Info.plist 符号），
@@ -241,7 +263,11 @@ pub fn run_mobile() {
     builder
         .build(tauri::generate_context!())
         .expect("failed to build Pisper mobile application")
-        .run(|_, _| {});
+        .run(|app, event| {
+            if matches!(event, tauri::RunEvent::Resumed) {
+                update::check_after_resume(app.clone());
+            }
+        });
 
     #[cfg(not(any(target_os = "android", target_os = "ios")))]
     let _ = builder;

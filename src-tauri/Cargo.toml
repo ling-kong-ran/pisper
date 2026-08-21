@@ -5,7 +5,7 @@ description = "Pisper system WebView desktop shell"
 authors = ["ling-kong-ran"]
 license = "MIT"
 edition = "2021"
-rust-version = "1.77.2"
+rust-version = "1.85"
 
 [lib]
 name = "pisper_webview_lib"
@@ -23,6 +23,7 @@ tauri-build = { version = "2.6.3", features = [] }
 [dependencies]
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
+semver = "1"
 tauri = { version = "2.11.5", features = ["tray-icon", "macos-private-api"] }
 tauri-plugin-notification = "2.3.3"
 tauri-plugin-opener = "2.5.4"
@@ -41,11 +42,13 @@ reqwest = { version = "0.12", default-features = false, features = [
 ] }
 rustls = { version = "0.23", features = ["ring"] }
 sha2 = "0.10"
+# Phase B P2P：0.92 避免新版本 Windows WMI 冲突，并关闭非必需的 metrics/discovery 特性。
+iroh = { version = "0.92.0", default-features = false }
+rand = "0.8"
 
 # 桌面端专属依赖：sidecar 管理、终端 PTY、托盘/窗口状态等在移动端无意义，
 # 部分 crate（如 portable-pty）在 Android/iOS 上无法编译，必须按目标隔离。
 [target.'cfg(not(any(target_os = "android", target_os = "ios")))'.dependencies]
-semver = "1"
 portable-pty = "0.9"
 pisper-component-updater = { path = "../crates/component-updater" }
 tauri-plugin-dialog = "2.7.2"

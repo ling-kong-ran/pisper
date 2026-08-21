@@ -38,6 +38,14 @@ if (!existsSync(manifestPath)) {
   }
 }
 
+// Tauri init 会写入模板 launcher，必须在工程生成后再覆盖移动端图标。
+const iconResult = spawnSync(process.execPath, [join(root, 'scripts', 'sync-mobile-icons.mjs')], {
+  cwd: root,
+  stdio: 'inherit',
+  env,
+})
+if (iconResult.status !== 0) process.exit(iconResult.status ?? 1)
+
 const NETWORK_CONFIG = `<?xml version="1.0" encoding="utf-8"?>
 <!--
   网络安全配置：仅放行回环地址的明文 HTTP（移动端本地代理 http://127.0.0.1:<port>）。

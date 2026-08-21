@@ -20,18 +20,23 @@ use hyper::{Request, Response, StatusCode};
 use hyper_util::rt::TokioIo;
 use tokio::net::TcpListener;
 
+use crate::iroh_tunnel::TunnelBridgePool;
+
 use super::pinning::pinned_client;
-use super::store::{ServerProfile, SharedStore};
+use super::store::{ServerEndpoint, ServerProfile, SharedStore};
 
 /// 上游地址缓存有效期：避免每个请求都探测；网络切换后最多 20 秒内自愈。
 const UPSTREAM_CACHE_TTL: Duration = Duration::from_secs(20);
 /// 端点健康探测超时：局域网内健康检查应在毫秒级返回。
 const PROBE_TIMEOUT: Duration = Duration::from_millis(2500);
+/// 首次 Iroh 建连可能包含 relay 协商，需给足握手时间。
+const IROH_PROBE_TIMEOUT: Duration = Duration::from_secs(8);
 
 type ProxyBody = UnsyncBoxBody<Bytes, Infallible>;
 
 struct UpstreamCache {
     url: String,
+    kind: String,
     checked_at: Instant,
 }
 
@@ -41,9 +46,17 @@ pub struct ProxyHandle {
     upstream: Mutex<Option<UpstreamCache>>,
     /// 指纹变化（换服务器）时重建客户端。
     client_cache: Mutex<Option<(String, reqwest::Client)>>,
+    tunnels: Option<Arc<TunnelBridgePool>>,
 }
 
 impl ProxyHandle {
+    pub fn active_transport(&self) -> Option<String> {
+        self.upstream
+            .lock()
+            .ok()
+            .and_then(|cache| cache.as_ref().map(|cache| cache.kind.clone()))
+    }
+
     fn active_profile(&self) -> Option<ServerProfile> {
         self.store.lock().ok()?.active().cloned()
     }
@@ -63,6 +76,20 @@ impl ProxyHandle {
         Ok(client)
     }
 
+    async fn endpoint_url(&self, endpoint: &ServerEndpoint) -> Result<String, String> {
+        if endpoint.kind == "iroh" {
+            let tunnels = self
+                .tunnels
+                .as_deref()
+                .ok_or_else(|| "Iroh 桥接尚未启动。".to_string())?;
+            return tunnels.bridge_url(endpoint.tunnel_endpoint()?).await;
+        }
+        if !endpoint.url.starts_with("https://") {
+            return Err("远程端点必须使用 HTTPS。".into());
+        }
+        Ok(endpoint.url.trim_end_matches('/').to_string())
+    }
+
     /// 解析当前可用上游：缓存有效直接用；否则按优先级逐个健康探测。
     async fn resolve_upstream(&self, profile: &ServerProfile) -> Result<String, String> {
         if let Some(cache) = self
@@ -77,11 +104,18 @@ impl ProxyHandle {
         }
         let client = self.client_for(&profile.fingerprint)?;
         for endpoint in &profile.endpoints {
-            let base = endpoint.url.trim_end_matches('/').to_string();
+            let Ok(base) = self.endpoint_url(endpoint).await else {
+                continue;
+            };
+            let probe_timeout = if endpoint.kind == "iroh" {
+                IROH_PROBE_TIMEOUT
+            } else {
+                PROBE_TIMEOUT
+            };
             let probe = client
                 .get(format!("{base}/api/health"))
                 .bearer_auth(&profile.token)
-                .timeout(PROBE_TIMEOUT)
+                .timeout(probe_timeout)
                 .send()
                 .await;
             let healthy = match probe {
@@ -97,13 +131,14 @@ impl ProxyHandle {
                 if let Ok(mut cache) = self.upstream.lock() {
                     *cache = Some(UpstreamCache {
                         url: base.clone(),
+                        kind: endpoint.kind.clone(),
                         checked_at: Instant::now(),
                     });
                 }
                 return Ok(base);
             }
         }
-        Err("无法连接到桌面端，请确认电脑在线且与手机处于同一网络。".to_string())
+        Err("无法连接到桌面端，请确认电脑在线且远程访问已启用。".to_string())
     }
 }
 
@@ -215,7 +250,10 @@ async fn forward(
 }
 
 /// 启动回环代理（绑定随机端口），返回句柄。调用方需持有 Arc 以保持运行。
-pub async fn start_proxy(store: Arc<SharedStore>) -> Result<Arc<ProxyHandle>, String> {
+pub async fn start_proxy(
+    store: Arc<SharedStore>,
+    tunnels: Option<Arc<TunnelBridgePool>>,
+) -> Result<Arc<ProxyHandle>, String> {
     let listener = TcpListener::bind(SocketAddr::from(([127, 0, 0, 1], 0)))
         .await
         .map_err(|error| format!("本地代理监听失败：{error}"))?;
@@ -228,6 +266,7 @@ pub async fn start_proxy(store: Arc<SharedStore>) -> Result<Arc<ProxyHandle>, St
         store,
         upstream: Mutex::new(None),
         client_cache: Mutex::new(None),
+        tunnels,
     });
     let server = handle.clone();
     // 监听器绑定在哪个 Tokio reactor，就必须留在哪个运行时驱动；
@@ -400,10 +439,7 @@ mod tests {
         ServerProfile {
             id: "srv_test".into(),
             name: "测试".into(),
-            endpoints: vec![ServerEndpoint {
-                kind: "lan".into(),
-                url: url.into(),
-            }],
+            endpoints: vec![ServerEndpoint::lan(url.into())],
             fingerprint: fingerprint.into(),
             device_id: "dev_test".into(),
             token: "pst_test".into(),
@@ -417,7 +453,9 @@ mod tests {
         if let Some(profile) = profile {
             store.upsert(profile).unwrap();
         }
-        let proxy = start_proxy(Arc::new(Mutex::new(store))).await.unwrap();
+        let proxy = start_proxy(Arc::new(Mutex::new(store)), None)
+            .await
+            .unwrap();
         proxy.port
     }
 
@@ -458,6 +496,44 @@ mod tests {
         let (status, raw) = raw_get(port, "/api/health").await;
         assert!(status.contains("200"), "unexpected status: {status}");
         assert!(String::from_utf8_lossy(&raw).contains("{\"ok\":true}"));
+    }
+
+    #[tokio::test]
+    async fn falls_back_from_lan_to_iroh() {
+        let (url, fingerprint) = spawn_upstream("health").await;
+        let target = url.trim_start_matches("https://").parse().unwrap();
+        let tunnel_server = crate::iroh_tunnel::start_server(
+            target,
+            iroh::SecretKey::generate(rand::rngs::OsRng),
+            iroh::RelayMode::Disabled,
+        )
+        .await
+        .unwrap();
+        let remote = crate::iroh_tunnel::loopback_endpoint(
+            tunnel_server.node_id(),
+            tunnel_server.local_port().unwrap(),
+        );
+        let tunnels = Arc::new(
+            TunnelBridgePool::start(
+                iroh::SecretKey::generate(rand::rngs::OsRng),
+                iroh::RelayMode::Disabled,
+            )
+            .await
+            .unwrap(),
+        );
+        let mut profile = profile_for("https://127.0.0.1:9", &fingerprint);
+        profile.endpoints.push(ServerEndpoint::iroh(remote));
+        let path = std::env::temp_dir().join(format!("pisper-proxy-test-{}.json", fast_id()));
+        let mut store = crate::mobile::store::ProfileStore::load(&path);
+        store.upsert(profile).unwrap();
+        let proxy = start_proxy(Arc::new(Mutex::new(store)), Some(tunnels))
+            .await
+            .unwrap();
+
+        let (status, raw) = raw_get(proxy.port, "/api/health").await;
+        assert!(status.contains("200"), "unexpected status: {status}");
+        assert!(String::from_utf8_lossy(&raw).contains("{\"ok\":true}"));
+        tunnel_server.close().await;
     }
 
     #[tokio::test]

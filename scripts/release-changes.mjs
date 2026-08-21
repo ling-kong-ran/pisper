@@ -1,5 +1,5 @@
 import { RELEASE_COMPONENTS, assertReleaseComponent } from './release-components.mjs'
-import { isAppOwnedPath } from './app-paths.mjs'
+import { isAppExclusivePath } from './app-paths.mjs'
 
 const ALL_COMPONENTS = Object.freeze(Object.keys(RELEASE_COMPONENTS))
 const RELEASE_SCRIPT_PATHS = new Set([
@@ -57,8 +57,8 @@ function isDocumentationOrTest(path) {
 export function releaseComponentsForPath(input) {
   const path = normalizePath(input)
   if (!path || isDocumentationOrTest(path) || RELEASE_SCRIPT_PATHS.has(path)) return []
-  // App 组件独立发版：移动端独属路径不参与 desktop/tui/runtime 的变更检测。
-  if (isAppOwnedPath(path)) return []
+  // App 独占路径不参与其他组件检测；共享 Rust 路径仍归 Desktop。
+  if (isAppExclusivePath(path)) return []
 
   if (
     path === 'packages/pisper/bin/pisper.mjs' ||

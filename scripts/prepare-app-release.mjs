@@ -1,6 +1,6 @@
 // App 发版工作流的准备阶段：把目标版本写入 mobile-package.json（不提交）、
 // 生成 Release 正文（自上一 App 标签以来的 App 实质性提交）、
-// 并刷新 docs/latest-app.json（主页「下载 Android 版」按钮的版本依据）。
+// 并刷新 docs/latest-app.json（主页 Android/iOS 下载按钮的版本依据）。
 // 用法：node scripts/prepare-app-release.mjs <app-vX.Y.Z> <source_sha>
 import { execFileSync } from 'node:child_process'
 import { mkdir, writeFile } from 'node:fs/promises'
@@ -73,6 +73,9 @@ const latestApp = {
   tag,
   url: `https://github.com/ling-kong-ran/pisper/releases/tag/${tag}`,
   apk: 'app-universal-release-signed.apk',
+  ipa: 'pisper-ios-unsigned.ipa',
+  notes: subjects.map((subject) => `- ${subject}`).join('\n'),
+  releaseDate: date,
 }
 await mkdir(join(root, 'docs'), { recursive: true })
 await writeFile(

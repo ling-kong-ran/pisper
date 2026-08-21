@@ -856,6 +856,10 @@ main,
   gap: 18px;
 }
 
+#mobile .terminal-gallery {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
 .terminal-figure {
   margin: 0;
   padding: 10px;
@@ -915,6 +919,27 @@ main,
   color: var(--dim);
   font-size: 13px;
   line-height: 1.7;
+}
+
+.mobile-download-actions {
+  margin-top: 22px;
+}
+
+.mobile-download-note {
+  margin: 12px 0 0;
+  color: var(--dim);
+  font-size: 13px;
+  line-height: 1.7;
+}
+
+.mobile-download-note strong {
+  color: var(--ink);
+}
+
+.mobile-guide-links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 22px;
 }
 
 .phone-figure {
@@ -1073,7 +1098,8 @@ main,
     display: none;
   }
 
-  .signal-grid {
+  .signal-grid,
+  #mobile .terminal-gallery {
     grid-template-columns: 1fr;
   }
 

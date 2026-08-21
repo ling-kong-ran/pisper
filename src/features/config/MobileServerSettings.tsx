@@ -7,10 +7,16 @@ import { useI18n } from '@/app/use-i18n'
 import { SettingsCard as Panel } from './settings-primitives'
 import { Button } from '@/components/ui/button'
 
+type ServerEndpoint = {
+  t: string
+  url?: string
+  nodeId?: string
+}
+
 type ServerItem = {
   id: string
   name: string
-  endpoints: Array<{ t: string; url: string }>
+  endpoints: ServerEndpoint[]
   pairedAt: string
 }
 
@@ -18,11 +24,12 @@ type MobileState = {
   paired: boolean
   proxyUrl: string
   activeId: string | null
+  activeTransport: string | null
   servers: ServerItem[]
 }
 
 function invokeMobile<T>(command: string, args?: unknown): Promise<T> {
-  const invoke = window.__TAURI__?.core?.invoke
+  const invoke = window.__TAURI__?.core?.invoke ?? window.__TAURI_INTERNALS__?.invoke
   if (!invoke) return Promise.reject(new Error('native bridge unavailable'))
   return invoke<T>(command, args)
 }
@@ -96,6 +103,11 @@ export function MobileServerSettings() {
           <ul className="flex flex-col gap-2">
             {state.servers.map((server) => {
               const active = server.id === state.activeId
+              const directEndpoint = server.endpoints.find((endpoint) => endpoint.url)
+              const irohEndpoint = server.endpoints.find((endpoint) => endpoint.t === 'iroh')
+              const endpointLabel =
+                directEndpoint?.url ||
+                (irohEndpoint?.nodeId ? `Iroh ${irohEndpoint.nodeId.slice(0, 12)}` : 'Iroh')
               return (
                 <li
                   key={server.id}
@@ -113,8 +125,25 @@ export function MobileServerSettings() {
                         ) : null}
                       </div>
                       <div className="truncate text-[11px] text-[var(--text-muted)]">
-                        {server.endpoints[0]?.url}
+                        {endpointLabel}
+                        <span className="ml-2">
+                          {directEndpoint && irohEndpoint
+                            ? t('config:mobileServer.transportLanP2p')
+                            : irohEndpoint
+                              ? t('config:mobileServer.transportP2p')
+                              : t('config:mobileServer.transportLan')}
+                        </span>
                       </div>
+                      {active && state.activeTransport ? (
+                        <div className="text-[11px] text-[var(--star-strong)]">
+                          {t('config:mobileServer.activeTransport', {
+                            transport:
+                              state.activeTransport === 'iroh'
+                                ? t('config:mobileServer.transportP2p')
+                                : t('config:mobileServer.transportLan'),
+                          })}
+                        </div>
+                      ) : null}
                     </div>
                   </div>
                   <div className="flex flex-none items-center gap-1">

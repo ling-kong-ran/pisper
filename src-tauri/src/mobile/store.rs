@@ -9,10 +9,67 @@ use std::{
 use serde::{Deserialize, Serialize};
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
 pub struct ServerEndpoint {
     #[serde(rename = "t")]
     pub kind: String,
+    #[serde(default, skip_serializing_if = "String::is_empty")]
     pub url: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub node_id: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub relay_url: Option<String>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub direct_addresses: Vec<String>,
+}
+
+impl ServerEndpoint {
+    pub fn lan(url: String) -> Self {
+        Self {
+            kind: "lan".into(),
+            url,
+            node_id: None,
+            relay_url: None,
+            direct_addresses: Vec::new(),
+        }
+    }
+
+    pub fn iroh(endpoint: crate::iroh_tunnel::TunnelEndpoint) -> Self {
+        Self {
+            kind: "iroh".into(),
+            url: String::new(),
+            node_id: Some(endpoint.node_id),
+            relay_url: endpoint.relay_url,
+            direct_addresses: endpoint.direct_addresses,
+        }
+    }
+
+    pub fn tunnel_endpoint(&self) -> Result<crate::iroh_tunnel::TunnelEndpoint, String> {
+        if self.kind != "iroh" {
+            return Err("端点不是 Iroh 类型。".into());
+        }
+        let node_id = self
+            .node_id
+            .clone()
+            .filter(|value| !value.trim().is_empty())
+            .ok_or_else(|| "Iroh 端点缺少节点 ID。".to_string())?;
+        Ok(crate::iroh_tunnel::TunnelEndpoint {
+            node_id,
+            relay_url: self.relay_url.clone(),
+            direct_addresses: self.direct_addresses.clone(),
+        })
+    }
+
+    pub fn display_address(&self) -> String {
+        if self.kind == "iroh" {
+            return self
+                .node_id
+                .as_deref()
+                .map(|value| format!("Iroh {}", value.chars().take(12).collect::<String>()))
+                .unwrap_or_else(|| "Iroh".into());
+        }
+        self.url.clone()
+    }
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
@@ -142,10 +199,7 @@ mod tests {
         ServerProfile {
             id: id.into(),
             name: format!("server-{id}"),
-            endpoints: vec![ServerEndpoint {
-                kind: "lan".into(),
-                url: "https://192.168.1.5:5174".into(),
-            }],
+            endpoints: vec![ServerEndpoint::lan("https://192.168.1.5:5174".into())],
             fingerprint: "SHA256:ABCD".into(),
             device_id: device.into(),
             token: "pst_x".into(),

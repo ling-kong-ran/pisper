@@ -1,7 +1,14 @@
 // 远程访问设置：开关局域网监听、展示接入地址与证书指纹、
 // 生成配对二维码、管理已配对设备（吊销）。数据全部来自 runtime 的 /api/remote/*。
 import { useCallback, useEffect, useState } from 'react'
-import { MonitorSmartphone, QrCode, RefreshCw, ShieldCheck, Smartphone } from 'lucide-react'
+import {
+  MonitorSmartphone,
+  QrCode,
+  RadioTower,
+  RefreshCw,
+  ShieldCheck,
+  Smartphone,
+} from 'lucide-react'
 import { useI18n } from '@/app/use-i18n'
 import type { Notify } from '@/app/route-context'
 import { apiJson } from '@/lib/api'
@@ -9,7 +16,13 @@ import { relativeTime } from '@/lib/format'
 import { SettingsCard as Panel, SettingsSwitch as Switch } from './settings-primitives'
 import { Button } from '@/components/ui/button'
 
-type RemoteEndpoint = { t: string; url: string }
+type RemoteEndpoint = {
+  t: string
+  url?: string
+  nodeId?: string
+  relayUrl?: string
+  directAddresses?: string[]
+}
 
 type RemoteStatus = {
   apiVersion: number
@@ -20,6 +33,12 @@ type RemoteStatus = {
   fingerprint: string | null
   deviceName: string
   endpoints: RemoteEndpoint[]
+  iroh?: {
+    available: boolean
+    relayConnected: boolean
+    nodeId: string | null
+    error: string | null
+  }
   mdns: { advertising: boolean; error: string | null }
   error: string | null
 }
@@ -69,6 +88,10 @@ export function RemoteAccessSettings({ notify }: { notify: Notify }) {
     setBusy(true)
     try {
       await apiJson('/api/remote/enabled', { method: 'PUT', body: { enabled } })
+      const invoke = window.__TAURI__?.core?.invoke ?? window.__TAURI_INTERNALS__?.invoke
+      if (invoke) {
+        await invoke('desktop_iroh_set_enabled', { enabled }).catch(() => undefined)
+      }
       if (!enabled) setPairing(null)
       await refresh()
     } catch (error) {
@@ -141,14 +164,35 @@ export function RemoteAccessSettings({ notify }: { notify: Notify }) {
               <span>{t('config:remoteAccess.fingerprint')}</span>
               <code className="break-all text-[11px]">{status.fingerprint}</code>
             </div>
-            {status.endpoints.map((endpoint) => (
-              <div key={endpoint.url} className="flex items-center gap-2">
-                <span className="w-10 flex-none rounded border border-[var(--border)] px-1 text-center text-[10px] uppercase">
-                  {endpoint.t}
+            {status.iroh ? (
+              <div className="flex items-start gap-2">
+                <RadioTower size={14} className="mt-0.5 flex-none" />
+                <span>
+                  {status.iroh.error
+                    ? t('config:remoteAccess.irohFailed', { message: status.iroh.error })
+                    : status.iroh.relayConnected
+                      ? t('config:remoteAccess.irohReady')
+                      : status.iroh.available
+                        ? t('config:remoteAccess.irohDirectOnly')
+                        : t('config:remoteAccess.irohStarting')}
                 </span>
-                <code className="break-all text-[11px]">{endpoint.url}</code>
+                {status.iroh.nodeId ? (
+                  <code className="min-w-0 truncate text-[11px]" title={status.iroh.nodeId}>
+                    {status.iroh.nodeId.slice(0, 12)}
+                  </code>
+                ) : null}
               </div>
-            ))}
+            ) : null}
+            {status.endpoints
+              .filter((endpoint) => endpoint.t !== 'iroh')
+              .map((endpoint) => (
+                <div key={`${endpoint.t}:${endpoint.url}`} className="flex items-center gap-2">
+                  <span className="w-10 flex-none rounded border border-[var(--border)] px-1 text-center text-[10px] uppercase">
+                    {endpoint.t}
+                  </span>
+                  <code className="break-all text-[11px]">{endpoint.url}</code>
+                </div>
+              ))}
           </div>
         ) : null}
       </Panel>

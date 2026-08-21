@@ -16,8 +16,8 @@
 
   var strings = {
     subtitle: t(
-      '把这台设备连接到你的桌面 Pisper。手机与电脑需在同一局域网（或 Tailscale 组网）。',
-      'Connect this device to your desktop Pisper. Phone and computer must be on the same network (or a Tailscale network).',
+      '把这台设备连接到你的桌面 Pisper。App 优先局域网直连，不可达时自动尝试 P2P。',
+      'Connect this device to your desktop Pisper. The app prefers LAN and automatically tries P2P when direct access is unavailable.',
     ),
     servers: t('已配对的桌面端', 'Paired desktops'),
     pairTitle: t('配对新桌面端', 'Pair a new desktop'),
@@ -27,8 +27,8 @@
     fp: t('证书指纹（桌面端设置页可见，可只填前 16 位）', 'Certificate fingerprint (see desktop settings; first 16 hex chars suffice)'),
     manual: t('手动配对', 'Pair manually'),
     manualHint: t(
-      '桌面端入口：设置 → 远程访问 → 生成配对二维码。手机上也可手动输入地址、配对码与指纹。',
-      'On the desktop: Settings → Remote access → Generate pairing QR code. You can also enter address, code and fingerprint manually.',
+      '桌面端入口：设置 → 远程访问。扫码会保存局域网与 P2P 地址；手动配对仅添加填写的 HTTPS 地址。',
+      'On desktop: Settings → Remote access. QR pairing saves LAN and P2P endpoints; manual pairing adds only the HTTPS address entered here.',
     ),
     connect: t('连接', 'Connect'),
     forget: t('删除', 'Forget'),

@@ -2,5 +2,6 @@
   "version": "0.1.1",
   "tag": "app-v0.1.1",
   "url": "https://github.com/ling-kong-ran/pisper/releases/tag/app-v0.1.1",
-  "apk": "app-universal-release-signed.apk"
+  "apk": "app-universal-release-signed.apk",
+  "ipa": "pisper-ios-unsigned.ipa"
 }

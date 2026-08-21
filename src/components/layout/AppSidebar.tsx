@@ -45,7 +45,7 @@ type SessionSummary = {
 }
 
 type SidebarUpdate = {
-  info?: { desktop?: boolean }
+  info?: { desktop?: boolean; mobile?: boolean }
   status?: {
     state: string
     percent?: number
@@ -412,7 +412,7 @@ function SidebarUpdateStatus({
 }) {
   const { t } = useI18n()
   const status = update?.status || { state: 'idle' }
-  const desktop = Boolean(update?.info?.desktop)
+  const nativeApp = Boolean(update?.info?.desktop || update?.info?.mobile)
   if (!['available', 'downloading', 'downloaded'].includes(status.state)) return null
   const downloading = status.state === 'downloading'
   const downloaded = status.state === 'downloaded'
@@ -420,12 +420,12 @@ function SidebarUpdateStatus({
     ? t('navigation:appSidebar.readyToRestart')
     : downloading
       ? t('navigation:appSidebar.downloading')
-      : desktop
+      : nativeApp
         ? t('navigation:appSidebar.updateAvailable')
         : t('navigation:appSidebar.sourceUpdatesAvailable')
   const detail = downloading
     ? `${Math.round(status.percent || 0)}%`
-    : desktop && status.availableVersion
+    : nativeApp && status.availableVersion
       ? `v${status.availableVersion}`
       : status.behindBy
         ? t('navigation:appSidebar.countCommitsBehindBranch', {
@@ -435,7 +435,7 @@ function SidebarUpdateStatus({
         : status.availableCommit
           ? status.availableCommit.slice(0, 7)
           : t('navigation:appSidebar.viewUpdateDetails')
-  const Icon = downloaded ? Rocket : downloading ? RefreshCw : desktop ? Download : ExternalLink
+  const Icon = downloaded ? Rocket : downloading ? RefreshCw : nativeApp ? Download : ExternalLink
 
   return (
     <button

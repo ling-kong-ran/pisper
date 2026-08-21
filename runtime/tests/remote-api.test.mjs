@@ -99,6 +99,7 @@ test('配对全流程：发码 → 扫码兑换 → 设备列表（带 current�
   const paired = JSON.parse(pairResponse.body)
   assert.ok(paired.token.startsWith('pst_'))
   assert.equal(paired.serverName, '测试桌面')
+  assert.deepEqual(paired.endpoints, [{ t: 'lan', url: 'https://192.168.1.5:5174' }])
   assert.equal(paired.apiVersion, 1)
 
   // 设备列表：模拟远程监听鉴权后写入的当前设备标记。

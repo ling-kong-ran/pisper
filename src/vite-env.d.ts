@@ -12,6 +12,10 @@ declare global {
     __TAURI__?: {
       core?: { invoke?: <T = unknown>(command: string, args?: unknown) => Promise<T> }
     }
+    // 远程代理页面上公开 global 可能被重复注入拦截，底层 IPC 入口仍可安全复用。
+    __TAURI_INTERNALS__?: {
+      invoke?: <T = unknown>(command: string, args?: unknown) => Promise<T>
+    }
   }
 }
 

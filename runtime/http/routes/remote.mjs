@@ -87,6 +87,7 @@ export const remoteRoutes = [
           deviceId: result.device.id,
           token: result.token,
           serverName: services.remoteControl.status().deviceName,
+          endpoints: services.remoteControl.status().endpoints,
           apiVersion: 1,
         })
       } catch (error) {

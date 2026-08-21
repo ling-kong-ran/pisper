@@ -5,6 +5,7 @@ import {
   Bell,
   Bot,
   Brain,
+  Info,
   Monitor,
   MonitorSmartphone,
   Plug,
@@ -36,6 +37,7 @@ export const CONFIG_SECTIONS = new Set([
   'updates',
   'remote-access',
   'mobile-server',
+  'about',
 ])
 
 export const SETTINGS_PAGES = new Set(['config', 'channels', 'plugins', 'memory', 'mcp', 'skills'])
@@ -142,6 +144,12 @@ export function getSettingsNavigation(
           label: t('config:configPage.appUpdates'),
           icon: RefreshCw,
           destination: { type: 'config', id: 'updates' },
+        },
+        {
+          key: 'config:about',
+          label: t('config:configPage.about'),
+          icon: Info,
+          destination: { type: 'config', id: 'about' },
         },
       ],
     },

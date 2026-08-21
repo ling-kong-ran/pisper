@@ -3,6 +3,8 @@
 //! 因此配对链路自始抵御中间人。
 use serde::{Deserialize, Serialize};
 
+use crate::iroh_tunnel::TunnelBridgePool;
+
 use super::pinning::pinned_client;
 use super::store::{normalize_fingerprint, ServerEndpoint, ServerProfile};
 
@@ -31,6 +33,8 @@ struct PairResponse {
     device_id: String,
     token: String,
     server_name: String,
+    #[serde(default)]
+    endpoints: Vec<ServerEndpoint>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -47,8 +51,26 @@ fn now_iso8601() -> String {
     format!("{seconds}")
 }
 
+async fn endpoint_url(
+    endpoint: &ServerEndpoint,
+    tunnels: Option<&TunnelBridgePool>,
+) -> Result<String, String> {
+    if endpoint.kind == "iroh" {
+        let tunnels = tunnels.ok_or_else(|| "Iroh 桥接尚未启动。".to_string())?;
+        return tunnels.bridge_url(endpoint.tunnel_endpoint()?).await;
+    }
+    if !endpoint.url.starts_with("https://") {
+        return Err("远程端点必须使用 HTTPS。".into());
+    }
+    Ok(endpoint.url.trim_end_matches('/').to_string())
+}
+
 /// 依次尝试 payload 里的 endpoint：第一个指纹匹配且配对码被接受的成功。
-pub async fn pair(payload: &QrPayload, device_name: &str) -> Result<ServerProfile, String> {
+pub async fn pair(
+    payload: &QrPayload,
+    device_name: &str,
+    tunnels: Option<&TunnelBridgePool>,
+) -> Result<ServerProfile, String> {
     if payload.v != 1 {
         return Err(format!("不支持的二维码版本 v{}，请升级 App。", payload.v));
     }
@@ -63,8 +85,20 @@ pub async fn pair(payload: &QrPayload, device_name: &str) -> Result<ServerProfil
     let client = pinned_client(&fingerprint)?;
     let mut last_error = String::new();
     for endpoint in &payload.endpoints {
-        match try_pair_endpoint(&client, &endpoint.url, &payload.code, device_name).await {
+        let base_url = match endpoint_url(endpoint, tunnels).await {
+            Ok(url) => url,
+            Err(error) => {
+                last_error = format!("{}: {error}", endpoint.display_address());
+                continue;
+            }
+        };
+        match try_pair_endpoint(&client, &base_url, &payload.code, device_name).await {
             Ok(response) => {
+                let endpoints = if response.endpoints.is_empty() {
+                    payload.endpoints.clone()
+                } else {
+                    response.endpoints.clone()
+                };
                 return Ok(ServerProfile {
                     id: format!("srv_{}", fast_id()),
                     name: if response.server_name.is_empty() {
@@ -72,14 +106,14 @@ pub async fn pair(payload: &QrPayload, device_name: &str) -> Result<ServerProfil
                     } else {
                         response.server_name
                     },
-                    endpoints: payload.endpoints.clone(),
+                    endpoints,
                     fingerprint,
                     device_id: response.device_id,
                     token: response.token,
                     paired_at: now_iso8601(),
                 });
             }
-            Err(error) => last_error = format!("{}: {}", endpoint.url, error),
+            Err(error) => last_error = format!("{}: {error}", endpoint.display_address()),
         }
     }
     Err(if last_error.is_empty() {
@@ -238,14 +272,11 @@ mod tests {
         let payload = QrPayload {
             v: 1,
             name: "测试".into(),
-            endpoints: vec![ServerEndpoint {
-                kind: "lan".into(),
-                url,
-            }],
+            endpoints: vec![ServerEndpoint::lan(url)],
             fp: format!("SHA256:{fingerprint}"),
             code: "ABCD-EFGH".into(),
         };
-        let profile = pair(&payload, "测试手机").await.expect("配对应成功");
+        let profile = pair(&payload, "测试手机", None).await.expect("配对应成功");
         assert_eq!(profile.device_id, "dev_test");
         assert_eq!(profile.token, "pst_test");
         assert_eq!(profile.name, "测试桌面");
