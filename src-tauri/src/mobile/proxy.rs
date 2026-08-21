@@ -330,7 +330,7 @@ mod tests {
                             stream
                                 .write_all(
                                     format!(
-                                        "HTTP/1.1 200 OK\r\ncontent-type: application/json\r\ncontent-length: {}\r\n\r\n",
+                                        "HTTP/1.1 200 OK\r\ncontent-type: application/json\r\ncontent-length: {}\r\nconnection: close\r\n\r\n",
                                         body.len()
                                     )
                                     .as_bytes(),
@@ -339,6 +339,7 @@ mod tests {
                                 .unwrap();
                             stream.write_all(body).await.unwrap();
                             stream.flush().await.unwrap();
+                            stream.shutdown().await.unwrap();
                         }
                         "sse" => {
                             stream
