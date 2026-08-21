@@ -38,6 +38,10 @@ import { SidebarInset, SidebarProvider } from '@/components/ui/sidebar'
 import { useUiStore } from '@/stores/ui-store'
 import { useClientStore } from '@/stores/client-store'
 import { readStoredTerminalPanel } from '@/features/terminal/terminal-state'
+import {
+  tauriNotificationAvailable,
+  tauriNotificationNotify,
+} from '@/lib/tauri-notification'
 import type { ChatAttachment, PendingAsset } from '@/types/chat'
 import type { NotificationSettingsData } from '@/types/notifications'
 import type { WorkflowActions } from '@/types/workflow'
@@ -274,9 +278,8 @@ function App() {
         return
       }
       // 移动端壳：走 Tauri 本地通知插件（Android WebView 不支持 Notification Web API）。
-      const tauriNotification = window.__TAURI__?.plugins?.notification
-      if (tauriNotification?.notify) {
-        void tauriNotification.notify({ title, body }).catch(() => {})
+      if (tauriNotificationAvailable()) {
+        void tauriNotificationNotify(title, body).catch(() => {})
         return
       }
       void showBrowserSystemNotification({

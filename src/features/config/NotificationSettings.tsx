@@ -16,6 +16,12 @@ import {
   requestBrowserNotificationPermission,
   showBrowserSystemNotification,
 } from '@/lib/browser-notifications'
+import {
+  tauriNotificationAvailable,
+  tauriNotificationIsGranted,
+  tauriNotificationNotify,
+  tauriNotificationRequestPermission,
+} from '@/lib/tauri-notification'
 import type { Dispatch, SetStateAction } from 'react'
 import type { I18nValues } from '@/app/i18n'
 import type { Notify } from '@/app/route-context'
@@ -119,6 +125,10 @@ function notificationPermission(): NotificationPermissionState {
   if (typeof window !== 'undefined' && window.pisperDesktop?.showNotification) {
     return window.pisperDesktop.getNotificationStatus ? 'checking' : 'granted'
   }
+  // 移动端壳：权限判定走 Tauri 通知插件（Android WebView 没有 Notification API）。
+  if (typeof window !== 'undefined' && tauriNotificationAvailable()) {
+    return 'checking'
+  }
   return getBrowserNotificationPermission()
 }
 
@@ -152,6 +162,7 @@ export function NotificationSettings({
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const desktop = Boolean(window.pisperDesktop?.showNotification)
+  const tauriShell = tauriNotificationAvailable()
   const [permission, setPermission] = useState<NotificationPermissionState>(notificationPermission)
   const [browserSaving, setBrowserSaving] = useState(false)
 
@@ -210,6 +221,25 @@ export function NotificationSettings({
     return () => window.removeEventListener('focus', refresh)
   }, [desktop, refreshDesktopPermission])
 
+  // 移动端壳的权限刷新：Tauri 通知插件状态映射到与浏览器一致的权限模型，
+  // 页面回前台时重新拉取。
+  const refreshTauriPermission = useCallback(async () => {
+    if (desktop || !tauriShell) return
+    try {
+      const granted = await tauriNotificationIsGranted()
+      setPermission(granted === true ? 'granted' : granted === false ? 'denied' : 'default')
+    } catch {
+      setPermission('unsupported')
+    }
+  }, [desktop, tauriShell])
+  useEffect(() => {
+    if (desktop || !tauriShell) return undefined
+    void refreshTauriPermission()
+    const refresh = () => void refreshTauriPermission()
+    window.addEventListener('focus', refresh)
+    return () => window.removeEventListener('focus', refresh)
+  }, [desktop, tauriShell, refreshTauriPermission])
+
   // 切换浏览器通知开关：开启前校验环境支持与权限（桌面/浏览器分别处理），
   // 未授权时提示并回滚开关。
   const updateBrowser = async (enabled: boolean) => {
@@ -225,7 +255,30 @@ export function NotificationSettings({
         notify(notificationFailureMessage('system-disabled', t), 'error')
         return
       }
-      if (!desktop) {
+      if (!desktop && tauriShell) {
+        // 移动端壳：先查插件权限，未授权则运行时申请（Android 13+ 系统弹窗）。
+        let nextPermission: NotificationPermissionState = 'denied'
+        try {
+          const granted = (await tauriNotificationIsGranted()) === true
+          const resolved = granted
+            ? 'granted'
+            : await tauriNotificationRequestPermission()
+          nextPermission =
+            resolved === 'granted' ? 'granted' : resolved === 'denied' ? 'denied' : 'default'
+        } catch {
+          nextPermission = 'unsupported'
+        }
+        setPermission(nextPermission)
+        if (nextPermission !== 'granted') {
+          notify(
+            t(
+              'config:notificationSettings.systemNotificationsAreOffAllowPisperToSendNotificationsInYourOperatingSystemSettings',
+            ),
+            'error',
+          )
+          return
+        }
+      } else if (!desktop) {
         const nextPermission = await requestBrowserNotificationPermission()
         setPermission(nextPermission)
         if (nextPermission !== 'granted') {
@@ -290,6 +343,11 @@ export function NotificationSettings({
           throw new Error(notificationFailureMessage(result.reason, t))
         }
         return result
+      }
+      // 移动端壳：经 Tauri 插件发本地通知。
+      if (tauriShell) {
+        await tauriNotificationNotify(title, body)
+        return { shown: true, transport: 'tauri' }
       }
       return showBrowserSystemNotification({ title, body, tag, url: window.location.href })
     },
