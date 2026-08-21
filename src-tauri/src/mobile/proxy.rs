@@ -365,7 +365,13 @@ mod tests {
         (format!("https://{addr}"), fingerprint)
     }
 
-    use std::sync::OnceLock;
+    use std::sync::{
+        atomic::{AtomicU64, Ordering},
+        OnceLock,
+    };
+
+    // macOS 的系统时钟精度不足以单独生成并发测试文件名，原子序号保证进程内唯一。
+    static NEXT_TEST_ID: AtomicU64 = AtomicU64::new(0);
     static SSE_GATE: OnceLock<tokio::sync::Semaphore> = OnceLock::new();
 
     // rustls 的 with_single_cert 会走进程级默认 provider 加载私钥；
@@ -403,10 +409,8 @@ mod tests {
     }
 
     fn fast_id() -> u128 {
-        std::time::SystemTime::now()
-            .duration_since(std::time::UNIX_EPOCH)
-            .unwrap()
-            .as_nanos()
+        let sequence = NEXT_TEST_ID.fetch_add(1, Ordering::Relaxed) as u128;
+        ((std::process::id() as u128) << 64) | sequence
     }
 
     async fn raw_get(port: u16, path: &str) -> (String, Vec<u8>) {
@@ -454,7 +458,7 @@ mod tests {
         assert!(String::from_utf8_lossy(&raw).contains("无法连接"));
     }
 
-    #[tokio::test]
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn sse_streams_incrementally() {
         SSE_GATE.set(tokio::sync::Semaphore::new(0)).ok();
         let (url, fingerprint) = spawn_upstream("sse").await;
