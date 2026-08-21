@@ -341,7 +341,7 @@ export function NotificationSettings({
       }
       return showBrowserSystemNotification({ title, body, tag, url: window.location.href })
     },
-    [desktop, t],
+    [desktop, tauriShell, t],
   )
 
   // 测试通知：先校验权限（未授权给出对应提示），再发送一条测试通知。
