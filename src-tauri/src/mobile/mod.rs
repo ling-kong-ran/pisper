@@ -167,6 +167,11 @@ fn default_device_name() -> String {
 
 /// 移动端入口：与桌面壳完全分离，不启动 sidecar。
 pub fn run_mobile() {
+    // rustls 的默认 CryptoProvider 必须显式安装：reqwest 同时启用了 ring 与
+    // aws-lc-rs，进程级默认 provider 无法自动确定，任何走默认路径的 TLS 调用
+    // （包括传递依赖深处的）都会直接 panic。安装 ring 为进程默认。
+    let _ = rustls::crypto::ring::default_provider().install_default();
+
     // 扫码插件整个 crate 是 cfg(mobile) 的，桌面构建时不能注册。
     let builder = tauri::Builder::default().plugin(tauri_plugin_notification::init());
     #[cfg(any(target_os = "android", target_os = "ios"))]
