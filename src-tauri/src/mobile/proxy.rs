@@ -338,6 +338,7 @@ mod tests {
                                 .await
                                 .unwrap();
                             stream.write_all(body).await.unwrap();
+                            stream.flush().await.unwrap();
                         }
                         "sse" => {
                             stream
