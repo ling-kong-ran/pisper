@@ -148,10 +148,8 @@ jobs:
       - name: Prepare iOS project
         run: npx tauri ios init
       - name: Build unsigned iOS app
-        env:
-          CODE_SIGNING_ALLOWED: 'NO'
         run: |
-          npx tauri ios build --ci \
+          npx tauri ios build --ci --no-sign \
             --config '{"bundle":{"externalBin":[],"resources":[]}}'
       - name: Package iOS artifacts
         env:
@@ -159,21 +157,23 @@ jobs:
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
         run: |
           set -Eeuo pipefail
-          APP_PATH=$(find src-tauri/gen/apple -name "*.app" -type d | head -1)
-          test -n "$APP_PATH" || { echo "未找到 .app 产物。" >&2; exit 1; }
-          ditto -c -k --sequesterRsrc --keepParent "$APP_PATH" pisper-ios-app.zip
+          IPA_PATH=$(find src-tauri/gen/apple -name "*.ipa" -type f | head -1)
+          test -n "$IPA_PATH" || { echo "未找到未签名 IPA 产物。" >&2; exit 1; }
+          cp "$IPA_PATH" pisper-ios-unsigned.ipa
           printf '%s' "$TAURI_SIGNING_PRIVATE_KEY" > /tmp/minisign.key
-          npx tauri signer sign -f /tmp/minisign.key -p "$TAURI_SIGNING_PRIVATE_KEY_PASSWORD" pisper-ios-app.zip
-          mv pisper-ios-app.zip.sig pisper-ios-app.zip.minisig
+          npx tauri signer sign -f /tmp/minisign.key -p "$TAURI_SIGNING_PRIVATE_KEY_PASSWORD" pisper-ios-unsigned.ipa
+          mv pisper-ios-unsigned.ipa.sig pisper-ios-unsigned.ipa.minisig
           cat > README-ios.txt <<'EOF'
-          该 iOS 构建为未签名产物（不含 provisioning profile）。
+          该 IPA 为未签名产物（不含 provisioning profile）。
           安装到真机需自行重签名：AltStore / Sideloadly / 自有开发者账号。
           EOF
       - uses: actions/upload-artifact@v4
         with:
           name: app-ios
           if-no-files-found: warn
-          path: pisper-ios-*
+          path: |
+            pisper-ios-*
+            README-ios.txt
 
   publish:
     name: Publish $RELEASE_TAG
