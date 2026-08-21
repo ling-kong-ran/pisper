@@ -233,8 +233,16 @@ pub fn run_mobile() {
             mobile_select_server,
             mobile_forget_server,
             mobile_connect_url,
-        ])
+        ]);
+
+    // generate_context! 每个 crate 只能展开一次（macOS 会嵌入 Info.plist 符号），
+    // 桌面端由 desktop_shell 持有，这里仅在移动端目标展开，避免符号重复定义。
+    #[cfg(any(target_os = "android", target_os = "ios"))]
+    builder
         .build(tauri::generate_context!())
         .expect("failed to build Pisper mobile application")
         .run(|_, _| {});
+
+    #[cfg(not(any(target_os = "android", target_os = "ios")))]
+    let _ = builder;
 }
