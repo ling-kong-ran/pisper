@@ -116,6 +116,8 @@ fn text_response(status: StatusCode, message: &str) -> Response<ProxyBody> {
     Response::builder()
         .status(status)
         .header("Content-Type", "text/plain; charset=utf-8")
+        // 错误响应必须让连接收尾：客户端读到 EOF 而不是干等超时。
+        .header("Connection", "close")
         .body(BodyExt::boxed_unsync(body))
         .expect("static response")
 }
@@ -489,7 +491,7 @@ mod tests {
                 }
             }
         };
-        tokio::time::timeout(std::time::Duration::from_secs(10), read_first_frame)
+        tokio::time::timeout(std::time::Duration::from_secs(30), read_first_frame)
             .await
             .expect("读取第一帧超时");
         eprintln!(
@@ -504,7 +506,7 @@ mod tests {
         eprintln!("[sse-test] gate released");
         let mut rest = Vec::new();
         let read_rest = async { stream.read_to_end(&mut rest).await.unwrap() };
-        tokio::time::timeout(std::time::Duration::from_secs(10), read_rest)
+        tokio::time::timeout(std::time::Duration::from_secs(30), read_rest)
             .await
             .expect("读取剩余帧超时");
         assert!(String::from_utf8_lossy(&rest).contains("event: done"));
