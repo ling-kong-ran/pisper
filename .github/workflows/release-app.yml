@@ -88,7 +88,7 @@ jobs:
         env:
           NDK_HOME: ${{ env.ANDROID_HOME }}/ndk/26.3.11579264
         run: |
-          node node_modules/@tauri-apps/cli/tauri.js android build --apk --release \
+          node node_modules/@tauri-apps/cli/tauri.js android build --apk --ci \
             --config '{"version":"${{ inputs.version }}","bundle":{"externalBin":[],"resources":[]}}'
       - name: Sign APK
         env:
@@ -151,7 +151,7 @@ jobs:
         env:
           CODE_SIGNING_ALLOWED: 'NO'
         run: |
-          npx tauri ios build --release \
+          npx tauri ios build --ci \
             --config '{"bundle":{"externalBin":[],"resources":[]}}'
       - name: Package iOS artifacts
         env:
@@ -178,6 +178,7 @@ jobs:
   publish:
     name: Publish $RELEASE_TAG
     needs: [prepare, android, ios]
+    if: ${{ always() && needs.prepare.result == 'success' && needs.android.result == 'success' }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
