@@ -747,3 +747,17 @@ if (!reduceMotion) {
     })
   }
 }
+
+// 移动端下载按钮：从 docs/latest-app.json（App 发版工作流维护）读取最新版本地址，
+// 失败时保持指向 Releases 列表页的兜底链接。
+fetch('latest-app.json', { cache: 'no-store' })
+  .then((response) => (response.ok ? response.json() : null))
+  .then((manifest) => {
+    if (!manifest || !manifest.url) return
+    for (const link of document.querySelectorAll('[data-app-download]')) {
+      link.href = manifest.url
+      const label = link.querySelector('[data-app-version]')
+      if (label && manifest.version) label.textContent = manifest.version
+    }
+  })
+  .catch(() => {})

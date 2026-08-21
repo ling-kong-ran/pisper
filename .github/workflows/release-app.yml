@@ -1,0 +1,276 @@
+name: Release app
+
+# 移动端 App 独立发版：与 release.yml（desktop/tui/runtime）完全解耦。
+# 产物：签名 APK（Android）+ 未签名 iOS 构建（需用户自行重签名）。
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'App release version (X.Y.Z)'
+        required: true
+        type: string
+      source_sha:
+        description: 'Exact release branch commit to build'
+        required: true
+        type: string
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release-${{ github.repository }}
+  cancel-in-progress: false
+
+env:
+  RELEASE_VERSION: ${{ inputs.version }}
+  RELEASE_TAG: app-v${{ inputs.version }}
+  RELEASE_SOURCE_SHA: ${{ inputs.source_sha }}
+
+jobs:
+  prepare:
+    name: Prepare staged app release
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: ${{ inputs.source_sha }}
+          fetch-depth: 0
+      - name: Verify immutable release branch source
+        shell: bash
+        run: |
+          git fetch origin release
+          node scripts/verify-release-head.mjs "$RELEASE_SOURCE_SHA" origin/release
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 24
+      - name: Stage app version, release notes, and latest-app manifest
+        run: node scripts/prepare-app-release.mjs "$RELEASE_TAG" "$RELEASE_SOURCE_SHA"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: app-release-source
+          if-no-files-found: error
+          path: |
+            src-tauri/mobile-package.json
+            docs/latest-app.json
+            release-body-app.md
+
+  android:
+    name: Build signed Android APK
+    needs: prepare
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: ${{ inputs.source_sha }}
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 24
+          cache: npm
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: android-actions/setup-android@v3
+      - name: Install Android SDK packages and NDK
+        run: |
+          yes | sdkmanager --licenses > /dev/null
+          sdkmanager "platform-tools" "platforms;android-34" "build-tools;34.0.0" "ndk;26.3.11579264"
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-linux-android,armv7-linux-androideabi,i686-linux-android,x86_64-linux-android
+      - name: Install Node dependencies
+        run: npm ci
+      - name: Build frontend
+        run: npm run build
+      - name: Prepare Android project
+        run: node scripts/setup-mobile-android.mjs
+      - name: Build release APK
+        env:
+          NDK_HOME: ${{ env.ANDROID_HOME }}/ndk/26.3.11579264
+        run: |
+          node node_modules/@tauri-apps/cli/tauri.js android build --apk --release \
+            --config '{"version":"${{ inputs.version }}","bundle":{"externalBin":[],"resources":[]}}'
+      - name: Sign APK
+        env:
+          APP_ANDROID_KEYSTORE: ${{ secrets.APP_ANDROID_KEYSTORE }}
+          APP_ANDROID_STORE_PASSWORD: ${{ secrets.APP_ANDROID_STORE_PASSWORD }}
+          APP_ANDROID_KEY_ALIAS: ${{ secrets.APP_ANDROID_KEY_ALIAS }}
+          APP_ANDROID_KEY_PASSWORD: ${{ secrets.APP_ANDROID_KEY_PASSWORD }}
+        run: |
+          set -Eeuo pipefail
+          test -n "$APP_ANDROID_KEYSTORE" || { echo "APP_ANDROID_KEYSTORE 未配置。" >&2; exit 1; }
+          echo "$APP_ANDROID_KEYSTORE" | base64 -d > /tmp/pisper-app.jks
+          UNSIGNED=$(find src-tauri/gen/android/app/build/outputs/apk -name '*unsigned*.apk' | head -1)
+          test -n "$UNSIGNED" || { echo "未找到未签名 APK。" >&2; exit 1; }
+          "$ANDROID_HOME/build-tools/34.0.0/zipalign" -p -f 4 "$UNSIGNED" /tmp/app-aligned.apk
+          "$ANDROID_HOME/build-tools/34.0.0/apksigner" sign \
+            --ks /tmp/pisper-app.jks \
+            --ks-key-alias "$APP_ANDROID_KEY_ALIAS" \
+            --ks-pass "pass:$APP_ANDROID_STORE_PASSWORD" \
+            --key-pass "pass:$APP_ANDROID_KEY_PASSWORD" \
+            --out app-universal-release-signed.apk \
+            /tmp/app-aligned.apk
+          "$ANDROID_HOME/build-tools/34.0.0/apksigner" verify --print-certs app-universal-release-signed.apk | head -2
+      - name: Minisign APK
+        env:
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+        run: |
+          printf '%s' "$TAURI_SIGNING_PRIVATE_KEY" > /tmp/minisign.key
+          npx tauri signer sign -f /tmp/minisign.key -p "$TAURI_SIGNING_PRIVATE_KEY_PASSWORD" app-universal-release-signed.apk
+          mv app-universal-release-signed.apk.sig app-universal-release-signed.apk.minisig
+      - uses: actions/upload-artifact@v4
+        with:
+          name: app-android
+          if-no-files-found: error
+          path: app-universal-release-signed.apk*
+
+  ios:
+    name: Build iOS app (unsigned, best-effort)
+    needs: prepare
+    runs-on: macos-latest
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: ${{ inputs.source_sha }}
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 24
+          cache: npm
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-apple-ios,aarch64-apple-ios-sim,x86_64-apple-ios
+      - name: Install Node dependencies
+        run: npm ci
+      - name: Build frontend
+        run: npm run build
+      - name: Prepare iOS project
+        run: npx tauri ios init
+      - name: Build unsigned iOS app
+        env:
+          CODE_SIGNING_ALLOWED: 'NO'
+        run: |
+          npx tauri ios build --release \
+            --config '{"bundle":{"externalBin":[],"resources":[]}}'
+      - name: Package iOS artifacts
+        env:
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+        run: |
+          set -Eeuo pipefail
+          APP_PATH=$(find src-tauri/gen/apple -name "*.app" -type d | head -1)
+          test -n "$APP_PATH" || { echo "未找到 .app 产物。" >&2; exit 1; }
+          ditto -c -k --sequesterRsrc --keepParent "$APP_PATH" pisper-ios-app.zip
+          printf '%s' "$TAURI_SIGNING_PRIVATE_KEY" > /tmp/minisign.key
+          npx tauri signer sign -f /tmp/minisign.key -p "$TAURI_SIGNING_PRIVATE_KEY_PASSWORD" pisper-ios-app.zip
+          mv pisper-ios-app.zip.sig pisper-ios-app.zip.minisig
+          cat > README-ios.txt <<'EOF'
+          该 iOS 构建为未签名产物（不含 provisioning profile）。
+          安装到真机需自行重签名：AltStore / Sideloadly / 自有开发者账号。
+          EOF
+      - uses: actions/upload-artifact@v4
+        with:
+          name: app-ios
+          if-no-files-found: warn
+          path: pisper-ios-*
+
+  publish:
+    name: Publish $RELEASE_TAG
+    needs: [prepare, android, ios]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: ${{ inputs.source_sha }}
+          fetch-depth: 0
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 24
+      - uses: actions/download-artifact@v5
+        with:
+          name: app-release-source
+          path: .
+      - uses: actions/download-artifact@v5
+        with:
+          name: app-android
+          path: artifacts
+      - uses: actions/download-artifact@v5
+        with:
+          name: app-ios
+          path: artifacts
+        continue-on-error: true
+      - name: Validate required assets
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          test -f artifacts/app-universal-release-signed.apk
+          test -f artifacts/app-universal-release-signed.apk.minisig
+          ls -la artifacts
+      - name: Commit app version, upload a draft, and publish atomically
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_BRANCH: release
+        run: |
+          set -Eeuo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+          git fetch origin "$RELEASE_BRANCH"
+          remote_source="$(git rev-parse "origin/$RELEASE_BRANCH")"
+          node scripts/verify-release-head.mjs "$RELEASE_SOURCE_SHA" "$remote_source"
+          test -z "$(git ls-remote origin "refs/tags/$RELEASE_TAG")" || {
+            echo "tag already exists: $RELEASE_TAG" >&2
+            exit 1
+          }
+
+          git add src-tauri/mobile-package.json docs/latest-app.json
+          git diff --cached --quiet && {
+            echo "staged release has no version changes" >&2
+            exit 1
+          }
+          git commit -m "chore(release-app): $RELEASE_TAG"
+          if [ "$remote_source" != "$RELEASE_SOURCE_SHA" ]; then
+            git rebase --onto "$remote_source" "$RELEASE_SOURCE_SHA" HEAD
+          fi
+          release_commit="$(git rev-parse HEAD)"
+          git tag "$RELEASE_TAG"
+
+          pushed=0
+          rollback() {
+            status=$?
+            trap - ERR
+            gh release delete "$RELEASE_TAG" --yes >/dev/null 2>&1 || true
+            if [ "$pushed" = 1 ]; then
+              git push --atomic \
+                --force-with-lease="refs/heads/$RELEASE_BRANCH:$release_commit" \
+                origin \
+                "$remote_source:refs/heads/$RELEASE_BRANCH" \
+                ":refs/tags/$RELEASE_TAG" || true
+            fi
+            exit "$status"
+          }
+          trap rollback ERR
+
+          git push --atomic origin \
+            "HEAD:refs/heads/$RELEASE_BRANCH" \
+            "refs/tags/$RELEASE_TAG"
+          pushed=1
+
+          mapfile -d '' assets < <(find artifacts -type f -print0)
+          title="Pisper App $RELEASE_TAG"
+          gh release create "$RELEASE_TAG" \
+            --draft \
+            --verify-tag \
+            --title "$title" \
+            --notes-file release-body-app.md \
+            "${assets[@]}"
+          gh release edit "$RELEASE_TAG" \
+            --draft=false \
+            --latest=false \
+            --title "$title" \
+            --notes-file release-body-app.md
+
+          trap - ERR
+          echo "Published $RELEASE_TAG from $release_commit"

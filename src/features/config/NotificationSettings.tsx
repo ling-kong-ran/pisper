@@ -299,7 +299,10 @@ export function NotificationSettings({
       setData(result)
       onBrowserNotificationChange?.(result)
       if (localNote) {
-        notify(t('config:notificationSettings.savedButLocalDeliveryUnavailable', { reason: localNote }), 'info')
+        notify(
+          t('config:notificationSettings.savedButLocalDeliveryUnavailable', { reason: localNote }),
+          'info',
+        )
       } else {
         notify(
           enabled

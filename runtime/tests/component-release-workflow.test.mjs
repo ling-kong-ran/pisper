@@ -177,6 +177,12 @@ test('desktop and TUI launch independently installed signed components with bund
 
 test('release paths select one or every affected component without coupling documentation', () => {
   assert.deepEqual(releaseComponentsForPath('src-tauri/src/lib.rs'), ['desktop'])
+  // App 组件独立：移动端独属路径不触发 desktop/tui/runtime 检测。
+  assert.deepEqual(releaseComponentsForPath('src-tauri/src/mobile/proxy.rs'), [])
+  assert.deepEqual(releaseComponentsForPath('src-tauri/mobile-package.json'), [])
+  assert.deepEqual(releaseComponentsForPath('public/connect.html'), [])
+  assert.deepEqual(releaseComponentsForPath('.github/workflows/release-app.yml'), [])
+  assert.deepEqual(releaseComponentsForPath('scripts/build-mobile-android.mjs'), [])
   assert.deepEqual(releaseComponentsForPath('src-tui/src/main.rs'), ['tui'])
   assert.deepEqual(releaseComponentsForPath('runtime/index.mjs'), ['runtime'])
   assert.deepEqual(releaseComponentsForPath('src/features/chat/ChatPage.tsx'), ['desktop'])

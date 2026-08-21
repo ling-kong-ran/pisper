@@ -38,10 +38,7 @@ import { SidebarInset, SidebarProvider } from '@/components/ui/sidebar'
 import { useUiStore } from '@/stores/ui-store'
 import { useClientStore } from '@/stores/client-store'
 import { readStoredTerminalPanel } from '@/features/terminal/terminal-state'
-import {
-  tauriNotificationAvailable,
-  tauriNotificationNotify,
-} from '@/lib/tauri-notification'
+import { tauriNotificationAvailable, tauriNotificationNotify } from '@/lib/tauri-notification'
 import type { ChatAttachment, PendingAsset } from '@/types/chat'
 import type { NotificationSettingsData } from '@/types/notifications'
 import type { WorkflowActions } from '@/types/workflow'
