@@ -6,6 +6,7 @@
   "notificationSettings.chatCompletedDescription": "Sent after Agent finishes responding",
   "notificationSettings.chatWaiting": "Waiting for confirmation",
   "notificationSettings.chatWaitingDescription": "Sent when Agent pauses and waits for user confirmation",
+  "notificationSettings.savedButLocalDeliveryUnavailable": "Saved (applies everywhere). This environment cannot show notifications: {reason}",
   "notificationSettings.confirmationIsRequired": "Confirmation is required before this action can run.",
   "notificationSettings.scheduleCompleted": "Scheduled task completed",
   "notificationSettings.scheduleCompletedDescription": "Sent after a scheduled task completes successfully",

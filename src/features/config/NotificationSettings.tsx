@@ -240,29 +240,20 @@ export function NotificationSettings({
     return () => window.removeEventListener('focus', refresh)
   }, [desktop, tauriShell, refreshTauriPermission])
 
-  // 切换浏览器通知开关：开启前校验环境支持与权限（桌面/浏览器分别处理），
-  // 未授权时提示并回滚开关。
+  // 切换通知总开关：开关是服务端全局偏好（控制所有客户端与渠道的投递），
+  // 不因当前环境权限缺失而回滚——本机收不到只给提示，其他已授权设备照常。
+  // 开启时按环境尝试申请本机权限（桌面/移动壳/浏览器分别处理）。
   const updateBrowser = async (enabled: boolean) => {
+    let localNote = ''
     if (enabled) {
-      if (permission === 'unsupported') {
-        notify(
-          t('config:notificationSettings.systemNotificationsAreNotSupportedInThisEnvironment'),
-          'error',
-        )
-        return
-      }
       if (desktop && permission !== 'granted') {
-        notify(notificationFailureMessage('system-disabled', t), 'error')
-        return
-      }
-      if (!desktop && tauriShell) {
+        localNote = notificationFailureMessage('system-disabled', t)
+      } else if (!desktop && tauriShell) {
         // 移动端壳：先查插件权限，未授权则运行时申请（Android 13+ 系统弹窗）。
         let nextPermission: NotificationPermissionState = 'denied'
         try {
           const granted = (await tauriNotificationIsGranted()) === true
-          const resolved = granted
-            ? 'granted'
-            : await tauriNotificationRequestPermission()
+          const resolved = granted ? 'granted' : await tauriNotificationRequestPermission()
           nextPermission =
             resolved === 'granted' ? 'granted' : resolved === 'denied' ? 'denied' : 'default'
         } catch {
@@ -270,37 +261,29 @@ export function NotificationSettings({
         }
         setPermission(nextPermission)
         if (nextPermission !== 'granted') {
-          notify(
-            t(
-              'config:notificationSettings.systemNotificationsAreOffAllowPisperToSendNotificationsInYourOperatingSystemSettings',
-            ),
-            'error',
+          localNote = t(
+            'config:notificationSettings.systemNotificationsAreOffAllowPisperToSendNotificationsInYourOperatingSystemSettings',
           )
-          return
         }
       } else if (!desktop) {
         const nextPermission = await requestBrowserNotificationPermission()
         setPermission(nextPermission)
         if (nextPermission !== 'granted') {
-          notify(
-            t(
-              'config:notificationSettings.notificationPermissionWasNotGrantedAllowNotificationsInTheBrowserSiteSettings',
-            ),
-            'error',
-          )
-          return
-        }
-        try {
-          await prepareBrowserNotifications()
-        } catch (caught) {
-          notify(
-            errorMessage(caught) ||
-              t(
-                'config:notificationSettings.theBrowserBackgroundNotificationServiceCouldNotBeRegistered',
-              ),
-            'error',
-          )
-          return
+          localNote =
+            nextPermission === 'unsupported'
+              ? t('config:notificationSettings.systemNotificationsAreNotSupportedInThisEnvironment')
+              : t(
+                  'config:notificationSettings.notificationPermissionWasNotGrantedAllowNotificationsInTheBrowserSiteSettings',
+                )
+        } else {
+          // Service Worker 注册失败只影响浏览器后台链路，不回滚全局开关。
+          try {
+            await prepareBrowserNotifications()
+          } catch {
+            localNote = t(
+              'config:notificationSettings.theBrowserBackgroundNotificationServiceCouldNotBeRegistered',
+            )
+          }
         }
       }
     }
@@ -315,11 +298,15 @@ export function NotificationSettings({
       )
       setData(result)
       onBrowserNotificationChange?.(result)
-      notify(
-        enabled
-          ? t('config:notificationSettings.notificationsEnabled')
-          : t('config:notificationSettings.notificationsDisabled'),
-      )
+      if (localNote) {
+        notify(t('config:notificationSettings.savedButLocalDeliveryUnavailable', { reason: localNote }), 'info')
+      } else {
+        notify(
+          enabled
+            ? t('config:notificationSettings.notificationsEnabled')
+            : t('config:notificationSettings.notificationsDisabled'),
+        )
+      }
     } catch (caught) {
       notify(errorMessage(caught), 'error')
     } finally {
@@ -459,7 +446,7 @@ export function NotificationSettings({
           <Badge tone={permissionTone}>{permissionLabel}</Badge>
           <Toggle
             value={data.browser.enabled}
-            disabled={browserSaving || permission === 'unsupported' || permission === 'checking'}
+            disabled={browserSaving || permission === 'checking'}
             onChange={updateBrowser}
           />
         </div>
