@@ -34,7 +34,9 @@ async fn pair_against_tls_upstream() {
     tokio::spawn(async move {
         use tokio::io::{AsyncReadExt, AsyncWriteExt};
         loop {
-            let Ok((stream, _)) = listener.accept().await else { continue };
+            let Ok((stream, _)) = listener.accept().await else {
+                continue;
+            };
             let acceptor = acceptor.clone();
             tokio::spawn(async move {
                 let mut stream = acceptor.accept(stream).await.unwrap();
@@ -91,7 +93,9 @@ async fn pair_against_tls_upstream() {
         fp: format!("SHA256:{fingerprint}"),
         code: "ABCD-EFGH".into(),
     };
-    let profile = pairing::pair(&payload, "测试手机").await.expect("配对应成功");
+    let profile = pairing::pair(&payload, "测试手机")
+        .await
+        .expect("配对应成功");
     assert_eq!(profile.device_id, "dev_test");
     assert_eq!(profile.token, "pst_test");
     assert_eq!(profile.name, "测试桌面");
