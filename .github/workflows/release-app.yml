@@ -116,8 +116,7 @@ jobs:
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
         run: |
-          printf '%s' "$TAURI_SIGNING_PRIVATE_KEY" > /tmp/minisign.key
-          npx tauri signer sign -f /tmp/minisign.key -p "$TAURI_SIGNING_PRIVATE_KEY_PASSWORD" app-universal-release-signed.apk
+          npx tauri signer sign app-universal-release-signed.apk
           mv app-universal-release-signed.apk.sig app-universal-release-signed.apk.minisig
       - uses: actions/upload-artifact@v4
         with:
@@ -160,8 +159,7 @@ jobs:
           IPA_PATH=$(find src-tauri/gen/apple -name "*.ipa" -type f | head -1)
           test -n "$IPA_PATH" || { echo "未找到未签名 IPA 产物。" >&2; exit 1; }
           cp "$IPA_PATH" pisper-ios-unsigned.ipa
-          printf '%s' "$TAURI_SIGNING_PRIVATE_KEY" > /tmp/minisign.key
-          npx tauri signer sign -f /tmp/minisign.key -p "$TAURI_SIGNING_PRIVATE_KEY_PASSWORD" pisper-ios-unsigned.ipa
+          npx tauri signer sign pisper-ios-unsigned.ipa
           mv pisper-ios-unsigned.ipa.sig pisper-ios-unsigned.ipa.minisig
           cat > README-ios.txt <<'EOF'
           该 IPA 为未签名产物（不含 provisioning profile）。
