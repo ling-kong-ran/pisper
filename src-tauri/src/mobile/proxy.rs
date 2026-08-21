@@ -333,7 +333,7 @@ mod tests {
                         "sse" => {
                             stream
                                 .write_all(
-                                    b"HTTP/1.1 200 OK\r\ncontent-type: text/event-stream\r\n\r\n",
+                                    b"HTTP/1.1 200 OK\r\ncontent-type: text/event-stream\r\ntransfer-encoding: chunked\r\n\r\n",
                                 )
                                 .await
                                 .unwrap();
@@ -457,11 +457,8 @@ mod tests {
     #[tokio::test]
     async fn sse_streams_incrementally() {
         SSE_GATE.set(tokio::sync::Semaphore::new(0)).ok();
-        eprintln!("[sse-test] spawning upstream");
         let (url, fingerprint) = spawn_upstream("sse").await;
-        eprintln!("[sse-test] upstream at {url}");
         let port = spawn_proxy(Some(profile_for(&url, &fingerprint))).await;
-        eprintln!("[sse-test] proxy at {port}");
 
         let mut stream = tokio::net::TcpStream::connect(("127.0.0.1", port))
             .await
@@ -470,7 +467,6 @@ mod tests {
             .write_all(b"GET /api/chat HTTP/1.1\r\nhost: 127.0.0.1\r\nconnection: close\r\n\r\n")
             .await
             .unwrap();
-        eprintln!("[sse-test] request sent");
         // 只读到第一个 SSE 帧就停：若代理缓冲整个响应，这里会永远等不到。
         // 整体加超时：挂死要变成测试失败而不是卡住套件。
         let mut received = Vec::new();
@@ -491,22 +487,17 @@ mod tests {
                 }
             }
         };
-        tokio::time::timeout(std::time::Duration::from_secs(30), read_first_frame)
+        tokio::time::timeout(std::time::Duration::from_secs(10), read_first_frame)
             .await
             .expect("读取第一帧超时");
-        eprintln!(
-            "[sse-test] first frame received: {}",
-            String::from_utf8_lossy(&received).replace('\n', "|")
-        );
         let text = String::from_utf8_lossy(&received);
         assert!(text.contains("event: run"), "应先收到第一帧");
         assert!(!text.contains("event: done"), "第二帧此刻不应到达");
         // 放行上游发第二帧，随后应能读到 done。
         SSE_GATE.get().unwrap().add_permits(1);
-        eprintln!("[sse-test] gate released");
         let mut rest = Vec::new();
         let read_rest = async { stream.read_to_end(&mut rest).await.unwrap() };
-        tokio::time::timeout(std::time::Duration::from_secs(30), read_rest)
+        tokio::time::timeout(std::time::Duration::from_secs(10), read_rest)
             .await
             .expect("读取剩余帧超时");
         assert!(String::from_utf8_lossy(&rest).contains("event: done"));
