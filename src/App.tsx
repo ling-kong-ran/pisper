@@ -20,6 +20,10 @@ import { applyUiPreferenceAttributes, resolveDarkTheme } from '@/app/ui-preferen
 import { BrandLogo } from '@/components/BrandLogo'
 import { WebPreviewProvider } from '@/components/WebPreviewProvider'
 import { AppSidebar } from '@/components/layout/AppSidebar'
+import {
+  MobilePrimaryNavigation,
+  MobileSettingsNavigation,
+} from '@/components/layout/MobileNavigation'
 import { AppDialog } from '@/components/layout/AppDialog'
 import { StatusBar } from '@/components/layout/StatusBar'
 import { AppToast, ToastProvider, ToastViewport, type ToastTone } from '@/components/ui/toast'
@@ -140,6 +144,7 @@ function App() {
     () => localStorage.getItem(STORAGE_KEYS.activeSession) || '',
   )
   const [mobileNav, setMobileNav] = useState(false)
+  const mobileApp = useClientStore((state) => state.client === 'mobile-app')
   const [paletteOpen, setPaletteOpen] = useState(false)
   const sidebarCollapsed = useUiStore((state) => state.sidebarCollapsed)
   const setSidebarCollapsed = useUiStore((state) => state.setSidebarCollapsed)
@@ -634,6 +639,13 @@ function App() {
                 onToggleTerminal={() => setTerminalOpen((value) => !value)}
               />
             </Suspense>
+            {mobileApp && SETTINGS_PAGES.has(page) && (
+              <MobileSettingsNavigation
+                page={page}
+                configSection={configSection}
+                onNavigate={navigateSettings}
+              />
+            )}
             <div
               className={`page-content [&.page-chat]:flex [&.page-chat]:overflow-hidden [&.page-chat]:p-[0_18px_14px] [&.page-workflowCreate]:[padding-inline:24px] min-[651px]:[[data-density='compact']_&]:pb-[14px] max-[900px]:p-[0_16px_18px] max-[650px]:overflow-x-hidden max-[650px]:[&.page-chat]:p-[0_8px_8px] max-[650px]:[&.page-workflowCreate]:overflow-auto flex-1 min-h-0 overflow-auto [padding:0_max(24px,_calc((100%_-_1320px)_/_2))_24px] [scrollbar-color:var(--control-muted)_transparent] [animation:page-in_var(--d2)_var(--ease-out)] page-${page}`}
               key={page}
@@ -653,6 +665,7 @@ function App() {
                 />
               </Suspense>
             )}
+            {mobileApp && <MobilePrimaryNavigation page={page} onNavigate={navigate} />}
           </SidebarInset>
         </SidebarProvider>
         <StatusBar page={page} pluginStats={pluginStats} />

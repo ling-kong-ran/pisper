@@ -342,10 +342,11 @@ test('session labels are searchable from Ctrl K and resolve through virtualized 
   assert.match(routes, /input\.includeTree === false/)
 })
 
-test('settings navigation replaces the main sidebar instead of nesting in page content', async () => {
-  const [app, sidebar, settingsNavigation, styles] = await Promise.all([
+test('settings navigation replaces the main sidebar and stays reachable in the mobile shell', async () => {
+  const [app, sidebar, mobileNavigation, settingsNavigation, styles] = await Promise.all([
     readFile('src/App.tsx', 'utf8'),
     readFile('src/components/layout/AppSidebar.tsx', 'utf8'),
+    readFile('src/components/layout/MobileNavigation.tsx', 'utf8'),
     readFile('src/app/settings-navigation.ts', 'utf8'),
     readFile('src/index.css', 'utf8'),
   ])
@@ -355,8 +356,14 @@ test('settings navigation replaces the main sidebar instead of nesting in page c
     app,
     /<div[\s\S]*?className=\{`page-content[^`]*page-\$\{page\}`\}[\s\S]*?key=\{page\}[\s\S]*?<Outlet/,
   )
+  assert.match(app, /mobileApp && SETTINGS_PAGES\.has\(page\)/)
+  assert.match(app, /<MobilePrimaryNavigation page=\{page\}/)
   assert.match(sidebar, /settingsActive \? \(/)
   assert.match(sidebar, /nav-settings-back/)
+  assert.match(mobileNavigation, /getNavigation\(t\)/)
+  assert.match(mobileNavigation, /getSettingsNavigation\(t, \{ mobileApp: true \}\)/)
+  assert.match(mobileNavigation, /data-mobile-navigation="primary"/)
+  assert.match(mobileNavigation, /data-mobile-navigation="settings"/)
   assert.match(settingsNavigation, /getSettingsNavigation/)
   assert.doesNotMatch(styles, /\.settings-shell|\.settings-nav|\.settings-content/)
 })
