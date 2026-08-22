@@ -26,6 +26,12 @@ test('Pisper ships the selected lightweight React Bits components without anothe
   for (const component of COMPONENTS) assert.match(index, new RegExp(`export \\{ ${component} \\}`))
   assert.match(styles, /@media \(prefers-reduced-motion: reduce\)/)
   assert.match(styles, /\.rb-shiny-text/)
+  assert.match(styles, /-webkit-background-clip:\s*text/)
+  assert.match(styles, /-webkit-text-fill-color:\s*transparent/)
+  assert.match(
+    styles,
+    /@media \(pointer: coarse\)[\s\S]*?\.rb-shiny-text\s*\{[\s\S]*?-webkit-text-fill-color:\s*currentColor;[\s\S]*?animation:\s*none;/,
+  )
   assert.match(styles, /\.rb-aurora/)
   assert.match(styles, /\.rb-ascii-text/)
   assert.match(styles, /\.rb-target-cursor/)
