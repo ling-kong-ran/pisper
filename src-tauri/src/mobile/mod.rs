@@ -100,6 +100,12 @@ async fn mobile_pair(
         .lock()
         .map_err(|_| "state poisoned".to_string())?
         .upsert(profile)?;
+    // 配对成功即明确选择远程模式：覆盖可能存在的 local 记忆。
+    state
+        .store
+        .lock()
+        .map_err(|_| "state poisoned".to_string())?
+        .set_last_mode("remote")?;
     Ok(state_dto(&state))
 }
 
@@ -126,11 +132,14 @@ async fn mobile_pair_manual(
         .filter(|name| !name.trim().is_empty())
         .unwrap_or_else(default_device_name);
     let profile = pairing::pair(&payload, &device_name, Some(state.tunnels.as_ref())).await?;
-    state
-        .store
-        .lock()
-        .map_err(|_| "state poisoned".to_string())?
-        .upsert(profile)?;
+    {
+        let mut store = state
+            .store
+            .lock()
+            .map_err(|_| "state poisoned".to_string())?;
+        store.upsert(profile)?;
+        store.set_last_mode("remote")?;
+    }
     Ok(state_dto(&state))
 }
 
@@ -139,11 +148,37 @@ fn mobile_select_server(
     id: String,
     state: State<'_, MobileShared>,
 ) -> Result<MobileStateDto, String> {
+    {
+        let mut store = state
+            .store
+            .lock()
+            .map_err(|_| "state poisoned".to_string())?;
+        store.select(&id)?;
+        // 显式选择远程服务器，同时把模式记忆切回远程。
+        store.set_last_mode("remote")?;
+    }
+    Ok(state_dto(&state))
+}
+
+/// 进入本机模式：记录模式记忆并返回最新状态（前端读 localUrl 导航）。
+#[tauri::command]
+fn mobile_enter_local(state: State<'_, MobileShared>) -> Result<MobileStateDto, String> {
     state
         .store
         .lock()
         .map_err(|_| "state poisoned".to_string())?
-        .select(&id)?;
+        .set_last_mode("local")?;
+    Ok(state_dto(&state))
+}
+
+/// 离开本机模式：回到远程优先的路由语义（冷启动不再直进本机页）。
+#[tauri::command]
+fn mobile_leave_local(state: State<'_, MobileShared>) -> Result<MobileStateDto, String> {
+    state
+        .store
+        .lock()
+        .map_err(|_| "state poisoned".to_string())?
+        .set_last_mode("remote")?;
     Ok(state_dto(&state))
 }
 
@@ -229,6 +264,12 @@ pub fn run_mobile() {
             let local = tauri::async_runtime::block_on(local::start_runtime(
                 &data_dir.join("local-runtime"),
             ))?;
+            // manage 会移走 local，启动路由只需要端口，先取出。
+            let local_port = local.port;
+            let last_mode = store
+                .lock()
+                .ok()
+                .and_then(|store| store.last_mode().map(str::to_string));
             let paired = store
                 .lock()
                 .map(|store| store.active().is_some())
@@ -242,7 +283,13 @@ pub fn run_mobile() {
             app.manage(update::MobileUpdateState::default());
             update::start_automatic_checks(app.handle().clone());
 
-            let initial = if paired {
+            // 启动路由：模式记忆优先（local 直进本机页），其次已配对远程，最后连接页。
+            let initial = if last_mode.as_deref() == Some("local") {
+                WebviewUrl::External(
+                    tauri::Url::parse(&format!("http://127.0.0.1:{local_port}"))
+                        .map_err(|error| error.to_string())?,
+                )
+            } else if paired {
                 WebviewUrl::External(
                     tauri::Url::parse(&format!("http://127.0.0.1:{}", proxy.port))
                         .map_err(|error| error.to_string())?,
@@ -260,6 +307,8 @@ pub fn run_mobile() {
             mobile_pair,
             mobile_pair_manual,
             mobile_select_server,
+            mobile_enter_local,
+            mobile_leave_local,
             mobile_forget_server,
             mobile_connect_url,
             update::mobile_app_info,

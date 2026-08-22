@@ -6,6 +6,8 @@ commands.allow = [
   "mobile_pair",
   "mobile_pair_manual",
   "mobile_select_server",
+  "mobile_enter_local",
+  "mobile_leave_local",
   "mobile_forget_server",
   "mobile_connect_url",
   "mobile_app_info",

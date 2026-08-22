@@ -104,22 +104,26 @@
 
       <div class="card">
         <h2 id="pair-title"></h2>
+        <p class="sub" id="pair-desc"></p>
         <button id="scan-btn"></button>
-        <div class="divider"></div>
-        <div>
-          <label id="label-url"></label>
-          <input id="input-url" inputmode="url" autocapitalize="off" placeholder="https://192.168.1.5:5174" />
+        <button class="secondary" id="manual-toggle"></button>
+        <div id="manual-panel" class="hidden">
+          <div class="divider"></div>
+          <div>
+            <label id="label-url"></label>
+            <input id="input-url" inputmode="url" autocapitalize="off" placeholder="https://192.168.1.5:5174" />
+          </div>
+          <div>
+            <label id="label-code"></label>
+            <input id="input-code" autocapitalize="characters" placeholder="ABCD-EFGH" />
+          </div>
+          <div>
+            <label id="label-fp"></label>
+            <input id="input-fp" autocapitalize="characters" placeholder="SHA256:1BA3FEB1…" />
+          </div>
+          <button id="manual-btn"></button>
+          <p class="sub" id="manual-hint"></p>
         </div>
-        <div>
-          <label id="label-code"></label>
-          <input id="input-code" autocapitalize="characters" placeholder="ABCD-EFGH" />
-        </div>
-        <div>
-          <label id="label-fp"></label>
-          <input id="input-fp" autocapitalize="characters" placeholder="SHA256:1BA3FEB1…" />
-        </div>
-        <button class="secondary" id="manual-btn"></button>
-        <p class="sub" id="manual-hint"></p>
       </div>
 
       <p class="error" id="error"></p>

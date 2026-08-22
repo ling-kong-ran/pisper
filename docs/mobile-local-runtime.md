@@ -45,13 +45,24 @@ OpenAI 兼容 Provider（/chat/completions 流式）
 
 应用私有目录下的 `local-runtime/`：
 
-- `providers.json`：Provider 配置（baseUrl、apiKey、model、activeId）。
-  apiKey 只写入该文件，API 读取时永远脱敏（仅返回 `keyHint` 末 4 位）。
+- `providers.json`：Provider 配置（baseUrl、model、activeId）。apiKey 经 `KeyCustody`
+  加密后以 `apiKeyEnc` 密文落盘，API 读取时永远脱敏（仅返回 `keyHint` 末 4 位）。
 - `sessions.json`：会话与消息。所有写入走「临时文件 + rename」原子替换。
+- `master.key`：仅桌面开发/测试回退后端的主密钥文件（0600）。
 
-M1 依赖系统沙箱（Android 应用私有目录 / iOS App Sandbox）保护密钥；
-**M2 硬化项**：把 apiKey 迁入 Android Keystore / iOS Keychain 包裹加密，
-密钥落盘仅存密文。
+**密钥保管后端（M2 已实现）**：
+
+| 平台 | 后端 | 说明 |
+| --- | --- | --- |
+| Android | 系统 AndroidKeyStore | JNI 直连（无 Kotlin），AES-256/GCM 加解密在 Keystore 内完成，密钥本体不进入 Rust 进程，卸载即销毁 |
+| iOS | Keychain + 进程内 AES-GCM | 随机主密钥以 `AfterFirstUnlockThisDeviceOnly` 存 Keychain，不随备份/iCloud 迁移 |
+| 桌面 | 文件回退 | 仅供开发与测试，不承担真实对话 |
+
+旧版明文 `providers.json` 在加载时自动迁移为密文并立刻重写。解密失败（Keystore 重置等）
+保留 Provider 元数据、仅清空密钥，用户重新填 key 即可。
+
+注：远程配对设备令牌（`pisper-mobile.json`）目前仍为应用私有目录明文，跟随沙箱保护；
+迁入同一保管体系是后续硬化项。
 
 ## 资源上限
 
@@ -76,11 +87,11 @@ M1 依赖系统沙箱（Android 应用私有目录 / iOS App Sandbox）保护密
 
 ## 入口与切换
 
-- 连接页（connect.html）新增「本机运行」卡片，无需配对即可进入。
-- 远程 UI 的「服务器」设置页新增「本机运行」行，点击进入本机模式。
-- 本机对话页提供「返回服务器」回到连接页。
-- M1 不记忆「上次模式」：冷启动仍按配对状态进入远程或连接页，
-  本机模式始终显式进入（后续版本再评估模式记忆）。
+- 首次启动不再直接进入扫码流程：连接页平级呈现「本机运行」与「连接桌面端」两个选择，
+  手动配对的地址/配对码/指纹输入框默认收纳进子面板，点击才展开。
+- 远程 UI 的「服务器」设置页有「本机运行」行，本机对话页可「返回服务器」。
+- 模式记忆（M2）：进入/离开本机模式会记录 `last_mode`，冷启动按记忆路由；
+  显式选择远程服务器会把记忆切回远程。
 
 ## 协议
 
@@ -98,6 +109,8 @@ M1 依赖系统沙箱（Android 应用私有目录 / iOS App Sandbox）保护密
 
 ## 后续里程碑
 
-- **M2**：apiKey 迁入 Keystore/Keychain；模式记忆；Provider 模型列表拉取 UI。
-- **M3**：受限工具能力（只读设备侧能力，如剪贴板/通知），逐项评审。
+- **M2（已完成）**：apiKey 迁入 Android Keystore / iOS Keychain；模式记忆；
+  Provider 模型列表拉取（测试连接成功后填入候选）。
+- **M3**：受限工具能力（只读设备侧能力，如剪贴板/通知），逐项评审；
+  远程配对设备令牌迁入系统安全存储。
 - **M4**：评估完整 Web UI 直连本机 Runtime（需实现对齐的 sessions/chat/run API 面）。

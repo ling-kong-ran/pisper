@@ -300,7 +300,13 @@
       <div class="row">
         <div>
           <label id="label-model"></label>
-          <input id="input-model" autocapitalize="off" placeholder="gpt-4o-mini" />
+          <input
+            id="input-model"
+            autocapitalize="off"
+            placeholder="gpt-4o-mini"
+            list="model-options"
+          />
+          <datalist id="model-options"></datalist>
         </div>
         <div>
           <label id="label-name"></label>
@@ -355,8 +361,8 @@
           save: t('保存并启用', 'Save & activate'),
           test: t('测试连接', 'Test'),
           providerHint: t(
-            '密钥只保存在本机应用私有目录。地址须为 https://，仅本机回环地址允许 http://。',
-            'Keys stay in the app-private storage on this device. HTTPS is required; plain HTTP is allowed only for loopback addresses.',
+            '密钥只保存在本机，由系统安全存储加密保管。地址须为 https://，仅本机回环地址允许 http://；测试连接成功后可直接从模型列表选择。',
+            'Keys are encrypted at rest by the platform secure storage. HTTPS is required (plain HTTP only for loopback). After a successful connection test you can pick a model from the list.',
           ),
           empty: t(
             '这是运行在你手机上的受限 Runtime，不依赖桌面端。\n先配置一个 OpenAI 兼容 Provider，然后开始对话。',
@@ -752,6 +758,16 @@
               providerError(String(error.message || error))
             })
         }
+        function fillModelOptions(models) {
+          var datalist = el('model-options')
+          datalist.innerHTML = ''
+          ;(models || []).forEach(function (id) {
+            var option = document.createElement('option')
+            option.value = id
+            datalist.appendChild(option)
+          })
+        }
+
         el('test-provider').onclick = function () {
           providerError('')
           el('provider-ok').classList.add('hidden')
@@ -761,6 +777,8 @@
               if (result.ok) {
                 el('provider-ok').textContent = strings.testOk(result.models || [])
                 el('provider-ok').classList.remove('hidden')
+                // 测试成功即拿到模型列表，填入 model 输入框的候选。
+                fillModelOptions(result.models)
               } else {
                 providerError(result.error || 'failed')
               }
@@ -778,7 +796,12 @@
             (tauri && tauri.core && tauri.core.invoke) ||
             (window.__TAURI_INTERNALS__ && window.__TAURI_INTERNALS__.invoke)
           if (!invoke) return
-          invoke('mobile_connect_url')
+          // 先记录离开本机模式，再回连接页（已配对时连接页会自动弹回远程 UI）。
+          invoke('mobile_leave_local')
+            .catch(function () {})
+            .then(function () {
+              return invoke('mobile_connect_url')
+            })
             .then(function (url) {
               if (url) window.location.href = url
             })

@@ -16,11 +16,15 @@
 
   var strings = {
     subtitle: t(
-      '把这台设备连接到你的桌面 Pisper。App 优先局域网直连，不可达时自动尝试 P2P。',
-      'Connect this device to your desktop Pisper. The app prefers LAN and automatically tries P2P when direct access is unavailable.',
+      '可以直接在手机上使用，也可以连接到你的桌面 Pisper 获得完整能力。',
+      'Use Pisper directly on this phone, or connect to your desktop Pisper for the full experience.',
     ),
     servers: t('已配对的桌面端', 'Paired desktops'),
-    pairTitle: t('配对新桌面端', 'Pair a new desktop'),
+    pairTitle: t('连接桌面端', 'Connect a desktop'),
+    pairDesc: t(
+      '远程模式由电脑运行完整 Runtime，会话与数据保存在电脑；优先局域网直连，不可达时自动尝试 P2P。',
+      'Remote mode runs the full runtime on your computer and keeps data there. The app prefers LAN and falls back to P2P.',
+    ),
     scan: t('扫码配对', 'Scan QR code to pair'),
     localTitle: t('本机运行', 'On-device'),
     localDesc: t(
@@ -31,7 +35,8 @@
     url: t('桌面端地址', 'Desktop address'),
     code: t('配对码', 'Pairing code'),
     fp: t('证书指纹（桌面端设置页可见，可只填前 16 位）', 'Certificate fingerprint (see desktop settings; first 16 hex chars suffice)'),
-    manual: t('手动配对', 'Pair manually'),
+    manualToggle: t('手动输入配对信息', 'Enter pairing details manually'),
+    manual: t('完成配对', 'Pair'),
     manualHint: t(
       '桌面端入口：设置 → 远程访问。扫码会保存局域网与 P2P 地址；手动配对仅添加填写的 HTTPS 地址。',
       'On desktop: Settings → Remote access. QR pairing saves LAN and P2P endpoints; manual pairing adds only the HTTPS address entered here.',
@@ -49,6 +54,7 @@
   el('subtitle').textContent = strings.subtitle
   el('servers-title').textContent = strings.servers
   el('pair-title').textContent = strings.pairTitle
+  el('pair-desc').textContent = strings.pairDesc
   el('scan-btn').textContent = strings.scan
   el('local-title').textContent = strings.localTitle
   el('local-desc').textContent = strings.localDesc
@@ -56,8 +62,14 @@
   el('label-url').textContent = strings.url
   el('label-code').textContent = strings.code
   el('label-fp').textContent = strings.fp
+  el('manual-toggle').textContent = strings.manualToggle
   el('manual-btn').textContent = strings.manual
   el('manual-hint').textContent = strings.manualHint
+
+  // 手动配对输入区默认收纳，点击才展开子面板。
+  el('manual-toggle').onclick = function () {
+    el('manual-panel').classList.toggle('hidden')
+  }
 
   function showError(message) {
     el('error').textContent = message || ''

@@ -17,7 +17,12 @@ const server = http.createServer((request, response) => {
       try {
         const parsed = JSON.parse(body)
         prompt = parsed.messages?.map((message) => message.content).join(' / ') ?? ''
-        console.log('mock 收到请求 model=%s messages=%d 最后消息=%s', parsed.model, parsed.messages?.length ?? 0, prompt.slice(-40))
+        console.log(
+          'mock 收到请求 model=%s messages=%d 最后消息=%s',
+          parsed.model,
+          parsed.messages?.length ?? 0,
+          prompt.slice(-40),
+        )
       } catch {
         console.log('mock 收到无法解析的请求体')
       }

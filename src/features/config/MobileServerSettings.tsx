@@ -116,10 +116,17 @@ export function MobileServerSettings() {
             size="sm"
             variant="outline"
             disabled={!state?.localUrl}
-            onClick={() => {
-              // 本机模式即导航到壳内本机 Runtime 的回环地址。
-              if (state?.localUrl) window.location.href = state.localUrl
-            }}
+            onClick={() =>
+              void (async () => {
+                try {
+                  // 记录模式记忆后导航到本机 Runtime，冷启动会记住这次选择。
+                  const updated = await invokeMobile<MobileState>('mobile_enter_local')
+                  if (updated.localUrl) window.location.href = updated.localUrl
+                } catch (cause) {
+                  setError(String(cause))
+                }
+              })()
+            }
           >
             {t('config:mobileServer.enterLocal')}
           </Button>

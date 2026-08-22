@@ -48,6 +48,17 @@ sha2 = "0.10"
 # Phase B P2P：0.92 避免新版本 Windows WMI 冲突，并关闭非必需的 metrics/discovery 特性。
 iroh = { version = "0.92.0", default-features = false }
 rand = "0.8"
+# 本机 Runtime 密钥保管：AES-GCM 加密落盘，主密钥由平台安全存储持有（见 local/keystore.rs）。
+aes-gcm = "0.10"
+base64 = "0.22"
+
+# Android Keystore 直连：tao 已初始化 Android 上下文，jni 版本须与 tao 0.35 保持一致。
+[target.'cfg(target_os = "android")'.dependencies]
+jni = "0.21"
+
+# iOS Keychain 通过 Security framework FFI 访问；core-foundation 只提供基础类型。
+[target.'cfg(target_os = "ios")'.dependencies]
+core-foundation = "0.10"
 
 # 桌面端专属依赖：sidecar 管理、终端 PTY、托盘/窗口状态等在移动端无意义，
 # 部分 crate（如 portable-pty）在 Android/iOS 上无法编译，必须按目标隔离。

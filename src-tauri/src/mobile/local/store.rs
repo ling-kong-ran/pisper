@@ -11,6 +11,8 @@ use std::{
 
 use serde::{Deserialize, Serialize};
 
+use super::keystore::KeyCustody;
+
 /// 上限常量：手机存储与内存受限，宁可淘汰历史也不能无限增长。
 pub const MAX_SESSIONS: usize = 50;
 pub const MAX_MESSAGES_PER_SESSION: usize = 200;
@@ -64,7 +66,33 @@ impl ProviderProfile {
     }
 }
 
-#[derive(Debug, Default, Deserialize, Serialize)]
+/// 落盘条目（v2）：apiKeyEnc 为密文；apiKey 仅存于旧版文件，加载时迁移。
+#[derive(Clone, Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct ProviderEntry {
+    id: String,
+    name: String,
+    base_url: String,
+    model: String,
+    created_at: String,
+    #[serde(default)]
+    api_key: String,
+    #[serde(default)]
+    api_key_enc: String,
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+struct ProviderEntryOut<'a> {
+    id: &'a str,
+    name: &'a str,
+    base_url: &'a str,
+    model: &'a str,
+    created_at: &'a str,
+    api_key_enc: String,
+}
+
+#[derive(Debug, Default, Deserialize)]
 #[serde(rename_all = "camelCase")]
 struct ProviderFile {
     #[serde(default)]
@@ -72,7 +100,15 @@ struct ProviderFile {
     #[serde(default)]
     active_id: Option<String>,
     #[serde(default)]
-    providers: Vec<ProviderProfile>,
+    providers: Vec<ProviderEntry>,
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+struct ProviderFileOut<'a> {
+    version: u32,
+    active_id: Option<String>,
+    providers: Vec<ProviderEntryOut<'a>>,
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
@@ -118,39 +154,87 @@ struct SessionFile {
 pub struct LocalStore {
     providers_path: PathBuf,
     sessions_path: PathBuf,
-    providers: ProviderFile,
+    custody: KeyCustody,
+    providers_active_id: Option<String>,
+    providers: Vec<ProviderProfile>,
     sessions: SessionFile,
 }
 
 impl LocalStore {
-    pub fn load(dir: &Path) -> Self {
+    pub fn load(dir: &Path, custody: KeyCustody) -> Self {
         let providers_path = dir.join("providers.json");
         let sessions_path = dir.join("sessions.json");
-        let providers = fs::read_to_string(&providers_path)
+        let parsed = fs::read_to_string(&providers_path)
             .ok()
             .and_then(|text| serde_json::from_str::<ProviderFile>(&text).ok())
-            .filter(|file| file.version <= 1)
+            .filter(|file| file.version <= 2)
             .unwrap_or_default();
+        // 解密或迁移每个条目：密文优先；旧明文迁移后立即以密文重写。
+        let mut migrated = false;
+        let mut providers = Vec::new();
+        for entry in parsed.providers {
+            let api_key = if !entry.api_key_enc.is_empty() {
+                // 解密失败（Keystore 重置/密文损坏）：保留元数据、清空密钥，
+                // 用户只需重新填 key，不必重建整条 Provider。
+                custody.open(&entry.api_key_enc).unwrap_or_default()
+            } else if !entry.api_key.is_empty() {
+                migrated = true;
+                entry.api_key
+            } else {
+                String::new()
+            };
+            providers.push(ProviderProfile {
+                id: entry.id,
+                name: entry.name,
+                base_url: entry.base_url,
+                api_key,
+                model: entry.model,
+                created_at: entry.created_at,
+            });
+        }
         let sessions = fs::read_to_string(&sessions_path)
             .ok()
             .and_then(|text| serde_json::from_str::<SessionFile>(&text).ok())
             .filter(|file| file.version <= 1)
             .unwrap_or_default();
-        Self {
+        let store = Self {
             providers_path,
             sessions_path,
+            custody,
+            providers_active_id: parsed.active_id,
             providers,
             sessions,
+        };
+        if migrated {
+            // 尽力迁移：失败不阻断启动，下次保存时仍会重写为密文。
+            let _ = store.save_providers();
         }
+        store
     }
 
     fn save_providers(&self) -> Result<(), String> {
-        let file = ProviderFile {
-            version: 1,
-            active_id: self.providers.active_id.clone(),
-            providers: self.providers.providers.clone(),
+        let mut providers = Vec::with_capacity(self.providers.len());
+        for profile in &self.providers {
+            providers.push(ProviderEntryOut {
+                id: &profile.id,
+                name: &profile.name,
+                base_url: &profile.base_url,
+                model: &profile.model,
+                created_at: &profile.created_at,
+                api_key_enc: self.custody.seal(&profile.api_key)?,
+            });
+        }
+        let file = ProviderFileOut {
+            version: 2,
+            active_id: self.providers_active_id.clone(),
+            providers,
         };
         write_atomic(&self.providers_path, &file)
+    }
+
+    /// 诊断用：当前密钥保管后端（android-keystore / ios-keychain / file）。
+    pub fn custody_backend(&self) -> &'static str {
+        self.custody.backend_name()
     }
 
     fn save_sessions(&self) -> Result<(), String> {
@@ -165,21 +249,19 @@ impl LocalStore {
 
     pub fn providers(&self) -> Vec<RedactedProvider> {
         self.providers
-            .providers
             .iter()
             .map(ProviderProfile::redacted)
             .collect()
     }
 
     pub fn active_provider_id(&self) -> Option<String> {
-        self.providers.active_id.clone()
+        self.providers_active_id.clone()
     }
 
     /// 仅本机 Runtime 内部使用：取出完整 Provider（含密钥）发起请求。
     pub fn active_provider(&self) -> Option<ProviderProfile> {
-        let id = self.providers.active_id.as_deref()?;
+        let id = self.providers_active_id.as_deref()?;
         self.providers
-            .providers
             .iter()
             .find(|provider| provider.id == id)
             .cloned()
@@ -204,7 +286,6 @@ impl LocalStore {
         let api_key = api_key.map(|key| key.trim().to_string());
         let profile = if let Some(id) = id.filter(|id| !id.trim().is_empty()) {
             let existing = self
-                .providers
                 .providers
                 .iter_mut()
                 .find(|provider| provider.id == id)
@@ -234,26 +315,26 @@ impl LocalStore {
                 model,
                 created_at: now,
             };
-            self.providers.providers.push(profile.clone());
+            self.providers.push(profile.clone());
             profile
         };
-        self.providers.active_id = Some(profile.id.clone());
+        self.providers_active_id = Some(profile.id.clone());
         self.save_providers()?;
         Ok(profile.redacted())
     }
 
     pub fn select_provider(&mut self, id: &str) -> Result<(), String> {
-        if !self.providers.providers.iter().any(|p| p.id == id) {
+        if !self.providers.iter().any(|p| p.id == id) {
             return Err("Provider 不存在。".into());
         }
-        self.providers.active_id = Some(id.to_string());
+        self.providers_active_id = Some(id.to_string());
         self.save_providers()
     }
 
     pub fn delete_provider(&mut self, id: &str) -> Result<(), String> {
-        self.providers.providers.retain(|p| p.id != id);
-        if self.providers.active_id.as_deref() == Some(id) {
-            self.providers.active_id = self.providers.providers.first().map(|p| p.id.clone());
+        self.providers.retain(|p| p.id != id);
+        if self.providers_active_id.as_deref() == Some(id) {
+            self.providers_active_id = self.providers.first().map(|p| p.id.clone());
         }
         self.save_providers()
     }
@@ -472,6 +553,10 @@ fn write_atomic<T: Serialize>(path: &Path, value: &T) -> Result<(), String> {
 mod tests {
     use super::*;
 
+    fn test_custody(dir: &Path) -> KeyCustody {
+        KeyCustody::load_or_create(dir).unwrap()
+    }
+
     fn test_dir(tag: &str) -> PathBuf {
         use std::sync::atomic::{AtomicU64, Ordering};
         static NEXT: AtomicU64 = AtomicU64::new(0);
@@ -483,9 +568,72 @@ mod tests {
     }
 
     #[test]
+    fn providers_file_never_contains_plaintext_key() {
+        let dir = test_dir("sealed");
+        let mut store = LocalStore::load(&dir, test_custody(&dir));
+        store
+            .upsert_provider(
+                None,
+                "Kimi".into(),
+                "https://api.moonshot.cn/v1".into(),
+                Some("sk-plaintext-should-not-appear".into()),
+                "kimi-k2".into(),
+                "1".into(),
+            )
+            .unwrap();
+        let raw = fs::read_to_string(dir.join("providers.json")).unwrap();
+        assert!(
+            !raw.contains("sk-plaintext-should-not-appear"),
+            "落盘不得包含明文密钥"
+        );
+        assert!(raw.contains("apiKeyEnc"));
+        assert!(!raw.contains("\"apiKey\""));
+
+        // 同密钥保管重载：解密还原。
+        let reloaded = LocalStore::load(&dir, test_custody(&dir));
+        assert_eq!(
+            reloaded.active_provider().unwrap().api_key,
+            "sk-plaintext-should-not-appear"
+        );
+        let _ = fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn legacy_plaintext_providers_are_migrated_on_load() {
+        let dir = test_dir("migrate");
+        fs::create_dir_all(&dir).unwrap();
+        // 手工构造 v1 文件：明文 apiKey 字段。
+        fs::write(
+            dir.join("providers.json"),
+            r#"{
+  "version": 1,
+  "activeId": "p1",
+  "providers": [
+    {
+      "id": "p1",
+      "name": "Legacy",
+      "baseUrl": "https://api.openai.com/v1",
+      "apiKey": "sk-legacy-plain",
+      "model": "gpt-4o-mini",
+      "createdAt": "0"
+    }
+  ]
+}"#,
+        )
+        .unwrap();
+        let store = LocalStore::load(&dir, test_custody(&dir));
+        assert_eq!(store.active_provider().unwrap().api_key, "sk-legacy-plain");
+        // 加载即迁移：文件应已被重写为密文。
+        let raw = fs::read_to_string(dir.join("providers.json")).unwrap();
+        assert!(!raw.contains("sk-legacy-plain"));
+        assert!(raw.contains("apiKeyEnc"));
+        let _ = fs::remove_dir_all(&dir);
+    }
+
+    #[test]
     fn provider_upsert_keeps_key_when_blank_and_redacts() {
         let dir = test_dir("provider");
-        let mut store = LocalStore::load(&dir);
+        let mut store = LocalStore::load(&dir, test_custody(&dir));
         let created = store
             .upsert_provider(
                 None,
@@ -516,7 +664,7 @@ mod tests {
         assert_eq!(full.model, "kimi-k3");
 
         // 重载后仍在，且序列化结果不含密钥字段泄露到 redacted 视图。
-        let reloaded = LocalStore::load(&dir);
+        let reloaded = LocalStore::load(&dir, test_custody(&dir));
         assert_eq!(reloaded.providers().len(), 1);
         let json = serde_json::to_string(&reloaded.providers()[0]).unwrap();
         assert!(!json.contains("sk-1234567890abcdef"));
@@ -535,7 +683,7 @@ mod tests {
     #[test]
     fn session_lifecycle_and_limits() {
         let dir = test_dir("session");
-        let mut store = LocalStore::load(&dir);
+        let mut store = LocalStore::load(&dir, test_custody(&dir));
         let session = store.create_session("1".into()).unwrap();
         let message = store
             .append_message(&session.id, "user", "你好，本机运行".into(), "2".into())
@@ -543,7 +691,7 @@ mod tests {
         assert_eq!(message.role, "user");
 
         // 标题取自首条用户消息。
-        let reloaded = LocalStore::load(&dir);
+        let reloaded = LocalStore::load(&dir, test_custody(&dir));
         let session = reloaded.session(&session.id).unwrap();
         assert_eq!(session.title, "你好，本机运行");
 
@@ -570,7 +718,7 @@ mod tests {
     #[test]
     fn finalize_updates_content_and_summary_view_is_light() {
         let dir = test_dir("finalize");
-        let mut store = LocalStore::load(&dir);
+        let mut store = LocalStore::load(&dir, test_custody(&dir));
         let session = store.create_session("1".into()).unwrap();
         let pending = store
             .append_message(&session.id, "assistant", String::new(), "2".into())

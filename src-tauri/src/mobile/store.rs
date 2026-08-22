@@ -92,6 +92,9 @@ struct StoreFile {
     version: u32,
     #[serde(default)]
     active_id: Option<String>,
+    /// 上次使用的模式（remote/local）：冷启动据此决定进入远程还是本机界面。
+    #[serde(default)]
+    last_mode: Option<String>,
     #[serde(default)]
     servers: Vec<ServerProfile>,
 }
@@ -121,6 +124,7 @@ impl ProfileStore {
         let file = StoreFile {
             version: 1,
             active_id: self.file.active_id.clone(),
+            last_mode: self.file.last_mode.clone(),
             servers: self.file.servers.clone(),
         };
         // 临时文件 + rename：避免写入中断留下半截 JSON。
@@ -172,6 +176,20 @@ impl ProfileStore {
         if self.file.active_id.as_deref() == Some(id) {
             self.file.active_id = None;
         }
+        self.save()
+    }
+
+    /// 上次模式：仅识别 "remote"/"local"，其余值按未设置处理。
+    pub fn last_mode(&self) -> Option<&str> {
+        match self.file.last_mode.as_deref() {
+            Some("remote") => Some("remote"),
+            Some("local") => Some("local"),
+            _ => None,
+        }
+    }
+
+    pub fn set_last_mode(&mut self, mode: &str) -> Result<(), String> {
+        self.file.last_mode = Some(mode.to_string());
         self.save()
     }
 }
@@ -233,5 +251,24 @@ mod tests {
     fn fingerprint_normalization() {
         assert_eq!(normalize_fingerprint("SHA256:ab:cd:ef"), "ABCDEF");
         assert_eq!(normalize_fingerprint("  abcd  "), "ABCD");
+    }
+
+    #[test]
+    fn last_mode_roundtrip_and_unknown_values() {
+        let path =
+            std::env::temp_dir().join(format!("pisper-mode-test-{}.json", std::process::id()));
+        let mut store = ProfileStore::load(&path);
+        assert_eq!(store.last_mode(), None);
+        store.set_last_mode("local").unwrap();
+        let reloaded = ProfileStore::load(&path);
+        assert_eq!(reloaded.last_mode(), Some("local"));
+        // 非法值不生效，也不破坏文件。
+        fs::write(
+            &path,
+            r#"{"version":1,"lastMode":"something-else","servers":[]}"#,
+        )
+        .unwrap();
+        assert_eq!(ProfileStore::load(&path).last_mode(), None);
+        let _ = std::fs::remove_file(&path);
     }
 }

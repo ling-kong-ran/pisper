@@ -20,6 +20,7 @@ use hyper_util::rt::TokioIo;
 use serde::Serialize;
 use tokio::net::TcpListener;
 
+use super::keystore::KeyCustody;
 use super::provider;
 use super::store::{
     LocalStore, MAX_MESSAGES_PER_SESSION, MAX_MESSAGE_BYTES, MAX_SESSIONS, MAX_TOTAL_SESSION_BYTES,
@@ -52,6 +53,8 @@ struct StateDto {
     ok: bool,
     runtime: &'static str,
     protocol: u32,
+    /// 密钥保管后端标识（android-keystore / ios-keychain / file），仅诊断展示。
+    key_backend: &'static str,
     active_provider: Option<super::store::RedactedProvider>,
     provider_count: usize,
     session_count: usize,
@@ -251,6 +254,7 @@ async fn route(
                 ok: true,
                 runtime: "mobile-local",
                 protocol: PROTOCOL_VERSION,
+                key_backend: store.custody_backend(),
                 active_provider: store.active_provider().map(|p| p.redacted()),
                 provider_count: store.providers().len(),
                 session_count: store.session_summaries().len(),
@@ -424,9 +428,10 @@ pub async fn start_runtime(dir: &Path) -> Result<Arc<LocalRuntime>, String> {
         .local_addr()
         .map_err(|error| error.to_string())?
         .port();
+    let custody = KeyCustody::load_or_create(dir)?;
     let runtime = Arc::new(LocalRuntime {
         port,
-        store: Arc::new(Mutex::new(LocalStore::load(dir))),
+        store: Arc::new(Mutex::new(LocalStore::load(dir, custody))),
     });
     let server = runtime.clone();
     tokio::spawn(async move {
