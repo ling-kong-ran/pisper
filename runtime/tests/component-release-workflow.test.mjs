@@ -195,6 +195,7 @@ test('release paths select one or every affected component without coupling docu
   assert.deepEqual(releaseComponentsForPath('docs/node-sea-webview.md'), [])
   assert.deepEqual(releaseComponentsForPath('src-tui/README.md'), [])
   assert.deepEqual(releaseComponentsForPath('scripts/release.mjs'), [])
+  assert.deepEqual(releaseComponentsForPath('scripts/dev-header-proxy.mjs'), [])
   assert.deepEqual(
     detectReleaseComponents(['src-tauri/src/lib.rs', 'src-tui/src/main.rs', 'runtime/index.mjs']),
     ['desktop', 'tui', 'runtime'],

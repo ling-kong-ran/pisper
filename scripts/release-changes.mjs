@@ -3,6 +3,7 @@ import { isAppExclusivePath } from './app-paths.mjs'
 
 const ALL_COMPONENTS = Object.freeze(Object.keys(RELEASE_COMPONENTS))
 const RELEASE_SCRIPT_PATHS = new Set([
+  'scripts/dev-header-proxy.mjs',
   'scripts/package-npm.mjs',
   'scripts/package-npm-platforms.mjs',
   'scripts/prepare-release.mjs',
