@@ -1,6 +1,6 @@
 // 桌面宠物设置：启用/透明度/宠物选择与商店浏览。
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { Cat, Download, ExternalLink, RefreshCw, Search } from 'lucide-react'
+import { Cat, Download, ExternalLink, RefreshCw, Search, Trash2 } from 'lucide-react'
 import { useI18n } from '@/app/use-i18n'
 import {
   SettingsBadge as Badge,
@@ -10,6 +10,7 @@ import {
 import { Slider } from '@/components/ui/slider'
 import { apiJson } from '@/lib/api'
 import type { Notify } from '@/app/route-context'
+import type { ConfirmDialogOptions } from '@/hooks/useAppDialog'
 import type { DesktopPetCatalogItem, DesktopPetStatus } from '@/types/update'
 
 import { Button } from '@/components/ui/button'
@@ -23,6 +24,7 @@ type PetController = {
   search: (query: string) => Promise<DesktopPetCatalogItem[]>
   install: (slug: string) => Promise<DesktopPetStatus>
   select: (slug: string) => Promise<DesktopPetStatus>
+  remove: (slug: string) => Promise<DesktopPetStatus>
   openCatalog: () => void
 }
 
@@ -30,7 +32,12 @@ function announcePetChange(status: DesktopPetStatus) {
   window.dispatchEvent(new CustomEvent('pisper:desktop-pet-changed', { detail: status }))
 }
 
-export function DesktopPetSettings({ notify }: { notify: Notify }) {
+type DesktopPetSettingsProps = {
+  notify: Notify
+  requestConfirm: (options?: ConfirmDialogOptions) => Promise<boolean>
+}
+
+export function DesktopPetSettings({ notify, requestConfirm }: DesktopPetSettingsProps) {
   const { t } = useI18n()
   const bridge = window.pisperDesktop
   const controller = useMemo<PetController>(() => {
@@ -42,6 +49,7 @@ export function DesktopPetSettings({ notify }: { notify: Notify }) {
         search: (query) => bridge.searchPets!(query),
         install: (nextSlug) => bridge.installPet!(nextSlug),
         select: (nextSlug) => bridge.selectPet!(nextSlug),
+        remove: (nextSlug) => bridge.removePet!(nextSlug),
         openCatalog: () => void bridge.openPetdex?.(),
       }
     }
@@ -71,23 +79,33 @@ export function DesktopPetSettings({ notify }: { notify: Notify }) {
           method: 'POST',
           body: { slug: nextSlug },
         }),
+      remove: (nextSlug) =>
+        apiJson<DesktopPetStatus>(`/api/desktop-pet/${encodeURIComponent(nextSlug)}`, {
+          method: 'DELETE',
+        }),
       openCatalog: () => window.open('https://petdex.dev', '_blank', 'noopener,noreferrer'),
     }
   }, [bridge])
   const [status, setStatus] = useState<DesktopPetStatus | null>(null)
   const [slug, setSlug] = useState('')
   const [catalog, setCatalog] = useState<DesktopPetCatalogItem[]>([])
+  const [opacityPercent, setOpacityPercent] = useState(100)
   const [busy, setBusy] = useState('')
   const [error, setError] = useState('')
+
+  const applyStatus = useCallback((next: DesktopPetStatus) => {
+    setStatus(next)
+    setOpacityPercent(Math.round((next.opacity ?? 1) * 100))
+  }, [])
 
   const load = useCallback(async () => {
     try {
       setError('')
-      setStatus(await controller.getStatus())
+      applyStatus(await controller.getStatus())
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : String(caught))
     }
-  }, [controller])
+  }, [applyStatus, controller])
 
   const searchCatalog = useCallback(async () => {
     setBusy('search')
@@ -110,11 +128,17 @@ export function DesktopPetSettings({ notify }: { notify: Notify }) {
   }, [controller, load])
 
   const toggle = async (enabled: boolean) => {
+    const previous = status
+    setStatus((current) =>
+      current
+        ? { ...current, enabled, running: Boolean(enabled && current.installed.length) }
+        : current,
+    )
     setBusy('toggle')
     try {
       setError('')
       const next = await controller.setEnabled(enabled)
-      setStatus(next)
+      applyStatus(next)
       announcePetChange(next)
       notify(
         enabled
@@ -122,6 +146,7 @@ export function DesktopPetSettings({ notify }: { notify: Notify }) {
           : t('config:desktopPetSettings.petDisabled'),
       )
     } catch (caught) {
+      setStatus(previous)
       setError(caught instanceof Error ? caught.message : String(caught))
     } finally {
       setBusy('')
@@ -133,9 +158,10 @@ export function DesktopPetSettings({ notify }: { notify: Notify }) {
     try {
       setError('')
       const next = await controller.setOpacity(opacity)
-      setStatus(next)
+      applyStatus(next)
       announcePetChange(next)
     } catch (caught) {
+      setOpacityPercent(Math.round((status?.opacity ?? 1) * 100))
       setError(caught instanceof Error ? caught.message : String(caught))
     } finally {
       setBusy('')
@@ -148,7 +174,7 @@ export function DesktopPetSettings({ notify }: { notify: Notify }) {
     try {
       setError('')
       const next = await controller.install(requestedSlug)
-      setStatus(next)
+      applyStatus(next)
       announcePetChange(next)
       notify(
         t('config:desktopPetSettings.petInstalled', {
@@ -168,9 +194,31 @@ export function DesktopPetSettings({ notify }: { notify: Notify }) {
     try {
       setError('')
       const next = await controller.select(nextSlug)
-      setStatus(next)
+      applyStatus(next)
       announcePetChange(next)
       notify(t('config:desktopPetSettings.petSelected', { name: next.selectedName || nextSlug }))
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : String(caught))
+    } finally {
+      setBusy('')
+    }
+  }
+
+  const remove = async (pet: DesktopPetStatus['installed'][number]) => {
+    const confirmed = await requestConfirm({
+      title: t('config:desktopPetSettings.deleteTitle'),
+      message: t('config:desktopPetSettings.deleteConfirm', { name: pet.name }),
+      confirmLabel: t('config:desktopPetSettings.delete'),
+      tone: 'danger',
+    })
+    if (!confirmed) return
+    setBusy(`remove:${pet.slug}`)
+    try {
+      setError('')
+      const next = await controller.remove(pet.slug)
+      applyStatus(next)
+      announcePetChange(next)
+      notify(t('config:desktopPetSettings.petRemoved', { name: pet.name }))
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : String(caught))
     } finally {
@@ -214,7 +262,7 @@ export function DesktopPetSettings({ notify }: { notify: Notify }) {
             </Badge>
             <Toggle
               value={status.enabled}
-              disabled={busy === 'toggle' || !status.installed.length}
+              disabled={Boolean(busy) || !status.installed.length}
               onChange={toggle}
               ariaLabel={t('config:desktopPetSettings.showOnDesktop')}
             />
@@ -225,14 +273,15 @@ export function DesktopPetSettings({ notify }: { notify: Notify }) {
           <div className="desktop-pet-opacity [&_>_div]:flex [&_>_div]:items-center [&_>_div]:justify-between [&_>_div]:gap-[8px] [&_>_div]:text-[12px] [&_>_div_span]:text-[var(--text-muted)] [&_>_div_span]:[font-variant-numeric:tabular-nums] grid grid-cols-[150px_minmax(0,1fr)] items-center gap-[14px] [border-top:1px_solid_var(--stroke-soft)] [padding-top:14px] mt-4">
             <div>
               <strong>{t('config:desktopPetSettings.opacity')}</strong>
-              <span>{Math.round((status.opacity ?? 1) * 100)}%</span>
+              <span>{opacityPercent}%</span>
             </div>
             <Slider
-              value={[Math.round((status.opacity ?? 1) * 100)]}
+              value={[opacityPercent]}
               min={20}
               max={100}
               step={5}
               disabled={busy === 'opacity'}
+              onValueChange={([value]) => setOpacityPercent(value)}
               onValueCommit={([value]) => void changeOpacity(value / 100)}
               aria-label={t('config:desktopPetSettings.opacity')}
             />
@@ -284,7 +333,7 @@ export function DesktopPetSettings({ notify }: { notify: Notify }) {
                 <button
                   type="button"
                   className="language-choice hover:border-[var(--star)] hover:bg-[var(--accent-soft)] hover:[transform:translateY(-1px)] [&.selected]:border-[var(--star)] [&.selected]:bg-[var(--star-soft)] [&.selected]:shadow-[0_0_0_3px_var(--accent-ring)] grid min-h-[80px] grid-cols-[auto_minmax(0,_1fr)_auto] items-center gap-[10px] [border:1px_solid_var(--stroke)] rounded-[var(--r-sm)] bg-[var(--surface-subtle)] [padding:11px] text-[var(--text)] text-left [transition:border-color_var(--d1)_var(--ease-out),_background_var(--d1)_var(--ease-out),_box-shadow_var(--d1)_var(--ease-out),_transform_var(--d1)_var(--ease-out)]"
-                  disabled={busy === 'install'}
+                  disabled={Boolean(busy)}
                   onClick={() => (installed ? select(pet.slug) : install(pet.slug))}
                   key={pet.slug}
                 >
@@ -336,26 +385,48 @@ export function DesktopPetSettings({ notify }: { notify: Notify }) {
             {status.installed.map((pet) => {
               const selected = pet.slug === status.selectedSlug
               return (
-                <button
-                  type="button"
-                  className={`language-choice hover:border-[var(--star)] hover:bg-[var(--accent-soft)] hover:[transform:translateY(-1px)] [&.selected]:border-[var(--star)] [&.selected]:bg-[var(--star-soft)] [&.selected]:shadow-[0_0_0_3px_var(--accent-ring)] grid min-h-[80px] grid-cols-[auto_minmax(0,_1fr)_auto] items-center gap-[10px] [border:1px_solid_var(--stroke)] rounded-[var(--r-sm)] bg-[var(--surface-subtle)] [padding:11px] text-[var(--text)] text-left [transition:border-color_var(--d1)_var(--ease-out),_background_var(--d1)_var(--ease-out),_box-shadow_var(--d1)_var(--ease-out),_transform_var(--d1)_var(--ease-out)] ${selected ? 'selected' : ''}`}
-                  role="radio"
-                  aria-checked={selected}
-                  disabled={busy === `select:${pet.slug}`}
-                  onClick={() => select(pet.slug)}
+                <div
+                  className={`language-choice hover:border-[var(--star)] hover:bg-[var(--accent-soft)] [&.selected]:border-[var(--star)] [&.selected]:bg-[var(--star-soft)] [&.selected]:shadow-[0_0_0_3px_var(--accent-ring)] grid min-h-[80px] grid-cols-[minmax(0,_1fr)_auto] items-center gap-[4px] [border:1px_solid_var(--stroke)] rounded-[var(--r-sm)] bg-[var(--surface-subtle)] [padding:4px] text-[var(--text)] [transition:border-color_var(--d1)_var(--ease-out),_background_var(--d1)_var(--ease-out),_box-shadow_var(--d1)_var(--ease-out)] ${selected ? 'selected' : ''}`}
                   key={`${pet.source}:${pet.slug}`}
                 >
-                  <span className="language-choice-mark grid w-[34px] h-[34px] place-items-center rounded-[9px] bg-[var(--solid)] text-[var(--star-strong)] text-[12px] font-[800] tracking-[.03em]">
-                    <Cat size={16} />
-                  </span>
-                  <span className="language-choice-copy [&_strong]:text-[13px] [&_small]:text-[var(--text-muted)] [&_small]:text-[12px] flex min-w-0 flex-col gap-[3px]">
-                    <strong>{pet.name}</strong>
-                    <small>{pet.slug}</small>
-                  </span>
-                  <Badge tone={pet.source === 'pisper' ? 'blue' : 'gray'}>
-                    {pet.source === 'pisper' ? 'Pisper' : 'Petdex'}
-                  </Badge>
-                </button>
+                  <button
+                    type="button"
+                    className={`grid min-h-[70px] grid-cols-[auto_minmax(0,_1fr)_auto] items-center gap-[10px] rounded-[calc(var(--r-sm)-2px)] [padding:7px] text-left outline-none focus-visible:ring-2 focus-visible:ring-[var(--star)] disabled:pointer-events-none disabled:opacity-50 ${pet.source === 'pisper' ? '' : 'col-span-2'}`}
+                    role="radio"
+                    aria-checked={selected}
+                    disabled={Boolean(busy)}
+                    onClick={() => select(pet.slug)}
+                  >
+                    <span className="language-choice-mark grid w-[34px] h-[34px] place-items-center rounded-[9px] bg-[var(--solid)] text-[var(--star-strong)] text-[12px] font-[800] tracking-[.03em]">
+                      <Cat size={16} />
+                    </span>
+                    <span className="language-choice-copy [&_strong]:text-[13px] [&_small]:text-[var(--text-muted)] [&_small]:text-[12px] flex min-w-0 flex-col gap-[3px]">
+                      <strong>{pet.name}</strong>
+                      <small>{pet.slug}</small>
+                    </span>
+                    <Badge tone={pet.source === 'pisper' ? 'blue' : 'gray'}>
+                      {pet.source === 'pisper' ? 'Pisper' : 'Petdex'}
+                    </Badge>
+                  </button>
+                  {pet.source === 'pisper' && (
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon-sm"
+                      className="text-content-muted hover:text-destructive"
+                      disabled={Boolean(busy)}
+                      onClick={() => void remove(pet)}
+                      aria-label={t('config:desktopPetSettings.delete')}
+                      title={t('config:desktopPetSettings.delete')}
+                    >
+                      {busy === `remove:${pet.slug}` ? (
+                        <RefreshCw className="animate-spin" size={14} />
+                      ) : (
+                        <Trash2 size={14} />
+                      )}
+                    </Button>
+                  )}
+                </div>
               )
             })}
           </div>

@@ -64,9 +64,31 @@
   }
 
   const syncPetWindow = async (status) => {
-    await invoke('desktop_pet_sync_menu', { enabled: Boolean(status?.enabled) })
-    await invoke('desktop_pet_apply_enabled', { enabled: Boolean(status?.running) })
+    let visibilityError = null
+    try {
+      await invoke('desktop_pet_apply_enabled', { enabled: Boolean(status?.running) })
+    } catch (error) {
+      visibilityError = error
+    }
+    await invoke('desktop_pet_sync_menu', { enabled: Boolean(status?.enabled) }).catch(() => {})
+    if (visibilityError && status?.running) throw visibilityError
     return status
+  }
+
+  const setPetEnabled = async (enabled) => {
+    const status = await api('/api/desktop-pet/enabled', { method: 'POST', body: { enabled } })
+    try {
+      return await syncPetWindow(status)
+    } catch (error) {
+      if (enabled) {
+        const rollback = await api('/api/desktop-pet/enabled', {
+          method: 'POST',
+          body: { enabled: false },
+        }).catch(() => null)
+        if (rollback) await syncPetWindow(rollback).catch(() => {})
+      }
+      throw error
+    }
   }
 
   Object.defineProperty(window, 'pisperDesktop', {
@@ -103,8 +125,7 @@
       terminalClose: (terminalId) => invoke('desktop_terminal_close', { terminalId }),
       terminalCloseAll: () => invoke('desktop_terminal_close_all'),
       getPetStatus: () => api('/api/desktop-pet'),
-      setPetEnabled: async (enabled) =>
-        syncPetWindow(await api('/api/desktop-pet/enabled', { method: 'POST', body: { enabled } })),
+      setPetEnabled,
       setPetOpacity: (opacity) =>
         api('/api/desktop-pet/opacity', { method: 'POST', body: { opacity } }),
       searchPets: (query) => api(`/api/desktop-pet/catalog?query=${encodeURIComponent(query)}`),
@@ -112,6 +133,10 @@
         syncPetWindow(await api('/api/desktop-pet/install', { method: 'POST', body: { slug } })),
       selectPet: async (slug) =>
         syncPetWindow(await api('/api/desktop-pet/select', { method: 'POST', body: { slug } })),
+      removePet: async (slug) =>
+        syncPetWindow(
+          await api(`/api/desktop-pet/${encodeURIComponent(slug)}`, { method: 'DELETE' }),
+        ),
       openPetdex: () => invoke('desktop_open_url', { url: 'https://petdex.dev' }),
     }),
   })

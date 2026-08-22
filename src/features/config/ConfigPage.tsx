@@ -41,7 +41,7 @@ export function ConfigPage({
   } else if (section === 'interface') {
     content = <InterfaceSettings notify={notify} />
   } else if (section === 'desktop-pet') {
-    content = <DesktopPetSettings notify={notify} />
+    content = <DesktopPetSettings notify={notify} requestConfirm={requestConfirm} />
   } else if (section === 'mobile-server') {
     content = <MobileServerSettings />
   } else if (section === 'remote-access') {

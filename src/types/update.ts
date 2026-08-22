@@ -172,6 +172,7 @@ export type DesktopBridge = {
   searchPets?: (query: string) => Promise<DesktopPetCatalogItem[]>
   installPet?: (slug: string) => Promise<DesktopPetStatus>
   selectPet?: (slug: string) => Promise<DesktopPetStatus>
+  removePet?: (slug: string) => Promise<DesktopPetStatus>
   openPetdex?: () => Promise<boolean>
   onUpdateStatus?: (callback: (status: UpdateStatus) => void) => () => void
 }

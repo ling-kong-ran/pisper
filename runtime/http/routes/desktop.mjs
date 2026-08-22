@@ -81,6 +81,13 @@ export const desktopRoutes = [
     },
   },
   {
+    method: 'DELETE',
+    path: '/api/desktop-pet/:slug',
+    handler({ services, params, json }) {
+      json(200, requireDesktopPet(services).remove(params.slug))
+    },
+  },
+  {
     method: 'GET',
     path: '/api/desktop-pet/sprite',
     handler({ services, url, res, json }) {

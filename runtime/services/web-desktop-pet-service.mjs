@@ -5,6 +5,7 @@ import {
   readFileSync,
   readdirSync,
   realpathSync,
+  rmSync,
   statSync,
   unlinkSync,
   writeFileSync,
@@ -212,6 +213,33 @@ export class WebDesktopPetService {
     const pet = this.findPet(String(slug || ''))
     if (!pet) throw new Error('宠物尚未安装。')
     this.savePreferences({ selectedSlug: pet.slug })
+    return this.status()
+  }
+
+  remove(inputSlug) {
+    const slug = String(inputSlug || '')
+      .trim()
+      .toLowerCase()
+    if (!SLUG_PATTERN.test(slug)) throw new Error('宠物标识格式无效。')
+    if (!this.loadPet(this.managedRoot, slug)) throw new Error('只能删除由 Pisper 安装的宠物。')
+
+    const managedRoot = realpathSync(this.managedRoot)
+    const directory = realpathSync(join(this.managedRoot, slug))
+    const relativePath = relative(managedRoot, directory)
+    if (!relativePath || relativePath.startsWith('..') || isAbsolute(relativePath))
+      throw new Error('宠物目录无效。')
+    rmSync(directory, { recursive: true })
+
+    const current = this.preferences()
+    const installed = this.installedPets()
+    const selectedSlug =
+      current.selectedSlug === slug || !installed.some((pet) => pet.slug === current.selectedSlug)
+        ? installed[0]?.slug || ''
+        : current.selectedSlug
+    this.savePreferences({
+      enabled: Boolean(current.enabled && installed.length),
+      selectedSlug,
+    })
     return this.status()
   }
 
