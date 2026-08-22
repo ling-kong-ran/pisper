@@ -139,15 +139,16 @@
     }
     return invoke('mobile_state')
       .then(function (state) {
-        // 本机运行入口始终可用：直接进入壳内本机 Runtime 的对话页。
+        // 本机运行入口始终可用：记录模式记忆后进入壳内本机 Runtime 的对话页。
         el('local-btn').onclick = function () {
-          if (state.localUrl) window.location.href = state.localUrl
+          invoke('mobile_enter_local')
+            .then(function (updated) {
+              if (updated && updated.localUrl) window.location.href = updated.localUrl
+            })
+            .catch(showError)
         }
-        // 启动即有激活服务器：直接进入主界面。
-        if (state.paired && state.proxyUrl) {
-          enter(state)
-          return
-        }
+        // 冷启动路由由壳内 Rust 侧决定，不经过本页；本页只做服务器/模式管理中枢，
+        // 已配对也不再自动跳转，否则「添加服务器」「返回服务器」都无法停留。
         render(state)
       })
       .catch(showError)
