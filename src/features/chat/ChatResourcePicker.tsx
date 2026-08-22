@@ -185,7 +185,7 @@ export function ChatResourcePicker({
   return (
     <Dialog open={open} onOpenChange={(value) => !value && onClose()}>
       <DialogContent
-        className="chat-resource-dialog w-[min(820px,calc(100vw_-_32px))] h-[min(600px,calc(100dvh_-_32px))] max-w-[820px] grid-rows-[auto_minmax(0,1fr)] overflow-hidden max-[650px]:w-[calc(100vw_-_16px)] max-[650px]:h-[calc(100dvh_-_16px)] z-[220] gap-0 p-0 ring-0"
+        className="chat-resource-dialog w-[min(820px,calc(100vw_-_32px))] h-[min(600px,calc(100dvh_-_32px))] max-w-[820px] sm:max-w-[820px] grid-rows-[auto_minmax(0,1fr)] overflow-hidden max-[650px]:w-[calc(100vw_-_16px)] max-[650px]:h-[calc(100dvh_-_16px)] z-[220] gap-0 p-0 ring-0"
         overlayClassName="z-[220]"
         showCloseButton={false}
       >
@@ -233,7 +233,7 @@ export function ChatResourcePicker({
                 </TabsTrigger>
               </TabsList>
             </Tabs>
-            <label className="chat-resource-search [&:focus-within]:border-[var(--focus)] [&:focus-within]:shadow-[0_0_0_2px_var(--focus-ring)] [&_input]:w-full [&_input]:h-[36px] [&_input]:border-0 [&_input]:[outline:0] [&_input]:bg-transparent [&_input]:text-[var(--text)] [&_input]:text-[13px] flex items-center gap-[7px] [margin-top:8px] [border:1px_solid_var(--stroke)] rounded-[var(--r-sm)] [padding:0_10px] text-[var(--text-muted)]">
+            <label className="chat-resource-search [&:focus-within]:border-[var(--focus)] [&:focus-within]:shadow-[0_0_0_2px_var(--focus-ring)] [&_input]:w-full [&_input]:h-[36px] [&_input]:border-0 [&_input]:[outline:0]! [&_input]:bg-transparent [&_input]:text-[var(--text)] [&_input]:text-[13px] flex items-center gap-[7px] [margin-top:8px] [border:1px_solid_var(--stroke)] rounded-[var(--r-sm)] [padding:0_10px] text-[var(--text-muted)]">
               <Search size={15} />
               <input
                 autoFocus

@@ -176,6 +176,8 @@ test('chat resource picker remains visible above dock splits with a readable pri
   ])
 
   assert.match(picker, /className="chat-resource-dialog[^"\n]*z-\[220\]/)
+  assert.match(picker, /chat-resource-dialog[^"\n]*sm:max-w-\[820px\]/)
+  assert.match(picker, /chat-resource-search[^"\n]*\[&_input\]:\[outline:0\]!/)
   assert.match(picker, /overlayClassName="z-\[220\]"/)
   assert.match(picker, /className="chat-resource-confirm[^"\n]*text-\[var\(--on-accent\)\]/)
   assert.match(picker, /apiJson<PluginsData>\(`\/api\/plugins\?sessionId=/)
@@ -312,6 +314,7 @@ test('session labels are searchable from Ctrl K and resolve through virtualized 
   assert.match(treeDialog, /node\.branchPoint/)
   assert.match(treeDialog, /session-tree-children/)
   assert.match(treeDialog, /sessionTree\.searchPlaceholder/)
+  assert.match(treeDialog, /chat-resource-search[^"\n]*\[&_input\]:\[outline:0\]!/)
   assert.match(treeDialog, /buildDisplayTree\(data\?\.nodes \|\| \[\]\)/)
   assert.doesNotMatch(
     treeDialog.match(/const conversationKinds = new Set\(\[[^\]]+\]\)/)?.[0] || '',
