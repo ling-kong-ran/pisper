@@ -5,6 +5,7 @@
 //! 因此豁免 dead_code。
 #![allow(dead_code)]
 
+pub mod local;
 pub mod pairing;
 pub mod pinning;
 pub mod proxy;
@@ -23,6 +24,7 @@ pub struct MobileShared {
     store: Arc<SharedStore>,
     proxy: Arc<proxy::ProxyHandle>,
     tunnels: Arc<crate::iroh_tunnel::TunnelBridgePool>,
+    local: Arc<local::LocalRuntime>,
 }
 
 #[derive(Serialize)]
@@ -39,6 +41,8 @@ struct ServerDto {
 struct MobileStateDto {
     paired: bool,
     proxy_url: String,
+    /// 本机 Runtime 的回环入口：连接页/服务器设置用它切入本机模式。
+    local_url: String,
     active_id: Option<String>,
     active_transport: Option<String>,
     servers: Vec<ServerDto>,
@@ -67,6 +71,7 @@ fn state_dto(shared: &MobileShared) -> MobileStateDto {
     MobileStateDto {
         paired: active_id.is_some(),
         proxy_url: format!("http://127.0.0.1:{}", shared.proxy.port),
+        local_url: format!("http://127.0.0.1:{}", shared.local.port),
         active_id,
         active_transport: shared.proxy.active_transport(),
         servers,
@@ -220,6 +225,10 @@ pub fn run_mobile() {
                 store.clone(),
                 Some(tunnels.clone()),
             ))?;
+            // 本机 Runtime 与代理并列启动：同规则，监听器留在该运行时上。
+            let local = tauri::async_runtime::block_on(local::start_runtime(
+                &data_dir.join("local-runtime"),
+            ))?;
             let paired = store
                 .lock()
                 .map(|store| store.active().is_some())
@@ -228,6 +237,7 @@ pub fn run_mobile() {
                 store,
                 proxy: proxy.clone(),
                 tunnels,
+                local,
             });
             app.manage(update::MobileUpdateState::default());
             update::start_automatic_checks(app.handle().clone());

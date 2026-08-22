@@ -2,7 +2,7 @@
 // 以及跳回连接页添加新服务器。数据来自移动端壳（Tauri 命令），
 // 不走 runtime——配对与令牌管理始终在壳内。
 import { useCallback, useEffect, useState } from 'react'
-import { MonitorSmartphone, Plus, Server, Trash2 } from 'lucide-react'
+import { MonitorSmartphone, Plus, Server, Smartphone, Trash2 } from 'lucide-react'
 import { useI18n } from '@/app/use-i18n'
 import { SettingsCard as Panel } from './settings-primitives'
 import { Button } from '@/components/ui/button'
@@ -23,6 +23,7 @@ type ServerItem = {
 type MobileState = {
   paired: boolean
   proxyUrl: string
+  localUrl: string
   activeId: string | null
   activeTransport: string | null
   servers: ServerItem[]
@@ -96,6 +97,33 @@ export function MobileServerSettings() {
           </Button>
         </div>
         {error ? <p className="text-[12px] text-[var(--danger)]">{error}</p> : null}
+      </Panel>
+
+      <Panel className="flex flex-col gap-3 p-4">
+        <div className="flex items-center justify-between gap-3">
+          <div className="flex items-start gap-[11px]">
+            <span className="grid size-[38px] flex-none place-items-center rounded-[var(--r-sm)] bg-[var(--star-soft)] text-[var(--star-strong)]">
+              <Smartphone size={19} />
+            </span>
+            <div>
+              <h2 className="text-[16px]">{t('config:mobileServer.localTitle')}</h2>
+              <p className="mt-1 text-[13px] leading-[1.55] text-[var(--text-muted)]">
+                {t('config:mobileServer.localDescription')}
+              </p>
+            </div>
+          </div>
+          <Button
+            size="sm"
+            variant="outline"
+            disabled={!state?.localUrl}
+            onClick={() => {
+              // 本机模式即导航到壳内本机 Runtime 的回环地址。
+              if (state?.localUrl) window.location.href = state.localUrl
+            }}
+          >
+            {t('config:mobileServer.enterLocal')}
+          </Button>
+        </div>
       </Panel>
 
       <Panel className="flex flex-col gap-3 p-4">

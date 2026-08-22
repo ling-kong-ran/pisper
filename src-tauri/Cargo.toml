@@ -39,6 +39,9 @@ futures-util = "0.3"
 reqwest = { version = "0.12", default-features = false, features = [
   "rustls-tls-manual-roots",
   "stream",
+  # 本机 Runtime 的 Provider 调用需要 JSON 收发；桌面宿主靠其他依赖间接开启，
+  # 移动端目标必须显式声明，不能依赖特性统一的偶然性。
+  "json",
 ] }
 rustls = { version = "0.23", features = ["ring"] }
 sha2 = "0.10"

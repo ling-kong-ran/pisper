@@ -22,6 +22,12 @@
     servers: t('已配对的桌面端', 'Paired desktops'),
     pairTitle: t('配对新桌面端', 'Pair a new desktop'),
     scan: t('扫码配对', 'Scan QR code to pair'),
+    localTitle: t('本机运行', 'On-device'),
+    localDesc: t(
+      '不连接桌面端，直接在手机上运行受限 Runtime，通过 OpenAI 兼容 Provider 对话。',
+      'Chat without a desktop: a constrained on-device runtime talks directly to an OpenAI-compatible provider.',
+    ),
+    enterLocal: t('进入本机模式', 'Open on-device mode'),
     url: t('桌面端地址', 'Desktop address'),
     code: t('配对码', 'Pairing code'),
     fp: t('证书指纹（桌面端设置页可见，可只填前 16 位）', 'Certificate fingerprint (see desktop settings; first 16 hex chars suffice)'),
@@ -44,6 +50,9 @@
   el('servers-title').textContent = strings.servers
   el('pair-title').textContent = strings.pairTitle
   el('scan-btn').textContent = strings.scan
+  el('local-title').textContent = strings.localTitle
+  el('local-desc').textContent = strings.localDesc
+  el('local-btn').textContent = strings.enterLocal
   el('label-url').textContent = strings.url
   el('label-code').textContent = strings.code
   el('label-fp').textContent = strings.fp
@@ -118,6 +127,10 @@
     }
     return invoke('mobile_state')
       .then(function (state) {
+        // 本机运行入口始终可用：直接进入壳内本机 Runtime 的对话页。
+        el('local-btn').onclick = function () {
+          if (state.localUrl) window.location.href = state.localUrl
+        }
         // 启动即有激活服务器：直接进入主界面。
         if (state.paired && state.proxyUrl) {
           enter(state)

@@ -1,9 +1,15 @@
 # Pisper 移动端使用指南
 
-Pisper 移动端是桌面 Pisper 的远程客户端。Agent Runtime、会话、记忆、工作流和
-Provider 配置仍由电脑持有；手机不运行 Runtime，也不把这些数据同步到 Pisper 云服务。
+Pisper 移动端有两种使用方式：作为桌面 Pisper 的远程客户端，或者不依赖电脑、
+直接在手机上运行的本机模式（受限 Runtime）。远程模式下 Agent Runtime、会话、记忆、工作流和
+Provider 配置仍由电脑持有；本机模式则会话与 Provider 密钥只保存在手机应用私有目录。
+两种模式都不把数据同步到 Pisper 云服务。
 
-Android / iOS App 优先通过局域网直连桌面；局域网不可达时，可通过内置 Iroh P2P 隧道建立连接。Pisper 不运营账号或中转服务，Iroh relay 仅承载仍受 TLS 保护的隧道字节。
+远程模式下，Android / iOS App 优先通过局域网直连桌面；局域网不可达时，可通过内置 Iroh P2P 隧道建立连接。Pisper 不运营账号或中转服务，Iroh relay 仅承载仍受 TLS 保护的隧道字节。
+
+本机模式（M1）提供 OpenAI 兼容 Provider 的流式对话与本地多会话，从连接页或
+服务器设置页的「本机运行」进入；能力边界与安全模型见
+[移动端本机 Runtime 设计](./mobile-local-runtime.md)。
 
 ![Pisper 移动端会话界面](./shots/mobile-chat3.png)
 
@@ -167,4 +173,6 @@ mDNS 广播，但建议同时吊销不再使用的设备。
 
 ## 后续方向
 
-当前移动端仍是桌面 Runtime 的客户端。未来可评估在移动设备本机运行受限 Runtime、系统级后台推送，以及用户自托管 Iroh relay；这些方向不改变现有配对凭据与 TLS 指纹模型。
+移动端已具备本机运行能力（受限 Runtime，见[设计文档](./mobile-local-runtime.md)）。后续依次评估：
+Provider 密钥迁入系统 Keystore/Keychain、受限设备侧工具能力、完整 Web UI 直连本机 Runtime，
+以及系统级后台推送与用户自托管 Iroh relay；这些方向不改变现有配对凭据与 TLS 指纹模型。

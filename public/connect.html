@@ -78,6 +78,8 @@
       .server .name { font-size: 14px; overflow: hidden; text-overflow: ellipsis; }
       .server .ops { display: flex; gap: 8px; flex: none; }
       .server button { padding: 6px 10px; font-size: 12px; font-weight: 400; }
+      .card.local { border-color: var(--accent); }
+      .card.local h2 { display: flex; align-items: center; gap: 6px; }
       .hidden { display: none !important; }
       .divider { border-top: 1px solid var(--border); margin: 4px 0; }
     </style>
@@ -87,6 +89,12 @@
       <div>
         <h1>Pisper</h1>
         <p class="sub" id="subtitle"></p>
+      </div>
+
+      <div class="card local">
+        <h2 id="local-title"></h2>
+        <p class="sub" id="local-desc"></p>
+        <button id="local-btn"></button>
       </div>
 
       <div class="card hidden" id="servers-card">
