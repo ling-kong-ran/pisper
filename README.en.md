@@ -50,7 +50,7 @@
 - **Hot and cold tools.** Core tools live in context; plugins, MCP servers and skills are activated on demand through a discover/call gateway and retired when done — endless capability without stuffing the context like a junk drawer.
 - **Stable prefix, hot cache.** Canonically ordered tool definitions and hash-based prompt-shape diagnostics keep provider prompt caches hitting — long sessions get faster and cheaper.
 - **Missing a capability? Just ask.** Pisper writes, validates and installs local plugins by itself — callable from the very next turn.
-- **Connect your phone directly.** Once remote access is explicitly enabled, the Android / iOS app pairs over LAN HTTPS, prefers LAN while available, and falls back to Iroh P2P away from home. TLS fingerprint pinning, device Bearer tokens, and resumable SSE remain unchanged across both paths.
+- **Independent on your phone, connected when you want.** The Android / iOS app can run a constrained on-device Runtime with OpenAI-compatible streaming chat and local sessions, or pair with Desktop and prefer LAN before falling back to Iroh P2P. Android Keystore / iOS Keychain protects on-device Provider keys; remote mode retains TLS fingerprint pinning and device Bearer tokens.
 - **Your data stays on your machine.** The runtime binds to 127.0.0.1 by default, known secret formats are redacted, and inferred memories wait for your approval. Your context, your call.
 
 <a id="features"></a>
@@ -61,7 +61,7 @@
 | --- | --- |
 | Split-view parallel sessions · Session Tree branching · Stable Turn labels · Ctrl+K cross-session jump · Per-session model/directory/permissions | Self-generated local plugins · MCP servers · Skill center · Multi-provider model configuration |
 | **⚡ Automation & notifications** | **🖥️ Desktop & terminal, one core** |
-| Visual workflows · Scheduled tasks · Feishu / WeChat channels · Project memory · Git & SVN changes | Ratatui TUI and Android / iOS apps on the same runtime · Desktop pets (Petdex) · Independent Desktop / TUI / Runtime updates |
+| Visual workflows · Scheduled tasks · Feishu / WeChat channels · Project memory · Git & SVN changes | Ratatui TUI sharing the Desktop Runtime · Android / iOS on-device Runtime or Desktop connection · Desktop pets (Petdex) · Independent Desktop / TUI / Runtime / App updates |
 
 <a id="pi-runtime"></a>
 
@@ -71,7 +71,7 @@ Pisper uses [Pi Coding Agent](https://github.com/earendil-works/pi/tree/main/pac
 
 - **Runtime and session orchestration**: independent sessions, parallel execution, Turn branching, working directories, and permission policies become one durable multi-agent system.
 - **Context and performance**: hot/cold tool tiers, discover/call loading, stable tool definitions, and prompt-shape diagnostics reduce context pressure and improve provider prompt-cache hit rates.
-- **A complete product layer**: Desktop, the Ratatui TUI, and mobile experiences share one Runtime, extended with workflows, schedules, memory, MCP, skills, plugins, and bidirectional channels.
+- **A complete product layer**: Desktop, the Ratatui TUI, and mobile experiences; on-device mode provides resource-bounded streaming chat, while connecting to the Desktop Runtime brings workflows, schedules, memory, MCP, skills, plugins, and bidirectional channels to the phone.
 
 ## 📸 Screenshots
 
@@ -141,18 +141,26 @@ sudo apt install ./Pisper-*-linux-amd64.deb
 
 ### Option 2: Mobile app
 
-The mobile app is a remote client for Pisper Desktop and **does not run the Runtime on your phone**. Keep Pisper running on the computer while using it. The website resolves the current App Release from `docs/latest-app.json`, so download links do not hard-code a version:
+The Android / iOS first screen presents **Run on this phone** and **Connect to Desktop** as peer choices. Pairing is not required before entering on-device mode. The website resolves current App download URLs from `docs/latest-app.json` without displaying or hard-coding a version number:
 
 | Platform | Download | Installation status |
 | --- | --- | --- |
 | Android | [Download the signed APK](https://ling-kong-ran.github.io/pisper/#mobile) | Signed universal APK, ready to install. Android may ask you to allow installs from this source when sideloading for the first time. |
 | iOS | [Download the unsigned IPA](https://ling-kong-ran.github.io/pisper/#mobile) | **Unsigned** and not directly installable. Re-sign it with AltStore, Sideloadly, or your own Apple Developer account. |
 
-1. For initial pairing, put the phone and computer on the same LAN when possible, then open **Settings → Remote access** on the desktop.
-2. Enable remote access, wait for the P2P relay to become ready, and generate a pairing QR code. The code expires after five minutes and can be used only once.
-3. Tap **Scan QR code to pair** in the mobile app. QR pairing stores LAN and Iroh endpoints. Manual pairing remains available, but adds only the HTTPS address entered.
+**Run on this phone**
 
-After pairing, the app loopback proxy prefers LAN and falls back to Iroh while continuing to pin the desktop certificate fingerprint and inject the device Bearer token. See the **[Mobile Guide](./docs/mobile.md)** for the full flow, security boundaries, and troubleshooting.
+1. Choose **Run on this phone** on first launch, or open **Settings → Servers → Enter on-device mode** from the bottom navigation.
+2. Add an OpenAI-compatible Provider with its Base URL, API key, and model. A connection test returns model candidates.
+3. Sessions and Provider settings stay on the phone. Android Keystore or iOS Keychain protects Provider keys, the Runtime listens only on loopback, and session/message/storage limits bound resource use.
+
+**Connect to Desktop**
+
+1. For initial pairing, put the phone and computer on the same LAN when possible, then open **Settings → Remote access** on Desktop.
+2. Enable remote access, wait for the P2P relay to become ready, and generate a pairing QR code. The code expires after five minutes and can be used only once.
+3. Choose **Connect to Desktop** and scan the code. The app prefers LAN and falls back to Iroh P2P while retaining TLS fingerprint pinning, device Bearer authentication, and resumable SSE.
+
+The app remembers the last local/remote mode. See the **[Mobile Guide](./docs/mobile.md)** and **[On-device Runtime design](./docs/mobile-local-runtime.md)** for the complete flow, resource boundaries, security model, and troubleshooting.
 
 ### Option 3: npm (Node.js 20+)
 
@@ -161,7 +169,7 @@ npm i -g pisper
 pisper web   # open the Web UI and local configuration page
 ```
 
-On first run, use `/provider` to pick a provider and configure an API key. Full commands, keybindings and approval modes: **[TUI Guide](./src-tui/README.md)**.
+On first run, use `/provider` to choose a Provider and configure an API key. Available commands and arguments: **[TUI Command Reference](./src-tui/README.en.md)**.
 
 ### Option 4: From source
 
@@ -194,22 +202,23 @@ Data lives in `~/.pisper/agent` by default; override with `PISPER_AGENT_DIR`.
 
 There is no "our cloud" in Pisper. Your data is held by the local runtime, and only the providers, MCP servers, search or channels you explicitly configure and call ever receive what a request needs.
 
-- **Localhost by default**: the regular endpoint binds to 127.0.0.1 with a random startup token, restricted cookies, and Origin checks on writes. Only explicitly enabling remote access starts LAN HTTPS and Iroh P2P endpoints. Iroh transports raw encrypted bytes; TLS fingerprint pinning and device Bearer tokens still protect the upper layer. Pi telemetry is off by default.
-- **Redaction first**: common API keys, Bearer/JWT tokens, private keys and connection strings are replaced before memories are persisted or summaries are shown.
+- **Loopback by default**: the Desktop Runtime binds its normal endpoint to 127.0.0.1; the on-device mobile Runtime listens only on a random loopback port. LAN HTTPS and Iroh P2P start only after Desktop remote access is explicitly enabled. Iroh transports raw encrypted bytes while TLS fingerprint pinning and device Bearer tokens protect the upper layer. Pi telemetry is off by default.
+- **Redaction and platform key custody**: common API keys, Bearer/JWT tokens, private keys, and connection strings are replaced before memories are persisted or summaries are shown. On-device mobile Provider keys are encrypted through Android Keystore or iOS Keychain and never stored as plaintext in Provider files.
 - **Permission boundaries**: read-only, full-access and approve-once modes; credentials are never echoed back to agents through ordinary config APIs, and the host shell strips common credential environment variables.
 - **Memory on approval**: automatically inferred memories sit in a review queue and are never recalled until you confirm them.
 
-> Honest boundary: redaction only recognizes common secret formats — it is not full DLP, a sandbox, or end-to-end encryption. Credentials currently live in the local agent data directory, not the OS keychain; protect that directory and its backups. Full details on the [website's data safety section](https://ling-kong-ran.github.io/pisper/#safety).
+> Honest boundary: redaction only recognizes common secret formats; it is not full DLP, a sandbox, or end-to-end encryption. Desktop Runtime Provider credentials still live in the local Agent data directory, so protect that directory and its backups. Mobile secure storage does not replace device lock screens, OS updates, or trusted sideload sources. Full details on the [website's data safety section](https://ling-kong-ran.github.io/pisper/#safety).
 
 ## 🧩 Components & independent updates
 
-Desktop, TUI and Runtime are versioned, signed and updated independently, with automatic rollback to the bundled version on failure. The desktop app provides a single update entry — update exactly what needs updating, nothing more.
+Desktop, TUI, Runtime, and the mobile App are versioned, signed, and updated independently, with automatic rollback to the bundled version on component failure. Desktop provides one component-update entry; the mobile App uses its own release manifest.
 
 ## 📚 Docs
 
 - [Website](https://ling-kong-ran.github.io/pisper/) · product tour and screenshots
-- [TUI Guide](./src-tui/README.md) · terminal install, commands and keybindings
-- [Mobile Guide](./docs/mobile.md) · Android / iOS installation, LAN pairing, security model, and troubleshooting
+- [TUI Command Reference](./src-tui/README.en.md) · CLI commands, Slash commands, and arguments
+- [Mobile Guide](./docs/mobile.md) · Android / iOS installation, on-device mode, Desktop pairing, security, and troubleshooting
+- [Mobile on-device Runtime](./docs/mobile-local-runtime.md) · resource limits, Providers, key custody, and mode switching
 - [Local plugins](./docs/local-plugins.md) · [Plugin authoring](./docs/plugin-authoring.md)
 - [Desktop pets (Petdex)](./docs/petdex-integration.md)
 

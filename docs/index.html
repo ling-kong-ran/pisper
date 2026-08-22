@@ -53,45 +53,52 @@
     </header>
 
     <main id="main">
-      <!-- Hero:粒子在右侧拼出 PISPER,文案居左下 -->
+      <!-- Hero：主价值与下载层级居左，右侧留给交互粒子字 -->
       <section class="hero shell" id="top" aria-labelledby="hero-title">
-        <p class="eyebrow reveal">DESKTOP · MOBILE · MULTI-AGENT</p>
-        <h1 id="hero-title">Pisper</h1>
-        <p class="hero-statement reveal" style="--d:120ms">
-          给每个想法，<span class="gradient-text">开一条分支。</span>
-        </p>
-        <p class="hero-copy reveal" style="--d:240ms">
-          一个 Pisper，覆盖桌面、终端与手机。
-          并行推进多个 Agent，随时切换设备，工作不断线。
-        </p>
-        <div class="hero-actions reveal" style="--d:360ms">
-          <a
-            class="button button-primary shiny magnetic"
-            href="https://github.com/ling-kong-ran/pisper/releases/latest"
-          >
-            下载桌面版 <span aria-hidden="true">↓</span>
-          </a>
-          <a
-            class="button button-secondary magnetic"
-            data-app-download="android"
-            href="https://github.com/ling-kong-ran/pisper/releases"
-          >
-            Android APK<span data-app-version aria-hidden="true"></span>
-            <span aria-hidden="true">↓</span>
-          </a>
-          <a
-            class="button button-secondary magnetic"
-            data-app-download="ios"
-            data-app-asset="pisper-ios-unsigned.ipa"
-            href="https://github.com/ling-kong-ran/pisper/releases"
-          >
-            iOS 未签名 IPA<span data-app-version aria-hidden="true"></span>
-            <span aria-hidden="true">↓</span>
-          </a>
+        <div class="hero-content">
+          <p class="eyebrow reveal">DESKTOP · MOBILE · MULTI-AGENT</p>
+          <h1 id="hero-title">Pisper</h1>
+          <p class="hero-statement reveal" style="--d:120ms">
+            给每个想法，<span class="gradient-text">开一条分支。</span>
+          </p>
+          <p class="hero-copy reveal" style="--d:240ms">
+            在桌面并行推进多个 Agent，在终端接管当前工作，在手机本机运行或连接桌面。
+            同一段工作，换设备也不断线。
+          </p>
+          <div class="hero-primary-actions reveal" style="--d:340ms">
+            <a
+              class="button button-primary shiny magnetic"
+              href="https://github.com/ling-kong-ran/pisper/releases/latest"
+            >
+              下载桌面版 <span aria-hidden="true">↓</span>
+            </a>
+            <a class="button button-secondary magnetic" href="#product">
+              浏览产品界面 <span aria-hidden="true">→</span>
+            </a>
+          </div>
+          <div class="hero-mobile-row reveal" style="--d:420ms">
+            <div class="hero-mobile-actions">
+              <a
+                class="button button-mobile button-android magnetic"
+                data-app-download="android"
+                href="https://github.com/ling-kong-ran/pisper/releases"
+              >
+                Android APK <span aria-hidden="true">↓</span>
+              </a>
+              <a
+                class="button button-mobile button-ios magnetic"
+                data-app-download="ios"
+                data-app-asset="pisper-ios-unsigned.ipa"
+                href="https://github.com/ling-kong-ran/pisper/releases"
+              >
+                iOS 未签名 IPA <span aria-hidden="true">↓</span>
+              </a>
+            </div>
+          </div>
+          <p class="hero-meta reveal" style="--d:500ms">
+            Windows · macOS · Linux · Android · iOS · MIT Licensed
+          </p>
         </div>
-        <p class="hero-meta reveal" style="--d:480ms">
-          Windows · macOS · Linux · Android · iOS · MIT Licensed
-        </p>
         <p class="hero-hint" aria-hidden="true">
           <span>移动搅动粒子</span><i></i><span>按住吸附成涡</span><i></i><span>滚动继续 ↓</span>
         </p>
@@ -103,7 +110,7 @@
           <div class="reveal"><strong>Desktop</strong><span>完整桌面应用</span></div>
           <div class="reveal" style="--d:80ms"><strong>TUI</strong><span>终端客户端</span></div>
           <div class="reveal" style="--d:160ms"><strong>Runtime</strong><span>统一能力内核</span></div>
-          <div class="reveal" style="--d:240ms"><strong>Mobile</strong><span>随时连接桌面</span></div>
+          <div class="reveal" style="--d:240ms"><strong>Mobile</strong><span>本机运行或连接桌面</span></div>
         </div>
       </section>
 
@@ -375,54 +382,54 @@
           <p class="eyebrow">移动端 · MOBILE</p>
           <h2 id="mobile-title">Pisper，随身带走。</h2>
           <p>
-            当前移动端可直接接入桌面 Pisper。同一网络更快，出门自动切换，
-            不用折腾公网地址，也不用重新开始会话。
+            手机上可以直接运行受限本机 Runtime，也可以连接桌面 Pisper。
+            在家优先走局域网，离家自动切换 P2P；模式与会话都由手机记住。
           </p>
           <ol class="mobile-points">
             <li>
               <span>01</span>
               <div>
-                <h3>扫码即连</h3>
-                <p>桌面生成二维码，手机一扫即可连接，首次使用不需要手动填写复杂配置。</p>
+                <h3>两种模式，平等选择</h3>
+                <p>首次打开即可选择本机运行或连接桌面，不强制扫码，也不把本机模式藏进设置。</p>
               </div>
             </li>
             <li>
               <span>02</span>
               <div>
-                <h3>自动连接</h3>
-                <p>在家优先直连，离家自动切换；网络变化时不用重新配对。</p>
+                <h3>本机轻量 Runtime</h3>
+                <p>使用 OpenAI 兼容 Provider 流式对话，会话与密钥仅保存在手机，资源占用有明确上限。</p>
               </div>
             </li>
             <li>
               <span>03</span>
               <div>
-                <h3>完整体验</h3>
-                <p>会话、Agent 状态、工具执行与历史记录都能在手机上继续查看和操作。</p>
+                <h3>桌面连接自动选路</h3>
+                <p>扫码配对后优先 LAN，离开局域网自动回退 Iroh P2P，网络变化时无需重新配对。</p>
               </div>
             </li>
             <li>
               <span>04</span>
               <div>
-                <h3>设备可控</h3>
-                <p>每台手机独立管理，不再使用时可以随时从桌面端移除。</p>
+                <h3>导航与密钥都为手机设计</h3>
+                <p>底部主导航一键切页；Provider 密钥由 Android Keystore 或 iOS Keychain 保护。</p>
               </div>
             </li>
           </ol>
           <div class="download-actions mobile-download-actions">
             <a
-              class="button button-primary shiny magnetic"
+              class="button button-android magnetic"
               data-app-download="android"
               href="https://github.com/ling-kong-ran/pisper/releases"
             >
-              Android 已签名 APK<span data-app-version></span> <span aria-hidden="true">↓</span>
+              Android 已签名 APK <span aria-hidden="true">↓</span>
             </a>
             <a
-              class="button button-secondary magnetic"
+              class="button button-ios magnetic"
               data-app-download="ios"
               data-app-asset="pisper-ios-unsigned.ipa"
               href="https://github.com/ling-kong-ran/pisper/releases"
             >
-              iOS 未签名 IPA<span data-app-version></span> <span aria-hidden="true">↓</span>
+              iOS 未签名 IPA <span aria-hidden="true">↓</span>
             </a>
           </div>
           <p class="mobile-download-note">
@@ -469,19 +476,19 @@
               下载最新桌面版 <span aria-hidden="true">↓</span>
             </a>
             <a
-              class="button button-secondary magnetic"
+              class="button button-android magnetic"
               data-app-download="android"
               href="https://github.com/ling-kong-ran/pisper/releases"
             >
-              Android 已签名 APK<span data-app-version aria-hidden="true"></span> <span aria-hidden="true">↓</span>
+              Android 已签名 APK <span aria-hidden="true">↓</span>
             </a>
             <a
-              class="button button-secondary magnetic"
+              class="button button-ios magnetic"
               data-app-download="ios"
               data-app-asset="pisper-ios-unsigned.ipa"
               href="https://github.com/ling-kong-ran/pisper/releases"
             >
-              iOS 未签名 IPA<span data-app-version aria-hidden="true"></span> <span aria-hidden="true">↓</span>
+              iOS 未签名 IPA <span aria-hidden="true">↓</span>
             </a>
           </div>
         </div>

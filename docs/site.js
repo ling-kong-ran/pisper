@@ -517,10 +517,10 @@ if (field) {
   let heroIdx = 0
   let heroActive = true
 
-  // 宽屏时 hero 文案居左,粒子词放到右侧舞台;窄屏居中
+  // 宽屏时把粒子词完整移到右侧舞台，避免与首屏文案和下载按钮重叠；窄屏居中。
   const heroOrigin = () =>
     window.innerWidth >= 1024 && window.innerWidth / window.innerHeight > 1.2
-      ? (window.innerWidth / window.innerHeight) * 0.24
+      ? (window.innerWidth / window.innerHeight) * 0.47
       : 0
 
   const morphHero = () => field.morph(heroWords[heroIdx % heroWords.length], heroOrigin())
@@ -748,8 +748,8 @@ if (!reduceMotion) {
   }
 }
 
-// App 发版工作流维护 latest-app.json；页面只从清单读取当前 Release 和版本，
-// 再按稳定资产名生成直链。加载失败时保留 Releases 列表页的兜底链接。
+// App 发版工作流维护 latest-app.json；页面只从清单读取当前 Release，
+// 再按稳定资产名生成直链。页面不展示版本号，加载失败时保留 Releases 列表页兜底。
 function appReleaseAssetUrl(releaseUrl, assetName) {
   const fileName = String(assetName || '').trim()
   if (!fileName || fileName.includes('/') || fileName.includes('\\')) return releaseUrl
@@ -773,9 +773,6 @@ fetch('latest-app.json', { cache: 'no-store' })
       const platform = link.dataset.appDownload
       const assetName = assets[platform] || link.dataset.appAsset
       link.href = appReleaseAssetUrl(releaseUrl, assetName)
-      const label = link.querySelector('[data-app-version]')
-      const version = String(manifest.version || '').replace(/^v/i, '')
-      if (label && version) label.textContent = ` v${version}`
     }
     for (const link of document.querySelectorAll('[data-app-release]')) link.href = releaseUrl
   })

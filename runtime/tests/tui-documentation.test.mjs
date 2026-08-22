@@ -1,16 +1,14 @@
 import assert from 'node:assert/strict'
-import { access, readFile } from 'node:fs/promises'
+import { readFile } from 'node:fs/promises'
 import test from 'node:test'
 
 const commandPattern = /command\(\s*"([^"]+)"/g
 
-test('TUI guides cover every built-in Slash command and the current screenshots', async () => {
+test('TUI command references cover every built-in Slash command without product-guide content', async () => {
   const [source, chinese, english] = await Promise.all([
     readFile('src-tui/src/app.rs', 'utf8'),
     readFile('src-tui/README.md', 'utf8'),
     readFile('src-tui/README.en.md', 'utf8'),
-    access('docs/shots/cli.png'),
-    access('docs/shots/cli-chat.png'),
   ])
   const commands = [...source.matchAll(commandPattern)].map((match) => match[1])
 
@@ -22,9 +20,12 @@ test('TUI guides cover every built-in Slash command and the current screenshots'
   assert.match(chinese, /\[项目主页\]\(https:\/\/ling-kong-ran\.github\.io\/pisper\/\)/)
   assert.match(english, /\[Project home\]\(https:\/\/ling-kong-ran\.github\.io\/pisper\/\)/)
   for (const guide of [chinese, english]) {
-    assert.match(guide, /https:\/\/ling-kong-ran\.github\.io\/pisper\/shots\/cli\.png/)
-    assert.match(guide, /https:\/\/ling-kong-ran\.github\.io\/pisper\/shots\/cli-chat\.png/)
     assert.match(guide, /https:\/\/github\.com\/ling-kong-ran\/pisper/)
+    assert.match(guide, /\| `pisper resume`/)
+    assert.match(guide, /\| `pisper doctor`/)
+    assert.match(guide, /\| `pisper web`/)
+    assert.doesNotMatch(guide, /!\[/)
+    assert.doesNotMatch(guide, /npm install -g pisper/)
   }
 })
 
@@ -48,14 +49,14 @@ test('npm, Provider setup, and optional Web onboarding stay documented', async (
   ])
 
   for (const guide of [chineseTuiGuide, englishTuiGuide]) {
-    assert.match(guide, /npm install -g pisper/)
+    assert.doesNotMatch(guide, /npm install -g pisper/)
     assert.match(guide, /pisper web/)
     assert.match(guide, /\/provider/)
   }
   for (const readme of [chineseReadme, englishReadme]) {
     assert.match(readme, /https:\/\/ling-kong-ran\.github\.io\/pisper\//)
     // 根 README 改为自带三分钟上手(转化导向):必须包含 npm 入口,
-    // 同时仍链接 TUI 指南作为命令/快捷键的权威文档。
+    // 同时仍链接 TUI 命令参考作为 CLI 与 Slash command 的权威文档。
     assert.match(readme, /npm (?:i|install) -g pisper/)
     assert.match(readme, /src-tui\/README/)
   }
@@ -78,15 +79,11 @@ test('npm, Provider setup, and optional Web onboarding stay documented', async (
 })
 
 test('desktop CLI management lives under App updates', async () => {
-  const [configPage, updateSettings, chineseGuide, englishGuide] = await Promise.all([
+  const [configPage, updateSettings] = await Promise.all([
     readFile('src/features/config/ConfigPage.tsx', 'utf8'),
     readFile('src/features/config/UpdateSettings.tsx', 'utf8'),
-    readFile('src-tui/README.md', 'utf8'),
-    readFile('src-tui/README.en.md', 'utf8'),
   ])
 
   assert.doesNotMatch(configPage, /section === 'terminal'/)
   assert.match(updateSettings, /<CliSettings notify=\{notify\}/)
-  assert.match(chineseGuide, /设置 → 应用更新/)
-  assert.match(englishGuide, /Settings → App updates/)
 })
