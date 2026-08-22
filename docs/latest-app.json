@@ -1,9 +1,9 @@
 {
-  "version": "0.1.2",
-  "tag": "app-v0.1.2",
-  "url": "https://github.com/ling-kong-ran/pisper/releases/tag/app-v0.1.2",
+  "version": "0.1.3",
+  "tag": "app-v0.1.3",
+  "url": "https://github.com/ling-kong-ran/pisper/releases/tag/app-v0.1.3",
   "apk": "app-universal-release-signed.apk",
   "ipa": "pisper-ios-unsigned.ipa",
-  "notes": "- feat(remote): add Iroh access and mobile App updates\n- fix(app): 发布后显式刷新首页下载清单",
-  "releaseDate": "2026-08-21"
+  "notes": "- fix(mobile): 连接页不再自动弹回远程 UI，本机入口补记模式记忆\n- feat(mobile): M2 密钥安全存储、模式记忆与连接页重构\n- feat(mobile): add on-device constrained runtime with OpenAI-compatible chat",
+  "releaseDate": "2026-08-22"
 }
