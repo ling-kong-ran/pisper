@@ -69,7 +69,7 @@
 
 Pisper uses [Pi Coding Agent](https://github.com/earendil-works/pi/tree/main/packages/coding-agent) as its underlying Agent Runtime. Starting from Pi's model integration and tool execution foundation, Pisper adds focused product and runtime optimizations for sustained multi-agent work:
 
-- **Runtime and session orchestration**: independent sessions, parallel execution, Turn branching, working directories, and permission policies become one durable multi-agent workspace.
+- **Runtime and session orchestration**: independent sessions, parallel execution, Turn branching, working directories, and permission policies become one durable multi-agent system.
 - **Context and performance**: hot/cold tool tiers, discover/call loading, stable tool definitions, and prompt-shape diagnostics reduce context pressure and improve provider prompt-cache hit rates.
 - **A complete product layer**: Desktop, the Ratatui TUI, and mobile experiences share one Runtime, extended with workflows, schedules, memory, MCP, skills, plugins, and bidirectional channels.
 
