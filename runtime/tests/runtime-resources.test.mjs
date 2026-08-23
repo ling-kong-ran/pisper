@@ -53,6 +53,86 @@ test('blank chat sessions stay lightweight until an Agent is first required', as
   assert.equal(activated.created, created.created)
 })
 
+test('pending session model settings stay lightweight until the first prompt', async (t) => {
+  const directory = await mkdtemp(join(tmpdir(), 'pisper-pending-session-model-'))
+  t.after(() => rm(directory, { recursive: true, force: true }))
+  const runtime = new AgentRuntimeService({ cwd: directory, dataDir: directory })
+  runtime.settingsManager = {
+    getGlobalSettings: () => ({
+      defaultProvider: 'openai',
+      defaultModel: 'gpt-default',
+      defaultThinkingLevel: 'medium',
+    }),
+  }
+  runtime.providerPreferences.resolveSessionModel = async (provider, modelId) => ({
+    provider,
+    id: modelId,
+    reasoning: true,
+    thinkingLevelMap: {
+      off: null,
+      minimal: null,
+      low: null,
+      medium: null,
+      high: null,
+      max: 'max',
+    },
+  })
+  let metadataSaves = 0
+  runtime.saveSessionMeta = async () => {
+    metadataSaves += 1
+  }
+  runtime.listStoredSessions = async () => []
+  let runtimeCreations = 0
+  let activatedBranch = []
+  runtime.createSessionRuntime = async (manager, name) => {
+    runtimeCreations += 1
+    activatedBranch = manager.getBranch()
+    return {
+      manager,
+      name,
+      session: {
+        sessionId: manager.getSessionId(),
+        messages: [],
+        sessionFile: manager.getSessionFile(),
+      },
+      cwd: directory,
+      created: new Date().toISOString(),
+      modified: new Date().toISOString(),
+    }
+  }
+
+  const created = await runtime.createSession('Pending configured chat', directory)
+  const model = await runtime.setSessionModel(created.id, 'kimi-coding', 'k3')
+  const thinking = await runtime.setSessionThinkingLevel(created.id, 'max')
+
+  assert.equal(runtimeCreations, 0)
+  assert.equal(runtime.pendingSessions.has(created.id), true)
+  assert.equal(model.model, 'kimi-coding/k3')
+  assert.equal(model.thinkingLevel, 'max')
+  assert.equal(thinking.thinkingLevel, 'max')
+  assert.deepEqual(thinking.availableLevels, ['max'])
+  assert.equal(runtime.sessionMeta[created.id].model, 'kimi-coding/k3')
+  assert.equal(runtime.sessionMeta[created.id].thinkingLevel, 'max')
+  assert.equal(metadataSaves, 3)
+  const [listed] = await runtime.listSessions()
+  assert.equal(listed.model, 'kimi-coding/k3')
+  assert.equal(listed.thinkingLevel, 'max')
+
+  await runtime.getOrCreateSession(created.id)
+
+  assert.equal(runtimeCreations, 1)
+  assert.ok(
+    activatedBranch.some(
+      (entry) =>
+        entry.type === 'model_change' && entry.provider === 'kimi-coding' && entry.modelId === 'k3',
+    ),
+  )
+  assert.equal(
+    activatedBranch.filter((entry) => entry.type === 'thinking_level_change').at(-1)?.thinkingLevel,
+    'max',
+  )
+})
+
 test('resource loading keeps external Pi Extensions disabled while retaining Pisper inline hooks', async (t) => {
   const directory = await mkdtemp(join(tmpdir(), 'pisper-disabled-extensions-'))
   const markerPath = join(directory, 'external-extension-loaded.txt')

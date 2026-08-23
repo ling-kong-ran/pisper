@@ -231,6 +231,28 @@ export function clampThinkingLevelToAvailable(availableLevels, requested) {
   return levels[0]
 }
 
+// 未创建 AgentSession 时直接从模型元数据推导可用思考等级，避免为配置查询装配完整会话。
+export function modelThinkingState(model, requested) {
+  const availableLevels = model?.reasoning
+    ? EXTENDED_THINKING_LEVELS.filter((level) => {
+        const mapped = model.thinkingLevelMap?.[level]
+        if (mapped === null) return false
+        if (level === 'xhigh' || level === 'max') return mapped !== undefined
+        return true
+      })
+    : ['off']
+  const thinkingLevel = clampThinkingLevelToAvailable(availableLevels, requested)
+  return {
+    thinkingLevel,
+    availableLevels,
+    status: availableLevels.length ? 'supported' : 'unsupported',
+    message: availableLevels.length
+      ? ''
+      : 'The current model does not expose configurable thinking levels.',
+    model: model ? `${model.provider}/${model.id}` : '',
+  }
+}
+
 // 对齐会话思考等级：当前等级不在可用列表时收敛并写回会话。
 export function reconcileSessionThinkingLevel(session) {
   const availableLevels = session.getAvailableThinkingLevels()
@@ -363,22 +385,30 @@ export class ProviderPreferences {
     this.invalidateProjection('', { allUsage: true })
   }
 
+  // 解析并校验会话模型；调用方可在不创建 AgentSession 的情况下复用这条轻量路径。
+  async resolveSessionModel(provider, modelId, { requireEnabled = true } = {}) {
+    if (requireEnabled) {
+      const appConfig = await readJson(this.appConfigPath, {
+        toolMode: 'full',
+        disabledProviders: [],
+      })
+      if ((appConfig.disabledProviders || []).includes(String(provider || ''))) {
+        throw new Error('该 Provider 当前未启用。')
+      }
+    }
+    await this.modelMetadata.ensure(modelId)
+    const model = this.getModelRuntime().getModel(String(provider || ''), String(modelId || ''))
+    if (!model) throw new Error('指定的模型不存在。')
+    return model
+  }
+
   // 切换会话模型：校验运行状态/停用 Provider，切换后重对齐思考等级与系统提示。
   async setSessionModel(id, provider, modelId) {
     const value = await this.getSession(id)
     if (this.isSessionRunActive?.(id, value) ?? value.session.isStreaming) {
       throw new Error('当前会话正在运行，请完成或停止后再切换模型。')
     }
-    const appConfig = await readJson(this.appConfigPath, {
-      toolMode: 'full',
-      disabledProviders: [],
-    })
-    if ((appConfig.disabledProviders || []).includes(String(provider || ''))) {
-      throw new Error('该 Provider 当前未启用。')
-    }
-    await this.modelMetadata.ensure(modelId)
-    const model = this.getModelRuntime().getModel(String(provider || ''), String(modelId || ''))
-    if (!model) throw new Error('指定的模型不存在。')
+    const model = await this.resolveSessionModel(provider, modelId)
     const settingsManager = this.getSettingsManager()
     const settings = settingsManager.getGlobalSettings()
     const defaultProvider = settings.defaultProvider

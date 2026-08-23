@@ -1,7 +1,57 @@
 import { normalizeExecutionMode } from '../security/execution-mode.mjs'
 import { PERMISSION_MODES } from '../services/session-permission-service.mjs'
+import { modelThinkingState } from './provider-preferences.mjs'
 import { finishedCompaction, queuedSessionInputs, startedCompaction } from './stream-projection.mjs'
 import { listWorkspaceDirectories, listWorkspaceEntries } from './workspace-directories.mjs'
+
+function configuredSessionModel(manager, metadata = {}, settings = {}) {
+  let selected = null
+  for (const entry of manager?.getBranch?.() || []) {
+    if (entry?.type === 'model_change' && entry.provider && entry.modelId) {
+      selected = { provider: entry.provider, modelId: entry.modelId }
+      continue
+    }
+    if (
+      entry?.type === 'message' &&
+      entry.message?.role === 'assistant' &&
+      entry.message?.provider &&
+      entry.message?.model
+    ) {
+      selected = { provider: entry.message.provider, modelId: entry.message.model }
+    }
+  }
+  if (selected) return selected
+  const raw = String(metadata.model || '')
+  const slash = raw.indexOf('/')
+  if (slash > 0 && slash < raw.length - 1) {
+    return { provider: raw.slice(0, slash), modelId: raw.slice(slash + 1) }
+  }
+  if (settings.defaultProvider && settings.defaultModel) {
+    return { provider: settings.defaultProvider, modelId: settings.defaultModel }
+  }
+  return null
+}
+
+function configuredSessionThinkingLevel(manager, metadata = {}, settings = {}) {
+  let selected = ''
+  for (const entry of manager?.getBranch?.() || []) {
+    if (entry?.type === 'thinking_level_change' && entry.thinkingLevel) {
+      selected = String(entry.thinkingLevel)
+    }
+  }
+  return selected || metadata.thinkingLevel || settings.defaultThinkingLevel || 'medium'
+}
+
+async function nonResidentSession(runtime, id) {
+  const pending = runtime.pendingSessions.get(id)
+  if (pending) return { manager: pending.manager, pending }
+  const info = await runtime.findSessionInfo(id)
+  return info ? { manager: runtime.openStoredSession(info.path), pending: null } : null
+}
+
+function supportsLightweightSessionConfiguration(runtime) {
+  return runtime.sessions instanceof Map && runtime.pendingSessions instanceof Map
+}
 
 export const agentSessionMethods = {
   async listSessions() {
@@ -125,23 +175,120 @@ export const agentSessionMethods = {
   },
 
   async setSessionModel(id, provider, modelId) {
-    const result = await this.providerPreferences.setSessionModel(id, provider, modelId)
-    if (result?.model) {
-      this.sessionMeta[id] = {
-        ...(this.sessionMeta[id] || {}),
-        model: result.model,
+    if (!supportsLightweightSessionConfiguration(this) || this.sessions.has(id)) {
+      const result = await this.providerPreferences.setSessionModel(id, provider, modelId)
+      if (result?.model) {
+        this.sessionMeta[id] = {
+          ...(this.sessionMeta[id] || {}),
+          model: result.model,
+          ...(result.thinkingLevel ? { thinkingLevel: result.thinkingLevel } : {}),
+        }
+        await this.saveSessionMeta()
       }
-      await this.saveSessionMeta()
+      return result
     }
-    return result
+
+    const target = await nonResidentSession(this, id)
+    if (!target) return null
+    const model = await this.providerPreferences.resolveSessionModel(provider, modelId)
+    const settings = this.settingsManager.getGlobalSettings()
+    const currentThinkingLevel = configuredSessionThinkingLevel(
+      target.manager,
+      this.sessionMeta[id],
+      settings,
+    )
+    const thinking = modelThinkingState(model, currentThinkingLevel)
+    target.manager.appendModelChange(model.provider, model.id)
+    if (thinking.thinkingLevel !== currentThinkingLevel) {
+      target.manager.appendThinkingLevelChange(thinking.thinkingLevel)
+    }
+    const modified = new Date().toISOString()
+    if (target.pending) target.pending.modified = modified
+    this.sessionLifecycle.touchStoredSession(id, modified)
+    this.sessionMeta[id] = {
+      ...(this.sessionMeta[id] || {}),
+      model: `${model.provider}/${model.id}`,
+      thinkingLevel: thinking.thinkingLevel,
+    }
+    await this.saveSessionMeta()
+    this.streamProjection.invalidate(id)
+    return {
+      id,
+      model: `${model.provider}/${model.id}`,
+      provider: model.provider,
+      modelId: model.id,
+      thinkingLevel: thinking.thinkingLevel,
+      availableThinkingLevels: thinking.availableLevels,
+      thinkingStatus: thinking.status,
+      thinkingMessage: thinking.message,
+      contextUsage: null,
+    }
   },
 
   async getSessionThinkingState(id) {
-    return this.providerPreferences.getSessionThinkingState(id)
+    if (!supportsLightweightSessionConfiguration(this) || this.sessions.has(id)) {
+      return this.providerPreferences.getSessionThinkingState(id)
+    }
+    const target = await nonResidentSession(this, id)
+    if (!target) return null
+    const settings = this.settingsManager.getGlobalSettings()
+    const selected = configuredSessionModel(target.manager, this.sessionMeta[id], settings)
+    if (!selected) throw new Error('当前会话没有可用模型。')
+    const model = await this.providerPreferences.resolveSessionModel(
+      selected.provider,
+      selected.modelId,
+      { requireEnabled: false },
+    )
+    return {
+      id,
+      ...modelThinkingState(
+        model,
+        configuredSessionThinkingLevel(target.manager, this.sessionMeta[id], settings),
+      ),
+    }
   },
 
   async setSessionThinkingLevel(id, level) {
-    return this.providerPreferences.setSessionThinkingLevel(id, level)
+    if (!supportsLightweightSessionConfiguration(this) || this.sessions.has(id)) {
+      const result = await this.providerPreferences.setSessionThinkingLevel(id, level)
+      if (result?.thinkingLevel && this.sessionMeta && this.saveSessionMeta) {
+        this.sessionMeta[id] = {
+          ...(this.sessionMeta[id] || {}),
+          thinkingLevel: result.thinkingLevel,
+        }
+        await this.saveSessionMeta()
+      }
+      return result
+    }
+
+    const target = await nonResidentSession(this, id)
+    if (!target) return null
+    const settings = this.settingsManager.getGlobalSettings()
+    const selected = configuredSessionModel(target.manager, this.sessionMeta[id], settings)
+    if (!selected) throw new Error('当前会话没有可用模型。')
+    const model = await this.providerPreferences.resolveSessionModel(
+      selected.provider,
+      selected.modelId,
+      { requireEnabled: false },
+    )
+    const requested = String(level || '')
+    const thinking = modelThinkingState(model, requested)
+    if (!thinking.availableLevels.includes(requested)) {
+      throw new Error('当前模型不支持该思考等级。')
+    }
+    const currentThinkingLevel = configuredSessionThinkingLevel(
+      target.manager,
+      this.sessionMeta[id],
+      settings,
+    )
+    if (requested !== currentThinkingLevel) target.manager.appendThinkingLevelChange(requested)
+    const modified = new Date().toISOString()
+    if (target.pending) target.pending.modified = modified
+    this.sessionLifecycle.touchStoredSession(id, modified)
+    this.sessionMeta[id] = { ...(this.sessionMeta[id] || {}), thinkingLevel: requested }
+    await this.saveSessionMeta()
+    this.streamProjection.invalidate(id, { transcript: false, activity: true, usage: true })
+    return { id, ...thinking }
   },
 
   async setSessionPermission(id, mode) {

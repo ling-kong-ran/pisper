@@ -160,21 +160,22 @@ export const sessionRuntimeRoutes = [
     path: '/api/sessions/:sessionId/model',
     async handler({ runtime, params, body, json }) {
       const input = await body()
-      json(
-        200,
-        await runtime.setSessionModel(
-          params.sessionId,
-          String(input.provider || ''),
-          String(input.model || ''),
-        ),
+      const updated = await runtime.setSessionModel(
+        params.sessionId,
+        String(input.provider || ''),
+        String(input.model || ''),
       )
+      if (!updated) json(404, { error: '会话不存在。' })
+      else json(200, updated)
     },
   },
   {
     method: 'GET',
     path: '/api/sessions/:sessionId/thinking-level',
     async handler({ runtime, params, json }) {
-      json(200, await runtime.getSessionThinkingState(params.sessionId))
+      const state = await runtime.getSessionThinkingState(params.sessionId)
+      if (!state) json(404, { error: '会话不存在。' })
+      else json(200, state)
     },
   },
   {
@@ -182,7 +183,12 @@ export const sessionRuntimeRoutes = [
     path: '/api/sessions/:sessionId/thinking-level',
     async handler({ runtime, params, body, json }) {
       const input = await body()
-      json(200, await runtime.setSessionThinkingLevel(params.sessionId, String(input.level || '')))
+      const updated = await runtime.setSessionThinkingLevel(
+        params.sessionId,
+        String(input.level || ''),
+      )
+      if (!updated) json(404, { error: '会话不存在。' })
+      else json(200, updated)
     },
   },
   {
