@@ -25,6 +25,7 @@ const APP_EXCLUSIVE_PREFIXES = [
   'scripts/smoke-mobile-node-ios.sh',
   'scripts/stage-mobile-node-android.mjs',
   'scripts/sync-mobile-icons.mjs',
+  'scripts/verify-tauri-signature.mjs',
   'scripts/app-paths.mjs',
   'scripts/prepare-app-release.mjs',
   '.github/workflows/release-app.yml',

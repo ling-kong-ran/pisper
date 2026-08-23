@@ -183,13 +183,12 @@ jobs:
           set -Eeuo pipefail
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends minisign
-          node -e "require('node:fs').writeFileSync('/tmp/pisper.pub', Buffer.from(require('node:fs').readFileSync('src-tauri/updater.pubkey', 'utf8').trim(), 'base64'))"
-          minisign -Vm embedded-runtime/pisper-embedded-runtime.tar.gz \
-            -x embedded-runtime/pisper-embedded-runtime.tar.gz.minisig \
-            -p /tmp/pisper.pub
-          minisign -Vm root-runtime/pisper-root-runtime-android-arm64.tar.gz \
-            -x root-runtime/pisper-root-runtime-android-arm64.tar.gz.minisig \
-            -p /tmp/pisper.pub
+          node scripts/verify-tauri-signature.mjs \
+            embedded-runtime/pisper-embedded-runtime.tar.gz \
+            embedded-runtime/pisper-embedded-runtime.tar.gz.minisig
+          node scripts/verify-tauri-signature.mjs \
+            root-runtime/pisper-root-runtime-android-arm64.tar.gz \
+            root-runtime/pisper-root-runtime-android-arm64.tar.gz.minisig
           mkdir -p src-tauri/gen/android/app/src/main/assets
           cp embedded-runtime/pisper-embedded-runtime.tar.gz \
             src-tauri/gen/android/app/src/main/assets/pisper-embedded-runtime.tgz
@@ -277,10 +276,9 @@ jobs:
           npx tauri signer sign release/pisper-node-mobile-ios.tar.gz
           mv release/pisper-node-mobile-ios.tar.gz.sig \
             release/pisper-node-mobile-ios.tar.gz.minisig
-          node -e "require('node:fs').writeFileSync('/tmp/pisper.pub', Buffer.from(require('node:fs').readFileSync('src-tauri/updater.pubkey', 'utf8').trim(), 'base64'))"
-          minisign -Vm release/pisper-node-mobile-ios.tar.gz \
-            -x release/pisper-node-mobile-ios.tar.gz.minisig \
-            -p /tmp/pisper.pub
+          node scripts/verify-tauri-signature.mjs \
+            release/pisper-node-mobile-ios.tar.gz \
+            release/pisper-node-mobile-ios.tar.gz.minisig
           rm -rf release/mobile-node-ios
           mkdir -p release/mobile-node-ios
           tar -xzf release/pisper-node-mobile-ios.tar.gz -C release/mobile-node-ios
@@ -292,10 +290,9 @@ jobs:
       - name: Verify shared embedded Runtime
         run: |
           set -Eeuo pipefail
-          node -e "require('node:fs').writeFileSync('/tmp/pisper.pub', Buffer.from(require('node:fs').readFileSync('src-tauri/updater.pubkey', 'utf8').trim(), 'base64'))"
-          minisign -Vm embedded-runtime/pisper-embedded-runtime.tar.gz \
-            -x embedded-runtime/pisper-embedded-runtime.tar.gz.minisig \
-            -p /tmp/pisper.pub
+          node scripts/verify-tauri-signature.mjs \
+            embedded-runtime/pisper-embedded-runtime.tar.gz \
+            embedded-runtime/pisper-embedded-runtime.tar.gz.minisig
           cp embedded-runtime/pisper-embedded-runtime.tar.gz release/pisper-embedded-runtime.tar.gz
       - name: Smoke embedded Pisper Runtime in iOS Simulator
         run: |

@@ -52,6 +52,7 @@ test('共享产品路径同时归 App 与原组件发布通道', () => {
   assert.equal(isAppExclusivePath('src-tauri/Info.ios.plist'), true)
   assert.equal(isAppExclusivePath('scripts/stage-mobile-node-android.mjs'), true)
   assert.equal(isAppExclusivePath('scripts/smoke-mobile-node-ios.sh'), true)
+  assert.equal(isAppExclusivePath('scripts/verify-tauri-signature.mjs'), true)
 })
 
 test('平台初始化流程不会保留 Tauri 模板图标', async () => {
@@ -329,4 +330,6 @@ test('App 发布必须签名并校验共享 Runtime 与平台产物', async () =
   assert.match(workflow, /pisper-root-runtime-android-arm64\.tgz/)
   assert.match(workflow, /needs\['embedded-runtime'\]\.result == 'success'/)
   assert.match(workflow, /needs\['root-runtime'\]\.result == 'success'/)
+  assert.equal(workflow.match(/node scripts\/verify-tauri-signature\.mjs/g)?.length, 4)
+  assert.doesNotMatch(workflow, /minisign -Vm/)
 })
