@@ -1,9 +1,9 @@
 {
-  "version": "0.1.3",
-  "tag": "app-v0.1.3",
-  "url": "https://github.com/ling-kong-ran/pisper/releases/tag/app-v0.1.3",
+  "version": "0.1.4",
+  "tag": "app-v0.1.4",
+  "url": "https://github.com/ling-kong-ran/pisper/releases/tag/app-v0.1.4",
   "apk": "app-universal-release-signed.apk",
   "ipa": "pisper-ios-unsigned.ipa",
-  "notes": "- fix(mobile): 连接页不再自动弹回远程 UI，本机入口补记模式记忆\n- feat(mobile): M2 密钥安全存储、模式记忆与连接页重构\n- feat(mobile): add on-device constrained runtime with OpenAI-compatible chat",
-  "releaseDate": "2026-08-22"
+  "notes": "- fix(mobile): load iOS Node framework at runtime\n- fix(release): link NodeMobile into iOS Rust library\n- fix(release): replace desktop resources in iOS build\n- fix(mobile): smoke iOS runtime after UIKit startup\n- fix(release): run iOS smoke script through bash\n- fix(release): invoke iOS smoke setup with bash\n- perf(mobile): reuse verified iOS Node framework\n- fix(release): decode Tauri signatures before verification\n- fix(mobile): provision root runtime with host devices\n- chore(release-runtime): runtime-v0.5.13\n- fix(release): restore SEA manifest validation import\n- feat(release): include mobile app in automatic releases\n- feat(mobile): ship the unified Node runtime\n- feat(mobile): add persistent app and settings navigation",
+  "releaseDate": "2026-08-23"
 }
