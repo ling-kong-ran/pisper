@@ -464,31 +464,34 @@ export function useChatDock({
       panel,
     }: GetTabContextMenuItemsParams): Array<
       BuiltInContextMenuItem | ReactContextMenuItemConfig
-    > => [
-      {
-        label: t('chat:chatPage.splitToLeft'),
-        action: () => splitDockPanel(panel.id, 'left'),
-        disabled: compactDock || panel.group.size <= 1,
-      },
-      {
-        label: t('chat:chatPage.splitToRight'),
-        action: () => splitDockPanel(panel.id, 'right'),
-        disabled: compactDock || panel.group.size <= 1,
-      },
-      {
-        label: t('chat:chatPage.splitToTop'),
-        action: () => splitDockPanel(panel.id, 'above'),
-        disabled: compactDock || panel.group.size <= 1,
-      },
-      {
-        label: t('chat:chatPage.splitToBottom'),
-        action: () => splitDockPanel(panel.id, 'below'),
-        disabled: compactDock || panel.group.size <= 1,
-      },
-      'separator',
-      'close',
-    ],
-    [compactDock, splitDockPanel, t],
+    > => {
+      const closeItem: ReactContextMenuItemConfig = {
+        label: t('chat:focusSession.closeTab'),
+        action: () => closeDockPanel(panel.id),
+      }
+      if (compactDock || panel.group.size <= 1) return [closeItem]
+      return [
+        {
+          label: t('chat:chatPage.splitToLeft'),
+          action: () => splitDockPanel(panel.id, 'left'),
+        },
+        {
+          label: t('chat:chatPage.splitToRight'),
+          action: () => splitDockPanel(panel.id, 'right'),
+        },
+        {
+          label: t('chat:chatPage.splitToTop'),
+          action: () => splitDockPanel(panel.id, 'above'),
+        },
+        {
+          label: t('chat:chatPage.splitToBottom'),
+          action: () => splitDockPanel(panel.id, 'below'),
+        },
+        'separator',
+        closeItem,
+      ]
+    },
+    [closeDockPanel, compactDock, splitDockPanel, t],
   )
 
   return {

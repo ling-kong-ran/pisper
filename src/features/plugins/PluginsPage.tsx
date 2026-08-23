@@ -38,6 +38,8 @@ import {
 import { useI18n } from '@/app/use-i18n'
 import { apiJson } from '@/lib/api'
 import { usePagePrimaryAction } from '@/hooks/usePagePrimaryAction'
+import { useRuntimeCapabilitiesStore } from '@/stores/runtime-capabilities-store'
+import { runtimeFeatureAvailable } from '@/types/runtime-capabilities'
 import { PluginInstallDialog } from '@/features/plugins/PluginInstallDialog'
 import {
   isHighRisk,
@@ -209,6 +211,9 @@ export function PluginsPage({
   onStatusChange,
 }: PluginsPageProps) {
   const { t } = useI18n()
+  const capabilities = useRuntimeCapabilitiesStore((state) => state.capabilities)
+  const customPluginsAvailable = runtimeFeatureAvailable(capabilities, 'plugins')
+  const sourceFilters = customPluginsAvailable ? SOURCE_FILTERS : SOURCE_FILTERS.slice(0, 2)
   const [data, setData] = useState<PluginsData | null>(null)
   const [draft, setDraft] = useState<InstalledPlugin[]>([])
   const [expandedName, setExpandedName] = useState('')
@@ -409,11 +414,11 @@ export function PluginsPage({
     <div className="plugins-page flex min-h-[100%] flex-col gap-[12px] max-[900px]:h-auto h-full min-h-0 overflow-y-auto [scrollbar-gutter:stable]">
       <div className="plugin-toolbar max-[650px]:items-stretch max-[650px]:flex-col flex items-center justify-between gap-[12px]">
         <Segmented
-          options={SOURCE_FILTERS.map((source) => sourceLabel(source, t))}
+          options={sourceFilters.map((source) => sourceLabel(source, t))}
           value={sourceLabel(sourceFilter, t)}
           onChange={(label) =>
             setSourceFilter(
-              SOURCE_FILTERS.find((source) => sourceLabel(source, t) === label) || 'all',
+              sourceFilters.find((source) => sourceLabel(source, t) === label) || 'all',
             )
           }
         />
@@ -431,16 +436,18 @@ export function PluginsPage({
               </button>
             ))}
           </div>
-          <Button
-            type="button"
-            variant="outline"
-            size="lg"
-            className="bg-surface-subtle"
-            onClick={() => requireSavedPluginState() && setInstallOpen(true)}
-          >
-            <PackagePlus size={15} />
-            {t('plugins:pluginsPage.installPlugin')}
-          </Button>
+          {customPluginsAvailable && (
+            <Button
+              type="button"
+              variant="outline"
+              size="lg"
+              className="bg-surface-subtle"
+              onClick={() => requireSavedPluginState() && setInstallOpen(true)}
+            >
+              <PackagePlus size={15} />
+              {t('plugins:pluginsPage.installPlugin')}
+            </Button>
+          )}
         </div>
       </div>
 
@@ -580,7 +587,9 @@ export function PluginsPage({
         </div>
       )}
 
-      <PluginInstallDialog open={installOpen} onOpenChange={setInstallOpen} onInstalled={load} />
+      {customPluginsAvailable && (
+        <PluginInstallDialog open={installOpen} onOpenChange={setInstallOpen} onInstalled={load} />
+      )}
       <AlertDialog
         open={Boolean(removeTarget)}
         onOpenChange={(open) => !open && !removing && setRemoveTarget(null)}

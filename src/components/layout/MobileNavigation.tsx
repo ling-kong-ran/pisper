@@ -11,6 +11,7 @@ import {
 } from '@/app/settings-navigation'
 import { useI18n } from '@/app/use-i18n'
 import { cn } from '@/lib/utils'
+import { useRuntimeCapabilitiesStore } from '@/stores/runtime-capabilities-store'
 
 type MobilePrimaryNavigationProps = {
   page: string
@@ -19,7 +20,11 @@ type MobilePrimaryNavigationProps = {
 
 export function MobilePrimaryNavigation({ page, onNavigate }: MobilePrimaryNavigationProps) {
   const { t } = useI18n()
-  const items = useMemo(() => getNavigation(t).flatMap(([, groupItems]) => groupItems), [t])
+  const capabilities = useRuntimeCapabilitiesStore((state) => state.capabilities)
+  const items = useMemo(
+    () => getNavigation(t, capabilities).flatMap(([, groupItems]) => groupItems),
+    [capabilities, t],
+  )
   const activePage =
     page === 'chatHistory' ? 'chat' : page === 'workflowCreate' ? 'workflows' : page
 
@@ -89,14 +94,15 @@ export function MobileSettingsNavigation({
   const { t } = useI18n()
   const activeKey = settingsNavigationKey(page, configSection)
   const activeItemRef = useRef<HTMLButtonElement | null>(null)
+  const capabilities = useRuntimeCapabilitiesStore((state) => state.capabilities)
   const items = useMemo(
     () =>
-      getSettingsNavigation(t, { mobileApp: true })
+      getSettingsNavigation(t, { mobileApp: true, capabilities })
         .flatMap((group) => group.items)
         .filter(
           (item) => item.destination.type !== 'config' || item.destination.id !== 'desktop-pet',
         ),
-    [t],
+    [capabilities, t],
   )
 
   useEffect(() => {

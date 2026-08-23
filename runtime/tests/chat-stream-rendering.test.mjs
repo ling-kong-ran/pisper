@@ -268,7 +268,11 @@ test('shared plan board opens from the composer progress metric', async () => {
   assert.match(board, /open=\{expanded\}/)
   assert.match(board, /onToggle=\{\(event\) => setExpanded\(event\.currentTarget\.open\)\}/)
   assert.match(board, /data-pisper-plan-current/)
-  assert.match(session, /<SessionUsageMetrics usage=\{sessionUsage\} plan=\{plan\} \/>/)
+  assert.match(
+    session,
+    /<SessionUsageMetrics usage=\{sessionUsage\} plan=\{plansAvailable \? plan : null\} \/>/,
+  )
+  assert.match(session, /runtimeFeatureAvailable\(capabilities, 'plans'\)/)
   assert.doesNotMatch(session, /PlanBoard|plan-board-dock/)
   assert.doesNotMatch(transcript, /PlanBoard|plan=\{plan\}/)
   assert.match(controls, /<PopoverTrigger asChild>/)

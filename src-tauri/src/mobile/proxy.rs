@@ -173,7 +173,7 @@ async fn forward(
     let Some(profile) = proxy.active_profile() else {
         return Ok(text_response(
             StatusCode::BAD_GATEWAY,
-            "尚未配对桌面端，请先在连接页完成配对。",
+            "尚未配对桌面端，请先在设置 -> 服务器中完成配对。",
         ));
     };
     let upstream = match proxy.resolve_upstream(&profile).await {

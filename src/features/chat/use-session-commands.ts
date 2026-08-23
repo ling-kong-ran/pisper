@@ -226,6 +226,7 @@ export function useSessionCommands({
             title: t('chat:chatPage.compactAfterModelSwitch'),
             message: t('chat:chatPage.compactAfterModelSwitchDescription'),
             confirmLabel: t('chat:chatPage.compactNow'),
+            tone: 'primary',
           })
           if (confirmed) await compactSession(sessionId)
         }

@@ -1,4 +1,6 @@
 import assert from 'node:assert/strict'
+import { readFile, readdir } from 'node:fs/promises'
+import { join } from 'node:path'
 import test from 'node:test'
 import { i18n, translateText } from '../../src/app/i18n.ts'
 
@@ -17,6 +19,10 @@ test('English interface translations resolve static and interpolated messages', 
     'Found 2 importable provider(s) in local Codex/Claude configs. Open settings to review?',
   )
   assert.equal(
+    translateText('common:workspacePicker.selectWorkspaceForChat', 'en-US', { name: 'Review' }),
+    'Select the working directory for “Review”',
+  )
+  assert.equal(
     translateText('chat:agentRunActivity.contextCompactedBeforeAfterTokens', 'en-US', {
       before: '92K',
       after: '18.5K',
@@ -32,6 +38,21 @@ test('Chinese remains the default interface language', () => {
     translateText('common:app.importableProvidersMessage', 'zh-CN', { count: 2 }),
     '从本地 Codex/Claude 配置中检测到 2 个可导入的提供商，是否前往设置页查看？',
   )
+  assert.equal(
+    translateText('common:workspacePicker.selectWorkspaceForChat', 'zh-CN', { name: '评审' }),
+    '为“评审”选择工作目录',
+  )
+})
+
+test('locale resources use single-brace interpolation placeholders', async () => {
+  for (const locale of ['en-US', 'zh-CN']) {
+    const directory = join('src', 'locales', locale)
+    const files = (await readdir(directory)).filter((file) => file.endsWith('.json'))
+    for (const file of files) {
+      const path = join(directory, file)
+      assert.doesNotMatch(await readFile(path, 'utf8'), /\{\{[^{}]+\}\}/, path)
+    }
+  }
 })
 
 test('i18next owns the active language and resolves namespaced interpolation', async () => {

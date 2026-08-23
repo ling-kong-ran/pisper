@@ -63,6 +63,7 @@ const body = [
   '',
   ...subjects.map((subject) => `- ${subject}`),
   '',
+  '> Android 与 iOS App 内置同源 Node/Pisper Runtime；rooted Android 会自动使用能力更完整的 chroot 载体，并始终降权到 App UID 运行。',
   '> iOS 产物当前为未签名构建，需自行重签名（AltStore/Sideloadly/开发者账号）后安装。',
   '',
 ].join('\n')

@@ -1,5 +1,4 @@
 // 更新检查服务：对比当前版本/提交与远端 release 分支，判断是否有新版本可更新。
-import { execFile } from 'node:child_process'
 import { promisify } from 'node:util'
 import {
   DEFAULT_BRANCH,
@@ -10,7 +9,10 @@ import {
 
 // Update checks always compare against the current remote branch. Only an in-flight request is
 // shared, so concurrent callers do not duplicate network work without retaining stale results.
-const execFileAsync = promisify(execFile)
+async function runGitProcess(command, args, options) {
+  const { execFile } = await import('node:child_process')
+  return promisify(execFile)(command, args, options)
+}
 
 function validCommit(value) {
   const commit = String(value || '')
@@ -19,7 +21,7 @@ function validCommit(value) {
   return /^[0-9a-f]{7,40}$/.test(commit) ? commit : ''
 }
 
-export async function resolveGitCommit(root, { env = process.env, runGit = execFileAsync } = {}) {
+export async function resolveGitCommit(root, { env = process.env, runGit = runGitProcess } = {}) {
   const configured = validCommit(env.PISPER_COMMIT_SHA || env.GITHUB_SHA)
   if (configured) return configured
   try {

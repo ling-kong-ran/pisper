@@ -20,7 +20,11 @@ test('session usage stays scoped to each dock panel and updates over SSE', async
   assert.match(defaults, /sessionUsage: null/)
   assert.match(dock, /sessionUsage=\{state\.sessionUsage\}/)
   assert.match(dock, /loadThinkingLevel/)
-  assert.match(focus, /<SessionUsageMetrics usage=\{sessionUsage\} plan=\{plan\} \/>/)
+  assert.match(
+    focus,
+    /<SessionUsageMetrics usage=\{sessionUsage\} plan=\{plansAvailable \? plan : null\} \/>/,
+  )
+  assert.match(focus, /runtimeFeatureAvailable\(capabilities, 'plans'\)/)
   assert.match(dispatch, /event === 'session_usage'/)
   assert.match(dispatch, /sessionUsage: data/)
   assert.match(sync, /sessionUsage: data\.sessionUsage \?\? current\.sessionUsage \?\? null/)
@@ -36,7 +40,7 @@ test('composer renders unframed metrics as a separate row below the input contro
 
   assert.match(
     focus,
-    /composer-workspace-status[\s\S]*<SessionUsageMetrics usage=\{sessionUsage\} plan=\{plan\} \/>[\s\S]*<\/form>/,
+    /composer-workspace-status[\s\S]*<SessionUsageMetrics usage=\{sessionUsage\} plan=\{plansAvailable \? plan : null\} \/>[\s\S]*<\/form>/,
   )
   assert.match(controls, /cacheHitRate/)
   assert.match(controls, /usage\?\.processedTokens/)

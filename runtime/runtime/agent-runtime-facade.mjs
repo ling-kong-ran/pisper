@@ -261,14 +261,53 @@ export class AgentRuntimeFacade {
 
   async getPlugins(sessionId = '') {
     const state = await this.toolPlugins.getState()
-    if (!sessionId) return state
-    const executionMode = this.getSessionExecutionMode(sessionId)
-    const enabledToolNames = this.toolPlugins.enabledTools(
-      { enabledTools: state.enabledTools },
-      executionMode,
+    const stateTools = Array.isArray(state.tools) ? state.tools : []
+    const statePlugins = Array.isArray(state.plugins) ? state.plugins : []
+    const configuredToolNames = Array.isArray(state.enabledTools) ? state.enabledTools : []
+    const supportedToolNames = new Set(
+      Array.isArray(this.capabilities?.tools)
+        ? this.capabilities.tools
+        : stateTools.length
+          ? stateTools.map((tool) => tool.id)
+          : configuredToolNames,
     )
-    return {
+    const customPluginsAvailable = this.capabilities?.features?.plugins !== false
+    const plugins = statePlugins
+      .filter((plugin) => plugin.builtIn || customPluginsAvailable)
+      .map((plugin) => ({
+        ...plugin,
+        capabilities: plugin.capabilities.filter(
+          (capability) => !plugin.builtIn || supportedToolNames.has(capability.name),
+        ),
+      }))
+      .filter((plugin) => plugin.capabilities.length > 0)
+    const projectedToolNames = plugins.flatMap((plugin) =>
+      plugin.capabilities.map((capability) => capability.name),
+    )
+    const visibleToolNames = new Set(
+      projectedToolNames.length
+        ? projectedToolNames
+        : configuredToolNames.filter((tool) => supportedToolNames.has(tool)),
+    )
+    const visibleState = {
       ...state,
+      plugins,
+      tools: stateTools.filter((tool) => visibleToolNames.has(tool.id)),
+      presets: Object.fromEntries(
+        Object.entries(state.presets || {}).map(([preset, tools]) => [
+          preset,
+          tools.filter((tool) => visibleToolNames.has(tool)),
+        ]),
+      ),
+      enabledTools: state.enabledTools.filter((tool) => visibleToolNames.has(tool)),
+    }
+    if (!sessionId) return visibleState
+    const executionMode = this.getSessionExecutionMode(sessionId)
+    const enabledToolNames = this.toolPlugins
+      .enabledTools({ enabledTools: visibleState.enabledTools }, executionMode)
+      .filter((tool) => visibleToolNames.has(tool))
+    return {
+      ...visibleState,
       callableToolNames: filterToolsForExecutionMode(enabledToolNames, executionMode, (name) =>
         this.getToolRisk(name),
       ),
@@ -284,6 +323,7 @@ export class AgentRuntimeFacade {
     await this.toolPlugins.ensureDefaultTools(['browser_automation'], 'browserAutomationToolV1')
     await this.toolPlugins.ensureDefaultTools(['skill_create'], 'skillCreateToolV1')
     await this.toolPlugins.ensureDefaultTools(['plugin_create'], 'pluginCreateToolV1')
+    await this.toolPlugins.ensureDefaultTools(['mobile_device'], 'mobileDeviceToolV1')
   }
 
   getToolRisk(name) {
@@ -675,6 +715,7 @@ export class AgentRuntimeFacade {
     await this.goals.pauseAllActive()
     await this.multiAgents.dispose()
     await this.browserAutomation.dispose()
+    this.mobileOperations.dispose()
     this.permissions.dispose()
     await this.disposeSessions()
     await this.sandbox?.close?.()
@@ -691,9 +732,15 @@ export class AgentRuntimeFacade {
   }
 
   async savePlugins(input) {
-    const result = await this.toolPlugins.saveState(input)
+    const [current, visible] = await Promise.all([this.toolPlugins.getState(), this.getPlugins()])
+    const visibleToolNames = new Set(visible.tools.map((tool) => tool.id))
+    const preservedToolNames = current.enabledTools.filter((tool) => !visibleToolNames.has(tool))
+    await this.toolPlugins.saveState({
+      ...input,
+      enabledTools: [...new Set([...(input?.enabledTools || []), ...preservedToolNames])],
+    })
     this.invalidateSessionRuntimes()
-    return result
+    return await this.getPlugins()
   }
 
   inspectPlugin(input) {

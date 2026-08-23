@@ -1,7 +1,34 @@
 // 工作区路径工具：统一路径规范化、大小写归一化（Windows）与目录解析/列举。
 // 前端目录选择器与运行时路径校验共用这套逻辑，保证路径比较口径一致。
+import { readdirSync, statSync } from 'node:fs'
 import { readdir, stat } from 'node:fs/promises'
 import { dirname, isAbsolute, join, resolve, win32 } from 'node:path'
+
+/** @typedef {(path: string) => import('node:fs').Stats | Promise<import('node:fs').Stats>} InspectDirectory */
+/** @typedef {(path: string, options: { withFileTypes: true }) => import('node:fs').Dirent[] | Promise<import('node:fs').Dirent[]>} ReadDirectory */
+/**
+ * @typedef {object} WorkspaceDirectoryOptions
+ * @property {string} [profile]
+ * @property {string} [platform]
+ * @property {InspectDirectory} [inspectDirectory]
+ * @property {ReadDirectory} [readDirectory]
+ */
+
+/** @returns {{ inspectDirectory: InspectDirectory, readDirectory: ReadDirectory }} */
+function workspaceDirectoryIo(profile = process.env.PISPER_RUNTIME_PROFILE) {
+  // Node Mobile 的异步 FS worker 在部分 Android WebView 宿主中不会回调；
+  // 目录列表已限制返回数量，本机模式改用同步调用可避免请求永久占住。
+  if (profile === 'mobile-embedded') {
+    return {
+      inspectDirectory: (path) => statSync(path),
+      readDirectory: (path, options) => readdirSync(path, options),
+    }
+  }
+  return {
+    inspectDirectory: (path) => stat(path),
+    readDirectory: (path, options) => readdir(path, options),
+  }
+}
 
 // 规范化路径：去掉 Windows 的 \\?\ 前缀（\\?\UNC\server\share 转回 \\server\share），
 // 使路径可以在本地路径体系内使用。
@@ -34,13 +61,14 @@ export function workspacePathKey(value, platform = process.platform) {
 /**
  * @param {unknown} input
  * @param {unknown} fallback
+ * @param {WorkspaceDirectoryOptions} [options]
  * @returns {Promise<string>}
  */
-export async function resolveWorkspaceDirectory(
-  input,
-  fallback,
-  { platform = process.platform, inspectDirectory = stat } = {},
-) {
+export async function resolveWorkspaceDirectory(input, fallback, options = {}) {
+  const {
+    platform = process.platform,
+    inspectDirectory = workspaceDirectoryIo(options.profile).inspectDirectory,
+  } = options
   const requested = normalizeWorkspacePath(input || fallback, platform)
   const base = fallback ? normalizeWorkspacePath(fallback, platform) : ''
   const path = normalizeWorkspacePath(
@@ -53,7 +81,9 @@ export async function resolveWorkspaceDirectory(
         : resolve(base || process.cwd(), requested),
     platform,
   )
-  const info = await inspectDirectory(path).catch(() => null)
+  const info = await Promise.resolve()
+    .then(() => inspectDirectory(path))
+    .catch(() => null)
   if (!info?.isDirectory()) throw new Error('工作目录不存在或不是文件夹。')
   return path
 }
@@ -63,16 +93,10 @@ export async function resolveWorkspaceDirectory(
  * List the subdirectories of a workspace path for the Web directory browser.
  * @param {unknown} input
  * @param {unknown} fallback
+ * @param {WorkspaceDirectoryOptions} [options]
  */
-export async function listWorkspaceDirectories(
-  input,
-  fallback,
-  { inspectDirectory = stat, readDirectory = readdir } = {},
-) {
-  const listing = await listWorkspaceEntries(input, fallback, {
-    inspectDirectory,
-    readDirectory,
-  })
+export async function listWorkspaceDirectories(input, fallback, options = {}) {
+  const listing = await listWorkspaceEntries(input, fallback, options)
   return { path: listing.path, parent: listing.parent, directories: listing.directories }
 }
 
@@ -82,13 +106,16 @@ export async function listWorkspaceDirectories(
  * List directories and files without reading file contents or inspecting file sizes.
  * @param {unknown} input
  * @param {unknown} fallback
+ * @param {WorkspaceDirectoryOptions} [options]
  */
-export async function listWorkspaceEntries(
-  input,
-  fallback,
-  { inspectDirectory = stat, readDirectory = readdir } = {},
-) {
-  const path = await resolveWorkspaceDirectory(input, fallback, { inspectDirectory })
+export async function listWorkspaceEntries(input, fallback, options = {}) {
+  const io = workspaceDirectoryIo(options.profile)
+  const inspectDirectory = options.inspectDirectory || io.inspectDirectory
+  const readDirectory = options.readDirectory || io.readDirectory
+  const path = await resolveWorkspaceDirectory(input, fallback, {
+    platform: options.platform,
+    inspectDirectory,
+  })
   const entries = await readDirectory(path, { withFileTypes: true })
   /** @param {{ name: string }} left @param {{ name: string }} right */
   const byName = (left, right) =>

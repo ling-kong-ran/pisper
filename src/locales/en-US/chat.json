@@ -300,6 +300,7 @@
   "focusSession.expandQuickActions": "Expand quick actions",
   "focusSession.collapseQuickActions": "Collapse quick actions",
   "focusSession.commands": "Commands",
+  "focusSession.addGuidanceForTheRunningAgent": "Add guidance for the running agent",
   "focusSession.addGuidanceForTheRunningAgentShiftEnterForANewLine": "Add guidance for the running agent; Shift + Enter for a new line",
   "focusSession.allow": "Allow",
   "focusSession.allowOnce": "Allow once",
@@ -467,5 +468,6 @@
   "focusSession.writeTests": "Write tests",
   "focusSession.workingDirectory": "Working directory",
   "focusSession.writeUnitTestsForTheFollowingCode": "Write unit tests for the following code:",
+  "focusSession.writeWhatYouWantToAccomplish": "Write what you want to accomplish",
   "focusSession.writeWhatYouWantToAccomplishShiftEnterForANewLine": "Write what you want to accomplish; Shift + Enter for a new line"
 }

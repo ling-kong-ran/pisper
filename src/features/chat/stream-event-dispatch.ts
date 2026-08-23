@@ -18,6 +18,10 @@ import type {
 } from '@/lib/streaming-ui'
 import type { EntityRecord, SessionState, SessionSummary } from '@/types/chat'
 import type { ApiRecord } from './chat-api'
+import {
+  handleMobileOperationCancellation,
+  handleMobileOperationRequest,
+} from './mobile-operations'
 import { planChanges, pushCurrentActivity, settleToolCalls } from './run-activity'
 
 const MAX_LIVE_THINKING_CHARS = 6_000
@@ -406,6 +410,10 @@ export function createStreamEventDispatcher({
           activityFeed,
         }
       })
+    } else if (event === 'mobile_operation_request') {
+      handleMobileOperationRequest(sessionId, data)
+    } else if (event === 'mobile_operation_cancel') {
+      handleMobileOperationCancellation(data)
     } else if (event === 'permission_request') {
       typewriter.flush()
       toolScheduler.flush()

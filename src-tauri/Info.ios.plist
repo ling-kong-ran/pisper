@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>NSCameraUsageDescription</key>
+  <string>Pisper uses the camera only when you start pairing or approve a photo capture.</string>
+  <key>NSContactsUsageDescription</key>
+  <string>Pisper accesses contacts only for a mobile operation you approve.</string>
+  <key>NSLocationWhenInUseUsageDescription</key>
+  <string>Pisper reads one foreground location only for a mobile operation you approve.</string>
+</dict>
+</plist>

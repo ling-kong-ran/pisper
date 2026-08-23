@@ -1,119 +1,126 @@
-# 移动端本机 Runtime 设计（M1）
+# 移动端本机 Runtime 设计
 
-Pisper 移动端最初是纯远程客户端：Agent Runtime、会话与 Provider 配置都留在桌面端。
-本文档定义「本机运行」的第一个里程碑（M1）：在 Android/iOS 壳内嵌入一个**受限的
-本机 Runtime**，让手机在没有桌面端在线时也能直接与模型 Provider 对话。
+Pisper 移动端本机模式运行与 Desktop、Runtime 发行包相同的 Node/Pisper Agent Runtime、
+标准 `/api/*`、Provider、会话、HTTP/SSE 协议和 React 界面。它不再包含独立的 Rust 对话
+Runtime、`/api/local/*` 协议或移动端专用业务 UI。
 
-M1 刻意保持小边界。它不是桌面 Runtime 的移植，而是一套独立的、只覆盖对话主链路的
-最小实现；与远程模式共用「服务器选择」入口统一切换。
+用户只选择两种产品模式：
 
-## 能力矩阵
+- **本机**：会话、Provider 配置和工作区保存在 App 私有目录，由手机内的 Node Runtime 持有。
+- **远程**：App 通过 LAN 或 Iroh 连接已配对的 Desktop Runtime。
 
-| 能力 | 本机 Runtime（M1） | 远程桌面 Runtime |
-| --- | --- | --- |
-| 流式对话（SSE） | ✅ OpenAI 兼容 Provider | ✅ 全部 Provider |
-| 多会话与本地持久化 | ✅（有资源上限） | ✅ |
-| 多 Provider 配置与切换 | ✅（密钥仅存本机） | ✅ |
-| 工具调用 / 技能 / MCP / 记忆 | ❌（M2+ 评估） | ✅ |
-| 文件与终端访问 | ❌ | ✅ |
-| 二维码配对 / 远程访问 | 不涉及 | ✅ |
+root chroot 和 embedded Node 只是本机模式的内部载体，不是第三种用户模式。切换载体不会改变
+React 或 API 契约。
 
-## 架构
+## 载体选择
+
+进入本机模式时，壳层按以下顺序选择可用载体：
+
+1. rooted Android 优先启动 APK 内置的 arm64 Linux Runtime，首次进入可能由 root 管理器请求授权。
+   root 仅用于安装、bind mount 和 `chroot` 入口；Runtime 随后降权到 App UID/GID，并设置
+   `NoNewPrivs=1`。
+2. root 载体不可用或启动失败时，Android 回退到 APK 内置的 `libnode.so`；iOS 直接使用
+   `NodeMobile.xcframework`。
+3. 两种嵌入式宿主都在专用后台线程调用 Node，不能占用 WebView 或 iOS 主线程。
+
+壳层始终向 UI 返回同一个 `onDevice` 状态和 `runtimeKind: "node"`。用户从本机切到远程时，
+同进程 embedded Node 保持驻留，只改变 WebView 路由；Node embedding 不支持在一个 App 进程中
+反复初始化。root chroot 载体则可停止并在下次进入本机模式时重新启动。两个载体 bind/使用同一个
+App 私有数据与 workspace 目录，root 失败回退不会切换到另一套 Provider、会话或工作区。
+
+## 统一架构
 
 ```text
-Mobile WebView
-    |  http://127.0.0.1:<port>（仅回环，随机端口）
-    v
-本机 Runtime（Rust，嵌入移动端壳）
-    |-- 内置对话页（/，单文件 HTML，同源调用 API）
-    |-- /api/local/*（会话、Provider、状态）
-    |-- POST /api/local/chat（SSE：meta/delta/done/error）
-    |
-    |  HTTPS（reqwest + rustls；仅 loopback 地址允许 http）
-    v
-OpenAI 兼容 Provider（/chat/completions 流式）
+Normal Pisper React App
+          |
+          | standard HTTP + SSE + /api/*
+          v
+http://127.0.0.1:<random-port>
+          |
+          v
+Shared Node/Pisper Runtime (mobile-embedded profile)
+          |
+          +-- Pi AgentSession / Providers / sessions
+          +-- workspace files / skills / built-in tools
+          +-- runtime-derived capability manifest
+
+Android carrier: JNI/C++ -> node::Start(...) -> libnode.so
+ iOS carrier: background thread -> node_start(...) -> NodeMobile.xcframework
+rooted Android: su install/mount -> chroot -> full Linux Node Runtime as App UID
 ```
 
-- 本机 Runtime 与现有回环代理（`mobile/proxy.rs`）是**并列**的两个回环服务：
-  代理把流量转发到桌面端，本机 Runtime 直接在本机应答。两者互不知晓。
-- WebView 地址即模式：`http://127.0.0.1:<proxy>` 是远程模式，
-  `http://127.0.0.1:<local>` 是本机模式。切换就是导航，不涉及配对存储变更。
-- 本机 Runtime 只监听回环，不暴露任何网络端口；它发起的唯一外网流量是到用户
-  配置的 Provider 端点的 HTTPS 请求。
+嵌入式 Runtime 使用随机回环端口和随机 bootstrap token。Node 完成真实 Agent Runtime 初始化后，
+以 `0600` 权限原子写入 READY 文件；壳层只接受带 token 的
+`http://127.0.0.1:<port>/_pisper/desktop/bootstrap` 地址。READY 不通过 stdout 解析，也不暴露到
+共享存储。
 
-## 数据与密钥保管
+## 能力清单
 
-应用私有目录下的 `local-runtime/`：
+同一 Runtime 不等于所有宿主都能提供同一系统能力。`GET /api/runtime/capabilities` 返回实际宿主
+清单；`node:child_process`、`node:worker_threads`、`node:sqlite` 和 WASM 等底层能力来自真实探测。
+宿主 profile 可以保守关闭不适合该载体生命周期或缺少壳层 bridge 的服务，但不能伪造缺失模块。
 
-- `providers.json`：Provider 配置（baseUrl、model、activeId）。apiKey 经 `KeyCustody`
-  加密后以 `apiKeyEnc` 密文落盘，API 读取时永远脱敏（仅返回 `keyHint` 末 4 位）。
-- `sessions.json`：会话与消息。所有写入走「临时文件 + rename」原子替换。
-- `master.key`：仅桌面开发/测试回退后端的主密钥文件（0600）。
-
-**密钥保管后端（M2 已实现）**：
-
-| 平台 | 后端 | 说明 |
+| 能力 | rooted Android | ordinary Android / iOS embedded |
 | --- | --- | --- |
-| Android | 系统 AndroidKeyStore | JNI 直连（无 Kotlin），AES-256/GCM 加解密在 Keystore 内完成，密钥本体不进入 Rust 进程，卸载即销毁 |
-| iOS | Keychain + 进程内 AES-GCM | 随机主密钥以 `AfterFirstUnlockThisDeviceOnly` 存 Keychain，不随备份/iCloud 迁移 |
-| 桌面 | 文件回退 | 仅供开发与测试，不承担真实对话 |
+| React、Provider、标准会话、流式聊天 | 支持 | 支持 |
+| 工作区读写、资源与 Skill | 支持 | 支持 |
+| 内置工具目录与 Web Search | 支持 | 支持 |
+| Shell、Git/SVN | Linux Node 可用时支持 | `child_process` 缺失时关闭 |
+| Desktop PTY 终端与浏览器自动化 | 关闭；移动壳没有对应 bridge | 关闭 |
+| 记忆 | `node:sqlite` 可用时支持 | `node:sqlite` 缺失时关闭 |
+| 第三方插件执行 | worker 可用时支持 | 关闭；内置工具设置仍保留 |
+| MCP stdio | 支持 | 关闭 |
+| Goal、Plan、多 Agent、工作流、计划任务、渠道 | 支持 | 关闭 |
+| 图片处理 | WASM 可用时支持 | 由实际 WASM 探测决定 |
+| Desktop 远程访问管理、桌面宠物 | 关闭 | 关闭 |
 
-旧版明文 `providers.json` 在加载时自动迁移为密文并立刻重写。解密失败（Keystore 重置等）
-保留 Provider 元数据、仅清空密钥，用户重新填 key 即可。
+React 导航、请求发起、工具目录和服务端 API 都只对清单中**明确为 `false`** 的能力执行隐藏或
+HTTP 409 拒绝。没有能力端点的旧 Runtime 保留原有导航行为，避免破坏远程兼容性。
 
-注：远程配对设备令牌（`pisper-mobile.json`）目前仍为应用私有目录明文，跟随沙箱保护；
-迁入同一保管体系是后续硬化项。
+## Runtime 闭包
 
-## 资源上限
+embedded Node 不能执行 SEA 内嵌的 JavaScript blob，因此 App 单独打包可由 Node 直接执行的
+Runtime 闭包。`scripts/stage-runtime-closure.mjs` 与 SEA 共用依赖裁剪和关键闭包审计，移动闭包额外
+移除桌面 clipboard、TUI 和不适用的原生包，并包含：
 
-手机存储与内存受限，本机 Runtime 强制上限（超出即淘汰最旧会话）：
+- `runtime/mobile-embedded.mjs`；
+- 完整的 Pisper Runtime、Pi Coding Agent 依赖和共享模块；
+- 生产 React `dist/`；
+- 与 App 版本绑定的 `embedded-runtime.json`。
 
-| 项 | 上限 |
-| --- | --- |
-| 会话数 | 50 |
-| 单会话消息数 | 200 |
-| 单条消息 | 32 KiB |
-| 会话存储总量 | 4 MiB |
-| API 请求体 | 1 MiB |
-| Provider 连接 / 整体流 | 15 s / 180 s |
+安装使用临时文件、staging 目录和原子目录替换。入口或 React 资源缺失、归档过大、版本不匹配时
+不会替换已安装版本。
 
-## 安全边界
+## Node 供应链
 
-- Provider baseUrl 必须是 `https://`；唯一例外是 loopback（`127.0.0.1` /
-  `localhost` / `::1`）允许 `http://`，用于本机模型服务（如 Ollama）与开发调试。
-- 错误信息不回显 apiKey；网络错误只做类别化描述。
-- 内置对话页仅由本机 Runtime 同源提供，不加载任何远程资源。
-- 本机模式不读取、不写入远程配对凭据；远程模式的 Bearer/指纹模型不受影响。
+移动 Node 24 固定到 `ChamHerry/nodejs-mobile` commit
+`8a995e179bb2c224029a560ae9c4f9460631b94d`，Node `24.18.1`，modules ABI `137`。
+`scripts/mobile-node-artifacts.json` 记录 recipe/materialized tree、Android Release 归档、Sigstore bundle
+和 `libnode.so` SHA256。
 
-## 入口与切换
+- Android 发布构建必须验证归档摘要、Sigstore workflow 身份、内部 manifest 和 `libnode.so` 摘要，
+  再把 headers 与 arm64 库交给 CMake。
+- iOS 在 macOS 从固定 commit 和固定 materialized tree 构建 `NodeMobile.xcframework`，记录 Xcode
+  版本与逐文件 SHA256。
+- embedded Runtime、iOS Node framework 归档、root Runtime、APK 和 unsigned IPA 都使用项目
+  Minisign 密钥签名。任一 Android/iOS 构建、签名或资产检查失败时，不发布 `app-v*`。
 
-- 首次启动不再直接进入扫码流程：连接页平级呈现「本机运行」与「连接桌面端」两个选择，
-  手动配对的地址/配对码/指纹输入框默认收纳进子面板，点击才展开。
-- 连接页同时是已配对后的服务器/模式管理中枢（远程 UI「添加服务器」与本机页「返回服务器」
-  都落到这里）；冷启动路由由壳内按配对状态与模式记忆决定，本页不做自动跳转。
-- 远程 UI 的「服务器」设置页有「本机运行」行；注意该页 UI 由桌面端 Runtime 提供，
-  桌面端版本过旧时看不到此入口，需更新桌面端或改用连接页入口。
-- 模式记忆（M2）：进入/离开本机模式会记录 `last_mode`，冷启动按记忆路由；
-  配对或显式选择远程服务器会把记忆切回远程。
+## 数据与安全边界
 
-## 协议
+本机会话、Provider 配置、工作区和 Runtime 状态位于 App 私有数据目录。Node/Pisper 使用标准数据
+格式，因此不是旧移动 Runtime 的 `providers.json` / `sessions.json` 私有协议。当前 Provider 凭据和
+远程配对令牌依赖 App 沙箱与系统文件权限保护，尚未迁入 Android Keystore 或 iOS Keychain；不要
+导出 App 私有目录，设备丢失时应立即在 Desktop 端吊销对应远程设备。
 
-`POST /api/local/chat` 的 SSE 帧：
+Runtime 仅监听 `127.0.0.1`，bootstrap token 不经普通 API 回显。模型请求仍会把完成任务所需内容
+发送给用户选择的 Provider；本机运行不等于模型调用端到端加密，也不能替代设备锁屏、系统更新、
+可信侧载来源和可靠备份。
 
-| event | data | 含义 |
-| --- | --- | --- |
-| `meta` | `{sessionId, messageId}` | 首帧，确认会话与助手消息 ID |
-| `delta` | `{text}` | 增量文本，按到达顺序拼接 |
-| `done` | `{messageId}` | 正常结束，消息已持久化 |
-| `error` | `{message}` | 失败；已收到的增量会作为部分回复保留 |
+## 已知平台边界
 
-该协议是 M1 私有协议，不承诺与桌面 Runtime 的 run/游标协议兼容；
-当后续里程碑让完整 Web UI 跑在本机 Runtime 上时，再统一对齐。
-
-## 后续里程碑
-
-- **M2（已完成）**：apiKey 迁入 Android Keystore / iOS Keychain；模式记忆；
-  Provider 模型列表拉取（测试连接成功后填入候选）。
-- **M3**：受限工具能力（只读设备侧能力，如剪贴板/通知），逐项评审；
-  远程配对设备令牌迁入系统安全存储。
-- **M4**：评估完整 Web UI 直连本机 Runtime（需实现对齐的 sessions/chat/run API 面）。
+- Node.js Mobile 不提供 `child_process` / `cluster`；缺少这些模块时 Shell、终端、VCS 和 MCP stdio
+  会从 UI 与 API 中同时关闭。
+- iOS 不能在 WebView/main thread 运行 Node，且操作系统可能冻结后台 App；READY 和 SSE 恢复不能
+  绕过系统生命周期限制。
+- 生产内置 Runtime 目前仅支持 arm64。x86_64 Android 模拟器不能代替 arm64 真机启动验证。
+- iOS IPA 不含 Apple 分发签名，必须由使用者自行重签名后安装。

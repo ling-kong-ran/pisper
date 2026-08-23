@@ -1,8 +1,17 @@
 // 初始化 Android 工程（tauri android init）并应用 Pisper 的清单定制：
 // - CAMERA 权限（扫码配对）
 // - networkSecurityConfig：仅放行 127.0.0.1/localhost 明文（壳内本地代理）
+// - WebView renderer 崩溃接管、宿主重建与当前路由恢复
 // gen/ 不入库，定制必须可重放——本脚本是幂等的，可重复运行。
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
+import {
+  copyFileSync,
+  cpSync,
+  existsSync,
+  mkdirSync,
+  readFileSync,
+  readdirSync,
+  writeFileSync,
+} from 'node:fs'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { spawnSync } from 'node:child_process'
@@ -22,6 +31,53 @@ const networkConfigPath = join(
   'xml',
   'network_security_config.xml',
 )
+const mainActivitySourcePath = join(root, 'src-tauri', 'mobile', 'android', 'MainActivity.kt')
+const mainActivityTargetPath = join(
+  androidDir,
+  'app',
+  'src',
+  'main',
+  'java',
+  'com',
+  'lingkongran',
+  'pisper',
+  'MainActivity.kt',
+)
+const rustBuildTaskPath = join(
+  androidDir,
+  'buildSrc',
+  'src',
+  'main',
+  'java',
+  'com',
+  'lingkongran',
+  'pisper',
+  'kotlin',
+  'BuildTask.kt',
+)
+const nodeMobileDir = process.env.PISPER_NODE_MOBILE_ANDROID_DIR
+  ? join(process.env.PISPER_NODE_MOBILE_ANDROID_DIR)
+  : ''
+const requireEmbeddedNode = process.env.PISPER_REQUIRE_EMBEDDED_NODE === '1'
+
+function resolveAndroidCppRuntime(ndkHome) {
+  const prebuiltRoot = join(ndkHome || '', 'toolchains', 'llvm', 'prebuilt')
+  if (!existsSync(prebuiltRoot)) return ''
+  for (const entry of readdirSync(prebuiltRoot, { withFileTypes: true })) {
+    if (!entry.isDirectory()) continue
+    const candidate = join(
+      prebuiltRoot,
+      entry.name,
+      'sysroot',
+      'usr',
+      'lib',
+      'aarch64-linux-android',
+      'libc++_shared.so',
+    )
+    if (existsSync(candidate)) return candidate
+  }
+  return ''
+}
 
 if (!existsSync(manifestPath)) {
   assertAndroidEnv(env)
@@ -72,6 +128,18 @@ if (!manifest.includes('android.permission.CAMERA')) {
     <uses-permission android:name="android.permission.CAMERA" />`,
   )
 }
+for (const permission of [
+  'android.permission.READ_CONTACTS',
+  'android.permission.ACCESS_COARSE_LOCATION',
+  'android.permission.ACCESS_FINE_LOCATION',
+]) {
+  if (!manifest.includes(permission)) {
+    manifest = manifest.replace(
+      '    <application',
+      `    <uses-permission android:name="${permission}" />\n    <application`,
+    )
+  }
+}
 if (!manifest.includes('networkSecurityConfig')) {
   manifest = manifest.replace(
     'android:usesCleartextTraffic',
@@ -80,5 +148,104 @@ if (!manifest.includes('networkSecurityConfig')) {
 }
 writeFileSync(manifestPath, manifest, 'utf8')
 
-console.log('Android 工程已就绪（清单权限 + 网络安全配置已应用）。')
+// Wry 的扩展点在 Rust 构建时生成 WebViewClient；必须把环境变量放进 Gradle 启动 cargo 的进程。
+const webViewClientExtension = `override fun onRenderProcessGone(
+    view: WebView,
+    detail: RenderProcessGoneDetail
+): Boolean {
+    return MainActivity.recoverFromRendererCrash(view, currentUrl, detail.didCrash())
+}`
+const rustBuildTask = readFileSync(rustBuildTaskPath, 'utf8')
+const rustBuildTaskEol = rustBuildTask.includes('\r\n') ? '\r\n' : '\n'
+const rendererRecoveryBlock = [
+  '            // Pisper：注入 renderer 崩溃恢复回调。',
+  '            environment(',
+  '                "WRY_RUSTWEBVIEWCLIENT_CLASS_EXTENSION",',
+  '                """',
+  ...webViewClientExtension.split('\n').map((line) => `                ${line}`),
+  '                """.trimIndent(),',
+  '            )',
+].join(rustBuildTaskEol)
+const existingRecoveryBlock =
+  /            \/\/ Pisper：注入 renderer 崩溃恢复回调。\r?\n            environment\([\s\S]*?\r?\n            \)/
+let updatedRustBuildTask
+if (existingRecoveryBlock.test(rustBuildTask)) {
+  updatedRustBuildTask = rustBuildTask.replace(existingRecoveryBlock, rendererRecoveryBlock)
+} else {
+  updatedRustBuildTask = rustBuildTask.replace(
+    /(            workingDir\(File\(project\.projectDir, rootDirRel\)\)\r?\n)/,
+    `$1${rendererRecoveryBlock}${rustBuildTaskEol}`,
+  )
+}
+if (!updatedRustBuildTask.includes('WRY_RUSTWEBVIEWCLIENT_CLASS_EXTENSION')) {
+  throw new Error('无法把 WebView renderer 恢复回调接入 Android Rust 构建。')
+}
+writeFileSync(rustBuildTaskPath, updatedRustBuildTask, 'utf8')
+mkdirSync(dirname(mainActivityTargetPath), { recursive: true })
+copyFileSync(mainActivitySourcePath, mainActivityTargetPath)
+
+// gen/ 不入库；只有固定产物已经过校验并 staged 时才接入 C++ Node 宿主。
+const nodeLibrary = nodeMobileDir ? join(nodeMobileDir, 'arm64-v8a', 'libnode.so') : ''
+const nodeHeaders = nodeMobileDir ? join(nodeMobileDir, 'include') : ''
+if (nodeLibrary && existsSync(nodeLibrary) && existsSync(nodeHeaders)) {
+  const cppRuntime = resolveAndroidCppRuntime(env.NDK_HOME)
+  if (!cppRuntime) {
+    throw new Error('固定 Android NDK 缺少 arm64 libc++_shared.so。')
+  }
+  const appDir = join(androidDir, 'app')
+  const mainDir = join(appDir, 'src', 'main')
+  const hostSource = join(root, 'src-tauri', 'mobile', 'node-host', 'android')
+  const hostTarget = join(mainDir, 'cpp', 'pisper-node-host')
+  const headersTarget = join(mainDir, 'cpp', 'node-mobile', 'include')
+  const jniTarget = join(mainDir, 'jniLibs', 'arm64-v8a')
+  const kotlinTarget = join(mainDir, 'java', 'com', 'lingkongran', 'pisper')
+  const assetsTarget = join(mainDir, 'assets')
+  for (const directory of [hostTarget, headersTarget, jniTarget, kotlinTarget, assetsTarget]) {
+    mkdirSync(directory, { recursive: true })
+  }
+  cpSync(nodeHeaders, headersTarget, { recursive: true, force: true })
+  for (const name of ['CMakeLists.txt', 'node_host.cpp']) {
+    copyFileSync(join(hostSource, name), join(hostTarget, name))
+  }
+  copyFileSync(join(hostSource, 'EmbeddedNodeHost.kt'), join(kotlinTarget, 'EmbeddedNodeHost.kt'))
+  copyFileSync(nodeLibrary, join(jniTarget, 'libnode.so'))
+  // Node Mobile 动态依赖 NDK libc++；Android 系统镜像不会提供这个 App 私有 ABI 库。
+  copyFileSync(cppRuntime, join(jniTarget, 'libc++_shared.so'))
+  for (const [source, target] of [
+    ['pisper-node-artifact.json', 'pisper-embedded-node-android.json'],
+    ['LICENSE.nodejs', 'LICENSE.nodejs-mobile'],
+  ]) {
+    copyFileSync(join(nodeMobileDir, source), join(assetsTarget, target))
+  }
+
+  const buildGradlePath = join(appDir, 'build.gradle.kts')
+  let buildGradle = readFileSync(buildGradlePath, 'utf8')
+  if (!buildGradle.includes('src/main/cpp/pisper-node-host/CMakeLists.txt')) {
+    const eol = buildGradle.includes('\r\n') ? '\r\n' : '\n'
+    buildGradle = buildGradle.replace(
+      /    buildFeatures \{\r?\n        buildConfig = true\r?\n    \}\r?\n\}/,
+      [
+        '    buildFeatures {',
+        '        buildConfig = true',
+        '    }',
+        '    externalNativeBuild {',
+        '        cmake {',
+        '            path = file("src/main/cpp/pisper-node-host/CMakeLists.txt")',
+        '            version = "3.22.1"',
+        '        }',
+        '    }',
+        '}',
+      ].join(eol),
+    )
+  }
+  if (!buildGradle.includes('src/main/cpp/pisper-node-host/CMakeLists.txt')) {
+    throw new Error('无法把嵌入式 Node CMake 宿主接入 Android Gradle 工程。')
+  }
+  writeFileSync(buildGradlePath, buildGradle, 'utf8')
+  console.log('已接入固定 Node 24 Android arm64 宿主。')
+} else if (requireEmbeddedNode) {
+  throw new Error('缺少已校验的 Android embedded Node staging。')
+}
+
+console.log('Android 工程已就绪（权限、网络安全与 WebView renderer 恢复已应用）。')
 console.log('下一步：node scripts/build-mobile-android.mjs [--release] [--target aarch64]')

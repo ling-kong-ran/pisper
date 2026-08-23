@@ -17,7 +17,8 @@ test('Android 与 iOS 发布包都写入独立 App 版本', async () => {
   ])
 
   assert.match(workflow, /android build[\s\S]*--config '\{"version":"\$\{\{ inputs\.version \}\}"/)
-  assert.match(workflow, /ios build[\s\S]*--config '\{"version":"\$\{\{ inputs\.version \}\}"/)
+  assert.match(workflow, /MOBILE_CONFIG='\{"version":"\$\{\{ inputs\.version \}\}"/)
+  assert.match(workflow, /ios build --ci --no-sign --config "\$MOBILE_CONFIG"/)
   assert.match(localBuild, /mobile-package\.json/)
   assert.match(localBuild, /version: mobileVersion/)
 })

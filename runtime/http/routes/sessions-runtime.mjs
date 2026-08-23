@@ -1,10 +1,17 @@
 // 会话运行时路由：健康检查、诊断、用量、会话 CRUD、会话运行（SSE 流式）、
 // 消息/历史/树/标签、权限审批、模型/工作目录切换等核心 API。
+function isMobileAppRequest(runtime, req) {
+  const mobileProfile = String(runtime.capabilities?.profile || '').startsWith('mobile-')
+  return (
+    mobileProfile || Boolean(req.pisperDevice && req.headers['x-pisper-client'] === 'mobile-app')
+  )
+}
+
 export const sessionRuntimeRoutes = [
   {
     method: 'GET',
     path: '/api/health',
-    handler({ services, json }) {
+    handler({ runtime, services, json }) {
       json(200, {
         ok: true,
         engine: '@earendil-works/pi-coding-agent',
@@ -12,16 +19,23 @@ export const sessionRuntimeRoutes = [
         // 客户端版本握手：同大版本内服务端承诺前向兼容。
         apiVersion: 1,
         minClientVersion: 1,
+        capabilities: runtime.capabilities,
       })
     },
   },
   {
     method: 'GET',
+    path: '/api/runtime/capabilities',
+    handler({ runtime, json }) {
+      json(200, runtime.capabilities)
+    },
+  },
+  {
+    method: 'GET',
     path: '/api/client-info',
-    handler({ req, json }) {
-      // 移动端代理会注入 X-Pisper-Client 头；其余流量一律视为普通 Web 客户端。
-      const client = req.headers['x-pisper-client'] === 'mobile-app' ? 'mobile-app' : 'web'
-      json(200, { client })
+    handler({ runtime, req, json }) {
+      // 远程模式还要求有效配对设备，避免普通 Desktop Web 请求伪造移动操作通道。
+      json(200, { client: isMobileAppRequest(runtime, req) ? 'mobile-app' : 'web' })
     },
   },
   {
@@ -357,6 +371,22 @@ export const sessionRuntimeRoutes = [
   },
   {
     method: 'POST',
+    path: '/api/sessions/:sessionId/mobile-operations/:operationId',
+    async handler({ runtime, req, params, body, json }) {
+      if (!isMobileAppRequest(runtime, req)) {
+        json(403, { error: '仅当前 Pisper 移动 App 可以回传设备操作结果。' })
+        return
+      }
+      const accepted = runtime.resolveMobileOperation(
+        params.sessionId,
+        params.operationId,
+        await body(),
+      )
+      json(accepted ? 200 : 404, { accepted })
+    },
+  },
+  {
+    method: 'POST',
     path: '/api/sessions/:sessionId/abort',
     async handler({ runtime, params, json }) {
       json(200, {
@@ -375,12 +405,29 @@ export const sessionRuntimeRoutes = [
   {
     method: 'POST',
     path: '/api/chat',
-    async handler({ runtime, body, startSse, sendSse, startRun }) {
+    async handler({ runtime, req, body, json, startSse, sendSse, startRun }) {
       const input = await body()
       const message = String(input.message || '').trim()
       const invocation =
         input.invocation && typeof input.invocation === 'object' ? input.invocation : null
       if (!message && !invocation) throw new Error('消息或资源调用不能为空。')
+      const unavailableFeature =
+        invocation?.kind === 'workflow' && runtime.capabilities?.features?.workflows === false
+          ? 'workflows'
+          : input.goalMode && runtime.capabilities?.features?.goals === false
+            ? 'goals'
+            : Array.isArray(input.attachments) &&
+                input.attachments.some((attachment) => attachment?.kind === 'image') &&
+                runtime.capabilities?.features?.imageProcessing === false
+              ? 'imageProcessing'
+              : ''
+      if (unavailableFeature) {
+        json(409, {
+          error: `当前 Runtime 不支持 ${unavailableFeature} 能力。`,
+          capability: unavailableFeature,
+        })
+        return
+      }
       startSse()
       // 登记为可重挂的 run：首帧发出 runId，客户端断线后可按游标续传。
       startRun({ kind: 'chat', sessionId: String(input.sessionId || '') })
@@ -410,6 +457,7 @@ export const sessionRuntimeRoutes = [
         requestedToolNames: toolName ? [toolName] : input.requestedToolNames,
         goalMode: Boolean(input.goalMode),
         goalTokenBudget: input.goalTokenBudget == null ? null : Number(input.goalTokenBudget),
+        mobileClient: isMobileAppRequest(runtime, req),
         send: sendSse,
       })
     },

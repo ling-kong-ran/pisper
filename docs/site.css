@@ -310,6 +310,7 @@ main,
 
 .hero-mobile-row {
   margin-top: 16px;
+  scroll-margin-top: 88px;
 }
 
 .hero-mobile-actions {
@@ -1099,13 +1100,22 @@ main,
   transform: none;
 }
 
+.mobile-download-cta {
+  display: none;
+}
+
 /* ============================================================
    响应式
    ============================================================ */
 
 @media (max-width: 960px) {
-  .nav-links {
+  .nav-links,
+  .desktop-download-cta {
     display: none;
+  }
+
+  .mobile-download-cta {
+    display: inline-flex;
   }
 
   .signal-grid {

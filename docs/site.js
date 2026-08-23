@@ -637,6 +637,7 @@ function selectTab(tab, moveFocus = false) {
 
   const request = ++imageRequest
   const nextImage = new Image()
+  nextImage.decoding = 'async'
   productShot.classList.add('is-changing')
   nextImage.addEventListener('load', () => {
     if (request !== imageRequest) return

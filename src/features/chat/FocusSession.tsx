@@ -8,7 +8,6 @@ import {
   File,
   FolderOpen,
   Minimize2,
-  Paperclip,
   RefreshCw,
   Send,
   Square,
@@ -19,6 +18,9 @@ import { useI18n } from '@/app/use-i18n'
 import { QueueSection } from '@/components/ai-elements/queue'
 import { AppCard as Panel, AppCardHeader } from '@/components/ui/app-primitives'
 import { formatFileSize, workspaceName } from '@/lib/format'
+import { useIsMobileApp } from '@/stores/client-store'
+import { useRuntimeCapabilitiesStore } from '@/stores/runtime-capabilities-store'
+import { runtimeFeatureAvailable } from '@/types/runtime-capabilities'
 import type {
   ChatAttachment,
   ChatMessage,
@@ -28,7 +30,7 @@ import type {
   ResourceInvocation,
   SessionSummary,
 } from '@/types/chat'
-import { pathAttachments } from './attachments'
+import { AttachmentPicker } from './AttachmentPicker'
 import { ChatResourcePicker } from './ChatResourcePicker'
 import { commandDraft, ComposerCommandMenu } from './ComposerCommandMenu'
 import { useComposerDraft } from './composer-drafts'
@@ -44,7 +46,6 @@ import {
 import { FocusTranscript, type TranscriptLoadState } from './FocusTranscript'
 import { GitChangesControl } from './GitChangesControl'
 import { GoalModeControl } from './GoalModeControl'
-import { PathAttachmentPicker } from './PathAttachmentPicker'
 import { SessionActionsMenu } from './SessionActionsMenu'
 import { SessionTreeControl } from './SessionTreeControl'
 import { SessionWorkflowRuns } from './SessionWorkflowRuns'
@@ -198,6 +199,12 @@ export function FocusSession({
   onAbort,
 }: FocusSessionProps) {
   const { t, language } = useI18n()
+  const mobileApp = useIsMobileApp()
+  const capabilities = useRuntimeCapabilitiesStore((state) => state.capabilities)
+  const goalsAvailable = runtimeFeatureAvailable(capabilities, 'goals')
+  const plansAvailable = runtimeFeatureAvailable(capabilities, 'plans')
+  const vcsAvailable = runtimeFeatureAvailable(capabilities, 'vcs')
+  const workflowsAvailable = runtimeFeatureAvailable(capabilities, 'workflows')
   const { value, updateValue, selection, clearDraft } = useComposerDraft(session.id)
   const [goalArmed, setGoalArmed] = useState(false)
   const [goalTokenBudget, setGoalTokenBudget] = useState(DEFAULT_GOAL_TOKEN_BUDGET)
@@ -205,7 +212,6 @@ export function FocusSession({
   const [compactingManually, setCompactingManually] = useState(false)
   const [scrollRequest, setScrollRequest] = useState(0)
   const [resourcePickerOpen, setResourcePickerOpen] = useState(false)
-  const [pathPickerOpen, setPathPickerOpen] = useState(false)
   const [sessionTreeOpen, setSessionTreeOpen] = useState(false)
   const [toolsOpen, setToolsOpen] = useState(false)
   const [invocation, setInvocation] = useState<ResourceInvocation | null>(null)
@@ -216,6 +222,13 @@ export function FocusSession({
   const quickActionsLabel = toolsOpen
     ? t('chat:focusSession.collapseQuickActions')
     : t('chat:focusSession.expandQuickActions')
+  const composerPlaceholder = mobileApp
+    ? streaming
+      ? t('chat:focusSession.addGuidanceForTheRunningAgent')
+      : t('chat:focusSession.writeWhatYouWantToAccomplish')
+    : streaming
+      ? t('chat:focusSession.addGuidanceForTheRunningAgentShiftEnterForANewLine')
+      : t('chat:focusSession.writeWhatYouWantToAccomplishShiftEnterForANewLine')
 
   useEffect(() => {
     setGoalArmed(false)
@@ -226,6 +239,11 @@ export function FocusSession({
     setSessionTreeOpen(false)
     setToolsOpen(false)
   }, [session.id])
+
+  useEffect(() => {
+    if (!goalsAvailable) setGoalArmed(false)
+    if (!workflowsAvailable && invocation?.kind === 'workflow') setInvocation(null)
+  }, [goalsAvailable, invocation?.kind, workflowsAvailable])
 
   useEffect(() => {
     if (!pendingAsset) return
@@ -254,20 +272,6 @@ export function FocusSession({
 
   const requestTranscriptBottom = () => {
     setScrollRequest((current) => current + 1)
-  }
-  // 选择路径附件：桌面环境走系统文件选择器（pickFiles），
-  // 纯 Web 环境退回路径输入对话框。
-  const choosePathAttachments = async () => {
-    if (window.pisperDesktop?.pickFiles) {
-      try {
-        const paths = await window.pisperDesktop.pickFiles(cwd)
-        selection.addAttachments(pathAttachments(paths || []))
-      } catch (caught) {
-        selection.setError(caught)
-      }
-      return
-    }
-    setPathPickerOpen(true)
   }
 
   // 手动压缩上下文：正在流式/已压缩进行中时忽略，防止并发压缩。
@@ -402,7 +406,7 @@ export function FocusSession({
             </div>
           </QueueSection>
         )}
-        <SessionWorkflowRuns sessionId={session.id} />
+        {workflowsAvailable && <SessionWorkflowRuns sessionId={session.id} />}
         {invocation && (
           <div
             className={`composer-resource-chip [&.workflow]:border-[var(--success)] [&.workflow]:bg-[var(--success-soft)] [&_button]:grid [&_button]:w-[20px] [&_button]:h-[20px] [&_button]:place-items-center [&_button]:border-0 [&_button]:rounded-[var(--r-xs)] [&_button]:bg-transparent [&_button]:text-[var(--text-muted)] [&_button]:cursor-pointer [&_button:hover]:bg-[var(--surface-hover)] [&_button:hover]:text-[var(--text)] inline-flex min-h-[28px] self-start items-center gap-[6px] [border:1px_solid_var(--blue)] rounded-[var(--r-sm)] bg-[var(--blue-soft)] text-[var(--text)] [padding:4px_6px_4px_8px] text-[12px] font-[600] ${invocation.kind}`}
@@ -455,16 +459,13 @@ export function FocusSession({
             }}
             onPaste={selection.pasteFiles}
             onKeyDown={(event) => {
-              if (event.key === 'Enter' && !event.shiftKey) {
+              if (!mobileApp && event.key === 'Enter' && !event.shiftKey) {
                 event.preventDefault()
                 event.currentTarget.form?.requestSubmit()
               }
             }}
-            placeholder={
-              streaming
-                ? t('chat:focusSession.addGuidanceForTheRunningAgentShiftEnterForANewLine')
-                : t('chat:focusSession.writeWhatYouWantToAccomplishShiftEnterForANewLine')
-            }
+            enterKeyHint={mobileApp ? 'enter' : 'send'}
+            placeholder={composerPlaceholder}
           />
           <div
             className={`focus-composer-footer @max-[470px]:[.focus-session.has-conversation_&]:flex-nowrap flex min-w-0 items-center gap-[4px] ${toolsOpen ? 'tools-open' : ''}`}
@@ -485,16 +486,7 @@ export function FocusSession({
               >
                 <Braces size={16} />
               </button>
-              <button
-                type="button"
-                className="attach-trigger [.focus-composer_&]:h-[38px] [.focus-composer_&]:border-0 [.focus-composer_&]:rounded-[var(--r-sm)] [.focus-composer_&]:bg-[var(--surface-subtle)] [.focus-composer_&]:text-[12px] [.focus-composer_&]:w-[38px] [.focus-composer_&]:min-w-[38px] [.focus-session.has-conversation_.focus-composer_&]:w-[36px] [.focus-session.has-conversation_.focus-composer_&]:min-w-[36px] [.focus-session.has-conversation_.focus-composer_&]:h-[36px] relative grid place-items-center border-0 rounded-[var(--r-xs)] bg-transparent text-[var(--text-muted)] cursor-pointer hover:bg-[var(--surface-hover)] hover:text-[var(--star-strong)] [&_i]:absolute [&_i]:top-[-4px] [&_i]:right-[-4px] [&_i]:grid [&_i]:min-w-[14px] [&_i]:h-[14px] [&_i]:place-items-center [&_i]:[border:2px_solid_var(--solid)] [&_i]:rounded-[var(--r-pill)] [&_i]:bg-[var(--blue)] [&_i]:text-[var(--on-accent)] [&_i]:p-[0_3px] [&_i]:text-[13px] [&_i]:[font-style:normal]"
-                title={t('chat:focusSession.addAttachment')}
-                aria-label={t('chat:focusSession.addAttachment')}
-                onClick={() => void choosePathAttachments()}
-              >
-                <Paperclip size={17} />
-                {selection.attachments.length > 0 && <i>{selection.attachments.length}</i>}
-              </button>
+              <AttachmentPicker cwd={cwd} selection={selection} />
             </div>
             <div className="focus-composer-runtime flex min-w-0 items-center gap-[4px]">
               <SessionModelSelect
@@ -548,18 +540,20 @@ export function FocusSession({
                   onChange={onThinkingLevelChange}
                   disabled={streaming || switchingThinking || switchingModel}
                 />
-                <GoalModeControl
-                  goal={goal}
-                  armed={goalArmed}
-                  tokenBudget={goalTokenBudget}
-                  onTokenBudgetChange={setGoalTokenBudget}
-                  onSaveTokenBudget={(tokenBudget) => onGoalBudgetChange?.(tokenBudget)}
-                  onChange={(enabled) => {
-                    if (!enabled && goal?.status === 'active') void onGoalPause?.()
-                    else setGoalArmed(enabled)
-                  }}
-                />
-                <GitChangesControl sessionId={session.id} streaming={streaming} />
+                {goalsAvailable && (
+                  <GoalModeControl
+                    goal={goal}
+                    armed={goalArmed}
+                    tokenBudget={goalTokenBudget}
+                    onTokenBudgetChange={setGoalTokenBudget}
+                    onSaveTokenBudget={(tokenBudget) => onGoalBudgetChange?.(tokenBudget)}
+                    onChange={(enabled) => {
+                      if (!enabled && goal?.status === 'active') void onGoalPause?.()
+                      else setGoalArmed(enabled)
+                    }}
+                  />
+                )}
+                {vcsAvailable && <GitChangesControl sessionId={session.id} streaming={streaming} />}
                 <button
                   type="button"
                   className="compact-context-trigger [&:hover:not(:disabled)]:border-[var(--accent-border)] [&:hover:not(:disabled)]:bg-[var(--accent-soft)] [&:hover:not(:disabled)]:text-[var(--star-strong)] disabled:[cursor:not-allowed] disabled:opacity-[.5] [.composer-tool-tray_&]:w-[38px] [.composer-tool-tray_&]:min-w-[38px] [.composer-tool-tray_&]:h-[38px] [.composer-tool-tray_&]:flex-none @max-[700px]:[.composer-tool-tray_&]:w-[32px] @max-[700px]:[.composer-tool-tray_&]:min-w-[32px] @max-[700px]:[.composer-tool-tray_&]:h-[32px] @max-[700px]:[.composer-tool-tray_&]:p-0 @max-[470px]:[.composer-tool-tray_&]:w-[28px] @max-[470px]:[.composer-tool-tray_&]:min-w-[28px] @max-[470px]:[.composer-tool-tray_&]:h-[28px] grid w-[38px] h-[38px] flex-none place-items-center [border:1px_solid_transparent] rounded-[var(--r-sm)] bg-[var(--surface-muted)] text-[var(--text-tertiary)] cursor-pointer"
@@ -651,7 +645,7 @@ export function FocusSession({
               <span>{workspaceName(cwd, language)}</span>
             </button>
           )}
-          <SessionUsageMetrics usage={sessionUsage} plan={plan} />
+          <SessionUsageMetrics usage={sessionUsage} plan={plansAvailable ? plan : null} />
         </div>
       </form>
       <ChatResourcePicker
@@ -662,12 +656,6 @@ export function FocusSession({
         onCommandSelect={(commandInvocation) =>
           applyWelcomeChip(commandDraft(commandInvocation, value))
         }
-      />
-      <PathAttachmentPicker
-        open={pathPickerOpen}
-        initialPath={cwd}
-        onOpenChange={setPathPickerOpen}
-        onSelect={(paths) => selection.addAttachments(pathAttachments(paths))}
       />
     </Panel>
   )

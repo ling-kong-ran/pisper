@@ -1,0 +1,23 @@
+{
+  "schemaVersion": 1,
+  "source": {
+    "repository": "https://github.com/ChamHerry/nodejs-mobile",
+    "commit": "8a995e179bb2c224029a560ae9c4f9460631b94d",
+    "recipeTree": "ceb72fb47d7c3b17a86571a8e0453a6d1336b1a9",
+    "materializedTree": "5cc2f4827de76aff03386b1958550f6be7ccaa9d",
+    "upstreamCommit": "9623d9ad85d37d2f0610ec4a82b48182cf2c6061"
+  },
+  "runtime": {
+    "nodeVersion": "24.18.1",
+    "modulesAbi": 137
+  },
+  "android": {
+    "releaseTag": "v24.18.1-autodroid.1",
+    "archive": "nodejs-mobile-v24.18.1-autodroid.1-android-arm64.zip",
+    "archiveSha256": "79982673ef1b7e01c25534dfe82718679d5856e2229650459ab4cd587258caa0",
+    "sigstoreBundleSha256": "0b82b0e3cc0da52fea3bd628d8d70747747eaa58b97b5b79db01d9a9236982e0",
+    "libnodeSha256": "7a0e282fbac803c516f5c5684fac3a8593198092c63dd19a1681a472950dbd20",
+    "certificateIdentityRegexp": "^https://github.com/ChamHerry/nodejs-mobile/.github/workflows/autodroid-release\\.yml@refs/heads/codex/autodroid-node-v24\\.18\\.1-android$",
+    "certificateOidcIssuer": "https://token.actions.githubusercontent.com"
+  }
+}

@@ -1,20 +1,10 @@
 import { execFile } from 'node:child_process'
-import { copyFile, cp, mkdir, readFile, rm, stat, writeFile } from 'node:fs/promises'
+import { copyFile, mkdir, readFile, stat, writeFile } from 'node:fs/promises'
 import { dirname, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { promisify } from 'node:util'
-import {
-  assertSizeManifest,
-  collectNativeState,
-  collectRuntimeSnapshot,
-  createSizeManifest,
-  criticalRuntimeEntries,
-  finalizeSizeManifest,
-  inspectCriticalFiles,
-  pruneRuntime,
-  runtimeTarget,
-  writeSizeManifest,
-} from './sea-runtime.mjs'
+import { finalizeSizeManifest, runtimeTarget, writeSizeManifest } from './sea-runtime.mjs'
+import { stageRuntimeClosure } from './stage-runtime-closure.mjs'
 
 const run = promisify(execFile)
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..')
@@ -37,54 +27,6 @@ function targetTriples() {
   }
   if (process.platform === 'darwin') return [`${arch}-apple-darwin`]
   return [`${arch}-unknown-linux-gnu`]
-}
-
-function runNpm(args, options = {}) {
-  const npmCli = String(process.env.npm_execpath || '').trim()
-  if (npmCli) return run(process.execPath, [npmCli, ...args], options)
-  const command = process.platform === 'win32' ? 'npm.cmd' : 'npm'
-  return run(command, args, options)
-}
-
-async function stageRuntime() {
-  await rm(runtimeDir, { recursive: true, force: true })
-  await mkdir(runtimeDir, { recursive: true })
-  await mkdir(join(runtimeDir, 'docs'), { recursive: true })
-  await Promise.all([
-    cp(join(root, 'runtime'), join(runtimeDir, 'runtime'), { recursive: true, force: true }),
-    cp(join(root, 'shared'), join(runtimeDir, 'shared'), { recursive: true, force: true }),
-    copyFile(join(root, 'docs', 'sponsors.json'), join(runtimeDir, 'docs', 'sponsors.json')),
-    copyFile(join(root, 'package.json'), join(runtimeDir, 'package.json')),
-    copyFile(join(root, 'package-lock.json'), join(runtimeDir, 'package-lock.json')),
-  ])
-  await rm(join(runtimeDir, 'runtime', 'tests'), { recursive: true, force: true })
-
-  await runNpm(['ci', '--omit=dev', '--ignore-scripts', '--no-audit', '--no-fund'], {
-    cwd: runtimeDir,
-    env: { ...process.env, NODE_ENV: 'production' },
-    maxBuffer: 10 * 1024 * 1024,
-  })
-  await rm(join(runtimeDir, 'package-lock.json'), { force: true })
-
-  const beforePrune = await collectRuntimeSnapshot(runtimeDir)
-  const { audit, nativeSelection } = await pruneRuntime(runtimeDir, target)
-  const afterPrune = await collectRuntimeSnapshot(runtimeDir)
-  const [criticalFiles, native] = await Promise.all([
-    inspectCriticalFiles(runtimeDir, criticalRuntimeEntries(nativeSelection)),
-    collectNativeState(runtimeDir, nativeSelection),
-  ])
-  const manifest = createSizeManifest({
-    appVersion: packageJson.version,
-    target,
-    beforePrune,
-    afterPrune,
-    pruning: audit,
-    criticalFiles,
-    native,
-  })
-  await writeSizeManifest(manifestPath, manifest)
-  assertSizeManifest(manifest)
-  return manifest
 }
 
 async function injectSea() {
@@ -131,7 +73,13 @@ async function injectSea() {
 await run(process.execPath, [join(root, 'node_modules', 'vite', 'bin', 'vite.js'), 'build'], {
   cwd: root,
 })
-let manifest = await stageRuntime()
+let manifest = await stageRuntimeClosure({
+  root,
+  runtimeDir,
+  manifestPath,
+  target,
+  appVersion: packageJson.version,
+})
 const tauriBinaries = await injectSea()
 const executableBytes = (await stat(executablePath)).size
 manifest = finalizeSizeManifest(manifest, executableBytes)

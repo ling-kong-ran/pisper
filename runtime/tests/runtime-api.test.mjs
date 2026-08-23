@@ -465,6 +465,63 @@ test('plugins API forwards the active session scope for callable Tool filtering'
   assert.deepEqual(JSON.parse(output.body).callableToolNames, ['read'])
 })
 
+test('capability guards retain the builtin Tool catalog while rejecting unavailable features', async () => {
+  const calls = []
+  const runtime = {
+    capabilities: {
+      features: {
+        plugins: false,
+        webSearch: true,
+        workflows: false,
+        goals: false,
+        imageProcessing: false,
+      },
+    },
+    async getPlugins() {
+      calls.push('catalog')
+      return { plugins: [], tools: [] }
+    },
+    async testWebSearch() {
+      calls.push('web-search')
+      return { results: [] }
+    },
+  }
+  const handler = createApiHandler(runtime)
+
+  const catalogOutput = response()
+  await handler(request('GET'), catalogOutput, new URL('http://localhost/api/plugins'))
+  assert.equal(catalogOutput.status, 200)
+
+  const webSearchOutput = response()
+  await handler(
+    request('POST', {}),
+    webSearchOutput,
+    new URL('http://localhost/api/plugins/web-search/test'),
+  )
+  assert.equal(webSearchOutput.status, 200)
+  assert.deepEqual(calls, ['catalog', 'web-search'])
+
+  for (const [url, body, capability] of [
+    ['/api/plugins/inspect', {}, 'plugins'],
+    [
+      '/api/chat',
+      { message: 'run', invocation: { kind: 'workflow', resourceId: 'release' } },
+      'workflows',
+    ],
+    ['/api/chat', { message: 'finish', goalMode: true }, 'goals'],
+    [
+      '/api/chat',
+      { message: 'inspect', attachments: [{ kind: 'image', data: 'AA==' }] },
+      'imageProcessing',
+    ],
+  ]) {
+    const output = response()
+    await handler(request('POST', body), output, new URL(`http://localhost${url}`))
+    assert.equal(output.status, 409)
+    assert.equal(JSON.parse(output.body).capability, capability)
+  }
+})
+
 test('chat API forwards explicit Tool requests as structured runtime input', async () => {
   const calls = []
   const runtime = {

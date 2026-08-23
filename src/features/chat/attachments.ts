@@ -1,4 +1,4 @@
-// 附件选择：支持粘贴/拖拽/文件选择，统一转换成 ChatAttachment，
+// 附件选择：支持粘贴、拖拽与手机系统文件选择，统一转换成 ChatAttachment；
 // 超过大小上限（10MB）的附件被拒绝并提示。
 import { useCallback, useRef, useState, type ClipboardEvent } from 'react'
 import { storedLanguage, translateText, type I18nValues } from '@/app/i18n.ts'
@@ -42,6 +42,15 @@ const DOCUMENT_EXTENSIONS = new Set([
   'rtf',
   'epub',
 ])
+
+export const CHAT_ATTACHMENT_ACCEPT = [
+  'image/*',
+  'text/*',
+  'application/json',
+  ...[...IMAGE_EXTENSIONS, ...TEXT_EXTENSIONS, ...DOCUMENT_EXTENSIONS].map(
+    (extension) => `.${extension}`,
+  ),
+].join(',')
 
 export function clipboardFiles(clipboardData: DataTransfer | null | undefined): File[] {
   const files = [...(clipboardData?.files || [])]
@@ -145,7 +154,7 @@ export function useAttachmentSelection(
     [onAttachmentsChange],
   )
 
-  const addClipboardFiles = useCallback(
+  const addFiles = useCallback(
     async (fileList: Iterable<File> | null | undefined) => {
       try {
         setAttachmentError('')
@@ -171,9 +180,9 @@ export function useAttachmentSelection(
       const files = clipboardFiles(event.clipboardData)
       if (!files.length) return
       event.preventDefault()
-      void addClipboardFiles(files)
+      void addFiles(files)
     },
-    [addClipboardFiles],
+    [addFiles],
   )
 
   const removeAttachment = useCallback(
@@ -204,6 +213,7 @@ export function useAttachmentSelection(
   return {
     attachments,
     attachmentError,
+    addFiles,
     pasteFiles,
     removeAttachment,
     clearAttachments,

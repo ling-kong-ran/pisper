@@ -46,8 +46,14 @@
           <a href="https://github.com/ling-kong-ran/pisper">GitHub</a>
           <a href="https://github.com/ling-kong-ran/pisper/blob/release/README.en.md">English</a>
         </div>
-        <a class="nav-download magnetic" href="https://github.com/ling-kong-ran/pisper/releases/latest">
+        <a
+          class="nav-download desktop-download-cta magnetic"
+          href="https://github.com/ling-kong-ran/pisper/releases/latest"
+        >
           下载桌面版 <span aria-hidden="true">↓</span>
+        </a>
+        <a class="nav-download mobile-download-cta magnetic" href="#mobile-downloads">
+          下载移动端 <span aria-hidden="true">↓</span>
         </a>
       </nav>
     </header>
@@ -67,16 +73,22 @@
           </p>
           <div class="hero-primary-actions reveal" style="--d:340ms">
             <a
-              class="button button-primary shiny magnetic"
+              class="button button-primary desktop-download-cta shiny magnetic"
               href="https://github.com/ling-kong-ran/pisper/releases/latest"
             >
               下载桌面版 <span aria-hidden="true">↓</span>
+            </a>
+            <a
+              class="button button-primary mobile-download-cta shiny magnetic"
+              href="#mobile-downloads"
+            >
+              下载移动端 <span aria-hidden="true">↓</span>
             </a>
             <a class="button button-secondary magnetic" href="#product">
               浏览产品界面 <span aria-hidden="true">→</span>
             </a>
           </div>
-          <div class="hero-mobile-row reveal" style="--d:420ms">
+          <div class="hero-mobile-row reveal" id="mobile-downloads" style="--d:420ms">
             <div class="hero-mobile-actions">
               <a
                 class="button button-mobile button-android magnetic"
@@ -124,67 +136,67 @@
 
         <div class="product-tabs reveal" role="tablist" aria-label="产品界面">
           <button type="button" role="tab" aria-selected="true" aria-controls="product-panel"
-            id="tab-sessions" data-shot="shots/chat-grid.png"
+            id="tab-sessions" data-shot="shots/web/chat-grid.webp"
             data-alt="Pisper 并行会话分屏" data-title="并行会话"
             data-copy="拖一下标签，四面分屏。多个 Agent 同屏竞技，进度一目了然。">并行会话</button>
           <button type="button" role="tab" aria-selected="false" aria-controls="product-panel"
-            id="tab-session-tree" data-shot="shots/session-tree.png"
+            id="tab-session-tree" data-shot="shots/web/session-tree.webp"
             data-alt="Pisper 追忆分支视图" data-title="追忆"
             data-copy="长对话压成主干与分叉。在任意已完成 Turn 接回原分支，源会话一字不改。">追忆</button>
           <button type="button" role="tab" aria-selected="false" aria-controls="product-panel"
-            id="tab-turn-label" data-shot="shots/turn-label.png"
+            id="tab-turn-label" data-shot="shots/web/turn-label.webp"
             data-alt="Pisper 稳定 Turn 标签" data-title="稳定 Turn 标签"
             data-copy="给关键 Turn 钉上标签。标签绑定持久化边界，不依赖会过期的消息 ID。">Turn 标签</button>
           <button type="button" role="tab" aria-selected="false" aria-controls="product-panel"
-            id="tab-session-labels" data-shot="shots/session-labels.png"
+            id="tab-session-labels" data-shot="shots/web/session-labels.webp"
             data-alt="Pisper 跨会话标签搜索" data-title="跨会话直达"
             data-copy="Ctrl K 一搜直达那个 Turn：自动切分支、载历史、滚到现场。">跨会话定位</button>
           <button type="button" role="tab" aria-selected="false" aria-controls="product-panel"
-            id="tab-chat" data-shot="shots/chat.png"
+            id="tab-chat" data-shot="shots/web/chat.webp"
             data-alt="Pisper 聚集对话界面" data-title="聚集对话"
             data-copy="单 Agent 深潜模式：思考、工具与执行折叠在各自消息里，收放自如。">聚集对话</button>
           <button type="button" role="tab" aria-selected="false" aria-controls="product-panel"
-            id="tab-terminal" data-shot="shots/terminal.png"
+            id="tab-terminal" data-shot="shots/web/terminal.webp"
             data-alt="Pisper 桌面会话终端" data-title="会话终端"
             data-copy="终端绑定当前会话与工作目录。切走会话进程照跑，回来现场还在。">桌面终端</button>
           <button type="button" role="tab" aria-selected="false" aria-controls="product-panel"
-            id="tab-workflows" data-shot="shots/workflow-builder.png"
+            id="tab-workflows" data-shot="shots/web/workflow-builder.webp"
             data-alt="Pisper 可视化工作流编辑器" data-title="可视化工作流"
             data-copy="把 Prompt、文件、MCP 与通知连成图。重复的事，交给流程去跑。">工作流</button>
           <button type="button" role="tab" aria-selected="false" aria-controls="product-panel"
-            id="tab-memory" data-shot="shots/memory.png"
+            id="tab-memory" data-shot="shots/web/memory.webp"
             data-alt="Pisper 星忆关系视图" data-title="项目记忆"
             data-copy="事实、偏好与决策被记住并可检索。项目再长，也不用重复自我介绍。">星忆</button>
           <button type="button" role="tab" aria-selected="false" aria-controls="product-panel"
-            id="tab-channels" data-shot="shots/channels.png"
+            id="tab-channels" data-shot="shots/web/channels.webp"
             data-alt="Pisper 渠道管理界面" data-title="双向渠道"
             data-copy="接上飞书与个人微信。你离开电脑，会话和通知不离开。">渠道</button>
           <button type="button" role="tab" aria-selected="false" aria-controls="product-panel"
-            id="tab-remote-access" data-shot="shots/config-remote-access.png"
+            id="tab-remote-access" data-shot="shots/web/config-remote-access.webp"
             data-alt="Pisper 远程访问与设备连接设置" data-title="设备连接"
             data-copy="开启远程访问，查看 LAN 与 P2P 状态，并集中管理每一台已配对设备。">设备连接</button>
           <button type="button" role="tab" aria-selected="false" aria-controls="product-panel"
-            id="tab-schedules" data-shot="shots/schedules.png"
+            id="tab-schedules" data-shot="shots/web/schedules.webp"
             data-alt="Pisper 定时任务管理" data-title="定时任务"
             data-copy="定好频率与时区，到点 Agent 自己开工，结果推到你手边。">定时任务</button>
           <button type="button" role="tab" aria-selected="false" aria-controls="product-panel"
-            id="tab-plugins" data-shot="shots/plugins.png"
+            id="tab-plugins" data-shot="shots/web/plugins.webp"
             data-alt="Pisper 工具与插件管理" data-title="工具与插件"
             data-copy="想要新能力直接说：生成、校验、装好，下一轮对话即可调用。">工具与插件</button>
           <button type="button" role="tab" aria-selected="false" aria-controls="product-panel"
-            id="tab-mcp" data-shot="shots/mcp.png"
+            id="tab-mcp" data-shot="shots/web/mcp.webp"
             data-alt="Pisper MCP 配置" data-title="MCP 服务"
             data-copy="把外部服务结构化接进执行链，真实数据触手可及。">MCP</button>
           <button type="button" role="tab" aria-selected="false" aria-controls="product-panel"
-            id="tab-skills" data-shot="shots/skills.png"
+            id="tab-skills" data-shot="shots/web/skills.webp"
             data-alt="Pisper 技能中心" data-title="技能中心"
             data-copy="可复用能力按需加载、自动触发，不挤占上下文。">技能</button>
           <button type="button" role="tab" aria-selected="false" aria-controls="product-panel"
-            id="tab-config" data-shot="shots/config.png"
+            id="tab-config" data-shot="shots/web/config.webp"
             data-alt="Pisper 模型配置" data-title="模型配置"
             data-copy="多家 Provider、地址、认证与策略集中管理，保存与切换解耦。">模型配置</button>
           <button type="button" role="tab" aria-selected="false" aria-controls="product-panel"
-            id="tab-updates" data-shot="shots/config-updates.png"
+            id="tab-updates" data-shot="shots/web/config-updates.webp"
             data-alt="Pisper 组件更新设置" data-title="组件更新"
             data-copy="Desktop、TUI 与 Runtime 独立检查和更新，需要什么就只更新什么。">组件更新</button>
         </div>
@@ -194,10 +206,12 @@
             <img
               class="product-shot"
               data-product-shot
-              src="shots/chat-grid.png"
+              src="shots/web/chat-grid.webp"
               alt="Pisper 并行会话分屏"
-              width="2558"
-              height="1380"
+              width="1600"
+              height="864"
+              loading="lazy"
+              decoding="async"
             />
           </div>
           <figcaption>
@@ -363,13 +377,13 @@
         <div class="terminal-gallery" aria-label="Pisper TUI 界面">
           <figure class="terminal-figure reveal">
             <a href="shots/cli.png" target="_blank" rel="noopener noreferrer" aria-label="查看完整 TUI 欢迎页截图">
-              <img src="shots/cli.png" alt="Pisper TUI 欢迎页" width="3082" height="1506" loading="lazy" />
+              <img src="shots/web/cli.webp" alt="Pisper TUI 欢迎页" width="1400" height="684" loading="lazy" decoding="async" />
             </a>
             <figcaption>欢迎页</figcaption>
           </figure>
           <figure class="terminal-figure reveal" style="--d:120ms">
             <a href="shots/cli-chat.png" target="_blank" rel="noopener noreferrer" aria-label="查看完整 TUI Chat 截图">
-              <img src="shots/cli-chat.png" alt="Pisper TUI Chat 页面" width="3082" height="1506" loading="lazy" />
+              <img src="shots/web/cli-chat.webp" alt="Pisper TUI Chat 页面" width="1400" height="684" loading="lazy" decoding="async" />
             </a>
             <figcaption>Chat 与实时活动</figcaption>
           </figure>
@@ -382,7 +396,7 @@
           <p class="eyebrow">移动端 · MOBILE</p>
           <h2 id="mobile-title">Pisper，随身带走。</h2>
           <p>
-            手机上可以直接运行受限本机 Runtime，也可以连接桌面 Pisper。
+            手机上可以直接运行同源 Node/Pisper Runtime，也可以连接桌面 Pisper。
             在家优先走局域网，离家自动切换 P2P；模式与会话都由手机记住。
           </p>
           <ol class="mobile-points">
@@ -396,8 +410,8 @@
             <li>
               <span>02</span>
               <div>
-                <h3>本机轻量 Runtime</h3>
-                <p>使用 OpenAI 兼容 Provider 流式对话，会话与密钥仅保存在手机，资源占用有明确上限。</p>
+                <h3>同一套本机 Runtime</h3>
+                <p>标准 Agent、Provider、会话、HTTP/SSE 与 React 界面都在手机运行，并按设备能力自动调整入口。</p>
               </div>
             </li>
             <li>
@@ -410,8 +424,8 @@
             <li>
               <span>04</span>
               <div>
-                <h3>导航与密钥都为手机设计</h3>
-                <p>底部主导航一键切页；Provider 密钥由 Android Keystore 或 iOS Keychain 保护。</p>
+                <h3>手机导航，能力透明</h3>
+                <p>底部主导航一键切页；普通设备按 Runtime 清单降级，rooted Android 自动使用能力更完整的载体。</p>
               </div>
             </li>
           </ol>
@@ -450,13 +464,13 @@
         <div class="terminal-gallery" aria-label="Pisper 移动端界面">
           <figure class="terminal-figure phone-figure reveal">
             <a href="shots/mobile-chat3.png" target="_blank" rel="noopener noreferrer" aria-label="查看完整移动端会话截图">
-              <img src="shots/mobile-chat3.png" alt="Pisper 移动端会话界面" width="1440" height="2560" loading="lazy" />
+              <img src="shots/web/mobile-chat3.webp" alt="Pisper 移动端会话界面" width="720" height="1280" loading="lazy" decoding="async" />
             </a>
             <figcaption>手机上的完整 Pisper</figcaption>
           </figure>
           <figure class="terminal-figure phone-figure reveal" style="--d:100ms">
             <a href="shots/mobile-servers.png" target="_blank" rel="noopener noreferrer" aria-label="查看移动端服务器切换截图">
-              <img src="shots/mobile-servers.png" alt="Pisper 移动端服务器切换界面" width="1440" height="2560" loading="lazy" />
+              <img src="shots/web/mobile-servers.webp" alt="Pisper 移动端服务器切换界面" width="720" height="1280" loading="lazy" decoding="async" />
             </a>
             <figcaption>连接路径与服务器切换</figcaption>
           </figure>

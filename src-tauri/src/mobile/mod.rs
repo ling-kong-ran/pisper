@@ -1,22 +1,27 @@
-//! 移动端壳：启动本地回环代理，按配对状态决定窗口初始地址——
-//! 已配对直接进主界面（经代理访问桌面端 UI），未配对进入内置连接页。
+//! 移动端壳：启动本地回环代理并恢复上次明确选择的路由；首次启动默认进入本机
+//! Runtime，桌面配对与模式切换统一由正常 React 设置页承载。
 //!
 //! 桌面构建时 run_mobile 不会被调用（仅用于在桌面主机上 check/test 代理逻辑），
 //! 因此豁免 dead_code。
 #![allow(dead_code)]
 
-pub mod local;
+pub mod embedded_runtime;
+pub mod on_device_runtime;
 pub mod pairing;
 pub mod pinning;
 pub mod proxy;
+pub mod root_runtime;
 pub mod store;
 pub mod update;
 
 use std::sync::{Arc, Mutex};
 
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use store::{ProfileStore, ServerProfile, SharedStore};
 use tauri::{Manager, State, WebviewUrl, WebviewWindowBuilder};
+
+#[cfg(any(target_os = "android", target_os = "ios"))]
+use pisper_mobile_device_plugin::MobileDeviceExt;
 
 use pairing::QrPayload;
 
@@ -24,7 +29,7 @@ pub struct MobileShared {
     store: Arc<SharedStore>,
     proxy: Arc<proxy::ProxyHandle>,
     tunnels: Arc<crate::iroh_tunnel::TunnelBridgePool>,
-    local: Arc<local::LocalRuntime>,
+    on_device: Arc<on_device_runtime::OnDeviceRuntime>,
 }
 
 #[derive(Serialize)]
@@ -41,15 +46,17 @@ struct ServerDto {
 struct MobileStateDto {
     paired: bool,
     proxy_url: String,
-    /// 本机 Runtime 的回环入口：连接页/服务器设置用它切入本机模式。
-    local_url: String,
+    /// 当前产品路由；active_id 仅表示远程模式要使用的服务器档案。
+    mode: Option<String>,
+    /// 壳根据设备环境选择同源 Node Runtime 的可用承载方式。
+    on_device: root_runtime::RootRuntimeStatus,
     active_id: Option<String>,
     active_transport: Option<String>,
     servers: Vec<ServerDto>,
 }
 
 fn state_dto(shared: &MobileShared) -> MobileStateDto {
-    let (servers, active_id) = shared
+    let (servers, active_id, mode) = shared
         .store
         .lock()
         .map(|store| {
@@ -65,15 +72,22 @@ fn state_dto(shared: &MobileShared) -> MobileStateDto {
                     })
                     .collect::<Vec<_>>(),
                 store.active().map(|server| server.id.clone()),
+                store.last_mode().map(str::to_string),
             )
         })
         .unwrap_or_default();
+    let active_transport = if mode.as_deref() == Some("remote") {
+        shared.proxy.active_transport()
+    } else {
+        None
+    };
     MobileStateDto {
         paired: active_id.is_some(),
         proxy_url: format!("http://127.0.0.1:{}", shared.proxy.port),
-        local_url: format!("http://127.0.0.1:{}", shared.local.port),
+        mode,
+        on_device: shared.on_device.status(),
         active_id,
-        active_transport: shared.proxy.active_transport(),
+        active_transport,
         servers,
     }
 }
@@ -100,7 +114,8 @@ async fn mobile_pair(
         .lock()
         .map_err(|_| "state poisoned".to_string())?
         .upsert(profile)?;
-    // 配对成功即明确选择远程模式：覆盖可能存在的 local 记忆。
+    // 配对成功即明确选择远程模式；同进程 Node 会驻留，root 载体可以释放。
+    state.on_device.deactivate();
     state
         .store
         .lock()
@@ -140,6 +155,7 @@ async fn mobile_pair_manual(
         store.upsert(profile)?;
         store.set_last_mode("remote")?;
     }
+    state.on_device.deactivate();
     Ok(state_dto(&state))
 }
 
@@ -157,12 +173,17 @@ fn mobile_select_server(
         // 显式选择远程服务器，同时把模式记忆切回远程。
         store.set_last_mode("remote")?;
     }
+    state.on_device.deactivate();
     Ok(state_dto(&state))
 }
 
-/// 进入本机模式：记录模式记忆并返回最新状态（前端读 localUrl 导航）。
+/// 进入同源本机 Node Runtime；承载准备与启动放到阻塞线程。
 #[tauri::command]
-fn mobile_enter_local(state: State<'_, MobileShared>) -> Result<MobileStateDto, String> {
+async fn mobile_enter_local(state: State<'_, MobileShared>) -> Result<MobileStateDto, String> {
+    let on_device = state.on_device.clone();
+    tauri::async_runtime::spawn_blocking(move || on_device.ensure_started())
+        .await
+        .map_err(|error| format!("本机 Runtime 任务失败：{error}"))??;
     state
         .store
         .lock()
@@ -174,6 +195,7 @@ fn mobile_enter_local(state: State<'_, MobileShared>) -> Result<MobileStateDto, 
 /// 离开本机模式：回到远程优先的路由语义（冷启动不再直进本机页）。
 #[tauri::command]
 fn mobile_leave_local(state: State<'_, MobileShared>) -> Result<MobileStateDto, String> {
+    state.on_device.deactivate();
     state
         .store
         .lock()
@@ -195,21 +217,178 @@ fn mobile_forget_server(
     Ok(state_dto(&state))
 }
 
-/// 连接页的地址：Android 上 Tauri 资产源是 http://tauri.localhost，iOS 是 tauri://localhost。
-/// 前端（经代理访问的桌面 UI）用它跳回配对/服务器管理页。
-#[tauri::command]
-fn mobile_connect_url() -> String {
-    #[cfg(target_os = "android")]
-    {
-        "http://tauri.localhost/connect.html".to_string()
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct MobileDeviceOperationRequest {
+    id: String,
+    operation: String,
+    #[serde(default)]
+    parameters: serde_json::Map<String, serde_json::Value>,
+}
+
+fn operation_capability(operation: &str) -> Result<&'static str, String> {
+    match operation {
+        "contacts.search" => Ok("contacts"),
+        "camera.capture" => Ok("camera"),
+        "location.current" => Ok("location"),
+        "apps.open_url"
+        | "apps.open_map"
+        | "apps.open_system_settings"
+        | "apps.open_dialer"
+        | "apps.compose_sms"
+        | "apps.open_app" => Ok("externalApps"),
+        _ => Err("不支持的移动设备操作。".into()),
     }
-    #[cfg(target_os = "ios")]
+}
+
+fn device_capability_state(
+    app: &tauri::AppHandle,
+    store: &SharedStore,
+) -> Result<serde_json::Value, String> {
+    let enabled = store
+        .lock()
+        .map_err(|_| "移动端档案锁已损坏。".to_string())?
+        .device_capabilities();
+    #[cfg(any(target_os = "android", target_os = "ios"))]
+    let permissions = app
+        .mobile_device()
+        .permission_states()
+        .map_err(|error| error.to_string())?;
+    #[cfg(not(any(target_os = "android", target_os = "ios")))]
+    let permissions = {
+        let _ = app;
+        serde_json::json!({
+            "contacts": "unsupported",
+            "camera": "unsupported",
+            "location": "unsupported",
+            "externalApps": "not-required"
+        })
+    };
+    Ok(serde_json::json!({ "enabled": enabled, "permissions": permissions }))
+}
+
+#[tauri::command]
+fn mobile_get_device_capabilities(
+    app: tauri::AppHandle,
+    state: State<'_, MobileShared>,
+) -> Result<serde_json::Value, String> {
+    device_capability_state(&app, state.store.as_ref())
+}
+
+#[tauri::command]
+fn mobile_set_device_capability(
+    app: tauri::AppHandle,
+    state: State<'_, MobileShared>,
+    capability: String,
+    enabled: bool,
+) -> Result<serde_json::Value, String> {
+    state
+        .store
+        .lock()
+        .map_err(|_| "移动端档案锁已损坏。".to_string())?
+        .set_device_capability(&capability, enabled)?;
+    device_capability_state(&app, state.store.as_ref())
+}
+
+#[tauri::command]
+fn mobile_request_device_permission(
+    app: tauri::AppHandle,
+    state: State<'_, MobileShared>,
+    capability: String,
+) -> Result<serde_json::Value, String> {
+    let enabled = state
+        .store
+        .lock()
+        .map_err(|_| "移动端档案锁已损坏。".to_string())?
+        .device_capabilities()
+        .enabled(&capability);
+    if !enabled {
+        return Err("请先在 Pisper 设置中启用该设备能力。".into());
+    }
+    if capability == "externalApps" {
+        return device_capability_state(&app, state.store.as_ref());
+    }
+    #[cfg(any(target_os = "android", target_os = "ios"))]
+    return app
+        .mobile_device()
+        .request_permission(capability)
+        .map_err(|error| error.to_string());
+    #[cfg(not(any(target_os = "android", target_os = "ios")))]
     {
-        "tauri://localhost/connect.html".to_string()
+        let _ = app;
+        Err("当前平台不支持移动设备权限。".into())
+    }
+}
+
+#[tauri::command]
+fn mobile_open_device_settings(app: tauri::AppHandle) -> Result<(), String> {
+    #[cfg(any(target_os = "android", target_os = "ios"))]
+    return app
+        .mobile_device()
+        .open_app_settings()
+        .map_err(|error| error.to_string());
+    #[cfg(not(any(target_os = "android", target_os = "ios")))]
+    {
+        let _ = app;
+        Err("当前平台不支持移动设备设置。".into())
+    }
+}
+
+#[tauri::command]
+fn mobile_execute_device_operation(
+    app: tauri::AppHandle,
+    state: State<'_, MobileShared>,
+    request: MobileDeviceOperationRequest,
+) -> Result<serde_json::Value, String> {
+    if !request.id.starts_with("mop_") || request.id.len() > 80 {
+        return Err("移动设备操作 ID 无效。".into());
+    }
+    let capability = operation_capability(&request.operation)?;
+    let enabled = state
+        .store
+        .lock()
+        .map_err(|_| "移动端档案锁已损坏。".to_string())?
+        .device_capabilities()
+        .enabled(capability);
+    if !enabled {
+        return Err("该设备能力已在 Pisper 设置中关闭。".into());
+    }
+
+    #[cfg(any(target_os = "android", target_os = "ios"))]
+    {
+        let device = app.mobile_device();
+        if capability != "externalApps" {
+            let states = device
+                .permission_states()
+                .map_err(|error| error.to_string())?;
+            if states.get(capability).and_then(|value| value.as_str()) != Some("granted") {
+                let result = device
+                    .request_permission(capability)
+                    .map_err(|error| error.to_string())?;
+                if result.get("state").and_then(|value| value.as_str()) != Some("granted") {
+                    return Err("系统未授予该设备能力权限。".into());
+                }
+            }
+        }
+        let result = device
+            .execute(pisper_mobile_device_plugin::OperationRequest {
+                operation: request.operation,
+                parameters: request.parameters,
+            })
+            .map_err(|error| error.to_string())?;
+        if serde_json::to_vec(&result)
+            .map_err(|error| error.to_string())?
+            .len()
+            > 12 * 1024 * 1024
+        {
+            return Err("移动设备操作结果超过 12 MB 限制。".into());
+        }
+        return Ok(result);
     }
     #[cfg(not(any(target_os = "android", target_os = "ios")))]
     {
-        String::new()
+        let _ = app;
+        Err("当前平台不支持移动设备操作。".into())
     }
 }
 
@@ -236,7 +415,9 @@ pub fn run_mobile() {
         .plugin(tauri_plugin_notification::init())
         .plugin(tauri_plugin_opener::init());
     #[cfg(any(target_os = "android", target_os = "ios"))]
-    let builder = builder.plugin(tauri_plugin_barcode_scanner::init());
+    let builder = builder
+        .plugin(pisper_mobile_device_plugin::init())
+        .plugin(tauri_plugin_barcode_scanner::init());
     let builder = builder
         .setup(|app| {
             let data_dir = app
@@ -260,12 +441,18 @@ pub fn run_mobile() {
                 store.clone(),
                 Some(tunnels.clone()),
             ))?;
-            // 本机 Runtime 与代理并列启动：同规则，监听器留在该运行时上。
-            let local = tauri::async_runtime::block_on(local::start_runtime(
-                &data_dir.join("local-runtime"),
-            ))?;
-            // manage 会移走 local，启动路由只需要端口，先取出。
-            let local_port = local.port;
+            // root chroot 与 embedded Node 仅是内部承载，产品状态始终只有一个本机 Runtime。
+            let embedded_resource = app
+                .path()
+                .resource_dir()
+                .ok()
+                .map(|path| path.join("pisper-embedded-runtime.tar.gz"));
+            let on_device = Arc::new(on_device_runtime::OnDeviceRuntime::new(
+                data_dir.join("on-device-runtime"),
+                data_dir.join("local-runtime-data"),
+                app.package_info().version.to_string(),
+                embedded_resource,
+            ));
             let last_mode = store
                 .lock()
                 .ok()
@@ -274,28 +461,36 @@ pub fn run_mobile() {
                 .lock()
                 .map(|store| store.active().is_some())
                 .unwrap_or(false);
+            let use_remote = last_mode.as_deref() == Some("remote") && paired;
+            let on_device_url = if use_remote {
+                None
+            } else {
+                // 首次启动与失效的远程档案都回到本机模式，避免再引入独立连接页。
+                store
+                    .lock()
+                    .map_err(|_| "移动端档案锁已损坏。".to_string())?
+                    .set_last_mode("local")?;
+                on_device.ensure_started().ok().map(|status| status.url)
+            };
             app.manage(MobileShared {
                 store,
                 proxy: proxy.clone(),
                 tunnels,
-                local,
+                on_device,
             });
             app.manage(update::MobileUpdateState::default());
             update::start_automatic_checks(app.handle().clone());
 
-            // 启动路由：模式记忆优先（local 直进本机页），其次已配对远程，最后连接页。
-            let initial = if last_mode.as_deref() == Some("local") {
-                WebviewUrl::External(
-                    tauri::Url::parse(&format!("http://127.0.0.1:{local_port}"))
-                        .map_err(|error| error.to_string())?,
-                )
-            } else if paired {
+            let initial = if use_remote {
                 WebviewUrl::External(
                     tauri::Url::parse(&format!("http://127.0.0.1:{}", proxy.port))
                         .map_err(|error| error.to_string())?,
                 )
+            } else if let Some(url) = on_device_url {
+                WebviewUrl::External(tauri::Url::parse(&url).map_err(|error| error.to_string())?)
             } else {
-                WebviewUrl::App("connect.html".into())
+                // Runtime 故障仍保留完整 App 壳，用户可在设置中修复或配对桌面端。
+                WebviewUrl::App("index.html".into())
             };
             WebviewWindowBuilder::new(app, "main", initial)
                 .title("Pisper")
@@ -310,7 +505,11 @@ pub fn run_mobile() {
             mobile_enter_local,
             mobile_leave_local,
             mobile_forget_server,
-            mobile_connect_url,
+            mobile_get_device_capabilities,
+            mobile_set_device_capability,
+            mobile_request_device_permission,
+            mobile_open_device_settings,
+            mobile_execute_device_operation,
             update::mobile_app_info,
             update::mobile_check_app_update,
             update::mobile_open_app_update,
@@ -325,6 +524,12 @@ pub fn run_mobile() {
         .run(|app, event| {
             if matches!(event, tauri::RunEvent::Resumed) {
                 update::check_after_resume(app.clone());
+            }
+            if matches!(
+                event,
+                tauri::RunEvent::Exit | tauri::RunEvent::ExitRequested { .. }
+            ) {
+                app.state::<MobileShared>().on_device.shutdown();
             }
         });
 

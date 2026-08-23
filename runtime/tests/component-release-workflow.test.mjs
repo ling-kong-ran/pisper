@@ -180,7 +180,6 @@ test('release paths select one or every affected component without coupling docu
   // App 组件独立：移动端独属路径不触发 desktop/tui/runtime 检测。
   assert.deepEqual(releaseComponentsForPath('src-tauri/src/mobile/proxy.rs'), [])
   assert.deepEqual(releaseComponentsForPath('src-tauri/mobile-package.json'), [])
-  assert.deepEqual(releaseComponentsForPath('public/connect.html'), [])
   assert.deepEqual(releaseComponentsForPath('.github/workflows/release-app.yml'), [])
   assert.deepEqual(releaseComponentsForPath('scripts/build-mobile-android.mjs'), [])
   assert.deepEqual(releaseComponentsForPath('src-tui/src/main.rs'), ['tui'])

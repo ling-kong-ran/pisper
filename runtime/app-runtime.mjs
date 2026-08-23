@@ -17,6 +17,7 @@ import { authorizeRemoteRequest } from './remote-auth.mjs'
 import { ensureRemoteCertificate } from './remote-tls.mjs'
 import { collectRemoteEndpoints, remoteDeviceName } from './remote-endpoints.mjs'
 import { readIrohTunnelStatus } from './iroh-endpoint.mjs'
+import { resolveRuntimeCapabilities } from './runtime-capabilities.mjs'
 
 // 启动诊断回调必须无副作用：即使观察者抛错也不能影响运行时可用性。
 function notifyStartup(observer, stage) {
@@ -68,6 +69,7 @@ export async function createPisperRuntime({
   frontendRoot = null,
   deferRuntimeInitialization = false,
   startupObserver = null,
+  runtimeCapabilities = null,
   // 远程访问（移动端互联）：enabled 为 null 时跟随持久化状态，显式 true/false 覆盖之。
   remote = {},
   runtimeModuleLoader = () => import('./runtime/agent-runtime.mjs'),
@@ -76,6 +78,7 @@ export async function createPisperRuntime({
   const appRoot = resolve(root || process.cwd())
   const cwd = resolve(runtimeCwd || homedir())
   const agentDir = resolve(dataDir)
+  const capabilities = runtimeCapabilities || (await resolveRuntimeCapabilities())
   // Pi 引擎通过该环境变量定位自己的数据目录，必须在实例化前设置。
   process.env.PI_CODING_AGENT_DIR = agentDir
 
@@ -109,7 +112,7 @@ export async function createPisperRuntime({
           ]
         : []
       return {
-        enabled: remoteAccess.isEnabled(),
+        enabled: capabilities.features.remoteAccess && remoteAccess.isEnabled(),
         listening: Boolean(remoteServer),
         host: remoteHost,
         port: activePort,
@@ -128,6 +131,8 @@ export async function createPisperRuntime({
       }
     },
     async setEnabled(enabled) {
+      if (!capabilities.features.remoteAccess)
+        throw new Error('当前 Runtime 不支持远程访问服务端。')
       remoteAccess.setEnabled(enabled)
       if (enabled) await startRemote()
       else await stopRemote()
@@ -220,6 +225,7 @@ export async function createPisperRuntime({
       // 作为 legacy 默认工作目录保留，避免历史会话恢复时找不到路径。
       legacyDefaultCwds: production && basename(appRoot) === 'sidecar-runtime' ? [appRoot] : [],
       browserAutomationDriver,
+      capabilities,
       eventObserver: (payload) => {
         // 事件观察全部 best-effort：桌面宠物或外部观察者抛错不能中断 Agent 流。
         try {
@@ -327,8 +333,9 @@ export async function createPisperRuntime({
   if (deferRuntimeInitialization) setImmediate(startInitialization)
 
   // 远程监听：显式开关优先，其次持久化状态。启动失败只记录状态，不影响主服务。
-  const remoteRequested = remote.enabled ?? remoteAccess.isEnabled()
-  if (remote.enabled === true) remoteAccess.setEnabled(true)
+  const remoteRequested =
+    capabilities.features.remoteAccess && (remote.enabled ?? remoteAccess.isEnabled())
+  if (capabilities.features.remoteAccess && remote.enabled === true) remoteAccess.setEnabled(true)
   if (remoteRequested) await startRemote()
 
   const address = server.address()
@@ -339,6 +346,7 @@ export async function createPisperRuntime({
     port: activePort,
     url: `http://${host}:${activePort}`,
     dataDir: agentDir,
+    capabilities,
     remoteControl,
     get runtime() {
       return runtime

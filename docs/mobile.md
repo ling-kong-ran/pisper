@@ -1,15 +1,16 @@
 # Pisper 移动端使用指南
 
-Pisper 移动端有两种使用方式：作为桌面 Pisper 的远程客户端，或者不依赖电脑、
-直接在手机上运行的本机模式（受限 Runtime）。远程模式下 Agent Runtime、会话、记忆、工作流和
-Provider 配置仍由电脑持有；本机模式则会话与 Provider 密钥只保存在手机应用私有目录。
-两种模式都不把数据同步到 Pisper 云服务。
+Pisper 移动端有两种使用方式：不依赖电脑、直接在手机运行 Node/Pisper Runtime 的本机模式，
+以及连接 Desktop Runtime 的远程模式。两种模式使用相同的 React、Provider、会话、标准 `/api/*`
+和 HTTP/SSE 契约，也都不把数据同步到 Pisper 云服务。
 
-远程模式下，Android / iOS App 优先通过局域网直连桌面；局域网不可达时，可通过内置 Iroh P2P 隧道建立连接。Pisper 不运营账号或中转服务，Iroh relay 仅承载仍受 TLS 保护的隧道字节。
-
-本机模式（M1）提供 OpenAI 兼容 Provider 的流式对话与本地多会话，从连接页或
-服务器设置页的「本机运行」进入；能力边界与安全模型见
+本机模式把会话、Provider 配置和工作区保存在手机 App 私有目录。普通 Android/iOS 由嵌入式
+Node 24 承载，并按实际 Node 模块清单关闭不支持的系统能力；rooted Android 自动优先使用能力更
+完整、已降权到 App UID 的 Linux chroot 载体。两者在产品中都只是「本机运行」。详见
 [移动端本机 Runtime 设计](./mobile-local-runtime.md)。
+
+远程模式下，Android / iOS App 优先通过局域网直连桌面；局域网不可达时，可通过内置 Iroh P2P
+隧道建立连接。Pisper 不运营账号或自有中转服务，Iroh relay 仅承载仍受 TLS 保护的隧道字节。
 
 ![Pisper 移动端会话界面](./shots/mobile-chat3.png)
 
@@ -17,7 +18,7 @@ Provider 配置仍由电脑持有；本机模式则会话与 Provider 密钥只�
 
 | 平台 | 资产 | 安装说明 |
 | --- | --- | --- |
-| Android | [从项目主页下载已签名 APK](https://ling-kong-ran.github.io/pisper/#mobile) | 官方 Release 提供的已签名通用 APK，可直接安装。首次侧载时，Android 可能要求允许当前浏览器或文件管理器安装未知来源应用。 |
+| Android | [从项目主页下载已签名 APK](https://ling-kong-ran.github.io/pisper/#mobile) | 官方 Release 提供已签名 arm64 APK，适用于 64 位 ARM Android 设备。首次侧载时，Android 可能要求允许当前浏览器或文件管理器安装未知来源应用。 |
 | iOS | [从项目主页下载未签名 IPA](https://ling-kong-ran.github.io/pisper/#mobile) | 未签名构建，不含可直接用于真机安装的 provisioning profile。必须使用 AltStore、Sideloadly 或自己的 Apple 开发者账号重签后安装。 |
 
 Release 同时提供资产的 Minisign 签名文件。iOS IPA 的“未签名”描述的是 Apple 代码签名与
@@ -36,17 +37,34 @@ Release 同时提供资产的 Minisign 签名文件。iOS IPA 的“未签名”
 - iOS 会打开未签名 IPA；受 Apple 签名机制限制，仍需使用 AltStore、Sideloadly 或开发者账号重签后安装，不能在 App 内静默替换。
 - 更新清单仅接受 Pisper GitHub Release 的 HTTPS 地址、匹配的 `app-v<version>` 标签和安全资产名。Android 最终还会校验 APK 的应用签名。
 
+## 本机运行
+
+首次启动会直接进入本机 Runtime，无需先配对电脑；之后可以从 **设置 -> 服务器** 在本机与已配对的
+Desktop 之间切换。App 只记忆 `local` 或 `remote`，不会显示 root/embedded 等内部载体。
+
+本机 Runtime 只监听随机 `127.0.0.1` 端口。它完成 Agent Runtime 初始化后才向壳层写入带随机
+bootstrap token 的 READY 文件，然后打开正常 Pisper React 界面。Provider、模型发现、会话、
+流式回复、工作区读写、Skill、内置工具和 Web Search 继续使用标准 Runtime 实现。
+
+普通 Android/iOS 没有 `child_process` 等 Node 宿主能力时，终端、VCS、MCP stdio、工作流、计划
+任务、多 Agent 和第三方插件执行会按 `/api/runtime/capabilities` 从导航与 API 中同时关闭；内置工具
+目录与 Web Search 设置不会因 plugin worker 缺失而消失。rooted Android 的完整 Linux 载体支持更多
+桌面能力，但 root 只参与安装、挂载和 chroot 入口，Agent 与工具始终以 App UID 运行。
+
+当前 Provider 凭据保存在 App 私有数据目录，依赖系统沙箱和文件权限保护，尚未接入 Android
+Keystore / iOS Keychain。不要导出或分享 App 私有数据。
+
 ## 三步配对
 
 开始前，请把桌面 Pisper 与移动 App 更新到兼容版本。建议首次配对时让手机与电脑连接同一个可信局域网；电脑需要在使用手机期间保持开机并运行 Pisper。
 
 1. 在桌面端打开 **设置 -> 远程访问**，开启远程访问。页面会显示 LAN HTTPS 地址、证书指纹和 P2P 状态；默认远程端口是 `5174`。
 2. 等待页面显示“P2P relay 已就绪”，再点击生成配对二维码。每次生成都会使上一个配对码失效；新配对码 5 分钟后过期，成功使用一次后立即作废。
-3. 打开手机 App，点击“扫码配对”并允许相机权限。App 会保存 LAN 与 Iroh endpoint、TLS 指纹和配对码，验证桌面证书后完成绑定并进入 Pisper 主界面。
+3. 在手机 App 的 **设置 -> 服务器** 中点击“添加服务器”，扫描二维码并允许相机权限。App 会保存 LAN 与 Iroh endpoint、TLS 指纹和配对码，验证桌面证书后完成绑定并进入 Pisper 主界面。
 
 ### 手动配对
 
-无法扫码时，在手机连接页填写桌面设置页显示的：
+无法扫码时，在手机 **设置 -> 服务器 -> 添加服务器** 中填写桌面设置页显示的：
 
 - 完整 HTTPS 地址，例如 `https://192.168.1.5:5174`；
 - 8 位配对码；
@@ -76,8 +94,8 @@ Desktop Runtime HTTPS (default port 5174)
 
 - WebView 不直接信任桌面端自签证书，而是只访问 App 内的随机回环端口。
 - Rust 本地代理校验配对时保存的证书指纹，向桌面端请求注入设备 Bearer 令牌，并按字节透传静态资源、API 响应和 SSE 事件流。Iroh 只替换 TCP 路径，不终止或改写 TLS。
-- 主界面资源由桌面端经代理提供，因此移动端看到的 UI 与所连接 Runtime 保持一致；App 内置的只是
-  离线可用的连接与服务器管理页。
+- 远程模式的主界面资源由 Desktop 经代理提供，因此 UI 与所连接 Runtime 保持一致；App 仍内置
+  连接管理页和本机 Runtime 使用的正常 React 生产资源，即使 Desktop UI 较旧也能返回本机模式。
 - Runtime 会广播 `_pisper._tcp.local` mDNS 服务，并在二维码中按建议顺序列出 LAN、IPv6、Tailscale 与 Iroh endpoint。
 - 代理按 LAN/直接地址在前、Iroh 在后的顺序健康检查。网络切换后会重新探测；电脑离线、远程访问关闭或 P2P relay 不可达时，手机无法使用 Pisper。
 - Iroh 会先尝试 UDP 洞穿，失败时使用其公共 relay。Pisper 不需要部署中转服务器；relay 看到的是 QUIC 隧道流量，而隧道内仍是指纹锁定的 TLS。
@@ -106,7 +124,7 @@ Desktop Runtime HTTPS (default port 5174)
 移动端令牌当前保存在 App 私有目录，而不是系统 Keychain/Keystore。不要备份、导出或分享 App 私有
 数据；设备丢失时应立即在桌面端吊销对应设备。
 
-在手机连接页“删除”一个桌面端，只会删除手机本地保存的服务器档案。要让令牌在桌面端失效，仍需
+在手机 **设置 -> 服务器** 中“删除”一个桌面端，只会删除手机本地保存的服务器档案。要让令牌在桌面端失效，仍需
 在桌面 **设置 -> 远程访问 -> 已配对设备** 中执行吊销。关闭远程访问则会停止 LAN HTTPS 监听和
 mDNS 广播，但建议同时吊销不再使用的设备。
 
@@ -131,7 +149,7 @@ mDNS 广播，但建议同时吊销不再使用的设备。
 5. 移动端本地代理不解析或重组 SSE，只做及时的字节流透传，避免代理缓冲破坏事件边界和恢复游标。
 
 这套机制降低切后台、锁屏和网络抖动造成的增量事件缺口，但不是无限期离线队列。超过缓冲或保留期限
-时，以桌面 Runtime 中持久化的会话为准。
+时，以当前所选 Runtime 中持久化的会话为准。
 
 ## 安全边界
 
@@ -139,6 +157,8 @@ mDNS 广播，但建议同时吊销不再使用的设备。
 - 开启后会监听所选网卡的 HTTPS 端口并连接 Iroh 网络。局域网设备能看到端口和 mDNS 广播，Iroh peer 能尝试打开隧道；没有有效配对码或设备 Bearer 令牌仍不能调用受保护 API。
 - TLS 指纹锁定保护手机到桌面的链路不被同网中间人替换证书；它不检查电脑本身、手机系统或
   Provider 是否可信。
+- 本机 Runtime 与远程配对令牌当前都依赖 App 私有目录权限保护，尚未迁入 Android Keystore / iOS
+  Keychain。设备丢失时还应在 Desktop 端吊销对应设备。
 - Pisper 不提供端到端加密的模型调用。你主动使用的模型 Provider、MCP、搜索、渠道和工具仍会收到
   完成请求所需的数据。
 - 自签 TLS、Bearer 认证和 App 私有目录不能替代受信任的局域网、设备锁屏、磁盘加密、系统更新与
@@ -163,8 +183,17 @@ mDNS 广播，但建议同时吊销不再使用的设备。
 ### 指纹不匹配
 
 - 停止连接并对照桌面设置页核对完整指纹。
-- 如果桌面端证书确实发生变化，在手机连接页删除旧服务器档案，再使用新二维码重新配对。
+- 如果桌面端证书确实发生变化，在手机 **设置 -> 服务器** 中删除旧服务器档案，再使用新二维码重新配对。
 - 不要通过关闭 TLS 校验解决问题。
+
+### 本机模式启动失败或功能缺失
+
+- App 必须包含与自身版本一致的 embedded Runtime；版本或签名门禁失败的构建不会进入 App Release。
+- rooted Android 首次进入可能由 root 管理器请求授权；没有 `su` 的普通设备或 root 载体失败时会
+  自动尝试 embedded Node。
+- 页面缺少终端、工作流或 MCP 等入口时，先在 `/api/runtime/capabilities` 对应的设置状态中确认宿主
+  能力。这是 ordinary mobile 的预期降级，不会切换到另一套对话 Runtime。
+- arm64 Runtime 不能在 x86_64 Android 模拟器中启动；最终验证需要 arm64 设备。
 
 ### iOS IPA 无法安装
 
@@ -173,6 +202,6 @@ mDNS 广播，但建议同时吊销不再使用的设备。
 
 ## 后续方向
 
-移动端已具备本机运行能力（受限 Runtime，见[设计文档](./mobile-local-runtime.md)）。后续依次评估：
-Provider 密钥迁入系统 Keystore/Keychain、受限设备侧工具能力、完整 Web UI 直连本机 Runtime，
-以及系统级后台推送与用户自托管 Iroh relay；这些方向不改变现有配对凭据与 TLS 指纹模型。
+后续硬化包括 Provider 与远程设备凭据迁入系统 Keystore/Keychain、arm64 Android/iOS 真机持续验证、
+系统级后台通知，以及用户自托管 Iroh relay。它们不改变统一 Node/Pisper Runtime、`local`/`remote`
+模式或现有 TLS 指纹与设备 Bearer 模型。

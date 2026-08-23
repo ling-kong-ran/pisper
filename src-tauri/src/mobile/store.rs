@@ -85,6 +85,53 @@ pub struct ServerProfile {
     pub paired_at: String,
 }
 
+#[derive(Clone, Debug, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct DeviceCapabilities {
+    #[serde(default)]
+    pub contacts: bool,
+    #[serde(default)]
+    pub camera: bool,
+    #[serde(default)]
+    pub location: bool,
+    #[serde(default)]
+    pub external_apps: bool,
+}
+
+impl Default for DeviceCapabilities {
+    fn default() -> Self {
+        Self {
+            contacts: true,
+            camera: true,
+            location: true,
+            external_apps: true,
+        }
+    }
+}
+
+impl DeviceCapabilities {
+    pub fn enabled(&self, capability: &str) -> bool {
+        match capability {
+            "contacts" => self.contacts,
+            "camera" => self.camera,
+            "location" => self.location,
+            "externalApps" => self.external_apps,
+            _ => false,
+        }
+    }
+
+    fn set(&mut self, capability: &str, enabled: bool) -> Result<(), String> {
+        match capability {
+            "contacts" => self.contacts = enabled,
+            "camera" => self.camera = enabled,
+            "location" => self.location = enabled,
+            "externalApps" => self.external_apps = enabled,
+            _ => return Err("不支持的移动设备能力。".into()),
+        }
+        Ok(())
+    }
+}
+
 #[derive(Debug, Default, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]
 struct StoreFile {
@@ -97,6 +144,8 @@ struct StoreFile {
     last_mode: Option<String>,
     #[serde(default)]
     servers: Vec<ServerProfile>,
+    #[serde(default)]
+    device_capabilities: DeviceCapabilities,
 }
 
 pub struct ProfileStore {
@@ -126,6 +175,7 @@ impl ProfileStore {
             active_id: self.file.active_id.clone(),
             last_mode: self.file.last_mode.clone(),
             servers: self.file.servers.clone(),
+            device_capabilities: self.file.device_capabilities.clone(),
         };
         // 临时文件 + rename：避免写入中断留下半截 JSON。
         let temporary = self.path.with_extension("json.tmp");
@@ -179,7 +229,7 @@ impl ProfileStore {
         self.save()
     }
 
-    /// 上次模式：仅识别 "remote"/"local"，其余值按未设置处理。
+    /// 上次模式只接受远程与同源本机 Runtime 两种路由，未知值按未设置处理。
     pub fn last_mode(&self) -> Option<&str> {
         match self.file.last_mode.as_deref() {
             Some("remote") => Some("remote"),
@@ -189,8 +239,25 @@ impl ProfileStore {
     }
 
     pub fn set_last_mode(&mut self, mode: &str) -> Result<(), String> {
+        if !matches!(mode, "remote" | "local") {
+            return Err("不支持的移动端运行模式。".into());
+        }
         self.file.last_mode = Some(mode.to_string());
         self.save()
+    }
+
+    pub fn device_capabilities(&self) -> DeviceCapabilities {
+        self.file.device_capabilities.clone()
+    }
+
+    pub fn set_device_capability(
+        &mut self,
+        capability: &str,
+        enabled: bool,
+    ) -> Result<DeviceCapabilities, String> {
+        self.file.device_capabilities.set(capability, enabled)?;
+        self.save()?;
+        Ok(self.device_capabilities())
     }
 }
 
@@ -248,6 +315,30 @@ mod tests {
     }
 
     #[test]
+    fn device_capabilities_default_on_and_persist_independently() {
+        let path = std::env::temp_dir().join(format!(
+            "pisper-device-capabilities-test-{}.json",
+            std::process::id()
+        ));
+        let mut store = ProfileStore::load(&path);
+        let initial = store.device_capabilities();
+        assert!(initial.contacts && initial.camera && initial.location && initial.external_apps);
+        let updated = store.set_device_capability("camera", false).unwrap();
+        assert!(updated.contacts && !updated.camera && updated.location && updated.external_apps);
+        let updated = store.set_device_capability("externalApps", false).unwrap();
+        assert!(!updated.camera && !updated.external_apps);
+        assert!(store.set_device_capability("sms", true).is_err());
+        let persisted = ProfileStore::load(&path).device_capabilities();
+        assert!(
+            persisted.contacts
+                && !persisted.camera
+                && persisted.location
+                && !persisted.external_apps
+        );
+        let _ = std::fs::remove_file(&path);
+    }
+
+    #[test]
     fn fingerprint_normalization() {
         assert_eq!(normalize_fingerprint("SHA256:ab:cd:ef"), "ABCDEF");
         assert_eq!(normalize_fingerprint("  abcd  "), "ABCD");
@@ -262,7 +353,8 @@ mod tests {
         store.set_last_mode("local").unwrap();
         let reloaded = ProfileStore::load(&path);
         assert_eq!(reloaded.last_mode(), Some("local"));
-        // 非法值不生效，也不破坏文件。
+        assert!(store.set_last_mode("something-else").is_err());
+        // 非法持久化值不生效，也不破坏文件。
         fs::write(
             &path,
             r#"{"version":1,"lastMode":"something-else","servers":[]}"#,

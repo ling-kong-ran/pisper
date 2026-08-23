@@ -156,6 +156,10 @@ export const agentSessionMethods = {
     return this.permissions.resolve(sessionId, approvalId, approved)
   },
 
+  resolveMobileOperation(sessionId, operationId, input) {
+    return this.mobileOperations.resolve(sessionId, operationId, input)
+  },
+
   async setSessionCwd(id, input) {
     return this.sessionLifecycle.setSessionCwd(id, input)
   },

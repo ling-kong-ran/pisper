@@ -1,11 +1,17 @@
 // SVN 变更服务：与 GitChangesService 对等的 SVN 实现（status/diff/commit/push/revert），
 // 未装 svn 或非 SVN 工作区时静默降级。
-import { execFile } from 'node:child_process'
 import { readFile, rm, stat } from 'node:fs/promises'
 import { resolve, sep } from 'node:path'
 import { promisify } from 'node:util'
 
-const execFileAsync = promisify(execFile)
+let execFileAsync
+async function runProcess(command, args, options) {
+  if (!execFileAsync) {
+    const { execFile } = await import('node:child_process')
+    execFileAsync = promisify(execFile)
+  }
+  return execFileAsync(command, args, options)
+}
 const SVN_TIMEOUT_MS = 30_000
 const COMMIT_TIMEOUT_MS = 120_000
 const MAX_DIFF_CHARS = 200_000
@@ -25,7 +31,7 @@ const STATUS_CODES = {
 
 async function runSvn(cwd, args, { timeout = SVN_TIMEOUT_MS } = {}) {
   try {
-    const result = await execFileAsync('svn', args, {
+    const result = await runProcess('svn', args, {
       cwd,
       timeout,
       windowsHide: true,

@@ -41,6 +41,12 @@ import { useAppUpdate } from '@/features/updates/useAppUpdate'
 import { SidebarInset, SidebarProvider } from '@/components/ui/sidebar'
 import { useUiStore } from '@/stores/ui-store'
 import { useClientStore } from '@/stores/client-store'
+import { useRuntimeCapabilitiesStore } from '@/stores/runtime-capabilities-store'
+import {
+  runtimeConfigSectionAvailable,
+  runtimeFeatureAvailable,
+  runtimePageAvailable,
+} from '@/types/runtime-capabilities'
 import { readStoredTerminalPanel } from '@/features/terminal/terminal-state'
 import { tauriNotificationAvailable, tauriNotificationNotify } from '@/lib/tauri-notification'
 import type { ChatAttachment, PendingAsset } from '@/types/chat'
@@ -134,7 +140,10 @@ function App() {
   const { t } = useI18n()
   const location = useLocation()
   const routerNavigate = useNavigate()
-  const navigation = useMemo(() => getNavigation(t), [t])
+  const capabilities = useRuntimeCapabilitiesStore((state) => state.capabilities)
+  const capabilitiesLoaded = useRuntimeCapabilitiesStore((state) => state.loaded)
+  const loadRuntimeCapabilities = useRuntimeCapabilitiesStore((state) => state.load)
+  const navigation = useMemo(() => getNavigation(t, capabilities), [capabilities, t])
   const pageMeta = useMemo(() => getPageMeta(t), [t])
   const page = pageFromPath(location.pathname) || 'chat'
   const startupPageRef = useRef(page)
@@ -160,9 +169,11 @@ function App() {
   const [modal, setModal] = useState<string | null>(null)
   const requestedConfigSection =
     page === 'config' ? decodePathSegment(location.pathname.split('/')[2] || 'models') : 'models'
-  const configSection = CONFIG_SECTIONS.has(requestedConfigSection)
-    ? requestedConfigSection
-    : 'models'
+  const configSection =
+    CONFIG_SECTIONS.has(requestedConfigSection) &&
+    runtimeConfigSectionAvailable(capabilities, requestedConfigSection)
+      ? requestedConfigSection
+      : 'models'
   const [pendingAsset, setPendingAsset] = useState<PendingAsset | null>(null)
   const [pluginStats, setPluginStats] = useState<PluginStats | null>(null)
   const [startupReady, setStartupReady] = useState(false)
@@ -264,10 +275,11 @@ function App() {
       setActiveSessionId(id ?? localStorage.getItem(STORAGE_KEYS.activeSession) ?? '')
     }
     window.addEventListener(ACTIVE_SESSION_CHANGED_EVENT, syncActiveSession)
-    // 识别客户端形态（手机 App / 桌面浏览器）：决定设置页形态与通知通道。
+    // 识别客户端形态与 Runtime 能力后，壳层统一裁剪不可用入口。
     void useClientStore.getState().load()
+    void loadRuntimeCapabilities()
     return () => window.removeEventListener(ACTIVE_SESSION_CHANGED_EVENT, syncActiveSession)
-  }, [])
+  }, [loadRuntimeCapabilities])
 
   // 系统通知（桌面/浏览器）：已开启浏览器通知开关才发；
   // 前台聚焦时静默（不打扰），force 强制忽略该规则；桌面桥接优先。
@@ -333,27 +345,41 @@ function App() {
   // 页面导航：只接受已知页面 id（防硬编码跳转），跳转同时清空搜索词。
   const navigate = useCallback(
     (next: string, options?: NavigateOptions) => {
-      if (!PAGE_IDS.has(next)) return
+      if (!PAGE_IDS.has(next) || !runtimePageAvailable(capabilities, next)) return
       routerNavigate(pagePath(next), options)
       setQuery('')
     },
-    [routerNavigate],
+    [capabilities, routerNavigate],
   )
 
   useEffect(() => {
+    if (capabilitiesLoaded && !runtimePageAvailable(capabilities, page)) {
+      routerNavigate('/chat', { replace: true })
+      return
+    }
     if (page === 'config' && requestedConfigSection !== configSection) {
       routerNavigate(`/config/${configSection}`, { replace: true })
     }
-  }, [configSection, page, requestedConfigSection, routerNavigate])
+  }, [
+    capabilities,
+    capabilitiesLoaded,
+    configSection,
+    page,
+    requestedConfigSection,
+    routerNavigate,
+  ])
 
   // 切换配置分区：未知分区回退到 models，同步路由并清空搜索词。
   const setConfigSection = useCallback(
     (section: string) => {
-      const nextSection = CONFIG_SECTIONS.has(section) ? section : 'models'
+      const nextSection =
+        CONFIG_SECTIONS.has(section) && runtimeConfigSectionAvailable(capabilities, section)
+          ? section
+          : 'models'
       routerNavigate(`/config/${nextSection}`)
       setQuery('')
     },
-    [routerNavigate],
+    [capabilities, routerNavigate],
   )
 
   const openUpdateSettings = useCallback(() => setConfigSection('updates'), [setConfigSection])
@@ -478,6 +504,7 @@ function App() {
         modifier &&
         event.key === '`' &&
         window.pisperDesktop?.terminalProfiles &&
+        runtimeFeatureAvailable(capabilities, 'terminal') &&
         !(event.target instanceof HTMLElement && event.target.closest('.terminal-panel'))
       ) {
         event.preventDefault()
@@ -505,7 +532,7 @@ function App() {
       window.removeEventListener('keydown', onKeyDown)
       window.removeEventListener(COMMAND_PALETTE_REQUESTED_EVENT, openCommandPalette)
     }
-  }, [appDialog.dialog, handlePrimary, mobileNav, modal, navigate, page, paletteOpen])
+  }, [appDialog.dialog, capabilities, handlePrimary, mobileNav, modal, navigate, page, paletteOpen])
 
   useEffect(() => {
     let active = true
@@ -588,7 +615,7 @@ function App() {
     registerWorkflowActions,
   }
 
-  if (!startupReady)
+  if (!startupReady || !capabilitiesLoaded)
     return (
       <div className="app-startup dark:bg-[var(--bg)] dark:text-[var(--text)] flex w-full min-h-[100vh] items-center justify-center gap-[10px] bg-[var(--bg)] text-[var(--text-muted)] text-[13px]">
         <BrandLogo size={30} className="startup-logo [.app-startup_&]:mr-[2px]" />
@@ -600,7 +627,7 @@ function App() {
     <ToastProvider duration={2800} swipeDirection="right">
       <div className="app-shell dark:bg-[var(--bg)] dark:text-[var(--text)] max-[900px]:min-h-[100dvh] max-[900px]:h-auto max-[900px]:overflow-visible flex w-full h-full min-h-[600px] flex-col overflow-hidden bg-[var(--bg)] pt-[env(safe-area-inset-top)] pr-[env(safe-area-inset-right)] pb-[env(safe-area-inset-bottom)] pl-[env(safe-area-inset-left)]">
         <WebPreviewProvider />
-        <WebDesktopPet />
+        {runtimeFeatureAvailable(capabilities, 'desktopPet') && <WebDesktopPet />}
         <SidebarProvider
           className="app-body max-[900px]:h-[100dvh] max-[900px]:min-h-[620px] max-[900px]:flex-none max-[650px]:h-[100dvh] max-[650px]:min-h-0 max-[650px]:flex-none flex min-h-0 flex-1"
           open={!sidebarCollapsed}
@@ -652,19 +679,20 @@ function App() {
             >
               <Outlet context={routeContext} />
             </div>
-            {window.pisperDesktop?.terminalProfiles && (
-              <Suspense fallback={null}>
-                <TerminalPanel
-                  open={terminalOpen}
-                  height={terminalHeight}
-                  labels={terminalLabels}
-                  activeSessionId={activeSessionId}
-                  resolveSessionCwd={resolveSessionCwd}
-                  onOpenChange={setTerminalOpen}
-                  onHeightChange={setTerminalHeight}
-                />
-              </Suspense>
-            )}
+            {window.pisperDesktop?.terminalProfiles &&
+              runtimeFeatureAvailable(capabilities, 'terminal') && (
+                <Suspense fallback={null}>
+                  <TerminalPanel
+                    open={terminalOpen}
+                    height={terminalHeight}
+                    labels={terminalLabels}
+                    activeSessionId={activeSessionId}
+                    resolveSessionCwd={resolveSessionCwd}
+                    onOpenChange={setTerminalOpen}
+                    onHeightChange={setTerminalHeight}
+                  />
+                </Suspense>
+              )}
             {mobileApp && <MobilePrimaryNavigation page={page} onNavigate={navigate} />}
           </SidebarInset>
         </SidebarProvider>

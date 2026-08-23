@@ -2,7 +2,7 @@
 // 移动端不打包 sidecar/外部资源，用 --config 覆盖掉桌面专属的产物声明。
 // 用法：node scripts/build-mobile-android.mjs [--release] [--target x86_64|aarch64|...]
 // 环境：需要 JAVA_HOME / ANDROID_HOME / NDK_HOME（Windows 上 symlink 需要开发者模式）。
-import { readFileSync } from 'node:fs'
+import { existsSync, readFileSync, writeFileSync } from 'node:fs'
 import { join, dirname } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { spawnSync } from 'node:child_process'
@@ -29,6 +29,26 @@ const run = (command, args, { shell = process.platform === 'win32' } = {}) => {
 }
 
 assertAndroidEnv(env)
+
+if (process.platform === 'win32') {
+  // Cargo registry 与工程跨盘符时，Kotlin 增量缓存无法计算相对路径。
+  const gradlePropertiesPath = join(root, 'src-tauri', 'gen', 'android', 'gradle.properties')
+  if (!existsSync(gradlePropertiesPath)) {
+    throw new Error('Android 工程尚未初始化，请先运行 npm run android:init。')
+  }
+  let gradleProperties = readFileSync(gradlePropertiesPath, 'utf8')
+  const eol = gradleProperties.includes('\r\n') ? '\r\n' : '\n'
+  for (const [name, value] of [
+    ['kotlin.incremental', 'false'],
+    ['kotlin.incremental.useClasspathSnapshot', 'false'],
+  ]) {
+    const pattern = new RegExp(`^${name.replaceAll('.', '\\.')}=.*$`, 'm')
+    gradleProperties = pattern.test(gradleProperties)
+      ? gradleProperties.replace(pattern, `${name}=${value}`)
+      : `${gradleProperties.trimEnd()}${eol}${name}=${value}${eol}`
+  }
+  writeFileSync(gradlePropertiesPath, gradleProperties, 'utf8')
+}
 
 console.log('==> 构建前端产物')
 run('npm', ['run', 'build'])

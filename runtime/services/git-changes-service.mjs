@@ -1,9 +1,15 @@
 // Git 变更服务：查询工作区 Git 状态/差异，执行提交/推送/撤销；
 // 通过 execFile 调 git 并捕获错误（目录非 Git 仓库时返回 isRepo: false）。
-import { execFile } from 'node:child_process'
 import { promisify } from 'node:util'
 
-const execFileAsync = promisify(execFile)
+let execFileAsync
+async function runProcess(command, args, options) {
+  if (!execFileAsync) {
+    const { execFile } = await import('node:child_process')
+    execFileAsync = promisify(execFile)
+  }
+  return execFileAsync(command, args, options)
+}
 const GIT_TIMEOUT_MS = 30_000
 const PUSH_TIMEOUT_MS = 120_000
 const MAX_DIFF_CHARS = 200_000
@@ -11,7 +17,7 @@ const MAX_COMMIT_MESSAGE_CHARS = 4_000
 
 async function runGit(cwd, args, { timeout = GIT_TIMEOUT_MS } = {}) {
   try {
-    const result = await execFileAsync('git', args, {
+    const result = await runProcess('git', args, {
       cwd,
       timeout,
       windowsHide: true,

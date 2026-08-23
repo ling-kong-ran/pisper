@@ -22,7 +22,7 @@
   "workspacePicker.parentFolder": "Parent directory",
   "workspacePicker.readingFolder": "Reading directory…",
   "workspacePicker.selectDirectoryDescription": "Select a local working directory",
-  "workspacePicker.selectWorkspaceForChat": "Select the working directory for “{{name}}”",
+  "workspacePicker.selectWorkspaceForChat": "Select the working directory for “{name}”",
   "workspacePicker.selectWorkspaceForSchedule": "Select the working directory for this schedule",
   "workspacePicker.setWorkingDirectory": "Set working directory",
   "workspacePicker.switching": "Switching…",

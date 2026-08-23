@@ -115,6 +115,7 @@ export const TOOL_PRESETS = {
     'web_search',
     'browser_automation',
     'generate_visual',
+    'mobile_device',
     'memory_search',
     'memory_remember',
     'mcp_list',

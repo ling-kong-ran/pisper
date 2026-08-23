@@ -203,6 +203,26 @@ test('chat resource picker remains visible above dock splits with a readable pri
   )
 })
 
+test('mobile chat hides unavailable dock splits and keeps Enter for new lines', async () => {
+  const [dock, focusSession, zhChat, enChat] = await Promise.all([
+    readFile('src/features/chat/use-chat-dock.ts', 'utf8'),
+    readFile('src/features/chat/FocusSession.tsx', 'utf8'),
+    readFile('src/locales/zh-CN/chat.json', 'utf8'),
+    readFile('src/locales/en-US/chat.json', 'utf8'),
+  ])
+  const zh = JSON.parse(zhChat)
+  const en = JSON.parse(enChat)
+
+  assert.match(dock, /if \(compactDock \|\| panel\.group\.size <= 1\) return \[closeItem\]/)
+  assert.doesNotMatch(dock, /disabled: compactDock/)
+  assert.match(focusSession, /const mobileApp = useIsMobileApp\(\)/)
+  assert.match(focusSession, /if \(!mobileApp && event\.key === 'Enter' && !event\.shiftKey\)/)
+  assert.match(focusSession, /enterKeyHint=\{mobileApp \? 'enter' : 'send'\}/)
+  assert.match(focusSession, /const composerPlaceholder = mobileApp/)
+  assert.doesNotMatch(zh['focusSession.writeWhatYouWantToAccomplish'], /Shift|Enter/)
+  assert.doesNotMatch(en['focusSession.writeWhatYouWantToAccomplish'], /Shift|Enter/)
+})
+
 test('chat Composer discovers Runtime Slash commands without exposing templates to the client', async () => {
   const [menu, focusSession, chatApi, routes] = await Promise.all([
     readFile('src/features/chat/ComposerCommandMenu.tsx', 'utf8'),
@@ -360,12 +380,29 @@ test('settings navigation replaces the main sidebar and stays reachable in the m
   assert.match(app, /<MobilePrimaryNavigation page=\{page\}/)
   assert.match(sidebar, /settingsActive \? \(/)
   assert.match(sidebar, /nav-settings-back/)
-  assert.match(mobileNavigation, /getNavigation\(t\)/)
-  assert.match(mobileNavigation, /getSettingsNavigation\(t, \{ mobileApp: true \}\)/)
+  assert.match(mobileNavigation, /getNavigation\(t, capabilities\)/)
+  assert.match(mobileNavigation, /getSettingsNavigation\(t, \{ mobileApp: true, capabilities \}\)/)
+  assert.match(mobileNavigation, /useRuntimeCapabilitiesStore/)
   assert.match(mobileNavigation, /data-mobile-navigation="primary"/)
   assert.match(mobileNavigation, /data-mobile-navigation="settings"/)
   assert.match(settingsNavigation, /getSettingsNavigation/)
+  assert.match(
+    settingsNavigation,
+    /config:mobile-server[\s\S]*config:mobile-device[\s\S]*config:notifications/,
+  )
   assert.doesNotMatch(styles, /\.settings-shell|\.settings-nav|\.settings-content/)
+})
+
+test('mobile device capabilities have their own settings section', async () => {
+  const [configPage, serverSettings, deviceSettings] = await Promise.all([
+    readFile('src/features/config/ConfigPage.tsx', 'utf8'),
+    readFile('src/features/config/MobileServerSettings.tsx', 'utf8'),
+    readFile('src/features/config/MobileDeviceSettings.tsx', 'utf8'),
+  ])
+
+  assert.match(configPage, /section === 'mobile-device'[\s\S]*<MobileDeviceSettings/)
+  assert.doesNotMatch(serverSettings, /MobileDeviceSettings/)
+  assert.match(deviceSettings, /mobileDevice\.openSettingsDescription/)
 })
 
 test('route code and route-specific vendor styles remain lazy', async () => {

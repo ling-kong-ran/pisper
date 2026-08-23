@@ -71,6 +71,11 @@ test('directory listings return validated absolute paths for Web workspace selec
     ['Alpha', 'zeta'],
   )
   assert.ok(listing.directories.every((entry) => entry.path.startsWith(root)))
+
+  const embeddedListing = await listWorkspaceDirectories(root, root, {
+    profile: 'mobile-embedded',
+  })
+  assert.deepEqual(embeddedListing, listing)
 })
 
 test('workspace entry listings expose paths for directories and files without size metadata', async (t) => {

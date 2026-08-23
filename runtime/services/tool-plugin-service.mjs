@@ -17,7 +17,6 @@ import {
 } from 'node:fs/promises'
 import { dirname, extname, isAbsolute, join, relative, resolve, sep } from 'node:path'
 import { pathToFileURL } from 'node:url'
-import { Worker } from 'node:worker_threads'
 import { Type } from 'typebox'
 import { Compile } from 'typebox/compile'
 
@@ -830,6 +829,7 @@ export class ToolPluginService {
     let worker
     try {
       await mkdir(context.dataDir, { recursive: true })
+      const { Worker } = await import('node:worker_threads')
       const entryPath = join(installed.root, installed.manifest.entry)
       worker = new Worker(WORKER_URL, {
         workerData: {

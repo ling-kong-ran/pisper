@@ -9,7 +9,9 @@ import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import type { PluginsData } from '@/features/plugins/plugin-types'
 import { toolDescription, toolName } from '@/features/plugins/tool-labels'
 import { apiJson } from '@/lib/api'
+import { useRuntimeCapabilitiesStore } from '@/stores/runtime-capabilities-store'
 import type { ResourceInvocation } from '@/types/chat'
+import { runtimeFeatureAvailable } from '@/types/runtime-capabilities'
 import { chatApi } from './chat-api'
 
 type WorkflowInput = {
@@ -56,6 +58,8 @@ export function ChatResourcePicker({
   onCommandSelect: (invocation: string) => void
 }) {
   const { t } = useI18n()
+  const capabilities = useRuntimeCapabilitiesStore((state) => state.capabilities)
+  const workflowsAvailable = runtimeFeatureAvailable(capabilities, 'workflows')
   const [resources, setResources] = useState<Resource[]>([])
   const [category, setCategory] = useState<ResourceCategory>('all')
   const [query, setQuery] = useState('')
@@ -75,7 +79,9 @@ export function ChatResourcePicker({
     setError('')
     Promise.all([
       chatApi.getSessionCommands(sessionId),
-      apiJson<{ workflows?: WorkflowResource[] }>('/api/workflows'),
+      workflowsAvailable
+        ? apiJson<{ workflows?: WorkflowResource[] }>('/api/workflows')
+        : Promise.resolve({ workflows: [] as WorkflowResource[] }),
       apiJson<PluginsData>(`/api/plugins?sessionId=${encodeURIComponent(sessionId)}`),
     ])
       .then(([commandData, workflowData, pluginData]) => {
@@ -127,7 +133,7 @@ export function ChatResourcePicker({
     return () => {
       active = false
     }
-  }, [open, sessionId, t])
+  }, [open, sessionId, t, workflowsAvailable])
 
   const categoryCounts = useMemo(
     () => ({
@@ -208,7 +214,7 @@ export function ChatResourcePicker({
             <Tabs
               value={category}
               onValueChange={changeCategory}
-              className="chat-resource-tabs [&_[data-slot='tabs-list']]:grid [&_[data-slot='tabs-list']]:w-full [&_[data-slot='tabs-list']]:h-[36px] [&_[data-slot='tabs-list']]:grid-cols-[repeat(5,minmax(0,1fr))] [&_[data-slot='tabs-list']]:[border:1px_solid_var(--stroke-soft)] [&_[data-slot='tabs-list']]:rounded-[var(--r-sm)] [&_[data-slot='tabs-list']]:bg-[var(--surface-muted)] [&_[data-slot='tabs-trigger']]:min-w-0 [&_[data-slot='tabs-trigger']]:gap-[5px] [&_[data-slot='tabs-trigger']]:rounded-[var(--r-xs)] [&_[data-slot='tabs-trigger']]:[padding-inline:6px] [&_[data-slot='tabs-trigger']]:text-[11px] [&_[data-slot='tabs-trigger'][data-state='active']]:bg-[var(--solid)] [&_[data-slot='tabs-trigger'][data-state='active']]:text-[var(--text)] [&_[data-slot='tabs-trigger']_small]:text-[var(--text-muted)] [&_[data-slot='tabs-trigger']_small]:text-[10px] [&_[data-slot='tabs-trigger']_small]:font-[500] w-full"
+              className={`chat-resource-tabs [&_[data-slot='tabs-list']]:grid [&_[data-slot='tabs-list']]:w-full [&_[data-slot='tabs-list']]:h-[36px] [&_[data-slot='tabs-list']]:[border:1px_solid_var(--stroke-soft)] [&_[data-slot='tabs-list']]:rounded-[var(--r-sm)] [&_[data-slot='tabs-list']]:bg-[var(--surface-muted)] [&_[data-slot='tabs-trigger']]:min-w-0 [&_[data-slot='tabs-trigger']]:gap-[5px] [&_[data-slot='tabs-trigger']]:rounded-[var(--r-xs)] [&_[data-slot='tabs-trigger']]:[padding-inline:6px] [&_[data-slot='tabs-trigger']]:text-[11px] [&_[data-slot='tabs-trigger'][data-state='active']]:bg-[var(--solid)] [&_[data-slot='tabs-trigger'][data-state='active']]:text-[var(--text)] [&_[data-slot='tabs-trigger']_small]:text-[var(--text-muted)] [&_[data-slot='tabs-trigger']_small]:text-[10px] [&_[data-slot='tabs-trigger']_small]:font-[500] w-full ${workflowsAvailable ? "[&_[data-slot='tabs-list']]:grid-cols-[repeat(5,minmax(0,1fr))]" : "[&_[data-slot='tabs-list']]:grid-cols-[repeat(4,minmax(0,1fr))]"}`}
             >
               <TabsList aria-label={t('chat:resourcePicker.categories')}>
                 <TabsTrigger value="all">
@@ -227,10 +233,12 @@ export function ChatResourcePicker({
                   {t('chat:resourcePicker.tool')}
                   <small>{categoryCounts.tool}</small>
                 </TabsTrigger>
-                <TabsTrigger value="workflow">
-                  {t('chat:resourcePicker.workflow')}
-                  <small>{categoryCounts.workflow}</small>
-                </TabsTrigger>
+                {workflowsAvailable && (
+                  <TabsTrigger value="workflow">
+                    {t('chat:resourcePicker.workflow')}
+                    <small>{categoryCounts.workflow}</small>
+                  </TabsTrigger>
+                )}
               </TabsList>
             </Tabs>
             <label className="chat-resource-search [&:focus-within]:border-[var(--focus)] [&:focus-within]:shadow-[0_0_0_2px_var(--focus-ring)] [&_input]:w-full [&_input]:h-[36px] [&_input]:border-0 [&_input]:[outline:0]! [&_input]:bg-transparent [&_input]:text-[var(--text)] [&_input]:text-[13px] flex items-center gap-[7px] [margin-top:8px] [border:1px_solid_var(--stroke)] rounded-[var(--r-sm)] [padding:0_10px] text-[var(--text-muted)]">

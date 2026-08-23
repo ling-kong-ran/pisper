@@ -283,6 +283,16 @@ export const chatApi = {
       data: {},
     }),
 
+  resolveMobileOperation: (
+    sessionId: string,
+    operationId: string,
+    result: { ok: boolean; result?: ApiRecord; error?: string },
+  ) =>
+    requestJson<ApiRecord>(
+      `${sessionPath(sessionId)}/mobile-operations/${encodeURIComponent(operationId)}`,
+      { method: 'POST', data: result },
+    ),
+
   pauseGoal: (sessionId: string) =>
     requestJson<ApiRecord>(`${sessionPath(sessionId)}/goal`, {
       method: 'PATCH',

@@ -29,6 +29,27 @@ function publicError(error) {
   return redactSecretText(error instanceof Error ? error.message : String(error))
 }
 
+const CAPABILITY_ROUTES = [
+  { pattern: /^\/api\/memory(?:\/|$)|^\/api\/settings\/memory$/, feature: 'memory' },
+  { pattern: /^\/api\/mcp(?:\/|$)/, feature: 'mcp' },
+  { pattern: /^\/api\/plugins\/web-search\/test$/, feature: 'webSearch' },
+  { pattern: /^\/api\/plugins(?:\/|$)/, feature: 'plugins' },
+  { pattern: /^\/api\/channels(?:\/|$)/, feature: 'channels' },
+  { pattern: /^\/api\/schedules(?:\/|$)/, feature: 'schedules' },
+  { pattern: /^\/api\/(?:workflows|workflow-runs)(?:\/|$)/, feature: 'workflows' },
+  { pattern: /^\/api\/remote(?:\/|$)/, feature: 'remoteAccess' },
+  { pattern: /^\/api\/desktop-pet(?:\/|$)/, feature: 'desktopPet' },
+  { pattern: /^\/api\/sessions\/[^/]+\/(?:git|vcs)(?:\/|$)/, feature: 'vcs' },
+  { pattern: /^\/api\/sessions\/[^/]+\/goal(?:\/|$)/, feature: 'goals' },
+  { pattern: /^\/api\/sessions\/[^/]+\/workflow-runs(?:\/|$)/, feature: 'workflows' },
+]
+
+export function requiredRuntimeFeature(pathname, method = 'GET') {
+  // 工具目录和策略保存不依赖第三方插件 Worker，降级宿主仍需配置可用内置工具。
+  if (pathname === '/api/plugins' && ['GET', 'PUT'].includes(method)) return ''
+  return CAPABILITY_ROUTES.find(({ pattern }) => pattern.test(pathname))?.feature || ''
+}
+
 // 构建路由处理上下文：提供 JSON 响应、SSE 启动/发送、请求体解析等工具。
 // startRun 把当前 SSE 流登记为可重挂的 run：发送 run 头帧（游标 0，不入缓冲），
 // 之后的 sendSse 自动带上游标并写入环形缓冲，供断线重挂补发。
@@ -104,6 +125,14 @@ export function createApiHandler(
 
     let handlerContext
     try {
+      const requiredFeature = requiredRuntimeFeature(url.pathname, req.method)
+      if (requiredFeature && runtime.capabilities?.features?.[requiredFeature] === false) {
+        sendJson(res, 409, {
+          error: `当前 Runtime 不支持 ${requiredFeature} 能力。`,
+          capability: requiredFeature,
+        })
+        return true
+      }
       const match = registry.match(req.method, url.pathname)
       if (!match) {
         sendJson(res, 404, { error: '接口不存在。' })

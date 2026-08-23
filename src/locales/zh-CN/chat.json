@@ -300,6 +300,7 @@
   "focusSession.expandQuickActions": "展开快捷操作",
   "focusSession.collapseQuickActions": "收起快捷操作",
   "focusSession.commands": "命令",
+  "focusSession.addGuidanceForTheRunningAgent": "向正在运行的 Agent 追加说明",
   "focusSession.addGuidanceForTheRunningAgentShiftEnterForANewLine": "向正在运行的 Agent 追加说明，Shift + Enter 换行",
   "focusSession.allow": "允许",
   "focusSession.allowOnce": "本次允许",
@@ -467,5 +468,6 @@
   "focusSession.writeTests": "写单测",
   "focusSession.workingDirectory": "工作目录",
   "focusSession.writeUnitTestsForTheFollowingCode": "为以下代码编写单元测试：",
+  "focusSession.writeWhatYouWantToAccomplish": "写下你想完成的事",
   "focusSession.writeWhatYouWantToAccomplishShiftEnterForANewLine": "写下你想完成的事，Shift + Enter 换行"
 }

@@ -31,7 +31,9 @@ import { useI18n } from '@/app/use-i18n'
 import { BrandLogo } from '@/components/BrandLogo'
 import { useAutoScroll } from '@/hooks/useAutoScroll'
 import { workspaceName } from '@/lib/format'
+import { useRuntimeCapabilitiesStore } from '@/stores/runtime-capabilities-store'
 import type { ChatMessage, EntityRecord } from '@/types/chat'
+import { runtimeFeatureAvailable } from '@/types/runtime-capabilities'
 import { type SessionOpenRequest } from './dock-layout'
 import {
   SESSION_SELECTED_EVENT,
@@ -126,7 +128,7 @@ function TranscriptLoading({ label }: { label: string }) {
   )
 }
 
-function welcomeChips(t: Translate) {
+function welcomeChips(t: Translate, plansAvailable: boolean) {
   return [
     {
       icon: Code2,
@@ -153,11 +155,15 @@ function welcomeChips(t: Translate) {
       label: t('chat:focusSession.summarize'),
       prompt: t('chat:focusSession.summarizeContentAndExtractKeyPoints'),
     },
-    {
-      icon: ListChecks,
-      label: t('chat:focusSession.makeAPlan'),
-      prompt: t('chat:focusSession.makeAClearActionablePlanForThisGoal'),
-    },
+    ...(plansAvailable
+      ? [
+          {
+            icon: ListChecks,
+            label: t('chat:focusSession.makeAPlan'),
+            prompt: t('chat:focusSession.makeAClearActionablePlanForThisGoal'),
+          },
+        ]
+      : []),
     {
       icon: Layers,
       label: t('chat:focusSession.organizeInformation'),
@@ -202,6 +208,8 @@ export function FocusTranscript({
   onWorkspace,
 }: FocusTranscriptProps) {
   const { t, language } = useI18n()
+  const capabilities = useRuntimeCapabilitiesStore((state) => state.capabilities)
+  const plansAvailable = runtimeFeatureAvailable(capabilities, 'plans')
   const prependSnapshot = useRef<TranscriptPrependSnapshot | null>(null)
   const transcriptPrefixRef = useRef<HTMLDivElement>(null)
   const [targetEntryId, setTargetEntryId] = useState(() => getSessionMessageTarget(sessionId))
@@ -303,8 +311,7 @@ export function FocusTranscript({
     if (scrollRequest) scrollToBottom('smooth')
   }, [scrollRequest, scrollToBottom])
 
-  // 轮换标题 = 时段问候(首条) + 随机抽取的三条能力建议。
-  // 覆盖插件/MCP/定时任务/工作流/星忆/并行,不再只讲分支一个特性。
+  // 轮换标题只从当前 Runtime 确认可用的能力中抽取，避免降级宿主展示无效入口。
   const welcomeTitles = useMemo(() => {
     const hour = new Date().getHours()
     const greeting =
@@ -318,18 +325,32 @@ export function FocusTranscript({
               ? t('chat:focusSession.timeAfternoon')
               : t('chat:focusSession.timeEvening')
     const pool = [
-      t('chat:focusSession.feelLikeBuildingAPlugin'),
-      t('chat:focusSession.letAgentWriteItsOwnTool'),
-      t('chat:focusSession.wireUpAnMcpServer'),
-      t('chat:focusSession.scheduleTheRepetitiveWork'),
-      t('chat:focusSession.turnRepeatedWorkIntoAWorkflow'),
-      t('chat:focusSession.branchOutAndRunInParallel'),
-      t('chat:focusSession.letMemoryRememberYou'),
+      ...(runtimeFeatureAvailable(capabilities, 'plugins')
+        ? [
+            t('chat:focusSession.feelLikeBuildingAPlugin'),
+            t('chat:focusSession.letAgentWriteItsOwnTool'),
+          ]
+        : []),
+      ...(runtimeFeatureAvailable(capabilities, 'mcp')
+        ? [t('chat:focusSession.wireUpAnMcpServer')]
+        : []),
+      ...(runtimeFeatureAvailable(capabilities, 'schedules')
+        ? [t('chat:focusSession.scheduleTheRepetitiveWork')]
+        : []),
+      ...(runtimeFeatureAvailable(capabilities, 'workflows')
+        ? [t('chat:focusSession.turnRepeatedWorkIntoAWorkflow')]
+        : []),
+      ...(runtimeFeatureAvailable(capabilities, 'multiAgent')
+        ? [t('chat:focusSession.branchOutAndRunInParallel')]
+        : []),
+      ...(runtimeFeatureAvailable(capabilities, 'memory')
+        ? [t('chat:focusSession.letMemoryRememberYou')]
+        : []),
     ]
     // 每次挂载随机抽三条,同一会话不同时刻看到的组合也不同
     const picked = [...pool].sort(() => Math.random() - 0.5).slice(0, 3)
     return [greeting, ...picked]
-  }, [t])
+  }, [capabilities, t])
   const welcomeContent = (
     <>
       <p>{t('chat:focusSession.readyToWorkWithTheCurrentDirectoryAndHelpCompleteTheTask')}</p>
@@ -350,7 +371,7 @@ export function FocusTranscript({
         <small>{t('chat:focusSession.changeDirectory')}</small>
       </button>
       <div className="welcome-chips flex max-w-[560px] flex-wrap justify-center gap-[9px] [margin-top:24px]">
-        {welcomeChips(t).map((chip, index) => (
+        {welcomeChips(t, plansAvailable).map((chip, index) => (
           <button
             type="button"
             key={chip.label}

@@ -5,9 +5,13 @@ import { createHash, randomUUID } from 'node:crypto'
 import { realpathSync } from 'node:fs'
 import { basename, resolve } from 'node:path'
 import { platform } from 'node:os'
-import { DatabaseSync } from 'node:sqlite'
 import { redactSecretText } from '../../security/secret-redaction.mjs'
 import { cosineSimilarity, keywordOverlap, localEmbedding } from './local-embedding.mjs'
+
+let DatabaseSync
+try {
+  ;({ DatabaseSync } = await import('node:sqlite'))
+} catch {}
 
 const MEMORY_SCHEMA_VERSION = 4
 const MEMORY_TYPES = new Set(['concept', 'file', 'risk', 'preference', 'decision', 'fact', 'task'])
@@ -241,6 +245,8 @@ export class LocalMemoryRuntime {
   }
 
   async init() {
+    // 移动 Node 可能没有 node:sqlite；由上层能力清单跳过记忆初始化。
+    if (!DatabaseSync) throw new Error('当前 Runtime 不支持本地 SQLite 记忆。')
     // 建库/升级 schema；检测到不兼容 schema 时重置并重建。
     this.db = new DatabaseSync(this.path)
     this.db.exec('PRAGMA journal_mode = WAL; PRAGMA foreign_keys = ON; PRAGMA busy_timeout = 5000;')

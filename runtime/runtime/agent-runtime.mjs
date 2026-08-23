@@ -33,6 +33,7 @@ import { WorkflowService } from '../services/workflow-service.mjs'
 import { SkillsService } from '../services/skills-service.mjs'
 import { WorkspaceTrustService } from '../services/workspace-trust-service.mjs'
 import { SessionPermissionService } from '../services/session-permission-service.mjs'
+import { MobileOperationService } from '../services/mobile-operation-service.mjs'
 import { ToolPluginService } from '../services/tool-plugin-service.mjs'
 import { WebSearchService } from '../services/web-search-service.mjs'
 import { captureConversationMemory, localDayKey } from './conversation-memory-capture.mjs'
@@ -62,7 +63,7 @@ import {
 } from './workspace-directories.mjs'
 import { assetMessageAttachment } from '../services/session-assets.mjs'
 import * as assetStorage from '../services/asset-storage.mjs'
-import { createAppTools, createMultiAgentTools } from '../tools/registry.mjs'
+import { TOOL_CATALOG, createAppTools, createMultiAgentTools } from '../tools/registry.mjs'
 import { createGoalTools, GOAL_TOOL_NAMES } from '../tools/app/goal.mjs'
 import {
   createPlanTools,
@@ -103,6 +104,7 @@ import {
   normalizeMemoryAutoApproveConfidence,
 } from './agent-runtime-facade.mjs'
 import { ToolActivation } from './tool-activation.mjs'
+import { desktopRuntimeCapabilities } from '../runtime-capabilities.mjs'
 import {
   bridgeAgentSessionEvent,
   createLiveRunState,
@@ -426,6 +428,7 @@ export class AgentRuntimeService extends AgentRuntimeFacade {
     providerDiscovery,
     providerModelDiscovery,
     browserAutomationDriver,
+    capabilities = desktopRuntimeCapabilities(),
     eventObserver,
     legacyDefaultCwds = [],
   } = {}) {
@@ -439,6 +442,7 @@ export class AgentRuntimeService extends AgentRuntimeFacade {
         .filter((path) => path && path !== currentWorkspaceKey),
     )
     this.eventObserver = typeof eventObserver === 'function' ? eventObserver : null
+    this.capabilities = capabilities
     this.dataDir = dataDir
     this.providerUserAgent = String(appVersion || '').trim()
       ? `Pisper/${String(appVersion).trim()}`
@@ -568,6 +572,7 @@ export class AgentRuntimeService extends AgentRuntimeFacade {
       getExecutionMode: (sessionId) => this.getSessionExecutionMode(sessionId),
       getToolRisk: (toolName) => this.getToolRisk(toolName),
     })
+    this.mobileOperations = new MobileOperationService()
     this.multiAgents = new MultiAgentService({
       path: join(dataDir, 'pisper-agents.json'),
       agentDir: this.dataDir,
@@ -776,18 +781,19 @@ export class AgentRuntimeService extends AgentRuntimeFacade {
     await this.reloadModelRuntime()
     await this.reconcileDefaultModel()
     stage('memory')
-    await this.memory.init()
-    this.memory.setSemanticSummarizer(this.memorySummarizer)
+    if (this.capabilities.features.memory) {
+      await this.memory.init()
+      this.memory.setSemanticSummarizer(this.memorySummarizer)
+    }
 
     stage('automation-services')
-    // 自动化服务（目标/计划/多 Agent/渠道/工作流/定时任务）逐个就绪；
-    // 目标以暂停态初始化，避免启动即恢复历史未完成任务。
-    await this.goals.init({ pauseActive: true })
-    await this.plans.init()
-    await this.multiAgents.init()
-    await this.channels.init()
-    await this.workflows.init()
-    await this.schedules.init()
+    // 移动嵌入宿主仍使用这些同源服务对象，但只初始化能力清单允许的模块。
+    if (this.capabilities.features.goals) await this.goals.init({ pauseActive: true })
+    if (this.capabilities.features.plans) await this.plans.init()
+    if (this.capabilities.features.multiAgent) await this.multiAgents.init()
+    if (this.capabilities.features.channels) await this.channels.init()
+    if (this.capabilities.features.workflows) await this.workflows.init()
+    if (this.capabilities.features.schedules) await this.schedules.init()
     this.startSessionRuntimeSweeper()
     void this.refreshProviderModels().catch(() => {})
     stage('complete')
@@ -1413,10 +1419,18 @@ export class AgentRuntimeService extends AgentRuntimeFacade {
     )
     const executionMode = this.getSessionExecutionMode(runtimeSessionId)
     // 并行准备资源加载器与 MCP 工具定义；MCP 工具按名称排序保证工具列表稳定（利于缓存命中）。
-    const enabledTools = this.toolPlugins.enabledTools(appConfig, executionMode)
+    const catalogToolNames = new Set(TOOL_CATALOG.map((tool) => tool.id))
+    const supportedToolNames = new Set(this.capabilities.tools)
+    const enabledTools = this.toolPlugins
+      .enabledTools(appConfig, executionMode)
+      .filter((name) =>
+        catalogToolNames.has(name)
+          ? supportedToolNames.has(name)
+          : this.capabilities.features.plugins,
+      )
     const [resourceLoader, mcpTools] = await Promise.all([
       this.skills.createResourceLoader(effectiveCwd),
-      this.mcp.createToolDefinitions(),
+      this.capabilities.features.mcp ? this.mcp.createToolDefinitions() : [],
     ])
     const stableMcpTools = [...mcpTools].sort((left, right) =>
       String(left.name || '').localeCompare(String(right.name || '')),
@@ -1438,30 +1452,37 @@ export class AgentRuntimeService extends AgentRuntimeFacade {
       ]),
     ].sort((left, right) => left.localeCompare(right))
     const promotedToolNames = mergePromotedToolNames({
-      availableToolNames: [...baseToolNames, ...MULTI_AGENT_TOOL_NAMES],
+      availableToolNames: [
+        ...baseToolNames,
+        ...(this.capabilities.features.multiAgent ? MULTI_AGENT_TOOL_NAMES : []),
+      ],
       promotedToolNames: this.sessionMeta[runtimeSessionId]?.promotedToolNames || [],
     })
     let runtimeValue = null
     let runtimeSession = null
-    const goalTools = schemaOnlyToolDefinitions(
-      createGoalTools({
-        getGoal: () => this.goals.get(runtimeSessionId),
-        completeGoal: async () => {
-          const goal = await this.goals.complete(runtimeSessionId)
-          if (runtimeValue) this.syncGoalTools(runtimeValue, goal)
-          this.emitGoalUpdate(runtimeSessionId, goal)
-          return goal
-        },
-      }),
-    )
-    const planTools = createPlanTools({
-      getPlan: () => this.plans.get(runtimeSessionId),
-      updatePlan: async (items) => {
-        const plan = await this.plans.replace(runtimeSessionId, items)
-        this.emitPlanUpdate(runtimeSessionId, plan)
-        return plan
-      },
-    })
+    const goalTools = this.capabilities.features.goals
+      ? schemaOnlyToolDefinitions(
+          createGoalTools({
+            getGoal: () => this.goals.get(runtimeSessionId),
+            completeGoal: async () => {
+              const goal = await this.goals.complete(runtimeSessionId)
+              if (runtimeValue) this.syncGoalTools(runtimeValue, goal)
+              this.emitGoalUpdate(runtimeSessionId, goal)
+              return goal
+            },
+          }),
+        )
+      : []
+    const planTools = this.capabilities.features.plans
+      ? createPlanTools({
+          getPlan: () => this.plans.get(runtimeSessionId),
+          updatePlan: async (items) => {
+            const plan = await this.plans.replace(runtimeSessionId, items)
+            this.emitPlanUpdate(runtimeSessionId, plan)
+            return plan
+          },
+        })
+      : []
     const planReader = planTools.find((tool) => tool.name === 'get_plan')
     // Pi 引擎惰性持久化会话文件（首条助手消息时才写盘）。若对话在模型回复前被打断，
     // 磁盘上将没有文件；这里强制先落盘，保证会话在常驻运行时被释放后仍可寻址/恢复。
@@ -1535,7 +1556,9 @@ export class AgentRuntimeService extends AgentRuntimeFacade {
         waitForAgentMailbox(this.multiAgents, runtimeSession.sessionId, timeoutMs, target),
       interrupt: (target) => this.multiAgents.interrupt(runtimeSession.sessionId, target),
     }
-    const multiAgentTools = schemaOnlyToolDefinitions(createMultiAgentTools({ multiAgentRuntime }))
+    const multiAgentTools = this.capabilities.features.multiAgent
+      ? schemaOnlyToolDefinitions(createMultiAgentTools({ multiAgentRuntime }))
+      : []
     const toolDiscovery = createToolDiscoveryTool({
       listTools: () => {
         if (!runtimeValue || !runtimeSession) return []
@@ -1575,6 +1598,7 @@ export class AgentRuntimeService extends AgentRuntimeFacade {
       },
     })
     const bashTool =
+      this.capabilities.features.shell &&
       enabledTools.includes('bash') &&
       ['approval-required', 'workspace-write', 'full-access'].includes(executionMode)
         ? await createPisperBashTool(effectiveCwd)
@@ -1590,6 +1614,9 @@ export class AgentRuntimeService extends AgentRuntimeFacade {
           browserAutomationService: this.browserAutomation,
           browserSessionId: runtimeSessionId,
           visualGenerationService: this.visualGeneration,
+          mobileOperationService: this.mobileOperations,
+          mobileSessionId: runtimeSessionId,
+          mobileCaptureDir: join(this.dataDir, 'mobile-captures'),
           skillsRuntime: this.skills,
           onSkillsChanged: () => this.invalidateSessionRuntimes(),
           pluginRuntime: this.toolPlugins,
@@ -1642,9 +1669,9 @@ export class AgentRuntimeService extends AgentRuntimeFacade {
         ...baseToolNames,
         TOOL_DISCOVERY_NAME,
         TOOL_GATEWAY_NAME,
-        ...GOAL_TOOL_NAMES,
-        ...PLAN_ALL_TOOL_NAMES,
-        ...MULTI_AGENT_TOOL_NAMES,
+        ...(this.capabilities.features.goals ? GOAL_TOOL_NAMES : []),
+        ...(this.capabilities.features.plans ? PLAN_ALL_TOOL_NAMES : []),
+        ...(this.capabilities.features.multiAgent ? MULTI_AGENT_TOOL_NAMES : []),
       ],
       customTools: [
         await createCompressedReadTool(effectiveCwd),
@@ -1721,6 +1748,9 @@ export class AgentRuntimeService extends AgentRuntimeFacade {
           `[Local path attachment] ${name}\nPath: ${path}\nThis attachment is a path reference only. Read it with available workspace tools when needed.`,
         )
       } else if (attachment.kind === 'image') {
+        if (!this.capabilities.features.imageProcessing) {
+          throw new Error('当前 Runtime 不支持图片附件处理。')
+        }
         const data = String(attachment.data || '')
         const mimeType = String(attachment.mimeType || '')
         if (!mimeType.startsWith('image/') || !data) throw new Error(`${name} 不是有效图片`)
@@ -1836,6 +1866,7 @@ export class AgentRuntimeService extends AgentRuntimeFacade {
       goalMode = false,
       goalTokenBudget = null,
       isolatedContext = false,
+      mobileClient = false,
       send,
     },
   ) {
@@ -2303,6 +2334,9 @@ export class AgentRuntimeService extends AgentRuntimeFacade {
       }
     })
     this.permissions.attachEmitter(session.sessionId, emit)
+    const detachMobileOperations = mobileClient
+      ? this.mobileOperations.attach(session.sessionId, emit)
+      : () => {}
     try {
       const preparedAttachments = await this.preparePromptAttachments(value, attachments)
       const images = preparedAttachments.images
@@ -2401,6 +2435,7 @@ export class AgentRuntimeService extends AgentRuntimeFacade {
       // 无论成败：退订事件、清理发射器，并在 60 秒后移除 live 状态（延迟是为了
       // 让前端有足够时间消费完成事件后再从实时视图回落到历史视图）。
       unsubscribe()
+      detachMobileOperations()
       this.permissions.detachEmitter(session.sessionId, emit)
       if (this.goalEmitters.get(session.sessionId) === emit)
         this.goalEmitters.delete(session.sessionId)

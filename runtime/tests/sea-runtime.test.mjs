@@ -65,6 +65,7 @@ test('SEA runtime native selection is conservative and platform-specific', () =>
     'native/darwin/prebuilds/darwin-arm64/darwin-modifiers.node',
   ])
   assert.deepEqual(selectPiTuiNativeFiles({ platform: 'linux', arch: 'x64' }), [])
+  assert.deepEqual(selectPiTuiNativeFiles({ platform: 'mobile', arch: 'arm64' }), [])
   assert.equal(selectPiTuiNativeFiles({ platform: 'freebsd', arch: 'x64' }), null)
 
   assert.equal(detectLinuxLibc({ header: { glibcVersionRuntime: '2.39' } }), 'gnu')
@@ -97,6 +98,33 @@ test('SEA runtime pruning retains every native artifact for an unknown target', 
       'clipboard-win32-x64-msvc',
     ])
     assert.equal(native.retainedPiTuiNativeFiles.length, 2)
+  } finally {
+    await rm(runtime, { recursive: true, force: true })
+  }
+})
+
+test('mobile Runtime pruning removes desktop native packages', async () => {
+  const runtime = await mkdtemp(join(tmpdir(), 'pisper-mobile-native-'))
+  const clipboard = 'node_modules/@earendil-works/pi-coding-agent/node_modules/@mariozechner'
+  const piTui =
+    'node_modules/@earendil-works/pi-coding-agent/node_modules/@earendil-works/pi-tui/native'
+  try {
+    await Promise.all([
+      createFile(runtime, `${clipboard}/clipboard-win32-x64-msvc/binding.node`),
+      createFile(runtime, `${clipboard}/clipboard-darwin-universal/binding.node`),
+      createFile(runtime, `${piTui}/win32/prebuilds/win32-x64/binding.node`),
+      createFile(runtime, `${piTui}/darwin/prebuilds/darwin-arm64/binding.node`),
+    ])
+    const result = await pruneRuntime(runtime, { platform: 'mobile', arch: 'arm64', libc: null })
+    const native = await collectNativeState(runtime, result.nativeSelection)
+
+    assert.deepEqual(result.nativeSelection, {
+      clipboardPackage: false,
+      piTuiNativeFiles: [],
+    })
+    assert.deepEqual(native.retainedClipboardPackages, [])
+    assert.deepEqual(native.retainedPiTuiNativeFiles, [])
+    assert.equal(native.pass, true)
   } finally {
     await rm(runtime, { recursive: true, force: true })
   }

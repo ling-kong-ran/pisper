@@ -361,7 +361,12 @@ test('saving plugin tools keeps the current streaming session alive and invalida
       },
     },
   })
-  runtime.toolPlugins.saveState = async () => ({ enabledTools: ['read'] })
+  const pluginState = await runtime.toolPlugins.getState()
+  runtime.toolPlugins.getState = async () => pluginState
+  runtime.toolPlugins.saveState = async (input) => {
+    pluginState.enabledTools = input.enabledTools
+    return pluginState
+  }
   runtime.pauseSessionGoal = async () => {}
   runtime.multiAgents.abortParent = () => {}
   runtime.permissions.resolveSession = () => {}

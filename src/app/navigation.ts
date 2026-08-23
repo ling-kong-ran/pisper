@@ -3,6 +3,11 @@
 import { CalendarClock, FolderOpen, MessageSquare, Workflow } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
 import type { PageId } from './routes'
+import {
+  LEGACY_RUNTIME_CAPABILITIES,
+  runtimePageAvailable,
+  type RuntimeCapabilities,
+} from '@/types/runtime-capabilities'
 
 export type Translate = (message: string, values?: Record<string, unknown>) => string
 export type Navigation = Array<[string, Array<[PageId, string, LucideIcon]>]>
@@ -10,16 +15,20 @@ export type PageMeta = readonly [string, string]
 
 // 应用导航分组：目前只有“应用”一组（聊天/资源/工作流/计划），
 // 数组保持顺序稳定，图标由调用方渲染。
-export function getNavigation(t: Translate = (value) => value): Navigation {
+export function getNavigation(
+  t: Translate = (value) => value,
+  capabilities: RuntimeCapabilities = LEGACY_RUNTIME_CAPABILITIES,
+): Navigation {
+  const items: Navigation[number][1] = [
+    ['chat', t('navigation:navigation.chat'), MessageSquare],
+    ['assets', t('navigation:navigation.assets'), FolderOpen],
+    ['workflows', t('navigation:navigation.workflows'), Workflow],
+    ['schedules', t('navigation:navigation.schedules'), CalendarClock],
+  ]
   return [
     [
       t('navigation:navigation.app'),
-      [
-        ['chat', t('navigation:navigation.chat'), MessageSquare],
-        ['assets', t('navigation:navigation.assets'), FolderOpen],
-        ['workflows', t('navigation:navigation.workflows'), Workflow],
-        ['schedules', t('navigation:navigation.schedules'), CalendarClock],
-      ],
+      items.filter(([page]) => runtimePageAvailable(capabilities, page)),
     ],
   ]
 }

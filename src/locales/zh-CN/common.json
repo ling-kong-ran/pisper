@@ -22,7 +22,7 @@
   "workspacePicker.parentFolder": "上一级目录",
   "workspacePicker.readingFolder": "正在读取目录…",
   "workspacePicker.selectDirectoryDescription": "选择一个本地工作目录",
-  "workspacePicker.selectWorkspaceForChat": "为“{{name}}”选择工作目录",
+  "workspacePicker.selectWorkspaceForChat": "为“{name}”选择工作目录",
   "workspacePicker.selectWorkspaceForSchedule": "选择定时任务运行的工作目录",
   "workspacePicker.setWorkingDirectory": "设置工作目录",
   "workspacePicker.switching": "正在切换…",

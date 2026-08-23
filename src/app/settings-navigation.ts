@@ -12,10 +12,17 @@ import {
   RadioTower,
   RefreshCw,
   Server,
+  Smartphone,
   Sparkles,
   type LucideIcon,
 } from 'lucide-react'
 import type { Translate } from '@/app/navigation'
+import {
+  LEGACY_RUNTIME_CAPABILITIES,
+  runtimeConfigSectionAvailable,
+  runtimePageAvailable,
+  type RuntimeCapabilities,
+} from '@/types/runtime-capabilities'
 
 export type SettingsDestination = { type: 'config'; id: string } | { type: 'page'; id: string }
 
@@ -37,18 +44,45 @@ export const CONFIG_SECTIONS = new Set([
   'updates',
   'remote-access',
   'mobile-server',
+  'mobile-device',
   'about',
 ])
 
 export const SETTINGS_PAGES = new Set(['config', 'channels', 'plugins', 'memory', 'mcp', 'skills'])
 
 // 设置侧边栏分组导航（Agent/能力/上下文/连接/应用）。
-// mobileApp 为 true 时（手机经代理访问），「远程访问」管理面换成「服务器」切换页。
+// mobileApp 为 true 时（手机经代理访问），用「服务器」和「设备」替代桌面端的远程访问管理面。
 export function getSettingsNavigation(
   t: Translate,
-  { mobileApp = false }: { mobileApp?: boolean } = {},
+  {
+    mobileApp = false,
+    capabilities = LEGACY_RUNTIME_CAPABILITIES,
+  }: { mobileApp?: boolean; capabilities?: RuntimeCapabilities } = {},
 ): SettingsNavigationGroup[] {
-  return [
+  const runtimeConnectionItems: SettingsNavigationGroup['items'] = mobileApp
+    ? [
+        {
+          key: 'config:mobile-server',
+          label: t('config:configPage.mobileServer'),
+          icon: MonitorSmartphone,
+          destination: { type: 'config', id: 'mobile-server' },
+        },
+        {
+          key: 'config:mobile-device',
+          label: t('config:configPage.mobileDevice'),
+          icon: Smartphone,
+          destination: { type: 'config', id: 'mobile-device' },
+        },
+      ]
+    : [
+        {
+          key: 'config:remote-access',
+          label: t('config:configPage.remoteAccess'),
+          icon: MonitorSmartphone,
+          destination: { type: 'config', id: 'remote-access' },
+        },
+      ]
+  const groups: SettingsNavigationGroup[] = [
     {
       label: t('config:settingsShell.agent'),
       items: [
@@ -103,19 +137,7 @@ export function getSettingsNavigation(
           icon: RadioTower,
           destination: { type: 'page', id: 'channels' },
         },
-        mobileApp
-          ? {
-              key: 'config:mobile-server',
-              label: t('config:configPage.mobileServer'),
-              icon: MonitorSmartphone,
-              destination: { type: 'config', id: 'mobile-server' },
-            }
-          : {
-              key: 'config:remote-access',
-              label: t('config:configPage.remoteAccess'),
-              icon: MonitorSmartphone,
-              destination: { type: 'config', id: 'remote-access' },
-            },
+        ...runtimeConnectionItems,
         {
           key: 'config:notifications',
           label: t('config:configPage.notifications'),
@@ -154,6 +176,16 @@ export function getSettingsNavigation(
       ],
     },
   ]
+  return groups
+    .map((group) => ({
+      ...group,
+      items: group.items.filter((item) =>
+        item.destination.type === 'config'
+          ? runtimeConfigSectionAvailable(capabilities, item.destination.id)
+          : runtimePageAvailable(capabilities, item.destination.id),
+      ),
+    }))
+    .filter((group) => group.items.length > 0)
 }
 
 // 设置导航高亮键：配置分区用 config:section，独立页面用 page:id。

@@ -14,11 +14,16 @@
     "node": ">=20"
   },
   "scripts": {
+    "postinstall": "node scripts/patch-pi-mobile-compat.mjs",
     "dev": "node runtime/index.mjs",
     "build": "node scripts/build-frontend.mjs && node scripts/check-bundle-budget.mjs",
     "sidecar:dev": "node runtime/sidecar.mjs",
     "sidecar:sea": "node scripts/build-sea.mjs",
     "sidecar:sea:smoke": "node scripts/smoke-sea.mjs",
+    "mobile:runtime": "node scripts/build-mobile-runtime.mjs",
+    "mobile:node:android": "node scripts/stage-mobile-node-android.mjs",
+    "mobile:node:ios": "bash scripts/build-mobile-node-ios.sh",
+    "android:root-runtime": "bash scripts/build-android-root-runtime.sh",
     "desktop:webview:dev": "npm run build && tauri dev",
     "desktop:webview:smoke": "node scripts/smoke-tauri-dev.mjs",
     "desktop:webview:package": "node scripts/package-tauri-release.mjs",

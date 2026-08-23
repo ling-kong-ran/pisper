@@ -55,9 +55,86 @@ jobs:
             docs/latest-app.json
             release-body-app.md
 
+  embedded-runtime:
+    name: Build shared embedded Runtime
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: ${{ inputs.source_sha }}
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 24
+          cache: npm
+      - name: Install Node dependencies
+        run: npm ci
+      - name: Build frontend and embedded Runtime closure
+        env:
+          PISPER_APP_VERSION: ${{ inputs.version }}
+        run: |
+          npm run build
+          npm run mobile:runtime
+          tar -xOzf release/pisper-embedded-runtime.tar.gz ./embedded-runtime.json |
+            jq -e '.appVersion == "${{ inputs.version }}" and .runtimeProfile == "mobile-embedded"'
+          tar -tzf release/pisper-embedded-runtime.tar.gz | grep -Fx './runtime/mobile-embedded.mjs'
+          tar -tzf release/pisper-embedded-runtime.tar.gz | grep -Fx './dist/index.html'
+      - name: Sign embedded Runtime closure
+        env:
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+        run: |
+          npx tauri signer sign release/pisper-embedded-runtime.tar.gz
+          mv release/pisper-embedded-runtime.tar.gz.sig \
+            release/pisper-embedded-runtime.tar.gz.minisig
+      - uses: actions/upload-artifact@v4
+        with:
+          name: app-embedded-runtime
+          if-no-files-found: error
+          path: release/pisper-embedded-runtime.tar.gz*
+
+  root-runtime:
+    name: Build rooted Android Runtime
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: ${{ inputs.source_sha }}
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 24
+          cache: npm
+      - name: Install Node dependencies
+        run: npm ci
+      - name: Build Linux SEA and frontend
+        run: npm run sidecar:sea
+      - name: Build rooted Android Runtime asset
+        env:
+          PISPER_APP_VERSION: ${{ inputs.version }}
+          PISPER_ROOT_RUNTIME_ARCH: arm64
+        run: npm run android:root-runtime
+      - name: Validate and sign rooted Android Runtime
+        env:
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+        run: |
+          set -Eeuo pipefail
+          archive=release/pisper-root-runtime-android-arm64.tar.gz
+          gzip -t "$archive"
+          tar -tzf "$archive" | grep -Fx './opt/pisper/pisper-sidecar'
+          tar -tzf "$archive" | grep -Fx './usr/bin/setpriv'
+          tar -tzf "$archive" | grep -Fx './usr/bin/rg'
+          npx tauri signer sign "$archive"
+          mv "$archive.sig" "$archive.minisig"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: app-root-runtime
+          if-no-files-found: error
+          path: release/pisper-root-runtime-android-arm64.tar.gz*
+
   android:
     name: Build signed Android APK
-    needs: prepare
+    needs: [prepare, root-runtime, embedded-runtime]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
@@ -75,21 +152,54 @@ jobs:
       - name: Install Android SDK packages and NDK
         run: |
           yes | sdkmanager --licenses > /dev/null
-          sdkmanager "platform-tools" "platforms;android-34" "build-tools;34.0.0" "ndk;26.3.11579264"
+          sdkmanager "platform-tools" "platforms;android-34" "build-tools;34.0.0" "ndk;27.3.13750724"
       - uses: dtolnay/rust-toolchain@stable
         with:
-          targets: aarch64-linux-android,armv7-linux-androideabi,i686-linux-android,x86_64-linux-android
+          targets: aarch64-linux-android
       - name: Install Node dependencies
         run: npm ci
       - name: Build frontend
         run: npm run build
-      - name: Prepare Android project
+      - name: Install cosign
+        uses: sigstore/cosign-installer@7e8b541eb2e61bf99390e1afd4be13a184e9ebc5
+      - name: Verify and stage fixed Android Node 24
+        run: node scripts/stage-mobile-node-android.mjs release/mobile-node-android --require-sigstore
+      - name: Prepare Android project with embedded Node
+        env:
+          NDK_HOME: ${{ env.ANDROID_HOME }}/ndk/27.3.13750724
+          PISPER_NODE_MOBILE_ANDROID_DIR: ${{ github.workspace }}/release/mobile-node-android
+          PISPER_REQUIRE_EMBEDDED_NODE: '1'
         run: node scripts/setup-mobile-android.mjs
+      - uses: actions/download-artifact@v5
+        with:
+          name: app-embedded-runtime
+          path: embedded-runtime
+      - uses: actions/download-artifact@v5
+        with:
+          name: app-root-runtime
+          path: root-runtime
+      - name: Verify and stage mobile Runtime assets
+        run: |
+          set -Eeuo pipefail
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends minisign
+          node -e "require('node:fs').writeFileSync('/tmp/pisper.pub', Buffer.from(require('node:fs').readFileSync('src-tauri/updater.pubkey', 'utf8').trim(), 'base64'))"
+          minisign -Vm embedded-runtime/pisper-embedded-runtime.tar.gz \
+            -x embedded-runtime/pisper-embedded-runtime.tar.gz.minisig \
+            -p /tmp/pisper.pub
+          minisign -Vm root-runtime/pisper-root-runtime-android-arm64.tar.gz \
+            -x root-runtime/pisper-root-runtime-android-arm64.tar.gz.minisig \
+            -p /tmp/pisper.pub
+          mkdir -p src-tauri/gen/android/app/src/main/assets
+          cp embedded-runtime/pisper-embedded-runtime.tar.gz \
+            src-tauri/gen/android/app/src/main/assets/pisper-embedded-runtime.tgz
+          cp root-runtime/pisper-root-runtime-android-arm64.tar.gz \
+            src-tauri/gen/android/app/src/main/assets/pisper-root-runtime-android-arm64.tgz
       - name: Build release APK
         env:
-          NDK_HOME: ${{ env.ANDROID_HOME }}/ndk/26.3.11579264
+          NDK_HOME: ${{ env.ANDROID_HOME }}/ndk/27.3.13750724
         run: |
-          node node_modules/@tauri-apps/cli/tauri.js android build --apk --ci \
+          node node_modules/@tauri-apps/cli/tauri.js android build --apk --ci --target aarch64 \
             --config '{"version":"${{ inputs.version }}","bundle":{"externalBin":[],"resources":[]}}'
       - name: Sign APK
         env:
@@ -103,6 +213,13 @@ jobs:
           echo "$APP_ANDROID_KEYSTORE" | base64 -d > /tmp/pisper-app.jks
           UNSIGNED=$(find src-tauri/gen/android/app/build/outputs/apk -name '*unsigned*.apk' | head -1)
           test -n "$UNSIGNED" || { echo "未找到未签名 APK。" >&2; exit 1; }
+          unzip -l "$UNSIGNED" | grep -F 'assets/pisper-root-runtime-android-arm64.tgz'
+          unzip -l "$UNSIGNED" | grep -F 'assets/pisper-embedded-runtime.tgz'
+          unzip -l "$UNSIGNED" | grep -F 'assets/pisper-embedded-node-android.json'
+          unzip -l "$UNSIGNED" | grep -F 'lib/arm64-v8a/libnode.so'
+          unzip -l "$UNSIGNED" | grep -F 'lib/arm64-v8a/libc++_shared.so'
+          unzip -l "$UNSIGNED" | grep -F 'lib/arm64-v8a/libpisper_node_host.so'
+          unzip -l "$UNSIGNED" | grep -F 'lib/arm64-v8a/libpisper_webview_lib.so'
           "$ANDROID_HOME/build-tools/34.0.0/zipalign" -p -f 4 "$UNSIGNED" /tmp/app-aligned.apk
           "$ANDROID_HOME/build-tools/34.0.0/apksigner" sign \
             --ks /tmp/pisper-app.jks \
@@ -127,8 +244,9 @@ jobs:
 
   ios:
     name: Build iOS app (unsigned)
-    needs: prepare
-    runs-on: macos-latest
+    needs: [prepare, embedded-runtime]
+    runs-on: macos-26
+    timeout-minutes: 240
     steps:
       - uses: actions/checkout@v5
         with:
@@ -139,19 +257,64 @@ jobs:
           cache: npm
       - uses: dtolnay/rust-toolchain@stable
         with:
-          targets: aarch64-apple-ios,aarch64-apple-ios-sim,x86_64-apple-ios
+          targets: aarch64-apple-ios,aarch64-apple-ios-sim
       - name: Install Node dependencies
         run: npm ci
+      - name: Build fixed iOS Node 24 framework
+        run: npm run mobile:node:ios
+      - name: Sign, verify, and restage iOS Node framework
+        env:
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+        run: |
+          set -Eeuo pipefail
+          brew install minisign
+          (
+            cd release/mobile-node-ios
+            shasum -a 256 -c SHA256SUMS
+          )
+          tar -czf release/pisper-node-mobile-ios.tar.gz -C release/mobile-node-ios .
+          npx tauri signer sign release/pisper-node-mobile-ios.tar.gz
+          mv release/pisper-node-mobile-ios.tar.gz.sig \
+            release/pisper-node-mobile-ios.tar.gz.minisig
+          node -e "require('node:fs').writeFileSync('/tmp/pisper.pub', Buffer.from(require('node:fs').readFileSync('src-tauri/updater.pubkey', 'utf8').trim(), 'base64'))"
+          minisign -Vm release/pisper-node-mobile-ios.tar.gz \
+            -x release/pisper-node-mobile-ios.tar.gz.minisig \
+            -p /tmp/pisper.pub
+          rm -rf release/mobile-node-ios
+          mkdir -p release/mobile-node-ios
+          tar -xzf release/pisper-node-mobile-ios.tar.gz -C release/mobile-node-ios
+          test -d release/mobile-node-ios/NodeMobile.xcframework
+      - uses: actions/download-artifact@v5
+        with:
+          name: app-embedded-runtime
+          path: embedded-runtime
+      - name: Verify shared embedded Runtime
+        run: |
+          set -Eeuo pipefail
+          node -e "require('node:fs').writeFileSync('/tmp/pisper.pub', Buffer.from(require('node:fs').readFileSync('src-tauri/updater.pubkey', 'utf8').trim(), 'base64'))"
+          minisign -Vm embedded-runtime/pisper-embedded-runtime.tar.gz \
+            -x embedded-runtime/pisper-embedded-runtime.tar.gz.minisig \
+            -p /tmp/pisper.pub
+          cp embedded-runtime/pisper-embedded-runtime.tar.gz release/pisper-embedded-runtime.tar.gz
+      - name: Smoke embedded Pisper Runtime in iOS Simulator
+        run: |
+          scripts/smoke-mobile-node-ios.sh \
+            "$PWD/release/mobile-node-ios-work/materialized" \
+            "$PWD/release/mobile-node-ios/NodeMobile.xcframework" \
+            "$PWD/release/pisper-embedded-runtime.tar.gz"
       - name: Build frontend
         run: npm run build
       - name: Generate shared mobile icons
         run: node scripts/sync-mobile-icons.mjs
-      - name: Prepare iOS project
-        run: npx tauri ios init
+      - name: Prepare iOS project with embedded Node
+        run: |
+          MOBILE_CONFIG='{"bundle":{"externalBin":[],"resources":{"../release/pisper-embedded-runtime.tar.gz":"pisper-embedded-runtime.tar.gz"},"iOS":{"frameworks":["../release/mobile-node-ios/NodeMobile.xcframework"]}}}'
+          npx tauri ios init --config "$MOBILE_CONFIG"
       - name: Build unsigned iOS app
         run: |
-          npx tauri ios build --ci --no-sign \
-            --config '{"version":"${{ inputs.version }}","bundle":{"externalBin":[],"resources":[]}}'
+          MOBILE_CONFIG='{"version":"${{ inputs.version }}","bundle":{"externalBin":[],"resources":{"../release/pisper-embedded-runtime.tar.gz":"pisper-embedded-runtime.tar.gz"},"iOS":{"frameworks":["../release/mobile-node-ios/NodeMobile.xcframework"]}}}'
+          npx tauri ios build --ci --no-sign --config "$MOBILE_CONFIG"
       - name: Package iOS artifacts
         env:
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
@@ -161,10 +324,11 @@ jobs:
           IPA_PATH=$(find src-tauri/gen/apple -name "*.ipa" -type f | head -1)
           test -n "$IPA_PATH" || { echo "未找到未签名 IPA 产物。" >&2; exit 1; }
           cp "$IPA_PATH" pisper-ios-unsigned.ipa
+          cp release/pisper-node-mobile-ios.tar.gz* .
           npx tauri signer sign pisper-ios-unsigned.ipa
           mv pisper-ios-unsigned.ipa.sig pisper-ios-unsigned.ipa.minisig
           cat > README-ios.txt <<'EOF'
-          该 IPA 为未签名产物（不含 provisioning profile）。
+          该 IPA 为未签名产物（不含 provisioning profile），已内置同源 Node/Pisper Runtime。
           安装到真机需自行重签名：AltStore / Sideloadly / 自有开发者账号。
           EOF
       - uses: actions/upload-artifact@v4
@@ -173,12 +337,13 @@ jobs:
           if-no-files-found: error
           path: |
             pisper-ios-*
+            pisper-node-mobile-ios.tar.gz*
             README-ios.txt
 
   publish:
     name: Publish $RELEASE_TAG
-    needs: [prepare, android, ios]
-    if: ${{ always() && needs.prepare.result == 'success' && needs.android.result == 'success' && needs.ios.result == 'success' }}
+    needs: [prepare, embedded-runtime, root-runtime, android, ios]
+    if: ${{ always() && needs.prepare.result == 'success' && needs['embedded-runtime'].result == 'success' && needs['root-runtime'].result == 'success' && needs.android.result == 'success' && needs.ios.result == 'success' }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
@@ -200,6 +365,14 @@ jobs:
         with:
           name: app-ios
           path: artifacts
+      - uses: actions/download-artifact@v5
+        with:
+          name: app-root-runtime
+          path: artifacts
+      - uses: actions/download-artifact@v5
+        with:
+          name: app-embedded-runtime
+          path: artifacts
       - name: Validate required assets
         shell: bash
         run: |
@@ -209,6 +382,12 @@ jobs:
           test -f artifacts/pisper-ios-unsigned.ipa
           test -f artifacts/pisper-ios-unsigned.ipa.minisig
           test -f artifacts/README-ios.txt
+          test -f artifacts/pisper-root-runtime-android-arm64.tar.gz
+          test -f artifacts/pisper-root-runtime-android-arm64.tar.gz.minisig
+          test -f artifacts/pisper-embedded-runtime.tar.gz
+          test -f artifacts/pisper-embedded-runtime.tar.gz.minisig
+          test -f artifacts/pisper-node-mobile-ios.tar.gz
+          test -f artifacts/pisper-node-mobile-ios.tar.gz.minisig
           ls -la artifacts
       - name: Commit app version, upload a draft, and publish atomically
         shell: bash

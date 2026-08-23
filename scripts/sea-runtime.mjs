@@ -246,7 +246,7 @@ export function selectClipboardPackage({ platform, arch, libc = null }) {
 }
 
 export function selectPiTuiNativeFiles({ platform, arch }) {
-  if (platform === 'linux') return []
+  if (platform === 'linux' || platform === 'mobile') return []
   if (platform === 'win32' && (arch === 'x64' || arch === 'arm64')) {
     return [`native/win32/prebuilds/win32-${arch}/win32-console-mode.node`]
   }
@@ -292,25 +292,26 @@ async function pruneYargsLocales(nodeModules, audit) {
 async function pruneClipboardPackages(runtimeDir, target, audit) {
   const scope = runtimePath(runtimeDir, CLIPBOARD_SCOPE)
   const selectedPackage = selectClipboardPackage(target)
-  if (!selectedPackage) return null
+  const pruneAll = target.platform === 'mobile'
+  if (!selectedPackage && !pruneAll) return null
 
   let entries
   try {
     entries = await readdir(scope, { withFileTypes: true })
   } catch (error) {
-    if (error?.code === 'ENOENT') return selectedPackage
+    if (error?.code === 'ENOENT') return selectedPackage || false
     throw error
   }
   for (const entry of entries) {
     if (
       entry.isDirectory() &&
       entry.name.startsWith('clipboard-') &&
-      entry.name !== selectedPackage
+      (pruneAll || entry.name !== selectedPackage)
     ) {
       await removePath(join(scope, entry.name), 'foreignClipboardNative', audit)
     }
   }
-  return selectedPackage
+  return selectedPackage || false
 }
 
 async function listRelativeFiles(directory, suffix = '') {
@@ -438,7 +439,7 @@ export function criticalRuntimeEntries(nativeSelection = {}) {
     ['native', `${CLIPBOARD_SCOPE}/clipboard/index.js`],
   ]
 
-  if (nativeSelection.clipboardPackage) {
+  if (typeof nativeSelection.clipboardPackage === 'string') {
     const packageName = nativeSelection.clipboardPackage
     const packageRoot = `${CLIPBOARD_SCOPE}/${packageName}`
     entries.push(['native', `${packageRoot}/package.json`])
@@ -488,7 +489,9 @@ export async function collectNativeState(runtimeDir, nativeSelection) {
   const expectedPiTui = selectedPiTui?.map((path) => path.replace(/^native\//, ''))
   const clipboardPass =
     expectedClipboard === null ||
-    (clipboardPackages.length === 1 && clipboardPackages[0] === expectedClipboard)
+    (expectedClipboard === false
+      ? clipboardPackages.length === 0
+      : clipboardPackages.length === 1 && clipboardPackages[0] === expectedClipboard)
   const piTuiPass =
     selectedPiTui === null ||
     (piTuiNativeFiles.length === expectedPiTui.length &&

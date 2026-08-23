@@ -50,7 +50,7 @@
 - **工具冷热分明。** 核心工具常驻上下文；插件、MCP 与技能经 discover/call 网关按需激活、用完即退 —— 能力再丰富，也不把上下文塞成杂物间。
 - **前缀稳，缓存才热。** 工具定义稳定化排序、提示词形态哈希诊断，尽量吃满 Provider 的 prompt cache —— 长会话更快、更省。
 - **缺什么能力，直接说。** Pisper 会自己编写、校验并安装本地插件，下一轮对话就能调用。
-- **手机能独立，也能接桌面。** Android / iOS App 可在手机上运行受限本机 Runtime，使用 OpenAI 兼容 Provider 流式对话并保存本地会话；也可扫码连接桌面，优先 LAN、离开局域网后自动回退 Iroh P2P。Android Keystore / iOS Keychain 保护本机 Provider 密钥，远程模式继续使用 TLS 指纹与设备 Bearer 令牌。
+- **手机能独立，也能接桌面。** Android / iOS App 内置与桌面同源的 Node/Pisper Runtime、标准会话和 React 界面，并按设备实际能力关闭不可用入口；也可扫码连接桌面，优先 LAN、离开局域网后自动回退 Iroh P2P。远程链路继续使用 TLS 指纹与设备 Bearer 令牌。
 - **数据默认不出机。** Runtime 默认只听 127.0.0.1，敏感格式自动脱敏，记忆先审后用 —— 你的上下文，你说了算。
 
 <a id="features"></a>
@@ -61,7 +61,7 @@
 | --- | --- |
 | 并行会话分屏 · 追忆分支树 · 稳定 Turn 标签 · Ctrl+K 跨会话直达 · 会话级模型/目录/权限 | 本地插件自动生成 · MCP 服务 · 技能中心 · 多 Provider 模型配置 |
 | **⚡ 自动化与通知** | **🖥️ 终端与桌面一体** |
-| 可视化工作流 · 定时任务 · 飞书 / 个人微信双向渠道 · 星忆项目记忆 · Git 与 SVN 工作区 | Ratatui TUI 与桌面共用 Runtime · Android / iOS 本机轻量 Runtime 或桌面连接 · 桌面宠物（Petdex）· Desktop / TUI / Runtime / App 独立更新 |
+| 可视化工作流 · 定时任务 · 飞书 / 个人微信双向渠道 · 星忆项目记忆 · Git 与 SVN 工作区 | Ratatui TUI 与桌面共用 Runtime · Android / iOS 同源本机 Runtime 或桌面连接 · 桌面宠物（Petdex）· Desktop / TUI / Runtime / App 独立更新 |
 
 <a id="pi-runtime"></a>
 
@@ -71,30 +71,30 @@ Pisper 以 [Pi Coding Agent](https://github.com/earendil-works/pi/tree/main/pack
 
 - **运行时与会话编排**：把独立会话、并行执行、Turn 分支、工作目录与权限策略组织成可持续运行的多 Agent 系统。
 - **上下文与性能**：通过工具冷热分层、discover/call 按需加载、稳定工具定义与提示词形态诊断，减少上下文占用并提高 Provider prompt cache 命中率。
-- **完整产品层**：提供 Desktop、Ratatui TUI 与移动端体验；手机本机模式提供资源受限的流式对话，连接桌面 Runtime 后可继续使用工作流、定时任务、记忆、MCP、技能、插件和双向渠道。
+- **完整产品层**：提供 Desktop、Ratatui TUI 与移动端体验；手机本机模式运行同一套 Node/Pisper Agent、Provider、会话、HTTP/SSE 与 React，普通设备按 Runtime 能力清单降级，rooted Android 自动优先使用能力更完整且降权运行的载体。
 
 ## 📸 界面预览
 
 <table>
   <tr>
-    <td><a href="docs/shots/chat-grid.png"><img src="docs/shots/chat-grid.png" alt="并行会话分屏" /></a></td>
-    <td><a href="docs/shots/session-tree.png"><img src="docs/shots/session-tree.png" alt="追忆分支视图" /></a></td>
+    <td><a href="docs/shots/chat-grid.png"><img src="docs/shots/web/chat-grid.webp" alt="并行会话分屏" /></a></td>
+    <td><a href="docs/shots/session-tree.png"><img src="docs/shots/web/session-tree.webp" alt="追忆分支视图" /></a></td>
   </tr>
   <tr>
     <td align="center">并行会话：拖标签，四面分屏</td>
     <td align="center">追忆：在任意已完成 Turn 接回原分支</td>
   </tr>
   <tr>
-    <td><a href="docs/shots/workflow-builder.png"><img src="docs/shots/workflow-builder.png" alt="可视化工作流编辑器" /></a></td>
-    <td><a href="docs/shots/cli-chat.png"><img src="docs/shots/cli-chat.png" alt="TUI Chat 界面" /></a></td>
+    <td><a href="docs/shots/workflow-builder.png"><img src="docs/shots/web/workflow-builder.webp" alt="可视化工作流编辑器" /></a></td>
+    <td><a href="docs/shots/cli-chat.png"><img src="docs/shots/web/cli-chat.webp" alt="TUI Chat 界面" /></a></td>
   </tr>
   <tr>
     <td align="center">工作流：把重复工作连成流程</td>
     <td align="center">TUI：离开桌面，上下文不走</td>
   </tr>
   <tr>
-    <td><a href="docs/shots/config-remote-access.png"><img src="docs/shots/config-remote-access.png" alt="远程访问与已配对设备" /></a></td>
-    <td><a href="docs/shots/config-about.png"><img src="docs/shots/config-about.png" alt="Pisper 关于页" /></a></td>
+    <td><a href="docs/shots/config-remote-access.png"><img src="docs/shots/web/config-remote-access.webp" alt="远程访问与已配对设备" /></a></td>
+    <td><a href="docs/shots/config-about.png"><img src="docs/shots/web/config-about.webp" alt="Pisper 关于页" /></a></td>
   </tr>
   <tr>
     <td align="center">设备连接：LAN 优先、P2P 回退与设备管理</td>
@@ -145,14 +145,14 @@ Android / iOS App 首屏把 **本机运行** 与 **连接桌面端** 作为平�
 
 | 平台 | 下载 | 安装状态 |
 | --- | --- | --- |
-| Android | [下载已签名 APK](https://ling-kong-ran.github.io/pisper/#mobile) | 已签名通用 APK，可直接安装；首次侧载时按系统提示允许安装未知来源应用。 |
+| Android | [下载已签名 APK](https://ling-kong-ran.github.io/pisper/#mobile) | 已签名 arm64 APK，可直接安装；首次侧载时按系统提示允许安装未知来源应用。 |
 | iOS | [下载未签名 IPA](https://ling-kong-ran.github.io/pisper/#mobile) | **未签名**，不能直接安装；需使用 AltStore、Sideloadly 或自己的 Apple 开发者账号重签。 |
 
 **本机运行**
 
 1. 在首屏选择「本机运行」，或从底部导航进入 **设置 → 服务器 → 进入本机模式**。
-2. 添加 OpenAI 兼容 Provider，填写 Base URL、API Key 与模型；连接测试会返回可选模型。
-3. 会话与 Provider 配置只保存在手机。Provider 密钥由 Android Keystore 或 iOS Keychain 保护，本机 Runtime 仅监听手机回环地址，并限制会话数、消息数与落盘大小。
+2. 在正常 Pisper 界面配置 Provider 和模型；会话、Provider 配置与工作区只保存在手机 App 私有目录。
+3. 本机 Runtime 仅监听随机回环端口。普通 Android/iOS 会按实际 Node 模块清单隐藏 Shell、MCP、工作流等不可用能力；rooted Android 自动优先使用能力更完整且降权到 App UID 的 Linux 载体。
 
 **连接桌面端**
 
@@ -160,7 +160,7 @@ Android / iOS App 首屏把 **本机运行** 与 **连接桌面端** 作为平�
 2. 开启远程访问并等待 P2P relay 就绪，再生成配对二维码；配对码 5 分钟过期且只能使用一次。
 3. 在手机 App 选择「连接桌面端」并扫码。配对后优先 LAN，失败时回退 Iroh P2P；两条路径都继续校验 TLS 指纹、注入设备 Bearer 令牌并支持 SSE 恢复。
 
-手机会记住上次使用的本机/远程模式。完整流程、资源边界、安全模型与排障见 **[移动端使用指南](./docs/mobile.md)** 和 **[本机 Runtime 设计](./docs/mobile-local-runtime.md)**。
+手机会记住上次使用的本机/远程模式。完整流程、能力边界、安全模型与排障见 **[移动端使用指南](./docs/mobile.md)** 和 **[本机 Runtime 设计](./docs/mobile-local-runtime.md)**。
 
 ### 方式三：npm（Node.js 20+）
 
@@ -203,7 +203,7 @@ npm run desktop:webview:build
 Pisper 没有「我们的云」。日常数据默认由本机 Runtime 持有，只有你配置并实际调用的 Provider、MCP、搜索或渠道，才会收到完成请求所需的内容。
 
 - **默认只听本机**：桌面 Runtime 常规入口绑定 127.0.0.1；手机本机 Runtime 只监听随机回环端口。只有显式开启桌面远程访问后，才会额外启动 LAN HTTPS 与 Iroh P2P endpoint。Iroh 只承载原始加密字节，上层仍由 TLS 指纹和设备 Bearer 令牌保护。Pi 遥测默认关闭。
-- **敏感先脱敏、密钥分平台保护**：常见 API Key、Bearer/JWT、私钥与连接串，在记忆落盘与摘要展示前被替换。手机本机 Provider 密钥使用 Android Keystore 或 iOS Keychain 加密，持久化文件不写明文 API Key。
+- **敏感先脱敏、凭据留在沙箱**：常见 API Key、Bearer/JWT、私钥与连接串，在记忆落盘与摘要展示前被替换。手机本机 Provider 凭据与远程设备令牌当前保存在 App 私有目录，依赖系统沙箱与文件权限保护，尚未迁入 Android Keystore 或 iOS Keychain。
 - **权限有边界**：只读、完全访问、单次审批三档；凭据不经普通接口回显给 Agent，宿主 Shell 会移除常见凭据环境变量。
 - **记忆需确认**：自动推断的记忆先进入待确认区，你点头之前不参与召回。
 
@@ -218,7 +218,7 @@ Desktop、TUI、Runtime 与移动 App 各自独立版本、独立签名、独立
 - [项目主页](https://ling-kong-ran.github.io/pisper/) · 产品介绍与界面演示
 - [TUI 命令参考](./src-tui/README.md) · CLI、Slash command 与参数说明
 - [移动端使用指南](./docs/mobile.md) · Android / iOS 安装、本机运行、桌面配对、安全模型与排障
-- [移动端本机 Runtime](./docs/mobile-local-runtime.md) · 资源边界、Provider、密钥存储与模式切换
+- [移动端本机 Runtime](./docs/mobile-local-runtime.md) · 统一 Node 架构、能力清单、载体选择与供应链
 - [本地插件指南](./docs/local-plugins.md) · [插件开发指南](./docs/plugin-authoring.md)
 - [桌面宠物（Petdex）](./docs/petdex-integration.md)
 
