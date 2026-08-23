@@ -315,7 +315,10 @@ jobs:
       - name: Build unsigned iOS app
         run: |
           MOBILE_CONFIG='{"version":"${{ inputs.version }}","bundle":{"externalBin":[],"resources":["../release/pisper-embedded-runtime.tar.gz"],"iOS":{"frameworks":["../release/mobile-node-ios/NodeMobile.xcframework"]}}}'
-          npx tauri ios build --ci --no-sign --config "$MOBILE_CONFIG"
+          IOS_NODE_FRAMEWORK="$PWD/release/mobile-node-ios/NodeMobile.xcframework/ios-arm64"
+          test -f "$IOS_NODE_FRAMEWORK/NodeMobile.framework/NodeMobile"
+          RUSTFLAGS="-L framework=$IOS_NODE_FRAMEWORK -l framework=NodeMobile" \
+            npx tauri ios build --ci --no-sign --config "$MOBILE_CONFIG"
       - name: Package iOS artifacts
         env:
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}

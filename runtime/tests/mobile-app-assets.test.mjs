@@ -242,6 +242,8 @@ test('移动 Node 供应链固定来源并在两个平台执行完整性门禁',
   )
   assert.doesNotMatch(workflow, /"resources":\{"\.\.\/release\/pisper-embedded-runtime\.tar\.gz"/)
   assert.match(workflow, /bash scripts\/smoke-mobile-node-ios\.sh/)
+  assert.match(workflow, /IOS_NODE_FRAMEWORK=.*NodeMobile\.xcframework\/ios-arm64/)
+  assert.match(workflow, /RUSTFLAGS="-L framework=\$IOS_NODE_FRAMEWORK -l framework=NodeMobile"/)
   assert.match(iosSmoke, /mobile-node-ios-smoke-view-controller\.m/)
   assert.match(iosSmoke, /--smoke-ui/)
   assert.match(iosSmoke, /stdout-\$TOKEN/)
