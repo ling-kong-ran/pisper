@@ -300,7 +300,7 @@ jobs:
           cp embedded-runtime/pisper-embedded-runtime.tar.gz release/pisper-embedded-runtime.tar.gz
       - name: Smoke embedded Pisper Runtime in iOS Simulator
         run: |
-          scripts/smoke-mobile-node-ios.sh \
+          bash scripts/smoke-mobile-node-ios.sh \
             "$PWD/release/mobile-node-ios-work/materialized" \
             "$PWD/release/mobile-node-ios/NodeMobile.xcframework" \
             "$PWD/release/pisper-embedded-runtime.tar.gz"
