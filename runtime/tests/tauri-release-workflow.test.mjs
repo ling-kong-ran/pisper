@@ -28,6 +28,16 @@ test('main desktop source and dependencies are Tauri-only', async () => {
   assert.doesNotMatch(seaBuild, /generate-icons|design[/\\]|join\(root, 'build'\)/)
 })
 
+test('SEA builder imports and applies the final size-manifest assertion', async () => {
+  const seaBuild = await readFile('scripts/build-sea.mjs', 'utf8')
+
+  assert.match(
+    seaBuild,
+    /import\s*\{[^}]*\bassertSizeManifest\b[^}]*\}\s*from '\.\/sea-runtime\.mjs'/,
+  )
+  assert.match(seaBuild, /assertSizeManifest\(manifest, \{ requireExecutable: true \}\)/)
+})
+
 test('new desktop shells use component updates while legacy clients retain release metadata', async () => {
   const [cargo, config, library, bridge, permissions, workflow, updateHook] = await Promise.all([
     readFile('src-tauri/Cargo.toml', 'utf8'),

@@ -3,7 +3,12 @@ import { copyFile, mkdir, readFile, stat, writeFile } from 'node:fs/promises'
 import { dirname, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { promisify } from 'node:util'
-import { finalizeSizeManifest, runtimeTarget, writeSizeManifest } from './sea-runtime.mjs'
+import {
+  assertSizeManifest,
+  finalizeSizeManifest,
+  runtimeTarget,
+  writeSizeManifest,
+} from './sea-runtime.mjs'
 import { stageRuntimeClosure } from './stage-runtime-closure.mjs'
 
 const run = promisify(execFile)
