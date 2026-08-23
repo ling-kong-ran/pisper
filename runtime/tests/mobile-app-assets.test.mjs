@@ -52,6 +52,7 @@ test('共享产品路径同时归 App 与原组件发布通道', () => {
   assert.equal(isAppExclusivePath('src-tauri/Info.ios.plist'), true)
   assert.equal(isAppExclusivePath('scripts/stage-mobile-node-android.mjs'), true)
   assert.equal(isAppExclusivePath('scripts/stage-mobile-node-ios.mjs'), true)
+  assert.equal(isAppExclusivePath('scripts/mobile-node-ios-smoke-view-controller.m'), true)
   assert.equal(isAppExclusivePath('scripts/smoke-mobile-node-ios.sh'), true)
   assert.equal(isAppExclusivePath('scripts/verify-tauri-signature.mjs'), true)
 })
@@ -186,16 +187,25 @@ test('移动设备操作通过当前会话 SSE 与原生桥闭环', async () => 
 })
 
 test('移动 Node 供应链固定来源并在两个平台执行完整性门禁', async () => {
-  const [metadataText, androidStage, iosStage, iosBuild, iosSmoke, workflow, setup] =
-    await Promise.all([
-      readFile('scripts/mobile-node-artifacts.json', 'utf8'),
-      readFile('scripts/stage-mobile-node-android.mjs', 'utf8'),
-      readFile('scripts/stage-mobile-node-ios.mjs', 'utf8'),
-      readFile('scripts/build-mobile-node-ios.sh', 'utf8'),
-      readFile('scripts/smoke-mobile-node-ios.sh', 'utf8'),
-      readFile('.github/workflows/release-app.yml', 'utf8'),
-      readFile('scripts/setup-mobile-android.mjs', 'utf8'),
-    ])
+  const [
+    metadataText,
+    androidStage,
+    iosStage,
+    iosBuild,
+    iosSmoke,
+    iosSmokeController,
+    workflow,
+    setup,
+  ] = await Promise.all([
+    readFile('scripts/mobile-node-artifacts.json', 'utf8'),
+    readFile('scripts/stage-mobile-node-android.mjs', 'utf8'),
+    readFile('scripts/stage-mobile-node-ios.mjs', 'utf8'),
+    readFile('scripts/build-mobile-node-ios.sh', 'utf8'),
+    readFile('scripts/smoke-mobile-node-ios.sh', 'utf8'),
+    readFile('scripts/mobile-node-ios-smoke-view-controller.m', 'utf8'),
+    readFile('.github/workflows/release-app.yml', 'utf8'),
+    readFile('scripts/setup-mobile-android.mjs', 'utf8'),
+  ])
   const metadata = JSON.parse(metadataText)
   assert.equal(metadata.source.commit, '8a995e179bb2c224029a560ae9c4f9460631b94d')
   assert.equal(metadata.runtime.nodeVersion, '24.18.1')
@@ -226,9 +236,14 @@ test('移动 Node 供应链固定来源并在两个平台执行完整性门禁',
   assert.match(workflow, /lib\/arm64-v8a\/libnode\.so/)
   assert.match(workflow, /NodeMobile\.xcframework/)
   assert.match(workflow, /bash scripts\/smoke-mobile-node-ios\.sh/)
+  assert.match(iosSmoke, /mobile-node-ios-smoke-view-controller\.m/)
+  assert.match(iosSmoke, /--smoke-ui/)
+  assert.match(iosSmoke, /stdout-\$TOKEN/)
   assert.match(iosSmoke, /startEmbeddedRuntime/)
   assert.match(iosSmoke, /\/api\/health/)
   assert.match(iosSmoke, /PISPER_IOS_RUNTIME_SMOKE_OK/)
+  assert.match(iosSmokeController, /dispatch_async/)
+  assert.match(iosSmokeController, /NODE_MOBILE_RUN_TOKEN/)
   assert.match(setup, /pisper-node-host/)
   assert.match(setup, /EmbeddedNodeHost\.kt/)
   assert.match(setup, /libc\+\+_shared\.so/)

@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+SCRIPT_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
 MATERIALIZED_ROOT="${1:?materialized Node source root is required}"
 FRAMEWORK="${2:?NodeMobile.xcframework path is required}"
 RUNTIME_ARCHIVE="${3:?embedded Runtime archive path is required}"
@@ -22,6 +23,8 @@ trap cleanup EXIT
 rm -rf "$NODE_OUT" "$WORK_DIR"
 mkdir -p "$NODE_OUT" "$WORK_DIR"
 cp -R "$FRAMEWORK" "$NODE_OUT/NodeMobile.xcframework"
+cp "$SCRIPT_DIR/mobile-node-ios-smoke-view-controller.m" \
+  "$MATERIALIZED_ROOT/tools/mobile-test/ios/testnode/testnode/ViewController.m"
 "$MATERIALIZED_ROOT/tools/mobile-test/smoke/build-ios-testnode.sh" "$APP_OUT"
 test -d "$APP"
 
@@ -80,30 +83,39 @@ xcrun simctl bootstatus "$UDID" -b
 
 TOKEN=$(/usr/bin/uuidgen | tr 'A-F' 'a-f' | tr -d '-')
 xcrun simctl install "$UDID" "$APP"
-INSTALLED_APP=$(xcrun simctl get_app_container "$UDID" "$BUNDLE_ID" app)
 DATA_DIR=$(xcrun simctl get_app_container "$UDID" "$BUNDLE_ID" data)
 RESULT="$DATA_DIR/Documents/result-$TOKEN.txt"
-LOG="$WORK_DIR/simulator.log"
-rm -f "$RESULT"
+STDOUT="$DATA_DIR/Documents/stdout-$TOKEN.txt"
+LAUNCH_LOG="$WORK_DIR/launch.log"
+rm -f "$RESULT" "$STDOUT" "$LAUNCH_LOG"
 
-xcrun simctl launch --console --terminate-running-process "$UDID" "$BUNDLE_ID" \
-  --run-token "$TOKEN" "$INSTALLED_APP/pisper-smoke.mjs" > "$LOG" 2>&1 &
-LAUNCH_PID=$!
+if ! xcrun simctl launch --terminate-running-process "$UDID" "$BUNDLE_ID" \
+  --smoke-ui "$TOKEN" > "$LAUNCH_LOG" 2>&1; then
+  cat "$LAUNCH_LOG"
+  exit 1
+fi
+cat "$LAUNCH_LOG"
+APP_PID=$(sed -nE 's/^.*: ([0-9]+)$/\1/p' "$LAUNCH_LOG" | tail -1)
+test -n "$APP_PID"
+
 VERDICT=""
+PROCESS_GONE=""
 for ((i = 0; i < 240; i++)); do
   if [[ -s "$RESULT" ]]; then
     VERDICT=$(tr -d '\r\n' < "$RESULT")
     break
   fi
-  if ! kill -0 "$LAUNCH_PID" 2>/dev/null; then
-    [[ -f "$RESULT" ]] && VERDICT=$(tr -d '\r\n' < "$RESULT")
-    break
-  fi
+  if [[ -n "$PROCESS_GONE" ]]; then break; fi
+  if ! kill -0 "$APP_PID" 2>/dev/null; then PROCESS_GONE=1; fi
   sleep 1
 done
-kill "$LAUNCH_PID" 2>/dev/null || true
-wait "$LAUNCH_PID" 2>/dev/null || true
-cat "$LOG"
-test "$VERDICT" = PASS
-grep -Fq 'PISPER_IOS_RUNTIME_SMOKE_OK' "$LOG"
+xcrun simctl terminate "$UDID" "$BUNDLE_ID" >/dev/null 2>&1 || true
+[[ -f "$STDOUT" ]] && cat "$STDOUT"
+if [[ "$VERDICT" != PASS ]]; then
+  xcrun simctl spawn "$UDID" log show --last 5m --style compact \
+    --predicate 'process == "testnode"' || true
+  printf 'iOS embedded Pisper Runtime smoke verdict: %s\n' "${VERDICT:-<none>}" >&2
+  exit 1
+fi
+grep -Fq 'PISPER_IOS_RUNTIME_SMOKE_OK' "$STDOUT"
 echo "iOS embedded Pisper Runtime smoke passed"
