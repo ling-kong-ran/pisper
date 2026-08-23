@@ -256,6 +256,20 @@ test('移动端明确区分远程档案与当前 Runtime 路由', async () => {
   assert.match(pairing, /window\.location\.replace\(state\.proxyUrl\)/)
 })
 
+test('root Android Runtime 构建仅在系统包安装期间绑定构建机设备', async () => {
+  const script = await readFile('scripts/build-android-root-runtime.sh', 'utf8')
+  const bind = script.indexOf('sudo mount --bind /dev "$ROOTFS/dev"')
+  const update = script.indexOf('apt-get update')
+  const install = script.indexOf('apt-get install')
+  const unmount = script.indexOf('sudo umount "$ROOTFS/dev"', install)
+  const archive = script.indexOf('sudo tar --numeric-owner --xattrs --acls')
+
+  assert.match(script, /trap cleanup EXIT/)
+  assert.ok(bind >= 0 && bind < update)
+  assert.ok(update < install && install < unmount)
+  assert.ok(unmount < archive)
+})
+
 test('移动 Runtime 本地 staging 使用 App 版本并兼容 Windows Node 24', async () => {
   const [builder, staging] = await Promise.all([
     readFile('scripts/build-mobile-runtime.mjs', 'utf8'),

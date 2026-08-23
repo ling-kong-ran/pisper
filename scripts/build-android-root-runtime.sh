@@ -41,6 +41,14 @@ BASE_NAME="ubuntu-base-${UBUNTU_VERSION}-base-${BASE_ARCH}.tar.gz"
 BASE_URL="https://cdimage.ubuntu.com/ubuntu-base/releases/24.04/release/${BASE_NAME}"
 BASE_ARCHIVE="$WORK_DIR/$BASE_NAME"
 ROOTFS="$WORK_DIR/rootfs"
+DEV_MOUNTED=0
+
+cleanup() {
+  if [ "$DEV_MOUNTED" = 1 ]; then
+    sudo umount "$ROOTFS/dev" || true
+  fi
+}
+trap cleanup EXIT
 
 rm -rf "$WORK_DIR"
 mkdir -p "$WORK_DIR" "$(dirname "$OUTPUT")"
@@ -48,11 +56,17 @@ curl --fail --location --retry 3 --output "$BASE_ARCHIVE" "$BASE_URL"
 mkdir -p "$ROOTFS"
 sudo tar --numeric-owner -xpf "$BASE_ARCHIVE" -C "$ROOTFS"
 
+# Ubuntu Base 的 /dev 为空；仅在安装依赖时绑定构建机设备，避免把设备节点打进发布包。
+sudo mount --bind /dev "$ROOTFS/dev"
+DEV_MOUNTED=1
+
 # 构建机与 Android 运行时都不应继承 systemd-resolved 的回环 DNS 配置。
 printf 'nameserver 1.1.1.1\nnameserver 8.8.8.8\n' | sudo tee "$ROOTFS/etc/resolv.conf" >/dev/null
 sudo chroot "$ROOTFS" /usr/bin/env DEBIAN_FRONTEND=noninteractive apt-get update
 sudo chroot "$ROOTFS" /usr/bin/env DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
   bash ca-certificates curl fd-find git locales ripgrep util-linux
+sudo umount "$ROOTFS/dev"
+DEV_MOUNTED=0
 sudo ln -s /usr/bin/fdfind "$ROOTFS/usr/local/bin/fd"
 
 sudo mkdir -p "$ROOTFS/opt/pisper" "$ROOTFS/data/agent" "$ROOTFS/workspace" \
