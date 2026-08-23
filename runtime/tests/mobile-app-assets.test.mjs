@@ -219,6 +219,7 @@ test('移动 Node 供应链固定来源并在两个平台执行完整性门禁',
     workflow,
     /stage-mobile-node-android\.mjs release\/mobile-node-android --require-sigstore/,
   )
+  assert.match(workflow, /bash scripts\/build-mobile-node-ios\.sh --materialize-only/)
   assert.match(workflow, /stage-mobile-node-ios\.mjs release\/mobile-node-ios --require-sigstore/)
   assert.doesNotMatch(workflow, /npm run mobile:node:ios/)
   assert.match(workflow, /shasum -a 256 -c SHA256SUMS/)

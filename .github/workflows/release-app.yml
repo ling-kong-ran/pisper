@@ -260,7 +260,7 @@ jobs:
       - name: Install Node dependencies
         run: npm ci
       - name: Materialize fixed iOS Node smoke source
-        run: scripts/build-mobile-node-ios.sh --materialize-only
+        run: bash scripts/build-mobile-node-ios.sh --materialize-only
       - name: Install cosign
         uses: sigstore/cosign-installer@7e8b541eb2e61bf99390e1afd4be13a184e9ebc5
       - name: Verify and stage fixed iOS Node 24 framework
