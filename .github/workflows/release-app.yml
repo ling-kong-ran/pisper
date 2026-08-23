@@ -315,10 +315,7 @@ jobs:
       - name: Build unsigned iOS app
         run: |
           MOBILE_CONFIG='{"version":"${{ inputs.version }}","bundle":{"externalBin":[],"resources":["../release/pisper-embedded-runtime.tar.gz"],"iOS":{"frameworks":["../release/mobile-node-ios/NodeMobile.xcframework"]}}}'
-          IOS_NODE_FRAMEWORK="$PWD/release/mobile-node-ios/NodeMobile.xcframework/ios-arm64"
-          test -f "$IOS_NODE_FRAMEWORK/NodeMobile.framework/NodeMobile"
-          RUSTFLAGS="-L framework=$IOS_NODE_FRAMEWORK -l framework=NodeMobile" \
-            npx tauri ios build --ci --no-sign --config "$MOBILE_CONFIG"
+          npx tauri ios build --ci --no-sign --config "$MOBILE_CONFIG"
       - name: Package iOS artifacts
         env:
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
@@ -327,6 +324,11 @@ jobs:
           set -Eeuo pipefail
           IPA_PATH=$(find src-tauri/gen/apple -name "*.ipa" -type f | head -1)
           test -n "$IPA_PATH" || { echo "未找到未签名 IPA 产物。" >&2; exit 1; }
+          unzip -Z1 "$IPA_PATH" > /tmp/pisper-ios-contents.txt
+          grep -Eq '^Payload/[^/]+\.app/Frameworks/NodeMobile\.framework/NodeMobile$' \
+            /tmp/pisper-ios-contents.txt
+          grep -Eq '^Payload/[^/]+\.app/(.*/)?pisper-embedded-runtime\.tar\.gz$' \
+            /tmp/pisper-ios-contents.txt
           cp "$IPA_PATH" pisper-ios-unsigned.ipa
           cp release/pisper-node-mobile-ios.tar.gz* .
           npx tauri signer sign pisper-ios-unsigned.ipa

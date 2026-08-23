@@ -1,6 +1,8 @@
 #[cfg(target_os = "ios")]
-use std::ffi::CString;
+use std::ffi::{c_void, CStr, CString};
 use std::fs::File;
+#[cfg(target_os = "ios")]
+use std::os::raw::c_char;
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Mutex;
@@ -474,10 +476,79 @@ fn android_jni_error(
 }
 
 #[cfg(target_os = "ios")]
-fn launch_node(arguments: Vec<String>) -> Result<(), String> {
-    extern "C" {
-        fn node_start(argc: i32, argv: *mut *mut std::ffi::c_char) -> i32;
+type NodeStart = unsafe extern "C" fn(i32, *mut *mut c_char) -> i32;
+
+#[cfg(target_os = "ios")]
+extern "C" {
+    fn dlopen(path: *const c_char, mode: i32) -> *mut c_void;
+    fn dlsym(handle: *mut c_void, symbol: *const c_char) -> *mut c_void;
+    fn dlclose(handle: *mut c_void) -> i32;
+    fn dlerror() -> *const c_char;
+}
+
+#[cfg(any(target_os = "ios", test))]
+fn ios_node_mobile_binary(executable: &Path) -> Option<PathBuf> {
+    Some(
+        executable
+            .parent()?
+            .join("Frameworks/NodeMobile.framework/NodeMobile"),
+    )
+}
+
+#[cfg(target_os = "ios")]
+fn ios_dynamic_link_error() -> String {
+    let message = unsafe { dlerror() };
+    if message.is_null() {
+        return "未知动态链接错误".into();
     }
+    unsafe { CStr::from_ptr(message) }
+        .to_string_lossy()
+        .into_owned()
+}
+
+#[cfg(target_os = "ios")]
+fn load_ios_node_start() -> Result<NodeStart, String> {
+    let executable =
+        std::env::current_exe().map_err(|error| format!("无法定位 iOS App 可执行文件：{error}"))?;
+    let binary = ios_node_mobile_binary(&executable)
+        .ok_or_else(|| "无法定位 iOS NodeMobile framework。".to_string())?;
+    if !binary.is_file() {
+        return Err(format!(
+            "iOS App 缺少 NodeMobile framework：{}",
+            binary.display()
+        ));
+    }
+    let path = binary
+        .to_str()
+        .ok_or_else(|| "iOS NodeMobile framework 路径不是 UTF-8。".to_string())?;
+    let path =
+        CString::new(path).map_err(|_| "iOS NodeMobile framework 路径包含空字符。".to_string())?;
+    let symbol = CString::new("node_start").expect("static NodeMobile symbol is valid");
+
+    unsafe {
+        dlerror();
+        let handle = dlopen(path.as_ptr(), 0x2 | 0x4);
+        if handle.is_null() {
+            return Err(format!(
+                "无法加载 iOS NodeMobile framework：{}",
+                ios_dynamic_link_error()
+            ));
+        }
+        dlerror();
+        let address = dlsym(handle, symbol.as_ptr());
+        if address.is_null() {
+            let error = ios_dynamic_link_error();
+            dlclose(handle);
+            return Err(format!("iOS NodeMobile framework 缺少 node_start：{error}"));
+        }
+        // Node 在 App 生命周期内常驻，保留 framework handle，不能提前 dlclose。
+        Ok(std::mem::transmute::<*mut c_void, NodeStart>(address))
+    }
+}
+
+#[cfg(target_os = "ios")]
+fn launch_node(arguments: Vec<String>) -> Result<(), String> {
+    let node_start = load_ios_node_start()?;
     std::thread::Builder::new()
         .name("pisper-embedded-node".into())
         .spawn(move || {
@@ -508,7 +579,17 @@ fn launch_node(_arguments: Vec<String>) -> Result<(), String> {
 
 #[cfg(test)]
 mod tests {
-    use super::trusted_bootstrap_url;
+    use std::path::Path;
+
+    use super::{ios_node_mobile_binary, trusted_bootstrap_url};
+
+    #[test]
+    fn ios_node_mobile_binary_resolves_inside_the_app_frameworks_directory() {
+        assert_eq!(
+            ios_node_mobile_binary(Path::new("/tmp/Pisper.app/Pisper")),
+            Some(Path::new("/tmp/Pisper.app/Frameworks/NodeMobile.framework/NodeMobile").into()),
+        );
+    }
 
     #[test]
     fn embedded_ready_accepts_only_the_expected_authenticated_loopback_url() {
