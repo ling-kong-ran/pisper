@@ -5,6 +5,8 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import test from 'node:test'
 import {
+  appReleasePaths,
+  appReleaseSubjects,
   componentReleasePaths,
   componentReleaseSubjects,
   detectReleaseComponents,
@@ -230,7 +232,7 @@ test('release command auto-detects every changed component and rejects manual sc
   const source = await readFile('scripts/release.mjs', 'utf8')
 
   assert.doesNotMatch(source, /requestedComponent/)
-  assert.match(source, /if \(RELEASE_COMPONENTS\[args\[0\]\]\)/)
+  assert.match(source, /RELEASE_COMPONENTS\[args\[0\]\] \|\| args\[0\] === 'app'/)
   assert.match(source, /const candidates = Object\.keys\(RELEASE_COMPONENTS\)/)
   assert.match(source, /if \(paths\.length === 0\) continue/)
   assert.match(
@@ -239,10 +241,37 @@ test('release command auto-detects every changed component and rejects manual sc
   )
   assert.match(source, /componentReleasePaths/)
   assert.match(source, /componentReleaseSubjects/)
+  assert.match(source, /appReleasePaths/)
+  assert.match(source, /appReleaseSubjects/)
+  assert.match(source, /appReleaseTag\(nextVersion\)/)
+  assert.match(source, /component === 'app' \? 'release-app\.yml' : 'release\.yml'/)
+  assert.match(source, /releaseOrder = \{ tui: 0, runtime: 1, desktop: 2, app: 3 \}/)
   assert.match(source, /`component=\$\{component\}`/)
   assert.match(source, /npmReleaseVersion = resolveVersion\(manifest\.version, input\)/)
   assert.doesNotMatch(source, /const npmBump/)
-  assert.match(source, /自动发布组件/)
+  assert.match(source, /自动发布通道/)
+})
+
+test('App release ranges use their independent ownership without entering component detection', () => {
+  const runGit = (args) => {
+    const command = args.join(' ')
+    if (command === 'diff --name-only --diff-filter=ACMRTUXB app-v1.0.0..source') {
+      return 'src-tauri/src/mobile/store.rs\nruntime/index.mjs\ndocs/mobile.md\n'
+    }
+    if (command === 'log --format=%H app-v1.0.0..source') return 'app-commit\ndocs-commit\n'
+    if (command.endsWith('-r app-commit')) return 'src-tauri/src/mobile/store.rs\n'
+    if (command.endsWith('-r docs-commit')) return 'docs/mobile.md\n'
+    if (command === 'show -s --format=%s app-commit') return 'feat(mobile): add local runtime\n'
+    throw new Error(`Unexpected git command: ${command}`)
+  }
+
+  assert.deepEqual(appReleasePaths(runGit, 'app-v1.0.0', 'source'), [
+    'src-tauri/src/mobile/store.rs',
+    'runtime/index.mjs',
+  ])
+  assert.deepEqual(appReleaseSubjects(runGit, 'app-v1.0.0', 'source'), [
+    'feat(mobile): add local runtime',
+  ])
 })
 
 test('desktop release validator requires installers and signed frontend components', async () => {

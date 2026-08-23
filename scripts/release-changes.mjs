@@ -1,5 +1,5 @@
 import { RELEASE_COMPONENTS, assertReleaseComponent } from './release-components.mjs'
-import { isAppExclusivePath } from './app-paths.mjs'
+import { isAppExclusivePath, isAppOwnedPath } from './app-paths.mjs'
 
 const ALL_COMPONENTS = Object.freeze(Object.keys(RELEASE_COMPONENTS))
 const RELEASE_SCRIPT_PATHS = new Set([
@@ -136,8 +136,7 @@ export function componentReleasePaths(runGit, component, latestTag, source) {
   )
 }
 
-export function componentReleaseSubjects(runGit, component, latestTag, source) {
-  const normalized = assertReleaseComponent(component)
+function releaseSubjectsForOwner(runGit, latestTag, source, ownsPath) {
   const range = latestTag ? `${latestTag}..${source}` : source
   const commits = splitLines(runGit(['log', '--format=%H', range]))
   const subjects = []
@@ -154,10 +153,25 @@ export function componentReleaseSubjects(runGit, component, latestTag, source) {
         commit,
       ]),
     )
-    if (!paths.some((path) => releaseComponentsForPath(path).includes(normalized))) continue
+    if (!paths.some(ownsPath)) continue
     const subject = String(runGit(['show', '-s', '--format=%s', commit]) || '').trim()
     if (subject) subjects.push(subject)
   }
 
   return subjects
+}
+
+export function componentReleaseSubjects(runGit, component, latestTag, source) {
+  const normalized = assertReleaseComponent(component)
+  return releaseSubjectsForOwner(runGit, latestTag, source, (path) =>
+    releaseComponentsForPath(path).includes(normalized),
+  )
+}
+
+export function appReleasePaths(runGit, latestTag, source) {
+  return releaseRangePaths(runGit, latestTag, source).filter(isAppOwnedPath)
+}
+
+export function appReleaseSubjects(runGit, latestTag, source) {
+  return releaseSubjectsForOwner(runGit, latestTag, source, isAppOwnedPath)
 }

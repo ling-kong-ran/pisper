@@ -1,5 +1,5 @@
-// 移动端 App 组件的发布归属路径：与 desktop/tui/runtime 组件体系完全独立
-// （桌面端发布不携带 App）。release-app.mjs 与 prepare-app-release.mjs 共用。
+// 移动端 App 保持独立版本和产物通道，但由统一 release 命令自动检测。
+// 桌面端发布不携带 App；release 编排与 App 版本准备共用这些路径。
 export const APP_TAG_PREFIX = 'app-v'
 export const APP_VERSION_FILE = 'src-tauri/mobile-package.json'
 
@@ -26,7 +26,6 @@ const APP_EXCLUSIVE_PREFIXES = [
   'scripts/stage-mobile-node-android.mjs',
   'scripts/sync-mobile-icons.mjs',
   'scripts/app-paths.mjs',
-  'scripts/release-app.mjs',
   'scripts/prepare-app-release.mjs',
   '.github/workflows/release-app.yml',
 ]

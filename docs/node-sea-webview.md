@@ -79,15 +79,16 @@ Updater signatures and platform code signatures are separate. Windows Authentico
 
 ## Component Releases
 
-Desktop, TUI, and runtime/web versions advance independently:
+Desktop, TUI, runtime/web, npm, and mobile App versions advance independently:
 
 | Scope | Version source | Tag | Platform package |
 | --- | --- | --- | --- |
 | `desktop` | `src-tauri/desktop-package.json` | `vX.Y.Z` | Signed Tauri installer and updater |
 | `tui` | `src-tui/Cargo.toml` | `tui-vX.Y.Z` | Self-contained distribution plus a thin TUI update component |
 | `runtime` | root `package.json` | `runtime-vX.Y.Z` | Full SEA Runtime plus a Node-only npm Runtime closure |
+| `app` | `src-tauri/mobile-package.json` | `app-vX.Y.Z` | Signed Android APK plus unsigned iOS IPA |
 
-Run `npm run release -- <patch|minor|major|X.Y.Z>` to compare each component with its own latest tag and publish every component with substantive owned changes. Component scopes are always detected from changed product paths; the command rejects manual `desktop`, `tui`, or `runtime` scopes so a release cannot omit another changed component. Multi-component dispatches share one immutable source SHA and complete sequentially, appending only validated component version commits. The workflow runs only the detected scopes' checks and packaging. TUI keeps its SEA sidecar/runtime in the standalone archive so a direct download remains usable, while its thin component archive contains only the TUI executable. Each Runtime job publishes both the self-contained SEA distribution and a separately signed Node-only closure used by npm. Runtime releases do not compile either Rust client. Desktop releases still integrate the current runtime and TUI sources into the application bundle.
+Run `npm run release -- <patch|minor|major|X.Y.Z>` to compare every channel with its own latest tag and publish all channels with substantive owned changes. Scopes are always detected from changed product paths; the command rejects manual `desktop`, `tui`, `runtime`, or `app` scopes so a release cannot omit another changed channel. All dispatches share one immutable source SHA and complete sequentially in the global release queue. Component workflows append only validated component/npm version commits, then the independent App workflow runs last and publishes its own `app-v*` tag and update manifest. The command waits for every workflow before returning and runs only the union of detected scopes' local checks once. TUI keeps its SEA sidecar/runtime in the standalone archive so a direct download remains usable, while its thin component archive contains only the TUI executable. Each Runtime job publishes both the self-contained SEA distribution and a separately signed Node-only closure used by npm. Runtime releases do not compile either Rust client. Desktop releases still integrate the current runtime and TUI sources into the application bundle; App releases retain mandatory Android, macOS/iOS, Simulator Runtime, signing, and asset gates.
 
 Only desktop Releases are marked as GitHub `latest`; this preserves `/releases/latest` and `latest.json` for legacy client upgrades. TUI and runtime Releases are published with `--latest=false` and use their prefixed tags.
 

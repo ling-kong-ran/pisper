@@ -1,6 +1,6 @@
 // 移动 App 更新门禁：独立 app-v 版本必须同时进入原生包、发布清单与移动桥权限。
 import assert from 'node:assert/strict'
-import { readFile } from 'node:fs/promises'
+import { access, readFile } from 'node:fs/promises'
 import test from 'node:test'
 import { isAppExclusivePath, isAppOwnedPath } from '../../scripts/app-paths.mjs'
 
@@ -8,6 +8,20 @@ test('移动 App 更新实现归独立 App 发布通道', () => {
   const path = 'src-tauri/src/mobile/update.rs'
   assert.equal(isAppExclusivePath(path), true)
   assert.equal(isAppOwnedPath(path), true)
+})
+
+test('统一 release 命令自动检测并最后派发独立 App 通道', async () => {
+  const [release, manifest] = await Promise.all([
+    readFile('scripts/release.mjs', 'utf8'),
+    readFile('package.json', 'utf8').then(JSON.parse),
+  ])
+
+  assert.equal(manifest.scripts.release, 'node scripts/release.mjs')
+  assert.equal(manifest.scripts['app:release'], undefined)
+  await assert.rejects(access('scripts/release-app.mjs'), (error) => error?.code === 'ENOENT')
+  assert.match(release, /appReleasePaths/)
+  assert.match(release, /component === 'app' \? 'release-app\.yml' : 'release\.yml'/)
+  assert.match(release, /releaseOrder = \{ tui: 0, runtime: 1, desktop: 2, app: 3 \}/)
 })
 
 test('Android 与 iOS 发布包都写入独立 App 版本', async () => {

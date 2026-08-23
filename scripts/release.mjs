@@ -2,7 +2,13 @@ import { execFileSync } from 'node:child_process'
 import { readFile } from 'node:fs/promises'
 import { dirname, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { componentReleasePaths, componentReleaseSubjects } from './release-changes.mjs'
+import {
+  appReleasePaths,
+  appReleaseSubjects,
+  componentReleasePaths,
+  componentReleaseSubjects,
+} from './release-changes.mjs'
+import { APP_VERSION_FILE, appReleaseTag, appTagPattern, appVersionFromTag } from './app-paths.mjs'
 import { isSubstantiveReleaseCommit } from './release-policy.mjs'
 import {
   RELEASE_COMPONENTS,
@@ -16,8 +22,8 @@ const root = resolve(dirname(fileURLToPath(import.meta.url)), '..')
 const npmCli = String(process.env.npm_execpath || '').trim()
 const rawArgs = process.argv.slice(2)
 const args = rawArgs.filter((value) => !value.startsWith('--'))
-if (RELEASE_COMPONENTS[args[0]]) {
-  throw new Error('组件由变更路径自动检测，无需指定 desktop、tui 或 runtime。')
+if (RELEASE_COMPONENTS[args[0]] || args[0] === 'app') {
+  throw new Error('发布通道由变更路径自动检测，无需指定 desktop、tui、runtime 或 app。')
 }
 if (args.length > 1) {
   throw new Error('用法：npm run release -- <major|minor|patch|X.Y.Z>')
@@ -67,9 +73,12 @@ function resolveVersion(current, target) {
 
 function runComponentChecks(selected) {
   console.log(`正在执行 ${selected.join('、')} 发布前检查…`)
-  if (selected.includes('desktop') || selected.includes('runtime')) {
+  runNpm(['run', 'postinstall'])
+  if (selected.includes('desktop') || selected.includes('runtime') || selected.includes('app')) {
     runNpm(['test'])
     runNpm(['run', 'check'])
+  }
+  if (selected.includes('desktop') || selected.includes('runtime')) {
     runNpm(['run', 'build'])
   }
   if (selected.includes('desktop') || selected.includes('tui')) {
@@ -77,7 +86,7 @@ function runComponentChecks(selected) {
     runNpm(['run', 'tui:test'])
     runNpm(['run', 'tui:check'])
   }
-  if (selected.includes('desktop')) {
+  if (selected.includes('desktop') || selected.includes('app')) {
     run('cargo', ['fmt', '--manifest-path', 'src-tauri/Cargo.toml', '--', '--check'])
     run('cargo', ['test', '--manifest-path', 'src-tauri/Cargo.toml', '--locked'])
     run('cargo', [
@@ -106,7 +115,7 @@ if (branch !== releaseBranch) {
 }
 
 run('git', ['fetch', '--tags', 'origin'])
-let source = run('git', ['rev-parse', 'HEAD'], { capture: true })
+const source = run('git', ['rev-parse', 'HEAD'], { capture: true })
 const remoteSource = run('git', ['rev-parse', `origin/${releaseBranch}`], { capture: true })
 if (source !== remoteSource) {
   throw new Error(
@@ -155,15 +164,41 @@ for (const component of candidates) {
   plans.push({ component, nextVersion, tag })
 }
 
-if (plans.length === 0) {
-  throw new Error('未检测到 desktop、tui 或 runtime 的待发布产品变更。')
+const appCurrentVersion = JSON.parse(await readFile(join(root, APP_VERSION_FILE), 'utf8')).version
+const latestAppTag = tags.find((tag) => appTagPattern().test(tag)) || ''
+const appPaths = appReleasePaths(runGit, latestAppTag, source)
+if (appPaths.length > 0) {
+  console.log(`正在检查自 ${latestAppTag || '仓库初始提交'} 以来的 app 实质性提交…`)
+  const subjects = appReleaseSubjects(runGit, latestAppTag, source)
+  const substantive = subjects.filter(isSubstantiveReleaseCommit)
+  if (substantive.length === 0) {
+    console.log('app 只有非实质性变更，自动跳过。')
+  } else {
+    console.log(`已找到 ${substantive.length} 个 app 实质性提交、${appPaths.length} 个变更文件：`)
+    for (const subject of substantive) console.log(`  - ${subject}`)
+
+    const nextVersion = resolveVersion(appCurrentVersion, input)
+    if (compareVersions(nextVersion, appCurrentVersion) <= 0) {
+      throw new Error(`新版本 ${nextVersion} 必须高于当前 app 版本 ${appCurrentVersion}。`)
+    }
+    const tag = appReleaseTag(nextVersion)
+    if (runGit(['tag', '--list', tag])) throw new Error(`标签 ${tag} 已经存在。`)
+    if (latestAppTag) {
+      const latestVersion = appVersionFromTag(latestAppTag)
+      if (latestVersion && compareVersions(nextVersion, latestVersion) <= 0) {
+        throw new Error(`新版本 ${nextVersion} 必须高于最新 app 标签 ${latestAppTag}。`)
+      }
+    }
+    plans.push({ component: 'app', nextVersion, tag })
+  }
 }
 
-// The desktop installer bundles the newest published TUI/Runtime components,
-// so whenever either ships a substantive release the installer must be
-// re-released too, otherwise downloads keep carrying the previous component
-// fixes. Chain desktop automatically when TUI/Runtime change but the desktop
-// surface itself did not.
+if (plans.length === 0) {
+  throw new Error('未检测到 desktop、tui、runtime 或 app 的待发布产品变更。')
+}
+
+// Desktop 安装包内置最新 TUI/Runtime；任一组件发布时必须链式更新 Desktop，
+// 否则新下载的安装包仍会携带旧组件。
 if (
   !plans.some(({ component }) => component === 'desktop') &&
   plans.some(({ component }) => component === 'tui' || component === 'runtime')
@@ -189,14 +224,10 @@ if (
   )
 }
 
-// The desktop shell bundles the newest published TUI/Runtime components, so
-// its workflow must run after any component released in the same window.
-plans.sort((left, right) => {
-  if (left.component === right.component) return 0
-  if (left.component === 'desktop') return 1
-  if (right.component === 'desktop') return -1
-  return 0
-})
+// App workflow 接受前序组件版本提交，但组件 workflow 不接受 App 版本提交，
+// 因此 App 必须最后执行；Desktop 则在它所捆绑的 TUI/Runtime 之后执行。
+const releaseOrder = { tui: 0, runtime: 1, desktop: 2, app: 3 }
+plans.sort((left, right) => releaseOrder[left.component] - releaseOrder[right.component])
 
 const selectedComponents = plans.map(({ component }) => component)
 const npmComponents = plans.filter(
@@ -221,7 +252,7 @@ if (chainNpm) {
     npmComponents.find(({ component }) => component === 'runtime')?.nextVersion ||
     manifest.pisper.runtimeVersion
 }
-console.log(`自动发布组件：${selectedComponents.join('、')}`)
+console.log(`自动发布通道：${selectedComponents.join('、')}`)
 if (chainNpm) {
   console.log(
     `检测到 Runtime/TUI 组件变更，自动链式发布 pisper@${npmReleaseVersion}` +
@@ -231,10 +262,8 @@ if (chainNpm) {
 runComponentChecks(selectedComponents)
 if (chainNpm) runNpm(['run', 'npm:pack:check'])
 
-// The desktop dispatch carries the newly released component versions so the
-// workflow can treat the bundled-manifest refresh as a substantive installer
-// change and sync it during staging. The local script never pushes: all
-// remote changes happen inside the atomic workflow commit.
+// Desktop 派发携带同批次的新 TUI/Runtime 版本，使安装包 staging 能把组件清单
+// 更新视为实质性变更；本地脚本不写版本或推送，远端 workflow 负责原子提交。
 const tuiPlan = plans.find(({ component }) => component === 'tui')
 const runtimePlan = plans.find(({ component }) => component === 'runtime')
 const desktopTuiVersion = tuiPlan?.nextVersion || ''
@@ -245,16 +274,16 @@ const npmDispatchIndex = npmComponents.length
   : -1
 
 for (const [index, { component, nextVersion, tag }] of plans.entries()) {
+  const workflow = component === 'app' ? 'release-app.yml' : 'release.yml'
   const output = run(
     'gh',
     [
       'workflow',
       'run',
-      'release.yml',
+      workflow,
       '--ref',
       releaseBranch,
-      '-f',
-      `component=${component}`,
+      ...(component === 'app' ? [] : ['-f', `component=${component}`]),
       '-f',
       `version=${nextVersion}`,
       '-f',
@@ -286,14 +315,10 @@ for (const [index, { component, nextVersion, tag }] of plans.entries()) {
   if (!runId) throw new Error(`无法从 GitHub CLI 输出识别 ${tag} 的 workflow run：${output}`)
   console.log(output)
   console.log(`已请求构建 ${tag}（源提交 ${source}，run ${runId}）。`)
-
-  if (index < plans.length - 1) {
-    console.log(`等待 ${tag} 成功后再派发下一个组件，避免 GitHub 取消排队任务…`)
-    run('gh', ['run', 'watch', runId, '--exit-status'])
-  }
+  console.log(`等待 ${tag} 完成后再继续，避免全局发布队列取消排队任务…`)
+  run('gh', ['run', 'watch', runId, '--exit-status'])
 }
 
-console.log(`只会执行 ${selectedComponents.join('、')} 对应的质量门禁和平台产物构建。`)
-console.log('多个组件任务会依次派发；各自的版本文件和 tag 仍在资产验证后原子更新。')
-if (chainNpm) console.log(`组件发布成功后会继续自动发布 pisper@${npmReleaseVersion}。`)
-console.log(`可执行 gh run list --workflow release.yml --limit ${plans.length} 查看发布进度。`)
+console.log(`已完成 ${selectedComponents.join('、')} 对应的质量门禁和平台产物发布。`)
+console.log('各版本文件与 tag 均在资产验证后由对应 workflow 原子更新。')
+if (chainNpm) console.log(`已自动链式发布 pisper@${npmReleaseVersion}。`)

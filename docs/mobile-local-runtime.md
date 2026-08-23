@@ -105,6 +105,9 @@ Runtime 闭包。`scripts/stage-runtime-closure.mjs` 与 SEA 共用依赖裁剪�
 - embedded Runtime、iOS Node framework 归档、root Runtime、APK 和 unsigned IPA 都使用项目
   Minisign 密钥签名。任一 Android/iOS 构建、签名或资产检查失败时，不发布 `app-v*`。
 
+`npm run release -- patch` 会按 App 独立路径和最新 `app-v*` 标签自动检测是否需要发布，并在同批
+TUI、Runtime、npm 与 Desktop 工作流全部成功后，最后派发 App 工作流。
+
 ## 数据与安全边界
 
 本机会话、Provider 配置、工作区和 Runtime 状态位于 App 私有数据目录。Node/Pisper 使用标准数据
