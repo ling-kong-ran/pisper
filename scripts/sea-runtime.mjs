@@ -411,6 +411,10 @@ export async function pruneRuntime(runtimeDir, target = runtimeTarget()) {
 export function criticalRuntimeEntries(nativeSelection = {}) {
   const entries = [
     ['app', 'runtime/sidecar.mjs'],
+    ['app', 'runtime/mobile-embedded.mjs'],
+    ['app', 'runtime/plugins/local-plugin-worker.mjs'],
+    ['app', 'runtime-bundle-manifest.json'],
+    ['license', 'THIRD_PARTY_LICENSES.txt'],
     ['skills', `${PI_CODING_AGENT}/dist/core/skills.js`],
     ['tools', `${PI_CODING_AGENT}/dist/core/tools/index.js`],
     ['extensions', `${PI_CODING_AGENT}/dist/core/extensions/index.js`],
@@ -433,9 +437,7 @@ export function criticalRuntimeEntries(nativeSelection = {}) {
     ['mcp', 'node_modules/@modelcontextprotocol/sdk/dist/esm/client/stdio.js'],
     ['mcp', 'node_modules/@modelcontextprotocol/sdk/dist/esm/client/streamableHttp.js'],
     ['playwright', 'node_modules/playwright-core/index.mjs'],
-    ['locales', 'node_modules/yargs/locales/en.json'],
     ['locales', 'node_modules/zod/v4/locales/index.js'],
-    ['locales', 'node_modules/typebox/build/index.mjs'],
     ['native', `${CLIPBOARD_SCOPE}/clipboard/index.js`],
   ]
 
@@ -520,8 +522,10 @@ export function createSizeManifest({
   appVersion,
   nodeVersion = process.version,
   target,
+  beforeBundle = null,
   beforePrune,
   afterPrune,
+  bundle = null,
   pruning,
   criticalFiles,
   native,
@@ -542,8 +546,11 @@ export function createSizeManifest({
     arch: target.arch,
     libc: target.libc,
     runtime: {
+      beforeBundle,
       beforePrune,
       afterPrune,
+      bundle,
+      bundleReduction: beforeBundle ? reduction(beforeBundle, beforePrune) : null,
       reduction: reduction(beforePrune, afterPrune),
     },
     pruning,

@@ -13,6 +13,7 @@ import {
   pruneRuntime,
   writeSizeManifest,
 } from './sea-runtime.mjs'
+import { bundleRuntime } from './runtime-bundle.mjs'
 
 const run = promisify(execFile)
 
@@ -56,7 +57,18 @@ export async function stageRuntimeClosure({ root, runtimeDir, manifestPath, targ
   await run(process.execPath, [join(root, 'scripts', 'patch-pi-mobile-compat.mjs')], {
     cwd: runtimeDir,
   })
+  const beforeBundle = await collectRuntimeSnapshot(runtimeDir)
+  const bundle = await bundleRuntime({ runtimeDir })
   await rm(join(runtimeDir, 'package-lock.json'), { force: true })
+  // bundle 已吸收普通生产依赖；让 npm 按改写后的 manifest 保留 external 包及其传递闭包。
+  await runNpm(
+    ['prune', '--omit=dev', '--ignore-scripts', '--no-audit', '--no-fund', '--package-lock=false'],
+    {
+      cwd: runtimeDir,
+      env: { ...process.env, NODE_ENV: 'production' },
+      maxBuffer: 10 * 1024 * 1024,
+    },
+  )
 
   const beforePrune = await collectRuntimeSnapshot(runtimeDir)
   const { audit, nativeSelection } = await pruneRuntime(runtimeDir, target)
@@ -68,8 +80,10 @@ export async function stageRuntimeClosure({ root, runtimeDir, manifestPath, targ
   const manifest = createSizeManifest({
     appVersion,
     target,
+    beforeBundle,
     beforePrune,
     afterPrune,
+    bundle,
     pruning: audit,
     criticalFiles,
     native,

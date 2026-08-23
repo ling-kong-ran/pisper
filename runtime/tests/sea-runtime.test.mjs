@@ -278,6 +278,11 @@ test('SEA critical closure audits dynamic packages and reports missing files', a
 
     const paths = new Set(criticalRuntimeEntries().map((entry) => entry.path))
     for (const required of [
+      'runtime/sidecar.mjs',
+      'runtime/mobile-embedded.mjs',
+      'runtime/plugins/local-plugin-worker.mjs',
+      'runtime-bundle-manifest.json',
+      'THIRD_PARTY_LICENSES.txt',
       'node_modules/officeparser/dist/OfficeParser.js',
       'node_modules/fflate/esm/index.mjs',
       'node_modules/pdfjs-dist/legacy/build/pdf.worker.mjs',
