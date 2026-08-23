@@ -235,6 +235,12 @@ test('移动 Node 供应链固定来源并在两个平台执行完整性门禁',
   assert.match(workflow, /shasum -a 256 -c SHA256SUMS/)
   assert.match(workflow, /lib\/arm64-v8a\/libnode\.so/)
   assert.match(workflow, /NodeMobile\.xcframework/)
+  assert.equal(
+    (workflow.match(/"resources":\["\.\.\/release\/pisper-embedded-runtime\.tar\.gz"\]/g) || [])
+      .length,
+    2,
+  )
+  assert.doesNotMatch(workflow, /"resources":\{"\.\.\/release\/pisper-embedded-runtime\.tar\.gz"/)
   assert.match(workflow, /bash scripts\/smoke-mobile-node-ios\.sh/)
   assert.match(iosSmoke, /mobile-node-ios-smoke-view-controller\.m/)
   assert.match(iosSmoke, /--smoke-ui/)

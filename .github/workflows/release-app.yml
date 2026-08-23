@@ -310,11 +310,11 @@ jobs:
         run: node scripts/sync-mobile-icons.mjs
       - name: Prepare iOS project with embedded Node
         run: |
-          MOBILE_CONFIG='{"bundle":{"externalBin":[],"resources":{"../release/pisper-embedded-runtime.tar.gz":"pisper-embedded-runtime.tar.gz"},"iOS":{"frameworks":["../release/mobile-node-ios/NodeMobile.xcframework"]}}}'
+          MOBILE_CONFIG='{"bundle":{"externalBin":[],"resources":["../release/pisper-embedded-runtime.tar.gz"],"iOS":{"frameworks":["../release/mobile-node-ios/NodeMobile.xcframework"]}}}'
           npx tauri ios init --config "$MOBILE_CONFIG"
       - name: Build unsigned iOS app
         run: |
-          MOBILE_CONFIG='{"version":"${{ inputs.version }}","bundle":{"externalBin":[],"resources":{"../release/pisper-embedded-runtime.tar.gz":"pisper-embedded-runtime.tar.gz"},"iOS":{"frameworks":["../release/mobile-node-ios/NodeMobile.xcframework"]}}}'
+          MOBILE_CONFIG='{"version":"${{ inputs.version }}","bundle":{"externalBin":[],"resources":["../release/pisper-embedded-runtime.tar.gz"],"iOS":{"frameworks":["../release/mobile-node-ios/NodeMobile.xcframework"]}}}'
           npx tauri ios build --ci --no-sign --config "$MOBILE_CONFIG"
       - name: Package iOS artifacts
         env:
