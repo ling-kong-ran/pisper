@@ -259,8 +259,12 @@ jobs:
           targets: aarch64-apple-ios,aarch64-apple-ios-sim
       - name: Install Node dependencies
         run: npm ci
-      - name: Build fixed iOS Node 24 framework
-        run: npm run mobile:node:ios
+      - name: Materialize fixed iOS Node smoke source
+        run: scripts/build-mobile-node-ios.sh --materialize-only
+      - name: Install cosign
+        uses: sigstore/cosign-installer@7e8b541eb2e61bf99390e1afd4be13a184e9ebc5
+      - name: Verify and stage fixed iOS Node 24 framework
+        run: node scripts/stage-mobile-node-ios.mjs release/mobile-node-ios --require-sigstore
       - name: Sign, verify, and restage iOS Node framework
         env:
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}

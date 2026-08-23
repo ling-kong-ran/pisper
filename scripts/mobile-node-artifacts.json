@@ -19,5 +19,15 @@
     "libnodeSha256": "7a0e282fbac803c516f5c5684fac3a8593198092c63dd19a1681a472950dbd20",
     "certificateIdentityRegexp": "^https://github.com/ChamHerry/nodejs-mobile/.github/workflows/autodroid-release\\.yml@refs/heads/codex/autodroid-node-v24\\.18\\.1-android$",
     "certificateOidcIssuer": "https://token.actions.githubusercontent.com"
+  },
+  "ios": {
+    "repository": "https://github.com/ling-kong-ran/nodejs-mobile",
+    "releaseTag": "v24.18.1-pisper-ios.1",
+    "sourceCommit": "e62ea3dc10cc46df0c4e7a7d1714d51adc408ca1",
+    "archive": "nodejs-mobile-v24.18.1-pisper-ios.1-ios-arm64.zip",
+    "archiveSha256": "b3f32987ffb023f2ee917631dbd1d394edb8e9689d728efecc44bb19e770b181",
+    "sigstoreBundleSha256": "3278928fec00b66bea7471cf684381a952b0a2a7d52ef9ac3ecf3f2f25d677da",
+    "certificateIdentityRegexp": "^https://github.com/ling-kong-ran/nodejs-mobile/.github/workflows/pisper-ios-release\\.yml@refs/heads/pisper/node-v24\\.18\\.1-ios$",
+    "certificateOidcIssuer": "https://token.actions.githubusercontent.com"
   }
 }

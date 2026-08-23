@@ -51,6 +51,7 @@ test('共享产品路径同时归 App 与原组件发布通道', () => {
   assert.equal(isAppExclusivePath('src-tauri/mobile-device-plugin/Cargo.toml'), true)
   assert.equal(isAppExclusivePath('src-tauri/Info.ios.plist'), true)
   assert.equal(isAppExclusivePath('scripts/stage-mobile-node-android.mjs'), true)
+  assert.equal(isAppExclusivePath('scripts/stage-mobile-node-ios.mjs'), true)
   assert.equal(isAppExclusivePath('scripts/smoke-mobile-node-ios.sh'), true)
   assert.equal(isAppExclusivePath('scripts/verify-tauri-signature.mjs'), true)
 })
@@ -185,30 +186,41 @@ test('移动设备操作通过当前会话 SSE 与原生桥闭环', async () => 
 })
 
 test('移动 Node 供应链固定来源并在两个平台执行完整性门禁', async () => {
-  const [metadataText, androidStage, iosBuild, iosSmoke, workflow, setup] = await Promise.all([
-    readFile('scripts/mobile-node-artifacts.json', 'utf8'),
-    readFile('scripts/stage-mobile-node-android.mjs', 'utf8'),
-    readFile('scripts/build-mobile-node-ios.sh', 'utf8'),
-    readFile('scripts/smoke-mobile-node-ios.sh', 'utf8'),
-    readFile('.github/workflows/release-app.yml', 'utf8'),
-    readFile('scripts/setup-mobile-android.mjs', 'utf8'),
-  ])
+  const [metadataText, androidStage, iosStage, iosBuild, iosSmoke, workflow, setup] =
+    await Promise.all([
+      readFile('scripts/mobile-node-artifacts.json', 'utf8'),
+      readFile('scripts/stage-mobile-node-android.mjs', 'utf8'),
+      readFile('scripts/stage-mobile-node-ios.mjs', 'utf8'),
+      readFile('scripts/build-mobile-node-ios.sh', 'utf8'),
+      readFile('scripts/smoke-mobile-node-ios.sh', 'utf8'),
+      readFile('.github/workflows/release-app.yml', 'utf8'),
+      readFile('scripts/setup-mobile-android.mjs', 'utf8'),
+    ])
   const metadata = JSON.parse(metadataText)
   assert.equal(metadata.source.commit, '8a995e179bb2c224029a560ae9c4f9460631b94d')
   assert.equal(metadata.runtime.nodeVersion, '24.18.1')
   assert.equal(metadata.runtime.modulesAbi, 137)
   assert.match(metadata.android.archiveSha256, /^[a-f0-9]{64}$/)
   assert.match(metadata.android.libnodeSha256, /^[a-f0-9]{64}$/)
+  assert.match(metadata.ios.archiveSha256, /^[a-f0-9]{64}$/)
+  assert.match(metadata.ios.sigstoreBundleSha256, /^[a-f0-9]{64}$/)
   assert.match(androidStage, /['"]verify-blob['"]/)
   assert.match(androidStage, /sha256/)
+  assert.match(iosStage, /['"]verify-blob['"]/)
+  assert.match(iosStage, /verifyInternalDigests/)
+  assert.match(iosStage, /sourceCommit/)
   assert.match(iosBuild, /checkout -q --detach/)
   assert.match(iosBuild, /SOURCE_COMMIT/)
   assert.match(iosBuild, /HEAD\^\{tree\}/)
   assert.match(iosBuild, /MATERIALIZED_TREE/)
+  assert.match(iosBuild, /--materialize-only/)
+  assert.match(iosBuild, /stage-mobile-node-ios\.mjs/)
   assert.match(
     workflow,
     /stage-mobile-node-android\.mjs release\/mobile-node-android --require-sigstore/,
   )
+  assert.match(workflow, /stage-mobile-node-ios\.mjs release\/mobile-node-ios --require-sigstore/)
+  assert.doesNotMatch(workflow, /npm run mobile:node:ios/)
   assert.match(workflow, /shasum -a 256 -c SHA256SUMS/)
   assert.match(workflow, /lib\/arm64-v8a\/libnode\.so/)
   assert.match(workflow, /NodeMobile\.xcframework/)

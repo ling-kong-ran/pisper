@@ -1,8 +1,13 @@
 #!/usr/bin/env bash
-# 从固定 recipe commit 冷构建 iOS NodeMobile.xcframework，并记录源树与每个文件摘要。
+# App 发布默认消费签名预构建；仅维护供应链或准备 smoke 宿主时进入源码路径。
 set -Eeuo pipefail
 
 ROOT_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
+MODE=${1:-}
+if [[ "$MODE" != "--cold-build" && "$MODE" != "--materialize-only" ]]; then
+  exec node "$ROOT_DIR/scripts/stage-mobile-node-ios.mjs" "$@"
+fi
+shift
 METADATA="$ROOT_DIR/scripts/mobile-node-artifacts.json"
 WORK_DIR=${PISPER_NODE_MOBILE_IOS_WORK_DIR:-"$ROOT_DIR/release/mobile-node-ios-work"}
 OUTPUT_DIR=${PISPER_NODE_MOBILE_IOS_OUTPUT:-"$ROOT_DIR/release/mobile-node-ios"}
@@ -12,8 +17,12 @@ RECIPE_TREE=$(node -p "JSON.parse(require('fs').readFileSync(process.argv[1])).s
 MATERIALIZED_TREE=$(node -p "JSON.parse(require('fs').readFileSync(process.argv[1])).source.materializedTree" "$METADATA")
 NODE_VERSION=$(node -p "JSON.parse(require('fs').readFileSync(process.argv[1])).runtime.nodeVersion" "$METADATA")
 
-rm -rf "$WORK_DIR" "$OUTPUT_DIR"
-mkdir -p "$WORK_DIR" "$OUTPUT_DIR"
+rm -rf "$WORK_DIR"
+mkdir -p "$WORK_DIR"
+if [[ "$MODE" == "--cold-build" ]]; then
+  rm -rf "$OUTPUT_DIR"
+  mkdir -p "$OUTPUT_DIR"
+fi
 git init -q "$WORK_DIR/recipe"
 git -C "$WORK_DIR/recipe" remote add origin "$SOURCE_REPOSITORY"
 git -C "$WORK_DIR/recipe" fetch --depth=1 origin "$SOURCE_COMMIT"
@@ -28,6 +37,10 @@ python3.12 -m venv "$WORK_DIR/venv"
   PATH="$WORK_DIR/venv/bin:$PATH" scripts/prepare.sh "$WORK_DIR/materialized"
 )
 test "$(git -C "$WORK_DIR/materialized" rev-parse 'HEAD^{tree}')" = "$MATERIALIZED_TREE"
+if [[ "$MODE" == "--materialize-only" ]]; then
+  printf 'iOS Node smoke source materialized: %s\n' "$WORK_DIR/materialized"
+  exit 0
+fi
 (
   cd "$WORK_DIR/materialized"
   PATH="$WORK_DIR/venv/bin:$PATH" ./tools/ios_framework_prepare.sh
