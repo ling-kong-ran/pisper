@@ -29,6 +29,9 @@ use crate::{
     workspace::validate_session_workspace,
 };
 
+const API_REQUEST_TIMEOUT: Duration = Duration::from_secs(15);
+const STARTUP_REQUEST_TIMEOUT: Duration = Duration::from_secs(5 * 60);
+
 /// sidecar HTTP API 客户端（可廉价克隆，内部共享连接池）。
 /// `client` 用于普通 REST 请求，`stream_client` 用于长连接 SSE 对话流，
 /// 两者的超时策略不同，避免短请求的超时设置误杀长时间空闲的对话流。
@@ -59,7 +62,7 @@ impl ApiClient {
             .default_headers(headers.clone())
             .no_proxy()
             .connect_timeout(Duration::from_secs(3))
-            .timeout(Duration::from_secs(15))
+            .timeout(API_REQUEST_TIMEOUT)
             .pool_idle_timeout(Duration::from_secs(4))
             .build()
             .context("failed to create HTTP client")?;
@@ -110,7 +113,21 @@ impl ApiClient {
 
     /// GET JSON 并反序列化（响应非 2xx 时统一转成错误）。
     async fn get_json<T: DeserializeOwned>(&self, path: &str) -> Result<T> {
-        let response = self.client.get(self.url(path)?).send().await?;
+        self.get_json_with_timeout(path, API_REQUEST_TIMEOUT).await
+    }
+
+    /// 为启动期请求覆盖普通 API 超时；Runtime 冷启动和首次会话扫描可能明显更慢。
+    async fn get_json_with_timeout<T: DeserializeOwned>(
+        &self,
+        path: &str,
+        timeout: Duration,
+    ) -> Result<T> {
+        let response = self
+            .client
+            .get(self.url(path)?)
+            .timeout(timeout)
+            .send()
+            .await?;
         if !response.status().is_success() {
             return Err(Self::response_error(response).await);
         }
@@ -136,10 +153,10 @@ impl ApiClient {
         response.json::<T>().await.context("invalid API response")
     }
 
-    /// 列出全部会话。
-    pub async fn sessions(&self) -> Result<Vec<SessionSummary>> {
+    /// 启动时列出全部会话；首次磁盘扫描使用更长超时，避免慢磁盘被误判为 Runtime 故障。
+    pub async fn startup_sessions(&self) -> Result<Vec<SessionSummary>> {
         Ok(self
-            .get_json::<SessionsResponse>("/api/sessions")
+            .get_json_with_timeout::<SessionsResponse>("/api/sessions", STARTUP_REQUEST_TIMEOUT)
             .await?
             .sessions)
     }
@@ -975,10 +992,18 @@ fn is_low_surrogate(value: u16) -> bool {
 mod tests {
     use super::{
         forward_stream_events, prepare_attachments, repair_json_surrogates, runtime_options,
-        RuntimeConfig, SseDecoder, MAX_SSE_PENDING_BYTES,
+        RuntimeConfig, SseDecoder, API_REQUEST_TIMEOUT, MAX_SSE_PENDING_BYTES,
+        STARTUP_REQUEST_TIMEOUT,
     };
     use crate::model::RuntimeEvent;
     use tokio::sync::mpsc;
+
+    /// 验证启动扫描的等待窗口明显长于普通交互请求。
+    #[test]
+    fn startup_session_timeout_exceeds_regular_api_timeout() {
+        assert!(STARTUP_REQUEST_TIMEOUT > API_REQUEST_TIMEOUT);
+        assert!(STARTUP_REQUEST_TIMEOUT.as_secs() >= 60);
+    }
 
     /// 验证运行时选项只包含已配置 Provider 的模型（未配置的 openai 不产生可选项）。
     #[test]

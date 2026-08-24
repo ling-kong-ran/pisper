@@ -12,6 +12,7 @@ mod notification;
 mod paste_burst;
 mod plan_protocol;
 mod sidecar;
+mod startup;
 mod ui;
 mod workspace;
 
@@ -52,6 +53,7 @@ use crate::{
     api::ApiClient,
     paste_burst::{CharDecision, FlushResult, PasteBurst},
     sidecar::SidecarConnection,
+    startup::StartupIndicator,
     workspace::{canonical_workspace, same_workspace, validate_session_workspace},
 };
 
@@ -135,6 +137,7 @@ async fn run() -> Result<()> {
     if sidecar::needs_runtime_install() {
         component_update::ensure_runtime().await?;
     }
+    let startup = StartupIndicator::start("Starting Runtime");
     let mut sidecar = match SidecarConnection::start(&options.workspace) {
         Ok(sidecar) => sidecar,
         Err(error) if sidecar::needs_runtime_install() => {
@@ -151,11 +154,13 @@ async fn run() -> Result<()> {
         webbrowser::open(&api.bootstrap_url("/config")?)
             .context("failed to open the default browser")?;
     }
+    startup.set_message("Loading conversations");
     if options.doctor {
         let sessions = api
-            .sessions()
+            .startup_sessions()
             .await
             .context("failed to list conversations")?;
+        startup.set_message("Checking Runtime");
         let diagnostics = api
             .runtime_diagnostics()
             .await
@@ -173,6 +178,7 @@ async fn run() -> Result<()> {
             .find(|session| same_workspace(&session.cwd, &options.workspace))
             .map(|session| session.cwd.as_str())
             .unwrap_or("none");
+        startup.finish();
         println!(
             "Pisper TUI ready\n  connection: {}\n  launch workspace: {}\n  runtime fallback: {}\n  matching session: {}\n  catalogs: {} conversations · {} tools · {} skills",
             sidecar.kind.label(),
@@ -187,10 +193,11 @@ async fn run() -> Result<()> {
         return Ok(());
     }
     let sessions = api
-        .sessions()
+        .startup_sessions()
         .await
         .context("failed to list conversations")?;
     if options.resume && sessions.is_empty() {
+        startup.finish();
         println!("No conversations are available to resume.");
         sidecar.shutdown();
         return Ok(());
@@ -205,6 +212,7 @@ async fn run() -> Result<()> {
         if interactive_resume || session.id.is_empty() {
             (Vec::new(), None, None, None, 0)
         } else {
+            startup.set_message("Loading conversation");
             let (thinking_state, page) =
                 tokio::join!(api.thinking_state(&session.id), api.messages(&session.id));
             if let Ok(state) = &thinking_state {
@@ -246,6 +254,7 @@ async fn run() -> Result<()> {
         }
     }
 
+    startup.finish();
     let mut terminal = TerminalSession::start()?;
     let result = run_event_loop(&mut terminal.terminal, app, api).await;
     terminal.restore();
