@@ -154,6 +154,7 @@ function App() {
   )
   const [mobileNav, setMobileNav] = useState(false)
   const mobileApp = useClientStore((state) => state.client === 'mobile-app')
+  const clientLoaded = useClientStore((state) => state.loaded)
   const [paletteOpen, setPaletteOpen] = useState(false)
   const sidebarCollapsed = useUiStore((state) => state.sidebarCollapsed)
   const setSidebarCollapsed = useUiStore((state) => state.setSidebarCollapsed)
@@ -696,7 +697,7 @@ function App() {
             {mobileApp && <MobilePrimaryNavigation page={page} onNavigate={navigate} />}
           </SidebarInset>
         </SidebarProvider>
-        <StatusBar page={page} pluginStats={pluginStats} />
+        {clientLoaded && !mobileApp && <StatusBar page={page} pluginStats={pluginStats} />}
         {toast && (
           <AppToast
             key={toast.id}

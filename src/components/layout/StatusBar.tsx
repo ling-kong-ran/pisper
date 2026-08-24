@@ -6,17 +6,9 @@ import { STORAGE_KEYS } from '@/app/storage'
 import { useI18n } from '@/app/use-i18n'
 import { ACTIVE_SESSION_CHANGED_EVENT, SESSIONS_UPDATED_EVENT } from '@/features/chat/events'
 import { apiJson } from '@/lib/api'
-import { formatTokenCount } from '@/lib/format'
+import { formatTokenCount, normalizeTokenUsage, type TokenUsage } from '@/lib/format'
 
 const USAGE_UPDATED_EVENT = 'pisper:usage-updated'
-
-type Usage = {
-  input: number
-  output: number
-  reasoning: number
-  cacheRead: number
-  totalTokens: number
-}
 
 type PluginStats = {
   enabled: number
@@ -30,14 +22,14 @@ type StatusBarProps = {
 
 export function StatusBar({ page, pluginStats }: StatusBarProps) {
   const { t, language } = useI18n()
-  const [usage, setUsage] = useState<Usage | null>(null)
+  const [usage, setUsage] = useState<TokenUsage | null>(null)
   const [modelLabel, setModelLabel] = useState('')
   const modelRequest = useRef(0)
 
   // 刷新今日用量：轮询 + 可见性恢复 + 事件推送三重刷新，失败静默。
   const refreshUsage = useCallback(async () => {
     try {
-      setUsage(await apiJson<Usage>('/api/usage/today'))
+      setUsage(normalizeTokenUsage(await apiJson<unknown>('/api/usage/today')))
     } catch {}
   }, [])
 

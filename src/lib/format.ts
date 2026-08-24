@@ -35,6 +35,41 @@ export function formatTokenCount(value: unknown) {
   return String(tokens)
 }
 
+export type TokenUsage = {
+  input: number
+  output: number
+  cacheRead: number
+  cacheWrite: number
+  reasoning: number
+  totalTokens: number
+}
+
+function tokenCount(value: unknown) {
+  const count = Number(value)
+  return Number.isFinite(count) ? Math.max(0, count) : 0
+}
+
+// Runtime 版本或启动阶段返回的 Usage 字段可能不完整；在展示边界统一补零，
+// 避免不可见的状态栏也因格式化 undefined 而拖垮整个路由。
+export function normalizeTokenUsage(value: unknown): TokenUsage {
+  const usage = value && typeof value === 'object' ? (value as Record<string, unknown>) : {}
+  const input = tokenCount(usage.input)
+  const output = tokenCount(usage.output)
+  const cacheRead = tokenCount(usage.cacheRead)
+  const cacheWrite = tokenCount(usage.cacheWrite)
+  const reasoning = tokenCount(usage.reasoning)
+  const reportedTotal = tokenCount(usage.totalTokens ?? usage.total)
+
+  return {
+    input,
+    output,
+    cacheRead,
+    cacheWrite,
+    reasoning,
+    totalTokens: reportedTotal || input + output + cacheRead + cacheWrite,
+  }
+}
+
 // 从路径提取工作区名（取最后一段），去除尾部斜杠；空路径返回本地化占位。
 export function workspaceName(value: unknown, locale = 'zh-CN') {
   const path = String(value || '').replace(/[\\/]+$/, '')
