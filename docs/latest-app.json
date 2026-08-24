@@ -1,9 +1,9 @@
 {
-  "version": "0.1.7",
-  "tag": "app-v0.1.7",
-  "url": "https://github.com/ling-kong-ran/pisper/releases/tag/app-v0.1.7",
+  "version": "0.1.8",
+  "tag": "app-v0.1.8",
+  "url": "https://github.com/ling-kong-ran/pisper/releases/tag/app-v0.1.8",
   "apk": "app-universal-release-signed.apk",
   "ipa": "pisper-ios-unsigned.ipa",
-  "notes": "- fix(mobile): prevent startup usage crash",
+  "notes": "- fix(mobile): enable device tool by default\n- fix(mobile): harden local startup and phone UI\n- fix(visual): fall back to Responses image generation\n- perf(runtime,tui): load conversations on demand",
   "releaseDate": "2026-08-24"
 }
