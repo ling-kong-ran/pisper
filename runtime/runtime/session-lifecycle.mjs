@@ -1152,7 +1152,10 @@ export class SessionLifecycle {
     this.getMultiAgents().abortParent(id)
     this.getPermissions().resolveSession(id, false, '会话已停止，工具未执行。')
     value.session.clearQueue?.()
-    await value.session.abort()
+    // Pi 的 abort 会等待会话 idle；Provider 流失联时该 Promise 可能永不结束，不能阻塞停止接口。
+    try {
+      void Promise.resolve(value.session.abort()).catch(() => {})
+    } catch {}
     this.invalidateProjection(id)
     return true
   }

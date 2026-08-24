@@ -69,6 +69,10 @@ test('平台初始化流程不会保留 Tauri 模板图标', async () => {
   assert.match(androidBuild, /process\.platform === 'win32'/)
   assert.match(androidBuild, /kotlin\.incremental/)
   assert.match(androidBuild, /kotlin\.incremental\.useClasspathSnapshot/)
+  assert.match(androidBuild, /targetIndex >= 0 \? process\.argv\[targetIndex \+ 1\] : 'aarch64'/)
+  assert.match(androidBuild, /build-mobile-runtime\.mjs/)
+  assert.match(androidBuild, /pisper-embedded-runtime\.tar\.gz/)
+  assert.match(androidBuild, /pisper-embedded-runtime\.tgz/)
   const androidWorkflowInit = workflow.indexOf('run: node scripts/setup-mobile-android.mjs')
   const androidRuntimeAssets = workflow.indexOf(
     'cp embedded-runtime/pisper-embedded-runtime.tar.gz',

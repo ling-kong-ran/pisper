@@ -120,6 +120,34 @@ test('abortSession records the abort deadline on the resident value', async (t) 
   assert.ok(value.abortedAt, 'abortedAt must be recorded for the force-settle guard')
 })
 
+test('abortSession returns without waiting for a hung agent abort', async (t) => {
+  const directory = await mkdtemp(join(tmpdir(), 'pisper-abort-hung-agent-'))
+  t.after(() => rm(directory, { recursive: true, force: true }).catch(() => {}))
+  const runtime = freshRuntime(directory)
+  const id = 'session-abort-hung-agent'
+  let abortCalled = false
+  seedRunningSession(
+    runtime,
+    id,
+    mockSession({
+      abort: () => {
+        abortCalled = true
+        return new Promise(() => {})
+      },
+    }),
+  )
+
+  const result = await Promise.race([
+    runtime.abortSession(id),
+    new Promise((_, reject) =>
+      setTimeout(() => reject(new Error('abortSession remained blocked')), 250),
+    ),
+  ])
+
+  assert.equal(result, true)
+  assert.equal(abortCalled, true, 'the abort signal must still be dispatched')
+})
+
 test('a new prompt clears interruption markers left by the previous run', async (t) => {
   const directory = await mkdtemp(join(tmpdir(), 'pisper-abort-reset-'))
   t.after(() => rm(directory, { recursive: true, force: true }).catch(() => {}))

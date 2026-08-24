@@ -2,7 +2,7 @@
 // 移动端不打包 sidecar/外部资源，用 --config 覆盖掉桌面专属的产物声明。
 // 用法：node scripts/build-mobile-android.mjs [--release] [--target x86_64|aarch64|...]
 // 环境：需要 JAVA_HOME / ANDROID_HOME / NDK_HOME（Windows 上 symlink 需要开发者模式）。
-import { existsSync, readFileSync, writeFileSync } from 'node:fs'
+import { copyFileSync, existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { join, dirname } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { spawnSync } from 'node:child_process'
@@ -16,7 +16,7 @@ const mobileVersion = JSON.parse(
   readFileSync(join(root, 'src-tauri', 'mobile-package.json'), 'utf8'),
 ).version
 const targetIndex = process.argv.indexOf('--target')
-const target = targetIndex >= 0 ? process.argv[targetIndex + 1] : 'x86_64'
+const target = targetIndex >= 0 ? process.argv[targetIndex + 1] : 'aarch64'
 
 const run = (command, args, { shell = process.platform === 'win32' } = {}) => {
   const result = spawnSync(command, args, {
@@ -52,6 +52,15 @@ if (process.platform === 'win32') {
 
 console.log('==> 构建前端产物')
 run('npm', ['run', 'build'])
+
+console.log('==> 重新 staging 当前移动嵌入 Runtime')
+run(process.execPath, [join(root, 'scripts', 'build-mobile-runtime.mjs')], { shell: false })
+const androidAssetsDir = join(root, 'src-tauri', 'gen', 'android', 'app', 'src', 'main', 'assets')
+mkdirSync(androidAssetsDir, { recursive: true })
+copyFileSync(
+  join(root, 'release', 'pisper-embedded-runtime.tar.gz'),
+  join(androidAssetsDir, 'pisper-embedded-runtime.tgz'),
+)
 
 console.log(`==> 构建 Android APK（${release ? 'release' : 'debug'}，${target}）`)
 // 桌面打包声明（sidecar/资源）用 --config 内联 JSON 覆盖。

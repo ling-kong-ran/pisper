@@ -50,6 +50,7 @@ export const applyEditsToNormalizedContent = editDiff.applyEditsToNormalizedCont
 export const generateUnifiedPatch = editDiff.generateUnifiedPatch
 export const normalizeToLF = editDiff.normalizeToLF
 export const stripBom = editDiff.stripBom
+export const resolveReadPathAsync = pathUtils.resolveReadPathAsync
 export const resolveToCwd = pathUtils.resolveToCwd
 
 // 惰性加载的引擎子模块：每个都只在首次调用时 import，减少启动开销。
@@ -88,15 +89,103 @@ export async function resizeImage(bytes, mimeType, options) {
   return runtime.resizeImage(bytes, mimeType, options)
 }
 
+export async function resizeImageInProcess(bytes, mimeType, options) {
+  const runtime = await packageModule('./utils/image-resize-core.js')
+  return runtime.resizeImageInProcess(bytes, mimeType, options)
+}
+
 export async function detectSupportedImageMimeTypeFromFile(filePath) {
   const runtime = await packageModule('./utils/mime.js')
   return runtime.detectSupportedImageMimeTypeFromFile(filePath)
 }
 
 const COMPACTABLE_IMAGE_MIME = new Set(['image/png', 'image/jpeg'])
+const MAX_INLINE_IMAGE_BASE64_BYTES = 1024 * 1024
+
+async function mobileImageResult(filePath, mimeType, model, resize) {
+  const buffer = await fsReadFile(filePath)
+  const resized = COMPACTABLE_IMAGE_MIME.has(mimeType)
+    ? await resize(buffer, mimeType, {
+        maxWidth: 1024,
+        maxHeight: 1024,
+        maxBytes: MAX_INLINE_IMAGE_BASE64_BYTES,
+      })
+    : null
+  const rawData = buffer.toString('base64')
+  const processed = resized?.data
+    ? resized
+    : rawData.length < MAX_INLINE_IMAGE_BASE64_BYTES
+      ? { data: rawData, mimeType, wasResized: false }
+      : null
+  const nonVisionNote =
+    model && !model.input?.includes('image')
+      ? '[Current model does not support images. The image will be omitted from this request.]'
+      : ''
+  if (!processed) {
+    return {
+      content: [
+        {
+          type: 'text',
+          text: [
+            `Read image file [${mimeType}]`,
+            '[Image omitted: could not be resized below the inline image size limit.]',
+            nonVisionNote,
+          ]
+            .filter(Boolean)
+            .join('\n'),
+        },
+      ],
+    }
+  }
+  const dimensionNote = processed.wasResized
+    ? `[Image: original ${processed.originalWidth}x${processed.originalHeight}, displayed at ${processed.width}x${processed.height}. Multiply coordinates by ${(processed.originalWidth / processed.width).toFixed(2)} to map to original image.]`
+    : ''
+  return {
+    content: [
+      {
+        type: 'text',
+        text: [`Read image file [${processed.mimeType}]`, dimensionNote, nonVisionNote]
+          .filter(Boolean)
+          .join('\n'),
+      },
+      { type: 'image', data: processed.data, mimeType: processed.mimeType },
+    ],
+  }
+}
 
 // 覆盖内置 read：读图时用 1024px/1MB 的更激进上限压降 base64，其余行为与 Pi 内置 read 一致。
-export async function createCompressedReadTool(cwd) {
+export async function createCompressedReadTool(
+  cwd,
+  {
+    runtimeProfile = process.env.PISPER_RUNTIME_PROFILE,
+    resizeImageForMobile = resizeImageInProcess,
+  } = {},
+) {
+  const mobileProfile = String(runtimeProfile || '').startsWith('mobile-')
+  const defaultTool = await createReadTool(cwd)
+  if (mobileProfile) {
+    return {
+      ...defaultTool,
+      async execute(toolCallId, args, signal, onUpdate, context) {
+        if (signal?.aborted) throw new Error('Operation aborted')
+        const filePath = await resolveReadPathAsync(args.path, cwd)
+        await fsAccess(filePath, constants.R_OK)
+        const mimeType = await detectSupportedImageMimeTypeFromFile(filePath)
+        if (!mimeType) {
+          return defaultTool.execute(toolCallId, args, signal, onUpdate, context)
+        }
+        // Node Mobile 的 Worker 可能成功加载但永不回传；移动宿主直接执行同一图像核心。
+        const result = await mobileImageResult(
+          filePath,
+          mimeType,
+          context?.model,
+          resizeImageForMobile,
+        )
+        if (signal?.aborted) throw new Error('Operation aborted')
+        return result
+      },
+    }
+  }
   const readImage = async (filePath) => {
     const buffer = await fsReadFile(filePath)
     let mimeType

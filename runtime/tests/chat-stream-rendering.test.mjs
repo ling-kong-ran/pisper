@@ -85,13 +85,15 @@ test('conversation layout keeps Pisper identity without a persistent avatar card
   assert.match(transcript, /lazy\(\(\) => import\('\.\/WelcomeEffects'\)\)/)
 })
 
-test('composer send action becomes the only stop control while streaming', async () => {
+test('composer send action has distinct enabled, disabled, and streaming states', async () => {
   const focus = await readFile('src/features/chat/FocusSession.tsx', 'utf8')
   assert.doesNotMatch(focus, /className="button danger tiny" onClick=\{onAbort\}/)
   assert.match(focus, /type=\{streaming \? 'button' : 'submit'\}/)
   assert.match(focus, /send-button[^`\n]*\$\{streaming \? ' stop[^']*' : ''\}/)
   assert.match(focus, /onClick=\{streaming \? onAbort : undefined\}/)
   assert.match(focus, /streaming \? \(\s*<Square size=\{16\} fill="currentColor"/)
+  assert.match(focus, /send-button[^`\n]*bg-\[var\(--star\)\]/)
+  assert.doesNotMatch(focus, /send-button[^`\n]*bg-\[var\(--surface-subtle\)\]/)
   assert.match(focus, /send-button[^`\n]*stop[^`\n]*bg-\[var\(--danger\)\]/)
   assert.match(focus, /disabled:opacity-100/)
   assert.match(focus, /focus-composer_&:disabled[^`\n]*bg-\[var\(--surface-muted\)\]/)
