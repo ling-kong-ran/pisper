@@ -1,9 +1,9 @@
 {
-  "version": "0.1.6",
-  "tag": "app-v0.1.6",
-  "url": "https://github.com/ling-kong-ran/pisper/releases/tag/app-v0.1.6",
+  "version": "0.1.7",
+  "tag": "app-v0.1.7",
+  "url": "https://github.com/ling-kong-ran/pisper/releases/tag/app-v0.1.7",
   "apk": "app-universal-release-signed.apk",
   "ipa": "pisper-ios-unsigned.ipa",
-  "notes": "- perf(runtime): defer session setup until first prompt\n- perf(runtime): bundle staged runtime closure",
+  "notes": "- fix(mobile): prevent startup usage crash",
   "releaseDate": "2026-08-24"
 }
