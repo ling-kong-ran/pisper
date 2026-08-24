@@ -252,6 +252,72 @@ test('a duplicated chat catalog image still sends the dedicated visual Provider 
   assert.equal(requestedModel, 'gpt-image-2')
 })
 
+test('an OpenAI Responses visual Provider falls back from Images to image_generation_call', async (t) => {
+  const requestedPaths = []
+  const { server, port } = await listen(async (req, res) => {
+    const url = new URL(req.url, 'http://127.0.0.1')
+    requestedPaths.push(url.pathname)
+    if (req.method === 'POST' && url.pathname === '/v1/images/generations') {
+      for await (const _chunk of req) void _chunk
+      res.writeHead(502, { 'content-type': 'application/json' })
+      res.end(JSON.stringify({ error: { message: 'Upstream request failed' } }))
+      return
+    }
+    if (req.method === 'POST' && url.pathname === '/v1/responses') {
+      const chunks = []
+      for await (const chunk of req) chunks.push(chunk)
+      const body = JSON.parse(Buffer.concat(chunks).toString('utf8'))
+      assert.equal(body.model, 'gpt-image-2')
+      assert.equal(body.input, 'responses image test')
+      res.writeHead(200, { 'content-type': 'application/json' })
+      res.end(
+        JSON.stringify({
+          id: 'resp-image-test',
+          object: 'response',
+          status: 'completed',
+          output: [
+            {
+              id: 'ig_test',
+              type: 'image_generation_call',
+              status: 'completed',
+              result: PNG.toString('base64'),
+            },
+          ],
+        }),
+      )
+      return
+    }
+    res.writeHead(404).end()
+  })
+  t.after(() => server.close())
+  const value = await fixture({
+    id: 'responses-image-relay',
+    config: {
+      name: 'Responses Image Relay',
+      api: 'openai-responses',
+      baseUrl: `http://127.0.0.1:${port}/v1`,
+      models: [{ id: 'gpt-image-2', kind: 'image' }],
+    },
+  })
+  t.after(value.cleanup)
+
+  const progress = []
+  const result = await value.service.generate(
+    {
+      kind: 'image',
+      prompt: 'responses image test',
+      cwd: value.directory,
+    },
+    { onProgress: (message) => progress.push(message) },
+  )
+
+  assert.equal(result.remoteId, 'resp-image-test')
+  assert.deepEqual(await readFile(result.path), PNG)
+  assert.ok(requestedPaths.includes('/v1/images/generations'))
+  assert.ok(requestedPaths.includes('/v1/responses'))
+  assert.ok(progress.some((message) => message.includes('Responses 接口生成图片')))
+})
+
 test('automatic visual selection falls back when the preferred model has no available channel', async () => {
   const requestedModels = []
   const progress = []

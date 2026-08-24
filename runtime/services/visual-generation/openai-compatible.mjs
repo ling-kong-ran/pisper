@@ -22,6 +22,15 @@ function imageExtension(mimeType) {
   return '.png'
 }
 
+const RESPONSES_IMAGE_FALLBACK_STATUSES = new Set([404, 405, 501, 502])
+
+function shouldFallbackToResponsesImage(error, model, request) {
+  if (String(model.api || '').toLowerCase() !== 'openai-responses') return false
+  if (request.operation === 'edit') return false
+  const status = Number(error?.status ?? error?.statusCode)
+  return RESPONSES_IMAGE_FALLBACK_STATUSES.has(status)
+}
+
 async function openRouterImage(client, model, request, signal) {
   const imageContent = (request.sourceImages || []).map((image) => ({
     type: 'image_url',
@@ -104,6 +113,49 @@ async function openAIImage(client, model, request, signal) {
   throw new Error('视觉模型没有返回图片数据。')
 }
 
+async function openAIResponsesImage(client, model, request, signal) {
+  const response = await client.responses.create(
+    {
+      model: model.id,
+      input: request.prompt,
+    },
+    { signal },
+  )
+  const image = response.output?.find((item) => item?.type === 'image_generation_call')
+  const inline = dataUrlImage(image?.result)
+  if (inline) {
+    return {
+      ...inline,
+      extension: imageExtension(inline.mimeType),
+      remoteId: response.id,
+    }
+  }
+  if (typeof image?.result === 'string' && image.result.trim()) {
+    const mimeType =
+      request.outputFormat === 'jpeg'
+        ? 'image/jpeg'
+        : request.outputFormat === 'webp'
+          ? 'image/webp'
+          : 'image/png'
+    return {
+      buffer: Buffer.from(image.result, 'base64'),
+      mimeType,
+      extension: imageExtension(mimeType),
+      remoteId: response.id,
+    }
+  }
+  const imageUrl = image?.image_url?.url || image?.image_url
+  if (typeof imageUrl === 'string' && imageUrl) {
+    const value = await download(imageUrl, signal)
+    return {
+      ...value,
+      extension: imageExtension(value.mimeType),
+      remoteId: response.id,
+    }
+  }
+  throw new Error('Responses 视觉模型没有返回图片数据。')
+}
+
 async function openAIVideo(client, model, request, signal, onProgress) {
   let video = await client.videos.create(
     {
@@ -150,5 +202,11 @@ export async function generateOpenAICompatible(model, request, { signal, onProgr
   })
   if (request.kind === 'video') return openAIVideo(client, model, request, signal, onProgress)
   if (model.driver === 'openrouter-image') return openRouterImage(client, model, request, signal)
-  return openAIImage(client, model, request, signal)
+  try {
+    return await openAIImage(client, model, request, signal)
+  } catch (error) {
+    if (!shouldFallbackToResponsesImage(error, model, request)) throw error
+    onProgress?.('Images 接口不可用，正在通过 Responses 接口生成图片…')
+    return openAIResponsesImage(client, model, request, signal)
+  }
 }
