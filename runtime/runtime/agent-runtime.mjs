@@ -80,9 +80,7 @@ import {
 } from '../tools/tool-activation.mjs'
 import {
   DEFAULT_EXECUTION_MODE,
-  EXECUTION_MODES,
   filterToolsForExecutionMode,
-  migrateLegacyExecutionMode,
   normalizeExecutionMode,
   permissionModeForExecutionMode,
 } from '../security/execution-mode.mjs'
@@ -430,17 +428,10 @@ export class AgentRuntimeService extends AgentRuntimeFacade {
     browserAutomationDriver,
     capabilities = desktopRuntimeCapabilities(),
     eventObserver,
-    legacyDefaultCwds = [],
   } = {}) {
     super()
     this.cwd = normalizeWorkspacePath(cwd)
     cwd = this.cwd
-    const currentWorkspaceKey = workspacePathKey(cwd)
-    this.legacyDefaultWorkspaceKeys = new Set(
-      legacyDefaultCwds
-        .map((path) => workspacePathKey(path))
-        .filter((path) => path && path !== currentWorkspaceKey),
-    )
     this.eventObserver = typeof eventObserver === 'function' ? eventObserver : null
     this.capabilities = capabilities
     this.dataDir = dataDir
@@ -738,10 +729,8 @@ export class AgentRuntimeService extends AgentRuntimeFacade {
     await cleanupRemovedLocalEmbeddingData(this.dataDir)
 
     stage('session-state')
-    // 从磁盘加载会话元数据/用量/资产索引，并执行老版本数据迁移。
+    // 只加载轻量状态；会话正文等用户真正请求列表或恢复会话时再读取。
     this.sessionMeta = await readJson(this.sessionMetaPath, {})
-    await this.migrateLegacyDefaultWorkspaces()
-    await this.migrateSessionExecutionModes()
     this.usageLedger = await readJson(this.usagePath, { days: {}, sessionScans: {} })
     this.usageLedger.days ||= {}
     this.usageLedger.sessionScans ||= {}
@@ -896,38 +885,6 @@ export class AgentRuntimeService extends AgentRuntimeFacade {
 
   openStoredSession(path) {
     return SessionManager.open(path, this.sessionDir)
-  }
-
-  async migrateLegacyDefaultWorkspaces() {
-    if (!this.legacyDefaultWorkspaceKeys.size) return
-    const sessions = await this.listStoredSessions()
-    let changed = false
-    for (const session of sessions) {
-      const current = this.sessionMeta[session.id] || {}
-      const cwd = current.cwd || session.cwd
-      if (!this.legacyDefaultWorkspaceKeys.has(workspacePathKey(cwd))) continue
-      this.sessionMeta[session.id] = { ...current, cwd: this.cwd }
-      changed = true
-    }
-    if (changed) await this.saveSessionMeta()
-  }
-
-  // 会话执行模式/权限模式的历史迁移：老版本可能缺失或使用已废弃的执行模式。
-  async migrateSessionExecutionModes() {
-    const sessions = await this.listStoredSessions()
-    let changed = false
-    for (const session of sessions) {
-      const current = this.sessionMeta[session.id] || {}
-      if (EXECUTION_MODES.has(current.executionMode)) continue
-      const executionMode = migrateLegacyExecutionMode(current)
-      this.sessionMeta[session.id] = {
-        ...current,
-        executionMode,
-        permissionMode: permissionModeForExecutionMode(executionMode),
-      }
-      changed = true
-    }
-    if (changed) await this.saveSessionMeta()
   }
 
   optionalToolNames(value) {

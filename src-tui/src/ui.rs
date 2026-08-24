@@ -2482,29 +2482,33 @@ fn render_sessions(frame: &mut Frame, app: &App, area: Rect) {
     frame.render_widget(Clear, popup);
     let sessions = app.visible_sessions();
     let selected = (!sessions.is_empty()).then(|| app.session_selected.min(sessions.len() - 1));
+    let loading = app.session_list_loading || app.session_loading.is_some();
+    let title = if app.session_list_loading {
+        " Resume conversation ".to_owned()
+    } else {
+        format!(" Resume conversation · {} matches ", sessions.len())
+    };
+    let footer = if app.session_list_loading {
+        format!(
+            " {} Loading conversations… · Esc cancel ",
+            spinner_frame(app.status_frame)
+        )
+    } else if app.session_loading.is_some() {
+        " Loading conversation… · Esc cancel ".to_owned()
+    } else {
+        " Search · ↑↓ choose · Enter · Ctrl+R reload · Esc ".to_owned()
+    };
     let block = Block::default()
         .title(Span::styled(
-            format!(" Resume conversation · {} matches ", sessions.len()),
+            title,
             Style::default().fg(ACCENT).add_modifier(Modifier::BOLD),
         ))
         .title_bottom(Span::styled(
-            if app.session_loading.is_some() {
-                " Loading conversation… · Esc cancel "
-            } else {
-                " Type to search · ↑↓ choose · Enter resume · Esc close "
-            },
-            Style::default().fg(if app.session_loading.is_some() {
-                AMBER
-            } else {
-                MUTED
-            }),
+            footer,
+            Style::default().fg(if loading { AMBER } else { MUTED }),
         ))
         .borders(Borders::ALL)
-        .border_style(Style::default().fg(if app.session_loading.is_some() {
-            AMBER
-        } else {
-            ACCENT
-        }))
+        .border_style(Style::default().fg(if loading { AMBER } else { ACCENT }))
         .style(Style::default().bg(SURFACE));
     let inner = block.inner(popup);
     frame.render_widget(block, popup);
@@ -2553,7 +2557,15 @@ fn render_sessions(frame: &mut Frame, app: &App, area: Rect) {
         content_width
     };
     let model_width = content_width.saturating_sub(name_width);
-    let rows = if sessions.is_empty() {
+    let rows = if app.session_list_loading {
+        vec![ListItem::new(Line::from(vec![
+            Span::styled(
+                format!(" {} ", spinner_frame(app.status_frame)),
+                Style::default().fg(AMBER),
+            ),
+            Span::styled("Loading conversations…", Style::default().fg(MUTED)),
+        ]))]
+    } else if sessions.is_empty() {
         vec![ListItem::new(Span::styled(
             " No matching conversations",
             Style::default().fg(MUTED),
@@ -2605,7 +2617,7 @@ fn render_sessions(frame: &mut Frame, app: &App, area: Rect) {
         .highlight_style(picker_highlight_style());
     let mut state = ListState::default().with_selected(selected);
     frame.render_stateful_widget(list, sections[1], &mut state);
-    if app.session_loading.is_none() {
+    if !loading {
         frame.set_cursor_position(Position::new(
             sections[0]
                 .x
@@ -4765,6 +4777,13 @@ mod tests {
         assert!(rendered.contains("Timed conversation"));
         assert!(rendered.contains("1970-01-01"));
 
+        app.begin_session_list_load(false);
+        terminal.draw(|frame| draw(frame, &app)).unwrap();
+        let list_loading = format!("{:?}", terminal.backend().buffer());
+        assert!(list_loading.contains("Loading conversations…"));
+        assert!(list_loading.contains("Esc cancel"));
+
+        app.open_session_picker(false);
         app.session_loading = Some("session-1".to_owned());
         terminal.draw(|frame| draw(frame, &app)).unwrap();
         let loading = format!("{:?}", terminal.backend().buffer());

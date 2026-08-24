@@ -5,7 +5,7 @@ import { createServer } from 'node:http'
 import { createServer as createHttpsServer } from 'node:https'
 import { readFile } from 'node:fs/promises'
 import { homedir } from 'node:os'
-import { basename, join, resolve } from 'node:path'
+import { join, resolve } from 'node:path'
 import { createStaticHandler } from './http/static-handler.mjs'
 import { SponsorContentService } from './services/sponsor-content-service.mjs'
 import { resolveGitCommit, UpdateCheckService } from './services/update-check-service.mjs'
@@ -221,9 +221,6 @@ export async function createPisperRuntime({
       cwd,
       dataDir: agentDir,
       appVersion: packageJson.version,
-      // 桌面 SEA 包把运行时装在 sidecar-runtime 下，旧版会话可能把该目录记录为 cwd，
-      // 作为 legacy 默认工作目录保留，避免历史会话恢复时找不到路径。
-      legacyDefaultCwds: production && basename(appRoot) === 'sidecar-runtime' ? [appRoot] : [],
       browserAutomationDriver,
       capabilities,
       eventObserver: (payload) => {

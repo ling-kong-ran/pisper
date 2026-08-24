@@ -495,6 +495,11 @@ pub enum RuntimeEvent {
         tools: Vec<ToolDefinition>,
         skills: Vec<SkillDefinition>,
     },
+    /// 延迟加载的会话列表。
+    SessionsLoaded {
+        request_id: u64,
+        result: Result<Vec<SessionSummary>, String>,
+    },
     /// 单条对话流事件。
     Stream(StreamEvent),
     /// 图片附件缩略图加载结果。

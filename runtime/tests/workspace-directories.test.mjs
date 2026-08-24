@@ -3,7 +3,6 @@ import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { tmpdir } from 'node:os'
 import test from 'node:test'
-import { AgentRuntimeService } from '../runtime/agent-runtime.mjs'
 import {
   listWorkspaceDirectories,
   listWorkspaceEntries,
@@ -23,35 +22,6 @@ test('workspace paths remain platform-native without exposing Windows namespace 
   assert.equal(normalizeWorkspacePath('/Users/alice/project', 'darwin'), '/Users/alice/project')
   assert.equal(normalizeWorkspacePath('/home/alice/project', 'linux'), '/home/alice/project')
   assert.equal(workspacePathKey('E:\\Projects\\', 'win32'), 'e:\\projects')
-})
-
-test('legacy packaged-runtime workspaces migrate to the platform user directory', async () => {
-  const home = process.platform === 'win32' ? 'C:\\Users\\alice' : '/home/alice'
-  const packagedRuntime =
-    process.platform === 'win32'
-      ? '\\\\?\\E:\\Pisper\\sidecar-runtime'
-      : '/opt/Pisper/sidecar-runtime'
-  const project = process.platform === 'win32' ? 'D:\\Projects\\kept' : '/work/kept'
-  const runtime = new AgentRuntimeService({
-    cwd: home,
-    dataDir: home,
-    legacyDefaultCwds: [packagedRuntime],
-  })
-  runtime.sessionMeta = { project: { cwd: project } }
-  runtime.listStoredSessions = async () => [
-    { id: 'legacy', cwd: normalizeWorkspacePath(packagedRuntime) },
-    { id: 'project', cwd: project },
-  ]
-  let saves = 0
-  runtime.saveSessionMeta = async () => {
-    saves += 1
-  }
-
-  await runtime.migrateLegacyDefaultWorkspaces()
-
-  assert.equal(runtime.sessionMeta.legacy.cwd, home)
-  assert.equal(runtime.sessionMeta.project.cwd, project)
-  assert.equal(saves, 1)
 })
 
 test('directory listings return validated absolute paths for Web workspace selection', async (t) => {

@@ -11,6 +11,26 @@ import {
   storedSessionModelId,
 } from '../runtime/agent-runtime.mjs'
 
+test('runtime initialization leaves stored conversations unloaded until requested', async (t) => {
+  const directory = await mkdtemp(join(tmpdir(), 'pisper-lazy-sessions-'))
+  const runtime = new AgentRuntimeService({ cwd: directory, dataDir: directory })
+  t.after(async () => {
+    await runtime.dispose()
+    await rm(directory, { recursive: true, force: true })
+  })
+  let scans = 0
+  runtime.listStoredSessions = async () => {
+    scans += 1
+    return []
+  }
+
+  await runtime.init()
+  assert.equal(scans, 0)
+
+  await runtime.listSessions()
+  assert.equal(scans, 1)
+})
+
 test('blank chat sessions stay lightweight until an Agent is first required', async (t) => {
   const directory = await mkdtemp(join(tmpdir(), 'pisper-pending-session-'))
   t.after(() => rm(directory, { recursive: true, force: true }))

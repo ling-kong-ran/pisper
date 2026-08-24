@@ -222,6 +222,8 @@ pub enum Action {
     Abort,
     /// 新建会话（回到草稿状态）。
     NewSession,
+    /// 延迟加载可恢复的会话列表。
+    LoadSessions { request_id: u64 },
     /// 切换会话工作区。
     SetCwd(PathBuf),
     /// 切换执行模式。
@@ -287,6 +289,8 @@ pub struct App {
     pub session_selected: usize,
     pub session_query: Vec<char>,
     pub session_query_cursor: usize,
+    pub session_list_loading: bool,
+    session_list_generation: u64,
     pub session_loading: Option<String>,
     session_load_generation: u64,
     session_picker_exit_on_cancel: bool,
@@ -414,6 +418,8 @@ impl App {
             session_selected: 0,
             session_query: Vec::new(),
             session_query_cursor: 0,
+            session_list_loading: false,
+            session_list_generation: 0,
             session_loading: None,
             session_load_generation: 0,
             session_picker_exit_on_cancel: false,
@@ -844,6 +850,8 @@ impl App {
 
     /// 打开会话选择器并定位到指定会话。
     pub fn open_session_picker_at(&mut self, exit_on_cancel: bool, selected_id: &str) {
+        self.session_list_generation = self.session_list_generation.wrapping_add(1);
+        self.session_list_loading = false;
         self.session_query.clear();
         self.session_query_cursor = 0;
         self.session_selected = self
@@ -854,6 +862,53 @@ impl App {
         self.session_loading = None;
         self.session_picker_exit_on_cancel = exit_on_cancel;
         self.session_picker = true;
+    }
+
+    /// 打开会话选择器并启动异步列表加载，返回用于丢弃过期响应的请求代次。
+    pub fn begin_session_list_load(&mut self, exit_on_cancel: bool) -> u64 {
+        self.session_list_generation = self.session_list_generation.wrapping_add(1);
+        self.session_list_loading = true;
+        self.session_query.clear();
+        self.session_query_cursor = 0;
+        self.session_selected = 0;
+        self.session_loading = None;
+        self.session_picker_exit_on_cancel = exit_on_cancel;
+        self.session_picker = true;
+        self.status = "loading conversations".to_owned();
+        self.status_error = false;
+        self.session_list_generation
+    }
+
+    /// 应用异步会话列表；选择器已取消或已有更新请求时忽略旧结果。
+    pub fn apply_session_list(
+        &mut self,
+        request_id: u64,
+        result: Result<Vec<SessionSummary>, String>,
+    ) {
+        if request_id != self.session_list_generation || !self.session_list_loading {
+            return;
+        }
+        self.session_list_loading = false;
+        match result {
+            Ok(sessions) => {
+                self.sessions = sessions;
+                self.session_selected = self
+                    .sessions
+                    .iter()
+                    .position(|session| session.id == self.session.id)
+                    .unwrap_or(0);
+                self.status = if self.sessions.is_empty() {
+                    "no conversations available".to_owned()
+                } else {
+                    format!("{} conversations available", self.sessions.len())
+                };
+                self.status_error = false;
+            }
+            Err(error) => {
+                self.status = format!("cannot list conversations · {error}");
+                self.status_error = true;
+            }
+        }
     }
 
     /// 按搜索词过滤可见会话（名称/模型/工作区）。
@@ -1974,6 +2029,20 @@ impl App {
 
     /// 会话选择器按键处理：搜索、导航、切换（含 Esc 取消逻辑）。
     fn handle_session_picker(&mut self, key: KeyEvent) -> Action {
+        if self.session_list_loading {
+            return if key.code == KeyCode::Esc {
+                self.session_list_generation = self.session_list_generation.wrapping_add(1);
+                self.session_list_loading = false;
+                self.session_picker = false;
+                if std::mem::take(&mut self.session_picker_exit_on_cancel) {
+                    Action::Quit
+                } else {
+                    Action::None
+                }
+            } else {
+                Action::None
+            };
+        }
         if self.session_loading.is_some() {
             return if key.code == KeyCode::Esc {
                 self.session_load_generation = self.session_load_generation.wrapping_add(1);
@@ -2045,6 +2114,10 @@ impl App {
                 self.session_query_cursor = 0;
                 self.session_selected = 0;
                 Action::None
+            }
+            KeyCode::Char('r') if key.modifiers.contains(KeyModifiers::CONTROL) => {
+                let request_id = self.begin_session_list_load(self.session_picker_exit_on_cancel);
+                Action::LoadSessions { request_id }
             }
             KeyCode::Char(character)
                 if self.session_query.len() < 256
@@ -2184,8 +2257,8 @@ impl App {
                 }
                 self.mark_slash_use("/sessions");
                 self.clear_input();
-                self.open_session_picker(false);
-                Action::None
+                let request_id = self.begin_session_list_load(false);
+                Action::LoadSessions { request_id }
             }
             "/dir" => {
                 self.status = format!("directory · {} · use /dir <path>", self.cwd);
@@ -2546,6 +2619,8 @@ impl App {
         self.api_key_provider = None;
         self.clear_api_key_input();
         self.session_picker = false;
+        self.session_list_generation = self.session_list_generation.wrapping_add(1);
+        self.session_list_loading = false;
         self.session_loading = None;
         self.session_picker_exit_on_cancel = false;
         self.queued_prompts.clear();
@@ -4296,6 +4371,35 @@ mod tests {
         assert_eq!(app.cwd, other.to_string_lossy());
         assert_eq!(app.new_session_workspace(), launch);
         std::fs::remove_dir_all(root).unwrap();
+    }
+
+    /// 验证 `/sessions` 只在用户打开选择器时请求列表，并忽略过期响应。
+    #[test]
+    fn session_picker_loads_the_catalog_lazily_and_ignores_stale_results() {
+        let mut app = test_app(Vec::new());
+        app.set_input("/sessions");
+        let request_id = match app.handle_key(KeyEvent::new(KeyCode::Enter, KeyModifiers::NONE)) {
+            Action::LoadSessions { request_id } => request_id,
+            _ => panic!("expected a lazy session-list action"),
+        };
+        assert!(app.session_picker);
+        assert!(app.session_list_loading);
+
+        app.apply_session_list(request_id.wrapping_add(1), Ok(Vec::new()));
+        assert!(app.session_list_loading);
+
+        app.apply_session_list(
+            request_id,
+            Ok(vec![SessionSummary {
+                id: "session-2".to_owned(),
+                name: "Loaded later".to_owned(),
+                cwd: "/workspace/other".to_owned(),
+                ..SessionSummary::default()
+            }]),
+        );
+        assert!(!app.session_list_loading);
+        assert_eq!(app.sessions.len(), 1);
+        assert_eq!(app.sessions[0].id, "session-2");
     }
 
     /// 验证会话选择器加载中保持可见，过期请求结果被忽略。

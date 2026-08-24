@@ -154,8 +154,8 @@ async fn run() -> Result<()> {
         webbrowser::open(&api.bootstrap_url("/config")?)
             .context("failed to open the default browser")?;
     }
-    startup.set_message("Loading conversations");
     if options.doctor {
+        startup.set_message("Loading conversations");
         let sessions = api
             .startup_sessions()
             .await
@@ -192,10 +192,14 @@ async fn run() -> Result<()> {
         sidecar.shutdown();
         return Ok(());
     }
-    let sessions = api
-        .startup_sessions()
-        .await
-        .context("failed to list conversations")?;
+    let sessions = if options.resume {
+        startup.set_message("Loading conversations");
+        api.startup_sessions()
+            .await
+            .context("failed to list conversations")?
+    } else {
+        Vec::new()
+    };
     if options.resume && sessions.is_empty() {
         startup.finish();
         println!("No conversations are available to resume.");
@@ -379,6 +383,10 @@ async fn run_event_loop(
                                     skills,
                                 );
                                 false
+                            }
+                            RuntimeEvent::SessionsLoaded { request_id, result } => {
+                                app.apply_session_list(request_id, result);
+                                true
                             }
                             RuntimeEvent::Stream(event) => {
                                 // 终态事件（done/error）时本分支返回 true，触发后续收尾。
@@ -1177,6 +1185,17 @@ async fn execute_action(
         Action::NewSession => {
             let draft = draft_session(app.new_session_workspace(), &app.model, &app.thinking_level);
             app.replace_session(draft, Vec::new(), None);
+        }
+        Action::LoadSessions { request_id } => {
+            let api = api.clone();
+            let sender = runtime_tx.clone();
+            tokio::spawn(async move {
+                let result = api
+                    .startup_sessions()
+                    .await
+                    .map_err(|error| format!("{error:#}"));
+                let _ = sender.send(RuntimeEvent::SessionsLoaded { request_id, result });
+            });
         }
         Action::SetCwd(requested) => {
             app.status = format!("changing directory · {}", requested.display());
