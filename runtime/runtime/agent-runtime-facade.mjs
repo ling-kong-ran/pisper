@@ -323,7 +323,7 @@ export class AgentRuntimeFacade {
     await this.toolPlugins.ensureDefaultTools(['browser_automation'], 'browserAutomationToolV1')
     await this.toolPlugins.ensureDefaultTools(['skill_create'], 'skillCreateToolV1')
     await this.toolPlugins.ensureDefaultTools(['plugin_create'], 'pluginCreateToolV1')
-    await this.toolPlugins.ensureDefaultTools(['mobile_device'], 'mobileDeviceToolV1')
+    await this.toolPlugins.ensureDefaultTools(['mobile_device'], 'mobileDeviceToolV2')
   }
 
   getToolRisk(name) {

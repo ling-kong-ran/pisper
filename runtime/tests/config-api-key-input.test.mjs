@@ -17,7 +17,7 @@ test('Provider settings save separately from changing the default model', async 
   assert.match(runtimeSettingsSource, /disabled=\{saving \|\| !dirty/)
   assert.match(
     modelsSettingsSource,
-    /<ProviderSettingsActions[\s\S]*?<CredentialSettings[\s\S]*?<ProviderModelCatalog[\s\S]*?<RuntimePolicySettings/,
+    /order-1 min-\[901px\]:order-2[\s\S]*?<CredentialSettings[\s\S]*?order-2 min-\[901px\]:order-1[\s\S]*?<ProviderSettingsActions[\s\S]*?<ProviderModelCatalog[\s\S]*?<RuntimePolicySettings/,
   )
   assert.doesNotMatch(modelsSettingsSource, /detailTab|config-tabs/)
   assert.match(settingsHookSource, /async \(setAsDefault = false\)/)

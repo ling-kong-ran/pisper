@@ -1,8 +1,9 @@
 import assert from 'node:assert/strict'
-import { mkdtemp, readFile, rm } from 'node:fs/promises'
+import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import test from 'node:test'
+import { ToolPluginService } from '../services/tool-plugin-service.mjs'
 import { TOOL_CATALOG, TOOL_PRESETS, createAppTools } from '../tools/registry.mjs'
 
 test('mobile_device 是默认启用的高风险 App 工具', () => {
@@ -11,6 +12,29 @@ test('mobile_device 是默认启用的高风险 App 工具', () => {
   assert.equal(catalog?.source, 'app')
   assert.equal(TOOL_PRESETS.full.includes('mobile_device'), true)
   assert.equal(TOOL_PRESETS.workspace.includes('mobile_device'), false)
+})
+
+test('mobile_device V2 默认迁移会修复旧版遗漏的工具开关', async () => {
+  const directory = await mkdtemp(join(tmpdir(), 'pisper-mobile-device-default-'))
+  const configPath = join(directory, 'pisper.json')
+  const service = new ToolPluginService(configPath)
+  try {
+    await writeFile(
+      configPath,
+      JSON.stringify({
+        toolMode: 'custom',
+        enabledTools: ['read'],
+        mobileDeviceToolV1: true,
+      }),
+      'utf8',
+    )
+    await service.ensureDefaultTools(['mobile_device'], 'mobileDeviceToolV2')
+    const config = JSON.parse(await readFile(configPath, 'utf8'))
+    assert.equal(config.mobileDeviceToolV2, true)
+    assert.deepEqual(config.enabledTools, ['read', 'mobile_device'])
+  } finally {
+    await rm(directory, { recursive: true, force: true })
+  }
 })
 
 test('mobile_device 绑定当前会话并把相机结果写入私有捕获目录', async () => {
