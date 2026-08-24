@@ -2,15 +2,19 @@ use std::path::PathBuf;
 use std::sync::Mutex;
 
 use super::embedded_runtime::EmbeddedRuntime;
-use super::root_runtime::{RootRuntime, RootRuntimeStatus};
+#[cfg(not(feature = "mobile-store"))]
+use super::root_runtime::RootRuntime;
+use super::runtime_status::RootRuntimeStatus;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum Carrier {
+    #[cfg(not(feature = "mobile-store"))]
     Root,
     Embedded,
 }
 
 pub struct OnDeviceRuntime {
+    #[cfg(not(feature = "mobile-store"))]
     root: RootRuntime,
     embedded: EmbeddedRuntime,
     active: Mutex<Option<Carrier>>,
@@ -25,6 +29,7 @@ impl OnDeviceRuntime {
         embedded_resource: Option<PathBuf>,
     ) -> Self {
         Self {
+            #[cfg(not(feature = "mobile-store"))]
             root: RootRuntime::new(
                 runtime_root.join("root"),
                 data_root.clone(),
@@ -46,6 +51,7 @@ impl OnDeviceRuntime {
             .active
             .lock()
             .expect("on-device Runtime carrier mutex poisoned");
+        #[cfg(not(feature = "mobile-store"))]
         if active == Some(Carrier::Root) {
             let status = self.root.status();
             if status.running {
@@ -59,32 +65,38 @@ impl OnDeviceRuntime {
             }
         }
 
-        let root = self.root.status();
         let embedded = self.embedded.status();
-        let supported = root.supported || embedded.supported;
-        let packaged = root.packaged || embedded.packaged;
-        let installed = root.installed || embedded.installed;
-        RootRuntimeStatus {
-            supported,
-            packaged,
-            installed,
-            running: false,
-            state: if !supported {
-                "unsupported".into()
-            } else if installed {
-                "installed".into()
-            } else if packaged {
-                "available".into()
-            } else {
-                "unavailable".into()
-            },
-            message: if supported && (packaged || installed) {
-                String::new()
-            } else {
-                "安装包未包含当前设备可用的本机 Runtime。".into()
-            },
-            url: String::new(),
-            runtime_kind: "node".into(),
+        #[cfg(feature = "mobile-store")]
+        return public_status(embedded);
+
+        #[cfg(not(feature = "mobile-store"))]
+        {
+            let root = self.root.status();
+            let supported = root.supported || embedded.supported;
+            let packaged = root.packaged || embedded.packaged;
+            let installed = root.installed || embedded.installed;
+            RootRuntimeStatus {
+                supported,
+                packaged,
+                installed,
+                running: false,
+                state: if !supported {
+                    "unsupported".into()
+                } else if installed {
+                    "installed".into()
+                } else if packaged {
+                    "available".into()
+                } else {
+                    "unavailable".into()
+                },
+                message: if supported && (packaged || installed) {
+                    String::new()
+                } else {
+                    "安装包未包含当前设备可用的本机 Runtime。".into()
+                },
+                url: String::new(),
+                runtime_kind: "node".into(),
+            }
         }
     }
 
@@ -100,21 +112,29 @@ impl OnDeviceRuntime {
             .expect("on-device Runtime carrier mutex poisoned")
         {
             let result = match active {
+                #[cfg(not(feature = "mobile-store"))]
                 Carrier::Root => self.root.ensure_started(),
                 Carrier::Embedded => self.embedded.ensure_started(),
             };
             return result.map(public_status);
         }
 
-        let root = self.root.status();
-        let embedded = self.embedded.status();
-        let candidates = carrier_candidates(
-            root.supported && (root.packaged || root.installed),
-            embedded.supported && (embedded.packaged || embedded.installed),
-        );
+        #[cfg(not(feature = "mobile-store"))]
+        let candidates = {
+            let root = self.root.status();
+            let embedded = self.embedded.status();
+            carrier_candidates(
+                root.supported && (root.packaged || root.installed),
+                embedded.supported && (embedded.packaged || embedded.installed),
+            )
+        };
+        #[cfg(feature = "mobile-store")]
+        let candidates = vec![Carrier::Embedded];
+
         let mut errors = Vec::new();
         for carrier in candidates {
             let result = match carrier {
+                #[cfg(not(feature = "mobile-store"))]
                 Carrier::Root => self.root.ensure_started(),
                 Carrier::Embedded => self.embedded.ensure_started(),
             };
@@ -138,26 +158,35 @@ impl OnDeviceRuntime {
 
     /// 远程模式不终止同进程 embedded Node；它不能在同一 App 进程中安全重启。
     pub fn deactivate(&self) {
-        let _lifecycle = self
-            .lifecycle
-            .lock()
-            .expect("on-device Runtime lifecycle mutex poisoned");
-        let mut active = self
-            .active
-            .lock()
-            .expect("on-device Runtime carrier mutex poisoned");
-        if *active == Some(Carrier::Root) {
-            self.root.stop();
-            *active = None;
+        #[cfg(feature = "mobile-store")]
+        return;
+
+        #[cfg(not(feature = "mobile-store"))]
+        {
+            let _lifecycle = self
+                .lifecycle
+                .lock()
+                .expect("on-device Runtime lifecycle mutex poisoned");
+            let mut active = self
+                .active
+                .lock()
+                .expect("on-device Runtime carrier mutex poisoned");
+            if *active == Some(Carrier::Root) {
+                self.root.stop();
+                *active = None;
+            }
         }
     }
 
     pub fn shutdown(&self) {
-        let _lifecycle = self
-            .lifecycle
-            .lock()
-            .expect("on-device Runtime lifecycle mutex poisoned");
-        self.root.stop();
+        #[cfg(not(feature = "mobile-store"))]
+        {
+            let _lifecycle = self
+                .lifecycle
+                .lock()
+                .expect("on-device Runtime lifecycle mutex poisoned");
+            self.root.stop();
+        }
     }
 }
 
@@ -166,6 +195,7 @@ fn public_status(mut status: RootRuntimeStatus) -> RootRuntimeStatus {
     status
 }
 
+#[cfg(not(feature = "mobile-store"))]
 fn carrier_candidates(root: bool, embedded: bool) -> Vec<Carrier> {
     let mut carriers = Vec::with_capacity(2);
     if root {
@@ -177,7 +207,7 @@ fn carrier_candidates(root: bool, embedded: bool) -> Vec<Carrier> {
     carriers
 }
 
-#[cfg(test)]
+#[cfg(all(test, not(feature = "mobile-store")))]
 mod tests {
     use super::{carrier_candidates, Carrier};
 

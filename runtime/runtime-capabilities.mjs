@@ -1,6 +1,6 @@
 // 同一套 Pisper Runtime 在不同宿主上使用这份能力清单做降级。能力只能由实际
 // 内建模块探测开启；环境变量只选择宿主档案，不能把不存在的能力伪装成可用。
-const PROFILES = new Set(['desktop', 'mobile-root', 'mobile-embedded'])
+const PROFILES = new Set(['desktop', 'mobile-root', 'mobile-embedded', 'mobile-store'])
 
 function requestedProfile(environment) {
   const value = String(environment.PISPER_RUNTIME_PROFILE || '').trim()
@@ -47,7 +47,10 @@ function supportedTools(features) {
 }
 
 function buildCapabilities({ profile, childProcess, workerThreads, sqlite, wasm }) {
-  const embedded = profile === 'mobile-embedded'
+  const store = profile === 'mobile-store'
+  const embedded = profile === 'mobile-embedded' || store
+  const processes = childProcess && !store
+  const workers = workerThreads && !store
   const features = {
     chat: true,
     sessions: true,
@@ -58,14 +61,14 @@ function buildCapabilities({ profile, childProcess, workerThreads, sqlite, wasm 
     webSearch: true,
     visualGeneration: true,
     imageProcessing: wasm,
-    processes: childProcess,
-    shell: childProcess,
-    terminal: childProcess && profile === 'desktop',
-    vcs: childProcess,
+    processes,
+    shell: processes,
+    terminal: processes && profile === 'desktop',
+    vcs: processes,
     memory: sqlite,
-    workers: workerThreads,
-    plugins: workerThreads && !embedded,
-    mcp: childProcess && !embedded,
+    workers,
+    plugins: workers && !embedded,
+    mcp: processes && !embedded,
     goals: !embedded,
     plans: !embedded,
     multiAgent: !embedded,

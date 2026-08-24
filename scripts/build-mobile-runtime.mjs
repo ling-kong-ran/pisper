@@ -16,6 +16,7 @@ const mobilePackage = JSON.parse(
   await readFile(join(root, 'src-tauri', 'mobile-package.json'), 'utf8'),
 )
 const appVersion = process.env.PISPER_APP_VERSION || mobilePackage.version
+const runtimeProfile = process.env.PISPER_MOBILE_STORE === '1' ? 'mobile-store' : 'mobile-embedded'
 
 await rm(workDir, { recursive: true, force: true })
 await mkdir(workDir, { recursive: true })
@@ -33,7 +34,7 @@ await writeFile(
     {
       schemaVersion: 1,
       appVersion,
-      runtimeProfile: 'mobile-embedded',
+      runtimeProfile,
       entry: 'runtime/mobile-embedded.mjs',
     },
     null,

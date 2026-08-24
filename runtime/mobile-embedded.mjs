@@ -43,7 +43,8 @@ export async function startEmbeddedRuntime() {
       url: pisper.url,
       bootstrapUrl: `${pisper.url}/_pisper/desktop/bootstrap?token=${encodeURIComponent(token)}`,
       pid: process.pid,
-      runtimeProfile: 'mobile-embedded',
+      runtimeProfile:
+        process.env.PISPER_RUNTIME_PROFILE === 'mobile-store' ? 'mobile-store' : 'mobile-embedded',
     })
     return pisper
   } catch (error) {

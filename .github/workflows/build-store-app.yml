@@ -1,0 +1,273 @@
+name: Build store apps
+
+# 商店包与 GitHub 侧载发布彻底分离：只包含受限 embedded Runtime，
+# 不创建 GitHub Release，也不修改 release 分支或版本文件。
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Store version (X.Y.Z)'
+        required: true
+        type: string
+      source_sha:
+        description: 'Exact commit to build'
+        required: true
+        type: string
+      build_number:
+        description: 'Monotonically increasing Android versionCode / iOS CFBundleVersion'
+        required: true
+        type: number
+      upload_google_play:
+        description: 'Upload the AAB to Google Play internal testing'
+        required: true
+        default: false
+        type: boolean
+      upload_testflight:
+        description: 'Upload the IPA to TestFlight'
+        required: true
+        default: false
+        type: boolean
+
+permissions:
+  contents: read
+
+env:
+  STORE_VERSION: ${{ inputs.version }}
+  STORE_BUILD_NUMBER: ${{ inputs.build_number }}
+  STORE_SOURCE_SHA: ${{ inputs.source_sha }}
+
+jobs:
+  embedded-runtime:
+    name: Build store embedded Runtime
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: ${{ inputs.source_sha }}
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 24
+          cache: npm
+      - name: Install dependencies
+        run: npm ci
+      - name: Build signed-in-app UI and restricted Runtime closure
+        env:
+          PISPER_APP_VERSION: ${{ inputs.version }}
+          PISPER_MOBILE_STORE: '1'
+        run: |
+          set -Eeuo pipefail
+          npm run build
+          npm run mobile:runtime
+          tar -xOzf release/pisper-embedded-runtime.tar.gz ./embedded-runtime.json |
+            jq -e '.appVersion == "${{ inputs.version }}" and .runtimeProfile == "mobile-store"'
+          tar -tzf release/pisper-embedded-runtime.tar.gz | grep -Fx './dist/index.html'
+          tar -tzf release/pisper-embedded-runtime.tar.gz | grep -Fx './runtime/mobile-embedded.mjs'
+      - uses: actions/upload-artifact@v4
+        with:
+          name: store-embedded-runtime
+          if-no-files-found: error
+          path: release/pisper-embedded-runtime.tar.gz
+
+  android:
+    name: Build signed Google Play AAB
+    needs: embedded-runtime
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: ${{ inputs.source_sha }}
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 24
+          cache: npm
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: android-actions/setup-android@v3
+      - name: Install Android SDK packages and NDK
+        run: |
+          yes | sdkmanager --licenses > /dev/null
+          sdkmanager "platform-tools" "platforms;android-36" "build-tools;36.0.0" "ndk;27.3.13750724"
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-linux-android
+      - name: Install dependencies and build frontend
+        run: |
+          npm ci
+          npm run build
+      - name: Install cosign
+        uses: sigstore/cosign-installer@7e8b541eb2e61bf99390e1afd4be13a184e9ebc5
+      - name: Verify and stage fixed Android Node 24
+        run: node scripts/stage-mobile-node-android.mjs release/mobile-node-android --require-sigstore
+      - name: Prepare Android project with embedded Node
+        env:
+          NDK_HOME: ${{ env.ANDROID_HOME }}/ndk/27.3.13750724
+          PISPER_NODE_MOBILE_ANDROID_DIR: ${{ github.workspace }}/release/mobile-node-android
+          PISPER_REQUIRE_EMBEDDED_NODE: '1'
+        run: node scripts/setup-mobile-android.mjs
+      - uses: actions/download-artifact@v5
+        with:
+          name: store-embedded-runtime
+          path: embedded-runtime
+      - name: Stage store Runtime asset
+        run: |
+          set -Eeuo pipefail
+          mkdir -p src-tauri/gen/android/app/src/main/assets
+          rm -f src-tauri/gen/android/app/src/main/assets/pisper-root-runtime-*.tgz
+          cp embedded-runtime/pisper-embedded-runtime.tar.gz \
+            src-tauri/gen/android/app/src/main/assets/pisper-embedded-runtime.tgz
+      - name: Build store AAB
+        env:
+          NDK_HOME: ${{ env.ANDROID_HOME }}/ndk/27.3.13750724
+        run: |
+          set -Eeuo pipefail
+          MOBILE_CONFIG='{"version":"${{ inputs.version }}","bundle":{"externalBin":[],"resources":[],"android":{"versionCode":${{ inputs.build_number }}}}}'
+          node node_modules/@tauri-apps/cli/tauri.js android build \
+            --aab --ci --target aarch64 --features mobile-store --config "$MOBILE_CONFIG"
+      - name: Validate and sign AAB with the Play upload key
+        env:
+          APP_ANDROID_KEYSTORE: ${{ secrets.APP_ANDROID_KEYSTORE }}
+          APP_ANDROID_STORE_PASSWORD: ${{ secrets.APP_ANDROID_STORE_PASSWORD }}
+          APP_ANDROID_KEY_ALIAS: ${{ secrets.APP_ANDROID_KEY_ALIAS }}
+          APP_ANDROID_KEY_PASSWORD: ${{ secrets.APP_ANDROID_KEY_PASSWORD }}
+        run: |
+          set -Eeuo pipefail
+          test -n "$APP_ANDROID_KEYSTORE" || { echo "APP_ANDROID_KEYSTORE is required." >&2; exit 1; }
+          echo "$APP_ANDROID_KEYSTORE" | base64 -d > /tmp/pisper-play-upload.jks
+          AAB=$(find src-tauri/gen/android/app/build/outputs/bundle -name '*.aab' -type f | head -1)
+          test -n "$AAB" || { echo "AAB output was not found." >&2; exit 1; }
+          unzip -Z1 "$AAB" > /tmp/pisper-aab-contents.txt
+          grep -F 'base/assets/pisper-embedded-runtime.tgz' /tmp/pisper-aab-contents.txt
+          grep -F 'base/lib/arm64-v8a/libnode.so' /tmp/pisper-aab-contents.txt
+          grep -F 'base/lib/arm64-v8a/libpisper_webview_lib.so' /tmp/pisper-aab-contents.txt
+          if grep -Eqi 'root-runtime|rootfs|/su$|/chroot$' /tmp/pisper-aab-contents.txt; then
+            echo "Store AAB contains a rooted Runtime asset." >&2
+            exit 1
+          fi
+          rm -rf /tmp/pisper-aab-native
+          mkdir -p /tmp/pisper-aab-native
+          unzip -q "$AAB" 'base/lib/arm64-v8a/*.so' -d /tmp/pisper-aab-native
+          while IFS= read -r library; do
+            while IFS= read -r alignment; do
+              value=${alignment#0x}
+              if (( 16#$value < 16384 )); then
+                echo "$library has LOAD alignment $alignment; 16 KB is required." >&2
+                exit 1
+              fi
+            done < <("$ANDROID_HOME/ndk/27.3.13750724/toolchains/llvm/prebuilt/linux-x86_64/bin/llvm-readelf" -lW "$library" | awk '$1 == "LOAD" { print $NF }')
+          done < <(find /tmp/pisper-aab-native -name '*.so' -type f)
+          cp "$AAB" pisper-google-play.aab
+          jarsigner \
+            -keystore /tmp/pisper-play-upload.jks \
+            -storepass "$APP_ANDROID_STORE_PASSWORD" \
+            -keypass "$APP_ANDROID_KEY_PASSWORD" \
+            -sigalg SHA256withRSA -digestalg SHA-256 \
+            pisper-google-play.aab "$APP_ANDROID_KEY_ALIAS"
+          jarsigner -verify -strict -certs pisper-google-play.aab
+      - uses: actions/upload-artifact@v4
+        with:
+          name: pisper-google-play
+          if-no-files-found: error
+          path: pisper-google-play.aab
+      - name: Upload to Google Play internal testing
+        if: ${{ inputs.upload_google_play }}
+        uses: r0adkll/upload-google-play@v1
+        with:
+          serviceAccountJsonPlainText: ${{ secrets.GOOGLE_PLAY_SERVICE_ACCOUNT_JSON }}
+          packageName: com.lingkongran.pisper
+          releaseFiles: pisper-google-play.aab
+          track: internal
+          status: completed
+
+  ios:
+    name: Build Apple Distribution IPA
+    needs: embedded-runtime
+    runs-on: macos-26
+    timeout-minutes: 240
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: ${{ inputs.source_sha }}
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 24
+          cache: npm
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-apple-ios,aarch64-apple-ios-sim
+      - name: Install dependencies
+        run: npm ci
+      - name: Materialize fixed iOS Node smoke source
+        run: bash scripts/build-mobile-node-ios.sh --materialize-only
+      - name: Install cosign
+        uses: sigstore/cosign-installer@7e8b541eb2e61bf99390e1afd4be13a184e9ebc5
+      - name: Verify and stage fixed iOS Node 24 framework
+        run: node scripts/stage-mobile-node-ios.mjs release/mobile-node-ios --require-sigstore
+      - uses: actions/download-artifact@v5
+        with:
+          name: store-embedded-runtime
+          path: embedded-runtime
+      - name: Stage Runtime, build frontend, and generate icons
+        run: |
+          set -Eeuo pipefail
+          cp embedded-runtime/pisper-embedded-runtime.tar.gz release/pisper-embedded-runtime.tar.gz
+          npm run build
+          node scripts/sync-mobile-icons.mjs
+      - name: Prepare signed iOS project
+        env:
+          IOS_CERTIFICATE: ${{ secrets.IOS_DISTRIBUTION_CERTIFICATE }}
+          IOS_CERTIFICATE_PASSWORD: ${{ secrets.IOS_DISTRIBUTION_CERTIFICATE_PASSWORD }}
+          IOS_MOBILE_PROVISION: ${{ secrets.IOS_APP_STORE_PROVISIONING_PROFILE }}
+        run: |
+          set -Eeuo pipefail
+          test -n "$IOS_CERTIFICATE" || { echo "IOS_DISTRIBUTION_CERTIFICATE is required." >&2; exit 1; }
+          test -n "$IOS_MOBILE_PROVISION" || { echo "IOS_APP_STORE_PROVISIONING_PROFILE is required." >&2; exit 1; }
+          MOBILE_CONFIG='{"bundle":{"externalBin":[],"resources":{"../release/pisper-embedded-runtime.tar.gz":"pisper-embedded-runtime.tar.gz","PrivacyInfo.xcprivacy":"PrivacyInfo.xcprivacy"},"iOS":{"frameworks":["../release/mobile-node-ios/NodeMobile.xcframework"]}}}'
+          npx tauri ios init --config "$MOBILE_CONFIG"
+      - name: Build Apple Distribution IPA
+        env:
+          IOS_CERTIFICATE: ${{ secrets.IOS_DISTRIBUTION_CERTIFICATE }}
+          IOS_CERTIFICATE_PASSWORD: ${{ secrets.IOS_DISTRIBUTION_CERTIFICATE_PASSWORD }}
+          IOS_MOBILE_PROVISION: ${{ secrets.IOS_APP_STORE_PROVISIONING_PROFILE }}
+        run: |
+          set -Eeuo pipefail
+          MOBILE_CONFIG='{"version":"${{ inputs.version }}","bundle":{"externalBin":[],"resources":{"../release/pisper-embedded-runtime.tar.gz":"pisper-embedded-runtime.tar.gz","PrivacyInfo.xcprivacy":"PrivacyInfo.xcprivacy"},"iOS":{"frameworks":["../release/mobile-node-ios/NodeMobile.xcframework"]}}}'
+          npx tauri ios build --ci --features mobile-store \
+            --build-number "${{ inputs.build_number }}" \
+            --export-method app-store-connect \
+            --config "$MOBILE_CONFIG"
+      - name: Validate signed IPA
+        run: |
+          set -Eeuo pipefail
+          IPA=$(find src-tauri/gen/apple -name '*.ipa' -type f | head -1)
+          test -n "$IPA" || { echo "Signed IPA output was not found." >&2; exit 1; }
+          unzip -Z1 "$IPA" > /tmp/pisper-ios-contents.txt
+          grep -Eq '^Payload/[^/]+\.app/PrivacyInfo\.xcprivacy$' /tmp/pisper-ios-contents.txt
+          grep -Eq '^Payload/[^/]+\.app/Frameworks/NodeMobile\.framework/NodeMobile$' /tmp/pisper-ios-contents.txt
+          grep -Eq '^Payload/[^/]+\.app/pisper-embedded-runtime\.tar\.gz$' /tmp/pisper-ios-contents.txt
+          rm -rf /tmp/pisper-store-ipa
+          unzip -q "$IPA" -d /tmp/pisper-store-ipa
+          APP=$(find /tmp/pisper-store-ipa/Payload -maxdepth 1 -name '*.app' -type d | head -1)
+          codesign --verify --deep --strict --verbose=2 "$APP"
+          cp "$IPA" pisper-app-store.ipa
+      - uses: actions/upload-artifact@v4
+        with:
+          name: pisper-app-store
+          if-no-files-found: error
+          path: pisper-app-store.ipa
+      - name: Upload to TestFlight
+        if: ${{ inputs.upload_testflight }}
+        env:
+          APP_STORE_CONNECT_API_KEY_ID: ${{ secrets.APP_STORE_CONNECT_API_KEY_ID }}
+          APP_STORE_CONNECT_ISSUER_ID: ${{ secrets.APP_STORE_CONNECT_ISSUER_ID }}
+          APP_STORE_CONNECT_API_PRIVATE_KEY: ${{ secrets.APP_STORE_CONNECT_API_PRIVATE_KEY }}
+        run: |
+          set -Eeuo pipefail
+          test -n "$APP_STORE_CONNECT_API_KEY_ID" || { echo "App Store Connect API key is required." >&2; exit 1; }
+          mkdir -p "$HOME/private_keys"
+          printf '%s' "$APP_STORE_CONNECT_API_PRIVATE_KEY" > \
+            "$HOME/private_keys/AuthKey_${APP_STORE_CONNECT_API_KEY_ID}.p8"
+          xcrun altool --upload-app --type ios --file pisper-app-store.ipa \
+            --apiKey "$APP_STORE_CONNECT_API_KEY_ID" \
+            --apiIssuer "$APP_STORE_CONNECT_ISSUER_ID"

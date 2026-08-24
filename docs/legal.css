@@ -1,0 +1,144 @@
+:root {
+  color-scheme: dark;
+  --page: #0b0c0c;
+  --surface: #151817;
+  --ink: #f2f5f3;
+  --muted: #a7b0ac;
+  --line: #303734;
+  --accent: #79d7a5;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  background: var(--page);
+  color: var(--ink);
+  font-family:
+    Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  line-height: 1.7;
+}
+
+a {
+  color: var(--accent);
+}
+
+.legal-header,
+.legal-main,
+.legal-footer {
+  width: min(760px, calc(100% - 36px));
+  margin-inline: auto;
+}
+
+.legal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  min-height: 76px;
+  border-bottom: 1px solid var(--line);
+}
+
+.legal-brand {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  color: var(--ink);
+  font-weight: 700;
+  text-decoration: none;
+}
+
+.legal-nav {
+  display: flex;
+  gap: 18px;
+  font-size: 14px;
+}
+
+.legal-nav a {
+  color: var(--muted);
+  text-decoration: none;
+}
+
+.legal-main {
+  padding-block: 64px 80px;
+}
+
+.legal-main h1 {
+  margin: 0;
+  font-size: clamp(36px, 8vw, 58px);
+  line-height: 1.05;
+  letter-spacing: 0;
+}
+
+.legal-updated,
+.legal-intro,
+.legal-main p,
+.legal-main li {
+  color: var(--muted);
+}
+
+.legal-updated {
+  margin: 14px 0 0;
+  font-size: 14px;
+}
+
+.legal-intro {
+  margin: 34px 0 48px;
+  max-width: 650px;
+  font-size: 19px;
+}
+
+.legal-main section {
+  padding-block: 27px;
+  border-top: 1px solid var(--line);
+}
+
+.legal-main h2 {
+  margin: 0 0 12px;
+  font-size: 22px;
+  letter-spacing: 0;
+}
+
+.legal-main h3 {
+  margin: 22px 0 8px;
+  font-size: 17px;
+  letter-spacing: 0;
+}
+
+.legal-main p,
+.legal-main ul {
+  margin-block: 10px;
+}
+
+.legal-main ul {
+  padding-left: 22px;
+}
+
+.legal-footer {
+  display: flex;
+  justify-content: space-between;
+  gap: 20px;
+  padding-block: 26px 40px;
+  border-top: 1px solid var(--line);
+  color: var(--muted);
+  font-size: 13px;
+}
+
+@media (max-width: 560px) {
+  .legal-header,
+  .legal-footer {
+    align-items: flex-start;
+    flex-direction: column;
+    justify-content: center;
+    padding-block: 18px;
+  }
+
+  .legal-nav {
+    flex-wrap: wrap;
+  }
+
+  .legal-main {
+    padding-top: 46px;
+  }
+}

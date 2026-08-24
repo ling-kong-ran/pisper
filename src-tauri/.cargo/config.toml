@@ -1,0 +1,3 @@
+[target.aarch64-linux-android]
+# Google Play 的 16 KB page-size 要求需要 ELF LOAD 段按 16 KB 对齐。
+rustflags = ["-C", "link-arg=-Wl,-z,max-page-size=16384"]

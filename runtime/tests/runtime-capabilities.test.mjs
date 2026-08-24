@@ -45,6 +45,29 @@ test('mobile embedded profile derives degradation from actual host modules', asy
   ])
 })
 
+test('store profile disables dynamic execution even when Node exposes the modules', async () => {
+  const capabilities = await resolveRuntimeCapabilities({
+    environment: { PISPER_RUNTIME_PROFILE: 'mobile-store' },
+    moduleSupport: {
+      childProcess: true,
+      workerThreads: true,
+      sqlite: true,
+      wasm: true,
+    },
+  })
+
+  assert.equal(capabilities.profile, 'mobile-store')
+  assert.equal(capabilities.features.processes, false)
+  assert.equal(capabilities.features.shell, false)
+  assert.equal(capabilities.features.vcs, false)
+  assert.equal(capabilities.features.workers, false)
+  assert.equal(capabilities.features.plugins, false)
+  assert.equal(capabilities.features.mcp, false)
+  for (const unavailable of ['bash', 'grep', 'find', 'plugin_create', 'mcp_list', 'mcp_manage']) {
+    assert.equal(capabilities.tools.includes(unavailable), false, unavailable)
+  }
+})
+
 test('unknown profile cannot claim unavailable capabilities', async () => {
   const capabilities = await resolveRuntimeCapabilities({
     environment: { PISPER_RUNTIME_PROFILE: 'invented-mobile-runtime' },

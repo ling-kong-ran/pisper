@@ -12,6 +12,11 @@ name = "pisper_webview_lib"
 # 移动端以 cdylib 形式链接进 App；rlib 保留给桌面与测试。
 crate-type = ["staticlib", "cdylib", "rlib"]
 
+[features]
+default = []
+# 商店包使用受限 embedded Runtime，并在编译期移除 rooted Runtime 与外部更新模块。
+mobile-store = []
+
 [[bin]]
 name = "Pisper"
 path = "src/main.rs"

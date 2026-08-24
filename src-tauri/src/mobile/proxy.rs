@@ -40,6 +40,13 @@ struct UpstreamCache {
     checked_at: Instant,
 }
 
+#[cfg(feature = "mobile-store")]
+#[derive(Clone)]
+struct LocalRuntime {
+    base_url: String,
+    cookie: String,
+}
+
 pub struct ProxyHandle {
     pub port: u16,
     store: Arc<SharedStore>,
@@ -47,6 +54,8 @@ pub struct ProxyHandle {
     /// 指纹变化（换服务器）时重建客户端。
     client_cache: Mutex<Option<(String, reqwest::Client)>>,
     tunnels: Option<Arc<TunnelBridgePool>>,
+    #[cfg(feature = "mobile-store")]
+    local_runtime: Mutex<Option<LocalRuntime>>,
 }
 
 impl ProxyHandle {
@@ -59,6 +68,41 @@ impl ProxyHandle {
 
     fn active_profile(&self) -> Option<ServerProfile> {
         self.store.lock().ok()?.active().cloned()
+    }
+
+    #[cfg(feature = "mobile-store")]
+    pub fn configure_local_runtime(&self, bootstrap_url: &str) -> Result<(), String> {
+        let url = tauri::Url::parse(bootstrap_url)
+            .map_err(|error| format!("本机 Runtime 启动地址无效：{error}"))?;
+        if url.scheme() != "http"
+            || url.host_str() != Some("127.0.0.1")
+            || url.port().is_none()
+            || url.path() != "/_pisper/desktop/bootstrap"
+        {
+            return Err("本机 Runtime 启动地址不受信任。".into());
+        }
+        let token = url
+            .query_pairs()
+            .find_map(|(key, value)| (key == "token").then(|| value.into_owned()))
+            .filter(|value| !value.is_empty())
+            .ok_or_else(|| "本机 Runtime 启动地址缺少认证令牌。".to_string())?;
+        let base_url = format!("http://127.0.0.1:{}", url.port().unwrap_or_default());
+        let local = LocalRuntime {
+            base_url,
+            cookie: format!("__pisper_desktop={token}"),
+        };
+        *self
+            .local_runtime
+            .lock()
+            .map_err(|_| "local Runtime cache poisoned".to_string())? = Some(local);
+        Ok(())
+    }
+
+    #[cfg(feature = "mobile-store")]
+    fn use_remote_api(&self) -> bool {
+        self.store
+            .lock()
+            .is_ok_and(|store| store.last_mode() == Some("remote") && store.active().is_some())
     }
 
     fn client_for(&self, fingerprint: &str) -> Result<reqwest::Client, String> {
@@ -166,7 +210,7 @@ fn text_response(status: StatusCode, message: &str) -> Response<ProxyBody> {
         .expect("static response")
 }
 
-async fn forward(
+async fn forward_remote(
     proxy: &Arc<ProxyHandle>,
     request: Request<Incoming>,
 ) -> Result<Response<ProxyBody>, Infallible> {
@@ -249,6 +293,104 @@ async fn forward(
         .unwrap_or_else(|_| text_response(StatusCode::INTERNAL_SERVER_ERROR, "构造响应失败。")))
 }
 
+#[cfg(feature = "mobile-store")]
+async fn forward_local(
+    proxy: &Arc<ProxyHandle>,
+    request: Request<Incoming>,
+) -> Result<Response<ProxyBody>, Infallible> {
+    let local = proxy
+        .local_runtime
+        .lock()
+        .ok()
+        .and_then(|runtime| runtime.clone());
+    let Some(local) = local else {
+        return Ok(text_response(
+            StatusCode::SERVICE_UNAVAILABLE,
+            "App 内置 Runtime 尚未就绪。",
+        ));
+    };
+
+    let (parts, body) = request.into_parts();
+    let path_and_query = parts
+        .uri
+        .path_and_query()
+        .map(|value| value.as_str())
+        .unwrap_or("/");
+    let url = format!("{}{path_and_query}", local.base_url);
+    let body_bytes = match body.collect().await {
+        Ok(collected) => collected.to_bytes(),
+        Err(_) => return Ok(text_response(StatusCode::BAD_REQUEST, "读取请求体失败。")),
+    };
+
+    let client = reqwest::Client::new();
+    let mut outgoing = client
+        .request(parts.method, &url)
+        .header(reqwest::header::COOKIE, &local.cookie);
+    for (name, value) in &parts.headers {
+        let lower = name.as_str().to_ascii_lowercase();
+        if HOP_BY_HOP.contains(&lower.as_str()) || lower == "cookie" || lower == "origin" {
+            continue;
+        }
+        outgoing = outgoing.header(name, value);
+    }
+    outgoing = outgoing.header("X-Pisper-Client", "mobile-app");
+
+    let response = match outgoing.body(body_bytes).send().await {
+        Ok(response) => response,
+        Err(error) => {
+            return Ok(text_response(
+                StatusCode::BAD_GATEWAY,
+                &format!("连接 App 内置 Runtime 失败：{error}"),
+            ));
+        }
+    };
+    let mut builder = Response::builder().status(response.status());
+    for (name, value) in response.headers() {
+        let lower = name.as_str().to_ascii_lowercase();
+        if HOP_BY_HOP.contains(&lower.as_str())
+            || lower == "content-length"
+            || lower == "set-cookie"
+        {
+            continue;
+        }
+        builder = builder.header(name, value);
+    }
+    let stream = response
+        .bytes_stream()
+        .take_while(|result| std::future::ready(result.is_ok()))
+        .filter_map(|result| async move { result.ok() })
+        .map(|chunk| Ok::<_, Infallible>(Frame::data(chunk)));
+    Ok(builder
+        .body(StreamBody::new(stream).boxed_unsync())
+        .unwrap_or_else(|_| text_response(StatusCode::INTERNAL_SERVER_ERROR, "构造响应失败。")))
+}
+
+#[cfg(feature = "mobile-store")]
+fn route_to_remote(path: &str, remote_mode: bool) -> bool {
+    path.starts_with("/api/") && remote_mode
+}
+
+#[cfg(feature = "mobile-store")]
+async fn forward(
+    proxy: &Arc<ProxyHandle>,
+    request: Request<Incoming>,
+) -> Result<Response<ProxyBody>, Infallible> {
+    let remote_api = route_to_remote(request.uri().path(), proxy.use_remote_api());
+    if remote_api {
+        forward_remote(proxy, request).await
+    } else {
+        forward_local(proxy, request).await
+    }
+}
+
+#[cfg(not(feature = "mobile-store"))]
+async fn forward(
+    proxy: &Arc<ProxyHandle>,
+    request: Request<Incoming>,
+) -> Result<Response<ProxyBody>, Infallible> {
+    forward_remote(proxy, request).await
+}
+
 /// 启动回环代理（绑定随机端口），返回句柄。调用方需持有 Arc 以保持运行。
 pub async fn start_proxy(
     store: Arc<SharedStore>,
@@ -267,6 +409,8 @@ pub async fn start_proxy(
         upstream: Mutex::new(None),
         client_cache: Mutex::new(None),
         tunnels,
+        #[cfg(feature = "mobile-store")]
+        local_runtime: Mutex::new(None),
     });
     let server = handle.clone();
     // 监听器绑定在哪个 Tokio reactor，就必须留在哪个运行时驱动；
@@ -292,7 +436,21 @@ pub async fn start_proxy(
     Ok(handle)
 }
 
-#[cfg(test)]
+#[cfg(all(test, feature = "mobile-store"))]
+mod store_tests {
+    use super::route_to_remote;
+
+    #[test]
+    fn store_routes_only_runtime_apis_to_the_remote_server() {
+        assert!(route_to_remote("/api/health", true));
+        assert!(!route_to_remote("/api/health", false));
+        assert!(!route_to_remote("/", true));
+        assert!(!route_to_remote("/assets/index.js", true));
+        assert!(!route_to_remote("/release-notes.json", true));
+    }
+}
+
+#[cfg(all(test, not(feature = "mobile-store")))]
 mod tests {
     //! 代理集成测试：自建带自签证书的 TLS 上游，验证
     //! ① 未配对返回 502；② Bearer 注入与转发；③ 指纹不匹配拒绝连接；④ SSE 逐帧透传。

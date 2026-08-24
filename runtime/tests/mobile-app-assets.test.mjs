@@ -265,6 +265,7 @@ test('移动 Node 供应链固定来源并在两个平台执行完整性门禁',
     iosSmoke,
     iosSmokeController,
     workflow,
+    storeWorkflow,
     setup,
   ] = await Promise.all([
     readFile('scripts/mobile-node-artifacts.json', 'utf8'),
@@ -274,6 +275,7 @@ test('移动 Node 供应链固定来源并在两个平台执行完整性门禁',
     readFile('scripts/smoke-mobile-node-ios.sh', 'utf8'),
     readFile('scripts/mobile-node-ios-smoke-view-controller.m', 'utf8'),
     readFile('.github/workflows/release-app.yml', 'utf8'),
+    readFile('.github/workflows/build-store-app.yml', 'utf8'),
     readFile('scripts/setup-mobile-android.mjs', 'utf8'),
   ])
   const metadata = JSON.parse(metadataText)
@@ -306,11 +308,13 @@ test('移动 Node 供应链固定来源并在两个平台执行完整性门禁',
   assert.match(workflow, /lib\/arm64-v8a\/libnode\.so/)
   assert.match(workflow, /NodeMobile\.xcframework/)
   assert.equal(
-    (workflow.match(/"resources":\["\.\.\/release\/pisper-embedded-runtime\.tar\.gz"\]/g) || [])
-      .length,
+    (
+      workflow.match(
+        /"resources":\{"\.\.\/release\/pisper-embedded-runtime\.tar\.gz":"pisper-embedded-runtime\.tar\.gz","PrivacyInfo\.xcprivacy":"PrivacyInfo\.xcprivacy"\}/g,
+      ) || []
+    ).length,
     2,
   )
-  assert.doesNotMatch(workflow, /"resources":\{"\.\.\/release\/pisper-embedded-runtime\.tar\.gz"/)
   assert.match(workflow, /bash scripts\/smoke-mobile-node-ios\.sh/)
   assert.match(workflow, /Payload\/\[\^\/\]\+\\\.app\/Frameworks\/NodeMobile/)
   assert.match(workflow, /pisper-embedded-runtime\\\.tar\\\.gz/)
@@ -331,6 +335,19 @@ test('移动 Node 供应链固定来源并在两个平台执行完整性门禁',
     /Prepare Android project with embedded Node[\s\S]*NDK_HOME:.*27\.3\.13750724/,
   )
   assert.match(workflow, /lib\/arm64-v8a\/libc\+\+_shared\.so/)
+  assert.match(
+    storeWorkflow,
+    /stage-mobile-node-android\.mjs release\/mobile-node-android --require-sigstore/,
+  )
+  assert.match(
+    storeWorkflow,
+    /stage-mobile-node-ios\.mjs release\/mobile-node-ios --require-sigstore/,
+  )
+  assert.match(storeWorkflow, /--features mobile-store/)
+  assert.doesNotMatch(
+    storeWorkflow,
+    /name: app-root-runtime|needs: \[[^\]]*root-runtime|cp [^\n]*pisper-root-runtime/,
+  )
 })
 
 test('移动端明确区分远程档案与当前 Runtime 路由', async () => {
@@ -410,7 +427,9 @@ test('embedded Node 使用后台线程、真实初始化 READY 与 App 生命周
   assert.match(rustHost, /token: Mutex<Option<String>>/)
   assert.match(rustHost, /started\.load\(Ordering::Acquire\)[\s\S]*wait_until_ready\(&token\)/)
   assert.match(rustHost, /set_var\("PISPER_MOBILE_AUTOSTART", "1"\)/)
-  assert.match(rustHost, /runtime_profile != "mobile-embedded"/)
+  assert.match(rustHost, /runtime_profile != runtime_profile\(\)/)
+  assert.match(rustHost, /cfg!\(feature = "mobile-store"\)/)
+  assert.match(rustHost, /"mobile-store"[\s\S]*"mobile-embedded"/)
   assert.match(rustHost, /Frameworks\/NodeMobile\.framework\/NodeMobile/)
   assert.match(rustHost, /dlopen/)
   assert.match(rustHost, /dlsym/)
@@ -425,6 +444,27 @@ test('embedded Node 使用后台线程、真实初始化 READY 与 App 生命周
   assert.match(rootHost, /mount --bind \{shared_data\} \{data\}/)
   assert.match(rootHost, /mount --bind \{shared_workspace\} \{workspace\}/)
   assert.match(rootHost, /避免 Runtime 后续日志写入触发 EPIPE/)
+})
+
+test('商店构建在编译期排除 root Runtime 与外部安装更新', async () => {
+  const [cargo, mobile, storeUpdate, workflow] = await Promise.all([
+    readFile('src-tauri/Cargo.toml', 'utf8'),
+    readFile('src-tauri/src/mobile/mod.rs', 'utf8'),
+    readFile('src-tauri/src/mobile/store_update.rs', 'utf8'),
+    readFile('.github/workflows/build-store-app.yml', 'utf8'),
+  ])
+  assert.match(cargo, /mobile-store = \[\]/)
+  assert.match(mobile, /#\[cfg\(not\(feature = "mobile-store"\)\)\]\s*pub mod root_runtime/)
+  assert.match(mobile, /#\[path = "store_update\.rs"\]/)
+  assert.doesNotMatch(storeUpdate, /github\.com|latest-app\.json|open_url/)
+  assert.match(workflow, /android build[\s\S]*--aab[\s\S]*--features mobile-store/)
+  assert.match(workflow, /ios build[\s\S]*--features mobile-store/)
+  assert.match(workflow, /--export-method app-store-connect/)
+  assert.match(workflow, /PrivacyInfo\.xcprivacy/)
+  assert.doesNotMatch(
+    workflow,
+    /name: app-root-runtime|needs: \[[^\]]*root-runtime|cp [^\n]*pisper-root-runtime/,
+  )
 })
 
 test('App 发布必须签名并校验共享 Runtime 与平台产物', async () => {

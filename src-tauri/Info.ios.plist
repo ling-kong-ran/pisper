@@ -8,5 +8,7 @@
   <string>Pisper accesses contacts only for a mobile operation you approve.</string>
   <key>NSLocationWhenInUseUsageDescription</key>
   <string>Pisper reads one foreground location only for a mobile operation you approve.</string>
+  <key>NSLocalNetworkUsageDescription</key>
+  <string>Pisper uses your local network only to connect to a Pisper Desktop Runtime that you choose.</string>
 </dict>
 </plist>

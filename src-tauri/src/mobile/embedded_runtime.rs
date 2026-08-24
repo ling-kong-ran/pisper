@@ -13,7 +13,9 @@ use flate2::read::GzDecoder;
 use rand::{rngs::OsRng, RngCore};
 use serde::Deserialize;
 
-use super::root_runtime::RootRuntimeStatus;
+#[cfg(target_os = "android")]
+use super::android_bridge::{android_asset_exists, android_copy_asset, with_android_env};
+use super::runtime_status::RootRuntimeStatus;
 
 // Android 的 aapt 会自动解压并改名 `.gz` 资产；使用 `.tgz` 才能让 Rust 收到原始 gzip。
 #[cfg(target_os = "android")]
@@ -55,7 +57,8 @@ impl EmbeddedRuntime {
     ) -> Self {
         let supported = platform_supported();
         let packaged = supported && packaged_archive_exists(resource_archive.as_deref());
-        let installed = installed_version(&root).as_deref() == Some(app_version.as_str());
+        let installed = installed_version(&root).as_deref() == Some(app_version.as_str())
+            && installed_profile(&root).as_deref() == Some(runtime_profile());
         let status = RootRuntimeStatus {
             supported,
             packaged,
@@ -126,7 +129,9 @@ impl EmbeddedRuntime {
         }
 
         self.update_status("starting", "正在准备本机 Runtime…");
-        if installed_version(&self.root).as_deref() != Some(self.app_version.as_str()) {
+        if installed_version(&self.root).as_deref() != Some(self.app_version.as_str())
+            || installed_profile(&self.root).as_deref() != Some(runtime_profile())
+        {
             if let Err(error) = self.install() {
                 self.fail(&error);
                 return Err(error);
@@ -231,7 +236,7 @@ impl EmbeddedRuntime {
         set_runtime_env("PISPER_AGENT_DIR", &agent_dir)?;
         set_runtime_env("PISPER_WORKSPACE_DIR", &workspace_dir)?;
         set_runtime_env("PISPER_MOBILE_READY_FILE", &ready_file)?;
-        std::env::set_var("PISPER_RUNTIME_PROFILE", "mobile-embedded");
+        std::env::set_var("PISPER_RUNTIME_PROFILE", runtime_profile());
         // Node Mobile 不保证 argv[1] 保留入口路径，由宿主显式声明启动语义。
         std::env::set_var("PISPER_MOBILE_AUTOSTART", "1");
         std::env::set_var("PISPER_DESKTOP_TOKEN", &token);
@@ -258,7 +263,7 @@ impl EmbeddedRuntime {
                         return Err(format!("嵌入式 Runtime 启动失败：{}", ready.error));
                     }
                     if ready.pid == 0
-                        || ready.runtime_profile != "mobile-embedded"
+                        || ready.runtime_profile != runtime_profile()
                         || !trusted_bootstrap_url(&ready.bootstrap_url, token)
                     {
                         return Err("嵌入式 Runtime 返回了不受信任的启动地址。".into());
@@ -326,14 +331,25 @@ fn validate_installation(root: &Path, app_version: &str) -> Result<(), String> {
     if installed_version(root).as_deref() != Some(app_version) {
         return Err("嵌入式 Runtime 版本与 App 不匹配。".into());
     }
+    if installed_profile(root).as_deref() != Some(runtime_profile()) {
+        return Err("嵌入式 Runtime 档案与 App 构建模式不匹配。".into());
+    }
     Ok(())
 }
 
 fn installed_version(root: &Path) -> Option<String> {
+    installed_manifest_value(root, "appVersion")
+}
+
+fn installed_profile(root: &Path) -> Option<String> {
+    installed_manifest_value(root, "runtimeProfile")
+}
+
+fn installed_manifest_value(root: &Path, key: &str) -> Option<String> {
     let value = std::fs::read(root.join("embedded-runtime.json")).ok()?;
     serde_json::from_slice::<serde_json::Value>(&value)
         .ok()?
-        .get("appVersion")?
+        .get(key)?
         .as_str()
         .map(ToOwned::to_owned)
 }
@@ -349,6 +365,14 @@ fn trusted_bootstrap_url(value: &str, expected_token: &str) -> bool {
         && url
             .query_pairs()
             .any(|(key, value)| key == "token" && value == expected_token)
+}
+
+fn runtime_profile() -> &'static str {
+    if cfg!(feature = "mobile-store") {
+        "mobile-store"
+    } else {
+        "mobile-embedded"
+    }
 }
 
 fn set_runtime_env(name: &str, value: &Path) -> Result<(), String> {
@@ -376,7 +400,7 @@ fn platform_supported() -> bool {
 
 #[cfg(target_os = "android")]
 fn packaged_archive_exists(_resource_archive: Option<&Path>) -> bool {
-    super::root_runtime::android_asset_exists(EMBEDDED_ASSET)
+    android_asset_exists(EMBEDDED_ASSET)
 }
 
 #[cfg(target_os = "ios")]
@@ -391,7 +415,7 @@ fn packaged_archive_exists(_resource_archive: Option<&Path>) -> bool {
 
 #[cfg(target_os = "android")]
 fn copy_packaged_archive(_resource_archive: Option<&Path>, target: &Path) -> Result<(), String> {
-    super::root_runtime::android_copy_asset(EMBEDDED_ASSET, target)
+    android_copy_asset(EMBEDDED_ASSET, target)
 }
 
 #[cfg(target_os = "ios")]
@@ -409,7 +433,7 @@ fn copy_packaged_archive(_resource_archive: Option<&Path>, _target: &Path) -> Re
 
 #[cfg(target_os = "android")]
 fn launch_node(arguments: Vec<String>) -> Result<(), String> {
-    super::root_runtime::with_android_env(|env, context| {
+    with_android_env(|env, context| {
         let string_class = env
             .find_class("java/lang/String")
             .map_err(|error| format!("无法加载 Java String：{error}"))?;
@@ -601,13 +625,25 @@ fn launch_node(_arguments: Vec<String>) -> Result<(), String> {
 mod tests {
     use std::path::Path;
 
-    use super::{ios_node_mobile_binary, trusted_bootstrap_url};
+    use super::{ios_node_mobile_binary, runtime_profile, trusted_bootstrap_url};
 
     #[test]
     fn ios_node_mobile_binary_resolves_inside_the_app_frameworks_directory() {
         assert_eq!(
             ios_node_mobile_binary(Path::new("/tmp/Pisper.app/Pisper")),
             Some(Path::new("/tmp/Pisper.app/Frameworks/NodeMobile.framework/NodeMobile").into()),
+        );
+    }
+
+    #[test]
+    fn runtime_profile_is_bound_to_the_store_feature() {
+        assert_eq!(
+            runtime_profile(),
+            if cfg!(feature = "mobile-store") {
+                "mobile-store"
+            } else {
+                "mobile-embedded"
+            },
         );
     }
 
