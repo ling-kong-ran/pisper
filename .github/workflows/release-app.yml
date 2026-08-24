@@ -152,7 +152,7 @@ jobs:
       - name: Install Android SDK packages and NDK
         run: |
           yes | sdkmanager --licenses > /dev/null
-          sdkmanager "platform-tools" "platforms;android-34" "build-tools;34.0.0" "ndk;27.3.13750724"
+          sdkmanager "platform-tools" "platforms;android-34" "build-tools;35.0.0" "ndk;27.3.13750724"
       - uses: dtolnay/rust-toolchain@stable
         with:
           targets: aarch64-linux-android
@@ -219,15 +219,17 @@ jobs:
           unzip -l "$UNSIGNED" | grep -F 'lib/arm64-v8a/libc++_shared.so'
           unzip -l "$UNSIGNED" | grep -F 'lib/arm64-v8a/libpisper_node_host.so'
           unzip -l "$UNSIGNED" | grep -F 'lib/arm64-v8a/libpisper_webview_lib.so'
-          "$ANDROID_HOME/build-tools/34.0.0/zipalign" -p -f 4 "$UNSIGNED" /tmp/app-aligned.apk
-          "$ANDROID_HOME/build-tools/34.0.0/apksigner" sign \
+          "$ANDROID_HOME/build-tools/35.0.0/zipalign" -P 16 -f 4 "$UNSIGNED" /tmp/app-aligned.apk
+          "$ANDROID_HOME/build-tools/35.0.0/apksigner" sign \
             --ks /tmp/pisper-app.jks \
             --ks-key-alias "$APP_ANDROID_KEY_ALIAS" \
             --ks-pass "pass:$APP_ANDROID_STORE_PASSWORD" \
             --key-pass "pass:$APP_ANDROID_KEY_PASSWORD" \
             --out app-universal-release-signed.apk \
             /tmp/app-aligned.apk
-          "$ANDROID_HOME/build-tools/34.0.0/apksigner" verify --print-certs app-universal-release-signed.apk | head -2
+          "$ANDROID_HOME/build-tools/35.0.0/apksigner" verify --print-certs app-universal-release-signed.apk | head -2
+          ANDROID_ZIPALIGN="$ANDROID_HOME/build-tools/35.0.0/zipalign" \
+            bash scripts/verify-android-page-size.sh app-universal-release-signed.apk
       - name: Minisign APK
         env:
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}

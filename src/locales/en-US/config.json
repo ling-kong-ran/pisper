@@ -212,6 +212,8 @@
   "configPage.providerConnectionCreated": "Provider connection created",
   "configPage.providerConnectionDeleted": "Provider connection deleted",
   "configPage.providerConnections": "Provider connections",
+  "configPage.modelService": "Model service",
+  "configPage.currentModelService": "Current model service",
   "configPage.providerPurpose": "Provider purpose",
   "configPage.providerSettingsSaved": "Provider settings saved",
   "configPage.providerWasNotReadyAfterSaving": "The Provider is still unauthenticated or disabled after saving. Check the settings and try again.",

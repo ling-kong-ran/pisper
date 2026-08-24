@@ -212,6 +212,8 @@
   "configPage.providerConnectionCreated": "Provider 连接已创建",
   "configPage.providerConnectionDeleted": "Provider 连接已删除",
   "configPage.providerConnections": "Provider 连接",
+  "configPage.modelService": "模型服务",
+  "configPage.currentModelService": "当前模型服务",
   "configPage.providerPurpose": "Provider 用途",
   "configPage.providerSettingsSaved": "Provider 配置已保存",
   "configPage.providerWasNotReadyAfterSaving": "Provider 保存后仍未完成认证或启用，请检查配置后重试。",

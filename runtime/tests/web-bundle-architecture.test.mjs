@@ -203,10 +203,12 @@ test('chat resource picker remains visible above dock splits with a readable pri
   )
 })
 
-test('mobile chat hides unavailable dock splits and keeps Enter for new lines', async () => {
-  const [dock, focusSession, zhChat, enChat] = await Promise.all([
+test('mobile chat keeps Enter for new lines and uses one collapsible Composer tool tray', async () => {
+  const [dock, focusSession, toolTray, pageHeader, zhChat, enChat] = await Promise.all([
     readFile('src/features/chat/use-chat-dock.ts', 'utf8'),
     readFile('src/features/chat/FocusSession.tsx', 'utf8'),
+    readFile('src/features/chat/ComposerToolTray.tsx', 'utf8'),
+    readFile('src/components/layout/PageHeader.tsx', 'utf8'),
     readFile('src/locales/zh-CN/chat.json', 'utf8'),
     readFile('src/locales/en-US/chat.json', 'utf8'),
   ])
@@ -219,6 +221,18 @@ test('mobile chat hides unavailable dock splits and keeps Enter for new lines', 
   assert.match(focusSession, /if \(!mobileApp && event\.key === 'Enter' && !event\.shiftKey\)/)
   assert.match(focusSession, /enterKeyHint=\{mobileApp \? 'enter' : 'send'\}/)
   assert.match(focusSession, /const composerPlaceholder = mobileApp/)
+  assert.match(focusSession, /\{!mobileApp && \([\s\S]*?\{composerLeadingTools\}/)
+  assert.match(focusSession, /\{mobileApp && composerLeadingTools\}/)
+  assert.match(focusSession, /data-mobile-app=\{mobileApp \|\| undefined\}/)
+  assert.match(
+    focusSession,
+    /focus-composer-footer\[data-mobile-app\]\.tools-open[^"\n]*basis-full/,
+  )
+  assert.match(toolTray, /if \(mobile\) return tray/)
+  assert.match(toolTray, /\[&>\*\]:!size-9/)
+  assert.match(toolTray, /overflow-x-auto/)
+  assert.match(pageHeader, /page === 'chat'[\s\S]*?max-\[650px\]:!min-h-0/)
+  assert.match(pageHeader, /page === 'chat' && 'max-\[650px\]:hidden'/)
   assert.doesNotMatch(zh['focusSession.writeWhatYouWantToAccomplish'], /Shift|Enter/)
   assert.doesNotMatch(en['focusSession.writeWhatYouWantToAccomplish'], /Shift|Enter/)
 })
@@ -391,6 +405,39 @@ test('settings navigation replaces the main sidebar and stays reachable in the m
     /config:mobile-server[\s\S]*config:mobile-device[\s\S]*config:notifications/,
   )
   assert.doesNotMatch(styles, /\.settings-shell|\.settings-nav|\.settings-content/)
+})
+
+test('mobile shell keeps navigation in the viewport and model settings use one narrow column', async () => {
+  const [app, models, providerCatalog, credentials] = await Promise.all([
+    readFile('src/App.tsx', 'utf8'),
+    readFile('src/features/config/ModelsSettings.tsx', 'utf8'),
+    readFile('src/features/config/ProviderCatalog.tsx', 'utf8'),
+    readFile('src/features/config/CredentialSettings.tsx', 'utf8'),
+  ])
+
+  assert.match(
+    app,
+    /app-shell[^"\n]*\[&\[data-mobile-app\]\]:h-\[100dvh\][^"\n]*\[&\[data-mobile-app\]\]:overflow-hidden/,
+  )
+  assert.match(
+    app,
+    /app-body[^"\n]*\[&\[data-mobile-app\]\]:h-auto[^"\n]*\[&\[data-mobile-app\]\]:flex-1[^"\n]*\[&\[data-mobile-app\]\]:overflow-hidden/,
+  )
+  assert.equal(app.match(/data-mobile-app=\{mobileApp \|\| undefined\}/g)?.length, 2)
+  assert.match(
+    models,
+    /config-layout[^"\n]*grid-cols-\[300px_minmax\(0,1fr\)\][^"\n]*max-\[900px\]:grid-cols-1/,
+  )
+  assert.doesNotMatch(models, /!grid-cols-/)
+  assert.match(models, /scrollIntoView\(\{ behavior: 'smooth', block: 'start' \}\)/)
+  assert.match(models, /ProviderConnections[\s\S]*?className="max-\[900px\]:hidden"/)
+  assert.match(models, /order-1 min-\[901px\]:order-2[\s\S]*?<CredentialSettings/)
+  assert.match(providerCatalog, /ProviderMobilePicker/)
+  assert.match(providerCatalog, /hidden max-\[900px\]:block/)
+  assert.match(providerCatalog, /value=\{provider\.configured && provider\.enabled\}/)
+  assert.match(credentials, /value=\{provider\.configured && provider\.enabled\}/)
+  assert.match(credentials, /tone=\{!provider\.configured/)
+  assert.ok(credentials.indexOf('API Key') < credentials.indexOf('config:configPage.apiProtocol'))
 })
 
 test('mobile device capabilities have their own settings section', async () => {

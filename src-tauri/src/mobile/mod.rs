@@ -14,7 +14,10 @@ pub mod root_runtime;
 pub mod store;
 pub mod update;
 
+#[cfg(target_os = "android")]
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
+use std::time::Duration;
 
 use serde::{Deserialize, Serialize};
 use store::{ProfileStore, ServerProfile, SharedStore};
@@ -30,6 +33,7 @@ pub struct MobileShared {
     proxy: Arc<proxy::ProxyHandle>,
     tunnels: Arc<crate::iroh_tunnel::TunnelBridgePool>,
     on_device: Arc<on_device_runtime::OnDeviceRuntime>,
+    startup_error: Arc<Mutex<Option<String>>>,
 }
 
 #[derive(Serialize)]
@@ -46,6 +50,7 @@ struct ServerDto {
 struct MobileStateDto {
     paired: bool,
     proxy_url: String,
+    startup_error: Option<String>,
     /// 当前产品路由；active_id 仅表示远程模式要使用的服务器档案。
     mode: Option<String>,
     /// 壳根据设备环境选择同源 Node Runtime 的可用承载方式。
@@ -81,9 +86,15 @@ fn state_dto(shared: &MobileShared) -> MobileStateDto {
     } else {
         None
     };
+    let startup_error = shared
+        .startup_error
+        .lock()
+        .ok()
+        .and_then(|error| error.clone());
     MobileStateDto {
         paired: active_id.is_some(),
         proxy_url: format!("http://127.0.0.1:{}", shared.proxy.port),
+        startup_error,
         mode,
         on_device: shared.on_device.status(),
         active_id,
@@ -92,9 +103,311 @@ fn state_dto(shared: &MobileShared) -> MobileStateDto {
     }
 }
 
+const STARTUP_PROBE_TIMEOUT: Duration = Duration::from_secs(5);
+const MAX_STARTUP_RESPONSE_BYTES: u64 = 256 * 1024;
+
+fn startup_api_context(bootstrap_url: &str) -> Result<(tauri::Url, tauri::Url, String), String> {
+    let bootstrap = tauri::Url::parse(bootstrap_url)
+        .map_err(|error| format!("本机 Runtime 启动地址无效：{error}"))?;
+    if bootstrap.scheme() != "http"
+        || bootstrap.host_str() != Some("127.0.0.1")
+        || bootstrap.port().is_none()
+        || bootstrap.path() != "/_pisper/desktop/bootstrap"
+    {
+        return Err("本机 Runtime 启动地址不是受信任的回环地址。".into());
+    }
+    let token = bootstrap
+        .query_pairs()
+        .find_map(|(key, value)| (key == "token").then(|| value.into_owned()))
+        .filter(|value| !value.is_empty())
+        .ok_or_else(|| "本机 Runtime 启动地址缺少认证令牌。".to_string())?;
+    let mut origin = bootstrap.clone();
+    origin.set_path("/");
+    origin.set_query(None);
+    origin.set_fragment(None);
+    Ok((origin, bootstrap, token))
+}
+
+fn startup_cookie(set_cookie: &str, expected_token: &str) -> Result<String, String> {
+    let mut parts = set_cookie.split(';').map(str::trim);
+    let pair = parts
+        .next()
+        .filter(|value| !value.is_empty())
+        .ok_or_else(|| "本机 Runtime bootstrap 未返回认证 Cookie。".to_string())?;
+    let (name, encoded_value) = pair
+        .split_once('=')
+        .ok_or_else(|| "本机 Runtime bootstrap 返回了无效 Cookie。".to_string())?;
+    let value_url = tauri::Url::parse(&format!("http://127.0.0.1/?value={encoded_value}"))
+        .map_err(|_| "本机 Runtime bootstrap 返回了无效 Cookie。".to_string())?;
+    let supplied_token = value_url
+        .query_pairs()
+        .find_map(|(key, value)| (key == "value").then(|| value.into_owned()))
+        .unwrap_or_default();
+    let attributes = parts
+        .map(|value| value.to_ascii_lowercase())
+        .collect::<Vec<_>>();
+    if name != "__pisper_desktop"
+        || supplied_token != expected_token
+        || !attributes.iter().any(|value| value == "httponly")
+        || !attributes.iter().any(|value| value == "samesite=strict")
+        || !attributes.iter().any(|value| value == "path=/")
+    {
+        return Err("本机 Runtime bootstrap 认证 Cookie 不受信任。".into());
+    }
+    Ok(pair.to_string())
+}
+
+async fn fetch_startup_cookie(
+    client: &reqwest::Client,
+    bootstrap: &tauri::Url,
+    token: &str,
+) -> Result<String, String> {
+    let response = client
+        .get(bootstrap.clone())
+        .send()
+        .await
+        .map_err(|error| format!("本机 Runtime bootstrap 请求失败：{error}"))?;
+    if response.status() != reqwest::StatusCode::FOUND {
+        return Err(format!(
+            "本机 Runtime bootstrap 返回 HTTP {}。",
+            response.status().as_u16()
+        ));
+    }
+    let set_cookie = response
+        .headers()
+        .get(reqwest::header::SET_COOKIE)
+        .and_then(|value| value.to_str().ok())
+        .ok_or_else(|| "本机 Runtime bootstrap 未返回认证 Cookie。".to_string())?;
+    startup_cookie(set_cookie, token)
+}
+
+async fn fetch_startup_json(
+    client: &reqwest::Client,
+    origin: &tauri::Url,
+    cookie: &str,
+    path: &str,
+) -> Result<serde_json::Value, String> {
+    let mut url = origin.clone();
+    url.set_path(path);
+    let response = client
+        .get(url)
+        .header(reqwest::header::COOKIE, cookie)
+        .header("x-pisper-client", "mobile-app")
+        .send()
+        .await
+        .map_err(|error| format!("本机 Runtime {path} 请求失败：{error}"))?;
+    if !response.status().is_success() {
+        return Err(format!(
+            "本机 Runtime {path} 返回 HTTP {}。",
+            response.status().as_u16()
+        ));
+    }
+    if response
+        .content_length()
+        .is_some_and(|length| length > MAX_STARTUP_RESPONSE_BYTES)
+    {
+        return Err(format!("本机 Runtime {path} 响应过大。"));
+    }
+    let body = response
+        .bytes()
+        .await
+        .map_err(|error| format!("无法读取本机 Runtime {path} 响应：{error}"))?;
+    if body.len() as u64 > MAX_STARTUP_RESPONSE_BYTES {
+        return Err(format!("本机 Runtime {path} 响应过大。"));
+    }
+    serde_json::from_slice(&body)
+        .map_err(|error| format!("本机 Runtime {path} 未返回有效 JSON：{error}"))
+}
+
+fn validate_startup_contract_values(
+    client_info: &serde_json::Value,
+    capabilities: &serde_json::Value,
+    config: &serde_json::Value,
+    sessions: &serde_json::Value,
+) -> Result<(), String> {
+    if client_info.get("client").and_then(|value| value.as_str()) != Some("mobile-app") {
+        return Err("本机 Runtime 未识别移动 App 客户端。".into());
+    }
+    let profile = capabilities
+        .get("profile")
+        .and_then(|value| value.as_str())
+        .unwrap_or_default();
+    if !matches!(profile, "mobile-root" | "mobile-embedded")
+        || !capabilities
+            .get("features")
+            .is_some_and(serde_json::Value::is_object)
+    {
+        return Err("本机 Runtime 能力合同无效。".into());
+    }
+    if !config
+        .get("providers")
+        .is_some_and(serde_json::Value::is_array)
+    {
+        return Err("本机 Runtime Provider 配置合同无效。".into());
+    }
+    if !sessions
+        .get("sessions")
+        .is_some_and(serde_json::Value::is_array)
+    {
+        return Err("本机 Runtime 会话合同无效。".into());
+    }
+    Ok(())
+}
+
+async fn validate_local_runtime_startup(bootstrap_url: &str) -> Result<String, String> {
+    let (origin, bootstrap, token) = startup_api_context(bootstrap_url)?;
+    let client = reqwest::Client::builder()
+        .timeout(STARTUP_PROBE_TIMEOUT)
+        // bootstrap 的 302 由 WebView 最终消费；探针只提取并校验认证 Cookie。
+        .redirect(reqwest::redirect::Policy::none())
+        .build()
+        .map_err(|error| format!("无法创建本机 Runtime 启动探针：{error}"))?;
+    let cookie = fetch_startup_cookie(&client, &bootstrap, &token).await?;
+    let (client_info, capabilities, config, sessions) = tokio::try_join!(
+        fetch_startup_json(&client, &origin, &cookie, "/api/client-info"),
+        fetch_startup_json(&client, &origin, &cookie, "/api/runtime/capabilities"),
+        fetch_startup_json(&client, &origin, &cookie, "/api/config"),
+        fetch_startup_json(&client, &origin, &cookie, "/api/sessions"),
+    )?;
+    validate_startup_contract_values(&client_info, &capabilities, &config, &sessions)?;
+    Ok(cookie)
+}
+
+fn record_startup_error(target: &Mutex<Option<String>>, error: Option<String>) {
+    if let Ok(mut current) = target.lock() {
+        *current = error;
+    }
+}
+
+async fn ensure_local_runtime_ready(
+    on_device: Arc<on_device_runtime::OnDeviceRuntime>,
+    startup_error: Arc<Mutex<Option<String>>>,
+) -> Result<(root_runtime::RootRuntimeStatus, String), String> {
+    let runtime = on_device.clone();
+    let status = match tauri::async_runtime::spawn_blocking(move || runtime.ensure_started()).await
+    {
+        Ok(Ok(status)) => status,
+        Ok(Err(error)) => {
+            record_startup_error(&startup_error, Some(error.clone()));
+            return Err(error);
+        }
+        Err(error) => {
+            let error = format!("本机 Runtime 任务失败：{error}");
+            record_startup_error(&startup_error, Some(error.clone()));
+            return Err(error);
+        }
+    };
+    let cookie = match validate_local_runtime_startup(&status.url).await {
+        Ok(cookie) => cookie,
+        Err(error) => {
+            record_startup_error(&startup_error, Some(error.clone()));
+            return Err(error);
+        }
+    };
+    record_startup_error(&startup_error, None);
+    Ok((status, cookie))
+}
+
+fn startup_location_replace_script(url: &tauri::Url) -> String {
+    let encoded_url = serde_json::Value::String(url.as_str().to_string()).to_string();
+    format!("window.location.replace({encoded_url});")
+}
+
+#[cfg(target_os = "android")]
+fn replace_with_authenticated_runtime(
+    window: &tauri::WebviewWindow,
+    bootstrap: &tauri::Url,
+    _origin: &tauri::Url,
+    _cookie: &str,
+) -> Result<(), String> {
+    // Android 必须由原生导航消费 Strict bootstrap Cookie；加载完成后再清除启动页历史。
+    window
+        .navigate(bootstrap.clone())
+        .map_err(|error| format!("无法打开本机 Runtime：{error}"))
+}
+
+#[cfg(target_os = "android")]
+fn clear_android_startup_history(window: tauri::WebviewWindow) {
+    if let Err(error) = window.with_webview(|webview| {
+        webview.jni_handle().exec(|env, _, webview| {
+            if let Err(error) = env.call_method(webview, "clearHistory", "()V", &[]) {
+                eprintln!("无法清除 Android WebView 启动历史：{error}");
+            }
+        });
+    }) {
+        eprintln!("无法访问 Android WebView：{error}");
+    }
+}
+
+#[cfg(not(target_os = "android"))]
+fn replace_with_authenticated_runtime(
+    window: &tauri::WebviewWindow,
+    _bootstrap: &tauri::Url,
+    origin: &tauri::Url,
+    cookie: &str,
+) -> Result<(), String> {
+    let (name, value) = cookie
+        .split_once('=')
+        .ok_or_else(|| "本机 Runtime 认证 Cookie 无效。".to_string())?;
+    let cookie = tauri::webview::Cookie::build((name.to_string(), value.to_string()))
+        .domain("127.0.0.1")
+        .path("/")
+        .http_only(true)
+        .same_site(tauri::webview::cookie::SameSite::Strict)
+        .build();
+    window
+        .set_cookie(cookie)
+        .map_err(|error| format!("无法写入本机 Runtime 认证：{error}"))?;
+    window
+        .eval(startup_location_replace_script(origin))
+        .map_err(|error| format!("无法打开本机 Runtime：{error}"))
+}
+
+fn start_initial_local_runtime(
+    app: tauri::AppHandle,
+    on_device: Arc<on_device_runtime::OnDeviceRuntime>,
+    startup_error: Arc<Mutex<Option<String>>>,
+) {
+    tauri::async_runtime::spawn(async move {
+        let (status, cookie) =
+            match ensure_local_runtime_ready(on_device, startup_error.clone()).await {
+                Ok(result) => result,
+                Err(_) => return,
+            };
+        let (origin, bootstrap, _) = match startup_api_context(&status.url) {
+            Ok(context) => context,
+            Err(error) => {
+                record_startup_error(&startup_error, Some(error));
+                return;
+            }
+        };
+        let Some(window) = app.get_webview_window("main") else {
+            record_startup_error(&startup_error, Some("移动端主窗口不可用。".into()));
+            return;
+        };
+        // 启动页只是过渡界面；各平台在保持 Strict Cookie 合同的前提下移除该历史项。
+        if let Err(error) =
+            replace_with_authenticated_runtime(&window, &bootstrap, &origin, &cookie)
+        {
+            record_startup_error(&startup_error, Some(error));
+        }
+    });
+}
+
 #[tauri::command]
 fn mobile_state(state: State<'_, MobileShared>) -> MobileStateDto {
     state_dto(&state)
+}
+
+#[tauri::command]
+async fn mobile_retry_local_startup(
+    window: tauri::WebviewWindow,
+    state: State<'_, MobileShared>,
+) -> Result<(), String> {
+    let (status, cookie) =
+        ensure_local_runtime_ready(state.on_device.clone(), state.startup_error.clone()).await?;
+    let (origin, bootstrap, _) = startup_api_context(&status.url)?;
+    replace_with_authenticated_runtime(&window, &bootstrap, &origin, &cookie)
 }
 
 #[tauri::command]
@@ -180,10 +493,8 @@ fn mobile_select_server(
 /// 进入同源本机 Node Runtime；承载准备与启动放到阻塞线程。
 #[tauri::command]
 async fn mobile_enter_local(state: State<'_, MobileShared>) -> Result<MobileStateDto, String> {
-    let on_device = state.on_device.clone();
-    tauri::async_runtime::spawn_blocking(move || on_device.ensure_started())
-        .await
-        .map_err(|error| format!("本机 Runtime 任务失败：{error}"))??;
+    let _ =
+        ensure_local_runtime_ready(state.on_device.clone(), state.startup_error.clone()).await?;
     state
         .store
         .lock()
@@ -462,21 +773,20 @@ pub fn run_mobile() {
                 .map(|store| store.active().is_some())
                 .unwrap_or(false);
             let use_remote = last_mode.as_deref() == Some("remote") && paired;
-            let on_device_url = if use_remote {
-                None
-            } else {
+            let startup_error = Arc::new(Mutex::new(None));
+            if !use_remote {
                 // 首次启动与失效的远程档案都回到本机模式，避免再引入独立连接页。
                 store
                     .lock()
                     .map_err(|_| "移动端档案锁已损坏。".to_string())?
                     .set_last_mode("local")?;
-                on_device.ensure_started().ok().map(|status| status.url)
-            };
+            }
             app.manage(MobileShared {
                 store,
                 proxy: proxy.clone(),
                 tunnels,
-                on_device,
+                on_device: on_device.clone(),
+                startup_error: startup_error.clone(),
             });
             app.manage(update::MobileUpdateState::default());
             update::start_automatic_checks(app.handle().clone());
@@ -486,19 +796,37 @@ pub fn run_mobile() {
                     tauri::Url::parse(&format!("http://127.0.0.1:{}", proxy.port))
                         .map_err(|error| error.to_string())?,
                 )
-            } else if let Some(url) = on_device_url {
-                WebviewUrl::External(tauri::Url::parse(&url).map_err(|error| error.to_string())?)
             } else {
-                // Runtime 故障仍保留完整 App 壳，用户可在设置中修复或配对桌面端。
-                WebviewUrl::App("index.html".into())
+                // Runtime 未通过启动合同前不能挂载任何依赖 /api 的业务页面。
+                WebviewUrl::App("mobile-startup.html".into())
             };
-            WebviewWindowBuilder::new(app, "main", initial)
-                .title("Pisper")
-                .build()?;
+            let window_builder = WebviewWindowBuilder::new(app, "main", initial).title("Pisper");
+            #[cfg(target_os = "android")]
+            let window_builder = {
+                let startup_history_pending = Arc::new(AtomicBool::new(!use_remote));
+                window_builder.on_page_load(move |window, payload| {
+                    let url = payload.url();
+                    if payload.event() == tauri::webview::PageLoadEvent::Finished
+                        && url.scheme() == "http"
+                        && url.host_str() == Some("127.0.0.1")
+                        && startup_history_pending
+                            .compare_exchange(true, false, Ordering::AcqRel, Ordering::Acquire)
+                            .is_ok()
+                    {
+                        clear_android_startup_history(window);
+                    }
+                })
+            };
+            window_builder.build()?;
+            if !use_remote {
+                // 窗口先显示本地启动页，Runtime 的解压、启动和 API 合同探针在后台完成。
+                start_initial_local_runtime(app.handle().clone(), on_device, startup_error);
+            }
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
             mobile_state,
+            mobile_retry_local_startup,
             mobile_pair,
             mobile_pair_manual,
             mobile_select_server,
@@ -535,4 +863,96 @@ pub fn run_mobile() {
 
     #[cfg(not(any(target_os = "android", target_os = "ios")))]
     let _ = builder;
+}
+
+#[cfg(test)]
+mod tests {
+    use serde_json::json;
+
+    use super::{
+        startup_api_context, startup_cookie, startup_location_replace_script,
+        validate_startup_contract_values,
+    };
+
+    #[test]
+    fn startup_context_accepts_only_authenticated_loopback_bootstrap_urls() {
+        let (origin, bootstrap, token) = startup_api_context(
+            "http://127.0.0.1:41873/_pisper/desktop/bootstrap?token=runtime-token",
+        )
+        .expect("trusted bootstrap URL");
+        assert_eq!(origin.as_str(), "http://127.0.0.1:41873/");
+        assert_eq!(
+            bootstrap.as_str(),
+            "http://127.0.0.1:41873/_pisper/desktop/bootstrap?token=runtime-token"
+        );
+        assert_eq!(token, "runtime-token");
+        assert!(startup_api_context("http://localhost:41873/?token=runtime-token").is_err());
+        assert!(startup_api_context("https://example.com/?token=runtime-token").is_err());
+        assert!(startup_api_context("http://127.0.0.1:41873/_pisper/desktop/bootstrap").is_err());
+    }
+
+    #[test]
+    fn startup_navigation_replaces_the_transient_history_entry() {
+        let url = tauri::Url::parse(
+            "http://127.0.0.1:41873/_pisper/desktop/bootstrap?token=runtime-token",
+        )
+        .expect("startup URL");
+        assert_eq!(
+            startup_location_replace_script(&url),
+            "window.location.replace(\"http://127.0.0.1:41873/_pisper/desktop/bootstrap?token=runtime-token\");"
+        );
+    }
+
+    #[test]
+    fn startup_cookie_requires_the_bootstrap_security_contract() {
+        let cookie = startup_cookie(
+            "__pisper_desktop=runtime-token; HttpOnly; SameSite=Strict; Path=/",
+            "runtime-token",
+        )
+        .expect("trusted bootstrap cookie");
+        assert_eq!(cookie, "__pisper_desktop=runtime-token");
+        assert!(startup_cookie(
+            "__pisper_desktop=wrong-token; HttpOnly; SameSite=Strict; Path=/",
+            "runtime-token"
+        )
+        .is_err());
+        assert!(startup_cookie(
+            "other=runtime-token; HttpOnly; SameSite=Strict; Path=/",
+            "runtime-token"
+        )
+        .is_err());
+        assert!(startup_cookie(
+            "__pisper_desktop=runtime-token; SameSite=Strict; Path=/",
+            "runtime-token"
+        )
+        .is_err());
+    }
+
+    #[test]
+    fn startup_contract_rejects_incomplete_business_api_shapes() {
+        let client = json!({ "client": "mobile-app" });
+        let capabilities = json!({
+            "profile": "mobile-embedded",
+            "features": { "sessions": true }
+        });
+        let config = json!({ "providers": [] });
+        let sessions = json!({ "sessions": [] });
+        validate_startup_contract_values(&client, &capabilities, &config, &sessions)
+            .expect("complete startup contract");
+
+        assert!(
+            validate_startup_contract_values(&client, &capabilities, &json!({}), &sessions)
+                .is_err()
+        );
+        assert!(validate_startup_contract_values(
+            &client,
+            &json!({ "profile": "desktop", "features": {} }),
+            &config,
+            &sessions
+        )
+        .is_err());
+        assert!(
+            validate_startup_contract_values(&client, &capabilities, &config, &json!({})).is_err()
+        );
+    }
 }

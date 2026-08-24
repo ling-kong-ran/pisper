@@ -43,6 +43,7 @@ pub struct EmbeddedRuntime {
     resource_archive: Option<PathBuf>,
     status: Mutex<RootRuntimeStatus>,
     started: AtomicBool,
+    token: Mutex<Option<String>>,
 }
 
 impl EmbeddedRuntime {
@@ -86,6 +87,7 @@ impl EmbeddedRuntime {
             resource_archive,
             status: Mutex::new(status),
             started: AtomicBool::new(false),
+            token: Mutex::new(None),
         }
     }
 
@@ -102,11 +104,19 @@ impl EmbeddedRuntime {
             return Ok(current);
         }
         if self.started.load(Ordering::Acquire) {
-            return Err(if current.message.is_empty() {
-                "嵌入式 Node 已启动，但本机 Runtime 尚未就绪。".into()
-            } else {
-                current.message
-            });
+            let token = self
+                .token
+                .lock()
+                .expect("embedded Runtime token mutex poisoned")
+                .clone()
+                .ok_or_else(|| "嵌入式 Node 已启动，但缺少 READY 认证上下文。".to_string())?;
+            return match self.wait_until_ready(&token) {
+                Ok(ready) => Ok(self.mark_ready(ready)),
+                Err(error) => {
+                    self.fail(&error);
+                    Err(error)
+                }
+            };
         }
         if !current.supported {
             return Err(current.message);
@@ -127,6 +137,10 @@ impl EmbeddedRuntime {
                 Ok(token) => token,
                 Err(error) => {
                     self.started.store(false, Ordering::Release);
+                    self.token
+                        .lock()
+                        .expect("embedded Runtime token mutex poisoned")
+                        .take();
                     self.fail(&error);
                     return Err(error);
                 }
@@ -135,19 +149,12 @@ impl EmbeddedRuntime {
             return Err("嵌入式 Node 已启动，但本机 Runtime 尚未就绪。".into());
         };
 
+        *self
+            .token
+            .lock()
+            .expect("embedded Runtime token mutex poisoned") = Some(token.clone());
         match self.wait_until_ready(&token) {
-            Ok(ready) => {
-                let mut status = self
-                    .status
-                    .lock()
-                    .expect("embedded Runtime status mutex poisoned");
-                status.installed = true;
-                status.running = true;
-                status.state = "running".into();
-                status.message.clear();
-                status.url = ready.bootstrap_url;
-                Ok(status.clone())
-            }
+            Ok(ready) => Ok(self.mark_ready(ready)),
             Err(error) => {
                 self.fail(&error);
                 Err(error)
@@ -265,6 +272,19 @@ impl EmbeddedRuntime {
             }
         }
         Err("嵌入式 Runtime 启动超时。".into())
+    }
+
+    fn mark_ready(&self, ready: EmbeddedReady) -> RootRuntimeStatus {
+        let mut status = self
+            .status
+            .lock()
+            .expect("embedded Runtime status mutex poisoned");
+        status.installed = true;
+        status.running = true;
+        status.state = "running".into();
+        status.message.clear();
+        status.url = ready.bootstrap_url;
+        status.clone()
     }
 
     fn update_status(&self, state: &str, message: &str) {

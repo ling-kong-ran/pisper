@@ -157,6 +157,26 @@ const webViewClientExtension = `override fun onRenderProcessGone(
 }`
 const rustBuildTask = readFileSync(rustBuildTaskPath, 'utf8')
 const rustBuildTaskEol = rustBuildTask.includes('\r\n') ? '\r\n' : '\n'
+const rustPageSizeBlock = [
+  '            // Pisper：确保 Rust 宿主兼容 Android 16 KB 内存页。',
+  '            environment(',
+  '                "CARGO_TARGET_AARCH64_LINUX_ANDROID_RUSTFLAGS",',
+  '                (System.getenv("CARGO_TARGET_AARCH64_LINUX_ANDROID_RUSTFLAGS").orEmpty() +',
+  '                    " -C link-arg=-Wl,-z,max-page-size=16384").trim(),',
+  '            )',
+].join(rustBuildTaskEol)
+const existingRustPageSizeBlock =
+  /            \/\/ Pisper：确保 Rust 宿主兼容 Android 16 KB 内存页。\r?\n            environment\([\s\S]*?\r?\n            \)/
+let updatedRustBuildTask
+if (existingRustPageSizeBlock.test(rustBuildTask)) {
+  updatedRustBuildTask = rustBuildTask.replace(existingRustPageSizeBlock, rustPageSizeBlock)
+} else {
+  updatedRustBuildTask = rustBuildTask.replace(
+    /(            workingDir\(File\(project\.projectDir, rootDirRel\)\)\r?\n)/,
+    `$1${rustPageSizeBlock}${rustBuildTaskEol}`,
+  )
+}
+
 const rendererRecoveryBlock = [
   '            // Pisper：注入 renderer 崩溃恢复回调。',
   '            environment(',
@@ -168,14 +188,16 @@ const rendererRecoveryBlock = [
 ].join(rustBuildTaskEol)
 const existingRecoveryBlock =
   /            \/\/ Pisper：注入 renderer 崩溃恢复回调。\r?\n            environment\([\s\S]*?\r?\n            \)/
-let updatedRustBuildTask
-if (existingRecoveryBlock.test(rustBuildTask)) {
-  updatedRustBuildTask = rustBuildTask.replace(existingRecoveryBlock, rendererRecoveryBlock)
+if (existingRecoveryBlock.test(updatedRustBuildTask)) {
+  updatedRustBuildTask = updatedRustBuildTask.replace(existingRecoveryBlock, rendererRecoveryBlock)
 } else {
-  updatedRustBuildTask = rustBuildTask.replace(
+  updatedRustBuildTask = updatedRustBuildTask.replace(
     /(            workingDir\(File\(project\.projectDir, rootDirRel\)\)\r?\n)/,
     `$1${rendererRecoveryBlock}${rustBuildTaskEol}`,
   )
+}
+if (!updatedRustBuildTask.includes('CARGO_TARGET_AARCH64_LINUX_ANDROID_RUSTFLAGS')) {
+  throw new Error('无法把 16 KB 页 linker 参数接入 Android Rust 构建。')
 }
 if (!updatedRustBuildTask.includes('WRY_RUSTWEBVIEWCLIENT_CLASS_EXTENSION')) {
   throw new Error('无法把 WebView renderer 恢复回调接入 Android Rust 构建。')

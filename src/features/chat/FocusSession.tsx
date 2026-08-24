@@ -310,6 +310,27 @@ export function FocusSession({
     if (promptRef.current) promptRef.current.style.height = 'auto'
   }
 
+  const composerLeadingTools = (
+    <>
+      <ComposerCommandMenu
+        sessionId={session.id}
+        value={value}
+        onChange={updateValue}
+        inputRef={promptRef}
+      />
+      <button
+        type="button"
+        className="resource-picker-trigger [.focus-composer_&]:h-[38px] [.focus-composer_&]:border-0 [.focus-composer_&]:rounded-[var(--r-sm)] [.focus-composer_&]:bg-[var(--surface-subtle)] [.focus-composer_&]:text-[12px] [.focus-composer_&]:w-[38px] [.focus-composer_&]:min-w-[38px] [.focus-session.has-conversation_.focus-composer_&]:w-[36px] [.focus-session.has-conversation_.focus-composer_&]:min-w-[36px] [.focus-session.has-conversation_.focus-composer_&]:h-[36px] relative grid place-items-center border-0 rounded-[var(--r-xs)] bg-transparent text-[var(--text-muted)] cursor-pointer hover:bg-[var(--surface-hover)] hover:text-[var(--star-strong)]"
+        title={t('chat:resourcePicker.open')}
+        aria-label={t('chat:resourcePicker.open')}
+        onClick={() => setResourcePickerOpen(true)}
+      >
+        <Braces size={16} />
+      </button>
+      <AttachmentPicker cwd={cwd} selection={selection} />
+    </>
+  )
+
   return (
     <Panel
       className={`focus-session [.session-dock-panel_&]:overflow-hidden [.session-dock-panel_&]:min-h-0 [.session-dock-panel_&]:border-0 [.session-dock-panel_&]:rounded-[0] [.session-dock-panel_&]:bg-[var(--panel)] [.session-dock-panel_&]:p-0 [.session-dock-panel_&]:shadow-[none] [[data-theme='dark']_.session-dock-panel_&]:bg-[var(--main-surface-bg)] min-[651px]:[[data-density='compact']_.app-card:not(&)]:p-[10px] max-[650px]:min-h-[460px] max-[650px]:[.session-dock-panel_&]:min-h-0 relative flex h-full min-h-[500px] flex-col ${hasConversation ? 'has-conversation' : 'is-empty'}`}
@@ -468,26 +489,14 @@ export function FocusSession({
             placeholder={composerPlaceholder}
           />
           <div
-            className={`focus-composer-footer @max-[470px]:[.focus-session.has-conversation_&]:flex-nowrap flex min-w-0 items-center gap-[4px] ${toolsOpen ? 'tools-open' : ''}`}
+            className={`focus-composer-footer @max-[470px]:[.focus-session.has-conversation_&]:flex-nowrap flex min-w-0 items-center gap-[4px] [&[data-mobile-app].tools-open]:flex-wrap ${toolsOpen ? 'tools-open' : ''}`}
+            data-mobile-app={mobileApp || undefined}
           >
-            <div className="focus-composer-leading flex min-w-0 items-center gap-[4px] @max-[700px]:[.focus-composer-footer.tools-open_&]:hidden">
-              <ComposerCommandMenu
-                sessionId={session.id}
-                value={value}
-                onChange={updateValue}
-                inputRef={promptRef}
-              />
-              <button
-                type="button"
-                className="resource-picker-trigger [.focus-composer_&]:h-[38px] [.focus-composer_&]:border-0 [.focus-composer_&]:rounded-[var(--r-sm)] [.focus-composer_&]:bg-[var(--surface-subtle)] [.focus-composer_&]:text-[12px] [.focus-composer_&]:w-[38px] [.focus-composer_&]:min-w-[38px] [.focus-session.has-conversation_.focus-composer_&]:w-[36px] [.focus-session.has-conversation_.focus-composer_&]:min-w-[36px] [.focus-session.has-conversation_.focus-composer_&]:h-[36px] relative grid place-items-center border-0 rounded-[var(--r-xs)] bg-transparent text-[var(--text-muted)] cursor-pointer hover:bg-[var(--surface-hover)] hover:text-[var(--star-strong)]"
-                title={t('chat:resourcePicker.open')}
-                aria-label={t('chat:resourcePicker.open')}
-                onClick={() => setResourcePickerOpen(true)}
-              >
-                <Braces size={16} />
-              </button>
-              <AttachmentPicker cwd={cwd} selection={selection} />
-            </div>
+            {!mobileApp && (
+              <div className="focus-composer-leading flex min-w-0 items-center gap-[4px] @max-[700px]:[.focus-composer-footer.tools-open_&]:hidden">
+                {composerLeadingTools}
+              </div>
+            )}
             <div className="focus-composer-runtime flex min-w-0 items-center gap-[4px]">
               <SessionModelSelect
                 value={model}
@@ -501,7 +510,7 @@ export function FocusSession({
                 disabled={switchingPermission}
               />
             </div>
-            <div className="focus-composer-quick-actions [.focus-composer-footer.tools-open_&]:flex-1 flex min-w-0 items-center gap-[4px]">
+            <div className="focus-composer-quick-actions [.focus-composer-footer.tools-open_&]:flex-1 [.focus-composer-footer[data-mobile-app].tools-open_&]:order-2 [.focus-composer-footer[data-mobile-app].tools-open_&]:basis-full flex min-w-0 items-center gap-[4px]">
               <button
                 type="button"
                 className={`composer-tools-trigger [.focus-composer_&]:h-[38px] [.focus-composer_&]:border-0 [.focus-composer_&]:rounded-[var(--r-sm)] [.focus-composer_&]:bg-[var(--surface-subtle)] [.focus-composer_&]:text-[12px] [.focus-composer_&]:grid [.focus-composer_&]:w-[38px] [.focus-composer_&]:min-w-[38px] [.focus-composer_&]:place-items-center [.focus-composer_&]:text-[var(--text-muted)] [.focus-composer_&]:cursor-pointer [.focus-composer_&:hover]:bg-[var(--accent-soft)] [.focus-composer_&:hover]:text-[var(--star-strong)] [.focus-composer_&.active]:bg-[var(--accent-soft)] [.focus-composer_&.active]:text-[var(--star-strong)] [.focus-session.has-conversation_.focus-composer_&]:w-[36px] [.focus-session.has-conversation_.focus-composer_&]:min-w-[36px] [.focus-session.has-conversation_.focus-composer_&]:h-[36px] ${toolsOpen ? 'active' : ''}`}
@@ -517,7 +526,9 @@ export function FocusSession({
                 open={toolsOpen}
                 label={t('chat:focusSession.quickActions')}
                 trayId={toolTrayId}
+                mobile={mobileApp}
               >
+                {mobileApp && composerLeadingTools}
                 <button
                   type="button"
                   className="command-palette-trigger [.focus-composer_&]:h-[38px] [.focus-composer_&]:border-0 [.focus-composer_&]:rounded-[var(--r-sm)] [.focus-composer_&]:bg-[var(--surface-subtle)] [.focus-composer_&]:text-[12px] [.composer-tool-tray_&]:relative [.composer-tool-tray_&]:grid [.composer-tool-tray_&]:w-[38px] [.composer-tool-tray_&]:min-w-[38px] [.composer-tool-tray_&]:place-items-center [.composer-tool-tray_&]:p-0 [.composer-tool-tray_&]:text-[var(--text-muted)] [.composer-tool-tray_&]:cursor-pointer [.composer-tool-tray_&:hover]:bg-[var(--surface-hover)] [.composer-tool-tray_&:hover]:text-[var(--star-strong)] [.composer-tool-tray_&_kbd]:absolute [.composer-tool-tray_&_kbd]:w-[1px] [.composer-tool-tray_&_kbd]:h-[1px] [.composer-tool-tray_&_kbd]:overflow-hidden [.composer-tool-tray_&_kbd]:[clip:rect(0_0_0_0)] [.composer-tool-tray_&_kbd]:[clip-path:inset(50%)] [.composer-tool-tray_&_kbd]:whitespace-nowrap @max-[700px]:[.composer-tool-tray_&]:w-[32px] @max-[700px]:[.composer-tool-tray_&]:min-w-[32px] @max-[700px]:[.composer-tool-tray_&]:h-[32px] @max-[700px]:[.composer-tool-tray_&]:p-0 @max-[470px]:[.composer-tool-tray_&]:w-[28px] @max-[470px]:[.composer-tool-tray_&]:min-w-[28px] @max-[470px]:[.composer-tool-tray_&]:h-[28px]"

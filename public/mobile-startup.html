@@ -1,0 +1,316 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <meta name="color-scheme" content="light dark" />
+    <title>Pisper</title>
+    <style>
+      :root {
+        font-family:
+          Inter, "Noto Sans SC", system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+        color: #17191c;
+        background: #f7f8fa;
+      }
+      * {
+        box-sizing: border-box;
+      }
+      body {
+        margin: 0;
+        min-height: 100vh;
+        min-height: 100dvh;
+        overflow: hidden;
+        background: #f7f8fa;
+      }
+      main {
+        width: min(100%, 32rem);
+        min-height: 100vh;
+        min-height: 100dvh;
+        margin: 0 auto;
+        padding: max(3rem, env(safe-area-inset-top)) 1.75rem
+          max(2rem, env(safe-area-inset-bottom));
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+      }
+      .identity {
+        display: flex;
+        align-items: center;
+        gap: 0.8rem;
+        margin-bottom: 2.25rem;
+      }
+      .mark {
+        width: 3rem;
+        height: 3rem;
+        border-radius: 10px;
+        box-shadow: 0 12px 28px -18px rgba(17, 24, 39, 0.65);
+        animation: mark-breathe 1.8s ease-in-out infinite;
+      }
+      .brand {
+        margin: 0;
+        font-size: 1.3rem;
+        font-weight: 750;
+      }
+      h1 {
+        margin: 0;
+        max-width: 20rem;
+        font-size: 1.75rem;
+        line-height: 1.25;
+        letter-spacing: 0;
+      }
+      .summary {
+        min-height: 3.2rem;
+        margin: 0.8rem 0 0;
+        color: #606873;
+        font-size: 0.95rem;
+        line-height: 1.65;
+      }
+      .progress {
+        position: relative;
+        width: 100%;
+        height: 3px;
+        margin-top: 2rem;
+        overflow: hidden;
+        background: #dfe3e8;
+      }
+      .progress::after {
+        position: absolute;
+        inset: 0 auto 0 0;
+        width: 42%;
+        background: #16181b;
+        content: "";
+        animation: runtime-progress 1.15s cubic-bezier(0.4, 0, 0.2, 1) infinite;
+      }
+      .status {
+        margin: 1.75rem 0 0;
+        padding: 1rem 0;
+        border-top: 1px solid #dfe2e7;
+        border-bottom: 1px solid #dfe2e7;
+        color: #4b5563;
+        font-family: inherit;
+        font-size: 0.88rem;
+        line-height: 1.55;
+        white-space: pre-wrap;
+        overflow-wrap: anywhere;
+      }
+      .actions {
+        display: flex;
+        gap: 0.75rem;
+        margin-top: 1.5rem;
+      }
+      button {
+        min-height: 3rem;
+        border: 1px solid #202124;
+        border-radius: 6px;
+        padding: 0 1.25rem;
+        font: inherit;
+        font-weight: 650;
+        color: #fff;
+        background: #202124;
+      }
+      button.secondary {
+        color: #202124;
+        background: transparent;
+      }
+      button:disabled {
+        cursor: wait;
+        opacity: 0.55;
+      }
+      [hidden] {
+        display: none !important;
+      }
+      body[data-phase="error"] .mark {
+        animation: none;
+      }
+      @keyframes runtime-progress {
+        from {
+          transform: translateX(-115%);
+        }
+        to {
+          transform: translateX(340%);
+        }
+      }
+      @keyframes mark-breathe {
+        0%,
+        100% {
+          transform: scale(1);
+          opacity: 0.86;
+        }
+        50% {
+          transform: scale(1.045);
+          opacity: 1;
+        }
+      }
+      @media (prefers-reduced-motion: reduce) {
+        .mark,
+        .progress::after {
+          animation-duration: 2.8s;
+        }
+      }
+      @media (prefers-color-scheme: dark) {
+        :root,
+        body {
+          color: #f3f4f6;
+          background: #121416;
+        }
+        .summary,
+        .status {
+          color: #b8bec7;
+        }
+        .progress,
+        .status {
+          border-color: #343940;
+        }
+        .progress {
+          background: #343940;
+        }
+        .progress::after {
+          background: #f3f4f6;
+        }
+        button {
+          border-color: #f3f4f6;
+          color: #121416;
+          background: #f3f4f6;
+        }
+        button.secondary {
+          color: #f3f4f6;
+          background: transparent;
+        }
+      }
+    </style>
+  </head>
+  <body data-phase="starting">
+    <main>
+      <div class="identity">
+        <img class="mark" src="favicon.svg" alt="" />
+        <p class="brand">Pisper</p>
+      </div>
+      <h1 id="title">正在启动 Pisper</h1>
+      <p class="summary" id="summary">正在准备本机 Runtime 和工作区…</p>
+      <div class="progress" id="progress" role="progressbar" aria-label="正在启动"></div>
+      <pre class="status" id="status" role="status" hidden></pre>
+      <div class="actions" id="actions" hidden>
+        <button id="retry" type="button">重试</button>
+        <button id="remote" class="secondary" type="button" hidden>桌面服务器</button>
+      </div>
+    </main>
+    <script>
+      (() => {
+        const english = !navigator.language.toLowerCase().startsWith('zh')
+        const text = english
+          ? {
+              startingTitle: 'Starting Pisper',
+              startingSummary: 'Preparing the local Runtime and workspace...',
+              errorTitle: 'Local Runtime is not ready',
+              errorSummary:
+                'The application UI has not been loaded. Retry startup or use a paired desktop server.',
+              retry: 'Retry',
+              retrying: 'Starting Runtime...',
+              remote: 'Desktop server',
+              bridge: 'The native Pisper bridge is unavailable.',
+              invalid: 'The Runtime returned an invalid startup address.',
+              progress: 'Starting',
+            }
+          : {
+              startingTitle: '正在启动 Pisper',
+              startingSummary: '正在准备本机 Runtime 和工作区…',
+              errorTitle: '本机 Runtime 未能就绪',
+              errorSummary: '业务界面尚未加载。请重试启动，或改用已配对的桌面服务器。',
+              retry: '重试',
+              retrying: '正在启动 Runtime…',
+              remote: '桌面服务器',
+              bridge: 'Pisper 原生桥不可用。',
+              invalid: 'Runtime 返回了无效的启动地址。',
+              progress: '正在启动',
+            }
+        const title = document.querySelector('#title')
+        const summary = document.querySelector('#summary')
+        const progress = document.querySelector('#progress')
+        const status = document.querySelector('#status')
+        const actions = document.querySelector('#actions')
+        const retry = document.querySelector('#retry')
+        const remote = document.querySelector('#remote')
+        retry.textContent = text.retry
+        remote.textContent = text.remote
+        progress.setAttribute('aria-label', text.progress)
+
+        const invoke = window.__TAURI__?.core?.invoke ?? window.__TAURI_INTERNALS__?.invoke
+        const trustedLoopback = (value) => /^http:\/\/127\.0\.0\.1:\d+\//.test(String(value || ''))
+        let pollTimer = 0
+
+        const renderStarting = (state) => {
+          document.body.dataset.phase = 'starting'
+          title.textContent = text.startingTitle
+          summary.textContent = state?.onDevice?.message || text.startingSummary
+          progress.hidden = false
+          status.hidden = true
+          retry.hidden = true
+          retry.disabled = false
+          remote.hidden = !state?.paired
+          actions.hidden = !state?.paired
+        }
+
+        const renderError = (state, fallback) => {
+          document.body.dataset.phase = 'error'
+          title.textContent = text.errorTitle
+          summary.textContent = text.errorSummary
+          progress.hidden = true
+          status.hidden = false
+          status.textContent = state?.startupError || state?.onDevice?.message || fallback
+          retry.hidden = false
+          retry.disabled = false
+          remote.hidden = !state?.paired
+          remote.disabled = false
+          actions.hidden = false
+        }
+
+        const loadState = async () => {
+          if (!invoke) {
+            renderError(null, text.bridge)
+            return
+          }
+          try {
+            const state = await invoke('mobile_state')
+            const failed = state?.startupError || state?.onDevice?.state === 'error'
+            if (failed) {
+              renderError(state, text.errorSummary)
+              return
+            }
+            renderStarting(state)
+            pollTimer = window.setTimeout(loadState, 300)
+          } catch (error) {
+            renderError(null, String(error?.message || error))
+          }
+        }
+
+        retry.addEventListener('click', async () => {
+          window.clearTimeout(pollTimer)
+          retry.disabled = true
+          remote.disabled = true
+          renderStarting()
+          summary.textContent = text.retrying
+          try {
+            await invoke('mobile_retry_local_startup')
+          } catch (error) {
+            renderError(null, String(error?.message || error))
+          }
+        })
+
+        remote.addEventListener('click', async () => {
+          window.clearTimeout(pollTimer)
+          retry.disabled = true
+          remote.disabled = true
+          try {
+            const state = await invoke('mobile_leave_local')
+            if (!trustedLoopback(state?.proxyUrl)) throw new Error(text.invalid)
+            window.location.replace(state.proxyUrl)
+          } catch (error) {
+            renderError(null, String(error?.message || error))
+          }
+        })
+
+        loadState()
+      })()
+    </script>
+  </body>
+</html>

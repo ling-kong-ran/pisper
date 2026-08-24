@@ -14,6 +14,7 @@ import {
 } from 'lucide-react'
 import { AppSelect } from '@/components/AppSelect'
 import { useI18n } from '@/app/use-i18n'
+import { cn } from '@/lib/utils'
 import {
   SettingsBadge,
   SettingsCard,
@@ -42,6 +43,7 @@ const PROVIDER_ICONS: Record<string, LucideIcon> = {
 }
 
 type ProviderConnectionsProps = {
+  className?: string
   providers: ProviderConfig[]
   selectedProviderId: string
   toggling: string
@@ -50,7 +52,60 @@ type ProviderConnectionsProps = {
   onToggle: (provider: ProviderConfig, enabled: boolean) => void | Promise<void>
 }
 
+type ProviderMobilePickerProps = Pick<
+  ProviderConnectionsProps,
+  'providers' | 'selectedProviderId' | 'onAdd' | 'onSelect'
+>
+
+export function ProviderMobilePicker({
+  providers,
+  selectedProviderId,
+  onAdd,
+  onSelect,
+}: ProviderMobilePickerProps) {
+  const { t } = useI18n()
+
+  return (
+    <SettingsCard className="hidden max-[900px]:block">
+      <div className="flex items-center justify-between gap-2">
+        <SettingsSectionTitle title={t('config:configPage.modelService')} />
+        <Button
+          variant="ghost"
+          size="icon"
+          title={t('config:configPage.addProvider')}
+          onClick={onAdd}
+        >
+          <Plus size={15} />
+        </Button>
+      </div>
+      <FieldLabel variant="control" className="mt-2">
+        {t('config:configPage.currentModelService')}
+        <AppSelect
+          className="!h-11 rounded-[var(--r-sm)] px-3 text-sm"
+          value={selectedProviderId}
+          onChange={(event) => {
+            const provider = providers.find((item) => item.id === event.target.value)
+            if (provider) onSelect(provider)
+          }}
+        >
+          {providers.map((provider) => (
+            <option value={provider.id} key={provider.id}>
+              {provider.name} ·{' '}
+              {provider.configured
+                ? t('config:configPage.configured')
+                : provider.id === 'openai-codex'
+                  ? t('config:configPage.codexCLILoginRequired')
+                  : t('config:configPage.apiKeyRequired')}
+            </option>
+          ))}
+        </AppSelect>
+      </FieldLabel>
+    </SettingsCard>
+  )
+}
+
 export function ProviderConnections({
+  className,
   providers,
   selectedProviderId,
   toggling,
@@ -60,7 +115,12 @@ export function ProviderConnections({
 }: ProviderConnectionsProps) {
   const { t } = useI18n()
   return (
-    <SettingsCard className="selection-list [.config-layout_>_&]:max-h-[calc(100dvh_-_280px)] [.config-layout_>_&]:overflow-y-auto max-[900px]:max-h-[300px] min-h-0 overflow-auto">
+    <SettingsCard
+      className={cn(
+        'selection-list [.config-layout_>_&]:max-h-[calc(100dvh_-_280px)] [.config-layout_>_&]:overflow-y-auto max-[900px]:[.config-layout_>_&]:max-h-[300px] max-[650px]:[.config-layout_>_&]:max-h-[240px] min-h-0 overflow-auto',
+        className,
+      )}
+    >
       <div className="provider-list-heading flex items-center justify-between gap-[8px] [margin-bottom:4px]">
         <SettingsSectionTitle title={t('config:configPage.providerConnections')} />
         <Button
@@ -96,7 +156,7 @@ export function ProviderConnections({
             </button>
             <div className="flex items-center gap-[6px] [padding-right:3px]">
               <SettingsSwitch
-                value={provider.enabled}
+                value={provider.configured && provider.enabled}
                 disabled={!provider.configured || toggling === provider.id}
                 onChange={(enabled) => onToggle(provider, enabled)}
               />

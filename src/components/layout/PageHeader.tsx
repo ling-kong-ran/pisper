@@ -102,7 +102,7 @@ export function PageHeader({
       className={cn(
         'relative z-[2] flex min-h-14 flex-none items-center gap-3.5 px-6 pt-[9px] pb-[7px] in-data-[density=compact]:min-h-[50px] in-data-[density=compact]:pt-1.5 in-data-[density=compact]:pb-[5px] max-[650px]:min-h-[126px] max-[650px]:flex-wrap max-[650px]:content-center max-[650px]:gap-2.5 max-[650px]:px-4 max-[650px]:py-2.5',
         page === 'chat' &&
-          'min-h-[52px] px-5 pt-2 pb-1.5 in-data-[density=compact]:min-h-[46px] max-[650px]:min-h-[126px] max-[650px]:px-4 max-[650px]:pt-3.5 max-[650px]:pb-2.5',
+          'min-h-[52px] px-5 pt-2 pb-1.5 in-data-[density=compact]:min-h-[46px] max-[650px]:!min-h-0 max-[650px]:px-4 max-[650px]:pt-3.5 max-[650px]:pb-2.5',
         desktop && '[-webkit-app-region:drag]',
         desktopPlatform === 'darwin' && 'pl-[74px]',
       )}
@@ -120,7 +120,12 @@ export function PageHeader({
         <h1 className="text-base leading-[1.15] font-bold tracking-[0] max-[650px]:text-[21px]">
           {meta[0]}
         </h1>
-        <p className="mt-0 min-w-0 overflow-hidden text-[12px] text-ellipsis whitespace-nowrap text-[var(--text-muted)] max-[650px]:mt-[3px] max-[650px]:whitespace-normal">
+        <p
+          className={cn(
+            'mt-0 min-w-0 overflow-hidden text-[12px] text-ellipsis whitespace-nowrap text-[var(--text-muted)] max-[650px]:mt-[3px] max-[650px]:whitespace-normal',
+            page === 'chat' && 'max-[650px]:hidden',
+          )}
+        >
           {meta[1]}
         </p>
       </div>

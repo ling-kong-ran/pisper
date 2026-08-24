@@ -50,10 +50,12 @@ test('共享产品路径同时归 App 与原组件发布通道', () => {
   assert.equal(isAppExclusivePath('src-tauri/mobile/android/MainActivity.kt'), true)
   assert.equal(isAppExclusivePath('src-tauri/mobile-device-plugin/Cargo.toml'), true)
   assert.equal(isAppExclusivePath('src-tauri/Info.ios.plist'), true)
+  assert.equal(isAppExclusivePath('public/mobile-startup.html'), true)
   assert.equal(isAppExclusivePath('scripts/stage-mobile-node-android.mjs'), true)
   assert.equal(isAppExclusivePath('scripts/stage-mobile-node-ios.mjs'), true)
   assert.equal(isAppExclusivePath('scripts/mobile-node-ios-smoke-view-controller.m'), true)
   assert.equal(isAppExclusivePath('scripts/smoke-mobile-node-ios.sh'), true)
+  assert.equal(isAppExclusivePath('scripts/verify-android-page-size.sh'), true)
   assert.equal(isAppExclusivePath('scripts/verify-tauri-signature.mjs'), true)
 })
 
@@ -82,6 +84,68 @@ test('平台初始化流程不会保留 Tauri 模板图标', async () => {
   const iosIcons = workflow.indexOf('node scripts/sync-mobile-icons.mjs')
   const iosInit = workflow.indexOf('npx tauri ios init')
   assert.ok(iosIcons >= 0 && iosInit > iosIcons)
+})
+
+test('Android arm64 native 产物强制兼容 16 KB 内存页', async () => {
+  const [setup, cmake, verifier, workflow] = await Promise.all([
+    readFile('scripts/setup-mobile-android.mjs', 'utf8'),
+    readFile('src-tauri/mobile/node-host/android/CMakeLists.txt', 'utf8'),
+    readFile('scripts/verify-android-page-size.sh', 'utf8'),
+    readFile('.github/workflows/release-app.yml', 'utf8'),
+  ])
+
+  assert.match(setup, /CARGO_TARGET_AARCH64_LINUX_ANDROID_RUSTFLAGS/)
+  assert.match(setup, /max-page-size=16384/)
+  assert.match(cmake, /target_link_options\(pisper_node_host/)
+  assert.match(cmake, /max-page-size=16384/)
+  assert.match(verifier, /lib\/arm64-v8a\/\*\.so/)
+  assert.match(verifier, /MIN_ALIGNMENT=\$\(\(16 \* 1024\)\)/)
+  assert.match(verifier, /zipalign.*-c -P 16 4|"\$ZIPALIGN" -c -P 16 4/)
+  assert.match(workflow, /build-tools;35\.0\.0/)
+  assert.match(workflow, /zipalign" -P 16 -f 4/)
+  assert.match(workflow, /verify-android-page-size\.sh/)
+})
+
+test('移动壳仅在核心 Runtime API 合同通过后挂载业务界面', async () => {
+  const [shell, startupPage] = await Promise.all([
+    readFile('src-tauri/src/mobile/mod.rs', 'utf8'),
+    readFile('public/mobile-startup.html', 'utf8'),
+  ])
+
+  for (const path of [
+    '/api/client-info',
+    '/api/runtime/capabilities',
+    '/api/config',
+    '/api/sessions',
+  ]) {
+    assert.match(shell, new RegExp(path.replaceAll('/', '\\/')))
+  }
+  assert.match(shell, /validate_startup_contract_values/)
+  assert.match(shell, /redirect\(reqwest::redirect::Policy::none\(\)\)/)
+  assert.match(shell, /fetch_startup_cookie/)
+  assert.match(shell, /header\(reqwest::header::COOKIE, cookie\)/)
+  assert.doesNotMatch(shell, /\.bearer_auth\(token\)/)
+  assert.match(shell, /WebviewUrl::App\("mobile-startup\.html"\.into\(\)\)/)
+  assert.match(
+    shell,
+    /WebviewWindowBuilder::new[\s\S]*?\.build\(\)\?;[\s\S]*?start_initial_local_runtime\(/,
+  )
+  assert.match(shell, /spawn_blocking\(move \|\| runtime\.ensure_started\(\)\)/)
+  assert.match(shell, /window\.location\.replace/)
+  assert.match(shell, /PageLoadEvent::Finished/)
+  assert.match(shell, /call_method\(webview, "clearHistory", "\(\)V"/)
+  assert.doesNotMatch(shell, /window\.navigate\(url\)/)
+  assert.doesNotMatch(shell, /let on_device_url/)
+  assert.doesNotMatch(shell, /WebviewUrl::App\("index\.html"\.into\(\)\)/)
+  assert.match(startupPage, /data-phase="starting"/)
+  assert.match(startupPage, /@keyframes runtime-progress/)
+  assert.match(startupPage, /window\.setTimeout\(loadState, 300\)/)
+  assert.match(shell, /mobile_retry_local_startup/)
+  assert.match(startupPage, /mobile_retry_local_startup/)
+  assert.doesNotMatch(startupPage, /mobile_enter_local/)
+  assert.match(startupPage, /mobile_leave_local/)
+  assert.match(startupPage, /window\.location\.replace/)
+  assert.doesNotMatch(startupPage, /fetch\(['"]\/api\//)
 })
 
 test('Android WebView renderer 退出后重建宿主并恢复当前路由', async () => {
@@ -341,6 +405,8 @@ test('embedded Node 使用后台线程、真实初始化 READY 与 App 生命周
   assert.match(kotlin, /isDaemon = true/)
   assert.match(cpp, /node::Start/)
   assert.match(rustHost, /PISPER_MOBILE_READY_FILE/)
+  assert.match(rustHost, /token: Mutex<Option<String>>/)
+  assert.match(rustHost, /started\.load\(Ordering::Acquire\)[\s\S]*wait_until_ready\(&token\)/)
   assert.match(rustHost, /set_var\("PISPER_MOBILE_AUTOSTART", "1"\)/)
   assert.match(rustHost, /runtime_profile != "mobile-embedded"/)
   assert.match(rustHost, /Frameworks\/NodeMobile\.framework\/NodeMobile/)

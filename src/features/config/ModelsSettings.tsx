@@ -1,10 +1,10 @@
 // 模型设置：选择默认 Provider/模型，配置推理强度与 API 端点。
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import { RefreshCw } from 'lucide-react'
 import { useI18n } from '@/app/use-i18n'
 import { usePagePrimaryAction } from '@/hooks/usePagePrimaryAction'
 import { CredentialSettings } from './CredentialSettings'
-import { ProviderConnections, ProviderModelCatalog } from './ProviderCatalog'
+import { ProviderConnections, ProviderMobilePicker, ProviderModelCatalog } from './ProviderCatalog'
 import { ProviderConfigModal, ProviderModelModal } from './ProviderDialogs'
 import { ProviderDiscovery } from './ProviderDiscovery'
 import { ProviderSettingsActions, RuntimePolicySettings, RuntimeStatus } from './RuntimeSettings'
@@ -29,6 +29,7 @@ export function ModelsSettings({
   const { t } = useI18n()
   const [providerModal, setProviderModal] = useState(false)
   const [modelModal, setModelModal] = useState<'discover' | 'manual' | ''>('')
+  const detailRef = useRef<HTMLDivElement>(null)
   const settings = useConfigSettings({ notify, requestConfirm, t })
   const discovery = useProviderDiscovery({
     requestConfirm,
@@ -51,6 +52,19 @@ export function ModelsSettings({
   const { config, draft, selectedProvider } = settings
   const visualOnly = draft.providerType === 'visual'
   const codexOAuth = selectedProvider.id === 'openai-codex'
+  const selectProvider = (provider: (typeof config.providers)[number]) => {
+    settings.selectProvider(provider)
+    if (!window.matchMedia('(max-width: 900px)').matches) return
+
+    window.setTimeout(() => {
+      if (!provider.configured && provider.id !== 'openai-codex') {
+        settings.apiKeyInputRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+        settings.apiKeyInputRef.current?.focus({ preventScroll: true })
+      } else {
+        detailRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+      }
+    }, 350)
+  }
 
   return (
     <>
@@ -62,41 +76,55 @@ export function ModelsSettings({
         onRefresh={discovery.refresh}
         onImport={discovery.importProvider}
       />
-      <div className="split-list-detail grid min-h-[100%] grid-cols-[330px_minmax(0,1fr)] gap-[12px] max-[900px]:grid-cols-[1fr] config-layout !grid-cols-[300px_minmax(0,1fr)] [align-items:start]">
+      <div className="split-list-detail config-layout grid min-h-full grid-cols-[300px_minmax(0,1fr)] items-start gap-3 max-[900px]:grid-cols-1">
         <ProviderConnections
+          className="max-[900px]:hidden"
           providers={config.providers}
           selectedProviderId={draft.provider}
           toggling={settings.toggling}
           onAdd={() => setProviderModal(true)}
-          onSelect={settings.selectProvider}
+          onSelect={selectProvider}
           onToggle={settings.toggleProvider}
         />
-        <div className="detail-stack flex min-w-0 flex-col gap-[12px] [.mcp-layout_>_&]:min-h-0 max-[1150px]:[.memory-layout_>_&]:[grid-column:1/-1] max-[1150px]:[.memory-layout_>_&]:grid max-[1150px]:[.memory-layout_>_&]:grid-cols-[repeat(2,minmax(0,1fr))] max-[1150px]:[.mcp-layout_>_&]:[grid-column:1/-1] max-[1150px]:[.mcp-layout_>_&]:grid max-[1150px]:[.mcp-layout_>_&]:grid-cols-[repeat(2,minmax(0,1fr))] max-[1150px]:[.skills-layout_>_&]:[grid-column:1/-1] max-[1150px]:[.skills-layout_>_&]:grid max-[1150px]:[.skills-layout_>_&]:grid-cols-[repeat(2,minmax(0,1fr))] max-[650px]:[.memory-layout_>_&]:[grid-column:auto] max-[650px]:[.memory-layout_>_&]:grid-cols-[1fr] max-[650px]:[.mcp-layout_>_&]:[grid-column:auto] max-[650px]:[.mcp-layout_>_&]:grid-cols-[1fr] max-[650px]:[.skills-layout_>_&]:[grid-column:auto] max-[650px]:[.skills-layout_>_&]:grid-cols-[1fr]">
-          <ProviderSettingsActions
-            provider={selectedProvider}
-            visualOnly={visualOnly}
-            codexOAuth={codexOAuth}
-            saving={settings.saving}
-            dirty={settings.dirty}
-            error={settings.error}
-            hasModel={Boolean(draft.model)}
-            isDefault={
-              (config.defaultProvider || config.provider) === selectedProvider.id &&
-              (config.defaultModel || config.model) === draft.model
-            }
-            onSave={settings.save}
-          />
-          <CredentialSettings
-            provider={selectedProvider}
-            draft={draft}
-            toggling={settings.toggling}
-            apiKeyInputRef={settings.apiKeyInputRef}
-            onPatchDraft={settings.patchDraft}
-            onSelectProviderType={settings.selectProviderType}
-            onToggleProvider={settings.toggleProvider}
-            onDeleteProvider={settings.deleteProvider}
-          />
-          <SettingsCard>
+        <ProviderMobilePicker
+          providers={config.providers}
+          selectedProviderId={draft.provider}
+          onAdd={() => setProviderModal(true)}
+          onSelect={selectProvider}
+        />
+        <div
+          className="detail-stack flex min-w-0 scroll-mt-2 flex-col gap-[12px] [.mcp-layout_>_&]:min-h-0 max-[1150px]:[.memory-layout_>_&]:[grid-column:1/-1] max-[1150px]:[.memory-layout_>_&]:grid max-[1150px]:[.memory-layout_>_&]:grid-cols-[repeat(2,minmax(0,1fr))] max-[1150px]:[.mcp-layout_>_&]:[grid-column:1/-1] max-[1150px]:[.mcp-layout_>_&]:grid max-[1150px]:[.mcp-layout_>_&]:grid-cols-[repeat(2,minmax(0,1fr))] max-[1150px]:[.skills-layout_>_&]:[grid-column:1/-1] max-[1150px]:[.skills-layout_>_&]:grid max-[1150px]:[.skills-layout_>_&]:grid-cols-[repeat(2,minmax(0,1fr))] max-[650px]:[.memory-layout_>_&]:[grid-column:auto] max-[650px]:[.memory-layout_>_&]:grid-cols-[1fr] max-[650px]:[.mcp-layout_>_&]:[grid-column:auto] max-[650px]:[.mcp-layout_>_&]:grid-cols-[1fr] max-[650px]:[.skills-layout_>_&]:[grid-column:auto] max-[650px]:[.skills-layout_>_&]:grid-cols-[1fr]"
+          ref={detailRef}
+        >
+          <div className="order-1 min-[901px]:order-2">
+            <CredentialSettings
+              provider={selectedProvider}
+              draft={draft}
+              toggling={settings.toggling}
+              apiKeyInputRef={settings.apiKeyInputRef}
+              onPatchDraft={settings.patchDraft}
+              onSelectProviderType={settings.selectProviderType}
+              onToggleProvider={settings.toggleProvider}
+              onDeleteProvider={settings.deleteProvider}
+            />
+          </div>
+          <div className="order-2 min-[901px]:order-1">
+            <ProviderSettingsActions
+              provider={selectedProvider}
+              visualOnly={visualOnly}
+              codexOAuth={codexOAuth}
+              saving={settings.saving}
+              dirty={settings.dirty}
+              error={settings.error}
+              hasModel={Boolean(draft.model)}
+              isDefault={
+                (config.defaultProvider || config.provider) === selectedProvider.id &&
+                (config.defaultModel || config.model) === draft.model
+              }
+              onSave={settings.save}
+            />
+          </div>
+          <SettingsCard className="order-3">
             <ProviderModelCatalog
               provider={selectedProvider}
               draft={draft}
@@ -105,7 +133,7 @@ export function ModelsSettings({
               onOpenModelDialog={setModelModal}
             />
           </SettingsCard>
-          <div className="config-bottom max-[900px]:grid-cols-[1fr] grid grid-cols-[minmax(0,1.5fr)_minmax(210px,.7fr)] gap-[12px]">
+          <div className="config-bottom order-4 max-[900px]:grid-cols-[1fr] grid grid-cols-[minmax(0,1.5fr)_minmax(210px,.7fr)] gap-[12px]">
             <RuntimePolicySettings draft={draft} onPatchDraft={settings.patchDraft} />
             <RuntimeStatus provider={selectedProvider} />
           </div>

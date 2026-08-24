@@ -57,18 +57,18 @@ export function CredentialSettings({
         </div>
         <div className="provider-header-status flex items-center justify-between gap-[8px] flex-none">
           <SettingsBadge
-            tone={!provider.enabled ? 'gray' : provider.configured ? 'green' : 'amber'}
+            tone={!provider.configured ? 'amber' : provider.enabled ? 'green' : 'gray'}
           >
-            {!provider.enabled
-              ? t('config:configPage.disabled2')
-              : provider.configured
+            {!provider.configured
+              ? codexOAuth
+                ? t('config:configPage.codexCLILoginRequired')
+                : t('config:configPage.apiKeyRequired')
+              : provider.enabled
                 ? t('config:configPage.authenticationReady')
-                : codexOAuth
-                  ? t('config:configPage.codexCLILoginRequired')
-                  : t('config:configPage.apiKeyRequired')}
+                : t('config:configPage.disabled2')}
           </SettingsBadge>
           <SettingsSwitch
-            value={provider.enabled}
+            value={provider.configured && provider.enabled}
             disabled={!provider.configured || toggling === provider.id}
             onChange={(enabled) => onToggleProvider(provider, enabled)}
           />
@@ -84,23 +84,6 @@ export function CredentialSettings({
           )}
         </div>
       </AppCardHeader>
-      <FieldLabel variant="control">
-        {t('config:configPage.providerPurpose')}
-        <AppSelect
-          value={draft.providerType}
-          onChange={(event) => onSelectProviderType(event.target.value as ProviderType)}
-        >
-          <option value="chat">{t('config:configPage.chatProvider')}</option>
-          <option value="visual">{t('config:configPage.visualProvider')}</option>
-        </AppSelect>
-        <small>
-          {visualOnly
-            ? t(
-                'config:configPage.usedOnlyForImageGenerationVideoGenerationAndImageEditingChatModelsAreIgnored',
-              )
-            : t('config:configPage.usedForAgentChatAndMayAlsoIncludeVisualModels')}
-        </small>
-      </FieldLabel>
       {codexOAuth ? (
         <div className="oauth-provider-note [&_>_span]:flex [&_>_span]:min-w-0 [&_>_span]:flex-col [&_>_span]:gap-[3px] [&_strong]:text-[var(--text)] [&_strong]:text-[12px] [&_small]:text-[var(--text-muted)] [&_small]:text-[12px] [&_small]:leading-[1.45] flex items-start gap-[9px] [margin-top:14px] [border:1px_solid_var(--star-border)] rounded-[var(--r-sm)] bg-[var(--star-soft)] [padding:10px_11px] text-[var(--star-strong)]">
           <ShieldCheck size={17} />
@@ -125,19 +108,6 @@ export function CredentialSettings({
         <>
           <SettingsSectionTitle title={t('config:configPage.authentication')} />
           <FieldLabel variant="control">
-            {t('config:configPage.apiProtocol')}
-            <AppSelect
-              value={draft.api}
-              onChange={(event) => onPatchDraft({ api: event.target.value })}
-            >
-              {PROVIDER_APIS.map(([value, label]) => (
-                <option value={value} key={value}>
-                  {label}
-                </option>
-              ))}
-            </AppSelect>
-          </FieldLabel>
-          <FieldLabel variant="control">
             API Key
             <span className="input-wrap [&_button]:absolute [&_button]:right-[3px] [&_button]:top-[3px] [&_button]:grid [&_button]:w-[32px] [&_button]:h-[32px] [&_button]:place-items-center [&_button]:border-0 [&_button]:bg-transparent [&_button]:text-[var(--text-muted)] [&_>_svg]:absolute [&_>_svg]:right-[9px] [&_>_svg]:top-[8px] [&_>_svg]:text-[var(--text-muted)] relative flex">
               <input
@@ -160,6 +130,19 @@ export function CredentialSettings({
               <KeyRound size={14} />
             </span>
           </FieldLabel>
+          <FieldLabel variant="control">
+            {t('config:configPage.apiProtocol')}
+            <AppSelect
+              value={draft.api}
+              onChange={(event) => onPatchDraft({ api: event.target.value })}
+            >
+              {PROVIDER_APIS.map(([value, label]) => (
+                <option value={value} key={value}>
+                  {label}
+                </option>
+              ))}
+            </AppSelect>
+          </FieldLabel>
           <SettingsSectionTitle title={t('config:configPage.endpoint')} />
           <FieldLabel variant="control">
             Provider Base URL
@@ -179,6 +162,23 @@ export function CredentialSettings({
           </FieldLabel>
         </>
       )}
+      <FieldLabel variant="control">
+        {t('config:configPage.providerPurpose')}
+        <AppSelect
+          value={draft.providerType}
+          onChange={(event) => onSelectProviderType(event.target.value as ProviderType)}
+        >
+          <option value="chat">{t('config:configPage.chatProvider')}</option>
+          <option value="visual">{t('config:configPage.visualProvider')}</option>
+        </AppSelect>
+        <small>
+          {visualOnly
+            ? t(
+                'config:configPage.usedOnlyForImageGenerationVideoGenerationAndImageEditingChatModelsAreIgnored',
+              )
+            : t('config:configPage.usedForAgentChatAndMayAlsoIncludeVisualModels')}
+        </small>
+      </FieldLabel>
     </SettingsCard>
   )
 }
