@@ -254,10 +254,10 @@ Contributors:
 <table>
 <tr>
 <td width="180" align="center">
-  <a href="https://matrix.000328.xyz/sign-up?aff=ZPeH"><strong>Matrix</strong></a>
+  <a href="https://matrix.000328.xyz/register?aff=ZPEH"><strong>Matrix</strong></a>
 </td>
 <td>
-Thanks to <a href="https://matrix.000328.xyz/sign-up?aff=ZPeH">Matrix</a> for supporting the Pisper community. Signing up via <a href="https://matrix.000328.xyz/sign-up?aff=ZPeH">this link</a> may generate referral revenue for the project.
+Thanks to <a href="https://matrix.000328.xyz/register?aff=ZPEH">Matrix</a> for supporting the Pisper community. Signing up via <a href="https://matrix.000328.xyz/register?aff=ZPEH">this link</a> may generate referral revenue for the project.
 </td>
 </tr>
 </table>

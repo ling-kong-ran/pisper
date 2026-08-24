@@ -254,10 +254,10 @@ npm run build   # 生产构建
 <table>
 <tr>
 <td width="180" align="center">
-  <a href="https://matrix.000328.xyz/sign-up?aff=ZPeH"><strong>Matrix</strong></a>
+  <a href="https://matrix.000328.xyz/register?aff=ZPEH"><strong>Matrix</strong></a>
 </td>
 <td>
-感谢 <a href="https://matrix.000328.xyz/sign-up?aff=ZPeH">Matrix</a> 对 Pisper 社区的支持。通过<a href="https://matrix.000328.xyz/sign-up?aff=ZPeH">此链接</a>注册，可能为 Pisper 项目带来推广收益。
+感谢 <a href="https://matrix.000328.xyz/register?aff=ZPEH">Matrix</a> 对 Pisper 社区的支持。通过<a href="https://matrix.000328.xyz/register?aff=ZPEH">此链接</a>注册，可能为 Pisper 项目带来推广收益。
 </td>
 </tr>
 </table>
