@@ -1,9 +1,9 @@
 {
-  "version": "0.1.4",
-  "tag": "app-v0.1.4",
-  "url": "https://github.com/ling-kong-ran/pisper/releases/tag/app-v0.1.4",
+  "version": "0.1.5",
+  "tag": "app-v0.1.5",
+  "url": "https://github.com/ling-kong-ran/pisper/releases/tag/app-v0.1.5",
   "apk": "app-universal-release-signed.apk",
   "ipa": "pisper-ios-unsigned.ipa",
-  "notes": "- fix(mobile): load iOS Node framework at runtime\n- fix(release): link NodeMobile into iOS Rust library\n- fix(release): replace desktop resources in iOS build\n- fix(mobile): smoke iOS runtime after UIKit startup\n- fix(release): run iOS smoke script through bash\n- fix(release): invoke iOS smoke setup with bash\n- perf(mobile): reuse verified iOS Node framework\n- fix(release): decode Tauri signatures before verification\n- fix(mobile): provision root runtime with host devices\n- chore(release-runtime): runtime-v0.5.13\n- fix(release): restore SEA manifest validation import\n- feat(release): include mobile app in automatic releases\n- feat(mobile): ship the unified Node runtime\n- feat(mobile): add persistent app and settings navigation",
-  "releaseDate": "2026-08-23"
+  "notes": "- fix(mobile): stabilize embedded chat interactions",
+  "releaseDate": "2026-08-24"
 }
