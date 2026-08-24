@@ -1,9 +1,9 @@
 {
-  "version": "0.1.5",
-  "tag": "app-v0.1.5",
-  "url": "https://github.com/ling-kong-ran/pisper/releases/tag/app-v0.1.5",
+  "version": "0.1.6",
+  "tag": "app-v0.1.6",
+  "url": "https://github.com/ling-kong-ran/pisper/releases/tag/app-v0.1.6",
   "apk": "app-universal-release-signed.apk",
   "ipa": "pisper-ios-unsigned.ipa",
-  "notes": "- fix(mobile): stabilize embedded chat interactions",
+  "notes": "- perf(runtime): defer session setup until first prompt\n- perf(runtime): bundle staged runtime closure",
   "releaseDate": "2026-08-24"
 }
