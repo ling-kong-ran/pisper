@@ -273,7 +273,9 @@ jobs:
       - name: Generate shared mobile icons
         run: node scripts/sync-mobile-icons.mjs
       - name: Prepare iOS project with embedded Node
-        run: npx tauri ios init --config src-tauri/tauri.mobile-ios.conf.json
+        run: |
+          npx tauri ios init --config src-tauri/tauri.mobile-ios.conf.json
+          node scripts/setup-mobile-ios.mjs
       - name: Build unsigned iOS app
         run: |
           VERSION_CONFIG='{"version":"${{ inputs.version }}"}'
@@ -289,11 +291,23 @@ jobs:
           IPA_PATH=$(find src-tauri/gen/apple -name "*.ipa" -type f | head -1)
           test -n "$IPA_PATH" || { echo "未找到未签名 IPA 产物。" >&2; exit 1; }
           unzip -Z1 "$IPA_PATH" > /tmp/pisper-ios-contents.txt
-          grep -Eq '^Payload/[^/]+\.app/Frameworks/NodeMobile\.framework/NodeMobile$' \
-            /tmp/pisper-ios-contents.txt
-          grep -Eq '^Payload/[^/]+\.app/PrivacyInfo\.xcprivacy$' /tmp/pisper-ios-contents.txt
-          grep -Eq '^Payload/[^/]+\.app/(.*/)?pisper-embedded-runtime\.tar\.gz$' \
-            /tmp/pisper-ios-contents.txt
+          require_ipa_entry() {
+            local pattern="$1"
+            local label="$2"
+            grep -Eq "$pattern" /tmp/pisper-ios-contents.txt && return
+            echo "iOS IPA 缺少 $label，实际内容如下：" >&2
+            cat /tmp/pisper-ios-contents.txt >&2
+            exit 1
+          }
+          require_ipa_entry \
+            '^Payload/[^/]+\.app/Frameworks/NodeMobile\.framework/NodeMobile$' \
+            'NodeMobile framework'
+          require_ipa_entry \
+            '^Payload/[^/]+\.app/PrivacyInfo\.xcprivacy$' \
+            'App 根目录 PrivacyInfo.xcprivacy'
+          require_ipa_entry \
+            '^Payload/[^/]+\.app/(.*/)?pisper-embedded-runtime\.tar\.gz$' \
+            'embedded Runtime archive'
           cp "$IPA_PATH" pisper-ios-unsigned.ipa
           cp release/pisper-node-mobile-ios.tar.gz* .
           npx tauri signer sign pisper-ios-unsigned.ipa

@@ -3,6 +3,7 @@ import assert from 'node:assert/strict'
 import { readFile } from 'node:fs/promises'
 import test from 'node:test'
 import { isAppExclusivePath, isAppOwnedPath } from '../../scripts/app-paths.mjs'
+import { injectIosPrivacyManifest } from '../../scripts/setup-mobile-ios.mjs'
 import { releaseComponentsForPath } from '../../scripts/release-changes.mjs'
 
 function pngSize(buffer) {
@@ -55,6 +56,7 @@ test('共享产品路径同时归 App 与原组件发布通道', () => {
   assert.equal(isAppExclusivePath('public/mobile-startup.html'), true)
   assert.equal(isAppExclusivePath('scripts/stage-mobile-node-android.mjs'), true)
   assert.equal(isAppExclusivePath('scripts/stage-mobile-node-ios.mjs'), true)
+  assert.equal(isAppExclusivePath('scripts/setup-mobile-ios.mjs'), true)
   assert.equal(isAppExclusivePath('scripts/mobile-node-ios-smoke-view-controller.m'), true)
   assert.equal(isAppExclusivePath('scripts/smoke-mobile-node-ios.sh'), true)
   assert.equal(isAppExclusivePath('scripts/verify-android-page-size.sh'), true)
@@ -424,19 +426,29 @@ test('iOS 移动配置整体替换桌面资源且由两个发布通道共用', a
   const config = JSON.parse(configText)
 
   assert.deepEqual(config.bundle.externalBin, [])
-  assert.deepEqual(config.bundle.resources, [
-    'pisper-embedded-runtime.tar.gz',
-    'PrivacyInfo.xcprivacy',
-  ])
+  assert.deepEqual(config.bundle.resources, ['pisper-embedded-runtime.tar.gz'])
   assert.deepEqual(config.bundle.iOS.frameworks, [
     '../release/mobile-node-ios/NodeMobile.xcframework',
   ])
   for (const workflow of [releaseWorkflow, storeWorkflow]) {
     assert.match(workflow, /src-tauri\/pisper-embedded-runtime\.tar\.gz/)
+    assert.match(workflow, /node scripts\/setup-mobile-ios\.mjs/)
+    assert.match(workflow, /App 根目录 PrivacyInfo|app bundle root/)
     assert.equal(workflow.match(/--config src-tauri\/tauri\.mobile-ios\.conf\.json/g)?.length, 2)
     assert.doesNotMatch(workflow, /release\/sea\/runtime/)
     assert.doesNotMatch(workflow, /resources":\{"\.\.\/release\/pisper-embedded-runtime/)
   }
+})
+
+test('iOS 隐私清单显式进入 App target 的资源构建阶段', () => {
+  const project = `targets:\n  pisper-webview_iOS:\n    sources:\n      - path: Sources\n      - path: pisper-webview_iOS\n      - path: assets\n        buildPhase: resources\n`
+  const updated = injectIosPrivacyManifest(project)
+
+  assert.match(
+    updated,
+    /- path: pisper-webview_iOS\n      - path: \.\.\/\.\.\/PrivacyInfo\.xcprivacy\n        buildPhase: resources/,
+  )
+  assert.equal(injectIosPrivacyManifest(updated), updated)
 })
 
 test('embedded Node 使用后台线程、真实初始化 READY 与 App 生命周期', async () => {

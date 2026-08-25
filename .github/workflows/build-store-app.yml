@@ -226,6 +226,7 @@ jobs:
           test -n "$IOS_CERTIFICATE" || { echo "IOS_DISTRIBUTION_CERTIFICATE is required." >&2; exit 1; }
           test -n "$IOS_MOBILE_PROVISION" || { echo "IOS_APP_STORE_PROVISIONING_PROFILE is required." >&2; exit 1; }
           npx tauri ios init --config src-tauri/tauri.mobile-ios.conf.json
+          node scripts/setup-mobile-ios.mjs
       - name: Build Apple Distribution IPA
         env:
           IOS_CERTIFICATE: ${{ secrets.IOS_DISTRIBUTION_CERTIFICATE }}
@@ -245,9 +246,23 @@ jobs:
           IPA=$(find src-tauri/gen/apple -name '*.ipa' -type f | head -1)
           test -n "$IPA" || { echo "Signed IPA output was not found." >&2; exit 1; }
           unzip -Z1 "$IPA" > /tmp/pisper-ios-contents.txt
-          grep -Eq '^Payload/[^/]+\.app/PrivacyInfo\.xcprivacy$' /tmp/pisper-ios-contents.txt
-          grep -Eq '^Payload/[^/]+\.app/Frameworks/NodeMobile\.framework/NodeMobile$' /tmp/pisper-ios-contents.txt
-          grep -Eq '^Payload/[^/]+\.app/pisper-embedded-runtime\.tar\.gz$' /tmp/pisper-ios-contents.txt
+          require_ipa_entry() {
+            local pattern="$1"
+            local label="$2"
+            grep -Eq "$pattern" /tmp/pisper-ios-contents.txt && return
+            echo "Store IPA is missing $label. Actual contents:" >&2
+            cat /tmp/pisper-ios-contents.txt >&2
+            exit 1
+          }
+          require_ipa_entry \
+            '^Payload/[^/]+\.app/PrivacyInfo\.xcprivacy$' \
+            'PrivacyInfo.xcprivacy at the app bundle root'
+          require_ipa_entry \
+            '^Payload/[^/]+\.app/Frameworks/NodeMobile\.framework/NodeMobile$' \
+            'the NodeMobile framework'
+          require_ipa_entry \
+            '^Payload/[^/]+\.app/pisper-embedded-runtime\.tar\.gz$' \
+            'the embedded Runtime archive'
           rm -rf /tmp/pisper-store-ipa
           unzip -q "$IPA" -d /tmp/pisper-store-ipa
           APP=$(find /tmp/pisper-store-ipa/Payload -maxdepth 1 -name '*.app' -type d | head -1)
