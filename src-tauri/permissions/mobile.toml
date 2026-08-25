@@ -3,6 +3,7 @@ identifier = "allow-pisper-mobile-bridge"
 description = "Allows the mobile shell to manage pairing, server selection, and App updates."
 commands.allow = [
   "mobile_state",
+  "mobile_retry_local_startup",
   "mobile_pair",
   "mobile_pair_manual",
   "mobile_select_server",

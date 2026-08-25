@@ -107,9 +107,10 @@ test('Android arm64 native 产物强制兼容 16 KB 内存页', async () => {
 })
 
 test('移动壳仅在核心 Runtime API 合同通过后挂载业务界面', async () => {
-  const [shell, startupPage] = await Promise.all([
+  const [shell, startupPage, permissions] = await Promise.all([
     readFile('src-tauri/src/mobile/mod.rs', 'utf8'),
     readFile('public/mobile-startup.html', 'utf8'),
+    readFile('src-tauri/permissions/mobile.toml', 'utf8'),
   ])
 
   for (const path of [
@@ -142,6 +143,7 @@ test('移动壳仅在核心 Runtime API 合同通过后挂载业务界面', asyn
   assert.match(startupPage, /window\.setTimeout\(loadState, 300\)/)
   assert.match(shell, /mobile_retry_local_startup/)
   assert.match(startupPage, /mobile_retry_local_startup/)
+  assert.match(permissions, /"mobile_retry_local_startup"/)
   assert.doesNotMatch(startupPage, /mobile_enter_local/)
   assert.match(startupPage, /mobile_leave_local/)
   assert.match(startupPage, /window\.location\.replace/)
