@@ -1,9 +1,9 @@
 {
-  "version": "0.1.10",
-  "tag": "app-v0.1.10",
-  "url": "https://github.com/ling-kong-ran/pisper/releases/tag/app-v0.1.10",
+  "version": "0.1.11",
+  "tag": "app-v0.1.11",
+  "url": "https://github.com/ling-kong-ran/pisper/releases/tag/app-v0.1.11",
   "apk": "app-universal-release-signed.apk",
   "ipa": "pisper-ios-unsigned.ipa",
-  "notes": "- fix(chat): persist dock layout in runtime",
+  "notes": "- fix(mobile): package iOS privacy manifest\n- fix(mobile): isolate iOS bundle resources\n- chore(release-runtime): runtime-v0.5.18\n- fix(mobile): use embedded runtime in release APKs\n- feat(mobile): add store-compliant app builds",
   "releaseDate": "2026-08-25"
 }
