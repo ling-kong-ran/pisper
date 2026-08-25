@@ -1,6 +1,8 @@
 //! 配对流程：用二维码 payload（或手动输入）里的配对码向桌面端换取长期设备令牌。
 //! 配对请求本身就走指纹锁定的 HTTPS——指纹来自带外渠道（二维码/人工核对），
 //! 因此配对链路自始抵御中间人。
+use std::sync::atomic::{AtomicBool, Ordering};
+
 use serde::{Deserialize, Serialize};
 
 use crate::iroh_tunnel::TunnelBridgePool;
@@ -42,6 +44,40 @@ struct PairError {
     error: Option<String>,
 }
 
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct ApprovalRequestResponse {
+    request_id: String,
+    request_secret: String,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct ApprovalStatusResponse {
+    status: String,
+    device_id: Option<String>,
+    token: Option<String>,
+    #[serde(default)]
+    server_name: String,
+    #[serde(default)]
+    endpoints: Vec<ServerEndpoint>,
+}
+
+impl ApprovalStatusResponse {
+    fn into_pair_response(self) -> Result<PairResponse, String> {
+        Ok(PairResponse {
+            device_id: self
+                .device_id
+                .ok_or_else(|| "桌面端批准结果缺少设备标识。".to_string())?,
+            token: self
+                .token
+                .ok_or_else(|| "桌面端批准结果缺少设备令牌。".to_string())?,
+            server_name: self.server_name,
+            endpoints: self.endpoints,
+        })
+    }
+}
+
 fn now_iso8601() -> String {
     // 避免引入时间库：秒级时间戳足够标识配对时间。
     let seconds = std::time::SystemTime::now()
@@ -49,6 +85,32 @@ fn now_iso8601() -> String {
         .map(|duration| duration.as_secs())
         .unwrap_or(0);
     format!("{seconds}")
+}
+
+fn profile_from_response(
+    response: PairResponse,
+    fallback_name: &str,
+    fallback_endpoints: &[ServerEndpoint],
+    fingerprint: String,
+) -> ServerProfile {
+    let endpoints = if response.endpoints.is_empty() {
+        fallback_endpoints.to_vec()
+    } else {
+        response.endpoints
+    };
+    ServerProfile {
+        id: format!("srv_{}", fast_id()),
+        name: if response.server_name.is_empty() {
+            fallback_name.to_string()
+        } else {
+            response.server_name
+        },
+        endpoints,
+        fingerprint,
+        device_id: response.device_id,
+        token: response.token,
+        paired_at: now_iso8601(),
+    }
 }
 
 async fn endpoint_url(
@@ -94,24 +156,12 @@ pub async fn pair(
         };
         match try_pair_endpoint(&client, &base_url, &payload.code, device_name).await {
             Ok(response) => {
-                let endpoints = if response.endpoints.is_empty() {
-                    payload.endpoints.clone()
-                } else {
-                    response.endpoints.clone()
-                };
-                return Ok(ServerProfile {
-                    id: format!("srv_{}", fast_id()),
-                    name: if response.server_name.is_empty() {
-                        payload.name.clone()
-                    } else {
-                        response.server_name
-                    },
-                    endpoints,
+                return Ok(profile_from_response(
+                    response,
+                    &payload.name,
+                    &payload.endpoints,
                     fingerprint,
-                    device_id: response.device_id,
-                    token: response.token,
-                    paired_at: now_iso8601(),
-                });
+                ));
             }
             Err(error) => last_error = format!("{}: {error}", endpoint.display_address()),
         }
@@ -121,6 +171,136 @@ pub async fn pair(
     } else {
         last_error
     })
+}
+
+/// 通过 mDNS 发现的 LAN 端点提交连接申请，等待桌面批准后领取设备令牌。
+pub async fn pair_with_approval(
+    name: &str,
+    url: &str,
+    fingerprint: &str,
+    device_name: &str,
+    cancelled: &AtomicBool,
+) -> Result<ServerProfile, String> {
+    let fingerprint = normalize_fingerprint(fingerprint);
+    if fingerprint.len() < 64 {
+        return Err("发现记录中的证书指纹不完整。".into());
+    }
+    let url = url.trim().trim_end_matches('/');
+    if !url.starts_with("https://") {
+        return Err("发现记录中的远程端点不是 HTTPS。".into());
+    }
+    let client = pinned_client(&fingerprint)?;
+    let response = client
+        .post(format!("{url}/api/remote/pairing-requests"))
+        .timeout(std::time::Duration::from_secs(10))
+        .json(&serde_json::json!({ "deviceName": device_name }))
+        .send()
+        .await
+        .map_err(|error| error.to_string())?;
+    let status = response.status();
+    let body = response.text().await.map_err(|error| error.to_string())?;
+    if status != reqwest::StatusCode::ACCEPTED {
+        return Err(pair_error_message(status, &body));
+    }
+    let request: ApprovalRequestResponse =
+        serde_json::from_str(&body).map_err(|error| error.to_string())?;
+    let fallback_endpoints = vec![ServerEndpoint::lan(url.to_string())];
+    let deadline = tokio::time::Instant::now() + std::time::Duration::from_secs(130);
+
+    loop {
+        if cancelled.load(Ordering::Acquire) {
+            cancel_approval_request(&client, url, &request).await;
+            return Err("连接申请已取消。".into());
+        }
+        if tokio::time::Instant::now() >= deadline {
+            return Err("连接申请已过期，请重新申请。".into());
+        }
+        tokio::time::sleep(std::time::Duration::from_secs(1)).await;
+        let response = client
+            .get(format!(
+                "{url}/api/remote/pairing-requests/{}",
+                request.request_id
+            ))
+            .timeout(std::time::Duration::from_secs(10))
+            .header("x-pisper-pairing-secret", &request.request_secret)
+            .send()
+            .await
+            .map_err(|error| error.to_string())?;
+        let status = response.status();
+        let body = response.text().await.map_err(|error| error.to_string())?;
+        if !status.is_success() {
+            return Err(pair_error_message(status, &body));
+        }
+        let result: ApprovalStatusResponse =
+            serde_json::from_str(&body).map_err(|error| error.to_string())?;
+        if cancelled.load(Ordering::Acquire) {
+            cancel_approval_request(&client, url, &request).await;
+            return Err("连接申请已取消。".into());
+        }
+        let approval_status = result.status.clone();
+        match approval_status.as_str() {
+            "pending" => continue,
+            "rejected" => return Err("桌面端已拒绝连接申请。".into()),
+            "expired" => return Err("连接申请已过期，请重新申请。".into()),
+            "approved" => {
+                let response = result.into_pair_response()?;
+                return Ok(profile_from_response(
+                    response,
+                    name,
+                    &fallback_endpoints,
+                    fingerprint,
+                ));
+            }
+            _ => return Err("桌面端返回了未知的连接申请状态。".into()),
+        }
+    }
+}
+
+pub async fn revoke_pairing_result(
+    base_url: &str,
+    fingerprint: &str,
+    profile: &ServerProfile,
+) -> Result<(), String> {
+    let client = pinned_client(fingerprint)?;
+    let response = client
+        .post(format!(
+            "{}/api/remote/devices/{}/revoke",
+            base_url.trim_end_matches('/'),
+            profile.device_id
+        ))
+        .timeout(std::time::Duration::from_secs(10))
+        .bearer_auth(&profile.token)
+        .send()
+        .await
+        .map_err(|error| error.to_string())?;
+    if response.status().is_success() {
+        Ok(())
+    } else {
+        Err(format!("HTTP {}", response.status()))
+    }
+}
+
+async fn cancel_approval_request(
+    client: &reqwest::Client,
+    base_url: &str,
+    request: &ApprovalRequestResponse,
+) {
+    let _ = client
+        .delete(format!(
+            "{base_url}/api/remote/pairing-requests/{}",
+            request.request_id
+        ))
+        .timeout(std::time::Duration::from_secs(10))
+        .header("x-pisper-pairing-secret", &request.request_secret)
+        .send()
+        .await;
+}
+
+fn pair_error_message(status: reqwest::StatusCode, body: &str) -> String {
+    serde_json::from_str::<PairError>(body)
+        .ok()
+        .and_then(|parsed| parsed.error)
+        .unwrap_or_else(|| format!("HTTP {status}"))
 }
 
 async fn try_pair_endpoint(
@@ -148,10 +328,7 @@ async fn try_pair_endpoint(
     let status = response.status();
     let body = response.text().await.map_err(|error| error.to_string())?;
     if !status.is_success() {
-        let parsed = serde_json::from_str::<PairError>(&body).ok();
-        return Err(parsed
-            .and_then(|parsed| parsed.error)
-            .unwrap_or_else(|| format!("HTTP {status}")));
+        return Err(pair_error_message(status, &body));
     }
     let parsed: PairResponse = serde_json::from_str(&body).map_err(|error| error.to_string())?;
     Ok(parsed)
@@ -264,6 +441,25 @@ mod tests {
             }
         });
         (format!("https://{addr}"), fingerprint)
+    }
+
+    #[test]
+    fn approval_status_contract_accepts_pending_and_requires_approved_credentials() {
+        let pending: ApprovalStatusResponse =
+            serde_json::from_str(r#"{"status":"pending","expiresAt":"later"}"#).unwrap();
+        assert_eq!(pending.status, "pending");
+
+        let approved: ApprovalStatusResponse = serde_json::from_str(
+            r#"{"status":"approved","deviceId":"dev_test","token":"pst_test","serverName":"测试桌面","endpoints":[]}"#,
+        )
+        .unwrap();
+        let pair = approved.into_pair_response().unwrap();
+        assert_eq!(pair.device_id, "dev_test");
+        assert_eq!(pair.token, "pst_test");
+
+        let incomplete: ApprovalStatusResponse =
+            serde_json::from_str(r#"{"status":"approved"}"#).unwrap();
+        assert!(incomplete.into_pair_response().is_err());
     }
 
     #[tokio::test]

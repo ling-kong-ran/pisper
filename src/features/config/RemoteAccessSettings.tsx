@@ -2,12 +2,15 @@
 // 生成配对二维码、管理已配对设备（吊销）。数据全部来自 runtime 的 /api/remote/*。
 import { useCallback, useEffect, useState } from 'react'
 import {
+  Check,
+  LoaderCircle,
   MonitorSmartphone,
   QrCode,
   RadioTower,
   RefreshCw,
   ShieldCheck,
   Smartphone,
+  X,
 } from 'lucide-react'
 import { useI18n } from '@/app/use-i18n'
 import type { Notify } from '@/app/route-context'
@@ -15,6 +18,14 @@ import { apiJson } from '@/lib/api'
 import { relativeTime } from '@/lib/format'
 import { SettingsCard as Panel, SettingsSwitch as Switch } from './settings-primitives'
 import { Button } from '@/components/ui/button'
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog'
 
 type RemoteEndpoint = {
   t: string
@@ -58,22 +69,38 @@ type PairingCode = {
   qrDataUrl: string
 }
 
+type PairingApproval = {
+  id: string
+  deviceName: string
+  ip: string
+  requestedAt: string
+  expiresAt: string
+}
+
 export function RemoteAccessSettings({ notify }: { notify: Notify }) {
   const { t, language } = useI18n()
   const [status, setStatus] = useState<RemoteStatus | null>(null)
   const [devices, setDevices] = useState<RemoteDevice[]>([])
+  const [approvals, setApprovals] = useState<PairingApproval[]>([])
   const [pairing, setPairing] = useState<PairingCode | null>(null)
+  const [pairingOpen, setPairingOpen] = useState(false)
+  const [pairingError, setPairingError] = useState('')
+  const [approvalBusy, setApprovalBusy] = useState('')
   const [busy, setBusy] = useState(false)
   const [loadError, setLoadError] = useState('')
 
   const refresh = useCallback(async () => {
     try {
-      const [nextStatus, nextDevices] = await Promise.all([
+      const [nextStatus, nextDevices, nextApprovals] = await Promise.all([
         apiJson<RemoteStatus>('/api/remote/status'),
         apiJson<{ devices: RemoteDevice[] }>('/api/remote/devices'),
+        apiJson<{ requests: PairingApproval[] }>('/api/remote/pairing-requests').catch(() => ({
+          requests: [],
+        })),
       ])
       setStatus(nextStatus)
       setDevices(nextDevices.devices.filter((device) => !device.revokedAt))
+      setApprovals(nextApprovals.requests)
       setLoadError('')
     } catch {
       setLoadError(t('config:remoteAccess.loadFailed'))
@@ -84,6 +111,12 @@ export function RemoteAccessSettings({ notify }: { notify: Notify }) {
     void refresh()
   }, [refresh])
 
+  useEffect(() => {
+    if (!status?.listening) return
+    const timer = window.setInterval(() => void refresh(), 2_000)
+    return () => window.clearInterval(timer)
+  }, [refresh, status?.listening])
+
   const toggleEnabled = async (enabled: boolean) => {
     setBusy(true)
     try {
@@ -92,7 +125,11 @@ export function RemoteAccessSettings({ notify }: { notify: Notify }) {
       if (invoke) {
         await invoke('desktop_iroh_set_enabled', { enabled }).catch(() => undefined)
       }
-      if (!enabled) setPairing(null)
+      if (!enabled) {
+        setPairing(null)
+        setPairingOpen(false)
+        setPairingError('')
+      }
       await refresh()
     } catch (error) {
       notify(t('config:remoteAccess.toggleFailed', { message: String(error) }), 'error')
@@ -103,13 +140,35 @@ export function RemoteAccessSettings({ notify }: { notify: Notify }) {
 
   const generatePairingCode = async () => {
     setBusy(true)
+    setPairingError('')
     try {
       const result = await apiJson<PairingCode>('/api/remote/pairing-code', { method: 'POST' })
+      if (!result?.code || !result?.expiresAt)
+        throw new Error(t('config:remoteAccess.qrUnavailable'))
       setPairing(result)
+      setPairingOpen(true)
+      if (!result.qrDataUrl) setPairingError(t('config:remoteAccess.qrUnavailable'))
     } catch (error) {
-      notify(t('config:remoteAccess.pairingFailed', { message: String(error) }), 'error')
+      const message = t('config:remoteAccess.pairingFailed', { message: String(error) })
+      setPairingError(message)
+      notify(message, 'error')
     } finally {
       setBusy(false)
+    }
+  }
+
+  const decideApproval = async (approval: PairingApproval, approved: boolean) => {
+    setApprovalBusy(approval.id)
+    try {
+      await apiJson(`/api/remote/pairing-requests/${encodeURIComponent(approval.id)}/decision`, {
+        method: 'POST',
+        body: { approved },
+      })
+      await refresh()
+    } catch (error) {
+      notify(t('config:remoteAccess.approvalFailed', { message: String(error) }), 'error')
+    } finally {
+      setApprovalBusy('')
     }
   }
 
@@ -132,6 +191,45 @@ export function RemoteAccessSettings({ notify }: { notify: Notify }) {
 
   return (
     <div className="flex flex-col gap-4">
+      <Dialog open={pairingOpen && pairing !== null} onOpenChange={setPairingOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>{t('config:remoteAccess.pairingQrTitle')}</DialogTitle>
+            <DialogDescription>{t('config:remoteAccess.scanQrDescription')}</DialogDescription>
+          </DialogHeader>
+          <div className="flex flex-col items-center gap-3 py-2" aria-live="polite">
+            {pairing?.qrDataUrl ? (
+              <img
+                src={pairing.qrDataUrl}
+                alt={t('config:remoteAccess.qrAlt')}
+                className="size-64 max-w-full rounded-[var(--r-sm)] bg-white p-2"
+              />
+            ) : null}
+            {pairingError ? (
+              <p className="text-center text-[12px] leading-relaxed text-[var(--danger)]">
+                {pairingError}
+              </p>
+            ) : null}
+            {pairing ? (
+              <div className="text-center">
+                <div className="font-mono text-[20px] tracking-[0.2em]">{pairing.code}</div>
+                <div className="mt-1 text-[11px] text-[var(--text-muted)]">
+                  {t('config:remoteAccess.codeExpiresAt', {
+                    time: relativeTime(pairing.expiresAt, language),
+                  })}
+                </div>
+              </div>
+            ) : null}
+          </div>
+          <DialogFooter>
+            <Button disabled={busy} onClick={() => void generatePairingCode()}>
+              {busy ? <LoaderCircle className="animate-spin" /> : <RefreshCw />}
+              {busy ? t('config:remoteAccess.generatingQr') : t('config:remoteAccess.regenerate')}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
       <Panel className="flex flex-col gap-3 p-4">
         <div className="flex items-center justify-between gap-3">
           <div className="flex items-start gap-[11px]">
@@ -197,6 +295,61 @@ export function RemoteAccessSettings({ notify }: { notify: Notify }) {
         ) : null}
       </Panel>
 
+      {status.listening && approvals.length ? (
+        <Panel className="flex flex-col gap-3 p-4" aria-live="polite">
+          <div className="flex items-center gap-2 text-[14px]">
+            <Smartphone size={16} />
+            {t('config:remoteAccess.pendingApprovals')}
+          </div>
+          <p className="text-[12px] leading-relaxed text-[var(--text-muted)]">
+            {t('config:remoteAccess.pendingApprovalsDescription')}
+          </p>
+          <ul className="flex flex-col gap-2">
+            {approvals.map((approval) => (
+              <li
+                key={approval.id}
+                className="flex items-center justify-between gap-3 rounded-[var(--r-sm)] border border-[var(--border)] px-3 py-2"
+              >
+                <div className="min-w-0">
+                  <div className="truncate text-[13px]">{approval.deviceName}</div>
+                  <div className="text-[11px] text-[var(--text-muted)]">
+                    {t('config:remoteAccess.requestedAt', {
+                      time: relativeTime(approval.requestedAt, language),
+                    })}
+                  </div>
+                  <code className="block truncate text-[11px] text-[var(--text-muted)]">
+                    {t('config:remoteAccess.requestSource', { ip: approval.ip })}
+                  </code>
+                </div>
+                <div className="flex flex-none items-center gap-1">
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    disabled={approvalBusy === approval.id}
+                    onClick={() => void decideApproval(approval, false)}
+                  >
+                    <X />
+                    {t('config:remoteAccess.reject')}
+                  </Button>
+                  <Button
+                    size="sm"
+                    disabled={approvalBusy === approval.id}
+                    onClick={() => void decideApproval(approval, true)}
+                  >
+                    {approvalBusy === approval.id ? (
+                      <LoaderCircle className="animate-spin" />
+                    ) : (
+                      <Check />
+                    )}
+                    {t('config:remoteAccess.approve')}
+                  </Button>
+                </div>
+              </li>
+            ))}
+          </ul>
+        </Panel>
+      ) : null}
+
       {status.listening ? (
         <Panel className="flex flex-col gap-3 p-4">
           <div className="flex items-center justify-between gap-3">
@@ -205,30 +358,17 @@ export function RemoteAccessSettings({ notify }: { notify: Notify }) {
               {t('config:remoteAccess.pairing')}
             </div>
             <Button size="sm" disabled={busy} onClick={() => void generatePairingCode()}>
-              {pairing ? t('config:remoteAccess.regenerate') : t('config:remoteAccess.generateQr')}
+              {busy ? <LoaderCircle className="animate-spin" /> : <QrCode />}
+              {busy ? t('config:remoteAccess.generatingQr') : t('config:remoteAccess.generateQr')}
             </Button>
           </div>
           <p className="text-[12px] leading-[1.6] text-[var(--text-muted)]">
             {t('config:remoteAccess.pairingDescription')}
           </p>
-          {pairing ? (
-            <div className="flex flex-col items-center gap-3 py-2">
-              {pairing.qrDataUrl ? (
-                <img
-                  src={pairing.qrDataUrl}
-                  alt={t('config:remoteAccess.qrAlt')}
-                  className="size-56 rounded-[var(--r-sm)] bg-white p-2"
-                />
-              ) : null}
-              <div className="text-center">
-                <div className="font-mono text-[20px] tracking-[0.2em]">{pairing.code}</div>
-                <div className="mt-1 text-[11px] text-[var(--text-muted)]">
-                  {t('config:remoteAccess.codeExpiresAt', {
-                    time: relativeTime(pairing.expiresAt, language),
-                  })}
-                </div>
-              </div>
-            </div>
+          {pairingError && !pairingOpen ? (
+            <p className="text-[12px] leading-relaxed text-[var(--danger)]" aria-live="polite">
+              {pairingError}
+            </p>
           ) : null}
         </Panel>
       ) : null}

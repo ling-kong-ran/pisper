@@ -9,6 +9,10 @@
   <key>NSLocationWhenInUseUsageDescription</key>
   <string>Pisper reads one foreground location only for a mobile operation you approve.</string>
   <key>NSLocalNetworkUsageDescription</key>
-  <string>Pisper uses your local network only to connect to a Pisper Desktop Runtime that you choose.</string>
+  <string>Pisper uses your local network only to discover and connect to a Pisper Desktop Runtime that you choose.</string>
+  <key>NSBonjourServices</key>
+  <array>
+    <string>_pisper._tcp</string>
+  </array>
 </dict>
 </plist>

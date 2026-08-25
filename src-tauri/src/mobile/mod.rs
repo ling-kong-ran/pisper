@@ -21,7 +21,7 @@ pub mod update;
 #[cfg(not(feature = "mobile-store"))]
 pub mod update;
 
-#[cfg(target_os = "android")]
+use std::collections::HashMap;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
@@ -41,6 +41,7 @@ pub struct MobileShared {
     tunnels: Arc<crate::iroh_tunnel::TunnelBridgePool>,
     on_device: Arc<on_device_runtime::OnDeviceRuntime>,
     startup_error: Arc<Mutex<Option<String>>>,
+    lan_pairing_cancellations: Arc<Mutex<HashMap<String, Arc<AtomicBool>>>>,
 }
 
 #[derive(Serialize)]
@@ -457,6 +458,22 @@ async fn mobile_retry_local_startup(
     }
 }
 
+fn activate_remote_profile(
+    profile: ServerProfile,
+    state: &State<'_, MobileShared>,
+) -> Result<MobileStateDto, String> {
+    {
+        let mut store = state
+            .store
+            .lock()
+            .map_err(|_| "state poisoned".to_string())?;
+        store.upsert(profile)?;
+        store.set_last_mode("remote")?;
+    }
+    state.on_device.deactivate();
+    Ok(state_dto(state))
+}
+
 #[tauri::command]
 async fn mobile_pair(
     payload_json: &str,
@@ -469,19 +486,8 @@ async fn mobile_pair(
         .filter(|name| !name.trim().is_empty())
         .unwrap_or_else(default_device_name);
     let profile = pairing::pair(&payload, &device_name, Some(state.tunnels.as_ref())).await?;
-    let store = state.store.clone();
-    store
-        .lock()
-        .map_err(|_| "state poisoned".to_string())?
-        .upsert(profile)?;
     // 配对成功即明确选择远程模式；同进程 Node 会驻留，root 载体可以释放。
-    state.on_device.deactivate();
-    state
-        .store
-        .lock()
-        .map_err(|_| "state poisoned".to_string())?
-        .set_last_mode("remote")?;
-    Ok(state_dto(&state))
+    activate_remote_profile(profile, &state)
 }
 
 #[tauri::command]
@@ -507,16 +513,66 @@ async fn mobile_pair_manual(
         .filter(|name| !name.trim().is_empty())
         .unwrap_or_else(default_device_name);
     let profile = pairing::pair(&payload, &device_name, Some(state.tunnels.as_ref())).await?;
+    activate_remote_profile(profile, &state)
+}
+
+#[tauri::command]
+async fn mobile_pair_lan(
+    operation_id: String,
+    name: String,
+    url: String,
+    fingerprint: String,
+    device_name: Option<String>,
+    state: State<'_, MobileShared>,
+) -> Result<MobileStateDto, String> {
+    if operation_id.trim().is_empty() {
+        return Err("局域网配对操作缺少标识。".into());
+    }
+    let cancelled = Arc::new(AtomicBool::new(false));
     {
-        let mut store = state
-            .store
+        let mut cancellations = state
+            .lan_pairing_cancellations
             .lock()
             .map_err(|_| "state poisoned".to_string())?;
-        store.upsert(profile)?;
-        store.set_last_mode("remote")?;
+        if cancellations.contains_key(&operation_id) {
+            return Err("局域网配对操作正在进行。".into());
+        }
+        cancellations.insert(operation_id.clone(), cancelled.clone());
     }
-    state.on_device.deactivate();
-    Ok(state_dto(&state))
+    let device_name = device_name
+        .filter(|name| !name.trim().is_empty())
+        .unwrap_or_else(default_device_name);
+    let result =
+        pairing::pair_with_approval(&name, &url, &fingerprint, &device_name, cancelled.as_ref())
+            .await;
+    state
+        .lan_pairing_cancellations
+        .lock()
+        .map_err(|_| "state poisoned".to_string())?
+        .remove(&operation_id);
+    let profile = result?;
+    if cancelled.load(Ordering::Acquire) {
+        // 取消与批准同时发生时，令牌可能刚被领取；立即吊销，避免遗留不可见设备。
+        let _ = pairing::revoke_pairing_result(&url, &fingerprint, &profile).await;
+        return Err("连接申请已取消。".into());
+    }
+    activate_remote_profile(profile, &state)
+}
+
+#[tauri::command]
+fn mobile_cancel_lan_pairing(
+    operation_id: String,
+    state: State<'_, MobileShared>,
+) -> Result<bool, String> {
+    let cancellations = state
+        .lan_pairing_cancellations
+        .lock()
+        .map_err(|_| "state poisoned".to_string())?;
+    let Some(cancelled) = cancellations.get(&operation_id) else {
+        return Ok(false);
+    };
+    cancelled.store(true, Ordering::Release);
+    Ok(true)
 }
 
 #[tauri::command]
@@ -678,7 +734,8 @@ pub fn run_mobile() {
     #[cfg(any(target_os = "android", target_os = "ios"))]
     let builder = builder
         .plugin(pisper_mobile_device_plugin::init())
-        .plugin(tauri_plugin_barcode_scanner::init());
+        .plugin(tauri_plugin_barcode_scanner::init())
+        .plugin(tauri_plugin_dns_sd::init());
     let builder = builder
         .setup(|app| {
             let data_dir = app
@@ -737,6 +794,7 @@ pub fn run_mobile() {
                 tunnels,
                 on_device: on_device.clone(),
                 startup_error: startup_error.clone(),
+                lan_pairing_cancellations: Arc::new(Mutex::new(HashMap::new())),
             });
             app.manage(update::MobileUpdateState::default());
             update::start_automatic_checks(app.handle().clone());
@@ -787,6 +845,8 @@ pub fn run_mobile() {
             mobile_retry_local_startup,
             mobile_pair,
             mobile_pair_manual,
+            mobile_pair_lan,
+            mobile_cancel_lan_pairing,
             mobile_select_server,
             mobile_enter_local,
             mobile_leave_local,

@@ -39,7 +39,13 @@ const APP_EXCLUSIVE_PREFIXES = [
 ]
 
 // 这些 Rust 文件由 Desktop 与 App 共用，两个发布通道都必须看到它们的变更。
-const APP_SHARED_PREFIXES = ['src/', 'public/', 'runtime/', 'shared/']
+const APP_SHARED_PREFIXES = [
+  'src/',
+  'public/',
+  'runtime/',
+  'shared/',
+  'crates/tauri-plugin-dns-sd/',
+]
 
 const APP_SHARED_FILES = new Set([
   'package.json',

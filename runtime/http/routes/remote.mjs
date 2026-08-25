@@ -12,7 +12,14 @@ function remoteErrorStatus(code) {
     case 'pairing_rate_limited':
       return 429
     case 'device_not_found':
+    case 'pairing_request_not_found':
       return 404
+    case 'pairing_request_expired':
+      return 410
+    case 'pairing_lan_required':
+      return 403
+    case 'pairing_request_resolved':
+      return 409
     default:
       return 400
   }
@@ -25,6 +32,23 @@ function respondRemoteError(json, error) {
     return
   }
   throw error
+}
+
+function pairedResponse(result, remoteControl) {
+  const status = remoteControl.status()
+  return {
+    deviceId: result.device.id,
+    token: result.token,
+    serverName: status.deviceName,
+    endpoints: status.endpoints,
+    apiVersion: 1,
+  }
+}
+
+function requireDesktopListener(req, json) {
+  if (!req.pisperRemote) return true
+  json(403, { error: '配对申请只能在桌面端审批。', code: 'desktop_approval_required' })
+  return false
 }
 
 export const remoteRoutes = [
@@ -83,13 +107,97 @@ export const remoteRoutes = [
           deviceName: input.deviceName,
           ip: req.socket?.remoteAddress || 'unknown',
         })
-        json(201, {
-          deviceId: result.device.id,
-          token: result.token,
-          serverName: services.remoteControl.status().deviceName,
-          endpoints: services.remoteControl.status().endpoints,
+        json(201, pairedResponse(result, services.remoteControl))
+      } catch (error) {
+        respondRemoteError(json, error)
+      }
+    },
+  },
+  {
+    method: 'POST',
+    path: '/api/remote/pairing-requests',
+    async handler({ services, body, req, json }) {
+      try {
+        const input = await body()
+        const request = services.remoteAccess.requestPairingApproval({
+          deviceName: input?.deviceName,
+          ip: req.socket?.remoteAddress || 'unknown',
+        })
+        const status = services.remoteControl.status()
+        json(202, {
+          requestId: request.requestId,
+          requestSecret: request.secret,
+          expiresAt: request.expiresAt,
+          serverName: status.deviceName,
+          endpoints: status.endpoints,
+          fingerprint: status.fingerprint,
           apiVersion: 1,
         })
+      } catch (error) {
+        respondRemoteError(json, error)
+      }
+    },
+  },
+  {
+    method: 'GET',
+    path: '/api/remote/pairing-requests/:requestId',
+    handler({ services, params, req, json }) {
+      try {
+        const result = services.remoteAccess.pairingApprovalStatus(
+          params.requestId,
+          req.headers['x-pisper-pairing-secret'],
+        )
+        json(
+          200,
+          result.status === 'approved'
+            ? { ...pairedResponse(result, services.remoteControl), status: result.status }
+            : result,
+        )
+      } catch (error) {
+        respondRemoteError(json, error)
+      }
+    },
+  },
+  {
+    method: 'DELETE',
+    path: '/api/remote/pairing-requests/:requestId',
+    handler({ services, params, req, res, json }) {
+      try {
+        services.remoteAccess.cancelPairingApproval(
+          params.requestId,
+          req.headers['x-pisper-pairing-secret'],
+        )
+        res.writeHead(204)
+        res.end()
+      } catch (error) {
+        respondRemoteError(json, error)
+      }
+    },
+  },
+  {
+    method: 'GET',
+    path: '/api/remote/pairing-requests',
+    handler({ services, req, json }) {
+      if (!requireDesktopListener(req, json)) return
+      json(200, { requests: services.remoteAccess.listPairingApprovals() })
+    },
+  },
+  {
+    method: 'POST',
+    path: '/api/remote/pairing-requests/:requestId/decision',
+    async handler({ services, params, req, body, json }) {
+      if (!requireDesktopListener(req, json)) return
+      try {
+        const input = await body()
+        if (typeof input?.approved !== 'boolean') {
+          json(400, { error: 'approved 必须是布尔值。', code: 'invalid_pairing_decision' })
+          return
+        }
+        const result = services.remoteAccess.resolvePairingApproval(
+          params.requestId,
+          input.approved,
+        )
+        json(200, result)
       } catch (error) {
         respondRemoteError(json, error)
       }

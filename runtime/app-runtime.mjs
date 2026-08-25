@@ -287,6 +287,7 @@ export async function createPisperRuntime({
     const url = new URL(req.url || '/', req.headers.host ? `http://${req.headers.host}` : origin)
     // 鉴权分层：回环监听走桌面 Cookie 引导；远程监听走设备 Bearer 令牌。
     if (isRemoteListener) {
+      req.pisperRemote = true
       if (authorizeRemoteRequest(req, res, url, { remoteAccess })) return
     } else if (authorizeDesktopRequest(req, res, url, { token: desktopAuthToken, origin })) {
       return

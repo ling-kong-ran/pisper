@@ -14,8 +14,18 @@ function reject(res, status, message, code) {
 
 // 返回 true 表示请求已被拦截（401）；false 表示放行。
 export function authorizeRemoteRequest(req, res, url, { remoteAccess }) {
-  // 配对接口是唯一无需凭据的远程入口，攻击面收敛于配对码 + 限流。
-  if (url.pathname === '/api/remote/pair') return false
+  // 配对码兑换，以及 LAN 申请的创建/凭 secret 查询无需已有设备令牌。
+  // 审批列表与决定接口不在此白名单内，并由路由再次限制为桌面监听来源。
+  const pairingRequestStatus =
+    (req.method === 'GET' || req.method === 'DELETE') &&
+    /^\/api\/remote\/pairing-requests\/[^/]+$/.test(url.pathname)
+  if (
+    url.pathname === '/api/remote/pair' ||
+    (req.method === 'POST' && url.pathname === '/api/remote/pairing-requests') ||
+    pairingRequestStatus
+  ) {
+    return false
+  }
   const device = remoteAccess.authenticateToken(bearerToken(req))
   if (!device) {
     reject(res, 401, 'Remote access authentication is required.', 'remote_auth_required')

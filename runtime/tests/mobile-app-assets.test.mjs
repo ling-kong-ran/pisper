@@ -32,6 +32,7 @@ test('共享产品路径同时归 App 与原组件发布通道', () => {
     ['src-tauri/Cargo.toml', ['desktop']],
     ['src-tauri/src/iroh_tunnel.rs', ['desktop']],
     ['src-tauri/src/lib.rs', ['desktop']],
+    ['crates/tauri-plugin-dns-sd/src/lib.rs', ['desktop']],
     ['src/app/App.tsx', ['desktop']],
     ['runtime/index.mjs', ['runtime']],
     ['runtime/mobile-embedded.mjs', ['runtime']],
@@ -366,9 +367,10 @@ test('移动端明确区分远程档案与当前 Runtime 路由', async () => {
     assert.rejects(readFile('public/connect.html'), /ENOENT/),
     assert.rejects(readFile('public/connect.js'), /ENOENT/),
   ])
-  const [native, permissions, appPaths, settings, pairing] = await Promise.all([
+  const [native, permissions, bridgeCapability, appPaths, settings, pairing] = await Promise.all([
     readFile('src-tauri/src/mobile/mod.rs', 'utf8'),
     readFile('src-tauri/permissions/mobile.toml', 'utf8'),
+    readFile('src-tauri/capabilities/mobile-bridge.json', 'utf8'),
     readFile('scripts/app-paths.mjs', 'utf8'),
     readFile('src/features/config/MobileServerSettings.tsx', 'utf8'),
     readFile('src/features/config/MobilePairingDialog.tsx', 'utf8'),
@@ -387,8 +389,65 @@ test('移动端明确区分远程档案与当前 Runtime 路由', async () => {
   assert.match(settings, /window\.location\.replace\(updated\.proxyUrl\)/)
   assert.match(settings, /<MobilePairingDialog/)
   assert.match(pairing, /plugin:barcode-scanner/)
+  assert.match(pairing, /windowed: true/)
+  assert.match(pairing, /invokeScanner<void>\('cancel'\)/)
+  assert.match(pairing, /window\.addEventListener\('popstate', handleBack\)/)
+  assert.match(pairing, /setTemporaryStyle\(root, 'visibility', 'hidden'\)/)
+  assert.match(bridgeCapability, /barcode-scanner:allow-cancel/)
   assert.match(pairing, /mobile_pair_manual/)
   assert.match(pairing, /window\.location\.replace\(state\.proxyUrl\)/)
+})
+
+test('局域网发现需桌面审批且保留二维码备用路径', async () => {
+  const [
+    cargo,
+    packageJson,
+    native,
+    pairing,
+    remoteSettings,
+    capability,
+    iosInfo,
+    dnsSdMobile,
+    dnsSdAndroid,
+  ] = await Promise.all([
+    readFile('src-tauri/Cargo.toml', 'utf8'),
+    readFile('package.json', 'utf8'),
+    readFile('src-tauri/src/mobile/mod.rs', 'utf8'),
+    readFile('src/features/config/MobilePairingDialog.tsx', 'utf8'),
+    readFile('src/features/config/RemoteAccessSettings.tsx', 'utf8'),
+    readFile('src-tauri/capabilities/mobile-bridge.json', 'utf8'),
+    readFile('src-tauri/Info.ios.plist', 'utf8'),
+    readFile('crates/tauri-plugin-dns-sd/src/mobile.rs', 'utf8'),
+    readFile(
+      'crates/tauri-plugin-dns-sd/android/src/main/java/com/momics/dnssd/DnsSdPlugin.kt',
+      'utf8',
+    ),
+  ])
+  assert.match(cargo, /tauri-plugin-dns-sd = \{ path = "\.\.\/crates\/tauri-plugin-dns-sd" \}/)
+  assert.match(dnsSdMobile, /#\[serde\(flatten\)\][\s\S]*options: BrowseOptions/)
+  assert.match(dnsSdAndroid, /class BrowseStartArgs \{[\s\S]*var service: ServiceSpecData\?/)
+  assert.match(dnsSdAndroid, /var timeoutMs: Long\?/)
+  assert.doesNotMatch(dnsSdAndroid, /class BrowseStartArgs \{[\s\S]*?var options:/)
+  assert.match(packageJson, /"@tauri-apps\/api": "\^2\.11\.1"/)
+  assert.match(native, /plugin\(tauri_plugin_dns_sd::init\(\)\)/)
+  assert.match(native, /mobile_pair_lan/)
+  assert.match(native, /mobile_cancel_lan_pairing/)
+  assert.match(pairing, /plugin:dns-sd\|browse_start/)
+  assert.match(pairing, /service: \{ type: 'pisper', protocol: 'tcp', domain: 'local' \}/)
+  assert.match(pairing, /mobile_pair_lan/)
+  assert.match(pairing, /mobile_cancel_lan_pairing/)
+  assert.match(pairing, /plugin:barcode-scanner/)
+  assert.match(pairing, /mobile_pair_manual/)
+  assert.match(remoteSettings, /pendingApprovals/)
+  assert.match(remoteSettings, /approval\.ip/)
+  assert.match(remoteSettings, /decideApproval\(approval, true\)/)
+  assert.match(remoteSettings, /decideApproval\(approval, false\)/)
+  assert.match(remoteSettings, />\{status\.fingerprint\}</)
+  assert.match(remoteSettings, /status\.endpoints\s*\.filter/)
+  assert.match(remoteSettings, /<RadioTower/)
+  assert.match(capability, /dns-sd:default/)
+  assert.match(iosInfo, /<key>NSBonjourServices<\/key>/)
+  assert.match(iosInfo, /<string>_pisper\._tcp<\/string>/)
 })
 
 test('root Android Runtime 构建仅在系统包安装期间绑定构建机设备', async () => {

@@ -71,6 +71,7 @@ export function releaseComponentsForPath(input) {
   }
   if (path.startsWith('packages/pisper/')) return []
   if (path.startsWith('crates/component-updater/')) return ['desktop', 'tui']
+  if (path.startsWith('crates/tauri-plugin-dns-sd/')) return ['desktop']
   if (path.startsWith('src-tauri/')) return ['desktop']
   if (path.startsWith('src-tui/')) return ['tui']
   if (path.startsWith('runtime/')) return ['runtime']

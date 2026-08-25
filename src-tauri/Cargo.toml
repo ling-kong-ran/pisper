@@ -35,6 +35,7 @@ tauri = { version = "2.11.5", features = ["tray-icon", "macos-private-api"] }
 tauri-plugin-notification = "2.3.3"
 tauri-plugin-opener = "2.5.4"
 tauri-plugin-barcode-scanner = "2"
+tauri-plugin-dns-sd = { path = "../crates/tauri-plugin-dns-sd" }
 time = { version = "0.3", features = ["formatting"] }
 # 移动端本地代理依赖：纯 Rust + tokio，所有平台均可编译（便于桌面主机 check/test）。
 tokio = { version = "1", features = ["full"] }

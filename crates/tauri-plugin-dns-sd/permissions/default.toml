@@ -1,0 +1,8 @@
+[default]
+description = "Default permissions for the plugin"
+permissions = [
+  "allow-browse-start",
+  "allow-browse-stop",
+  "allow-advertise-start",
+  "allow-advertise-stop"
+]

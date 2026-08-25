@@ -6,6 +6,7 @@ import { join } from 'node:path'
 import test from 'node:test'
 import {
   formatPairingCode,
+  isPrivateNetworkAddress,
   normalizePairingCode,
   RemoteAccessError,
   RemoteAccessService,
@@ -79,6 +80,85 @@ test('连续失败后限流，窗口过后恢复', () => {
     () => service.redeemPairingCode({ code: 'WRONGCODE', ip: '10.0.0.9' }),
     (error) => error.code === 'pairing_code_invalid',
   )
+})
+
+test('LAN 配对申请只接受私网并由桌面批准后一次性领取令牌', () => {
+  assert.equal(isPrivateNetworkAddress('192.168.1.20'), true)
+  assert.equal(isPrivateNetworkAddress('::ffff:10.0.0.2'), true)
+  assert.equal(isPrivateNetworkAddress('fe80::1234%wlan0'), true)
+  assert.equal(isPrivateNetworkAddress('8.8.8.8'), false)
+  assert.equal(isPrivateNetworkAddress('fc-not-an-ip'), false)
+
+  const service = createService()
+  assert.throws(
+    () => service.requestPairingApproval({ deviceName: '公网设备', ip: '8.8.8.8' }),
+    (error) => error.code === 'pairing_lan_required',
+  )
+  const requested = service.requestPairingApproval({ deviceName: '手机 A', ip: '192.168.1.20' })
+  assert.equal(service.listPairingApprovals()[0].deviceName, '手机 A')
+  assert.throws(
+    () => service.pairingApprovalStatus(requested.requestId, 'wrong-secret'),
+    (error) => error.code === 'pairing_request_not_found',
+  )
+  assert.equal(
+    service.pairingApprovalStatus(requested.requestId, requested.secret).status,
+    'pending',
+  )
+  assert.equal(service.resolvePairingApproval(requested.requestId, true).status, 'approved')
+  const approved = service.pairingApprovalStatus(requested.requestId, requested.secret)
+  assert.equal(approved.status, 'approved')
+  assert.ok(approved.token.startsWith('pst_'))
+  assert.equal(service.authenticateToken(approved.token)?.name, '手机 A')
+  assert.throws(
+    () => service.pairingApprovalStatus(requested.requestId, requested.secret),
+    (error) => error.code === 'pairing_request_not_found',
+  )
+})
+
+test('拒绝 LAN 配对申请不会创建授权设备', () => {
+  const service = createService()
+  const requested = service.requestPairingApproval({ deviceName: '手机 B', ip: '172.16.0.9' })
+  service.resolvePairingApproval(requested.requestId, false)
+  assert.deepEqual(service.pairingApprovalStatus(requested.requestId, requested.secret), {
+    status: 'rejected',
+  })
+  assert.equal(service.listDevices().length, 0)
+})
+
+test('已批准但未领取的 LAN 配对结果过期后吊销授权设备', () => {
+  const service = createService()
+  const requested = service.requestPairingApproval({ deviceName: '手机 C', ip: '10.0.0.8' })
+  service.resolvePairingApproval(requested.requestId, true)
+  const pending = service.pendingPairingRequests.get(requested.requestId)
+  const token = pending.result.token
+  const cleanupAt = Date.parse(pending.resolvedAt) + 60_001
+
+  assert.equal(service.authenticateToken(token)?.name, '手机 C')
+  service.cleanupPairingRequests(cleanupAt)
+  assert.equal(service.authenticateToken(token), null)
+  assert.equal(service.listDevices()[0].revokedAt !== null, true)
+  assert.equal(service.pendingPairingRequests.has(requested.requestId), false)
+})
+
+test('批准结果不受原申请期限截断，关闭远程访问会吊销未领取授权', () => {
+  const service = createService()
+  service.setEnabled(true)
+  const requested = service.requestPairingApproval({ deviceName: '手机 D', ip: '10.0.0.9' })
+  service.resolvePairingApproval(requested.requestId, true)
+  service.pendingPairingRequests.get(requested.requestId).expiresAt = new Date(
+    Date.now() - 1,
+  ).toISOString()
+
+  const approved = service.pairingApprovalStatus(requested.requestId, requested.secret)
+  assert.equal(approved.status, 'approved')
+  assert.equal(service.authenticateToken(approved.token)?.name, '手机 D')
+
+  const unclaimed = service.requestPairingApproval({ deviceName: '手机 E', ip: '10.0.0.10' })
+  service.resolvePairingApproval(unclaimed.requestId, true)
+  const token = service.pendingPairingRequests.get(unclaimed.requestId).result.token
+  service.setEnabled(false)
+  assert.equal(service.authenticateToken(token), null)
+  assert.equal(service.pendingPairingRequests.size, 0)
 })
 
 test('设备令牌认证与吊销：吊销后 401 且活跃连接被断开', () => {

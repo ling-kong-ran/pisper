@@ -3,11 +3,15 @@
 // 所有密钥比较走常量时间比较，避免时序侧信道。
 import { createHash, randomBytes, timingSafeEqual } from 'node:crypto'
 import { chmodSync, mkdirSync, readFileSync, renameSync, writeFileSync } from 'node:fs'
+import { isIP } from 'node:net'
 import { dirname, join } from 'node:path'
 
 export const PAIRING_CODE_TTL_MS = 5 * 60 * 1000
+export const PAIRING_APPROVAL_TTL_MS = 2 * 60 * 1000
 export const PAIRING_RATE_LIMIT_WINDOW_MS = 60 * 1000
 export const PAIRING_RATE_LIMIT_MAX_FAILURES = 5
+
+const MAX_PENDING_PAIRING_REQUESTS = 32
 
 const STORE_VERSION = 1
 // Crockford Base32 字母表：去掉易混淆的 I/L/O/U，便于人工核对与口述。
@@ -24,6 +28,34 @@ export class RemoteAccessError extends Error {
 
 function hashSecret(value) {
   return createHash('sha256').update(String(value)).digest('hex')
+}
+
+// LAN 快速配对只接受回环、链路本地和私有网段，避免公网请求进入桌面审批队列。
+export function isPrivateNetworkAddress(input) {
+  let address = String(input || '')
+    .trim()
+    .toLowerCase()
+    .replace(/^\[|\]$/g, '')
+    .split('%')[0]
+  if (address.startsWith('::ffff:')) address = address.slice(7)
+  const version = isIP(address)
+  if (version === 4) {
+    const octets = address.split('.').map(Number)
+    return (
+      octets[0] === 10 ||
+      octets[0] === 127 ||
+      (octets[0] === 169 && octets[1] === 254) ||
+      (octets[0] === 172 && octets[1] >= 16 && octets[1] <= 31) ||
+      (octets[0] === 192 && octets[1] === 168)
+    )
+  }
+  if (version !== 6) return false
+  return (
+    address === '::1' ||
+    address.startsWith('fc') ||
+    address.startsWith('fd') ||
+    /^fe[89ab]/.test(address)
+  )
 }
 
 // 比较两个 hex 摘要：长度一致时用常量时间比较。
@@ -74,6 +106,8 @@ export class RemoteAccessService {
     this.failures = new Map()
     // 已认证设备的活跃响应：吊销时用于主动断开其 SSE 长连接。
     this.activeResponses = new Map()
+    // LAN 申请及批准后尚未领取的明文令牌只驻留内存，重启即失效。
+    this.pendingPairingRequests = new Map()
     this.load()
   }
 
@@ -126,6 +160,9 @@ export class RemoteAccessService {
 
   setEnabled(enabled) {
     this.state.enabled = Boolean(enabled)
+    if (!this.state.enabled) {
+      for (const id of [...this.pendingPairingRequests.keys()]) this.discardPairingRequest(id)
+    }
     this.save()
     return this.state.enabled
   }
@@ -167,6 +204,26 @@ export class RemoteAccessService {
     }
   }
 
+  createDevice(deviceName) {
+    const now = new Date().toISOString()
+    // 令牌明文只在此时生成并返回一次；服务端只保存哈希。
+    const token = `pst_${randomBytes(24).toString('base64url')}`
+    const device = {
+      id: `dev_${randomBytes(9).toString('base64url')}`,
+      name:
+        String(deviceName || '')
+          .trim()
+          .slice(0, 80) || '未命名设备',
+      tokenHash: hashSecret(token),
+      createdAt: now,
+      lastSeenAt: now,
+      revokedAt: null,
+    }
+    this.state.devices.push(device)
+    this.save()
+    return { device: publicDevice(device), token }
+  }
+
   // 用配对码换取长期设备令牌：成功即消费配对码（一次性）。
   redeemPairingCode({ code, deviceName, ip = 'unknown' } = {}) {
     this.assertNotRateLimited(ip)
@@ -186,23 +243,127 @@ export class RemoteAccessService {
     }
     this.state.pairingCode = null
     this.failures.delete(ip)
-    const now = new Date().toISOString()
-    // 令牌明文只在此时生成并返回一次；服务端只保存哈希。
-    const token = `pst_${randomBytes(24).toString('base64url')}`
-    const device = {
-      id: `dev_${randomBytes(9).toString('base64url')}`,
-      name:
+    return this.createDevice(deviceName)
+  }
+
+  discardPairingRequest(id) {
+    const request = this.pendingPairingRequests.get(id)
+    const deviceId = request?.result?.device?.id
+    const activeDevice = deviceId
+      ? this.state.devices.find((device) => device.id === deviceId && !device.revokedAt)
+      : null
+    // 批准结果未被领取时，不能让无人持有的授权设备永久留在配置中。
+    if (activeDevice) this.revokeDevice(deviceId)
+    this.pendingPairingRequests.delete(id)
+  }
+
+  cleanupPairingRequests(now = Date.now()) {
+    for (const [id, request] of this.pendingPairingRequests) {
+      const expiresAt = Date.parse(request.expiresAt)
+      const resolvedAt = request.resolvedAt ? Date.parse(request.resolvedAt) : Number.NaN
+      if (now > expiresAt + 60_000 || (Number.isFinite(resolvedAt) && now > resolvedAt + 60_000)) {
+        this.discardPairingRequest(id)
+      }
+    }
+  }
+
+  requestPairingApproval({ deviceName, ip = 'unknown' } = {}) {
+    if (!isPrivateNetworkAddress(ip)) {
+      throw new RemoteAccessError('pairing_lan_required', '局域网配对申请只接受私有网络来源。')
+    }
+    this.assertNotRateLimited(ip)
+    this.cleanupPairingRequests()
+    const activeForIp = [...this.pendingPairingRequests.values()].filter(
+      (request) => request.ip === ip && request.status === 'pending',
+    )
+    if (
+      activeForIp.length >= PAIRING_RATE_LIMIT_MAX_FAILURES ||
+      this.pendingPairingRequests.size >= MAX_PENDING_PAIRING_REQUESTS
+    ) {
+      this.recordFailure(ip)
+      throw new RemoteAccessError('pairing_rate_limited', '配对申请过多，请稍后再试。')
+    }
+    const requestId = `pair_${randomBytes(12).toString('base64url')}`
+    const secret = `pps_${randomBytes(24).toString('base64url')}`
+    const requestedAt = new Date().toISOString()
+    const expiresAt = new Date(Date.now() + PAIRING_APPROVAL_TTL_MS).toISOString()
+    const request = {
+      id: requestId,
+      secretHash: hashSecret(secret),
+      deviceName:
         String(deviceName || '')
           .trim()
           .slice(0, 80) || '未命名设备',
-      tokenHash: hashSecret(token),
-      createdAt: now,
-      lastSeenAt: now,
-      revokedAt: null,
+      ip,
+      requestedAt,
+      expiresAt,
+      status: 'pending',
+      resolvedAt: null,
+      result: null,
     }
-    this.state.devices.push(device)
-    this.save()
-    return { device: publicDevice(device), token }
+    this.pendingPairingRequests.set(requestId, request)
+    return { requestId, secret, expiresAt }
+  }
+
+  listPairingApprovals() {
+    const now = Date.now()
+    this.cleanupPairingRequests(now)
+    return [...this.pendingPairingRequests.values()]
+      .filter((request) => request.status === 'pending' && Date.parse(request.expiresAt) >= now)
+      .map(({ id, deviceName, ip, requestedAt, expiresAt }) => ({
+        id,
+        deviceName,
+        ip,
+        requestedAt,
+        expiresAt,
+      }))
+  }
+
+  resolvePairingApproval(id, approved) {
+    this.cleanupPairingRequests()
+    const request = this.pendingPairingRequests.get(id)
+    if (!request) throw new RemoteAccessError('pairing_request_not_found', '配对申请不存在。')
+    if (Date.parse(request.expiresAt) < Date.now()) {
+      throw new RemoteAccessError('pairing_request_expired', '配对申请已过期。')
+    }
+    if (request.status !== 'pending') {
+      throw new RemoteAccessError('pairing_request_resolved', '配对申请已经处理。')
+    }
+    request.status = approved ? 'approved' : 'rejected'
+    request.resolvedAt = new Date().toISOString()
+    if (approved) request.result = this.createDevice(request.deviceName)
+    return { id: request.id, status: request.status }
+  }
+
+  cancelPairingApproval(id, secret) {
+    this.cleanupPairingRequests()
+    const request = this.pendingPairingRequests.get(id)
+    if (!request || !secretEquals(secret, request.secretHash)) {
+      throw new RemoteAccessError('pairing_request_not_found', '配对申请不存在。')
+    }
+    this.discardPairingRequest(id)
+  }
+
+  pairingApprovalStatus(id, secret) {
+    this.cleanupPairingRequests()
+    const request = this.pendingPairingRequests.get(id)
+    if (!request || !secretEquals(secret, request.secretHash)) {
+      throw new RemoteAccessError('pairing_request_not_found', '配对申请不存在。')
+    }
+    if (request.status === 'pending') {
+      if (Date.parse(request.expiresAt) >= Date.now()) {
+        return { status: 'pending', expiresAt: request.expiresAt }
+      }
+      this.discardPairingRequest(id)
+      return { status: 'expired' }
+    }
+    if (request.status === 'rejected') {
+      this.pendingPairingRequests.delete(id)
+      return { status: 'rejected' }
+    }
+    const result = request.result
+    this.pendingPairingRequests.delete(id)
+    return { status: 'approved', ...result }
   }
 
   // 校验 Bearer 令牌：返回未吊销的设备，或 null。
