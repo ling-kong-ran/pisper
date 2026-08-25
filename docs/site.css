@@ -216,6 +216,28 @@ main,
   color: var(--ink);
 }
 
+.nav-mobile-github {
+  display: none;
+  align-items: center;
+  justify-content: center;
+  padding: 9px 12px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  color: var(--dim);
+  text-decoration: none;
+  font-size: 13px;
+  font-weight: 600;
+  transition:
+    background 0.25s,
+    color 0.25s,
+    border-color 0.25s;
+}
+
+.nav-mobile-github:hover {
+  border-color: var(--cyan);
+  color: var(--ink);
+}
+
 .nav-download {
   display: inline-flex;
   align-items: center;
@@ -1114,6 +1136,7 @@ main,
     display: none;
   }
 
+  .nav-mobile-github,
   .mobile-download-cta {
     display: inline-flex;
   }
@@ -1147,6 +1170,26 @@ main,
 }
 
 @media (max-width: 620px) {
+  .nav {
+    gap: 8px;
+  }
+
+  .brand {
+    gap: 7px;
+    font-size: 16px;
+  }
+
+  .brand img {
+    width: 28px;
+    height: 28px;
+  }
+
+  .nav-mobile-github,
+  .nav-download {
+    padding-inline: 9px;
+    font-size: 12px;
+  }
+
   #field {
     opacity: 0.38;
   }

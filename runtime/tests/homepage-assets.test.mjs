@@ -55,6 +55,10 @@ test('homepage swaps desktop download calls for mobile choices at compact widths
   assert.equal(mobileCalls?.length, 2)
   assert.equal(homepage.match(/下载移动端/g)?.length, 2)
   assert.equal(homepage.match(/class="[^"]*desktop-download-cta[^"]*"/g)?.length, 2)
+  assert.match(
+    homepage,
+    /class="nav-mobile-github magnetic"[\s\S]*href="https:\/\/github\.com\/ling-kong-ran\/pisper"/,
+  )
   assert.match(homepage, /id="mobile-downloads"/)
   assert.match(styles, /\.mobile-download-cta\s*\{\s*display: none;/)
   assert.match(
@@ -63,8 +67,9 @@ test('homepage swaps desktop download calls for mobile choices at compact widths
   )
   assert.match(
     styles,
-    /@media \(max-width: 960px\)[\s\S]*?\.mobile-download-cta\s*\{\s*display: inline-flex;/,
+    /@media \(max-width: 960px\)[\s\S]*?\.nav-mobile-github,[\s\S]*?\.mobile-download-cta\s*\{\s*display: inline-flex;/,
   )
+  assert.match(styles, /@media \(max-width: 620px\)[\s\S]*?\.nav \{\s*gap: 8px;/)
 })
 
 test('homepage WebP previews stay within the loading budget', async () => {
