@@ -80,9 +80,13 @@ test('chat split controls expose left, right, top and bottom actions', async () 
   assert.match(history, /openSession\(session\.id, 'below'\)/)
 })
 
-test('dock layout persistence flushes before suspension and prevents teardown overwrites', async () => {
+test('dock layout persistence flushes before suspension through the Runtime queue', async () => {
   const dockHook = await readFile('src/features/chat/use-chat-dock.ts', 'utf8')
   assert.match(dockHook, /const persistDockLayout = useCallback/)
+  assert.match(dockHook, /apiJson<unknown>\('\/api\/settings\/chat-dock-layout'\)/)
+  assert.match(dockHook, /pendingLayoutWriteRef\.current = serialized/)
+  assert.match(dockHook, /method: 'PUT'/)
+  assert.doesNotMatch(dockHook, /STORAGE_KEYS\.(?:chatDockLayout|tiledSessions)/)
   assert.match(
     dockHook,
     /const envelope = createDockLayoutEnvelope\(api\.toJSON\(\), api\.activePanel\?\.id \|\| ''\)/,
@@ -103,21 +107,20 @@ test('dock layout persistence flushes before suspension and prevents teardown ov
   )
 })
 
-test('initial dock sessions prefer the active chat and migrate valid legacy tabs once', () => {
+test('initial dock sessions prefer the active chat and otherwise use the first session', () => {
   assert.deepEqual(
     initialDockSessionIds({
       activeSessionId: 'b',
-      legacyTiledSessionIds: ['a', 'b', 'missing', 'c'],
       validSessionIds: ['a', 'b', 'c'],
     }),
-    ['b', 'a', 'c'],
+    ['b'],
   )
   assert.deepEqual(
     initialDockSessionIds({
       activeSessionId: 'missing',
-      legacyTiledSessionIds: [],
       validSessionIds: ['first', 'second'],
     }),
     ['first'],
   )
+  assert.deepEqual(initialDockSessionIds(), [])
 })

@@ -31,6 +31,30 @@ test('runtime initialization leaves stored conversations unloaded until requeste
   assert.equal(scans, 1)
 })
 
+test('chat Dock layout persists in the Runtime data directory', async (t) => {
+  const directory = await mkdtemp(join(tmpdir(), 'pisper-chat-dock-layout-'))
+  const runtime = new AgentRuntimeService({ cwd: directory, dataDir: directory })
+  t.after(async () => {
+    await runtime.dispose()
+    await rm(directory, { recursive: true, force: true })
+  })
+  const layout = {
+    version: 1,
+    engine: 'dockview',
+    activePanelId: 'session:one',
+    layout: { grid: {}, panels: {} },
+  }
+
+  assert.equal(await runtime.getChatDockLayout(), null)
+  assert.deepEqual(await runtime.saveChatDockLayout(layout), layout)
+  assert.deepEqual(await runtime.getChatDockLayout(), layout)
+  assert.deepEqual(
+    JSON.parse(await readFile(join(directory, 'pisper-chat-dock-layout.json'))),
+    layout,
+  )
+  await assert.rejects(runtime.saveChatDockLayout(null), /必须是 JSON 对象/)
+})
+
 test('blank chat sessions stay lightweight until an Agent is first required', async (t) => {
   const directory = await mkdtemp(join(tmpdir(), 'pisper-pending-session-'))
   t.after(() => rm(directory, { recursive: true, force: true }))

@@ -451,6 +451,8 @@ export class AgentRuntimeService extends AgentRuntimeFacade {
       metadata: this.modelMetadata,
     })
     this.settingsPath = join(dataDir, 'settings.json')
+    this.chatDockLayoutPath = join(dataDir, 'pisper-chat-dock-layout.json')
+    this.chatDockLayoutWrite = Promise.resolve()
     this.appConfigPath = join(dataDir, 'pisper.json')
     this.toolPlugins = new ToolPluginService(this.appConfigPath, { dataDir })
     this.webSearch = new WebSearchService({ configPath: this.appConfigPath })

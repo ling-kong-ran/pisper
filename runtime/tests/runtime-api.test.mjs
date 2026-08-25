@@ -65,6 +65,50 @@ test('runtime diagnostics API returns sidecar memory counters', async () => {
   assert.deepEqual(JSON.parse(output.body), diagnostics)
 })
 
+test('chat Dock layout API reads and writes the Runtime-persisted layout', async () => {
+  const layout = {
+    version: 1,
+    engine: 'dockview',
+    activePanelId: 'session:one',
+    layout: { grid: {}, panels: {} },
+  }
+  const calls = []
+  const runtime = {
+    async getChatDockLayout() {
+      calls.push(['get'])
+      return layout
+    },
+    async saveChatDockLayout(input) {
+      calls.push(['put', input])
+      return input
+    },
+  }
+  const handler = createApiHandler(runtime)
+
+  const getResponse = response()
+  assert.equal(
+    await handler(
+      request('GET'),
+      getResponse,
+      new URL('http://localhost/api/settings/chat-dock-layout'),
+    ),
+    true,
+  )
+  assert.deepEqual(JSON.parse(getResponse.body), layout)
+
+  const putResponse = response()
+  assert.equal(
+    await handler(
+      request('PUT', layout),
+      putResponse,
+      new URL('http://localhost/api/settings/chat-dock-layout'),
+    ),
+    true,
+  )
+  assert.deepEqual(JSON.parse(putResponse.body), layout)
+  assert.deepEqual(calls, [['get'], ['put', layout]])
+})
+
 test('compaction preference APIs expose and update the threshold percentage', async () => {
   const calls = []
   const runtime = {

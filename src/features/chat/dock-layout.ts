@@ -125,26 +125,15 @@ export function parseSessionOpenRequest(raw: unknown): SessionOpenRequest | null
   }
 }
 
-// 初始平铺会话集合：优先活动会话，再补旧版平铺列表，全部限定在合法会话内，
-// 全空时取列表第一个会话，保证 Dock 启动至少有一个面板。
+// 初始 Dock 会话优先使用当前活动会话，无有效选择时回退列表第一项。
 export function initialDockSessionIds({
   activeSessionId = '',
-  legacyTiledSessionIds = [],
   validSessionIds = [],
 }: {
   activeSessionId?: string
-  legacyTiledSessionIds?: string[]
   validSessionIds?: string[]
 } = {}): string[] {
-  const valid = new Set(validSessionIds)
-  const result: string[] = []
-  const add = (id: string | undefined) => {
-    if (!id) return
-    if (valid.has(id) && !result.includes(id)) result.push(id)
-  }
-  add(activeSessionId)
-  for (const id of legacyTiledSessionIds) add(id)
-  if (!result.length) add(validSessionIds[0])
-  return result
+  if (activeSessionId && validSessionIds.includes(activeSessionId)) return [activeSessionId]
+  return validSessionIds[0] ? [validSessionIds[0]] : []
 }
 import type { SerializedDockview } from 'dockview-react'

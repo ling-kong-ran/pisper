@@ -26,6 +26,20 @@ export const configSettingsRoutes = [
   },
   {
     method: 'GET',
+    path: '/api/settings/chat-dock-layout',
+    async handler({ runtime, json }) {
+      json(200, await runtime.getChatDockLayout())
+    },
+  },
+  {
+    method: 'PUT',
+    path: '/api/settings/chat-dock-layout',
+    async handler({ runtime, body, json }) {
+      json(200, await runtime.saveChatDockLayout(await body()))
+    },
+  },
+  {
+    method: 'GET',
     path: '/api/settings/compaction',
     handler({ runtime, json }) {
       json(200, runtime.getCompactionPreference())

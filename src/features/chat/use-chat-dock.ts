@@ -1,5 +1,5 @@
 // 聊天 Dock hook：基于 dockview 的多会话分屏容器，
-// 管理面板开/关/切换/聚焦与会话的映射，并持久化布局到 localStorage。
+// 管理面板开/关/切换/聚焦与会话的映射，并持久化布局到 Runtime 用户目录。
 import { useCallback, useEffect, useRef, useState } from 'react'
 import type {
   BuiltInContextMenuItem,
@@ -22,9 +22,11 @@ import {
   panelIdForSession,
   parseDockLayoutEnvelope,
   sessionIdFromPanel,
+  type DockLayoutEnvelope,
   type SessionOpenDisposition,
   type SessionOpenRequest,
 } from './dock-layout'
+import { apiJson } from '@/lib/api'
 import { FOCUS_MESSAGE_PAGE_SIZE } from './use-session-catalog'
 import {
   WEB_PREVIEW_OPEN_EVENT,
@@ -47,15 +49,6 @@ type DockOptions = {
     options?: { panelOpen?: boolean; localStreamOwned?: boolean },
   ) => boolean
   notify: Notify
-}
-
-function readStoredArray(key: string): string[] {
-  try {
-    const value = JSON.parse(localStorage.getItem(key) || '[]')
-    return Array.isArray(value) ? value.filter((item) => typeof item === 'string') : []
-  } catch {
-    return []
-  }
 }
 
 export function useChatDock({
@@ -83,7 +76,26 @@ export function useChatDock({
   const pendingDockRequestRef = useRef<SessionOpenRequest | null>(null)
   const pendingWebPreviewRef = useRef<WebPreviewOpenRequest | null>(null)
   const compactDockRef = useRef(compactDock)
-  const legacyTiledSessionIdsRef = useRef(readStoredArray(STORAGE_KEYS.tiledSessions))
+  const pendingLayoutWriteRef = useRef<string | null>(null)
+  const layoutWriteRunningRef = useRef(false)
+  const [storedDockLayout, setStoredDockLayout] = useState<DockLayoutEnvelope | null>(null)
+  const [dockLayoutLoaded, setDockLayoutLoaded] = useState(false)
+
+  useEffect(() => {
+    let mounted = true
+    void apiJson<unknown>('/api/settings/chat-dock-layout')
+      .then((value) => {
+        if (!mounted) return
+        setStoredDockLayout(parseDockLayoutEnvelope(value))
+        setDockLayoutLoaded(true)
+      })
+      .catch(() => {
+        if (mounted) setDockLayoutLoaded(true)
+      })
+    return () => {
+      mounted = false
+    }
+  }, [])
 
   useEffect(() => {
     const media = window.matchMedia('(max-width: 900px)')
@@ -96,50 +108,82 @@ export function useChatDock({
     return () => media.removeEventListener('change', update)
   }, [])
 
-  // 立即持久化 Dock 布局：序列化当前布局 envelope 写入 localStorage；
+  // 只保留最新布局快照，由后台消费者异步写入，避免保存请求阻塞交互。
+  const consumeDockLayoutWrites = useCallback(() => {
+    if (layoutWriteRunningRef.current) return
+    layoutWriteRunningRef.current = true
+    void (async () => {
+      do {
+        while (pendingLayoutWriteRef.current) {
+          const serialized = pendingLayoutWriteRef.current
+          pendingLayoutWriteRef.current = null
+          try {
+            await apiJson('/api/settings/chat-dock-layout', {
+              method: 'PUT',
+              body: serialized,
+            })
+          } catch {}
+        }
+        layoutWriteRunningRef.current = false
+        if (pendingLayoutWriteRef.current) layoutWriteRunningRef.current = true
+      } while (layoutWriteRunningRef.current)
+    })()
+  }, [])
+
+  const queueDockLayoutWrite = useCallback(
+    (serialized: string) => {
+      pendingLayoutWriteRef.current = serialized
+      consumeDockLayoutWrites()
+    },
+    [consumeDockLayoutWrites],
+  )
+
+  // 立即持久化 Dock 布局：序列化当前布局 envelope 写入 Runtime 用户目录；
   // 序列化失败时保留上一次成功内容，不抛错中断。
-  const persistDockLayout = useCallback((api: DockviewApi | null = dockApiRef.current) => {
-    if (!dockInitializedRef.current) return false
-    window.clearTimeout(layoutSaveTimerRef.current)
-    layoutSaveTimerRef.current = undefined
-    let serialized = pendingDockLayoutRef.current
-    if (api) {
-      try {
-        const envelope = createDockLayoutEnvelope(api.toJSON(), api.activePanel?.id || '')
-        serialized = JSON.stringify(envelope)
-      } catch {}
-    }
-    if (!serialized) return false
-    try {
-      localStorage.setItem(STORAGE_KEYS.chatDockLayout, serialized)
+  const persistDockLayout = useCallback(
+    (api: DockviewApi | null = dockApiRef.current) => {
+      if (!dockInitializedRef.current) return false
+      window.clearTimeout(layoutSaveTimerRef.current)
+      layoutSaveTimerRef.current = undefined
+      let serialized = pendingDockLayoutRef.current
+      if (api) {
+        try {
+          const envelope = createDockLayoutEnvelope(api.toJSON(), api.activePanel?.id || '')
+          serialized = JSON.stringify(envelope)
+        } catch {}
+      }
+      if (!serialized) return false
+      queueDockLayoutWrite(serialized)
       pendingDockLayoutRef.current = null
       return true
-    } catch {
-      return false
-    }
-  }, [])
+    },
+    [queueDockLayoutWrite],
+  )
 
   // 调度延迟保存布局：布局变化频繁（拖拽中），统一在空闲后落盘，
   // 避免每次 drag/resize 事件都触发一次序列化与写入。
-  const scheduleDockLayoutSave = useCallback((api: DockviewApi | null = dockApiRef.current) => {
-    if (!api || !dockInitializedRef.current) return
-    let serialized: string
-    try {
-      serialized = JSON.stringify(createDockLayoutEnvelope(api.toJSON(), api.activePanel?.id || ''))
-    } catch {
-      return
-    }
-    pendingDockLayoutRef.current = serialized
-    window.clearTimeout(layoutSaveTimerRef.current)
-    layoutSaveTimerRef.current = window.setTimeout(() => {
-      layoutSaveTimerRef.current = undefined
-      if (!dockInitializedRef.current || dockApiRef.current !== api) return
+  const scheduleDockLayoutSave = useCallback(
+    (api: DockviewApi | null = dockApiRef.current) => {
+      if (!api || !dockInitializedRef.current) return
+      let serialized: string
       try {
-        localStorage.setItem(STORAGE_KEYS.chatDockLayout, serialized)
+        serialized = JSON.stringify(
+          createDockLayoutEnvelope(api.toJSON(), api.activePanel?.id || ''),
+        )
+      } catch {
+        return
+      }
+      pendingDockLayoutRef.current = serialized
+      window.clearTimeout(layoutSaveTimerRef.current)
+      layoutSaveTimerRef.current = window.setTimeout(() => {
+        layoutSaveTimerRef.current = undefined
+        if (!dockInitializedRef.current || dockApiRef.current !== api) return
+        queueDockLayoutWrite(serialized)
         if (pendingDockLayoutRef.current === serialized) pendingDockLayoutRef.current = null
-      } catch {}
-    }, 180)
-  }, [])
+      }, 180)
+    },
+    [queueDockLayoutWrite],
+  )
 
   // 在 Dock 打开会话：不存在则新建面板，存在则聚焦并（可选）加载消息；
   // 返回是否新开了面板，供调用方决定是否移动分组。
@@ -373,10 +417,17 @@ export function useChatDock({
   )
 
   useEffect(() => {
-    if (!dockReady || loading || dockInitializedRef.current || !dockApiRef.current) return
+    if (
+      !dockReady ||
+      !dockLayoutLoaded ||
+      loading ||
+      dockInitializedRef.current ||
+      !dockApiRef.current
+    )
+      return
     const api = dockApiRef.current
     const validIds = new Set(sessions.map((session) => session.id))
-    const storedLayout = parseDockLayoutEnvelope(localStorage.getItem(STORAGE_KEYS.chatDockLayout))
+    const storedLayout = storedDockLayout
     if (storedLayout) {
       try {
         api.fromJSON(storedLayout.layout)
@@ -387,13 +438,11 @@ export function useChatDock({
         }
       } catch {
         api.clear()
-        localStorage.removeItem(STORAGE_KEYS.chatDockLayout)
       }
     }
     if (!api.panels.length) {
       const initialIds = initialDockSessionIds({
-        activeSessionId: activeId || localStorage.getItem(STORAGE_KEYS.activeSession) || '',
-        legacyTiledSessionIds: legacyTiledSessionIdsRef.current.slice(0, 4),
+        activeSessionId: activeId,
         validSessionIds: sessions.map((session) => session.id),
       })
       let referenceGroup: DockviewGroupPanel | undefined
@@ -440,6 +489,7 @@ export function useChatDock({
     scheduleDockLayoutSave(api)
   }, [
     activeId,
+    dockLayoutLoaded,
     dockReady,
     loadSessionMessages,
     loading,
@@ -447,6 +497,7 @@ export function useChatDock({
     openWebPreviewInDock,
     scheduleDockLayoutSave,
     sessions,
+    storedDockLayout,
     t,
   ])
 

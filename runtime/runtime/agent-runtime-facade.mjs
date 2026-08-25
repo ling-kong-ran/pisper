@@ -479,6 +479,22 @@ export class AgentRuntimeFacade {
     }
   }
 
+  getChatDockLayout() {
+    return readJson(this.chatDockLayoutPath, null)
+  }
+
+  async saveChatDockLayout(input) {
+    if (!input || typeof input !== 'object' || Array.isArray(input)) {
+      throw new Error('Dock 布局必须是 JSON 对象。')
+    }
+    const snapshot = structuredClone(input)
+    this.chatDockLayoutWrite = this.chatDockLayoutWrite
+      .catch(() => {})
+      .then(() => writeJsonAtomic(this.chatDockLayoutPath, snapshot))
+    await this.chatDockLayoutWrite
+    return snapshot
+  }
+
   getMemoryPreference() {
     return {
       autoApproveConfidence: this.memoryAutoApproveConfidence,
