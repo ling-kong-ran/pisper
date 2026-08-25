@@ -552,118 +552,17 @@ fn operation_capability(operation: &str) -> Result<&'static str, String> {
     }
 }
 
-fn device_capability_state(
-    app: &tauri::AppHandle,
-    store: &SharedStore,
-) -> Result<serde_json::Value, String> {
-    let enabled = store
-        .lock()
-        .map_err(|_| "移动端档案锁已损坏。".to_string())?
-        .device_capabilities();
-    #[cfg(any(target_os = "android", target_os = "ios"))]
-    let permissions = app
-        .mobile_device()
-        .permission_states()
-        .map_err(|error| error.to_string())?;
-    #[cfg(not(any(target_os = "android", target_os = "ios")))]
-    let permissions = {
-        let _ = app;
-        serde_json::json!({
-            "contacts": "unsupported",
-            "camera": "unsupported",
-            "location": "unsupported",
-            "externalApps": "not-required"
-        })
-    };
-    Ok(serde_json::json!({ "enabled": enabled, "permissions": permissions }))
-}
-
-#[tauri::command]
-fn mobile_get_device_capabilities(
-    app: tauri::AppHandle,
-    state: State<'_, MobileShared>,
-) -> Result<serde_json::Value, String> {
-    device_capability_state(&app, state.store.as_ref())
-}
-
-#[tauri::command]
-fn mobile_set_device_capability(
-    app: tauri::AppHandle,
-    state: State<'_, MobileShared>,
-    capability: String,
-    enabled: bool,
-) -> Result<serde_json::Value, String> {
-    state
-        .store
-        .lock()
-        .map_err(|_| "移动端档案锁已损坏。".to_string())?
-        .set_device_capability(&capability, enabled)?;
-    device_capability_state(&app, state.store.as_ref())
-}
-
-#[tauri::command]
-fn mobile_request_device_permission(
-    app: tauri::AppHandle,
-    state: State<'_, MobileShared>,
-    capability: String,
-) -> Result<serde_json::Value, String> {
-    let enabled = state
-        .store
-        .lock()
-        .map_err(|_| "移动端档案锁已损坏。".to_string())?
-        .device_capabilities()
-        .enabled(&capability);
-    if !enabled {
-        return Err("请先在 Pisper 设置中启用该设备能力。".into());
-    }
-    if capability == "externalApps" {
-        return device_capability_state(&app, state.store.as_ref());
-    }
-    #[cfg(any(target_os = "android", target_os = "ios"))]
-    return app
-        .mobile_device()
-        .request_permission(capability)
-        .map_err(|error| error.to_string());
-    #[cfg(not(any(target_os = "android", target_os = "ios")))]
-    {
-        let _ = app;
-        Err("当前平台不支持移动设备权限。".into())
-    }
-}
-
-#[tauri::command]
-fn mobile_open_device_settings(app: tauri::AppHandle) -> Result<(), String> {
-    #[cfg(any(target_os = "android", target_os = "ios"))]
-    return app
-        .mobile_device()
-        .open_app_settings()
-        .map_err(|error| error.to_string());
-    #[cfg(not(any(target_os = "android", target_os = "ios")))]
-    {
-        let _ = app;
-        Err("当前平台不支持移动设备设置。".into())
-    }
-}
-
 #[tauri::command]
 fn mobile_execute_device_operation(
     app: tauri::AppHandle,
-    state: State<'_, MobileShared>,
     request: MobileDeviceOperationRequest,
 ) -> Result<serde_json::Value, String> {
     if !request.id.starts_with("mop_") || request.id.len() > 80 {
         return Err("移动设备操作 ID 无效。".into());
     }
     let capability = operation_capability(&request.operation)?;
-    let enabled = state
-        .store
-        .lock()
-        .map_err(|_| "移动端档案锁已损坏。".to_string())?
-        .device_capabilities()
-        .enabled(capability);
-    if !enabled {
-        return Err("该设备能力已在 Pisper 设置中关闭。".into());
-    }
+    #[cfg(not(any(target_os = "android", target_os = "ios")))]
+    let _ = capability;
 
     #[cfg(any(target_os = "android", target_os = "ios"))]
     {
@@ -833,10 +732,6 @@ pub fn run_mobile() {
             mobile_enter_local,
             mobile_leave_local,
             mobile_forget_server,
-            mobile_get_device_capabilities,
-            mobile_set_device_capability,
-            mobile_request_device_permission,
-            mobile_open_device_settings,
             mobile_execute_device_operation,
             update::mobile_app_info,
             update::mobile_check_app_update,

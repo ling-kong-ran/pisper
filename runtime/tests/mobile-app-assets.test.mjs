@@ -224,7 +224,7 @@ test('外部应用操作只使用用户可见的标准系统入口', async () =>
   ]) {
     assert.match(`${tool}\n${client}\n${androidPlugin}\n${iosPlugin}`, new RegExp(operation))
   }
-  assert.match(store, /external_apps: bool/)
+  assert.doesNotMatch(store, /DeviceCapabilities|device_capabilities/)
   assert.match(androidPlugin, /Intent\.ACTION_VIEW/)
   assert.match(androidPlugin, /Intent\.ACTION_DIAL/)
   assert.match(androidPlugin, /Intent\.ACTION_SENDTO/)
@@ -249,8 +249,8 @@ test('移动设备操作通过当前会话 SSE 与原生桥闭环', async () => 
   assert.match(runtime, /this\.mobileOperations\.attach\(session\.sessionId, emit\)/)
   assert.match(dispatcher, /mobile_operation_request/)
   assert.match(client, /mobile_execute_device_operation/)
-  assert.match(native, /device_capabilities\(\)[\s\S]*\.enabled\(capability\)/)
-  assert.match(native, /request_permission\(capability\)/)
+  assert.doesNotMatch(native, /device_capabilities|set_device_capability/)
+  assert.match(native, /permission_states\(\)[\s\S]*request_permission\(capability\)/)
   assert.match(permissions, /mobile_execute_device_operation/)
 })
 

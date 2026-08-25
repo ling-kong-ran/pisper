@@ -12,7 +12,6 @@ import {
   RadioTower,
   RefreshCw,
   Server,
-  Smartphone,
   Sparkles,
   type LucideIcon,
 } from 'lucide-react'
@@ -44,14 +43,13 @@ export const CONFIG_SECTIONS = new Set([
   'updates',
   'remote-access',
   'mobile-server',
-  'mobile-device',
   'about',
 ])
 
 export const SETTINGS_PAGES = new Set(['config', 'channels', 'plugins', 'memory', 'mcp', 'skills'])
 
 // 设置侧边栏分组导航（Agent/能力/上下文/连接/应用）。
-// mobileApp 为 true 时（手机经代理访问），用「服务器」和「设备」替代桌面端的远程访问管理面。
+// mobileApp 为 true 时（手机经代理访问），用「服务器」替代桌面端的远程访问管理面。
 export function getSettingsNavigation(
   t: Translate,
   {
@@ -66,12 +64,6 @@ export function getSettingsNavigation(
           label: t('config:configPage.mobileServer'),
           icon: MonitorSmartphone,
           destination: { type: 'config', id: 'mobile-server' },
-        },
-        {
-          key: 'config:mobile-device',
-          label: t('config:configPage.mobileDevice'),
-          icon: Smartphone,
-          destination: { type: 'config', id: 'mobile-device' },
         },
       ]
     : [

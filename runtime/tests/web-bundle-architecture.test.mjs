@@ -400,10 +400,8 @@ test('settings navigation replaces the main sidebar and stays reachable in the m
   assert.match(mobileNavigation, /data-mobile-navigation="primary"/)
   assert.match(mobileNavigation, /data-mobile-navigation="settings"/)
   assert.match(settingsNavigation, /getSettingsNavigation/)
-  assert.match(
-    settingsNavigation,
-    /config:mobile-server[\s\S]*config:mobile-device[\s\S]*config:notifications/,
-  )
+  assert.match(settingsNavigation, /config:mobile-server[\s\S]*config:notifications/)
+  assert.doesNotMatch(settingsNavigation, /mobile-device|mobileDevice/)
   assert.doesNotMatch(styles, /\.settings-shell|\.settings-nav|\.settings-content/)
 })
 
@@ -440,16 +438,19 @@ test('mobile shell keeps navigation in the viewport and model settings use one n
   assert.ok(credentials.indexOf('API Key') < credentials.indexOf('config:configPage.apiProtocol'))
 })
 
-test('mobile device capabilities have their own settings section', async () => {
-  const [configPage, serverSettings, deviceSettings] = await Promise.all([
+test('mobile device permissions are requested by native operations', async () => {
+  const [configPage, serverSettings, navigation, native] = await Promise.all([
     readFile('src/features/config/ConfigPage.tsx', 'utf8'),
     readFile('src/features/config/MobileServerSettings.tsx', 'utf8'),
-    readFile('src/features/config/MobileDeviceSettings.tsx', 'utf8'),
+    readFile('src/app/settings-navigation.ts', 'utf8'),
+    readFile('src-tauri/src/mobile/mod.rs', 'utf8'),
   ])
 
-  assert.match(configPage, /section === 'mobile-device'[\s\S]*<MobileDeviceSettings/)
+  assert.doesNotMatch(configPage, /MobileDeviceSettings|mobile-device/)
   assert.doesNotMatch(serverSettings, /MobileDeviceSettings/)
-  assert.match(deviceSettings, /mobileDevice\.openSettingsDescription/)
+  assert.doesNotMatch(navigation, /MobileDeviceSettings|mobile-device|mobileDevice/)
+  assert.match(native, /request_permission\(capability\)/)
+  assert.match(native, /states\.get\(capability\)/)
 })
 
 test('route code and route-specific vendor styles remain lazy', async () => {
