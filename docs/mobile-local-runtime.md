@@ -9,24 +9,17 @@ Runtime、`/api/local/*` 协议或移动端专用业务 UI。
 - **本机**：会话、Provider 配置和工作区保存在 App 私有目录，由手机内的 Node Runtime 持有。
 - **远程**：App 通过 LAN 或 Iroh 连接已配对的 Desktop Runtime。
 
-root chroot 和 embedded Node 只是本机模式的内部载体，不是第三种用户模式。切换载体不会改变
-React 或 API 契约。
+公开发布的 GitHub APK、Google Play AAB 和 iOS IPA 都只使用 embedded Node，不包含 rootfs、
+`su`、`chroot` 或 rooted Runtime 资产。
 
 ## 载体选择
 
-进入本机模式时，壳层按以下顺序选择可用载体：
-
-1. rooted Android 优先启动 APK 内置的 arm64 Linux Runtime，首次进入可能由 root 管理器请求授权。
-   root 仅用于安装、bind mount 和 `chroot` 入口；Runtime 随后降权到 App UID/GID，并设置
-   `NoNewPrivs=1`。
-2. root 载体不可用或启动失败时，Android 回退到 APK 内置的 `libnode.so`；iOS 直接使用
-   `NodeMobile.xcframework`。
-3. 两种嵌入式宿主都在专用后台线程调用 Node，不能占用 WebView 或 iOS 主线程。
+Android 使用 APK/AAB 内置的 `libnode.so`，iOS 使用 App 内置的 `NodeMobile.xcframework`。
+两种宿主都在专用后台线程调用 Node，不能占用 WebView 或 iOS 主线程。
 
 壳层始终向 UI 返回同一个 `onDevice` 状态和 `runtimeKind: "node"`。用户从本机切到远程时，
 同进程 embedded Node 保持驻留，只改变 WebView 路由；Node embedding 不支持在一个 App 进程中
-反复初始化。root chroot 载体则可停止并在下次进入本机模式时重新启动。两个载体 bind/使用同一个
-App 私有数据与 workspace 目录，root 失败回退不会切换到另一套 Provider、会话或工作区。
+反复初始化。本机 Provider、会话和工作区始终位于同一 App 私有数据目录。
 
 ## 统一架构
 
@@ -46,7 +39,6 @@ Shared Node/Pisper Runtime (mobile-embedded profile)
 
 Android carrier: JNI/C++ -> node::Start(...) -> libnode.so
  iOS carrier: background thread -> node_start(...) -> NodeMobile.xcframework
-rooted Android: su install/mount -> chroot -> full Linux Node Runtime as App UID
 ```
 
 嵌入式 Runtime 使用随机回环端口和随机 bootstrap token。Node 完成真实 Agent Runtime 初始化后，
@@ -60,19 +52,19 @@ rooted Android: su install/mount -> chroot -> full Linux Node Runtime as App UID
 清单；`node:child_process`、`node:worker_threads`、`node:sqlite` 和 WASM 等底层能力来自真实探测。
 宿主 profile 可以保守关闭不适合该载体生命周期或缺少壳层 bridge 的服务，但不能伪造缺失模块。
 
-| 能力 | rooted Android | ordinary Android / iOS embedded |
-| --- | --- | --- |
-| React、Provider、标准会话、流式聊天 | 支持 | 支持 |
-| 工作区读写、资源与 Skill | 支持 | 支持 |
-| 内置工具目录与 Web Search | 支持 | 支持 |
-| Shell、Git/SVN | Linux Node 可用时支持 | `child_process` 缺失时关闭 |
-| Desktop PTY 终端与浏览器自动化 | 关闭；移动壳没有对应 bridge | 关闭 |
-| 记忆 | `node:sqlite` 可用时支持 | `node:sqlite` 缺失时关闭 |
-| 第三方插件执行 | worker 可用时支持 | 关闭；内置工具设置仍保留 |
-| MCP stdio | 支持 | 关闭 |
-| Goal、Plan、多 Agent、工作流、计划任务、渠道 | 支持 | 关闭 |
-| 图片处理 | WASM 可用时支持 | 由实际 WASM 探测决定 |
-| Desktop 远程访问管理、桌面宠物 | 关闭 | 关闭 |
+| 能力 | Android / iOS embedded |
+| --- | --- |
+| React、Provider、标准会话、流式聊天 | 支持 |
+| 工作区读写、资源与 Skill | 支持 |
+| 内置工具目录与 Web Search | 支持 |
+| Shell、Git/SVN | `child_process` 缺失或受渠道限制时关闭 |
+| Desktop PTY 终端与浏览器自动化 | 关闭 |
+| 记忆 | `node:sqlite` 缺失时关闭 |
+| 第三方插件执行 | 关闭；内置工具设置仍保留 |
+| MCP stdio | 关闭 |
+| Goal、Plan、多 Agent、工作流、计划任务、渠道 | 关闭 |
+| 图片处理 | 由实际 WASM 探测决定 |
+| Desktop 远程访问管理、桌面宠物 | 关闭 |
 
 React 导航、请求发起、工具目录和服务端 API 都只对清单中**明确为 `false`** 的能力执行隐藏或
 HTTP 409 拒绝。没有能力端点的旧 Runtime 保留原有导航行为，避免破坏远程兼容性。
@@ -102,8 +94,8 @@ Runtime 闭包。`scripts/stage-runtime-closure.mjs` 与 SEA 共用依赖裁剪�
   再把 headers 与 arm64 库交给 CMake。
 - iOS 在 macOS 从固定 commit 和固定 materialized tree 构建 `NodeMobile.xcframework`，记录 Xcode
   版本与逐文件 SHA256。
-- embedded Runtime、iOS Node framework 归档、root Runtime、APK 和 unsigned IPA 都使用项目
-  Minisign 密钥签名。任一 Android/iOS 构建、签名或资产检查失败时，不发布 `app-v*`。
+- embedded Runtime、iOS Node framework 归档、APK 和 unsigned IPA 都使用项目 Minisign 密钥
+  签名。任一 Android/iOS 构建、签名或资产检查失败时，不发布 `app-v*`。
 
 `npm run release -- patch` 会按 App 独立路径和最新 `app-v*` 标签自动检测是否需要发布，并在同批
 TUI、Runtime、npm 与 Desktop 工作流全部成功后，最后派发 App 工作流。

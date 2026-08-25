@@ -92,49 +92,9 @@ jobs:
           if-no-files-found: error
           path: release/pisper-embedded-runtime.tar.gz*
 
-  root-runtime:
-    name: Build rooted Android Runtime
-    runs-on: ubuntu-24.04-arm
-    timeout-minutes: 45
-    steps:
-      - uses: actions/checkout@v5
-        with:
-          ref: ${{ inputs.source_sha }}
-      - uses: actions/setup-node@v5
-        with:
-          node-version: 24
-          cache: npm
-      - name: Install Node dependencies
-        run: npm ci
-      - name: Build Linux SEA and frontend
-        run: npm run sidecar:sea
-      - name: Build rooted Android Runtime asset
-        env:
-          PISPER_APP_VERSION: ${{ inputs.version }}
-          PISPER_ROOT_RUNTIME_ARCH: arm64
-        run: npm run android:root-runtime
-      - name: Validate and sign rooted Android Runtime
-        env:
-          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
-          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
-        run: |
-          set -Eeuo pipefail
-          archive=release/pisper-root-runtime-android-arm64.tar.gz
-          gzip -t "$archive"
-          tar -tzf "$archive" | grep -Fx './opt/pisper/pisper-sidecar'
-          tar -tzf "$archive" | grep -Fx './usr/bin/setpriv'
-          tar -tzf "$archive" | grep -Fx './usr/bin/rg'
-          npx tauri signer sign "$archive"
-          mv "$archive.sig" "$archive.minisig"
-      - uses: actions/upload-artifact@v4
-        with:
-          name: app-root-runtime
-          if-no-files-found: error
-          path: release/pisper-root-runtime-android-arm64.tar.gz*
-
   android:
     name: Build signed Android APK
-    needs: [prepare, root-runtime, embedded-runtime]
+    needs: [prepare, embedded-runtime]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
@@ -174,10 +134,6 @@ jobs:
         with:
           name: app-embedded-runtime
           path: embedded-runtime
-      - uses: actions/download-artifact@v5
-        with:
-          name: app-root-runtime
-          path: root-runtime
       - name: Verify and stage mobile Runtime assets
         run: |
           set -Eeuo pipefail
@@ -186,19 +142,16 @@ jobs:
           node scripts/verify-tauri-signature.mjs \
             embedded-runtime/pisper-embedded-runtime.tar.gz \
             embedded-runtime/pisper-embedded-runtime.tar.gz.minisig
-          node scripts/verify-tauri-signature.mjs \
-            root-runtime/pisper-root-runtime-android-arm64.tar.gz \
-            root-runtime/pisper-root-runtime-android-arm64.tar.gz.minisig
           mkdir -p src-tauri/gen/android/app/src/main/assets
+          rm -f src-tauri/gen/android/app/src/main/assets/pisper-root-runtime-*.tgz
           cp embedded-runtime/pisper-embedded-runtime.tar.gz \
             src-tauri/gen/android/app/src/main/assets/pisper-embedded-runtime.tgz
-          cp root-runtime/pisper-root-runtime-android-arm64.tar.gz \
-            src-tauri/gen/android/app/src/main/assets/pisper-root-runtime-android-arm64.tgz
       - name: Build release APK
         env:
           NDK_HOME: ${{ env.ANDROID_HOME }}/ndk/27.3.13750724
         run: |
           node node_modules/@tauri-apps/cli/tauri.js android build --apk --ci --target aarch64 \
+            --features mobile-embedded-only \
             --config '{"version":"${{ inputs.version }}","bundle":{"externalBin":[],"resources":[]}}'
       - name: Sign APK
         env:
@@ -212,13 +165,20 @@ jobs:
           echo "$APP_ANDROID_KEYSTORE" | base64 -d > /tmp/pisper-app.jks
           UNSIGNED=$(find src-tauri/gen/android/app/build/outputs/apk -name '*unsigned*.apk' | head -1)
           test -n "$UNSIGNED" || { echo "未找到未签名 APK。" >&2; exit 1; }
-          unzip -l "$UNSIGNED" | grep -F 'assets/pisper-root-runtime-android-arm64.tgz'
-          unzip -l "$UNSIGNED" | grep -F 'assets/pisper-embedded-runtime.tgz'
+          unzip -Z1 "$UNSIGNED" > /tmp/pisper-apk-contents.txt
+          if grep -Eqi 'root-runtime|rootfs|/su$|/chroot$' /tmp/pisper-apk-contents.txt; then
+            echo "GitHub APK contains a rooted Runtime asset." >&2
+            exit 1
+          fi
+          grep -F 'assets/pisper-embedded-runtime.tgz' /tmp/pisper-apk-contents.txt
           unzip -l "$UNSIGNED" | grep -F 'assets/pisper-embedded-node-android.json'
           unzip -l "$UNSIGNED" | grep -F 'lib/arm64-v8a/libnode.so'
           unzip -l "$UNSIGNED" | grep -F 'lib/arm64-v8a/libc++_shared.so'
           unzip -l "$UNSIGNED" | grep -F 'lib/arm64-v8a/libpisper_node_host.so'
           unzip -l "$UNSIGNED" | grep -F 'lib/arm64-v8a/libpisper_webview_lib.so'
+          apkanalyzer dex packages --defined-only "$UNSIGNED" > /tmp/pisper-apk-dex.txt
+          grep -F 'com.lingkongran.pisper.EmbeddedNodeHost java.lang.String start(java.lang.String[])' \
+            /tmp/pisper-apk-dex.txt
           "$ANDROID_HOME/build-tools/35.0.0/zipalign" -P 16 -f 4 "$UNSIGNED" /tmp/app-aligned.apk
           "$ANDROID_HOME/build-tools/35.0.0/apksigner" sign \
             --ks /tmp/pisper-app.jks \
@@ -351,8 +311,8 @@ jobs:
 
   publish:
     name: Publish $RELEASE_TAG
-    needs: [prepare, embedded-runtime, root-runtime, android, ios]
-    if: ${{ always() && needs.prepare.result == 'success' && needs['embedded-runtime'].result == 'success' && needs['root-runtime'].result == 'success' && needs.android.result == 'success' && needs.ios.result == 'success' }}
+    needs: [prepare, embedded-runtime, android, ios]
+    if: ${{ always() && needs.prepare.result == 'success' && needs['embedded-runtime'].result == 'success' && needs.android.result == 'success' && needs.ios.result == 'success' }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
@@ -376,10 +336,6 @@ jobs:
           path: artifacts
       - uses: actions/download-artifact@v5
         with:
-          name: app-root-runtime
-          path: artifacts
-      - uses: actions/download-artifact@v5
-        with:
           name: app-embedded-runtime
           path: artifacts
       - name: Validate required assets
@@ -391,8 +347,6 @@ jobs:
           test -f artifacts/pisper-ios-unsigned.ipa
           test -f artifacts/pisper-ios-unsigned.ipa.minisig
           test -f artifacts/README-ios.txt
-          test -f artifacts/pisper-root-runtime-android-arm64.tar.gz
-          test -f artifacts/pisper-root-runtime-android-arm64.tar.gz.minisig
           test -f artifacts/pisper-embedded-runtime.tar.gz
           test -f artifacts/pisper-embedded-runtime.tar.gz.minisig
           test -f artifacts/pisper-node-mobile-ios.tar.gz

@@ -154,7 +154,8 @@ When a detected component is **Runtime** or **TUI**, `npm run release` automatic
 4. For Tauri desktop changes: `cargo test --manifest-path src-tauri/Cargo.toml` and `cargo clippy --manifest-path src-tauri/Cargo.toml --all-targets -- -D warnings`.
 5. For SEA/desktop packaging changes: `npm run sidecar:sea:smoke` (and platform-specific packaging only with required Rust/Tauri toolchain).
 6. For npm installer or npm release changes: `npm run npm:pack:check`, `node scripts/validate-npm-targets.mjs`, and the focused `runtime/tests/npm-cli-package.test.mjs` test.
-7. Do not invent new top-level package managers or dual lockfiles; this repo uses **npm** (`package-lock.json`).
+7. For Android APK release regressions, build and test the actual minified release variant with R8 enabled; a debug APK does not validate JNI/reflection entry points. On an emulator, install and exercise the package in a temporary Android user/profile so the primary user's App data remains untouched, then remove the temporary user and restore the intended package after verification.
+8. Do not invent new top-level package managers or dual lockfiles; this repo uses **npm** (`package-lock.json`).
 
 ## Out of scope / safety
 

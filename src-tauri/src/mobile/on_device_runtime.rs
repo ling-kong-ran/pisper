@@ -2,19 +2,19 @@ use std::path::PathBuf;
 use std::sync::Mutex;
 
 use super::embedded_runtime::EmbeddedRuntime;
-#[cfg(not(feature = "mobile-store"))]
+#[cfg(not(feature = "mobile-embedded-only"))]
 use super::root_runtime::RootRuntime;
 use super::runtime_status::RootRuntimeStatus;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum Carrier {
-    #[cfg(not(feature = "mobile-store"))]
+    #[cfg(not(feature = "mobile-embedded-only"))]
     Root,
     Embedded,
 }
 
 pub struct OnDeviceRuntime {
-    #[cfg(not(feature = "mobile-store"))]
+    #[cfg(not(feature = "mobile-embedded-only"))]
     root: RootRuntime,
     embedded: EmbeddedRuntime,
     active: Mutex<Option<Carrier>>,
@@ -29,7 +29,7 @@ impl OnDeviceRuntime {
         embedded_resource: Option<PathBuf>,
     ) -> Self {
         Self {
-            #[cfg(not(feature = "mobile-store"))]
+            #[cfg(not(feature = "mobile-embedded-only"))]
             root: RootRuntime::new(
                 runtime_root.join("root"),
                 data_root.clone(),
@@ -51,7 +51,7 @@ impl OnDeviceRuntime {
             .active
             .lock()
             .expect("on-device Runtime carrier mutex poisoned");
-        #[cfg(not(feature = "mobile-store"))]
+        #[cfg(not(feature = "mobile-embedded-only"))]
         if active == Some(Carrier::Root) {
             let status = self.root.status();
             if status.running {
@@ -66,10 +66,10 @@ impl OnDeviceRuntime {
         }
 
         let embedded = self.embedded.status();
-        #[cfg(feature = "mobile-store")]
+        #[cfg(feature = "mobile-embedded-only")]
         return public_status(embedded);
 
-        #[cfg(not(feature = "mobile-store"))]
+        #[cfg(not(feature = "mobile-embedded-only"))]
         {
             let root = self.root.status();
             let supported = root.supported || embedded.supported;
@@ -112,14 +112,14 @@ impl OnDeviceRuntime {
             .expect("on-device Runtime carrier mutex poisoned")
         {
             let result = match active {
-                #[cfg(not(feature = "mobile-store"))]
+                #[cfg(not(feature = "mobile-embedded-only"))]
                 Carrier::Root => self.root.ensure_started(),
                 Carrier::Embedded => self.embedded.ensure_started(),
             };
             return result.map(public_status);
         }
 
-        #[cfg(not(feature = "mobile-store"))]
+        #[cfg(not(feature = "mobile-embedded-only"))]
         let candidates = {
             let root = self.root.status();
             let embedded = self.embedded.status();
@@ -128,13 +128,13 @@ impl OnDeviceRuntime {
                 embedded.supported && (embedded.packaged || embedded.installed),
             )
         };
-        #[cfg(feature = "mobile-store")]
+        #[cfg(feature = "mobile-embedded-only")]
         let candidates = vec![Carrier::Embedded];
 
         let mut errors = Vec::new();
         for carrier in candidates {
             let result = match carrier {
-                #[cfg(not(feature = "mobile-store"))]
+                #[cfg(not(feature = "mobile-embedded-only"))]
                 Carrier::Root => self.root.ensure_started(),
                 Carrier::Embedded => self.embedded.ensure_started(),
             };
@@ -158,10 +158,10 @@ impl OnDeviceRuntime {
 
     /// 远程模式不终止同进程 embedded Node；它不能在同一 App 进程中安全重启。
     pub fn deactivate(&self) {
-        #[cfg(feature = "mobile-store")]
+        #[cfg(feature = "mobile-embedded-only")]
         return;
 
-        #[cfg(not(feature = "mobile-store"))]
+        #[cfg(not(feature = "mobile-embedded-only"))]
         {
             let _lifecycle = self
                 .lifecycle
@@ -179,7 +179,7 @@ impl OnDeviceRuntime {
     }
 
     pub fn shutdown(&self) {
-        #[cfg(not(feature = "mobile-store"))]
+        #[cfg(not(feature = "mobile-embedded-only"))]
         {
             let _lifecycle = self
                 .lifecycle
@@ -195,7 +195,7 @@ fn public_status(mut status: RootRuntimeStatus) -> RootRuntimeStatus {
     status
 }
 
-#[cfg(not(feature = "mobile-store"))]
+#[cfg(not(feature = "mobile-embedded-only"))]
 fn carrier_candidates(root: bool, embedded: bool) -> Vec<Carrier> {
     let mut carriers = Vec::with_capacity(2);
     if root {
@@ -207,7 +207,7 @@ fn carrier_candidates(root: bool, embedded: bool) -> Vec<Carrier> {
     carriers
 }
 
-#[cfg(all(test, not(feature = "mobile-store")))]
+#[cfg(all(test, not(feature = "mobile-embedded-only")))]
 mod tests {
     use super::{carrier_candidates, Carrier};
 

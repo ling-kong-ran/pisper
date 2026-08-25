@@ -14,8 +14,10 @@ crate-type = ["staticlib", "cdylib", "rlib"]
 
 [features]
 default = []
-# 商店包使用受限 embedded Runtime，并在编译期移除 rooted Runtime 与外部更新模块。
-mobile-store = []
+# GitHub APK 与商店包都只携带 embedded Runtime，不编译 rooted carrier。
+mobile-embedded-only = []
+# 商店包在 embedded-only 基础上进一步移除外部更新并限制动态执行能力。
+mobile-store = ["mobile-embedded-only"]
 
 [[bin]]
 name = "Pisper"

@@ -267,6 +267,7 @@ test('移动 Node 供应链固定来源并在两个平台执行完整性门禁',
     workflow,
     storeWorkflow,
     setup,
+    androidKeepRules,
   ] = await Promise.all([
     readFile('scripts/mobile-node-artifacts.json', 'utf8'),
     readFile('scripts/stage-mobile-node-android.mjs', 'utf8'),
@@ -277,6 +278,7 @@ test('移动 Node 供应链固定来源并在两个平台执行完整性门禁',
     readFile('.github/workflows/release-app.yml', 'utf8'),
     readFile('.github/workflows/build-store-app.yml', 'utf8'),
     readFile('scripts/setup-mobile-android.mjs', 'utf8'),
+    readFile('src-tauri/mobile/node-host/android/pisper-node-host.pro', 'utf8'),
   ])
   const metadata = JSON.parse(metadataText)
   assert.equal(metadata.source.commit, '8a995e179bb2c224029a560ae9c4f9460631b94d')
@@ -328,6 +330,9 @@ test('移动 Node 供应链固定来源并在两个平台执行完整性门禁',
   assert.match(iosSmokeController, /NODE_MOBILE_RUN_TOKEN/)
   assert.match(setup, /pisper-node-host/)
   assert.match(setup, /EmbeddedNodeHost\.kt/)
+  assert.match(setup, /pisper-node-host\.pro/)
+  assert.match(androidKeepRules, /-keep class com\.lingkongran\.pisper\.EmbeddedNodeHost/)
+  assert.match(androidKeepRules, /EmbeddedNodeHost\$Companion/)
   assert.match(setup, /libc\+\+_shared\.so/)
   assert.match(setup, /externalNativeBuild/)
   assert.match(
@@ -335,6 +340,15 @@ test('移动 Node 供应链固定来源并在两个平台执行完整性门禁',
     /Prepare Android project with embedded Node[\s\S]*NDK_HOME:.*27\.3\.13750724/,
   )
   assert.match(workflow, /lib\/arm64-v8a\/libc\+\+_shared\.so/)
+  assert.match(workflow, /android build --apk[\s\S]*--features mobile-embedded-only/)
+  assert.match(
+    workflow,
+    /apkanalyzer dex packages --defined-only[\s\S]*EmbeddedNodeHost java\.lang\.String start/,
+  )
+  assert.doesNotMatch(
+    workflow,
+    /name: app-root-runtime|needs: \[[^\]]*root-runtime|cp [^\n]*pisper-root-runtime/,
+  )
   assert.match(
     storeWorkflow,
     /stage-mobile-node-android\.mjs release\/mobile-node-android --require-sigstore/,
@@ -453,8 +467,9 @@ test('商店构建在编译期排除 root Runtime 与外部安装更新', async 
     readFile('src-tauri/src/mobile/store_update.rs', 'utf8'),
     readFile('.github/workflows/build-store-app.yml', 'utf8'),
   ])
-  assert.match(cargo, /mobile-store = \[\]/)
-  assert.match(mobile, /#\[cfg\(not\(feature = "mobile-store"\)\)\]\s*pub mod root_runtime/)
+  assert.match(cargo, /mobile-embedded-only = \[\]/)
+  assert.match(cargo, /mobile-store = \["mobile-embedded-only"\]/)
+  assert.match(mobile, /#\[cfg\(not\(feature = "mobile-embedded-only"\)\)\]\s*pub mod root_runtime/)
   assert.match(mobile, /#\[path = "store_update\.rs"\]/)
   assert.doesNotMatch(storeUpdate, /github\.com|latest-app\.json|open_url/)
   assert.match(workflow, /android build[\s\S]*--aab[\s\S]*--features mobile-store/)
@@ -471,7 +486,6 @@ test('App 发布必须签名并校验共享 Runtime 与平台产物', async () =
   const workflow = await readFile('.github/workflows/release-app.yml', 'utf8')
   for (const asset of [
     'pisper-embedded-runtime.tar.gz',
-    'pisper-root-runtime-android-arm64.tar.gz',
     'pisper-node-mobile-ios.tar.gz',
     'app-universal-release-signed.apk',
     'pisper-ios-unsigned.ipa',
@@ -479,9 +493,9 @@ test('App 发布必须签名并校验共享 Runtime 与平台产物', async () =
     assert.match(workflow, new RegExp(`${asset.replaceAll('.', '\\.')}\\.minisig`))
   }
   assert.match(workflow, /pisper-embedded-runtime\.tgz/)
-  assert.match(workflow, /pisper-root-runtime-android-arm64\.tgz/)
+  assert.doesNotMatch(workflow, /pisper-root-runtime-android-arm64|app-root-runtime/)
   assert.match(workflow, /needs\['embedded-runtime'\]\.result == 'success'/)
-  assert.match(workflow, /needs\['root-runtime'\]\.result == 'success'/)
-  assert.equal(workflow.match(/node scripts\/verify-tauri-signature\.mjs/g)?.length, 4)
+  assert.doesNotMatch(workflow, /needs\['root-runtime'\]\.result/)
+  assert.equal(workflow.match(/node scripts\/verify-tauri-signature\.mjs/g)?.length, 3)
   assert.doesNotMatch(workflow, /minisign -Vm/)
 })

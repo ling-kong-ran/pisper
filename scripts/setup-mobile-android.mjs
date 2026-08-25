@@ -230,6 +230,8 @@ if (nodeLibrary && existsSync(nodeLibrary) && existsSync(nodeHeaders)) {
     copyFileSync(join(hostSource, name), join(hostTarget, name))
   }
   copyFileSync(join(hostSource, 'EmbeddedNodeHost.kt'), join(kotlinTarget, 'EmbeddedNodeHost.kt'))
+  // Rust 通过 JNI 字符串查找入口，R8 无法静态发现；release 构建必须保留类名和方法签名。
+  copyFileSync(join(hostSource, 'pisper-node-host.pro'), join(appDir, 'pisper-node-host.pro'))
   copyFileSync(nodeLibrary, join(jniTarget, 'libnode.so'))
   // Node Mobile 动态依赖 NDK libc++；Android 系统镜像不会提供这个 App 私有 ABI 库。
   copyFileSync(cppRuntime, join(jniTarget, 'libc++_shared.so'))

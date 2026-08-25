@@ -11,7 +11,7 @@ pub mod on_device_runtime;
 pub mod pairing;
 pub mod pinning;
 pub mod proxy;
-#[cfg(not(feature = "mobile-store"))]
+#[cfg(not(feature = "mobile-embedded-only"))]
 pub mod root_runtime;
 pub mod runtime_status;
 pub mod store;
@@ -446,9 +446,9 @@ async fn mobile_retry_local_startup(
         state.proxy.configure_local_runtime(&status.url)?;
         let url = tauri::Url::parse(&format!("http://127.0.0.1:{}", state.proxy.port))
             .map_err(|error| error.to_string())?;
-        return window
+        window
             .eval(startup_location_replace_script(&url))
-            .map_err(|error| format!("无法打开本机 Runtime 代理：{error}"));
+            .map_err(|error| format!("无法打开本机 Runtime 代理：{error}"))
     }
     #[cfg(not(feature = "mobile-store"))]
     {
