@@ -3,7 +3,10 @@ use base64::{engine::general_purpose::STANDARD as BASE64, Engine as _};
 use flate2::read::GzDecoder;
 use fs2::FileExt as _;
 use minisign_verify::{PublicKey, Signature};
-use reqwest::header::{ACCEPT, USER_AGENT};
+use reqwest::{
+    header::{ACCEPT, CONTENT_RANGE, RANGE, USER_AGENT},
+    StatusCode,
+};
 use semver::Version;
 use serde::{Deserialize, Serialize};
 use std::{
@@ -20,6 +23,14 @@ const MAX_EXTRACTED_BYTES: u64 = 2 * 1024 * 1024 * 1024;
 const MAX_ARCHIVE_ENTRIES: usize = 100_000;
 const MAX_SIGNATURE_BYTES: u64 = 64 * 1024;
 const NETWORK_ATTEMPTS: usize = 3;
+const MIN_PARALLEL_DOWNLOAD_BYTES: u64 = 8 * 1024 * 1024;
+const MIN_DOWNLOAD_SEGMENT_BYTES: u64 = 4 * 1024 * 1024;
+const MAX_PARALLEL_DOWNLOADS: u64 = 8;
+
+enum ParallelDownloadEvent {
+    Progress { index: usize, transferred: u64 },
+    Complete { index: usize, result: Result<()> },
+}
 
 #[derive(Clone, Copy, Debug, Eq, Hash, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
@@ -267,6 +278,19 @@ impl ComponentUpdater {
     where
         F: FnMut(u64, u64),
     {
+        if expected_size >= MIN_PARALLEL_DOWNLOAD_BYTES
+            && expected_size <= limit
+            && self.supports_range_download(url, expected_size).await
+        {
+            match self
+                .download_in_parallel(url, limit, expected_size, &mut on_progress)
+                .await
+            {
+                Ok(bytes) => return Ok(bytes),
+                Err(_) => on_progress(0, expected_size),
+            }
+        }
+
         let mut last_error = None;
         for attempt in 0..NETWORK_ATTEMPTS {
             if attempt > 0 {
@@ -287,6 +311,138 @@ impl ComponentUpdater {
         Err(error.context(format!(
             "component download failed after {NETWORK_ATTEMPTS} attempts: {url}"
         )))
+    }
+
+    async fn supports_range_download(&self, url: &str, expected_size: u64) -> bool {
+        let result = async {
+            let mut response = self
+                .client
+                .get(url)
+                .header(ACCEPT, "application/octet-stream")
+                .header(RANGE, "bytes=0-0")
+                .send()
+                .await?;
+            if response.status() != StatusCode::PARTIAL_CONTENT
+                || parse_content_range(response.headers().get(CONTENT_RANGE))
+                    != Some((0, 0, expected_size))
+                || response.content_length().is_some_and(|size| size != 1)
+            {
+                return Ok::<bool, reqwest::Error>(false);
+            }
+            let mut received = 0_u64;
+            while let Some(chunk) = response.chunk().await? {
+                received = received.saturating_add(chunk.len() as u64);
+                if received > 1 {
+                    return Ok(false);
+                }
+            }
+            Ok(received == 1)
+        }
+        .await;
+        result.unwrap_or(false)
+    }
+
+    async fn download_in_parallel<F>(
+        &self,
+        url: &str,
+        limit: u64,
+        expected_size: u64,
+        mut on_progress: F,
+    ) -> Result<Vec<u8>>
+    where
+        F: FnMut(u64, u64),
+    {
+        if expected_size > limit {
+            bail!("component download exceeds the size limit");
+        }
+        let buffer_size = usize::try_from(expected_size)
+            .context("component download is too large for this platform")?;
+        let mut bytes = Vec::new();
+        bytes
+            .try_reserve_exact(buffer_size)
+            .context("failed to reserve component download buffer")?;
+        bytes.resize(buffer_size, 0);
+        let bytes = std::sync::Arc::new(std::sync::Mutex::new(bytes));
+
+        let segment_count = expected_size
+            .div_ceil(MIN_DOWNLOAD_SEGMENT_BYTES)
+            .clamp(2, MAX_PARALLEL_DOWNLOADS);
+        let segment_size = expected_size.div_ceil(segment_count);
+        let (sender, mut receiver) = tokio::sync::mpsc::unbounded_channel();
+        let mut tasks = Vec::with_capacity(segment_count as usize);
+        for index in 0..segment_count as usize {
+            let start = index as u64 * segment_size;
+            let end = (start + segment_size - 1).min(expected_size - 1);
+            let client = self.client.clone();
+            let url = url.to_string();
+            let sender = sender.clone();
+            let bytes = bytes.clone();
+            tasks.push(tokio::spawn(async move {
+                let result = download_range_with_retry(
+                    &client,
+                    &url,
+                    start,
+                    end,
+                    expected_size,
+                    bytes,
+                    index,
+                    &sender,
+                )
+                .await;
+                let _ = sender.send(ParallelDownloadEvent::Complete { index, result });
+            }));
+        }
+        drop(sender);
+
+        let mut segment_progress = vec![0_u64; segment_count as usize];
+        let mut completed = 0_usize;
+        let mut failure = None;
+        while completed < segment_count as usize {
+            let Some(event) = receiver.recv().await else {
+                failure = Some(anyhow!(
+                    "parallel component download task stopped unexpectedly"
+                ));
+                break;
+            };
+            match event {
+                ParallelDownloadEvent::Progress { index, transferred } => {
+                    segment_progress[index] = transferred;
+                    on_progress(segment_progress.iter().sum(), expected_size);
+                }
+                ParallelDownloadEvent::Complete { index, result } => match result {
+                    Ok(()) => {
+                        let start = index as u64 * segment_size;
+                        let end = (start + segment_size - 1).min(expected_size - 1);
+                        segment_progress[index] = end - start + 1;
+                        completed += 1;
+                        on_progress(segment_progress.iter().sum(), expected_size);
+                    }
+                    Err(error) => {
+                        failure = Some(error);
+                        break;
+                    }
+                },
+            }
+        }
+
+        if let Some(error) = failure {
+            for task in &tasks {
+                task.abort();
+            }
+            for task in tasks {
+                let _ = task.await;
+            }
+            return Err(error.context("parallel component download failed"));
+        }
+        for task in tasks {
+            task.await
+                .context("parallel component download task failed")?;
+        }
+        let bytes = std::sync::Arc::try_unwrap(bytes)
+            .map_err(|_| anyhow!("parallel component download buffer is still in use"))?
+            .into_inner()
+            .map_err(|_| anyhow!("parallel component download buffer was poisoned"))?;
+        Ok(bytes)
     }
 
     async fn download_once<F>(
@@ -329,6 +485,112 @@ impl ComponentUpdater {
         }
         Ok(bytes)
     }
+}
+
+fn parse_content_range(value: Option<&reqwest::header::HeaderValue>) -> Option<(u64, u64, u64)> {
+    let value = value?.to_str().ok()?.strip_prefix("bytes ")?;
+    let (range, total) = value.split_once('/')?;
+    let (start, end) = range.split_once('-')?;
+    Some((start.parse().ok()?, end.parse().ok()?, total.parse().ok()?))
+}
+
+#[allow(clippy::too_many_arguments)]
+async fn download_range_with_retry(
+    client: &reqwest::Client,
+    url: &str,
+    start: u64,
+    end: u64,
+    total: u64,
+    bytes: std::sync::Arc<std::sync::Mutex<Vec<u8>>>,
+    index: usize,
+    sender: &tokio::sync::mpsc::UnboundedSender<ParallelDownloadEvent>,
+) -> Result<()> {
+    let mut last_error = None;
+    for attempt in 0..NETWORK_ATTEMPTS {
+        let _ = sender.send(ParallelDownloadEvent::Progress {
+            index,
+            transferred: 0,
+        });
+        match download_range_once(client, url, start, end, total, bytes.clone(), index, sender)
+            .await
+        {
+            Ok(()) => return Ok(()),
+            Err(error) => last_error = Some(error),
+        }
+        if attempt + 1 < NETWORK_ATTEMPTS {
+            tokio::time::sleep(Duration::from_millis(250 * (attempt as u64 + 1))).await;
+        }
+    }
+    let error = last_error.unwrap_or_else(|| anyhow!("component range download failed"));
+    Err(error.context(format!(
+        "component range download failed after {NETWORK_ATTEMPTS} attempts: {start}-{end}"
+    )))
+}
+
+#[allow(clippy::too_many_arguments)]
+async fn download_range_once(
+    client: &reqwest::Client,
+    url: &str,
+    start: u64,
+    end: u64,
+    total: u64,
+    bytes: std::sync::Arc<std::sync::Mutex<Vec<u8>>>,
+    index: usize,
+    sender: &tokio::sync::mpsc::UnboundedSender<ParallelDownloadEvent>,
+) -> Result<()> {
+    let mut response = client
+        .get(url)
+        .header(ACCEPT, "application/octet-stream")
+        .header(RANGE, format!("bytes={start}-{end}"))
+        .send()
+        .await
+        .with_context(|| format!("failed to download component range {start}-{end}"))?;
+    if response.status() != StatusCode::PARTIAL_CONTENT {
+        bail!(
+            "component server ignored range {start}-{end}: HTTP {}",
+            response.status()
+        );
+    }
+    if parse_content_range(response.headers().get(CONTENT_RANGE)) != Some((start, end, total)) {
+        bail!("component server returned an invalid Content-Range for {start}-{end}");
+    }
+    let expected = end - start + 1;
+    if response
+        .content_length()
+        .is_some_and(|length| length != expected)
+    {
+        bail!("component range {start}-{end} has an invalid size");
+    }
+
+    let mut transferred = 0_u64;
+    while let Some(chunk) = response
+        .chunk()
+        .await
+        .context("component range download was interrupted")?
+    {
+        let next = transferred
+            .checked_add(chunk.len() as u64)
+            .context("component range download size overflow")?;
+        if next > expected {
+            bail!("component range {start}-{end} exceeds its expected size");
+        }
+        let write_start = usize::try_from(start + transferred)
+            .context("component range offset is too large for this platform")?;
+        let write_end = write_start
+            .checked_add(chunk.len())
+            .context("component range offset overflow")?;
+        bytes
+            .lock()
+            .map_err(|_| anyhow!("parallel component download buffer was poisoned"))?
+            [write_start..write_end]
+            .copy_from_slice(&chunk);
+        transferred = next;
+        let _ = sender.send(ParallelDownloadEvent::Progress { index, transferred });
+    }
+    if transferred != expected {
+        bail!("component range {start}-{end} ended after {transferred} of {expected} bytes");
+    }
+    Ok(())
 }
 
 pub fn deactivate_component(root: &Path, component: Component) -> Result<()> {
@@ -689,6 +951,29 @@ mod tests {
         }
     }
 
+    fn read_request_range(stream: &mut impl Read) -> Option<(u64, u64)> {
+        let mut request = Vec::new();
+        loop {
+            let mut chunk = [0_u8; 1024];
+            let count = stream.read(&mut chunk).unwrap();
+            if count == 0 {
+                break;
+            }
+            request.extend_from_slice(&chunk[..count]);
+            if request.windows(4).any(|value| value == b"\r\n\r\n") {
+                break;
+            }
+            assert!(request.len() <= 16 * 1024);
+        }
+        let request = String::from_utf8(request).unwrap();
+        let value = request.lines().find_map(|line| {
+            let (name, value) = line.split_once(':')?;
+            name.eq_ignore_ascii_case("range").then_some(value.trim())
+        })?;
+        let (start, end) = value.strip_prefix("bytes=")?.split_once('-')?;
+        Some((start.parse().ok()?, end.parse().ok()?))
+    }
+
     fn desktop_archive(version: &str) -> Vec<u8> {
         let encoder = GzEncoder::new(Vec::new(), Compression::fast());
         let mut builder = tar::Builder::new(encoder);
@@ -848,6 +1133,126 @@ mod tests {
         assert_eq!(bytes, b"abcdef");
         assert!(progress.contains(&(0, 6)));
         assert_eq!(progress.last(), Some(&(6, 6)));
+    }
+
+    #[test]
+    fn large_component_download_uses_parallel_ranges() {
+        let size = super::MIN_PARALLEL_DOWNLOAD_BYTES as usize;
+        let payload = std::sync::Arc::new(
+            (0..size)
+                .map(|index| (index % 251) as u8)
+                .collect::<Vec<_>>(),
+        );
+        let ranges = std::sync::Arc::new(std::sync::Mutex::new(Vec::new()));
+        let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+        let address = listener.local_addr().unwrap();
+        let server_payload = payload.clone();
+        let server_ranges = ranges.clone();
+        let server = thread::spawn(move || {
+            let mut workers = Vec::new();
+            for _ in 0..3 {
+                let (mut stream, _) = listener.accept().unwrap();
+                let payload = server_payload.clone();
+                let ranges = server_ranges.clone();
+                workers.push(thread::spawn(move || {
+                    let (start, end) = read_request_range(&mut stream).unwrap();
+                    ranges.lock().unwrap().push((start, end));
+                    stream
+                        .write_all(
+                            format!(
+                                "HTTP/1.1 206 Partial Content\r\nContent-Length: {}\r\nContent-Range: bytes {start}-{end}/{}\r\nConnection: close\r\n\r\n",
+                                end - start + 1,
+                                payload.len(),
+                            )
+                            .as_bytes(),
+                        )
+                        .unwrap();
+                    stream
+                        .write_all(&payload[start as usize..=end as usize])
+                        .unwrap();
+                }));
+            }
+            for worker in workers {
+                worker.join().unwrap();
+            }
+        });
+        let directory = TestDirectory::new();
+        let updater = super::ComponentUpdater::new(
+            directory.0.clone(),
+            include_str!("../../../src-tauri/updater.pubkey"),
+            "Pisper parallel download test",
+        )
+        .unwrap();
+        let runtime = tokio::runtime::Builder::new_current_thread()
+            .enable_all()
+            .build()
+            .unwrap();
+        let mut progress = Vec::new();
+        let bytes = runtime
+            .block_on(updater.download_with_progress(
+                &format!("http://{address}/component.tar.gz"),
+                size as u64,
+                size as u64,
+                |transferred, total| progress.push((transferred, total)),
+            ))
+            .unwrap();
+        server.join().unwrap();
+
+        assert_eq!(bytes, *payload);
+        assert_eq!(progress.last(), Some(&(size as u64, size as u64)));
+        let mut ranges = ranges.lock().unwrap().clone();
+        ranges.sort_unstable();
+        assert_eq!(ranges.len(), 3);
+        assert_eq!(ranges[0], (0, 0));
+        assert!(ranges.iter().any(|(start, _)| *start > 0));
+    }
+
+    #[test]
+    fn component_download_falls_back_when_ranges_are_ignored() {
+        let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+        let address = listener.local_addr().unwrap();
+        let requests = std::sync::Arc::new(std::sync::Mutex::new(Vec::new()));
+        let server_requests = requests.clone();
+        let server = thread::spawn(move || {
+            for body in [&b"x"[..], &b"fallback"[..]] {
+                let (mut stream, _) = listener.accept().unwrap();
+                let range = read_request_range(&mut stream);
+                server_requests.lock().unwrap().push(range);
+                stream
+                    .write_all(
+                        format!(
+                            "HTTP/1.1 200 OK\r\nContent-Length: {}\r\nConnection: close\r\n\r\n",
+                            body.len()
+                        )
+                        .as_bytes(),
+                    )
+                    .unwrap();
+                let _ = stream.write_all(body);
+            }
+        });
+        let directory = TestDirectory::new();
+        let updater = super::ComponentUpdater::new(
+            directory.0.clone(),
+            include_str!("../../../src-tauri/updater.pubkey"),
+            "Pisper range fallback test",
+        )
+        .unwrap();
+        let runtime = tokio::runtime::Builder::new_current_thread()
+            .enable_all()
+            .build()
+            .unwrap();
+        let bytes = runtime
+            .block_on(updater.download_with_progress(
+                &format!("http://{address}/component.tar.gz"),
+                super::MIN_PARALLEL_DOWNLOAD_BYTES,
+                super::MIN_PARALLEL_DOWNLOAD_BYTES,
+                |_, _| {},
+            ))
+            .unwrap();
+        server.join().unwrap();
+
+        assert_eq!(bytes, b"fallback");
+        assert_eq!(requests.lock().unwrap().as_slice(), &[Some((0, 0)), None]);
     }
 
     #[test]
