@@ -1,9 +1,9 @@
 {
-  "version": "0.1.8",
-  "tag": "app-v0.1.8",
-  "url": "https://github.com/ling-kong-ran/pisper/releases/tag/app-v0.1.8",
+  "version": "0.1.9",
+  "tag": "app-v0.1.9",
+  "url": "https://github.com/ling-kong-ran/pisper/releases/tag/app-v0.1.9",
   "apk": "app-universal-release-signed.apk",
   "ipa": "pisper-ios-unsigned.ipa",
-  "notes": "- fix(mobile): enable device tool by default\n- fix(mobile): harden local startup and phone UI\n- fix(visual): fall back to Responses image generation\n- perf(runtime,tui): load conversations on demand",
-  "releaseDate": "2026-08-24"
+  "notes": "- fix(mobile): allow local startup retry\n- fix(mobile): request device permissions during operations\n- fix(i18n): rename mobile device permissions label",
+  "releaseDate": "2026-08-25"
 }
