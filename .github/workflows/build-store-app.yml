@@ -212,6 +212,8 @@ jobs:
         run: |
           set -Eeuo pipefail
           cp embedded-runtime/pisper-embedded-runtime.tar.gz release/pisper-embedded-runtime.tar.gz
+          cp embedded-runtime/pisper-embedded-runtime.tar.gz \
+            src-tauri/pisper-embedded-runtime.tar.gz
           npm run build
           node scripts/sync-mobile-icons.mjs
       - name: Prepare signed iOS project
@@ -223,8 +225,7 @@ jobs:
           set -Eeuo pipefail
           test -n "$IOS_CERTIFICATE" || { echo "IOS_DISTRIBUTION_CERTIFICATE is required." >&2; exit 1; }
           test -n "$IOS_MOBILE_PROVISION" || { echo "IOS_APP_STORE_PROVISIONING_PROFILE is required." >&2; exit 1; }
-          MOBILE_CONFIG='{"bundle":{"externalBin":[],"resources":{"../release/pisper-embedded-runtime.tar.gz":"pisper-embedded-runtime.tar.gz","PrivacyInfo.xcprivacy":"PrivacyInfo.xcprivacy"},"iOS":{"frameworks":["../release/mobile-node-ios/NodeMobile.xcframework"]}}}'
-          npx tauri ios init --config "$MOBILE_CONFIG"
+          npx tauri ios init --config src-tauri/tauri.mobile-ios.conf.json
       - name: Build Apple Distribution IPA
         env:
           IOS_CERTIFICATE: ${{ secrets.IOS_DISTRIBUTION_CERTIFICATE }}
@@ -232,11 +233,12 @@ jobs:
           IOS_MOBILE_PROVISION: ${{ secrets.IOS_APP_STORE_PROVISIONING_PROFILE }}
         run: |
           set -Eeuo pipefail
-          MOBILE_CONFIG='{"version":"${{ inputs.version }}","bundle":{"externalBin":[],"resources":{"../release/pisper-embedded-runtime.tar.gz":"pisper-embedded-runtime.tar.gz","PrivacyInfo.xcprivacy":"PrivacyInfo.xcprivacy"},"iOS":{"frameworks":["../release/mobile-node-ios/NodeMobile.xcframework"]}}}'
+          VERSION_CONFIG='{"version":"${{ inputs.version }}"}'
           npx tauri ios build --ci --features mobile-store \
             --build-number "${{ inputs.build_number }}" \
             --export-method app-store-connect \
-            --config "$MOBILE_CONFIG"
+            --config src-tauri/tauri.mobile-ios.conf.json \
+            --config "$VERSION_CONFIG"
       - name: Validate signed IPA
         run: |
           set -Eeuo pipefail

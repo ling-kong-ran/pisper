@@ -13,6 +13,7 @@ const APP_EXCLUSIVE_PREFIXES = [
   'src-tauri/permissions/mobile.toml',
   'src-tauri/capabilities/mobile-bridge.json',
   'src-tauri/tauri.android.conf.json',
+  'src-tauri/tauri.mobile-ios.conf.json',
   'src-tauri/Info.ios.plist',
   'src-tauri/mobile-package.json',
   'public/mobile-startup.html',
@@ -33,6 +34,7 @@ const APP_EXCLUSIVE_PREFIXES = [
   'scripts/app-paths.mjs',
   'scripts/prepare-app-release.mjs',
   '.github/workflows/release-app.yml',
+  '.github/workflows/build-store-app.yml',
 ]
 
 // 这些 Rust 文件由 Desktop 与 App 共用，两个发布通道都必须看到它们的变更。

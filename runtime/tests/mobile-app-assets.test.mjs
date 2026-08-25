@@ -50,6 +50,8 @@ test('共享产品路径同时归 App 与原组件发布通道', () => {
   assert.equal(isAppExclusivePath('src-tauri/mobile/android/MainActivity.kt'), true)
   assert.equal(isAppExclusivePath('src-tauri/mobile-device-plugin/Cargo.toml'), true)
   assert.equal(isAppExclusivePath('src-tauri/Info.ios.plist'), true)
+  assert.equal(isAppExclusivePath('src-tauri/tauri.mobile-ios.conf.json'), true)
+  assert.equal(isAppExclusivePath('.github/workflows/build-store-app.yml'), true)
   assert.equal(isAppExclusivePath('public/mobile-startup.html'), true)
   assert.equal(isAppExclusivePath('scripts/stage-mobile-node-android.mjs'), true)
   assert.equal(isAppExclusivePath('scripts/stage-mobile-node-ios.mjs'), true)
@@ -309,14 +311,7 @@ test('移动 Node 供应链固定来源并在两个平台执行完整性门禁',
   assert.match(workflow, /shasum -a 256 -c SHA256SUMS/)
   assert.match(workflow, /lib\/arm64-v8a\/libnode\.so/)
   assert.match(workflow, /NodeMobile\.xcframework/)
-  assert.equal(
-    (
-      workflow.match(
-        /"resources":\{"\.\.\/release\/pisper-embedded-runtime\.tar\.gz":"pisper-embedded-runtime\.tar\.gz","PrivacyInfo\.xcprivacy":"PrivacyInfo\.xcprivacy"\}/g,
-      ) || []
-    ).length,
-    2,
-  )
+  assert.equal(workflow.match(/--config src-tauri\/tauri\.mobile-ios\.conf\.json/g)?.length, 2)
   assert.match(workflow, /bash scripts\/smoke-mobile-node-ios\.sh/)
   assert.match(workflow, /Payload\/\[\^\/\]\+\\\.app\/Frameworks\/NodeMobile/)
   assert.match(workflow, /pisper-embedded-runtime\\\.tar\\\.gz/)
@@ -420,6 +415,30 @@ test('移动 Runtime 本地 staging 使用 App 版本并兼容 Windows Node 24',
   assert.doesNotMatch(staging, /run\(["']npm\.cmd["']/)
 })
 
+test('iOS 移动配置整体替换桌面资源且由两个发布通道共用', async () => {
+  const [configText, releaseWorkflow, storeWorkflow] = await Promise.all([
+    readFile('src-tauri/tauri.mobile-ios.conf.json', 'utf8'),
+    readFile('.github/workflows/release-app.yml', 'utf8'),
+    readFile('.github/workflows/build-store-app.yml', 'utf8'),
+  ])
+  const config = JSON.parse(configText)
+
+  assert.deepEqual(config.bundle.externalBin, [])
+  assert.deepEqual(config.bundle.resources, [
+    'pisper-embedded-runtime.tar.gz',
+    'PrivacyInfo.xcprivacy',
+  ])
+  assert.deepEqual(config.bundle.iOS.frameworks, [
+    '../release/mobile-node-ios/NodeMobile.xcframework',
+  ])
+  for (const workflow of [releaseWorkflow, storeWorkflow]) {
+    assert.match(workflow, /src-tauri\/pisper-embedded-runtime\.tar\.gz/)
+    assert.equal(workflow.match(/--config src-tauri\/tauri\.mobile-ios\.conf\.json/g)?.length, 2)
+    assert.doesNotMatch(workflow, /release\/sea\/runtime/)
+    assert.doesNotMatch(workflow, /resources":\{"\.\.\/release\/pisper-embedded-runtime/)
+  }
+})
+
 test('embedded Node 使用后台线程、真实初始化 READY 与 App 生命周期', async () => {
   const [entry, kotlin, cpp, rustHost, carrier, rootHost] = await Promise.all([
     readFile('runtime/mobile-embedded.mjs', 'utf8'),
@@ -475,7 +494,7 @@ test('商店构建在编译期排除 root Runtime 与外部安装更新', async 
   assert.match(workflow, /android build[\s\S]*--aab[\s\S]*--features mobile-store/)
   assert.match(workflow, /ios build[\s\S]*--features mobile-store/)
   assert.match(workflow, /--export-method app-store-connect/)
-  assert.match(workflow, /PrivacyInfo\.xcprivacy/)
+  assert.match(workflow, /tauri\.mobile-ios\.conf\.json/)
   assert.doesNotMatch(
     workflow,
     /name: app-root-runtime|needs: \[[^\]]*root-runtime|cp [^\n]*pisper-root-runtime/,

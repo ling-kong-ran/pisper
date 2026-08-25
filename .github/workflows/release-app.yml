@@ -260,6 +260,8 @@ jobs:
             embedded-runtime/pisper-embedded-runtime.tar.gz \
             embedded-runtime/pisper-embedded-runtime.tar.gz.minisig
           cp embedded-runtime/pisper-embedded-runtime.tar.gz release/pisper-embedded-runtime.tar.gz
+          cp embedded-runtime/pisper-embedded-runtime.tar.gz \
+            src-tauri/pisper-embedded-runtime.tar.gz
       - name: Smoke embedded Pisper Runtime in iOS Simulator
         run: |
           bash scripts/smoke-mobile-node-ios.sh \
@@ -271,13 +273,13 @@ jobs:
       - name: Generate shared mobile icons
         run: node scripts/sync-mobile-icons.mjs
       - name: Prepare iOS project with embedded Node
-        run: |
-          MOBILE_CONFIG='{"bundle":{"externalBin":[],"resources":{"../release/pisper-embedded-runtime.tar.gz":"pisper-embedded-runtime.tar.gz","PrivacyInfo.xcprivacy":"PrivacyInfo.xcprivacy"},"iOS":{"frameworks":["../release/mobile-node-ios/NodeMobile.xcframework"]}}}'
-          npx tauri ios init --config "$MOBILE_CONFIG"
+        run: npx tauri ios init --config src-tauri/tauri.mobile-ios.conf.json
       - name: Build unsigned iOS app
         run: |
-          MOBILE_CONFIG='{"version":"${{ inputs.version }}","bundle":{"externalBin":[],"resources":{"../release/pisper-embedded-runtime.tar.gz":"pisper-embedded-runtime.tar.gz","PrivacyInfo.xcprivacy":"PrivacyInfo.xcprivacy"},"iOS":{"frameworks":["../release/mobile-node-ios/NodeMobile.xcframework"]}}}'
-          npx tauri ios build --ci --no-sign --config "$MOBILE_CONFIG"
+          VERSION_CONFIG='{"version":"${{ inputs.version }}"}'
+          npx tauri ios build --ci --no-sign \
+            --config src-tauri/tauri.mobile-ios.conf.json \
+            --config "$VERSION_CONFIG"
       - name: Package iOS artifacts
         env:
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}

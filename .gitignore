@@ -16,6 +16,7 @@ src-tui/target/
 crates/*/target/
 src-tauri/binaries/
 src-tauri/gen/
+src-tauri/pisper-embedded-runtime.tar.gz
 .tmp-tauri-data/
 /.tmp-*.log
 .tmp-tauri.png
