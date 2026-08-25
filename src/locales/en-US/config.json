@@ -149,7 +149,7 @@
   "mobileDevice.permission.prompt": "System permission not requested",
   "mobileDevice.permission.unsupported": "Unsupported on this device",
   "mobileDevice.request": "Request permission",
-  "mobileDevice.title": "Phone capabilities",
+  "mobileDevice.title": "Device permissions",
   "mobileServer.addServer": "Add server",
   "mobileServer.cameraDenied": "Camera permission was not granted. Use manual pairing instead.",
   "mobileServer.code": "Pairing code",

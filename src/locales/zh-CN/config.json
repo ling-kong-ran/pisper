@@ -149,7 +149,7 @@
   "mobileDevice.permission.prompt": "尚未请求系统权限",
   "mobileDevice.permission.unsupported": "当前设备不支持",
   "mobileDevice.request": "请求权限",
-  "mobileDevice.title": "手机能力",
+  "mobileDevice.title": "设备权限",
   "mobileServer.addServer": "添加服务器",
   "mobileServer.cameraDenied": "相机权限未授予，请使用手动配对。",
   "mobileServer.code": "配对码",
