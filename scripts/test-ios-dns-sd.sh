@@ -3,29 +3,34 @@ set -Eeuo pipefail
 
 ROOT=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
 PLUGIN_IOS="$ROOT/crates/tauri-plugin-dns-sd/ios"
-CARGO_REGISTRY="${CARGO_HOME:-$HOME/.cargo}/registry/src"
 
-cargo fetch --manifest-path "$ROOT/src-tauri/Cargo.toml"
-TAURI_API_PACKAGE=$(find "$CARGO_REGISTRY" -path '*/tauri-*/mobile/ios-api/Package.swift' -print \
-  | tail -1)
-if [[ -z "$TAURI_API_PACKAGE" ]]; then
-  echo '未找到 Tauri iOS API Swift package。' >&2
-  exit 1
-fi
+# 该测试只验证权限错误映射，隔离 Tauri UIKit 依赖后才能在 macOS CI 的 SwiftPM host 上稳定运行。
+TEST_PACKAGE=$(mktemp -d "${TMPDIR:-/tmp}/pisper-dns-sd.XXXXXX")
+trap 'rm -rf "$TEST_PACKAGE"' EXIT
+cp -R "$PLUGIN_IOS/Sources" "$TEST_PACKAGE/"
+cp -R "$PLUGIN_IOS/Tests" "$TEST_PACKAGE/"
+cat > "$TEST_PACKAGE/Package.swift" <<'EOF'
+// swift-tools-version:5.3
+import PackageDescription
 
-# 测试使用与当前 Cargo 依赖一致的 Tauri Swift API，避免依赖已生成的 Xcode 工程。
-TEST_ROOT=$(mktemp -d "${TMPDIR:-/tmp}/pisper-dns-sd.XXXXXX")
-trap 'rm -rf "$TEST_ROOT"' EXIT
-TEST_PACKAGE="$TEST_ROOT/crates/tauri-plugin-dns-sd/ios"
-TAURI_API_TARGET="$TEST_ROOT/crates/tauri-plugin-dns-sd/.tauri/tauri-api"
-mkdir -p "$TEST_PACKAGE" "$TAURI_API_TARGET"
-cp -R "$PLUGIN_IOS/." "$TEST_PACKAGE/"
-cp -R "$(dirname "$TAURI_API_PACKAGE")/." "$TAURI_API_TARGET/"
-test -f "$TAURI_API_TARGET/Package.swift"
-perl -0pi -e "s#path: \"\.\./\.tauri/tauri-api\"#path: \"$TAURI_API_TARGET\"#" "$TEST_PACKAGE/Package.swift"
-IOS_SIMULATOR_ID=$(xcrun simctl list devices available | sed -nE 's/.*\(([0-9A-F-]{36})\).*/\1/p' | head -1)
-if [[ -z "$IOS_SIMULATOR_ID" ]]; then
-  echo '未找到可用的 iOS Simulator。' >&2
-  exit 1
-fi
-swift test --package-path "$TEST_PACKAGE" --destination "id=$IOS_SIMULATOR_ID"
+let package = Package(
+    name: "tauri-plugin-dns-sd",
+    platforms: [.macOS(.v10_13), .iOS(.v13)],
+    products: [
+        .library(name: "tauri-plugin-dns-sd", type: .static, targets: ["tauri-plugin-dns-sd"]),
+    ],
+    targets: [
+        .target(
+            name: "tauri-plugin-dns-sd",
+            path: "Sources",
+            sources: ["LocalNetworkPermission.swift"]
+        ),
+        .testTarget(
+            name: "DnsSdPluginTests",
+            dependencies: ["tauri-plugin-dns-sd"],
+            path: "Tests/DnsSdPluginTests"
+        ),
+    ]
+)
+EOF
+swift test --package-path "$TEST_PACKAGE"
