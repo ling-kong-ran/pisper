@@ -47,6 +47,41 @@ test('model configuration exposes built-in Kimi and GLM providers', async (t) =>
   )
 })
 
+test('paired device model config export imports credentials and defaults into the mobile runtime', async (t) => {
+  const sourceDirectory = await mkdtemp(join(tmpdir(), 'pisper-provider-export-source-'))
+  const targetDirectory = await mkdtemp(join(tmpdir(), 'pisper-provider-export-target-'))
+  const source = new AgentRuntimeService({ cwd: sourceDirectory, dataDir: sourceDirectory })
+  const target = new AgentRuntimeService({ cwd: targetDirectory, dataDir: targetDirectory })
+  t.after(async () => {
+    await source.dispose()
+    await target.dispose()
+    await rm(sourceDirectory, { recursive: true, force: true })
+    await rm(targetDirectory, { recursive: true, force: true })
+  })
+  await source.init()
+  await target.init()
+  await source.saveConfig({
+    provider: 'zai-coding-cn',
+    model: 'glm-5.2',
+    apiKey: 'desktop-provider-secret',
+    baseUrl: 'https://desktop.example.test/v1',
+    thinkingLevel: 'high',
+    toolMode: 'read-only',
+  })
+  const exported = await source.exportProviderConfig()
+  assert.equal(exported.version, 1)
+  assert.equal(exported.credentials['zai-coding-cn'].key, 'desktop-provider-secret')
+  await target.importProviderConfig(exported)
+  const imported = await target.getConfig()
+  assert.equal(imported.defaultProvider, 'zai-coding-cn')
+  assert.equal(imported.defaultModel, 'glm-5.2')
+  assert.equal(imported.providers.find((item) => item.id === 'zai-coding-cn').configured, true)
+  assert.equal(
+    JSON.parse(await readFile(join(targetDirectory, 'auth.json'), 'utf8'))['zai-coding-cn'].key,
+    'desktop-provider-secret',
+  )
+})
+
 test('provider API keys update without changing the active model configuration', async (t) => {
   const directory = await mkdtemp(join(tmpdir(), 'pisper-provider-api-key-'))
   const runtime = new AgentRuntimeService({ cwd: directory, dataDir: directory })

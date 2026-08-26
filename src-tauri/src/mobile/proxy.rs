@@ -164,6 +164,14 @@ impl ProxyHandle {
                 }
                 Err(_) => false,
             };
+            if !healthy && endpoint.kind == "iroh" {
+                // 网络切换后旧桥仍可能保留失败的监听任务，下一次探测必须重建它。
+                if let Some(tunnels) = self.tunnels.as_deref() {
+                    if let Ok(remote) = endpoint.tunnel_endpoint() {
+                        tunnels.invalidate(&remote).await;
+                    }
+                }
+            }
             if healthy {
                 if let Ok(mut cache) = self.upstream.lock() {
                     *cache = Some(UpstreamCache {
@@ -176,6 +184,58 @@ impl ProxyHandle {
             }
         }
         Err("无法连接到桌面端，请确认电脑在线且远程访问已启用。".to_string())
+    }
+
+    /// 从桌面端读取 Provider 配置并写入本机 Runtime，配对成功后自动执行。
+    pub async fn sync_model_config(&self) -> Result<(), String> {
+        let Some(profile) = self.active_profile() else {
+            return Err("尚未配对桌面端。".into());
+        };
+        let local = self
+            .local_runtime
+            .lock()
+            .map_err(|_| "local Runtime cache poisoned".to_string())?
+            .clone()
+            .ok_or_else(|| "本机 Runtime 尚未就绪。".to_string())?;
+        let upstream = self.resolve_upstream(&profile).await?;
+        let client = self.client_for(&profile.fingerprint)?;
+        let response = client
+            .get(format!("{upstream}/api/providers/export"))
+            .bearer_auth(&profile.token)
+            .timeout(Duration::from_secs(10))
+            .send()
+            .await
+            .map_err(|error| format!("读取桌面端模型配置失败：{error}"))?;
+        if !response.status().is_success() {
+            return Err(format!(
+                "桌面端模型配置返回 HTTP {}。",
+                response.status().as_u16()
+            ));
+        }
+        let body = response
+            .bytes()
+            .await
+            .map_err(|error| format!("读取桌面端模型配置失败：{error}"))?;
+        if body.len() > 4 * 1024 * 1024 {
+            return Err("桌面端模型配置过大。".into());
+        }
+        let local_client = reqwest::Client::new();
+        let result = local_client
+            .post(format!("{}/api/providers/import", local.base_url))
+            .header(reqwest::header::COOKIE, local.cookie)
+            .header(reqwest::header::CONTENT_TYPE, "application/json")
+            .body(body)
+            .timeout(Duration::from_secs(10))
+            .send()
+            .await
+            .map_err(|error| format!("写入本机模型配置失败：{error}"))?;
+        if !result.status().is_success() {
+            return Err(format!(
+                "本机模型配置返回 HTTP {}。",
+                result.status().as_u16()
+            ));
+        }
+        Ok(())
     }
 }
 
@@ -645,7 +705,7 @@ mod tests {
         let target = url.trim_start_matches("https://").parse().unwrap();
         let tunnel_server = crate::iroh_tunnel::start_server(
             target,
-            iroh::SecretKey::generate(rand::rngs::OsRng),
+            iroh::SecretKey::generate(),
             iroh::RelayMode::Disabled,
         )
         .await
@@ -655,12 +715,9 @@ mod tests {
             tunnel_server.local_port().unwrap(),
         );
         let tunnels = Arc::new(
-            TunnelBridgePool::start(
-                iroh::SecretKey::generate(rand::rngs::OsRng),
-                iroh::RelayMode::Disabled,
-            )
-            .await
-            .unwrap(),
+            TunnelBridgePool::start(iroh::SecretKey::generate(), iroh::RelayMode::Disabled)
+                .await
+                .unwrap(),
         );
         let mut profile = profile_for("https://127.0.0.1:9", &fingerprint);
         profile.endpoints.push(ServerEndpoint::iroh(remote));

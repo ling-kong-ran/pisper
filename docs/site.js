@@ -749,8 +749,7 @@ if (!reduceMotion) {
   }
 }
 
-// App 发版工作流维护 latest-app.json；页面只从清单读取当前 Release，
-// 再按稳定资产名生成直链。页面不展示版本号，加载失败时保留 Releases 列表页兜底。
+// 从受信任的 Release 清单生成直链；清单不可用时保留 Releases 页面兜底。
 function appReleaseAssetUrl(releaseUrl, assetName) {
   const fileName = String(assetName || '').trim()
   if (!fileName || fileName.includes('/') || fileName.includes('\\')) return releaseUrl
@@ -760,21 +759,93 @@ function appReleaseAssetUrl(releaseUrl, assetName) {
   return `${assetBase}/${encodeURIComponent(fileName)}`
 }
 
-fetch('latest-app.json', { cache: 'no-store' })
-  .then((response) => (response.ok ? response.json() : null))
-  .then((manifest) => {
-    const releaseUrl = String(manifest?.url || '').trim()
-    if (!releaseUrl) return
+const DESKTOP_RELEASE_API =
+  'https://api.github.com/repos/ling-kong-ran/pisper/releases/latest'
+const DESKTOP_RELEASE_PAGE = 'https://github.com/ling-kong-ran/pisper/releases/latest'
 
-    const assets = {
-      android: manifest.apk,
-      ios: manifest.ipa,
+function detectDownloadTarget() {
+  const ua = navigator.userAgent.toLowerCase()
+  const platform = String(navigator.platform || '').toLowerCase()
+  const touchDevice = Number(navigator.maxTouchPoints || 0) > 1
+
+  if (/android/.test(ua)) return { type: 'android', label: '下载 Android 版' }
+  if (/iphone|ipad|ipod/.test(ua) || (platform === 'macintel' && touchDevice)) {
+    return { type: 'ios', label: '下载 iOS 版' }
+  }
+  if (/windows/.test(ua) || /^win/.test(platform)) return { type: 'windows', label: '下载 Windows 版' }
+  if (/mac os|macintosh/.test(ua) || /^mac/.test(platform)) {
+    return { type: 'macos', label: '下载 macOS 版' }
+  }
+  if (/linux/.test(ua) || /^linux/.test(platform)) return { type: 'linux', label: '下载 Linux 版' }
+  return { type: 'unknown', label: '' }
+}
+
+// Chromium 能提供架构高熵值；其他浏览器无法区分 Apple 芯片时选择可由 Rosetta 运行的 x86 包。
+async function detectMacArchitecture() {
+  const userAgentData = navigator.userAgentData
+  if (typeof userAgentData?.getHighEntropyValues === 'function') {
+    try {
+      const values = await userAgentData.getHighEntropyValues(['architecture'])
+      if (/arm/i.test(values.architecture || '')) return 'aarch64'
+    } catch {
+      // 浏览器拒绝高熵值时使用兼容性更好的 x86_64 安装包。
     }
-    for (const link of document.querySelectorAll('[data-app-download]')) {
-      const platform = link.dataset.appDownload
-      const assetName = assets[platform] || link.dataset.appAsset
-      link.href = appReleaseAssetUrl(releaseUrl, assetName)
+  }
+  return /arm64|aarch64/i.test(navigator.userAgent) ? 'aarch64' : 'x86_64'
+}
+
+async function readJson(url) {
+  const response = await fetch(url, { cache: 'no-store', headers: { Accept: 'application/json' } })
+  if (!response.ok) throw new Error(`Download manifest request failed: ${response.status}`)
+  return response.json()
+}
+
+async function desktopReleaseAssetUrl(target) {
+  const release = await readJson(DESKTOP_RELEASE_API)
+  const version = String(release?.tag_name || '').replace(/^v/, '')
+  if (!/^\d+\.\d+\.\d+$/.test(version)) return DESKTOP_RELEASE_PAGE
+
+  const architecture = target === 'macos' ? await detectMacArchitecture() : 'x86_64'
+  const suffixes = {
+    macos: `darwin_${architecture}.dmg`,
+    windows: 'windows_x86_64-setup.exe',
+    linux: 'linux_x86_64.AppImage',
+  }
+  const expectedName = `Pisper_${version}_${suffixes[target] || ''}`
+  const asset = release.assets?.find((candidate) => candidate.name === expectedName)
+  return asset?.browser_download_url || DESKTOP_RELEASE_PAGE
+}
+
+const downloadTarget = detectDownloadTarget()
+const appManifestPromise = readJson('latest-app.json').catch(() => null)
+const desktopAssetPromise =
+  downloadTarget.type === 'windows' || downloadTarget.type === 'macos' || downloadTarget.type === 'linux'
+    ? desktopReleaseAssetUrl(downloadTarget.type).catch(() => DESKTOP_RELEASE_PAGE)
+    : Promise.resolve(DESKTOP_RELEASE_PAGE)
+
+Promise.all([appManifestPromise, desktopAssetPromise]).then(([appManifest, desktopUrl]) => {
+  const appReleaseUrl = String(appManifest?.url || '').trim()
+  const appAssets = { android: appManifest?.apk, ios: appManifest?.ipa }
+  const appUrl = appReleaseUrl
+    ? appReleaseAssetUrl(appReleaseUrl, appAssets[downloadTarget.type])
+    : DESKTOP_RELEASE_PAGE
+  const targetUrl =
+    downloadTarget.type === 'android' || downloadTarget.type === 'ios' ? appUrl : desktopUrl
+
+  for (const link of document.querySelectorAll('[data-device-download]')) {
+    link.href = targetUrl
+    if (downloadTarget.label) {
+      const label = link.querySelector('[data-download-label]')
+      if (label) label.textContent = downloadTarget.label
     }
-    for (const link of document.querySelectorAll('[data-app-release]')) link.href = releaseUrl
-  })
-  .catch(() => {})
+  }
+
+  for (const link of document.querySelectorAll('[data-app-download]')) {
+    const platform = link.dataset.appDownload
+    const assetName = appAssets[platform] || link.dataset.appAsset
+    if (appReleaseUrl) link.href = appReleaseAssetUrl(appReleaseUrl, assetName)
+  }
+  if (appReleaseUrl) {
+    for (const link of document.querySelectorAll('[data-app-release]')) link.href = appReleaseUrl
+  }
+})

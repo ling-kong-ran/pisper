@@ -8,6 +8,7 @@ commands.allow = [
   "mobile_pair_manual",
   "mobile_ensure_local_network_permission",
   "mobile_pair_lan",
+  "mobile_sync_model_config",
   "mobile_cancel_lan_pairing",
   "mobile_select_server",
   "mobile_enter_local",

@@ -319,7 +319,7 @@ fn start_desktop_tunnel(app: &AppHandle) {
         let server = match crate::iroh_tunnel::start_server(
             "127.0.0.1:5174".parse().expect("固定回环地址必须有效"),
             secret,
-            iroh::RelayMode::Default,
+            crate::iroh_tunnel::production_relay_mode(),
         )
         .await
         {
@@ -351,6 +351,15 @@ fn start_desktop_tunnel(app: &AppHandle) {
             if state.enabled.load(Ordering::SeqCst) {
                 let _ = write_tunnel_status(&status_path, Some(complete), None);
             }
+        }
+        // 网络切换会改变直连候选地址；周期性刷新状态文件，下一次配对即可拿到新地址。
+        while state.enabled.load(Ordering::SeqCst) {
+            tokio::time::sleep(Duration::from_secs(15)).await;
+            if !state.enabled.load(Ordering::SeqCst) {
+                break;
+            }
+            let endpoint = server.endpoint(Duration::from_secs(3)).await;
+            let _ = write_tunnel_status(&status_path, Some(endpoint), None);
         }
     });
 }

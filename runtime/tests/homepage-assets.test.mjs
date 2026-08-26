@@ -43,23 +43,25 @@ test('homepage and showcase use bounded WebP previews while preserving original 
   for (const path of new Set(references)) await access(path)
 })
 
-test('homepage swaps desktop download calls for mobile choices at compact widths', async () => {
+test('homepage keeps direct download calls at compact widths', async () => {
   const [homepage, styles] = await Promise.all([
     readFile('docs/index.html', 'utf8'),
     readFile('docs/site.css', 'utf8'),
   ])
   const mobileCalls = homepage.match(
-    /<a[^>]+class="[^"]*mobile-download-cta[^"]*"[^>]+href="#mobile-downloads"[^>]*>/g,
+    /<a[\s\S]*?class="[^"]*mobile-download-cta[^"]*"[\s\S]*?data-device-download[\s\S]*?href="https:\/\/github\.com\/ling-kong-ran\/pisper\/releases"[^>]*>/g,
   )
 
   assert.equal(mobileCalls?.length, 2)
   assert.equal(homepage.match(/下载移动端/g)?.length, 2)
+  assert.doesNotMatch(homepage, /mobile-download-cta[\s\S]*?href="#mobile-downloads"/)
   assert.equal(homepage.match(/class="[^"]*desktop-download-cta[^"]*"/g)?.length, 2)
   assert.match(
     homepage,
     /class="nav-mobile-github magnetic"[\s\S]*href="https:\/\/github\.com\/ling-kong-ran\/pisper"/,
   )
-  assert.match(homepage, /id="mobile-downloads"/)
+  assert.doesNotMatch(homepage, /id="mobile-downloads"/)
+  assert.doesNotMatch(styles, /scroll-margin-top: 88px;/)
   assert.match(styles, /\.mobile-download-cta\s*\{\s*display: none;/)
   assert.match(
     styles,
@@ -70,6 +72,22 @@ test('homepage swaps desktop download calls for mobile choices at compact widths
     /@media \(max-width: 960px\)[\s\S]*?\.nav-mobile-github,[\s\S]*?\.mobile-download-cta\s*\{\s*display: inline-flex;/,
   )
   assert.match(styles, /@media \(max-width: 620px\)[\s\S]*?\.nav \{\s*gap: 8px;/)
+})
+
+test('homepage download controls are platform-aware and resolve release assets', async () => {
+  const [homepage, siteScript] = await Promise.all([
+    readFile('docs/index.html', 'utf8'),
+    readFile('docs/site.js', 'utf8'),
+  ])
+
+  assert.equal((homepage.match(/data-device-download/g) || []).length, 5)
+  assert.match(siteScript, /function detectDownloadTarget\(\)/)
+  assert.match(siteScript, /api\.github\.com\/repos\/ling-kong-ran\/pisper\/releases\/latest/)
+  assert.match(siteScript, /windows_x86_64-setup\.exe/)
+  assert.match(siteScript, /darwin_\$\{architecture\}\.dmg/)
+  assert.match(siteScript, /linux_x86_64\.AppImage/)
+  assert.match(siteScript, /appReleaseAssetUrl\(appReleaseUrl, appAssets\[downloadTarget\.type\]\)/)
+  assert.match(siteScript, /catch\(\(\) => DESKTOP_RELEASE_PAGE\)/)
 })
 
 test('homepage WebP previews stay within the loading budget', async () => {

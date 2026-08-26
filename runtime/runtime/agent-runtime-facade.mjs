@@ -903,6 +903,14 @@ export class AgentRuntimeFacade {
     return this.providerPreferences.getConfig()
   }
 
+  async exportProviderConfig() {
+    return this.providerPreferences.exportProviderConfig()
+  }
+
+  async importProviderConfig(input) {
+    return this.providerPreferences.importProviderConfig(input)
+  }
+
   async saveConfig(input) {
     return this.providerPreferences.saveConfig(input, toolsFromConfig, TOOL_PRESETS)
   }

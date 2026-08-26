@@ -21,6 +21,8 @@ function remoteErrorStatus(code) {
       return 403
     case 'pairing_request_resolved':
       return 409
+    case 'remote_endpoint_unavailable':
+      return 503
     default:
       return 400
   }
@@ -52,6 +54,15 @@ function requireDesktopListener(req, json) {
   return false
 }
 
+async function waitForRemoteEndpoints(remoteControl) {
+  let status = remoteControl.status()
+  for (let attempt = 0; attempt < 20 && !status.endpoints.length; attempt += 1) {
+    await new Promise((resolve) => setTimeout(resolve, 500))
+    status = remoteControl.status()
+  }
+  return status
+}
+
 export const remoteRoutes = [
   {
     method: 'GET',
@@ -76,6 +87,14 @@ export const remoteRoutes = [
       const status = services.remoteControl.status()
       if (!status.listening) {
         json(400, { error: '远程访问未启用，请先开启。', code: 'remote_disabled' })
+        return
+      }
+      const readyStatus = await waitForRemoteEndpoints(services.remoteControl)
+      if (!readyStatus.endpoints.length) {
+        json(503, {
+          error: '桌面端尚未准备好可连接地址，请稍后重试。',
+          code: 'remote_endpoint_unavailable',
+        })
         return
       }
       const { code, expiresAt } = services.remoteAccess.issuePairingCode()

@@ -43,11 +43,10 @@ test('app primitives compose shadcn controls and share project Tailwind tokens',
   assert.match(styles, /--card: var\(--panel\)/)
   assert.match(styles, /--ring: var\(--focus\)/)
   assert.match(styles, /--shadow-surface: var\(--sh-surface\)/)
-  assert.match(
-    schedules,
-    /split-list-detail[^"\n]*max-\[650px\]:\[\.split-list-detail&\]:grid-cols-\[1fr\]/,
-  )
-  assert.match(schedules, /max-\[650px\]:\[\.split-list-detail&\]:\[overflow-x:visible\]/)
+  assert.match(schedules, /split-list-detail[^"\n]*max-\[900px\]:grid-cols-1/)
+  assert.match(schedules, /split-list-detail[^"\n]*overflow-x-hidden/)
+  assert.doesNotMatch(schedules, /!grid-cols-\[310px_minmax\(0,1fr\)\]/)
+  assert.doesNotMatch(schedules, /minmax\(420px,1fr\)/)
   assert.doesNotMatch(styles, /\.panel(?:\W|$)/)
   assert.doesNotMatch(styles, /\.toast(?:\W|$)/)
 })

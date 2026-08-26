@@ -627,7 +627,7 @@ export function SchedulesPage({
           {error}
         </AppError>
       )}
-      <div className="split-list-detail grid min-h-[100%] grid-cols-[330px_minmax(0,1fr)] gap-[12px] max-[900px]:grid-cols-[1fr] schedule-layout !grid-cols-[310px_minmax(0,1fr)] max-[900px]:[.split-list-detail&]:grid-cols-[280px_minmax(420px,1fr)] max-[900px]:[.split-list-detail&]:overflow-x-auto max-[650px]:[.split-list-detail&]:grid-cols-[1fr] max-[650px]:[.split-list-detail&]:[overflow-x:visible]">
+      <div className="split-list-detail grid min-h-[100%] min-w-0 grid-cols-[minmax(0,310px)_minmax(0,1fr)] gap-[12px] overflow-x-hidden max-[900px]:grid-cols-1 max-[650px]:gap-[8px]">
         <Panel className="selection-list [.config-layout_>_&]:max-h-[calc(100dvh_-_280px)] [.config-layout_>_&]:overflow-y-auto max-[900px]:max-h-[300px] min-h-0 overflow-auto">
           <SectionTitle title={t('schedules:schedulesPage.taskQueue')} />
           {data.tasks.length ? (
@@ -672,9 +672,9 @@ export function SchedulesPage({
         {selected && draft ? (
           <div className="detail-stack flex min-w-0 flex-col gap-[12px] [.mcp-layout_>_&]:min-h-0 max-[1150px]:[.memory-layout_>_&]:[grid-column:1/-1] max-[1150px]:[.memory-layout_>_&]:grid max-[1150px]:[.memory-layout_>_&]:grid-cols-[repeat(2,minmax(0,1fr))] max-[1150px]:[.mcp-layout_>_&]:[grid-column:1/-1] max-[1150px]:[.mcp-layout_>_&]:grid max-[1150px]:[.mcp-layout_>_&]:grid-cols-[repeat(2,minmax(0,1fr))] max-[1150px]:[.skills-layout_>_&]:[grid-column:1/-1] max-[1150px]:[.skills-layout_>_&]:grid max-[1150px]:[.skills-layout_>_&]:grid-cols-[repeat(2,minmax(0,1fr))] max-[650px]:[.memory-layout_>_&]:[grid-column:auto] max-[650px]:[.memory-layout_>_&]:grid-cols-[1fr] max-[650px]:[.mcp-layout_>_&]:[grid-column:auto] max-[650px]:[.mcp-layout_>_&]:grid-cols-[1fr] max-[650px]:[.skills-layout_>_&]:[grid-column:auto] max-[650px]:[.skills-layout_>_&]:grid-cols-[1fr]">
             <Panel>
-              <AppCardHeader>
-                <h2>{draft.name}</h2>
-                <div className="flex items-center gap-[6px] gap-[5px]">
+              <AppCardHeader className="max-[650px]:flex-wrap max-[650px]:items-start">
+                <h2 className="min-w-0 break-words">{draft.name}</h2>
+                <div className="flex min-w-0 flex-wrap items-center gap-[5px] max-[650px]:w-full">
                   <Toggle value={draft.enabled} onChange={(enabled) => updateDraft({ enabled })} />
                   <Button
                     size="lg"

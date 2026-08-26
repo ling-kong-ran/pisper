@@ -580,6 +580,71 @@ export class ProviderPreferences {
     }
   }
 
+  // 向已配对设备导出模型连接配置；该接口只允许通过已有设备令牌访问。
+  // 凭据随配对链路传输，避免用户在手机上再次手工输入，但不进入普通配置视图。
+  async exportProviderConfig() {
+    const settings = this.getSettingsManager().getGlobalSettings()
+    const [modelsJson, credentials, appConfig] = await Promise.all([
+      readJson(this.modelsPath, { providers: {} }),
+      readJson(this.authPath, {}),
+      readJson(this.appConfigPath, { toolMode: 'full', disabledProviders: [] }),
+    ])
+    return {
+      version: 1,
+      provider: settings.defaultProvider || '',
+      model: settings.defaultModel || '',
+      thinkingLevel: settings.defaultThinkingLevel || 'medium',
+      toolMode: appConfig.toolMode || 'full',
+      disabledProviders: Array.isArray(appConfig.disabledProviders)
+        ? appConfig.disabledProviders
+        : [],
+      providers:
+        modelsJson.providers && typeof modelsJson.providers === 'object'
+          ? modelsJson.providers
+          : {},
+      credentials: credentials && typeof credentials === 'object' ? credentials : {},
+    }
+  }
+
+  // 合并桌面端配置到本机：桌面端覆盖同名 Provider，手机独有 Provider 保留。
+  async importProviderConfig(input = {}) {
+    if (input?.version !== 1 || !input.providers || typeof input.providers !== 'object') {
+      throw new Error('桌面端模型配置格式无效。')
+    }
+    const [modelsJson, credentials, appConfig] = await Promise.all([
+      readJson(this.modelsPath, { providers: {} }),
+      readJson(this.authPath, {}),
+      readJson(this.appConfigPath, { toolMode: 'full', disabledProviders: [] }),
+    ])
+    modelsJson.providers = { ...(modelsJson.providers || {}), ...input.providers }
+    if (input.credentials && typeof input.credentials === 'object') {
+      Object.assign(credentials, input.credentials)
+    }
+    await writeJsonAtomic(this.modelsPath, modelsJson)
+    await writeJsonAtomic(this.authPath, credentials, { mode: 0o600 })
+    const nextAppConfig = {
+      ...appConfig,
+      ...(typeof input.toolMode === 'string' ? { toolMode: input.toolMode } : {}),
+      ...(Array.isArray(input.disabledProviders)
+        ? { disabledProviders: input.disabledProviders }
+        : {}),
+    }
+    await writeJsonAtomic(this.appConfigPath, nextAppConfig)
+    const provider = String(input.provider || '').trim()
+    const model = String(input.model || '').trim()
+    const settingsManager = this.getSettingsManager()
+    if (provider && model) settingsManager.setDefaultModelAndProvider(provider, model)
+    if (typeof input.thinkingLevel === 'string' && input.thinkingLevel.trim()) {
+      settingsManager.setDefaultThinkingLevel(input.thinkingLevel)
+    }
+    await settingsManager.flush()
+    const settingsErrors = settingsManager.drainErrors()
+    if (settingsErrors.length) throw settingsErrors[0].error
+    await this.reloadModelRuntime()
+    this.invalidateSessionRuntimes()
+    return { imported: Object.keys(input.providers), config: await this.getConfigFacade() }
+  }
+
   // 完整配置视图：Provider 列表（含默认选中项）、工具模式、API Key 是否已配置。
   async getConfig() {
     const settings = this.getSettingsManager().getGlobalSettings()

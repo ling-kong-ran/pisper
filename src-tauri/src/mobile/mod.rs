@@ -405,6 +405,28 @@ fn activate_remote_profile(
     Ok(state_dto(state))
 }
 
+async fn sync_model_config_with_startup(state: &State<'_, MobileShared>) {
+    // 配对本身不因配置导入失败而回滚；用户仍可远程使用并在网络恢复后重试。
+    if state.proxy.sync_model_config().await.is_err() {
+        // 冷启动时本机 Runtime 可能仍在异步启动，补一次启动与导入，避免用户必须手工进入本机模式。
+        if let Ok((status, _)) =
+            ensure_local_runtime_ready(state.on_device.clone(), state.startup_error.clone()).await
+        {
+            let _ = state.proxy.configure_local_runtime(&status.url);
+            let _ = state.proxy.sync_model_config().await;
+        }
+    }
+}
+
+async fn activate_remote_profile_and_sync(
+    profile: ServerProfile,
+    state: &State<'_, MobileShared>,
+) -> Result<MobileStateDto, String> {
+    let dto = activate_remote_profile(profile, state)?;
+    sync_model_config_with_startup(state).await;
+    Ok(dto)
+}
+
 #[tauri::command]
 async fn mobile_pair(
     payload_json: &str,
@@ -418,7 +440,7 @@ async fn mobile_pair(
         .unwrap_or_else(default_device_name);
     let profile = pairing::pair(&payload, &device_name, Some(state.tunnels.as_ref())).await?;
     // 配对成功即明确选择远程模式；同进程 embedded Node 继续为 WebView 提供签名包内 UI。
-    activate_remote_profile(profile, &state)
+    activate_remote_profile_and_sync(profile, &state).await
 }
 
 #[tauri::command]
@@ -444,7 +466,7 @@ async fn mobile_pair_manual(
         .filter(|name| !name.trim().is_empty())
         .unwrap_or_else(default_device_name);
     let profile = pairing::pair(&payload, &device_name, Some(state.tunnels.as_ref())).await?;
-    activate_remote_profile(profile, &state)
+    activate_remote_profile_and_sync(profile, &state).await
 }
 
 #[tauri::command]
@@ -487,7 +509,12 @@ async fn mobile_pair_lan(
         let _ = pairing::revoke_pairing_result(&url, &fingerprint, &profile).await;
         return Err("连接申请已取消。".into());
     }
-    activate_remote_profile(profile, &state)
+    activate_remote_profile_and_sync(profile, &state).await
+}
+
+#[tauri::command]
+async fn mobile_sync_model_config(state: State<'_, MobileShared>) -> Result<(), String> {
+    state.proxy.sync_model_config().await
 }
 
 #[tauri::command]
@@ -507,7 +534,7 @@ fn mobile_cancel_lan_pairing(
 }
 
 #[tauri::command]
-fn mobile_select_server(
+async fn mobile_select_server(
     id: String,
     state: State<'_, MobileShared>,
 ) -> Result<MobileStateDto, String> {
@@ -521,6 +548,7 @@ fn mobile_select_server(
         store.set_last_mode("remote")?;
     }
     state.on_device.deactivate();
+    sync_model_config_with_startup(&state).await;
     Ok(state_dto(&state))
 }
 
@@ -701,7 +729,7 @@ pub fn run_mobile() {
             let tunnels = Arc::new(tauri::async_runtime::block_on(
                 crate::iroh_tunnel::TunnelBridgePool::start(
                     tunnel_secret,
-                    iroh::RelayMode::Default,
+                    crate::iroh_tunnel::production_relay_mode(),
                 ),
             )?);
             // 代理必须先于窗口创建就绪：窗口初始地址依赖代理端口。
@@ -780,6 +808,7 @@ pub fn run_mobile() {
             mobile_pair_manual,
             mobile_ensure_local_network_permission,
             mobile_pair_lan,
+            mobile_sync_model_config,
             mobile_cancel_lan_pairing,
             mobile_select_server,
             mobile_enter_local,

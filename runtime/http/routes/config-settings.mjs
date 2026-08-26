@@ -26,6 +26,20 @@ export const configSettingsRoutes = [
   },
   {
     method: 'GET',
+    path: '/api/providers/export',
+    async handler({ runtime, json }) {
+      json(200, await runtime.exportProviderConfig())
+    },
+  },
+  {
+    method: 'POST',
+    path: '/api/providers/import',
+    async handler({ runtime, body, json }) {
+      json(200, await runtime.importProviderConfig(await body()))
+    },
+  },
+  {
+    method: 'GET',
     path: '/api/settings/chat-dock-layout',
     async handler({ runtime, json }) {
       json(200, await runtime.getChatDockLayout())

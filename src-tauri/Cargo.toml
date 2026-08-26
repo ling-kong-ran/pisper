@@ -5,7 +5,7 @@ description = "Pisper system WebView desktop shell"
 authors = ["ling-kong-ran"]
 license = "MIT"
 edition = "2021"
-rust-version = "1.85"
+rust-version = "1.91"
 
 [lib]
 name = "pisper_webview_lib"
@@ -53,8 +53,8 @@ reqwest = { version = "0.12", default-features = false, features = [
 ] }
 rustls = { version = "0.23", features = ["ring"] }
 sha2 = "0.10"
-# Phase B P2P：0.92 避免新版本 Windows WMI 冲突，并关闭非必需的 metrics/discovery 特性。
-iroh = { version = "0.92.0", default-features = false }
+# P2P 隧道使用最新稳定 Iroh，并关闭非必需的 metrics/discovery 特性。
+iroh = { version = "=1.1.0", default-features = false, features = ["tls-ring"] }
 rand = "0.8"
 base64 = "0.22"
 # 移动端首次启动从受信任 App 资产解出共享 Node Runtime 闭包；桌面测试也编译 mobile 模块。
@@ -85,3 +85,4 @@ winreg = "0.55"
 # 代理集成测试用：自建 TLS 上游验证指纹锁定与 SSE 透传。
 rcgen = "0.13"
 tokio-rustls = "0.26"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }

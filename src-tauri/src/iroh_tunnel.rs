@@ -9,7 +9,9 @@ use std::{
     time::Duration,
 };
 
-use iroh::{Endpoint, NodeAddr, NodeId, RelayMode, RelayUrl, SecretKey, Watcher};
+use iroh::{
+    Endpoint, EndpointAddr, EndpointId, RelayMode, RelayUrl, SecretKey, TransportAddr, Watcher,
+};
 use serde::{Deserialize, Serialize};
 use tokio::{
     io::{copy, AsyncWriteExt},
@@ -18,6 +20,21 @@ use tokio::{
 };
 
 pub const PISPER_TUNNEL_ALPN: &[u8] = b"pisper/remote-tcp/1";
+
+const PRODUCTION_RELAY_HOSTS: [&str; 3] = [
+    "use1-1.relay.n0.iroh.link",
+    "euc1-1.relay.n0.iroh.link",
+    "aps1-1.relay.n0.iroh.link",
+];
+
+/// 返回应用使用的生产 relay 配置，避免旧版 Iroh 默认地址与公网证书不匹配。
+pub fn production_relay_mode() -> RelayMode {
+    RelayMode::custom(PRODUCTION_RELAY_HOSTS.iter().map(|host| {
+        format!("https://{host}")
+            .parse::<RelayUrl>()
+            .expect("生产 relay 地址必须有效")
+    }))
+}
 
 #[derive(Clone, Debug, Deserialize, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -30,20 +47,26 @@ pub struct TunnelEndpoint {
 }
 
 impl TunnelEndpoint {
-    fn from_node_addr(address: NodeAddr) -> Self {
+    fn from_endpoint_addr(address: EndpointAddr) -> Self {
+        let mut relay_url = None;
+        let mut direct_addresses = Vec::new();
+        for address in address.addrs {
+            match address {
+                TransportAddr::Relay(value) => relay_url = Some(value.to_string()),
+                TransportAddr::Ip(value) => direct_addresses.push(value.to_string()),
+                TransportAddr::Custom(_) => {}
+                _ => {}
+            }
+        }
         Self {
-            node_id: address.node_id.to_string(),
-            relay_url: address.relay_url.map(|value| value.to_string()),
-            direct_addresses: address
-                .direct_addresses
-                .into_iter()
-                .map(|value| value.to_string())
-                .collect(),
+            node_id: address.id.to_string(),
+            relay_url,
+            direct_addresses,
         }
     }
 
-    fn to_node_addr(&self) -> Result<NodeAddr, String> {
-        let node_id = NodeId::from_str(&self.node_id)
+    fn to_endpoint_addr(&self) -> Result<EndpointAddr, String> {
+        let node_id = EndpointId::from_str(&self.node_id)
             .map_err(|error| format!("Iroh 节点 ID 无效：{error}"))?;
         let relay_url = self
             .relay_url
@@ -51,16 +74,21 @@ impl TunnelEndpoint {
             .map(RelayUrl::from_str)
             .transpose()
             .map_err(|error| format!("Iroh relay 地址无效：{error}"))?;
+        let relay = relay_url.map(TransportAddr::Relay);
         let direct_addresses = self
             .direct_addresses
             .iter()
             .map(|value| {
                 value
                     .parse::<SocketAddr>()
+                    .map(TransportAddr::Ip)
                     .map_err(|error| format!("Iroh 直连地址无效：{error}"))
             })
             .collect::<Result<Vec<_>, _>>()?;
-        Ok(NodeAddr::from_parts(node_id, relay_url, direct_addresses))
+        Ok(EndpointAddr::from_parts(
+            node_id,
+            relay.into_iter().chain(direct_addresses),
+        ))
     }
 }
 
@@ -71,7 +99,7 @@ pub struct TunnelServer {
 
 impl TunnelServer {
     pub fn node_id(&self) -> String {
-        self.endpoint.node_id().to_string()
+        self.endpoint.id().to_string()
     }
 
     pub fn local_port(&self) -> Option<u16> {
@@ -79,26 +107,26 @@ impl TunnelServer {
     }
 
     pub async fn endpoint(&self, timeout: Duration) -> TunnelEndpoint {
-        let direct_addresses = tokio::time::timeout(
-            timeout.min(Duration::from_secs(2)),
-            self.endpoint.direct_addresses().initialized(),
-        )
-        .await
-        .map(|addresses| {
-            addresses
-                .into_iter()
-                .map(|address| address.addr)
-                .collect::<Vec<_>>()
+        let mut statuses = self.endpoint.home_relay_status();
+        let relay_url = tokio::time::timeout(timeout, async {
+            loop {
+                let value = statuses.get();
+                if let Some(status) = value.iter().find(|status| status.is_connected()) {
+                    break Some(status.url().clone());
+                }
+                statuses.updated().await.ok()?;
+            }
         })
-        .unwrap_or_default();
-        let relay_url = tokio::time::timeout(timeout, self.endpoint.home_relay().initialized())
-            .await
-            .ok();
-        TunnelEndpoint::from_node_addr(NodeAddr::from_parts(
-            self.endpoint.node_id(),
-            relay_url,
-            direct_addresses,
-        ))
+        .await
+        .ok()
+        .flatten();
+        let address = self.endpoint.watch_addr().get();
+        let mut published = TunnelEndpoint::from_endpoint_addr(address);
+        published.node_id = self.endpoint.id().to_string();
+        if relay_url.is_some() {
+            published.relay_url = relay_url.map(|value| value.to_string());
+        }
+        published
     }
 
     pub async fn shutdown(&self) {
@@ -123,9 +151,29 @@ pub struct TunnelClient {
 
 impl TunnelClient {
     pub async fn start(secret_key: SecretKey, relay_mode: RelayMode) -> Result<Self, String> {
-        let endpoint = Endpoint::builder()
+        Self::start_with_ip_transports(secret_key, relay_mode, true).await
+    }
+
+    #[cfg(test)]
+    async fn start_relay_only(
+        secret_key: SecretKey,
+        relay_mode: RelayMode,
+    ) -> Result<Self, String> {
+        Self::start_with_ip_transports(secret_key, relay_mode, false).await
+    }
+
+    async fn start_with_ip_transports(
+        secret_key: SecretKey,
+        relay_mode: RelayMode,
+        enable_ip_transports: bool,
+    ) -> Result<Self, String> {
+        let mut builder = Endpoint::builder(iroh::endpoint::presets::Minimal)
             .secret_key(secret_key)
-            .relay_mode(relay_mode)
+            .relay_mode(relay_mode);
+        if !enable_ip_transports {
+            builder = builder.clear_ip_transports();
+        }
+        let endpoint = builder
             .bind()
             .await
             .map_err(|error| format!("Iroh 客户端启动失败：{error}"))?;
@@ -133,7 +181,7 @@ impl TunnelClient {
     }
 
     pub async fn open_bridge(&self, remote: TunnelEndpoint) -> Result<TunnelBridge, String> {
-        let remote = remote.to_node_addr()?;
+        let remote = remote.to_endpoint_addr()?;
         let listener = TcpListener::bind(SocketAddr::from((Ipv4Addr::LOCALHOST, 0)))
             .await
             .map_err(|error| format!("Iroh 回环桥接监听失败：{error}"))?;
@@ -192,6 +240,12 @@ impl TunnelBridgePool {
         bridges.insert(key, bridge);
         Ok(url)
     }
+
+    pub async fn invalidate(&self, remote: &TunnelEndpoint) {
+        if let Ok(key) = serde_json::to_string(remote) {
+            self.bridges.lock().await.remove(&key);
+        }
+    }
 }
 
 pub struct TunnelBridge {
@@ -216,10 +270,32 @@ pub async fn start_server(
     secret_key: SecretKey,
     relay_mode: RelayMode,
 ) -> Result<TunnelServer, String> {
-    let endpoint = Endpoint::builder()
+    start_server_with_ip_transports(target, secret_key, relay_mode, true).await
+}
+
+#[cfg(test)]
+async fn start_server_relay_only(
+    target: SocketAddr,
+    secret_key: SecretKey,
+    relay_mode: RelayMode,
+) -> Result<TunnelServer, String> {
+    start_server_with_ip_transports(target, secret_key, relay_mode, false).await
+}
+
+async fn start_server_with_ip_transports(
+    target: SocketAddr,
+    secret_key: SecretKey,
+    relay_mode: RelayMode,
+    enable_ip_transports: bool,
+) -> Result<TunnelServer, String> {
+    let mut builder = Endpoint::builder(iroh::endpoint::presets::Minimal)
         .secret_key(secret_key)
         .alpns(vec![PISPER_TUNNEL_ALPN.to_vec()])
-        .relay_mode(relay_mode)
+        .relay_mode(relay_mode);
+    if !enable_ip_transports {
+        builder = builder.clear_ip_transports();
+    }
+    let endpoint = builder
         .bind()
         .await
         .map_err(|error| format!("Iroh 服务端启动失败：{error}"))?;
@@ -281,7 +357,7 @@ pub fn load_or_create_secret(path: &Path) -> Result<SecretKey, String> {
     if let Some(parent) = path.parent() {
         fs::create_dir_all(parent).map_err(|error| error.to_string())?;
     }
-    let secret = SecretKey::generate(rand::rngs::OsRng);
+    let secret = SecretKey::generate();
     let temporary = path.with_extension("key.tmp");
     let mut options = fs::OpenOptions::new();
     options.create(true).truncate(true).write(true);
@@ -395,15 +471,14 @@ mod tests {
     #[tokio::test]
     async fn preserves_pinned_tls_http_and_incremental_sse() {
         let (target, fingerprint, gate) = spawn_tls_sse_server().await;
-        let server_secret = SecretKey::generate(rand::rngs::OsRng);
+        let server_secret = SecretKey::generate();
         let server = start_server(target, server_secret, RelayMode::Disabled)
             .await
             .unwrap();
         let remote = loopback_endpoint(server.node_id(), server.local_port().unwrap());
-        let client =
-            TunnelClient::start(SecretKey::generate(rand::rngs::OsRng), RelayMode::Disabled)
-                .await
-                .unwrap();
+        let client = TunnelClient::start(SecretKey::generate(), RelayMode::Disabled)
+            .await
+            .unwrap();
         let bridge = client.open_bridge(remote).await.unwrap();
         let http = crate::mobile::pinning::pinned_client(&fingerprint).unwrap();
         let response = http.get(bridge.url()).send().await.unwrap();
@@ -427,6 +502,48 @@ mod tests {
             .unwrap()
             .contains("event: done"));
 
+        drop(bridge);
+        client.close().await;
+        server.close().await;
+    }
+
+    #[tokio::test]
+    #[ignore = "需要访问公网 Iroh relay；普通 CI 不执行"]
+    async fn relays_without_direct_addresses() {
+        let _ = tracing_subscriber::fmt()
+            .with_env_filter("iroh=debug,iroh_relay=debug")
+            .try_init();
+        let (target, fingerprint, _gate) = spawn_tls_sse_server().await;
+        let relay_mode = production_relay_mode();
+        if let RelayMode::Custom(relay_map) = &relay_mode {
+            let urls = relay_map.urls::<Vec<RelayUrl>>();
+            println!("应用 relay map: {urls:?}");
+            assert!(urls.iter().all(|url| !url.as_str().contains("iroh.link./")));
+        }
+        let server = start_server_relay_only(target, SecretKey::generate(), relay_mode)
+            .await
+            .unwrap();
+        let published = server.endpoint(Duration::from_secs(30)).await;
+        assert!(
+            published.relay_url.is_some(),
+            "桌面端没有拿到公网 relay 地址：{published:?}"
+        );
+        let remote = TunnelEndpoint {
+            node_id: published.node_id,
+            relay_url: published.relay_url,
+            // 刻意移除所有局域网/直连候选，模拟手机只使用蜂窝网络。
+            direct_addresses: Vec::new(),
+        };
+        let client = TunnelClient::start_relay_only(SecretKey::generate(), production_relay_mode())
+            .await
+            .unwrap();
+        let bridge = client.open_bridge(remote).await.unwrap();
+        let http = crate::mobile::pinning::pinned_client(&fingerprint).unwrap();
+        let response = tokio::time::timeout(Duration::from_secs(30), http.get(bridge.url()).send())
+            .await
+            .expect("公网 relay 建连超时")
+            .unwrap();
+        assert_eq!(response.status(), reqwest::StatusCode::OK);
         drop(bridge);
         client.close().await;
         server.close().await;

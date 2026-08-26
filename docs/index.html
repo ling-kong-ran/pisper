@@ -48,9 +48,10 @@
         </div>
         <a
           class="nav-download desktop-download-cta magnetic"
+          data-device-download
           href="https://github.com/ling-kong-ran/pisper/releases/latest"
         >
-          下载桌面版 <span aria-hidden="true">↓</span>
+          <span data-download-label>下载桌面版</span> <span aria-hidden="true">↓</span>
         </a>
         <a
           class="nav-mobile-github magnetic"
@@ -59,8 +60,12 @@
         >
           GitHub
         </a>
-        <a class="nav-download mobile-download-cta magnetic" href="#mobile-downloads">
-          下载移动端 <span aria-hidden="true">↓</span>
+        <a
+          class="nav-download mobile-download-cta magnetic"
+          data-device-download
+          href="https://github.com/ling-kong-ran/pisper/releases"
+        >
+          <span data-download-label>下载移动端</span> <span aria-hidden="true">↓</span>
         </a>
       </nav>
     </header>
@@ -81,21 +86,23 @@
           <div class="hero-primary-actions reveal" style="--d:340ms">
             <a
               class="button button-primary desktop-download-cta shiny magnetic"
+              data-device-download
               href="https://github.com/ling-kong-ran/pisper/releases/latest"
             >
-              下载桌面版 <span aria-hidden="true">↓</span>
+              <span data-download-label>下载桌面版</span> <span aria-hidden="true">↓</span>
             </a>
             <a
               class="button button-primary mobile-download-cta shiny magnetic"
-              href="#mobile-downloads"
+              data-device-download
+              href="https://github.com/ling-kong-ran/pisper/releases"
             >
-              下载移动端 <span aria-hidden="true">↓</span>
+              <span data-download-label>下载移动端</span> <span aria-hidden="true">↓</span>
             </a>
             <a class="button button-secondary magnetic" href="#product">
               浏览产品界面 <span aria-hidden="true">→</span>
             </a>
           </div>
-          <div class="hero-mobile-row reveal" id="mobile-downloads" style="--d:420ms">
+          <div class="hero-mobile-row reveal" style="--d:420ms">
             <div class="hero-mobile-actions">
               <a
                 class="button button-mobile button-android magnetic"
@@ -493,8 +500,12 @@
             <p>桌面、终端与手机，随时接上同一段工作。</p>
           </div>
           <div class="download-actions">
-            <a class="button button-primary shiny magnetic" href="https://github.com/ling-kong-ran/pisper/releases/latest">
-              下载最新桌面版 <span aria-hidden="true">↓</span>
+            <a
+              class="button button-primary shiny magnetic"
+              data-device-download
+              href="https://github.com/ling-kong-ran/pisper/releases/latest"
+            >
+              <span data-download-label>下载最新桌面版</span> <span aria-hidden="true">↓</span>
             </a>
             <a
               class="button button-android magnetic"
