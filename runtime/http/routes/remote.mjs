@@ -4,6 +4,15 @@
 import QRCode from 'qrcode'
 import { RemoteAccessError } from '../../services/remote-access-service.mjs'
 
+function publicRemoteStatus(status) {
+  return {
+    apiVersion: 1,
+    enabled: status.enabled,
+    listening: status.listening,
+    error: status.error,
+  }
+}
+
 function remoteErrorStatus(code) {
   switch (code) {
     case 'pairing_code_invalid':
@@ -68,7 +77,7 @@ export const remoteRoutes = [
     method: 'GET',
     path: '/api/remote/status',
     handler({ services, json }) {
-      json(200, { apiVersion: 1, ...services.remoteControl.status() })
+      json(200, publicRemoteStatus(services.remoteControl.status()))
     },
   },
   {
@@ -77,7 +86,7 @@ export const remoteRoutes = [
     async handler({ services, body, json }) {
       const input = await body()
       await services.remoteControl.setEnabled(Boolean(input.enabled))
-      json(200, services.remoteControl.status())
+      json(200, publicRemoteStatus(services.remoteControl.status()))
     },
   },
   {
@@ -107,7 +116,7 @@ export const remoteRoutes = [
       } catch {
         // 渲染失败不阻断配对：客户端仍可手动输入配对码。
       }
-      json(200, { code, expiresAt, qrPayload, qrDataUrl })
+      json(200, { code, expiresAt, qrDataUrl })
     },
   },
   {

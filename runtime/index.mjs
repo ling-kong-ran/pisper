@@ -26,7 +26,7 @@ const pisper = await createPisperRuntime({
   production,
   port,
   host,
-  remote: remoteFlag ? { enabled: true } : {},
+  remote: remoteFlag ? { enabled: true } : { enabled: false },
 })
 console.log('')
 console.log(`Pisper 已启动：${pisper.url}`)

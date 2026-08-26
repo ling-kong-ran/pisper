@@ -75,6 +75,22 @@ function createRemoteFixture({ listening = true } = {}) {
   return { remoteAccess, remoteControl }
 }
 
+test('远程状态接口不暴露连接拓扑和证书指纹', async () => {
+  const { remoteAccess, remoteControl } = createRemoteFixture()
+  const handler = createApiHandler({}, { remoteAccess, remoteControl })
+  const output = response()
+
+  await handler(request('GET'), output, new URL('http://localhost/api/remote/status'))
+
+  assert.equal(output.status, 200)
+  assert.deepEqual(JSON.parse(output.body), {
+    apiVersion: 1,
+    enabled: true,
+    listening: true,
+    error: null,
+  })
+})
+
 test('配对全流程：发码 → 扫码兑换 → 设备列表（带 current） → 吊销', async () => {
   const { remoteAccess, remoteControl } = createRemoteFixture()
   const handler = createApiHandler({}, { remoteAccess, remoteControl })
@@ -85,8 +101,7 @@ test('配对全流程：发码 → 扫码兑换 → 设备列表（带 current�
   assert.equal(codeResponse.status, 200)
   const issued = JSON.parse(codeResponse.body)
   assert.match(issued.code, /^[0-9A-Z]{4}-[0-9A-Z]{4}$/)
-  assert.equal(issued.qrPayload.code, issued.code)
-  assert.equal(issued.qrPayload.fp, 'SHA256:ABCD')
+  assert.equal('qrPayload' in issued, false)
   assert.match(issued.qrDataUrl, /^data:image\/png;base64,/)
   assert.ok(issued.qrDataUrl.length > 1_000)
 

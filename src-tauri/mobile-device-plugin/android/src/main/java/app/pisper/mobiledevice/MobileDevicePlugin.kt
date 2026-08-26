@@ -88,13 +88,27 @@ class MobileDevicePlugin(private val activity: Activity) : Plugin(activity) {
 
     private fun state(alias: String): String = getPermissionState(alias).toString().lowercase()
 
+    private fun supportsLocalNetworkPermission(): Boolean {
+        if (Build.VERSION.SDK_INT < 36) return false
+        return try {
+            activity.packageManager.getPermissionInfo(
+                "android.permission.ACCESS_LOCAL_NETWORK",
+                0,
+            )
+            true
+        } catch (_: PackageManager.NameNotFoundException) {
+            // 部分 Android 发行版虽是 API 36，却尚未注册该权限；此时不能把兼容模式误报为拒绝。
+            false
+        }
+    }
+
     private fun permissionResult(capability: String): JSObject = JSObject().apply {
         put("capability", capability)
         put("state", state(capability))
     }
 
     private fun localNetworkState(): String =
-        if (Build.VERSION.SDK_INT < 36) "granted" else state(LOCAL_NETWORK)
+        if (!supportsLocalNetworkPermission()) "granted" else state(LOCAL_NETWORK)
 
     private fun localNetworkPermissionResult(): JSObject = JSObject().apply {
         put("capability", LOCAL_NETWORK)
@@ -119,8 +133,11 @@ class MobileDevicePlugin(private val activity: Activity) : Plugin(activity) {
             CAMERA -> requestPermissionForAlias(CAMERA, invoke, "cameraPermissionCallback")
             LOCATION -> requestPermissionForAlias(LOCATION, invoke, "locationPermissionCallback")
             LOCAL_NETWORK -> {
-                if (Build.VERSION.SDK_INT < 36) invoke.resolve(localNetworkPermissionResult())
-                else requestPermissionForAlias(LOCAL_NETWORK, invoke, "localNetworkPermissionCallback")
+                if (!supportsLocalNetworkPermission()) {
+                    invoke.resolve(localNetworkPermissionResult())
+                } else {
+                    requestPermissionForAlias(LOCAL_NETWORK, invoke, "localNetworkPermissionCallback")
+                }
             }
             else -> invoke.reject("Unsupported mobile capability: $capability")
         }

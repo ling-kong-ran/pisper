@@ -311,7 +311,8 @@ export function MobilePairingDialog({ open, onOpenChange }: MobilePairingDialogP
       if (scannerCancelledRef.current) return
       const result = await invokeScanner<BarcodeResult>('scan', {
         windowed: true,
-        formats: ['QR_CODE'],
+        // 插件会自动包含 QR_CODE；显式传入 QR_CODE 会被旧版 Android 实现映射为无效格式 0。
+        formats: [],
       })
       if (!result.content) throw new Error(t('config:mobileServer.scanFailed'))
       scannerNavigatingRef.current = true

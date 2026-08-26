@@ -6,9 +6,7 @@ import {
   LoaderCircle,
   MonitorSmartphone,
   QrCode,
-  RadioTower,
   RefreshCw,
-  ShieldCheck,
   Smartphone,
   X,
 } from 'lucide-react'
@@ -27,30 +25,10 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog'
 
-type RemoteEndpoint = {
-  t: string
-  url?: string
-  nodeId?: string
-  relayUrl?: string
-  directAddresses?: string[]
-}
-
 type RemoteStatus = {
   apiVersion: number
   enabled: boolean
   listening: boolean
-  host: string
-  port: number
-  fingerprint: string | null
-  deviceName: string
-  endpoints: RemoteEndpoint[]
-  iroh?: {
-    available: boolean
-    relayConnected: boolean
-    nodeId: string | null
-    error: string | null
-  }
-  mdns: { advertising: boolean; error: string | null }
   error: string | null
 }
 
@@ -254,44 +232,6 @@ export function RemoteAccessSettings({ notify }: { notify: Notify }) {
           <p className="rounded-[var(--r-sm)] bg-[var(--danger-soft)] px-3 py-2 text-[12px] text-[var(--danger)]">
             {t('config:remoteAccess.listenFailed', { message: status.error })}
           </p>
-        ) : null}
-        {status.listening ? (
-          <div className="flex flex-col gap-1.5 text-[12px] text-[var(--text-muted)]">
-            <div className="flex items-center gap-2">
-              <ShieldCheck size={14} className="flex-none" />
-              <span>{t('config:remoteAccess.fingerprint')}</span>
-              <code className="break-all text-[11px]">{status.fingerprint}</code>
-            </div>
-            {status.iroh ? (
-              <div className="flex items-start gap-2">
-                <RadioTower size={14} className="mt-0.5 flex-none" />
-                <span>
-                  {status.iroh.error
-                    ? t('config:remoteAccess.irohFailed', { message: status.iroh.error })
-                    : status.iroh.relayConnected
-                      ? t('config:remoteAccess.irohReady')
-                      : status.iroh.available
-                        ? t('config:remoteAccess.irohDirectOnly')
-                        : t('config:remoteAccess.irohStarting')}
-                </span>
-                {status.iroh.nodeId ? (
-                  <code className="min-w-0 truncate text-[11px]" title={status.iroh.nodeId}>
-                    {status.iroh.nodeId.slice(0, 12)}
-                  </code>
-                ) : null}
-              </div>
-            ) : null}
-            {status.endpoints
-              .filter((endpoint) => endpoint.t !== 'iroh')
-              .map((endpoint) => (
-                <div key={`${endpoint.t}:${endpoint.url}`} className="flex items-center gap-2">
-                  <span className="w-10 flex-none rounded border border-[var(--border)] px-1 text-center text-[10px] uppercase">
-                    {endpoint.t}
-                  </span>
-                  <code className="break-all text-[11px]">{endpoint.url}</code>
-                </div>
-              ))}
-          </div>
         ) : null}
       </Panel>
 

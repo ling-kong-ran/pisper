@@ -136,6 +136,12 @@ function decodePathSegment(value: string) {
   }
 }
 
+function invokeMobile<T>(command: string, args?: unknown): Promise<T> {
+  const invoke = window.__TAURI__?.core?.invoke ?? window.__TAURI_INTERNALS__?.invoke
+  if (!invoke) return Promise.reject(new Error('native bridge unavailable'))
+  return invoke<T>(command, args)
+}
+
 function App() {
   const { t } = useI18n()
   const location = useLocation()
@@ -281,6 +287,16 @@ function App() {
     void loadRuntimeCapabilities()
     return () => window.removeEventListener(ACTIVE_SESSION_CHANGED_EVENT, syncActiveSession)
   }, [loadRuntimeCapabilities])
+
+  const mobileStartupPermissionsRequested = useRef(false)
+  useEffect(() => {
+    if (!clientLoaded || !mobileApp || mobileStartupPermissionsRequested.current) return
+    mobileStartupPermissionsRequested.current = true
+    void (async () => {
+      // 局域网发现需要系统授权；相机权限只在用户主动开始扫码时申请。
+      await invokeMobile('mobile_ensure_local_network_permission').catch(() => undefined)
+    })()
+  }, [clientLoaded, mobileApp])
 
   // 系统通知（桌面/浏览器）：已开启浏览器通知开关才发；
   // 前台聚焦时静默（不打扰），force 强制忽略该规则；桌面桥接优先。
