@@ -15,7 +15,7 @@ import PackageDescription
 
 let package = Package(
     name: "tauri-plugin-dns-sd",
-    platforms: [.macOS(.v10_13), .iOS(.v13)],
+    platforms: [.macOS(.v10_14), .iOS(.v13)],
     products: [
         .library(name: "tauri-plugin-dns-sd", type: .static, targets: ["tauri-plugin-dns-sd"]),
     ],
