@@ -1,9 +1,9 @@
 {
-  "version": "0.1.12",
-  "tag": "app-v0.1.12",
-  "url": "https://github.com/ling-kong-ran/pisper/releases/tag/app-v0.1.12",
+  "version": "0.1.13",
+  "tag": "app-v0.1.13",
+  "url": "https://github.com/ling-kong-ran/pisper/releases/tag/app-v0.1.13",
   "apk": "app-universal-release-signed.apk",
   "ipa": "pisper-ios-unsigned.ipa",
-  "notes": "- fix(ios): update DNS-SD Swift compatibility\n- fix(ci): declare Network test deployment target\n- fix(ci): isolate Swift permission unit tests\n- fix(ci): run iOS DNS-SD tests on simulator\n- fix(mobile): streamline activity and composer layout\n- fix(ci): isolate iOS Swift package test workspace\n- fix(ci): create iOS Swift package target\n- fix(ci): copy iOS Tauri Swift package contents\n- chore(release-runtime): runtime-v0.5.19\n- feat(mobile): unify embedded UI and LAN pairing across platforms\n- feat(remote): add reviewed LAN discovery pairing",
+  "notes": "- fix(ios): report runtime smoke result\n- fix(ios): configure system framework in xcode project\n- chore(release-runtime): runtime-v0.5.20\n- feat(mobile): complete app connectivity and release flows",
   "releaseDate": "2026-08-26"
 }
