@@ -1,9 +1,6 @@
-//! 本地回环代理：WebView 只访问 `http://127.0.0.1:<port>`（明文、仅回环），
-//! 代理负责把请求转发到当前激活的桌面端 endpoint——TLS 指纹锁定、
-//! 注入 Bearer 令牌、SSE 字节流透传（禁缓冲）。
-//!
-//! 这个设计让前端代码零改动：相对路径的 API/SSE 请求天然走代理；
-//! 未来 T3 隧道（Iroh/WebRTC）只需实现同样的字节转发即可插入。
+//! 本地回环代理：WebView 只访问 `http://127.0.0.1:<port>`（明文、仅回环）。
+//! 签名包内 Runtime 始终提供 React UI；远程模式仅把 `/api/*` 转发到当前桌面端，
+//! 并执行 TLS 指纹锁定、Bearer 注入与 SSE 字节流透传。
 use std::{
     convert::Infallible,
     net::SocketAddr,
@@ -40,7 +37,6 @@ struct UpstreamCache {
     checked_at: Instant,
 }
 
-#[cfg(feature = "mobile-store")]
 #[derive(Clone)]
 struct LocalRuntime {
     base_url: String,
@@ -54,7 +50,6 @@ pub struct ProxyHandle {
     /// 指纹变化（换服务器）时重建客户端。
     client_cache: Mutex<Option<(String, reqwest::Client)>>,
     tunnels: Option<Arc<TunnelBridgePool>>,
-    #[cfg(feature = "mobile-store")]
     local_runtime: Mutex<Option<LocalRuntime>>,
 }
 
@@ -70,7 +65,6 @@ impl ProxyHandle {
         self.store.lock().ok()?.active().cloned()
     }
 
-    #[cfg(feature = "mobile-store")]
     pub fn configure_local_runtime(&self, bootstrap_url: &str) -> Result<(), String> {
         let url = tauri::Url::parse(bootstrap_url)
             .map_err(|error| format!("本机 Runtime 启动地址无效：{error}"))?;
@@ -98,7 +92,6 @@ impl ProxyHandle {
         Ok(())
     }
 
-    #[cfg(feature = "mobile-store")]
     fn use_remote_api(&self) -> bool {
         self.store
             .lock()
@@ -293,7 +286,6 @@ async fn forward_remote(
         .unwrap_or_else(|_| text_response(StatusCode::INTERNAL_SERVER_ERROR, "构造响应失败。")))
 }
 
-#[cfg(feature = "mobile-store")]
 async fn forward_local(
     proxy: &Arc<ProxyHandle>,
     request: Request<Incoming>,
@@ -365,12 +357,10 @@ async fn forward_local(
         .unwrap_or_else(|_| text_response(StatusCode::INTERNAL_SERVER_ERROR, "构造响应失败。")))
 }
 
-#[cfg(feature = "mobile-store")]
 fn route_to_remote(path: &str, remote_mode: bool) -> bool {
     path.starts_with("/api/") && remote_mode
 }
 
-#[cfg(feature = "mobile-store")]
 async fn forward(
     proxy: &Arc<ProxyHandle>,
     request: Request<Incoming>,
@@ -381,14 +371,6 @@ async fn forward(
     } else {
         forward_local(proxy, request).await
     }
-}
-
-#[cfg(not(feature = "mobile-store"))]
-async fn forward(
-    proxy: &Arc<ProxyHandle>,
-    request: Request<Incoming>,
-) -> Result<Response<ProxyBody>, Infallible> {
-    forward_remote(proxy, request).await
 }
 
 /// 启动回环代理（绑定随机端口），返回句柄。调用方需持有 Arc 以保持运行。
@@ -409,7 +391,6 @@ pub async fn start_proxy(
         upstream: Mutex::new(None),
         client_cache: Mutex::new(None),
         tunnels,
-        #[cfg(feature = "mobile-store")]
         local_runtime: Mutex::new(None),
     });
     let server = handle.clone();
@@ -436,12 +417,12 @@ pub async fn start_proxy(
     Ok(handle)
 }
 
-#[cfg(all(test, feature = "mobile-store"))]
-mod store_tests {
+#[cfg(test)]
+mod routing_tests {
     use super::route_to_remote;
 
     #[test]
-    fn store_routes_only_runtime_apis_to_the_remote_server() {
+    fn every_mobile_build_routes_only_runtime_apis_to_the_remote_server() {
         assert!(route_to_remote("/api/health", true));
         assert!(!route_to_remote("/api/health", false));
         assert!(!route_to_remote("/", true));
@@ -452,8 +433,8 @@ mod store_tests {
 
 #[cfg(all(test, not(feature = "mobile-store")))]
 mod tests {
-    //! 代理集成测试：自建带自签证书的 TLS 上游，验证
-    //! ① 未配对返回 502；② Bearer 注入与转发；③ 指纹不匹配拒绝连接；④ SSE 逐帧透传。
+    //! 代理集成测试：验证本地 Runtime 就绪门禁，并用自签 TLS 上游覆盖
+    //! Bearer 注入、指纹拒绝、Iroh 回退与 SSE 逐帧透传。
     use super::*;
     use crate::mobile::store::{ServerEndpoint, ServerProfile};
     use rcgen::generate_simple_self_signed;
@@ -610,6 +591,7 @@ mod tests {
         let mut store = crate::mobile::store::ProfileStore::load(&path);
         if let Some(profile) = profile {
             store.upsert(profile).unwrap();
+            store.set_last_mode("remote").unwrap();
         }
         let proxy = start_proxy(Arc::new(Mutex::new(store)), None)
             .await
@@ -641,10 +623,11 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn unpaired_returns_502() {
+    async fn local_runtime_not_configured_returns_503() {
         let port = spawn_proxy(None).await;
-        let (status, _) = raw_get(port, "/api/health").await;
-        assert!(status.contains("502"), "unexpected status: {status}");
+        let (status, raw) = raw_get(port, "/api/health").await;
+        assert!(status.contains("503"), "unexpected status: {status}");
+        assert!(String::from_utf8_lossy(&raw).contains("App 内置 Runtime 尚未就绪"));
     }
 
     #[tokio::test]
@@ -684,6 +667,7 @@ mod tests {
         let path = std::env::temp_dir().join(format!("pisper-proxy-test-{}.json", fast_id()));
         let mut store = crate::mobile::store::ProfileStore::load(&path);
         store.upsert(profile).unwrap();
+        store.set_last_mode("remote").unwrap();
         let proxy = start_proxy(Arc::new(Mutex::new(store)), Some(tunnels))
             .await
             .unwrap();

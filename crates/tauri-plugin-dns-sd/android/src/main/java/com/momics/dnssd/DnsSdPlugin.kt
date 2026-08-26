@@ -143,14 +143,16 @@ class DnsSdPlugin(private val activity: Activity): Plugin(activity) {
     @Suppress("DEPRECATION")
     private fun emitService(session: BrowseSession, info: NsdServiceInfo, isActive: Boolean) {
         val addresses = collectAddresses(info)
+        val serviceType = info.serviceType.trimEnd('.').removeSuffix(".local")
+        val qualifiedServiceType = "$serviceType.local."
 
         val serviceData = JSObject()
         serviceData.put("name", info.serviceName)
-        serviceData.put("fullName", info.serviceName + "." + info.serviceType + ".local.")
-        serviceData.put("host", info.host?.hostName ?: addresses.firstOrNull())
+        serviceData.put("fullName", info.serviceName + "." + qualifiedServiceType)
+        serviceData.put("host", info.host?.hostAddress?.substringBefore('%') ?: addresses.firstOrNull())
         serviceData.put("port", info.port)
-        serviceData.put("serviceType", info.serviceType + ".local.")
-        serviceData.put("protocol", if (info.serviceType.contains("_udp")) "udp" else "tcp")
+        serviceData.put("serviceType", qualifiedServiceType)
+        serviceData.put("protocol", if (serviceType.contains("_udp")) "udp" else "tcp")
         serviceData.put("domain", "local")
 
         val subtypesArray = JSONArray()
@@ -296,8 +298,6 @@ class DnsSdPlugin(private val activity: Activity): Plugin(activity) {
                 browseMap[browseId]?.let { stopBrowseSession(it, "search-stopped") }
             }
             override fun onServiceFound(serviceInfo: NsdServiceInfo) {
-                // Filter mismatch if user provided explicit type
-                if (typeRaw != null && serviceInfo.serviceType != serviceType) return
                 val key = serviceInfo.serviceName + serviceInfo.serviceType
                 val session = browseMap[browseId] ?: return
                 session.services[key] = serviceInfo

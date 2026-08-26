@@ -132,6 +132,7 @@ for (const permission of [
   'android.permission.READ_CONTACTS',
   'android.permission.ACCESS_COARSE_LOCATION',
   'android.permission.ACCESS_FINE_LOCATION',
+  'android.permission.ACCESS_LOCAL_NETWORK',
 ]) {
   if (!manifest.includes(permission)) {
     manifest = manifest.replace(

@@ -71,7 +71,7 @@ Pisper uses [Pi Coding Agent](https://github.com/earendil-works/pi/tree/main/pac
 
 - **Runtime and session orchestration**: independent sessions, parallel execution, Turn branching, working directories, and permission policies become one durable multi-agent system.
 - **Context and performance**: hot/cold tool tiers, discover/call loading, stable tool definitions, and prompt-shape diagnostics reduce context pressure and improve provider prompt-cache hit rates.
-- **A complete product layer**: Desktop, the Ratatui TUI, and mobile experiences; on-device mode runs the same Node/Pisper Agent, Providers, sessions, HTTP/SSE, and React interface. Ordinary phones degrade from the Runtime capability manifest, while rooted Android automatically prefers a fuller carrier running as the App UID.
+- **A complete product layer**: Desktop, the Ratatui TUI, and mobile experiences; on-device mode runs the same Node/Pisper Agent, Providers, sessions, HTTP/SSE, and React interface, hiding capabilities that the embedded Node host cannot provide on that device.
 
 ## 📸 Screenshots
 
@@ -141,7 +141,7 @@ sudo apt install ./Pisper-*-linux-amd64.deb
 
 ### Option 2: Mobile app
 
-The Android / iOS first screen presents **Run on this phone** and **Connect to Desktop** as peer choices. Pairing is not required before entering on-device mode. The website resolves current App download URLs from `docs/latest-app.json` without displaying or hard-coding a version number:
+On first launch, the Android / iOS app starts its bundled on-device Runtime and opens the normal Pisper interface. Connecting to Desktop is an optional setting and never blocks first use. The website resolves current App download URLs from `docs/latest-app.json` without displaying or hard-coding a version number:
 
 | Platform | Download | Installation status |
 | --- | --- | --- |
@@ -150,17 +150,17 @@ The Android / iOS first screen presents **Run on this phone** and **Connect to D
 
 **Run on this phone**
 
-1. Choose **Run on this phone** on first launch, or open **Settings → Servers → Enter on-device mode** from the bottom navigation.
-2. Configure a Provider and model in the normal Pisper interface. Sessions, Provider settings, and the workspace stay in the App's private data directory.
-3. The Runtime listens only on a random loopback port. Ordinary Android/iOS hides unsupported Shell, MCP, workflow, and related features from actual Node module detection; rooted Android automatically prefers the fuller Linux carrier after dropping to the App UID.
+1. On first launch, wait for the bundled Runtime to become ready; the app then opens the normal Pisper interface. To return from a remote Desktop, open **Settings → Servers → Run on this device**.
+2. Configure a Provider and model. Sessions, Provider settings, and the workspace stay in the App's private data directory.
+3. The Runtime listens only on a random loopback port. Android/iOS hides unsupported Shell, MCP, workflow, and related features according to the embedded Node host's actual module capabilities.
 
 **Connect to Desktop**
 
-1. For initial pairing, put the phone and computer on the same LAN when possible, then open **Settings → Remote access** on Desktop.
-2. Enable remote access, wait for the P2P relay to become ready, and generate a pairing QR code. The code expires after five minutes and can be used only once.
-3. Choose **Connect to Desktop** and scan the code. The app prefers LAN and falls back to Iroh P2P while retaining TLS fingerprint pinning, device Bearer authentication, and resumable SSE.
+1. For initial pairing, put the phone and computer on the same LAN when possible, then enable **Settings → Remote access** on Desktop.
+2. On the phone, open **Settings → Servers → Add server**, allow local-network access, choose the discovered Desktop, and request access. A device token is issued only after the Desktop user explicitly approves the request.
+3. When the devices are not on the same LAN or discovery fails, generate a one-time QR code on Desktop and scan it, or enter its values manually. A QR screenshot can be sent to a remote phone. Every path pins the TLS fingerprint and uses device Bearer authentication; established connections prefer LAN and fall back to Iroh P2P.
 
-The app remembers the last local/remote mode. See the **[Mobile Guide](./docs/mobile.md)** and **[On-device Runtime design](./docs/mobile-local-runtime.md)** for the complete flow, capability boundaries, security model, and troubleshooting.
+The app remembers the currently selected on-device or remote Runtime. See the **[Mobile Guide](./docs/mobile.md)** and **[On-device Runtime design](./docs/mobile-local-runtime.md)** for the complete flow, capability boundaries, security model, and troubleshooting.
 
 ### Option 3: npm (Node.js 20+)
 

@@ -510,8 +510,13 @@ class DnsSdPlugin: Plugin {
             guard let self else { return }
             self.sessionQueue.async {
                 switch state {
+                case .waiting(let error) where isLocalNetworkPermissionDenied(error):
+                    self.stopBrowseSession(browseId: browseId, reason: "permission-denied")
                 case .failed(let error):
-                    self.stopBrowseSession(browseId: browseId, reason: "error:\(error.localizedDescription)")
+                    let reason = isLocalNetworkPermissionDenied(error)
+                        ? "permission-denied"
+                        : "error:\(error.localizedDescription)"
+                    self.stopBrowseSession(browseId: browseId, reason: reason)
                 case .cancelled:
                     self.stopBrowseSession(browseId: browseId, reason: "search-stopped")
                 default:

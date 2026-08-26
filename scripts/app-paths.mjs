@@ -27,6 +27,7 @@ const APP_EXCLUSIVE_PREFIXES = [
   'scripts/mobile-node-artifacts.json',
   'scripts/mobile-node-ios-smoke-view-controller.m',
   'scripts/smoke-mobile-node-ios.sh',
+  'scripts/test-ios-dns-sd.sh',
   'scripts/stage-mobile-node-android.mjs',
   'scripts/stage-mobile-node-ios.mjs',
   'scripts/sync-mobile-icons.mjs',

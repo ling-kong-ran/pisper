@@ -95,16 +95,11 @@ fn state_dto(shared: &MobileShared) -> MobileStateDto {
         None
     };
     let proxy_url = format!("http://127.0.0.1:{}", shared.proxy.port);
-    let on_device = shared.on_device.status();
-    #[cfg(feature = "mobile-store")]
-    let on_device = {
-        let mut status = on_device;
-        if status.running {
-            // 商店包的页面来源固定为代理，不能暴露 embedded Runtime 的直接页面入口。
-            status.url = proxy_url.clone();
-        }
-        status
-    };
+    let mut on_device = shared.on_device.status();
+    if on_device.running {
+        // 所有移动渠道都固定从回环代理加载签名包内 UI，不能暴露 Runtime 直接入口。
+        on_device.url = proxy_url.clone();
+    }
     let startup_error = shared
         .startup_error
         .lock()
@@ -333,19 +328,6 @@ fn startup_location_replace_script(url: &tauri::Url) -> String {
 }
 
 #[cfg(target_os = "android")]
-fn replace_with_authenticated_runtime(
-    window: &tauri::WebviewWindow,
-    bootstrap: &tauri::Url,
-    _origin: &tauri::Url,
-    _cookie: &str,
-) -> Result<(), String> {
-    // Android 必须由原生导航消费 Strict bootstrap Cookie；加载完成后再清除启动页历史。
-    window
-        .navigate(bootstrap.clone())
-        .map_err(|error| format!("无法打开本机 Runtime：{error}"))
-}
-
-#[cfg(target_os = "android")]
 fn clear_android_startup_history(window: tauri::WebviewWindow) {
     if let Err(error) = window.with_webview(|webview| {
         webview.jni_handle().exec(|env, _, webview| {
@@ -358,30 +340,6 @@ fn clear_android_startup_history(window: tauri::WebviewWindow) {
     }
 }
 
-#[cfg(not(target_os = "android"))]
-fn replace_with_authenticated_runtime(
-    window: &tauri::WebviewWindow,
-    _bootstrap: &tauri::Url,
-    origin: &tauri::Url,
-    cookie: &str,
-) -> Result<(), String> {
-    let (name, value) = cookie
-        .split_once('=')
-        .ok_or_else(|| "本机 Runtime 认证 Cookie 无效。".to_string())?;
-    let cookie = tauri::webview::Cookie::build((name.to_string(), value.to_string()))
-        .domain("127.0.0.1")
-        .path("/")
-        .http_only(true)
-        .same_site(tauri::webview::cookie::SameSite::Strict)
-        .build();
-    window
-        .set_cookie(cookie)
-        .map_err(|error| format!("无法写入本机 Runtime 认证：{error}"))?;
-    window
-        .eval(startup_location_replace_script(origin))
-        .map_err(|error| format!("无法打开本机 Runtime：{error}"))
-}
-
 fn start_initial_local_runtime(
     app: tauri::AppHandle,
     on_device: Arc<on_device_runtime::OnDeviceRuntime>,
@@ -389,40 +347,22 @@ fn start_initial_local_runtime(
     proxy: Arc<proxy::ProxyHandle>,
 ) {
     tauri::async_runtime::spawn(async move {
-        let (status, cookie) =
+        let (status, _cookie) =
             match ensure_local_runtime_ready(on_device, startup_error.clone()).await {
                 Ok(result) => result,
                 Err(_) => return,
             };
-        #[cfg(not(feature = "mobile-store"))]
-        let (origin, bootstrap, _) = match startup_api_context(&status.url) {
-            Ok(context) => context,
-            Err(error) => {
-                record_startup_error(&startup_error, Some(error));
-                return;
-            }
-        };
         let Some(window) = app.get_webview_window("main") else {
             record_startup_error(&startup_error, Some("移动端主窗口不可用。".into()));
             return;
         };
-        #[cfg(feature = "mobile-store")]
-        let navigation = {
-            let _ = cookie;
-            proxy.configure_local_runtime(&status.url).and_then(|_| {
-                let url = tauri::Url::parse(&format!("http://127.0.0.1:{}", proxy.port))
-                    .map_err(|error| error.to_string())?;
-                window
-                    .eval(startup_location_replace_script(&url))
-                    .map_err(|error| format!("无法打开本机 Runtime 代理：{error}"))
-            })
-        };
-        #[cfg(not(feature = "mobile-store"))]
-        let navigation = {
-            let _ = proxy;
-            // 启动页只是过渡界面；各平台在保持 Strict Cookie 合同的前提下移除该历史项。
-            replace_with_authenticated_runtime(&window, &bootstrap, &origin, &cookie)
-        };
+        let navigation = proxy.configure_local_runtime(&status.url).and_then(|_| {
+            let url = tauri::Url::parse(&format!("http://127.0.0.1:{}", proxy.port))
+                .map_err(|error| error.to_string())?;
+            window
+                .eval(startup_location_replace_script(&url))
+                .map_err(|error| format!("无法打开本机 Runtime 代理：{error}"))
+        });
         if let Err(error) = navigation {
             record_startup_error(&startup_error, Some(error));
         }
@@ -439,23 +379,14 @@ async fn mobile_retry_local_startup(
     window: tauri::WebviewWindow,
     state: State<'_, MobileShared>,
 ) -> Result<(), String> {
-    let (status, cookie) =
+    let (status, _cookie) =
         ensure_local_runtime_ready(state.on_device.clone(), state.startup_error.clone()).await?;
-    #[cfg(feature = "mobile-store")]
-    {
-        let _ = cookie;
-        state.proxy.configure_local_runtime(&status.url)?;
-        let url = tauri::Url::parse(&format!("http://127.0.0.1:{}", state.proxy.port))
-            .map_err(|error| error.to_string())?;
-        window
-            .eval(startup_location_replace_script(&url))
-            .map_err(|error| format!("无法打开本机 Runtime 代理：{error}"))
-    }
-    #[cfg(not(feature = "mobile-store"))]
-    {
-        let (origin, bootstrap, _) = startup_api_context(&status.url)?;
-        replace_with_authenticated_runtime(&window, &bootstrap, &origin, &cookie)
-    }
+    state.proxy.configure_local_runtime(&status.url)?;
+    let url = tauri::Url::parse(&format!("http://127.0.0.1:{}", state.proxy.port))
+        .map_err(|error| error.to_string())?;
+    window
+        .eval(startup_location_replace_script(&url))
+        .map_err(|error| format!("无法打开本机 Runtime 代理：{error}"))
 }
 
 fn activate_remote_profile(
@@ -486,7 +417,7 @@ async fn mobile_pair(
         .filter(|name| !name.trim().is_empty())
         .unwrap_or_else(default_device_name);
     let profile = pairing::pair(&payload, &device_name, Some(state.tunnels.as_ref())).await?;
-    // 配对成功即明确选择远程模式；同进程 Node 会驻留，root 载体可以释放。
+    // 配对成功即明确选择远程模式；同进程 embedded Node 继续为 WebView 提供签名包内 UI。
     activate_remote_profile(profile, &state)
 }
 
@@ -598,10 +529,7 @@ fn mobile_select_server(
 async fn mobile_enter_local(state: State<'_, MobileShared>) -> Result<MobileStateDto, String> {
     let (status, _) =
         ensure_local_runtime_ready(state.on_device.clone(), state.startup_error.clone()).await?;
-    #[cfg(feature = "mobile-store")]
     state.proxy.configure_local_runtime(&status.url)?;
-    #[cfg(not(feature = "mobile-store"))]
-    let _ = status;
     state
         .store
         .lock()
@@ -657,6 +585,28 @@ fn operation_capability(operation: &str) -> Result<&'static str, String> {
         | "apps.open_app" => Ok("externalApps"),
         _ => Err("不支持的移动设备操作。".into()),
     }
+}
+
+#[tauri::command]
+fn mobile_ensure_local_network_permission(app: tauri::AppHandle) -> Result<(), String> {
+    #[cfg(target_os = "android")]
+    {
+        let device = app.mobile_device();
+        let states = device
+            .permission_states()
+            .map_err(|error| error.to_string())?;
+        if states.get("localNetwork").and_then(|value| value.as_str()) != Some("granted") {
+            let result = device
+                .request_permission("localNetwork")
+                .map_err(|error| error.to_string())?;
+            if result.get("state").and_then(|value| value.as_str()) != Some("granted") {
+                return Err("local_network_permission_denied".into());
+            }
+        }
+    }
+    #[cfg(not(target_os = "android"))]
+    let _ = app;
+    Ok(())
 }
 
 #[tauri::command]
@@ -799,24 +749,12 @@ pub fn run_mobile() {
             app.manage(update::MobileUpdateState::default());
             update::start_automatic_checks(app.handle().clone());
 
-            #[cfg(feature = "mobile-store")]
+            // Runtime 未通过启动合同前不能挂载任何依赖 /api 的业务页面。
             let initial = WebviewUrl::App("mobile-startup.html".into());
-            #[cfg(not(feature = "mobile-store"))]
-            let initial = if use_remote {
-                WebviewUrl::External(
-                    tauri::Url::parse(&format!("http://127.0.0.1:{}", proxy.port))
-                        .map_err(|error| error.to_string())?,
-                )
-            } else {
-                // Runtime 未通过启动合同前不能挂载任何依赖 /api 的业务页面。
-                WebviewUrl::App("mobile-startup.html".into())
-            };
             let window_builder = WebviewWindowBuilder::new(app, "main", initial).title("Pisper");
             #[cfg(target_os = "android")]
             let window_builder = {
-                let startup_history_pending = Arc::new(AtomicBool::new(
-                    cfg!(feature = "mobile-store") || !use_remote,
-                ));
+                let startup_history_pending = Arc::new(AtomicBool::new(true));
                 window_builder.on_page_load(move |window, payload| {
                     let url = payload.url();
                     if payload.event() == tauri::webview::PageLoadEvent::Finished
@@ -831,13 +769,8 @@ pub fn run_mobile() {
                 })
             };
             window_builder.build()?;
-            #[cfg(feature = "mobile-store")]
+            // 所有移动渠道先启动包内 Runtime；远程模式只替换代理的 API 上游。
             start_initial_local_runtime(app.handle().clone(), on_device, startup_error, proxy);
-            #[cfg(not(feature = "mobile-store"))]
-            if !use_remote {
-                // 窗口先显示本地启动页，Runtime 的解压、启动和 API 合同探针在后台完成。
-                start_initial_local_runtime(app.handle().clone(), on_device, startup_error, proxy);
-            }
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
@@ -845,6 +778,7 @@ pub fn run_mobile() {
             mobile_retry_local_startup,
             mobile_pair,
             mobile_pair_manual,
+            mobile_ensure_local_network_permission,
             mobile_pair_lan,
             mobile_cancel_lan_pairing,
             mobile_select_server,

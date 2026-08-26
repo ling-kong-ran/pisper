@@ -227,6 +227,8 @@ jobs:
           test -n "$IOS_MOBILE_PROVISION" || { echo "IOS_APP_STORE_PROVISIONING_PROFILE is required." >&2; exit 1; }
           npx tauri ios init --config src-tauri/tauri.mobile-ios.conf.json
           node scripts/setup-mobile-ios.mjs
+      - name: Test iOS DNS-SD permission handling
+        run: bash scripts/test-ios-dns-sd.sh
       - name: Build Apple Distribution IPA
         env:
           IOS_CERTIFICATE: ${{ secrets.IOS_DISTRIBUTION_CERTIFICATE }}

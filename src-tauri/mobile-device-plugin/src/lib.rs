@@ -83,8 +83,7 @@ pub fn init<R: Runtime>() -> TauriPlugin<R> {
     Builder::new("mobile-device")
         .setup(|app, api| {
             #[cfg(target_os = "android")]
-            let handle =
-                api.register_android_plugin(PLUGIN_IDENTIFIER, "MobileDevicePlugin")?;
+            let handle = api.register_android_plugin(PLUGIN_IDENTIFIER, "MobileDevicePlugin")?;
             #[cfg(target_os = "ios")]
             let handle = api.register_ios_plugin(init_plugin_mobile_device)?;
             app.manage(MobileDevice(handle));

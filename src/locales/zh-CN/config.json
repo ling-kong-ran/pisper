@@ -148,6 +148,7 @@
   "mobileServer.discoverDescription": "选择同一局域网内发现的桌面端并等待对方批准，或使用二维码远程配对。",
   "mobileServer.discovering": "正在搜索同一局域网内的 Pisper Desktop…",
   "mobileServer.discoveryFailed": "局域网发现不可用，请重试或使用二维码配对。",
+  "mobileServer.localNetworkDenied": "需要允许本地网络访问才能发现桌面端，请在系统设置中授权后重试。",
   "mobileServer.empty": "还没有已配对的服务器。点击「添加服务器」开始连接。",
   "mobileServer.forget": "删除",
   "mobileServer.forgetConfirm": "删除后需要重新配对才能连接该服务器，确定删除？",

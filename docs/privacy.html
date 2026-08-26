@@ -22,7 +22,7 @@
     </header>
     <main class="legal-main">
       <h1>Privacy Policy</h1>
-      <p class="legal-updated">Last updated: August 24, 2026</p>
+      <p class="legal-updated">Last updated: August 26, 2026</p>
       <p class="legal-intro">
         Pisper is a local-first AI workspace. It does not require a Pisper account and does not send
         analytics, advertising identifiers, crash telemetry, prompts, files, contacts, photos, or
@@ -57,7 +57,10 @@
         </p>
         <h3>Your Pisper Desktop Runtime</h3>
         <p>
-          You may pair the app with a Pisper Desktop Runtime that you control. The app can exchange
+          You may pair the app with a Pisper Desktop Runtime that you control. On a local network,
+          the app can discover Desktop advertisements and send a connection request; the Desktop
+          user must approve it before a device access token is issued. QR-code and manual pairing
+          remain available when discovery is unavailable. After pairing, the app can exchange
           conversations, files, settings, and Runtime results with that computer over a local-network
           or encrypted peer-to-peer connection. The Pisper developer does not receive this traffic.
         </p>
@@ -70,7 +73,7 @@
           <li><strong>Contacts:</strong> search contacts for an operation that you approve.</li>
           <li><strong>Location:</strong> read one foreground location for an approved operation.</li>
           <li><strong>Notifications:</strong> show local app or task notifications.</li>
-          <li><strong>Local network:</strong> connect to a Desktop Runtime that you choose.</li>
+          <li><strong>Local network:</strong> discover and connect to a Desktop Runtime that you choose.</li>
         </ul>
         <p>
           Permission results and returned content are used for the requested operation. They are not
@@ -88,8 +91,9 @@
           changes the app's functionality.
         </p>
         <p>
-          The separately distributed GitHub build may provide different developer-oriented
-          capabilities and an external update channel.
+          The separately distributed GitHub build uses the same embedded Node Runtime and signed
+          in-app user interface, but may check and open an external update channel. It does not
+          include a rooted Runtime, rootfs, su, or chroot assets.
         </p>
       </section>
 

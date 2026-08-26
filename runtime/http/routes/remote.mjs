@@ -1,6 +1,7 @@
 // 远程访问路由：开关、状态、配对码签发、配对兑换、设备管理。
 // 这些路由在回环监听与远程监听上都可达：回环侧供桌面 UI 管理用，
 // 远程侧供已配对设备（Bearer）查看/管理自身。
+import QRCode from 'qrcode'
 import { RemoteAccessError } from '../../services/remote-access-service.mjs'
 
 function remoteErrorStatus(code) {
@@ -83,7 +84,6 @@ export const remoteRoutes = [
       // 前端/其他客户端无需额外依赖即可展示。
       let qrDataUrl = ''
       try {
-        const QRCode = await import('qrcode')
         qrDataUrl = await QRCode.toDataURL(JSON.stringify(qrPayload), { margin: 1, width: 320 })
       } catch {
         // 渲染失败不阻断配对：客户端仍可手动输入配对码。

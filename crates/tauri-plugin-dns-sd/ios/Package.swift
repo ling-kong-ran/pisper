@@ -27,6 +27,10 @@ let package = Package(
             dependencies: [
                 .byName(name: "Tauri")
             ],
-            path: "Sources")
+            path: "Sources"),
+        .testTarget(
+            name: "DnsSdPluginTests",
+            dependencies: ["tauri-plugin-dns-sd"],
+            path: "Tests/DnsSdPluginTests")
     ]
 )

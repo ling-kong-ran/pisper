@@ -60,6 +60,7 @@ test('共享产品路径同时归 App 与原组件发布通道', () => {
   assert.equal(isAppExclusivePath('scripts/setup-mobile-ios.mjs'), true)
   assert.equal(isAppExclusivePath('scripts/mobile-node-ios-smoke-view-controller.m'), true)
   assert.equal(isAppExclusivePath('scripts/smoke-mobile-node-ios.sh'), true)
+  assert.equal(isAppExclusivePath('scripts/test-ios-dns-sd.sh'), true)
   assert.equal(isAppExclusivePath('scripts/verify-android-page-size.sh'), true)
   assert.equal(isAppExclusivePath('scripts/verify-tauri-signature.mjs'), true)
 })
@@ -112,8 +113,9 @@ test('Android arm64 native 产物强制兼容 16 KB 内存页', async () => {
 })
 
 test('移动壳仅在核心 Runtime API 合同通过后挂载业务界面', async () => {
-  const [shell, startupPage, permissions] = await Promise.all([
+  const [shell, proxy, startupPage, permissions] = await Promise.all([
     readFile('src-tauri/src/mobile/mod.rs', 'utf8'),
+    readFile('src-tauri/src/mobile/proxy.rs', 'utf8'),
     readFile('public/mobile-startup.html', 'utf8'),
     readFile('src-tauri/permissions/mobile.toml', 'utf8'),
   ])
@@ -140,9 +142,21 @@ test('移动壳仅在核心 Runtime API 合同通过后挂载业务界面', asyn
   assert.match(shell, /window\.location\.replace/)
   assert.match(shell, /PageLoadEvent::Finished/)
   assert.match(shell, /call_method\(webview, "clearHistory", "\(\)V"/)
-  assert.doesNotMatch(shell, /window\.navigate\(url\)/)
+  assert.doesNotMatch(shell, /window\.navigate\(/)
+  assert.doesNotMatch(shell, /replace_with_authenticated_runtime/)
+  assert.doesNotMatch(shell, /WebviewUrl::External/)
   assert.doesNotMatch(shell, /let on_device_url/)
   assert.doesNotMatch(shell, /WebviewUrl::App\("index\.html"\.into\(\)\)/)
+  assert.match(shell, /proxy\.configure_local_runtime\(&status\.url\)/)
+  assert.match(proxy, /path\.starts_with\("\/api\/"\) && remote_mode/)
+  assert.match(
+    proxy,
+    /forward_remote\(proxy, request\)\.await[\s\S]*forward_local\(proxy, request\)\.await/,
+  )
+  assert.doesNotMatch(
+    proxy,
+    /#\[cfg\(feature = "mobile-store"\)\][\s\S]{0,80}(?:forward_local|route_to_remote|configure_local_runtime)/,
+  )
   assert.match(startupPage, /data-phase="starting"/)
   assert.match(startupPage, /@keyframes runtime-progress/)
   assert.match(startupPage, /window\.setTimeout\(loadState, 300\)/)
@@ -173,7 +187,7 @@ test('Android WebView renderer 退出后重建宿主并恢复当前路由', asyn
   assert.match(activity, /return true/)
 })
 
-test('标准移动包只声明联系人、相机与前台定位权限', async () => {
+test('标准移动包只声明联系人、相机、前台定位与局域网权限', async () => {
   const [setup, androidPlugin, iosInfo] = await Promise.all([
     readFile('scripts/setup-mobile-android.mjs', 'utf8'),
     readFile(
@@ -187,6 +201,7 @@ test('标准移动包只声明联系人、相机与前台定位权限', async ()
     'android.permission.CAMERA',
     'android.permission.ACCESS_COARSE_LOCATION',
     'android.permission.ACCESS_FINE_LOCATION',
+    'android.permission.ACCESS_LOCAL_NETWORK',
   ]) {
     assert.match(`${setup}\n${androidPlugin}`, new RegExp(permission.replaceAll('.', '\\.')))
   }
@@ -406,9 +421,17 @@ test('局域网发现需桌面审批且保留二维码备用路径', async () =>
     pairing,
     remoteSettings,
     capability,
+    mobilePermissions,
     iosInfo,
+    mobileDeviceAndroid,
     dnsSdMobile,
     dnsSdAndroid,
+    dnsSdAndroidManifest,
+    dnsSdIos,
+    dnsSdIosPermission,
+    dnsSdIosPackage,
+    dnsSdIosTests,
+    ciWorkflow,
   ] = await Promise.all([
     readFile('src-tauri/Cargo.toml', 'utf8'),
     readFile('package.json', 'utf8'),
@@ -416,22 +439,44 @@ test('局域网发现需桌面审批且保留二维码备用路径', async () =>
     readFile('src/features/config/MobilePairingDialog.tsx', 'utf8'),
     readFile('src/features/config/RemoteAccessSettings.tsx', 'utf8'),
     readFile('src-tauri/capabilities/mobile-bridge.json', 'utf8'),
+    readFile('src-tauri/permissions/mobile.toml', 'utf8'),
     readFile('src-tauri/Info.ios.plist', 'utf8'),
+    readFile(
+      'src-tauri/mobile-device-plugin/android/src/main/java/app/pisper/mobiledevice/MobileDevicePlugin.kt',
+      'utf8',
+    ),
     readFile('crates/tauri-plugin-dns-sd/src/mobile.rs', 'utf8'),
     readFile(
       'crates/tauri-plugin-dns-sd/android/src/main/java/com/momics/dnssd/DnsSdPlugin.kt',
       'utf8',
     ),
+    readFile('crates/tauri-plugin-dns-sd/android/src/main/AndroidManifest.xml', 'utf8'),
+    readFile('crates/tauri-plugin-dns-sd/ios/Sources/DnsSdPlugin.swift', 'utf8'),
+    readFile('crates/tauri-plugin-dns-sd/ios/Sources/LocalNetworkPermission.swift', 'utf8'),
+    readFile('crates/tauri-plugin-dns-sd/ios/Package.swift', 'utf8'),
+    readFile(
+      'crates/tauri-plugin-dns-sd/ios/Tests/DnsSdPluginTests/DnsSdPluginTests.swift',
+      'utf8',
+    ),
+    readFile('.github/workflows/ci.yml', 'utf8'),
   ])
   assert.match(cargo, /tauri-plugin-dns-sd = \{ path = "\.\.\/crates\/tauri-plugin-dns-sd" \}/)
   assert.match(dnsSdMobile, /#\[serde\(flatten\)\][\s\S]*options: BrowseOptions/)
   assert.match(dnsSdAndroid, /class BrowseStartArgs \{[\s\S]*var service: ServiceSpecData\?/)
   assert.match(dnsSdAndroid, /var timeoutMs: Long\?/)
   assert.doesNotMatch(dnsSdAndroid, /class BrowseStartArgs \{[\s\S]*?var options:/)
+  assert.doesNotMatch(dnsSdAndroid, /serviceInfo\.serviceType != serviceType/)
+  assert.doesNotMatch(dnsSdAndroid, /\.hostName/)
+  assert.match(dnsSdAndroid, /removeSuffix\("\.local"\)/)
   assert.match(packageJson, /"@tauri-apps\/api": "\^2\.11\.1"/)
   assert.match(native, /plugin\(tauri_plugin_dns_sd::init\(\)\)/)
+  assert.match(native, /mobile_ensure_local_network_permission/)
   assert.match(native, /mobile_pair_lan/)
   assert.match(native, /mobile_cancel_lan_pairing/)
+  assert.match(mobilePermissions, /mobile_ensure_local_network_permission/)
+  assert.match(mobilePermissions, /mobile_pair_lan/)
+  assert.match(mobilePermissions, /mobile_cancel_lan_pairing/)
+  assert.match(pairing, /mobile_ensure_local_network_permission/)
   assert.match(pairing, /plugin:dns-sd\|browse_start/)
   assert.match(pairing, /service: \{ type: 'pisper', protocol: 'tcp', domain: 'local' \}/)
   assert.match(pairing, /mobile_pair_lan/)
@@ -446,8 +491,29 @@ test('局域网发现需桌面审批且保留二维码备用路径', async () =>
   assert.match(remoteSettings, /status\.endpoints\s*\.filter/)
   assert.match(remoteSettings, /<RadioTower/)
   assert.match(capability, /dns-sd:default/)
+  assert.match(mobileDeviceAndroid, /android\.permission\.ACCESS_LOCAL_NETWORK/)
+  assert.match(mobileDeviceAndroid, /Build\.VERSION\.SDK_INT < 36/)
+  assert.match(dnsSdAndroidManifest, /android\.permission\.CHANGE_WIFI_MULTICAST_STATE/)
+  assert.match(iosInfo, /<key>NSLocalNetworkUsageDescription<\/key>/)
+  assert.match(iosInfo, /discover and connect to a Pisper Desktop Runtime/)
   assert.match(iosInfo, /<key>NSBonjourServices<\/key>/)
   assert.match(iosInfo, /<string>_pisper\._tcp<\/string>/)
+  assert.match(dnsSdIos, /bonjourWithTXTRecord/)
+  assert.match(dnsSdIos, /NetService\(domain: domain, type: type, name: name\)/)
+  assert.match(dnsSdIos, /NI_NUMERICHOST/)
+  assert.match(dnsSdIos, /session\.resolvers\[key\] = resolver/)
+  assert.match(dnsSdIos, /for \(_, resolver\) in session\.resolvers \{ resolver\.cancel\(\) \}/)
+  assert.match(dnsSdIos, /case \.waiting\(let error\).*isLocalNetworkPermissionDenied/s)
+  assert.match(dnsSdIos, /case \.cancelled:.*reason: "search-stopped"/s)
+  assert.match(dnsSdIos, /reason: "permission-denied"/)
+  assert.match(dnsSdIosPermission, /code == -65570/)
+  assert.match(dnsSdIosPermission, /code == \.EACCES \|\| code == \.EPERM/)
+  assert.match(dnsSdIosPackage, /\.testTarget\([\s\S]*name: "DnsSdPluginTests"/)
+  assert.match(dnsSdIosTests, /isLocalNetworkPermissionDenied\(\.dns\(-65570\)\)/)
+  assert.match(dnsSdIosTests, /XCTAssertFalse\(isLocalNetworkPermissionDenied/)
+  assert.match(ciWorkflow, /bash scripts\/test-ios-dns-sd\.sh/)
+  assert.match(pairing, /message\.reason === 'permission-denied'/)
+  assert.match(pairing, /mobileServer\.localNetworkDenied/)
 })
 
 test('root Android Runtime 构建仅在系统包安装期间绑定构建机设备', async () => {
@@ -492,6 +558,7 @@ test('iOS 移动配置整体替换桌面资源且由两个发布通道共用', a
   for (const workflow of [releaseWorkflow, storeWorkflow]) {
     assert.match(workflow, /src-tauri\/pisper-embedded-runtime\.tar\.gz/)
     assert.match(workflow, /node scripts\/setup-mobile-ios\.mjs/)
+    assert.match(workflow, /bash scripts\/test-ios-dns-sd\.sh/)
     assert.match(workflow, /App 根目录 PrivacyInfo|app bundle root/)
     assert.equal(workflow.match(/--config src-tauri\/tauri\.mobile-ios\.conf\.json/g)?.length, 2)
     assert.doesNotMatch(workflow, /release\/sea\/runtime/)
@@ -570,6 +637,35 @@ test('商店构建在编译期排除 root Runtime 与外部安装更新', async 
     workflow,
     /name: app-root-runtime|needs: \[[^\]]*root-runtime|cp [^\n]*pisper-root-runtime/,
   )
+})
+
+test('公开移动文档与当前启动、配对、更新和隐私边界一致', async () => {
+  const [readmeZh, readmeEn, mobileGuide, site, privacyMd, privacyHtml, support] =
+    await Promise.all([
+      readFile('README.md', 'utf8'),
+      readFile('README.en.md', 'utf8'),
+      readFile('docs/mobile.md', 'utf8'),
+      readFile('docs/index.html', 'utf8'),
+      readFile('docs/privacy.md', 'utf8'),
+      readFile('docs/privacy.html', 'utf8'),
+      readFile('docs/support.md', 'utf8'),
+    ])
+  const userDocs = `${readmeZh}\n${readmeEn}\n${mobileGuide}\n${site}`
+  assert.doesNotMatch(userDocs, /首屏把|first screen presents|rooted Android|Linux chroot/)
+  assert.match(readmeZh, /首次启动会直接进入内置的本机 Runtime/)
+  assert.match(
+    readmeEn,
+    /On first launch, the Android \/ iOS app starts its bundled on-device Runtime/,
+  )
+  assert.match(mobileGuide, /桌面用户明确批准后，手机才领取一次性设备令牌/)
+  assert.match(mobileGuide, /Google Play 与 App Store 构建只通过对应商店更新/)
+  assert.match(site, /首次启动直接进入本机 Runtime/)
+  for (const privacy of [privacyMd, privacyHtml]) {
+    assert.match(privacy, /discover Desktop advertisements|discover and connect/)
+    assert.match(privacy, /approve it before a device access token is issued/)
+    assert.match(privacy, /GitHub build uses the same embedded Node Runtime and signed/)
+  }
+  assert.match(support, /select the discovered Desktop, and approve the request on Desktop/)
 })
 
 test('App 发布必须签名并校验共享 Runtime 与平台产物', async () => {

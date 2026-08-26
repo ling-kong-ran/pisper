@@ -10,6 +10,7 @@ import android.location.Location
 import android.location.LocationListener
 import android.location.LocationManager
 import android.net.Uri
+import android.os.Build
 import android.os.Bundle
 import android.os.Looper
 import android.provider.ContactsContract
@@ -37,6 +38,7 @@ import kotlin.math.roundToInt
 private const val CONTACTS = "contacts"
 private const val CAMERA = "camera"
 private const val LOCATION = "location"
+private const val LOCAL_NETWORK = "localNetwork"
 private const val EXTERNAL_APPS = "externalApps"
 private val PHONE_NUMBER = Regex("^[+*#0-9(). \\-]{1,64}$")
 private val PACKAGE_NAME = Regex("^[A-Za-z][A-Za-z0-9_]*(?:\\.[A-Za-z][A-Za-z0-9_]*)+$")
@@ -77,7 +79,8 @@ class OperationArgs {
         Permission(
             strings = [Manifest.permission.ACCESS_COARSE_LOCATION, Manifest.permission.ACCESS_FINE_LOCATION],
             alias = LOCATION
-        )
+        ),
+        Permission(strings = ["android.permission.ACCESS_LOCAL_NETWORK"], alias = LOCAL_NETWORK)
     ]
 )
 class MobileDevicePlugin(private val activity: Activity) : Plugin(activity) {
@@ -90,12 +93,21 @@ class MobileDevicePlugin(private val activity: Activity) : Plugin(activity) {
         put("state", state(capability))
     }
 
+    private fun localNetworkState(): String =
+        if (Build.VERSION.SDK_INT < 36) "granted" else state(LOCAL_NETWORK)
+
+    private fun localNetworkPermissionResult(): JSObject = JSObject().apply {
+        put("capability", LOCAL_NETWORK)
+        put("state", localNetworkState())
+    }
+
     @Command
     fun permissionStates(invoke: Invoke) {
         invoke.resolve(JSObject().apply {
             put(CONTACTS, state(CONTACTS))
             put(CAMERA, state(CAMERA))
             put(LOCATION, state(LOCATION))
+            put(LOCAL_NETWORK, localNetworkState())
             put(EXTERNAL_APPS, "not-required")
         })
     }
@@ -106,6 +118,10 @@ class MobileDevicePlugin(private val activity: Activity) : Plugin(activity) {
             CONTACTS -> requestPermissionForAlias(CONTACTS, invoke, "contactsPermissionCallback")
             CAMERA -> requestPermissionForAlias(CAMERA, invoke, "cameraPermissionCallback")
             LOCATION -> requestPermissionForAlias(LOCATION, invoke, "locationPermissionCallback")
+            LOCAL_NETWORK -> {
+                if (Build.VERSION.SDK_INT < 36) invoke.resolve(localNetworkPermissionResult())
+                else requestPermissionForAlias(LOCAL_NETWORK, invoke, "localNetworkPermissionCallback")
+            }
             else -> invoke.reject("Unsupported mobile capability: $capability")
         }
     }
@@ -118,6 +134,10 @@ class MobileDevicePlugin(private val activity: Activity) : Plugin(activity) {
 
     @PermissionCallback
     fun locationPermissionCallback(invoke: Invoke) = invoke.resolve(permissionResult(LOCATION))
+
+    @PermissionCallback
+    fun localNetworkPermissionCallback(invoke: Invoke) =
+        invoke.resolve(localNetworkPermissionResult())
 
     @Command
     fun openAppSettings(invoke: Invoke) {

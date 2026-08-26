@@ -71,7 +71,7 @@ Pisper 以 [Pi Coding Agent](https://github.com/earendil-works/pi/tree/main/pack
 
 - **运行时与会话编排**：把独立会话、并行执行、Turn 分支、工作目录与权限策略组织成可持续运行的多 Agent 系统。
 - **上下文与性能**：通过工具冷热分层、discover/call 按需加载、稳定工具定义与提示词形态诊断，减少上下文占用并提高 Provider prompt cache 命中率。
-- **完整产品层**：提供 Desktop、Ratatui TUI 与移动端体验；手机本机模式运行同一套 Node/Pisper Agent、Provider、会话、HTTP/SSE 与 React，普通设备按 Runtime 能力清单降级，rooted Android 自动优先使用能力更完整且降权运行的载体。
+- **完整产品层**：提供 Desktop、Ratatui TUI 与移动端体验；手机本机模式运行同一套 Node/Pisper Agent、Provider、会话、HTTP/SSE 与 React，并按 embedded Node 的实际能力清单关闭当前设备无法承载的入口。
 
 ## 📸 界面预览
 
@@ -141,7 +141,7 @@ sudo apt install ./Pisper-*-linux-amd64.deb
 
 ### 方式二：移动端 App
 
-Android / iOS App 首屏把 **本机运行** 与 **连接桌面端** 作为平等选项，不要求先扫码，也不会把本机模式藏在多层设置里。项目主页会从 `docs/latest-app.json` 解析最新 App 下载地址，但页面不显示或写死具体版本号：
+Android / iOS App 首次启动会直接进入内置的本机 Runtime；连接桌面端是正常 Pisper 界面中的可选设置，不会阻塞首次使用。项目主页会从 `docs/latest-app.json` 解析最新 App 下载地址，但页面不显示或写死具体版本号：
 
 | 平台 | 下载 | 安装状态 |
 | --- | --- | --- |
@@ -150,17 +150,17 @@ Android / iOS App 首屏把 **本机运行** 与 **连接桌面端** 作为平�
 
 **本机运行**
 
-1. 在首屏选择「本机运行」，或从底部导航进入 **设置 → 服务器 → 进入本机模式**。
-2. 在正常 Pisper 界面配置 Provider 和模型；会话、Provider 配置与工作区只保存在手机 App 私有目录。
-3. 本机 Runtime 仅监听随机回环端口。普通 Android/iOS 会按实际 Node 模块清单隐藏 Shell、MCP、工作流等不可用能力；rooted Android 自动优先使用能力更完整且降权到 App UID 的 Linux 载体。
+1. 首次启动等待内置 Runtime 就绪，App 会直接打开正常 Pisper 界面；从远程桌面返回时可进入 **设置 → 服务器 → 在本机运行**。
+2. 配置 Provider 和模型；会话、Provider 配置与工作区只保存在手机 App 私有目录。
+3. 本机 Runtime 仅监听随机回环端口。Android/iOS 会按 embedded Node 的实际模块清单隐藏 Shell、MCP、工作流等不可用能力。
 
 **连接桌面端**
 
-1. 建议首次配对时让手机与电脑接入同一局域网，在桌面端打开 **设置 → 远程访问**。
-2. 开启远程访问并等待 P2P relay 就绪，再生成配对二维码；配对码 5 分钟过期且只能使用一次。
-3. 在手机 App 选择「连接桌面端」并扫码。配对后优先 LAN，失败时回退 Iroh P2P；两条路径都继续校验 TLS 指纹、注入设备 Bearer 令牌并支持 SSE 恢复。
+1. 建议首次配对时让手机与电脑接入同一局域网，在桌面端打开 **设置 → 远程访问** 并开启远程访问。
+2. 在手机 **设置 → 服务器 → 添加服务器** 中允许本地网络访问，选择自动发现的桌面并发起申请；桌面用户明确批准后才会签发设备令牌。
+3. 异地连接或局域网发现失败时，在桌面生成一次性二维码，再由手机扫描二维码或手动输入。二维码截图可以发到异地手机；所有路径都校验 TLS 指纹并使用设备 Bearer 令牌，连接后优先 LAN、不可达时回退 Iroh P2P。
 
-手机会记住上次使用的本机/远程模式。完整流程、能力边界、安全模型与排障见 **[移动端使用指南](./docs/mobile.md)** 和 **[本机 Runtime 设计](./docs/mobile-local-runtime.md)**。
+手机会记住当前使用的本机或远程 Runtime。完整流程、能力边界、安全模型与排障见 **[移动端使用指南](./docs/mobile.md)** 和 **[本机 Runtime 设计](./docs/mobile-local-runtime.md)**。
 
 ### 方式三：npm（Node.js 20+）
 

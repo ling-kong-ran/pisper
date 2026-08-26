@@ -4,9 +4,9 @@ Pisper 移动端有两种使用方式：不依赖电脑、直接在手机运行 
 以及连接 Desktop Runtime 的远程模式。两种模式使用相同的 React、Provider、会话、标准 `/api/*`
 和 HTTP/SSE 契约，也都不把数据同步到 Pisper 云服务。
 
-本机模式把会话、Provider 配置和工作区保存在手机 App 私有目录。普通 Android/iOS 由嵌入式
-Node 24 承载，并按实际 Node 模块清单关闭不支持的系统能力；rooted Android 自动优先使用能力更
-完整、已降权到 App UID 的 Linux chroot 载体。两者在产品中都只是「本机运行」。详见
+本机模式把会话、Provider 配置和工作区保存在手机 App 私有目录。Android/iOS 统一由签名包内的
+embedded Node 24 承载，并按实际 Node 模块清单关闭宿主不支持的系统能力。公开 APK、AAB 与 IPA
+都不包含 rootfs、`su`、`chroot` 或运行时下载的替代载体。详见
 [移动端本机 Runtime 设计](./mobile-local-runtime.md)。
 
 远程模式下，Android / iOS App 优先通过局域网直连桌面；局域网不可达时，可通过内置 Iroh P2P
@@ -30,12 +30,12 @@ Release 同时提供资产的 Minisign 签名文件。iOS IPA 的“未签名”
 
 ## App 更新
 
-移动 App 启动后会自动检查独立的 `app-v*` 发布通道，并在回到前台及每 6 小时再次检查。也可以在
-**设置 -> 应用更新** 中手动检查、查看当前与最新 App 版本，并打开当前平台对应的安装包。
+更新渠道由安装来源决定，商店包和 GitHub 侧载包不会混用更新机制：
 
-- Android 会打开 GitHub Release 中已签名的 APK，下载后由 Android 系统确认安装。应用不会绕过系统的未知来源安装授权。
-- iOS 会打开未签名 IPA；受 Apple 签名机制限制，仍需使用 AltStore、Sideloadly 或开发者账号重签后安装，不能在 App 内静默替换。
-- 更新清单仅接受 Pisper GitHub Release 的 HTTPS 地址、匹配的 `app-v<version>` 标签和安全资产名。Android 最终还会校验 APK 的应用签名。
+- Google Play 与 App Store 构建只通过对应商店更新，不检查、下载或打开 GitHub 安装包。
+- GitHub Android 侧载版会检查独立的 `app-v*` 发布清单，并在 **设置 -> 应用更新** 打开已签名 APK；安装仍由 Android 系统确认，不会绕过未知来源授权。
+- GitHub iOS 版会打开未签名 IPA；受 Apple 签名机制限制，仍需使用 AltStore、Sideloadly 或开发者账号重签，不能在 App 内静默替换。
+- GitHub 更新清单仅接受 Pisper Release 的 HTTPS 地址、匹配的 `app-v<version>` 标签和安全资产名；Android 还会校验 APK 应用签名。
 
 ## 本机运行
 
@@ -46,10 +46,9 @@ Desktop 之间切换。App 只记忆 `local` 或 `remote`，不会显示 root/em
 bootstrap token 的 READY 文件，然后打开正常 Pisper React 界面。Provider、模型发现、会话、
 流式回复、工作区读写、Skill、内置工具和 Web Search 继续使用标准 Runtime 实现。
 
-普通 Android/iOS 没有 `child_process` 等 Node 宿主能力时，终端、VCS、MCP stdio、工作流、计划
-任务、多 Agent 和第三方插件执行会按 `/api/runtime/capabilities` 从导航与 API 中同时关闭；内置工具
-目录与 Web Search 设置不会因 plugin worker 缺失而消失。rooted Android 的完整 Linux 载体支持更多
-桌面能力，但 root 只参与安装、挂载和 chroot 入口，Agent 与工具始终以 App UID 运行。
+Android/iOS embedded Node 没有 `child_process` 等宿主能力时，终端、VCS、MCP stdio、工作流、
+计划任务、多 Agent 和第三方插件执行会按 `/api/runtime/capabilities` 从导航与 API 中同时关闭；
+内置工具目录与 Web Search 设置不会因 plugin worker 缺失而消失。
 
 当前 Provider 凭据保存在 App 私有数据目录，依赖系统沙箱和文件权限保护，尚未接入 Android
 Keystore / iOS Keychain。不要导出或分享 App 私有数据。
@@ -58,9 +57,9 @@ Keystore / iOS Keychain。不要导出或分享 App 私有数据。
 
 开始前，请把桌面 Pisper 与移动 App 更新到兼容版本。建议首次配对时让手机与电脑连接同一个可信局域网；电脑需要在使用手机期间保持开机并运行 Pisper。
 
-1. 在桌面端打开 **设置 -> 远程访问**，开启远程访问。页面会显示 LAN HTTPS 地址、证书指纹和 P2P 状态；默认远程端口是 `5174`。
-2. 等待页面显示“P2P relay 已就绪”，再点击生成配对二维码。每次生成都会使上一个配对码失效；新配对码 5 分钟后过期，成功使用一次后立即作废。
-3. 在手机 App 的 **设置 -> 服务器** 中点击“添加服务器”，扫描二维码并允许相机权限。App 会保存 LAN 与 Iroh endpoint、TLS 指纹和配对码，验证桌面证书后完成绑定并进入 Pisper 主界面。
+1. 在桌面端打开 **设置 -> 远程访问** 并开启远程访问。页面会显示 LAN HTTPS 地址、证书指纹和 P2P 状态；默认远程端口是 `5174`。
+2. 同一局域网内，在手机 **设置 -> 服务器 -> 添加服务器** 中允许本地网络访问，选择自动发现的桌面并点击“申请连接”。桌面审批卡会显示设备名和来源 IP；桌面用户明确批准后，手机才领取一次性设备令牌并进入远程界面。
+3. 异地连接、Bonjour/mDNS 不可用或需要通过截图转发时，在桌面生成二维码，再由手机扫描二维码或手动输入。二维码中的配对码 5 分钟后过期、只能使用一次；每次重新生成都会使上一个配对码失效。
 
 ### 手动配对
 
@@ -83,19 +82,20 @@ Mobile WebView
     | http://127.0.0.1:<random-port>  (app-local loopback only)
     v
 Mobile Rust proxy
-    |                               |
-    | LAN TCP                       | Iroh QUIC / relay (fallback)
-    v                               v
-    +---- pinned TLS + Bearer ------+
-                    |
-                    v
-Desktop Runtime HTTPS (default port 5174)
+    |                                 |
+    | static UI and non-API requests  | remote-mode /api/*
+    v                                 v
+Embedded Runtime                 pinned TLS + Bearer
+                                      |
+                              LAN or Iroh fallback
+                                      |
+                                      v
+                         Desktop Runtime HTTPS :5174
 ```
 
-- WebView 不直接信任桌面端自签证书，而是只访问 App 内的随机回环端口。
-- Rust 本地代理校验配对时保存的证书指纹，向桌面端请求注入设备 Bearer 令牌，并按字节透传静态资源、API 响应和 SSE 事件流。Iroh 只替换 TCP 路径，不终止或改写 TLS。
-- 远程模式的主界面资源由 Desktop 经代理提供，因此 UI 与所连接 Runtime 保持一致；App 仍内置
-  连接管理页和本机 Runtime 使用的正常 React 生产资源，即使 Desktop UI 较旧也能返回本机模式。
+- WebView 不直接信任桌面端自签证书，而是只访问 App 内的随机回环代理。
+- 所有公开 APK、AAB 与 IPA 始终从签名包内 embedded Runtime 加载 React 静态资源；远程模式只把 `/api/*` 数据请求发送给用户控制的 Desktop Runtime，桌面端不能替换 App UI。
+- Rust 本地代理校验配对时保存的证书指纹，向桌面端请求注入设备 Bearer 令牌，并按字节透传 API 响应和 SSE 事件流。Iroh 只替换 TCP 路径，不终止或改写 TLS。
 - Runtime 会广播 `_pisper._tcp.local` mDNS 服务，并在二维码中按建议顺序列出 LAN、IPv6、Tailscale 与 Iroh endpoint。
 - 代理按 LAN/直接地址在前、Iroh 在后的顺序健康检查。网络切换后会重新探测；电脑离线、远程访问关闭或 P2P relay 不可达时，手机无法使用 Pisper。
 - Iroh 会先尝试 UDP 洞穿，失败时使用其公共 relay。Pisper 不需要部署中转服务器；relay 看到的是 QUIC 隧道流量，而隧道内仍是指纹锁定的 TLS。
@@ -199,8 +199,6 @@ mDNS 广播，但建议同时吊销不再使用的设备。
 ### 本机模式启动失败或功能缺失
 
 - App 必须包含与自身版本一致的 embedded Runtime；版本或签名门禁失败的构建不会进入 App Release。
-- rooted Android 首次进入可能由 root 管理器请求授权；没有 `su` 的普通设备或 root 载体失败时会
-  自动尝试 embedded Node。
 - 页面缺少终端、工作流或 MCP 等入口时，先在 `/api/runtime/capabilities` 对应的设置状态中确认宿主
   能力。这是 ordinary mobile 的预期降级，不会切换到另一套对话 Runtime。
 - arm64 Runtime 不能在 x86_64 Android 模拟器中启动；最终验证需要 arm64 设备。

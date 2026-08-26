@@ -13,6 +13,7 @@ This checklist documents the intended declarations for the signed `mobile-store`
 | Camera | Pairing scan or user-approved capture | No | Only the selected Runtime/provider if the user submits the result |
 | Contacts | User-approved contact search | No | Only the selected Runtime/provider if the user submits the result |
 | Precise location | One foreground reading after approval | No | Only the selected Runtime/provider if the user submits the result |
+| Local network | Discover a user-controlled Desktop and request an approved connection | No | User-controlled Desktop Runtime |
 | Diagnostics/analytics/advertising ID | No developer telemetry or ad SDK | No | None |
 
 ## Google Play Data safety draft

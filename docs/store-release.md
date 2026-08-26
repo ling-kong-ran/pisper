@@ -1,6 +1,6 @@
 # Mobile Store Release Runbook
 
-The store pipeline is `.github/workflows/build-store-app.yml`. It is independent from the GitHub sideload release in `release-app.yml` and never publishes rooted Runtime assets.
+The store pipeline is `.github/workflows/build-store-app.yml`. It is independent from the GitHub sideload release in `release-app.yml`. Both channels package only embedded Node and signed in-app React assets; neither publishes rooted Runtime assets.
 
 ## Required repository secrets
 

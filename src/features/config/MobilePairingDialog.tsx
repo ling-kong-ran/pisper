@@ -193,6 +193,10 @@ export function MobilePairingDialog({ open, onOpenChange }: MobilePairingDialogP
     const channel = new Channel<DnsBrowseMessage>()
     channel.onmessage = (message) => {
       if (discoveryRunRef.current !== run) return
+      if (message.reason === 'permission-denied') {
+        setDiscoveryError(t('config:mobileServer.localNetworkDenied'))
+        return
+      }
       if (message.reason?.startsWith('error:')) {
         setDiscoveryError(t('config:mobileServer.discoveryFailed'))
         return
@@ -214,6 +218,7 @@ export function MobilePairingDialog({ open, onOpenChange }: MobilePairingDialogP
 
     let browseId: number | null = null
     try {
+      await invokeMobile<void>('mobile_ensure_local_network_permission')
       const handle = await invokeMobile<{ browseId: number }>('plugin:dns-sd|browse_start', {
         options: {
           service: { type: 'pisper', protocol: 'tcp', domain: 'local' },
@@ -223,9 +228,13 @@ export function MobilePairingDialog({ open, onOpenChange }: MobilePairingDialogP
       })
       browseId = handle.browseId
       await wait(4_300)
-    } catch {
+    } catch (cause) {
       if (discoveryRunRef.current === run) {
-        setDiscoveryError(t('config:mobileServer.discoveryFailed'))
+        setDiscoveryError(
+          errorMessage(cause).includes('local_network_permission_denied')
+            ? t('config:mobileServer.localNetworkDenied')
+            : t('config:mobileServer.discoveryFailed'),
+        )
       }
     } finally {
       if (browseId !== null) {

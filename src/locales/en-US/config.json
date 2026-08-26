@@ -148,6 +148,7 @@
   "mobileServer.discoverDescription": "Choose a desktop found on this LAN and wait for its approval, or pair remotely with a QR code.",
   "mobileServer.discovering": "Searching this LAN for Pisper Desktop…",
   "mobileServer.discoveryFailed": "LAN discovery is unavailable. Try again or pair with a QR code.",
+  "mobileServer.localNetworkDenied": "Local network access is required to discover desktops. Allow it in system settings and retry.",
   "mobileServer.empty": "No paired servers yet. Tap “Add server” to connect.",
   "mobileServer.forget": "Forget",
   "mobileServer.forgetConfirm": "You will need to pair again to reconnect to this server. Forget it?",

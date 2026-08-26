@@ -276,6 +276,8 @@ jobs:
         run: |
           npx tauri ios init --config src-tauri/tauri.mobile-ios.conf.json
           node scripts/setup-mobile-ios.mjs
+      - name: Test iOS DNS-SD permission handling
+        run: bash scripts/test-ios-dns-sd.sh
       - name: Build unsigned iOS app
         run: |
           VERSION_CONFIG='{"version":"${{ inputs.version }}"}'

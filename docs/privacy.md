@@ -1,6 +1,6 @@
 # Pisper Privacy Policy
 
-Last updated: August 24, 2026
+Last updated: August 26, 2026
 
 Pisper is a local-first AI workspace. This policy explains how the Pisper mobile application handles information.
 
@@ -33,7 +33,7 @@ Pisper does not proxy these requests through a server operated by the Pisper dev
 
 ### Your Pisper Desktop Runtime
 
-You may pair the mobile app with a Pisper Desktop Runtime that you control. The app can then exchange conversations, files, settings, and Runtime results with that computer over a local-network or encrypted peer-to-peer connection. Pairing credentials are stored on the device. The Pisper developer does not receive this traffic.
+You may pair the mobile app with a Pisper Desktop Runtime that you control. On a local network, the app can discover Desktop advertisements and send a connection request; the Desktop user must approve it before a device access token is issued. QR-code and manual pairing remain available when local discovery is unavailable. After pairing, the app can exchange conversations, files, settings, and Runtime results with that computer over a local-network or encrypted peer-to-peer connection. Pairing credentials are stored on the device. The Pisper developer does not receive this traffic.
 
 ## Optional device permissions
 
@@ -53,7 +53,7 @@ You can revoke permissions in the operating system settings and disable device c
 
 App Store and Google Play builds are updated only through the applicable store. Their application code, user interface, and embedded Runtime are included in the signed app package. Store builds do not download and execute plugins, scripts, Runtime replacements, or other code that changes the app's functionality.
 
-The separately distributed GitHub build may provide different developer-oriented capabilities and an external update channel. It is not the store build described in the preceding paragraph.
+The separately distributed GitHub build uses the same embedded Node Runtime and signed in-app user interface, but may check and open an external update channel. It does not include a rooted Runtime, `rootfs`, `su`, or `chroot` assets.
 
 ## Security and retention
 
