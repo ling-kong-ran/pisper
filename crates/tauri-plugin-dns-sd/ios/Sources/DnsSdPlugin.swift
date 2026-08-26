@@ -324,7 +324,7 @@ class DnsSdPlugin: Plugin {
         let protocolName = type.lowercased().contains("_udp") ? "udp" : "tcp"
 
         var txt = JSObject()
-        if case let .bonjour(txtRecord) = result.metadata {
+        if #available(iOS 16.0, *), case let .bonjour(txtRecord) = result.metadata {
             txt = parseTxtRecordData(txtRecord.data)
         }
 
@@ -349,7 +349,7 @@ class DnsSdPlugin: Plugin {
         payload["addresses"] = []
         payload["txt"] = txt
         payload["isActive"] = true
-        payload["lastSeenMs"] = Int64(nowMs())
+        payload["lastSeenMs"] = NSNumber(value: nowMs())
 
         return ServiceSnapshot(key: fullName, signature: signature, payload: payload)
     }
@@ -391,7 +391,7 @@ class DnsSdPlugin: Plugin {
         for (key, previous) in session.services where nextServices[key] == nil {
             var removedPayload = previous.payload
             removedPayload["isActive"] = false
-            removedPayload["lastSeenMs"] = Int64(nowMs())
+            removedPayload["lastSeenMs"] = NSNumber(value: nowMs())
             emitBrowseService(session: session, payload: removedPayload)
             // Drop resolution state for departed instances.
             session.resolved.removeValue(forKey: key)
@@ -407,8 +407,16 @@ class DnsSdPlugin: Plugin {
         _ info: BrowseSession.ResolvedInfo
     ) -> ServiceSnapshot {
         var payload = snapshot.payload
-        payload["host"] = info.host.map { $0 as Any } ?? NSNull()
-        payload["port"] = info.port.map { $0 as Any } ?? NSNull()
+        if let host = info.host {
+            payload["host"] = host
+        } else {
+            payload["host"] = NSNull()
+        }
+        if let port = info.port {
+            payload["port"] = port
+        } else {
+            payload["port"] = NSNull()
+        }
         payload["addresses"] = info.addresses
         let addrState = info.addresses.joined(separator: ",")
         let signature = "\(snapshot.signature)|\(info.host ?? "")|\(info.port ?? -1)|\(addrState)"
