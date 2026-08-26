@@ -16,6 +16,7 @@ fi
 
 # 测试使用与当前 Cargo 依赖一致的 Tauri Swift API，避免依赖已生成的 Xcode 工程。
 rm -rf "$TAURI_API_TARGET"
-mkdir -p "$(dirname "$TAURI_API_TARGET")"
+mkdir -p "$TAURI_API_TARGET"
 cp -R "$(dirname "$TAURI_API_PACKAGE")/." "$TAURI_API_TARGET/"
+test -f "$TAURI_API_TARGET/Package.swift"
 swift test --package-path "$PLUGIN_IOS"
