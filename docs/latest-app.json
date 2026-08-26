@@ -1,9 +1,9 @@
 {
-  "version": "0.1.13",
-  "tag": "app-v0.1.13",
-  "url": "https://github.com/ling-kong-ran/pisper/releases/tag/app-v0.1.13",
+  "version": "0.1.14",
+  "tag": "app-v0.1.14",
+  "url": "https://github.com/ling-kong-ran/pisper/releases/tag/app-v0.1.14",
   "apk": "app-universal-release-signed.apk",
   "ipa": "pisper-ios-unsigned.ipa",
-  "notes": "- fix(ios): report runtime smoke result\n- fix(ios): configure system framework in xcode project\n- chore(release-runtime): runtime-v0.5.20\n- feat(mobile): complete app connectivity and release flows",
+  "notes": "- fix(mobile): defer camera permission and stabilize LAN discovery",
   "releaseDate": "2026-08-26"
 }
