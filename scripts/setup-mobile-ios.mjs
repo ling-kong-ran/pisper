@@ -29,6 +29,29 @@ export function injectIosPrivacyManifest(projectSpec) {
   )
 }
 
+export function injectIosSystemConfigurationFramework(projectSpec) {
+  if (projectSpec.includes('SystemConfiguration')) return projectSpec
+
+  const eol = projectSpec.includes('\r\n') ? '\r\n' : '\n'
+  const linkerSetting = `    OTHER_LDFLAGS: "$(inherited) -framework SystemConfiguration"`
+  const baseSettings = new RegExp(`^settings${eol}  base${eol}`, 'm')
+  if (baseSettings.test(projectSpec)) {
+    return projectSpec.replace(baseSettings, `settings${eol}  base${eol}${linkerSetting}${eol}`)
+  }
+
+  const settings = new RegExp(`^settings${eol}`, 'm')
+  if (settings.test(projectSpec)) {
+    return projectSpec.replace(settings, `settings${eol}  base:${eol}${linkerSetting}${eol}`)
+  }
+
+  const targets = new RegExp(`^targets:${eol}`, 'm')
+  if (!targets.test(projectSpec)) throw new Error('无法在 iOS project.yml 中定位 targets 配置')
+  return projectSpec.replace(
+    targets,
+    `settings:${eol}  base:${eol}${linkerSetting}${eol}${eol}targets:${eol}`,
+  )
+}
+
 function main() {
   const projectSpecPath = resolve(process.argv[2] || defaultProjectSpec)
   if (!existsSync(projectSpecPath)) {
@@ -39,7 +62,7 @@ function main() {
   }
 
   const current = readFileSync(projectSpecPath, 'utf8')
-  const updated = injectIosPrivacyManifest(current)
+  const updated = injectIosSystemConfigurationFramework(injectIosPrivacyManifest(current))
   writeFileSync(projectSpecPath, updated, 'utf8')
 
   const result = spawnSync('xcodegen', ['generate', '--spec', projectSpecPath], {
