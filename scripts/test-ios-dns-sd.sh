@@ -23,4 +23,9 @@ cp -R "$PLUGIN_IOS/." "$TEST_PACKAGE/"
 cp -R "$(dirname "$TAURI_API_PACKAGE")/." "$TAURI_API_TARGET/"
 test -f "$TAURI_API_TARGET/Package.swift"
 perl -0pi -e "s#path: \"\.\./\.tauri/tauri-api\"#path: \"$TAURI_API_TARGET\"#" "$TEST_PACKAGE/Package.swift"
-swift test --package-path "$TEST_PACKAGE"
+IOS_SIMULATOR_ID=$(xcrun simctl list devices available | sed -nE 's/.*\(([0-9A-F-]{36})\).*/\1/p' | head -1)
+if [[ -z "$IOS_SIMULATOR_ID" ]]; then
+  echo '未找到可用的 iOS Simulator。' >&2
+  exit 1
+fi
+swift test --package-path "$TEST_PACKAGE" --destination "id=$IOS_SIMULATOR_ID"
