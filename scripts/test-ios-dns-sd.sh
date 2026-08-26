@@ -3,7 +3,6 @@ set -Eeuo pipefail
 
 ROOT=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
 PLUGIN_IOS="$ROOT/crates/tauri-plugin-dns-sd/ios"
-TAURI_API_TARGET="$PLUGIN_IOS/.tauri/tauri-api"
 CARGO_REGISTRY="${CARGO_HOME:-$HOME/.cargo}/registry/src"
 
 cargo fetch --manifest-path "$ROOT/src-tauri/Cargo.toml"
@@ -15,8 +14,12 @@ if [[ -z "$TAURI_API_PACKAGE" ]]; then
 fi
 
 # 测试使用与当前 Cargo 依赖一致的 Tauri Swift API，避免依赖已生成的 Xcode 工程。
-rm -rf "$TAURI_API_TARGET"
+TEST_PACKAGE=$(mktemp -d "${TMPDIR:-/tmp}/pisper-dns-sd.XXXXXX")
+trap 'rm -rf "$TEST_PACKAGE"' EXIT
+cp -R "$PLUGIN_IOS/." "$TEST_PACKAGE/"
+rm -rf "$TEST_PACKAGE/.tauri"
+TAURI_API_TARGET="$TEST_PACKAGE/.tauri/tauri-api"
 mkdir -p "$TAURI_API_TARGET"
 cp -R "$(dirname "$TAURI_API_PACKAGE")/." "$TAURI_API_TARGET/"
 test -f "$TAURI_API_TARGET/Package.swift"
-swift test --package-path "$PLUGIN_IOS"
+swift test --package-path "$TEST_PACKAGE"
