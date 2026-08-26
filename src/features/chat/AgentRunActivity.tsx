@@ -641,25 +641,28 @@ function AgentRunActivity({
     primary.command && activities.length
       ? t('chat:agentRunActivity.countLiveOperations', { count: activities.length })
       : primary.detail
-  const activityCards = activities.map((activity, index) => (
-    <ActivityCard
-      activity={activity}
-      compaction={compaction}
-      error={error}
-      key={activityRenderKey(activity, index)}
-      language={language}
-      lastActivityAt={lastActivityAt}
-      latest={index === activities.length - 1}
-      notice={notice}
-      now={now}
-      runStartedAt={startedAt}
-      stopped={stopped}
-      streaming={streaming}
-      t={t}
-      text={text}
-      thinkingText={thinking ? '' : thinkingText}
-    />
-  ))
+  const renderActivityCards = (items: EntityRecord[]) =>
+    items.map((activity, index) => (
+      <ActivityCard
+        activity={activity}
+        compaction={compaction}
+        error={error}
+        key={activityRenderKey(activity, index)}
+        language={language}
+        lastActivityAt={lastActivityAt}
+        latest={index === items.length - 1}
+        notice={notice}
+        now={now}
+        runStartedAt={startedAt}
+        stopped={stopped}
+        streaming={streaming}
+        t={t}
+        text={text}
+        thinkingText={thinking ? '' : thinkingText}
+      />
+    ))
+  const activityCards = renderActivityCards(activities)
+  const liveActivityCards = renderActivityCards(activities.slice(-1))
 
   return (
     <section
@@ -742,10 +745,9 @@ function AgentRunActivity({
           ref={liveFeedRef}
           className="agent-run-feed focus-visible:[outline:2px_solid_var(--accent-border)] focus-visible:[outline-offset:2px] [.agent-run-history_&.completed]:mt-[3px] flex max-h-[184px] flex-col gap-[4px] overflow-y-auto [overscroll-behavior:contain] [margin:5px_0_2px] [padding:2px_4px_2px_0] [scrollbar-gutter:stable] live"
           aria-label={t('chat:agentRunActivity.toolActivityAriaLabel')}
-          tabIndex={activities.length > 3 ? 0 : undefined}
         >
-          <Suspense fallback={activityCards}>
-            <AnimatedList>{activityCards}</AnimatedList>
+          <Suspense fallback={liveActivityCards}>
+            <AnimatedList>{liveActivityCards}</AnimatedList>
           </Suspense>
         </div>
       )}

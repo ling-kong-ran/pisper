@@ -14,12 +14,13 @@ if [[ -z "$TAURI_API_PACKAGE" ]]; then
 fi
 
 # 测试使用与当前 Cargo 依赖一致的 Tauri Swift API，避免依赖已生成的 Xcode 工程。
-TEST_PACKAGE=$(mktemp -d "${TMPDIR:-/tmp}/pisper-dns-sd.XXXXXX")
-trap 'rm -rf "$TEST_PACKAGE"' EXIT
+TEST_ROOT=$(mktemp -d "${TMPDIR:-/tmp}/pisper-dns-sd.XXXXXX")
+trap 'rm -rf "$TEST_ROOT"' EXIT
+TEST_PACKAGE="$TEST_ROOT/crates/tauri-plugin-dns-sd/ios"
+TAURI_API_TARGET="$TEST_ROOT/crates/tauri-plugin-dns-sd/.tauri/tauri-api"
+mkdir -p "$TEST_PACKAGE" "$TAURI_API_TARGET"
 cp -R "$PLUGIN_IOS/." "$TEST_PACKAGE/"
-rm -rf "$TEST_PACKAGE/.tauri"
-TAURI_API_TARGET="$TEST_PACKAGE/.tauri/tauri-api"
-mkdir -p "$TAURI_API_TARGET"
 cp -R "$(dirname "$TAURI_API_PACKAGE")/." "$TAURI_API_TARGET/"
 test -f "$TAURI_API_TARGET/Package.swift"
+perl -0pi -e "s#path: \"\.\./\.tauri/tauri-api\"#path: \"$TAURI_API_TARGET\"#" "$TEST_PACKAGE/Package.swift"
 swift test --package-path "$TEST_PACKAGE"

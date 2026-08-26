@@ -23,7 +23,7 @@ export function ComposerToolTray({
   const tray = open ? (
     <div
       id={trayId}
-      className={`composer-tool-tray @max-[700px]:gap-[3px] @max-[470px]:gap-[2px] flex min-w-0 items-center gap-[5px] [padding-left:1px] ${mobile ? 'w-full overflow-x-auto overscroll-x-contain [scrollbar-width:none] [&::-webkit-scrollbar]:hidden [&>*]:!size-9 [&>*]:!min-w-9 [&>*]:!flex-none [&>*>button]:!size-full' : ''}`}
+      className={`composer-tool-tray @max-[700px]:gap-[3px] @max-[470px]:gap-[2px] flex min-w-0 items-center gap-[5px] [padding-left:1px] ${mobile ? 'min-w-0 flex-1 basis-0 overflow-x-auto overscroll-x-contain [scrollbar-width:none] [&::-webkit-scrollbar]:hidden [&>*]:!size-9 [&>*]:!min-w-9 [&>*]:!flex-none [&>*>button]:!size-full' : ''}`}
       aria-label={label}
     >
       {children}
