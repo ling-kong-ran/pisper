@@ -1,9 +1,9 @@
 {
-  "version": "0.1.14",
-  "tag": "app-v0.1.14",
-  "url": "https://github.com/ling-kong-ran/pisper/releases/tag/app-v0.1.14",
+  "version": "0.1.15",
+  "tag": "app-v0.1.15",
+  "url": "https://github.com/ling-kong-ran/pisper/releases/tag/app-v0.1.15",
   "apk": "app-universal-release-signed.apk",
   "ipa": "pisper-ios-unsigned.ipa",
-  "notes": "- fix(mobile): defer camera permission and stabilize LAN discovery",
+  "notes": "- fix(chat): stabilize mobile composer and run activity",
   "releaseDate": "2026-08-26"
 }
