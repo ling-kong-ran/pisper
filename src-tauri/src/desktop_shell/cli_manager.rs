@@ -387,7 +387,7 @@ mod windows_path {
     };
 
     fn decode(value: &RegValue) -> Result<String, String> {
-        if value.bytes.len() % 2 != 0 {
+        if !value.bytes.len().is_multiple_of(2) {
             return Err("The user PATH registry value is not valid UTF-16.".to_string());
         }
         let mut units = value
