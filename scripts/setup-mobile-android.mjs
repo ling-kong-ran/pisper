@@ -147,6 +147,19 @@ if (!manifest.includes('networkSecurityConfig')) {
     'android:networkSecurityConfig="@xml/network_security_config"\n        android:usesCleartextTraffic',
   )
 }
+if (!manifest.includes('android:windowSoftInputMode="adjustResize"')) {
+  if (manifest.includes('android:windowSoftInputMode=')) {
+    manifest = manifest.replace(
+      /android:windowSoftInputMode="[^"]*"/,
+      'android:windowSoftInputMode="adjustResize"',
+    )
+  } else {
+    manifest = manifest.replace(
+      'android:launchMode="singleTask"',
+      'android:launchMode="singleTask"\n            android:windowSoftInputMode="adjustResize"',
+    )
+  }
+}
 writeFileSync(manifestPath, manifest, 'utf8')
 
 // Wry 的扩展点在 Rust 构建时生成 WebViewClient；必须把环境变量放进 Gradle 启动 cargo 的进程。

@@ -187,6 +187,30 @@ test('Android WebView renderer 退出后重建宿主并恢复当前路由', asyn
   assert.match(activity, /return true/)
 })
 
+test('Android 与 iOS 软键盘都使用可视视口保持会话输入框可见', async () => {
+  const [app, navigation, html, setup, activity] = await Promise.all([
+    readFile('src/App.tsx', 'utf8'),
+    readFile('src/components/layout/MobileNavigation.tsx', 'utf8'),
+    readFile('index.html', 'utf8'),
+    readFile('scripts/setup-mobile-android.mjs', 'utf8'),
+    readFile('src-tauri/mobile/android/MainActivity.kt', 'utf8'),
+  ])
+
+  assert.match(html, /interactive-widget=resizes-content/)
+  assert.match(app, /const viewport = window\.visualViewport/)
+  assert.match(app, /viewport\?\.height \?\? window\.innerHeight/)
+  assert.match(app, /viewport\?\.offsetTop \?\? 0/)
+  assert.match(app, /let viewportBaseline = Math\.max\(window\.innerHeight/)
+  assert.match(app, /viewportBaseline - height - offsetTop/)
+  assert.match(app, /window\.addEventListener\('orientationchange', resetAfterOrientationChange\)/)
+  assert.match(app, /viewport\?\.addEventListener\('resize', schedule\)/)
+  assert.match(app, /viewport\?\.addEventListener\('scroll', schedule\)/)
+  assert.match(app, /shell\.dataset\.mobileKeyboard = 'open'/)
+  assert.match(navigation, /\[\[data-mobile-keyboard='open'\]_&\]:hidden/)
+  assert.match(activity, /SOFT_INPUT_ADJUST_RESIZE/)
+  assert.match(setup, /android:windowSoftInputMode="adjustResize"/)
+})
+
 test('标准移动包只声明联系人、相机、前台定位与局域网权限', async () => {
   const [setup, androidPlugin, iosInfo] = await Promise.all([
     readFile('scripts/setup-mobile-android.mjs', 'utf8'),

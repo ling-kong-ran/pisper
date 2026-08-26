@@ -12,7 +12,6 @@ import { terminalDisplayOutput } from '@/lib/terminal-output'
 import type { I18nValues } from '@/app/i18n'
 import type { EntityRecord } from '@/types/chat'
 import {
-  activityDurationMs,
   activityRenderKey,
   activityScrollVersion,
   agentActivityState,
@@ -133,6 +132,28 @@ function useRunActivityClock(streaming?: boolean) {
     return () => window.clearInterval(timer)
   }, [streaming])
   return now
+}
+
+function RunDurationLabel({
+  startedAt,
+  finishedAt,
+  streaming,
+  language,
+}: {
+  startedAt?: string | null
+  finishedAt?: string | null
+  streaming?: boolean
+  language: string
+}) {
+  // 每秒变化只留在这一小块文本中，避免整棵 SSE 活动树随计时器重复渲染。
+  const now = useRunActivityClock(streaming)
+  const duration = formatRunDuration(runDurationMs(startedAt, finishedAt, now), language)
+  return (
+    <span className="agent-run-duration inline-flex items-center gap-[4px] pt-[3px] text-[var(--text-muted)] font-[ui-monospace,_SFMono-Regular,_Consolas,_'Liberation_Mono',_monospace] text-[11px] whitespace-nowrap [.agent-run-activity.compact_&]:text-[10px]">
+      <Clock3 size={12} />
+      {duration}
+    </span>
+  )
 }
 
 function cleanInline(value: unknown) {
@@ -422,9 +443,6 @@ type ActivityCardProps = {
   activity: EntityRecord
   latest: boolean
   t: Translate
-  language: string
-  now: number
-  runStartedAt?: string | null
   streaming?: boolean
   text?: string
   thinkingText?: string
@@ -435,36 +453,14 @@ type ActivityCardProps = {
   lastActivityAt?: string | null
 }
 
-function activityHasLiveClock(activity: EntityRecord) {
-  if (activity.type === 'plan') return !activity.updatedAt
-  if (activity.type === 'tool')
-    return (
-      !activity.status ||
-      activity.status === 'running' ||
-      (!activity.finishedAt && !activity.updatedAt)
-    )
-  if (activity.type === 'agent') {
-    const agent = activity.agent || {}
-    return (
-      !agent.status ||
-      ['queued', 'starting', 'running'].includes(agent.status) ||
-      (!agent.completedAt && !agent.lastActivityAt && !activity.updatedAt)
-    )
-  }
-  return true
-}
-
 function activityCardPropsEqual(prev: ActivityCardProps, next: ActivityCardProps) {
   if (
     prev.activity !== next.activity ||
     prev.latest !== next.latest ||
     prev.t !== next.t ||
-    prev.language !== next.language ||
-    prev.runStartedAt !== next.runStartedAt ||
     prev.streaming !== next.streaming
   )
     return false
-  if (prev.now !== next.now && activityHasLiveClock(next.activity)) return false
   if (['tool', 'plan', 'agent'].includes(next.activity.type)) return true
   return (
     prev.text === next.text &&
@@ -481,9 +477,6 @@ const ActivityCard = memo(function ActivityCard({
   activity,
   latest,
   t,
-  language,
-  now,
-  runStartedAt,
   streaming,
   text,
   thinkingText,
@@ -503,14 +496,13 @@ const ActivityCard = memo(function ActivityCard({
     stopped,
     notice,
     lastActivityAt,
-    now,
+    now: Date.now(),
   })
-  const duration = formatRunDuration(activityDurationMs(activity, runStartedAt, now), language)
   const showCommandOutput = activity.name === 'bash' && latest && Boolean(activity.output)
   return (
     <ActivityElement
       activity={activity}
-      className={`agent-run-summary grid w-full min-h-[42px] grid-cols-[28px_minmax(0,1fr)_auto] [align-items:start] gap-[9px] p-[6px_8px] hover:bg-[var(--surface-hover)] hover:opacity-100 [.agent-run-activity.compact_&]:min-h-[34px] [.agent-run-activity.compact_&]:grid-cols-[24px_minmax(0,1fr)_auto] [.agent-run-activity.compact_&]:gap-[7px] [.agent-run-activity.compact_&]:p-[4px_5px] @max-[700px]:grid-cols-[28px_minmax(0,1fr)_auto] @max-[700px]:[&_>_svg]:hidden flex-none [border:1px_solid_transparent] rounded-[var(--r-sm)] opacity-[.82] [transition:border-color_var(--d1)_var(--ease-out),_background_var(--d1)_var(--ease-out),_opacity_var(--d1)_var(--ease-out),_transform_var(--d1)_var(--ease-out)] ${presentation.tone}    ${latest ? 'current [.agent-run-summary&]:border-[var(--stroke-soft)] [.agent-run-summary&]:bg-[var(--surface-subtle)] [.agent-run-summary&]:opacity-100' : ''}`}
+      className={`agent-run-summary grid w-full min-h-[42px] grid-cols-[28px_minmax(0,1fr)] [align-items:start] gap-[9px] p-[6px_8px] hover:bg-[var(--surface-hover)] hover:opacity-100 [.agent-run-activity.compact_&]:min-h-[34px] [.agent-run-activity.compact_&]:grid-cols-[24px_minmax(0,1fr)] [.agent-run-activity.compact_&]:gap-[7px] [.agent-run-activity.compact_&]:p-[4px_5px] @max-[700px]:grid-cols-[28px_minmax(0,1fr)] @max-[700px]:[&_>_svg]:hidden flex-none [border:1px_solid_transparent] rounded-[var(--r-sm)] opacity-[.82] [transition:border-color_var(--d1)_var(--ease-out),_background_var(--d1)_var(--ease-out),_opacity_var(--d1)_var(--ease-out),_transform_var(--d1)_var(--ease-out)] ${presentation.tone}    ${latest ? 'current [.agent-run-summary&]:border-[var(--stroke-soft)] [.agent-run-summary&]:bg-[var(--surface-subtle)] [.agent-run-summary&]:opacity-100' : ''}`}
     >
       <span className="agent-run-status-icon [.agent-thinking-window.running_&]:text-[var(--brand-blue-strong)] [.agent-run-summary.completed_&]:bg-[var(--success-soft)] [.agent-run-summary.completed_&]:text-[var(--success)] [.agent-run-summary.plan_&]:bg-[var(--success-soft)] [.agent-run-summary.plan_&]:text-[var(--success)] [.agent-run-overview.completed_&]:bg-[var(--success-soft)] [.agent-run-overview.completed_&]:text-[var(--success)] [.agent-run-overview.plan_&]:bg-[var(--success-soft)] [.agent-run-overview.plan_&]:text-[var(--success)] [.agent-run-summary.compacting_&]:bg-[var(--warning-soft)] [.agent-run-summary.compacting_&]:text-[var(--star-strong)] [.agent-run-overview.compacting_&]:bg-[var(--warning-soft)] [.agent-run-overview.compacting_&]:text-[var(--star-strong)] [.agent-run-summary.failed_&]:bg-[var(--danger-soft)] [.agent-run-summary.failed_&]:text-[var(--danger)] [.agent-run-overview.failed_&]:bg-[var(--danger-soft)] [.agent-run-overview.failed_&]:text-[var(--danger)] [.agent-run-summary.stopped_&]:text-[var(--text-muted)] [.agent-run-overview.stopped_&]:text-[var(--text-muted)] [.agent-run-activity.compact_&]:w-[24px] [.agent-run-activity.compact_&]:h-[24px] grid w-[28px] h-[28px] place-items-center rounded-[var(--r-xs)] bg-[var(--blue-soft)] text-[var(--brand-blue-strong)]">
         <ActivityIcon tone={presentation.tone} />
@@ -552,10 +544,6 @@ const ActivityCard = memo(function ActivityCard({
             </small>
           )}
       </span>
-      <span className="agent-run-duration inline-flex items-center gap-[4px] pt-[3px] text-[var(--text-muted)] font-[ui-monospace,_SFMono-Regular,_Consolas,_'Liberation_Mono',_monospace] text-[11px] whitespace-nowrap [.agent-run-activity.compact_&]:text-[10px]">
-        <Clock3 size={12} />
-        {duration}
-      </span>
       {showCommandOutput && (
         <CommandOutput
           output={activity.output}
@@ -584,7 +572,6 @@ function AgentRunActivity({
   compact = false,
 }: AgentRunActivityProps) {
   const { t, language } = useI18n()
-  const now = useRunActivityClock(streaming)
   const thinking = String(thinkingText || '').trim()
   const thinkingScrollRef = useRef<HTMLDivElement>(null)
   const liveFeedRef = useRef<HTMLDivElement>(null)
@@ -628,7 +615,7 @@ function AgentRunActivity({
     stopped,
     notice,
     lastActivityAt,
-    now,
+    now: Date.now(),
   })
   if (!streaming && activities.length) {
     primary.title = t('chat:agentRunActivity.currentOperationCompleted')
@@ -636,7 +623,6 @@ function AgentRunActivity({
   }
   const completedActivityCount = !streaming ? activities.length : 0
   const showOverview = Boolean(streaming || compaction?.active || error || stopped)
-  const primaryDuration = formatRunDuration(runDurationMs(startedAt, finishedAt, now), language)
   const primaryDetail =
     primary.command && activities.length
       ? t('chat:agentRunActivity.countLiveOperations', { count: activities.length })
@@ -648,12 +634,9 @@ function AgentRunActivity({
         compaction={compaction}
         error={error}
         key={activityRenderKey(activity, index)}
-        language={language}
         lastActivityAt={lastActivityAt}
         latest={index === items.length - 1}
         notice={notice}
-        now={now}
-        runStartedAt={startedAt}
         stopped={stopped}
         streaming={streaming}
         t={t}
@@ -701,10 +684,14 @@ function AgentRunActivity({
                 ) : null}
               </strong>
             </span>
-            <span className="agent-run-duration inline-flex items-center gap-[4px] pt-[3px] text-[var(--text-muted)] font-[ui-monospace,_SFMono-Regular,_Consolas,_'Liberation_Mono',_monospace] text-[11px] whitespace-nowrap [.agent-run-activity.compact_&]:text-[10px]">
-              <Clock3 size={12} />
-              {primaryDuration}
-            </span>
+            {!showOverview && completedActivityCount === 0 && (
+              <RunDurationLabel
+                startedAt={startedAt}
+                finishedAt={finishedAt}
+                streaming={streaming}
+                language={language}
+              />
+            )}
           </summary>
           <div
             ref={thinkingScrollRef}
@@ -734,10 +721,12 @@ function AgentRunActivity({
             </strong>
             {primaryDetail && <small title={primaryDetail}>{primaryDetail}</small>}
           </span>
-          <span className="agent-run-duration inline-flex items-center gap-[4px] pt-[3px] text-[var(--text-muted)] font-[ui-monospace,_SFMono-Regular,_Consolas,_'Liberation_Mono',_monospace] text-[11px] whitespace-nowrap [.agent-run-activity.compact_&]:text-[10px]">
-            <Clock3 size={12} />
-            {primaryDuration}
-          </span>
+          <RunDurationLabel
+            startedAt={startedAt}
+            finishedAt={finishedAt}
+            streaming={streaming}
+            language={language}
+          />
         </div>
       )}
       {streaming && activities.length > 0 && (
@@ -767,10 +756,14 @@ function AgentRunActivity({
                 })}
               </strong>
             </span>
-            <span className="agent-run-duration inline-flex items-center gap-[4px] pt-[3px] text-[var(--text-muted)] font-[ui-monospace,_SFMono-Regular,_Consolas,_'Liberation_Mono',_monospace] text-[11px] whitespace-nowrap [.agent-run-activity.compact_&]:text-[10px]">
-              <Clock3 size={12} />
-              {primaryDuration}
-            </span>
+            {!showOverview && (
+              <RunDurationLabel
+                startedAt={startedAt}
+                finishedAt={finishedAt}
+                streaming={streaming}
+                language={language}
+              />
+            )}
           </summary>
           <div
             className="agent-run-feed focus-visible:[outline:2px_solid_var(--accent-border)] focus-visible:[outline-offset:2px] [.agent-run-history_&.completed]:mt-[3px] flex max-h-[184px] flex-col gap-[4px] overflow-y-auto [overscroll-behavior:contain] [margin:5px_0_2px] [padding:2px_4px_2px_0] [scrollbar-gutter:stable] completed"

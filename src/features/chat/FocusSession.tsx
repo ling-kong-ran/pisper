@@ -480,12 +480,12 @@ export function FocusSession({
             }}
             onPaste={selection.pasteFiles}
             onKeyDown={(event) => {
-              if (!mobileApp && event.key === 'Enter' && !event.shiftKey) {
+              if (event.key === 'Enter' && !event.shiftKey && !event.nativeEvent.isComposing) {
                 event.preventDefault()
                 event.currentTarget.form?.requestSubmit()
               }
             }}
-            enterKeyHint={mobileApp ? 'enter' : 'send'}
+            enterKeyHint="send"
             placeholder={composerPlaceholder}
           />
           <div

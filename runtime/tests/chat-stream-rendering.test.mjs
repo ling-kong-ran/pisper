@@ -28,6 +28,27 @@ test('chat renders thinking and tool activity above one uninterrupted response b
   assert.match(activity, /className="agent-run-history[^"\n]*"/)
 })
 
+test('SSE activity isolates one total-duration clock from the streamed activity tree', async () => {
+  const activity = await readFile('src/features/chat/AgentRunActivity.tsx', 'utf8')
+  const durationLabel = activity.slice(
+    activity.indexOf('function RunDurationLabel'),
+    activity.indexOf('function cleanInline'),
+  )
+  const activityCard = activity.slice(
+    activity.indexOf('const ActivityCard = memo'),
+    activity.indexOf('function AgentRunActivity'),
+  )
+  const activityPanel = activity.slice(activity.indexOf('function AgentRunActivity'))
+
+  assert.match(durationLabel, /const now = useRunActivityClock\(streaming\)/)
+  assert.match(durationLabel, /runDurationMs\(startedAt, finishedAt, now\)/)
+  assert.doesNotMatch(activityCard, /agent-run-duration|activityDurationMs|useRunActivityClock/)
+  assert.doesNotMatch(activityPanel, /const now = useRunActivityClock/)
+  assert.match(activityPanel, /!showOverview && completedActivityCount === 0/)
+  assert.match(activityPanel, /\{showOverview && \([\s\S]*<RunDurationLabel/)
+  assert.match(activityPanel, /\{!showOverview && \([\s\S]*<RunDurationLabel/)
+})
+
 test('tool activity uses a polished scroll viewport without truncating records', async () => {
   const activity = await readFile('src/features/chat/AgentRunActivity.tsx', 'utf8')
   assert.match(activity, /ref=\{liveFeedRef\}[\s\S]*agent-run-feed[^"\n]*live/)

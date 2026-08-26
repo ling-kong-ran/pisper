@@ -203,7 +203,7 @@ test('chat resource picker remains visible above dock splits with a readable pri
   )
 })
 
-test('mobile chat keeps Enter for new lines and uses one collapsible Composer tool tray', async () => {
+test('mobile chat sends with Enter and uses one collapsible Composer tool tray', async () => {
   const [dock, focusSession, toolTray, pageHeader, zhChat, enChat] = await Promise.all([
     readFile('src/features/chat/use-chat-dock.ts', 'utf8'),
     readFile('src/features/chat/FocusSession.tsx', 'utf8'),
@@ -218,8 +218,12 @@ test('mobile chat keeps Enter for new lines and uses one collapsible Composer to
   assert.match(dock, /if \(compactDock \|\| panel\.group\.size <= 1\) return \[closeItem\]/)
   assert.doesNotMatch(dock, /disabled: compactDock/)
   assert.match(focusSession, /const mobileApp = useIsMobileApp\(\)/)
-  assert.match(focusSession, /if \(!mobileApp && event\.key === 'Enter' && !event\.shiftKey\)/)
-  assert.match(focusSession, /enterKeyHint=\{mobileApp \? 'enter' : 'send'\}/)
+  assert.match(
+    focusSession,
+    /if \(event\.key === 'Enter' && !event\.shiftKey && !event\.nativeEvent\.isComposing\)/,
+  )
+  assert.match(focusSession, /event\.currentTarget\.form\?\.requestSubmit\(\)/)
+  assert.match(focusSession, /enterKeyHint="send"/)
   assert.match(focusSession, /const composerPlaceholder = mobileApp/)
   assert.match(focusSession, /\{!mobileApp && \([\s\S]*?\{composerLeadingTools\}/)
   assert.match(focusSession, /\{mobileApp && composerLeadingTools\}/)

@@ -216,6 +216,7 @@ function App() {
   const browserEventCursor = useRef('')
   const [primaryActions] = useState(createPrimaryActionRegistry)
   const searchInputRef = useRef<HTMLInputElement>(null)
+  const appShellRef = useRef<HTMLDivElement>(null)
   const toastSequence = useRef(0)
   const appDialog = useAppDialog()
   const appUpdate = useAppUpdate()
@@ -297,6 +298,58 @@ function App() {
       await invokeMobile('mobile_ensure_local_network_permission').catch(() => undefined)
     })()
   }, [clientLoaded, mobileApp])
+
+  useEffect(() => {
+    if (!clientLoaded || !mobileApp || !startupReady) return undefined
+    const shell = appShellRef.current
+    if (!shell) return undefined
+    const viewport = window.visualViewport
+    let frame = 0
+    let orientationTimer = 0
+    let viewportBaseline = Math.max(window.innerHeight, viewport?.height ?? 0)
+
+    // Android WebView 与 iOS WKWebView 对软键盘的布局视口处理不同，统一以
+    // visualViewport 为准收紧壳层，并跟随 iOS 可能产生的可视区垂直偏移。
+    const apply = () => {
+      frame = 0
+      const height = Math.max(1, Math.round(viewport?.height ?? window.innerHeight))
+      const offsetTop = Math.max(0, Math.round(viewport?.offsetTop ?? 0))
+      viewportBaseline = Math.max(viewportBaseline, window.innerHeight, height + offsetTop)
+      shell.style.height = `${height}px`
+      shell.style.transform = offsetTop ? `translate3d(0, ${offsetTop}px, 0)` : ''
+      const keyboardInset = Math.max(0, viewportBaseline - height - offsetTop)
+      if (keyboardInset >= 120) shell.dataset.mobileKeyboard = 'open'
+      else delete shell.dataset.mobileKeyboard
+    }
+    const schedule = () => {
+      if (frame) window.cancelAnimationFrame(frame)
+      frame = window.requestAnimationFrame(apply)
+    }
+    const resetAfterOrientationChange = () => {
+      window.clearTimeout(orientationTimer)
+      orientationTimer = window.setTimeout(() => {
+        viewportBaseline = 0
+        schedule()
+      }, 150)
+    }
+
+    apply()
+    viewport?.addEventListener('resize', schedule)
+    viewport?.addEventListener('scroll', schedule)
+    window.addEventListener('resize', schedule)
+    window.addEventListener('orientationchange', resetAfterOrientationChange)
+    return () => {
+      if (frame) window.cancelAnimationFrame(frame)
+      window.clearTimeout(orientationTimer)
+      viewport?.removeEventListener('resize', schedule)
+      viewport?.removeEventListener('scroll', schedule)
+      window.removeEventListener('resize', schedule)
+      window.removeEventListener('orientationchange', resetAfterOrientationChange)
+      shell.style.height = ''
+      shell.style.transform = ''
+      delete shell.dataset.mobileKeyboard
+    }
+  }, [clientLoaded, mobileApp, startupReady])
 
   // 系统通知（桌面/浏览器）：已开启浏览器通知开关才发；
   // 前台聚焦时静默（不打扰），force 强制忽略该规则；桌面桥接优先。
@@ -643,6 +696,7 @@ function App() {
   return (
     <ToastProvider duration={2800} swipeDirection="right">
       <div
+        ref={appShellRef}
         className="app-shell dark:bg-[var(--bg)] dark:text-[var(--text)] max-[900px]:min-h-[100dvh] max-[900px]:h-auto max-[900px]:overflow-visible flex w-full h-full min-h-[600px] flex-col overflow-hidden bg-[var(--bg)] pt-[env(safe-area-inset-top)] pr-[env(safe-area-inset-right)] pb-[env(safe-area-inset-bottom)] pl-[env(safe-area-inset-left)] [&[data-mobile-app]]:h-[100dvh] [&[data-mobile-app]]:min-h-0 [&[data-mobile-app]]:overflow-hidden"
         data-mobile-app={mobileApp || undefined}
       >
