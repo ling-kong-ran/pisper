@@ -74,6 +74,11 @@ fn main() {
     );
     tauri_build::build();
 
+    if std::env::var("CARGO_CFG_TARGET_OS").as_deref() == Ok("ios") {
+        // Iroh 的 iOS 网络探测通过这些系统 API 读取 DNS 和网卡信息，必须显式链接对应 framework。
+        println!("cargo:rustc-link-lib=framework=SystemConfiguration");
+    }
+
     if std::env::var("CARGO_CFG_TARGET_OS").as_deref() == Ok("windows") {
         stage_windows_test_resource();
     }
