@@ -14,11 +14,12 @@
     return arguments[marker + 1];
 }
 
-+ (void)writeFailureForToken:(NSString *)token {
++ (void)writeResultForToken:(NSString *)token passed:(BOOL)passed {
     NSString *documents = [NSSearchPathForDirectoriesInDomains(NSDocumentDirectory, NSUserDomainMask, YES) firstObject];
     NSString *result = [documents stringByAppendingPathComponent:[NSString stringWithFormat:@"result-%@.txt", token]];
+    NSString *value = passed ? @"PASS\n" : @"FAIL\n";
     NSError *error = nil;
-    if (![@"FAIL\n" writeToFile:result atomically:YES encoding:NSUTF8StringEncoding error:&error]) {
+    if (![value writeToFile:result atomically:YES encoding:NSUTF8StringEncoding error:&error]) {
         NSLog(@"PISPER_IOS_RUNTIME_SMOKE_RESULT_ERROR %@", error.localizedDescription);
     }
 }
@@ -36,11 +37,12 @@
         NSString *script = [[NSBundle mainBundle] pathForResource:@"pisper-smoke" ofType:@"mjs"];
         if (script.length == 0) {
             NSLog(@"PISPER_IOS_RUNTIME_SMOKE_SCRIPT_MISSING");
-            [ViewController writeFailureForToken:token];
+            [ViewController writeResultForToken:token passed:NO];
             return;
         }
         setenv("NODE_MOBILE_RUN_TOKEN", token.UTF8String, 1);
         int code = [NodeRunner startEngineWithArguments:@[@"node", script]];
+        [ViewController writeResultForToken:token passed:(code == 0)];
         NSLog(@"PISPER_IOS_RUNTIME_SMOKE_NODE_EXIT %d", code);
     });
 }
