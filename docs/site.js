@@ -727,13 +727,18 @@ if ('IntersectionObserver' in window && !reduceMotion) {
 
 /* 滚动视差:给标注 data-depth 的元素按离屏幕中心的距离施加纵向偏移,
    形成前后分层。只写 CSS 变量,与 .reveal 的入场 transform 合成,互不打断。 */
+/* 窄屏禁用视差：窄屏为单列布局，没有分层的表达价值，且与上同源的横向位移已关闭。
+   注意：层集合不能在加载时根据宽度一次性决定，否则窄屏进入再旋转/拉宽
+   就永久拿不到视差；改为始终收集，由 updateParallax 按当前断点实时判定。 */
 const parallaxLayers = reduceMotion ? [] : [...document.querySelectorAll('[data-depth]')]
+const wideScreen = () => window.matchMedia('(min-width: 961px)').matches
 let parallaxVisible = []
 
 if (parallaxLayers.length && 'IntersectionObserver' in window) {
   // 只对视口内的层做计算,长页面滚动时避免每帧遍历全部元素
   const parallaxIO = new IntersectionObserver(
     (entries) => {
+      if (!wideScreen()) return
       for (const entry of entries) entry.target.dataset.inview = entry.isIntersecting ? '1' : ''
       parallaxVisible = parallaxLayers.filter((el) => el.dataset.inview === '1')
       for (const el of parallaxLayers) {
@@ -752,6 +757,15 @@ if (parallaxLayers.length && 'IntersectionObserver' in window) {
 }
 
 function updateParallax() {
+  // 窄屏（含旋转/缩放跨过断点）不做视差，并清掉已写入的内联偏移，
+  // 否则偏移会冻结在最后一帧，面板位置看起来是错的
+  if (!wideScreen()) {
+    for (const el of parallaxLayers) {
+      el.style.removeProperty('--py')
+      el.classList.remove('is-parallax')
+    }
+    return
+  }
   const viewH = window.innerHeight || 1
   for (const el of parallaxVisible) {
     const rect = el.getBoundingClientRect()
