@@ -38,10 +38,6 @@
   <a href="./README.md">简体中文</a>
 </p>
 
-<p align="center">
-  <img src="docs/shots/pisper-demo.gif" width="860" alt="Pisper demo: multiple agent sessions running in parallel" />
-</p>
-
 <a id="why"></a>
 
 ## ✨ Why Pisper

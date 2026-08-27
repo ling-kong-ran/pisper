@@ -38,10 +38,6 @@
   <a href="./README.en.md">English</a>
 </p>
 
-<p align="center">
-  <img src="docs/shots/pisper-demo.gif" width="860" alt="Pisper 演示：多个 Agent 会话并行推进" />
-</p>
-
 <a id="why"></a>
 
 ## ✨ 为什么是 Pisper
