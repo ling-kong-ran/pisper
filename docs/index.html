@@ -141,7 +141,7 @@
 
       <!-- 界面:标签页 + 截图面板 -->
       <section class="section shell" id="product" data-morph="并行" aria-labelledby="product-title">
-        <div class="section-heading reveal">
+        <div class="section-heading reveal reveal-soft" data-depth="14">
           <p class="eyebrow">界面</p>
           <h2 id="product-title">Agent 的每一步，都摆在台面上。</h2>
           <p>分屏、追忆、标签、终端 —— 没有黑盒，没有「正在运行中」的玄学等待。</p>
@@ -174,7 +174,7 @@
             data-copy="开启远程访问，查看 LAN 与 P2P 状态，并集中管理每一台已配对设备。">设备连接</button>
         </div>
 
-        <figure class="product-panel reveal" id="product-panel" role="tabpanel" aria-labelledby="tab-sessions">
+        <figure class="product-panel reveal reveal-deep" data-depth="26" id="product-panel" role="tabpanel" aria-labelledby="tab-sessions">
           <div class="product-shot-wrap tilt-card">
             <img
               class="product-shot"
@@ -196,47 +196,47 @@
 
       <!-- 能力 -->
       <section class="section shell" id="capabilities" data-morph="分叉" aria-labelledby="capability-title">
-        <div class="section-heading reveal">
+        <div class="section-heading reveal reveal-soft" data-depth="14">
           <p class="eyebrow">为什么选 Pisper</p>
           <h2 id="capability-title">每条分支都走完，再决定用哪条。</h2>
         </div>
         <ol class="capability-list">
-          <li class="reveal">
+          <li class="reveal reveal-left">
             <span>01</span>
             <div>
               <h3>对话开分支</h3>
               <p>在任意已完成 Turn 衍生新会话，继承上下文，源会话一字不改 —— 像 Git，但给 Agent 用。</p>
             </div>
           </li>
-          <li class="reveal" style="--d:80ms">
+          <li class="reveal reveal-right" style="--d:80ms">
             <span>02</span>
             <div>
               <h3>并行不排队</h3>
               <p>多会话同屏推进，每个 Agent 各自为战，进度肉眼可见。</p>
             </div>
           </li>
-          <li class="reveal" style="--d:160ms">
+          <li class="reveal reveal-left" style="--d:160ms">
             <span>03</span>
             <div>
               <h3>工具冷热分明</h3>
               <p>核心工具常驻上下文；插件、MCP 与技能经网关按需激活、用完即退，再丰富也不挤占。</p>
             </div>
           </li>
-          <li class="reveal" style="--d:240ms">
+          <li class="reveal reveal-right" style="--d:240ms">
             <span>04</span>
             <div>
               <h3>Pi 内核，深度优化</h3>
               <p>在 Pi 运行时之上优化工具按需加载、定义稳定排序与提示词形态诊断：上下文更轻，长会话更快、更省。</p>
             </div>
           </li>
-          <li class="reveal" style="--d:320ms">
+          <li class="reveal reveal-left" style="--d:320ms">
             <span>05</span>
             <div>
               <h3>能力不设限</h3>
               <p>插件自己写、MCP 随手接、技能按需装 —— 想要就说，说完就有。</p>
             </div>
           </li>
-          <li class="reveal" style="--d:400ms">
+          <li class="reveal reveal-right" style="--d:400ms">
             <span>06</span>
             <div>
               <h3>多端不脱节</h3>
@@ -248,7 +248,7 @@
 
       <!-- 数据安全 -->
       <section class="section shell" id="safety" data-morph="本机" aria-labelledby="safety-title">
-        <div class="section-heading reveal">
+        <div class="section-heading reveal reveal-soft" data-depth="14">
           <p class="eyebrow">数据安全</p>
           <h2 id="safety-title">默认不出机，出门要审批。</h2>
           <p>
@@ -258,35 +258,35 @@
         </div>
 
         <div class="safety-layout">
-          <div class="safety-local reveal">
+          <div class="safety-local reveal reveal-left" data-depth="18">
             <p>LOCAL DATA ROOT</p>
             <code>~/.pisper/agent</code>
             <span>可通过 <code>PISPER_AGENT_DIR</code> 更改位置</span>
             <small>会话、记忆、工作流、日程、用量与连接配置，默认都保存在这里。</small>
           </div>
           <ol class="safety-list">
-            <li class="reveal">
+            <li class="reveal reveal-left">
               <span>01</span>
               <div>
                 <h3>连接由你开启</h3>
                 <p>远程访问默认关闭；开启后，只有完成配对的设备可以连接，每台设备都能单独移除。</p>
               </div>
             </li>
-            <li class="reveal" style="--d:100ms">
+            <li class="reveal reveal-right" style="--d:100ms">
               <span>02</span>
               <div>
                 <h3>敏感先脱敏</h3>
                 <p>常见密钥、令牌与连接信息，在保存和展示前自动隐藏。</p>
               </div>
             </li>
-            <li class="reveal" style="--d:200ms">
+            <li class="reveal reveal-left" style="--d:200ms">
               <span>03</span>
               <div>
                 <h3>权限有边界</h3>
                 <p>为 Agent 选择只读、单次审批或完全访问，关键操作始终由你决定。</p>
               </div>
             </li>
-            <li class="reveal" style="--d:300ms">
+            <li class="reveal reveal-right" style="--d:300ms">
               <span>04</span>
               <div>
                 <h3>记忆需确认</h3>
@@ -324,7 +324,7 @@
 
       <!-- 终端 -->
       <section class="section shell terminal-section" id="terminal" data-morph="TUI" aria-labelledby="terminal-title">
-        <div class="terminal-copy reveal">
+        <div class="terminal-copy reveal reveal-left" data-depth="12">
           <p class="eyebrow">同一内核，两个入口</p>
           <h2 id="terminal-title">离开桌面，上下文不走。</h2>
           <p>
@@ -348,13 +348,13 @@
           </a>
         </div>
         <div class="terminal-gallery" aria-label="Pisper TUI 界面">
-          <figure class="terminal-figure reveal">
+          <figure class="terminal-figure reveal reveal-deep" data-depth="22">
             <a href="shots/cli.png" target="_blank" rel="noopener noreferrer" aria-label="查看完整 TUI 欢迎页截图">
               <img src="shots/web/cli.webp" alt="Pisper TUI 欢迎页" width="1400" height="684" loading="lazy" decoding="async" />
             </a>
             <figcaption>欢迎页</figcaption>
           </figure>
-          <figure class="terminal-figure reveal" style="--d:120ms">
+          <figure class="terminal-figure reveal reveal-deep" data-depth="30" style="--d:120ms">
             <a href="shots/cli-chat.png" target="_blank" rel="noopener noreferrer" aria-label="查看完整 TUI Chat 截图">
               <img src="shots/web/cli-chat.webp" alt="Pisper TUI Chat 页面" width="1400" height="684" loading="lazy" decoding="async" />
             </a>
@@ -365,7 +365,7 @@
 
       <!-- 移动端 -->
       <section class="section shell terminal-section" id="mobile" data-morph="手机" aria-labelledby="mobile-title">
-        <div class="terminal-copy reveal">
+        <div class="terminal-copy reveal reveal-left" data-depth="12">
           <p class="eyebrow">移动端 · MOBILE</p>
           <h2 id="mobile-title">Pisper，随身带走。</h2>
           <p>
@@ -435,13 +435,13 @@
           </div>
         </div>
         <div class="terminal-gallery" aria-label="Pisper 移动端界面">
-          <figure class="terminal-figure phone-figure reveal">
+          <figure class="terminal-figure phone-figure reveal reveal-deep" data-depth="22">
             <a href="shots/mobile-chat3.png" target="_blank" rel="noopener noreferrer" aria-label="查看完整移动端会话截图">
               <img src="shots/web/mobile-chat3.webp" alt="Pisper 移动端会话界面" width="720" height="1280" loading="lazy" decoding="async" />
             </a>
             <figcaption>手机上的完整 Pisper</figcaption>
           </figure>
-          <figure class="terminal-figure phone-figure reveal" style="--d:100ms">
+          <figure class="terminal-figure phone-figure reveal reveal-deep" data-depth="30" style="--d:100ms">
             <a href="shots/mobile-servers.png" target="_blank" rel="noopener noreferrer" aria-label="查看移动端服务器切换截图">
               <img src="shots/web/mobile-servers.webp" alt="Pisper 移动端服务器切换界面" width="720" height="1280" loading="lazy" decoding="async" />
             </a>

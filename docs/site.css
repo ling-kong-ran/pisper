@@ -1109,7 +1109,9 @@ main,
 
 .reveal {
   opacity: 0;
-  transform: translateY(22px);
+  /* --py 由滚动视差写入，与入场位移合成到同一个 transform，避免两套动画互相覆盖 */
+  transform: translate3d(var(--rx, 0px), calc(var(--ry, 22px) + var(--py, 0px)), 0)
+    scale(var(--rs, 1));
   transition:
     opacity 0.85s var(--ease),
     transform 0.85s var(--ease);
@@ -1118,7 +1120,42 @@ main,
 
 .reveal.in-view {
   opacity: 1;
-  transform: none;
+  transform: translate3d(0, var(--py, 0px), 0) scale(1);
+}
+
+/* 方向变体：双栏区块左右错开进入，滚动时产生层次而非整块平移 */
+.reveal-left {
+  --rx: -34px;
+  --ry: 10px;
+}
+
+.reveal-right {
+  --rx: 34px;
+  --ry: 10px;
+}
+
+/* 纵深变体：略微放大回位，配合视差形成前后层 */
+.reveal-deep {
+  --ry: 34px;
+  --rs: 0.965;
+}
+
+/* 标题柔化进入：仅用于短文本，避免在玻璃卡片上叠加昂贵的模糊 */
+.reveal-soft {
+  filter: blur(5px);
+  transition:
+    opacity 0.85s var(--ease),
+    transform 0.85s var(--ease),
+    filter 0.85s var(--ease);
+}
+
+.reveal-soft.in-view {
+  filter: none;
+}
+
+/* 视差层在滚动中才需要合成提升，入场结束后由 JS 清理 */
+.is-parallax {
+  will-change: transform;
 }
 
 .mobile-download-cta {
@@ -1266,5 +1303,8 @@ main,
   .reveal {
     opacity: 1;
     transform: none;
+    /* 视差偏移与柔化模糊在降动效下一律不生效 */
+    --py: 0px;
+    filter: none;
   }
 }
