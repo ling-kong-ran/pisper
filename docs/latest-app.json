@@ -1,9 +1,9 @@
 {
-  "version": "0.1.15",
-  "tag": "app-v0.1.15",
-  "url": "https://github.com/ling-kong-ran/pisper/releases/tag/app-v0.1.15",
+  "version": "0.1.16",
+  "tag": "app-v0.1.16",
+  "url": "https://github.com/ling-kong-ran/pisper/releases/tag/app-v0.1.16",
   "apk": "app-universal-release-signed.apk",
   "ipa": "pisper-ios-unsigned.ipa",
-  "notes": "- fix(chat): stabilize mobile composer and run activity",
-  "releaseDate": "2026-08-26"
+  "notes": "- fix(chat): recover sessions after mobile backgrounding",
+  "releaseDate": "2026-08-27"
 }
