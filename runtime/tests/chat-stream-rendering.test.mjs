@@ -2,6 +2,27 @@ import assert from 'node:assert/strict'
 import { readFile } from 'node:fs/promises'
 import test from 'node:test'
 
+test('foreground resume refreshes cached sessions and invalidates stale SSE ownership', async () => {
+  const [page, liveSync, prompt] = await Promise.all([
+    readFile('src/features/chat/ChatPage.tsx', 'utf8'),
+    readFile('src/features/chat/use-live-session-sync.ts', 'utf8'),
+    readFile('src/features/chat/use-prompt-commands.ts', 'utf8'),
+  ])
+  assert.match(page, /document\.addEventListener\('visibilitychange', recover\)/)
+  assert.match(page, /window\.addEventListener\('pageshow', recover\)/)
+  assert.match(page, /window\.addEventListener\('online', recover\)/)
+  assert.match(page, /await refreshSessions\(\)/)
+  assert.match(page, /syncLiveSession\(id, \{ force: true \}\)/)
+  assert.match(liveSync, /async \(id: string, \{ force = false \}/)
+  assert.match(liveSync, /if \(force && localStreamSessionsRef\.current\.has\(id\)\)/)
+  assert.match(liveSync, /streamGenerationRef\.current\.set\(id, generation \+ 1\)/)
+  assert.match(prompt, /if \(!ownsStream\(\)\) return false/)
+  assert.match(
+    prompt,
+    /if \(currentStream\) \{[\s\S]*streamGenerationRef\.current\.delete\(sessionId\)/,
+  )
+})
+
 test('chat renders thinking and tool activity above one uninterrupted response body', async () => {
   const [dock, focus, message, activity] = await Promise.all([
     readFile('src/features/chat/ChatDock.tsx', 'utf8'),
@@ -158,7 +179,7 @@ test('live snapshots cannot overwrite a locally owned SSE assistant message', as
   ])
   assert.match(promptCommands, /localStreamSessionsRef\.current\.add\(sessionId\)/)
   assert.match(promptCommands, /localStreamSessionsRef\.current\.delete\(sessionId\)/)
-  assert.match(liveSync, /if \(localStreamSessionsRef\.current\.has\(id\)\) return/)
+  assert.match(liveSync, /if \(!force && localStreamSessionsRef\.current\.has\(id\)\) return/)
   assert.match(liveSync, /liveSyncInFlightRef\.current\.has\(id\)/)
 })
 

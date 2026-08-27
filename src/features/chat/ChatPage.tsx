@@ -47,11 +47,14 @@ export function ChatPage({
 }: ChatPageProps) {
   const { t } = useI18n()
   const localStreamSessionsRef = useRef(new Set<string>())
+  const streamGenerationRef = useRef(new Map<string, number>())
+  const resumeSyncRef = useRef<Promise<void> | null>(null)
   const catalog = useSessionCatalog({ notify })
   const liveSync = useLiveSessionSync({
     sessionStates: catalog.sessionStates,
     sessionStatesRef: catalog.sessionStatesRef,
     localStreamSessionsRef,
+    streamGenerationRef,
     updateSessionState: catalog.updateSessionState,
     updateSessions: catalog.updateSessions,
   })
@@ -71,6 +74,8 @@ export function ChatPage({
   const createSessionRecord = catalog.createSessionRecord
   const loadSessionMessages = liveSync.loadSessionMessages
   const refreshSessions = catalog.refreshSessions
+  const sessionStatesRef = catalog.sessionStatesRef
+  const syncLiveSession = liveSync.syncLiveSession
   const setGlobalError = catalog.setGlobalError
   const openSessionInDock = dock.openSessionInDock
   const moveSessionToGroup = dock.moveSessionToGroup
@@ -104,6 +109,7 @@ export function ChatPage({
     notify,
     defaultModel: catalog.defaultModel,
     localStreamSessionsRef,
+    streamGenerationRef,
     sessionStatesRef: catalog.sessionStatesRef,
     setActiveId: catalog.setActiveId,
     setGlobalError: catalog.setGlobalError,
@@ -126,6 +132,42 @@ export function ChatPage({
     setGlobalError: catalog.setGlobalError,
     syncLiveSession: liveSync.syncLiveSession,
   })
+
+  // 移动 WebView 从后台恢复时，SSE 可能既不报错也不再产生活动；
+  // 先刷新目录，再强制用服务端快照校准所有已缓存/仍运行的会话。
+  const syncAfterForeground = useCallback(() => {
+    if (document.visibilityState !== 'visible' || resumeSyncRef.current) return
+    const request = (async () => {
+      let sessions: SessionSummary[] = []
+      try {
+        sessions = await refreshSessions()
+      } catch {
+        // 实时快照仍可使用已缓存的会话状态，目录请求失败不阻断恢复。
+      }
+      const ids = new Set([
+        ...Object.keys(sessionStatesRef.current),
+        ...(catalog.activeId ? [catalog.activeId] : []),
+        ...sessions.filter((session) => session.streaming).map((session) => session.id),
+      ])
+      await Promise.allSettled(Array.from(ids).map((id) => syncLiveSession(id, { force: true })))
+    })().finally(() => {
+      resumeSyncRef.current = null
+    })
+    resumeSyncRef.current = request
+  }, [catalog.activeId, refreshSessions, sessionStatesRef, syncLiveSession])
+
+  useEffect(() => {
+    const recover = () => syncAfterForeground()
+    document.addEventListener('visibilitychange', recover)
+    window.addEventListener('pageshow', recover)
+    window.addEventListener('online', recover)
+    return () => {
+      document.removeEventListener('visibilitychange', recover)
+      window.removeEventListener('pageshow', recover)
+      window.removeEventListener('online', recover)
+    }
+  }, [syncAfterForeground])
+
   // 强制重载会话分支：刷新消息 + 列表，供恢复/切换后同步。
   const reloadSessionBranch = useCallback(
     async (sessionId: string) => {

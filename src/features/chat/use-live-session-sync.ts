@@ -15,6 +15,7 @@ type SessionSyncOptions = {
   sessionStates: Record<string, SessionState>
   sessionStatesRef: React.MutableRefObject<Record<string, SessionState>>
   localStreamSessionsRef: React.MutableRefObject<Set<string>>
+  streamGenerationRef: React.MutableRefObject<Map<string, number>>
   updateSessionState: (id: string, update: SessionStateUpdate) => void
   updateSessions: (
     update: SessionSummary[] | ((current: SessionSummary[]) => SessionSummary[]),
@@ -104,6 +105,7 @@ export function useLiveSessionSync({
   sessionStates,
   sessionStatesRef,
   localStreamSessionsRef,
+  streamGenerationRef,
   updateSessionState,
   updateSessions,
 }: SessionSyncOptions) {
@@ -113,17 +115,26 @@ export function useLiveSessionSync({
     activeSessions: new Set(),
   })
 
-  // 同步单个会话的实时状态：本地持有流或已有同步在途时跳过（防并发）；
-  // 请求期间若本地流启动（其乐观消息拥有状态）则放弃应用快照。
+  // 同步单个会话的实时状态：普通轮询避让本地 SSE；前台恢复可强制采用服务端快照，
+  // 并让旧流失去写入资格，解决移动 WebView 挂起后连接表面存活但不再更新的问题。
   const syncLiveSession = useCallback(
-    async (id: string) => {
-      if (!id || localStreamSessionsRef.current.has(id) || liveSyncInFlightRef.current.has(id))
+    async (id: string, { force = false }: { force?: boolean } = {}) => {
+      if (
+        !id ||
+        (!force && localStreamSessionsRef.current.has(id)) ||
+        liveSyncInFlightRef.current.has(id)
+      )
         return
       liveSyncInFlightRef.current.add(id)
       try {
         const data = await chatApi.getLiveSession(id)
-        // A local stream can start while the request is in flight. Its optimistic message owns state.
-        if (localStreamSessionsRef.current.has(id)) return
+        // 请求期间新流仍拥有状态；强制恢复时则使旧流失去写入资格，再采用服务端快照。
+        if (!force && localStreamSessionsRef.current.has(id)) return
+        if (force && localStreamSessionsRef.current.has(id)) {
+          const generation = streamGenerationRef.current.get(id) || 0
+          streamGenerationRef.current.set(id, generation + 1)
+          localStreamSessionsRef.current.delete(id)
+        }
         updateSessionState(id, (current) => reconcileLiveSnapshot(current, data))
         updateSessions((current) =>
           current.map((session) =>
@@ -153,7 +164,7 @@ export function useLiveSessionSync({
         liveSyncInFlightRef.current.delete(id)
       }
     },
-    [localStreamSessionsRef, updateSessionState, updateSessions],
+    [localStreamSessionsRef, streamGenerationRef, updateSessionState, updateSessions],
   )
 
   // 加载会话消息：恢复中先走实时同步；已加载且页足够大时不重复拉取；

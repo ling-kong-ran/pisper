@@ -24,6 +24,7 @@ type PromptCommandOptions = {
   notify: Notify
   defaultModel: string
   localStreamSessionsRef: React.MutableRefObject<Set<string>>
+  streamGenerationRef: React.MutableRefObject<Map<string, number>>
   sessionStatesRef: React.MutableRefObject<Record<string, SessionState>>
   setActiveId: (id: string) => void
   setGlobalError: (error: string) => void
@@ -42,6 +43,7 @@ export function usePromptCommands({
   notify,
   defaultModel,
   localStreamSessionsRef,
+  streamGenerationRef,
   sessionStatesRef,
   setActiveId,
   setGlobalError,
@@ -77,6 +79,9 @@ export function usePromptCommands({
       let sessionId = requestedSessionId
       if (!sessionId) sessionId = await createSession()
       if (!sessionId || sessionStatesRef.current[sessionId]?.streaming) return
+      const streamGeneration = (streamGenerationRef.current.get(sessionId) || 0) + 1
+      streamGenerationRef.current.set(sessionId, streamGeneration)
+      const ownsStream = () => streamGenerationRef.current.get(sessionId) === streamGeneration
 
       let resolveLocalStream = () => {}
       const localStreamSettled = new Promise<void>((resolve) => {
@@ -192,6 +197,11 @@ export function usePromptCommands({
         toolScheduler,
         t,
       })
+      const dispatchStreamEvent = (event: string, data: Record<string, any>) => {
+        // 前台恢复会使陈旧流失效，避免它在服务端快照之后写回过期增量。
+        if (!ownsStream()) return false
+        return dispatcher.dispatch(event, data)
+      }
       streamState = dispatcher.state
 
       updateSessionState(sessionId, (current) => {
@@ -241,8 +251,9 @@ export function usePromptCommands({
       try {
         await chatApi.openStream(
           { sessionId, message: prompt, attachments, goalMode, goalTokenBudget, invocation },
-          dispatcher.dispatch,
+          dispatchStreamEvent,
         )
+        if (!ownsStream()) return
         typewriter.setTarget(streamState.responseText)
         typewriter.flush()
         thinkingScheduler.flush()
@@ -297,6 +308,7 @@ export function usePromptCommands({
           },
         })
       } catch (error) {
+        if (!ownsStream()) return
         typewriter.cancel()
         thinkingScheduler.flush()
         toolScheduler.cancel()
@@ -340,14 +352,19 @@ export function usePromptCommands({
           ),
         )
       } finally {
-        localStreamSessionsRef.current.delete(sessionId)
+        const currentStream = ownsStream()
+        if (currentStream) {
+          localStreamSessionsRef.current.delete(sessionId)
+          streamGenerationRef.current.delete(sessionId)
+          updateSessionState(sessionId, { streaming: false, hadQueuedInput: false })
+          const settler = localStreamSettlersRef.current.get(sessionId)
+          if (settler?.promise === localStreamSettled)
+            localStreamSettlersRef.current.delete(sessionId)
+        }
         typewriter.cancel()
         thinkingScheduler.cancel()
         toolScheduler.cancel()
-        updateSessionState(sessionId, { streaming: false, hadQueuedInput: false })
-        const settler = localStreamSettlersRef.current.get(sessionId)
-        localStreamSettlersRef.current.delete(sessionId)
-        settler?.resolve()
+        resolveLocalStream()
         window.dispatchEvent(new Event(USAGE_UPDATED_EVENT))
       }
     },
@@ -358,6 +375,7 @@ export function usePromptCommands({
       loadSessionMessages,
       localStreamSessionsRef,
       refreshSessions,
+      streamGenerationRef,
       sessionStatesRef,
       setActiveId,
       setGlobalError,
