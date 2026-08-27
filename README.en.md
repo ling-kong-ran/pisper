@@ -147,15 +147,25 @@ On first launch, the Android / iOS app starts its bundled on-device Runtime and 
 
 **Run on this phone**
 
+<details>
+<summary>Show steps</summary>
+
 1. On first launch, wait for the bundled Runtime to become ready; the app then opens the normal Pisper interface. To return from a remote Desktop, open **Settings → Servers → Run on this device**.
 2. Configure a Provider and model. Sessions, Provider settings, and the workspace stay in the App's private data directory.
 3. The Runtime listens only on a random loopback port. Android/iOS hides unsupported Shell, MCP, workflow, and related features according to the embedded Node host's actual module capabilities.
 
+</details>
+
 **Connect to Desktop**
+
+<details>
+<summary>Show steps</summary>
 
 1. For initial pairing, put the phone and computer on the same LAN when possible, then enable **Settings → Remote access** on Desktop.
 2. On the phone, open **Settings → Servers → Add server**, allow local-network access, choose the discovered Desktop, and request access. A device token is issued only after the Desktop user explicitly approves the request.
 3. When the devices are not on the same LAN or discovery fails, generate a one-time QR code on Desktop and scan it, or enter its values manually. A QR screenshot can be sent to a remote phone. Every path pins the TLS fingerprint and uses device Bearer authentication; established connections prefer LAN and fall back to Iroh P2P.
+
+</details>
 
 The app remembers the currently selected on-device or remote Runtime. See the **[Mobile Guide](./docs/mobile.md)** and **[On-device Runtime design](./docs/mobile-local-runtime.md)** for the complete flow, capability boundaries, security model, and troubleshooting.
 

@@ -93,25 +93,6 @@ Pisper 以 [Pi Coding Agent](https://github.com/earendil-works/pi/tree/main/pack
     <td align="center">工作流：把重复工作连成流程</td>
     <td align="center">TUI：离开桌面，上下文不走</td>
   </tr>
-## 📸 界面预览
-
-<table>
-  <tr>
-    <td><a href="docs/shots/chat-grid.png"><img src="docs/shots/web/chat-grid.webp" alt="并行会话分屏" /></a></td>
-    <td><a href="docs/shots/session-tree.png"><img src="docs/shots/web/session-tree.webp" alt="追忆分支视图" /></a></td>
-  </tr>
-  <tr>
-    <td align="center">并行会话：拖标签，四面分屏</td>
-    <td align="center">追忆：在任意已完成 Turn 接回原分支</td>
-  </tr>
-  <tr>
-    <td><a href="docs/shots/workflow-builder.png"><img src="docs/shots/web/workflow-builder.webp" alt="可视化工作流编辑器" /></a></td>
-    <td><a href="docs/shots/cli-chat.png"><img src="docs/shots/web/cli-chat.webp" alt="TUI Chat 界面" /></a></td>
-  </tr>
-  <tr>
-    <td align="center">工作流：把重复工作连成流程</td>
-    <td align="center">TUI：离开桌面，上下文不走</td>
-  </tr>
 </table>
 
 > 更多界面与交互演示见 **[项目主页](https://ling-kong-ran.github.io/pisper/)**。
@@ -166,15 +147,25 @@ Android / iOS App 首次启动会直接进入内置的本机 Runtime；连接桌
 
 **本机运行**
 
+<details>
+<summary>展开步骤</summary>
+
 1. 首次启动等待内置 Runtime 就绪，App 会直接打开正常 Pisper 界面；从远程桌面返回时可进入 **设置 → 服务器 → 在本机运行**。
 2. 配置 Provider 和模型；会话、Provider 配置与工作区只保存在手机 App 私有目录。
 3. 本机 Runtime 仅监听随机回环端口。Android/iOS 会按 embedded Node 的实际模块清单隐藏 Shell、MCP、工作流等不可用能力。
 
+</details>
+
 **连接桌面端**
+
+<details>
+<summary>展开步骤</summary>
 
 1. 建议首次配对时让手机与电脑接入同一局域网，在桌面端打开 **设置 → 远程访问** 并开启远程访问。
 2. 在手机 **设置 → 服务器 → 添加服务器** 中允许本地网络访问，选择自动发现的桌面并发起申请；桌面用户明确批准后才会签发设备令牌。
 3. 异地连接或局域网发现失败时，在桌面生成一次性二维码，再由手机扫描二维码或手动输入。二维码截图可以发到异地手机；所有路径都校验 TLS 指纹并使用设备 Bearer 令牌，连接后优先 LAN、不可达时回退 Iroh P2P。
+
+</details>
 
 手机会记住当前使用的本机或远程 Runtime。完整流程、能力边界、安全模型与排障见 **[移动端使用指南](./docs/mobile.md)** 和 **[本机 Runtime 设计](./docs/mobile-local-runtime.md)**。
 
