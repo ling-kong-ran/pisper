@@ -31,6 +31,7 @@
 
 <p align="center">
   <a href="https://ling-kong-ran.github.io/pisper/">项目主页</a> ·
+  <a href="https://ling-kong-ran.github.io/pisper/guide.html">使用教程</a> ·
   <a href="#quickstart">三分钟上手</a> ·
   <a href="#features">能力地图</a> ·
   <a href="#data-safety">数据安全</a> ·
@@ -92,19 +93,34 @@ Pisper 以 [Pi Coding Agent](https://github.com/earendil-works/pi/tree/main/pack
     <td align="center">工作流：把重复工作连成流程</td>
     <td align="center">TUI：离开桌面，上下文不走</td>
   </tr>
+## 📸 界面预览
+
+<table>
   <tr>
-    <td><a href="docs/shots/config-remote-access.png"><img src="docs/shots/web/config-remote-access.webp" alt="远程访问与已配对设备" /></a></td>
-    <td><a href="docs/shots/config-about.png"><img src="docs/shots/web/config-about.webp" alt="Pisper 关于页" /></a></td>
+    <td><a href="docs/shots/chat-grid.png"><img src="docs/shots/web/chat-grid.webp" alt="并行会话分屏" /></a></td>
+    <td><a href="docs/shots/session-tree.png"><img src="docs/shots/web/session-tree.webp" alt="追忆分支视图" /></a></td>
   </tr>
   <tr>
-    <td align="center">设备连接：LAN 优先、P2P 回退与设备管理</td>
-    <td align="center">关于：版本、项目链接与开源许可证</td>
+    <td align="center">并行会话：拖标签，四面分屏</td>
+    <td align="center">追忆：在任意已完成 Turn 接回原分支</td>
+  </tr>
+  <tr>
+    <td><a href="docs/shots/workflow-builder.png"><img src="docs/shots/web/workflow-builder.webp" alt="可视化工作流编辑器" /></a></td>
+    <td><a href="docs/shots/cli-chat.png"><img src="docs/shots/web/cli-chat.webp" alt="TUI Chat 界面" /></a></td>
+  </tr>
+  <tr>
+    <td align="center">工作流：把重复工作连成流程</td>
+    <td align="center">TUI：离开桌面，上下文不走</td>
   </tr>
 </table>
+
+> 更多界面与交互演示见 **[项目主页](https://ling-kong-ran.github.io/pisper/)**。
 
 <a id="quickstart"></a>
 
 ## 🚀 三分钟上手
+
+> 需要更详细的图文说明？见 **[使用教程](https://ling-kong-ran.github.io/pisper/guide.html)**。
 
 ### 方式一：桌面版（推荐）
 
@@ -215,12 +231,17 @@ Desktop、TUI、Runtime 与移动 App 各自独立版本、独立签名、独立
 
 ## 📚 文档
 
-- [项目主页](https://ling-kong-ran.github.io/pisper/) · 产品介绍与界面演示
-- [TUI 命令参考](./src-tui/README.md) · CLI、Slash command 与参数说明
-- [移动端使用指南](./docs/mobile.md) · Android / iOS 安装、本机运行、桌面配对、安全模型与排障
-- [移动端本机 Runtime](./docs/mobile-local-runtime.md) · 统一 Node 架构、能力清单、载体选择与供应链
-- [本地插件指南](./docs/local-plugins.md) · [插件开发指南](./docs/plugin-authoring.md)
-- [桌面宠物（Petdex）](./docs/petdex-integration.md)
+**新手从这里开始** → **[使用教程](https://ling-kong-ran.github.io/pisper/guide.html)**：安装、模型配置、并行会话、分支、工作流、终端与移动端的完整说明。
+
+| 文档 | 内容 |
+| --- | --- |
+| [使用教程](https://ling-kong-ran.github.io/pisper/guide.html) | 从安装到进阶的完整上手路径 |
+| [项目主页](https://ling-kong-ran.github.io/pisper/) | 产品介绍与界面演示 |
+| [TUI 命令参考](./src-tui/README.md) | CLI、Slash command 与参数说明 |
+| [移动端使用指南](./docs/mobile.md) | 安装、本机运行、桌面配对、安全模型与排障 |
+| [移动端本机 Runtime](./docs/mobile-local-runtime.md) | 统一 Node 架构、能力清单与供应链 |
+| [插件开发指南](./docs/plugin-authoring.md) | 编写与发布插件；另见 [本地插件指南](./docs/local-plugins.md) |
+| [桌面宠物（Petdex）](./docs/petdex-integration.md) | 桌面宠物集成说明 |
 
 <a id="development"></a>
 

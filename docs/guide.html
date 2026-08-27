@@ -1,0 +1,552 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta
+      name="description"
+      content="Pisper 使用教程：安装桌面版、配置模型 Provider、并行会话与追忆分支、工作流与定时任务、终端 TUI、移动端本机运行与桌面配对。"
+    />
+    <meta name="theme-color" content="#0b0c0c" />
+    <meta property="og:type" content="article" />
+    <meta property="og:title" content="Pisper 使用教程" />
+    <meta
+      property="og:description"
+      content="从安装到进阶：模型配置、并行会话、追忆分支、工作流、终端与移动端完整使用说明。"
+    />
+    <meta property="og:url" content="https://ling-kong-ran.github.io/pisper/guide.html" />
+    <link rel="canonical" href="https://ling-kong-ran.github.io/pisper/guide.html" />
+    <link rel="icon" href="brand/pisper-logo.svg" type="image/svg+xml" />
+    <link rel="stylesheet" href="guide.css" />
+    <script src="guide.js" defer></script>
+    <title>使用教程 · Pisper</title>
+  </head>
+  <body>
+    <a class="skip-link" href="#guide-main">跳到主要内容</a>
+
+    <header class="guide-header">
+      <button
+        type="button"
+        class="nav-toggle"
+        data-nav-toggle
+        aria-expanded="false"
+        aria-controls="guide-sidebar"
+        aria-label="切换教程导航"
+      >
+        ☰
+      </button>
+      <a class="guide-brand" href="index.html">
+        <img src="brand/pisper-logo.svg" width="28" height="28" alt="" />
+        <span>Pisper</span>
+      </a>
+      <nav class="guide-header-links" aria-label="站点链接">
+        <a href="index.html">首页</a>
+        <a href="https://github.com/ling-kong-ran/pisper">GitHub</a>
+        <a href="https://github.com/ling-kong-ran/pisper/releases/latest">下载</a>
+      </nav>
+    </header>
+
+    <div class="guide-shell">
+      <!-- 左侧导航：分组罗列全部章节，滚动时高亮当前位置 -->
+      <aside class="guide-sidebar" id="guide-sidebar" data-sidebar>
+        <h2>使用教程</h2>
+        <nav aria-label="教程目录">
+          <div class="guide-nav-group">
+            <span>开始</span>
+            <ul>
+              <li><a href="#install">安装 Pisper</a></li>
+              <li><a href="#provider">配置模型 Provider</a></li>
+              <li><a href="#first-session">第一个会话</a></li>
+            </ul>
+          </div>
+          <div class="guide-nav-group">
+            <span>核心用法</span>
+            <ul>
+              <li><a href="#parallel">并行会话与分屏</a></li>
+              <li><a href="#branch">追忆分支与 Turn 标签</a></li>
+              <li><a href="#tools">工具、插件与 MCP</a></li>
+              <li><a href="#permission">执行模式与权限</a></li>
+            </ul>
+          </div>
+          <div class="guide-nav-group">
+            <span>进阶</span>
+            <ul>
+              <li><a href="#workflow">可视化工作流</a></li>
+              <li><a href="#schedule">定时任务与通知</a></li>
+              <li><a href="#memory">星忆项目记忆</a></li>
+            </ul>
+          </div>
+          <div class="guide-nav-group">
+            <span>多端</span>
+            <ul>
+              <li><a href="#tui">终端 TUI</a></li>
+              <li><a href="#mobile">移动端 App</a></li>
+              <li><a href="#remote">远程访问与配对</a></li>
+            </ul>
+          </div>
+          <div class="guide-nav-group">
+            <span>参考</span>
+            <ul>
+              <li><a href="#data">数据与目录</a></li>
+              <li><a href="#update">组件更新</a></li>
+              <li><a href="#faq">常见问题</a></li>
+            </ul>
+          </div>
+        </nav>
+      </aside>
+
+      <main class="guide-main" id="guide-main">
+        <div class="guide-intro">
+          <h1>使用教程</h1>
+          <p>
+            从安装到进阶：配置模型、并行推进多个 Agent、用分支比较不同方案，并在终端和手机上接着同一段工作。
+          </p>
+        </div>
+
+        <!-- 开始 -->
+        <section class="guide-section" id="install">
+          <h2>安装 Pisper</h2>
+          <p>桌面安装包自带 TUI 与 Runtime，无需预装 Node.js。</p>
+
+          <div class="guide-cards">
+            <div class="guide-card">
+              <h3>Windows</h3>
+              <p>下载 <code>.exe</code> 安装包，双击安装后即可启动。</p>
+            </div>
+            <div class="guide-card">
+              <h3>macOS</h3>
+              <p>下载 <code>.dmg</code>，拖入「应用程序」。尚未公证，首次打开见下方常见问题。</p>
+            </div>
+            <div class="guide-card">
+              <h3>Linux</h3>
+              <p>可选 <code>.AppImage</code> 或 <code>.deb</code>；AppImage 需先加可执行权限。</p>
+            </div>
+          </div>
+
+          <h3>用 npm 安装</h3>
+          <p>已有 Node.js 20+ 时，也可以用 npm 安装命令行版本：</p>
+          <pre><code>npm i -g pisper
+pisper        # 启动终端 TUI
+pisper web    # 打开 Web 前端与配置页</code></pre>
+
+          <div class="guide-note">
+            <p>
+              <strong>提示</strong>：npm 包只是安装器，会下载并校验签名后的 TUI 与 Runtime 组件，不包含桌面界面。
+            </p>
+          </div>
+        </section>
+
+        <section class="guide-section" id="provider">
+          <h2>配置模型 Provider</h2>
+          <p>Pisper 不内置模型，需要你自己的 Provider 和 API Key。请求由你选定的 Runtime 直连 Provider。</p>
+
+          <ol class="guide-steps">
+            <li>
+              <strong>打开模型设置</strong>
+              <p>桌面端进入 <strong>设置 → 模型</strong>；终端中执行 <code>/provider</code>。</p>
+            </li>
+            <li>
+              <strong>选择协议并填写凭据</strong>
+              <p>选择 Provider 协议，按需覆盖 Base URL，填入 API Key。Key 在界面中始终以掩码显示。</p>
+            </li>
+            <li>
+              <strong>拉取并选择模型</strong>
+              <p>保存后刷新模型列表，为当前会话选定模型。保存与切换是解耦的，改配置不会打断正在运行的会话。</p>
+            </li>
+          </ol>
+
+          <div class="guide-note">
+            <p>
+              <strong>会话级模型</strong>：每个会话可以用不同模型。适合让便宜模型跑批量改动、贵模型做关键决策。
+            </p>
+          </div>
+        </section>
+
+        <section class="guide-section" id="first-session">
+          <h2>第一个会话</h2>
+          <ol class="guide-steps">
+            <li>
+              <strong>选择工作目录</strong>
+              <p>新建会话时指定项目目录。会话的文件读写与命令执行都以它为基准。</p>
+            </li>
+            <li>
+              <strong>让 Agent 认识项目</strong>
+              <p>
+                执行 <code>/init</code>，Pisper 会分析项目并生成或补全根目录的
+                <code>AGENTS.md</code>。已有的有效说明会被保留。
+              </p>
+            </li>
+            <li>
+              <strong>描述目标，而不是步骤</strong>
+              <p>直接说想达成什么。思考过程、工具调用和执行结果会分层展开，可随时折叠。</p>
+            </li>
+          </ol>
+        </section>
+
+        <!-- 核心用法 -->
+        <section class="guide-section" id="parallel">
+          <h2>并行会话与分屏</h2>
+          <p>每个会话独享模型、上下文、工作目录与权限，互不干扰。</p>
+
+          <ul>
+            <li><strong>分屏</strong>：拖动会话标签到窗口任意一侧，可上下左右四面分屏。</li>
+            <li><strong>同屏对比</strong>：让多个 Agent 用不同思路解决同一问题，进度同屏可见。</li>
+            <li><strong>跨会话直达</strong>：<code>Ctrl</code> + <code>K</code> 搜索并跳到目标会话或 Turn，自动载入历史并滚动到现场。</li>
+          </ul>
+
+          <div class="guide-note">
+            <p>
+              <strong>关于并行数量</strong>：并行会话都会真实消耗 Provider 配额，请按额度和速率限制安排。
+            </p>
+          </div>
+        </section>
+
+        <section class="guide-section" id="branch">
+          <h2>追忆分支与 Turn 标签</h2>
+          <p>长对话会被压成主干与分叉视图。你可以在任意已完成的 Turn 上开新分支，源会话一字不改。</p>
+
+          <h3>什么时候开分支</h3>
+          <ul>
+            <li>想比较两种实现方案，又不想丢掉已经聊出来的上下文。</li>
+            <li>Agent 走偏了，希望回到岔路口重新给方向。</li>
+            <li>需要保留一条“能用的版本”，同时继续激进尝试。</li>
+          </ul>
+
+          <h3>Turn 标签</h3>
+          <p>
+            给关键 Turn 钉上标签，作为可检索的锚点。标签绑定持久化边界，不依赖会过期的消息 ID，长会话里依然稳定。
+          </p>
+        </section>
+
+        <section class="guide-section" id="tools">
+          <h2>工具、插件与 MCP</h2>
+          <p>核心工具常驻上下文；扩展能力按需激活、用完即退，避免把上下文塞满。</p>
+
+          <div class="guide-table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>类型</th>
+                  <th>用途</th>
+                  <th>激活方式</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td>核心工具</td>
+                  <td>读写文件、执行命令、检索代码</td>
+                  <td>常驻，直接可用</td>
+                </tr>
+                <tr>
+                  <td>本地插件</td>
+                  <td>项目专属的自定义能力</td>
+                  <td>描述需求后由 Pisper 生成、校验并安装</td>
+                </tr>
+                <tr>
+                  <td>MCP 服务</td>
+                  <td>结构化接入外部系统与真实数据</td>
+                  <td>在 MCP 设置中配置服务端</td>
+                </tr>
+                <tr>
+                  <td>技能</td>
+                  <td>可复用的成套操作流程</td>
+                  <td>按需加载，可自动触发</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+
+          <h3>缺能力时直接说</h3>
+          <p>
+            不必先去找插件。描述你需要什么，Pisper 会编写、校验并安装本地插件，下一轮对话即可调用。
+          </p>
+        </section>
+
+        <section class="guide-section" id="permission">
+          <h2>执行模式与权限</h2>
+          <p>执行模式决定 Agent 能触碰什么，随时可切换。</p>
+
+          <div class="guide-table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>模式</th>
+                  <th>可执行范围</th>
+                  <th>适用场景</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td><code>read-only</code></td>
+                  <td>只开放低风险分析工具，禁止修改项目</td>
+                  <td>代码审查、方案调研、陌生仓库探索</td>
+                </tr>
+                <tr>
+                  <td><code>full-access</code></td>
+                  <td>以当前系统用户权限访问文件、网络与 Shell</td>
+                  <td>实际开发、重构、跑测试与构建</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+
+          <p>终端里用 <code>/mode</code> 查看当前模式，<code>/mode read-only</code> 或 <code>/mode full-access</code> 切换。</p>
+
+          <div class="guide-note">
+            <p>
+              <strong>首次进入新项目</strong>：Pisper 会要求确认工作区信任。在此之前不会加载该项目的扩展。
+            </p>
+          </div>
+        </section>
+
+        <!-- 进阶 -->
+        <section class="guide-section" id="workflow">
+          <h2>可视化工作流</h2>
+          <p>把 Prompt、文件、MCP 与通知连成一张图，让重复的事交给流程跑。</p>
+
+          <ol class="guide-steps">
+            <li>
+              <strong>新建工作流</strong>
+              <p>进入工作流页面，从空白图开始，或基于已有工作流复制。</p>
+            </li>
+            <li>
+              <strong>连接节点</strong>
+              <p>拖拽添加 Prompt、文件输入、MCP 调用与通知节点，用连线定义执行顺序与数据流向。</p>
+            </li>
+            <li>
+              <strong>试跑并观察</strong>
+              <p>手动运行一次，确认每个节点的输入输出符合预期后再接入定时任务。</p>
+            </li>
+          </ol>
+        </section>
+
+        <section class="guide-section" id="schedule">
+          <h2>定时任务与通知</h2>
+          <p>定好频率与时区，到点 Agent 自己开工，结果推到你手边。</p>
+
+          <ul>
+            <li><strong>触发目标</strong>：可以是一段 Prompt，也可以是已经调好的工作流。</li>
+            <li><strong>通知渠道</strong>：系统通知之外，可接飞书与个人微信，实现双向对话。</li>
+            <li><strong>离开电脑也能跟进</strong>：渠道消息可直接回复，会话继续推进。</li>
+          </ul>
+        </section>
+
+        <section class="guide-section" id="memory">
+          <h2>星忆项目记忆</h2>
+          <p>事实、偏好与决策会被记住并可检索，项目再长也不用重复自我介绍。</p>
+
+          <div class="guide-note">
+            <p>
+              <strong>先审后用</strong>：记忆条目在写入前需要你确认，避免把错误结论固化下来。
+            </p>
+          </div>
+        </section>
+
+        <!-- 多端 -->
+        <section class="guide-section" id="tui">
+          <h2>终端 TUI</h2>
+          <p>桌面装好后 <code>pisper</code> 命令即可用，与桌面端共用同一套 Runtime 和会话数据。</p>
+
+          <pre><code>pisper            # 在当前目录启动
+pisper web        # 打开 Web 前端配置页</code></pre>
+
+          <h3>常用 Slash 命令</h3>
+          <div class="guide-table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>命令</th>
+                  <th>作用</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td><code>/init</code></td>
+                  <td>分析项目并生成或完善 <code>AGENTS.md</code></td>
+                </tr>
+                <tr>
+                  <td><code>/sessions</code></td>
+                  <td>打开跨目录的历史会话选择器</td>
+                </tr>
+                <tr>
+                  <td><code>/model</code></td>
+                  <td>切换当前会话模型</td>
+                </tr>
+                <tr>
+                  <td><code>/changes</code></td>
+                  <td>查看 Git 或 SVN 改动，可提交与推送</td>
+                </tr>
+                <tr>
+                  <td><code>/compact</code></td>
+                  <td>立即摘要较早上下文</td>
+                </tr>
+                <tr>
+                  <td><code>/mode</code></td>
+                  <td>查看或切换执行模式</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+
+          <p>
+            也可以直接请求工具，例如 <code>/read README.md</code>、<code>/bash npm test</code>，或调用技能
+            <code>/skill:&lt;name&gt;</code>。完整命令见
+            <a href="https://github.com/ling-kong-ran/pisper/blob/release/src-tui/README.md">TUI 命令参考</a>。
+          </p>
+        </section>
+
+        <section class="guide-section" id="mobile">
+          <h2>移动端 App</h2>
+          <p>App 内置与桌面同源的 Node/Pisper Runtime，首次启动直接进入本机运行，不必先连电脑。</p>
+
+          <div class="guide-table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>平台</th>
+                  <th>安装说明</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td>Android</td>
+                  <td>已签名 arm64 APK，可直接安装；首次侧载按系统提示允许未知来源。</td>
+                </tr>
+                <tr>
+                  <td>iOS</td>
+                  <td><strong>未签名</strong> IPA，需用 AltStore、Sideloadly 或自有开发者账号重签。</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+
+          <h3>本机运行</h3>
+          <ol class="guide-steps">
+            <li>
+              <strong>等待 Runtime 就绪</strong>
+              <p>首次启动会初始化内置 Runtime，随后直接进入正常 Pisper 界面。</p>
+            </li>
+            <li>
+              <strong>配置 Provider</strong>
+              <p>会话、Provider 配置与工作区只保存在 App 私有目录。</p>
+            </li>
+            <li>
+              <strong>了解能力边界</strong>
+              <p>本机 Runtime 仅监听随机回环端口，并会隐藏 embedded Node 无法承载的能力入口。</p>
+            </li>
+          </ol>
+        </section>
+
+        <section class="guide-section" id="remote">
+          <h2>远程访问与配对</h2>
+          <p>手机也可以连接桌面 Runtime，用电脑的算力和完整能力。配对必须由桌面端明确批准。</p>
+
+          <ol class="guide-steps">
+            <li>
+              <strong>桌面端开启远程访问</strong>
+              <p>进入 <strong>设置 → 远程访问</strong> 开启。建议首次配对时手机与电脑在同一局域网。</p>
+            </li>
+            <li>
+              <strong>手机发起申请</strong>
+              <p>
+                在 <strong>设置 → 服务器 → 添加服务器</strong> 中允许本地网络访问，选择自动发现的桌面并发起申请。
+              </p>
+            </li>
+            <li>
+              <strong>桌面批准</strong>
+              <p>桌面用户明确批准后才会签发设备令牌。发现不到或异地时，改用桌面生成的一次性二维码。</p>
+            </li>
+          </ol>
+
+          <div class="guide-note">
+            <p>
+              <strong>链路安全</strong>：所有路径都校验 TLS 指纹并使用设备 Bearer 令牌；连接后优先走 LAN，不可达时回退 Iroh P2P。
+            </p>
+          </div>
+        </section>
+
+        <!-- 参考 -->
+        <section class="guide-section" id="data">
+          <h2>数据与目录</h2>
+          <p>Runtime 默认只监听 <code>127.0.0.1</code>，敏感格式会自动脱敏。</p>
+
+          <div class="guide-table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>项目</th>
+                  <th>位置</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td>桌面 / 终端数据</td>
+                  <td><code>~/.pisper/agent</code>，可用 <code>PISPER_AGENT_DIR</code> 覆盖</td>
+                </tr>
+                <tr>
+                  <td>移动端数据</td>
+                  <td>App 私有目录，随应用卸载一并清除</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+
+          <div class="guide-note">
+            <p>
+              <strong>备份注意</strong>：该目录含 Provider 凭据与会话内容，请勿提交到仓库或公开分享。
+            </p>
+          </div>
+        </section>
+
+        <section class="guide-section" id="update">
+          <h2>组件更新</h2>
+          <p>Desktop、TUI 与 Runtime 各自独立检查与更新，需要什么就只更新什么。</p>
+          <p>在 <strong>设置 → 更新</strong> 中查看各组件版本并单独触发更新；涉及 Runtime 替换的更新会提示重启。</p>
+        </section>
+
+        <section class="guide-section" id="faq">
+          <h2>常见问题</h2>
+
+          <h3>macOS 提示「无法打开」</h3>
+          <p>
+            Pisper 尚未经过 Apple 公证。确认安装包来自官方 Releases 后，在
+            <strong>系统设置 → 隐私与安全性</strong> 选择 <strong>仍要打开</strong>。若没有该选项：
+          </p>
+          <pre><code>sudo xattr -rd com.apple.quarantine /Applications/Pisper.app</code></pre>
+          <p>请仅对从官方 Releases 下载并放入 <code>/Applications</code> 的应用使用此命令。</p>
+
+          <h3>Linux AppImage 无法启动</h3>
+          <pre><code>chmod +x Pisper_*_linux_x86_64.AppImage
+./Pisper_*_linux_x86_64.AppImage</code></pre>
+          <p>缺少 FUSE 时安装 <code>libfuse2</code> 或 <code>libfuse2t64</code>，也可改用 <code>.deb</code>。</p>
+
+          <h3>模型请求失败</h3>
+          <p>
+            确认 Provider 可达、凭据有效、所选模型对你的账号可用。Provider 流量由你选定的 Runtime 直连，不经过第三方中转。
+          </p>
+
+          <h3>手机发现不到桌面</h3>
+          <p>
+            确认两端同一局域网、桌面已开启远程访问、手机已允许本地网络权限。仍失败就用二维码配对，截图也可发到异地手机。
+          </p>
+
+          <h3>还有其他问题</h3>
+          <p>
+            在
+            <a href="https://github.com/ling-kong-ran/pisper/issues">Issue 区</a>
+            反馈，附上版本号、系统版本与完整报错。请勿粘贴 API Key、配对令牌或私有内容。
+          </p>
+        </section>
+      </main>
+    </div>
+
+    <footer class="guide-footer">
+      <p>
+        更多文档：
+        <a href="https://github.com/ling-kong-ran/pisper/blob/release/docs/mobile.md">移动端指南</a> ·
+        <a href="https://github.com/ling-kong-ran/pisper/blob/release/docs/plugin-authoring.md">插件开发</a> ·
+        <a href="https://github.com/ling-kong-ran/pisper/blob/release/src-tui/README.md">TUI 命令参考</a>
+      </p>
+    </footer>
+  </body>
+</html>

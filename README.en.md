@@ -31,6 +31,7 @@
 
 <p align="center">
   <a href="https://ling-kong-ran.github.io/pisper/">Website</a> ·
+  <a href="https://ling-kong-ran.github.io/pisper/guide.html">Guide</a> ·
   <a href="#quickstart">Quick start</a> ·
   <a href="#features">Feature map</a> ·
   <a href="#data-safety">Data safety</a> ·
@@ -92,19 +93,15 @@ Pisper uses [Pi Coding Agent](https://github.com/earendil-works/pi/tree/main/pac
     <td align="center">Workflows: turn repeated work into pipelines</td>
     <td align="center">TUI: leave the desk, keep the context</td>
   </tr>
-  <tr>
-    <td><a href="docs/shots/config-remote-access.png"><img src="docs/shots/web/config-remote-access.webp" alt="Remote access and paired devices" /></a></td>
-    <td><a href="docs/shots/config-about.png"><img src="docs/shots/web/config-about.webp" alt="Pisper About page" /></a></td>
-  </tr>
-  <tr>
-    <td align="center">Device connections: LAN preference, P2P fallback, and device management</td>
-    <td align="center">About: version, project links, and open-source license</td>
-  </tr>
 </table>
+
+> See the **[website](https://ling-kong-ran.github.io/pisper/)** for more screens and interaction demos.
 
 <a id="quickstart"></a>
 
 ## 🚀 Quick start
+
+> Want step-by-step instructions? See the **[Guide](https://ling-kong-ran.github.io/pisper/guide.html)**.
 
 ### Option 1: Desktop app (recommended)
 
@@ -215,12 +212,17 @@ Desktop, TUI, Runtime, and the mobile App are versioned, signed, and updated ind
 
 ## 📚 Docs
 
-- [Website](https://ling-kong-ran.github.io/pisper/) · product tour and screenshots
-- [TUI Command Reference](./src-tui/README.en.md) · CLI commands, Slash commands, and arguments
-- [Mobile Guide](./docs/mobile.md) · Android / iOS installation, on-device mode, Desktop pairing, security, and troubleshooting
-- [Mobile on-device Runtime](./docs/mobile-local-runtime.md) · unified Node architecture, capability manifest, carrier selection, and supply chain
-- [Local plugins](./docs/local-plugins.md) · [Plugin authoring](./docs/plugin-authoring.md)
-- [Desktop pets (Petdex)](./docs/petdex-integration.md)
+**New here?** Start with the **[Guide](https://ling-kong-ran.github.io/pisper/guide.html)**: installation, Provider setup, parallel sessions, branching, workflows, terminal, and mobile.
+
+| Doc | Contents |
+| --- | --- |
+| [Guide](https://ling-kong-ran.github.io/pisper/guide.html) | Full path from install to advanced use |
+| [Website](https://ling-kong-ran.github.io/pisper/) | Product tour and screenshots |
+| [TUI Command Reference](./src-tui/README.en.md) | CLI commands, Slash commands, and arguments |
+| [Mobile Guide](./docs/mobile.md) | Installation, on-device mode, Desktop pairing, security, troubleshooting |
+| [Mobile on-device Runtime](./docs/mobile-local-runtime.md) | Unified Node architecture, capability manifest, supply chain |
+| [Plugin authoring](./docs/plugin-authoring.md) | Writing and shipping plugins; see also [local plugins](./docs/local-plugins.md) |
+| [Desktop pets (Petdex)](./docs/petdex-integration.md) | Desktop pet integration |
 
 <a id="development"></a>
 

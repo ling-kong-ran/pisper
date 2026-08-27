@@ -1,0 +1,428 @@
+/* 使用教程页样式：沿用主站深色设计 token，左侧固定导航 + 右侧正文双栏布局。 */
+:root {
+  color-scheme: dark;
+  --page: #0b0c0c;
+  --surface: #151817;
+  --surface-2: #1b1f1d;
+  --ink: #f2f5f3;
+  --muted: #a7b0ac;
+  --line: #303734;
+  --accent: #79d7a5;
+  --sidebar-width: 268px;
+  --header-height: 64px;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  margin: 0;
+  background: var(--page);
+  color: var(--ink);
+  font-family:
+    Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  line-height: 1.75;
+}
+
+a {
+  color: var(--accent);
+}
+
+.skip-link {
+  position: absolute;
+  left: -9999px;
+}
+
+.skip-link:focus {
+  left: 12px;
+  top: 12px;
+  z-index: 100;
+  padding: 10px 16px;
+  background: var(--accent);
+  border-radius: 8px;
+  color: #06231a;
+  font-weight: 700;
+}
+
+/* 顶栏：移动端承载抽屉开关，桌面端保持品牌与返回入口 */
+.guide-header {
+  position: sticky;
+  top: 0;
+  z-index: 30;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  min-height: var(--header-height);
+  padding-inline: 20px;
+  background: color-mix(in srgb, var(--page) 88%, transparent);
+  backdrop-filter: blur(12px);
+  border-bottom: 1px solid var(--line);
+}
+
+.guide-brand {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  margin-right: auto;
+  color: var(--ink);
+  font-weight: 700;
+  text-decoration: none;
+}
+
+.guide-header-links {
+  display: flex;
+  gap: 18px;
+  font-size: 14px;
+}
+
+.guide-header-links a {
+  color: var(--muted);
+  text-decoration: none;
+}
+
+.guide-header-links a:hover {
+  color: var(--ink);
+}
+
+.nav-toggle {
+  display: none;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  padding: 0;
+  background: var(--surface-2);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  color: var(--ink);
+  font-size: 18px;
+  cursor: pointer;
+}
+
+/* 双栏骨架 */
+.guide-shell {
+  display: grid;
+  grid-template-columns: var(--sidebar-width) minmax(0, 1fr);
+  gap: 48px;
+  width: min(1180px, calc(100% - 48px));
+  margin-inline: auto;
+  align-items: start;
+}
+
+/* 左侧导航：桌面端固定吸附，滚动时保持可见 */
+.guide-sidebar {
+  position: sticky;
+  top: var(--header-height);
+  max-height: calc(100vh - var(--header-height));
+  padding: 32px 0 40px;
+  overflow-y: auto;
+  border-right: 1px solid var(--line);
+}
+
+.guide-sidebar h2 {
+  margin: 0 0 14px;
+  padding-right: 20px;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+
+.guide-nav-group {
+  margin-bottom: 26px;
+}
+
+.guide-nav-group > span {
+  display: block;
+  margin-bottom: 8px;
+  color: var(--ink);
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.guide-nav-group ul {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  border-left: 1px solid var(--line);
+}
+
+.guide-nav-group li a {
+  display: block;
+  padding: 7px 14px;
+  margin-left: -1px;
+  border-left: 2px solid transparent;
+  color: var(--muted);
+  font-size: 14px;
+  text-decoration: none;
+}
+
+.guide-nav-group li a:hover {
+  color: var(--ink);
+}
+
+/* 当前阅读位置：由 IntersectionObserver 同步 */
+.guide-nav-group li a.is-active {
+  border-left-color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 8%, transparent);
+  color: var(--ink);
+  font-weight: 600;
+}
+
+/* 右侧正文 */
+.guide-main {
+  min-width: 0;
+  padding: 40px 0 96px;
+}
+
+.guide-intro {
+  padding-bottom: 32px;
+  border-bottom: 1px solid var(--line);
+}
+
+.guide-intro h1 {
+  margin: 0 0 12px;
+  font-size: clamp(32px, 5vw, 46px);
+  line-height: 1.1;
+}
+
+.guide-intro p {
+  margin: 0;
+  max-width: 62ch;
+  color: var(--muted);
+}
+
+.guide-section {
+  padding-top: 56px;
+  scroll-margin-top: calc(var(--header-height) + 20px);
+}
+
+.guide-section > h2 {
+  margin: 0 0 8px;
+  font-size: clamp(24px, 3.4vw, 32px);
+  line-height: 1.2;
+}
+
+.guide-section > h2 + p {
+  margin-top: 0;
+  color: var(--muted);
+}
+
+.guide-section h3 {
+  margin: 34px 0 10px;
+  font-size: 18px;
+  scroll-margin-top: calc(var(--header-height) + 20px);
+}
+
+.guide-main p,
+.guide-main li {
+  color: var(--muted);
+}
+
+.guide-main strong {
+  color: var(--ink);
+}
+
+/* 步骤列表：编号与内容分离，便于扫读 */
+.guide-steps {
+  margin: 18px 0 0;
+  padding: 0;
+  list-style: none;
+  counter-reset: guide-step;
+}
+
+.guide-steps > li {
+  position: relative;
+  padding: 0 0 20px 44px;
+  counter-increment: guide-step;
+}
+
+.guide-steps > li::before {
+  content: counter(guide-step);
+  position: absolute;
+  left: 0;
+  top: 1px;
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  background: var(--surface-2);
+  border: 1px solid var(--line);
+  border-radius: 50%;
+  color: var(--accent);
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.guide-steps > li > strong {
+  display: block;
+  margin-bottom: 2px;
+  color: var(--ink);
+}
+
+.guide-steps p {
+  margin: 0;
+}
+
+/* 提示块 */
+.guide-note {
+  margin: 22px 0 0;
+  padding: 14px 18px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-left: 3px solid var(--accent);
+  border-radius: 10px;
+}
+
+.guide-note p {
+  margin: 0;
+  font-size: 14px;
+}
+
+.guide-note strong {
+  color: var(--accent);
+}
+
+/* 代码块 */
+.guide-main pre {
+  margin: 18px 0 0;
+  padding: 16px 18px;
+  overflow-x: auto;
+  background: #0e100f;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+}
+
+.guide-main pre code {
+  color: #d6e5dc;
+  font-size: 13.5px;
+}
+
+.guide-main code {
+  font-family: "Cascadia Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+}
+
+.guide-main :not(pre) > code {
+  padding: 2px 6px;
+  background: var(--surface-2);
+  border: 1px solid var(--line);
+  border-radius: 5px;
+  color: #cfe6da;
+  font-size: 0.9em;
+}
+
+/* 平台选项卡片 */
+.guide-cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(232px, 1fr));
+  gap: 14px;
+  margin-top: 22px;
+}
+
+.guide-card {
+  padding: 18px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+}
+
+.guide-card h3 {
+  margin: 0 0 6px;
+  font-size: 15px;
+}
+
+.guide-card p {
+  margin: 0;
+  font-size: 14px;
+}
+
+/* 表格 */
+.guide-table-wrap {
+  margin-top: 20px;
+  overflow-x: auto;
+}
+
+.guide-main table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 14px;
+}
+
+.guide-main th,
+.guide-main td {
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--line);
+  text-align: left;
+  vertical-align: top;
+}
+
+.guide-main th {
+  color: var(--ink);
+  font-size: 12px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.guide-main td {
+  color: var(--muted);
+}
+
+.guide-footer {
+  width: min(1180px, calc(100% - 48px));
+  margin: 0 auto;
+  padding: 28px 0 48px;
+  border-top: 1px solid var(--line);
+  color: var(--muted);
+  font-size: 14px;
+}
+
+/* 移动端：导航收进抽屉，避免挤压正文宽度 */
+@media (max-width: 900px) {
+  .nav-toggle {
+    display: inline-flex;
+  }
+
+  .guide-shell {
+    display: block;
+    width: min(760px, calc(100% - 36px));
+  }
+
+  .guide-sidebar {
+    position: fixed;
+    top: var(--header-height);
+    left: 0;
+    z-index: 25;
+    width: min(300px, 82vw);
+    height: calc(100vh - var(--header-height));
+    max-height: none;
+    padding: 24px 20px 40px;
+    background: var(--page);
+    border-right: 1px solid var(--line);
+    transform: translateX(-100%);
+    transition: transform 0.22s ease;
+  }
+
+  .guide-sidebar.is-open {
+    transform: translateX(0);
+  }
+
+  .guide-footer {
+    width: min(760px, calc(100% - 36px));
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+
+  .guide-sidebar {
+    transition: none;
+  }
+}
