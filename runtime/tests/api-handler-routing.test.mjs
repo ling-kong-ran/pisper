@@ -113,6 +113,34 @@ test('API handler completes successful SSE responses exactly once', async () => 
   assert.match(output.body, /event: done/)
 })
 
+test('API handler drops an SSE client that applies backpressure', async () => {
+  const handler = createApiHandler({
+    async streamPrompt({ send }) {
+      send('snapshot', { text: 'working' })
+      send('done', { text: 'complete' })
+    },
+  })
+  const output = response()
+  let writes = 0
+  output.write = function write(body = '') {
+    this.body += body
+    writes += 1
+    return writes < 2
+  }
+  output.destroy = function destroy() {
+    this.destroyed = true
+  }
+
+  await handler(
+    request('POST', { sessionId: 'session-1', message: 'hello' }),
+    output,
+    new URL('http://localhost/api/chat'),
+  )
+
+  assert.equal(output.destroyed, true)
+  assert.equal(output.endCount, 0)
+})
+
 test('API handler emits a redacted terminal SSE error when streaming throws', async () => {
   const secret = 'sk-stream-secret-token-1234567890'
   const handler = createApiHandler({

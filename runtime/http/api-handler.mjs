@@ -56,6 +56,12 @@ export function requiredRuntimeFeature(pathname, method = 'GET') {
 function createHandlerContext({ runtime, services, req, res, url, params }) {
   let sseStarted = false
   let activeRun = null
+  const writeSse = (event, data, id = null) => {
+    if (res.destroyed || res.writableEnded) return false
+    const accepted = sseSend(res, event, data, id)
+    if (!accepted) res.destroy?.()
+    return accepted
+  }
   return {
     context: {
       runtime,
@@ -81,13 +87,11 @@ function createHandlerContext({ runtime, services, req, res, url, params }) {
         // 先入缓冲再写出：客户端断开时写出为空操作，但缓冲继续累积，保证可重挂。
         let cursor = null
         if (activeRun) cursor = services.runs.record(activeRun, event, data)
-        if (!res.destroyed && !res.writableEnded) sseSend(res, event, data, cursor)
+        writeSse(event, data, cursor)
       },
       startRun(meta = {}) {
         activeRun = services.runs.begin(meta)
-        if (!res.destroyed && !res.writableEnded) {
-          sseSend(res, 'run', { runId: activeRun.id, ...meta, cursor: 0 })
-        }
+        writeSse('run', { runId: activeRun.id, ...meta, cursor: 0 })
         return { runId: activeRun.id }
       },
       endRun() {
@@ -157,7 +161,7 @@ export function createApiHandler(
     if (handlerContext?.isSse()) {
       // SSE 结束前关闭 run：终态帧（done/error）已在上方记录，此后进入重放保留期。
       handlerContext.context.endRun?.()
-      if (!res.writableEnded) res.end()
+      if (!res.writableEnded && !res.destroyed) res.end()
     }
     return true
   }

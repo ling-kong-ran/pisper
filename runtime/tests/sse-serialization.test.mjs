@@ -35,6 +35,15 @@ test('sseSend emits strict JSON even when payloads contain lone surrogates', () 
   assert.deepEqual(JSON.parse(jsonText), { delta: '\ufffd' })
 })
 
+test('sseSend reports backpressure so callers can disconnect slow consumers', () => {
+  const res = {
+    write() {
+      return false
+    },
+  }
+  assert.equal(sseSend(res, 'snapshot', { text: 'working' }), false)
+})
+
 test('sseSend keeps valid surrogate pairs as parseable JSON', () => {
   const chunks = []
   const res = {

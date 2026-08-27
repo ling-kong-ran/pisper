@@ -22,16 +22,23 @@ export const runRoutes = [
       }
       const { run, gap, replay } = prepared
       startSse()
+      const write = (event, data, id = null) => {
+        if (res.destroyed || res.writableEnded) return false
+        const accepted = sseSend(res, event, data, id)
+        if (!accepted) res.destroy?.()
+        return accepted
+      }
       // 头帧与首次连接一致，resumed 标记供客户端区分重挂场景。
-      sseSend(res, 'run', { runId: run.id, ...run.meta, cursor: 0, resumed: true })
-      if (gap) sseSend(res, 'resync_required', { reason: 'buffer_overflow', runId: run.id })
-      for (const entry of replay) sseSend(res, entry.event, entry.data, entry.cursor)
+      if (!write('run', { runId: run.id, ...run.meta, cursor: 0, resumed: true })) return
+      if (gap && !write('resync_required', { reason: 'buffer_overflow', runId: run.id })) return
+      for (const entry of replay) {
+        if (!write(entry.event, entry.data, entry.cursor)) return
+      }
 
       // run 已关闭：回放即全部内容，直接结束响应。
       const sink = {
         onEvent(cursor, event, data) {
-          if (res.destroyed || res.writableEnded) return
-          sseSend(res, event, data, cursor)
+          write(event, data, cursor)
         },
         onEnd: null,
       }

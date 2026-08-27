@@ -69,5 +69,8 @@ export async function bodyJson(req) {
 // 旧客户端会忽略未知字段，保持前向兼容。
 export function sseSend(res, event, data, id = null) {
   const idLine = id == null ? '' : `id: ${id}\n`
-  res.write(`${idLine}event: ${event}\ndata: ${JSON.stringify(data, jsonReplacer)}\n\n`)
+  // Node 返回 false 表示发送缓冲达到高水位；调用方应断开慢客户端，让其通过 run 游标重挂。
+  return (
+    res.write(`${idLine}event: ${event}\ndata: ${JSON.stringify(data, jsonReplacer)}\n\n`) !== false
+  )
 }
