@@ -382,6 +382,7 @@
   "focusSession.gitViewDiff": "查看 diff",
   "focusSession.gitWaitForRunToFinish": "请等待当前运行完成",
   "focusSession.cacheHitRate": "缓存",
+  "focusSession.cacheHitRateUnavailable": "当前 Provider 未上报缓存用量，命中率无法统计",
   "focusSession.processedTokens": "消耗 Token",
   "focusSession.sessionUsageDetail": "消耗 {processed} · 输入 {input} · 输出 {output} · 缓存读取 {cacheRead} · 缓存写入 {cacheWrite} · Reasoning {reasoning} · {requests} 次请求",
   "focusSession.goalPaused": "Goal 已暂停",

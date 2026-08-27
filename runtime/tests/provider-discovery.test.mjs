@@ -122,6 +122,62 @@ test('Codex TOML parser supports quoted provider tables and inline values', () =
   })
 })
 
+test('Codex TOML parser accepts multi-line arrays and inline tables spanning several lines', () => {
+  const parsed = parseCodexToml(
+    [
+      'model = "gpt-5.6-terra"',
+      'model_provider = "beehears"',
+      '[model_providers.beehears]',
+      'base_url = "https://cf.beehears.com/v1"',
+      'wire_api = "responses"',
+      '[mcp_servers.chrome-devtools]',
+      'args = [',
+      '    "--yes",',
+      '    "chrome-devtools-mcp@latest",',
+      '    "--browserUrl",',
+      '    "http://127.0.0.1:9222",',
+      ']',
+      'command = "npx"',
+      '[mcp_servers.chrome-devtools.tools.take_screenshot]',
+      'approval_mode = "approve"',
+      '[tui]',
+      'status_line = [',
+      '    "model-with-reasoning",',
+      '    "context-remaining",',
+      ']',
+      'status_line_use_colors = true',
+      '[tui.model_availability_nux]',
+      '"gpt-5.6-sol" = 4',
+    ].join('\n'),
+  )
+
+  // 跨行数组曾被逐行解析误判为缺少赋值，导致整份配置被判为格式无效。
+  assert.deepEqual(parsed.mcp_servers['chrome-devtools'].args, [
+    '--yes',
+    'chrome-devtools-mcp@latest',
+    '--browserUrl',
+    'http://127.0.0.1:9222',
+  ])
+  assert.equal(parsed.mcp_servers['chrome-devtools'].command, 'npx')
+  assert.equal(parsed.mcp_servers['chrome-devtools'].tools.take_screenshot.approval_mode, 'approve')
+  assert.deepEqual(parsed.tui.status_line, ['model-with-reasoning', 'context-remaining'])
+  assert.equal(parsed.tui.status_line_use_colors, true)
+  assert.equal(parsed.tui.model_availability_nux['gpt-5.6-sol'], 4)
+  assert.equal(parsed.model_providers.beehears.base_url, 'https://cf.beehears.com/v1')
+})
+
+test('Codex TOML parser reports malformed documents as syntax errors', () => {
+  // readCandidate 依据 SyntaxError 把 Codex 配置归类为 invalid_toml，
+  // 因此底层解析器换实现后仍必须抛出 SyntaxError 而非普通 Error。
+  for (const source of [
+    ['args = [', '  "--yes",'].join('\n'),
+    'model = "unterminated',
+    'model = 1\nmodel = 2',
+  ]) {
+    assert.throws(() => parseCodexToml(source), SyntaxError)
+  }
+})
+
 test('Codex TOML parser accepts unrelated array tables from current desktop configurations', () => {
   const parsed = parseCodexToml(
     [

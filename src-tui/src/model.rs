@@ -230,6 +230,9 @@ pub struct SessionUsage {
     pub prompt_tokens: u64,
     #[serde(default)]
     pub requests: u64,
+    /// Runtime 是否确认上游上报过缓存用量；旧 Runtime 不发送该字段（None）。
+    #[serde(default)]
+    pub cache_reported: Option<bool>,
     #[serde(default)]
     pub cache_hit_rate: Option<f64>,
 }
@@ -238,6 +241,12 @@ impl SessionUsage {
     /// 旧 Runtime 可能缺失命中率，或在已有缓存读取时错误保留零值；
     /// 此时使用原始 token 计数恢复与 Runtime 聚合规则一致的比例。
     pub fn effective_cache_hit_rate(&self) -> Option<f64> {
+        // 新 Runtime 明确告知上游未上报缓存用量时，命中率不可知，
+        // 不能回退推算，否则会把「无数据」显示成「0% 命中」。
+        if self.cache_reported == Some(false) && self.cache_read == 0 && self.cache_write == 0 {
+            return None;
+        }
+
         let reported = self
             .cache_hit_rate
             .filter(|rate| rate.is_finite() && *rate >= 0.0);
@@ -655,6 +664,42 @@ mod tests {
             ..SessionUsage::default()
         };
         assert_eq!(uncached.effective_cache_hit_rate(), Some(0.0));
+    }
+
+    /// 上游未上报缓存用量时命中率必须保持未知，不能回退成 0%。
+    #[test]
+    fn session_usage_keeps_cache_rate_unknown_when_provider_omits_fields() {
+        let omitted = SessionUsage {
+            input: 12_313,
+            output: 4,
+            total_tokens: 12_317,
+            prompt_tokens: 12_313,
+            requests: 1,
+            cache_reported: Some(false),
+            ..SessionUsage::default()
+        };
+        assert_eq!(omitted.effective_cache_hit_rate(), None);
+
+        // 上报了字段但确实未命中：仍应得到真实的 0%。
+        let missed = SessionUsage {
+            input: 500,
+            output: 10,
+            prompt_tokens: 500,
+            requests: 1,
+            cache_reported: Some(true),
+            cache_hit_rate: Some(0.0),
+            ..SessionUsage::default()
+        };
+        assert_eq!(missed.effective_cache_hit_rate(), Some(0.0));
+
+        // 旧 Runtime 不发 cacheReported（None），保持原有推算行为。
+        let legacy = SessionUsage {
+            input: 100,
+            cache_read: 75,
+            cache_write: 25,
+            ..SessionUsage::default()
+        };
+        assert_eq!(legacy.effective_cache_hit_rate(), Some(37.5));
     }
 
     /// 验证会话计划兼容新（plan）旧（taskList）两种负载字段。

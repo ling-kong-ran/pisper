@@ -62,6 +62,7 @@
     "playwright-core": "^1.61.1",
     "qrcode": "^1.5.4",
     "selfsigned": "^5.5.0",
+    "smol-toml": "^1.8.0",
     "typebox": "^1.1.38"
   },
   "devDependencies": {

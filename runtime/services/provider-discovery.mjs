@@ -4,6 +4,7 @@ import { createHash } from 'node:crypto'
 import { readFile, stat } from 'node:fs/promises'
 import { homedir } from 'node:os'
 import { join, resolve } from 'node:path'
+import { parse as parseToml } from 'smol-toml'
 
 const CODEX_DEFAULT_BASE_URL = 'https://api.openai.com/v1'
 const ANTHROPIC_DEFAULT_BASE_URL = 'https://api.anthropic.com'
@@ -101,161 +102,19 @@ function normalizeUrl(value) {
   }
 }
 
-function splitTopLevel(input, delimiter) {
-  const parts = []
-  let start = 0
-  let quote = ''
-  let depth = 0
-  for (let index = 0; index < input.length; index += 1) {
-    const character = input[index]
-    if (quote) {
-      if (character === quote && input[index - 1] !== '\\') quote = ''
-      continue
-    }
-    if (character === '"' || character === "'") quote = character
-    else if ('[{('.includes(character)) depth += 1
-    else if (']})'.includes(character)) depth -= 1
-    else if (character === delimiter && depth === 0) {
-      parts.push(input.slice(start, index).trim())
-      start = index + 1
-    }
-  }
-  parts.push(input.slice(start).trim())
-  return parts.filter(Boolean)
-}
-
-function tomlKeyParts(value) {
-  return splitTopLevel(value, '.')
-    .map((part) => {
-      const key = part.trim()
-      if ((key.startsWith('"') && key.endsWith('"')) || (key.startsWith("'") && key.endsWith("'")))
-        return key.slice(1, -1)
-      return key
-    })
-    .filter(Boolean)
-}
-
-function tomlAssignmentIndex(line) {
-  let quote = ''
-  let depth = 0
-  for (let index = 0; index < line.length; index += 1) {
-    const character = line[index]
-    if (quote) {
-      if (character === quote && line[index - 1] !== '\\') quote = ''
-      continue
-    }
-    if (character === '"' || character === "'") quote = character
-    else if ('[{('.includes(character)) depth += 1
-    else if (']})'.includes(character)) depth -= 1
-    else if (character === '=' && depth === 0) return index
-  }
-  return -1
-}
-
-function stripTomlComment(line) {
-  let quote = ''
-  for (let index = 0; index < line.length; index += 1) {
-    const character = line[index]
-    if (quote) {
-      if (character === quote && line[index - 1] !== '\\') quote = ''
-      continue
-    }
-    if (character === '"' || character === "'") quote = character
-    else if (character === '#') return line.slice(0, index)
-  }
-  return line
-}
-
-function parseTomlValue(raw) {
-  const value = raw.trim()
-  if (!value) return ''
-  if (
-    (value.startsWith('"') && !value.endsWith('"')) ||
-    (value.startsWith("'") && !value.endsWith("'"))
-  )
-    throw new SyntaxError('Unterminated TOML string')
-  if (value.startsWith('"') && value.endsWith('"')) return JSON.parse(value)
-  if (value.startsWith("'") && value.endsWith("'")) return value.slice(1, -1)
-  if (value === 'true' || value === 'false') return value === 'true'
-  if (/^[+-]?(?:\d+\.?\d*|\d*\.\d+)$/.test(value)) return Number(value)
-  if (value.startsWith('[') && value.endsWith(']'))
-    return splitTopLevel(value.slice(1, -1), ',').map(parseTomlValue)
-  if (value.startsWith('{') && value.endsWith('}')) {
-    const result = {}
-    for (const entry of splitTopLevel(value.slice(1, -1), ',')) {
-      const assignment = tomlAssignmentIndex(entry)
-      if (assignment < 0) continue
-      result[tomlKeyParts(entry.slice(0, assignment)).join('.')] = parseTomlValue(
-        entry.slice(assignment + 1),
-      )
-    }
-    return result
-  }
-  return value
-}
-
-function setNested(target, path, value) {
-  let current = target
-  for (const key of path.slice(0, -1)) {
-    if (!current[key] || typeof current[key] !== 'object' || Array.isArray(current[key]))
-      current[key] = {}
-    current = current[key]
-  }
-  current[path.at(-1)] = value
-}
-
-function resolveTomlTable(target, path, arrayTable) {
-  let current = target
-  for (const [index, key] of path.entries()) {
-    const last = index === path.length - 1
-    if (last && arrayTable) {
-      if (current[key] === undefined) current[key] = []
-      if (!Array.isArray(current[key])) throw new SyntaxError('TOML table type conflicts')
-      const entry = {}
-      current[key].push(entry)
-      return entry
-    }
-    if (current[key] === undefined) current[key] = {}
-    if (Array.isArray(current[key])) {
-      const entry = current[key].at(-1)
-      if (!entry || typeof entry !== 'object') throw new SyntaxError('Invalid TOML array table')
-      current = entry
-    } else {
-      if (!current[key] || typeof current[key] !== 'object')
-        throw new SyntaxError('TOML table type conflicts')
-      current = current[key]
-    }
-  }
-  return current
-}
-
+// Codex 的 config.toml 交给成熟的 TOML 解析器处理：跨行数组、多行字符串、
+// 下划线数字、十六进制/指数、日期时间与重复键校验都属于规范的一部分，
+// 手写逐行解析无法覆盖，曾导致合法配置被误判为格式无效。
 export function parseCodexToml(input) {
-  const result = {}
-  let table = result
-  for (const rawLine of String(input || '').split(/\r?\n/)) {
-    const line = stripTomlComment(rawLine).trim()
-    if (!line) continue
-    if (line.startsWith('[[')) {
-      if (!line.endsWith(']]')) throw new SyntaxError('Invalid TOML array table')
-      const path = tomlKeyParts(line.slice(2, -2))
-      if (!path.length) throw new SyntaxError('Invalid TOML array table')
-      table = resolveTomlTable(result, path, true)
-      continue
-    }
-    if (line.startsWith('[')) {
-      if (!line.endsWith(']')) throw new SyntaxError('Invalid TOML table')
-      const path = tomlKeyParts(line.slice(1, -1))
-      if (!path.length) throw new SyntaxError('Invalid TOML table')
-      table = resolveTomlTable(result, path, false)
-      continue
-    }
-    const assignment = tomlAssignmentIndex(line)
-    if (assignment < 0) throw new SyntaxError('Invalid TOML assignment')
-    const key = tomlKeyParts(line.slice(0, assignment))
-    if (!key.length) throw new SyntaxError('Invalid TOML key')
-    setNested(table, key, parseTomlValue(line.slice(assignment + 1)))
+  try {
+    return parseToml(String(input || ''))
+  } catch (error) {
+    // readCandidate 依据 SyntaxError 区分「格式非法」与「读取失败」，
+    // 而 smol-toml 抛出的 TomlError 并非 SyntaxError，需转换后再抛出。
+    throw Object.assign(new SyntaxError(error?.message || 'Invalid TOML document'), {
+      cause: error,
+    })
   }
-  return result
 }
 
 function codexApi(value) {

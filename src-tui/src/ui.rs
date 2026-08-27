@@ -2304,6 +2304,9 @@ fn status_metrics(app: &App) -> String {
         metrics.push(compact_token_count(app.session_usage.total_tokens));
         if let Some(rate) = app.session_usage.effective_cache_hit_rate() {
             metrics.push(format!("cache {:.0}%", rate));
+        } else if app.session_usage.cache_reported == Some(false) {
+            // 上游未上报缓存用量：用「—」表示不可知，与真实 0% 区分。
+            metrics.push("cache —".to_owned());
         }
     } else if let Some(percent) = app.context_percent {
         metrics.push(format!("ctx {:.0}%", percent));
@@ -4478,6 +4481,7 @@ mod tests {
             cache_write: 2_000_000,
             prompt_tokens: 0,
             requests: 10,
+            cache_reported: Some(true),
         };
 
         let mut terminal = Terminal::new(TestBackend::new(120, 24)).unwrap();
@@ -4500,6 +4504,28 @@ mod tests {
         );
         assert!(!rows.join("\n").contains("cache R/W"));
         assert!(!rows.join("\n").contains("reasoning 1000000"));
+
+        // 上游未上报缓存用量时，状态栏应显示「cache —」而不是「cache 0%」。
+        app.session_usage = crate::model::SessionUsage {
+            total_tokens: 12_317,
+            input: 12_313,
+            output: 4,
+            prompt_tokens: 12_313,
+            requests: 1,
+            cache_reported: Some(false),
+            ..crate::model::SessionUsage::default()
+        };
+        terminal.draw(|frame| draw(frame, &app)).unwrap();
+        let omitted_rows = (0..24)
+            .map(|y| {
+                (0..120)
+                    .filter_map(|x| terminal.backend().buffer().cell((x, y)))
+                    .map(|cell| cell.symbol())
+                    .collect::<String>()
+            })
+            .collect::<Vec<_>>();
+        assert!(omitted_rows[23].contains("cache —"));
+        assert!(!omitted_rows.join("\n").contains("cache 0%"));
     }
 
     /// 验证审批面板在多种终端尺寸下都保持命令与快捷键可见。

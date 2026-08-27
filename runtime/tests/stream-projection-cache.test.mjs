@@ -44,8 +44,30 @@ test('session usage aggregates provider-reported cache and token fields', () => 
     processedTokens: 295,
     requests: 2,
     promptTokens: 1000,
+    cacheReported: true,
     cacheHitRate: 75,
   })
+})
+
+test('session usage keeps the cache hit rate unknown when the provider omits cache fields', () => {
+  // 部分中转只回传 input/output（实测：{"input_tokens":12313,"output_tokens":4}），
+  // 此时命中率不可知，不能与真实 0% 命中混为一谈。
+  const omitted = emptySessionUsage()
+  addSessionUsage(omitted, { input: 12313, output: 4, totalTokens: 12317 })
+  assert.equal(omitted.cacheReported, false)
+  assert.equal(omitted.cacheHitRate, null)
+  assert.equal(omitted.cacheRead, 0)
+
+  // 上游上报了字段但确实未命中：应得到真实的 0%。
+  const missed = emptySessionUsage()
+  addSessionUsage(missed, { input: 500, output: 10, cacheRead: 0, cacheWrite: 0 })
+  assert.equal(missed.cacheReported, true)
+  assert.equal(missed.cacheHitRate, 0)
+
+  // 同一会话中只要有任何一次请求上报过缓存，后续就能继续统计。
+  addSessionUsage(omitted, { input: 100, output: 5, cacheRead: 900 })
+  assert.equal(omitted.cacheReported, true)
+  assert.equal(omitted.cacheHitRate, (900 / 13313) * 100)
 })
 
 test('session usage falls back to field totals only when provider total is absent', () => {

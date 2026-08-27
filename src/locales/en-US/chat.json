@@ -384,6 +384,7 @@
   "focusSession.gitViewDiff": "View diff",
   "focusSession.gitWaitForRunToFinish": "Wait for the current run to finish",
   "focusSession.cacheHitRate": "Cache",
+  "focusSession.cacheHitRateUnavailable": "The current provider does not report cache usage, so the hit rate is unavailable",
   "focusSession.processedTokens": "Consumed tokens",
   "focusSession.sessionUsageDetail": "Consumed {processed} · Input {input} · Output {output} · Cache read {cacheRead} · Cache write {cacheWrite} · Reasoning {reasoning} · {requests} requests",
   "focusSession.goalPaused": "Goal paused",

@@ -43,6 +43,9 @@ export function SessionUsageMetrics({
   const cacheHitRate = Number(usage?.cacheHitRate)
   const cacheRateKnown = usage?.cacheHitRate != null && Number.isFinite(cacheHitRate)
   const cacheRateLabel = cacheRateKnown ? `${Math.round(Math.max(0, cacheHitRate))}%` : '—'
+  // 上游（常见于第三方中转）未回传缓存用量字段时命中率不可知，
+  // 需要单独说明，否则「—」会被误认为界面出错。
+  const cacheRateHint = cacheRateKnown ? '' : t('chat:focusSession.cacheHitRateUnavailable')
   const title = t('chat:focusSession.sessionUsageDetail', {
     processed: formatTokenCount(processedTokens),
     input: formatTokenCount(usage?.input),
@@ -53,7 +56,7 @@ export function SessionUsageMetrics({
     requests: Math.max(0, Number(usage?.requests) || 0),
   })
 
-  const metricsTitle = [title, planProgress].filter(Boolean).join('\n')
+  const metricsTitle = [title, cacheRateHint, planProgress].filter(Boolean).join('\n')
 
   return (
     <div

@@ -352,6 +352,12 @@ function usageTokenCount(value) {
   return Number.isFinite(tokens) ? Math.max(0, tokens) : 0
 }
 
+// 判断上游是否真的上报过缓存用量字段：部分第三方中转只回传 input/output，
+// 把缺失当成 0 会让界面显示「0% 命中」，与「确实没命中」无法区分。
+function reportsCacheUsage(usage) {
+  return usage?.cacheRead != null || usage?.cacheWrite != null
+}
+
 export function emptySessionUsage() {
   return {
     input: 0,
@@ -363,6 +369,7 @@ export function emptySessionUsage() {
     processedTokens: 0,
     requests: 0,
     promptTokens: 0,
+    cacheReported: false,
     cacheHitRate: null,
   }
 }
@@ -385,7 +392,12 @@ export function addSessionUsage(target, usage) {
   target.processedTokens += input + output + cacheWrite
   target.requests += 1
   target.promptTokens = target.input + target.cacheRead + target.cacheWrite
-  target.cacheHitRate = target.promptTokens ? (target.cacheRead / target.promptTokens) * 100 : null
+  if (reportsCacheUsage(usage)) target.cacheReported = true
+  // 上游从未上报缓存字段时命中率不可知，保持 null 让界面显示「—」而非 0%。
+  target.cacheHitRate =
+    target.cacheReported && target.promptTokens
+      ? (target.cacheRead / target.promptTokens) * 100
+      : null
   return target
 }
 
