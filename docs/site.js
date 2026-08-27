@@ -894,3 +894,136 @@ Promise.all([appManifestPromise, desktopAssetPromise]).then(([appManifest, deskt
     for (const link of document.querySelectorAll('[data-app-release]')) link.href = appReleaseUrl
   }
 })
+
+/* ============================================================
+   滚动分页:轻拨一下滚轮 → 平滑跳到下一个停靠点
+   ============================================================ */
+
+/* 比视口高的区块(product / safety / mobile 都超过一屏)不能整块跳过,
+   否则中间内容会被吞掉。这里按需要把长区块切成多个停靠点。 */
+function computeSnapStops() {
+  const headerH = document.querySelector('[data-header]')?.offsetHeight || 0
+  const viewH = window.innerHeight
+  const maxScroll = document.documentElement.scrollHeight - viewH
+  const usable = viewH - headerH
+  const stops = []
+
+  for (const section of document.querySelectorAll('main > section')) {
+    const top = section.getBoundingClientRect().top + window.scrollY
+    const height = section.getBoundingClientRect().height
+    // 顶部对齐到 header 下沿
+    const start = Math.max(0, Math.round(top - headerH))
+    // 短装饰带（如产品形态一行）不单独停靠，否则一次滚动只挑一小段，
+    // 感觉不像“翻到下一页”；它会随相邻区块一起入镜。
+    if (height >= usable * 0.4) stops.push(start)
+    // 超过一屏的区块:补足中间停靠点,保证每屏内容都会被看到
+    if (height > usable) {
+      const parts = Math.ceil(height / usable)
+      for (let i = 1; i < parts; i++) {
+        stops.push(
+          Math.round(Math.min(start + (height - usable) * (i / (parts - 1 || 1)), maxScroll)),
+        )
+      }
+    }
+  }
+
+  stops.push(maxScroll)
+  // 去重并丢掉过近的停靠点，避免一次滚动只挪一小段（阈值取半屏）
+  const minGap = Math.max(160, usable * 0.5)
+  return [...new Set(stops.filter((v) => v >= 0 && v <= maxScroll).sort((a, b) => a - b))].filter(
+    (v, i, arr) => i === 0 || v === maxScroll || v - arr[i - 1] > minGap,
+  )
+}
+
+let snapStops = computeSnapStops()
+let snapTarget = null
+let snapUntil = 0
+
+function nearestStopIndex(y) {
+  let best = 0
+  let bestGap = Infinity
+  for (let i = 0; i < snapStops.length; i++) {
+    const gap = Math.abs(snapStops[i] - y)
+    if (gap < bestGap) {
+      bestGap = gap
+      best = i
+    }
+  }
+  return best
+}
+
+function snapTo(index) {
+  const target = snapStops[Math.max(0, Math.min(snapStops.length - 1, index))]
+  if (target == null) return
+  snapTarget = target
+  // 动画期间忽略后续滚轮,避免连跳;按距离给出上限,长距离不至于卡太久
+  snapUntil = performance.now() + 900
+  window.scrollTo({ top: target, behavior: 'smooth' })
+}
+
+// 仅接管"轻拨一下"的鼠标滚轮;触控板惯性、缩放与横向滚动一律放行
+if (!reduceMotion && window.matchMedia('(min-width: 961px)').matches) {
+  window.addEventListener('resize', () => {
+    snapStops = computeSnapStops()
+  })
+  // 图片/字体加载完可能改变布局，停靠点需要重算，否则会按旧坐标跳错位置
+  window.addEventListener('load', () => {
+    snapStops = computeSnapStops()
+  })
+
+  window.addEventListener(
+    'wheel',
+    (event) => {
+      if (event.ctrlKey || event.defaultPrevented) return
+      if (Math.abs(event.deltaX) > Math.abs(event.deltaY)) return
+      // deltaMode 0 且步长很小的连续事件多来自触控板/平滑滚轮,保留原生手感
+      if (event.deltaMode === 0 && Math.abs(event.deltaY) < 16) return
+      // 可滚动的内层容器(如代码块)优先处理自己的滚动
+      for (let node = event.target; node && node !== document.body; node = node.parentElement) {
+        if (!(node instanceof HTMLElement)) break
+        const style = getComputedStyle(node)
+        if (!/(auto|scroll)/.test(style.overflowY)) continue
+        if (node.scrollHeight <= node.clientHeight + 1) continue
+        const atTop = node.scrollTop <= 0
+        const atBottom = node.scrollTop + node.clientHeight >= node.scrollHeight - 1
+        if (!(event.deltaY < 0 ? atTop : atBottom)) return
+      }
+
+      const now = performance.now()
+      if (now < snapUntil) {
+        event.preventDefault()
+        return
+      }
+
+      const dir = event.deltaY > 0 ? 1 : -1
+      const y = window.scrollY
+      const maxScroll = document.documentElement.scrollHeight - window.innerHeight
+      // 已在两端时放行,便于露出页脚或回弹
+      if ((dir > 0 && y >= maxScroll - 2) || (dir < 0 && y <= 2)) return
+
+      const base = snapTarget != null && Math.abs(snapTarget - y) < 40 ? snapTarget : y
+      let index = nearestStopIndex(base)
+      // 距离当前停靠点较远时,先归位到本屏,再继续翻页
+      if (Math.abs(snapStops[index] - base) > 24) {
+        index = dir > 0 ? index + (snapStops[index] > base ? 0 : 1) : index - (snapStops[index] < base ? 0 : 1)
+      } else {
+        index += dir
+      }
+
+      event.preventDefault()
+      snapTo(index)
+    },
+    { passive: false },
+  )
+
+  // 键盘翻页沿用同一套停靠点
+  window.addEventListener('keydown', (event) => {
+    if (event.defaultPrevented || event.ctrlKey || event.metaKey || event.altKey) return
+    const tag = document.activeElement?.tagName
+    if (tag === 'INPUT' || tag === 'TEXTAREA' || document.activeElement?.isContentEditable) return
+    if (event.key !== 'PageDown' && event.key !== 'PageUp') return
+    event.preventDefault()
+    const index = nearestStopIndex(snapTarget != null ? snapTarget : window.scrollY)
+    snapTo(index + (event.key === 'PageDown' ? 1 : -1))
+  })
+}
