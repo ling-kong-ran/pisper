@@ -3,7 +3,7 @@
   "private": true,
   "version": "0.5.21",
   "license": "MIT",
-  "description": "A local-first multi-agent workspace for parallel sessions, tools, memory, and workflows.",
+  "description": "A multi-agent workspace across desktop, terminal, and mobile for parallel sessions, tools, memory, and workflows.",
   "author": {
     "name": "ling-kong-ran",
     "email": "65328093+ling-kong-ran@users.noreply.github.com",

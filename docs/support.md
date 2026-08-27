@@ -1,6 +1,6 @@
 # Pisper Mobile Support
 
-Pisper is a local-first AI workspace for Android and iOS.
+Pisper is a multi-agent AI workspace for Android and iOS.
 
 ## Get help
 
