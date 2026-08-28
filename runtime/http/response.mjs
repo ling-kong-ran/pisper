@@ -67,10 +67,50 @@ export async function bodyJson(req) {
 
 // 发送一帧 SSE：id 非空时写入标准 `id:` 行（run 游标），
 // 旧客户端会忽略未知字段，保持前向兼容。
+// 返回值是 res.write() 的背压信号：false 仅表示本次写入后缓冲越过了
+// Node 的 ~16KB 高水位——单帧稍大就会命中，并不代表客户端停止消费，
+// 调用方不应据此断连（需要区分慢客户端时请用 sseSendGuarded）。
 export function sseSend(res, event, data, id = null) {
   const idLine = id == null ? '' : `id: ${id}\n`
-  // Node 返回 false 表示发送缓冲达到高水位；调用方应断开慢客户端，让其通过 run 游标重挂。
   return (
     res.write(`${idLine}event: ${event}\ndata: ${JSON.stringify(data, jsonReplacer)}\n\n`) !== false
   )
+}
+
+// drain 迟迟不来的判死时限：瞬时背压（write 返回 false）只表示越过 ~16KB 高水位，
+// 健康客户端由内核立即排空；数据持续排不出去才说明客户端真的停止消费，
+// 此时销毁连接让其凭 run 游标重挂补发，事件不丢。
+export const SSE_STALL_TIMEOUT_MS = 30_000
+
+const sseStallTimers = new WeakMap()
+
+function clearSseStallTimer(res) {
+  const timer = sseStallTimers.get(res)
+  if (timer) clearTimeout(timer)
+  sseStallTimers.delete(res)
+}
+
+// 带慢客户端护栏的 SSE 发送：瞬时背压不处理（等 drain 自然恢复），
+// 只有超过 stall 时限仍未 drain 且仍有积压时才销毁连接——被断开的客户端
+// 可凭 run 游标经 GET /api/runs/:id/events?after= 重挂补发，事件不会丢。
+export function sseSendGuarded(res, event, data, id = null) {
+  if (res.destroyed || res.writableEnded) return false
+  const accepted = sseSend(res, event, data, id)
+  if (accepted) {
+    clearSseStallTimer(res)
+    return true
+  }
+  if (!sseStallTimers.has(res)) {
+    const timer = setTimeout(() => {
+      sseStallTimers.delete(res)
+      // 超时后仍有数据排不出去才判死；期间客户端恢复读取（drain）则已解除。
+      if (!res.destroyed && !res.writableEnded && (Number(res.writableLength) || 0) > 0)
+        res.destroy?.()
+    }, SSE_STALL_TIMEOUT_MS)
+    timer.unref?.()
+    sseStallTimers.set(res, timer)
+    res.once?.('drain', () => clearSseStallTimer(res))
+    res.once?.('close', () => clearSseStallTimer(res))
+  }
+  return true
 }

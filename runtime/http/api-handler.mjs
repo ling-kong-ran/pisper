@@ -1,7 +1,7 @@
 // API 处理器：注册所有路由，统一封装请求上下文（JSON/SSE/错误脱敏），
 // 并把请求分发给对应的路由处理器。
 import { redactSecretText } from '../security/secret-redaction.mjs'
-import { bodyJson, json as sendJson, sseSend } from './response.mjs'
+import { bodyJson, json as sendJson, sseSendGuarded } from './response.mjs'
 import { createRouteRegistry } from './route-registry.mjs'
 import { configSettingsRoutes } from './routes/config-settings.mjs'
 import { desktopRoutes } from './routes/desktop.mjs'
@@ -56,12 +56,8 @@ export function requiredRuntimeFeature(pathname, method = 'GET') {
 function createHandlerContext({ runtime, services, req, res, url, params }) {
   let sseStarted = false
   let activeRun = null
-  const writeSse = (event, data, id = null) => {
-    if (res.destroyed || res.writableEnded) return false
-    const accepted = sseSend(res, event, data, id)
-    if (!accepted) res.destroy?.()
-    return accepted
-  }
+  // 瞬时背压不断连：sseSendGuarded 只在 stall 超时（持续排不出去）时才销毁连接。
+  const writeSse = (event, data, id = null) => sseSendGuarded(res, event, data, id)
   return {
     context: {
       runtime,

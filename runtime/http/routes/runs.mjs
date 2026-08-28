@@ -1,6 +1,6 @@
 // Run 重挂路由：断线后按游标续传事件流。
 // 帧格式与首次连接一致（run 头帧 → 业务帧带 id 游标），缓冲溢出时先插 resync_required。
-import { sseSend } from '../response.mjs'
+import { sseSendGuarded } from '../response.mjs'
 import { RunNotResumableError } from '../../services/run-registry.mjs'
 
 export const runRoutes = [
@@ -22,12 +22,8 @@ export const runRoutes = [
       }
       const { run, gap, replay } = prepared
       startSse()
-      const write = (event, data, id = null) => {
-        if (res.destroyed || res.writableEnded) return false
-        const accepted = sseSend(res, event, data, id)
-        if (!accepted) res.destroy?.()
-        return accepted
-      }
+      // 与首次连接同一套护栏：回放大帧/瞬时背压不断连，真卡死才销毁。
+      const write = (event, data, id = null) => sseSendGuarded(res, event, data, id)
       // 头帧与首次连接一致，resumed 标记供客户端区分重挂场景。
       if (!write('run', { runId: run.id, ...run.meta, cursor: 0, resumed: true })) return
       if (gap && !write('resync_required', { reason: 'buffer_overflow', runId: run.id })) return

@@ -113,7 +113,7 @@ test('API handler completes successful SSE responses exactly once', async () => 
   assert.match(output.body, /event: done/)
 })
 
-test('API handler drops an SSE client that applies backpressure', async () => {
+test('API handler keeps an SSE client through transient backpressure', async () => {
   const handler = createApiHandler({
     async streamPrompt({ send }) {
       send('snapshot', { text: 'working' })
@@ -122,10 +122,12 @@ test('API handler drops an SSE client that applies backpressure', async () => {
   })
   const output = response()
   let writes = 0
+  // 模拟健康客户端遇到瞬时高水位：write 返回 false 但缓冲并未堆积。
+  output.writableLength = 0
   output.write = function write(body = '') {
     this.body += body
     writes += 1
-    return writes < 2
+    return writes !== 1
   }
   output.destroy = function destroy() {
     this.destroyed = true
@@ -137,8 +139,38 @@ test('API handler drops an SSE client that applies backpressure', async () => {
     new URL('http://localhost/api/chat'),
   )
 
-  assert.equal(output.destroyed, true)
-  assert.equal(output.endCount, 0)
+  assert.equal(output.destroyed, false)
+  assert.equal(output.endCount, 1)
+  assert.match(output.body, /event: done/)
+})
+
+test('API handler does not drop an SSE client on write backpressure alone', async () => {
+  const handler = createApiHandler({
+    async streamPrompt({ send }) {
+      send('snapshot', { text: 'working' })
+      send('done', { text: 'complete' })
+    },
+  })
+  const output = response()
+  // 模拟持续背压：write 一直返回 false（大缓冲堆积）。没有 stall 超时不应断连。
+  output.writableLength = 8 * 1024 * 1024
+  output.write = function write(body = '') {
+    this.body += body
+    return false
+  }
+  output.destroy = function destroy() {
+    this.destroyed = true
+  }
+
+  await handler(
+    request('POST', { sessionId: 'session-1', message: 'hello' }),
+    output,
+    new URL('http://localhost/api/chat'),
+  )
+
+  assert.equal(output.destroyed, false)
+  assert.equal(output.endCount, 1)
+  assert.match(output.body, /event: done/)
 })
 
 test('API handler emits a redacted terminal SSE error when streaming throws', async () => {

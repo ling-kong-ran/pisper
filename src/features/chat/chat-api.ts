@@ -1,6 +1,6 @@
 // 聊天 API 客户端：封装会话列表/详情/发送/流式事件等请求。
 // consumeEventStream 逐行解析 SSE，事件按类型分发到各调度器。
-import { consumeEventStream } from '@/lib/api'
+import { streamEventsWithResume } from '@/lib/api'
 import { requestJson } from '@/lib/http'
 import type {
   ChatAttachment,
@@ -145,7 +145,7 @@ const sessionPath = (sessionId: string) => `/api/sessions/${encodeURIComponent(s
 
 // 聊天 API 客户端：按领域分组封装所有会话/树/审批/目标模式/Git/工作流运行
 // 等 HTTP 调用。全部走 requestJson（自动超时与错误归一化），
-// 流式接口 openStream 单独用 fetch + consumeEventStream 消费 SSE。
+// 流式接口 openStream 单独用 fetch + streamEventsWithResume 消费 SSE（含断流重挂）。
 export const chatApi = {
   // —— 会话目录与消息 ——
   listSessions: () => requestJson<SessionListResponse>('/api/sessions'),
@@ -225,6 +225,8 @@ export const chatApi = {
   },
 
   // —— 流式对话与排队 ——
+  // 断流自动重挂：run 帧携带 runId，后续帧带游标；连接中断后凭
+  // /api/runs/:id/events?after= 续传补发，缓冲溢出由 resync_required 上报。
   openStream: async (
     input: {
       sessionId: string
@@ -236,12 +238,17 @@ export const chatApi = {
     },
     onEvent: StreamEventHandler,
   ) => {
-    const response = await fetch('/api/chat', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(input),
+    await streamEventsWithResume({
+      open: () =>
+        fetch('/api/chat', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(input),
+        }),
+      resume: (runId, cursor) =>
+        fetch(`/api/runs/${encodeURIComponent(runId)}/events?after=${cursor}`),
+      onEvent,
     })
-    await consumeEventStream(response, onEvent)
   },
 
   queueInput: (

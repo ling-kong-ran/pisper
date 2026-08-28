@@ -200,6 +200,14 @@ export function usePromptCommands({
       const dispatchStreamEvent = (event: string, data: Record<string, any>) => {
         // 前台恢复会使陈旧流失效，避免它在服务端快照之后写回过期增量。
         if (!ownsStream()) return false
+        // 重挂时服务端缓冲已溢出（缺口）：增量不再可信。立即释放本地流所有权，
+        // 移交实时快照轮询补齐后续状态——run 在服务端继续推进，不中断。
+        if (event === 'resync_required') {
+          streamGenerationRef.current.delete(sessionId)
+          localStreamSessionsRef.current.delete(sessionId)
+          void syncLiveSession(sessionId)
+          return false
+        }
         return dispatcher.dispatch(event, data)
       }
       streamState = dispatcher.state
@@ -247,6 +255,9 @@ export function usePromptCommands({
         )
       }
       localStreamSessionsRef.current.add(sessionId)
+      // 记录流是否以异常收场：runtime 的 run 与连接解耦，连接断开后 run 可能仍在
+      // 运行甚至已完成，finally 里据此用实时快照恢复现场，而不是定格为失败。
+      let streamFailed = false
 
       try {
         await chatApi.openStream(
@@ -309,6 +320,7 @@ export function usePromptCommands({
         })
       } catch (error) {
         if (!ownsStream()) return
+        streamFailed = true
         typewriter.cancel()
         thinkingScheduler.flush()
         toolScheduler.cancel()
@@ -366,6 +378,9 @@ export function usePromptCommands({
         toolScheduler.cancel()
         resolveLocalStream()
         window.dispatchEvent(new Event(USAGE_UPDATED_EVENT))
+        // 连接级失败（如 SSE 中断）后立刻向服务端校准：仍在跑则恢复轮询，
+        // 已完成则拉齐终态；真实的服务端错误会原样保留在快照里。
+        if (streamFailed && currentStream) void syncLiveSession(sessionId)
       }
     },
     [

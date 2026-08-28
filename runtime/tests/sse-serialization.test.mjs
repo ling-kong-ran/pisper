@@ -1,6 +1,11 @@
 import assert from 'node:assert/strict'
-import test from 'node:test'
-import { replaceLoneSurrogates, sseSend } from '../http/response.mjs'
+import test, { mock } from 'node:test'
+import {
+  replaceLoneSurrogates,
+  SSE_STALL_TIMEOUT_MS,
+  sseSend,
+  sseSendGuarded,
+} from '../http/response.mjs'
 
 test('replaceLoneSurrogates keeps valid surrogate pairs intact', () => {
   const pair = 'a\ud83d\ude00b'
@@ -42,6 +47,88 @@ test('sseSend reports backpressure so callers can disconnect slow consumers', ()
     },
   }
   assert.equal(sseSend(res, 'snapshot', { text: 'working' }), false)
+})
+
+test('sseSendGuarded tolerates transient backpressure from healthy clients', () => {
+  const res = {
+    writableLength: 32 * 1024,
+    destroyed: false,
+    write() {
+      return false
+    },
+    once() {},
+    destroy() {
+      this.destroyed = true
+    },
+  }
+  // 瞬时背压（缓冲远低于上限）不断连，帧仍被视为已接收。
+  assert.equal(sseSendGuarded(res, 'snapshot', { text: 'working' }), true)
+  assert.equal(res.destroyed, false)
+})
+
+test('sseSendGuarded destroys the connection only after a drain stall timeout', () => {
+  mock.timers.enable({ apis: ['setTimeout'] })
+  try {
+    const res = {
+      writableLength: 64 * 1024,
+      destroyed: false,
+      write() {
+        return false
+      },
+      once() {},
+      destroy() {
+        this.destroyed = true
+      },
+    }
+    assert.equal(sseSendGuarded(res, 'snapshot', { text: 'working' }), true)
+    // 背压本身不断连；持续 30s 排不出去才判死销毁。
+    assert.equal(res.destroyed, false)
+    mock.timers.tick(SSE_STALL_TIMEOUT_MS + 1)
+    assert.equal(res.destroyed, true)
+  } finally {
+    mock.timers.reset()
+  }
+})
+
+test('sseSendGuarded clears the stall timer once the client drains', () => {
+  mock.timers.enable({ apis: ['setTimeout'] })
+  try {
+    const listeners = new Map()
+    const res = {
+      writableLength: 64 * 1024,
+      destroyed: false,
+      write() {
+        return false
+      },
+      once(event, callback) {
+        listeners.set(event, callback)
+      },
+      destroy() {
+        this.destroyed = true
+      },
+    }
+    assert.equal(sseSendGuarded(res, 'snapshot', { text: 'working' }), true)
+    // 客户端恢复排空：drain 解除判死计时，超时后连接仍存活。
+    listeners.get('drain')?.()
+    mock.timers.tick(SSE_STALL_TIMEOUT_MS + 1)
+    assert.equal(res.destroyed, false)
+  } finally {
+    mock.timers.reset()
+  }
+})
+
+test('sseSendGuarded skips destroyed or ended responses', () => {
+  const res = {
+    writableLength: 0,
+    destroyed: true,
+    writes: 0,
+    write() {
+      this.writes += 1
+      return true
+    },
+  }
+  assert.equal(sseSendGuarded(res, 'snapshot', { text: 'working' }), false)
+  assert.equal(res.writes, 0)
 })
 
 test('sseSend keeps valid surrogate pairs as parseable JSON', () => {
