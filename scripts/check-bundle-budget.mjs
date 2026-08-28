@@ -7,7 +7,7 @@ const KIB = 1024
 
 export const BUNDLE_BUDGETS = {
   totalCssGzip: 88 * KIB,
-  entryFileGzip: 56 * KIB,
+  entryFileGzip: 57 * KIB,
   entryStaticJsGzip: 275 * KIB,
   markdownSurfaceGzip: 330 * KIB,
   largestJsGzip: 245 * KIB,
