@@ -410,11 +410,11 @@ test('settings navigation replaces the main sidebar and stays reachable in the m
 })
 
 test('mobile shell keeps navigation in the viewport and model settings use one narrow column', async () => {
-  const [app, models, providerCatalog, credentials] = await Promise.all([
+  const [app, models, connectionList, wizard] = await Promise.all([
     readFile('src/App.tsx', 'utf8'),
     readFile('src/features/config/ModelsSettings.tsx', 'utf8'),
-    readFile('src/features/config/ProviderCatalog.tsx', 'utf8'),
-    readFile('src/features/config/ProviderDetail.tsx', 'utf8'),
+    readFile('src/features/config/ConnectionList.tsx', 'utf8'),
+    readFile('src/features/config/QuickSetupWizard.tsx', 'utf8'),
   ])
 
   assert.match(
@@ -426,20 +426,16 @@ test('mobile shell keeps navigation in the viewport and model settings use one n
     /app-body[^"\n]*\[&\[data-mobile-app\]\]:h-auto[^"\n]*\[&\[data-mobile-app\]\]:flex-1[^"\n]*\[&\[data-mobile-app\]\]:overflow-hidden/,
   )
   assert.equal(app.match(/data-mobile-app=\{mobileApp \|\| undefined\}/g)?.length, 2)
-  assert.match(
-    models,
-    /config-layout[^"\n]*grid-cols-\[300px_minmax\(0,1fr\)\][^"\n]*max-\[900px\]:grid-cols-1/,
-  )
+  // 模型设置页为单列扁平结构：摘要 + 发现 + 连接列表 + 运行策略 + 视觉生成
   assert.doesNotMatch(models, /!grid-cols-/)
-  assert.match(models, /scrollIntoView\(\{ behavior: 'smooth', block: 'start' \}\)/)
-  assert.match(models, /ProviderConnections[\s\S]*?className="max-\[900px\]:hidden"/)
-  assert.match(models, /<ProviderDetail/)
-  assert.match(providerCatalog, /ProviderMobilePicker/)
-  assert.match(providerCatalog, /hidden max-\[900px\]:block/)
-  assert.match(providerCatalog, /value=\{provider\.configured && provider\.enabled\}/)
-  assert.match(credentials, /value=\{provider\.configured && provider\.enabled\}/)
-  assert.match(credentials, /tone=\{!provider\.configured/)
-  assert.ok(credentials.indexOf('API Key') < credentials.indexOf('config:configPage.apiProtocol'))
+  assert.match(models, /<CurrentModelSummary/)
+  assert.match(models, /<ConnectionList/)
+  assert.match(models, /<RuntimePolicySettings/)
+  assert.match(models, /<VisualGenerationSettings/)
+  assert.match(connectionList, /value=\{provider\.configured && provider\.enabled\}/)
+  assert.match(connectionList, /tone="green"/)
+  assert.match(wizard, /type="password"/)
+  assert.ok(wizard.indexOf('API Key') < wizard.indexOf('config:configPage.apiProtocol'))
 })
 
 test('mobile device permissions are requested by native operations', async () => {

@@ -2,40 +2,27 @@ import assert from 'node:assert/strict'
 import { readFile } from 'node:fs/promises'
 import test from 'node:test'
 
-test('Provider settings save separately from changing the default model', async () => {
-  const [modelsSettingsSource, providerDetailSource, settingsHookSource] = await Promise.all([
+test('quick setup wizard saves provider config and default model in one step', async () => {
+  const [wizardSource, modelsSettingsSource] = await Promise.all([
+    readFile('src/features/config/QuickSetupWizard.tsx', 'utf8'),
     readFile('src/features/config/ModelsSettings.tsx', 'utf8'),
-    readFile('src/features/config/ProviderDetail.tsx', 'utf8'),
-    readFile('src/features/config/useConfigSettings.ts', 'utf8'),
   ])
 
-  assert.match(providerDetailSource, /onClick=\{\(\) => onSave\(false\)\}/)
-  assert.match(providerDetailSource, /onClick=\{\(\) => onSave\(true\)\}/)
-  assert.match(providerDetailSource, /configPage\.saveProviderSettings/)
-  assert.match(providerDetailSource, /configPage\.setAsDefaultProvider/)
-  assert.doesNotMatch(providerDetailSource, /saving \|\| !provider\.enabled/)
-  assert.match(providerDetailSource, /disabled=\{saving \|\| !dirty/)
-  assert.match(modelsSettingsSource, /<ProviderDetail[\s\S]*?<RuntimePolicySettings/)
+  assert.match(wizardSource, /setAsDefault: true/)
+  assert.match(wizardSource, /enabled: true/)
+  assert.match(wizardSource, /apiKey: readApiKey\(\)/)
+  // 高级设置（协议/端点/组织）折叠在向导第 2 步内
+  assert.match(wizardSource, /configPage\.advancedSettings/)
+  assert.match(wizardSource, /configPage\.apiProtocol/)
+  assert.match(modelsSettingsSource, /<QuickSetupWizard/)
   assert.doesNotMatch(modelsSettingsSource, /detailTab|config-tabs/)
-  assert.match(settingsHookSource, /async \(setAsDefault = false\)/)
-  assert.match(settingsHookSource, /if \(!draft \|\| !state\.dirty\) return/)
-  assert.match(settingsHookSource, /configPage\.completeProviderAuthenticationBeforeSaving/)
-  assert.match(settingsHookSource, /!savedProvider\?\.configured \|\| !savedProvider\.enabled/)
-  assert.match(
-    settingsHookSource,
-    /JSON\.stringify\(\{ \.\.\.draft, apiKey, setAsDefault, enabled: true \}\)/,
-  )
 })
 
-test('Provider API key saving reads the live password input instead of relying only on React draft state', async () => {
-  const [providerDetailSource, settingsHookSource] = await Promise.all([
-    readFile('src/features/config/ProviderDetail.tsx', 'utf8'),
-    readFile('src/features/config/useConfigSettings.ts', 'utf8'),
-  ])
-  assert.match(settingsHookSource, /const apiKeyInputRef = useRef<HTMLInputElement>\(null\)/)
-  assert.match(settingsHookSource, /apiKeyInputRef\.current\?\.value \|\| draft\.apiKey/)
-  assert.match(providerDetailSource, /type="password"/)
-  assert.match(providerDetailSource, /autoComplete="new-password"/)
-  assert.match(providerDetailSource, /onInput=\{\(event\) =>/)
-  assert.match(settingsHookSource, /apiKey\.trim\(\) && !saved\.apiKeyUpdated/)
+test('Provider API key saving reads the live password input instead of relying only on React state', async () => {
+  const wizardSource = await readFile('src/features/config/QuickSetupWizard.tsx', 'utf8')
+  assert.match(wizardSource, /const apiKeyInputRef = useRef<HTMLInputElement>\(null\)/)
+  assert.match(wizardSource, /apiKeyInputRef\.current\?\.value/)
+  assert.match(wizardSource, /type="password"/)
+  assert.match(wizardSource, /autoComplete="new-password"/)
+  assert.match(wizardSource, /onInput=\{\(event\) =>/)
 })

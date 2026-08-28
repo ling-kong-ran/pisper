@@ -1,27 +1,33 @@
 // 快速配置向导：三步完成对话模型配置——
 // 选择服务商（已知 Provider 预填协议/端点）→ 填 API Key → 自动拉取模型并推荐，
 // 最后一键「保存并设为默认」。自定义/视觉连接仍走高级弹窗。
-import { useState } from 'react'
+// 支持 initialProviderId 预选（连接列表「配置」入口）：直接进入 Key 或选模型步骤；
+// 第 2 步的高级折叠区覆盖中转站场景（Base URL/协议/Organization）；
+// 第 3 步支持手动输入模型 ID（发现接口不可用时兜底）。
+import { useRef, useState } from 'react'
 import {
   AlertTriangle,
   ArrowLeft,
   ArrowRight,
   Check,
   CheckCircle2,
+  ChevronDown,
   Plus,
   RefreshCw,
   Server,
   X,
 } from 'lucide-react'
+import { AppSelect } from '@/components/AppSelect'
 import { useI18n } from '@/app/use-i18n'
 import { apiJson } from '@/lib/api'
 import { cn } from '@/lib/utils'
-import { recommendedChatModel } from './config-state'
-import { PROVIDER_ICONS } from './provider-constants'
+import { recommendedChatModel } from './model-recommendation'
+import { PROVIDER_APIS, PROVIDER_ICONS } from './provider-constants'
 import { SettingsBadge } from './settings-primitives'
 import type { ConfigData, ModelDiscoveryResult, ProviderConfig } from './config-types'
 
 import { Button } from '@/components/ui/button'
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible'
 
 import { FieldLabel } from '@/components/ui/field'
 
@@ -29,13 +35,19 @@ import { AppCardHeader, AppError } from '@/components/ui/app-primitives'
 
 type QuickSetupWizardProps = {
   config: ConfigData
+  // 预选 Provider（连接列表「配置」入口）：跳过第 1 步。
+  initialProviderId?: string
+  // 已有可用模型时直接进入第 3 步选模型（「更改模型」入口）。
+  startAtModels?: boolean
   onClose: () => void
-  onCompleted: (data: ConfigData, providerId: string, modelId: string) => void
+  onCompleted: (data: ConfigData) => void
   onCustomProvider: () => void
 }
 
 export function QuickSetupWizard({
   config,
+  initialProviderId,
+  startAtModels,
   onClose,
   onCompleted,
   onCustomProvider,
@@ -45,26 +57,54 @@ export function QuickSetupWizard({
   const candidates = config.providers.filter(
     (provider) => provider.type !== 'visual' && provider.id !== 'openai-codex',
   )
-  const [step, setStep] = useState(1)
-  const [provider, setProvider] = useState<ProviderConfig | null>(null)
+  const initial = initialProviderId
+    ? candidates.find((item) => item.id === initialProviderId) || null
+    : null
+  const startWithModels = Boolean(
+    initial && startAtModels && initial.configured && initial.models.some((m) => m.kind === 'chat'),
+  )
+  const [step, setStep] = useState(initial ? (startWithModels ? 3 : 2) : 1)
+  const [provider, setProvider] = useState<ProviderConfig | null>(initial)
   const [apiKey, setApiKey] = useState('')
-  const [fetchedProvider, setFetchedProvider] = useState<ProviderConfig | null>(null)
-  const [modelId, setModelId] = useState('')
+  const [api, setApi] = useState(initial?.api || 'openai-responses')
+  const [baseUrl, setBaseUrl] = useState(initial?.baseUrl || '')
+  const [organization, setOrganization] = useState(initial?.organization || '')
+  const [fetchedProvider, setFetchedProvider] = useState<ProviderConfig | null>(
+    startWithModels ? initial : null,
+  )
+  const [modelId, setModelId] = useState(() =>
+    startWithModels ? recommendedChatModel(initial)?.id || '' : '',
+  )
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
+  // 中转站/自定义连接依赖端点字段：高级区默认展开。
+  const [advancedOpen, setAdvancedOpen] = useState(Boolean(initial?.custom))
+  const apiKeyInputRef = useRef<HTMLInputElement>(null)
+  // 密码管理器/自动填充可能不触发 React onChange，提交时读实时值兜底。
+  const readApiKey = () => apiKeyInputRef.current?.value ?? apiKey
 
   const pickProvider = (item: ProviderConfig) => {
     setProvider(item)
+    setApi(item.api || 'openai-responses')
+    setBaseUrl(item.baseUrl || '')
+    setOrganization(item.organization || '')
+    setAdvancedOpen(Boolean(item.custom))
     setError('')
     setStep(2)
   }
 
-  // 第二步 → 拉取模型：Key 以临时参数传给发现接口（不落盘），
-  // 成功保存后模型目录会自动同步进配置。
+  // 第二步 → 拉取模型：连接参数（含高级区覆盖）传给发现接口，
+  // Key 以临时参数传递（不落盘），保存成功后才写入凭据。
   const fetchModels = async () => {
     if (!provider) return
-    if (!apiKey.trim() && !provider.configured) {
+    const liveKey = readApiKey().trim()
+    if (liveKey !== apiKey) setApiKey(liveKey)
+    if (!liveKey && !provider.configured) {
       setError(t('config:configPage.enterTheAPIKeyForThisConnection'))
+      return
+    }
+    if (provider.custom && !baseUrl.trim()) {
+      setError(t('config:configPage.enterProviderBaseURLBeforeSaving'))
       return
     }
     setBusy(true)
@@ -74,11 +114,17 @@ export function QuickSetupWizard({
         `/api/providers/${encodeURIComponent(provider.id)}/models/discover`,
         {
           method: 'POST',
-          body: JSON.stringify({ apiKey, providerType: 'chat' }),
+          body: JSON.stringify({
+            apiKey: liveKey,
+            api,
+            baseUrl,
+            organization,
+            providerType: 'chat',
+          }),
         },
       )
       const refreshed = result.config?.providers.find((item) => item.id === provider.id)
-      // 目录未同步（synchronized=false）时 config 为 null，用发现结果兑底展示。
+      // 目录未同步（synchronized=false，如自定义端点）时 config 为 null，用发现结果兜底展示。
       const source =
         refreshed || (result.models?.length ? { ...provider, models: result.models } : null)
       const chatModels = source?.models.filter((item) => item.kind === 'chat') || []
@@ -87,7 +133,7 @@ export function QuickSetupWizard({
         return
       }
       setFetchedProvider(source)
-      // 预选推荐模型（Provider 默认 > 目录排序第一），用户仍可改选。
+      // 预选推荐模型（Provider 默认 > 目录排序第一），用户仍可改选或手动输入。
       const recommended = refreshed ? recommendedChatModel(refreshed) : chatModels[0]
       setModelId(recommended?.id || '')
       setStep(3)
@@ -99,29 +145,30 @@ export function QuickSetupWizard({
   }
 
   const saveAndSetDefault = async () => {
-    if (!provider || !modelId) return
+    const model = modelId.trim()
+    if (!provider || !model) return
     setBusy(true)
     setError('')
     try {
-      // baseUrl/organization 回传当前生效值：已知 Provider 为官方默认端点，
-      // 避免空值误清掉用户已有的自定义端点/组织头。
+      // baseUrl/organization/api 回传当前表单值：已知 Provider 默认预填官方端点，
+      // 清空则回退官方默认；自定义连接必须非空（第 2 步已校验）。
       const saved = await apiJson<ConfigData>('/api/config', {
         method: 'PUT',
         body: JSON.stringify({
           provider: provider.id,
           providerType: 'chat',
-          api: provider.api,
-          baseUrl: provider.baseUrl || '',
-          organization: provider.organization || '',
-          model: modelId,
-          apiKey,
+          api,
+          baseUrl,
+          organization,
+          model,
+          apiKey: readApiKey(),
           thinkingLevel: config.thinkingLevel,
           toolMode: config.toolMode,
           setAsDefault: true,
           enabled: true,
         }),
       })
-      onCompleted(saved, provider.id, modelId)
+      onCompleted(saved)
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : String(caught))
     } finally {
@@ -222,11 +269,16 @@ export function QuickSetupWizard({
               <FieldLabel variant="control">
                 API Key
                 <input
+                  ref={apiKeyInputRef}
                   type="password"
                   autoComplete="new-password"
                   autoFocus
                   value={apiKey}
                   onChange={(event) => setApiKey(event.target.value)}
+                  onInput={(event) => {
+                    const value = event.currentTarget.value
+                    if (apiKey !== value) setApiKey(value)
+                  }}
                   placeholder={
                     provider.configured
                       ? t('config:configPage.keepExistingKeyBlank')
@@ -235,6 +287,55 @@ export function QuickSetupWizard({
                 />
               </FieldLabel>
             </div>
+            <Collapsible
+              open={advancedOpen}
+              onOpenChange={setAdvancedOpen}
+              className="[margin-top:10px]"
+            >
+              <CollapsibleTrigger asChild>
+                <button
+                  type="button"
+                  className="group flex w-full cursor-pointer items-center gap-[6px] border-0 bg-transparent p-0 text-left text-[12px] font-[600] text-[var(--text-muted)] hover:text-[var(--text)]"
+                >
+                  <ChevronDown
+                    size={14}
+                    className="transition-transform group-data-[state=open]:rotate-180"
+                  />
+                  <span>{t('config:configPage.advancedSettings')}</span>
+                  <span className="font-[400] text-[var(--text-tertiary)]">
+                    {t('config:configPage.advancedSettingsHint')}
+                  </span>
+                </button>
+              </CollapsibleTrigger>
+              <CollapsibleContent>
+                <FieldLabel variant="control">
+                  Base URL
+                  <input
+                    value={baseUrl}
+                    onChange={(event) => setBaseUrl(event.target.value)}
+                    placeholder={t('config:configPage.defaultEndpointForModelsInThisConnection')}
+                  />
+                </FieldLabel>
+                <FieldLabel variant="control">
+                  {t('config:configPage.apiProtocol')}
+                  <AppSelect value={api} onChange={(event) => setApi(event.target.value)}>
+                    {PROVIDER_APIS.map(([value, label]) => (
+                      <option value={value} key={value}>
+                        {label}
+                      </option>
+                    ))}
+                  </AppSelect>
+                </FieldLabel>
+                <FieldLabel variant="control">
+                  Organization
+                  <input
+                    value={organization}
+                    onChange={(event) => setOrganization(event.target.value)}
+                    placeholder={t('config:configPage.optionalUsedOnlyForOpenAIOrganization')}
+                  />
+                </FieldLabel>
+              </CollapsibleContent>
+            </Collapsible>
           </>
         )}
 
@@ -273,6 +374,14 @@ export function QuickSetupWizard({
                 </button>
               ))}
             </div>
+            <FieldLabel variant="control">
+              {t('config:configPage.manualModelId')}
+              <input
+                value={modelId}
+                onChange={(event) => setModelId(event.target.value)}
+                placeholder={t('config:configPage.manualModelIdHint')}
+              />
+            </FieldLabel>
           </>
         )}
 
@@ -306,7 +415,7 @@ export function QuickSetupWizard({
             ) : (
               <Button
                 size="lg"
-                disabled={busy || !modelId}
+                disabled={busy || !modelId.trim()}
                 onClick={() => void saveAndSetDefault()}
               >
                 {busy ? <RefreshCw className="animate-spin" size={14} /> : <Check size={14} />}

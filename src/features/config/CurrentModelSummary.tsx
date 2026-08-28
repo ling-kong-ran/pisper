@@ -10,13 +10,13 @@ import { Button } from '@/components/ui/button'
 type CurrentModelSummaryProps = {
   config: ConfigData
   onQuickSetup: () => void
-  onSelectProvider: (providerId: string) => void
+  onChangeModel: () => void
 }
 
 export function CurrentModelSummary({
   config,
   onQuickSetup,
-  onSelectProvider,
+  onChangeModel,
 }: CurrentModelSummaryProps) {
   const { t } = useI18n()
   const providerId = config.defaultProvider || config.provider
@@ -59,11 +59,7 @@ export function CurrentModelSummary({
         </div>
         <div className="flex flex-none items-center gap-[7px]">
           {ready && provider && (
-            <Button
-              variant="outline"
-              className="bg-surface-subtle"
-              onClick={() => onSelectProvider(provider.id)}
-            >
+            <Button variant="outline" className="bg-surface-subtle" onClick={onChangeModel}>
               <PencilLine size={13} />
               {t('config:configPage.changeModel')}
             </Button>

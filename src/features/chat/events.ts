@@ -15,13 +15,20 @@ export const SESSIONS_UPDATED_EVENT = 'pisper:sessions-updated'
 export const COMMAND_PALETTE_REQUESTED_EVENT = 'pisper:command-palette-requested'
 
 type SessionMessageTarget = { sessionId: string; entryId: string }
-export type SessionCreateRequest = { cwd: string }
+// 会话创建请求：cwd 可为空串（默认工作区）；prompt 存在时创建后自动发送
+//（如视觉生成卡片的「试试示例」一键体验）。
+export type SessionCreateRequest = { cwd: string; prompt?: string }
 
-// 校验/归一化会话创建请求：cwd 必须是非空字符串，否则返回 null。
+// 校验/归一化会话创建请求：cwd 必须是字符串（允许空串），prompt 取非空文本。
 function normalizeSessionCreateRequest(value: unknown): SessionCreateRequest | null {
   if (!value || typeof value !== 'object') return null
-  const cwd = (value as Partial<SessionCreateRequest>).cwd
-  return typeof cwd === 'string' && cwd.trim() ? { cwd } : null
+  const { cwd, prompt } = value as Partial<SessionCreateRequest>
+  if (cwd !== undefined && typeof cwd !== 'string') return null
+  const normalizedPrompt = typeof prompt === 'string' && prompt.trim() ? prompt.trim() : undefined
+  return {
+    cwd: typeof cwd === 'string' ? cwd : '',
+    ...(normalizedPrompt ? { prompt: normalizedPrompt } : {}),
+  }
 }
 
 // 解析持久化的创建请求（JSON 解析失败返回 null）。
@@ -52,10 +59,10 @@ export function requestCommandPalette() {
   window.dispatchEvent(new Event(COMMAND_PALETTE_REQUESTED_EVENT))
 }
 
-// 请求创建会话（带工作目录）：持久化请求并广播；
-// 非法 cwd 返回 false 表示未触发。
-export function requestSessionCreation(cwd: string) {
-  const request = normalizeSessionCreateRequest({ cwd })
+// 请求创建会话（带工作目录与可选的自动发送提示词）：持久化请求并广播；
+// 请求非法时返回 false 表示未触发。
+export function requestSessionCreation(cwd: string, prompt?: string) {
+  const request = normalizeSessionCreateRequest({ cwd, prompt })
   if (!request) return false
   localStorage.setItem(STORAGE_KEYS.sessionCreateRequest, JSON.stringify(request))
   window.dispatchEvent(new CustomEvent(SESSION_CREATE_REQUESTED_EVENT, { detail: request }))

@@ -2,19 +2,22 @@
 // 一行使用引导（可复制的示例提示词）+ 冒烟测试结果内联预览；
 // 未配置时给出可一键添加的推荐视觉模型（复用已配置连接的密钥）。
 import { useCallback, useEffect, useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import {
   AlertTriangle,
   Check,
-  Copy,
   Image as ImageIcon,
+  Play,
   Plus,
   RefreshCw,
   Sparkles,
   Video,
   Wand2,
 } from 'lucide-react'
+import { PAGE_PATHS } from '@/app/routes'
 import { useI18n } from '@/app/use-i18n'
 import { apiJson } from '@/lib/api'
+import { requestSessionCreation } from '@/features/chat/events'
 import { SettingsCard, SettingsSectionTitle } from './settings-primitives'
 import type { Notify } from '@/app/route-context'
 import type {
@@ -92,9 +95,10 @@ export function VisualGenerationSettings({
   const [loading, setLoading] = useState(true)
   const [adding, setAdding] = useState('')
   const [testing, setTesting] = useState(false)
-  const [copied, setCopied] = useState(false)
+  const [trying, setTrying] = useState(false)
   const [testResult, setTestResult] = useState<VisualTestResult | null>(null)
   const [error, setError] = useState('')
+  const navigate = useNavigate()
 
   const refresh = useCallback(async () => {
     try {
@@ -153,13 +157,24 @@ export function VisualGenerationSettings({
     }
   }
 
-  const copyExample = async () => {
+  // 试试示例：点击时实时探测是否有可用的视觉模型（自动选中规则与会话内
+  // generate_visual 一致）；可用则新建会话并自动发送示例提示词，
+  // 不可用则直接告知缺配置/供应商不可用。
+  const tryExample = async () => {
+    setTrying(true)
+    setError('')
     try {
-      await navigator.clipboard.writeText(t('config:configPage.visualExamplePrompt'))
-      setCopied(true)
-      window.setTimeout(() => setCopied(false), 1600)
-    } catch {
-      // 剪贴板不可用时不阻塞：提示文本本身就在界面上可复制。
+      const latest = await apiJson<VisualModelStatus>('/api/visual/models')
+      setStatus(latest)
+      if (!latest.image) {
+        notify(t('config:configPage.visualUnavailableNotify'), 'error')
+        return
+      }
+      if (requestSessionCreation('', examplePrompt)) navigate(PAGE_PATHS.chat)
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : String(caught))
+    } finally {
+      setTrying(false)
     }
   }
 
@@ -173,6 +188,32 @@ export function VisualGenerationSettings({
         .filter((model) => (model.kind === 'image' ? !status?.image : !status?.video))
         .map((model) => ({ provider, model })),
     )
+
+  // 「试试示例」行：点击新建会话并自动发送示例提示词（不可用时会明确提示）。
+  const tryExampleRow = (
+    <div className="flex flex-wrap items-center gap-[7px] [margin-top:10px] text-[12px] text-[var(--text-muted)]">
+      <span>{t('config:configPage.tryExample')}</span>
+      <button
+        type="button"
+        className="inline-flex max-w-full cursor-pointer items-center gap-[5px] [border:1px_solid_var(--stroke-soft)] rounded-[var(--r-pill)] bg-[var(--surface-subtle)] px-[9px] py-[3px] text-[12px] text-[var(--text)] hover:border-[var(--accent-border)] hover:bg-[var(--accent-soft)]"
+        title={t('config:configPage.tryExampleTooltip')}
+        disabled={trying}
+        onClick={() => void tryExample()}
+      >
+        <span className="overflow-hidden text-ellipsis whitespace-nowrap">{examplePrompt}</span>
+        {trying ? (
+          <RefreshCw size={12} className="flex-none animate-spin text-[var(--text-muted)]" />
+        ) : (
+          <Play size={12} className="flex-none text-[var(--star-strong)]" />
+        )}
+      </button>
+      {configured && (
+        <span className="text-[11px] text-[var(--text-tertiary)]">
+          {t('config:configPage.visualOutputHint')}
+        </span>
+      )}
+    </div>
+  )
 
   return (
     <SettingsCard className="[margin-top:12px]">
@@ -223,28 +264,7 @@ export function VisualGenerationSettings({
               model={status?.video}
             />
           </div>
-          {/* 使用引导：一行说明 + 可点击复制的示例提示词 */}
-          <div className="flex flex-wrap items-center gap-[7px] [margin-top:10px] text-[12px] text-[var(--text-muted)]">
-            <span>{t('config:configPage.tryExample')}</span>
-            <button
-              type="button"
-              className="inline-flex max-w-full cursor-pointer items-center gap-[5px] [border:1px_solid_var(--stroke-soft)] rounded-[var(--r-pill)] bg-[var(--surface-subtle)] px-[9px] py-[3px] text-[12px] text-[var(--text)] hover:border-[var(--accent-border)] hover:bg-[var(--accent-soft)]"
-              title={t('config:configPage.copyPrompt')}
-              onClick={() => void copyExample()}
-            >
-              <span className="overflow-hidden text-ellipsis whitespace-nowrap">
-                {examplePrompt}
-              </span>
-              {copied ? (
-                <Check size={12} className="flex-none text-[var(--success)]" />
-              ) : (
-                <Copy size={12} className="flex-none text-[var(--text-muted)]" />
-              )}
-            </button>
-            <span className="text-[11px] text-[var(--text-tertiary)]">
-              {t('config:configPage.visualOutputHint')}
-            </span>
-          </div>
+          {tryExampleRow}
           {testResult && (
             <div className="flex items-center gap-[10px] [margin-top:10px] [border:1px_solid_var(--stroke-soft)] rounded-[var(--r-sm)] bg-[var(--surface-subtle)] p-[8px_10px]">
               {testResult.previewDataUrl ? (
@@ -268,9 +288,12 @@ export function VisualGenerationSettings({
           )}
         </>
       ) : (
-        <p className="[margin:10px_0_0] text-[12px] leading-[1.6] text-[var(--text-muted)]">
-          {t('config:configPage.visualEmptyHint')}
-        </p>
+        <>
+          <p className="[margin:10px_0_0] text-[12px] leading-[1.6] text-[var(--text-muted)]">
+            {t('config:configPage.visualEmptyHint')}
+          </p>
+          {tryExampleRow}
+        </>
       )}
 
       {!loading && (!configured || suggestions.length > 0) && (

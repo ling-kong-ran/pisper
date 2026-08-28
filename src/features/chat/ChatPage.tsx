@@ -96,16 +96,6 @@ export function ChatPage({
   )
   usePagePrimaryAction(registerPrimaryAction, createSession)
 
-  useEffect(() => {
-    const createRequested = () => {
-      const request = consumeSessionCreationRequest()
-      if (request) void createSession(undefined, request.cwd)
-    }
-    window.addEventListener(SESSION_CREATE_REQUESTED_EVENT, createRequested)
-    createRequested()
-    return () => window.removeEventListener(SESSION_CREATE_REQUESTED_EVENT, createRequested)
-  }, [createSession])
-
   const promptCommands = usePromptCommands({
     browserNotify,
     notify,
@@ -122,6 +112,23 @@ export function ChatPage({
     refreshSessions: catalog.refreshSessions,
     syncLiveSession: liveSync.syncLiveSession,
   })
+  const { sendPrompt } = promptCommands
+
+  // 处理会话创建请求（可携带自动发送的提示词，如视觉生成卡片的「试试示例」）：
+  // 事件监听 + localStorage 持久化，跨页面跳转/重启后挂载时也会补建。
+  useEffect(() => {
+    const createRequested = () => {
+      const request = consumeSessionCreationRequest()
+      if (!request) return
+      void (async () => {
+        const sessionId = await createSession(undefined, request.cwd)
+        if (sessionId && request.prompt) void sendPrompt(request.prompt, sessionId)
+      })()
+    }
+    window.addEventListener(SESSION_CREATE_REQUESTED_EVENT, createRequested)
+    createRequested()
+    return () => window.removeEventListener(SESSION_CREATE_REQUESTED_EVENT, createRequested)
+  }, [createSession, sendPrompt])
   const sessionCommands = useSessionCommands({
     notify,
     requestText,

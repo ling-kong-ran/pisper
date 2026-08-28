@@ -72,12 +72,13 @@ test('provider discovery remains visible for loading, importable, error, and con
   )
 })
 
-test('provider import errors render in the discovery panel instead of the Provider detail form', async () => {
+test('provider import errors render in the discovery panel instead of the wizard', async () => {
   const modelsSettings = await readFile('src/features/config/ModelsSettings.tsx', 'utf8')
   assert.match(
     modelsSettings,
     /<ProviderDiscovery[\s\S]*?error=\{discovery\.error \|\| discovery\.operationError\}/,
   )
-  assert.match(modelsSettings, /<ProviderDetail[\s\S]*?error=\{settings\.error\}/)
-  assert.doesNotMatch(modelsSettings, /error=\{settings\.error \|\| discovery\.operationError\}/)
+  assert.match(modelsSettings, /<QuickSetupWizard/)
+  // 发现面板的错误不串到页面级错误区
+  assert.doesNotMatch(modelsSettings, /\{settings\.error \|\| discovery/)
 })
