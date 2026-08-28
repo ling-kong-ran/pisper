@@ -28,6 +28,7 @@ import { SESSION_CREATE_REQUESTED_EVENT, consumeSessionCreationRequest } from '.
 
 type ChatPageProps = {
   notify: Notify
+  navigate: (page: string, options?: { replace?: boolean }) => void
   browserNotify?: (event: string, data: unknown, options?: { force?: boolean }) => void
   registerPrimaryAction: (action: () => void) => () => void
   pendingAsset: PendingAsset | null
@@ -38,6 +39,7 @@ type ChatPageProps = {
 
 export function ChatPage({
   notify,
+  navigate,
   browserNotify,
   registerPrimaryAction,
   pendingAsset,
@@ -262,6 +264,8 @@ export function ChatPage({
     sessionTreePulseToken: recallPulse.token,
     pendingAsset,
     onAssetConsumed,
+    notify,
+    openModelSettings: () => navigate('config'),
     loadSessionMessages: liveSync.loadSessionMessages,
     loadOlderMessages: liveSync.loadOlderMessages,
     sendPrompt: promptCommands.sendPrompt,

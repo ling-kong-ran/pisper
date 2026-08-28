@@ -21,6 +21,13 @@ export const initialConfigSettingsState: ConfigSettingsState = {
   dirty: false,
 }
 
+// 推荐对话模型：Provider 记录的默认模型优先，否则取目录排序后的第一个
+// chat 模型（后端已按旗舰/推理能力排序）。
+export function recommendedChatModel(provider?: ProviderConfig | null) {
+  const chatModels = provider?.models.filter((item) => item.kind === 'chat') || []
+  return chatModels.find((item) => item.id === provider?.defaultModel) || chatModels[0] || null
+}
+
 // 创建配置草稿：基于当前配置 + 指定 Provider 生成可编辑表单初值。
 // 模型选择优先级：偏好模型 > Provider 默认模型 > 第一个 chat 模型。
 export function createConfigDraft(
@@ -59,7 +66,12 @@ export function refreshConfigDraft(data: ConfigData, current: ConfigDraft | null
     data.providers.find((item) => item.id === data.provider) ||
     data.providers[0]
   const chatModels = provider?.models.filter((model) => model.kind === 'chat') || []
-  const model = chatModels.find((item) => item.id === current.model) || chatModels[0]
+  // 刷新后优先保留用户当前选择；失效时回退到推荐模型（默认模型 > 排序第一），
+  // 避免“获取模型”后还要用户手动再选一次。
+  const model =
+    chatModels.find((item) => item.id === current.model) ||
+    chatModels.find((item) => item.id === provider?.defaultModel) ||
+    chatModels[0]
   return {
     ...current,
     provider: provider?.id || current.provider,

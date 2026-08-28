@@ -3,22 +3,19 @@ import { readFile } from 'node:fs/promises'
 import test from 'node:test'
 
 test('Provider settings save separately from changing the default model', async () => {
-  const [modelsSettingsSource, runtimeSettingsSource, settingsHookSource] = await Promise.all([
+  const [modelsSettingsSource, providerDetailSource, settingsHookSource] = await Promise.all([
     readFile('src/features/config/ModelsSettings.tsx', 'utf8'),
-    readFile('src/features/config/RuntimeSettings.tsx', 'utf8'),
+    readFile('src/features/config/ProviderDetail.tsx', 'utf8'),
     readFile('src/features/config/useConfigSettings.ts', 'utf8'),
   ])
 
-  assert.match(runtimeSettingsSource, /onClick=\{\(\) => onSave\(false\)\}/)
-  assert.match(runtimeSettingsSource, /onClick=\{\(\) => onSave\(true\)\}/)
-  assert.match(runtimeSettingsSource, /configPage\.saveProviderSettings/)
-  assert.match(runtimeSettingsSource, /configPage\.setAsDefaultProvider/)
-  assert.doesNotMatch(runtimeSettingsSource, /saving \|\| !provider\.enabled/)
-  assert.match(runtimeSettingsSource, /disabled=\{saving \|\| !dirty/)
-  assert.match(
-    modelsSettingsSource,
-    /order-1 min-\[901px\]:order-2[\s\S]*?<CredentialSettings[\s\S]*?order-2 min-\[901px\]:order-1[\s\S]*?<ProviderSettingsActions[\s\S]*?<ProviderModelCatalog[\s\S]*?<RuntimePolicySettings/,
-  )
+  assert.match(providerDetailSource, /onClick=\{\(\) => onSave\(false\)\}/)
+  assert.match(providerDetailSource, /onClick=\{\(\) => onSave\(true\)\}/)
+  assert.match(providerDetailSource, /configPage\.saveProviderSettings/)
+  assert.match(providerDetailSource, /configPage\.setAsDefaultProvider/)
+  assert.doesNotMatch(providerDetailSource, /saving \|\| !provider\.enabled/)
+  assert.match(providerDetailSource, /disabled=\{saving \|\| !dirty/)
+  assert.match(modelsSettingsSource, /<ProviderDetail[\s\S]*?<RuntimePolicySettings/)
   assert.doesNotMatch(modelsSettingsSource, /detailTab|config-tabs/)
   assert.match(settingsHookSource, /async \(setAsDefault = false\)/)
   assert.match(settingsHookSource, /if \(!draft \|\| !state\.dirty\) return/)
@@ -31,14 +28,14 @@ test('Provider settings save separately from changing the default model', async 
 })
 
 test('Provider API key saving reads the live password input instead of relying only on React draft state', async () => {
-  const [credentialSource, settingsHookSource] = await Promise.all([
-    readFile('src/features/config/CredentialSettings.tsx', 'utf8'),
+  const [providerDetailSource, settingsHookSource] = await Promise.all([
+    readFile('src/features/config/ProviderDetail.tsx', 'utf8'),
     readFile('src/features/config/useConfigSettings.ts', 'utf8'),
   ])
   assert.match(settingsHookSource, /const apiKeyInputRef = useRef<HTMLInputElement>\(null\)/)
   assert.match(settingsHookSource, /apiKeyInputRef\.current\?\.value \|\| draft\.apiKey/)
-  assert.match(credentialSource, /type="password"/)
-  assert.match(credentialSource, /autoComplete="new-password"/)
-  assert.match(credentialSource, /onInput=\{\(event\) =>/)
+  assert.match(providerDetailSource, /type="password"/)
+  assert.match(providerDetailSource, /autoComplete="new-password"/)
+  assert.match(providerDetailSource, /onInput=\{\(event\) =>/)
   assert.match(settingsHookSource, /apiKey\.trim\(\) && !saved\.apiKeyUpdated/)
 })

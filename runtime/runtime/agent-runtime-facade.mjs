@@ -2,6 +2,8 @@
 // 把各领域服务（记忆/目标/计划/多 Agent/渠道/工作流/定时/插件/MCP/技能/Provider 等）
 // 的调用组织成 HTTP API 层可直接调用的方法集合；子类 AgentRuntimeService 在
 // 构造器里完成依赖装配后，这些方法即成为对外接口。
+import { readFile } from 'node:fs/promises'
+import { join } from 'node:path'
 import { filterToolsForExecutionMode } from '../security/execution-mode.mjs'
 import { readJson, writeJsonAtomic } from '../storage/json-file.mjs'
 import { TOOL_PRESETS, toolsFromConfig } from '../tools/registry.mjs'
@@ -955,5 +957,38 @@ export class AgentRuntimeFacade {
 
   async deleteProvider(id) {
     return this.providerPreferences.deleteProvider(id)
+  }
+
+  // 视觉模型状态：返回当前会被自动选中的图像/视频模型（generate_visual 的选择顺序），
+  // 供配置页展示与聊天页入口判断是否已配置。
+  async getVisualModelStatus() {
+    const [imageModels, videoModels] = await Promise.all([
+      this.visualGeneration.models.list('image'),
+      this.visualGeneration.models.list('video'),
+    ])
+    return { image: imageModels[0] || null, video: videoModels[0] || null }
+  }
+
+  // 视觉生成冒烟测试：用最小参数真实生成一张图，验证密钥与模型链路可用。
+  // 产物写到数据目录（不污染用户工作区），并附带 base64 预览（超大文件跳过预览）。
+  async testVisualGeneration() {
+    const cwd = join(this.dataDir, 'visual-test')
+    const result = await this.visualGeneration.generate({
+      kind: 'image',
+      prompt:
+        'a small friendly robot mascot waving, flat vector illustration, soft pastel colors, plain background',
+      outputName: 'config-test',
+      cwd,
+    })
+    let previewDataUrl = ''
+    try {
+      const buffer = await readFile(result.path)
+      if (buffer.length <= 6 * 1024 * 1024) {
+        previewDataUrl = `data:${result.mimeType};base64,${buffer.toString('base64')}`
+      }
+    } catch {
+      // 预览读取失败不影响测试结论：文件已生成即视为成功。
+    }
+    return { ...result, previewDataUrl }
   }
 }

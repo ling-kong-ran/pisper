@@ -120,6 +120,8 @@ export function SessionDockPanel({ params, api }: IDockviewPanelProps<{ sessionI
         error={state.error || (context.activeId === sessionId ? context.globalError : '')}
         pendingAsset={pending}
         onAssetConsumed={context.onAssetConsumed}
+        notify={context.notify}
+        onOpenModelSettings={context.openModelSettings}
         onLoadOlder={() => context.loadOlderMessages(sessionId)}
         onModelChange={(nextModel: string) => context.switchSessionModel(sessionId, nextModel)}
         onThinkingLevelChange={(nextLevel: string) =>

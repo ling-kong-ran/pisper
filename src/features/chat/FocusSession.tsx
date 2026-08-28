@@ -21,6 +21,7 @@ import { formatFileSize, workspaceName } from '@/lib/format'
 import { useIsMobileApp } from '@/stores/client-store'
 import { useRuntimeCapabilitiesStore } from '@/stores/runtime-capabilities-store'
 import { runtimeFeatureAvailable } from '@/types/runtime-capabilities'
+import type { Notify } from '@/app/route-context'
 import type {
   ChatAttachment,
   ChatMessage,
@@ -50,6 +51,7 @@ import { SessionActionsMenu } from './SessionActionsMenu'
 import { SessionTreeControl } from './SessionTreeControl'
 import { SessionWorkflowRuns } from './SessionWorkflowRuns'
 import { ToolApproval } from './ToolApproval'
+import { VisualComposerEntry } from './VisualComposerEntry'
 import { WorkspaceTrustNotice } from './WorkspaceTrustNotice'
 
 const DEFAULT_GOAL_TOKEN_BUDGET = 30_000
@@ -97,6 +99,8 @@ export type FocusSessionProps = {
   error?: string
   pendingAsset?: ChatAttachment | null
   canSplit?: boolean
+  notify?: Notify
+  onOpenModelSettings?: () => void
   onAssetConsumed?: () => void
   onLoadOlder?: () => Promise<boolean> | boolean
   onModelChange: (model: string) => Promise<void> | void
@@ -174,6 +178,8 @@ export function FocusSession({
   error,
   pendingAsset,
   canSplit,
+  notify,
+  onOpenModelSettings,
   onAssetConsumed,
   onLoadOlder,
   onModelChange,
@@ -205,6 +211,7 @@ export function FocusSession({
   const plansAvailable = runtimeFeatureAvailable(capabilities, 'plans')
   const vcsAvailable = runtimeFeatureAvailable(capabilities, 'vcs')
   const workflowsAvailable = runtimeFeatureAvailable(capabilities, 'workflows')
+  const visualAvailable = runtimeFeatureAvailable(capabilities, 'visualGeneration')
   const { value, updateValue, selection, clearDraft } = useComposerDraft(session.id)
   const [goalArmed, setGoalArmed] = useState(false)
   const [goalTokenBudget, setGoalTokenBudget] = useState(DEFAULT_GOAL_TOKEN_BUDGET)
@@ -328,6 +335,13 @@ export function FocusSession({
         <Braces size={16} />
       </button>
       <AttachmentPicker cwd={cwd} selection={selection} />
+      {visualAvailable && (
+        <VisualComposerEntry
+          notify={notify}
+          onOpenModelSettings={onOpenModelSettings}
+          onInsertPrompt={applyWelcomeChip}
+        />
+      )}
     </>
   )
 

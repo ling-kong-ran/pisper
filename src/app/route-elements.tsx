@@ -17,6 +17,7 @@ export async function chatRoute() {
     return (
       <ChatPage
         notify={context.notify}
+        navigate={context.navigate}
         browserNotify={context.browserNotify}
         registerPrimaryAction={context.registerPrimaryAction}
         pendingAsset={context.pendingAsset}

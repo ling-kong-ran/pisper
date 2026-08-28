@@ -82,7 +82,6 @@
   "sessionTree.conversationLineage": "对话脉络",
   "sessionTree.returnToOriginalChat": "返回原对话：{name}",
   "sessionTree.openSeparateChat": "打开另开的对话：{name}",
-  "sessionTree.createChildChat": "从此处另开",
   "sessionTree.chooseNode": "选择一个节点查看详情。",
   "sessionTree.retry": "重试",
   "workflowRun.running": "运行中",
@@ -470,5 +469,8 @@
   "focusSession.workingDirectory": "工作目录",
   "focusSession.writeUnitTestsForTheFollowingCode": "为以下代码编写单元测试：",
   "focusSession.writeWhatYouWantToAccomplish": "写下你想完成的事",
-  "focusSession.writeWhatYouWantToAccomplishShiftEnterForANewLine": "写下你想完成的事，Shift + Enter 换行"
+  "focusSession.writeWhatYouWantToAccomplishShiftEnterForANewLine": "写下你想完成的事，Shift + Enter 换行",
+  "focusSession.generateImage": "生成图片",
+  "focusSession.visualPromptTemplate": "帮我生成一张图片：",
+  "focusSession.configureVisualModelFirst": "尚未配置视觉模型，已为你打开模型设置"
 }

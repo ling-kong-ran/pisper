@@ -195,6 +195,20 @@ export const configSettingsRoutes = [
     },
   },
   {
+    method: 'GET',
+    path: '/api/visual/models',
+    async handler({ runtime, json }) {
+      json(200, await runtime.getVisualModelStatus())
+    },
+  },
+  {
+    method: 'POST',
+    path: '/api/visual/test',
+    async handler({ runtime, json }) {
+      json(200, await runtime.testVisualGeneration())
+    },
+  },
+  {
     method: 'POST',
     path: '/api/providers',
     async handler({ runtime, body, json }) {

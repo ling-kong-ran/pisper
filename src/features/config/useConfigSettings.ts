@@ -272,6 +272,30 @@ export function useConfigSettings({ notify, requestConfirm, t }: UseConfigSettin
     [notify, t],
   )
 
+  // 快速配置向导完成：配置已由服务端保存并设为默认，直接替换为干净草稿。
+  const applyWizardCompleted = useCallback(
+    (data: ConfigData, providerId: string, modelId: string) => {
+      const provider = data.providers.find((item) => item.id === providerId)
+      dispatch({
+        type: 'replace',
+        config: data,
+        draft: {
+          ...createConfigDraft(data, provider, modelId),
+          thinkingLevel: data.thinkingLevel,
+          toolMode: data.toolMode,
+        },
+        dirty: false,
+      })
+      notify(t('config:configPage.setupComplete'))
+    },
+    [notify, t],
+  )
+
+  // 局部配置更新（如视觉模型增删）：只刷新配置视图，不动当前草稿。
+  const applyConfigUpdate = useCallback((data: ConfigData) => {
+    dispatch({ type: 'config-updated', config: data })
+  }, [])
+
   const applySynchronizedModels = useCallback((data: ConfigData) => {
     dispatch({ type: 'refresh-succeeded', config: data })
   }, [])
@@ -308,6 +332,8 @@ export function useConfigSettings({ notify, requestConfirm, t }: UseConfigSettin
     save,
     applyImportedProvider,
     applyCreatedProvider,
+    applyWizardCompleted,
+    applyConfigUpdate,
     applySynchronizedModels,
     applyCreatedModels,
   }

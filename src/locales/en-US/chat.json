@@ -82,7 +82,6 @@
   "sessionTree.conversationLineage": "Conversation lineage",
   "sessionTree.returnToOriginalChat": "Return to original chat: {name}",
   "sessionTree.openSeparateChat": "Open separate chat: {name}",
-  "sessionTree.createChildChat": "Open a separate chat",
   "sessionTree.chooseNode": "Choose a node to inspect it.",
   "sessionTree.retry": "Retry",
   "workflowRun.running": "Running",
@@ -470,5 +469,8 @@
   "focusSession.workingDirectory": "Working directory",
   "focusSession.writeUnitTestsForTheFollowingCode": "Write unit tests for the following code:",
   "focusSession.writeWhatYouWantToAccomplish": "Write what you want to accomplish",
-  "focusSession.writeWhatYouWantToAccomplishShiftEnterForANewLine": "Write what you want to accomplish; Shift + Enter for a new line"
+  "focusSession.writeWhatYouWantToAccomplishShiftEnterForANewLine": "Write what you want to accomplish; Shift + Enter for a new line",
+  "focusSession.generateImage": "Generate image",
+  "focusSession.visualPromptTemplate": "Generate an image: ",
+  "focusSession.configureVisualModelFirst": "No visual model configured yet — opening model settings"
 }

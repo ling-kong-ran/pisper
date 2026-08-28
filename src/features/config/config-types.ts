@@ -94,3 +94,27 @@ export type ProviderConnectionDraft = {
 }
 
 export type ModelDiscoveryResult = { models?: ProviderModel[]; config?: ConfigData }
+
+// 视觉生成状态：运行时自动选中的图像/视频模型（与 generate_visual 的选择一致）。
+export type VisualCandidate = {
+  id: string
+  name: string
+  providerId: string
+  providerName: string
+  kind: string
+  baseUrl: string
+}
+
+export type VisualModelStatus = {
+  image: VisualCandidate | null
+  video: VisualCandidate | null
+}
+
+// 视觉生成冒烟测试结果：产物路径 + 使用的模型 + base64 预览（可能为空）。
+export type VisualTestResult = {
+  path: string
+  providerName: string
+  modelName: string
+  mimeType: string
+  previewDataUrl: string
+}

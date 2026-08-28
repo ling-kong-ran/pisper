@@ -26,6 +26,8 @@ import { AppCardHeader, AppError } from '@/components/ui/app-primitives'
 type ProviderConfigModalProps = {
   onClose: () => void
   onCreated: (data: ConfigData) => void
+  // 初始用途：从「新建视觉连接」等入口打开时预选 visual，减少手动切换。
+  initialProviderType?: ProviderType
 }
 
 type ProviderModelModalProps = {
@@ -37,18 +39,22 @@ type ProviderModelModalProps = {
   onCreated: (data: ConfigData, modelId: string) => void
 }
 
-export function ProviderConfigModal({ onClose, onCreated }: ProviderConfigModalProps) {
+export function ProviderConfigModal({
+  onClose,
+  onCreated,
+  initialProviderType = 'chat',
+}: ProviderConfigModalProps) {
   const { t } = useI18n()
   const [draft, setDraft] = useState({
     name: '',
     id: '',
-    providerType: 'chat',
+    providerType: initialProviderType,
     api: 'openai-responses',
     baseUrl: '',
     apiKey: '',
     model: '',
     modelName: '',
-    modelKind: 'chat',
+    modelKind: initialProviderType === 'visual' ? 'image' : 'chat',
     reasoning: true,
     enabled: true,
   })

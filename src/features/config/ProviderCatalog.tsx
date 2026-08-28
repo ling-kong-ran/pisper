@@ -1,46 +1,16 @@
 // Provider 目录：按类别展示可用模型 Provider（Anthropic/OpenAI/本地等），
 // 支持搜索与快捷配置入口。
-import {
-  AlertTriangle,
-  Bot,
-  Brain,
-  Code2,
-  Network,
-  Plus,
-  RefreshCw,
-  Server,
-  Sparkles,
-  Zap,
-} from 'lucide-react'
+import { Plus, Server } from 'lucide-react'
 import { AppSelect } from '@/components/AppSelect'
 import { useI18n } from '@/app/use-i18n'
 import { cn } from '@/lib/utils'
-import {
-  SettingsBadge,
-  SettingsCard,
-  SettingsSectionTitle,
-  SettingsSwitch,
-} from './settings-primitives'
-import type { LucideIcon } from 'lucide-react'
-import type { ConfigDraft, ProviderConfig } from './config-types'
+import { PROVIDER_ICONS } from './provider-constants'
+import { SettingsCard, SettingsSectionTitle, SettingsSwitch } from './settings-primitives'
+import type { ProviderConfig } from './config-types'
 
 import { Button } from '@/components/ui/button'
 
 import { FieldLabel } from '@/components/ui/field'
-
-import { AppNotice } from '@/components/ui/app-primitives'
-
-const PROVIDER_ICONS: Record<string, LucideIcon> = {
-  openai: Bot,
-  'openai-codex': Bot,
-  anthropic: Brain,
-  google: Sparkles,
-  deepseek: Code2,
-  xai: Zap,
-  openrouter: Network,
-  'kimi-coding': Sparkles,
-  'zai-coding-cn': Brain,
-}
 
 type ProviderConnectionsProps = {
   className?: string
@@ -165,129 +135,5 @@ export function ProviderConnections({
         )
       })}
     </SettingsCard>
-  )
-}
-
-type ProviderModelCatalogProps = {
-  provider: ProviderConfig
-  draft: ConfigDraft
-  onPatchDraft: (patch: Partial<ConfigDraft>) => void
-  onSelectModel: (modelId: string) => void
-  onOpenModelDialog: (mode: 'discover' | 'manual') => void
-}
-
-export function ProviderModelCatalog({
-  provider,
-  draft,
-  onPatchDraft,
-  onSelectModel,
-  onOpenModelDialog,
-}: ProviderModelCatalogProps) {
-  const { t } = useI18n()
-  const visualOnly = draft.providerType === 'visual'
-  const codexOAuth = provider.id === 'openai-codex'
-  const chatModels = visualOnly ? [] : provider.models.filter((item) => item.kind === 'chat')
-  const visualModels = provider.models.filter((item) => item.kind !== 'chat')
-  const selectedModel = provider.models.find((item) => item.id === draft.model)
-
-  return (
-    <>
-      <div className="model-config-heading flex items-center justify-between gap-[8px] [margin-top:13px] [border-top:1px_solid_var(--stroke-soft)] [padding-top:12px]">
-        <SettingsSectionTitle title={t('config:configPage.models')} />
-        {!codexOAuth && (
-          <div className="flex items-center gap-2">
-            <Button
-              variant="outline"
-              className="bg-surface-subtle"
-              onClick={() => onOpenModelDialog('discover')}
-            >
-              <RefreshCw size={13} />
-              {t('config:configPage.fetchModels')}
-            </Button>
-            <Button
-              variant="outline"
-              className="bg-surface-subtle"
-              onClick={() => onOpenModelDialog('manual')}
-            >
-              <Plus size={13} />
-              {t('config:configPage.addModel')}
-            </Button>
-          </div>
-        )}
-      </div>
-      {!visualOnly && chatModels.length > 0 ? (
-        <>
-          <FieldLabel variant="control">
-            {t('config:configPage.defaultChatModel')}
-            <AppSelect value={draft.model} onChange={(event) => onSelectModel(event.target.value)}>
-              {chatModels.map((model) => (
-                <option key={model.id} value={model.id}>
-                  {model.name}
-                </option>
-              ))}
-            </AppSelect>
-          </FieldLabel>
-          {!codexOAuth && (
-            <FieldLabel variant="control">
-              {t('config:configPage.modelBaseURL')}
-              <input
-                value={draft.modelBaseUrl}
-                onChange={(event) => onPatchDraft({ modelBaseUrl: event.target.value })}
-                placeholder={t('config:configPage.optionalOverrideTheProviderBaseURLForThisModel')}
-              />
-            </FieldLabel>
-          )}
-          <div className="tag-field [&_>_span:first-child]:mr-[3px] [&_>_span:first-child]:text-[var(--text-secondary)] [&_>_span:first-child]:text-[12px] [&_>_span:first-child]:font-[600] flex items-center flex-wrap gap-[6px] [margin-top:10px]">
-            <SettingsBadge>{draft.provider}</SettingsBadge>
-            <SettingsBadge>
-              {selectedModel?.reasoning
-                ? t('config:configPage.reasoningSupported')
-                : t('config:configPage.standardModel')}
-            </SettingsBadge>
-            <SettingsBadge tone="gray">
-              {selectedModel?.contextWindow
-                ? `${Math.round(selectedModel.contextWindow / 1000)}K context`
-                : t('config:configPage.automaticContext')}
-            </SettingsBadge>
-            {selectedModel?.baseUrlOverride && (
-              <SettingsBadge tone="amber">{t('config:configPage.customBaseURL')}</SettingsBadge>
-            )}
-          </div>
-        </>
-      ) : visualOnly ? (
-        <AppNotice>
-          <Sparkles size={16} />
-          <span>
-            <strong>{t('config:configPage.visualOnlyProvider')}</strong>
-            <small>
-              {t(
-                'config:configPage.usedOnlyForImageGenerationVideoGenerationAndImageEditingAndExcludedFromAgentChatModelSelection',
-              )}
-            </small>
-          </span>
-        </AppNotice>
-      ) : (
-        <AppNotice>
-          <AlertTriangle size={16} />
-          <span>
-            <strong>{t('config:configPage.noChatModelAvailable')}</strong>
-            <small>{t('config:configPage.fetchOrAddAChatModel')}</small>
-          </span>
-        </AppNotice>
-      )}
-      {visualModels.length > 0 && (
-        <div className="visual-model-list [&_>_span]:mr-[3px] [&_>_span]:text-[var(--text-muted)] [&_>_span]:text-[12px] [&_>_span]:font-[700] flex flex-wrap items-center gap-[7px] [margin-top:12px] [border-top:1px_solid_var(--stroke-soft)] [padding-top:12px]">
-          <span>{t('config:configPage.visualModels')}</span>
-          {visualModels.map((model) => (
-            <SettingsBadge tone="blue" key={model.id}>
-              {model.name} ·{' '}
-              {model.kind === 'video'
-                ? t('config:configPage.videoGeneration')
-                : t('config:configPage.imageGenerationAndEditing')}
-            </SettingsBadge>
-          ))}
-        </div>
-      )}
-    </>
   )
 }

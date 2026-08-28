@@ -414,7 +414,7 @@ test('mobile shell keeps navigation in the viewport and model settings use one n
     readFile('src/App.tsx', 'utf8'),
     readFile('src/features/config/ModelsSettings.tsx', 'utf8'),
     readFile('src/features/config/ProviderCatalog.tsx', 'utf8'),
-    readFile('src/features/config/CredentialSettings.tsx', 'utf8'),
+    readFile('src/features/config/ProviderDetail.tsx', 'utf8'),
   ])
 
   assert.match(
@@ -433,7 +433,7 @@ test('mobile shell keeps navigation in the viewport and model settings use one n
   assert.doesNotMatch(models, /!grid-cols-/)
   assert.match(models, /scrollIntoView\(\{ behavior: 'smooth', block: 'start' \}\)/)
   assert.match(models, /ProviderConnections[\s\S]*?className="max-\[900px\]:hidden"/)
-  assert.match(models, /order-1 min-\[901px\]:order-2[\s\S]*?<CredentialSettings/)
+  assert.match(models, /<ProviderDetail/)
   assert.match(providerCatalog, /ProviderMobilePicker/)
   assert.match(providerCatalog, /hidden max-\[900px\]:block/)
   assert.match(providerCatalog, /value=\{provider\.configured && provider\.enabled\}/)

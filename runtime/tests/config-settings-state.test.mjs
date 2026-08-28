@@ -5,6 +5,7 @@ import {
   createConfigDraft,
   draftForProvider,
   initialConfigSettingsState,
+  recommendedChatModel,
   refreshConfigDraft,
 } from '../../src/features/config/config-state.ts'
 
@@ -70,6 +71,27 @@ test('catalog refresh preserves unsaved credentials and policy while reconciling
   assert.equal(next.organization, 'unsaved-org')
   assert.equal(next.thinkingLevel, 'xhigh')
   assert.equal(next.toolMode, 'read-only')
+})
+
+test('catalog refresh falls back to the provider default model when the selection is gone', () => {
+  const current = { ...createConfigDraft(config(), provider(), 'gpt-preferred') }
+  const refreshedProvider = provider({
+    models: [
+      { id: 'gpt-first', name: 'First', kind: 'chat' },
+      { id: 'gpt-default', name: 'Default', kind: 'chat' },
+    ],
+    defaultModel: 'gpt-default',
+  })
+  const next = refreshConfigDraft(config({ providers: [refreshedProvider] }), current)
+  assert.equal(next.model, 'gpt-default')
+})
+
+test('recommended chat model prefers the provider default model', () => {
+  assert.equal(recommendedChatModel(provider())?.id, 'gpt-default')
+  assert.equal(
+    recommendedChatModel(provider({ defaultModel: '', models: provider().models }))?.id,
+    'gpt-default',
+  )
 })
 
 test('provider selection preserves runtime policy and marks subsequent edits dirty', () => {
