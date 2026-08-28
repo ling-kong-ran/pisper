@@ -1,9 +1,9 @@
 {
-  "version": "0.1.17",
-  "tag": "app-v0.1.17",
-  "url": "https://github.com/ling-kong-ran/pisper/releases/tag/app-v0.1.17",
+  "version": "0.1.18",
+  "tag": "app-v0.1.18",
+  "url": "https://github.com/ling-kong-ran/pisper/releases/tag/app-v0.1.18",
   "apk": "app-universal-release-signed.apk",
   "ipa": "pisper-ios-unsigned.ipa",
-  "notes": "- fix(runtime): parse Codex TOML with a spec-compliant parser and report unknown cache rates\n- docs: reposition project as multi-agent app across desktop, terminal, and mobile\n- fix(runtime): disconnect SSE clients that stall the write buffer",
-  "releaseDate": "2026-08-27"
+  "notes": "- feat(config): collapse management into wizard-centric connection cards with runnable visual examples\n- fix(chat): keep SSE streams alive through backpressure and resume after disconnects\n- feat(config): simplify model setup with quick-setup wizard and visual generation hub",
+  "releaseDate": "2026-08-28"
 }
