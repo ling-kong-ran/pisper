@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict'
-import { mkdtemp, mkdir, readFile, rm, writeFile } from 'node:fs/promises'
+import { mkdtemp, mkdir, readFile, realpath, rm, writeFile } from 'node:fs/promises'
 import os from 'node:os'
 import { join } from 'node:path'
 import test from 'node:test'
@@ -103,7 +103,10 @@ test('plugin definitions create global source, install, and execute without over
       files: [{ path: 'version.mjs', content: "export const version = '1.2.3'\n" }],
     })
 
-    assert.equal(created.sourcePath, join(dataDir, 'plugin-sources', 'created.release'))
+    assert.equal(
+      created.sourcePath,
+      join(await realpath(dataDir), 'plugin-sources', 'created.release'),
+    )
     assert.deepEqual(created.tools, ['created_version'])
     const storedManifest = JSON.parse(
       await readFile(join(created.sourcePath, 'pisper-plugin.json'), 'utf8'),

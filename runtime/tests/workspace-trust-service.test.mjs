@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict'
-import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
+import { mkdir, mkdtemp, readFile, realpath, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
 import test from 'node:test'
@@ -13,10 +13,13 @@ test('workspace trust detects project resources and persists inherited decisions
   const cwd = join(parent, 'demo')
   await mkdir(join(cwd, '.pisper', 'skills'), { recursive: true })
   await writeFile(join(cwd, '.pisper', 'skills', 'README.md'), 'project skill root', 'utf8')
+  const resolvedCwd = resolve(cwd)
+  const canonicalCwd = await realpath(cwd)
+  const canonicalParent = await realpath(parent)
 
   const service = new WorkspaceTrustService({ agentDir })
   assert.deepEqual(service.getStatus(cwd), {
-    cwd: resolve(cwd),
+    cwd: resolvedCwd,
     decision: null,
     trusted: false,
     restricted: true,
@@ -31,15 +34,15 @@ test('workspace trust detects project resources and persists inherited decisions
   assert.equal(inherited.trusted, true)
   assert.equal(inherited.requiresDecision, false)
   assert.equal(inherited.inherited, true)
-  assert.equal(inherited.decisionPath, resolve(parent))
+  assert.equal(inherited.decisionPath, canonicalParent)
 
   const restricted = service.setTrusted(cwd, false)
   assert.equal(restricted.decision, false)
   assert.equal(restricted.restricted, true)
   assert.equal(restricted.inherited, false)
   assert.deepEqual(JSON.parse(await readFile(join(agentDir, 'trust.json'), 'utf8')), {
-    [resolve(cwd)]: false,
-    [resolve(parent)]: true,
+    [canonicalCwd]: false,
+    [canonicalParent]: true,
   })
 })
 

@@ -482,12 +482,15 @@ test('project identity follows filesystem case semantics without forced lowercas
     const upper = join(directory, 'RepoA')
     const lower = join(directory, 'repoa')
     await mkdir(upper)
-    if (process.platform === 'win32') {
-      assert.equal(stableProjectId(upper), stableProjectId(lower))
-    } else {
+    let lowerCreated = true
+    try {
       await mkdir(lower)
-      assert.notEqual(stableProjectId(upper), stableProjectId(lower))
+    } catch (error) {
+      if (error?.code !== 'EEXIST') throw error
+      lowerCreated = false
     }
+    if (lowerCreated) assert.notEqual(stableProjectId(upper), stableProjectId(lower))
+    else assert.equal(stableProjectId(upper), stableProjectId(lower))
   })
 })
 
@@ -607,8 +610,12 @@ test('semantic summarizer expands retrieval and failure falls back to lexical se
   )
 })
 
-test('FTS candidate generation remains bounded with ten thousand rows', async () => {
+test('FTS candidate generation remains bounded with ten thousand rows', async (t) => {
   await withMemory(async (memory) => {
+    if (!memory.ftsAvailable) {
+      t.skip('当前 SQLite 未编译 FTS5')
+      return
+    }
     const db = memory.requireDb()
     const insert = db.prepare(`
       INSERT INTO memories (id, space_id, title, content, type, topic_key, identity_key, source_type, authority, status, created_at, updated_at)

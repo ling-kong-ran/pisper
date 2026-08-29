@@ -1,7 +1,7 @@
 // 工作区信任服务：记录并查询用户对工作目录的信任决策。
 // 信任决定是否加载 .pi/.pisper 项目级资源（设置/技能/提示词/系统提示）以及
 // 是否存在需用户确认的资源（requiresDecision），未决策时这些资源受限不可用。
-import { existsSync } from 'node:fs'
+import { existsSync, realpathSync } from 'node:fs'
 import { homedir } from 'node:os'
 import { dirname, join, resolve } from 'node:path'
 import {
@@ -26,7 +26,10 @@ const PISPER_PROJECT_RESOURCES = [
 ]
 
 function pathKey(value) {
-  const path = resolve(value)
+  let path = resolve(value)
+  try {
+    path = realpathSync(path)
+  } catch {}
   return process.platform === 'win32' ? path.toLowerCase() : path
 }
 
