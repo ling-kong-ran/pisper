@@ -138,7 +138,8 @@ impl InstalledComponent {
 #[derive(Clone, Deserialize)]
 struct GitHubAsset {
     name: String,
-    browser_download_url: String,
+    #[serde(rename = "url")]
+    api_url: String,
     size: u64,
 }
 
@@ -670,8 +671,8 @@ fn release_info(component: Component, release: GitHubRelease) -> Option<ReleaseI
         notes: release.body.unwrap_or_default(),
         release_url: release.html_url,
         published_at: release.published_at,
-        archive_url: archive.browser_download_url.clone(),
-        signature_url: signature.browser_download_url.clone(),
+        archive_url: archive.api_url.clone(),
+        signature_url: signature.api_url.clone(),
         size: archive.size,
     })
 }
@@ -1301,18 +1302,20 @@ mod tests {
             assets: vec![
                 GitHubAsset {
                     name: archive.clone(),
-                    browser_download_url: "https://example.test/archive".into(),
+                    api_url: "https://api.example.test/archive".into(),
                     size: 42,
                 },
                 GitHubAsset {
                     name: format!("{archive}.sig"),
-                    browser_download_url: "https://example.test/signature".into(),
+                    api_url: "https://api.example.test/signature".into(),
                     size: 512,
                 },
             ],
         };
         let info = release_info(Component::Runtime, release).unwrap();
         assert_eq!(info.version, "1.2.3");
+        assert_eq!(info.archive_url, "https://api.example.test/archive");
+        assert_eq!(info.signature_url, "https://api.example.test/signature");
         assert_eq!(info.size, 42);
     }
 
