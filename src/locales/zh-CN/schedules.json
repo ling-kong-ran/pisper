@@ -1,6 +1,5 @@
 {
   "schedulesPage.fullAccessHelp": "后台任务以当前系统用户权限运行 Shell，不会逐次请求授权。",
-  "schedulesPage.readOnlyHelp": "仅允许读取和分析，不允许修改文件或运行 Shell。",
   "schedulesPage.atIntervals": "每隔一段时间",
   "schedulesPage.daily": "每天",
   "schedulesPage.weekly": "每周",
@@ -48,7 +47,6 @@
   "schedulesPage.nextRunTime": "下次运行：{time}",
   "schedulesPage.noRunHistory": "暂无执行记录",
   "schedulesPage.notificationChannels": "通知渠道",
-  "schedulesPage.readOnly": "只读",
   "schedulesPage.recentRuns": "最近执行",
   "schedulesPage.runInterval": "执行间隔",
   "schedulesPage.running": "运行中",

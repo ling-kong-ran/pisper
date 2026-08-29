@@ -1,14 +1,9 @@
 // 执行模式：按模式过滤可用工具与默认权限策略。
-// 交互会话提供 approval-required（需审批，默认）/ workspace-write（工作区写）/ full-access（完全访问）；read-only 仅供自动化任务兼容旧配置。
+// 交互会话提供 approval-required（需审批，默认）/ workspace-write（工作区写）/ full-access（完全访问）三种模式。
 import { PLAN_READ_TOOL_NAMES } from '../tools/app/plan-tool-names.mjs'
 import { TOOL_CATALOG } from '../tools/registry.mjs'
 
-export const EXECUTION_MODES = new Set([
-  'read-only',
-  'approval-required',
-  'workspace-write',
-  'full-access',
-])
+export const EXECUTION_MODES = new Set(['approval-required', 'workspace-write', 'full-access'])
 export const DEFAULT_EXECUTION_MODE = 'approval-required'
 
 const TOOL_RISK = new Map(TOOL_CATALOG.map((tool) => [tool.id, tool.risk]))
@@ -24,7 +19,7 @@ const APPROVAL_TOOLS = new Set([
   'generate_visual',
 ])
 const INTERNAL_APPROVAL_TOOLS = new Set(['update_plan'])
-const INTERNAL_READ_ONLY_TOOLS = new Set([
+const INTERNAL_SAFE_TOOLS = new Set([
   'discover_tools',
   'call_tool',
   'get_goal',
@@ -40,24 +35,20 @@ export function normalizeExecutionMode(value, fallback = DEFAULT_EXECUTION_MODE)
   return EXECUTION_MODES.has(mode) ? mode : fallback
 }
 
-// 模式 → 默认权限模式映射：只读/审批 = ask，工作区写 = auto，完全访问 = ignore。
+// 模式 → 默认权限模式映射：审批 = ask，工作区写 = auto，完全访问 = ignore。
 export function permissionModeForExecutionMode(mode) {
-  if (mode === 'read-only' || mode === 'approval-required') return 'ask'
+  if (mode === 'approval-required') return 'ask'
   if (mode === 'workspace-write') return 'auto'
   return 'ignore'
 }
 
-// 按执行模式过滤工具：只读仅放行低危工具，审批模式额外放行需逐次确认的工具。
+// 按执行模式过滤工具：审批模式保留低风险工具及逐次审批工具。
 export function filterToolsForExecutionMode(names, mode, getExternalRisk = () => null) {
   const unique = [...new Set(names || [])]
-  if (mode !== 'read-only' && mode !== 'approval-required') return unique
+  if (mode !== 'approval-required') return unique
   return unique.filter((name) => {
-    if (
-      mode === 'approval-required' &&
-      (APPROVAL_TOOLS.has(name) || INTERNAL_APPROVAL_TOOLS.has(name))
-    )
-      return true
-    if (INTERNAL_READ_ONLY_TOOLS.has(name)) return true
+    if (APPROVAL_TOOLS.has(name) || INTERNAL_APPROVAL_TOOLS.has(name)) return true
+    if (INTERNAL_SAFE_TOOLS.has(name)) return true
     const risk = TOOL_RISK.get(name) || getExternalRisk(name)
     return risk === 'low' || risk === '低风险'
   })

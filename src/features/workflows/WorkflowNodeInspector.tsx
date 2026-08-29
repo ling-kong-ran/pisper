@@ -32,20 +32,14 @@ const NOTIFICATION_TARGETS = {
   weixin: { Icon: MessageCircle },
 }
 
-const WORKFLOW_EXECUTION_MODES: WorkflowExecutionMode[] = [
-  'read-only',
-  'workspace-write',
-  'full-access',
-]
+const WORKFLOW_EXECUTION_MODES: WorkflowExecutionMode[] = ['workspace-write', 'full-access']
 
 function executionModeLabel(mode: WorkflowExecutionMode, t: WorkflowTranslate) {
-  if (mode === 'read-only') return t('workflows:workflowsPage.readOnly')
   if (mode === 'workspace-write') return t('workflows:workflowsPage.workspaceWrite')
   return t('workflows:workflowsPage.fullAccess')
 }
 
 function executionModeHelp(mode: WorkflowExecutionMode, t: WorkflowTranslate) {
-  if (mode === 'read-only') return t('workflows:workflowsPage.readOnlyHelp')
   if (mode === 'workspace-write') return t('workflows:workflowsPage.workspaceWriteHelp')
   return t('workflows:workflowsPage.fullAccessHelp')
 }

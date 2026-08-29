@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict'
-import { mkdtemp, rm } from 'node:fs/promises'
+import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import test from 'node:test'
@@ -87,6 +87,50 @@ test('workflows persist and execute Agent nodes in order with completion notific
   await service.dispose()
   await restored.dispose()
   await rm(directory, { recursive: true, force: true })
+})
+
+test('legacy workflow execution modes fall back to full-access', async (t) => {
+  const directory = await mkdtemp(join(tmpdir(), 'pisper-workflow-execution-mode-'))
+  t.after(() => rm(directory, { recursive: true, force: true }))
+  const path = join(directory, 'workflows.json')
+  await writeFile(
+    path,
+    JSON.stringify({
+      version: 2,
+      workflows: [
+        {
+          id: 'legacy-workflow',
+          name: 'Legacy workflow',
+          nodes: [
+            {
+              id: 'legacy-node',
+              kind: 'prompt',
+              label: 'Legacy node',
+              prompt: 'test',
+              executionMode: 'read-only',
+            },
+          ],
+          edges: [],
+        },
+      ],
+      runs: [],
+    }),
+  )
+  const service = new WorkflowService({
+    path,
+    cwd: directory,
+    agent: {
+      validateDirectory: async () => directory,
+      abort: async () => true,
+      prompt: async () => ({ text: 'unused' }),
+    },
+    notifications: { notify: async () => {} },
+  })
+  await service.init()
+  t.after(() => service.dispose())
+  assert.equal(service.getState().workflows[0].nodes[0].executionMode, 'full-access')
+  const persisted = JSON.parse(await readFile(path, 'utf8'))
+  assert.equal(persisted.workflows[0].nodes[0].executionMode, 'full-access')
 })
 
 test('notification nodes render configured content from inputs and upstream results', async (t) => {

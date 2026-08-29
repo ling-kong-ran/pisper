@@ -402,12 +402,31 @@ test('scheduled workflow targets must exist and remain published', async (t) => 
   )
 })
 
-test('scheduled tasks preserve an explicit read-only execution mode', async (t) => {
+test('scheduled tasks normalize removed execution modes to full-access', async (t) => {
   const directory = await mkdtemp(join(tmpdir(), 'pisper-schedules-execution-mode-'))
   t.after(() => rm(directory, { recursive: true, force: true }))
+  const path = join(directory, 'schedules.json')
+  await writeFile(
+    path,
+    JSON.stringify({
+      version: 1,
+      tasks: [
+        {
+          id: 'legacy-task',
+          name: '历史任务',
+          prompt: 'test',
+          frequency: 'daily',
+          time: '09:00',
+          timezone: 'UTC',
+          executionMode: 'read-only',
+        },
+      ],
+      runs: [],
+    }),
+  )
   const prompts = []
   const service = new ScheduleService({
-    path: join(directory, 'schedules.json'),
+    path,
     cwd: directory,
     tickMs: 60_000,
     agent: {
@@ -421,18 +440,12 @@ test('scheduled tasks preserve an explicit read-only execution mode', async (t) 
   })
   await service.init()
   t.after(() => service.dispose())
-  const task = await service.create({
-    name: '只读任务',
-    prompt: 'test',
-    frequency: 'daily',
-    time: '09:00',
-    timezone: 'UTC',
-    executionMode: 'read-only',
-  })
-  await service.runNow(task.id)
+  await service.runNow('legacy-task')
   await waitFor(() => service.executions.size === 0)
-  assert.equal(service.getState().tasks[0].executionMode, 'read-only')
-  assert.equal(prompts[0].executionMode, 'read-only')
+  assert.equal(service.getState().tasks[0].executionMode, 'full-access')
+  assert.equal(prompts[0].executionMode, 'full-access')
+  const persisted = JSON.parse(await readFile(path, 'utf8'))
+  assert.equal(persisted.tasks[0].executionMode, 'full-access')
 })
 
 test('failure-only tasks suppress success notifications and send failure templates', async (t) => {

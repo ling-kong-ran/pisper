@@ -42,7 +42,7 @@ import { FieldLabel } from '@/components/ui/field'
 type NotificationTarget = 'browser' | 'feishu' | 'weixin'
 type ScheduleFrequency = 'interval' | 'daily' | 'weekly' | 'monthly'
 type IntervalUnit = 'minutes' | 'hours' | 'days'
-type ScheduleExecutionMode = 'full-access' | 'read-only'
+type ScheduleExecutionMode = 'full-access'
 type ScheduleTargetType = 'prompt' | 'workflow'
 type ScheduleStatus = 'idle' | 'running' | 'completed' | 'failed' | 'interrupted'
 type ScheduleWorkflowInput = {
@@ -163,11 +163,10 @@ const TIMEZONES = [
     ...(typeof Intl.supportedValuesOf === 'function' ? Intl.supportedValuesOf('timeZone') : []),
   ]),
 ]
-const SCHEDULE_EXECUTION_MODES: ScheduleExecutionMode[] = ['full-access', 'read-only']
+const SCHEDULE_EXECUTION_MODES: ScheduleExecutionMode[] = ['full-access']
 
-function executionModeHelp(mode: ScheduleExecutionMode, t: ReturnType<typeof useI18n>['t']) {
-  if (mode === 'full-access') return t('schedules:schedulesPage.fullAccessHelp')
-  return t('schedules:schedulesPage.readOnlyHelp')
+function executionModeHelp(t: ReturnType<typeof useI18n>['t']) {
+  return t('schedules:schedulesPage.fullAccessHelp')
 }
 
 function frequencyLabel(frequency: ScheduleFrequency, t: ReturnType<typeof useI18n>['t']) {
@@ -200,13 +199,11 @@ function ScheduleExecutionModeField({ value, onChange }: ScheduleExecutionModeFi
       >
         {SCHEDULE_EXECUTION_MODES.map((mode) => (
           <option value={mode} key={mode}>
-            {mode === 'full-access'
-              ? t('schedules:schedulesPage.fullAccess')
-              : t('schedules:schedulesPage.readOnly')}
+            {t('schedules:schedulesPage.fullAccess')}
           </option>
         ))}
       </AppSelect>
-      <small>{executionModeHelp(value, t)}</small>
+      <small>{executionModeHelp(t)}</small>
     </FieldLabel>
   )
 }

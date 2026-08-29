@@ -560,7 +560,7 @@ h1, h2, h3, strong { overflow-wrap: anywhere; }
 .mini-message.agent .markdown-body { background: var(--accent-soft); }
 .mini-message .markdown-body pre { max-height: 130px; padding: 7px; }
 /* 图标化模型切换：Radix Select 透明覆盖整个按钮，文字收进 tooltip，仅保留图标 */
-/* 图标化执行模式触发器：灰=只读 / 红=完全访问 */
+/* 图标化执行模式触发器：灰=需审批 / 红=完全访问 */
 @keyframes transcript-stage-enter { from { opacity: 0; transform: translateY(7px); } to { opacity: 1; transform: translateY(0); } }
 @keyframes transcript-reveal-enter { from { opacity: 0; } to { opacity: 1; } }
 @keyframes session-history-line-pulse { 0%,100% { opacity: .28; transform: scaleX(.94); } 50% { opacity: .72; transform: scaleX(1); } }

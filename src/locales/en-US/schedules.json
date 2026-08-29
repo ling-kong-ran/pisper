@@ -1,6 +1,5 @@
 {
   "schedulesPage.fullAccessHelp": "Background tasks run Shell as the current OS user without per-command approval.",
-  "schedulesPage.readOnlyHelp": "Only reading and analysis are allowed; files cannot be modified and Shell cannot run.",
   "schedulesPage.atIntervals": "At intervals",
   "schedulesPage.daily": "Daily",
   "schedulesPage.weekly": "Weekly",
@@ -48,7 +47,6 @@
   "schedulesPage.nextRunTime": "Next run: {time}",
   "schedulesPage.noRunHistory": "No run history",
   "schedulesPage.notificationChannels": "Notification channels",
-  "schedulesPage.readOnly": "Read only",
   "schedulesPage.recentRuns": "Recent runs",
   "schedulesPage.runInterval": "Run interval",
   "schedulesPage.running": "Running",

@@ -25,7 +25,7 @@ const AGENT_KINDS = new Set(['prompt', 'skill', 'file', 'mcp'])
 const NOTIFICATION_TARGETS = new Set(['browser', 'feishu', 'weixin'])
 const FAILURE_POLICIES = new Set(['stop', 'skip'])
 const OUTPUT_FORMATS = new Set(['text', 'json'])
-const WORKFLOW_EXECUTION_MODES = new Set(['read-only', 'workspace-write', 'full-access'])
+const WORKFLOW_EXECUTION_MODES = new Set(['workspace-write', 'full-access'])
 const CONDITION_OPERATORS = new Set([
   'exists',
   'not_exists',

@@ -2,7 +2,6 @@
 // 支持时区、运行记录、重启后补偿未执行任务。
 import { randomUUID } from 'node:crypto'
 import { readJson, writeJsonAtomic } from '../storage/json-file.mjs'
-import { normalizeExecutionMode } from '../security/execution-mode.mjs'
 
 export const DEFAULT_SCHEDULE_EXECUTION_MODE = 'full-access'
 
@@ -17,6 +16,11 @@ const SHUTDOWN_INTERRUPTED_ERROR = '任务因 Pisper 关闭而中断。'
 
 function defaultState() {
   return { version: 1, tasks: [], runs: [] }
+}
+
+function normalizeScheduleExecutionMode(value) {
+  if (value !== DEFAULT_SCHEDULE_EXECUTION_MODE) return DEFAULT_SCHEDULE_EXECUTION_MODE
+  return value
 }
 
 // 把时间戳按指定时区拆成年月日时分秒（用于计算下一触发时刻）。
@@ -140,7 +144,7 @@ function normalizeStoredTask(task, cwd) {
     ),
     dayOfMonth: Math.min(28, Math.max(1, Number(task.dayOfMonth) || 1)),
     cwd: String(task.cwd || cwd),
-    executionMode: normalizeExecutionMode(task.executionMode, DEFAULT_SCHEDULE_EXECUTION_MODE),
+    executionMode: normalizeScheduleExecutionMode(task.executionMode),
     model:
       task.model?.provider && task.model?.model
         ? { provider: String(task.model.provider), model: String(task.model.model) }

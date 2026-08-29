@@ -15,6 +15,7 @@ test('execution modes normalize and default invalid values', () => {
   assert.equal(normalizeExecutionMode('full-access'), 'full-access')
   assert.equal(normalizeExecutionMode('workspace'), 'workspace-write')
   assert.equal(normalizeExecutionMode('unknown'), 'approval-required')
+  assert.equal(normalizeExecutionMode('read-only'), 'approval-required')
   assert.equal(normalizeExecutionMode('unknown', 'workspace-write'), 'workspace-write')
   assert.equal(DEFAULT_EXECUTION_MODE, 'approval-required')
   assert.equal(permissionModeForExecutionMode('approval-required'), 'ask')
@@ -78,7 +79,8 @@ test('React exposes approval-required, workspace-write, and full-access executio
   assert.match(controls, /BadgeCheck/)
   assert.match(controls, /focusSession.workspaceWrite/)
   assert.doesNotMatch(commands, /stopTheActiveRunBeforeChangingTheExecutionMode/)
-  assert.match(schedules, /\['full-access', 'read-only'\]/)
+  assert.match(schedules, /type ScheduleExecutionMode = 'full-access'/)
+  assert.doesNotMatch(schedules, /read-only/)
 })
 
 test('plugin_create still requests approval outside full-access', () => {
