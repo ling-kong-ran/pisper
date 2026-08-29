@@ -32,19 +32,46 @@
   let status = null
   let interaction = ''
   let interactionTimer = 0
+  let windowVisibility = null
+  let lastRenderKey = ''
+  let refreshInFlight = false
+  let refreshTimer = 0
 
   const invoke = (command, args) => window.__TAURI_INTERNALS__?.invoke(command, args)
   const language = () => localStorage.getItem('pisper-language') || 'zh-CN'
   const stateName = () => (interaction && STATES[interaction] ? interaction : STATES[status?.state] ? status.state : 'idle')
 
+  function syncWindowVisibility(visible) {
+    if (windowVisibility === visible) return
+    windowVisibility = visible
+    Promise.resolve(invoke('desktop_pet_set_visible', { visible })).catch(() => {
+      // IPC 失败时允许下一次状态刷新重试显隐，避免桌宠永久停留在错误状态。
+      if (windowVisibility === visible) windowVisibility = null
+    })
+  }
+
   function render() {
     const running = Boolean(status?.running && status?.spriteUrl)
-    void invoke('desktop_pet_set_visible', { visible: running })
+    syncWindowVisibility(running)
+    const name = stateName()
+    const renderKey = JSON.stringify([
+      running,
+      name,
+      interaction,
+      status?.opacity,
+      status?.spriteUrl,
+      status?.sheetWidth,
+      status?.sheetHeight,
+      status?.selectedName,
+      status?.selectedSlug,
+      language(),
+    ])
+    if (renderKey === lastRenderKey) return
+    lastRenderKey = renderKey
     if (!running) {
       pet.classList.remove('visible')
       return
     }
-    const name = stateName()
     const animation = STATES[name]
     const message = BUBBLES[language()]?.[name] || BUBBLES['zh-CN'][name] || ''
     pet.style.setProperty('--pet-opacity', String(status.opacity ?? 1))
@@ -78,6 +105,8 @@
   }
 
   async function refresh() {
+    if (refreshInFlight) return
+    refreshInFlight = true
     try {
       const response = await fetch('/api/desktop-pet', { cache: 'no-store' })
       if (!response.ok) return
@@ -86,6 +115,10 @@
       render()
     } catch {
       // The sidecar owns retry and lifecycle; a transient poll failure only hides stale state.
+    } finally {
+      refreshInFlight = false
+      window.clearTimeout(refreshTimer)
+      refreshTimer = window.setTimeout(refresh, 1200)
     }
   }
 
@@ -113,5 +146,4 @@
   })
 
   void refresh()
-  window.setInterval(refresh, 1200)
 })()

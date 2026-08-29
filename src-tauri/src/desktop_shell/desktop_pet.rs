@@ -94,6 +94,9 @@ pub fn create_pet_window(app: &AppHandle, bootstrap_url: &str) -> Result<(), Str
         .shadow(false)
         .always_on_top(true)
         .skip_taskbar(true)
+        // 桌宠是悬浮提示层，不应抢走主窗口的键盘焦点。
+        .focused(false)
+        .focusable(false)
         .visible(false)
         .on_navigation(move |target| {
             if same_origin(target, &allowed) || target.scheme() == "about" {
@@ -127,8 +130,10 @@ pub(crate) fn show_pet_window(app: &AppHandle) -> Result<(), String> {
     if !pet_window_is_visible_on_screen(&window) {
         place_pet_window(&window)?;
     }
-    window.unminimize().map_err(|error| error.to_string())?;
-    window.show().map_err(|error| error.to_string())?;
+    if !window.is_visible().map_err(|error| error.to_string())? {
+        window.unminimize().map_err(|error| error.to_string())?;
+        window.show().map_err(|error| error.to_string())?;
+    }
     Ok(())
 }
 

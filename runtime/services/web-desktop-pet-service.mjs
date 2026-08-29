@@ -75,6 +75,8 @@ export class WebDesktopPetService {
     this.stateVersion = 0
     this.activeSessions = new Set()
     this.resetTimer = null
+    // 图集通常较大，缓存校验后的内容可避免桌面宠物轮询反复读盘和分配大块内存。
+    this.petCache = new Map()
     mkdirSync(this.managedRoot, { recursive: true })
   }
 
@@ -117,14 +119,28 @@ export class WebDesktopPetService {
         const resolvedPath = realpathSync(spritePath)
         const relativePath = relative(rootPath, resolvedPath)
         if (!relativePath || relativePath.startsWith('..') || isAbsolute(relativePath)) continue
-        const size = statSync(resolvedPath).size
-        if (size <= 0 || size > MAX_PET_BYTES) continue
+        const file = statSync(resolvedPath)
+        if (file.size <= 0 || file.size > MAX_PET_BYTES) continue
+        const cached = this.petCache.get(resolvedPath)
+        if (cached?.size === file.size && cached.mtimeMs === file.mtimeMs) {
+          return { ...cached, slug, path: resolvedPath }
+        }
         const buffer = readFileSync(resolvedPath)
         const image = readImageDimensions(buffer)
         if (!image || !isPetSheetDimensions(image)) continue
         const metadata = safeJson(join(directory, 'pet.json'), {})
         const name = String(metadata?.displayName || metadata?.name || slug).trim() || slug
-        return { slug, name, buffer, path: resolvedPath, ...image }
+        const pet = {
+          slug,
+          name,
+          buffer,
+          path: resolvedPath,
+          size: file.size,
+          mtimeMs: file.mtimeMs,
+          ...image,
+        }
+        this.petCache.set(resolvedPath, pet)
+        return pet
       } catch {
         // Try the next supported sprite filename.
       }
@@ -229,6 +245,9 @@ export class WebDesktopPetService {
     if (!relativePath || relativePath.startsWith('..') || isAbsolute(relativePath))
       throw new Error('宠物目录无效。')
     rmSync(directory, { recursive: true })
+    for (const [path, pet] of this.petCache) {
+      if (pet.slug === slug || path.startsWith(`${directory}/`)) this.petCache.delete(path)
+    }
 
     const current = this.preferences()
     const installed = this.installedPets()
@@ -305,6 +324,9 @@ export class WebDesktopPetService {
     if (!image || !isPetSheetDimensions(image)) throw new Error('宠物图集格式无效。')
     if (contentType && !contentType.startsWith(image.mime)) throw new Error('宠物图集格式无效。')
     const directory = join(this.managedRoot, slug)
+    for (const [path, pet] of this.petCache) {
+      if (pet.slug === slug) this.petCache.delete(path)
+    }
     mkdirSync(directory, { recursive: true })
     for (const fileName of PET_SPRITE_NAMES) {
       try {
@@ -362,6 +384,7 @@ export class WebDesktopPetService {
     if (this.resetTimer) clearTimeout(this.resetTimer)
     this.resetTimer = null
     this.activeSessions.clear()
+    this.petCache.clear()
   }
 }
 

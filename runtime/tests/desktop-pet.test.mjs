@@ -149,10 +149,21 @@ test('Tauri pet and tray menus preserve desktop pet controls', async () => {
   assert.match(petShell, /destroy_pet_window_and_wait/)
   assert.match(petShell, /tokio::time::timeout\(Duration::from_secs\(2\)/)
   assert.match(petShell, /window\.hide\(\)/)
+  assert.match(petShell, /\.focused\(false\)/)
+  assert.match(petShell, /\.focusable\(false\)/)
+  assert.match(petShell, /window\.is_visible\(\)/)
   assert.match(desktopBridge, /desktop_pet_apply_enabled/)
+  assert.match(
+    await readFile(new URL('runtime/services/web-desktop-pet-service.mjs', ROOT), 'utf8'),
+    /this\.petCache = new Map\(\)/,
+  )
   assert.match(desktopBridge, /removePet/)
   assert.match(desktopBridge, /method: 'DELETE'/)
   assert.match(petRenderer, /invoke\('desktop_pet_show_context_menu'\)/)
+  assert.match(petRenderer, /windowVisibility/)
+  assert.match(petRenderer, /refreshInFlight/)
+  assert.doesNotMatch(petRenderer, /setInterval\(refresh/)
+  assert.match(petRenderer, /window\.setTimeout\(refresh, 1200\)/)
   assert.match(petRenderer, /fetch\('\/api\/desktop-pet\/enabled'/)
   assert.match(petRenderer, /__PISPER_DESKTOP_PET_SET_ENABLED/)
   assert.match(permissions, /"desktop_pet_apply_enabled"/)
