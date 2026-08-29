@@ -1969,12 +1969,19 @@ export class AgentRuntimeService extends AgentRuntimeFacade {
     const streamBlockIndex = (update) =>
       Number.isInteger(update?.contentIndex) ? update.contentIndex : 0
     const appendThinking = (delta) => {
-      thinkingTurnText = liveThinkingTail(thinkingTurnText + String(delta || ''))
-      const next = liveThinkingTail([thinkingPrefix, thinkingTurnText].filter(Boolean).join('\n\n'))
-      let start = 0
-      const limit = Math.min(live.thinkingText.length, next.length)
-      while (start < limit && live.thinkingText.charCodeAt(start) === next.charCodeAt(start))
-        start += 1
+      const deltaText = String(delta || '')
+      // 补丁起点用算术求得，免掉每个 delta 对 6000 字尾巴的全量公共前缀扫描：
+      // next 恒等于 tail(live.thinkingText + effective, MAX)——追加与头部裁剪
+      // 都是已知量；本轮首段增量前需补回 join('\n\n') 在轮边界插入的分隔符。
+      const needsSeparator = Boolean(thinkingPrefix) && !thinkingTurnText && deltaText.length > 0
+      const effective = (needsSeparator ? '\n\n' : '') + deltaText
+      thinkingTurnText = liveThinkingTail(thinkingTurnText + deltaText)
+      const prev = live.thinkingText
+      const combined = prev + effective
+      const next = liveThinkingTail(combined)
+      // 未裁剪时 prev 是 next 的完整前缀；发生头部裁剪时前缀必然错位，
+      // 退化为整段替换（客户端按 start 截断拼接，应用结果一致）。
+      const start = next.length === combined.length ? prev.length : 0
       live.thinkingText = next
       emit('thinking_patch', { start, text: next.slice(start) })
     }
