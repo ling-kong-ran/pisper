@@ -9,6 +9,7 @@ use std::{
     collections::{HashMap, VecDeque},
     fs,
     path::{Path, PathBuf},
+    sync::atomic::{AtomicU64, Ordering},
     time::{Duration, Instant, SystemTime, UNIX_EPOCH},
 };
 
@@ -297,6 +298,14 @@ pub struct App {
     pub view: View,
     pub scroll: Cell<u16>,
     pub render_max_scroll: Cell<u16>,
+    /// 转录结构代际：历史消息列表发生非追加变化（换会话/加载更早/裁剪）时 +1，
+    /// ui 层的渲染行缓存以此失效（纯追加不影响已有序号，无需 bump）。
+    pub transcript_epoch: Cell<u64>,
+    /// 图片缩略图代际：缩略图异步到达会改变附件行渲染，+1 令渲染行缓存失效。
+    pub thumbnail_generation: Cell<u64>,
+    /// 渲染缓存实例令牌：区分同线程内先后创建的 App（测试尤其需要），
+    /// 防止 thread_local 渲染行缓存跨实例串数据。
+    pub render_cache_token: u64,
     pub plan_scroll: Cell<u16>,
     pub plan_max_scroll: Cell<u16>,
     history_oldest_index: u64,
@@ -426,6 +435,9 @@ impl App {
             view: View::Chat,
             scroll: Cell::new(0),
             render_max_scroll: Cell::new(0),
+            transcript_epoch: Cell::new(0),
+            thumbnail_generation: Cell::new(0),
+            render_cache_token: next_render_cache_token(),
             plan_scroll: Cell::new(initial_plan_scroll),
             plan_max_scroll: Cell::new(0),
             history_oldest_index: 0,
@@ -2605,6 +2617,7 @@ impl App {
         self.session = session;
         self.messages = messages;
         self.image_thumbnails.clear();
+        self.transcript_epoch.set(self.transcript_epoch.get() + 1);
         cap_message_count(&mut self.messages);
         self.reset_history_window();
         self.live = None;
@@ -2658,6 +2671,8 @@ impl App {
     pub fn apply_image_thumbnail(&mut self, key: String, thumbnail: Option<ImageThumbnail>) {
         if let Some(thumbnail) = thumbnail {
             self.image_thumbnails.insert(key, thumbnail);
+            self.thumbnail_generation
+                .set(self.thumbnail_generation.get() + 1);
         }
     }
 
@@ -2722,6 +2737,7 @@ impl App {
         let mut older = messages;
         older.append(&mut self.messages);
         self.messages = older;
+        self.transcript_epoch.set(self.transcript_epoch.get() + 1);
         self.history_oldest_index = if page_info.has_more {
             page_info.start
         } else {
@@ -2758,6 +2774,7 @@ impl App {
         self.messages.drain(..excess);
         self.history_oldest_index = self.history_oldest_index.saturating_add(excess as u64);
         self.history_touched_at = None;
+        self.transcript_epoch.set(self.transcript_epoch.get() + 1);
         true
     }
 
@@ -2769,6 +2786,7 @@ impl App {
         }
         self.messages.drain(..excess);
         self.history_oldest_index = self.history_oldest_index.saturating_add(excess as u64);
+        self.transcript_epoch.set(self.transcript_epoch.get() + 1);
     }
 
     /// 物化会话：草稿 → 真实会话（`submit` 前调用），并插入会话列表。
@@ -3488,6 +3506,13 @@ fn command(command: &str, detail: &str) -> SlashItem {
         command: command.to_owned(),
         detail: detail.to_owned(),
     }
+}
+
+/// 渲染缓存实例令牌序列：每个 App 实例独占一个令牌。
+static RENDER_CACHE_TOKEN: AtomicU64 = AtomicU64::new(1);
+
+fn next_render_cache_token() -> u64 {
+    RENDER_CACHE_TOKEN.fetch_add(1, Ordering::Relaxed)
 }
 
 /// 把消息列表裁剪到内存上限（丢弃最早的超额消息）。

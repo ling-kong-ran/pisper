@@ -15,7 +15,7 @@ use ratatui::{
 };
 use ratatui_image::{picker::Picker, Image as TerminalImage, Resize};
 use serde_json::Value;
-use std::{collections::HashMap, sync::OnceLock, time::SystemTime};
+use std::{cell::RefCell, collections::HashMap, sync::OnceLock, time::SystemTime};
 use unicode_width::{UnicodeWidthChar, UnicodeWidthStr};
 
 use crate::{
@@ -467,14 +467,67 @@ fn render_overlays(frame: &mut Frame, app: &App, composer: Rect, area: Rect) {
     }
 }
 
-/// 渲染对话区：逐条消息 + 当前 LiveTurn，末行留白后按滚动偏移显示。
+/// 单条历史消息的渲染缓存：展开的渲染行 + 该宽度下的换行行数。
+/// 换行在 ratatui 中逐 Line 独立进行，因此全文的行数恒等于各消息行数之和。
+struct CachedTranscriptLines {
+    lines: Vec<Line<'static>>,
+    rows: usize,
+}
+
+/// 渲染行缓存键：(App 令牌, transcript_epoch, 消息序号, 视口宽度, thumbnail_generation)。
+type TranscriptLineCacheKey = (u64, u64, usize, u16, u64);
+
+thread_local! {
+    // 转录渲染行缓存：历史消息一经提交不再变化，
+    // 流式帧只重算 live 回合，不再逐帧对全部历史跑 tui_markdown 解析与换行计数。
+    static TRANSCRIPT_LINE_CACHE: RefCell<HashMap<TranscriptLineCacheKey, CachedTranscriptLines>> =
+        RefCell::new(HashMap::new());
+}
+
+/// 缓存条数上限：超出即整体清空（旧会话/旧代际的条目随下一次超限自然淘汰）。
+const TRANSCRIPT_LINE_CACHE_LIMIT: usize = 512;
+
+/// 渲染对话区：逐条消息（走缓存） + 当前 LiveTurn（每帧重算），末行留白后按滚动偏移显示。
 fn render_chat(frame: &mut Frame, app: &App, area: Rect) {
+    let viewport = inset(area, 0, 1);
+    if viewport.width == 0 || viewport.height == 0 {
+        return;
+    }
     let mut lines = Vec::new();
     let content_width = area.width as usize;
-    for message in &app.messages {
-        push_message(&mut lines, message, content_width, &app.image_thumbnails);
-    }
+    let cache_token = app.render_cache_token;
+    let epoch = app.transcript_epoch.get();
+    let thumbnails = app.thumbnail_generation.get();
+    let mut total_rows = 0usize;
+    TRANSCRIPT_LINE_CACHE.with(|cache| {
+        let mut cache = cache.borrow_mut();
+        if cache.len() > TRANSCRIPT_LINE_CACHE_LIMIT {
+            cache.clear();
+        }
+        for (index, message) in app.messages.iter().enumerate() {
+            let key = (cache_token, epoch, index, viewport.width, thumbnails);
+            let entry = cache.entry(key).or_insert_with(|| {
+                let mut message_lines = Vec::new();
+                push_message(
+                    &mut message_lines,
+                    message,
+                    content_width,
+                    &app.image_thumbnails,
+                );
+                let rows = Paragraph::new(Text::from(message_lines.clone()))
+                    .wrap(Wrap { trim: false })
+                    .line_count(viewport.width);
+                CachedTranscriptLines {
+                    lines: message_lines,
+                    rows,
+                }
+            });
+            lines.extend(entry.lines.iter().cloned());
+            total_rows += entry.rows;
+        }
+    });
     if let Some(live) = &app.live {
+        let live_start = lines.len();
         push_live(
             &mut lines,
             live,
@@ -483,16 +536,15 @@ fn render_chat(frame: &mut Frame, app: &App, area: Rect) {
             area.height.saturating_sub(2) as usize,
             app.status_frame,
         );
-    }
-    let viewport = inset(area, 0, 1);
-    if viewport.width == 0 || viewport.height == 0 {
-        return;
+        // live 回合每帧都在变，行数即时计算（行数有限，成本可忽略）。
+        total_rows += Paragraph::new(Text::from(lines[live_start..].to_vec()))
+            .wrap(Wrap { trim: false })
+            .line_count(viewport.width);
     }
     let paragraph = Paragraph::new(Text::from(lines))
         .style(Style::default().fg(TEXT).bg(BG))
         .wrap(Wrap { trim: false });
-    let rendered_rows = paragraph.line_count(viewport.width);
-    let max_scroll = rendered_rows
+    let max_scroll = total_rows
         .saturating_sub(viewport.height as usize)
         .min(u16::MAX as usize) as u16;
     app.render_max_scroll.set(max_scroll);
