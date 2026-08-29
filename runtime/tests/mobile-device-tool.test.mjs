@@ -11,7 +11,11 @@ test('mobile_device 是默认启用的高风险 App 工具', () => {
   assert.equal(catalog?.risk, 'high')
   assert.equal(catalog?.source, 'app')
   assert.equal(TOOL_PRESETS.full.includes('mobile_device'), true)
-  assert.equal(TOOL_PRESETS.workspace.includes('mobile_device'), false)
+  // 工作区预设包含生图与手机操作（产物落在工作区/本地设备，随写权限开放）
+  assert.equal(TOOL_PRESETS.workspace.includes('mobile_device'), true)
+  assert.equal(TOOL_PRESETS.workspace.includes('generate_visual'), true)
+  // 只读预设仍不包含（只读仅保留检查类工具）
+  assert.equal(TOOL_PRESETS['read-only'].includes('generate_visual'), false)
 })
 
 test('mobile_device V2 默认迁移会修复旧版遗漏的工具开关', async () => {

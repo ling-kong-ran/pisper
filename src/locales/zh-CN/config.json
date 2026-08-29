@@ -263,7 +263,7 @@
   "configPage.visualModelSettingsSaved": "视觉模型配置已保存",
   "configPage.visualOnlyProvider": "纯视觉模型 Provider",
   "configPage.visualProvider": "视觉 Provider",
-  "configPage.fileEditingTools": "文件编辑：增加 edit / write",
+  "configPage.fileEditingTools": "工作区：文件编辑 + 生图 / 手机",
   "configPage.youCanCreateMultipleConnectionsUsingTheSameProtocolEachWithItsOwnKeyAndBaseURL": "同一种协议可创建多个连接，每个连接独立使用 Key 和 Base URL。",
   "interfaceSettings.accentBlue": "Pisper 蓝",
   "interfaceSettings.accentColor": "强调色",

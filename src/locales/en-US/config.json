@@ -263,7 +263,7 @@
   "configPage.visualModelSettingsSaved": "Visual model settings saved",
   "configPage.visualOnlyProvider": "Visual-only Provider",
   "configPage.visualProvider": "Visual Provider",
-  "configPage.fileEditingTools": "File editing: add edit / write",
+  "configPage.fileEditingTools": "Workspace: file editing + visual & device",
   "configPage.youCanCreateMultipleConnectionsUsingTheSameProtocolEachWithItsOwnKeyAndBaseURL": "You can create multiple connections using the same protocol, each with its own key and base URL.",
   "interfaceSettings.accentBlue": "Pisper blue",
   "interfaceSettings.accentColor": "Accent color",

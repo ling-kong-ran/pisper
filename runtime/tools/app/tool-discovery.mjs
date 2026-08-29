@@ -203,9 +203,15 @@ export function createToolDiscoveryTool({ listTools }) {
   return defineTool({
     name: TOOL_DISCOVERY_NAME,
     label: 'Discover Tools',
-    description: 'Find optional tools by capability; call results through call_tool.',
-    promptSnippet: 'Find optional tools by capability',
-    promptGuidelines: ['Search by capability, then call the exact result through call_tool.'],
+    // 描述里直接枚举常见能力，避免模型不知道有哪些可选工具（如生图）可用。
+    description:
+      'Find optional tools by capability: image/video generation & editing (generate_visual), web search, browser automation, mobile device control, memory, MCP, plugins, and more. Call results through call_tool.',
+    promptSnippet:
+      'Find optional tools (image/video generation, web, device, memory, MCP) by capability',
+    promptGuidelines: [
+      'Search by capability, then call the exact result through call_tool.',
+      'When the user asks for generated images/videos, device actions, web info, or other app capabilities, discover and call the matching tool instead of claiming it is unavailable.',
+    ],
     parameters: Type.Object({
       query: Type.String({
         minLength: 1,

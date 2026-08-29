@@ -385,7 +385,8 @@ test('plugin catalog derives callable Tool names from the session execution poli
 
   const result = await runtime.getPlugins('session-1')
 
-  assert.deepEqual(result.callableToolNames, ['read', 'edit', 'plugin_create'])
+  // 审批模式下 generate_visual 与其他高危工具一样可见（调用时逐次审批）
+  assert.deepEqual(result.callableToolNames, ['read', 'edit', 'generate_visual', 'plugin_create'])
 })
 
 test('explicit client tool requests activate only the structured tool names', async () => {

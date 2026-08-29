@@ -43,12 +43,14 @@ test('read-only execution exposes only low-risk analysis tools', () => {
     'skill_create',
     'plugin_create',
     'mobile_device',
+    'generate_visual',
     'get_plan',
     'update_plan',
     'get_task_list',
     'update_task_list',
     'spawn_agent',
   ]
+  // 只读模式：生图/手机操作等高危工具一律不可见
   assert.deepEqual(filterToolsForExecutionMode(names, 'read-only'), [
     'read',
     'grep',
@@ -57,6 +59,7 @@ test('read-only execution exposes only low-risk analysis tools', () => {
     'get_plan',
     'get_task_list',
   ])
+  // 审批模式：高危工具可见但逐次审批（含生图）
   assert.deepEqual(filterToolsForExecutionMode(names, 'approval-required'), [
     'read',
     'grep',
@@ -67,6 +70,7 @@ test('read-only execution exposes only low-risk analysis tools', () => {
     'skill_create',
     'plugin_create',
     'mobile_device',
+    'generate_visual',
     'get_plan',
     'update_plan',
     'get_task_list',

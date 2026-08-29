@@ -97,6 +97,9 @@ export const TOOL_PRESETS = {
     'plugin_create',
     'web_search',
     'browser_automation',
+    // 生图/手机操作的产物落在工作区或本地设备，属于工作区能力，随写权限一起开放。
+    'generate_visual',
+    'mobile_device',
     'memory_search',
     'memory_remember',
     'mcp_list',

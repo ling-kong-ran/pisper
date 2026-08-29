@@ -12,6 +12,8 @@ export const EXECUTION_MODES = new Set([
 export const DEFAULT_EXECUTION_MODE = 'approval-required'
 
 const TOOL_RISK = new Map(TOOL_CATALOG.map((tool) => [tool.id, tool.risk]))
+// 审批模式下仍可见的高危工具：调用时逐次审批，由用户决定是否放行。
+// 生图是按次计费的高危操作，但在默认模式（approval-required）下必须可被发现，否则用户根本用不到。
 const APPROVAL_TOOLS = new Set([
   'edit',
   'write',
@@ -19,6 +21,7 @@ const APPROVAL_TOOLS = new Set([
   'skill_create',
   'plugin_create',
   'mobile_device',
+  'generate_visual',
 ])
 const INTERNAL_APPROVAL_TOOLS = new Set(['update_plan'])
 const INTERNAL_READ_ONLY_TOOLS = new Set([
