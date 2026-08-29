@@ -27,6 +27,7 @@ Argument notation: `<argument>` is required; `[argument]` is optional.
 | Variable | Description |
 | :--- | :--- |
 | `PISPER_TUI_MOUSE=1` | Enable mouse wheel scrolling in the transcript; note that mouse capture replaces the terminal's native text selection. |
+| `PISPER_TUI_REDUCED_MOTION=1` | Disable the typewriter reveal and status animations (streaming text appears immediately); useful on low-end terminals and SSH sessions. |
 
 ## Slash Commands
 
