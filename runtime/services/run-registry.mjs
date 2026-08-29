@@ -59,11 +59,12 @@ export class RunRegistry {
   }
 
   // 记录一帧：分配游标、入缓冲、广播给重挂订阅者。返回游标；run 已关闭返回 null。
-  record(run, event, data) {
+  // serialized 是调用方已为写出而做的序列化结果，复用它计字节可避免二次 stringify。
+  record(run, event, data, serialized = null) {
     if (!run || run.closed) return null
     const cursor = ++run.cursor
     // 字节数用于缓冲上限控制，只需量级准确，不必精确。
-    const bytes = 16 + event.length + Buffer.byteLength(safeSerialize(data))
+    const bytes = 16 + event.length + Buffer.byteLength(serialized ?? safeSerialize(data))
     run.events.push({ cursor, event, data, bytes })
     run.bytes += bytes
     while (run.events.length > this.maxEvents || run.bytes > this.maxBytes) {

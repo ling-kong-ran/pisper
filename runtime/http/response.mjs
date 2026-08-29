@@ -65,16 +65,23 @@ export async function bodyJson(req) {
   return JSON.parse(Buffer.concat(chunks).toString('utf8'))
 }
 
+// 序列化一帧 SSE 的 data 负载（含孤立代理项清洗）。
+// 导出给调用方复用：同一帧既要写入 run 环形缓冲又要写出连接时，
+// 只序列化一次，两处共享同一 payload 字符串。
+export function serializeSsePayload(data) {
+  return JSON.stringify(data, jsonReplacer) || ''
+}
+
 // 发送一帧 SSE：id 非空时写入标准 `id:` 行（run 游标），
 // 旧客户端会忽略未知字段，保持前向兼容。
+// payload 允许传入预序列化结果，避免热路径上重复 JSON.stringify。
 // 返回值是 res.write() 的背压信号：false 仅表示本次写入后缓冲越过了
 // Node 的 ~16KB 高水位——单帧稍大就会命中，并不代表客户端停止消费，
 // 调用方不应据此断连（需要区分慢客户端时请用 sseSendGuarded）。
-export function sseSend(res, event, data, id = null) {
+export function sseSend(res, event, data, id = null, payload = null) {
   const idLine = id == null ? '' : `id: ${id}\n`
-  return (
-    res.write(`${idLine}event: ${event}\ndata: ${JSON.stringify(data, jsonReplacer)}\n\n`) !== false
-  )
+  const body = payload ?? serializeSsePayload(data)
+  return res.write(`${idLine}event: ${event}\ndata: ${body}\n\n`) !== false
 }
 
 // drain 迟迟不来的判死时限：瞬时背压（write 返回 false）只表示越过 ~16KB 高水位，
@@ -93,9 +100,9 @@ function clearSseStallTimer(res) {
 // 带慢客户端护栏的 SSE 发送：瞬时背压不处理（等 drain 自然恢复），
 // 只有超过 stall 时限仍未 drain 且仍有积压时才销毁连接——被断开的客户端
 // 可凭 run 游标经 GET /api/runs/:id/events?after= 重挂补发，事件不会丢。
-export function sseSendGuarded(res, event, data, id = null) {
+export function sseSendGuarded(res, event, data, id = null, payload = null) {
   if (res.destroyed || res.writableEnded) return false
-  const accepted = sseSend(res, event, data, id)
+  const accepted = sseSend(res, event, data, id, payload)
   if (accepted) {
     clearSseStallTimer(res)
     return true

@@ -1,7 +1,7 @@
 // API 处理器：注册所有路由，统一封装请求上下文（JSON/SSE/错误脱敏），
 // 并把请求分发给对应的路由处理器。
 import { redactSecretText } from '../security/secret-redaction.mjs'
-import { bodyJson, json as sendJson, sseSendGuarded } from './response.mjs'
+import { bodyJson, json as sendJson, serializeSsePayload, sseSendGuarded } from './response.mjs'
 import { createRouteRegistry } from './route-registry.mjs'
 import { configSettingsRoutes } from './routes/config-settings.mjs'
 import { desktopRoutes } from './routes/desktop.mjs'
@@ -57,7 +57,8 @@ function createHandlerContext({ runtime, services, req, res, url, params }) {
   let sseStarted = false
   let activeRun = null
   // 瞬时背压不断连：sseSendGuarded 只在 stall 超时（持续排不出去）时才销毁连接。
-  const writeSse = (event, data, id = null) => sseSendGuarded(res, event, data, id)
+  const writeSse = (event, data, id = null, payload = null) =>
+    sseSendGuarded(res, event, data, id, payload)
   return {
     context: {
       runtime,
@@ -81,9 +82,11 @@ function createHandlerContext({ runtime, services, req, res, url, params }) {
       },
       sendSse(event, data) {
         // 先入缓冲再写出：客户端断开时写出为空操作，但缓冲继续累积，保证可重挂。
+        // 一帧只序列化一次，缓冲计字节与 socket 写出共享同一 payload。
+        const payload = serializeSsePayload(data)
         let cursor = null
-        if (activeRun) cursor = services.runs.record(activeRun, event, data)
-        writeSse(event, data, cursor)
+        if (activeRun) cursor = services.runs.record(activeRun, event, data, payload)
+        writeSse(event, data, cursor, payload)
       },
       startRun(meta = {}) {
         activeRun = services.runs.begin(meta)
