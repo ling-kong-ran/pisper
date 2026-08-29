@@ -277,20 +277,25 @@ pisper web    # 打开 Web 前端与配置页</code></pre>
               </thead>
               <tbody>
                 <tr>
-                  <td><code>read-only</code></td>
-                  <td>只开放低风险分析工具，禁止修改项目</td>
-                  <td>代码审查、方案调研、陌生仓库探索</td>
+                  <td><code>approval-required</code></td>
+                  <td>低风险工具直接执行，写入、Shell 和高风险工具逐次请求授权</td>
+                  <td>代码审查、方案调研、需要确认的开发工作</td>
+                </tr>
+                <tr>
+                  <td><code>workspace-write</code></td>
+                  <td>自动批准工作区内的文件修改和常规命令，外部访问仍受限制</td>
+                  <td>日常开发、重构、跑测试与构建</td>
                 </tr>
                 <tr>
                   <td><code>full-access</code></td>
                   <td>以当前系统用户权限访问文件、网络与 Shell</td>
-                  <td>实际开发、重构、跑测试与构建</td>
+                  <td>需要完整主机权限的操作</td>
                 </tr>
               </tbody>
             </table>
           </div>
 
-          <p>终端里用 <code>/mode</code> 查看当前模式，<code>/mode read-only</code> 或 <code>/mode full-access</code> 切换。</p>
+          <p>终端里用 <code>/mode</code> 查看当前模式，或使用 <code>/mode approval-required</code>、<code>/mode workspace-write</code>、<code>/mode full-access</code> 切换。</p>
 
           <div class="guide-note">
             <p>

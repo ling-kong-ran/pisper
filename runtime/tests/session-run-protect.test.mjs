@@ -299,15 +299,15 @@ test('a running session switches execution mode without dropping its active runt
     'runActive + live.streaming must mark the session as active',
   )
 
-  const mode = await runtime.setSessionExecutionMode(id, 'read-only')
+  const mode = await runtime.setSessionExecutionMode(id, 'workspace-write')
   assert.deepEqual(mode, {
     id,
-    executionMode: 'read-only',
-    permissionMode: 'ask',
+    executionMode: 'workspace-write',
+    permissionMode: 'auto',
   })
   assert.equal(runtime.sessions.get(id), value, 'resident runtime must be preserved')
   assert.equal(runtime.sessionRunIsActive(id), true)
-  assert.equal(runtime.getSessionExecutionMode(id), 'read-only')
+  assert.equal(runtime.getSessionExecutionMode(id), 'workspace-write')
   assert.equal(value.runtimeVersion, -1, 'the next prompt must rebuild the mode-specific tools')
 
   await assert.rejects(() => runtime.setSessionPermission(id, 'ask'), /运行/)
@@ -335,8 +335,8 @@ test('switching execution mode on an idle session keeps the session listed and r
     },
   ]
 
-  const mode = await runtime.setSessionExecutionMode(id, 'read-only')
-  assert.equal(mode.executionMode, 'read-only')
+  const mode = await runtime.setSessionExecutionMode(id, 'approval-required')
+  assert.equal(mode.executionMode, 'approval-required')
   assert.ok(
     !runtime.sessions.has(id),
     'idle resident runtime may be disposed after the mode switch (rebuilt from disk)',

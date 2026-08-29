@@ -7,7 +7,6 @@ import {
   Brain,
   Check,
   Database,
-  Eye,
   FileCheck2,
   Gauge,
   ListTodo,
@@ -369,12 +368,6 @@ export function SessionThinkingSelect({
 function executionModeOptions(t: Translate): ExecutionModeOption[] {
   return [
     [
-      'read-only',
-      t('chat:focusSession.readOnly'),
-      t('chat:focusSession.onlyInspectAndAnalyzeContent'),
-      Eye,
-    ],
-    [
       'approval-required',
       t('chat:focusSession.approvalRequired'),
       t('chat:focusSession.approvalRequiredShowsADiffBeforeWriting'),
@@ -412,7 +405,7 @@ export function ExecutionModeSelect({
   const rootRef = useRef<HTMLDivElement>(null)
   const menuRef = useRef<HTMLDivElement>(null)
   const options = executionModeOptions(t)
-  const current = options.find((item) => item[0] === value) || options[1]
+  const current = options.find((item) => item[0] === value) || options[0]
   const CurrentIcon = current[3]
   const positionMenu = useCallback(() => {
     const trigger = rootRef.current?.querySelector('button')

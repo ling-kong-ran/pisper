@@ -74,18 +74,6 @@ export const BUILTIN_TOOL_CATALOG = [
 ]
 
 export const TOOL_PRESETS = {
-  'read-only': [
-    'read',
-    'grep',
-    'find',
-    'ls',
-    'web_search',
-    'browser_automation',
-    'memory_search',
-    'memory_remember',
-    'mcp_list',
-    'mcp_manage',
-  ],
   workspace: [
     'read',
     'grep',
@@ -124,4 +112,11 @@ export const TOOL_PRESETS = {
     'mcp_list',
     'mcp_manage',
   ],
+}
+
+export const TOOL_MODES = new Set(['workspace', 'full', 'custom'])
+
+// 读取配置时将已删除或未知模式按工作区处理，避免为旧文件增加专门迁移流程。
+export function normalizeToolMode(value, fallback = 'workspace') {
+  return TOOL_MODES.has(value) ? value : fallback
 }

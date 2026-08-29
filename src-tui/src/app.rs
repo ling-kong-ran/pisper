@@ -1129,7 +1129,14 @@ impl App {
             command("/web", "Open the installed Web settings"),
             command("/compact", "Summarize older context now"),
             command("/attach", "Add image, text, code, or document files"),
-            command("/mode read-only", "Allow low-risk analysis tools only"),
+            command(
+                "/mode approval-required",
+                "Ask before writes, shell, and high-risk tools",
+            ),
+            command(
+                "/mode workspace-write",
+                "Auto-approve workspace edits and routine commands",
+            ),
             command(
                 "/mode full-access",
                 "Allow unrestricted files, network, and shell",
@@ -2219,12 +2226,7 @@ impl App {
                 }
             }
             "/init" => {
-                if self.execution_mode == "read-only" {
-                    self.status = "/init requires full-access mode to write AGENTS.md".to_owned();
-                    self.status_error = true;
-                    self.clear_input();
-                    return Action::None;
-                }
+                // 写入 AGENTS.md 的权限由各执行模式的审批策略决定（审批模式会逐次确认）。
                 let attachments = std::mem::take(&mut self.attachments);
                 let prompt = QueuedPrompt {
                     message: INIT_PROMPT.to_owned(),
@@ -2362,7 +2364,7 @@ impl App {
             }
             "/mode" => {
                 self.status = format!(
-                    "mode · {} · use /mode read-only|full-access",
+                    "mode · {} · use /mode approval-required|workspace-write|full-access",
                     self.execution_mode
                 );
                 self.clear_input();
@@ -2374,7 +2376,8 @@ impl App {
                 Action::SetExecutionMode(mode.to_owned())
             }
             _ if message.starts_with("/mode ") => {
-                self.status = "usage · /mode read-only|full-access".to_owned();
+                self.status =
+                    "usage · /mode approval-required|workspace-write|full-access".to_owned();
                 self.clear_input();
                 Action::None
             }
@@ -3455,14 +3458,19 @@ fn attachment_kind(path: &Path) -> Option<&'static str> {
     }
 }
 
-/// 解析 `/mode <read-only|full-access>` 形式的命令，格式非法返回 None。
+/// 解析 `/mode <approval-required|workspace-write|full-access>` 形式的命令，格式非法返回 None。
 fn execution_mode_command(message: &str) -> Option<&str> {
     let mut parts = message.split_whitespace();
     if parts.next()? != "/mode" {
         return None;
     }
     let mode = parts.next()?;
-    if parts.next().is_some() || !matches!(mode, "read-only" | "full-access") {
+    if parts.next().is_some()
+        || !matches!(
+            mode,
+            "approval-required" | "workspace-write" | "full-access"
+        )
+    {
         return None;
     }
     Some(mode)
@@ -4112,17 +4120,27 @@ mod tests {
             .contains("Analyze this codebase"));
     }
 
-    /// 验证只读模式下 /init 被拒绝（需要 full-access）。
+    /// 验证 /mode 命令解析三种执行模式。
     #[test]
-    fn init_is_rejected_in_read_only_mode() {
+    fn mode_command_accepts_the_three_execution_modes() {
+        for mode in ["approval-required", "workspace-write", "full-access"] {
+            let mut app = test_app(Vec::new());
+            app.set_input(format!("/mode {mode}").as_str());
+
+            let action = app.submit_action();
+
+            assert!(matches!(action, Action::SetExecutionMode(ref value) if value == mode));
+        }
+    }
+
+    /// 验证未知的 /mode 值按非法格式处理。
+    #[test]
+    fn mode_command_rejects_unknown_execution_mode() {
         let mut app = test_app(Vec::new());
-        app.execution_mode = "read-only".to_owned();
-        app.set_input("/init");
+        app.set_input("/mode unsupported");
 
         assert!(matches!(app.submit_action(), Action::None));
-        assert!(app.status_error);
-        assert!(app.status.contains("requires full-access"));
-        assert!(!app.is_streaming());
+        assert!(app.status.contains("approval-required"));
     }
 
     /// 验证 /工具名 命令请求所选运行时工具。
@@ -5030,7 +5048,7 @@ mod tests {
             name: "中文 session".to_owned(),
             model: "deepseek/chat".to_owned(),
             cwd: "/workspace/other".to_owned(),
-            execution_mode: "read-only".to_owned(),
+            execution_mode: "approval-required".to_owned(),
             ..SessionSummary::default()
         };
         let mut app = App::new(

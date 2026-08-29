@@ -41,7 +41,8 @@ Argument notation: `<argument>` is required; `[argument]` is optional.
 | `/compact` | Summarize older context immediately. Available only for idle conversations with enough history. |
 | `/attach` | Open the attachment picker rooted at the active conversation directory. |
 | `/mode` | Show the active execution mode and accepted values. The mode can also change during an Agent run. |
-| `/mode read-only` | Expose low-risk analysis tools only and prevent project modifications. |
+| `/mode approval-required` | Ask before writes, Shell commands, and high-risk tools. |
+| `/mode workspace-write` | Auto-approve workspace edits and routine commands. |
 | `/mode full-access` | Allow local files, network access, and Shell commands as the current operating-system user. |
 | `/quit` | Exit the TUI. |
 

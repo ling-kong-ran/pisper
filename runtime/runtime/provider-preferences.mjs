@@ -5,6 +5,7 @@ import { ModelRuntime } from './pi-coding-agent.mjs'
 import { inferModelKind } from '../services/visual-generation/index.mjs'
 import { redactSecretText } from '../security/secret-redaction.mjs'
 import { applyPisperSystemPrompt } from '../prompts/pisper-system-prompt.mjs'
+import { normalizeToolMode } from '../tools/builtin-catalog.mjs'
 
 // 内置 Provider 标识与展示名；其余自定义 Provider 由用户配置。
 const KNOWN_PROVIDERS = [
@@ -646,7 +647,7 @@ export class ProviderPreferences {
       provider: settings.defaultProvider || '',
       model: settings.defaultModel || '',
       thinkingLevel: settings.defaultThinkingLevel || 'medium',
-      toolMode: appConfig.toolMode || 'full',
+      toolMode: normalizeToolMode(appConfig.toolMode),
       disabledProviders: Array.isArray(appConfig.disabledProviders)
         ? appConfig.disabledProviders
         : [],
@@ -676,7 +677,10 @@ export class ProviderPreferences {
     await writeJsonAtomic(this.authPath, credentials, { mode: 0o600 })
     const nextAppConfig = {
       ...appConfig,
-      ...(typeof input.toolMode === 'string' ? { toolMode: input.toolMode } : {}),
+      toolMode:
+        typeof input.toolMode === 'string'
+          ? normalizeToolMode(input.toolMode)
+          : normalizeToolMode(appConfig.toolMode),
       ...(Array.isArray(input.disabledProviders)
         ? { disabledProviders: input.disabledProviders }
         : {}),
@@ -784,7 +788,7 @@ export class ProviderPreferences {
       defaultProvider: settings.defaultProvider || '',
       defaultModel: settings.defaultModel || '',
       thinkingLevel: settings.defaultThinkingLevel || 'medium',
-      toolMode: appConfig.toolMode || 'full',
+      toolMode: normalizeToolMode(appConfig.toolMode),
       providers,
       apiKeyConfigured: Boolean(credentials[selectedProvider]),
     }
@@ -930,9 +934,7 @@ export class ProviderPreferences {
     const errors = settingsManager.drainErrors()
     if (errors.length) throw errors[0].error
 
-    const requestedToolMode = ['read-only', 'workspace', 'full', 'custom'].includes(input.toolMode)
-      ? input.toolMode
-      : 'full'
+    const requestedToolMode = normalizeToolMode(input.toolMode)
     await writeJsonAtomic(this.appConfigPath, {
       ...currentAppConfig,
       toolMode: requestedToolMode,

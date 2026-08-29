@@ -1,5 +1,5 @@
 // 执行模式：按模式过滤可用工具与默认权限策略。
-// 模式：read-only（只读）/ approval-required（需审批）/ workspace-write（工作区写）/ full-access（完全访问）。
+// 交互会话提供 approval-required（需审批，默认）/ workspace-write（工作区写）/ full-access（完全访问）；read-only 仅供自动化任务兼容旧配置。
 import { PLAN_READ_TOOL_NAMES } from '../tools/app/plan-tool-names.mjs'
 import { TOOL_CATALOG } from '../tools/registry.mjs'
 
@@ -40,14 +40,14 @@ export function normalizeExecutionMode(value, fallback = DEFAULT_EXECUTION_MODE)
   return EXECUTION_MODES.has(mode) ? mode : fallback
 }
 
-// 模式 → 默认权限模式映射：只读 = ignore，审批/工作区写 = ask，完全访问 = auto。
+// 模式 → 默认权限模式映射：只读/审批 = ask，工作区写 = auto，完全访问 = ignore。
 export function permissionModeForExecutionMode(mode) {
   if (mode === 'read-only' || mode === 'approval-required') return 'ask'
   if (mode === 'workspace-write') return 'auto'
   return 'ignore'
 }
 
-// 按执行模式过滤工具：高危工具只在更高授权模式下可用；内部工具豁免。
+// 按执行模式过滤工具：只读仅放行低危工具，审批模式额外放行需逐次确认的工具。
 export function filterToolsForExecutionMode(names, mode, getExternalRisk = () => null) {
   const unique = [...new Set(names || [])]
   if (mode !== 'read-only' && mode !== 'approval-required') return unique
@@ -61,10 +61,4 @@ export function filterToolsForExecutionMode(names, mode, getExternalRisk = () =>
     const risk = TOOL_RISK.get(name) || getExternalRisk(name)
     return risk === 'low' || risk === '低风险'
   })
-}
-
-// 旧版执行模式迁移（老配置缺省/别名）。
-export function migrateLegacyExecutionMode(meta = {}) {
-  if (EXECUTION_MODES.has(meta.executionMode)) return meta.executionMode
-  return 'full-access'
 }

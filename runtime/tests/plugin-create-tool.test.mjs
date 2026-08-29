@@ -25,7 +25,6 @@ const input = {
 test('plugin_create is an approval-gated high-risk app tool', () => {
   assert.equal(manifest.risk, 'high')
   assert.ok(TOOL_CATALOG.some((tool) => tool.id === 'plugin_create'))
-  assert.equal(TOOL_PRESETS['read-only'].includes('plugin_create'), false)
   assert.equal(TOOL_PRESETS.workspace.includes('plugin_create'), true)
   assert.equal(TOOL_PRESETS.full.includes('plugin_create'), true)
   assert.equal(createAppTools({ enabledTools: ['plugin_create'] })[0]?.name, 'plugin_create')

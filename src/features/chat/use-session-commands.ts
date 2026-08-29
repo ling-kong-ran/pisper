@@ -326,13 +326,11 @@ export function useSessionCommands({
         notify(
           t('chat:chatPage.executionModeChangedToMode', {
             mode:
-              updated.executionMode === 'read-only'
-                ? t('chat:chatPage.readOnly')
-                : updated.executionMode === 'approval-required'
-                  ? t('chat:chatPage.approvalRequired')
-                  : updated.executionMode === 'workspace-write'
-                    ? t('chat:focusSession.workspaceWrite')
-                    : t('chat:chatPage.fullAccess'),
+              updated.executionMode === 'approval-required'
+                ? t('chat:chatPage.approvalRequired')
+                : updated.executionMode === 'workspace-write'
+                  ? t('chat:focusSession.workspaceWrite')
+                  : t('chat:chatPage.fullAccess'),
           }),
         )
         return true

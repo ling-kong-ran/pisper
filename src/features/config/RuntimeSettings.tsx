@@ -101,7 +101,6 @@ export function RuntimePolicySettings({
       <FieldLabel variant="control">
         {t('config:configPage.availableTools')}
         <AppSelect value={toolMode} onChange={(event) => setToolMode(event.target.value)}>
-          <option value="read-only">{t('config:configPage.readOnlyInspectionTools')}</option>
           <option value="workspace">{t('config:configPage.fileEditingTools')}</option>
           <option value="full">{t('config:configPage.fullToolAccess')}</option>
           <option value="custom">

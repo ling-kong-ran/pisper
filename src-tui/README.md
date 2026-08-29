@@ -41,7 +41,8 @@
 | `/compact` | 立即摘要较早上下文；仅适用于有足够历史且当前空闲的会话。 |
 | `/attach` | 打开当前会话目录的附件选择器。 |
 | `/mode` | 显示当前执行模式及可用值；Agent 运行期间也可调整。 |
-| `/mode read-only` | 只开放低风险分析工具，禁止修改项目。 |
+| `/mode approval-required` | 写入、Shell 和高风险工具执行前请求授权。 |
+| `/mode workspace-write` | 自动批准工作区修改和常规命令。 |
 | `/mode full-access` | 允许以当前系统用户权限访问本机文件、网络与 Shell。 |
 | `/quit` | 退出 TUI。 |
 

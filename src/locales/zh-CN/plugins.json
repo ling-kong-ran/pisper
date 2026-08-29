@@ -101,7 +101,6 @@
   "pluginsPage.presets": "预设",
   "pluginsPage.queriesAreSentToBingDoNotIncludeSecretsOrPrivateData": "搜索词会发送到 Bing，请勿在查询中包含密钥或隐私数据。",
   "pluginsPage.readingTheAgentSRegisteredToolsAndPermissions": "读取 Agent 当前注册工具与权限…",
-  "pluginsPage.readOnly": "只读",
   "pluginsPage.recentChanges": "最近变更",
   "pluginsPage.resultCount": "结果数量",
   "pluginsPage.riskLevel": "风险等级",

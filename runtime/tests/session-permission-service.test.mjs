@@ -150,7 +150,7 @@ test('path checks resolve symbolic links before authorization', async (t) => {
 
   const requirement = permissionRequirement({
     mode: 'auto',
-    executionMode: 'read-only',
+    executionMode: 'approval-required',
     cwd: workspace,
     toolName: 'write',
     args: { path: join(workspace, 'linked-outside', 'escaped.txt') },

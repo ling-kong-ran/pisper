@@ -4,34 +4,25 @@ import test from 'node:test'
 import {
   DEFAULT_EXECUTION_MODE,
   filterToolsForExecutionMode,
-  migrateLegacyExecutionMode,
   normalizeExecutionMode,
   permissionModeForExecutionMode,
 } from '../security/execution-mode.mjs'
 import { permissionRequirement } from '../services/session-permission-service.mjs'
 
-test('execution modes normalize and migrate legacy permission settings', () => {
-  assert.equal(normalizeExecutionMode('read-only'), 'read-only')
+test('execution modes normalize and default invalid values', () => {
   assert.equal(normalizeExecutionMode('approval-required'), 'approval-required')
   assert.equal(normalizeExecutionMode('workspace-write'), 'workspace-write')
   assert.equal(normalizeExecutionMode('full-access'), 'full-access')
   assert.equal(normalizeExecutionMode('workspace'), 'workspace-write')
   assert.equal(normalizeExecutionMode('unknown'), 'approval-required')
+  assert.equal(normalizeExecutionMode('unknown', 'workspace-write'), 'workspace-write')
   assert.equal(DEFAULT_EXECUTION_MODE, 'approval-required')
-  assert.equal(migrateLegacyExecutionMode({ permissionMode: 'ignore' }), 'full-access')
-  assert.equal(migrateLegacyExecutionMode({ permissionMode: 'ask' }), 'full-access')
-  assert.equal(migrateLegacyExecutionMode({ executionMode: 'workspace' }), 'full-access')
-  assert.equal(
-    migrateLegacyExecutionMode({ executionMode: 'read-only', permissionMode: 'ignore' }),
-    'read-only',
-  )
-  assert.equal(permissionModeForExecutionMode('read-only'), 'ask')
   assert.equal(permissionModeForExecutionMode('approval-required'), 'ask')
   assert.equal(permissionModeForExecutionMode('workspace-write'), 'auto')
   assert.equal(permissionModeForExecutionMode('full-access'), 'ignore')
 })
 
-test('read-only execution exposes only low-risk analysis tools', () => {
+test('approval-required execution exposes low-risk and approval-gated tools', () => {
   const names = [
     'read',
     'grep',
@@ -50,15 +41,6 @@ test('read-only execution exposes only low-risk analysis tools', () => {
     'update_task_list',
     'spawn_agent',
   ]
-  // 只读模式：生图/手机操作等高危工具一律不可见
-  assert.deepEqual(filterToolsForExecutionMode(names, 'read-only'), [
-    'read',
-    'grep',
-    'discover_tools',
-    'memory_search',
-    'get_plan',
-    'get_task_list',
-  ])
   // 审批模式：高危工具可见但逐次审批（含生图）
   assert.deepEqual(filterToolsForExecutionMode(names, 'approval-required'), [
     'read',
@@ -82,7 +64,7 @@ test('read-only execution exposes only low-risk analysis tools', () => {
   assert.deepEqual(filterToolsForExecutionMode(names, 'full-access'), names)
 })
 
-test('React exposes read-only, approval-required, workspace-write, and full-access execution modes', async () => {
+test('React exposes approval-required, workspace-write, and full-access execution modes', async () => {
   const [session, controls, commands, schedules] = await Promise.all([
     readFile(new URL('../../src/features/chat/FocusSession.tsx', import.meta.url), 'utf8'),
     readFile(new URL('../../src/features/chat/FocusRuntimeControls.tsx', import.meta.url), 'utf8'),

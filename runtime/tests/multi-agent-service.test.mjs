@@ -225,7 +225,7 @@ test('subagents inherit parent-safe tools without hard-coded roles', async () =>
   assert.doesNotMatch(seen.options.resourceLoader.options.appendSystemPrompt, /Role:/)
 })
 
-test('subagents inherit canonical read-only plan access while update names remain parent-only', async () => {
+test('subagents inherit canonical plan read access while update names remain parent-only', async () => {
   const session = createFakeSession({
     onPrompt: async ({ session: active }) =>
       active.messages.push({
@@ -581,8 +581,13 @@ test('background Agents do not instruct the parent to poll or wait by default', 
   assert.match(waitGuidance, /without injecting model context/)
 })
 
-test('new installations enable the complete tool catalog by default', () => {
-  assert.deepEqual(toolsFromConfig({}), TOOL_PRESETS.full)
+test('unknown tool modes fall back to the workspace preset', () => {
+  assert.deepEqual(toolsFromConfig({}), TOOL_PRESETS.workspace)
+  assert.deepEqual(toolsFromConfig({ toolMode: 'unknown' }), TOOL_PRESETS.workspace)
+  assert.deepEqual(
+    toolsFromConfig({ toolMode: 'unknown', enabledTools: ['read'] }),
+    TOOL_PRESETS.workspace,
+  )
   assert.deepEqual(new Set(TOOL_PRESETS.full), new Set(TOOL_CATALOG.map((tool) => tool.id)))
   assert.ok(MULTI_AGENT_TOOL_NAMES.every((name) => !TOOL_PRESETS.full.includes(name)))
 })

@@ -228,7 +228,6 @@
   "configPage.providerSettingsSaved": "Provider settings saved",
   "configPage.providerWasNotReadyAfterSaving": "The Provider is still unauthenticated or disabled after saving. Check the settings and try again.",
   "configPage.readingProvidersAndAuthenticationStatus": "Reading Providers and authentication status…",
-  "configPage.readOnlyInspectionTools": "Read only: inspect and search",
   "configPage.readProviderEndpointModelAndAuthenticationFieldsFromCodexConfigTomlAndClaudeSettingsJson": "Read Provider settings and explicitly import official Codex or Claude login states from local files.",
   "configPage.reasoningModel": "Reasoning model",
   "configPage.reasoningSupported": "Reasoning supported",

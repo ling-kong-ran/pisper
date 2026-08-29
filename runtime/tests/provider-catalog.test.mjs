@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict'
-import { mkdtemp, readFile, rm } from 'node:fs/promises'
+import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import test from 'node:test'
@@ -34,7 +34,7 @@ test('model configuration exposes built-in Kimi and GLM providers', async (t) =>
     apiKey: 'test-key',
     baseUrl: glm.baseUrl,
     thinkingLevel: 'medium',
-    toolMode: 'read-only',
+    toolMode: 'workspace',
   })
   assert.equal(
     runtime.modelRuntime.getModel('zai-coding-cn', 'glm-5.2').baseUrl,
@@ -45,6 +45,23 @@ test('model configuration exposes built-in Kimi and GLM providers', async (t) =>
       .configured,
     true,
   )
+})
+
+test('removed tool modes use the workspace default without a migration file', async (t) => {
+  const directory = await mkdtemp(join(tmpdir(), 'pisper-provider-tool-mode-'))
+  const runtime = new AgentRuntimeService({ cwd: directory, dataDir: directory })
+  t.after(async () => {
+    await runtime.dispose()
+    await rm(directory, { recursive: true, force: true })
+  })
+  await runtime.init()
+  await writeFile(
+    join(directory, 'pisper.json'),
+    JSON.stringify({ toolMode: 'unknown', enabledTools: ['read'] }),
+  )
+
+  assert.equal((await runtime.getConfig()).toolMode, 'workspace')
+  assert.equal((await runtime.exportProviderConfig()).toolMode, 'workspace')
 })
 
 test('paired device model config export imports credentials and defaults into the mobile runtime', async (t) => {
@@ -66,7 +83,7 @@ test('paired device model config export imports credentials and defaults into th
     apiKey: 'desktop-provider-secret',
     baseUrl: 'https://desktop.example.test/v1',
     thinkingLevel: 'high',
-    toolMode: 'read-only',
+    toolMode: 'workspace',
   })
   const exported = await source.exportProviderConfig()
   assert.equal(exported.version, 1)
@@ -216,7 +233,7 @@ test('saving an unauthenticated Provider fails before changing configuration', a
         api: 'openai-responses',
         baseUrl: 'https://incomplete-relay.example.test/v1',
         thinkingLevel: 'xhigh',
-        toolMode: 'read-only',
+        toolMode: 'workspace',
         setAsDefault: false,
         enabled: true,
       }),
@@ -265,7 +282,7 @@ test('saving Provider settings explicitly enables a disabled Provider', async (t
     api: 'openai-responses',
     baseUrl: 'https://disabled-relay.example.test/v1',
     thinkingLevel: 'medium',
-    toolMode: 'read-only',
+    toolMode: 'workspace',
     setAsDefault: false,
     enabled: true,
   })
@@ -301,7 +318,7 @@ test('visual-only providers save connection settings without replacing the defau
     apiKey: nextKey,
     baseUrl: 'https://visual.example.test/v1',
     thinkingLevel: 'medium',
-    toolMode: 'read-only',
+    toolMode: 'workspace',
   })
   assert.equal(saved.apiKeyUpdated, true)
   const credentials = JSON.parse(await readFile(join(directory, 'auth.json'), 'utf8'))
@@ -315,7 +332,7 @@ test('visual-only providers save connection settings without replacing the defau
     model: '',
     baseUrl: 'https://visual.example.test/v1',
     thinkingLevel: 'medium',
-    toolMode: 'read-only',
+    toolMode: 'workspace',
   })
   assert.equal(retained.apiKeyUpdated, false)
   assert.equal(
@@ -371,7 +388,7 @@ test('each chat provider keeps its saved default model independently', async (t)
     model: 'relay-one-second',
     baseUrl: 'https://relay-one.example.test/v1',
     thinkingLevel: 'medium',
-    toolMode: 'read-only',
+    toolMode: 'workspace',
     setAsDefault: false,
   })
   const retainedDefault = runtime.settingsManager.getGlobalSettings()
@@ -387,7 +404,7 @@ test('each chat provider keeps its saved default model independently', async (t)
     model: 'relay-two-first',
     baseUrl: 'https://relay-two.example.test/v1',
     thinkingLevel: 'medium',
-    toolMode: 'read-only',
+    toolMode: 'workspace',
     setAsDefault: true,
   })
   assert.equal(savedAsDefault.defaultUpdated, true)

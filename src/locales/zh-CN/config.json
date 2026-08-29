@@ -228,7 +228,6 @@
   "configPage.providerSettingsSaved": "Provider 配置已保存",
   "configPage.providerWasNotReadyAfterSaving": "Provider 保存后仍未完成认证或启用，请检查配置后重试。",
   "configPage.readingProvidersAndAuthenticationStatus": "读取 Provider 与认证状态…",
-  "configPage.readOnlyInspectionTools": "只读：查看和搜索",
   "configPage.readProviderEndpointModelAndAuthenticationFieldsFromCodexConfigTomlAndClaudeSettingsJson": "读取本机 Provider 配置，并由你明确导入官方 Codex 或 Claude 登录状态。",
   "configPage.reasoningModel": "推理模型",
   "configPage.reasoningSupported": "支持推理",

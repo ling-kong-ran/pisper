@@ -6,7 +6,6 @@ import { TOOL_CATALOG, TOOL_PRESETS, createAppTools } from '../tools/registry.mj
 test('skill_create is a high-risk app tool in writable presets', () => {
   assert.equal(manifest.risk, 'high')
   assert.ok(TOOL_CATALOG.some((tool) => tool.id === 'skill_create'))
-  assert.equal(TOOL_PRESETS['read-only'].includes('skill_create'), false)
   assert.equal(TOOL_PRESETS.workspace.includes('skill_create'), true)
   assert.equal(TOOL_PRESETS.full.includes('skill_create'), true)
   assert.equal(createAppTools({ enabledTools: ['skill_create'] })[0]?.name, 'skill_create')

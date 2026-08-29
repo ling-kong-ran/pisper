@@ -59,7 +59,7 @@ test('Bing RSS parser removes unsafe links and reports invalid responses', async
   await assert.rejects(invalid.search({ query: 'test' }), /没有返回可解析的 RSS/)
 })
 
-test('web_search needs no endpoint, belongs to read-only presets, and persists preferences', async (t) => {
+test('web_search needs no endpoint, belongs to writable presets, and persists preferences', async (t) => {
   const directory = await mkdtemp(join(tmpdir(), 'pisper-web-search-'))
   const path = join(directory, 'pisper.json')
   t.after(() => rm(directory, { recursive: true, force: true }))
@@ -69,7 +69,7 @@ test('web_search needs no endpoint, belongs to read-only presets, and persists p
     webSearch: { language: 'zh-CN', safeSearch: 1, maxResults: 6 },
   })
   assert.ok(TOOL_CATALOG.some((tool) => tool.id === 'web_search' && tool.source === 'app'))
-  assert.ok(TOOL_PRESETS['read-only'].includes('web_search'))
+  assert.ok(TOOL_PRESETS.workspace.includes('web_search'))
   assert.ok(saved.enabledTools.includes('web_search'))
   assert.deepEqual(saved.webSearch, {
     provider: 'bing',

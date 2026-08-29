@@ -547,7 +547,7 @@ test('saving Provider settings keeps the currently streaming session alive', asy
     apiKey: 'provider-save-key',
     baseUrl: 'https://api.kimi.com/coding/',
     thinkingLevel: 'medium',
-    toolMode: 'read-only',
+    toolMode: 'workspace',
     setAsDefault: true,
   })
 
