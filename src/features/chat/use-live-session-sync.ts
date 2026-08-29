@@ -274,6 +274,9 @@ export function useLiveSessionSync({
   const ensurePolling = useCallback(() => {
     if (pollingRef.current.timer || !pollingRef.current.activeSessions.size) return
     pollingRef.current.timer = window.setInterval(() => {
+      // 标签页隐藏时跳过本轮：用户看不见界面，全量快照轮询纯属浪费；
+      // 回到前台时由 ChatPage 的 visibilitychange 恢复逻辑强制补一轮。
+      if (typeof document !== 'undefined' && document.hidden) return
       const requests = Array.from(pollingRef.current.activeSessions).map(async (id) => {
         const state = sessionStatesRef.current[id]
         if (
