@@ -21,6 +21,7 @@ import { Button } from '@/components/ui/button'
 export function SessionActionsMenu({
   session,
   canSplit,
+  canClose = true,
   streaming,
   switchingCwd,
   onSplitLeft,
@@ -34,6 +35,8 @@ export function SessionActionsMenu({
 }: {
   session: SessionSummary
   canSplit?: boolean
+  // 是否提供「关闭面板」入口：移动端单会话视图没有可关闭的面板。
+  canClose?: boolean
   streaming?: boolean
   switchingCwd?: boolean
   onSplitLeft: () => void
@@ -177,13 +180,15 @@ export function SessionActionsMenu({
               <small>{session?.name || t('chat:focusSession.newChat')}</small>
             </span>
           </button>
-          <button type="button" role="menuitem" onClick={() => run(onClosePanel)}>
-            <X size={15} />
-            <span>
-              <strong>{t('chat:focusSession.closeTab')}</strong>
-              <small>{t('chat:focusSession.keepTheHistoryAndCloseOnlyThisView')}</small>
-            </span>
-          </button>
+          {canClose && (
+            <button type="button" role="menuitem" onClick={() => run(onClosePanel)}>
+              <X size={15} />
+              <span>
+                <strong>{t('chat:focusSession.closeTab')}</strong>
+                <small>{t('chat:focusSession.keepTheHistoryAndCloseOnlyThisView')}</small>
+              </span>
+            </button>
+          )}
         </div>
       )}
     </div>

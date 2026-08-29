@@ -365,7 +365,8 @@ test('chat keeps hidden panels and continuous canvas work out of the renderer', 
   ])
   assert.match(dock, /api\.onDidVisibilityChange/)
   assert.match(dock, /if \(!visible\) return null/)
-  assert.match(dock, /if \(visible && sessionId\)/)
+  // 隐藏面板不渲染 SessionPanel，其加载消息/思考状态的 effect 随卸载跳过。
+  assert.match(dock, /if \(sessionId\) void loadMessages\?\.\(sessionId/)
   assert.match(dispatcher, /tools: pushCurrentActivity\(current\.tools, activity\)/)
   assert.match(ascii, /new ResizeObserver\(draw\)/)
   assert.doesNotMatch(ascii, /requestAnimationFrame|setInterval/)

@@ -458,11 +458,12 @@ test('mobile device permissions are requested by native operations', async () =>
 })
 
 test('route code and route-specific vendor styles remain lazy', async () => {
-  const [router, routeElements, main, chat, workflows, styles] = await Promise.all([
+  const [router, routeElements, main, chat, dockView, workflows, styles] = await Promise.all([
     readFile('src/app/router.tsx', 'utf8'),
     readFile('src/app/route-elements.tsx', 'utf8'),
     readFile('src/main.tsx', 'utf8'),
     readFile('src/features/chat/ChatPage.tsx', 'utf8'),
+    readFile('src/features/chat/ChatDockView.tsx', 'utf8'),
     readFile('src/features/workflows/WorkflowsPage.tsx', 'utf8'),
     readFile('src/index.css', 'utf8'),
   ])
@@ -471,7 +472,11 @@ test('route code and route-specific vendor styles remain lazy', async () => {
   assert.ok((router.match(/lazy: \w+Route/g)?.length || 0) >= 12)
   assert.doesNotMatch(router, /from '@\/features\//)
   assert.doesNotMatch(main, /react-bits\.css|dockview\.css|@xyflow\/react\/dist\/style\.css/)
-  assert.match(chat, /import 'dockview-react\/dist\/styles\/dockview\.css'/)
+  // dockview 及其样式只在桌面端懒加载分包中：ChatPage 不直接引用，
+  // 移动端 App 走单会话视图，不下载 dockview。
+  assert.doesNotMatch(chat, /dockview-react\/dist\/styles\/dockview\.css/)
+  assert.match(chat, /await import\('\.\/ChatDockView'\)|import\('\.\/ChatDockView'\)/)
+  assert.match(dockView, /import 'dockview-react\/dist\/styles\/dockview\.css'/)
   assert.match(workflows, /import '@xyflow\/react\/dist\/style\.css'/)
   assert.match(styles, /@import "tailwindcss" source\(none\);/)
   assert.match(styles, /@source "\.\/\*\*\/\*\.\{ts,tsx\}";/)

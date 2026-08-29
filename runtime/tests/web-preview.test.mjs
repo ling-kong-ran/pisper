@@ -45,10 +45,10 @@ test('URL bar input and dock panel metadata normalize preview destinations', () 
 })
 
 test('application routes external links into a right-side Dockview Web Preview panel', async () => {
-  const [app, provider, chatPage, dockHook, dockPanel, component] = await Promise.all([
+  const [app, provider, dockView, dockHook, dockPanel, component] = await Promise.all([
     readFile('src/App.tsx', 'utf8'),
     readFile('src/components/WebPreviewProvider.tsx', 'utf8'),
-    readFile('src/features/chat/ChatPage.tsx', 'utf8'),
+    readFile('src/features/chat/ChatDockView.tsx', 'utf8'),
     readFile('src/features/chat/use-chat-dock.ts', 'utf8'),
     readFile('src/features/chat/WebPreviewDockPanel.tsx', 'utf8'),
     readFile('src/components/ai-elements/web-preview.tsx', 'utf8'),
@@ -57,7 +57,7 @@ test('application routes external links into a right-side Dockview Web Preview p
   assert.match(app, /<WebPreviewProvider \/>/)
   assert.match(provider, /requestWebPreview\(url\)/)
   assert.match(provider, /navigate\(pagePath\('chat'\)\)/)
-  assert.match(chatPage, /webPreview: WebPreviewDockPanel/)
+  assert.match(dockView, /webPreview: WebPreviewDockPanel/)
   assert.match(dockHook, /component: 'webPreview'/)
   assert.match(dockHook, /direction: 'right' as const/)
   assert.match(dockHook, /existing\.api\.updateParameters\(\{ url: request\.url \}\)/)

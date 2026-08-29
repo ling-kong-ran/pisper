@@ -12,6 +12,7 @@ import type {
 } from 'dockview-react'
 import { STORAGE_KEYS } from '@/app/storage'
 import { useI18n } from '@/app/use-i18n'
+import { useClientStore } from '@/stores/client-store'
 import type { Notify } from '@/app/route-context'
 import type { SessionState, SessionSummary } from '@/types/chat'
 import { SESSION_SELECTED_EVENT, consumeSessionSelectionRequest } from './events'
@@ -65,6 +66,10 @@ export function useChatDock({
 }: DockOptions) {
   const { t } = useI18n()
   const [dockReady, setDockReady] = useState(0)
+  // 移动端 App 不渲染 Dock（单会话视图按 activeId 渲染）：打开会话直接切换活动 id。
+  const mobileApp = useClientStore((state) => state.client === 'mobile-app')
+  const mobileAppRef = useRef(mobileApp)
+  mobileAppRef.current = mobileApp
   const [compactDock, setCompactDock] = useState(
     () => window.matchMedia('(max-width: 900px)').matches,
   )
@@ -189,6 +194,11 @@ export function useChatDock({
   // 返回是否新开了面板，供调用方决定是否移动分组。
   const openSessionInDock = useCallback(
     (sessionId: string, disposition: SessionOpenDisposition = 'open') => {
+      // 移动端无 Dock：直接切换活动会话（单会话视图按 activeId 渲染）。
+      if (mobileAppRef.current) {
+        setActiveId(sessionId)
+        return true
+      }
       const session = sessionsRef.current.find((item) => item.id === sessionId)
       const api = dockApiRef.current
       if (!session || !api || !dockInitializedRef.current) {

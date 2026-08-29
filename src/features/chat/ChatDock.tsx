@@ -18,6 +18,53 @@ export function SessionDockPanel({ params, api }: IDockviewPanelProps<{ sessionI
   const context = useContext(ChatDockContext)
   const sessionId = params?.sessionId || sessionIdFromPanel(api?.id)
   const [visible, setVisible] = useState(() => api.isVisible)
+
+  useEffect(() => {
+    setVisible(api.isVisible)
+    const disposable = api.onDidVisibilityChange(({ isVisible }) => setVisible(isVisible))
+    return () => disposable.dispose()
+  }, [api])
+
+  if (!visible) return null
+  return (
+    <SessionPanel
+      sessionId={sessionId}
+      panelId={api.id}
+      onFocusCapture={() => api.setActive()}
+      canSplitPanel={Boolean(context?.compactDock === false && api.group.size > 1)}
+      canClosePanel
+    />
+  )
+}
+
+// 移动端单会话面板：无 Dock 分屏，直接渲染活动会话；无会话时显示水位线。
+export function MobileSessionPanel() {
+  const context = useContext(ChatDockContext)
+  const sessionId = context?.activeId || ''
+  if (!sessionId) return <ChatDockWatermark />
+  return (
+    <SessionPanel sessionId={sessionId} panelId="" canSplitPanel={false} canClosePanel={false} />
+  )
+}
+
+type SessionPanelProps = {
+  sessionId: string
+  panelId: string
+  onFocusCapture?: () => void
+  canSplitPanel: boolean
+  canClosePanel: boolean
+}
+
+// 会话面板主体：Dock 面板与移动端单会话视图共用，
+// 只负责把会话状态与回调接到 FocusSession，不关心外层布局容器。
+function SessionPanel({
+  sessionId,
+  panelId,
+  onFocusCapture,
+  canSplitPanel,
+  canClosePanel,
+}: SessionPanelProps) {
+  const context = useContext(ChatDockContext)
   // 面板只订阅自己会话的 state：其它会话的流式帧不会触发本面板重渲染。
   const subscribeSessionState = context?.subscribeSessionState
   const getSessionState = context?.getSessionState
@@ -42,18 +89,12 @@ export function SessionDockPanel({ params, api }: IDockviewPanelProps<{ sessionI
   const thinkingRequestedRef = useRef('')
 
   useEffect(() => {
-    setVisible(api.isVisible)
-    const disposable = api.onDidVisibilityChange(({ isVisible }) => setVisible(isVisible))
-    return () => disposable.dispose()
-  }, [api])
-
-  useEffect(() => {
-    if (visible && sessionId) void loadMessages?.(sessionId, { limit: FOCUS_MESSAGE_PAGE_SIZE })
-  }, [loadMessages, sessionId, visible])
+    if (sessionId) void loadMessages?.(sessionId, { limit: FOCUS_MESSAGE_PAGE_SIZE })
+  }, [loadMessages, sessionId])
 
   // Self-heal thinking state for sessions loaded while streaming or after page remounts.
   useEffect(() => {
-    if (!visible || !sessionId || !session || !loadThinkingLevel) return
+    if (!sessionId || !session || !loadThinkingLevel) return
     if (streaming || state.thinkingStatus) return
     if ((state.availableThinkingLevels || []).length) return
     if (thinkingRequestedRef.current === sessionId) return
@@ -66,7 +107,6 @@ export function SessionDockPanel({ params, api }: IDockviewPanelProps<{ sessionI
     state.availableThinkingLevels,
     state.thinkingStatus,
     streaming,
-    visible,
   ])
 
   // 交给 FocusSession 的回调统一 memo：context value 已稳定，
@@ -99,11 +139,11 @@ export function SessionDockPanel({ params, api }: IDockviewPanelProps<{ sessionI
         if (session) return context?.createChildSession(session, boundaryEntryId)
       },
       onTreeNavigated: () => context?.reloadSessionBranch(sessionId),
-      onSplitLeft: () => context?.splitDockPanel(api.id, 'left'),
-      onSplitRight: () => context?.splitDockPanel(api.id, 'right'),
-      onSplitTop: () => context?.splitDockPanel(api.id, 'above'),
-      onSplitBottom: () => context?.splitDockPanel(api.id, 'below'),
-      onClosePanel: () => context?.closeDockPanel(api.id),
+      onSplitLeft: () => context?.splitDockPanel(panelId, 'left'),
+      onSplitRight: () => context?.splitDockPanel(panelId, 'right'),
+      onSplitTop: () => context?.splitDockPanel(panelId, 'above'),
+      onSplitBottom: () => context?.splitDockPanel(panelId, 'below'),
+      onClosePanel: () => context?.closeDockPanel(panelId),
       onSend: (
         value: string,
         attachments: ChatAttachment[],
@@ -116,10 +156,8 @@ export function SessionDockPanel({ params, api }: IDockviewPanelProps<{ sessionI
         context?.queuePrompt(value, sessionId, attachments, behavior) ?? false,
       onAbort: () => context?.abort(sessionId),
     }),
-    [context, sessionId, session, api.id],
+    [context, sessionId, session, panelId],
   )
-
-  if (!visible) return null
 
   if (!context || !session) {
     return (
@@ -137,7 +175,7 @@ export function SessionDockPanel({ params, api }: IDockviewPanelProps<{ sessionI
   return (
     <div
       className="session-dock-panel w-full h-full min-w-0 min-h-0 overflow-hidden [container-type:inline-size] bg-[var(--panel)]"
-      onFocusCapture={() => api.setActive()}
+      onFocusCapture={onFocusCapture}
     >
       <FocusSession
         session={session}
@@ -186,7 +224,8 @@ export function SessionDockPanel({ params, api }: IDockviewPanelProps<{ sessionI
         notify={context.notify}
         onOpenModelSettings={context.openModelSettings}
         onCompactionThresholdChange={context.setCompactionThreshold}
-        canSplit={!context.compactDock && api.group.size > 1}
+        canSplit={canSplitPanel}
+        canClosePanel={canClosePanel}
         {...handlers}
       />
     </div>

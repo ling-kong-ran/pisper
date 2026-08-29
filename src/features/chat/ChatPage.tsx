@@ -1,23 +1,20 @@
 // 聊天主页面：dockview 多会话分屏布局的宿主，持有会话目录与实时
 // 同步状态，管理 Dock 的初始化/持久化与多面板交互。
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import 'dockview-react/dist/styles/dockview.css'
-import {
-  DockviewReact,
-  type DockviewGroupPanel,
-  type IDockviewHeaderActionsProps,
-} from 'dockview-react'
-import { Plus, RefreshCw } from 'lucide-react'
+// 移动端 App 不渲染 Dock：单会话视图直接按活动会话渲染，
+// dockview 及其样式经懒加载分包，移动端不下载。
+import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import type { DockviewGroupPanel } from 'dockview-react'
+import { RefreshCw } from 'lucide-react'
 import { useI18n } from '@/app/use-i18n'
 import { WorkspacePicker } from '@/components/WorkspacePicker'
 import { AppEmptyState } from '@/components/ui/app-primitives'
 import { usePagePrimaryAction } from '@/hooks/usePagePrimaryAction'
+import { useClientStore } from '@/stores/client-store'
 import type { ConfirmDialogOptions, PromptDialogOptions } from '@/hooks/useAppDialog'
 import type { Notify } from '@/app/route-context'
 import type { PendingAsset, SessionSummary } from '@/types/chat'
-import { ChatDockWatermark, SessionDockPanel } from './ChatDock'
+import { MobileSessionPanel } from './ChatDock'
 import { chatApi } from './chat-api'
-import { WebPreviewDockPanel } from './WebPreviewDockPanel'
 import { ChatDockContext, type ChatDockContextValue } from './chat-dock-context'
 import { useChatDock } from './use-chat-dock'
 import { useLiveSessionSync } from './use-live-session-sync'
@@ -25,6 +22,11 @@ import { usePromptCommands } from './use-prompt-commands'
 import { useSessionCatalog } from './use-session-catalog'
 import { useSessionCommands } from './use-session-commands'
 import { SESSION_CREATE_REQUESTED_EVENT, consumeSessionCreationRequest } from './events'
+
+// Dock 分屏视图懒加载：只有桌面/窄窗口（非移动端 App）才下载 dockview 分包。
+const LazyChatDockView = lazy(() =>
+  import('./ChatDockView').then((module) => ({ default: module.ChatDockView })),
+)
 
 type ChatPageProps = {
   notify: Notify
@@ -48,6 +50,8 @@ export function ChatPage({
   requestConfirm,
 }: ChatPageProps) {
   const { t } = useI18n()
+  const mobileApp = useClientStore((state) => state.client === 'mobile-app')
+  const clientLoaded = useClientStore((state) => state.loaded)
   const localStreamSessionsRef = useRef(new Set<string>())
   const streamGenerationRef = useRef(new Map<string, number>())
   const resumeSyncRef = useRef<Promise<void> | null>(null)
@@ -232,33 +236,6 @@ export function ChatPage({
     [notify, openSessionInDock, refreshSessions, requestText, setGlobalError, t],
   )
 
-  const DockNewSessionAction = useMemo(
-    () =>
-      function DockNewSessionAction({ group }: IDockviewHeaderActionsProps) {
-        const label = t('navigation:pageHeader.newChat')
-        return (
-          <button
-            type="button"
-            className="dock-new-session hover:bg-[var(--surface-hover)] hover:text-[var(--text)] focus-visible:relative focus-visible:z-[1] focus-visible:[outline:2px_solid_var(--focus)] focus-visible:[outline-offset:-2px] grid w-[36px] h-[35px] flex-none place-items-center border-0 [border-left:1px_solid_var(--stroke-soft)] bg-transparent text-[var(--text-muted)] cursor-pointer"
-            title={label}
-            aria-label={label}
-            onPointerDown={(event) => event.stopPropagation()}
-            onClick={(event) => {
-              event.stopPropagation()
-              void createSession(group)
-            }}
-          >
-            <Plus size={15} />
-          </button>
-        )
-      },
-    [createSession, t],
-  )
-  const dockComponents = useMemo(
-    () => ({ session: SessionDockPanel, webPreview: WebPreviewDockPanel }),
-    [],
-  )
-
   const openModelSettings = useCallback(() => navigate('config'), [navigate])
   // 会话状态不进 context：流式期间 sessionStates 每帧变化，
   // 若随 context 广播会让所有 Dock 面板每帧重渲染。面板改为按会话订阅，
@@ -352,17 +329,18 @@ export function ChatPage({
         ) : (
           <div className="chat-dock-workspace max-[650px]:[flex:1_1_0] max-[650px]:min-h-0 relative min-w-0 min-h-0 [isolation:isolate] overflow-hidden [border:1px_solid_var(--stroke-soft)] rounded-[var(--r-md)] bg-[var(--panel)]">
             <ChatDockContext.Provider value={dockContextValue}>
-              <DockviewReact
-                className="dockview-theme-light dockview-theme-pisper"
-                components={dockComponents}
-                watermarkComponent={ChatDockWatermark}
-                leftHeaderActionsComponent={DockNewSessionAction}
-                onReady={dock.onDockReady}
-                getTabContextMenuItems={dock.getTabContextMenuItems}
-                disableFloatingGroups
-                disableDnd={dock.compactDock}
-                noPanelsOverlay="watermark"
-              />
+              {clientLoaded && mobileApp ? (
+                <MobileSessionPanel />
+              ) : clientLoaded ? (
+                <Suspense fallback={null}>
+                  <LazyChatDockView
+                    compactDock={dock.compactDock}
+                    onDockReady={dock.onDockReady}
+                    getTabContextMenuItems={dock.getTabContextMenuItems}
+                    createSession={createSession}
+                  />
+                </Suspense>
+              ) : null}
             </ChatDockContext.Provider>
           </div>
         )}

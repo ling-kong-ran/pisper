@@ -100,6 +100,8 @@ export type FocusSessionProps = {
   error?: string
   pendingAsset?: ChatAttachment | null
   canSplit?: boolean
+  // 是否提供「关闭面板」入口：移动端单会话视图没有可关闭的面板。
+  canClosePanel?: boolean
   notify?: Notify
   onOpenModelSettings?: () => void
   onAssetConsumed?: () => void
@@ -179,6 +181,7 @@ export const FocusSession = memo(function FocusSession({
   error,
   pendingAsset,
   canSplit,
+  canClosePanel = true,
   notify,
   onOpenModelSettings,
   onAssetConsumed,
@@ -345,28 +348,32 @@ export const FocusSession = memo(function FocusSession({
     </>
   )
 
+  // 空会话头部与会话中 composer 角落共用同一份会话操作菜单。
+  const sessionActionsMenu = (
+    <SessionActionsMenu
+      session={session}
+      canSplit={canSplit}
+      canClose={canClosePanel}
+      streaming={streaming}
+      switchingCwd={switchingCwd}
+      onSplitLeft={onSplitLeft}
+      onSplitRight={onSplitRight}
+      onSplitTop={onSplitTop}
+      onSplitBottom={onSplitBottom}
+      onClosePanel={onClosePanel}
+      onWorkspace={onWorkspace}
+      onRename={onRename}
+      onSessionTree={() => setSessionTreeOpen(true)}
+    />
+  )
+
   return (
     <Panel
       className={`focus-session [.session-dock-panel_&]:overflow-hidden [.session-dock-panel_&]:min-h-0 [.session-dock-panel_&]:border-0 [.session-dock-panel_&]:rounded-[0] [.session-dock-panel_&]:bg-[var(--panel)] [.session-dock-panel_&]:p-0 [.session-dock-panel_&]:shadow-[none] [[data-theme='dark']_.session-dock-panel_&]:bg-[var(--main-surface-bg)] min-[651px]:[[data-density='compact']_.app-card:not(&)]:p-[10px] max-[650px]:min-h-[460px] max-[650px]:[.session-dock-panel_&]:min-h-0 relative flex h-full min-h-[500px] flex-col ${hasConversation ? 'has-conversation' : 'is-empty'}`}
     >
       {!hasConversation && (
         <AppCardHeader className="relative z-4 min-h-12 flex-none items-center border-b border-[var(--stroke-soft)] bg-[var(--panel)] px-3 py-[7px]">
-          <div className="flex [margin-left:auto] items-center gap-[6px]">
-            <SessionActionsMenu
-              session={session}
-              canSplit={canSplit}
-              streaming={streaming}
-              switchingCwd={switchingCwd}
-              onSplitLeft={onSplitLeft}
-              onSplitRight={onSplitRight}
-              onSplitTop={onSplitTop}
-              onSplitBottom={onSplitBottom}
-              onClosePanel={onClosePanel}
-              onWorkspace={onWorkspace}
-              onRename={onRename}
-              onSessionTree={() => setSessionTreeOpen(true)}
-            />
-          </div>
+          <div className="flex [margin-left:auto] items-center gap-[6px]">{sessionActionsMenu}</div>
         </AppCardHeader>
       )}
 
@@ -614,20 +621,7 @@ export const FocusSession = memo(function FocusSession({
                 </button>
                 {hasConversation && (
                   <div className="focus-composer-session-actions [.composer-tool-tray_&]:w-[38px] [.composer-tool-tray_&]:min-w-[38px] [.composer-tool-tray_&]:h-[38px] [.composer-tool-tray_&]:flex-none @max-[700px]:[.composer-tool-tray_&]:w-[32px] @max-[700px]:[.composer-tool-tray_&]:min-w-[32px] @max-[700px]:[.composer-tool-tray_&]:h-[32px] @max-[700px]:[.composer-tool-tray_&]:p-0 @max-[470px]:[.composer-tool-tray_&]:w-[28px] @max-[470px]:[.composer-tool-tray_&]:min-w-[28px] @max-[470px]:[.composer-tool-tray_&]:h-[28px]">
-                    <SessionActionsMenu
-                      session={session}
-                      canSplit={canSplit}
-                      streaming={streaming}
-                      switchingCwd={switchingCwd}
-                      onSplitLeft={onSplitLeft}
-                      onSplitRight={onSplitRight}
-                      onSplitTop={onSplitTop}
-                      onSplitBottom={onSplitBottom}
-                      onClosePanel={onClosePanel}
-                      onWorkspace={onWorkspace}
-                      onRename={onRename}
-                      onSessionTree={() => setSessionTreeOpen(true)}
-                    />
+                    {sessionActionsMenu}
                   </div>
                 )}
               </ComposerToolTray>
