@@ -1,9 +1,9 @@
 {
-  "version": "0.1.18",
-  "tag": "app-v0.1.18",
-  "url": "https://github.com/ling-kong-ran/pisper/releases/tag/app-v0.1.18",
+  "version": "0.1.19",
+  "tag": "app-v0.1.19",
+  "url": "https://github.com/ling-kong-ran/pisper/releases/tag/app-v0.1.19",
   "apk": "app-universal-release-signed.apk",
   "ipa": "pisper-ios-unsigned.ipa",
-  "notes": "- feat(config): collapse management into wizard-centric connection cards with runnable visual examples\n- fix(chat): keep SSE streams alive through backpressure and resume after disconnects\n- feat(config): simplify model setup with quick-setup wizard and visual generation hub",
-  "releaseDate": "2026-08-28"
+  "notes": "- fix(runtime): normalize platform-specific test paths\n- fix(ios): align mobile runtime and safe area layout\n- fix(desktop-pet): prevent focus stealing and render churn\n- fix(config): remove read-only interactive modes\n- fix(config): remove read-only interactive modes\n- fix(tools): expose generate_visual in workspace preset and approval mode\n- fix(providers): bootstrap the default model on first-time setup and prevent /v1/v1 endpoint URLs",
+  "releaseDate": "2026-08-29"
 }
