@@ -475,6 +475,8 @@ impl ApiClient {
 
     /// 建立对话流：POST `/api/chat` 后逐块消费 SSE，
     /// 每个事件（含终态 `done`/`error`）经 sender 转发回主事件循环。
+    /// 传输层在终态前断开时凭 run 头帧的 runId 与 SSE id 游标经
+    /// `/api/runs/:id/events?after=` 重挂补发（与 Web 端同一套重挂语义）。
     pub async fn stream_chat(
         &self,
         session_id: String,
@@ -501,17 +503,72 @@ impl ApiClient {
             return Err(Self::response_error(response).await);
         }
 
-        let mut decoder = SseDecoder::default();
-        let mut body = response.bytes_stream();
-        while let Some(chunk) = body.next().await {
-            if forward_stream_events(decoder.push(&chunk?, false)?, &sender) {
-                return Ok(());
+        let mut run_id = String::new();
+        let mut cursor = 0u64;
+        match consume_chat_stream(response, &sender, &mut run_id, &mut cursor).await {
+            Ok(true) => return Ok(()),
+            // run 未建立（如参数被 409 拒绝）时没有可重挂的对象，直接失败。
+            Ok(false) if run_id.is_empty() => {
+                bail!("response stream ended before a terminal event")
             }
+            Err(error) if run_id.is_empty() => return Err(error),
+            _ => {}
         }
-        if forward_stream_events(decoder.push(&[], true)?, &sender) {
-            Ok(())
-        } else {
-            bail!("response stream ended before a terminal event")
+
+        // 断流重挂：指数退避重试；每次重挂有进展（游标前移）就重置计数，
+        // 只有连续无进展的失败才会耗尽尝试次数。
+        let mut attempts = 0u32;
+        let mut last_error: Option<anyhow::Error> = None;
+        loop {
+            attempts += 1;
+            if attempts > STREAM_RESUME_MAX_ATTEMPTS {
+                return Err(last_error.unwrap_or_else(|| {
+                    anyhow!("chat stream interrupted and resume attempts exhausted")
+                }));
+            }
+            tokio::time::sleep(std::time::Duration::from_millis(
+                STREAM_RESUME_BASE_DELAY_MS * 2u64.pow(attempts - 1),
+            ))
+            .await;
+            let cursor_before = cursor;
+            let url = self.url(&format!(
+                "/api/runs/{}/events?after={}",
+                encode_segment(&run_id),
+                cursor
+            ))?;
+            let response = match self.stream_client.get(url).send().await {
+                Ok(response) => response,
+                Err(error) => {
+                    last_error = Some(error.into());
+                    continue;
+                }
+            };
+            if response.status().as_u16() == 409 {
+                // run 缓冲已清理：续传无意义，报错由用户重新加载会话。
+                bail!("run is no longer resumable (registry entry expired)");
+            }
+            if !response.status().is_success() {
+                last_error = Some(Self::response_error(response).await);
+                continue;
+            }
+            match consume_chat_stream(response, &sender, &mut run_id, &mut cursor).await {
+                Ok(true) => return Ok(()),
+                Ok(false) => {
+                    // 干净 EOF 但无终态：run 已关闭且终态帧被挤出缓冲；
+                    // 重放同样无进展，耗尽次数后报错。
+                    if cursor == cursor_before {
+                        continue;
+                    }
+                    attempts = 0;
+                }
+                Err(error) => {
+                    // 本次重挂有进展（游标前移）说明链路可用，重置计数再续。
+                    if cursor > cursor_before {
+                        attempts = 0;
+                    }
+                    last_error = Some(error);
+                }
+            }
         }
     }
 }
@@ -639,6 +696,48 @@ fn runtime_options(
 
 /// 转发一批 SSE 事件到主循环；返回是否出现了终态事件（`done`/`error`）。
 /// 即使发生终态事件也继续转发同批其余事件，保证收尾状态完整。
+// SSE 断流重挂参数：与 Web 端 streamEventsWithResume 保持一致。
+const STREAM_RESUME_MAX_ATTEMPTS: u32 = 5;
+const STREAM_RESUME_BASE_DELAY_MS: u64 = 400;
+
+/// 跟踪一批事件的重挂状态：run 头帧记录 runId，SSE id 行推进游标。
+fn track_run_frames(events: &[StreamEvent], run_id: &mut String, cursor: &mut u64) {
+    for event in events {
+        if let Some(id) = event.id {
+            if id > *cursor {
+                *cursor = id;
+            }
+        }
+        if event.name == "run" {
+            if let Some(value) = event.data["runId"].as_str() {
+                *run_id = value.to_owned();
+            }
+        }
+    }
+}
+
+/// 消费一条 SSE 响应流：逐块解码并转发事件，同时跟踪 run 头帧与游标。
+/// 返回是否收到终态帧（done/error）。
+async fn consume_chat_stream(
+    response: reqwest::Response,
+    sender: &mpsc::UnboundedSender<RuntimeEvent>,
+    run_id: &mut String,
+    cursor: &mut u64,
+) -> Result<bool> {
+    let mut decoder = SseDecoder::default();
+    let mut body = response.bytes_stream();
+    while let Some(chunk) = body.next().await {
+        let events = decoder.push(&chunk?, false)?;
+        track_run_frames(&events, run_id, cursor);
+        if forward_stream_events(events, sender) {
+            return Ok(true);
+        }
+    }
+    let events = decoder.push(&[], true)?;
+    track_run_frames(&events, run_id, cursor);
+    Ok(forward_stream_events(events, sender))
+}
+
 fn forward_stream_events(
     events: Vec<StreamEvent>,
     sender: &mpsc::UnboundedSender<RuntimeEvent>,
@@ -801,13 +900,14 @@ fn encode_segment(value: &str) -> String {
 // SSE 单行/单事件的字节上限，防止恶意或损坏的流撑爆内存。
 const MAX_SSE_PENDING_BYTES: usize = 8 * 1024 * 1024;
 
-/// SSE 解码器：累积字节流，按行解析 `event:`/`data:` 字段，
+/// SSE 解码器：累积字节流，按行解析 `event:`/`data:`/`id:` 字段，
 /// 空行触发事件分发。支持 CRLF 与分块到达，末尾兜底处理残余行。
 #[derive(Default)]
 struct SseDecoder {
     buffer: Vec<u8>,
     event: String,
     data_lines: Vec<String>,
+    event_id: Option<u64>,
     pending_event_bytes: usize,
 }
 
@@ -839,7 +939,7 @@ impl SseDecoder {
     }
 
     /// 处理单行：空行分发事件；注释行（`:` 开头）跳过；
-    /// 其余按 `event`/`data` 字段累积，同时累计单事件字节数。
+    /// 其余按 `event`/`data`/`id` 字段累积，同时累计单事件字节数。
     fn process_line(&mut self, line: &[u8], events: &mut Vec<StreamEvent>) -> Result<()> {
         if line.is_empty() {
             return self.dispatch(events);
@@ -855,6 +955,8 @@ impl SseDecoder {
         match field {
             "event" => self.event = value.to_owned(),
             "data" => self.data_lines.push(value.to_owned()),
+            // run 游标：断流重挂凭它向 /api/runs/:id/events?after= 续传。
+            "id" => self.event_id = value.parse::<u64>().ok(),
             _ => return Ok(()),
         }
         self.pending_event_bytes = self.pending_event_bytes.saturating_add(line.len());
@@ -869,6 +971,7 @@ impl SseDecoder {
     fn dispatch(&mut self, events: &mut Vec<StreamEvent>) -> Result<()> {
         if self.data_lines.is_empty() {
             self.event.clear();
+            self.event_id = None;
             self.pending_event_bytes = 0;
             return Ok(());
         }
@@ -883,6 +986,7 @@ impl SseDecoder {
                 std::mem::take(&mut self.event)
             },
             data,
+            id: self.event_id.take(),
         });
         self.data_lines.clear();
         self.pending_event_bytes = 0;
@@ -992,7 +1096,7 @@ fn is_low_surrogate(value: u16) -> bool {
 mod tests {
     use super::{
         forward_stream_events, prepare_attachments, repair_json_surrogates, runtime_options,
-        RuntimeConfig, SseDecoder, API_REQUEST_TIMEOUT, MAX_SSE_PENDING_BYTES,
+        track_run_frames, RuntimeConfig, SseDecoder, API_REQUEST_TIMEOUT, MAX_SSE_PENDING_BYTES,
         STARTUP_REQUEST_TIMEOUT,
     };
     use crate::model::RuntimeEvent;
@@ -1111,6 +1215,7 @@ mod tests {
             vec![crate::model::StreamEvent {
                 name: "done".to_owned(),
                 data: serde_json::json!({}),
+                id: None,
             }],
             &sender,
         );
@@ -1140,6 +1245,34 @@ mod tests {
         assert_eq!(events[0].name, "text_patch");
         assert_eq!(events[0].data["text"], "hello");
         assert_eq!(events[1].name, "done");
+    }
+
+    /// 验证 SSE `id:` 行被捕获为事件游标（断流重挂的凭据），
+    /// 且 `track_run_frames` 从 run 头帧记录 runId、推进最大游标。
+    #[test]
+    fn captures_sse_id_lines_and_tracks_run_resume_state() {
+        let mut decoder = SseDecoder::default();
+        let events = decoder
+            .push(
+                b"event: run\ndata: {\"runId\":\"run_abc\"}\n\nid: 3\nevent: text_delta\ndata: {\"delta\":\"hi\"}\n\n",
+                true,
+            )
+            .unwrap();
+        // run 头帧无 id 行（游标 0 不入缓冲）；text_delta 携带游标 3。
+        assert_eq!(events.len(), 2);
+        assert_eq!(events[0].name, "run");
+        assert_eq!(events[0].id, None);
+        assert_eq!(events[1].name, "text_delta");
+        assert_eq!(events[1].id, Some(3));
+
+        let mut run_id = String::new();
+        let mut cursor = 0u64;
+        track_run_frames(&events, &mut run_id, &mut cursor);
+        assert_eq!(run_id, "run_abc");
+        assert_eq!(cursor, 3);
+        // 游标只前进不后退。
+        track_run_frames(&events, &mut run_id, &mut cursor);
+        assert_eq!(cursor, 3);
     }
 
     /// 验证 JSON 代理项修复：孤立高/低代理项替换为 U+FFFD，合法代理对

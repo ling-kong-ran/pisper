@@ -488,6 +488,8 @@ pub struct StreamEvent {
     pub name: String,
     /// 事件负载（JSON）。
     pub data: Value,
+    /// SSE `id:` 行携带的 run 游标（断流重挂凭它续传，无则 None）。
+    pub id: Option<u64>,
 }
 
 /// 事件循环中 TUI 主任务与后台任务之间的统一消息。

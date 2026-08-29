@@ -2976,6 +2976,11 @@ impl App {
                     live.text_target = string_field(&event.data, "text");
                 }
             }
+            "resync_required" => {
+                // 服务端重挂缓冲溢出：增量已有缺口，状态栏如实提示；
+                // 后续 text_end/done 携带完整文本与工具状态，会自愈终态。
+                self.status = "resyncing stream".to_owned();
+            }
             "tool_start" => {
                 sync_live_display(live);
                 live.tools.push(ToolActivity {
@@ -3685,6 +3690,7 @@ mod tests {
                 "requests": 2,
                 "cacheHitRate": 37.5
             }),
+            id: None,
         });
         assert_eq!(app.session_usage.total_tokens, 240);
         assert_eq!(app.session_usage.cache_hit_rate, Some(37.5));
@@ -3714,6 +3720,7 @@ mod tests {
                     "cacheHitRate": 37.5
                 }
             }),
+            id: None,
         });
 
         assert_eq!(app.session_usage.cache_read, 75);
@@ -3729,6 +3736,7 @@ mod tests {
         app.apply_stream_event(StreamEvent {
             name: "text_delta".to_owned(),
             data: json!({ "delta": "A complete provider chunk" }),
+            id: None,
         });
 
         let live = app.live.as_ref().unwrap();
@@ -4009,6 +4017,7 @@ mod tests {
                 "risk": "high",
                 "reason": "Runs as the current OS user."
             }),
+            id: None,
         });
 
         let approval = app.approval.as_ref().unwrap();
@@ -4034,6 +4043,7 @@ mod tests {
                     "risk": "high",
                     "reason": "Runs as the current OS user."
                 }),
+                id: None,
             });
         }
 
@@ -4052,6 +4062,7 @@ mod tests {
         app.apply_stream_event(StreamEvent {
             name: "permission_resolved".to_owned(),
             data: json!({ "id": "approval-2", "approved": false }),
+            id: None,
         });
         assert_eq!(app.approval_count(), 1);
         assert!(app.approval_is_resolving());
@@ -4063,6 +4074,7 @@ mod tests {
         app.apply_stream_event(StreamEvent {
             name: "permission_resolved".to_owned(),
             data: json!({ "id": "approval-1", "approved": true }),
+            id: None,
         });
         assert_eq!(app.approval_count(), 0);
         assert!(!app.approval_is_resolving());
@@ -4490,6 +4502,7 @@ mod tests {
                     "counts": { "pending": 1, "inProgress": 0, "completed": 0, "blocked": 0, "total": 1 }
                 }
             }),
+            id: None,
         });
         assert_eq!(app.session.plan.as_ref().unwrap().items[0].title, "Inspect");
 
@@ -4503,6 +4516,7 @@ mod tests {
                     "counts": { "pending": 0, "inProgress": 0, "completed": 1, "blocked": 0, "total": 1 }
                 }
             }),
+            id: None,
         });
         assert!(app.session.plan.is_none());
         assert!(app.sessions[0].plan.is_none());
@@ -4517,12 +4531,14 @@ mod tests {
                     "counts": { "pending": 1, "inProgress": 0, "completed": 0, "blocked": 0, "total": 1 }
                 }
             }),
+            id: None,
         });
         assert_eq!(app.session.plan.as_ref().unwrap().items[0].id, "two");
 
         app.apply_stream_event(StreamEvent {
             name: "task_list_update".to_owned(),
             data: json!({ "taskList": null }),
+            id: None,
         });
         assert!(app.session.plan.is_none());
     }
@@ -4536,6 +4552,7 @@ mod tests {
         app.apply_stream_event(StreamEvent {
             name: "tool_start".to_owned(),
             data: json!({ "id": "tool-1", "name": "read", "args": {}, "startedAt": 1000 }),
+            id: None,
         });
         app.apply_stream_event(StreamEvent {
             name: "tool_end".to_owned(),
@@ -4545,6 +4562,7 @@ mod tests {
                 "finishedAt": 1512,
                 "agent": { "canonicalName": "log-analysis", "status": "completed" }
             }),
+            id: None,
         });
         let tool = &app.live.as_ref().unwrap().tools[0];
         assert_eq!(tool.started_at, 1000);
@@ -4582,11 +4600,13 @@ mod tests {
         app.apply_stream_event(StreamEvent {
             name: "queue_update".to_owned(),
             data: json!({ "queuedInputs": [] }),
+            id: None,
         });
         assert_eq!(app.queued_count(), 0);
         app.apply_stream_event(StreamEvent {
             name: "done".to_owned(),
             data: json!({ "text": "final answer", "tools": [], "contextUsage": {} }),
+            id: None,
         });
         assert!(app.take_queued_action().is_none());
     }
@@ -4674,6 +4694,7 @@ mod tests {
         app.apply_stream_event(StreamEvent {
             name: "text_delta".to_owned(),
             data: json!({ "delta": "new output" }),
+            id: None,
         });
         assert_eq!(app.scroll.get(), 1 + PAGE_SCROLL_STEP);
 
