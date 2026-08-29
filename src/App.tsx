@@ -341,7 +341,9 @@ function App() {
       shell.style.height = `${height}px`
       shell.style.transform = offsetTop ? `translate3d(0, ${offsetTop}px, 0)` : ''
       const keyboardInset = Math.max(0, viewportBaseline - height - offsetTop)
-      if (keyboardInset >= 120) shell.dataset.mobileKeyboard = 'open'
+      // 键盘判定用基线比例而非固定像素：小屏 + 大字体缩放下 120px 绝对阈值不可靠。
+      // 移动软键盘通常占视口 30% 以上，20% 的下限同时滤掉浏览器地址栏的伸缩。
+      if (keyboardInset >= viewportBaseline * 0.2) shell.dataset.mobileKeyboard = 'open'
       else delete shell.dataset.mobileKeyboard
     }
     const schedule = () => {
