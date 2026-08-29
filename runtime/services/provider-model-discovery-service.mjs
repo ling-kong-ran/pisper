@@ -6,8 +6,11 @@ import { inferModelKind } from './visual-generation/index.mjs'
 const DEFAULT_TIMEOUT_MS = 12_000
 const DEFAULT_MAX_RESPONSE_BYTES = 2 * 1024 * 1024
 
-// 由 Base URL 构造 /models 端点 URL。
-function modelsUrl(baseUrl) {
+// 由 Base URL 构造 /models 候选端点（按序尝试）。
+// 路径已带 /v1 或 /models 时只有一个候选，绝不叠加出 /v1/v1；
+// anthropic-messages 的模型列表挂在 /v1/models（kimi-coding 等端点 baseUrl 不含 /v1），
+// 其余协议先直连、404 时再试 /v1 前缀（kimi 的 coding 端点用 openai 协议时也需要它）。
+function modelsUrlCandidates(baseUrl, api = '') {
   let url
   try {
     url = new URL(String(baseUrl || '').trim())
@@ -19,8 +22,23 @@ function modelsUrl(baseUrl) {
   url.search = ''
   url.hash = ''
   const path = url.pathname.replace(/\/+$/, '')
-  url.pathname = /\/models$/i.test(path) ? path : `${path}/models`
-  return url
+  const withPath = (pathname) => {
+    const next = new URL(url.toString())
+    next.pathname = pathname
+    return next
+  }
+  if (/\/models$/i.test(path)) return [withPath(path)]
+  if (/\/v1$/i.test(path)) return [withPath(`${path}/models`)]
+  const direct = withPath(`${path}/models`)
+  const versioned = withPath(`${path}/v1/models`)
+  return api === 'anthropic-messages' ? [versioned, direct] : [direct, versioned]
+}
+
+// 带 HTTP 状态的错误：供候选端点按 404 判定是否回退到下一个候选。
+function httpError(message, status) {
+  const error = new Error(message)
+  error.status = status
+  return error
 }
 
 function apiKeyValue(value) {
@@ -150,7 +168,22 @@ export class ProviderModelDiscoveryService {
     ) {
       throw new Error('当前 API 协议不支持自动获取模型。')
     }
-    const url = modelsUrl(baseUrl)
+    // 按候选端点顺序尝试：404 说明路径形态不对（如缺 /v1 前缀），回退下一个候选。
+    const candidates = modelsUrlCandidates(baseUrl, protocol)
+    let notFoundError = null
+    for (const candidate of candidates) {
+      try {
+        return await this.discoverAt(candidate, { protocol, apiKey, organization, headers })
+      } catch (error) {
+        if (error?.status !== 404) throw error
+        notFoundError = error
+      }
+    }
+    throw notFoundError
+  }
+
+  // 在单个 /models 候选端点上执行发现（含分页）。
+  async discoverAt(url, { protocol, apiKey, organization, headers } = {}) {
     const controller = new AbortController()
     this.controllers.add(controller)
     const timer = setTimeout(() => controller.abort(), this.timeoutMs)
@@ -172,13 +205,13 @@ export class ProviderModelDiscoveryService {
         try {
           pageResult = await readJsonLimited(response, this.maxResponseBytes - totalBytes)
         } catch (error) {
-          if (!response.ok) throw new Error(`获取模型失败 (${response.status})。`)
+          if (!response.ok) throw httpError(`获取模型失败 (${response.status})。`, response.status)
           if (error instanceof SyntaxError) throw new Error('Provider 返回了无效的模型列表。')
           throw error
         }
         const { payload, bytes } = pageResult
         totalBytes += bytes
-        if (!response.ok) throw new Error(errorMessage(payload, response.status))
+        if (!response.ok) throw httpError(errorMessage(payload, response.status), response.status)
         for (const item of responseItems(payload, protocol)) {
           const candidate = candidateFrom(item, protocol)
           if (candidate && !unique.has(candidate.id)) unique.set(candidate.id, candidate)

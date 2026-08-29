@@ -14,6 +14,9 @@ test('quick setup wizard saves provider config and default model in one step', a
   // 高级设置（协议/端点/组织）折叠在向导第 2 步内
   assert.match(wizardSource, /configPage\.advancedSettings/)
   assert.match(wizardSource, /configPage\.apiProtocol/)
+  // 发现接口不可用时允许用目录已有模型继续（kimi-coding 等无 /models 端点的 Provider）
+  assert.match(wizardSource, /configPage\.discoverFailedUsingExisting/)
+  assert.match(wizardSource, /authFailure/)
   assert.match(modelsSettingsSource, /<QuickSetupWizard/)
   assert.doesNotMatch(modelsSettingsSource, /detailTab|config-tabs/)
 })

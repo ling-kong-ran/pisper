@@ -144,6 +144,8 @@ test('provider connections update protocol, effective Base URL, and optional API
   assert.equal(credentials.openai.key, apiKey)
 
   const customBaseUrl = 'https://relay.example.test/v1'
+  // anthropic-messages 协议的 Base URL 会剥掉尾部 /v1（SDK 会自行拼 /v1/messages）
+  const normalizedCustomBaseUrl = 'https://relay.example.test'
   const updated = await runtime.setProviderConnection('openai', {
     api: 'anthropic-messages',
     baseUrl: customBaseUrl,
@@ -151,11 +153,11 @@ test('provider connections update protocol, effective Base URL, and optional API
   assert.equal(updated.apiKeyUpdated, false)
   assert.equal(
     updated.providers.find((provider) => provider.id === 'openai').baseUrl,
-    customBaseUrl,
+    normalizedCustomBaseUrl,
   )
   const customOverlay = JSON.parse(await readFile(join(directory, 'models.json'), 'utf8'))
   assert.equal(customOverlay.providers.openai.api, 'anthropic-messages')
-  assert.equal(customOverlay.providers.openai.baseUrl, customBaseUrl)
+  assert.equal(customOverlay.providers.openai.baseUrl, normalizedCustomBaseUrl)
   assert.equal(JSON.parse(await readFile(join(directory, 'auth.json'), 'utf8')).openai.key, apiKey)
 
   await assert.rejects(

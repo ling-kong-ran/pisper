@@ -64,13 +64,23 @@ const PROVIDER_API_IDS = new Set([
 const PROVIDER_DEFAULT_BASE_URLS = {
   openai: 'https://api.openai.com/v1',
   'openai-codex': 'https://chatgpt.com/backend-api',
-  anthropic: 'https://api.anthropic.com/v1',
+  // anthropic-messages 协议的 baseUrl 不带 /v1：SDK 会自己拼 /v1/messages，
+  // 带 /v1 会出现 /v1/v1/messages（404/403）。
+  anthropic: 'https://api.anthropic.com',
   google: 'https://generativelanguage.googleapis.com/v1beta',
   deepseek: 'https://api.deepseek.com',
   xai: 'https://api.x.ai/v1',
   openrouter: 'https://openrouter.ai/api/v1',
   'kimi-coding': 'https://api.kimi.com/coding/',
   'zai-coding-cn': 'https://open.bigmodel.cn/api/paas/v4',
+}
+
+// 持久化前归一化 anthropic-messages 协议的 Base URL：剥掉用户误填的尾部 /v1，
+// 避免 SDK 再拼一次 /v1 形成 /v1/v1/messages（实测 Kimi 返回 404、官方返回 403）。
+function normalizeProtocolBaseUrl(baseUrl, api) {
+  const value = String(baseUrl || '').trim()
+  if (!value || api !== 'anthropic-messages') return value
+  return value.replace(/\/v1\/?$/i, '') || value
 }
 
 // 模型排序权重：用于在 Provider 内优先推荐新模型（无启发式时按 reasoning 区分）。
@@ -547,7 +557,15 @@ export class ProviderPreferences {
       throw new Error('Pisper 已存在该 Provider 的认证，不会自动覆盖。')
 
     if (loaded.kind !== 'authentication') {
-      modelsJson.providers[loaded.providerId] = loaded.providerConfig
+      // 导入的本地配置同样按协议归一化 Base URL（防 anthropic 端点 /v1/v1）。
+      const providerConfig = { ...(loaded.providerConfig || {}) }
+      if (providerConfig.baseUrl) {
+        providerConfig.baseUrl = normalizeProtocolBaseUrl(
+          providerConfig.baseUrl,
+          providerConfig.api,
+        )
+      }
+      modelsJson.providers[loaded.providerId] = providerConfig
       await writeJsonAtomic(this.modelsPath, modelsJson)
     }
     if (loaded.credential && !credentials[loaded.providerId]) {
@@ -571,6 +589,9 @@ export class ProviderPreferences {
 
     await this.reloadModelRuntime()
     this.invalidateSessionRuntimes()
+    // 首次安装兜底：全局默认模型仍为空时，用刚导入的 Provider 补齐默认，
+    // 否则新会话会回退到内置兜底模型（可能与账号权限不符，表现为 404）。
+    await this.bootstrapDefaultModel(loaded.providerId, loaded.selectedModel)
     return {
       kind: loaded.kind,
       providerId: loaded.providerId,
@@ -578,6 +599,37 @@ export class ProviderPreferences {
       config: await this.getConfigFacade(),
       discovery: await this.getProviderDiscoveryFacade(),
     }
+  }
+
+  // 首次安装兜底：当前默认模型不可用时（出厂默认 openai 无鉴权/模型已不存在），
+  // 把刚配置好的 Provider/模型设为默认；默认可用时不动，尊重用户显式选择。
+  async bootstrapDefaultModel(providerId, preferredModelId = '') {
+    const settingsManager = this.getSettingsManager()
+    const settings = settingsManager.getGlobalSettings()
+    const modelRuntime = this.getModelRuntime()
+    const currentDefault =
+      settings.defaultProvider && settings.defaultModel
+        ? modelRuntime.getModel(settings.defaultProvider, settings.defaultModel)
+        : null
+    const currentUsable = Boolean(
+      currentDefault && modelRuntime.hasConfiguredAuth(currentDefault.provider),
+    )
+    if (currentUsable) return false
+    // 候选按 modelRank 降序（与配置视图/推荐逻辑一致），避免选到旧型号
+    //（如 kimi-coding 注册顺序第一个是 k2p7，而账号可能只有 k3）。
+    const chatModels = (modelRuntime.getModels(providerId) || [])
+      .filter((model) => inferModelKind(model.id, model.pisperKind) === 'chat')
+      .sort(
+        (left, right) =>
+          modelRank(providerId, right) - modelRank(providerId, left) ||
+          left.id.localeCompare(right.id),
+      )
+    const modelId =
+      chatModels.find((model) => model.id === preferredModelId)?.id || chatModels[0]?.id || ''
+    if (!modelId) return false
+    settingsManager.setDefaultModelAndProvider(providerId, modelId)
+    await settingsManager.flush()
+    return true
   }
 
   // 向已配对设备导出模型连接配置；该接口只允许通过已有设备令牌访问。
@@ -763,10 +815,12 @@ export class ProviderPreferences {
     }
 
     const providerOverlay = { ...(existingOverlay.providers?.[provider] || {}) }
-    const baseUrl = String(input.baseUrl || '').trim()
-    const modelBaseUrl = String(input.modelBaseUrl || '').trim()
-    const organization = String(input.organization || '').trim()
     const requestedApi = PROVIDER_API_IDS.has(input.api) ? input.api : ''
+    const effectiveApi = requestedApi || String(providerOverlay.api || '')
+    // 持久化前按协议归一化 Base URL：anthropic-messages 剥掉尾部 /v1（防 /v1/v1）。
+    const baseUrl = normalizeProtocolBaseUrl(input.baseUrl, effectiveApi)
+    const modelBaseUrl = normalizeProtocolBaseUrl(input.modelBaseUrl, effectiveApi)
+    const organization = String(input.organization || '').trim()
     if (!baseUrl && !PROVIDER_DEFAULT_BASE_URLS[provider]) {
       throw new Error('请先填写 Provider Base URL，再保存。')
     }
@@ -905,7 +959,7 @@ export class ProviderPreferences {
   async setProviderConnection(id, input = {}) {
     const provider = String(id || '').trim()
     const api = String(input.api || '').trim()
-    const baseUrl = String(input.baseUrl || '').trim()
+    const baseUrl = normalizeProtocolBaseUrl(input.baseUrl, api)
     const apiKey = String(input.apiKey || '').trim()
     if (!provider) throw new Error('Provider 不能为空。')
     if (!PROVIDER_API_IDS.has(api)) throw new Error('Provider API 协议不受支持。')
@@ -1044,7 +1098,7 @@ export class ProviderPreferences {
     const id = providerProfileId(input.id || input.name)
     const name = String(input.name || '').trim()
     const api = String(input.api || 'openai-responses').trim()
-    const baseUrl = String(input.baseUrl || '').trim()
+    const baseUrl = normalizeProtocolBaseUrl(input.baseUrl, api)
     const modelId = String(input.model || '').trim()
     const providerType =
       input.providerType === 'visual' || inferModelKind(modelId, input.modelKind) !== 'chat'
@@ -1105,6 +1159,10 @@ export class ProviderPreferences {
     })
     await this.reloadModelRuntime()
     this.invalidateSessionRuntimes()
+    // 首次安装兜底：新建连接后若还没有可用默认模型，用新连接补齐。
+    // 创建时即停用的连接不参与兜底（无法服务请求）。
+    if (providerType === 'chat' && input.enabled !== false)
+      await this.bootstrapDefaultModel(id, modelId)
     return { ...(await this.getConfigFacade()), createdProviderId: id }
   }
 

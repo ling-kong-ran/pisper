@@ -539,5 +539,6 @@
   "configPage.manageConnections": "Manage connections",
   "configPage.manageConnectionsHint": "Toggle connections, import local configs and runtime policy",
   "configPage.tryExampleTooltip": "Send this prompt in a new chat",
-  "configPage.visualUnavailableNotify": "No visual model available — add one first, or check the provider key and enabled state"
+  "configPage.visualUnavailableNotify": "No visual model available — add one first, or check the provider key and enabled state",
+  "configPage.discoverFailedUsingExisting": "Couldn't fetch the model list ({message}) — you can pick from the existing models"
 }

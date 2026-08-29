@@ -149,3 +149,79 @@ test('rejects oversized model responses', async () => {
     /过大/,
   )
 })
+
+test('anthropic-messages discovery targets /v1/models when the base URL lacks the version prefix', async () => {
+  const urls = []
+  const service = new ProviderModelDiscoveryService({
+    fetchImpl: async (url) => {
+      urls.push(String(url))
+      return jsonResponse({ data: [{ id: 'k3' }] })
+    },
+  })
+  // kimi-coding 等兼容端点的 baseUrl 不含 /v1：模型列表需补 /v1 前缀（否则 404）
+  await service.discover({
+    api: 'anthropic-messages',
+    baseUrl: 'https://api.kimi.com/coding/',
+    apiKey: 'test-key',
+  })
+  assert.equal(urls[0], 'https://api.kimi.com/coding/v1/models')
+  // 官方端点已带 /v1：只有一个候选，绝不叠加出 /v1/v1
+  await service.discover({
+    api: 'anthropic-messages',
+    baseUrl: 'https://api.anthropic.com/v1',
+    apiKey: 'test-key',
+  })
+  assert.equal(urls[1], 'https://api.anthropic.com/v1/models')
+  // 非 anthropic 协议保持原行为
+  await service.discover({
+    api: 'openai-responses',
+    baseUrl: 'https://api.openai.com/v1',
+    apiKey: 'test-key',
+  })
+  assert.equal(urls[2], 'https://api.openai.com/v1/models')
+})
+
+test('discovery falls back to the /v1-prefixed candidate when the direct one 404s', async () => {
+  const urls = []
+  const service = new ProviderModelDiscoveryService({
+    fetchImpl: async (url) => {
+      const value = String(url)
+      urls.push(value)
+      // kimi 的 coding 端点即使用 openai 协议也挂在 /coding/v1 下
+      if (value === 'https://api.kimi.com/coding/models') return jsonResponse({}, { status: 404 })
+      return jsonResponse({ data: [{ id: 'k3' }] })
+    },
+  })
+  const result = await service.discover({
+    api: 'openai-completions',
+    baseUrl: 'https://api.kimi.com/coding/',
+    apiKey: 'test-key',
+  })
+  assert.deepEqual(urls, [
+    'https://api.kimi.com/coding/models',
+    'https://api.kimi.com/coding/v1/models',
+  ])
+  assert.equal(result.models[0].id, 'k3')
+})
+
+test('discovery never duplicates the /v1 prefix when the base URL already ends with it', async () => {
+  const urls = []
+  const service = new ProviderModelDiscoveryService({
+    fetchImpl: async (url) => {
+      const value = String(url)
+      urls.push(value)
+      // 唯一候选 404 时直接报错，不再尝试拼接 /v1/v1
+      return jsonResponse({}, { status: 404 })
+    },
+  })
+  await assert.rejects(
+    () =>
+      service.discover({
+        api: 'openai-completions',
+        baseUrl: 'https://api.example.test/v1',
+        apiKey: 'test-key',
+      }),
+    /404/,
+  )
+  assert.deepEqual(urls, ['https://api.example.test/v1/models'])
+})

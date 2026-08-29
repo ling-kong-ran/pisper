@@ -31,7 +31,7 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/component
 
 import { FieldLabel } from '@/components/ui/field'
 
-import { AppCardHeader, AppError } from '@/components/ui/app-primitives'
+import { AppCardHeader, AppError, AppNotice } from '@/components/ui/app-primitives'
 
 type QuickSetupWizardProps = {
   config: ConfigData
@@ -77,6 +77,8 @@ export function QuickSetupWizard({
   )
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
+  // 发现接口失败但目录已有模型时的非阻塞提示（第 3 步展示）。
+  const [discoverWarning, setDiscoverWarning] = useState('')
   // 中转站/自定义连接依赖端点字段：高级区默认展开。
   const [advancedOpen, setAdvancedOpen] = useState(Boolean(initial?.custom))
   const apiKeyInputRef = useRef<HTMLInputElement>(null)
@@ -138,7 +140,19 @@ export function QuickSetupWizard({
       setModelId(recommended?.id || '')
       setStep(3)
     } catch (caught) {
-      setError(caught instanceof Error ? caught.message : String(caught))
+      const message = caught instanceof Error ? caught.message : String(caught)
+      // 发现接口不可用（端点无 /models、网络失败等）且目录里已有模型时，
+      // 允许直接用已有模型继续，不再卡死在第 2 步；鉴权类错误仍然拦截。
+      const authFailure = /\(401\)|\(403\)|鉴权|认证|密钥|API Key/i.test(message)
+      const existing = provider.models.filter((item) => item.kind === 'chat')
+      if (!authFailure && existing.length) {
+        setFetchedProvider(provider)
+        setModelId(recommendedChatModel(provider)?.id || '')
+        setDiscoverWarning(message)
+        setStep(3)
+        return
+      }
+      setError(message)
     } finally {
       setBusy(false)
     }
@@ -341,6 +355,18 @@ export function QuickSetupWizard({
 
         {step === 3 && fetchedProvider && (
           <>
+            {discoverWarning && (
+              <AppNotice className="[margin-top:12px]">
+                <AlertTriangle size={15} />
+                <span>
+                  <small>
+                    {t('config:configPage.discoverFailedUsingExisting', {
+                      message: discoverWarning,
+                    })}
+                  </small>
+                </span>
+              </AppNotice>
+            )}
             <p className="[margin:12px_0_8px] text-[12px] leading-[1.5] text-[var(--text-muted)]">
               {t('config:configPage.selectModelToFinish')}
             </p>
