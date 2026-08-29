@@ -36,6 +36,8 @@ try {
   const backgroundPath = join(temporary, 'android-background.svg')
   const manifestPath = join(temporary, 'icon-manifest.json')
   const outputPath = join(temporary, 'generated')
+  const iosOutputPath = join(temporary, 'generated-ios')
+  const iosSourcePath = join(iconsDir, 'ios-source.svg')
   writeFileSync(sourcePath, source)
   writeFileSync(
     backgroundPath,
@@ -63,11 +65,24 @@ try {
   })
   if (result.status !== 0) process.exit(result.status ?? 1)
 
-  for (const platform of ['android', 'ios']) {
-    const destination = join(iconsDir, platform)
-    rmSync(destination, { recursive: true, force: true })
-    cpSync(join(outputPath, platform), destination, { recursive: true })
-  }
+  // iOS 会自动套用主屏圆角；单独使用满幅方形源，避免图标内外出现双层圆角。
+  const iosResult = spawnSync(
+    process.execPath,
+    [cli, 'icon', iosSourcePath, '--output', iosOutputPath],
+    {
+      cwd: root,
+      stdio: 'inherit',
+    },
+  )
+  if (iosResult.status !== 0) process.exit(iosResult.status ?? 1)
+
+  const androidDestination = join(iconsDir, 'android')
+  rmSync(androidDestination, { recursive: true, force: true })
+  cpSync(join(outputPath, 'android'), androidDestination, { recursive: true })
+
+  const iosDestination = join(iconsDir, 'ios')
+  rmSync(iosDestination, { recursive: true, force: true })
+  cpSync(join(iosOutputPath, 'ios'), iosDestination, { recursive: true })
 
   const androidResources = join(root, 'src-tauri', 'gen', 'android', 'app', 'src', 'main', 'res')
   if (existsSync(androidResources)) {
