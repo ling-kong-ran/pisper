@@ -22,6 +22,12 @@ Argument notation: `<argument>` is required; `[argument]` is optional.
 | `pisper update --check` | Check an npm-installed Pisper for updates without installing them. |
 | `pisper update` | Update an npm-installed Pisper through the active npm registry and verify the components again. |
 
+## Environment Variables
+
+| Variable | Description |
+| :--- | :--- |
+| `PISPER_TUI_MOUSE=1` | Enable mouse wheel scrolling in the transcript; note that mouse capture replaces the terminal's native text selection. |
+
 ## Slash Commands
 
 | Command | Explanation |

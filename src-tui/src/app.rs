@@ -64,6 +64,11 @@ fn env_flag(name: &str) -> bool {
         )
     })
 }
+
+/// 供 main 读取环境开关（鼠标捕获等终端会话级配置）。
+pub(crate) fn env_flag_enabled(name: &str) -> bool {
+    env_flag(name)
+}
 // 整页滚动步长。
 const PAGE_SCROLL_STEP: u16 = 8;
 
@@ -1585,6 +1590,25 @@ impl App {
                 Action::None
             }
             _ => Action::None,
+        }
+    }
+
+    /// 鼠标滚轮滚动聊天区：上滚翻历史（等同 Up 键，靠近顶部触发加载更早），
+    /// 下滚回最新（等同 Down 键）。仅 Chat 视图消费滚轮事件；
+    /// 只有启用鼠标捕获后终端才会上报这些事件。
+    pub fn handle_mouse_wheel(&mut self, up: bool) -> Action {
+        if self.view != View::Chat {
+            return Action::None;
+        }
+        if up {
+            self.scroll
+                .set(self.scroll.get().saturating_add(LINE_SCROLL_STEP));
+            self.history_touched_at = Some(Instant::now());
+            self.maybe_history_action()
+        } else {
+            self.scroll
+                .set(self.scroll.get().saturating_sub(LINE_SCROLL_STEP));
+            Action::None
         }
     }
 
@@ -4772,6 +4796,23 @@ mod tests {
 
         let action = app.handle_key(KeyEvent::new(KeyCode::Up, KeyModifiers::NONE));
         assert!(matches!(action, Action::None));
+    }
+
+    /// 验证鼠标滚轮滚动等同方向键：上滚翻历史并触发加载更早，下滚回最新。
+    #[test]
+    fn mouse_wheel_scrolls_the_transcript_like_arrow_keys() {
+        let mut app = test_app(Vec::new());
+        app.set_history_window(40);
+        // 单格滚轮步进为 1：把滚动上限压低，使一次上滚即触及历史加载边缘。
+        app.render_max_scroll.set(2);
+
+        let action = app.handle_mouse_wheel(true);
+        assert!(matches!(action, Action::LoadOlderMessages { before: 40 }));
+        assert_eq!(app.scroll.get(), 1);
+
+        let action = app.handle_mouse_wheel(false);
+        assert!(matches!(action, Action::None));
+        assert_eq!(app.scroll.get(), 0);
     }
 
     /// 验证应用更早消息页后前置合并并关闭加载窗口。

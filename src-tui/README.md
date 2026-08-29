@@ -22,6 +22,12 @@
 | `pisper update --check` | 检查 npm 安装的 Pisper 是否有更新，不执行安装。 |
 | `pisper update` | 使用当前 npm registry 更新 npm 安装的 Pisper，并重新校验组件。 |
 
+## 环境变量
+
+| 变量 | 解释 |
+| :--- | :--- |
+| `PISPER_TUI_MOUSE=1` | 启用鼠标滚轮滚动聊天记录；注意鼠标捕获会接管终端原生文本选择。 |
+
 ## Slash Command
 
 | 命令 | 解释 |

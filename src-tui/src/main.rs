@@ -30,8 +30,8 @@ use app::{Action, App};
 use crossterm::{
     cursor::MoveTo,
     event::{
-        DisableBracketedPaste, EnableBracketedPaste, Event, EventStream, KeyCode, KeyEvent,
-        KeyEventKind, KeyModifiers,
+        DisableBracketedPaste, DisableMouseCapture, EnableBracketedPaste, EnableMouseCapture,
+        Event, EventStream, KeyCode, KeyEvent, KeyEventKind, KeyModifiers, MouseEventKind,
     },
     execute,
     terminal::{
@@ -51,6 +51,7 @@ use zeroize::Zeroize;
 
 use crate::{
     api::ApiClient,
+    app::env_flag_enabled,
     paste_burst::{CharDecision, FlushResult, PasteBurst},
     sidecar::SidecarConnection,
     startup::StartupIndicator,
@@ -95,7 +96,11 @@ Examples:
   pisper resume
   pisper doctor
   pisper web
-  pisper help web";
+  pisper help web
+
+Environment:
+  PISPER_TUI_MOUSE=1   Enable mouse wheel scrolling in the transcript.
+                       Note: mouse capture replaces the terminal's native text selection.";
 
 const WEB_HELP: &str = "Pisper Web UI
 
@@ -348,6 +353,18 @@ async fn run_event_loop(
                         app.insert_paste(&value);
                         paste_burst.clear_after_explicit_paste();
                         pending_resize.is_none()
+                    }
+                    Some(Ok(Event::Mouse(mouse))) => {
+                        // 滚轮翻聊天记录（仅在 PISPER_TUI_MOUSE 启用捕获后才会收到）。
+                        let action = match mouse.kind {
+                            MouseEventKind::ScrollUp => app.handle_mouse_wheel(true),
+                            MouseEventKind::ScrollDown => app.handle_mouse_wheel(false),
+                            _ => Action::None,
+                        };
+                        if execute_action(action, &mut app, &api, &runtime_tx).await? {
+                            break;
+                        }
+                        true
                     }
                     Some(Ok(Event::Resize(width, height))) => {
                         // 终端缩放会产生连续事件，先记录区域并等待其稳定后再重绘。
@@ -1502,11 +1519,15 @@ struct TerminalSession {
 
 impl TerminalSession {
     /// 进入终端会话：启用 raw mode、切到备用屏、开启 bracketed-paste，
+    /// 按需开启鼠标捕获（滚轮滚动，代价是终端原生文本选择被接管），
     /// 返回包装后的 Terminal；任一步失败时中止（保持终端原状）。
     fn start() -> Result<Self> {
         enable_raw_mode()?;
         let mut stdout = io::stdout();
         execute!(stdout, EnterAlternateScreen, EnableBracketedPaste)?;
+        if env_flag_enabled("PISPER_TUI_MOUSE") {
+            execute!(stdout, EnableMouseCapture)?;
+        }
         let terminal = Terminal::new(CrosstermBackend::new(stdout))?;
         Ok(Self {
             terminal,
@@ -1524,6 +1545,7 @@ impl TerminalSession {
         let _ = execute!(
             self.terminal.backend_mut(),
             DisableBracketedPaste,
+            DisableMouseCapture,
             LeaveAlternateScreen
         );
         let _ = self.terminal.show_cursor();
