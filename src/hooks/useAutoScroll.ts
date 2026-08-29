@@ -65,6 +65,13 @@ export function useAutoScroll(
     [threshold],
   )
 
+  // 统一的滚动提交点：contentVersion 变化与 maintainBottom（totalSize 变化）
+  // 都经这里合并到每帧一次 scrollTo，避免两条路径在同一帧内重复滚动。
+  const scheduleScrollToBottom = useCallback(() => {
+    cancelAnimationFrame(frameRef.current)
+    frameRef.current = requestAnimationFrame(() => scrollToBottom())
+  }, [scrollToBottom])
+
   useEffect(() => {
     if (!scrollRef.current) return
     if (!pinnedToBottom) {
@@ -72,14 +79,13 @@ export function useAutoScroll(
       return undefined
     }
     // Coalesce scroll jumps to one per animation frame to reduce remote-desktop flicker.
-    cancelAnimationFrame(frameRef.current)
-    frameRef.current = requestAnimationFrame(() => scrollToBottom())
+    scheduleScrollToBottom()
     return () => cancelAnimationFrame(frameRef.current)
-  }, [contentVersion, pinnedToBottom, scrollToBottom])
+  }, [contentVersion, pinnedToBottom, scheduleScrollToBottom])
 
   const maintainBottom = useCallback(() => {
-    if (pinnedToBottomRef.current) scrollToBottom()
-  }, [scrollToBottom])
+    if (pinnedToBottomRef.current) scheduleScrollToBottom()
+  }, [scheduleScrollToBottom])
 
   // Clean up any pending programmatic-scroll marker reset on unmount.
   useEffect(() => () => cancelAnimationFrame(programmaticFrameRef.current), [])

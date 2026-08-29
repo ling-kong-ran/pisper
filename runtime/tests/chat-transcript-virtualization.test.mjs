@@ -121,7 +121,7 @@ test('virtualization source owns only message rows and preserves stable render b
   assert.match(transcriptSource, /onWheel=\{cancelProgrammaticScroll\}/)
   assert.match(autoScrollSource, /setScrollElement\(node\)/)
   assert.match(autoScrollSource, /const pinnedToBottomRef = useRef\(true\)/)
-  assert.match(autoScrollSource, /if \(pinnedToBottomRef\.current\) scrollToBottom\(\)/)
+  assert.match(autoScrollSource, /if \(pinnedToBottomRef\.current\) scheduleScrollToBottom\(\)/)
   assert.match(autoScrollSource, /programmaticScrollRef\.current = false/)
 
   assert.match(messageSource, /memo\(function FocusChatMessage[\s\S]*focusPropsEqual\)/)
