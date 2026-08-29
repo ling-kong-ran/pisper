@@ -6,7 +6,11 @@ import { Check, Copy } from 'lucide-react'
 import { CodeBlock, Streamdown, useIsCodeFenceIncomplete, type Components } from 'streamdown'
 import { useI18n } from '@/app/use-i18n'
 import { Button } from '@/components/ui/button'
-import { createIncrementalBlockParser, streamdownPlugins } from '@/lib/streamdown'
+import {
+  createIncrementalBlockParser,
+  parseMarkdownBlocksCached,
+  streamdownPlugins,
+} from '@/lib/streamdown'
 import { cn } from '@/lib/utils'
 
 const MARKDOWN_COMPONENTS: Components = {
@@ -181,6 +185,9 @@ export type MarkdownMessageProps = {
 function MarkdownMessage({ children, className, streaming = false }: MarkdownMessageProps) {
   const source = String(children ?? '')
   const [parseBlocks] = useState(() => createIncrementalBlockParser())
+  // 流式消息用实例级增量解析器（追加路径近零成本）；完成后文本恒定，
+  // 走全局 LRU——虚拟化重挂载不再每次全量重解析。
+  const parseBlocksFn = streaming ? parseBlocks : parseMarkdownBlocksCached
   return (
     <div
       className={cn('markdown-body', streaming && 'markdown-streaming', className)}
@@ -193,7 +200,7 @@ function MarkdownMessage({ children, className, streaming = false }: MarkdownMes
         isAnimating={streaming}
         lineNumbers={false}
         mode="streaming"
-        parseMarkdownIntoBlocksFn={parseBlocks}
+        parseMarkdownIntoBlocksFn={parseBlocksFn}
         plugins={streamdownPlugins}
         remend={STREAMDOWN_REMEND}
       >

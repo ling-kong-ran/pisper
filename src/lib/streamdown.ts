@@ -192,3 +192,26 @@ export function createIncrementalBlockParser() {
     return prevBlocks
   }
 }
+
+// 已完成消息的分块结果 LRU：虚拟化卸载会销毁组件级增量解析器，
+// 重挂载时按完整文本命中缓存直接复用（返回数组引用稳定，
+// 下游 Streamdown 的 block memo 也能跟着命中）。
+const BLOCKS_CACHE_LIMIT = 100
+const blocksCache = new Map<string, string[]>()
+
+export function parseMarkdownBlocksCached(markdown: string): string[] {
+  const cached = blocksCache.get(markdown)
+  if (cached) {
+    // LRU：命中后移到末尾。
+    blocksCache.delete(markdown)
+    blocksCache.set(markdown, cached)
+    return cached
+  }
+  const blocks = parseMarkdownIntoBlocks(markdown)
+  blocksCache.set(markdown, blocks)
+  if (blocksCache.size > BLOCKS_CACHE_LIMIT) {
+    const oldest = blocksCache.keys().next().value
+    if (oldest !== undefined) blocksCache.delete(oldest)
+  }
+  return blocks
+}
