@@ -21,7 +21,6 @@ type VirtualMessageTranscriptProps = {
   messages: ChatMessage[]
   streaming?: boolean
   latestRunProps: AgentRunActivityProps
-  measurementVersion: unknown
   scrollElement: HTMLDivElement | null
   prefixRef: RefObject<HTMLDivElement | null>
   targetEntryId?: string
@@ -76,7 +75,6 @@ export const VirtualMessageTranscript = memo(function VirtualMessageTranscript({
   messages,
   streaming,
   latestRunProps,
-  measurementVersion,
   scrollElement,
   prefixRef,
   targetEntryId,
@@ -106,17 +104,13 @@ export const VirtualMessageTranscript = memo(function VirtualMessageTranscript({
   })
   const virtualItems = virtualizer.getVirtualItems()
   const totalSize = virtualizer.getTotalSize()
-  const lastMessage = messages[messages.length - 1]
 
   useLayoutEffect(() => {
     onContentSizeChange()
   }, [onContentSizeChange, totalSize])
 
-  useLayoutEffect(() => {
-    if (!lastMessage) return
-    const element = virtualizer.elementsCache.get(lastMessage.id)
-    if (element) virtualizer.measureElement(element)
-  }, [lastMessage, measurementVersion, virtualizer])
+  // 流式行高变化由虚拟器的 ResizeObserver + rAF 通道重测（useAnimationFrameWithResizeObserver），
+  // 不再在 useLayoutEffect 里同步 measureElement——那会在每个流式帧强制同步布局。
 
   useEffect(() => {
     if (!targetEntryId) return undefined

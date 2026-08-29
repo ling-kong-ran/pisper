@@ -475,7 +475,6 @@ export function FocusTranscript({
               messages={messages}
               streaming={streaming}
               latestRunProps={latestRunProps}
-              measurementVersion={transcriptVersion}
               scrollElement={transcriptElement}
               prefixRef={transcriptPrefixRef}
               targetEntryId={targetEntryId}
