@@ -16,9 +16,14 @@ import { useRuntimeCapabilitiesStore } from '@/stores/runtime-capabilities-store
 type MobilePrimaryNavigationProps = {
   page: string
   onNavigate: (page: string) => void
+  composerFocused: boolean
 }
 
-export function MobilePrimaryNavigation({ page, onNavigate }: MobilePrimaryNavigationProps) {
+export function MobilePrimaryNavigation({
+  page,
+  onNavigate,
+  composerFocused,
+}: MobilePrimaryNavigationProps) {
   const { t } = useI18n()
   const capabilities = useRuntimeCapabilitiesStore((state) => state.capabilities)
   const items = useMemo(
@@ -33,6 +38,7 @@ export function MobilePrimaryNavigation({ page, onNavigate }: MobilePrimaryNavig
       aria-label={t('navigation:appSidebar.mainNavigation')}
       className="[[data-mobile-keyboard='open']_&]:hidden flex h-[calc(58px_+_env(safe-area-inset-bottom))] flex-none items-stretch border-t border-[var(--stroke)] bg-[var(--sidebar-bg)] pb-[env(safe-area-inset-bottom)] shadow-[0_-8px_24px_-20px_var(--main-surface-shadow)]"
       data-mobile-navigation="primary"
+      hidden={composerFocused}
     >
       {items.map(([id, label, Icon]) => {
         const active = activePage === id

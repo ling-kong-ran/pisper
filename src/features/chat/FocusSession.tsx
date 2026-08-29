@@ -57,6 +57,7 @@ import { WorkspaceTrustNotice } from './WorkspaceTrustNotice'
 const DEFAULT_GOAL_TOKEN_BUDGET = 30_000
 const USES_COMMAND_KEY = /Mac|iPhone|iPad/.test(globalThis.navigator?.platform || '')
 const COMMAND_PALETTE_SHORTCUT = USES_COMMAND_KEY ? '\u2318 K' : 'Ctrl K'
+const COMPOSER_SEND_SHORTCUT = USES_COMMAND_KEY ? '\u2318 + Enter' : 'Ctrl + Enter'
 export type FocusSessionProps = {
   session: SessionSummary
   messages: ChatMessage[]
@@ -234,9 +235,8 @@ export function FocusSession({
       ? t('chat:focusSession.addGuidanceForTheRunningAgent')
       : t('chat:focusSession.writeWhatYouWantToAccomplish')
     : streaming
-      ? t('chat:focusSession.addGuidanceForTheRunningAgentShiftEnterForANewLine')
-      : t('chat:focusSession.writeWhatYouWantToAccomplishShiftEnterForANewLine')
-
+      ? t('chat:focusSession.runningAgentComposerHint', { shortcut: COMPOSER_SEND_SHORTCUT })
+      : t('chat:focusSession.composerHint', { shortcut: COMPOSER_SEND_SHORTCUT })
   useEffect(() => {
     setGoalArmed(false)
     setQueueing(false)
@@ -494,12 +494,19 @@ export function FocusSession({
             }}
             onPaste={selection.pasteFiles}
             onKeyDown={(event) => {
-              if (event.key === 'Enter' && !event.shiftKey && !event.nativeEvent.isComposing) {
+              const submitsWithShortcut = mobileApp || event.metaKey || event.ctrlKey
+              if (
+                event.key === 'Enter' &&
+                !event.shiftKey &&
+                !event.nativeEvent.isComposing &&
+                submitsWithShortcut
+              ) {
                 event.preventDefault()
                 event.currentTarget.form?.requestSubmit()
               }
             }}
-            enterKeyHint="send"
+            data-mobile-composer-input={mobileApp || undefined}
+            enterKeyHint={mobileApp ? 'send' : 'enter'}
             placeholder={composerPlaceholder}
           />
           <div

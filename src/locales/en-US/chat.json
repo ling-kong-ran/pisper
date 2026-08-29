@@ -299,7 +299,7 @@
   "focusSession.collapseQuickActions": "Collapse quick actions",
   "focusSession.commands": "Commands",
   "focusSession.addGuidanceForTheRunningAgent": "Add guidance for the running agent",
-  "focusSession.addGuidanceForTheRunningAgentShiftEnterForANewLine": "Add guidance for the running agent; Shift + Enter for a new line",
+  "focusSession.runningAgentComposerHint": "Add guidance for the running agent; Enter for a new line, {shortcut} to send",
   "focusSession.allow": "Allow",
   "focusSession.allowOnce": "Allow once",
   "focusSession.autoCompactionThreshold": "Auto-compaction threshold",
@@ -466,7 +466,7 @@
   "focusSession.workingDirectory": "Working directory",
   "focusSession.writeUnitTestsForTheFollowingCode": "Write unit tests for the following code:",
   "focusSession.writeWhatYouWantToAccomplish": "Write what you want to accomplish",
-  "focusSession.writeWhatYouWantToAccomplishShiftEnterForANewLine": "Write what you want to accomplish; Shift + Enter for a new line",
+  "focusSession.composerHint": "Write what you want to accomplish; Enter for a new line, {shortcut} to send",
   "focusSession.generateImage": "Generate image",
   "focusSession.visualPromptTemplate": "Generate an image: ",
   "focusSession.configureVisualModelFirst": "No visual model configured yet — opening model settings"

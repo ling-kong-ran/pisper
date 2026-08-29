@@ -299,7 +299,7 @@
   "focusSession.collapseQuickActions": "收起快捷操作",
   "focusSession.commands": "命令",
   "focusSession.addGuidanceForTheRunningAgent": "向正在运行的 Agent 追加说明",
-  "focusSession.addGuidanceForTheRunningAgentShiftEnterForANewLine": "向正在运行的 Agent 追加说明，Shift + Enter 换行",
+  "focusSession.runningAgentComposerHint": "向正在运行的 Agent 追加说明，Enter 换行，{shortcut} 发送",
   "focusSession.allow": "允许",
   "focusSession.allowOnce": "本次允许",
   "focusSession.autoCompactionThreshold": "自动压缩阈值",
@@ -466,7 +466,7 @@
   "focusSession.workingDirectory": "工作目录",
   "focusSession.writeUnitTestsForTheFollowingCode": "为以下代码编写单元测试：",
   "focusSession.writeWhatYouWantToAccomplish": "写下你想完成的事",
-  "focusSession.writeWhatYouWantToAccomplishShiftEnterForANewLine": "写下你想完成的事，Shift + Enter 换行",
+  "focusSession.composerHint": "写下你想完成的事，Enter 换行，{shortcut} 发送",
   "focusSession.generateImage": "生成图片",
   "focusSession.visualPromptTemplate": "帮我生成一张图片：",
   "focusSession.configureVisualModelFirst": "尚未配置视觉模型，已为你打开模型设置"

@@ -220,10 +220,14 @@ test('mobile chat sends with Enter and uses one collapsible Composer tool tray',
   assert.match(focusSession, /const mobileApp = useIsMobileApp\(\)/)
   assert.match(
     focusSession,
-    /if \(event\.key === 'Enter' && !event\.shiftKey && !event\.nativeEvent\.isComposing\)/,
+    /event\.key === 'Enter' &&\s*!event\.shiftKey &&\s*!event\.nativeEvent\.isComposing/,
+  )
+  assert.match(
+    focusSession,
+    /const submitsWithShortcut = mobileApp \|\| event\.metaKey \|\| event\.ctrlKey/,
   )
   assert.match(focusSession, /event\.currentTarget\.form\?\.requestSubmit\(\)/)
-  assert.match(focusSession, /enterKeyHint="send"/)
+  assert.match(focusSession, /enterKeyHint=\{mobileApp \? 'send' : 'enter'\}/)
   assert.match(focusSession, /const composerPlaceholder = mobileApp/)
   assert.match(focusSession, /\{!mobileApp && \([\s\S]*?\{composerLeadingTools\}/)
   assert.match(focusSession, /\{mobileApp && composerLeadingTools\}/)
@@ -395,7 +399,7 @@ test('settings navigation replaces the main sidebar and stays reachable in the m
     /<div[\s\S]*?className=\{`page-content[^`]*page-\$\{page\}`\}[\s\S]*?key=\{page\}[\s\S]*?<Outlet/,
   )
   assert.match(app, /mobileApp && SETTINGS_PAGES\.has\(page\)/)
-  assert.match(app, /<MobilePrimaryNavigation page=\{page\}/)
+  assert.match(app, /<MobilePrimaryNavigation[\s\S]*?page=\{page\}/)
   assert.match(sidebar, /settingsActive \? \(/)
   assert.match(sidebar, /nav-settings-back/)
   assert.match(mobileNavigation, /getNavigation\(t, capabilities\)/)

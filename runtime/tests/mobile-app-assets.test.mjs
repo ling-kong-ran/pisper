@@ -188,12 +188,14 @@ test('Android WebView renderer 退出后重建宿主并恢复当前路由', asyn
 })
 
 test('Android 与 iOS 软键盘都使用可视视口保持会话输入框可见', async () => {
-  const [app, navigation, html, setup, activity] = await Promise.all([
+  const [app, navigation, styles, html, setup, activity, iosPlugin] = await Promise.all([
     readFile('src/App.tsx', 'utf8'),
     readFile('src/components/layout/MobileNavigation.tsx', 'utf8'),
+    readFile('src/index.css', 'utf8'),
     readFile('index.html', 'utf8'),
     readFile('scripts/setup-mobile-android.mjs', 'utf8'),
     readFile('src-tauri/mobile/android/MainActivity.kt', 'utf8'),
+    readFile('src-tauri/mobile-device-plugin/ios/Sources/MobileDevicePlugin.swift', 'utf8'),
   ])
 
   assert.match(html, /interactive-widget=resizes-content/)
@@ -207,8 +209,26 @@ test('Android 与 iOS 软键盘都使用可视视口保持会话输入框可见'
   assert.match(app, /viewport\?\.addEventListener\('scroll', schedule\)/)
   assert.match(app, /shell\.dataset\.mobileKeyboard = 'open'/)
   assert.match(navigation, /\[\[data-mobile-keyboard='open'\]_&\]:hidden/)
+  assert.match(app, /document\.addEventListener\('touchstart', handleTouch, true\)/)
+  assert.match(app, /document\.addEventListener\('pointerdown', handleTouch, true\)/)
+  assert.match(app, /document\.addEventListener\('focusin', handleFocus, true\)/)
+  assert.match(app, /document\.addEventListener\('focusout', handleBlur, true\)/)
+  assert.match(app, /isComposerFocusTarget\(event\.target\)/)
+  assert.match(app, /setComposerFocus\(true\)/)
+  assert.match(app, /setComposerFocus\(isComposerFocusTarget/)
+  assert.match(navigation, /composerFocused: boolean/)
+  assert.match(navigation, /hidden=\{composerFocused\}/)
+  assert.match(navigation, /\[\[data-mobile-keyboard='open'\]_&\]:hidden/)
+  assert.match(styles, /\[data-mobile-keyboard='open'\] \[data-mobile-navigation='primary'\]/)
+  assert.match(styles, /\[data-mobile-composer='focused'\] \[data-mobile-navigation='primary'\]/)
+  assert.match(styles, /\.main-surface:has\(\.focus-composer textarea:focus\)/)
+  assert.match(styles, /display: none !important/)
   assert.match(activity, /SOFT_INPUT_ADJUST_RESIZE/)
   assert.match(setup, /android:windowSoftInputMode="adjustResize"/)
+  assert.match(iosPlugin, /keyboardWillShowNotification/)
+  assert.match(iosPlugin, /keyboardWillChangeFrameNotification/)
+  assert.match(iosPlugin, /keyboardWillHideNotification/)
+  assert.match(iosPlugin, /document\.documentElement\.dataset\.mobileKeyboard/)
 })
 
 test('标准移动包只声明联系人、相机、前台定位与局域网权限', async () => {
@@ -568,20 +588,34 @@ test('移动 Runtime 本地 staging 使用 App 版本并兼容 Windows Node 24',
 })
 
 test('iOS 移动配置整体替换桌面资源且由两个发布通道共用', async () => {
-  const [configText, releaseWorkflow, storeWorkflow, iosScript, packageText] = await Promise.all([
-    readFile('src-tauri/tauri.mobile-ios.conf.json', 'utf8'),
-    readFile('.github/workflows/release-app.yml', 'utf8'),
-    readFile('.github/workflows/build-store-app.yml', 'utf8'),
-    readFile('scripts/mobile-ios.mjs', 'utf8'),
-    readFile('package.json', 'utf8'),
-  ])
+  const [configText, releaseWorkflow, storeWorkflow, iosScript, iosBuildScript, packageText] =
+    await Promise.all([
+      readFile('src-tauri/tauri.mobile-ios.conf.json', 'utf8'),
+      readFile('.github/workflows/release-app.yml', 'utf8'),
+      readFile('.github/workflows/build-store-app.yml', 'utf8'),
+      readFile('scripts/mobile-ios.mjs', 'utf8'),
+      readFile('scripts/build-mobile-ios.mjs', 'utf8'),
+      readFile('package.json', 'utf8'),
+    ])
   const config = JSON.parse(configText)
   const packageJson = JSON.parse(packageText)
 
   assert.match(iosScript, /src-tauri['"], ['"]mobile-package\.json/)
   assert.match(iosScript, /JSON\.stringify\(\{ version: mobileVersion \}\)/)
-  assert.equal(packageJson.scripts['ios:init'], 'node scripts/mobile-ios.mjs init')
-  assert.equal(packageJson.scripts['ios:build'], 'node scripts/mobile-ios.mjs build')
+  assert.equal(packageJson.scripts['init:android'], 'node scripts/setup-mobile-android.mjs')
+  assert.equal(packageJson.scripts['build:android'], 'node scripts/build-mobile-android.mjs')
+  assert.equal(packageJson.scripts['init:ios'], 'node scripts/mobile-ios.mjs init')
+  assert.equal(packageJson.scripts['build:ios'], 'node scripts/build-mobile-ios.mjs')
+  assert.equal(packageJson.scripts['android:init'], undefined)
+  assert.equal(packageJson.scripts['android:apk'], undefined)
+  assert.equal(packageJson.scripts['android:build'], undefined)
+  assert.equal(packageJson.scripts['ios:init'], undefined)
+  assert.equal(packageJson.scripts['ios:build'], undefined)
+  assert.match(iosBuildScript, /build-frontend\.mjs/)
+  assert.match(iosBuildScript, /build-mobile-runtime\.mjs/)
+  assert.match(iosBuildScript, /PISPER_MOBILE_STORE: '0'/)
+  assert.match(iosBuildScript, /sync-mobile-icons\.mjs/)
+  assert.match(iosBuildScript, /pisper-embedded-runtime\.tar\.gz/)
   assert.deepEqual(config.bundle.externalBin, [])
   assert.deepEqual(config.bundle.resources, ['pisper-embedded-runtime.tar.gz'])
   assert.deepEqual(config.bundle.iOS.frameworks, [

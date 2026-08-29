@@ -52,16 +52,19 @@ test('composer expands low-frequency controls horizontally with React Bits Anima
   assert.doesNotMatch(tray, /composer-workspace/)
 })
 
-test('composer Enter submits on desktop and mobile without interrupting IME composition', async () => {
+test('composer plain Enter inserts a newline and desktop shortcuts submit without interrupting IME composition', async () => {
   const session = await readFile('src/features/chat/FocusSession.tsx', 'utf8')
 
   assert.match(
     session,
     /event\.key === 'Enter' &&\s*!event\.shiftKey &&\s*!event\.nativeEvent\.isComposing/,
   )
+  assert.match(
+    session,
+    /const submitsWithShortcut = mobileApp \|\| event\.metaKey \|\| event\.ctrlKey/,
+  )
   assert.match(session, /event\.currentTarget\.form\?\.requestSubmit\(\)/)
-  assert.match(session, /enterKeyHint="send"/)
-  assert.doesNotMatch(session, /!mobileApp && event\.key === 'Enter'/)
+  assert.match(session, /enterKeyHint=\{mobileApp \? 'send' : 'enter'\}/)
 })
 
 test('composer exposes a session thinking-level control wired to the shared API', async () => {

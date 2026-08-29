@@ -34,7 +34,7 @@ if (process.platform === 'win32') {
   // Cargo registry 与工程跨盘符时，Kotlin 增量缓存无法计算相对路径。
   const gradlePropertiesPath = join(root, 'src-tauri', 'gen', 'android', 'gradle.properties')
   if (!existsSync(gradlePropertiesPath)) {
-    throw new Error('Android 工程尚未初始化，请先运行 npm run android:init。')
+    throw new Error('Android 工程尚未初始化，请先运行 npm run init:android。')
   }
   let gradleProperties = readFileSync(gradlePropertiesPath, 'utf8')
   const eol = gradleProperties.includes('\r\n') ? '\r\n' : '\n'

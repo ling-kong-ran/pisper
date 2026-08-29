@@ -3,6 +3,7 @@ import Contacts
 import CoreLocation
 import Tauri
 import UIKit
+import WebKit
 
 struct PermissionArgs: Decodable {
   let capability: String
@@ -68,10 +69,37 @@ final class MobileDevicePlugin: Plugin, UIImagePickerControllerDelegate,
   private var permissionInvoke: Invoke?
   private var locationInvoke: Invoke?
   private var cameraInvoke: Invoke?
+  private weak var webView: WKWebView?
+  private var keyboardObservers: [NSObjectProtocol] = []
 
   override init() {
     super.init()
     locationManager.delegate = self
+  }
+
+  override func load(webview: WKWebView) {
+    self.webView = webview
+    let center = NotificationCenter.default
+    let names: [(Notification.Name, Bool)] = [
+      (UIResponder.keyboardWillShowNotification, true),
+      (UIResponder.keyboardWillChangeFrameNotification, true),
+      (UIResponder.keyboardWillHideNotification, false),
+    ]
+    keyboardObservers = names.map { name, open in
+      center.addObserver(forName: name, object: nil, queue: .main) { [weak self] _ in
+        guard let webView = self?.webView else { return }
+        let state = open ? "open" : "closed"
+        webView.evaluateJavaScript(
+          "document.documentElement.dataset.mobileKeyboard = '\(state)'"
+        )
+      }
+    }
+  }
+
+  deinit {
+    for observer in keyboardObservers {
+      NotificationCenter.default.removeObserver(observer)
+    }
   }
 
   private func authorizationState(_ capability: String) -> String {

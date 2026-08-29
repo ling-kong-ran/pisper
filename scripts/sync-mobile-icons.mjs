@@ -84,6 +84,18 @@ try {
   rmSync(iosDestination, { recursive: true, force: true })
   cpSync(join(iosOutputPath, 'ios'), iosDestination, { recursive: true })
 
+  const appleIconSet = join(
+    root,
+    'src-tauri',
+    'gen',
+    'apple',
+    'Assets.xcassets',
+    'AppIcon.appiconset',
+  )
+  if (existsSync(appleIconSet)) {
+    cpSync(iosDestination, appleIconSet, { recursive: true })
+  }
+
   const androidResources = join(root, 'src-tauri', 'gen', 'android', 'app', 'src', 'main', 'res')
   if (existsSync(androidResources)) {
     cpSync(join(outputPath, 'android'), androidResources, { recursive: true })
