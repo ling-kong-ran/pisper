@@ -39,6 +39,9 @@ export function useSessionCatalog({ notify }: SessionCatalogOptions) {
   const [availableModels, setAvailableModels] = useState<ModelOption[]>([])
   const sessionsRef = useRef(sessions)
   const sessionStatesRef = useRef(sessionStates)
+  // 面板级订阅：每个 Dock 面板只关心自己会话的 state，
+  // 流式帧只通知引用发生变化的会话，避免扇出到所有面板。
+  const sessionStateListenersRef = useRef(new Map<string, Set<() => void>>())
   const creatingSessionRef = useRef<Promise<string> | null>(null)
 
   // 更新会话列表（函数式或替换），同步 ref 与 state。
@@ -52,9 +55,34 @@ export function useSessionCatalog({ notify }: SessionCatalogOptions) {
 
   // 整体替换会话状态表（供批量恢复/清空）。
   const replaceSessionStates = useCallback((states: Record<string, SessionState>) => {
+    const previous = sessionStatesRef.current
     sessionStatesRef.current = states
     setSessionStates(states)
+    // 只通知 state 引用真正变化的会话订阅者。
+    const keys = new Set([...Object.keys(previous), ...Object.keys(states)])
+    for (const key of keys) {
+      if (previous[key] === states[key]) continue
+      const listeners = sessionStateListenersRef.current.get(key)
+      if (listeners) for (const listener of [...listeners]) listener()
+    }
   }, [])
+
+  // 订阅单个会话状态（配 useSyncExternalStore）：返回退订函数。
+  const subscribeSessionState = useCallback((id: string, listener: () => void) => {
+    const listeners = sessionStateListenersRef.current.get(id) || new Set()
+    listeners.add(listener)
+    sessionStateListenersRef.current.set(id, listeners)
+    return () => {
+      listeners.delete(listener)
+      if (!listeners.size) sessionStateListenersRef.current.delete(id)
+    }
+  }, [])
+
+  // 读取单个会话状态快照（引用稳定：applySessionUpdate 无变化时保留原引用）。
+  const getSessionState = useCallback(
+    (id: string): SessionState => sessionStatesRef.current[id] || DEFAULT_SESSION_STATE,
+    [],
+  )
 
   // 更新单个会话状态：经 applySessionUpdate 去重，无变化不触发渲染。
   const updateSessionState = useCallback(
@@ -273,6 +301,8 @@ export function useSessionCatalog({ notify }: SessionCatalogOptions) {
     replaceSessionStates,
     updateSessionState,
     releaseSessionState,
+    subscribeSessionState,
+    getSessionState,
     refreshSessions,
     createSessionRecord,
   }

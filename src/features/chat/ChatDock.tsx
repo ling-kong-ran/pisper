@@ -1,23 +1,36 @@
 // 聊天 Dock 面板容器：每个 dockview 面板对应一个会话视图，
 // 负责把面板事件（关闭/激活）桥接到会话状态与布局持久化。
-import { useContext, useEffect, useRef, useState } from 'react'
+import { useContext, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react'
 import type { IDockviewPanelProps } from 'dockview-react'
 import { AlertTriangle, MessageSquare } from 'lucide-react'
 import { useI18n } from '@/app/use-i18n'
 import { DEFAULT_SESSION_STATE, isPlanActive, resolveSessionPlan } from '@/lib/session-state'
-import type { ChatAttachment } from '@/types/chat'
+import type { ChatAttachment, ResourceInvocation } from '@/types/chat'
 import { FocusSession } from './FocusSession'
 import { ChatDockContext } from './chat-dock-context'
 import { sessionIdFromPanel } from './dock-layout'
 
 const FOCUS_MESSAGE_PAGE_SIZE = 40
+// 空数组兜底共享同一引用，避免每次渲染新建数组击穿 FocusSession 的 memo。
+const EMPTY_LIST: never[] = []
 
 export function SessionDockPanel({ params, api }: IDockviewPanelProps<{ sessionId?: string }>) {
   const context = useContext(ChatDockContext)
   const sessionId = params?.sessionId || sessionIdFromPanel(api?.id)
   const [visible, setVisible] = useState(() => api.isVisible)
+  // 面板只订阅自己会话的 state：其它会话的流式帧不会触发本面板重渲染。
+  const subscribeSessionState = context?.subscribeSessionState
+  const getSessionState = context?.getSessionState
+  const subscribe = useMemo(
+    () => (listener: () => void) => subscribeSessionState?.(sessionId, listener) ?? (() => {}),
+    [subscribeSessionState, sessionId],
+  )
+  const getSnapshot = useMemo(
+    () => () => getSessionState?.(sessionId),
+    [getSessionState, sessionId],
+  )
+  const sessionState = useSyncExternalStore(subscribe, getSnapshot)
   const session = context?.sessions.find((item) => item.id === sessionId)
-  const sessionState = context?.sessionStates[sessionId]
   const state = sessionState || DEFAULT_SESSION_STATE
   const streaming = Boolean(state.streaming || session?.streaming)
   const plan = resolveSessionPlan(sessionState, session)
@@ -56,6 +69,56 @@ export function SessionDockPanel({ params, api }: IDockviewPanelProps<{ sessionI
     visible,
   ])
 
+  // 交给 FocusSession 的回调统一 memo：context value 已稳定，
+  // 仅会话/面板标识变化时重建，配合 FocusSession 的 memo 跳过无关重渲染。
+  // 回调只会在 context 与 session 都存在（即 FocusSession 已渲染）时触发，
+  // 这里的可选链兜底仅为满足类型。
+  const handlers = useMemo(
+    () => ({
+      onLoadOlder: () => context?.loadOlderMessages(sessionId) ?? false,
+      onModelChange: (nextModel: string) => context?.switchSessionModel(sessionId, nextModel),
+      onThinkingLevelChange: (nextLevel: string) =>
+        context?.switchSessionThinkingLevel(sessionId, nextLevel),
+      onExecutionModeChange: (nextMode: string) =>
+        context?.switchSessionExecutionMode(sessionId, nextMode) ?? false,
+      onGoalPause: () => context?.pauseGoal(sessionId),
+      onGoalBudgetChange: (tokenBudget: number) => context?.setGoalBudget(sessionId, tokenBudget),
+      onCompact: () => context?.compactSession(sessionId),
+      onApproval: (approvalId: string, approved: boolean) =>
+        context?.resolveToolApproval(sessionId, approvalId, approved),
+      onWorkspace: () => {
+        if (session) void context?.selectSessionWorkspace(session)
+      },
+      onRename: () => {
+        if (session) void context?.renameSession(session)
+      },
+      onBranchFromHere: (boundaryEntryId: string) => {
+        if (session) return context?.branchFromEntry(session, boundaryEntryId)
+      },
+      onCreateChildSession: (boundaryEntryId: string) => {
+        if (session) return context?.createChildSession(session, boundaryEntryId)
+      },
+      onTreeNavigated: () => context?.reloadSessionBranch(sessionId),
+      onSplitLeft: () => context?.splitDockPanel(api.id, 'left'),
+      onSplitRight: () => context?.splitDockPanel(api.id, 'right'),
+      onSplitTop: () => context?.splitDockPanel(api.id, 'above'),
+      onSplitBottom: () => context?.splitDockPanel(api.id, 'below'),
+      onClosePanel: () => context?.closeDockPanel(api.id),
+      onSend: (
+        value: string,
+        attachments: ChatAttachment[],
+        goalMode: boolean,
+        goalTokenBudget: number | null,
+        invocation?: ResourceInvocation | null,
+      ) =>
+        context?.sendPrompt(value, sessionId, attachments, goalMode, goalTokenBudget, invocation),
+      onQueue: (value: string, attachments: ChatAttachment[], behavior: string) =>
+        context?.queuePrompt(value, sessionId, attachments, behavior) ?? false,
+      onAbort: () => context?.abort(sessionId),
+    }),
+    [context, sessionId, session, api.id],
+  )
+
   if (!visible) return null
 
   if (!context || !session) {
@@ -78,7 +141,7 @@ export function SessionDockPanel({ params, api }: IDockviewPanelProps<{ sessionI
     >
       <FocusSession
         session={session}
-        messages={state.messages || []}
+        messages={state.messages || EMPTY_LIST}
         transcriptLoadState={
           state.loaded ? 'ready' : state.loading || !state.error ? 'loading' : 'error'
         }
@@ -88,17 +151,17 @@ export function SessionDockPanel({ params, api }: IDockviewPanelProps<{ sessionI
         olderError={state.olderError}
         model={state.model || session.model || context.defaultModel}
         thinkingLevel={state.thinkingLevel || session.thinkingLevel || 'medium'}
-        availableThinkingLevels={state.availableThinkingLevels || []}
+        availableThinkingLevels={state.availableThinkingLevels || EMPTY_LIST}
         thinkingStatus={state.thinkingStatus || ''}
         thinkingMessage={state.thinkingMessage || ''}
         executionMode={state.executionMode || session.executionMode || 'approval-required'}
         goal={state.goal ?? session.goal ?? null}
         plan={visiblePlan}
         currentActivity={state.currentActivity}
-        activityFeed={state.activityFeed || []}
-        tools={state.tools || []}
+        activityFeed={state.activityFeed || EMPTY_LIST}
+        tools={state.tools || EMPTY_LIST}
         thinkingText={state.thinkingText || ''}
-        queuedInputs={state.queuedInputs || []}
+        queuedInputs={state.queuedInputs || EMPTY_LIST}
         compaction={state.compaction}
         contextUsage={state.contextUsage}
         sessionUsage={state.sessionUsage}
@@ -116,55 +179,15 @@ export function SessionDockPanel({ params, api }: IDockviewPanelProps<{ sessionI
         runFinishedAt={state.runFinishedAt}
         runStopped={state.runStopped}
         runNotice={state.runNotice}
-        approvals={state.approvals || []}
+        approvals={state.approvals || EMPTY_LIST}
         error={state.error || (context.activeId === sessionId ? context.globalError : '')}
         pendingAsset={pending}
         onAssetConsumed={context.onAssetConsumed}
         notify={context.notify}
         onOpenModelSettings={context.openModelSettings}
-        onLoadOlder={() => context.loadOlderMessages(sessionId)}
-        onModelChange={(nextModel: string) => context.switchSessionModel(sessionId, nextModel)}
-        onThinkingLevelChange={(nextLevel: string) =>
-          context.switchSessionThinkingLevel(sessionId, nextLevel)
-        }
-        onExecutionModeChange={(nextMode: string) =>
-          context.switchSessionExecutionMode(sessionId, nextMode)
-        }
-        onGoalPause={() => context.pauseGoal(sessionId)}
-        onGoalBudgetChange={(tokenBudget: number) => context.setGoalBudget(sessionId, tokenBudget)}
-        onCompact={() => context.compactSession(sessionId)}
         onCompactionThresholdChange={context.setCompactionThreshold}
-        onApproval={(approvalId: string, approved: boolean) =>
-          context.resolveToolApproval(sessionId, approvalId, approved)
-        }
-        onWorkspace={() => void context.selectSessionWorkspace(session)}
-        onRename={() => context.renameSession(session)}
-        onBranchFromHere={(boundaryEntryId: string) =>
-          context.branchFromEntry(session, boundaryEntryId)
-        }
-        onCreateChildSession={(boundaryEntryId: string) =>
-          context.createChildSession(session, boundaryEntryId)
-        }
-        onTreeNavigated={() => context.reloadSessionBranch(sessionId)}
-        onSplitLeft={() => context.splitDockPanel(api.id, 'left')}
-        onSplitRight={() => context.splitDockPanel(api.id, 'right')}
-        onSplitTop={() => context.splitDockPanel(api.id, 'above')}
-        onSplitBottom={() => context.splitDockPanel(api.id, 'below')}
-        onClosePanel={() => context.closeDockPanel(api.id)}
         canSplit={!context.compactDock && api.group.size > 1}
-        onSend={(
-          value: string,
-          attachments: ChatAttachment[],
-          goalMode: boolean,
-          goalTokenBudget: number | null,
-          invocation,
-        ) =>
-          context.sendPrompt(value, sessionId, attachments, goalMode, goalTokenBudget, invocation)
-        }
-        onQueue={(value: string, attachments: ChatAttachment[], behavior: string) =>
-          context.queuePrompt(value, sessionId, attachments, behavior)
-        }
-        onAbort={() => context.abort(sessionId)}
+        {...handlers}
       />
     </div>
   )

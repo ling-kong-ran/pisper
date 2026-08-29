@@ -13,7 +13,10 @@ import type { SessionOpenDisposition } from './dock-layout'
 
 export type ChatDockContextValue = {
   sessions: SessionSummary[]
-  sessionStates: Record<string, SessionState>
+  // 会话状态走面板级订阅（流式高频），不再随 context 广播：
+  // 订阅只在该会话 state 引用变化时触发，快照引用稳定。
+  subscribeSessionState: (id: string, listener: () => void) => () => void
+  getSessionState: (id: string) => SessionState
   defaultModel: string
   availableModels: ModelOption[]
   globalError: string

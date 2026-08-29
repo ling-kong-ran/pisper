@@ -30,7 +30,9 @@ test('chat renders thinking and tool activity above one uninterrupted response b
     readFile('src/features/chat/ChatMessage.tsx', 'utf8'),
     readFile('src/features/chat/AgentRunActivity.tsx', 'utf8'),
   ])
-  assert.match(dock, /tools=\{state\.tools \|\| \[\]\}/)
+  // 空数组兑底用共享常量，避免每次渲染新建数组击穿 FocusSession 的 memo。
+  assert.match(dock, /const EMPTY_LIST: never\[\] = \[\]/)
+  assert.match(dock, /tools=\{state\.tools \|\| EMPTY_LIST\}/)
   assert.match(dock, /Boolean\(state\.streaming \|\| session\?\.streaming\)/)
   assert.match(focus, /tools: EntityRecord\[\]/)
   assert.match(focus, /activityFeed,\s+tools,\s+thinkingText,/)

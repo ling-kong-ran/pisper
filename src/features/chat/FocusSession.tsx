@@ -1,5 +1,5 @@
 // 聚焦会话视图：单会话沉浸式聊天页（大输入框 + 完整转录）。
-import { useEffect, useRef, useState, type FormEvent } from 'react'
+import { memo, useEffect, useRef, useState, type FormEvent } from 'react'
 import {
   Braces,
   ChevronsLeft,
@@ -137,7 +137,7 @@ export type FocusSessionProps = {
   onAbort: () => Promise<void> | void
 }
 
-export function FocusSession({
+export const FocusSession = memo(function FocusSession({
   session,
   messages,
   transcriptLoadState = 'ready',
@@ -691,7 +691,7 @@ export function FocusSession({
       />
     </Panel>
   )
-}
+})
 
 function AttachmentTray({
   attachments,
