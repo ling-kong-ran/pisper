@@ -4,7 +4,9 @@ import test from 'node:test'
 import { Virtualizer } from '@tanstack/react-virtual'
 import {
   anchoredScrollTopAfterPrepend,
+  estimateTranscriptRowHeight,
   TRANSCRIPT_ESTIMATED_ROW_HEIGHT,
+  TRANSCRIPT_NARROW_ESTIMATED_ROW_HEIGHT,
   TRANSCRIPT_OVERSCAN,
 } from '../../src/features/chat/transcript-virtualization.ts'
 
@@ -26,6 +28,14 @@ function transcriptVirtualizer(sizes, initialOffset = 0) {
   sizes.forEach((size, index) => virtualizer.resizeItem(index, size))
   return virtualizer
 }
+
+test('row height estimate follows container width buckets', () => {
+  assert.equal(estimateTranscriptRowHeight(undefined), TRANSCRIPT_ESTIMATED_ROW_HEIGHT)
+  assert.equal(estimateTranscriptRowHeight(0), TRANSCRIPT_ESTIMATED_ROW_HEIGHT)
+  assert.equal(estimateTranscriptRowHeight(960), TRANSCRIPT_ESTIMATED_ROW_HEIGHT)
+  assert.equal(estimateTranscriptRowHeight(650), TRANSCRIPT_ESTIMATED_ROW_HEIGHT)
+  assert.equal(estimateTranscriptRowHeight(390), TRANSCRIPT_NARROW_ESTIMATED_ROW_HEIGHT)
+})
 
 test('one thousand mixed-height transcript messages keep a bounded rendered window', () => {
   const sizes = Array.from({ length: 1_000 }, (_, index) => 60 + (index % 9) * 37)

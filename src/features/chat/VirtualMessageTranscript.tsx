@@ -14,7 +14,7 @@ import { resolveMessageRunActivity } from '@/lib/session-state'
 import type { ChatMessage } from '@/types/chat'
 import type { AgentRunActivityProps } from './AgentRunActivity'
 import { FocusChatMessage } from './ChatMessage'
-import { TRANSCRIPT_ESTIMATED_ROW_HEIGHT, TRANSCRIPT_OVERSCAN } from './transcript-virtualization'
+import { estimateTranscriptRowHeight, TRANSCRIPT_OVERSCAN } from './transcript-virtualization'
 
 type VirtualMessageTranscriptProps = {
   sessionId: string
@@ -92,11 +92,16 @@ export const VirtualMessageTranscript = memo(function VirtualMessageTranscript({
     (index: number) => messagesRef.current[index]?.id ?? `transcript-message-${index}`,
     [],
   )
+  // 行高估算随容器宽度分档：窄屏实际行高更大，固定估算会让滚动条明显跳动。
+  const estimateSize = useCallback(
+    () => estimateTranscriptRowHeight(scrollElement?.clientWidth),
+    [scrollElement],
+  )
   const virtualizer = useVirtualizer<HTMLDivElement, HTMLDivElement>({
     count: messages.length,
     getScrollElement: () => scrollElement,
     getItemKey,
-    estimateSize: () => TRANSCRIPT_ESTIMATED_ROW_HEIGHT,
+    estimateSize,
     measureElement: measuredElementHeight,
     overscan: TRANSCRIPT_OVERSCAN,
     scrollMargin,
