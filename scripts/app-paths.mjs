@@ -20,6 +20,7 @@ const APP_EXCLUSIVE_PREFIXES = [
   'scripts/android-env.mjs',
   'scripts/setup-mobile-android.mjs',
   'scripts/setup-mobile-ios.mjs',
+  'scripts/mobile-ios.mjs',
   'scripts/build-mobile-android.mjs',
   'scripts/build-android-root-runtime.sh',
   'scripts/build-mobile-node-ios.sh',

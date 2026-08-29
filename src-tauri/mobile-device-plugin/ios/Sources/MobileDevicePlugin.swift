@@ -78,7 +78,7 @@ final class MobileDevicePlugin: Plugin, UIImagePickerControllerDelegate,
     switch capability {
     case "contacts":
       let status = CNContactStore.authorizationStatus(for: .contacts)
-      if #available(iOS 18.0, *), status == .limited { return "granted" }
+      if #available(iOS 18.0, *), status.rawValue == 4 { return "granted" }
       switch status {
       case .authorized: return "granted"
       case .denied, .restricted: return "denied"

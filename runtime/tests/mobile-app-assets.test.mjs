@@ -568,13 +568,20 @@ test('移动 Runtime 本地 staging 使用 App 版本并兼容 Windows Node 24',
 })
 
 test('iOS 移动配置整体替换桌面资源且由两个发布通道共用', async () => {
-  const [configText, releaseWorkflow, storeWorkflow] = await Promise.all([
+  const [configText, releaseWorkflow, storeWorkflow, iosScript, packageText] = await Promise.all([
     readFile('src-tauri/tauri.mobile-ios.conf.json', 'utf8'),
     readFile('.github/workflows/release-app.yml', 'utf8'),
     readFile('.github/workflows/build-store-app.yml', 'utf8'),
+    readFile('scripts/mobile-ios.mjs', 'utf8'),
+    readFile('package.json', 'utf8'),
   ])
   const config = JSON.parse(configText)
+  const packageJson = JSON.parse(packageText)
 
+  assert.match(iosScript, /src-tauri['"], ['"]mobile-package\.json/)
+  assert.match(iosScript, /JSON\.stringify\(\{ version: mobileVersion \}\)/)
+  assert.equal(packageJson.scripts['ios:init'], 'node scripts/mobile-ios.mjs init')
+  assert.equal(packageJson.scripts['ios:build'], 'node scripts/mobile-ios.mjs build')
   assert.deepEqual(config.bundle.externalBin, [])
   assert.deepEqual(config.bundle.resources, ['pisper-embedded-runtime.tar.gz'])
   assert.deepEqual(config.bundle.iOS.frameworks, [
@@ -589,6 +596,19 @@ test('iOS 移动配置整体替换桌面资源且由两个发布通道共用', a
     assert.doesNotMatch(workflow, /release\/sea\/runtime/)
     assert.doesNotMatch(workflow, /resources":\{"\.\.\/release\/pisper-embedded-runtime/)
   }
+})
+
+test('iOS 插件兼容 Xcode 14 的 SwiftPM 与旧 SDK', async () => {
+  const [packageManifest, plugin, setup] = await Promise.all([
+    readFile('src-tauri/mobile-device-plugin/ios/Package.swift', 'utf8'),
+    readFile('src-tauri/mobile-device-plugin/ios/Sources/MobileDevicePlugin.swift', 'utf8'),
+    readFile('scripts/setup-mobile-ios.mjs', 'utf8'),
+  ])
+
+  assert.match(packageManifest, /^\/\/ swift-tools-version:5\.3/m)
+  assert.match(plugin, /status\.rawValue ===? 4/)
+  assert.doesNotMatch(plugin, /status == \.limited/)
+  assert.match(setup, /Tests['"], ['"]TauriTests['"], ['"]TauriTests\.swift/)
 })
 
 test('iOS 隐私清单显式进入 App target 的资源构建阶段', () => {

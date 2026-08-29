@@ -31,6 +31,8 @@
     "tauri": "tauri",
     "android:init": "node scripts/setup-mobile-android.mjs",
     "android:apk": "node scripts/build-mobile-android.mjs",
+    "ios:init": "node scripts/mobile-ios.mjs init",
+    "ios:build": "node scripts/mobile-ios.mjs build",
     "tui:dev": "cargo run --manifest-path src-tui/Cargo.toml --",
     "tui:check": "cargo check --manifest-path src-tui/Cargo.toml",
     "tui:test": "cargo test --manifest-path src-tui/Cargo.toml",

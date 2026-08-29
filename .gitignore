@@ -17,6 +17,12 @@ crates/*/target/
 src-tauri/binaries/
 src-tauri/gen/
 src-tauri/pisper-embedded-runtime.tar.gz
+src-tauri/mobile-device-plugin/.tauri/
+src-tauri/mobile-device-plugin/ios/.build/
+src-tauri/mobile-device-plugin/ios/Package.resolved
+crates/tauri-plugin-dns-sd/.tauri/
+crates/tauri-plugin-dns-sd/ios/.build/
+crates/tauri-plugin-dns-sd/ios/Package.resolved
 .tmp-tauri-data/
 /.tmp-*.log
 .tmp-tauri.png

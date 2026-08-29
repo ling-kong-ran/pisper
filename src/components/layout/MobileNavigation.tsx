@@ -31,7 +31,7 @@ export function MobilePrimaryNavigation({ page, onNavigate }: MobilePrimaryNavig
   return (
     <nav
       aria-label={t('navigation:appSidebar.mainNavigation')}
-      className="[[data-mobile-keyboard='open']_&]:hidden flex h-[58px] flex-none items-stretch border-t border-[var(--stroke)] bg-[var(--sidebar-bg)] shadow-[0_-8px_24px_-20px_var(--main-surface-shadow)]"
+      className="[[data-mobile-keyboard='open']_&]:hidden flex h-[calc(58px_+_env(safe-area-inset-bottom))] flex-none items-stretch border-t border-[var(--stroke)] bg-[var(--sidebar-bg)] pb-[env(safe-area-inset-bottom)] shadow-[0_-8px_24px_-20px_var(--main-surface-shadow)]"
       data-mobile-navigation="primary"
     >
       {items.map(([id, label, Icon]) => {

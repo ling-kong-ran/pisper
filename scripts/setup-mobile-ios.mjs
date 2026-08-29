@@ -1,6 +1,6 @@
 // Tauri 会把普通 bundle.resources 放入资源文件夹引用；App 级隐私清单必须单独进入
 // iOS target 的 Resources build phase，才能稳定位于最终 .app 根目录。
-import { existsSync, readFileSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { spawnSync } from 'node:child_process'
 import { dirname, join, resolve } from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
@@ -9,6 +9,23 @@ const root = join(dirname(fileURLToPath(import.meta.url)), '..')
 const defaultProjectSpec = join(root, 'src-tauri', 'gen', 'apple', 'project.yml')
 const privacyManifest = join(root, 'src-tauri', 'PrivacyInfo.xcprivacy')
 const privacyProjectPath = '../../PrivacyInfo.xcprivacy'
+const generatedTauriApiRoots = [
+  join(root, 'src-tauri', 'mobile-device-plugin', '.tauri', 'tauri-api'),
+  join(root, 'crates', 'tauri-plugin-dns-sd', '.tauri', 'tauri-api'),
+]
+
+export function ensureGeneratedTauriApiTests() {
+  for (const apiRoot of generatedTauriApiRoots) {
+    const testSource = join(apiRoot, 'Tests', 'TauriTests', 'TauriTests.swift')
+    if (existsSync(testSource)) continue
+    mkdirSync(dirname(testSource), { recursive: true })
+    writeFileSync(
+      testSource,
+      'import XCTest\n\nfinal class TauriTests: XCTestCase {\n  func testPackageLoads() {}\n}\n',
+      'utf8',
+    )
+  }
+}
 
 export function injectIosPrivacyManifest(projectSpec) {
   if (projectSpec.includes(`- path: ${privacyProjectPath}`)) return projectSpec
@@ -60,6 +77,8 @@ function main() {
   if (!existsSync(privacyManifest)) {
     throw new Error(`iOS 隐私清单不存在：${privacyManifest}`)
   }
+
+  ensureGeneratedTauriApiTests()
 
   const current = readFileSync(projectSpecPath, 'utf8')
   const updated = injectIosSystemConfigurationFramework(injectIosPrivacyManifest(current))
