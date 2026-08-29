@@ -394,7 +394,7 @@ export function FocusTranscript({
   return (
     <>
       <div
-        className="transcript [.focus-session.has-conversation_&]:p-[30px_max(24px,calc((100%_-_900px)/2))] [.focus-session.has-conversation_&]:[scroll-padding-bottom:32px] @max-[700px]:p-[20px_14px] @max-[700px]:[.focus-session.has-conversation_&]:p-[24px_16px] @max-[470px]:[padding-inline:10px] max-[650px]:p-[20px_14px] min-h-0 flex-1 overflow-auto m-0 border-0 [padding:26px_max(24px,calc((100%_-_960px)/2))] [scroll-padding-bottom:28px]"
+        className="transcript [.focus-session.has-conversation_&]:p-[30px_max(24px,calc((100%_-_900px)/2))] [.focus-session.has-conversation_&]:[scroll-padding-bottom:32px] @max-[700px]:p-[20px_14px] @max-[700px]:[.focus-session.has-conversation_&]:p-[24px_16px] @max-[470px]:[padding-inline:10px] max-[650px]:p-[20px_14px] min-h-0 flex-1 overflow-auto overscroll-contain m-0 border-0 [padding:26px_max(24px,calc((100%_-_960px)/2))] [scroll-padding-bottom:28px]"
         data-pisper-transcript-state={transcriptLoadState}
         aria-busy={transcriptLoadState === 'loading'}
         ref={setTranscriptRef}
