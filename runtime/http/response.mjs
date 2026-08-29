@@ -84,6 +84,35 @@ export function sseSend(res, event, data, id = null, payload = null) {
   return res.write(`${idLine}event: ${event}\ndata: ${body}\n\n`) !== false
 }
 
+// SSE 心跳间隔：空闲期每 15s 写一帧注释行（`:\n\n`）。
+// 长思考/长 bash 期间没有业务帧，移动网络与反常会静默断开空闲连接；
+// 两端的 SSE 解析器都会跳过 `:` 注释行，协议上零成本。
+export const SSE_HEARTBEAT_INTERVAL_MS = 15_000
+
+const sseHeartbeatTimers = new WeakMap()
+
+export function stopSseHeartbeat(res) {
+  const timer = sseHeartbeatTimers.get(res)
+  if (timer) clearInterval(timer)
+  sseHeartbeatTimers.delete(res)
+}
+
+// 为一条 SSE 响应启动心跳；重复调用幂等，连接关闭时自动停止。
+// 心跳不经过 sseSendGuarded：它不该重置慢客户端的 stall 判定。
+export function startSseHeartbeat(res) {
+  if (sseHeartbeatTimers.has(res)) return
+  const timer = setInterval(() => {
+    if (res.destroyed || res.writableEnded) {
+      stopSseHeartbeat(res)
+      return
+    }
+    res.write(':\n\n')
+  }, SSE_HEARTBEAT_INTERVAL_MS)
+  timer.unref?.()
+  sseHeartbeatTimers.set(res, timer)
+  res.once?.('close', () => stopSseHeartbeat(res))
+}
+
 // drain 迟迟不来的判死时限：瞬时背压（write 返回 false）只表示越过 ~16KB 高水位，
 // 健康客户端由内核立即排空；数据持续排不出去才说明客户端真的停止消费，
 // 此时销毁连接让其凭 run 游标重挂补发，事件不丢。

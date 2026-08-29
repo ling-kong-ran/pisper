@@ -1,7 +1,13 @@
 // API 处理器：注册所有路由，统一封装请求上下文（JSON/SSE/错误脱敏），
 // 并把请求分发给对应的路由处理器。
 import { redactSecretText } from '../security/secret-redaction.mjs'
-import { bodyJson, json as sendJson, serializeSsePayload, sseSendGuarded } from './response.mjs'
+import {
+  bodyJson,
+  json as sendJson,
+  serializeSsePayload,
+  sseSendGuarded,
+  startSseHeartbeat,
+} from './response.mjs'
 import { createRouteRegistry } from './route-registry.mjs'
 import { configSettingsRoutes } from './routes/config-settings.mjs'
 import { desktopRoutes } from './routes/desktop.mjs'
@@ -79,6 +85,8 @@ function createHandlerContext({ runtime, services, req, res, url, params }) {
         })
         res.flushHeaders?.()
         sseStarted = true
+        // 空闲期心跳保活：防止移动网络/反代在长思考期间静默断连。
+        startSseHeartbeat(res)
       },
       sendSse(event, data) {
         // 先入缓冲再写出：客户端断开时写出为空操作，但缓冲继续累积，保证可重挂。
