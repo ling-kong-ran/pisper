@@ -218,14 +218,9 @@ test('mobile chat sends with Enter and uses one collapsible Composer tool tray',
   assert.match(dock, /if \(compactDock \|\| panel\.group\.size <= 1\) return \[closeItem\]/)
   assert.doesNotMatch(dock, /disabled: compactDock/)
   assert.match(focusSession, /const mobileApp = useIsMobileApp\(\)/)
-  assert.match(
-    focusSession,
-    /event\.key === 'Enter' &&\s*!event\.shiftKey &&\s*!event\.nativeEvent\.isComposing/,
-  )
-  assert.match(
-    focusSession,
-    /const submitsWithShortcut = mobileApp \|\| event\.metaKey \|\| event\.ctrlKey/,
-  )
+  assert.match(focusSession, /event\.key === 'Enter' &&\s*!event\.shiftKey &&\s*!composing/)
+  // IME 组词双保险：Chromium 看 isComposing，Mac WebKit 看自行跟踪的 imeComposingRef。
+  assert.match(focusSession, /event\.nativeEvent\.isComposing \|\| imeComposingRef\.current/)
   assert.match(focusSession, /event\.currentTarget\.form\?\.requestSubmit\(\)/)
   assert.match(focusSession, /enterKeyHint=\{mobileApp \? 'send' : 'enter'\}/)
   assert.match(focusSession, /const composerPlaceholder = mobileApp/)

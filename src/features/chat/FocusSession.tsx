@@ -57,7 +57,6 @@ import { WorkspaceTrustNotice } from './WorkspaceTrustNotice'
 const DEFAULT_GOAL_TOKEN_BUDGET = 30_000
 const USES_COMMAND_KEY = /Mac|iPhone|iPad/.test(globalThis.navigator?.platform || '')
 const COMMAND_PALETTE_SHORTCUT = USES_COMMAND_KEY ? '\u2318 K' : 'Ctrl K'
-const COMPOSER_SEND_SHORTCUT = USES_COMMAND_KEY ? '\u2318 + Enter' : 'Ctrl + Enter'
 export type FocusSessionProps = {
   session: SessionSummary
   messages: ChatMessage[]
@@ -228,6 +227,9 @@ export const FocusSession = memo(function FocusSession({
   const [invocation, setInvocation] = useState<ResourceInvocation | null>(null)
   const addSelectedAttachments = selection.addAttachments
   const promptRef = useRef<HTMLTextAreaElement>(null)
+  // 输入法组词跟踪：Mac WebKit 确认候选词的 Enter 在 compositionend 之后才派发
+  // （届时 isComposing 已为 false），需自行跟踪并延迟复位以覆盖紧随的 keydown。
+  const imeComposingRef = useRef(false)
   const hasConversation = transcriptLoadState !== 'ready' || messages.length > 0
   const toolTrayId = `composer-tool-tray-${session.id}`
   const quickActionsLabel = toolsOpen
@@ -238,8 +240,8 @@ export const FocusSession = memo(function FocusSession({
       ? t('chat:focusSession.addGuidanceForTheRunningAgent')
       : t('chat:focusSession.writeWhatYouWantToAccomplish')
     : streaming
-      ? t('chat:focusSession.runningAgentComposerHint', { shortcut: COMPOSER_SEND_SHORTCUT })
-      : t('chat:focusSession.composerHint', { shortcut: COMPOSER_SEND_SHORTCUT })
+      ? t('chat:focusSession.runningAgentComposerHint')
+      : t('chat:focusSession.composerHint')
   useEffect(() => {
     setGoalArmed(false)
     setQueueing(false)
@@ -500,14 +502,14 @@ export const FocusSession = memo(function FocusSession({
               event.currentTarget.style.height = `${Math.min(event.currentTarget.scrollHeight, 220)}px`
             }}
             onPaste={selection.pasteFiles}
+            onCompositionStart={() => (imeComposingRef.current = true)}
+            // 延迟复位：覆盖 WebKit 中 compositionend 之后才派发的确认 Enter。
+            onCompositionEnd={() => window.setTimeout(() => (imeComposingRef.current = false), 0)}
             onKeyDown={(event) => {
-              const submitsWithShortcut = mobileApp || event.metaKey || event.ctrlKey
-              if (
-                event.key === 'Enter' &&
-                !event.shiftKey &&
-                !event.nativeEvent.isComposing &&
-                submitsWithShortcut
-              ) {
+              // Enter 发送、Shift+Enter 换行（聊天惯例；移动端 send 键同产出 Enter）。
+              // composing 双保险：Chromium 用 isComposing；Mac WebKit 靠 imeComposingRef。
+              const composing = event.nativeEvent.isComposing || imeComposingRef.current
+              if (event.key === 'Enter' && !event.shiftKey && !composing) {
                 event.preventDefault()
                 event.currentTarget.form?.requestSubmit()
               }

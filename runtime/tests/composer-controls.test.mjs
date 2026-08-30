@@ -52,19 +52,19 @@ test('composer expands low-frequency controls horizontally with React Bits Anima
   assert.doesNotMatch(tray, /composer-workspace/)
 })
 
-test('composer plain Enter inserts a newline and desktop shortcuts submit without interrupting IME composition', async () => {
+test('composer plain Enter submits, Shift+Enter inserts a newline, and IME composition never submits', async () => {
   const session = await readFile('src/features/chat/FocusSession.tsx', 'utf8')
 
-  assert.match(
-    session,
-    /event\.key === 'Enter' &&\s*!event\.shiftKey &&\s*!event\.nativeEvent\.isComposing/,
-  )
-  assert.match(
-    session,
-    /const submitsWithShortcut = mobileApp \|\| event\.metaKey \|\| event\.ctrlKey/,
-  )
+  // 发送行为锁定：Enter 直接发送是产品约定，不允许改为 Ctrl/⌘+Enter。
+  assert.match(session, /event\.key === 'Enter' &&\s*!event\.shiftKey &&\s*!composing/)
+  assert.doesNotMatch(session, /submitsWithShortcut|metaKey \|\| event\.ctrlKey/)
   assert.match(session, /event\.currentTarget\.form\?\.requestSubmit\(\)/)
   assert.match(session, /enterKeyHint=\{mobileApp \? 'send' : 'enter'\}/)
+  // IME 组词保护双保险：Chromium 靠 isComposing；Mac WebKit 的确认 Enter
+  // 在 compositionend 之后派发，靠自行跟踪的 imeComposingRef 延迟复位覆盖。
+  assert.match(session, /event\.nativeEvent\.isComposing \|\| imeComposingRef\.current/)
+  assert.match(session, /onCompositionStart/)
+  assert.match(session, /onCompositionEnd/)
 })
 
 test('composer exposes a session thinking-level control wired to the shared API', async () => {
