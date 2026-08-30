@@ -47,6 +47,37 @@ export function sessionIdFromPanel(panel: DockPanelLike) {
     : ''
 }
 
+// 从序列化布局提取会话面板，移动端只需要页签顺序，不需要恢复桌面分屏。
+export function sessionIdsFromDockLayout(layout: unknown): string[] {
+  if (!isRecord(layout) || !isRecord(layout.panels)) return []
+  const ids: string[] = []
+  const seen = new Set<string>()
+  for (const [panelKey, panel] of Object.entries(layout.panels)) {
+    const sessionId = sessionIdFromPanel(panelKey) || sessionIdFromPanel(panel as DockPanelLike)
+    if (sessionId && !seen.has(sessionId)) {
+      seen.add(sessionId)
+      ids.push(sessionId)
+    }
+  }
+  return ids
+}
+
+// 关闭当前标签时优先选择其右侧标签；关闭末尾标签时回退到左侧。
+export function closeMobileSessionTab(
+  tabIds: string[],
+  closingId: string,
+  activeId: string,
+): { tabIds: string[]; activeId: string } {
+  const closingIndex = tabIds.indexOf(closingId)
+  if (closingIndex < 0) return { tabIds, activeId }
+  const remainingIds = tabIds.filter((id) => id !== closingId)
+  if (activeId !== closingId) return { tabIds: remainingIds, activeId }
+  return {
+    tabIds: remainingIds,
+    activeId: remainingIds[Math.min(closingIndex, remainingIds.length - 1)] || '',
+  }
+}
+
 // 构造布局 envelope（版本 + 引擎 + 当前面板 + 序列化布局）。
 export function createDockLayoutEnvelope(
   layout: DockLayout,

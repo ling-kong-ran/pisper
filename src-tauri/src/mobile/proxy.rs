@@ -65,6 +65,12 @@ impl ProxyHandle {
         self.store.lock().ok()?.active().cloned()
     }
 
+    pub fn invalidate_remote_upstream(&self) {
+        if let Ok(mut cache) = self.upstream.lock() {
+            *cache = None;
+        }
+    }
+
     pub fn configure_local_runtime(&self, bootstrap_url: &str) -> Result<(), String> {
         let url = tauri::Url::parse(bootstrap_url)
             .map_err(|error| format!("本机 Runtime 启动地址无效：{error}"))?;
@@ -387,6 +393,7 @@ async fn forward_local(
     }
     outgoing = outgoing.header("X-Pisper-Client", "mobile-app");
 
+    let is_frontend = !path_and_query.starts_with("/api/");
     let response = match outgoing.body(body_bytes).send().await {
         Ok(response) => response,
         Err(error) => {
@@ -402,10 +409,16 @@ async fn forward_local(
         if HOP_BY_HOP.contains(&lower.as_str())
             || lower == "content-length"
             || lower == "set-cookie"
+            || (is_frontend && lower == "cache-control")
         {
             continue;
         }
         builder = builder.header(name, value);
+    }
+    // iOS 长时间后台后可能重建 WebContent 进程；本地 UI 不应把损坏的模块响应
+    // 或旧的 Runtime 资源长期留在 WebKit 缓存中，恢复时每个资源都重新从回环代理读取。
+    if is_frontend {
+        builder = builder.header("Cache-Control", "no-store");
     }
     let stream = response
         .bytes_stream()

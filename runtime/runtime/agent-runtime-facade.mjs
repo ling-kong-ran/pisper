@@ -7,7 +7,6 @@ import { join } from 'node:path'
 import { filterToolsForExecutionMode } from '../security/execution-mode.mjs'
 import { readJson, writeJsonAtomic } from '../storage/json-file.mjs'
 import { TOOL_PRESETS, toolsFromConfig } from '../tools/registry.mjs'
-import { workspacePathKey } from './workspace-directories.mjs'
 import { projectSessionCommands } from './session-commands.mjs'
 import {
   MAX_COMPACTION_THRESHOLD_PERCENT,
@@ -76,40 +75,8 @@ export function filterWorkflowNotificationTargets(input, enabledTargets) {
 }
 
 export class AgentRuntimeFacade {
-  // 解析会话对应的工作目录；会话不存在时抛错。
-  async workspaceTrustCwd(sessionId) {
-    const id = String(sessionId || '').trim()
-    const known =
-      id &&
-      (this.sessions.has(id) ||
-        this.pendingSessions.has(id) ||
-        this.sessionMeta[id] ||
-        (await this.findSessionInfo(id)))
-    if (!known) throw new Error('会话不存在。')
-    return this.sessionWorkspaceCwd(id)
-  }
-
-  async getWorkspaceTrust(sessionId) {
-    return this.workspaceTrust.getStatus(await this.workspaceTrustCwd(sessionId))
-  }
-
-  // 切换工作区信任：影响该目录下的技能/设置加载（trusted 决定项目级技能是否可执行）。
-  async setWorkspaceTrust(sessionId, trusted) {
-    if (this.sessionRunIsActive(sessionId))
-      throw new Error('当前会话正在运行，请等待完成或停止后再更改工作区信任。')
-    const cwd = await this.workspaceTrustCwd(sessionId)
-    const status = this.workspaceTrust.setTrusted(cwd, trusted)
-    if (workspacePathKey(cwd) === workspacePathKey(this.cwd)) {
-      this.settingsManager.setProjectTrusted(status.trusted)
-      await this.settingsManager.reload()
-    }
-    this.skills.invalidateDashboardCache()
-    this.invalidateSessionRuntimes()
-    return status
-  }
-
   async getSessionCommands(sessionId) {
-    const cwd = await this.workspaceTrustCwd(sessionId)
+    const cwd = await this.sessionWorkspaceCwd(sessionId)
     const loader = await this.skills.createResourceLoader(cwd)
     const prompts = loader.getPrompts()
     const skills = loader.getSkills()

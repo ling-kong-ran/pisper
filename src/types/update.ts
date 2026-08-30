@@ -149,6 +149,7 @@ export type DesktopBridge = {
   checkComponentUpdates?: () => Promise<ComponentUpdateStatus[]>
   installComponentUpdates?: () => Promise<ComponentUpdateStatus[]>
   restartForComponentUpdate?: () => Promise<unknown>
+  openAsset?: (input: { name: string; data: string }) => Promise<boolean>
   openReleases: () => Promise<boolean>
   openUpdateLog?: () => Promise<unknown>
   getNotificationStatus?: () => Promise<DesktopNotificationStatus>

@@ -346,55 +346,6 @@ test('session tree APIs read, navigate, and label Pi tree entries', async () => 
   ])
 })
 
-test('workspace trust APIs resolve and persist a session-scoped decision', async () => {
-  const calls = []
-  const runtime = {
-    async getWorkspaceTrust(sessionId) {
-      calls.push(['get', sessionId])
-      return { cwd: '/project', decision: null, requiresDecision: true }
-    },
-    async setWorkspaceTrust(sessionId, trusted) {
-      calls.push(['set', sessionId, trusted])
-      return { cwd: '/project', decision: trusted, trusted }
-    },
-  }
-  const handler = createApiHandler(runtime)
-
-  const getResponse = response()
-  assert.equal(
-    await handler(
-      request('GET'),
-      getResponse,
-      new URL('http://localhost/api/sessions/session%201/workspace-trust'),
-    ),
-    true,
-  )
-  assert.deepEqual(JSON.parse(getResponse.body), {
-    cwd: '/project',
-    decision: null,
-    requiresDecision: true,
-  })
-
-  const putResponse = response()
-  assert.equal(
-    await handler(
-      request('PUT', { trusted: true }),
-      putResponse,
-      new URL('http://localhost/api/sessions/session%201/workspace-trust'),
-    ),
-    true,
-  )
-  assert.deepEqual(JSON.parse(putResponse.body), {
-    cwd: '/project',
-    decision: true,
-    trusted: true,
-  })
-  assert.deepEqual(calls, [
-    ['get', 'session 1'],
-    ['set', 'session 1', true],
-  ])
-})
-
 test('session commands API returns the Runtime-authoritative Slash command catalog', async () => {
   const calls = []
   const catalog = {

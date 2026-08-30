@@ -134,25 +134,9 @@ export const sessionRuntimeRoutes = [
   },
   {
     method: 'GET',
-    path: '/api/sessions/:sessionId/workspace-trust',
-    async handler({ runtime, params, json }) {
-      json(200, await runtime.getWorkspaceTrust(params.sessionId))
-    },
-  },
-  {
-    method: 'GET',
     path: '/api/sessions/:sessionId/commands',
     async handler({ runtime, params, json }) {
       json(200, await runtime.getSessionCommands(params.sessionId))
-    },
-  },
-  {
-    method: 'PUT',
-    path: '/api/sessions/:sessionId/workspace-trust',
-    async handler({ runtime, params, body, json }) {
-      const input = await body()
-      if (typeof input.trusted !== 'boolean') throw new Error('trusted 必须是布尔值。')
-      json(200, await runtime.setWorkspaceTrust(params.sessionId, input.trusted))
     },
   },
   {

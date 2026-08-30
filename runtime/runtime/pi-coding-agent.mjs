@@ -20,7 +20,6 @@ const [
   truncate,
   editDiff,
   pathUtils,
-  trustManager,
 ] = await Promise.all([
   packageModule('./core/compaction/index.js'),
   packageModule('./core/model-runtime.js'),
@@ -30,7 +29,6 @@ const [
   packageModule('./core/tools/truncate.js'),
   packageModule('./core/tools/edit-diff.js'),
   packageModule('./core/tools/path-utils.js'),
-  packageModule('./core/trust-manager.js'),
 ])
 
 export const calculateContextTokens = compaction.calculateContextTokens
@@ -39,8 +37,6 @@ export const estimateTokens = compaction.estimateTokens
 export const ModelRuntime = modelRuntime.ModelRuntime
 export const SessionManager = sessionManager.SessionManager
 export const SettingsManager = settingsManager.SettingsManager
-export const ProjectTrustStore = trustManager.ProjectTrustStore
-export const hasTrustRequiringProjectResources = trustManager.hasTrustRequiringProjectResources
 export const defineTool = extensionTypes.defineTool
 export const DEFAULT_MAX_BYTES = truncate.DEFAULT_MAX_BYTES
 export const DEFAULT_MAX_LINES = truncate.DEFAULT_MAX_LINES

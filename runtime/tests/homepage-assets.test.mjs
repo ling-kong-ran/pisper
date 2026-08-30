@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict'
 import { access, readdir, readFile, stat } from 'node:fs/promises'
+import vm from 'node:vm'
 import { join } from 'node:path'
 import test from 'node:test'
 
@@ -9,6 +10,27 @@ const MAX_WEB_SHOTS_TOTAL_BYTES = 1.5 * 1024 * 1024
 
 function uniqueMatches(source, pattern) {
   return [...new Set([...source.matchAll(pattern)].map((match) => match[1]))]
+}
+
+function loadDownloadHelpers(source, navigator, renderer) {
+  const start = source.indexOf('function architectureFromHint')
+  const end = source.indexOf('\nasync function readJson', start)
+  const context = vm.createContext({
+    navigator,
+    document: {
+      createElement: () => ({
+        getContext: () => ({
+          getExtension: () => ({ UNMASKED_RENDERER_WEBGL: 'renderer' }),
+          getParameter: () => renderer,
+        }),
+      }),
+    },
+  })
+  vm.runInContext(
+    `${source.slice(start, end)}\nglobalThis.helpers = { architectureFromHint, detectDesktopArchitecture }`,
+    context,
+  )
+  return context.helpers
 }
 
 test('homepage and showcase use bounded WebP previews while preserving original links', async () => {
@@ -82,12 +104,33 @@ test('homepage download controls are platform-aware and resolve release assets',
 
   assert.equal((homepage.match(/data-device-download/g) || []).length, 5)
   assert.match(siteScript, /function detectDownloadTarget\(\)/)
+  assert.match(siteScript, /function architectureFromHint\(value\)/)
+  assert.match(siteScript, /function webglRenderer\(\)/)
+  assert.match(siteScript, /getHighEntropyValues\(\['architecture', 'bitness'\]\)/)
+  assert.match(siteScript, /apple silicon|\\bagx\\b/)
   assert.match(siteScript, /api\.github\.com\/repos\/ling-kong-ran\/pisper\/releases\/latest/)
   assert.match(siteScript, /windows_x86_64-setup\.exe/)
+  assert.match(siteScript, /windows_\$\{architecture\}-setup\.exe/)
   assert.match(siteScript, /darwin_\$\{architecture\}\.dmg/)
   assert.match(siteScript, /linux_x86_64\.AppImage/)
   assert.match(siteScript, /appReleaseAssetUrl\(appReleaseUrl, appAssets\[downloadTarget\.type\]\)/)
   assert.match(siteScript, /catch\(\(\) => DESKTOP_RELEASE_PAGE\)/)
+})
+
+test('homepage detects Apple Silicon when Safari reports an Intel-compatible Mac UA', async () => {
+  const siteScript = await readFile('docs/site.js', 'utf8')
+  const { detectDesktopArchitecture } = loadDownloadHelpers(
+    siteScript,
+    {
+      userAgent:
+        'Mozilla/5.0 (Macintosh; Intel Mac OS X 14_0) AppleWebKit/605.1.15 Safari/605.1.15',
+      platform: 'MacIntel',
+      maxTouchPoints: 0,
+    },
+    'Apple GPU',
+  )
+
+  assert.equal(await detectDesktopArchitecture('macos'), 'aarch64')
 })
 
 test('homepage WebP previews stay within the loading budget', async () => {

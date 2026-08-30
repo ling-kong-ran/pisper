@@ -51,6 +51,22 @@ test('optional tool search understands capability aliases and exact dynamic tool
   )
   assert.equal(searchOptionalTools(tools, '创建技能', 1)[0].name, 'skill_create')
   assert.equal(searchOptionalTools(tools, '生成工具', 1)[0].name, 'plugin_create')
+  assert.equal(
+    searchOptionalTools(
+      [
+        ...tools,
+        {
+          name: 'mobile_device',
+          label: 'Mobile Device',
+          description: 'Use approved phone capabilities.',
+          active: false,
+        },
+      ],
+      '查看当前设备系统内存总量和可用内存',
+      1,
+    )[0].name,
+    'mobile_device',
+  )
 })
 
 test('discover_tools returns stable gateway matches without activating schemas', async () => {
@@ -141,4 +157,34 @@ test('discover_tools includes compact parameter signatures', async () => {
     new AbortController().signal,
   )
   assert.match(result.content[0].text, /params: query: string, limit\?: integer/)
+})
+
+test('discover_tools expands literal action values instead of reporting any', async () => {
+  const tool = createToolDiscoveryTool({
+    listTools: () => [
+      {
+        name: 'mobile_device',
+        label: 'Mobile Device',
+        description: 'Use approved phone capabilities.',
+        active: false,
+        required: ['action'],
+        parameters: {
+          type: 'object',
+          properties: {
+            action: {
+              anyOf: [{ const: 'get_device_info' }, { const: 'get_capabilities' }],
+            },
+          },
+          required: ['action'],
+        },
+      },
+    ],
+  })
+  const result = await tool.execute(
+    'discover-actions',
+    { query: 'mobile device', limit: 1 },
+    new AbortController().signal,
+  )
+  assert.match(result.content[0].text, /params: action: "get_device_info" \| "get_capabilities"/)
+  assert.doesNotMatch(result.content[0].text, /action: any/)
 })

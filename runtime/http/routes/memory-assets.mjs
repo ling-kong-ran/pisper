@@ -1,5 +1,24 @@
+import { createReadStream } from 'node:fs'
+
 // 记忆与资产路由：目录浏览、资产（上传/下载/删除）、记忆空间/候选/搜索、
 // 会话树标签等辅助能力。
+
+function assetByteRange(header, size) {
+  const match = /^bytes=(\d*)-(\d*)$/.exec(String(header || '').trim())
+  if (!match) return null
+  let start = match[1] ? Number(match[1]) : null
+  let end = match[2] ? Number(match[2]) : null
+  if (start === null && end !== null) {
+    start = Math.max(0, size - end)
+    end = size - 1
+  } else {
+    start ??= 0
+    end = Math.min(end ?? size - 1, size - 1)
+  }
+  if (!Number.isSafeInteger(start) || !Number.isSafeInteger(end) || start < 0 || start > end)
+    return null
+  return { start, end }
+}
 export const memoryAssetRoutes = [
   {
     method: 'GET',
@@ -38,8 +57,10 @@ export const memoryAssetRoutes = [
   {
     method: 'GET',
     path: '/api/assets/:assetId/content',
-    async handler({ runtime, params, json }) {
-      const content = await runtime.getAssetContent(params.assetId)
+    async handler({ runtime, params, url, json }) {
+      const content = await runtime.getAssetContent(params.assetId, {
+        previewOnly: url.searchParams.get('preview') === '1',
+      })
       if (!content) json(404, { error: '资产不存在。' })
       else json(200, content)
     },
@@ -47,19 +68,30 @@ export const memoryAssetRoutes = [
   {
     method: 'GET',
     path: '/api/assets/:assetId/download',
-    async handler({ runtime, params, url, res, json }) {
-      const download = await runtime.getAssetDownload(params.assetId)
+    async handler({ runtime, params, url, req, res, json }) {
+      const download = await runtime.getAssetDownload(params.assetId, { includeBuffer: false })
       if (!download) {
         json(404, { error: '资产不存在或不可下载。' })
         return
       }
-      res.writeHead(200, {
+      const rangeHeader = req.headers.range
+      const range = rangeHeader ? assetByteRange(rangeHeader, download.size) : null
+      if (rangeHeader && !range) {
+        res.writeHead(416, { 'Content-Range': `bytes */${download.size}` })
+        res.end()
+        return
+      }
+      const start = range?.start ?? 0
+      const end = range?.end ?? Math.max(0, download.size - 1)
+      res.writeHead(range ? 206 : 200, {
         'Content-Type': download.asset.mimeType || 'application/octet-stream',
-        'Content-Length': download.buffer.length,
+        'Content-Length': Math.max(0, end - start + 1),
         'Content-Disposition': `${url.searchParams.get('inline') === '1' ? 'inline' : 'attachment'}; filename*=UTF-8''${encodeURIComponent(download.asset.name)}`,
+        'Accept-Ranges': 'bytes',
+        ...(range ? { 'Content-Range': `bytes ${start}-${end}/${download.size}` } : {}),
         'Cache-Control': 'private, max-age=60',
       })
-      res.end(download.buffer)
+      createReadStream(download.path, range ? { start, end } : undefined).pipe(res)
     },
   },
   {

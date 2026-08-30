@@ -4,6 +4,7 @@ description = "Allows the mobile shell to manage pairing, server selection, and 
 commands.allow = [
   "mobile_state",
   "mobile_retry_local_startup",
+  "mobile_resume_local_runtime",
   "mobile_pair",
   "mobile_pair_manual",
   "mobile_ensure_local_network_permission",
@@ -14,6 +15,7 @@ commands.allow = [
   "mobile_enter_local",
   "mobile_leave_local",
   "mobile_forget_server",
+  "mobile_open_asset",
   "mobile_execute_device_operation",
   "mobile_app_info",
   "mobile_check_app_update",

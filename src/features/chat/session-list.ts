@@ -17,6 +17,23 @@ export function recentSessionCwd(sessions: SessionSummary[]) {
   return ''
 }
 
+// 根据路由模式决定是否允许把桌面会话目录带入新会话。
+export function shouldInheritRecentSessionCwd(
+  mobileApp: boolean,
+  state?: { paired?: boolean; mode?: string | null } | null,
+) {
+  return !mobileApp || (state?.paired === true && state.mode === 'remote')
+}
+
+// 显式目录优先；未指定时按调用方策略选择最近目录或 Runtime 默认目录。
+export function sessionCwdForCreate(
+  cwd: string,
+  sessions: SessionSummary[],
+  inheritRecentCwd = true,
+) {
+  return cwd || (inheritRecentCwd ? recentSessionCwd(sessions) : '')
+}
+
 // 从平铺会话列表移除一个 id。
 export function removeTiledSession(ids: string[], sessionId: string) {
   return ids.filter((id) => id !== sessionId)

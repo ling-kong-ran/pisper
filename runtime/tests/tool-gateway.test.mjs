@@ -50,7 +50,29 @@ test('call_tool rejects invalid arguments before authorization', async () => {
   })
   await assert.rejects(
     gateway.execute('gateway-2', { name: 'fixture.echo', arguments: { text: 42 } }),
-    /Invalid arguments for fixture.echo/,
+    /Invalid arguments for fixture.echo: \/text: must be string/,
   )
   assert.equal(authorized, false)
+})
+
+test('call_tool reports allowed action values for invalid action arguments', async () => {
+  const gateway = createToolGatewayTool({
+    getTool: () =>
+      defineTool({
+        name: 'fixture.mobile',
+        parameters: Type.Object({
+          action: Type.Union([Type.Literal('get_device_info'), Type.Literal('get_capabilities')]),
+        }),
+        async execute() {
+          return { content: [{ type: 'text', text: 'never' }] }
+        },
+      }),
+  })
+  await assert.rejects(
+    gateway.execute('gateway-3', {
+      name: 'fixture.mobile',
+      arguments: { action: 'status' },
+    }),
+    /Invalid arguments for fixture\.mobile: \/action: must be one of "get_device_info", "get_capabilities"/,
+  )
 })

@@ -45,6 +45,28 @@ test('mobile embedded profile derives degradation from actual host modules', asy
   ])
 })
 
+test('iOS embedded profile disables process execution even when Node exposes child_process', async () => {
+  const capabilities = await resolveRuntimeCapabilities({
+    environment: {
+      PISPER_RUNTIME_PROFILE: 'mobile-embedded',
+      PISPER_RUNTIME_PLATFORM: 'ios',
+    },
+    moduleSupport: {
+      childProcess: true,
+      workerThreads: true,
+      sqlite: true,
+      wasm: true,
+    },
+  })
+
+  assert.equal(capabilities.features.processes, false)
+  assert.equal(capabilities.features.shell, false)
+  assert.equal(capabilities.features.vcs, false)
+  for (const unavailable of ['bash', 'grep', 'find']) {
+    assert.equal(capabilities.tools.includes(unavailable), false, unavailable)
+  }
+})
+
 test('store profile disables dynamic execution even when Node exposes the modules', async () => {
   const capabilities = await resolveRuntimeCapabilities({
     environment: { PISPER_RUNTIME_PROFILE: 'mobile-store' },

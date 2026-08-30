@@ -7,11 +7,37 @@ import {
   AgentRuntimeService,
   installTransientStreamRetry,
   multiAgentResultAgent,
+  resolveSessionDirectory,
   sessionTitleFromFirstMessage,
   waitForAgentMailbox,
 } from '../runtime/agent-runtime.mjs'
 import { applyTextPatch } from '../../src/lib/api.ts'
 import { shouldRetainClosedSessionState } from '../../src/lib/session-state.ts'
+
+test('embedded mobile sessions repair stale workspace paths before runtime actions', async (t) => {
+  const directory = await mkdtemp(join(tmpdir(), 'pisper-mobile-session-cwd-'))
+  t.after(() => rm(directory, { recursive: true, force: true }))
+  let saves = 0
+  const runtime = {
+    cwd: directory,
+    sessionMeta: { 'session-stale-cwd': { cwd: '/old-mobile-workspace' } },
+    async saveSessionMeta() {
+      saves += 1
+    },
+  }
+  const sessionManager = { getCwd: () => '/old-mobile-workspace' }
+
+  const cwd = await resolveSessionDirectory(
+    runtime,
+    sessionManager,
+    'session-stale-cwd',
+    'mobile-embedded',
+  )
+
+  assert.equal(cwd, directory)
+  assert.deepEqual(runtime.sessionMeta['session-stale-cwd'], { cwd: directory })
+  assert.equal(saves, 1)
+})
 
 test('live session snapshot restores partial assistant output and tool state', async (t) => {
   const directory = await mkdtemp(join(tmpdir(), 'pisper-live-session-'))

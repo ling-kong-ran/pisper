@@ -22,12 +22,24 @@ import { useLiveSessionSync } from './use-live-session-sync'
 import { usePromptCommands } from './use-prompt-commands'
 import { useSessionCatalog } from './use-session-catalog'
 import { useSessionCommands } from './use-session-commands'
+import { shouldInheritRecentSessionCwd } from './session-list'
 import { SESSION_CREATE_REQUESTED_EVENT, consumeSessionCreationRequest } from './events'
 
 // Dock 分屏视图懒加载：只有桌面布局才下载 dockview 分包。
 const LazyChatDockView = lazy(() =>
   import('./ChatDockView').then((module) => ({ default: module.ChatDockView })),
 )
+
+function invokeMobile<T>(command: string): Promise<T> {
+  const invoke = window.__TAURI__?.core?.invoke ?? window.__TAURI_INTERNALS__?.invoke
+  if (!invoke) return Promise.reject(new Error('native bridge unavailable'))
+  return invoke<T>(command)
+}
+
+type MobileRuntimeState = {
+  paired?: boolean
+  mode?: 'local' | 'remote' | null
+}
 
 type ChatPageProps = {
   notify: Notify
@@ -94,13 +106,19 @@ export function ChatPage({
   // 若指定了目标分组则把面板移动到该组。
   const createSession = useCallback(
     async (targetGroup?: DockviewGroupPanel, cwd = '') => {
-      const sessionId = await createSessionRecord(cwd)
+      let mobileState: MobileRuntimeState | null = null
+      if (mobileApp) {
+        // 手机本机模式不能使用桌面会话路径；只有已配对且明确处于远程模式才继承它。
+        mobileState = await invokeMobile<MobileRuntimeState>('mobile_state').catch(() => null)
+      }
+      const inheritRecentCwd = shouldInheritRecentSessionCwd(mobileApp, mobileState)
+      const sessionId = await createSessionRecord(cwd, { inheritRecentCwd })
       if (!sessionId) return ''
       const opened = openSessionInDock(sessionId)
       if (opened) moveSessionToGroup(sessionId, targetGroup)
       return sessionId
     },
-    [createSessionRecord, moveSessionToGroup, openSessionInDock],
+    [createSessionRecord, mobileApp, moveSessionToGroup, openSessionInDock],
   )
   usePagePrimaryAction(registerPrimaryAction, createSession)
 
@@ -155,9 +173,13 @@ export function ChatPage({
   const syncAfterForeground = useCallback(() => {
     if (document.visibilityState !== 'visible' || resumeSyncRef.current) return
     const request = (async () => {
+      if (mobileApp) {
+        // 先让原生壳复验内置 Runtime，避免 renderer/API 恢复时使用失效的代理上下文。
+        await invokeMobile<void>('mobile_resume_local_runtime').catch(() => undefined)
+      }
       let sessions: SessionSummary[] = []
       try {
-        sessions = await refreshSessions()
+        sessions = await refreshSessions(undefined, { preserveExistingOnEmpty: true })
       } catch {
         // 实时快照仍可使用已缓存的会话状态，目录请求失败不阻断恢复。
       }
@@ -171,7 +193,7 @@ export function ChatPage({
       resumeSyncRef.current = null
     })
     resumeSyncRef.current = request
-  }, [catalog.activeId, refreshSessions, sessionStatesRef, syncLiveSession])
+  }, [catalog.activeId, mobileApp, refreshSessions, sessionStatesRef, syncLiveSession])
 
   useEffect(() => {
     const recover = () => syncAfterForeground()
@@ -335,6 +357,7 @@ export function ChatPage({
             <ChatDockContext.Provider value={dockContextValue}>
               {clientLoaded && mobileLayout ? (
                 <MobileSessionPanel
+                  sessionIds={dock.mobileSessionIds}
                   onSelectSession={openSessionInDock}
                   onCreateSession={createSession}
                 />

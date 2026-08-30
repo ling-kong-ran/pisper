@@ -13,6 +13,7 @@ All Web shots are `2558x1380`. `welcome-dark.png` is dark theme; every other pag
 | `terminal.png` | `/#/chat`, desktop bridge enabled, terminal open | Real session-scoped TerminalPanel UI with a Shell tab, relative workspace label, and deterministic quality-check output |
 | `history.png` | `/#/chat/history` | Session list with names, message counts, search |
 | `assets.png` | `/#/assets` | Asset grid: generated images + link assets |
+| `assets-preview.png` | `/#/assets`, select a Markdown asset | Preview dialog with rendered Markdown and native-open action |
 | `channels.png` | `/#/channels` | Channel onboarding / connections state |
 | `schedules.png` | `/#/schedules` | Schedule tasks with frequency and next-run times |
 | `plugins.png` | `/#/plugins` | Tool/plugin preset cards with enable toggles |
@@ -30,5 +31,5 @@ All Web shots are `2558x1380`. `welcome-dark.png` is dark theme; every other pag
 ## Doc references
 
 - `docs/index.html`: hero `shots/welcome-dark.png`, product tabs including `shots/session-tree.png` / `shots/turn-label.png` / `shots/session-labels.png` / `shots/chat-grid.png` / `shots/terminal.png` / `shots/workflow-builder.png` (width/height 2558x1380), tour `shots/cli.png`.
-- `docs/show.html`: 20-scene tour reusing the shots above (excluding `config-desktop-pet`).
-- `README.md` / `README.en.md`: link to the project site; no inline image references.
+- `docs/show.html`: 21-scene tour reusing the shots above (excluding `config-desktop-pet`), including the asset preview scene.
+- `README.md` / `README.en.md`: inline links to `chat-grid.png`, `session-tree.png`, `workflow-builder.png`, and `cli-chat.png`.

@@ -16,7 +16,7 @@ import type { ModelOption, SessionState, SessionSummary } from '@/types/chat'
 import { chatApi } from './chat-api'
 import { chatErrorMessage } from './chat-errors'
 import { announceActiveSession, announceSessionsUpdated } from './events'
-import { mergeSessionLists, recentSessionCwd } from './session-list'
+import { mergeSessionLists, sessionCwdForCreate } from './session-list'
 
 export const FOCUS_MESSAGE_PAGE_SIZE = 40
 
@@ -24,6 +24,10 @@ type SessionsUpdate = SessionSummary[] | ((current: SessionSummary[]) => Session
 
 type SessionCatalogOptions = {
   notify: Notify
+}
+
+type CreateSessionOptions = {
+  inheritRecentCwd?: boolean
 }
 
 export function useSessionCatalog({ notify }: SessionCatalogOptions) {
@@ -113,36 +117,40 @@ export function useSessionCatalog({ notify }: SessionCatalogOptions) {
     [replaceSessionStates],
   )
 
-  // 刷新会话列表：拉取后合并（保留本地乐观项），更新活动 id
-  // 并广播列表更新事件；preferredId 优先。
+  // 刷新会话列表：拉取后更新活动 id，并广播列表更新事件；preferredId 优先。
+  // 恢复阶段若服务端暂时返回空列表，保留已有目录，避免活动页签短暂失去会话摘要。
   const refreshSessions = useCallback(
-    async (preferredId?: string) => {
+    async (preferredId?: string, { preserveExistingOnEmpty = false } = {}) => {
       const data = await chatApi.listSessions()
-      updateSessions(data.sessions)
+      const nextSessions =
+        preserveExistingOnEmpty && !data.sessions.length && sessionsRef.current.length
+          ? sessionsRef.current
+          : data.sessions
+      updateSessions(nextSessions)
       if (preferredId) setActiveId(preferredId)
       else
         setActiveId((current) =>
-          data.sessions.some((session) => session.id === current)
+          nextSessions.some((session) => session.id === current)
             ? current
-            : data.sessions[0]?.id || '',
+            : nextSessions[0]?.id || '',
         )
       announceSessionsUpdated()
-      return data.sessions
+      return nextSessions
     },
     [updateSessions],
   )
 
-  // 创建会话记录：cwd 缺省时继承最近会话的工作目录；
+  // 创建会话记录：按调用方决定是否继承最近会话的工作目录；
   // 用 ref 去重并发创建，成功后初始化会话状态并合并进列表。
   const createSessionRecord = useCallback(
-    (cwd = '') => {
+    (cwd = '', { inheritRecentCwd = true }: CreateSessionOptions = {}) => {
       if (creatingSessionRef.current) return creatingSessionRef.current
       const request = (async () => {
         try {
           setGlobalError('')
           const created = await chatApi.createSession(
             t('chat:chatPage.newChat'),
-            cwd || recentSessionCwd(sessionsRef.current),
+            sessionCwdForCreate(cwd, sessionsRef.current, inheritRecentCwd),
           )
           setActiveId(created.id)
           updateSessions((current) => mergeSessionLists(current, [created]))

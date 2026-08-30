@@ -94,6 +94,31 @@ test('permission modes progress from ask to automatic to ignored checks', () => 
     }).reason,
     /需要确认/,
   )
+  for (const action of [
+    'get_device_info',
+    'get_capabilities',
+    'get_battery_status',
+    'get_storage_status',
+    'get_memory_status',
+    'get_network_status',
+    'get_display_status',
+    'get_locale_status',
+    'get_device_status',
+    'delete_photos',
+    'open_app',
+  ]) {
+    assert.equal(
+      permissionRequirement({
+        mode: 'ask',
+        executionMode: 'approval-required',
+        cwd,
+        toolName: 'mobile_device',
+        toolRisk: 'high',
+        args: { action },
+      }),
+      null,
+    )
+  }
   assert.equal(
     permissionRequirement({
       mode: 'ask',
@@ -133,6 +158,24 @@ test('permission modes progress from ask to automatic to ignored checks', () => 
     }),
     null,
   )
+})
+
+test('mobile_device never creates a generic approval request', async () => {
+  const service = new SessionPermissionService({
+    getMode: () => 'ask',
+    getExecutionMode: () => 'approval-required',
+  })
+  assert.equal(
+    await service.authorize({
+      sessionId: 'session-mobile',
+      cwd: process.cwd(),
+      toolName: 'mobile_device',
+      toolCallId: 'mobile-call-1',
+      args: { action: 'get_storage_status' },
+    }),
+    undefined,
+  )
+  assert.deepEqual(service.getPending('session-mobile'), [])
 })
 
 test('path checks resolve symbolic links before authorization', async (t) => {

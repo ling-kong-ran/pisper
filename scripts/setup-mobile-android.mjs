@@ -132,7 +132,13 @@ for (const permission of [
   'android.permission.READ_CONTACTS',
   'android.permission.ACCESS_COARSE_LOCATION',
   'android.permission.ACCESS_FINE_LOCATION',
+  'android.permission.READ_EXTERNAL_STORAGE',
+  'android.permission.READ_MEDIA_IMAGES',
+  'android.permission.READ_MEDIA_VISUAL_USER_SELECTED',
+  'android.permission.VIBRATE',
+  'android.permission.POST_NOTIFICATIONS',
   'android.permission.ACCESS_LOCAL_NETWORK',
+  'android.permission.ACCESS_NETWORK_STATE',
 ]) {
   if (!manifest.includes(permission)) {
     manifest = manifest.replace(

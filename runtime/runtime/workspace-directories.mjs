@@ -18,7 +18,7 @@ import { dirname, isAbsolute, join, resolve, win32 } from 'node:path'
 function workspaceDirectoryIo(profile = process.env.PISPER_RUNTIME_PROFILE) {
   // Node Mobile 的异步 FS worker 在部分 Android WebView 宿主中不会回调；
   // 目录列表已限制返回数量，本机模式改用同步调用可避免请求永久占住。
-  if (profile === 'mobile-embedded') {
+  if (profile === 'mobile-embedded' || profile === 'mobile-store') {
     return {
       inspectDirectory: (path) => statSync(path),
       readDirectory: (path, options) => readdirSync(path, options),

@@ -52,6 +52,38 @@ test('dynamic models do not inherit another model context window', async (t) => 
   })
 })
 
+test('provider protocol overrides built-in model protocol when configured', async (t) => {
+  const directory = await mkdtemp(join(tmpdir(), 'pisper-provider-protocol-'))
+  t.after(() => rm(directory, { recursive: true, force: true }))
+  const catalog = new ProviderModelCatalogService({ path: join(directory, 'catalog.json') })
+  await catalog.init()
+  const raw = {
+    provider: 'kimi-coding',
+    id: 'k3',
+    api: 'anthropic-messages',
+    contextWindow: 128_000,
+    maxTokens: 128_000,
+  }
+  const runtime = {
+    getModels: (provider) => (provider === 'kimi-coding' ? [raw] : []),
+    getModel: () => raw,
+    getAvailable: async () => [raw],
+    getAvailableSnapshot: () => [raw],
+  }
+
+  catalog.decorateRuntime(
+    runtime,
+    { 'kimi-coding': 'https://api.kimi.com/coding/v1' },
+    {},
+    {},
+    {},
+    {},
+    { 'kimi-coding': 'openai-responses' },
+  )
+
+  assert.equal(runtime.getModel('kimi-coding', 'k3').api, 'openai-responses')
+})
+
 test('known visual models recover image input while explicit input remains authoritative', async (t) => {
   const directory = await mkdtemp(join(tmpdir(), 'pisper-provider-input-capability-'))
   t.after(() => rm(directory, { recursive: true, force: true }))

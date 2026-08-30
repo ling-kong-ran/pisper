@@ -1,7 +1,7 @@
 // 聊天 API 客户端：封装会话列表/详情/发送/流式事件等请求。
 // consumeEventStream 逐行解析 SSE，事件按类型分发到各调度器。
 import { streamEventsWithResume } from '@/lib/api'
-import { requestJson } from '@/lib/http'
+import { requestJson, waitForMobileRuntimeReady } from '@/lib/http'
 import type {
   ChatAttachment,
   ChatMessage,
@@ -79,17 +79,6 @@ export type SessionTreeLabelMatch = {
   summary: string
   nodeTimestamp: string
   active: boolean
-}
-
-export type WorkspaceTrustStatus = {
-  cwd: string
-  decision: boolean | null
-  trusted: boolean
-  restricted: boolean
-  requiresDecision: boolean
-  decisionPath: string
-  inherited: boolean
-  resources: string[]
 }
 
 export type SessionCommand = {
@@ -195,15 +184,6 @@ export const chatApi = {
       { method: 'PUT', data: { label } },
     ),
 
-  getWorkspaceTrust: (sessionId: string) =>
-    requestJson<WorkspaceTrustStatus>(`${sessionPath(sessionId)}/workspace-trust`),
-
-  setWorkspaceTrust: (sessionId: string, trusted: boolean) =>
-    requestJson<WorkspaceTrustStatus>(`${sessionPath(sessionId)}/workspace-trust`, {
-      method: 'PUT',
-      data: { trusted },
-    }),
-
   getSessionCommands: (sessionId: string) =>
     requestJson<SessionCommandsResponse>(`${sessionPath(sessionId)}/commands`),
 
@@ -239,14 +219,18 @@ export const chatApi = {
     onEvent: StreamEventHandler,
   ) => {
     await streamEventsWithResume({
-      open: () =>
-        fetch('/api/chat', {
+      open: async () => {
+        await waitForMobileRuntimeReady()
+        return fetch('/api/chat', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(input),
-        }),
-      resume: (runId, cursor) =>
-        fetch(`/api/runs/${encodeURIComponent(runId)}/events?after=${cursor}`),
+        })
+      },
+      resume: async (runId, cursor) => {
+        await waitForMobileRuntimeReady()
+        return fetch(`/api/runs/${encodeURIComponent(runId)}/events?after=${cursor}`)
+      },
       onEvent,
     })
   },

@@ -128,10 +128,6 @@ function isEditableTarget(target: EventTarget | null) {
   )
 }
 
-function isComposerFocusTarget(target: EventTarget | null) {
-  return target instanceof Element && Boolean(target.closest('[data-mobile-composer-input]'))
-}
-
 // 安全解码路径段；非法编码返回空串而非抛错中断渲染。
 function decodePathSegment(value: string) {
   try {
@@ -164,7 +160,6 @@ function App() {
     () => localStorage.getItem(STORAGE_KEYS.activeSession) || '',
   )
   const [mobileNav, setMobileNav] = useState(false)
-  const [mobileComposerFocused, setMobileComposerFocused] = useState(false)
   const mobileApp = useClientStore((state) => state.client === 'mobile-app')
   const clientLoaded = useClientStore((state) => state.loaded)
   const phoneViewport = useIsPhoneViewport()
@@ -316,24 +311,6 @@ function App() {
     let orientationTimer = 0
     let viewportBaseline = Math.max(window.innerHeight, viewport?.height ?? 0)
 
-    const setComposerFocus = (focused: boolean) => {
-      setMobileComposerFocused(focused)
-      if (focused) shell.dataset.mobileComposer = 'focused'
-      else delete shell.dataset.mobileComposer
-    }
-    const handleTouch = (event: Event) => {
-      if (isComposerFocusTarget(event.target)) setComposerFocus(true)
-    }
-    const handleFocus = (event: FocusEvent) => {
-      if (isComposerFocusTarget(event.target)) setComposerFocus(true)
-    }
-    const handleBlur = (event: FocusEvent) => {
-      if (!isComposerFocusTarget(event.target)) return
-      window.requestAnimationFrame(() =>
-        setComposerFocus(isComposerFocusTarget(document.activeElement)),
-      )
-    }
-
     // Android WebView 与 iOS WKWebView 对软键盘的布局视口处理不同，统一以
     // visualViewport 为准收紧壳层，并跟随 iOS 可能产生的可视区垂直偏移。
     const apply = () => {
@@ -366,10 +343,6 @@ function App() {
     viewport?.addEventListener('scroll', schedule)
     window.addEventListener('resize', schedule)
     window.addEventListener('orientationchange', resetAfterOrientationChange)
-    document.addEventListener('touchstart', handleTouch, true)
-    document.addEventListener('pointerdown', handleTouch, true)
-    document.addEventListener('focusin', handleFocus, true)
-    document.addEventListener('focusout', handleBlur, true)
     return () => {
       if (frame) window.cancelAnimationFrame(frame)
       window.clearTimeout(orientationTimer)
@@ -377,15 +350,9 @@ function App() {
       viewport?.removeEventListener('scroll', schedule)
       window.removeEventListener('resize', schedule)
       window.removeEventListener('orientationchange', resetAfterOrientationChange)
-      document.removeEventListener('touchstart', handleTouch, true)
-      document.removeEventListener('pointerdown', handleTouch, true)
-      document.removeEventListener('focusin', handleFocus, true)
-      document.removeEventListener('focusout', handleBlur, true)
       shell.style.height = ''
       shell.style.transform = ''
       delete shell.dataset.mobileKeyboard
-      delete shell.dataset.mobileComposer
-      setMobileComposerFocused(false)
     }
   }, [clientLoaded, mobileLayout, startupReady])
 
@@ -776,6 +743,7 @@ function App() {
                 onCycleTheme={cycleTheme}
                 workflowActions={workflowActions}
                 desktopPlatform={window.pisperDesktop?.platform || ''}
+                mobileApp={mobileApp}
                 terminalOpen={terminalOpen}
                 onToggleTerminal={() => setTerminalOpen((value) => !value)}
               />
@@ -809,11 +777,7 @@ function App() {
                 </Suspense>
               )}
             {clientLoaded && mobileLayout && (
-              <MobilePrimaryNavigation
-                page={page}
-                onNavigate={navigate}
-                composerFocused={mobileComposerFocused}
-              />
+              <MobilePrimaryNavigation page={page} onNavigate={navigate} />
             )}
           </SidebarInset>
         </SidebarProvider>

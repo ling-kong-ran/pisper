@@ -6,6 +6,10 @@ import { apiJson } from '@/lib/api'
 
 export type ClientKind = 'web' | 'mobile-app'
 
+function isNativeMobileApp() {
+  return typeof window !== 'undefined' && window.__PISPER_MOBILE_APP__ === true
+}
+
 type ClientState = {
   client: ClientKind
   loaded: boolean
@@ -13,15 +17,20 @@ type ClientState = {
 }
 
 export const useClientStore = create<ClientState>()((set) => ({
-  client: 'web',
-  loaded: false,
+  client: isNativeMobileApp() ? 'mobile-app' : 'web',
+  loaded: isNativeMobileApp(),
   load: async () => {
+    const nativeMobileApp = isNativeMobileApp()
+    if (nativeMobileApp) set({ client: 'mobile-app', loaded: true })
     try {
       const info = await apiJson<{ client?: string }>('/api/client-info')
-      set({ client: info.client === 'mobile-app' ? 'mobile-app' : 'web', loaded: true })
+      set({
+        client: nativeMobileApp || info.client === 'mobile-app' ? 'mobile-app' : 'web',
+        loaded: true,
+      })
     } catch {
-      // 老版本 runtime 没有该接口：一律按 Web 处理。
-      set({ client: 'web', loaded: true })
+      // 移动壳标记比 API 握手更早且更可靠；桌面 Web 才在旧 Runtime 时降级为 Web。
+      set({ client: nativeMobileApp ? 'mobile-app' : 'web', loaded: true })
     }
   },
 }))

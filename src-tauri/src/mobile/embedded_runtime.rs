@@ -1,6 +1,7 @@
 #[cfg(target_os = "ios")]
 use std::ffi::{c_void, CStr, CString};
 use std::fs::File;
+use std::io::Read;
 #[cfg(target_os = "ios")]
 use std::os::raw::c_char;
 use std::path::{Path, PathBuf};
@@ -12,6 +13,7 @@ use base64::{engine::general_purpose::URL_SAFE_NO_PAD, Engine as _};
 use flate2::read::GzDecoder;
 use rand::{rngs::OsRng, RngCore};
 use serde::Deserialize;
+use sha2::{Digest, Sha256};
 
 #[cfg(target_os = "android")]
 use super::android_bridge::{android_asset_exists, android_copy_asset, with_android_env};
@@ -104,22 +106,29 @@ impl EmbeddedRuntime {
     pub fn ensure_started(&self) -> Result<RootRuntimeStatus, String> {
         let current = self.status();
         if current.running {
-            return Ok(current);
+            if self.node_is_alive()? {
+                return Ok(current);
+            }
+            self.reset_after_exit();
         }
         if self.started.load(Ordering::Acquire) {
-            let token = self
-                .token
-                .lock()
-                .expect("embedded Runtime token mutex poisoned")
-                .clone()
-                .ok_or_else(|| "嵌入式 Node 已启动，但缺少 READY 认证上下文。".to_string())?;
-            return match self.wait_until_ready(&token) {
-                Ok(ready) => Ok(self.mark_ready(ready)),
-                Err(error) => {
-                    self.fail(&error);
-                    Err(error)
-                }
-            };
+            if !self.node_is_alive()? {
+                self.reset_after_exit();
+            } else {
+                let token = self
+                    .token
+                    .lock()
+                    .expect("embedded Runtime token mutex poisoned")
+                    .clone()
+                    .ok_or_else(|| "嵌入式 Node 已启动，但缺少 READY 认证上下文。".to_string())?;
+                return match self.wait_until_ready(&token) {
+                    Ok(ready) => Ok(self.mark_ready(ready)),
+                    Err(error) => {
+                        self.fail(&error);
+                        Err(error)
+                    }
+                };
+            }
         }
         if !current.supported {
             return Err(current.message);
@@ -129,9 +138,7 @@ impl EmbeddedRuntime {
         }
 
         self.update_status("starting", "正在准备本机 Runtime…");
-        if installed_version(&self.root).as_deref() != Some(self.app_version.as_str())
-            || installed_profile(&self.root).as_deref() != Some(runtime_profile())
-        {
+        if !self.installed_matches_packaged_runtime(current.packaged) {
             if let Err(error) = self.install() {
                 self.fail(&error);
                 return Err(error);
@@ -190,8 +197,10 @@ impl EmbeddedRuntime {
         let _ = std::fs::remove_dir_all(&previous);
         std::fs::create_dir_all(&staging)
             .map_err(|error| format!("无法创建嵌入式 Runtime staging：{error}"))?;
+        let archive_fingerprint = archive_sha256(&archive)?;
         let unpack_result = unpack_archive(&archive, &staging)
-            .and_then(|_| validate_installation(&staging, &self.app_version));
+            .and_then(|_| record_archive_fingerprint(&staging, &archive_fingerprint))
+            .and_then(|_| validate_installation(&staging, &self.app_version, &archive_fingerprint));
         let _ = std::fs::remove_file(&archive);
         if let Err(error) = unpack_result {
             let _ = std::fs::remove_dir_all(&staging);
@@ -237,6 +246,8 @@ impl EmbeddedRuntime {
         set_runtime_env("PISPER_WORKSPACE_DIR", &workspace_dir)?;
         set_runtime_env("PISPER_MOBILE_READY_FILE", &ready_file)?;
         std::env::set_var("PISPER_RUNTIME_PROFILE", runtime_profile());
+        #[cfg(target_os = "ios")]
+        std::env::set_var("PISPER_RUNTIME_PLATFORM", "ios");
         // Node Mobile 不保证 argv[1] 保留入口路径，由宿主显式声明启动语义。
         std::env::set_var("PISPER_MOBILE_AUTOSTART", "1");
         std::env::set_var("PISPER_DESKTOP_TOKEN", &token);
@@ -311,6 +322,35 @@ impl EmbeddedRuntime {
         status.message = error.into();
         status.url.clear();
     }
+
+    fn node_is_alive(&self) -> Result<bool, String> {
+        #[cfg(target_os = "android")]
+        {
+            return android_node_started();
+        }
+        #[cfg(not(target_os = "android"))]
+        {
+            Ok(true)
+        }
+    }
+
+    fn reset_after_exit(&self) {
+        self.started.store(false, Ordering::Release);
+        self.token
+            .lock()
+            .expect("embedded Runtime token mutex poisoned")
+            .take();
+        let mut status = self
+            .status
+            .lock()
+            .expect("embedded Runtime status mutex poisoned");
+        status.running = false;
+        status.url.clear();
+        if status.installed {
+            status.state = "installed".into();
+            status.message.clear();
+        }
+    }
 }
 
 fn unpack_archive(archive: &Path, target: &Path) -> Result<(), String> {
@@ -322,7 +362,11 @@ fn unpack_archive(archive: &Path, target: &Path) -> Result<(), String> {
         .map_err(|error| format!("无法解压嵌入式 Runtime：{error}"))
 }
 
-fn validate_installation(root: &Path, app_version: &str) -> Result<(), String> {
+fn validate_installation(
+    root: &Path,
+    app_version: &str,
+    archive_fingerprint: &str,
+) -> Result<(), String> {
     if !root.join("runtime/mobile-embedded.mjs").is_file()
         || !root.join("dist/index.html").is_file()
     {
@@ -334,7 +378,29 @@ fn validate_installation(root: &Path, app_version: &str) -> Result<(), String> {
     if installed_profile(root).as_deref() != Some(runtime_profile()) {
         return Err("嵌入式 Runtime 档案与 App 构建模式不匹配。".into());
     }
+    if installed_archive_fingerprint(root).as_deref() != Some(archive_fingerprint) {
+        return Err("嵌入式 Runtime 归档指纹不匹配。".into());
+    }
     Ok(())
+}
+
+fn record_archive_fingerprint(root: &Path, fingerprint: &str) -> Result<(), String> {
+    let marker = root.join("embedded-runtime.json");
+    let contents =
+        std::fs::read(&marker).map_err(|error| format!("无法读取嵌入式 Runtime 清单：{error}"))?;
+    let mut value: serde_json::Value = serde_json::from_slice(&contents)
+        .map_err(|error| format!("嵌入式 Runtime 清单无效：{error}"))?;
+    value
+        .as_object_mut()
+        .ok_or_else(|| "嵌入式 Runtime 清单不是对象。".to_string())?
+        .insert(
+            "archiveSha256".into(),
+            serde_json::Value::String(fingerprint.into()),
+        );
+    let serialized = serde_json::to_vec_pretty(&value)
+        .map_err(|error| format!("无法生成嵌入式 Runtime 清单：{error}"))?;
+    std::fs::write(&marker, serialized)
+        .map_err(|error| format!("无法写入嵌入式 Runtime 清单：{error}"))
 }
 
 fn installed_version(root: &Path) -> Option<String> {
@@ -345,6 +411,10 @@ fn installed_profile(root: &Path) -> Option<String> {
     installed_manifest_value(root, "runtimeProfile")
 }
 
+fn installed_archive_fingerprint(root: &Path) -> Option<String> {
+    installed_manifest_value(root, "archiveSha256")
+}
+
 fn installed_manifest_value(root: &Path, key: &str) -> Option<String> {
     let value = std::fs::read(root.join("embedded-runtime.json")).ok()?;
     serde_json::from_slice::<serde_json::Value>(&value)
@@ -352,6 +422,66 @@ fn installed_manifest_value(root: &Path, key: &str) -> Option<String> {
         .get(key)?
         .as_str()
         .map(ToOwned::to_owned)
+}
+
+fn archive_sha256(path: &Path) -> Result<String, String> {
+    let mut file =
+        File::open(path).map_err(|error| format!("无法读取嵌入式 Runtime 归档：{error}"))?;
+    let mut digest = Sha256::new();
+    let mut buffer = [0u8; 64 * 1024];
+    loop {
+        let read = file
+            .read(&mut buffer)
+            .map_err(|error| format!("无法计算嵌入式 Runtime 指纹：{error}"))?;
+        if read == 0 {
+            break;
+        }
+        digest.update(&buffer[..read]);
+    }
+    Ok(format!("{:x}", digest.finalize()))
+}
+
+impl EmbeddedRuntime {
+    fn installed_matches_packaged_runtime(&self, packaged: bool) -> bool {
+        let version_matches =
+            installed_version(&self.root).as_deref() == Some(self.app_version.as_str());
+        let profile_matches = installed_profile(&self.root).as_deref() == Some(runtime_profile());
+        if !version_matches || !profile_matches {
+            return false;
+        }
+        if !packaged {
+            return true;
+        }
+        let Ok(expected) = self.packaged_archive_fingerprint() else {
+            return false;
+        };
+        installed_archive_fingerprint(&self.root).as_deref() == Some(expected.as_str())
+    }
+
+    fn packaged_archive_fingerprint(&self) -> Result<String, String> {
+        #[cfg(target_os = "android")]
+        {
+            std::fs::create_dir_all(&self.data_root)
+                .map_err(|error| format!("无法创建 Runtime 指纹目录：{error}"))?;
+            let probe = self.data_root.join("embedded-runtime-fingerprint.tgz");
+            let result =
+                android_copy_asset(EMBEDDED_ASSET, &probe).and_then(|_| archive_sha256(&probe));
+            let _ = std::fs::remove_file(&probe);
+            return result;
+        }
+        #[cfg(target_os = "ios")]
+        {
+            let archive = self
+                .resource_archive
+                .as_deref()
+                .ok_or_else(|| "iOS App 缺少嵌入式 Runtime 资产。".to_string())?;
+            return archive_sha256(archive);
+        }
+        #[cfg(not(any(target_os = "android", target_os = "ios")))]
+        {
+            Err("当前平台没有嵌入式 Runtime 资产。".into())
+        }
+    }
 }
 
 fn trusted_bootstrap_url(value: &str, expected_token: &str) -> bool {
@@ -429,6 +559,33 @@ fn copy_packaged_archive(resource_archive: Option<&Path>, target: &Path) -> Resu
 #[cfg(not(any(target_os = "android", target_os = "ios")))]
 fn copy_packaged_archive(_resource_archive: Option<&Path>, _target: &Path) -> Result<(), String> {
     Err("当前平台不支持嵌入式 Runtime。".into())
+}
+
+#[cfg(target_os = "android")]
+fn android_node_started() -> Result<bool, String> {
+    with_android_env(|env, context| {
+        let class_loader = env
+            .call_method(&context, "getClassLoader", "()Ljava/lang/ClassLoader;", &[])
+            .and_then(|value| value.l())
+            .map_err(|error| android_jni_error(env, "无法获取 Android App ClassLoader", error))?;
+        let class_name = env
+            .new_string("com.lingkongran.pisper.EmbeddedNodeHost")
+            .map(jni::objects::JObject::from)
+            .map_err(|error| format!("无法构造 embedded Node 宿主类名：{error}"))?;
+        let host_class = env
+            .call_method(
+                &class_loader,
+                "loadClass",
+                "(Ljava/lang/String;)Ljava/lang/Class;",
+                &[jni::objects::JValue::Object(&class_name)],
+            )
+            .and_then(|value| value.l())
+            .map(jni::objects::JClass::from)
+            .map_err(|error| android_jni_error(env, "无法加载 embedded Node 宿主类", error))?;
+        env.call_static_method(&host_class, "isStarted", "()Z", &[])
+            .and_then(|value| value.z())
+            .map_err(|error| android_jni_error(env, "无法读取 embedded Node 宿主状态", error))
+    })
 }
 
 #[cfg(target_os = "android")]

@@ -106,6 +106,7 @@ function runtimeModel(
   explicitContextWindow,
   explicitInput,
   explicitReasoning,
+  configuredApi,
 ) {
   const remoteMetadata = metadata?.get(candidate.id)
   if (existing) {
@@ -124,7 +125,7 @@ function runtimeModel(
   return {
     id: candidate.id,
     name: candidate.name || candidate.id,
-    api: entry.api || template?.api || 'openai-responses',
+    api: configuredApi || entry.api || template?.api || 'openai-responses',
     provider: providerId,
     baseUrl: entry.baseUrl || template?.baseUrl || '',
     reasoning:
@@ -152,6 +153,7 @@ export class ProviderModelCatalogService {
     this.metadata = metadata
     this.state = { providers: {} }
     this.configuredBaseUrls = new Map()
+    this.configuredApis = new Map()
     this.configuredHeaders = new Map()
     this.writeQueue = Promise.resolve()
   }
@@ -230,10 +232,12 @@ export class ProviderModelCatalogService {
     configuredContextWindows = {},
     configuredInputs = {},
     configuredReasoning = {},
+    configuredApis = {},
   ) {
     this.configuredBaseUrls = new Map(
       Object.entries(configuredBaseUrls || {}).map(([id, url]) => [id, normalizedBaseUrl(url)]),
     )
+    this.configuredApis = new Map(Object.entries(configuredApis || {}))
     const explicitContextWindows = new Map(Object.entries(configuredContextWindows || {}))
     const explicitInputs = new Map(Object.entries(configuredInputs || {}))
     const explicitReasoning = new Map(Object.entries(configuredReasoning || {}))
@@ -262,9 +266,10 @@ export class ProviderModelCatalogService {
       return configured && configured === normalizedBaseUrl(entry.baseUrl) ? entry : null
     }
     const modelsForProvider = (providerId) => {
+      const configuredApi = this.configuredApis.get(providerId)
       const raw = [...rawGetModels(providerId)].map((model) =>
         modelWithMetadata(
-          model,
+          configuredApi ? { ...model, api: configuredApi } : model,
           effectiveMetadata,
           explicitContextWindows.get(`${providerId}:${model.id}`),
           explicitInputs.get(`${providerId}:${model.id}`),
@@ -285,6 +290,7 @@ export class ProviderModelCatalogService {
               explicitContextWindows.get(`${providerId}:${candidate.id}`),
               explicitInputs.get(`${providerId}:${candidate.id}`),
               explicitReasoning.get(`${providerId}:${candidate.id}`),
+              configuredApi,
             ),
           )
         : raw

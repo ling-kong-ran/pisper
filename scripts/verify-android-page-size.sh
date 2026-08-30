@@ -42,14 +42,20 @@ for required in libnode.so libpisper_node_host.so libpisper_webview_lib.so; do
   fi
 done
 
-mapfile -d '' LIBRARIES < <(find "$WORK_DIR/lib/arm64-v8a" -type f -name '*.so' -print0)
+LIBRARIES=()
+while IFS= read -r -d '' library; do
+  LIBRARIES+=("$library")
+done < <(find "$WORK_DIR/lib/arm64-v8a" -type f -name '*.so' -print0)
 if (( ${#LIBRARIES[@]} == 0 )); then
   echo "APK 未包含 arm64 native 库。" >&2
   exit 1
 fi
 
 for library in "${LIBRARIES[@]}"; do
-  mapfile -t ALIGNMENTS < <("$READELF" -lW "$library" | awk '$1 == "LOAD" { print $NF }')
+  ALIGNMENTS=()
+  while IFS= read -r alignment; do
+    ALIGNMENTS+=("$alignment")
+  done < <("$READELF" -lW "$library" | awk '$1 == "LOAD" { print $NF }')
   if (( ${#ALIGNMENTS[@]} == 0 )); then
     echo "无法读取 $(basename "$library") 的 ELF LOAD 段。" >&2
     exit 1

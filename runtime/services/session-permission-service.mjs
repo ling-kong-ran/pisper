@@ -108,6 +108,8 @@ function pathOutsideWorkspace(cwd, input) {
 export function permissionRequirement({ mode, executionMode, cwd, toolName, args, toolRisk }) {
   if (executionMode === 'full-access') return null
   if (INTERNAL_SAFE_TOOLS.has(toolName)) return null
+  // 手机端会在原生桥和系统权限层执行能力控制，避免再叠加一次通用 Agent 审批。
+  if (toolName === 'mobile_device') return null
   const risk = toolRisk || TOOL_RISKS.get(toolName) || 'high'
   const filePath = args?.path || args?.file_path
   if (toolName === 'skill_create' && args?.scope === 'global') {

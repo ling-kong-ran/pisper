@@ -31,7 +31,15 @@ export function createStaticHandler(root, { distRoot } = {}) {
       file = join(file, 'index.html')
       info = await stat(file).catch(() => null)
     }
-    // SPA 回退：未知路径一律返回应用壳 index.html。
+    // assets 下的文件名由构建哈希生成，缺失时不能回退到 HTML；否则浏览器会把
+    // HTML 当成 ES module 响应，最终只报「Importing a module script failed」，
+    // 也会掩盖真正的资源不一致。
+    const isAssetPath = requested === 'assets' || requested.startsWith(`assets${sep}`)
+    if (!info?.isFile() && isAssetPath) {
+      json(res, 404, { error: '静态资源不存在。' })
+      return
+    }
+    // SPA 回退：未知页面路径返回应用壳 index.html。
     if (!info?.isFile()) {
       file = join(dist, 'index.html')
       info = await stat(file).catch(() => null)

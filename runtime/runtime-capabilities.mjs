@@ -46,10 +46,17 @@ function supportedTools(features) {
   return [...tools].sort()
 }
 
-function buildCapabilities({ profile, childProcess, workerThreads, sqlite, wasm }) {
+function buildCapabilities({
+  profile,
+  childProcess,
+  workerThreads,
+  sqlite,
+  wasm,
+  processSpawning,
+}) {
   const store = profile === 'mobile-store'
   const embedded = profile === 'mobile-embedded' || store
-  const processes = childProcess && !store
+  const processes = childProcess && processSpawning && !store
   const workers = workerThreads && !store
   const features = {
     chat: true,
@@ -94,6 +101,7 @@ export function desktopRuntimeCapabilities() {
   return buildCapabilities({
     profile: 'desktop',
     childProcess: true,
+    processSpawning: true,
     workerThreads: true,
     sqlite: true,
     wasm: true,
@@ -111,9 +119,12 @@ export async function resolveRuntimeCapabilities({
     sqlite: await supportsModule('node:sqlite'),
     wasm: typeof WebAssembly === 'object',
   }
+  // iOS 的 NodeMobile 可以导入 child_process，但系统禁止 App 创建子进程；不能把模块存在误当成 spawn 可用。
+  const processSpawning = environment.PISPER_RUNTIME_PLATFORM !== 'ios'
   return buildCapabilities({
     profile,
     childProcess: detected.childProcess === true,
+    processSpawning,
     workerThreads: detected.workerThreads === true,
     sqlite: detected.sqlite === true,
     wasm: detected.wasm === true,

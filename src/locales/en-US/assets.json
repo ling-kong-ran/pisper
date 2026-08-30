@@ -18,6 +18,7 @@
   "assetsPage.deleteAsset": "Delete asset",
   "assetsPage.deleteAssetName": "Delete asset “{name}”?",
   "assetsPage.download": "Download",
+  "assetsPage.downloadStarted": "Download started",
   "assetsPage.forExampleOpenAIAPIDocs": "For example, OpenAI API docs",
   "assetsPage.fromName": "From: {name}",
   "assetsPage.linkAssetAdded": "Link asset added",
@@ -29,6 +30,8 @@
   "assetsPage.nameAddedToChat": "{name} added to chat",
   "assetsPage.nothingHasGatheredHereYet": "Nothing has gathered here yet",
   "assetsPage.open": "Open",
+  "assetsPage.openedInApplication": "Sent to a system application",
+  "assetsPage.openInApplication": "Open in app",
   "assetsPage.preview": "Preview",
   "assetsPage.thisFileTypeCanBeDownloadedSupportedDocumentsCanAlsoBeAddedToAChatForAnalysis": "This file type can be downloaded. Supported documents can also be added to a chat for analysis.",
   "assetsPage.useInChat": "Use in chat"

@@ -51,6 +51,9 @@ fn stage_windows_test_resource() {
 fn main() {
     println!("cargo:rerun-if-changed=updater.pubkey");
     println!("cargo:rerun-if-changed=desktop-package.json");
+    // 移动命令权限变更必须重建 release ACL，避免 Cargo 复用旧 manifest。
+    println!("cargo:rerun-if-changed=permissions/mobile.toml");
+    println!("cargo:rerun-if-changed=capabilities/mobile-bridge.json");
     println!("cargo:rerun-if-changed=../package.json");
     println!("cargo:rerun-if-changed=../src-tui/Cargo.toml");
     println!("cargo:rerun-if-env-changed=PISPER_TAURI_UPDATER_PUBLIC_KEY");

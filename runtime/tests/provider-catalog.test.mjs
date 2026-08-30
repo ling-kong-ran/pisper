@@ -47,6 +47,31 @@ test('model configuration exposes built-in Kimi and GLM providers', async (t) =>
   )
 })
 
+test('configured OpenAI protocol applies to built-in Kimi models', async (t) => {
+  const directory = await mkdtemp(join(tmpdir(), 'pisper-provider-kimi-protocol-'))
+  const runtime = new AgentRuntimeService({ cwd: directory, dataDir: directory })
+  t.after(async () => {
+    await runtime.dispose()
+    await rm(directory, { recursive: true, force: true })
+  })
+  await runtime.init()
+
+  await runtime.saveConfig({
+    provider: 'kimi-coding',
+    providerType: 'chat',
+    api: 'openai-responses',
+    baseUrl: 'https://api.kimi.com/coding/v1',
+    model: 'k3',
+    apiKey: 'test-key',
+    thinkingLevel: 'medium',
+    toolMode: 'workspace',
+  })
+
+  const model = runtime.modelRuntime.getModel('kimi-coding', 'k3')
+  assert.equal(model.api, 'openai-responses')
+  assert.equal(model.baseUrl, 'https://api.kimi.com/coding/v1')
+})
+
 test('removed tool modes use the workspace default without a migration file', async (t) => {
   const directory = await mkdtemp(join(tmpdir(), 'pisper-provider-tool-mode-'))
   const runtime = new AgentRuntimeService({ cwd: directory, dataDir: directory })

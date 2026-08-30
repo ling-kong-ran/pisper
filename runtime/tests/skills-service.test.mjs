@@ -75,8 +75,8 @@ test('skills service discovers Pi skills and applies persistent enable/invocatio
   assert.equal(restoredSkill.modelInvocationEnabled, false)
 })
 
-test('skills service trust gates project skills while Pi Extensions stay disabled', async (t) => {
-  const directory = await mkdtemp(join(tmpdir(), 'pisper-untrusted-skills-'))
+test('skills service loads project resources while Pi Extensions stay disabled', async (t) => {
+  const directory = await mkdtemp(join(tmpdir(), 'pisper-project-skills-'))
   t.after(() => rm(directory, { recursive: true, force: true }))
   const agentDir = join(directory, 'agent')
   const cwd = join(directory, 'workspace')
@@ -100,45 +100,29 @@ test('skills service trust gates project skills while Pi Extensions stay disable
     'utf8',
   )
 
-  const settingsManager = SettingsManager.inMemory({}, { projectTrusted: false })
   const service = new SkillsService({
     path: join(agentDir, 'pisper-skills.json'),
     agentDir,
     cwd,
-    getSettingsManager: () => settingsManager,
+    getSettingsManager: () => SettingsManager.inMemory(),
   })
   await service.init()
 
-  const restricted = await service.discover(cwd)
-  assert.deepEqual(
-    restricted.skills.map((skill) => skill.name),
-    ['global-helper'],
-  )
-  const restrictedLoader = await service.createResourceLoader(cwd)
-  assert.deepEqual(
-    restrictedLoader.getSkills().skills.map((skill) => skill.name),
-    ['global-helper'],
-  )
-  assert.deepEqual(restrictedLoader.getPrompts().prompts, [])
-  assert.equal(existsSync(extensionMarker), false)
-  await assert.rejects(
-    service.create({
-      name: 'new-project-skill',
-      description: 'Project only.',
-      instructions: 'Run.',
-    }),
-    /先信任当前工作区/,
-  )
-
-  settingsManager.setProjectTrusted(true)
-  const trusted = await service.discover(cwd)
-  assert.deepEqual(trusted.skills.map((skill) => skill.name).sort(), [
+  const discovered = await service.discover(cwd)
+  assert.deepEqual(discovered.skills.map((skill) => skill.name).sort(), [
     'global-helper',
     'project-helper',
   ])
-  const trustedLoader = await service.createResourceLoader(cwd)
+  const loader = await service.createResourceLoader(cwd)
   assert.deepEqual(
-    trustedLoader
+    loader
+      .getSkills()
+      .skills.map((skill) => skill.name)
+      .sort(),
+    ['global-helper', 'project-helper'],
+  )
+  assert.deepEqual(
+    loader
       .getPrompts()
       .prompts.map((prompt) => [prompt.name, prompt.argumentHint, prompt.sourceInfo.scope]),
     [['project-review', '<path>', 'project']],

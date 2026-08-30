@@ -52,7 +52,6 @@ import { SessionTreeControl } from './SessionTreeControl'
 import { SessionWorkflowRuns } from './SessionWorkflowRuns'
 import { ToolApproval } from './ToolApproval'
 import { VisualComposerEntry } from './VisualComposerEntry'
-import { WorkspaceTrustNotice } from './WorkspaceTrustNotice'
 
 const DEFAULT_GOAL_TOKEN_BUDGET = 30_000
 const USES_COMMAND_KEY = /Mac|iPhone|iPad/.test(globalThis.navigator?.platform || '')
@@ -428,7 +427,6 @@ export const FocusSession = memo(function FocusSession({
         className="focus-composer-shell [.focus-session.has-conversation_&]:w-[min(900px,calc(100%_-_48px))] [.focus-session.has-conversation_&]:pt-[8px] @max-[700px]:w-[calc(100%_-_20px)] @max-[700px]:pb-[10px] @max-[700px]:[.focus-session.has-conversation_&]:w-[calc(100%_-_20px)] max-[650px]:w-[calc(100%_-_20px)] max-[650px]:pb-[10px] relative z-20 flex w-[min(960px,calc(100%_-_48px))] flex-none flex-col gap-[7px] [margin:0_auto] [padding:10px_0_0]"
         onSubmit={submit}
       >
-        <WorkspaceTrustNotice sessionId={session.id} cwd={cwd} streaming={streaming} />
         <ToolApproval approvals={approvals} onResolve={onApproval} />
         {streaming && queuedInputs.length > 0 && (
           <QueueSection asChild defaultOpen>

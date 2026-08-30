@@ -1,8 +1,10 @@
+use base64::{engine::general_purpose::STANDARD as BASE64_STANDARD, Engine as _};
 use serde::{Deserialize, Serialize};
 use std::{
-    fs::{create_dir_all, OpenOptions},
+    fs::{create_dir_all, write as write_file, OpenOptions},
     io::Write,
     path::PathBuf,
+    time::{SystemTime, UNIX_EPOCH},
 };
 use tauri::{AppHandle, Manager, Url};
 use tauri_plugin_dialog::DialogExt;
@@ -29,6 +31,13 @@ pub struct AppInfo {
     platform: &'static str,
     arch: &'static str,
     releases_url: &'static str,
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AssetOpenInput {
+    name: String,
+    data: String,
 }
 
 #[derive(Deserialize)]
@@ -181,6 +190,44 @@ pub fn desktop_open_url(app: AppHandle, url: String) -> bool {
     app.opener()
         .open_url(parsed.to_string(), None::<&str>)
         .is_ok()
+}
+
+#[tauri::command]
+pub fn desktop_open_asset(app: AppHandle, input: AssetOpenInput) -> Result<bool, String> {
+    let name = input.name.trim();
+    if name.is_empty()
+        || name.chars().count() > 180
+        || name.chars().any(char::is_control)
+        || name.contains(['/', '\\'])
+    {
+        return Err("资产文件名无效。".into());
+    }
+    if input.data.len() > 180 * 1024 * 1024 {
+        return Err("资产超过 128 MB 原生打开限制。".into());
+    }
+    let bytes = BASE64_STANDARD
+        .decode(input.data)
+        .map_err(|_| "资产内容不是有效的 base64 数据。".to_string())?;
+    if bytes.is_empty() || bytes.len() > 128 * 1024 * 1024 {
+        return Err("资产内容为空或超过 128 MB 原生打开限制。".into());
+    }
+    let nonce = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .map_err(|error| error.to_string())?
+        .as_nanos();
+    let directory = app
+        .path()
+        .app_cache_dir()
+        .map_err(|error| error.to_string())?
+        .join("open-assets")
+        .join(nonce.to_string());
+    create_dir_all(&directory).map_err(|error| error.to_string())?;
+    let path = directory.join(name);
+    write_file(&path, bytes).map_err(|error| error.to_string())?;
+    app.opener()
+        .open_path(path.to_string_lossy().into_owned(), None::<&str>)
+        .map(|_| true)
+        .map_err(|error| error.to_string())
 }
 
 #[tauri::command]

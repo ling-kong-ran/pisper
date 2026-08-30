@@ -31,7 +31,6 @@ import { ProviderModelDiscoveryService } from '../services/provider-model-discov
 import { ScheduleService } from '../services/schedule-service.mjs'
 import { WorkflowService } from '../services/workflow-service.mjs'
 import { SkillsService } from '../services/skills-service.mjs'
-import { WorkspaceTrustService } from '../services/workspace-trust-service.mjs'
 import { SessionPermissionService } from '../services/session-permission-service.mjs'
 import { MobileOperationService } from '../services/mobile-operation-service.mjs'
 import { ToolPluginService } from '../services/tool-plugin-service.mjs'
@@ -63,6 +62,20 @@ import {
 } from './workspace-directories.mjs'
 import { assetMessageAttachment } from '../services/session-assets.mjs'
 import * as assetStorage from '../services/asset-storage.mjs'
+import {
+  ASSET_DOCUMENT_EXTENSIONS,
+  ASSET_TEXT_EXTENSIONS,
+  IMAGE_EXTENSIONS,
+  decodeUtf8Text,
+  mimeFromName,
+  mimeMayContainText,
+  readFilePrefix,
+  safeAttachmentName,
+} from '../services/asset-content.mjs'
+import {
+  captureWorkspaceAssetBaseline,
+  listNewWorkspaceAssets,
+} from '../services/workspace-asset-capture.mjs'
 import { TOOL_CATALOG, createAppTools, createMultiAgentTools } from '../tools/registry.mjs'
 import { createGoalTools, GOAL_TOOL_NAMES } from '../tools/app/goal.mjs'
 import {
@@ -177,44 +190,6 @@ const SESSION_HISTORY_READ_CHUNK_BYTES = 1024 * 1024
 const MAX_SESSION_HISTORY_CACHE_ENTRIES = 4
 const MAX_SESSION_HISTORY_CACHE_SOURCE_BYTES = 8 * 1024 * 1024
 const MAX_SESSION_HISTORY_CACHE_ESTIMATED_BYTES = 48 * 1024 * 1024
-// 可按文本提取的附件扩展名集合（区别于需 officeparser 解析的文档类型）。
-const ASSET_TEXT_EXTENSIONS = new Set([
-  '.txt',
-  '.md',
-  '.json',
-  '.js',
-  '.jsx',
-  '.ts',
-  '.tsx',
-  '.css',
-  '.html',
-  '.xml',
-  '.yaml',
-  '.yml',
-  '.csv',
-  '.log',
-  '.py',
-  '.java',
-  '.go',
-  '.rs',
-  '.sh',
-  '.ps1',
-  '.toml',
-  '.sql',
-])
-// 需要 officeparser 解析的办公文档扩展名集合。
-const ASSET_DOCUMENT_EXTENSIONS = new Set([
-  '.pdf',
-  '.docx',
-  '.pptx',
-  '.xlsx',
-  '.odt',
-  '.odp',
-  '.ods',
-  '.rtf',
-  '.epub',
-])
-const IMAGE_EXTENSIONS = new Set(['.png', '.jpg', '.jpeg', '.gif', '.webp', '.bmp', '.svg'])
 // 部分上游（模型网关）在流式中断时会报 “stream read error” 之类的瞬时错误，
 // 该错误可安全重试，用 Symbol 标记避免重复打补丁。
 const TRANSIENT_STREAM_READ_ERROR_PATTERN = /\bstream[_\s-]?read[_\s-]?error\b/i
@@ -300,42 +275,6 @@ export async function waitForAgentMailbox(multiAgents, sessionId, timeoutMs, tar
   return result
 }
 
-// 附件名清洗：去掉换行与尖括号等可能破坏 Markdown/文件名的字符，并限制长度。
-function safeAttachmentName(name) {
-  return String(name || '附件')
-    .replace(/[\r\n<>]/g, '_')
-    .slice(0, 180)
-}
-
-// 依据扩展名推断 MIME 类型；未知类型回退到二进制流。
-function mimeFromName(name) {
-  const extension = extname(String(name || '')).toLowerCase()
-  return (
-    {
-      '.png': 'image/png',
-      '.jpg': 'image/jpeg',
-      '.jpeg': 'image/jpeg',
-      '.gif': 'image/gif',
-      '.webp': 'image/webp',
-      '.svg': 'image/svg+xml',
-      '.txt': 'text/plain',
-      '.md': 'text/markdown',
-      '.json': 'application/json',
-      '.js': 'text/javascript',
-      '.ts': 'text/typescript',
-      '.css': 'text/css',
-      '.html': 'text/html',
-      '.pdf': 'application/pdf',
-      '.docx': 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-      '.pptx': 'application/vnd.openxmlformats-officedocument.presentationml.presentation',
-      '.xlsx': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-      '.mp4': 'video/mp4',
-      '.webm': 'video/webm',
-      '.mov': 'video/quicktime',
-    }[extension] || 'application/octet-stream'
-  )
-}
-
 // 标题截断：按 Unicode 码点截断（避免截断代理对产生乱码），超出部分以省略号结尾。
 function truncateTitle(value) {
   const characters = Array.from(String(value || '').trim())
@@ -384,6 +323,31 @@ function addUsage(target, usage) {
 
 async function resolveDirectory(input, fallback) {
   return resolveWorkspaceDirectory(input, fallback)
+}
+
+function isEmbeddedMobileRuntime(profile = process.env.PISPER_RUNTIME_PROFILE) {
+  return ['mobile-embedded', 'mobile-store'].includes(profile)
+}
+
+export async function resolveSessionDirectory(
+  runtime,
+  sessionManager,
+  sessionId,
+  profile = process.env.PISPER_RUNTIME_PROFILE,
+) {
+  const metadata = runtime.sessionMeta[sessionId] || {}
+  const managerCwd = sessionManager.getCwd() || runtime.cwd
+  try {
+    return await resolveDirectory(metadata.cwd, managerCwd)
+  } catch (error) {
+    if (!isEmbeddedMobileRuntime(profile)) throw error
+    // 移动端升级过本机 Runtime 后，历史会话可能仍保存旧的绝对沙盒路径；
+    // 回退到当前稳定工作区并修正元数据，避免打开会话或压缩上下文被旧路径卡住。
+    const cwd = await resolveDirectory(runtime.cwd, runtime.cwd)
+    runtime.sessionMeta[sessionId] = { ...metadata, cwd }
+    await runtime.saveSessionMeta()
+    return cwd
+  }
 }
 
 // 由首条消息生成会话标题：去掉代码块、取第一句，失败时回退到附件名或默认名。
@@ -483,7 +447,6 @@ export class AgentRuntimeService extends AgentRuntimeFacade {
       legacyPath: join(dataDir, 'pisper-task-lists.json'),
     })
     this.browserAutomation = new BrowserAutomationService({ driver: browserAutomationDriver })
-    this.workspaceTrust = new WorkspaceTrustService({ agentDir: dataDir })
     this.goalEmitters = new Map()
     this.agentEmitters = new Map()
     this.mcp = new McpService({ path: join(dataDir, 'pisper-mcp.json'), cwd })
@@ -494,9 +457,7 @@ export class AgentRuntimeService extends AgentRuntimeFacade {
       getSettingsManager: (skillsCwd = this.cwd) => {
         if (!this.settingsManager || workspacePathKey(skillsCwd) === workspacePathKey(this.cwd))
           return this.settingsManager
-        return SettingsManager.create(skillsCwd, this.dataDir, {
-          projectTrusted: this.workspaceTrust.isTrusted(skillsCwd),
-        })
+        return SettingsManager.create(skillsCwd, this.dataDir)
       },
       extensionFactories: [pisperPromptExtension, pisperCompactionExtension],
     })
@@ -756,9 +717,7 @@ export class AgentRuntimeService extends AgentRuntimeFacade {
       appConfigPath: this.appConfigPath,
     })
     await Promise.all([this.providerModelCatalog.init(), this.modelMetadata.init()])
-    this.settingsManager = SettingsManager.create(this.cwd, this.dataDir, {
-      projectTrusted: this.workspaceTrust.isTrusted(this.cwd),
-    })
+    this.settingsManager = SettingsManager.create(this.cwd, this.dataDir)
 
     stage('skills')
     await this.skills.init()
@@ -1236,7 +1195,7 @@ export class AgentRuntimeService extends AgentRuntimeFacade {
     })
     if (!asset) return null
     await this.saveAssetIndex()
-    return this.publicAsset(asset)
+    return this.publicAsset(assetStorage.assetForSession(asset, sessionId) || asset)
   }
 
   async listAssets({ query = '', kind = '', sessionId = '' } = {}) {
@@ -1261,7 +1220,7 @@ export class AgentRuntimeService extends AgentRuntimeFacade {
     return this.assetIndex.assets.find((asset) => asset.id === id)
   }
 
-  async getAssetContent(id) {
+  async getAssetContent(id, { previewOnly = false } = {}) {
     await this.assetReconcile
     const asset = this.findAsset(id)
     if (!asset) return null
@@ -1276,10 +1235,48 @@ export class AgentRuntimeService extends AgentRuntimeFacade {
       }
     }
     const path = asset.storagePath || asset.filePath
-    const buffer = await readFile(path)
-    if (buffer.length > MAX_CHAT_ASSET_BYTES)
-      throw new Error('资产超过 10 MB，无法直接加入对话；仍可下载或在工作目录中读取。')
+    const info = await stat(path)
     const extension = extname(asset.name).toLowerCase()
+    if (!previewOnly && info.size > MAX_CHAT_ASSET_BYTES)
+      throw new Error('资产超过 10 MB，无法直接加入对话；仍可下载或在工作目录中读取。')
+    const knownText = ASSET_TEXT_EXTENSIONS.has(extension) || mimeMayContainText(asset.mimeType)
+    if (knownText) {
+      const buffer = await readFilePrefix(path, Math.min(info.size, 2 * 1024 * 1024))
+      const text = decodeUtf8Text(buffer)
+      if (text !== null)
+        return {
+          id: asset.id,
+          kind: 'text',
+          name: asset.name,
+          mimeType: asset.mimeType,
+          size: info.size,
+          text: text.slice(0, MAX_EXTRACTED_CHARS),
+          truncated: info.size > buffer.length || text.length > MAX_EXTRACTED_CHARS,
+        }
+    }
+    if (!ASSET_DOCUMENT_EXTENSIONS.has(extension)) {
+      const buffer = await readFilePrefix(path, Math.min(info.size, 2 * 1024 * 1024))
+      const text = decodeUtf8Text(buffer)
+      if (text !== null)
+        return {
+          id: asset.id,
+          kind: 'text',
+          name: asset.name,
+          mimeType: mimeMayContainText(asset.mimeType) ? asset.mimeType : 'text/plain',
+          size: info.size,
+          text: text.slice(0, MAX_EXTRACTED_CHARS),
+          truncated: info.size > buffer.length || text.length > MAX_EXTRACTED_CHARS,
+        }
+    }
+    if (previewOnly)
+      return {
+        id: asset.id,
+        kind: ASSET_DOCUMENT_EXTENSIONS.has(extension) ? 'document' : 'file',
+        name: asset.name,
+        mimeType: asset.mimeType,
+        size: info.size,
+      }
+    const buffer = await readFile(path)
     if (asset.kind === 'image')
       return {
         id: asset.id,
@@ -1289,18 +1286,6 @@ export class AgentRuntimeService extends AgentRuntimeFacade {
         size: buffer.length,
         data: buffer.toString('base64'),
       }
-    if (ASSET_TEXT_EXTENSIONS.has(extension) || asset.mimeType.startsWith('text/')) {
-      const text = buffer.toString('utf8')
-      return {
-        id: asset.id,
-        kind: 'text',
-        name: asset.name,
-        mimeType: asset.mimeType,
-        size: buffer.length,
-        text: text.slice(0, MAX_EXTRACTED_CHARS),
-        truncated: text.length > MAX_EXTRACTED_CHARS,
-      }
-    }
     if (ASSET_DOCUMENT_EXTENSIONS.has(extension))
       return {
         id: asset.id,
@@ -1323,13 +1308,17 @@ export class AgentRuntimeService extends AgentRuntimeFacade {
     }
   }
 
-  async getAssetDownload(id) {
+  async getAssetDownload(id, { includeBuffer = true } = {}) {
     await this.assetReconcile
     const asset = this.findAsset(id)
     if (!asset || asset.kind === 'link') return null
+    const path = asset.storagePath || asset.filePath
+    const info = await stat(path)
     return {
       asset: this.publicAsset(asset),
-      buffer: await readFile(asset.storagePath || asset.filePath),
+      path,
+      size: info.size,
+      ...(includeBuffer ? { buffer: await readFile(path) } : {}),
     }
   }
 
@@ -1372,10 +1361,7 @@ export class AgentRuntimeService extends AgentRuntimeFacade {
       this.modelRuntime.hasConfiguredAuth(preferredModel.provider)
     const sessionModel = preferredModel && preferredModelHasAuth ? preferredModel : undefined
     const appConfig = await readJson(this.appConfigPath, { toolMode: 'full' })
-    const effectiveCwd = await resolveDirectory(
-      this.sessionMeta[runtimeSessionId]?.cwd,
-      sessionManager.getCwd() || this.cwd,
-    )
+    const effectiveCwd = await resolveSessionDirectory(this, sessionManager, runtimeSessionId)
     const executionMode = this.getSessionExecutionMode(runtimeSessionId)
     // 并行准备资源加载器与 MCP 工具定义；MCP 工具按名称排序保证工具列表稳定（利于缓存命中）。
     const catalogToolNames = new Set(TOOL_CATALOG.map((tool) => tool.id))
@@ -1843,6 +1829,7 @@ export class AgentRuntimeService extends AgentRuntimeFacade {
       value.blockedToolNames = ISOLATED_CONTEXT_BLOCKED_TOOLS
     }
     const { session } = value
+    const workspaceAssetBaseline = await captureWorkspaceAssetBaseline(value.cwd).catch(() => null)
     const appConfig = await readJson(this.appConfigPath, {
       toolMode: 'full',
       disabledProviders: [],
@@ -2015,6 +2002,23 @@ export class AgentRuntimeService extends AgentRuntimeFacade {
       live.currentActivity = backgroundActivities.at(-1) || null
       live.activityFeed = backgroundActivities.slice(-MAX_LIVE_ACTIVITY_ITEMS)
       return finishedAt
+    }
+    let workspaceAssetsCollected = false
+    const collectWorkspaceAssets = async () => {
+      if (workspaceAssetsCollected) return
+      workspaceAssetsCollected = true
+      const files = await listNewWorkspaceAssets(workspaceAssetBaseline).catch(() => [])
+      for (const file of files) {
+        try {
+          const existing = assetStorage.findAssetByFilePath(this.assetIndex.assets, file.path)
+          if (existing?.source === 'agent' && existing.sessionId === session.sessionId) continue
+          const asset = await this.recordGeneratedFile(session.sessionId, value, file.path)
+          if (!asset) continue
+          const attachment = assetMessageAttachment(asset)
+          live.assets = [...live.assets.filter((item) => item.id !== attachment.id), attachment]
+          emit('generated_asset', attachment)
+        } catch {}
+      }
     }
     const unsubscribe = session.subscribe((event) => {
       live.lastActivityAt = new Date().toISOString()
@@ -2333,6 +2337,7 @@ export class AgentRuntimeService extends AgentRuntimeFacade {
       if (last?.errorMessage) throw new Error(last.errorMessage)
       const assistantText = textFromContent(last?.content)
       live.text = assistantText || live.text
+      await collectWorkspaceAssets()
       const finishedAt = finishLiveRun()
       live.contextUsage = this.compactionAwareContextUsage(session, live.compaction)
       emit('done', {
@@ -2368,6 +2373,7 @@ export class AgentRuntimeService extends AgentRuntimeFacade {
       }
     } catch (error) {
       // 出错路径：清空排队输入、记录错误、暂停活动目标并广播 error 事件。
+      await collectWorkspaceAssets()
       session.clearQueue?.()
       live.queuedInputs = []
       live.error = error instanceof Error ? error.message : String(error)

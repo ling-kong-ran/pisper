@@ -25,6 +25,8 @@ use std::collections::HashMap;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
+#[cfg(target_os = "ios")]
+use std::time::{SystemTime, UNIX_EPOCH};
 
 use serde::{Deserialize, Serialize};
 use store::{ProfileStore, ServerProfile, SharedStore};
@@ -34,6 +36,9 @@ use tauri::{Manager, State, WebviewUrl, WebviewWindowBuilder};
 use pisper_mobile_device_plugin::MobileDeviceExt;
 
 use pairing::QrPayload;
+
+// 该标记在页面脚本执行前注入，避免移动布局依赖一次异步 API 握手才能出现。
+const MOBILE_CLIENT_INITIALIZATION_SCRIPT: &str = r#"Object.defineProperty(window, '__PISPER_MOBILE_APP__', { value: true, writable: false, configurable: false });"#;
 
 pub struct MobileShared {
     store: Arc<SharedStore>,
@@ -117,7 +122,9 @@ fn state_dto(shared: &MobileShared) -> MobileStateDto {
     }
 }
 
-const STARTUP_PROBE_TIMEOUT: Duration = Duration::from_secs(5);
+const STARTUP_PROBE_TIMEOUT: Duration = Duration::from_secs(3);
+const STARTUP_PROBE_ATTEMPTS: usize = 3;
+const STARTUP_PROBE_RETRY_DELAY: Duration = Duration::from_millis(250);
 const MAX_STARTUP_RESPONSE_BYTES: u64 = 256 * 1024;
 
 fn startup_api_context(bootstrap_url: &str) -> Result<(tauri::Url, tauri::Url, String), String> {
@@ -311,15 +318,23 @@ async fn ensure_local_runtime_ready(
             return Err(error);
         }
     };
-    let cookie = match validate_local_runtime_startup(&status.url).await {
-        Ok(cookie) => cookie,
-        Err(error) => {
-            record_startup_error(&startup_error, Some(error.clone()));
-            return Err(error);
+    let mut last_error = None;
+    for attempt in 0..STARTUP_PROBE_ATTEMPTS {
+        match validate_local_runtime_startup(&status.url).await {
+            Ok(cookie) => {
+                record_startup_error(&startup_error, None);
+                return Ok((status, cookie));
+            }
+            Err(error) => last_error = Some(error),
         }
-    };
-    record_startup_error(&startup_error, None);
-    Ok((status, cookie))
+        if attempt + 1 < STARTUP_PROBE_ATTEMPTS {
+            // iOS 刚回前台时 Node 线程与回环 socket 可能晚于 WebView 解冻，短暂等待后重探。
+            tokio::time::sleep(STARTUP_PROBE_RETRY_DELAY * (attempt as u32 + 1)).await;
+        }
+    }
+    let error = last_error.unwrap_or_else(|| "本机 Runtime 健康检查失败。".to_string());
+    record_startup_error(&startup_error, Some(error.clone()));
+    Err(error)
 }
 
 fn startup_location_replace_script(url: &tauri::Url) -> String {
@@ -387,6 +402,15 @@ async fn mobile_retry_local_startup(
     window
         .eval(startup_location_replace_script(&url))
         .map_err(|error| format!("无法打开本机 Runtime 代理：{error}"))
+}
+
+/// 前后台切换后只恢复本机承载与代理，不改变当前页面路由。
+#[tauri::command]
+async fn mobile_resume_local_runtime(state: State<'_, MobileShared>) -> Result<(), String> {
+    state.proxy.invalidate_remote_upstream();
+    let (status, _) =
+        ensure_local_runtime_ready(state.on_device.clone(), state.startup_error.clone()).await?;
+    state.proxy.configure_local_runtime(&status.url)
 }
 
 fn activate_remote_profile(
@@ -600,17 +624,42 @@ struct MobileDeviceOperationRequest {
     parameters: serde_json::Map<String, serde_json::Value>,
 }
 
-fn operation_capability(operation: &str) -> Result<&'static str, String> {
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct MobileAssetOpenInput {
+    name: String,
+    mime_type: String,
+    data: String,
+}
+
+fn operation_capability(operation: &str) -> Result<Option<&'static str>, String> {
     match operation {
-        "contacts.search" => Ok("contacts"),
-        "camera.capture" => Ok("camera"),
-        "location.current" => Ok("location"),
+        "contacts.search" => Ok(Some("contacts")),
+        "camera.capture" | "device.flashlight" => Ok(Some("camera")),
+        "location.current" => Ok(Some("location")),
+        "device.notify" => Ok(Some("notifications")),
+        "photos.list" | "photos.create_album" | "photos.add_to_album" | "photos.delete" => {
+            Ok(Some("photos"))
+        }
         "apps.open_url"
         | "apps.open_map"
         | "apps.open_system_settings"
         | "apps.open_dialer"
         | "apps.compose_sms"
-        | "apps.open_app" => Ok("externalApps"),
+        | "apps.open_app"
+        | "apps.share_text" => Ok(Some("externalApps")),
+        "device.info"
+        | "device.capabilities"
+        | "device.battery"
+        | "device.storage"
+        | "device.memory"
+        | "device.network"
+        | "device.display"
+        | "device.locale"
+        | "device.status"
+        | "device.clipboard.get"
+        | "device.clipboard.set"
+        | "device.vibrate" => Ok(None),
         _ => Err("不支持的移动设备操作。".into()),
     }
 }
@@ -638,6 +687,53 @@ fn mobile_ensure_local_network_permission(app: tauri::AppHandle) -> Result<(), S
 }
 
 #[tauri::command]
+fn mobile_open_asset(
+    app: tauri::AppHandle,
+    input: MobileAssetOpenInput,
+) -> Result<serde_json::Value, String> {
+    let name = input.name.trim();
+    if name.is_empty()
+        || name.chars().count() > 180
+        || name.chars().any(char::is_control)
+        || name.contains('/')
+        || name.contains('\\')
+    {
+        return Err("资产文件名无效。".into());
+    }
+    let mime_type = input.mime_type.trim();
+    if mime_type.is_empty()
+        || mime_type.len() > 120
+        || !mime_type.is_ascii()
+        || !mime_type.contains('/')
+        || mime_type.chars().any(char::is_whitespace)
+    {
+        return Err("资产 MIME 类型无效。".into());
+    }
+    if input.data.is_empty() || input.data.len() > 180 * 1024 * 1024 {
+        return Err("资产内容为空或超过 128 MB 原生打开限制。".into());
+    }
+    let mut parameters = serde_json::Map::new();
+    parameters.insert("fileName".into(), name.into());
+    parameters.insert("mimeType".into(), mime_type.into());
+    parameters.insert("data".into(), input.data.into());
+    #[cfg(any(target_os = "android", target_os = "ios"))]
+    {
+        return app
+            .mobile_device()
+            .execute(pisper_mobile_device_plugin::OperationRequest {
+                operation: "files.open".into(),
+                parameters,
+            })
+            .map_err(|error| error.to_string());
+    }
+    #[cfg(not(any(target_os = "android", target_os = "ios")))]
+    {
+        let _ = (app, parameters);
+        Err("当前平台不支持移动资产打开能力。".into())
+    }
+}
+
+#[tauri::command]
 fn mobile_execute_device_operation(
     app: tauri::AppHandle,
     request: MobileDeviceOperationRequest,
@@ -652,16 +748,24 @@ fn mobile_execute_device_operation(
     #[cfg(any(target_os = "android", target_os = "ios"))]
     {
         let device = app.mobile_device();
-        if capability != "externalApps" {
-            let states = device
-                .permission_states()
-                .map_err(|error| error.to_string())?;
-            if states.get(capability).and_then(|value| value.as_str()) != Some("granted") {
-                let result = device
-                    .request_permission(capability)
+        if let Some(capability) = capability {
+            if capability != "externalApps" {
+                let states = device
+                    .permission_states()
                     .map_err(|error| error.to_string())?;
-                if result.get("state").and_then(|value| value.as_str()) != Some("granted") {
-                    return Err("系统未授予该设备能力权限。".into());
+                let state = states.get(capability).and_then(|value| value.as_str());
+                let usable = state == Some("granted")
+                    || (capability == "photos" && state == Some("limited"));
+                if !usable {
+                    let result = device
+                        .request_permission(capability)
+                        .map_err(|error| error.to_string())?;
+                    let state = result.get("state").and_then(|value| value.as_str());
+                    if state != Some("granted")
+                        && !(capability == "photos" && state == Some("limited"))
+                    {
+                        return Err("系统未授予该设备能力权限。".into());
+                    }
                 }
             }
         }
@@ -714,6 +818,25 @@ pub fn run_mobile() {
         .plugin(pisper_mobile_device_plugin::init())
         .plugin(tauri_plugin_barcode_scanner::init())
         .plugin(tauri_plugin_dns_sd::init());
+    #[cfg(target_os = "ios")]
+    let builder = builder.on_web_content_process_terminate(|webview| {
+        let port = webview.app_handle().state::<MobileShared>().proxy.port;
+        let fragment = webview
+            .url()
+            .ok()
+            .and_then(|url| url.fragment().map(ToOwned::to_owned));
+        let recovery = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .map(|duration| duration.as_millis())
+            .unwrap_or_default();
+        let mut url = tauri::Url::parse(&format!("http://127.0.0.1:{port}/"))
+            .expect("移动端回环代理地址必须有效");
+        url.set_query(Some(&format!("_pisper_recovery={recovery}")));
+        url.set_fragment(fragment.as_deref());
+        if let Err(error) = webview.navigate(url) {
+            eprintln!("iOS WebContent 进程恢复导航失败：{error}");
+        }
+    });
     let builder = builder
         .setup(|app| {
             let data_dir = app
@@ -779,7 +902,9 @@ pub fn run_mobile() {
 
             // Runtime 未通过启动合同前不能挂载任何依赖 /api 的业务页面。
             let initial = WebviewUrl::App("mobile-startup.html".into());
-            let window_builder = WebviewWindowBuilder::new(app, "main", initial).title("Pisper");
+            let window_builder = WebviewWindowBuilder::new(app, "main", initial)
+                .title("Pisper")
+                .initialization_script(MOBILE_CLIENT_INITIALIZATION_SCRIPT);
             #[cfg(target_os = "android")]
             let window_builder = {
                 let startup_history_pending = Arc::new(AtomicBool::new(true));
@@ -804,6 +929,7 @@ pub fn run_mobile() {
         .invoke_handler(tauri::generate_handler![
             mobile_state,
             mobile_retry_local_startup,
+            mobile_resume_local_runtime,
             mobile_pair,
             mobile_pair_manual,
             mobile_ensure_local_network_permission,
@@ -814,6 +940,7 @@ pub fn run_mobile() {
             mobile_enter_local,
             mobile_leave_local,
             mobile_forget_server,
+            mobile_open_asset,
             mobile_execute_device_operation,
             update::mobile_app_info,
             update::mobile_check_app_update,
@@ -829,6 +956,18 @@ pub fn run_mobile() {
         .run(|app, event| {
             if matches!(event, tauri::RunEvent::Resumed) {
                 update::check_after_resume(app.clone());
+                let state = app.state::<MobileShared>();
+                let on_device = state.on_device.clone();
+                let startup_error = state.startup_error.clone();
+                let proxy = state.proxy.clone();
+                proxy.invalidate_remote_upstream();
+                tauri::async_runtime::spawn(async move {
+                    if let Ok((status, _)) =
+                        ensure_local_runtime_ready(on_device, startup_error).await
+                    {
+                        let _ = proxy.configure_local_runtime(&status.url);
+                    }
+                });
             }
             if matches!(
                 event,

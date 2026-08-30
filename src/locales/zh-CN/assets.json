@@ -18,6 +18,7 @@
   "assetsPage.deleteAsset": "删除资产",
   "assetsPage.deleteAssetName": "确定删除资产「{name}」吗？",
   "assetsPage.download": "下载",
+  "assetsPage.downloadStarted": "已开始下载",
   "assetsPage.forExampleOpenAIAPIDocs": "例如 OpenAI API 文档",
   "assetsPage.fromName": "来自：{name}",
   "assetsPage.linkAssetAdded": "链接资产已添加",
@@ -29,6 +30,8 @@
   "assetsPage.nameAddedToChat": "{name} 已加入对话",
   "assetsPage.nothingHasGatheredHereYet": "这里还没有留下产物",
   "assetsPage.open": "打开",
+  "assetsPage.openedInApplication": "已交给系统应用处理",
+  "assetsPage.openInApplication": "以应用打开",
   "assetsPage.preview": "预览",
   "assetsPage.thisFileTypeCanBeDownloadedSupportedDocumentsCanAlsoBeAddedToAChatForAnalysis": "此类型可下载，支持的文档也可以直接加入对话分析。",
   "assetsPage.useInChat": "用于对话"

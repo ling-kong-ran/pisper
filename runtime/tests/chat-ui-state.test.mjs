@@ -5,6 +5,8 @@ import { createPrimaryActionRegistry } from '../../src/app/primary-action.ts'
 import {
   mergeSessionLists,
   recentSessionCwd,
+  sessionCwdForCreate,
+  shouldInheritRecentSessionCwd,
   removeTiledSession,
   toggleTiledSession,
 } from '../../src/features/chat/session-list.ts'
@@ -65,11 +67,19 @@ test('new sessions inherit the most recently listed workspace', async () => {
   assert.equal(recentSessionCwd(sessions), 'E:\\code\\latest')
   assert.equal(recentSessionCwd([]), '')
 
+  // 桌面默认继承最近目录；移动本机不继承；移动远程继续继承；显式目录始终优先。
+  assert.equal(shouldInheritRecentSessionCwd(false), true)
+  assert.equal(shouldInheritRecentSessionCwd(true, { paired: false, mode: 'local' }), false)
+  assert.equal(shouldInheritRecentSessionCwd(true, { paired: true, mode: 'remote' }), true)
+  assert.equal(sessionCwdForCreate('', sessions), 'E:\\code\\latest')
+  assert.equal(sessionCwdForCreate('', sessions, false), '')
+  assert.equal(sessionCwdForCreate('/mobile/explicit', sessions, false), '/mobile/explicit')
+
   const [catalog, api] = await Promise.all([
     readFile('src/features/chat/use-session-catalog.ts', 'utf8'),
     readFile('src/features/chat/chat-api.ts', 'utf8'),
   ])
-  assert.match(catalog, /recentSessionCwd\(sessionsRef\.current\)/)
+  assert.match(catalog, /sessionCwdForCreate\(cwd, sessionsRef\.current, inheritRecentCwd\)/)
   assert.match(api, /data: \{ name, \.\.\.\(cwd \? \{ cwd \} : \{\}\) \}/)
 })
 
@@ -92,8 +102,11 @@ test('workspace groups create chats with their exact working directory', async (
   assert.match(events, /localStorage\.removeItem\(STORAGE_KEYS\.sessionCreateRequest\)/)
   assert.match(chatPage, /addEventListener\(SESSION_CREATE_REQUESTED_EVENT, createRequested\)/)
   assert.match(chatPage, /createSession\(undefined, request\.cwd\)/)
-  assert.match(catalog, /createSessionRecord = useCallback\(\s*\(cwd = ''\) =>/)
-  assert.match(catalog, /cwd \|\| recentSessionCwd\(sessionsRef\.current\)/)
+  assert.match(
+    catalog,
+    /createSessionRecord = useCallback\(\s*\(cwd = '', \{ inheritRecentCwd = true \}: CreateSessionOptions = \{\}\) =>/,
+  )
+  assert.match(catalog, /sessionCwdForCreate\(cwd, sessionsRef\.current, inheritRecentCwd\)/)
   assert.equal(english['appSidebar.newChatInWorkspace'], 'New chat in {workspace}')
   assert.equal(chinese['appSidebar.newChatInWorkspace'], '在 {workspace} 中新建会话')
 })

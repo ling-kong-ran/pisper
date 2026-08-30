@@ -839,18 +839,56 @@ function detectDownloadTarget() {
   return { type: 'unknown', label: '' }
 }
 
-// Chromium 能提供架构高熵值；其他浏览器无法区分 Apple 芯片时选择可由 Rosetta 运行的 x86 包。
-async function detectMacArchitecture() {
+function architectureFromHint(value) {
+  const hint = String(value || '').toLowerCase()
+  if (/arm64|aarch64|armv?8|\barm\b/.test(hint)) return 'aarch64'
+  if (/x86_64|amd64|x64|\bx86\b/.test(hint)) return 'x86_64'
+  return ''
+}
+
+function webglRenderer() {
+  try {
+    const canvas = document.createElement('canvas')
+    const gl = canvas.getContext('webgl') || canvas.getContext('experimental-webgl')
+    if (!gl) return ''
+    const debugInfo = gl.getExtension('WEBGL_debug_renderer_info')
+    return String(
+      debugInfo
+        ? gl.getParameter(debugInfo.UNMASKED_RENDERER_WEBGL)
+        : gl.getParameter(gl.RENDERER),
+    )
+  } catch {
+    return ''
+  }
+}
+
+async function detectDesktopArchitecture(target) {
   const userAgentData = navigator.userAgentData
+  const directHints = [
+    navigator.userAgent,
+    navigator.platform,
+    userAgentData?.architecture,
+  ]
+  for (const hint of directHints) {
+    const architecture = architectureFromHint(hint)
+    if (architecture) return architecture
+  }
   if (typeof userAgentData?.getHighEntropyValues === 'function') {
     try {
-      const values = await userAgentData.getHighEntropyValues(['architecture'])
-      if (/arm/i.test(values.architecture || '')) return 'aarch64'
+      const values = await userAgentData.getHighEntropyValues(['architecture', 'bitness'])
+      const architecture = architectureFromHint(`${values.architecture} ${values.bitness}`)
+      if (architecture) return architecture
     } catch {
-      // 浏览器拒绝高熵值时使用兼容性更好的 x86_64 安装包。
+      // 浏览器拒绝高熵值时继续使用 GPU 与兼容性线索。
     }
   }
-  return /arm64|aarch64/i.test(navigator.userAgent) ? 'aarch64' : 'x86_64'
+  if (target === 'macos') {
+    const renderer = webglRenderer().toLowerCase()
+    if (/apple\s+(?:m\d|gpu)|apple silicon|\bagx\b/.test(renderer)) return 'aarch64'
+    if (/intel|iris|uhd|hd graphics|radeon|amd/.test(renderer)) return 'x86_64'
+  }
+  // 没有架构信息时使用可由 Rosetta 运行的 x86 包；只有明确识别 ARM 才选择 ARM 资产。
+  return 'x86_64'
 }
 
 async function readJson(url) {
@@ -864,14 +902,16 @@ async function desktopReleaseAssetUrl(target) {
   const version = String(release?.tag_name || '').replace(/^v/, '')
   if (!/^\d+\.\d+\.\d+$/.test(version)) return DESKTOP_RELEASE_PAGE
 
-  const architecture = target === 'macos' ? await detectMacArchitecture() : 'x86_64'
+  const architecture = await detectDesktopArchitecture(target)
   const suffixes = {
-    macos: `darwin_${architecture}.dmg`,
-    windows: 'windows_x86_64-setup.exe',
-    linux: 'linux_x86_64.AppImage',
+    macos: [`darwin_${architecture}.dmg`, 'darwin_x86_64.dmg'],
+    windows: [`windows_${architecture}-setup.exe`, 'windows_x86_64-setup.exe'],
+    linux: ['linux_x86_64.AppImage'],
   }
-  const expectedName = `Pisper_${version}_${suffixes[target] || ''}`
-  const asset = release.assets?.find((candidate) => candidate.name === expectedName)
+  const expectedNames = [...new Set(suffixes[target] || [])].map(
+    (suffix) => `Pisper_${version}_${suffix}`,
+  )
+  const asset = release.assets?.find((candidate) => expectedNames.includes(candidate.name))
   return asset?.browser_download_url || DESKTOP_RELEASE_PAGE
 }
 

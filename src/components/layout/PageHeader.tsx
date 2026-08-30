@@ -51,6 +51,7 @@ type PageHeaderProps = {
   searchInputRef: RefObject<HTMLInputElement | null>
   workflowActions: WorkflowActions | null
   desktopPlatform: string
+  mobileApp?: boolean
   terminalOpen: boolean
   onToggleTerminal: () => void
 }
@@ -68,6 +69,7 @@ export function PageHeader({
   searchInputRef,
   workflowActions,
   desktopPlatform,
+  mobileApp = false,
   terminalOpen,
   onToggleTerminal,
 }: PageHeaderProps) {
@@ -85,7 +87,14 @@ export function PageHeader({
     workflows: [t('navigation:pageHeader.newWorkflow'), Plus],
     workflowCreate: [t('navigation:pageHeader.publish'), Rocket],
   }
-  const primary = page === 'config' && configSection !== 'models' ? null : primaryActions[page]
+  const primary: [string, LucideIcon] | null | undefined =
+    page === 'config' && configSection !== 'models'
+      ? null
+      : page === 'chat'
+        ? mobileApp
+          ? [t('navigation:pageHeader.newChat'), Plus]
+          : null
+        : primaryActions[page]
   const ThemeIcon = THEME_META[theme]
   const themeLabel =
     theme === 'light'
@@ -187,7 +196,10 @@ export function PageHeader({
         {primary && (
           <Button
             size="lg"
-            className="max-[650px]:col-start-2 max-[650px]:row-start-1"
+            className={cn(
+              'max-[650px]:col-start-2 max-[650px]:row-start-1',
+              page === 'chat' && mobileApp && 'hidden',
+            )}
             title={t('navigation:pageHeader.primaryActionShortcut', { action: primary[0] })}
             onClick={onPrimary}
           >

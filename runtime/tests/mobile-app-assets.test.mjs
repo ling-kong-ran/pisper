@@ -113,11 +113,28 @@ test('Android arm64 native 产物强制兼容 16 KB 内存页', async () => {
 })
 
 test('移动壳仅在核心 Runtime API 合同通过后挂载业务界面', async () => {
-  const [shell, proxy, startupPage, permissions] = await Promise.all([
+  const [
+    shell,
+    proxy,
+    startupPage,
+    permissions,
+    staticHandler,
+    recovery,
+    http,
+    chat,
+    buildScript,
+    iosBuild,
+  ] = await Promise.all([
     readFile('src-tauri/src/mobile/mod.rs', 'utf8'),
     readFile('src-tauri/src/mobile/proxy.rs', 'utf8'),
     readFile('public/mobile-startup.html', 'utf8'),
     readFile('src-tauri/permissions/mobile.toml', 'utf8'),
+    readFile('runtime/http/static-handler.mjs', 'utf8'),
+    readFile('src/lib/mobile-runtime-recovery.ts', 'utf8'),
+    readFile('src/lib/http.ts', 'utf8'),
+    readFile('src/features/chat/chat-api.ts', 'utf8'),
+    readFile('src-tauri/build.rs', 'utf8'),
+    readFile('scripts/build-mobile-ios.mjs', 'utf8'),
   ])
 
   for (const path of [
@@ -161,9 +178,28 @@ test('移动壳仅在核心 Runtime API 合同通过后挂载业务界面', asyn
   assert.match(startupPage, /@keyframes runtime-progress/)
   assert.match(startupPage, /window\.setTimeout\(loadState, 300\)/)
   assert.match(shell, /mobile_retry_local_startup/)
+  assert.match(shell, /on_web_content_process_terminate/)
+  assert.match(shell, /STARTUP_PROBE_ATTEMPTS/)
+  assert.match(shell, /_pisper_recovery/)
+  assert.match(recovery, /visibilitychange/)
+  assert.match(recovery, /mobile_resume_local_runtime/)
+  assert.match(recovery, /_pisper_resume_probe/)
+  assert.match(recovery, /window\.location\.replace/)
+  assert.match(http, /await waitForMobileRuntimeReady\(\)/)
+  assert.match(chat, /open: async[\s\S]*await waitForMobileRuntimeReady\(\)/)
   assert.match(startupPage, /mobile_retry_local_startup/)
   assert.match(permissions, /"mobile_retry_local_startup"/)
+  assert.match(permissions, /"mobile_resume_local_runtime"/)
+  assert.match(buildScript, /rerun-if-changed=permissions\/mobile\.toml/)
+  assert.match(buildScript, /rerun-if-changed=capabilities\/mobile-bridge\.json/)
+  assert.match(iosBuild, /tauri ios xcode-script/)
+  assert.match(iosBuild, /rmSync\(generatedRustLibrary, \{ force: true \}\)/)
+  assert.match(iosBuild, /'--features',[\s\S]*'mobile-embedded-only'/)
+  assert.match(iosBuild, /mobile_resume_local_runtime/)
+  assert.match(iosBuild, /assertResumeCommandAcl\(\)/)
   assert.doesNotMatch(startupPage, /mobile_enter_local/)
+  assert.match(staticHandler, /const isAssetPath = requested === 'assets'/)
+  assert.match(staticHandler, /静态资源不存在。/)
   assert.match(startupPage, /mobile_leave_local/)
   assert.match(startupPage, /window\.location\.replace/)
   assert.doesNotMatch(startupPage, /fetch\(['"]\/api\//)
@@ -209,29 +245,24 @@ test('Android 与 iOS 软键盘都使用可视视口保持会话输入框可见'
   assert.match(app, /viewport\?\.addEventListener\('scroll', schedule\)/)
   assert.match(app, /shell\.dataset\.mobileKeyboard = 'open'/)
   assert.match(navigation, /\[\[data-mobile-keyboard='open'\]_&\]:hidden/)
-  assert.match(app, /document\.addEventListener\('touchstart', handleTouch, true\)/)
-  assert.match(app, /document\.addEventListener\('pointerdown', handleTouch, true\)/)
-  assert.match(app, /document\.addEventListener\('focusin', handleFocus, true\)/)
-  assert.match(app, /document\.addEventListener\('focusout', handleBlur, true\)/)
-  assert.match(app, /isComposerFocusTarget\(event\.target\)/)
-  assert.match(app, /setComposerFocus\(true\)/)
-  assert.match(app, /setComposerFocus\(isComposerFocusTarget/)
-  assert.match(navigation, /composerFocused: boolean/)
-  assert.match(navigation, /hidden=\{composerFocused\}/)
-  assert.match(navigation, /\[\[data-mobile-keyboard='open'\]_&\]:hidden/)
+  assert.doesNotMatch(app, /isComposerFocusTarget|mobileComposerFocused|data-mobile-composer/)
+  assert.doesNotMatch(navigation, /composerFocused|hidden=\{composerFocused\}/)
   assert.match(styles, /\[data-mobile-keyboard='open'\] \[data-mobile-navigation='primary'\]/)
-  assert.match(styles, /\[data-mobile-composer='focused'\] \[data-mobile-navigation='primary'\]/)
-  assert.match(styles, /\.main-surface:has\(\.focus-composer textarea:focus\)/)
+  assert.doesNotMatch(
+    styles,
+    /data-mobile-composer|\.main-surface:has\(\.focus-composer textarea:focus\)/,
+  )
   assert.match(styles, /display: none !important/)
   assert.match(activity, /SOFT_INPUT_ADJUST_RESIZE/)
   assert.match(setup, /android:windowSoftInputMode="adjustResize"/)
-  assert.match(iosPlugin, /keyboardWillShowNotification/)
-  assert.match(iosPlugin, /keyboardWillChangeFrameNotification/)
-  assert.match(iosPlugin, /keyboardWillHideNotification/)
+  assert.match(iosPlugin, /keyboardDidShowNotification/)
+  assert.match(iosPlugin, /keyboardDidChangeFrameNotification/)
+  assert.match(iosPlugin, /keyboardDidHideNotification/)
+  assert.doesNotMatch(iosPlugin, /keyboardWillShowNotification|keyboardWillHideNotification/)
   assert.match(iosPlugin, /document\.documentElement\.dataset\.mobileKeyboard/)
 })
 
-test('标准移动包只声明联系人、相机、前台定位与局域网权限', async () => {
+test('标准移动包只声明受控的联系人、相机、照片、前台定位与局域网权限', async () => {
   const [setup, androidPlugin, iosInfo] = await Promise.all([
     readFile('scripts/setup-mobile-android.mjs', 'utf8'),
     readFile(
@@ -245,7 +276,12 @@ test('标准移动包只声明联系人、相机、前台定位与局域网权�
     'android.permission.CAMERA',
     'android.permission.ACCESS_COARSE_LOCATION',
     'android.permission.ACCESS_FINE_LOCATION',
+    'android.permission.READ_EXTERNAL_STORAGE',
+    'android.permission.READ_MEDIA_IMAGES',
+    'android.permission.READ_MEDIA_VISUAL_USER_SELECTED',
+    'android.permission.VIBRATE',
     'android.permission.ACCESS_LOCAL_NETWORK',
+    'android.permission.ACCESS_NETWORK_STATE',
   ]) {
     assert.match(`${setup}\n${androidPlugin}`, new RegExp(permission.replaceAll('.', '\\.')))
   }
@@ -263,9 +299,12 @@ test('标准移动包只声明联系人、相机、前台定位与局域网权�
       new RegExp(`android\\.permission\\.${forbidden}`),
     )
   }
+  assert.match(iosInfo, /NSAppTransportSecurity[\s\S]*NSAllowsLocalNetworking[\s\S]*<true\/>/)
   assert.match(iosInfo, /NSCameraUsageDescription/)
   assert.match(iosInfo, /NSContactsUsageDescription/)
   assert.match(iosInfo, /NSLocationWhenInUseUsageDescription/)
+  assert.match(iosInfo, /NSPhotoLibraryUsageDescription/)
+  assert.match(iosInfo, /NSPhotoLibraryAddUsageDescription/)
   assert.doesNotMatch(iosInfo, /NSLocationAlways/)
 })
 
@@ -287,6 +326,7 @@ test('外部应用操作只使用用户可见的标准系统入口', async () =>
     'apps.open_dialer',
     'apps.compose_sms',
     'apps.open_app',
+    'apps.share_text',
   ]) {
     assert.match(`${tool}\n${client}\n${androidPlugin}\n${iosPlugin}`, new RegExp(operation))
   }
@@ -294,11 +334,53 @@ test('外部应用操作只使用用户可见的标准系统入口', async () =>
   assert.match(androidPlugin, /Intent\.ACTION_VIEW/)
   assert.match(androidPlugin, /Intent\.ACTION_DIAL/)
   assert.match(androidPlugin, /Intent\.ACTION_SENDTO/)
+  assert.match(androidPlugin, /Intent\.ACTION_SEND/)
   assert.match(androidPlugin, /Intent\(Intent\.ACTION_MAIN\)[\s\S]*Intent\.CATEGORY_LAUNCHER/)
   assert.doesNotMatch(androidPlugin, /makeMainSelectorActivity/)
   assert.match(iosPlugin, /UIApplication\.shared\.open/)
   assert.match(tool, /FORBIDDEN_APP_SCHEMES/)
   assert.doesNotMatch(`${androidPlugin}\n${iosPlugin}`, /QUERY_ALL_PACKAGES|SEND_SMS|CALL_PHONE/)
+})
+
+test('受控移动设备协议在两端原生桥完整对齐', async () => {
+  const [tool, client, rust, android, ios] = await Promise.all([
+    readFile('runtime/tools/app/mobile-device.mjs', 'utf8'),
+    readFile('src/features/chat/mobile-operations.ts', 'utf8'),
+    readFile('src-tauri/src/mobile/mod.rs', 'utf8'),
+    readFile(
+      'src-tauri/mobile-device-plugin/android/src/main/java/app/pisper/mobiledevice/MobileDevicePlugin.kt',
+      'utf8',
+    ),
+    readFile('src-tauri/mobile-device-plugin/ios/Sources/MobileDevicePlugin.swift', 'utf8'),
+  ])
+  for (const operation of [
+    'device.info',
+    'device.capabilities',
+    'device.battery',
+    'device.storage',
+    'device.memory',
+    'device.network',
+    'device.display',
+    'device.locale',
+    'device.status',
+    'device.clipboard.get',
+    'device.clipboard.set',
+    'device.vibrate',
+    'device.flashlight',
+    'device.notify',
+    'photos.list',
+    'photos.create_album',
+    'photos.add_to_album',
+    'photos.delete',
+    'apps.share_text',
+  ]) {
+    assert.match(`${tool}\n${client}\n${rust}\n${android}\n${ios}`, new RegExp(operation))
+  }
+  assert.match(rust, /capability == "photos" && state == Some\("limited"\)/)
+  assert.match(tool, /params\.action === 'delete_photos'[\s\S]*confirmed !== true/)
+  assert.match(android, /MediaStore\.Images\.Media\.RELATIVE_PATH/)
+  assert.match(ios, /PHPhotoLibrary\.shared\(\)\.performChanges/)
+  assert.match(ios, /UIActivityViewController/)
 })
 
 test('移动设备操作通过当前会话 SSE 与原生桥闭环', async () => {
@@ -315,7 +397,7 @@ test('移动设备操作通过当前会话 SSE 与原生桥闭环', async () => 
   assert.match(runtime, /this\.mobileOperations\.attach\(session\.sessionId, emit\)/)
   assert.match(dispatcher, /mobile_operation_request/)
   assert.match(client, /mobile_execute_device_operation/)
-  assert.doesNotMatch(native, /device_capabilities|set_device_capability/)
+  assert.match(native, /device\.capabilities/)
   assert.match(native, /permission_states\(\)[\s\S]*request_permission\(capability\)/)
   assert.match(permissions, /mobile_execute_device_operation/)
 })
@@ -677,6 +759,11 @@ test('embedded Node 使用后台线程、真实初始化 READY 与 App 生命周
   assert.match(rustHost, /token: Mutex<Option<String>>/)
   assert.match(rustHost, /started\.load\(Ordering::Acquire\)[\s\S]*wait_until_ready\(&token\)/)
   assert.match(rustHost, /set_var\("PISPER_MOBILE_AUTOSTART", "1"\)/)
+  assert.match(rustHost, /installed_matches_packaged_runtime/)
+  assert.match(rustHost, /archiveSha256/)
+  assert.match(rustHost, /fn android_node_started\(\)/)
+  assert.match(kotlin, /fun isStarted\(\): Boolean/)
+  assert.match(kotlin, /finally \{[\s\S]*started\.set\(false\)/)
   assert.match(rustHost, /runtime_profile != runtime_profile\(\)/)
   assert.match(rustHost, /cfg!\(feature = "mobile-store"\)/)
   assert.match(rustHost, /"mobile-store"[\s\S]*"mobile-embedded"/)

@@ -7,7 +7,8 @@ const KIB = 1024
 
 export const BUNDLE_BUDGETS = {
   totalCssGzip: 88 * KIB,
-  entryFileGzip: 57 * KIB,
+  // 移动端恢复门禁保留在统一请求层，入口只增加极小的按需加载开销。
+  entryFileGzip: 57 * KIB + 64,
   entryStaticJsGzip: 275 * KIB,
   markdownSurfaceGzip: 330 * KIB,
   largestJsGzip: 245 * KIB,

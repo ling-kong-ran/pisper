@@ -665,9 +665,7 @@ h1, h2, h3, strong { overflow-wrap: anywhere; }
 
 @media (max-width: 650px) {.message-content > .markdown-body { font-size: var(--app-message-font-size); }
 
-  [data-mobile-keyboard='open'] [data-mobile-navigation='primary'],
-  [data-mobile-composer='focused'] [data-mobile-navigation='primary'],
-  [data-mobile-app] .main-surface:has(.focus-composer textarea:focus) > [data-mobile-navigation='primary'] {
+  [data-mobile-keyboard='open'] [data-mobile-navigation='primary'] {
     display: none !important;
   }
 }

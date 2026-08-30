@@ -15,9 +15,10 @@ const APPROVAL_TOOLS = new Set([
   'bash',
   'skill_create',
   'plugin_create',
-  'mobile_device',
   'generate_visual',
 ])
+// mobile_device 的能力控制在手机原生桥和操作系统权限层完成，但在审批模式仍需让 Agent 看见它。
+const APPROVAL_EXEMPT_TOOLS = new Set(['mobile_device'])
 const INTERNAL_APPROVAL_TOOLS = new Set([
   'update_plan',
   'spawn_agent',
@@ -52,7 +53,12 @@ export function filterToolsForExecutionMode(names, mode, getExternalRisk = () =>
   const unique = [...new Set(names || [])]
   if (mode !== 'approval-required') return unique
   return unique.filter((name) => {
-    if (APPROVAL_TOOLS.has(name) || INTERNAL_APPROVAL_TOOLS.has(name)) return true
+    if (
+      APPROVAL_TOOLS.has(name) ||
+      APPROVAL_EXEMPT_TOOLS.has(name) ||
+      INTERNAL_APPROVAL_TOOLS.has(name)
+    )
+      return true
     if (INTERNAL_SAFE_TOOLS.has(name)) return true
     const risk = TOOL_RISK.get(name) || getExternalRisk(name)
     return risk === 'low' || risk === '低风险'

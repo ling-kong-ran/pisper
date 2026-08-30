@@ -25,8 +25,10 @@ import {
 } from '@/components/ui/app-primitives'
 import { StarOrbit } from '@/components/StarOrbit'
 import { usePagePrimaryAction } from '@/hooks/usePagePrimaryAction'
+import MarkdownMessage from '@/components/MarkdownMessage'
 import { apiJson } from '@/lib/api'
 import { formatFileSize } from '@/lib/format'
+import { canOpenAssetInApplication, openAssetInApplication } from '@/lib/open-asset'
 import type { Notify } from '@/app/route-context'
 import type { ConfirmDialogOptions } from '@/hooks/useAppDialog'
 import type { ChatAttachment, EntityRecord } from '@/types/chat'
@@ -43,7 +45,7 @@ type Asset = ChatAttachment & {
   source?: string
   sessionName?: string
 }
-type PreviewAsset = Asset & { text?: string }
+type PreviewAsset = Asset & { text?: string; textFormat?: 'markdown' | 'plain' }
 type AssetsPageProps = {
   query?: string
   notify: Notify
@@ -52,30 +54,6 @@ type AssetsPageProps = {
   requestConfirm: (options?: ConfirmDialogOptions) => Promise<boolean>
 }
 
-const TEXT_PREVIEW_EXTENSIONS = new Set([
-  'txt',
-  'md',
-  'json',
-  'js',
-  'jsx',
-  'ts',
-  'tsx',
-  'css',
-  'html',
-  'xml',
-  'yaml',
-  'yml',
-  'csv',
-  'log',
-  'py',
-  'java',
-  'go',
-  'rs',
-  'sh',
-  'ps1',
-  'toml',
-  'sql',
-])
 type AssetTab = 'all' | 'image' | 'file' | 'link' | 'current'
 const ASSET_TABS: AssetTab[] = ['all', 'image', 'file', 'link', 'current']
 
@@ -88,12 +66,11 @@ function assetTabLabel(tab: AssetTab, t: ReturnType<typeof useI18n>['t']) {
 }
 
 function fileExtension(name: unknown) {
-  return (
-    String(name || '')
-      .split('.')
-      .at(-1)
-      ?.toLowerCase() || ''
-  )
+  const value = String(name || '')
+  const separator = value.lastIndexOf('.')
+  return separator > 0 && separator < value.length - 1
+    ? value.slice(separator + 1).toLowerCase()
+    : ''
 }
 
 export function AssetsPage({
@@ -168,20 +145,41 @@ export function AssetsPage({
     }
   }
 
-  // 预览资源：链接直接取 URL，文本类拉取内容，其余走运行时预览。
+  // 预览资源：无扩展名文本也交给 Runtime 嗅探，二进制文件保留下载视图。
   const previewAsset = async (asset: Asset) => {
-    let text = ''
-    if (asset.kind === 'link') text = asset.url || ''
-    else if (
-      asset.mimeType?.startsWith('text/') ||
-      TEXT_PREVIEW_EXTENSIONS.has(fileExtension(asset.name))
-    ) {
-      const content = await apiJson<EntityRecord>(
-        `/api/assets/${encodeURIComponent(asset.id)}/content`,
-      )
-      text = content.text || ''
+    setError('')
+    try {
+      const extension = fileExtension(asset.name)
+      let text: string | undefined
+      if (asset.kind === 'link') text = asset.url || ''
+      else if (asset.kind !== 'image' && !asset.mimeType?.startsWith('video/')) {
+        const content = await apiJson<EntityRecord>(
+          `/api/assets/${encodeURIComponent(asset.id)}/content?preview=1`,
+        )
+        if (content.kind === 'text') text = String(content.text || '')
+      }
+      setPreview({
+        ...asset,
+        text,
+        textFormat: extension === 'md' || asset.mimeType === 'text/markdown' ? 'markdown' : 'plain',
+      })
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : String(caught))
     }
-    setPreview({ ...asset, text })
+  }
+
+  const openAsset = async (asset: Asset) => {
+    setError('')
+    try {
+      const result = await openAssetInApplication(asset)
+      notify(
+        result === 'application'
+          ? t('assets:assetsPage.openedInApplication')
+          : t('assets:assetsPage.downloadStarted'),
+      )
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : String(caught))
+    }
   }
 
   return (
@@ -280,7 +278,7 @@ export function AssetsPage({
                     </small>
                   )}
                 </div>
-                <div className="asset-card-actions flex-none [.asset-card.functional:hover_&]:opacity-100 [.asset-card.functional:hover_&]:[transform:translateY(0)] [.asset-card.functional:focus-within_&]:opacity-100 [.asset-card.functional:focus-within_&]:[transform:translateY(0)] [&_a]:no-underline flex flex-wrap items-center gap-[5px] [margin-top:auto] [padding-top:10px] opacity-0 [transform:translateY(4px)] [transition:opacity_var(--d1)_var(--ease-out),_transform_var(--d1)_var(--ease-out)]">
+                <div className="asset-card-actions flex-none [.asset-card.functional:hover_&]:opacity-100 [.asset-card.functional:hover_&]:[transform:translateY(0)] [.asset-card.functional:focus-within_&]:opacity-100 [.asset-card.functional:focus-within_&]:[transform:translateY(0)] [&_a]:no-underline flex flex-wrap items-center gap-[5px] [margin-top:auto] [padding-top:10px] opacity-0 [transform:translateY(4px)] [transition:opacity_var(--d1)_var(--ease-out),_transform_var(--d1)_var(--ease-out)] max-[650px]:opacity-100 max-[650px]:transform-none">
                   {asset.kind === 'link' ? (
                     <Button asChild variant="outline">
                       <a href={asset.url} target="_blank" rel="noreferrer">
@@ -289,11 +287,15 @@ export function AssetsPage({
                       </a>
                     </Button>
                   ) : (
-                    <Button asChild variant="outline">
-                      <a href={`/api/assets/${encodeURIComponent(asset.id)}/download`}>
+                    <Button variant="outline" onClick={() => openAsset(asset)}>
+                      {canOpenAssetInApplication() ? (
+                        <ExternalLink size={13} />
+                      ) : (
                         <Download size={13} />
-                        {t('assets:assetsPage.download')}
-                      </a>
+                      )}
+                      {canOpenAssetInApplication()
+                        ? t('assets:assetsPage.openInApplication')
+                        : t('assets:assetsPage.download')}
                     </Button>
                   )}
                   <Button onClick={() => attachAsset(asset)}>
@@ -334,6 +336,7 @@ export function AssetsPage({
           asset={preview}
           onClose={() => setPreview(null)}
           onUse={() => attachAsset(preview)}
+          onOpen={() => openAsset(preview)}
         />
       )}
       {linkModal && (
@@ -354,10 +357,12 @@ function AssetPreviewModal({
   asset,
   onClose,
   onUse,
+  onOpen,
 }: {
   asset: PreviewAsset
   onClose: () => void
   onUse: () => void
+  onOpen: () => void
 }) {
   const { t } = useI18n()
   const isVideo = asset.mimeType?.startsWith('video/')
@@ -366,7 +371,9 @@ function AssetPreviewModal({
       className="modal-backdrop max-[650px]:p-[8px] fixed z-[70] inset-0 grid place-items-center overflow-y-auto bg-[var(--modal-overlay)] [backdrop-filter:blur(3px)] [padding:20px] [overscroll-behavior:contain] [animation:fade-in_var(--d1)_var(--ease-out)]"
       onMouseDown={(event) => event.target === event.currentTarget && onClose()}
     >
-      <section className="modal !w-[min(430px,100%)] max-h-[calc(100dvh_-_40px)] overflow-y-auto [overscroll-behavior:contain] [border:1px_solid_var(--surface-highlight)] rounded-[var(--r-md)] bg-[var(--solid)] p-[18px] shadow-[0_26px_70px_-25px_var(--shadow-strong)] [animation:modal-in_var(--d2)_var(--ease-out)] max-[650px]:max-h-[calc(100dvh_-_16px)] asset-preview-modal w-[min(96vw,1600px)]">
+      <section
+        className={`modal asset-preview-modal flex max-h-[calc(100dvh_-_40px)] flex-col overflow-hidden [overscroll-behavior:contain] [border:1px_solid_var(--surface-highlight)] rounded-[var(--r-md)] bg-[var(--solid)] p-[18px] shadow-[0_26px_70px_-25px_var(--shadow-strong)] [animation:modal-in_var(--d2)_var(--ease-out)] max-[650px]:max-h-[calc(100dvh_-_16px)] max-[650px]:p-3 ${asset.kind === 'image' || isVideo ? 'w-[min(96vw,1200px)]' : 'w-[min(96vw,900px)]'}`}
+      >
         <AppCardHeader>
           <div>
             <h2>{asset.name}</h2>
@@ -385,21 +392,32 @@ function AssetPreviewModal({
             <X size={17} />
           </Button>
         </AppCardHeader>
-        <div className="asset-modal-content [&_>_img]:max-w-[100%] [&_>_img]:max-h-[76vh] [&_>_img]:rounded-[var(--r-sm)] [&_>_img]:object-contain [&_>_video]:max-w-[100%] [&_>_video]:max-h-[76vh] [&_>_video]:rounded-[var(--r-sm)] [&_>_video]:object-contain [&_>_pre]:w-full [&_>_pre]:h-full [&_>_pre]:m-0 [&_>_pre]:overflow-auto [&_>_pre]:whitespace-pre-wrap [&_>_pre]:font-[ui-monospace,_SFMono-Regular,_Consolas,_'Liberation_Mono',_monospace] [&_>_pre]:text-[12px] [&_>_pre]:leading-[1.55] [&_>_a]:flex [&_>_a]:items-center [&_>_a]:gap-[7px] [&_>_a]:text-[var(--text-soft)] [&_>_a]:text-[12px] [&_>_a]:[text-decoration:underline] [&_>_a]:[text-underline-offset:2px] [&_>_a]:[word-break:break-all] grid min-h-[min(420px,60dvh)] max-h-[82dvh] place-items-center overflow-auto [margin-top:14px] [border:1px_solid_var(--stroke-soft)] rounded-[var(--r-sm)] bg-[var(--surface-subtle)] [padding:12px]">
+        <div className="asset-modal-content [&_>_img]:max-h-full [&_>_img]:max-w-full [&_>_img]:rounded-[var(--r-sm)] [&_>_img]:object-contain [&_>_video]:aspect-video [&_>_video]:max-h-full [&_>_video]:w-full [&_>_video]:rounded-[var(--r-sm)] [&_>_video]:bg-black [&_>_video]:object-contain [&_>_pre]:m-0 [&_>_pre]:h-full [&_>_pre]:w-full [&_>_pre]:overflow-auto [&_>_pre]:whitespace-pre-wrap [&_>_pre]:font-[ui-monospace,_SFMono-Regular,_Consolas,_'Liberation_Mono',_monospace] [&_>_pre]:text-[12px] [&_>_pre]:leading-[1.55] [&_>_a]:flex [&_>_a]:items-center [&_>_a]:gap-[7px] [&_>_a]:text-[var(--text-soft)] [&_>_a]:text-[12px] [&_>_a]:[text-decoration:underline] [&_>_a]:[text-underline-offset:2px] [&_>_a]:[word-break:break-all] grid min-h-[min(420px,60dvh)] flex-1 place-items-center overflow-auto [margin-top:14px] [border:1px_solid_var(--stroke-soft)] rounded-[var(--r-sm)] bg-[var(--surface-subtle)] p-3 max-[650px]:min-h-[240px]">
           {asset.kind === 'image' ? (
             <img
               src={`/api/assets/${encodeURIComponent(asset.id)}/download?inline=1`}
               alt={asset.name}
             />
           ) : isVideo ? (
-            <video controls src={`/api/assets/${encodeURIComponent(asset.id)}/download?inline=1`} />
+            <video
+              controls
+              playsInline
+              preload="metadata"
+              src={`/api/assets/${encodeURIComponent(asset.id)}/download?inline=1`}
+            />
           ) : asset.kind === 'link' ? (
             <a href={asset.url} target="_blank" rel="noreferrer">
               <ExternalLink size={16} />
               {asset.url}
             </a>
-          ) : asset.text ? (
-            <pre>{asset.text}</pre>
+          ) : asset.text !== undefined ? (
+            asset.textFormat === 'markdown' ? (
+              <div className="h-full w-full overflow-auto text-left">
+                <MarkdownMessage>{asset.text}</MarkdownMessage>
+              </div>
+            ) : (
+              <pre>{asset.text}</pre>
+            )
           ) : (
             <div className="asset-file-preview [&_strong]:text-[var(--text)] [&_strong]:text-[13px] [&_span]:text-[12px] [&_span]:leading-[1.55] flex max-w-[400px] flex-col items-center gap-[9px] text-[var(--text-muted)] text-center">
               <File size={42} />
@@ -414,11 +432,11 @@ function AssetPreviewModal({
         </div>
         <div className="flex justify-end gap-[8px] [margin-top:18px]">
           {asset.kind !== 'link' && (
-            <Button asChild variant="outline" size="lg" className="bg-surface-subtle">
-              <a href={`/api/assets/${encodeURIComponent(asset.id)}/download`}>
-                <Download size={14} />
-                {t('assets:assetsPage.download')}
-              </a>
+            <Button variant="outline" size="lg" className="bg-surface-subtle" onClick={onOpen}>
+              {canOpenAssetInApplication() ? <ExternalLink size={14} /> : <Download size={14} />}
+              {canOpenAssetInApplication()
+                ? t('assets:assetsPage.openInApplication')
+                : t('assets:assetsPage.download')}
             </Button>
           )}
           <Button size="lg" onClick={onUse}>

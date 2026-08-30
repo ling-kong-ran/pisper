@@ -1,3 +1,11 @@
+// 移动恢复实现按需加载，避免桌面/Web 的首屏入口携带原生恢复代码。
+export async function waitForMobileRuntimeReady() {
+  if (typeof window === 'undefined' || !window.__PISPER_MOBILE_APP__) return
+  const recovery = await import('@/lib/mobile-runtime-recovery')
+  recovery.installMobileRuntimeForegroundRecovery()
+  await recovery.waitForMobileRuntimeReady()
+}
+
 // 统一的 JSON API 请求层：
 // - body/data 二选一作为负载，自动 JSON 序列化并补 Content-Type；
 // - 支持外部 AbortSignal 与内置超时（默认 30s），超时/取消/网络错误统一
@@ -88,6 +96,9 @@ export async function requestJson<T = unknown>(
       : undefined
 
   try {
+    // iOS 从后台恢复时先等本机 Runtime 与回环代理通过健康检查，避免业务请求抢跑。
+    await waitForMobileRuntimeReady()
+    if (controller.signal.aborted) throw controller.signal.reason
     const response = await fetch(path, {
       ...requestOptions,
       body: requestBody,

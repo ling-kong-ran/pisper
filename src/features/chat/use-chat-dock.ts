@@ -1,6 +1,6 @@
 // 聊天 Dock hook：基于 dockview 的多会话分屏容器，
 // 管理面板开/关/切换/聚焦与会话的映射，并持久化布局到 Runtime 用户目录。
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type {
   BuiltInContextMenuItem,
   DockviewApi,
@@ -22,6 +22,7 @@ import {
   panelIdForSession,
   parseDockLayoutEnvelope,
   sessionIdFromPanel,
+  sessionIdsFromDockLayout,
   type DockLayoutEnvelope,
   type SessionOpenDisposition,
   type SessionOpenRequest,
@@ -85,6 +86,22 @@ export function useChatDock({
   const layoutWriteRunningRef = useRef(false)
   const [storedDockLayout, setStoredDockLayout] = useState<DockLayoutEnvelope | null>(null)
   const [dockLayoutLoaded, setDockLayoutLoaded] = useState(false)
+  const [mobileOpenedSessionIds, setMobileOpenedSessionIds] = useState<string[]>([])
+  useEffect(() => {
+    if (!singleSessionLayout || !activeId) return
+    setMobileOpenedSessionIds((current) =>
+      current.includes(activeId) ? current : [...current, activeId],
+    )
+  }, [activeId, singleSessionLayout])
+  // 移动端把桌面布局和本次打开过的会话压平为页签，分屏关系仍留在桌面端维护。
+  const mobileSessionIds = useMemo(() => {
+    const validIds = new Set(sessions.map((session) => session.id))
+    return [
+      ...mobileOpenedSessionIds,
+      ...sessionIdsFromDockLayout(storedDockLayout?.layout),
+      activeId,
+    ].filter((id, index, ids) => id && validIds.has(id) && ids.indexOf(id) === index)
+  }, [activeId, mobileOpenedSessionIds, sessions, storedDockLayout])
 
   useEffect(() => {
     let mounted = true
@@ -194,8 +211,13 @@ export function useChatDock({
   // 返回是否新开了面板，供调用方决定是否移动分组。
   const openSessionInDock = useCallback(
     (sessionId: string, disposition: SessionOpenDisposition = 'open') => {
-      // 单会话布局无 Dock：直接切换活动会话（视图按 activeId 渲染）。
+      // 单会话布局无 Dock：记录打开顺序并直接切换活动会话。
       if (singleSessionLayoutRef.current) {
+        if (sessionId) {
+          setMobileOpenedSessionIds((current) =>
+            current.includes(sessionId) ? current : [...current, sessionId],
+          )
+        }
         setActiveId(sessionId)
         return true
       }
@@ -557,6 +579,7 @@ export function useChatDock({
 
   return {
     compactDock,
+    mobileSessionIds,
     openSessionInDock,
     splitDockPanel,
     closeDockPanel,

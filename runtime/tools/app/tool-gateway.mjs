@@ -5,13 +5,29 @@ import { Check, Errors } from 'typebox/value'
 
 export const TOOL_GATEWAY_NAME = 'call_tool'
 
+function literalValues(schema) {
+  if (schema && Object.prototype.hasOwnProperty.call(schema, 'const')) return [schema.const]
+  if (Array.isArray(schema?.enum)) return schema.enum
+  if (Array.isArray(schema?.anyOf)) return schema.anyOf.flatMap((item) => literalValues(item))
+  return []
+}
+
 function validationMessage(schema, args) {
   if (Check(schema, args)) return ''
-  const errors = [...Errors(schema, args)].slice(0, 5).map((error) => {
-    const path = error.path || '/'
+  const errors = [...Errors(schema, args)]
+  const actionValues = literalValues(schema?.properties?.action)
+  if (
+    actionValues.length &&
+    errors.length > 0 &&
+    errors.every((error) => error.instancePath === '/action')
+  ) {
+    return `/action: must be one of ${actionValues.map((value) => JSON.stringify(value)).join(', ')}`
+  }
+  const messages = errors.slice(0, 5).map((error) => {
+    const path = error.instancePath || error.path || '/'
     return `${path}: ${error.message}`
   })
-  return errors.join('; ') || 'arguments do not match the tool schema'
+  return messages.join('; ') || 'arguments do not match the tool schema'
 }
 
 export function createToolGatewayTool({ getTool, authorize }) {

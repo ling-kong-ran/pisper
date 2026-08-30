@@ -41,6 +41,22 @@ const TOOL_ALIASES = {
     '图片编辑',
     '视觉生成',
   ],
+  mobile_device: [
+    'mobile device',
+    'phone',
+    'device status',
+    'system information',
+    'memory',
+    'RAM',
+    '移动设备',
+    '手机',
+    '手机设备',
+    '设备状态',
+    '设备信息',
+    '系统信息',
+    '系统内存',
+    '内存',
+  ],
   memory_search: ['memory search', 'recall', '记忆搜索', '搜索记忆', '星忆', '回忆'],
   memory_remember: ['remember', 'save memory', '记住', '保存记忆', '写入记忆', '星忆'],
   mcp_list: ['mcp', 'mcp services', 'mcp tools', 'mcp 服务', 'mcp 工具'],
@@ -180,14 +196,28 @@ export function searchOptionalTools(tools, query, limit = 3) {
 
 // 紧凑参数签名:模型经 call_tool 调用前就能看到参数形状,
 // 避免凭工具名盲猜参数导致的首轮调用失败。
+function formatSchema(schema) {
+  if (schema && Object.prototype.hasOwnProperty.call(schema, 'const')) {
+    return JSON.stringify(schema.const)
+  }
+  if (Array.isArray(schema?.enum))
+    return schema.enum.map((value) => JSON.stringify(value)).join(' | ')
+  if (Array.isArray(schema?.anyOf)) {
+    return schema.anyOf
+      .map((item) => formatSchema(item))
+      .filter(Boolean)
+      .join(' | ')
+  }
+  return Array.isArray(schema?.type) ? schema.type.join('|') : schema?.type || 'any'
+}
+
 function formatSignature(tool) {
   const properties = tool.parameters?.properties
   if (!properties || typeof properties !== 'object') return ''
   const required = new Set(Array.isArray(tool.required) ? tool.required : [])
   const parts = []
   for (const [key, schema] of Object.entries(properties).slice(0, 8)) {
-    const rawType = Array.isArray(schema?.type) ? schema.type.join('|') : schema?.type
-    parts.push(`${key}${required.has(key) ? '' : '?'}: ${rawType || 'any'}`)
+    parts.push(`${key}${required.has(key) ? '' : '?'}: ${formatSchema(schema)}`)
   }
   return parts.length ? `; params: ${parts.join(', ')}` : ''
 }

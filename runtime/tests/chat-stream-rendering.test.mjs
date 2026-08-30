@@ -11,7 +11,7 @@ test('foreground resume refreshes cached sessions and invalidates stale SSE owne
   assert.match(page, /document\.addEventListener\('visibilitychange', recover\)/)
   assert.match(page, /window\.addEventListener\('pageshow', recover\)/)
   assert.match(page, /window\.addEventListener\('online', recover\)/)
-  assert.match(page, /await refreshSessions\(\)/)
+  assert.match(page, /await refreshSessions\(undefined, \{ preserveExistingOnEmpty: true \}\)/)
   assert.match(page, /syncLiveSession\(id, \{ force: true \}\)/)
   assert.match(liveSync, /async \(id: string, \{ force = false \}/)
   assert.match(liveSync, /if \(force && localStreamSessionsRef\.current\.has\(id\)\)/)

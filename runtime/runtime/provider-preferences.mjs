@@ -352,12 +352,14 @@ export class ProviderPreferences {
       allowModelNetwork: false,
     })
     const configuredBaseUrls = {}
+    const configuredApis = {}
     const configuredHeaders = {}
     const configuredContextWindows = {}
     const configuredInputs = {}
     const configuredReasoning = {}
     for (const provider of modelRuntime.getProviders()) {
       const overlay = modelsJson.providers?.[provider.id] || {}
+      if (PROVIDER_API_IDS.has(overlay.api)) configuredApis[provider.id] = overlay.api
       configuredBaseUrls[provider.id] =
         overlay.baseUrl ||
         PROVIDER_DEFAULT_BASE_URLS[provider.id] ||
@@ -391,6 +393,7 @@ export class ProviderPreferences {
       configuredContextWindows,
       configuredInputs,
       configuredReasoning,
+      configuredApis,
     )
     this.setModelRuntime(modelRuntime)
     this.invalidateProjection('', { allUsage: true })

@@ -73,6 +73,53 @@ test('generated assets are archived once and remain available without their work
   assert.deepEqual(download.buffer, PNG)
 })
 
+test('extensionless UTF-8 assets and additional text formats have readable previews', async (t) => {
+  const { runtime } = await createFixture(t)
+  const extensionless = await runtime.createAsset({
+    name: 'Dockerfile',
+    data: Buffer.from('FROM node:24\nRUN npm ci\n').toString('base64'),
+    mimeType: 'application/octet-stream',
+  })
+  const rst = await runtime.createAsset({
+    name: 'guide.rst',
+    text: 'Pisper\n======\n',
+  })
+  const customText = await runtime.createAsset({
+    name: 'service.conf',
+    text: 'enabled=true\n',
+    mimeType: 'application/octet-stream',
+  })
+  const binary = await runtime.createAsset({
+    name: 'binary',
+    data: Buffer.from([0, 1, 2, 3]).toString('base64'),
+  })
+
+  const extensionlessContent = await runtime.getAssetContent(extensionless.id)
+  const rstContent = await runtime.getAssetContent(rst.id)
+  const customContent = await runtime.getAssetContent(customText.id, { previewOnly: true })
+  const binaryContent = await runtime.getAssetContent(binary.id)
+  const binaryPreview = await runtime.getAssetContent(binary.id, { previewOnly: true })
+  assert.equal(extensionlessContent.kind, 'text')
+  assert.equal(extensionlessContent.mimeType, 'text/plain')
+  assert.match(extensionlessContent.text, /FROM node:24/)
+  assert.equal(rstContent.kind, 'text')
+  assert.match(rstContent.text, /Pisper/)
+  assert.match(customContent.text, /enabled=true/)
+  assert.equal(binaryContent.name, 'binary.path.txt')
+  assert.equal(binaryPreview.kind, 'file')
+  assert.equal('data' in binaryPreview, false)
+})
+
+test('asset downloads can expose a streamable file without allocating its buffer', async (t) => {
+  const { runtime } = await createFixture(t)
+  const stored = await runtime.createAsset({ name: 'demo.mp4', data: 'dmlkZW8=' })
+  const download = await runtime.getAssetDownload(stored.id, { includeBuffer: false })
+
+  assert.equal(download.size, 5)
+  assert.equal(typeof download.path, 'string')
+  assert.equal('buffer' in download, false)
+})
+
 test('uploaded files deduplicate by content across names and sources', async (t) => {
   const { assetsDir, runtime } = await createFixture(t)
   const bytes = Buffer.from('the same file content', 'utf8')

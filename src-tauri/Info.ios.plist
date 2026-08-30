@@ -2,10 +2,19 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
+  <key>NSAppTransportSecurity</key>
+  <dict>
+    <key>NSAllowsLocalNetworking</key>
+    <true/>
+  </dict>
   <key>NSCameraUsageDescription</key>
   <string>Pisper uses the camera only when you start pairing or approve a photo capture.</string>
   <key>NSContactsUsageDescription</key>
   <string>Pisper accesses contacts only for a mobile operation you approve.</string>
+  <key>NSPhotoLibraryUsageDescription</key>
+  <string>Pisper accesses photo metadata only when you approve a photo operation.</string>
+  <key>NSPhotoLibraryAddUsageDescription</key>
+  <string>Pisper changes your photo library only when you approve a photo operation.</string>
   <key>NSLocationWhenInUseUsageDescription</key>
   <string>Pisper reads one foreground location only for a mobile operation you approve.</string>
   <key>NSLocalNetworkUsageDescription</key>
