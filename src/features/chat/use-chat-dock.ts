@@ -12,7 +12,6 @@ import type {
 } from 'dockview-react'
 import { STORAGE_KEYS } from '@/app/storage'
 import { useI18n } from '@/app/use-i18n'
-import { useClientStore } from '@/stores/client-store'
 import type { Notify } from '@/app/route-context'
 import type { SessionState, SessionSummary } from '@/types/chat'
 import { SESSION_SELECTED_EVENT, consumeSessionSelectionRequest } from './events'
@@ -49,6 +48,7 @@ type DockOptions = {
     id: string,
     options?: { panelOpen?: boolean; localStreamOwned?: boolean },
   ) => boolean
+  singleSessionLayout: boolean
   notify: Notify
 }
 
@@ -62,14 +62,14 @@ export function useChatDock({
   localStreamSessionsRef,
   loadSessionMessages,
   releaseSessionState,
+  singleSessionLayout,
   notify,
 }: DockOptions) {
   const { t } = useI18n()
   const [dockReady, setDockReady] = useState(0)
-  // 移动端 App 不渲染 Dock（单会话视图按 activeId 渲染）：打开会话直接切换活动 id。
-  const mobileApp = useClientStore((state) => state.client === 'mobile-app')
-  const mobileAppRef = useRef(mobileApp)
-  mobileAppRef.current = mobileApp
+  // 手机布局不渲染 Dock：打开会话时只切换活动 id。
+  const singleSessionLayoutRef = useRef(singleSessionLayout)
+  singleSessionLayoutRef.current = singleSessionLayout
   const [compactDock, setCompactDock] = useState(
     () => window.matchMedia('(max-width: 900px)').matches,
   )
@@ -194,8 +194,8 @@ export function useChatDock({
   // 返回是否新开了面板，供调用方决定是否移动分组。
   const openSessionInDock = useCallback(
     (sessionId: string, disposition: SessionOpenDisposition = 'open') => {
-      // 移动端无 Dock：直接切换活动会话（单会话视图按 activeId 渲染）。
-      if (mobileAppRef.current) {
+      // 单会话布局无 Dock：直接切换活动会话（视图按 activeId 渲染）。
+      if (singleSessionLayoutRef.current) {
         setActiveId(sessionId)
         return true
       }

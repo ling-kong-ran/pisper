@@ -37,6 +37,7 @@ import { WebDesktopPet } from '@/features/desktop-pet/WebDesktopPet'
 import { apiJson } from '@/lib/api'
 import { showBrowserSystemNotification } from '@/lib/browser-notifications'
 import { useAppDialog } from '@/hooks/useAppDialog'
+import { useIsPhoneViewport } from '@/hooks/use-mobile'
 import { useAppUpdate } from '@/features/updates/useAppUpdate'
 import { SidebarInset, SidebarProvider } from '@/components/ui/sidebar'
 import { useUiStore } from '@/stores/ui-store'
@@ -166,6 +167,8 @@ function App() {
   const [mobileComposerFocused, setMobileComposerFocused] = useState(false)
   const mobileApp = useClientStore((state) => state.client === 'mobile-app')
   const clientLoaded = useClientStore((state) => state.loaded)
+  const phoneViewport = useIsPhoneViewport()
+  const mobileLayout = mobileApp || phoneViewport
   const [paletteOpen, setPaletteOpen] = useState(false)
   const sidebarCollapsed = useUiStore((state) => state.sidebarCollapsed)
   const setSidebarCollapsed = useUiStore((state) => state.setSidebarCollapsed)
@@ -305,7 +308,7 @@ function App() {
   }, [clientLoaded, mobileApp])
 
   useEffect(() => {
-    if (!clientLoaded || !mobileApp || !startupReady) return undefined
+    if (!clientLoaded || !mobileLayout || !startupReady) return undefined
     const shell = appShellRef.current
     if (!shell) return undefined
     const viewport = window.visualViewport
@@ -384,7 +387,7 @@ function App() {
       delete shell.dataset.mobileComposer
       setMobileComposerFocused(false)
     }
-  }, [clientLoaded, mobileApp, startupReady])
+  }, [clientLoaded, mobileLayout, startupReady])
 
   // 系统通知（桌面/浏览器）：已开启浏览器通知开关才发；
   // 前台聚焦时静默（不打扰），force 强制忽略该规则；桌面桥接优先。
@@ -695,7 +698,7 @@ function App() {
     page === 'chat'
       ? [
           t('common:app.sessions'),
-          t('common:app.dragTabsOrSplitChatsInAnyDirectionFromTheSessionList'),
+          mobileLayout ? '' : t('common:app.dragTabsOrSplitChatsInAnyDirectionFromTheSessionList'),
         ]
       : pageMeta[page] || [t('common:app.sessions'), '']
 
@@ -733,13 +736,13 @@ function App() {
       <div
         ref={appShellRef}
         className="app-shell dark:bg-[var(--bg)] dark:text-[var(--text)] max-[900px]:min-h-[100dvh] max-[900px]:h-auto max-[900px]:overflow-visible flex w-full h-full min-h-[600px] flex-col overflow-hidden bg-[var(--bg)] pt-[env(safe-area-inset-top)] pr-[env(safe-area-inset-right)] pb-[env(safe-area-inset-bottom)] pl-[env(safe-area-inset-left)] [&[data-mobile-app]]:h-[100dvh] [&[data-mobile-app]]:min-h-0 [&[data-mobile-app]]:overflow-hidden [&[data-mobile-app]]:pb-0"
-        data-mobile-app={mobileApp || undefined}
+        data-mobile-app={mobileLayout || undefined}
       >
         <WebPreviewProvider />
         {runtimeFeatureAvailable(capabilities, 'desktopPet') && <WebDesktopPet />}
         <SidebarProvider
           className="app-body max-[900px]:h-[100dvh] max-[900px]:min-h-[620px] max-[900px]:flex-none max-[650px]:h-[100dvh] max-[650px]:min-h-0 max-[650px]:flex-none flex min-h-0 flex-1 [&[data-mobile-app]]:h-auto [&[data-mobile-app]]:min-h-0 [&[data-mobile-app]]:flex-1 [&[data-mobile-app]]:overflow-hidden"
-          data-mobile-app={mobileApp || undefined}
+          data-mobile-app={mobileLayout || undefined}
           open={!sidebarCollapsed}
           onOpenChange={(open) => setSidebarCollapsed(!open)}
           openMobile={mobileNav}
@@ -752,6 +755,7 @@ function App() {
             navigate={navigate}
             navigateSettings={navigateSettings}
             onExitSettings={exitSettings}
+            onNewChat={handlePrimary}
             collapsed={sidebarCollapsed}
             onToggleCollapse={toggleSidebarCollapsed}
             update={appUpdate}
@@ -776,10 +780,11 @@ function App() {
                 onToggleTerminal={() => setTerminalOpen((value) => !value)}
               />
             </Suspense>
-            {mobileApp && SETTINGS_PAGES.has(page) && (
+            {clientLoaded && mobileLayout && SETTINGS_PAGES.has(page) && (
               <MobileSettingsNavigation
                 page={page}
                 configSection={configSection}
+                mobileApp={mobileApp}
                 onNavigate={navigateSettings}
               />
             )}
@@ -803,7 +808,7 @@ function App() {
                   />
                 </Suspense>
               )}
-            {mobileApp && (
+            {clientLoaded && mobileLayout && (
               <MobilePrimaryNavigation
                 page={page}
                 onNavigate={navigate}

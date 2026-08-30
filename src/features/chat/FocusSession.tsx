@@ -2,12 +2,11 @@
 import { memo, useEffect, useRef, useState, type FormEvent } from 'react'
 import {
   Braces,
-  ChevronsLeft,
-  ChevronsRight,
   Command,
   File,
   FolderOpen,
   Minimize2,
+  Plus,
   RefreshCw,
   Send,
   Square,
@@ -17,6 +16,7 @@ import {
 import { useI18n } from '@/app/use-i18n'
 import { QueueSection } from '@/components/ai-elements/queue'
 import { AppCard as Panel, AppCardHeader } from '@/components/ui/app-primitives'
+import { useIsPhoneViewport } from '@/hooks/use-mobile'
 import { formatFileSize, workspaceName } from '@/lib/format'
 import { useIsMobileApp } from '@/stores/client-store'
 import { useRuntimeCapabilitiesStore } from '@/stores/runtime-capabilities-store'
@@ -209,6 +209,8 @@ export const FocusSession = memo(function FocusSession({
 }: FocusSessionProps) {
   const { t, language } = useI18n()
   const mobileApp = useIsMobileApp()
+  const phoneViewport = useIsPhoneViewport()
+  const mobileLayout = mobileApp || phoneViewport
   const capabilities = useRuntimeCapabilitiesStore((state) => state.capabilities)
   const goalsAvailable = runtimeFeatureAvailable(capabilities, 'goals')
   const plansAvailable = runtimeFeatureAvailable(capabilities, 'plans')
@@ -235,7 +237,7 @@ export const FocusSession = memo(function FocusSession({
   const quickActionsLabel = toolsOpen
     ? t('chat:focusSession.collapseQuickActions')
     : t('chat:focusSession.expandQuickActions')
-  const composerPlaceholder = mobileApp
+  const composerPlaceholder = mobileLayout
     ? streaming
       ? t('chat:focusSession.addGuidanceForTheRunningAgent')
       : t('chat:focusSession.writeWhatYouWantToAccomplish')
@@ -310,6 +312,7 @@ export const FocusSession = memo(function FocusSession({
       if (!queued) return
       clearDraft()
       setGoalArmed(false)
+      setToolsOpen(false)
       requestTranscriptBottom()
       if (promptRef.current) promptRef.current.style.height = 'auto'
       return
@@ -318,18 +321,13 @@ export const FocusSession = memo(function FocusSession({
     requestTranscriptBottom()
     clearDraft()
     setGoalArmed(false)
+    setToolsOpen(false)
     setInvocation(null)
     if (promptRef.current) promptRef.current.style.height = 'auto'
   }
 
   const composerLeadingTools = (
     <>
-      <ComposerCommandMenu
-        sessionId={session.id}
-        value={value}
-        onChange={updateValue}
-        inputRef={promptRef}
-      />
       <button
         type="button"
         className="resource-picker-trigger [.focus-composer_&]:h-[38px] [.focus-composer_&]:border-0 [.focus-composer_&]:rounded-[var(--r-sm)] [.focus-composer_&]:bg-[var(--surface-subtle)] [.focus-composer_&]:text-[12px] [.focus-composer_&]:w-[38px] [.focus-composer_&]:min-w-[38px] [.focus-session.has-conversation_.focus-composer_&]:w-[36px] [.focus-session.has-conversation_.focus-composer_&]:min-w-[36px] [.focus-session.has-conversation_.focus-composer_&]:h-[36px] relative grid place-items-center border-0 rounded-[var(--r-xs)] bg-transparent text-[var(--text-muted)] cursor-pointer hover:bg-[var(--surface-hover)] hover:text-[var(--star-strong)]"
@@ -427,7 +425,7 @@ export const FocusSession = memo(function FocusSession({
       />
 
       <form
-        className="focus-composer-shell [.focus-session.has-conversation_&]:w-[min(900px,calc(100%_-_48px))] [.focus-session.has-conversation_&]:pt-[8px] @max-[700px]:w-[calc(100%_-_20px)] @max-[700px]:pb-[10px] @max-[700px]:[.focus-session.has-conversation_&]:w-[calc(100%_-_20px)] max-[650px]:w-[calc(100%_-_20px)] max-[650px]:pb-[10px] flex w-[min(960px,calc(100%_-_48px))] flex-none flex-col gap-[7px] [margin:0_auto] [padding:10px_0_0]"
+        className="focus-composer-shell [.focus-session.has-conversation_&]:w-[min(900px,calc(100%_-_48px))] [.focus-session.has-conversation_&]:pt-[8px] @max-[700px]:w-[calc(100%_-_20px)] @max-[700px]:pb-[10px] @max-[700px]:[.focus-session.has-conversation_&]:w-[calc(100%_-_20px)] max-[650px]:w-[calc(100%_-_20px)] max-[650px]:pb-[10px] relative z-20 flex w-[min(960px,calc(100%_-_48px))] flex-none flex-col gap-[7px] [margin:0_auto] [padding:10px_0_0]"
         onSubmit={submit}
       >
         <WorkspaceTrustNotice sessionId={session.id} cwd={cwd} streaming={streaming} />
@@ -492,6 +490,12 @@ export const FocusSession = memo(function FocusSession({
           </span>
         </div>
         <div className="focus-composer [&:focus-within]:border-[var(--focus)] [&:focus-within]:shadow-[0_0_0_3px_var(--focus-ring)] [&_textarea]:w-full [&_textarea]:min-w-0 [&_textarea]:min-h-[48px] [&_textarea]:max-h-[220px] [&_textarea]:[align-self:start] [&_textarea]:resize-none [&_textarea]:overflow-y-auto [&_textarea]:border-0 [&_textarea]:[outline:0]! [&_textarea]:bg-transparent [&_textarea]:p-[5px_6px_8px] [&_textarea]:text-[var(--text)] [&_textarea]:text-[14px] [&_textarea]:leading-[1.5] [.focus-session.has-conversation_&]:shadow-[0_10px_28px_-24px_var(--shadow-strong)] [.focus-session.has-conversation_&_textarea]:min-h-[50px] [.focus-session.has-conversation_&_textarea]:p-[6px_7px_8px] dark:bg-[var(--solid)] dark:text-[var(--text)] @max-[700px]:grid-cols-[70px_36px_36px_auto_minmax(0,1fr)_36px] @max-[700px]:grid-rows-[minmax(48px,1fr)_36px] relative flex min-w-0 flex-col items-stretch gap-[4px] [border:1px_solid_var(--stroke)] rounded-[var(--r-md)] bg-[var(--solid)] [padding:8px] shadow-[0_14px_34px_-24px_var(--shadow-strong)] [transition:border-color_var(--d1)_var(--ease-out),_box-shadow_var(--d2)_var(--ease-out)]">
+          <ComposerCommandMenu
+            sessionId={session.id}
+            value={value}
+            onChange={updateValue}
+            inputRef={promptRef}
+          />
           <textarea
             ref={promptRef}
             rows={1}
@@ -514,51 +518,40 @@ export const FocusSession = memo(function FocusSession({
                 event.currentTarget.form?.requestSubmit()
               }
             }}
-            data-mobile-composer-input={mobileApp || undefined}
-            enterKeyHint={mobileApp ? 'send' : 'enter'}
+            data-mobile-composer-input={mobileLayout || undefined}
+            enterKeyHint={mobileLayout ? 'send' : 'enter'}
             placeholder={composerPlaceholder}
           />
-          <div
-            className={`focus-composer-footer @max-[470px]:[.focus-session.has-conversation_&]:flex-nowrap flex min-w-0 items-center gap-[4px] [&[data-mobile-app].tools-open]:flex-wrap ${toolsOpen ? 'tools-open' : ''}`}
-            data-mobile-app={mobileApp || undefined}
-          >
-            {!mobileApp && (
-              <div className="focus-composer-leading flex min-w-0 items-center gap-[4px] @max-[700px]:[.focus-composer-footer.tools-open_&]:hidden">
-                {composerLeadingTools}
-              </div>
-            )}
-            <div className="focus-composer-runtime flex min-w-0 items-center gap-[4px]">
-              <SessionModelSelect
-                value={model}
-                models={availableModels}
-                onChange={onModelChange}
-                disabled={streaming || switchingModel}
-              />
-              <ExecutionModeSelect
-                value={executionMode}
-                onChange={onExecutionModeChange}
-                disabled={switchingPermission}
-              />
-            </div>
-            <div className="focus-composer-quick-actions [.focus-composer-footer.tools-open_&]:flex-1 [.focus-composer-footer[data-mobile-app].tools-open_&]:order-2 [.focus-composer-footer[data-mobile-app].tools-open_&]:basis-full flex min-w-0 items-center gap-[4px]">
+          <div className="focus-composer-footer grid min-w-0 grid-cols-[44px_minmax(0,1fr)_44px] grid-rows-[44px] items-center gap-1">
+            <div className="focus-composer-quick-actions contents">
               <button
                 type="button"
-                className={`composer-tools-trigger [.focus-composer_&]:h-[38px] [.focus-composer_&]:border-0 [.focus-composer_&]:rounded-[var(--r-sm)] [.focus-composer_&]:bg-[var(--surface-subtle)] [.focus-composer_&]:text-[12px] [.focus-composer_&]:grid [.focus-composer_&]:w-[38px] [.focus-composer_&]:min-w-[38px] [.focus-composer_&]:place-items-center [.focus-composer_&]:text-[var(--text-muted)] [.focus-composer_&]:cursor-pointer [.focus-composer_&:hover]:bg-[var(--accent-soft)] [.focus-composer_&:hover]:text-[var(--star-strong)] [.focus-composer_&.active]:bg-[var(--accent-soft)] [.focus-composer_&.active]:text-[var(--star-strong)] [.focus-session.has-conversation_.focus-composer_&]:w-[36px] [.focus-session.has-conversation_.focus-composer_&]:min-w-[36px] [.focus-session.has-conversation_.focus-composer_&]:h-[36px] ${toolsOpen ? 'active' : ''}`}
+                className={`composer-tools-trigger grid !size-11 !min-w-11 place-items-center rounded-[var(--r-sm)] border border-transparent bg-[var(--surface-subtle)] text-[var(--text-muted)] cursor-pointer transition-[transform,background-color,color,border-color,box-shadow] duration-200 ease-[var(--ease-spring)] hover:scale-105 hover:border-[var(--brand-blue)] hover:bg-[var(--brand-blue-soft)] hover:text-[var(--brand-blue-strong)] ${toolsOpen ? 'active rotate-90 scale-105 border-[var(--brand-blue)] bg-[var(--brand-blue-soft)] text-[var(--brand-blue-strong)] shadow-[0_0_18px_-5px_var(--brand-blue)]' : ''}`}
                 title={quickActionsLabel}
                 aria-label={quickActionsLabel}
                 aria-expanded={toolsOpen}
                 aria-controls={toolTrayId}
                 onClick={() => setToolsOpen((open) => !open)}
               >
-                {toolsOpen ? <ChevronsLeft size={17} /> : <ChevronsRight size={17} />}
+                {toolsOpen ? <X size={17} /> : <Plus size={18} />}
               </button>
               <ComposerToolTray
                 open={toolsOpen}
                 label={t('chat:focusSession.quickActions')}
                 trayId={toolTrayId}
-                mobile={mobileApp}
               >
-                {mobileApp && composerLeadingTools}
+                <SessionModelSelect
+                  value={model}
+                  models={availableModels}
+                  onChange={onModelChange}
+                  disabled={streaming || switchingModel}
+                />
+                <ExecutionModeSelect
+                  value={executionMode}
+                  onChange={onExecutionModeChange}
+                  disabled={switchingPermission}
+                />
+                {composerLeadingTools}
                 <button
                   type="button"
                   className="command-palette-trigger [.focus-composer_&]:h-[38px] [.focus-composer_&]:border-0 [.focus-composer_&]:rounded-[var(--r-sm)] [.focus-composer_&]:bg-[var(--surface-subtle)] [.focus-composer_&]:text-[12px] [.composer-tool-tray_&]:relative [.composer-tool-tray_&]:grid [.composer-tool-tray_&]:w-[38px] [.composer-tool-tray_&]:min-w-[38px] [.composer-tool-tray_&]:place-items-center [.composer-tool-tray_&]:p-0 [.composer-tool-tray_&]:text-[var(--text-muted)] [.composer-tool-tray_&]:cursor-pointer [.composer-tool-tray_&:hover]:bg-[var(--surface-hover)] [.composer-tool-tray_&:hover]:text-[var(--star-strong)] [.composer-tool-tray_&_kbd]:absolute [.composer-tool-tray_&_kbd]:w-[1px] [.composer-tool-tray_&_kbd]:h-[1px] [.composer-tool-tray_&_kbd]:overflow-hidden [.composer-tool-tray_&_kbd]:[clip:rect(0_0_0_0)] [.composer-tool-tray_&_kbd]:[clip-path:inset(50%)] [.composer-tool-tray_&_kbd]:whitespace-nowrap @max-[700px]:[.composer-tool-tray_&]:w-[32px] @max-[700px]:[.composer-tool-tray_&]:min-w-[32px] @max-[700px]:[.composer-tool-tray_&]:h-[32px] @max-[700px]:[.composer-tool-tray_&]:p-0 @max-[470px]:[.composer-tool-tray_&]:w-[28px] @max-[470px]:[.composer-tool-tray_&]:min-w-[28px] @max-[470px]:[.composer-tool-tray_&]:h-[28px]"
@@ -628,15 +621,16 @@ export const FocusSession = memo(function FocusSession({
                 )}
               </ComposerToolTray>
             </div>
-            <div className="focus-composer-secondary [.focus-session.has-conversation_&]:h-[36px] @max-[700px]:h-[36px] @max-[700px]:gap-[5px] @max-[470px]:[.focus-session.has-conversation_&]:hidden max-[650px]:h-[36px] max-[650px]:gap-[5px] flex min-w-0 h-[38px] flex-1 items-center justify-end gap-[7px]">
+            <div className="focus-composer-secondary flex h-11 min-w-0 items-center justify-end">
               <ContextUsageIndicator
                 usage={contextUsage}
                 onThresholdChange={onCompactionThresholdChange}
+                compact
               />
             </div>
             <button
               type={streaming ? 'button' : 'submit'}
-              className={`send-button disabled:cursor-not-allowed disabled:opacity-100 [.focus-composer_&]:h-[38px] [.focus-composer_&]:border-0 [.focus-composer_&:disabled]:border-[1px] [.focus-composer_&:disabled]:border-[var(--stroke)] [.focus-composer_&:disabled]:bg-[var(--surface-muted)] [.focus-composer_&:disabled]:text-[var(--text-muted)] [.focus-composer_&]:rounded-[var(--r-sm)] [.focus-composer_&]:text-[12px] [.focus-composer_&]:grid [.focus-composer_&]:w-[42px] [.focus-composer_&]:flex-none [.focus-composer_&]:place-items-center [.focus-composer_&]:bg-[var(--star)] [.focus-composer_&]:text-[var(--on-accent)] [.focus-composer_&]:[transition:var(--d1)_var(--ease-out)] [.focus-composer_&:hover:not(:disabled)]:bg-[var(--star-hover)] [.focus-composer_&:hover:not(:disabled)]:shadow-[var(--sh-star)] [.focus-composer_&:active:not(:disabled)]:[transform:scale(.96)] [.focus-session.has-conversation_.focus-composer_&]:w-[38px] [.focus-session.has-conversation_.focus-composer_&]:h-[38px] dark:text-[var(--on-accent)] @max-[700px]:[.focus-composer_&]:h-[36px] @max-[700px]:[.focus-composer_&]:[align-self:center] @max-[470px]:[.focus-composer_&]:ml-[auto] max-[650px]:[.focus-composer_&]:h-[36px] max-[650px]:[.focus-composer_&]:[align-self:center]${streaming ? ' stop [.focus-composer_.send-button&]:bg-[var(--danger)] [.focus-composer_.send-button&]:shadow-[0_7px_16px_-10px_var(--danger)] [.focus-composer_.send-button&:hover:not(:disabled)]:bg-[var(--danger)] [.focus-composer_.send-button&:hover:not(:disabled)]:shadow-[0_0_0_3px_var(--danger-soft)]' : ''}`}
+              className={`send-button grid !size-11 flex-none place-items-center rounded-[var(--r-sm)] border-0 bg-[var(--star)] text-[var(--on-accent)] transition-[var(--d1)] cursor-pointer hover:not(:disabled):bg-[var(--star-hover)] hover:not(:disabled):shadow-[var(--sh-star)] active:not(:disabled):scale-[.96] disabled:cursor-not-allowed disabled:border disabled:border-[var(--stroke)] disabled:bg-[var(--surface-muted)] disabled:text-[var(--text-muted)] ${streaming ? 'stop !bg-[var(--danger)] hover:not(:disabled):shadow-[0_0_0_3px_var(--danger-soft)]' : ''}`}
               title={streaming ? t('chat:focusSession.stop') : t('chat:focusSession.sendMessage')}
               aria-label={
                 streaming ? t('chat:focusSession.stop') : t('chat:focusSession.sendMessage')
@@ -673,7 +667,11 @@ export const FocusSession = memo(function FocusSession({
               <span>{workspaceName(cwd, language)}</span>
             </button>
           )}
-          <SessionUsageMetrics usage={sessionUsage} plan={plansAvailable ? plan : null} />
+          <SessionUsageMetrics
+            usage={sessionUsage}
+            plan={plansAvailable ? plan : null}
+            compact={mobileLayout}
+          />
         </div>
       </form>
       <ChatResourcePicker

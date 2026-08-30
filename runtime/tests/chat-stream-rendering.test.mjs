@@ -51,6 +51,22 @@ test('chat renders thinking and tool activity above one uninterrupted response b
   assert.match(activity, /className="agent-run-history[^"\n]*"/)
 })
 
+test('streaming chat keeps its text lifecycle without decorative SSE motion', async () => {
+  const [activity, transcript, styles, markdown] = await Promise.all([
+    readFile('src/features/chat/AgentRunActivity.tsx', 'utf8'),
+    readFile('src/features/chat/FocusTranscript.tsx', 'utf8'),
+    readFile('src/index.css', 'utf8'),
+    readFile('src/components/MarkdownMessage.tsx', 'utf8'),
+  ])
+
+  assert.match(markdown, /aria-busy=\{streaming \|\| undefined\}/)
+  assert.match(markdown, /isAnimating=\{streaming\}/)
+  assert.doesNotMatch(markdown, /sse-|updateStreamingLineSpectrum|getClientRects/)
+  assert.doesNotMatch(activity, /data-pisper-streaming/)
+  assert.doesNotMatch(transcript, /data-pisper-streaming/)
+  assert.doesNotMatch(styles, /sse-/)
+})
+
 test('SSE activity isolates one total-duration clock from the streamed activity tree', async () => {
   const activity = await readFile('src/features/chat/AgentRunActivity.tsx', 'utf8')
   const durationLabel = activity.slice(
@@ -133,15 +149,15 @@ test('composer send action has distinct enabled, disabled, and streaming states'
   const focus = await readFile('src/features/chat/FocusSession.tsx', 'utf8')
   assert.doesNotMatch(focus, /className="button danger tiny" onClick=\{onAbort\}/)
   assert.match(focus, /type=\{streaming \? 'button' : 'submit'\}/)
-  assert.match(focus, /send-button[^`\n]*\$\{streaming \? ' stop[^']*' : ''\}/)
+  assert.match(focus, /send-button[^`\n]*\$\{streaming \? 'stop[^']*' : ''\}/)
   assert.match(focus, /onClick=\{streaming \? onAbort : undefined\}/)
   assert.match(focus, /streaming \? \(\s*<Square size=\{16\} fill="currentColor"/)
   assert.match(focus, /send-button[^`\n]*bg-\[var\(--star\)\]/)
   assert.doesNotMatch(focus, /send-button[^`\n]*bg-\[var\(--surface-subtle\)\]/)
   assert.match(focus, /send-button[^`\n]*stop[^`\n]*bg-\[var\(--danger\)\]/)
-  assert.match(focus, /disabled:opacity-100/)
-  assert.match(focus, /focus-composer_&:disabled[^`\n]*bg-\[var\(--surface-muted\)\]/)
-  assert.match(focus, /focus-composer_&:disabled[^`\n]*text-\[var\(--text-muted\)\]/)
+  assert.match(focus, /send-button[^`\n]*disabled:bg-\[var\(--surface-muted\)\]/)
+  assert.match(focus, /send-button[^`\n]*disabled:text-\[var\(--text-muted\)\]/)
+  assert.doesNotMatch(focus, /send-button[^`\n]*disabled:opacity-/)
 })
 
 test('image previews portal above session-level controls', async () => {
@@ -316,7 +332,7 @@ test('shared plan board opens from the composer progress metric', async () => {
   assert.match(board, /data-pisper-plan-current/)
   assert.match(
     session,
-    /<SessionUsageMetrics usage=\{sessionUsage\} plan=\{plansAvailable \? plan : null\} \/>/,
+    /<SessionUsageMetrics[\s\S]*?usage=\{sessionUsage\}[\s\S]*?plan=\{plansAvailable \? plan : null\}[\s\S]*?compact=\{mobileLayout\}[\s\S]*?\/>/,
   )
   assert.match(session, /runtimeFeatureAvailable\(capabilities, 'plans'\)/)
   assert.doesNotMatch(session, /PlanBoard|plan-board-dock/)

@@ -13,6 +13,7 @@ import {
   Plus,
   RefreshCw,
   Rocket,
+  Search,
   Settings,
   X,
   type LucideIcon,
@@ -64,6 +65,7 @@ type AppSidebarProps = {
   navigate: (page: string) => void
   navigateSettings: (destination: SettingsDestination) => void
   onExitSettings: () => void
+  onNewChat: () => void
   collapsed: boolean
   onToggleCollapse: () => void
   update: SidebarUpdate
@@ -84,6 +86,7 @@ export function AppSidebar({
   navigate,
   navigateSettings,
   onExitSettings,
+  onNewChat,
   collapsed,
   onToggleCollapse,
   update,
@@ -92,6 +95,7 @@ export function AppSidebar({
   const { t, language } = useI18n()
   const { isMobile, setOpenMobile } = useSidebar()
   const [historyExpanded, setHistoryExpanded] = useState(true)
+  const [sessionQuery, setSessionQuery] = useState('')
   const [collapsedWorkspaces, setCollapsedWorkspaces] = useState<Set<string>>(() => new Set())
   const [activeSessionId, setActiveSessionId] = useState(
     () => localStorage.getItem(STORAGE_KEYS.activeSession) || '',
@@ -120,16 +124,23 @@ export function AppSidebar({
       ),
     [sidebarSessionData],
   )
+  const visibleSessions = useMemo(() => {
+    const needle = sessionQuery.trim().toLocaleLowerCase(language)
+    if (!needle) return sessions
+    return sessions.filter((session) =>
+      `${session.name || ''} ${session.cwd || ''}`.toLocaleLowerCase(language).includes(needle),
+    )
+  }, [language, sessionQuery, sessions])
   const sessionGroups = useMemo(() => {
     const groups = new Map<string, { key: string; cwd: string; sessions: SessionSummary[] }>()
-    for (const session of sessions.slice(0, RECENT_SESSION_LIMIT)) {
+    for (const session of visibleSessions.slice(0, RECENT_SESSION_LIMIT)) {
       const key = workspaceKey(session.cwd) || '__no_workspace__'
       const group = groups.get(key) || { key, cwd: session.cwd || '', sessions: [] }
       group.sessions.push(session)
       groups.set(key, group)
     }
     return [...groups.values()]
-  }, [sessions])
+  }, [visibleSessions])
 
   useEffect(() => {
     const refresh = () => {
@@ -158,6 +169,11 @@ export function AppSidebar({
     setActiveSessionId(id)
     requestSessionSelection(id)
     navigate('chat')
+    if (isMobile) setOpenMobile(false)
+  }
+
+  const createNewChat = () => {
+    onNewChat()
     if (isMobile) setOpenMobile(false)
   }
 
@@ -206,6 +222,18 @@ export function AppSidebar({
         <div
           className={`nav-list [&_button]:relative [&_button]:flex [&_button]:w-full [&_button]:h-[34px] [&_button]:items-center [&_button]:gap-[10px] [&_button]:border-0 [&_button]:rounded-[var(--r-sm)] [&_button]:bg-transparent [&_button]:p-[0_10px] [&_button]:text-[var(--text-secondary)] [&_button]:text-left [&_button]:text-[12px] [&_button]:font-[500] [&_button]:[transition:var(--d1)_var(--ease-out)] [&_button:hover]:bg-[var(--surface-hover)] [&_button:hover]:text-[var(--text)] [&_button.active]:bg-[var(--star-soft)] [&_button.active]:text-[var(--text)] [&_button.active]:font-[600] [&_button.active::before]:[content:''] [&_button.active::before]:absolute [&_button.active::before]:left-[2px] [&_button.active::before]:top-[8px] [&_button.active::before]:bottom-[8px] [&_button.active::before]:w-[3px] [&_button.active::before]:rounded-[var(--r-pill)] [&_button.active::before]:bg-[var(--brand-blue)] min-[901px]:[.sidebar.collapsed_&_button]:justify-center min-[901px]:[.sidebar.collapsed_&_button]:gap-[0] min-[901px]:[.sidebar.collapsed_&_button]:p-0 min-[901px]:[.sidebar.collapsed_&_button_span]:hidden min-[901px]:[.sidebar.collapsed_&_button.active::before]:left-0 dark:[&_button.active]:bg-[var(--surface-hover)] min-[901px]:[[data-density='compact']_&_button]:h-[30px] flex min-h-0 flex-col gap-[3px] overflow-y-auto ${settingsActive ? 'nav-settings-mode gap-[10px]' : ''}`}
         >
+          {!settingsActive && (
+            <button
+              type="button"
+              className="nav-new-chat [.nav-list_&]:h-10 [.nav-list_&]:flex-none [.nav-list_&]:gap-2 [.nav-list_&]:rounded-[var(--r-sm)] [.nav-list_&]:border [.nav-list_&]:border-[var(--star)] [.nav-list_&]:bg-[var(--star)] [.nav-list_&]:px-3 [.nav-list_&]:font-[650] [.nav-list_&]:text-[var(--on-accent)] [.nav-list_&]:shadow-[var(--sh-star)] [.nav-list_&:hover]:bg-[var(--star-hover)] min-[901px]:[.sidebar.collapsed_&]:justify-center min-[901px]:[.sidebar.collapsed_&]:gap-0 min-[901px]:[.sidebar.collapsed_&]:p-0"
+              title={t('navigation:appSidebar.newChat')}
+              aria-label={t('navigation:appSidebar.newChat')}
+              onClick={createNewChat}
+            >
+              <Plus size={16} />
+              <span>{t('navigation:appSidebar.newChat')}</span>
+            </button>
+          )}
           {settingsActive ? (
             <nav
               className="nav-primary [.nav-settings-mode_&]:gap-[0] flex flex-col gap-[3px]"
@@ -299,6 +327,16 @@ export function AppSidebar({
                   {t('navigation:appSidebar.viewAll')}
                 </button>
               </div>
+              <label className="min-[901px]:[.sidebar.collapsed_&]:hidden flex h-8 flex-none items-center gap-2 rounded-[var(--r-xs)] border border-[var(--stroke-soft)] bg-[var(--solid)] px-2 text-[var(--text-muted)] focus-within:border-[var(--focus)] focus-within:ring-2 focus-within:ring-[var(--focus-ring)]">
+                <Search size={13} aria-hidden="true" />
+                <input
+                  className="min-w-0 flex-1 border-0 bg-transparent text-[12px] text-[var(--text)] outline-none placeholder:text-[var(--text-muted)]"
+                  value={sessionQuery}
+                  onChange={(event) => setSessionQuery(event.target.value)}
+                  placeholder={t('navigation:appSidebar.searchChats')}
+                  aria-label={t('navigation:appSidebar.searchChats')}
+                />
+              </label>
               {historyExpanded && (
                 <div
                   className="flex flex-1 min-h-0 flex-col gap-[2px] [padding-bottom:2px] overflow-y-auto [animation:page-in_var(--d1)_var(--ease-out)]"
@@ -357,9 +395,11 @@ export function AppSidebar({
                       </div>
                     )
                   })}
-                  {!sessions.length && (
+                  {!visibleSessions.length && (
                     <span className="[padding:8px] text-[var(--text-muted)] text-[11px]">
-                      {t('navigation:appSidebar.noChatHistoryYet')}
+                      {sessionQuery.trim()
+                        ? t('navigation:appSidebar.noMatchingChats')
+                        : t('navigation:appSidebar.noChatHistoryYet')}
                     </span>
                   )}
                 </div>

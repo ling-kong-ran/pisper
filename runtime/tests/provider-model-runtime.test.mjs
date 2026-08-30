@@ -63,6 +63,9 @@ test('provider model discovery uses the configured relay Base URL and stored cre
   assert.ok(
     provider.models.some((model) => model.id === 'relay-image-v1' && model.kind === 'image'),
   )
+  const visualStatus = await runtime.getVisualModelStatus()
+  assert.equal(visualStatus.image?.providerId, 'company-relay')
+  assert.equal(visualStatus.image?.id, 'relay-image-v1')
 })
 
 test('custom OpenAI Responses models send template-supported xhigh reasoning', async (t) => {

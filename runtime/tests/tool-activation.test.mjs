@@ -26,16 +26,26 @@ const available = [
 ]
 
 describe('tool-activation', () => {
-  it('schemaOnlyToolDefinition flattens promptGuidelines into description', () => {
-    const tool = {
+  it('schemaOnlyToolDefinition keeps prompt metadata only for hot tools', () => {
+    const dynamic = schemaOnlyToolDefinition({
       name: 'test_tool',
       description: 'Base description.',
+      promptSnippet: 'Dynamic snippet',
       promptGuidelines: ['Guideline 1', 'Guideline 2'],
-    }
-    const result = schemaOnlyToolDefinition(tool)
-    assert.equal(result.description, 'Base description.\nGuideline 1\nGuideline 2')
-    assert.equal(result.promptGuidelines.length, 0)
-    assert.equal(result.promptSnippet, undefined)
+    })
+    assert.equal(dynamic.description, 'Base description.\nGuideline 1\nGuideline 2')
+    assert.deepEqual(dynamic.promptGuidelines, [])
+    assert.equal(dynamic.promptSnippet, undefined)
+
+    const hot = schemaOnlyToolDefinition({
+      name: 'spawn_agent',
+      description: 'Spawn description.',
+      promptSnippet: 'Delegate independent work',
+      promptGuidelines: ['Use spawn_agent proactively.'],
+    })
+    assert.equal(hot.description, 'Spawn description.')
+    assert.equal(hot.promptSnippet, 'Delegate independent work')
+    assert.deepEqual(hot.promptGuidelines, ['Use spawn_agent proactively.'])
   })
 
   it('hotToolNames returns only hot tools', () => {

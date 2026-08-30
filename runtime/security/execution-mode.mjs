@@ -18,7 +18,12 @@ const APPROVAL_TOOLS = new Set([
   'mobile_device',
   'generate_visual',
 ])
-const INTERNAL_APPROVAL_TOOLS = new Set(['update_plan'])
+const INTERNAL_APPROVAL_TOOLS = new Set([
+  'update_plan',
+  'spawn_agent',
+  'followup_task',
+  'interrupt_agent',
+])
 const INTERNAL_SAFE_TOOLS = new Set([
   'discover_tools',
   'call_tool',

@@ -222,18 +222,19 @@ test('mobile chat sends with Enter and uses one collapsible Composer tool tray',
   // IME 组词双保险：Chromium 看 isComposing，Mac WebKit 看自行跟踪的 imeComposingRef。
   assert.match(focusSession, /event\.nativeEvent\.isComposing \|\| imeComposingRef\.current/)
   assert.match(focusSession, /event\.currentTarget\.form\?\.requestSubmit\(\)/)
-  assert.match(focusSession, /enterKeyHint=\{mobileApp \? 'send' : 'enter'\}/)
-  assert.match(focusSession, /const composerPlaceholder = mobileApp/)
-  assert.match(focusSession, /\{!mobileApp && \([\s\S]*?\{composerLeadingTools\}/)
-  assert.match(focusSession, /\{mobileApp && composerLeadingTools\}/)
-  assert.match(focusSession, /data-mobile-app=\{mobileApp \|\| undefined\}/)
-  assert.match(
-    focusSession,
-    /focus-composer-footer\[data-mobile-app\]\.tools-open[^"\n]*basis-full/,
-  )
-  assert.match(toolTray, /if \(mobile\) return tray/)
-  assert.match(toolTray, /\[&>\*\]:!size-9/)
-  assert.match(toolTray, /overflow-x-auto/)
+  assert.match(focusSession, /const mobileLayout = mobileApp \|\| phoneViewport/)
+  assert.match(focusSession, /enterKeyHint=\{mobileLayout \? 'send' : 'enter'\}/)
+  assert.match(focusSession, /const composerPlaceholder = mobileLayout/)
+  assert.match(focusSession, /data-mobile-composer-input=\{mobileLayout \|\| undefined\}/)
+  assert.match(focusSession, /<ComposerToolTray[\s\S]*?\{composerLeadingTools\}/)
+  assert.match(toolTray, /direction="vertical"/)
+  assert.match(toolTray, /className="absolute bottom-\[calc\(100%\+12px\)\]/)
+  assert.match(toolTray, /reveal/)
+  assert.match(toolTray, /spring/)
+  assert.match(toolTray, /variant="burst"/)
+  assert.match(toolTray, /!size-11 !w-11/)
+  assert.match(toolTray, /flex-wrap/)
+  assert.doesNotMatch(toolTray, /if \(mobile\) return tray|overflow-x-auto/)
   assert.match(pageHeader, /page === 'chat'[\s\S]*?max-\[650px\]:!min-h-0/)
   assert.match(pageHeader, /page === 'chat' && 'max-\[650px\]:hidden'/)
   assert.doesNotMatch(zh['focusSession.writeWhatYouWantToAccomplish'], /Shift|Enter/)
@@ -393,12 +394,13 @@ test('settings navigation replaces the main sidebar and stays reachable in the m
     app,
     /<div[\s\S]*?className=\{`page-content[^`]*page-\$\{page\}`\}[\s\S]*?key=\{page\}[\s\S]*?<Outlet/,
   )
-  assert.match(app, /mobileApp && SETTINGS_PAGES\.has\(page\)/)
+  assert.match(app, /clientLoaded && mobileLayout && SETTINGS_PAGES\.has\(page\)/)
+  assert.match(app, /<MobileSettingsNavigation[\s\S]*?mobileApp=\{mobileApp\}/)
   assert.match(app, /<MobilePrimaryNavigation[\s\S]*?page=\{page\}/)
   assert.match(sidebar, /settingsActive \? \(/)
   assert.match(sidebar, /nav-settings-back/)
   assert.match(mobileNavigation, /getNavigation\(t, capabilities\)/)
-  assert.match(mobileNavigation, /getSettingsNavigation\(t, \{ mobileApp: true, capabilities \}\)/)
+  assert.match(mobileNavigation, /getSettingsNavigation\(t, \{ mobileApp, capabilities \}\)/)
   assert.match(mobileNavigation, /useRuntimeCapabilitiesStore/)
   assert.match(mobileNavigation, /data-mobile-navigation="primary"/)
   assert.match(mobileNavigation, /data-mobile-navigation="settings"/)
@@ -424,7 +426,7 @@ test('mobile shell keeps navigation in the viewport and model settings use one n
     app,
     /app-body[^"\n]*\[&\[data-mobile-app\]\]:h-auto[^"\n]*\[&\[data-mobile-app\]\]:flex-1[^"\n]*\[&\[data-mobile-app\]\]:overflow-hidden/,
   )
-  assert.equal(app.match(/data-mobile-app=\{mobileApp \|\| undefined\}/g)?.length, 2)
+  assert.equal(app.match(/data-mobile-app=\{mobileLayout \|\| undefined\}/g)?.length, 2)
   // 模型设置页为单列扁平结构：摘要 + 发现 + 连接列表 + 运行策略 + 视觉生成
   assert.doesNotMatch(models, /!grid-cols-/)
   assert.match(models, /<CurrentModelSummary/)
@@ -453,24 +455,31 @@ test('mobile device permissions are requested by native operations', async () =>
 })
 
 test('route code and route-specific vendor styles remain lazy', async () => {
-  const [router, routeElements, main, chat, dockView, workflows, styles] = await Promise.all([
-    readFile('src/app/router.tsx', 'utf8'),
-    readFile('src/app/route-elements.tsx', 'utf8'),
-    readFile('src/main.tsx', 'utf8'),
-    readFile('src/features/chat/ChatPage.tsx', 'utf8'),
-    readFile('src/features/chat/ChatDockView.tsx', 'utf8'),
-    readFile('src/features/workflows/WorkflowsPage.tsx', 'utf8'),
-    readFile('src/index.css', 'utf8'),
-  ])
+  const [router, routeElements, main, chat, chatDock, dockView, workflows, styles] =
+    await Promise.all([
+      readFile('src/app/router.tsx', 'utf8'),
+      readFile('src/app/route-elements.tsx', 'utf8'),
+      readFile('src/main.tsx', 'utf8'),
+      readFile('src/features/chat/ChatPage.tsx', 'utf8'),
+      readFile('src/features/chat/ChatDock.tsx', 'utf8'),
+      readFile('src/features/chat/ChatDockView.tsx', 'utf8'),
+      readFile('src/features/workflows/WorkflowsPage.tsx', 'utf8'),
+      readFile('src/index.css', 'utf8'),
+    ])
 
   assert.equal(routeElements.match(/await import\(/g)?.length, 12)
   assert.ok((router.match(/lazy: \w+Route/g)?.length || 0) >= 12)
   assert.doesNotMatch(router, /from '@\/features\//)
   assert.doesNotMatch(main, /react-bits\.css|dockview\.css|@xyflow\/react\/dist\/style\.css/)
-  // dockview 及其样式只在桌面端懒加载分包中：ChatPage 不直接引用，
-  // 移动端 App 走单会话视图，不下载 dockview。
+  // dockview 及其样式只在桌面端懒加载分包中：移动端使用轻量标签栏，
+  // 内容区一次只挂载一个会话，不下载 dockview。
   assert.doesNotMatch(chat, /dockview-react\/dist\/styles\/dockview\.css/)
   assert.match(chat, /await import\('\.\/ChatDockView'\)|import\('\.\/ChatDockView'\)/)
+  assert.match(chatDock, /className="mobile-session-tabs/)
+  assert.match(chatDock, /role="tablist"/)
+  assert.match(chatDock, /MOBILE_SESSION_TAB_LIMIT = 6/)
+  assert.match(chatDock, /STORAGE_KEYS\.mobileSessionTabs/)
+  assert.match(chatDock, /onCreateSession/)
   assert.match(dockView, /import 'dockview-react\/dist\/styles\/dockview\.css'/)
   assert.match(workflows, /import '@xyflow\/react\/dist\/style\.css'/)
   assert.match(styles, /@import "tailwindcss" source\(none\);/)

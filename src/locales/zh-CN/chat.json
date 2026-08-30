@@ -43,6 +43,7 @@
   "sessionTree.labeled": "标记",
   "sessionTree.all": "全部",
   "sessionTree.allMarks": "全部标记",
+  "sessionTree.backToNodes": "返回节点列表",
   "sessionTree.markActive": "当前分支",
   "sessionTree.markTimes": "会话 {sessionTime} · 节点 {nodeTime}",
   "sessionTree.noMarksYet": "还没有标记过任何节点。在聊天中点消息上的标记图标即可标记。",

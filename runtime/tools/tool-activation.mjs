@@ -1,4 +1,4 @@
-// 工具激活辅助：热门工具集合与 schema-only 工具定义清洗（去掉 prompt 指南字段）。
+// 工具激活辅助：热门工具集合与 schema-only 工具定义清洗。
 import { PLAN_TOOL_NAMES } from './app/plan-tool-names.mjs'
 
 const HOT_TOOL_SET = new Set([
@@ -21,12 +21,21 @@ const HOT_TOOL_SET = new Set([
 ])
 
 export function schemaOnlyToolDefinition(tool) {
+  const description = String(tool?.description || '').trim()
   const guidelines = Array.isArray(tool?.promptGuidelines)
     ? tool.promptGuidelines.map((item) => String(item || '').trim()).filter(Boolean)
     : []
+  if (HOT_TOOL_SET.has(tool?.name)) {
+    return {
+      ...tool,
+      description,
+      promptSnippet: String(tool?.promptSnippet || '').trim() || undefined,
+      promptGuidelines: guidelines,
+    }
+  }
   return {
     ...tool,
-    description: [String(tool?.description || '').trim(), ...guidelines].filter(Boolean).join('\n'),
+    description: [description, ...guidelines].filter(Boolean).join('\n'),
     promptSnippet: undefined,
     promptGuidelines: [],
   }

@@ -156,7 +156,7 @@ export function GitChangesControl({
       {open && (
         <div
           ref={menuRef}
-          className="git-changes-menu [translate:var(--menu-x-offset,_0px)_0] max-[650px]:[.focus-composer_&]:right-[auto] max-[650px]:[.focus-composer_&]:left-0 max-[650px]:[.focus-composer_&]:w-[min(340px,calc(100vw_-_76px))] absolute z-[35] [bottom:calc(100%_+_8px)] left-0 w-[min(340px,calc(100vw_-_28px))] overflow-hidden [border:1px_solid_var(--stroke)] rounded-[var(--r-md)] bg-[var(--solid)] [padding:5px] shadow-[0_18px_42px_-18px_var(--menu-shadow)]"
+          className="git-changes-menu [translate:var(--menu-x-offset,_0px)_var(--menu-y-offset,_0px)] max-[650px]:[.focus-composer_&]:right-[auto] max-[650px]:[.focus-composer_&]:left-0 max-[650px]:[.focus-composer_&]:w-[min(340px,calc(100vw_-_76px))] absolute z-[35] [bottom:calc(100%_+_8px)] left-0 w-[min(340px,calc(100vw_-_28px))] overflow-hidden [border:1px_solid_var(--stroke)] rounded-[var(--r-md)] bg-[var(--solid)] [padding:5px] shadow-[0_18px_42px_-18px_var(--menu-shadow)]"
           role="dialog"
           aria-label={t('chat:focusSession.gitChanges')}
         >

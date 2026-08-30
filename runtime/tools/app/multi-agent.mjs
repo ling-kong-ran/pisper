@@ -122,16 +122,18 @@ function createSpawnAgentTool({ multiAgentRuntime }) {
     description:
       'Spawn an isolated Agent for a concrete, bounded subtask that can run independently while you continue useful local work.',
     promptSnippet:
-      'Spawn an asynchronous Agent for explicitly requested delegation or parallel work',
+      'Proactively delegate concrete independent work to an asynchronous background Agent',
     promptGuidelines: [
-      'Do not use spawn_agent unless the user explicitly asks for subagents, delegation, parallel agent work, or an applicable project instruction requires it.',
+      'For substantial work, briefly identify whether two or more concrete workstreams can proceed independently; use spawn_agent proactively when delegation will shorten the critical path, even if the user did not explicitly request subagents.',
+      'Good candidates include independent codebase investigation, platform-specific checks, focused test diagnosis, and review of a bounded area while the parent continues implementation.',
+      'Do not spawn for trivial work, a single linear task, tightly coupled changes in the same files, or work whose coordination cost is likely higher than doing it directly.',
       'Use spawn_agent only for a concrete, bounded task that can run independently while you continue non-overlapping local work.',
-      'Do not delegate the immediate critical-path step and then wait idly for it.',
+      'Keep the immediate critical-path step in the parent session and continue useful work after delegating it.',
       'Provide a self-contained message with every constraint and piece of context the Agent needs; Agents never inherit the parent transcript.',
       'Agents inherit the current model, current reasoning level, tools, permission mode, and workspace boundary. They cannot recursively spawn more Agents.',
       'A spawned Agent is a background task. Its running state must not delay replying to the user, handling later user instructions, or spawning other independent Agents.',
       'After spawning, acknowledge only that the work was delegated to a background Agent, phrased briefly in the user’s language, without explaining mailbox, prompt, or context internals.',
-      'Do not call list_agents or wait_agent merely to monitor progress. Completed results remain durable in the parent mailbox and update the UI, but are never injected into the parent prompt or model context.',
+      'Do not call list_agents or wait_agent merely to monitor progress. Completed results remain durable, update the UI, and are automatically delivered to the parent session.',
       'Use wait_agent only when the user explicitly asks you to wait for a specific Agent result before replying.',
     ],
     parameters: Type.Object({

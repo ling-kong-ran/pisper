@@ -1435,8 +1435,8 @@ export class AgentRuntimeService extends AgentRuntimeFacade {
     const planTools = this.capabilities.features.plans
       ? createPlanTools({
           getPlan: () => this.plans.get(runtimeSessionId),
-          updatePlan: async (items) => {
-            const plan = await this.plans.replace(runtimeSessionId, items)
+          updatePlan: async (items, options) => {
+            const plan = await this.plans.replace(runtimeSessionId, items, options)
             this.emitPlanUpdate(runtimeSessionId, plan)
             return plan
           },

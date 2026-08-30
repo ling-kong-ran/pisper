@@ -14,12 +14,14 @@ test('icon-only composer model control hides the Radix Select trigger content', 
   assert.match(component, /session-model-select&\]:min-w-\[38px\][^`]*overflow-hidden/)
 })
 
-test('composer expands low-frequency controls horizontally with React Bits AnimatedContent', async () => {
-  const [session, tray, animatedContent, styles] = await Promise.all([
+test('composer expands low-frequency controls vertically with React Bits AnimatedContent', async () => {
+  const [session, tray, animatedContent, animatedList, styles, menuOffset] = await Promise.all([
     readFile('src/features/chat/FocusSession.tsx', 'utf8'),
     readFile('src/features/chat/ComposerToolTray.tsx', 'utf8'),
     readFile('src/components/react-bits/AnimatedContent.tsx', 'utf8'),
+    readFile('src/components/react-bits/AnimatedList.tsx', 'utf8'),
     readFile('src/index.css', 'utf8'),
+    readFile('src/features/chat/use-viewport-menu-offset.ts', 'utf8'),
   ])
 
   assert.match(session, /focus-composer[^"\n]*\[&_textarea\]:\[outline:0\]!/)
@@ -28,25 +30,51 @@ test('composer expands low-frequency controls horizontally with React Bits Anima
   assert.match(session, /aria-expanded={toolsOpen}/)
   assert.match(tray, /import\('@\/components\/react-bits\/AnimatedContent'\)/)
   assert.match(tray, /<Suspense fallback={null}>/)
-  assert.match(tray, /direction="horizontal"/)
-  assert.match(animatedContent, /width: direction === 'horizontal' \? 0 : 'auto'/)
+  assert.match(tray, /direction="vertical"/)
+  assert.match(tray, /className="absolute bottom-\[calc\(100%\+12px\)\]/)
+  assert.match(tray, /distance=\{16\}/)
+  assert.match(tray, /reveal/)
+  assert.match(tray, /spring/)
+  assert.match(tray, /allowOverflow/)
+  assert.match(tray, /delegateClicks/)
+  assert.match(tray, /variant="burst"/)
+  assert.match(tray, /composer-energy-spin/)
+  assert.match(animatedContent, /reveal\?: boolean/)
+  assert.match(animatedContent, /allowOverflow\?: boolean/)
+  assert.match(animatedContent, /overflow: allowOverflow \|\| settled \? 'visible' : 'hidden'/)
+  assert.match(animatedContent, /type: 'spring'/)
   assert.match(animatedContent, /useReducedMotion/)
-  assert.doesNotMatch(animatedContent, /<AnimatePresence initial={false}>/)
-  assert.match(tray, /composer-tool-tray[^"\n]*flex/)
-  assert.match(session, /command-palette-trigger[^"\n]*composer-tool-tray_&\]:w-\[38px\]/)
+  assert.match(animatedList, /function flattenedChildren/)
+  assert.match(animatedList, /child\.type === Fragment/)
+  assert.match(animatedList, /const childKey = `\$\{parentKey\}/)
+  assert.match(animatedList, /delegateClicks/)
+  assert.match(animatedList, /querySelector<HTMLElement>/)
+  assert.match(animatedList, /delay: reduceMotion \? 0 : 0\.045 \+ index \* 0\.038/)
+  assert.match(tray, /composer-tool-tray-shell[^"\n]*overflow-visible/)
+  assert.match(tray, /composer-tool-tray[^"\n]*flex-wrap/)
+  assert.match(tray, /!size-11 !w-11/)
+  assert.doesNotMatch(tray, /\[&:hover>\*\]/)
+  assert.doesNotMatch(tray, /if \(mobile\) return tray|overflow-x-auto/)
+  assert.match(session, /<ComposerToolTray[\s\S]*<SessionModelSelect[\s\S]*<ExecutionModeSelect/)
+  assert.ok(session.indexOf('<ComposerCommandMenu') < session.indexOf('<textarea'))
+  const leadingTools = session.slice(
+    session.indexOf('const composerLeadingTools'),
+    session.indexOf('// 空会话头部'),
+  )
+  assert.doesNotMatch(leadingTools, /ComposerCommandMenu/)
+  assert.match(menuOffset, /--menu-y-offset/)
+  assert.match(menuOffset, /\(auto\|hidden\|scroll\|clip\)/)
+  assert.match(menuOffset, /menu\.style\.maxHeight/)
+  assert.match(session, /toolsOpen \? <X size=\{17\} \/> : <Plus size=\{18\} \/>/)
+  assert.match(session, /focus-composer-footer[^"\n]*grid-rows-\[44px\]/)
+  assert.doesNotMatch(session, /toolsOpen \? 'tools-open grid-rows|toolsOpen \? 'row-start-2'/)
+  assert.match(session, /<ContextUsageIndicator[\s\S]*?compact[\s\S]*?\/>/)
   assert.match(session, /command-palette-trigger[^"\n]*clip-path:inset\(50%\)/)
   assert.doesNotMatch(session, /<span>{t\('chat:focusSession.commands'\)}<\/span>/)
   assert.doesNotMatch(
     styles,
     /\.composer-tool-tray \.command-palette-trigger \{[^}]*min-width: 112px;/,
   )
-  assert.doesNotMatch(styles, /\.composer-tool-tray \{[^}]*flex-wrap: wrap;/)
-  assert.match(
-    session,
-    /<ExecutionModeSelect[\s\S]*<div className="focus-composer-quick-actions[^"\n]*">/,
-  )
-  assert.match(session, /toolsOpen \? <ChevronsLeft[^:]+: <ChevronsRight/)
-  assert.match(session, /focus-composer-quick-actions[^"\n]*tools-open_&\]:flex-1/)
   assert.doesNotMatch(session, /focus-composer-secondary[^"\n]*tools-open_&\]:hidden/)
   assert.match(session, /composer-workspace-status[\s\S]*<SessionUsageMetrics/)
   assert.doesNotMatch(tray, /composer-workspace/)
@@ -59,7 +87,7 @@ test('composer plain Enter submits, Shift+Enter inserts a newline, and IME compo
   assert.match(session, /event\.key === 'Enter' &&\s*!event\.shiftKey &&\s*!composing/)
   assert.doesNotMatch(session, /submitsWithShortcut|metaKey \|\| event\.ctrlKey/)
   assert.match(session, /event\.currentTarget\.form\?\.requestSubmit\(\)/)
-  assert.match(session, /enterKeyHint=\{mobileApp \? 'send' : 'enter'\}/)
+  assert.match(session, /enterKeyHint=\{mobileLayout \? 'send' : 'enter'\}/)
   // IME 组词保护双保险：Chromium 靠 isComposing；Mac WebKit 的确认 Enter
   // 在 compositionend 之后派发，靠自行跟踪的 imeComposingRef 延迟复位覆盖。
   assert.match(session, /event\.nativeEvent\.isComposing \|\| imeComposingRef\.current/)

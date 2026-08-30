@@ -98,8 +98,43 @@ function errorMessage(payload, status) {
   return detail ? `获取模型失败 (${status})：${detail}` : `获取模型失败 (${status})。`
 }
 
+const KNOWN_IMAGE_MODEL =
+  /(?:^|[/_.-])(?:dall[-_.]?e|gpt(?:-[\d.]+)?[-_.]?image|imagen|gemini[^/]*[-_.]image|grok[-_.]?imagine(?:[-_.]?image)?|flux|stable[-_.]?diffusion|sdxl|seedream|qwen[-_.]?image|cogview)(?:$|[/_.-])/i
+const KNOWN_VIDEO_MODEL =
+  /(?:^|[/_.-])(?:sora|veo|grok[-_.]?imagine[-_.]?video|kling|wan[-_.]?video|seedance)(?:$|[/_.-])/i
+
+function outputModalities(item) {
+  const values = [
+    item.output_modalities,
+    item.outputModalities,
+    item.architecture?.output_modalities,
+    item.architecture?.outputModalities,
+    item.capabilities?.output_modalities,
+    item.capabilities?.outputModalities,
+  ]
+  return values
+    .flatMap((value) => (Array.isArray(value) ? value : value ? [value] : []))
+    .map((value) => String(value).trim().toLowerCase())
+}
+
+// 只识别输出视觉内容的模型；图片输入能力属于多模态对话，不能据此启用生图。
+function discoveredModelKind(item, id) {
+  const explicit = String(item.kind || item.model_kind || item.modelKind || '').toLowerCase()
+  if (['chat', 'image', 'video'].includes(explicit)) return explicit
+  if (item.capabilities?.video_generation === true || item.capabilities?.videoGeneration === true)
+    return 'video'
+  if (item.capabilities?.image_generation === true || item.capabilities?.imageGeneration === true)
+    return 'image'
+  const modalities = outputModalities(item)
+  if (modalities.includes('video')) return 'video'
+  if (modalities.includes('image')) return 'image'
+  if (KNOWN_VIDEO_MODEL.test(id)) return 'video'
+  if (KNOWN_IMAGE_MODEL.test(id)) return 'image'
+  return inferModelKind(id, 'auto')
+}
+
 function candidateFrom(item, api) {
-  if (typeof item === 'string') return { id: item, name: item }
+  if (typeof item === 'string') return { id: item, name: item, kind: 'chat' }
   if (!item || typeof item !== 'object') return null
   const rawId = item.id || item.model_id || item.model || item.slug || item.name
   if (!rawId) return null
@@ -111,9 +146,7 @@ function candidateFrom(item, api) {
   return {
     id,
     name,
-    // 不再按 ID 推断用途：发现的模型一律先按对话模型列出，
-    // 实际类型由用户在添加时显式选择（详见 inferModelKind）。
-    kind: inferModelKind(id, 'auto'),
+    kind: discoveredModelKind(item, id),
     ...(Array.isArray(item.supportedGenerationMethods)
       ? { supportedGenerationMethods: item.supportedGenerationMethods.map(String) }
       : {}),

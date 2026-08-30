@@ -4,6 +4,7 @@ import { useVirtualizer } from '@tanstack/react-virtual'
 import {
   Bot,
   Bookmark,
+  ChevronLeft,
   FileText,
   GitBranch,
   LoaderCircle,
@@ -22,6 +23,8 @@ import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import { useIsPhoneViewport } from '@/hooks/use-mobile'
+import { useIsMobileApp } from '@/stores/client-store'
 import type { SessionSummary } from '@/types/chat'
 import { chatErrorMessage } from './chat-errors'
 import {
@@ -149,6 +152,73 @@ function nodeIcon(node: SessionTreeNode) {
   return MessageSquare
 }
 
+function MobileSessionTreeList({
+  nodes,
+  viewportRef,
+  selectedId,
+  typeLabel,
+  stateLabel,
+  onSelect,
+}: {
+  nodes: DisplayNode[]
+  viewportRef: React.RefObject<HTMLDivElement | null>
+  selectedId: string
+  typeLabel: (node: SessionTreeNode) => string
+  stateLabel: (node: SessionTreeNode) => string
+  onSelect: (id: string) => void
+}) {
+  const virtualizer = useVirtualizer<HTMLDivElement, HTMLDivElement>({
+    count: nodes.length,
+    getScrollElement: () => viewportRef.current,
+    estimateSize: () => 64,
+    getItemKey: (index) => nodes[index]?.id ?? `mobile-tree-node-${index}`,
+    overscan: TREE_OVERSCAN,
+    useAnimationFrameWithResizeObserver: true,
+  })
+
+  useEffect(() => {
+    if (!selectedId) return
+    const index = nodes.findIndex((node) => node.id === selectedId)
+    if (index >= 0) virtualizer.scrollToIndex(index, { align: 'center' })
+  }, [nodes, selectedId, virtualizer])
+
+  return (
+    <div className="relative w-full" style={{ height: `${virtualizer.getTotalSize()}px` }}>
+      {virtualizer.getVirtualItems().map((virtualItem) => {
+        const node = nodes[virtualItem.index]
+        const Icon = nodeIcon(node)
+        return (
+          <div
+            className="absolute top-0 left-0 w-full px-[12px] py-[4px]"
+            key={virtualItem.key}
+            style={{ transform: `translateY(${virtualItem.start}px)` }}
+          >
+            <button
+              type="button"
+              className={`session-tree-node hover:border-[var(--stroke-hover)] hover:bg-[var(--solid)] [&.selected]:border-[var(--focus)] [&.selected]:bg-[var(--solid)] [&.selected]:shadow-[0_0_0_2px_var(--focus-ring)] grid min-h-[56px] w-full grid-cols-[34px_minmax(0,1fr)_auto] items-center gap-[8px] [border:1px_solid_var(--stroke-soft)] rounded-[var(--r-sm)] bg-[var(--solid)] p-[7px_9px_7px_4px] text-left ${node.id === selectedId ? ' selected' : ''}${node.active ? ' active' : ''}${node.leaf ? ' leaf' : ''}`}
+              data-kind={node.kind}
+              data-pisper-tree-entry={node.id}
+              onClick={() => onSelect(node.id)}
+            >
+              <span className="session-tree-marker [.session-tree-node[data-kind='user']_&]:bg-[var(--star-soft)] [.session-tree-node[data-kind='user']_&]:text-[var(--star-strong)] [.session-tree-node[data-kind='assistant']_&]:bg-[var(--brand-blue-soft)] [.session-tree-node[data-kind='assistant']_&]:text-[var(--brand-blue-strong)] [.session-tree-node[data-kind='tool']_&]:bg-[var(--warning-soft)] [.session-tree-node[data-kind='tool']_&]:text-[var(--warning-strong)] [.session-tree-node.active_&]:border-[var(--brand-blue-border)] [.session-tree-node.leaf_&]:bg-[var(--star)] [.session-tree-node.leaf_&]:text-[var(--on-accent)] grid size-[28px] place-items-center justify-self-center [border:2px_solid_var(--surface-subtle)] rounded-full bg-[var(--surface-muted)] text-[var(--text-muted)]">
+                <Icon size={14} />
+              </span>
+              <span className="session-tree-node-copy flex min-w-0 flex-col gap-[2px] [&_small]:overflow-hidden [&_small]:text-ellipsis [&_small]:whitespace-nowrap [&_small]:text-[10px] [&_small]:text-[var(--text-muted)] [&_strong]:overflow-hidden [&_strong]:text-ellipsis [&_strong]:whitespace-nowrap [&_strong]:text-[12px] [&_strong]:font-[650]">
+                <strong>{node.label || node.text || typeLabel(node)}</strong>
+                <small>{node.label && node.text ? node.text : typeLabel(node)}</small>
+              </span>
+              <span className="session-tree-node-state [.session-tree-node.active_&]:text-[var(--brand-blue-strong)] [.session-tree-node.leaf_&]:text-[var(--brand-blue-strong)] inline-flex items-center gap-[4px] text-[9px] text-[var(--text-muted)] [text-transform:uppercase]">
+                {node.label && <Bookmark size={12} />}
+                {stateLabel(node)}
+              </span>
+            </button>
+          </div>
+        )
+      })}
+    </div>
+  )
+}
+
 function SessionTreeSegment({
   segment,
   viewportRef,
@@ -271,9 +341,13 @@ export function SessionTreeDialog({
   onCreateChildSession: (boundaryEntryId: string) => Promise<void> | void
 }) {
   const { t, language } = useI18n()
+  const mobileApp = useIsMobileApp()
+  const phoneViewport = useIsPhoneViewport()
+  const mobileLayout = mobileApp || phoneViewport
   const [data, setData] = useState<SessionTreeResponse | null>(null)
   const [sessions, setSessions] = useState<SessionSummary[]>([])
   const [view, setView] = useState<TreeView>('conversation')
+  const [mobilePane, setMobilePane] = useState<'list' | 'detail'>('list')
   const [query, setQuery] = useState('')
   const [selectedId, setSelectedId] = useState('')
   const [label, setLabel] = useState('')
@@ -294,6 +368,7 @@ export function SessionTreeDialog({
     if (!open || !sessionId) return
     let cancelled = false
     setView('conversation')
+    setMobilePane('list')
     setQuery('')
     setLoading(true)
     setError('')
@@ -315,12 +390,13 @@ export function SessionTreeDialog({
     }
   }, [open, sessionId])
 
-  // Release the (potentially 10k+ node) tree payload as soon as the dialog closes.
+  // 弹窗关闭后立即释放可能超过万条的树数据，避免长期占用前端内存。
   useEffect(() => {
     if (open) return
     setData(null)
     setSessions([])
     setSelectedId('')
+    setMobilePane('list')
     setLabel('')
     setOpeningMark(null)
     setSummarize(false)
@@ -559,13 +635,20 @@ export function SessionTreeDialog({
           ? t('chat:sessionTree.active')
           : ''
 
+  const selectNode = (id: string) => {
+    setSelectedId(id)
+    if (mobileLayout) setMobilePane('detail')
+  }
+
   return (
     <Dialog open={open} onOpenChange={(nextOpen) => !nextOpen && onClose()}>
       <DialogContent
-        className="chat-resource-dialog w-[min(820px,calc(100vw_-_32px))] h-[min(600px,calc(100dvh_-_32px))] max-w-[820px] grid-rows-[auto_minmax(0,1fr)] overflow-hidden max-[650px]:w-[calc(100vw_-_16px)] max-[650px]:h-[calc(100dvh_-_16px)] session-tree-dialog !w-[min(1120px,calc(100vw_-_32px))] !h-[min(760px,calc(100dvh_-_32px))] !max-w-[1120px]"
+        className={`chat-resource-dialog grid-rows-[auto_minmax(0,1fr)] overflow-hidden session-tree-dialog ${mobileLayout ? '!h-[calc(100dvh_-_16px)] !w-[calc(100vw_-_16px)] !max-w-none !gap-0 !p-0' : '!h-[min(760px,calc(100dvh_-_32px))] !w-[min(1120px,calc(100vw_-_32px))] !max-w-[1120px]'}`}
         showCloseButton
       >
-        <div className="chat-resource-head [&_[data-slot='dialog-title']]:text-[16px] [&_[data-slot='dialog-description']]:mt-[3px] [&_[data-slot='dialog-description']]:text-[12px] max-[650px]:p-[14px] flex items-start justify-between gap-[16px] [border-bottom:1px_solid_var(--stroke-soft)] [padding:17px_18px_14px] session-tree-head max-[650px]:items-start">
+        <div
+          className={`chat-resource-head flex items-start justify-between gap-[16px] [border-bottom:1px_solid_var(--stroke-soft)] session-tree-head [&_[data-slot='dialog-description']]:mt-[3px] [&_[data-slot='dialog-description']]:text-[12px] [&_[data-slot='dialog-title']]:text-[16px] ${mobileLayout ? 'p-[14px_48px_12px_14px]' : '[padding:17px_18px_14px]'}`}
+        >
           <div>
             <div className="session-tree-title [&_>_span]:grid [&_>_span]:w-[30px] [&_>_span]:h-[30px] [&_>_span]:place-items-center [&_>_span]:rounded-[var(--r-sm)] [&_>_span]:bg-[var(--success-soft)] [&_>_span]:text-[var(--success)] flex items-center gap-[9px]">
               <span>
@@ -581,111 +664,147 @@ export function SessionTreeDialog({
             </DialogDescription>
           </div>
         </div>
-        <div className="chat-resource-body grid min-h-0 grid-cols-[minmax(0,1.1fr)_minmax(260px,.9fr)] overflow-hidden max-[650px]:grid-cols-[1fr] max-[650px]:grid-rows-[minmax(0,1fr)_minmax(190px,auto)] max-[650px]:overflow-hidden session-tree-layout !grid-cols-[minmax(0,1fr)_292px] bg-[var(--surface-subtle)] max-[650px]:grid-rows-[minmax(0,1fr)_minmax(210px,auto)]">
-          <div className="chat-resource-browser flex min-w-0 min-h-0 flex-col [border-right:1px_solid_var(--stroke-soft)] p-[12px] max-[650px]:min-h-0 max-[650px]:[border-right:0] max-[650px]:[border-bottom:1px_solid_var(--stroke-soft)] session-tree-browser ![border-right:0] !p-0 bg-transparent">
-            <Tabs
-              className="chat-resource-tabs [&_[data-slot='tabs-list']]:grid [&_[data-slot='tabs-list']]:w-full [&_[data-slot='tabs-list']]:h-[36px] [&_[data-slot='tabs-list']]:grid-cols-[repeat(5,minmax(0,1fr))] [&_[data-slot='tabs-list']]:[border:1px_solid_var(--stroke-soft)] [&_[data-slot='tabs-list']]:rounded-[var(--r-sm)] [&_[data-slot='tabs-list']]:bg-[var(--surface-muted)] [&_[data-slot='tabs-trigger']]:min-w-0 [&_[data-slot='tabs-trigger']]:gap-[5px] [&_[data-slot='tabs-trigger']]:rounded-[var(--r-xs)] [&_[data-slot='tabs-trigger']]:[padding-inline:6px] [&_[data-slot='tabs-trigger']]:text-[11px] [&_[data-slot='tabs-trigger'][data-state='active']]:bg-[var(--solid)] [&_[data-slot='tabs-trigger'][data-state='active']]:text-[var(--text)] [&_[data-slot='tabs-trigger']_small]:text-[var(--text-muted)] [&_[data-slot='tabs-trigger']_small]:text-[10px] [&_[data-slot='tabs-trigger']_small]:font-[500] w-full session-tree-tabs [padding:12px_12px_0]"
-              value={view}
-              onValueChange={(value) => setView(value as TreeView)}
-            >
-              <TabsList>
-                <TabsTrigger value="conversation">{t('chat:sessionTree.conversation')}</TabsTrigger>
-                <TabsTrigger value="labeled">{t('chat:sessionTree.labeled')}</TabsTrigger>
-                <TabsTrigger value="all">{t('chat:sessionTree.all')}</TabsTrigger>
-                <TabsTrigger value="marks">{t('chat:sessionTree.allMarks')}</TabsTrigger>
-              </TabsList>
-            </Tabs>
-            <label className="chat-resource-search [&:focus-within]:border-[var(--focus)] [&:focus-within]:shadow-[0_0_0_2px_var(--focus-ring)] [&_input]:w-full [&_input]:h-[36px] [&_input]:border-0 [&_input]:[outline:0]! [&_input]:bg-transparent [&_input]:text-[var(--text)] [&_input]:text-[13px] flex items-center gap-[7px] [margin-top:8px] [border:1px_solid_var(--stroke)] rounded-[var(--r-sm)] [padding:0_10px] text-[var(--text-muted)] flex-none [margin:8px_12px_0] bg-[var(--solid)]">
-              <Search size={15} />
-              <input
-                value={query}
-                disabled={Boolean(openingMark)}
-                onChange={(event) => setQuery(event.target.value)}
-                placeholder={t('chat:sessionTree.searchPlaceholder')}
-              />
-            </label>
-            {view === 'marks' ? (
-              <div
-                className="flex min-w-0 min-h-0 [flex:1_1_0] flex-col gap-[8px] overflow-auto [overscroll-behavior:contain] [padding:12px_14px]"
-                data-testid="session-tree-marks-list"
+        <div
+          className={`chat-resource-body grid min-h-0 overflow-hidden bg-[var(--surface-subtle)] session-tree-layout ${mobileLayout ? 'grid-cols-1 grid-rows-[minmax(0,1fr)]' : '!grid-cols-[minmax(0,1fr)_292px]'}`}
+        >
+          {(!mobileLayout || mobilePane === 'list') && (
+            <div className="chat-resource-browser flex min-h-0 min-w-0 flex-col bg-transparent session-tree-browser">
+              <Tabs
+                className="chat-resource-tabs w-full [padding:12px_12px_0] session-tree-tabs [&_[data-slot='tabs-list']]:grid [&_[data-slot='tabs-list']]:h-[36px] [&_[data-slot='tabs-list']]:w-full [&_[data-slot='tabs-list']]:grid-cols-[repeat(4,minmax(0,1fr))] [&_[data-slot='tabs-list']]:[border:1px_solid_var(--stroke-soft)] [&_[data-slot='tabs-list']]:rounded-[var(--r-sm)] [&_[data-slot='tabs-list']]:bg-[var(--surface-muted)] [&_[data-slot='tabs-trigger']]:min-w-0 [&_[data-slot='tabs-trigger']]:gap-[5px] [&_[data-slot='tabs-trigger']]:rounded-[var(--r-xs)] [&_[data-slot='tabs-trigger']]:[padding-inline:6px] [&_[data-slot='tabs-trigger']]:text-[11px] [&_[data-slot='tabs-trigger'][data-state='active']]:bg-[var(--solid)] [&_[data-slot='tabs-trigger'][data-state='active']]:text-[var(--text)]"
+                value={view}
+                onValueChange={(value) => {
+                  setView(value as TreeView)
+                  setMobilePane('list')
+                }}
               >
-                {error && <p className="danger-text [margin:0_2px]">{error}</p>}
-                {marksLoading ? (
-                  <p className="grid min-h-[180px] place-items-center text-[var(--text-muted)] text-[12px]">
-                    {t('chat:sessionTree.loadingMarks')}
-                  </p>
-                ) : visibleMarks.length ? (
-                  visibleMarks.map((mark) => (
-                    <button
-                      type="button"
-                      className={`session-tree-mark hover:border-[var(--stroke-hover)] hover:bg-[var(--solid)] [&.active]:border-[var(--brand-blue-border)] [&_>_em]:rounded-[var(--r-xs)] [&_>_em]:bg-[var(--brand-blue-soft)] [&_>_em]:text-[var(--brand-blue-strong)] [&_>_em]:p-[2px_6px] [&_>_em]:text-[10px] [&_>_em]:[font-style:normal] grid grid-cols-[30px_minmax(0,1fr)_auto] items-center gap-[8px] [border:1px_solid_var(--stroke-soft)] rounded-[var(--r-sm)] bg-[color-mix(in_srgb,var(--solid)_94%,transparent)] text-[var(--text)] [padding:8px_10px_8px_4px] text-left cursor-pointer ${mark.active ? ' active' : ''}`}
-                      key={`${mark.sessionId}:${mark.entryId}`}
-                      disabled={Boolean(openingMark)}
-                      aria-busy={openingMark === mark}
-                      onClick={() => void openMark(mark)}
-                    >
-                      <span className="session-tree-marker [.session-tree-node[data-kind='user']_&]:bg-[var(--star-soft)] [.session-tree-node[data-kind='user']_&]:text-[var(--star-strong)] [.session-tree-node[data-kind='assistant']_&]:bg-[var(--brand-blue-soft)] [.session-tree-node[data-kind='assistant']_&]:text-[var(--brand-blue-strong)] [.session-tree-node[data-kind='tool']_&]:bg-[var(--warning-soft)] [.session-tree-node[data-kind='tool']_&]:text-[var(--warning-strong)] [.session-tree-node[data-kind='summary']_&]:bg-[var(--violet-soft)] [.session-tree-node[data-kind='summary']_&]:text-[var(--violet-strong)] [.session-tree-node[data-kind='compaction']_&]:bg-[var(--violet-soft)] [.session-tree-node[data-kind='compaction']_&]:text-[var(--violet-strong)] [.session-tree-node.active_&]:border-[var(--brand-blue-border)] [.session-tree-node.active_&]:shadow-[0_0_0_2px_var(--brand-blue-soft)] [.session-tree-node.leaf_&]:bg-[var(--star)] [.session-tree-node.leaf_&]:text-[var(--on-accent)] [.session-tree-mark.active_&]:border-[var(--brand-blue-border)] [.session-tree-mark.active_&]:shadow-[0_0_0_2px_var(--brand-blue-soft)] relative z-[2] grid w-[26px] h-[26px] place-items-center [justify-self:center] [border:2px_solid_var(--surface-subtle)] rounded-[50%] bg-[var(--surface-muted)] text-[var(--text-muted)]">
+                <TabsList>
+                  <TabsTrigger value="conversation">
+                    {t('chat:sessionTree.conversation')}
+                  </TabsTrigger>
+                  <TabsTrigger value="labeled">{t('chat:sessionTree.labeled')}</TabsTrigger>
+                  <TabsTrigger value="all">{t('chat:sessionTree.all')}</TabsTrigger>
+                  <TabsTrigger value="marks">{t('chat:sessionTree.allMarks')}</TabsTrigger>
+                </TabsList>
+              </Tabs>
+              <label className="chat-resource-search [&:focus-within]:border-[var(--focus)] [&:focus-within]:shadow-[0_0_0_2px_var(--focus-ring)] [&_input]:w-full [&_input]:h-[36px] [&_input]:border-0 [&_input]:[outline:0]! [&_input]:bg-transparent [&_input]:text-[var(--text)] [&_input]:text-[13px] flex items-center gap-[7px] [margin-top:8px] [border:1px_solid_var(--stroke)] rounded-[var(--r-sm)] [padding:0_10px] text-[var(--text-muted)] flex-none [margin:8px_12px_0] bg-[var(--solid)]">
+                <Search size={15} />
+                <input
+                  value={query}
+                  disabled={Boolean(openingMark)}
+                  onChange={(event) => setQuery(event.target.value)}
+                  placeholder={t('chat:sessionTree.searchPlaceholder')}
+                />
+              </label>
+              {view === 'marks' ? (
+                <div
+                  className="flex min-w-0 min-h-0 [flex:1_1_0] flex-col gap-[8px] overflow-auto [overscroll-behavior:contain] [padding:12px_14px]"
+                  data-testid="session-tree-marks-list"
+                >
+                  {error && <p className="danger-text [margin:0_2px]">{error}</p>}
+                  {marksLoading ? (
+                    <p className="grid min-h-[180px] place-items-center text-[var(--text-muted)] text-[12px]">
+                      {t('chat:sessionTree.loadingMarks')}
+                    </p>
+                  ) : visibleMarks.length ? (
+                    visibleMarks.map((mark) => (
+                      <button
+                        type="button"
+                        className={`session-tree-mark hover:border-[var(--stroke-hover)] hover:bg-[var(--solid)] [&.active]:border-[var(--brand-blue-border)] [&_>_em]:rounded-[var(--r-xs)] [&_>_em]:bg-[var(--brand-blue-soft)] [&_>_em]:text-[var(--brand-blue-strong)] [&_>_em]:p-[2px_6px] [&_>_em]:text-[10px] [&_>_em]:[font-style:normal] grid grid-cols-[30px_minmax(0,1fr)_auto] items-center gap-[8px] [border:1px_solid_var(--stroke-soft)] rounded-[var(--r-sm)] bg-[color-mix(in_srgb,var(--solid)_94%,transparent)] text-[var(--text)] [padding:8px_10px_8px_4px] text-left cursor-pointer ${mark.active ? ' active' : ''}`}
+                        key={`${mark.sessionId}:${mark.entryId}`}
+                        disabled={Boolean(openingMark)}
+                        aria-busy={openingMark === mark}
+                        onClick={() => void openMark(mark)}
+                      >
+                        <span className="session-tree-marker [.session-tree-node[data-kind='user']_&]:bg-[var(--star-soft)] [.session-tree-node[data-kind='user']_&]:text-[var(--star-strong)] [.session-tree-node[data-kind='assistant']_&]:bg-[var(--brand-blue-soft)] [.session-tree-node[data-kind='assistant']_&]:text-[var(--brand-blue-strong)] [.session-tree-node[data-kind='tool']_&]:bg-[var(--warning-soft)] [.session-tree-node[data-kind='tool']_&]:text-[var(--warning-strong)] [.session-tree-node[data-kind='summary']_&]:bg-[var(--violet-soft)] [.session-tree-node[data-kind='summary']_&]:text-[var(--violet-strong)] [.session-tree-node[data-kind='compaction']_&]:bg-[var(--violet-soft)] [.session-tree-node[data-kind='compaction']_&]:text-[var(--violet-strong)] [.session-tree-node.active_&]:border-[var(--brand-blue-border)] [.session-tree-node.active_&]:shadow-[0_0_0_2px_var(--brand-blue-soft)] [.session-tree-node.leaf_&]:bg-[var(--star)] [.session-tree-node.leaf_&]:text-[var(--on-accent)] [.session-tree-mark.active_&]:border-[var(--brand-blue-border)] [.session-tree-mark.active_&]:shadow-[0_0_0_2px_var(--brand-blue-soft)] relative z-[2] grid w-[26px] h-[26px] place-items-center [justify-self:center] [border:2px_solid_var(--surface-subtle)] rounded-[50%] bg-[var(--surface-muted)] text-[var(--text-muted)]">
+                          {openingMark === mark ? (
+                            <LoaderCircle className="size-3.5 animate-spin" aria-hidden="true" />
+                          ) : (
+                            <Tag size={14} />
+                          )}
+                        </span>
+                        <span className="session-tree-node-copy [&_strong]:overflow-hidden [&_strong]:text-ellipsis [&_strong]:whitespace-nowrap [&_small]:overflow-hidden [&_small]:text-ellipsis [&_small]:whitespace-nowrap [&_strong]:text-[12px] [&_strong]:font-[650] [&_small]:text-[var(--text-muted)] [&_small]:text-[10px] flex min-w-0 flex-col gap-[2px]">
+                          <strong>{mark.label}</strong>
+                          <small>
+                            {mark.sessionName || t('navigation:appOverlays.untitledChat')}
+                          </small>
+                          <small>
+                            {t('chat:sessionTree.markTimes', {
+                              sessionTime: markTime(mark.sessionModified),
+                              nodeTime: markTime(mark.nodeTimestamp),
+                            })}
+                          </small>
+                        </span>
                         {openingMark === mark ? (
-                          <LoaderCircle className="size-3.5 animate-spin" aria-hidden="true" />
+                          <em>{t('chat:sessionTree.navigating')}</em>
                         ) : (
-                          <Tag size={14} />
+                          mark.active && <em>{t('chat:sessionTree.markActive')}</em>
                         )}
-                      </span>
-                      <span className="session-tree-node-copy [&_strong]:overflow-hidden [&_strong]:text-ellipsis [&_strong]:whitespace-nowrap [&_small]:overflow-hidden [&_small]:text-ellipsis [&_small]:whitespace-nowrap [&_strong]:text-[12px] [&_strong]:font-[650] [&_small]:text-[var(--text-muted)] [&_small]:text-[10px] flex min-w-0 flex-col gap-[2px]">
-                        <strong>{mark.label}</strong>
-                        <small>
-                          {mark.sessionName || t('navigation:appOverlays.untitledChat')}
-                        </small>
-                        <small>
-                          {t('chat:sessionTree.markTimes', {
-                            sessionTime: markTime(mark.sessionModified),
-                            nodeTime: markTime(mark.nodeTimestamp),
-                          })}
-                        </small>
-                      </span>
-                      {openingMark === mark ? (
-                        <em>{t('chat:sessionTree.navigating')}</em>
-                      ) : (
-                        mark.active && <em>{t('chat:sessionTree.markActive')}</em>
-                      )}
-                    </button>
-                  ))
-                ) : (
-                  <p className="grid min-h-[180px] place-items-center text-[var(--text-muted)] text-[12px]">
-                    {t('chat:sessionTree.noMarksYet')}
-                  </p>
-                )}
-              </div>
-            ) : (
-              <div
-                className="min-w-0 min-h-0 [flex:1_1_0] overflow-auto [overscroll-behavior:contain] [scrollbar-gutter:stable]"
-                data-testid="session-tree-list"
-                ref={viewportRef}
-              >
-                {segments.length > 0 ? (
-                  <div className="session-tree-canvas max-[650px]:min-w-[460px] max-[650px]:[padding-inline:12px] flex w-[max-content] min-w-[100%] items-start justify-center gap-[36px] [padding:26px_28px_48px]">
-                    {segments.map((segment) => (
-                      <SessionTreeSegment
-                        segment={segment}
+                      </button>
+                    ))
+                  ) : (
+                    <p className="grid min-h-[180px] place-items-center text-[var(--text-muted)] text-[12px]">
+                      {t('chat:sessionTree.noMarksYet')}
+                    </p>
+                  )}
+                </div>
+              ) : (
+                <div
+                  className="min-w-0 min-h-0 [flex:1_1_0] overflow-auto [overscroll-behavior:contain] [scrollbar-gutter:stable]"
+                  data-testid="session-tree-list"
+                  ref={viewportRef}
+                >
+                  {segments.length > 0 ? (
+                    mobileLayout ? (
+                      <MobileSessionTreeList
+                        nodes={visibleNodes}
                         viewportRef={viewportRef}
                         selectedId={selectedId}
                         typeLabel={typeLabel}
                         stateLabel={stateLabel}
-                        onSelect={setSelectedId}
-                        key={segment.id}
+                        onSelect={selectNode}
                       />
-                    ))}
-                  </div>
-                ) : (
-                  <p className="grid min-h-[180px] place-items-center text-[var(--text-muted)] text-[12px]">
-                    {loading ? t('chat:sessionTree.loading') : error || t('chat:sessionTree.empty')}
-                  </p>
-                )}
-              </div>
-            )}
-          </div>
-          {view !== 'marks' && (
-            <div className="chat-resource-config [&_>_p]:m-[auto] [&_>_p]:text-[var(--text-muted)] [&_>_p]:text-[12px] [&_>_div:first-child]:flex [&_>_div:first-child]:flex-col [&_>_div:first-child]:gap-[4px] [&_strong]:text-[14px] [&_p]:text-[var(--text-muted)] [&_p]:text-[12px] max-[650px]:min-h-0 max-[650px]:max-h-[230px] flex min-w-0 min-h-0 flex-col gap-[16px] overflow-y-auto [overscroll-behavior:contain] [padding:18px] session-tree-inspector max-[650px]:max-h-[250px] [margin:12px_12px_12px_0] [border-left:0] rounded-[var(--r-md)] bg-[color-mix(in_srgb,var(--solid)_88%,var(--surface-subtle))] shadow-[0_10px_28px_-26px_var(--shadow)]">
+                    ) : (
+                      <div className="session-tree-canvas flex w-[max-content] min-w-[100%] items-start justify-center gap-[36px] [padding:26px_28px_48px]">
+                        {segments.map((segment) => (
+                          <SessionTreeSegment
+                            segment={segment}
+                            viewportRef={viewportRef}
+                            selectedId={selectedId}
+                            typeLabel={typeLabel}
+                            stateLabel={stateLabel}
+                            onSelect={selectNode}
+                            key={segment.id}
+                          />
+                        ))}
+                      </div>
+                    )
+                  ) : (
+                    <p className="grid min-h-[180px] place-items-center text-[var(--text-muted)] text-[12px]">
+                      {loading
+                        ? t('chat:sessionTree.loading')
+                        : error || t('chat:sessionTree.empty')}
+                    </p>
+                  )}
+                </div>
+              )}
+            </div>
+          )}
+          {view !== 'marks' && (!mobileLayout || mobilePane === 'detail') && (
+            <div
+              className={`chat-resource-config flex min-h-0 min-w-0 flex-col gap-[16px] overflow-y-auto [overscroll-behavior:contain] [padding:18px] session-tree-inspector [&_>_p]:m-[auto] [&_>_p]:text-[12px] [&_>_p]:text-[var(--text-muted)] [&_strong]:text-[14px] [&_p]:text-[12px] [&_p]:text-[var(--text-muted)] ${mobileLayout ? 'bg-[var(--solid)]' : '[margin:12px_12px_12px_0] rounded-[var(--r-md)] bg-[color-mix(in_srgb,var(--solid)_88%,var(--surface-subtle))] shadow-[0_10px_28px_-26px_var(--shadow)]'}`}
+            >
+              {mobileLayout && (
+                <div className="sticky top-0 z-[2] -mx-[6px] -mt-[8px] flex border-b border-[var(--stroke-soft)] bg-[var(--solid)] px-[2px] pb-[8px]">
+                  <Button
+                    variant="ghost"
+                    className="min-h-[40px] justify-start px-[8px]"
+                    onClick={() => setMobilePane('list')}
+                  >
+                    <ChevronLeft size={17} />
+                    {t('chat:sessionTree.backToNodes')}
+                  </Button>
+                </div>
+              )}
               {selected ? (
                 <>
                   {(parentSession || childSessions.length > 0) && (

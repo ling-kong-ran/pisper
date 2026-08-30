@@ -1,7 +1,15 @@
 // 移动端「服务器」设置页：列出壳内已配对的桌面端，支持配对、切换与删除。
 // 数据来自移动端壳（Tauri 命令），配对与令牌管理始终不经过 Runtime。
 import { useCallback, useEffect, useState } from 'react'
-import { MonitorSmartphone, Plus, Server, Smartphone, Trash2 } from 'lucide-react'
+import {
+  AlertCircle,
+  CheckCircle2,
+  MonitorSmartphone,
+  Plus,
+  Server,
+  Smartphone,
+  Trash2,
+} from 'lucide-react'
 import { useI18n } from '@/app/use-i18n'
 import { SettingsCard as Panel } from './settings-primitives'
 import { MobilePairingDialog } from './MobilePairingDialog'
@@ -93,9 +101,32 @@ export function MobileServerSettings() {
   }
 
   const localActive = state?.mode === 'local'
+  const remoteActive = state?.mode === 'remote' && Boolean(state.activeId)
+  const connected = localActive || remoteActive
+  const statusLabel = localActive
+    ? t('config:mobileServer.currentLocal')
+    : remoteActive
+      ? t('config:mobileServer.current')
+      : t('config:mobileServer.empty')
+  const StatusIcon = connected ? CheckCircle2 : AlertCircle
 
   return (
     <div className="flex flex-col gap-4">
+      <div
+        className={`flex min-h-10 items-center gap-2 rounded-[var(--r-sm)] border px-3 py-2 text-[12px] ${connected ? 'border-[var(--success)] bg-[var(--success-soft)] text-[var(--success-strong)]' : 'border-[var(--stroke)] bg-[var(--surface-subtle)] text-[var(--text-muted)]'}`}
+        role="status"
+        aria-live="polite"
+      >
+        <StatusIcon size={15} aria-hidden="true" />
+        <span className="min-w-0 flex-1 truncate">{statusLabel}</span>
+        {state?.activeTransport ? (
+          <span className="flex-none text-[11px] opacity-80">
+            {state.activeTransport === 'iroh'
+              ? t('config:mobileServer.transportP2p')
+              : t('config:mobileServer.transportLan')}
+          </span>
+        ) : null}
+      </div>
       <MobilePairingDialog open={pairingOpen} onOpenChange={setPairingOpen} />
       <Panel className="flex flex-col gap-3 p-4">
         <div className="flex items-center justify-between gap-3">
@@ -110,7 +141,11 @@ export function MobileServerSettings() {
               </p>
             </div>
           </div>
-          <Button size="sm" onClick={() => setPairingOpen(true)}>
+          <Button
+            size="sm"
+            className="max-[650px]:h-10 max-[650px]:px-3"
+            onClick={() => setPairingOpen(true)}
+          >
             <Plus size={14} />
             {t('config:mobileServer.addServer')}
           </Button>
@@ -141,6 +176,7 @@ export function MobileServerSettings() {
           <Button
             size="sm"
             variant="outline"
+            className="max-[650px]:h-10 max-[650px]:px-3"
             disabled={localActive || busyId === 'mobile_enter_local'}
             onClick={() =>
               void (async () => {
@@ -177,7 +213,7 @@ export function MobileServerSettings() {
               return (
                 <li
                   key={server.id}
-                  className="flex items-center justify-between gap-3 rounded-[var(--r-sm)] border border-[var(--border)] px-3 py-2"
+                  className="flex items-center justify-between gap-3 rounded-[var(--r-sm)] border border-[var(--border)] px-3 py-2 max-[650px]:items-start max-[650px]:flex-wrap"
                 >
                   <div className="flex min-w-0 items-center gap-2">
                     <Server size={15} className="flex-none text-[var(--text-muted)]" />
@@ -217,6 +253,7 @@ export function MobileServerSettings() {
                       <Button
                         size="sm"
                         variant="ghost"
+                        className="max-[650px]:h-10 max-[650px]:px-3"
                         disabled={busyId === server.id}
                         onClick={() => void selectServer(server.id)}
                       >
@@ -226,6 +263,7 @@ export function MobileServerSettings() {
                     <Button
                       size="sm"
                       variant="ghost"
+                      className="max-[650px]:size-10"
                       aria-label={t('config:mobileServer.forget')}
                       onClick={() => {
                         if (window.confirm(t('config:mobileServer.forgetConfirm'))) {

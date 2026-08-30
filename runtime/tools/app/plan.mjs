@@ -21,6 +21,13 @@ export {
 
 const statusSchema = Type.String({ enum: PLAN_STATUSES })
 const updateParameters = Type.Object({
+  mode: Type.Optional(
+    Type.String({
+      enum: ['auto', 'replace'],
+      description:
+        "Defaults to 'auto', which suspends a disjoint unfinished plan and restores it later. Use 'replace' only when the user explicitly abandons or permanently redirects all previous work.",
+    }),
+  ),
   items: Type.Array(
     Type.Object({
       id: Type.Optional(
@@ -47,17 +54,28 @@ const updateParameters = Type.Object({
         }),
       ),
     }),
-    { maxItems: MAX_PLAN_ITEMS },
+    {
+      maxItems: MAX_PLAN_ITEMS,
+      description:
+        'The complete active plan. Reuse stable ids for updates. Entirely new ids suspend unfinished work until the inserted plan completes. An empty array cancels all active and suspended work.',
+    },
   ),
 })
 
 function planResult(plan) {
-  return { content: [{ type: 'text', text: JSON.stringify({ plan }, null, 2) }], details: { plan } }
+  const continuation = plan?.resumed
+    ? '\n\nRuntime continuation: a previously unfinished plan is active again; continue it unless the user explicitly cancelled or redirected it.'
+    : ''
+  return {
+    content: [{ type: 'text', text: `${JSON.stringify({ plan }, null, 2)}${continuation}` }],
+    details: { plan },
+  }
 }
 
 export function createPlanTools({ getPlan, updatePlan }) {
   const get = async () => planResult(await getPlan?.())
-  const update = async (_toolCallId, params) => planResult(await updatePlan?.(params.items))
+  const update = async (_toolCallId, params) =>
+    planResult(await updatePlan?.(params.items, { mode: params.mode || 'auto' }))
   return [
     defineTool({
       name: PLAN_TOOL_NAMES[0],
@@ -75,14 +93,17 @@ export function createPlanTools({ getPlan, updatePlan }) {
       name: PLAN_TOOL_NAMES[1],
       label: 'Update Plan',
       description:
-        'Replace the current primary Agent session plan with a structured progress snapshot.',
+        'Update the current primary Agent session plan. A disjoint plan automatically suspends unfinished work; completing that inserted plan restores the previous one. An empty items array explicitly clears the entire plan stack.',
       promptSnippet: 'Create and maintain a concise structured execution plan for multi-step work',
       promptGuidelines: [
         'Use update_plan for work with multiple concrete steps or when the user explicitly asks for a plan.',
         'Keep stable plan item ids when updating status. Preserve unfinished items unless they are genuinely removed from scope.',
+        'When a temporary request needs a separate plan, use entirely new ids with mode auto; Runtime suspends the unfinished current plan and restores it when every inserted item is completed.',
+        'Use mode replace only when the user explicitly abandons or permanently redirects all previous active and suspended work.',
+        'After update_plan reports resumed: true, continue the restored plan unless the user explicitly cancelled or redirected it.',
         'Set status to in_progress before substantive work, completed only after verification, and blocked only when a concrete blocker exists.',
         'Keep the plan concise and outcome-oriented. Do not create a plan item for trivial narration or every individual tool call.',
-        'An empty items array clears the plan.',
+        'An empty items array explicitly clears both the active plan and all suspended plans.',
         'Only the primary Agent may modify this plan. Subagents have read-only access for coordination.',
       ],
       parameters: updateParameters,
@@ -100,7 +121,7 @@ export function createPlanTools({ getPlan, updatePlan }) {
       name: PLAN_COMPATIBILITY_TOOL_NAMES[1],
       label: 'Update Plan (Legacy Alias)',
       description:
-        'One-release compatibility alias for update_plan. Replace the current primary Agent session execution plan.',
+        'One-release compatibility alias for update_plan. Update the current primary Agent session execution plan with automatic suspend and resume behavior.',
       parameters: updateParameters,
       execute: update,
     }),

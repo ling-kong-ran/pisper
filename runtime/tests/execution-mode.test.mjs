@@ -41,8 +41,10 @@ test('approval-required execution exposes low-risk and approval-gated tools', ()
     'get_task_list',
     'update_task_list',
     'spawn_agent',
+    'followup_task',
+    'interrupt_agent',
   ]
-  // 审批模式：高危工具可见但逐次审批（含生图）
+  // 审批模式：高危工具与内部中风险工具可见，但调用时仍需逐次审批。
   assert.deepEqual(filterToolsForExecutionMode(names, 'approval-required'), [
     'read',
     'grep',
@@ -57,6 +59,9 @@ test('approval-required execution exposes low-risk and approval-gated tools', ()
     'get_plan',
     'update_plan',
     'get_task_list',
+    'spawn_agent',
+    'followup_task',
+    'interrupt_agent',
   ])
   assert.equal(
     filterToolsForExecutionMode(names, 'workspace-write').includes('plugin_create'),
@@ -81,6 +86,24 @@ test('React exposes approval-required, workspace-write, and full-access executio
   assert.doesNotMatch(commands, /stopTheActiveRunBeforeChangingTheExecutionMode/)
   assert.match(schedules, /type ScheduleExecutionMode = 'full-access'/)
   assert.doesNotMatch(schedules, /read-only/)
+})
+
+test('approval-visible multi-agent mutations still request per-call approval', () => {
+  for (const toolName of ['spawn_agent', 'followup_task', 'interrupt_agent']) {
+    assert.deepEqual(
+      permissionRequirement({
+        mode: 'ask',
+        executionMode: 'approval-required',
+        cwd: process.cwd(),
+        toolName,
+        args: {},
+      }),
+      {
+        risk: 'medium',
+        reason: `${toolName} 属于medium工具，需要确认后执行。`,
+      },
+    )
+  }
 })
 
 test('plugin_create still requests approval outside full-access', () => {

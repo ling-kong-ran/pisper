@@ -2,7 +2,8 @@
 // 负责把面板事件（关闭/激活）桥接到会话状态与布局持久化。
 import { useContext, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react'
 import type { IDockviewPanelProps } from 'dockview-react'
-import { AlertTriangle, MessageSquare } from 'lucide-react'
+import { AlertTriangle, MessageSquare, Plus } from 'lucide-react'
+import { STORAGE_KEYS } from '@/app/storage'
 import { useI18n } from '@/app/use-i18n'
 import { DEFAULT_SESSION_STATE, isPlanActive, resolveSessionPlan } from '@/lib/session-state'
 import type { ChatAttachment, ResourceInvocation } from '@/types/chat'
@@ -37,13 +38,115 @@ export function SessionDockPanel({ params, api }: IDockviewPanelProps<{ sessionI
   )
 }
 
-// 移动端单会话面板：无 Dock 分屏，直接渲染活动会话；无会话时显示水位线。
-export function MobileSessionPanel() {
+type MobileSessionPanelProps = {
+  onSelectSession: (sessionId: string) => void
+  onCreateSession: () => void | Promise<unknown>
+}
+
+const MOBILE_SESSION_TAB_LIMIT = 6
+
+function readMobileSessionTabs() {
+  try {
+    const value: unknown = JSON.parse(localStorage.getItem(STORAGE_KEYS.mobileSessionTabs) || '[]')
+    return Array.isArray(value)
+      ? value
+          .filter((item): item is string => typeof item === 'string')
+          .slice(-MOBILE_SESSION_TAB_LIMIT)
+      : []
+  } catch {
+    return []
+  }
+}
+
+// 移动端保留可横向浏览的会话标签，但内容区一次只挂载一个会话，
+// 避免为了标签交互把桌面 Dockview 与分屏布局带入 App。
+export function MobileSessionPanel({ onSelectSession, onCreateSession }: MobileSessionPanelProps) {
+  const { t } = useI18n()
   const context = useContext(ChatDockContext)
   const sessionId = context?.activeId || ''
-  if (!sessionId) return <ChatDockWatermark />
+  const [tabIds, setTabIds] = useState(readMobileSessionTabs)
+  const activeTabRef = useRef<HTMLButtonElement>(null)
+  const visibleSessions = useMemo(() => {
+    const sessionsById = new Map(context?.sessions.map((session) => [session.id, session]))
+    return tabIds.flatMap((id) => {
+      const session = sessionsById.get(id)
+      return session ? [session] : []
+    })
+  }, [context?.sessions, tabIds])
+
+  useEffect(() => {
+    const knownIds = new Set(context?.sessions.map((session) => session.id))
+    setTabIds((current) => {
+      const next = current.filter((id) => knownIds.has(id))
+      if (sessionId && knownIds.has(sessionId) && !next.includes(sessionId)) next.push(sessionId)
+      const limited = next.slice(-MOBILE_SESSION_TAB_LIMIT)
+      return limited.length === current.length &&
+        limited.every((id, index) => id === current[index])
+        ? current
+        : limited
+    })
+  }, [context?.sessions, sessionId])
+
+  useEffect(() => {
+    localStorage.setItem(STORAGE_KEYS.mobileSessionTabs, JSON.stringify(tabIds))
+  }, [tabIds])
+
+  useEffect(() => {
+    activeTabRef.current?.scrollIntoView({ block: 'nearest', inline: 'center' })
+  }, [sessionId])
+
   return (
-    <SessionPanel sessionId={sessionId} panelId="" canSplitPanel={false} canClosePanel={false} />
+    <div className="mobile-session-shell flex h-full min-h-0 flex-col">
+      <div
+        className="mobile-session-tabs flex h-[52px] flex-none border-b border-[var(--stroke-soft)] bg-[var(--surface-subtle)]"
+        role="tablist"
+        aria-label={t('common:app.sessions')}
+      >
+        <div className="flex min-w-0 flex-1 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+          {visibleSessions.map((session) => {
+            const active = session.id === sessionId
+            return (
+              <button
+                ref={active ? activeTabRef : undefined}
+                key={session.id}
+                type="button"
+                role="tab"
+                aria-selected={active}
+                className={`relative flex h-full min-w-[132px] max-w-[220px] flex-none items-center justify-center gap-2 border-0 px-4 text-[13px] transition-colors focus-visible:z-[1] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[var(--focus)] ${active ? 'bg-[var(--solid)] font-[650] text-[var(--text)] after:absolute after:inset-x-0 after:bottom-0 after:h-[3px] after:bg-[var(--brand-blue)] after:content-["_"]' : 'bg-transparent font-[500] text-[var(--text-secondary)] hover:bg-[var(--surface-hover)] hover:text-[var(--text)]'}`}
+                title={session.name || t('chat:chatPage.newChat')}
+                onClick={() => onSelectSession(session.id)}
+              >
+                <MessageSquare size={15} className="flex-none" aria-hidden="true" />
+                <span className="min-w-0 truncate">
+                  {session.name || t('chat:chatPage.newChat')}
+                </span>
+              </button>
+            )
+          })}
+        </div>
+        <button
+          type="button"
+          className="grid h-full w-[52px] flex-none place-items-center border-0 border-l border-[var(--stroke-soft)] bg-transparent text-[var(--text-muted)] hover:bg-[var(--surface-hover)] hover:text-[var(--text)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[var(--focus)]"
+          title={t('chat:chatPage.newChat')}
+          aria-label={t('chat:chatPage.newChat')}
+          onClick={() => void onCreateSession()}
+        >
+          <Plus size={20} aria-hidden="true" />
+        </button>
+      </div>
+      <div className="min-h-0 flex-1">
+        {sessionId ? (
+          <SessionPanel
+            sessionId={sessionId}
+            panelId=""
+            canSplitPanel={false}
+            canClosePanel={false}
+          />
+        ) : (
+          <ChatDockWatermark />
+        )}
+      </div>
+    </div>
   )
 }
 

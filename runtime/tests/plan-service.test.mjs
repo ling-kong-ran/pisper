@@ -67,11 +67,109 @@ test('queued plan updates commit in order without exposing an unpersisted snapsh
   assert.deepEqual(restored.get('session-1'), second)
 })
 
+test('a disjoint temporary plan survives restart and restores unfinished work when completed', async (t) => {
+  const directory = await mkdtemp(join(tmpdir(), 'pisper-plan-resume-'))
+  t.after(() => rm(directory, { recursive: true, force: true }))
+  const path = join(directory, 'pisper-plans.json')
+  const service = new PlanService({ path, now: () => Date.parse('2026-07-22T01:02:03.000Z') })
+  await service.init()
+
+  await service.replace('session-1', [
+    { id: 'main-fix', title: 'Finish the original fix', status: 'in_progress' },
+    {
+      id: 'main-verify',
+      title: 'Verify the original fix',
+      status: 'pending',
+      dependsOn: ['main-fix'],
+    },
+  ])
+  const inserted = await service.replace('session-1', [
+    { id: 'temp-check', title: 'Investigate the temporary request', status: 'in_progress' },
+  ])
+
+  assert.equal(inserted.suspendedCount, 1)
+  assert.equal(inserted.items[0].id, 'temp-check')
+
+  const restarted = new PlanService({ path })
+  await restarted.init()
+  assert.equal(restarted.get('session-1').suspendedCount, 1)
+  assert.equal(restarted.get('session-1').items[0].id, 'temp-check')
+
+  const resumed = await restarted.replace('session-1', [
+    { id: 'temp-check', title: 'Investigate the temporary request', status: 'completed' },
+  ])
+
+  assert.equal(resumed.resumed, true)
+  assert.equal(resumed.suspendedCount, 0)
+  assert.deepEqual(
+    resumed.items.map((item) => item.id),
+    ['main-fix', 'main-verify'],
+  )
+  assert.equal(resumed.items[0].status, 'in_progress')
+  assert.equal(resumed.completedPlan.items[0].id, 'temp-check')
+  assert.match(resumed.resumeInstruction, /previously unfinished plan was restored/)
+
+  const restoredAgain = new PlanService({ path })
+  await restoredAgain.init()
+  assert.equal(restoredAgain.get('session-1').items[0].id, 'main-fix')
+  assert.equal(restoredAgain.get('session-1').suspendedCount, 0)
+})
+
+test('completed plans do not create false resumptions and an empty plan clears every level', async (t) => {
+  const directory = await mkdtemp(join(tmpdir(), 'pisper-plan-clear-stack-'))
+  t.after(() => rm(directory, { recursive: true, force: true }))
+  const path = join(directory, 'pisper-plans.json')
+  const service = new PlanService({ path })
+  await service.init()
+
+  await service.replace('session-1', [
+    { id: 'finished', title: 'Already finished work', status: 'completed' },
+  ])
+  const normalNext = await service.replace('session-1', [
+    { id: 'next', title: 'A normal next task', status: 'in_progress' },
+  ])
+  assert.equal(normalNext.suspendedCount, 0)
+
+  const inserted = await service.replace('session-1', [
+    { id: 'temporary', title: 'Temporary task', status: 'in_progress' },
+  ])
+  assert.equal(inserted.suspendedCount, 1)
+
+  const redirected = await service.replace(
+    'session-1',
+    [{ id: 'permanent', title: 'Permanent redirect', status: 'in_progress' }],
+    { mode: 'replace' },
+  )
+  assert.equal(redirected.suspendedCount, 0)
+  const redirectedDone = await service.replace('session-1', [
+    { id: 'permanent', title: 'Permanent redirect', status: 'completed' },
+  ])
+  assert.equal(redirectedDone.resumed, undefined)
+  assert.equal(redirectedDone.items[0].id, 'permanent')
+
+  await service.replace('session-1', [
+    { id: 'active-again', title: 'Active work before clear', status: 'in_progress' },
+  ])
+  await service.replace('session-1', [
+    { id: 'temporary-again', title: 'Temporary work before clear', status: 'in_progress' },
+  ])
+  const cleared = await service.replace('session-1', [])
+  assert.equal(cleared.suspendedCount, 0)
+  assert.equal(cleared.items.length, 0)
+
+  const restarted = new PlanService({ path })
+  await restarted.init()
+  assert.equal(restarted.get('session-1').items.length, 0)
+  assert.equal(restarted.get('session-1').suspendedCount, 0)
+})
+
 test('canonical plan tools return { plan }, aliases share behavior, and empty items clear the plan', async () => {
   let current = { sessionId: 'session-1', items: [], counts: { total: 0 }, updatedAt: null }
+  let lastOptions = null
   const tools = createPlanTools({
     getPlan: () => current,
-    updatePlan: (items) => {
+    updatePlan: (items, options) => {
+      lastOptions = options
       current = { sessionId: 'session-1', items, counts: { total: items.length }, updatedAt: null }
       return current
     },
@@ -92,6 +190,7 @@ test('canonical plan tools return { plan }, aliases share behavior, and empty it
     'completed',
     'blocked',
   ])
+  assert.deepEqual(updateTool.parameters.properties.mode.enum, ['auto', 'replace'])
   const updated = await updateTool.execute('call-1', {
     items: [{ id: 'one', title: 'One plan item', status: 'pending' }],
   })
@@ -100,12 +199,25 @@ test('canonical plan tools return { plan }, aliases share behavior, and empty it
   const cleared = await updateTool.execute('call-4', { items: [] })
 
   assert.equal(updated.details.plan.items.length, 1)
+  assert.deepEqual(lastOptions, { mode: 'auto' })
   assert.deepEqual(read.details.plan.items, [
     { id: 'one', title: 'One plan item', status: 'pending' },
   ])
   assert.deepEqual(legacyRead.details.plan, read.details.plan)
   assert.equal(Object.hasOwn(updated.details, 'taskList'), false)
   assert.equal(cleared.details.plan.items.length, 0)
+  current = {
+    sessionId: 'session-1',
+    items: [{ id: 'restored', title: 'Restored work', status: 'in_progress' }],
+    counts: { total: 1 },
+    resumed: true,
+    updatedAt: null,
+  }
+  const resumed = await tools.find((tool) => tool.name === 'get_plan').execute('call-5', {})
+  assert.match(
+    resumed.content[0].text,
+    /Runtime continuation: a previously unfinished plan is active/,
+  )
   assert.equal(tools.find((tool) => tool.name === 'get_task_list').promptSnippet, undefined)
   assert.equal(tools.find((tool) => tool.name === 'update_task_list').promptGuidelines, undefined)
 })
@@ -264,7 +376,7 @@ test('backup failure blocks canonical writes until the legacy source is safely b
 
   await rm(backupPath, { recursive: true, force: true })
   const updated = await service.replace('session-legacy', [
-    { id: 'next', title: 'Write after backup', status: 'completed' },
+    { id: 'keep', title: 'Write after backup', status: 'completed' },
   ])
 
   assert.equal(service.readingLegacy, false)
@@ -358,13 +470,14 @@ test('old and new persisted root fields normalize, while every subsequent write 
 
   await oldService.replace('old', [])
   const rewritten = JSON.parse(await readFile(oldPath, 'utf8'))
-  assert.deepEqual(rewritten, { version: 1, plans: {} })
+  assert.deepEqual(rewritten, { version: 2, plans: {} })
   const restored = new PlanService({ path: oldPath })
   await restored.init()
   assert.deepEqual(restored.get('old'), {
     sessionId: 'old',
     items: [],
     counts: { pending: 0, inProgress: 0, completed: 0, blocked: 0, total: 0 },
+    suspendedCount: 0,
     updatedAt: null,
   })
 })

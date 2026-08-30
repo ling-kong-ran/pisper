@@ -15,6 +15,10 @@ export type AnimatedContentProps = {
   initialOpacity?: number
   animateOpacity?: boolean
   scale?: number
+  collapse?: boolean
+  reveal?: boolean
+  spring?: boolean
+  allowOverflow?: boolean
 }
 
 export function AnimatedContent({
@@ -27,23 +31,45 @@ export function AnimatedContent({
   initialOpacity = 0,
   animateOpacity = true,
   scale = 1,
+  collapse = false,
+  reveal = false,
+  spring = false,
+  allowOverflow = false,
   className,
 }: AnimatedContentProps) {
   const reduceMotion = useReducedMotion()
   const [settled, setSettled] = useState(false)
   const axis = direction === 'horizontal' ? 'x' : 'y'
   const offset = reverse ? -distance : distance
+  const collapsedSize =
+    direction === 'horizontal' ? { width: 0 } : collapse ? { height: 0 } : { height: 'auto' }
+  const expandedSize =
+    direction === 'horizontal'
+      ? { width: 'auto' }
+      : collapse
+        ? { height: 'auto' }
+        : { height: 'auto' }
+  const revealHidden = reveal
+    ? {
+        ...(allowOverflow ? {} : { clipPath: 'inset(100% 0 0 0 round 10px)' }),
+        filter: 'blur(9px)',
+      }
+    : {}
+  const revealVisible = reveal
+    ? { ...(allowOverflow ? {} : { clipPath: 'inset(0% 0 0 0 round 10px)' }), filter: 'blur(0px)' }
+    : {}
   const hidden = reduceMotion
-    ? { opacity: 1, width: direction === 'horizontal' ? 0 : 'auto' }
+    ? { opacity: 1, ...collapsedSize }
     : {
         [axis]: offset,
         opacity: animateOpacity ? initialOpacity : 1,
         scale,
-        width: direction === 'horizontal' ? 0 : 'auto',
+        ...collapsedSize,
+        ...revealHidden,
       }
   const visible = reduceMotion
-    ? { opacity: 1, width: 'auto' }
-    : { [axis]: 0, opacity: 1, scale: 1, width: 'auto' }
+    ? { opacity: 1, ...expandedSize }
+    : { [axis]: 0, opacity: 1, scale: 1, ...expandedSize, ...revealVisible }
 
   return (
     <AnimatePresence>
@@ -55,8 +81,14 @@ export function AnimatedContent({
           initial={hidden}
           onAnimationComplete={() => setSettled(true)}
           onAnimationStart={() => setSettled(false)}
-          style={{ overflow: settled ? 'visible' : 'hidden' }}
-          transition={reduceMotion ? { duration: 0 } : { duration, ease: [0.22, 1, 0.36, 1] }}
+          style={{ overflow: allowOverflow || settled ? 'visible' : 'hidden' }}
+          transition={
+            reduceMotion
+              ? { duration: 0 }
+              : spring
+                ? { type: 'spring', stiffness: 430, damping: 26, mass: 0.72 }
+                : { duration, ease: [0.22, 1, 0.36, 1] }
+          }
         >
           {children}
         </motion.div>

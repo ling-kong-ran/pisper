@@ -43,6 +43,7 @@
   "sessionTree.labeled": "Labeled",
   "sessionTree.all": "All",
   "sessionTree.allMarks": "All marks",
+  "sessionTree.backToNodes": "Back to nodes",
   "sessionTree.markActive": "Active branch",
   "sessionTree.markTimes": "Chat {sessionTime} · node {nodeTime}",
   "sessionTree.noMarksYet": "No nodes have been marked yet. Click the mark icon on a message to mark it.",

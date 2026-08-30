@@ -29,11 +29,42 @@ test('discovers and normalizes OpenAI-compatible model IDs with bearer authentic
     result.models.map((item) => item.id),
     ['gpt-5.4', 'gpt-image-1'],
   )
-  // 发现的模型不再按 ID 推断用途，一律默认 chat，由用户添加时显式选择类型
-  assert.equal(result.models.find((item) => item.id === 'gpt-image-1').kind, 'chat')
+  // 已知视觉生成模型会自动进入视觉目录，复用当前 Provider 的连接与凭据。
+  assert.equal(result.models.find((item) => item.id === 'gpt-image-1').kind, 'image')
   assert.equal(calls[0].url, 'https://api.example.test/v1/models')
   assert.equal(calls[0].options.headers.Authorization, 'Bearer secret-value')
   assert.equal(calls[0].options.headers['OpenAI-Organization'], 'org-1')
+})
+
+test('uses explicit output capabilities without treating image input as generation', async () => {
+  const service = new ProviderModelDiscoveryService({
+    fetchImpl: async () =>
+      jsonResponse({
+        data: [
+          {
+            id: 'relay-canvas',
+            capabilities: { image_generation: true },
+          },
+          {
+            id: 'relay-movie',
+            architecture: { output_modalities: ['text', 'video'] },
+          },
+          {
+            id: 'relay-vision-chat',
+            architecture: { input_modalities: ['text', 'image'], output_modalities: ['text'] },
+          },
+        ],
+      }),
+  })
+  const result = await service.discover({
+    api: 'openai-responses',
+    baseUrl: 'https://api.example.test/v1',
+  })
+  assert.deepEqual(Object.fromEntries(result.models.map((model) => [model.id, model.kind])), {
+    'relay-canvas': 'image',
+    'relay-movie': 'video',
+    'relay-vision-chat': 'chat',
+  })
 })
 
 test('discovers Anthropic models with the official headers', async () => {

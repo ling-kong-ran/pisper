@@ -134,6 +134,7 @@ export function PageHeader({
           'flex min-w-0 items-center justify-end gap-2 max-[650px]:grid max-[650px]:w-full max-[650px]:grid-cols-[minmax(0,1fr)_auto] max-[650px]:justify-stretch',
           page === 'workflowCreate' &&
             'max-[650px]:grid-cols-[repeat(3,auto)] max-[650px]:justify-end',
+          page === 'chat' && 'max-[650px]:!flex max-[650px]:!w-auto max-[650px]:shrink-0',
           desktop && '[-webkit-app-region:no-drag]',
           desktopPlatform && desktopPlatform !== 'darwin' && 'pr-[138px]',
         )}
@@ -213,7 +214,10 @@ export function PageHeader({
         <Button
           variant="outline"
           size="icon"
-          className="bg-[var(--solid)] max-[650px]:absolute max-[650px]:top-3.5 max-[650px]:right-4"
+          className={cn(
+            'bg-[var(--solid)]',
+            page !== 'chat' && 'max-[650px]:absolute max-[650px]:top-3.5 max-[650px]:right-4',
+          )}
           title={t('navigation:pageHeader.themeThemeClickToSwitch', { theme: themeLabel })}
           aria-label={t('navigation:pageHeader.themeThemeClickToSwitchThemes', {
             theme: themeLabel,

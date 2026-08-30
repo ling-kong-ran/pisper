@@ -4,6 +4,7 @@ export const STORAGE_KEYS = Object.freeze({
   theme: 'pisper-theme',
   chatMode: 'pisper-chat-mode',
   activeSession: 'pisper-active-session',
+  mobileSessionTabs: 'pisper-mobile-session-tabs',
   sessionOpenRequest: 'pisper-session-open-request',
   sessionCreateRequest: 'pisper-session-create-request',
   sessionMessageTarget: 'pisper-session-message-target',

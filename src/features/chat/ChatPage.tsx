@@ -1,6 +1,6 @@
 // 聊天主页面：dockview 多会话分屏布局的宿主，持有会话目录与实时
 // 同步状态，管理 Dock 的初始化/持久化与多面板交互。
-// 移动端 App 不渲染 Dock：单会话视图直接按活动会话渲染，
+// 移动端 App 不渲染 Dock：轻量标签栏切换活动会话，内容区只挂载一个会话，
 // dockview 及其样式经懒加载分包，移动端不下载。
 import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { DockviewGroupPanel } from 'dockview-react'
@@ -8,6 +8,7 @@ import { RefreshCw } from 'lucide-react'
 import { useI18n } from '@/app/use-i18n'
 import { WorkspacePicker } from '@/components/WorkspacePicker'
 import { AppEmptyState } from '@/components/ui/app-primitives'
+import { useIsPhoneViewport } from '@/hooks/use-mobile'
 import { usePagePrimaryAction } from '@/hooks/usePagePrimaryAction'
 import { useClientStore } from '@/stores/client-store'
 import type { ConfirmDialogOptions, PromptDialogOptions } from '@/hooks/useAppDialog'
@@ -23,7 +24,7 @@ import { useSessionCatalog } from './use-session-catalog'
 import { useSessionCommands } from './use-session-commands'
 import { SESSION_CREATE_REQUESTED_EVENT, consumeSessionCreationRequest } from './events'
 
-// Dock 分屏视图懒加载：只有桌面/窄窗口（非移动端 App）才下载 dockview 分包。
+// Dock 分屏视图懒加载：只有桌面布局才下载 dockview 分包。
 const LazyChatDockView = lazy(() =>
   import('./ChatDockView').then((module) => ({ default: module.ChatDockView })),
 )
@@ -52,6 +53,8 @@ export function ChatPage({
   const { t } = useI18n()
   const mobileApp = useClientStore((state) => state.client === 'mobile-app')
   const clientLoaded = useClientStore((state) => state.loaded)
+  const phoneViewport = useIsPhoneViewport()
+  const mobileLayout = mobileApp || phoneViewport
   const localStreamSessionsRef = useRef(new Set<string>())
   const streamGenerationRef = useRef(new Map<string, number>())
   const resumeSyncRef = useRef<Promise<void> | null>(null)
@@ -74,6 +77,7 @@ export function ChatPage({
     localStreamSessionsRef,
     loadSessionMessages: liveSync.loadSessionMessages,
     releaseSessionState: catalog.releaseSessionState,
+    singleSessionLayout: mobileLayout,
     notify,
   })
 
@@ -329,8 +333,11 @@ export function ChatPage({
         ) : (
           <div className="chat-dock-workspace max-[650px]:[flex:1_1_0] max-[650px]:min-h-0 relative min-w-0 min-h-0 [isolation:isolate] overflow-hidden [border:1px_solid_var(--stroke-soft)] rounded-[var(--r-md)] bg-[var(--panel)]">
             <ChatDockContext.Provider value={dockContextValue}>
-              {clientLoaded && mobileApp ? (
-                <MobileSessionPanel />
+              {clientLoaded && mobileLayout ? (
+                <MobileSessionPanel
+                  onSelectSession={openSessionInDock}
+                  onCreateSession={createSession}
+                />
               ) : clientLoaded ? (
                 <Suspense fallback={null}>
                   <LazyChatDockView

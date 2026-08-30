@@ -561,7 +561,7 @@ test('list_agents returns statuses without a task graph or role expansion', asyn
   assert.equal(Object.hasOwn(result.details, 'graph'), false)
 })
 
-test('background Agents do not instruct the parent to poll or wait by default', () => {
+test('background Agents are considered proactively without polling or blocking the parent', () => {
   const tools = createMultiAgentTools({ multiAgentRuntime: {} })
   const spawn = tools.find((tool) => tool.name === 'spawn_agent')
   const list = tools.find((tool) => tool.name === 'list_agents')
@@ -570,9 +570,13 @@ test('background Agents do not instruct the parent to poll or wait by default', 
   const listGuidance = list.promptGuidelines.join('\n')
   const waitGuidance = wait.promptGuidelines.join('\n')
 
+  assert.match(spawnGuidance, /use spawn_agent proactively/i)
+  assert.match(spawnGuidance, /even if the user did not explicitly request subagents/i)
+  assert.match(spawnGuidance, /Do not spawn for trivial work/)
+  assert.match(spawnGuidance, /Keep the immediate critical-path step in the parent session/)
   assert.match(spawnGuidance, /must not delay replying to the user/)
   assert.match(spawnGuidance, /do not call list_agents or wait_agent merely to monitor progress/i)
-  assert.match(spawnGuidance, /never injected into the parent prompt or model context/)
+  assert.match(spawnGuidance, /automatically delivered to the parent session/)
   assert.match(spawnGuidance, /spawning other independent Agents/)
   assert.doesNotMatch(spawnGuidance, /explorer|reviewer|dependsOn/)
   assert.match(listGuidance, /Do not call list_agents repeatedly/)

@@ -25,6 +25,8 @@ test('Pisper prompt replaces only Pi branding while preserving the coding role a
   assert.match(prompt, /Active provider: xai/)
   assert.match(prompt, /Active model: grok-4\.5/)
   assert.match(prompt, /Inspect relevant state, make direct progress/)
+  assert.match(prompt, /Preserve unfinished structured-plan work across temporary redirects/)
+  assert.match(prompt, /delegate bounded, non-critical-path tasks/)
   assert.match(prompt, /Respect workspace, execution-mode, approval, and tool-schema boundaries/)
   assert.match(
     prompt,

@@ -89,12 +89,14 @@ export function MobilePrimaryNavigation({
 type MobileSettingsNavigationProps = {
   page: string
   configSection: string
+  mobileApp: boolean
   onNavigate: (destination: SettingsDestination) => void
 }
 
 export function MobileSettingsNavigation({
   page,
   configSection,
+  mobileApp,
   onNavigate,
 }: MobileSettingsNavigationProps) {
   const { t } = useI18n()
@@ -103,12 +105,12 @@ export function MobileSettingsNavigation({
   const capabilities = useRuntimeCapabilitiesStore((state) => state.capabilities)
   const items = useMemo(
     () =>
-      getSettingsNavigation(t, { mobileApp: true, capabilities })
+      getSettingsNavigation(t, { mobileApp, capabilities })
         .flatMap((group) => group.items)
         .filter(
           (item) => item.destination.type !== 'config' || item.destination.id !== 'desktop-pet',
         ),
-    [capabilities, t],
+    [capabilities, mobileApp, t],
   )
 
   useEffect(() => {

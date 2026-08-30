@@ -6,9 +6,10 @@ import { copyFile, mkdir, rename, rm, stat } from 'node:fs/promises'
 import { dirname } from 'node:path'
 import { readJson, writeJsonAtomic } from '../storage/json-file.mjs'
 
-export const PLAN_STORE_VERSION = 1
+export const PLAN_STORE_VERSION = 2
 export const PLAN_STATUSES = Object.freeze(['pending', 'in_progress', 'completed', 'blocked'])
 export const MAX_PLAN_ITEMS = 50
+export const MAX_SUSPENDED_PLANS = 8
 export const MAX_PLAN_TITLE_CHARS = 300
 export const MAX_PLAN_NOTE_CHARS = 1_000
 export const MAX_PLAN_ASSIGNEE_CHARS = 80
@@ -147,23 +148,30 @@ function normalizeItem(value, previous, now) {
   }
 }
 
+function hasUnfinishedItems(items) {
+  return items.some((item) => item.status !== 'completed')
+}
+
 function emptyPlan(sessionId) {
   return {
     sessionId: String(sessionId || ''),
     items: [],
     counts: { pending: 0, inProgress: 0, completed: 0, blocked: 0, total: 0 },
+    suspendedCount: 0,
     updatedAt: null,
   }
 }
 
-function publicPlan(sessionId, value) {
+function publicPlan(sessionId, value, transition = null) {
   if (!value) return emptyPlan(sessionId)
   const items = clone(value.items || [])
   return {
     sessionId: String(sessionId || ''),
     items,
     counts: planCounts(items),
+    suspendedCount: value.suspended?.length || 0,
     updatedAt: value.updatedAt || null,
+    ...(transition || {}),
   }
 }
 
@@ -177,25 +185,41 @@ function persistedPlans(input) {
   return null
 }
 
+function normalizePersistedItems(input, fallbackUpdatedAt) {
+  const seen = new Set()
+  const items = []
+  for (const item of (Array.isArray(input) ? input : []).slice(0, MAX_PLAN_ITEMS)) {
+    try {
+      const normalized = normalizeItem(item, item, item.updatedAt || fallbackUpdatedAt)
+      if (seen.has(normalized.id)) normalized.id = randomUUID()
+      seen.add(normalized.id)
+      items.push(normalized)
+    } catch {
+      // 忽略单个损坏条目，保留同一计划中的其余有效任务。
+    }
+  }
+  return items
+}
+
 function normalizedState(input) {
   const plans = persistedPlans(input) || {}
   const result = {}
   for (const [sessionId, value] of Object.entries(plans)) {
     if (!value || !Array.isArray(value.items)) continue
-    const now = value.updatedAt || nowIso()
-    const seen = new Set()
-    const items = []
-    for (const item of value.items.slice(0, MAX_PLAN_ITEMS)) {
-      try {
-        const normalized = normalizeItem(item, item, item.updatedAt || now)
-        if (seen.has(normalized.id)) normalized.id = randomUUID()
-        seen.add(normalized.id)
-        items.push(normalized)
-      } catch {
-        // Ignore invalid persisted items while preserving the rest of the plan.
-      }
-    }
-    if (items.length) result[sessionId] = { items, updatedAt: now }
+    const updatedAt = value.updatedAt || nowIso()
+    const items = normalizePersistedItems(value.items, updatedAt)
+    if (!items.length) continue
+    const suspended = (Array.isArray(value.suspended) ? value.suspended : [])
+      .slice(-MAX_SUSPENDED_PLANS)
+      .map((snapshot) => {
+        const snapshotUpdatedAt = snapshot?.updatedAt || updatedAt
+        return {
+          items: normalizePersistedItems(snapshot?.items, snapshotUpdatedAt),
+          updatedAt: snapshotUpdatedAt,
+        }
+      })
+      .filter((snapshot) => snapshot.items.length && hasUnfinishedItems(snapshot.items))
+    result[sessionId] = { items, updatedAt, suspended }
   }
   return { version: PLAN_STORE_VERSION, plans: result }
 }
@@ -258,20 +282,22 @@ export class PlanService {
     return publicPlan(id, this.state.plans[id])
   }
 
-  // 整体替换会话计划：校验长度/去重/依赖图后写盘；空数组 = 删除计划。
-  async replace(sessionId, input = []) {
+  // 整体更新当前计划。完全不同的新计划会暂挂未完成计划；临时计划完成后自动恢复。
+  // 空数组仍是显式取消，清除当前计划及全部暂挂计划。
+  async replace(sessionId, input = [], { mode = 'auto' } = {}) {
     const id = String(sessionId || '')
     if (!id) throw new Error('Plan requires a session.')
     if (!Array.isArray(input)) throw new Error('Plan items must be an array.')
+    if (!['auto', 'replace'].includes(mode))
+      throw new Error(`Unsupported plan update mode: ${mode}`)
     if (input.length > MAX_PLAN_ITEMS)
       throw new Error(`Plan is limited to ${MAX_PLAN_ITEMS} items.`)
     const requestedItems = clone(input)
     this.write = this.write
       .catch(() => {})
       .then(async () => {
-        const previousItems = new Map(
-          (this.state.plans[id]?.items || []).map((item) => [item.id, item]),
-        )
+        const currentPlan = this.state.plans[id]
+        const previousItems = new Map((currentPlan?.items || []).map((item) => [item.id, item]))
         const now = nowIso(this.now())
         const seen = new Set()
         const items = requestedItems.map((item) => {
@@ -282,12 +308,53 @@ export class PlanService {
           return normalized
         })
         validateDependencyGraph(items)
+
         const nextState = clone(this.state)
-        if (items.length) nextState.plans[id] = { items, updatedAt: now }
-        else delete nextState.plans[id]
+        if (!items.length) {
+          delete nextState.plans[id]
+          await this.persist(nextState)
+          this.state = nextState
+          return emptyPlan(id)
+        }
+
+        const suspended = mode === 'replace' ? [] : clone(currentPlan?.suspended || [])
+        const continuesCurrentPlan = items.some((item) => previousItems.has(item.id))
+        if (
+          mode === 'auto' &&
+          currentPlan &&
+          hasUnfinishedItems(currentPlan.items) &&
+          !continuesCurrentPlan
+        ) {
+          if (suspended.length >= MAX_SUSPENDED_PLANS) {
+            throw new Error(`Plan suspension is limited to ${MAX_SUSPENDED_PLANS} nested plans.`)
+          }
+          suspended.push({
+            items: clone(currentPlan.items),
+            updatedAt: currentPlan.updatedAt || now,
+          })
+        }
+
+        let transition = null
+        if (!hasUnfinishedItems(items) && suspended.length) {
+          const resumedPlan = suspended.pop()
+          nextState.plans[id] = { ...resumedPlan, suspended, updatedAt: now }
+          transition = {
+            resumed: true,
+            completedPlan: {
+              items: clone(items),
+              counts: planCounts(items),
+              updatedAt: now,
+            },
+            resumeInstruction:
+              'A previously unfinished plan was restored. Continue its current item unless the user explicitly cancelled or redirected it.',
+          }
+        } else {
+          nextState.plans[id] = { items, suspended, updatedAt: now }
+        }
+
         await this.persist(nextState)
         this.state = nextState
-        return publicPlan(id, nextState.plans[id])
+        return publicPlan(id, nextState.plans[id], transition)
       })
     return this.write
   }

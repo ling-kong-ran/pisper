@@ -113,7 +113,7 @@ export function GoalModeControl({
       {open && (
         <div
           ref={menuRef}
-          className="goal-mode-menu [translate:var(--menu-x-offset,_0px)_0] [&_strong]:text-[12px] [&_small]:overflow-hidden [&_small]:text-[var(--text-muted)] [&_small]:text-[11px] [&_small]:text-ellipsis [&_small]:whitespace-nowrap [&_p]:m-[1px_7px_4px_47px] [&_p]:text-[var(--text-muted)] [&_p]:text-[11px] max-[650px]:[.focus-composer_&]:right-[auto] max-[650px]:[.focus-composer_&]:left-0 max-[650px]:[.focus-composer_&]:w-[min(250px,calc(100vw_-_76px))] absolute z-[35] [bottom:calc(100%_+_8px)] left-0 w-[min(250px,calc(100vw_-_28px))] overflow-hidden [border:1px_solid_var(--stroke)] rounded-[var(--r-md)] bg-[var(--solid)] [padding:5px] shadow-[0_18px_42px_-18px_var(--menu-shadow)]"
+          className="goal-mode-menu [translate:var(--menu-x-offset,_0px)_var(--menu-y-offset,_0px)] [&_strong]:text-[12px] [&_small]:overflow-hidden [&_small]:text-[var(--text-muted)] [&_small]:text-[11px] [&_small]:text-ellipsis [&_small]:whitespace-nowrap [&_p]:m-[1px_7px_4px_47px] [&_p]:text-[var(--text-muted)] [&_p]:text-[11px] max-[650px]:[.focus-composer_&]:right-[auto] max-[650px]:[.focus-composer_&]:left-0 max-[650px]:[.focus-composer_&]:w-[min(250px,calc(100vw_-_76px))] absolute z-[35] [bottom:calc(100%_+_8px)] left-0 w-[min(250px,calc(100vw_-_28px))] overflow-hidden [border:1px_solid_var(--stroke)] rounded-[var(--r-md)] bg-[var(--solid)] [padding:5px] shadow-[0_18px_42px_-18px_var(--menu-shadow)]"
           role="dialog"
           aria-label={t('chat:focusSession.goalMode')}
         >
