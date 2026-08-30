@@ -1,6 +1,6 @@
 [package]
 name = "pisper-tui"
-version = "0.5.16"
+version = "0.5.17"
 description = "Terminal client for Pisper"
 authors = ["ling-kong-ran"]
 license = "MIT"
