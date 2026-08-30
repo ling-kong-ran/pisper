@@ -1,9 +1,9 @@
 {
-  "version": "0.1.20",
-  "tag": "app-v0.1.20",
-  "url": "https://github.com/ling-kong-ran/pisper/releases/tag/app-v0.1.20",
+  "version": "0.1.21",
+  "tag": "app-v0.1.21",
+  "url": "https://github.com/ling-kong-ran/pisper/releases/tag/app-v0.1.21",
   "apk": "app-universal-release-signed.apk",
   "ipa": "pisper-ios-unsigned.ipa",
-  "notes": "- perf(mobile): skip dockview on the mobile app client\n- fix(mobile): contain transcript overscroll\n- fix(mobile): detect the software keyboard by viewport ratio\n- perf(chat): estimate virtual transcript rows by container width\n- refactor(chat): deduplicate the agent run status icon class string\n- perf(chat): skip live-session polling while the tab is hidden\n- perf(chat): coalesce both auto-scroll triggers into one frame commit\n- perf(chat): cache completed markdown blocks across virtualized remounts\n- perf(chat): let the virtualizer own streaming row measurement\n- perf(chat): subscribe dock panels to their own session state\n- perf(runtime): compute thinking patch offsets arithmetically\n- feat(runtime): keep SSE connections alive with heartbeat comments\n- perf(runtime): serialize each SSE frame once for buffer and wire\n- fix(mobile): stabilize keyboard navigation and local builds\n- fix(mobile): correct iOS app icon framing",
-  "releaseDate": "2026-08-29"
+  "notes": "- fix(chat): restore Enter-to-send and harden macOS IME composition guard",
+  "releaseDate": "2026-08-30"
 }
