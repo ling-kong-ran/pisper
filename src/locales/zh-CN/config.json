@@ -523,6 +523,7 @@
   "configPage.visualEmptyHint": "配置视觉模型后，Agent 就能在对话中生成图片、编辑图片或生成视频。",
   "configPage.quickAddVisualModel": "一键添加推荐视觉模型",
   "configPage.visualModelAdded": "视觉模型已添加",
+  "configPage.visualModelUpdated": "视觉模型选择已更新",
   "configPage.newVisualConnection": "新建视觉连接",
   "configPage.visualAutoSelected": "自动选中",
   "configPage.visualGenerationSubtitle": "在对话中直接描述需求，Agent 自动调用视觉模型",

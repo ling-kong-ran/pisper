@@ -108,6 +108,10 @@ export type VisualCandidate = {
 export type VisualModelStatus = {
   image: VisualCandidate | null
   video: VisualCandidate | null
+  imageModels: VisualCandidate[]
+  videoModels: VisualCandidate[]
+  imageSelection: string
+  videoSelection: string
 }
 
 // 视觉生成冒烟测试结果：产物路径 + 使用的模型 + base64 预览（可能为空）。

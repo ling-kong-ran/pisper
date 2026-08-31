@@ -523,6 +523,7 @@
   "configPage.visualEmptyHint": "Once a visual model is configured, the Agent can generate images, edit images, or create videos right in chat.",
   "configPage.quickAddVisualModel": "Quick-add recommended visual models",
   "configPage.visualModelAdded": "Visual model added",
+  "configPage.visualModelUpdated": "Visual model selection updated",
   "configPage.newVisualConnection": "New visual connection",
   "configPage.visualAutoSelected": "Auto-selected",
   "configPage.visualGenerationSubtitle": "Describe what you need in chat — the Agent calls the visual model automatically",

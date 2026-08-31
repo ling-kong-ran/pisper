@@ -62,6 +62,44 @@ test('visual model status reports the auto-selected image model and empty video 
   assert.equal(status.video, null)
 })
 
+test('visual model selection exposes candidates and persists an explicit image model', async (t) => {
+  const directory = await mkdtemp(join(tmpdir(), 'pisper-visual-selection-'))
+  const runtime = await createRuntime(t, directory)
+  await writeVisualProvider(directory, 'https://visual.example.test/v1')
+  await writeFile(
+    join(directory, 'models.json'),
+    JSON.stringify({
+      providers: {
+        'openai-image': {
+          name: 'Visual Provider',
+          api: 'openai-responses',
+          baseUrl: 'https://visual.example.test/v1',
+          models: [
+            { id: 'gpt-image-2', name: 'GPT Image 2', kind: 'image' },
+            { id: 'gpt-image-1', name: 'GPT Image 1', kind: 'image' },
+            { id: 'sora-2', name: 'Sora 2', kind: 'video' },
+          ],
+        },
+      },
+    }),
+  )
+
+  const initial = await runtime.getVisualModelStatus()
+  assert.equal(initial.image?.id, 'gpt-image-2')
+  assert.equal(initial.imageModels.length, 2)
+  assert.equal(initial.videoModels.length, 1)
+  assert.equal(initial.imageSelection, '')
+  assert.equal(Object.hasOwn(initial.image, 'apiKey'), false)
+
+  const selected = await runtime.setVisualModel('image', 'openai-image/gpt-image-1')
+  assert.equal(selected.image?.id, 'gpt-image-1')
+  assert.equal(selected.imageSelection, 'openai-image/gpt-image-1')
+
+  const reset = await runtime.setVisualModel('image', '')
+  assert.equal(reset.image?.id, 'gpt-image-2')
+  assert.equal(reset.imageSelection, '')
+})
+
 test('visual model status is empty when no visual model is configured', async (t) => {
   const directory = await mkdtemp(join(tmpdir(), 'pisper-visual-status-empty-'))
   const runtime = await createRuntime(t, directory)
@@ -69,6 +107,8 @@ test('visual model status is empty when no visual model is configured', async (t
   const status = await runtime.getVisualModelStatus()
   assert.equal(status.image, null)
   assert.equal(status.video, null)
+  assert.deepEqual(status.imageModels, [])
+  assert.deepEqual(status.videoModels, [])
 })
 
 test('visual generation smoke test writes output under the data directory and returns a preview', async (t) => {

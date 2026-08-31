@@ -1413,6 +1413,12 @@ export class ProviderPreferences {
     )
     if (appConfig.providerTypes) delete appConfig.providerTypes[provider]
     if (appConfig.providerDefaultModels) delete appConfig.providerDefaultModels[provider]
+    if (appConfig.visualDefaultModels) {
+      for (const [kind, reference] of Object.entries(appConfig.visualDefaultModels)) {
+        if (String(reference).toLowerCase().startsWith(`${provider.toLowerCase()}/`))
+          delete appConfig.visualDefaultModels[kind]
+      }
+    }
     await writeJsonAtomic(this.appConfigPath, appConfig)
     await this.providerModelCatalog.remove(provider)
     const settingsManager = this.getSettingsManager()

@@ -15,6 +15,7 @@ import {
   Wand2,
 } from 'lucide-react'
 import { PAGE_PATHS } from '@/app/routes'
+import { AppSelect } from '@/components/AppSelect'
 import { useI18n } from '@/app/use-i18n'
 import { apiJson } from '@/lib/api'
 import { requestSessionCreation } from '@/features/chat/events'
@@ -50,10 +51,18 @@ function VisualModelTile({
   icon: Icon,
   label,
   model,
+  models,
+  selection,
+  saving,
+  onChange,
 }: {
   icon: typeof ImageIcon
   label: string
   model: VisualCandidate | null | undefined
+  models: VisualCandidate[]
+  selection: string
+  saving: boolean
+  onChange: (value: string) => void
 }) {
   const { t } = useI18n()
   return (
@@ -61,7 +70,7 @@ function VisualModelTile({
       <span className="grid w-[30px] h-[30px] flex-none place-items-center rounded-[var(--r-xs)] bg-[var(--accent-soft)] text-[var(--star-strong)]">
         <Icon size={15} />
       </span>
-      <span className="flex min-w-0 flex-1 flex-col gap-[1px]">
+      <span className="flex min-w-0 flex-1 flex-col gap-[4px]">
         <small className="text-[11px] text-[var(--text-muted)]">{label}</small>
         {model ? (
           <strong className="overflow-hidden text-ellipsis whitespace-nowrap text-[13px]">
@@ -71,6 +80,24 @@ function VisualModelTile({
           <span className="text-[12px] text-[var(--text-tertiary)]">
             {t('config:configPage.visualNotConfigured')}
           </span>
+        )}
+        {models.length > 0 && (
+          <AppSelect
+            value={selection}
+            disabled={saving}
+            aria-label={label}
+            onChange={(event) => onChange(event.target.value)}
+          >
+            <option value="">{t('config:configPage.visualAutoSelected')}</option>
+            {models.map((candidate) => (
+              <option
+                key={`${candidate.providerId}/${candidate.id}`}
+                value={`${candidate.providerId}/${candidate.id}`}
+              >
+                {candidate.providerName} · {candidate.name}
+              </option>
+            ))}
+          </AppSelect>
         )}
       </span>
     </div>
@@ -94,6 +121,7 @@ export function VisualGenerationSettings({
   const [status, setStatus] = useState<VisualModelStatus | null>(null)
   const [loading, setLoading] = useState(true)
   const [adding, setAdding] = useState('')
+  const [selecting, setSelecting] = useState('')
   const [testing, setTesting] = useState(false)
   const [trying, setTrying] = useState(false)
   const [testResult, setTestResult] = useState<VisualTestResult | null>(null)
@@ -114,6 +142,24 @@ export function VisualGenerationSettings({
   useEffect(() => {
     void refresh()
   }, [refresh, config])
+
+  const selectVisualModel = async (kind: 'image' | 'video', model: string) => {
+    setSelecting(kind)
+    setError('')
+    try {
+      setStatus(
+        await apiJson<VisualModelStatus>(`/api/visual/models/${kind}`, {
+          method: 'PUT',
+          body: JSON.stringify({ model }),
+        }),
+      )
+      notify(t('config:configPage.visualModelUpdated'))
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : String(caught))
+    } finally {
+      setSelecting('')
+    }
+  }
 
   // 一键添加推荐视觉模型到已配置连接：写入模型目录后刷新状态与配置视图。
   const quickAdd = async (
@@ -257,11 +303,19 @@ export function VisualGenerationSettings({
               icon={ImageIcon}
               label={t('config:configPage.visualImageModel')}
               model={status?.image}
+              models={status?.imageModels || []}
+              selection={status?.imageSelection || ''}
+              saving={selecting === 'image'}
+              onChange={(value) => void selectVisualModel('image', value)}
             />
             <VisualModelTile
               icon={Video}
               label={t('config:configPage.visualVideoModel')}
               model={status?.video}
+              models={status?.videoModels || []}
+              selection={status?.videoSelection || ''}
+              saving={selecting === 'video'}
+              onChange={(value) => void selectVisualModel('video', value)}
             />
           </div>
           {tryExampleRow}

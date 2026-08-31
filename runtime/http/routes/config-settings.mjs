@@ -202,6 +202,15 @@ export const configSettingsRoutes = [
     },
   },
   {
+    method: 'PUT',
+    path: '/api/visual/models/:kind',
+    where: { kind: ['image', 'video'] },
+    async handler({ runtime, params, body, json }) {
+      const input = await body()
+      json(200, await runtime.setVisualModel(params.kind, input?.model))
+    },
+  },
+  {
     method: 'POST',
     path: '/api/visual/test',
     async handler({ runtime, json }) {

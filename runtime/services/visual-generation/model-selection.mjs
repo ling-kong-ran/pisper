@@ -1,6 +1,6 @@
 // 视觉模型选择与目录：模型类型完全由用户显式选择，不再按 ID 猜测；
 // 提供按 Provider 筛选可用图像/视频模型的能力。
-import { readJson } from '../../storage/json-file.mjs'
+import { readJson, writeJsonAtomic } from '../../storage/json-file.mjs'
 
 // 不再按模型 ID 猜测用途：类型完全由用户在添加时显式选择。
 // 保留函数签名以兼容既有调用点与历史配置（'auto' 或缺省一律按对话模型处理）。
@@ -108,6 +108,16 @@ function publicModel(model) {
   return value
 }
 
+// 面向配置页的模型只暴露展示和驱动所需的公开字段，不能把 Provider 密钥回传给 WebView。
+function clientModel(model) {
+  const { apiKey: _apiKey, headers: _headers, ...value } = publicModel(model)
+  return value
+}
+
+function modelReference(model) {
+  return `${model.providerId}/${model.id}`
+}
+
 export class VisualModelCatalog {
   constructor({ modelsPath, authPath, appConfigPath, getModelRuntime }) {
     this.modelsPath = modelsPath
@@ -177,9 +187,54 @@ export class VisualModelCatalog {
     return result
   }
 
+  async preferredReference(kind) {
+    const appConfig = await readJson(this.appConfigPath, { visualDefaultModels: {} })
+    return String(appConfig.visualDefaultModels?.[kind] || '').trim()
+  }
+
+  async orderedModels(kind, candidates) {
+    const models = deduplicateModels(candidates).sort(compareModels)
+    const preferred = (await this.preferredReference(kind)).toLowerCase()
+    if (!preferred) return models
+    const index = models.findIndex((model) => modelReference(model).toLowerCase() === preferred)
+    if (index <= 0) return models
+    return [models[index], ...models.slice(0, index), ...models.slice(index + 1)]
+  }
+
   async list(kind) {
-    const models = deduplicateModels(await this.candidates(kind))
-    return models.sort(compareModels).map(publicModel)
+    const models = await this.orderedModels(kind, await this.candidates(kind))
+    return models.map(clientModel)
+  }
+
+  // 返回配置页需要的全部候选，并标记当前是否为用户指定模型；无效偏好会自动回退而不阻塞页面。
+  async status(kind) {
+    const models = await this.orderedModels(kind, await this.candidates(kind))
+    const preferred = await this.preferredReference(kind)
+    const selection = models.some(
+      (model) => modelReference(model).toLowerCase() === preferred.toLowerCase(),
+    )
+      ? preferred
+      : ''
+    return {
+      model: models[0] ? clientModel(models[0]) : null,
+      models: models.map(clientModel),
+      selection,
+    }
+  }
+
+  async setPreferred(kind, requestedModel) {
+    if (!['image', 'video'].includes(kind)) throw new Error('视觉模型类型不受支持。')
+    const requested = String(requestedModel || '').trim()
+    const selected = requested ? await this.select(kind, requested) : null
+    const appConfig = await readJson(this.appConfigPath, { visualDefaultModels: {} })
+    const visualDefaultModels = { ...(appConfig.visualDefaultModels || {}) }
+    if (selected) visualDefaultModels[kind] = modelReference(selected)
+    else delete visualDefaultModels[kind]
+    await writeJsonAtomic(this.appConfigPath, {
+      ...appConfig,
+      visualDefaultModels,
+    })
+    return selected ? clientModel(selected) : null
   }
 
   async select(kind, requestedModel) {
@@ -192,15 +247,23 @@ export class VisualModelCatalog {
       .trim()
       .toLowerCase()
     if (requested) {
-      const qualified = candidates.find(
-        (model) => `${model.providerId}/${model.id}`.toLowerCase() === requested,
-      )
+      // 显式指定 Provider 时允许调用方选择同一端点上的不同凭据，不能先去重丢掉该候选。
+      const qualified = candidates.find((model) => modelReference(model).toLowerCase() === requested)
       if (qualified) return publicModel(qualified)
     }
-    const models = deduplicateModels(candidates).sort(compareModels)
+    const models = await this.orderedModels(kind, candidates)
     if (!requested) return publicModel(models[0])
     const exact = models.find((model) => model.id.toLowerCase() === requested)
     if (!exact) throw new Error(`未找到已启用的视觉模型：${requestedModel}`)
     return publicModel(exact)
+  }
+
+  async all(kind) {
+    const candidates = await this.candidates(kind)
+    if (!candidates.length)
+      throw new Error(
+        `没有已配置并启用的${kind === 'video' ? '视频' : '图像'}生成模型。请先在配置页添加视觉模型。`,
+      )
+    return (await this.orderedModels(kind, candidates)).map(publicModel)
   }
 }

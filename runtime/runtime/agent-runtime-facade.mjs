@@ -928,14 +928,24 @@ export class AgentRuntimeFacade {
     return this.providerPreferences.deleteProvider(id)
   }
 
-  // 视觉模型状态：返回当前会被自动选中的图像/视频模型（generate_visual 的选择顺序），
-  // 供配置页展示与聊天页入口判断是否已配置。
+  // 视觉模型状态：返回当前选中的模型和全部候选，供配置页切换视觉模型。
   async getVisualModelStatus() {
-    const [imageModels, videoModels] = await Promise.all([
-      this.visualGeneration.models.list('image'),
-      this.visualGeneration.models.list('video'),
+    const [image, video] = await Promise.all([
+      this.visualGeneration.getModelStatus('image'),
+      this.visualGeneration.getModelStatus('video'),
     ])
-    return { image: imageModels[0] || null, video: videoModels[0] || null }
+    return {
+      image: image.model,
+      video: video.model,
+      imageModels: image.models,
+      videoModels: video.models,
+      imageSelection: image.selection,
+      videoSelection: video.selection,
+    }
+  }
+
+  async setVisualModel(kind, requestedModel) {
+    return this.visualGeneration.setPreferredModel(kind, requestedModel)
   }
 
   // 视觉生成冒烟测试：用最小参数真实生成一张图，验证密钥与模型链路可用。

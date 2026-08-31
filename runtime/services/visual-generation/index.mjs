@@ -58,6 +58,27 @@ export class VisualGenerationService {
     this.models = new VisualModelCatalog(paths)
   }
 
+  async getModelStatus(kind) {
+    if (!['image', 'video'].includes(kind)) throw new Error('视觉模型类型不受支持。')
+    return this.models.status(kind)
+  }
+
+  async setPreferredModel(kind, requestedModel) {
+    await this.models.setPreferred(kind, requestedModel)
+    const [image, video] = await Promise.all([
+      this.getModelStatus('image'),
+      this.getModelStatus('video'),
+    ])
+    return {
+      image: image.model,
+      video: video.model,
+      imageModels: image.models,
+      videoModels: video.models,
+      imageSelection: image.selection,
+      videoSelection: video.selection,
+    }
+  }
+
   async generate(request, options = {}) {
     const kind = request.kind === 'video' ? 'video' : 'image'
     if (kind === 'video' && (request.sourceImages?.length || request.maskPath))
@@ -65,7 +86,7 @@ export class VisualGenerationService {
     const requestedModel = String(request.model || '').trim()
     const models = requestedModel
       ? [await this.models.select(kind, requestedModel)]
-      : await this.models.list(kind)
+      : await this.models.all(kind)
     if (!models.length) throw noModelsError(kind)
     const sourceImages =
       kind === 'image' ? await loadSourceImages(request.sourceImages, request.cwd) : []
