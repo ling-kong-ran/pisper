@@ -48,8 +48,11 @@ export function ModelsSettings({
 }: ModelsSettingsProps) {
   const { t } = useI18n()
   const [wizard, setWizard] = useState<WizardTarget | null>(null)
-  // 高级「新建连接」弹窗：记录初始用途（从视觉专区打开时预选 visual）。
-  const [providerModal, setProviderModal] = useState<ProviderType | ''>('')
+  // 连接弹窗按需新建或编辑；视觉连接也必须能修改 Key、URL 和模型定义。
+  const [providerModal, setProviderModal] = useState<{
+    providerType: ProviderType
+    provider?: ProviderConfig
+  } | null>(null)
   const [manageOpen, setManageOpen] = useState<boolean | null>(storedManageOpen)
   const settings = useProvidersConfig({ notify, requestConfirm, t })
   const { config } = settings
@@ -137,10 +140,14 @@ export function ModelsSettings({
             providers={config.providers}
             defaultProviderId={defaultProviderId}
             toggling={settings.toggling}
-            onConfigure={openWizardFor}
+            onConfigure={(provider) =>
+              provider.type === 'visual'
+                ? setProviderModal({ providerType: 'visual', provider })
+                : openWizardFor(provider)
+            }
             onToggle={settings.toggleProvider}
             onDelete={settings.deleteProvider}
-            onAddCustom={() => setProviderModal('chat')}
+            onAddCustom={() => setProviderModal({ providerType: 'chat' })}
           />
           {settings.error && <AppError>{settings.error}</AppError>}
           <div className="[margin-top:12px]">
@@ -156,7 +163,11 @@ export function ModelsSettings({
         config={config}
         notify={notify}
         onConfigChanged={settings.applyConfig}
-        onAddVisualProvider={() => setProviderModal('visual')}
+        onAddVisualProvider={() => setProviderModal({ providerType: 'visual' })}
+        onEditVisualProvider={(providerId) => {
+          const provider = config.providers.find((item) => item.id === providerId)
+          if (provider) setProviderModal({ providerType: 'visual', provider })
+        }}
       />
       {wizard && (
         <QuickSetupWizard
@@ -171,21 +182,25 @@ export function ModelsSettings({
           }}
           onCustomProvider={() => {
             setWizard(null)
-            setProviderModal('chat')
+            setProviderModal({ providerType: 'chat' })
           }}
         />
       )}
       {providerModal && (
         <ProviderConfigModal
-          initialProviderType={providerModal}
-          onClose={() => setProviderModal('')}
+          initialProviderType={providerModal.providerType}
+          initialProvider={providerModal.provider}
+          onClose={() => setProviderModal(null)}
           onCreated={(data) => {
             settings.applyConfig(data)
-            notify(t('config:configPage.providerConnectionCreated'))
-            setProviderModal('')
-            // 自定义连接创建后直接进入向导补全模型（已有 Key 时会跳过填写）。
-            if (data.createdProviderId) {
-              setWizard({ providerId: data.createdProviderId, startAtModels: false })
+            if (providerModal.provider) notify(t('config:configPage.providerConnectionUpdated'))
+            else notify(t('config:configPage.providerConnectionCreated'))
+            const createdProviderId = data.createdProviderId
+            const providerType = providerModal.providerType
+            setProviderModal(null)
+            // 仅聊天连接创建后进入向导；视觉连接已在当前弹窗完成模型配置。
+            if (createdProviderId && providerType === 'chat') {
+              setWizard({ providerId: createdProviderId, startAtModels: false })
             }
           }}
         />

@@ -8,7 +8,7 @@ import { apiJson } from '@/lib/api'
 import { PROVIDER_APIS } from './provider-constants'
 import { SettingsSwitch } from './settings-primitives'
 import type { FormEvent } from 'react'
-import type { ConfigData, ProviderType } from './config-types'
+import type { ConfigData, ProviderConfig, ProviderType } from './config-types'
 
 import { Button } from '@/components/ui/button'
 
@@ -21,26 +21,35 @@ type ProviderConfigModalProps = {
   onCreated: (data: ConfigData) => void
   // 初始用途：从「新建视觉连接」等入口打开时预选 visual，减少手动切换。
   initialProviderType?: ProviderType
+  // 传入已有连接时进入编辑模式，允许更新 Key、URL 和模型定义。
+  initialProvider?: ProviderConfig
+}
+
+function editableModel(provider?: ProviderConfig) {
+  return provider?.models.find((model) => model.kind !== 'chat') || provider?.models[0]
 }
 
 export function ProviderConfigModal({
   onClose,
   onCreated,
   initialProviderType = 'chat',
+  initialProvider,
 }: ProviderConfigModalProps) {
   const { t } = useI18n()
+  const existingModel = editableModel(initialProvider)
+  const editing = Boolean(initialProvider)
   const [draft, setDraft] = useState({
-    name: '',
-    id: '',
-    providerType: initialProviderType,
-    api: 'openai-responses',
-    baseUrl: '',
+    name: initialProvider?.name || '',
+    id: initialProvider?.id || '',
+    providerType: initialProvider?.type || initialProviderType,
+    api: initialProvider?.api || 'openai-responses',
+    baseUrl: initialProvider?.baseUrl || '',
     apiKey: '',
-    model: '',
-    modelName: '',
-    modelKind: initialProviderType === 'visual' ? 'image' : 'chat',
-    reasoning: true,
-    enabled: true,
+    model: existingModel?.id || '',
+    modelName: existingModel?.name || '',
+    modelKind: existingModel?.kind || (initialProviderType === 'visual' ? 'image' : 'chat'),
+    reasoning: existingModel?.reasoning !== false,
+    enabled: initialProvider?.enabled ?? true,
   })
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
@@ -68,18 +77,27 @@ export function ProviderConfigModal({
             ? current.modelKind
             : 'chat',
     }))
-  // 提交新增 Provider：POST 到运行时并回调创建结果；失败展示错误。
+  // 新建使用专用接口，编辑复用统一配置保存接口以原子更新连接和模型定义。
   const submit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
     setSaving(true)
     setError('')
     try {
-      onCreated(
-        await apiJson<ConfigData>('/api/providers', {
-          method: 'POST',
-          body: JSON.stringify(draft),
-        }),
-      )
+      const data = editing
+        ? await apiJson<ConfigData>('/api/config', {
+            method: 'PUT',
+            body: JSON.stringify({
+              ...draft,
+              provider: draft.id,
+              providerName: draft.name,
+              setAsDefault: false,
+            }),
+          })
+        : await apiJson<ConfigData>('/api/providers', {
+            method: 'POST',
+            body: JSON.stringify(draft),
+          })
+      onCreated(data)
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : String(caught))
     } finally {
@@ -97,11 +115,17 @@ export function ProviderConfigModal({
       >
         <AppCardHeader>
           <div>
-            <h2>{t('config:configPage.addProviderConnection')}</h2>
+            <h2>
+              {editing
+                ? t('config:configPage.editProviderConnection')
+                : t('config:configPage.addProviderConnection')}
+            </h2>
             <p>
-              {t(
-                'config:configPage.youCanCreateMultipleConnectionsUsingTheSameProtocolEachWithItsOwnKeyAndBaseURL',
-              )}
+              {editing
+                ? t('config:configPage.updateProviderKeyURLAndModelSettings')
+                : t(
+                    'config:configPage.youCanCreateMultipleConnectionsUsingTheSameProtocolEachWithItsOwnKeyAndBaseURL',
+                  )}
             </p>
           </div>
           <Button
@@ -127,6 +151,7 @@ export function ProviderConfigModal({
             Provider ID
             <input
               value={draft.id}
+              disabled={editing}
               onChange={(event) => setDraft({ ...draft, id: event.target.value })}
               placeholder="openai-official"
             />
@@ -176,7 +201,11 @@ export function ProviderConfigModal({
             type="password"
             value={draft.apiKey}
             onChange={(event) => setDraft({ ...draft, apiKey: event.target.value })}
-            placeholder={t('config:configPage.enterTheAPIKeyForThisConnection')}
+            placeholder={
+              editing
+                ? t('config:configPage.keepExistingKeyBlank')
+                : t('config:configPage.enterTheAPIKeyForThisConnection')
+            }
           />
         </FieldLabel>
         <div className="form-grid grid gap-[9px]">
@@ -246,7 +275,11 @@ export function ProviderConfigModal({
           </Button>
           <Button size="lg" disabled={saving}>
             {saving ? <RefreshCw className="animate-spin" size={14} /> : <Plus size={14} />}
-            {saving ? t('config:configPage.creating') : t('config:configPage.createConnection')}
+            {saving
+              ? t('config:configPage.saving')
+              : editing
+                ? t('config:configPage.saveChanges')
+                : t('config:configPage.createConnection')}
           </Button>
         </div>
       </form>

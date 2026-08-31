@@ -1,9 +1,7 @@
-// 连接列表：所有 Provider 以卡片网格展示（图标/名称/认证状态/启停开关），
-// 点击卡片直接进入快速配置向导；自定义连接可删除，视觉 Provider 由
-// 下方「视觉生成」卡管理（卡片不可点击配置）。
+// 连接列表：只展示已添加或已配置的连接；点击卡片进入对应编辑入口。
+// 未使用的内置 Provider 仍可从快速配置向导按需添加，避免首屏堆满预设。
 import { Plus, Server, Trash2 } from 'lucide-react'
 import { useI18n } from '@/app/use-i18n'
-import { cn } from '@/lib/utils'
 import { PROVIDER_ICONS } from './provider-constants'
 import {
   SettingsBadge,
@@ -35,6 +33,9 @@ export function ConnectionList({
   onAddCustom,
 }: ConnectionListProps) {
   const { t } = useI18n()
+  const visibleProviders = providers.filter(
+    (provider) => provider.configured || provider.custom || provider.type === 'visual',
+  )
   return (
     <SettingsCard>
       <div className="flex items-center justify-between gap-[8px] [margin-bottom:8px]">
@@ -50,7 +51,7 @@ export function ConnectionList({
         </Button>
       </div>
       <div className="grid [grid-template-columns:repeat(auto-fill,minmax(230px,1fr))] gap-[8px]">
-        {providers.map((provider) => {
+        {visibleProviders.map((provider) => {
           const Icon = PROVIDER_ICONS[provider.id] || Server
           const visual = provider.type === 'visual'
           const isDefault = provider.id === defaultProviderId
@@ -64,19 +65,13 @@ export function ConnectionList({
           return (
             <div
               key={provider.id}
-              role={visual ? undefined : 'button'}
-              tabIndex={visual ? undefined : 0}
-              title={visual ? undefined : t('config:configPage.configure')}
-              className={cn(
-                'flex flex-col gap-[8px] [border:1px_solid_var(--stroke-soft)] rounded-[var(--r-sm)] bg-[var(--surface-subtle)] p-[10px_11px]',
-                !visual &&
-                  'cursor-pointer hover:border-[var(--accent-border)] hover:bg-[var(--accent-soft)] focus-visible:outline-2 focus-visible:outline-[var(--focus)]',
-              )}
-              onClick={() => {
-                if (!visual) onConfigure(provider)
-              }}
+              role="button"
+              tabIndex={0}
+              title={t('config:configPage.configure')}
+              className="flex cursor-pointer flex-col gap-[8px] [border:1px_solid_var(--stroke-soft)] rounded-[var(--r-sm)] bg-[var(--surface-subtle)] p-[10px_11px] hover:border-[var(--accent-border)] hover:bg-[var(--accent-soft)] focus-visible:outline-2 focus-visible:outline-[var(--focus)]"
+              onClick={() => onConfigure(provider)}
               onKeyDown={(event) => {
-                if (!visual && (event.key === 'Enter' || event.key === ' ')) {
+                if (event.key === 'Enter' || event.key === ' ') {
                   event.preventDefault()
                   onConfigure(provider)
                 }

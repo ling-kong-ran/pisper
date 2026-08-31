@@ -29,3 +29,18 @@ test('Provider API key saving reads the live password input instead of relying o
   assert.match(wizardSource, /autoComplete="new-password"/)
   assert.match(wizardSource, /onInput=\{\(event\) =>/)
 })
+
+test('visual Provider settings expose a direct connection editor and hide unused presets', async () => {
+  const [dialogSource, modelsSource, connectionSource] = await Promise.all([
+    readFile('src/features/config/ProviderDialogs.tsx', 'utf8'),
+    readFile('src/features/config/ModelsSettings.tsx', 'utf8'),
+    readFile('src/features/config/ConnectionList.tsx', 'utf8'),
+  ])
+  assert.match(dialogSource, /initialProvider\?: ProviderConfig/)
+  assert.match(dialogSource, /apiJson<ConfigData>\('\/api\/config'/)
+  assert.match(modelsSource, /onEditVisualProvider=/)
+  assert.match(
+    connectionSource,
+    /provider\.configured \|\| provider\.custom \|\| provider\.type === 'visual'/,
+  )
+})

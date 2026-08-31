@@ -337,25 +337,32 @@ test('visual-only providers save connection settings without replacing the defau
     modelKind: 'image',
   })
   const nextKey = ['next', 'visual', 'credential'].join('-')
+  const nextBaseUrl = 'https://visual-updated.example.test/v2'
   const saved = await runtime.saveConfig({
     provider: 'visual-relay',
-    model: '',
+    providerName: 'Updated Visual Relay',
+    model: 'gpt-image-1',
+    modelKind: 'image',
     apiKey: nextKey,
-    baseUrl: 'https://visual.example.test/v1',
+    baseUrl: nextBaseUrl,
     thinkingLevel: 'medium',
     toolMode: 'workspace',
   })
   assert.equal(saved.apiKeyUpdated, true)
   const credentials = JSON.parse(await readFile(join(directory, 'auth.json'), 'utf8'))
   assert.equal(credentials['visual-relay'].key, nextKey)
-  assert.equal(
-    (await runtime.visualGeneration.models.select('image', 'visual-relay/gpt-image-1')).apiKey,
-    nextKey,
+  assert.equal(saved.providers.find((provider) => provider.id === 'visual-relay').baseUrl, nextBaseUrl)
+  assert.equal(saved.providers.find((provider) => provider.id === 'visual-relay').name, 'Updated Visual Relay')
+  const updatedVisualModel = await runtime.visualGeneration.models.select(
+    'image',
+    'visual-relay/gpt-image-1',
   )
+  assert.equal(updatedVisualModel.apiKey, nextKey)
+  assert.equal(updatedVisualModel.baseUrl, nextBaseUrl)
   const retained = await runtime.saveConfig({
     provider: 'visual-relay',
     model: '',
-    baseUrl: 'https://visual.example.test/v1',
+    baseUrl: nextBaseUrl,
     thinkingLevel: 'medium',
     toolMode: 'workspace',
   })

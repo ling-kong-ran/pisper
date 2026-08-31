@@ -7,6 +7,7 @@ import {
   AlertTriangle,
   Check,
   Image as ImageIcon,
+  PencilLine,
   Play,
   Plus,
   RefreshCw,
@@ -109,6 +110,7 @@ type VisualGenerationSettingsProps = {
   notify: Notify
   onConfigChanged: (data: ConfigData) => void
   onAddVisualProvider: () => void
+  onEditVisualProvider: (providerId: string) => void
 }
 
 export function VisualGenerationSettings({
@@ -116,6 +118,7 @@ export function VisualGenerationSettings({
   notify,
   onConfigChanged,
   onAddVisualProvider,
+  onEditVisualProvider,
 }: VisualGenerationSettingsProps) {
   const { t } = useI18n()
   const [status, setStatus] = useState<VisualModelStatus | null>(null)
@@ -225,6 +228,11 @@ export function VisualGenerationSettings({
   }
 
   const configured = Boolean(status?.image || status?.video)
+  const editableProviderId =
+    status?.image?.providerId ||
+    status?.video?.providerId ||
+    config.providers.find((provider) => provider.type === 'visual')?.id ||
+    ''
   const examplePrompt = t('config:configPage.visualExamplePrompt')
   // 只推荐「已配置且还没覆盖该类型」的连接，避免重复添加。
   const suggestions = config.providers
@@ -275,20 +283,33 @@ export function VisualGenerationSettings({
             </span>
           </div>
         </div>
-        {status?.image && (
-          <Button
-            variant="outline"
-            size="sm"
-            className="flex-none bg-surface-subtle"
-            disabled={testing}
-            onClick={() => void runTest()}
-          >
-            {testing ? <RefreshCw className="animate-spin" size={13} /> : <Wand2 size={13} />}
-            {testing
-              ? t('config:configPage.testingGeneration')
-              : t('config:configPage.testGeneration')}
-          </Button>
-        )}
+        <div className="flex flex-none items-center gap-[6px]">
+          {editableProviderId && (
+            <Button
+              variant="outline"
+              size="sm"
+              className="bg-surface-subtle"
+              onClick={() => onEditVisualProvider(editableProviderId)}
+            >
+              <PencilLine size={13} />
+              {t('config:configPage.editVisualConnection')}
+            </Button>
+          )}
+          {status?.image && (
+            <Button
+              variant="outline"
+              size="sm"
+              className="bg-surface-subtle"
+              disabled={testing}
+              onClick={() => void runTest()}
+            >
+              {testing ? <RefreshCw className="animate-spin" size={13} /> : <Wand2 size={13} />}
+              {testing
+                ? t('config:configPage.testingGeneration')
+                : t('config:configPage.testGeneration')}
+            </Button>
+          )}
+        </div>
       </div>
 
       {loading ? (
