@@ -722,7 +722,6 @@ function App() {
             navigate={navigate}
             navigateSettings={navigateSettings}
             onExitSettings={exitSettings}
-            onNewChat={handlePrimary}
             collapsed={sidebarCollapsed}
             onToggleCollapse={toggleSidebarCollapsed}
             update={appUpdate}

@@ -65,7 +65,6 @@ type AppSidebarProps = {
   navigate: (page: string) => void
   navigateSettings: (destination: SettingsDestination) => void
   onExitSettings: () => void
-  onNewChat: () => void
   collapsed: boolean
   onToggleCollapse: () => void
   update: SidebarUpdate
@@ -86,7 +85,6 @@ export function AppSidebar({
   navigate,
   navigateSettings,
   onExitSettings,
-  onNewChat,
   collapsed,
   onToggleCollapse,
   update,
@@ -172,11 +170,6 @@ export function AppSidebar({
     if (isMobile) setOpenMobile(false)
   }
 
-  const createNewChat = () => {
-    onNewChat()
-    if (isMobile) setOpenMobile(false)
-  }
-
   const createSessionInWorkspace = (cwd: string) => {
     if (!requestSessionCreation(cwd)) return
     navigate('chat')
@@ -222,18 +215,6 @@ export function AppSidebar({
         <div
           className={`nav-list [&_button]:relative [&_button]:flex [&_button]:w-full [&_button]:h-[34px] [&_button]:items-center [&_button]:gap-[10px] [&_button]:border-0 [&_button]:rounded-[var(--r-sm)] [&_button]:bg-transparent [&_button]:p-[0_10px] [&_button]:text-[var(--text-secondary)] [&_button]:text-left [&_button]:text-[12px] [&_button]:font-[500] [&_button]:[transition:var(--d1)_var(--ease-out)] [&_button:hover]:bg-[var(--surface-hover)] [&_button:hover]:text-[var(--text)] [&_button.active]:bg-[var(--star-soft)] [&_button.active]:text-[var(--text)] [&_button.active]:font-[600] [&_button.active::before]:[content:''] [&_button.active::before]:absolute [&_button.active::before]:left-[2px] [&_button.active::before]:top-[8px] [&_button.active::before]:bottom-[8px] [&_button.active::before]:w-[3px] [&_button.active::before]:rounded-[var(--r-pill)] [&_button.active::before]:bg-[var(--brand-blue)] min-[901px]:[.sidebar.collapsed_&_button]:justify-center min-[901px]:[.sidebar.collapsed_&_button]:gap-[0] min-[901px]:[.sidebar.collapsed_&_button]:p-0 min-[901px]:[.sidebar.collapsed_&_button_span]:hidden min-[901px]:[.sidebar.collapsed_&_button.active::before]:left-0 dark:[&_button.active]:bg-[var(--surface-hover)] min-[901px]:[[data-density='compact']_&_button]:h-[30px] flex min-h-0 flex-col gap-[3px] overflow-y-auto ${settingsActive ? 'nav-settings-mode gap-[10px]' : ''}`}
         >
-          {!settingsActive && (
-            <button
-              type="button"
-              className="nav-new-chat [.nav-list_&]:h-10 [.nav-list_&]:flex-none [.nav-list_&]:gap-2 [.nav-list_&]:rounded-[var(--r-sm)] [.nav-list_&]:border [.nav-list_&]:border-[var(--star)] [.nav-list_&]:bg-[var(--star)] [.nav-list_&]:px-3 [.nav-list_&]:font-[650] [.nav-list_&]:text-[var(--on-accent)] [.nav-list_&]:shadow-[var(--sh-star)] [.nav-list_&:hover]:bg-[var(--star-hover)] min-[901px]:[.sidebar.collapsed_&]:justify-center min-[901px]:[.sidebar.collapsed_&]:gap-0 min-[901px]:[.sidebar.collapsed_&]:p-0"
-              title={t('navigation:appSidebar.newChat')}
-              aria-label={t('navigation:appSidebar.newChat')}
-              onClick={createNewChat}
-            >
-              <Plus size={16} />
-              <span>{t('navigation:appSidebar.newChat')}</span>
-            </button>
-          )}
           {settingsActive ? (
             <nav
               className="nav-primary [.nav-settings-mode_&]:gap-[0] flex flex-col gap-[3px]"
