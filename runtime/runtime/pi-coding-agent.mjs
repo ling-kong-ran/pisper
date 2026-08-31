@@ -75,6 +75,11 @@ export async function createBashTool(cwd, options) {
   return runtime.createBashTool(cwd, options)
 }
 
+export async function getShellConfig(customShellPath) {
+  const runtime = await packageModule('./utils/shell.js')
+  return runtime.getShellConfig(customShellPath)
+}
+
 export async function createReadTool(cwd, options) {
   const runtime = await packageModule('./core/tools/read.js')
   return runtime.createReadTool(cwd, options)
