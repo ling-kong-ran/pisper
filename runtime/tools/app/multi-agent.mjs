@@ -2,11 +2,6 @@
 // 是父会话调度子 Agent 的接口（内部运行时工具，不进插件目录）。
 import { DEFAULT_MAX_BYTES, defineTool } from '../../runtime/pi-coding-agent.mjs'
 import { Type } from 'typebox'
-import {
-  DEFAULT_AGENT_MAX_TURNS,
-  MAX_AGENT_MAX_TURNS,
-} from '../../services/multi-agent-service.mjs'
-
 const category = 'collaboration'
 const source = 'app'
 
@@ -148,13 +143,6 @@ function createSpawnAgentTool({ multiAgentRuntime }) {
         description:
           'Concrete, self-contained delegated task including all required context and constraints.',
       }),
-      maxTurns: Type.Optional(
-        Type.Integer({
-          minimum: 1,
-          maximum: MAX_AGENT_MAX_TURNS,
-          description: `Maximum Agent Loop turns. Defaults to ${DEFAULT_AGENT_MAX_TURNS}.`,
-        }),
-      ),
     }),
     async execute(_toolCallId, params) {
       const agent = await requireRuntime(multiAgentRuntime, 'spawn')(params)

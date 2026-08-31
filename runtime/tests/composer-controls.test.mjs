@@ -28,6 +28,8 @@ test('composer expands low-frequency controls vertically with React Bits Animate
   assert.match(session, /className={`composer-tools-trigger/)
   assert.match(session, /<ComposerToolTray[\s\S]*open={toolsOpen}/)
   assert.match(session, /aria-expanded={toolsOpen}/)
+  assert.match(session, /document\.addEventListener\('pointerdown', closeOnPointerDown\)/)
+  assert.match(session, /target\.closest\('\.composer-tools-trigger, \.composer-tool-tray-shell'\)/)
   assert.match(tray, /import\('@\/components\/react-bits\/AnimatedContent'\)/)
   assert.match(tray, /<Suspense fallback={null}>/)
   assert.match(tray, /direction="vertical"/)

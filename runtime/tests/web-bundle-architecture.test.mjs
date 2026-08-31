@@ -353,6 +353,9 @@ test('session labels are searchable from Ctrl K and resolve through virtualized 
   assert.match(treeDialog, /session-tree-children/)
   assert.match(treeDialog, /sessionTree\.searchPlaceholder/)
   assert.match(treeDialog, /chat-resource-search[^"\n]*\[&_input\]:\[outline:0\]!/)
+  assert.match(treeDialog, /showCloseButton=\{false\}/)
+  assert.match(treeDialog, /aria-label=\{t\('common:ui\.closeDialog'\)\}/)
+  assert.match(treeDialog, /onClick=\{onClose\}/)
   assert.match(treeDialog, /buildDisplayTree\(data\?\.nodes \|\| \[\]\)/)
   assert.doesNotMatch(
     treeDialog.match(/const conversationKinds = new Set\(\[[^\]]+\]\)/)?.[0] || '',

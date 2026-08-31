@@ -1,28 +1,14 @@
-fn package_version(path: &str, marker: &str) -> String {
-    let source = std::fs::read_to_string(path).unwrap_or_default();
-    if marker == "json" {
-        return serde_json::from_str::<serde_json::Value>(&source)
-            .ok()
-            .and_then(|value| value.get("version")?.as_str().map(str::to_owned))
-            .unwrap_or_else(|| "0.0.0".to_string());
-    }
-    source
-        .split("[package]")
-        .nth(1)
-        .and_then(|section| {
-            section.lines().find_map(|line| {
-                line.trim()
-                    .strip_prefix("version")?
-                    .trim_start()
-                    .strip_prefix('=')?
-                    .trim()
-                    .trim_matches('"')
-                    .split_whitespace()
-                    .next()
-                    .map(str::to_owned)
-            })
-        })
-        .unwrap_or_else(|| "0.0.0".to_string())
+fn desktop_package() -> serde_json::Value {
+    let source = std::fs::read_to_string("desktop-package.json").unwrap_or_default();
+    serde_json::from_str(&source).unwrap_or_default()
+}
+
+fn manifest_version(manifest: &serde_json::Value, path: &[&str]) -> String {
+    path.iter()
+        .try_fold(manifest, |value, key| value.get(key))
+        .and_then(serde_json::Value::as_str)
+        .unwrap_or("0.0.0")
+        .to_owned()
 }
 
 fn stage_windows_test_resource() {
@@ -54,8 +40,6 @@ fn main() {
     // 移动命令权限变更必须重建 release ACL，避免 Cargo 复用旧 manifest。
     println!("cargo:rerun-if-changed=permissions/mobile.toml");
     println!("cargo:rerun-if-changed=capabilities/mobile-bridge.json");
-    println!("cargo:rerun-if-changed=../package.json");
-    println!("cargo:rerun-if-changed=../src-tui/Cargo.toml");
     println!("cargo:rerun-if-env-changed=PISPER_TAURI_UPDATER_PUBLIC_KEY");
     let updater_public_key = std::env::var("PISPER_TAURI_UPDATER_PUBLIC_KEY")
         .unwrap_or_else(|_| include_str!("updater.pubkey").trim().to_string());
@@ -63,17 +47,18 @@ fn main() {
         "cargo:rustc-env=PISPER_TAURI_UPDATER_PUBLIC_KEY={}",
         updater_public_key.trim()
     );
+    let desktop_package = desktop_package();
     println!(
         "cargo:rustc-env=PISPER_BUNDLED_DESKTOP_VERSION={}",
-        package_version("desktop-package.json", "json")
+        manifest_version(&desktop_package, &["version"])
     );
     println!(
         "cargo:rustc-env=PISPER_BUNDLED_RUNTIME_VERSION={}",
-        package_version("../package.json", "json")
+        manifest_version(&desktop_package, &["bundled", "runtime"])
     );
     println!(
         "cargo:rustc-env=PISPER_BUNDLED_TUI_VERSION={}",
-        package_version("../src-tui/Cargo.toml", "toml")
+        manifest_version(&desktop_package, &["bundled", "tui"])
     );
     tauri_build::build();
 

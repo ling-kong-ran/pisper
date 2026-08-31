@@ -17,12 +17,9 @@ export function useAutoScroll(
     setScrollElement(node)
   }, [])
   const frameRef = useRef(0)
-  // Marks a window during which scroll events come from our own scrollToBottom,
-  // not the user. scrollTo fires asynchronously and may emit several scroll
-  // events; the flag is cleared on the next frame so all of them are ignored.
-  // Without this, a programmatic scroll whose scrollHeight was stale (content
-  // kept growing right after) would measure a large gap and wrongly flip
-  // pinnedToBottom to false, permanently disabling auto-scroll.
+  // 标记由 scrollToBottom 触发的滚动窗口，而不是用户操作；scrollTo 是异步的，可能连续触发多个事件，
+  // 因此要延迟到后续帧再清除标记。否则内容继续增长时，过期的 scrollHeight 会被误判为用户上翻，
+  // 进而永久关闭自动贴底。
   const programmaticScrollRef = useRef(false)
   const programmaticFrameRef = useRef(0)
   const pinnedToBottomRef = useRef(true)
@@ -38,9 +35,8 @@ export function useAutoScroll(
     pinnedToBottomRef.current = true
     setPinnedToBottom(true)
     setHasUnread(false)
-    // Virtualized rows can settle one frame after ResizeObserver fires. Keep the
-    // programmatic marker through that measurement frame so it cannot look like
-    // an upward user scroll.
+    // 虚拟化行可能在 ResizeObserver 回调后一帧才稳定，因此让程序化滚动标记覆盖测量帧，
+    // 避免这段布局调整被误判为用户向上滚动。
     programmaticFrameRef.current = requestAnimationFrame(() => {
       programmaticFrameRef.current = requestAnimationFrame(() => {
         programmaticScrollRef.current = false
@@ -78,16 +74,19 @@ export function useAutoScroll(
       setHasUnread(true)
       return undefined
     }
-    // Coalesce scroll jumps to one per animation frame to reduce remote-desktop flicker.
+    // 将滚动跳转合并到每帧一次，减少远程桌面等环境中的闪烁。
     scheduleScrollToBottom()
     return () => cancelAnimationFrame(frameRef.current)
   }, [contentVersion, pinnedToBottom, scheduleScrollToBottom])
 
   const maintainBottom = useCallback(() => {
-    if (pinnedToBottomRef.current) scheduleScrollToBottom()
+    if (!pinnedToBottomRef.current) return
+    // 内容尺寸变化时先屏蔽同一帧的布局滚动事件，避免流式行变高被误判为用户上翻。
+    programmaticScrollRef.current = true
+    scheduleScrollToBottom()
   }, [scheduleScrollToBottom])
 
-  // Clean up any pending programmatic-scroll marker reset on unmount.
+  // 卸载时清理尚未执行的程序化滚动标记复位。
   useEffect(() => () => cancelAnimationFrame(programmaticFrameRef.current), [])
 
   return {

@@ -356,7 +356,7 @@ export function FocusTranscript({
       <p>{t('chat:focusSession.readyToWorkWithTheCurrentDirectoryAndHelpCompleteTheTask')}</p>
       <button
         type="button"
-        className="welcome-workspace [&_>_svg]:flex-none [&_>_span]:flex-none [&_>_strong]:min-w-0 [&_>_strong]:overflow-hidden [&_>_strong]:text-[var(--text-soft)] [&_>_strong]:text-[12.5px] [&_>_strong]:text-ellipsis [&_>_small]:flex-none [&_>_small]:ml-[3px] [&_>_small]:text-[var(--accent-strong)] [&_>_small]:text-[12px] [&_>_small]:font-[700] hover:border-[var(--stroke-hover)] hover:bg-[var(--surface-hover)] hover:text-[var(--text)] [&:hover_>_strong]:text-[var(--text)] focus-visible:[outline:2px_solid_var(--brand-blue)] focus-visible:[outline-offset:1px] disabled:[cursor:wait] disabled:opacity-[.62] @max-[470px]:max-w-[100%] @max-[470px]:[&_>_span]:hidden flex max-w-[min(460px,100%)] min-h-[36px] items-center gap-[7px] overflow-hidden [margin-top:18px] border border-[var(--stroke)] rounded-[var(--r-pill)] bg-[var(--solid)] [padding:6px_14px] text-[var(--text-muted)] text-[12.5px] whitespace-nowrap shadow-[var(--sh-1)] [transition:background_var(--d1)_var(--ease-out),_color_var(--d1)_var(--ease-out),_border-color_var(--d1)_var(--ease-out)] [animation:transcript-stage-enter_.55s_var(--ease-out)_both] [animation-delay:240ms]"
+        className="welcome-workspace [&_>_svg]:flex-none [&_>_span]:flex-none [&_>_strong]:min-w-0 [&_>_strong]:overflow-hidden [&_>_strong]:text-[var(--text-soft)] [&_>_strong]:text-[12.5px] [&_>_strong]:text-ellipsis [&_>_small]:flex-none [&_>_small]:ml-[3px] [&_>_small]:text-[var(--accent-strong)] [&_>_small]:text-[12px] [&_>_small]:font-[700] hover:border-[var(--stroke-hover)] hover:bg-[var(--surface-hover)] hover:text-[var(--text)] [&:hover_>_strong]:text-[var(--text)] focus-visible:[outline:2px_solid_var(--brand-blue)] focus-visible:[outline-offset:1px] disabled:[cursor:wait] disabled:opacity-[.62] @max-[470px]:max-w-[100%] @max-[470px]:[&_>_span]:hidden flex max-w-[min(460px,100%)] min-h-[36px] items-center gap-[7px] overflow-hidden [margin-top:18px] border border-[var(--stroke)] rounded-[var(--r-pill)] bg-[var(--solid)] [padding:6px_14px] text-[var(--text-muted)] text-[12.5px] whitespace-nowrap shadow-[var(--sh-1)] [transition:background_var(--d1)_var(--ease-out),_color_var(--d1)_var(--ease-out),_border-color_var(--d1)_var(--ease-out)]"
         data-target-cursor
         title={cwd}
         aria-label={t('chat:focusSession.changeWorkingDirectoryWorkspace', {
@@ -371,14 +371,13 @@ export function FocusTranscript({
         <small>{t('chat:focusSession.changeDirectory')}</small>
       </button>
       <div className="welcome-chips flex max-w-[560px] flex-wrap justify-center gap-[9px] [margin-top:24px]">
-        {welcomeChips(t, plansAvailable).map((chip, index) => (
+        {welcomeChips(t, plansAvailable).map((chip) => (
           <button
             type="button"
             key={chip.label}
             data-target-cursor
             onClick={() => onPromptSelect(chip.prompt)}
-            className="group inline-flex min-h-[38px] items-center gap-[7px] rounded-[var(--r-pill)] border border-[var(--stroke)] bg-[var(--solid)] px-[16px] text-[13px] font-[620] text-[var(--text-soft)] shadow-[var(--sh-1)] [transition:all_var(--d1)_var(--ease-out)] hover:-translate-y-[1px] hover:border-[color-mix(in_srgb,#A855F7_45%,var(--stroke))] hover:text-[var(--text)] hover:shadow-[0_10px_24px_-16px_rgba(168,85,247,.5)] [animation:transcript-stage-enter_.55s_var(--ease-out)_both]"
-            style={{ animationDelay: `${300 + index * 45}ms` }}
+            className="group inline-flex min-h-[38px] items-center gap-[7px] rounded-[var(--r-pill)] border border-[var(--stroke)] bg-[var(--solid)] px-[16px] text-[13px] font-[620] text-[var(--text-soft)] shadow-[var(--sh-1)] [transition:all_var(--d1)_var(--ease-out)] hover:-translate-y-[1px] hover:border-[color-mix(in_srgb,#A855F7_45%,var(--stroke))] hover:text-[var(--text)] hover:shadow-[0_10px_24px_-16px_rgba(168,85,247,.5)]"
           >
             <chip.icon
               size={14}
@@ -392,9 +391,9 @@ export function FocusTranscript({
   )
 
   return (
-    <>
+    <div className="relative min-h-0 flex-1">
       <div
-        className="transcript [.focus-session.has-conversation_&]:p-[30px_max(24px,calc((100%_-_900px)/2))] [.focus-session.has-conversation_&]:[scroll-padding-bottom:32px] @max-[700px]:p-[20px_14px] @max-[700px]:[.focus-session.has-conversation_&]:p-[24px_16px] @max-[470px]:[padding-inline:10px] max-[650px]:p-[20px_14px] min-h-0 flex-1 overflow-auto overscroll-contain m-0 border-0 [padding:26px_max(24px,calc((100%_-_960px)/2))] [scroll-padding-bottom:28px]"
+        className="transcript [.focus-session.has-conversation_&]:p-[30px_max(24px,calc((100%_-_900px)/2))] [.focus-session.has-conversation_&]:[scroll-padding-bottom:32px] @max-[700px]:p-[20px_14px] @max-[700px]:[.focus-session.has-conversation_&]:p-[24px_16px] @max-[470px]:[padding-inline:10px] max-[650px]:p-[20px_14px] min-h-0 h-full flex-1 overflow-auto overscroll-contain m-0 border-0 [padding:26px_max(24px,calc((100%_-_960px)/2))] [padding-bottom:70px] [scroll-padding-bottom:70px]"
         data-pisper-transcript-state={transcriptLoadState}
         aria-busy={transcriptLoadState === 'loading'}
         ref={setTranscriptRef}
@@ -457,7 +456,7 @@ export function FocusTranscript({
           <TranscriptLoading label={t('chat:focusSession.loadingConversationHistory')} />
         )}
         {transcriptLoadState === 'ready' && !messages.length && (
-          <div className="agent-welcome [&_h2]:mt-[18px] [&_h2]:text-[clamp(28px,_3vw,_38px)] [&_h2]:font-[800] [&_h2]:leading-[1.2] [&_h2]:tracking-[-.02em] [&_p]:max-w-[600px] [&_p]:mt-[14px] [&_p]:text-[15px] [&_p]:leading-[1.75] relative grid min-h-[100%] place-content-center justify-items-center overflow-hidden text-[var(--text-muted)] text-center">
+          <div className="agent-welcome [[data-mobile-keyboard='open']_&]:pointer-events-none [[data-mobile-keyboard-transition='opening']_&]:pointer-events-none [[data-mobile-keyboard-transition='closing']_&]:pointer-events-none [&_h2]:mt-[18px] [&_h2]:text-[clamp(28px,_3vw,_38px)] [&_h2]:font-[800] [&_h2]:leading-[1.2] [&_h2]:tracking-[-.02em] [&_p]:max-w-[600px] [&_p]:mt-[14px] [&_p]:text-[15px] [&_p]:leading-[1.75] relative grid min-h-[100%] place-content-center justify-items-center overflow-hidden text-[var(--text-muted)] text-center">
             <Suspense
               fallback={
                 <WelcomeFallback title={welcomeTitles[0]}>{welcomeContent}</WelcomeFallback>
@@ -496,17 +495,19 @@ export function FocusTranscript({
         )}
       </div>
       {hasUnread && (
-        <Button
-          type="button"
-          variant="outline"
-          size="lg"
-          className="bg-surface-subtle self-center flex-none min-h-[32px] [margin:-2px_auto_6px] [border-color:var(--accent-border)] text-[var(--star-strong)] shadow-[0_8px_18px_-14px_var(--shadow)]"
-          onClick={() => scrollToBottom('smooth')}
-        >
-          <ArrowDown size={14} />
-          {t('chat:focusSession.newContent')}
-        </Button>
+        <div className="pointer-events-none absolute inset-x-0 bottom-[6px] z-[5] flex justify-center">
+          <Button
+            type="button"
+            variant="outline"
+            size="lg"
+            className="pointer-events-auto bg-surface-subtle min-h-[32px] [border-color:var(--accent-border)] text-[var(--star-strong)] shadow-[0_8px_18px_-14px_var(--shadow)]"
+            onClick={() => scrollToBottom('smooth')}
+          >
+            <ArrowDown size={14} />
+            {t('chat:focusSession.newContent')}
+          </Button>
+        </div>
       )}
-    </>
+    </div>
   )
 }

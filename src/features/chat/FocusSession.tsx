@@ -252,12 +252,10 @@ export const FocusSession = memo(function FocusSession({
     setSessionTreeOpen(false)
     setToolsOpen(false)
   }, [session.id])
-
   useEffect(() => {
     if (!goalsAvailable) setGoalArmed(false)
     if (!workflowsAvailable && invocation?.kind === 'workflow') setInvocation(null)
   }, [goalsAvailable, invocation?.kind, workflowsAvailable])
-
   useEffect(() => {
     if (!pendingAsset) return
     addSelectedAttachments([pendingAsset])
@@ -268,10 +266,21 @@ export const FocusSession = memo(function FocusSession({
     const close = (event: KeyboardEvent) => {
       if (event.key === 'Escape') setToolsOpen(false)
     }
+    const closeOnPointerDown = (event: PointerEvent) => {
+      const target = event.target
+      if (
+        target instanceof Element &&
+        !target.closest('.composer-tools-trigger, .composer-tool-tray-shell')
+      )
+        setToolsOpen(false)
+    }
     document.addEventListener('keydown', close)
-    return () => document.removeEventListener('keydown', close)
+    document.addEventListener('pointerdown', closeOnPointerDown)
+    return () => {
+      document.removeEventListener('keydown', close)
+      document.removeEventListener('pointerdown', closeOnPointerDown)
+    }
   }, [toolsOpen])
-
   const applyWelcomeChip = (prompt: string) => {
     updateValue(prompt)
     requestAnimationFrame(() => {
@@ -282,7 +291,6 @@ export const FocusSession = memo(function FocusSession({
       element.style.height = `${Math.min(element.scrollHeight, 220)}px`
     })
   }
-
   const requestTranscriptBottom = () => {
     setScrollRequest((current) => current + 1)
   }

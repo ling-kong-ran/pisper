@@ -102,6 +102,18 @@ test('release quality stages both desktop sidecars before checking Rust', async 
   assert.doesNotMatch(qualityJob, /sandbox:stage|agent-sandboxd/)
 })
 
+test('desktop updater metadata reads bundled component versions from the desktop manifest', async () => {
+  const build = await readFile('src-tauri/build.rs', 'utf8')
+
+  assert.match(build, /fn desktop_package\(\) -> serde_json::Value/)
+  assert.match(build, /read_to_string\("desktop-package\.json"\)/)
+  assert.match(build, /manifest_version\(&desktop_package, &\["version"\]\)/)
+  assert.match(build, /manifest_version\(&desktop_package, &\["bundled", "runtime"\]\)/)
+  assert.match(build, /manifest_version\(&desktop_package, &\["bundled", "tui"\]\)/)
+  assert.doesNotMatch(build, /package_version\(/)
+  assert.doesNotMatch(build, /\.\.\/package\.json|\.\.\/src-tui\/Cargo\.toml/)
+})
+
 test('Windows test harnesses reuse the valid Tauri resource without replacing binary input', async () => {
   const [build, library, binary] = await Promise.all([
     readFile('src-tauri/build.rs', 'utf8'),

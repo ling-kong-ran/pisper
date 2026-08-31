@@ -224,35 +224,54 @@ test('Android WebView renderer 退出后重建宿主并恢复当前路由', asyn
 })
 
 test('Android 与 iOS 软键盘都使用可视视口保持会话输入框可见', async () => {
-  const [app, navigation, styles, html, setup, activity, iosPlugin] = await Promise.all([
-    readFile('src/App.tsx', 'utf8'),
-    readFile('src/components/layout/MobileNavigation.tsx', 'utf8'),
-    readFile('src/index.css', 'utf8'),
-    readFile('index.html', 'utf8'),
-    readFile('scripts/setup-mobile-android.mjs', 'utf8'),
-    readFile('src-tauri/mobile/android/MainActivity.kt', 'utf8'),
-    readFile('src-tauri/mobile-device-plugin/ios/Sources/MobileDevicePlugin.swift', 'utf8'),
-  ])
+  const [app, navigation, focus, stabilizer, styles, html, setup, activity, iosPlugin] =
+    await Promise.all([
+      readFile('src/App.tsx', 'utf8'),
+      readFile('src/components/layout/MobileNavigation.tsx', 'utf8'),
+      readFile('src/features/chat/FocusTranscript.tsx', 'utf8'),
+      readFile('src/components/layout/MobileViewportStabilizer.tsx', 'utf8'),
+      readFile('src/index.css', 'utf8'),
+      readFile('index.html', 'utf8'),
+      readFile('scripts/setup-mobile-android.mjs', 'utf8'),
+      readFile('src-tauri/mobile/android/MainActivity.kt', 'utf8'),
+      readFile('src-tauri/mobile-device-plugin/ios/Sources/MobileDevicePlugin.swift', 'utf8'),
+    ])
 
   assert.match(html, /interactive-widget=resizes-content/)
-  assert.match(app, /const viewport = window\.visualViewport/)
-  assert.match(app, /viewport\?\.height \?\? window\.innerHeight/)
-  assert.match(app, /viewport\?\.offsetTop \?\? 0/)
-  assert.match(app, /let viewportBaseline = Math\.max\(window\.innerHeight/)
-  assert.match(app, /viewportBaseline - height - offsetTop/)
-  assert.match(app, /window\.addEventListener\('orientationchange', resetAfterOrientationChange\)/)
-  assert.match(app, /viewport\?\.addEventListener\('resize', schedule\)/)
-  assert.match(app, /viewport\?\.addEventListener\('scroll', schedule\)/)
-  assert.match(app, /shell\.dataset\.mobileKeyboard = 'open'/)
-  assert.match(navigation, /\[\[data-mobile-keyboard='open'\]_&\]:hidden/)
-  assert.doesNotMatch(app, /isComposerFocusTarget|mobileComposerFocused|data-mobile-composer/)
-  assert.doesNotMatch(navigation, /composerFocused|hidden=\{composerFocused\}/)
-  assert.match(styles, /\[data-mobile-keyboard='open'\] \[data-mobile-navigation='primary'\]/)
+  assert.match(app, /MobileViewportStabilizer/)
+  assert.match(stabilizer, /const viewport = window\.visualViewport/)
+  assert.match(stabilizer, /viewport\?\.height \?\? window\.innerHeight/)
+  assert.match(stabilizer, /viewport\?\.offsetTop \?\? 0/)
+  assert.match(stabilizer, /let viewportBaseline = Math\.max\(window\.innerHeight/)
+  assert.doesNotMatch(stabilizer, /shell\.style\.(height|transform) =/)
+  assert.match(stabilizer, /viewportBaseline - height - offsetTop/)
+  assert.match(
+    stabilizer,
+    /window\.addEventListener\('orientationchange', resetAfterOrientationChange\)/,
+  )
+  assert.match(stabilizer, /viewport\?\.addEventListener\('resize', schedule\)/)
+  assert.match(stabilizer, /viewport\?\.addEventListener\('scroll', schedule\)/)
+  assert.match(stabilizer, /shell\.dataset\.mobileKeyboard = 'open'/)
+  assert.match(navigation, /\[\[data-mobile-keyboard='open'\]_&\]:pointer-events-none/)
+  assert.match(navigation, /transition-\[max-height,opacity,border-color,padding-bottom\]/)
+  assert.match(stabilizer, /document\.addEventListener\('touchstart', handleTouch, true\)/)
+  assert.match(stabilizer, /document\.addEventListener\('pointerdown', handleTouch, true\)/)
+  assert.match(stabilizer, /document\.addEventListener\('focusin', handleFocus, true\)/)
+  assert.match(stabilizer, /document\.addEventListener\('focusout', handleBlur, true\)/)
+  assert.match(stabilizer, /document\.addEventListener\('click', handleWelcomeClick, true\)/)
+  assert.match(stabilizer, /markKeyboardTransition\('opening'\)/)
+  assert.match(stabilizer, /markKeyboardTransition\('closing'\)/)
+  assert.match(stabilizer, /closest\('\.agent-welcome button'\)/)
+  assert.match(focus, /\[\[data-mobile-keyboard='open'\]_&\]:pointer-events-none/)
+  assert.match(focus, /\[\[data-mobile-keyboard-transition='opening'\]_&\]:pointer-events-none/)
+  assert.doesNotMatch(focus, /welcome-workspace[^"\n]*\[animation:/)
+  assert.doesNotMatch(focus, /style=\{\{ animationDelay/)
   assert.doesNotMatch(
     styles,
     /data-mobile-composer|\.main-surface:has\(\.focus-composer textarea:focus\)/,
   )
-  assert.match(styles, /display: none !important/)
+  assert.doesNotMatch(styles, /display: none !important/)
+  assert.match(stabilizer, /interactive-widget\/原生窗口调整布局视口/)
   assert.match(activity, /SOFT_INPUT_ADJUST_RESIZE/)
   assert.match(setup, /android:windowSoftInputMode="adjustResize"/)
   assert.match(iosPlugin, /keyboardDidShowNotification/)

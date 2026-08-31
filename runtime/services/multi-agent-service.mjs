@@ -18,8 +18,6 @@ import {
 import { readJson, writeJsonAtomic } from '../storage/json-file.mjs'
 import { PLAN_WRITE_TOOL_NAMES } from '../tools/app/plan-tool-names.mjs'
 
-export const DEFAULT_AGENT_MAX_TURNS = 30
-export const MAX_AGENT_MAX_TURNS = 100
 export const MAX_CONCURRENT_AGENTS = 4
 export const MAX_AGENTS_PER_PARENT = 64
 export const MAX_AGENT_RECORDS = 256
@@ -58,7 +56,7 @@ export const MULTI_AGENT_SYSTEM_PROMPT = `You are a Pisper subagent working in a
 Guidelines:
 - Complete only the concrete task you were given and return a concise, evidence-based result.
 - Inspect the relevant files before drawing conclusions or editing.
-- Respect the tools, permission mode, workspace boundary, and turn limit provided by the parent session.
+- Respect the tools, permission mode, and workspace boundary provided by the parent session.
 - Do not duplicate unrelated work or wait for additional instructions.
 - You cannot spawn other agents.
 - Respond in the language used by the delegated task.`
@@ -126,7 +124,6 @@ function durableRecord(record) {
     thinkingLevel: record.thinkingLevel,
     message: record.message,
     availableTools: [...record.availableTools],
-    maxTurns: record.maxTurns,
     turnCount: record.turnCount,
     toolCallCount: record.toolCallCount,
     tools: record.tools.map((tool) => ({ ...tool })),
@@ -199,7 +196,6 @@ function restoredRecord(value) {
     customTools: [],
     createCustomTools: null,
     disposeCustomTools: null,
-    maxTurns: boundedInteger(value?.maxTurns, DEFAULT_AGENT_MAX_TURNS, MAX_AGENT_MAX_TURNS),
     turnCount: positiveInteger(value?.turnCount) || 0,
     toolCallCount: positiveInteger(value?.toolCallCount) || 0,
     tools: Array.isArray(value?.tools) ? value.tools.map((tool) => ({ ...tool })) : [],
@@ -239,11 +235,6 @@ function restoredRecord(value) {
 function positiveInteger(value) {
   const number = Number(value)
   return Number.isFinite(number) && number > 0 ? Math.floor(number) : null
-}
-
-function boundedInteger(value, fallback, maximum) {
-  const number = positiveInteger(value)
-  return Math.max(1, Math.min(maximum, number || fallback))
 }
 
 function modelOutputTokenLimit(model) {
@@ -358,7 +349,6 @@ function publicRecord(record) {
     lastActivityAt: record.lastActivityAt,
     completedAt: record.completedAt,
     durationMs: record.durationMs,
-    maxTurns: record.maxTurns,
     turnCount: record.turnCount,
     toolCallCount: record.toolCallCount,
     tools: record.tools.map((tool) => ({ ...tool })),
@@ -736,7 +726,7 @@ export class MultiAgentService {
     })
   }
 
-  // 派生子 Agent：校验并发/数量/轮次上限，排队执行，返回 Agent 记录。
+  // 派生子 Agent：校验并发与记录数量，排队执行，返回 Agent 记录；执行轮次由 Agent 自主结束或人工中断。
   async spawn({
     parentSessionId,
     cwd,
@@ -747,7 +737,6 @@ export class MultiAgentService {
     allowedTools,
     customTools,
     createCustomTools,
-    maxTurns,
     onProgress,
     onSession,
     onCompleted,
@@ -783,7 +772,6 @@ export class MultiAgentService {
       customTools,
       createCustomTools: typeof createCustomTools === 'function' ? createCustomTools : null,
       disposeCustomTools: null,
-      maxTurns: boundedInteger(maxTurns, DEFAULT_AGENT_MAX_TURNS, MAX_AGENT_MAX_TURNS),
       turnCount: 0,
       toolCallCount: 0,
       tools: [],
@@ -895,13 +883,6 @@ export class MultiAgentService {
               type: 'model',
               stage: 'thinking',
               updatedAt: new Date(this.now()).toISOString(),
-            }
-            if (record.turnCount > record.maxTurns) {
-              this.interrupt(
-                record.parentSessionId,
-                record.id,
-                `Agent exceeded its ${record.maxTurns}-turn limit.`,
-              )
             }
           } else if (event.type === 'tool_execution_start') {
             record.toolCallCount += 1

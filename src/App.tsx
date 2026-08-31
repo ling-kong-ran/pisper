@@ -70,6 +70,11 @@ const TerminalPanel = lazy(() =>
     default: module.TerminalPanel,
   })),
 )
+const MobileViewportStabilizer = lazy(() =>
+  import('@/components/layout/MobileViewportStabilizer').then((module) => ({
+    default: module.MobileViewportStabilizer,
+  })),
+)
 type ProviderConfig = {
   configured: boolean
   enabled: boolean
@@ -301,60 +306,6 @@ function App() {
       await invokeMobile('mobile_ensure_local_network_permission').catch(() => undefined)
     })()
   }, [clientLoaded, mobileApp])
-
-  useEffect(() => {
-    if (!clientLoaded || !mobileLayout || !startupReady) return undefined
-    const shell = appShellRef.current
-    if (!shell) return undefined
-    const viewport = window.visualViewport
-    let frame = 0
-    let orientationTimer = 0
-    let viewportBaseline = Math.max(window.innerHeight, viewport?.height ?? 0)
-
-    // Android WebView 与 iOS WKWebView 对软键盘的布局视口处理不同，统一以
-    // visualViewport 为准收紧壳层，并跟随 iOS 可能产生的可视区垂直偏移。
-    const apply = () => {
-      frame = 0
-      const height = Math.max(1, Math.round(viewport?.height ?? window.innerHeight))
-      const offsetTop = Math.max(0, Math.round(viewport?.offsetTop ?? 0))
-      viewportBaseline = Math.max(viewportBaseline, window.innerHeight, height + offsetTop)
-      shell.style.height = `${height}px`
-      shell.style.transform = offsetTop ? `translate3d(0, ${offsetTop}px, 0)` : ''
-      const keyboardInset = Math.max(0, viewportBaseline - height - offsetTop)
-      // 键盘判定用基线比例而非固定像素：小屏 + 大字体缩放下 120px 绝对阈值不可靠。
-      // 移动软键盘通常占视口 30% 以上，20% 的下限同时滤掉浏览器地址栏的伸缩。
-      if (keyboardInset >= viewportBaseline * 0.2) shell.dataset.mobileKeyboard = 'open'
-      else delete shell.dataset.mobileKeyboard
-    }
-    const schedule = () => {
-      if (frame) window.cancelAnimationFrame(frame)
-      frame = window.requestAnimationFrame(apply)
-    }
-    const resetAfterOrientationChange = () => {
-      window.clearTimeout(orientationTimer)
-      orientationTimer = window.setTimeout(() => {
-        viewportBaseline = 0
-        schedule()
-      }, 150)
-    }
-
-    apply()
-    viewport?.addEventListener('resize', schedule)
-    viewport?.addEventListener('scroll', schedule)
-    window.addEventListener('resize', schedule)
-    window.addEventListener('orientationchange', resetAfterOrientationChange)
-    return () => {
-      if (frame) window.cancelAnimationFrame(frame)
-      window.clearTimeout(orientationTimer)
-      viewport?.removeEventListener('resize', schedule)
-      viewport?.removeEventListener('scroll', schedule)
-      window.removeEventListener('resize', schedule)
-      window.removeEventListener('orientationchange', resetAfterOrientationChange)
-      shell.style.height = ''
-      shell.style.transform = ''
-      delete shell.dataset.mobileKeyboard
-    }
-  }, [clientLoaded, mobileLayout, startupReady])
 
   // 系统通知（桌面/浏览器）：已开启浏览器通知开关才发；
   // 前台聚焦时静默（不打扰），force 强制忽略该规则；桌面桥接优先。
@@ -706,6 +657,14 @@ function App() {
         data-mobile-app={mobileLayout || undefined}
       >
         <WebPreviewProvider />
+        {mobileLayout && (
+          <Suspense fallback={null}>
+            <MobileViewportStabilizer
+              enabled={clientLoaded && startupReady}
+              shellRef={appShellRef}
+            />
+          </Suspense>
+        )}
         {runtimeFeatureAvailable(capabilities, 'desktopPet') && <WebDesktopPet />}
         <SidebarProvider
           className="app-body max-[900px]:h-[100dvh] max-[900px]:min-h-[620px] max-[900px]:flex-none max-[650px]:h-[100dvh] max-[650px]:min-h-0 max-[650px]:flex-none flex min-h-0 flex-1 [&[data-mobile-app]]:h-auto [&[data-mobile-app]]:min-h-0 [&[data-mobile-app]]:flex-1 [&[data-mobile-app]]:overflow-hidden"

@@ -16,6 +16,7 @@ import {
   Trash2,
   TreePine,
   User,
+  X,
   Wrench,
 } from 'lucide-react'
 import { useI18n } from '@/app/use-i18n'
@@ -644,10 +645,10 @@ export function SessionTreeDialog({
     <Dialog open={open} onOpenChange={(nextOpen) => !nextOpen && onClose()}>
       <DialogContent
         className={`chat-resource-dialog grid-rows-[auto_minmax(0,1fr)] overflow-hidden session-tree-dialog ${mobileLayout ? '!h-[calc(100dvh_-_16px)] !w-[calc(100vw_-_16px)] !max-w-none !gap-0 !p-0' : '!h-[min(760px,calc(100dvh_-_32px))] !w-[min(1120px,calc(100vw_-_32px))] !max-w-[1120px]'}`}
-        showCloseButton
+        showCloseButton={false}
       >
         <div
-          className={`chat-resource-head flex items-start justify-between gap-[16px] [border-bottom:1px_solid_var(--stroke-soft)] session-tree-head [&_[data-slot='dialog-description']]:mt-[3px] [&_[data-slot='dialog-description']]:text-[12px] [&_[data-slot='dialog-title']]:text-[16px] ${mobileLayout ? 'p-[14px_48px_12px_14px]' : '[padding:17px_18px_14px]'}`}
+          className={`chat-resource-head flex items-start justify-between gap-[16px] [border-bottom:1px_solid_var(--stroke-soft)] session-tree-head [&_[data-slot='dialog-description']]:mt-[3px] [&_[data-slot='dialog-description']]:text-[12px] [&_[data-slot='dialog-title']]:text-[16px] ${mobileLayout ? 'p-[14px]' : '[padding:17px_18px_14px]'}`}
         >
           <div>
             <div className="session-tree-title [&_>_span]:grid [&_>_span]:w-[30px] [&_>_span]:h-[30px] [&_>_span]:place-items-center [&_>_span]:rounded-[var(--r-sm)] [&_>_span]:bg-[var(--success-soft)] [&_>_span]:text-[var(--success)] flex items-center gap-[9px]">
@@ -663,6 +664,16 @@ export function SessionTreeDialog({
               })}
             </DialogDescription>
           </div>
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon-sm"
+            aria-label={t('common:ui.closeDialog')}
+            title={t('common:ui.closeDialog')}
+            onClick={onClose}
+          >
+            <X size={17} />
+          </Button>
         </div>
         <div
           className={`chat-resource-body grid min-h-0 overflow-hidden bg-[var(--surface-subtle)] session-tree-layout ${mobileLayout ? 'grid-cols-1 grid-rows-[minmax(0,1fr)]' : '!grid-cols-[minmax(0,1fr)_292px]'}`}

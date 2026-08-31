@@ -160,7 +160,7 @@ test('spawn_agent starts asynchronously and inherits the active model, reasoning
   assert.ok(['starting', 'running'].includes(started.status))
   assert.equal(Object.hasOwn(started, 'role'), false)
   assert.equal(Object.hasOwn(started, 'dependsOn'), false)
-  assert.equal(started.maxTurns, 30)
+  assert.equal(Object.hasOwn(started, 'maxTurns'), false)
   await waitFor(() => session.promptCalls.length === 1, 'Agent prompt start')
   assert.equal(service.list('parent-1')[0].status, 'running')
   assert.equal(service.list('parent-1')[0].currentActivity.type, 'model')
@@ -307,7 +307,7 @@ test('send_message steers a running Agent and followup_task reuses its context',
   )
 })
 
-test('Agents have no wall-clock timeout while Agent turn limits ignore ordinary tool calls', async () => {
+test('Agents have no wall-clock timeout or automatic turn limit', async () => {
   const timers = new Map()
   const setTimer = (callback, milliseconds) => {
     const handle = { milliseconds, unref() {} }
@@ -318,10 +318,12 @@ test('Agents have no wall-clock timeout while Agent turn limits ignore ordinary 
   const promptGate = deferred()
   const session = createFakeSession({ onPrompt: () => promptGate.promise })
   const { service } = createService(session, { setTimer, clearTimer })
-  const started = await service.spawn(baseInput())
+  const started = await service.spawn(baseInput({ maxTurns: 1 }))
   await waitFor(() => service.list('parent-1')[0]?.status === 'running', 'unbounded Agent')
   assert.equal(timers.size, 0)
+  for (let index = 0; index < 128; index += 1) session.emit({ type: 'turn_start' })
   assert.equal(session.aborted, false)
+  assert.equal(service.list('parent-1')[0].turnCount, 128)
   service.interrupt('parent-1', started.id, 'explicit stop')
   await waitFor(() => session.aborted, 'explicit Agent interruption')
   promptGate.resolve()
@@ -330,39 +332,6 @@ test('Agents have no wall-clock timeout while Agent turn limits ignore ordinary 
     'explicit interruption',
   )
   assert.equal(interrupted.error, 'explicit stop')
-
-  const secondGate = deferred()
-  const secondSession = createFakeSession({ onPrompt: () => secondGate.promise })
-  const { service: secondService } = createService(secondSession)
-  const second = await secondService.spawn(baseInput({ parentSessionId: 'parent-2', maxTurns: 1 }))
-  await waitFor(() => secondService.list('parent-2')[0]?.status === 'running', 'turn-limited Agent')
-  secondSession.emit({ type: 'turn_start' })
-  for (let index = 0; index < 40; index += 1) {
-    secondSession.emit({
-      type: 'tool_execution_start',
-      toolCallId: `read-${index}`,
-      toolName: 'read',
-    })
-    secondSession.emit({
-      type: 'tool_execution_end',
-      toolCallId: `read-${index}`,
-      toolName: 'read',
-      isError: false,
-    })
-  }
-  assert.equal(secondSession.aborted, false)
-  assert.equal(secondService.list('parent-2')[0].toolCallCount, 40)
-  secondSession.emit({ type: 'turn_start' })
-  await waitFor(() => secondSession.aborted, 'turn limit abort')
-  secondGate.resolve()
-  const turnInterrupted = await waitFor(
-    () =>
-      secondService.list('parent-2')[0]?.status === 'interrupted' &&
-      secondService.list('parent-2')[0],
-    'turn limit interruption',
-  )
-  assert.equal(turnInterrupted.id, second.id)
-  assert.match(turnInterrupted.error, /1-turn limit/)
 })
 
 test('wait_agent ignores progress noise, returns on terminal state, and abortParent stays scoped', async () => {
@@ -530,15 +499,14 @@ test('Codex-style Agent tools replace delegate_task and stay hidden from the plu
   const result = await tool.execute('spawn-1', {
     taskName: 'inspect',
     message: 'Inspect the runtime.',
-    maxTurns: 30,
   })
-  assert.deepEqual(input, { taskName: 'inspect', message: 'Inspect the runtime.', maxTurns: 30 })
+  assert.deepEqual(input, { taskName: 'inspect', message: 'Inspect the runtime.' })
   assert.match(result.content[0].text, /Started \/root\/inspect_1 in the background/)
   assert.equal(Object.hasOwn(tool.parameters.properties, 'role'), false)
   assert.equal(Object.hasOwn(tool.parameters.properties, 'dependsOn'), false)
   assert.equal(Object.hasOwn(tool.parameters.properties, 'maxToolCalls'), false)
   assert.equal(Object.hasOwn(tool.parameters.properties, 'maxDurationSeconds'), false)
-  assert.ok(Object.hasOwn(tool.parameters.properties, 'maxTurns'))
+  assert.equal(Object.hasOwn(tool.parameters.properties, 'maxTurns'), false)
 })
 
 test('list_agents returns statuses without a task graph or role expansion', async () => {
@@ -699,7 +667,7 @@ test('Agent registry survives restart and marks previously active runs as interr
 
   const [restored] = service.list('parent-persisted')
   assert.equal(restored.status, 'interrupted')
-  assert.equal(restored.maxTurns, 24)
+  assert.equal(Object.hasOwn(restored, 'maxTurns'), false)
   assert.equal(restored.turnCount, 3)
   assert.match(restored.error, /Pisper restarted/)
   assert.equal(restored.completedAt, '2026-07-23T10:01:00.000Z')
@@ -778,7 +746,7 @@ test('completed Agent results persist across service instances', async (t) => {
   await restored.init()
   const [record] = restored.list('parent-1')
   assert.equal(record.status, 'completed')
-  assert.equal(record.maxTurns, 12)
+  assert.equal(Object.hasOwn(record, 'maxTurns'), false)
   assert.equal(Object.hasOwn(record, 'role'), false)
   assert.equal(record.output, 'Persisted result.')
   assert.equal(restored.peekMailbox('parent-1').length, 1)
