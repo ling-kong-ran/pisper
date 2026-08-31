@@ -1,9 +1,9 @@
 {
-  "version": "0.1.21",
-  "tag": "app-v0.1.21",
-  "url": "https://github.com/ling-kong-ran/pisper/releases/tag/app-v0.1.21",
+  "version": "0.1.22",
+  "tag": "app-v0.1.22",
+  "url": "https://github.com/ling-kong-ran/pisper/releases/tag/app-v0.1.22",
   "apk": "app-universal-release-signed.apk",
   "ipa": "pisper-ios-unsigned.ipa",
-  "notes": "- fix(chat): restore Enter-to-send and harden macOS IME composition guard",
-  "releaseDate": "2026-08-30"
+  "notes": "- feat: complete mobile runtime and asset workflows\n- feat: refine mobile chat and agent coordination",
+  "releaseDate": "2026-08-31"
 }
