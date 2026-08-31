@@ -245,6 +245,9 @@ impl ProxyHandle {
     }
 }
 
+/// 移动前端资源必须完整缓冲后再交给 WebView，避免 Runtime 暂停时把截断模块伪装成成功响应。
+const MAX_FRONTEND_RESPONSE_BYTES: u64 = 8 * 1024 * 1024;
+
 /// 逐跳 header 名单：转发时必须剥离，由两端连接各自管理。
 const HOP_BY_HOP: &[&str] = &[
     "connection",
@@ -380,10 +383,15 @@ async fn forward_local(
         Err(_) => return Ok(text_response(StatusCode::BAD_REQUEST, "读取请求体失败。")),
     };
 
+    let is_frontend = !path_and_query.starts_with("/api/");
     let client = reqwest::Client::new();
     let mut outgoing = client
         .request(parts.method, &url)
         .header(reqwest::header::COOKIE, &local.cookie);
+    if is_frontend {
+        // 前端模块不能无限等待：后台恢复期间若 Node 连接悬挂，必须尽快交给入口恢复逻辑。
+        outgoing = outgoing.timeout(Duration::from_secs(15));
+    }
     for (name, value) in &parts.headers {
         let lower = name.as_str().to_ascii_lowercase();
         if HOP_BY_HOP.contains(&lower.as_str()) || lower == "cookie" || lower == "origin" {
@@ -393,32 +401,78 @@ async fn forward_local(
     }
     outgoing = outgoing.header("X-Pisper-Client", "mobile-app");
 
-    let is_frontend = !path_and_query.starts_with("/api/");
     let response = match outgoing.body(body_bytes).send().await {
         Ok(response) => response,
         Err(error) => {
-            return Ok(text_response(
-                StatusCode::BAD_GATEWAY,
-                &format!("连接 App 内置 Runtime 失败：{error}"),
-            ));
+            let message = if is_frontend {
+                format!("读取 App 前端资源失败：{error}")
+            } else {
+                format!("连接 App 内置 Runtime 失败：{error}")
+            };
+            return Ok(text_response(StatusCode::BAD_GATEWAY, &message));
         }
     };
-    let mut builder = Response::builder().status(response.status());
-    for (name, value) in response.headers() {
+    let status = response.status();
+    let headers = response.headers().clone();
+
+    if is_frontend {
+        if response
+            .content_length()
+            .is_some_and(|length| length > MAX_FRONTEND_RESPONSE_BYTES)
+        {
+            return Ok(text_response(
+                StatusCode::BAD_GATEWAY,
+                "App 前端资源超过安全大小限制。",
+            ));
+        }
+        // 前端 HTML、JS 与 CSS 必须先完整读取；上游若在后台冻结期间断流，
+        // reqwest 会返回错误，代理改发 502，而不是让 WebView 执行残缺的 200 模块。
+        let body = match response.bytes().await {
+            Ok(body) if body.len() as u64 <= MAX_FRONTEND_RESPONSE_BYTES => body,
+            Ok(_) => {
+                return Ok(text_response(
+                    StatusCode::BAD_GATEWAY,
+                    "App 前端资源超过安全大小限制。",
+                ));
+            }
+            Err(error) => {
+                return Ok(text_response(
+                    StatusCode::BAD_GATEWAY,
+                    &format!("读取 App 前端资源失败：{error}"),
+                ));
+            }
+        };
+        let mut builder = Response::builder().status(status);
+        for (name, value) in &headers {
+            let lower = name.as_str().to_ascii_lowercase();
+            if HOP_BY_HOP.contains(&lower.as_str())
+                || lower == "content-length"
+                || lower == "set-cookie"
+                || lower == "cache-control"
+            {
+                continue;
+            }
+            builder = builder.header(name, value);
+        }
+        return Ok(builder
+            .header("Cache-Control", "no-store")
+            .header("Content-Length", body.len())
+            .body(BodyExt::boxed_unsync(http_body_util::Full::new(body)))
+            .unwrap_or_else(|_| {
+                text_response(StatusCode::INTERNAL_SERVER_ERROR, "构造响应失败。")
+            }));
+    }
+
+    let mut builder = Response::builder().status(status);
+    for (name, value) in &headers {
         let lower = name.as_str().to_ascii_lowercase();
         if HOP_BY_HOP.contains(&lower.as_str())
             || lower == "content-length"
             || lower == "set-cookie"
-            || (is_frontend && lower == "cache-control")
         {
             continue;
         }
         builder = builder.header(name, value);
-    }
-    // iOS 长时间后台后可能重建 WebContent 进程；本地 UI 不应把损坏的模块响应
-    // 或旧的 Runtime 资源长期留在 WebKit 缓存中，恢复时每个资源都重新从回环代理读取。
-    if is_frontend {
-        builder = builder.header("Cache-Control", "no-store");
     }
     let stream = response
         .bytes_stream()
@@ -701,6 +755,47 @@ mod tests {
         let (status, raw) = raw_get(port, "/api/health").await;
         assert!(status.contains("503"), "unexpected status: {status}");
         assert!(String::from_utf8_lossy(&raw).contains("App 内置 Runtime 尚未就绪"));
+    }
+
+    #[tokio::test]
+    async fn truncated_frontend_module_is_rejected_before_reaching_the_webview() {
+        let listener = TcpListener::bind(SocketAddr::from(([127, 0, 0, 1], 0)))
+            .await
+            .unwrap();
+        let address = listener.local_addr().unwrap();
+        tokio::spawn(async move {
+            let Ok((mut stream, _)) = listener.accept().await else {
+                return;
+            };
+            let mut request = [0u8; 1024];
+            let _ = stream.read(&mut request).await;
+            // 声明比实际更多的字节，模拟 Runtime 在后台冻结/恢复时前端响应被截断。
+            stream
+                .write_all(
+                    b"HTTP/1.1 200 OK\\r\\ncontent-type: text/javascript\\r\\ncontent-length: 128\\r\\nconnection: close\\r\\n\\r\\nexport const broken =",
+                )
+                .await
+                .unwrap();
+            stream.shutdown().await.unwrap();
+        });
+
+        let path = std::env::temp_dir().join(format!("pisper-proxy-test-{}.json", fast_id()));
+        let proxy = start_proxy(
+            Arc::new(Mutex::new(crate::mobile::store::ProfileStore::load(&path))),
+            None,
+        )
+        .await
+        .unwrap();
+        proxy
+            .configure_local_runtime(&format!(
+                "http://{}/_pisper/desktop/bootstrap?token=test-token",
+                address
+            ))
+            .unwrap();
+
+        let (status, raw) = raw_get(proxy.port, "/assets/broken.js").await;
+        assert!(status.contains("502"), "unexpected status: {status}");
+        assert!(String::from_utf8_lossy(&raw).contains("读取 App 前端资源失败"));
     }
 
     #[tokio::test]

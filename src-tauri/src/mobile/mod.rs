@@ -24,9 +24,7 @@ pub mod update;
 use std::collections::HashMap;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
-use std::time::Duration;
-#[cfg(target_os = "ios")]
-use std::time::{SystemTime, UNIX_EPOCH};
+use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 use serde::{Deserialize, Serialize};
 use store::{ProfileStore, ServerProfile, SharedStore};
@@ -37,8 +35,55 @@ use pisper_mobile_device_plugin::MobileDeviceExt;
 
 use pairing::QrPayload;
 
-// 该标记在页面脚本执行前注入，避免移动布局依赖一次异步 API 握手才能出现。
-const MOBILE_CLIENT_INITIALIZATION_SCRIPT: &str = r#"Object.defineProperty(window, '__PISPER_MOBILE_APP__', { value: true, writable: false, configurable: false });"#;
+// 该脚本在任何页面模块之前执行：除稳定标记移动客户端外，还负责在 React 尚未挂载时
+// 捕获模块加载失败。长时间后台恢复、bfcache 恢复或入口模块断流都会交给原生壳先校验
+// Runtime，再无历史地加载完整应用壳，避免错误边界本身也因 chunk 缺失而无法显示。
+const MOBILE_CLIENT_INITIALIZATION_SCRIPT: &str = r#"
+Object.defineProperty(window, '__PISPER_MOBILE_APP__', { value: true, writable: false, configurable: false });
+(() => {
+  const LONG_BACKGROUND_MS = 60_000;
+  let backgroundedAt = document.visibilityState === 'hidden' ? Date.now() : 0;
+  let recoveryPending = false;
+  const isRuntimePage = () => location.protocol === 'http:' && location.hostname === '127.0.0.1';
+  const moduleFailure = (value) => /module script|dynamically imported module|module failed|load failed/i.test(String(value || ''));
+  const recover = () => {
+    if (!isRuntimePage() || recoveryPending) return;
+    const invoke = window.__TAURI__?.core?.invoke || window.__TAURI_INTERNALS__?.invoke;
+    if (!invoke) return;
+    recoveryPending = true;
+    Promise.resolve(invoke('mobile_recover_application')).catch(() => {
+      recoveryPending = false;
+    });
+  };
+  window.addEventListener('error', (event) => {
+    const target = event.target;
+    if (target?.tagName === 'SCRIPT' || moduleFailure(event.message || event.error?.message)) {
+      event.preventDefault();
+      recover();
+    }
+  }, true);
+  window.addEventListener('unhandledrejection', (event) => {
+    const reason = event.reason;
+    if (!moduleFailure(reason?.message || reason)) return;
+    event.preventDefault();
+    recover();
+  });
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'hidden') {
+      backgroundedAt = Date.now();
+      return;
+    }
+    if (backgroundedAt && Date.now() - backgroundedAt >= LONG_BACKGROUND_MS) recover();
+    backgroundedAt = 0;
+  });
+  window.addEventListener('pagehide', () => {
+    backgroundedAt = Date.now();
+  });
+  window.addEventListener('pageshow', (event) => {
+    if (event.persisted) recover();
+  });
+})();
+"#;
 
 pub struct MobileShared {
     store: Arc<SharedStore>,
@@ -411,6 +456,52 @@ async fn mobile_resume_local_runtime(state: State<'_, MobileShared>) -> Result<(
     let (status, _) =
         ensure_local_runtime_ready(state.on_device.clone(), state.startup_error.clone()).await?;
     state.proxy.configure_local_runtime(&status.url)
+}
+
+fn recovery_navigation_url(port: u16, fragment: Option<&str>) -> Result<tauri::Url, String> {
+    let recovery = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .map(|duration| duration.as_millis())
+        .unwrap_or_default();
+    let mut url = tauri::Url::parse(&format!("http://127.0.0.1:{port}/"))
+        .map_err(|error| format!("移动端恢复地址无效：{error}"))?;
+    url.set_query(Some(&format!("_pisper_recovery={recovery}")));
+    url.set_fragment(fragment.filter(|value| !value.is_empty()));
+    Ok(url)
+}
+
+async fn recover_mobile_application(
+    window: tauri::WebviewWindow,
+    on_device: Arc<on_device_runtime::OnDeviceRuntime>,
+    startup_error: Arc<Mutex<Option<String>>>,
+    proxy: Arc<proxy::ProxyHandle>,
+    fragment: Option<String>,
+) -> Result<(), String> {
+    proxy.invalidate_remote_upstream();
+    let (status, _) = ensure_local_runtime_ready(on_device, startup_error).await?;
+    proxy.configure_local_runtime(&status.url)?;
+    window
+        .navigate(recovery_navigation_url(proxy.port, fragment.as_deref())?)
+        .map_err(|error| format!("无法恢复移动端应用页面：{error}"))
+}
+
+#[tauri::command]
+async fn mobile_recover_application(
+    window: tauri::WebviewWindow,
+    state: State<'_, MobileShared>,
+) -> Result<(), String> {
+    let fragment = window
+        .url()
+        .ok()
+        .and_then(|url| url.fragment().map(ToOwned::to_owned));
+    recover_mobile_application(
+        window,
+        state.on_device.clone(),
+        state.startup_error.clone(),
+        state.proxy.clone(),
+        fragment,
+    )
+    .await
 }
 
 fn activate_remote_profile(
@@ -820,22 +911,25 @@ pub fn run_mobile() {
         .plugin(tauri_plugin_dns_sd::init());
     #[cfg(target_os = "ios")]
     let builder = builder.on_web_content_process_terminate(|webview| {
-        let port = webview.app_handle().state::<MobileShared>().proxy.port;
+        let app = webview.app_handle().clone();
         let fragment = webview
             .url()
             .ok()
             .and_then(|url| url.fragment().map(ToOwned::to_owned));
-        let recovery = SystemTime::now()
-            .duration_since(UNIX_EPOCH)
-            .map(|duration| duration.as_millis())
-            .unwrap_or_default();
-        let mut url = tauri::Url::parse(&format!("http://127.0.0.1:{port}/"))
-            .expect("移动端回环代理地址必须有效");
-        url.set_query(Some(&format!("_pisper_recovery={recovery}")));
-        url.set_fragment(fragment.as_deref());
-        if let Err(error) = webview.navigate(url) {
-            eprintln!("iOS WebContent 进程恢复导航失败：{error}");
-        }
+        let state = app.state::<MobileShared>();
+        let on_device = state.on_device.clone();
+        let startup_error = state.startup_error.clone();
+        let proxy = state.proxy.clone();
+        tauri::async_runtime::spawn(async move {
+            let Some(window) = app.get_webview_window("main") else {
+                return;
+            };
+            if let Err(error) =
+                recover_mobile_application(window, on_device, startup_error, proxy, fragment).await
+            {
+                eprintln!("iOS WebContent 进程恢复失败：{error}");
+            }
+        });
     });
     let builder = builder
         .setup(|app| {
@@ -930,6 +1024,7 @@ pub fn run_mobile() {
             mobile_state,
             mobile_retry_local_startup,
             mobile_resume_local_runtime,
+            mobile_recover_application,
             mobile_pair,
             mobile_pair_manual,
             mobile_ensure_local_network_permission,
@@ -986,8 +1081,8 @@ mod tests {
     use serde_json::json;
 
     use super::{
-        startup_api_context, startup_cookie, startup_location_replace_script,
-        validate_startup_contract_values,
+        recovery_navigation_url, startup_api_context, startup_cookie,
+        startup_location_replace_script, validate_startup_contract_values,
     };
 
     #[test]
@@ -1017,6 +1112,19 @@ mod tests {
             startup_location_replace_script(&url),
             "window.location.replace(\"http://127.0.0.1:41873/_pisper/desktop/bootstrap?token=runtime-token\");"
         );
+    }
+
+    #[test]
+    fn recovery_navigation_preserves_the_hash_route_and_adds_a_fresh_query() {
+        let url = recovery_navigation_url(41873, Some("/chat")).expect("recovery URL");
+        assert_eq!(url.scheme(), "http");
+        assert_eq!(url.host_str(), Some("127.0.0.1"));
+        assert_eq!(url.port(), Some(41873));
+        assert_eq!(url.path(), "/");
+        assert_eq!(url.fragment(), Some("/chat"));
+        assert!(url
+            .query_pairs()
+            .any(|(key, value)| key == "_pisper_recovery" && !value.is_empty()));
     }
 
     #[test]

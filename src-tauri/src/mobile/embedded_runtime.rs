@@ -6,6 +6,8 @@ use std::io::Read;
 use std::os::raw::c_char;
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicBool, Ordering};
+#[cfg(target_os = "ios")]
+use std::sync::Arc;
 use std::sync::Mutex;
 use std::time::{Duration, Instant};
 
@@ -47,6 +49,8 @@ pub struct EmbeddedRuntime {
     resource_archive: Option<PathBuf>,
     status: Mutex<RootRuntimeStatus>,
     started: AtomicBool,
+    #[cfg(target_os = "ios")]
+    node_thread_alive: Arc<AtomicBool>,
     token: Mutex<Option<String>>,
 }
 
@@ -92,6 +96,8 @@ impl EmbeddedRuntime {
             resource_archive,
             status: Mutex::new(status),
             started: AtomicBool::new(false),
+            #[cfg(target_os = "ios")]
+            node_thread_alive: Arc::new(AtomicBool::new(false)),
             token: Mutex::new(None),
         }
     }
@@ -258,6 +264,12 @@ impl EmbeddedRuntime {
         let entry = entry
             .to_str()
             .ok_or_else(|| "嵌入式 Runtime 入口路径不是 UTF-8。".to_string())?;
+        #[cfg(target_os = "ios")]
+        launch_node(
+            vec!["node".into(), "--no-warnings".into(), entry.into()],
+            self.node_thread_alive.clone(),
+        )?;
+        #[cfg(not(target_os = "ios"))]
         launch_node(vec!["node".into(), "--no-warnings".into(), entry.into()])?;
         Ok(token)
     }
@@ -328,7 +340,11 @@ impl EmbeddedRuntime {
         {
             return android_node_started();
         }
-        #[cfg(not(target_os = "android"))]
+        #[cfg(target_os = "ios")]
+        {
+            return Ok(self.node_thread_alive.load(Ordering::Acquire));
+        }
+        #[cfg(not(any(target_os = "android", target_os = "ios")))]
         {
             Ok(true)
         }
@@ -748,8 +764,10 @@ fn load_ios_node_start() -> Result<NodeStart, String> {
 }
 
 #[cfg(target_os = "ios")]
-fn launch_node(arguments: Vec<String>) -> Result<(), String> {
+fn launch_node(arguments: Vec<String>, node_thread_alive: Arc<AtomicBool>) -> Result<(), String> {
     let node_start = load_ios_node_start()?;
+    node_thread_alive.store(true, Ordering::Release);
+    let alive = node_thread_alive.clone();
     std::thread::Builder::new()
         .name("pisper-embedded-node".into())
         .spawn(move || {
@@ -758,6 +776,7 @@ fn launch_node(arguments: Vec<String>) -> Result<(), String> {
                 .map(CString::new)
                 .collect::<Result<Vec<_>, _>>();
             let Ok(mut owned) = owned else {
+                alive.store(false, Ordering::Release);
                 return;
             };
             let mut argv = owned
@@ -768,9 +787,13 @@ fn launch_node(arguments: Vec<String>) -> Result<(), String> {
             unsafe {
                 node_start(argv.len() as i32, argv.as_mut_ptr());
             }
+            alive.store(false, Ordering::Release);
         })
         .map(|_| ())
-        .map_err(|error| format!("无法创建 iOS embedded Node 线程：{error}"))
+        .map_err(|error| {
+            node_thread_alive.store(false, Ordering::Release);
+            format!("无法创建 iOS embedded Node 线程：{error}")
+        })
 }
 
 #[cfg(not(any(target_os = "android", target_os = "ios")))]

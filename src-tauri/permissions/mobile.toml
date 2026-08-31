@@ -5,6 +5,7 @@ commands.allow = [
   "mobile_state",
   "mobile_retry_local_startup",
   "mobile_resume_local_runtime",
+  "mobile_recover_application",
   "mobile_pair",
   "mobile_pair_manual",
   "mobile_ensure_local_network_permission",
