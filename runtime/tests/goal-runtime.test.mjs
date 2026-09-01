@@ -93,6 +93,45 @@ test('goal mode queues hidden continuation turns until the goal is completed', a
   )
 })
 
+test('an active Goal keeps its objective when the user sends another Goal turn', async (t) => {
+  const directory = await mkdtemp(join(tmpdir(), 'pisper-goal-active-'))
+  t.after(() => rm(directory, { recursive: true, force: true }))
+  const runtime = new AgentRuntimeService({ cwd: directory, dataDir: directory })
+  await runtime.goals.init()
+  runtime.archiveAttachments = async () => {}
+  runtime.captureConversationMemory = async () => []
+  runtime.memory = { relevantContext: async () => ({ text: '' }) }
+  const original = await runtime.goals.start('active-goal-session', {
+    objective: 'Original objective.',
+  })
+  const session = {
+    sessionId: 'active-goal-session',
+    model: { provider: 'openai', id: 'gpt-5' },
+    thinkingLevel: 'medium',
+    isStreaming: false,
+    messages: [],
+    agent: { state: { systemPrompt: '' } },
+    getActiveToolNames: () => ['get_goal', 'update_goal'],
+    setActiveToolsByName: () => {},
+    setSessionName: () => {},
+    subscribe: () => () => {},
+    async prompt() {},
+  }
+  const value = { session, cwd: directory, name: 'Active Goal test', baseToolNames: [] }
+  runtime.sessions.set(session.sessionId, value)
+  runtime.getOrCreateSession = async () => value
+
+  await runtime.streamPrompt({
+    sessionId: session.sessionId,
+    message: 'Add more evidence.',
+    goalMode: true,
+    send: () => {},
+  })
+  const current = runtime.getSessionGoal(session.sessionId)
+  assert.equal(current.id, original.id)
+  assert.equal(current.objective, original.objective)
+})
+
 test('goal mode resumes a paused Goal without replacing its objective', async (t) => {
   const directory = await mkdtemp(join(tmpdir(), 'pisper-goal-resume-'))
   t.after(() => rm(directory, { recursive: true, force: true }))
@@ -143,6 +182,121 @@ test('goal mode resumes a paused Goal without replacing its objective', async (t
   assert.equal(resumed.objective, original.objective)
   assert.equal(resumed.status, 'active')
   assert.equal(events.find((item) => item.event === 'meta').data.goal.id, original.id)
+})
+
+test('team mode projects member lifecycle and final summary through the Runtime SSE stream', async (t) => {
+  const directory = await mkdtemp(join(tmpdir(), 'pisper-team-runtime-'))
+  t.after(() => rm(directory, { recursive: true, force: true }))
+  const runtime = new AgentRuntimeService({ cwd: directory, dataDir: directory })
+  await runtime.goals.init()
+  await runtime.teamWorkflows.init()
+  runtime.archiveAttachments = async () => {}
+  runtime.captureConversationMemory = async () => []
+  runtime.memory = { relevantContext: async () => ({ text: '' }) }
+
+  const listeners = new Set()
+  const session = {
+    sessionId: 'team-session',
+    model: { provider: 'openai', id: 'gpt-5' },
+    thinkingLevel: 'medium',
+    isStreaming: false,
+    messages: [],
+    agent: { state: { systemPrompt: '' } },
+    getActiveToolNames: () => ['read'],
+    setActiveToolsByName: () => {},
+    setSessionName: () => {},
+    subscribe(listener) {
+      listeners.add(listener)
+      return () => listeners.delete(listener)
+    },
+    async followUp() {},
+    async prompt(text) {
+      session.messages.push({ role: 'user', content: text, timestamp: Date.now() })
+      for (const listener of listeners) listener({ type: 'turn_start' })
+      const first = await runtime.teamWorkflows.registerTask('team-session', {
+        taskName: 'inspect',
+        role: 'investigator',
+        files: ['src/'],
+        message: 'Inspect the implementation.',
+      })
+      await runtime.teamWorkflows.bindAgent('team-session', first.id, {
+        id: 'agent-1',
+        status: 'running',
+      })
+      runtime.emitAgentUpdate('team-session', { id: 'agent-1', status: 'running' })
+      await runtime.teamWorkflows.updateAgent('team-session', {
+        id: 'agent-1',
+        status: 'completed',
+        output: 'Inspection evidence collected.',
+      })
+      runtime.emitAgentUpdate('team-session', {
+        id: 'agent-1',
+        status: 'completed',
+        output: 'Inspection evidence collected.',
+      })
+      const second = await runtime.teamWorkflows.registerTask('team-session', {
+        taskName: 'verify',
+        role: 'tester',
+        files: ['runtime/tests/'],
+        dependsOn: ['inspect'],
+        message: 'Verify the evidence.',
+      })
+      await runtime.teamWorkflows.bindAgent('team-session', second.id, {
+        id: 'agent-2',
+        status: 'completed',
+        output: 'Verification passed.',
+      })
+      runtime.emitAgentUpdate('team-session', {
+        id: 'agent-2',
+        status: 'completed',
+        output: 'Verification passed.',
+      })
+      const assistant = {
+        role: 'assistant',
+        content: [{ type: 'text', text: 'Team evidence is complete.' }],
+        usage: { totalTokens: 20 },
+        timestamp: Date.now(),
+      }
+      session.messages.push(assistant)
+      for (const listener of listeners) {
+        listener({
+          type: 'message_update',
+          assistantMessageEvent: { type: 'text_delta', delta: assistant.content[0].text },
+        })
+        listener({ type: 'turn_end', message: assistant })
+        listener({ type: 'agent_end', messages: [assistant] })
+      }
+    },
+    async abort() {},
+    dispose() {},
+  }
+  const value = {
+    session,
+    cwd: directory,
+    name: 'Team test',
+    baseToolNames: ['read'],
+    enabledTools: ['read'],
+  }
+  runtime.sessions.set(session.sessionId, value)
+  runtime.getOrCreateSession = async () => value
+
+  const events = []
+  await runtime.streamPrompt({
+    sessionId: session.sessionId,
+    message: 'Coordinate the implementation and verification.',
+    teamMode: true,
+    send: (event, data) => events.push({ event, data }),
+  })
+
+  const meta = events.find((item) => item.event === 'meta')
+  const updates = events.filter((item) => item.event === 'agent_update')
+  const done = events.find((item) => item.event === 'done')
+  assert.equal(meta.data.team.status, 'active')
+  assert.ok(updates.some((item) => item.data.team.completedTaskCount === 1))
+  assert.equal(done.data.team.completedTaskCount, 2)
+  assert.equal(done.data.team.summary.text, 'Team evidence is complete.')
+  assert.equal(runtime.getTeamProjection(session.sessionId).taskCount, 2)
+  assert.equal(runtime.teamWorkflows.canComplete(session.sessionId).ok, true)
 })
 
 test('goal continuation waits for Pi retries and skips terminal assistant errors', async (t) => {

@@ -9,7 +9,6 @@ import {
   Image as ImageIcon,
   PencilLine,
   Play,
-  Plus,
   RefreshCw,
   Sparkles,
   Video,
@@ -24,7 +23,6 @@ import { SettingsCard, SettingsSectionTitle } from './settings-primitives'
 import type { Notify } from '@/app/route-context'
 import type {
   ConfigData,
-  ProviderConfig,
   VisualCandidate,
   VisualModelStatus,
   VisualTestResult,
@@ -33,19 +31,6 @@ import type {
 import { Button } from '@/components/ui/button'
 
 import { AppError } from '@/components/ui/app-primitives'
-
-// 各 Provider 的推荐视觉模型：一键添加的候选，添加后由运行时自动选择。
-const VISUAL_SUGGESTIONS: Record<string, Array<{ id: string; name: string; kind: string }>> = {
-  openai: [
-    { id: 'gpt-image-2', name: 'GPT Image 2', kind: 'image' },
-    { id: 'sora-2', name: 'Sora 2', kind: 'video' },
-  ],
-  google: [
-    { id: 'gemini-3-pro-image', name: 'Gemini 3 Pro Image', kind: 'image' },
-    { id: 'veo-3.1', name: 'Veo 3.1', kind: 'video' },
-  ],
-  xai: [{ id: 'grok-imagine-image', name: 'Grok Imagine', kind: 'image' }],
-}
 
 // 单个模型槽位（图像/视频）：图标 + 类型 + 自动选中的模型名。
 function VisualModelTile({
@@ -108,22 +93,19 @@ function VisualModelTile({
 type VisualGenerationSettingsProps = {
   config: ConfigData
   notify: Notify
-  onConfigChanged: (data: ConfigData) => void
-  onAddVisualProvider: () => void
+  onQuickSetup: () => void
   onEditVisualProvider: (providerId: string) => void
 }
 
 export function VisualGenerationSettings({
   config,
   notify,
-  onConfigChanged,
-  onAddVisualProvider,
+  onQuickSetup,
   onEditVisualProvider,
 }: VisualGenerationSettingsProps) {
   const { t } = useI18n()
   const [status, setStatus] = useState<VisualModelStatus | null>(null)
   const [loading, setLoading] = useState(true)
-  const [adding, setAdding] = useState('')
   const [selecting, setSelecting] = useState('')
   const [testing, setTesting] = useState(false)
   const [trying, setTrying] = useState(false)
@@ -161,32 +143,6 @@ export function VisualGenerationSettings({
       setError(caught instanceof Error ? caught.message : String(caught))
     } finally {
       setSelecting('')
-    }
-  }
-
-  // 一键添加推荐视觉模型到已配置连接：写入模型目录后刷新状态与配置视图。
-  const quickAdd = async (
-    provider: ProviderConfig,
-    model: { id: string; name: string; kind: string },
-  ) => {
-    const key = `${provider.id}/${model.id}`
-    setAdding(key)
-    setError('')
-    try {
-      const data = await apiJson<ConfigData>(
-        `/api/providers/${encodeURIComponent(provider.id)}/models`,
-        {
-          method: 'POST',
-          body: JSON.stringify({ id: model.id, name: model.name, kind: model.kind }),
-        },
-      )
-      onConfigChanged(data)
-      notify(t('config:configPage.visualModelAdded'))
-      await refresh()
-    } catch (caught) {
-      setError(caught instanceof Error ? caught.message : String(caught))
-    } finally {
-      setAdding('')
     }
   }
 
@@ -234,15 +190,6 @@ export function VisualGenerationSettings({
     config.providers.find((provider) => provider.type === 'visual')?.id ||
     ''
   const examplePrompt = t('config:configPage.visualExamplePrompt')
-  // 只推荐「已配置且还没覆盖该类型」的连接，避免重复添加。
-  const suggestions = config.providers
-    .filter((provider) => provider.configured && VISUAL_SUGGESTIONS[provider.id])
-    .flatMap((provider) =>
-      (VISUAL_SUGGESTIONS[provider.id] || [])
-        .filter((model) => (model.kind === 'image' ? !status?.image : !status?.video))
-        .map((model) => ({ provider, model })),
-    )
-
   // 「试试示例」行：点击新建会话并自动发送示例提示词（不可用时会明确提示）。
   const tryExampleRow = (
     <div className="flex flex-wrap items-center gap-[7px] [margin-top:10px] text-[12px] text-[var(--text-muted)]">
@@ -284,6 +231,10 @@ export function VisualGenerationSettings({
           </div>
         </div>
         <div className="flex flex-none items-center gap-[6px]">
+          <Button variant="outline" size="sm" className="bg-surface-subtle" onClick={onQuickSetup}>
+            <Sparkles size={13} />
+            {t('config:configPage.visualQuickSetup')}
+          </Button>
           {editableProviderId && (
             <Button
               variant="outline"
@@ -369,47 +320,6 @@ export function VisualGenerationSettings({
           </p>
           {tryExampleRow}
         </>
-      )}
-
-      {!loading && (!configured || suggestions.length > 0) && (
-        <div className="flex flex-wrap items-center gap-[7px] [margin-top:10px]">
-          {!configured && suggestions.length > 0 && (
-            <span className="text-[12px] font-[600] text-[var(--text-muted)]">
-              {t('config:configPage.quickAddVisualModel')}
-            </span>
-          )}
-          {suggestions.map(({ provider, model }) => {
-            const key = `${provider.id}/${model.id}`
-            return (
-              <Button
-                key={key}
-                variant="outline"
-                size="sm"
-                className="h-[27px] bg-surface-subtle px-[9px] text-[12px]"
-                disabled={Boolean(adding)}
-                onClick={() => void quickAdd(provider, model)}
-              >
-                {adding === key ? (
-                  <RefreshCw className="animate-spin" size={12} />
-                ) : (
-                  <Plus size={12} />
-                )}
-                {provider.name} · {model.name}
-              </Button>
-            )
-          })}
-          {!configured && (
-            <Button
-              variant="ghost"
-              size="sm"
-              className="text-[var(--text-muted)]"
-              onClick={onAddVisualProvider}
-            >
-              <Plus size={13} />
-              {t('config:configPage.newVisualConnection')}
-            </Button>
-          )}
-        </div>
       )}
 
       {error && (

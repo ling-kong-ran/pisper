@@ -413,6 +413,7 @@ export function criticalRuntimeEntries(nativeSelection = {}) {
     ['app', 'runtime/sidecar.mjs'],
     ['app', 'runtime/mobile-embedded.mjs'],
     ['app', 'runtime/plugins/local-plugin-worker.mjs'],
+    ['app', 'runtime/workers/team-workflow-worker.mjs'],
     ['app', 'runtime-bundle-manifest.json'],
     ['license', 'THIRD_PARTY_LICENSES.txt'],
     ['skills', `${PI_CODING_AGENT}/dist/core/skills.js`],

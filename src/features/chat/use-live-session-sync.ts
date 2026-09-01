@@ -11,6 +11,14 @@ import { shouldPollLiveSession } from './live-session-sync'
 import { settleToolCalls } from './run-activity'
 import { FOCUS_MESSAGE_PAGE_SIZE } from './use-session-catalog'
 
+// Team 快照中的 null 是清除信号；只有缺少 team 属性时才沿用内存状态。
+function teamFromSnapshot(
+  snapshot: ApiRecord,
+  fallback: EntityRecord | null | undefined,
+): EntityRecord | null {
+  return Object.hasOwn(snapshot, 'team') ? (snapshot.team ?? null) : (fallback ?? null)
+}
+
 type SessionSyncOptions = {
   sessionStates: Record<string, SessionState>
   sessionStatesRef: React.MutableRefObject<Record<string, SessionState>>
@@ -77,6 +85,7 @@ export function reconcileLiveSnapshot(
     permissionMode: data.permissionMode || current.permissionMode,
     executionMode: data.executionMode || current.executionMode,
     goal: data.goal ?? current.goal ?? null,
+    team: teamFromSnapshot(data, current.team),
     plan: planFromPayloadOr(data, current.plan ?? null),
     contextUsage: data.contextUsage ?? current.contextUsage ?? null,
     sessionUsage: data.sessionUsage ?? current.sessionUsage ?? null,
@@ -147,6 +156,7 @@ export function useLiveSessionSync({
                   permissionMode: data.permissionMode || session.permissionMode,
                   executionMode: data.executionMode || session.executionMode,
                   goal: data.goal ?? session.goal ?? null,
+                  team: teamFromSnapshot(data, session.team),
                   plan: planFromPayloadOr(data, session.plan ?? null),
                 }
               : session,

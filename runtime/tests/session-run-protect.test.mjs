@@ -120,6 +120,26 @@ test('abortSession records the abort deadline on the resident value', async (t) 
   assert.ok(value.abortedAt, 'abortedAt must be recorded for the force-settle guard')
 })
 
+test('abortSession pauses a persisted Goal even when its session runtime is cold', async (t) => {
+  const directory = await mkdtemp(join(tmpdir(), 'pisper-abort-cold-goal-'))
+  t.after(() => rm(directory, { recursive: true, force: true }).catch(() => {}))
+  const runtime = freshRuntime(directory)
+  await runtime.goals.init()
+  await runtime.teamWorkflows.init()
+  const goal = await runtime.goals.start('cold-goal', {
+    objective: 'Stop this persisted Team.',
+    mode: 'team',
+  })
+  await runtime.teamWorkflows.ensure('cold-goal', {
+    goalId: goal.id,
+    objective: goal.objective,
+  })
+
+  assert.equal(await runtime.abortSession('cold-goal'), true)
+  assert.equal(runtime.getSessionGoal('cold-goal').status, 'paused')
+  assert.equal(runtime.teamWorkflows.get('cold-goal').status, 'paused')
+})
+
 test('abortSession returns without waiting for a hung agent abort', async (t) => {
   const directory = await mkdtemp(join(tmpdir(), 'pisper-abort-hung-agent-'))
   t.after(() => rm(directory, { recursive: true, force: true }).catch(() => {}))

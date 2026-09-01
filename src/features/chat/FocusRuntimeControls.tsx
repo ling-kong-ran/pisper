@@ -400,7 +400,7 @@ function executionModeOptions(t: Translate): ExecutionModeOption[] {
   ]
 }
 
-export function ExecutionModeSelect({
+export function ApprovalModeSelect({
   value,
   onChange,
   disabled,
@@ -473,7 +473,7 @@ export function ExecutionModeSelect({
         role="menu"
       >
         <div className="[padding:6px_8px_4px] text-[var(--text-muted)] text-[11px] font-[700] tracking-[.04em] [text-transform:uppercase]">
-          {t('chat:focusSession.executionMode')}
+          {t('chat:focusSession.approvalMode')}
         </div>
         {options.map(([mode, label, description, Icon]) => (
           <button
@@ -512,14 +512,14 @@ export function ExecutionModeSelect({
         <button
           type="button"
           className={`permission-mode-trigger hover:border-[var(--accent-border)] hover:bg-[var(--accent-soft)] hover:text-[var(--star-strong)] [.permission-mode-select.open_&]:border-[var(--accent-border)] [.permission-mode-select.open_&]:bg-[var(--accent-soft)] [.permission-mode-select.open_&]:text-[var(--star-strong)] disabled:[cursor:not-allowed] disabled:opacity-[.55] [.permission-mode-select.compact_&]:gap-[3px] [.permission-mode-select.compact_&]:rounded-[var(--r-xs)] [.permission-mode-select.compact_&]:p-[0_4px] [.permission-mode-select.compact_&]:text-[13px] [.focus-composer_&]:rounded-[var(--r-sm)] dark:hover:bg-[var(--accent-soft)] grid w-full h-full grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-[5px] [border:1px_solid_transparent] rounded-[var(--r-sm)] bg-[var(--surface-muted)] text-inherit [padding:0_7px] text-[12px] font-[700] icon-only [.session-model-select&]:w-[38px] [.session-model-select&]:min-w-[38px] [.session-model-select&]:max-w-[none] [.session-model-select&]:overflow-hidden [.session-model-select&]:flex-none [.session-model-select&]:justify-center [.session-model-select&]:bg-[var(--surface-muted)] [.session-model-select&]:text-[var(--text-muted)] [.session-model-select&.compact]:w-[32px] [.session-model-select&.compact]:min-w-[32px] [.session-model-select&:hover]:bg-[var(--star-soft)] [.session-model-select&:hover]:text-[var(--star-strong)] [.session-model-select&_>_svg]:[position:static] [.session-model-select&_[data-slot='select-trigger']]:absolute [.session-model-select&_[data-slot='select-trigger']]:inset-0 [.session-model-select&_[data-slot='select-trigger']]:w-full [.session-model-select&_[data-slot='select-trigger']]:h-full [.session-model-select&_[data-slot='select-trigger']]:min-h-0 [.session-model-select&_[data-slot='select-trigger']]:p-0 [.session-model-select&_[data-slot='select-trigger']]:opacity-0 [.session-model-select&_[data-slot='select-trigger']]:cursor-pointer [[data-theme='dark']_.session-model-select&]:bg-[var(--surface-muted)] [.permission-mode-select&]:min-w-0 [.permission-mode-select.compact&]:min-w-0 [.permission-mode-trigger&]:relative [.permission-mode-trigger&]:w-[38px] [.permission-mode-trigger&]:grid-cols-[1fr] [.permission-mode-trigger&]:[justify-items:center] [.permission-mode-trigger&]:p-0 [.permission-mode-select.compact_.permission-mode-trigger&]:w-[32px] [.permission-mode-trigger&.mode-auto]:text-[var(--star-strong)] [.permission-mode-trigger&.mode-ignore]:text-[var(--danger)] [.permission-mode-trigger&.mode-full-access]:text-[var(--danger)] [.focus-session.has-conversation_.focus-composer_.permission-mode-trigger&]:w-[36px] [.focus-session.has-conversation_.focus-composer_.permission-mode-trigger&]:h-[36px] @max-[700px]:[.focus-composer_.permission-mode-trigger&]:w-[36px] max-[650px]:[.focus-composer_.permission-mode-trigger&]:w-[36px] mode-${current[0]}`}
-          title={t('chat:focusSession.executionModeModeDescription', {
+          title={t('chat:focusSession.approvalModeModeDescription', {
             mode: current[1],
             description: current[2],
           })}
           disabled={disabled}
           aria-haspopup="menu"
           aria-expanded={open}
-          aria-label={t('chat:focusSession.executionModeMode', { mode: current[1] })}
+          aria-label={t('chat:focusSession.approvalModeMode', { mode: current[1] })}
           onClick={() => setOpen((visible) => !visible)}
         >
           <CurrentIcon size={compact ? 11 : 14} />

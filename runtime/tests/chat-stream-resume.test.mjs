@@ -71,6 +71,21 @@ test('handler stop (done) never triggers a resume', async () => {
   assert.equal(resumeCalls, 0)
 })
 
+test('explicit done frame does not require the handler to return false', async () => {
+  let resumeCalls = 0
+  await streamEventsWithResume({
+    open: async () =>
+      sseResponse(['event: run\ndata: {"runId":"r1"}\n\n', 'id: 1\nevent: done\ndata: {}\n\n']),
+    resume: async () => {
+      resumeCalls += 1
+      return sseResponse([])
+    },
+    onEvent: () => {},
+    baseDelayMs: 0,
+  })
+  assert.equal(resumeCalls, 0)
+})
+
 test('handler errors (business error frame) propagate without resume', async () => {
   let resumeCalls = 0
   await assert.rejects(
@@ -162,14 +177,48 @@ test('missing run frame leaves no resumable state and throws the transport error
   )
 })
 
-test('clean EOF on resume without a terminal frame resolves quietly', async () => {
-  // 终态帧被挤出缓冲的收尾场景：不抛错，交给调用方整体校准。
+test('clean EOF before a terminal frame resumes from the current cursor', async () => {
+  const events = []
+  const resumes = []
   await streamEventsWithResume({
-    open: async () => sseResponse(['event: run\ndata: {"runId":"r1"}\n\n'], { fail: true }),
-    resume: async () => sseResponse([]),
-    onEvent: () => {},
+    open: async () =>
+      sseResponse([
+        'event: run\ndata: {"runId":"r1"}\n\n',
+        'id: 1\nevent: text_delta\ndata: {"d":"a"}\n\n',
+      ]),
+    resume: async (runId, cursor) => {
+      resumes.push([runId, cursor])
+      return sseResponse(['id: 2\nevent: done\ndata: {"text":"a"}\n\n'])
+    },
+    onEvent: (event, data) => {
+      events.push([event, data])
+      return event === 'done' ? false : undefined
+    },
     baseDelayMs: 0,
   })
+  assert.deepEqual(resumes, [['r1', 1]])
+  assert.deepEqual(
+    events.map(([event]) => event),
+    ['run', 'text_delta', 'done'],
+  )
+})
+
+test('repeated clean EOF without a terminal frame remains retryable and eventually fails', async () => {
+  let resumeCalls = 0
+  await assert.rejects(
+    streamEventsWithResume({
+      open: async () => sseResponse(['event: run\ndata: {"runId":"r1"}\n\n']),
+      resume: async () => {
+        resumeCalls += 1
+        return sseResponse([])
+      },
+      onEvent: () => {},
+      baseDelayMs: 0,
+      maxAttempts: 2,
+    }),
+    /SSE 流在终态事件前结束/,
+  )
+  assert.equal(resumeCalls, 2)
 })
 
 test('resync_required hands the session over to snapshot polling', async () => {

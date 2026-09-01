@@ -63,6 +63,10 @@ test('approval-required execution exposes low-risk and approval-gated tools', ()
     'followup_task',
     'interrupt_agent',
   ])
+  assert.deepEqual(filterToolsForExecutionMode(['get_goal', 'update_goal'], 'approval-required'), [
+    'get_goal',
+    'update_goal',
+  ])
   assert.equal(
     filterToolsForExecutionMode(names, 'workspace-write').includes('plugin_create'),
     true,
@@ -89,7 +93,13 @@ test('React exposes approval-required, workspace-write, and full-access executio
 })
 
 test('approval-visible multi-agent mutations still request per-call approval', () => {
-  for (const toolName of ['spawn_agent', 'followup_task', 'interrupt_agent']) {
+  for (const toolName of [
+    'spawn_agent',
+    'followup_task',
+    'interrupt_agent',
+    'update_team_task',
+    'run_team_workflow',
+  ]) {
     assert.deepEqual(
       permissionRequirement({
         mode: 'ask',
@@ -102,6 +112,21 @@ test('approval-visible multi-agent mutations still request per-call approval', (
         risk: 'medium',
         reason: `${toolName} 属于medium工具，需要确认后执行。`,
       },
+    )
+  }
+})
+
+test('Team roster and member messages stay low-risk in approval mode', () => {
+  for (const toolName of ['send_team_message', 'list_team_members']) {
+    assert.equal(
+      permissionRequirement({
+        mode: 'ask',
+        executionMode: 'approval-required',
+        cwd: process.cwd(),
+        toolName,
+        args: {},
+      }),
+      null,
     )
   }
 })

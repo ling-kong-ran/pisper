@@ -36,6 +36,7 @@ export type ChatDockContextValue = {
     sessionId: string,
     attachments?: ChatAttachment[],
     goalMode?: boolean,
+    teamMode?: boolean,
     goalTokenBudget?: number | null,
     invocation?: ResourceInvocation | null,
   ) => Promise<void>
@@ -47,7 +48,7 @@ export type ChatDockContextValue = {
   ) => Promise<boolean>
   abort: (sessionId: string) => Promise<void>
   pauseGoal: (sessionId: string) => Promise<void>
-  setGoalBudget: (sessionId: string, tokenBudget: number) => Promise<void>
+  setGoalBudget: (sessionId: string, tokenBudget: number | null) => Promise<void>
   compactSession: (sessionId: string) => Promise<void>
   setCompactionThreshold: (thresholdPercent: number) => Promise<void>
   switchSessionModel: (sessionId: string, model: string) => Promise<void>

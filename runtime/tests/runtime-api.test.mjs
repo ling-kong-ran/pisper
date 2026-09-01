@@ -469,6 +469,7 @@ test('capability guards retain the builtin Tool catalog while rejecting unavaila
         webSearch: true,
         workflows: false,
         goals: false,
+        multiAgent: false,
         imageProcessing: false,
       },
     },
@@ -504,17 +505,40 @@ test('capability guards retain the builtin Tool catalog while rejecting unavaila
       'workflows',
     ],
     ['/api/chat', { message: 'finish', goalMode: true }, 'goals'],
+    ['/api/chat', { message: 'finish', teamMode: true }, 'goals'],
+    ['/api/chat', { message: 'finish', teamMode: true, goalMode: true }, 'multiAgent'],
     [
       '/api/chat',
       { message: 'inspect', attachments: [{ kind: 'image', data: 'AA==' }] },
       'imageProcessing',
     ],
   ]) {
+    if (capability === 'multiAgent') runtime.capabilities.features.goals = true
     const output = response()
     await handler(request('POST', body), output, new URL(`http://localhost${url}`))
     assert.equal(output.status, 409)
     assert.equal(JSON.parse(output.body).capability, capability)
   }
+})
+
+test('Team API exposes the structured workflow projection for a session', async () => {
+  const runtime = {
+    getTeamProjection(sessionId) {
+      return sessionId === 'team-1'
+        ? { id: 'team-1', status: 'active', tasks: [], blockers: [], conflicts: [] }
+        : null
+    },
+  }
+  const handler = createApiHandler(runtime)
+  const output = response()
+
+  await handler(request('GET'), output, new URL('http://localhost/api/sessions/team-1/team'))
+  assert.equal(output.status, 200)
+  assert.equal(JSON.parse(output.body).team.status, 'active')
+
+  const missing = response()
+  await handler(request('GET'), missing, new URL('http://localhost/api/sessions/unknown/team'))
+  assert.equal(missing.status, 404)
 })
 
 test('chat API forwards explicit Tool requests as structured runtime input', async () => {
@@ -534,6 +558,8 @@ test('chat API forwards explicit Tool requests as structured runtime input', asy
         sessionId: 'session-1',
         message: '/web_search Pisper release',
         requestedToolNames: ['web_search'],
+        goalMode: true,
+        teamMode: true,
       }),
       output,
       new URL('http://localhost/api/chat'),
@@ -543,6 +569,8 @@ test('chat API forwards explicit Tool requests as structured runtime input', asy
 
   assert.equal(output.status, 200)
   assert.deepEqual(calls[0].requestedToolNames, ['web_search'])
+  assert.equal(calls[0].goalMode, true)
+  assert.equal(calls[0].teamMode, true)
   assert.match(output.body, /event: done/)
 })
 

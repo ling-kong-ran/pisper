@@ -213,6 +213,7 @@ export const chatApi = {
       message: string
       attachments: unknown[]
       goalMode: boolean
+      teamMode: boolean
       goalTokenBudget?: number | null
       invocation?: ResourceInvocation | null
     },
@@ -290,7 +291,7 @@ export const chatApi = {
       data: { action: 'pause' },
     }),
 
-  setGoalBudget: (sessionId: string, tokenBudget: number) =>
+  setGoalBudget: (sessionId: string, tokenBudget: number | null) =>
     requestJson<ApiRecord>(`${sessionPath(sessionId)}/goal`, {
       method: 'PATCH',
       data: { action: 'set-budget', tokenBudget },

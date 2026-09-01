@@ -700,6 +700,7 @@ export class AgentRuntimeFacade {
     await this.schedules.dispose()
     await this.channels.dispose()
     await this.goals.pauseAllActive()
+    await this.teamWorkflows?.pauseActive?.()
     await this.multiAgents.dispose()
     await this.browserAutomation.dispose()
     this.mobileOperations.dispose()
@@ -918,6 +919,10 @@ export class AgentRuntimeFacade {
 
   async discoverProviderModels(providerId, input = {}) {
     return this.providerPreferences.discoverProviderModels(providerId, input)
+  }
+
+  async discoverConnectionModels(input = {}) {
+    return this.providerPreferences.discoverConnectionModels(input)
   }
 
   async addProviderModels(providerId, inputs, options = {}) {

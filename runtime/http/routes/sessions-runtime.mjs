@@ -194,6 +194,15 @@ export const sessionRuntimeRoutes = [
     },
   },
   {
+    method: 'GET',
+    path: '/api/sessions/:sessionId/team',
+    handler({ runtime, params, json }) {
+      const team = runtime.getTeamProjection(params.sessionId)
+      if (!team) json(404, { error: '当前会话没有 Team。' })
+      else json(200, { team })
+    },
+  },
+  {
     method: 'PATCH',
     path: '/api/sessions/:sessionId/goal',
     async handler({ runtime, params, body, json }) {
@@ -382,6 +391,7 @@ export const sessionRuntimeRoutes = [
       json(200, {
         aborted: await runtime.abortSession(params.sessionId),
         goal: runtime.getSessionGoal(params.sessionId),
+        team: runtime.getTeamProjection(params.sessionId, { compact: true }),
       })
     },
   },
@@ -404,13 +414,15 @@ export const sessionRuntimeRoutes = [
       const unavailableFeature =
         invocation?.kind === 'workflow' && runtime.capabilities?.features?.workflows === false
           ? 'workflows'
-          : input.goalMode && runtime.capabilities?.features?.goals === false
+          : (input.goalMode || input.teamMode) && runtime.capabilities?.features?.goals === false
             ? 'goals'
-            : Array.isArray(input.attachments) &&
-                input.attachments.some((attachment) => attachment?.kind === 'image') &&
-                runtime.capabilities?.features?.imageProcessing === false
-              ? 'imageProcessing'
-              : ''
+            : input.teamMode && runtime.capabilities?.features?.multiAgent === false
+              ? 'multiAgent'
+              : Array.isArray(input.attachments) &&
+                  input.attachments.some((attachment) => attachment?.kind === 'image') &&
+                  runtime.capabilities?.features?.imageProcessing === false
+                ? 'imageProcessing'
+                : ''
       if (unavailableFeature) {
         json(409, {
           error: `当前 Runtime 不支持 ${unavailableFeature} 能力。`,
@@ -446,6 +458,7 @@ export const sessionRuntimeRoutes = [
         attachments: input.attachments,
         requestedToolNames: toolName ? [toolName] : input.requestedToolNames,
         goalMode: Boolean(input.goalMode),
+        teamMode: Boolean(input.teamMode),
         goalTokenBudget: input.goalTokenBudget == null ? null : Number(input.goalTokenBudget),
         mobileClient: isMobileAppRequest(runtime, req),
         send: sendSse,

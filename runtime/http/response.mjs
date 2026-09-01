@@ -118,12 +118,15 @@ export function startSseHeartbeat(res) {
 // 此时销毁连接让其凭 run 游标重挂补发，事件不丢。
 export const SSE_STALL_TIMEOUT_MS = 30_000
 
-const sseStallTimers = new WeakMap()
+const sseStallStates = new WeakMap()
 
-function clearSseStallTimer(res) {
-  const timer = sseStallTimers.get(res)
-  if (timer) clearTimeout(timer)
-  sseStallTimers.delete(res)
+function clearSseStallState(res) {
+  const state = sseStallStates.get(res)
+  if (!state) return
+  clearTimeout(state.timer)
+  res.removeListener?.('drain', state.onDrain)
+  res.removeListener?.('close', state.onClose)
+  sseStallStates.delete(res)
 }
 
 // 带慢客户端护栏的 SSE 发送：瞬时背压不处理（等 drain 自然恢复），
@@ -133,20 +136,22 @@ export function sseSendGuarded(res, event, data, id = null, payload = null) {
   if (res.destroyed || res.writableEnded) return false
   const accepted = sseSend(res, event, data, id, payload)
   if (accepted) {
-    clearSseStallTimer(res)
+    clearSseStallState(res)
     return true
   }
-  if (!sseStallTimers.has(res)) {
+  if (!sseStallStates.has(res)) {
+    const onDrain = () => clearSseStallState(res)
+    const onClose = () => clearSseStallState(res)
     const timer = setTimeout(() => {
-      sseStallTimers.delete(res)
+      clearSseStallState(res)
       // 超时后仍有数据排不出去才判死；期间客户端恢复读取（drain）则已解除。
       if (!res.destroyed && !res.writableEnded && (Number(res.writableLength) || 0) > 0)
         res.destroy?.()
     }, SSE_STALL_TIMEOUT_MS)
     timer.unref?.()
-    sseStallTimers.set(res, timer)
-    res.once?.('drain', () => clearSseStallTimer(res))
-    res.once?.('close', () => clearSseStallTimer(res))
+    sseStallStates.set(res, { timer, onDrain, onClose })
+    res.once?.('drain', onDrain)
+    res.once?.('close', onClose)
   }
   return true
 }

@@ -12,6 +12,7 @@ export const DEFAULT_SESSION_STATE: SessionState = Object.freeze({
   tools: [],
   approvals: [],
   agents: [],
+  team: null,
   currentActivity: null,
   activityFeed: [],
   lifecycle: null,
@@ -107,7 +108,8 @@ export function hasRunActivity(activity: EntityRecord | null | undefined) {
       String(activity.thinkingText || '').trim() ||
       activity.tools?.length ||
       activity.currentActivity?.type === 'agent' ||
-      activity.activityFeed?.some((item: EntityRecord) => item.type === 'agent')),
+      activity.activityFeed?.some((item: EntityRecord) => item.type === 'agent') ||
+      activity.team),
   )
 }
 

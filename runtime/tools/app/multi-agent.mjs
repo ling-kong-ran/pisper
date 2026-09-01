@@ -5,6 +5,8 @@ import { Type } from 'typebox'
 const category = 'collaboration'
 const source = 'app'
 
+export const TEAM_MEMBER_TOOL_NAMES = Object.freeze(['send_team_message', 'list_team_members'])
+
 export const manifests = [
   {
     id: 'spawn_agent',
@@ -64,6 +66,26 @@ export const manifests = [
     description: 'Interrupt a running Agent.',
     scope: 'Agents in the current chat',
     capability: 'Stop the Agent current run',
+    source,
+  },
+  {
+    id: 'update_team_task',
+    name: 'Update Team Task',
+    category,
+    risk: 'medium',
+    description: 'Change a queued Team task after inspecting new evidence.',
+    scope: 'Team task graph in the current chat',
+    capability: 'Adjust task dependencies, ownership, role label, or deliverable',
+    source,
+  },
+  {
+    id: 'run_team_workflow',
+    name: 'Run Team Workflow',
+    category,
+    risk: 'medium',
+    description: 'Execute a restricted JavaScript Team workflow from the workspace.',
+    scope: 'Current Team and workspace-relative JavaScript script',
+    capability: 'Run dynamic fan-out, branching, aggregation, and verification through Team agents',
     source,
   },
 ]
@@ -143,6 +165,25 @@ function createSpawnAgentTool({ multiAgentRuntime }) {
         description:
           'Concrete, self-contained delegated task including all required context and constraints.',
       }),
+      role: Type.Optional(
+        Type.String({
+          maxLength: 80,
+          description:
+            'Team role such as investigator, architect, implementer, tester, or reviewer.',
+        }),
+      ),
+      files: Type.Optional(
+        Type.Array(Type.String({ maxLength: 240 }), {
+          maxItems: 96,
+          description: 'Workspace-relative files or directories this task owns while it is active.',
+        }),
+      ),
+      dependsOn: Type.Optional(
+        Type.Array(Type.String({ maxLength: 48 }), {
+          maxItems: 32,
+          description: 'Earlier Team task names that must be completed before this task starts.',
+        }),
+      ),
     }),
     async execute(_toolCallId, params) {
       const agent = await requireRuntime(multiAgentRuntime, 'spawn')(params)
@@ -281,6 +322,114 @@ function createInterruptAgentTool({ multiAgentRuntime }) {
   })
 }
 
+function createUpdateTeamTaskTool({ multiAgentRuntime }) {
+  return defineTool({
+    name: 'update_team_task',
+    label: 'Update Team Task',
+    description:
+      'Update a queued Team task when new evidence changes its scope, dependencies, role, or deliverable.',
+    promptSnippet: 'Adjust the Team task graph when new evidence changes the work plan',
+    promptGuidelines: [
+      'Update only queued, blocked, failed, or interrupted tasks; interrupt a running task before changing its graph entry.',
+      'Keep dependencies explicit and avoid cycles or overlapping active file ownership.',
+    ],
+    parameters: Type.Object({
+      target: Type.String({ minLength: 1, description: 'Team task id or task name.' }),
+      taskName: Type.Optional(Type.String({ maxLength: 48 })),
+      role: Type.Optional(Type.String({ maxLength: 80 })),
+      message: Type.Optional(Type.String({ maxLength: 12_000 })),
+      files: Type.Optional(Type.Array(Type.String({ maxLength: 240 }), { maxItems: 96 })),
+      dependsOn: Type.Optional(Type.Array(Type.String({ maxLength: 48 }), { maxItems: 32 })),
+    }),
+    async execute(_toolCallId, params) {
+      const task = await requireRuntime(multiAgentRuntime, 'updateTask')(params.target, params)
+      return { ...text(JSON.stringify(task, null, 2)), details: task }
+    },
+  })
+}
+
+function createRunTeamWorkflowTool({ multiAgentRuntime }) {
+  return defineTool({
+    name: 'run_team_workflow',
+    label: 'Run Team Workflow',
+    description:
+      'Execute a workspace JavaScript workflow that orchestrates Team agents through a restricted API.',
+    promptSnippet: 'Write and execute a dynamic JavaScript Team workflow script',
+    promptGuidelines: [
+      'Use a workspace-relative .js file beginning with export const meta = { name, description }.',
+      'The script may use agent(prompt, options), pipeline(items, worker), parallel(tasks), phase(title), log(message), and args; it must not import modules or access files directly.',
+      'Begin with export const meta = { name, description }, then use top-level await and return the final serializable result.',
+      'Use agent results to branch, fan out, aggregate, verify, and converge; options may include label, role, files, dependsOn, and schema.',
+    ],
+    parameters: Type.Object({
+      path: Type.String({
+        minLength: 1,
+        maxLength: 240,
+        description: 'Workspace-relative path to a dynamic JavaScript Team workflow.',
+      }),
+      args: Type.Optional(
+        Type.Record(Type.String(), Type.Unknown(), {
+          description: 'Structured input exposed to the script as the read-only args global.',
+        }),
+      ),
+    }),
+    async execute(_toolCallId, params) {
+      const result = await requireRuntime(multiAgentRuntime, 'runScript')(params.path, params.args)
+      const summary = {
+        scriptPath: result.scriptPath,
+        meta: result.meta,
+        logs: result.logs,
+        result: result.result,
+        taskCount: result.taskCount,
+      }
+      return { ...text(JSON.stringify(summary, null, 2)), details: result }
+    },
+  })
+}
+
+function createTeamMemberSendMessageTool({ teamMemberRuntime }) {
+  return defineTool({
+    name: 'send_team_message',
+    label: 'Send Team Message',
+    description: 'Send a direct handoff or question to another member of the current Team.',
+    parameters: Type.Object({
+      target: Type.String({
+        minLength: 1,
+        description: 'Target task name, Agent id, or canonical name.',
+      }),
+      message: Type.String({ minLength: 1, maxLength: 12_000 }),
+    }),
+    async execute(_toolCallId, params) {
+      const result = await teamMemberRuntime.sendMessage(params.target, params.message)
+      return {
+        ...text(`Message delivered to ${result.agent.canonicalName || result.agent.taskName}.`),
+        details: result,
+      }
+    },
+  })
+}
+
+function createTeamMemberListTool({ teamMemberRuntime }) {
+  return defineTool({
+    name: 'list_team_members',
+    label: 'List Team Members',
+    description: 'Inspect the current Team roster and member task states for coordination.',
+    parameters: Type.Object({}),
+    async execute() {
+      const members = await teamMemberRuntime.listMembers()
+      return { ...text(JSON.stringify(members, null, 2)), details: { members } }
+    },
+  })
+}
+
+export function createTeamMemberTools({ teamMemberRuntime } = {}) {
+  if (!teamMemberRuntime) return []
+  return [
+    createTeamMemberSendMessageTool({ teamMemberRuntime }),
+    createTeamMemberListTool({ teamMemberRuntime }),
+  ]
+}
+
 export const factories = {
   spawn_agent: createSpawnAgentTool,
   list_agents: createListAgentsTool,
@@ -288,6 +437,8 @@ export const factories = {
   followup_task: createFollowupTaskTool,
   wait_agent: createWaitAgentTool,
   interrupt_agent: createInterruptAgentTool,
+  update_team_task: createUpdateTeamTaskTool,
+  run_team_workflow: createRunTeamWorkflowTool,
 }
 
 // Internal runtime tools: always available to the primary Agent, never shown in the plugins UI.

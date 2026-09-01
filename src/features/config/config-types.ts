@@ -93,7 +93,11 @@ export type ProviderConnectionDraft = {
   organization: string
 }
 
-export type ModelDiscoveryResult = { models?: ProviderModel[]; config?: ConfigData }
+export type ModelDiscoveryResult = {
+  models?: ProviderModel[]
+  config?: ConfigData
+  scope?: 'chat' | 'visual'
+}
 
 // 视觉生成状态：运行时自动选中的图像/视频模型（与 generate_visual 的选择一致）。
 export type VisualCandidate = {

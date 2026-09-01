@@ -666,6 +666,7 @@ export class StreamProjection {
     getExecutionMode,
     goals,
     plans,
+    teamWorkflows,
     multiAgents,
     permissions,
     settingsManager,
@@ -686,6 +687,7 @@ export class StreamProjection {
     this.getExecutionMode = getExecutionMode
     this.goals = goals
     this.plans = plans
+    this.teamWorkflows = teamWorkflows
     this.multiAgents = multiAgents
     this.permissions = permissions
     this.settingsManager = settingsManager
@@ -1179,7 +1181,10 @@ export class StreamProjection {
     const persisted = active ? null : await this.findSessionInfo(id)
     const page = await this.getSessionMessagePage(id, { limit: LIVE_MESSAGE_PAGE_SIZE })
     const messages = page.messages
-    const streaming = Boolean(active?.session.isStreaming || live?.streaming)
+    // Abort 先写入 abortedAt，避免引擎的异步 abort 尚未结束时继续向客户端投影运行中。
+    const streaming = Boolean(
+      !active?.abortedAt && (active?.session.isStreaming || live?.streaming),
+    )
     if (streaming && live) {
       const lastUserIndex = messages.findLastIndex((message) => message.role === 'user')
       const assistantIndex = messages.findIndex(
@@ -1223,6 +1228,7 @@ export class StreamProjection {
       executionMode,
       goal: live?.goal ?? this.goals.get(id),
       plan: live?.plan ?? this.plans.get(id),
+      team: live?.team ?? this.teamWorkflows.get(id),
       agents:
         live?.agents ??
         this.multiAgents

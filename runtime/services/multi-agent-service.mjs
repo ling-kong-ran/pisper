@@ -23,6 +23,7 @@ export const MAX_AGENTS_PER_PARENT = 64
 export const MAX_AGENT_RECORDS = 256
 export const MAX_AGENT_TASK_CHARS = 12_000
 export const TERMINAL_AGENT_SESSION_RETENTION_MS = 10 * 60 * 1000
+export const AGENT_PROGRESS_HEARTBEAT_MS = 5_000
 
 const AGENT_REGISTRY_VERSION = 4
 const AGENT_COMPLETION_MARKER = '[Pisper internal agent completion]'
@@ -34,6 +35,8 @@ export const MULTI_AGENT_TOOL_NAMES = Object.freeze([
   'followup_task',
   'wait_agent',
   'interrupt_agent',
+  'update_team_task',
+  'run_team_workflow',
 ])
 
 const PARENT_ONLY_TOOL_NAMES = new Set([
@@ -59,6 +62,7 @@ Guidelines:
 - Respect the tools, permission mode, and workspace boundary provided by the parent session.
 - Do not duplicate unrelated work or wait for additional instructions.
 - You cannot spawn other agents.
+- In Team mode, you may inspect teammates and send direct handoff messages through the restricted team communication tools.
 - Respond in the language used by the delegated task.`
 
 function textFromContent(content) {
@@ -334,6 +338,19 @@ async function createAgentResourceLoader({
   return loader
 }
 
+function summaryValue(value, depth = 0) {
+  if (depth > 1) return '[内容已省略]'
+  if (typeof value === 'string') return value.slice(0, 250)
+  if (Array.isArray(value)) return value.slice(0, 4).map((item) => summaryValue(item, depth + 1))
+  if (value && typeof value === 'object')
+    return Object.fromEntries(
+      Object.entries(value)
+        .slice(0, 8)
+        .map(([key, child]) => [key, summaryValue(child, depth + 1)]),
+    )
+  return value
+}
+
 function publicRecord(record) {
   return {
     id: record.id,
@@ -361,6 +378,31 @@ function publicRecord(record) {
     resultVersion: record.resultVersion,
     error: record.error,
     currentActivity: record.currentActivity ? { ...record.currentActivity } : null,
+  }
+}
+
+function summaryRecord(record) {
+  return {
+    id: record.id,
+    taskName: record.taskName,
+    canonicalName: record.canonicalName,
+    parentSessionId: record.parentSessionId,
+    status: record.status,
+    message: String(record.message || '').slice(0, 500),
+    model: modelLabel(record.model),
+    thinkingLevel: record.thinkingLevel,
+    startedAt: record.startedAt,
+    lastActivityAt: record.lastActivityAt,
+    completedAt: record.completedAt,
+    durationMs: record.durationMs,
+    turnCount: record.turnCount,
+    toolCallCount: record.toolCallCount,
+    output: String(record.output || '').slice(0, 500),
+    outputTruncated: record.outputTruncated,
+    runNumber: record.runNumber,
+    resultVersion: record.resultVersion,
+    error: String(record.error || '').slice(0, 500),
+    currentActivity: record.currentActivity ? summaryValue(record.currentActivity, -1) : null,
   }
 }
 
@@ -540,10 +582,10 @@ export class MultiAgentService {
   }
 
   summaries(parentSessionId) {
-    return this.list(parentSessionId).map((record) => {
-      const { fullOutput: _fullOutput, ...summary } = record
-      return { ...summary, output: String(record.output || '').slice(0, 1_000) }
-    })
+    return [...this.records.values()]
+      .filter((record) => !parentSessionId || record.parentSessionId === parentSessionId)
+      .sort((left, right) => left.startedAt.localeCompare(right.startedAt))
+      .map(summaryRecord)
   }
 
   find(parentSessionId, target) {
@@ -875,9 +917,12 @@ export class MultiAgentService {
         record.session = result.session
         applyPisperSystemPrompt(record.session, record.model)
         record.onSession?.(record.session)
+        let lastProgressEmitAt = this.now()
         record.unsubscribe = record.session.subscribe((event) => {
-          // Session is reused across follow-up runs; always attribute live events to the current record state.
+          // 会话会跨 follow-up 复用；细粒度文本事件只做租约心跳，状态变化才立即外发。
+          let shouldEmit = false
           if (event.type === 'turn_start') {
+            shouldEmit = true
             record.turnCount += 1
             record.currentActivity = {
               type: 'model',
@@ -885,6 +930,7 @@ export class MultiAgentService {
               updatedAt: new Date(this.now()).toISOString(),
             }
           } else if (event.type === 'tool_execution_start') {
+            shouldEmit = true
             record.toolCallCount += 1
             const tool = {
               type: 'tool',
@@ -897,6 +943,7 @@ export class MultiAgentService {
             record.tools.push(tool)
             record.currentActivity = tool
           } else if (event.type === 'tool_execution_end') {
+            shouldEmit = true
             const finishedAt = new Date(this.now()).toISOString()
             record.tools = record.tools.map((tool) =>
               tool.id === event.toolCallId
@@ -914,7 +961,13 @@ export class MultiAgentService {
                 }
               : { type: 'model', stage: 'processing_result', updatedAt: finishedAt }
           }
-          this.emit(record, record.onProgress)
+          const observedAt = this.now()
+          if (!shouldEmit && observedAt - lastProgressEmitAt >= AGENT_PROGRESS_HEARTBEAT_MS)
+            shouldEmit = true
+          if (shouldEmit) {
+            lastProgressEmitAt = observedAt
+            this.emit(record, record.onProgress)
+          } else record.lastActivityAt = new Date(observedAt).toISOString()
         })
       }
 
@@ -1013,6 +1066,16 @@ export class MultiAgentService {
         await this.scheduleQueued()
       } catch {}
     }
+  }
+
+  async sendMessageFromAgent(parentSessionId, senderId, target, message) {
+    const sender = this.find(parentSessionId, senderId)
+    if (!sender) throw new Error(`Unknown sending agent: ${senderId}`)
+    if (sender.id === this.find(parentSessionId, target)?.id)
+      throw new Error('An Agent cannot send a message to itself.')
+    if (!['starting', 'running'].includes(sender.status))
+      throw new Error('Only a starting or running Agent can send team messages.')
+    return this.sendMessage(parentSessionId, target, message)
   }
 
   async sendMessage(parentSessionId, target, message) {
@@ -1127,17 +1190,12 @@ export class MultiAgentService {
   }
 
   // 父会话中止/删除时终止其全部子 Agent。
-  abortParent(parentSessionId) {
+  abortParent(parentSessionId, reason = 'Agent was cancelled because the parent session stopped.') {
     let count = 0
     for (const record of this.records.values()) {
       if (record.parentSessionId !== parentSessionId || !ACTIVE_AGENT_STATUSES.has(record.status))
         continue
-      this.interrupt(
-        parentSessionId,
-        record.id,
-        'Agent was cancelled because the parent session stopped.',
-        false,
-      )
+      this.interrupt(parentSessionId, record.id, reason, false)
       count += 1
     }
     void this.scheduleQueued().catch(() => {})

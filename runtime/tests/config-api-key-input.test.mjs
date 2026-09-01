@@ -2,7 +2,7 @@ import assert from 'node:assert/strict'
 import { readFile } from 'node:fs/promises'
 import test from 'node:test'
 
-test('quick setup wizard saves provider config and default model in one step', async () => {
+test('quick setup wizard saves provider config after fetching and selecting a model', async () => {
   const [wizardSource, modelsSettingsSource] = await Promise.all([
     readFile('src/features/config/QuickSetupWizard.tsx', 'utf8'),
     readFile('src/features/config/ModelsSettings.tsx', 'utf8'),
@@ -11,12 +11,16 @@ test('quick setup wizard saves provider config and default model in one step', a
   assert.match(wizardSource, /setAsDefault: true/)
   assert.match(wizardSource, /enabled: true/)
   assert.match(wizardSource, /apiKey: readApiKey\(\)/)
-  // 高级设置（协议/端点/组织）折叠在向导第 2 步内
-  assert.match(wizardSource, /configPage\.advancedSettings/)
+  // 向导先填写 Base URL，再选择协议，第三步获取模型列表。
+  assert.match(wizardSource, /configPage\.quickSetupStepBaseUrl/)
+  assert.match(wizardSource, /configPage\.quickSetupStepProtocol/)
+  assert.match(wizardSource, /discover-connection/)
   assert.match(wizardSource, /configPage\.apiProtocol/)
   // 发现接口不可用时允许用目录已有模型继续（kimi-coding 等无 /models 端点的 Provider）
   assert.match(wizardSource, /configPage\.discoverFailedUsingExisting/)
   assert.match(wizardSource, /authFailure/)
+  assert.match(wizardSource, /providerType === 'visual'/)
+  assert.match(wizardSource, /model\.kind === 'chat'/)
   assert.match(modelsSettingsSource, /<QuickSetupWizard/)
   assert.doesNotMatch(modelsSettingsSource, /detailTab|config-tabs/)
 })

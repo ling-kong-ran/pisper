@@ -253,7 +253,12 @@ test('Android 与 iOS 软键盘都使用可视视口保持会话输入框可见'
   assert.match(stabilizer, /viewport\?\.height \?\? window\.innerHeight/)
   assert.match(stabilizer, /viewport\?\.offsetTop \?\? 0/)
   assert.match(stabilizer, /let viewportBaseline = Math\.max\(window\.innerHeight/)
-  assert.doesNotMatch(stabilizer, /shell\.style\.(height|transform) =/)
+  assert.match(stabilizer, /shell\.style\.height = `\$\{height\}px`/)
+  assert.match(
+    stabilizer,
+    /shell\.style\.transform = offsetTop \? `translate3d\(0, \$\{offsetTop\}px, 0\)` : ''/,
+  )
+  assert.match(stabilizer, /shell\.style\.height = ''/)
   assert.match(stabilizer, /viewportBaseline - height - offsetTop/)
   assert.match(
     stabilizer,
@@ -281,7 +286,7 @@ test('Android 与 iOS 软键盘都使用可视视口保持会话输入框可见'
     /data-mobile-composer|\.main-surface:has\(\.focus-composer textarea:focus\)/,
   )
   assert.doesNotMatch(styles, /display: none !important/)
-  assert.match(stabilizer, /interactive-widget\/原生窗口调整布局视口/)
+  assert.match(stabilizer, /Android adjustResize/)
   assert.match(activity, /SOFT_INPUT_ADJUST_RESIZE/)
   assert.match(setup, /android:windowSoftInputMode="adjustResize"/)
   assert.match(iosPlugin, /keyboardDidShowNotification/)

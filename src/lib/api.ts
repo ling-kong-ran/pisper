@@ -121,9 +121,12 @@ const STREAM_RESUME_BASE_DELAY_MS = 400
 // 带游标重挂的 SSE 消费：run 首帧提供 runId，后续帧携带递增游标（SSE id 行）。
 // 传输层在终态前断开（连接重置/被判定慢客户端/代理提前收尾）时，凭游标重挂，
 // 服务端从环形缓冲补发缺失帧；缓冲溢出会先发 resync_required，交由调用方快照对齐。
-// 两种终态不重挂：onEvent 返回 false（done）、onEvent 抛错（业务 error 帧）。
-// 重试只在外部传输错误上发生，且每次重挂有进展（游标前移）就重置计数——
-// 只有连续无进展的失败才会耗尽尝试次数。
+// 两种终态不重挂：明确的 done/error 帧，或 onEvent 返回 false（如 resync_required）。
+// onEvent 抛错（业务 error 帧）也不重挂；重试只在外部传输错误上发生，且每次
+// 重挂有进展（游标前移）就重置计数——只有连续无进展的失败才会耗尽尝试次数；
+// 干净 EOF 没有终态帧也按传输中断处理。
+const STREAM_ENDED_BEFORE_TERMINAL_ERROR = 'SSE 流在终态事件前结束'
+
 export async function streamEventsWithResume<T = Record<string, unknown>>({
   open,
   resume,
@@ -146,7 +149,7 @@ export async function streamEventsWithResume<T = Record<string, unknown>>({
       if (event === 'run' && typeof record?.runId === 'string') runId = record.runId
       try {
         const result = onEvent(event, data)
-        if (result === false) terminalSeen = true
+        if (event === 'done' || event === 'error' || result === false) terminalSeen = true
         return result
       } catch (error) {
         // 标记业务错误（如服务端 error 帧）：与传输层断开区分，不触发重挂。
@@ -177,8 +180,9 @@ export async function streamEventsWithResume<T = Record<string, unknown>>({
     try {
       await handleResponse(await resume(runId, cursor))
       if (handlerError) throw handlerError
-      // 终态帧到达（done）或调用方在 resync_required 后主动停读，都算正常收尾；
-      // 干净 EOF 但无终态说明 run 已关闭且终态帧被挤出缓冲，交给调用方整体校准。
+      // 只有明确收到终态帧才能结束；干净 EOF 仍可能是代理提前收尾，
+      // 必须沿当前游标再次重挂，避免把未完成的运行误报成成功。
+      if (!terminalSeen) throw new Error(STREAM_ENDED_BEFORE_TERMINAL_ERROR)
       return
     } catch (error) {
       if (handlerError) throw handlerError

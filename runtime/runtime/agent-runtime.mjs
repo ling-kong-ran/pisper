@@ -51,6 +51,16 @@ import {
   goalContinuationPrompt,
   isGoalContinuationMessage,
 } from '../services/goal-service.mjs'
+import {
+  projectGoalTeam,
+  TeamWorkflowService,
+  teamExecutionPrompt,
+} from '../services/team-workflow.mjs'
+import {
+  createMultiAgentRuntime,
+  createSubagentUsageHandler,
+  multiAgentUpdateActivity,
+} from './multi-agent-runtime-adapter.mjs'
 import { GitChangesService } from '../services/git-changes-service.mjs'
 import { VcsChangesService } from '../services/vcs-changes-service.mjs'
 import { PlanService } from '../services/plan-service.mjs'
@@ -190,13 +200,12 @@ const SESSION_HISTORY_READ_CHUNK_BYTES = 1024 * 1024
 const MAX_SESSION_HISTORY_CACHE_ENTRIES = 4
 const MAX_SESSION_HISTORY_CACHE_SOURCE_BYTES = 8 * 1024 * 1024
 const MAX_SESSION_HISTORY_CACHE_ESTIMATED_BYTES = 48 * 1024 * 1024
-// 部分上游（模型网关）在流式中断时会报 “stream read error” 之类的瞬时错误，
-// 该错误可安全重试，用 Symbol 标记避免重复打补丁。
-const TRANSIENT_STREAM_READ_ERROR_PATTERN = /\bstream[_\s-]?read[_\s-]?error\b/i
+// 部分上游（模型网关）会把流读取中断归一化成自有错误文本；重发当前 turn 比把半截响应当成最终答案更安全。
+// 仅在 Pi 已判定 stopReason=error 时应用，认证、配额和用户主动中止仍交给 Pi 原逻辑。
+const TRANSIENT_STREAM_READ_ERROR_PATTERN =
+  /\b(?:stream[_\s-]?read[_\s-]?error|upstream[_\s-]?error\s*:\s*(?:upstream\s+)?request\s+failed|econn(?:reset|aborted)|connection\s+(?:reset|closed|lost)|premature(?:ly)?\s+clos(?:e|ed)|incomplete\s+stream|stream\s+(?:ended|closed|interrupted)\s+before\b[\s\S]{0,120}\bterminal\b|upstream\b[\s\S]{0,120}\b(?:closed|interrupted)\b)/i
 const PISPER_STREAM_RETRY_PATCH = Symbol('pisper.stream-retry-patch')
-
-// 给会话打上瞬时流错误重试补丁：命中“stream read error”时视为可重试错误，
-// 交给 Pi 引擎的内置重试机制处理；同一会话只打一次补丁。
+// 给会话打上瞬时流错误重试补丁：把上游明确的流中断交给 Pi 引擎的内置重试机制处理；同一会话只打一次补丁。
 export function installTransientStreamRetry(session) {
   if (
     !session ||
@@ -536,6 +545,7 @@ export class AgentRuntimeService extends AgentRuntimeFacade {
       createResourceLoader: ({ cwd: childCwd, appendSystemPrompt }) =>
         this.skills.createResourceLoader(childCwd, { appendSystemPrompt }),
     })
+    this.teamWorkflows = new TeamWorkflowService({ path: join(dataDir, 'pisper-teams.json') })
     this.multiAgents.setCompletionNotifier((agent) => this.injectAgentCompletion(agent))
     this.sessionMetaWrite = Promise.resolve()
     this.usageLedger = { days: {}, sessionScans: {} }
@@ -563,6 +573,7 @@ export class AgentRuntimeService extends AgentRuntimeFacade {
       getExecutionMode: (id) => this.getSessionExecutionMode(id),
       goals: { get: (id) => this.goals.get(id) },
       plans: { get: (id) => this.plans.get(id) },
+      teamWorkflows: { get: (id) => this.getTeamProjection(id, { compact: true }) },
       multiAgents: { summaries: (id) => this.multiAgents.summaries(id) },
       permissions: { getPending: (id) => this.permissions.getPending(id) },
       settingsManager: () => this.settingsManager,
@@ -623,6 +634,10 @@ export class AgentRuntimeService extends AgentRuntimeFacade {
       getGoals: () => this.goals,
       getPlans: () => this.plans,
       getMultiAgents: () => this.multiAgents,
+      getTeamWorkflows: () => ({
+        get: (id) => this.getTeamProjection(id, { compact: true }),
+        remove: (id) => this.teamWorkflows.remove(id),
+      }),
       getPermissions: () => this.permissions,
       getBrowserAutomation: () => this.browserAutomation,
       getExecutionMode: (id) => this.getSessionExecutionMode(id),
@@ -741,6 +756,8 @@ export class AgentRuntimeService extends AgentRuntimeFacade {
     if (this.capabilities.features.goals) await this.goals.init({ pauseActive: true })
     if (this.capabilities.features.plans) await this.plans.init()
     if (this.capabilities.features.multiAgent) await this.multiAgents.init()
+    if (this.capabilities.features.goals && this.capabilities.features.multiAgent)
+      await this.teamWorkflows.init({ pauseActive: true })
     if (this.capabilities.features.channels) await this.channels.init()
     if (this.capabilities.features.workflows) await this.workflows.init()
     if (this.capabilities.features.schedules) await this.schedules.init()
@@ -754,13 +771,21 @@ export class AgentRuntimeService extends AgentRuntimeFacade {
     return this.providerPreferences.reload()
   }
 
+  getTeamProjection(sessionId, options) {
+    return projectGoalTeam(this.teamWorkflows.get(sessionId), this.goals.get(sessionId), options)
+  }
+
   // 目标状态变化时：更新实时状态、失效投影缓存，并通知前端（goal_update 事件）。
   emitGoalUpdate(sessionId, goal, send = this.goalEmitters.get(sessionId)) {
     const live = this.liveSessions.get(sessionId)
-    if (live) live.goal = goal || null
+    const team = this.getTeamProjection(sessionId, { compact: true })
+    if (live) {
+      live.goal = goal || null
+      live.team = team
+    }
     this.streamProjection.invalidate(sessionId, { transcript: false, activity: true, usage: false })
     try {
-      send?.('goal_update', { sessionId, goal: goal || null })
+      send?.('goal_update', { sessionId, goal: goal || null, team })
     } catch {}
   }
 
@@ -793,15 +818,15 @@ export class AgentRuntimeService extends AgentRuntimeFacade {
       ['queued', 'starting', 'running'].includes(item.status),
     )
     const live = this.liveSessions.get(sessionId)
-    const currentActivity = updatedAgent
-      ? {
-          type: 'agent',
-          agent: updatedAgent,
-          updatedAt: updatedAgent.lastActivityAt || new Date().toISOString(),
-        }
-      : live?.currentActivity || null
+    const team = this.getTeamProjection(sessionId, { compact: true })
+    const { communication, currentActivity } = multiAgentUpdateActivity(
+      agent,
+      updatedAgent,
+      live?.currentActivity,
+    )
     if (live) {
       live.agents = agents
+      live.team = team
       if (updatedAgent) {
         live.activityFeed = pushLiveActivity(live.activityFeed, currentActivity)
         if (live.currentActivity?.type !== 'tool') live.currentActivity = currentActivity
@@ -809,7 +834,14 @@ export class AgentRuntimeService extends AgentRuntimeFacade {
     }
     this.streamProjection.invalidate(sessionId, { transcript: false, activity: true, usage: false })
     try {
-      send?.('agent_update', { sessionId, agent: updatedAgent, agents, currentActivity })
+      send?.('agent_update', {
+        sessionId,
+        agent: updatedAgent,
+        agents,
+        team,
+        currentActivity,
+        communication,
+      })
     } catch {}
   }
 
@@ -880,6 +912,10 @@ export class AgentRuntimeService extends AgentRuntimeFacade {
 
   async pauseSessionGoal(id) {
     const goal = await this.goals.pause(id)
+    if (goal?.mode === 'team') {
+      await this.teamWorkflows.pause(id)
+      this.multiAgents.abortParent(id, 'Team goal was paused; active members were stopped.')
+    }
     const value = this.sessions.get(id)
     if (value) this.syncGoalTools(value, goal)
     this.emitGoalUpdate(id, goal)
@@ -888,6 +924,13 @@ export class AgentRuntimeService extends AgentRuntimeFacade {
 
   async setSessionGoalBudget(id, tokenBudget) {
     const goal = await this.goals.setBudget(id, tokenBudget)
+    if (goal?.mode === 'team' && goal.status === 'budget_limited') {
+      await this.teamWorkflows.markBudgetLimited(id, goal.teamTokenBudget)
+      this.multiAgents.abortParent(
+        id,
+        'Team token budget was reached; remaining members were stopped.',
+      )
+    }
     const value = this.sessions.get(id)
     if (value) this.syncGoalTools(value, goal)
     this.emitGoalUpdate(id, goal)
@@ -1410,7 +1453,20 @@ export class AgentRuntimeService extends AgentRuntimeFacade {
           createGoalTools({
             getGoal: () => this.goals.get(runtimeSessionId),
             completeGoal: async () => {
+              const currentGoal = this.goals.get(runtimeSessionId)
+              if (currentGoal?.mode === 'team') {
+                if (this.multiAgents.hasActive(runtimeSessionId))
+                  throw new Error('Team 仍有成员在执行，请先等待所有成员完成并完成最终验收。')
+                await this.teamWorkflows.syncAgents(
+                  runtimeSessionId,
+                  this.multiAgents.list(runtimeSessionId),
+                )
+                const completion = this.teamWorkflows.canComplete(runtimeSessionId)
+                if (!completion.ok) throw new Error(completion.reason)
+              }
               const goal = await this.goals.complete(runtimeSessionId)
+              if (currentGoal?.mode === 'team')
+                await this.teamWorkflows.markComplete(runtimeSessionId)
               if (runtimeValue) this.syncGoalTools(runtimeValue, goal)
               this.emitGoalUpdate(runtimeSessionId, goal)
               return goal
@@ -1437,73 +1493,13 @@ export class AgentRuntimeService extends AgentRuntimeFacade {
         sessionId: runtimeSession.sessionId,
         cwd: effectiveCwd,
       })
-    // 子 Agent 用量归账：写入用量账本，并同步到目标预算。
-    const accountSubagentUsage = async ({ id, runNumber, runUsage, completedAt }) => {
-      await this.recordUsage(
-        localDayKey(completedAt),
-        `agent:${runtimeSession.sessionId}:${id}:${runNumber}`,
-        runUsage,
-      )
-      const goal = this.goals.get(runtimeSession.sessionId)
-      if (goal?.status !== 'active') return
-      const accounting = this.goals.account(runtimeSession.sessionId, {
-        goalId: goal.id,
-        usage: runUsage,
-      })
-      const updatedGoal = this.goals.get(runtimeSession.sessionId)
-      if (runtimeValue) this.syncGoalTools(runtimeValue, updatedGoal)
-      this.emitGoalUpdate(runtimeSession.sessionId, updatedGoal)
-      await accounting
-    }
-    const parentActiveToolNames = () => {
-      const active = new Set(runtimeSession?.getActiveToolNames?.() || [])
-      return filterToolsForExecutionMode(
-        baseToolNames.filter((name) => active.has(name)),
-        this.getSessionExecutionMode(runtimeSessionId),
-        (toolName) => this.getToolRisk(toolName),
-      )
-    }
-    // 多 Agent 运行时适配：把 MultiAgentService 包装成 Pi 会话可调用的工具接口。
-    const multiAgentRuntime = {
-      spawn: (input) => {
-        if (!runtimeSession?.model) throw new Error('当前会话没有可用模型，无法启动 Agent。')
-        return this.multiAgents.spawn({
-          ...input,
-          parentSessionId: runtimeSession.sessionId,
-          cwd: effectiveCwd,
-          model: runtimeSession.model,
-          thinkingLevel: runtimeSession.thinkingLevel,
-          allowedTools: [...parentActiveToolNames(), ...(planReader ? [planReader.name] : [])],
-          createCustomTools: async () => {
-            const childBashTool =
-              enabledTools.includes('bash') &&
-              ['approval-required', 'workspace-write', 'full-access'].includes(executionMode)
-                ? await createPisperBashTool(effectiveCwd)
-                : null
-            return {
-              tools: [
-                ...createInheritedCustomTools(childBashTool),
-                ...(planReader ? [planReader] : []),
-              ],
-            }
-          },
-          onProgress: (agent) => this.emitAgentUpdate(runtimeSession.sessionId, agent),
-          onSession: installSubagentPermissions,
-          onCompleted: accountSubagentUsage,
-        })
-      },
-      list: () => this.multiAgents.list(runtimeSession.sessionId),
-      sendMessage: (target, message) =>
-        this.multiAgents.sendMessage(runtimeSession.sessionId, target, message),
-      followup: (target, message) =>
-        this.multiAgents.followup(runtimeSession.sessionId, target, message),
-      wait: (timeoutMs, target) =>
-        waitForAgentMailbox(this.multiAgents, runtimeSession.sessionId, timeoutMs, target),
-      interrupt: (target) => this.multiAgents.interrupt(runtimeSession.sessionId, target),
-    }
-    const multiAgentTools = this.capabilities.features.multiAgent
-      ? schemaOnlyToolDefinitions(createMultiAgentTools({ multiAgentRuntime }))
-      : []
+    const accountSubagentUsage = createSubagentUsageHandler({
+      runtimeService: this,
+      getRuntimeSession: () => runtimeSession,
+      getRuntimeValue: () => runtimeValue,
+      teamWorkflows: this.teamWorkflows,
+      multiAgents: this.multiAgents,
+    })
     const toolDiscovery = createToolDiscoveryTool({
       listTools: () => {
         if (!runtimeValue || !runtimeSession) return []
@@ -1586,6 +1582,29 @@ export class AgentRuntimeService extends AgentRuntimeFacade {
       ...schemaOnlyToolDefinitions(pluginTools),
       ...(inheritedBashTool ? [inheritedBashTool] : []),
     ]
+    const multiAgentRuntime = this.capabilities.features.multiAgent
+      ? createMultiAgentRuntime({
+          getRuntimeSession: () => runtimeSession,
+          multiAgents: this.multiAgents,
+          teamWorkflows: this.teamWorkflows,
+          effectiveCwd,
+          executionMode,
+          enabledTools,
+          planReader,
+          baseToolNames,
+          getExecutionMode: () => this.getSessionExecutionMode(runtimeSessionId),
+          getToolRisk: (toolName) => this.getToolRisk(toolName),
+          createInheritedCustomTools,
+          waitAgent: (timeoutMs, target) =>
+            waitForAgentMailbox(this.multiAgents, runtimeSession.sessionId, timeoutMs, target),
+          installSubagentPermissions,
+          onCompleted: accountSubagentUsage,
+          emitAgentUpdate: this.emitAgentUpdate.bind(this),
+        })
+      : null
+    const multiAgentTools = multiAgentRuntime
+      ? schemaOnlyToolDefinitions(createMultiAgentTools({ multiAgentRuntime }))
+      : []
     const inheritedCustomTools = createInheritedCustomTools()
     const callableTools = new Map(inheritedCustomTools.map((tool) => [tool.name, tool]))
     // 工具网关：集中管控工具调用（按执行模式过滤 + 权限审批），
@@ -1647,8 +1666,9 @@ export class AgentRuntimeService extends AgentRuntimeFacade {
       runtimeVersion: this.sessionRuntimeVersion,
       lastAccessedAt: Date.now(),
     }
-    runtimeValue = value
+    runtimeValue = Object.assign(value, { multiAgentRuntime })
     runtimeSession = session
+    if (multiAgentRuntime) await multiAgentRuntime.resume()
     if (session.model) {
       const model = `${session.model.provider}/${session.model.id}`
       if (this.sessionMeta[session.sessionId]?.model !== model) {
@@ -1809,6 +1829,7 @@ export class AgentRuntimeService extends AgentRuntimeFacade {
       attachments = [],
       requestedToolNames = [],
       goalMode = false,
+      teamMode = false,
       goalTokenBudget = null,
       isolatedContext = false,
       mobileClient = false,
@@ -1842,17 +1863,31 @@ export class AgentRuntimeService extends AgentRuntimeFacade {
       throw new Error('没有可用模型，请先在配置页设置 Provider、模型和 API Key。')
     }
     let goal = this.goals.get(session.sessionId)
-    // 目标模式：暂停态恢复或新开目标；预算可在恢复时更新。
-    if (goalMode) {
+    if (goalMode || teamMode) {
+      const requestedMode = teamMode ? 'team' : 'goal'
       if (goal?.status === 'paused') {
         if (goalTokenBudget != null) await this.goals.setBudget(session.sessionId, goalTokenBudget)
-        goal = await this.goals.resume(session.sessionId)
-      } else {
+        goal = await this.goals.resume(session.sessionId, {
+          mode: requestedMode,
+          ...(goalTokenBudget != null ? { tokenBudget: goalTokenBudget } : {}),
+        })
+      } else if (goal?.status !== 'active' || goal.mode !== requestedMode) {
         goal = await this.goals.start(session.sessionId, {
           objective: message,
           tokenBudget: goalTokenBudget ?? undefined,
+          mode: requestedMode,
         })
       }
+    }
+    if (goal?.mode === 'team' && goal.status === 'active') {
+      await this.teamWorkflows.ensure(session.sessionId, {
+        goalId: goal.id,
+        objective: goal.objective,
+        tokenBudget: goal.teamTokenBudget,
+      })
+      await value.multiAgentRuntime?.resume?.()
+    } else if (this.teamWorkflows.isActive(session.sessionId)) {
+      await this.teamWorkflows.pause(session.sessionId)
     }
     await this.selectToolsForMessage(value, message, { requestedToolNames })
     value.promptCache = comparePromptCacheShapes(
@@ -1891,6 +1926,7 @@ export class AgentRuntimeService extends AgentRuntimeFacade {
       startedAt,
       goal,
       plan: this.plans.get(session.sessionId),
+      team: this.getTeamProjection(session.sessionId, { compact: true }),
       agents: this.multiAgents
         .summaries(session.sessionId)
         .filter((agent) => ['queued', 'starting', 'running'].includes(agent.status)),
@@ -1931,6 +1967,7 @@ export class AgentRuntimeService extends AgentRuntimeFacade {
       executionMode: this.getSessionExecutionMode(session.sessionId),
       goal,
       plan: live.plan,
+      team: live.team,
       agents: live.agents,
       currentActivity: live.currentActivity,
       activityFeed: live.activityFeed,
@@ -1946,7 +1983,8 @@ export class AgentRuntimeService extends AgentRuntimeFacade {
     let goalTurnId = '',
       goalTurnStartedAt = 0,
       continuationQueued = false,
-      budgetSummaryQueued = false
+      budgetSummaryQueued = false,
+      pendingGoalAccounting = Promise.resolve()
     let thinkingPrefix = '',
       thinkingTurnText = ''
     // 流式文本/思考分块记账：多个并发内容块（如并行工具调用后的多段文本）需要独立跟踪。
@@ -2020,6 +2058,16 @@ export class AgentRuntimeService extends AgentRuntimeFacade {
         } catch {}
       }
     }
+    const teamPrompt = (currentGoal) =>
+      currentGoal?.mode === 'team'
+        ? `${goalContinuationPrompt(currentGoal)}\n\n${teamExecutionPrompt(
+            currentGoal,
+            this.multiAgents
+              .summaries(session.sessionId)
+              .filter((agent) => ['queued', 'starting', 'running'].includes(agent.status)),
+            this.getTeamProjection(session.sessionId, { compact: true }),
+          )}`
+        : goalContinuationPrompt(currentGoal)
     const unsubscribe = session.subscribe((event) => {
       live.lastActivityAt = new Date().toISOString()
       bridgeAgentSessionEvent(event, live, emit)
@@ -2266,14 +2314,23 @@ export class AgentRuntimeService extends AgentRuntimeFacade {
         })
         goalTurnId = ''
         goalTurnStartedAt = 0
-        const updatedGoal = this.goals.get(session.sessionId)
-        this.syncGoalTools(value, updatedGoal)
-        this.emitGoalUpdate(session.sessionId, updatedGoal)
-        if (updatedGoal?.status === 'budget_limited' && !budgetSummaryQueued) {
-          budgetSummaryQueued = true
-          void session.followUp(goalBudgetPrompt(updatedGoal)).catch(() => {})
-        }
-        void accounting.catch(() => {})
+        pendingGoalAccounting = accounting
+          .then(async (updatedGoal) => {
+            if (updatedGoal?.mode === 'team' && updatedGoal.status === 'budget_limited') {
+              await this.teamWorkflows.markBudgetLimited(session.sessionId)
+              this.multiAgents.abortParent(
+                session.sessionId,
+                'Team token budget was reached; remaining members were stopped.',
+              )
+            }
+            this.syncGoalTools(value, updatedGoal)
+            this.emitGoalUpdate(session.sessionId, updatedGoal)
+            if (updatedGoal?.status === 'budget_limited' && !budgetSummaryQueued) {
+              budgetSummaryQueued = true
+              void session.followUp(goalBudgetPrompt(updatedGoal)).catch(() => {})
+            }
+          })
+          .catch(() => {})
       } else if (event.type === 'agent_end') {
         // 目标模式下的多轮延续：正常结束时用延续提示再驱动一轮，直到目标完成/预算耗尽。
         if (event.willRetry) return
@@ -2290,7 +2347,7 @@ export class AgentRuntimeService extends AgentRuntimeFacade {
         if (activeGoal?.status !== 'active' || continuationQueued) return
         continuationQueued = true
         void session
-          .followUp(goalContinuationPrompt(activeGoal))
+          .followUp(teamPrompt(activeGoal))
           .catch(() => {})
           .finally(() => {
             continuationQueued = false
@@ -2324,19 +2381,22 @@ export class AgentRuntimeService extends AgentRuntimeFacade {
           : { text: '', memories: [] }
       if (memoryContext.text) contexts.push(memoryContext.text)
       const activeGoal = sharedContextEnabled ? this.goals.get(session.sessionId) : null
-      if (activeGoal?.status === 'active') contexts.push(goalContinuationPrompt(activeGoal))
+      if (activeGoal?.status === 'active') contexts.push(teamPrompt(activeGoal))
       contexts.push(...preparedAttachments.contexts)
       const prompt = contexts.length
         ? `${message}${ATTACHMENT_MARKER}${contexts.join('\n\n')}`
         : message
       applyPisperSystemPrompt(session, session.model)
-      // 真正的模型调用：带中止护栏，超时未停止则强制销毁会话。
       await runPromptWithAbortGuard(value, () => session.prompt(prompt, { images }))
+      await pendingGoalAccounting
       const last = [...session.messages].reverse().find((item) => item.role === 'assistant')
       // 模型返回的最后一轮若带错误信息，视为本轮失败。
       if (last?.errorMessage) throw new Error(last.errorMessage)
       const assistantText = textFromContent(last?.content)
       live.text = assistantText || live.text
+      if (goal?.mode === 'team' && assistantText)
+        await this.teamWorkflows.setSummary(session.sessionId, assistantText)
+      live.team = this.getTeamProjection(session.sessionId, { compact: true })
       await collectWorkspaceAssets()
       const finishedAt = finishLiveRun()
       live.contextUsage = this.compactionAwareContextUsage(session, live.compaction)
@@ -2348,6 +2408,7 @@ export class AgentRuntimeService extends AgentRuntimeFacade {
         approvals: [],
         goal: this.goals.get(session.sessionId),
         plan: this.plans.get(session.sessionId),
+        team: live.team,
         agents: live.agents,
         currentActivity: live.currentActivity,
         activityFeed: live.activityFeed,
@@ -2390,6 +2451,7 @@ export class AgentRuntimeService extends AgentRuntimeFacade {
         approvals: [],
         goal: this.goals.get(session.sessionId),
         plan: this.plans.get(session.sessionId),
+        team: live.team,
         agents: live.agents,
         currentActivity: live.currentActivity,
         activityFeed: live.activityFeed,
@@ -2433,5 +2495,4 @@ export class AgentRuntimeService extends AgentRuntimeFacade {
     return captureConversationMemory(this, input)
   }
 }
-
 Object.assign(AgentRuntimeService.prototype, agentSessionMethods)

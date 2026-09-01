@@ -34,7 +34,7 @@ export function ComposerToolTray({
         reveal
         spring
         allowOverflow
-        className="absolute bottom-[calc(100%+12px)] left-0 z-40 w-max max-w-full [transform-origin:left_bottom]"
+        className="absolute bottom-[calc(100%+12px)] left-0 z-40 w-max max-w-[calc(100vw-24px)] [transform-origin:left_bottom]"
       >
         <div className="composer-tool-tray-shell relative isolate w-max max-w-full overflow-visible rounded-[var(--r-md)] bg-[var(--solid)] p-0.5 shadow-[0_24px_60px_-16px_var(--floating-shadow),0_0_28px_-8px_var(--brand-blue)]">
           <span
@@ -45,7 +45,7 @@ export function ComposerToolTray({
           </span>
           <div
             id={trayId}
-            className="composer-tool-tray relative z-10 flex min-h-14 w-max max-w-full min-w-0 flex-wrap items-center gap-1.5 overflow-visible rounded-[calc(var(--r-md)-2px)] bg-[color-mix(in_srgb,var(--solid)_92%,transparent)] p-1.5 [backdrop-filter:blur(18px)_saturate(1.35)]"
+            className="composer-tool-tray relative z-10 flex max-h-[min(52vh,360px)] min-h-14 w-max max-w-full min-w-0 flex-wrap items-center gap-1.5 overflow-x-hidden overflow-y-auto overscroll-contain rounded-[calc(var(--r-md)-2px)] bg-[color-mix(in_srgb,var(--solid)_92%,transparent)] p-1.5 [backdrop-filter:blur(18px)_saturate(1.35)]"
             aria-label={label}
           >
             <AnimatedList

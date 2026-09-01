@@ -57,7 +57,8 @@ test('composer expands low-frequency controls vertically with React Bits Animate
   assert.match(tray, /!size-11 !w-11/)
   assert.doesNotMatch(tray, /\[&:hover>\*\]/)
   assert.doesNotMatch(tray, /if \(mobile\) return tray|overflow-x-auto/)
-  assert.match(session, /<ComposerToolTray[\s\S]*<SessionModelSelect[\s\S]*<ExecutionModeSelect/)
+  assert.match(session, /<SessionModelSelect[\s\S]*<ExecutionModeSelect/)
+  assert.match(session, /<ComposerToolTray[\s\S]*composer-tool-tray/)
   assert.ok(session.indexOf('<ComposerCommandMenu') < session.indexOf('<textarea'))
   const leadingTools = session.slice(
     session.indexOf('const composerLeadingTools'),
@@ -68,7 +69,7 @@ test('composer expands low-frequency controls vertically with React Bits Animate
   assert.match(menuOffset, /\(auto\|hidden\|scroll\|clip\)/)
   assert.match(menuOffset, /menu\.style\.maxHeight/)
   assert.match(session, /toolsOpen \? <X size=\{17\} \/> : <Plus size=\{18\} \/>/)
-  assert.match(session, /focus-composer-footer[^"\n]*grid-rows-\[44px\]/)
+  assert.match(session, /focus-composer-footer[^"\n]*flex/)
   assert.doesNotMatch(session, /toolsOpen \? 'tools-open grid-rows|toolsOpen \? 'row-start-2'/)
   assert.match(session, /<ContextUsageIndicator[\s\S]*?compact[\s\S]*?\/>/)
   assert.match(session, /command-palette-trigger[^"\n]*clip-path:inset\(50%\)/)

@@ -73,7 +73,7 @@ export function useSessionCommands({
 
   // 设置目标模式的 token 预算。
   const setGoalBudget = useCallback(
-    async (sessionId: string, tokenBudget: number) => {
+    async (sessionId: string, tokenBudget: number | null) => {
       if (!sessionId) return
       try {
         const result = await chatApi.setGoalBudget(sessionId, tokenBudget)

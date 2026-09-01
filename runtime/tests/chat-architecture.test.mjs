@@ -3,6 +3,7 @@ import { readFile } from 'node:fs/promises'
 import { dirname, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import test from 'node:test'
+import { translateText } from '../../src/app/i18n.ts'
 import { DEFAULT_SESSION_STATE, applySessionUpdate } from '../../src/lib/session-state.ts'
 import {
   reconcileLiveSnapshot,
@@ -53,13 +54,14 @@ test('message page reconciliation preserves an already loaded prefix', () => {
   assert.equal(page.hasOlder, false)
 })
 
-test('live and terminal reconciliation preserve explicit Plan clears', () => {
+test('live and terminal reconciliation preserve explicit Plan and Team clears', () => {
   const current = sessionState({
     streaming: true,
     plan: {
       items: [{ id: 'old', title: 'Old step', status: 'in_progress' }],
       updatedAt: '2026-08-02T00:00:00.000Z',
     },
+    team: { id: 'team-1', status: 'active', taskCount: 1 },
     messages: [{ id: 'agent-1', role: 'agent', text: 'partial', streaming: true }],
     currentActivity: { type: 'tool', id: 'tool-1' },
   })
@@ -76,14 +78,26 @@ test('live and terminal reconciliation preserve explicit Plan clears', () => {
       ],
       agents: [],
       plan: null,
+      team: null,
       lifecycle: { phase: 'completed', event: 'runtime_done', turn: 2 },
       sessionTreeRevision: 4,
     },
     '2026-08-02T01:00:00.000Z',
   )
   assert.equal(live.plan, null)
+  assert.equal(live.team, null)
   assert.equal(live.streaming, false)
   assert.equal(live.lifecycle.event, 'runtime_done')
+
+  const missingTeam = reconcileLiveSnapshot(current, {
+    messages: current.messages,
+    pageInfo: { start: 0 },
+    streaming: false,
+    tools: [],
+    agents: [],
+    plan: null,
+  })
+  assert.equal(missingTeam.team, current.team)
   assert.equal(live.sessionTreeRevision, 4)
   assert.deepEqual(live.activityFeed, [{ type: 'agent', id: 'child' }])
 
@@ -96,10 +110,12 @@ test('live and terminal reconciliation preserve explicit Plan clears', () => {
       activityFeed: [],
       agents: [],
       plan: null,
+      team: null,
     },
     finishedAt: '2026-08-02T01:01:00.000Z',
   })
   assert.equal(terminal.plan, null)
+  assert.equal(terminal.team, null)
   assert.equal(terminal.messages[0].text, 'durable')
   assert.equal(terminal.messages[0].streaming, false)
 })
@@ -107,9 +123,10 @@ test('live and terminal reconciliation preserve explicit Plan clears', () => {
 test('stream dispatcher applies Plan updates in place and clears them on done', () => {
   let state = sessionState({
     streaming: true,
+    team: { id: 'team-1', status: 'active' },
     messages: [{ id: 'agent-1', role: 'agent', text: '', streaming: true }],
   })
-  let sessions = [{ id: 'session-1', name: 'Session', plan: null }]
+  let sessions = [{ id: 'session-1', name: 'Session', plan: null, team: { id: 'team-1' } }]
   const sessionStatesRef = { current: { 'session-1': state } }
   const updateSessionState = (_id, update) => {
     state = applySessionUpdate(state, update)
@@ -159,10 +176,14 @@ test('stream dispatcher applies Plan updates in place and clears them on done', 
   assert.equal(sessions[0].thinkingLevel, 'high')
   dispatcher.dispatch('session_tree_changed', { revision: 3 })
   assert.equal(state.sessionTreeRevision, 3)
+  dispatcher.dispatch('goal_update', { goal: null })
+  assert.equal(state.team.id, 'team-1')
+  assert.equal(sessions[0].team.id, 'team-1')
 
   const keepStreaming = dispatcher.dispatch('done', {
     text: 'complete',
     plan: null,
+    team: null,
     tools: [],
     activityFeed: [],
     agents: [],
@@ -170,10 +191,40 @@ test('stream dispatcher applies Plan updates in place and clears them on done', 
   })
   assert.equal(keepStreaming, false)
   assert.equal(state.plan, null)
+  assert.equal(state.team, null)
   assert.equal(sessions[0].plan, null)
+  assert.equal(sessions[0].team, null)
   assert.equal(state.messages[0].text, 'complete')
   assert.equal(state.lifecycle.phase, 'completed')
   assert.equal(state.lifecycle.event, 'runtime_done')
+})
+
+test('Team task statuses are localized and optional roles remain omitted', async () => {
+  const activity = await readFile(resolve(root, 'src/features/chat/AgentRunActivity.tsx'), 'utf8')
+  const labels = {
+    queued: ['Queued', '排队中'],
+    starting: ['Starting', '启动中'],
+    running: ['Running', '运行中'],
+    completed: ['Completed', '已完成'],
+    failed: ['Failed', '失败'],
+    interrupted: ['Interrupted', '已中断'],
+    blocked: ['Blocked', '已阻塞'],
+  }
+  assert.match(activity, /function teamTaskStatusLabel\(status: unknown, t: Translate\)/)
+  assert.match(activity, /const status = teamTaskStatusLabel\(task\.status, t\)/)
+  assert.match(activity, /const role = typeof task\.role === 'string' \? task\.role\.trim\(\) : ''/)
+  assert.match(activity, /role\s*\?[\s\S]*teamTaskStatusWithoutRole/)
+  assert.doesNotMatch(activity, /status: task\.status/)
+  for (const [status, [english, chinese]] of Object.entries(labels)) {
+    const key = `chat:agentRunActivity.teamTask${status[0].toUpperCase()}${status.slice(1)}`
+    assert.equal(translateText(key, 'en-US'), english)
+    assert.equal(translateText(key, 'zh-CN'), chinese)
+  }
+  assert.equal(
+    translateText('chat:agentRunActivity.teamTaskStatusUpdated', 'en-US'),
+    'Status updated',
+  )
+  assert.equal(translateText('chat:agentRunActivity.teamTaskStatusUpdated', 'zh-CN'), '状态已更新')
 })
 
 test('dock split handles stay contained below global overlays', async () => {

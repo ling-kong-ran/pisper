@@ -269,6 +269,13 @@ export const configSettingsRoutes = [
   },
   {
     method: 'POST',
+    path: '/api/providers/models/discover-connection',
+    async handler({ runtime, body, json }) {
+      json(200, await runtime.discoverConnectionModels(await body()))
+    },
+  },
+  {
+    method: 'POST',
     path: '/api/providers/:providerId/models/batch',
     async handler({ runtime, params, body, json }) {
       json(201, await runtime.addProviderModels(params.providerId, (await body()).models))

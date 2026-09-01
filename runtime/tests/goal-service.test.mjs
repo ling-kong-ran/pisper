@@ -50,18 +50,61 @@ test('goals persist usage, stop at their token budget, and pause after runtime r
   await restarted.init({ pauseActive: true })
   assert.equal(restarted.get('session-goal').status, 'budget_limited')
 
+  const unlimitedExisting = await service.setBudget('session-goal', null)
+  assert.equal(unlimitedExisting.status, 'paused')
+  assert.equal(unlimitedExisting.tokenBudget, null)
+
   const second = await service.start('session-active', { objective: 'Finish the follow-up.' })
   assert.equal(second.status, 'active')
+  assert.equal(second.mode, 'goal')
+  assert.equal(second.tokenBudget, null)
+  const unlimited = await service.account('session-active', {
+    goalId: second.id,
+    usage: { totalTokens: 1_000_000 },
+  })
+  assert.equal(unlimited.status, 'active')
+  assert.equal(unlimited.tokensUsed, 1_000_000)
+  const team = await service.start('session-team', {
+    objective: 'Coordinate a full project team.',
+    mode: 'team',
+  })
+  assert.equal(team.mode, 'team')
+  assert.equal(team.tokenBudget, null)
+  assert.equal(team.teamTokenBudget, null)
+  assert.equal(team.teamTokenBudgetExplicit, false)
+  const unlimitedTeamUsage = await service.account('session-team', {
+    goalId: team.id,
+    usage: { totalTokens: 1_000_000 },
+  })
+  assert.equal(unlimitedTeamUsage.status, 'active')
+  assert.equal(unlimitedTeamUsage.teamTokenBudget, null)
+  const limitedTeam = await service.start('session-limited-team', {
+    objective: 'Run bounded team work.',
+    mode: 'team',
+    tokenBudget: 100,
+  })
+  const limitedTeamUsage = await service.account('session-limited-team', {
+    goalId: limitedTeam.id,
+    usage: { totalTokens: 101 },
+  })
+  assert.equal(limitedTeamUsage.status, 'budget_limited')
+  assert.equal(limitedTeamUsage.teamTokenBudget, 100)
+  await service.pause('session-team')
+  const resumedTeamAsGoal = await service.resume('session-team', { mode: 'goal' })
+  assert.equal(resumedTeamAsGoal.mode, 'goal')
   const afterReload = new GoalService({ path })
   await afterReload.init({ pauseActive: true })
   assert.equal(afterReload.get('session-active').status, 'paused')
+  assert.equal(afterReload.get('session-limited-team').mode, 'team')
+  assert.equal(afterReload.get('session-limited-team').teamTokenBudget, 100)
 })
 
 test('goal prompts use an internal marker that can be hidden from the transcript', async () => {
   const goal = {
     objective: 'Refactor the runtime and verify the focused tests.',
     tokensUsed: 120,
-    tokenBudget: 30_000,
+    tokenBudget: null,
+    teamTokenBudget: null,
     timeUsedSeconds: 9,
   }
   const continuation = goalContinuationPrompt(goal)

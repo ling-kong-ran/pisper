@@ -1,7 +1,7 @@
 // Provider 配置对话框：新增/编辑 Provider（密钥、端点、模型列表），
 // 提交前校验必填项与端点格式。
-import { useState } from 'react'
-import { AlertTriangle, Plus, RefreshCw, X } from 'lucide-react'
+import { useEffect, useState } from 'react'
+import { AlertTriangle, Check, Plus, RefreshCw, X } from 'lucide-react'
 import { AppSelect } from '@/components/AppSelect'
 import { useI18n } from '@/app/use-i18n'
 import { apiJson } from '@/lib/api'
@@ -25,8 +25,11 @@ type ProviderConfigModalProps = {
   initialProvider?: ProviderConfig
 }
 
-function editableModel(provider?: ProviderConfig) {
-  return provider?.models.find((model) => model.kind !== 'chat') || provider?.models[0]
+function editableModel(provider: ProviderConfig | undefined, providerType: ProviderType) {
+  if (providerType === 'visual') {
+    return provider?.models.find((model) => model.kind === 'image' || model.kind === 'video')
+  }
+  return provider?.models.find((model) => model.kind === 'chat') || provider?.models[0]
 }
 
 export function ProviderConfigModal({
@@ -36,18 +39,24 @@ export function ProviderConfigModal({
   initialProvider,
 }: ProviderConfigModalProps) {
   const { t } = useI18n()
-  const existingModel = editableModel(initialProvider)
+  const providerType = initialProvider?.type || initialProviderType
+  const existingModel = editableModel(initialProvider, providerType)
   const editing = Boolean(initialProvider)
   const [draft, setDraft] = useState({
     name: initialProvider?.name || '',
     id: initialProvider?.id || '',
-    providerType: initialProvider?.type || initialProviderType,
+    providerType,
     api: initialProvider?.api || 'openai-responses',
     baseUrl: initialProvider?.baseUrl || '',
     apiKey: '',
     model: existingModel?.id || '',
     modelName: existingModel?.name || '',
-    modelKind: existingModel?.kind || (initialProviderType === 'visual' ? 'image' : 'chat'),
+    modelKind:
+      existingModel?.kind === 'image' || existingModel?.kind === 'video'
+        ? existingModel.kind
+        : providerType === 'visual'
+          ? 'image'
+          : 'chat',
     reasoning: existingModel?.reasoning !== false,
     enabled: initialProvider?.enabled ?? true,
   })
@@ -64,19 +73,17 @@ export function ProviderConfigModal({
           .replace(/[^a-z0-9._-]+/g, '-')
           .replace(/^-+|-+$/g, ''),
     }))
-  const updateProviderType = (providerType: ProviderType) =>
-    setDraft((current) => ({
-      ...current,
-      providerType,
-      modelKind:
-        providerType === 'visual'
-          ? current.modelKind === 'image' || current.modelKind === 'video'
-            ? current.modelKind
-            : 'image'
-          : current.modelKind === 'chat'
-            ? current.modelKind
-            : 'chat',
-    }))
+  useEffect(() => {
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        event.preventDefault()
+        event.stopPropagation()
+        onClose()
+      }
+    }
+    window.addEventListener('keydown', handleKeyDown)
+    return () => window.removeEventListener('keydown', handleKeyDown)
+  }, [onClose])
   // 新建使用专用接口，编辑复用统一配置保存接口以原子更新连接和模型定义。
   const submit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
@@ -110,6 +117,8 @@ export function ProviderConfigModal({
       onMouseDown={(event) => event.target === event.currentTarget && onClose()}
     >
       <form
+        role="dialog"
+        aria-modal="true"
         className="modal !w-[min(430px,100%)] max-h-[calc(100dvh_-_40px)] overflow-y-auto [overscroll-behavior:contain] [border:1px_solid_var(--surface-highlight)] rounded-[var(--r-md)] bg-[var(--solid)] p-[18px] shadow-[0_26px_70px_-25px_var(--shadow-strong)] [animation:modal-in_var(--d2)_var(--ease-out)] max-[650px]:max-h-[calc(100dvh_-_16px)] provider-config-modal !w-[min(620px,100%)]"
         onSubmit={submit}
       >
@@ -133,7 +142,11 @@ export function ProviderConfigModal({
             variant="ghost"
             size="icon"
             aria-label={t('config:configPage.closeDialog')}
-            onClick={onClose}
+            onClick={(event) => {
+              event.preventDefault()
+              event.stopPropagation()
+              onClose()
+            }}
           >
             <X size={17} />
           </Button>
@@ -157,23 +170,16 @@ export function ProviderConfigModal({
             />
           </FieldLabel>
         </div>
-        <FieldLabel variant="control">
-          {t('config:configPage.providerPurpose')}
-          <AppSelect
-            value={draft.providerType}
-            onChange={(event) => updateProviderType(event.target.value as ProviderType)}
-          >
-            <option value="chat">{t('config:configPage.chatProvider')}</option>
-            <option value="visual">{t('config:configPage.visualProvider')}</option>
-          </AppSelect>
-          <small>
+        <div className="flex items-center justify-between gap-[8px] [margin-top:10px] [border:1px_solid_var(--stroke-soft)] rounded-[var(--r-sm)] bg-[var(--surface-subtle)] p-[8px_10px]">
+          <span className="text-[12px] text-[var(--text-muted)]">
+            {t('config:configPage.providerPurpose')}
+          </span>
+          <strong className="text-[12px]">
             {draft.providerType === 'visual'
-              ? t(
-                  'config:configPage.usedOnlyForImageGenerationVideoGenerationAndImageEditingChatModelsAreIgnored',
-                )
-              : t('config:configPage.usedForAgentChatAndMayAlsoIncludeVisualModels')}
-          </small>
-        </FieldLabel>
+              ? t('config:configPage.visualProvider')
+              : t('config:configPage.chatProvider')}
+          </strong>
+        </div>
         <FieldLabel variant="control">
           {t('config:configPage.apiProtocol')}
           <AppSelect
@@ -232,16 +238,19 @@ export function ProviderConfigModal({
         </div>
         <FieldLabel variant="control">
           {t('config:configPage.modelType')}
-          <AppSelect
-            value={draft.modelKind}
-            onChange={(event) => setDraft({ ...draft, modelKind: event.target.value })}
-          >
-            {draft.providerType !== 'visual' && (
-              <option value="chat">{t('config:configPage.chat')}</option>
-            )}
-            <option value="image">{t('config:configPage.imageGenerationAndEditing')}</option>
-            <option value="video">{t('config:configPage.videoGeneration')}</option>
-          </AppSelect>
+          {draft.providerType === 'visual' ? (
+            <AppSelect
+              value={draft.modelKind}
+              onChange={(event) => setDraft({ ...draft, modelKind: event.target.value })}
+            >
+              <option value="image">{t('config:configPage.imageGenerationAndEditing')}</option>
+              <option value="video">{t('config:configPage.videoGeneration')}</option>
+            </AppSelect>
+          ) : (
+            <div className="rounded-[var(--r-xs)] bg-[var(--surface-subtle)] px-[10px] py-[8px] text-[13px] text-[var(--text-muted)]">
+              {t('config:configPage.chat')}
+            </div>
+          )}
         </FieldLabel>
         <div className="modal-toggle-row [&_>_span]:flex [&_>_span]:flex-col [&_>_span]:gap-[3px] [&_strong]:text-[13px] [&_small]:text-[var(--text-muted)] [&_small]:text-[13px] dark:bg-[var(--surface-subtle)] flex min-h-[45px] items-center justify-between gap-[12px] [margin-top:10px] [border:1px_solid_var(--stroke-soft)] rounded-[var(--r-sm)] bg-[var(--surface-subtle)] [padding:8px_10px]">
           <span>
@@ -274,7 +283,13 @@ export function ProviderConfigModal({
             {t('config:configPage.cancel')}
           </Button>
           <Button size="lg" disabled={saving}>
-            {saving ? <RefreshCw className="animate-spin" size={14} /> : <Plus size={14} />}
+            {saving ? (
+              <RefreshCw className="animate-spin" size={14} />
+            ) : editing ? (
+              <Check size={14} />
+            ) : (
+              <Plus size={14} />
+            )}
             {saving
               ? t('config:configPage.saving')
               : editing

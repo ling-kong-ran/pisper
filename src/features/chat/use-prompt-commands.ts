@@ -35,7 +35,7 @@ type PromptCommandOptions = {
   createSession: () => Promise<string>
   loadSessionMessages: (id: string, options?: { force?: boolean; limit?: number }) => Promise<void>
   refreshSessions: (preferredId?: string) => Promise<SessionSummary[]>
-  syncLiveSession: (id: string) => Promise<void>
+  syncLiveSession: (id: string, options?: { force?: boolean }) => Promise<void>
 }
 
 export function usePromptCommands({
@@ -68,6 +68,7 @@ export function usePromptCommands({
       requestedSessionId: string,
       attachments: ChatAttachment[] = [],
       goalMode = false,
+      teamMode = false,
       goalTokenBudget: number | null = null,
       invocation: ResourceInvocation | null = null,
     ) => {
@@ -213,7 +214,7 @@ export function usePromptCommands({
       streamState = dispatcher.state
 
       updateSessionState(sessionId, (current) => {
-        const keepPlan = goalMode || current.goal?.status === 'active'
+        const keepPlan = goalMode || teamMode || current.goal?.status === 'active'
         return {
           ...current,
           messages: [
@@ -245,7 +246,7 @@ export function usePromptCommands({
           plan: keepPlan ? current.plan : null,
         }
       })
-      if (!goalMode) {
+      if (!goalMode && !teamMode) {
         updateSessions((current) =>
           current.map((session) =>
             session.id !== sessionId || session.goal?.status === 'active'
@@ -261,7 +262,15 @@ export function usePromptCommands({
 
       try {
         await chatApi.openStream(
-          { sessionId, message: prompt, attachments, goalMode, goalTokenBudget, invocation },
+          {
+            sessionId,
+            message: prompt,
+            attachments,
+            goalMode,
+            teamMode,
+            goalTokenBudget,
+            invocation,
+          },
           dispatchStreamEvent,
         )
         if (!ownsStream()) return
@@ -295,6 +304,7 @@ export function usePromptCommands({
         await loadSessionMessages(sessionId, { force: true })
         if (
           goalMode ||
+          teamMode ||
           streamState.queuedDuringRun ||
           sessionStatesRef.current[sessionId]?.hadQueuedInput ||
           sessionStatesRef.current[sessionId]?.goal ||
@@ -468,6 +478,8 @@ export function usePromptCommands({
     async (sessionId: string) => {
       if (!sessionId) return
       const result = await chatApi.abort(sessionId)
+      // Abort 后以服务端快照为准，并使旧 SSE 失去写入资格，避免断流时保留旧 Team 状态。
+      await syncLiveSession(sessionId, { force: true })
       const runFinishedAt = new Date().toISOString()
       updateSessionState(sessionId, (current) => ({
         ...current,
@@ -475,6 +487,7 @@ export function usePromptCommands({
         queuedInputs: [],
         hadQueuedInput: false,
         goal: result.goal ?? null,
+        team: Object.hasOwn(result, 'team') ? (result.team ?? null) : current.team,
         compaction: current.compaction?.active
           ? {
               ...current.compaction,
@@ -500,13 +513,18 @@ export function usePromptCommands({
       updateSessions((current) =>
         current.map((session) =>
           session.id === sessionId
-            ? { ...session, streaming: false, goal: result.goal ?? session.goal ?? null }
+            ? {
+                ...session,
+                streaming: false,
+                goal: result.goal ?? session.goal ?? null,
+                team: Object.hasOwn(result, 'team') ? (result.team ?? null) : session.team,
+              }
             : session,
         ),
       )
       notify(t('chat:chatPage.currentRunStopped'), 'info')
     },
-    [notify, t, updateSessionState, updateSessions],
+    [notify, syncLiveSession, t, updateSessionState, updateSessions],
   )
 
   return { sendPrompt, queuePrompt, abort }

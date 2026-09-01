@@ -1193,7 +1193,7 @@ test('the first user sentence is the only automatic title event', async (t) => {
   assert.equal(titleModelCalls, 0)
 })
 
-test('stream_read_error uses the Pi turn retry path without broadening terminal errors', () => {
+test('upstream stream interruptions use the Pi turn retry path without broadening terminal errors', () => {
   const originalCalls = []
   const session = {
     _isRetryableError(message) {
@@ -1205,26 +1205,42 @@ test('stream_read_error uses the Pi turn retry path without broadening terminal 
   installTransientStreamRetry(session)
   installTransientStreamRetry(session)
 
+  for (const errorMessage of [
+    'stream_read_error',
+    'Stream read error: connection closed',
+    'OpenAI Responses stream ended before a terminal response event',
+    'Error Code internal_server_error: upstream stream closed before a terminal event',
+    'upstream_error: Upstream request failed',
+    'connection reset by peer (ECONNRESET)',
+    'premature close while reading the stream',
+    'incomplete stream',
+  ]) {
+    assert.equal(
+      session._isRetryableError({ stopReason: 'error', errorMessage }),
+      true,
+      errorMessage,
+    )
+  }
   assert.equal(
-    session._isRetryableError({ stopReason: 'error', errorMessage: 'stream_read_error' }),
-    true,
+    session._isRetryableError({ stopReason: 'error', errorMessage: 'invalid api key' }),
+    false,
   )
   assert.equal(
     session._isRetryableError({
       stopReason: 'error',
-      errorMessage: 'Stream read error: connection closed',
+      errorMessage: 'upstream_error: invalid api key',
     }),
-    true,
+    false,
   )
   assert.equal(
-    session._isRetryableError({ stopReason: 'error', errorMessage: 'invalid api key' }),
+    session._isRetryableError({ stopReason: 'aborted', errorMessage: 'stream_read_error' }),
     false,
   )
   assert.equal(
     session._isRetryableError({ stopReason: 'stop', errorMessage: 'stream_read_error' }),
     false,
   )
-  assert.equal(originalCalls.length, 2)
+  assert.equal(originalCalls.length, 4)
 })
 
 test('stream failures emit a single terminal error snapshot without throwing', async (t) => {

@@ -24,6 +24,10 @@ const TOOL_RISKS = new Map([
   ['followup_task', 'medium'],
   ['wait_agent', 'low'],
   ['interrupt_agent', 'medium'],
+  ['update_team_task', 'medium'],
+  ['run_team_workflow', 'medium'],
+  ['send_team_message', 'low'],
+  ['list_team_members', 'low'],
 ])
 const SENSITIVE_RISKS = new Set(['medium', 'high', '中风险', '高风险'])
 const INTERNAL_SAFE_TOOLS = new Set(['get_goal', 'update_goal', ...PLAN_ALL_TOOL_NAMES])

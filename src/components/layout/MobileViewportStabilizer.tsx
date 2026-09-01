@@ -65,13 +65,18 @@ export function MobileViewportStabilizer({ enabled, shellRef }: MobileViewportSt
       const height = Math.max(1, Math.round(viewport?.height ?? window.innerHeight))
       const offsetTop = Math.max(0, Math.round(viewport?.offsetTop ?? 0))
       viewportBaseline = Math.max(viewportBaseline, window.innerHeight, height + offsetTop)
-      // WebView 已经根据 interactive-widget/原生窗口调整布局视口；再次改根壳高度会造成真机双重收缩。
       const keyboardInset = Math.max(0, viewportBaseline - height - offsetTop)
       const keyboardOpen = keyboardInset >= viewportBaseline * 0.2
       if (keyboardOpen) {
+        // iOS 可能只收缩 visualViewport，Android adjustResize 则会同时收缩布局视口；
+        // 两种情况下都把外壳底部放到键盘顶部，但不会再叠加一个额外的 inset。
+        shell.style.height = `${height}px`
+        shell.style.transform = offsetTop ? `translate3d(0, ${offsetTop}px, 0)` : ''
         shell.dataset.mobileKeyboard = 'open'
         clearKeyboardTransitionTimer()
       } else {
+        shell.style.height = ''
+        shell.style.transform = ''
         delete shell.dataset.mobileKeyboard
         if (shell.dataset.mobileKeyboardTransition === 'opening') {
           markKeyboardTransition('closing')

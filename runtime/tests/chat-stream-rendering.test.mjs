@@ -47,7 +47,7 @@ test('chat renders thinking and tool activity above one uninterrupted response b
   assert.match(activity, /agent-thinking-window[^`]*\$\{streaming \? 'running' : 'completed'\}/)
   assert.match(activity, /agentRunActivity\.reasoningInProgress/)
   assert.match(activity, /className="agent-thinking-dots[^"\n]*"/)
-  assert.doesNotMatch(activity, /<details[^>]*\sopen(?:=|\s|>)/)
+  assert.doesNotMatch(activity, /<details[^>]*agent-team-panel[^>]*\sopen(?:=|\s|>)/)
   assert.match(activity, /className="agent-run-history[^"\n]*"/)
 })
 
@@ -270,7 +270,10 @@ test('ephemeral reasoning remains rendered after a textless response completes',
   )
   assert.match(sessionState, /String\(activity\.thinkingText \|\| ''\)\.trim\(\)/)
   assert.match(sessionState, /activity\.currentActivity\?\.type === 'agent'/)
-  assert.match(activity, /if \(!streaming && !thinking && !activities\.length\) return null/)
+  assert.match(
+    activity,
+    /if \(!streaming && !thinking && !activities\.length && !team\) return null/,
+  )
   assert.match(activity, /reasoningCompleted/)
 })
 

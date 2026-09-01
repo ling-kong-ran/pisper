@@ -38,6 +38,7 @@ export class SessionLifecycle {
     getGoals,
     getPlans,
     getMultiAgents,
+    getTeamWorkflows,
     getPermissions,
     getBrowserAutomation,
     getExecutionMode,
@@ -71,6 +72,7 @@ export class SessionLifecycle {
     this.getGoals = getGoals
     this.getPlans = getPlans
     this.getMultiAgents = getMultiAgents
+    this.getTeamWorkflows = getTeamWorkflows
     this.getPermissions = getPermissions
     this.getBrowserAutomation = getBrowserAutomation
     this.getExecutionMode = getExecutionMode
@@ -289,6 +291,7 @@ export class SessionLifecycle {
     const goals = this.getGoals()
     const plans = this.getPlans()
     const multiAgents = this.getMultiAgents()
+    const teamWorkflows = this.getTeamWorkflows()
     const defaultModel =
       settings.defaultProvider && settings.defaultModel
         ? `${settings.defaultProvider}/${settings.defaultModel}`
@@ -307,6 +310,7 @@ export class SessionLifecycle {
       executionMode: this.getExecutionMode(id),
       goal: goals.get(id),
       plan: plans.get(id),
+      team: teamWorkflows.get(id),
       agents: multiAgents
         .summaries(id)
         .filter((agent) => ['queued', 'starting', 'running'].includes(agent.status)),
@@ -1138,7 +1142,7 @@ export class SessionLifecycle {
     return this.createSessionRuntime(SessionManager.create(this.cwd, this.sessionDir))
   }
 
-  // 中止会话运行：清理唤醒定时器、暂停目标、终止子 Agent、结算审批并 abort 引擎会话。
+  // 中止会话运行：先持久化目标/Team 终态，再终止子 Agent 和引擎会话。
   async abortSession(id) {
     const wakeupTimer = this.agentWakeupTimers.get(id)
     if (wakeupTimer) {
@@ -1146,11 +1150,31 @@ export class SessionLifecycle {
       this.agentWakeupTimers.delete(id)
     }
     const value = this.sessions.get(id)
-    if (!value) return false
-    value.abortedAt = Date.now()
+    const live = this.liveSessions.get(id)
+    const goal = this.getGoals().get(id)
+    const team = this.getTeamWorkflows?.().get?.(id)
+    const known = Boolean(value || live || goal || team)
+    if (value) value.abortedAt = Date.now()
     await this.pauseSessionGoal(id)
     this.getMultiAgents().abortParent(id)
     this.getPermissions().resolveSession(id, false, '会话已停止，工具未执行。')
+    if (live) {
+      const finishedAt = new Date().toISOString()
+      live.streaming = false
+      live.finishedAt = finishedAt
+      live.lastActivityAt = finishedAt
+      live.error = '会话已停止。'
+      live.thinkingText = ''
+      live.queuedInputs = []
+      live.agents = this.getMultiAgents()
+        .summaries(id)
+        .filter((agent) => ['queued', 'starting', 'running'].includes(agent.status))
+      live.currentActivity = null
+    }
+    if (!value) {
+      this.invalidateProjection(id)
+      return known
+    }
     value.session.clearQueue?.()
     // Pi 的 abort 会等待会话 idle；Provider 流失联时该 Promise 可能永不结束，不能阻塞停止接口。
     try {
@@ -1163,6 +1187,7 @@ export class SessionLifecycle {
   // 删除会话：清理目标/计划/浏览器会话/子 Agent/审批，删除会话文件（限定在会话目录内）。
   async deleteSession(id) {
     await this.getGoals().remove(id)
+    await this.getTeamWorkflows?.().remove?.(id)
     await this.getPlans().remove(id)
     await this.getBrowserAutomation().closeSession(id)
     await this.getMultiAgents().removeParent(id)

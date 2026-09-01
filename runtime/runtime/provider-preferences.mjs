@@ -117,13 +117,15 @@ function providerProfileId(value) {
     .slice(0, 60)
 }
 
-// 从凭据对象/字符串中提取密钥明文。
+// 从 API Key 凭据对象/字符串中提取密钥明文；OAuth token 只能交给官方 Provider 适配器。
 function credentialSecret(credential) {
   if (typeof credential === 'string') return credential.trim()
-  if (!credential || typeof credential !== 'object') return ''
-  return String(
-    credential.key || credential.apiKey || credential.token || credential.accessToken || '',
-  ).trim()
+  if (!credential || typeof credential !== 'object' || credential.type === 'oauth') return ''
+  return String(credential.key || credential.apiKey || credential.token || '').trim()
+}
+
+function isOAuthCredential(credential) {
+  return Boolean(credential && typeof credential === 'object' && credential.type === 'oauth')
 }
 
 // 解析已配置密钥：显式凭据优先；其次支持 $ENV 环境变量引用。
@@ -836,6 +838,15 @@ export class ProviderPreferences {
     if (providerType !== 'visual' && !model) {
       throw new Error('请先选择一个对话模型，再保存。')
     }
+    if (model) {
+      const modelKind = inferModelKind(model, input.modelKind)
+      if (providerType === 'visual' && modelKind !== 'image' && modelKind !== 'video') {
+        throw new Error('视觉 Provider 只能保存图像或视频模型。')
+      }
+      if (providerType === 'chat' && modelKind !== 'chat') {
+        throw new Error('对话 Provider 只能保存对话模型。')
+      }
+    }
 
     const modelRuntime = this.getModelRuntime()
     const credentials = await readJson(this.authPath, {})
@@ -847,6 +858,21 @@ export class ProviderPreferences {
     if (typeof input.apiKey === 'string' && input.apiKey.trim()) {
       credentials[provider] = { type: 'api_key', key: input.apiKey.trim() }
       apiKeyUpdated = true
+    }
+    const oauthOverlay = { ...providerOverlay }
+    if (baseUrl) oauthOverlay.baseUrl = baseUrl
+    else if (!oauthOverlay.baseUrl)
+      oauthOverlay.baseUrl = PROVIDER_DEFAULT_BASE_URLS[provider] || ''
+    if (modelBaseUrl)
+      oauthOverlay.models = [
+        ...(Array.isArray(oauthOverlay.models) ? oauthOverlay.models : []),
+        { baseUrl: modelBaseUrl },
+      ]
+    if (isOAuthCredential(credentials[provider]) && !credentialSecret(credentials[provider])) {
+      if (hasNonOfficialOAuthEndpoint(provider, oauthOverlay))
+        throw new Error(
+          '该官方 Provider 的 OAuth 登录仅能连接官方端点。请为中转站使用独立 Provider ID 和 API Key。',
+        )
     }
     const hasAuthentication =
       Boolean(configuredProviderSecret(credentials[provider], providerOverlay)) ||
@@ -992,9 +1018,21 @@ export class ProviderPreferences {
       throw new Error('Provider 不存在。')
     }
 
-    const modelsJson = await readJson(this.modelsPath, { providers: {} })
+    const [modelsJson, credentials] = await Promise.all([
+      readJson(this.modelsPath, { providers: {} }),
+      readJson(this.authPath, {}),
+    ])
+    const existingOverlay = modelsJson.providers?.[provider] || {}
+    if (
+      isOAuthCredential(credentials[provider]) &&
+      !apiKey &&
+      hasNonOfficialOAuthEndpoint(provider, { ...existingOverlay, baseUrl })
+    )
+      throw new Error(
+        '该官方 Provider 的 OAuth 登录仅能连接官方端点。请为中转站使用独立 Provider ID 和 API Key。',
+      )
     modelsJson.providers ||= {}
-    const providerOverlay = { ...(modelsJson.providers[provider] || {}), api }
+    const providerOverlay = { ...existingOverlay, api }
     if (Array.isArray(providerOverlay.models)) {
       providerOverlay.models = providerOverlay.models.map((model) => ({ ...model, api }))
     }
@@ -1127,6 +1165,9 @@ export class ProviderPreferences {
       name,
       api,
       baseUrl,
+      ...(String(input.organization || '').trim()
+        ? { headers: { 'OpenAI-Organization': String(input.organization).trim() } }
+        : {}),
       models: [
         {
           id: modelId,
@@ -1249,6 +1290,57 @@ export class ProviderPreferences {
     return pending
   }
 
+  // 按向导中的临时连接参数获取模型列表，不写入目录，避免获取列表前创建半成品 Provider。
+  async discoverConnectionModels(input = {}) {
+    const providerId = String(input.providerId || '').trim()
+    const [modelsJson, credentials] = await Promise.all([
+      readJson(this.modelsPath, { providers: {} }),
+      readJson(this.authPath, {}),
+    ])
+    const overlay = providerId ? modelsJson.providers?.[providerId] || {} : {}
+    const api = String(input.api || overlay.api || 'openai-responses').trim()
+    const baseUrl = normalizeProtocolBaseUrl(input.baseUrl || overlay.baseUrl, api)
+    if (!baseUrl) throw new Error('请先配置 Provider Base URL。')
+    const explicitApiKey = String(input.apiKey || '').trim()
+    if (
+      isOAuthCredential(credentials[providerId]) &&
+      !explicitApiKey &&
+      hasNonOfficialOAuthEndpoint(providerId, { ...overlay, baseUrl })
+    )
+      throw new Error(
+        '该官方 Provider 的 OAuth 登录仅能连接官方端点。请为中转站使用独立 Provider ID 和 API Key。',
+      )
+    const apiKey = explicitApiKey || configuredProviderSecret(credentials[providerId], overlay)
+    const discovered = await this.providerModelDiscovery.discover({
+      api,
+      baseUrl,
+      apiKey,
+      organization: String(
+        input.organization || overlay.headers?.['OpenAI-Organization'] || '',
+      ).trim(),
+      headers: providerId
+        ? providerHeaders(providerId, overlay, this.providerUserAgent)
+        : { 'User-Agent': this.providerUserAgent },
+    })
+    const providerType = String(input.providerType || '').trim()
+    if (providerType !== 'chat' && providerType !== 'visual') {
+      throw new Error('Provider 类型必须是 chat 或 visual。')
+    }
+    const scope = providerType
+    const models =
+      scope === 'visual'
+        ? discovered.models.filter((model) => model.kind === 'image' || model.kind === 'video')
+        : discovered.models.filter((model) => model.kind === 'chat')
+    if (!models.length) {
+      throw new Error(
+        scope === 'visual'
+          ? 'Provider 没有返回可用的图像或视频模型。'
+          : 'Provider 没有返回可用的对话模型。',
+      )
+    }
+    return { ...discovered, count: models.length, models, scope }
+  }
+
   // 单 Provider 模型发现：拉取远程模型列表，与当前目录同步（新增/移除），
   // 仅在 Base URL 与已配置一致时才自动同步。
   async discoverProviderModels(providerId, input = {}) {
@@ -1272,8 +1364,16 @@ export class ProviderPreferences {
     ).trim()
     const baseUrl = String(input.baseUrl || configuredBaseUrl || '').trim()
     if (!baseUrl) throw new Error('请先配置 Provider Base URL。')
-    const apiKey =
-      String(input.apiKey || '').trim() || configuredProviderSecret(credentials[provider], overlay)
+    const explicitApiKey = String(input.apiKey || '').trim()
+    if (
+      isOAuthCredential(credentials[provider]) &&
+      !explicitApiKey &&
+      hasNonOfficialOAuthEndpoint(provider, { ...overlay, baseUrl })
+    )
+      throw new Error(
+        '该官方 Provider 的 OAuth 登录仅能连接官方端点。请为中转站使用独立 Provider ID 和 API Key。',
+      )
+    const apiKey = explicitApiKey || configuredProviderSecret(credentials[provider], overlay)
     const discovered = await this.providerModelDiscovery.discover({
       api,
       baseUrl,

@@ -65,6 +65,7 @@ type FocusTranscriptProps = {
   loadingOlder?: boolean
   olderError?: string
   currentActivity?: EntityRecord | null
+  team?: EntityRecord | null
   activityFeed: EntityRecord[]
   tools: EntityRecord[]
   thinkingText?: string
@@ -186,6 +187,7 @@ export function FocusTranscript({
   loadingOlder,
   olderError,
   currentActivity,
+  team,
   activityFeed,
   tools,
   thinkingText,
@@ -233,6 +235,7 @@ export function FocusTranscript({
       streaming,
       text: lastMessage?.role === 'agent' ? lastMessage.text : '',
       currentActivity,
+      team,
       activityFeed,
       tools,
       thinkingText,
@@ -248,6 +251,7 @@ export function FocusTranscript({
       streaming,
       lastMessage,
       currentActivity,
+      team,
       activityFeed,
       tools,
       thinkingText,

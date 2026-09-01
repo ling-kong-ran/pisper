@@ -4,7 +4,11 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import test from 'node:test'
 import { DEFAULT_MAX_BYTES } from '@earendil-works/pi-coding-agent'
-import { MULTI_AGENT_TOOL_NAMES, MultiAgentService } from '../services/multi-agent-service.mjs'
+import {
+  AGENT_PROGRESS_HEARTBEAT_MS,
+  MULTI_AGENT_TOOL_NAMES,
+  MultiAgentService,
+} from '../services/multi-agent-service.mjs'
 import {
   TOOL_CATALOG,
   TOOL_PRESETS,
@@ -204,6 +208,45 @@ test('spawn_agent starts asynchronously and inherits the active model, reasoning
   })
 })
 
+test('Agent progress coalesces delta noise and projects bounded live summaries', async () => {
+  const promptGate = deferred()
+  let clock = Date.parse('2025-01-01T00:00:00.000Z')
+  const session = createFakeSession({
+    onPrompt: async () => promptGate.promise,
+  })
+  const progress = []
+  const { service } = createService(session, { now: () => clock })
+  await service.spawn(
+    baseInput({
+      message: 'm'.repeat(5_000),
+      onProgress: (agent) => progress.push(agent),
+    }),
+  )
+  await waitFor(() => session.promptCalls.length === 1, 'Agent prompt start')
+  const baseline = progress.length
+  for (let index = 0; index < 100; index += 1) session.emit({ type: 'message_update', index })
+  assert.equal(progress.length, baseline)
+
+  clock += AGENT_PROGRESS_HEARTBEAT_MS
+  session.emit({ type: 'message_update' })
+  assert.equal(progress.length, baseline + 1)
+  session.emit({
+    type: 'tool_execution_start',
+    toolCallId: 'large-read',
+    toolName: 'read',
+    args: { path: 'x'.repeat(5_000) },
+  })
+  const [summary] = service.summaries('parent-1')
+  assert.equal(summary.message.length, 500)
+  assert.equal(summary.currentActivity.args.path.length, 250)
+  for (const omitted of ['availableTools', 'tools', 'usage', 'runUsage', 'fullOutput'])
+    assert.equal(Object.hasOwn(summary, omitted), false)
+  assert.ok(Buffer.byteLength(JSON.stringify(summary), 'utf8') < 3_000)
+
+  promptGate.resolve()
+  await waitFor(() => service.list('parent-1')[0]?.status === 'completed', 'Agent completion')
+})
+
 test('subagents inherit parent-safe tools without hard-coded roles', async () => {
   const session = createFakeSession({
     onPrompt: async ({ session: active }) =>
@@ -304,6 +347,45 @@ test('send_message steers a running Agent and followup_task reuses its context',
   assert.deepEqual(
     service.peekMailbox('parent-1').map((agent) => agent.resultVersion),
     [2],
+  )
+})
+
+test('running Team members can message one another without routing through the parent', async () => {
+  const firstGate = deferred()
+  const secondGate = deferred()
+  const firstSession = createFakeSession({ onPrompt: () => firstGate.promise })
+  const secondSession = createFakeSession({ onPrompt: () => secondGate.promise })
+  const sessions = [firstSession, secondSession]
+  const { service } = createService(firstSession, {
+    createSession: async () => ({ session: sessions.shift() }),
+  })
+  const first = await service.spawn(baseInput({ taskName: 'research' }))
+  const second = await service.spawn(baseInput({ taskName: 'review' }))
+  await waitFor(
+    () => service.list('parent-1').filter((agent) => agent.status === 'running').length === 2,
+    'both Team members to run',
+  )
+
+  const recipient = await service.sendMessageFromAgent(
+    'parent-1',
+    first.id,
+    second.id,
+    'Evidence is ready for review.',
+  )
+  assert.equal(recipient.id, second.id)
+  assert.deepEqual(secondSession.steerCalls, ['Evidence is ready for review.'])
+  await assert.rejects(
+    service.sendMessageFromAgent('parent-1', first.id, first.id, 'self message'),
+    /cannot send a message to itself/i,
+  )
+
+  service.interrupt('parent-1', first.id)
+  service.interrupt('parent-1', second.id)
+  firstGate.resolve()
+  secondGate.resolve()
+  await waitFor(
+    () => service.list('parent-1').every((agent) => agent.status === 'interrupted'),
+    'Team member cleanup',
   )
 })
 
@@ -502,8 +584,9 @@ test('Codex-style Agent tools replace delegate_task and stay hidden from the plu
   })
   assert.deepEqual(input, { taskName: 'inspect', message: 'Inspect the runtime.' })
   assert.match(result.content[0].text, /Started \/root\/inspect_1 in the background/)
-  assert.equal(Object.hasOwn(tool.parameters.properties, 'role'), false)
-  assert.equal(Object.hasOwn(tool.parameters.properties, 'dependsOn'), false)
+  assert.equal(Object.hasOwn(tool.parameters.properties, 'role'), true)
+  assert.equal(Object.hasOwn(tool.parameters.properties, 'files'), true)
+  assert.equal(Object.hasOwn(tool.parameters.properties, 'dependsOn'), true)
   assert.equal(Object.hasOwn(tool.parameters.properties, 'maxToolCalls'), false)
   assert.equal(Object.hasOwn(tool.parameters.properties, 'maxDurationSeconds'), false)
   assert.equal(Object.hasOwn(tool.parameters.properties, 'maxTurns'), false)

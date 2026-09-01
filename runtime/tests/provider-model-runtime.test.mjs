@@ -68,6 +68,64 @@ test('provider model discovery uses the configured relay Base URL and stored cre
   assert.equal(visualStatus.image?.id, 'relay-image-v1')
 })
 
+test('connection discovery fetches models without creating a provider and isolates visual kinds', async (t) => {
+  const directory = await mkdtemp(join(tmpdir(), 'pisper-connection-discovery-'))
+  const calls = []
+  const runtime = new AgentRuntimeService({
+    cwd: directory,
+    dataDir: directory,
+    appVersion: '0.3.2-test',
+    providerModelDiscovery: {
+      async discover(input) {
+        calls.push(input)
+        return {
+          count: 3,
+          models: [
+            { id: 'relay-chat', name: 'Relay Chat', kind: 'chat' },
+            { id: 'relay-image', name: 'Relay Image', kind: 'image' },
+            { id: 'relay-video', name: 'Relay Video', kind: 'video' },
+          ],
+        }
+      },
+    },
+  })
+  t.after(async () => {
+    await runtime.dispose()
+    await rm(directory, { recursive: true, force: true })
+  })
+  await runtime.init()
+
+  const chat = await runtime.discoverConnectionModels({
+    providerType: 'chat',
+    api: 'openai-responses',
+    baseUrl: 'https://relay.example.test/v1',
+    apiKey: 'temporary-key',
+  })
+  const visual = await runtime.discoverConnectionModels({
+    providerType: 'visual',
+    api: 'openai-responses',
+    baseUrl: 'https://relay.example.test/v1',
+    apiKey: 'temporary-key',
+  })
+
+  assert.equal(calls.length, 2)
+  assert.equal(calls[0].apiKey, 'temporary-key')
+  assert.deepEqual(
+    chat.models.map((model) => model.kind),
+    ['chat'],
+  )
+  assert.deepEqual(
+    visual.models.map((model) => model.kind),
+    ['image', 'video'],
+  )
+  assert.equal(chat.scope, 'chat')
+  assert.equal(visual.scope, 'visual')
+  assert.deepEqual(
+    (await runtime.getConfig()).providers.filter((provider) => provider.custom),
+    [],
+  )
+})
+
 test('custom OpenAI Responses models send template-supported xhigh reasoning', async (t) => {
   const directory = await mkdtemp(join(tmpdir(), 'pisper-provider-thinking-runtime-'))
   let requestBody

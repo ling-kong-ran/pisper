@@ -24,11 +24,14 @@ const INTERNAL_APPROVAL_TOOLS = new Set([
   'spawn_agent',
   'followup_task',
   'interrupt_agent',
+  'update_team_task',
+  'run_team_workflow',
 ])
 const INTERNAL_SAFE_TOOLS = new Set([
   'discover_tools',
   'call_tool',
   'get_goal',
+  'update_goal',
   ...PLAN_READ_TOOL_NAMES,
   'list_agents',
   'send_message',

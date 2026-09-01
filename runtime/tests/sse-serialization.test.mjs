@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict'
+import { EventEmitter } from 'node:events'
 import test, { mock } from 'node:test'
 import {
   replaceLoneSurrogates,
@@ -114,6 +115,27 @@ test('sseSendGuarded clears the stall timer once the client drains', () => {
     assert.equal(res.destroyed, false)
   } finally {
     mock.timers.reset()
+  }
+})
+
+test('sseSendGuarded removes paired close listeners after every drain cycle', () => {
+  class BackpressuredResponse extends EventEmitter {
+    writableLength = 64 * 1024
+    destroyed = false
+    writableEnded = false
+
+    write() {
+      return false
+    }
+  }
+
+  const res = new BackpressuredResponse()
+  for (let cycle = 0; cycle < 20; cycle += 1) {
+    assert.equal(sseSendGuarded(res, 'agent_update', { cycle }), true)
+    assert.equal(res.listenerCount('close'), 1)
+    res.emit('drain')
+    assert.equal(res.listenerCount('close'), 0)
+    assert.equal(res.listenerCount('drain'), 0)
   }
 })
 

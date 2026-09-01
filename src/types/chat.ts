@@ -75,6 +75,7 @@ export type SessionSummary = EntityRecord & {
   cwd?: string
   streaming?: boolean
   plan?: Plan | null
+  team?: EntityRecord | null
   lineage?: {
     parentSessionId?: string
     sourceEntryId?: string
@@ -97,6 +98,7 @@ export type SessionState = EntityRecord & {
   queuedInputs: EntityRecord[]
   hadQueuedInput: boolean
   plan: Plan | null
+  team: EntityRecord | null
   executionMode: string | null
   contextUsage: EntityRecord | null
   sessionUsage: EntityRecord | null

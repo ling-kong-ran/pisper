@@ -247,6 +247,7 @@ export function useSessionCatalog({ notify }: SessionCatalogOptions) {
         announceSessionsUpdated()
         for (const session of list) {
           updateSessionState(session.id, {
+            team: session.team || null,
             agents: session.agents || [],
             plan: planFromPayloadOr(session, null),
             ...(session.streaming

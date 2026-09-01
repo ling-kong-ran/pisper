@@ -62,6 +62,7 @@ export function requiredRuntimeFeature(pathname, method = 'GET') {
 function createHandlerContext({ runtime, services, req, res, url, params }) {
   let sseStarted = false
   let activeRun = null
+  let terminalSent = false
   // 瞬时背压不断连：sseSendGuarded 只在 stall 超时（持续排不出去）时才销毁连接。
   const writeSse = (event, data, id = null, payload = null) =>
     sseSendGuarded(res, event, data, id, payload)
@@ -91,6 +92,7 @@ function createHandlerContext({ runtime, services, req, res, url, params }) {
       sendSse(event, data) {
         // 先入缓冲再写出：客户端断开时写出为空操作，但缓冲继续累积，保证可重挂。
         // 一帧只序列化一次，缓冲计字节与 socket 写出共享同一 payload。
+        if (event === 'done' || event === 'error') terminalSent = true
         const payload = serializeSsePayload(data)
         let cursor = null
         if (activeRun) cursor = services.runs.record(activeRun, event, data, payload)
@@ -105,6 +107,8 @@ function createHandlerContext({ runtime, services, req, res, url, params }) {
         if (activeRun) services.runs.close(activeRun)
         activeRun = null
       },
+      hasActiveRun: () => Boolean(activeRun),
+      hasTerminal: () => terminalSent,
     },
     isSse: () => sseStarted,
   }
@@ -160,12 +164,17 @@ export function createApiHandler(
       await match.handler(handlerContext.context)
     } catch (error) {
       if (handlerContext?.isSse()) {
-        handlerContext.context.sendSse('error', { message: publicError(error) })
+        if (!handlerContext.context.hasTerminal?.())
+          handlerContext.context.sendSse('error', { message: publicError(error) })
       } else {
         sendJson(res, 400, { error: publicError(error) })
       }
     }
     if (handlerContext?.isSse()) {
+      // chat handler 正常返回却没有终态时也要显式失败，避免客户端把干净 EOF 当成成功。
+      // 只有带 active run 的首连需要这条护栏，重挂路由的响应由已缓存的帧决定。
+      if (handlerContext.context.hasActiveRun?.() && !handlerContext.context.hasTerminal?.())
+        handlerContext.context.sendSse('error', { message: '流式运行在发送终态前结束。' })
       // SSE 结束前关闭 run：终态帧（done/error）已在上方记录，此后进入重放保留期。
       handlerContext.context.endRun?.()
       if (!res.writableEnded && !res.destroyed) res.end()

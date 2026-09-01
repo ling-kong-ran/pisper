@@ -163,6 +163,69 @@ test('chat 首帧为 run，后续帧带单调游标；终态后可按游标重�
   )
 })
 
+test('上游中断时 chat SSE 发出终态错误并关闭可重挂 run', async () => {
+  const registry = new RunRegistry()
+  const runtime = {
+    async streamPrompt({ send }) {
+      send('text_delta', { delta: '部分响应' })
+      throw new Error('OpenAI Responses stream ended before a terminal response event')
+    },
+  }
+  const handler = createApiHandler(runtime, { runs: registry })
+  const output = response()
+
+  await handler(
+    request('POST', { sessionId: 's1', message: '继续' }),
+    output,
+    new URL('http://localhost/api/chat'),
+  )
+
+  const frames = parseSseFrames(output.body)
+  const runId = frames[0].data.runId
+  assert.deepEqual(
+    frames.slice(1).map((frame) => frame.event),
+    ['text_delta', 'error'],
+  )
+  assert.match(frames.at(-1).data.message, /terminal response event/)
+  assert.equal(registry.get(runId).closed, true)
+
+  const replayOutput = response()
+  await handler(
+    request('GET'),
+    replayOutput,
+    new URL(`http://localhost/api/runs/${runId}/events?after=0`),
+  )
+  assert.deepEqual(
+    parseSseFrames(replayOutput.body)
+      .slice(1)
+      .map((frame) => frame.event),
+    ['text_delta', 'error'],
+  )
+})
+
+test('chat handler without an explicit terminal emits a resumable error snapshot', async () => {
+  const registry = new RunRegistry()
+  const handler = createApiHandler(
+    {
+      async streamPrompt() {},
+    },
+    { runs: registry },
+  )
+  const output = response()
+
+  await handler(
+    request('POST', { sessionId: 's1', message: '静默结束' }),
+    output,
+    new URL('http://localhost/api/chat'),
+  )
+
+  const frames = parseSseFrames(output.body)
+  const runId = frames[0].data.runId
+  assert.equal(frames.at(-1).event, 'error')
+  assert.match(frames.at(-1).data.message, /发送终态前结束/)
+  assert.equal(registry.get(runId).closed, true)
+})
+
 test('重挂进行中的 run：先补发缓存，再接收实时帧直到关闭', async () => {
   const registry = new RunRegistry()
   let releaseStream

@@ -138,12 +138,21 @@ export async function bundleRuntime({ runtimeDir }) {
     logLevel: 'silent',
   })
 
-  // 用户工具插件必须在独立 Worker 中加载，不能并入主进程 bundle。
-  await mkdir(join(outputRuntime, 'plugins'), { recursive: true })
-  await cp(
-    join(sourceRuntime, 'plugins', 'local-plugin-worker.mjs'),
-    join(outputRuntime, 'plugins', 'local-plugin-worker.mjs'),
-  )
+  // 独立 Worker 不能并入主进程 bundle；保留稳定目录也让 import.meta.url 在源码和 chunks 中一致解析。
+  await Promise.all([
+    mkdir(join(outputRuntime, 'plugins'), { recursive: true }),
+    mkdir(join(outputRuntime, 'workers'), { recursive: true }),
+  ])
+  await Promise.all([
+    cp(
+      join(sourceRuntime, 'plugins', 'local-plugin-worker.mjs'),
+      join(outputRuntime, 'plugins', 'local-plugin-worker.mjs'),
+    ),
+    cp(
+      join(sourceRuntime, 'workers', 'team-workflow-worker.mjs'),
+      join(outputRuntime, 'workers', 'team-workflow-worker.mjs'),
+    ),
+  ])
 
   await rm(sourceRuntime, { recursive: true, force: true })
   await rename(outputRuntime, sourceRuntime)

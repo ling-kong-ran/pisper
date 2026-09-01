@@ -248,7 +248,9 @@ export class VisualModelCatalog {
       .toLowerCase()
     if (requested) {
       // 显式指定 Provider 时允许调用方选择同一端点上的不同凭据，不能先去重丢掉该候选。
-      const qualified = candidates.find((model) => modelReference(model).toLowerCase() === requested)
+      const qualified = candidates.find(
+        (model) => modelReference(model).toLowerCase() === requested,
+      )
       if (qualified) return publicModel(qualified)
     }
     const models = await this.orderedModels(kind, candidates)

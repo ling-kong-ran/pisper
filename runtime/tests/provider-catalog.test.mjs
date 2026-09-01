@@ -124,6 +124,46 @@ test('paired device model config export imports credentials and defaults into th
   )
 })
 
+test('OAuth credentials are never reused for custom Provider model discovery', async (t) => {
+  const directory = await mkdtemp(join(tmpdir(), 'pisper-provider-oauth-boundary-'))
+  const runtime = new AgentRuntimeService({ cwd: directory, dataDir: directory })
+  t.after(async () => {
+    await runtime.dispose()
+    await rm(directory, { recursive: true, force: true })
+  })
+  await runtime.init()
+  await writeFile(
+    runtime.authPath,
+    JSON.stringify({ 'openai-codex': { type: 'oauth', access: 'oauth-secret' } }),
+  )
+  let discoveredKey = 'not-called'
+  runtime.providerModelDiscovery.discover = async ({ apiKey }) => {
+    discoveredKey = apiKey
+    return { models: [{ id: 'relay-model', kind: 'chat' }] }
+  }
+
+  await assert.rejects(
+    runtime.discoverConnectionModels({
+      providerId: 'openai-codex',
+      providerType: 'chat',
+      api: 'openai-responses',
+      baseUrl: 'https://relay.example.test/v1',
+    }),
+    /OAuth.*official|官方 Provider.*OAuth/i,
+  )
+  assert.equal(discoveredKey, 'not-called')
+
+  const result = await runtime.discoverConnectionModels({
+    providerId: 'openai-codex',
+    providerType: 'chat',
+    api: 'openai-responses',
+    baseUrl: 'https://relay.example.test/v1',
+    apiKey: 'explicit-relay-key',
+  })
+  assert.equal(discoveredKey, 'explicit-relay-key')
+  assert.equal(result.models[0].id, 'relay-model')
+})
+
 test('provider API keys update without changing the active model configuration', async (t) => {
   const directory = await mkdtemp(join(tmpdir(), 'pisper-provider-api-key-'))
   const runtime = new AgentRuntimeService({ cwd: directory, dataDir: directory })
@@ -351,8 +391,14 @@ test('visual-only providers save connection settings without replacing the defau
   assert.equal(saved.apiKeyUpdated, true)
   const credentials = JSON.parse(await readFile(join(directory, 'auth.json'), 'utf8'))
   assert.equal(credentials['visual-relay'].key, nextKey)
-  assert.equal(saved.providers.find((provider) => provider.id === 'visual-relay').baseUrl, nextBaseUrl)
-  assert.equal(saved.providers.find((provider) => provider.id === 'visual-relay').name, 'Updated Visual Relay')
+  assert.equal(
+    saved.providers.find((provider) => provider.id === 'visual-relay').baseUrl,
+    nextBaseUrl,
+  )
+  assert.equal(
+    saved.providers.find((provider) => provider.id === 'visual-relay').name,
+    'Updated Visual Relay',
+  )
   const updatedVisualModel = await runtime.visualGeneration.models.select(
     'image',
     'visual-relay/gpt-image-1',

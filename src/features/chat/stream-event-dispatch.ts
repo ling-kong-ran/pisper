@@ -31,6 +31,14 @@ type ToolScheduler = ReturnType<typeof createToolUpdateScheduler>
 type Typewriter = ReturnType<typeof createTypewriterDisplay>
 type Translate = (message: string, values?: I18nValues) => string
 
+// Team 快照中的 null 是清除信号；只有缺少 team 属性时才沿用内存状态。
+function teamFromPayload(
+  payload: ApiRecord,
+  fallback: EntityRecord | null | undefined,
+): EntityRecord | null {
+  return Object.hasOwn(payload, 'team') ? (payload.team ?? null) : (fallback ?? null)
+}
+
 type StreamDispatchOptions = {
   sessionId: string
   agentId: string
@@ -89,6 +97,7 @@ export function reconcileTerminalStreamState(
     ),
     goal: failed ? current.goal : (data.goal ?? current.goal ?? null),
     plan: failed ? current.plan : planFromPayloadOr(data, current.plan),
+    team: teamFromPayload(data, current.team),
     agents: data.agents || current.agents || [],
     contextUsage: data.contextUsage ?? current.contextUsage ?? null,
     sessionUsage: data.sessionUsage ?? current.sessionUsage ?? null,
@@ -151,6 +160,7 @@ export function createStreamEventDispatcher({
         executionMode: data.executionMode,
         goal: data.goal ?? null,
         plan: planFromPayloadOr(data, current.plan),
+        team: teamFromPayload(data, current.team),
         agents: data.agents || current.agents || [],
         currentActivity: data.currentActivity || current.currentActivity || null,
         activityFeed: data.activityFeed || current.activityFeed || [],
@@ -171,6 +181,7 @@ export function createStreamEventDispatcher({
         data.permissionMode ||
         data.executionMode ||
         data.goal !== undefined ||
+        data.team !== undefined ||
         planFromPayload(data) !== undefined
       ) {
         updateSessionSummary((session) => ({
@@ -181,6 +192,7 @@ export function createStreamEventDispatcher({
           permissionMode: data.permissionMode || session.permissionMode,
           executionMode: data.executionMode || session.executionMode,
           goal: data.goal ?? session.goal ?? null,
+          team: teamFromPayload(data, session.team),
           plan: planFromPayloadOr(data, session.plan ?? null),
         }))
       }
@@ -204,6 +216,7 @@ export function createStreamEventDispatcher({
             : null)
         return {
           ...current,
+          team: teamFromPayload(data, current.team),
           agents: data.agents || [],
           currentActivity:
             current.currentActivity?.type === 'tool'
@@ -215,6 +228,12 @@ export function createStreamEventDispatcher({
           lastActivityAt: data.agent?.lastActivityAt || eventAt,
         }
       })
+      if (Object.hasOwn(data, 'team')) {
+        updateSessionSummary((session) => ({
+          ...session,
+          team: teamFromPayload(data, session.team),
+        }))
+      }
     } else if (event === 'agent_lifecycle') {
       updateSessionState(sessionId, (current) => {
         const lifecycle = data.lifecycle || current.lifecycle
@@ -445,8 +464,16 @@ export function createStreamEventDispatcher({
         ),
       }))
     } else if (event === 'goal_update') {
-      updateSessionState(sessionId, { goal: data.goal ?? null })
-      updateSessionSummary((session) => ({ ...session, goal: data.goal ?? null }))
+      updateSessionState(sessionId, (current) => ({
+        ...current,
+        goal: data.goal ?? null,
+        team: teamFromPayload(data, current.team),
+      }))
+      updateSessionSummary((session) => ({
+        ...session,
+        goal: data.goal ?? null,
+        team: teamFromPayload(data, session.team),
+      }))
     } else if (isPlanUpdateEvent(event)) {
       typewriter.flush()
       toolScheduler.flush()
@@ -514,6 +541,7 @@ export function createStreamEventDispatcher({
           ...session,
           streaming: false,
           goal: data.goal ?? session.goal ?? null,
+          team: teamFromPayload(data, session.team),
           plan: planFromPayloadOr(data, session.plan ?? null),
         }))
         return false

@@ -1,5 +1,4 @@
-// 连接列表：只展示已添加或已配置的连接；点击卡片进入对应编辑入口。
-// 未使用的内置 Provider 仍可从快速配置向导按需添加，避免首屏堆满预设。
+// 连接列表：只展示已添加或已配置的连接；点击卡片进入三步连接向导。
 import { Plus, Server, Trash2 } from 'lucide-react'
 import { useI18n } from '@/app/use-i18n'
 import { PROVIDER_ICONS } from './provider-constants'

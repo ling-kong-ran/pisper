@@ -22,6 +22,9 @@ const AGENT_TOOLS = new Set([
   'followup_task',
   'wait_agent',
   'interrupt_agent',
+  'send_team_message',
+  'list_team_members',
+  'run_team_workflow',
 ])
 
 // Agent 状态 → 展示文案与色调的映射（排队/启动/运行/完成/中断/失败）。
@@ -109,6 +112,7 @@ function activityKey(activity: EntityRecord | null | undefined) {
     return `agent:${activity.agent?.id || activity.agent?.canonicalName || ''}`
   if (activity.type === 'plan')
     return `plan:${activity.updatedAt || planFromActivity(activity)?.updatedAt || ''}`
+  if (activity.type === 'communication') return `communication:${activity.id || ''}`
   if (activity.type === 'model') return `model:${activity.stage || ''}`
   if (activity.type === 'compaction')
     return `compaction:${activity.compaction?.status || activity.compaction?.active || ''}`
@@ -158,7 +162,7 @@ export function pushCurrentActivity(
   maximum = MAX_CURRENT_ACTIVITIES,
 ) {
   const current = Array.isArray(feed) ? feed : []
-  if (!['tool', 'plan', 'agent'].includes(activity?.type)) return current
+  if (!['tool', 'plan', 'agent', 'communication'].includes(activity?.type)) return current
   let next = [...current]
   if (activity.type === 'plan')
     next = next.filter((item) => item?.type !== 'tool' || !isPlanTool(item.name))

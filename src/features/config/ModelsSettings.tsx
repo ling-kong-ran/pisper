@@ -35,10 +35,10 @@ type ModelsSettingsProps = {
   requestConfirm: (options?: ConfirmDialogOptions) => Promise<boolean>
 }
 
-// 向导打开参数：空 = 从第 1 步选服务商开始；带 Provider = 直达该连接的配置步骤。
+// 向导打开参数：对话/视觉共用三步连接配置，不再从预设 Provider 开始。
 type WizardTarget = {
   providerId?: string
-  startAtModels?: boolean
+  providerType?: ProviderType
 }
 
 export function ModelsSettings({
@@ -74,7 +74,7 @@ export function ModelsSettings({
     t,
   })
   // 页面主操作 = 快速配置向导（三步完成对话模型配置）。
-  usePagePrimaryAction(registerPrimaryAction, () => setWizard({}))
+  usePagePrimaryAction(registerPrimaryAction, () => setWizard({ providerType: 'chat' }))
 
   if (!config) {
     return (
@@ -95,19 +95,18 @@ export function ModelsSettings({
     setManageOpen(open)
     window.localStorage.setItem(MANAGE_CONNECTIONS_STORAGE_KEY, open ? '1' : '0')
   }
-  // 从列表/摘要卡进入向导：已配置且有模型的连接直达选模型步骤，否则从填 Key 开始。
+  // 从列表/摘要卡进入向导：复用连接数据，但仍从 Base URL 步骤开始，便于检查端点。
   const openWizardFor = (provider: ProviderConfig) =>
-    setWizard({
-      providerId: provider.id,
-      startAtModels: provider.configured && provider.models.some((model) => model.kind === 'chat'),
-    })
+    setWizard({ providerId: provider.id, providerType: provider.type })
 
   return (
     <>
       <CurrentModelSummary
         config={config}
-        onQuickSetup={() => setWizard({})}
-        onChangeModel={() => (defaultProvider ? openWizardFor(defaultProvider) : setWizard({}))}
+        onQuickSetup={() => setWizard({ providerType: 'chat' })}
+        onChangeModel={() =>
+          defaultProvider ? openWizardFor(defaultProvider) : setWizard({ providerType: 'chat' })
+        }
       />
       <Collapsible open={manageOpenEffective} onOpenChange={setManageOpenPersisted}>
         <CollapsibleTrigger asChild>
@@ -140,11 +139,7 @@ export function ModelsSettings({
             providers={config.providers}
             defaultProviderId={defaultProviderId}
             toggling={settings.toggling}
-            onConfigure={(provider) =>
-              provider.type === 'visual'
-                ? setProviderModal({ providerType: 'visual', provider })
-                : openWizardFor(provider)
-            }
+            onConfigure={(provider) => openWizardFor(provider)}
             onToggle={settings.toggleProvider}
             onDelete={settings.deleteProvider}
             onAddCustom={() => setProviderModal({ providerType: 'chat' })}
@@ -162,8 +157,7 @@ export function ModelsSettings({
       <VisualGenerationSettings
         config={config}
         notify={notify}
-        onConfigChanged={settings.applyConfig}
-        onAddVisualProvider={() => setProviderModal({ providerType: 'visual' })}
+        onQuickSetup={() => setWizard({ providerType: 'visual' })}
         onEditVisualProvider={(providerId) => {
           const provider = config.providers.find((item) => item.id === providerId)
           if (provider) setProviderModal({ providerType: 'visual', provider })
@@ -172,17 +166,13 @@ export function ModelsSettings({
       {wizard && (
         <QuickSetupWizard
           config={config}
+          providerType={wizard.providerType || 'chat'}
           initialProviderId={wizard.providerId}
-          startAtModels={wizard.startAtModels}
           onClose={() => setWizard(null)}
           onCompleted={(data) => {
             settings.applyConfig(data)
             notify(t('config:configPage.setupComplete'))
             setWizard(null)
-          }}
-          onCustomProvider={() => {
-            setWizard(null)
-            setProviderModal({ providerType: 'chat' })
           }}
         />
       )}
@@ -195,13 +185,7 @@ export function ModelsSettings({
             settings.applyConfig(data)
             if (providerModal.provider) notify(t('config:configPage.providerConnectionUpdated'))
             else notify(t('config:configPage.providerConnectionCreated'))
-            const createdProviderId = data.createdProviderId
-            const providerType = providerModal.providerType
             setProviderModal(null)
-            // 仅聊天连接创建后进入向导；视觉连接已在当前弹窗完成模型配置。
-            if (createdProviderId && providerType === 'chat') {
-              setWizard({ providerId: createdProviderId, startAtModels: false })
-            }
           }}
         />
       )}

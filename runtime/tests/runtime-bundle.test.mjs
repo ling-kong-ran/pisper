@@ -51,6 +51,11 @@ test('Runtime bundle preserves host entries and only declares external package r
         'runtime/plugins/local-plugin-worker.mjs',
         "export const worker = 'fixture'\n",
       ),
+      createFile(
+        runtimeDir,
+        'runtime/workers/team-workflow-worker.mjs',
+        "export const teamWorker = 'fixture'\n",
+      ),
       createFile(runtimeDir, 'shared/value.mjs', "export const value = 'bundled'\n"),
     ])
 
@@ -66,6 +71,10 @@ test('Runtime bundle preserves host entries and only declares external package r
     assert.equal(await exists(join(runtimeDir, 'THIRD_PARTY_LICENSES.txt')), true)
     assert.equal(
       await exists(join(runtimeDir, 'runtime', 'plugins', 'local-plugin-worker.mjs')),
+      true,
+    )
+    assert.equal(
+      await exists(join(runtimeDir, 'runtime', 'workers', 'team-workflow-worker.mjs')),
       true,
     )
     assert.ok(manifest.inputFileCount >= 3)

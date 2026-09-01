@@ -229,6 +229,10 @@ function SessionPanel({
   const state = sessionState || DEFAULT_SESSION_STATE
   const streaming = Boolean(state.streaming || session?.streaming)
   const plan = resolveSessionPlan(sessionState, session)
+  const team =
+    sessionState && Object.hasOwn(sessionState, 'team')
+      ? sessionState.team
+      : (session?.team ?? null)
   const visiblePlan = isPlanActive(plan, { streaming }) ? plan : null
   const sessionTreePulse =
     context?.sessionTreePulseSessionId === sessionId ? context.sessionTreePulseToken : 0
@@ -270,7 +274,8 @@ function SessionPanel({
       onExecutionModeChange: (nextMode: string) =>
         context?.switchSessionExecutionMode(sessionId, nextMode) ?? false,
       onGoalPause: () => context?.pauseGoal(sessionId),
-      onGoalBudgetChange: (tokenBudget: number) => context?.setGoalBudget(sessionId, tokenBudget),
+      onGoalBudgetChange: (tokenBudget: number | null) =>
+        context?.setGoalBudget(sessionId, tokenBudget),
       onCompact: () => context?.compactSession(sessionId),
       onApproval: (approvalId: string, approved: boolean) =>
         context?.resolveToolApproval(sessionId, approvalId, approved),
@@ -296,10 +301,19 @@ function SessionPanel({
         value: string,
         attachments: ChatAttachment[],
         goalMode: boolean,
+        teamMode: boolean,
         goalTokenBudget: number | null,
         invocation?: ResourceInvocation | null,
       ) =>
-        context?.sendPrompt(value, sessionId, attachments, goalMode, goalTokenBudget, invocation),
+        context?.sendPrompt(
+          value,
+          sessionId,
+          attachments,
+          goalMode,
+          teamMode,
+          goalTokenBudget,
+          invocation,
+        ),
       onQueue: (value: string, attachments: ChatAttachment[], behavior: string) =>
         context?.queuePrompt(value, sessionId, attachments, behavior) ?? false,
       onAbort: () => context?.abort(sessionId),
@@ -342,6 +356,7 @@ function SessionPanel({
         thinkingMessage={state.thinkingMessage || ''}
         executionMode={state.executionMode || session.executionMode || 'approval-required'}
         goal={state.goal ?? session.goal ?? null}
+        team={team}
         plan={visiblePlan}
         currentActivity={state.currentActivity}
         activityFeed={state.activityFeed || EMPTY_LIST}
