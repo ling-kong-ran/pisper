@@ -1,7 +1,7 @@
 {
   "name": "pisper",
   "private": true,
-  "version": "0.5.29",
+  "version": "0.5.30",
   "license": "MIT",
   "description": "A multi-agent workspace across desktop, terminal, and mobile for parallel sessions, tools, memory, and workflows.",
   "author": {
