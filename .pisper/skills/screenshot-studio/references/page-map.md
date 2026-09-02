@@ -1,10 +1,9 @@
 # Screenshot → route → expected state
 
-All Web shots are `2558x1380`. `welcome-dark.png` is dark theme; every other page is light theme. `cli.png` and `pisper-demo.gif` are TUI/demo assets and are not captured by this skill.
+All current Web shots are `2558x1380` and use the light theme. The Web set follows the `shots/web/*.webp` references in `docs/index.html` and `docs/show.html`; TUI, mobile, and other demo assets are not captured by this skill.
 
 | File | Route / interaction | Expected state |
 | --- | --- | --- |
-| `welcome-dark.png` | `/#/chat` with an **empty** session, dark theme | Pisper welcome animation, 推荐入口 (解释代码 / 写单测 / 重构 / …), empty Composer `等待输入` |
 | `chat-grid.png` | `/#/chat`, two sessions tiled, second tab → 右键 → 拆分到右侧 | Two split dock groups, one conversation per panel |
 | `chat.png` | `/#/chat`, single session | Focused conversation, 900px body, thinking collapsed (completed), Composer footer with model / VCS / usage |
 | `turn-label.png` | `/#/chat`, last completed Assistant Turn → 标记此轮 | Label popover beside the derive action, with a persisted demo label and readable save action |
@@ -25,11 +24,11 @@ All Web shots are `2558x1380`. `welcome-dark.png` is dark theme; every other pag
 | `config.png` | `/#/config` → 模型配置 | Provider connections (OpenAI 已配置) + model catalog |
 | `config-notifications.png` | `/#/config` → 通知设置 | Notification templates + channel toggles |
 | `config-interface.png` | `/#/config` → 界面设置 | Language / density settings |
-| `config-desktop-pet.png` | `/#/config` → 桌面宠物 | Desktop pet settings |
+| `config-remote-access.png` | `/#/config` → 远程访问 | Remote access and device pairing settings |
 | `config-updates.png` | `/#/config` → 应用更新 | Component update status + check button |
 
 ## Doc references
 
-- `docs/index.html`: hero `shots/welcome-dark.png`, product tabs including `shots/session-tree.png` / `shots/turn-label.png` / `shots/session-labels.png` / `shots/chat-grid.png` / `shots/terminal.png` / `shots/workflow-builder.png` (width/height 2558x1380), tour `shots/cli.png`.
-- `docs/show.html`: 21-scene tour reusing the shots above (excluding `config-desktop-pet`), including the asset preview scene.
+- `docs/index.html`: product tabs reference `chat-grid`, `session-tree`, `workflow-builder`, `memory`, `terminal`, and `config-remote-access`; TUI and mobile sections use their existing non-Web assets.
+- `docs/show.html`: 21-scene Web tour, including the asset preview scene.
 - `README.md` / `README.en.md`: inline links to `chat-grid.png`, `session-tree.png`, `workflow-builder.png`, and `cli-chat.png`.

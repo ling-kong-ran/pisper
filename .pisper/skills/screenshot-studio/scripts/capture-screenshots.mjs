@@ -2,16 +2,16 @@
 // Requires the isolated server (start-isolated-server.mjs) and seeded data
 // (seed-demo-data.mjs, which writes generated/screenshot-run/state.json).
 // Saves PNGs to generated/screenshot-run/.
-import { readFileSync } from 'node:fs'
+import { mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 import { launchScreenshotBrowser } from './browser-launch.mjs'
 import { BASE_URL, RUN_DIR } from './screenshot-config.mjs'
+import { WEB_SHOTS } from './web-shots.mjs'
 
 const state = JSON.parse(readFileSync(resolve(RUN_DIR, 'state.json'), 'utf8'))
 
 const S1 = state.conversationSessionId
 const S2 = state.splitSessionId
-const S4 = state.welcomeSessionId
 const WF_PUBLISHED = state.workflowId
 
 const browser = await launchScreenshotBrowser()
@@ -114,7 +114,73 @@ async function goto(path) {
   await page.waitForTimeout(1100)
 }
 
+async function saveDockLayout(sessionIds) {
+  const response = await fetch(`${BASE_URL}/api/settings/chat-dock-layout`)
+  const stored = response.ok ? await response.json() : null
+  const previous = stored?.layout || {}
+  const previousGrid = previous.grid || {}
+  const previousRoot = previousGrid.root || {}
+  const previousLeaf = Array.isArray(previousRoot.data)
+    ? previousRoot.data.find((item) => item?.type === 'leaf')
+    : null
+  const width = Number(previousGrid.width) || Number(previousLeaf?.size) || 1005
+  const height = Number(previousGrid.height) || Number(previousRoot.size) || 594
+  const panelIds = sessionIds.map((id) => `session:${id}`)
+  const activePanelId = panelIds[panelIds.length - 1] || ''
+  const panels = Object.fromEntries(
+    sessionIds.map((sessionId, index) => {
+      const panelId = panelIds[index]
+      return [
+        panelId,
+        {
+          id: panelId,
+          contentComponent: 'session',
+          params: { sessionId },
+          title: '',
+          renderer: 'always',
+          minimumWidth: 300,
+        },
+      ]
+    }),
+  )
+  const snapshot = {
+    version: 1,
+    engine: 'dockview',
+    activePanelId,
+    layout: {
+      ...previous,
+      grid: {
+        ...previousGrid,
+        root: {
+          type: 'branch',
+          data: [
+            {
+              type: 'leaf',
+              data: { views: panelIds, activeView: activePanelId, id: '1' },
+              size: width,
+            },
+          ],
+          size: height,
+        },
+        width,
+        height,
+        orientation: 'HORIZONTAL',
+      },
+      panels,
+      activeGroup: '1',
+    },
+  }
+  const saved = await fetch(`${BASE_URL}/api/settings/chat-dock-layout`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(snapshot),
+  })
+  if (!saved.ok) throw new Error(`Failed to save screenshot Dock layout: ${saved.status}`)
+}
+
 async function chatState({ theme = 'light', activeSession = '', tiled = [] }) {
+  const sessionIds = tiled.length ? tiled : activeSession ? [activeSession] : []
+  await saveDockLayout(sessionIds)
   await page.goto(`${BASE_URL}/`)
   await page.evaluate(
     ({ theme, activeSession, tiled }) => {
@@ -136,15 +202,37 @@ async function chatState({ theme = 'light', activeSession = '', tiled = [] }) {
   await page.reload({ waitUntil: 'domcontentloaded' })
 }
 
+const capturedShots = new Set()
+
 async function shot(name) {
-  await page.screenshot({ path: resolve(RUN_DIR, `${name}.png`) })
+  const png = await page.screenshot({ path: resolve(RUN_DIR, `${name}.png`) })
+  const webp = await page.evaluate(async (pngBase64) => {
+    const image = new Image()
+    const loaded = new Promise((resolve, reject) => {
+      image.onload = resolve
+      image.onerror = reject
+    })
+    image.src = `data:image/png;base64,${pngBase64}`
+    await loaded
+    const canvas = document.createElement('canvas')
+    canvas.width = 1600
+    canvas.height = 864
+    const context = canvas.getContext('2d')
+    if (!context) throw new Error('Canvas is unavailable for WebP thumbnail generation')
+    context.drawImage(image, 0, 0, canvas.width, canvas.height)
+    return canvas.toDataURL('image/webp', 0.86)
+  }, png.toString('base64'))
+  if (!webp.startsWith('data:image/webp;base64,')) {
+    throw new Error(`Browser cannot encode WebP thumbnail for ${name}`)
+  }
+  mkdirSync(resolve(RUN_DIR, 'web'), { recursive: true })
+  writeFileSync(
+    resolve(RUN_DIR, 'web', `${name}.webp`),
+    Buffer.from(webp.slice('data:image/webp;base64,'.length), 'base64'),
+  )
+  capturedShots.add(name)
   console.log(`captured ${name}`)
 }
-
-// welcome-dark: empty session, dark theme
-await chatState({ theme: 'dark', activeSession: S4 })
-await goto('/chat')
-await shot('welcome-dark')
 
 // chat-grid: two sessions split via the real tab context menu
 await chatState({ activeSession: S1, tiled: [S1, S2] })
@@ -171,7 +259,8 @@ await goto('/chat')
 await shot('chat')
 
 // turn-label: label editor sits beside the independent-session derive action
-const turnLabelButton = page.getByRole('button', { name: '标记此轮' }).last()
+const turnLabelButton = page.locator('[data-pisper-label-entry]').last()
+await turnLabelButton.waitFor({ state: 'visible' })
 await turnLabelButton.click()
 await page.locator('.message-label-popover').waitFor({ state: 'visible' })
 await page.waitForTimeout(300)
@@ -240,6 +329,16 @@ await shot('history')
 await goto('/assets')
 await shot('assets')
 
+// assets-preview: open the seeded Markdown asset in the real preview modal
+const markdownAsset = page.locator('.asset-card').filter({ hasText: '本周发布说明.md' }).first()
+await markdownAsset.waitFor({ state: 'visible' })
+await markdownAsset.locator('.asset-preview').click()
+await page.locator('.asset-preview-modal').waitFor({ state: 'visible' })
+await page.waitForTimeout(400)
+await shot('assets-preview')
+await page.getByRole('button', { name: '关闭对话框' }).last().click()
+await page.locator('.asset-preview-modal').waitFor({ state: 'hidden' })
+
 // channels
 await goto('/channels')
 await shot('channels')
@@ -301,8 +400,11 @@ async function configSection(name, label) {
 await configSection('config', '模型配置')
 await configSection('config-notifications', '通知设置')
 await configSection('config-interface', '界面设置')
-await configSection('config-desktop-pet', '桌面宠物')
+await configSection('config-remote-access', '远程访问')
 await configSection('config-updates', '应用更新')
 
+const missing = WEB_SHOTS.filter((name) => !capturedShots.has(name))
+if (missing.length) throw new Error(`Missing current documentation screenshots: ${missing.join(', ')}`)
+
 await browser.close()
-console.log('all captured')
+console.log(`all ${capturedShots.size} current documentation screenshots captured`)

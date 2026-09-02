@@ -21,9 +21,9 @@ This skill is for screenshot refresh work only. Do not run it during ordinary im
 
 ## Output invariants
 
-- Every Web screenshot is exactly **2558x1380** (viewport `1279x690` at `deviceScaleFactor 2`).
-- `welcome-dark.png` is the only dark-theme shot; every other page is light theme.
-- `cli.png` and `pisper-demo.gif` are TUI/demo assets; leave them untouched unless the TUI itself changed.
+- Every current Web screenshot PNG is exactly **2558x1380** (viewport `1279x690` at `deviceScaleFactor 2`); its WebP thumbnail is `1600x864`.
+- The current Web set is derived from the `shots/web/*.webp` references in `docs/index.html` and `docs/show.html`; deleted scenes are not recreated.
+- `cli.png`, `cli-chat.png`, the mobile assets, and other non-Web/demo assets are left untouched.
 - No real user data, provider keys, or machine paths may appear. Use only fictional demo content and repository-relative paths.
 - The isolated instance must never read the user's `~/.pisper/agent` or the port-5173 dev server state.
 
@@ -43,7 +43,7 @@ This stops any prior Skill-owned process, clears only the configured screenshot 
 node .pisper/skills/screenshot-studio/scripts/seed-demo-data.mjs
 ```
 
-Creates through the real runtime APIs (never by editing the UI): six sessions, three with injected conversation transcripts, three empty; link + generated-image assets; a memory space with nodes; schedules; workflows (one published); and a configured OpenAI-compatible provider. Writes the created ids to `generated/screenshot-run/state.json`.
+Creates through the real runtime APIs (never by editing the UI): six sessions, three with injected conversation transcripts, three empty; link, Markdown, and generated-image assets; a memory space with nodes; schedules; workflows (one published); and a configured OpenAI-compatible provider. Writes the created ids to `generated/screenshot-run/state.json`.
 
 ### 2b. Restart the isolated instance
 
@@ -59,7 +59,7 @@ Run it again after seeding. API-created sessions live in memory only; restarting
 node .pisper/skills/screenshot-studio/scripts/capture-screenshots.mjs
 ```
 
-Visits every route referenced by `docs/index.html` and `docs/show.html`, applies the localStorage presets, opens the split dock via the real tab context menu, selects the memory space, and saves the PNGs to the configured run directory. The desktop terminal shot uses the real `TerminalPanel` with a screenshot-only bridge and deterministic fictional output; it never starts a host shell.
+Visits every current Web route referenced by `docs/index.html` and `docs/show.html`, resets the isolated Runtime Dock layout for each chat scene, opens the split dock via the real tab context menu, opens the seeded Markdown asset preview, selects the memory space, and saves the PNGs plus `1600x864` WebP thumbnails to the configured run directory. The desktop terminal shot uses the real `TerminalPanel` with a screenshot-only bridge and deterministic fictional output; it never starts a host shell.
 
 ### 4. Verify and replace
 
@@ -98,7 +98,7 @@ The PID file belongs only to this Skill. Do not kill unrelated processes by port
 6. **Dock split uses real UI.** The split layout cannot be reliably injected via localStorage. Open `pisper-tiled-sessions` with two session ids, then right-click the second tab (`.dv-tab`) and click the `.dv-context-menu-item` labeled `拆分到右侧`.
 
 7. **localStorage presets** (set before first navigation):
-   - `pisper-ui` = Zustand persist payload with `state.theme` set to `light` (or `dark` for `welcome-dark.png`), `state.sidebarCollapsed` set to `false`, and `state.density` set to `comfortable`
+   - `pisper-ui` = Zustand persist payload with `state.theme` set to `light`, `state.sidebarCollapsed` set to `false`, and `state.density` set to `comfortable`
    - `pisper-theme` = the same theme for legacy migration compatibility
    - `pisper-language` = `zh-CN`
    - `pisper-sidebar-collapsed` = `false`
@@ -111,12 +111,12 @@ The PID file belongs only to this Skill. Do not kill unrelated processes by port
 
 9. **Portable configuration.** `screenshot-config.mjs` owns all paths and network defaults. Optional overrides are `SCREENSHOT_PORT`, `SCREENSHOT_HOST`, `SCREENSHOT_BASE_URL`, `SCREENSHOT_AGENT_DIR`, `SCREENSHOT_RUN_DIR`, `SCREENSHOT_SHOTS_DIR`, and `SCREENSHOT_WORKSPACE_DIR`. Relative path overrides resolve from the repository root.
 
-10. **Viewport math.** `1279x690` × `deviceScaleFactor 2` = `2558x1380`, matching every existing asset and the `width`/`height` attributes in `docs/index.html`.
+10. **Viewport math.** `1279x690` × `deviceScaleFactor 2` = `2558x1380`, matching every current Web asset and the `width`/`height` attributes in `docs/index.html`.
 
 ## Verification expectations
 
-- All 22 Web shots replaced; `cli.png` + `pisper-demo.gif` untouched.
-- Every file exactly `2558x1380`.
+- Every current Web shot is replaced; TUI, mobile, and other non-Web/demo assets are untouched.
+- Every Web PNG is exactly `2558x1380`, and each referenced WebP thumbnail has a valid WebP container.
 - `terminal.png` shows the real desktop terminal panel bound to the active chat session, with only fictional output and repository-relative labels.
 - `git status` shows screenshot assets, intentional docs references, and Skill maintenance changes only; configured run/agent directories remain gitignored.
 - Product source remains unchanged. Report changed references in `docs/index.html` / `docs/show.html`.

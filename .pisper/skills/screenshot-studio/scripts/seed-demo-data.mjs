@@ -346,6 +346,12 @@ for (const asset of [
   { kind: 'link', name: 'Milvus 架构说明', url: 'https://milvus.io/docs/architecture_overview.md', sessionName: NAMES[0] },
   { name: 'dashboard-mock.png', mimeType: 'image/png', data: mockPng.toString('base64'), sessionName: NAMES[0] },
   { name: 'chart-preview.png', mimeType: 'image/png', data: chartPng.toString('base64'), sessionName: NAMES[1] },
+  {
+    name: '本周发布说明.md',
+    mimeType: 'text/markdown',
+    text: '# 本周发布说明\n\n- 会话分屏支持并行推进\n- Recall 保留连续主干与分支\n- 资产可以预览并加入对话',
+    sessionName: NAMES[2],
+  },
 ]) {
   await api('/api/assets', { method: 'POST', body: asset })
 }
@@ -430,7 +436,6 @@ const state = {
   sessions,
   conversationSessionId: sessions[0],
   splitSessionId: sessions[1],
-  welcomeSessionId: sessions[3],
   memorySpaceId: space?.id,
   workflowId: published?.id || '',
   cwd: DISPLAY_CWD,
