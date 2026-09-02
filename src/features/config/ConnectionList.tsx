@@ -51,7 +51,6 @@ export function ConnectionList({
       <div className="grid [grid-template-columns:repeat(auto-fill,minmax(230px,1fr))] gap-[8px]">
         {visibleProviders.map((provider) => {
           const Icon = PROVIDER_ICONS[provider.id] || Server
-          const visual = provider.type === 'visual'
           const isDefault = provider.id === defaultProviderId
           const statusText = !provider.configured
             ? provider.id === 'openai-codex'
@@ -84,9 +83,6 @@ export function ConnectionList({
                 </strong>
                 {isDefault && (
                   <SettingsBadge tone="green">{t('config:configPage.defaultBadge')}</SettingsBadge>
-                )}
-                {visual && (
-                  <SettingsBadge tone="gray">{t('config:configPage.visualProvider')}</SettingsBadge>
                 )}
               </div>
               <div className="flex items-center justify-between gap-[8px]">

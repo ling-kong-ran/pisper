@@ -35,16 +35,19 @@ test('Provider API key saving reads the live password input instead of relying o
 })
 
 test('visual Provider settings expose a direct connection editor and hide unused presets', async () => {
-  const [dialogSource, modelsSource, connectionSource] = await Promise.all([
+  const [dialogSource, modelsSource, connectionSource, visualSource] = await Promise.all([
     readFile('src/features/config/ProviderDialogs.tsx', 'utf8'),
     readFile('src/features/config/ModelsSettings.tsx', 'utf8'),
     readFile('src/features/config/ConnectionList.tsx', 'utf8'),
+    readFile('src/features/config/VisualGenerationSettings.tsx', 'utf8'),
   ])
   assert.match(dialogSource, /initialProvider\?: ProviderConfig/)
   assert.match(dialogSource, /apiJson<ConfigData>\('\/api\/config'/)
   assert.match(modelsSource, /onEditVisualProvider=/)
-  assert.match(
-    connectionSource,
-    /provider\.configured \|\| provider\.custom \|\| provider\.type === 'visual'/,
-  )
+  // 视觉供应商不混入对话连接列表，统一由视觉生成专区的「视觉连接」提供启停开关。
+  assert.match(connectionSource, /provider\.configured \|\| provider\.custom\)/)
+  assert.doesNotMatch(connectionSource, /provider\.type === 'visual'/)
+  assert.match(visualSource, /value=\{provider\.configured && provider\.enabled\}/)
+  assert.match(visualSource, /onToggleProvider\(provider, enabled\)/)
+  assert.match(modelsSource, /onToggleProvider=\{settings\.toggleProvider\}/)
 })
