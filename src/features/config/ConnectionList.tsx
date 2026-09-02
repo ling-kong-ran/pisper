@@ -1,4 +1,5 @@
-// 连接列表：只展示已添加或已配置的连接；点击卡片进入三步连接向导。
+// 连接列表：只展示已添加或已配置的对话连接；点击卡片进入三步连接向导。
+// 视觉供应商不在对话连接里重复展示，统一在视觉生成专区的「视觉连接」里管理。
 import { Plus, Server, Trash2 } from 'lucide-react'
 import { useI18n } from '@/app/use-i18n'
 import { PROVIDER_ICONS } from './provider-constants'
@@ -32,9 +33,7 @@ export function ConnectionList({
   onAddCustom,
 }: ConnectionListProps) {
   const { t } = useI18n()
-  const visibleProviders = providers.filter(
-    (provider) => provider.configured || provider.custom || provider.type === 'visual',
-  )
+  const visibleProviders = providers.filter((provider) => provider.configured || provider.custom)
   return (
     <SettingsCard>
       <div className="flex items-center justify-between gap-[8px] [margin-bottom:8px]">

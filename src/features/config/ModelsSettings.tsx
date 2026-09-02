@@ -157,6 +157,9 @@ export function ModelsSettings({
       <VisualGenerationSettings
         config={config}
         notify={notify}
+        toggling={settings.toggling}
+        onToggleProvider={settings.toggleProvider}
+        onDeleteProvider={settings.deleteProvider}
         onQuickSetup={() => setWizard({ providerType: 'visual' })}
         onEditVisualProvider={(providerId) => {
           const provider = config.providers.find((item) => item.id === providerId)
