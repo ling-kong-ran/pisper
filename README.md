@@ -237,7 +237,7 @@ Desktop、TUI、Runtime 与移动 App 各自独立版本、独立签名、独立
 底层 Agent Runtime 基于 [Pi Coding Agent](https://github.com/earendil-works/pi/tree/main/packages/coding-agent) 深度集成；产品层主要使用 React、TypeScript、Tauri、Rust 与 Node SEA。
 
 ```bash
-npm run check   # typecheck + lint + i18n + format
+npm run check   # typecheck + lint + i18n + format + 启动检查
 npm test        # runtime 测试
 npm run build   # 生产构建
 ```

@@ -237,7 +237,7 @@ Desktop, TUI, Runtime, and the mobile App are versioned, signed, and updated ind
 The Agent Runtime deeply integrates [Pi Coding Agent](https://github.com/earendil-works/pi/tree/main/packages/coding-agent). The product layer is primarily React, TypeScript, Tauri, Rust, and Node SEA.
 
 ```bash
-npm run check   # typecheck + lint + i18n + format
+npm run check   # typecheck + lint + i18n + format + startup check
 npm test        # runtime tests
 npm run build   # production build
 ```
