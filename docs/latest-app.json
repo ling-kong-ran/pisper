@@ -1,9 +1,9 @@
 {
-  "version": "0.1.24",
-  "tag": "app-v0.1.24",
-  "url": "https://github.com/ling-kong-ran/pisper/releases/tag/app-v0.1.24",
+  "version": "0.1.25",
+  "tag": "app-v0.1.25",
+  "url": "https://github.com/ling-kong-ran/pisper/releases/tag/app-v0.1.25",
   "apk": "app-universal-release-signed.apk",
   "ipa": "pisper-ios-unsigned.ipa",
-  "notes": "- chore(release-runtime): runtime-v0.5.29\n- feat: add dynamic team orchestration and session sync\n- fix: simplify provider settings and edit visual connections\n- fix: allow selecting visual generation models\n- fix: recover mobile webview after background suspend",
+  "notes": "- test: track visual providers in the visual connections section\n- feat: align visual generation settings with model cards",
   "releaseDate": "2026-09-02"
 }
