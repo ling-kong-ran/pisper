@@ -1,9 +1,9 @@
 {
-  "version": "0.1.26",
-  "tag": "app-v0.1.26",
-  "url": "https://github.com/ling-kong-ran/pisper/releases/tag/app-v0.1.26",
+  "version": "0.1.27",
+  "tag": "app-v0.1.27",
+  "url": "https://github.com/ling-kong-ran/pisper/releases/tag/app-v0.1.27",
   "apk": "app-universal-release-signed.apk",
   "ipa": "pisper-ios-unsigned.ipa",
-  "notes": "- fix(runtime): honor team clear signal in live snapshots and abort responses\n- fix(runtime): stop re-projecting completed team snapshots in session listings\n- fix(runtime): expose setSessionRunMode on the runtime service\n- feat(mobile): drop manual pairing entry and stale i18n keys\n- docs: note startup gate in check command and format markdown\n- fix(chat): persist composer run mode (plan/goal/team) per session\n- feat(ui): polish team panel presentation and hide empty team states\n- fix(runtime): stop leaking stale team snapshots into non-team turns\n- feat(runtime): improve team mode interrupt recovery and observability\n- feat(ui): complete five UI optimization workstreams\n- fix: portal composer tray popup menus to escape overflow clipping\n- feat: add new-chat action to the empty dock watermark",
+  "notes": "- fix(mobile): use native select on touchscreens so picker panels survive swipes",
   "releaseDate": "2026-09-02"
 }
