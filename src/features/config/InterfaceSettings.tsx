@@ -282,7 +282,7 @@ export function InterfaceSettings({ notify }: { notify: Notify }) {
 
   return (
     <div className="flex w-[min(100%,920px)] flex-col gap-3">
-      <Panel className="p-[18px]">
+      <Panel className="p-[18px]" data-config-card="interface-appearance">
         <div className="flex items-start justify-between gap-4 max-[650px]:flex-col">
           <SettingHeading
             icon={Palette}
@@ -430,7 +430,7 @@ export function InterfaceSettings({ notify }: { notify: Notify }) {
         </div>
       </Panel>
 
-      <Panel className="p-[18px]">
+      <Panel className="p-[18px]" data-config-card="interface-motion">
         <SettingHeading
           icon={Activity}
           title={t('config:interfaceSettings.displayAndMotion')}

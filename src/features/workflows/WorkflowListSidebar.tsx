@@ -173,6 +173,7 @@ export function WorkflowAssetList({
                       variant={running ? 'secondary' : 'outline'}
                       disabled={running || busyId === workflow.id}
                       title={t('workflows:workflowsPage.run')}
+                      aria-label={`${t('workflows:workflowsPage.run')}: ${workflow.name}`}
                       onClick={() => onRun(workflow)}
                     >
                       {busyId === workflow.id ? (
@@ -185,6 +186,7 @@ export function WorkflowAssetList({
                       size="icon-xs"
                       variant="ghost"
                       title={t('workflows:workflowsPage.edit')}
+                      aria-label={`${t('workflows:workflowsPage.edit')}: ${workflow.name}`}
                       onClick={() => onEdit(workflow.id)}
                     >
                       <Pencil />
@@ -193,6 +195,7 @@ export function WorkflowAssetList({
                       size="icon-xs"
                       variant="ghost"
                       title={t('workflows:workflowsPage.duplicateWorkflow')}
+                      aria-label={`${t('workflows:workflowsPage.duplicateWorkflow')}: ${workflow.name}`}
                       onClick={() => onDuplicate(workflow)}
                     >
                       <Copy />
@@ -201,6 +204,7 @@ export function WorkflowAssetList({
                       size="icon-xs"
                       variant="ghost"
                       title={t('workflows:workflowsPage.export')}
+                      aria-label={`${t('workflows:workflowsPage.export')}: ${workflow.name}`}
                       onClick={() => onExport(workflow)}
                     >
                       <Download />
@@ -210,6 +214,7 @@ export function WorkflowAssetList({
                       variant="ghost"
                       disabled={running}
                       title={t('workflows:workflowsPage.delete')}
+                      aria-label={`${t('workflows:workflowsPage.delete')}: ${workflow.name}`}
                       onClick={() => onDelete(workflow)}
                     >
                       <Trash2 />

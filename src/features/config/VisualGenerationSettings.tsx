@@ -129,7 +129,7 @@ export function VisualGenerationSettings({
   return (
     <section className="[margin-top:12px]">
       {/* 当前视觉模型摘要卡：与「当前对话模型」卡片同构 */}
-      <SettingsCard className="[margin-bottom:12px]">
+      <SettingsCard className="[margin-bottom:12px]" data-config-card="models-visual">
         <div className="flex flex-wrap items-center gap-[12px]">
           <span className="grid w-[40px] h-[40px] flex-none place-items-center rounded-[11px] bg-[var(--accent-soft)] text-[var(--star-strong)]">
             <Sparkles size={19} />

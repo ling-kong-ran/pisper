@@ -1,7 +1,15 @@
 // Markdown 渲染组件：基于 streamdown 的流式解析 + 自定义组件映射
 // （代码块/链接/图片/行内引用），代码块提供复制按钮。
 // 增量 block 解析器只在末尾追加时重解析尾部，配合打字机效果保持流畅。
-import { isValidElement, memo, useState, type ComponentProps, type ReactNode } from 'react'
+import {
+  isValidElement,
+  memo,
+  useEffect,
+  useMemo,
+  useState,
+  type ComponentProps,
+  type ReactNode,
+} from 'react'
 import { Check, Copy } from 'lucide-react'
 import { CodeBlock, Streamdown, useIsCodeFenceIncomplete, type Components } from 'streamdown'
 import { useI18n } from '@/app/use-i18n'
@@ -11,6 +19,7 @@ import {
   parseMarkdownBlocksCached,
   streamdownPlugins,
 } from '@/lib/streamdown'
+import { loadKatexStyles, looksLikeMath } from '@/lib/katex-styles'
 import { cn } from '@/lib/utils'
 
 const MARKDOWN_COMPONENTS: Components = {
@@ -184,6 +193,11 @@ export type MarkdownMessageProps = {
 
 function MarkdownMessage({ children, className, streaming = false }: MarkdownMessageProps) {
   const source = String(children ?? '')
+  // 公式样式按需注入：命中数学语法才加载 KaTeX CSS，避免主 CSS 常驻。
+  const hasMath = useMemo(() => looksLikeMath(source), [source])
+  useEffect(() => {
+    if (hasMath) void loadKatexStyles()
+  }, [hasMath])
   const [parseBlocks] = useState(() => createIncrementalBlockParser())
   // 流式消息用实例级增量解析器（追加路径近零成本）；完成后文本恒定，
   // 走全局 LRU——虚拟化重挂载不再每次全量重解析。

@@ -4,7 +4,9 @@ import test from 'node:test'
 
 test('memory galaxy preserves its final dark background and four-point star styling', async () => {
   const source = await readFile('src/features/memory/MemoryPage.tsx', 'utf8')
-  const graphPanel = source.match(/className="graph-panel[^"\n]*"/)?.[0] || ''
+  // graph-panel 的 class 列表允许以双引号字符串或模板串书写（暂停动画的
+  // 条件 class 通过模板串拼接），断言只关心其中的样式 token。
+  const graphPanel = source.match(/className=\{?["`]graph-panel[^"`\n]*/)?.[0] || ''
   const starCore = source.match(/className="star-core[^"\n]*"/)?.[0] || ''
 
   assert.match(graphPanel, /bg-\[var\(--galaxy-bg\)\]!/)

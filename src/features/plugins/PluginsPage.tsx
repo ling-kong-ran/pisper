@@ -450,12 +450,12 @@ export function PluginsPage({
         </div>
       </div>
 
-      <div className="plugin-catalog-heading [&_>_span]:flex [&_>_span]:items-center [&_>_span]:gap-[7px] [&_strong]:text-[13px] [&_small]:text-[var(--text-muted)] [&_small]:text-[12px] [&_small]:[font-variant-numeric:tabular-nums] max-[650px]:items-start flex items-center justify-between gap-[12px] [padding:2px]">
+      <div className="plugin-catalog-heading [&_>_span]:flex [&_>_span]:items-center [&_>_span]:gap-[7px] [&_strong]:text-[13px] [&_small]:text-[var(--text-secondary)] [&_small]:text-[12px] [&_small]:[font-variant-numeric:tabular-nums] max-[650px]:items-start flex items-center justify-between gap-[12px] [padding:2px]">
         <span>
           <strong>{t('plugins:pluginsPage.toolCatalog')}</strong>
           <small>{filtered.length}</small>
         </span>
-        <span className="plugin-catalog-summary text-[var(--text-muted)] text-[12px] [font-variant-numeric:tabular-nums] [&_>_i]:w-[7px] [&_>_i]:h-[7px] [&_>_i]:rounded-[50%] [&_>_i]:bg-[var(--status-green)] max-[650px]:flex-wrap max-[650px]:justify-end">
+        <span className="plugin-catalog-summary text-[var(--text-secondary)] text-[12px] [font-variant-numeric:tabular-nums] [&_>_i]:w-[7px] [&_>_i]:h-[7px] [&_>_i]:rounded-[50%] [&_>_i]:bg-[var(--status-green)] max-[650px]:flex-wrap max-[650px]:justify-end">
           <i />
           {entries.filter((tool) => tool.enabled).length}/{entries.length}{' '}
           {t('plugins:pluginsPage.enabled2')}
@@ -499,6 +499,7 @@ export function PluginsPage({
                     <Toggle
                       value={tool.enabled}
                       onChange={(enabled) => toggleCapability(tool.pluginId, tool.name, enabled)}
+                      ariaLabel={displayToolName(tool, t)}
                     />
                     <button
                       type="button"
@@ -581,7 +582,7 @@ export function PluginsPage({
           })}
         </div>
       ) : (
-        <div className="plugin-empty [&.compact]:min-h-[90px] grid min-h-[180px] place-items-center text-[var(--text-muted)] text-[12px]">
+        <div className="plugin-empty [&.compact]:min-h-[90px] grid min-h-[180px] place-items-center text-[var(--text-secondary)] text-[12px]">
           {t('plugins:pluginsPage.noMatchingTools')}
         </div>
       )}

@@ -558,5 +558,7 @@
   "configPage.manageConnectionsHint": "启停连接、导入本地配置与运行策略",
   "configPage.tryExampleTooltip": "新建会话并发送这条提示词",
   "configPage.visualUnavailableNotify": "暂无可用的视觉模型：请先添加视觉模型，或检查供应商的密钥与启停状态",
-  "configPage.discoverFailedUsingExisting": "在线获取模型列表失败（{message}），可直接从已有模型中选择"
+  "configPage.discoverFailedUsingExisting": "在线获取模型列表失败（{message}），可直接从已有模型中选择",
+  "configSearch.placeholder": "搜索设置（模型 / 通知 / theme…）",
+  "configSearch.noResults": "未找到匹配的设置项"
 }

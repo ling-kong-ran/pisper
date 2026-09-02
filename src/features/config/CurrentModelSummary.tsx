@@ -26,7 +26,7 @@ export function CurrentModelSummary({
   const ready = Boolean(provider?.configured && provider?.enabled && modelId)
 
   return (
-    <SettingsCard className="[margin-bottom:12px]">
+    <SettingsCard className="[margin-bottom:12px]" data-config-card="models-current-model">
       <div className="flex flex-wrap items-center gap-[12px]">
         <span className="grid w-[40px] h-[40px] flex-none place-items-center rounded-[11px] bg-[var(--accent-soft)] text-[var(--star-strong)]">
           <Bot size={19} />

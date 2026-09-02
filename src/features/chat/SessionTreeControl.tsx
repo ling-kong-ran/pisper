@@ -62,6 +62,8 @@ export function SessionTreeControl({
         title={t('chat:sessionTree.menuDescription')}
         data-pisper-recall-pulse={pulsing || undefined}
         aria-label={t('chat:sessionTree.menu')}
+        aria-haspopup="dialog"
+        aria-expanded={open}
         onClick={() => onOpenChange(true)}
       >
         <TreePine size={16} />

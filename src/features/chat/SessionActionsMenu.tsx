@@ -1,5 +1,5 @@
 // 会话操作菜单：打开目录/导出/归档/删除等会话级动作。
-import { useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import {
   FolderOpen,
   MoreHorizontal,
@@ -54,23 +54,25 @@ export function SessionActionsMenu({
   const [placement, setPlacement] = useState<'top' | 'bottom'>('top')
   const rootRef = useRef<HTMLDivElement>(null)
   const menuRef = useRef<HTMLDivElement>(null)
+  const triggerRef = useRef<HTMLButtonElement>(null)
+
+  // 关闭菜单并把焦点归还触发按钮：Esc 关闭时键盘用户不至于丢失焦点位置。
+  const closeAndRestoreFocus = useCallback(() => {
+    setOpen(false)
+    triggerRef.current?.focus()
+  }, [])
 
   useEffect(() => {
     if (!open) return undefined
     const close = (event: MouseEvent) => {
       const target = event.target instanceof Node ? event.target : null
       // 菜单已 portal 到 body，点击菜单内部不算外部点击。
+      // 外部点击时焦点会随浏览器默认行为落到点击处，无需归还触发元素；
+      // Esc 关闭由 AnchoredPopupMenu 统一走 onClose（见 closeAndRestoreFocus）。
       if (!rootRef.current?.contains(target) && !menuRef.current?.contains(target)) setOpen(false)
     }
-    const escape = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') setOpen(false)
-    }
     document.addEventListener('mousedown', close)
-    document.addEventListener('keydown', escape)
-    return () => {
-      document.removeEventListener('mousedown', close)
-      document.removeEventListener('keydown', escape)
-    }
+    return () => document.removeEventListener('mousedown', close)
   }, [open])
 
   const run = (action?: () => void) => {
@@ -110,6 +112,7 @@ export function SessionActionsMenu({
         type="button"
         variant="ghost"
         size="icon"
+        ref={triggerRef}
         title={t('chat:focusSession.chatActions')}
         aria-label={t('chat:focusSession.openChatActionsMenu')}
         aria-haspopup="menu"
@@ -129,6 +132,7 @@ export function SessionActionsMenu({
         menuRef={menuRef}
         placement={placement}
         align="end"
+        onClose={closeAndRestoreFocus}
         className="anchored-popup-menu permission-mode-menu session-actions-menu [&_>_button]:grid [&_>_button]:w-full [&_>_button]:min-h-[48px] [&_>_button]:grid-cols-[auto_minmax(0,1fr)_auto] [&_>_button]:items-center [&_>_button]:gap-[8px] [&_>_button]:border-0 [&_>_button]:rounded-[var(--r-sm)] [&_>_button]:bg-transparent [&_>_button]:text-[var(--text)] [&_>_button]:p-[6px_7px] [&_>_button]:text-left [&_>_button:hover]:bg-[var(--accent-soft)] [&_>_button.active]:bg-[var(--accent-soft)] [&_>_button_>_span:nth-child(2)]:flex [&_>_button_>_span:nth-child(2)]:min-w-0 [&_>_button_>_span:nth-child(2)]:flex-col [&_>_button_>_span:nth-child(2)]:gap-[2px] [&_strong]:text-[13px] [&_small]:text-[var(--text-muted)] [&_small]:text-[13px] [&_small]:leading-[1.4] [&_>_button_>_svg]:text-[var(--star-strong)] w-[250px] max-w-[calc(100vw_-_16px)] overflow-hidden [border:1px_solid_var(--stroke)] rounded-[var(--r-md)] bg-[var(--solid)] [padding:5px] shadow-[0_18px_42px_-18px_var(--menu-shadow)] [&_>_button:disabled]:[cursor:not-allowed] [&_>_button:disabled]:opacity-[.5]"
         role="menu"
       >

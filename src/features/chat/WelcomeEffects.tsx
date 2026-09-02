@@ -14,20 +14,45 @@ const FADE_MS = 320
 
 // 轮换标题:先整体淡出(透明度+模糊),换词后靠 BlurText 重挂载播入场。
 // 减弱动态时冻结在首句,不做任何定时切换。
+// 文档隐藏时挂起计时并记住剩余时间,回前台后从剩余处继续,避免后台空转触发重渲染。
 function useRotatingTitle(titles: string[]) {
   const [index, setIndex] = useState(0)
   const [leaving, setLeaving] = useState(false)
   useEffect(() => {
     if (titles.length < 2) return
     if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return
-    const timer = window.setInterval(() => {
-      setLeaving(true)
-      window.setTimeout(() => {
-        setIndex((current) => (current + 1) % titles.length)
-        setLeaving(false)
-      }, FADE_MS)
-    }, ROTATE_MS)
-    return () => window.clearInterval(timer)
+    let rotateTimer = 0
+    let fadeTimer = 0
+    let startedAt = 0
+    let remaining = ROTATE_MS
+    const schedule = () => {
+      startedAt = Date.now()
+      rotateTimer = window.setTimeout(() => {
+        setLeaving(true)
+        fadeTimer = window.setTimeout(() => {
+          setIndex((current) => (current + 1) % titles.length)
+          setLeaving(false)
+        }, FADE_MS)
+        remaining = ROTATE_MS
+        schedule()
+      }, remaining)
+    }
+    const syncWithVisibility = () => {
+      if (document.hidden) {
+        // 扣除已流逝的时间后挂起,保证恢复后按剩余时长继续而不是重新计满一轮
+        remaining = Math.max(0, remaining - (Date.now() - startedAt))
+        window.clearTimeout(rotateTimer)
+      } else {
+        schedule()
+      }
+    }
+    schedule()
+    document.addEventListener('visibilitychange', syncWithVisibility)
+    return () => {
+      window.clearTimeout(rotateTimer)
+      window.clearTimeout(fadeTimer)
+      document.removeEventListener('visibilitychange', syncWithVisibility)
+    }
   }, [titles.length])
   return { title: titles[index] || titles[0] || '', leaving }
 }

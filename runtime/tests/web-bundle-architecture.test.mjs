@@ -319,6 +319,9 @@ test('session labels are searchable from Ctrl K and resolve through virtualized 
     transcript,
     virtualTranscript,
     treeDialog,
+    treeBrowser,
+    treeNodes,
+    treeModel,
     chatMessage,
     chatPage,
     chatApi,
@@ -330,6 +333,9 @@ test('session labels are searchable from Ctrl K and resolve through virtualized 
     readFile('src/features/chat/FocusTranscript.tsx', 'utf8'),
     readFile('src/features/chat/VirtualMessageTranscript.tsx', 'utf8'),
     readFile('src/features/chat/SessionTreeDialog.tsx', 'utf8'),
+    readFile('src/features/chat/session-tree-browser.tsx', 'utf8'),
+    readFile('src/features/chat/session-tree-nodes.tsx', 'utf8'),
+    readFile('src/features/chat/session-tree-model.ts', 'utf8'),
     readFile('src/features/chat/ChatMessage.tsx', 'utf8'),
     readFile('src/features/chat/ChatPage.tsx', 'utf8'),
     readFile('src/features/chat/chat-api.ts', 'utf8'),
@@ -349,19 +355,23 @@ test('session labels are searchable from Ctrl K and resolve through virtualized 
   assert.match(transcript, /if \(hasOlder\)/)
   assert.match(virtualTranscript, /virtualizer\.scrollToIndex\(targetIndex/)
   assert.match(virtualTranscript, /data-pisper-target-entry/)
+  // 会话树 UI 拆分到 session-tree-* 子模块（仍由懒加载的对话框独占引入，
+  // 保持在独立 chunk 内）；断言按新布局分布到对应文件。
+  assert.match(treeDialog, /from '@\/features\/chat\/session-tree-browser'/)
+  assert.match(treeDialog, /from '@\/features\/chat\/session-tree-model'/)
   assert.match(treeDialog, /node\.branchPoint/)
-  assert.match(treeDialog, /session-tree-children/)
-  assert.match(treeDialog, /sessionTree\.searchPlaceholder/)
-  assert.match(treeDialog, /chat-resource-search[^"\n]*\[&_input\]:\[outline:0\]!/)
+  assert.match(treeNodes, /session-tree-children/)
+  assert.match(treeBrowser, /sessionTree\.searchPlaceholder/)
+  assert.match(treeBrowser, /chat-resource-search[^"\n]*\[&_input\]:\[outline:0\]!/)
   assert.match(treeDialog, /showCloseButton=\{false\}/)
   assert.match(treeDialog, /aria-label=\{t\('common:ui\.closeDialog'\)\}/)
   assert.match(treeDialog, /onClick=\{onClose\}/)
   assert.match(treeDialog, /buildDisplayTree\(data\?\.nodes \|\| \[\]\)/)
   assert.doesNotMatch(
-    treeDialog.match(/const conversationKinds = new Set\(\[[^\]]+\]\)/)?.[0] || '',
+    treeModel.match(/const conversationKinds = new Set\(\[[^\]]+\]\)/)?.[0] || '',
     /'tool(?:-call)?'/,
   )
-  assert.match(treeDialog, /nonDerivableKinds = new Set\(\['tool', 'tool-call'\]\)/)
+  assert.match(treeModel, /nonDerivableKinds = new Set\(\['tool', 'tool-call'\]\)/)
   assert.match(treeDialog, /canDeriveSelected/)
   assert.doesNotMatch(treeDialog, /branchRelated|value="branches"/)
   assert.match(treeDialog, /navigateSessionTree\(sessionId, selected\.id, summarize\)/)

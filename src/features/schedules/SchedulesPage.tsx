@@ -672,7 +672,11 @@ export function SchedulesPage({
               <AppCardHeader className="max-[650px]:flex-wrap max-[650px]:items-start">
                 <h2 className="min-w-0 break-words">{draft.name}</h2>
                 <div className="flex min-w-0 flex-wrap items-center gap-[5px] max-[650px]:w-full">
-                  <Toggle value={draft.enabled} onChange={(enabled) => updateDraft({ enabled })} />
+                  <Toggle
+                    value={draft.enabled}
+                    onChange={(enabled) => updateDraft({ enabled })}
+                    ariaLabel={draft.name}
+                  />
                   <Button
                     size="lg"
                     disabled={saving || selected.lastStatus === 'running'}
@@ -691,6 +695,7 @@ export function SchedulesPage({
                     variant="destructive"
                     size="icon"
                     title={t('schedules:schedulesPage.deleteTask')}
+                    aria-label={t('schedules:schedulesPage.deleteTask')}
                     onClick={remove}
                   >
                     <Trash2 size={14} />
@@ -874,7 +879,7 @@ export function SchedulesPage({
               {runs.length ? (
                 runs.map((item) => (
                   <div
-                    className={`schedule-run-row [&_>_svg]:text-[var(--text-muted)] [&.completed_>_svg]:text-[var(--success)] [&.failed_>_svg]:text-[var(--danger)] [&.running_>_svg]:text-[var(--star-strong)] [&_>_span]:flex [&_>_span]:min-w-0 [&_>_span]:flex-col [&_>_span]:gap-[4px] [&_strong]:[display:-webkit-box] [&_strong]:overflow-hidden [&_strong]:text-[12px] [&_strong]:leading-[1.4] [&_strong]:[-webkit-box-orient:vertical] [&_strong]:[-webkit-line-clamp:2] [&_small]:text-[var(--text-muted)] [&_small]:text-[13px] [&_a]:text-[var(--text-soft)] [&_a]:text-[13px] [&_a]:[text-decoration:underline] [&_a]:[text-underline-offset:2px] [&_>_em]:text-[var(--text-muted)] [&_>_em]:text-[12px] [&_>_em]:[font-style:normal] [&_>_em]:whitespace-nowrap grid grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-[9px] [border-top:1px_solid_var(--stroke-soft)] [padding:10px_2px] ${item.status}`}
+                    className={`schedule-run-row [&_>_svg]:text-[var(--text-muted)] [&.completed_>_svg]:text-[var(--success)] [&.failed_>_svg]:text-[var(--danger)] [&.running_>_svg]:text-[var(--star-strong)] [&_>_span]:flex [&_>_span]:min-w-0 [&_>_span]:flex-col [&_>_span]:gap-[4px] [&_strong]:[display:-webkit-box] [&_strong]:overflow-hidden [&_strong]:text-[12px] [&_strong]:leading-[1.4] [&_strong]:[-webkit-box-orient:vertical] [&_strong]:[-webkit-line-clamp:2] [&_small]:text-[var(--text-muted)] [&_small]:text-[13px] [&_a]:text-[var(--text-soft)] [&_a]:text-[13px] [&_a]:[text-decoration:underline] [&_a]:[text-underline-offset:2px] [&_>_em]:text-[var(--text-secondary)] [&_>_em]:text-[12px] [&_>_em]:[font-style:normal] [&_>_em]:whitespace-nowrap grid grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-[9px] [border-top:1px_solid_var(--stroke-soft)] [padding:10px_2px] ${item.status}`}
                     key={item.id}
                   >
                     {item.status === 'running' ? (

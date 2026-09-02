@@ -19,6 +19,7 @@ import {
 } from 'lucide-react'
 import { useI18n } from '@/app/use-i18n'
 import type { ThemeMode } from '@/stores/ui-store'
+import { ConfigSearchBox } from '@/features/config/ConfigSearch'
 import { SidebarTrigger } from '@/components/ui/sidebar'
 import { cn } from '@/lib/utils'
 
@@ -46,6 +47,7 @@ type PageHeaderProps = {
   configSection: string
   onMenu: () => void
   onPrimary: () => void
+  onConfigSearchSelect: (section: string) => void
   theme: ThemeMode
   onCycleTheme: () => void
   searchInputRef: RefObject<HTMLInputElement | null>
@@ -64,6 +66,7 @@ export function PageHeader({
   configSection,
   onMenu,
   onPrimary,
+  onConfigSearchSelect,
   theme,
   onCycleTheme,
   searchInputRef,
@@ -172,7 +175,14 @@ export function PageHeader({
                 : t('navigation:pageHeader.testRun')}
             </Button>
           </>
-        ) : page === 'chat' ? null : (
+        ) : page === 'chat' ? null : page === 'config' ? (
+          <ConfigSearchBox
+            query={query}
+            onQueryChange={setQuery}
+            onSelect={onConfigSearchSelect}
+            inputRef={searchInputRef}
+          />
+        ) : (
           <label
             className="flex h-[34px] w-[min(250px,24vw)] items-center gap-[7px] rounded-[var(--r-sm)] border border-[var(--stroke)] bg-[var(--search-bg)] px-2.5 text-[var(--text-muted)] focus-within:border-[var(--focus)] focus-within:shadow-[0_0_0_3px_var(--focus-ring)] in-data-[density=compact]:h-[30px] max-[900px]:w-[190px] max-[650px]:col-start-1 max-[650px]:row-start-1 max-[650px]:w-full max-[650px]:min-w-0"
             title={t('navigation:pageHeader.search')}

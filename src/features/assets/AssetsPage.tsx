@@ -193,7 +193,7 @@ export function AssetsPage({
           }
         />
       </div>
-      <div className="asset-summary [&_strong]:text-[var(--text)] [&_strong]:text-[13px] max-[650px]:items-start max-[650px]:flex-col flex items-center justify-between gap-[12px] text-[var(--text-muted)] text-[12px]">
+      <div className="asset-summary [&_strong]:text-[var(--text)] [&_strong]:text-[13px] max-[650px]:items-start max-[650px]:flex-col flex items-center justify-between gap-[12px] text-[var(--text-secondary)] text-[12px]">
         <span>
           <strong>{assets.length}</strong> {t('assets:assetsPage.assets')}
         </span>
@@ -232,6 +232,7 @@ export function AssetsPage({
                 <button
                   className={`asset-preview [&.blue]:bg-[var(--asset-preview-blue-bg)] [&.blue]:text-[var(--asset-preview-blue-text)] [&.violet]:bg-[var(--asset-preview-violet-bg)] [&.violet]:text-[var(--violet-strong)] [&.yellow]:bg-[var(--warning-soft)] [&.yellow]:text-[var(--amber)] [&.red]:bg-[var(--danger-soft)] [&.red]:text-[var(--danger)] [.asset-card.functional_&::after]:absolute [.asset-card.functional_&::after]:inset-0 [.asset-card.functional_&::after]:rounded-[var(--r-sm)] [.asset-card.functional_&::after]:bg-[rgba(0,_0,_0,_0)] [.asset-card.functional_&::after]:[transition:background_var(--d1)_var(--ease-out)] [.asset-card.functional_&::after]:[content:''] [.asset-card.functional_&::after]:pointer-events-none [.asset-card.functional_&:hover::after]:bg-[rgba(0,_0,_0,_.16)] [.asset-card.functional_&.image]:bg-[var(--surface-hover)] [.asset-card.functional_&.link]:bg-[var(--surface-hover)] [.asset-card.functional_&.link]:text-[var(--success)] [.asset-card.functional_&.file]:bg-[var(--surface-hover)] [.asset-card.functional_&.file]:text-[var(--violet-strong)] [.asset-card.functional_&_img]:relative [.asset-card.functional_&_img]:z-[0] [.asset-card.functional_&_img]:w-full [.asset-card.functional_&_img]:h-full [.asset-card.functional_&_img]:rounded-[var(--r-sm)] [.asset-card.functional_&_img]:object-cover [.asset-card.functional_&_video]:relative [.asset-card.functional_&_video]:z-[0] [.asset-card.functional_&_video]:w-full [.asset-card.functional_&_video]:h-full [.asset-card.functional_&_video]:rounded-[var(--r-sm)] [.asset-card.functional_&_video]:object-cover ${asset.kind}    ${isVideo ? 'video' : ''} relative -mx-1.5 -mt-1.5 mb-2.5 grid h-44 min-h-0 w-[calc(100%+12px)] shrink-0 place-items-center overflow-hidden rounded-[var(--r-sm)] border-0 bg-[var(--surface-hover)] text-[var(--text-muted)]`}
                   title={t('assets:assetsPage.preview')}
+                  aria-label={`${t('assets:assetsPage.preview')}: ${asset.name}`}
                   onClick={() => previewAsset(asset)}
                 >
                   {asset.kind === 'image' ? (
@@ -307,6 +308,7 @@ export function AssetsPage({
                     size="icon"
                     className="ml-auto"
                     title={t('assets:assetsPage.deleteAsset')}
+                    aria-label={`${t('assets:assetsPage.deleteAsset')}: ${asset.name}`}
                     onClick={() => deleteAsset(asset)}
                   >
                     <Trash2 size={13} />
@@ -419,7 +421,7 @@ function AssetPreviewModal({
               <pre>{asset.text}</pre>
             )
           ) : (
-            <div className="asset-file-preview [&_strong]:text-[var(--text)] [&_strong]:text-[13px] [&_span]:text-[12px] [&_span]:leading-[1.55] flex max-w-[400px] flex-col items-center gap-[9px] text-[var(--text-muted)] text-center">
+            <div className="asset-file-preview [&_strong]:text-[var(--text)] [&_strong]:text-[13px] [&_span]:text-[12px] [&_span]:leading-[1.55] flex max-w-[400px] flex-col items-center gap-[9px] text-[var(--text-secondary)] text-center">
               <File size={42} />
               <strong>{asset.name}</strong>
               <span>

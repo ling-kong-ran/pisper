@@ -24,9 +24,10 @@ test('foreground resume refreshes cached sessions and invalidates stale SSE owne
 })
 
 test('chat renders thinking and tool activity above one uninterrupted response body', async () => {
-  const [dock, focus, message, activity] = await Promise.all([
+  const [dock, focus, focusProps, message, activity] = await Promise.all([
     readFile('src/features/chat/ChatDock.tsx', 'utf8'),
     readFile('src/features/chat/FocusSession.tsx', 'utf8'),
+    readFile('src/features/chat/focus-session-props.ts', 'utf8'),
     readFile('src/features/chat/ChatMessage.tsx', 'utf8'),
     readFile('src/features/chat/AgentRunActivity.tsx', 'utf8'),
   ])
@@ -34,7 +35,7 @@ test('chat renders thinking and tool activity above one uninterrupted response b
   assert.match(dock, /const EMPTY_LIST: never\[\] = \[\]/)
   assert.match(dock, /tools=\{state\.tools \|\| EMPTY_LIST\}/)
   assert.match(dock, /Boolean\(state\.streaming \|\| session\?\.streaming\)/)
-  assert.match(focus, /tools: EntityRecord\[\]/)
+  assert.match(focusProps, /tools: EntityRecord\[\]/)
   assert.match(focus, /activityFeed,\s+tools,\s+thinkingText,/)
   assert.doesNotMatch(message, /streamPreamble|splitAssistantStreamText|has-stream-split/)
   const activityIndex = message.indexOf('<AgentRunActivity')
@@ -104,7 +105,8 @@ test('tool activity uses a polished scroll viewport without truncating records',
 })
 
 test('composer is the sole persistent Agent run status surface', async () => {
-  const focus = await readFile('src/features/chat/FocusSession.tsx', 'utf8')
+  // 状态胶囊样式随 composer 展示组件拆分到 focus-session-composer-bits.tsx。
+  const focus = await readFile('src/features/chat/focus-session-composer-bits.tsx', 'utf8')
   assert.match(focus, /focus-composer-status/)
   assert.match(focus, /compaction\?\.active \? 'compacting[^']*' : streaming \? 'running' : 'idle'/)
   assert.doesNotMatch(focus, /focusSession\.agentRunning/)
@@ -146,7 +148,8 @@ test('conversation layout keeps Pisper identity without a persistent avatar card
 })
 
 test('composer send action has distinct enabled, disabled, and streaming states', async () => {
-  const focus = await readFile('src/features/chat/FocusSession.tsx', 'utf8')
+  // 发送/停止按钮随 composer 展示组件拆分到 focus-session-composer-bits.tsx。
+  const focus = await readFile('src/features/chat/focus-session-composer-bits.tsx', 'utf8')
   assert.doesNotMatch(focus, /className="button danger tiny" onClick=\{onAbort\}/)
   assert.match(focus, /type=\{streaming \? 'button' : 'submit'\}/)
   assert.match(focus, /send-button[^`\n]*\$\{streaming \? 'stop[^']*' : ''\}/)

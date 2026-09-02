@@ -46,6 +46,7 @@ export function ComposerToolTray({
           <div
             id={trayId}
             className="composer-tool-tray relative z-10 flex max-h-[min(52vh,360px)] min-h-14 w-max max-w-full min-w-0 flex-wrap items-center gap-1.5 overflow-x-hidden overflow-y-auto overscroll-contain rounded-[calc(var(--r-md)-2px)] bg-[color-mix(in_srgb,var(--solid)_92%,transparent)] p-1.5 [backdrop-filter:blur(18px)_saturate(1.35)]"
+            role="toolbar"
             aria-label={label}
           >
             <AnimatedList

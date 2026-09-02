@@ -30,7 +30,7 @@ export function LanguageSettings({ notify }: { notify: Notify }) {
   }
 
   return (
-    <Panel className="p-[18px]">
+    <Panel className="p-[18px]" data-config-card="interface-language">
       <div className="flex items-start gap-[11px] [&_h2]:text-[16px] [&_p]:mt-1 [&_p]:text-[13px] [&_p]:leading-[1.55] [&_p]:text-[var(--text-muted)]">
         <span className="grid size-[38px] flex-none place-items-center rounded-[var(--r-sm)] bg-[var(--star-soft)] text-[var(--star-strong)]">
           <Languages size={19} />

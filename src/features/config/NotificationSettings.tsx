@@ -431,7 +431,7 @@ export function NotificationSettings({
           {error}
         </AppError>
       )}
-      <Panel className="browser-notification-card">
+      <Panel className="browser-notification-card" data-config-card="notifications-browser">
         <div className="notification-option [&_>_div]:flex [&_>_div]:min-w-0 [&_>_div]:flex-col [&_>_div]:gap-[4px] [&_strong]:text-[13px] [&_small]:text-[var(--text-muted)] [&_small]:text-[12px] [&_small]:leading-[1.45] grid grid-cols-[auto_minmax(0,1fr)_auto_auto] items-center gap-[11px]">
           <span
             className={`provider-icon [&_svg]:w-[19px] [&.green]:bg-[var(--success-soft)] [&.green]:text-[var(--success)] [&.blue]:bg-[var(--brand-blue-soft)] [&.blue]:text-[var(--brand-blue-strong)] [.notification-option_&:not(.blue)]:bg-[var(--surface-muted)] [.notification-option_&:not(.blue)]:text-[var(--text-muted)] grid w-[38px] h-[38px] place-items-center rounded-[var(--r-md)] ${data.browser.enabled ? 'blue' : ''}`}
@@ -582,7 +582,7 @@ function NotificationTemplates({
 
   return (
     <div className="two-one-grid max-[900px]:grid-cols-[1fr] grid grid-cols-[minmax(0,2fr)_minmax(260px,1fr)] gap-[12px] [margin-top:0]">
-      <Panel>
+      <Panel data-config-card="notifications-templates">
         <div className="channel-section-head [&_>_span]:text-[var(--text-muted)] [&_>_span]:text-[13px] flex items-center justify-between gap-[8px] [margin-bottom:8px]">
           <SectionTitle title={t('config:notificationSettings.notificationTemplates')} />
           <span>{t('config:notificationSettings.sharedByChatsScheduledTasksAndWorkflows')}</span>

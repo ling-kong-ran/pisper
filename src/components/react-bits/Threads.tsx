@@ -1,6 +1,7 @@
 // 装饰动画组件：丝线（threads）背景动效。
 import type { ComponentProps } from 'react'
 import { cn } from '@/lib/utils'
+import { useAnimationVisibility } from '@/hooks/use-animation-visibility'
 import './react-bits.css'
 
 const THREAD_PATHS = [
@@ -11,10 +12,13 @@ const THREAD_PATHS = [
 ]
 
 export function Threads({ className, ...props }: ComponentProps<'svg'>) {
+  // 虚线流动是无限动画：文档隐藏或离屏时暂停，避免后台持续消耗主线程合成开销
+  const { ref, playing } = useAnimationVisibility<SVGSVGElement>()
   return (
     <svg
+      ref={ref}
       aria-hidden="true"
-      className={cn('rb-threads', className)}
+      className={cn('rb-threads', !playing && '[&>path]:[animation-play-state:paused]!', className)}
       preserveAspectRatio="none"
       viewBox="0 0 1080 140"
       {...props}

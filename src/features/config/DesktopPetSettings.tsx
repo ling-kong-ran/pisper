@@ -228,7 +228,7 @@ export function DesktopPetSettings({ notify, requestConfirm }: DesktopPetSetting
 
   return (
     <div className="flex w-[min(100%,_760px)] flex-col gap-[12px] desktop-pet-settings">
-      <Panel className="[padding:18px]">
+      <Panel className="[padding:18px]" data-config-card="desktop-pet-settings">
         <div className="language-settings-heading flex items-start gap-[11px] [&_h2]:text-[16px] [&_p]:mt-[4px] [&_p]:text-[var(--text-muted)] [&_p]:text-[13px] [&_p]:leading-[1.55]">
           <span className="grid w-[38px] h-[38px] [flex:0_0_auto] place-items-center rounded-[11px] bg-[var(--star-soft)] text-[var(--star-strong)]">
             <Cat size={19} />
@@ -291,7 +291,7 @@ export function DesktopPetSettings({ notify, requestConfirm }: DesktopPetSetting
         {error && <div className="text-[var(--danger)] text-[13px] mt-3">{error}</div>}
       </Panel>
 
-      <Panel className="[padding:18px]">
+      <Panel className="[padding:18px]" data-config-card="desktop-pet-install">
         <div className="language-settings-heading flex items-start gap-[11px] [&_h2]:text-[16px] [&_p]:mt-[4px] [&_p]:text-[var(--text-muted)] [&_p]:text-[13px] [&_p]:leading-[1.55]">
           <span className="grid w-[38px] h-[38px] [flex:0_0_auto] place-items-center rounded-[11px] bg-[var(--star-soft)] text-[var(--star-strong)]">
             <Download size={19} />
@@ -368,7 +368,7 @@ export function DesktopPetSettings({ notify, requestConfirm }: DesktopPetSetting
       </Panel>
 
       {status && status.installed.length > 0 && (
-        <Panel className="[padding:18px]">
+        <Panel className="[padding:18px]" data-config-card="desktop-pet-installed">
           <div className="language-settings-heading flex items-start gap-[11px] [&_h2]:text-[16px] [&_p]:mt-[4px] [&_p]:text-[var(--text-muted)] [&_p]:text-[13px] [&_p]:leading-[1.55]">
             <span className="grid w-[38px] h-[38px] [flex:0_0_auto] place-items-center rounded-[11px] bg-[var(--star-soft)] text-[var(--star-strong)]">
               <Cat size={19} />

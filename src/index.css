@@ -2,7 +2,6 @@
 @import "tw-animate-css";
 @import "shadcn/tailwind.css";
 @import "@fontsource-variable/geist";
-@import "katex/dist/katex.min.css";
 @import "streamdown/styles.css";
 
 @source "./**/*.{ts,tsx}";
@@ -16,7 +15,8 @@
 
 :root {
   color-scheme: light;
-  font-family: "PingFang SC", "Microsoft YaHei UI", "Microsoft YaHei", ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  /* 拉丁字符走 Geist，中文回退系统字体；与 @theme 的 --font-sans 保持一致 */
+  font-family: "Geist Variable", "PingFang SC", "Microsoft YaHei UI", "Microsoft YaHei", ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
   color: var(--text);
   background: var(--bg);
   font-synthesis: none;
@@ -35,7 +35,10 @@
   --brand-blue-soft: #f5f9ff;
   --brand-blue-border: #e0ecff;
 
-  /* ── 别名映射：统一存量强调色引用 ── */
+  /* ── 别名映射：统一存量强调色引用 ──
+     收敛约定：新代码一律使用 @theme 映射出的 shadcn 侧 token
+     （rounded-*、shadow-*、color-* 等）；--r-*、--sh-* 及下列语义别名
+     为存量代码保留，新增样式禁止再引用。 ── */
   --blue: var(--star);
   --blue-2: var(--star-hover);
   --blue-soft: var(--star-soft);
@@ -557,9 +560,6 @@ h1, h2, h3, strong { overflow-wrap: anywhere; }
 .dockview-theme-pisper .dv-tabs-and-actions-container { border-bottom: 1px solid var(--stroke-soft); }
 .dockview-theme-pisper .dv-tab { font-weight: 600; }
 .dockview-theme-pisper .dv-active-group .dv-tab.dv-active-tab { box-shadow: inset 0 -2px var(--brand-blue); }
-.mini-message .markdown-body { border-radius: var(--r-xs); background: var(--surface-subtle); padding: 6px 8px; font-size: 13px; line-height: 1.45; overflow-wrap: anywhere; }
-.mini-message.agent .markdown-body { background: var(--accent-soft); }
-.mini-message .markdown-body pre { max-height: 130px; padding: 7px; }
 /* 图标化模型切换：Radix Select 透明覆盖整个按钮，文字收进 tooltip，仅保留图标 */
 /* 图标化执行模式触发器：灰=需审批 / 红=完全访问 */
 @keyframes transcript-stage-enter { from { opacity: 0; transform: translateY(7px); } to { opacity: 1; transform: translateY(0); } }
@@ -635,9 +635,7 @@ h1, h2, h3, strong { overflow-wrap: anywhere; }
 
 @keyframes fade-in { from { opacity: 0; } }
 @keyframes modal-in { from { opacity: 0; transform: scale(.96); } }
-[data-theme='dark'] .mini-message .markdown-body, [data-theme='dark'] .markdown-body pre { background: var(--surface-subtle); }
-[data-theme='dark'] .mini-message.agent .markdown-body { background: var(--accent-soft); }
-[data-theme='dark'] .mn-3 { background: var(--violet-soft); }
+[data-theme='dark'] .markdown-body pre { background: var(--surface-subtle); }
 /* 暗色微星点：极淡星点纹理，营造「夜空感」（透明度 ≤ .06） */
 /* 墨色脉冲环（激活图谱节点 / 工作流节点） */
 @keyframes star-node-pulse { 0% { box-shadow: 0 0 0 0 var(--node-pulse-color), 0 6px 16px -10px var(--shadow); } 70%,100% { box-shadow: 0 0 0 10px transparent, 0 6px 16px -10px var(--shadow); } }
@@ -671,7 +669,7 @@ h1, h2, h3, strong { overflow-wrap: anywhere; }
 
 @theme inline {
   --font-heading: var(--font-sans);
-  --font-sans: 'Geist Variable', sans-serif;
+  --font-sans: 'Geist Variable', 'PingFang SC', 'Microsoft YaHei UI', 'Microsoft YaHei', ui-sans-serif, system-ui, sans-serif;
   --color-brand-soft: var(--brand-blue-soft);
   --color-brand-strong: var(--brand-blue-strong);
   --color-success-soft: var(--success-soft);

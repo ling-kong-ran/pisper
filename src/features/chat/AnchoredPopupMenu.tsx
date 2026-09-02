@@ -1,7 +1,7 @@
 // 锚定弹层菜单：通过 portal 挂载到 body，用 fixed 定位吸附在触发按钮上方/下方，
 // 并按视口边界平移与限高。收纳区（composer-tool-tray）这类 overflow 滚动容器
 // 会裁切内部 absolute 定位的菜单，portal 后彻底绕开裁切问题。
-import { useLayoutEffect, type ReactNode, type RefObject } from 'react'
+import { useEffect, useLayoutEffect, type ReactNode, type RefObject } from 'react'
 import { createPortal } from 'react-dom'
 
 const VIEWPORT_GUTTER = 8
@@ -19,6 +19,8 @@ type AnchoredPopupMenuProps = {
   className?: string
   role?: string
   ariaLabel?: string
+  // 打开期间按 Esc 时调用：调用方在其中关闭弹层并把焦点归还给触发元素。
+  onClose?: () => void
   children: ReactNode
 }
 
@@ -31,8 +33,22 @@ export function AnchoredPopupMenu({
   className,
   role,
   ariaLabel,
+  onClose,
   children,
 }: AnchoredPopupMenuProps) {
+  // Esc 关闭：浮层 portal 到 body 后没有原生对话框的焦点管理，
+  // 这里统一拦截 Escape 并交给调用方关闭 + 把焦点归还触发元素。
+  useEffect(() => {
+    if (!open || !onClose) return undefined
+    const handleEscape = (event: KeyboardEvent) => {
+      if (event.key !== 'Escape') return
+      event.stopPropagation()
+      onClose()
+    }
+    document.addEventListener('keydown', handleEscape)
+    return () => document.removeEventListener('keydown', handleEscape)
+  }, [open, onClose])
+
   useLayoutEffect(() => {
     if (!open) return undefined
     const position = () => {

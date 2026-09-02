@@ -450,7 +450,7 @@ export const MiniChatMessage = memo(function MiniChatMessage({ message }: MiniCh
   return (
     <AiMessage
       from={message.role === 'agent' ? 'assistant' : 'user'}
-      className={`mini-message [&_>_span]:pt-[5px] [&_>_span]:text-[var(--text-muted)] [&_>_span]:font-[ui-monospace,_SFMono-Regular,_Consolas,_'Liberation_Mono',_monospace] [&_>_span]:text-[13px] [&_>_span]:font-[600] [&_>_span]:[text-transform:uppercase] [&.agent_>_span::before]:[content:'✦'] [&.agent_>_span::before]:mr-[4px] [&.agent_>_span::before]:text-[var(--star)] grid grid-cols-[34px_minmax(0,1fr)] gap-[6px] [margin-bottom:6px] [align-items:start] ${message.role}`}
+      className={`[&_>_span]:pt-[5px] [&_>_span]:text-[var(--text-muted)] [&_>_span]:font-[ui-monospace,_SFMono-Regular,_Consolas,_'Liberation_Mono',_monospace] [&_>_span]:text-[13px] [&_>_span]:font-[600] [&_>_span]:[text-transform:uppercase] [&.agent_>_span::before]:[content:'✦'] [&.agent_>_span::before]:mr-[4px] [&.agent_>_span::before]:text-[var(--star)] [&_.markdown-body]:rounded-[var(--r-xs)] [&_.markdown-body]:bg-[var(--surface-subtle)] [&_.markdown-body]:[padding:6px_8px] [&_.markdown-body]:text-[13px] [&_.markdown-body]:leading-[1.45] [&_.markdown-body]:[overflow-wrap:anywhere] [&.agent_.markdown-body]:bg-[var(--accent-soft)] [&_.markdown-body_pre]:max-h-[130px] [&_.markdown-body_pre]:[padding:7px] grid grid-cols-[34px_minmax(0,1fr)] gap-[6px] [margin-bottom:6px] [align-items:start] ${message.role}`}
       data-pisper-message-id={message.id}
       data-pisper-role={message.role}
       data-pisper-streaming={message.streaming || undefined}

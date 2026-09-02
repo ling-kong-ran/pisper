@@ -696,6 +696,7 @@ function App() {
                 configSection={configSection}
                 onMenu={() => setMobileNav(true)}
                 onPrimary={handlePrimary}
+                onConfigSearchSelect={setConfigSection}
                 searchInputRef={searchInputRef}
                 theme={theme}
                 onCycleTheme={cycleTheme}

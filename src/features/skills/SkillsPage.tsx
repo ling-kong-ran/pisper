@@ -312,7 +312,7 @@ export function SkillsPage({
     workspace = '',
   ) => (
     <section className="skill-scope [.skill-scope_+_&]:[border-top:1px_solid_var(--stroke)] [.skill-scope_+_&]:pt-[14px]">
-      <div className="skill-scope-head [&_>_div]:min-w-0 [&_small]:block [&_small]:overflow-hidden [&_small]:text-[var(--text-muted)] [&_small]:font-[ui-monospace,_SFMono-Regular,_Consolas,_'Liberation_Mono',_monospace] [&_small]:text-[11px] [&_small]:text-ellipsis [&_small]:whitespace-nowrap [&_>_span]:min-w-[24px] [&_>_span]:text-[var(--text-muted)] [&_>_span]:text-[12px] [&_>_span]:font-[600] [&_>_span]:text-right flex min-w-0 items-start justify-between gap-[10px]">
+      <div className="skill-scope-head [&_>_div]:min-w-0 [&_small]:block [&_small]:overflow-hidden [&_small]:text-[var(--text-muted)] [&_small]:font-[ui-monospace,_SFMono-Regular,_Consolas,_'Liberation_Mono',_monospace] [&_small]:text-[11px] [&_small]:text-ellipsis [&_small]:whitespace-nowrap [&_>_span]:min-w-[24px] [&_>_span]:text-[var(--text-secondary)] [&_>_span]:text-[12px] [&_>_span]:font-[600] [&_>_span]:text-right flex min-w-0 items-start justify-between gap-[10px]">
         <div>
           <SectionTitle title={title} />
           {workspace && <small title={workspace}>{workspace}</small>}
@@ -351,7 +351,7 @@ export function SkillsPage({
           )
         })
       ) : (
-        <p className="muted-copy m-[8px_0_14px] text-[var(--text-muted)] text-[12px] leading-[1.55] skills-empty-copy !m-[8px_2px_4px]">
+        <p className="muted-copy m-[8px_0_14px] text-[var(--text-secondary)] text-[12px] leading-[1.55] skills-empty-copy !m-[8px_2px_4px]">
           {allScopedSkills.length
             ? t('skills:skillsPage.noSkillsMatchTheCurrentFilter')
             : emptyMessage}
@@ -392,7 +392,7 @@ export function SkillsPage({
         <Panel>
           <AppCardHeader>
             <SectionTitle title={t('skills:skillsPage.configuredSkillPackages')} />
-            <span className="text-[var(--text-muted)] text-[12px] font-[600]">
+            <span className="text-[var(--text-secondary)] text-[12px] font-[600]">
               {t('skills:skillsPage.countSkillPackages', { count: packages.length })}
             </span>
           </AppCardHeader>
@@ -413,7 +413,7 @@ export function SkillsPage({
               </div>
             ))
           ) : (
-            <p className="muted-copy m-[8px_0_14px] text-[var(--text-muted)] text-[12px] leading-[1.55] skills-empty-copy !m-[8px_2px_4px]">
+            <p className="muted-copy m-[8px_0_14px] text-[var(--text-secondary)] text-[12px] leading-[1.55] skills-empty-copy !m-[8px_2px_4px]">
               {t(
                 'skills:skillsPage.noSkillPackagesAreConfiguredYetAfterYouInstallASkillItsSourceWillAppearHere',
               )}
@@ -424,7 +424,7 @@ export function SkillsPage({
           <Panel>
             <SectionTitle title={t('skills:skillsPage.selectedSkill')} />
             <h2>{selected?.name || t('skills:skillsPage.noSkillAvailable')}</h2>
-            <p className="muted-copy m-[8px_0_14px] text-[var(--text-muted)] text-[12px] leading-[1.55]">
+            <p className="muted-copy m-[8px_0_14px] text-[var(--text-secondary)] text-[12px] leading-[1.55]">
               {selected?.description || t('skills:skillsPage.addGlobalOrProjectSkill')}
             </p>
             {[

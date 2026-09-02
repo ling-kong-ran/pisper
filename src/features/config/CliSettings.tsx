@@ -78,7 +78,7 @@ export function CliSettings({ notify }: { notify: Notify }) {
             : t('config:cliSettings.notInstalled')
 
   return (
-    <Panel className="[padding:18px] cli-settings-card">
+    <Panel className="[padding:18px] cli-settings-card" data-config-card="updates-cli">
       <div className="language-settings-heading flex items-start gap-[11px] [&_h2]:text-[16px] [&_p]:mt-[4px] [&_p]:text-[var(--text-muted)] [&_p]:text-[13px] [&_p]:leading-[1.55] cli-settings-heading !grid grid-cols-[auto_minmax(0,1fr)_auto]">
         <span className="grid w-[38px] h-[38px] [flex:0_0_auto] place-items-center rounded-[11px] bg-[var(--star-soft)] text-[var(--star-strong)]">
           <Terminal size={19} />

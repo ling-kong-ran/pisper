@@ -128,7 +128,7 @@ export function MobileServerSettings() {
         ) : null}
       </div>
       <MobilePairingDialog open={pairingOpen} onOpenChange={setPairingOpen} />
-      <Panel className="flex flex-col gap-3 p-4">
+      <Panel className="flex flex-col gap-3 p-4" data-config-card="mobile-server-main">
         <div className="flex items-center justify-between gap-3">
           <div className="flex items-start gap-[11px]">
             <span className="grid size-[38px] flex-none place-items-center rounded-[var(--r-sm)] bg-[var(--star-soft)] text-[var(--star-strong)]">
@@ -153,7 +153,7 @@ export function MobileServerSettings() {
         {error ? <p className="text-[12px] text-[var(--danger)]">{error}</p> : null}
       </Panel>
 
-      <Panel className="flex flex-col gap-3 p-4">
+      <Panel className="flex flex-col gap-3 p-4" data-config-card="mobile-server-local">
         <div className="flex items-center justify-between gap-3">
           <div className="flex items-start gap-[11px]">
             <span className="grid size-[38px] flex-none place-items-center rounded-[var(--r-sm)] bg-[var(--star-soft)] text-[var(--star-strong)]">

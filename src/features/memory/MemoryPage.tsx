@@ -24,6 +24,7 @@ import { useI18n } from '@/app/use-i18n'
 import { StarOrbit } from '@/components/StarOrbit'
 import { apiJson } from '@/lib/api'
 import { usePagePrimaryAction } from '@/hooks/usePagePrimaryAction'
+import { useAnimationVisibility } from '@/hooks/use-animation-visibility'
 import type { CSSProperties, FormEvent, PointerEvent as ReactPointerEvent } from 'react'
 import type { Notify } from '@/app/route-context'
 import type { I18nValues } from '@/app/i18n'
@@ -241,12 +242,28 @@ export function MemoryPage({
   const [savingThreshold, setSavingThreshold] = useState(false)
   const stageRef = useRef<HTMLDivElement | null>(null)
   const parallaxFrame = useRef(0)
+  // 星系面板可见性：文档隐藏或面板离屏时暂停装饰动画与视差写入，降低后台功耗
+  const { ref: observeGalaxy, playing: galaxyPlaying } = useAnimationVisibility<HTMLDivElement>()
+  // 合并视差舞台 ref 与可见性观察 ref；引用稳定，避免每次渲染重建观察器
+  const attachGalaxyStage = useCallback(
+    (node: HTMLDivElement | null) => {
+      stageRef.current = node
+      observeGalaxy(node)
+    },
+    [observeGalaxy],
+  )
+  // 不可见时暂停面板内所有 CSS 无限动画（含 before/after 伪元素上的星云漂移与星点闪烁）
+  const galaxyPauseClass = galaxyPlaying
+    ? ''
+    : '[&:before]:[animation-play-state:paused]! [&:after]:[animation-play-state:paused]! [&_*]:[animation-play-state:paused]! [&_*:before]:[animation-play-state:paused]! [&_*:after]:[animation-play-state:paused]!'
   usePagePrimaryAction(registerPrimaryAction, () =>
     setNodeModal({ spaceId: spaceId || data.selectedSpaceId }),
   )
 
   // 鼠标视差：星辰与连线按深度分层缓动跟随，rAF 节流避免高频写入
   const handleParallax = (event: ReactPointerEvent<HTMLDivElement>) => {
+    // 不可见时不再调度视差写入；恢复可见后由 pointermove 自然恢复
+    if (!galaxyPlaying) return
     const stage = stageRef.current
     if (!stage) return
     const rect = stage.getBoundingClientRect()
@@ -263,6 +280,22 @@ export function MemoryPage({
     stageRef.current?.style.setProperty('--px', '0')
     stageRef.current?.style.setProperty('--py', '0')
   }
+
+  // 切到不可见时取消尚未执行的视差帧，避免后台仍产生样式写入
+  useEffect(() => {
+    if (galaxyPlaying) return
+    cancelAnimationFrame(parallaxFrame.current)
+    parallaxFrame.current = 0
+  }, [galaxyPlaying])
+
+  // 不可见时同步暂停舞台 SVG 内的 SMIL 动画（聚焦连线上的流光点）；
+  // pauseAnimations 暂停的是整个 SVG 时间轴，此后新插入的动画元素同样保持暂停
+  useEffect(() => {
+    const svg = stageRef.current?.querySelector('svg')
+    if (!svg) return
+    if (galaxyPlaying) svg.unpauseAnimations()
+    else svg.pauseAnimations()
+  }, [galaxyPlaying])
 
   // 加载记忆数据：按空间/搜索词拉取节点与候选；选中项失效时回退首节点。
   const load = useCallback(
@@ -604,7 +637,7 @@ export function MemoryPage({
         </Panel>
       </div>
       <Panel
-        className="graph-panel before:[content:''] before:absolute before:z-[0] before:inset-0 before:pointer-events-none before:bg-[url('/memory-galaxy-background.webp')] before:[background-position:center_48%] before:[background-size:cover] before:bg-no-repeat before:[filter:saturate(.62)_contrast(1.08)] before:[mix-blend-mode:screen] before:opacity-[.42] after:[content:''] after:absolute after:z-[0] after:inset-0 after:pointer-events-none after:[background-image:radial-gradient(var(--galaxy-dot)_.9px,transparent_1.2px),_radial-gradient(var(--galaxy-dot-dim)_.8px,transparent_1.2px),_radial-gradient(var(--galaxy-dot)_1.2px,transparent_1.6px)] after:[background-position:0_0,_37px_53px,_71px_19px] after:[background-size:96px_96px,_152px_152px,_236px_236px] after:[animation:galaxy-field-twinkle_6.4s_ease-in-out_infinite] after:opacity-[.7] before:inset-[-8%] before:[animation:galaxy-background-drift_34s_ease-in-out_infinite_alternate] before:[will-change:transform] after:[animation:galaxy-field-drift_15s_ease-in-out_infinite_alternate] after:[will-change:background-position,opacity] max-[650px]:min-h-[430px] relative min-h-[500px] overflow-hidden [border-color:var(--galaxy-border)] bg-[var(--galaxy-bg)]! [background-image:radial-gradient(ellipse_46%_40%_at_50%_48%,_var(--galaxy-core),_transparent_72%),_radial-gradient(ellipse_62%_48%_at_16%_6%,_var(--galaxy-nebula-a),_transparent_70%),_radial-gradient(ellipse_56%_52%_at_88%_98%,_var(--galaxy-nebula-b),_transparent_72%)] p-0 backdrop-blur-none! galaxy-panel"
+        className={`graph-panel before:[content:''] before:absolute before:z-[0] before:inset-0 before:pointer-events-none before:bg-[url('/memory-galaxy-background.webp')] before:[background-position:center_48%] before:[background-size:cover] before:bg-no-repeat before:[filter:saturate(.62)_contrast(1.08)] before:[mix-blend-mode:screen] before:opacity-[.42] after:[content:''] after:absolute after:z-[0] after:inset-0 after:pointer-events-none after:[background-image:radial-gradient(var(--galaxy-dot)_.9px,transparent_1.2px),_radial-gradient(var(--galaxy-dot-dim)_.8px,transparent_1.2px),_radial-gradient(var(--galaxy-dot)_1.2px,transparent_1.6px)] after:[background-position:0_0,_37px_53px,_71px_19px] after:[background-size:96px_96px,_152px_152px,_236px_236px] after:[animation:galaxy-field-twinkle_6.4s_ease-in-out_infinite] after:opacity-[.7] before:inset-[-8%] before:[animation:galaxy-background-drift_34s_ease-in-out_infinite_alternate] before:[will-change:transform] after:[animation:galaxy-field-drift_15s_ease-in-out_infinite_alternate] after:[will-change:background-position,opacity] max-[650px]:min-h-[430px] relative min-h-[500px] overflow-hidden [border-color:var(--galaxy-border)] bg-[var(--galaxy-bg)]! [background-image:radial-gradient(ellipse_46%_40%_at_50%_48%,_var(--galaxy-core),_transparent_72%),_radial-gradient(ellipse_62%_48%_at_16%_6%,_var(--galaxy-nebula-a),_transparent_70%),_radial-gradient(ellipse_56%_52%_at_88%_98%,_var(--galaxy-nebula-b),_transparent_72%)] p-0 backdrop-blur-none! galaxy-panel ${galaxyPauseClass}`}
         onPointerMove={handleParallax}
         onPointerLeave={resetParallax}
       >
@@ -633,7 +666,7 @@ export function MemoryPage({
         </div>
         <div
           className={`galaxy-stage [&_>_svg]:absolute [&_>_svg]:inset-0 [&_>_svg]:w-full [&_>_svg]:h-full [&_>_svg]:overflow-visible [&_>_svg]:z-[1] [&_>_svg]:[transform:translate3d(calc(var(--px,0)_*_9px),calc(var(--py,0)_*_6px),0)] [&_>_svg]:[transition:transform_.9s_var(--ease-out)] absolute z-[1] inset-0 [transform-origin:50%_50%] [transition:transform_var(--d2)_var(--ease-out)] ${focusId ? 'has-focus' : ''}`}
-          ref={stageRef}
+          ref={attachGalaxyStage}
           style={{ transform: `scale(${zoom})` }}
         >
           <i

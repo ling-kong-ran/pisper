@@ -40,5 +40,8 @@
   "webPreview.urlPlaceholder": "Enter a URL…",
   "app.importableProvidersTitle": "Importable providers found",
   "app.importableProvidersMessage": "Found {count} importable provider(s) in local Codex/Claude configs. Open settings to review?",
-  "app.openSettings": "Open settings"
+  "app.openSettings": "Open settings",
+  "statusBar.reconnecting": "Reconnecting…",
+  "statusBar.connectionLost": "Runtime connection lost, reconnecting…",
+  "statusBar.connectionRestored": "Runtime connection restored"
 }

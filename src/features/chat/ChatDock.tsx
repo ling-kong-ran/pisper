@@ -142,7 +142,9 @@ export function MobileSessionPanel({
                   ref={active ? activeTabRef : undefined}
                   type="button"
                   role="tab"
+                  id={`mobile-session-tab-${session.id}`}
                   aria-selected={active}
+                  aria-controls="mobile-session-tabpanel"
                   className={`flex min-w-0 flex-1 items-center gap-2 border-0 bg-transparent py-0 pl-3 text-left text-[13px] focus-visible:z-[1] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[var(--focus)] ${active ? 'font-[650]' : 'font-[500]'}`}
                   title={title}
                   onClick={() => onSelectSession(session.id)}
@@ -179,7 +181,12 @@ export function MobileSessionPanel({
           <Plus size={20} aria-hidden="true" />
         </button>
       </nav>
-      <div className="min-h-0 min-w-0 flex-1">
+      <div
+        className="min-h-0 min-w-0 flex-1"
+        role="tabpanel"
+        id="mobile-session-tabpanel"
+        aria-labelledby={sessionId ? `mobile-session-tab-${sessionId}` : undefined}
+      >
         {sessionId ? (
           <SessionPanel
             sessionId={sessionId}
@@ -323,7 +330,7 @@ function SessionPanel({
 
   if (!context || !session) {
     return (
-      <div className="session-dock-missing flex h-full min-h-[180px] items-center justify-center gap-[8px] text-[var(--text-muted)] text-[12px]">
+      <div className="session-dock-missing flex h-full min-h-[180px] items-center justify-center gap-[8px] text-[var(--text-secondary)] text-[12px]">
         <AlertTriangle size={16} />
         {context ? 'Session unavailable' : 'Loading session'}
       </div>
@@ -405,7 +412,7 @@ type ChatDockWatermarkProps = {
 export function ChatDockWatermark({ onNewSession, newSessionShortcut }: ChatDockWatermarkProps) {
   const { t } = useI18n()
   return (
-    <div className="flex h-full min-h-[180px] flex-col items-center justify-center gap-[8px] text-center text-[12px] text-[var(--text-muted)]">
+    <div className="flex h-full min-h-[180px] flex-col items-center justify-center gap-[8px] text-center text-[12px] text-[var(--text-secondary)]">
       <MessageSquare size={34} />
       <strong className="text-[14px] text-[var(--text)]">
         {t('chat:chatDock.openAChatToBegin')}

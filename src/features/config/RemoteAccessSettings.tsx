@@ -208,7 +208,7 @@ export function RemoteAccessSettings({ notify }: { notify: Notify }) {
         </DialogContent>
       </Dialog>
 
-      <Panel className="flex flex-col gap-3 p-4">
+      <Panel className="flex flex-col gap-3 p-4" data-config-card="remote-access-main">
         <div className="flex items-center justify-between gap-3">
           <div className="flex items-start gap-[11px]">
             <span className="grid size-[38px] flex-none place-items-center rounded-[var(--r-sm)] bg-[var(--star-soft)] text-[var(--star-strong)]">
@@ -291,7 +291,7 @@ export function RemoteAccessSettings({ notify }: { notify: Notify }) {
       ) : null}
 
       {status.listening ? (
-        <Panel className="flex flex-col gap-3 p-4">
+        <Panel className="flex flex-col gap-3 p-4" data-config-card="remote-access-pairing">
           <div className="flex items-center justify-between gap-3">
             <div className="flex items-center gap-2 text-[14px]">
               <QrCode size={16} />
@@ -313,7 +313,7 @@ export function RemoteAccessSettings({ notify }: { notify: Notify }) {
         </Panel>
       ) : null}
 
-      <Panel className="flex flex-col gap-3 p-4">
+      <Panel className="flex flex-col gap-3 p-4" data-config-card="remote-access-devices">
         <div className="flex items-center justify-between gap-3">
           <div className="flex items-center gap-2 text-[14px]">
             <Smartphone size={16} />

@@ -261,7 +261,7 @@ export function UpdateSettings({
 
   return (
     <div className="mx-auto flex w-full max-w-[880px] flex-col gap-3">
-      <Panel className="p-5">
+      <Panel className="p-5" data-config-card="updates-main">
         <div className="flex flex-wrap items-start justify-between gap-4">
           <div className="flex min-w-0 items-start gap-3">
             <span className="grid w-[38px] h-[38px] [flex:0_0_auto] place-items-center rounded-[11px] bg-[var(--star-soft)] text-[var(--star-strong)]">
@@ -389,7 +389,10 @@ export function UpdateSettings({
           )}
         </div>
         {!mobile && (
-          <div className="mt-6 border-t border-[var(--border)] pt-5">
+          <div
+            className="mt-6 border-t border-[var(--border)] pt-5"
+            data-config-card="updates-components"
+          >
             <SectionTitle title={t('config:updateSettings.appComponents')} />
             <div className="mt-3 divide-y divide-[var(--border)]">
               {componentItems.map((component) => {
@@ -504,7 +507,7 @@ export function UpdateSettings({
       </Panel>
 
       {visibleSponsors.length > 0 && (
-        <Panel className="p-5">
+        <Panel className="p-5" data-config-card="updates-sponsors">
           <div className="flex min-w-0 items-start gap-3">
             <span className="grid w-[38px] h-[38px] [flex:0_0_auto] place-items-center rounded-[11px] bg-[var(--star-soft)] text-[var(--star-strong)]">
               <Handshake size={19} />

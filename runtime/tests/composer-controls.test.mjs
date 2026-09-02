@@ -29,7 +29,11 @@ test('composer expands low-frequency controls vertically with React Bits Animate
   assert.match(session, /<ComposerToolTray[\s\S]*open={toolsOpen}/)
   assert.match(session, /aria-expanded={toolsOpen}/)
   assert.match(session, /document\.addEventListener\('pointerdown', closeOnPointerDown\)/)
-  assert.match(session, /target\.closest\('\.composer-tools-trigger, \.composer-tool-tray-shell'\)/)
+  // 外部点击关闭需同时排除触发按钮、工具托盘与锚定弹出菜单三个区域。
+  assert.match(
+    session,
+    /target\.closest\('\.composer-tools-trigger, \.composer-tool-tray-shell, \.anchored-popup-menu'\)/,
+  )
   assert.match(tray, /import\('@\/components\/react-bits\/AnimatedContent'\)/)
   assert.match(tray, /<Suspense fallback={null}>/)
   assert.match(tray, /direction="vertical"/)

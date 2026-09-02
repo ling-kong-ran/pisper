@@ -72,7 +72,7 @@ export function AboutSettings({ update }: { update: AppUpdateController }) {
         </div>
       </div>
 
-      <Panel className="p-5">
+      <Panel className="p-5" data-config-card="about-project">
         <SectionTitle title={t('config:aboutSettings.projectInformation')} />
         <div className="mt-3 divide-y divide-[var(--stroke-soft)] border-y border-[var(--stroke-soft)]">
           <AboutLink
@@ -96,7 +96,7 @@ export function AboutSettings({ update }: { update: AppUpdateController }) {
         </div>
       </Panel>
 
-      <Panel className="p-5">
+      <Panel className="p-5" data-config-card="about-support">
         <div className="flex flex-wrap items-center justify-between gap-4 max-[540px]:flex-col max-[540px]:items-stretch">
           <div className="min-w-0 flex-1">
             <SectionTitle title={t('config:aboutSettings.supportPisper')} />

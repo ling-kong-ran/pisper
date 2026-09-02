@@ -108,7 +108,11 @@ export function ModelsSettings({
           defaultProvider ? openWizardFor(defaultProvider) : setWizard({ providerType: 'chat' })
         }
       />
-      <Collapsible open={manageOpenEffective} onOpenChange={setManageOpenPersisted}>
+      <Collapsible
+        open={manageOpenEffective}
+        onOpenChange={setManageOpenPersisted}
+        data-config-card="models-connections"
+      >
         <CollapsibleTrigger asChild>
           <button
             type="button"

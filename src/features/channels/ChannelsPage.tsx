@@ -398,7 +398,7 @@ export function ChannelsPage({ notify, registerPrimaryAction, requestConfirm }: 
                 setCwd(connection?.defaultCwd || '')
               }}
             >
-              <div className="provider-title [&_h2]:text-[14px] [&_p]:mt-[3px] [&_p]:text-[var(--text-muted)] [&_p]:text-[12px] grid grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-[10px] [margin-bottom:10px]">
+              <div className="provider-title [&_h2]:text-[14px] [&_p]:mt-[3px] [&_p]:text-[var(--text-secondary)] [&_p]:text-[12px] grid grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-[10px] [margin-bottom:10px]">
                 <span
                   className={`provider-icon [&_svg]:w-[19px] [&.green]:bg-[var(--success-soft)] [&.green]:text-[var(--success)] [&.blue]:bg-[var(--brand-blue-soft)] [&.blue]:text-[var(--brand-blue-strong)] [.notification-option_&:not(.blue)]:bg-[var(--surface-muted)] [.notification-option_&:not(.blue)]:text-[var(--text-muted)] grid w-[38px] h-[38px] place-items-center rounded-[var(--r-md)] ${provider.tone}`}
                 >
@@ -496,6 +496,7 @@ export function ChannelsPage({ notify, registerPrimaryAction, requestConfirm }: 
                     variant="destructive"
                     size="icon"
                     title={t('channels:channelsPage.resetChat')}
+                    aria-label={`${t('channels:channelsPage.resetChat')}: ${scope.title}`}
                     onClick={() => resetScope(scope)}
                   >
                     <Trash2 size={13} />
@@ -516,7 +517,7 @@ export function ChannelsPage({ notify, registerPrimaryAction, requestConfirm }: 
           )}
         </Panel>
         {selectedConnection && (
-          <Panel className="test-panel [&_>_p]:m-[8px_0_12px] [&_>_p]:text-[var(--text-muted)] [&_>_p]:text-[12px] [&_>_p]:leading-[1.5]">
+          <Panel className="test-panel [&_>_p]:m-[8px_0_12px] [&_>_p]:text-[var(--text-secondary)] [&_>_p]:text-[12px] [&_>_p]:leading-[1.5]">
             <div className="channel-section-head [&_>_span]:text-[var(--text-muted)] [&_>_span]:text-[13px] flex items-center justify-between gap-[8px] [margin-bottom:8px]">
               <SectionTitle
                 title={t('channels:channelsPage.nameSettings', {
@@ -551,6 +552,7 @@ export function ChannelsPage({ notify, registerPrimaryAction, requestConfirm }: 
               <Toggle
                 value={selectedConnection.enabled}
                 disabled={saving}
+                ariaLabel={t('channels:channelsPage.enableThisChannel')}
                 onChange={(enabled) =>
                   update(
                     selectedPlatform,
