@@ -188,7 +188,7 @@ export function MobileSessionPanel({
             canClosePanel={false}
           />
         ) : (
-          <ChatDockWatermark />
+          <ChatDockWatermark onNewSession={onCreateSession} />
         )}
       </div>
     </div>
@@ -395,13 +395,39 @@ function SessionPanel({
   )
 }
 
-export function ChatDockWatermark() {
+type ChatDockWatermarkProps = {
+  // 空 Dock 的主行动作：提供时渲染醒目的新建会话按钮，否则只展示纯提示。
+  onNewSession?: () => void | Promise<unknown>
+  // 新建会话的快捷键提示（桌面端 Ctrl/⌘ N），移动端没有快捷键、不传。
+  newSessionShortcut?: string
+}
+
+export function ChatDockWatermark({ onNewSession, newSessionShortcut }: ChatDockWatermarkProps) {
   const { t } = useI18n()
   return (
-    <div className="chat-dock-watermark flex h-full min-h-[180px] items-center justify-center gap-[8px] text-[var(--text-muted)] text-[12px] [&_strong]:text-[var(--text)] [&_strong]:text-[14px] [&_span]:max-w-[320px] [&_span]:leading-[1.55] flex-col text-center">
+    <div className="flex h-full min-h-[180px] flex-col items-center justify-center gap-[8px] text-center text-[12px] text-[var(--text-muted)]">
       <MessageSquare size={34} />
-      <strong>{t('chat:chatDock.openAChatToBegin')}</strong>
-      <span>{t('chat:chatDock.openAChatFromTheSessionListOrSplitItInAnyDirection')}</span>
+      <strong className="text-[14px] text-[var(--text)]">
+        {t('chat:chatDock.openAChatToBegin')}
+      </strong>
+      <span className="max-w-[320px] leading-[1.55]">
+        {t('chat:chatDock.openAChatFromTheSessionListOrSplitItInAnyDirection')}
+      </span>
+      {onNewSession ? (
+        <button
+          type="button"
+          className="mt-[10px] inline-flex cursor-pointer items-center gap-[6px] rounded-[var(--r-sm)] border-0 bg-[var(--brand-blue)] px-[16px] py-[8px] text-[12px] font-[600] text-white transition-colors duration-[var(--d1)] hover:bg-[var(--brand-blue-hover)] focus-visible:outline-[2px] focus-visible:outline-offset-2 focus-visible:outline-[var(--focus)]"
+          onClick={() => void onNewSession()}
+        >
+          <Plus size={14} aria-hidden="true" />
+          {t('chat:chatDock.newChat')}
+          {newSessionShortcut ? (
+            <kbd className="ml-[2px] rounded-[4px] border border-white/35 bg-white/10 px-[5px] py-[1px] font-sans text-[10px] font-[500] leading-[1.4]">
+              {newSessionShortcut}
+            </kbd>
+          ) : null}
+        </button>
+      ) : null}
     </div>
   )
 }

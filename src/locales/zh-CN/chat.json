@@ -224,6 +224,8 @@
   "attachments.nameExceedsThe10MBLimit": "{name} 超过 10 MB 限制",
   "attachments.nameIsNotSupportedChooseAnImageOrTextCodeFile": "{name} 暂不支持；请选择图片、文档或文本/代码文件",
   "attachments.totalAttachmentSizeCannotExceed20MB": "附件总大小不能超过 20 MB",
+  "chatDock.newChat": "新建会话",
+  "chatDock.newChatShortcut": "Ctrl/⌘ N",
   "chatDock.openAChatFromTheSessionListOrSplitItInAnyDirection": "从侧边栏打开会话，或向任意方向拆分。",
   "chatDock.openAChatToBegin": "打开一个会话开始工作",
   "chatHistoryPage.agentRunning": "Agent 运行中",

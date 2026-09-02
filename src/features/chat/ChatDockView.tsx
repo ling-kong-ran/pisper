@@ -58,11 +58,25 @@ export function ChatDockView({
     () => ({ session: SessionDockPanel, webPreview: WebPreviewDockPanel }),
     [],
   )
+  // 空 Dock 的水印页带上新建会话入口：dockview 只接受组件类型，
+  // 这里用闭包把 createSession 与快捷键提示传给水印组件。
+  const Watermark = useMemo(
+    () =>
+      function ChatDockViewWatermark() {
+        return (
+          <ChatDockWatermark
+            onNewSession={() => createSession()}
+            newSessionShortcut={t('chat:chatDock.newChatShortcut')}
+          />
+        )
+      },
+    [createSession, t],
+  )
   return (
     <DockviewReact
       className="dockview-theme-light dockview-theme-pisper"
       components={dockComponents}
-      watermarkComponent={ChatDockWatermark}
+      watermarkComponent={Watermark}
       leftHeaderActionsComponent={DockNewSessionAction}
       onReady={onDockReady}
       getTabContextMenuItems={getTabContextMenuItems}

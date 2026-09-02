@@ -224,6 +224,8 @@
   "attachments.nameExceedsThe10MBLimit": "{name} exceeds the 10 MB limit",
   "attachments.nameIsNotSupportedChooseAnImageOrTextCodeFile": "{name} is not supported. Choose an image, document, or text/code file.",
   "attachments.totalAttachmentSizeCannotExceed20MB": "Total attachment size cannot exceed 20 MB",
+  "chatDock.newChat": "New chat",
+  "chatDock.newChatShortcut": "Ctrl/⌘ N",
   "chatDock.openAChatFromTheSessionListOrSplitItInAnyDirection": "Open a chat from the sidebar, or split it in any direction.",
   "chatDock.openAChatToBegin": "Open a chat to begin",
   "chatHistoryPage.agentRunning": "Agent running",
