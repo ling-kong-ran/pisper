@@ -14,6 +14,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
+import { useIsCoarsePointer } from '@/hooks/use-mobile'
 import { cn } from '@/lib/utils'
 
 const EMPTY_VALUE = '__pisper_empty_value__'
@@ -54,6 +55,35 @@ export function AppSelect({
     })
 
   const selectedValue = String(value ?? '') || EMPTY_VALUE
+  const coarse = useIsCoarsePointer()
+
+  // 触屏（移动 App/手机浏览器）：Radix Select 的触摸交互是抬手即选中并关闭，
+  // 面板里轻滑就会误触消失；改用原生 select 唤起系统选择器，滑动只滚动不关闭。
+  // data-slot 与 Radix 触发器保持一致，复用调用方既有的触发器样式（含隐藏叠层）。
+  if (coarse) {
+    return (
+      <select
+        data-slot="select-trigger"
+        className={cn(
+          'h-[31px] min-h-0 w-full rounded-[var(--r-xs)] border border-[var(--stroke)] bg-[var(--surface-subtle)] px-2.5 py-0 text-[12px] font-normal text-[var(--text)] shadow-none focus-visible:border-[var(--focus)] focus-visible:ring-2 focus-visible:ring-[var(--focus-ring)] dark:bg-[var(--solid)]',
+          className,
+        )}
+        value={selectedValue}
+        disabled={disabled}
+        onChange={onChange}
+        {...ariaProps}
+      >
+        {!options.some((option) => option.value === selectedValue) && (
+          <option value={selectedValue} hidden />
+        )}
+        {options.map((option) => (
+          <option key={option.value} value={option.value} disabled={option.disabled}>
+            {option.label}
+          </option>
+        ))}
+      </select>
+    )
+  }
 
   return (
     <Select

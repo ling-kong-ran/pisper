@@ -42,3 +42,20 @@ export function useIsPhoneViewport() {
 
   return isPhone
 }
+
+// 触屏判定：(pointer: coarse) 比视口宽度更可靠。
+// AppSelect 在触屏上改用原生 select——Radix Select 的触摸交互是
+// 「抬手即选中并关闭」，列表里轻滑一下就会误触关闭，原生系统选择器不会。
+export function useIsCoarsePointer() {
+  const [coarse, setCoarse] = React.useState(() => window.matchMedia('(pointer: coarse)').matches)
+
+  React.useEffect(() => {
+    const media = window.matchMedia('(pointer: coarse)')
+    const update = () => setCoarse(media.matches)
+    update()
+    media.addEventListener('change', update)
+    return () => media.removeEventListener('change', update)
+  }, [])
+
+  return coarse
+}
