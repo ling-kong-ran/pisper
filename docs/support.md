@@ -21,7 +21,7 @@ Confirm that the selected provider is reachable, the provider credential is vali
 
 ### Desktop pairing fails
 
-Confirm that Pisper Desktop is running and remote access is enabled. On the same LAN, allow local-network access in the mobile operating-system settings, select the discovered Desktop, and approve the request on Desktop. If discovery is unavailable or the devices are in different locations, scan a newly generated QR code or enter its address, pairing code, and TLS fingerprint manually.
+Confirm that Pisper Desktop is running and remote access is enabled. On the same LAN, allow local-network access in the mobile operating-system settings, select the discovered Desktop, and approve the request on Desktop. If discovery is unavailable or the devices are in different locations, scan a newly generated QR code.
 
 ### A device capability is unavailable
 

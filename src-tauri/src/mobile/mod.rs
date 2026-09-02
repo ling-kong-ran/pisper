@@ -559,32 +559,6 @@ async fn mobile_pair(
 }
 
 #[tauri::command]
-async fn mobile_pair_manual(
-    url: String,
-    code: String,
-    fingerprint: String,
-    device_name: Option<String>,
-    state: State<'_, MobileShared>,
-) -> Result<MobileStateDto, String> {
-    let url = url.trim().trim_end_matches('/').to_string();
-    if !url.starts_with("https://") {
-        return Err("地址必须是 https:// 开头（例如 https://192.168.1.5:5174）。".into());
-    }
-    let payload = QrPayload {
-        v: 1,
-        name: String::new(),
-        endpoints: vec![store::ServerEndpoint::lan(url)],
-        fp: fingerprint,
-        code,
-    };
-    let device_name = device_name
-        .filter(|name| !name.trim().is_empty())
-        .unwrap_or_else(default_device_name);
-    let profile = pairing::pair(&payload, &device_name, Some(state.tunnels.as_ref())).await?;
-    activate_remote_profile_and_sync(profile, &state).await
-}
-
-#[tauri::command]
 async fn mobile_pair_lan(
     operation_id: String,
     name: String,
@@ -1026,7 +1000,6 @@ pub fn run_mobile() {
             mobile_resume_local_runtime,
             mobile_recover_application,
             mobile_pair,
-            mobile_pair_manual,
             mobile_ensure_local_network_permission,
             mobile_pair_lan,
             mobile_sync_model_config,

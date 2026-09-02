@@ -7,12 +7,9 @@ import {
   Dialog,
   DialogContent,
   DialogDescription,
-  DialogFooter,
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog'
-import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
 import { Separator } from '@/components/ui/separator'
 
 type PairedMobileState = {
@@ -103,9 +100,6 @@ function wait(milliseconds: number) {
 
 export function MobilePairingDialog({ open, onOpenChange }: MobilePairingDialogProps) {
   const { t } = useI18n()
-  const [url, setUrl] = useState('')
-  const [code, setCode] = useState('')
-  const [fingerprint, setFingerprint] = useState('')
   const [busy, setBusy] = useState<string | null>(null)
   const [scannerActive, setScannerActive] = useState(false)
   const [discovered, setDiscovered] = useState<DiscoveredServer[]>([])
@@ -333,25 +327,6 @@ export function MobilePairingDialog({ open, onOpenChange }: MobilePairingDialogP
     }
   }
 
-  const pairManually = async () => {
-    setBusy('manual')
-    setError('')
-    try {
-      enterRemote(
-        await invokeMobile<PairedMobileState>('mobile_pair_manual', {
-          url,
-          code,
-          fingerprint,
-          deviceName: null,
-        }),
-      )
-    } catch (cause) {
-      setError(errorMessage(cause))
-    } finally {
-      setBusy(null)
-    }
-  }
-
   return (
     <Dialog
       open={open}
@@ -511,64 +486,7 @@ export function MobilePairingDialog({ open, onOpenChange }: MobilePairingDialogP
               {t('config:mobileServer.scan')}
             </Button>
 
-            <div className="relative py-1">
-              <Separator />
-              <span className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 bg-popover px-2 text-xs text-muted-foreground">
-                {t('config:mobileServer.manual')}
-              </span>
-            </div>
-
-            <form
-              className="grid gap-3"
-              onSubmit={(event) => {
-                event.preventDefault()
-                void pairManually()
-              }}
-            >
-              <div className="grid gap-1.5">
-                <Label htmlFor="mobile-pair-url">{t('config:mobileServer.url')}</Label>
-                <Input
-                  id="mobile-pair-url"
-                  inputMode="url"
-                  autoCapitalize="off"
-                  autoCorrect="off"
-                  placeholder="https://192.168.1.5:5174"
-                  value={url}
-                  onChange={(event) => setUrl(event.target.value)}
-                />
-              </div>
-              <div className="grid gap-1.5">
-                <Label htmlFor="mobile-pair-code">{t('config:mobileServer.code')}</Label>
-                <Input
-                  id="mobile-pair-code"
-                  autoCapitalize="characters"
-                  autoCorrect="off"
-                  placeholder="ABCD-EFGH"
-                  value={code}
-                  onChange={(event) => setCode(event.target.value)}
-                />
-              </div>
-              <div className="grid gap-1.5">
-                <Label htmlFor="mobile-pair-fingerprint">
-                  {t('config:remoteAccess.fingerprint')}
-                </Label>
-                <Input
-                  id="mobile-pair-fingerprint"
-                  autoCapitalize="characters"
-                  autoCorrect="off"
-                  placeholder="SHA256:1BA3FEB1"
-                  value={fingerprint}
-                  onChange={(event) => setFingerprint(event.target.value)}
-                />
-              </div>
-              {error ? <p className="text-xs leading-relaxed text-destructive">{error}</p> : null}
-              <DialogFooter className="mt-1">
-                <Button type="submit" disabled={busy !== null || !url || !code || !fingerprint}>
-                  {busy === 'manual' ? <LoaderCircle className="animate-spin" /> : null}
-                  {t('config:mobileServer.pair')}
-                </Button>
-              </DialogFooter>
-            </form>
+            {error ? <p className="text-xs leading-relaxed text-destructive">{error}</p> : null}
           </>
         )}
       </DialogContent>

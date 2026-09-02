@@ -569,7 +569,7 @@ test('移动端明确区分远程档案与当前 Runtime 路由', async () => {
   assert.match(pairing, /window\.addEventListener\('popstate', handleBack\)/)
   assert.match(pairing, /setTemporaryStyle\(root, 'visibility', 'hidden'\)/)
   assert.match(bridgeCapability, /barcode-scanner:allow-cancel/)
-  assert.match(pairing, /mobile_pair_manual/)
+  assert.doesNotMatch(pairing, /mobile_pair_manual/)
   assert.match(pairing, /window\.location\.replace\(state\.proxyUrl\)/)
 })
 
@@ -642,7 +642,7 @@ test('局域网发现需桌面审批且保留二维码备用路径', async () =>
   assert.match(pairing, /mobile_pair_lan/)
   assert.match(pairing, /mobile_cancel_lan_pairing/)
   assert.match(pairing, /plugin:barcode-scanner/)
-  assert.match(pairing, /mobile_pair_manual/)
+  assert.doesNotMatch(pairing, /mobile_pair_manual/)
   assert.match(remoteSettings, /pendingApprovals/)
   assert.match(remoteSettings, /approval\.ip/)
   assert.match(remoteSettings, /decideApproval\(approval, true\)/)
