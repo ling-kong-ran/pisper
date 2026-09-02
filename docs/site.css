@@ -216,6 +216,12 @@ main,
   color: var(--ink);
 }
 
+/* 当前页导航项:点亮即可,不加重形态 */
+.nav-links a[aria-current="page"] {
+  color: var(--ink);
+  font-weight: 600;
+}
+
 .nav-mobile-github {
   display: none;
   align-items: center;
@@ -481,13 +487,14 @@ main,
    通用区块
    ============================================================ */
 
+/* 收紧区块纵向节奏:主页短了,功能页也不拖 */
 .section {
-  padding-block: clamp(90px, 12vh, 140px);
+  padding-block: clamp(64px, 8.5vh, 108px);
 }
 
 .section-heading {
   max-width: 700px;
-  margin-bottom: clamp(36px, 5vh, 56px);
+  margin-bottom: clamp(28px, 4vh, 44px);
 }
 
 .section-heading h2 {
@@ -507,14 +514,6 @@ main,
 
 /* 玻璃卡片通用质感 */
 .signal-grid > div,
-.product-panel,
-.capability-list li,
-.safety-local,
-.safety-list li,
-.safety-boundary,
-.component-rows > div,
-.mobile-points li,
-.terminal-figure,
 .download-inner,
 .terminal-install {
   background: var(--panel);
@@ -554,311 +553,347 @@ main,
 }
 
 /* ============================================================
-   界面:标签页 + 截图面板
+   界面:3D 封面流轮播(三端截图)
    ============================================================ */
 
-.product-tabs {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 10px;
-  margin-bottom: 22px;
+.carousel {
+  position: relative;
 }
 
-.product-tabs [role="tab"] {
-  appearance: none;
-  padding: 9px 18px;
+/* 舞台:3D 透视容器;横向拖动手势由 JS 接管,纵向滚动保持原生 */
+.carousel-stage {
+  position: relative;
+  height: clamp(260px, 40vw, 460px);
+  perspective: 1500px;
+  touch-action: pan-y;
+  user-select: none;
+  -webkit-user-select: none;
+  cursor: grab;
+}
+
+.carousel-stage.is-dragging {
+  cursor: grabbing;
+}
+
+/* 幻灯片与桌面截图同比例(1600x864):cover 零裁切,界面完整呈现;
+   TUI 截图内容居中,轻微裁边不影响;竖屏手机截图用模糊底 + 双机并排 */
+.carousel-slide {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: min(720px, 72%);
+  aspect-ratio: 1600 / 864;
+  margin: 0;
+  transform: translate(-50%, -50%);
+  transition:
+    transform 0.75s var(--ease),
+    opacity 0.75s var(--ease),
+    filter 0.75s var(--ease);
+  will-change: transform;
+}
+
+/* 拖拽期间关掉过渡,让幻灯片紧贴手指 */
+.carousel-stage.is-dragging .carousel-slide {
+  transition: none;
+}
+
+.carousel-shot {
+  position: absolute;
+  inset: 0;
+  display: block;
+  overflow: hidden;
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  background: #101211;
+  box-shadow: 0 34px 90px rgba(0, 0, 0, 0.55);
+  transition:
+    border-color 0.4s,
+    box-shadow 0.4s;
+}
+
+/* 居中的当前幻灯片:描边与辉光点亮,其余压暗交给 JS 写 filter */
+.carousel-slide.is-active .carousel-shot {
+  border-color: rgba(223, 255, 98, 0.35);
+  box-shadow:
+    0 40px 110px rgba(0, 0, 0, 0.6),
+    0 0 70px rgba(223, 255, 98, 0.07);
+}
+
+/* 直接子图 cover 铺满(桌面/TUI);竖屏手机截图走模糊底 + 双机并排,
+   不裁切内容。选择器用子代限定,避免与覆盖样式拼优先级 */
+.carousel-shot > img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  /* 点击与拖拽统一交给外层链接与舞台 */
+  pointer-events: none;
+}
+
+/* 竖屏截图的模糊底:填满横框 */
+.carousel-shot-fill {
+  position: absolute;
+  inset: 0;
+  filter: blur(28px) brightness(0.24) saturate(1.05);
+  transform: scale(1.3);
+}
+
+/* 竖屏手机截图:两台并排居中,主体完整呈现 */
+.carousel-phone-pair {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4.5%;
+  height: 100%;
+  padding: clamp(8px, 3%, 18px) 0;
+}
+
+.carousel-phone-pair img {
+  height: 100%;
+  width: auto;
+  border-radius: 10px;
+  box-shadow: 0 18px 50px rgba(0, 0, 0, 0.45);
+  pointer-events: none;
+}
+
+.carousel-tag {
+  position: absolute;
+  top: 14px;
+  left: 14px;
+  z-index: 2;
+  padding: 6px 12px;
   border: 1px solid var(--line);
   border-radius: 999px;
-  background: rgba(17, 19, 18, 0.55);
+  background: rgba(11, 12, 12, 0.62);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  pointer-events: none;
+}
+
+.carousel-arrow {
+  position: absolute;
+  top: 50%;
+  z-index: 30;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  border: 1px solid var(--line);
+  border-radius: 50%;
+  background: rgba(17, 19, 18, 0.7);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
   color: var(--dim);
-  font: inherit;
-  font-size: 14px;
   cursor: pointer;
+  transform: translateY(-50%);
   transition:
     background 0.25s,
     color 0.25s,
     border-color 0.25s;
 }
 
-.product-tabs [role="tab"]:hover {
-  color: var(--ink);
-  border-color: rgba(242, 244, 240, 0.28);
-}
-
-.product-tabs [role="tab"][aria-selected="true"] {
+.carousel-arrow:hover {
   background: var(--lime);
   border-color: var(--lime);
   color: #111312;
-  font-weight: 700;
 }
 
-.product-panel {
-  margin: 0;
-  padding: 14px;
+.carousel-arrow.is-prev {
+  left: 10px;
 }
 
-.product-shot-wrap {
-  overflow: hidden;
-  border-radius: 12px;
-  transform: perspective(1200px) rotateX(var(--tilt-x, 0deg)) rotateY(var(--tilt-y, 0deg));
-  transition: transform 0.35s var(--ease);
+.carousel-arrow.is-next {
+  right: 10px;
 }
 
-.product-shot {
-  width: 100%;
-  border-radius: 12px;
-  transition: opacity 0.3s;
+/* 信息条:说明文字 + 圆点 + 功能页入口 */
+.carousel-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px 26px;
+  margin-top: 22px;
 }
 
-.product-shot.is-changing {
-  opacity: 0.25;
-}
-
-.product-panel figcaption {
+.carousel-caption {
+  flex: 1 1 auto;
+  min-width: 220px;
   display: flex;
   flex-wrap: wrap;
   align-items: baseline;
-  gap: 6px 18px;
-  padding: 18px 8px 8px;
+  gap: 4px 16px;
+  transition:
+    opacity 0.18s,
+    transform 0.18s var(--ease);
 }
 
-.product-panel figcaption strong {
-  font-size: 19px;
+/* 换片时文字先沉下去再浮上来,JS 在低点半程替换内容 */
+.carousel-caption.is-switching {
+  opacity: 0;
+  transform: translateY(5px);
 }
 
-.product-panel figcaption span {
-  color: var(--dim);
-  font-size: 14.5px;
-}
-
-/* ============================================================
-   能力列表
-   ============================================================ */
-
-.capability-list {
-  list-style: none;
-  margin: 0;
-  padding: 0;
-  display: grid;
-  grid-template-columns: repeat(2, 1fr);
-  gap: 16px;
-}
-
-.capability-list li {
-  display: flex;
-  gap: 20px;
-  padding: 26px 28px;
-}
-
-.capability-list li > span {
-  color: var(--lime);
-  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
-  font-size: 14px;
-  padding-top: 3px;
-}
-
-.capability-list h3 {
-  margin: 0 0 8px;
-  font-size: 19px;
-}
-
-.capability-list p {
-  margin: 0;
-  color: var(--dim);
-  font-size: 14.5px;
-  line-height: 1.75;
-}
-
-/* ============================================================
-   数据安全
-   ============================================================ */
-
-.safety-layout {
-  display: grid;
-  grid-template-columns: 0.9fr 1.1fr;
-  gap: 18px;
-  align-items: start;
-}
-
-.safety-local {
-  padding: 30px;
-  position: sticky;
-  top: 96px;
-}
-
-.safety-local p {
-  margin: 0 0 16px;
-  color: var(--faint);
-  font-size: 11.5px;
-  letter-spacing: 0.28em;
-}
-
-.safety-local > code {
-  display: inline-block;
-  padding: 8px 14px;
-  border-radius: 8px;
-  background: var(--lime-dim);
-  border: 1px solid rgba(223, 255, 98, 0.3);
-  color: var(--lime);
-  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
-  font-size: 16px;
-}
-
-.safety-local span {
-  display: block;
-  margin-top: 16px;
-  color: var(--dim);
-  font-size: 13.5px;
-}
-
-.safety-local span code,
-.terminal-copy code {
-  color: var(--cyan);
-  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
-  font-size: 0.92em;
-}
-
-.safety-local small {
-  display: block;
-  margin-top: 10px;
-  color: var(--faint);
-  font-size: 12.5px;
-  line-height: 1.7;
-}
-
-.safety-list {
-  list-style: none;
-  margin: 0;
-  padding: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 14px;
-}
-
-.safety-list li {
-  display: flex;
-  gap: 18px;
-  padding: 22px 26px;
-}
-
-.safety-list li > span {
-  color: var(--cyan);
-  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
-  font-size: 13.5px;
-  padding-top: 2px;
-}
-
-.safety-list h3 {
-  margin: 0 0 6px;
+.carousel-caption strong {
   font-size: 17px;
 }
 
-.safety-list p {
-  margin: 0;
+.carousel-caption span {
   color: var(--dim);
   font-size: 14px;
-  line-height: 1.75;
 }
 
-.safety-boundary {
-  margin-top: 18px;
-  padding: 22px 26px;
-  border-style: dashed;
-  border-color: rgba(168, 85, 247, 0.4);
+.carousel-dots {
+  display: flex;
+  gap: 6px;
 }
 
-.safety-boundary strong {
-  color: var(--purple);
-  font-size: 14px;
-  letter-spacing: 0.1em;
+.carousel-dots button {
+  appearance: none;
+  position: relative;
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  cursor: pointer;
 }
 
-.safety-boundary p {
-  margin: 10px 0 0;
-  color: var(--dim);
-  font-size: 13.5px;
-  line-height: 1.8;
+/* 圆点本体是伪元素,按钮留出更大的命中区域 */
+.carousel-dots button::before {
+  content: "";
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 7px;
+  height: 7px;
+  border-radius: 999px;
+  background: var(--faint);
+  transform: translate(-50%, -50%);
+  transition:
+    width 0.3s var(--ease),
+    background 0.3s;
+}
+
+.carousel-dots button[aria-current="true"]::before {
+  width: 20px;
+  background: var(--lime);
+}
+
+.carousel-caption-link {
+  margin-top: 0;
+  white-space: nowrap;
 }
 
 /* ============================================================
-   组件更新
+   能力速览 Bento(主页)
    ============================================================ */
 
-.component-layout {
+.bento-grid {
   display: grid;
-  grid-template-columns: 1fr 1.2fr;
-  gap: clamp(30px, 5vw, 70px);
-  align-items: center;
-}
-
-.component-intro h2 {
-  margin: 0 0 16px;
-  font-size: clamp(28px, 3.8vw, 40px);
-  font-weight: 800;
-  line-height: 1.2;
-  letter-spacing: -0.02em;
-}
-
-.component-intro p:not(.eyebrow) {
-  margin: 0;
-  color: var(--dim);
-  font-size: 15.5px;
-  line-height: 1.85;
-}
-
-.component-rows {
-  display: grid;
+  grid-template-columns: repeat(12, 1fr);
   gap: 14px;
 }
 
-.component-rows > div {
-  display: grid;
-  grid-template-columns: auto auto 1fr;
-  align-items: baseline;
-  gap: 16px;
-  padding: 22px 26px;
+.bento-card {
+  position: relative;
+  grid-column: span 4;
+  display: flex;
+  flex-direction: column;
+  min-height: 172px;
+  padding: 24px 26px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--panel);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+  text-decoration: none;
+  overflow: hidden;
+  transition:
+    transform 0.35s var(--ease),
+    border-color 0.35s,
+    background 0.35s;
 }
 
-.component-rows span {
+.bento-feature {
+  grid-column: span 8;
+}
+
+/* 指针聚光灯:位置由 JS 写入 --mx/--my */
+.bento-card::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(
+    230px circle at var(--mx, 50%) var(--my, 50%),
+    rgba(223, 255, 98, 0.09),
+    transparent 65%
+  );
+  opacity: 0;
+  transition: opacity 0.35s;
+  pointer-events: none;
+}
+
+.bento-card:hover {
+  transform: translateY(-3px);
+  border-color: rgba(223, 255, 98, 0.3);
+}
+
+.bento-card:hover::before {
+  opacity: 1;
+}
+
+.bento-no {
   color: var(--lime);
   font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
   font-size: 13px;
 }
 
-.component-rows strong {
-  font-size: 17px;
+.bento-card h3 {
+  margin: 12px 0 8px;
+  font-size: 18px;
 }
 
-.component-rows p {
+.bento-card p {
   margin: 0;
   color: var(--dim);
   font-size: 14px;
-  text-align: right;
+  line-height: 1.75;
+}
+
+.bento-card p code {
+  color: var(--cyan);
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 0.92em;
+}
+
+.bento-arrow {
+  position: absolute;
+  top: 22px;
+  right: 24px;
+  color: var(--faint);
+  transition:
+    transform 0.3s var(--ease),
+    color 0.3s;
+}
+
+.bento-card:hover .bento-arrow {
+  transform: translateX(5px);
+  color: var(--lime);
 }
 
 /* ============================================================
-   终端
+   终端安装命令与复制按钮(主页窄带)
    ============================================================ */
 
-.terminal-section {
-  display: grid;
-  grid-template-columns: 1.02fr 0.98fr;
-  gap: clamp(30px, 5vw, 64px);
-  align-items: start;
-}
-
-.terminal-copy h2 {
-  margin: 0 0 16px;
-  font-size: clamp(28px, 3.8vw, 40px);
-  font-weight: 800;
-  line-height: 1.2;
-  letter-spacing: -0.02em;
-}
-
-.terminal-copy p:not(.eyebrow) {
-  color: var(--dim);
-  font-size: 15.5px;
-  line-height: 1.85;
+.tui-strip-copy code {
+  color: var(--cyan);
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 0.92em;
 }
 
 .terminal-install {
@@ -920,106 +955,6 @@ main,
   text-decoration: underline;
 }
 
-.terminal-gallery {
-  display: grid;
-  gap: 18px;
-}
-
-#mobile .terminal-gallery {
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-}
-
-.terminal-figure {
-  margin: 0;
-  padding: 10px;
-}
-
-.terminal-figure a {
-  display: block;
-  overflow: hidden;
-  border-radius: 10px;
-}
-
-.terminal-figure img {
-  width: 100%;
-  border-radius: 10px;
-  transition: transform 0.5s var(--ease);
-}
-
-.terminal-figure a:hover img {
-  transform: scale(1.02);
-}
-
-.terminal-figure figcaption {
-  padding: 12px 6px 4px;
-  color: var(--faint);
-  font-size: 13px;
-}
-
-/* 移动端版块：手机截图限宽居中，配对要点复用编号行风格 */
-.mobile-points {
-  list-style: none;
-  margin: 20px 0 0;
-  padding: 0;
-  display: grid;
-  gap: 12px;
-}
-
-.mobile-points li {
-  display: flex;
-  gap: 16px;
-  padding: 16px 18px;
-}
-
-.mobile-points li > span {
-  color: var(--lime);
-  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
-  font-size: 13px;
-  padding-top: 2px;
-}
-
-.mobile-points h3 {
-  margin: 0 0 4px;
-  font-size: 15px;
-}
-
-.mobile-points p {
-  margin: 0;
-  color: var(--dim);
-  font-size: 13px;
-  line-height: 1.7;
-}
-
-.mobile-download-actions {
-  margin-top: 22px;
-}
-
-.mobile-download-note {
-  margin: 12px 0 0;
-  color: var(--dim);
-  font-size: 13px;
-  line-height: 1.7;
-}
-
-.mobile-download-note strong {
-  color: var(--ink);
-}
-
-.mobile-guide-links {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 4px 22px;
-}
-
-.phone-figure {
-  max-width: 300px;
-  justify-self: center;
-}
-
-.phone-figure img {
-  border-radius: 18px;
-}
-
 /* ============================================================
    下载
    ============================================================ */
@@ -1055,6 +990,46 @@ main,
   display: flex;
   flex-wrap: wrap;
   gap: 12px;
+}
+
+/* ============================================================
+   终端窄带(主页)
+   ============================================================ */
+
+.strip-section {
+  padding-block: clamp(6px, 1.5vh, 16px);
+}
+
+.tui-strip {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px 30px;
+  padding: 22px 28px;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+}
+
+.tui-strip .eyebrow {
+  margin-bottom: 6px;
+}
+
+.tui-strip-copy p:not(.eyebrow) {
+  margin: 0;
+  color: var(--dim);
+  font-size: 14.5px;
+}
+
+.tui-strip .terminal-install {
+  margin: 0;
+}
+
+.tui-strip .text-link {
+  margin-top: 0;
 }
 
 /* ============================================================
@@ -1196,27 +1171,21 @@ main,
     grid-template-columns: repeat(2, 1fr);
   }
 
-  .capability-list,
-  .safety-layout,
-  .component-layout,
-  .terminal-section {
-    grid-template-columns: 1fr;
+  /* 轮播在中等屏稍微放宽幻灯片占比,Bento 降为两列 */
+  .carousel-slide {
+    width: min(720px, 80%);
   }
 
-  .safety-local {
-    position: static;
+  .bento-grid {
+    grid-template-columns: repeat(6, 1fr);
   }
 
-  .component-rows p {
-    text-align: left;
+  .bento-feature {
+    grid-column: span 6;
   }
 
-  .component-rows > div {
-    grid-template-columns: auto auto;
-  }
-
-  .component-rows p {
-    grid-column: 2;
+  .bento-card {
+    grid-column: span 3;
   }
 }
 
@@ -1277,15 +1246,45 @@ main,
     display: none;
   }
 
-  .signal-grid,
-  #mobile .terminal-gallery {
+  /* 窄屏轮播:幻灯片几乎占满舞台,改用 4:3 让手机双图保持可读,
+     箭头让位给滑动与圆点 */
+  .carousel-stage {
+    height: clamp(230px, 62vw, 340px);
+  }
+
+  .carousel-slide {
+    width: 88%;
+    aspect-ratio: 4 / 3;
+  }
+
+  .carousel-arrow {
+    display: none;
+  }
+
+  .carousel-caption {
+    flex: 1 1 100%;
+  }
+
+  .carousel-dots {
+    margin-inline: auto;
+  }
+
+  .bento-grid {
     grid-template-columns: 1fr;
   }
 
-  .capability-list li,
-  .safety-list li {
+  .bento-card,
+  .bento-feature {
+    grid-column: auto;
+    min-height: 0;
+  }
+
+  .tui-strip {
     padding: 20px;
-    gap: 14px;
+  }
+
+  .signal-grid {
+    grid-template-columns: 1fr;
   }
 
   .download-inner {

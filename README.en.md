@@ -3,7 +3,7 @@
 <a id="top"></a>
 
 <p align="center">
-  <img src="docs/brand/banner.en.svg" width="880" alt="Pisper — Give every idea its own branch" />
+  <img src="docs/brand/banner.en.svg" width="880" alt="Pisper — Many hands, one mind" />
 </p>
 
 <p align="center">

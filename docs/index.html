@@ -9,7 +9,7 @@
     />
     <meta name="theme-color" content="#0b0c0c" />
     <meta property="og:type" content="website" />
-    <meta property="og:title" content="Pisper · 给每个想法，开一条分支" />
+    <meta property="og:title" content="Pisper · 分身，不分心" />
     <meta
       property="og:description"
       content="跨桌面、终端与手机的多 Agent 应用：并行会话、追忆分支、本地插件生成，随时切换设备，工作不断线。"
@@ -23,7 +23,7 @@
     <link rel="icon" href="brand/pisper-logo.svg" type="image/svg+xml" />
     <link rel="stylesheet" href="site.css" />
     <script src="site.js" defer></script>
-    <title>Pisper · 给每个想法，开一条分支</title>
+    <title>Pisper · 分身，不分心</title>
   </head>
   <body>
     <a class="skip-link" href="#main">跳到主要内容</a>
@@ -38,9 +38,8 @@
           <span>Pisper</span>
         </a>
         <div class="nav-links">
-          <a href="#product">界面</a>
-          <a href="#capabilities">能力</a>
-          <a href="#mobile">移动端</a>
+          <a href="#showcase">界面</a>
+          <a href="#highlights">能力</a>
           <a href="guide.html">使用教程</a>
           <a href="https://github.com/ling-kong-ran/pisper">GitHub</a>
           <a href="https://github.com/ling-kong-ran/pisper/blob/release/README.en.md">English</a>
@@ -73,14 +72,14 @@
       <!-- Hero：主价值与下载层级居左，右侧留给交互粒子字 -->
       <section class="hero shell" id="top" aria-labelledby="hero-title">
         <div class="hero-content">
-          <p class="eyebrow reveal">DESKTOP · MOBILE · MULTI-AGENT</p>
+          <p class="eyebrow reveal">MULTI-AGENT · DESKTOP · TERMINAL</p>
           <h1 id="hero-title">Pisper</h1>
           <p class="hero-statement reveal" style="--d:120ms">
-            给每个想法，<span class="gradient-text">开一条分支。</span>
+            分身，<span class="gradient-text">不分心。</span>
           </p>
           <p class="hero-copy reveal" style="--d:240ms">
-            在桌面并行推进多个 Agent，在终端接管当前工作，在手机本机运行或连接桌面。
-            同一段工作，换设备也不断线。
+            多 Agent 同屏并行，每条分支都走完，再决定用哪条。
+            桌面与终端共享同一内核 —— 你换设备，现场不换。
           </p>
           <div class="hero-primary-actions reveal" style="--d:340ms">
             <a
@@ -101,26 +100,7 @@
               查看使用教程 <span aria-hidden="true">→</span>
             </a>
           </div>
-          <div class="hero-mobile-row reveal" style="--d:420ms">
-            <div class="hero-mobile-actions">
-              <a
-                class="button button-mobile button-android magnetic"
-                data-app-download="android"
-                href="https://github.com/ling-kong-ran/pisper/releases"
-              >
-                Android APK <span aria-hidden="true">↓</span>
-              </a>
-              <a
-                class="button button-mobile button-ios magnetic"
-                data-app-download="ios"
-                data-app-asset="pisper-ios-unsigned.ipa"
-                href="https://github.com/ling-kong-ran/pisper/releases"
-              >
-                iOS 未签名 IPA <span aria-hidden="true">↓</span>
-              </a>
-            </div>
-          </div>
-          <p class="hero-meta reveal" style="--d:500ms">
+          <p class="hero-meta reveal" style="--d:420ms">
             Windows · macOS · Linux · Android · iOS · MIT Licensed
           </p>
         </div>
@@ -132,205 +112,238 @@
       <!-- 产品形态 -->
       <section class="signal-band shell" aria-label="产品形态">
         <div class="signal-grid">
-          <div class="reveal"><strong>Desktop</strong><span>完整桌面应用</span></div>
-          <div class="reveal" style="--d:80ms"><strong>TUI</strong><span>终端客户端</span></div>
-          <div class="reveal" style="--d:160ms"><strong>Runtime</strong><span>统一能力内核</span></div>
-          <div class="reveal" style="--d:240ms"><strong>Mobile</strong><span>本机运行或连接桌面</span></div>
+          <div class="reveal"><strong>Desktop</strong><span>多 Agent 并行工作台</span></div>
+          <div class="reveal" style="--d:80ms"><strong>TUI</strong><span>终端直连同一内核</span></div>
+          <div class="reveal" style="--d:160ms"><strong>Runtime</strong><span>能力、会话与记忆的中枢</span></div>
+          <div class="reveal" style="--d:240ms"><strong>Mobile</strong><span>Agent 跑在本机，不是遥控器</span></div>
         </div>
       </section>
 
-      <!-- 界面:标签页 + 截图面板 -->
-      <section class="section shell" id="product" data-morph="并行" aria-labelledby="product-title">
+      <!-- 界面：3D 封面流轮播，一次看清三端 -->
+      <section class="section shell" id="showcase" data-morph="三端" aria-labelledby="showcase-title">
         <div class="section-heading reveal reveal-soft" data-depth="14">
           <p class="eyebrow">界面</p>
-          <h2 id="product-title">Agent 的每一步，都摆在台面上。</h2>
-          <p>分屏、追忆、标签、终端 —— 没有黑盒，没有「正在运行中」的玄学等待。</p>
+          <h2 id="showcase-title">一个内核，三种面孔。</h2>
+          <p>桌面、终端与手机，共享同一 Runtime。左右拨动，看它在你手边的样子。</p>
         </div>
 
-        <div class="product-tabs reveal" role="tablist" aria-label="产品界面">
-          <button type="button" role="tab" aria-selected="true" aria-controls="product-panel"
-            id="tab-sessions" data-shot="shots/web/chat-grid.webp"
-            data-alt="Pisper 并行会话分屏" data-title="并行会话"
-            data-copy="拖一下标签，四面分屏。多个 Agent 同屏竞技，进度一目了然。">并行会话</button>
-          <button type="button" role="tab" aria-selected="false" aria-controls="product-panel"
-            id="tab-session-tree" data-shot="shots/web/session-tree.webp"
-            data-alt="Pisper 追忆分支视图" data-title="追忆"
-            data-copy="长对话压成主干与分叉。在任意已完成 Turn 接回原分支，源会话一字不改。">追忆</button>
-          <button type="button" role="tab" aria-selected="false" aria-controls="product-panel"
-            id="tab-workflows" data-shot="shots/web/workflow-builder.webp"
-            data-alt="Pisper 可视化工作流编辑器" data-title="可视化工作流"
-            data-copy="把 Prompt、文件、MCP 与通知连成图。重复的事，交给流程去跑。">工作流</button>
-          <button type="button" role="tab" aria-selected="false" aria-controls="product-panel"
-            id="tab-memory" data-shot="shots/web/memory.webp"
-            data-alt="Pisper 星忆关系视图" data-title="项目记忆"
-            data-copy="事实、偏好与决策被记住并可检索。项目再长，也不用重复自我介绍。">星忆</button>
-          <button type="button" role="tab" aria-selected="false" aria-controls="product-panel"
-            id="tab-terminal" data-shot="shots/web/terminal.webp"
-            data-alt="Pisper 桌面会话终端" data-title="会话终端"
-            data-copy="终端绑定当前会话与工作目录。切走会话进程照跑，回来现场还在。">桌面终端</button>
-          <button type="button" role="tab" aria-selected="false" aria-controls="product-panel"
-            id="tab-remote-access" data-shot="shots/web/config-remote-access.webp"
-            data-alt="Pisper 远程访问与设备连接设置" data-title="设备连接"
-            data-copy="开启远程访问，查看 LAN 与 P2P 状态，并集中管理每一台已配对设备。">设备连接</button>
-        </div>
+        <div
+          class="carousel reveal reveal-deep"
+          data-depth="22"
+          data-carousel
+          aria-roledescription="轮播"
+          aria-label="桌面、终端与移动端界面截图"
+        >
+          <div class="carousel-stage" data-carousel-stage>
+            <figure
+              class="carousel-slide is-active"
+              data-slide
+              data-title="Desktop · 桌面端"
+              data-copy="并行会话、追忆分支、可视化工作流 —— Agent 的每一步，都摆在台面上。"
+              data-href="guide.html"
+              data-cta="查看使用教程"
+            >
+              <a
+                class="carousel-shot"
+                href="shots/chat-grid.png"
+                target="_blank"
+                rel="noopener noreferrer"
+                aria-label="查看桌面端完整截图"
+              >
+                <img
+                  src="shots/web/chat-grid.webp"
+                  alt="Pisper 桌面端并行会话分屏"
+                  width="1600"
+                  height="864"
+                  loading="lazy"
+                  decoding="async"
+                />
+              </a>
+              <span class="carousel-tag" aria-hidden="true">Desktop</span>
+            </figure>
+            <figure
+              class="carousel-slide"
+              data-slide
+              data-title="TUI · 终端端"
+              data-copy="一条命令进入同一现场：用量、思考状态、工具活动与 Git 工作区，一样不少。"
+              data-href="guide.html#tui"
+              data-cta="查看终端教程"
+            >
+              <a href="shots/cli.png"
+                class="carousel-shot"
+                target="_blank"
+                rel="noopener noreferrer"
+                aria-label="查看终端端完整截图"
+              >
+                <img
+                  src="shots/web/cli.webp"
+                  alt="Pisper TUI 欢迎页"
+                  width="1400"
+                  height="684"
+                  loading="lazy"
+                  decoding="async"
+                />
+              </a>
+              <span class="carousel-tag" aria-hidden="true">TUI</span>
+            </figure>
+            <figure
+              class="carousel-slide is-portrait"
+              data-slide
+              data-title="Mobile · 移动端"
+              data-copy="首次启动直接进入本机 Runtime —— Agent、工具、会话都跑在手机上，它不是桌面的遥控器。"
+              data-href="guide.html#mobile"
+              data-cta="查看移动端教程"
+            >
+              <a
+                class="carousel-shot"
+                href="shots/mobile-chat3.png"
+                target="_blank"
+                rel="noopener noreferrer"
+                aria-label="查看移动端完整截图"
+              >
+                <img
+                  class="carousel-shot-fill"
+                  src="shots/web/mobile-chat3.webp"
+                  alt=""
+                  aria-hidden="true"
+                  loading="lazy"
+                  decoding="async"
+                />
+                <span class="carousel-phone-pair">
+                  <img
+                    src="shots/web/mobile-chat3.webp"
+                    alt="Pisper 移动端会话界面"
+                    width="720"
+                    height="1280"
+                    loading="lazy"
+                    decoding="async"
+                  />
+                  <img
+                    src="shots/web/mobile-servers.webp"
+                    alt="Pisper 移动端服务器切换界面"
+                    width="720"
+                    height="1280"
+                    loading="lazy"
+                    decoding="async"
+                  />
+                </span>
+              </a>
+              <span class="carousel-tag" aria-hidden="true">Mobile</span>
+            </figure>
 
-        <figure class="product-panel reveal reveal-deep" data-depth="26" id="product-panel" role="tabpanel" aria-labelledby="tab-sessions">
-          <div class="product-shot-wrap tilt-card">
-            <img
-              class="product-shot"
-              data-product-shot
-              src="shots/web/chat-grid.webp"
-              alt="Pisper 并行会话分屏"
-              width="1600"
-              height="864"
-              loading="lazy"
-              decoding="async"
-            />
+            <button type="button" class="carousel-arrow is-prev" data-carousel-prev aria-label="上一张截图">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                <path d="M15 5l-7 7 7 7" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" />
+              </svg>
+            </button>
+            <button type="button" class="carousel-arrow is-next" data-carousel-next aria-label="下一张截图">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                <path d="M9 5l7 7-7 7" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" />
+              </svg>
+            </button>
           </div>
-          <figcaption>
-            <strong data-product-title>并行会话</strong>
-            <span data-product-copy>拖一下标签，四面分屏。多个 Agent 同屏竞技，进度一目了然。</span>
-          </figcaption>
-        </figure>
-      </section>
 
-      <!-- 能力 -->
-      <section class="section shell" id="capabilities" data-morph="分叉" aria-labelledby="capability-title">
-        <div class="section-heading reveal reveal-soft" data-depth="14">
-          <p class="eyebrow">为什么选 Pisper</p>
-          <h2 id="capability-title">每条分支都走完，再决定用哪条。</h2>
-        </div>
-        <ol class="capability-list">
-          <li class="reveal reveal-left">
-            <span>01</span>
-            <div>
-              <h3>对话开分支</h3>
-              <p>在任意已完成 Turn 衍生新会话，继承上下文，源会话一字不改 —— 像 Git，但给 Agent 用。</p>
+          <div class="carousel-bar">
+            <div class="carousel-caption" data-carousel-caption aria-live="polite">
+              <strong data-carousel-caption-title>Desktop · 桌面端</strong>
+              <span data-carousel-caption-copy>并行会话、追忆分支、可视化工作流 —— Agent 的每一步，都摆在台面上。</span>
             </div>
-          </li>
-          <li class="reveal reveal-right" style="--d:80ms">
-            <span>02</span>
-            <div>
-              <h3>并行不排队</h3>
-              <p>多会话同屏推进，每个 Agent 各自为战，进度肉眼可见。</p>
-            </div>
-          </li>
-          <li class="reveal reveal-left" style="--d:160ms">
-            <span>03</span>
-            <div>
-              <h3>工具冷热分明</h3>
-              <p>核心工具常驻上下文；插件、MCP 与技能经网关按需激活、用完即退，再丰富也不挤占。</p>
-            </div>
-          </li>
-          <li class="reveal reveal-right" style="--d:240ms">
-            <span>04</span>
-            <div>
-              <h3>Pi 内核，深度优化</h3>
-              <p>在 Pi 运行时之上优化工具按需加载、定义稳定排序与提示词形态诊断：上下文更轻，长会话更快、更省。</p>
-            </div>
-          </li>
-          <li class="reveal reveal-left" style="--d:320ms">
-            <span>05</span>
-            <div>
-              <h3>能力不设限</h3>
-              <p>插件自己写、MCP 随手接、技能按需装 —— 想要就说，说完就有。</p>
-            </div>
-          </li>
-          <li class="reveal reveal-right" style="--d:400ms">
-            <span>06</span>
-            <div>
-              <h3>多端不脱节</h3>
-              <p>桌面、TUI 与手机共享同一 Runtime，Git / SVN 工作区都在。</p>
-            </div>
-          </li>
-        </ol>
-      </section>
-
-      <!-- 数据安全 -->
-      <section class="section shell" id="safety" data-morph="本机" aria-labelledby="safety-title">
-        <div class="section-heading reveal reveal-soft" data-depth="14">
-          <p class="eyebrow">数据安全</p>
-          <h2 id="safety-title">默认不出机，出门要审批。</h2>
-          <p>
-            Pisper 没有「我们的云」。数据躺在本机目录里，只有你点名的 Provider、MCP、
-            搜索和渠道，才会收到完成请求所需的那部分。
-          </p>
-        </div>
-
-        <div class="safety-layout">
-          <div class="safety-local reveal reveal-left" data-depth="18">
-            <p>LOCAL DATA ROOT</p>
-            <code>~/.pisper/agent</code>
-            <span>可通过 <code>PISPER_AGENT_DIR</code> 更改位置</span>
-            <small>会话、记忆、工作流、日程、用量与连接配置，默认都保存在这里。</small>
+            <div class="carousel-dots" data-carousel-dots role="group" aria-label="选择截图"></div>
+            <a class="text-link carousel-caption-link" data-carousel-caption-link href="guide.html">
+              <span data-carousel-caption-cta>查看使用教程</span> <span aria-hidden="true">→</span>
+            </a>
           </div>
-          <ol class="safety-list">
-            <li class="reveal reveal-left">
-              <span>01</span>
-              <div>
-                <h3>连接由你开启</h3>
-                <p>远程访问默认关闭；开启后，只有完成配对的设备可以连接，每台设备都能单独移除。</p>
-              </div>
-            </li>
-            <li class="reveal reveal-right" style="--d:100ms">
-              <span>02</span>
-              <div>
-                <h3>敏感先脱敏</h3>
-                <p>常见密钥、令牌与连接信息，在保存和展示前自动隐藏。</p>
-              </div>
-            </li>
-            <li class="reveal reveal-left" style="--d:200ms">
-              <span>03</span>
-              <div>
-                <h3>权限有边界</h3>
-                <p>为 Agent 选择需审批、工作区写入或完全访问，关键操作始终由你决定。</p>
-              </div>
-            </li>
-            <li class="reveal reveal-right" style="--d:300ms">
-              <span>04</span>
-              <div>
-                <h3>记忆需确认</h3>
-                <p>自动推断的记忆先进待确认区，你点头之前不参与召回；候选、单条、整个会话都可拒绝或删除。</p>
-              </div>
-            </li>
-          </ol>
-        </div>
-
-        <div class="safety-boundary reveal">
-          <strong>诚实边界</strong>
-          <p>
-            自动脱敏无法识别所有隐私内容。发送 Prompt、文件或工具结果前，请确认其中没有不该分享的信息。
-          </p>
         </div>
       </section>
 
-      <!-- 组件更新 -->
-      <section class="section shell" id="updates" data-morph="组件" aria-labelledby="component-title">
-        <div class="component-layout">
-          <div class="component-intro reveal">
-            <p class="eyebrow">按需更新</p>
-            <h2 id="component-title">哪个该更新，就只更新哪个。</h2>
+      <!-- 能力速览:Bento 网格,卡片直达使用教程 -->
+      <section class="section shell" id="highlights" data-morph="分叉" aria-labelledby="highlights-title">
+        <div class="section-heading reveal reveal-soft" data-depth="14">
+          <p class="eyebrow">能力矩阵</p>
+          <h2 id="highlights-title">想到，就有人去做。</h2>
+          <p>每一项能力都不是演示图 —— 点开卡片，直达对应的教程章节。</p>
+        </div>
+
+        <div class="bento-grid">
+          <a class="bento-card bento-feature reveal" href="guide.html#parallel">
+            <span class="bento-no" aria-hidden="true">01</span>
+            <h3>并行会话</h3>
+            <p>标签一拖，四面分屏。多个 Agent 同屏推进 —— 没有黑盒，没有玄学等待。</p>
+            <span class="bento-arrow" aria-hidden="true">→</span>
+          </a>
+          <a class="bento-card reveal" style="--d:60ms" href="guide.html#branch">
+            <span class="bento-no" aria-hidden="true">02</span>
+            <h3>追忆分支</h3>
+            <p>在任意已完成 Turn 衍生新会话，继承上下文，源会话一字不改 —— 像 Git，但给 Agent 用。</p>
+            <span class="bento-arrow" aria-hidden="true">→</span>
+          </a>
+          <a class="bento-card reveal" style="--d:120ms" href="guide.html#tools">
+            <span class="bento-no" aria-hidden="true">03</span>
+            <h3>对话生成图片视频</h3>
+            <p>要图得图，要片得片。生成能力就在对话里，产物自动归档进资产库。</p>
+            <span class="bento-arrow" aria-hidden="true">→</span>
+          </a>
+          <a class="bento-card reveal" style="--d:180ms" href="guide.html#permission">
+            <span class="bento-no" aria-hidden="true">04</span>
+            <h3>团队模式</h3>
+            <p>把一个目标交给一支 Agent 小队：分工、推进、汇总，Token 预算握在你手里。</p>
+            <span class="bento-arrow" aria-hidden="true">→</span>
+          </a>
+          <a class="bento-card reveal" style="--d:240ms" href="guide.html#mobile">
+            <span class="bento-no" aria-hidden="true">05</span>
+            <h3>手机上的真 Agent</h3>
+            <p>内置 Node Runtime 本机执行：Agent、工具、会话都在手机上 —— 手机不是遥控器。</p>
+            <span class="bento-arrow" aria-hidden="true">→</span>
+          </a>
+          <a class="bento-card reveal" style="--d:300ms" href="guide.html#workflow">
+            <span class="bento-no" aria-hidden="true">06</span>
+            <h3>可视化工作流</h3>
+            <p>Prompt、文件、MCP 与通知连成图，重复的事交给流程去跑。</p>
+            <span class="bento-arrow" aria-hidden="true">→</span>
+          </a>
+          <a class="bento-card reveal" style="--d:360ms" href="guide.html#memory">
+            <span class="bento-no" aria-hidden="true">07</span>
+            <h3>星忆 · 项目记忆</h3>
+            <p>事实、偏好与决策被记住并可检索；自动推断的记忆，先过你这一关。</p>
+            <span class="bento-arrow" aria-hidden="true">→</span>
+          </a>
+          <a class="bento-card reveal" style="--d:420ms" href="guide.html#schedule">
+            <span class="bento-no" aria-hidden="true">08</span>
+            <h3>定时任务与通知</h3>
+            <p>到点自跑，结果经渠道推到 IM。你不盯屏，也不错过。</p>
+            <span class="bento-arrow" aria-hidden="true">→</span>
+          </a>
+          <a class="bento-card reveal" style="--d:480ms" href="guide.html#tools">
+            <span class="bento-no" aria-hidden="true">09</span>
+            <h3>插件 · MCP · 技能</h3>
+            <p>插件自己写、MCP 随手接、技能按需装 —— 想要就说，说完就有。</p>
+            <span class="bento-arrow" aria-hidden="true">→</span>
+          </a>
+          <a class="bento-card reveal" style="--d:540ms" href="guide.html#data">
+            <span class="bento-no" aria-hidden="true">10</span>
+            <h3>数据安全</h3>
+            <p>没有「我们的云」。数据躺在本机 <code>~/.pisper/agent</code>，出门要审批。</p>
+            <span class="bento-arrow" aria-hidden="true">→</span>
+          </a>
+          <a class="bento-card reveal" style="--d:600ms" href="guide.html#update">
+            <span class="bento-no" aria-hidden="true">11</span>
+            <h3>组件按需更新</h3>
+            <p>Desktop、TUI、Runtime 独立版本、独立签名、独立更新，失败自动回退到内置版本。</p>
+            <span class="bento-arrow" aria-hidden="true">→</span>
+          </a>
+        </div>
+      </section>
+
+      <!-- 终端窄带：一条命令 -->
+      <section class="shell strip-section" data-morph="TUI" aria-label="终端安装">
+        <div class="tui-strip reveal">
+          <div class="tui-strip-copy">
+            <p class="eyebrow">TERMINAL</p>
             <p>
-              Desktop、TUI、Runtime 独立版本、独立签名、独立更新，失败自动回退到内置版本 —— 更新不赌运气。
+              离开桌面，上下文不走 —— <code>/provider</code> 配置模型，
+              <code>pisper web</code> 打开 Web 前端。
             </p>
           </div>
-          <div class="component-rows">
-            <div class="reveal"><span>01</span><strong>Desktop</strong><p>界面、桌面集成与统一更新入口</p></div>
-            <div class="reveal" style="--d:100ms"><span>02</span><strong>TUI</strong><p>面向终端的轻量交互客户端</p></div>
-            <div class="reveal" style="--d:200ms"><span>03</span><strong>Runtime</strong><p>会话、工具、模型与自动化服务</p></div>
-          </div>
-        </div>
-      </section>
-
-      <!-- 终端 -->
-      <section class="section shell terminal-section" id="terminal" data-morph="TUI" aria-labelledby="terminal-title">
-        <div class="terminal-copy reveal reveal-left" data-depth="12">
-          <p class="eyebrow">同一内核，两个入口</p>
-          <h2 id="terminal-title">离开桌面，上下文不走。</h2>
-          <p>
-            Ratatui TUI 直连同一 Runtime：用量、思考状态、工具活动、计划与 Git/SVN 工作区能力全都在。
-            Node.js 20+ 一条命令：
-          </p>
           <div class="terminal-install" aria-label="npm 安装命令">
             <code data-install-command>npm i -g pisper</code>
             <button type="button" class="terminal-copy-button" data-copy-install aria-label="复制 npm 安装命令">
@@ -339,114 +352,9 @@
             </button>
             <span class="sr-only" data-copy-status aria-live="polite"></span>
           </div>
-          <p>
-            装完即用：<code>/provider</code> 选择 Provider 并配置 API Key；
-            <code>pisper web</code> 直接打开 Web 前端与本机配置页。
-          </p>
-          <a class="text-link" href="https://github.com/ling-kong-ran/pisper/blob/release/src-tui/README.md">
-            阅读 TUI 使用指南 <span aria-hidden="true">→</span>
+          <a class="text-link" href="guide.html#tui">
+            TUI 使用指南 <span aria-hidden="true">→</span>
           </a>
-        </div>
-        <div class="terminal-gallery" aria-label="Pisper TUI 界面">
-          <figure class="terminal-figure reveal reveal-deep" data-depth="22">
-            <a href="shots/cli.png" target="_blank" rel="noopener noreferrer" aria-label="查看完整 TUI 欢迎页截图">
-              <img src="shots/web/cli.webp" alt="Pisper TUI 欢迎页" width="1400" height="684" loading="lazy" decoding="async" />
-            </a>
-            <figcaption>欢迎页</figcaption>
-          </figure>
-          <figure class="terminal-figure reveal reveal-deep" data-depth="30" style="--d:120ms">
-            <a href="shots/cli-chat.png" target="_blank" rel="noopener noreferrer" aria-label="查看完整 TUI Chat 截图">
-              <img src="shots/web/cli-chat.webp" alt="Pisper TUI Chat 页面" width="1400" height="684" loading="lazy" decoding="async" />
-            </a>
-            <figcaption>Chat 与实时活动</figcaption>
-          </figure>
-        </div>
-      </section>
-
-      <!-- 移动端 -->
-      <section class="section shell terminal-section" id="mobile" data-morph="手机" aria-labelledby="mobile-title">
-        <div class="terminal-copy reveal reveal-left" data-depth="12">
-          <p class="eyebrow">移动端 · MOBILE</p>
-          <h2 id="mobile-title">Pisper，随身带走。</h2>
-          <p>
-            首次启动直接运行内置 Node/Pisper Runtime，也可以在设置中连接桌面 Pisper。
-            在家优先走局域网，离家自动切换 P2P；当前 Runtime 与会话都由手机记住。
-          </p>
-          <ol class="mobile-points">
-            <li>
-              <span>01</span>
-              <div>
-                <h3>打开即用，本机优先</h3>
-                <p>首次启动直接进入本机 Runtime；需要桌面数据时，再从“设置 → 服务器”连接。</p>
-              </div>
-            </li>
-            <li>
-              <span>02</span>
-              <div>
-                <h3>同一套本机 Runtime</h3>
-                <p>标准 Agent、Provider、会话、HTTP/SSE 与 React 界面都在手机运行，并按设备能力自动调整入口。</p>
-              </div>
-            </li>
-            <li>
-              <span>03</span>
-              <div>
-                <h3>发现申请，明确批准</h3>
-                <p>同网自动发现后向桌面申请连接，批准前不签发令牌；异地可继续使用二维码截图配对。</p>
-              </div>
-            </li>
-            <li>
-              <span>04</span>
-              <div>
-                <h3>手机导航，能力透明</h3>
-                <p>底部主导航一键切页；公开 APK、AAB 与 IPA 统一使用签名包内的 embedded Node，并按实际能力清单调整入口。</p>
-              </div>
-            </li>
-          </ol>
-          <div class="download-actions mobile-download-actions">
-            <a
-              class="button button-android magnetic"
-              data-app-download="android"
-              href="https://github.com/ling-kong-ran/pisper/releases"
-            >
-              Android 已签名 APK <span aria-hidden="true">↓</span>
-            </a>
-            <a
-              class="button button-ios magnetic"
-              data-app-download="ios"
-              data-app-asset="pisper-ios-unsigned.ipa"
-              href="https://github.com/ling-kong-ran/pisper/releases"
-            >
-              iOS 未签名 IPA <span aria-hidden="true">↓</span>
-            </a>
-          </div>
-          <p class="mobile-download-note">
-            <strong>iOS IPA 不能直接安装：</strong>它不含 Apple 分发签名，需使用 AltStore、Sideloadly 或自己的开发者账号重签。
-          </p>
-          <div class="mobile-guide-links">
-            <a class="text-link" data-app-release href="https://github.com/ling-kong-ran/pisper/releases">
-              查看最新 App 发布说明 <span aria-hidden="true">→</span>
-            </a>
-            <a
-              class="text-link"
-              href="https://github.com/ling-kong-ran/pisper/blob/release/docs/mobile.md"
-            >
-              阅读移动端使用与安全指南 <span aria-hidden="true">→</span>
-            </a>
-          </div>
-        </div>
-        <div class="terminal-gallery" aria-label="Pisper 移动端界面">
-          <figure class="terminal-figure phone-figure reveal reveal-deep" data-depth="22">
-            <a href="shots/mobile-chat3.png" target="_blank" rel="noopener noreferrer" aria-label="查看完整移动端会话截图">
-              <img src="shots/web/mobile-chat3.webp" alt="Pisper 移动端会话界面" width="720" height="1280" loading="lazy" decoding="async" />
-            </a>
-            <figcaption>手机上的完整 Pisper</figcaption>
-          </figure>
-          <figure class="terminal-figure phone-figure reveal reveal-deep" data-depth="30" style="--d:100ms">
-            <a href="shots/mobile-servers.png" target="_blank" rel="noopener noreferrer" aria-label="查看移动端服务器切换截图">
-              <img src="shots/web/mobile-servers.webp" alt="Pisper 移动端服务器切换界面" width="720" height="1280" loading="lazy" decoding="async" />
-            </a>
-            <figcaption>连接路径与服务器切换</figcaption>
-          </figure>
         </div>
       </section>
 
@@ -455,7 +363,7 @@
         <div class="download-inner reveal">
           <div>
             <p class="eyebrow">DESKTOP · ANDROID · IOS</p>
-            <h2 id="download-title">现在，给下一个想法开条分支。</h2>
+            <h2 id="download-title">现在，让分身开工。</h2>
             <p>桌面、终端与手机，随时接上同一段工作。</p>
           </div>
           <div class="download-actions">
@@ -497,9 +405,10 @@
         </a>
         <p>桌面、终端与移动端。</p>
         <div class="footer-links">
+          <a href="#highlights">能力</a>
           <a href="guide.html">使用教程</a>
           <a href="https://github.com/ling-kong-ran/pisper">GitHub</a>
-          <a href="#safety">数据安全</a>
+          <a href="guide.html#data">数据安全</a>
           <a href="privacy.html">隐私</a>
           <a href="support.html">支持</a>
           <a href="https://github.com/ling-kong-ran/pisper/blob/release/LICENSE">MIT License</a>

@@ -513,7 +513,7 @@ if (!field) document.body.classList.add('no-field')
    ============================================================ */
 
 if (field) {
-  const heroWords = ['PISPER', '开分支', 'BRANCH', 'PARALLEL', '跨设备']
+  const heroWords = ['PISPER', '分身', 'BRANCH', 'PARALLEL', '跨设备']
   let heroIdx = 0
   let heroActive = true
 
@@ -623,51 +623,6 @@ window.addEventListener(
   },
   { passive: true },
 )
-
-// 界面标签页:预加载截图,切换时淡入
-const tabs = [...document.querySelectorAll('.product-tabs [role="tab"]')]
-const panel = document.querySelector('#product-panel')
-const productShot = document.querySelector('[data-product-shot]')
-const productTitle = document.querySelector('[data-product-title]')
-const productCopy = document.querySelector('[data-product-copy]')
-let imageRequest = 0
-
-function selectTab(tab, moveFocus = false) {
-  if (!tab || tab.getAttribute('aria-selected') === 'true') return
-  for (const candidate of tabs) {
-    candidate.setAttribute('aria-selected', String(candidate === tab))
-    candidate.tabIndex = candidate === tab ? 0 : -1
-  }
-  if (moveFocus) tab.focus()
-  panel?.setAttribute('aria-labelledby', tab.id)
-  productTitle.textContent = tab.dataset.title || ''
-  productCopy.textContent = tab.dataset.copy || ''
-
-  const request = ++imageRequest
-  const nextImage = new Image()
-  nextImage.decoding = 'async'
-  productShot.classList.add('is-changing')
-  nextImage.addEventListener('load', () => {
-    if (request !== imageRequest) return
-    productShot.src = nextImage.src
-    productShot.alt = tab.dataset.alt || ''
-    productShot.classList.remove('is-changing')
-  })
-  nextImage.addEventListener('error', () => {
-    if (request === imageRequest) productShot.classList.remove('is-changing')
-  })
-  nextImage.src = tab.dataset.shot || ''
-}
-
-for (const [index, tab] of tabs.entries()) {
-  tab.addEventListener('click', () => selectTab(tab))
-  tab.addEventListener('keydown', (e) => {
-    if (e.key !== 'ArrowRight' && e.key !== 'ArrowLeft') return
-    e.preventDefault()
-    const next = tabs[(index + (e.key === 'ArrowRight' ? 1 : -1) + tabs.length) % tabs.length]
-    selectTab(next, true)
-  })
-}
 
 // 复制 npm 安装命令
 const copyButton = document.querySelector('[data-copy-install]')
@@ -791,22 +746,241 @@ if (!reduceMotion) {
   }
 }
 
-// 截图面板轻微 3D 倾斜
-if (!reduceMotion) {
-  for (const card of document.querySelectorAll('.tilt-card')) {
+// Bento 卡片聚光灯:把指针位置写进 CSS 变量,光斑跟着手走
+if (finePointer && !reduceMotion) {
+  for (const card of document.querySelectorAll('.bento-card')) {
     card.addEventListener('pointermove', (e) => {
       const rect = card.getBoundingClientRect()
-      const px = (e.clientX - rect.left) / rect.width - 0.5
-      const py = (e.clientY - rect.top) / rect.height - 0.5
-      card.style.setProperty('--tilt-x', `${(-py * 3).toFixed(2)}deg`)
-      card.style.setProperty('--tilt-y', `${(px * 3).toFixed(2)}deg`)
-    })
-    card.addEventListener('pointerleave', () => {
-      card.style.setProperty('--tilt-x', '0deg')
-      card.style.setProperty('--tilt-y', '0deg')
+      card.style.setProperty('--mx', `${e.clientX - rect.left}px`)
+      card.style.setProperty('--my', `${e.clientY - rect.top}px`)
     })
   }
 }
+
+/* ============================================================
+   3D 封面流轮播:三端截图(首页)
+   位置全部经 transform 计算,拖拽时以「张」为单位连续跟手
+   ============================================================ */
+
+const carousel = document.querySelector('[data-carousel]')
+if (carousel) {
+  const stage = carousel.querySelector('[data-carousel-stage]')
+  const slides = [...carousel.querySelectorAll('[data-slide]')]
+  const prevButton = carousel.querySelector('[data-carousel-prev]')
+  const nextButton = carousel.querySelector('[data-carousel-next]')
+  const dotsBox = carousel.querySelector('[data-carousel-dots]')
+  const caption = carousel.querySelector('[data-carousel-caption]')
+  const captionTitle = carousel.querySelector('[data-carousel-caption-title]')
+  const captionCopy = carousel.querySelector('[data-carousel-caption-copy]')
+  const captionLink = carousel.querySelector('[data-carousel-caption-link]')
+  const captionCta = carousel.querySelector('[data-carousel-caption-cta]')
+  const count = slides.length
+  const halfCount = Math.floor(count / 2)
+
+  let active = 0
+  let dragUnits = 0 // 以「张」为单位的拖拽偏移,正值=往前一张拖
+  let spread = 420 // 相邻两张的横向间距(px),随布局实测
+  let depth = 200 // 侧片后退深度
+  let maxRot = 34 // 侧片最大旋角
+
+  const dots = slides.map((slide, i) => {
+    const dot = document.createElement('button')
+    dot.type = 'button'
+    dot.setAttribute('aria-label', `第 ${i + 1} 张:${slide.dataset.title || ''}`)
+    dot.addEventListener('click', () => {
+      go(i)
+      restartAuto()
+    })
+    dotsBox?.append(dot)
+    return dot
+  })
+
+  // 第 i 片相对当前片的步数,折叠到闭环内的最短距离
+  const offsetOf = (i) => {
+    let off = i - active
+    if (off > halfCount) off -= count
+    if (off < -halfCount) off += count
+    return off
+  }
+
+  function layout() {
+    for (let i = 0; i < count; i++) {
+      const slide = slides[i]
+      const t = offsetOf(i) + dragUnits
+      const at = Math.abs(t)
+      const isActive = at < 0.5
+      slide.style.transform =
+        `translate(-50%, -50%) translateX(${(t * spread).toFixed(1)}px)` +
+        ` translateZ(${(-Math.min(at, 1.6) * depth).toFixed(1)}px)` +
+        ` rotateY(${(t * maxRot).toFixed(2)}deg) scale(${Math.max(1 - at * 0.14, 0.72).toFixed(3)})`
+      slide.style.opacity = String(Math.max(1 - at * 0.42, 0.16))
+      slide.style.zIndex = String(20 - Math.round(at * 6))
+      slide.style.filter = isActive
+        ? 'none'
+        : `brightness(${(1 - Math.min(at * 0.38, 0.5)).toFixed(2)})`
+      slide.classList.toggle('is-active', isActive)
+      slide.setAttribute('aria-hidden', String(!isActive))
+      // 侧片不可聚焦,避免 Tab 钻进被压暗的链接
+      const link = slide.querySelector('a')
+      if (link) link.tabIndex = isActive ? 0 : -1
+    }
+    for (const [i, dot] of dots.entries()) dot.setAttribute('aria-current', String(i === active))
+  }
+
+  let captionTimer = 0
+  function updateCaption() {
+    if (!caption) return
+    const slide = slides[active]
+    caption.classList.add('is-switching')
+    clearTimeout(captionTimer)
+    captionTimer = setTimeout(() => {
+      if (captionTitle) captionTitle.textContent = slide.dataset.title || ''
+      if (captionCopy) captionCopy.textContent = slide.dataset.copy || ''
+      if (captionLink && slide.dataset.href) captionLink.href = slide.dataset.href
+      if (captionCta) captionCta.textContent = slide.dataset.cta || ''
+      caption.classList.remove('is-switching')
+    }, 180)
+  }
+
+  function go(index) {
+    const next = ((index % count) + count) % count
+    if (next === active && dragUnits === 0) return
+    active = next
+    dragUnits = 0
+    layout()
+    updateCaption()
+  }
+
+  function measure() {
+    spread = slides[0].offsetWidth * 0.58
+    const narrow = window.innerWidth < 720
+    depth = narrow ? 110 : 200
+    maxRot = narrow ? 26 : 34
+    layout()
+  }
+
+  // 自动播放:悬停/聚焦/拖拽/离屏/减弱动态时暂停
+  const AUTO_MS = 6400
+  let autoTimer = 0
+  let carouselInView = true
+  let carouselIdle = true
+  let dragging = false
+
+  function restartAuto() {
+    clearInterval(autoTimer)
+    if (reduceMotion) return
+    autoTimer = setInterval(() => {
+      if (!carouselInView || !carouselIdle || dragging || document.hidden) return
+      go(active + 1)
+    }, AUTO_MS)
+  }
+
+  if ('IntersectionObserver' in window) {
+    new IntersectionObserver(([entry]) => (carouselInView = entry.isIntersecting), {
+      threshold: 0.25,
+    }).observe(carousel)
+  }
+  carousel.addEventListener('pointerenter', () => (carouselIdle = false))
+  carousel.addEventListener('pointerleave', () => (carouselIdle = true))
+  carousel.addEventListener('focusin', () => (carouselIdle = false))
+  carousel.addEventListener('focusout', () => {
+    if (!carousel.contains(document.activeElement)) carouselIdle = true
+  })
+
+  prevButton?.addEventListener('click', () => {
+    go(active - 1)
+    restartAuto()
+  })
+  nextButton?.addEventListener('click', () => {
+    go(active + 1)
+    restartAuto()
+  })
+  carousel.addEventListener('keydown', (e) => {
+    if (e.key === 'ArrowLeft') {
+      e.preventDefault()
+      go(active - 1)
+      restartAuto()
+    }
+    if (e.key === 'ArrowRight') {
+      e.preventDefault()
+      go(active + 1)
+      restartAuto()
+    }
+  })
+
+  /* 拖拽:位移超过 8px 才捕获指针,保住中心片链接的点击;
+     松手后四舍五入吸附到最近的一张 */
+  let pending = false
+  let dragId = 0
+  let dragStartX = 0
+  let dragStartUnits = 0
+  let dragged = false
+
+  stage.addEventListener('pointerdown', (e) => {
+    if (e.pointerType === 'mouse' && e.button !== 0) return
+    pending = true
+    dragged = false
+    dragId = e.pointerId
+    dragStartX = e.clientX
+    dragStartUnits = dragUnits
+  })
+  stage.addEventListener('pointermove', (e) => {
+    if ((!pending && !dragging) || e.pointerId !== dragId) return
+    const dx = e.clientX - dragStartX
+    if (!dragging) {
+      if (Math.abs(dx) < 8) return
+      dragging = true
+      dragged = true
+      stage.setPointerCapture(dragId)
+      stage.classList.add('is-dragging')
+    }
+    dragUnits = dragStartUnits + dx / spread
+    layout()
+  })
+  const endDrag = () => {
+    if (!pending && !dragging) return
+    pending = false
+    if (dragging) {
+      dragging = false
+      stage.classList.remove('is-dragging')
+      go(active - Math.round(dragUnits))
+      restartAuto()
+      // 拖拽会抑制随之而来的那次点击,防止误开大图
+      setTimeout(() => (dragged = false), 50)
+    }
+  }
+  stage.addEventListener('pointerup', endDrag)
+  stage.addEventListener('pointercancel', endDrag)
+  // 捕获阶段处理点击:拖拽后的误点击拦掉;点侧片则把它拨到中间
+  stage.addEventListener(
+    'click',
+    (e) => {
+      if (dragged) {
+        e.preventDefault()
+        e.stopPropagation()
+        return
+      }
+      const slide = e.target.closest?.('[data-slide]')
+      const index = slide ? slides.indexOf(slide) : -1
+      if (index >= 0 && index !== active) {
+        e.preventDefault()
+        go(index)
+        restartAuto()
+      }
+    },
+    true,
+  )
+  // 阻止浏览器原生图片拖拽抢走手势
+  stage.addEventListener('dragstart', (e) => e.preventDefault())
+
+  window.addEventListener('resize', measure, { passive: true })
+  measure()
+  restartAuto()
+}
+
+/* ============================================================
+   下载直链解析
+   ============================================================ */
 
 // 从受信任的 Release 清单生成直链；清单不可用时保留 Releases 页面兜底。
 function appReleaseAssetUrl(releaseUrl, assetName) {

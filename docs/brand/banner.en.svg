@@ -1,4 +1,4 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 360" role="img" aria-label="Pisper — Give every idea its own branch">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 360" role="img" aria-label="Pisper — Many hands, one mind">
   <defs>
     <linearGradient id="pa" x1="9" y1="6" x2="40" y2="44" gradientUnits="userSpaceOnUse">
       <stop offset="0" stop-color="#8B5CF6"/><stop offset="0.55" stop-color="#A855F7"/><stop offset="1" stop-color="#EC4899"/>
@@ -230,5 +230,5 @@
   <text x="240" y="202" font-family="Avenir Next, Helvetica Neue, PingFang SC, Hiragino Sans GB, Microsoft YaHei, sans-serif"
     font-size="68" font-weight="800" letter-spacing="10" fill="#F2F4F0">PISPER</text>
   <text x="244" y="250" font-family="Avenir Next, Helvetica Neue, PingFang SC, Hiragino Sans GB, Microsoft YaHei, sans-serif"
-    font-size="25" fill="#C9CDC4">Give every idea its own branch.</text>
+    font-size="25" fill="#C9CDC4">Many hands, one mind.</text>
 </svg>

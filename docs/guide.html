@@ -65,7 +65,7 @@
               <li><a href="#parallel">并行会话与分屏</a></li>
               <li><a href="#branch">追忆分支与 Turn 标签</a></li>
               <li><a href="#tools">工具、插件与 MCP</a></li>
-              <li><a href="#permission">执行模式与权限</a></li>
+              <li><a href="#permission">执行模式与审批模式</a></li>
             </ul>
           </div>
           <div class="guide-nav-group">
@@ -263,9 +263,43 @@ pisper web    # 打开 Web 前端与配置页</code></pre>
         </section>
 
         <section class="guide-section" id="permission">
-          <h2>执行模式与权限</h2>
-          <p>执行模式决定 Agent 能触碰什么，随时可切换。</p>
+          <h2>执行模式与审批模式</h2>
+          <p>
+            两个正交的开关，都在输入区工具栏上，随时可切换：
+            <strong>执行模式</strong>决定 Agent 怎么干活，<strong>审批模式</strong>决定它能触碰什么。
+          </p>
 
+          <h3>执行模式：Plan / Goal / Team</h3>
+          <div class="guide-table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>模式</th>
+                  <th>工作方式</th>
+                  <th>适用场景</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td><code>Plan</code></td>
+                  <td>按计划推进当前消息，完成本轮后等待下一条指令</td>
+                  <td>日常对话与开发任务（默认）</td>
+                </tr>
+                <tr>
+                  <td><code>Goal</code></td>
+                  <td>由单个 Agent 围绕目标持续自主推进，直到完成或暂停，可设 Token 预算</td>
+                  <td>长任务、需要自驱动的目标</td>
+                </tr>
+                <tr>
+                  <td><code>Team</code></td>
+                  <td>由主 Agent 动态组织多个 subagent 分工协同，可设团队 Token 预算</td>
+                  <td>需要并行拆解的大块工作（需 Runtime 具备多 Agent 能力）</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+
+          <h3>审批模式：决定权限边界</h3>
           <div class="guide-table-wrap">
             <table>
               <thead>
@@ -277,25 +311,25 @@ pisper web    # 打开 Web 前端与配置页</code></pre>
               </thead>
               <tbody>
                 <tr>
-                  <td><code>approval-required</code></td>
-                  <td>低风险工具直接执行，写入、Shell 和高风险工具逐次请求授权</td>
+                  <td>审批后写入 <code>approval-required</code></td>
+                  <td>修改工作区文件前展示 Diff 并等待批准；Shell 命令也需要逐条批准</td>
                   <td>代码审查、方案调研、需要确认的开发工作</td>
                 </tr>
                 <tr>
-                  <td><code>workspace-write</code></td>
-                  <td>自动批准工作区内的文件修改和常规命令，外部访问仍受限制</td>
+                  <td>自动审批 <code>workspace-write</code></td>
+                  <td>允许修改当前工作区并自动批准常规命令；外部访问仍受限制</td>
                   <td>日常开发、重构、跑测试与构建</td>
                 </tr>
                 <tr>
-                  <td><code>full-access</code></td>
-                  <td>以当前系统用户权限访问文件、网络与 Shell</td>
+                  <td>完全访问 <code>full-access</code></td>
+                  <td>允许访问本机文件和网络；Shell 不再逐次请求授权</td>
                   <td>需要完整主机权限的操作</td>
                 </tr>
               </tbody>
             </table>
           </div>
 
-          <p>终端里用 <code>/mode</code> 查看当前模式，或使用 <code>/mode approval-required</code>、<code>/mode workspace-write</code>、<code>/mode full-access</code> 切换。</p>
+          <p>终端里用 <code>/mode</code> 查看与切换审批模式，如 <code>/mode approval-required</code>、<code>/mode workspace-write</code>、<code>/mode full-access</code>。</p>
         </section>
 
         <!-- 进阶 -->
