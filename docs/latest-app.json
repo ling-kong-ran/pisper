@@ -1,9 +1,9 @@
 {
-  "version": "0.1.23",
-  "tag": "app-v0.1.23",
-  "url": "https://github.com/ling-kong-ran/pisper/releases/tag/app-v0.1.23",
+  "version": "0.1.24",
+  "tag": "app-v0.1.24",
+  "url": "https://github.com/ling-kong-ran/pisper/releases/tag/app-v0.1.24",
   "apk": "app-universal-release-signed.apk",
   "ipa": "pisper-ios-unsigned.ipa",
-  "notes": "- fix: remove subagent turn limit\n- fix: remove sidebar new chat action\n- chore(release-runtime): runtime-v0.5.27\n- fix(runtime): fall back to PowerShell without Bash",
-  "releaseDate": "2026-08-31"
+  "notes": "- chore(release-runtime): runtime-v0.5.29\n- feat: add dynamic team orchestration and session sync\n- fix: simplify provider settings and edit visual connections\n- fix: allow selecting visual generation models\n- fix: recover mobile webview after background suspend",
+  "releaseDate": "2026-09-02"
 }
