@@ -578,6 +578,19 @@ h1, h2, h3, strong { overflow-wrap: anywhere; }
 @keyframes agent-thinking-dot { 0%,65%,100% { opacity: .3; transform: translateY(0); } 32% { opacity: 1; transform: translateY(-2px); } }
 .agent-thinking-scroll > .markdown-body { border: 0; background: transparent; padding: 0; color: var(--text-secondary); font-size: 12px; }
 
+/* 团队状态点脉冲：活跃团队/任务用呼吸感提示「正在推进」，终态静态着色。 */
+@keyframes agent-status-pulse { 50% { opacity: .45; transform: scale(.7); } }
+
+/* 动效降级：系统开启「减少动态效果」时，关闭团队/思考区的所有循环动画。 */
+@media (prefers-reduced-motion: reduce) {
+  .agent-thinking-dots i,
+  .agent-message-mark[data-state='thinking'],
+  .team-status-dot,
+  .team-task-dot {
+    animation: none !important;
+  }
+}
+
 /* Team task board: shared task list with assignee + dependency chains. */
 
 .markdown-body > .markdown-content > :first-child { margin-top: 0; }

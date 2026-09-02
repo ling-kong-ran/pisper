@@ -562,7 +562,7 @@ function AgentRunActivity({
   const primaryDetail =
     primary.command && activities.length
       ? t('chat:agentRunActivity.countLiveOperations', { count: activities.length })
-      : team
+      : team && teamTotal > 0
         ? t('chat:agentRunActivity.teamProgress', {
             completed: teamCompleted,
             total: teamTotal,
@@ -644,7 +644,7 @@ function AgentRunActivity({
       )}
       {showOverview && (
         <div
-          className={`agent-run-overview grid w-full min-h-[42px] grid-cols-[28px_minmax(0,1fr)_auto] [align-items:start] gap-[9px] p-[6px_8px] [.agent-run-activity.compact_&]:min-h-[34px] [.agent-run-activity.compact_&]:grid-cols-[24px_minmax(0,1fr)_auto] [.agent-run-activity.compact_&]:gap-[7px] [.agent-run-activity.compact_&]:p-[4px_5px] ${primary.tone}`}
+          className={`agent-run-overview grid w-full min-h-[42px] grid-cols-[28px_minmax(0,1fr)_auto] [align-items:start] gap-[9px] p-[6px_8px] rounded-[var(--r-sm)] bg-[var(--surface-subtle)] [.agent-run-activity.compact_&]:min-h-[34px] [.agent-run-activity.compact_&]:grid-cols-[24px_minmax(0,1fr)_auto] [.agent-run-activity.compact_&]:gap-[7px] [.agent-run-activity.compact_&]:p-[4px_5px] ${primary.tone}`}
           data-pisper-activity-type="status"
         >
           <span className={AGENT_RUN_STATUS_ICON_CLASS}>
@@ -670,109 +670,158 @@ function AgentRunActivity({
           />
         </div>
       )}
-      {team && (
-        <details
-          className="agent-team-panel overflow-hidden rounded-[var(--r-sm)] [border:1px_solid_var(--stroke-soft)] [margin:5px_0_2px]"
-          {...(streaming || team.status === 'active' ? { open: true } : {})}
-        >
-          <summary className="flex min-h-[38px] cursor-pointer items-center justify-between gap-[8px] [list-style:none] [padding:6px_8px] [&::-webkit-details-marker]:hidden hover:bg-[var(--surface-hover)]">
-            <span className="min-w-0 truncate text-[12px] font-[650]">
-              {team.status === 'complete'
-                ? t('chat:agentRunActivity.teamComplete')
-                : team.status === 'budget_limited'
-                  ? t('chat:agentRunActivity.teamBudgetLimited')
-                  : team.status === 'paused'
-                    ? t('chat:agentRunActivity.teamPaused')
-                    : team.status === 'stalled'
-                      ? t('chat:agentRunActivity.teamStalled')
-                      : t('chat:agentRunActivity.teamActive')}
-            </span>
-            {teamBudget > 0 && (
-              <small className="whitespace-nowrap text-[11px] text-[var(--text-muted)]">
-                {t('chat:agentRunActivity.teamBudget', { used: teamUsed, budget: teamBudget })}
-              </small>
-            )}
-          </summary>
-          <div className="grid max-h-[min(42vh,300px)] gap-[6px] overflow-y-auto overscroll-contain [border-top:1px_solid_var(--stroke-soft)] [padding:7px_8px]">
-            {teamTasks.map((task: EntityRecord) => {
-              const role = typeof task.role === 'string' ? task.role.trim() : ''
-              const status = teamTaskStatusLabel(task.status, t)
-              return (
-                <div key={task.id || task.taskName} className="grid gap-[2px] text-[11px]">
-                  <strong className="truncate font-[620]">
-                    {role
-                      ? t('chat:agentRunActivity.teamTaskStatus', {
-                          name: task.taskName,
-                          role,
-                          status,
-                        })
-                      : t('chat:agentRunActivity.teamTaskStatusWithoutRole', {
-                          name: task.taskName,
-                          status,
-                        })}
-                  </strong>
-                  {task.error && (
-                    <small className="truncate text-[var(--danger)]">{task.error}</small>
-                  )}
-                  {task.output && (
-                    <small className="truncate text-[var(--text-muted)]">{task.output}</small>
-                  )}
-                </div>
-              )
-            })}
-            {team.blockers?.length > 0 && (
-              <small className="text-[var(--warning)]">
-                {t('chat:agentRunActivity.teamBlocked', { count: team.blockers.length })}
-              </small>
-            )}
-            {team.conflicts?.length > 0 && (
-              <small className="text-[var(--danger)]">
-                {t('chat:agentRunActivity.teamConflicts', { count: team.conflicts.length })}
-              </small>
-            )}
-            {team.scriptPath && (
-              <small className="break-all text-[var(--text-muted)]">
-                {t('chat:agentRunActivity.teamScript', { path: team.scriptPath })}
-              </small>
-            )}
-            {teamCommunications.length > 0 && (
-              <div className="grid gap-[3px] [border-top:1px_solid_var(--stroke-soft)] [padding-top:5px]">
-                <small className="text-[var(--text-muted)]">
-                  {t('chat:agentRunActivity.teamCommunicationCount', {
-                    count: teamCommunications.length,
-                  })}
+      {team &&
+        (teamTasks.length > 0 || teamCommunications.length > 0 || Boolean(team.summary?.text)) && (
+          <details
+            className="agent-team-panel overflow-hidden rounded-[var(--r-sm)] [border:1px_solid_var(--stroke-soft)] [margin:5px_0_2px]"
+            {...(streaming || team.status === 'active' ? { open: true } : {})}
+          >
+            <summary className="flex min-h-[38px] cursor-pointer items-center justify-between gap-[8px] [list-style:none] [padding:6px_8px] [&::-webkit-details-marker]:hidden hover:bg-[var(--surface-hover)]">
+              <span className="flex min-w-0 items-center gap-[6px]">
+                <span
+                  aria-hidden="true"
+                  className={`team-status-dot h-[6px] w-[6px] shrink-0 rounded-full ${
+                    team.status === 'complete'
+                      ? 'bg-[var(--success)]'
+                      : team.status === 'stalled' || team.status === 'budget_limited'
+                        ? 'bg-[var(--warning)]'
+                        : team.status === 'paused'
+                          ? 'bg-[var(--text-muted)]'
+                          : 'bg-[var(--accent-strong)] [animation:agent-status-pulse_1.6s_ease-in-out_infinite]'
+                  }`}
+                />
+                <span className="min-w-0 truncate text-[12px] font-[650]">
+                  {team.status === 'complete'
+                    ? t('chat:agentRunActivity.teamComplete')
+                    : team.status === 'budget_limited'
+                      ? t('chat:agentRunActivity.teamBudgetLimited')
+                      : team.status === 'paused'
+                        ? t('chat:agentRunActivity.teamPaused')
+                        : team.status === 'stalled'
+                          ? t('chat:agentRunActivity.teamStalled')
+                          : t('chat:agentRunActivity.teamActive')}
+                </span>
+                {teamTotal > 0 && (
+                  <small className="shrink-0 text-[11px] font-[550] text-[var(--text-muted)]">
+                    {teamCompleted}/{teamTotal}
+                  </small>
+                )}
+              </span>
+              {teamBudget > 0 && (
+                <small className="whitespace-nowrap text-[11px] text-[var(--text-muted)]">
+                  {t('chat:agentRunActivity.teamBudget', { used: teamUsed, budget: teamBudget })}
                 </small>
-                {teamCommunications.slice(-6).map((communication: EntityRecord) => (
-                  <div
-                    key={communication.id}
-                    className="grid min-w-0 gap-[1px] rounded-[var(--r-xs)] bg-[var(--surface-muted)] [padding:4px_6px]"
-                  >
-                    <strong className="break-all text-[11px] font-[620]">
-                      {communication.fromTaskName || communication.fromAgentId || 'lead'} -&gt;{' '}
-                      {communication.toTaskName || communication.toAgentId}
-                    </strong>
-                    <small className="break-words text-[var(--text-secondary)]">
-                      {communication.message}
-                    </small>
-                  </div>
-                ))}
+              )}
+            </summary>
+            {teamTotal > 0 && (
+              <div
+                aria-hidden="true"
+                className="team-progress-track mx-[8px] mb-[3px] h-[3px] overflow-hidden rounded-full bg-[var(--stroke-soft)]"
+              >
+                <div
+                  className="team-progress-fill h-full rounded-full bg-[var(--accent-strong)] [transition:width_var(--d2)_var(--ease-out)]"
+                  style={{
+                    width: `${Math.min(100, Math.round((teamCompleted / teamTotal) * 100))}%`,
+                  }}
+                />
               </div>
             )}
-            {team.summary?.completed?.length > 0 && (
-              <>
-                <small className="text-[var(--text-muted)]">
-                  {t('chat:agentRunActivity.teamSummary')}
+            <div className="grid max-h-[min(42vh,300px)] gap-[6px] overflow-y-auto overscroll-contain [border-top:1px_solid_var(--stroke-soft)] [padding:7px_8px]">
+              {teamTasks.map((task: EntityRecord) => {
+                const role = typeof task.role === 'string' ? task.role.trim() : ''
+                const status = teamTaskStatusLabel(task.status, t)
+                return (
+                  <div key={task.id || task.taskName} className="grid gap-[2px] text-[11px]">
+                    <div className="flex min-w-0 items-center gap-[6px]">
+                      <span
+                        aria-hidden="true"
+                        className={`team-task-dot h-[6px] w-[6px] shrink-0 rounded-full ${
+                          task.status === 'running'
+                            ? 'bg-[var(--accent-strong)] [animation:agent-status-pulse_1.6s_ease-in-out_infinite]'
+                            : task.status === 'completed'
+                              ? 'bg-[var(--success)]'
+                              : task.status === 'failed' || task.status === 'interrupted'
+                                ? 'bg-[var(--danger)]'
+                                : task.status === 'blocked'
+                                  ? 'bg-[var(--warning)]'
+                                  : 'bg-[var(--stroke-default)]'
+                        }`}
+                      />
+                      <strong className="truncate font-[620]">
+                        {role
+                          ? t('chat:agentRunActivity.teamTaskStatus', {
+                              name: task.taskName,
+                              role,
+                              status,
+                            })
+                          : t('chat:agentRunActivity.teamTaskStatusWithoutRole', {
+                              name: task.taskName,
+                              status,
+                            })}
+                      </strong>
+                    </div>
+                    {task.error && (
+                      <small className="truncate text-[var(--danger)]">{task.error}</small>
+                    )}
+                    {task.output && (
+                      <small className="truncate text-[var(--text-muted)]">{task.output}</small>
+                    )}
+                  </div>
+                )
+              })}
+              {team.blockers?.length > 0 && (
+                <small className="text-[var(--warning)]">
+                  {t('chat:agentRunActivity.teamBlocked', { count: team.blockers.length })}
                 </small>
-                {team.summary.text && (
-                  <p className="m-0 line-clamp-4 text-[11px] leading-[1.45] text-[var(--text-secondary)]">
-                    {team.summary.text}
-                  </p>
-                )}
-              </>
-            )}
-          </div>
-        </details>
-      )}
+              )}
+              {team.conflicts?.length > 0 && (
+                <small className="text-[var(--danger)]">
+                  {t('chat:agentRunActivity.teamConflicts', { count: team.conflicts.length })}
+                </small>
+              )}
+              {team.scriptPath && (
+                <small className="break-all text-[var(--text-muted)]">
+                  {t('chat:agentRunActivity.teamScript', { path: team.scriptPath })}
+                </small>
+              )}
+              {teamCommunications.length > 0 && (
+                <div className="grid gap-[3px] [border-top:1px_solid_var(--stroke-soft)] [padding-top:5px]">
+                  <small className="text-[var(--text-muted)]">
+                    {t('chat:agentRunActivity.teamCommunicationCount', {
+                      count: teamCommunications.length,
+                    })}
+                  </small>
+                  {teamCommunications.slice(-6).map((communication: EntityRecord) => (
+                    <div
+                      key={communication.id}
+                      className="grid min-w-0 gap-[1px] rounded-[var(--r-xs)] bg-[var(--surface-muted)] [border-left:2px_solid_var(--accent-border)] [padding:4px_6px]"
+                    >
+                      <strong className="break-all text-[11px] font-[620]">
+                        {communication.fromTaskName || communication.fromAgentId || 'lead'} -&gt;{' '}
+                        {communication.toTaskName || communication.toAgentId}
+                      </strong>
+                      <small className="break-words text-[var(--text-secondary)]">
+                        {communication.message}
+                      </small>
+                    </div>
+                  ))}
+                </div>
+              )}
+              {team.summary?.completed?.length > 0 && (
+                <>
+                  <small className="text-[var(--text-muted)]">
+                    {t('chat:agentRunActivity.teamSummary')}
+                  </small>
+                  {team.summary.text && (
+                    <p className="m-0 line-clamp-4 text-[11px] leading-[1.45] text-[var(--text-secondary)]">
+                      {team.summary.text}
+                    </p>
+                  )}
+                </>
+              )}
+            </div>
+          </details>
+        )}
       {streaming && activities.length > 0 && (
         <div
           ref={liveFeedRef}
