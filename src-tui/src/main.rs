@@ -513,6 +513,17 @@ async fn run_event_loop(
                                 }
                                 false
                             }
+                            RuntimeEvent::GoalStateLoaded {
+                                session_id,
+                                goal,
+                                team,
+                            } => {
+                                // 只应用当前会话的快照，避免会话切换后的滞后响应错乱。
+                                if app.session.id == session_id {
+                                    app.apply_goal_state(goal, team);
+                                }
+                                false
+                            }
                             RuntimeEvent::HistoryPage { before, result } => {
                                 match result {
                                     Ok(page) => app.apply_history_page(page, before),
@@ -542,6 +553,12 @@ async fn run_event_loop(
                                             }
                                             app.begin_thinking_load();
                                             spawn_session_thinking_load(
+                                                &api,
+                                                app.session.id.clone(),
+                                                &runtime_tx,
+                                            );
+                                            // 恢复 goal/team 快照：团队面板在会话切换后立即可见。
+                                            spawn_goal_state_load(
                                                 &api,
                                                 app.session.id.clone(),
                                                 &runtime_tx,
@@ -1008,6 +1025,25 @@ fn spawn_session_thinking_load(
     });
 }
 
+/// 后台拉取会话的 goal/team 快照（失败静默：面板只是不显示，不打断会话加载）。
+fn spawn_goal_state_load(
+    api: &ApiClient,
+    session_id: String,
+    sender: &mpsc::UnboundedSender<RuntimeEvent>,
+) {
+    let api = api.clone();
+    let sender = sender.clone();
+    tokio::spawn(async move {
+        if let Ok((goal, team)) = api.goal_state(&session_id).await {
+            let _ = sender.send(RuntimeEvent::GoalStateLoaded {
+                session_id,
+                goal,
+                team,
+            });
+        }
+    });
+}
+
 /// 后台执行 VCS 请求并把结果发回主循环。
 fn spawn_vcs_request(
     api: &ApiClient,
@@ -1044,6 +1080,8 @@ async fn execute_action(
             message,
             requested_tool,
             attachment_paths,
+            prompt_mode,
+            goal_token_budget,
         } => {
             // 草稿会话先物化为真实会话（创建 + 应用默认模型/思考级别/模式）。
             if let Err(error) = materialize_draft_session(app, api).await {
@@ -1057,11 +1095,15 @@ async fn execute_action(
             tokio::spawn(async move {
                 if let Err(error) = api
                     .stream_chat(
-                        session_id,
-                        workspace,
-                        message,
-                        requested_tool,
-                        attachment_paths,
+                        crate::api::ChatRequest {
+                            session_id,
+                            workspace,
+                            message,
+                            requested_tool,
+                            attachment_paths,
+                            prompt_mode,
+                            goal_token_budget,
+                        },
                         sender.clone(),
                     )
                     .await
@@ -1257,6 +1299,36 @@ async fn execute_action(
                         .await
                         .map_err(|error| format!("{error:#}"));
                     let _ = sender.send(RuntimeEvent::ExecutionModeFinished { session_id, result });
+                });
+            }
+        }
+        Action::PauseGoal => {
+            // 草稿会话没有可暂停的目标；暂停结果连同 goal/team 快照一起回写。
+            if app.is_draft_session() {
+                app.status = "no active goal".to_owned();
+            } else {
+                app.status = "pausing goal".to_owned();
+                let api = api.clone();
+                let sender = runtime_tx.clone();
+                let session_id = app.session.id.clone();
+                tokio::spawn(async move {
+                    // 暂停回执只含 goal；再拉一次 /live，保证 goal/team 快照一致。
+                    let result = match api.pause_goal(&session_id).await {
+                        Ok(_) => api.goal_state(&session_id).await,
+                        Err(error) => Err(error),
+                    };
+                    match result {
+                        Ok((goal, team)) => {
+                            let _ = sender.send(RuntimeEvent::GoalStateLoaded {
+                                session_id,
+                                goal,
+                                team,
+                            });
+                        }
+                        Err(error) => {
+                            let _ = sender.send(RuntimeEvent::StreamFailed(format!("{error:#}")));
+                        }
+                    }
                 });
             }
         }

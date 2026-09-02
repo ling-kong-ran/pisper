@@ -7,6 +7,63 @@
 use serde::{Deserialize, Deserializer};
 use serde_json::Value;
 
+/// 发送执行模式：与 Web 端 Composer 的 plan/goal/team 对齐，随消息一起提交给 Runtime。
+/// Plan 单轮推进（默认）；Goal 由单个 Agent 围绕目标自主推进；Team 由主 Agent 组织多个 subagent 协同。
+#[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
+pub enum PromptMode {
+    /// 默认：按计划推进当前消息，完成本轮后等待下一条指令。
+    #[default]
+    Plan,
+    /// 目标模式：单 Agent 持续自主推进，直到完成或暂停。
+    Goal,
+    /// 团队模式：主 Agent 动态组织多个 subagent 分工协同。
+    Team,
+}
+
+impl PromptMode {
+    /// 命令/接口用的稳定标识。
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::Plan => "plan",
+            Self::Goal => "goal",
+            Self::Team => "team",
+        }
+    }
+
+    /// 选择器与状态栏里的展示名。
+    pub fn label(self) -> &'static str {
+        match self {
+            Self::Plan => "Plan",
+            Self::Goal => "Goal",
+            Self::Team => "Team",
+        }
+    }
+
+    /// 选择器行内的一句话说明。
+    pub fn description(self) -> &'static str {
+        match self {
+            Self::Plan => "Drive this message by plan, then wait for the next instruction",
+            Self::Goal => "One agent keeps pursuing the objective until done or paused",
+            Self::Team => "A lead agent coordinates subagents on the objective",
+        }
+    }
+
+    /// 解析 `/goal <plan|goal|team>` 的子命令，非法值返回 None。
+    pub fn from_command(value: &str) -> Option<Self> {
+        match value {
+            "plan" => Some(Self::Plan),
+            "goal" => Some(Self::Goal),
+            "team" => Some(Self::Team),
+            _ => None,
+        }
+    }
+
+    /// 选择器里的完整顺序。
+    pub fn all() -> [Self; 3] {
+        [Self::Plan, Self::Goal, Self::Team]
+    }
+}
+
 /// 会话摘要：会话列表与当前会话的基础信息。
 /// `plan` 兼容历史字段名 `taskList`（见 `plan_protocol` 模块）。
 #[derive(Clone, Debug, Default, Deserialize)]
@@ -535,6 +592,12 @@ pub enum RuntimeEvent {
     ExecutionModeFinished {
         session_id: String,
         result: Result<ExecutionModeUpdate, String>,
+    },
+    /// 会话 goal/team 快照（/live 恢复或暂停回执）。
+    GoalStateLoaded {
+        session_id: String,
+        goal: Option<Value>,
+        team: Option<Value>,
     },
     /// 加载更早历史消息的结果。
     HistoryPage {

@@ -22,9 +22,9 @@ use crate::{
     api::MESSAGE_PAGE_LIMIT,
     model::{
         ChatMessage, ContextUsage, ImageThumbnail, MessageAttachment, MessagePage, ModelOption,
-        Plan, ProviderOption, RunActivity, SessionCwdUpdate, SessionModelUpdate, SessionSummary,
-        SessionUsage, SkillDefinition, StreamEvent, ThinkingAvailability, ThinkingLevelUpdate,
-        ToolActivity, ToolDefinition, VcsChanges, PROVIDER_APIS,
+        Plan, PromptMode, ProviderOption, RunActivity, SessionCwdUpdate, SessionModelUpdate,
+        SessionSummary, SessionUsage, SkillDefinition, StreamEvent, ThinkingAvailability,
+        ThinkingLevelUpdate, ToolActivity, ToolDefinition, VcsChanges, PROVIDER_APIS,
     },
     plan_protocol::{active_plan, is_plan_update_event, plan_from_payload},
     workspace::same_workspace,
@@ -189,6 +189,10 @@ pub struct PathEntry {
 pub enum SettingsPicker {
     Model,
     Thinking,
+    /// 审批模式（/mode）：approval-required / workspace-write / full-access。
+    Approval,
+    /// 执行模式（/run）：plan / goal / team。
+    RunMode,
 }
 
 /// 排队中的提示（运行期间提交的后续输入）。
@@ -199,6 +203,9 @@ struct QueuedPrompt {
     display_message: Option<String>,
     requested_tool: Option<String>,
     attachments: Vec<AttachmentDraft>,
+    /// 提交时的执行模式（plan/goal/team）与 Token 预算。
+    prompt_mode: PromptMode,
+    goal_token_budget: Option<u64>,
 }
 
 /// 粘贴折叠块的源区间（`[start, end)`，对应 `input` 字符下标）。
@@ -221,6 +228,9 @@ pub enum Action {
         message: String,
         requested_tool: Option<String>,
         attachment_paths: Vec<PathBuf>,
+        /// 执行模式（plan/goal/team）与 Goal/Team 的 Token 预算。
+        prompt_mode: PromptMode,
+        goal_token_budget: Option<u64>,
     },
     /// 向运行中的会话排队追加输入。
     QueueInput { message: String },
@@ -234,6 +244,8 @@ pub enum Action {
     SetCwd(PathBuf),
     /// 切换执行模式。
     SetExecutionMode(String),
+    /// 暂停当前会话的活动目标（Goal/Team）。
+    PauseGoal,
     /// 切换模型。
     SetModel { provider: String, model: String },
     /// 刷新思考级别选项。
@@ -320,6 +332,14 @@ pub struct App {
     pub cwd: String,
     pub launch_workspace: PathBuf,
     pub execution_mode: String,
+    /// 发送执行模式（plan/goal/team）：随下一条消息提交，不改会话设置。
+    pub prompt_mode: PromptMode,
+    /// Goal/Team 的 Token 预算（None = 不设上限）。
+    pub goal_token_budget: Option<u64>,
+    /// 当前会话的 Goal 快照（goal_update 事件与 /live 恢复）。
+    pub goal: Option<Value>,
+    /// 当前会话的 Team 投影（任务列表/进度/预算）；None 表示无团队运行。
+    pub team: Option<Value>,
     pub thinking_level: String,
     pub thinking_availability: ThinkingAvailability,
     pub thinking_message: String,
@@ -404,6 +424,10 @@ impl App {
             cwd: session.cwd.clone(),
             launch_workspace: path_directory.clone(),
             execution_mode: session.execution_mode.clone(),
+            prompt_mode: PromptMode::default(),
+            goal_token_budget: None,
+            goal: None,
+            team: None,
             thinking_level: session.thinking_level.clone(),
             thinking_availability: ThinkingAvailability::Loading,
             thinking_message: String::new(),
@@ -1060,7 +1084,7 @@ impl App {
         self.path_selected = 0;
     }
 
-    /// 打开设置选择器（模型/思考级别）；运行中禁止修改运行时设置。
+    /// 打开设置选择器（模型/思考级别/审批模式/执行模式）；运行中禁止修改运行时设置。
     fn open_settings_picker(&mut self, picker: SettingsPicker) {
         if self.is_streaming() {
             self.status = "Stop the active run before changing runtime settings".to_owned();
@@ -1078,6 +1102,14 @@ impl App {
                 .thinking_levels()
                 .iter()
                 .position(|level| level == &self.thinking_level)
+                .unwrap_or(0),
+            SettingsPicker::Approval => APPROVAL_MODES
+                .iter()
+                .position(|(mode, _)| *mode == self.execution_mode)
+                .unwrap_or(0),
+            SettingsPicker::RunMode => PromptMode::all()
+                .iter()
+                .position(|mode| *mode == self.prompt_mode)
                 .unwrap_or(0),
         };
     }
@@ -1146,6 +1178,7 @@ impl App {
             command("/web", "Open the installed Web settings"),
             command("/compact", "Summarize older context now"),
             command("/attach", "Add image, text, code, or document files"),
+            command("/mode", "Pick the approval mode interactively"),
             command(
                 "/mode approval-required",
                 "Ask before writes, shell, and high-risk tools",
@@ -1158,6 +1191,15 @@ impl App {
                 "/mode full-access",
                 "Allow unrestricted files, network, and shell",
             ),
+            command("/run", "Pick the run mode: plan, goal, or team"),
+            command("/run plan", "Plan mode: finish this turn, then wait"),
+            command("/run goal", "Goal mode: one agent drives the objective"),
+            command("/run team", "Team mode: a lead agent coordinates subagents"),
+            command(
+                "/run budget <tokens>",
+                "Set the goal/team token budget (off to clear)",
+            ),
+            command("/run pause", "Pause the active goal"),
             command("/quit", "Exit Pisper"),
         ]);
         items.retain(|item| {
@@ -2023,7 +2065,7 @@ impl App {
         }
     }
 
-    /// 设置选择器按键处理（模型/思考级别）。
+    /// 设置选择器按键处理（模型/思考级别/审批模式/执行模式）。
     fn handle_settings_picker(&mut self, key: KeyEvent) -> Action {
         let Some(picker) = self.settings_picker else {
             return Action::None;
@@ -2031,6 +2073,8 @@ impl App {
         let count = match picker {
             SettingsPicker::Model => self.model_options.len(),
             SettingsPicker::Thinking => self.thinking_levels().len(),
+            SettingsPicker::Approval => APPROVAL_MODES.len(),
+            SettingsPicker::RunMode => PromptMode::all().len(),
         };
         match key.code {
             KeyCode::Esc => {
@@ -2060,6 +2104,14 @@ impl App {
                         .thinking_levels()
                         .get(self.settings_selected)
                         .map(|level| Action::SetThinkingLevel(level.clone()))
+                        .unwrap_or(Action::None),
+                    SettingsPicker::Approval => APPROVAL_MODES
+                        .get(self.settings_selected)
+                        .map(|(mode, _)| Action::SetExecutionMode((*mode).to_owned()))
+                        .unwrap_or(Action::None),
+                    SettingsPicker::RunMode => PromptMode::all()
+                        .get(self.settings_selected)
+                        .map(|mode| self.set_prompt_mode(*mode))
                         .unwrap_or(Action::None),
                 }
             }
@@ -2269,6 +2321,8 @@ impl App {
                     display_message: Some("/init".to_owned()),
                     requested_tool: None,
                     attachments,
+                    prompt_mode: self.prompt_mode,
+                    goal_token_budget: self.goal_token_budget,
                 };
                 self.clear_input();
                 if self.is_streaming() {
@@ -2399,11 +2453,8 @@ impl App {
                 Action::None
             }
             "/mode" => {
-                self.status = format!(
-                    "mode · {} · use /mode approval-required|workspace-write|full-access",
-                    self.execution_mode
-                );
                 self.clear_input();
+                self.open_settings_picker(SettingsPicker::Approval);
                 Action::None
             }
             _ if execution_mode_command(&message).is_some() => {
@@ -2414,6 +2465,33 @@ impl App {
             _ if message.starts_with("/mode ") => {
                 self.status =
                     "usage · /mode approval-required|workspace-write|full-access".to_owned();
+                self.clear_input();
+                Action::None
+            }
+            "/run" => {
+                self.clear_input();
+                self.open_settings_picker(SettingsPicker::RunMode);
+                Action::None
+            }
+            _ if run_command(&message).is_some() => {
+                self.clear_input();
+                match run_command(&message) {
+                    Some(RunCommand::Switch(mode)) => self.set_prompt_mode(mode),
+                    Some(RunCommand::Budget(tokens)) => {
+                        self.goal_token_budget = tokens;
+                        self.status = match tokens {
+                            Some(tokens) => format!("run budget · {tokens} tokens"),
+                            None => "run budget · off".to_owned(),
+                        };
+                        Action::None
+                    }
+                    Some(RunCommand::Pause) => Action::PauseGoal,
+                    None => Action::None,
+                }
+            }
+            _ if message.starts_with("/run ") => {
+                self.status = "usage · /run plan|goal|team · /run budget <tokens|off> · /run pause"
+                    .to_owned();
                 self.clear_input();
                 Action::None
             }
@@ -2429,6 +2507,8 @@ impl App {
                         display_message: None,
                         requested_tool,
                         attachments,
+                        prompt_mode: self.prompt_mode,
+                        goal_token_budget: self.goal_token_budget,
                     });
                     self.status = format!("{} message(s) queued", self.queued_count());
                     Action::None
@@ -2443,6 +2523,8 @@ impl App {
                     display_message: None,
                     requested_tool,
                     attachments,
+                    prompt_mode: self.prompt_mode,
+                    goal_token_budget: self.goal_token_budget,
                 })
             }
         }
@@ -2483,7 +2565,11 @@ impl App {
             streaming: true,
             ..LiveTurn::default()
         });
-        self.status = "thinking".to_owned();
+        self.status = if prompt.prompt_mode == PromptMode::Plan {
+            "thinking".to_owned()
+        } else {
+            format!("{} mode · thinking", prompt.prompt_mode.label())
+        };
         self.scroll.set(0);
         Action::Submit {
             message: prompt.message,
@@ -2493,6 +2579,8 @@ impl App {
                 .into_iter()
                 .map(|attachment| attachment.path)
                 .collect(),
+            prompt_mode: prompt.prompt_mode,
+            goal_token_budget: prompt.goal_token_budget,
         }
     }
 
@@ -2528,6 +2616,8 @@ impl App {
             display_message: None,
             requested_tool: None,
             attachments: Vec::new(),
+            prompt_mode: self.prompt_mode,
+            goal_token_budget: self.goal_token_budget,
         });
         self.status = format!("{} message(s) queued", self.queued_count());
         self.status_error = false;
@@ -2624,6 +2714,8 @@ impl App {
         self.model = session.model.clone();
         self.cwd = session.cwd.clone();
         self.execution_mode = session.execution_mode.clone();
+        self.goal = None;
+        self.team = None;
         self.thinking_level = session.thinking_level.clone();
         self.thinking_options.clear();
         self.thinking_availability = ThinkingAvailability::Loading;
@@ -2875,6 +2967,33 @@ impl App {
         self.status_error = false;
     }
 
+    /// 审批模式选项（选择器渲染与 /mode 命令共用）。
+    pub fn approval_mode_options(&self) -> &'static [(&'static str, &'static str)] {
+        APPROVAL_MODES
+    }
+
+    /// 切换发送执行模式（plan/goal/team）：只影响下一条消息的提交方式，状态栏给出提示。
+    pub fn set_prompt_mode(&mut self, mode: PromptMode) -> Action {
+        self.prompt_mode = mode;
+        let budget = self
+            .goal_token_budget
+            .map(|tokens| tokens.to_string())
+            .unwrap_or_else(|| "off".to_owned());
+        self.status = match mode {
+            PromptMode::Plan => "run mode · plan".to_owned(),
+            _ => format!("run mode · {} · budget {budget}", mode.as_str()),
+        };
+        self.status_error = false;
+        self.mark_slash_use(&format!("/run {}", mode.as_str()));
+        Action::None
+    }
+
+    /// goal_update 事件或 /live 恢复：goal/team 快照进场，`null` 已在入口处转换为 None。
+    pub fn apply_goal_state(&mut self, goal: Option<Value>, team: Option<Value>) {
+        self.goal = goal;
+        self.team = team;
+    }
+
     /// 应用执行模式变更。
     pub fn set_execution_mode(&mut self, mode: String) {
         self.mark_slash_use(&format!("/mode {mode}"));
@@ -2962,6 +3081,16 @@ impl App {
         if event.name == "session_usage" {
             if let Ok(usage) = serde_json::from_value::<SessionUsage>(event.data) {
                 self.session_usage = usage;
+            }
+            return;
+        }
+        // goal_update 携带 goal/team 快照；键存在但为 null 表示清除（与 Web 端语义一致）。
+        if event.name == "goal_update" {
+            if let Some(goal) = event.data.get("goal") {
+                self.goal = (!goal.is_null()).then(|| goal.clone());
+            }
+            if let Some(team) = event.data.get("team") {
+                self.team = (!team.is_null()).then(|| team.clone());
             }
             return;
         }
@@ -3505,6 +3634,22 @@ fn attachment_kind(path: &Path) -> Option<&'static str> {
     }
 }
 
+/// 审批模式的三个档位与一句话说明（/mode 选择器与直接命令共用）。
+const APPROVAL_MODES: &[(&str, &str)] = &[
+    (
+        "approval-required",
+        "Ask before writes, shell, and high-risk tools",
+    ),
+    (
+        "workspace-write",
+        "Auto-approve workspace edits and routine commands",
+    ),
+    (
+        "full-access",
+        "Allow unrestricted files, network, and shell",
+    ),
+];
+
 /// 解析 `/mode <approval-required|workspace-write|full-access>` 形式的命令，格式非法返回 None。
 fn execution_mode_command(message: &str) -> Option<&str> {
     let mut parts = message.split_whitespace();
@@ -3521,6 +3666,40 @@ fn execution_mode_command(message: &str) -> Option<&str> {
         return None;
     }
     Some(mode)
+}
+
+/// `/run` 命令的解析结果。
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+enum RunCommand {
+    /// 直接切换发送执行模式。
+    Switch(PromptMode),
+    /// 设置或清除 Token 预算（None = 不设上限）。
+    Budget(Option<u64>),
+    /// 暂停活动目标。
+    Pause,
+}
+
+/// 解析 `/run ...` 命令族：模式切换、预算设置与暂停；无法识别时返回 None 交给用法提示。
+fn run_command(message: &str) -> Option<RunCommand> {
+    let mut parts = message.split_whitespace();
+    if parts.next()? != "/run" {
+        return None;
+    }
+    match parts.next()? {
+        "pause" if parts.next().is_none() => Some(RunCommand::Pause),
+        "budget" => match (parts.next(), parts.next()) {
+            // 缺省与 off 都表示清除预算。
+            (None, None) | (Some("off"), None) => Some(RunCommand::Budget(None)),
+            (Some(value), None) => value
+                .parse::<u64>()
+                .ok()
+                .map(|tokens| RunCommand::Budget(Some(tokens))),
+            _ => None,
+        },
+        sub => PromptMode::from_command(sub)
+            .filter(|_| parts.next().is_none())
+            .map(RunCommand::Switch),
+    }
 }
 
 /// 构造一个内置命令 SlashItem。
@@ -3686,8 +3865,9 @@ mod tests {
     };
     use crate::model::{
         ChatMessage, ContextUsage, MessagePage, ModelOption, PageInfo, Plan, PlanCounts, PlanItem,
-        ProviderOption, SessionCwdUpdate, SessionModelUpdate, SessionSummary, StreamEvent,
-        ThinkingAvailability, ThinkingLevelUpdate, ToolDefinition, VcsChanges, VcsFile,
+        PromptMode, ProviderOption, SessionCwdUpdate, SessionModelUpdate, SessionSummary,
+        StreamEvent, ThinkingAvailability, ThinkingLevelUpdate, ToolDefinition, VcsChanges,
+        VcsFile,
     };
     use serde_json::json;
 
@@ -4170,6 +4350,7 @@ mod tests {
                 message,
                 requested_tool: None,
                 attachment_paths,
+                ..
             } if message == INIT_PROMPT && attachment_paths.is_empty()
         ));
         assert_eq!(app.messages.last().unwrap().text, "/init");
@@ -4202,6 +4383,117 @@ mod tests {
 
         assert!(matches!(app.submit_action(), Action::None));
         assert!(app.status.contains("approval-required"));
+    }
+
+    /// 裸 /mode 打开审批模式选择器，/mode <值> 直接切换。
+    #[test]
+    fn bare_mode_command_opens_the_approval_picker() {
+        let mut app = test_app(Vec::new());
+        app.set_input("/mode");
+
+        assert!(matches!(app.submit_action(), Action::None));
+        assert_eq!(app.settings_picker, Some(SettingsPicker::Approval));
+        // 选择器定位到当前模式。
+        assert_eq!(app.settings_selected, 2);
+    }
+
+    /// 裸 /goal 打开执行模式选择器。
+    #[test]
+    fn bare_run_command_opens_the_run_mode_picker() {
+        let mut app = test_app(Vec::new());
+        app.set_input("/run");
+
+        assert!(matches!(app.submit_action(), Action::None));
+        assert_eq!(app.settings_picker, Some(SettingsPicker::RunMode));
+    }
+
+    /// /goal plan|goal|team 直接切换发送执行模式。
+    #[test]
+    fn run_command_switches_the_prompt_mode() {
+        for (command, expected) in [
+            ("/run goal", PromptMode::Goal),
+            ("/run team", PromptMode::Team),
+            ("/run plan", PromptMode::Plan),
+        ] {
+            let mut app = test_app(Vec::new());
+            app.set_input(command);
+
+            assert!(matches!(app.submit_action(), Action::None));
+            assert_eq!(app.prompt_mode, expected);
+        }
+    }
+
+    /// /run budget 设置与清除 Token 预算。
+    #[test]
+    fn run_budget_command_sets_and_clears_the_token_budget() {
+        let mut app = test_app(Vec::new());
+        app.set_input("/run budget 50000");
+        assert!(matches!(app.submit_action(), Action::None));
+        assert_eq!(app.goal_token_budget, Some(50000));
+
+        app.set_input("/run budget off");
+        assert!(matches!(app.submit_action(), Action::None));
+        assert_eq!(app.goal_token_budget, None);
+    }
+
+    /// /goal pause 产出暂停动作，非法子命令回落到用法提示。
+    #[test]
+    fn run_pause_and_invalid_subcommands() {
+        let mut app = test_app(Vec::new());
+        app.set_input("/run pause");
+        assert!(matches!(app.submit_action(), Action::PauseGoal));
+
+        let mut app = test_app(Vec::new());
+        app.set_input("/run sideways");
+        assert!(matches!(app.submit_action(), Action::None));
+        assert!(app.status.contains("usage"));
+    }
+
+    /// Goal/Team 模式随提交传给 Runtime，并携带 Token 预算。
+    #[test]
+    fn prompt_mode_rides_along_with_the_submit_action() {
+        let mut app = test_app(Vec::new());
+        app.set_input("/run team");
+        app.submit_action();
+        app.set_input("/run budget 42000");
+        app.submit_action();
+        app.set_input("build the thing");
+
+        assert!(matches!(
+            app.submit_action(),
+            Action::Submit {
+                prompt_mode: PromptMode::Team,
+                goal_token_budget: Some(42000),
+                ..
+            }
+        ));
+        assert!(app.status.contains("Team mode"));
+    }
+
+    /// goal_update 事件维护 goal/team 快照，null 是清除信号。
+    #[test]
+    fn goal_update_events_apply_and_clear_team_snapshots() {
+        let mut app = test_app(Vec::new());
+        app.apply_stream_event(StreamEvent {
+            name: "goal_update".to_owned(),
+            data: json!({
+                "sessionId": "session-1",
+                "goal": { "id": "goal-1", "mode": "team", "status": "active" },
+                "team": { "objective": "ship it", "taskCount": 3, "completedTaskCount": 1 }
+            }),
+            id: None,
+        });
+        assert_eq!(app.goal.as_ref().unwrap()["mode"], "team");
+        assert_eq!(app.team.as_ref().unwrap()["taskCount"], 3);
+
+        // 缺省键沿用现状；team: null 清除团队面板。
+        app.apply_stream_event(StreamEvent {
+            name: "goal_update".to_owned(),
+            data: json!({ "sessionId": "session-1", "team": null }),
+            id: None,
+        });
+        assert!(app.goal.is_some());
+        assert!(app.team.is_none());
     }
 
     /// 验证 /工具名 命令请求所选运行时工具。

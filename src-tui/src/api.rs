@@ -22,7 +22,7 @@ use url::Url;
 use crate::{
     model::{
         ContextUsage, ExecutionModeUpdate, McpCatalog, MessagePage, ModelOption, PluginCatalog,
-        ProviderConnectionUpdate, ProviderOption, RuntimeEvent, SessionCwdUpdate,
+        PromptMode, ProviderConnectionUpdate, ProviderOption, RuntimeEvent, SessionCwdUpdate,
         SessionModelUpdate, SessionSummary, SessionsResponse, SkillDefinition, SkillsCatalog,
         StreamEvent, ThinkingLevelUpdate, ToolDefinition, VcsChanges,
     },
@@ -41,6 +41,19 @@ pub struct ApiClient {
     token: String,
     client: Client,
     stream_client: Client,
+}
+
+/// 对话请求：一条消息加上附件、请求工具与执行模式（plan/goal/team）。
+#[derive(Debug)]
+pub struct ChatRequest {
+    pub session_id: String,
+    pub workspace: PathBuf,
+    pub message: String,
+    pub requested_tool: Option<String>,
+    pub attachment_paths: Vec<PathBuf>,
+    /// 执行模式与 Goal/Team 的 Token 预算（与 Web 端 Composer 对齐）。
+    pub prompt_mode: PromptMode,
+    pub goal_token_budget: Option<u64>,
 }
 
 impl ApiClient {
@@ -441,6 +454,28 @@ impl ApiClient {
         Ok(response.queued_inputs.len())
     }
 
+    /// 暂停当前会话的活动目标（Goal/Team）。
+    pub async fn pause_goal(&self, session_id: &str) -> Result<Value> {
+        let id = encode_segment(session_id);
+        self.send_json(
+            reqwest::Method::PATCH,
+            &format!("/api/sessions/{id}/goal"),
+            &json!({ "action": "pause" }),
+        )
+        .await
+    }
+
+    /// 拉取会话的 goal/team 快照（会话加载后恢复团队面板状态）。
+    /// /live 返回完整会话负载，这里只取 goal 与 team 两个字段。
+    pub async fn goal_state(&self, session_id: &str) -> Result<(Option<Value>, Option<Value>)> {
+        let id = encode_segment(session_id);
+        let payload: Value = self.get_json(&format!("/api/sessions/{id}/live")).await?;
+        Ok((
+            payload.get("goal").cloned().filter(|v| !v.is_null()),
+            payload.get("team").cloned().filter(|v| !v.is_null()),
+        ))
+    }
+
     /// 中止会话当前运行。
     pub async fn abort(&self, session_id: &str) -> Result<()> {
         let id = encode_segment(session_id);
@@ -479,23 +514,23 @@ impl ApiClient {
     /// `/api/runs/:id/events?after=` 重挂补发（与 Web 端同一套重挂语义）。
     pub async fn stream_chat(
         &self,
-        session_id: String,
-        workspace: PathBuf,
-        message: String,
-        requested_tool: Option<String>,
-        attachment_paths: Vec<PathBuf>,
+        request: ChatRequest,
         sender: mpsc::UnboundedSender<RuntimeEvent>,
     ) -> Result<()> {
-        let attachments = prepare_attachments(&workspace, &attachment_paths).await?;
+        let attachments =
+            prepare_attachments(&request.workspace, &request.attachment_paths).await?;
         let response = self
             .stream_client
             .post(self.url("/api/chat")?)
             .json(&json!({
-                "sessionId": session_id,
-                "message": message,
+                "sessionId": request.session_id,
+                "message": request.message,
                 "attachments": attachments,
-                "goalMode": false,
-                "requestedToolNames": requested_tool.into_iter().collect::<Vec<_>>(),
+                // 执行模式与 Web 端 Composer 对齐：goal 由单 Agent 自主推进，team 组织多 Agent。
+                "goalMode": request.prompt_mode == PromptMode::Goal,
+                "teamMode": request.prompt_mode == PromptMode::Team,
+                "goalTokenBudget": request.goal_token_budget,
+                "requestedToolNames": request.requested_tool.into_iter().collect::<Vec<_>>(),
             }))
             .send()
             .await?;

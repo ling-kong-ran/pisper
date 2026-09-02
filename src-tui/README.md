@@ -8,25 +8,25 @@
 
 | 命令 | 解释 |
 | :--- | :--- |
-| `pisper` | 在当前目录启动 TUI，并创建一个空会话；不会自动恢复历史会话。 |
-| `pisper --cwd <目录>` | 使用指定目录启动 TUI 并创建空会话。 |
+| `pisper` | 在当前目录启动 TUI 并创建空会话；不会自动恢复历史会话。 |
+| `pisper --cwd <目录>` | 以指定目录为工作区启动 TUI 并创建空会话。 |
 | `pisper resume` | 打开跨工作目录的历史会话选择器；没有历史会话时提示后退出。 |
-| `pisper resume --cwd <目录>` | 从指定启动目录进入历史会话选择器；恢复后仍使用会话自身保存的工作目录。 |
-| `pisper doctor` | 检查 Sidecar、Runtime 鉴权、能力目录与最近会话目录，并输出诊断信息。 |
+| `pisper resume --cwd <目录>` | 从指定启动目录进入会话选择器；恢复的会话仍使用其自身保存的工作目录。 |
+| `pisper doctor` | 诊断 TUI、Runtime 连接与能力目录（会话/工具/技能），输出摘要后退出。 |
 | `pisper doctor --cwd <目录>` | 以指定目录作为启动工作区执行诊断。 |
-| `pisper web` | 安装或使用 Web 前端，并在默认浏览器打开本机认证配置页；命令运行期间需保持进程存活。 |
+| `pisper web` | 安装（如缺失）或使用 Web 前端，并在默认浏览器打开本机认证配置页；页面由该命令启动的 Runtime 提供，退出 TUI 后不可用。 |
 | `pisper web --cwd <目录>` | 以指定目录启动 Runtime 并打开 Web 配置页。 |
 | `pisper help [COMMAND]` | 显示全局帮助；`pisper help web` 显示 Web 子命令帮助。 |
 | `pisper -h` / `pisper --help` | 显示命令帮助，不启动 Runtime。 |
 | `pisper -V` / `pisper --version` | 显示已安装的 TUI 版本。 |
 | `pisper update --check` | 检查 npm 安装的 Pisper 是否有更新，不执行安装。 |
-| `pisper update` | 使用当前 npm registry 更新 npm 安装的 Pisper，并重新校验组件。 |
+| `pisper update` | 通过当前 npm registry 更新 npm 安装的 Pisper，并重新校验组件。 |
 
 ## 环境变量
 
 | 变量 | 解释 |
 | :--- | :--- |
-| `PISPER_TUI_MOUSE=1` | 启用鼠标滚轮滚动聊天记录；注意鼠标捕获会接管终端原生文本选择。 |
+| `PISPER_TUI_MOUSE=1` | 启用鼠标滚轮滚动聊天记录；鼠标捕获会接管终端原生文本选择。 |
 | `PISPER_TUI_REDUCED_MOTION=1` | 关闭打字机逐字显现与状态动画（流式文本立即完整显示），适合低配终端与 SSH 会话。 |
 
 ## Slash Command
@@ -47,10 +47,16 @@
 | `/web` | 使用已安装的 Web 前端，在默认浏览器打开本机认证配置页。 |
 | `/compact` | 立即摘要较早上下文；仅适用于有足够历史且当前空闲的会话。 |
 | `/attach` | 打开当前会话目录的附件选择器。 |
-| `/mode` | 显示当前执行模式及可用值；Agent 运行期间也可调整。 |
+| `/mode` | 打开审批模式选择器；Agent 运行期间不可打开，此时可改用 `/mode <模式>` 直接切换。 |
 | `/mode approval-required` | 写入、Shell 和高风险工具执行前请求授权。 |
 | `/mode workspace-write` | 自动批准工作区修改和常规命令。 |
 | `/mode full-access` | 允许以当前系统用户权限访问本机文件、网络与 Shell。 |
+| `/run` | 打开运行模式选择器（plan / goal / team）；Agent 运行期间不可打开。 |
+| `/run plan` | 计划模式（默认）：按计划推进当前消息，完成本轮后等待下一条指令。 |
+| `/run goal` | 目标模式：单个 Agent 围绕目标持续自主推进，直到完成或暂停。 |
+| `/run team` | 团队模式：主 Agent 动态组织多个子 Agent 分工协同。 |
+| `/run budget <tokens>` | 设置 Goal/Team 的 Token 预算，`off` 或缺省清除，随消息一起提交。 |
+| `/run pause` | 暂停当前会话的活动目标。 |
 | `/quit` | 退出 TUI。 |
 
 ## Tool 与 Skill 命令

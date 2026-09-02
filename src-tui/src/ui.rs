@@ -21,8 +21,8 @@ use unicode_width::{UnicodeWidthChar, UnicodeWidthStr};
 use crate::{
     app::{App, Approval, LiveTurn, SettingsPicker, SlashCategory, SlashKind, View},
     model::{
-        ChatMessage, ImageThumbnail, MessageAttachment, RunActivity, ThinkingAvailability,
-        ToolActivity, PROVIDER_APIS,
+        ChatMessage, ImageThumbnail, MessageAttachment, PromptMode, RunActivity,
+        ThinkingAvailability, ToolActivity, PROVIDER_APIS,
     },
 };
 
@@ -277,16 +277,23 @@ fn draw_content(frame: &mut Frame, app: &App, area: Rect) {
     }
 
     let composer_height = composer_height(area);
-    let plan_height = if matches!(app.view, View::Chat) {
+    // Goal/Team 面板与计划面板共用同一槽位：目标在时优先展示目标。
+    let goal_height = if matches!(app.view, View::Chat) {
+        goal_panel_height(app, area)
+    } else {
+        0
+    };
+    let plan_height = if goal_height == 0 && matches!(app.view, View::Chat) {
         plan_panel_height(app, area)
     } else {
         0
     };
+    let panel_height = goal_height.max(plan_height);
     let chunks = Layout::default()
         .direction(Direction::Vertical)
         .constraints([
             Constraint::Min(3),
-            Constraint::Length(plan_height),
+            Constraint::Length(panel_height),
             Constraint::Length(1),
             Constraint::Length(composer_height),
             Constraint::Length(1),
@@ -301,7 +308,9 @@ fn draw_content(frame: &mut Frame, app: &App, area: Rect) {
         View::Chat => render_chat(frame, app, chunks[0]),
         View::Changes => render_changes(frame, app, chunks[0]),
     }
-    if plan.height > 0 {
+    if goal_height > 0 {
+        render_goal_panel(frame, app, plan);
+    } else if plan.height > 0 {
         render_plan(frame, app, plan);
     }
     render_run_state(frame, app, run_state);
@@ -679,6 +688,131 @@ fn render_plan(frame: &mut Frame, app: &App, area: Rect) {
             ),
             Span::raw(" ".repeat(gap)),
             Span::styled(metadata, Style::default().fg(FAINT)),
+        ]));
+    }
+    frame.render_widget(Paragraph::new(lines).style(Style::default().bg(BG)), inner);
+}
+
+/// Goal/Team 面板高度：无目标时收起；纯 Goal 只留目标一行，
+/// Team 按任务数占行（沿用计划面板的高度档位）。与计划面板共用同一槽位，目标优先。
+fn goal_panel_height(app: &App, area: Rect) -> u16 {
+    if app.team.is_none() && app.goal.is_none() {
+        return 0;
+    }
+    if area.height < 12 {
+        return 0;
+    }
+    let Some(team) = &app.team else {
+        return 2;
+    };
+    if area.width < 64 {
+        return 2;
+    }
+    let task_count = team["tasks"].as_array().map(Vec::len).unwrap_or(0);
+    let maximum_items = if area.height >= 36 { 5 } else { 3 };
+    1 + (task_count.min(maximum_items) as u16).max(1)
+}
+
+/// 渲染 Goal/Team 面板：标题行带进度、Token 预算与状态；任务行按状态着色，
+/// 进行中的任务排在前面，避免已完成任务把面板顶满。
+fn render_goal_panel(frame: &mut Frame, app: &App, area: Rect) {
+    if area.height < 2 {
+        return;
+    }
+    let goal = app.goal.as_ref();
+    let team = app.team.as_ref();
+    let status = goal
+        .and_then(|goal| goal["status"].as_str())
+        .or_else(|| team.and_then(|team| team["status"].as_str()))
+        .unwrap_or("active");
+    let used = team
+        .and_then(|team| team["tokenUsed"].as_u64())
+        .or_else(|| goal.and_then(|goal| goal["tokensUsed"].as_u64()))
+        .unwrap_or(0);
+    let budget = team
+        .and_then(|team| team["tokenBudget"].as_u64())
+        .or_else(|| goal.and_then(|goal| goal["teamTokenBudget"].as_u64()))
+        .or_else(|| goal.and_then(|goal| goal["tokenBudget"].as_u64()));
+    let tokens = match budget {
+        Some(budget) if budget > 0 => format!(
+            "{}/{} tok",
+            compact_token_count(used),
+            compact_token_count(budget)
+        ),
+        _ => format!("{} tok", compact_token_count(used)),
+    };
+    let title = if let Some(team) = team {
+        let completed = team["completedTaskCount"].as_u64().unwrap_or(0);
+        let total = team["taskCount"].as_u64().unwrap_or(0);
+        format!(" Team  {completed}/{total}  ·  {tokens}  ·  {status} ")
+    } else {
+        format!(" Goal  ·  {tokens}  ·  {status} ")
+    };
+    let block = Block::default()
+        .title(Span::styled(
+            title,
+            Style::default().fg(VIOLET).add_modifier(Modifier::BOLD),
+        ))
+        .borders(Borders::TOP)
+        .border_style(Style::default().fg(RULE));
+    let inner = block.inner(area);
+    frame.render_widget(block, area);
+
+    let mut lines = Vec::new();
+    if let Some(team) = team {
+        let tasks = team["tasks"].as_array().cloned().unwrap_or_default();
+        // 进行中排前、已完成沉底，面板窗口内始终看得到活的部分。
+        let mut ordered: Vec<&Value> = tasks
+            .iter()
+            .filter(|task| task["status"].as_str() != Some("completed"))
+            .collect();
+        ordered.extend(
+            tasks
+                .iter()
+                .filter(|task| task["status"].as_str() == Some("completed")),
+        );
+        let maximum_items = area.height.saturating_sub(1) as usize;
+        for task in ordered.into_iter().take(maximum_items) {
+            let task_status = task["status"].as_str().unwrap_or("queued");
+            let (symbol, color) = match task_status {
+                "completed" => ("✓", GREEN),
+                "running" => ("●", ACCENT),
+                "starting" => ("●", AMBER),
+                "failed" => ("×", RED),
+                "blocked" | "interrupted" => ("!", AMBER),
+                _ => ("○", MUTED),
+            };
+            let name = task["taskName"].as_str().unwrap_or("task");
+            let role = task["role"].as_str().unwrap_or("");
+            let detail = task["error"]
+                .as_str()
+                .or_else(|| task["blockedReason"].as_str())
+                .filter(|value| !value.is_empty())
+                .map(|value| format!(" · {value}"))
+                .unwrap_or_default();
+            let metadata = if role.is_empty() {
+                format!("{task_status}{detail}")
+            } else {
+                format!("{role} · {task_status}{detail}")
+            };
+            let prefix = format!(" {symbol} ");
+            let available = inner.width.saturating_sub(prefix.width() as u16) as usize;
+            let title_budget = available.saturating_sub(metadata.width().saturating_add(2));
+            lines.push(Line::from(vec![
+                Span::styled(prefix, Style::default().fg(color)),
+                Span::styled(single_line(name, title_budget), Style::default().fg(TEXT)),
+                Span::styled(format!("  {metadata}"), Style::default().fg(FAINT)),
+            ]));
+        }
+    } else if let Some(goal) = goal {
+        // 纯 Goal：一行目标摘要。
+        let objective = goal["objective"].as_str().unwrap_or("");
+        lines.push(Line::from(vec![
+            Span::styled(" ◎ ", Style::default().fg(ACCENT)),
+            Span::styled(
+                single_line(objective, inner.width.saturating_sub(3) as usize),
+                Style::default().fg(TEXT),
+            ),
         ]));
     }
     frame.render_widget(Paragraph::new(lines).style(Style::default().bg(BG)), inner);
@@ -2308,6 +2442,14 @@ fn render_status(frame: &mut Frame, app: &App, area: Rect) {
         format!("[{}]", display_execution_mode(&app.execution_mode)),
         Style::default().fg(MUTED),
     ));
+    // 非 Plan 的发送执行模式在状态栏点亮，提交前一眼可见。
+    if app.prompt_mode != PromptMode::Plan {
+        spans.push(Span::raw("  "));
+        spans.push(Span::styled(
+            format!("[{}]", app.prompt_mode.label().to_lowercase()),
+            Style::default().fg(VIOLET).add_modifier(Modifier::BOLD),
+        ));
+    }
     spans.push(Span::raw("  "));
     spans.push(Span::styled(
         display_model(&app.model).to_owned(),
@@ -2894,6 +3036,8 @@ fn render_settings_picker(frame: &mut Frame, app: &App, area: Rect) {
     let title = match picker {
         SettingsPicker::Model => " Switch model ",
         SettingsPicker::Thinking => " Thinking level ",
+        SettingsPicker::Approval => " Approval mode ",
+        SettingsPicker::RunMode => " Run mode ",
     };
     let block = Block::default()
         .title(Span::styled(
@@ -2981,10 +3125,57 @@ fn render_settings_picker(frame: &mut Frame, app: &App, area: Rect) {
                 ]))
             })
             .collect(),
+        SettingsPicker::Approval => app
+            .approval_mode_options()
+            .iter()
+            .map(|(mode, detail)| {
+                ListItem::new(Line::from(vec![
+                    Span::styled(
+                        if *mode == app.execution_mode {
+                            " ● "
+                        } else {
+                            "   "
+                        },
+                        Style::default().fg(GREEN),
+                    ),
+                    Span::styled(format!("{mode:<18}"), Style::default().fg(TEXT)),
+                    Span::styled(*detail, Style::default().fg(MUTED)),
+                ]))
+            })
+            .collect(),
+        SettingsPicker::RunMode => PromptMode::all()
+            .iter()
+            .map(|mode| {
+                let budget = match (*mode, app.goal_token_budget) {
+                    (PromptMode::Plan, _) | (_, None) => String::new(),
+                    (_, Some(tokens)) => format!("  ·  budget {tokens}"),
+                };
+                ListItem::new(Line::from(vec![
+                    Span::styled(
+                        if *mode == app.prompt_mode {
+                            " ● "
+                        } else {
+                            "   "
+                        },
+                        Style::default().fg(GREEN),
+                    ),
+                    Span::styled(
+                        format!("{:<6}", mode.label()),
+                        Style::default().fg(TEXT).add_modifier(Modifier::BOLD),
+                    ),
+                    Span::styled(
+                        format!("{}{budget}", mode.description()),
+                        Style::default().fg(MUTED),
+                    ),
+                ]))
+            })
+            .collect(),
     };
     let count = match picker {
         SettingsPicker::Model => app.model_options.len(),
         SettingsPicker::Thinking => app.thinking_levels().len(),
+        SettingsPicker::Approval => app.approval_mode_options().len(),
+        SettingsPicker::RunMode => PromptMode::all().len(),
     };
     let list = List::new(rows)
         .block(
@@ -3652,9 +3843,10 @@ mod tests {
         app::{App, Approval, AttachmentDraft, LiveTurn, PathEntry, SettingsPicker},
         model::{
             ChatMessage, MessagePage, ModelOption, PageInfo, Plan, PlanCounts, PlanItem,
-            ProviderOption, SessionSummary, ThinkingLevelUpdate, ToolActivity,
+            PromptMode, ProviderOption, SessionSummary, ThinkingLevelUpdate, ToolActivity,
         },
     };
+    use serde_json::json;
 
     /// 把整帧 buffer 展平为纯文本（按行序拼接所有 cell），供整屏断言。
     fn buffer_text(buffer: &ratatui::buffer::Buffer) -> String {
@@ -5096,6 +5288,98 @@ mod tests {
             assert!(!cleared.contains("Plan 1/1"));
             assert!(cleared.contains("Message Pisper"));
         }
+    }
+
+    /// 团队面板：标题带任务进度与 Token 预算，任务按状态着色，且在计划面板之前占位。
+    #[test]
+    fn goal_panel_shows_team_progress_and_supersedes_the_plan_panel() {
+        let mut app = live_test_app("complete", LiveTurn::default());
+        app.set_plan(Some(Plan {
+            items: vec![PlanItem {
+                id: "p1".to_owned(),
+                title: "Plan row hidden".to_owned(),
+                status: "in_progress".to_owned(),
+                ..PlanItem::default()
+            }],
+            ..Plan::default()
+        }));
+        app.apply_goal_state(
+            Some(json!({
+                "id": "goal-1",
+                "mode": "team",
+                "status": "active",
+                "objective": "Ship the carousel",
+                "tokensUsed": 12_400,
+                "teamTokenBudget": 50_000
+            })),
+            Some(json!({
+                "objective": "Ship the carousel",
+                "status": "active",
+                "tokenUsed": 12_400,
+                "tokenBudget": 50_000,
+                "completedTaskCount": 1,
+                "taskCount": 3,
+                "tasks": [
+                    { "taskName": "explore-codebase", "role": "scout", "status": "completed" },
+                    { "taskName": "implement-carousel", "role": "builder", "status": "running" },
+                    { "taskName": "write-tests", "role": "tester", "status": "queued" }
+                ]
+            })),
+        );
+
+        let buffer = render_test_buffer(&app, 120, 40);
+        let text = buffer_text(&buffer);
+        assert!(
+            text.contains("Team  1/3"),
+            "team progress title missing: {text}"
+        );
+        assert!(
+            text.contains("12.4K/50K tok"),
+            "token budget missing: {text}"
+        );
+        assert!(text.contains("implement-carousel"));
+        assert!(text.contains("builder · running"));
+        assert!(text.contains("write-tests"));
+        // 团队面板优先于计划面板。
+        assert!(!text.contains("Plan row hidden"));
+
+        // 纯 Goal（无团队）：面板只留目标一行。
+        let mut app = live_test_app("complete", LiveTurn::default());
+        app.apply_goal_state(
+            Some(json!({
+                "id": "goal-2",
+                "mode": "goal",
+                "status": "paused",
+                "objective": "Polish the header",
+                "tokensUsed": 2_048
+            })),
+            None,
+        );
+        let buffer = render_test_buffer(&app, 120, 40);
+        let text = buffer_text(&buffer);
+        assert!(
+            text.contains("Goal  ·  2K tok  ·  paused"),
+            "goal title missing: {text}"
+        );
+        assert!(text.contains("Polish the header"));
+
+        // 无目标：面板完全收起。
+        let app = live_test_app("complete", LiveTurn::default());
+        let buffer = render_test_buffer(&app, 120, 40);
+        assert!(!buffer_text(&buffer).contains("Team  "));
+    }
+
+    /// 状态栏在非 Plan 模式下点亮执行模式指示。
+    #[test]
+    fn status_bar_marks_non_plan_prompt_modes() {
+        let mut app = live_test_app("complete", LiveTurn::default());
+        app.set_prompt_mode(PromptMode::Team);
+        let buffer = render_test_buffer(&app, 120, 40);
+        assert!(buffer_text(&buffer).contains("[team]"));
+
+        let app = live_test_app("complete", LiveTurn::default());
+        let buffer = render_test_buffer(&app, 120, 40);
+        assert!(!buffer_text(&buffer).contains("[team]"));
     }
 
     /// 验证空会话居中展示品牌且输入框轨道开放。
