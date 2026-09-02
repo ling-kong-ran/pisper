@@ -146,6 +146,14 @@ When a detected component is **Runtime** or **TUI**, `npm run release` automatic
 - TUI user-facing docs: `src-tui/README.md` / `README.en.md`. TUI versions advance only through the scoped release script; do not synchronize them to desktop or runtime versions.
 - When adding or changing a TUI top-level command, subcommand, option, or Slash command, update the corresponding `--help`/command help text and its coverage in the same change.
 
+## Team mode（agents）
+
+Team sessions with subagents follow `docs/team-mode-playbook.md`. Three non-negotiable rules:
+
+- Tiered verification: subagents run only targeted tests for their whitelisted files (`npx tsx --test runtime/tests/<file>.test.mjs`); full `npm test` / `npm run check` / `npm run build` belong to the lead's integration phase. Two failed runs of the same command without progress must be escalated, never looped.
+- Guard redlines: source-guard tests in `runtime/tests/*.test.mjs` (`readFile` + `assert.match`) are read-only. Refactoring spawn messages must attach the guard list (`node scripts/list-source-guards.mjs`); stale assertions are reported to the lead, never edited by subagents.
+- Takeover protocol: wrap-up message → one ~30s wait → observe file mtime/output → interrupt → lead takeover. Assume the workspace is mid-state after any interrupt; repair via the playbook SOP and finish leftover work by respawning, not by messaging the interrupted agent.
+
 ## Verification expectations
 
 1. For TypeScript/UI work: `npm run check` (or at least `typecheck` + `lint` + `i18n:check` when touching strings).

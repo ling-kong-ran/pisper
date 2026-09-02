@@ -1024,12 +1024,19 @@ export class TeamWorkflowService {
       }
     const tasks = Object.values(team.tasks)
     const incomplete = tasks.filter((task) => task.status !== 'completed')
-    if (incomplete.length)
-      return {
-        ok: false,
-        reason: `Team 仍有未完成工作流：${incomplete.map((task) => `${task.taskName} (${task.status})`).join(', ')}。`,
-        team: publicTeam(team),
-      }
+    if (incomplete.length) {
+      // 区分「仍在跑的任务」与「已终态但未完成的任务」：后者给出恢复路径，
+      // 避免 lead 面对中断/失败任务时只能靠重新 spawn 占位才能解锁目标。
+      const activeTasks = incomplete.filter((task) => !TERMINAL_TEAM_TASK_STATUSES.has(task.status))
+      const terminalTasks = incomplete.filter((task) =>
+        TERMINAL_TEAM_TASK_STATUSES.has(task.status),
+      )
+      const name = (task) => `${task.taskName} (${task.status})`
+      const reason = activeTasks.length
+        ? `Team 仍有未完成工作流：${activeTasks.map(name).join(', ')}。`
+        : `Team 仍有未完成工作流：${terminalTasks.map(name).join(', ')}。可用 followup_task 继续，或用 spawn_agent 以相同 taskName 重启收尾。`
+      return { ok: false, reason, team: publicTeam(team) }
+    }
     const missingEvidence = tasks.filter(
       (task) => task.status === 'completed' && !String(task.output || '').trim(),
     )

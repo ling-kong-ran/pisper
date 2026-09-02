@@ -119,8 +119,14 @@ function compactAgent(agent) {
   const elapsed = Number.isFinite(agent.durationMs)
     ? `, ${(agent.durationMs / 1000).toFixed(1)}s`
     : ''
+  // 活跃状态的 Agent 附带距上次活动的空闲时长，让 lead 能区分「在干活」与「已卡死」。
+  let idle = ''
+  if (['queued', 'starting', 'running'].includes(agent.status) && agent.lastActivityAt) {
+    const idleMs = Date.now() - new Date(agent.lastActivityAt).getTime()
+    if (Number.isFinite(idleMs) && idleMs >= 30_000) idle = `, idle ${(idleMs / 1000).toFixed(0)}s`
+  }
   const output = agent.output ? `\n${agent.output}` : agent.error ? `\nError: ${agent.error}` : ''
-  return `${agent.canonicalName} · ${agent.status}${elapsed}${output}`
+  return `${agent.canonicalName} · ${agent.status}${elapsed}${idle}${output}`
 }
 
 function compactAgents(agents) {
@@ -317,7 +323,12 @@ function createInterruptAgentTool({ multiAgentRuntime }) {
     }),
     async execute(_toolCallId, params) {
       const agent = await requireRuntime(multiAgentRuntime, 'interrupt')(params.target)
-      return { ...text(`${agent.canonicalName} is ${agent.status}.`), details: agent }
+      // 中断可能恰好落在多文件编辑中间，提醒调用方先验证工作区再决定接管方式。
+      const caution =
+        agent.status === 'interrupted'
+          ? ' Its workspace may hold partial multi-file edits; verify compilation and tests before continuing, and finish leftover work by respawning instead of messaging this Agent.'
+          : ''
+      return { ...text(`${agent.canonicalName} is ${agent.status}.${caution}`), details: agent }
     },
   })
 }

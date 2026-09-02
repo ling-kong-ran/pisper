@@ -1133,7 +1133,10 @@ export class MultiAgentService {
         return publicRecord(record)
       }
       if (!record.session)
-        throw new Error('Agent context expired from memory. Spawn a new Agent for another task.')
+        // 上下文已随终态清理：给出可操作的恢复路径，避免调用方卡在死胡同。
+        throw new Error(
+          'Agent context expired from memory. Spawn a new Agent with the same taskName to continue this task.',
+        )
       record.aborted = false
       record.abortReason = ''
       record.startedAt = new Date(this.now()).toISOString()
