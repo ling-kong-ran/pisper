@@ -370,6 +370,16 @@ export function shouldAttachTeamSnapshot({ goalMode = false, teamMode = false, g
   return Boolean(goalMode || teamMode || goal?.status === 'active')
 }
 
+// 会话列表投影守卫：团队记录只跟随仍活跃的目标投影给客户端。
+// 已完成/取消目标的团队属于当时的运行轮次，若随列表回灌，
+// 刷新或重新同步后会残留「团队已完成」面板。
+export function projectStoredTeam(goal, team) {
+  if (!team) return null
+  if (!goal) return null
+  if (goal.status === 'complete' || goal.status === 'cancelled') return null
+  return team
+}
+
 function interruptActiveTasks(team, now = Date.now()) {
   let changed = false
   for (const task of Object.values(team?.tasks || {})) {

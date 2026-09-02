@@ -9,6 +9,7 @@ import {
   permissionModeForExecutionMode,
 } from '../security/execution-mode.mjs'
 import { isCompletedTurnBoundaryMessage } from './session-derivation.mjs'
+import { projectStoredTeam } from '../services/team-workflow.mjs'
 import {
   appendTreePosition,
   findPendingTreePosition,
@@ -314,7 +315,8 @@ export class SessionLifecycle {
       runMode: sessionMeta[id]?.runMode || DEFAULT_COMPOSER_RUN_MODE,
       goal: goals.get(id),
       plan: plans.get(id),
-      team: teamWorkflows.get(id),
+      // 团队快照只跟随仍活跃的目标投影；已完成目标的团队不回灌到列表。
+      team: projectStoredTeam(goals.get(id), teamWorkflows.get(id)),
       agents: multiAgents
         .summaries(id)
         .filter((agent) => ['queued', 'starting', 'running'].includes(agent.status)),

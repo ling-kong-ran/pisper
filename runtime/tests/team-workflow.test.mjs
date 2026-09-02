@@ -6,6 +6,7 @@ import test from 'node:test'
 import { createMultiAgentRuntime } from '../runtime/multi-agent-runtime-adapter.mjs'
 import {
   compactTeamProjection,
+  projectStoredTeam,
   shouldAttachTeamSnapshot,
   TEAM_TASK_LEASE_MS,
   TeamWorkflowService,
@@ -940,4 +941,18 @@ test('shouldAttachTeamSnapshot keeps team panels only for team turns or active g
     false,
   )
   assert.equal(shouldAttachTeamSnapshot({ goalMode: false, teamMode: false }), false)
+})
+
+test('projectStoredTeam hides completed or cancelled team snapshots from session listings', () => {
+  const team = { sessionId: 'session-1', status: 'complete' }
+  // 已完成/取消目标的团队不随会话列表回灌，
+  // 避免刷新或重新同步后残留「团队已完成」面板。
+  assert.equal(projectStoredTeam({ status: 'complete' }, team), null)
+  assert.equal(projectStoredTeam({ status: 'cancelled' }, team), null)
+  // 仍活跃的目标（active/paused 等）继续投影，恢复面板不丢。
+  assert.equal(projectStoredTeam({ status: 'active' }, team), team)
+  assert.equal(projectStoredTeam({ status: 'paused' }, team), team)
+  // 无目标或无团队记录时直接不投影。
+  assert.equal(projectStoredTeam(null, team), null)
+  assert.equal(projectStoredTeam({ status: 'active' }, null), null)
 })

@@ -50,3 +50,35 @@ test('session listing projects the persisted run mode with plan fallback', async
   // 未设置过的会话回退默认 plan。
   assert.equal(sessions.find((session) => session.id === 'session-2').runMode, 'plan')
 })
+
+// 回归：团队目标完成后，会话列表不得再把团队快照回灌给客户端；
+// 否则刷新或重新同步后「团队已完成」面板一直残留。
+test('session listing stops projecting team snapshots once the goal is complete', async (t) => {
+  const directory = await mkdtemp(join(tmpdir(), 'pisper-run-mode-team-'))
+  t.after(() => rm(directory, { recursive: true, force: true }))
+  const runtime = new AgentRuntimeService({ cwd: directory, dataDir: directory })
+  await runtime.goals.init()
+  runtime.settingsManager = { getGlobalSettings: () => ({}) }
+  await mkdir(runtime.sessionDir, { recursive: true })
+  await writeFile(
+    join(runtime.sessionDir, '2026-01-01T00-00-00-000Z_session-1.jsonl'),
+    `${JSON.stringify({ type: 'session', id: 'session-1', version: 3, timestamp: new Date().toISOString() })}\n`,
+  )
+  const stamp = new Date().toISOString()
+  await runtime.teamWorkflows.ensure('session-1', { objective: '团队目标' })
+  runtime.goals.state.goals['session-1'] = {
+    id: 'session-1',
+    status: 'active',
+    mode: 'team',
+    objective: '团队目标',
+    createdAt: stamp,
+    updatedAt: stamp,
+  }
+  // 目标仍 active：团队照常投影。
+  let sessions = await runtime.listSessions()
+  assert.ok(sessions.find((session) => session.id === 'session-1').team)
+  // 目标完成后：列表投影变为 null 清除信号，面板不再残留。
+  runtime.goals.state.goals['session-1'].status = 'complete'
+  sessions = await runtime.listSessions()
+  assert.equal(sessions.find((session) => session.id === 'session-1').team, null)
+})
