@@ -1226,6 +1226,7 @@ export class StreamProjection {
       cwd: active?.cwd || meta[id]?.cwd || persisted?.cwd || this.cwd,
       permissionMode: meta[id]?.permissionMode || permissionModeForExecutionMode(executionMode),
       executionMode,
+      runMode: meta[id]?.runMode || 'plan',
       goal: live?.goal ?? this.goals.get(id),
       plan: live?.plan ?? this.plans.get(id),
       team: live?.team ?? this.teamWorkflows.get(id),

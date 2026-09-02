@@ -100,6 +100,7 @@ export type SessionState = EntityRecord & {
   plan: Plan | null
   team: EntityRecord | null
   executionMode: string | null
+  runMode: string | null
   contextUsage: EntityRecord | null
   sessionUsage: EntityRecord | null
   promptCache: EntityRecord | null

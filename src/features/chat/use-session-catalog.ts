@@ -161,6 +161,7 @@ export function useSessionCatalog({ notify }: SessionCatalogOptions) {
             queuedInputs: [],
             permissionMode: created.permissionMode || 'ask',
             executionMode: created.executionMode || 'approval-required',
+            runMode: created.runMode || 'plan',
             goal: created.goal || null,
             plan: planFromPayloadOr(created, null),
             contextUsage: created.contextUsage || null,

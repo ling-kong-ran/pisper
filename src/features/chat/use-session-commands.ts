@@ -345,6 +345,27 @@ export function useSessionCommands({
     [notify, requestConfirm, t, updateSessionState, updateSessionSummary],
   )
 
+  // 切换 Composer 运行模式（plan/goal/team）：持久化到会话元数据，刷新后保留。
+  const switchSessionRunMode = useCallback(
+    async (sessionId: string, runMode: string) => {
+      if (!sessionId) return false
+      try {
+        const updated = await chatApi.updateRunMode(sessionId, runMode)
+        const nextRunMode = String(updated.runMode || runMode)
+        updateSessionState(sessionId, { runMode: nextRunMode })
+        updateSessionSummary(sessionId, (session) => ({
+          ...session,
+          runMode: nextRunMode,
+        }))
+        return true
+      } catch (error) {
+        updateSessionState(sessionId, { error: chatErrorMessage(error) })
+        return false
+      }
+    },
+    [updateSessionState, updateSessionSummary],
+  )
+
   // 处理工具审批：先本地移除待审批项（快速反馈），再 POST 结果；
   // 已在别处处理（404）时同步实时状态并提示。
   const resolveToolApproval = useCallback(
@@ -460,6 +481,7 @@ export function useSessionCommands({
     switchSessionModel,
     switchSessionThinkingLevel,
     switchSessionExecutionMode,
+    switchSessionRunMode,
     resolveToolApproval,
   }
 }

@@ -55,6 +55,7 @@ export type ChatDockContextValue = {
   loadSessionThinkingLevel: (sessionId: string) => Promise<void>
   switchSessionThinkingLevel: (sessionId: string, level: string) => Promise<void>
   switchSessionExecutionMode: (sessionId: string, mode: string) => Promise<boolean>
+  switchSessionRunMode: (sessionId: string, mode: string) => Promise<boolean>
   resolveToolApproval: (sessionId: string, approvalId: string, approved: boolean) => Promise<void>
   selectSessionWorkspace: (session: SessionSummary) => Promise<void>
   renameSession: (session: SessionSummary) => Promise<void>

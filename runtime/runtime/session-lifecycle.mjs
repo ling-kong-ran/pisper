@@ -18,6 +18,9 @@ import {
 } from './session-tree.mjs'
 
 const DEFAULT_SESSION_NAME = '新会话'
+// Composer 运行模式（plan/goal/team）：会话级偏好，随 sessionMeta 持久化。
+const COMPOSER_RUN_MODES = new Set(['plan', 'goal', 'team'])
+export const DEFAULT_COMPOSER_RUN_MODE = 'plan'
 const MAX_RESIDENT_SESSION_RUNTIMES = 3
 const SESSION_RUNTIME_IDLE_TTL_MS = 5 * 60 * 1000
 const SESSION_HISTORY_CACHE_MEMORY_MULTIPLIER = 4
@@ -308,6 +311,7 @@ export class SessionLifecycle {
         sessionMeta[id]?.permissionMode ||
         permissionModeForExecutionMode(this.getExecutionMode(id)),
       executionMode: this.getExecutionMode(id),
+      runMode: sessionMeta[id]?.runMode || DEFAULT_COMPOSER_RUN_MODE,
       goal: goals.get(id),
       plan: plans.get(id),
       team: teamWorkflows.get(id),
@@ -855,6 +859,7 @@ export class SessionLifecycle {
         cwd: sourceMeta.cwd || active?.cwd || info?.cwd || manager.getCwd() || this.cwd,
         executionMode,
         permissionMode: sourceMeta.permissionMode || permissionModeForExecutionMode(executionMode),
+        runMode: sourceMeta.runMode || DEFAULT_COMPOSER_RUN_MODE,
         ...(model ? { model } : {}),
         thinkingLevel:
           context.thinkingLevel ||
@@ -919,6 +924,7 @@ export class SessionLifecycle {
       streaming: false,
       permissionMode: sessionMeta[derivedId].permissionMode,
       executionMode: sessionMeta[derivedId].executionMode,
+      runMode: sessionMeta[derivedId].runMode || DEFAULT_COMPOSER_RUN_MODE,
       goal: null,
       plan: null,
       agents: [],
@@ -1036,6 +1042,24 @@ export class SessionLifecycle {
     )
     this.invalidateProjection(id, { transcript: false, activity: true, usage: false })
     return { id, executionMode, permissionMode }
+  }
+
+  // 切换 Composer 运行模式（plan/goal/team）：仅持久化会话级偏好，
+  // 不影响运行中的工具集与权限，下一条消息按新模式发送。
+  async setSessionRunMode(id, mode) {
+    const runMode = String(mode || '')
+    if (!COMPOSER_RUN_MODES.has(runMode)) throw new Error('运行模式无效。')
+    if (
+      !this.sessions.has(id) &&
+      !this.pendingSessions.has(id) &&
+      !(await this.findSessionInfo(id))
+    )
+      return null
+    const sessionMeta = this.getSessionMeta()
+    sessionMeta[id] = { ...(sessionMeta[id] || {}), runMode }
+    await this.saveSessionMeta()
+    this.invalidateProjection(id, { transcript: false, activity: true, usage: false })
+    return { id, runMode }
   }
 
   // 切换会话工作目录：重建会话运行时（新 cwd 的工具/资源），保留原模型。

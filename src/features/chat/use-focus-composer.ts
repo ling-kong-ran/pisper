@@ -3,13 +3,24 @@
 // 从 FocusSession.tsx 拆出：行为与原先逐行一致，仅改变代码所在位置。
 import { useEffect, useRef, useState, type FormEvent, type RefObject } from 'react'
 import type { ChatAttachment, EntityRecord, ResourceInvocation } from '@/types/chat'
+import type { ComposerExecutionMode } from './GoalModeControl'
 
 type ComposerSelection = {
   attachments: ChatAttachment[]
 }
 
+const COMPOSER_RUN_MODES: ComposerExecutionMode[] = ['plan', 'goal', 'team']
+
+// 会话级持久化的运行模式快照可能缺失或非法，统一归一到 plan 默认值。
+function normalizeComposerRunMode(value: string | null | undefined): ComposerExecutionMode {
+  return COMPOSER_RUN_MODES.includes(value as ComposerExecutionMode)
+    ? (value as ComposerExecutionMode)
+    : 'plan'
+}
+
 export function useFocusComposer({
   sessionId,
+  runMode,
   goalsAvailable,
   teamAvailable,
   workflowsAvailable,
@@ -28,6 +39,7 @@ export function useFocusComposer({
   requestTranscriptBottom,
 }: {
   sessionId: string
+  runMode?: string | null
   goalsAvailable: boolean
   teamAvailable: boolean
   workflowsAvailable: boolean
@@ -56,9 +68,12 @@ export function useFocusComposer({
   setToolsOpen: (open: boolean) => void
   requestTranscriptBottom: () => void
 }) {
-  const [composerExecutionMode, setComposerExecutionMode] = useState<'plan' | 'goal' | 'team'>(
-    'plan',
+  // 运行模式是会话级持久化偏好：初始化与切换会话时都从快照恢复，而不是固定回 plan。
+  const [composerExecutionMode, setComposerExecutionMode] = useState<ComposerExecutionMode>(() =>
+    normalizeComposerRunMode(runMode),
   )
+  const runModeRef = useRef(runMode)
+  runModeRef.current = runMode
   const [goalTokenBudget, setGoalTokenBudget] = useState<number | null>(null)
   const [teamTokenBudget, setTeamTokenBudget] = useState<number | null>(null)
   const goalPausePromiseRef = useRef<Promise<void> | null>(null)
@@ -67,7 +82,7 @@ export function useFocusComposer({
   const [invocation, setInvocation] = useState<ResourceInvocation | null>(null)
 
   useEffect(() => {
-    setComposerExecutionMode('plan')
+    setComposerExecutionMode(normalizeComposerRunMode(runModeRef.current))
     goalPausePromiseRef.current = null
     setGoalTokenBudget(null)
     setTeamTokenBudget(null)
@@ -75,6 +90,10 @@ export function useFocusComposer({
     setCompactingManually(false)
     setInvocation(null)
   }, [sessionId])
+  // 会话快照异步到达后同步持久化的运行模式（刷新页面首次渲染时可能尚未加载）。
+  useEffect(() => {
+    setComposerExecutionMode(normalizeComposerRunMode(runMode))
+  }, [sessionId, runMode])
   useEffect(() => {
     if (!goalsAvailable) setComposerExecutionMode('plan')
     if (!teamAvailable && composerExecutionMode === 'team') setComposerExecutionMode('goal')

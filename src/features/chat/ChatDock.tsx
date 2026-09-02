@@ -280,6 +280,8 @@ function SessionPanel({
         context?.switchSessionThinkingLevel(sessionId, nextLevel),
       onExecutionModeChange: (nextMode: string) =>
         context?.switchSessionExecutionMode(sessionId, nextMode) ?? false,
+      onRunModeChange: (nextMode: string) =>
+        context?.switchSessionRunMode(sessionId, nextMode) ?? false,
       onGoalPause: () => context?.pauseGoal(sessionId),
       onGoalBudgetChange: (tokenBudget: number | null) =>
         context?.setGoalBudget(sessionId, tokenBudget),
@@ -362,6 +364,7 @@ function SessionPanel({
         thinkingStatus={state.thinkingStatus || ''}
         thinkingMessage={state.thinkingMessage || ''}
         executionMode={state.executionMode || session.executionMode || 'approval-required'}
+        runMode={state.runMode || session.runMode || 'plan'}
         goal={state.goal ?? session.goal ?? null}
         team={team}
         plan={visiblePlan}

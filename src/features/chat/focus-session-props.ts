@@ -26,6 +26,7 @@ export type FocusSessionProps = {
   thinkingStatus?: string
   thinkingMessage?: string
   executionMode: string
+  runMode?: string | null
   goal?: EntityRecord | null
   team?: EntityRecord | null
   plan?: Plan | null
@@ -64,6 +65,7 @@ export type FocusSessionProps = {
   onModelChange: (model: string) => Promise<void> | void
   onThinkingLevelChange: (level: string) => Promise<void> | void
   onExecutionModeChange: (mode: string) => Promise<boolean> | boolean
+  onRunModeChange: (mode: string) => Promise<boolean> | boolean
   onGoalPause?: () => Promise<void> | void
   onGoalBudgetChange?: (tokenBudget: number | null) => Promise<void> | void
   onCompact?: () => Promise<void> | void

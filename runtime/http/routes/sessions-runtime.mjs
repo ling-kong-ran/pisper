@@ -294,6 +294,15 @@ export const sessionRuntimeRoutes = [
     },
   },
   {
+    method: 'PUT',
+    path: '/api/sessions/:sessionId/run-mode',
+    async handler({ runtime, params, body, json }) {
+      const updated = await runtime.setSessionRunMode(params.sessionId, (await body()).mode)
+      if (!updated) json(404, { error: '会话不存在。' })
+      else json(200, updated)
+    },
+  },
+  {
     method: 'POST',
     path: '/api/sessions/:sessionId/approvals/:approvalId',
     async handler({ runtime, params, body, json }) {

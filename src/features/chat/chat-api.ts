@@ -368,6 +368,12 @@ export const chatApi = {
       data: { mode },
     }),
 
+  updateRunMode: (sessionId: string, mode: string) =>
+    requestJson<ApiRecord>(`${sessionPath(sessionId)}/run-mode`, {
+      method: 'PUT',
+      data: { mode },
+    }),
+
   resolveApproval: (sessionId: string, approvalId: string, approved: boolean) =>
     requestJson<ApiRecord>(
       `${sessionPath(sessionId)}/approvals/${encodeURIComponent(approvalId)}`,

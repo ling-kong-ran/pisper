@@ -371,8 +371,7 @@ export function sessionTitleFromFirstMessage(message, attachments = []) {
   return cleanSessionTitle(title || attachmentName) || DEFAULT_SESSION_NAME
 }
 
-// 解析办公文档附件：base64 解码后交给 officeparser 提取文本。
-// 模块是懒加载的，只有真正收到文档附件时才引入依赖。
+// 解析办公文档附件：base64 解码后交给 officeparser 提取文本；模块懒加载，真正收到文档附件时才引入依赖。
 async function extractDocumentText(attachment) {
   const buffer = Buffer.from(String(attachment.data || ''), 'base64')
   if (!buffer.length) throw new Error(`${safeAttachmentName(attachment.name)} 内容为空`)
@@ -1965,6 +1964,7 @@ export class AgentRuntimeService extends AgentRuntimeFacade {
         this.sessionMeta[session.sessionId]?.permissionMode ||
         permissionModeForExecutionMode(this.getSessionExecutionMode(session.sessionId)),
       executionMode: this.getSessionExecutionMode(session.sessionId),
+      runMode: this.sessionMeta[session.sessionId]?.runMode || 'plan',
       goal,
       plan: live.plan,
       team: live.team,

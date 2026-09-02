@@ -99,6 +99,7 @@ export const FocusSession = memo(function FocusSession({
   onModelChange,
   onThinkingLevelChange,
   onExecutionModeChange,
+  onRunModeChange,
   onCompact,
   onCompactionThresholdChange,
   onGoalPause,
@@ -169,6 +170,7 @@ export const FocusSession = memo(function FocusSession({
     submit,
   } = useFocusComposer({
     sessionId: session.id,
+    runMode: session.runMode,
     goalsAvailable,
     teamAvailable,
     workflowsAvailable,
@@ -413,6 +415,7 @@ export const FocusSession = memo(function FocusSession({
                       )
                         void requestGoalPause().catch(() => {})
                       setComposerExecutionMode(nextMode)
+                      void onRunModeChange(nextMode)
                     }}
                   />
                 )}
