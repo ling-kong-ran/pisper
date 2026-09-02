@@ -299,6 +299,10 @@ export const agentSessionMethods = {
     return this.sessionLifecycle.setSessionExecutionMode(id, normalizeExecutionMode(mode, ''))
   },
 
+  async setSessionRunMode(id, mode) {
+    return this.sessionLifecycle.setSessionRunMode(id, mode)
+  },
+
   resolveToolApproval(sessionId, approvalId, approved) {
     return this.permissions.resolve(sessionId, approvalId, approved)
   },
