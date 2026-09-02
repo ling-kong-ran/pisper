@@ -292,9 +292,10 @@ export const FocusSession = memo(function FocusSession({
     }
     const closeOnPointerDown = (event: PointerEvent) => {
       const target = event.target
+      // 收纳区内的弹层菜单已 portal 到 body（.anchored-popup-menu），点击它们不收起托盘。
       if (
         target instanceof Element &&
-        !target.closest('.composer-tools-trigger, .composer-tool-tray-shell')
+        !target.closest('.composer-tools-trigger, .composer-tool-tray-shell, .anchored-popup-menu')
       )
         setToolsOpen(false)
     }
