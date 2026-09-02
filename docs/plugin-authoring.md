@@ -189,7 +189,7 @@ export async function execute({ toolName, context }) {
 
 在「完全访问」执行模式下，可让 Agent 用内置 `plugin_create` 结构化生成插件，它复用与「插件」页面完全相同的清单、Schema、路径、体积与工具名冲突校验。生成的源码固定写入全局 `<dataDir>/plugin-sources/<plugin-id>`，不属于某个项目。
 
-开发者用 `plugin_create` 时注意：它接收的是 `id`、`name`、`tools`、`entryCode` 与可选 `files`，等价于手写清单 + 入口后走同一条预检安装链。生成与安装失败时，只清理内容与本次生成一致的文件，不覆盖已有源码或已装插件。
+开发者用 `plugin_create` 时注意：它接收 `id`、`name`、`tools`、`entryCode`，以及可选的 `version`、`description`、`permissions` 和 `files`，等价于手写清单 + 入口后走同一条预检安装链。生成与安装失败时，只清理内容与本次生成一致的文件，不覆盖已有源码或已装插件。
 
 ## 安全边界
 

@@ -59,7 +59,7 @@ npm run lint                # oxlint
 npm run format              # prettier --write .
 npm run format:check        # verify Prettier formatting
 npm run i18n:check          # verify literal src keys exist in zh-CN and en-US
-npm run check               # typecheck + lint + i18n:check + format:check
+npm run check               # typecheck + lint + i18n:check + format:check + test:startup
 npm test                    # all runtime/tests/*.test.mjs tests
 npx tsx --test runtime/tests/foo.test.mjs  # run one or more focused tests
 
@@ -130,7 +130,7 @@ When a detected component is **Runtime** or **TUI**, `npm run release` automatic
 - Treat existing global semantic classes as migration debt: when changing a component that uses them, migrate the touched styling to Tailwind/shadcn when the change can remain focused. Do not perform unrelated bulk rewrites solely to remove old classes.
 - Feature code lives under `src/features/<area>/`; shared layout/chrome under `src/components/`.
 - i18n: `t('namespace:key')` / `translateText('namespace:key')` with **string-literal** keys only. Both `zh-CN` and `en-US` must define every key; no Chinese characters as keys. Run `npm run i18n:check` after UI copy changes.
-- Prettier: single quotes, no semicolons, trailing commas, print width 100. Note: Prettier currently ignores most of `runtime/`, `scripts/`, and `shared/` (see `.prettierignore`); still match nearby file style.
+- Prettier: single quotes, no semicolons, trailing commas, print width 100. Only `docs/`, the root READMEs, and `AGENTS.md` are excluded via `.prettierignore`; other Markdown (e.g. `src-tui/`, `crates/`, `runtime/tools/`) must stay formatted.
 
 ### Runtime (`runtime/`)
 

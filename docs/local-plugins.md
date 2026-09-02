@@ -1,6 +1,6 @@
 # 本地插件
 
-Pisper 本地插件是一个包含 `pisper-plugin.json` 和 JavaScript 入口文件的目录。插件可以提供一个或多个 Agent 工具；安装、启停和卸载以插件为单位管理，单个工具可独立启停。
+Pisper 本地插件是一个包含 `pisper-plugin.json` 和 JavaScript 入口文件的目录。插件可以提供一个或多个 Agent 工具；安装与卸载以插件为单位管理，单个工具可独立启停。
 
 当前版本只支持本地目录安装，不支持插件市场、npm/Git 下载、自动更新、原生模块、生命周期脚本、Provider 注入、TUI UI 或覆盖内置工具。
 

@@ -16,6 +16,7 @@ FQDN 前规范化系统可能已经补上的 `.local` 后缀。
 
 iOS `NWBrowser` 在用户拒绝局域网权限时会进入 `waiting` 或 `failed`，并返回
 DNS policy-denied 或 POSIX 权限错误。本地补丁统一发送 `permission-denied` 停止原因，
-让 App 显示明确的系统设置提示；Swift XCTest 覆盖这些错误映射及非权限错误边界。
+让 App 显示明确的系统设置提示；Swift XCTest 覆盖这些错误映射及非权限错误边界，
+在本仓库 CI 中经 `scripts/test-ios-dns-sd.sh` 运行。
 
 上游发布包含等效修复的版本后，应恢复 crates.io 依赖，并删除本目录。

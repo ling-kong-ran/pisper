@@ -35,7 +35,7 @@ npm run desktop:webview:smoke -- http://127.0.0.1:9223
 npm run desktop:webview:build
 ```
 
-`sidecar:sea` generates icons and the web application, installs the production Node dependency closure directly into the external runtime, removes development-only content, injects the SEA blob, and prepares the native Tauri sidecar name. It does not invoke Electron or electron-builder. `sidecar:sea:smoke` verifies authentication, API access, first Pi Agent activation, and graceful shutdown.
+`sidecar:sea` builds the web application, installs the production Node dependency closure directly into the external runtime, removes development-only content, injects the SEA blob, and prepares the native Tauri sidecar binaries. It does not invoke Electron or electron-builder. `sidecar:sea:smoke` verifies authentication, API access, first Pi Agent activation, and graceful shutdown.
 
 ### Dependency partition
 

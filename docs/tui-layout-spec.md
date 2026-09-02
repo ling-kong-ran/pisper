@@ -1,6 +1,8 @@
 # Pisper TUI layout specification
 
 > Companion specification for the MCP-maintained `docs/tui.pen` design.
+>
+> **Implementation status (2026-09):** the TUI implements the Frame A direction — the conversation-first layout in `src-tui/src/ui.rs` renders transcript → plan panel → current activity line → composer → status (`render_chat`, `render_plan`, `render_run_state`, `render_composer`, `render_status`), plus a `render_changes` view not covered by this spec. The composer-anchored slash menu from Frame C is also implemented (`render_slash`: `ALL / TOOLS / SKILLS / COMMANDS` scope row, tool/skill/command kinds, usage-based ordering persisted under the Pisper data root). Frame B (Event Ledger) remains an unimplemented design variant. The terminal intentionally adapts the mockup: the composer uses text controls (`+ attach  / commands`, `Ctrl+C stop · Enter steer`) instead of icon buttons and tooltips, submits on `Enter` rather than `Ctrl+Enter`, and the slash menu footer shows keyboard hints and per-kind counts instead of per-item usage counts. Treat the pixel values below as design-file measurements for `tui.pen`, not terminal cell geometry.
 
 ## Canvas
 

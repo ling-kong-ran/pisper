@@ -189,7 +189,7 @@ Install location: `<dataDir>/plugins/<id>/<version>/` (where `<dataDir>` is `~/.
 
 In full-access execution mode, the Agent can use the built-in `plugin_create` tool to generate a plugin from structured parameters. It runs the exact same manifest, Schema, path, size, and tool-name conflict checks as the Plugins page. Generated sources are written to the global `<dataDir>/plugin-sources/<plugin-id>` and are not tied to a project.
 
-When using `plugin_create`, developers pass `id`, `name`, `tools`, `entryCode`, and optional `files` — equivalent to writing the manifest and entry by hand and then going through the same preflight-install chain. On failure, only files whose content still matches this generation are cleaned up; existing sources and installed plugins are never overwritten.
+When using `plugin_create`, developers pass `id`, `name`, `tools`, and `entryCode`, plus optional `version`, `description`, `permissions`, and `files` — equivalent to writing the manifest and entry by hand and then going through the same preflight-install chain. On failure, only files whose content still matches this generation are cleaned up; existing sources and installed plugins are never overwritten.
 
 ## Security boundary
 
