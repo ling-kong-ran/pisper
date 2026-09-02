@@ -9,6 +9,7 @@ import {
   isAgentCompletionMessage,
 } from '../services/multi-agent-service.mjs'
 import { isGoalContinuationMessage } from '../services/goal-service.mjs'
+import { projectStoredTeam } from '../services/team-workflow.mjs'
 import { PLAN_ALL_TOOL_NAMES } from '../tools/app/plan.mjs'
 import { attachGeneratedAssets } from '../services/session-assets.mjs'
 import { assetHasSource, generatedAssetsForSession } from '../services/asset-storage.mjs'
@@ -1229,7 +1230,12 @@ export class StreamProjection {
       runMode: meta[id]?.runMode || 'plan',
       goal: live?.goal ?? this.goals.get(id),
       plan: live?.plan ?? this.plans.get(id),
-      team: live?.team ?? this.teamWorkflows.get(id),
+      // live.team 的 null 是清除信号，必须优先于回退值；
+      // 无 live 状态时同样只投影仍活跃目标的团队，避免已完成团队随轮询回灌。
+      team:
+        live && Object.hasOwn(live, 'team')
+          ? live.team
+          : projectStoredTeam(this.goals.get(id), this.teamWorkflows.get(id)),
       agents:
         live?.agents ??
         this.multiAgents

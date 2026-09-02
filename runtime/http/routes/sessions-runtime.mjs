@@ -1,5 +1,6 @@
 // 会话运行时路由：健康检查、诊断、用量、会话 CRUD、会话运行（SSE 流式）、
 // 消息/历史/树/标签、权限审批、模型/工作目录切换等核心 API。
+import { projectStoredTeam } from '../../services/team-workflow.mjs'
 function isMobileAppRequest(runtime, req) {
   const mobileProfile = String(runtime.capabilities?.profile || '').startsWith('mobile-')
   return (
@@ -397,10 +398,15 @@ export const sessionRuntimeRoutes = [
     method: 'POST',
     path: '/api/sessions/:sessionId/abort',
     async handler({ runtime, params, json }) {
+      const goal = runtime.getSessionGoal(params.sessionId)
       json(200, {
         aborted: await runtime.abortSession(params.sessionId),
-        goal: runtime.getSessionGoal(params.sessionId),
-        team: runtime.getTeamProjection(params.sessionId, { compact: true }),
+        goal,
+        // 已完成目标的团队不随 abort 响应回灌，避免 plan 轮次中止后残留面板。
+        team: projectStoredTeam(
+          goal,
+          runtime.getTeamProjection(params.sessionId, { compact: true }),
+        ),
       })
     },
   },

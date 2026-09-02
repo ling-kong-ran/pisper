@@ -82,3 +82,41 @@ test('session listing stops projecting team snapshots once the goal is complete'
   sessions = await runtime.listSessions()
   assert.equal(sessions.find((session) => session.id === 'session-1').team, null)
 })
+
+// 回归：/api/sessions/:id/live 轮询快照曾把 live.team 的 null 清除信号
+// 被 ?? 运算符吞掉，回退到未受守卫的团队投影，导致 plan 轮次重新灌入「团队已完成」。
+test('live snapshot respects the team clear signal and hides completed teams', async (t) => {
+  const directory = await mkdtemp(join(tmpdir(), 'pisper-run-mode-live-'))
+  t.after(() => rm(directory, { recursive: true, force: true }))
+  const runtime = new AgentRuntimeService({ cwd: directory, dataDir: directory })
+  await runtime.goals.init()
+  runtime.settingsManager = { getGlobalSettings: () => ({}) }
+  await mkdir(runtime.sessionDir, { recursive: true })
+  await writeFile(
+    join(runtime.sessionDir, '2026-01-01T00-00-00-000Z_session-1.jsonl'),
+    `${JSON.stringify({ type: 'session', id: 'session-1', version: 3, timestamp: new Date().toISOString() })}\n`,
+  )
+  const stamp = new Date().toISOString()
+  await runtime.teamWorkflows.ensure('session-1', { objective: '团队目标' })
+  runtime.goals.state.goals['session-1'] = {
+    id: 'session-1',
+    status: 'active',
+    mode: 'team',
+    objective: '团队目标',
+    createdAt: stamp,
+    updatedAt: stamp,
+  }
+  // 目标仍 active：无 live 状态时照常投影团队。
+  let live = await runtime.getSessionLive('session-1')
+  assert.ok(live.team)
+  // plan 轮次的 live 状态带 team:null 清除信号：快照必须返回 null，
+  // 不得回退到磁盘上的已完成团队记录。
+  runtime.goals.state.goals['session-1'].status = 'complete'
+  runtime.liveSessions.set('session-1', { team: null })
+  live = await runtime.getSessionLive('session-1')
+  assert.equal(live.team, null)
+  // 会话运行时回收后（无 live）同样不投影已完成团队。
+  runtime.liveSessions.delete('session-1')
+  live = await runtime.getSessionLive('session-1')
+  assert.equal(live.team, null)
+})
