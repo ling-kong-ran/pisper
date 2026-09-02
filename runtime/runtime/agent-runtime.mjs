@@ -53,6 +53,7 @@ import {
 } from '../services/goal-service.mjs'
 import {
   projectGoalTeam,
+  shouldAttachTeamSnapshot,
   TeamWorkflowService,
   teamExecutionPrompt,
 } from '../services/team-workflow.mjs'
@@ -164,8 +165,7 @@ const SESSION_RUNTIME_IDLE_TTL_MS = 5 * 60 * 1000
 const SESSION_RUNTIME_SWEEP_INTERVAL_MS = 60 * 1000
 // 强制中断会话的宽限期：正常停止信号超时后仍不退出时，直接 dispose 会话。
 const ABORT_FORCE_TIMEOUT_MS = 10_000
-// 中止护栏：模型未在 abortForceTimeoutMs 内响应停止时强制销毁会话。
-// 每 250ms 轮询一次，避免长任务卡在“已请求停止却仍运行”的状态。
+// 中止护栏：模型未在 abortForceTimeoutMs 内响应停止时强制销毁会话，每 250ms 轮询避免卡在“已请求停止却仍运行”。
 async function runPromptWithAbortGuard(value, run) {
   const timeoutMs = Number(value?.abortForceTimeoutMs) || ABORT_FORCE_TIMEOUT_MS
   const runPromise = Promise.resolve().then(run)
@@ -226,8 +226,7 @@ export function installTransientStreamRetry(session) {
   return session
 }
 
-// 从会话分支记录中推导最后一次使用的模型（model_change 或 assistant 消息携带）。
-// 用于恢复会话时还原其模型选择。
+// 从会话分支记录中推导最后一次使用的模型（model_change 或 assistant 消息携带），恢复会话时还原其模型选择。
 export function storedSessionModel(sessionManager) {
   let model = null
   for (const entry of sessionManager?.getBranch?.() || []) {
@@ -1922,11 +1921,12 @@ export class AgentRuntimeService extends AgentRuntimeFacade {
 
     const startedAt = new Date().toISOString()
     value.modified = startedAt
+    const attachTeam = shouldAttachTeamSnapshot({ goalMode, teamMode, goal })
     const live = createLiveRunState({
       startedAt,
       goal,
       plan: this.plans.get(session.sessionId),
-      team: this.getTeamProjection(session.sessionId, { compact: true }),
+      team: attachTeam ? this.getTeamProjection(session.sessionId, { compact: true }) : null,
       agents: this.multiAgents
         .summaries(session.sessionId)
         .filter((agent) => ['queued', 'starting', 'running'].includes(agent.status)),

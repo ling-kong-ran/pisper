@@ -363,6 +363,13 @@ export function projectGoalTeam(team, goal, { compact = false } = {}) {
   return compact ? compactTeamProjection(projection) : projection
 }
 
+// 判断当前轮次是否应附带团队快照：goal/team 请求或目标仍 active 时附带；
+// 否则附带 null（客户端把 null 解读为清除信号），避免陈旧团队面板（如重启后
+// 被暂停的团队）泄漏到 plan/普通模式的轮次。
+export function shouldAttachTeamSnapshot({ goalMode = false, teamMode = false, goal } = {}) {
+  return Boolean(goalMode || teamMode || goal?.status === 'active')
+}
+
 function interruptActiveTasks(team, now = Date.now()) {
   let changed = false
   for (const task of Object.values(team?.tasks || {})) {

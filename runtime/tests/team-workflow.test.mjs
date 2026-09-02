@@ -6,6 +6,7 @@ import test from 'node:test'
 import { createMultiAgentRuntime } from '../runtime/multi-agent-runtime-adapter.mjs'
 import {
   compactTeamProjection,
+  shouldAttachTeamSnapshot,
   TEAM_TASK_LEASE_MS,
   TeamWorkflowService,
   TEAM_EXECUTION_MARKER,
@@ -917,4 +918,26 @@ test('team adapter registers real spawn results and synchronizes terminal notifi
   assert.equal(service.get('session-1').tasks[0].output, 'Done.')
   assert.equal(emittedUpdates.length, updatesBeforeProgress)
   await service.write
+})
+
+test('shouldAttachTeamSnapshot keeps team panels only for team turns or active goals', () => {
+  // goal/team 轮次始终附带快照：收尾轮也要能展示「团队已完成」面板。
+  assert.equal(shouldAttachTeamSnapshot({ goalMode: false, teamMode: true, goal: null }), true)
+  assert.equal(shouldAttachTeamSnapshot({ goalMode: true, teamMode: false, goal: null }), true)
+  // 目标仍 active 的普通轮次（如 plan 模式）继续展示进行中的团队。
+  assert.equal(
+    shouldAttachTeamSnapshot({ goalMode: false, teamMode: false, goal: { status: 'active' } }),
+    true,
+  )
+  // 目标非 active（paused/complete/无）的非 goal 轮次：返回 false，
+  // 调用方附带 null 清除信号，陈旧团队面板不再泄漏。
+  assert.equal(
+    shouldAttachTeamSnapshot({ goalMode: false, teamMode: false, goal: { status: 'paused' } }),
+    false,
+  )
+  assert.equal(
+    shouldAttachTeamSnapshot({ goalMode: false, teamMode: false, goal: { status: 'complete' } }),
+    false,
+  )
+  assert.equal(shouldAttachTeamSnapshot({ goalMode: false, teamMode: false }), false)
 })
