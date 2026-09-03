@@ -90,7 +90,23 @@ pub struct ReleaseInfo {
     pub published_at: Option<String>,
     pub archive_url: String,
     pub signature_url: String,
+    /// github.com 直连地址，作为 API 地址不可达时的回退候选（也用于镜像前缀拼接）。
+    pub archive_fallback_url: String,
+    /// 签名文件的 github.com 直连回退地址。
+    pub signature_fallback_url: String,
     pub size: u64,
+}
+
+impl ReleaseInfo {
+    /// 组件归档的下载候选链：API 资产地址优先，其次 github.com 直连，最后为镜像中转。
+    pub fn archive_candidates(&self) -> Vec<String> {
+        download_candidates(&self.archive_url, &self.archive_fallback_url)
+    }
+
+    /// 签名文件的下载候选链，顺序与归档一致。
+    pub fn signature_candidates(&self) -> Vec<String> {
+        download_candidates(&self.signature_url, &self.signature_fallback_url)
+    }
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
@@ -140,6 +156,7 @@ struct GitHubAsset {
     name: String,
     #[serde(rename = "url")]
     api_url: String,
+    browser_download_url: String,
     size: u64,
 }
 
@@ -197,29 +214,32 @@ impl ComponentUpdater {
     }
 
     async fn releases_with_retry(&self) -> Result<Vec<GitHubRelease>> {
+        let urls = release_feed_candidates();
         let mut last_error = None;
-        for attempt in 0..NETWORK_ATTEMPTS {
-            let result = async {
-                self.client
-                    .get(RELEASES_API)
-                    .header(ACCEPT, "application/vnd.github+json")
-                    .header(USER_AGENT, "Pisper component updater")
-                    .send()
-                    .await
-                    .context("failed to request Pisper component releases")?
-                    .error_for_status()
-                    .context("Pisper component release request failed")?
-                    .json::<Vec<GitHubRelease>>()
-                    .await
-                    .context("invalid Pisper component release response")
-            }
-            .await;
-            match result {
-                Ok(releases) => return Ok(releases),
-                Err(error) => last_error = Some(error),
-            }
-            if attempt + 1 < NETWORK_ATTEMPTS {
-                tokio::time::sleep(Duration::from_millis(250 * (attempt as u64 + 1))).await;
+        for url in &urls {
+            for attempt in 0..NETWORK_ATTEMPTS {
+                let result = async {
+                    self.client
+                        .get(url.as_str())
+                        .header(ACCEPT, "application/vnd.github+json")
+                        .header(USER_AGENT, "Pisper component updater")
+                        .send()
+                        .await
+                        .context("failed to request Pisper component releases")?
+                        .error_for_status()
+                        .context("Pisper component release request failed")?
+                        .json::<Vec<GitHubRelease>>()
+                        .await
+                        .context("invalid Pisper component release response")
+                }
+                .await;
+                match result {
+                    Ok(releases) => return Ok(releases),
+                    Err(error) => last_error = Some(error),
+                }
+                if attempt + 1 < NETWORK_ATTEMPTS {
+                    tokio::time::sleep(Duration::from_millis(250 * (attempt as u64 + 1))).await;
+                }
             }
         }
         let error = last_error.unwrap_or_else(|| anyhow!("component release request failed"));
@@ -241,15 +261,20 @@ impl ComponentUpdater {
         F: FnMut(u64, u64) + Send,
     {
         let archive = self
-            .download_with_progress(
-                &release.archive_url,
+            .download_candidates_with_progress(
+                &release.archive_candidates(),
                 MAX_ARCHIVE_BYTES,
                 release.size,
                 &mut on_progress,
             )
             .await?;
         let signature = self
-            .download(&release.signature_url, MAX_SIGNATURE_BYTES)
+            .download_candidates_with_progress(
+                &release.signature_candidates(),
+                MAX_SIGNATURE_BYTES,
+                0,
+                |_, _| {},
+            )
             .await?;
         verify_archive(&self.public_key, &archive, &signature)?;
 
@@ -265,8 +290,32 @@ impl ComponentUpdater {
             .ok_or_else(|| anyhow!("installed component pointer was not activated"))
     }
 
-    async fn download(&self, url: &str, limit: u64) -> Result<Vec<u8>> {
-        self.download_with_progress(url, limit, 0, |_, _| {}).await
+    /// 依次尝试候选下载地址：每个地址内部仍会多次重试，
+    /// 全部重试失败后回退到下一个候选地址，直到候选耗尽。
+    async fn download_candidates_with_progress<F>(
+        &self,
+        urls: &[String],
+        limit: u64,
+        expected_size: u64,
+        mut on_progress: F,
+    ) -> Result<Vec<u8>>
+    where
+        F: FnMut(u64, u64),
+    {
+        let mut last_error = None;
+        for url in urls {
+            match self
+                .download_with_progress(url, limit, expected_size, &mut on_progress)
+                .await
+            {
+                Ok(bytes) => return Ok(bytes),
+                Err(error) => {
+                    last_error = Some(error);
+                    on_progress(0, expected_size);
+                }
+            }
+        }
+        Err(last_error.unwrap_or_else(|| anyhow!("component download has no candidate URLs")))
     }
 
     async fn download_with_progress<F>(
@@ -673,8 +722,64 @@ fn release_info(component: Component, release: GitHubRelease) -> Option<ReleaseI
         published_at: release.published_at,
         archive_url: archive.api_url.clone(),
         signature_url: signature.api_url.clone(),
+        archive_fallback_url: archive.browser_download_url.clone(),
+        signature_fallback_url: signature.browser_download_url.clone(),
         size: archive.size,
     })
+}
+
+/// 组装组件下载候选地址列表：GitHub API 资产地址优先（对直连 github.com
+/// 受限的网络更友好），随后回退到 github.com 直连地址；若设置了
+/// PISPER_GITHUB_MIRROR（逗号分隔的镜像前缀），再追加经镜像中转的直连地址。
+/// 组件包经过 minisign 签名校验，镜像只改善可达性，不影响完整性。
+fn download_candidates(primary: &str, browser_url: &str) -> Vec<String> {
+    download_candidates_with_mirrors(primary, browser_url, &mirror_prefixes())
+}
+
+fn download_candidates_with_mirrors(
+    primary: &str,
+    browser_url: &str,
+    mirrors: &[String],
+) -> Vec<String> {
+    let mut urls = vec![primary.to_string()];
+    if !browser_url.is_empty() && browser_url != primary {
+        urls.push(browser_url.to_string());
+        urls.extend(
+            mirrors
+                .iter()
+                .map(|prefix| format!("{prefix}{browser_url}")),
+        );
+    }
+    urls
+}
+
+/// 组件发布列表的候选地址：GitHub API 优先，镜像（若配置）兜底。
+fn release_feed_candidates() -> Vec<String> {
+    let mut urls = vec![RELEASES_API.to_string()];
+    urls.extend(
+        mirror_prefixes()
+            .iter()
+            .map(|prefix| format!("{prefix}{RELEASES_API}")),
+    );
+    urls
+}
+
+/// 解析 PISPER_GITHUB_MIRROR：逗号分隔的 http(s) 镜像前缀，统一补全结尾斜杠，
+/// 非法前缀直接忽略，避免拼出意外地址。
+fn parse_mirror_prefixes(value: &str) -> Vec<String> {
+    value
+        .split(',')
+        .map(str::trim)
+        .filter(|prefix| prefix.starts_with("https://") || prefix.starts_with("http://"))
+        .map(|prefix| format!("{}/", prefix.trim_end_matches('/')))
+        .collect()
+}
+
+fn mirror_prefixes() -> Vec<String> {
+    std::env::var("PISPER_GITHUB_MIRROR")
+        .ok()
+        .map(|value| parse_mirror_prefixes(&value))
+        .unwrap_or_default()
 }
 
 fn version_of(value: &str) -> Version {
@@ -1303,11 +1408,13 @@ mod tests {
                 GitHubAsset {
                     name: archive.clone(),
                     api_url: "https://api.example.test/archive".into(),
+                    browser_download_url: "https://github.example.test/archive".into(),
                     size: 42,
                 },
                 GitHubAsset {
                     name: format!("{archive}.sig"),
                     api_url: "https://api.example.test/signature".into(),
+                    browser_download_url: "https://github.example.test/signature".into(),
                     size: 512,
                 },
             ],
@@ -1316,7 +1423,107 @@ mod tests {
         assert_eq!(info.version, "1.2.3");
         assert_eq!(info.archive_url, "https://api.example.test/archive");
         assert_eq!(info.signature_url, "https://api.example.test/signature");
+        assert_eq!(info.archive_fallback_url, "https://github.example.test/archive");
+        assert_eq!(
+            info.signature_fallback_url,
+            "https://github.example.test/signature"
+        );
         assert_eq!(info.size, 42);
+    }
+
+    #[test]
+    fn mirror_prefixes_are_parsed_and_normalized() {
+        assert!(super::parse_mirror_prefixes("").is_empty());
+        assert!(super::parse_mirror_prefixes("ftp://bad, not-a-url").is_empty());
+        assert_eq!(
+            super::parse_mirror_prefixes("https://gh-proxy.com, https://mirror.example/root/"),
+            vec![
+                "https://gh-proxy.com/".to_string(),
+                "https://mirror.example/root/".to_string(),
+            ]
+        );
+    }
+
+    #[test]
+    fn download_candidates_prefer_api_then_browser_then_mirrors() {
+        let mirrors = vec!["https://gh-proxy.com/".to_string()];
+        assert_eq!(
+            super::download_candidates_with_mirrors(
+                "https://api.example.test/asset",
+                "https://github.example.test/asset",
+                &mirrors,
+            ),
+            vec![
+                "https://api.example.test/asset".to_string(),
+                "https://github.example.test/asset".to_string(),
+                "https://gh-proxy.com/https://github.example.test/asset".to_string(),
+            ]
+        );
+        // 直连地址与主地址相同或为空时去重，且不再追加镜像候选。
+        assert_eq!(
+            super::download_candidates_with_mirrors("https://same", "https://same", &mirrors),
+            vec!["https://same".to_string()]
+        );
+        assert_eq!(
+            super::download_candidates_with_mirrors("https://same", "", &mirrors),
+            vec!["https://same".to_string()]
+        );
+    }
+
+    #[test]
+    fn component_download_falls_back_to_the_next_candidate() {
+        // 第一个候选地址持续返回 500（重试 NETWORK_ATTEMPTS 次后放弃），
+        // 第二个候选地址正常提供内容，验证候选链回退能拿到完整数据。
+        let failing = TcpListener::bind("127.0.0.1:0").unwrap();
+        let failing_address = failing.local_addr().unwrap();
+        let failing_server = thread::spawn(move || {
+            for _ in 0..super::NETWORK_ATTEMPTS {
+                let (mut stream, _) = failing.accept().unwrap();
+                let mut request = [0_u8; 1024];
+                let _ = stream.read(&mut request).unwrap();
+                stream
+                    .write_all(
+                        b"HTTP/1.1 500 Internal Server Error\r\nContent-Length: 0\r\nConnection: close\r\n\r\n",
+                    )
+                    .unwrap();
+            }
+        });
+        let serving = TcpListener::bind("127.0.0.1:0").unwrap();
+        let serving_address = serving.local_addr().unwrap();
+        let serving_server = thread::spawn(move || {
+            let (mut stream, _) = serving.accept().unwrap();
+            let mut request = [0_u8; 1024];
+            let _ = stream.read(&mut request).unwrap();
+            stream
+                .write_all(b"HTTP/1.1 200 OK\r\nContent-Length: 6\r\nConnection: close\r\n\r\nabcdef")
+                .unwrap();
+        });
+        let directory = TestDirectory::new();
+        let updater = super::ComponentUpdater::new(
+            directory.0.clone(),
+            include_str!("../../../src-tauri/updater.pubkey"),
+            "Pisper fallback test",
+        )
+        .unwrap();
+        let runtime = tokio::runtime::Builder::new_current_thread()
+            .enable_all()
+            .build()
+            .unwrap();
+        let bytes = runtime
+            .block_on(updater.download_candidates_with_progress(
+                &[
+                    format!("http://{failing_address}/component.tar.gz"),
+                    format!("http://{serving_address}/component.tar.gz"),
+                ],
+                1024,
+                6,
+                |_, _| {},
+            ))
+            .unwrap();
+        failing_server.join().unwrap();
+        serving_server.join().unwrap();
+
+        assert_eq!(bytes, b"abcdef");
     }
 
     #[test]
