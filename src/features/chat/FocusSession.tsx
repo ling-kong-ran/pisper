@@ -48,6 +48,27 @@ export type { FocusSessionProps }
 const USES_COMMAND_KEY = /Mac|iPhone|iPad/.test(globalThis.navigator?.platform || '')
 const COMMAND_PALETTE_SHORTCUT = USES_COMMAND_KEY ? '\u2318 K' : 'Ctrl K'
 
+// 托盘外部点击关闭的排除区域：触发按钮、托盘壳、锚定弹层，以及 portal 到 body 的
+// 对话框与浮层（Git diff 对话框、Radix Dialog/AlertDialog/Popover/DropdownMenu/Select/Sheet）。
+// 缺了它们时，点击浮层会被当成外部点击而收起托盘，托盘卸载又连带销毁面板状态
+//（典型场景：审阅 diff 时切换文件，整个 diff 对话框直接消失）。
+const TRAY_FLOATING_SELECTOR = [
+  '.composer-tools-trigger',
+  '.composer-tool-tray-shell',
+  '.anchored-popup-menu',
+  '.git-diff-dialog-backdrop',
+  "[data-slot='dialog-content']",
+  "[data-slot='dialog-overlay']",
+  "[data-slot='alert-dialog-content']",
+  "[data-slot='alert-dialog-overlay']",
+  "[data-slot='popover-content']",
+  "[data-slot='dropdown-menu-content']",
+  "[data-slot='dropdown-menu-sub-content']",
+  "[data-slot='select-content']",
+  "[data-slot='sheet-content']",
+  "[data-slot='sheet-overlay']",
+].join(', ')
+
 export const FocusSession = memo(function FocusSession({
   session,
   messages,
@@ -206,12 +227,8 @@ export const FocusSession = memo(function FocusSession({
     }
     const closeOnPointerDown = (event: PointerEvent) => {
       const target = event.target
-      // 收纳区内的弹层菜单已 portal 到 body（.anchored-popup-menu），点击它们不收起托盘。
-      if (
-        target instanceof Element &&
-        !target.closest('.composer-tools-trigger, .composer-tool-tray-shell, .anchored-popup-menu')
-      )
-        setToolsOpen(false)
+      // 点击托盘自身或其衍生的 portal 浮层（弹层菜单、diff/资源等对话框）时不收起托盘。
+      if (target instanceof Element && !target.closest(TRAY_FLOATING_SELECTOR)) setToolsOpen(false)
     }
     document.addEventListener('keydown', close)
     document.addEventListener('pointerdown', closeOnPointerDown)

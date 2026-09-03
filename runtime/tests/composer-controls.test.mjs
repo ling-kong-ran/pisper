@@ -29,11 +29,17 @@ test('composer expands low-frequency controls vertically with React Bits Animate
   assert.match(session, /<ComposerToolTray[\s\S]*open={toolsOpen}/)
   assert.match(session, /aria-expanded={toolsOpen}/)
   assert.match(session, /document\.addEventListener\('pointerdown', closeOnPointerDown\)/)
-  // 外部点击关闭需同时排除触发按钮、工具托盘与锚定弹出菜单三个区域。
-  assert.match(
-    session,
-    /target\.closest\('\.composer-tools-trigger, \.composer-tool-tray-shell, \.anchored-popup-menu'\)/,
-  )
+  // 外部点击关闭需排除触发按钮、工具托盘、锚定弹出菜单，以及 portal 到 body 的
+  // 对话框/浮层（Git diff 对话框、Radix Dialog/Popover 等），否则点击浮层会收起
+  // 托盘并卸载托盘内控件，正在审阅的面板（如 diff 对话框）随之消失。
+  assert.match(session, /target\.closest\(TRAY_FLOATING_SELECTOR\)/)
+  assert.match(session, /TRAY_FLOATING_SELECTOR = \[/)
+  assert.match(session, /'\.composer-tools-trigger'/)
+  assert.match(session, /'\.composer-tool-tray-shell'/)
+  assert.match(session, /'\.anchored-popup-menu'/)
+  assert.match(session, /'\.git-diff-dialog-backdrop'/)
+  assert.match(session, /"\[data-slot='dialog-content'\]"/)
+  assert.match(session, /"\[data-slot='dialog-overlay'\]"/)
   assert.match(tray, /import\('@\/components\/react-bits\/AnimatedContent'\)/)
   assert.match(tray, /<Suspense fallback={null}>/)
   assert.match(tray, /direction="vertical"/)
