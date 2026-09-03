@@ -513,7 +513,7 @@ if (!field) document.body.classList.add('no-field')
    ============================================================ */
 
 if (field) {
-  const heroWords = ['PISPER', '分身', 'BRANCH', 'PARALLEL', '跨设备']
+  const heroWords = ['PISPER', '不排队', 'BRANCH', 'PARALLEL', '跨设备']
   let heroIdx = 0
   let heroActive = true
 

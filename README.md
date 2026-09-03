@@ -3,7 +3,7 @@
 <a id="top"></a>
 
 <p align="center">
-  <img src="docs/brand/banner.svg" width="880" alt="Pisper — 分身，不分心" />
+  <img src="docs/brand/banner.svg" width="880" alt="Pisper — 想法，不必排队" />
 </p>
 
 <p align="center">
