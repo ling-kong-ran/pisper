@@ -32,6 +32,22 @@ export const sessionRuntimeRoutes = [
     },
   },
   {
+    method: 'POST',
+    path: '/api/speech/transcribe',
+    async handler({ req, services, bodyBuffer, json }) {
+      const sampleRate = Number(req.headers['x-pisper-sample-rate'])
+      if (sampleRate !== 16000) throw new Error('语音采样率必须是 16000 Hz。')
+      if (!services.speech) throw new Error('当前 Runtime 未启用语音识别。')
+      const bytes = await bodyBuffer(32_000_000)
+      if (!bytes.length || bytes.byteLength % 4 !== 0) throw new Error('语音 PCM 数据无效。')
+      const samples = new Float32Array(
+        bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength),
+      )
+      const text = await services.speech.transcribe(samples)
+      json(200, { text })
+    },
+  },
+  {
     method: 'GET',
     path: '/api/client-info',
     handler({ runtime, req, json }) {

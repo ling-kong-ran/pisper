@@ -2,6 +2,7 @@
 // 并把请求分发给对应的路由处理器。
 import { redactSecretText } from '../security/secret-redaction.mjs'
 import {
+  bodyBuffer,
   bodyJson,
   json as sendJson,
   serializeSsePayload,
@@ -75,6 +76,7 @@ function createHandlerContext({ runtime, services, req, res, url, params }) {
       url,
       params,
       body: () => bodyJson(req),
+      bodyBuffer: (maxBytes) => bodyBuffer(req, maxBytes),
       json: (status, value) => sendJson(res, status, value),
       publicError,
       startSse() {
@@ -123,6 +125,7 @@ export function createApiHandler(
     engineVersion = 'unknown',
     remoteAccess,
     remoteControl,
+    speech,
     runs,
   } = {},
 ) {
@@ -133,6 +136,7 @@ export function createApiHandler(
     engineVersion,
     remoteAccess,
     remoteControl,
+    speech,
     runs: runs || new RunRegistry(),
   }
   return async function handleApi(req, res, url) {

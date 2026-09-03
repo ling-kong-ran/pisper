@@ -9,6 +9,8 @@
   </dict>
   <key>NSCameraUsageDescription</key>
   <string>Pisper uses the camera only when you start pairing or approve a photo capture.</string>
+  <key>NSMicrophoneUsageDescription</key>
+  <string>Pisper uses the microphone only when you start voice input.</string>
   <key>NSContactsUsageDescription</key>
   <string>Pisper accesses contacts only for a mobile operation you approve.</string>
   <key>NSPhotoLibraryUsageDescription</key>

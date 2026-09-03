@@ -9,6 +9,8 @@ import android.os.Looper
 import android.util.Log
 import android.view.ViewGroup
 import android.view.WindowManager
+import android.webkit.PermissionRequest
+import android.webkit.WebChromeClient
 import android.webkit.WebView
 import androidx.activity.enableEdgeToEdge
 
@@ -24,11 +26,32 @@ class MainActivity : TauriActivity() {
 
   override fun onWebViewCreate(webView: WebView) {
     super.onWebViewCreate(webView)
+    installWebViewPermissions(webView)
+    // Tauri 的 WebView 初始化可能在回调后再次设置 WebChromeClient，因此需要在下一轮消息中重装。
+    webView.post { installWebViewPermissions(webView) }
     val recoveryUrl = intent.getStringExtra(RENDERER_RECOVERY_URL) ?: return
     intent.removeExtra(RENDERER_RECOVERY_URL)
 
     // Wry 会在这个回调返回后加载初始 URL，因此把恢复导航排到下一轮主线程消息。
     webView.post { webView.loadUrl(recoveryUrl) }
+  }
+
+  private fun installWebViewPermissions(webView: WebView) {
+    webView.webChromeClient = object : WebChromeClient() {
+      override fun onPermissionRequest(request: PermissionRequest) {
+        // WebView 的 getUserMedia 还需要单独确认资源，否则系统权限已授予仍会被 Chromium 拒绝。
+        val audioResources = request.resources.filter {
+          it == PermissionRequest.RESOURCE_AUDIO_CAPTURE
+        }.toTypedArray()
+        runOnUiThread {
+          if (audioResources.isEmpty()) {
+            request.deny()
+          } else {
+            request.grant(audioResources)
+          }
+        }
+      }
+    }
   }
 
   private fun recoverRenderer(webView: WebView, lastKnownUrl: String, didCrash: Boolean): Boolean {

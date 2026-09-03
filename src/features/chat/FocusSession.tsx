@@ -33,6 +33,7 @@ import { SessionTreeControl } from './SessionTreeControl'
 import { SessionWorkflowRuns } from './SessionWorkflowRuns'
 import { ToolApproval } from './ToolApproval'
 import { VisualComposerEntry } from './VisualComposerEntry'
+import { VoiceInputControl } from './VoiceInputControl'
 import {
   CompactContextButton,
   ComposerResourceChip,
@@ -56,6 +57,7 @@ const TRAY_FLOATING_SELECTOR = [
   '.composer-tools-trigger',
   '.composer-tool-tray-shell',
   '.anchored-popup-menu',
+  '.voice-input-popup',
   '.git-diff-dialog-backdrop',
   "[data-slot='dialog-content']",
   "[data-slot='dialog-overlay']",
@@ -494,6 +496,19 @@ export const FocusSession = memo(function FocusSession({
                 compact
               />
             </div>
+            <VoiceInputControl
+              onInsert={(transcript) => {
+                const prefix = value.trimEnd()
+                updateValue(prefix ? `${prefix}\n${transcript}` : transcript)
+                requestAnimationFrame(() => {
+                  const element = promptRef.current
+                  if (!element) return
+                  element.focus()
+                  element.style.height = 'auto'
+                  element.style.height = `${Math.min(element.scrollHeight, 220)}px`
+                })
+              }}
+            />
             <ComposerSendButton
               streaming={streaming}
               queueing={queueing}

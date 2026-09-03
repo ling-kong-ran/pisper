@@ -730,6 +730,50 @@ fn operation_capability(operation: &str) -> Result<Option<&'static str>, String>
 }
 
 #[tauri::command]
+fn mobile_request_microphone_permission(
+    app: tauri::AppHandle,
+) -> Result<serde_json::Value, String> {
+    #[cfg(any(target_os = "android", target_os = "ios"))]
+    {
+        return app
+            .mobile_device()
+            .request_permission("microphone")
+            .map_err(|error| error.to_string())
+            .and_then(|result| {
+                if result.get("state").and_then(|value| value.as_str()) == Some("granted") {
+                    Ok(result)
+                } else {
+                    Err("microphone_permission_denied".into())
+                }
+            });
+    }
+    #[cfg(not(any(target_os = "android", target_os = "ios")))]
+    {
+        let _ = app;
+        Err("当前平台不支持麦克风权限。".into())
+    }
+}
+
+#[tauri::command]
+fn mobile_transcribe_pcm(
+    app: tauri::AppHandle,
+    pcm_base64: String,
+) -> Result<serde_json::Value, String> {
+    #[cfg(target_os = "android")]
+    {
+        return app
+            .mobile_device()
+            .transcribe_pcm(pcm_base64)
+            .map_err(|error| error.to_string());
+    }
+    #[cfg(not(target_os = "android"))]
+    {
+        let _ = (app, pcm_base64);
+        Err("当前平台不支持本地语音识别。".into())
+    }
+}
+
+#[tauri::command]
 fn mobile_ensure_local_network_permission(app: tauri::AppHandle) -> Result<(), String> {
     #[cfg(target_os = "android")]
     {
@@ -1000,6 +1044,8 @@ pub fn run_mobile() {
             mobile_resume_local_runtime,
             mobile_recover_application,
             mobile_pair,
+            mobile_request_microphone_permission,
+            mobile_transcribe_pcm,
             mobile_ensure_local_network_permission,
             mobile_pair_lan,
             mobile_sync_model_config,

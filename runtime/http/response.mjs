@@ -53,16 +53,21 @@ export function json(res, status, body) {
   res.end(JSON.stringify(body, jsonReplacer))
 }
 
-export async function bodyJson(req) {
+export async function bodyBuffer(req, maxBytes = 32_000_000) {
   const chunks = []
   let size = 0
   for await (const chunk of req) {
     size += chunk.length
-    if (size > 32_000_000) throw new Error('请求体过大，附件总大小不能超过约 24 MB。')
+    if (size > maxBytes) throw new Error('请求体过大。')
     chunks.push(chunk)
   }
-  if (!chunks.length) return {}
-  return JSON.parse(Buffer.concat(chunks).toString('utf8'))
+  return Buffer.concat(chunks)
+}
+
+export async function bodyJson(req) {
+  const buffer = await bodyBuffer(req)
+  if (!buffer.length) return {}
+  return JSON.parse(buffer.toString('utf8'))
 }
 
 // 序列化一帧 SSE 的 data 负载（含孤立代理项清洗）。

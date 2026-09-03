@@ -58,6 +58,14 @@ const rustBuildTaskPath = join(
 const nodeMobileDir = process.env.PISPER_NODE_MOBILE_ANDROID_DIR
   ? join(process.env.PISPER_NODE_MOBILE_ANDROID_DIR)
   : ''
+const sherpaAar = join(
+  root,
+  'src-tauri',
+  'mobile-device-plugin',
+  'android',
+  'libs',
+  'sherpa-onnx.aar',
+)
 const requireEmbeddedNode = process.env.PISPER_REQUIRE_EMBEDDED_NODE === '1'
 
 function resolveAndroidCppRuntime(ndkHome) {
@@ -77,6 +85,10 @@ function resolveAndroidCppRuntime(ndkHome) {
     if (existsSync(candidate)) return candidate
   }
   return ''
+}
+
+if (!existsSync(sherpaAar)) {
+  throw new Error('缺少 Android sherpa 原生 Runtime，请先运行 npm run build:android。')
 }
 
 if (!existsSync(manifestPath)) {
@@ -129,6 +141,7 @@ if (!manifest.includes('android.permission.CAMERA')) {
   )
 }
 for (const permission of [
+  'android.permission.RECORD_AUDIO',
   'android.permission.READ_CONTACTS',
   'android.permission.ACCESS_COARSE_LOCATION',
   'android.permission.ACCESS_FINE_LOCATION',
@@ -289,6 +302,30 @@ if (nodeLibrary && existsSync(nodeLibrary) && existsSync(nodeHeaders)) {
   console.log('已接入固定 Node 24 Android arm64 宿主。')
 } else if (requireEmbeddedNode) {
   throw new Error('缺少已校验的 Android embedded Node staging。')
+}
+
+// gen/ 不入库，重复构建时也要同步宿主入口，避免 Rust 调用到旧的 Kotlin ABI。
+const hostSourcePath = join(
+  root,
+  'src-tauri',
+  'mobile',
+  'node-host',
+  'android',
+  'EmbeddedNodeHost.kt',
+)
+const hostTargetPath = join(
+  androidDir,
+  'app',
+  'src',
+  'main',
+  'java',
+  'com',
+  'lingkongran',
+  'pisper',
+  'EmbeddedNodeHost.kt',
+)
+if (existsSync(hostSourcePath) && existsSync(hostTargetPath)) {
+  copyFileSync(hostSourcePath, hostTargetPath)
 }
 
 console.log('Android 工程已就绪（权限、网络安全与 WebView renderer 恢复已应用）。')

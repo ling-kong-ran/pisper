@@ -26,6 +26,7 @@ const manifest = await stageRuntimeClosure({
   manifestPath,
   target: { platform: 'mobile', arch: 'arm64', libc: null },
   appVersion,
+  includeSpeechModel: true,
 })
 await cp(join(root, 'dist'), join(runtimeDir, 'dist'), { recursive: true, force: true })
 await writeFile(

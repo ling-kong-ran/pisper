@@ -18,6 +18,7 @@ import { ensureRemoteCertificate } from './remote-tls.mjs'
 import { collectRemoteEndpoints, remoteDeviceName } from './remote-endpoints.mjs'
 import { readIrohTunnelStatus } from './iroh-endpoint.mjs'
 import { resolveRuntimeCapabilities } from './runtime-capabilities.mjs'
+import { SpeechRecognitionService } from './services/speech-recognition-service.mjs'
 
 // 启动诊断回调必须无副作用：即使观察者抛错也不能影响运行时可用性。
 function notifyStartup(observer, stage) {
@@ -252,6 +253,9 @@ export async function createPisperRuntime({
       fallbackPath: join(appRoot, 'docs', 'sponsors.json'),
       appVersion: packageJson.version,
     })
+    const speech = new SpeechRecognitionService({
+      packagedModelDir: join(appRoot, 'runtime', 'speech-model'),
+    })
     await sponsors.init()
     // 仅开发模式注入 Vite 中间件；生产环境直接托管 dist 静态资源。
     if (!production) {
@@ -266,6 +270,7 @@ export async function createPisperRuntime({
       updates,
       sponsors,
       desktopPet,
+      speech,
       engineVersion,
       remoteAccess,
       remoteControl,

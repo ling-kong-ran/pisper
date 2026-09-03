@@ -35,6 +35,11 @@ import android.provider.ContactsContract
 import android.provider.MediaStore
 import android.provider.Settings
 import android.util.Base64
+import com.k2fsa.sherpa.onnx.FeatureConfig
+import com.k2fsa.sherpa.onnx.OnlineModelConfig
+import com.k2fsa.sherpa.onnx.OnlineRecognizer
+import com.k2fsa.sherpa.onnx.OnlineRecognizerConfig
+import com.k2fsa.sherpa.onnx.OnlineZipformer2CtcModelConfig
 import androidx.activity.result.ActivityResult
 import androidx.core.content.ContextCompat
 import androidx.core.content.FileProvider
@@ -51,6 +56,8 @@ import app.tauri.plugin.JSObject
 import app.tauri.plugin.Plugin
 import java.io.ByteArrayOutputStream
 import java.io.File
+import java.nio.ByteBuffer
+import java.nio.ByteOrder
 import java.text.SimpleDateFormat
 import java.util.Calendar
 import java.util.Date
@@ -67,6 +74,7 @@ private const val LOCATION = "location"
 private const val PHOTOS = "photos"
 private const val NOTIFICATIONS = "notifications"
 private const val LOCAL_NETWORK = "localNetwork"
+private const val MICROPHONE = "microphone"
 private const val EXTERNAL_APPS = "externalApps"
 private val PHOTO_ID = Regex("^[0-9]+$")
 private val ALBUM_NAME = Regex("^[^/\\\\]{1,120}$")
@@ -119,6 +127,11 @@ class OperationArgs {
     var parameters: OperationParameters? = null
 }
 
+@InvokeArg
+class TranscribeArgs {
+    var pcmBase64: String = ""
+}
+
 class PisperAssetFileProvider : FileProvider()
 
 @TauriPlugin(
@@ -138,7 +151,8 @@ class PisperAssetFileProvider : FileProvider()
             alias = PHOTOS
         ),
         Permission(strings = ["android.permission.POST_NOTIFICATIONS"], alias = NOTIFICATIONS),
-        Permission(strings = ["android.permission.ACCESS_LOCAL_NETWORK"], alias = LOCAL_NETWORK)
+        Permission(strings = ["android.permission.ACCESS_LOCAL_NETWORK"], alias = LOCAL_NETWORK),
+        Permission(strings = [Manifest.permission.RECORD_AUDIO], alias = MICROPHONE)
     ]
 )
 class MobileDevicePlugin(private val activity: Activity) : Plugin(activity) {
@@ -207,6 +221,7 @@ class MobileDevicePlugin(private val activity: Activity) : Plugin(activity) {
             put(PHOTOS, photoPermissionState())
             put(NOTIFICATIONS, if (Build.VERSION.SDK_INT < 33) "granted" else state(NOTIFICATIONS))
             put(LOCAL_NETWORK, localNetworkState())
+            put(MICROPHONE, state(MICROPHONE))
             put(EXTERNAL_APPS, "not-required")
         })
     }
@@ -235,6 +250,7 @@ class MobileDevicePlugin(private val activity: Activity) : Plugin(activity) {
                     requestPermissionForAlias(LOCAL_NETWORK, invoke, "localNetworkPermissionCallback")
                 }
             }
+            MICROPHONE -> requestPermissionForAlias(MICROPHONE, invoke, "microphonePermissionCallback")
             else -> invoke.reject("Unsupported mobile capability: $capability")
         }
     }
@@ -257,6 +273,47 @@ class MobileDevicePlugin(private val activity: Activity) : Plugin(activity) {
     @PermissionCallback
     fun localNetworkPermissionCallback(invoke: Invoke) =
         invoke.resolve(localNetworkPermissionResult())
+
+    @PermissionCallback
+    fun microphonePermissionCallback(invoke: Invoke) = invoke.resolve(permissionResult(MICROPHONE))
+
+    @Command
+    fun transcribePcm(invoke: Invoke) {
+        val pcmBase64 = invoke.parseArgs(TranscribeArgs::class.java).pcmBase64
+        worker.execute {
+            try {
+                val encoded = Base64.decode(pcmBase64, Base64.DEFAULT)
+                require(encoded.isNotEmpty() && encoded.size % 4 == 0) { "Invalid PCM data" }
+                val samples = FloatArray(encoded.size / 4)
+                val buffer = ByteBuffer.wrap(encoded).order(ByteOrder.LITTLE_ENDIAN)
+                for (index in samples.indices) samples[index] = buffer.float
+                val recognizer = OnlineRecognizer(
+                    activity.assets,
+                    OnlineRecognizerConfig(
+                        featConfig = FeatureConfig(sampleRate = 16000, featureDim = 80),
+                        modelConfig = OnlineModelConfig(
+                            zipformer2Ctc = OnlineZipformer2CtcModelConfig("speech-model/model.int8.onnx"),
+                            tokens = "speech-model/tokens.txt",
+                            numThreads = 1,
+                            provider = "cpu",
+                        ),
+                        decodingMethod = "greedy_search",
+                    ),
+                )
+                val stream = recognizer.createStream()
+                stream.acceptWaveform(samples, 16000)
+                while (recognizer.isReady(stream)) recognizer.decode(stream)
+                stream.inputFinished()
+                while (recognizer.isReady(stream)) recognizer.decode(stream)
+                val text = recognizer.getResult(stream).text.trim()
+                stream.release()
+                recognizer.release()
+                invoke.resolve(JSObject().apply { put("text", text) })
+            } catch (error: Throwable) {
+                invoke.reject(error.message ?: "Speech recognition failed")
+            }
+        }
+    }
 
     @Command
     fun openAppSettings(invoke: Invoke) {
@@ -473,6 +530,7 @@ class MobileDevicePlugin(private val activity: Activity) : Plugin(activity) {
         val items = JSArray().apply {
             put(capability("search_contacts", "contacts.search", permission = CONTACTS, permissionState = state(CONTACTS), optionalParameters = listOf("query", "limit")))
             put(capability("capture_photo", "camera.capture", available = cameraAvailable, permission = CAMERA, permissionState = state(CAMERA), optionalParameters = listOf("cameraDirection"), limitations = listOf("需要在前台显示系统相机界面。")))
+            put(capability("record_audio", "audio.record", permission = MICROPHONE, permissionState = state(MICROPHONE), limitations = listOf("仅在用户主动点击语音输入后采集。")))
             put(capability("get_location", "location.current", available = locationAvailable, permission = LOCATION, permissionState = state(LOCATION), limitations = listOf("定位服务关闭时不可用。")))
             put(capability("get_device_info", "device.info"))
             put(capability("get_battery_status", "device.battery"))

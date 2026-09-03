@@ -14,6 +14,7 @@ import {
   writeSizeManifest,
 } from './sea-runtime.mjs'
 import { bundleRuntime } from './runtime-bundle.mjs'
+import { stageSpeechModel } from './stage-speech-model.mjs'
 
 const run = promisify(execFile)
 
@@ -34,7 +35,14 @@ function runNpm(args, options = {}) {
   return run('npm', args, options)
 }
 
-export async function stageRuntimeClosure({ root, runtimeDir, manifestPath, target, appVersion }) {
+export async function stageRuntimeClosure({
+  root,
+  runtimeDir,
+  manifestPath,
+  target,
+  appVersion,
+  includeSpeechModel = false,
+}) {
   root = resolve(root)
   await rm(runtimeDir, { recursive: true, force: true })
   await mkdir(runtimeDir, { recursive: true })
@@ -47,7 +55,6 @@ export async function stageRuntimeClosure({ root, runtimeDir, manifestPath, targ
     copyFile(join(root, 'package-lock.json'), join(runtimeDir, 'package-lock.json')),
   ])
   await rm(join(runtimeDir, 'runtime', 'tests'), { recursive: true, force: true })
-
   await runNpm(['ci', '--omit=dev', '--ignore-scripts', '--no-audit', '--no-fund'], {
     cwd: runtimeDir,
     env: { ...process.env, NODE_ENV: 'production' },
@@ -72,6 +79,8 @@ export async function stageRuntimeClosure({ root, runtimeDir, manifestPath, targ
 
   const beforePrune = await collectRuntimeSnapshot(runtimeDir)
   const { audit, nativeSelection } = await pruneRuntime(runtimeDir, target)
+  // bundleRuntime 会重建 runtime/ 目录，模型必须在 bundle 完成后再放入，避免被清理。
+  if (includeSpeechModel) await stageSpeechModel({ root, runtimeDir })
   const afterPrune = await collectRuntimeSnapshot(runtimeDir)
   const [criticalFiles, native] = await Promise.all([
     inspectCriticalFiles(runtimeDir, criticalRuntimeEntries(nativeSelection)),

@@ -257,6 +257,13 @@ final class MobileDevicePlugin: Plugin, UIImagePickerControllerDelegate,
       case .notDetermined: return "prompt"
       @unknown default: return "prompt"
       }
+    case "microphone":
+      switch AVAudioSession.sharedInstance().recordPermission {
+      case .granted: return "granted"
+      case .denied: return "denied"
+      case .undetermined: return "prompt"
+      @unknown default: return "prompt"
+      }
     case "location":
       switch locationManager.authorizationStatus {
       case .authorizedWhenInUse, .authorizedAlways: return "granted"
@@ -297,6 +304,7 @@ final class MobileDevicePlugin: Plugin, UIImagePickerControllerDelegate,
       invoke.resolve([
         "contacts": self.authorizationState("contacts"),
         "camera": self.authorizationState("camera"),
+        "microphone": self.authorizationState("microphone"),
         "location": self.authorizationState("location"),
         "photos": self.authorizationState("photos"),
         "notifications": state,
@@ -324,6 +332,13 @@ final class MobileDevicePlugin: Plugin, UIImagePickerControllerDelegate,
         invoke.resolve([
           "capability": "camera",
           "state": self.authorizationState("camera"),
+        ])
+      }
+    case "microphone":
+      AVAudioSession.sharedInstance().requestRecordPermission { _ in
+        invoke.resolve([
+          "capability": "microphone",
+          "state": self.authorizationState("microphone"),
         ])
       }
     case "location":
@@ -661,6 +676,13 @@ final class MobileDevicePlugin: Plugin, UIImagePickerControllerDelegate,
           permissionState: authorizationState("camera"),
           optionalParameters: ["cameraDirection"],
           limitations: ["需要在前台显示系统相机界面。"]
+        ),
+        capability(
+          action: "record_audio",
+          operation: "audio.record",
+          permission: "microphone",
+          permissionState: authorizationState("microphone"),
+          limitations: ["仅在用户主动点击语音输入后采集。"]
         ),
         capability(
           action: "get_location",

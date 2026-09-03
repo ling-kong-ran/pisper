@@ -62,6 +62,22 @@ impl<R: Runtime> MobileDevice<R> {
             .map_err(Into::into)
     }
 
+    pub fn transcribe_pcm(&self, pcm_base64: impl Into<String>) -> Result<Value> {
+        #[derive(Serialize)]
+        #[serde(rename_all = "camelCase")]
+        struct TranscribeRequest {
+            pcm_base64: String,
+        }
+        self.0
+            .run_mobile_plugin(
+                "transcribePcm",
+                TranscribeRequest {
+                    pcm_base64: pcm_base64.into(),
+                },
+            )
+            .map_err(Into::into)
+    }
+
     pub fn execute(&self, request: OperationRequest) -> Result<Value> {
         self.0
             .run_mobile_plugin("execute", request)

@@ -371,6 +371,20 @@ export async function pruneRuntime(runtimeDir, target = runtimeTarget()) {
   for (const parts of explicitPaths) {
     await removePath(join(nodeModules, ...parts), 'explicitUnusedClosure', audit)
   }
+  if (target.platform === 'mobile') {
+    // 移动端由 sherpa Android AAR 原生识别，Node addon 只会增加无效的桌面二进制体积。
+    for (const parts of [
+      ['sherpa-onnx-node'],
+      ['sherpa-onnx-win-x64'],
+      ['sherpa-onnx-linux-x64'],
+      ['sherpa-onnx-linux-arm64'],
+      ['sherpa-onnx-darwin-arm64'],
+      ['sherpa-onnx-darwin-x64'],
+      ['sherpa-onnx-win-ia32'],
+    ]) {
+      await removePath(join(nodeModules, ...parts), 'mobileSpeechNativeAddon', audit)
+    }
+  }
 
   const pdfBuild = join(nodeModules, 'pdfjs-dist', 'build')
   for (const name of [
