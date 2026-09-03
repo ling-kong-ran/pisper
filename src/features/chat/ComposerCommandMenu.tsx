@@ -4,12 +4,7 @@ import { useEffect, useId, useMemo, useState, type RefObject } from 'react'
 import { Braces, FileText } from 'lucide-react'
 import { useI18n } from '@/app/use-i18n'
 import { chatApi, type SessionCommand } from './chat-api'
-
-export function commandDraft(invocation: string, value: string) {
-  const slash = value.match(/^\/[^\s]*(?:\s+([\s\S]*))?$/)
-  const argumentsText = (slash ? slash[1] || '' : value).trim()
-  return `${invocation}${argumentsText ? ` ${argumentsText}` : ' '}`
-}
+import { commandDraft } from './composer-drafts'
 
 export function ComposerCommandMenu({
   sessionId,

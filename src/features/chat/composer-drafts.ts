@@ -12,6 +12,12 @@ export type ComposerDraft = {
 const MAX_RETAINED_DRAFTS = 64
 const drafts = new Map<string, ComposerDraft>()
 
+export function commandDraft(invocation: string, value: string) {
+  const slash = value.match(/^\/[^\s]*(?:\s+([\s\S]*))?$/)
+  const argumentsText = (slash ? slash[1] || '' : value).trim()
+  return `${invocation}${argumentsText ? ` ${argumentsText}` : ' '}`
+}
+
 function copyDraft(draft?: ComposerDraft): ComposerDraft {
   return {
     text: draft?.text || '',
