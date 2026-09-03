@@ -73,6 +73,8 @@ function resolveVersion(current, target) {
 
 function runComponentChecks(selected) {
   console.log(`正在执行 ${selected.join('、')} 发布前检查…`)
+  // lockfile 损坏只会在冷 `npm ci` 时爆发，这里提前对照注册表校验变更条目。
+  run(process.execPath, ['scripts/verify-lockfile-integrity.mjs'])
   runNpm(['run', 'postinstall'])
   if (selected.includes('desktop') || selected.includes('runtime') || selected.includes('app')) {
     runNpm(['test'])

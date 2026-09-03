@@ -42,6 +42,19 @@ test('release validates immutable source and dispatches without versioning or ta
   assert.match(source, /`tui_version=\$\{desktopTuiVersion\}`/)
 })
 
+test('release pre-checks verify lockfile integrity against the registry before installing', async () => {
+  // 手写损坏的 integrity 只会在冷 `npm ci` 时爆发，必须在派发前的本地检查里拦住。
+  const source = await readFile('scripts/release.mjs', 'utf8')
+  const guard = source.indexOf("'scripts/verify-lockfile-integrity.mjs'")
+  const postinstall = source.indexOf("runNpm(['run', 'postinstall'])")
+  assert.ok(guard >= 0)
+  assert.ok(postinstall > guard)
+
+  const script = await readFile('scripts/verify-lockfile-integrity.mjs', 'utf8')
+  assert.match(script, /https:\/\/registry\.npmjs\.org\//)
+  assert.match(script, /dist\.integrity/)
+})
+
 test('desktop staging treats a component bundle refresh as a substantive change', async () => {
   const stage = await readFile('scripts/stage-release-version.mjs', 'utf8')
   assert.match(stage, /RELEASE_TUI_VERSION/)
