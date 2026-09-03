@@ -4,6 +4,7 @@ import { basename, dirname, join } from 'node:path'
 export const SEA_RUNTIME_MANIFEST_SCHEMA = 'pisper.sea-runtime-size-manifest'
 export const SEA_RUNTIME_MANIFEST_VERSION = 1
 export const SEA_RUNTIME_BUDGET_BYTES = 120 * 1024 * 1024
+export const SEA_SPEECH_RUNTIME_BUDGET_BYTES = 50 * 1024 * 1024
 
 const PI_CODING_AGENT = 'node_modules/@earendil-works/pi-coding-agent'
 const PI_NESTED_NODE_MODULES = `${PI_CODING_AGENT}/node_modules`

@@ -11,6 +11,8 @@ import {
   criticalRuntimeEntries,
   inspectCriticalFiles,
   pruneRuntime,
+  SEA_RUNTIME_BUDGET_BYTES,
+  SEA_SPEECH_RUNTIME_BUDGET_BYTES,
   writeSizeManifest,
 } from './sea-runtime.mjs'
 import { bundleRuntime } from './runtime-bundle.mjs'
@@ -96,6 +98,9 @@ export async function stageRuntimeClosure({
     pruning: audit,
     criticalFiles,
     native,
+    // 离线语音部署的模型与平台原生库拥有独立预算，避免挤占既有 Runtime 体积守卫。
+    budgetBytes:
+      SEA_RUNTIME_BUDGET_BYTES + (includeSpeechModel ? SEA_SPEECH_RUNTIME_BUDGET_BYTES : 0),
   })
   await writeSizeManifest(manifestPath, manifest)
   assertSizeManifest(manifest)
