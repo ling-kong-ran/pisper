@@ -2470,6 +2470,12 @@ impl App {
             }
             "/run" => {
                 self.clear_input();
+                // 运行中不打开运行模式选择器，与 set_prompt_mode 的流式守卫保持一致。
+                if self.is_streaming() {
+                    self.status = "run mode switch is disabled while a run is active".to_owned();
+                    self.status_error = true;
+                    return Action::None;
+                }
                 self.open_settings_picker(SettingsPicker::RunMode);
                 Action::None
             }
@@ -2973,7 +2979,13 @@ impl App {
     }
 
     /// 切换发送执行模式（plan/goal/team）：只影响下一条消息的提交方式，状态栏给出提示。
+    /// 运行中不允许切换：进行中的 Goal/Team 回合必须按启动时的模式收尾。
     pub fn set_prompt_mode(&mut self, mode: PromptMode) -> Action {
+        if self.is_streaming() {
+            self.status = "run mode switch is disabled while a run is active".to_owned();
+            self.status_error = true;
+            return Action::None;
+        }
         self.prompt_mode = mode;
         let budget = self
             .goal_token_budget
@@ -4421,6 +4433,27 @@ mod tests {
             assert!(matches!(app.submit_action(), Action::None));
             assert_eq!(app.prompt_mode, expected);
         }
+    }
+
+    /// 运行中的回合按启动时的模式收尾：禁止切换执行模式，也不打开选择器。
+    #[test]
+    fn run_mode_switch_is_blocked_while_streaming() {
+        let mut app = test_app(Vec::new());
+        app.live = Some(LiveTurn {
+            streaming: true,
+            ..LiveTurn::default()
+        });
+        app.set_input("/run team");
+
+        assert!(matches!(app.submit_action(), Action::None));
+        assert_eq!(app.prompt_mode, PromptMode::Plan);
+        assert!(app.status_error);
+        assert!(app.status.contains("disabled while a run is active"));
+
+        app.set_input("/run");
+        assert!(matches!(app.submit_action(), Action::None));
+        assert_eq!(app.settings_picker, None);
+        assert!(app.status_error);
     }
 
     /// /run budget 设置与清除 Token 预算。

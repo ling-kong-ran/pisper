@@ -1057,6 +1057,9 @@ export class SessionLifecycle {
       !(await this.findSessionInfo(id))
     )
       return null
+    // 运行中切换会让进行中的 Goal/Team 轮次与后续消息的模式错位，必须等本轮收尾。
+    if (this.sessionRunIsActive(id, this.sessions.get(id)))
+      throw new Error('当前会话正在运行，请完成或停止后再切换运行模式。')
     const sessionMeta = this.getSessionMeta()
     sessionMeta[id] = { ...(sessionMeta[id] || {}), runMode }
     await this.saveSessionMeta()

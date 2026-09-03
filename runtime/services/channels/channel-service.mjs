@@ -628,8 +628,16 @@ export class ChannelService {
         await this.gateways[platform].send(message, { text: '用法：/run plan|goal|team' })
         return
       }
-      if (scope.sessionId && this.agent.setRunMode)
-        await this.agent.setRunMode(scope.sessionId, runMode)
+      if (scope.sessionId && this.agent.setRunMode) {
+        try {
+          await this.agent.setRunMode(scope.sessionId, runMode)
+        } catch (error) {
+          await this.gateways[platform].send(message, {
+            text: error instanceof Error ? error.message : String(error),
+          })
+          return
+        }
+      }
       this.state.scopes[key] = { ...scope, platform, peerId: message.peerId, runMode }
       await this.save()
       await this.gateways[platform].send(message, { text: `执行模式已切换为 ${runMode}。` })
@@ -648,7 +656,16 @@ export class ChannelService {
         return
       }
       const directory = await this.agent.validateDirectory(requested)
-      if (scope.sessionId && this.agent.setCwd) await this.agent.setCwd(scope.sessionId, directory)
+      if (scope.sessionId && this.agent.setCwd) {
+        try {
+          await this.agent.setCwd(scope.sessionId, directory)
+        } catch (error) {
+          await this.gateways[platform].send(message, {
+            text: error instanceof Error ? error.message : String(error),
+          })
+          return
+        }
+      }
       this.state.scopes[key] = { ...scope, platform, peerId: message.peerId, cwd: directory }
       await this.save()
       await this.gateways[platform].send(message, { text: `工作目录已切换为 ${directory}。` })

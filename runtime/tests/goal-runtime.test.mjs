@@ -356,6 +356,82 @@ test('team goal completion rolls back when the Team workflow cannot be marked co
   assert.equal(runtime.teamWorkflows.get('rollback-session').status, 'active')
 })
 
+test('a plan-mode message pauses the active team goal and clears the team snapshot', async (t) => {
+  const directory = await mkdtemp(join(tmpdir(), 'pisper-plan-clears-team-'))
+  t.after(() => rm(directory, { recursive: true, force: true }))
+  const runtime = new AgentRuntimeService({ cwd: directory, dataDir: directory })
+  await runtime.goals.init()
+  await runtime.teamWorkflows.init()
+  runtime.archiveAttachments = async () => {}
+  runtime.captureConversationMemory = async () => []
+  runtime.memory = { relevantContext: async () => ({ text: '' }) }
+
+  const goal = await runtime.goals.start('plan-session', {
+    objective: 'Drive the team.',
+    mode: 'team',
+  })
+  await runtime.teamWorkflows.ensure('plan-session', {
+    goalId: goal.id,
+    objective: goal.objective,
+  })
+
+  const listeners = new Set()
+  const followUps = []
+  const session = {
+    sessionId: 'plan-session',
+    model: { provider: 'openai', id: 'gpt-5' },
+    thinkingLevel: 'medium',
+    isStreaming: false,
+    messages: [],
+    agent: { state: { systemPrompt: '' } },
+    getActiveToolNames: () => [],
+    setActiveToolsByName: () => {},
+    setSessionName: () => {},
+    subscribe(listener) {
+      listeners.add(listener)
+      return () => listeners.delete(listener)
+    },
+    async followUp(text) {
+      followUps.push(text)
+    },
+    async prompt(text) {
+      session.messages.push({ role: 'user', content: text, timestamp: Date.now() })
+      for (const listener of listeners) listener({ type: 'turn_start' })
+      const assistant = {
+        role: 'assistant',
+        content: [{ type: 'text', text: 'plan answer' }],
+        usage: { totalTokens: 5 },
+        timestamp: Date.now(),
+      }
+      session.messages.push(assistant)
+      for (const listener of listeners) {
+        listener({ type: 'turn_end', message: assistant })
+        listener({ type: 'agent_end', messages: [assistant] })
+      }
+    },
+    async abort() {},
+    dispose() {},
+  }
+  const value = { session, cwd: directory, name: 'Plan test', baseToolNames: [] }
+  runtime.sessions.set(session.sessionId, value)
+  runtime.getOrCreateSession = async () => value
+
+  const events = []
+  await runtime.streamPrompt({
+    sessionId: session.sessionId,
+    message: 'Just answer this one question.',
+    send: (event, data) => events.push({ event, data }),
+  })
+
+  // Plan 消息显式离开目标驱动：目标与团队暂停，不再排队隐藏延续。
+  assert.equal(runtime.goals.get('plan-session').status, 'paused')
+  assert.equal(runtime.teamWorkflows.get('plan-session').status, 'paused')
+  assert.deepEqual(followUps, [])
+  // meta/done 都带 team: null 清除信号，前端不再残留团队面板。
+  assert.equal(events.find((item) => item.event === 'meta').data.team, null)
+  assert.equal(events.find((item) => item.event === 'done').data.team, null)
+})
+
 test('goal continuation waits for Pi retries and skips terminal assistant errors', async (t) => {
   const directory = await mkdtemp(join(tmpdir(), 'pisper-goal-retry-'))
   t.after(() => rm(directory, { recursive: true, force: true }))
@@ -413,6 +489,8 @@ test('goal continuation waits for Pi retries and skips terminal assistant errors
   await runtime.streamPrompt({
     sessionId: session.sessionId,
     message: 'Continue the Goal.',
+    // 真实客户端在 Goal 模式下发送消息；不带标记的普通（Plan）消息会暂停目标。
+    goalMode: true,
     send: () => {},
   })
 

@@ -418,6 +418,7 @@ export const FocusSession = memo(function FocusSession({
                     mode={composerExecutionMode}
                     goal={goal}
                     teamAvailable={teamAvailable}
+                    disabled={streaming}
                     tokenBudget={
                       composerExecutionMode === 'team' ? teamTokenBudget : goalTokenBudget
                     }

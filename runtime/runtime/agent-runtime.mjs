@@ -1856,6 +1856,18 @@ export class AgentRuntimeService extends AgentRuntimeFacade {
       throw new Error('没有可用模型，请先在配置页设置 Provider、模型和 API Key。')
     }
     let goal = this.goals.get(session.sessionId)
+    // 普通（Plan）消息不带 goal/team 标记：显式离开目标驱动，先暂停活动 Goal，
+    // 否则隐藏延续与团队快照会继续挂在本轮与后续轮次。内部延续/唤醒消息除外。
+    if (
+      !goalMode &&
+      !teamMode &&
+      !isGoalContinuationMessage(message) &&
+      !isAgentCompletionMessage(message) &&
+      goal?.status === 'active'
+    ) {
+      await this.pauseSessionGoal(session.sessionId)
+      goal = this.goals.get(session.sessionId)
+    }
     if (goalMode || teamMode) {
       const requestedMode = teamMode ? 'team' : 'goal'
       if (goal?.status === 'paused') {
@@ -2372,9 +2384,11 @@ export class AgentRuntimeService extends AgentRuntimeFacade {
       if (last?.errorMessage) throw new Error(last.errorMessage)
       const assistantText = textFromContent(last?.content)
       live.text = assistantText || live.text
-      if (goal?.mode === 'team' && assistantText)
+      // 团队总结只在 team 轮次回写；plan 轮（含刚暂停目标的轮次）不覆盖既有总结。
+      if (attachTeam && goal?.mode === 'team' && assistantText)
         await this.teamWorkflows.setSummary(session.sessionId, assistantText)
-      live.team = this.getTeamProjection(session.sessionId, { compact: true })
+      // 只有本轮确实以 goal/team 语境启动时才回填团队快照；plan 轮保留 null 清除信号。
+      if (attachTeam) live.team = this.getTeamProjection(session.sessionId, { compact: true })
       const finishedAt = finishLiveRun()
       live.contextUsage = this.compactionAwareContextUsage(session, live.compaction)
       emit('done', {

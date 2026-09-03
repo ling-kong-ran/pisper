@@ -28,6 +28,51 @@ test('runtime service exposes setSessionRunMode and persists the run mode per se
   assert.equal(stored['session-1'].runMode, 'team')
 })
 
+// 运行模式影响进行中的 Goal/Team 轮次，因此运行中禁止切换。
+test('run mode cannot switch while the session is running', async (t) => {
+  const directory = await mkdtemp(join(tmpdir(), 'pisper-run-mode-busy-'))
+  t.after(() => rm(directory, { recursive: true, force: true }))
+  const runtime = new AgentRuntimeService({ cwd: directory, dataDir: directory })
+  runtime.sessions.set('session-1', { runActive: true })
+  await assert.rejects(runtime.setSessionRunMode('session-1', 'plan'), /正在运行/)
+  assert.equal(runtime.sessionMeta['session-1']?.runMode, undefined)
+})
+
+// 显式切回 Plan 必须暂停活动 Goal/Team：否则隐藏延续与团队快照会继续挂在会话上。
+test('switching to plan pauses the active team goal and its workflow', async (t) => {
+  const directory = await mkdtemp(join(tmpdir(), 'pisper-run-mode-pause-'))
+  t.after(() => rm(directory, { recursive: true, force: true }))
+  const runtime = new AgentRuntimeService({ cwd: directory, dataDir: directory })
+  await runtime.goals.init()
+  await runtime.teamWorkflows.init()
+  runtime.sessions.set('session-1', {})
+  const goal = await runtime.goals.start('session-1', {
+    objective: 'Coordinate the team.',
+    mode: 'team',
+  })
+  await runtime.teamWorkflows.ensure('session-1', {
+    goalId: goal.id,
+    objective: goal.objective,
+  })
+  const task = await runtime.teamWorkflows.registerTask('session-1', {
+    taskName: 'inspect',
+    message: 'Inspect.',
+  })
+  await runtime.teamWorkflows.bindAgent('session-1', task.id, { id: 'agent-1', status: 'running' })
+
+  const result = await runtime.setSessionRunMode('session-1', 'plan')
+  assert.equal(result.runMode, 'plan')
+  assert.equal(runtime.goals.get('session-1').status, 'paused')
+  const team = runtime.teamWorkflows.get('session-1')
+  assert.equal(team.status, 'paused')
+  assert.equal(team.tasks[0].status, 'interrupted')
+
+  // 切回 team 并发送 team 消息后仍可恢复（目标不丢失）。
+  await runtime.setSessionRunMode('session-1', 'team')
+  const resumed = await runtime.goals.resume('session-1', { mode: 'team' })
+  assert.equal(resumed.objective, 'Coordinate the team.')
+})
+
 // 会话列表投影必须携带 runMode，前端才能在刷新后首帧恢复执行模式。
 test('session listing projects the persisted run mode with plan fallback', async (t) => {
   const directory = await mkdtemp(join(tmpdir(), 'pisper-run-mode-list-'))
@@ -76,6 +121,14 @@ test('session listing stops projecting team snapshots once the goal is complete'
   }
   // 目标仍 active：团队照常投影。
   let sessions = await runtime.listSessions()
+  assert.ok(sessions.find((session) => session.id === 'session-1').team)
+  // 目标暂停（如用户切回 Plan）：团队属于历史轮次，不再随列表回灌。
+  runtime.goals.state.goals['session-1'].status = 'paused'
+  sessions = await runtime.listSessions()
+  assert.equal(sessions.find((session) => session.id === 'session-1').team, null)
+  // 预算受限仍投影：用户需要看到团队因预算停在哪里。
+  runtime.goals.state.goals['session-1'].status = 'budget_limited'
+  sessions = await runtime.listSessions()
   assert.ok(sessions.find((session) => session.id === 'session-1').team)
   // 目标完成后：列表投影变为 null 清除信号，面板不再残留。
   runtime.goals.state.goals['session-1'].status = 'complete'

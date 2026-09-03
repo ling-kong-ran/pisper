@@ -300,7 +300,11 @@ export const agentSessionMethods = {
   },
 
   async setSessionRunMode(id, mode) {
-    return this.sessionLifecycle.setSessionRunMode(id, mode)
+    const result = await this.sessionLifecycle.setSessionRunMode(id, mode)
+    // 显式切回 Plan：立即暂停活动 Goal/Team，避免隐藏延续与团队快照继续挂在会话上。
+    if (result?.runMode === 'plan' && this.goals.get(id)?.status === 'active')
+      await this.pauseSessionGoal(id)
+    return result
   },
 
   resolveToolApproval(sessionId, approvalId, approved) {

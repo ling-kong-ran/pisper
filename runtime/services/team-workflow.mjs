@@ -405,13 +405,13 @@ export function shouldAttachTeamSnapshot({ goalMode = false, teamMode = false, g
   return Boolean(goalMode || teamMode || goal?.status === 'active')
 }
 
-// 会话列表投影守卫：团队记录只跟随仍活跃的目标投影给客户端。
-// 已完成/取消目标的团队属于当时的运行轮次，若随列表回灌，
-// 刷新或重新同步后会残留「团队已完成」面板。
+// 会话列表投影守卫：团队记录只跟随仍活跃（含预算受限待续）的目标投影给客户端。
+// 已完成/已取消/已暂停目标的团队属于历史轮次；若随列表回灌，
+// 刷新或重新同步后会残留「团队已暂停/已完成」面板。
 export function projectStoredTeam(goal, team) {
   if (!team) return null
   if (!goal) return null
-  if (goal.status === 'complete' || goal.status === 'cancelled') return null
+  if (goal.status !== 'active' && goal.status !== 'budget_limited') return null
   return team
 }
 
