@@ -18,10 +18,12 @@ import {
 } from './notification-templates.mjs'
 import { WeixinGateway } from './weixin-gateway.mjs'
 import { WeixinOnboardingService } from './weixin-onboarding.mjs'
+import { normalizeExecutionMode } from '../../security/execution-mode.mjs'
 
 const PLATFORMS = new Set(['feishu', 'weixin', 'qq', 'telegram'])
 const MANUAL_PLATFORMS = new Set(['telegram'])
 const TEMPLATE_PLATFORMS = new Set(['feishu', 'weixin', 'qq', 'telegram', 'browser'])
+const CHANNEL_RUN_MODES = new Set(['plan', 'goal', 'team'])
 const TEXT_EXTENSIONS = new Set([
   '.txt',
   '.md',
@@ -125,6 +127,8 @@ function publicScope(key, scope) {
     title: scope.title || scope.peerId,
     cwd: scope.cwd || '',
     model: scope.model || '',
+    executionMode: normalizeExecutionMode(scope.executionMode),
+    runMode: CHANNEL_RUN_MODES.has(scope.runMode) ? scope.runMode : 'plan',
     lastMessage: scope.lastMessage || '',
     updatedAt: scope.updatedAt || null,
   }
@@ -303,6 +307,8 @@ export class ChannelService {
       accessMode: connection.accessMode || 'owner',
       defaultCwd: connection.defaultCwd || this.cwd,
       replyModel: connection.replyModel || null,
+      executionMode: normalizeExecutionMode(connection.executionMode),
+      runMode: CHANNEL_RUN_MODES.has(connection.runMode) ? connection.runMode : 'plan',
       ownerConfigured: Boolean(ownerId),
       bot: live.bot || null,
       status: live.state,
@@ -394,6 +400,8 @@ export class ChannelService {
       accessMode: platform === 'telegram' ? 'all' : 'owner',
       defaultCwd: current?.defaultCwd || this.cwd,
       replyModel: current?.replyModel || null,
+      executionMode: normalizeExecutionMode(current?.executionMode),
+      runMode: CHANNEL_RUN_MODES.has(current?.runMode) ? current.runMode : 'plan',
       enabled: true,
       createdAt: current?.createdAt || new Date().toISOString(),
       updatedAt: new Date().toISOString(),
@@ -473,6 +481,13 @@ export class ChannelService {
     if (Object.hasOwn(input || {}, 'enabled')) connection.enabled = Boolean(input.enabled)
     if (Object.hasOwn(input || {}, 'accessMode'))
       connection.accessMode = input.accessMode === 'all' ? 'all' : 'owner'
+    if (Object.hasOwn(input || {}, 'executionMode'))
+      connection.executionMode = normalizeExecutionMode(input.executionMode)
+    if (Object.hasOwn(input || {}, 'runMode')) {
+      const runMode = String(input.runMode || '')
+      if (!CHANNEL_RUN_MODES.has(runMode)) throw new Error('运行模式无效。')
+      connection.runMode = runMode
+    }
     if (Object.hasOwn(input || {}, 'defaultCwd'))
       connection.defaultCwd = await this.agent.validateDirectory(input.defaultCwd)
     if (Object.hasOwn(input || {}, 'replyModel')) {
@@ -522,6 +537,11 @@ export class ChannelService {
   }
 
   enqueue(platform, message) {
+    // 审批回复必须绕过当前聊天的运行队列，否则原任务会阻塞 /approve 自身。
+    if (/^\/(?:approve|deny|yes|no)(?:\s|$)/i.test(String(message.content || '').trim())) {
+      void this.handleMessage(platform, message).catch(() => {})
+      return
+    }
     const key = scopeKey(platform, message.peerId)
     const previous = this.chatQueues.get(key) || Promise.resolve()
     const next = previous.catch(() => {}).then(() => this.handleMessage(platform, message))
@@ -554,21 +574,103 @@ export class ChannelService {
     }
     const key = scopeKey(platform, message.peerId)
     const scope = this.state.scopes[key] || {}
-    const command = message.content.trim().toLowerCase()
-    if (command === '/new' || command === '/reset') {
+    const command = message.content.trim()
+    const normalizedCommand = command.toLowerCase()
+    if (normalizedCommand === '/new' || normalizedCommand === '/reset') {
       await this.resetScope(key)
       await this.gateways[platform].send(message, { text: '已开始新的 Pisper 会话。' })
       return
     }
-    if (command === '/status') {
+    if (normalizedCommand === '/status') {
       await this.gateways[platform].send(message, {
         text: scope.sessionId
-          ? `会话：${scope.sessionId}\n模型：${scope.model || '默认'}\n工作目录：${scope.cwd || connection.defaultCwd}`
-          : '当前聊天还没有绑定 Pisper 会话。',
+          ? `会话：${scope.sessionId}\n模型：${scope.model || '默认'}\n工作目录：${scope.cwd || connection.defaultCwd}\n审批模式：${scope.executionMode || connection.executionMode || 'approval-required'}\n执行模式：${scope.runMode || connection.runMode || 'plan'}`
+          : `当前聊天还没有绑定 Pisper 会话。\n审批模式：${scope.executionMode || connection.executionMode || 'approval-required'}\n执行模式：${scope.runMode || connection.runMode || 'plan'}`,
       })
       return
     }
-    if (command === '/stop') {
+    if (normalizedCommand === '/mode') {
+      await this.gateways[platform].send(message, {
+        text: `当前审批模式：${scope.executionMode || connection.executionMode || 'approval-required'}\n可选：approval-required、workspace-write、full-access\n用法：/mode <模式>`,
+      })
+      return
+    }
+    if (normalizedCommand.startsWith('/mode ')) {
+      const modeParts = command.split(/\s+/)
+      const mode = normalizeExecutionMode(modeParts[1], '')
+      if (
+        modeParts.length !== 2 ||
+        !mode ||
+        !['approval-required', 'workspace-write', 'full-access'].includes(mode)
+      ) {
+        await this.gateways[platform].send(message, {
+          text: '用法：/mode approval-required|workspace-write|full-access',
+        })
+        return
+      }
+      if (scope.sessionId && this.agent.setExecutionMode)
+        await this.agent.setExecutionMode(scope.sessionId, mode)
+      this.state.scopes[key] = { ...scope, platform, peerId: message.peerId, executionMode: mode }
+      await this.save()
+      await this.gateways[platform].send(message, { text: `审批模式已切换为 ${mode}。` })
+      return
+    }
+    if (normalizedCommand === '/run') {
+      await this.gateways[platform].send(message, {
+        text: `当前执行模式：${scope.runMode || connection.runMode || 'plan'}\n可选：plan、goal、team\n用法：/run <模式>`,
+      })
+      return
+    }
+    if (normalizedCommand.startsWith('/run ')) {
+      const runParts = command.split(/\s+/)
+      const runMode = runParts[1]?.toLowerCase() || ''
+      if (runParts.length !== 2 || !CHANNEL_RUN_MODES.has(runMode)) {
+        await this.gateways[platform].send(message, { text: '用法：/run plan|goal|team' })
+        return
+      }
+      if (scope.sessionId && this.agent.setRunMode)
+        await this.agent.setRunMode(scope.sessionId, runMode)
+      this.state.scopes[key] = { ...scope, platform, peerId: message.peerId, runMode }
+      await this.save()
+      await this.gateways[platform].send(message, { text: `执行模式已切换为 ${runMode}。` })
+      return
+    }
+    if (normalizedCommand === '/dir') {
+      await this.gateways[platform].send(message, {
+        text: `当前工作目录：${scope.cwd || connection.defaultCwd}\n用法：/dir <path>`,
+      })
+      return
+    }
+    if (normalizedCommand.startsWith('/dir ')) {
+      const requested = command.slice(command.search(/\s/) + 1).trim()
+      if (!requested) {
+        await this.gateways[platform].send(message, { text: '用法：/dir <path>' })
+        return
+      }
+      const directory = await this.agent.validateDirectory(requested)
+      if (scope.sessionId && this.agent.setCwd) await this.agent.setCwd(scope.sessionId, directory)
+      this.state.scopes[key] = { ...scope, platform, peerId: message.peerId, cwd: directory }
+      await this.save()
+      await this.gateways[platform].send(message, { text: `工作目录已切换为 ${directory}。` })
+      return
+    }
+    if (/^\/(?:approve|deny|yes|no)(?:\s|$)/i.test(command)) {
+      const approved = /^(?:\/approve|\/yes)(?:\s|$)/i.test(command)
+      const approvalId = command.split(/\s+/)[1] || scope.pendingApprovalId || ''
+      const resolved =
+        approvalId && this.agent.resolveApproval && scope.sessionId
+          ? await this.agent.resolveApproval(scope.sessionId, approvalId, approved)
+          : { found: false }
+      await this.gateways[platform].send(message, {
+        text: resolved?.found
+          ? approved
+            ? '已批准，继续执行。'
+            : '已拒绝本次操作。'
+          : '没有找到待处理的审批请求。',
+      })
+      return
+    }
+    if (normalizedCommand === '/stop') {
       const stopped = scope.sessionId ? await this.agent.abort(scope.sessionId) : false
       await this.gateways[platform].send(message, {
         text: stopped ? '已停止当前任务。' : '当前没有运行中的任务。',
@@ -587,6 +689,31 @@ export class ChannelService {
         cwd: scope.cwd || connection.defaultCwd || this.cwd,
         title: `${platform === 'feishu' ? '飞书' : platform === 'weixin' ? '微信' : platform === 'qq' ? 'QQ' : 'Telegram'} · ${message.senderName || (message.chatType === 'p2p' ? '私聊' : '群聊')}`,
         model: connection.replyModel,
+        executionMode: scope.executionMode || connection.executionMode,
+        goalMode: (scope.runMode || connection.runMode || 'plan') === 'goal',
+        teamMode: (scope.runMode || connection.runMode || 'plan') === 'team',
+        onEvent: (event, data) => {
+          if (event === 'permission_request') {
+            // 首条消息触发的审批到达时作用域尚未写入 sessionId，必须从这里补齐，
+            // 否则运行期间收到的 /approve 找不到会话而无法放行。
+            this.state.scopes[key] = {
+              ...this.state.scopes[key],
+              platform,
+              peerId: message.peerId,
+              sessionId: this.state.scopes[key]?.sessionId || data.sessionId || '',
+              pendingApprovalId: data.id,
+            }
+            void this.save()
+            void this.gateways[platform]
+              .send(message, {
+                text: `需要审批：${data.toolName || '工具'}\n${data.reason || ''}\n请回复 /approve 批准，或 /deny 拒绝。`,
+              })
+              .catch(() => {})
+          } else if (event === 'permission_resolved' && this.state.scopes[key]) {
+            delete this.state.scopes[key].pendingApprovalId
+            void this.save()
+          }
+        },
       })
       this.state.scopes[key] = {
         ...scope,
@@ -604,6 +731,8 @@ export class ChannelService {
             ? `${connection.replyModel.provider}/${connection.replyModel.model}`
             : ''),
         contextToken: message.contextToken || scope.contextToken || '',
+        executionMode: scope.executionMode || connection.executionMode || 'approval-required',
+        runMode: scope.runMode || connection.runMode || 'plan',
         lastMessage: prompt.slice(0, 120),
         updatedAt: new Date().toISOString(),
       }

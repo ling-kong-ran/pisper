@@ -451,6 +451,11 @@ export class AgentRuntimeService extends AgentRuntimeFacade {
       agent: {
         prompt: (input) => this.promptFromChannel(input),
         abort: (sessionId) => this.abortSession(sessionId),
+        setExecutionMode: (sessionId, mode) => this.setSessionExecutionMode(sessionId, mode),
+        setRunMode: (sessionId, mode) => this.setSessionRunMode(sessionId, mode),
+        setCwd: (sessionId, input) => this.setSessionCwd(sessionId, input),
+        resolveApproval: (sessionId, approvalId, approved) =>
+          this.resolveToolApproval(sessionId, approvalId, approved),
         validateDirectory: (input) => resolveDirectory(input, this.cwd),
       },
     })
@@ -1442,8 +1447,14 @@ export class AgentRuntimeService extends AgentRuntimeFacade {
                 if (!completion.ok) throw new Error(completion.reason)
               }
               const goal = await this.goals.complete(runtimeSessionId)
-              if (currentGoal?.mode === 'team')
-                await this.teamWorkflows.markComplete(runtimeSessionId)
+              try {
+                if (currentGoal?.mode === 'team')
+                  await this.teamWorkflows.markComplete(runtimeSessionId)
+              } catch (error) {
+                // Team 状态写入失败时回滚 Goal 完成状态，避免下次只剩半个终态。
+                await this.goals.reopen(runtimeSessionId, { goalId: currentGoal?.id })
+                throw error
+              }
               if (runtimeValue) this.syncGoalTools(runtimeValue, goal)
               this.emitGoalUpdate(runtimeSessionId, goal)
               return goal
@@ -1465,11 +1476,17 @@ export class AgentRuntimeService extends AgentRuntimeFacade {
     // Pi 引擎惰性持久化会话文件（首条助手消息时才写盘）。若对话在模型回复前被打断，
     // 磁盘上将没有文件；这里强制先落盘，保证会话在常驻运行时被释放后仍可寻址/恢复。
     await ensureSessionFilePersisted(sessionManager, name, effectiveCwd)
-    const installSubagentPermissions = (subagentSession) =>
+    const installSubagentPermissions = (subagentSession, { ownedFiles = [] } = {}) => {
       this.permissions.install(subagentSession, {
         sessionId: runtimeSession.sessionId,
         cwd: effectiveCwd,
       })
+      this.permissions.installScoped(subagentSession, {
+        sessionId: runtimeSession.sessionId,
+        cwd: effectiveCwd,
+        ownedFiles,
+      })
+    }
     const accountSubagentUsage = createSubagentUsageHandler({
       runtimeService: this,
       getRuntimeSession: () => runtimeSession,

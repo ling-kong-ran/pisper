@@ -64,6 +64,8 @@ type ChannelConnection = {
   status: ChannelStatus
   defaultCwd: string
   replyModel: ReplyModel | null
+  executionMode: 'approval-required' | 'workspace-write' | 'full-access'
+  runMode: 'plan' | 'goal' | 'team'
   accessMode: 'owner' | 'all'
   ownerConfigured: boolean
   lastError?: string
@@ -349,7 +351,12 @@ export function ChannelsPage({ notify, registerPrimaryAction, requestConfirm }: 
   // 更新渠道连接（启用/访问模式/工作目录/回复模型），成功后提示。
   const update = async (
     platform: ChannelPlatform,
-    patch: Partial<Pick<ChannelConnection, 'enabled' | 'accessMode' | 'defaultCwd' | 'replyModel'>>,
+    patch: Partial<
+      Pick<
+        ChannelConnection,
+        'enabled' | 'accessMode' | 'defaultCwd' | 'replyModel' | 'executionMode' | 'runMode'
+      >
+    >,
     success: string,
   ) => {
     setSaving(true)
@@ -652,6 +659,44 @@ export function ChannelsPage({ notify, registerPrimaryAction, requestConfirm }: 
                     {model.label}
                   </option>
                 ))}
+              </AppSelect>
+            </FieldLabel>
+            <FieldLabel variant="control">
+              {t('channels:channelsPage.approvalMode')}
+              <AppSelect
+                value={selectedConnection.executionMode}
+                onChange={(event) =>
+                  update(
+                    selectedPlatform,
+                    {
+                      executionMode: event.target.value as ChannelConnection['executionMode'],
+                    },
+                    t('channels:channelsPage.approvalModeUpdated'),
+                  )
+                }
+              >
+                <option value="approval-required">
+                  {t('channels:channelsPage.approvalRequired')}
+                </option>
+                <option value="workspace-write">{t('channels:channelsPage.workspaceWrite')}</option>
+                <option value="full-access">{t('channels:channelsPage.fullAccess')}</option>
+              </AppSelect>
+            </FieldLabel>
+            <FieldLabel variant="control">
+              {t('channels:channelsPage.executionMode')}
+              <AppSelect
+                value={selectedConnection.runMode}
+                onChange={(event) =>
+                  update(
+                    selectedPlatform,
+                    { runMode: event.target.value as ChannelConnection['runMode'] },
+                    t('channels:channelsPage.executionModeUpdated'),
+                  )
+                }
+              >
+                <option value="plan">{t('channels:channelsPage.planMode')}</option>
+                <option value="goal">{t('channels:channelsPage.goalMode')}</option>
+                <option value="team">{t('channels:channelsPage.teamMode')}</option>
               </AppSelect>
             </FieldLabel>
             <FieldLabel variant="control">

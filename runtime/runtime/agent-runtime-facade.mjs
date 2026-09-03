@@ -315,9 +315,12 @@ export class AgentRuntimeFacade {
     title,
     model,
     executionMode,
+    goalMode = false,
+    teamMode = false,
     isolatedContext = false,
     requestedToolNames,
     onSession,
+    onEvent,
   }) {
     let id = String(sessionId || '')
     if (
@@ -354,12 +357,15 @@ export class AgentRuntimeFacade {
       sessionId: id,
       message,
       attachments,
+      goalMode,
+      teamMode,
       isolatedContext,
       requestedToolNames,
       send: (event, data) => {
         if ((event === 'meta' || event === 'done') && data?.sessionId) actualId = data.sessionId
         if (event === 'text_delta') text += data?.delta || ''
         if (event === 'generated_asset' && data?.id) assetIds.add(data.id)
+        onEvent?.(event, data)
       },
     })
     if (!text.trim()) {

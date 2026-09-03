@@ -80,6 +80,10 @@ async function fixture({ agent = {}, stored, extraGatewayFactories = {} } = {}) 
           assets: [],
         })),
       abort: agent.abort || (async () => true),
+      ...(agent.setExecutionMode ? { setExecutionMode: agent.setExecutionMode } : {}),
+      ...(agent.setRunMode ? { setRunMode: agent.setRunMode } : {}),
+      ...(agent.setCwd ? { setCwd: agent.setCwd } : {}),
+      ...(agent.resolveApproval ? { resolveApproval: agent.resolveApproval } : {}),
       validateDirectory: agent.validateDirectory || (async (value) => value || directory),
     },
     gatewayFactories: {
@@ -321,6 +325,127 @@ test('owner-only access rejects other users and /stop aborts the bound session',
     resources: [],
   })
   assert.equal(aborted, 'session-1')
+})
+
+test('channel commands share TUI workspace, approval, and run mode semantics', async (t) => {
+  const calls = []
+  const { directory, service, gateways } = await fixture({
+    extraGatewayFactories: { telegram: true },
+    agent: {
+      setExecutionMode: async (id, mode) => calls.push(['mode', id, mode]),
+      setRunMode: async (id, mode) => calls.push(['run', id, mode]),
+      setCwd: async (id, value) => calls.push(['cwd', id, value]),
+    },
+  })
+  t.after(() => rm(directory, { recursive: true, force: true }))
+  await service.completeOnboarding('telegram', { accountId: 'bot', token: '1:valid_token' })
+  const message = (content) => ({
+    messageId: `m-${content}`,
+    peerId: 'chat1',
+    chatType: 'p2p',
+    senderId: 'owner',
+    content,
+    resources: [],
+  })
+  await service.handleMessage('telegram', message('hello'))
+  await service.handleMessage('telegram', message('/mode workspace'))
+  await service.handleMessage('telegram', message('/run team'))
+  await service.handleMessage('telegram', message('/dir E:/workspace'))
+  const scope = service.getState().scopes.find((item) => item.key === 'telegram:chat1')
+  assert.equal(scope.executionMode, 'workspace-write')
+  assert.equal(scope.runMode, 'team')
+  assert.equal(scope.cwd, 'E:/workspace')
+  assert.deepEqual(calls, [
+    ['mode', 'session-1', 'workspace-write'],
+    ['run', 'session-1', 'team'],
+    ['cwd', 'session-1', 'E:/workspace'],
+  ])
+  assert.match(gateways.telegram.sent.at(-1).input.text, /工作目录已切换/)
+})
+
+test('channel default modes persist and are passed to the Agent prompt', async (t) => {
+  let promptInput
+  const { directory, service } = await fixture({
+    extraGatewayFactories: { telegram: true },
+    agent: {
+      prompt: async (input) => {
+        promptInput = input
+        return { sessionId: 'session-1', text: '完成', cwd: directory, model: '', assets: [] }
+      },
+    },
+  })
+  t.after(() => rm(directory, { recursive: true, force: true }))
+  await service.completeOnboarding('telegram', { accountId: 'bot', token: '1:valid_token' })
+  await assert.rejects(() => service.update('telegram', { runMode: 'bogus' }), /运行模式无效/)
+  await service.update('telegram', { executionMode: 'full-access', runMode: 'goal' })
+  const connection = service.getState().connections.telegram
+  assert.equal(connection.executionMode, 'full-access')
+  assert.equal(connection.runMode, 'goal')
+  await service.handleMessage('telegram', {
+    messageId: 'm-1',
+    peerId: 'chat1',
+    chatType: 'p2p',
+    senderId: 'owner',
+    content: '处理任务',
+    resources: [],
+  })
+  assert.equal(promptInput.executionMode, 'full-access')
+  assert.equal(promptInput.goalMode, true)
+  assert.equal(promptInput.teamMode, false)
+})
+
+test('permission request reaches the channel and /approve resolves it mid-run', async (t) => {
+  const approvals = []
+  let promptInput
+  let releasePrompt
+  const promptGate = new Promise((resolve) => {
+    releasePrompt = resolve
+  })
+  const { directory, service, gateways } = await fixture({
+    extraGatewayFactories: { telegram: true },
+    agent: {
+      prompt: async (input) => {
+        promptInput = input
+        // 模拟运行中触发的工具审批：prompt 在审批结束前一直阻塞。
+        input.onEvent('permission_request', {
+          id: 'approval-1',
+          sessionId: 'session-1',
+          toolName: 'bash',
+          reason: '需要执行命令',
+        })
+        await promptGate
+        return { sessionId: 'session-1', text: '完成', cwd: directory, model: '', assets: [] }
+      },
+      resolveApproval: async (sessionId, approvalId, approved) => {
+        approvals.push([sessionId, approvalId, approved])
+        return { found: approvalId === 'approval-1' }
+      },
+    },
+  })
+  t.after(() => rm(directory, { recursive: true, force: true }))
+  await service.completeOnboarding('telegram', { accountId: 'bot', token: '1:valid_token' })
+  const message = (content) => ({
+    messageId: `m-${content}`,
+    peerId: 'chat1',
+    chatType: 'p2p',
+    senderId: 'owner',
+    content,
+    resources: [],
+  })
+  const pending = service.handleMessage('telegram', message('执行命令'))
+  while (!promptInput) await new Promise((resolve) => setTimeout(resolve, 1))
+  assert.ok(
+    gateways.telegram.sent.some((item) => /需要审批/.test(item.input.text || '')),
+    '渠道应收到审批请求通知',
+  )
+  // 首条消息场景：作用域尚未完成写入，/approve 仍须凭事件里的会话放行。
+  await service.handleMessage('telegram', message('/approve'))
+  assert.deepEqual(approvals, [['session-1', 'approval-1', true]])
+  assert.match(gateways.telegram.sent.at(-1).input.text, /已批准/)
+  releasePrompt()
+  await pending
+  await service.handleMessage('telegram', message('/deny approval-missing'))
+  assert.match(gateways.telegram.sent.at(-1).input.text, /没有找到待处理的审批请求/)
 })
 
 test('notification templates use platform-specific content and the latest channel conversation', async (t) => {
