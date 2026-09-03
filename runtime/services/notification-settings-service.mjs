@@ -1,4 +1,4 @@
-// 通知设置服务：统一管理通知渠道（浏览器/飞书/微信）的启用状态、模板与事件记录，
+// 通知设置服务：统一管理通知渠道（浏览器/飞书/微信/QQ/Telegram）的启用状态、模板与事件记录，
 // 并负责把运行事件转发到各渠道。
 import { randomUUID } from 'node:crypto'
 import { readJson, writeJsonAtomic } from '../storage/json-file.mjs'
@@ -88,7 +88,7 @@ export class NotificationSettingsService {
   }
 
   async notify(event, data, { platforms, title, content } = {}) {
-    const selected = new Set(platforms || ['feishu', 'weixin', 'browser'])
+    const selected = new Set(platforms || ['feishu', 'weixin', 'qq', 'telegram', 'browser'])
     const template = this.channels.getState().templates.find((item) => item.id === event)
     if (!template?.enabled) return []
     const contentOverride = typeof content === 'string' ? content.slice(0, 12_000) : undefined

@@ -12,7 +12,13 @@ import {
   SettingsManager,
 } from './pi-coding-agent.mjs'
 import { ensureSessionFilePersisted } from './session-file-persist.mjs'
+import {
+  createSessionWithTransientStreamRetry,
+  installTransientStreamRetry,
+} from './stream-retry.mjs'
 import { upsertStoredSessionCache } from './stored-session-cache.mjs'
+
+export { createSessionWithTransientStreamRetry, installTransientStreamRetry }
 import {
   capturePromptCacheShape,
   comparePromptCacheShapes,
@@ -83,10 +89,6 @@ import {
   readFilePrefix,
   safeAttachmentName,
 } from '../services/asset-content.mjs'
-import {
-  captureWorkspaceAssetBaseline,
-  listNewWorkspaceAssets,
-} from '../services/workspace-asset-capture.mjs'
 import { TOOL_CATALOG, createAppTools, createMultiAgentTools } from '../tools/registry.mjs'
 import { createGoalTools, GOAL_TOOL_NAMES } from '../tools/app/goal.mjs'
 import {
@@ -200,31 +202,6 @@ const SESSION_HISTORY_READ_CHUNK_BYTES = 1024 * 1024
 const MAX_SESSION_HISTORY_CACHE_ENTRIES = 4
 const MAX_SESSION_HISTORY_CACHE_SOURCE_BYTES = 8 * 1024 * 1024
 const MAX_SESSION_HISTORY_CACHE_ESTIMATED_BYTES = 48 * 1024 * 1024
-// 部分上游（模型网关）会把流读取中断归一化成自有错误文本；重发当前 turn 比把半截响应当成最终答案更安全。
-// 仅在 Pi 已判定 stopReason=error 时应用，认证、配额和用户主动中止仍交给 Pi 原逻辑。
-const TRANSIENT_STREAM_READ_ERROR_PATTERN =
-  /\b(?:stream[_\s-]?read[_\s-]?error|upstream[_\s-]?error\s*:\s*(?:upstream\s+)?request\s+failed|econn(?:reset|aborted)|connection\s+(?:reset|closed|lost)|premature(?:ly)?\s+clos(?:e|ed)|incomplete\s+stream|stream\s+(?:ended|closed|interrupted)\s+before\b[\s\S]{0,120}\bterminal\b|upstream\b[\s\S]{0,120}\b(?:closed|interrupted)\b)/i
-const PISPER_STREAM_RETRY_PATCH = Symbol('pisper.stream-retry-patch')
-// 给会话打上瞬时流错误重试补丁：把上游明确的流中断交给 Pi 引擎的内置重试机制处理；同一会话只打一次补丁。
-export function installTransientStreamRetry(session) {
-  if (
-    !session ||
-    session[PISPER_STREAM_RETRY_PATCH] ||
-    typeof session._isRetryableError !== 'function'
-  )
-    return session
-  const isRetryableError = session._isRetryableError.bind(session)
-  session._isRetryableError = (message) => {
-    if (
-      message?.stopReason === 'error' &&
-      TRANSIENT_STREAM_READ_ERROR_PATTERN.test(String(message.errorMessage || ''))
-    )
-      return true
-    return isRetryableError(message)
-  }
-  session[PISPER_STREAM_RETRY_PATCH] = true
-  return session
-}
 
 // 从会话分支记录中推导最后一次使用的模型（model_change 或 assistant 消息携带），恢复会话时还原其模型选择。
 export function storedSessionModel(sessionManager) {
@@ -540,6 +517,8 @@ export class AgentRuntimeService extends AgentRuntimeFacade {
       getModelRuntime: () => this.modelRuntime,
       getSettingsManager: () => this.settingsManager,
       getCompactionThresholdPercent: () => this.compactionThresholdPercent,
+      createSession: (options) =>
+        createSessionWithTransientStreamRetry(createAgentSession, options),
       createResourceLoader: ({ cwd: childCwd, appendSystemPrompt }) =>
         this.skills.createResourceLoader(childCwd, { appendSystemPrompt }),
     })
@@ -1848,7 +1827,6 @@ export class AgentRuntimeService extends AgentRuntimeFacade {
       value.blockedToolNames = ISOLATED_CONTEXT_BLOCKED_TOOLS
     }
     const { session } = value
-    const workspaceAssetBaseline = await captureWorkspaceAssetBaseline(value.cwd).catch(() => null)
     const appConfig = await readJson(this.appConfigPath, {
       toolMode: 'full',
       disabledProviders: [],
@@ -2040,23 +2018,6 @@ export class AgentRuntimeService extends AgentRuntimeFacade {
       live.currentActivity = backgroundActivities.at(-1) || null
       live.activityFeed = backgroundActivities.slice(-MAX_LIVE_ACTIVITY_ITEMS)
       return finishedAt
-    }
-    let workspaceAssetsCollected = false
-    const collectWorkspaceAssets = async () => {
-      if (workspaceAssetsCollected) return
-      workspaceAssetsCollected = true
-      const files = await listNewWorkspaceAssets(workspaceAssetBaseline).catch(() => [])
-      for (const file of files) {
-        try {
-          const existing = assetStorage.findAssetByFilePath(this.assetIndex.assets, file.path)
-          if (existing?.source === 'agent' && existing.sessionId === session.sessionId) continue
-          const asset = await this.recordGeneratedFile(session.sessionId, value, file.path)
-          if (!asset) continue
-          const attachment = assetMessageAttachment(asset)
-          live.assets = [...live.assets.filter((item) => item.id !== attachment.id), attachment]
-          emit('generated_asset', attachment)
-        } catch {}
-      }
     }
     const teamPrompt = (currentGoal) =>
       currentGoal?.mode === 'team'
@@ -2397,7 +2358,6 @@ export class AgentRuntimeService extends AgentRuntimeFacade {
       if (goal?.mode === 'team' && assistantText)
         await this.teamWorkflows.setSummary(session.sessionId, assistantText)
       live.team = this.getTeamProjection(session.sessionId, { compact: true })
-      await collectWorkspaceAssets()
       const finishedAt = finishLiveRun()
       live.contextUsage = this.compactionAwareContextUsage(session, live.compaction)
       emit('done', {
@@ -2434,7 +2394,6 @@ export class AgentRuntimeService extends AgentRuntimeFacade {
       }
     } catch (error) {
       // 出错路径：清空排队输入、记录错误、暂停活动目标并广播 error 事件。
-      await collectWorkspaceAssets()
       session.clearQueue?.()
       live.queuedInputs = []
       live.error = error instanceof Error ? error.message : String(error)

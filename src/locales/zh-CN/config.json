@@ -1,6 +1,8 @@
 {
   "notificationSettings.feishu": "飞书",
   "notificationSettings.weChat": "微信",
+  "notificationSettings.qq": "QQ",
+  "notificationSettings.telegram": "Telegram",
   "notificationSettings.browserNotification": "通知",
   "notificationSettings.chatCompleted": "对话完成",
   "notificationSettings.chatCompletedDescription": "Agent 完成回复后发送",

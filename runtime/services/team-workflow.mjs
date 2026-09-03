@@ -9,6 +9,15 @@ export const TEAM_WORKFLOW_STATUSES = Object.freeze(
 export const TEAM_TASK_STATUSES = Object.freeze(
   new Set(['queued', 'starting', 'running', 'completed', 'failed', 'interrupted', 'blocked']),
 )
+export const TEAM_TASK_ERROR_KINDS = Object.freeze(
+  new Set([
+    'upstream_stream',
+    'agent_communication',
+    'user_cancelled',
+    'authentication',
+    'execution',
+  ]),
+)
 export const TERMINAL_TEAM_TASK_STATUSES = Object.freeze(
   new Set(['completed', 'failed', 'interrupted']),
 )
@@ -29,6 +38,13 @@ export const MAX_TEAM_DURATION_MS = null
 export const MAX_TEAM_IDLE_MS = null
 export const TEAM_TASK_LEASE_MS = 10 * 60 * 1000
 export const MAX_TEAM_FILE_CHARS = 240
+const TEAM_COMMUNICATION_ERROR_PATTERN =
+  /TEAM_WORKFLOW_COMMUNICATION_INTERRUPTED|workflow worker|workflow communication stream|worker exited unexpectedly/i
+const TEAM_AUTHENTICATION_ERROR_PATTERN =
+  /(?:authentication|unauthori[sz]ed|forbidden|invalid\s+(?:api\s*key|token|credential)|\b(?:401|403)\b)/i
+const TEAM_UPSTREAM_STREAM_ERROR_PATTERN =
+  /stream[_\s-]?read[_\s-]?error|econn(?:reset|aborted)|connection\s+(?:reset|closed|lost)|premature(?:ly)?\s+clos|incomplete\s+stream|upstream.*(?:closed|interrupted)/i
+const TEAM_CANCEL_ERROR_PATTERN = /(?:user|parent|explicit|manual).*abort|cancel|取消|中断/i
 
 function clone(value) {
   return value ? JSON.parse(JSON.stringify(value)) : null
@@ -36,6 +52,20 @@ function clone(value) {
 
 function nowIso(now = Date.now()) {
   return new Date(now).toISOString()
+}
+
+export function classifyTeamTaskError(error, status = '') {
+  const code = String(error?.code || '').trim()
+  const message = String(error?.message || error || '').trim()
+  if (
+    code === 'TEAM_WORKFLOW_COMMUNICATION_INTERRUPTED' ||
+    TEAM_COMMUNICATION_ERROR_PATTERN.test(message)
+  )
+    return 'agent_communication'
+  if (TEAM_AUTHENTICATION_ERROR_PATTERN.test(message)) return 'authentication'
+  if (TEAM_UPSTREAM_STREAM_ERROR_PATTERN.test(message)) return 'upstream_stream'
+  if (status === 'interrupted' || TEAM_CANCEL_ERROR_PATTERN.test(message)) return 'user_cancelled'
+  return message ? 'execution' : ''
 }
 
 function normalizeName(value) {
@@ -131,6 +161,7 @@ function durableTask(task) {
     status: task.status,
     output: task.output,
     error: task.error,
+    errorKind: task.errorKind,
     attempts: task.attempts,
     createdAt: task.createdAt,
     updatedAt: task.updatedAt,
@@ -207,6 +238,9 @@ function normalizeTask(value) {
     status,
     output: String(value?.output || '').slice(0, MAX_TEAM_TASK_OUTPUT_CHARS),
     error: String(value?.error || '').slice(0, 1_000),
+    errorKind: TEAM_TASK_ERROR_KINDS.has(value?.errorKind)
+      ? value.errorKind
+      : classifyTeamTaskError(value?.error, status),
     attempts: Math.max(0, Math.floor(Number(value?.attempts) || 0)),
     createdAt: value?.createdAt || nowIso(),
     updatedAt: value?.updatedAt || nowIso(),
@@ -320,6 +354,7 @@ export function compactTeamProjection(team) {
     blockedReason: String(task.blockedReason || '').slice(0, 250),
     output: String(task.output || '').slice(0, 500),
     error: String(task.error || '').slice(0, 250),
+    errorKind: task.errorKind || '',
     attempts: task.attempts,
     createdAt: task.createdAt,
     updatedAt: task.updatedAt,
@@ -676,6 +711,7 @@ export class TeamWorkflowService {
     task.claimedAt = null
     task.leaseExpiresAt = null
     task.error = String(error || '').slice(0, 1_000)
+    task.errorKind = classifyTeamTaskError(error, task.status)
     task.blockedReason = task.status === 'blocked' ? '等待依赖完成后重新认领' : ''
     task.updatedAt = nowIso(this.now())
     team.updatedAt = task.updatedAt
@@ -762,6 +798,7 @@ export class TeamWorkflowService {
       status: ready ? 'queued' : 'blocked',
       output: '',
       error: '',
+      errorKind: '',
       attempts: 0,
       createdAt: now,
       updatedAt: now,
@@ -861,6 +898,7 @@ export class TeamWorkflowService {
     task.leaseExpiresAt = null
     task.output = ''
     task.error = ''
+    task.errorKind = ''
     task.completedAt = null
     task.status = dependenciesComplete(team, task) ? 'queued' : 'blocked'
     task.blockedReason = task.status === 'blocked' ? '等待依赖完成后自动认领' : ''
@@ -881,6 +919,9 @@ export class TeamWorkflowService {
     task.status = TEAM_TASK_STATUSES.has(agent?.status) ? agent.status : 'running'
     task.output = String(agent?.output || '').slice(0, MAX_TEAM_TASK_OUTPUT_CHARS)
     task.error = String(agent?.error || '').slice(0, 1_000)
+    task.errorKind = TEAM_TASK_ERROR_KINDS.has(agent?.errorKind)
+      ? agent.errorKind
+      : classifyTeamTaskError(agent?.error, task.status)
     task.attempts += 1
     task.completedAt = TERMINAL_TEAM_TASK_STATUSES.has(task.status) ? nowIso(this.now()) : null
     if (TERMINAL_TEAM_TASK_STATUSES.has(task.status)) {
@@ -903,6 +944,7 @@ export class TeamWorkflowService {
     task.attempts += 1
     task.status = dependenciesComplete(team, task) ? 'queued' : 'blocked'
     task.error = ''
+    task.errorKind = ''
     task.output = ''
     task.completedAt = null
     task.leaseId = ''
@@ -920,6 +962,9 @@ export class TeamWorkflowService {
     task.status = TEAM_TASK_STATUSES.has(agent?.status) ? agent.status : task.status
     task.output = String(agent?.output || '').slice(0, MAX_TEAM_TASK_OUTPUT_CHARS)
     task.error = String(agent?.error || '').slice(0, 1_000)
+    task.errorKind = TEAM_TASK_ERROR_KINDS.has(agent?.errorKind)
+      ? agent.errorKind
+      : classifyTeamTaskError(agent?.error, task.status)
     task.updatedAt = nowIso(this.now())
     if (TERMINAL_TEAM_TASK_STATUSES.has(task.status)) {
       task.completedAt = task.updatedAt

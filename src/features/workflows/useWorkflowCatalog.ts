@@ -15,6 +15,8 @@ export const EMPTY_WORKFLOWS_DATA: WorkflowsData = {
     browser: { enabled: false },
     feishu: { enabled: false },
     weixin: { enabled: false },
+    qq: { enabled: false },
+    telegram: { enabled: false },
   },
   models: [],
   skills: [],

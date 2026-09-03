@@ -10,6 +10,7 @@ import {
   shouldAttachTeamSnapshot,
   TEAM_TASK_LEASE_MS,
   TeamWorkflowService,
+  classifyTeamTaskError,
   TEAM_EXECUTION_MARKER,
   teamExecutionPrompt,
 } from '../services/team-workflow.mjs'
@@ -22,6 +23,27 @@ async function waitFor(predicate, message) {
   }
   throw new Error(`Timed out waiting for ${message}.`)
 }
+
+test('Team error classification keeps forbidden upstream failures terminal', () => {
+  assert.equal(
+    classifyTeamTaskError(new Error('upstream_error: Upstream access forbidden'), 'failed'),
+    'authentication',
+  )
+  assert.equal(
+    classifyTeamTaskError(
+      new Error('stream_read_error while reading the provider response'),
+      'failed',
+    ),
+    'upstream_stream',
+  )
+  const communication = new Error('parent bridge closed')
+  communication.code = 'TEAM_WORKFLOW_COMMUNICATION_INTERRUPTED'
+  assert.equal(classifyTeamTaskError(communication, 'failed'), 'agent_communication')
+  assert.equal(
+    classifyTeamTaskError(new Error('The user cancelled this task'), 'failed'),
+    'user_cancelled',
+  )
+})
 
 test('team execution prompt defines dynamic delegation and evidence-based convergence', () => {
   const prompt = teamExecutionPrompt({ objective: 'Complete the project and verify it.' }, [

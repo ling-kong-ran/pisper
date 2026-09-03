@@ -5,6 +5,7 @@ import { join } from 'node:path'
 import test from 'node:test'
 import {
   AgentRuntimeService,
+  createSessionWithTransientStreamRetry,
   installTransientStreamRetry,
   multiAgentResultAgent,
   resolveSessionDirectory,
@@ -1233,6 +1234,13 @@ test('upstream stream interruptions use the Pi turn retry path without broadenin
     false,
   )
   assert.equal(
+    session._isRetryableError({
+      stopReason: 'error',
+      errorMessage: 'upstream_error: Upstream access forbidden',
+    }),
+    false,
+  )
+  assert.equal(
     session._isRetryableError({ stopReason: 'aborted', errorMessage: 'stream_read_error' }),
     false,
   )
@@ -1240,7 +1248,31 @@ test('upstream stream interruptions use the Pi turn retry path without broadenin
     session._isRetryableError({ stopReason: 'stop', errorMessage: 'stream_read_error' }),
     false,
   )
-  assert.equal(originalCalls.length, 4)
+  assert.equal(originalCalls.length, 5)
+})
+
+test('child session creation installs the same transient retry policy as the parent', async () => {
+  const calls = []
+  const childSession = {
+    _isRetryableError(message) {
+      calls.push(message)
+      return false
+    },
+  }
+  const result = await createSessionWithTransientStreamRetry(
+    async (options) => {
+      assert.equal(options.cwd, '/tmp/team-child')
+      return { session: childSession, modelFallbackMessage: '' }
+    },
+    { cwd: '/tmp/team-child' },
+  )
+
+  assert.equal(result.session, childSession)
+  assert.equal(
+    childSession._isRetryableError({ stopReason: 'error', errorMessage: 'stream_read_error' }),
+    true,
+  )
+  assert.equal(calls.length, 0)
 })
 
 test('stream failures emit a single terminal error snapshot without throwing', async (t) => {

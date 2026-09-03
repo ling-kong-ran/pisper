@@ -1,4 +1,4 @@
-// 通知设置：浏览器通知开关 + 事件模板（飞书/微信/浏览器渠道）配置。
+// 通知设置：浏览器通知开关 + 事件模板（飞书/微信/QQ/Telegram/浏览器渠道）配置。
 import { useCallback, useEffect, useState } from 'react'
 import { AlertTriangle, Bell, BellOff, RefreshCw, Save, Send, ShieldCheck } from 'lucide-react'
 import {
@@ -60,6 +60,8 @@ type NotificationTemplatesProps = {
 const CHANNELS: Record<NotificationPlatform, ChannelDefinition> = {
   feishu: { tone: 'blue' },
   weixin: { tone: 'green' },
+  qq: { tone: 'blue' },
+  telegram: { tone: 'blue' },
   browser: { tone: 'blue' },
 }
 
@@ -69,6 +71,8 @@ function notificationChannelLabel(
 ) {
   if (platform === 'feishu') return t('config:notificationSettings.feishu')
   if (platform === 'weixin') return t('config:notificationSettings.weChat')
+  if (platform === 'qq') return t('config:notificationSettings.qq')
+  if (platform === 'telegram') return t('config:notificationSettings.telegram')
   return t('config:notificationSettings.browserNotification')
 }
 
@@ -626,7 +630,7 @@ function NotificationTemplates({
             }
           />
         </AppCardHeader>
-        <div className="channel-template-platforms [&_>_button]:flex [&_>_button]:min-h-[36px] [&_>_button]:items-center [&_>_button]:justify-between [&_>_button]:gap-[7px] [&_>_button]:[border:1px_solid_var(--stroke)] [&_>_button]:rounded-[var(--r-sm)] [&_>_button]:bg-[var(--surface-subtle)] [&_>_button]:p-[0_9px] [&_>_button]:text-[12px] [&_>_button]:font-[700] [&_>_button.active]:border-[var(--focus)] [&_>_button.active]:bg-[var(--accent-soft)] [&_>_button.active]:text-[var(--star-strong)] max-[650px]:grid-cols-[1fr] grid grid-cols-[repeat(3,minmax(0,1fr))] gap-[7px] [margin-top:13px]">
+        <div className="channel-template-platforms [&_>_button]:flex [&_>_button]:min-h-[36px] [&_>_button]:items-center [&_>_button]:justify-between [&_>_button]:gap-[7px] [&_>_button]:[border:1px_solid_var(--stroke)] [&_>_button]:rounded-[var(--r-sm)] [&_>_button]:bg-[var(--surface-subtle)] [&_>_button]:p-[0_9px] [&_>_button]:text-[12px] [&_>_button]:font-[700] [&_>_button.active]:border-[var(--focus)] [&_>_button.active]:bg-[var(--accent-soft)] [&_>_button.active]:text-[var(--star-strong)] max-[650px]:grid-cols-[1fr] grid grid-cols-[repeat(5,minmax(0,1fr))] gap-[7px] [margin-top:13px]">
           {(
             Object.entries(visibleChannels) as Array<[NotificationPlatform, ChannelDefinition]>
           ).map(([id, channel]) => {

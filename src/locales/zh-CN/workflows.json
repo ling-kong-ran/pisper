@@ -73,6 +73,8 @@
   "workflowsPage.browserNotification": "通知",
   "workflowsPage.feishu": "飞书",
   "workflowsPage.weChat": "微信",
+  "workflowsPage.qq": "QQ",
+  "workflowsPage.telegram": "Telegram",
   "workflowsPage.codeReview": "代码审查",
   "workflowsPage.codeReviewDescription": "读取 diff → 运行测试 → 生成 review",
   "workflowsPage.prFix": "PR 修复",

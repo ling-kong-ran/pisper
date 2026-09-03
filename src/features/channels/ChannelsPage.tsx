@@ -1,4 +1,4 @@
-// 渠道页：外部消息渠道（飞书/微信）连接管理、状态与测试。
+// 渠道页：外部消息渠道（飞书/微信/QQ/Telegram）连接管理、状态与测试。
 import { useCallback, useEffect, useState } from 'react'
 import {
   AlertTriangle,
@@ -8,6 +8,7 @@ import {
   MessageCircle,
   MessageSquare,
   Plus,
+  Send,
   RefreshCw,
   ShieldCheck,
   Trash2,
@@ -38,8 +39,9 @@ import type { ConfirmDialogOptions } from '@/hooks/useAppDialog'
 import { Button } from '@/components/ui/button'
 
 import { FieldLabel } from '@/components/ui/field'
+import { Input } from '@/components/ui/input'
 
-type ChannelPlatform = 'feishu' | 'weixin'
+type ChannelPlatform = 'feishu' | 'weixin' | 'qq' | 'telegram'
 type ChannelStatus = 'idle' | 'connecting' | 'connected' | 'reconnecting' | 'failed'
 type OnboardingStatus =
   | 'starting'
@@ -90,8 +92,26 @@ type OnboardingJob = {
   error?: string
   qrDataUrl?: string
   qrUrl?: string
+  setupUrl?: string
   expireAt?: string
   needsVerifyCode?: boolean
+  manual?: boolean
+  mode?: 'manual' | 'qr'
+  fields?: string[]
+  required?: string[]
+}
+type ManualCredentials = {
+  appId?: string
+  appSecret?: string
+  token?: string
+}
+type ManualOnboardingDescriptor = {
+  mode: 'manual'
+  platform: ChannelPlatform
+  fields: string[]
+  required: string[]
+  setupUrl?: string
+  qrDataUrl?: string
 }
 type ChannelsPageProps = {
   notify: Notify
@@ -102,6 +122,7 @@ type OnboardingModalProps = {
   job: OnboardingJob
   onClose: () => void | Promise<void>
   onRetry: () => void | Promise<void>
+  onSubmitCredentials: (credentials: ManualCredentials) => void | Promise<void>
   notify: Notify
 }
 
@@ -114,31 +135,59 @@ const PROVIDERS: Record<ChannelPlatform, ProviderDefinition> = {
     Icon: MessageCircle,
     tone: 'green',
   },
+  qq: {
+    Icon: MessageCircle,
+    tone: 'blue',
+  },
+  telegram: {
+    Icon: Send,
+    tone: 'blue',
+  },
 }
 const PROVIDER_ENTRIES = Object.entries(PROVIDERS) as Array<[ChannelPlatform, ProviderDefinition]>
 
 function providerName(platform: ChannelPlatform, t: ReturnType<typeof useI18n>['t']) {
-  return platform === 'feishu'
-    ? t('channels:channelsPage.feishu')
-    : t('channels:channelsPage.weChat')
+  if (platform === 'feishu') return t('channels:channelsPage.feishu')
+  if (platform === 'weixin') return t('channels:channelsPage.weChat')
+  if (platform === 'qq') return t('channels:channelsPage.qq')
+  return t('channels:channelsPage.telegram')
 }
 
 function providerTitle(platform: ChannelPlatform, t: ReturnType<typeof useI18n>['t']) {
-  return platform === 'feishu'
-    ? t('channels:channelsPage.feishuAppBot')
-    : t('channels:channelsPage.weChat')
+  if (platform === 'feishu') return t('channels:channelsPage.feishuAppBot')
+  if (platform === 'weixin') return t('channels:channelsPage.weChat')
+  if (platform === 'qq') return t('channels:channelsPage.qqBot')
+  return t('channels:channelsPage.telegramBot')
 }
 
 function providerTransport(platform: ChannelPlatform, t: ReturnType<typeof useI18n>['t']) {
-  return platform === 'feishu'
-    ? t('channels:channelsPage.webSocketPersistentConnection')
-    : t('channels:channelsPage.tencentILinkPersistentConnection')
+  if (platform === 'feishu') return t('channels:channelsPage.webSocketPersistentConnection')
+  if (platform === 'weixin') return t('channels:channelsPage.tencentILinkPersistentConnection')
+  if (platform === 'qq') return t('channels:channelsPage.qqPersistentConnection')
+  return t('channels:channelsPage.telegramPersistentConnection')
 }
 
 function providerCapability(platform: ChannelPlatform, t: ReturnType<typeof useI18n>['t']) {
-  return platform === 'feishu'
-    ? t('channels:channelsPage.feishuCapabilities')
-    : t('channels:channelsPage.weChatCapabilities')
+  if (platform === 'feishu') return t('channels:channelsPage.feishuCapabilities')
+  if (platform === 'weixin') return t('channels:channelsPage.weChatCapabilities')
+  if (platform === 'qq') return t('channels:channelsPage.qqCapabilities')
+  return t('channels:channelsPage.telegramCapabilities')
+}
+
+function isManualPlatform(platform: ChannelPlatform) {
+  return platform === 'telegram'
+}
+
+function connectActionLabel(
+  platform: ChannelPlatform,
+  connected: boolean,
+  t: ReturnType<typeof useI18n>['t'],
+) {
+  if (connected)
+    return t('channels:channelsPage.reconnectName', { name: providerName(platform, t) })
+  return isManualPlatform(platform)
+    ? t('channels:channelsPage.configureName', { name: providerName(platform, t) })
+    : t('channels:channelsPage.connectNameByQRCode', { name: providerName(platform, t) })
 }
 
 function channelStatusLabel(status: ChannelStatus, t: ReturnType<typeof useI18n>['t']) {
@@ -183,7 +232,7 @@ export function ChannelsPage({ notify, registerPrimaryAction, requestConfirm }: 
   const { t, language } = useI18n()
   const [data, setData] = useState<ChannelsData>({
     providers: [],
-    connections: { feishu: null, weixin: null },
+    connections: { feishu: null, weixin: null, qq: null, telegram: null },
     scopes: [],
     models: [],
   })
@@ -249,13 +298,16 @@ export function ChannelsPage({ notify, registerPrimaryAction, requestConfirm }: 
     if (connection) {
       const approved = await requestConfirm({
         title: t('channels:channelsPage.reconnectName', { name: providerName(platform, t) }),
-        message: t(
-          'channels:channelsPage.scanningAgainWillReplaceTheCurrentNameConnectionContinue',
-          {
-            name: providerName(platform, t),
-          },
-        ),
-        confirmLabel: t('channels:channelsPage.continueScanning'),
+        message: isManualPlatform(platform)
+          ? t('channels:channelsPage.configuringAgainWillReplaceTheCurrentNameConnectionContinue', {
+              name: providerName(platform, t),
+            })
+          : t('channels:channelsPage.scanningAgainWillReplaceTheCurrentNameConnectionContinue', {
+              name: providerName(platform, t),
+            }),
+        confirmLabel: isManualPlatform(platform)
+          ? t('channels:channelsPage.continueConfiguration')
+          : t('channels:channelsPage.continueScanning'),
         tone: 'primary',
       })
       if (!approved) return
@@ -264,14 +316,18 @@ export function ChannelsPage({ notify, registerPrimaryAction, requestConfirm }: 
     setStarting(platform)
     setOnboarding({ platform, status: 'starting' })
     try {
-      const job = await apiJson<Omit<OnboardingJob, 'platform'>>(
+      const result = await apiJson<Omit<OnboardingJob, 'platform'> | ManualOnboardingDescriptor>(
         `/api/channels/${platform}/onboarding`,
         {
           method: 'POST',
           body: '{}',
         },
       )
-      setOnboarding({ ...job, platform })
+      if ('mode' in result && result.mode === 'manual') {
+        setOnboarding({ ...result, platform, status: 'starting', manual: true })
+      } else {
+        setOnboarding({ ...result, platform })
+      }
     } catch (caught) {
       setOnboarding({ platform, status: 'failed', error: errorMessage(caught) })
     } finally {
@@ -439,13 +495,7 @@ export function ChannelsPage({ notify, registerPrimaryAction, requestConfirm }: 
                 ) : (
                   <Plus size={14} />
                 )}
-                {connection
-                  ? t('channels:channelsPage.scanAgainToReconnect', {
-                      name: providerName(platform, t),
-                    })
-                  : t('channels:channelsPage.connectNameByQRCode', {
-                      name: providerName(platform, t),
-                    })}
+                {connectActionLabel(platform, Boolean(connection), t)}
               </Button>
             </Panel>
           )
@@ -471,6 +521,8 @@ export function ChannelsPage({ notify, registerPrimaryAction, requestConfirm }: 
                 <span className="route-icon grid w-[27px] h-[27px] place-items-center rounded-[var(--r-sm)] bg-[var(--accent-soft)] text-[var(--star-strong)]">
                   {scope.platform === 'feishu' ? (
                     <MessageSquare size={14} />
+                  ) : scope.platform === 'telegram' ? (
+                    <Send size={14} />
                   ) : (
                     <MessageCircle size={14} />
                   )}
@@ -478,7 +530,15 @@ export function ChannelsPage({ notify, registerPrimaryAction, requestConfirm }: 
                 <div className="channel-route-copy [.route-row_&]:flex [.route-row_&]:min-w-0 [.route-row_&]:flex-col [.route-row_&]:gap-[3px] [&_strong]:overflow-hidden [&_strong]:text-ellipsis [&_strong]:whitespace-nowrap [&_small]:overflow-hidden [&_small]:text-ellipsis [&_small]:whitespace-nowrap">
                   <strong>
                     {scope.title}{' '}
-                    <Badge tone={scope.platform === 'feishu' ? 'blue' : 'green'}>
+                    <Badge
+                      tone={
+                        scope.platform === 'feishu' ||
+                        scope.platform === 'qq' ||
+                        scope.platform === 'telegram'
+                          ? 'blue'
+                          : 'green'
+                      }
+                    >
                       {providerName(scope.platform, t)}
                     </Badge>
                   </strong>
@@ -510,7 +570,7 @@ export function ChannelsPage({ notify, registerPrimaryAction, requestConfirm }: 
               <strong>{t('channels:channelsPage.waitingForTheFirstReplyFromAfar')}</strong>
               <span>
                 {t(
-                  'channels:channelsPage.onceConnectedMessagesFromFeishuOrWeixinWillArriveHereInPisper',
+                  'channels:channelsPage.onceConnectedMessagesFromSupportedChannelsWillArriveHereInPisper',
                 )}
               </span>
             </div>
@@ -612,7 +672,9 @@ export function ChannelsPage({ notify, registerPrimaryAction, requestConfirm }: 
                 <option value="all">
                   {selectedPlatform === 'feishu'
                     ? t('channels:channelsPage.allMembersInTheCurrentTenant')
-                    : t('channels:channelsPage.allWeChatUsersWhoMessageTheBot')}
+                    : selectedPlatform === 'weixin'
+                      ? t('channels:channelsPage.allWeChatUsersWhoMessageTheBot')
+                      : t('channels:channelsPage.allUsersWhoMessageTheBot')}
                 </option>
               </AppSelect>
             </FieldLabel>
@@ -672,6 +734,43 @@ export function ChannelsPage({ notify, registerPrimaryAction, requestConfirm }: 
           job={onboarding}
           onClose={closeOnboarding}
           onRetry={() => beginOnboarding(onboarding.platform)}
+          onSubmitCredentials={async (credentials) => {
+            try {
+              const result = await apiJson<
+                Omit<OnboardingJob, 'platform'> | ManualOnboardingDescriptor | ChannelsData
+              >(`/api/channels/${onboarding.platform}/onboarding`, {
+                method: 'POST',
+                body: JSON.stringify(credentials),
+              })
+              if ('connections' in result) {
+                setData(result)
+                setOnboarding(null)
+                notify(
+                  t('channels:channelsPage.nameTwoWayConnectionEstablished', {
+                    name: providerName(onboarding.platform, t),
+                  }),
+                )
+                await load()
+              } else if ('mode' in result && result.mode === 'manual') {
+                setOnboarding({
+                  ...result,
+                  platform: onboarding.platform,
+                  status: 'starting',
+                  manual: true,
+                })
+              } else {
+                setOnboarding({
+                  ...result,
+                  platform: onboarding.platform,
+                  manual: result.mode === 'manual',
+                })
+              }
+            } catch (caught) {
+              setOnboarding((current) =>
+                current ? { ...current, status: 'failed', error: errorMessage(caught) } : current,
+              )
+            }
+          }}
           notify={notify}
         />
       )}
@@ -679,10 +778,38 @@ export function ChannelsPage({ notify, registerPrimaryAction, requestConfirm }: 
   )
 }
 
-function OnboardingModal({ job, onClose, onRetry, notify }: OnboardingModalProps) {
+function OnboardingModal({
+  job,
+  onClose,
+  onRetry,
+  onSubmitCredentials,
+  notify,
+}: OnboardingModalProps) {
   const { t, language } = useI18n()
   const [code, setCode] = useState('')
+  const [appId, setAppId] = useState('')
+  const [appSecret, setAppSecret] = useState('')
+  const [token, setToken] = useState('')
+  const [submitting, setSubmitting] = useState(false)
   const terminal = ['completed', 'failed', 'cancelled'].includes(job.status)
+  const manual = job.manual || (isManualPlatform(job.platform) && job.mode !== 'qr')
+  const credentialsValid =
+    job.platform === 'qq'
+      ? Boolean(appId.trim() && (appSecret.trim() || token.trim()))
+      : Boolean(token.trim())
+  const submitCredentials = async () => {
+    if (!credentialsValid) return
+    setSubmitting(true)
+    try {
+      await onSubmitCredentials({
+        ...(appId.trim() ? { appId: appId.trim() } : {}),
+        ...(appSecret.trim() ? { appSecret: appSecret.trim() } : {}),
+        ...(token.trim() ? { token: token.trim() } : {}),
+      })
+    } finally {
+      setSubmitting(false)
+    }
+  }
   const submitCode = async () => {
     try {
       await apiJson(
@@ -703,16 +830,24 @@ function OnboardingModal({ job, onClose, onRetry, notify }: OnboardingModalProps
         <AppCardHeader>
           <div>
             <h2>
-              {t('channels:channelsPage.connectNameByQRCode', {
-                name: providerName(job.platform, t),
-              })}
+              {manual
+                ? t('channels:channelsPage.configureName', { name: providerName(job.platform, t) })
+                : t('channels:channelsPage.connectNameByQRCode', {
+                    name: providerName(job.platform, t),
+                  })}
             </h2>
             <p>
               {job.platform === 'feishu'
                 ? t(
                     'channels:channelsPage.createTheBotAppThroughTheOfficialFeishuAuthorizationPage',
                   )
-                : t('channels:channelsPage.signInToPersonalWeChatThroughTencentILinkBot')}
+                : job.platform === 'weixin'
+                  ? t('channels:channelsPage.signInToPersonalWeChatThroughTencentILinkBot')
+                  : job.platform === 'qq'
+                    ? t('channels:channelsPage.scanWithQQToCreateOfficialBot')
+                    : t('channels:channelsPage.enterBotCredentialsForName', {
+                        name: providerName(job.platform, t),
+                      })}
             </p>
           </div>
           <Button
@@ -724,31 +859,97 @@ function OnboardingModal({ job, onClose, onRetry, notify }: OnboardingModalProps
             <X size={17} />
           </Button>
         </AppCardHeader>
-        <div
-          className={`feishu-qr-stage [&_img]:w-[248px] [&_img]:max-w-[86%] [&_img]:[border:1px_solid_var(--stroke-soft)] [&_img]:rounded-[var(--r-md)] [&_img]:bg-[var(--lightbox-action-bg)] [&_img]:p-[8px] [&_img]:shadow-[0_12px_30px_-24px_var(--ink-strong)] [&_strong]:text-[13px] [&_p]:max-w-[330px] [&_p]:text-[var(--danger)] [&_p]:text-[12px] [&_p]:leading-[1.5] [&_small]:text-[var(--text-muted)] [&_small]:text-[13px] [&.completed]:text-[var(--success)] [&.failed]:text-[var(--danger)] flex min-h-[min(330px,52dvh)] flex-col items-center justify-center gap-[10px] [margin-top:14px] [border:1px_solid_var(--stroke-soft)] rounded-[var(--r-md)] bg-[linear-gradient(180deg,var(--surface-highlight),var(--surface-subtle))] [padding:18px] text-center ${job.status}`}
-        >
-          {job.qrDataUrl ? (
-            <img
-              src={job.qrDataUrl}
-              alt={t('channels:channelsPage.nameConnectionQRCode', {
-                name: providerName(job.platform, t),
-              })}
-            />
-          ) : job.status === 'failed' ? (
-            <AlertTriangle size={42} />
-          ) : (
-            <RefreshCw className="animate-spin" size={32} />
-          )}
-          <strong>{onboardingStatusLabel(job.status, t)}</strong>
-          {job.error && <p>{job.error}</p>}
-          {job.expireAt && !terminal && (
-            <small>
-              {t('channels:channelsPage.qrCodeExpiresTime', {
-                time: expiresIn(job.expireAt, language),
-              })}
-            </small>
-          )}
-        </div>
+        {manual && !job.id && !terminal && (
+          <div className="grid gap-[9px] [margin-top:14px]">
+            {job.platform === 'qq' && (
+              <>
+                <FieldLabel variant="control">
+                  {t('channels:channelsPage.qqAppId')}
+                  <Input value={appId} onChange={(event) => setAppId(event.target.value)} />
+                </FieldLabel>
+                <FieldLabel variant="control">
+                  {t('channels:channelsPage.qqAppSecret')}
+                  <Input
+                    type="password"
+                    value={appSecret}
+                    onChange={(event) => setAppSecret(event.target.value)}
+                  />
+                </FieldLabel>
+                <small className="text-[var(--text-muted)]">
+                  {t('channels:channelsPage.qqCredentialsOrToken')}
+                </small>
+              </>
+            )}
+            <FieldLabel variant="control">
+              {t('channels:channelsPage.botToken')}
+              <Input
+                type="password"
+                value={token}
+                onChange={(event) => setToken(event.target.value)}
+              />
+            </FieldLabel>
+            {job.setupUrl && (
+              <AppNotice>
+                {job.qrDataUrl && (
+                  <img
+                    src={job.qrDataUrl}
+                    alt={t('channels:channelsPage.openOfficialSetupQRCode')}
+                    className="h-[120px] w-[120px] rounded-[var(--r-sm)] bg-white p-1"
+                  />
+                )}
+                <span>
+                  <strong>{t('channels:channelsPage.officialSetupRequired')}</strong>
+                  <small>{t('channels:channelsPage.officialSetupInstructions')}</small>
+                  <a href={job.setupUrl} target="_blank" rel="noreferrer">
+                    {t('channels:channelsPage.openOfficialSetup')}
+                    <ExternalLink size={12} />
+                  </a>
+                </span>
+              </AppNotice>
+            )}
+            <Button
+              size="lg"
+              disabled={!credentialsValid || submitting}
+              onClick={() => void submitCredentials()}
+            >
+              {submitting ? <RefreshCw className="animate-spin" size={14} /> : <Plus size={14} />}
+              {t('channels:channelsPage.connect')}
+            </Button>
+          </div>
+        )}
+        {(!manual || job.id || terminal) && (
+          <div
+            className={`feishu-qr-stage [&_img]:w-[248px] [&_img]:max-w-[86%] [&_img]:[border:1px_solid_var(--stroke-soft)] [&_img]:rounded-[var(--r-md)] [&_img]:bg-[var(--lightbox-action-bg)] [&_img]:p-[8px] [&_img]:shadow-[0_12px_30px_-24px_var(--ink-strong)] [&_strong]:text-[13px] [&_p]:max-w-[330px] [&_p]:text-[var(--danger)] [&_p]:text-[12px] [&_p]:leading-[1.5] [&_small]:text-[var(--text-muted)] [&_small]:text-[13px] [&.completed]:text-[var(--success)] [&.failed]:text-[var(--danger)] flex min-h-[min(330px,52dvh)] flex-col items-center justify-center gap-[10px] [margin-top:14px] [border:1px_solid_var(--stroke-soft)] rounded-[var(--r-md)] bg-[linear-gradient(180deg,var(--surface-highlight),var(--surface-subtle))] [padding:18px] text-center ${job.status}`}
+          >
+            {job.qrDataUrl ? (
+              <img
+                src={job.qrDataUrl}
+                alt={t('channels:channelsPage.nameConnectionQRCode', {
+                  name: providerName(job.platform, t),
+                })}
+              />
+            ) : job.status === 'failed' ? (
+              <AlertTriangle size={42} />
+            ) : (
+              <RefreshCw className="animate-spin" size={32} />
+            )}
+            <strong>
+              {manual && !job.id
+                ? t('channels:channelsPage.enterBotCredentialsForName', {
+                    name: providerName(job.platform, t),
+                  })
+                : onboardingStatusLabel(job.status, t)}
+            </strong>
+            {job.error && <p>{job.error}</p>}
+            {job.expireAt && !terminal && (
+              <small>
+                {t('channels:channelsPage.qrCodeExpiresTime', {
+                  time: expiresIn(job.expireAt, language),
+                })}
+              </small>
+            )}
+          </div>
+        )}
         {job.needsVerifyCode && (
           <div className="weixin-verify-code [&_input]:min-w-0 [&_input]:h-[34px] [&_input]:[border:1px_solid_var(--stroke)] [&_input]:rounded-[var(--r-sm)] [&_input]:bg-[var(--solid)] [&_input]:p-[0_10px] [&_input]:text-[var(--text)] [&_input]:font-[ui-monospace,_SFMono-Regular,_Consolas,_'Liberation_Mono',_monospace] [&_input]:text-[13px] [&_input]:tracking-[.08em] grid grid-cols-[minmax(0,1fr)_auto] gap-[7px] [margin-top:9px]">
             <input
@@ -781,9 +982,11 @@ function OnboardingModal({ job, onClose, onRetry, notify }: OnboardingModalProps
             <small>
               {job.platform === 'feishu'
                 ? t('channels:channelsPage.webSocketReceivesDirectMessagesAndGroupMentions')
-                : t(
-                    'channels:channelsPage.tencentILinkContinuouslyPollsDirectMessagesAndSupportsTextAndMediaReplies',
-                  )}
+                : job.platform === 'weixin'
+                  ? t(
+                      'channels:channelsPage.tencentILinkContinuouslyPollsDirectMessagesAndSupportsTextAndMediaReplies',
+                    )
+                  : providerCapability(job.platform, t)}
             </small>
           </span>
         </AppNotice>
@@ -794,7 +997,9 @@ function OnboardingModal({ job, onClose, onRetry, notify }: OnboardingModalProps
           {job.status === 'failed' && (
             <Button size="lg" onClick={onRetry}>
               <RefreshCw size={14} />
-              {t('channels:channelsPage.generateANewQRCode')}
+              {manual
+                ? t('channels:channelsPage.retry')
+                : t('channels:channelsPage.generateANewQRCode')}
             </Button>
           )}
         </div>

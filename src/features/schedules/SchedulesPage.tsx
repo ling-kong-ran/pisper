@@ -11,6 +11,7 @@ import {
   Play,
   Plus,
   RefreshCw,
+  Send,
   Trash2,
   X,
 } from 'lucide-react'
@@ -39,7 +40,7 @@ import { Button } from '@/components/ui/button'
 
 import { FieldLabel } from '@/components/ui/field'
 
-type NotificationTarget = 'browser' | 'feishu' | 'weixin'
+type NotificationTarget = 'browser' | 'feishu' | 'weixin' | 'qq' | 'telegram'
 type ScheduleFrequency = 'interval' | 'daily' | 'weekly' | 'monthly'
 type IntervalUnit = 'minutes' | 'hours' | 'days'
 type ScheduleExecutionMode = 'full-access'
@@ -153,6 +154,8 @@ const TARGETS = {
   browser: { name: '通知', Icon: Bell },
   feishu: { name: '飞书', Icon: Bot },
   weixin: { name: '微信', Icon: MessageCircle },
+  qq: { name: 'QQ', Icon: MessageCircle },
+  telegram: { name: 'Telegram', Icon: Send },
 }
 const FREQUENCIES = { interval: '每隔一段时间', daily: '每天', weekly: '每周', monthly: '每月' }
 const INTERVAL_UNITS = { minutes: '分钟', hours: '小时', days: '天' }
@@ -185,6 +188,8 @@ function intervalUnitLabel(unit: IntervalUnit, t: ReturnType<typeof useI18n>['t'
 function notificationTargetLabel(target: NotificationTarget, t: ReturnType<typeof useI18n>['t']) {
   if (target === 'feishu') return t('schedules:schedulesPage.feishu')
   if (target === 'weixin') return t('schedules:schedulesPage.weChat')
+  if (target === 'qq') return t('schedules:schedulesPage.qq')
+  if (target === 'telegram') return t('schedules:schedulesPage.telegram')
   return t('schedules:schedulesPage.browserNotification')
 }
 
@@ -483,6 +488,8 @@ export function SchedulesPage({
       browser: { enabled: false },
       feishu: { enabled: false },
       weixin: { enabled: false },
+      qq: { enabled: false },
+      telegram: { enabled: false },
     },
     workflows: [],
     defaultCwd: '',
@@ -800,7 +807,7 @@ export function SchedulesPage({
                   </button>
                 </div>
                 <p>{t('schedules:schedulesPage.notificationChannelsHelp')}</p>
-                <div className="schedule-notification-targets [&_>_button]:grid [&_>_button]:min-h-[52px] [&_>_button]:grid-cols-[auto_minmax(0,1fr)_auto] [&_>_button]:items-center [&_>_button]:gap-[7px] [&_>_button]:[border:1px_solid_var(--stroke)] [&_>_button]:rounded-[var(--r-sm)] [&_>_button]:bg-[var(--surface-subtle)] [&_>_button]:p-[7px_8px] [&_>_button]:text-left [&_>_button_>_span]:flex [&_>_button_>_span]:min-w-0 [&_>_button_>_span]:flex-col [&_>_button_>_span]:gap-[3px] [&_strong]:text-[13px] [&_small]:overflow-hidden [&_small]:text-[var(--text-muted)] [&_small]:text-[13px] [&_small]:text-ellipsis [&_small]:whitespace-nowrap [&_>_button_>_svg:last-child]:text-[var(--control-muted)] [&_>_button.selected]:border-[var(--focus)] [&_>_button.selected]:bg-[var(--accent-soft)] [&_>_button.selected]:text-[var(--star-strong)] [&_>_button.selected_>_svg:last-child]:text-[var(--success)] max-[650px]:grid-cols-[1fr] grid grid-cols-[repeat(3,minmax(0,1fr))] gap-[7px] [margin-top:9px]">
+                <div className="schedule-notification-targets [&_>_button]:grid [&_>_button]:min-h-[52px] [&_>_button]:grid-cols-[auto_minmax(0,1fr)_auto] [&_>_button]:items-center [&_>_button]:gap-[7px] [&_>_button]:[border:1px_solid_var(--stroke)] [&_>_button]:rounded-[var(--r-sm)] [&_>_button]:bg-[var(--surface-subtle)] [&_>_button]:p-[7px_8px] [&_>_button]:text-left [&_>_button_>_span]:flex [&_>_button_>_span]:min-w-0 [&_>_button_>_span]:flex-col [&_>_button_>_span]:gap-[3px] [&_strong]:text-[13px] [&_small]:overflow-hidden [&_small]:text-[var(--text-muted)] [&_small]:text-[13px] [&_small]:text-ellipsis [&_small]:whitespace-nowrap [&_>_button_>_svg:last-child]:text-[var(--control-muted)] [&_>_button.selected]:border-[var(--focus)] [&_>_button.selected]:bg-[var(--accent-soft)] [&_>_button.selected]:text-[var(--star-strong)] [&_>_button.selected_>_svg:last-child]:text-[var(--success)] max-[650px]:grid-cols-[1fr] grid grid-cols-[repeat(5,minmax(0,1fr))] gap-[7px] [margin-top:9px]">
                   {(
                     Object.entries(TARGETS) as Array<
                       [NotificationTarget, (typeof TARGETS)[NotificationTarget]]

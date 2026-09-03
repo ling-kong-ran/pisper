@@ -73,6 +73,8 @@
   "workflowsPage.browserNotification": "Notification",
   "workflowsPage.feishu": "Feishu",
   "workflowsPage.weChat": "WeChat",
+  "workflowsPage.qq": "QQ",
+  "workflowsPage.telegram": "Telegram",
   "workflowsPage.codeReview": "Code review",
   "workflowsPage.codeReviewDescription": "Read diff → run tests → generate review",
   "workflowsPage.prFix": "PR fix",

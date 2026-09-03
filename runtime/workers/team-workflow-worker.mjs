@@ -5,27 +5,72 @@ if (!parentPort) throw new Error('Team workflow worker requires a parent port.')
 
 const pendingAgents = new Map()
 let nextAgentRequestId = 1
+let communicationClosed = false
+const WORKFLOW_COMMUNICATION_ERROR_PREFIX = 'Team workflow communication stream interrupted'
+
+function communicationError(message) {
+  const error = new Error(`${WORKFLOW_COMMUNICATION_ERROR_PREFIX}: ${message}`)
+  error.code = 'TEAM_WORKFLOW_COMMUNICATION_INTERRUPTED'
+  return error
+}
+
+function rejectPendingAgents(message) {
+  if (communicationClosed) return
+  communicationClosed = true
+  const error = communicationError(message)
+  for (const { reject } of pendingAgents.values()) reject(error)
+  pendingAgents.clear()
+}
 
 parentPort.on('message', (message) => {
   if (message?.type !== 'agent_response') return
   const pending = pendingAgents.get(message.id)
+  // 延迟到达的响应属于已结束的请求，不能重新唤醒脚本或覆盖新的请求状态。
   if (!pending) return
   pendingAgents.delete(message.id)
-  if (message.error) pending.reject(new Error(message.error))
-  else pending.resolve(String(message.resultJson || 'null'))
+  if (message.error) {
+    const error = new Error(String(message.error.message || message.error))
+    if (message.error.code) error.code = String(message.error.code)
+    pending.reject(error)
+  } else pending.resolve(String(message.resultJson || 'null'))
+})
+parentPort.once('close', () => {
+  rejectPendingAgents('the parent Agent runtime closed the bridge')
+  clearInterval(heartbeat)
 })
 
 function requestAgent(payload) {
   return new Promise((resolve, reject) => {
+    if (communicationClosed) {
+      reject(communicationError('the parent Agent runtime is unavailable'))
+      return
+    }
     const id = nextAgentRequestId++
     pendingAgents.set(id, { resolve, reject })
-    parentPort.postMessage({ type: 'agent_request', id, payload: String(payload || '{}') })
+    try {
+      parentPort.postMessage({ type: 'agent_request', id, payload: String(payload || '{}') })
+    } catch (error) {
+      pendingAgents.delete(id)
+      rejectPendingAgents(error?.message || 'the Agent request could not be sent')
+      reject(communicationError(error?.message || 'the Agent request could not be sent'))
+    }
   })
 }
 
 Object.setPrototypeOf(requestAgent, null)
 
-const heartbeat = setInterval(() => parentPort.postMessage({ type: 'heartbeat' }), 250)
+const heartbeat = setInterval(() => {
+  if (communicationClosed) {
+    clearInterval(heartbeat)
+    return
+  }
+  try {
+    parentPort.postMessage({ type: 'heartbeat' })
+  } catch (error) {
+    rejectPendingAgents(error?.message || 'the heartbeat bridge is unavailable')
+    clearInterval(heartbeat)
+  }
+}, 250)
 heartbeat.unref?.()
 
 try {

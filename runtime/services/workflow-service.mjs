@@ -1,6 +1,6 @@
 // 工作流服务：有向无环图（DAG）工作流的定义、持久化、执行与审批。
 // 节点类型包括 agent（调用会话）/命令/消息/条件，支持重试、人工审批节点、
-// 通知（浏览器/飞书/微信）与运行记录。
+// 通知（浏览器/飞书/微信/QQ/Telegram）与运行记录。
 import { randomUUID } from 'node:crypto'
 import { readJson, writeJsonAtomic } from '../storage/json-file.mjs'
 import {
@@ -22,7 +22,7 @@ const NODE_KINDS = new Set([
   'approval',
 ])
 const AGENT_KINDS = new Set(['prompt', 'skill', 'file', 'mcp'])
-const NOTIFICATION_TARGETS = new Set(['browser', 'feishu', 'weixin'])
+const NOTIFICATION_TARGETS = new Set(['browser', 'feishu', 'weixin', 'qq', 'telegram'])
 const FAILURE_POLICIES = new Set(['stop', 'skip'])
 const OUTPUT_FORMATS = new Set(['text', 'json'])
 const WORKFLOW_EXECUTION_MODES = new Set(['workspace-write', 'full-access'])

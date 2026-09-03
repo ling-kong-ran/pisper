@@ -1,6 +1,8 @@
 {
   "notificationSettings.feishu": "Feishu",
   "notificationSettings.weChat": "WeChat",
+  "notificationSettings.qq": "QQ",
+  "notificationSettings.telegram": "Telegram",
   "notificationSettings.browserNotification": "Notification",
   "notificationSettings.chatCompleted": "Chat completed",
   "notificationSettings.chatCompletedDescription": "Sent after Agent finishes responding",

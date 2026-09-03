@@ -32,12 +32,14 @@ export function normalizeMemoryAutoApproveConfidence(value) {
   )
 }
 
-// 已启用的通知渠道集合（浏览器/飞书/微信）。
+// 已启用的通知渠道集合：只有完成连接或授权的渠道才允许工作流与定时任务选择。
 export function enabledNotificationTargets(notificationSettings) {
   return new Set([
     ...(notificationSettings.browser?.enabled ? ['browser'] : []),
     ...(notificationSettings.connections?.feishu?.enabled ? ['feishu'] : []),
     ...(notificationSettings.connections?.weixin?.enabled ? ['weixin'] : []),
+    ...(notificationSettings.connections?.qq?.enabled ? ['qq'] : []),
+    ...(notificationSettings.connections?.telegram?.enabled ? ['telegram'] : []),
   ])
 }
 
@@ -50,8 +52,7 @@ export function createScheduleWorkflowAdapter(workflows) {
   }
 }
 
-// 工作流通知目标过滤：剔除未启用的通知渠道（浏览器/飞书/微信），
-// 防止配置了但没连通的渠道在运行时静默失败。
+// 工作流通知目标过滤：剔除未启用的通知渠道，防止配置了但没连通的渠道在运行时静默失败。
 export function filterWorkflowNotificationTargets(input, enabledTargets) {
   if (!input || typeof input !== 'object') return input
   return {
@@ -408,8 +409,8 @@ export class AgentRuntimeFacade {
     }
   }
 
-  startChannelOnboarding(platform) {
-    return this.channels.startOnboarding(platform)
+  startChannelOnboarding(platform, input = undefined) {
+    return this.channels.startOnboarding(platform, input)
   }
 
   getChannelOnboarding(platform, id) {
@@ -569,6 +570,8 @@ export class AgentRuntimeFacade {
         browser: { enabled: notificationSettings.browser.enabled },
         feishu: { enabled: Boolean(notificationSettings.connections.feishu?.enabled) },
         weixin: { enabled: Boolean(notificationSettings.connections.weixin?.enabled) },
+        qq: { enabled: Boolean(notificationSettings.connections.qq?.enabled) },
+        telegram: { enabled: Boolean(notificationSettings.connections.telegram?.enabled) },
       },
     }
   }
@@ -617,6 +620,8 @@ export class AgentRuntimeFacade {
         browser: { enabled: notificationSettings.browser.enabled },
         feishu: { enabled: Boolean(notificationSettings.connections.feishu?.enabled) },
         weixin: { enabled: Boolean(notificationSettings.connections.weixin?.enabled) },
+        qq: { enabled: Boolean(notificationSettings.connections.qq?.enabled) },
+        telegram: { enabled: Boolean(notificationSettings.connections.telegram?.enabled) },
       },
     }
   }

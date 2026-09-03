@@ -184,7 +184,7 @@ test('TUI chat completion reports system-notification state and sends active cha
           model: 'provider/model',
         },
       },
-      { platforms: ['feishu', 'weixin'] },
+      { platforms: ['feishu', 'weixin', 'qq', 'telegram'] },
     ],
   ])
   assert.deepEqual(response, {
@@ -229,7 +229,7 @@ test('TUI approval waiting notification includes context and does not fail on ch
           model: 'provider/model',
         },
       },
-      { platforms: ['feishu', 'weixin'] },
+      { platforms: ['feishu', 'weixin', 'qq', 'telegram'] },
     ],
   ])
   assert.deepEqual(response, {

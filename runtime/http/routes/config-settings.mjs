@@ -1,5 +1,5 @@
 // 配置与设置路由：Provider/模型配置、压缩/记忆偏好、通知设置等。
-const notificationChannels = ['feishu', 'weixin', 'browser']
+const notificationChannels = ['feishu', 'weixin', 'qq', 'telegram', 'browser']
 
 function notificationText(value, fallback, maxLength) {
   return (
@@ -118,7 +118,7 @@ export const configSettingsRoutes = [
               model: notificationText(input.model, 'unknown', 160),
             },
           },
-          { platforms: ['feishu', 'weixin'] },
+          { platforms: ['feishu', 'weixin', 'qq', 'telegram'] },
         )
       } catch (error) {
         channelError = error instanceof Error ? error.message : String(error)
@@ -149,7 +149,7 @@ export const configSettingsRoutes = [
               model: notificationText(input.model, 'unknown', 160),
             },
           },
-          { platforms: ['feishu', 'weixin'] },
+          { platforms: ['feishu', 'weixin', 'qq', 'telegram'] },
         )
       } catch (error) {
         channelError = error instanceof Error ? error.message : String(error)

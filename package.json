@@ -59,6 +59,7 @@
     "@larksuiteoapi/node-sdk": "^1.71.1",
     "@modelcontextprotocol/sdk": "^1.29.0",
     "@tauri-apps/api": "^2.11.1",
+    "@tencent-connect/qqbot-connector": "^1.2.0",
     "officeparser": "^7.3.0",
     "openai": "^6.26.0",
     "playwright-core": "^1.61.1",

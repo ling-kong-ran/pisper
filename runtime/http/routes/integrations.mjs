@@ -1,5 +1,5 @@
-// 集成路由：飞书/微信渠道的接入引导、消息、通知模板与插件/技能管理。
-const channelKinds = ['feishu', 'weixin']
+// 集成路由：飞书、微信、QQ 与 Telegram 渠道的接入引导、消息、通知模板与插件/技能管理。
+const channelKinds = ['feishu', 'weixin', 'qq', 'telegram']
 
 export const integrationRoutes = [
   {
@@ -13,8 +13,15 @@ export const integrationRoutes = [
     method: 'POST',
     path: '/api/channels/:channel/onboarding',
     where: { channel: channelKinds },
-    async handler({ runtime, params, json }) {
-      json(201, await runtime.startChannelOnboarding(params.channel))
+    async handler({ runtime, params, body, json }) {
+      let input
+      try {
+        input = await body()
+      } catch {
+        // 兼容旧版二维码客户端不发送请求体的情况，手工渠道仍由服务端校验空凭据。
+        input = undefined
+      }
+      json(201, await runtime.startChannelOnboarding(params.channel, input))
     },
   },
   {

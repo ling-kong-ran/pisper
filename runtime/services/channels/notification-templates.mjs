@@ -89,6 +89,8 @@ export function defaultTemplates() {
         channels: {
           feishu: { content: definition.defaultContent },
           weixin: { content: definition.defaultContent },
+          qq: { content: definition.defaultContent },
+          telegram: { content: definition.defaultContent },
           browser: { content: definition.defaultContent },
         },
       },
@@ -102,7 +104,7 @@ export function normalizeTemplates(input) {
     const stored = input?.[event]
     if (!stored || typeof stored !== 'object') continue
     defaults[event].enabled = stored.enabled !== false
-    for (const platform of ['feishu', 'weixin', 'browser']) {
+    for (const platform of ['feishu', 'weixin', 'qq', 'telegram', 'browser']) {
       const variant = stored.channels?.[platform]
       if (!variant || typeof variant !== 'object') continue
       if (String(variant.content || '').trim())

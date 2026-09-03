@@ -10,6 +10,8 @@
   "schedulesPage.browserNotification": "通知",
   "schedulesPage.feishu": "飞书",
   "schedulesPage.weChat": "微信",
+  "schedulesPage.qq": "QQ",
+  "schedulesPage.telegram": "Telegram",
   "schedulesPage.browseDirectories": "浏览目录",
   "schedulesPage.cancel": "取消",
   "schedulesPage.closeDialog": "关闭对话框",

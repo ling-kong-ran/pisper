@@ -1,6 +1,6 @@
 // 工作流节点检查器：选中节点后的属性编辑（提示词/技能/触发器等），
 // 校验必填字段并就地写回工作流。
-import { AlertTriangle, Bell, Bot, Copy, MessageCircle, Plus, Trash2 } from 'lucide-react'
+import { AlertTriangle, Bell, Bot, Copy, MessageCircle, Plus, Send, Trash2 } from 'lucide-react'
 import { AppSelect } from '@/components/AppSelect'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
@@ -30,6 +30,8 @@ const NOTIFICATION_TARGETS = {
   browser: { Icon: Bell },
   feishu: { Icon: Bot },
   weixin: { Icon: MessageCircle },
+  qq: { Icon: MessageCircle },
+  telegram: { Icon: Send },
 }
 
 const WORKFLOW_EXECUTION_MODES: WorkflowExecutionMode[] = ['workspace-write', 'full-access']
@@ -47,6 +49,8 @@ function executionModeHelp(mode: WorkflowExecutionMode, t: WorkflowTranslate) {
 function notificationTargetLabel(target: NotificationTarget, t: WorkflowTranslate) {
   if (target === 'feishu') return t('workflows:workflowsPage.feishu')
   if (target === 'weixin') return t('workflows:workflowsPage.weChat')
+  if (target === 'qq') return t('workflows:workflowsPage.qq')
+  if (target === 'telegram') return t('workflows:workflowsPage.telegram')
   return t('workflows:workflowsPage.browserNotification')
 }
 
@@ -258,7 +262,7 @@ function NodeNotificationSettings({
   onOpenChannels: () => void
   onOpenSystemNotificationSettings: () => void
 }) {
-  const hasExternalNotificationTarget = ['feishu', 'weixin'].some(
+  const hasExternalNotificationTarget = ['feishu', 'weixin', 'qq', 'telegram'].some(
     (target) => catalog.notificationTargets[target as NotificationTarget]?.enabled,
   )
   const systemNotificationAvailable =

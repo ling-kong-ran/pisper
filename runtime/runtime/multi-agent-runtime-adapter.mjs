@@ -50,6 +50,15 @@ function executeTeamWorkflowWorker({ body, path, argsJson, runAgent }) {
       }, WORKFLOW_VM_TIMEOUT_MS + 250)
       watchdog.unref?.()
     }
+    // Worker 退出与异步 Agent 结果可能同时发生，统一捕获回传失败避免产生未处理 rejection。
+    const sendAgentResponse = (message) => {
+      if (settled) return
+      try {
+        worker.postMessage(message)
+      } catch (error) {
+        finish(rejectResult, error)
+      }
+    }
     worker.on('message', (message) => {
       if (message?.type === 'heartbeat') {
         armWatchdog()
@@ -64,19 +73,20 @@ function executeTeamWorkflowWorker({ body, path, argsJson, runAgent }) {
                 `Workflow Agent requests are limited to ${MAX_WORKFLOW_RESULT_BYTES} bytes.`,
               )
             const result = await runAgent(JSON.parse(payload))
-            if (!settled)
-              worker.postMessage({
-                type: 'agent_response',
-                id: message.id,
-                resultJson: JSON.stringify(result) || 'null',
-              })
+            sendAgentResponse({
+              type: 'agent_response',
+              id: message.id,
+              resultJson: JSON.stringify(result) || 'null',
+            })
           } catch (error) {
-            if (!settled)
-              worker.postMessage({
-                type: 'agent_response',
-                id: message.id,
-                error: error instanceof Error ? error.message : String(error),
-              })
+            sendAgentResponse({
+              type: 'agent_response',
+              id: message.id,
+              error: {
+                message: error instanceof Error ? error.message : String(error),
+                ...(error?.code ? { code: String(error.code) } : {}),
+              },
+            })
           }
         })()
         return

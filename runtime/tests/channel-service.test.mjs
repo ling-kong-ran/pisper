@@ -55,7 +55,7 @@ class FakeGateway {
   }
 }
 
-async function fixture({ agent = {}, stored } = {}) {
+async function fixture({ agent = {}, stored, extraGatewayFactories = {} } = {}) {
   const directory = await mkdtemp(join(tmpdir(), 'pisper-channels-'))
   const path = join(directory, 'channels.json')
   if (stored) await writeFile(path, JSON.stringify(stored))
@@ -82,7 +82,12 @@ async function fixture({ agent = {}, stored } = {}) {
       abort: agent.abort || (async () => true),
       validateDirectory: agent.validateDirectory || (async (value) => value || directory),
     },
-    gatewayFactories: { feishu: gatewayFactory('feishu'), weixin: gatewayFactory('weixin') },
+    gatewayFactories: {
+      feishu: gatewayFactory('feishu'),
+      weixin: gatewayFactory('weixin'),
+      ...(extraGatewayFactories.telegram ? { telegram: gatewayFactory('telegram') } : {}),
+      ...(extraGatewayFactories.qq ? { qq: gatewayFactory('qq') } : {}),
+    },
     onboardingFactories: {
       feishu: () => ({
         start: async () => ({}),
@@ -114,7 +119,7 @@ test('legacy one-way webhook configuration is discarded during migration', async
   assert.doesNotMatch(await readFile(path, 'utf8'), /webhookUrl|secret/)
 })
 
-test('version 2 Feishu state migrates to platform-scoped version 3 state', async (t) => {
+test('version 2 Feishu state migrates to platform-scoped state', async (t) => {
   const stored = {
     version: 2,
     connection: {
@@ -132,7 +137,28 @@ test('version 2 Feishu state migrates to platform-scoped version 3 state', async
   assert.equal(state.connections.feishu.accountId, 'cli_old')
   assert.equal(state.connections.weixin, null)
   assert.equal(state.scopes[0].key, 'feishu:chat1')
-  assert.equal(JSON.parse(await readFile(path, 'utf8')).version, 3)
+  assert.equal(JSON.parse(await readFile(path, 'utf8')).version, 5)
+})
+
+test('legacy personal QQ and Telegram credentials are removed during migration', async (t) => {
+  const { directory, path, service } = await fixture({
+    stored: {
+      version: 4,
+      connections: {
+        feishu: null,
+        weixin: null,
+        qq: { mode: 'personal', accessToken: 'qq-private-secret' },
+        telegram: { mode: 'personal', apiHash: 'telegram-private-secret' },
+      },
+      scopes: {},
+    },
+  })
+  t.after(() => rm(directory, { recursive: true, force: true }))
+  const state = service.getState()
+  assert.equal(state.connections.qq, null)
+  assert.equal(state.connections.telegram, null)
+  const persisted = await readFile(path, 'utf8')
+  assert.doesNotMatch(persisted, /qq-private-secret|telegram-private-secret/)
 })
 
 test('Feishu and WeChat credentials stay private while public identifiers are masked', async (t) => {
@@ -203,7 +229,7 @@ test('channel reply model is passed to the Agent without reconnecting the transp
   assert.deepEqual(gateways.feishu.sent.at(-1).input, { markdown: '**完成**' })
 })
 
-test('personal WeChat peers map to independent Pisper sessions', async (t) => {
+test('WeChat peers map to independent Pisper sessions', async (t) => {
   let count = 0
   const { directory, service } = await fixture({
     agent: {

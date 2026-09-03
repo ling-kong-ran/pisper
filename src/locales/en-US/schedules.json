@@ -10,6 +10,8 @@
   "schedulesPage.browserNotification": "Notification",
   "schedulesPage.feishu": "Feishu",
   "schedulesPage.weChat": "WeChat",
+  "schedulesPage.qq": "QQ",
+  "schedulesPage.telegram": "Telegram",
   "schedulesPage.browseDirectories": "Browse directories",
   "schedulesPage.cancel": "Cancel",
   "schedulesPage.closeDialog": "Close dialog",

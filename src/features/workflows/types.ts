@@ -13,7 +13,7 @@ export const WORKFLOW_NODE_KINDS = [
 ] as const
 
 export type NodeKind = (typeof WORKFLOW_NODE_KINDS)[number]
-export type NotificationTarget = 'browser' | 'feishu' | 'weixin'
+export type NotificationTarget = 'browser' | 'feishu' | 'weixin' | 'qq' | 'telegram'
 export type WorkflowInputType = 'string' | 'number' | 'boolean' | 'text'
 export type WorkflowExecutionMode = 'workspace-write' | 'full-access'
 
