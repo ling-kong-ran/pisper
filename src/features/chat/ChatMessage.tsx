@@ -1,9 +1,11 @@
 // 单条聊天消息：Markdown 渲染 + 消息操作（复制/下载/删除/跳转），
 // 长代码自动展开，附件与工具调用内嵌展示。
-import { memo, useEffect, useState } from 'react'
+import { memo, useCallback, useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import {
   Check,
+  ChevronLeft,
+  ChevronRight,
   Download,
   File,
   GitFork,
@@ -26,15 +28,39 @@ import { chatErrorMessage } from './chat-errors'
 import { chatApi } from './chat-api'
 import { Message as AiMessage } from '@/components/ai-elements/message-shell'
 
-type ImagePreview = { attachment: ChatAttachment; source: string }
+type PreviewImage = { attachment: ChatAttachment; source: string; attachmentIndex: number }
+type ImagePreview = { images: PreviewImage[]; index: number }
 type RunProps = AgentRunActivityProps
 
-function ImageLightbox({ attachment, source, onClose }: ImagePreview & { onClose: () => void }) {
+function ImageLightbox({
+  images,
+  index,
+  onClose,
+  onNavigate,
+}: ImagePreview & { onClose: () => void; onNavigate: (index: number) => void }) {
   const { t } = useI18n()
+  const touchStartX = useRef<number | null>(null)
+  const image = images[index]
+  const hasPrevious = index > 0
+  const hasNext = index < images.length - 1
+  const navigate = useCallback(
+    (nextIndex: number) => {
+      if (nextIndex >= 0 && nextIndex < images.length) onNavigate(nextIndex)
+    },
+    [images.length, onNavigate],
+  )
+
   useEffect(() => {
     const previousOverflow = document.body.style.overflow
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.key === 'Escape') onClose()
+      else if (event.key === 'ArrowLeft') {
+        event.preventDefault()
+        navigate(index - 1)
+      } else if (event.key === 'ArrowRight') {
+        event.preventDefault()
+        navigate(index + 1)
+      }
     }
     document.body.style.overflow = 'hidden'
     window.addEventListener('keydown', onKeyDown)
@@ -42,50 +68,109 @@ function ImageLightbox({ attachment, source, onClose }: ImagePreview & { onClose
       document.body.style.overflow = previousOverflow
       window.removeEventListener('keydown', onKeyDown)
     }
-  }, [onClose])
+  }, [index, navigate, onClose])
+
+  if (!image) return null
   return (
     <div
-      className="image-lightbox [&_>_img]:w-full [&_>_img]:h-full [&_>_img]:min-h-0 [&_>_img]:object-contain fixed z-[100] inset-0 grid grid-rows-[auto_minmax(0,1fr)] gap-[12px] bg-[var(--lightbox-bg)] [padding:18px_24px_24px] [backdrop-filter:blur(8px)]"
+      className="image-lightbox [&_img]:h-full [&_img]:min-h-0 [&_img]:w-full [&_img]:object-contain fixed z-[100] inset-0 grid grid-rows-[auto_minmax(0,1fr)] gap-[12px] bg-[var(--lightbox-bg)] [padding:18px_72px_24px_24px] [backdrop-filter:blur(8px)] max-sm:[padding:12px_56px_16px_12px]"
       role="dialog"
       aria-modal="true"
       aria-label={t('chat:chatMessage.fullScreenImagePreview')}
-      onMouseDown={(event) => event.target === event.currentTarget && onClose()}
     >
-      <div className="image-lightbox-toolbar [&_>_span]:overflow-hidden [&_>_span]:text-[13px] [&_>_span]:font-[700] [&_>_span]:text-ellipsis [&_>_span]:whitespace-nowrap [&_>_div]:flex [&_>_div]:flex-none [&_>_div]:items-center [&_>_div]:gap-[8px] flex min-w-0 items-center justify-between gap-[16px] text-[var(--on-ink)]">
-        <span title={attachment.name}>
-          {attachment.name || t('chat:chatMessage.generatedImage')}
-        </span>
-        <div>
+      <div className="image-lightbox-toolbar flex min-w-0 items-center justify-between gap-[16px] text-[var(--on-ink)]">
+        <div className="flex min-w-0 items-center gap-[10px]">
+          <span
+            className="overflow-hidden text-[13px] font-[700] text-ellipsis whitespace-nowrap"
+            title={image.attachment.name}
+          >
+            {image.attachment.name || t('chat:chatMessage.generatedImage')}
+          </span>
+          {images.length > 1 && (
+            <span className="flex-none text-[12px] font-[600] text-[var(--on-ink)]/70">
+              {index + 1} / {images.length}
+            </span>
+          )}
+        </div>
+        <div className="flex flex-none items-center gap-[8px]">
           <Button
             asChild
             size="lg"
             className="border border-[var(--lightbox-action-border)] bg-[var(--lightbox-action-bg)] text-[var(--lightbox-action-text)] shadow-[0_8px_24px_var(--lightbox-action-shadow)] hover:bg-[var(--accent-soft)] hover:text-[var(--star-strong)]"
           >
             <a
-              href={attachment.downloadUrl || source}
-              download={attachment.name || 'generated-image'}
+              href={image.attachment.downloadUrl || image.source}
+              download={image.attachment.name || 'generated-image'}
+              aria-label={t('chat:chatMessage.downloadOriginal')}
+              title={t('chat:chatMessage.downloadOriginal')}
             >
               <Download size={14} />
-              {t('chat:chatMessage.downloadOriginal')}
+              <span className="max-sm:hidden">{t('chat:chatMessage.downloadOriginal')}</span>
             </a>
           </Button>
           <Button
             type="button"
             variant="ghost"
             size="icon-lg"
-            className="bg-[var(--lightbox-control-bg)] text-[var(--on-ink)] hover:bg-[var(--lightbox-control-bg)] hover:text-[var(--on-ink)]"
+            className="size-11 bg-[var(--lightbox-control-bg)] text-[var(--on-ink)] hover:bg-[var(--lightbox-control-bg)] hover:text-[var(--on-ink)]"
             aria-label={t('chat:chatMessage.closePreview')}
+            title={t('chat:chatMessage.closePreview')}
             onClick={onClose}
           >
-            <X size={18} />
+            <X size={20} />
           </Button>
         </div>
       </div>
-      <img
-        alt={attachment.name || t('chat:chatMessage.generatedImage')}
-        decoding="async"
-        src={source}
-      />
+      <div
+        className="relative flex min-h-0 items-center justify-center [touch-action:pan-y]"
+        onTouchStart={(event) => {
+          touchStartX.current = event.changedTouches[0]?.clientX ?? null
+        }}
+        onTouchEnd={(event) => {
+          const startX = touchStartX.current
+          touchStartX.current = null
+          const endX = event.changedTouches[0]?.clientX
+          if (startX === null || endX === undefined || Math.abs(endX - startX) < 48) return
+          navigate(index + (endX < startX ? 1 : -1))
+        }}
+        onTouchCancel={() => {
+          touchStartX.current = null
+        }}
+      >
+        {images.length > 1 && (
+          <>
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon-lg"
+              className="absolute left-0 z-10 size-11 rounded-full bg-[var(--lightbox-control-bg)] text-[var(--on-ink)] shadow-[0_8px_24px_var(--lightbox-action-shadow)] hover:bg-[var(--lightbox-control-bg)] hover:text-[var(--on-ink)] disabled:opacity-30"
+              aria-label={t('chat:chatMessage.previousImage')}
+              title={t('chat:chatMessage.previousImage')}
+              disabled={!hasPrevious}
+              onClick={() => navigate(index - 1)}
+            >
+              <ChevronLeft size={22} />
+            </Button>
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon-lg"
+              className="absolute right-0 z-10 size-11 rounded-full bg-[var(--lightbox-control-bg)] text-[var(--on-ink)] shadow-[0_8px_24px_var(--lightbox-action-shadow)] hover:bg-[var(--lightbox-control-bg)] hover:text-[var(--on-ink)] disabled:opacity-30"
+              aria-label={t('chat:chatMessage.nextImage')}
+              title={t('chat:chatMessage.nextImage')}
+              disabled={!hasNext}
+              onClick={() => navigate(index + 1)}
+            >
+              <ChevronRight size={22} />
+            </Button>
+          </>
+        )}
+        <img
+          alt={image.attachment.name || t('chat:chatMessage.generatedImage')}
+          decoding="async"
+          src={image.source}
+        />
+      </div>
     </div>
   )
 }
@@ -99,6 +184,12 @@ export function MessageAttachments({
 }) {
   const { t } = useI18n()
   const [preview, setPreview] = useState<ImagePreview | null>(null)
+  const imagePreviews = attachments.flatMap<PreviewImage>((attachment, attachmentIndex) => {
+    const source =
+      attachment.url ||
+      (attachment.data ? `data:${attachment.mimeType};base64,${attachment.data}` : '')
+    return attachment.kind === 'image' && source ? [{ attachment, source, attachmentIndex }] : []
+  })
   return (
     <>
       <div
@@ -114,7 +205,12 @@ export function MessageAttachments({
               <button
                 type="button"
                 className="generated-media [.message-attachments_&]:flex [.message-attachments_&]:w-[min(360px,100%)] [.message-attachments_&]:flex-col [.message-attachments_&]:gap-[5px] [.message-attachments_&]:text-[var(--text-muted)] [.message-attachments_&]:no-underline [.message-attachments_button&]:border-0 [.message-attachments_button&]:bg-transparent [.message-attachments_button&]:p-0 [.message-attachments_button&]:text-left [.message-attachments_button&]:[cursor:zoom-in] [.message-attachments_&_img]:w-full [.message-attachments_&_img]:max-h-[320px] [.message-attachments_&_img]:[border:1px_solid_var(--stroke)] [.message-attachments_&_img]:rounded-[var(--r-sm)] [.message-attachments_&_img]:object-contain [.message-attachments_&_img]:bg-[var(--media-bg)] [.message-attachments_&_video]:w-full [.message-attachments_&_video]:max-h-[320px] [.message-attachments_&_video]:[border:1px_solid_var(--stroke)] [.message-attachments_&_video]:rounded-[var(--r-sm)] [.message-attachments_&_video]:object-contain [.message-attachments_&_video]:bg-[var(--media-bg)] [.message-attachments_&_small]:overflow-hidden [.message-attachments_&_small]:text-[13px] [.message-attachments_&_small]:text-ellipsis [.message-attachments_&_small]:whitespace-nowrap [.message-attachments.compact_&]:w-[min(190px,100%)] [.message-attachments.compact_&_img]:max-h-[130px] [.message-attachments.compact_&_video]:max-h-[130px]"
-                onClick={() => setPreview({ attachment, source })}
+                onClick={() => {
+                  const imageIndex = imagePreviews.findIndex(
+                    (item) => item.attachmentIndex === index,
+                  )
+                  if (imageIndex >= 0) setPreview({ images: imagePreviews, index: imageIndex })
+                }}
                 title={t('chat:chatMessage.openFullScreenPreview')}
                 key={key}
               >
@@ -152,9 +248,12 @@ export function MessageAttachments({
       {preview &&
         createPortal(
           <ImageLightbox
-            attachment={preview.attachment}
-            source={preview.source}
+            images={preview.images}
+            index={preview.index}
             onClose={() => setPreview(null)}
+            onNavigate={(index) =>
+              setPreview((current) => (current ? { ...current, index } : current))
+            }
           />,
           document.body,
         )}

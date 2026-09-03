@@ -270,6 +270,8 @@
   "chatMessage.generatedVideo": "Generated video",
   "chatMessage.imageAttachment": "Image attachment",
   "chatMessage.openFullScreenPreview": "Open full-screen preview",
+  "chatMessage.previousImage": "Previous image",
+  "chatMessage.nextImage": "Next image",
   "chatPage.appChat": "{app} chat",
   "chatPage.approvalRequired": "Review before writing",
   "chatPage.approvalStatusUpdated": "Approval status updated",
