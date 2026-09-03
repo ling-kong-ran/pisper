@@ -1,9 +1,9 @@
 {
-  "version": "0.1.27",
-  "tag": "app-v0.1.27",
-  "url": "https://github.com/ling-kong-ran/pisper/releases/tag/app-v0.1.27",
+  "version": "0.1.28",
+  "tag": "app-v0.1.28",
+  "url": "https://github.com/ling-kong-ran/pisper/releases/tag/app-v0.1.28",
   "apk": "app-universal-release-signed.apk",
   "ipa": "pisper-ios-unsigned.ipa",
-  "notes": "- fix(mobile): use native select on touchscreens so picker panels survive swipes",
-  "releaseDate": "2026-09-02"
+  "notes": "- fix(deps): repair qrcode-terminal integrity and lockfile ordering\n- refactor(chat): consolidate slash command draft helper into composer drafts\n- feat: add official QQ QR onboarding and harden team streams\n- fix(chat): improve image preview navigation",
+  "releaseDate": "2026-09-03"
 }
