@@ -109,6 +109,48 @@ function pathOutsideWorkspace(cwd, input) {
   return result === '..' || result.startsWith(`..${sep}`) || isAbsolute(result)
 }
 
+// Team 文件所有权是写操作边界：只允许任务声明范围内的 edit/write 继续执行。
+// 注册时防止并行任务声明重叠，工具执行前再做一次强制校验，避免只靠提示约束子 Agent。
+export function teamFileOwnershipRequirement({ cwd, toolName, args, ownedFiles = [] }) {
+  if (!['edit', 'write'].includes(toolName)) return null
+  const scopes = (Array.isArray(ownedFiles) ? ownedFiles : [])
+    .map((entry) =>
+      String(entry || '')
+        .trim()
+        .replaceAll('\\', '/')
+        .replace(/^\.\//, '')
+        .replace(/\/+$/, ''),
+    )
+    .filter(Boolean)
+  if (!scopes.length) return null
+  const rawPath = String(args?.path || args?.file_path || '').trim()
+  if (!rawPath) {
+    return {
+      block: true,
+      risk: 'high',
+      reason: `${toolName} 没有目标路径，无法按 Team 文件所有权执行。`,
+    }
+  }
+  const root = canonicalPath(cwd)
+  const target = canonicalPath(isAbsolute(rawPath) ? resolve(rawPath) : resolve(root, rawPath))
+  const workspaceRelative = relative(root, target).replaceAll('\\', '/')
+  const owned = scopes.some((scope) => {
+    const targetScope = canonicalPath(isAbsolute(scope) ? resolve(scope) : resolve(root, scope))
+    const scopeRelative = relative(root, targetScope).replaceAll('\\', '/')
+    return (
+      workspaceRelative === scopeRelative ||
+      scopeRelative === '' ||
+      workspaceRelative.startsWith(`${scopeRelative}/`)
+    )
+  })
+  if (owned) return null
+  return {
+    block: true,
+    risk: 'high',
+    reason: `${toolName} 只能修改当前 Team 任务声明的文件：${scopes.join(', ')}。收到的是 ${workspaceRelative || rawPath}。`,
+  }
+}
+
 export function permissionRequirement({ mode, executionMode, cwd, toolName, args, toolRisk }) {
   if (executionMode === 'full-access') return null
   if (INTERNAL_SAFE_TOOLS.has(toolName)) return null
@@ -236,6 +278,31 @@ export class SessionPermissionService {
     this.installedSessions.add(session)
     const upstream = session.agent.beforeToolCall
     session.agent.beforeToolCall = async (context, signal) => {
+      const upstreamResult = await upstream?.(context, signal)
+      if (upstreamResult?.block) return upstreamResult
+      return this.authorize({
+        sessionId,
+        cwd,
+        toolName: context.toolCall.name,
+        toolCallId: context.toolCall.id,
+        args: context.args,
+        signal,
+      })
+    }
+  }
+
+  // 为 Team 子 Agent 额外包裹一次权限钩：先做任务文件范围硬拦截，再进入普通审批。
+  installScoped(session, { sessionId, cwd, ownedFiles = [] }) {
+    if (!session?.agent) return
+    const upstream = session.agent.beforeToolCall
+    session.agent.beforeToolCall = async (context, signal) => {
+      const scopeRequirement = teamFileOwnershipRequirement({
+        cwd,
+        toolName: context.toolCall.name,
+        args: context.args,
+        ownedFiles,
+      })
+      if (scopeRequirement) return { block: true, reason: scopeRequirement.reason }
       const upstreamResult = await upstream?.(context, signal)
       if (upstreamResult?.block) return upstreamResult
       return this.authorize({

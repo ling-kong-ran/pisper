@@ -43,7 +43,7 @@ const TEAM_COMMUNICATION_ERROR_PATTERN =
 const TEAM_AUTHENTICATION_ERROR_PATTERN =
   /(?:authentication|unauthori[sz]ed|forbidden|invalid\s+(?:api\s*key|token|credential)|\b(?:401|403)\b)/i
 const TEAM_UPSTREAM_STREAM_ERROR_PATTERN =
-  /stream[_\s-]?read[_\s-]?error|econn(?:reset|aborted)|connection\s+(?:reset|closed|lost)|premature(?:ly)?\s+clos|incomplete\s+stream|upstream.*(?:closed|interrupted)/i
+  /stream[_\s-]?read[_\s-]?error|econn(?:reset|aborted)|connection\s+(?:reset|closed|lost)|premature(?:ly)?\s+clos|incomplete\s+stream|too\s+many\s+pending\s+requests|rate\s+limit(?:ed)?|retry\s+later|upstream.*(?:closed|interrupted)/i
 const TEAM_CANCEL_ERROR_PATTERN = /(?:user|parent|explicit|manual).*abort|cancel|取消|中断/i
 
 function clone(value) {
@@ -501,6 +501,10 @@ export class TeamWorkflowService {
     const id = String(sessionId || '').trim()
     if (!id) throw new Error('Team requires a session.')
     const current = this.state.teams[id]
+    const claimableTasks = (team) =>
+      Object.values(team?.tasks || {}).filter(
+        (task) => !TERMINAL_TEAM_TASK_STATUSES.has(task.status) && task.files.length,
+      )
     if (
       current &&
       ['active', 'paused', 'stalled', 'budget_limited'].includes(current.status) &&
@@ -515,6 +519,33 @@ export class TeamWorkflowService {
       current.status = 'active'
       this.recoverInterruptedTasks(current)
       this.unblockTasks(current)
+      // 重新恢复时重新收敛所有可并行任务的文件范围；中途改图后可能留下历史重叠。
+      // 按 claim 顺序只保留先到者，后者保持依赖阻塞，避免同一文件由两个成员并行写入。
+      const claimable = claimableTasks(current).sort((left, right) =>
+        left.createdAt.localeCompare(right.createdAt),
+      )
+      const claimedScopes = []
+      const conflict = claimable.find((task) => {
+        const overlaps = claimedScopes.some(
+          (other) =>
+            !task.dependsOn.includes(other.taskName) && scopesOverlap(task.files, other.files),
+        )
+        if (overlaps) return true
+        claimedScopes.push(task)
+        return false
+      })
+      if (conflict) {
+        current.status = 'paused'
+        current.updatedAt = nowIso(this.now())
+        await this.recordConflict(current, {
+          taskName: conflict.taskName,
+          files: conflict.files,
+          message: `Team file ownership conflict detected while resuming: ${conflict.taskName}.`,
+        })
+        throw new Error(
+          `Team file ownership conflict while resuming ${conflict.taskName}: ${conflict.files.join(', ')}.`,
+        )
+      }
       current.updatedAt = nowIso(this.now())
       await this.save()
       return clone(publicTeam(current))
@@ -1074,6 +1105,29 @@ export class TeamWorkflowService {
     team.updatedAt = nowIso(this.now())
     await this.save()
     return clone(publicTeam(team))
+  }
+
+  async resolveTask(sessionId, target, { output = '', status = 'completed' } = {}) {
+    const team = this.state.teams[String(sessionId || '')]
+    const task = taskByName(team, target) || team?.tasks[String(target || '')]
+    if (!team || !task) return null
+    if (!TERMINAL_TEAM_TASK_STATUSES.has(status))
+      throw new Error('Team tasks can only be resolved to a terminal status.')
+    task.status = status
+    task.agentId = ''
+    task.leaseId = ''
+    task.claimedAt = null
+    task.leaseExpiresAt = null
+    task.output = String(output || task.output || '').slice(0, MAX_TEAM_TASK_OUTPUT_CHARS)
+    task.error = status === 'completed' ? '' : String(task.error || output || '').slice(0, 1_000)
+    task.errorKind = status === 'completed' ? '' : classifyTeamTaskError(task.error, status)
+    task.completedAt = nowIso(this.now())
+    task.updatedAt = task.completedAt
+    team.updatedAt = task.updatedAt
+    team.lastProgressAt = task.updatedAt
+    this.unblockTasks(team)
+    await this.save()
+    return clone(publicTask(task))
   }
 
   canComplete(sessionId) {

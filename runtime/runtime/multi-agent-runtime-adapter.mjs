@@ -652,7 +652,11 @@ export function createMultiAgentRuntime({
         onProgress: (progress) => {
           void syncLeasedProgress(progress)
         },
-        onSession: installSubagentPermissions,
+        onSession: (subagentSession) => {
+          installSubagentPermissions(subagentSession, {
+            ownedFiles: teamTask?.files || [],
+          })
+        },
         onCompleted,
         onTerminal: async (terminal) => {
           if (!teamWorkflows.get(sessionId)) return

@@ -12,6 +12,7 @@ import {
   sessionTitleFromFirstMessage,
   waitForAgentMailbox,
 } from '../runtime/agent-runtime.mjs'
+import { classifyTeamTaskError } from '../services/team-workflow.mjs'
 import { applyTextPatch } from '../../src/lib/api.ts'
 import { shouldRetainClosedSessionState } from '../../src/lib/session-state.ts'
 
@@ -1215,6 +1216,7 @@ test('upstream stream interruptions use the Pi turn retry path without broadenin
     'connection reset by peer (ECONNRESET)',
     'premature close while reading the stream',
     'incomplete stream',
+    'unknown: Too many pending requests, please retry later (request id: test)',
   ]) {
     assert.equal(
       session._isRetryableError({ stopReason: 'error', errorMessage }),
@@ -1249,6 +1251,16 @@ test('upstream stream interruptions use the Pi turn retry path without broadenin
     false,
   )
   assert.equal(originalCalls.length, 5)
+})
+
+test('Team classifies provider queue congestion as retryable upstream work', () => {
+  assert.equal(
+    classifyTeamTaskError(
+      new Error('unknown: Too many pending requests, please retry later (request id: test)'),
+      'failed',
+    ),
+    'upstream_stream',
+  )
 })
 
 test('child session creation installs the same transient retry policy as the parent', async () => {

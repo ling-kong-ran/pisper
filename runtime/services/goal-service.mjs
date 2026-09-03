@@ -250,6 +250,18 @@ export class GoalService {
     return clone(goal)
   }
 
+  // Team 终态补偿：Team 工作流写盘失败时，把同一个 Goal 从 complete 回滚为 active。
+  // goalId 参与校验，避免回滚到另一个已替换的新目标。
+  async reopen(sessionId, { goalId } = {}) {
+    const goal = this.state.goals[String(sessionId || '')]
+    if (!goal || goal.status !== 'complete' || (goalId && goal.id !== String(goalId)))
+      return clone(goal)
+    goal.status = 'active'
+    goal.updatedAt = nowIso(this.now())
+    await this.save()
+    return clone(goal)
+  }
+
   async clear(sessionId) {
     const id = String(sessionId || '')
     const goal = this.state.goals[id]

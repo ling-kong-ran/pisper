@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict'
-import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises'
+import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import test from 'node:test'
@@ -14,6 +14,10 @@ import {
   TEAM_EXECUTION_MARKER,
   teamExecutionPrompt,
 } from '../services/team-workflow.mjs'
+import {
+  SessionPermissionService,
+  teamFileOwnershipRequirement,
+} from '../services/session-permission-service.mjs'
 
 async function waitFor(predicate, message) {
   const deadline = Date.now() + 2_000
@@ -58,6 +62,56 @@ test('team execution prompt defines dynamic delegation and evidence-based conver
   assert.match(prompt, /completion audit/i)
   assert.match(prompt, /architect_1: completed/)
   assert.match(prompt, /tester_2: running/)
+})
+
+test('Team file ownership hard-blocks scoped member writes outside declared files', async (t) => {
+  const directory = await mkdtemp(join(tmpdir(), 'pisper-team-file-guard-'))
+  t.after(() => rm(directory, { recursive: true, force: true }))
+  await mkdir(join(directory, 'src'), { recursive: true })
+  await mkdir(join(directory, 'docs'), { recursive: true })
+  await writeFile(join(directory, 'src', 'owned.ts'), 'owned\n', 'utf8')
+  await writeFile(join(directory, 'src', 'other.ts'), 'other\n', 'utf8')
+  await writeFile(join(directory, 'docs', 'other.md'), 'other\n', 'utf8')
+
+  assert.equal(
+    teamFileOwnershipRequirement({
+      cwd: directory,
+      toolName: 'edit',
+      args: { path: 'src/owned.ts' },
+      ownedFiles: ['src/owned.ts'],
+    }),
+    null,
+  )
+  const requirement = teamFileOwnershipRequirement({
+    cwd: directory,
+    toolName: 'write',
+    args: { path: 'docs/other.md' },
+    ownedFiles: ['src/owned.ts'],
+  })
+  assert.equal(requirement.block, true)
+  assert.match(requirement.reason, /Team 任务声明的文件/)
+
+  const permissions = new SessionPermissionService({
+    getMode: () => 'ignore',
+    getExecutionMode: () => 'full-access',
+  })
+  const session = { agent: {} }
+  permissions.installScoped(session, {
+    sessionId: 'session-1',
+    cwd: directory,
+    ownedFiles: ['src/owned.ts'],
+  })
+  const blocked = await session.agent.beforeToolCall({
+    toolCall: { id: 'write-docs', name: 'write' },
+    args: { path: 'docs/other.md', content: 'changed' },
+  })
+  assert.deepEqual(blocked.block, true)
+  const allowed = await session.agent.beforeToolCall({
+    toolCall: { id: 'edit-owned', name: 'edit' },
+    args: { path: 'src/owned.ts', edits: [] },
+  })
+  assert.equal(allowed, undefined)
+  permissions.dispose()
 })
 
 test('team workflow enforces dependencies, active file ownership, and completion barriers', async (t) => {
@@ -272,6 +326,44 @@ test('expired Team leases fence stale workers and retain full completion evidenc
   })
   assert.equal(Object.hasOwn(maximal.tasks[0], 'files'), false)
   assert.ok(Buffer.byteLength(JSON.stringify(maximal), 'utf8') < 250_000)
+})
+
+test('team workflow resumes with later overlapping scopes blocked instead of silently parallelizing them', async (t) => {
+  const directory = await mkdtemp(join(tmpdir(), 'pisper-team-resume-overlap-'))
+  t.after(() => rm(directory, { recursive: true, force: true }))
+  const path = join(directory, 'teams.json')
+  const service = new TeamWorkflowService({ path })
+  await service.init()
+  await service.ensure('session-1', { objective: 'Resume safely.' })
+  await service.registerTask('session-1', {
+    taskName: 'first',
+    files: ['src/app.ts'],
+    message: 'Own the app file.',
+  })
+  await service.registerTask('session-1', {
+    taskName: 'second',
+    files: ['docs/app.md'],
+    message: 'Own documentation.',
+  })
+  await service.pause('session-1')
+
+  const stored = JSON.parse(await readFile(path, 'utf8'))
+  stored.teams['session-1'].tasks = Object.fromEntries(
+    Object.entries(stored.teams['session-1'].tasks).map(([id, task]) => [
+      id,
+      task.taskName === 'second' ? { ...task, files: ['src/app.ts'] } : task,
+    ]),
+  )
+  await writeFile(path, `${JSON.stringify(stored, null, 2)}\n`, 'utf8')
+
+  const restored = new TeamWorkflowService({ path })
+  await restored.init()
+  await assert.rejects(
+    restored.ensure('session-1', { objective: 'Resume safely.' }),
+    /file ownership conflict while resuming/i,
+  )
+  assert.equal(restored.get('session-1').status, 'paused')
+  assert.match(restored.get('session-1').conflicts.at(-1).message, /resuming.*second/i)
 })
 
 test('team workflow restores an interrupted prerequisite without stranding blocked dependents', async (t) => {

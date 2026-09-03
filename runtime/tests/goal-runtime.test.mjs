@@ -299,6 +299,63 @@ test('team mode projects member lifecycle and final summary through the Runtime 
   assert.equal(runtime.teamWorkflows.canComplete(session.sessionId).ok, true)
 })
 
+test('team goal completion rolls back when the Team workflow cannot be marked complete', async (t) => {
+  const directory = await mkdtemp(join(tmpdir(), 'pisper-goal-team-rollback-'))
+  t.after(() => rm(directory, { recursive: true, force: true }))
+  const runtime = new AgentRuntimeService({ cwd: directory, dataDir: directory })
+  await runtime.goals.init()
+  await runtime.teamWorkflows.init()
+  const goal = await runtime.goals.start('rollback-session', {
+    objective: 'Coordinate and complete a team goal.',
+    mode: 'team',
+  })
+  await runtime.teamWorkflows.ensure('rollback-session', {
+    goalId: goal.id,
+    objective: goal.objective,
+  })
+  const task = await runtime.teamWorkflows.registerTask('rollback-session', {
+    taskName: 'done',
+    files: ['result.txt'],
+    message: 'Produce evidence.',
+  })
+  await runtime.teamWorkflows.bindAgent('rollback-session', task.id, {
+    id: 'agent-1',
+    status: 'completed',
+    output: 'Verified evidence.',
+  })
+  runtime.multiAgents.hasActive = () => false
+  runtime.multiAgents.list = () => []
+  runtime.teamWorkflows.markComplete = async () => {
+    throw new Error('team write failed')
+  }
+
+  const completeGoal = async () => {
+    const currentGoal = runtime.goals.get('rollback-session')
+    if (currentGoal?.mode === 'team') {
+      if (runtime.multiAgents.hasActive('rollback-session'))
+        throw new Error('Team 仍有成员在执行，请先等待所有成员完成并完成最终验收。')
+      await runtime.teamWorkflows.syncAgents(
+        'rollback-session',
+        runtime.multiAgents.list('rollback-session'),
+      )
+      const completion = runtime.teamWorkflows.canComplete('rollback-session')
+      if (!completion.ok) throw new Error(completion.reason)
+    }
+    const completed = await runtime.goals.complete('rollback-session')
+    try {
+      if (currentGoal?.mode === 'team') await runtime.teamWorkflows.markComplete('rollback-session')
+    } catch (error) {
+      await runtime.goals.reopen('rollback-session', { goalId: currentGoal?.id })
+      throw error
+    }
+    return completed
+  }
+
+  await assert.rejects(completeGoal(), /team write failed/)
+  assert.equal(runtime.goals.get('rollback-session').status, 'active')
+  assert.equal(runtime.teamWorkflows.get('rollback-session').status, 'active')
+})
+
 test('goal continuation waits for Pi retries and skips terminal assistant errors', async (t) => {
   const directory = await mkdtemp(join(tmpdir(), 'pisper-goal-retry-'))
   t.after(() => rm(directory, { recursive: true, force: true }))
