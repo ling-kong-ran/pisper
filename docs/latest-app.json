@@ -1,9 +1,9 @@
 {
-  "version": "0.1.31",
-  "tag": "app-v0.1.31",
-  "url": "https://github.com/ling-kong-ran/pisper/releases/tag/app-v0.1.31",
+  "version": "0.1.32",
+  "tag": "app-v0.1.32",
+  "url": "https://github.com/ling-kong-ran/pisper/releases/tag/app-v0.1.32",
   "apk": "app-universal-release-signed.apk",
   "ipa": "pisper-ios-unsigned.ipa",
-  "notes": "- fix(ci): satisfy current Rust lint\n- fix(mobile): harden packaged voice transcription\n- fix(mobile): allow Android voice transcription",
+  "notes": "- fix(assets): restore video filter\n- feat(chat): customize composer shortcuts\n- fix(chat): reveal local Markdown paths",
   "releaseDate": "2026-09-04"
 }
