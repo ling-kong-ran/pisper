@@ -134,7 +134,7 @@ test('the chat composer exposes the global command palette shortcut', async () =
   assert.match(focus, /className="command-palette-trigger[^"\n]*"/)
   assert.match(focus, /onClick=\{requestCommandPalette\}/)
   assert.match(focus, /<kbd>\{COMMAND_PALETTE_SHORTCUT\}<\/kbd>/)
-  assert.match(focus, /command-palette-trigger[^"\n]*composer-tool-tray_&_kbd/)
+  assert.match(focus, /command-palette-trigger[^"\n]*\[&_kbd\]:sr-only/)
   assert.equal(
     english['focusSession.openCommandPaletteShortcut'],
     'Open command palette ({shortcut})',

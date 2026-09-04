@@ -14,83 +14,51 @@ test('icon-only composer model control hides the Radix Select trigger content', 
   assert.match(component, /session-model-select&\]:min-w-\[38px\][^`]*overflow-hidden/)
 })
 
-test('composer expands low-frequency controls vertically with React Bits AnimatedContent', async () => {
-  const [session, tray, animatedContent, animatedList, styles, menuOffset] = await Promise.all([
+test('composer keeps shortcuts inline and overflows them by measured panel width', async () => {
+  const [session, tray, layout, capacity, settings, store] = await Promise.all([
     readFile('src/features/chat/FocusSession.tsx', 'utf8'),
     readFile('src/features/chat/ComposerToolTray.tsx', 'utf8'),
-    readFile('src/components/react-bits/AnimatedContent.tsx', 'utf8'),
-    readFile('src/components/react-bits/AnimatedList.tsx', 'utf8'),
-    readFile('src/index.css', 'utf8'),
-    readFile('src/features/chat/use-viewport-menu-offset.ts', 'utf8'),
+    readFile('src/features/chat/composer-toolbar-layout.ts', 'utf8'),
+    readFile('src/features/chat/use-composer-toolbar-capacity.ts', 'utf8'),
+    readFile('src/features/chat/ComposerToolbarSettings.tsx', 'utf8'),
+    readFile('src/stores/composer-toolbar-store.ts', 'utf8'),
   ])
 
   assert.match(session, /focus-composer[^"\n]*\[&_textarea\]:\[outline:0\]!/)
   assert.match(session, /className={`composer-tools-trigger/)
-  assert.match(session, /<ComposerToolTray[\s\S]*open={toolsOpen}/)
   assert.match(session, /aria-expanded={toolsOpen}/)
+  assert.match(session, /ref={toolbarRef}/)
+  assert.match(session, /toolbarAllocation\.inline\.map\(renderComposerTool\)/)
+  assert.match(session, /toolbarAllocation\.overflow\.map\(renderComposerTool\)/)
+  assert.match(session, /<ComposerToolbarSettings labels={composerToolLabels}/)
+  assert.match(session, /<ContextUsageIndicator[\s\S]*?compact[\s\S]*?\/>/)
+  assert.match(session, /toolsOpen \? <X size=\{17\} \/> : <Plus size=\{18\} \/>/)
   assert.match(session, /document\.addEventListener\('pointerdown', closeOnPointerDown\)/)
-  // 外部点击关闭需排除触发按钮、工具托盘、锚定弹出菜单，以及 portal 到 body 的
-  // 对话框/浮层（Git diff 对话框、Radix Dialog/Popover 等），否则点击浮层会收起
-  // 托盘并卸载托盘内控件，正在审阅的面板（如 diff 对话框）随之消失。
+  // portal 内的托盘、设置 Dialog 和工具派生浮层都不能触发外部点击关闭。
   assert.match(session, /target\.closest\(TRAY_FLOATING_SELECTOR\)/)
-  assert.match(session, /TRAY_FLOATING_SELECTOR = \[/)
-  assert.match(session, /'\.composer-tools-trigger'/)
   assert.match(session, /'\.composer-tool-tray-shell'/)
-  assert.match(session, /'\.anchored-popup-menu'/)
-  assert.match(session, /'\.git-diff-dialog-backdrop'/)
   assert.match(session, /"\[data-slot='dialog-content'\]"/)
   assert.match(session, /"\[data-slot='dialog-overlay'\]"/)
-  assert.match(tray, /import\('@\/components\/react-bits\/AnimatedContent'\)/)
-  assert.match(tray, /<Suspense fallback={null}>/)
-  assert.match(tray, /direction="vertical"/)
-  assert.match(tray, /className="absolute bottom-\[calc\(100%\+12px\)\]/)
-  assert.match(tray, /distance=\{16\}/)
-  assert.match(tray, /reveal/)
-  assert.match(tray, /spring/)
-  assert.match(tray, /allowOverflow/)
-  assert.match(tray, /delegateClicks/)
-  assert.match(tray, /variant="burst"/)
-  assert.match(tray, /composer-energy-spin/)
-  assert.match(animatedContent, /reveal\?: boolean/)
-  assert.match(animatedContent, /allowOverflow\?: boolean/)
-  assert.match(animatedContent, /overflow: allowOverflow \|\| settled \? 'visible' : 'hidden'/)
-  assert.match(animatedContent, /type: 'spring'/)
-  assert.match(animatedContent, /useReducedMotion/)
-  assert.match(animatedList, /function flattenedChildren/)
-  assert.match(animatedList, /child\.type === Fragment/)
-  assert.match(animatedList, /const childKey = `\$\{parentKey\}/)
-  assert.match(animatedList, /delegateClicks/)
-  assert.match(animatedList, /querySelector<HTMLElement>/)
-  assert.match(animatedList, /delay: reduceMotion \? 0 : 0\.045 \+ index \* 0\.038/)
-  assert.match(tray, /composer-tool-tray-shell[^"\n]*overflow-visible/)
+
+  assert.match(layout, /export const COMPOSER_TOOL_IDS = \[/)
+  assert.match(layout, /normalizeComposerToolbarLayout/)
+  assert.match(layout, /automaticallyOverflowed/)
+  assert.match(layout, /preferredInline\.slice\(0, capacity\)/)
+  assert.match(capacity, /new ResizeObserver\(update\)/)
+  assert.match(capacity, /getBoundingClientRect\(\)\.width/)
+  assert.match(store, /name: 'pisper-composer-toolbar'/)
+  assert.match(store, /normalizeComposerToolbarLayout/)
+
+  assert.match(tray, /<AnchoredPopupMenu/)
+  assert.match(tray, /placement="top"/)
   assert.match(tray, /composer-tool-tray[^"\n]*flex-wrap/)
-  assert.match(tray, /!size-11 !w-11/)
-  assert.doesNotMatch(tray, /\[&:hover>\*\]/)
-  assert.doesNotMatch(tray, /if \(mobile\) return tray|overflow-x-auto/)
-  assert.match(session, /<SessionModelSelect[\s\S]*<ExecutionModeSelect/)
-  assert.match(session, /<ComposerToolTray[\s\S]*composer-tool-tray/)
+  assert.doesNotMatch(tray, /AnimatedContent|AnimatedList|composer-energy-spin/)
+  assert.match(settings, /setToolLocation/)
+  assert.match(settings, /moveTool/)
+  assert.match(settings, /resetLayout/)
   assert.ok(session.indexOf('<ComposerCommandMenu') < session.indexOf('<textarea'))
-  const leadingTools = session.slice(
-    session.indexOf('const composerLeadingTools'),
-    session.indexOf('// 空会话头部'),
-  )
-  assert.doesNotMatch(leadingTools, /ComposerCommandMenu/)
-  assert.match(menuOffset, /--menu-y-offset/)
-  assert.match(menuOffset, /\(auto\|hidden\|scroll\|clip\)/)
-  assert.match(menuOffset, /menu\.style\.maxHeight/)
-  assert.match(session, /toolsOpen \? <X size=\{17\} \/> : <Plus size=\{18\} \/>/)
-  assert.match(session, /focus-composer-footer[^"\n]*flex/)
-  assert.doesNotMatch(session, /toolsOpen \? 'tools-open grid-rows|toolsOpen \? 'row-start-2'/)
-  assert.match(session, /<ContextUsageIndicator[\s\S]*?compact[\s\S]*?\/>/)
-  assert.match(session, /command-palette-trigger[^"\n]*clip-path:inset\(50%\)/)
-  assert.doesNotMatch(session, /<span>{t\('chat:focusSession.commands'\)}<\/span>/)
-  assert.doesNotMatch(
-    styles,
-    /\.composer-tool-tray \.command-palette-trigger \{[^}]*min-width: 112px;/,
-  )
   assert.doesNotMatch(session, /focus-composer-secondary[^"\n]*tools-open_&\]:hidden/)
   assert.match(session, /composer-workspace-status[\s\S]*<SessionUsageMetrics/)
-  assert.doesNotMatch(tray, /composer-workspace/)
 })
 
 test('composer plain Enter submits, Shift+Enter inserts a newline, and IME composition never submits', async () => {

@@ -203,11 +203,12 @@ test('chat resource picker remains visible above dock splits with a readable pri
   )
 })
 
-test('mobile chat sends with Enter and uses one collapsible Composer tool tray', async () => {
-  const [dock, focusSession, toolTray, pageHeader, zhChat, enChat] = await Promise.all([
+test('mobile chat sends with Enter and responsively overflows Composer tools', async () => {
+  const [dock, focusSession, toolTray, capacity, pageHeader, zhChat, enChat] = await Promise.all([
     readFile('src/features/chat/use-chat-dock.ts', 'utf8'),
     readFile('src/features/chat/FocusSession.tsx', 'utf8'),
     readFile('src/features/chat/ComposerToolTray.tsx', 'utf8'),
+    readFile('src/features/chat/use-composer-toolbar-capacity.ts', 'utf8'),
     readFile('src/components/layout/PageHeader.tsx', 'utf8'),
     readFile('src/locales/zh-CN/chat.json', 'utf8'),
     readFile('src/locales/en-US/chat.json', 'utf8'),
@@ -226,15 +227,14 @@ test('mobile chat sends with Enter and uses one collapsible Composer tool tray',
   assert.match(focusSession, /enterKeyHint=\{mobileLayout \? 'send' : 'enter'\}/)
   assert.match(focusSession, /const composerPlaceholder = mobileLayout/)
   assert.match(focusSession, /data-mobile-composer-input=\{mobileLayout \|\| undefined\}/)
-  assert.match(focusSession, /<ComposerToolTray[\s\S]*?\{composerLeadingTools\}/)
-  assert.match(toolTray, /direction="vertical"/)
-  assert.match(toolTray, /className="absolute bottom-\[calc\(100%\+12px\)\]/)
-  assert.match(toolTray, /reveal/)
-  assert.match(toolTray, /spring/)
-  assert.match(toolTray, /variant="burst"/)
-  assert.match(toolTray, /!size-11 !w-11/)
+  assert.match(focusSession, /toolbarAllocation\.inline\.map\(renderComposerTool\)/)
+  assert.match(focusSession, /toolbarAllocation\.overflow\.map\(renderComposerTool\)/)
+  assert.match(focusSession, /<ComposerToolTray[\s\S]*?anchorRef={toolTrayAnchorRef}/)
+  assert.match(capacity, /new ResizeObserver\(update\)/)
+  assert.match(toolTray, /<AnchoredPopupMenu/)
+  assert.match(toolTray, /placement="top"/)
   assert.match(toolTray, /flex-wrap/)
-  assert.doesNotMatch(toolTray, /if \(mobile\) return tray|overflow-x-auto/)
+  assert.doesNotMatch(toolTray, /AnimatedContent|AnimatedList|overflow-x-auto/)
   assert.match(pageHeader, /page === 'chat'[\s\S]*?max-\[650px\]:!min-h-0/)
   assert.match(pageHeader, /page === 'chat' && 'max-\[650px\]:hidden'/)
   assert.doesNotMatch(zh['focusSession.writeWhatYouWantToAccomplish'], /Shift|Enter/)

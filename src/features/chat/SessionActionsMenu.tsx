@@ -50,7 +50,7 @@ export function SessionActionsMenu({
 }) {
   const { t, language } = useI18n()
   const [open, setOpen] = useState(false)
-  // 展开方向：收纳区内空间不足、向上展开；空会话头部则向下展开。
+  // 输入框内始终向上展开以避开底部边界；空会话头部仍向下展开。
   const [placement, setPlacement] = useState<'top' | 'bottom'>('top')
   const rootRef = useRef<HTMLDivElement>(null)
   const menuRef = useRef<HTMLDivElement>(null)
@@ -120,7 +120,9 @@ export function SessionActionsMenu({
         disabled={!session}
         onClick={() => {
           if (!open)
-            setPlacement(rootRef.current?.closest('.composer-tool-tray') ? 'top' : 'bottom')
+            setPlacement(
+              rootRef.current?.closest('.focus-composer, .composer-tool-tray') ? 'top' : 'bottom',
+            )
           setOpen((visible) => !visible)
         }}
       >
