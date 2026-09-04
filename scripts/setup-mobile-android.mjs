@@ -16,6 +16,7 @@ import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { spawnSync } from 'node:child_process'
 import { assertAndroidEnv, resolveAndroidEnv } from './android-env.mjs'
+import { stageAndroidSpeechRuntime } from './stage-android-speech-runtime.mjs'
 
 const env = resolveAndroidEnv()
 
@@ -88,7 +89,9 @@ function resolveAndroidCppRuntime(ndkHome) {
 }
 
 if (!existsSync(sherpaAar)) {
-  throw new Error('缺少 Android sherpa 原生 Runtime，请先运行 npm run build:android。')
+  // CI 的干净检出没有本地缓存的 AAR；使用与发布构建相同的下载和校验路径。
+  console.log('缺少 sherpa AAR，自动下载并校验官方 Android Runtime …')
+  await stageAndroidSpeechRuntime({ root })
 }
 
 if (!existsSync(manifestPath)) {
