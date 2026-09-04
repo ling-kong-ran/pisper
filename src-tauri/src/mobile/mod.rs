@@ -796,8 +796,8 @@ fn validate_mobile_pcm_base64(pcm_base64: &str) -> Result<(), String> {
     if decoded.len() % MOBILE_VOICE_FLOAT_BYTES != 0 {
         return Err("mobile_pcm_invalid_alignment".into());
     }
-    for bytes in decoded.chunks_exact(MOBILE_VOICE_FLOAT_BYTES) {
-        let sample = f32::from_le_bytes(bytes.try_into().expect("Float32 chunk length is fixed"));
+    for bytes in decoded.as_chunks::<MOBILE_VOICE_FLOAT_BYTES>().0 {
+        let sample = f32::from_le_bytes(*bytes);
         if !sample.is_finite() || !(-1.0..=1.0).contains(&sample) {
             return Err("mobile_pcm_invalid_sample".into());
         }
