@@ -6,6 +6,7 @@ import {
   createSpeechRecognizer,
   requestMicrophonePermission,
   startMicrophoneCapture,
+  VOICE_MAX_DURATION_SECONDS,
   type MicrophoneCapture,
   type SpeechRecognizer,
 } from './voice-input'
@@ -20,8 +21,16 @@ function formatDuration(seconds: number) {
 
 function errorMessage(error: unknown, fallback: string) {
   if (error instanceof DOMException && error.name === 'NotAllowedError') return 'permission'
-  if (error instanceof Error && error.message) return error.message
-  return fallback
+  const message =
+    typeof error === 'string'
+      ? error
+      : error instanceof Error
+        ? error.message
+        : typeof error === 'object' && error && 'message' in error
+          ? String(error.message)
+          : ''
+  if (message.includes('microphone_permission_denied')) return 'permission'
+  return message || fallback
 }
 
 export function VoiceInputControl({
@@ -40,18 +49,30 @@ export function VoiceInputControl({
   const captureRef = useRef<MicrophoneCapture | null>(null)
   const unsubscribeRef = useRef<(() => void) | null>(null)
   const operationRef = useRef(0)
+  const recordingLimitTimerRef = useRef(0)
+  const stopRecordingRef = useRef<() => void>(() => {})
+  const stoppingRef = useRef(false)
   const anchorRef = useRef<HTMLDivElement>(null)
   const menuRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
     if (stage !== 'recording') return undefined
     const timer = window.setInterval(() => {
-      setElapsed((current) => Number((current + 0.1).toFixed(1)))
+      setElapsed((current) => {
+        const next = Number((current + 0.1).toFixed(1))
+        return window.__PISPER_MOBILE_APP__ ? Math.min(next, VOICE_MAX_DURATION_SECONDS) : next
+      })
     }, 100)
     return () => window.clearInterval(timer)
   }, [stage])
 
+  const clearRecordingLimitTimer = () => {
+    window.clearTimeout(recordingLimitTimerRef.current)
+    recordingLimitTimerRef.current = 0
+  }
+
   const releaseResources = async () => {
+    clearRecordingLimitTimer()
     unsubscribeRef.current?.()
     unsubscribeRef.current = null
     const capture = captureRef.current
@@ -71,6 +92,8 @@ export function VoiceInputControl({
   )
 
   const reset = () => {
+    clearRecordingLimitTimer()
+    stoppingRef.current = false
     setStage('idle')
     setElapsed(0)
     setTranscript('')
@@ -87,6 +110,7 @@ export function VoiceInputControl({
     if (disabled || stage === 'requesting' || stage === 'recording' || stage === 'transcribing')
       return
     const operation = ++operationRef.current
+    stoppingRef.current = false
     setStage('requesting')
     setElapsed(0)
     setTranscript('')
@@ -99,13 +123,22 @@ export function VoiceInputControl({
       await requestMicrophonePermission()
       if (operation !== operationRef.current) return
       await recognizer.start()
-      const capture = await startMicrophoneCapture((samples) => recognizer.acceptPcm(samples))
+      const capture = await startMicrophoneCapture((samples) => {
+        if (recognizer.acceptPcm(samples)) stopRecordingRef.current()
+      })
       if (operation !== operationRef.current) {
         await capture.stop()
         return
       }
       captureRef.current = capture
       setStage('recording')
+      if (window.__PISPER_MOBILE_APP__) {
+        // 样本计数是主边界，墙钟定时器用于音频回调停滞时仍能按时结束录音。
+        recordingLimitTimerRef.current = window.setTimeout(
+          () => stopRecordingRef.current(),
+          VOICE_MAX_DURATION_SECONDS * 1_000,
+        )
+      }
     } catch (caught) {
       if (operation !== operationRef.current) return
       await releaseResources()
@@ -116,14 +149,16 @@ export function VoiceInputControl({
   }
 
   const stopRecording = async () => {
-    if (stage !== 'recording') return
+    if (stage !== 'recording' || stoppingRef.current) return
+    stoppingRef.current = true
+    clearRecordingLimitTimer()
     const operation = ++operationRef.current
     setStage('transcribing')
     const capture = captureRef.current
     captureRef.current = null
-    await capture?.stop()
     const recognizer = recognizerRef.current
     try {
+      await capture?.stop()
       const finalTranscript = await recognizer?.finish()
       if (operation !== operationRef.current) return
       if (!finalTranscript) throw new Error(t('chat:voiceInput.empty'))
@@ -133,10 +168,16 @@ export function VoiceInputControl({
     } catch (caught) {
       if (operation !== operationRef.current) return
       await releaseResources()
-      setError(errorMessage(caught, t('chat:voiceInput.failed')))
+      const message = errorMessage(caught, t('chat:voiceInput.failed'))
+      setError(message === 'permission' ? t('chat:voiceInput.permissionDenied') : message)
+      stoppingRef.current = false
       setStage('error')
     }
   }
+
+  useEffect(() => {
+    stopRecordingRef.current = () => void stopRecording()
+  })
 
   const stageLabel =
     stage === 'requesting'

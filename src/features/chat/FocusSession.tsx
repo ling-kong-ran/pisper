@@ -49,6 +49,11 @@ export type { FocusSessionProps }
 const USES_COMMAND_KEY = /Mac|iPhone|iPad/.test(globalThis.navigator?.platform || '')
 const COMMAND_PALETTE_SHORTCUT = USES_COMMAND_KEY ? '\u2318 K' : 'Ctrl K'
 
+function supportsVoiceInput() {
+  // iOS 仍缺少本地转写后端，在原生命令可用前不展示一个停止后必然失败的入口。
+  return window.__PISPER_MOBILE_PLATFORM__ !== 'ios'
+}
+
 // 托盘外部点击关闭的排除区域：触发按钮、托盘壳、锚定弹层，以及 portal 到 body 的
 // 对话框与浮层（Git diff 对话框、Radix Dialog/AlertDialog/Popover/DropdownMenu/Select/Sheet）。
 // 缺了它们时，点击浮层会被当成外部点击而收起托盘，托盘卸载又连带销毁面板状态
@@ -496,19 +501,21 @@ export const FocusSession = memo(function FocusSession({
                 compact
               />
             </div>
-            <VoiceInputControl
-              onInsert={(transcript) => {
-                const prefix = value.trimEnd()
-                updateValue(prefix ? `${prefix}\n${transcript}` : transcript)
-                requestAnimationFrame(() => {
-                  const element = promptRef.current
-                  if (!element) return
-                  element.focus()
-                  element.style.height = 'auto'
-                  element.style.height = `${Math.min(element.scrollHeight, 220)}px`
-                })
-              }}
-            />
+            {supportsVoiceInput() && (
+              <VoiceInputControl
+                onInsert={(transcript) => {
+                  const prefix = value.trimEnd()
+                  updateValue(prefix ? `${prefix}\n${transcript}` : transcript)
+                  requestAnimationFrame(() => {
+                    const element = promptRef.current
+                    if (!element) return
+                    element.focus()
+                    element.style.height = 'auto'
+                    element.style.height = `${Math.min(element.scrollHeight, 220)}px`
+                  })
+                }}
+              />
+            )}
             <ComposerSendButton
               streaming={streaming}
               queueing={queueing}

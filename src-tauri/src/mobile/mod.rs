@@ -26,6 +26,7 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
+use base64::{engine::general_purpose::STANDARD as BASE64_STANDARD, Engine as _};
 use serde::{Deserialize, Serialize};
 use store::{ProfileStore, ServerProfile, SharedStore};
 use tauri::{Manager, State, WebviewUrl, WebviewWindowBuilder};
@@ -34,6 +35,20 @@ use tauri::{Manager, State, WebviewUrl, WebviewWindowBuilder};
 use pisper_mobile_device_plugin::MobileDeviceExt;
 
 use pairing::QrPayload;
+
+const MOBILE_VOICE_SAMPLE_RATE: usize = 16_000;
+const MOBILE_VOICE_MAX_DURATION_SECONDS: usize = 60;
+const MOBILE_VOICE_FLOAT_BYTES: usize = std::mem::size_of::<f32>();
+const MOBILE_VOICE_MAX_PCM_BYTES: usize =
+    MOBILE_VOICE_SAMPLE_RATE * MOBILE_VOICE_MAX_DURATION_SECONDS * MOBILE_VOICE_FLOAT_BYTES;
+const MOBILE_VOICE_MAX_BASE64_BYTES: usize = MOBILE_VOICE_MAX_PCM_BYTES.div_ceil(3) * 4;
+
+#[cfg(target_os = "android")]
+const MOBILE_PLATFORM_INITIALIZATION_SCRIPT: &str = r#"Object.defineProperty(window, '__PISPER_MOBILE_PLATFORM__', { value: 'android', writable: false, configurable: false });"#;
+#[cfg(target_os = "ios")]
+const MOBILE_PLATFORM_INITIALIZATION_SCRIPT: &str = r#"Object.defineProperty(window, '__PISPER_MOBILE_PLATFORM__', { value: 'ios', writable: false, configurable: false });"#;
+#[cfg(not(any(target_os = "android", target_os = "ios")))]
+const MOBILE_PLATFORM_INITIALIZATION_SCRIPT: &str = "";
 
 // 该脚本在任何页面模块之前执行：除稳定标记移动客户端外，还负责在 React 尚未挂载时
 // 捕获模块加载失败。长时间后台恢复、bfcache 恢复或入口模块断流都会交给原生壳先校验
@@ -754,6 +769,42 @@ fn mobile_request_microphone_permission(
     }
 }
 
+fn validate_mobile_pcm_base64(pcm_base64: &str) -> Result<(), String> {
+    if pcm_base64.is_empty() {
+        return Err("mobile_pcm_empty".into());
+    }
+    if pcm_base64.len() > MOBILE_VOICE_MAX_BASE64_BYTES {
+        return Err("mobile_pcm_base64_too_large".into());
+    }
+    if !pcm_base64.len().is_multiple_of(4) {
+        return Err("mobile_pcm_invalid_base64".into());
+    }
+
+    // 在进入插件边界前完成严格解码，避免畸形字符串触发 Kotlin 侧的大额分配。
+    let decoded = BASE64_STANDARD
+        .decode(pcm_base64)
+        .map_err(|_| "mobile_pcm_invalid_base64".to_string())?;
+    if decoded.is_empty() {
+        return Err("mobile_pcm_empty".into());
+    }
+    if decoded.len() > MOBILE_VOICE_MAX_PCM_BYTES {
+        return Err("mobile_pcm_too_large".into());
+    }
+    if BASE64_STANDARD.encode(&decoded) != pcm_base64 {
+        return Err("mobile_pcm_non_canonical_base64".into());
+    }
+    if decoded.len() % MOBILE_VOICE_FLOAT_BYTES != 0 {
+        return Err("mobile_pcm_invalid_alignment".into());
+    }
+    for bytes in decoded.chunks_exact(MOBILE_VOICE_FLOAT_BYTES) {
+        let sample = f32::from_le_bytes(bytes.try_into().expect("Float32 chunk length is fixed"));
+        if !sample.is_finite() || !(-1.0..=1.0).contains(&sample) {
+            return Err("mobile_pcm_invalid_sample".into());
+        }
+    }
+    Ok(())
+}
+
 #[tauri::command]
 fn mobile_transcribe_pcm(
     app: tauri::AppHandle,
@@ -761,6 +812,7 @@ fn mobile_transcribe_pcm(
 ) -> Result<serde_json::Value, String> {
     #[cfg(target_os = "android")]
     {
+        validate_mobile_pcm_base64(&pcm_base64)?;
         return app
             .mobile_device()
             .transcribe_pcm(pcm_base64)
@@ -972,6 +1024,8 @@ pub fn run_mobile() {
                 store.clone(),
                 Some(tunnels.clone()),
             ))?;
+            #[cfg(target_os = "android")]
+            android_bridge::android_set_trusted_proxy_port(proxy.port)?;
             // root chroot 与 embedded Node 仅是内部承载，产品状态始终只有一个本机 Runtime。
             let embedded_resource = app
                 .path()
@@ -1016,7 +1070,8 @@ pub fn run_mobile() {
             let initial = WebviewUrl::App("mobile-startup.html".into());
             let window_builder = WebviewWindowBuilder::new(app, "main", initial)
                 .title("Pisper")
-                .initialization_script(MOBILE_CLIENT_INITIALIZATION_SCRIPT);
+                .initialization_script(MOBILE_CLIENT_INITIALIZATION_SCRIPT)
+                .initialization_script(MOBILE_PLATFORM_INITIALIZATION_SCRIPT);
             #[cfg(target_os = "android")]
             let window_builder = {
                 let startup_history_pending = Arc::new(AtomicBool::new(true));
@@ -1097,12 +1152,35 @@ pub fn run_mobile() {
 
 #[cfg(test)]
 mod tests {
+    use base64::Engine as _;
     use serde_json::json;
 
     use super::{
         recovery_navigation_url, startup_api_context, startup_cookie,
-        startup_location_replace_script, validate_startup_contract_values,
+        startup_location_replace_script, validate_mobile_pcm_base64,
+        validate_startup_contract_values, BASE64_STANDARD, MOBILE_VOICE_MAX_BASE64_BYTES,
     };
+
+    #[test]
+    fn mobile_pcm_validation_rejects_malformed_and_oversized_payloads() {
+        let valid = [0.0_f32, -1.0, 1.0]
+            .into_iter()
+            .flat_map(f32::to_le_bytes)
+            .collect::<Vec<_>>();
+        assert!(validate_mobile_pcm_base64(&BASE64_STANDARD.encode(valid)).is_ok());
+        assert!(validate_mobile_pcm_base64("").is_err());
+        assert!(validate_mobile_pcm_base64("!!!!").is_err());
+        assert!(validate_mobile_pcm_base64(&BASE64_STANDARD.encode([0_u8; 3])).is_err());
+        assert!(
+            validate_mobile_pcm_base64(&BASE64_STANDARD.encode(f32::NAN.to_le_bytes())).is_err()
+        );
+        assert!(
+            validate_mobile_pcm_base64(&BASE64_STANDARD.encode(1.1_f32.to_le_bytes())).is_err()
+        );
+        assert!(
+            validate_mobile_pcm_base64(&"A".repeat(MOBILE_VOICE_MAX_BASE64_BYTES + 4)).is_err()
+        );
+    }
 
     #[test]
     fn startup_context_accepts_only_authenticated_loopback_bootstrap_urls() {

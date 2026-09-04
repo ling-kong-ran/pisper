@@ -1,12 +1,15 @@
 import { waitForMobileRuntimeReady } from '@/lib/http'
 
 export const VOICE_SAMPLE_RATE = 16_000
+export const VOICE_MAX_DURATION_SECONDS = 60
+const VOICE_MAX_SAMPLES = VOICE_SAMPLE_RATE * VOICE_MAX_DURATION_SECONDS
 
 type PartialListener = (text: string) => void
 
 export type SpeechRecognizer = {
   start: () => Promise<void>
-  acceptPcm: (samples: Float32Array) => void
+  // 返回 true 时移动端一次性缓存已满，调用方必须立即停止采集以限制内存与推理成本。
+  acceptPcm: (samples: Float32Array) => boolean
   onPartial: (listener: PartialListener) => () => void
   finish: () => Promise<string>
   cancel: () => Promise<void>
@@ -26,7 +29,7 @@ function mobileInvoke<T>(command: string, args?: Record<string, unknown>): Promi
 export async function requestMicrophonePermission() {
   if (typeof window === 'undefined' || !window.__PISPER_MOBILE_APP__) return
   const result = await mobileInvoke<{ state?: string }>('mobile_request_microphone_permission')
-  if (result.state !== 'granted') throw new Error('麦克风权限未授予。')
+  if (result.state !== 'granted') throw new Error('microphone_permission_denied')
 }
 
 async function responseError(response: Response) {
@@ -62,11 +65,13 @@ class RuntimeSpeechRecognizer implements SpeechRecognizer {
   private flushTimer = 0
   private sendChain: Promise<void> = Promise.resolve()
   private finished = false
+  private retainedSamples = 0
 
   async start() {
     this.chunks = []
     this.pending = []
     this.finished = false
+    this.retainedSamples = 0
     this.controller = new AbortController()
     if (window.__PISPER_MOBILE_APP__) return
     await waitForMobileRuntimeReady()
@@ -89,10 +94,20 @@ class RuntimeSpeechRecognizer implements SpeechRecognizer {
   }
 
   acceptPcm(samples: Float32Array) {
-    if (!samples.length || this.finished) return
+    if (!samples.length || this.finished) return false
+    if (window.__PISPER_MOBILE_APP__) {
+      const remaining = VOICE_MAX_SAMPLES - this.retainedSamples
+      if (remaining <= 0) return true
+      const copy = samples.slice(0, remaining)
+      this.chunks.push(copy)
+      this.retainedSamples += copy.length
+      return this.retainedSamples >= VOICE_MAX_SAMPLES
+    }
+
     const copy = samples.slice()
     if (this.sessionId && !this.legacy) this.pending.push(copy)
     else this.chunks.push(copy)
+    return false
   }
 
   onPartial(listener: PartialListener) {
@@ -201,6 +216,7 @@ class RuntimeSpeechRecognizer implements SpeechRecognizer {
     this.controller = null
     this.chunks = []
     this.pending = []
+    this.retainedSamples = 0
     if (this.sessionId && !this.legacy) {
       const sessionId = this.sessionId
       this.sessionId = ''

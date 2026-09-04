@@ -65,6 +65,7 @@ import java.util.Locale
 import java.util.TimeZone
 import java.util.UUID
 import java.util.concurrent.Executors
+import java.util.concurrent.atomic.AtomicBoolean
 import kotlin.math.max
 import kotlin.math.roundToInt
 
@@ -76,6 +77,12 @@ private const val NOTIFICATIONS = "notifications"
 private const val LOCAL_NETWORK = "localNetwork"
 private const val MICROPHONE = "microphone"
 private const val EXTERNAL_APPS = "externalApps"
+private const val SPEECH_SAMPLE_RATE = 16_000
+private const val SPEECH_MAX_DURATION_SECONDS = 60
+private const val SPEECH_FLOAT_BYTES = 4
+private const val SPEECH_MAX_PCM_BYTES =
+    SPEECH_SAMPLE_RATE * SPEECH_MAX_DURATION_SECONDS * SPEECH_FLOAT_BYTES
+private const val SPEECH_MAX_BASE64_CHARS = ((SPEECH_MAX_PCM_BYTES + 2) / 3) * 4
 private val PHOTO_ID = Regex("^[0-9]+$")
 private val ALBUM_NAME = Regex("^[^/\\\\]{1,120}$")
 private val PHONE_NUMBER = Regex("^[+*#0-9(). \\-]{1,64}$")
@@ -157,6 +164,8 @@ class PisperAssetFileProvider : FileProvider()
 )
 class MobileDevicePlugin(private val activity: Activity) : Plugin(activity) {
     private val worker = Executors.newSingleThreadExecutor()
+    // 共享执行器会排队任务，因此必须在入队前占位，避免多个昂贵识别任务连续占用内存与 CPU。
+    private val speechInFlight = AtomicBoolean(false)
 
     private fun state(alias: String): String = getPermissionState(alias).toString().lowercase()
 
@@ -277,41 +286,85 @@ class MobileDevicePlugin(private val activity: Activity) : Plugin(activity) {
     @PermissionCallback
     fun microphonePermissionCallback(invoke: Invoke) = invoke.resolve(permissionResult(MICROPHONE))
 
-    @Command
-    fun transcribePcm(invoke: Invoke) {
-        val pcmBase64 = invoke.parseArgs(TranscribeArgs::class.java).pcmBase64
-        worker.execute {
+    private fun decodeSpeechSamples(pcmBase64: String): FloatArray {
+        val encoded = Base64.decode(pcmBase64, Base64.DEFAULT)
+        require(encoded.isNotEmpty()) { "PCM data is empty" }
+        require(encoded.size <= SPEECH_MAX_PCM_BYTES) { "PCM data exceeds 60 seconds" }
+        require(encoded.size % SPEECH_FLOAT_BYTES == 0) { "PCM data is not Float32-aligned" }
+
+        val samples = FloatArray(encoded.size / SPEECH_FLOAT_BYTES)
+        val buffer = ByteBuffer.wrap(encoded).order(ByteOrder.LITTLE_ENDIAN)
+        for (index in samples.indices) {
+            val sample = buffer.float
+            require(sample.isFinite() && sample >= -1.0f && sample <= 1.0f) {
+                "PCM sample is outside the nominal Float32 range"
+            }
+            samples[index] = sample
+        }
+        return samples
+    }
+
+    private fun recognizeSpeech(samples: FloatArray): String {
+        val recognizer = OnlineRecognizer(
+            activity.assets,
+            OnlineRecognizerConfig(
+                featConfig = FeatureConfig(sampleRate = SPEECH_SAMPLE_RATE, featureDim = 80),
+                modelConfig = OnlineModelConfig(
+                    zipformer2Ctc = OnlineZipformer2CtcModelConfig("speech-model/model.int8.onnx"),
+                    tokens = "speech-model/tokens.txt",
+                    numThreads = 1,
+                    provider = "cpu",
+                ),
+                decodingMethod = "greedy_search",
+            ),
+        )
+        try {
+            val stream = recognizer.createStream()
             try {
-                val encoded = Base64.decode(pcmBase64, Base64.DEFAULT)
-                require(encoded.isNotEmpty() && encoded.size % 4 == 0) { "Invalid PCM data" }
-                val samples = FloatArray(encoded.size / 4)
-                val buffer = ByteBuffer.wrap(encoded).order(ByteOrder.LITTLE_ENDIAN)
-                for (index in samples.indices) samples[index] = buffer.float
-                val recognizer = OnlineRecognizer(
-                    activity.assets,
-                    OnlineRecognizerConfig(
-                        featConfig = FeatureConfig(sampleRate = 16000, featureDim = 80),
-                        modelConfig = OnlineModelConfig(
-                            zipformer2Ctc = OnlineZipformer2CtcModelConfig("speech-model/model.int8.onnx"),
-                            tokens = "speech-model/tokens.txt",
-                            numThreads = 1,
-                            provider = "cpu",
-                        ),
-                        decodingMethod = "greedy_search",
-                    ),
-                )
-                val stream = recognizer.createStream()
-                stream.acceptWaveform(samples, 16000)
+                stream.acceptWaveform(samples, SPEECH_SAMPLE_RATE)
                 while (recognizer.isReady(stream)) recognizer.decode(stream)
                 stream.inputFinished()
                 while (recognizer.isReady(stream)) recognizer.decode(stream)
-                val text = recognizer.getResult(stream).text.trim()
+                return recognizer.getResult(stream).text.trim()
+            } finally {
                 stream.release()
-                recognizer.release()
-                invoke.resolve(JSObject().apply { put("text", text) })
-            } catch (error: Throwable) {
-                invoke.reject(error.message ?: "Speech recognition failed")
             }
+        } finally {
+            recognizer.release()
+        }
+    }
+
+    @Command
+    fun transcribePcm(invoke: Invoke) {
+        val pcmBase64 = invoke.parseArgs(TranscribeArgs::class.java).pcmBase64
+        // 先限制编码字符串，确保攻击性输入不会在 Base64 解码时产生超出预算的分配。
+        if (pcmBase64.isEmpty()) {
+            invoke.reject("PCM data is empty")
+            return
+        }
+        if (pcmBase64.length > SPEECH_MAX_BASE64_CHARS) {
+            invoke.reject("PCM base64 exceeds 60 seconds")
+            return
+        }
+        if (!speechInFlight.compareAndSet(false, true)) {
+            invoke.reject("Speech recognition is already in progress")
+            return
+        }
+
+        try {
+            worker.execute {
+                try {
+                    val text = recognizeSpeech(decodeSpeechSamples(pcmBase64))
+                    invoke.resolve(JSObject().apply { put("text", text) })
+                } catch (error: Throwable) {
+                    invoke.reject(error.message ?: "Speech recognition failed")
+                } finally {
+                    speechInFlight.set(false)
+                }
+            }
+        } catch (error: Throwable) {
+            speechInFlight.set(false)
+            invoke.reject(error.message ?: "Speech recognition failed")
         }
     }
 

@@ -72,12 +72,19 @@ jobs:
         env:
           PISPER_APP_VERSION: ${{ inputs.version }}
         run: |
+          set -Eeuo pipefail
           npm run build
           npm run mobile:runtime
           tar -xOzf release/pisper-embedded-runtime.tar.gz ./embedded-runtime.json |
             jq -e '.appVersion == "${{ inputs.version }}" and .runtimeProfile == "mobile-embedded"'
-          tar -tzf release/pisper-embedded-runtime.tar.gz | grep -Fx './runtime/mobile-embedded.mjs'
-          tar -tzf release/pisper-embedded-runtime.tar.gz | grep -Fx './dist/index.html'
+          RUNTIME_CONTENTS=/tmp/pisper-embedded-runtime-contents.txt
+          tar -tzf release/pisper-embedded-runtime.tar.gz > "$RUNTIME_CONTENTS"
+          grep -Fx './runtime/mobile-embedded.mjs' "$RUNTIME_CONTENTS"
+          grep -Fx './dist/index.html' "$RUNTIME_CONTENTS"
+          if grep -Fq './runtime/speech-model/' "$RUNTIME_CONTENTS"; then
+            echo '移动 Runtime 不得重复携带 Android AssetManager 模型。' >&2
+            exit 1
+          fi
       - name: Sign embedded Runtime closure
         env:
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
@@ -91,6 +98,11 @@ jobs:
           name: app-embedded-runtime
           if-no-files-found: error
           path: release/pisper-embedded-runtime.tar.gz*
+      - uses: actions/upload-artifact@v4
+        with:
+          name: app-android-speech-model
+          if-no-files-found: error
+          path: release/mobile-speech-model
 
   android:
     name: Build signed Android APK
@@ -112,7 +124,7 @@ jobs:
       - name: Install Android SDK packages and NDK
         run: |
           yes | sdkmanager --licenses > /dev/null
-          sdkmanager "platform-tools" "platforms;android-34" "build-tools;35.0.0" "ndk;27.3.13750724"
+          sdkmanager "platform-tools" "platforms;android-36" "build-tools;35.0.0" "ndk;27.3.13750724"
       - uses: dtolnay/rust-toolchain@stable
         with:
           targets: aarch64-linux-android
@@ -134,6 +146,10 @@ jobs:
         with:
           name: app-embedded-runtime
           path: embedded-runtime
+      - uses: actions/download-artifact@v5
+        with:
+          name: app-android-speech-model
+          path: speech-model
       - name: Verify and stage mobile Runtime assets
         run: |
           set -Eeuo pipefail
@@ -146,6 +162,9 @@ jobs:
           rm -f src-tauri/gen/android/app/src/main/assets/pisper-root-runtime-*.tgz
           cp embedded-runtime/pisper-embedded-runtime.tar.gz \
             src-tauri/gen/android/app/src/main/assets/pisper-embedded-runtime.tgz
+          node scripts/stage-android-speech-model.mjs \
+            --source speech-model \
+            src-tauri/gen/android/app/src/main/assets/speech-model
       - name: Build release APK
         env:
           NDK_HOME: ${{ env.ANDROID_HOME }}/ndk/27.3.13750724
@@ -163,6 +182,14 @@ jobs:
           set -Eeuo pipefail
           test -n "$APP_ANDROID_KEYSTORE" || { echo "APP_ANDROID_KEYSTORE 未配置。" >&2; exit 1; }
           echo "$APP_ANDROID_KEYSTORE" | base64 -d > /tmp/pisper-app.jks
+          WRY_CLIENT=src-tauri/gen/android/app/src/main/java/com/lingkongran/pisper/generated/RustWebChromeClient.kt
+          grep -Fq 'MainActivity.isTrustedProxyOrigin(request.origin)' "$WRY_CLIENT"
+          grep -Fq 'request.grant(audioResources)' "$WRY_CLIENT"
+          grep -Fq 'override fun onShowFileChooser' "$WRY_CLIENT"
+          if grep -Fq 'request.grant(request.resources)' "$WRY_CLIENT"; then
+            echo 'Wry WebChromeClient still grants unfiltered media resources.' >&2
+            exit 1
+          fi
           UNSIGNED=$(find src-tauri/gen/android/app/build/outputs/apk -name '*unsigned*.apk' | head -1)
           test -n "$UNSIGNED" || { echo "未找到未签名 APK。" >&2; exit 1; }
           unzip -Z1 "$UNSIGNED" > /tmp/pisper-apk-contents.txt
@@ -171,14 +198,32 @@ jobs:
             exit 1
           fi
           grep -F 'assets/pisper-embedded-runtime.tgz' /tmp/pisper-apk-contents.txt
+          grep -F 'assets/speech-model/model.int8.onnx' /tmp/pisper-apk-contents.txt
+          grep -F 'assets/speech-model/tokens.txt' /tmp/pisper-apk-contents.txt
+          test "$(unzip -p "$UNSIGNED" assets/speech-model/model.int8.onnx | sha256sum | awk '{print $1}')" = \
+            '68c9c943840f7d9cf3e8a4970ba50f404feb5277f611fa82b7e72267786fa84a'
+          test "$(unzip -p "$UNSIGNED" assets/speech-model/tokens.txt | sha256sum | awk '{print $1}')" = \
+            '6fed8c6c248516f38e7faa19404b57413e8ce259f1cbc1fa4aebc86eac32fdfd'
           unzip -l "$UNSIGNED" | grep -F 'assets/pisper-embedded-node-android.json'
           unzip -l "$UNSIGNED" | grep -F 'lib/arm64-v8a/libnode.so'
           unzip -l "$UNSIGNED" | grep -F 'lib/arm64-v8a/libc++_shared.so'
           unzip -l "$UNSIGNED" | grep -F 'lib/arm64-v8a/libpisper_node_host.so'
           unzip -l "$UNSIGNED" | grep -F 'lib/arm64-v8a/libpisper_webview_lib.so'
+          if grep -E '^lib/' /tmp/pisper-apk-contents.txt | grep -Ev '^lib/arm64-v8a/'; then
+            echo 'APK contains a non-arm64 native library.' >&2
+            exit 1
+          fi
           apkanalyzer dex packages --defined-only "$UNSIGNED" > /tmp/pisper-apk-dex.txt
           grep -F 'com.lingkongran.pisper.EmbeddedNodeHost java.lang.String start(java.lang.String[])' \
             /tmp/pisper-apk-dex.txt
+          grep -F 'com.k2fsa.sherpa.onnx.OnlineRecognizerConfig java.lang.String decodingMethod' \
+            /tmp/pisper-apk-dex.txt
+          grep -F 'com.k2fsa.sherpa.onnx.FeatureConfig int sampleRate' /tmp/pisper-apk-dex.txt
+          grep -F 'com.k2fsa.sherpa.onnx.OnlineZipformer2CtcModelConfig java.lang.String model' \
+            /tmp/pisper-apk-dex.txt
+          apkanalyzer manifest permissions "$UNSIGNED" > /tmp/pisper-apk-permissions.txt
+          grep -Fx 'android.permission.RECORD_AUDIO' /tmp/pisper-apk-permissions.txt
+          grep -Fx 'android.permission.MODIFY_AUDIO_SETTINGS' /tmp/pisper-apk-permissions.txt
           "$ANDROID_HOME/build-tools/35.0.0/zipalign" -P 16 -f 4 "$UNSIGNED" /tmp/app-aligned.apk
           "$ANDROID_HOME/build-tools/35.0.0/apksigner" sign \
             --ks /tmp/pisper-app.jks \

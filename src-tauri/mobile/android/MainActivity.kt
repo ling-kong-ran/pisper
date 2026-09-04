@@ -9,10 +9,9 @@ import android.os.Looper
 import android.util.Log
 import android.view.ViewGroup
 import android.view.WindowManager
-import android.webkit.PermissionRequest
-import android.webkit.WebChromeClient
 import android.webkit.WebView
 import androidx.activity.enableEdgeToEdge
+import androidx.annotation.Keep
 
 class MainActivity : TauriActivity() {
   private var rendererRecoveryScheduled = false
@@ -24,34 +23,19 @@ class MainActivity : TauriActivity() {
     super.onCreate(savedInstanceState)
   }
 
+  @Keep
+  fun setTrustedProxyPort(port: Int) {
+    require(port in 1..65535) { "Invalid Pisper proxy port" }
+    trustedProxyPort = port
+  }
+
   override fun onWebViewCreate(webView: WebView) {
     super.onWebViewCreate(webView)
-    installWebViewPermissions(webView)
-    // Tauri 的 WebView 初始化可能在回调后再次设置 WebChromeClient，因此需要在下一轮消息中重装。
-    webView.post { installWebViewPermissions(webView) }
     val recoveryUrl = intent.getStringExtra(RENDERER_RECOVERY_URL) ?: return
     intent.removeExtra(RENDERER_RECOVERY_URL)
 
     // Wry 会在这个回调返回后加载初始 URL，因此把恢复导航排到下一轮主线程消息。
     webView.post { webView.loadUrl(recoveryUrl) }
-  }
-
-  private fun installWebViewPermissions(webView: WebView) {
-    webView.webChromeClient = object : WebChromeClient() {
-      override fun onPermissionRequest(request: PermissionRequest) {
-        // WebView 的 getUserMedia 还需要单独确认资源，否则系统权限已授予仍会被 Chromium 拒绝。
-        val audioResources = request.resources.filter {
-          it == PermissionRequest.RESOURCE_AUDIO_CAPTURE
-        }.toTypedArray()
-        runOnUiThread {
-          if (audioResources.isEmpty()) {
-            request.deny()
-          } else {
-            request.grant(audioResources)
-          }
-        }
-      }
-    }
   }
 
   private fun recoverRenderer(webView: WebView, lastKnownUrl: String, didCrash: Boolean): Boolean {
@@ -74,6 +58,18 @@ class MainActivity : TauriActivity() {
   companion object {
     private const val LOG_TAG = "Pisper/WebViewRecovery"
     private const val RENDERER_RECOVERY_URL = "pisper.rendererRecoveryUrl"
+
+    @Volatile
+    private var trustedProxyPort = 0
+
+    @JvmStatic
+    fun isTrustedProxyOrigin(origin: Uri?): Boolean {
+      return origin?.scheme?.lowercase() == "http" &&
+        origin.host == "127.0.0.1" &&
+        origin.userInfo.isNullOrEmpty() &&
+        origin.port == trustedProxyPort &&
+        trustedProxyPort in 1..65535
+    }
 
     @JvmStatic
     fun recoverFromRendererCrash(
@@ -105,8 +101,9 @@ class MainActivity : TauriActivity() {
     private fun recoverableUrl(vararg candidates: String?): String? {
       return candidates.firstOrNull { candidate ->
         if (candidate.isNullOrBlank() || candidate == "about:blank") return@firstOrNull false
-        val scheme = runCatching { Uri.parse(candidate).scheme?.lowercase() }.getOrNull()
-        scheme == "http" || scheme == "https"
+        val uri = runCatching { Uri.parse(candidate) }.getOrNull()
+        // 恢复与媒体授权复用同一来源边界，renderer 重建不能改变受信任代理。
+        isTrustedProxyOrigin(uri)
       }
     }
   }

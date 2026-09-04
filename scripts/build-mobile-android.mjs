@@ -7,10 +7,8 @@ import { join, dirname } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { spawnSync } from 'node:child_process'
 import { assertAndroidEnv, resolveAndroidEnv } from './android-env.mjs'
-import {
-  stageAndroidSpeechModel,
-  stageAndroidSpeechRuntime,
-} from './stage-android-speech-runtime.mjs'
+import { stageAndroidSpeechModel } from './stage-android-speech-model.mjs'
+import { stageAndroidSpeechRuntime } from './stage-android-speech-runtime.mjs'
 
 const env = resolveAndroidEnv()
 
@@ -59,8 +57,10 @@ run('npm', ['run', 'build'])
 
 console.log('==> staging Android sherpa 原生 Runtime')
 await stageAndroidSpeechRuntime({ root })
+console.log('==> 重新 staging 当前移动嵌入 Runtime 与 Android 语音模型')
+run(process.execPath, [join(root, 'scripts', 'build-mobile-runtime.mjs')], { shell: false })
 await stageAndroidSpeechModel({
-  root,
+  sourceDir: join(root, 'release', 'mobile-speech-model'),
   targetDir: join(
     root,
     'src-tauri',
@@ -73,8 +73,6 @@ await stageAndroidSpeechModel({
     'speech-model',
   ),
 })
-console.log('==> 重新 staging 当前移动嵌入 Runtime')
-run(process.execPath, [join(root, 'scripts', 'build-mobile-runtime.mjs')], { shell: false })
 const androidAssetsDir = join(root, 'src-tauri', 'gen', 'android', 'app', 'src', 'main', 'assets')
 mkdirSync(androidAssetsDir, { recursive: true })
 copyFileSync(

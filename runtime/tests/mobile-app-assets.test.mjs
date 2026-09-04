@@ -3,6 +3,7 @@ import assert from 'node:assert/strict'
 import { readFile } from 'node:fs/promises'
 import test from 'node:test'
 import { isAppExclusivePath, isAppOwnedPath } from '../../scripts/app-paths.mjs'
+import { transformWryAndroidWebChromeClient } from '../../scripts/patch-wry-android.mjs'
 import { injectIosPrivacyManifest } from '../../scripts/setup-mobile-ios.mjs'
 import { releaseComponentsForPath } from '../../scripts/release-changes.mjs'
 
@@ -58,6 +59,9 @@ test('共享产品路径同时归 App 与原组件发布通道', () => {
   assert.equal(isAppExclusivePath('scripts/stage-mobile-node-android.mjs'), true)
   assert.equal(isAppExclusivePath('scripts/stage-mobile-node-ios.mjs'), true)
   assert.equal(isAppExclusivePath('scripts/setup-mobile-ios.mjs'), true)
+  assert.equal(isAppExclusivePath('scripts/patch-wry-android.mjs'), true)
+  assert.equal(isAppExclusivePath('scripts/stage-android-speech-model.mjs'), true)
+  assert.equal(isAppExclusivePath('scripts/stage-android-speech-runtime.mjs'), true)
   assert.equal(isAppExclusivePath('scripts/mobile-node-ios-smoke-view-controller.m'), true)
   assert.equal(isAppExclusivePath('scripts/smoke-mobile-node-ios.sh'), true)
   assert.equal(isAppExclusivePath('scripts/test-ios-dns-sd.sh'), true)
@@ -297,33 +301,21 @@ test('Android 与 iOS 软键盘都使用可视视口保持会话输入框可见'
 })
 
 test('标准移动包只声明受控的联系人、相机、麦克风、照片、前台定位与局域网权限', async () => {
-  const [
-    setup,
-    androidPlugin,
-    androidManifest,
-    androidActivity,
-    voiceControl,
-    voiceInput,
-    mobileBridge,
-    mobilePermissions,
-    iosInfo,
-  ] = await Promise.all([
+  const [setup, androidPlugin, androidManifest, iosInfo] = await Promise.all([
     readFile('scripts/setup-mobile-android.mjs', 'utf8'),
     readFile(
       'src-tauri/mobile-device-plugin/android/src/main/java/app/pisper/mobiledevice/MobileDevicePlugin.kt',
       'utf8',
     ),
     readFile('src-tauri/mobile-device-plugin/android/src/main/AndroidManifest.xml', 'utf8'),
-    readFile('src-tauri/mobile/android/MainActivity.kt', 'utf8'),
-    readFile('src/features/chat/VoiceInputControl.tsx', 'utf8'),
-    readFile('src/features/chat/voice-input.ts', 'utf8'),
-    readFile('src-tauri/src/mobile/mod.rs', 'utf8'),
-    readFile('src-tauri/permissions/mobile.toml', 'utf8'),
     readFile('src-tauri/Info.ios.plist', 'utf8'),
   ])
+  const androidPermissionSources = `${setup}\n${androidPlugin}\n${androidManifest}`
   for (const permission of [
     'android.permission.READ_CONTACTS',
     'android.permission.CAMERA',
+    'android.permission.RECORD_AUDIO',
+    'android.permission.MODIFY_AUDIO_SETTINGS',
     'android.permission.ACCESS_COARSE_LOCATION',
     'android.permission.ACCESS_FINE_LOCATION',
     'android.permission.READ_EXTERNAL_STORAGE',
@@ -333,7 +325,7 @@ test('标准移动包只声明受控的联系人、相机、麦克风、照片�
     'android.permission.ACCESS_LOCAL_NETWORK',
     'android.permission.ACCESS_NETWORK_STATE',
   ]) {
-    assert.match(`${setup}\n${androidPlugin}`, new RegExp(permission.replaceAll('.', '\\.')))
+    assert.match(androidPermissionSources, new RegExp(permission.replaceAll('.', '\\.')))
   }
   for (const forbidden of [
     'READ_SMS',
@@ -344,10 +336,7 @@ test('标准移动包只声明受控的联系人、相机、麦克风、照片�
     'ACCESS_BACKGROUND_LOCATION',
     'BIND_ACCESSIBILITY_SERVICE',
   ]) {
-    assert.doesNotMatch(
-      `${setup}\n${androidPlugin}`,
-      new RegExp(`android\\.permission\\.${forbidden}`),
-    )
+    assert.doesNotMatch(androidPermissionSources, new RegExp(`android\\.permission\\.${forbidden}`))
   }
   assert.match(iosInfo, /NSAppTransportSecurity[\s\S]*NSAllowsLocalNetworking[\s\S]*<true\/>/)
   assert.match(iosInfo, /NSCameraUsageDescription/)
@@ -355,16 +344,59 @@ test('标准移动包只声明受控的联系人、相机、麦克风、照片�
   assert.match(iosInfo, /NSLocationWhenInUseUsageDescription/)
   assert.match(iosInfo, /NSPhotoLibraryUsageDescription/)
   assert.match(iosInfo, /NSPhotoLibraryAddUsageDescription/)
+  assert.match(iosInfo, /NSMicrophoneUsageDescription/)
   assert.doesNotMatch(iosInfo, /NSLocationAlways/)
-  assert.match(setup, /android\.permission\.MODIFY_AUDIO_SETTINGS/)
-  assert.match(androidManifest, /android\.permission\.RECORD_AUDIO/)
-  assert.match(androidManifest, /android\.permission\.MODIFY_AUDIO_SETTINGS/)
-  assert.match(androidActivity, /PermissionRequest\.RESOURCE_AUDIO_CAPTURE/)
-  assert.match(androidActivity, /request\.grant\(audioResources\)/)
-  assert.ok(
-    voiceControl.indexOf('await requestMicrophonePermission()') <
-      voiceControl.indexOf('await startMicrophoneCapture'),
-  )
+})
+
+test('移动语音输入具有受控原生链路、平台边界与可复现打包门禁', async () => {
+  const [
+    setup,
+    wryPatch,
+    modelStager,
+    mobileRuntimeBuild,
+    androidBuild,
+    releaseWorkflow,
+    storeWorkflow,
+    appPaths,
+    androidPlugin,
+    androidPluginBuild,
+    sherpaConsumerRules,
+    androidActivity,
+    voiceControl,
+    voiceInput,
+    focusSession,
+    mobileBridge,
+    androidBridge,
+    mobilePermissions,
+  ] = await Promise.all([
+    readFile('scripts/setup-mobile-android.mjs', 'utf8'),
+    readFile('scripts/patch-wry-android.mjs', 'utf8'),
+    readFile('scripts/stage-android-speech-model.mjs', 'utf8'),
+    readFile('scripts/build-mobile-runtime.mjs', 'utf8'),
+    readFile('scripts/build-mobile-android.mjs', 'utf8'),
+    readFile('.github/workflows/release-app.yml', 'utf8'),
+    readFile('.github/workflows/build-store-app.yml', 'utf8'),
+    readFile('scripts/app-paths.mjs', 'utf8'),
+    readFile(
+      'src-tauri/mobile-device-plugin/android/src/main/java/app/pisper/mobiledevice/MobileDevicePlugin.kt',
+      'utf8',
+    ),
+    readFile('src-tauri/mobile-device-plugin/android/build.gradle.kts', 'utf8'),
+    readFile('src-tauri/mobile-device-plugin/android/consumer-rules.pro', 'utf8'),
+    readFile('src-tauri/mobile/android/MainActivity.kt', 'utf8'),
+    readFile('src/features/chat/VoiceInputControl.tsx', 'utf8'),
+    readFile('src/features/chat/voice-input.ts', 'utf8'),
+    readFile('src/features/chat/FocusSession.tsx', 'utf8'),
+    readFile('src-tauri/src/mobile/mod.rs', 'utf8'),
+    readFile('src-tauri/src/mobile/android_bridge.rs', 'utf8'),
+    readFile('src-tauri/permissions/mobile.toml', 'utf8'),
+  ])
+
+  const permissionIndex = voiceControl.indexOf('await requestMicrophonePermission()')
+  const captureIndex = voiceControl.indexOf('await startMicrophoneCapture')
+  assert.notEqual(permissionIndex, -1)
+  assert.notEqual(captureIndex, -1)
+  assert.ok(permissionIndex < captureIndex)
   assert.match(voiceInput, /'mobile_request_microphone_permission'/)
   assert.match(voiceInput, /'mobile_transcribe_pcm'/)
   assert.match(mobileBridge, /fn mobile_transcribe_pcm/)
@@ -373,7 +405,122 @@ test('标准移动包只声明受控的联系人、相机、麦克风、照片�
   assert.match(androidPlugin, /fun transcribePcm\(invoke: Invoke\)/)
   assert.match(mobilePermissions, /"mobile_request_microphone_permission"/)
   assert.match(mobilePermissions, /"mobile_transcribe_pcm"/)
-  assert.match(iosInfo, /NSMicrophoneUsageDescription/)
+
+  assert.doesNotMatch(androidActivity, /WebChromeClient|onPermissionRequest/)
+  assert.match(androidActivity, /@Keep\s+fun setTrustedProxyPort\(port: Int\)/)
+  assert.match(androidActivity, /fun isTrustedProxyOrigin\(origin: Uri\?\)/)
+  assert.match(androidActivity, /origin\.port == trustedProxyPort/)
+  assert.match(androidActivity, /origin\.userInfo\.isNullOrEmpty\(\)/)
+  assert.match(wryPatch, /MainActivity\.isTrustedProxyOrigin\(request\.origin\)/)
+  assert.match(wryPatch, /audioResources\.size != requestedResources\.size/)
+  assert.match(wryPatch, /request\.grant\(audioResources\)/)
+  assert.match(mobileBridge, /android_set_trusted_proxy_port\(proxy\.port\)/)
+  const proxyStart = mobileBridge.indexOf('proxy::start_proxy')
+  const trustedPort = mobileBridge.indexOf('android_set_trusted_proxy_port(proxy.port)')
+  const windowCreation = mobileBridge.indexOf('WebviewWindowBuilder::new')
+  assert.ok(proxyStart >= 0 && trustedPort > proxyStart && windowCreation > trustedPort)
+  assert.match(androidBridge, /"setTrustedProxyPort"/)
+  assert.match(setup, /patchWryAndroidWebChromeClient/)
+  assert.match(
+    setup,
+    /workingDir\(File\(project\.projectDir, rootDirRel\)\.canonicalFile\.parentFile\)/,
+  )
+  assert.match(setup, /compileUniversal\$\{profileCapitalized\}Kotlin/)
+  assert.match(setup, /compile\$targetArchCapitalized\$\{profileCapitalized\}Kotlin/)
+  assert.match(setup, /scripts\/patch-wry-android\.mjs/)
+
+  assert.match(voiceInput, /VOICE_MAX_DURATION_SECONDS = 60/)
+  assert.match(voiceInput, /VOICE_MAX_SAMPLES - this\.retainedSamples/)
+  assert.match(voiceControl, /VOICE_MAX_DURATION_SECONDS \* 1_000/)
+  assert.match(mobileBridge, /MOBILE_VOICE_MAX_DURATION_SECONDS: usize = 60/)
+  assert.match(mobileBridge, /validate_mobile_pcm_base64\(&pcm_base64\)/)
+  assert.match(mobileBridge, /BASE64_STANDARD\.encode\(&decoded\) != pcm_base64/)
+  assert.match(mobileBridge, /sample\.is_finite\(\)/)
+  assert.match(androidPlugin, /SPEECH_MAX_DURATION_SECONDS = 60/)
+  assert.match(androidPlugin, /speechInFlight\.compareAndSet\(false, true\)/)
+  assert.match(androidPlugin, /sample\.isFinite\(\)/)
+  assert.match(androidPluginBuild, /consumerProguardFiles\("consumer-rules\.pro"\)/)
+  assert.match(sherpaConsumerRules, /-keep class com\.k2fsa\.sherpa\.onnx\.\*\* \{ \*; \}/)
+
+  assert.match(focusSession, /function supportsVoiceInput\(\)/)
+  assert.match(focusSession, /window\.__PISPER_MOBILE_PLATFORM__ !== 'ios'/)
+  assert.match(mobileBridge, /value: 'android'[\s\S]*value: 'ios'/)
+  assert.match(focusSession, /\{supportsVoiceInput\(\) && \([\s\S]*<VoiceInputControl/)
+
+  for (const source of [releaseWorkflow, storeWorkflow]) {
+    assert.match(source, /stage-android-speech-model\.mjs/)
+    assert.match(source, /speech-model\/model\.int8\.onnx/)
+    assert.match(source, /speech-model\/tokens\.txt/)
+    assert.match(source, /MainActivity\.isTrustedProxyOrigin\(request\.origin\)/)
+    assert.match(source, /override fun onShowFileChooser/)
+    assert.match(source, /request\.grant\(request\.resources\)/)
+    assert.match(source, /non-arm64 native library/)
+    assert.match(source, /68c9c943840f7d9cf3e8a4970ba50f404feb5277f611fa82b7e72267786fa84a/)
+    assert.match(source, /6fed8c6c248516f38e7faa19404b57413e8ce259f1cbc1fa4aebc86eac32fdfd/)
+  }
+  assert.match(releaseWorkflow, /apkanalyzer manifest permissions/)
+  assert.match(releaseWorkflow, /OnlineRecognizerConfig java\.lang\.String decodingMethod/)
+  assert.match(releaseWorkflow, /android\.permission\.RECORD_AUDIO/)
+  assert.match(releaseWorkflow, /android\.permission\.MODIFY_AUDIO_SETTINGS/)
+  assert.match(storeWorkflow, /build-tools\/36\.0\.0\/dexdump/)
+  assert.match(
+    storeWorkflow,
+    /require_dex_member 'Lcom\/k2fsa\/sherpa\/onnx\/OnlineRecognizerConfig;'/,
+  )
+  assert.match(
+    storeWorkflow,
+    /require_dex_member 'Lcom\/lingkongran\/pisper\/RustWebChromeClient;'/,
+  )
+  assert.match(modelStager, /verifyModelDirectory\(resolvedSource\)/)
+  assert.match(modelStager, /verifyModelDirectory\(resolvedTarget\)/)
+  assert.match(mobileRuntimeBuild, /includeSpeechModel: false/)
+  assert.match(mobileRuntimeBuild, /speechOutputDir/)
+  assert.match(androidBuild, /sourceDir: join\(root, 'release', 'mobile-speech-model'\)/)
+  assert.match(appPaths, /scripts\/stage-android-speech-model\.mjs/)
+  assert.match(appPaths, /scripts\/patch-wry-android\.mjs/)
+})
+
+test('Wry 媒体权限补丁精确替换一次并在模板漂移时失败', () => {
+  const stock = `  override fun onPermissionRequest(request: PermissionRequest) {
+    val isRequestPermissionRequired = Build.VERSION.SDK_INT >= Build.VERSION_CODES.M
+    val permissionList: MutableList<String> = ArrayList()
+    if (listOf(*request.resources).contains("android.webkit.resource.VIDEO_CAPTURE")) {
+      permissionList.add(Manifest.permission.CAMERA)
+    }
+    if (listOf(*request.resources).contains("android.webkit.resource.AUDIO_CAPTURE")) {
+      permissionList.add(Manifest.permission.MODIFY_AUDIO_SETTINGS)
+      permissionList.add(Manifest.permission.RECORD_AUDIO)
+    }
+    if (permissionList.isNotEmpty() && isRequestPermissionRequired) {
+      val permissions = permissionList.toTypedArray()
+      permissionListener = object : PermissionListener {
+        override fun onPermissionSelect(isGranted: Boolean?) {
+          if (isGranted == true) {
+            request.grant(request.resources)
+          } else {
+            request.deny()
+          }
+        }
+      }
+      permissionLauncher.launch(permissions)
+    } else {
+      request.grant(request.resources)
+    }
+  }`
+  const source = `prefix\n${stock}\nsuffix`
+  const transformed = transformWryAndroidWebChromeClient(source)
+  assert.match(transformed, /^prefix\n/)
+  assert.match(transformed, /MainActivity\.isTrustedProxyOrigin\(request\.origin\)/)
+  assert.match(transformed, /audioResources\.size != requestedResources\.size/)
+  assert.match(transformed, /request\.grant\(audioResources\)/)
+  assert.match(transformed, /\nsuffix$/)
+  assert.equal(transformWryAndroidWebChromeClient(transformed), transformed)
+  const corrupted = transformed.replace(
+    'request.grant(audioResources)',
+    'request.grant(request.resources)',
+  )
+  assert.throws(() => transformWryAndroidWebChromeClient(corrupted), /补丁结构不完整/)
+  assert.throws(() => transformWryAndroidWebChromeClient('class RustWebChromeClient'), /匹配 0 处/)
 })
 
 test('外部应用操作只使用用户可见的标准系统入口', async () => {

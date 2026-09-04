@@ -20,6 +20,20 @@ pub(super) fn with_android_env<T>(
 }
 
 #[cfg(target_os = "android")]
+pub(super) fn android_set_trusted_proxy_port(port: u16) -> Result<(), String> {
+    with_android_env(|env, context| {
+        env.call_method(
+            &context,
+            "setTrustedProxyPort",
+            "(I)V",
+            &[jni::objects::JValue::Int(i32::from(port))],
+        )
+        .map_err(|error| format!("无法设置 Android 受信任代理端口：{error}"))?;
+        Ok(())
+    })
+}
+
+#[cfg(target_os = "android")]
 pub(super) fn android_asset_exists(name: &str) -> bool {
     with_android_env(|env, context| {
         let assets = env

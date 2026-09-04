@@ -1,6 +1,7 @@
 // 初始化 Android 工程（tauri android init）并应用 Pisper 的清单定制：
-// - CAMERA 权限（扫码配对）
+// - 相机与麦克风权限（扫码、附件与语音输入）
 // - networkSecurityConfig：仅放行 127.0.0.1/localhost 明文（壳内本地代理）
+// - Wry 媒体授权的实际代理来源校验，并保留原生文件选择等完整回调
 // - WebView renderer 崩溃接管、宿主重建与当前路由恢复
 // gen/ 不入库，定制必须可重放——本脚本是幂等的，可重复运行。
 import {
@@ -16,6 +17,7 @@ import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { spawnSync } from 'node:child_process'
 import { assertAndroidEnv, resolveAndroidEnv } from './android-env.mjs'
+import { patchWryAndroidWebChromeClient } from './patch-wry-android.mjs'
 import { stageAndroidSpeechRuntime } from './stage-android-speech-runtime.mjs'
 
 const env = resolveAndroidEnv()
@@ -55,6 +57,30 @@ const rustBuildTaskPath = join(
   'pisper',
   'kotlin',
   'BuildTask.kt',
+)
+const rustPluginPath = join(
+  androidDir,
+  'buildSrc',
+  'src',
+  'main',
+  'java',
+  'com',
+  'lingkongran',
+  'pisper',
+  'kotlin',
+  'RustPlugin.kt',
+)
+const rustWebChromeClientPath = join(
+  androidDir,
+  'app',
+  'src',
+  'main',
+  'java',
+  'com',
+  'lingkongran',
+  'pisper',
+  'generated',
+  'RustWebChromeClient.kt',
 )
 const nodeMobileDir = process.env.PISPER_NODE_MOBILE_ANDROID_DIR
   ? join(process.env.PISPER_NODE_MOBILE_ANDROID_DIR)
@@ -185,6 +211,49 @@ if (!manifest.includes('android:windowSoftInputMode="adjustResize"')) {
 }
 writeFileSync(manifestPath, manifest, 'utf8')
 
+// Wry 的 Kotlin 文件由 cargo 构建脚本生成；先生成并应用安全补丁，再允许对应 variant 编译 Kotlin。
+let rustPlugin = readFileSync(rustPluginPath, 'utf8')
+const rustPluginEol = rustPlugin.includes('\r\n') ? '\r\n' : '\n'
+const universalCompileDependency = [
+  '                tasks["compileUniversal${profileCapitalized}Kotlin"].dependsOn(buildTask)',
+].join(rustPluginEol)
+if (!rustPlugin.includes(universalCompileDependency)) {
+  rustPlugin = rustPlugin.replace(
+    '                tasks["mergeUniversal${profileCapitalized}JniLibFolders"].dependsOn(buildTask)',
+    [
+      '                tasks["mergeUniversal${profileCapitalized}JniLibFolders"].dependsOn(buildTask)',
+      universalCompileDependency,
+    ].join(rustPluginEol),
+  )
+}
+const targetCompileDependency = [
+  '                    tasks["compile$targetArchCapitalized${profileCapitalized}Kotlin"].dependsOn(',
+  '                        targetBuildTask',
+  '                    )',
+].join(rustPluginEol)
+if (!rustPlugin.includes(targetCompileDependency)) {
+  rustPlugin = rustPlugin.replace(
+    [
+      '                    tasks["merge$targetArchCapitalized${profileCapitalized}JniLibFolders"].dependsOn(',
+      '                        targetBuildTask',
+      '                    )',
+    ].join(rustPluginEol),
+    [
+      '                    tasks["merge$targetArchCapitalized${profileCapitalized}JniLibFolders"].dependsOn(',
+      '                        targetBuildTask',
+      '                    )',
+      targetCompileDependency,
+    ].join(rustPluginEol),
+  )
+}
+if (
+  !rustPlugin.includes(universalCompileDependency) ||
+  !rustPlugin.includes(targetCompileDependency)
+) {
+  throw new Error('无法让 Android Kotlin 编译等待 Wry 源码安全补丁。')
+}
+writeFileSync(rustPluginPath, rustPlugin, 'utf8')
+
 // Wry 的扩展点在 Rust 构建时生成 WebViewClient；必须把环境变量放进 Gradle 启动 cargo 的进程。
 const webViewClientExtension = `override fun onRenderProcessGone(
     view: WebView,
@@ -198,8 +267,8 @@ const rustPageSizeBlock = [
   '            // Pisper：确保 Rust 宿主兼容 Android 16 KB 内存页。',
   '            environment(',
   '                "CARGO_TARGET_AARCH64_LINUX_ANDROID_RUSTFLAGS",',
-  '                (System.getenv("CARGO_TARGET_AARCH64_LINUX_ANDROID_RUSTFLAGS").orEmpty() +',
-  '                    " -C link-arg=-Wl,-z,max-page-size=16384").trim(),',
+  '                ("-C link-arg=-Wl,-z,max-page-size=16384 " +',
+  '                    System.getenv("CARGO_TARGET_AARCH64_LINUX_ANDROID_RUSTFLAGS").orEmpty()).trim(),',
   '            )',
 ].join(rustBuildTaskEol)
 const existingRustPageSizeBlock =
@@ -233,13 +302,50 @@ if (existingRecoveryBlock.test(updatedRustBuildTask)) {
     `$1${rendererRecoveryBlock}${rustBuildTaskEol}`,
   )
 }
+const wryOriginPatchBlock = [
+  '        // Pisper：Wry 每次 cargo 构建都会重写 Kotlin，随后重放来源校验。',
+  '        project.exec {',
+  '            workingDir(File(project.projectDir, rootDirRel).canonicalFile.parentFile)',
+  '            executable("node")',
+  '            args(',
+  '                "scripts/patch-wry-android.mjs",',
+  '                File(',
+  '                    project.projectDir,',
+  '                    "src/main/java/com/lingkongran/pisper/generated/RustWebChromeClient.kt",',
+  '                ).absolutePath,',
+  '            )',
+  '        }.assertNormalExitValue()',
+].join(rustBuildTaskEol)
+const existingWryOriginPatchBlock =
+  /        \/\/ Pisper：Wry 每次 cargo 构建都会重写 Kotlin，随后重放来源校验。\r?\n        project\.exec \{[\s\S]*?\r?\n        \}\.assertNormalExitValue\(\)/
+if (existingWryOriginPatchBlock.test(updatedRustBuildTask)) {
+  updatedRustBuildTask = updatedRustBuildTask.replace(
+    existingWryOriginPatchBlock,
+    wryOriginPatchBlock,
+  )
+} else {
+  const taskEnd = ['        }.assertNormalExitValue()', '    }', '}'].join(rustBuildTaskEol)
+  if (!updatedRustBuildTask.includes(taskEnd)) {
+    throw new Error('无法在 Android Rust 构建后接入 Wry 媒体来源校验。')
+  }
+  updatedRustBuildTask = updatedRustBuildTask.replace(
+    taskEnd,
+    ['        }.assertNormalExitValue()', wryOriginPatchBlock, '    }', '}'].join(rustBuildTaskEol),
+  )
+}
 if (!updatedRustBuildTask.includes('CARGO_TARGET_AARCH64_LINUX_ANDROID_RUSTFLAGS')) {
   throw new Error('无法把 16 KB 页 linker 参数接入 Android Rust 构建。')
 }
 if (!updatedRustBuildTask.includes('WRY_RUSTWEBVIEWCLIENT_CLASS_EXTENSION')) {
   throw new Error('无法把 WebView renderer 恢复回调接入 Android Rust 构建。')
 }
+if (!updatedRustBuildTask.includes('scripts/patch-wry-android.mjs')) {
+  throw new Error('无法把 Wry 媒体来源校验接入 Android Rust 构建。')
+}
 writeFileSync(rustBuildTaskPath, updatedRustBuildTask, 'utf8')
+if (existsSync(rustWebChromeClientPath)) {
+  patchWryAndroidWebChromeClient(rustWebChromeClientPath)
+}
 mkdirSync(dirname(mainActivityTargetPath), { recursive: true })
 copyFileSync(mainActivitySourcePath, mainActivityTargetPath)
 

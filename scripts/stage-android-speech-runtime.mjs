@@ -1,5 +1,5 @@
 import { createHash } from 'node:crypto'
-import { access, copyFile, cp, mkdir, readFile, writeFile } from 'node:fs/promises'
+import { copyFile, mkdir, readFile, writeFile } from 'node:fs/promises'
 import { join, resolve } from 'node:path'
 
 const VERSION = '1.13.7'
@@ -37,22 +37,6 @@ async function downloadAar(cachePath) {
       await new Promise((resolveDelay) => setTimeout(resolveDelay, attempt * 1_000))
     }
   }
-}
-
-export async function stageAndroidSpeechModel({ targetDir }) {
-  const source = String(process.env.PISPER_SPEECH_MODEL_DIR || '').trim()
-  if (!source) throw new Error('Android 构建需要 PISPER_SPEECH_MODEL_DIR 指向已下载的语音模型。')
-  for (const name of ['model.int8.onnx', 'tokens.txt']) {
-    await access(join(resolve(source), name)).catch(() => {
-      throw new Error(`语音模型缺少 ${name}。`)
-    })
-  }
-  await mkdir(targetDir, { recursive: true })
-  await Promise.all(
-    ['model.int8.onnx', 'tokens.txt'].map((name) =>
-      cp(join(resolve(source), name), join(targetDir, name)),
-    ),
-  )
 }
 
 export async function stageAndroidSpeechRuntime({ root }) {

@@ -60,13 +60,24 @@ jobs:
           npm run mobile:runtime
           tar -xOzf release/pisper-embedded-runtime.tar.gz ./embedded-runtime.json |
             jq -e '.appVersion == "${{ inputs.version }}" and .runtimeProfile == "mobile-store"'
-          tar -tzf release/pisper-embedded-runtime.tar.gz | grep -Fx './dist/index.html'
-          tar -tzf release/pisper-embedded-runtime.tar.gz | grep -Fx './runtime/mobile-embedded.mjs'
+          RUNTIME_CONTENTS=/tmp/pisper-store-runtime-contents.txt
+          tar -tzf release/pisper-embedded-runtime.tar.gz > "$RUNTIME_CONTENTS"
+          grep -Fx './dist/index.html' "$RUNTIME_CONTENTS"
+          grep -Fx './runtime/mobile-embedded.mjs' "$RUNTIME_CONTENTS"
+          if grep -Fq './runtime/speech-model/' "$RUNTIME_CONTENTS"; then
+            echo 'Store Runtime must not duplicate the Android AssetManager speech model.' >&2
+            exit 1
+          fi
       - uses: actions/upload-artifact@v4
         with:
           name: store-embedded-runtime
           if-no-files-found: error
           path: release/pisper-embedded-runtime.tar.gz
+      - uses: actions/upload-artifact@v4
+        with:
+          name: store-android-speech-model
+          if-no-files-found: error
+          path: release/mobile-speech-model
 
   android:
     name: Build signed Google Play AAB
@@ -110,6 +121,10 @@ jobs:
         with:
           name: store-embedded-runtime
           path: embedded-runtime
+      - uses: actions/download-artifact@v5
+        with:
+          name: store-android-speech-model
+          path: speech-model
       - name: Stage store Runtime asset
         run: |
           set -Eeuo pipefail
@@ -117,6 +132,9 @@ jobs:
           rm -f src-tauri/gen/android/app/src/main/assets/pisper-root-runtime-*.tgz
           cp embedded-runtime/pisper-embedded-runtime.tar.gz \
             src-tauri/gen/android/app/src/main/assets/pisper-embedded-runtime.tgz
+          node scripts/stage-android-speech-model.mjs \
+            --source speech-model \
+            src-tauri/gen/android/app/src/main/assets/speech-model
       - name: Build store AAB
         env:
           NDK_HOME: ${{ env.ANDROID_HOME }}/ndk/27.3.13750724
@@ -135,12 +153,30 @@ jobs:
           set -Eeuo pipefail
           test -n "$APP_ANDROID_KEYSTORE" || { echo "APP_ANDROID_KEYSTORE is required." >&2; exit 1; }
           echo "$APP_ANDROID_KEYSTORE" | base64 -d > /tmp/pisper-play-upload.jks
+          WRY_CLIENT=src-tauri/gen/android/app/src/main/java/com/lingkongran/pisper/generated/RustWebChromeClient.kt
+          grep -Fq 'MainActivity.isTrustedProxyOrigin(request.origin)' "$WRY_CLIENT"
+          grep -Fq 'request.grant(audioResources)' "$WRY_CLIENT"
+          grep -Fq 'override fun onShowFileChooser' "$WRY_CLIENT"
+          if grep -Fq 'request.grant(request.resources)' "$WRY_CLIENT"; then
+            echo 'Wry WebChromeClient still grants unfiltered media resources.' >&2
+            exit 1
+          fi
           AAB=$(find src-tauri/gen/android/app/build/outputs/bundle -name '*.aab' -type f | head -1)
           test -n "$AAB" || { echo "AAB output was not found." >&2; exit 1; }
           unzip -Z1 "$AAB" > /tmp/pisper-aab-contents.txt
           grep -F 'base/assets/pisper-embedded-runtime.tgz' /tmp/pisper-aab-contents.txt
+          grep -F 'base/assets/speech-model/model.int8.onnx' /tmp/pisper-aab-contents.txt
+          grep -F 'base/assets/speech-model/tokens.txt' /tmp/pisper-aab-contents.txt
+          test "$(unzip -p "$AAB" base/assets/speech-model/model.int8.onnx | sha256sum | awk '{print $1}')" = \
+            '68c9c943840f7d9cf3e8a4970ba50f404feb5277f611fa82b7e72267786fa84a'
+          test "$(unzip -p "$AAB" base/assets/speech-model/tokens.txt | sha256sum | awk '{print $1}')" = \
+            '6fed8c6c248516f38e7faa19404b57413e8ce259f1cbc1fa4aebc86eac32fdfd'
           grep -F 'base/lib/arm64-v8a/libnode.so' /tmp/pisper-aab-contents.txt
           grep -F 'base/lib/arm64-v8a/libpisper_webview_lib.so' /tmp/pisper-aab-contents.txt
+          if grep -E '^base/lib/' /tmp/pisper-aab-contents.txt | grep -Ev '^base/lib/arm64-v8a/'; then
+            echo 'Store AAB contains a non-arm64 native library.' >&2
+            exit 1
+          fi
           if grep -Eqi 'root-runtime|rootfs|/su$|/chroot$' /tmp/pisper-aab-contents.txt; then
             echo "Store AAB contains a rooted Runtime asset." >&2
             exit 1
@@ -157,6 +193,26 @@ jobs:
               fi
             done < <("$ANDROID_HOME/ndk/27.3.13750724/toolchains/llvm/prebuilt/linux-x86_64/bin/llvm-readelf" -lW "$library" | awk '$1 == "LOAD" { print $NF }')
           done < <(find /tmp/pisper-aab-native -name '*.so' -type f)
+          rm -rf /tmp/pisper-aab-dex
+          mkdir -p /tmp/pisper-aab-dex
+          unzip -q "$AAB" 'base/dex/*.dex' -d /tmp/pisper-aab-dex
+          "$ANDROID_HOME/build-tools/36.0.0/dexdump" -n \
+            /tmp/pisper-aab-dex/base/dex/*.dex > /tmp/pisper-aab-dex.txt
+          require_dex_member() {
+            local descriptor="$1"
+            local member="$2"
+            awk -v descriptor="$descriptor" -v member="$member" '
+              /Class descriptor/ { active = index($0, descriptor) > 0 }
+              active && /name[[:space:]]*:/ && index($0, member) > 0 { found = 1 }
+              END { exit found ? 0 : 1 }
+            ' /tmp/pisper-aab-dex.txt
+          }
+          require_dex_member 'Lcom/k2fsa/sherpa/onnx/OnlineRecognizerConfig;' 'decodingMethod'
+          require_dex_member 'Lcom/k2fsa/sherpa/onnx/FeatureConfig;' 'sampleRate'
+          require_dex_member 'Lcom/k2fsa/sherpa/onnx/OnlineZipformer2CtcModelConfig;' 'model'
+          require_dex_member 'Lcom/lingkongran/pisper/MainActivity;' 'setTrustedProxyPort'
+          require_dex_member 'Lcom/lingkongran/pisper/RustWebChromeClient;' 'onPermissionRequest'
+          require_dex_member 'Lcom/lingkongran/pisper/RustWebChromeClient;' 'onShowFileChooser'
           cp "$AAB" pisper-google-play.aab
           jarsigner \
             -keystore /tmp/pisper-play-upload.jks \
