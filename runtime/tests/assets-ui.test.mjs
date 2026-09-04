@@ -2,6 +2,14 @@ import assert from 'node:assert/strict'
 import { readFile } from 'node:fs/promises'
 import test from 'node:test'
 
+test('asset page exposes a dedicated video filter', async () => {
+  const source = await readFile('src/features/assets/AssetsPage.tsx', 'utf8')
+
+  assert.match(source, /ASSET_TABS[^\n]*'image', 'video', 'file'/)
+  assert.match(source, /tab === 'video'[^\n]*assetsPage\.videos/)
+  assert.match(source, /tab === 'video'\) params\.set\('kind', 'video'\)/)
+})
+
 test('asset cards grow with their copy instead of clipping the action row', async () => {
   const source = await readFile('src/features/assets/AssetsPage.tsx', 'utf8')
 

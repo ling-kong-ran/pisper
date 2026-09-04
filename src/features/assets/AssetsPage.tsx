@@ -54,11 +54,12 @@ type AssetsPageProps = {
   requestConfirm: (options?: ConfirmDialogOptions) => Promise<boolean>
 }
 
-type AssetTab = 'all' | 'image' | 'file' | 'link' | 'current'
-const ASSET_TABS: AssetTab[] = ['all', 'image', 'file', 'link', 'current']
+type AssetTab = 'all' | 'image' | 'video' | 'file' | 'link' | 'current'
+const ASSET_TABS: AssetTab[] = ['all', 'image', 'video', 'file', 'link', 'current']
 
 function assetTabLabel(tab: AssetTab, t: ReturnType<typeof useI18n>['t']) {
   if (tab === 'image') return t('assets:assetsPage.images')
+  if (tab === 'video') return t('assets:assetsPage.videos')
   if (tab === 'file') return t('assets:assetsPage.files')
   if (tab === 'link') return t('assets:assetsPage.links')
   if (tab === 'current') return t('assets:assetsPage.fromCurrentChat')
@@ -98,6 +99,7 @@ export function AssetsPage({
       const params = new URLSearchParams()
       if (query) params.set('query', query)
       if (tab === 'image') params.set('kind', 'image')
+      if (tab === 'video') params.set('kind', 'video')
       if (tab === 'file') params.set('kind', 'file')
       if (tab === 'link') params.set('kind', 'link')
       if (tab === 'current')
