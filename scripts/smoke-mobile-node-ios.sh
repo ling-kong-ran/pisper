@@ -31,12 +31,16 @@ test -d "$APP"
 mkdir -p "$APP/pisper"
 tar -xzf "$RUNTIME_ARCHIVE" -C "$APP/pisper"
 cat > "$APP/pisper-smoke.mjs" <<'SMOKE'
+import { writeFile } from 'node:fs/promises'
 import { dirname, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
 const appRoot = resolve(dirname(fileURLToPath(import.meta.url)), 'pisper')
 const writableRoot = resolve(process.env.HOME, 'Library', 'Application Support', 'PisperSmoke')
 const token = 'pisper-ios-simulator-smoke'
+const runToken = process.env.NODE_MOBILE_RUN_TOKEN
+if (!runToken) throw new Error('iOS Runtime smoke token is missing')
+const healthResult = resolve(process.env.HOME, 'Documents', `health-${runToken}.txt`)
 Object.assign(process.env, {
   PISPER_AGENT_DIR: resolve(writableRoot, 'agent'),
   PISPER_APP_ROOT: appRoot,
@@ -64,6 +68,7 @@ try {
   if (!response.ok || health.capabilities?.profile !== 'mobile-embedded') {
     throw new Error(`Unexpected Runtime health response: ${JSON.stringify(health)}`)
   }
+  await writeFile(healthResult, 'PASS\n')
   console.log(`PISPER_IOS_RUNTIME_SMOKE_OK ${process.version}`)
 } finally {
   await pisper?.close()
@@ -85,9 +90,10 @@ TOKEN=$(/usr/bin/uuidgen | tr 'A-F' 'a-f' | tr -d '-')
 xcrun simctl install "$UDID" "$APP"
 DATA_DIR=$(xcrun simctl get_app_container "$UDID" "$BUNDLE_ID" data)
 RESULT="$DATA_DIR/Documents/result-$TOKEN.txt"
+HEALTH_RESULT="$DATA_DIR/Documents/health-$TOKEN.txt"
 STDOUT="$DATA_DIR/Documents/stdout-$TOKEN.txt"
 LAUNCH_LOG="$WORK_DIR/launch.log"
-rm -f "$RESULT" "$STDOUT" "$LAUNCH_LOG"
+rm -f "$RESULT" "$HEALTH_RESULT" "$STDOUT" "$LAUNCH_LOG"
 
 if ! xcrun simctl launch --terminate-running-process "$UDID" "$BUNDLE_ID" \
   --smoke-ui "$TOKEN" > "$LAUNCH_LOG" 2>&1; then
@@ -99,10 +105,14 @@ APP_PID=$(sed -nE 's/^.*: ([0-9]+)$/\1/p' "$LAUNCH_LOG" | tail -1)
 test -n "$APP_PID"
 
 VERDICT=""
+HEALTH_VERDICT=""
 PROCESS_GONE=""
 for ((i = 0; i < 240; i++)); do
   if [[ -s "$RESULT" ]]; then
     VERDICT=$(tr -d '\r\n' < "$RESULT")
+    if [[ -s "$HEALTH_RESULT" ]]; then
+      HEALTH_VERDICT=$(tr -d '\r\n' < "$HEALTH_RESULT")
+    fi
     break
   fi
   if [[ -n "$PROCESS_GONE" ]]; then break; fi
@@ -111,10 +121,11 @@ for ((i = 0; i < 240; i++)); do
 done
 xcrun simctl terminate "$UDID" "$BUNDLE_ID" >/dev/null 2>&1 || true
 [[ -f "$STDOUT" ]] && cat "$STDOUT"
-if [[ "$VERDICT" != PASS ]]; then
+if [[ "$VERDICT" != PASS || "$HEALTH_VERDICT" != PASS ]]; then
   xcrun simctl spawn "$UDID" log show --last 5m --style compact \
     --predicate 'process == "testnode"' || true
-  printf 'iOS embedded Pisper Runtime smoke verdict: %s\n' "${VERDICT:-<none>}" >&2
+  printf 'iOS embedded Pisper Runtime smoke verdict: native=%s health=%s\n' \
+    "${VERDICT:-<none>}" "${HEALTH_VERDICT:-<none>}" >&2
   exit 1
 fi
 if [[ ! -f "$STDOUT" ]] || ! grep -Fq 'PISPER_IOS_RUNTIME_SMOKE_OK' "$STDOUT"; then
