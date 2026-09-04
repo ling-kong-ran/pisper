@@ -1,9 +1,9 @@
 {
-  "version": "0.1.28",
-  "tag": "app-v0.1.28",
-  "url": "https://github.com/ling-kong-ran/pisper/releases/tag/app-v0.1.28",
+  "version": "0.1.29",
+  "tag": "app-v0.1.29",
+  "url": "https://github.com/ling-kong-ran/pisper/releases/tag/app-v0.1.29",
   "apk": "app-universal-release-signed.apk",
   "ipa": "pisper-ios-unsigned.ipa",
-  "notes": "- fix(deps): repair qrcode-terminal integrity and lockfile ordering\n- refactor(chat): consolidate slash command draft helper into composer drafts\n- feat: add official QQ QR onboarding and harden team streams\n- fix(chat): improve image preview navigation",
-  "releaseDate": "2026-09-03"
+  "notes": "- fix(release-app): auto stage sherpa runtime on clean checkout\n- chore(release-runtime): runtime-v0.5.32\n- fix(packaging): budget offline speech runtime separately\n- feat(chat): add offline voice input\n- fix(runtime): detach team state from plan mode and gate run-mode switches\n- fix(chat): keep composer tool tray open when interacting with its floating panels\n- fix(runtime): enforce team file ownership and harden goal completion\n- feat(channels): align channel commands and settings with TUI session controls\n- fix(updater): add download fallback chain and system proxy support",
+  "releaseDate": "2026-09-04"
 }
