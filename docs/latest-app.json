@@ -1,9 +1,9 @@
 {
-  "version": "0.1.30",
-  "tag": "app-v0.1.30",
-  "url": "https://github.com/ling-kong-ran/pisper/releases/tag/app-v0.1.30",
+  "version": "0.1.31",
+  "tag": "app-v0.1.31",
+  "url": "https://github.com/ling-kong-ran/pisper/releases/tag/app-v0.1.31",
   "apk": "app-universal-release-signed.apk",
   "ipa": "pisper-ios-unsigned.ipa",
-  "notes": "- fix(mobile): pass iOS smoke result path through argv\n- chore(release-runtime): runtime-v0.5.34\n- fix(release): require durable iOS runtime health verdict\n- fix(release): harden mobile artifact staging\n- fix(mobile): bound remote startup recovery and fall back locally\n- chore(release-runtime): runtime-v0.5.33\n- feat(chat): stream live speech preview and unload idle recognizer\n- fix(runtime): auto-requeue retryable team failures with backoff",
+  "notes": "- fix(ci): satisfy current Rust lint\n- fix(mobile): harden packaged voice transcription\n- fix(mobile): allow Android voice transcription",
   "releaseDate": "2026-09-04"
 }
