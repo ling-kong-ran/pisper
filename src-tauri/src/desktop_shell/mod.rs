@@ -757,6 +757,7 @@ pub fn run() {
             component_updates::desktop_restart_for_component_update,
             desktop_bridge::desktop_open_url,
             desktop_bridge::desktop_open_asset,
+            desktop_bridge::desktop_reveal_path,
             desktop_bridge::desktop_open_releases,
             desktop_bridge::desktop_open_update_log,
             desktop_bridge::desktop_get_notification_status,

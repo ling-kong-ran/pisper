@@ -4,6 +4,11 @@ import test from 'node:test'
 import React from 'react'
 import { renderToStaticMarkup } from 'react-dom/server'
 import MarkdownMessage from '../../src/components/MarkdownMessage.tsx'
+import {
+  decodeLocalFileHref,
+  encodeLocalFileHref,
+  parseLocalFileTarget,
+} from '../../src/lib/local-file-links.ts'
 import { streamdownPlugins } from '../../src/lib/streamdown.ts'
 
 const ROOT = new URL('../../', import.meta.url)
@@ -102,6 +107,68 @@ plain https://example.com/path
   assert.doesNotMatch(html, /javascript:/i)
   assert.doesNotMatch(html, /<script/i)
   assert.doesNotMatch(html, /on(?:click|error)=/i)
+})
+
+test('absolute local file links render without the unsafe-link blocked marker', () => {
+  const windows = parseLocalFileTarget('E:/code/pi-coder/src/main.ts:12:4')
+  const posix = parseLocalFileTarget('/home/user/project/report.txt:9')
+  assert.deepEqual(windows, {
+    path: 'E:/code/pi-coder/src/main.ts',
+    line: 12,
+    column: 4,
+  })
+  assert.deepEqual(posix, { path: '/home/user/project/report.txt', line: 9 })
+  assert.equal(parseLocalFileTarget('https://example.com/file.txt'), null)
+  assert.equal(parseLocalFileTarget('../relative/file.txt'), null)
+  assert.deepEqual(decodeLocalFileHref(encodeLocalFileHref(windows)), windows)
+
+  const html = renderMarkdown(`
+[Windows report](E:/code/pi-coder/release/verified-assets.tsv)
+
+[POSIX report](/home/user/project/report.txt:9)
+
+[File URI](file:///E:/code/My%20Report.txt:7)
+
+[Documentation](https://example.com/docs)
+`)
+
+  assert.doesNotMatch(html, /\[blocked\]/i)
+  assert.match(html, /data-local-path="E:\/code\/pi-coder\/release\/verified-assets\.tsv"/)
+  assert.match(html, /data-local-path="\/home\/user\/project\/report\.txt"/)
+  assert.match(html, /data-local-path="E:\/code\/My Report\.txt"/)
+  assert.match(html, /href="https:\/\/example\.com\/docs"/)
+
+  const originalWindow = globalThis.window
+  globalThis.window = { pisperDesktop: { revealPath: async () => true } }
+  try {
+    const desktopHtml = renderMarkdown('[Desktop report](E:/code/pi-coder/report.txt)')
+    assert.match(desktopHtml, /<button[^>]*data-local-path="E:\/code\/pi-coder\/report\.txt"/)
+    assert.doesNotMatch(desktopHtml, /href="https:\/\/local-file\.pisper\.invalid/)
+  } finally {
+    if (originalWindow === undefined) delete globalThis.window
+    else globalThis.window = originalWindow
+  }
+})
+
+test('desktop shell exposes a reveal-only bridge for local Markdown paths', async () => {
+  const [markdown, bridgeType, bridgeScript, bridgeRust, shell, permissions] = await Promise.all([
+    readFile(new URL('src/components/MarkdownMessage.tsx', ROOT), 'utf8'),
+    readFile(new URL('src/types/update.ts', ROOT), 'utf8'),
+    readFile(new URL('src-tauri/src/desktop_shell/desktop-bridge.js', ROOT), 'utf8'),
+    readFile(new URL('src-tauri/src/desktop_shell/desktop_bridge.rs', ROOT), 'utf8'),
+    readFile(new URL('src-tauri/src/desktop_shell/mod.rs', ROOT), 'utf8'),
+    readFile(new URL('src-tauri/permissions/desktop.toml', ROOT), 'utf8'),
+  ])
+
+  assert.match(markdown, /pisperDesktop\?\.revealPath/)
+  assert.match(bridgeType, /revealPath\?: \(path: string\) => Promise<boolean>/)
+  assert.match(bridgeScript, /revealPath: \(path\) => invoke\('desktop_reveal_path', \{ path \}\)/)
+  assert.match(bridgeRust, /pub fn desktop_reveal_path/)
+  assert.match(bridgeRust, /requested\.is_absolute\(\)/)
+  assert.match(bridgeRust, /reveal_item_in_dir\(path\)/)
+  assert.doesNotMatch(bridgeRust, /desktop_reveal_path[\s\S]{0,800}Command::new/)
+  assert.match(shell, /desktop_bridge::desktop_reveal_path/)
+  assert.match(permissions, /"desktop_reveal_path"/)
 })
 
 test('incomplete Markdown streams through the same incremental renderer', () => {

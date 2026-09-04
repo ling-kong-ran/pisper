@@ -8,6 +8,7 @@
   "markdownMessage.copied": "Copied",
   "markdownMessage.copy": "Copy",
   "markdownMessage.copyCode": "Copy code",
+  "markdownMessage.revealLocalPath": "Show in file manager: {path}",
   "ui.cancel": "Cancel",
   "ui.closeDialog": "Close dialog",
   "ui.confirm": "Confirm",

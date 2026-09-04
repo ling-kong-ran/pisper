@@ -108,6 +108,7 @@
       installComponentUpdates: () => invoke('desktop_install_component_updates'),
       restartForComponentUpdate: () => invoke('desktop_restart_for_component_update'),
       openAsset: (input) => invoke('desktop_open_asset', { input }),
+      revealPath: (path) => invoke('desktop_reveal_path', { path }),
       openReleases: () => invoke('desktop_open_releases'),
       openUpdateLog: () => invoke('desktop_open_update_log'),
       getNotificationStatus: () => invoke('desktop_get_notification_status'),

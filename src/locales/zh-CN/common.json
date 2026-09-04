@@ -8,6 +8,7 @@
   "markdownMessage.copied": "已复制",
   "markdownMessage.copy": "复制",
   "markdownMessage.copyCode": "复制代码",
+  "markdownMessage.revealLocalPath": "在文件管理器中显示：{path}",
   "ui.cancel": "取消",
   "ui.closeDialog": "关闭对话框",
   "ui.confirm": "确认",

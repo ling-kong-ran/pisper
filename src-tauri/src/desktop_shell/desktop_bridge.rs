@@ -1,7 +1,7 @@
 use base64::{engine::general_purpose::STANDARD as BASE64_STANDARD, Engine as _};
 use serde::{Deserialize, Serialize};
 use std::{
-    fs::{create_dir_all, write as write_file, OpenOptions},
+    fs::{canonicalize, create_dir_all, write as write_file, OpenOptions},
     io::Write,
     path::PathBuf,
     time::{SystemTime, UNIX_EPOCH},
@@ -230,6 +230,34 @@ pub fn desktop_open_asset(app: AppHandle, input: AssetOpenInput) -> Result<bool,
         .map_err(|error| error.to_string())
 }
 
+fn canonical_local_path(value: &str) -> Result<PathBuf, String> {
+    let value = value.trim();
+    if value.is_empty() || value.chars().count() > 32_768 || value.chars().any(char::is_control) {
+        return Err("本地路径无效。".into());
+    }
+    let requested = PathBuf::from(value);
+    if !requested.is_absolute() {
+        return Err("本地路径必须是绝对路径。".into());
+    }
+    let path = canonicalize(requested).map_err(|error| format!("本地路径不可访问：{error}"))?;
+    if !path.is_file() && !path.is_dir() {
+        return Err("本地路径不是文件或目录。".into());
+    }
+    Ok(path)
+}
+
+#[tauri::command]
+pub fn desktop_reveal_path(app: AppHandle, path: String) -> Result<bool, String> {
+    let path = canonical_local_path(&path)?;
+    let result = if path.is_dir() {
+        app.opener()
+            .open_path(path.to_string_lossy().into_owned(), None::<&str>)
+    } else {
+        app.opener().reveal_item_in_dir(path)
+    };
+    result.map(|_| true).map_err(|error| error.to_string())
+}
+
 #[tauri::command]
 pub fn desktop_open_releases(app: AppHandle) -> bool {
     desktop_open_url(app, RELEASES_URL.into())
@@ -368,5 +396,27 @@ pub fn desktop_show_notification(app: AppHandle, input: NotificationInput) -> No
         supported: true,
         permission: "granted",
         reason: if shown { "" } else { "show-failed" },
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::canonical_local_path;
+
+    #[test]
+    fn local_path_bridge_accepts_only_existing_absolute_paths() {
+        let current = std::env::current_dir().expect("读取当前目录");
+        let canonical =
+            canonical_local_path(current.to_string_lossy().as_ref()).expect("当前目录应可规范化");
+        assert!(canonical.is_dir());
+        assert!(canonical_local_path("relative/path.txt").is_err());
+        assert!(canonical_local_path("bad\0path").is_err());
+        assert!(canonical_local_path(
+            current
+                .join("pisper-missing-path")
+                .to_string_lossy()
+                .as_ref()
+        )
+        .is_err());
     }
 }

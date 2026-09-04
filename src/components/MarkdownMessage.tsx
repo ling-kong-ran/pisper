@@ -11,7 +11,13 @@ import {
   type ReactNode,
 } from 'react'
 import { Check, Copy } from 'lucide-react'
-import { CodeBlock, Streamdown, useIsCodeFenceIncomplete, type Components } from 'streamdown'
+import {
+  CodeBlock,
+  Streamdown,
+  defaultRemarkPlugins,
+  useIsCodeFenceIncomplete,
+  type Components,
+} from 'streamdown'
 import { useI18n } from '@/app/use-i18n'
 import { Button } from '@/components/ui/button'
 import {
@@ -20,6 +26,7 @@ import {
   streamdownPlugins,
 } from '@/lib/streamdown'
 import { loadKatexStyles, looksLikeMath } from '@/lib/katex-styles'
+import { decodeLocalFileHref, remarkLocalFileLinks } from '@/lib/local-file-links'
 import { cn } from '@/lib/utils'
 
 const MARKDOWN_COMPONENTS: Components = {
@@ -31,6 +38,7 @@ const MARKDOWN_COMPONENTS: Components = {
 }
 const STREAMDOWN_CONTROLS = false
 const STREAMDOWN_REMEND = { linkMode: 'text-only' } as const
+const MARKDOWN_REMARK_PLUGINS = [...Object.values(defaultRemarkPlugins), remarkLocalFileLinks]
 
 function textContent(value: ReactNode): string {
   if (typeof value === 'string' || typeof value === 'number') return String(value)
@@ -65,8 +73,44 @@ function MarkdownLink({
   href,
   ...props
 }: ComponentProps<'a'> & { node?: unknown }) {
+  const { t } = useI18n()
   const content = textContent(label).trim() ? label : href
   if (!href) return <span className={cn('markdown-link', className)}>{content}</span>
+
+  const localFile = decodeLocalFileHref(href)
+  if (localFile) {
+    const title = t('common:markdownMessage.revealLocalPath', { path: localFile.path })
+    const revealPath = typeof window === 'undefined' ? undefined : window.pisperDesktop?.revealPath
+    if (!revealPath) {
+      return (
+        <span
+          className={cn('markdown-link', className)}
+          data-local-path={localFile.path}
+          title={title}
+        >
+          {content}
+        </span>
+      )
+    }
+    return (
+      <button
+        type="button"
+        className={cn(
+          'markdown-link inline cursor-pointer border-0 bg-transparent p-0 [font:inherit]',
+          className,
+        )}
+        data-local-path={localFile.path}
+        title={title}
+        onClick={() => {
+          void revealPath(localFile.path).catch((error: unknown) => {
+            console.error('[markdown] 无法在文件管理器中显示本地路径。', error)
+          })
+        }}
+      >
+        {content}
+      </button>
+    )
+  }
 
   return (
     <a
@@ -216,6 +260,7 @@ function MarkdownMessage({ children, className, streaming = false }: MarkdownMes
         mode="streaming"
         parseMarkdownIntoBlocksFn={parseBlocksFn}
         plugins={streamdownPlugins}
+        remarkPlugins={MARKDOWN_REMARK_PLUGINS}
         remend={STREAMDOWN_REMEND}
       >
         {source}

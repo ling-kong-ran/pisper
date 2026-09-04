@@ -15,6 +15,7 @@ commands.allow = [
   "desktop_restart_for_component_update",
   "desktop_open_url",
   "desktop_open_asset",
+  "desktop_reveal_path",
   "desktop_open_releases",
   "desktop_open_update_log",
   "desktop_get_notification_status",
