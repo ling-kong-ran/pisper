@@ -1,9 +1,9 @@
 {
-  "version": "0.1.29",
-  "tag": "app-v0.1.29",
-  "url": "https://github.com/ling-kong-ran/pisper/releases/tag/app-v0.1.29",
+  "version": "0.1.30",
+  "tag": "app-v0.1.30",
+  "url": "https://github.com/ling-kong-ran/pisper/releases/tag/app-v0.1.30",
   "apk": "app-universal-release-signed.apk",
   "ipa": "pisper-ios-unsigned.ipa",
-  "notes": "- fix(release-app): auto stage sherpa runtime on clean checkout\n- chore(release-runtime): runtime-v0.5.32\n- fix(packaging): budget offline speech runtime separately\n- feat(chat): add offline voice input\n- fix(runtime): detach team state from plan mode and gate run-mode switches\n- fix(chat): keep composer tool tray open when interacting with its floating panels\n- fix(runtime): enforce team file ownership and harden goal completion\n- feat(channels): align channel commands and settings with TUI session controls\n- fix(updater): add download fallback chain and system proxy support",
+  "notes": "- fix(mobile): pass iOS smoke result path through argv\n- chore(release-runtime): runtime-v0.5.34\n- fix(release): require durable iOS runtime health verdict\n- fix(release): harden mobile artifact staging\n- fix(mobile): bound remote startup recovery and fall back locally\n- chore(release-runtime): runtime-v0.5.33\n- feat(chat): stream live speech preview and unload idle recognizer\n- fix(runtime): auto-requeue retryable team failures with backoff",
   "releaseDate": "2026-09-04"
 }
