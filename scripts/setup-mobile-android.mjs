@@ -145,6 +145,7 @@ if (!manifest.includes('android.permission.CAMERA')) {
 }
 for (const permission of [
   'android.permission.RECORD_AUDIO',
+  'android.permission.MODIFY_AUDIO_SETTINGS',
   'android.permission.READ_CONTACTS',
   'android.permission.ACCESS_COARSE_LOCATION',
   'android.permission.ACCESS_FINE_LOCATION',

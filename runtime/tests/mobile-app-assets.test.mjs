@@ -296,13 +296,29 @@ test('Android 与 iOS 软键盘都使用可视视口保持会话输入框可见'
   assert.match(iosPlugin, /document\.documentElement\.dataset\.mobileKeyboard/)
 })
 
-test('标准移动包只声明受控的联系人、相机、照片、前台定位与局域网权限', async () => {
-  const [setup, androidPlugin, iosInfo] = await Promise.all([
+test('标准移动包只声明受控的联系人、相机、麦克风、照片、前台定位与局域网权限', async () => {
+  const [
+    setup,
+    androidPlugin,
+    androidManifest,
+    androidActivity,
+    voiceControl,
+    voiceInput,
+    mobileBridge,
+    mobilePermissions,
+    iosInfo,
+  ] = await Promise.all([
     readFile('scripts/setup-mobile-android.mjs', 'utf8'),
     readFile(
       'src-tauri/mobile-device-plugin/android/src/main/java/app/pisper/mobiledevice/MobileDevicePlugin.kt',
       'utf8',
     ),
+    readFile('src-tauri/mobile-device-plugin/android/src/main/AndroidManifest.xml', 'utf8'),
+    readFile('src-tauri/mobile/android/MainActivity.kt', 'utf8'),
+    readFile('src/features/chat/VoiceInputControl.tsx', 'utf8'),
+    readFile('src/features/chat/voice-input.ts', 'utf8'),
+    readFile('src-tauri/src/mobile/mod.rs', 'utf8'),
+    readFile('src-tauri/permissions/mobile.toml', 'utf8'),
     readFile('src-tauri/Info.ios.plist', 'utf8'),
   ])
   for (const permission of [
@@ -340,6 +356,24 @@ test('标准移动包只声明受控的联系人、相机、照片、前台定�
   assert.match(iosInfo, /NSPhotoLibraryUsageDescription/)
   assert.match(iosInfo, /NSPhotoLibraryAddUsageDescription/)
   assert.doesNotMatch(iosInfo, /NSLocationAlways/)
+  assert.match(setup, /android\.permission\.MODIFY_AUDIO_SETTINGS/)
+  assert.match(androidManifest, /android\.permission\.RECORD_AUDIO/)
+  assert.match(androidManifest, /android\.permission\.MODIFY_AUDIO_SETTINGS/)
+  assert.match(androidActivity, /PermissionRequest\.RESOURCE_AUDIO_CAPTURE/)
+  assert.match(androidActivity, /request\.grant\(audioResources\)/)
+  assert.ok(
+    voiceControl.indexOf('await requestMicrophonePermission()') <
+      voiceControl.indexOf('await startMicrophoneCapture'),
+  )
+  assert.match(voiceInput, /'mobile_request_microphone_permission'/)
+  assert.match(voiceInput, /'mobile_transcribe_pcm'/)
+  assert.match(mobileBridge, /fn mobile_transcribe_pcm/)
+  assert.match(mobileBridge, /\.transcribe_pcm\(pcm_base64\)/)
+  assert.match(mobileBridge, /generate_handler!\[[\s\S]*mobile_transcribe_pcm/)
+  assert.match(androidPlugin, /fun transcribePcm\(invoke: Invoke\)/)
+  assert.match(mobilePermissions, /"mobile_request_microphone_permission"/)
+  assert.match(mobilePermissions, /"mobile_transcribe_pcm"/)
+  assert.match(iosInfo, /NSMicrophoneUsageDescription/)
 })
 
 test('外部应用操作只使用用户可见的标准系统入口', async () => {
