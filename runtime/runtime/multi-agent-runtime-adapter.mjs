@@ -330,6 +330,8 @@ export function createMultiAgentRuntime({
   // 待运行输入已完整持久化在 Team task 中；恢复时直接重建，避免进程内 Map 丢失依赖任务。
   async function schedulePendingTeamSpawns(sessionId) {
     if (!teamWorkflows.isActive(sessionId)) return
+    // 先把到期的可恢复失败任务（上游限流/断流/通信中断）重新排队，再处理租约与就绪任务。
+    await teamWorkflows.requeueRetryableFailures(sessionId)
     const expired = await teamWorkflows.requeueExpiredLeases(sessionId)
     for (const lease of expired) {
       if (!lease.agentId) continue

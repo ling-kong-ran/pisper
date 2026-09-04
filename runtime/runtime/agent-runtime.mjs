@@ -2336,6 +2336,9 @@ export class AgentRuntimeService extends AgentRuntimeFacade {
         const activeGoal = this.goals.get(session.sessionId)
         if (activeGoal?.status !== 'active' || continuationQueued) return
         continuationQueued = true
+        // Team 目标延续前先调度：到期的可恢复失败任务与依赖就绪任务自动重排，
+        // 避免 lead 对着 failed 任务反复撞完成屏障。
+        if (activeGoal.mode === 'team') void value.multiAgentRuntime?.resume?.().catch(() => {})
         void session
           .followUp(teamPrompt(activeGoal))
           .catch(() => {})

@@ -33,6 +33,13 @@ export const MAX_TEAM_TASK_OUTPUT_CHARS = 12_000
 export const MAX_TEAM_SUMMARY_CHARS = 12_000
 // 失败重试由主 Agent 根据错误证据决定；此服务不以固定次数截断仍可恢复的任务。
 export const MAX_TEAM_TASK_ATTEMPTS = null
+// 可自动恢复的错误类型：上游限流/断流与 Agent 通信中断按指数退避重新排队；
+// 真正的执行错误（代码/逻辑）仍交给 lead 决策，不做无意义自动循环。
+export const TEAM_AUTO_RETRY_ERROR_KINDS = Object.freeze(
+  new Set(['upstream_stream', 'agent_communication']),
+)
+export const TEAM_AUTO_RETRY_BASE_MS = 30_000
+export const TEAM_AUTO_RETRY_MAX_MS = 10 * 60_000
 // 保留旧导出以兼容调用方，但 Team 不再用固定时钟终止工作流。
 export const MAX_TEAM_DURATION_MS = null
 export const MAX_TEAM_IDLE_MS = null
@@ -52,6 +59,14 @@ function clone(value) {
 
 function nowIso(now = Date.now()) {
   return new Date(now).toISOString()
+}
+
+// 自动重试退避：30s 起步指数翻倍，封顶 10 分钟，避免上游拥塞期间密集打满队列。
+function autoRetryDelayMs(attempts) {
+  return Math.min(
+    TEAM_AUTO_RETRY_BASE_MS * 2 ** Math.max(0, Number(attempts) - 1),
+    TEAM_AUTO_RETRY_MAX_MS,
+  )
 }
 
 export function classifyTeamTaskError(error, status = '') {
@@ -163,6 +178,7 @@ function durableTask(task) {
     error: task.error,
     errorKind: task.errorKind,
     attempts: task.attempts,
+    nextRetryAt: task.nextRetryAt,
     createdAt: task.createdAt,
     updatedAt: task.updatedAt,
     completedAt: task.completedAt,
@@ -242,6 +258,7 @@ function normalizeTask(value) {
       ? value.errorKind
       : classifyTeamTaskError(value?.error, status),
     attempts: Math.max(0, Math.floor(Number(value?.attempts) || 0)),
+    nextRetryAt: value?.nextRetryAt || null,
     createdAt: value?.createdAt || nowIso(),
     updatedAt: value?.updatedAt || nowIso(),
     completedAt: value?.completedAt || null,
@@ -743,6 +760,7 @@ export class TeamWorkflowService {
     task.leaseExpiresAt = null
     task.error = String(error || '').slice(0, 1_000)
     task.errorKind = classifyTeamTaskError(error, task.status)
+    task.nextRetryAt = null
     task.blockedReason = task.status === 'blocked' ? '等待依赖完成后重新认领' : ''
     task.updatedAt = nowIso(this.now())
     team.updatedAt = task.updatedAt
@@ -831,6 +849,7 @@ export class TeamWorkflowService {
       error: '',
       errorKind: '',
       attempts: 0,
+      nextRetryAt: null,
       createdAt: now,
       updatedAt: now,
       completedAt: null,
@@ -927,6 +946,7 @@ export class TeamWorkflowService {
     task.leaseId = ''
     task.claimedAt = null
     task.leaseExpiresAt = null
+    task.nextRetryAt = null
     task.output = ''
     task.error = ''
     task.errorKind = ''
@@ -960,6 +980,7 @@ export class TeamWorkflowService {
       task.claimedAt = null
       task.leaseExpiresAt = null
     }
+    this.scheduleTaskAutoRetry(task)
     task.updatedAt = nowIso(this.now())
     team.updatedAt = task.updatedAt
     this.unblockTasks(team)
@@ -976,17 +997,61 @@ export class TeamWorkflowService {
     task.status = dependenciesComplete(team, task) ? 'queued' : 'blocked'
     task.error = ''
     task.errorKind = ''
+    task.nextRetryAt = null
     task.output = ''
     task.completedAt = null
     task.leaseId = ''
     task.claimedAt = null
     task.leaseExpiresAt = null
     task.blockedReason = task.status === 'blocked' ? '等待依赖完成后自动认领' : ''
+    task.nextRetryAt = null
     task.updatedAt = nowIso(this.now())
     team.updatedAt = task.updatedAt
     team.lastProgressAt = task.updatedAt
     await this.save()
     return clone(publicTask(task))
+  }
+
+  // 终态任务的自动恢复标记：仅上游流式/通信类错误安排退避重排；
+  // 执行类错误、用户取消与成功完成都不自动重试。
+  scheduleTaskAutoRetry(task) {
+    if (!TERMINAL_TEAM_TASK_STATUSES.has(task.status) || task.status === 'completed') {
+      task.nextRetryAt = null
+      return
+    }
+    // 优先用错误文本重新分类，兼容旧版本写入的笼统 errorKind。
+    const kind = classifyTeamTaskError(task.error, task.status) || task.errorKind
+    task.nextRetryAt = TEAM_AUTO_RETRY_ERROR_KINDS.has(kind)
+      ? nowIso(this.now() + autoRetryDelayMs(task.attempts))
+      : null
+  }
+
+  // 自动重排到期的可恢复失败任务：配合 schedulePendingTeamSpawns 在 lead 延续/恢复时驱动，
+  // 避免 lead 对着 failed 任务反复撞完成屏障形成死循环。
+  async requeueRetryableFailures(sessionId) {
+    const team = this.state.teams[String(sessionId || '')]
+    if (!team || team.status !== 'active') return []
+    const now = this.now()
+    const requeued = []
+    for (const task of Object.values(team.tasks)) {
+      if (!['failed', 'interrupted'].includes(task.status)) continue
+      const kind = classifyTeamTaskError(task.error, task.status) || task.errorKind
+      if (!TEAM_AUTO_RETRY_ERROR_KINDS.has(kind)) continue
+      if (task.nextRetryAt && new Date(task.nextRetryAt).getTime() > now) continue
+      task.status = dependenciesComplete(team, task) ? 'queued' : 'blocked'
+      task.agentId = ''
+      task.leaseId = ''
+      task.claimedAt = null
+      task.leaseExpiresAt = null
+      task.nextRetryAt = null
+      task.blockedReason = task.status === 'blocked' ? '等待依赖完成后自动重试' : ''
+      task.updatedAt = nowIso(now)
+      team.updatedAt = task.updatedAt
+      team.lastProgressAt = task.updatedAt
+      requeued.push(publicTask(task))
+    }
+    if (requeued.length) await this.save()
+    return clone(requeued)
   }
 
   applyAgentUpdate(team, task, agent) {
@@ -1005,6 +1070,7 @@ export class TeamWorkflowService {
     } else if (['starting', 'running'].includes(task.status) && task.leaseId) {
       task.leaseExpiresAt = nowIso(this.now() + TEAM_TASK_LEASE_MS)
     }
+    this.scheduleTaskAutoRetry(task)
     team.updatedAt = task.updatedAt
     team.lastProgressAt = task.updatedAt
     this.unblockTasks(team)
@@ -1118,6 +1184,7 @@ export class TeamWorkflowService {
     task.leaseId = ''
     task.claimedAt = null
     task.leaseExpiresAt = null
+    task.nextRetryAt = null
     task.output = String(output || task.output || '').slice(0, MAX_TEAM_TASK_OUTPUT_CHARS)
     task.error = status === 'completed' ? '' : String(task.error || output || '').slice(0, 1_000)
     task.errorKind = status === 'completed' ? '' : classifyTeamTaskError(task.error, status)

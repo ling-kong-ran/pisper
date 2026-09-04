@@ -8,6 +8,7 @@ import {
   compactTeamProjection,
   projectStoredTeam,
   shouldAttachTeamSnapshot,
+  TEAM_AUTO_RETRY_BASE_MS,
   TEAM_TASK_LEASE_MS,
   TeamWorkflowService,
   classifyTeamTaskError,
@@ -236,6 +237,124 @@ test('team workflow supports repeated recovery without time-based termination', 
   assert.equal(service.taskReady('session-1', leaseTask.id), true)
   assert.equal(service.getTask('session-1', leaseTask.id).status, 'queued')
   await service.write
+})
+
+test('retryable team failures auto-requeue after backoff while execution failures stay terminal', async (t) => {
+  const directory = await mkdtemp(join(tmpdir(), 'pisper-team-auto-retry-'))
+  t.after(() => rm(directory, { recursive: true, force: true }))
+  let clock = Date.parse('2025-01-01T00:00:00.000Z')
+  const service = new TeamWorkflowService({
+    path: join(directory, 'teams.json'),
+    now: () => clock,
+  })
+  await service.init()
+  await service.ensure('session-1', { objective: 'Recover from congestion.' })
+  const congested = await service.registerTask('session-1', { taskName: 'congested' })
+  const buggy = await service.registerTask('session-1', { taskName: 'buggy' })
+  await service.bindAgent('session-1', congested.id, { id: 'agent-1', status: 'running' })
+  await service.bindAgent('session-1', buggy.id, { id: 'agent-2', status: 'running' })
+  await service.updateAgent('session-1', {
+    id: 'agent-1',
+    status: 'failed',
+    error: 'unknown: Too many pending requests, please retry later (request id: x)',
+  })
+  await service.updateAgent('session-1', {
+    id: 'agent-2',
+    status: 'failed',
+    error: 'TypeError: cannot read properties of undefined',
+  })
+
+  // 上游拥塞安排了退避重排；执行错误保持终态，交给 lead 决策。
+  assert.ok(service.findTask('session-1', 'congested').nextRetryAt)
+  assert.equal(service.findTask('session-1', 'buggy').nextRetryAt, null)
+
+  // 兼容旧记录：errorKind 曾是笼统的 execution，但错误文本可重新分类为可恢复。
+  const stored = service.state.teams['session-1']
+  stored.tasks[congested.id].errorKind = 'execution'
+
+  // 退避期内不重排。
+  assert.equal((await service.requeueRetryableFailures('session-1')).length, 0)
+  assert.equal(service.findTask('session-1', 'congested').status, 'failed')
+  clock += TEAM_AUTO_RETRY_BASE_MS
+  const requeued = await service.requeueRetryableFailures('session-1')
+  assert.deepEqual(
+    requeued.map((task) => task.taskName),
+    ['congested'],
+  )
+  assert.equal(service.findTask('session-1', 'congested').status, 'queued')
+  assert.equal(service.findTask('session-1', 'congested').nextRetryAt, null)
+  assert.equal(service.findTask('session-1', 'buggy').status, 'failed')
+})
+
+test('team adapter respawns a congestion-failed task automatically after the backoff elapses', async (t) => {
+  const directory = await mkdtemp(join(tmpdir(), 'pisper-team-auto-respawn-'))
+  t.after(() => rm(directory, { recursive: true, force: true }))
+  let clock = Date.parse('2025-01-01T00:00:00.000Z')
+  const service = new TeamWorkflowService({
+    path: join(directory, 'teams.json'),
+    now: () => clock,
+  })
+  await service.init()
+  await service.ensure('session-1', { objective: 'Auto-respawn after congestion.' })
+  const spawned = []
+  const multiAgents = {
+    async spawn(input) {
+      const agent = {
+        id: `agent-${spawned.length + 1}`,
+        taskName: input.taskName,
+        canonicalName: `/root/${input.taskName}_${spawned.length + 1}`,
+        status: 'running',
+        output: '',
+      }
+      spawned.push({ ...input, agent })
+      return agent
+    },
+    list: () => spawned.map((entry) => entry.agent),
+    find: (_sessionId, target) => spawned.find((entry) => entry.agent.id === target)?.agent || null,
+    sendMessage: async () => null,
+    followup: async () => null,
+    interrupt: () => null,
+  }
+  const runtime = createMultiAgentRuntime({
+    getRuntimeSession: () => ({
+      sessionId: 'session-1',
+      model: { provider: 'test', id: 'model' },
+      thinkingLevel: 'medium',
+      getActiveToolNames: () => ['read'],
+    }),
+    multiAgents,
+    teamWorkflows: service,
+    effectiveCwd: directory,
+    executionMode: 'full-access',
+    enabledTools: ['read'],
+    planReader: null,
+    baseToolNames: ['read'],
+    getExecutionMode: () => 'full-access',
+    getToolRisk: () => null,
+    createInheritedCustomTools: () => [],
+    waitAgent: async () => ({ timedOut: false, agents: [], agent: null }),
+    installSubagentPermissions: () => {},
+    onCompleted: () => {},
+    emitAgentUpdate: () => {},
+  })
+
+  await runtime.spawn({ taskName: 'inspect', message: 'Inspect the workspace.' })
+  assert.equal(spawned.length, 1)
+  await spawned[0].onTerminal({
+    id: 'agent-1',
+    status: 'failed',
+    error: 'unknown: Too many pending requests, please retry later (request id: x)',
+  })
+  assert.equal(service.findTask('session-1', 'inspect').status, 'failed')
+  // 退避期内 resume 不重排。
+  await runtime.resume()
+  assert.equal(spawned.length, 1)
+
+  clock += TEAM_AUTO_RETRY_BASE_MS
+  await runtime.resume()
+  assert.equal(spawned.length, 2)
+  assert.equal(service.findTask('session-1', 'inspect').status, 'running')
+  assert.equal(service.findTask('session-1', 'inspect').agentId, 'agent-2')
 })
 
 test('expired Team leases fence stale workers and retain full completion evidence', async (t) => {
