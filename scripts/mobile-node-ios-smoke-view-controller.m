@@ -40,8 +40,10 @@
             [ViewController writeResultForToken:token passed:NO];
             return;
         }
+        NSString *documents = [NSSearchPathForDirectoriesInDomains(NSDocumentDirectory, NSUserDomainMask, YES) firstObject];
+        NSString *healthResult = [documents stringByAppendingPathComponent:[NSString stringWithFormat:@"health-%@.txt", token]];
         setenv("NODE_MOBILE_RUN_TOKEN", token.UTF8String, 1);
-        int code = [NodeRunner startEngineWithArguments:@[@"node", script]];
+        int code = [NodeRunner startEngineWithArguments:@[@"node", script, healthResult]];
         [ViewController writeResultForToken:token passed:(code == 0)];
         NSLog(@"PISPER_IOS_RUNTIME_SMOKE_NODE_EXIT %d", code);
     });

@@ -38,9 +38,8 @@ import { fileURLToPath } from 'node:url'
 const appRoot = resolve(dirname(fileURLToPath(import.meta.url)), 'pisper')
 const writableRoot = resolve(process.env.HOME, 'Library', 'Application Support', 'PisperSmoke')
 const token = 'pisper-ios-simulator-smoke'
-const runToken = process.env.NODE_MOBILE_RUN_TOKEN
-if (!runToken) throw new Error('iOS Runtime smoke token is missing')
-const healthResult = resolve(process.env.HOME, 'Documents', `health-${runToken}.txt`)
+const healthResult = process.argv[2]
+if (!healthResult) throw new Error('iOS Runtime smoke health result path is missing')
 Object.assign(process.env, {
   PISPER_AGENT_DIR: resolve(writableRoot, 'agent'),
   PISPER_APP_ROOT: appRoot,
