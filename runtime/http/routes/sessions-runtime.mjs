@@ -48,6 +48,46 @@ export const sessionRuntimeRoutes = [
     },
   },
   {
+    method: 'POST',
+    path: '/api/speech/stream/start',
+    async handler({ services, json }) {
+      if (!services.speech) throw new Error('当前 Runtime 未启用语音识别。')
+      services.speech.sweepExpiredSessions()
+      json(200, await services.speech.startSession())
+    },
+  },
+  {
+    method: 'POST',
+    path: '/api/speech/stream/chunk',
+    async handler({ req, services, bodyBuffer, json }) {
+      if (!services.speech) throw new Error('当前 Runtime 未启用语音识别。')
+      const sampleRate = Number(req.headers['x-pisper-sample-rate'])
+      if (sampleRate !== 16000) throw new Error('语音采样率必须是 16000 Hz。')
+      const bytes = await bodyBuffer(32_000_000)
+      if (!bytes.length || bytes.byteLength % 4 !== 0) throw new Error('语音 PCM 数据无效。')
+      const samples = new Float32Array(
+        bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength),
+      )
+      json(200, await services.speech.acceptChunk(req.headers['x-pisper-speech-session'], samples))
+    },
+  },
+  {
+    method: 'POST',
+    path: '/api/speech/stream/finish',
+    async handler({ req, services, json }) {
+      if (!services.speech) throw new Error('当前 Runtime 未启用语音识别。')
+      json(200, await services.speech.finishSession(req.headers['x-pisper-speech-session']))
+    },
+  },
+  {
+    method: 'POST',
+    path: '/api/speech/stream/cancel',
+    async handler({ req, services, json }) {
+      if (!services.speech) throw new Error('当前 Runtime 未启用语音识别。')
+      json(200, await services.speech.cancelSession(req.headers['x-pisper-speech-session']))
+    },
+  },
+  {
     method: 'GET',
     path: '/api/client-info',
     handler({ runtime, req, json }) {

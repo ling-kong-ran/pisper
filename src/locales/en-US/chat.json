@@ -349,7 +349,7 @@
   "voiceInput.failed": "Voice input failed",
   "voiceInput.empty": "No recognizable voice was captured.",
   "voiceInput.retry": "Retry",
-  "voiceInput.localPreview": "Local voice input · text is written to the draft after transcription",
+  "voiceInput.localPreview": "On-device recognition · live preview while speaking, inserted into the draft when you stop",
   "focusSession.commands": "Commands",
   "focusSession.addGuidanceForTheRunningAgent": "Add guidance for the running agent",
   "focusSession.runningAgentComposerHint": "Add guidance for the running agent; Enter to send, Shift + Enter for a new line",
