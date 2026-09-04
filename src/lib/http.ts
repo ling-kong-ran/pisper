@@ -16,6 +16,14 @@ type ApiErrorPayload = {
   [key: string]: unknown
 }
 
+export type ApiErrorKind = 'http' | 'timeout' | 'cancelled' | 'network'
+
+type ApiErrorOptions = {
+  status?: number
+  data?: ApiErrorPayload
+  kind?: ApiErrorKind
+}
+
 export type HttpRequestOptions = Omit<RequestInit, 'body' | 'signal'> & {
   body?: unknown
   data?: unknown
@@ -28,12 +36,14 @@ export const DEFAULT_HTTP_TIMEOUT_MS = 30_000
 export class ApiError extends Error {
   status?: number
   data?: ApiErrorPayload
+  kind?: ApiErrorKind
 
-  constructor(message: string, options: { status?: number; data?: ApiErrorPayload } = {}) {
+  constructor(message: string, options: ApiErrorOptions = {}) {
     super(message)
     this.name = 'ApiError'
     this.status = options.status
     this.data = options.data
+    this.kind = options.kind
   }
 }
 
@@ -115,6 +125,7 @@ export async function requestJson<T = unknown>(
         {
           status: response.status,
           data: normalized,
+          kind: 'http',
         },
       )
     }
@@ -126,10 +137,10 @@ export async function requestJson<T = unknown>(
     }
   } catch (error) {
     if (error instanceof ApiError) throw error
-    if (timedOut) throw new ApiError(`请求超时 (${timeout}ms)`)
+    if (timedOut) throw new ApiError(`请求超时 (${timeout}ms)`, { kind: 'timeout' })
     if (externalSignal?.aborted)
-      throw new ApiError(errorMessage(externalSignal.reason, '请求已取消'))
-    throw new ApiError(errorMessage(error, '请求失败 (network)'))
+      throw new ApiError(errorMessage(externalSignal.reason, '请求已取消'), { kind: 'cancelled' })
+    throw new ApiError(errorMessage(error, '请求失败 (network)'), { kind: 'network' })
   } finally {
     if (timeoutId !== undefined) clearTimeout(timeoutId)
     externalSignal?.removeEventListener('abort', abortFromCaller)

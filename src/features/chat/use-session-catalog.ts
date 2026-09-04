@@ -268,13 +268,37 @@ export function useSessionCatalog({ notify }: SessionCatalogOptions) {
               ? storedId
               : list[0]?.id || '',
         )
+        // 远程回落重载后的首次成功加载：告知用户为何回到本机模式。
+        if (typeof window !== 'undefined' && window.__PISPER_MOBILE_APP__) {
+          try {
+            const { consumeRemoteFallbackNotice } = await import('@/lib/mobile-remote-fallback')
+            if (consumeRemoteFallbackNotice())
+              notify(t('chat:chatPage.remoteUnavailableSwitchedToLocal'))
+          } catch {
+            // 提示模块加载失败不应把已经成功的会话目录变成失败状态。
+          }
+        }
       })
-      .catch((error) => active && setGlobalError(chatErrorMessage(error)))
+      .catch(async (error) => {
+        if (!active) return
+        // 远程桌面链路超时/不可达时自动回落本机模式，而不是停在「正在唤醒 Agent」。
+        if (typeof window !== 'undefined' && window.__PISPER_MOBILE_APP__) {
+          try {
+            const { fallbackRemoteToLocalAfterFailure } =
+              await import('@/lib/mobile-remote-fallback')
+            if (await fallbackRemoteToLocalAfterFailure(error)) return
+          } catch {
+            // 回落模块加载失败时继续展示原始错误，避免初始化 Promise 变成未处理拒绝。
+          }
+        }
+        if (!active) return
+        setGlobalError(chatErrorMessage(error))
+      })
       .finally(() => active && setLoading(false))
     return () => {
       active = false
     }
-  }, [t, updateSessionState, updateSessions])
+  }, [notify, t, updateSessionState, updateSessions])
 
   useEffect(() => {
     if (activeId) localStorage.setItem(STORAGE_KEYS.activeSession, activeId)

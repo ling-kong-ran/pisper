@@ -323,6 +323,7 @@
   "chatPage.untitledChat": "Untitled chat",
   "chatPage.waitingForConfiguration": "Waiting for configuration",
   "chatPage.wakingTheAgent": "Waking the Agent",
+  "chatPage.remoteUnavailableSwitchedToLocal": "Remote desktop connection timed out; switched to on-device mode",
   "chatPage.workingDirectoryChangedToWorkspace": "Working directory changed to {workspace}",
   "chatPage.workingDirectoryPath": "Working directory path",
   "chatPage.enterAWorkingDirectoryPath": "Enter the full path to the working directory (the desktop shell offers a system picker)",

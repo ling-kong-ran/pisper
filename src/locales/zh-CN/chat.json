@@ -323,6 +323,7 @@
   "chatPage.untitledChat": "未命名会话",
   "chatPage.waitingForConfiguration": "等待配置",
   "chatPage.wakingTheAgent": "正在唤醒 Agent",
+  "chatPage.remoteUnavailableSwitchedToLocal": "远程桌面连接超时，已自动切换回本机模式",
   "chatPage.workingDirectoryChangedToWorkspace": "工作目录已切换至 {workspace}",
   "chatPage.workingDirectoryPath": "工作目录路径",
   "chatPage.enterAWorkingDirectoryPath": "输入工作目录的完整路径（桌面端可从系统目录选择器选取）",

@@ -91,6 +91,7 @@ test('fetch JSON client normalizes JSON and non-JSON error payloads', async () =
         assert.ok(error instanceof ApiError)
         assert.equal(error.message, 'invalid request')
         assert.equal(error.status, 422)
+        assert.equal(error.kind, 'http')
         assert.deepEqual(error.data, { error: 'invalid request', code: 'invalid' })
         return true
       })
@@ -98,6 +99,7 @@ test('fetch JSON client normalizes JSON and non-JSON error payloads', async () =
         assert.ok(error instanceof ApiError)
         assert.equal(error.message, 'gateway unavailable')
         assert.equal(error.status, 502)
+        assert.equal(error.kind, 'http')
         assert.deepEqual(error.data, { error: 'gateway unavailable' })
         return true
       })
@@ -116,6 +118,7 @@ test('fetch JSON client applies per-request timeout and external abort signals',
       assert.ok(error instanceof ApiError)
       assert.equal(error.message, '请求超时 (5ms)')
       assert.equal(error.status, undefined)
+      assert.equal(error.kind, 'timeout')
       return true
     })
 
@@ -126,6 +129,7 @@ test('fetch JSON client applies per-request timeout and external abort signals',
       assert.ok(error instanceof ApiError)
       assert.equal(error.message, 'caller stopped')
       assert.equal(error.status, undefined)
+      assert.equal(error.kind, 'cancelled')
       return true
     })
   })
@@ -141,6 +145,7 @@ test('fetch JSON client normalizes network failures as ApiError', async () => {
         assert.ok(error instanceof ApiError)
         assert.equal(error.message, 'connection refused')
         assert.equal(error.status, undefined)
+        assert.equal(error.kind, 'network')
         assert.equal(error.data, undefined)
         return true
       })

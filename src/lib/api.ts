@@ -22,6 +22,7 @@ export async function consumeEventStream<T = Record<string, unknown>>(
     throw new ApiError(data.error || `请求失败 (${response.status})`, {
       status: response.status,
       data,
+      kind: 'http',
     })
   }
   if (!response.body) throw new Error('响应不包含可读取的数据流')
