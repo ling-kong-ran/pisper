@@ -336,10 +336,10 @@ test('runtime navigation uses AgentSession tree semantics and survives a cold re
   await assert.rejects(runtime.navigateSessionTree(created.id, 'missing-entry'), /节点不存在/)
   // 持久化索引：重启后的首次搜索无需重扫会话文件，直接命中磁盘索引。
   const indexPath = join(directory, 'pisper-session-label-index.json')
+  await runtime.dispose()
   const indexRaw = JSON.parse(await readFile(indexPath, 'utf8'))
   assert.equal(indexRaw.version, 1)
   assert.ok(Object.keys(indexRaw.files).length >= 1)
-  await runtime.dispose()
   runtime = new AgentRuntimeService({ cwd: directory, dataDir: directory })
   await runtime.init()
   const fromIndex = await runtime.searchSessionTreeLabels('')
