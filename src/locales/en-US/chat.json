@@ -355,6 +355,8 @@
   "voiceInput.ready": "Ready to record",
   "voiceInput.requesting": "Requesting microphone access",
   "voiceInput.requestingDescription": "Allow Pisper to use your microphone in the system prompt",
+  "voiceInput.requestingWindowsDescription": "Waiting for microphone permission in the upper-left corner of the window.",
+  "voiceInput.recordingPreparing": "Recording · Recognizer starting",
   "voiceInput.recording": "Recording",
   "voiceInput.listening": "Listening",
   "voiceInput.stop": "Stop recording",

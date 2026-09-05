@@ -355,6 +355,8 @@
   "voiceInput.ready": "准备录音",
   "voiceInput.requesting": "请求麦克风权限",
   "voiceInput.requestingDescription": "请在系统提示中允许 Pisper 使用麦克风",
+  "voiceInput.requestingWindowsDescription": "正在等待窗口左上角的麦克风权限确认。",
+  "voiceInput.recordingPreparing": "录音中 · 识别器正在准备",
   "voiceInput.recording": "录音中",
   "voiceInput.listening": "正在聆听",
   "voiceInput.stop": "停止录音",

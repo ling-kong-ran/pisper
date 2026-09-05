@@ -757,10 +757,16 @@ export class AgentRuntimeService extends AgentRuntimeFacade {
     return projectGoalTeam(this.teamWorkflows.get(sessionId), this.goals.get(sessionId), options)
   }
 
+  getLiveTeamProjection(id, goal = this.goals.get(id)) {
+    // 事件沿用本轮策略，避免后台成员更新重新附加普通轮次已清除的旧团队。
+    const attach = this.liveSessions.get(id)?.attachTeam ?? shouldAttachTeamSnapshot({ goal })
+    return projectGoalTeam(attach ? this.teamWorkflows.get(id) : null, goal, { compact: true })
+  }
+
   // 目标状态变化时：更新实时状态、失效投影缓存，并通知前端（goal_update 事件）。
   emitGoalUpdate(sessionId, goal, send = this.goalEmitters.get(sessionId)) {
     const live = this.liveSessions.get(sessionId)
-    const team = this.getTeamProjection(sessionId, { compact: true })
+    const team = this.getLiveTeamProjection(sessionId, goal)
     if (live) {
       live.goal = goal || null
       live.team = team
@@ -800,7 +806,7 @@ export class AgentRuntimeService extends AgentRuntimeFacade {
       ['queued', 'starting', 'running'].includes(item.status),
     )
     const live = this.liveSessions.get(sessionId)
-    const team = this.getTeamProjection(sessionId, { compact: true })
+    const team = this.getLiveTeamProjection(sessionId)
     const { communication, currentActivity } = multiAgentUpdateActivity(
       agent,
       updatedAgent,
@@ -1941,6 +1947,7 @@ export class AgentRuntimeService extends AgentRuntimeFacade {
       sessionUsage: await this.streamProjection.getSessionTokenUsage(session.sessionId),
       promptCache: value.promptCache,
     })
+    live.attachTeam = attachTeam
     this.liveSessions.set(session.sessionId, live)
     this.streamProjection.invalidate(session.sessionId)
     this.goalEmitters.set(session.sessionId, emit)
@@ -2391,7 +2398,7 @@ export class AgentRuntimeService extends AgentRuntimeFacade {
       if (attachTeam && goal?.mode === 'team' && assistantText)
         await this.teamWorkflows.setSummary(session.sessionId, assistantText)
       // 只有本轮确实以 goal/team 语境启动时才回填团队快照；plan 轮保留 null 清除信号。
-      if (attachTeam) live.team = this.getTeamProjection(session.sessionId, { compact: true })
+      live.team = this.getLiveTeamProjection(session.sessionId)
       const finishedAt = finishLiveRun()
       live.contextUsage = this.compactionAwareContextUsage(session, live.compaction)
       emit('done', {

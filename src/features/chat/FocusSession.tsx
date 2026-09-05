@@ -561,6 +561,7 @@ export const FocusSession = memo(function FocusSession({
             </div>
             {supportsVoiceInput() && (
               <VoiceInputControl
+                sessionId={session.id}
                 onInsert={(transcript) => {
                   const prefix = value.trimEnd()
                   updateValue(prefix ? `${prefix}\n${transcript}` : transcript)

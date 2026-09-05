@@ -62,17 +62,33 @@ impl<R: Runtime> MobileDevice<R> {
             .map_err(Into::into)
     }
 
-    pub fn transcribe_pcm(&self, pcm_base64: impl Into<String>) -> Result<Value> {
+    pub fn import_workspace_directory(&self, destination_root: String) -> Result<Value> {
+        #[derive(Serialize)]
+        #[serde(rename_all = "camelCase")]
+        struct ImportWorkspaceRequest {
+            destination_root: String,
+        }
+        self.0
+            .run_mobile_plugin(
+                "importWorkspaceDirectory",
+                ImportWorkspaceRequest { destination_root },
+            )
+            .map_err(Into::into)
+    }
+
+    pub fn transcribe_pcm(&self, pcm_base64: impl Into<String>, hotwords: String) -> Result<Value> {
         #[derive(Serialize)]
         #[serde(rename_all = "camelCase")]
         struct TranscribeRequest {
             pcm_base64: String,
+            hotwords: String,
         }
         self.0
             .run_mobile_plugin(
                 "transcribePcm",
                 TranscribeRequest {
                     pcm_base64: pcm_base64.into(),
+                    hotwords,
                 },
             )
             .map_err(Into::into)

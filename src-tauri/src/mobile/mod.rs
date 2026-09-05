@@ -20,6 +20,7 @@ pub mod store;
 pub mod update;
 #[cfg(not(feature = "mobile-store"))]
 pub mod update;
+mod workspace_import;
 
 use std::collections::HashMap;
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -805,22 +806,51 @@ fn validate_mobile_pcm_base64(pcm_base64: &str) -> Result<(), String> {
     Ok(())
 }
 
+fn validate_mobile_speech_hotwords(hotwords: &str) -> Result<(), String> {
+    if hotwords.len() > 20 * 1024 {
+        return Err("mobile_hotwords_too_large".into());
+    }
+    if hotwords.is_empty() {
+        return Ok(());
+    }
+    // 热词只能携带口语词条，禁止注入 sherpa 的权重、注释和分隔语法。
+    if hotwords.chars().any(|character| {
+        matches!(character, ':' | '#' | '@' | '/')
+            || ((character.is_control() || character.is_whitespace())
+                && !matches!(character, '\n' | ' '))
+    }) {
+        return Err("mobile_hotwords_invalid_character".into());
+    }
+    let terms = hotwords.split('\n').collect::<Vec<_>>();
+    if terms.len() > 128
+        || terms
+            .iter()
+            .any(|term| term.trim().is_empty() || term.encode_utf16().count() > 128)
+    {
+        return Err("mobile_hotwords_invalid_terms".into());
+    }
+    Ok(())
+}
+
 #[tauri::command]
 fn mobile_transcribe_pcm(
     app: tauri::AppHandle,
     pcm_base64: String,
+    hotwords: Option<String>,
 ) -> Result<serde_json::Value, String> {
     #[cfg(target_os = "android")]
     {
+        let hotwords = hotwords.unwrap_or_default();
+        validate_mobile_speech_hotwords(&hotwords)?;
         validate_mobile_pcm_base64(&pcm_base64)?;
         return app
             .mobile_device()
-            .transcribe_pcm(pcm_base64)
+            .transcribe_pcm(pcm_base64, hotwords)
             .map_err(|error| error.to_string());
     }
     #[cfg(not(target_os = "android"))]
     {
-        let _ = (app, pcm_base64);
+        let _ = (app, pcm_base64, hotwords);
         Err("当前平台不支持本地语音识别。".into())
     }
 }
@@ -845,6 +875,68 @@ fn mobile_ensure_local_network_permission(app: tauri::AppHandle) -> Result<(), S
     #[cfg(not(target_os = "android"))]
     let _ = app;
     Ok(())
+}
+
+#[tauri::command]
+async fn mobile_import_workspace_directory(
+    app: tauri::AppHandle,
+    state: State<'_, MobileShared>,
+) -> Result<serde_json::Value, String> {
+    #[cfg(target_os = "android")]
+    {
+        let store = state.store.clone();
+        let on_device = state.on_device.clone();
+        return tauri::async_runtime::spawn_blocking(move || {
+            {
+                let store = store.lock().map_err(|_| "state poisoned".to_string())?;
+                workspace_import::ensure_local_import(
+                    store.last_mode(),
+                    on_device.status().running,
+                )?;
+            }
+            let destination_root = app
+                .path()
+                .app_data_dir()
+                .map_err(|error| error.to_string())?
+                .join("local-runtime-data")
+                .join("workspace");
+            let destination = destination_root
+                .to_str()
+                .ok_or_else(|| "工作区根目录不是 UTF-8 路径。".to_string())?
+                .to_string();
+            let result = app
+                .mobile_device()
+                .import_workspace_directory(destination)
+                .map_err(|error| error.to_string())?;
+            // 系统选择器可能长时间停留，返回时必须重新确认模式，并在映射期间阻止切换。
+            let store = store.lock().map_err(|_| "state poisoned".to_string())?;
+            workspace_import::ensure_local_import(store.last_mode(), on_device.status().running)?;
+            match result.get("path") {
+                Some(serde_json::Value::Null) => Ok(serde_json::json!({ "path": null })),
+                Some(serde_json::Value::String(path)) => {
+                    let path = on_device
+                        .import_workspace_path(&destination_root, std::path::Path::new(path))?;
+                    let path = path
+                        .to_str()
+                        .ok_or_else(|| "导入目录不是 UTF-8 路径。".to_string())?;
+                    let name = result
+                        .get("name")
+                        .and_then(serde_json::Value::as_str)
+                        .filter(|name| !name.is_empty())
+                        .ok_or_else(|| "导入结果缺少文件夹名称。".to_string())?;
+                    Ok(serde_json::json!({ "path": path, "name": name }))
+                }
+                _ => Err("原生工作区导入结果无效。".into()),
+            }
+        })
+        .await
+        .map_err(|error| error.to_string())?;
+    }
+    #[cfg(not(target_os = "android"))]
+    {
+        let _ = (app, state);
+        Err("当前平台不支持原生工作区导入。".into())
+    }
 }
 
 #[tauri::command]
@@ -1109,6 +1201,7 @@ pub fn run_mobile() {
             mobile_enter_local,
             mobile_leave_local,
             mobile_forget_server,
+            mobile_import_workspace_directory,
             mobile_open_asset,
             mobile_execute_device_operation,
             update::mobile_app_info,
@@ -1158,7 +1251,8 @@ mod tests {
     use super::{
         recovery_navigation_url, startup_api_context, startup_cookie,
         startup_location_replace_script, validate_mobile_pcm_base64,
-        validate_startup_contract_values, BASE64_STANDARD, MOBILE_VOICE_MAX_BASE64_BYTES,
+        validate_mobile_speech_hotwords, validate_startup_contract_values, BASE64_STANDARD,
+        MOBILE_VOICE_MAX_BASE64_BYTES,
     };
 
     #[test]
@@ -1180,6 +1274,40 @@ mod tests {
         assert!(
             validate_mobile_pcm_base64(&"A".repeat(MOBILE_VOICE_MAX_BASE64_BYTES + 4)).is_err()
         );
+    }
+
+    #[test]
+    fn mobile_speech_hotwords_validate_terms_and_reject_grammar_injection() {
+        for value in [
+            "",
+            "pisper\nvisual studio code",
+            "中文术语",
+            &"a".repeat(128),
+        ] {
+            assert!(validate_mobile_speech_hotwords(value).is_ok(), "{value:?}");
+        }
+        for value in [
+            "term:9",
+            "term#comment",
+            "term@token",
+            "term/other",
+            "term\r\nother",
+            "term\tother",
+            "term\0",
+            "term\u{7f}",
+            "term\u{85}",
+            "term\u{a0}other",
+            "term\u{2028}other",
+            "term\n",
+            "\nterm",
+            " ",
+        ] {
+            assert!(validate_mobile_speech_hotwords(value).is_err(), "{value:?}");
+        }
+        assert!(validate_mobile_speech_hotwords(&"a".repeat(129)).is_err());
+        assert!(validate_mobile_speech_hotwords(&vec!["a"; 128].join("\n")).is_ok());
+        assert!(validate_mobile_speech_hotwords(&vec!["a"; 129].join("\n")).is_err());
+        assert!(validate_mobile_speech_hotwords(&vec!["中".repeat(128); 128].join("\n")).is_err());
     }
 
     #[test]

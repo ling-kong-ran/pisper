@@ -208,7 +208,7 @@ function activityPresentation(
       : planProgress(activityPlan, t)
   } else if (activity.type === 'agent') {
     const agent = activity.agent || {}
-    const name = agent.canonicalName || agent.taskName || t('chat:agentRunActivity.subagent')
+    const name = cleanInline(agent.taskName) || t('chat:agentRunActivity.subagent')
     const state = agentActivityState(agent.status)
     title = agentActivityTitle(agent.status, name, t)
     tone = state.tone

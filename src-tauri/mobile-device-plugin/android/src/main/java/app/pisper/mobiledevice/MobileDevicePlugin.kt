@@ -39,7 +39,7 @@ import com.k2fsa.sherpa.onnx.FeatureConfig
 import com.k2fsa.sherpa.onnx.OnlineModelConfig
 import com.k2fsa.sherpa.onnx.OnlineRecognizer
 import com.k2fsa.sherpa.onnx.OnlineRecognizerConfig
-import com.k2fsa.sherpa.onnx.OnlineZipformer2CtcModelConfig
+import com.k2fsa.sherpa.onnx.OnlineTransducerModelConfig
 import androidx.activity.result.ActivityResult
 import androidx.core.content.ContextCompat
 import androidx.core.content.FileProvider
@@ -135,8 +135,14 @@ class OperationArgs {
 }
 
 @InvokeArg
+class ImportWorkspaceArgs {
+    var destinationRoot: String = ""
+}
+
+@InvokeArg
 class TranscribeArgs {
     var pcmBase64: String = ""
+    var hotwords: String = ""
 }
 
 class PisperAssetFileProvider : FileProvider()
@@ -166,6 +172,7 @@ class MobileDevicePlugin(private val activity: Activity) : Plugin(activity) {
     private val worker = Executors.newSingleThreadExecutor()
     // 共享执行器会排队任务，因此必须在入队前占位，避免多个昂贵识别任务连续占用内存与 CPU。
     private val speechInFlight = AtomicBoolean(false)
+    private val workspaceImportInFlight = AtomicBoolean(false)
 
     private fun state(alias: String): String = getPermissionState(alias).toString().lowercase()
 
@@ -304,22 +311,48 @@ class MobileDevicePlugin(private val activity: Activity) : Plugin(activity) {
         return samples
     }
 
-    private fun recognizeSpeech(samples: FloatArray): String {
+    private fun validateSpeechHotwords(hotwords: String) {
+        require(hotwords.length <= 20 * 1024 && hotwords.toByteArray(Charsets.UTF_8).size <= 20 * 1024) {
+            "Speech hotwords exceed 20 KiB"
+        }
+        if (hotwords.isEmpty()) return
+        // 插件也校验输入，避免绕过 Rust 后注入 sherpa 热词语法或额外控制字符。
+        require(hotwords.none { character ->
+            character in ":#@/" ||
+                ((character.isISOControl() || character.isWhitespace()) && character != '\n' && character != ' ')
+        }) { "Speech hotwords contain invalid characters" }
+        val terms = hotwords.split('\n')
+        require(terms.size <= 128 && terms.all { it.isNotBlank() && it.length <= 128 }) {
+            "Speech hotwords exceed term limits"
+        }
+    }
+
+    private fun recognizeSpeech(samples: FloatArray, hotwords: String): String {
         val recognizer = OnlineRecognizer(
             activity.assets,
             OnlineRecognizerConfig(
                 featConfig = FeatureConfig(sampleRate = SPEECH_SAMPLE_RATE, featureDim = 80),
                 modelConfig = OnlineModelConfig(
-                    zipformer2Ctc = OnlineZipformer2CtcModelConfig("speech-model/model.int8.onnx"),
+                    // X-ASR 480ms 使用中英标点 transducer，BPE 词表需与三个网络文件配套。
+                    transducer = OnlineTransducerModelConfig(
+                        encoder = "speech-model/encoder.int8.onnx",
+                        decoder = "speech-model/decoder.onnx",
+                        joiner = "speech-model/joiner.int8.onnx",
+                    ),
                     tokens = "speech-model/tokens.txt",
+                    modelingUnit = "bpe",
+                    bpeVocab = "speech-model/bpe.vocab",
                     numThreads = 1,
                     provider = "cpu",
                 ),
-                decodingMethod = "greedy_search",
+                decodingMethod = if (hotwords.isEmpty()) "greedy_search" else "modified_beam_search",
+                maxActivePaths = 2,
+                hotwordsScore = 1.5f,
             ),
         )
         try {
-            val stream = recognizer.createStream()
+            // 当前 Kotlin AAR 没有 hotwordsBuf；流级热词使用斜线分隔，无需写入设备文件。
+            val stream = recognizer.createStream(hotwords.replace('\n', '/'))
             try {
                 stream.acceptWaveform(samples, SPEECH_SAMPLE_RATE)
                 while (recognizer.isReady(stream)) recognizer.decode(stream)
@@ -336,7 +369,15 @@ class MobileDevicePlugin(private val activity: Activity) : Plugin(activity) {
 
     @Command
     fun transcribePcm(invoke: Invoke) {
-        val pcmBase64 = invoke.parseArgs(TranscribeArgs::class.java).pcmBase64
+        val args = invoke.parseArgs(TranscribeArgs::class.java)
+        val pcmBase64 = args.pcmBase64
+        val hotwords = args.hotwords
+        try {
+            validateSpeechHotwords(hotwords)
+        } catch (error: IllegalArgumentException) {
+            invoke.reject(error.message ?: "Invalid speech hotwords")
+            return
+        }
         // 先限制编码字符串，确保攻击性输入不会在 Base64 解码时产生超出预算的分配。
         if (pcmBase64.isEmpty()) {
             invoke.reject("PCM data is empty")
@@ -354,7 +395,7 @@ class MobileDevicePlugin(private val activity: Activity) : Plugin(activity) {
         try {
             worker.execute {
                 try {
-                    val text = recognizeSpeech(decodeSpeechSamples(pcmBase64))
+                    val text = recognizeSpeech(decodeSpeechSamples(pcmBase64), hotwords)
                     invoke.resolve(JSObject().apply { put("text", text) })
                 } catch (error: Throwable) {
                     invoke.reject(error.message ?: "Speech recognition failed")
@@ -365,6 +406,66 @@ class MobileDevicePlugin(private val activity: Activity) : Plugin(activity) {
         } catch (error: Throwable) {
             speechInFlight.set(false)
             invoke.reject(error.message ?: "Speech recognition failed")
+        }
+    }
+
+    @Command
+    fun importWorkspaceDirectory(invoke: Invoke) {
+        if (!workspaceImportInFlight.compareAndSet(false, true)) {
+            invoke.reject("Workspace import is already in progress")
+            return
+        }
+        try {
+            val args = invoke.parseArgs(ImportWorkspaceArgs::class.java)
+            require(args.destinationRoot.isNotBlank()) { "Workspace destination is missing" }
+            activity.runOnUiThread {
+                try {
+                    // 仅申请本次读取授权，不持久化 URI，也不申请原目录写权限。
+                    val intent = Intent(Intent.ACTION_OPEN_DOCUMENT_TREE)
+                        .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                    startActivityForResult(invoke, intent, "importWorkspaceDirectoryResult")
+                } catch (error: Throwable) {
+                    workspaceImportInFlight.set(false)
+                    invoke.reject(error.message ?: "Unable to open the system folder picker")
+                }
+            }
+        } catch (error: Throwable) {
+            workspaceImportInFlight.set(false)
+            invoke.reject(error.message ?: "Unable to open the system folder picker")
+        }
+    }
+
+    @ActivityCallback
+    private fun importWorkspaceDirectoryResult(invoke: Invoke, result: ActivityResult) {
+        if (result.resultCode == Activity.RESULT_CANCELED) {
+            workspaceImportInFlight.set(false)
+            invoke.resolve(JSObject().apply { put("path", org.json.JSONObject.NULL) })
+            return
+        }
+        try {
+            require(result.resultCode == Activity.RESULT_OK) { "System folder picker failed" }
+            val tree = requireNotNull(result.data?.data) { "System folder picker returned no directory" }
+            val destinationRoot = invoke.parseArgs(ImportWorkspaceArgs::class.java).destinationRoot
+            worker.execute {
+                try {
+                    val imported = WorkspaceDirectoryImporter(::createWorkspaceFile).importDirectory(
+                        activity.dataDir,
+                        destinationRoot,
+                        SafWorkspaceDocumentSource(activity.contentResolver, tree),
+                    )
+                    workspaceImportInFlight.set(false)
+                    invoke.resolve(JSObject().apply {
+                        put("path", imported.absolutePath)
+                        put("name", imported.name)
+                    })
+                } catch (error: Throwable) {
+                    workspaceImportInFlight.set(false)
+                    invoke.reject(error.message ?: "Unable to import workspace directory")
+                }
+            }
+        } catch (error: Throwable) {
+            workspaceImportInFlight.set(false)
+            invoke.reject(error.message ?: "Unable to import workspace directory")
         }
     }
 

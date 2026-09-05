@@ -1,4 +1,4 @@
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::sync::Mutex;
 
 use super::embedded_runtime::EmbeddedRuntime;
@@ -98,6 +98,29 @@ impl OnDeviceRuntime {
                 runtime_kind: "node".into(),
             }
         }
+    }
+
+    pub(super) fn import_workspace_path(
+        &self,
+        host_root: &Path,
+        imported: &Path,
+    ) -> Result<PathBuf, String> {
+        // 路径映射必须与实际承载保持一致，不能依赖对外统一为 node 的状态字段。
+        let _lifecycle = self
+            .lifecycle
+            .lock()
+            .map_err(|_| "本机 Runtime 生命周期锁已损坏。".to_string())?;
+        let active = *self
+            .active
+            .lock()
+            .map_err(|_| "本机 Runtime 承载锁已损坏。".to_string())?;
+        let runtime_root = match active {
+            #[cfg(not(feature = "mobile-embedded-only"))]
+            Some(Carrier::Root) if self.root.status().running => Some(Path::new("/workspace")),
+            Some(Carrier::Embedded) if self.embedded.status().running => None,
+            _ => return Err("本机 Runtime 尚未运行。".into()),
+        };
+        super::workspace_import::resolve_imported_workspace(host_root, imported, runtime_root)
     }
 
     pub fn ensure_started(&self) -> Result<RootRuntimeStatus, String> {

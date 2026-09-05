@@ -1,4 +1,6 @@
 import { waitForMobileRuntimeReady } from '@/lib/http'
+import { apiJson } from '@/lib/api'
+import { formatSpeechTerms, speechHotwords } from '@shared/speech-terms.mjs'
 
 export const VOICE_SAMPLE_RATE = 16_000
 export const VOICE_MAX_DURATION_SECONDS = 60
@@ -66,18 +68,41 @@ class RuntimeSpeechRecognizer implements SpeechRecognizer {
   private sendChain: Promise<void> = Promise.resolve()
   private finished = false
   private retainedSamples = 0
+  private terms: string[] = []
+  private initializing: Promise<void> | null = null
 
-  async start() {
+  constructor(private chatSessionId = '') {}
+
+  start() {
+    this.initializing = this.initialize()
+    return this.initializing
+  }
+
+  private async initialize() {
     this.chunks = []
     this.pending = []
     this.finished = false
     this.retainedSamples = 0
-    this.controller = new AbortController()
-    if (window.__PISPER_MOBILE_APP__) return
+    const controller = new AbortController()
+    this.controller = controller
     await waitForMobileRuntimeReady()
+    controller.signal.throwIfAborted()
+    if (window.__PISPER_MOBILE_APP__) {
+      this.terms = []
+      const payload = await apiJson<{ terms: string[] }>(
+        `/api/speech/terms?sessionId=${encodeURIComponent(this.chatSessionId)}`,
+        { signal: controller.signal },
+      )
+      if (!Array.isArray(payload.terms) || payload.terms.some((term) => typeof term !== 'string')) {
+        throw new Error('语音术语响应无效。')
+      }
+      this.terms = payload.terms
+      return
+    }
     const response = await fetch('/api/speech/stream/start', {
       method: 'POST',
-      signal: this.controller.signal,
+      headers: { 'X-Pisper-Chat-Session': this.chatSessionId },
+      signal: AbortSignal.any([controller.signal, AbortSignal.timeout(30_000)]),
     })
     if (!response.ok) {
       // 旧版 Runtime 没有流式接口，降级为停止后一次性转写。
@@ -89,13 +114,24 @@ class RuntimeSpeechRecognizer implements SpeechRecognizer {
     }
     const payload = (await response.json()) as { id?: string }
     if (!payload.id) throw new Error('语音识别会话创建失败。')
+    if (controller.signal.aborted) {
+      // 取消可能发生在解析响应期间，已创建的服务端会话不能重新挂回录音控件。
+      await fetch('/api/speech/stream/cancel', {
+        method: 'POST',
+        headers: { 'X-Pisper-Speech-Session': payload.id },
+      }).catch(() => {})
+      controller.signal.throwIfAborted()
+    }
     this.sessionId = payload.id
+    // 模型冷启动期间已经可以录音；创建会话后按原顺序补发缓存，不能丢掉开头。
+    this.pending.push(...this.chunks.splice(0))
+    this.retainedSamples = 0
     this.flushTimer = window.setInterval(() => void this.flushPending(), 1_000)
   }
 
   acceptPcm(samples: Float32Array) {
     if (!samples.length || this.finished) return false
-    if (window.__PISPER_MOBILE_APP__) {
+    if (window.__PISPER_MOBILE_APP__ || !this.sessionId) {
       const remaining = VOICE_MAX_SAMPLES - this.retainedSamples
       if (remaining <= 0) return true
       const copy = samples.slice(0, remaining)
@@ -175,8 +211,12 @@ class RuntimeSpeechRecognizer implements SpeechRecognizer {
       }
       const payload = await mobileInvoke<{ text?: string }>('mobile_transcribe_pcm', {
         pcmBase64: btoa(binary),
+        hotwords: speechHotwords(this.terms),
       })
-      const text = typeof payload.text === 'string' ? payload.text.trim() : ''
+      const text = formatSpeechTerms(
+        typeof payload.text === 'string' ? payload.text.trim() : '',
+        this.terms,
+      )
       if (!text) throw new Error('未识别到语音内容。')
       this.emitPartial(text)
       return text
@@ -187,6 +227,7 @@ class RuntimeSpeechRecognizer implements SpeechRecognizer {
       headers: {
         'Content-Type': 'application/octet-stream',
         'X-Pisper-Sample-Rate': String(VOICE_SAMPLE_RATE),
+        'X-Pisper-Chat-Session': this.chatSessionId,
       },
       body: samples.buffer as ArrayBuffer,
       signal: this.controller?.signal,
@@ -200,6 +241,7 @@ class RuntimeSpeechRecognizer implements SpeechRecognizer {
   }
 
   async finish() {
+    await this.initializing
     if (!this.controller) throw new Error('语音识别尚未启动。')
     if (this.sessionId && !this.legacy) return this.finishStreaming()
     this.finished = true
@@ -234,8 +276,10 @@ class RuntimeSpeechRecognizer implements SpeechRecognizer {
   }
 }
 
-export function createSpeechRecognizer(): SpeechRecognizer {
-  return new RuntimeSpeechRecognizer()
+export function createSpeechRecognizer({
+  chatSessionId = '',
+}: { chatSessionId?: string } = {}): SpeechRecognizer {
+  return new RuntimeSpeechRecognizer(chatSessionId)
 }
 
 const VOICE_WORKLET_JS = `

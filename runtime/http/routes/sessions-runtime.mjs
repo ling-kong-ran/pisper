@@ -8,7 +8,27 @@ function isMobileAppRequest(runtime, req) {
   )
 }
 
+async function speechTermsForSession(runtime, services, sessionId) {
+  if (!services.speechTerms) return []
+  // 只接受会话标识，由 Runtime 解析目录；客户端不能提交任意文件系统路径。
+  const id = typeof sessionId === 'string' ? sessionId.trim() : ''
+  const cwd =
+    id && typeof runtime.sessionWorkspaceCwd === 'function'
+      ? await runtime.sessionWorkspaceCwd(id)
+      : ''
+  return services.speechTerms.termsForWorkspace(cwd)
+}
+
 export const sessionRuntimeRoutes = [
+  {
+    method: 'GET',
+    path: '/api/speech/terms',
+    async handler({ runtime, services, url, json }) {
+      json(200, {
+        terms: await speechTermsForSession(runtime, services, url.searchParams.get('sessionId')),
+      })
+    },
+  },
   {
     method: 'GET',
     path: '/api/health',
@@ -34,7 +54,7 @@ export const sessionRuntimeRoutes = [
   {
     method: 'POST',
     path: '/api/speech/transcribe',
-    async handler({ req, services, bodyBuffer, json }) {
+    async handler({ runtime, req, services, bodyBuffer, json }) {
       const sampleRate = Number(req.headers['x-pisper-sample-rate'])
       if (sampleRate !== 16000) throw new Error('语音采样率必须是 16000 Hz。')
       if (!services.speech) throw new Error('当前 Runtime 未启用语音识别。')
@@ -43,17 +63,27 @@ export const sessionRuntimeRoutes = [
       const samples = new Float32Array(
         bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength),
       )
-      const text = await services.speech.transcribe(samples)
+      const terms = await speechTermsForSession(
+        runtime,
+        services,
+        req.headers['x-pisper-chat-session'],
+      )
+      const text = await services.speech.transcribe(samples, { terms })
       json(200, { text })
     },
   },
   {
     method: 'POST',
     path: '/api/speech/stream/start',
-    async handler({ services, json }) {
+    async handler({ runtime, req, services, json }) {
       if (!services.speech) throw new Error('当前 Runtime 未启用语音识别。')
       services.speech.sweepExpiredSessions()
-      json(200, await services.speech.startSession())
+      const terms = await speechTermsForSession(
+        runtime,
+        services,
+        req.headers['x-pisper-chat-session'],
+      )
+      json(200, await services.speech.startSession({ terms }))
     },
   },
   {

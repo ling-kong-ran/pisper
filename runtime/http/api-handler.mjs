@@ -134,6 +134,7 @@ export function createApiHandler(
     remoteAccess,
     remoteControl,
     speech,
+    speechTerms,
     runs,
   } = {},
 ) {
@@ -145,6 +146,7 @@ export function createApiHandler(
     remoteAccess,
     remoteControl,
     speech,
+    speechTerms,
     runs: runs || new RunRegistry(),
   }
   return async function handleApi(req, res, url) {

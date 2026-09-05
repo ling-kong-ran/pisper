@@ -3,15 +3,28 @@ import { createReadStream } from 'node:fs'
 import { access, copyFile, mkdir, rm } from 'node:fs/promises'
 import { join, resolve } from 'node:path'
 import { pathToFileURL } from 'node:url'
+import { exportSpeechBpeVocab } from './speech-bpe.mjs'
 
 const MODEL_FILES = [
   {
-    name: 'model.int8.onnx',
-    sha256: '68c9c943840f7d9cf3e8a4970ba50f404feb5277f611fa82b7e72267786fa84a',
+    name: 'encoder.int8.onnx',
+    sha256: '908596dcc137a73b95be908ca55e88caa1b3dbbe8027c171615f4b0609c5eb1e',
+  },
+  {
+    name: 'decoder.onnx',
+    sha256: 'a1cbc9eac2d5e3fb6617a218c67ad6daaa7f4e0fd225f08b2c22ab0413c8c257',
+  },
+  {
+    name: 'joiner.int8.onnx',
+    sha256: 'aedb7fa697b2ab43f20499826fff7c997eea7d67db77be97769aeeeb726e63b3',
   },
   {
     name: 'tokens.txt',
-    sha256: '6fed8c6c248516f38e7faa19404b57413e8ce259f1cbc1fa4aebc86eac32fdfd',
+    sha256: 'b818a60878b9aae978cbb8ad594acbd403d76d1af2e31ef4197c84e2dbdba27c',
+  },
+  {
+    name: 'bpe.model',
+    sha256: 'f87a38025a5fdd1e4e9591f6a44bb81295097ce0b80df6f4ab9f44e52c64ca5f',
   },
 ]
 
@@ -47,6 +60,7 @@ export async function stageAndroidSpeechModel({ sourceDir, targetDir }) {
     ),
   )
   await verifyModelDirectory(resolvedTarget)
+  await exportSpeechBpeVocab(join(resolvedTarget, 'bpe.model'), join(resolvedTarget, 'bpe.vocab'))
   return resolvedTarget
 }
 

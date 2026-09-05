@@ -1,4 +1,4 @@
-import { LoaderCircle, Mic, MicOff, RotateCcw, X } from 'lucide-react'
+import { ArrowUpLeft, LoaderCircle, Mic, MicOff, RotateCcw, X } from 'lucide-react'
 import { useI18n } from '@/app/use-i18n'
 import { useEffect, useRef, useState } from 'react'
 import { AnchoredPopupMenu } from './AnchoredPopupMenu'
@@ -35,9 +35,11 @@ function errorMessage(error: unknown, fallback: string) {
 
 export function VoiceInputControl({
   onInsert,
+  sessionId,
   disabled = false,
 }: {
   onInsert: (text: string) => void
+  sessionId?: string
   disabled?: boolean
 }) {
   const { t } = useI18n()
@@ -45,6 +47,8 @@ export function VoiceInputControl({
   const [elapsed, setElapsed] = useState(0)
   const [transcript, setTranscript] = useState('')
   const [error, setError] = useState('')
+  const [initializing, setInitializing] = useState(false)
+  const [windowsDesktop, setWindowsDesktop] = useState(false)
   const recognizerRef = useRef<SpeechRecognizer | null>(null)
   const captureRef = useRef<MicrophoneCapture | null>(null)
   const unsubscribeRef = useRef<(() => void) | null>(null)
@@ -54,6 +58,19 @@ export function VoiceInputControl({
   const stoppingRef = useRef(false)
   const anchorRef = useRef<HTMLDivElement>(null)
   const menuRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    let active = true
+    void window.pisperDesktop
+      ?.getAppInfo()
+      .then((info) => {
+        if (active) setWindowsDesktop(info.platform === 'win32')
+      })
+      .catch(() => {})
+    return () => {
+      active = false
+    }
+  }, [])
 
   useEffect(() => {
     if (stage !== 'recording') return undefined
@@ -77,10 +94,10 @@ export function VoiceInputControl({
     unsubscribeRef.current = null
     const capture = captureRef.current
     captureRef.current = null
-    await capture?.stop()
     const recognizer = recognizerRef.current
     recognizerRef.current = null
-    await recognizer?.dispose()
+    // 先摘下本轮引用，再等待清理，避免关闭后立即重试时释放掉新一轮资源。
+    await Promise.allSettled([capture?.stop(), recognizer?.dispose()])
   }
 
   useEffect(
@@ -95,6 +112,7 @@ export function VoiceInputControl({
     clearRecordingLimitTimer()
     stoppingRef.current = false
     setStage('idle')
+    setInitializing(false)
     setElapsed(0)
     setTranscript('')
     setError('')
@@ -116,13 +134,27 @@ export function VoiceInputControl({
     setTranscript('')
     setError('')
 
-    const recognizer = createSpeechRecognizer()
+    const recognizer = createSpeechRecognizer({ chatSessionId: sessionId })
     recognizerRef.current = recognizer
     unsubscribeRef.current = recognizer.onPartial(setTranscript)
+    const failStart = async (caught: unknown) => {
+      if (operation !== operationRef.current) return
+      const failureOperation = ++operationRef.current
+      await releaseResources()
+      if (failureOperation !== operationRef.current) return
+      const message = errorMessage(caught, t('chat:voiceInput.failed'))
+      setError(message === 'permission' ? t('chat:voiceInput.permissionDenied') : message)
+      setInitializing(false)
+      setStage('error')
+    }
     try {
       await requestMicrophonePermission()
       if (operation !== operationRef.current) return
-      await recognizer.start()
+      setInitializing(true)
+      // 麦克风授权后立即采集，模型在后台加载；识别器负责缓存开头和等待最终转写。
+      void recognizer.start().then(() => {
+        if (operation === operationRef.current) setInitializing(false)
+      }, failStart)
       const capture = await startMicrophoneCapture((samples) => {
         if (recognizer.acceptPcm(samples)) stopRecordingRef.current()
       })
@@ -140,11 +172,7 @@ export function VoiceInputControl({
         )
       }
     } catch (caught) {
-      if (operation !== operationRef.current) return
-      await releaseResources()
-      const message = errorMessage(caught, t('chat:voiceInput.failed'))
-      setError(message === 'permission' ? t('chat:voiceInput.permissionDenied') : message)
-      setStage('error')
+      await failStart(caught)
     }
   }
 
@@ -183,7 +211,9 @@ export function VoiceInputControl({
     stage === 'requesting'
       ? t('chat:voiceInput.requesting')
       : stage === 'recording'
-        ? t('chat:voiceInput.recording')
+        ? initializing
+          ? t('chat:voiceInput.recordingPreparing')
+          : t('chat:voiceInput.recording')
         : stage === 'transcribing'
           ? t('chat:voiceInput.transcribing')
           : stage === 'error'
@@ -226,11 +256,21 @@ export function VoiceInputControl({
 
           <div className="space-y-3 px-3 py-3">
             {(stage === 'requesting' || stage === 'transcribing') && (
-              <div className="flex items-center gap-3 rounded-[var(--r-sm)] bg-[var(--brand-blue-soft)] px-3 py-3 text-[12px] text-[var(--brand-blue-strong)]">
-                <LoaderCircle className="size-4 flex-none animate-spin" />
-                <span>
+              <div
+                role="status"
+                aria-live="polite"
+                className="flex items-center gap-3 rounded-md bg-muted px-3 py-3 text-xs text-content"
+              >
+                {stage === 'requesting' && windowsDesktop ? (
+                  <ArrowUpLeft className="size-5 flex-none text-primary" />
+                ) : (
+                  <LoaderCircle className="size-4 flex-none animate-spin" />
+                )}
+                <span className="min-w-0 leading-5 break-words">
                   {stage === 'requesting'
-                    ? t('chat:voiceInput.requestingDescription')
+                    ? windowsDesktop
+                      ? t('chat:voiceInput.requestingWindowsDescription')
+                      : t('chat:voiceInput.requestingDescription')
                     : t('chat:voiceInput.transcribingDescription')}
                 </span>
               </div>

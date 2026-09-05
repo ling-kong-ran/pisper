@@ -123,6 +123,13 @@ const ENTRIES: readonly ConfigSearchEntry[] = [
     keywords: ['runtime', 'agent', 'policy', '运行策略', '运行时', '执行策略'],
   },
   {
+    id: 'models-speech',
+    section: 'models',
+    card: 'models-speech',
+    titleKey: 'config:speechTermsSettings.title',
+    keywords: ['speech', 'hotwords', 'terms', 'voice', '语音', '热词', '词条', '项目词'],
+  },
+  {
     id: 'models-visual',
     section: 'models',
     card: 'models-visual',

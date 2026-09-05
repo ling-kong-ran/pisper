@@ -1,10 +1,17 @@
 import { randomUUID } from 'node:crypto'
-import { access } from 'node:fs/promises'
+import { access, mkdir, writeFile } from 'node:fs/promises'
 import { join, resolve } from 'node:path'
+import { formatSpeechTerms, speechHotwords } from '../../shared/speech-terms.mjs'
 
 const SAMPLE_RATE = 16_000
 const MAX_SAMPLES = SAMPLE_RATE * 10 * 60
-const MODEL_FILES = ['model.int8.onnx', 'tokens.txt']
+const MODEL_FILES = [
+  'encoder.int8.onnx',
+  'decoder.onnx',
+  'joiner.int8.onnx',
+  'tokens.txt',
+  'bpe.model',
+]
 // 空闲 30s 后释放识别器引用，让原生模型内存可被 GC 回收，避免模型常驻。
 const RECOGNIZER_IDLE_UNLOAD_MS = 30_000
 // 流式会话 10 分钟无活动自动取消，防止前端异常退出导致 stream 泄漏。
@@ -28,12 +35,15 @@ export class SpeechRecognitionService {
   constructor({
     packagedModelDir = '',
     modelDir = process.env.PISPER_SPEECH_MODEL_DIR,
+    hotwordsDir = '',
     // 测试注入假原生模块，避免依赖真实 sherpa-onnx。
     nativeModule = null,
     idleUnloadMs = RECOGNIZER_IDLE_UNLOAD_MS,
   } = {}) {
     this.packagedModelDir = packagedModelDir ? resolve(packagedModelDir) : ''
     this.configuredModelDir = modelDir ? resolve(modelDir) : ''
+    this.hotwordsDir = hotwordsDir ? resolve(hotwordsDir) : ''
+    this.hotwordsKey = ''
     this.injectedNativeModule = nativeModule
     this.nativeModule = null
     this.recognizer = null
@@ -53,9 +63,31 @@ export class SpeechRecognitionService {
     )
   }
 
-  async loadRecognizer() {
-    if (this.recognizer) return this.recognizer
+  async loadRecognizer(terms = []) {
+    const hotwords = speechHotwords(terms)
+    if (this.recognizer && this.hotwordsKey === hotwords) return this.recognizer
+    if (this.recognizer) {
+      if ([...this.sessions.values()].some((session) => session.stream)) {
+        throw new Error('另一个语音会话正在使用不同的项目术语，请结束后重试。')
+      }
+      // 保持单一识别器，不能为每个项目常驻一份模型。
+      this.unloadRecognizer()
+    }
     const modelDir = await this.resolveModelDir()
+    const bpeVocab = join(modelDir, 'bpe.vocab')
+    const supportsHotwords =
+      hotwords &&
+      this.hotwordsDir &&
+      (await access(bpeVocab).then(
+        () => true,
+        () => false,
+      ))
+    let hotwordsFile = ''
+    if (supportsHotwords) {
+      await mkdir(this.hotwordsDir, { recursive: true })
+      hotwordsFile = join(this.hotwordsDir, 'active-terms.txt')
+      await writeFile(hotwordsFile, `${hotwords}\n`, 'utf8')
+    }
     if (!this.nativeModule) {
       try {
         this.nativeModule = this.injectedNativeModule || (await import('sherpa-onnx-node'))
@@ -70,13 +102,20 @@ export class SpeechRecognitionService {
     this.recognizer = new OnlineRecognizer({
       featConfig: { sampleRate: SAMPLE_RATE, featureDim: 80 },
       modelConfig: {
-        zipformer2Ctc: { model: join(modelDir, 'model.int8.onnx') },
+        transducer: {
+          encoder: join(modelDir, 'encoder.int8.onnx'),
+          decoder: join(modelDir, 'decoder.onnx'),
+          joiner: join(modelDir, 'joiner.int8.onnx'),
+        },
         tokens: join(modelDir, 'tokens.txt'),
+        ...(supportsHotwords ? { modelingUnit: 'bpe', bpeVocab } : {}),
         numThreads: 1,
         provider: 'cpu',
       },
-      decodingMethod: 'greedy_search',
+      decodingMethod: supportsHotwords ? 'modified_beam_search' : 'greedy_search',
+      ...(supportsHotwords ? { maxActivePaths: 2, hotwordsFile, hotwordsScore: 1.5 } : {}),
     })
+    this.hotwordsKey = hotwords
     return this.recognizer
   }
 
@@ -115,33 +154,33 @@ export class SpeechRecognitionService {
     return String(recognizer.getResult(stream)?.text || '').trim()
   }
 
-  transcribe(samples) {
+  transcribe(samples, { terms = [] } = {}) {
     assertSamples(samples)
     return this.enqueue(async () => {
       this.markActive()
       try {
         if (samples.length > MAX_SAMPLES) throw new Error('单次语音输入不能超过 10 分钟。')
-        const recognizer = await this.loadRecognizer()
+        const recognizer = await this.loadRecognizer(terms)
         const stream = recognizer.createStream()
         stream.acceptWaveform({ samples, sampleRate: SAMPLE_RATE })
         stream.inputFinished()
-        return this.decodeReady(recognizer, stream)
+        return formatSpeechTerms(this.decodeReady(recognizer, stream), terms)
       } finally {
         this.scheduleIdleUnload()
       }
     })
   }
 
-  async startSession() {
+  async startSession({ terms = [] } = {}) {
     if (this.sessions.size >= MAX_SESSIONS) throw new Error('语音识别会话过多，请稍后重试。')
     this.markActive()
     const id = randomUUID()
-    const session = { stream: null, totalSamples: 0, lastActive: Date.now() }
+    const session = { stream: null, totalSamples: 0, lastActive: Date.now(), terms: [...terms] }
     this.sessions.set(id, session)
     // 先加载识别器并创建 stream，失败时不留下空会话。
     try {
       await this.enqueue(async () => {
-        const recognizer = await this.loadRecognizer()
+        const recognizer = await this.loadRecognizer(session.terms)
         session.stream = recognizer.createStream()
       })
     } catch (error) {
@@ -178,7 +217,10 @@ export class SpeechRecognitionService {
       try {
         if (!this.recognizer) throw new Error('语音识别器已卸载，请重新开始录音。')
         session.stream.inputFinished()
-        const text = this.decodeReady(this.recognizer, session.stream)
+        const text = formatSpeechTerms(
+          this.decodeReady(this.recognizer, session.stream),
+          session.terms,
+        )
         if (!text) throw new Error('未识别到语音内容。')
         return { text }
       } finally {

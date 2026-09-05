@@ -12,6 +12,22 @@ function notificationText(value, fallback, maxLength) {
 export const configSettingsRoutes = [
   {
     method: 'GET',
+    path: '/api/settings/speech',
+    async handler({ services, json }) {
+      if (!services.speechTerms) throw new Error('当前 Runtime 不支持语音术语设置。')
+      json(200, await services.speechTerms.getSettings())
+    },
+  },
+  {
+    method: 'PATCH',
+    path: '/api/settings/speech',
+    async handler({ services, body, json }) {
+      if (!services.speechTerms) throw new Error('当前 Runtime 不支持语音术语设置。')
+      json(200, await services.speechTerms.updateSettings(await body()))
+    },
+  },
+  {
+    method: 'GET',
     path: '/api/config',
     async handler({ runtime, json }) {
       json(200, await runtime.getConfig())

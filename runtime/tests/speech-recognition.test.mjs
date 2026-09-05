@@ -50,8 +50,11 @@ function createFakeNative() {
 
 async function createModelDir(t) {
   const dir = await mkdtemp(join(tmpdir(), 'pisper-speech-model-'))
-  await writeFile(join(dir, 'model.int8.onnx'), 'fake')
+  await writeFile(join(dir, 'encoder.int8.onnx'), 'fake')
+  await writeFile(join(dir, 'decoder.onnx'), 'fake')
+  await writeFile(join(dir, 'joiner.int8.onnx'), 'fake')
   await writeFile(join(dir, 'tokens.txt'), 'fake')
+  await writeFile(join(dir, 'bpe.model'), 'fake')
   t.after(() => rm(dir, { recursive: true, force: true }))
   return dir
 }

@@ -11,6 +11,7 @@ import { ProviderConfigModal } from './ProviderDialogs'
 import { ProviderDiscovery } from './ProviderDiscovery'
 import { QuickSetupWizard } from './QuickSetupWizard'
 import { RuntimePolicySettings } from './RuntimeSettings'
+import { SpeechTermsSettings } from './SpeechTermsSettings'
 import { useProviderDiscovery, useProvidersConfig } from './useProvidersConfig'
 import { VisualGenerationSettings } from './VisualGenerationSettings'
 import type { Notify } from '@/app/route-context'
@@ -158,6 +159,7 @@ export function ModelsSettings({
           </div>
         </CollapsibleContent>
       </Collapsible>
+      <SpeechTermsSettings notify={notify} />
       <VisualGenerationSettings
         config={config}
         notify={notify}

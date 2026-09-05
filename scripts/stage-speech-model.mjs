@@ -6,12 +6,19 @@ import { Readable } from 'node:stream'
 import { execFile } from 'node:child_process'
 import { createHash } from 'node:crypto'
 import { promisify } from 'node:util'
+import { exportSpeechBpeVocab } from './speech-bpe.mjs'
 
 const execFileAsync = promisify(execFile)
 const MODEL_ARCHIVE_URL =
-  'https://github.com/k2-fsa/sherpa-onnx/releases/download/asr-models/sherpa-onnx-streaming-zipformer-small-ctc-zh-int8-2025-04-01.tar.bz2'
-const MODEL_ARCHIVE_SHA256 = 'b3b309f7ce4a737195fcc6963ea19b0653a7d3401580af5ae0d3e284cbb71f0b'
-const MODEL_FILES = ['model.int8.onnx', 'tokens.txt']
+  'https://github.com/k2-fsa/sherpa-onnx/releases/download/asr-models/sherpa-onnx-x-asr-480ms-streaming-zipformer-transducer-zh-en-punct-int8-2026-06-05.tar.bz2'
+const MODEL_ARCHIVE_SHA256 = 'fa5f63d618e5a01526e275a358bb7772e403f84808a4769fba52cffd8160bf74'
+const MODEL_FILES = [
+  'encoder.int8.onnx',
+  'decoder.onnx',
+  'joiner.int8.onnx',
+  'tokens.txt',
+  'bpe.model',
+]
 
 async function hasModelFiles(directory) {
   try {
@@ -32,6 +39,7 @@ async function copyModel(source, target) {
   if (!(await hasModelFiles(source))) return false
   await mkdir(target, { recursive: true })
   await Promise.all(MODEL_FILES.map((file) => cp(join(source, file), join(target, file))))
+  await exportSpeechBpeVocab(join(target, 'bpe.model'), join(target, 'bpe.vocab'))
   return true
 }
 
@@ -55,13 +63,13 @@ export async function stageSpeechModel({ root, runtimeDir }) {
     await pipeline(Readable.fromWeb(response.body), createWriteStream(archivePath))
     if ((await sha256File(archivePath)) !== MODEL_ARCHIVE_SHA256)
       throw new Error('官方语音模型校验失败。')
-    // 归档以 ./模型目录 开头，需要剥离两层；相对路径同时避免 Git for Windows 把盘符误判为远程地址。
+    // 归档以模型目录开头，剥离一层即可；相对路径同时避免 Git for Windows 把盘符误判为远程地址。
     await execFileAsync(
       'tar',
       [
         '-xjf',
         relative(resolve(root), archivePath),
-        '--strip-components=2',
+        '--strip-components=1',
         '-C',
         relative(resolve(root), extractDir),
       ],

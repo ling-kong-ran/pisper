@@ -198,12 +198,24 @@ jobs:
             exit 1
           fi
           grep -F 'assets/pisper-embedded-runtime.tgz' /tmp/pisper-apk-contents.txt
-          grep -F 'assets/speech-model/model.int8.onnx' /tmp/pisper-apk-contents.txt
+          grep -F 'assets/speech-model/encoder.int8.onnx' /tmp/pisper-apk-contents.txt
+          grep -F 'assets/speech-model/decoder.onnx' /tmp/pisper-apk-contents.txt
+          grep -F 'assets/speech-model/joiner.int8.onnx' /tmp/pisper-apk-contents.txt
           grep -F 'assets/speech-model/tokens.txt' /tmp/pisper-apk-contents.txt
-          test "$(unzip -p "$UNSIGNED" assets/speech-model/model.int8.onnx | sha256sum | awk '{print $1}')" = \
-            '68c9c943840f7d9cf3e8a4970ba50f404feb5277f611fa82b7e72267786fa84a'
+          grep -F 'assets/speech-model/bpe.model' /tmp/pisper-apk-contents.txt
+          grep -F 'assets/speech-model/bpe.vocab' /tmp/pisper-apk-contents.txt
+          test "$(unzip -p "$UNSIGNED" assets/speech-model/encoder.int8.onnx | sha256sum | awk '{print $1}')" = \
+            '908596dcc137a73b95be908ca55e88caa1b3dbbe8027c171615f4b0609c5eb1e'
+          test "$(unzip -p "$UNSIGNED" assets/speech-model/decoder.onnx | sha256sum | awk '{print $1}')" = \
+            'a1cbc9eac2d5e3fb6617a218c67ad6daaa7f4e0fd225f08b2c22ab0413c8c257'
+          test "$(unzip -p "$UNSIGNED" assets/speech-model/joiner.int8.onnx | sha256sum | awk '{print $1}')" = \
+            'aedb7fa697b2ab43f20499826fff7c997eea7d67db77be97769aeeeb726e63b3'
           test "$(unzip -p "$UNSIGNED" assets/speech-model/tokens.txt | sha256sum | awk '{print $1}')" = \
-            '6fed8c6c248516f38e7faa19404b57413e8ce259f1cbc1fa4aebc86eac32fdfd'
+            'b818a60878b9aae978cbb8ad594acbd403d76d1af2e31ef4197c84e2dbdba27c'
+          test "$(unzip -p "$UNSIGNED" assets/speech-model/bpe.model | sha256sum | awk '{print $1}')" = \
+            'f87a38025a5fdd1e4e9591f6a44bb81295097ce0b80df6f4ab9f44e52c64ca5f'
+          test "$(unzip -p "$UNSIGNED" assets/speech-model/bpe.vocab | sha256sum | awk '{print $1}')" = \
+            '01381aa0c3065832cb8d7462d529e3079a99be56c955ce93b4cb9b78e8aa34e5'
           unzip -l "$UNSIGNED" | grep -F 'assets/pisper-embedded-node-android.json'
           unzip -l "$UNSIGNED" | grep -F 'lib/arm64-v8a/libnode.so'
           unzip -l "$UNSIGNED" | grep -F 'lib/arm64-v8a/libc++_shared.so'
@@ -219,8 +231,16 @@ jobs:
           grep -F 'com.k2fsa.sherpa.onnx.OnlineRecognizerConfig java.lang.String decodingMethod' \
             /tmp/pisper-apk-dex.txt
           grep -F 'com.k2fsa.sherpa.onnx.FeatureConfig int sampleRate' /tmp/pisper-apk-dex.txt
-          grep -F 'com.k2fsa.sherpa.onnx.OnlineZipformer2CtcModelConfig java.lang.String model' \
+          grep -F 'com.k2fsa.sherpa.onnx.OnlineModelConfig com.k2fsa.sherpa.onnx.OnlineTransducerModelConfig transducer' \
             /tmp/pisper-apk-dex.txt
+          grep -F 'com.k2fsa.sherpa.onnx.OnlineModelConfig java.lang.String modelingUnit' \
+            /tmp/pisper-apk-dex.txt
+          grep -F 'com.k2fsa.sherpa.onnx.OnlineModelConfig java.lang.String bpeVocab' \
+            /tmp/pisper-apk-dex.txt
+          for member in encoder decoder joiner; do
+            grep -F "com.k2fsa.sherpa.onnx.OnlineTransducerModelConfig java.lang.String $member" \
+              /tmp/pisper-apk-dex.txt
+          done
           apkanalyzer manifest permissions "$UNSIGNED" > /tmp/pisper-apk-permissions.txt
           grep -Fx 'android.permission.RECORD_AUDIO' /tmp/pisper-apk-permissions.txt
           grep -Fx 'android.permission.MODIFY_AUDIO_SETTINGS' /tmp/pisper-apk-permissions.txt
