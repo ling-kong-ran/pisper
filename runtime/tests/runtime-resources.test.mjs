@@ -700,7 +700,10 @@ test('session disposal clears pending, live, wakeup, and context usage state', a
 test('disposeSessions clears all session lifecycle maps', async (t) => {
   const directory = await mkdtemp(join(tmpdir(), 'pisper-session-runtime-dispose-all-'))
   const runtime = new AgentRuntimeService({ cwd: directory, dataDir: directory })
-  t.after(() => rm(directory, { recursive: true, force: true }))
+  t.after(async () => {
+    await runtime.dispose().catch(() => {})
+    await rm(directory, { recursive: true, force: true }).catch(() => {})
+  })
   runtime.sessions.set('session-id', {
     session: { isStreaming: false, setActiveToolsByName() {}, dispose() {} },
   })
