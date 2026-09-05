@@ -1,9 +1,9 @@
 {
   "name": "pisper-desktop",
-  "version": "0.5.53",
+  "version": "0.5.54",
   "private": true,
   "bundled": {
     "tui": "0.5.22",
-    "runtime": "0.5.35"
+    "runtime": "0.5.36"
   }
 }
