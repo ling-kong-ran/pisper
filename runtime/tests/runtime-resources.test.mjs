@@ -668,6 +668,58 @@ test('LRU disposal releases only memory and leaves the persisted session transcr
   assert.match(await readFile(sessionFile, 'utf8'), /Persist this session\./)
 })
 
+test('session disposal clears pending, live, wakeup, and context usage state', async (t) => {
+  const directory = await mkdtemp(join(tmpdir(), 'pisper-session-runtime-dispose-state-'))
+  const runtime = new AgentRuntimeService({ cwd: directory, dataDir: directory })
+  t.after(async () => {
+    await runtime.dispose().catch(() => {})
+    await rm(directory, { recursive: true, force: true }).catch(() => {})
+  })
+  const disposed = []
+  const sessionFile = join(directory, 'session.jsonl')
+  const value = {
+    session: { sessionFile, isStreaming: false, dispose: () => disposed.push('session') },
+  }
+  runtime.sessions.set('session-id', value)
+  runtime.pendingSessions.set('session-id', { manager: {} })
+  runtime.liveSessions.set('session-id', { streaming: false })
+  runtime.sessionContextUsageCache.set('session-id', { value: {} })
+  const timer = setTimeout(() => {}, 60_000)
+  timer.unref?.()
+  runtime.agentWakeupTimers.set('session-id', timer)
+
+  assert.equal(runtime.disposeSessionRuntime('session-id', value), true)
+  assert.deepEqual(disposed, ['session'])
+  assert.equal(runtime.sessions.has('session-id'), false)
+  assert.equal(runtime.pendingSessions.has('session-id'), false)
+  assert.equal(runtime.liveSessions.has('session-id'), false)
+  assert.equal(runtime.agentWakeupTimers.has('session-id'), false)
+  assert.equal(runtime.sessionContextUsageCache.has('session-id'), false)
+})
+
+test('disposeSessions clears all session lifecycle maps', async (t) => {
+  const directory = await mkdtemp(join(tmpdir(), 'pisper-session-runtime-dispose-all-'))
+  const runtime = new AgentRuntimeService({ cwd: directory, dataDir: directory })
+  t.after(() => rm(directory, { recursive: true, force: true }))
+  runtime.sessions.set('session-id', {
+    session: { isStreaming: false, setActiveToolsByName() {}, dispose() {} },
+  })
+  runtime.pendingSessions.set('pending-id', { manager: {} })
+  runtime.liveSessions.set('live-id', { streaming: false })
+  runtime.sessionContextUsageCache.set('session-id', { value: {} })
+  const timer = setTimeout(() => {}, 60_000)
+  timer.unref?.()
+  runtime.agentWakeupTimers.set('session-id', timer)
+
+  await runtime.disposeSessions()
+
+  assert.equal(runtime.sessions.size, 0)
+  assert.equal(runtime.pendingSessions.size, 0)
+  assert.equal(runtime.liveSessions.size, 0)
+  assert.equal(runtime.agentWakeupTimers.size, 0)
+  assert.equal(runtime.sessionContextUsageCache.size, 0)
+})
+
 test('stream preflight reserves its runtime before any asynchronous prompt preparation', async (t) => {
   const directory = await mkdtemp(join(tmpdir(), 'pisper-session-runtime-preflight-'))
   const runtime = new AgentRuntimeService({ cwd: directory, dataDir: directory })

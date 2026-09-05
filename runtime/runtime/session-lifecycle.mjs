@@ -142,10 +142,15 @@ export class SessionLifecycle {
     )
   }
 
-  // 释放会话运行时：运行中且非 force 时拒绝；释放时清理权限审批、历史缓存与投影。
+  // 释放会话运行时：运行中且非 force 时拒绝；释放时清理所有会话级内存状态。
   disposeSessionRuntime(id, value, { force = false } = {}) {
     if (!value || this.sessions.get(id) !== value || (!force && this.sessionRunIsActive(id, value)))
       return false
+    const wakeupTimer = this.agentWakeupTimers.get(id)
+    if (wakeupTimer) clearTimeout(wakeupTimer)
+    this.agentWakeupTimers.delete(id)
+    this.pendingSessions.delete(id)
+    this.liveSessions.delete(id)
     this.getPermissions().resolveSession(id, false, '会话运行时已从内存释放，请重新发送消息。')
     try {
       value.session.dispose()
@@ -189,15 +194,18 @@ export class SessionLifecycle {
     return evicted
   }
 
-  // 关闭全部会话（进程退出路径）：暂停目标、终止子 Agent、释放权限并等标签索引落盘。
+  // 关闭全部会话（进程退出路径）：暂停目标、终止子 Agent、释放权限并清理所有会话状态。
   async disposeSessions() {
-    for (const [id, value] of this.sessions) {
+    for (const [id, value] of [...this.sessions]) {
       await this.pauseSessionGoal(id)
       this.getMultiAgents().abortParent(id)
-      this.getPermissions().resolveSession(id, false, 'Agent Runtime 正在重新加载，工具未执行。')
-      value.session.dispose()
-      this.invalidateProjection(id)
+      this.disposeSessionRuntime(id, value, { force: true })
     }
+    for (const timer of this.agentWakeupTimers.values()) clearTimeout(timer)
+    this.agentWakeupTimers.clear()
+    this.pendingSessions.clear()
+    this.liveSessions.clear()
+    this.sessionContextUsageCache.clear()
     this.sessions.clear()
     // 等标签索引的异步落盘链写完后才允许退出，避免临时文件残留。
     if (this.sessionLabelIndexFlush) {

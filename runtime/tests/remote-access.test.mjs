@@ -140,6 +140,29 @@ test('已批准但未领取的 LAN 配对结果过期后吊销授权设备', () 
   assert.equal(service.pendingPairingRequests.has(requested.requestId), false)
 })
 
+test('关闭远程访问会废弃配对码和未领取授权', () => {
+  const service = createService()
+  service.setEnabled(true)
+  const { code } = service.issuePairingCode()
+  service.setEnabled(false)
+  assert.throws(
+    () => service.redeemPairingCode({ code, ip: '10.0.0.9' }),
+    (error) => error.code === 'pairing_code_invalid',
+  )
+})
+
+test('关闭再开启远程访问不会吊销已配对设备', () => {
+  const service = createService()
+  service.setEnabled(true)
+  const { code } = service.issuePairingCode()
+  const paired = service.redeemPairingCode({ code, deviceName: '手机 A', ip: '10.0.0.9' })
+
+  service.setEnabled(false)
+  assert.equal(service.authenticateToken(paired.token)?.name, '手机 A')
+  service.setEnabled(true)
+  assert.equal(service.authenticateToken(paired.token)?.name, '手机 A')
+})
+
 test('批准结果不受原申请期限截断，关闭远程访问会吊销未领取授权', () => {
   const service = createService()
   service.setEnabled(true)

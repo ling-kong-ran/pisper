@@ -778,6 +778,7 @@ pub fn run() {
             desktop_iroh_set_enabled,
         ])
         .setup(move |app| {
+            desktop_bridge::cleanup_open_assets(app.handle());
             if let Some(args) = cli_args_for_setup.as_deref() {
                 let exit_code = match cli_manager::run_bundled_cli(app, args) {
                     Ok(code) => code,

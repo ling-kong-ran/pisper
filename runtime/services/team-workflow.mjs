@@ -435,7 +435,8 @@ export function projectStoredTeam(goal, team) {
 function interruptActiveTasks(team, now = Date.now()) {
   let changed = false
   for (const task of Object.values(team?.tasks || {})) {
-    if (!['starting', 'running', 'interrupted'].includes(task.status)) continue
+    // 暂停时连同 queued 一起终止，避免并发槽释放后调度器又启动旧任务。
+    if (!['queued', 'starting', 'running', 'interrupted'].includes(task.status)) continue
     task.status = 'interrupted'
     task.agentId = ''
     task.leaseId = ''

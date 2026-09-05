@@ -465,6 +465,10 @@ test('team workflow resumes with later overlapping scopes blocked instead of sil
     message: 'Own documentation.',
   })
   await service.pause('session-1')
+  assert.deepEqual(
+    Object.values(service.get('session-1').tasks).map((task) => task.status),
+    ['interrupted', 'interrupted'],
+  )
 
   const stored = JSON.parse(await readFile(path, 'utf8'))
   stored.teams['session-1'].tasks = Object.fromEntries(

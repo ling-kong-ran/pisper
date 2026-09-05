@@ -36,6 +36,14 @@ function publicError(error) {
   return redactSecretText(error instanceof Error ? error.message : String(error))
 }
 
+// 将路由错误映射为稳定的 HTTP 错误类别；未标注状态的路由错误保持兼容的 400。
+function errorStatus(error) {
+  const status = Number(error?.statusCode ?? error?.status)
+  if (Number.isInteger(status) && status >= 400 && status < 500) return status
+  if (Number.isInteger(status) && status >= 500 && status < 600) return status
+  return 400
+}
+
 const CAPABILITY_ROUTES = [
   { pattern: /^\/api\/memory(?:\/|$)|^\/api\/settings\/memory$/, feature: 'memory' },
   { pattern: /^\/api\/mcp(?:\/|$)/, feature: 'mcp' },
@@ -170,8 +178,8 @@ export function createApiHandler(
       if (handlerContext?.isSse()) {
         if (!handlerContext.context.hasTerminal?.())
           handlerContext.context.sendSse('error', { message: publicError(error) })
-      } else {
-        sendJson(res, 400, { error: publicError(error) })
+      } else if (!res.headersSent && !res.writableEnded && !res.destroyed) {
+        sendJson(res, errorStatus(error), { error: publicError(error) })
       }
     }
     if (handlerContext?.isSse()) {

@@ -161,6 +161,8 @@ export class RemoteAccessService {
   setEnabled(enabled) {
     this.state.enabled = Boolean(enabled)
     if (!this.state.enabled) {
+      // 关闭远程访问后立即废弃配对码，避免重新开启前仍可兑换旧授权。
+      this.state.pairingCode = null
       for (const id of [...this.pendingPairingRequests.keys()]) this.discardPairingRequest(id)
     }
     this.save()

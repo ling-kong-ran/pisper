@@ -94,28 +94,47 @@ export function sseSend(res, event, data, id = null, payload = null) {
 // 两端的 SSE 解析器都会跳过 `:` 注释行，协议上零成本。
 export const SSE_HEARTBEAT_INTERVAL_MS = 15_000
 
-const sseHeartbeatTimers = new WeakMap()
+const sseHeartbeatStates = new WeakMap()
 
 export function stopSseHeartbeat(res) {
-  const timer = sseHeartbeatTimers.get(res)
-  if (timer) clearInterval(timer)
-  sseHeartbeatTimers.delete(res)
+  const state = sseHeartbeatStates.get(res)
+  if (!state) return
+  clearInterval(state.timer)
+  res.removeListener?.('drain', state.onDrain)
+  res.removeListener?.('close', state.onClose)
+  res.removeListener?.('error', state.onError)
+  sseHeartbeatStates.delete(res)
 }
 
-// 为一条 SSE 响应启动心跳；重复调用幂等，连接关闭时自动停止。
-// 心跳不经过 sseSendGuarded：它不该重置慢客户端的 stall 判定。
+// 为一条 SSE 响应启动心跳；重复调用幂等，连接结束或写出异常时自动停止。
+// 心跳同样遵守 Node 写缓冲的 drain 信号，避免持续写入放大慢客户端的背压。
 export function startSseHeartbeat(res) {
-  if (sseHeartbeatTimers.has(res)) return
-  const timer = setInterval(() => {
+  if (sseHeartbeatStates.has(res)) return
+  const state = { timer: null, waitingForDrain: false, onDrain: null, onClose: null, onError: null }
+  state.onDrain = () => {
+    const current = sseHeartbeatStates.get(res)
+    if (current) current.waitingForDrain = false
+  }
+  state.onClose = () => stopSseHeartbeat(res)
+  state.onError = () => stopSseHeartbeat(res)
+  state.timer = setInterval(() => {
     if (res.destroyed || res.writableEnded) {
       stopSseHeartbeat(res)
       return
     }
-    res.write(':\n\n')
+    const current = sseHeartbeatStates.get(res)
+    if (!current || current.waitingForDrain) return
+    try {
+      if (res.write(':\n\n') === false) current.waitingForDrain = true
+    } catch {
+      stopSseHeartbeat(res)
+    }
   }, SSE_HEARTBEAT_INTERVAL_MS)
-  timer.unref?.()
-  sseHeartbeatTimers.set(res, timer)
-  res.once?.('close', () => stopSseHeartbeat(res))
+  state.timer.unref?.()
+  sseHeartbeatStates.set(res, state)
+  res.once?.('close', state.onClose)
+  res.once?.('error', state.onError)
+  res.on?.('drain', state.onDrain)
 }
 
 // drain 迟迟不来的判死时限：瞬时背压（write 返回 false）只表示越过 ~16KB 高水位，

@@ -65,6 +65,44 @@ export type Plan = EntityRecord & {
   items: PlanItem[]
 }
 
+export type TeamTask = {
+  id?: string
+  taskName?: string
+  role?: string
+  status?: string
+  error?: string
+  output?: string
+}
+
+export type TeamCommunication = {
+  id: string
+  fromTaskName?: string
+  fromAgentId?: string
+  toTaskName?: string
+  toAgentId?: string
+  message?: string
+}
+
+export type TeamState = {
+  id?: string
+  sessionId?: string
+  goalId?: string
+  objective?: string
+  status?: string
+  tokenBudget?: number
+  tokenUsed?: number
+  tokensUsed?: number
+  teamTokenBudget?: number
+  tasks?: TeamTask[]
+  completedTaskCount?: number
+  taskCount?: number
+  blockers?: string[]
+  conflicts?: string[]
+  scriptPath?: string
+  communications?: TeamCommunication[]
+  summary?: { text?: string }
+}
+
 export type SessionSummary = EntityRecord & {
   id: string
   name?: string
@@ -75,7 +113,7 @@ export type SessionSummary = EntityRecord & {
   cwd?: string
   streaming?: boolean
   plan?: Plan | null
-  team?: EntityRecord | null
+  team?: TeamState | null
   lineage?: {
     parentSessionId?: string
     sourceEntryId?: string
@@ -98,7 +136,7 @@ export type SessionState = EntityRecord & {
   queuedInputs: EntityRecord[]
   hadQueuedInput: boolean
   plan: Plan | null
-  team: EntityRecord | null
+  team: TeamState | null
   executionMode: string | null
   runMode: string | null
   contextUsage: EntityRecord | null

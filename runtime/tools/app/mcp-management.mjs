@@ -19,7 +19,7 @@ export const manifests = [
     category: 'mcp',
     risk: 'high',
     description:
-      'Add, update, delete, test, enable, or disable MCP services and tools with structured parameters.',
+      'Manage MCP services with structured parameters. To add a service, use action="add" and put the complete connection in config: stdio requires name, transport="stdio", and command; http or sse requires name, transport, and url.',
     scope: 'Application-level MCP configuration',
     capability:
       'Modify MCP service configuration without exposing sensitive headers or environment values',
@@ -128,6 +128,7 @@ export function createMcpManageTool({ mcpRuntime }) {
       'Manage MCP services with typed fields instead of shell commands or local HTTP requests',
     promptGuidelines: [
       'Always use mcp_manage for MCP configuration. Never call the application MCP API through bash, PowerShell, curl, fetch, or an inline script.',
+      'To add a stdio server, call { action: "add", config: { name, transport: "stdio", command, args?, cwd?, env? } }. To add a remote server, call { action: "add", config: { name, transport: "http" or "sse", url, headers? } }.',
       'Use Windows paths exactly as ordinary strings in the command or cwd field; do not add JavaScript, JSON, or shell escaping beyond the structured argument encoding.',
       'Call mcp_list first when updating, deleting, testing, or toggling an existing service.',
       'Do not read credential files. Put credentials only in the structured env or headers object supplied by the user or an approved onboarding flow.',

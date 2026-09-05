@@ -23,7 +23,9 @@ use super::pinning::pinned_client;
 use super::store::{ServerEndpoint, ServerProfile, SharedStore};
 
 /// 上游地址缓存有效期：避免每个请求都探测；网络切换后最多 20 秒内自愈。
-const UPSTREAM_CACHE_TTL: Duration = Duration::from_secs(20);
+const UPSTREAM_CACHE_TTL: Duration = Duration::from_secs(5);
+/// 远程 HTTP 只限制收到响应头的时间；响应体可能是长期 SSE 流，不能设置整体超时。
+const RESPONSE_HEADERS_TIMEOUT: Duration = Duration::from_secs(15);
 /// 端点健康探测超时：局域网内健康检查应在毫秒级返回。
 const PROBE_TIMEOUT: Duration = Duration::from_millis(2500);
 /// 首次 Iroh 建连可能包含 relay 协商，需给足握手时间。
@@ -34,6 +36,7 @@ type ProxyBody = UnsyncBoxBody<Bytes, Infallible>;
 struct UpstreamCache {
     url: String,
     kind: String,
+    fingerprint: String,
     checked_at: Instant,
 }
 
@@ -139,9 +142,10 @@ impl ProxyHandle {
             .upstream
             .lock()
             .ok()
-            .and_then(|c| c.as_ref().map(|c| (c.url.clone(), c.checked_at)))
+            .and_then(|c| c.as_ref().map(|c| (c.url.clone(), c.fingerprint.clone(), c.checked_at)))
         {
-            if cache.1.elapsed() < UPSTREAM_CACHE_TTL {
+            // 切换配对档案后不能复用旧桌面端的地址；否则短暂期间请求会发往错误服务器。
+            if cache.2.elapsed() < UPSTREAM_CACHE_TTL && cache.1 == profile.fingerprint {
                 return Ok(cache.0);
             }
         }
@@ -183,6 +187,7 @@ impl ProxyHandle {
                     *cache = Some(UpstreamCache {
                         url: base.clone(),
                         kind: endpoint.kind.clone(),
+                        fingerprint: profile.fingerprint.clone(),
                         checked_at: Instant::now(),
                     });
                 }
@@ -282,23 +287,12 @@ async fn forward_remote(
             "尚未配对桌面端，请先在设置 -> 服务器中完成配对。",
         ));
     };
-    let upstream = match proxy.resolve_upstream(&profile).await {
-        Ok(upstream) => upstream,
-        Err(error) => return Ok(text_response(StatusCode::BAD_GATEWAY, &error)),
-    };
-    let client = match proxy.client_for(&profile.fingerprint) {
-        Ok(client) => client,
-        Err(error) => return Ok(text_response(StatusCode::INTERNAL_SERVER_ERROR, &error)),
-    };
-
     let (parts, body) = request.into_parts();
     let path_and_query = parts
         .uri
         .path_and_query()
         .map(|value| value.as_str())
         .unwrap_or("/");
-    let url = format!("{upstream}{path_and_query}");
-
     // 请求体整体读入（runtime 本身限制附件 ≤32MB），响应体则流式透传。
     let body_bytes = match body.collect().await {
         Ok(collected) => collected.to_bytes(),
@@ -307,32 +301,76 @@ async fn forward_remote(
         }
     };
 
-    let mut outgoing = client
-        .request(parts.method, &url)
-        .bearer_auth(&profile.token);
-    for (name, value) in &parts.headers {
-        let lower = name.as_str().to_ascii_lowercase();
-        if HOP_BY_HOP.contains(&lower.as_str()) {
+    // 真实请求也允许一次重选端点：探测成功后网络可能立即切换，不能把备用端点留给下一个请求。
+    let mut response = None;
+    let mut last_error = None;
+    for attempt in 0..2 {
+        let upstream = match proxy.resolve_upstream(&profile).await {
+            Ok(upstream) => upstream,
+            Err(error) => {
+                last_error = Some(error);
+                break;
+            }
+        };
+        let client = match proxy.client_for(&profile.fingerprint) {
+            Ok(client) => client,
+            Err(error) => return Ok(text_response(StatusCode::INTERNAL_SERVER_ERROR, &error)),
+        };
+        let url = format!("{upstream}{path_and_query}");
+        let mut outgoing = client
+            .request(parts.method.clone(), &url)
+            .bearer_auth(&profile.token);
+        for (name, value) in &parts.headers {
+            let lower = name.as_str().to_ascii_lowercase();
+            if HOP_BY_HOP.contains(&lower.as_str()) {
+                continue;
+            }
+            outgoing = outgoing.header(name, value);
+        }
+        // 标记流量来源：runtime/前端据此把设置页换成移动端形态（服务器切换而非发码管理）。
+        outgoing = outgoing.header("X-Pisper-Client", "mobile-app");
+        match tokio::time::timeout(
+            RESPONSE_HEADERS_TIMEOUT,
+            outgoing.body(body_bytes.clone()).send(),
+        )
+        .await
+        {
+            Ok(Ok(value)) => {
+                response = Some(value);
+                break;
+            }
+            Ok(Err(error)) => {
+                last_error = Some(format!("连接桌面端失败：{error}"));
+            }
+            Err(_) => {
+                last_error = Some("等待桌面端响应超时。".to_string());
+            }
+        }
+        if let Ok(mut cache) = proxy.upstream.lock() {
+            *cache = None;
+        }
+        if attempt == 0 {
             continue;
         }
-        outgoing = outgoing.header(name, value);
     }
-    // 标记流量来源：runtime/前端据此把设置页换成移动端形态（服务器切换而非发码管理）。
-    outgoing = outgoing.header("X-Pisper-Client", "mobile-app");
-
-    let response = match outgoing.body(body_bytes).send().await {
-        Ok(response) => response,
-        Err(error) => {
-            // 连接失败时清掉上游缓存，下个请求会重新探测。
-            if let Ok(mut cache) = proxy.upstream.lock() {
-                *cache = None;
-            }
-            return Ok(text_response(
-                StatusCode::BAD_GATEWAY,
-                &format!("连接桌面端失败：{error}"),
-            ));
+    let response = match response {
+        Some(response) => response,
+        None => {
+            let message = last_error.as_deref().unwrap_or("无法连接到桌面端。");
+            let status = if message.contains("超时") {
+                StatusCode::GATEWAY_TIMEOUT
+            } else {
+                StatusCode::BAD_GATEWAY
+            };
+            return Ok(text_response(status, message));
         }
     };
+
+    if response.status().is_server_error() || response.status() == StatusCode::REQUEST_TIMEOUT {
+        if let Ok(mut cache) = proxy.upstream.lock() {
+            *cache = None;
+        }
+    }
 
     let mut builder = Response::builder().status(response.status());
     for (name, value) in response.headers() {
@@ -344,10 +382,22 @@ async fn forward_remote(
     }
     // SSE 字节流逐帧透传：reqwest 的 bytes_stream 到达即写，不做任何缓冲。
     // 上游流出错时提前终止流（等效于连接中断，客户端会按游标重连）。
+    let stream_proxy = Arc::clone(proxy);
     let stream = response
         .bytes_stream()
-        .take_while(|result| std::future::ready(result.is_ok()))
-        .filter_map(|result| async move { result.ok() })
+        .filter_map(move |result| {
+            let stream_proxy = Arc::clone(&stream_proxy);
+            async move {
+                match result {
+                    Ok(chunk) => Some(chunk),
+                    Err(_) => {
+                        // SSE 断流通常意味着网络已切换；清缓存才能让重连重新选择端点。
+                        stream_proxy.invalidate_remote_upstream();
+                        None
+                    }
+                }
+            }
+        })
         .map(|chunk| Ok::<_, Infallible>(Frame::data(chunk)));
     let body = StreamBody::new(stream).boxed_unsync();
     Ok(builder

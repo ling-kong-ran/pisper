@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
 import { TOOL_CATALOG, createAppTools } from '../tools/registry.mjs'
+import { schemaOnlyToolDefinition } from '../tools/tool-activation.mjs'
 
 function dashboard(services = []) {
   return {
@@ -8,6 +9,13 @@ function dashboard(services = []) {
     metrics: { totalServices: services.length },
   }
 }
+
+test('MCP management stays fully described when tools are activated', () => {
+  const tool = createAppTools({ enabledTools: ['mcp_manage'], mcpRuntime: {} })[0]
+  const activated = schemaOnlyToolDefinition(tool)
+  assert.match(activated.description, /action="add"/)
+  assert.match(activated.description, /stdio/)
+})
 
 test('structured MCP tools list and mutate services without shell or local HTTP calls', async () => {
   assert.ok(TOOL_CATALOG.some((tool) => tool.id === 'mcp_list'))

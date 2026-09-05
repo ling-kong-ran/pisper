@@ -3,8 +3,8 @@ use serde::{Deserialize, Serialize};
 use std::{
     fs::{canonicalize, create_dir_all, write as write_file, OpenOptions},
     io::Write,
-    path::PathBuf,
-    time::{SystemTime, UNIX_EPOCH},
+    path::{Path, PathBuf},
+    time::{Duration, SystemTime, UNIX_EPOCH},
 };
 use tauri::{AppHandle, Manager, Url};
 use tauri_plugin_dialog::DialogExt;
@@ -38,6 +38,67 @@ pub struct AppInfo {
 pub struct AssetOpenInput {
     name: String,
     data: String,
+}
+
+const OPEN_ASSETS_TTL: Duration = Duration::from_secs(24 * 60 * 60);
+const OPEN_ASSETS_MAX_BYTES: u64 = 512 * 1024 * 1024;
+
+fn cleanup_open_assets_at(root: &Path, now: SystemTime, ttl: Duration, max_bytes: u64) {
+    let Ok(entries) = std::fs::read_dir(root) else {
+        return;
+    };
+    let mut candidates = Vec::new();
+    for entry in entries.flatten() {
+        let path = entry.path();
+        if !entry.file_type().map(|kind| kind.is_dir()).unwrap_or(false)
+            || !entry
+                .file_name()
+                .to_string_lossy()
+                .chars()
+                .all(|value| value.is_ascii_digit())
+        {
+            continue;
+        }
+        let Ok(metadata) = std::fs::metadata(&path) else {
+            continue;
+        };
+        let modified = metadata.modified().unwrap_or(now);
+        let age = now.duration_since(modified).unwrap_or_default();
+        if age < ttl {
+            continue;
+        }
+        let size = std::fs::read_dir(&path)
+            .into_iter()
+            .flatten()
+            .filter_map(|file| file.ok())
+            .filter_map(|file| file.metadata().ok())
+            .filter(|file| file.is_file())
+            .map(|file| file.len())
+            .sum::<u64>();
+        candidates.push((modified, size, path));
+    }
+    candidates.sort_by_key(|(modified, _, _)| *modified);
+    let mut total = candidates.iter().map(|(_, size, _)| *size).sum::<u64>();
+    for (_, size, path) in candidates {
+        if total <= max_bytes {
+            break;
+        }
+        if std::fs::remove_dir_all(path).is_ok() {
+            total = total.saturating_sub(size);
+        }
+    }
+}
+
+pub(crate) fn cleanup_open_assets(app: &AppHandle) {
+    let Ok(root) = app.path().app_cache_dir() else {
+        return;
+    };
+    cleanup_open_assets_at(
+        &root.join("open-assets"),
+        SystemTime::now(),
+        OPEN_ASSETS_TTL,
+        OPEN_ASSETS_MAX_BYTES,
+    );
 }
 
 #[derive(Deserialize)]
@@ -253,7 +314,17 @@ pub fn desktop_reveal_path(app: AppHandle, path: String) -> Result<bool, String>
         app.opener()
             .open_path(path.to_string_lossy().into_owned(), None::<&str>)
     } else {
-        app.opener().reveal_item_in_dir(path)
+        // 部分 Windows 文件关联实现不支持 reveal，退回打开父目录仍能保证用户到达目标文件。
+        match app.opener().reveal_item_in_dir(&path) {
+            Ok(()) => return Ok(true),
+            Err(_) => app.opener().open_path(
+                path.parent()
+                    .unwrap_or_else(|| Path::new("."))
+                    .to_string_lossy()
+                    .into_owned(),
+                None::<&str>,
+            ),
+        }
     };
     result.map(|_| true).map_err(|error| error.to_string())
 }
@@ -401,7 +472,8 @@ pub fn desktop_show_notification(app: AppHandle, input: NotificationInput) -> No
 
 #[cfg(test)]
 mod tests {
-    use super::canonical_local_path;
+    use super::{canonical_local_path, cleanup_open_assets_at};
+    use std::time::{Duration, SystemTime};
 
     #[test]
     fn local_path_bridge_accepts_only_existing_absolute_paths() {
@@ -418,5 +490,38 @@ mod tests {
                 .as_ref()
         )
         .is_err());
+    }
+
+    #[test]
+    fn open_assets_cleanup_removes_expired_numeric_directories_only() {
+        let root =
+            std::env::temp_dir().join(format!("pisper-open-assets-test-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&root);
+        std::fs::create_dir_all(root.join("123")).expect("创建测试目录");
+        std::fs::write(root.join("123").join("asset.bin"), b"asset").expect("写入测试资产");
+        std::fs::create_dir_all(root.join("keep-me")).expect("创建非资产目录");
+        cleanup_open_assets_at(
+            &root,
+            SystemTime::now() + Duration::from_secs(2),
+            Duration::from_secs(1),
+            0,
+        );
+        assert!(!root.join("123").exists());
+        assert!(root.join("keep-me").exists());
+        let _ = std::fs::remove_dir_all(root);
+    }
+
+    #[test]
+    fn open_assets_cleanup_protects_recent_directories() {
+        let root = std::env::temp_dir().join(format!(
+            "pisper-open-assets-recent-test-{}",
+            std::process::id()
+        ));
+        let _ = std::fs::remove_dir_all(&root);
+        std::fs::create_dir_all(root.join("456")).expect("创建测试目录");
+        std::fs::write(root.join("456").join("asset.bin"), b"asset").expect("写入测试资产");
+        cleanup_open_assets_at(&root, SystemTime::now(), Duration::from_secs(3600), 0);
+        assert!(root.join("456").exists());
+        let _ = std::fs::remove_dir_all(root);
     }
 }

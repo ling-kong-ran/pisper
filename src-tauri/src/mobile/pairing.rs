@@ -93,11 +93,21 @@ fn profile_from_response(
     fallback_endpoints: &[ServerEndpoint],
     fingerprint: String,
 ) -> ServerProfile {
-    let endpoints = if response.endpoints.is_empty() {
-        fallback_endpoints.to_vec()
-    } else {
-        response.endpoints
-    };
+    let mut endpoints = response.endpoints;
+    // 桌面端可能只返回当前首选端点，保留二维码或 LAN 发现得到的备用地址，网络切换时仍可回落。
+    for fallback in fallback_endpoints {
+        let duplicate = endpoints.iter().any(|endpoint| {
+            endpoint.kind == fallback.kind
+                && if endpoint.kind == "iroh" {
+                    endpoint.node_id == fallback.node_id
+                } else {
+                    endpoint.url.trim_end_matches('/') == fallback.url.trim_end_matches('/')
+                }
+        });
+        if !duplicate {
+            endpoints.push(fallback.clone());
+        }
+    }
     ServerProfile {
         id: format!("srv_{}", fast_id()),
         name: if response.server_name.is_empty() {
@@ -216,7 +226,7 @@ pub async fn pair_with_approval(
             return Err("连接申请已过期，请重新申请。".into());
         }
         tokio::time::sleep(std::time::Duration::from_secs(1)).await;
-        let response = client
+        let response = match client
             .get(format!(
                 "{url}/api/remote/pairing-requests/{}",
                 request.request_id
@@ -225,9 +235,18 @@ pub async fn pair_with_approval(
             .header("x-pisper-pairing-secret", &request.request_secret)
             .send()
             .await
-            .map_err(|error| error.to_string())?;
+        {
+            Ok(response) => response,
+            Err(_) => continue,
+        };
         let status = response.status();
-        let body = response.text().await.map_err(|error| error.to_string())?;
+        let body = match response.text().await {
+            Ok(body) => body,
+            Err(_) => continue,
+        };
+        if status.is_server_error() || status == reqwest::StatusCode::REQUEST_TIMEOUT {
+            continue;
+        }
         if !status.is_success() {
             return Err(pair_error_message(status, &body));
         }
@@ -322,6 +341,7 @@ async fn try_pair_endpoint(
             }))
             .map_err(|error| error.to_string())?,
         )
+        .timeout(std::time::Duration::from_secs(10))
         .send()
         .await
         .map_err(|error| error.to_string())?;
