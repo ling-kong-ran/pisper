@@ -105,8 +105,16 @@ export const BUNDLED_MODEL_METADATA = Object.freeze({
     input: TEXT_IMAGE_INPUT,
     thinkingLevelMap: GPT_56_THINKING_LEVEL_MAP,
   }),
+  'gpt-6-astra': metadata('gpt-6-astra', 272_000, null, {
+    input: TEXT_IMAGE_INPUT,
+    thinkingLevelMap: GPT_56_THINKING_LEVEL_MAP,
+  }),
 
   'claude-fable-5': metadata('claude-fable-5', 1_000_000, 128_000, {
+    input: TEXT_IMAGE_INPUT,
+    thinkingLevelMap: CLAUDE_FABLE_THINKING_LEVEL_MAP,
+  }),
+  'claude-fable-5-1': metadata('claude-fable-5-1', 1_000_000, 128_000, {
     input: TEXT_IMAGE_INPUT,
     thinkingLevelMap: CLAUDE_FABLE_THINKING_LEVEL_MAP,
   }),

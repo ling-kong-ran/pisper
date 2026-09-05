@@ -36,7 +36,9 @@ test('bundled model metadata resolves without network access', async (t) => {
     'gpt-5.4-mini': [400_000, 128_000],
     'gpt-5.5': [272_000, 128_000],
     'gpt-5.6-terra': [272_000, undefined],
+    'gpt-6-astra': [272_000, undefined],
     'claude-fable-5': [1_000_000, 128_000],
+    'claude-fable-5-1': [1_000_000, 128_000],
     'claude-sonnet-4-6': [1_000_000, 128_000],
     'claude-opus-4-5': [200_000, 64_000],
     'glm-5.2': [1_000_000, 131_072],
@@ -58,6 +60,10 @@ test('bundled model metadata resolves without network access', async (t) => {
   const gpt56 = await metadata.ensure('gpt-5.6-sol')
   assert.deepEqual(gpt56.input, ['text', 'image'])
   assert.deepEqual(gpt56.thinkingLevelMap, { off: 'none', xhigh: 'xhigh', max: 'max' })
+  const gpt6Astra = await metadata.ensure('gpt-6-astra')
+  assert.deepEqual(gpt6Astra.thinkingLevelMap, { off: 'none', xhigh: 'xhigh', max: 'max' })
+  const claudeFable51 = await metadata.ensure('claude-fable-5-1')
+  assert.deepEqual(claudeFable51.thinkingLevelMap, { off: null, xhigh: 'xhigh', max: 'max' })
   for (const modelId of ['tokenhub/glm-5.2', 'tokenhub&glm-5.2', 'tokenhub%glm-5.2']) {
     const namespacedGlm = await metadata.ensure(modelId)
     assert.equal(namespacedGlm.contextWindow, 1_000_000, modelId)
