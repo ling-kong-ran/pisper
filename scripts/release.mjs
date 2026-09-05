@@ -44,6 +44,37 @@ function runNpm(commandArgs, options) {
   return run(process.platform === 'win32' ? 'npm.cmd' : 'npm', commandArgs, options)
 }
 
+const PI_CODING_AGENT_PACKAGE = '@earendil-works/pi-coding-agent'
+
+function updateUpstreamPiDependency() {
+  console.log(`正在检查 ${PI_CODING_AGENT_PACKAGE} 的最新版本…`)
+  // 只更新清单和锁文件，避免发布前安装依赖改变 node_modules 或引入未跟踪文件。
+  runNpm(['install', `${PI_CODING_AGENT_PACKAGE}@latest`, '--save', '--package-lock-only'])
+  const changed = run('git', ['diff', '--name-only', '--', 'package.json', 'package-lock.json'], {
+    capture: true,
+  })
+  if (!changed) {
+    console.log(`${PI_CODING_AGENT_PACKAGE} 已是最新版本。`)
+    return false
+  }
+
+  const unexpected = run('git', ['status', '--porcelain', '--untracked-files=no'], {
+    capture: true,
+  })
+    .split(/\r?\n/)
+    .filter(Boolean)
+    .filter((line) => !/^(?: M|M |MM) (?:package\.json|package-lock\.json)$/.test(line))
+  if (unexpected.length > 0) {
+    throw new Error(`自动更新 ${PI_CODING_AGENT_PACKAGE} 产生了非预期修改：\n${unexpected.join('\n')}`)
+  }
+
+  run('git', ['add', 'package.json', 'package-lock.json'])
+  run('git', ['commit', '-m', 'chore(deps): update pi coding agent'])
+  run('git', ['push', 'origin', releaseBranch])
+  console.log(`已提交并推送 ${PI_CODING_AGENT_PACKAGE} 更新。`)
+  return true
+}
+
 function assertVersionInput(value) {
   if (!['major', 'minor', 'patch'].includes(value) && !/^\d+\.\d+\.\d+$/.test(value)) {
     throw new Error(`版本参数无效：${value}。请使用 major、minor、patch 或 x.y.z。`)
@@ -117,11 +148,21 @@ if (branch !== releaseBranch) {
 }
 
 run('git', ['fetch', '--tags', 'origin'])
-const source = run('git', ['rev-parse', 'HEAD'], { capture: true })
-const remoteSource = run('git', ['rev-parse', `origin/${releaseBranch}`], { capture: true })
+let source = run('git', ['rev-parse', 'HEAD'], { capture: true })
+let remoteSource = run('git', ['rev-parse', `origin/${releaseBranch}`], { capture: true })
 if (source !== remoteSource) {
   throw new Error(
     `本地 ${releaseBranch} 必须与 origin/${releaseBranch} 完全同步后才能发布。` +
+      `\n本地：${source}\n远端：${remoteSource}`,
+  )
+}
+
+updateUpstreamPiDependency()
+source = run('git', ['rev-parse', 'HEAD'], { capture: true })
+remoteSource = run('git', ['rev-parse', `origin/${releaseBranch}`], { capture: true })
+if (source !== remoteSource) {
+  throw new Error(
+    `自动更新依赖后 ${releaseBranch} 未与 origin/${releaseBranch} 同步。` +
       `\n本地：${source}\n远端：${remoteSource}`,
   )
 }
