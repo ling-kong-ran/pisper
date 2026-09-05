@@ -138,12 +138,10 @@ impl ProxyHandle {
 
     /// 解析当前可用上游：缓存有效直接用；否则按优先级逐个健康探测。
     async fn resolve_upstream(&self, profile: &ServerProfile) -> Result<String, String> {
-        if let Some(cache) = self
-            .upstream
-            .lock()
-            .ok()
-            .and_then(|c| c.as_ref().map(|c| (c.url.clone(), c.fingerprint.clone(), c.checked_at)))
-        {
+        if let Some(cache) = self.upstream.lock().ok().and_then(|c| {
+            c.as_ref()
+                .map(|c| (c.url.clone(), c.fingerprint.clone(), c.checked_at))
+        }) {
             // 切换配对档案后不能复用旧桌面端的地址；否则短暂期间请求会发往错误服务器。
             if cache.2.elapsed() < UPSTREAM_CACHE_TTL && cache.1 == profile.fingerprint {
                 return Ok(cache.0);
