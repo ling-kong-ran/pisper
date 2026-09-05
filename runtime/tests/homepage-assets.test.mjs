@@ -65,6 +65,17 @@ test('homepage and showcase use bounded WebP previews while preserving original 
   for (const path of new Set(references)) await access(path)
 })
 
+test('homepage capability matrix includes voice recognition and a matching guide section', async () => {
+  const [homepage, guide] = await Promise.all([
+    readFile('docs/index.html', 'utf8'),
+    readFile('docs/guide.html', 'utf8'),
+  ])
+
+  assert.match(homepage, /href="guide\.html#voice"[\s\S]*?<h3>语音识别<\/h3>/)
+  assert.match(guide, /<section class="guide-section" id="voice">[\s\S]*?<h2>语音识别<\/h2>/)
+  assert.match(guide, /href="#voice">语音识别<\/a>/)
+})
+
 test('homepage keeps direct download calls at compact widths', async () => {
   const [homepage, styles] = await Promise.all([
     readFile('docs/index.html', 'utf8'),
