@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import { fork, spawnSync } from 'node:child_process'
 import { createHash } from 'node:crypto'
-import { access, mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
+import { access, mkdir, mkdtemp, readFile, realpath, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 import test from 'node:test'
@@ -74,7 +74,7 @@ async function checkWorkerIpc(workerPath) {
 }
 
 test('Runtime bundle preserves host entries and only declares external package roots', async () => {
-  const runtimeDir = await mkdtemp(join(tmpdir(), 'pisper-runtime-bundle-'))
+  const runtimeDir = await mkdtemp(join(await realpath(tmpdir()), 'pisper-runtime-bundle-'))
   const dependencies = Object.fromEntries(RUNTIME_EXTERNAL_PACKAGES.map((name) => [name, '1.0.0']))
   try {
     const speechSources = [
@@ -242,7 +242,7 @@ test('Runtime bundle preserves host entries and only declares external package r
 })
 
 test('Runtime bundle rejects a missing external production dependency', async () => {
-  const runtimeDir = await mkdtemp(join(tmpdir(), 'pisper-runtime-bundle-missing-'))
+  const runtimeDir = await mkdtemp(join(await realpath(tmpdir()), 'pisper-runtime-bundle-missing-'))
   try {
     await Promise.all([
       createFile(

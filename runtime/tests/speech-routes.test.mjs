@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import { createHash, randomUUID } from 'node:crypto'
 import { EventEmitter } from 'node:events'
-import { mkdtemp, rm } from 'node:fs/promises'
+import { mkdtemp, realpath, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import test from 'node:test'
@@ -301,7 +301,7 @@ test('models returns only public metadata, defaults and service progress mapped 
 })
 
 test('models exposes real downloader progress and explicit cancellation without network or polling', async (t) => {
-  const dataDir = await mkdtemp(join(tmpdir(), 'pisper-speech-routes-'))
+  const dataDir = await mkdtemp(join(await realpath(tmpdir()), 'pisper-speech-routes-'))
   const speechCatalog = catalog()
   const nextRead = deferred()
   const cancelledRead = deferred()
@@ -369,7 +369,7 @@ test('models exposes real downloader progress and explicit cancellation without 
 })
 
 test('model operations reject unknown or malformed modelId through the real download service', async (t) => {
-  const dataDir = await mkdtemp(join(tmpdir(), 'pisper-speech-route-ids-'))
+  const dataDir = await mkdtemp(join(await realpath(tmpdir()), 'pisper-speech-route-ids-'))
   const speechCatalog = catalog()
   const speechModels = new SpeechModelDownloadService({
     dataDir,

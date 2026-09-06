@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import { createHash } from 'node:crypto'
-import { mkdir, mkdtemp, readFile, readdir, rm, writeFile } from 'node:fs/promises'
+import { mkdir, mkdtemp, readFile, readdir, realpath, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
 import test from 'node:test'
@@ -33,7 +33,7 @@ const fixture = encodePieces([
 const expected = '<unk>\t0\n\u2581hello\t-1.25\n\u4f60\u597d\t-2.5\n<s>\t0\n\ud83d\ude00\t-3\n'
 
 async function temporaryDirectory(t) {
-  const directory = await mkdtemp(join(tmpdir(), 'pisper-speech-bpe-'))
+  const directory = await mkdtemp(join(await realpath(tmpdir()), 'pisper-speech-bpe-'))
   t.after(() => rm(directory, { recursive: true, force: true }))
   return directory
 }

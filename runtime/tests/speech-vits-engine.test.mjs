@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import { fork } from 'node:child_process'
 import { createHash, randomUUID } from 'node:crypto'
-import { link, mkdir, mkdtemp, rm, symlink, writeFile } from 'node:fs/promises'
+import { link, mkdir, mkdtemp, realpath, rm, symlink, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
 import { setTimeout as delay } from 'node:timers/promises'
@@ -58,7 +58,7 @@ function modelFixture() {
 }
 
 async function installedFixture(t) {
-  const root = await mkdtemp(join(tmpdir(), 'pisper-vits-'))
+  const root = await mkdtemp(join(await realpath(tmpdir()), 'pisper-vits-'))
   t.after(() => rm(root, { recursive: true, force: true }))
   const { model, payloads } = modelFixture()
   const downloads = new SpeechModelDownloadService({

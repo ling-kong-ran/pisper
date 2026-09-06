@@ -8,6 +8,7 @@ import {
   open,
   readFile,
   readdir,
+  realpath,
   rename,
   rm,
   symlink,
@@ -108,7 +109,7 @@ function model(id = 'sample', data = payload) {
 }
 
 async function fixture(t, options = {}) {
-  const dataDir = await mkdtemp(join(tmpdir(), 'pisper-model-download-'))
+  const dataDir = await mkdtemp(join(await realpath(tmpdir()), 'pisper-model-download-'))
   const services = []
   const create = (overrides = {}) => {
     const service = new SpeechModelDownloadService({

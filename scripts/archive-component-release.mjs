@@ -1,8 +1,18 @@
-import { spawn } from 'node:child_process'
-import { chmod, copyFile, cp, mkdir, rm, stat, writeFile } from 'node:fs/promises'
-import { dirname, join, relative, resolve } from 'node:path'
+import {
+  chmod,
+  copyFile,
+  cp,
+  mkdir,
+  readdir,
+  realpath,
+  rm,
+  stat,
+  writeFile,
+} from 'node:fs/promises'
+import { basename, dirname, isAbsolute, join, relative, resolve, sep } from 'node:path'
 import process from 'node:process'
 import { fileURLToPath } from 'node:url'
+import { c as createTar, t as listTar } from 'tar'
 import { assertReleaseComponent, readComponentVersion } from './release-components.mjs'
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..')
@@ -19,19 +29,45 @@ const stage = join(stageRoot, directoryName)
 const label = component === 'desktop' ? 'Desktop' : component === 'tui' ? 'TUI' : 'Runtime'
 const archive = join(outputDir, `Pisper_${label}_${version}_${platform}_${arch}.tar.gz`)
 
-function run(command, args) {
-  return new Promise((resolveRun, rejectRun) => {
-    const child = spawn(command, args, { cwd: root, env: process.env, stdio: 'inherit' })
-    child.once('error', rejectRun)
-    child.once('exit', (code, signal) => {
-      if (code === 0) resolveRun()
-      else rejectRun(new Error(`${command} exited with ${signal || code}.`))
-    })
-  })
+async function copyComponentTree(source, destination) {
+  const sourceRoot = await realpath(source)
+  const launchers = []
+  async function inspect(directory, ancestors = new Set()) {
+    const canonical = await realpath(directory)
+    if (ancestors.has(canonical)) throw new Error(`Component contains a link cycle: ${directory}`)
+    const nextAncestors = new Set([...ancestors, canonical])
+    for (const entry of await readdir(directory, { withFileTypes: true })) {
+      const path = join(directory, entry.name)
+      let info = entry
+      if (entry.isSymbolicLink()) {
+        const target = await realpath(path)
+        const targetPath = relative(sourceRoot, target)
+        if (isAbsolute(targetPath) || targetPath === '..' || targetPath.startsWith(`..${sep}`)) {
+          throw new Error(`Component link escapes its source root: ${path}`)
+        }
+        info = await stat(path)
+        if (info.isFile() && basename(directory) === '.bin') {
+          launchers.push({ path: relative(source, path), target: targetPath })
+        }
+      }
+      if (info.isDirectory()) await inspect(path, nextAncestors)
+      else if (!info.isFile()) throw new Error(`Unsupported component source entry: ${path}`)
+    }
+  }
+  await inspect(source)
+  await cp(source, destination, { recursive: true, force: true, dereference: true })
+  for (const launcher of launchers) {
+    const path = join(destination, launcher.path)
+    const target = relative(dirname(path), join(destination, launcher.target)).replaceAll('\\', '/')
+    // 不能把 npm bin 的脚本直接复制到 .bin，否则脚本内相对 import/require 会从错误目录解析。
+    const quoted = `'${target.replaceAll("'", "'\\''")}'`
+    await writeFile(path, `#!/bin/sh\nexec "$(dirname "$0")"/${quoted} "$@"\n`)
+    await chmod(path, 0o755)
+  }
 }
 
 async function stageDesktop() {
-  await cp(join(root, 'dist'), join(stage, 'dist'), { recursive: true, force: true })
+  await copyComponentTree(join(root, 'dist'), join(stage, 'dist'))
   await writeFile(
     join(stage, 'manifest.json'),
     `${JSON.stringify(
@@ -57,7 +93,7 @@ async function stageRuntime() {
   await Promise.all([stat(sidecar), stat(runtime)])
   await Promise.all([
     copyFile(sidecar, join(stage, `pisper-sidecar${executableSuffix}`)),
-    cp(runtime, join(stage, 'sidecar-runtime'), { recursive: true, force: true }),
+    copyComponentTree(runtime, join(stage, 'sidecar-runtime')),
     copyFile(
       join(seaRoot, 'runtime-size-manifest.json'),
       join(stage, 'runtime-size-manifest.json'),
@@ -95,14 +131,29 @@ async function stageTui() {
       ),
   )
   await stat(source)
-  await cp(source, stage, { recursive: true, force: true })
+  await copyComponentTree(source, stage)
 }
 
 async function createArchive(sourceDirectory, destination) {
   await rm(destination, { force: true })
-  const archiveArgument = relative(root, destination).replaceAll('\\', '/')
-  const stageArgument = relative(root, stageRoot).replaceAll('\\', '/')
-  await run('tar', ['-czf', archiveArgument, '-C', stageArgument, sourceDirectory])
+  // portable 避免宿主 tar 写入 macOS 扩展属性等与组件安装无关的元数据。
+  await createTar({ cwd: stageRoot, file: destination, gzip: true, portable: true }, [
+    sourceDirectory,
+  ])
+  let unsupportedEntry
+  await listTar({
+    file: destination,
+    strict: true,
+    onReadEntry(entry) {
+      if (entry.type !== 'File' && entry.type !== 'Directory') {
+        unsupportedEntry ??= `${entry.path} (${entry.type})`
+      }
+    },
+  })
+  if (unsupportedEntry) {
+    await rm(destination, { force: true })
+    throw new Error(`Component archive contains an unsupported entry: ${unsupportedEntry}`)
+  }
   const bytes = (await stat(destination)).size
   if (bytes === 0) throw new Error(`Component archive is empty: ${destination}`)
   console.log(`Packaged Pisper ${label}: ${destination} (${bytes} bytes)`)
@@ -122,10 +173,7 @@ if (component === 'runtime') {
   const nodeArchive = join(outputDir, `Pisper_Runtime_Node_${version}_${platform}_${arch}.tar.gz`)
   await rm(nodeStage, { recursive: true, force: true })
   await mkdir(nodeStage, { recursive: true })
-  await cp(join(stage, 'sidecar-runtime'), join(nodeStage, 'sidecar-runtime'), {
-    recursive: true,
-    force: true,
-  })
+  await copyComponentTree(join(stage, 'sidecar-runtime'), join(nodeStage, 'sidecar-runtime'))
   await writeFile(
     join(nodeStage, 'manifest.json'),
     `${JSON.stringify(
