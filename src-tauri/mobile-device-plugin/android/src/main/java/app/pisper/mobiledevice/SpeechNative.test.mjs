@@ -100,10 +100,20 @@ import java.net.URL
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
 import java.security.MessageDigest
+import java.util.concurrent.CompletableFuture
+import java.util.concurrent.CountDownLatch
+import java.util.concurrent.Executors
+import java.util.concurrent.TimeUnit
+import java.util.concurrent.TimeoutException
+import java.util.concurrent.atomic.AtomicBoolean
+import java.util.concurrent.atomic.AtomicInteger
 
-private fun expectFailure(block: () -> Unit) {
+private fun expectFailure(code: String? = null, block: () -> Unit) {
     var failed = false
-    try { block() } catch (_: Exception) { failed = true }
+    try { block() } catch (error: Exception) {
+        if (code != null) check(error.message == code) { "Expected $code, got " + error.message }
+        failed = true
+    }
     check(failed) { "Expected failure" }
 }
 private fun sha(value: ByteArray): String = MessageDigest.getInstance("SHA-256").digest(value)
@@ -136,7 +146,512 @@ private fun makeArchive(file: File, entries: List<Pair<TarArchiveEntry, ByteArra
     }
 }
 
+private fun testEngineCache() {
+    var now = 0L
+    var created = 0
+    var failLoad = false
+    val released = mutableListOf<Int>()
+    val timers = mutableListOf<() -> Unit>()
+    val cache = SpeechEngineCache<String, Int>(
+        create = { if (failLoad) error("load failed"); ++created },
+        release = { released += it },
+        schedule = { delay, operation ->
+            check(delay == 30_000L)
+            timers += operation
+            // 故意保留已取消回调，模拟它已入队但尚未执行的情况。
+            val cancel: () -> Unit = {}
+            cancel
+        },
+        now = { now },
+    )
+    check(cache.use("a") { it } == 1)
+    val stale = timers.last()
+    now = 10_000
+    check(cache.use("a") { it } == 1 && created == 1)
+    stale()
+    check(released.isEmpty())
+    val beforeASR = timers.last()
+    now += 60_000
+    cache.touch()
+    beforeASR()
+    check(cache.use("a") { it } == 1 && released.isEmpty())
+    check(cache.use("b") { it } == 2 && released == listOf(1))
+    timers.last()()
+    check(released == listOf(1, 2))
+    check(cache.use("b") { it } == 3)
+    now += 30_000
+    check(cache.use("b") { it } == 4 && released == listOf(1, 2, 3))
+    expectFailure { cache.use("b") { error("generate failed") } }
+    check(released == listOf(1, 2, 3, 4))
+    failLoad = true
+    expectFailure { cache.use("b") { it } }
+    failLoad = false
+    check(cache.use("b") { it } == 5)
+    cache.invalidate()
+    cache.invalidate()
+    check(released == listOf(1, 2, 3, 4, 5))
+    timers.forEach { it() }
+    check(released.size == 5)
+
+    val queue = java.util.concurrent.Executors.newSingleThreadExecutor()
+    var nativeActive = false
+    var builds = 0
+    var frees = 0
+    val queued = SpeechEngineCache<String, Int>(
+        create = { ++builds },
+        release = { check(!nativeActive); frees++ },
+        schedule = { _, _ -> val cancel: () -> Unit = {}; cancel },
+    )
+    try {
+        queue.submit { queued.use("a") { check(it == 1) } }.get()
+        // 同类请求共用一条队列，空操作不影响已有缓存。
+        queue.submit { check(builds == 1 && frees == 0) }.get()
+        queue.submit {
+            queued.use("a") {
+                nativeActive = true
+                queue.execute { queued.invalidate() }
+                check(it == 1 && frees == 0)
+                nativeActive = false
+            }
+            check(frees == 0)
+        }.get()
+        queue.submit { check(builds == 1 && frees == 1); queued.invalidate() }.get()
+        queue.submit { check(queued.use("a") { it } == 2); queued.invalidate() }.get()
+        check(frees == 2)
+    } finally { queue.shutdownNow() }
+}
+
+private fun testParallelPreload() {
+    for (mode in listOf("success", "first-fails", "second-fails", "both-fail", "cancel", "cancel-adopt", "invalid")) {
+        val asrQueue = SpeechEngineQueue()
+        val ttsQueue = SpeechEngineQueue()
+        val publicationLock = Any()
+        val entered = CountDownLatch(2)
+        val firstGate = CountDownLatch(1)
+        val secondGate = CountDownLatch(1)
+        val firstReturned = CountDownLatch(1)
+        val constructorCount = AtomicInteger()
+        val firstBuilds = AtomicInteger()
+        val secondBuilds = AtomicInteger()
+        val fail = AtomicBoolean(true)
+        val queuedInference = AtomicInteger()
+        val sessions = SpeechSessions()
+        val request = sessions.begin("00000000-0000-4000-8000-000000000401", listOf("asr", "tts"))
+        val asrThread = asrQueue.executor.submit<Thread> { Thread.currentThread() }.get()
+        val ttsThread = ttsQueue.executor.submit<Thread> { Thread.currentThread() }.get()
+        val released = java.util.Collections.synchronizedList(mutableListOf<String>())
+        fun create(name: String, gate: CountDownLatch, builds: AtomicInteger): String {
+            check(Thread.currentThread() === if (name == "first") asrThread else ttsThread)
+            val serial = builds.incrementAndGet()
+            constructorCount.incrementAndGet()
+            entered.countDown()
+            try {
+                check(gate.await(5, TimeUnit.SECONDS))
+                if (fail.get() && (mode == "$name-fails" || mode == "both-fail")) {
+                    error("speech_" + name + "_failed")
+                }
+                return "$name-$serial"
+            } finally {
+                constructorCount.decrementAndGet()
+                if (name == "first") firstReturned.countDown()
+            }
+        }
+        fun release(value: String) {
+            check(Thread.currentThread() === if (value.startsWith("first")) asrThread else ttsThread)
+            check(constructorCount.get() == 0)
+            check(value !in released)
+            released += value
+        }
+        val first = SpeechEngineCache<String, String>(
+            create = { create("first", firstGate, firstBuilds) }, release = ::release,
+            schedule = { _, _ -> {} }, idleState = sessions::idleState,
+        )
+        val second = SpeechEngineCache<String, String>(
+            create = { create("second", secondGate, secondBuilds) }, release = ::release,
+            schedule = { _, _ -> {} }, idleState = sessions::idleState,
+        )
+        fun prepare(key: String = "asr", initial: Boolean = false): CompletableFuture<Throwable?> {
+            val result = CompletableFuture<Throwable?>()
+            SpeechEnginePreloader.prepare(listOf(
+                SpeechEnginePreparationJob(asrQueue, {
+                    val candidate = first.prepare(key)
+                    object : SpeechEnginePreparation by candidate {
+                        override fun adopt() {
+                            candidate.adopt()
+                            if (initial && mode == "cancel-adopt") sessions.release(request.id)
+                        }
+                    }
+                }),
+                SpeechEnginePreparationJob(ttsQueue, { second.prepare("tts") {
+                    check(Thread.currentThread() === ttsThread)
+                    if (initial && mode == "invalid") error("speech_voice_unavailable")
+                } }),
+            ), check = { if (initial) request.check() },
+                publish = { operation -> synchronized(publicationLock) { operation() } },
+                complete = { error ->
+                    if (error != null) sessions.finish(request)
+                    result.complete(error)
+                },
+            )
+            return result
+        }
+        fun flush() {
+            asrQueue.executor.submit {}.get(5, TimeUnit.SECONDS)
+            ttsQueue.executor.submit {}.get(5, TimeUnit.SECONDS)
+        }
+        try {
+            val result = prepare(initial = true)
+            // 两个 constructor 必须在放开任一返回闸门前同时进入，不能用并行排队冒充并行加载。
+            check(entered.await(5, TimeUnit.SECONDS))
+            check(constructorCount.get() == 2)
+            asrQueue.executor.execute { queuedInference.incrementAndGet() }
+            ttsQueue.executor.execute { queuedInference.incrementAndGet() }
+            if (mode == "cancel") synchronized(publicationLock) { sessions.release(request.id) }
+            firstGate.countDown()
+            check(firstReturned.await(5, TimeUnit.SECONDS))
+            try {
+                result.get(100, TimeUnit.MILLISECONDS)
+                error("prepare returned before observing the late constructor")
+            } catch (_: TimeoutException) {}
+            check(queuedInference.get() == 0)
+            secondGate.countDown()
+            val error = result.get(5, TimeUnit.SECONDS)
+            val expectedError = when (mode) {
+                "success" -> null
+                "first-fails", "both-fail" -> "speech_first_failed"
+                "second-fails" -> "speech_second_failed"
+                "cancel", "cancel-adopt" -> "speech_cancelled"
+                else -> "speech_voice_unavailable"
+            }
+            check(error?.message == expectedError)
+            if (mode == "both-fail") check(error!!.suppressed.any { it.message == "speech_second_failed" })
+            flush()
+            check(queuedInference.get() == 2 && constructorCount.get() == 0)
+            val discarded = when (mode) {
+                "first-fails" -> listOf("second-1")
+                "second-fails" -> listOf("first-1")
+                "cancel", "cancel-adopt", "invalid" -> listOf("first-1", "second-1")
+                else -> emptyList()
+            }
+            check(released.sorted() == discarded.sorted())
+            fail.set(false)
+            check(prepare().get(5, TimeUnit.SECONDS) == null)
+            flush()
+            val expectedBuilds = if (mode == "success") 1 else 2
+            check(firstBuilds.get() == expectedBuilds && secondBuilds.get() == expectedBuilds)
+            asrQueue.executor.submit { first.use("asr") { check(constructorCount.get() == 0) } }.get()
+            ttsQueue.executor.submit { second.use("tts") { check(constructorCount.get() == 0) } }.get()
+            // 只替换 ASR 配置时，已加载 TTS 仍复用；旧句柄仅在 ASR 队列释放。
+            check(prepare("asr-next").get(5, TimeUnit.SECONDS) == null)
+            flush()
+            check(firstBuilds.get() == expectedBuilds + 1 && secondBuilds.get() == expectedBuilds)
+            asrQueue.executor.submit { first.invalidate() }.get()
+            ttsQueue.executor.submit { second.invalidate() }.get()
+            val successfulCreates = firstBuilds.get() + secondBuilds.get() - when (mode) {
+                "first-fails", "second-fails" -> 1
+                "both-fail" -> 2
+                else -> 0
+            }
+            check(released.size == successfulCreates)
+        } finally {
+            firstGate.countDown()
+            secondGate.countDown()
+            asrQueue.executor.shutdown()
+            ttsQueue.executor.shutdown()
+            check(asrQueue.executor.awaitTermination(5, TimeUnit.SECONDS))
+            check(ttsQueue.executor.awaitTermination(5, TimeUnit.SECONDS))
+        }
+    }
+}
+
+private fun testSpeechInferenceQueues() {
+    val asr = SpeechEngineQueue()
+    val tts = SpeechEngineQueue()
+    val entered = CountDownLatch(2)
+    val gate = CountDownLatch(1)
+    val activeAsr = AtomicInteger()
+    val activeTts = AtomicInteger()
+    val asrOrder = java.util.Collections.synchronizedList(mutableListOf<Int>())
+    val ttsOrder = java.util.Collections.synchronizedList(mutableListOf<Int>())
+    val requests = SpeechRequests()
+    val asrRequest = requests.begin("00000000-0000-4000-8000-000000000501")
+    val ttsRequest = requests.begin("00000000-0000-4000-8000-000000000502")
+    fun submit(queue: SpeechEngineQueue, index: Int): CompletableFuture<String> {
+        val result = CompletableFuture<String>()
+        val active = if (queue === asr) activeAsr else activeTts
+        val order = if (queue === asr) asrOrder else ttsOrder
+        queue.submit(operation = {
+            try {
+                check(active.incrementAndGet() == 1)
+                order += index
+                if (index == 1) {
+                    entered.countDown()
+                    check(gate.await(5, TimeUnit.SECONDS))
+                    if (queue === asr) expectFailure("speech_cancelled") { asrRequest.check() }
+                    else ttsRequest.check()
+                }
+                result.complete("done")
+            } catch (error: Throwable) { result.completeExceptionally(error) }
+            finally { active.decrementAndGet() }
+        }, rejected = { result.complete("busy") })
+        return result
+    }
+    try {
+        val asrJobs = (1..3).map { submit(asr, it) }
+        check(submit(asr, 4).get(5, TimeUnit.SECONDS) == "busy")
+        // ASR 已占满三个槽，空闲 TTS 仍必须进入；两类推理可以同时保持运行状态。
+        val ttsJobs = (1..2).map { submit(tts, it) }
+        check(entered.await(5, TimeUnit.SECONDS))
+        check(activeAsr.get() == 1 && activeTts.get() == 1)
+        check(asrOrder == listOf(1) && ttsOrder == listOf(1))
+        val control = CompletableFuture<Unit>()
+        asr.executor.execute { control.complete(Unit) }
+        requests.cancel(asrRequest.id)
+        gate.countDown()
+        (asrJobs + ttsJobs).forEach { check(it.get(5, TimeUnit.SECONDS) == "done") }
+        control.get(5, TimeUnit.SECONDS)
+        check(asrOrder == listOf(1, 2, 3) && ttsOrder == listOf(1, 2))
+        ttsRequest.check()
+    } finally {
+        gate.countDown()
+        asr.executor.shutdown()
+        tts.executor.shutdown()
+        check(asr.executor.awaitTermination(5, TimeUnit.SECONDS))
+        check(tts.executor.awaitTermination(5, TimeUnit.SECONDS))
+    }
+}
+
+private fun testConcurrentPrepareOrdering() {
+    val asr = SpeechEngineQueue()
+    val tts = SpeechEngineQueue()
+    val callers = Executors.newFixedThreadPool(2)
+    val start = CountDownLatch(1)
+    val holdQueues = CountDownLatch(1)
+    val publicationLock = Any()
+    val orders = listOf(mutableListOf<Int>(), mutableListOf<Int>())
+    val queues = listOf(asr, tts)
+    val caches = queues.map {
+        SpeechEngineCache<Int, Int>(create = { it }, release = {}, schedule = { _, _ -> {} },
+            idleState = { SpeechIdleState(true, 0) })
+    }
+    queues.forEach { it.executor.execute { check(holdQueues.await(5, TimeUnit.SECONDS)) } }
+    try {
+        val completions = (1..2).map { CompletableFuture<Throwable?>() }
+        val submissions = (1..2).map { id ->
+            callers.submit {
+                check(start.await(5, TimeUnit.SECONDS))
+                val indices = if (id == 1) listOf(0, 1) else listOf(1, 0)
+                SpeechEnginePreloader.prepare(indices.map { index ->
+                    SpeechEnginePreparationJob(queues[index], {
+                        orders[index] += id
+                        caches[index].prepare(id)
+                    })
+                }, check = {}, publish = { operation -> synchronized(publicationLock) { operation() } },
+                    complete = { completions[id - 1].complete(it) })
+            }
+        }
+        start.countDown()
+        submissions.forEach { it.get(5, TimeUnit.SECONDS) }
+        holdQueues.countDown()
+        completions.forEach { check(it.get(5, TimeUnit.SECONDS) == null) }
+        queues.forEachIndexed { index, queue -> queue.executor.submit { caches[index].invalidate() }.get() }
+        check(orders[0] == orders[1] && orders[0].sorted() == listOf(1, 2))
+    } finally {
+        start.countDown()
+        holdQueues.countDown()
+        callers.shutdown()
+        queues.forEach { it.executor.shutdown() }
+        check(callers.awaitTermination(5, TimeUnit.SECONDS))
+        queues.forEach { check(it.executor.awaitTermination(5, TimeUnit.SECONDS)) }
+    }
+}
+
+private fun testSpeechSessions() {
+    var now = 0L
+    val sessions = SpeechSessions { now }
+    val first = "00000000-0000-4000-8000-000000000101"
+    val second = "00000000-0000-4000-8000-000000000102"
+    val third = "00000000-0000-4000-8000-000000000103"
+    data class Timer(val at: Long, val operation: () -> Unit, var cancelled: Boolean = false)
+    val timers = mutableListOf<Timer>()
+    var asrBuilds = 0
+    var ttsBuilds = 0
+    var asrFrees = 0
+    var ttsFrees = 0
+    var streams = 0
+    var streamFrees = 0
+    var failLoad = false
+    fun schedule(delay: Long, operation: () -> Unit): () -> Unit {
+        val timer = Timer(now + delay, operation)
+        timers += timer
+        return { timer.cancelled = true }
+    }
+    val asr = SpeechEngineCache<com.k2fsa.sherpa.onnx.OnlineRecognizerConfig, Int>(
+        create = { if (failLoad) error("speech_native_failed"); ++asrBuilds },
+        release = { asrFrees++ }, schedule = ::schedule, now = { now }, idleState = sessions::idleState,
+    )
+    val tts = SpeechEngineCache<String, Int>(
+        create = { ++ttsBuilds }, release = { ttsFrees++ },
+        schedule = ::schedule, now = { now }, idleState = sessions::idleState,
+    )
+    fun refresh() { asr.refreshIdle(); tts.refreshIdle() }
+    fun pending() = timers.filter { !it.cancelled }
+    val greedy = com.k2fsa.sherpa.onnx.OnlineRecognizerConfig(decodingMethod = "greedy_search")
+    val beam = greedy.copy(decodingMethod = "modified_beam_search", maxActivePaths = 2, hotwordsScore = 1.5f)
+    expectFailure { sessions.begin(first, emptyList()) }
+    expectFailure { sessions.begin(first, listOf("asr", "asr")) }
+    expectFailure { sessions.begin(first, listOf("unknown")) }
+    val conversation = sessions.begin(first, listOf("asr", "tts"))
+    expectFailure("speech_request_busy") { sessions.begin(first, listOf("asr", "tts")) }
+    asr.use(greedy, markUsed = false) { conversation.check() }
+    tts.use("catalog-voice", markUsed = false) { conversation.check() }
+    check(asrBuilds == 1 && ttsBuilds == 1 && pending().isEmpty())
+    repeat(3) {
+        now += 60_000
+        asr.use(greedy.copy()) { engine ->
+            check(engine == 1)
+            streams++
+            try { conversation.check() } finally { streamFrees++ }
+        }
+        tts.use("catalog-voice") { check(it == 1) }
+        check(pending().isEmpty())
+    }
+    check(asrBuilds == 1 && streams == 3 && streamFrees == 3)
+    val ordinary = SpeechRequests { now }
+    ordinary.finish(ordinary.begin(first))
+    check(sessions.idleState().pinned)
+    val recording = sessions.begin(second, listOf("asr"))
+    sessions.release(first)
+    refresh()
+    check(pending().isEmpty())
+    recording.check()
+    expectFailure { conversation.check() }
+    now += 1_000
+    sessions.release(second)
+    val lastRelease = now
+    // 清理控制任务可能在 JNI 后才执行，但计时起点仍是最后一次 release。
+    now += 2_000
+    refresh()
+    check(pending().size == 2 && pending().all { it.at == lastRelease + 30_000 })
+    val oldTimers = pending().toList()
+    val next = sessions.begin(third, listOf("asr"))
+    oldTimers.forEach { it.operation() }
+    check(asrFrees == 0 && ttsFrees == 0 && pending().isEmpty())
+    sessions.release(first)
+    sessions.finish(conversation)
+    next.check()
+    check(sessions.idleState().pinned)
+    asr.use(beam, markUsed = false) { next.check() }
+    check(asrBuilds == 2 && asrFrees == 1)
+    asr.use(beam.copy(), markUsed = false) { next.check() }
+    check(asrBuilds == 2)
+    asr.use(greedy, markUsed = false) { next.check() }
+    check(asrBuilds == 3 && asrFrees == 2)
+    sessions.release(third)
+    refresh()
+    now += 30_000
+    pending().toList().forEach { it.operation() }
+    check(asrFrees == 3 && ttsFrees == 1)
+
+    val cancelledId = "00000000-0000-4000-8000-000000000104"
+    sessions.release(cancelledId)
+    expectFailure { sessions.begin(cancelledId, listOf("asr")) }
+    val late = sessions.begin("00000000-0000-4000-8000-000000000105", listOf("asr"))
+    val newer = sessions.begin("00000000-0000-4000-8000-000000000106", listOf("tts"))
+    // 模拟 release 在原生构造返回前发生，迟到构造必须释放句柄且不能复活旧 pin。
+    val lateCache = SpeechEngineCache<String, Int>(
+        create = { sessions.release(late.id); 1 }, release = { asrFrees++ },
+        schedule = ::schedule, now = { now }, idleState = sessions::idleState,
+    )
+    expectFailure { lateCache.use("late", markUsed = false) { late.check() } }
+    sessions.finish(late)
+    newer.check()
+    check(asrFrees == 4 && sessions.idleState().pinned)
+    failLoad = true
+    val failed = sessions.begin("00000000-0000-4000-8000-000000000107", listOf("asr"))
+    try {
+        expectFailure { asr.use(greedy, markUsed = false) { failed.check() } }
+    } finally { sessions.finish(failed) }
+    newer.check()
+    check(sessions.idleState().pinned && asrBuilds == 3)
+    failLoad = false
+    asr.use(greedy, markUsed = false) { newer.check() }
+    tts.use("catalog-voice", markUsed = false) { newer.check() }
+    check(pending().isEmpty())
+    sessions.pause()
+    expectFailure { newer.check() }
+    expectFailure { sessions.begin("00000000-0000-4000-8000-000000000108", listOf("asr")) }
+    asr.invalidate()
+    tts.invalidate()
+    check(!sessions.idleState().pinned && asrFrees == 5 && ttsFrees == 2)
+    sessions.resume()
+    val resumed = sessions.begin("00000000-0000-4000-8000-000000000108", listOf("asr"))
+    asr.use(greedy, markUsed = false) { resumed.check() }
+    check(asrBuilds == 5)
+    sessions.clear()
+    expectFailure { resumed.check() }
+    asr.invalidate()
+    check(!sessions.idleState().pinned && asrFrees == 6)
+    val queued = sessions.begin("00000000-0000-4000-8000-000000000109", listOf("asr"))
+    sessions.release(queued.id)
+    expectFailure {
+        queued.check()
+        asr.use(greedy, markUsed = false) { queued.check() }
+    }
+    sessions.finish(queued)
+    check(asrBuilds == 5 && !sessions.idleState().pinned)
+    val failedOnly = sessions.begin("00000000-0000-4000-8000-000000000110", listOf("asr"))
+    failLoad = true
+    try {
+        expectFailure { asr.use(greedy, markUsed = false) { failedOnly.check() } }
+    } finally { sessions.finish(failedOnly) }
+    check(asrBuilds == 5 && !sessions.idleState().pinned)
+    val bounded = SpeechSessions { now }
+    val held = (1..16).map {
+        bounded.begin("00000000-0000-4000-8000-" + (200 + it).toString().padStart(12, '0'), listOf("asr"))
+    }
+    val overflow = "00000000-0000-4000-8000-000000000300"
+    expectFailure("speech_engine_busy") { bounded.begin(overflow, listOf("asr")) }
+    held.forEach { it.check() }
+    bounded.release(held.first().id)
+    bounded.begin(overflow, listOf("asr")).check()
+    bounded.clear()
+    check(!bounded.idleState().pinned)
+}
+
+private fun testSpeechSessionChurn() {
+    var now = 0L
+    val sessions = SpeechSessions { now }
+    val held = sessions.begin("00000000-0000-4000-8000-999999999999", listOf("asr"))
+    fun id(index: Int) = "00000000-0000-4000-8000-" + index.toString().padStart(12, '0')
+    // 模拟长时间正常轮换，累计超过请求表容量；过期 tombstone 应清理，但活跃 pin 不能清理。
+    repeat(5_000) { index ->
+        now += 1_000
+        val request = sessions.begin(id(index), listOf("asr"))
+        request.check()
+        sessions.release(request.id)
+        expectFailure("speech_cancelled") { request.check() }
+        held.check()
+    }
+    expectFailure("speech_request_busy") { sessions.begin(held.id, listOf("asr")) }
+    sessions.release(held.id)
+    check(!sessions.idleState().pinned)
+    now += 10 * 60_000
+    expectFailure("speech_cancelled") { sessions.begin(id(4_999), listOf("asr")) }
+    now += 1
+    val reused = sessions.begin(id(4_999), listOf("asr"))
+    reused.check()
+    sessions.release(reused.id)
+    check(!sessions.idleState().pinned)
+}
+
 fun main(args: Array<String>) {
+    testEngineCache()
+    testParallelPreload()
+    testSpeechInferenceQueues()
+    testConcurrentPrepareOrdering()
+    testSpeechSessions()
+    testSpeechSessionChurn()
     val dir = File(args[0]).canonicalFile
     val data = "verified speech resource".toByteArray()
     val spec = SpeechDownloadFile("data !/model.onnx", data.size.toLong(), sha(data), listOf("https://hf-mirror.com/model"))
@@ -318,7 +833,7 @@ fun main(args: Array<String>) {
     expectFailure { SpeechWave.write(wave, FloatArray(8_000 * 45 + 1), 8_000) {} }
     expectFailure { SpeechWave.write(wave, floatArrayOf(0f), 192_000) {} }
     expectFailure { SpeechWave.write(wave, floatArrayOf(0f), 24_000) { throw SpeechCancelled() } }
-    println("PASS: path/URL policy, streaming, resume, redirect, integrity, cancellation isolation, lifecycle, WAV limits")
+    println("PASS: path/URL policy, streaming, resume, redirect, integrity, cancellation isolation, lifecycle, WAV limits, engine cache reuse and serial disposal")
 }
 `
 
@@ -394,7 +909,7 @@ test(
       ])
       const output = execute(java, [
         '-cp',
-        [classes, ...jars.slice(1), ...commons].join(delimiter),
+        [classes, ...jars.slice(1), ...commons, join(extracted, 'classes.jar')].join(delimiter),
         'app.pisper.mobiledevice.SpeechNativeHarnessKt',
         dir,
       ])

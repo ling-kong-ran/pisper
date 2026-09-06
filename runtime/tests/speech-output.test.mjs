@@ -252,6 +252,106 @@ test('streamed sentences synthesize and play before EOF with only one prepared s
   assert.equal(plays().length, 3)
 })
 
+for (const native of [false, true])
+  for (const deltas of [['你好，'], ['你', '好', '，'], ['Hello '], ['Hel', 'lo', ' ']])
+    test(`${native ? 'native' : 'desktop'} synthesizes a closed first phrase before later deltas: ${deltas.join('|')}`, async (t) => {
+      t.mock.timers.enable({ apis: ['setTimeout', 'Date'] })
+      const playing = deferred()
+      const f = fixture(t, {
+        native,
+        invoke: (command) =>
+          command === 'mobile_synthesize_speech' ? nativeAudio() : playing.promise,
+      })
+      const controller = new AbortController()
+      t.after(() => controller.abort())
+      const stream = createVoiceTextStream(controller.signal)
+      const run = observe(f.playLocalSpeech(stream, 'voice-zh', controller.signal))
+      const texts = () =>
+        f.calls
+          .filter((call) =>
+            native
+              ? call.command === 'mobile_synthesize_speech'
+              : call.path === '/api/speech/synthesize',
+          )
+          .map((call) => (native ? call.args.text : call.body.text))
+      const phrase = deltas.join('').trim()
+      let snapshot = ''
+      for (const [index, delta] of deltas.entries()) {
+        snapshot += delta
+        stream.update(snapshot)
+        await flush()
+        assert.deepEqual(texts(), index < deltas.length - 1 ? [] : [phrase])
+      }
+      assert.equal(run.state, 'pending')
+      assert.equal(
+        native
+          ? f.calls.filter((call) => call.command === 'mobile_play_speech').length
+          : f.nodes.filter((node) => node.started).length,
+        1,
+      )
+      // 合成和播放已经发生，随后才允许后续 SSE 文本进入生产播放器。
+      for (const delta of ['今天', '很高兴']) {
+        snapshot += delta
+        stream.update(snapshot)
+        await flush()
+        assert.deepEqual(texts(), [phrase])
+      }
+      stream.finish()
+      await flush()
+      assert.deepEqual(texts(), [phrase, '今天很高兴'])
+      if (native) playing.resolve({ completed: true })
+      else {
+        f.nodes[0].end()
+        await flush()
+        assert.equal(f.nodes.length, 2)
+        f.nodes[1].end()
+      }
+      await run.done
+      assert.equal(run.state, 'resolved', run.error?.stack)
+      assert.equal(texts().join(''), `${phrase}今天很高兴`)
+    })
+
+for (const native of [false, true])
+  for (const text of [
+    '好的，',
+    '我已经看到你说的问题，',
+    '这是一个没有句号但需要在回复结束之前开始播报的长句',
+  ])
+    test(`${native ? 'native' : 'desktop'} starts a streaming fragment before punctuation or EOF: ${text}`, async (t) => {
+      const playing = deferred()
+      const f = fixture(t, {
+        native,
+        invoke: (command) =>
+          command === 'mobile_synthesize_speech' ? nativeAudio() : playing.promise,
+      })
+      const controller = new AbortController()
+      t.after(() => controller.abort())
+      const stream = createVoiceTextStream(controller.signal)
+      const run = observe(f.playLocalSpeech(stream, 'voice-en', controller.signal))
+      stream.update(text)
+      await flush()
+      const synthesized = f.calls.filter((call) =>
+        native
+          ? call.command === 'mobile_synthesize_speech'
+          : call.path === '/api/speech/synthesize',
+      )
+      assert.ok(synthesized.length >= 1 && synthesized.length <= 2)
+      const first = native ? synthesized[0].args.text : synthesized[0].body.text
+      assert.ok(text.startsWith(first))
+      assert.ok(cost(first) <= 16)
+      assert.equal(
+        native
+          ? f.calls.filter((call) => call.command === 'mobile_play_speech').length
+          : f.nodes.filter((node) => node.started).length,
+        1,
+      )
+      assert.equal(run.state, 'pending')
+      controller.abort()
+      await run.done
+      assert.equal(run.error.name, 'AbortError')
+      playing.resolve({ completed: true })
+    })
+
 for (const text of [
   '中文全文需要完整保留，第二句话不能消失。最后一句也要读完！'.repeat(12),
   'Every ordinary English word must remain intact, including the final sentence! '.repeat(12),

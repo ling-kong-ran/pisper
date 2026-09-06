@@ -1,5 +1,6 @@
 import AVFoundation
 import Foundation
+import ObjectiveC
 import UIKit
 
 struct SpeechAudioError: LocalizedError {
@@ -13,7 +14,7 @@ struct SpeechAudioError: LocalizedError {
   }
 }
 
-struct SpeechASRConfiguration {
+struct SpeechASRConfiguration: Equatable {
   let encoder: String
   let decoder: String
   let joiner: String
@@ -21,7 +22,7 @@ struct SpeechASRConfiguration {
   let bpeVocab: String
 }
 
-struct SpeechTTSConfiguration {
+struct SpeechTTSConfiguration: Equatable {
   let model: String
   let tokens: String
   let dictDir: String
@@ -123,7 +124,7 @@ private final class SpeechAudioModelAdapter: SpeechAudioModelProviding {
 
   func ttsConfiguration(voiceId: String, check: () throws -> Void) throws -> SpeechTTSConfiguration {
     try check()
-    let voice = try store.voice(id: voiceId)
+    let voice = try store.voice(id: voiceId.isEmpty ? store.defaultVoiceId : voiceId)
     let model = voice.model
     guard model.engine == "vits", voice.sourceSpeaker == 0,
       let dictDir = model.config["dictDir"] as? String else {
@@ -151,11 +152,17 @@ private final class SpeechAudioModelAdapter: SpeechAudioModelProviding {
   }
 }
 
+enum SpeechAudioKind: Equatable {
+  case asr
+  case tts
+}
+
 final class SpeechAudioRequest {
   let id: String
   private let lock = NSLock()
   private var stopped = false
   fileprivate var running = false
+  fileprivate var kind: SpeechAudioKind = .tts
   fileprivate var started = false
   fileprivate var touchedAt: TimeInterval
 
@@ -166,6 +173,7 @@ final class SpeechAudioRequest {
 }
 
 final class SpeechAudioRequests {
+  static let retention: TimeInterval = 600
   private let lock = NSLock()
   private let now: () -> TimeInterval
   private var entries: [String: SpeechAudioRequest] = [:]
@@ -187,7 +195,7 @@ final class SpeechAudioRequests {
   private func entry(_ value: String) throws -> SpeechAudioRequest {
     let id = try Self.validateId(value)
     let time = now()
-    entries = entries.filter { $0.value.running || time - $0.value.touchedAt <= 600 }
+    entries = entries.filter { $0.value.running || time - $0.value.touchedAt <= Self.retention }
     if let found = entries[id] { return found }
     guard entries.count < 4096 else { throw SpeechAudioError("speech_request_limit") }
     let request = SpeechAudioRequest(id: id, now: time)
@@ -195,15 +203,16 @@ final class SpeechAudioRequests {
     return request
   }
 
-  func begin(_ id: String) throws -> SpeechAudioRequest {
+  func begin(_ id: String, kind: SpeechAudioKind = .tts) throws -> SpeechAudioRequest {
     lock.lock(); defer { lock.unlock() }
     guard foreground else { throw SpeechAudioError("speech_app_backgrounded") }
     let request = try entry(id)
     try request.check()
     guard !request.started else { throw SpeechAudioError("speech_request_busy") }
-    guard entries.values.filter({ $0.running }).count < capacity else {
+    guard entries.values.filter({ $0.running && $0.kind == kind }).count < capacity else {
       throw SpeechAudioError("speech_engine_busy")
     }
+    request.kind = kind
     request.started = true
     request.running = true
     request.touchedAt = now()
@@ -235,6 +244,97 @@ final class SpeechAudioRequests {
   func checkForeground() throws {
     lock.lock(); defer { lock.unlock() }
     guard foreground else { throw SpeechAudioError("speech_app_backgrounded") }
+  }
+}
+
+// 控制线程先登记所有权，推理线程只检查凭证；释放后的 ID 不得被迟到预热复活。
+final class SpeechAudioSessions {
+  private let lock = NSLock()
+  private var entries: [String: SpeechAudioRequest] = [:]
+  private var active: Set<String> = []
+  private var idleSince: TimeInterval?
+  private let now: () -> TimeInterval
+
+  init(now: @escaping () -> TimeInterval = { ProcessInfo.processInfo.systemUptime }) {
+    self.now = now
+  }
+
+  var state: (pinned: Bool, idleSince: TimeInterval?) {
+    lock.lock(); defer { lock.unlock() }
+    return (!active.isEmpty, idleSince)
+  }
+
+  private func pruneLocked(at time: TimeInterval) {
+    // 已取消但仍在预热/发布的对象不能回收；迟到工作始终检查原凭证。
+    entries = entries.filter { id, request in
+      active.contains(id) || request.running || !request.cancelled
+        || time - request.touchedAt <= SpeechAudioRequests.retention
+    }
+  }
+
+  func begin(_ value: String, kinds: [String], hotwords: String) throws -> SpeechAudioRequest {
+    let id = try SpeechAudioRequests.validateId(value)
+    guard (1...2).contains(kinds.count), Set(kinds).count == kinds.count,
+      kinds.allSatisfy({ ["asr", "tts"].contains($0) }) else {
+      throw SpeechAudioError("speech_invalid_session_kinds")
+    }
+    try SpeechPCM.validateHotwords(hotwords)
+    lock.lock(); defer { lock.unlock() }
+    let time = now()
+    pruneLocked(at: time)
+    if let existing = entries[id] {
+      try existing.check()
+      throw SpeechAudioError("speech_request_busy")
+    }
+    guard active.count < 16 else { throw SpeechAudioError("speech_engine_busy") }
+    guard entries.count < 4096 else { throw SpeechAudioError("speech_request_limit") }
+    let request = SpeechAudioRequest(id: id, now: time)
+    request.running = true
+    entries[id] = request
+    active.insert(id)
+    idleSince = nil
+    return request
+  }
+
+  func release(_ value: String) throws {
+    let id = try SpeechAudioRequests.validateId(value)
+    lock.lock(); defer { lock.unlock() }
+    let time = now()
+    pruneLocked(at: time)
+    if entries[id] == nil {
+      guard entries.count < 4096 else { throw SpeechAudioError("speech_request_limit") }
+      entries[id] = SpeechAudioRequest(id: id, now: time)
+    }
+    entries[id]?.cancel()
+    entries[id]?.touchedAt = time
+    if active.remove(id) != nil && active.isEmpty { idleSince = time }
+  }
+
+  func finish(_ request: SpeechAudioRequest) {
+    lock.lock(); defer { lock.unlock() }
+    guard entries[request.id] === request else { return }
+    request.running = false
+    request.touchedAt = now()
+  }
+
+  func fail(_ request: SpeechAudioRequest) {
+    lock.lock(); defer { lock.unlock() }
+    guard entries[request.id] === request else { return }
+    request.cancel()
+    request.touchedAt = now()
+    if active.remove(request.id) != nil && active.isEmpty { idleSince = request.touchedAt }
+  }
+
+  func clear() {
+    lock.lock(); defer { lock.unlock() }
+    let time = now()
+    pruneLocked(at: time)
+    entries.values.forEach {
+      if !$0.cancelled { $0.touchedAt = time }
+      $0.cancel()
+    }
+    active.removeAll()
+    idleSince = time
   }
 }
 
@@ -382,6 +482,15 @@ protocol SpeechAudioMicrophoneOwner: AnyObject {
   var speechMicrophoneInUse: Bool { get }
 }
 
+private var speechHostReleaseKey: UInt8 = 0
+
+// 宿主通过关联对象持有清理凭证，服务不强持有插件，也不依赖定时轮询发现析构。
+private final class SpeechAudioHostRelease {
+  private let release: () -> Void
+  init(_ release: @escaping () -> Void) { self.release = release }
+  deinit { release() }
+}
+
 private final class SpeechAudioWeakMicrophoneOwner {
   weak var value: SpeechAudioMicrophoneOwner?
   init(_ value: SpeechAudioMicrophoneOwner) { self.value = value }
@@ -389,16 +498,33 @@ private final class SpeechAudioWeakMicrophoneOwner {
 
 final class SpeechAudioService: NSObject, AVAudioPlayerDelegate {
   typealias Completion = (Result<[String: Any], Error>) -> Void
-  // 全 App 只持有一个服务与串行队列，插件重建不能并发加载第二份 ORT 模型。
+  // 全 App 共用两个 kind 队列：同类 FIFO，ASR/TTS 的加载和实际推理可并行。
   static let shared = SpeechAudioService()
-  private let inference = DispatchQueue(label: "app.pisper.speech.inference", qos: .userInitiated)
+  private let asrQueue = DispatchQueue(label: "app.pisper.speech.asr", qos: .userInitiated)
+  private let ttsQueue = DispatchQueue(label: "app.pisper.speech.tts", qos: .userInitiated)
+  private lazy var ttsCache = SpeechEngineCache<SpeechTTSConfiguration, SpeechNativeTTS>(
+    create: { try SpeechNativeTTS(config: $0) }, release: { $0.release() },
+    sessionState: { [sessions] in sessions.state },
+    schedule: { [ttsQueue] delay, operation in
+      let item = DispatchWorkItem(block: operation)
+      ttsQueue.asyncAfter(deadline: .now() + delay, execute: item)
+      return { item.cancel() }
+    })
+  private lazy var asrCache = SpeechEngineCache<SpeechASREngineConfiguration, SpeechNativeASR>(
+    create: { try SpeechNativeASR(config: $0) }, release: { $0.release() },
+    sessionState: { [sessions] in sessions.state },
+    schedule: { [asrQueue] delay, operation in
+      let item = DispatchWorkItem(block: operation)
+      asrQueue.asyncAfter(deadline: .now() + delay, execute: item)
+      return { item.cancel() }
+    })
+  private let sessions = SpeechAudioSessions()
   private let modelControl = DispatchQueue(label: "app.pisper.speech.models", qos: .utility)
   private let requests = SpeechAudioRequests()
   private let tokens = SpeechAudioTokens()
   private var provider: SpeechAudioModelProviding?
   private var observers: [NSObjectProtocol] = []
   private var timer: Timer?
-  private var asrInFlight = false
   private var interrupted = false
   private var microphoneOwners: [SpeechAudioWeakMicrophoneOwner] = []
   private lazy var sessionLease = SpeechAudioSessionLease(session: SpeechSystemAudioSession(),
@@ -426,6 +552,10 @@ final class SpeechAudioService: NSObject, AVAudioPlayerDelegate {
     precondition(Thread.isMainThread)
     microphoneOwners.removeAll { $0.value == nil || $0.value === owner }
     microphoneOwners.append(SpeechAudioWeakMicrophoneOwner(owner))
+    if objc_getAssociatedObject(owner, &speechHostReleaseKey) == nil {
+      let release = SpeechAudioHostRelease { [weak self] in self?.releaseEngine() }
+      objc_setAssociatedObject(owner, &speechHostReleaseKey, release, .OBJC_ASSOCIATION_RETAIN_NONATOMIC)
+    }
   }
 
   // 测试或宿主可在首次访问前提供适配器，之后不能替换正在使用的模型存储。
@@ -477,13 +607,105 @@ final class SpeechAudioService: NSObject, AVAudioPlayerDelegate {
         guard let self, !self.interrupted else { return }
         self.requests.resume()
       })
+    for name in [UIApplication.didReceiveMemoryWarningNotification, UIApplication.willTerminateNotification] {
+      observers.append(center.addObserver(forName: name, object: nil, queue: .main) { [weak self] _ in
+        self?.releaseEngine()
+      })
+    }
     timer = Timer.scheduledTimer(withTimeInterval: 30, repeats: true) { [weak self] _ in self?.tokens.prune() }
+  }
+
+  private func releaseEngine() {
+    // 宿主析构可能来自任意线程，统一控制消息顺序后才排 native 释放。
+    let release = {
+      self.sessions.clear()
+      self.ttsQueue.async { self.ttsCache.invalidate() }
+      self.asrQueue.async { self.asrCache.invalidate() }
+    }
+    if Thread.isMainThread { release() }
+    else { DispatchQueue.main.async(execute: release) }
+  }
+
+  private func touchEngines() {
+    ttsQueue.async { self.ttsCache.touch() }
+    asrQueue.async { self.asrCache.touch() }
+  }
+
+  func prepareSession(requestId: String, kinds: [String], hotwords: String, voiceId: String,
+                      completion: @escaping Completion) {
+    DispatchQueue.main.async {
+      var owned: SpeechAudioRequest?
+      do {
+        try self.requests.checkForeground()
+        let request = try self.sessions.begin(requestId, kinds: kinds, hotwords: hotwords)
+        owned = request
+        let models = try self.models()
+        self.touchEngines()
+        var tasks: [SpeechEngineTask] = []
+        if kinds.contains("asr") {
+          tasks.append(SpeechEngineTask(queue: self.asrQueue) {
+            do {
+              try request.check()
+              let model = try models.asrConfiguration(modelId: nil, check: request.check)
+              let config = SpeechASREngineConfiguration(model: model, usesHotwords: !hotwords.isEmpty)
+              return try self.asrCache.prepare(config, check: request.check)
+            } catch {
+              self.sessions.fail(request)
+              self.touchEngines()
+              throw error
+            }
+          })
+        }
+        if kinds.contains("tts") {
+          tasks.append(SpeechEngineTask(queue: self.ttsQueue) {
+            do {
+              try request.check()
+              let config = try models.ttsConfiguration(voiceId: voiceId, check: request.check)
+              return try self.ttsCache.prepare(config, check: request.check)
+            } catch {
+              self.sessions.fail(request)
+              self.touchEngines()
+              throw error
+            }
+          })
+        }
+        SpeechEnginePreparation.run(tasks, check: request.check) { result in
+          defer { self.sessions.finish(request) }
+          switch result {
+          case .success:
+            completion(.success(["ready": true]))
+          case .failure(let error):
+            self.sessions.fail(request)
+            self.touchEngines()
+            completion(.failure(error))
+          }
+        }
+      } catch {
+        if let owned {
+          self.sessions.fail(owned)
+          self.sessions.finish(owned)
+        }
+        self.touchEngines()
+        completion(.failure(error))
+      }
+    }
+  }
+
+  func releaseSession(requestId: String, completion: @escaping Completion) {
+    DispatchQueue.main.async {
+      do {
+        try self.sessions.release(requestId)
+        self.touchEngines()
+        completion(.success(["released": true]))
+      } catch { completion(.failure(error)) }
+    }
   }
 
   private func pause() {
     requests.pause()
     tokens.prune()
     finishPlayback(completed: false)
+    releaseEngine()
   }
 
   func modelOperation(_ operation: String, modelId: String? = nil, completion: @escaping Completion) {
@@ -514,19 +736,18 @@ final class SpeechAudioService: NSObject, AVAudioPlayerDelegate {
     DispatchQueue.main.async {
       do {
         let models = try self.models()
-        guard !asr || !self.asrInFlight else { throw SpeechAudioError("speech_engine_busy") }
-        let request = try self.requests.begin(requestId)
-        if asr { self.asrInFlight = true }
-        self.inference.async {
+        let request = try self.requests.begin(requestId, kind: asr ? .asr : .tts)
+        let queue = asr ? self.asrQueue : self.ttsQueue
+        queue.async {
           let result = Result<[String: Any], Error> {
             try request.check()
             return try autoreleasepool { try operation(request, models) }
           }
+          // 推理活动只刷新所属缓存；跨 kind 的 pin 变化由控制消息分别排队。
+          if asr { self.asrCache.touch() }
+          else { self.ttsCache.touch() }
           DispatchQueue.main.async {
-            defer {
-              self.requests.finish(request)
-              if asr { self.asrInFlight = false }
-            }
+            defer { self.requests.finish(request) }
             do {
               // 取消与最终发布同在主线程排序，迟到结果不能越过取消重新获得 token。
               try request.check()
@@ -551,7 +772,7 @@ final class SpeechAudioService: NSObject, AVAudioPlayerDelegate {
       let config = try models.asrConfiguration(modelId: modelId, check: request.check)
       let samples = try SpeechPCM.decode(pcmBase64, check: request.check)
       let text = try SpeechNativeEngine.transcribe(config: config, samples: samples,
-        hotwords: hotwords, request: request)
+        hotwords: hotwords, request: request, engines: self.asrCache)
       return ["text": text.trimmingCharacters(in: .whitespacesAndNewlines)]
     }
   }
@@ -592,7 +813,7 @@ final class SpeechAudioService: NSObject, AVAudioPlayerDelegate {
         if !published { try? FileManager.default.removeItem(at: file) }
       }
       let generated = try SpeechNativeEngine.synthesize(config: config, text: text,
-        file: temporary, request: request)
+        file: temporary, request: request, engines: self.ttsCache)
       try request.check()
       try FileManager.default.moveItem(at: temporary, to: file)
       let clip = SpeechAudioClip(id: id, request: request, file: file,

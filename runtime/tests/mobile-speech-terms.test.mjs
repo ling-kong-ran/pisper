@@ -12,6 +12,8 @@ function fixture(t, response) {
       core: {
         invoke: async (command, args) => {
           calls.push({ command, args })
+          if (command === 'mobile_prepare_speech_session') return { ready: true }
+          if (command === 'mobile_release_speech_session') return { released: true }
           return { text: 'use effect and py' }
         },
       },
@@ -41,7 +43,14 @@ test('mobile speech sends context hotwords to native recognition and only format
   await recognizer.start()
   recognizer.acceptPcm(new Float32Array([0.1]))
   assert.equal(await recognizer.finish(), 'useEffect and py')
-  assert.equal(calls[0].args.hotwords, 'use effect')
+  assert.equal(
+    calls.find((call) => call.command === 'mobile_prepare_speech_session').args.hotwords,
+    'use effect',
+  )
+  assert.equal(
+    calls.find((call) => call.command === 'mobile_transcribe_pcm').args.hotwords,
+    'use effect',
+  )
   await recognizer.dispose()
 })
 

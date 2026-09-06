@@ -980,6 +980,70 @@ async fn mobile_cancel_speech_model_download(
     }
 }
 
+fn validate_mobile_speech_kinds(kinds: &[String]) -> Result<(), String> {
+    if kinds.is_empty()
+        || kinds.len() > 2
+        || kinds.iter().any(|kind| kind != "asr" && kind != "tts")
+        || (kinds.len() == 2 && kinds[0] == kinds[1])
+    {
+        return Err("speech_invalid_session_kinds".into());
+    }
+    Ok(())
+}
+
+#[tauri::command]
+async fn mobile_prepare_speech_session(
+    app: tauri::AppHandle,
+    request_id: String,
+    kinds: Vec<String>,
+    hotwords: Option<String>,
+    voice_id: Option<String>,
+) -> Result<serde_json::Value, String> {
+    validate_mobile_speech_request_id(&request_id)?;
+    validate_mobile_speech_kinds(&kinds)?;
+    let hotwords = hotwords.unwrap_or_default();
+    validate_mobile_speech_hotwords(&hotwords)?;
+    if let Some(id) = &voice_id {
+        validate_mobile_speech_id(id)?;
+    }
+    #[cfg(any(target_os = "android", target_os = "ios"))]
+    {
+        return run_mobile_speech(move || {
+            app.mobile_device()
+                .prepare_speech_session(request_id, kinds, hotwords, voice_id)
+                .map_err(|error| error.to_string())
+        })
+        .await;
+    }
+    #[cfg(not(any(target_os = "android", target_os = "ios")))]
+    {
+        let _ = (app, request_id, kinds, hotwords, voice_id);
+        Err("speech_platform_unsupported".into())
+    }
+}
+
+#[tauri::command]
+async fn mobile_release_speech_session(
+    app: tauri::AppHandle,
+    request_id: String,
+) -> Result<serde_json::Value, String> {
+    validate_mobile_speech_request_id(&request_id)?;
+    #[cfg(any(target_os = "android", target_os = "ios"))]
+    {
+        return run_mobile_speech(move || {
+            app.mobile_device()
+                .release_speech_session(request_id)
+                .map_err(|error| error.to_string())
+        })
+        .await;
+    }
+    #[cfg(not(any(target_os = "android", target_os = "ios")))]
+    {
+        let _ = (app, request_id);
+        Err("speech_platform_unsupported".into())
+    }
+}
+
 #[tauri::command]
 async fn mobile_synthesize_speech(
     app: tauri::AppHandle,
@@ -1393,6 +1457,8 @@ pub fn run_mobile() {
             mobile_speech_models,
             mobile_download_speech_model,
             mobile_cancel_speech_model_download,
+            mobile_prepare_speech_session,
+            mobile_release_speech_session,
             mobile_synthesize_speech,
             mobile_play_speech,
             mobile_cancel_speech,
@@ -1461,6 +1527,23 @@ mod tests {
 
     #[test]
     fn mobile_speech_requests_reject_paths_malformed_ids_and_unbounded_text() {
+        for kinds in [vec!["asr"], vec!["tts"], vec!["asr", "tts"]] {
+            assert!(super::validate_mobile_speech_kinds(
+                &kinds.iter().map(|s| s.to_string()).collect::<Vec<_>>()
+            )
+            .is_ok());
+        }
+        for kinds in [
+            vec![],
+            vec!["invalid"],
+            vec!["asr", "asr"],
+            vec!["asr", "tts", "asr"],
+        ] {
+            assert!(super::validate_mobile_speech_kinds(
+                &kinds.iter().map(|s| s.to_string()).collect::<Vec<_>>()
+            )
+            .is_err());
+        }
         for value in ["x-asr-480ms-int8", "melo-zh-en-female", "v1.1"] {
             assert!(validate_mobile_speech_id(value).is_ok());
         }

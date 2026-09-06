@@ -156,6 +156,14 @@ class SpeechSynthesisArgs {
 }
 
 @InvokeArg
+class SpeechSessionArgs {
+    var requestId: String = ""
+    var kinds: List<String> = emptyList()
+    var hotwords: String = ""
+    var voiceId: String = ""
+}
+
+@InvokeArg
 class SpeechPlaybackArgs {
     var audioId: String = ""
     var requestId: String = ""
@@ -191,7 +199,7 @@ class PisperAssetFileProvider : FileProvider()
 )
 class MobileDevicePlugin(private val activity: Activity) : Plugin(activity) {
     private val worker = Executors.newSingleThreadExecutor()
-    // 在入队前占位，避免多个录音 PCM 排队；ASR/TTS 另由全局串行语音执行器互斥。
+    // 在入队前占位，避免多个录音 PCM 排队；ASR/TTS 各自由独立同类串行队列执行。
     private val speechInFlight = AtomicBoolean(false)
     private val speechModels = SpeechModelStore.get(activity.applicationContext)
     private val speechAudio = SpeechAudioService(activity, speechModels)
@@ -381,6 +389,25 @@ class MobileDevicePlugin(private val activity: Activity) : Plugin(activity) {
         val args = invoke.parseArgs(SpeechSynthesisArgs::class.java)
         speechAudio.synthesize(args.text, args.voiceId, args.requestId,
             { invoke.resolve(it) }, { invoke.reject(it) })
+    }
+
+    @Command
+    fun prepareSpeechSession(invoke: Invoke) {
+        val args = invoke.parseArgs(SpeechSessionArgs::class.java)
+        try {
+            validateSpeechHotwords(args.hotwords)
+        } catch (error: IllegalArgumentException) {
+            invoke.reject(error.message ?: "Invalid speech hotwords")
+            return
+        }
+        speechAudio.prepareSession(args.requestId, args.kinds, args.hotwords, args.voiceId,
+            { invoke.resolve(it) }, { invoke.reject(it) })
+    }
+
+    @Command
+    fun releaseSpeechSession(invoke: Invoke) {
+        val args = invoke.parseArgs(SpeechCancelArgs::class.java)
+        speechAudio.releaseSession(args.requestId, { invoke.resolve(it) }, { invoke.reject(it) })
     }
 
     @Command

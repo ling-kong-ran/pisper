@@ -1,6 +1,10 @@
 import { randomUUID } from 'node:crypto'
 
 let config = {}
+let releaseInit
+const initGate = new Promise((resolve) => {
+  releaseInit = resolve
+})
 const sessions = new Map()
 const send = (message) => {
   if (process.connected) process.send(message, () => {})
@@ -27,7 +31,15 @@ process.on('message', async (message) => {
       config = params.model.config || {}
       if (config.initHang) return
       if (config.initError) return fail()
+      if (config.initBarrier) await initGate
       await delay(config.initDelayMs || 0)
+      reply({ ready: true })
+      break
+    case 'releaseInit':
+      releaseInit()
+      break
+    case 'warmup':
+      await delay(config.delayMs || 0)
       reply({ ready: true })
       break
     case 'transcribe':

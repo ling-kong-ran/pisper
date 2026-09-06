@@ -259,6 +259,9 @@ export function createSpeechInferenceHandler({ nativeModule = null } = {}) {
     }
     if (!recognition) throw speechEngineError('config')
     switch (method) {
+      case 'warmup':
+        await recognition.loadRecognizer(params.terms)
+        return { ready: true }
       case 'transcribe':
         return recognition.transcribe(params.samples, { terms: params.terms })
       case 'startSession':

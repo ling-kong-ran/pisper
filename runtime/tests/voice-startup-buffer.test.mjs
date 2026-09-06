@@ -39,6 +39,19 @@ function fixture(t) {
     },
   }
   globalThis.fetch = async (url, options = {}) => {
+    // 预热连接单独持有；此夹具的 calls 继续只检查 PCM 协议，预热生命周期另有行为覆盖。
+    if (String(url).startsWith('/api/speech/terms?')) return Response.json({ terms: [] })
+    if (url === '/api/speech/session') {
+      return new Response(
+        new ReadableStream({
+          start(controller) {
+            controller.enqueue(new TextEncoder().encode('event: ready\ndata: {"ready":true}\n\n'))
+            options.signal.addEventListener('abort', () => controller.close(), { once: true })
+          },
+        }),
+        { headers: { 'Content-Type': 'text/event-stream' } },
+      )
+    }
     calls.push({ url, ...options })
     if (url === '/api/speech/stream/start') {
       startRequested.resolve()

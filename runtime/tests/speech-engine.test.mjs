@@ -104,52 +104,204 @@ test('real IPC preserves samples and terms, reuses same kind, and ignores late r
   assert.equal(calls.filter((item) => item.method === 'init').length, 1)
 })
 
-test('kind switches wait for actual exit before spawn, and TTS maps whitelisted sid', async (t) => {
-  const { service, children, calls, lifecycle } = harness(t, { config: { exitDelayMs: 100 } })
+test('voice mode warms real worker engines and holds both beyond the idle window', async (t) => {
+  const { service, children, calls } = harness(t, { idleUnloadMs: 40 })
+  const mode = new AbortController()
+  assert.deepEqual(
+    await service.prepareSpeechSession(
+      { requestId: randomUUID(), kinds: ['asr', 'tts'], hotwords: 'type script' },
+      mode.signal,
+    ),
+    { ready: true },
+  )
+  assert.equal(children.length, 2)
+  assert.deepEqual(calls.find((call) => call.method === 'warmup').params.terms, ['type script'])
+  assert.equal(
+    calls.some((call) => call.method === 'synthesize' || call.method === 'transcribe'),
+    false,
+  )
+  await delay(100)
+  assert.equal(service.idleTimer, null)
+  assert.equal(service.workers.size, 2)
+  const { id } = await service.startSession()
+  await service.finishSession(id)
+  await service.synthesize(request())
+  await delay(100)
+  assert.equal(children.length, 2)
+  assert.equal(service.idleTimer, null)
+  mode.abort()
+  assert.ok(service.idleTimer)
+  await until(() => service.workers.size === 0)
+})
+
+test('ASR and TTS initialize concurrently while synthesis stays behind the warmup barrier', async (t) => {
+  const { service, children, calls } = harness(t, { config: { initBarrier: true } })
+  const mode = new AbortController()
+  const warming = service.prepareSpeechSession(
+    { requestId: randomUUID(), kinds: ['asr', 'tts'] },
+    mode.signal,
+  )
+  await until(() => calls.filter((call) => call.method === 'init').length === 2)
+  assert.equal(children.length, 2)
+  const synthesis = service.synthesize(request())
+  await delay(20)
+  assert.equal(
+    calls.some((call) => call.method === 'synthesize'),
+    false,
+  )
+  children.forEach((child) => child.send({ method: 'releaseInit' }))
+  assert.deepEqual(await warming, { ready: true })
+  await synthesis
+  assert.equal(children.length, 2)
+  mode.abort()
+})
+
+test('only the last voice session leaving starts a fresh idle window', async (t) => {
+  const { service } = harness(t, { idleUnloadMs: 80 })
+  const modes = [new AbortController(), new AbortController()]
+  for (const mode of modes)
+    await service.prepareSpeechSession({ requestId: randomUUID(), kinds: ['asr'] }, mode.signal)
+  modes[0].abort()
+  await delay(120)
+  assert.equal(service.voiceSessions.size, 1)
+  assert.equal(service.idleTimer, null)
+  assert.equal(service.workers.size, 1)
+  modes[1].abort()
+  await delay(20)
+  assert.equal(service.workers.size, 1)
+  await until(() => service.workers.size === 0)
+})
+
+test('voice warmup cancellation during model verification cannot leave a late pin or worker', async (t) => {
+  let installed
+  const { service, children } = harness(t, {
+    modelDownloads: {
+      modelDirectory: () =>
+        new Promise((resolve) => {
+          installed = resolve
+        }),
+    },
+  })
+  const mode = new AbortController()
+  const warming = rejected(
+    service.prepareSpeechSession({ requestId: randomUUID(), kinds: ['asr', 'tts'] }, mode.signal),
+    'cancelled',
+  )
+  await until(() => installed)
+  mode.abort()
+  installed('fixture-models')
+  await warming
+  assert.equal(service.voiceSessions.size, 0)
+  assert.equal(service.warmupOperations, 0)
+  assert.equal(children.length, 0)
+})
+
+test('failed warmup releases its own pin and disposal clears remaining sessions', async (t) => {
+  const { service } = harness(t, { config: { initError: true } })
+  await rejected(
+    service.prepareSpeechSession(
+      { requestId: randomUUID(), kinds: ['tts'] },
+      new AbortController().signal,
+    ),
+    'inference',
+  )
+  assert.equal(service.voiceSessions.size, 0)
+  assert.equal(service.warmupOperations, 0)
+  const healthy = harness(t).service
+  await healthy.prepareSpeechSession(
+    { requestId: randomUUID(), kinds: ['asr'] },
+    new AbortController().signal,
+  )
+  await healthy.dispose()
+  assert.equal(healthy.voiceSessions.size, 0)
+  assert.equal(healthy.workers.size, 0)
+})
+
+test('warmup rejects invalid kinds, duplicate ids, and hotword injection without disturbing an active session', async (t) => {
+  const { service } = harness(t)
+  for (const kinds of [[], ['asr', 'asr'], ['other'], ['asr', 'tts', 'asr'], null])
+    await rejected(
+      service.prepareSpeechSession(
+        { requestId: randomUUID(), kinds },
+        new AbortController().signal,
+      ),
+      'invalid',
+    )
+  for (const hotwords of ['bad/word', 'bad\u0000word', '\ud800', 'a'.repeat(129)])
+    await rejected(
+      service.prepareSpeechSession(
+        { requestId: randomUUID(), kinds: ['asr'], hotwords },
+        new AbortController().signal,
+      ),
+      'invalid',
+    )
+  const requestId = randomUUID()
+  const mode = new AbortController()
+  await service.prepareSpeechSession({ requestId, kinds: ['asr'] }, mode.signal)
+  await rejected(
+    service.prepareSpeechSession({ requestId, kinds: ['tts'] }, new AbortController().signal),
+    'busy',
+  )
+  assert.equal(service.voiceSessions.size, 1)
+  mode.abort()
+})
+
+test('kind switches reuse loaded engines across turns while TTS maps whitelisted sid', async (t) => {
+  const { service, children, calls, lifecycle } = harness(t)
   await service.transcribe(new Float32Array([1]))
-  const oldPid = children[0].pid
+  const asrPid = children[0].pid
   const wav = await service.synthesize(request())
   assert.equal(wav.wav.toString('ascii', 0, 4), 'RIFF')
   assert.equal(wav.sampleRate, 24000)
+  const ttsPid = children[1].pid
+  for (let turn = 0; turn < 3; turn++) {
+    await service.transcribe(new Float32Array([1]))
+    await service.synthesize(request('next'))
+  }
   assert.equal(children.length, 2)
-  assert.deepEqual(lifecycle.slice(0, 3), [
-    ['spawn', oldPid],
-    ['exit', oldPid],
-    ['spawn', children[1].pid],
+  assert.deepEqual(lifecycle, [
+    ['spawn', asrPid],
+    ['spawn', ttsPid],
   ])
-  assert.equal(calls.find((item) => item.method === 'synthesize').params.sid, 0)
-  await service.synthesize(request('next'))
-  assert.equal(children.length, 2)
-  await service.transcribe(new Float32Array([1]))
-  assert.equal(children.length, 3)
-  assert.equal(lifecycle[3][0], 'exit')
-  assert.equal(lifecycle[4][0], 'spawn')
+  assert.equal(calls.filter((item) => item.method === 'init').length, 2)
+  assert.ok(
+    calls.filter((item) => item.method === 'transcribe').every((item) => item.pid === asrPid),
+  )
+  assert.ok(
+    calls
+      .filter((item) => item.method === 'synthesize')
+      .every((item) => item.pid === ttsPid && item.params.sid === 0),
+  )
 })
 
-test('ASR reservations serialize concurrent start/finish and block foreign TTS', async (t) => {
+test('ASR reservations serialize concurrent start/finish while TTS proceeds independently', async (t) => {
   const { service, children } = harness(t, { config: { delayMs: 40 } })
   const starting = service.startSession({ terms: ['project'] })
-  await rejected(service.synthesize(request()), 'busy')
+  await service.synthesize(request())
   const { id } = await starting
   const another = service.startSession()
   const finish = service.finishSession(id)
-  await rejected(service.synthesize(request()), 'busy')
+  await service.synthesize(request())
   const second = await another
   assert.deepEqual(await finish, { text: 'finished' })
   assert.deepEqual(await service.acceptChunk(second.id, new Float32Array([1])), { text: 'partial' })
-  await rejected(service.synthesize(request()), 'busy')
-  assert.equal(children.length, 1)
+  await service.synthesize(request())
+  assert.equal(children.length, 2)
   assert.deepEqual(await service.cancelSession(second.id), { ok: true })
   await service.synthesize(request())
   assert.equal(children.length, 2)
 })
 
-test('one-shot reserves ASR immediately while TTS rejects without killing it', async (t) => {
-  const { service, children } = harness(t, { config: { delayMs: 60 } })
-  const oneShot = service.transcribe(new Float32Array([1]))
-  await rejected(service.synthesize(request()), 'busy')
-  assert.equal(JSON.parse(await oneShot).samples[0], 1)
-  assert.equal(children.length, 1)
+test('a blocked ASR operation does not block TTS and later ASR still queues behind it', async (t) => {
+  const { service, children, calls } = harness(t)
+  const first = rejected(service.transcribe(new Float32Array([-1])), 'disposed')
+  const second = rejected(service.transcribe(new Float32Array([1])), 'disposed')
+  await until(() => calls.some((call) => call.method === 'transcribe'))
+  await service.synthesize(request())
+  assert.equal(calls.filter((call) => call.method === 'transcribe').length, 1)
+  assert.equal(children.length, 2)
+  await service.dispose()
+  await Promise.all([first, second])
 })
 
 test('TTS cancellation is isolated by UUID, stops matching worker, and permits recovery', async (t) => {
@@ -158,15 +310,60 @@ test('TTS cancellation is isolated by UUID, stops matching worker, and permits r
   const pending = rejected(service.synthesize(input), 'cancelled')
   await until(() => calls.some((item) => item.method === 'synthesize'))
   assert.deepEqual(await service.cancelSpeech(randomUUID()), { cancelled: false })
-  await rejected(service.synthesize(request()), 'busy')
-  await rejected(service.startSession(), 'busy')
+  await rejected(service.synthesize(input), 'busy')
+  const { id } = await service.startSession()
+  await service.cancelSession(id)
   assert.equal(children[0].exitCode, null)
   assert.deepEqual(await service.cancelSpeech(input.requestId), { cancelled: true })
   await pending
   assert.ok(children[0].signalCode || children[0].exitCode !== null)
   assert.deepEqual(await service.cancelSpeech(input.requestId), { cancelled: false })
   await service.synthesize(request())
-  assert.equal(children.length, 2)
+  assert.equal(children.length, 3)
+})
+
+test('TTS has a FIFO queue; cancelling a queued segment cannot kill the active one or ASR', async (t) => {
+  const { service, calls, children } = harness(t)
+  const firstInput = request('hang')
+  const secondInput = request('skip')
+  const first = rejected(service.synthesize(firstInput), 'cancelled')
+  const second = rejected(service.synthesize(secondInput), 'cancelled')
+  const third = service.synthesize(request('third'))
+  await until(() => calls.some((call) => call.method === 'synthesize'))
+  assert.deepEqual(
+    calls.filter((call) => call.method === 'synthesize').map((call) => call.params.text),
+    ['hang'],
+  )
+  await service.cancelSpeech(secondInput.requestId)
+  assert.equal(children[0].exitCode, null)
+  assert.equal(JSON.parse(await service.transcribe(new Float32Array([1]))).samples[0], 1)
+  await service.cancelSpeech(firstInput.requestId)
+  await Promise.all([first, second, third])
+  assert.deepEqual(
+    calls.filter((call) => call.method === 'synthesize').map((call) => call.params.text),
+    ['hang', 'third'],
+  )
+  await Promise.all(['fourth', 'fifth'].map((text) => service.synthesize(request(text))))
+  assert.deepEqual(
+    calls
+      .filter((call) => call.method === 'synthesize')
+      .slice(-2)
+      .map((call) => call.params.text),
+    ['fourth', 'fifth'],
+  )
+  assert.equal(service.speechTasks.size, 0)
+})
+
+test('TTS queue is bounded and disposal rejects every queued request', async (t) => {
+  const { service, calls } = harness(t)
+  const queued = Array.from({ length: 16 }, (_, index) =>
+    rejected(service.synthesize(request(index ? 'queued' : 'hang')), 'disposed'),
+  )
+  await rejected(service.synthesize(request('overflow')), 'busy')
+  await until(() => calls.some((call) => call.method === 'synthesize'))
+  await service.dispose()
+  await Promise.all(queued)
+  assert.equal(service.speechTasks.size, 0)
 })
 
 test('cancel during installation cannot spawn late and does not cancel another request', async (t) => {
@@ -333,16 +530,35 @@ test('initialization and installation errors are sanitized without leaving worke
   assert.equal(missing.children.length, 0)
 })
 
-test('shutdown deadline force-kills old process before changing kind', async (t) => {
-  const { service, children, lifecycle } = harness(t, {
+test('idle expiry releases both cached engines and force-kills an uncooperative shutdown', async (t) => {
+  const { service, children } = harness(t, {
     config: { exitDelayMs: 10000 },
     shutdownGraceMs: 20,
   })
   await service.transcribe(new Float32Array([1]))
   await service.synthesize(request())
-  assert.equal(children[0].signalCode, 'SIGKILL')
-  assert.equal(lifecycle[1][0], 'exit')
-  assert.equal(lifecycle[2][0], 'spawn')
+  service.idleUnloadMs = 20
+  service.scheduleIdle()
+  await until(() => children.every((child) => child.signalCode === 'SIGKILL'))
+  assert.equal(service.workers.size, 0)
+  assert.equal(service.worker, null)
+})
+
+test('cancelling TTS preserves the cached ASR worker and dispose releases both kinds', async (t) => {
+  const { service, children, calls } = harness(t)
+  await service.transcribe(new Float32Array([1]))
+  const asrPid = children[0].pid
+  const input = request('hang')
+  const pending = rejected(service.synthesize(input), 'cancelled')
+  await until(() => calls.some((item) => item.method === 'synthesize'))
+  await service.cancelSpeech(input.requestId)
+  await pending
+  assert.equal(JSON.parse(await service.transcribe(new Float32Array([1]))).pid, asrPid)
+  await service.synthesize(request())
+  assert.equal(children.length, 3)
+  await service.dispose()
+  assert.equal(service.workers.size, 0)
+  assert.ok(children.every((child) => child.exitCode !== null || child.signalCode !== null))
 })
 
 test('malformed WAV and synthesis errors recycle TTS without accepting invalid audio', async (t) => {
@@ -491,6 +707,45 @@ async function nativeHarness(
   return { handler, init, modelDir, config: () => nativeConfig, generation: () => generation }
 }
 
+test('ASR warmup constructs the native recognizer without decoding audio and reuses it', async (t) => {
+  const modelDir = await mkdtemp(join(tmpdir(), 'pisper-asr-warmup-'))
+  t.after(() => rm(modelDir, { recursive: true, force: true }))
+  for (const file of [
+    'encoder.int8.onnx',
+    'decoder.onnx',
+    'joiner.int8.onnx',
+    'tokens.txt',
+    'bpe.model',
+  ])
+    await writeFile(join(modelDir, file), 'fixture')
+  let created = 0
+  let streams = 0
+  class OnlineRecognizer {
+    constructor() {
+      created += 1
+    }
+    createStream() {
+      streams += 1
+      return {}
+    }
+  }
+  const handler = createSpeechInferenceHandler({ nativeModule: { OnlineRecognizer } })
+  await handler('init', {
+    kind: 'asr',
+    modelDir,
+    model: { id: 'asr', engine: 'online-transducer', config: {} },
+  })
+  assert.equal(created, 0)
+  assert.deepEqual(await handler('warmup', { terms: [] }), { ready: true })
+  assert.equal(created, 1)
+  assert.equal(streams, 0)
+  await handler('warmup', { terms: [] })
+  const { id } = await handler('startSession', { terms: [] })
+  assert.equal(created, 1)
+  assert.equal(streams, 1)
+  await handler('cancelSession', { id })
+})
+
 test('Melo VITS uses real async API shape, correct paths and fixed CPU/sentence settings', async (t) => {
   const native = await nativeHarness(t)
   await native.init({ numThreads: 3 })
@@ -587,8 +842,8 @@ test('native progress and final audio both enforce configurable output limits', 
   await rejected(shortText.handler('synthesize', { text: 'abc', sid: 0 }), 'limit')
 })
 
-test('orphaned ASR sessions expire via periodic sweep and unblock TTS', async (t) => {
-  // 不经由 start 路由触发：周期 sweep 自行回收过期会话，TTS 不再被永久 busy 堵住。
+test('orphaned ASR sessions expire via periodic sweep without holding model ownership forever', async (t) => {
+  // 不经由 start 路由触发：周期 sweep 自行回收过期会话，避免孤儿 stream 永久持有模型。
   const { service } = harness(t, { sessionTtlMs: 40, sessionSweepMs: 20 })
   const { id } = await service.startSession()
   assert.ok(service.sessions.has(id))

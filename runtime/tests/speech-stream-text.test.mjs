@@ -100,6 +100,8 @@ const fixtures = [
   '| Name | Value |\n| --- | --- |\n| alpha. | beta! |\n\nTail',
   '> Quoted **text**.\n> Next sentence!\n\nTail',
   'Plain https://example.test/SECRET?q=1.5 link. Tail',
+  '这是没有标点并且很长的中文前缀 https://example.test/SECRET 后续内容继续完整保留',
+  'Alpha beta gamma delta epsilon 1,000 dollars e.g. in the U.S. office. Tail',
   '𠀀文𠀁字。Music 𝄞 stays! Emoji 😀 is removed. Tail',
   'Really?! Yes!!! “Quoted sentence.” Next... Tail',
   '```js\nSECRET_UNCLOSED. Never speak!',
@@ -231,20 +233,20 @@ test('long sentence is bounded, preserves words, and expands only its own segmen
   assert.equal(input.returned, 1)
 })
 
-test('decimal and abbreviations do not trigger synthesis before the sentence actually ends', async () => {
+test('decimal and abbreviations do not count as sentence or fragment boundaries', async () => {
   const input = source()
   const controller = new AbortController()
   const output = streamingSpeechSegments(input, controller.signal, 160)
   const first = observe(output.next())
   await tick()
-  for (const value of ['Dr. ', 'Smith has 3.', '14 dollars, e.g. ', 'in the U.S. ', 'office']) {
+  for (const value of ['Dr. ', 'Smith has 3.', '14 dollars e.g. ', 'in the U.S. ', 'office']) {
     input.push(value)
     await tick()
     assert.equal(first.pending, true, value)
   }
   input.push('. Next')
   await first.done
-  assert.equal(first.value.value, 'Dr. Smith has 3.14 dollars, e.g. in the U.S. office.')
+  assert.equal(first.value.value, 'Dr. Smith has 3.14 dollars e.g. in the U.S. office.')
   await output.return()
 })
 
@@ -330,21 +332,26 @@ test('all punctuation split boundaries coalesce without punctuation-only synthes
   await assert.rejects(collect(['a' + '!'.repeat(40)]), /punctuation.*limit/i)
 })
 
-test('encoded sentence marks stream before EOF and commas or newlines alone do not', async () => {
+test('encoded sentence marks stream before EOF without speaking partial entities', async () => {
   const input = source()
   const controller = new AbortController()
   const output = streamingSpeechSegments(input, controller.signal, 160)
   const first = observe(output.next())
   await tick()
-  for (const value of ['Words, more words; ', '\ncontinued ', '&', '#', 'x', '3', '0', '0', '2']) {
+  input.push('Words ')
+  await tick()
+  assert.deepEqual(first.value, { value: 'Words', done: false })
+  const next = observe(output.next())
+  await tick()
+  for (const value of ['\ncontinued ', '&', '#', 'x', '3', '0', '0', '2']) {
     input.push(value)
     await tick()
-    assert.equal(first.pending, true)
+    assert.equal(next.pending, true)
   }
   input.push(';')
   await tick()
-  assert.equal(first.pending, false, 'decoded Chinese sentence mark must yield immediately')
-  assert.equal(first.value.value, 'Words, more words; continued 。')
+  assert.equal(next.pending, false, 'decoded Chinese sentence mark must yield immediately')
+  assert.equal(next.value.value, 'continued 。')
   await output.return()
 })
 
@@ -358,6 +365,261 @@ test('quotes on oversized tokens preserve text with bounded non-punctuation segm
     assert.equal(compact(actual.join('')), compact(markdown))
     assert.ok(actual.every((part) => cost(part) <= 8 && !/^[\p{P}\s]+$/u.test(part)))
   }
+})
+
+for (const deltas of [['你好，'], ['你', '好', '，'], ['Hello '], ['Hel', 'lo', ' ']])
+  test(`closed first phrase yields immediately before another delta: ${deltas.join('|')}`, async (t) => {
+    t.mock.timers.enable({ apis: ['setTimeout', 'Date'] })
+    const input = source()
+    const output = streamingSpeechSegments(input, signal())
+    const first = observe(output.next())
+    await tick()
+    for (const [index, delta] of deltas.entries()) {
+      input.push(delta)
+      await tick()
+      assert.equal(first.pending, index < deltas.length - 1)
+    }
+    const phrase = deltas.join('')
+    assert.deepEqual(first.value, { value: phrase.trim(), done: false })
+    assert.equal(input.reads, deltas.length, 'first phrase must not await another delta or timer')
+    const next = observe(output.next())
+    await tick()
+    for (const delta of ['今天', '很高兴']) {
+      input.push(delta)
+      await tick()
+      assert.equal(next.pending, true, 'only the first phrase bypasses the normal buffer')
+    }
+    input.push('。')
+    await tick()
+    assert.deepEqual(next.value, { value: '今天很高兴。', done: false })
+    assert.equal(first.value.value + next.value.value, `${phrase.trim()}今天很高兴。`)
+    const done = output.next()
+    await tick()
+    input.finish()
+    assert.deepEqual(await done, { value: undefined, done: true })
+  })
+
+for (const text of [
+  '你好',
+  'Hello',
+  'https:',
+  'https: ',
+  '1,000 ',
+  '3.14 ',
+  'Hello https://example.test/ ',
+  'Hello [label](https://example.test/ ',
+  'Hello <script>SECRET ',
+  'Hello <script>SECRET</script> ',
+  'Hello `SECRET = code();` ',
+  'Hello **unfinished ',
+  '```js\nSECRET \n',
+])
+  test(`source whitespace cannot bypass incomplete or excluded text: ${text}`, async (t) => {
+    t.mock.timers.enable({ apis: ['setTimeout', 'Date'] })
+    const input = source()
+    const controller = new AbortController()
+    const output = streamingSpeechSegments(input, controller.signal, 160)
+    const first = observe(output.next())
+    await tick()
+    input.push(text)
+    await tick()
+    assert.equal(first.pending, true)
+    controller.abort()
+    await first.done
+    assert.equal(first.error.name, 'AbortError')
+  })
+
+for (const whitespace of [' ', '\t', '\n', '\u00a0'])
+  test(`only the first whitespace-closed phrase bypasses the fragment deadline: ${JSON.stringify(whitespace)}`, async (t) => {
+    t.mock.timers.enable({ apis: ['setTimeout', 'Date'] })
+    const input = source()
+    const output = streamingSpeechSegments(input, signal())
+    const first = observe(output.next())
+    await tick()
+    input.push(`Hello${whitespace}`)
+    await tick()
+    assert.deepEqual(first.value, { value: 'Hello', done: false })
+    const next = observe(output.next())
+    await tick()
+    input.push('world ')
+    await tick()
+    assert.equal(next.pending, true)
+    t.mock.timers.tick(249)
+    await tick()
+    assert.equal(next.pending, true)
+    t.mock.timers.tick(1)
+    await tick()
+    assert.deepEqual(next.value, { value: 'world', done: false })
+    const done = output.next()
+    await tick()
+    input.finish()
+    assert.deepEqual(await done, { value: undefined, done: true })
+  })
+
+for (const phrase of [
+  '好的，',
+  '嗯，',
+  'Sure,',
+  '我已经看到你说的问题，',
+  '我们先检查语音输出；',
+  'Let me check, ',
+])
+  test(`quick-yield releases a clause before the sentence ends: ${phrase}`, async () => {
+    const input = source()
+    const output = streamingSpeechSegments(input, signal())
+    const first = observe(output.next())
+    await tick()
+    input.push(phrase)
+    await tick()
+    assert.equal(first.pending, false)
+    assert.equal(compact(first.value.value), compact(phrase))
+    assert.equal(input.reads, 1)
+    await output.return()
+  })
+
+for (const text of [
+  '这是一个没有任何句号但是仍然应该尽早开始播报的长句',
+  'Alpha beta gamma delta epsilon zeta without punctuation',
+])
+  test(`long unpunctuated text yields bounded words before EOF: ${text}`, async () => {
+    const input = source()
+    const output = streamingSpeechSegments(input, signal())
+    const first = observe(output.next())
+    await tick()
+    input.push(text)
+    await tick()
+    assert.equal(first.pending, false)
+    assert.ok(cost(first.value.value) <= 16)
+    assert.ok(text.startsWith(first.value.value))
+    assert.equal(input.reads, 1)
+    await output.return()
+    assertCleanContent((await collect(text.split(''))).join(''), text)
+  })
+
+test('the fragment deadline releases stable words without losing the outstanding source read', async (t) => {
+  t.mock.timers.enable({ apis: ['setTimeout', 'Date'] })
+  const input = source()
+  const output = streamingSpeechSegments(input, signal())
+  const first = observe(output.next())
+  await tick()
+  input.push('Alpha be')
+  await tick()
+  t.mock.timers.tick(200)
+  input.push('ta gam')
+  await tick()
+  t.mock.timers.tick(49)
+  await tick()
+  assert.equal(first.pending, true)
+  t.mock.timers.tick(1)
+  await tick()
+  assert.deepEqual(first.value, { value: 'Alpha beta', done: false })
+  assert.equal(input.reads, 3)
+  const next = observe(output.next())
+  await tick()
+  assert.equal(input.reads, 3, 'a timer flush must reuse, not replace, the pending next')
+  input.push('ma。')
+  await tick()
+  assert.deepEqual(next.value, { value: 'gamma。', done: false })
+  await output.return()
+  assert.equal(input.returned, 1)
+})
+
+for (const late of ['resolve', 'reject'])
+  test(`abort after a timed fragment observes the late source ${late}`, async (t) => {
+    t.mock.timers.enable({ apis: ['setTimeout', 'Date'] })
+    const input = source()
+    const controller = new AbortController()
+    const output = streamingSpeechSegments(input, controller.signal)
+    const first = observe(output.next())
+    await tick()
+    input.push('Alpha beta')
+    await tick()
+    t.mock.timers.tick(250)
+    await tick()
+    assert.equal(first.value.value, 'Alpha')
+    const next = observe(output.next())
+    await tick()
+    controller.abort()
+    await next.done
+    assert.equal(next.error.name, 'AbortError')
+    if (late === 'resolve') input.push(' late。')
+    else input.fail(new Error('late source failure'))
+    await tick()
+    assert.equal(input.returned, 1)
+  })
+
+for (const head of [
+  'Alpha https:',
+  'Alpha [SECRET',
+  'Alpha `SECRET',
+  'Alpha <script>SECRET',
+  'Alpha &amp',
+])
+  test(`timed fragments retain unfinished markup and URL prefixes: ${head}`, async (t) => {
+    t.mock.timers.enable({ apis: ['setTimeout', 'Date'] })
+    const input = source()
+    const output = streamingSpeechSegments(input, signal())
+    const first = observe(output.next())
+    await tick()
+    input.push(head)
+    await tick()
+    t.mock.timers.tick(250)
+    await tick()
+    if (!first.pending) assert.equal(first.value.value, 'Alpha')
+    const next = first.pending ? first : observe(output.next())
+    await tick()
+    input.finish()
+    await next.done
+    await output.return()
+  })
+
+test('timed UTF-16 splits preserve cleaned content across markup, links and word continuations', async (t) => {
+  t.mock.timers.enable({ apis: ['setTimeout', 'Date'] })
+  for (const markdown of [
+    'Alpha beta gamma https://example.test/SECRET Next sentence。',
+    'Alpha beta [label](https://example.test/SECRET) 后续内容保留。',
+    'Alpha beta <script>SECRET [ * !</script> 后续内容保留。',
+    '这是很长的没有标点的中文正文随后出现 `SECRET = code();` 最后还有内容。',
+    'Alpha beta 1,000 dollars and 3.14 euros。',
+    '𠀀文𠀁字和普通中文字符都不能因为提前播报而丢失。',
+  ]) {
+    for (let split = 0; split <= markdown.length; split++) {
+      const input = source()
+      const actual = []
+      const consuming = (async () => {
+        for await (const segment of streamingSpeechSegments(input, signal())) actual.push(segment)
+      })()
+      await tick()
+      for (const part of [markdown.slice(0, split), markdown.slice(split)]) {
+        input.push(part)
+        await tick()
+        t.mock.timers.tick(250)
+        await tick()
+      }
+      input.finish()
+      await consuming
+      assertCleanContent(actual.join(''), speechSegments(markdown).join(''), `split ${split}`)
+      assert.doesNotMatch(actual.join(''), /SECRET|https:/)
+      assert.ok(actual.every((segment) => cost(segment) <= 16 && segment.isWellFormed()))
+    }
+  }
+})
+
+test('numeric commas are not mistaken for quick-yield clause delimiters', async () => {
+  const input = source()
+  const output = streamingSpeechSegments(input, signal(), 160)
+  const first = observe(output.next())
+  await tick()
+  input.push('The cost is 1,')
+  await tick()
+  assert.equal(first.pending, true)
+  input.push('000 dollars')
+  await tick()
+  assert.equal(first.pending, true)
+  input.push('。')
+  await tick()
+  assert.equal(first.value.value, 'The cost is 1,000 dollars。')
+  await output.return()
 })
 
 test('empty input, excluded input, and EOF tail have deterministic completion', async () => {

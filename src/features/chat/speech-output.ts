@@ -15,9 +15,8 @@ function abortable<T>(promise: Promise<T>, signal: AbortSignal): Promise<T> {
   })
 }
 
-// 引擎设计为同一时刻只允许一个语音操作（ASR/TTS 互斥，由服务端测试锁定）。
-// 对话轮次切换时 ASR 收尾与 TTS 预取可能短暂重叠，409 busy 属瞬态：
-// 在预取侧做有限次退避重试，而不是让整句播报失败。
+// ASR/TTS 分别排队；TTS 队列达到容量或兼容旧 Runtime 时，409 busy 仍可能是瞬态。
+// 预取侧有限次退避，不改变片段顺序，也不因短暂排队让整句播报失败。
 const BUSY_RETRY_LIMIT = 10
 const BUSY_RETRY_DELAY_MS = 500
 

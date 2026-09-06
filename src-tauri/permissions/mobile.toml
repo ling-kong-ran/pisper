@@ -12,6 +12,8 @@ commands.allow = [
   "mobile_speech_models",
   "mobile_download_speech_model",
   "mobile_cancel_speech_model_download",
+  "mobile_prepare_speech_session",
+  "mobile_release_speech_session",
   "mobile_synthesize_speech",
   "mobile_play_speech",
   "mobile_cancel_speech",

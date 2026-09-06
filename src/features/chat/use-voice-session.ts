@@ -11,6 +11,7 @@ import {
   type SpeechRecognizer,
 } from './voice-input'
 import { createVoiceEndpoint, type VoiceEndpoint } from './voice-endpoint'
+import { loadSpeechHotwords, prepareSpeechSession } from './speech-session'
 import type { SpeechTextSource } from './speech-output'
 import { createVoiceTextStream, subscribeVoiceResponse } from './voice-response-stream'
 import {
@@ -83,6 +84,10 @@ export function useVoiceSession(options: VoiceSessionOptions) {
   const roundRef = useRef<Round | null>(null)
   const releaseBarrier = useRef(Promise.resolve())
   const ready = useRef(false)
+  const speechSession = useRef<{
+    controller: AbortController
+    preparing: Promise<void>
+  } | null>(null)
   const active = useRef(false)
   const mutedRef = useRef(false)
   const autoListen = useRef(false)
@@ -103,6 +108,35 @@ export function useVoiceSession(options: VoiceSessionOptions) {
     Boolean(
       latest.current.streaming || latest.current.messages.some((message) => message.streaming),
     )
+
+  function releaseSpeechSession() {
+    const session = speechSession.current
+    speechSession.current = null
+    session?.controller.abort()
+  }
+
+  function ensureSpeechSession() {
+    if (speechSession.current) return speechSession.current.preparing
+    const controller = new AbortController()
+    const chatSessionId = latest.current.sessionId
+    const preparing = (async () => {
+      if (!ready.current) {
+        await latest.current.ensureReady?.(controller.signal)
+        throwIfAborted(controller.signal)
+        ready.current = true
+      }
+      const { hotwords } = await loadSpeechHotwords(chatSessionId, controller.signal)
+      await prepareSpeechSession({ kinds: ['asr', 'tts'], hotwords }, controller.signal)
+      throwIfAborted(controller.signal)
+    })().catch((caught: unknown) => {
+      if (speechSession.current?.controller === controller) speechSession.current = null
+      controller.abort()
+      throw caught
+    })
+    // 会话预热不归某一轮所有；静音、思考及轮次取消不能启动模型空闲淘汰。
+    speechSession.current = { controller, preparing }
+    return preparing
+  }
 
   function stopCapture(round: Round) {
     window.clearTimeout(round.limitTimer)
@@ -415,7 +449,6 @@ export function useVoiceSession(options: VoiceSessionOptions) {
       !latest.current.open ||
       mutedRef.current ||
       document.hidden ||
-      externalStreaming() ||
       !['idle', 'error', 'speaking'].includes(stageRef.current)
     )
       return
@@ -441,10 +474,11 @@ export function useVoiceSession(options: VoiceSessionOptions) {
     try {
       await releaseBarrier.current
       if (!isCurrent(round)) return
-      if (!ready.current) {
-        await latest.current.ensureReady?.(round.controller.signal)
-        if (!isCurrent(round)) return
-        ready.current = true
+      await ensureSpeechSession()
+      if (!isCurrent(round)) return
+      if (externalStreaming()) {
+        stop()
+        return
       }
       round.permissionPending = true
       try {
@@ -542,6 +576,7 @@ export function useVoiceSession(options: VoiceSessionOptions) {
     else void actions.current.start()
   }, [])
   const hangUp = useCallback(() => {
+    releaseSpeechSession()
     actions.current.stop()
     setError('')
     setElapsed(0)
@@ -561,17 +596,22 @@ export function useVoiceSession(options: VoiceSessionOptions) {
       const round = roundRef.current
       // 移动端原生授权弹窗可能暂时隐藏 WebView，只在等待该权限结果时豁免。
       if (round?.permissionPending && window.__PISPER_MOBILE_APP__) return
+      releaseSpeechSession()
       actions.current.stop()
     }
     const visibility = () => {
       if (document.hidden) background()
     }
-    const interrupted = () => actions.current.stop()
+    const interrupted = () => {
+      releaseSpeechSession()
+      actions.current.stop()
+    }
     window.addEventListener('blur', background)
     window.addEventListener('pisper:speech-interrupted', interrupted)
     document.addEventListener('visibilitychange', visibility)
     return () => {
       active.current = false
+      releaseSpeechSession()
       actions.current.stop()
       window.removeEventListener('blur', background)
       window.removeEventListener('pisper:speech-interrupted', interrupted)

@@ -41,6 +41,13 @@ struct SpeechCancelArgs: Decodable {
   let requestId: String
 }
 
+struct SpeechPrepareSessionArgs: Decodable {
+  let requestId: String
+  let kinds: [String]
+  let hotwords: String?
+  let voiceId: String?
+}
+
 private struct SpeechBridgeReply: Encodable {
   let value: Any
 
@@ -501,6 +508,19 @@ final class MobileDevicePlugin: Plugin, UIImagePickerControllerDelegate,
   @objc public func cancelSpeechModelDownload(_ invoke: Invoke) throws {
     let args = try invoke.parseArgs(SpeechModelArgs.self)
     SpeechAudioService.shared.modelOperation("cancel", modelId: args.modelId,
+      completion: speechCompletion(invoke))
+  }
+
+  @objc public func prepareSpeechSession(_ invoke: Invoke) throws {
+    let args = try invoke.parseArgs(SpeechPrepareSessionArgs.self)
+    SpeechAudioService.shared.prepareSession(requestId: args.requestId, kinds: args.kinds,
+      hotwords: args.hotwords ?? "", voiceId: args.voiceId ?? "",
+      completion: speechCompletion(invoke))
+  }
+
+  @objc public func releaseSpeechSession(_ invoke: Invoke) throws {
+    let args = try invoke.parseArgs(SpeechCancelArgs.self)
+    SpeechAudioService.shared.releaseSession(requestId: args.requestId,
       completion: speechCompletion(invoke))
   }
 

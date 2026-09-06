@@ -5,6 +5,7 @@ import { mkdtemp, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import test from 'node:test'
+import { setImmediate } from 'node:timers/promises'
 import { createApiHandler } from '../http/api-handler.mjs'
 import { speechRoutes } from '../http/routes/speech.mjs'
 import { SpeechEngineService, speechEngineError } from '../services/speech-engine-service.mjs'
@@ -46,6 +47,10 @@ function response() {
       this.headers = headers
       this.headersSent = true
     },
+    write(value) {
+      this.chunks.push(Buffer.from(value))
+      return true
+    },
     end(value) {
       if (value !== undefined) this.chunks.push(Buffer.from(value))
       this.endCount += 1
@@ -72,6 +77,68 @@ function route(path) {
   assert.ok(entry, `missing speech route: ${path}`)
   return entry.handler
 }
+
+test('speech mode connection reports readiness only after warming and holds until disconnect', async () => {
+  const ready = deferred()
+  let signal
+  const input = { requestId: randomUUID(), kinds: ['asr', 'tts'] }
+  const { req, res, done } = invoke(
+    {
+      speech: {
+        async prepareSpeechSession(value, held) {
+          assert.deepEqual(value, input)
+          signal = held
+          await ready.promise
+          return { ready: true }
+        },
+      },
+    },
+    '/api/speech/session',
+    input,
+  )
+  await setImmediate()
+  assert.ok(signal)
+  assert.equal(res.headersSent, false)
+  ready.resolve()
+  await setImmediate()
+  assert.equal(res.status, 200)
+  assert.equal(res.headers['Content-Type'], 'text/event-stream; charset=utf-8')
+  assert.equal(res.bytes().toString(), 'event: ready\ndata: {"ready":true}\n\n')
+  assert.equal(res.endCount, 0)
+  assert.equal(signal.aborted, false)
+  res.destroyed = true
+  res.emit('close')
+  await done
+  assert.equal(signal.aborted, true)
+  assert.equal(req.listenerCount('aborted'), 0)
+  assert.equal(res.listenerCount('close'), 0)
+})
+
+test('disconnect while warming aborts the hold and cannot publish late readiness', async () => {
+  const ready = deferred()
+  let signal
+  const { req, res, done } = invoke(
+    {
+      speech: {
+        async prepareSpeechSession(_input, held) {
+          signal = held
+          await ready.promise
+          return { ready: true }
+        },
+      },
+    },
+    '/api/speech/session',
+    { requestId: randomUUID(), kinds: ['asr'] },
+  )
+  await setImmediate()
+  req.aborted = true
+  req.emit('aborted')
+  assert.equal(signal.aborted, true)
+  ready.resolve()
+  await done
+  assert.equal(res.headersSent, false)
+  assert.equal(req.listenerCount('aborted'), 0)
+})
 
 const payload = Buffer.from('test-model-weights')
 const digest = createHash('sha256').update(payload).digest('hex')

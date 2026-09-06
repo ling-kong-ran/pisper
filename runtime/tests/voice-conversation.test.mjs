@@ -217,6 +217,13 @@ function fixture(t, settings = {}) {
     '@/lib/abort-signal': abortSignal,
     './voice-input': microphone,
     './voice-response-stream': voiceResponse,
+    './speech-session': {
+      loadSpeechHotwords: async () => ({ terms: [], hotwords: '' }),
+      prepareSpeechSession: async (_options, signal) => {
+        abortSignal.throwIfAborted(signal)
+        return { requestId: 'fixture-session', signal }
+      },
+    },
     './voice-endpoint': {
       async createVoiceEndpoint() {
         const endpoint = createVoiceEndpointAdapter(() => ({

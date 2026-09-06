@@ -84,6 +84,53 @@ export const speechRoutes = [
   },
   {
     method: 'POST',
+    path: '/api/speech/session',
+    async handler({ services, req, res, body }) {
+      if (!services.speech)
+        throw Object.assign(new Error('Local speech synthesis is unavailable.'), {
+          statusCode: 503,
+        })
+      const input = fields(await body(), ['requestId', 'kinds', 'hotwords', 'voiceId'])
+      const controller = new AbortController()
+      let heartbeat
+      let finish
+      const closed = new Promise((resolve) => {
+        finish = resolve
+      })
+      const close = () => {
+        controller.abort()
+        finish()
+      }
+      req.once('aborted', close)
+      res.once('close', close)
+      try {
+        if (req.aborted || res.destroyed) return
+        await services.speech.prepareSpeechSession(input, controller.signal)
+        if (controller.signal.aborted || res.destroyed) return
+        res.writeHead(200, {
+          'Content-Type': 'text/event-stream; charset=utf-8',
+          'Cache-Control': 'no-store',
+          'X-Content-Type-Options': 'nosniff',
+        })
+        res.write('event: ready\ndata: {"ready":true}\n\n')
+        // 由连接生命周期持有模型，页面关闭或网络断开就释放，不依赖前端最后一次通知。
+        heartbeat = setInterval(() => {
+          if (!res.destroyed) res.write(': speech-session\n\n')
+        }, 15_000)
+        heartbeat.unref?.()
+        await closed
+      } catch (error) {
+        if (!controller.signal.aborted && !res.destroyed) throw error
+      } finally {
+        clearInterval(heartbeat)
+        close()
+        req.removeListener('aborted', close)
+        res.removeListener('close', close)
+      }
+    },
+  },
+  {
+    method: 'POST',
     path: '/api/speech/synthesize',
     async handler({ services, req, res, body }) {
       if (!services.speech)

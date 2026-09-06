@@ -104,7 +104,7 @@ export class SpeechEngineService {
     idleUnloadMs = 30_000,
     sessionTtlMs = 600_000,
     // 会话孤儿（页面刷新/热更新中途断开）只能等 TTL；周期 sweep 让它们在
-    // 无新会话进入时也能过期，否则 TTS 会被永久 busy 堵住。0 关闭（测试用）。
+    // 无新会话进入时也能过期，避免孤儿 ASR stream 永久持有模型。0 关闭（测试用）。
     sessionSweepMs = 60_000,
     startupTimeoutMs = 60_000,
     inferenceTimeoutMs = 120_000,
@@ -145,13 +145,19 @@ export class SpeechEngineService {
       forkProcess,
     })
     this.worker = null
+    // ASR/TTS 各自持有进程和串行队列，两类计算可并行，类内请求仍有序。
+    this.workers = new Map()
+    this.voiceSessions = new Map()
+    this.warmupOperations = 0
     this.sessions = new Map()
     this.pending = new Map()
-    this.operation = Promise.resolve()
+    this.operations = new Map(['asr', 'tts'].map((kind) => [kind, Promise.resolve()]))
     this.asrOperations = 0
     this.activeSpeech = null
+    this.speechTasks = new Map()
     this.controllers = new Set()
     this.idleTimer = null
+    this.idleGeneration = 0
     this.disposed = false
     this.disposePromise = null
     // 周期清理过期会话；unref 保证计时器不会拖住进程退出。
@@ -172,13 +178,17 @@ export class SpeechEngineService {
     return model
   }
 
-  enqueue(task) {
-    const result = this.operation.then(task)
-    this.operation = result.catch(() => {})
+  enqueue(task, kind = 'asr') {
+    const result = this.operations.get(kind).then(task)
+    this.operations.set(
+      kind,
+      result.catch(() => {}),
+    )
     return result
   }
 
   markActive() {
+    this.idleGeneration += 1
     clearTimeout(this.idleTimer)
     this.idleTimer = null
   }
@@ -188,26 +198,33 @@ export class SpeechEngineService {
     if (
       this.disposed ||
       this.sessions.size ||
+      this.voiceSessions.size ||
+      this.warmupOperations ||
       this.asrOperations ||
-      this.activeSpeech ||
-      !this.worker ||
+      this.speechTasks.size ||
+      !this.workers.size ||
       this.idleUnloadMs <= 0
     )
       return
-    const worker = this.worker
+    const workers = [...this.workers.values()]
+    const generation = this.idleGeneration
     this.idleTimer = setTimeout(() => {
       this.idleTimer = null
-      // 回收也进入同一队列，防止新请求与旧进程退出交错。
-      void this.enqueue(async () => {
-        if (
-          !this.sessions.size &&
-          !this.asrOperations &&
-          !this.activeSpeech &&
-          this.worker === worker
-        ) {
-          await this.stopWorker(worker)
-        }
-      }).catch(() => {})
+      // 回收进入模型所属队列，不能越过该模型的加载或推理任务。
+      for (const worker of workers) {
+        void this.enqueue(async () => {
+          if (
+            generation === this.idleGeneration &&
+            !this.sessions.size &&
+            !this.voiceSessions.size &&
+            !this.warmupOperations &&
+            !this.asrOperations &&
+            !this.speechTasks.size &&
+            this.workers.get(worker.kind) === worker
+          )
+            await this.stopWorker(worker)
+        }, worker.kind).catch(() => {})
+      }
     }, this.idleUnloadMs)
     this.idleTimer.unref?.()
   }
@@ -219,8 +236,13 @@ export class SpeechEngineService {
 
   async prepareWorker(kind, task) {
     this.checkTask(task)
-    if (this.worker?.kind === kind && !this.worker.stopping) return this.worker
-    if (this.worker) await this.stopWorker(this.worker)
+    const cached = this.workers.get(kind)
+    if (cached && !cached.stopping && !cached.exited) {
+      this.worker = cached
+      task.worker = cached
+      return cached
+    }
+    if (cached) await this.stopWorker(cached)
     this.checkTask(task)
     const model = this.model(kind)
     let modelDir
@@ -254,6 +276,7 @@ export class SpeechEngineService {
         worker.exited = true
         clearTimeout(worker.killTimer)
         if (this.worker === worker) this.worker = null
+        if (this.workers.get(kind) === worker) this.workers.delete(kind)
         for (const [id, session] of this.sessions) {
           if (session.worker === worker) this.sessions.delete(id)
         }
@@ -272,6 +295,7 @@ export class SpeechEngineService {
       })
     })
     this.worker = worker
+    this.workers.set(kind, worker)
     task.worker = worker
     try {
       await this.rpc(
@@ -379,9 +403,83 @@ export class SpeechEngineService {
     return worker.exitPromise
   }
 
+  async prepareSpeechSession(
+    { requestId, kinds, hotwords = '', voiceId = this.catalog.defaults?.voice } = {},
+    signal,
+  ) {
+    if (
+      typeof requestId !== 'string' ||
+      !UUID.test(requestId) ||
+      !Array.isArray(kinds) ||
+      kinds.length < 1 ||
+      kinds.length > 2 ||
+      new Set(kinds).size !== kinds.length ||
+      kinds.some((kind) => !['asr', 'tts'].includes(kind)) ||
+      typeof hotwords !== 'string' ||
+      !hotwords.isWellFormed() ||
+      Buffer.byteLength(hotwords) > 20 * 1024 ||
+      /[:#@/\p{Cc}\p{Z}]/u.test(hotwords.replace(/[\n ]/g, '')) ||
+      (hotwords &&
+        (hotwords.split('\n').length > 128 ||
+          hotwords.split('\n').some((term) => !term.trim() || term.length > 128))) ||
+      !signal ||
+      typeof signal.addEventListener !== 'function'
+    )
+      throw speechEngineError('invalid')
+    if (kinds.includes('tts') && !this.model('tts').voices?.some((voice) => voice.id === voiceId))
+      throw speechEngineError('invalid')
+    if (this.disposed) throw speechEngineError('disposed')
+    if (signal.aborted) throw speechEngineError('cancelled')
+    if (this.voiceSessions.has(requestId) || this.voiceSessions.size >= 16)
+      throw speechEngineError('busy')
+    const requestedKinds = [...kinds]
+    const controller = new AbortController()
+    const task = { signal: controller.signal }
+    const release = () => {
+      if (this.voiceSessions.get(requestId)?.controller !== controller) return
+      this.voiceSessions.delete(requestId)
+      signal.removeEventListener('abort', release)
+      controller.abort(speechEngineError('cancelled'))
+      this.controllers.delete(controller)
+      this.scheduleIdle()
+    }
+    // 连接代表语音模式的持有权；提前登记，预热期间退出也不能留下孤儿模型持有。
+    this.voiceSessions.set(requestId, { controller, release })
+    this.controllers.add(controller)
+    signal.addEventListener('abort', release, { once: true })
+    this.warmupOperations += 1
+    this.markActive()
+    try {
+      // 加载进入各自队列，可跨模型并行，但不能与同模型的推理或回收交错。
+      // 必须观察两项完成，某一项失败不能把另一项的迟到结果遗留在后台。
+      const results = await Promise.allSettled(
+        requestedKinds.map((kind) =>
+          this.enqueue(async () => {
+            const loading = { signal: task.signal }
+            const worker = await this.prepareWorker(kind, loading)
+            this.checkTask(loading)
+            // ASR init 只建立服务对象，必须实际加载识别器，不能把空 worker 当预热成功。
+            if (kind === 'asr')
+              await this.rpc(worker, 'warmup', { terms: hotwords ? hotwords.split('\n') : [] })
+            this.checkTask(loading)
+          }, kind),
+        ),
+      )
+      const failed = results.find((result) => result.status === 'rejected')
+      if (failed) throw failed.reason
+      this.checkTask(task)
+      return { ready: true }
+    } catch (error) {
+      release()
+      throw error
+    } finally {
+      this.warmupOperations -= 1
+      this.scheduleIdle()
+    }
+  }
+
   asr(taskFn) {
     if (this.disposed) return Promise.reject(speechEngineError('disposed'))
-    if (this.activeSpeech) return Promise.reject(speechEngineError('busy'))
     const controller = new AbortController()
     const task = { signal: controller.signal }
     this.controllers.add(controller)
@@ -493,14 +591,16 @@ export class SpeechEngineService {
     if (!voice || voice.sid !== 0 || (voice.sourceId !== undefined && voice.sourceId !== 0))
       throw speechEngineError('invalid')
     if (this.disposed) throw speechEngineError('disposed')
-    if (this.activeSpeech || this.asrOperations || this.sessions.size)
+    if (this.speechTasks.has(requestId) || this.speechTasks.size >= 16)
       throw speechEngineError('busy')
     const controller = new AbortController()
     const task = { requestId, signal: controller.signal, controller, worker: null }
-    this.activeSpeech = task
+    this.speechTasks.set(requestId, task)
     this.controllers.add(controller)
     this.markActive()
     task.completion = this.enqueue(async () => {
+      this.checkTask(task)
+      this.activeSpeech = task
       const worker = await this.prepareWorker('tts', task)
       task.worker = worker
       this.checkTask(task)
@@ -513,8 +613,9 @@ export class SpeechEngineService {
         await this.stopWorker(worker, error, true)
         throw error
       }
-    }).finally(() => {
+    }, 'tts').finally(() => {
       if (this.activeSpeech === task) this.activeSpeech = null
+      if (this.speechTasks.get(requestId) === task) this.speechTasks.delete(requestId)
       this.controllers.delete(controller)
       this.scheduleIdle()
     })
@@ -523,11 +624,14 @@ export class SpeechEngineService {
 
   async cancelSpeech(requestId) {
     if (typeof requestId !== 'string' || !UUID.test(requestId)) throw speechEngineError('invalid')
-    const task = this.activeSpeech
+    const task = this.speechTasks.get(requestId) ?? this.activeSpeech
     if (!task || task.requestId !== requestId) return { cancelled: false }
     task.controller.abort(speechEngineError('cancelled'))
-    if (task.worker) await this.stopWorker(task.worker, speechEngineError('cancelled'), true)
-    await task.completion.catch(() => {})
+    // 排队项只作废自己的凭证，不能终止前一片段正在使用的 TTS worker。
+    if (task === this.activeSpeech) {
+      if (task.worker) await this.stopWorker(task.worker, speechEngineError('cancelled'), true)
+      await task.completion.catch(() => {})
+    }
     return { cancelled: true }
   }
 
@@ -537,11 +641,17 @@ export class SpeechEngineService {
     this.markActive()
     clearInterval(this.sessionSweepTimer)
     this.sessionSweepTimer = null
+    for (const session of this.voiceSessions.values()) session.release()
     for (const controller of this.controllers) controller.abort(speechEngineError('disposed'))
     this.disposePromise = (async () => {
-      if (this.worker) await this.stopWorker(this.worker, speechEngineError('disposed'), true)
-      await this.operation
+      await Promise.all(
+        [...this.workers.values()].map((worker) =>
+          this.stopWorker(worker, speechEngineError('disposed'), true),
+        ),
+      )
+      await Promise.all(this.operations.values())
       this.sessions.clear()
+      this.speechTasks.clear()
     })()
     return this.disposePromise
   }

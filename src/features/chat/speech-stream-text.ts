@@ -1,6 +1,6 @@
 import { parseFragment, type DefaultTreeAdapterTypes } from 'parse5'
 import { htmlVoidElements } from 'html-void-elements'
-import { abortReason, throwIfAborted } from '@/lib/abort-signal'
+import { abortReason, createAbortScope, throwIfAborted } from '@/lib/abort-signal'
 import {
   parseSpeechMarkdown,
   speechHiddenHtmlTags,
@@ -15,6 +15,8 @@ type MarkdownNode = {
 }
 
 const sentenceMarks = /[。！？.!?]/
+const fragmentMarks = /[，；,;]/
+const FRAGMENT_WAIT_MS = 250
 const onlyPunctuation = /^[\p{P}\p{Z}\s]+$/u
 const words = new Intl.Segmenter('zh-CN', { granularity: 'word' })
 const abbreviations = new Set([
@@ -126,6 +128,7 @@ function htmlBoundary(tree: MarkdownNode, length: number) {
 
 function stableText(markdown: string, complete: boolean): string {
   const tree = parseSpeechMarkdown(markdown)
+  let whitespaceClosed = false
   if (!complete) {
     const boundary = htmlBoundary(tree, markdown.length)
     let horizon = boundary.horizon
@@ -157,8 +160,27 @@ function stableText(markdown: string, complete: boolean): string {
       }
     }
     truncate(tree)
+    // 清洗器生成的段落换行不代表闭词；仅认可未被 Markdown 屏障截断的正文源尾空白。
+    const contentEnd = markdown.trimEnd().length
+    if (horizon === markdown.length && contentEnd < markdown.length) {
+      const inspectTail = (node: MarkdownNode) => {
+        const start = node.position?.start.offset ?? 0
+        const end = node.position?.end.offset ?? 0
+        if (
+          ['link', 'linkReference', 'image', 'imageReference', 'code', 'inlineCode'].includes(
+            node.type,
+          )
+        )
+          return
+        if (boundary.hidden.some((range) => start >= range.start && end <= range.end)) return
+        if (node.type === 'text' && start < contentEnd && end >= contentEnd) whitespaceClosed = true
+        node.children?.forEach(inspectTail)
+      }
+      inspectTail(tree)
+    }
   }
-  return speechTextFromMarkdownTree(tree).replace(/\s+/g, ' ').trim()
+  const text = speechTextFromMarkdownTree(tree).replace(/\s+/g, ' ').trim()
+  return text && whitespaceClosed ? `${text} ` : text
 }
 
 function sentenceEnd(text: string, start: number, complete: boolean): number | undefined {
@@ -175,6 +197,47 @@ function sentenceEnd(text: string, start: number, complete: boolean): number | u
     index = end - 1
   }
   if (complete && text.slice(start).trim()) return text.length
+}
+
+// 参考 stream2sentence 的 quick-yield 与限时缓冲策略；词边界由 ICU 提供，
+// Markdown 稳定性仍由上游解析器负责：https://github.com/KoljaB/stream2sentence
+function fragmentEnd(text: string, start: number, limit: number, timed: boolean, first: boolean) {
+  const tail = text.slice(start)
+  for (let index = 0; index < tail.length; index++) {
+    if (!fragmentMarks.test(tail[index])) continue
+    // 数字后的 ASCII 逗号需要后继，避免把 1,000 的数字中间误作停顿。
+    if (
+      tail[index] === ',' &&
+      /\d/.test(tail[index - 1] || '') &&
+      (!tail[index + 1] || /\d/.test(tail[index + 1]))
+    )
+      continue
+    const end = index + 1
+    // 明确的短语标点即可提交，不能让“好的，”继续等待长度门槛。
+    if (!onlyPunctuation.test(tail.slice(0, end))) return start + end
+  }
+  // 首段可沿可信尾空白快发；ICU 末词必须是正文，不能把数字或 URL 前缀当作完整词。
+  if (first && tail.endsWith(' ')) {
+    const last = [...words.segment(tail.trimEnd())].at(-1)
+    if (last?.isWordLike && /^[\p{L}\p{M}]+(?:['’][\p{L}\p{M}]+)*$/u.test(last.segment))
+      return text.length
+  }
+  // 保留未完成的末词、数字和 URL 前缀；后续 delta 可能继续扩展它们。
+  const asciiTail = /[\x21-\x7e]+$/.exec(tail)
+  const horizon = asciiTail?.index ?? tail.length
+  let stableEnd = 0
+  for (const word of words.segment(tail)) {
+    const end = word.index + word.segment.length
+    if (end >= tail.length || end > horizon) break
+    if (word.isWordLike) {
+      stableEnd = end
+      if (Array.from(tail.slice(0, end)).length >= limit) break
+    }
+  }
+  const stable = tail.slice(0, stableEnd)
+  if (Array.from(stable.trim()).length < (timed ? 4 : limit)) return
+  const fragment = boundedSentence(stable, limit)[0]
+  if (fragment) return start + tail.indexOf(fragment) + fragment.length
 }
 
 function boundedSentence(sentence: string, limit: number): string[] {
@@ -270,6 +333,7 @@ export async function* streamingSpeechSegments(
   if (!Number.isSafeInteger(limit) || limit < 8 || limit > 160)
     throw new RangeError('Invalid speech segment limit.')
   const iterator = chunks[Symbol.asyncIterator]()
+  const inputLifetime = createAbortScope(signal)
   let markdown = ''
   let pendingSurrogate = ''
   let text = ''
@@ -278,10 +342,16 @@ export async function* streamingSpeechSegments(
   let received = 0
   let complete = false
   let pendingBoundary = false
+  let parsedLength = 0
+  let pending: Promise<IteratorResult<string>> | undefined
+  let deadline: number | undefined
+  let timed = false
   try {
     for (;;) {
       throwIfAborted(signal)
-      const end = sentenceEnd(text, emitted.length, complete)
+      const end =
+        sentenceEnd(text, emitted.length, complete) ??
+        fragmentEnd(text, emitted.length, limit, timed, count === 0)
       if (end !== undefined) {
         const segments = boundedSentence(text.slice(emitted.length, end), limit)
         if (count + segments.length > 512)
@@ -289,6 +359,8 @@ export async function* streamingSpeechSegments(
         count += segments.length
         emitted = text.slice(0, end)
         pendingBoundary = sentenceMarks.test(text.slice(end))
+        deadline = undefined
+        timed = false
         // 每次仅展开当前句子的段；消费者暂停时不继续拉取源或处理其余句子。
         for (const segment of segments) {
           throwIfAborted(signal)
@@ -297,8 +369,36 @@ export async function* streamingSpeechSegments(
         continue
       }
       if (complete) return
-      const chunk = await nextChunk(iterator, signal)
+      if (!timed && (text.slice(emitted.length).trim() || parsedLength < markdown.length))
+        deadline ??= Date.now() + FRAGMENT_WAIT_MS
+      pending ??= nextChunk(iterator, inputLifetime.signal)
+      // 超时释放文本时保留同一个 next，不能丢 delta，也不能并发读取输入源。
+      pending.catch(() => {})
+      let timer: ReturnType<typeof setTimeout> | undefined
+      let chunk: IteratorResult<string> | undefined
+      try {
+        chunk = await (deadline === undefined
+          ? pending
+          : Promise.race([
+              pending,
+              new Promise<undefined>((resolve) => {
+                timer = setTimeout(resolve, Math.max(0, deadline! - Date.now()))
+              }),
+            ]))
+      } finally {
+        clearTimeout(timer)
+      }
       throwIfAborted(signal)
+      if (!chunk) {
+        deadline = undefined
+        timed = true
+        text = stableText(markdown, false)
+        parsedLength = markdown.length
+        emitted = reconcileEmitted(text, emitted)
+        continue
+      }
+      pending = undefined
+      timed = false
       complete = Boolean(chunk.done)
       if (!complete) {
         if (typeof chunk.value !== 'string') throw new TypeError('Invalid speech text delta.')
@@ -312,17 +412,24 @@ export async function* streamingSpeechSegments(
         }
         if (/[\uD800-\uDFFF]/u.test(value)) throw new Error('Invalid speech text Unicode.')
         markdown += value
+        deadline ??= Date.now() + FRAGMENT_WAIT_MS
         pendingBoundary ||=
           sentenceMarks.test(value) ||
+          fragmentMarks.test(value) ||
+          (count === 0 && /\s$/.test(value)) ||
           (/[&;`*_~>|\])\n]/.test(value) && /[。！？.!?&]/.test(markdown))
       } else if (pendingSurrogate) throw new Error('Invalid speech text Unicode.')
-      // 没有句末时无需反复解析逐字 delta；自然句末立即建立快照，仅 ASCII 句点需要后继。
-      if (!complete && !pendingBoundary) continue
+      // 标点即时解析；普通逐字 delta 批量建快照，停顿时由计时器补齐，避免长回复重复解析。
+      if (!complete && !pendingBoundary && markdown.length - parsedLength < Math.min(8, limit))
+        continue
       text = stableText(markdown, complete)
+      parsedLength = markdown.length
       emitted = reconcileEmitted(text, emitted)
       pendingBoundary = sentenceMarks.test(text.slice(emitted.length))
     }
   } finally {
+    inputLifetime.abort(new DOMException('Speech segmentation ended.', 'AbortError'))
+    inputLifetime.dispose()
     if (!complete) {
       try {
         // 异步生成器的 return 可能排在挂起 next 后；调用清理但不能等待不合作的源。

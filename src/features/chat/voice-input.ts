@@ -1,6 +1,5 @@
 import { waitForMobileRuntimeReady } from '@/lib/http'
 import { createAbortScope, throwIfAborted } from '@/lib/abort-signal'
-import { apiJson } from '@/lib/api'
 import { formatSpeechTerms, speechHotwords } from '@shared/speech-terms.mjs'
 
 export const VOICE_SAMPLE_RATE = 16_000
@@ -57,7 +56,7 @@ function mergeChunks(chunks: Float32Array[]) {
 }
 
 // 桌面走 Runtime 流式会话：录音中周期性追加 PCM 并拿回部分文本；
-// 移动端原生桥每次调用都会重建识别器，保持停止后一次性转写。
+// 移动端复用预热的识别器，但每次新建 stream，仍在停止后一次性转写。
 class RuntimeSpeechRecognizer implements SpeechRecognizer {
   private chunks: Float32Array[] = []
   private pending: Float32Array[] = []
@@ -76,7 +75,10 @@ class RuntimeSpeechRecognizer implements SpeechRecognizer {
   constructor(private chatSessionId = '') {}
 
   start() {
-    this.initializing = this.initialize()
+    this.initializing = this.initialize().catch(async (error: unknown) => {
+      await this.cancel()
+      throw error
+    })
     return this.initializing
   }
 
@@ -89,18 +91,19 @@ class RuntimeSpeechRecognizer implements SpeechRecognizer {
     this.controller = controller
     await waitForMobileRuntimeReady()
     throwIfAborted(controller.signal)
-    if (window.__PISPER_MOBILE_APP__) {
-      this.terms = []
-      const payload = await apiJson<{ terms: string[] }>(
-        `/api/speech/terms?sessionId=${encodeURIComponent(this.chatSessionId)}`,
-        { signal: controller.signal },
-      )
-      if (!Array.isArray(payload.terms) || payload.terms.some((term) => typeof term !== 'string')) {
-        throw new Error('语音术语响应无效。')
-      }
-      this.terms = payload.terms
-      return
-    }
+    const { loadSpeechHotwords, prepareSpeechSession } = await import('./speech-session')
+    const { terms, hotwords } = await loadSpeechHotwords(this.chatSessionId, controller.signal)
+    this.terms = terms
+    const lease = await prepareSpeechSession({ kinds: ['asr'], hotwords }, controller.signal)
+    throwIfAborted(lease.signal)
+    lease.signal.addEventListener(
+      'abort',
+      () => {
+        if (this.controller === controller && !controller.signal.aborted) void this.cancel()
+      },
+      { once: true },
+    )
+    if (window.__PISPER_MOBILE_APP__) return
     const request = createAbortScope(controller.signal, 30_000)
     try {
       const response = await fetch('/api/speech/stream/start', {
@@ -127,7 +130,7 @@ class RuntimeSpeechRecognizer implements SpeechRecognizer {
         throwIfAborted(controller.signal)
       }
       this.sessionId = payload.id
-      // 模型冷启动期间已经可以录音；创建会话后按原顺序补发缓存，不能丢掉开头。
+      // 兼容已进入启动缓存的 PCM；创建会话后仍按原顺序补发，不能丢掉开头。
       this.pending.push(...this.chunks.splice(0))
       this.retainedSamples = 0
       this.flushTimer = window.setInterval(() => void this.flushPending(), 1_000)

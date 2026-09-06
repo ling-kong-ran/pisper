@@ -133,6 +133,46 @@ impl<R: Runtime> MobileDevice<R> {
         self.speech_model_operation("cancelSpeechModelDownload", model_id)
     }
 
+    pub fn prepare_speech_session(
+        &self,
+        request_id: String,
+        kinds: Vec<String>,
+        hotwords: String,
+        voice_id: Option<String>,
+    ) -> Result<Value> {
+        #[derive(Serialize)]
+        #[serde(rename_all = "camelCase")]
+        struct SessionRequest {
+            request_id: String,
+            kinds: Vec<String>,
+            hotwords: String,
+            #[serde(skip_serializing_if = "Option::is_none")]
+            voice_id: Option<String>,
+        }
+        self.0
+            .run_mobile_plugin(
+                "prepareSpeechSession",
+                SessionRequest {
+                    request_id,
+                    kinds,
+                    hotwords,
+                    voice_id,
+                },
+            )
+            .map_err(Into::into)
+    }
+
+    pub fn release_speech_session(&self, request_id: String) -> Result<Value> {
+        #[derive(Serialize)]
+        #[serde(rename_all = "camelCase")]
+        struct SessionRequest {
+            request_id: String,
+        }
+        self.0
+            .run_mobile_plugin("releaseSpeechSession", SessionRequest { request_id })
+            .map_err(Into::into)
+    }
+
     pub fn synthesize_speech(
         &self,
         text: String,

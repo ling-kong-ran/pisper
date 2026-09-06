@@ -258,8 +258,7 @@ test('real worker UUID cancellation waits for exit and allows a fresh native pro
   const pending = rejectCode(h.speak('hang', requestId), 'cancelled')
   await until(() => h.events.some((event) => event.event === 'native-generate'))
   assert.deepEqual(await h.service.cancelSpeech(randomUUID()), { cancelled: false })
-  await rejectCode(h.speak(), 'busy')
-  await rejectCode(h.service.startSession(), 'busy')
+  await rejectCode(h.speak('duplicate', requestId), 'busy')
   assert.deepEqual(await h.service.cancelSpeech(requestId), { cancelled: true })
   await pending
   assert.equal(h.service.pending.size, 0)
