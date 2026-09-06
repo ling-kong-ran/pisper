@@ -71,14 +71,14 @@ type TerminalStateOptions = {
   data: ApiRecord
   finishedAt: string
   error?: string
+  preserveDisplayedText?: boolean
 }
 
-// 收尾一回合流：把流式现场结算为终态——工具调用统一落定、生命周期标记
-// 完成/失败、agent 消息写入最终文本（失败时保留当前草稿与计划），
-// 并清理审批与进行中的活动。
+// 运行终态立即结算工具、审批和活动；成功时可保留正文显示进度，
+// 让最终目标继续逐帧排空，错误则立即校准文本。
 export function reconcileTerminalStreamState(
   current: SessionState,
-  { agentId, responseText, data, finishedAt, error }: TerminalStateOptions,
+  { agentId, responseText, data, finishedAt, error, preserveDisplayedText }: TerminalStateOptions,
 ): SessionState {
   const failed = Boolean(error)
   const lifecycle = data.lifecycle || current.lifecycle || {}
@@ -115,8 +115,12 @@ export function reconcileTerminalStreamState(
       item.id === agentId
         ? {
             ...item,
-            text: typeof data.text === 'string' ? data.text : responseText || item.text,
-            streaming: false,
+            text: preserveDisplayedText
+              ? item.text
+              : typeof data.text === 'string'
+                ? data.text
+                : responseText || item.text,
+            streaming: preserveDisplayedText ? item.text !== responseText : false,
             ...(failed ? {} : data.assets?.length ? { attachments: data.assets } : {}),
           }
         : item,
@@ -301,7 +305,6 @@ export function createStreamEventDispatcher({
     } else if (event === 'session_usage') {
       updateSessionState(sessionId, { sessionUsage: data })
     } else if (event === 'compaction_start') {
-      typewriter.flush()
       toolScheduler.flush()
       updateSessionState(sessionId, (current) => {
         const activity = {
@@ -347,7 +350,12 @@ export function createStreamEventDispatcher({
       state.responseRenderingStreaming = false
       publishResponse('streaming')
       typewriter.setTarget(state.responseText, data.updatedAt || eventAt)
-      typewriter.flush()
+      updateSessionState(sessionId, (current) => ({
+        ...current,
+        messages: current.messages.map((item) =>
+          item.id === agentId ? { ...item, streaming: item.text !== state.responseText } : item,
+        ),
+      }))
     } else if (event === 'thinking_reset') {
       state.thinkingText = ''
       state.thinkingPrefix = String(data.thinkingText || '').slice(-MAX_LIVE_THINKING_CHARS)
@@ -369,7 +377,6 @@ export function createStreamEventDispatcher({
       thinkingScheduler.push(displayedThinking.slice(-MAX_LIVE_THINKING_CHARS), eventAt)
     } else if (event === 'tool_start') {
       thinkingScheduler.flush()
-      typewriter.flush()
       toolScheduler.flush()
       updateSessionState(sessionId, (current) => {
         const activity = {
@@ -389,9 +396,6 @@ export function createStreamEventDispatcher({
           tools: pushCurrentActivity(current.tools, activity),
           currentActivity: activity,
           activityFeed: pushCurrentActivity(current.activityFeed, activity),
-          messages: current.messages.map((item) =>
-            item.id === agentId ? { ...item, text: state.responseText || item.text } : item,
-          ),
         }
       })
     } else if (event === 'tool_update') {
@@ -469,7 +473,6 @@ export function createStreamEventDispatcher({
     } else if (event === 'mobile_operation_cancel') {
       handleMobileOperationCancellation(data)
     } else if (event === 'permission_request') {
-      typewriter.flush()
       toolScheduler.flush()
       updateSessionState(sessionId, (current) => ({
         ...current,
@@ -510,7 +513,6 @@ export function createStreamEventDispatcher({
         team: teamFromPayload(data, session.team),
       }))
     } else if (isPlanUpdateEvent(event)) {
-      typewriter.flush()
       toolScheduler.flush()
       updateSessionState(sessionId, (current) => {
         const nextPlan = planFromPayloadOr(data, current.plan)
@@ -564,7 +566,7 @@ export function createStreamEventDispatcher({
         event === 'error' ? data.message || 'Speech response failed.' : undefined,
       )
       typewriter.setTarget(state.responseText, finishedAt)
-      typewriter.flush()
+      if (event === 'error') typewriter.flush()
       thinkingScheduler.flush()
       toolScheduler.cancel()
       updateSessionState(sessionId, (current) =>
@@ -573,6 +575,7 @@ export function createStreamEventDispatcher({
           responseText: state.responseText,
           data,
           finishedAt,
+          preserveDisplayedText: event === 'done',
           ...(event === 'error' ? { error: data.message } : {}),
         }),
       )

@@ -224,12 +224,11 @@ export function FocusTranscript({
     scrollRef: transcriptRef,
     scrollElement: transcriptElement,
     setScrollRef: setTranscriptRef,
-    onScroll: onTranscriptScroll,
     hasUnread,
     scrollToBottom,
     maintainBottom,
-    cancelProgrammaticScroll,
-  } = useAutoScroll(transcriptVersion)
+    pauseFollowing,
+  } = useAutoScroll(transcriptVersion, { resetKey: `${sessionId}:${transcriptLoadState}` })
   const latestRunProps = useMemo(
     () => ({
       streaming,
@@ -267,16 +266,16 @@ export function FocusTranscript({
   const loadOlder = useCallback(async () => {
     const node = transcriptRef.current
     if (!node || !hasOlder || loadingOlder || prependSnapshot.current) return
+    pauseFollowing()
     prependSnapshot.current = { scrollHeight: node.scrollHeight, scrollTop: node.scrollTop }
     const loaded = await onLoadOlder?.()
     if (!loaded) prependSnapshot.current = null
-  }, [hasOlder, loadingOlder, onLoadOlder, transcriptRef])
+  }, [hasOlder, loadingOlder, onLoadOlder, pauseFollowing, transcriptRef])
   const handleTranscriptScroll = useCallback(
     (event: UIEvent<HTMLDivElement>) => {
-      onTranscriptScroll(event)
       if (event.currentTarget.scrollTop <= 96) void loadOlder()
     },
-    [loadOlder, onTranscriptScroll],
+    [loadOlder],
   )
 
   useLayoutEffect(() => {
@@ -397,14 +396,12 @@ export function FocusTranscript({
   return (
     <div className="relative min-h-0 flex-1">
       <div
-        className="transcript [.focus-session.has-conversation_&]:p-[30px_max(24px,calc((100%_-_900px)/2))] [.focus-session.has-conversation_&]:[scroll-padding-bottom:32px] @max-[700px]:p-[20px_14px] @max-[700px]:[.focus-session.has-conversation_&]:p-[24px_16px] @max-[470px]:[padding-inline:10px] max-[650px]:p-[20px_14px] min-h-0 h-full flex-1 overflow-auto overscroll-contain m-0 border-0 [padding:26px_max(24px,calc((100%_-_960px)/2))] [padding-bottom:70px] [scroll-padding-bottom:70px]"
+        className="transcript [.focus-session.has-conversation_&]:p-[30px_max(24px,calc((100%_-_900px)/2))] [.focus-session.has-conversation_&]:[scroll-padding-bottom:32px] @max-[700px]:p-[20px_14px] @max-[700px]:[.focus-session.has-conversation_&]:p-[24px_16px] @max-[470px]:[padding-inline:10px] max-[650px]:p-[20px_14px] min-h-0 h-full flex-1 overflow-auto overscroll-contain scroll-auto [overflow-anchor:none] m-0 border-0 [padding:26px_max(24px,calc((100%_-_960px)/2))] [padding-bottom:70px] [scroll-padding-bottom:70px]"
         data-pisper-transcript-state={transcriptLoadState}
         aria-busy={transcriptLoadState === 'loading'}
         ref={setTranscriptRef}
-        onPointerDown={cancelProgrammaticScroll}
         onScroll={handleTranscriptScroll}
-        onTouchStart={cancelProgrammaticScroll}
-        onWheel={cancelProgrammaticScroll}
+        tabIndex={0}
       >
         <div className="[display:flow-root] w-full" ref={transcriptPrefixRef}>
           {lineage?.parentSessionId && (
@@ -482,6 +479,7 @@ export function FocusTranscript({
               prefixRef={transcriptPrefixRef}
               targetEntryId={targetEntryId}
               onContentSizeChange={maintainBottom}
+              onTargetScroll={pauseFollowing}
               onTargetLocated={(entryId) => {
                 clearSessionMessageTarget(sessionId, entryId)
                 setTargetEntryId('')

@@ -1,8 +1,8 @@
 // 流式 UI 调度原语：把高频 SSE 事件合并成低频 React 更新。
 // - createStreamingTextScheduler：文本增量合并（约 20fps）；
 // - createToolUpdateScheduler：同一 tool id 的多次更新合并成一条 patch；
-// - createTypewriterDisplay：打字机式平滑展示，目标落后太多时加速追赶、
-//   剩余极少时直接补齐；文本被重写（redaction）时先对齐公共前缀再重排。
+// - createTypewriterDisplay：正文按约 30fps 平滑展示，积压时限速追赶；
+//   文本被重写（redaction）时先对齐完整字符的公共前缀再重排。
 // 定时器在页面不可见时挂起，切回前台再恢复，避免后台空转。
 type ActivityTimestamp = string | null
 type ToolPatch = Record<string, unknown>
@@ -61,7 +61,6 @@ function createTimerScheduler(flush: () => void, intervalMs: number) {
   }
 }
 
-/** Coalesce high-frequency streaming text into ~20fps React updates. */
 // 流式文本合并调度器：把高频文本增量合并成 ~20fps 的一次回调，
 // 携带最近一次活动时间戳，供渲染层节流更新。
 export function createStreamingTextScheduler(
@@ -96,7 +95,6 @@ export function createStreamingTextScheduler(
   }
 }
 
-/** Merge rapid tool_update events by tool id before hitting React state. */
 // 工具事件合并调度器：同一工具 id 的多次 patch 合并成一条，
 // 按 interval 批量回调，减少 React 更新次数。
 export function createToolUpdateScheduler(
@@ -132,29 +130,32 @@ export function createToolUpdateScheduler(
   }
 }
 
-// 两串文本公共前缀长度（按字符码比较），用于打字机重排对齐。
+function isHighSurrogate(code: number) {
+  return code >= 0xd800 && code <= 0xdbff
+}
+
+// 重写可能只改变代理对的低位，公共前缀不能停在高位代理之后。
 function commonPrefixLength(left: string, right: string) {
   const limit = Math.min(left.length, right.length)
   let index = 0
   while (index < limit && left.charCodeAt(index) === right.charCodeAt(index)) index += 1
-  return index
+  return index > 0 && isHighSurrogate(left.charCodeAt(index - 1)) ? index - 1 : index
 }
 
-/**
- * Smooth typewriter display for streaming text.
- * - Keeps React updates to at most ~30fps
- * - Speeds up dynamically when the target is far ahead
- * - Snaps immediately on flush (done / tool boundary)
- */
+const TYPEWRITER_FRAME_INTERVAL_MS = 1_000 / 30
+
+// 浏览器按绘制帧调度，但正文状态最多约 30fps；显式 flush 仍立即校准终态。
+// 速率按 Unicode 码点累计，保留小数额度，避免高刷新率或慢速配置突破上限。
 export function createTypewriterDisplay(
   onFrame: (text: string, activityAt: ActivityTimestamp) => void,
   {
     minCharsPerSecond = 36,
     maxCharsPerSecond = 1_200,
     catchUpRemaining = 160,
-    snapRemaining = 480,
+    snapRemaining,
     requestFrame,
     cancelFrame,
+    isCurrent = () => true,
     now = () =>
       typeof performance !== 'undefined' && performance.now ? performance.now() : Date.now(),
   }: {
@@ -164,77 +165,155 @@ export function createTypewriterDisplay(
     snapRemaining?: number
     requestFrame?: typeof requestAnimationFrame
     cancelFrame?: typeof cancelAnimationFrame
+    isCurrent?: () => boolean
     now?: () => number
   } = {},
 ) {
+  const useNativeFrames =
+    !requestFrame &&
+    typeof globalThis.requestAnimationFrame === 'function' &&
+    typeof globalThis.cancelAnimationFrame === 'function'
   const scheduleFrame: typeof requestAnimationFrame =
-    requestFrame || ((callback) => setTimeout(() => callback(now()), 16))
-  const cancelScheduled = cancelFrame || clearTimeout
-  const hasDocument = typeof document !== 'undefined'
-  const isVisible = () => !hasDocument || document.visibilityState === 'visible'
+    requestFrame ||
+    (useNativeFrames
+      ? globalThis.requestAnimationFrame.bind(globalThis)
+      : (callback) => setTimeout(() => callback(now()), Math.ceil(TYPEWRITER_FRAME_INTERVAL_MS)))
+  const cancelScheduled =
+    cancelFrame ||
+    (useNativeFrames ? globalThis.cancelAnimationFrame.bind(globalThis) : clearTimeout)
+  const page = typeof document !== 'undefined' ? document : null
+  const isVisible = () => !page || page.visibilityState === 'visible'
   let target = ''
   let shown = ''
   let activityAt: ActivityTimestamp = null
-  let frame = 0
+  let frame: number | null = null
   let lastTs = 0
+  let lastOutputTs: number | null = null
+  let characterCredit = 0
   let closed = false
 
+  const drainWaiters = new Set<(completed: boolean) => void>()
+  const settleDrains = (completed: boolean) => {
+    const waiters = [...drainWaiters]
+    drainWaiters.clear()
+    for (const resolve of waiters) resolve(completed)
+  }
   const emit = () => onFrame(shown, activityAt)
-
-  const revealCount = (remaining: number, dt: number) => {
-    if (remaining <= 0) return 0
-    // Huge backlog: snap in one paint so the UI never feels laggy.
-    if (remaining >= snapRemaining) return remaining
-    // Medium backlog: catch up in ~100-200ms.
-    if (remaining >= catchUpRemaining) {
-      return Math.min(remaining, Math.max(12, Math.ceil(remaining * Math.min(1, dt * 10))))
+  const cancel = () => {
+    closed = true
+    if (frame != null) cancelScheduled(frame)
+    page?.removeEventListener('visibilitychange', handleVisibilityChange)
+    frame = null
+    characterCredit = 0
+    settleDrains(false)
+  }
+  const flush = () => {
+    if (closed) return
+    if (!isCurrent()) {
+      cancel()
+      return
     }
-    // Small backlog: natural typing with mild acceleration.
-    const cps = Math.min(maxCharsPerSecond, minCharsPerSecond + remaining * 4)
-    return Math.min(remaining, Math.max(1, Math.ceil(cps * dt)))
+    if (frame != null) cancelScheduled(frame)
+    frame = null
+    characterCredit = 0
+    shown = target
+    lastOutputTs = now()
+    emit()
+    if (shown === target) settleDrains(true)
   }
 
-  const step = (now: number) => {
-    frame = 0
+  const step = (timestamp: number) => {
+    frame = null
     if (closed) return
-    const dt = lastTs ? Math.min(0.08, Math.max(0.012, (now - lastTs) / 1000)) : 0.032
-    lastTs = now
+    if (!isCurrent()) {
+      cancel()
+      return
+    }
+    if (!isVisible()) {
+      if (drainWaiters.size) flush()
+      return
+    }
+    if (target === shown) {
+      settleDrains(true)
+      return
+    }
+    const elapsed = timestamp - lastTs
+    // 留出浮点时间戳的舍入误差，120Hz 等高刷新率也不能每帧写 React 状态。
+    if (
+      elapsed + 0.001 < TYPEWRITER_FRAME_INTERVAL_MS ||
+      (lastOutputTs != null && timestamp - lastOutputTs + 0.001 < TYPEWRITER_FRAME_INTERVAL_MS)
+    ) {
+      frame = scheduleFrame(step)
+      return
+    }
+    lastTs = timestamp
     const previous = shown
-
-    if (target === shown) return
-
-    // text_patch / redaction may rewrite earlier text; realign to the common prefix first.
     if (!target.startsWith(shown)) {
-      const prefix = commonPrefixLength(shown, target)
-      shown = target.slice(0, prefix)
+      shown = target.slice(0, commonPrefixLength(shown, target))
+      characterCredit = 0
     }
 
-    if (target.length < shown.length) {
+    const remaining = target.length - shown.length
+    if (snapRemaining != null && remaining >= snapRemaining) {
+      // 只有调用方显式选择此模式时才整块补齐，默认 burst 始终受速率上限约束。
       shown = target
+      characterCredit = 0
     } else {
-      const remaining = target.length - shown.length
-      if (remaining > 0) shown = target.slice(0, shown.length + revealCount(remaining, dt))
+      const cps = Math.max(
+        0,
+        Math.min(
+          maxCharsPerSecond,
+          minCharsPerSecond + remaining * (remaining >= catchUpRemaining ? 10 : 4),
+        ),
+      )
+      // 卡顿或前后台切换不能储存无限额度，恢复时每次最多消费 80ms 的预算。
+      const budget = characterCredit + cps * Math.min(0.08, Math.max(0, elapsed / 1_000))
+      const count = Math.floor(budget + 1e-9)
+      characterCredit = Math.max(0, budget - count)
+      let end = shown.length
+      for (let revealed = 0; revealed < count && end < target.length; revealed += 1) {
+        const point = target.codePointAt(end) ?? 0
+        // SSE 可能在代理对中间拆分文本，等待下一次增量补全尾部高位代理。
+        if (isHighSurrogate(point) && end + 1 === target.length && !drainWaiters.size) break
+        end += point > 0xffff ? 2 : 1
+      }
+      shown = target.slice(0, end)
     }
 
-    if (shown !== previous) emit()
-    if (!closed && shown !== target) frame = scheduleFrame(step)
+    if (shown !== previous) {
+      lastOutputTs = timestamp
+      emit()
+    }
+    if (shown === target) settleDrains(true)
+    const waitingForPair =
+      !drainWaiters.size &&
+      shown.length + 1 === target.length &&
+      isHighSurrogate(target.charCodeAt(shown.length))
+    if (!closed && frame == null && shown !== target && !waitingForPair && isVisible()) {
+      frame = scheduleFrame(step)
+    } else if (frame == null) {
+      characterCredit = 0
+    }
   }
 
   const schedule = () => {
-    if (closed || frame || !isVisible()) return
-    lastTs = 0
+    if (closed || frame != null || !isVisible() || target === shown) return
+    lastTs = now()
     frame = scheduleFrame(step)
   }
   const handleVisibilityChange = () => {
     if (isVisible()) {
       schedule()
-    } else if (frame) {
-      cancelScheduled(frame)
-      frame = 0
-      lastTs = 0
+    } else if (drainWaiters.size) {
+      // 后台没有可见动画，直接校准并释放发送链，避免排队输入无限等待前台恢复。
+      flush()
+    } else {
+      if (frame != null) cancelScheduled(frame)
+      frame = null
+      characterCredit = 0
     }
   }
-  if (hasDocument) document.addEventListener('visibilitychange', handleVisibilityChange)
+  page?.addEventListener('visibilitychange', handleVisibilityChange)
 
   return {
     setTarget(text: unknown, nextActivityAt = new Date().toISOString()) {
@@ -243,20 +322,20 @@ export function createTypewriterDisplay(
       activityAt = nextActivityAt
       schedule()
     },
-    flush() {
-      if (frame) cancelScheduled(frame)
-      frame = 0
-      lastTs = 0
-      shown = target
-      emit()
+    drain(): Promise<boolean> {
+      if (closed || !isCurrent()) {
+        cancel()
+        return Promise.resolve(false)
+      }
+      if (shown === target) return Promise.resolve(true)
+      return new Promise((resolve) => {
+        drainWaiters.add(resolve)
+        if (isVisible()) schedule()
+        else flush()
+      })
     },
-    cancel() {
-      closed = true
-      if (frame) cancelScheduled(frame)
-      if (hasDocument) document.removeEventListener('visibilitychange', handleVisibilityChange)
-      frame = 0
-      lastTs = 0
-    },
+    flush,
+    cancel,
     getShown: () => shown,
     getTarget: () => target,
   }

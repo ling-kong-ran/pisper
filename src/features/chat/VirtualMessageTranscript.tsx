@@ -25,6 +25,7 @@ type VirtualMessageTranscriptProps = {
   prefixRef: RefObject<HTMLDivElement | null>
   targetEntryId?: string
   onContentSizeChange: () => void
+  onTargetScroll: () => void
   onTargetLocated: (entryId: string) => void
   onBranchFromHere: (boundaryEntryId: string) => Promise<void> | void
   onCreateChildSession: (boundaryEntryId: string) => Promise<void> | void
@@ -79,6 +80,7 @@ export const VirtualMessageTranscript = memo(function VirtualMessageTranscript({
   prefixRef,
   targetEntryId,
   onContentSizeChange,
+  onTargetScroll,
   onTargetLocated,
   onBranchFromHere,
   onCreateChildSession,
@@ -123,6 +125,7 @@ export const VirtualMessageTranscript = memo(function VirtualMessageTranscript({
       (message) => message.turnBoundaryEntryId === targetEntryId,
     )
     if (targetIndex < 0) return undefined
+    onTargetScroll()
     virtualizer.scrollToIndex(targetIndex, { align: 'center' })
     setHighlightedEntryId(targetEntryId)
     const frame = window.requestAnimationFrame(() => {
@@ -130,7 +133,7 @@ export const VirtualMessageTranscript = memo(function VirtualMessageTranscript({
       onTargetLocated(targetEntryId)
     })
     return () => window.cancelAnimationFrame(frame)
-  }, [messages, onTargetLocated, targetEntryId, virtualizer])
+  }, [messages, onTargetLocated, onTargetScroll, targetEntryId, virtualizer])
 
   useEffect(() => {
     if (!highlightedEntryId) return undefined

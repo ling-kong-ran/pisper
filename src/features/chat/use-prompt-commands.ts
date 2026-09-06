@@ -82,7 +82,10 @@ export function usePromptCommands({
       if (!sessionId || sessionStatesRef.current[sessionId]?.streaming) return
       const streamGeneration = (streamGenerationRef.current.get(sessionId) || 0) + 1
       streamGenerationRef.current.set(sessionId, streamGeneration)
-      const ownsStream = () => streamGenerationRef.current.get(sessionId) === streamGeneration
+      // generation 会在结算时删除，后续发送即使复用编号也不能复活旧回调。
+      let streamClosed = false
+      const ownsStream = () =>
+        !streamClosed && streamGenerationRef.current.get(sessionId) === streamGeneration
 
       let resolveLocalStream = () => {}
       const localStreamSettled = new Promise<void>((resolve) => {
@@ -120,42 +123,68 @@ export function usePromptCommands({
       }
       const thinkingScheduler = createStreamingTextScheduler(
         (thinkingText, activityAt) => {
-          updateSessionState(sessionId, (current) => ({
-            ...current,
-            thinkingText,
-            lastActivityAt: activityAt || current.lastActivityAt,
-            currentActivity: {
-              type: 'model',
-              stage: 'thinking',
-              updatedAt: activityAt || current.lastActivityAt,
-            },
-          }))
+          if (!ownsStream()) return
+          updateSessionState(sessionId, (current) =>
+            ownsStream()
+              ? {
+                  ...current,
+                  thinkingText,
+                  lastActivityAt: activityAt || current.lastActivityAt,
+                  currentActivity: {
+                    type: 'model',
+                    stage: 'thinking',
+                    updatedAt: activityAt || current.lastActivityAt,
+                  },
+                }
+              : current,
+          )
         },
         { intervalMs: 80 },
       )
-      const typewriter = createTypewriterDisplay((responseText, activityAt) => {
-        updateSessionState(sessionId, (current) => {
-          const activity = {
-            type: 'model',
-            stage: 'responding',
-            updatedAt: activityAt || current.lastActivityAt,
-          }
-          return {
-            ...current,
-            lastActivityAt: activityAt || current.lastActivityAt,
-            runNotice: '',
-            currentActivity: activity,
-            activityFeed: pushCurrentActivity(current.activityFeed, activity),
-            messages: current.messages.map((item) =>
+      const typewriter = createTypewriterDisplay(
+        (responseText, activityAt) => {
+          if (!ownsStream()) return
+          updateSessionState(sessionId, (current) => {
+            if (!ownsStream()) return current
+            const messages = current.messages.map((item) =>
               item.id === agentId
-                ? { ...item, text: responseText, streaming: streamState.responseRenderingStreaming }
+                ? {
+                    ...item,
+                    text: responseText,
+                    streaming:
+                      streamState.responseRenderingStreaming ||
+                      responseText !== streamState.responseText,
+                  }
                 : item,
-            ),
-          }
-        })
-      })
+            )
+            // 收尾动画只更新正文，不能重新开启已完成活动或覆盖后续工具/计划状态。
+            if (
+              streamState.terminal ||
+              !streamState.responseRenderingStreaming ||
+              (current.currentActivity && current.currentActivity.type !== 'model')
+            )
+              return { ...current, messages }
+            const activity = {
+              type: 'model',
+              stage: 'responding',
+              updatedAt: activityAt || current.lastActivityAt,
+            }
+            return {
+              ...current,
+              lastActivityAt: activityAt || current.lastActivityAt,
+              runNotice: '',
+              currentActivity: activity,
+              activityFeed: pushCurrentActivity(current.activityFeed, activity),
+              messages,
+            }
+          })
+        },
+        { isCurrent: ownsStream },
+      )
       const toolScheduler = createToolUpdateScheduler((batch, activityAt) => {
+        if (!ownsStream()) return
         updateSessionState(sessionId, (current) => {
+          if (!ownsStream()) return current
           let activityFeed = current.activityFeed || []
           for (const [id, patch] of batch) {
             const existing = activityFeed.find((item) => item.type === 'tool' && item.id === id)
@@ -205,6 +234,7 @@ export function usePromptCommands({
         // 移交实时快照轮询补齐后续状态——run 在服务端继续推进，不中断。
         if (event === 'resync_required') {
           dispatcher.dispatch(event, data)
+          streamClosed = true
           streamGenerationRef.current.delete(sessionId)
           localStreamSessionsRef.current.delete(sessionId)
           void syncLiveSession(sessionId)
@@ -275,8 +305,9 @@ export function usePromptCommands({
           dispatchStreamEvent,
         )
         if (!ownsStream()) return
+        streamState.responseRenderingStreaming = false
+        streamState.terminal = true
         typewriter.setTarget(streamState.responseText)
-        typewriter.flush()
         thinkingScheduler.flush()
         toolScheduler.flush()
         const fallbackFinishedAt = new Date().toISOString()
@@ -295,19 +326,31 @@ export function usePromptCommands({
               tools: settleToolCalls(current.tools, { finishedAt: runFinishedAt }),
               messages: current.messages.map((item) =>
                 item.id === agentId
-                  ? { ...item, streaming: false, text: streamState.responseText || item.text }
+                  ? { ...item, streaming: item.text !== streamState.responseText }
                   : item,
               ),
             }
           })
         }
+        // 持久化消息会整体替换正文，必须等显示排空，失去所有权时则交给新流/快照。
+        if (!(await typewriter.drain()) || !ownsStream()) return
+        updateSessionState(sessionId, (current) => ({
+          ...current,
+          messages: current.messages.map((item) =>
+            item.id === agentId
+              ? { ...item, text: streamState.responseText, streaming: false }
+              : item,
+          ),
+        }))
         // Reconcile every optimistic SSE bubble with the durable transcript after the run settles.
         try {
           await loadSessionMessages(sessionId, { force: true })
         } catch (error) {
+          if (!ownsStream()) return
           // 回复已完成，消息页加载失败仅影响元数据，不应把成功回复改成运行错误。
           updateSessionState(sessionId, { loading: false, error: chatErrorMessage(error) })
         }
+        if (!ownsStream()) return
         if (
           goalMode ||
           teamMode ||
@@ -325,6 +368,7 @@ export function usePromptCommands({
         } catch {
           void syncLiveSession(sessionId)
         }
+        if (!ownsStream()) return
         browserNotify?.('chat.completed', {
           chat: {
             title: completed?.name || t('chat:chatPage.appChat', { app: APP_NAME }),
@@ -339,6 +383,7 @@ export function usePromptCommands({
         if ((streamState.runId || streamState.startedAt) && !streamState.terminal) {
           // 传输耗尽重试不代表 run 失败；保留语音轮所有权并移交快照确认终态。
           dispatcher.dispatch('resync_required', {})
+          streamClosed = true
           streamGenerationRef.current.delete(sessionId)
           localStreamSessionsRef.current.delete(sessionId)
           void syncLiveSession(sessionId)
@@ -389,6 +434,7 @@ export function usePromptCommands({
         )
       } finally {
         const currentStream = ownsStream()
+        streamClosed = true
         if (currentStream) {
           localStreamSessionsRef.current.delete(sessionId)
           streamGenerationRef.current.delete(sessionId)

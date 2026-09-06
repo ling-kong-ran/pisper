@@ -66,54 +66,288 @@ test('tool update scheduler merges patches by tool id', async () => {
   scheduler.cancel()
 })
 
-test('typewriter reveals gradually and snaps on flush', async () => {
-  const frames = []
-  const typewriter = createTypewriterDisplay((text) => frames.push(text), {
-    minCharsPerSecond: 20,
-    maxCharsPerSecond: 200,
-    catchUpRemaining: 40,
-    snapRemaining: 200,
+function frameClock() {
+  let timestamp = 0
+  let nextId = 0
+  const pending = new Map()
+  return {
+    now: () => timestamp,
+    requestFrame(callback) {
+      const id = nextId++
+      pending.set(id, callback)
+      return id
+    },
+    cancelFrame(id) {
+      pending.delete(id)
+    },
+    tick(milliseconds = 1_000 / 120) {
+      timestamp += milliseconds
+      const callbacks = [...pending.values()]
+      pending.clear()
+      for (const callback of callbacks) callback(timestamp)
+    },
+    get pending() {
+      return pending.size
+    },
+  }
+}
+
+function setGlobal(t, name, value) {
+  const original = Object.getOwnPropertyDescriptor(globalThis, name)
+  Object.defineProperty(globalThis, name, { configurable: true, value })
+  t.after(() => {
+    if (original) Object.defineProperty(globalThis, name, original)
+    else delete globalThis[name]
   })
-  typewriter.setTarget('hello world')
-  await new Promise((resolve) => setTimeout(resolve, 80))
-  assert.ok(frames.length >= 1)
-  assert.ok(frames.at(-1).length <= 'hello world'.length)
-  assert.ok(frames.at(-1).length > 0)
-  typewriter.setTarget('hello world!!!')
+}
+
+function typewriterFixture(t, options = {}) {
+  const clock = frameClock()
+  const frames = []
+  const typewriter = createTypewriterDisplay(
+    (text, activityAt) => frames.push({ text, activityAt, at: clock.now() }),
+    {
+      requestFrame: clock.requestFrame,
+      cancelFrame: clock.cancelFrame,
+      now: clock.now,
+      ...options,
+    },
+  )
+  t.after(() => typewriter.cancel())
+  return { clock, frames, typewriter }
+}
+
+test('browser defaults use paired animation frames, including a zero request id', (t) => {
+  const clock = frameClock()
+  const cancelled = []
+  setGlobal(t, 'requestAnimationFrame', function (callback) {
+    assert.equal(this, globalThis)
+    return clock.requestFrame(callback)
+  })
+  setGlobal(t, 'cancelAnimationFrame', function (id) {
+    assert.equal(this, globalThis)
+    cancelled.push(id)
+    clock.cancelFrame(id)
+  })
+  const frames = []
+  const typewriter = createTypewriterDisplay((text) => frames.push(text), { now: clock.now })
+  t.after(() => typewriter.cancel())
+  typewriter.setTarget('first')
+  typewriter.setTarget('latest')
+  assert.equal(clock.pending, 1)
   typewriter.flush()
-  assert.equal(frames.at(-1), 'hello world!!!')
+  assert.deepEqual(cancelled, [0])
+  assert.deepEqual(frames, ['latest'])
+  typewriter.setTarget('latest text')
   typewriter.cancel()
+  assert.deepEqual(cancelled, [0, 1])
+  clock.tick(1_000)
+  assert.deepEqual(frames, ['latest'])
 })
 
-test('typewriter pauses while hidden and catches up when visible', async () => {
-  const originalDocument = Object.getOwnPropertyDescriptor(globalThis, 'document')
-  const page = new EventTarget()
-  page.visibilityState = 'hidden'
-  Object.defineProperty(globalThis, 'document', { configurable: true, value: page })
-  const frames = []
-  const typewriter = createTypewriterDisplay((text) => frames.push(text))
-
-  try {
-    typewriter.setTarget('hidden response')
-    await new Promise((resolve) => setTimeout(resolve, 45))
-    assert.deepEqual(frames, [])
-
-    page.visibilityState = 'visible'
-    page.dispatchEvent(new Event('visibilitychange'))
-    await new Promise((resolve) => setTimeout(resolve, 45))
-    assert.ok(frames.at(-1).length > 0)
-  } finally {
+for (const partialBrowser of [false, true]) {
+  test(`timer fallback works without a complete browser frame pair (${partialBrowser})`, (t) => {
+    t.mock.timers.enable({ apis: ['setTimeout'] })
+    setGlobal(
+      t,
+      'requestAnimationFrame',
+      partialBrowser ? () => assert.fail('unpaired RAF') : undefined,
+    )
+    setGlobal(t, 'cancelAnimationFrame', undefined)
+    let timestamp = 0
+    const frames = []
+    const typewriter = createTypewriterDisplay((text) => frames.push(text), {
+      now: () => timestamp,
+    })
+    t.after(() => typewriter.cancel())
+    typewriter.setTarget('x'.repeat(1_000))
+    timestamp = 34
+    t.mock.timers.tick(34)
+    assert.equal(frames.length, 1)
+    assert.ok(frames[0].length > 0 && frames[0].length <= 41)
     typewriter.cancel()
-    if (originalDocument) Object.defineProperty(globalThis, 'document', originalDocument)
-    else delete globalThis.document
+    timestamp = 1_000
+    t.mock.timers.tick(1_000)
+    assert.equal(frames.length, 1)
+  })
+}
+
+for (const hz of [60, 120, 144]) {
+  test(`typewriter limits ${hz}Hz frames to about 30 state updates per second`, (t) => {
+    const { clock, frames, typewriter } = typewriterFixture(t)
+    typewriter.setTarget('x'.repeat(10_000))
+    for (let index = 0; index < hz; index += 1) clock.tick(1_000 / hz)
+    assert.ok(frames.length >= 28 && frames.length <= 30, String(frames.length))
+    for (let index = 1; index < frames.length; index += 1) {
+      assert.ok(frames[index].at - frames[index - 1].at + 0.001 >= 1_000 / 30)
+    }
+    assert.ok(frames[0].text.length > 0 && frames[0].text.length < 480)
+    assert.ok(typewriter.getShown().length <= 1_200)
+  })
+}
+
+test('continuous bursts coalesce and catch up without exceeding the configured rate', async (t) => {
+  const { clock, frames, typewriter } = typewriterFixture(t, { maxCharsPerSecond: 300 })
+  let target = ''
+  for (let burst = 0; burst < 12; burst += 1) {
+    target += String(burst % 10).repeat(150)
+    typewriter.setTarget(target, `burst-${burst}`)
+    for (let frame = 0; frame < 8; frame += 1) clock.tick()
+    assert.ok(typewriter.getShown().length < target.length)
+  }
+  const drained = typewriter.drain()
+  for (let frame = 0; clock.pending && frame < 2_000; frame += 1) clock.tick()
+  assert.equal(clock.pending, 0)
+  assert.equal(await drained, true)
+  assert.equal(typewriter.getShown(), target)
+  assert.equal(frames.at(-1).activityAt, 'burst-11')
+  let previous = { text: '', at: 0 }
+  for (const frame of frames) {
+    assert.ok(frame.text.startsWith(previous.text))
+    assert.ok(frame.text.length <= Math.floor((frame.at * 300) / 1_000 + 1e-6))
+    assert.ok(
+      frame.text.length - previous.text.length <=
+        Math.ceil(((frame.at - previous.at) * 300) / 1_000) + 1,
+    )
+    previous = frame
   }
 })
 
-test('typewriter snaps large backlogs in one paint', async () => {
-  const frames = []
-  const typewriter = createTypewriterDisplay((text) => frames.push(text), { snapRemaining: 50 })
+test('fractional credit respects slow rates instead of forcing one character per frame', (t) => {
+  const { clock, frames, typewriter } = typewriterFixture(t, {
+    minCharsPerSecond: 5,
+    maxCharsPerSecond: 5,
+  })
+  typewriter.setTarget('x'.repeat(100))
+  for (let frame = 0; frame < 120; frame += 1) clock.tick()
+  assert.equal(typewriter.getShown().length, 5)
+  assert.equal(frames.length, 5)
+})
+
+test('explicit snap mode remains opt-in and flush calibrates immediately', async (t) => {
+  const { clock, frames, typewriter } = typewriterFixture(t, { snapRemaining: 50 })
   typewriter.setTarget('x'.repeat(120))
-  await new Promise((resolve) => setTimeout(resolve, 40))
-  assert.equal(frames.at(-1), 'x'.repeat(120))
+  clock.tick(34)
+  assert.equal(frames.at(-1).text, 'x'.repeat(120))
+  typewriter.setTarget('final correction', 'final')
+  const drained = typewriter.drain()
+  typewriter.flush()
+  assert.equal(await drained, true)
+  assert.equal(clock.pending, 0)
+  assert.equal(frames.at(-1).text, 'final correction')
+  assert.equal(frames.at(-1).activityAt, 'final')
+})
+
+test('rewrites and truncation preserve complete non-BMP characters', (t) => {
+  const { clock, frames, typewriter } = typewriterFixture(t, {
+    minCharsPerSecond: 30,
+    maxCharsPerSecond: 30,
+  })
+  typewriter.setTarget('head \u{1f4a1} original')
+  typewriter.flush()
+  const target = 'head ' + '\u{1f4a2}'.repeat(8)
+  typewriter.setTarget(target)
+  for (let frame = 0; frame < 40; frame += 1) clock.tick()
+  assert.equal(typewriter.getShown(), target)
+  for (const frame of frames.slice(1)) {
+    assert.equal(frame.text.isWellFormed(), true)
+    assert.ok(target.startsWith(frame.text))
+  }
+  typewriter.setTarget('head ')
+  clock.tick(34)
+  assert.equal(typewriter.getShown(), 'head ')
+  typewriter.setTarget('')
+  clock.tick(34)
+  assert.equal(typewriter.getShown(), '')
+})
+
+test('a split trailing surrogate waits for the next delta without spinning', (t) => {
+  const { clock, frames, typewriter } = typewriterFixture(t, {
+    minCharsPerSecond: 30,
+    maxCharsPerSecond: 30,
+  })
+  typewriter.setTarget('A\ud83d')
+  clock.tick(34)
+  assert.equal(typewriter.getShown(), 'A')
+  assert.equal(clock.pending, 0)
+  typewriter.setTarget('A\u{1f4a1}B')
+  clock.tick(34)
+  assert.equal(typewriter.getShown(), 'A\u{1f4a1}')
+  clock.tick(34)
+  assert.equal(typewriter.getShown(), 'A\u{1f4a1}B')
+  assert.ok(frames.every(({ text }) => text.isWellFormed()))
+})
+
+test('hidden streaming pauses and resumes without accumulating a catch-up jump', (t) => {
+  const page = new EventTarget()
+  page.visibilityState = 'visible'
+  setGlobal(t, 'document', page)
+  const { clock, frames, typewriter } = typewriterFixture(t)
+  typewriter.setTarget('x'.repeat(5_000))
+  clock.tick(34)
+  const before = typewriter.getShown().length
+  page.visibilityState = 'hidden'
+  page.dispatchEvent(new Event('visibilitychange'))
+  assert.equal(clock.pending, 0)
+  typewriter.setTarget('x'.repeat(6_000))
+  clock.tick(60_000)
+  assert.equal(frames.length, 1)
+  page.visibilityState = 'visible'
+  page.dispatchEvent(new Event('visibilitychange'))
+  clock.tick(34)
+  assert.ok(typewriter.getShown().length - before <= 41)
+  assert.equal(frames.length, 2)
+})
+
+for (const hideDuringDrain of [false, true]) {
+  test(`hidden completion releases drain without waiting for visibility (${hideDuringDrain})`, async (t) => {
+    const page = new EventTarget()
+    page.visibilityState = hideDuringDrain ? 'visible' : 'hidden'
+    setGlobal(t, 'document', page)
+    const { clock, frames, typewriter } = typewriterFixture(t)
+    typewriter.setTarget('x'.repeat(5_000))
+    const drained = typewriter.drain()
+    if (hideDuringDrain) {
+      clock.tick(34)
+      assert.ok(typewriter.getShown().length < 5_000)
+      page.visibilityState = 'hidden'
+      page.dispatchEvent(new Event('visibilitychange'))
+    }
+    assert.equal(await drained, true)
+    assert.equal(typewriter.getShown(), 'x'.repeat(5_000))
+    assert.equal(clock.pending, 0)
+    const count = frames.length
+    page.visibilityState = 'visible'
+    page.dispatchEvent(new Event('visibilitychange'))
+    clock.tick(1_000)
+    assert.equal(frames.length, count)
+  })
+}
+
+test('cancel releases every drain waiter and permanently prevents later writes', async (t) => {
+  const { clock, frames, typewriter } = typewriterFixture(t)
+  typewriter.setTarget('x'.repeat(5_000))
+  const first = typewriter.drain()
+  const second = typewriter.drain()
   typewriter.cancel()
+  assert.equal(await first, false)
+  assert.equal(await second, false)
+  assert.equal(await typewriter.drain(), false)
+  typewriter.flush()
+  typewriter.setTarget('ignored')
+  clock.tick(1_000)
+  assert.deepEqual(frames, [])
+  assert.equal(clock.pending, 0)
+})
+
+test('ownership invalidation cancels pending drain even before the next output frame', async (t) => {
+  let current = true
+  const { clock, frames, typewriter } = typewriterFixture(t, { isCurrent: () => current })
+  typewriter.setTarget('x'.repeat(5_000))
+  const drained = typewriter.drain()
+  current = false
+  clock.tick()
+  assert.equal(await drained, false)
+  assert.equal(clock.pending, 0)
+  assert.deepEqual(frames, [])
 })

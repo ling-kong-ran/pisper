@@ -137,7 +137,17 @@ test('stream dispatcher applies Plan updates in place and clears them on done', 
     return sessions
   }
   const scheduler = { push() {}, flush() {}, cancel() {} }
-  const typewriter = { ...scheduler, setTarget() {} }
+  let targetText = ''
+  let flushCount = 0
+  const typewriter = {
+    ...scheduler,
+    setTarget(text) {
+      targetText = text
+    },
+    flush() {
+      flushCount += 1
+    },
+  }
   const dispatcher = createStreamEventDispatcher({
     sessionId: 'session-1',
     agentId: 'agent-1',
@@ -194,7 +204,11 @@ test('stream dispatcher applies Plan updates in place and clears them on done', 
   assert.equal(state.team, null)
   assert.equal(sessions[0].plan, null)
   assert.equal(sessions[0].team, null)
-  assert.equal(state.messages[0].text, 'complete')
+  assert.equal(targetText, 'complete')
+  assert.equal(flushCount, 0)
+  assert.equal(state.messages[0].text, '')
+  assert.equal(state.messages[0].streaming, true)
+  assert.equal(state.streaming, false)
   assert.equal(state.lifecycle.phase, 'completed')
   assert.equal(state.lifecycle.event, 'runtime_done')
 })

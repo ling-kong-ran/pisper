@@ -86,7 +86,8 @@ test('actual SSE byte frames publish reconstructed text and prompt ownership bef
   await reading
   assert.equal(updates.at(-1).text, '第一句。尾句')
   assert.equal(updates.at(-1).status, 'completed')
-  assert.equal(ref.current.session.messages[1].text, '第一句。尾句')
+  // 语音终态立即收到完整文本，视觉正文仍由独立打字机继续显示。
+  assert.equal(ref.current.session.messages[1].text, '')
 })
 
 const promptCode = transformSync(
@@ -116,7 +117,13 @@ function transportFixture(t, { openStream, live, loadError } = {}) {
       return typeof update === 'function' ? update([]) : update
     },
   }
-  const scheduler = () => ({ flush() {}, cancel() {}, setTarget() {}, push() {} })
+  const scheduler = () => ({
+    flush() {},
+    cancel() {},
+    setTarget() {},
+    push() {},
+    drain: async () => true,
+  })
   const modules = {
     react: { useCallback: (fn) => fn, useRef: (value) => ({ current: value }), useEffect() {} },
     '@/app/brand': { APP_NAME: 'Pisper' },

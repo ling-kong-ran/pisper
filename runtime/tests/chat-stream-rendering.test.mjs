@@ -218,7 +218,7 @@ test('every settled SSE run reconciles its optimistic message with the durable t
   )
 })
 
-test('assistant text block completion flushes the typewriter and settles Markdown streaming', async () => {
+test('assistant text completion drains the typewriter before settling Markdown and history', async () => {
   const [dispatcher, promptCommands] = await Promise.all([
     readFile('src/features/chat/stream-event-dispatch.ts', 'utf8'),
     readFile('src/features/chat/use-prompt-commands.ts', 'utf8'),
@@ -232,8 +232,16 @@ test('assistant text block completion flushes the typewriter and settles Markdow
     textEndHandler,
     /typewriter\.setTarget\(state\.responseText, data\.updatedAt \|\| eventAt\)/,
   )
-  assert.match(textEndHandler, /typewriter\.flush\(\)/)
-  assert.match(promptCommands, /streaming: streamState\.responseRenderingStreaming/)
+  assert.doesNotMatch(textEndHandler, /typewriter\.flush\(\)/)
+  assert.match(textEndHandler, /streaming: item\.text !== state\.responseText/)
+  assert.match(
+    promptCommands,
+    /streamState\.responseRenderingStreaming \|\|\s+responseText !== streamState\.responseText/,
+  )
+  const drainIndex = promptCommands.indexOf('await typewriter.drain()')
+  const historyIndex = promptCommands.indexOf('await loadSessionMessages', drainIndex)
+  assert.ok(drainIndex >= 0 && historyIndex > drainIndex)
+  assert.match(promptCommands, /await typewriter\.drain\(\)\) \|\| !ownsStream\(\)/)
 })
 
 test('ephemeral reasoning remains rendered after a textless response completes', async () => {
