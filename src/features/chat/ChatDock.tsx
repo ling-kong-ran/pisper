@@ -19,6 +19,13 @@ export function SessionDockPanel({ params, api }: IDockviewPanelProps<{ sessionI
   const context = useContext(ChatDockContext)
   const sessionId = params?.sessionId || sessionIdFromPanel(api?.id)
   const [visible, setVisible] = useState(() => api.isVisible)
+  const [active, setActive] = useState(() => api.isActive)
+
+  useEffect(() => {
+    setActive(api.isActive)
+    const disposable = api.onDidActiveChange(({ isActive }) => setActive(isActive))
+    return () => disposable.dispose()
+  }, [api])
 
   useEffect(() => {
     setVisible(api.isVisible)
@@ -31,6 +38,7 @@ export function SessionDockPanel({ params, api }: IDockviewPanelProps<{ sessionI
     <SessionPanel
       sessionId={sessionId}
       panelId={api.id}
+      shortcutEnabled={active}
       onFocusCapture={() => api.setActive()}
       canSplitPanel={Boolean(context?.compactDock === false && api.group.size > 1)}
       canClosePanel
@@ -191,6 +199,7 @@ export function MobileSessionPanel({
           <SessionPanel
             sessionId={sessionId}
             panelId=""
+            shortcutEnabled
             canSplitPanel={false}
             canClosePanel={false}
           />
@@ -205,6 +214,7 @@ export function MobileSessionPanel({
 type SessionPanelProps = {
   sessionId: string
   panelId: string
+  shortcutEnabled: boolean
   onFocusCapture?: () => void
   canSplitPanel: boolean
   canClosePanel: boolean
@@ -215,6 +225,7 @@ type SessionPanelProps = {
 function SessionPanel({
   sessionId,
   panelId,
+  shortcutEnabled,
   onFocusCapture,
   canSplitPanel,
   canClosePanel,
@@ -350,6 +361,7 @@ function SessionPanel({
     >
       <FocusSession
         session={session}
+        shortcutEnabled={shortcutEnabled}
         messages={state.messages || EMPTY_LIST}
         transcriptLoadState={
           state.loaded ? 'ready' : state.loading || !state.error ? 'loading' : 'error'

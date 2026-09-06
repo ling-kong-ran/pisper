@@ -128,39 +128,71 @@ test('speech settings routes serialize defaults and persist partial updates acro
   const defaults = await request(handler, 'GET', '/api/settings/speech')
   assert.deepEqual(defaults, {
     status: 200,
-    data: { projectTermsEnabled: true, customTerms: [], builtinTerms: [...BUILTIN_SPEECH_TERMS] },
+    data: { projectTermsEnabled: true, builtinTerms: [...BUILTIN_SPEECH_TERMS] },
   })
   const saved = await request(handler, 'PATCH', '/api/settings/speech', {
-    body: { customTerms: ['ProjectAPI', '中文术语'] },
+    body: {},
   })
   assert.equal(saved.status, 200)
   const disabled = await request(handler, 'PATCH', '/api/settings/speech', {
     body: { projectTermsEnabled: false },
   })
   assert.equal(disabled.status, 200)
-  assert.deepEqual(disabled.data.customTerms, ['ProjectAPI', '中文术语'])
+  assert.deepEqual(Object.keys(disabled.data).sort(), ['builtinTerms', 'projectTermsEnabled'])
   assert.equal(disabled.data.projectTermsEnabled, false)
   const restarted = createApiHandler({}, { speechTerms: new SpeechTermsService({ dataDir }) })
   assert.deepEqual(await request(restarted, 'GET', '/api/settings/speech'), disabled)
   assert.deepEqual(JSON.parse(await readFile(join(dataDir, 'speech-settings.json'), 'utf8')), {
     projectTermsEnabled: false,
-    customTerms: ['ProjectAPI', '中文术语'],
   })
+})
+
+test('speech settings GET ignores legacy disk terms and PATCH removes them without exposing the field', async (t) => {
+  const { dataDir } = await workspace(t)
+  await mkdir(dataDir)
+  const path = join(dataDir, 'speech-settings.json')
+  for (const customTerms of [['LegacyTerm'], 'LegacyTerm', null, { invalid: true }]) {
+    const original = JSON.stringify({ projectTermsEnabled: false, customTerms })
+    await writeFile(path, original)
+    const handler = createApiHandler({}, { speechTerms: new SpeechTermsService({ dataDir }) })
+    assert.deepEqual(await request(handler, 'GET', '/api/settings/speech'), {
+      status: 200,
+      data: { projectTermsEnabled: false, builtinTerms: [...BUILTIN_SPEECH_TERMS] },
+    })
+    assert.equal(await readFile(path, 'utf8'), original)
+    assert.deepEqual(
+      await request(handler, 'PATCH', '/api/settings/speech', {
+        body: { projectTermsEnabled: true },
+      }),
+      {
+        status: 200,
+        data: { projectTermsEnabled: true, builtinTerms: [...BUILTIN_SPEECH_TERMS] },
+      },
+    )
+    assert.deepEqual(JSON.parse(await readFile(path, 'utf8')), { projectTermsEnabled: true })
+  }
 })
 
 test('speech settings routes serialize concurrent patches and reject invalid updates without persistence changes', async (t) => {
   const { speechTerms } = await workspace(t)
   const handler = createApiHandler({}, { speechTerms })
   const outputs = await Promise.all([
-    request(handler, 'PATCH', '/api/settings/speech', { body: { customTerms: ['StableTerm'] } }),
     request(handler, 'PATCH', '/api/settings/speech', { body: { projectTermsEnabled: false } }),
+    request(handler, 'PATCH', '/api/settings/speech', { body: {} }),
+    request(handler, 'PATCH', '/api/settings/speech', { body: { projectTermsEnabled: true } }),
   ])
   assert.ok(outputs.every((output) => output.status === 200))
   const before = await request(handler, 'GET', '/api/settings/speech')
-  assert.deepEqual(before.data.customTerms, ['StableTerm'])
-  assert.equal(before.data.projectTermsEnabled, false)
+  assert.equal(outputs[0].data.projectTermsEnabled, false)
+  assert.deepEqual(outputs[1], outputs[0])
+  assert.deepEqual(before, outputs[2])
+  assert.equal(Object.hasOwn(before.data, 'customTerms'), false)
+  assert.equal(before.data.projectTermsEnabled, true)
   for (const body of [
+    { customTerms: [] },
+    { customTerms: ['ValidTerm'] },
     { customTerms: ['inject:99'] },
+    { projectTermsEnabled: false, customTerms: null },
     { projectTermsEnabled: 'false' },
     { builtinTerms: [] },
   ]) {
@@ -172,12 +204,16 @@ test('speech settings routes serialize concurrent patches and reject invalid upd
 })
 
 test('terms endpoint resolves the session cwd and ignores arbitrary client cwd parameters', async (t) => {
-  const { speechTerms, cwd, root } = await workspace(t)
+  const { speechTerms, cwd, root, dataDir } = await workspace(t)
   await writeFile(join(cwd, 'package.json'), '{"name":"trusted-project"}')
   const untrusted = join(root, 'untrusted')
   await mkdir(untrusted)
   await writeFile(join(untrusted, 'package.json'), '{"name":"untrusted-project"}')
-  await speechTerms.updateSettings({ customTerms: ['CustomTerm'] })
+  await mkdir(dataDir)
+  await writeFile(
+    join(dataDir, 'speech-settings.json'),
+    JSON.stringify({ customTerms: ['LegacyTerm'] }),
+  )
   const ids = []
   const handler = createApiHandler(
     {
@@ -192,22 +228,27 @@ test('terms endpoint resolves the session cwd and ignores arbitrary client cwd p
   const result = await request(handler, 'GET', `/api/speech/terms?${query}`)
   assert.equal(result.status, 200)
   assert.deepEqual(ids, ['chat-1'])
-  assert.deepEqual(result.data.terms, [...BUILTIN_SPEECH_TERMS, 'CustomTerm', 'trusted project'])
+  assert.deepEqual(result.data.terms, [...BUILTIN_SPEECH_TERMS, 'trusted project'])
   const withoutSession = await request(
     handler,
     'GET',
     `/api/speech/terms?cwd=${encodeURIComponent(untrusted)}`,
   )
-  assert.deepEqual(withoutSession.data.terms, [...BUILTIN_SPEECH_TERMS, 'CustomTerm'])
+  assert.deepEqual(withoutSession.data.terms, [...BUILTIN_SPEECH_TERMS])
   assert.deepEqual(ids, ['chat-1'])
   await speechTerms.updateSettings({ projectTermsEnabled: false })
   const disabled = await request(handler, 'GET', '/api/speech/terms?sessionId=chat-1')
-  assert.deepEqual(disabled.data.terms, [...BUILTIN_SPEECH_TERMS, 'CustomTerm'])
+  assert.deepEqual(disabled.data.terms, [...BUILTIN_SPEECH_TERMS])
 })
 
 test('transcribe and stream start pass only server-resolved terms with unchanged binary PCM', async (t) => {
-  const { speechTerms, cwd } = await workspace(t)
+  const { speechTerms, cwd, dataDir } = await workspace(t)
   await writeFile(join(cwd, 'package.json'), '{"name":"voice-project"}')
+  await mkdir(dataDir)
+  await writeFile(
+    join(dataDir, 'speech-settings.json'),
+    JSON.stringify({ customTerms: ['LegacyTerm'] }),
+  )
   const ids = []
   const calls = []
   const handler = createApiHandler(

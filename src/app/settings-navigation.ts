@@ -6,6 +6,7 @@ import {
   Bot,
   Brain,
   Info,
+  Keyboard,
   Monitor,
   MonitorSmartphone,
   Plug,
@@ -39,6 +40,7 @@ export const CONFIG_SECTIONS = new Set([
   'models',
   'notifications',
   'interface',
+  'shortcuts',
   'desktop-pet',
   'updates',
   'remote-access',
@@ -146,6 +148,12 @@ export function getSettingsNavigation(
           label: t('config:configPage.interface'),
           icon: Monitor,
           destination: { type: 'config', id: 'interface' },
+        },
+        {
+          key: 'config:shortcuts',
+          label: t('config:configPage.shortcuts'),
+          icon: Keyboard,
+          destination: { type: 'config', id: 'shortcuts' },
         },
         {
           key: 'config:desktop-pet',

@@ -64,11 +64,35 @@ test('composer keeps shortcuts inline and overflows them by measured panel width
 test('composer plain Enter submits, Shift+Enter inserts a newline, and IME composition never submits', async () => {
   const session = await readFile('src/features/chat/FocusSession.tsx', 'utf8')
 
-  // 发送行为锁定：Enter 直接发送是产品约定，不允许改为 Ctrl/⌘+Enter。
-  assert.match(session, /event\.key === 'Enter' &&\s*!event\.shiftKey &&\s*!composing/)
-  assert.doesNotMatch(session, /submitsWithShortcut|metaKey \|\| event\.ctrlKey/)
+  // 默认仍为 Enter；自定义绑定统一经精确匹配，不能绕过组词与换行保护。
+  const { DEFAULT_SHORTCUTS, matchesShortcut } = await import('../../shared/shortcuts.mjs')
+  assert.equal(DEFAULT_SHORTCUTS.sendMessage, 'Enter')
+  assert.equal(matchesShortcut({ code: 'Enter' }, DEFAULT_SHORTCUTS.sendMessage), true)
+  assert.equal(
+    matchesShortcut({ code: 'Enter', shiftKey: true }, DEFAULT_SHORTCUTS.sendMessage),
+    false,
+  )
+  assert.equal(
+    matchesShortcut({ code: 'Enter', isComposing: true }, DEFAULT_SHORTCUTS.sendMessage),
+    false,
+  )
+  assert.equal(matchesShortcut({ code: 'Enter' }, 'Mod+Enter'), false)
+  assert.equal(matchesShortcut({ code: 'Enter', ctrlKey: true }, 'Mod+Enter'), true)
+  assert.equal(
+    matchesShortcut({ code: 'Enter', ctrlKey: true, shiftKey: true }, 'Mod+Enter'),
+    false,
+  )
+  assert.equal(matchesShortcut({ code: 'Enter', ctrlKey: true, keyCode: 229 }, 'Mod+Enter'), false)
+  assert.match(
+    session,
+    /!composing && matchesShortcut\(event\.nativeEvent, shortcuts\.sendMessage\)/,
+  )
+  assert.match(session, /useShortcutStore\(\(state\) => state\.bindings\)/)
   assert.match(session, /event\.currentTarget\.form\?\.requestSubmit\(\)/)
-  assert.match(session, /enterKeyHint=\{mobileLayout \? 'send' : 'enter'\}/)
+  assert.match(
+    session,
+    /enterKeyHint=\{mobileLayout && shortcuts\.sendMessage === 'Enter' \? 'send' : 'enter'\}/,
+  )
   // IME 组词保护双保险：Chromium 靠 isComposing；Mac WebKit 的确认 Enter
   // 在 compositionend 之后派发，靠自行跟踪的 imeComposingRef 延迟复位覆盖。
   assert.match(session, /event\.nativeEvent\.isComposing \|\| imeComposingRef\.current/)

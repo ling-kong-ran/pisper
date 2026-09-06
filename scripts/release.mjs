@@ -65,7 +65,9 @@ function updateUpstreamPiDependency() {
     .filter(Boolean)
     .filter((line) => !/^(?: M|M |MM) (?:package\.json|package-lock\.json)$/.test(line))
   if (unexpected.length > 0) {
-    throw new Error(`自动更新 ${PI_CODING_AGENT_PACKAGE} 产生了非预期修改：\n${unexpected.join('\n')}`)
+    throw new Error(
+      `自动更新 ${PI_CODING_AGENT_PACKAGE} 产生了非预期修改：\n${unexpected.join('\n')}`,
+    )
   }
 
   run('git', ['add', 'package.json', 'package-lock.json'])
@@ -306,7 +308,7 @@ runComponentChecks(selectedComponents)
 if (chainNpm) runNpm(['run', 'npm:pack:check'])
 
 // Desktop 派发携带同批次的新 TUI/Runtime 版本，使安装包 staging 能把组件清单
-// 更新视为实质性变更；本地脚本不写版本或推送，远端 workflow 负责原子提交。
+// 更新视为实质性变更；依赖已在派发前同步，发布版本与标签仍由远端 workflow 原子提交。
 const tuiPlan = plans.find(({ component }) => component === 'tui')
 const runtimePlan = plans.find(({ component }) => component === 'runtime')
 const desktopTuiVersion = tuiPlan?.nextVersion || ''

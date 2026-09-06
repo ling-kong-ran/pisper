@@ -11,6 +11,7 @@
   "markdownMessage.revealLocalPath": "Show in file manager: {path}",
   "ui.cancel": "Cancel",
   "ui.closeDialog": "Close dialog",
+  "ui.notifications": "Notifications",
   "ui.confirm": "Confirm",
   "ui.demoInterfaceRuntimeNotConnected": "Demo interface · runtime not connected",
   "ui.name": "Name",

@@ -334,7 +334,11 @@ async function loadVoiceWorklet(context: AudioContext) {
   }
 }
 
-export async function startMicrophoneCapture(onPcm: (samples: Float32Array) => void) {
+export async function startMicrophoneCapture(
+  onPcm: (samples: Float32Array) => void,
+  signal?: AbortSignal,
+) {
+  signal?.throwIfAborted()
   if (!navigator.mediaDevices?.getUserMedia) throw new Error('当前环境不支持麦克风采集。')
   if (!window.AudioContext && !window.webkitAudioContext)
     throw new Error('当前环境不支持音频处理。')
@@ -348,14 +352,40 @@ export async function startMicrophoneCapture(onPcm: (samples: Float32Array) => v
     },
     video: false,
   })
-  const AudioContextConstructor = window.AudioContext || window.webkitAudioContext
-  const context = new AudioContextConstructor({ latencyHint: 'interactive' })
+  let context: AudioContext | null = null
   let processor: AudioWorkletNode | null = null
   let source: MediaStreamAudioSourceNode | null = null
   let gain: GainNode | null = null
+  let stopped = false
+  let closing: Promise<void> | null = null
+  const stop = () => {
+    if (stopped) return closing ?? Promise.resolve()
+    stopped = true
+    signal?.removeEventListener('abort', abort)
+    // 先关闭隐私敏感资源，不等待 worklet 加载或 resume 完成。
+    for (const track of stream.getTracks()) track.stop()
+    closing = context?.close().catch(() => {}) ?? Promise.resolve()
+    if (processor) {
+      processor.port.onmessage = null
+      processor.port.close()
+    }
+    source?.disconnect()
+    processor?.disconnect()
+    gain?.disconnect()
+    return closing
+  }
+  const abort = () => {
+    void stop()
+  }
+  signal?.addEventListener('abort', abort, { once: true })
 
   try {
+    // getUserMedia 不能取消系统授权弹窗；迟到的流必须在创建音频上下文前立即释放。
+    signal?.throwIfAborted()
+    const AudioContextConstructor = window.AudioContext || window.webkitAudioContext
+    context = new AudioContextConstructor({ latencyHint: 'interactive' })
     await loadVoiceWorklet(context)
+    signal?.throwIfAborted()
     source = context.createMediaStreamSource(stream)
     processor = new AudioWorkletNode(context, 'pisper-voice-input', {
       numberOfInputs: 1,
@@ -366,31 +396,19 @@ export async function startMicrophoneCapture(onPcm: (samples: Float32Array) => v
     gain = context.createGain()
     gain.gain.value = 0
     processor.port.onmessage = (event: MessageEvent<ArrayBuffer>) => {
-      onPcm(new Float32Array(event.data))
+      if (!stopped && !signal?.aborted) onPcm(new Float32Array(event.data))
     }
     source.connect(processor)
     processor.connect(gain)
     gain.connect(context.destination)
     await context.resume()
+    signal?.throwIfAborted()
   } catch (error) {
-    for (const track of stream.getTracks()) track.stop()
-    await context.close().catch(() => {})
+    await stop()
     throw error
   }
 
-  let stopped = false
-  return {
-    async stop() {
-      if (stopped) return
-      stopped = true
-      processor?.port.close()
-      source?.disconnect()
-      processor?.disconnect()
-      gain?.disconnect()
-      for (const track of stream.getTracks()) track.stop()
-      await context.close().catch(() => {})
-    },
-  } satisfies MicrophoneCapture
+  return { stop } satisfies MicrophoneCapture
 }
 
 declare global {

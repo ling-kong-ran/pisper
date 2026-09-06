@@ -11,6 +11,7 @@
   "markdownMessage.revealLocalPath": "在文件管理器中显示：{path}",
   "ui.cancel": "取消",
   "ui.closeDialog": "关闭对话框",
+  "ui.notifications": "通知",
   "ui.confirm": "确认",
   "ui.demoInterfaceRuntimeNotConnected": "演示界面 · 尚未连接真实运行时",
   "ui.name": "名称",

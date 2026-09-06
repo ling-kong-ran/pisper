@@ -14,6 +14,7 @@ import type { TranscriptLoadState } from '@/features/chat/FocusTranscript'
 
 export type FocusSessionProps = {
   session: SessionSummary
+  shortcutEnabled?: boolean
   messages: ChatMessage[]
   transcriptLoadState?: TranscriptLoadState
   messageStart?: number | null

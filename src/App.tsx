@@ -37,7 +37,7 @@ import { WebDesktopPet } from '@/features/desktop-pet/WebDesktopPet'
 import { apiJson } from '@/lib/api'
 import { showBrowserSystemNotification } from '@/lib/browser-notifications'
 import { useAppDialog } from '@/hooks/useAppDialog'
-import { useIsPhoneViewport } from '@/hooks/use-mobile'
+import { useIsMobile, useIsPhoneViewport } from '@/hooks/use-mobile'
 import { useAppUpdate } from '@/features/updates/useAppUpdate'
 import { SidebarInset, SidebarProvider } from '@/components/ui/sidebar'
 import { useUiStore } from '@/stores/ui-store'
@@ -54,6 +54,9 @@ import type { ChatAttachment, PendingAsset } from '@/types/chat'
 import type { NotificationSettingsData } from '@/types/notifications'
 import type { WorkflowActions } from '@/types/workflow'
 
+const AppShortcuts = lazy(() =>
+  import('@/components/layout/AppShortcuts').then((module) => ({ default: module.AppShortcuts })),
+)
 const CommandPalette = lazy(() =>
   import('@/components/layout/AppOverlays').then((module) => ({
     default: module.CommandPalette,
@@ -124,15 +127,6 @@ function renderNotificationContent(content: string, data: Record<string, unknown
   )
 }
 
-// 是否可编辑目标（输入/文本域/选择/可编辑区域）：
-// 全局快捷键在这些元素上按下时不应被拦截（保留原生输入体验）。
-function isEditableTarget(target: EventTarget | null) {
-  return (
-    target instanceof HTMLElement &&
-    (target.matches('input, textarea, select') || target.isContentEditable)
-  )
-}
-
 // 安全解码路径段；非法编码返回空串而非抛错中断渲染。
 function decodePathSegment(value: string) {
   try {
@@ -165,6 +159,7 @@ function App() {
     () => localStorage.getItem(STORAGE_KEYS.activeSession) || '',
   )
   const [mobileNav, setMobileNav] = useState(false)
+  const drawerSidebar = useIsMobile()
   const mobileApp = useClientStore((state) => state.client === 'mobile-app')
   const clientLoaded = useClientStore((state) => state.loaded)
   const phoneViewport = useIsPhoneViewport()
@@ -512,44 +507,16 @@ function App() {
   }, [configSection, invokePrimaryAction, navigate, page])
 
   useEffect(() => {
-    const focusSearch = () => {
-      if (page === 'chat') {
-        navigate('chatHistory')
-        requestAnimationFrame(() => requestAnimationFrame(() => searchInputRef.current?.focus()))
-      } else searchInputRef.current?.focus()
-    }
     const openCommandPalette = () => {
       if (!appDialog.dialog && !modal) setPaletteOpen(true)
     }
     const onKeyDown = (event: KeyboardEvent) => {
-      const modifier = event.metaKey || event.ctrlKey
-      if (modifier && event.key.toLowerCase() === 'k' && !appDialog.dialog && !modal) {
-        event.preventDefault()
-        openCommandPalette()
-      } else if (
-        modifier &&
-        event.key === '`' &&
-        window.pisperDesktop?.terminalProfiles &&
-        runtimeFeatureAvailable(capabilities, 'terminal') &&
-        !(event.target instanceof HTMLElement && event.target.closest('.terminal-panel'))
-      ) {
-        event.preventDefault()
-        setTerminalOpen((value) => !value)
-      } else if (modifier && event.key.toLowerCase() === 'n' && !isEditableTarget(event.target)) {
-        event.preventDefault()
-        handlePrimary()
-      } else if (
-        event.key === '/' &&
-        !modifier &&
-        !event.altKey &&
-        !isEditableTarget(event.target)
-      ) {
-        event.preventDefault()
-        focusSearch()
-      } else if (event.key === 'Escape' && !appDialog.dialog) {
+      if (event.defaultPrevented || event.isComposing || event.keyCode === 229) return
+      if (event.key === 'Escape' && !appDialog.dialog) {
         if (paletteOpen) setPaletteOpen(false)
         else if (modal) setModal(null)
         else if (mobileNav) setMobileNav(false)
+        return
       }
     }
     window.addEventListener('keydown', onKeyDown)
@@ -558,7 +525,7 @@ function App() {
       window.removeEventListener('keydown', onKeyDown)
       window.removeEventListener(COMMAND_PALETTE_REQUESTED_EVENT, openCommandPalette)
     }
-  }, [appDialog.dialog, capabilities, handlePrimary, mobileNav, modal, navigate, page, paletteOpen])
+  }, [appDialog.dialog, mobileNav, modal, paletteOpen])
 
   useEffect(() => {
     let active = true
@@ -674,6 +641,33 @@ function App() {
           openMobile={mobileNav}
           onOpenMobileChange={setMobileNav}
         >
+          <Suspense fallback={null}>
+            <AppShortcuts
+              blocked={Boolean(appDialog.dialog || modal || paletteOpen)}
+              onCommandPalette={() => setPaletteOpen(true)}
+              onPrimary={handlePrimary}
+              onToggleSidebar={() =>
+                drawerSidebar
+                  ? setMobileNav((value) => !value)
+                  : setSidebarCollapsed(!sidebarCollapsed)
+              }
+              onSearch={() => {
+                if (page === 'chat') {
+                  navigate('chatHistory')
+                  requestAnimationFrame(() =>
+                    requestAnimationFrame(() => searchInputRef.current?.focus()),
+                  )
+                } else searchInputRef.current?.focus()
+              }}
+              onToggleTerminal={
+                window.pisperDesktop?.terminalProfiles &&
+                runtimeFeatureAvailable(capabilities, 'terminal')
+                  ? () => setTerminalOpen((value) => !value)
+                  : undefined
+              }
+              onSettings={() => navigate('config')}
+            />
+          </Suspense>
           <AppSidebar
             page={page}
             configSection={configSection}
@@ -751,7 +745,7 @@ function App() {
             onOpenChange={(open) => !open && setToast(null)}
           />
         )}
-        <ToastViewport />
+        <ToastViewport hotkey={[]} label={t('common:ui.notifications')} />
         <AppDialog
           dialog={appDialog.dialog}
           onClose={appDialog.close}

@@ -219,12 +219,19 @@ test('mobile chat sends with Enter and responsively overflows Composer tools', a
   assert.match(dock, /if \(compactDock \|\| panel\.group\.size <= 1\) return \[closeItem\]/)
   assert.doesNotMatch(dock, /disabled: compactDock/)
   assert.match(focusSession, /const mobileApp = useIsMobileApp\(\)/)
-  assert.match(focusSession, /event\.key === 'Enter' &&\s*!event\.shiftKey &&\s*!composing/)
+  assert.match(
+    focusSession,
+    /!composing && matchesShortcut\(event\.nativeEvent, shortcuts\.sendMessage\)/,
+  )
+  assert.match(focusSession, /useShortcutStore\(\(state\) => state\.bindings\)/)
   // IME 组词双保险：Chromium 看 isComposing，Mac WebKit 看自行跟踪的 imeComposingRef。
   assert.match(focusSession, /event\.nativeEvent\.isComposing \|\| imeComposingRef\.current/)
   assert.match(focusSession, /event\.currentTarget\.form\?\.requestSubmit\(\)/)
   assert.match(focusSession, /const mobileLayout = mobileApp \|\| phoneViewport/)
-  assert.match(focusSession, /enterKeyHint=\{mobileLayout \? 'send' : 'enter'\}/)
+  assert.match(
+    focusSession,
+    /enterKeyHint=\{mobileLayout && shortcuts\.sendMessage === 'Enter' \? 'send' : 'enter'\}/,
+  )
   assert.match(focusSession, /const composerPlaceholder = mobileLayout/)
   assert.match(focusSession, /data-mobile-composer-input=\{mobileLayout \|\| undefined\}/)
   assert.match(focusSession, /toolbarAllocation\.inline\.map\(renderComposerTool\)/)

@@ -4,7 +4,6 @@ import { isAbsolute, join, relative, resolve, sep } from 'node:path'
 import { parse as parseToml } from 'smol-toml'
 import { readJson, writeJsonAtomic } from '../storage/json-file.mjs'
 
-export const MAX_CUSTOM_SPEECH_TERMS = 64
 export const MAX_SPEECH_TERM_LENGTH = 64
 export const MAX_SPEECH_TERMS = 128
 export const MAX_SPEECH_MANIFEST_BYTES = 256 * 1024
@@ -86,7 +85,7 @@ function validateUpdate(input) {
   if (!input || typeof input !== 'object' || Array.isArray(input)) {
     throw new Error('语音设置必须是 JSON 对象。')
   }
-  if (Object.keys(input).some((key) => !['projectTermsEnabled', 'customTerms'].includes(key))) {
+  if (Object.keys(input).some((key) => key !== 'projectTermsEnabled')) {
     throw new Error('语音设置包含未知字段。')
   }
   const result = {}
@@ -95,14 +94,6 @@ function validateUpdate(input) {
       throw new Error('projectTermsEnabled 必须是布尔值。')
     }
     result.projectTermsEnabled = input.projectTermsEnabled
-  }
-  if (Object.hasOwn(input, 'customTerms')) {
-    if (!Array.isArray(input.customTerms) || input.customTerms.length > MAX_CUSTOM_SPEECH_TERMS) {
-      throw new Error('自定义语音词条必须是数组，且不能超过 64 条。')
-    }
-    // 在去重前检查每一项，重复内容不能绕过数量或长度限制。
-    const terms = Array.from(input.customTerms, normalizeTerm)
-    result.customTerms = uniqueTerms(terms, MAX_CUSTOM_SPEECH_TERMS)
   }
   return result
 }
@@ -197,11 +188,12 @@ export class SpeechTermsService {
   }
 
   async readSettings() {
-    return {
-      projectTermsEnabled: true,
-      customTerms: [],
-      ...validateUpdate(await readJson(this.path, {})),
+    const stored = await readJson(this.path, {})
+    // 仅兼容磁盘中的旧字段；新更新仍严格拒绝，下一次保存会自然清理旧词。
+    if (stored && typeof stored === 'object' && !Array.isArray(stored)) {
+      delete stored.customTerms
     }
+    return { projectTermsEnabled: true, ...validateUpdate(stored) }
   }
 
   async getSettings() {
@@ -224,9 +216,6 @@ export class SpeechTermsService {
   async termsForWorkspace(cwd) {
     const settings = await this.getSettings()
     const project = settings.projectTermsEnabled ? await projectTerms(cwd) : []
-    return uniqueTerms(
-      [...BUILTIN_SPEECH_TERMS, ...settings.customTerms, ...project],
-      MAX_SPEECH_TERMS,
-    )
+    return uniqueTerms([...BUILTIN_SPEECH_TERMS, ...project], MAX_SPEECH_TERMS)
   }
 }

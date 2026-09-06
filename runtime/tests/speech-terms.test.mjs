@@ -6,7 +6,6 @@ import { join } from 'node:path'
 import test from 'node:test'
 import {
   BUILTIN_SPEECH_TERMS,
-  MAX_CUSTOM_SPEECH_TERMS,
   MAX_SPEECH_MANIFEST_BYTES,
   MAX_SPEECH_TERM_LENGTH,
   MAX_SPEECH_TERMS,
@@ -31,7 +30,7 @@ test('defaults include technical terms and returned arrays cannot mutate the def
   const { service, dataDir } = await fixture(t)
   const settings = await service.getSettings()
   assert.equal(settings.projectTermsEnabled, true)
-  assert.deepEqual(settings.customTerms, [])
+  assert.deepEqual(Object.keys(settings).sort(), ['builtinTerms', 'projectTermsEnabled'])
   assert.equal(settings.builtinTerms.length, 30)
   for (const term of [
     'Pi Agent',
@@ -47,58 +46,58 @@ test('defaults include technical terms and returned arrays cannot mutate the def
     assert.ok(settings.builtinTerms.includes(term))
   }
   settings.builtinTerms.push('Injected')
-  settings.customTerms.push('Injected')
   assert.deepEqual((await service.getSettings()).builtinTerms, BUILTIN_SPEECH_TERMS)
-  assert.deepEqual((await service.getSettings()).customTerms, [])
+  assert.equal(Object.hasOwn(await service.getSettings(), 'customTerms'), false)
   await assert.rejects(stat(join(dataDir, 'speech-settings.json')), { code: 'ENOENT' })
 })
 
-test('settings persist in a dedicated file with patch updates and normalized custom terms', async (t) => {
+test('settings persist only the project toggle in a dedicated file with partial updates', async (t) => {
   const { service, dataDir } = await fixture(t)
   const unrelated = '{"toolMode":"workspace"}\n'
   await writeFile(join(dataDir, 'pisper.json'), unrelated)
-  await service.updateSettings({
-    customTerms: ['  Azure   SDK  ', '中文术语', 'C++', 'foo.bar', 'foo-bar', 'foo_bar'],
-  })
   const saved = await service.updateSettings({ projectTermsEnabled: false })
-  assert.deepEqual(saved.customTerms, ['Azure SDK', '中文术语', 'C++', 'foo.bar', 'foo-bar'])
+  assert.equal(Object.hasOwn(saved, 'customTerms'), false)
   assert.equal(saved.projectTermsEnabled, false)
   assert.deepEqual(await new SpeechTermsService({ dataDir }).getSettings(), saved)
   assert.deepEqual(JSON.parse(await readFile(join(dataDir, 'speech-settings.json'), 'utf8')), {
     projectTermsEnabled: false,
-    customTerms: saved.customTerms,
   })
   assert.equal(await readFile(join(dataDir, 'pisper.json'), 'utf8'), unrelated)
   assert.deepEqual(await service.updateSettings({}), saved)
 })
 
 test('concurrent patches serialize their read-modify-write and snapshot input', async (t) => {
-  const { service } = await fixture(t)
-  const input = { customTerms: ['Original'] }
+  const { service, dataDir } = await fixture(t)
+  const input = { projectTermsEnabled: false }
   const first = service.updateSettings(input)
-  input.customTerms[0] = 'Mutated'
-  const second = service.updateSettings({ projectTermsEnabled: false })
+  input.projectTermsEnabled = true
+  const second = service.updateSettings({})
+  const third = service.updateSettings({ projectTermsEnabled: true })
   const read = service.getSettings()
-  const results = await Promise.all([first, second, read])
-  assert.deepEqual(results[0].customTerms, ['Original'])
-  assert.equal(results[1].projectTermsEnabled, false)
-  assert.deepEqual(results[2], results[1])
+  const results = await Promise.all([first, second, third, read])
+  assert.equal(results[0].projectTermsEnabled, false)
+  assert.deepEqual(results[1], results[0])
+  assert.equal(results[2].projectTermsEnabled, true)
+  assert.deepEqual(results[3], results[2])
+  assert.deepEqual(JSON.parse(await readFile(join(dataDir, 'speech-settings.json'), 'utf8')), {
+    projectTermsEnabled: true,
+  })
 })
 
 test('a failed disk write does not poison subsequent queued updates', async (t) => {
   const { service, dataDir } = await fixture(t)
   await rm(dataDir, { recursive: true })
   await writeFile(dataDir, 'Blocked directory')
-  await assert.rejects(service.updateSettings({ customTerms: ['First'] }))
+  await assert.rejects(service.updateSettings({ projectTermsEnabled: false }))
   await rm(dataDir)
-  const recovered = await service.updateSettings({ customTerms: ['Recovered'] })
-  assert.deepEqual(recovered.customTerms, ['Recovered'])
+  const recovered = await service.updateSettings({ projectTermsEnabled: true })
+  assert.equal(recovered.projectTermsEnabled, true)
   assert.deepEqual(await service.getSettings(), recovered)
 })
 
 test('rejects invalid settings without changing persisted state', async (t) => {
   const { service } = await fixture(t)
-  const before = await service.updateSettings({ customTerms: ['Valid'] })
+  const before = await service.updateSettings({ projectTermsEnabled: false })
   const invalid = [
     null,
     [],
@@ -107,22 +106,88 @@ test('rejects invalid settings without changing persisted state', async (t) => {
     { projectTermsEnabled: 'false' },
     { projectTermsEnabled: 0 },
     { projectTermsEnabled: null },
-    { customTerms: 'term' },
-    { customTerms: null },
-    { customTerms: [1] },
-    { customTerms: [null] },
-    { customTerms: [{}] },
-    { customTerms: Array(1) },
+    { projectTermsEnabled: [] },
+    { projectTermsEnabled: {} },
     { builtinTerms: [] },
     { unknown: true },
   ]
   for (const input of invalid) await assert.rejects(service.updateSettings(input))
   assert.deepEqual(await service.getSettings(), before)
-  assert.deepEqual((await service.updateSettings({ customTerms: [] })).customTerms, [])
+  assert.deepEqual(await service.updateSettings({}), before)
 })
 
-test('rejects native grammar injections, controls, surrogates and unsupported punctuation', async (t) => {
-  const { service } = await fixture(t)
+test('customTerms patches are unknown fields regardless of value and never change persisted state', async (t) => {
+  const { service, dataDir } = await fixture(t)
+  const before = await service.updateSettings({ projectTermsEnabled: false })
+  const path = join(dataDir, 'speech-settings.json')
+  const original = await readFile(path, 'utf8')
+  for (const customTerms of [[], ['ValidTerm'], null, 'term', true, [1], [{}], Array(1)]) {
+    await assert.rejects(
+      service.updateSettings({ projectTermsEnabled: true, customTerms }),
+      /未知字段/,
+    )
+    assert.deepEqual(await service.getSettings(), before)
+    assert.equal(await readFile(path, 'utf8'), original)
+  }
+})
+
+test('legacy disk terms of any shape are ignored and removed by the next normal save', async (t) => {
+  const { dataDir, cwd } = await fixture(t)
+  await manifest(cwd, { name: 'ActualProject' })
+  const path = join(dataDir, 'speech-settings.json')
+  for (const customTerms of [['LegacyTerm', 'inject:99'], null, 'LegacyTerm', 42, { bad: true }]) {
+    const original = JSON.stringify({ customTerms })
+    await writeFile(path, original)
+    const service = new SpeechTermsService({ dataDir })
+    const expected = { projectTermsEnabled: true, builtinTerms: [...BUILTIN_SPEECH_TERMS] }
+    assert.deepEqual(await service.getSettings(), expected)
+    assert.deepEqual(await service.termsForWorkspace(cwd), [
+      ...BUILTIN_SPEECH_TERMS,
+      'Actual Project',
+    ])
+    assert.equal(await readFile(path, 'utf8'), original)
+    assert.deepEqual(await service.updateSettings({}), expected)
+    assert.deepEqual(JSON.parse(await readFile(path, 'utf8')), { projectTermsEnabled: true })
+  }
+  await writeFile(path, JSON.stringify({ projectTermsEnabled: false, customTerms: ['LegacyTerm'] }))
+  const service = new SpeechTermsService({ dataDir })
+  assert.deepEqual(await service.termsForWorkspace(cwd), BUILTIN_SPEECH_TERMS)
+  assert.equal(
+    Object.hasOwn(await service.updateSettings({ projectTermsEnabled: true }), 'customTerms'),
+    false,
+  )
+  assert.deepEqual(JSON.parse(await readFile(path, 'utf8')), { projectTermsEnabled: true })
+})
+
+test('legacy compatibility does not accept other invalid disk settings or overwrite them', async (t) => {
+  const { service, dataDir } = await fixture(t)
+  const path = join(dataDir, 'speech-settings.json')
+  for (const invalid of [
+    null,
+    [],
+    'text',
+    true,
+    { customTerms: [], projectTermsEnabled: 'false' },
+    { customTerms: [], projectTermsEnabled: null },
+    { customTerms: [], projectTermsEnabled: 0 },
+    { customTerms: [], unknown: true },
+    { customTerms: [], builtinTerms: [] },
+  ]) {
+    const original = JSON.stringify(invalid)
+    await writeFile(path, original)
+    await assert.rejects(service.getSettings())
+    await assert.rejects(service.updateSettings({ projectTermsEnabled: true }))
+    assert.equal(await readFile(path, 'utf8'), original)
+  }
+  await writeFile(path, '{}')
+  assert.equal(
+    (await service.updateSettings({ projectTermsEnabled: false })).projectTermsEnabled,
+    false,
+  )
+})
+
+test('project terms reject native grammar injections, controls, surrogates and unsupported punctuation', async (t) => {
+  const { service, cwd } = await fixture(t)
   const invalid = [
     '',
     '   ',
@@ -160,28 +225,47 @@ test('rejects native grammar injections, controls, surrogates and unsupported pu
     'a,b',
   ]
   for (const term of invalid) {
-    await assert.rejects(
-      service.updateSettings({ customTerms: [term] }),
-      undefined,
+    await manifest(cwd, { name: term, dependencies: { [term]: '*' } })
+    assert.deepEqual(
+      await service.termsForWorkspace(cwd),
+      BUILTIN_SPEECH_TERMS,
       JSON.stringify(term),
     )
   }
   const accepted = ['中文术语', 'C++', 'Node.js', 'snake_case', 'kebab-case', 'API 123', 'Español']
-  assert.deepEqual((await service.updateSettings({ customTerms: accepted })).customTerms, accepted)
+  await manifest(cwd, { dependencies: Object.fromEntries(accepted.map((term) => [term, '*'])) })
+  assert.deepEqual((await service.termsForWorkspace(cwd)).slice(BUILTIN_SPEECH_TERMS.length), [
+    '中文术语',
+    'C++',
+    'snake case',
+    'kebab case',
+    'API 123',
+    'Español',
+  ])
 })
 
-test('enforces count and length before deduplication and bounds total term content', async (t) => {
-  const { service } = await fixture(t)
+test('project term length is bounded before and after normalization and total content is capped', async (t) => {
+  const { service, cwd } = await fixture(t)
   const maximum = Array.from(
-    { length: MAX_CUSTOM_SPEECH_TERMS },
-    (_, index) => `${String(index).padStart(2, '0')}${'x'.repeat(MAX_SPEECH_TERM_LENGTH - 2)}`,
+    { length: MAX_SPEECH_TERMS },
+    (_, index) => `${String(index).padStart(3, '0')}${'x'.repeat(MAX_SPEECH_TERM_LENGTH - 3)}`,
   )
-  assert.deepEqual((await service.updateSettings({ customTerms: maximum })).customTerms, maximum)
-  assert.equal(maximum.join('').length, 4096)
-  await assert.rejects(service.updateSettings({ customTerms: [...maximum, 'Another'] }))
-  await assert.rejects(service.updateSettings({ customTerms: Array(65).fill('Duplicate') }))
-  await assert.rejects(service.updateSettings({ customTerms: ['x'.repeat(65)] }))
-  await assert.rejects(service.updateSettings({ customTerms: [' '.repeat(65) + 'a'] }))
+  await manifest(cwd, {
+    dependencies: Object.fromEntries([
+      ['x'.repeat(MAX_SPEECH_TERM_LENGTH + 1), '*'],
+      [' '.repeat(MAX_SPEECH_TERM_LENGTH + 1) + 'a', '*'],
+      ['aB'.repeat(MAX_SPEECH_TERM_LENGTH / 2), '*'],
+      ...maximum.map((term) => [term, '*']),
+    ]),
+  })
+  const terms = await service.termsForWorkspace(cwd)
+  assert.equal(terms.length, MAX_SPEECH_TERMS)
+  assert.deepEqual(
+    terms.slice(BUILTIN_SPEECH_TERMS.length),
+    maximum.slice(0, MAX_SPEECH_TERMS - BUILTIN_SPEECH_TERMS.length),
+  )
+  assert.ok(terms.every((term) => term.length <= MAX_SPEECH_TERM_LENGTH))
+  assert.ok(terms.join('').length <= MAX_SPEECH_TERMS * MAX_SPEECH_TERM_LENGTH)
 })
 
 test('extracts package names and dependency keys but ignores values, scripts and nested manifests', async (t) => {
@@ -253,38 +337,33 @@ windows_sys = "1"
   assert.ok(terms.every((term) => !term.includes('Secret')))
 })
 
-test('builtin and custom terms have priority over project terms and equivalent names deduplicate', async (t) => {
+test('builtin terms have priority over project terms and equivalent names deduplicate', async (t) => {
   const { service, cwd } = await fixture(t)
-  const customTerms = Array.from({ length: 64 }, (_, index) => `UserTerm${index}`)
-  await service.updateSettings({ customTerms })
   await manifest(cwd, {
     name: 'Pisper',
     dependencies: Object.fromEntries([
       ['TypeScript', '*'],
       ['use-effect', '*'],
-      ['user-term0', '*'],
+      ['useEffect', '*'],
       ...Array.from({ length: 180 }, (_, index) => [`project-${index}`, '*']),
     ]),
   })
   const terms = await service.termsForWorkspace(cwd)
   assert.equal(terms.length, MAX_SPEECH_TERMS)
   assert.deepEqual(terms.slice(0, BUILTIN_SPEECH_TERMS.length), BUILTIN_SPEECH_TERMS)
-  assert.deepEqual(
-    terms.slice(BUILTIN_SPEECH_TERMS.length, BUILTIN_SPEECH_TERMS.length + 64),
-    customTerms,
-  )
-  assert.equal(terms.at(-1), 'project 33')
+  assert.equal(terms[BUILTIN_SPEECH_TERMS.length], 'project 0')
+  assert.equal(terms.at(-1), 'project 97')
   assert.equal(
     new Set(terms.map((term) => term.toLowerCase().replace(/[ _-]/g, ''))).size,
     terms.length,
   )
 })
 
-test('project optout preserves builtin and custom terms and missing workspaces are optional', async (t) => {
+test('project optout preserves builtin terms and missing workspaces are optional', async (t) => {
   const { service, cwd } = await fixture(t)
   await manifest(cwd, { name: 'ProjectOnly' })
-  await service.updateSettings({ projectTermsEnabled: false, customTerms: ['CustomOnly'] })
-  const expected = [...BUILTIN_SPEECH_TERMS, 'CustomOnly']
+  await service.updateSettings({ projectTermsEnabled: false })
+  const expected = [...BUILTIN_SPEECH_TERMS]
   assert.deepEqual(await service.termsForWorkspace(cwd), expected)
   await service.updateSettings({ projectTermsEnabled: true })
   for (const directory of ['', undefined, null, join(cwd, 'missing')]) {

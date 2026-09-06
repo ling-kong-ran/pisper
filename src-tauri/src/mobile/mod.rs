@@ -89,14 +89,16 @@ Object.defineProperty(window, '__PISPER_MOBILE_APP__', { value: true, writable: 
       backgroundedAt = Date.now();
       return;
     }
-    if (backgroundedAt && Date.now() - backgroundedAt >= LONG_BACKGROUND_MS) recover();
+    // 前端接管后先探测健康状态，SAF 等外部界面长时间停留不能直接丢弃页面。
+    if (backgroundedAt && Date.now() - backgroundedAt >= LONG_BACKGROUND_MS &&
+        !window.__PISPER_MOBILE_FOREGROUND_RECOVERY_INSTALLED__) recover();
     backgroundedAt = 0;
   });
   window.addEventListener('pagehide', () => {
     backgroundedAt = Date.now();
   });
   window.addEventListener('pageshow', (event) => {
-    if (event.persisted) recover();
+    if (event.persisted && !window.__PISPER_MOBILE_FOREGROUND_RECOVERY_INSTALLED__) recover();
   });
 })();
 "#;

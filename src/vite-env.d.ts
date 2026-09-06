@@ -9,6 +9,8 @@ declare global {
     pisperDesktop?: DesktopBridge
     // 移动 Tauri 壳在首个页面脚本前注入，用于不依赖网络握手识别移动布局。
     __PISPER_MOBILE_APP__?: boolean
+    // 前台恢复监听器全部安装后接管普通恢复，原生脚本仍负责模块损坏兜底。
+    __PISPER_MOBILE_FOREGROUND_RECOVERY_INSTALLED__?: boolean
     // 原生编译目标决定能力边界，不能依赖可变的浏览器 User-Agent 推断。
     __PISPER_MOBILE_PLATFORM__?: 'android' | 'ios'
     // Tauri 壳注入（withGlobalTauri）：移动端经代理访问桌面 UI 时可用，

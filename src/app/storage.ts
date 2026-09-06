@@ -14,6 +14,7 @@ export const STORAGE_KEYS = Object.freeze({
   language: 'pisper-language',
   sidebarCollapsed: 'pisper-sidebar-collapsed',
   density: 'pisper-density',
+  shortcuts: 'pisper-shortcuts',
   terminalPanel: 'pisper-terminal-panel',
   sponsorDismissals: 'pisper-sponsor-dismissals',
 } as const)

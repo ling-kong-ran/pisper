@@ -13,6 +13,7 @@ import {
 } from 'dockview-react'
 import { Plus } from 'lucide-react'
 import { useI18n } from '@/app/use-i18n'
+import { useShortcutLabel } from '@/lib/shortcuts'
 import { ChatDockWatermark, SessionDockPanel } from './ChatDock'
 import { WebPreviewDockPanel } from './WebPreviewDockPanel'
 
@@ -32,6 +33,7 @@ export function ChatDockView({
   createSession,
 }: ChatDockViewProps) {
   const { t } = useI18n()
+  const primaryShortcut = useShortcutLabel('primaryAction')
   const DockNewSessionAction = useMemo(
     () =>
       function DockNewSessionAction({ group }: IDockviewHeaderActionsProps) {
@@ -66,11 +68,11 @@ export function ChatDockView({
         return (
           <ChatDockWatermark
             onNewSession={() => createSession()}
-            newSessionShortcut={t('chat:chatDock.newChatShortcut')}
+            newSessionShortcut={primaryShortcut}
           />
         )
       },
-    [createSession, t],
+    [createSession, primaryShortcut],
   )
   return (
     <DockviewReact

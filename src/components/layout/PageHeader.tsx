@@ -22,6 +22,7 @@ import type { ThemeMode } from '@/stores/ui-store'
 import { ConfigSearchBox } from '@/features/config/ConfigSearch'
 import { SidebarTrigger } from '@/components/ui/sidebar'
 import { cn } from '@/lib/utils'
+import { useShortcutLabel } from '@/lib/shortcuts'
 
 import { Button } from '@/components/ui/button'
 
@@ -77,6 +78,8 @@ export function PageHeader({
   onToggleTerminal,
 }: PageHeaderProps) {
   const { t } = useI18n()
+  const primaryShortcut = useShortcutLabel('primaryAction')
+  const terminalShortcut = useShortcutLabel('toggleTerminal')
   const primaryActions: Partial<Record<string, [string, LucideIcon]>> = {
     chatHistory: [t('navigation:pageHeader.newChat'), Plus],
     assets: [t('navigation:pageHeader.addLink'), Link2],
@@ -210,7 +213,14 @@ export function PageHeader({
               'max-[650px]:col-start-2 max-[650px]:row-start-1',
               page === 'chat' && mobileApp && 'hidden',
             )}
-            title={t('navigation:pageHeader.primaryActionShortcut', { action: primary[0] })}
+            title={
+              primaryShortcut
+                ? t('navigation:pageHeader.primaryActionShortcut', {
+                    action: primary[0],
+                    shortcut: primaryShortcut,
+                  })
+                : primary[0]
+            }
             onClick={onPrimary}
           >
             {(() => {
@@ -225,7 +235,11 @@ export function PageHeader({
             variant="ghost"
             size="icon"
             className={terminalOpen ? 'bg-surface-hover text-brand' : undefined}
-            title={t('navigation:pageHeader.toggleTerminal')}
+            title={
+              terminalShortcut
+                ? `${t('navigation:pageHeader.toggleTerminal')} (${terminalShortcut})`
+                : t('navigation:pageHeader.toggleTerminal')
+            }
             aria-label={t('navigation:pageHeader.toggleTerminal')}
             aria-pressed={terminalOpen}
             onClick={onToggleTerminal}

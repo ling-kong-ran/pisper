@@ -4,10 +4,109 @@ import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import test from 'node:test'
+import { runInNewContext } from 'node:vm'
+import { parse } from '@babel/parser'
 import {
   assertHasSubstantiveReleaseCommits,
   isSubstantiveReleaseCommit,
 } from '../../scripts/release-policy.mjs'
+
+function parseReleaseSource(source) {
+  const sourceFile = parse(source, { sourceType: 'module' })
+  const updater = sourceFile.program.body.find(
+    (node) => node.type === 'FunctionDeclaration' && node.id?.name === 'updateUpstreamPiDependency',
+  )
+  assert.ok(updater, 'release dependency updater must remain identifiable')
+  return { sourceFile, updater }
+}
+
+async function dependencyUpdateFixture({
+  changed = 'package.json\npackage-lock.json',
+  status = ' M package.json\n M package-lock.json',
+  failOn = '',
+} = {}) {
+  const source = await readFile('scripts/release.mjs', 'utf8')
+  const { updater } = parseReleaseSource(source)
+  const calls = []
+  // 只执行 AST 定位的更新函数，并替换全部进程调用，避免测试触及真实 npm、Git 或发布入口。
+  const update = runInNewContext(`(${source.slice(updater.start, updater.end)})`, {
+    PI_CODING_AGENT_PACKAGE: '@earendil-works/pi-coding-agent',
+    releaseBranch: 'release',
+    console: { log() {} },
+    runNpm(args) {
+      calls.push(['npm', ...args])
+      if (failOn === 'npm') throw new Error('simulated npm failure')
+    },
+    run(command, args) {
+      calls.push([command, ...args])
+      assert.equal(command, 'git')
+      if (args[0] === failOn) throw new Error(`simulated ${failOn} failure`)
+      if (args[0] === 'diff') return changed
+      if (args[0] === 'status') return status
+      assert.ok(['add', 'commit', 'push'].includes(args[0]))
+      return ''
+    },
+  })
+  return { update, calls }
+}
+
+const piInstallCommand = [
+  'npm',
+  'install',
+  '@earendil-works/pi-coding-agent@latest',
+  '--save',
+  '--package-lock-only',
+]
+
+const dependencyDiffCommand = [
+  'git',
+  'diff',
+  '--name-only',
+  '--',
+  'package.json',
+  'package-lock.json',
+]
+
+test('release dependency update does not commit or push when manifests are unchanged', async () => {
+  const { update, calls } = await dependencyUpdateFixture({ changed: '' })
+  assert.equal(update(), false)
+  assert.deepEqual(calls, [piInstallCommand, dependencyDiffCommand])
+})
+
+test('release dependency update commits only manifests and pushes only the release branch', async () => {
+  const { update, calls } = await dependencyUpdateFixture()
+  assert.equal(update(), true)
+  assert.deepEqual(calls, [
+    piInstallCommand,
+    dependencyDiffCommand,
+    ['git', 'status', '--porcelain', '--untracked-files=no'],
+    ['git', 'add', 'package.json', 'package-lock.json'],
+    ['git', 'commit', '-m', 'chore(deps): update pi coding agent'],
+    ['git', 'push', 'origin', 'release'],
+  ])
+})
+
+test('release dependency update rejects unexpected tracked changes before staging or pushing', async () => {
+  const { update, calls } = await dependencyUpdateFixture({
+    status: ' M package.json\n M runtime/index.mjs',
+  })
+  assert.throws(update, /非预期修改/)
+  assert.deepEqual(calls, [
+    piInstallCommand,
+    dependencyDiffCommand,
+    ['git', 'status', '--porcelain', '--untracked-files=no'],
+  ])
+})
+
+for (const failOn of ['npm', 'commit', 'push']) {
+  test(`release dependency update stops after ${failOn} failure`, async () => {
+    const { update, calls } = await dependencyUpdateFixture({ failOn })
+    assert.throws(update, new RegExp(`simulated ${failOn} failure`))
+    assert.equal(failOn === 'npm' ? calls.at(-1)[0] : calls.at(-1)[1], failOn)
+    if (failOn !== 'push')
+      assert.ok(!calls.some(([command, action]) => command === 'git' && action === 'push'))
+  })
+}
 
 test('release validates immutable source and dispatches without versioning or tagging locally', async () => {
   const source = await readFile('scripts/release.mjs', 'utf8')
@@ -33,10 +132,39 @@ test('release validates immutable source and dispatches without versioning or ta
   assert.match(source, /component === 'app' \? 'release-app\.yml' : 'release\.yml'/)
   assert.doesNotMatch(source, /runNpm\(\['version'/)
   assert.doesNotMatch(source, /run\('git', \['tag', (?!'--list')/)
-  assert.doesNotMatch(source, /run\('git', \['push'/)
-  // A TUI/Runtime release chains the desktop installer (it bundles the newest
-  // published components); the desktop dispatch carries their versions and
-  // the local script never bumps versions or pushes.
+  const { sourceFile, updater } = parseReleaseSource(source)
+  const mutations = []
+  const visit = (node) => {
+    if (
+      node.type === 'CallExpression' &&
+      node.callee.type === 'Identifier' &&
+      node.callee.name === 'run' &&
+      node.arguments[0]?.type === 'StringLiteral' &&
+      node.arguments[0].value === 'git' &&
+      node.arguments[1]?.type === 'ArrayExpression'
+    ) {
+      const command = node.arguments[1].elements[0]
+      if (command?.type === 'StringLiteral' && ['add', 'commit', 'push'].includes(command.value)) {
+        assert.ok(node.start >= updater.start && node.end <= updater.end)
+        mutations.push(command.value)
+      }
+    }
+    for (const value of Object.values(node)) {
+      for (const child of Array.isArray(value) ? value : [value]) {
+        if (child && typeof child === 'object' && typeof child.type === 'string') visit(child)
+      }
+    }
+  }
+  visit(sourceFile)
+  assert.deepEqual(mutations, ['add', 'commit', 'push'])
+  const updateCall = source.indexOf('\nupdateUpstreamPiDependency()')
+  const updatedSource = source.indexOf("source = run('git', ['rev-parse', 'HEAD']", updateCall)
+  const updatedRemote = source.indexOf('remoteSource = run(', updateCall)
+  const synchronized = source.indexOf('if (source !== remoteSource)', updatedRemote)
+  assert.ok(updateCall >= 0 && updatedSource > updateCall && updatedRemote > updatedSource)
+  assert.ok(synchronized > updatedRemote && synchronized < substantiveCheck)
+  // 依赖同步可以在派发前推送；版本文件和标签仍由远端 workflow 原子更新。
+  // Desktop 派发继续携带同批次最新 TUI/Runtime 版本。
   assert.match(source, /安装包自动链式发布 desktop/)
   assert.match(source, /desktopTuiVersion \|\| desktopRuntimeVersion/)
   assert.match(source, /`tui_version=\$\{desktopTuiVersion\}`/)

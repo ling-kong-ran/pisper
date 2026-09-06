@@ -3,7 +3,7 @@
 // use-focus-composer，输入区小组件（排队托盘/资源芯片/状态灯/按钮）在
 // focus-session-composer-bits；composer 主体与发送行为约定保留在本文件。
 import { memo, useEffect, useRef, useState } from 'react'
-import { Braces, Command, FolderOpen, Plus, X } from 'lucide-react'
+import { AudioLines, Braces, Command, FolderOpen, Plus, X } from 'lucide-react'
 import { useI18n } from '@/app/use-i18n'
 import { AppCard as Panel, AppCardHeader } from '@/components/ui/app-primitives'
 import { useIsPhoneViewport } from '@/hooks/use-mobile'
@@ -40,6 +40,7 @@ import { SessionWorkflowRuns } from './SessionWorkflowRuns'
 import { ToolApproval } from './ToolApproval'
 import { VisualComposerEntry } from './VisualComposerEntry'
 import { VoiceInputControl } from './VoiceInputControl'
+import { VoiceModeOverlay } from './VoiceModeOverlay'
 import {
   CompactContextButton,
   ComposerResourceChip,
@@ -51,11 +52,10 @@ import type { FocusSessionProps } from '@/features/chat/focus-session-props'
 import { useComposerToolbarCapacity } from '@/features/chat/use-composer-toolbar-capacity'
 import { useFocusComposer } from '@/features/chat/use-focus-composer'
 import { useComposerToolbarStore } from '@/stores/composer-toolbar-store'
+import { useShortcutStore } from '@/stores/shortcut-store'
+import { matchesShortcut, shortcutEventBlocked, useShortcutLabel } from '@/lib/shortcuts'
 
 export type { FocusSessionProps }
-
-const USES_COMMAND_KEY = /Mac|iPhone|iPad/.test(globalThis.navigator?.platform || '')
-const COMMAND_PALETTE_SHORTCUT = USES_COMMAND_KEY ? '\u2318 K' : 'Ctrl K'
 
 function supportsVoiceInput() {
   // iOS 仍缺少本地转写后端，在原生命令可用前不展示一个停止后必然失败的入口。
@@ -86,6 +86,7 @@ const TRAY_FLOATING_SELECTOR = [
 
 export const FocusSession = memo(function FocusSession({
   session,
+  shortcutEnabled = false,
   messages,
   transcriptLoadState = 'ready',
   messageStart,
@@ -156,6 +157,8 @@ export const FocusSession = memo(function FocusSession({
   onAbort,
 }: FocusSessionProps) {
   const { t, language } = useI18n()
+  const shortcuts = useShortcutStore((state) => state.bindings)
+  const COMMAND_PALETTE_SHORTCUT = useShortcutLabel('commandPalette')
   const mobileApp = useIsMobileApp()
   const phoneViewport = useIsPhoneViewport()
   const mobileLayout = mobileApp || phoneViewport
@@ -169,10 +172,22 @@ export const FocusSession = memo(function FocusSession({
   const { value, updateValue, selection, clearDraft } = useComposerDraft(session.id)
   const [resourcePickerOpen, setResourcePickerOpen] = useState(false)
   const [sessionTreeOpen, setSessionTreeOpen] = useState(false)
+  const [voiceModeOpen, setVoiceModeOpen] = useState(false)
   const [toolsOpen, setToolsOpen] = useState(false)
   const [scrollRequest, setScrollRequest] = useState(0)
   const addSelectedAttachments = selection.addAttachments
   const promptRef = useRef<HTMLTextAreaElement>(null)
+  useEffect(() => {
+    if (!shortcutEnabled) return
+    const focusComposer = (event: KeyboardEvent) => {
+      if (!shortcutEventBlocked(event) && matchesShortcut(event, shortcuts.focusComposer)) {
+        event.preventDefault()
+        promptRef.current?.focus()
+      }
+    }
+    window.addEventListener('keydown', focusComposer)
+    return () => window.removeEventListener('keydown', focusComposer)
+  }, [shortcutEnabled, shortcuts.focusComposer])
   const toolbarRef = useRef<HTMLDivElement>(null)
   const toolTrayAnchorRef = useRef<HTMLButtonElement>(null)
   const toolTrayMenuRef = useRef<HTMLDivElement>(null)
@@ -367,12 +382,20 @@ export const FocusSession = memo(function FocusSession({
       <button
         type="button"
         className="command-palette-trigger relative grid size-9 min-w-9 place-items-center rounded-[var(--r-sm)] border-0 bg-[var(--surface-subtle)] text-[var(--text-muted)] hover:bg-[var(--surface-hover)] hover:text-[var(--star-strong)] [&_kbd]:sr-only"
-        title={t('chat:focusSession.openCommandPaletteShortcut', {
-          shortcut: COMMAND_PALETTE_SHORTCUT,
-        })}
-        aria-label={t('chat:focusSession.openCommandPaletteShortcut', {
-          shortcut: COMMAND_PALETTE_SHORTCUT,
-        })}
+        title={
+          COMMAND_PALETTE_SHORTCUT
+            ? t('chat:focusSession.openCommandPaletteShortcut', {
+                shortcut: COMMAND_PALETTE_SHORTCUT,
+              })
+            : t('chat:focusSession.commands')
+        }
+        aria-label={
+          COMMAND_PALETTE_SHORTCUT
+            ? t('chat:focusSession.openCommandPaletteShortcut', {
+                shortcut: COMMAND_PALETTE_SHORTCUT,
+              })
+            : t('chat:focusSession.commands')
+        }
         onClick={requestCommandPalette}
       >
         <Command size={16} />
@@ -504,15 +527,15 @@ export const FocusSession = memo(function FocusSession({
             onCompositionStart={() => (imeComposingRef.current = true)}
             onCompositionEnd={() => window.setTimeout(() => (imeComposingRef.current = false), 0)}
             onKeyDown={(event) => {
-              // Enter 发送、Shift+Enter 换行；兼容 Chromium 与 Mac WebKit 的 composition 事件。
+              // 保留换行与中英文组词，只在当前发送绑定精确匹配时提交。
               const composing = event.nativeEvent.isComposing || imeComposingRef.current
-              if (event.key === 'Enter' && !event.shiftKey && !composing) {
+              if (!composing && matchesShortcut(event.nativeEvent, shortcuts.sendMessage)) {
                 event.preventDefault()
                 event.currentTarget.form?.requestSubmit()
               }
             }}
             data-mobile-composer-input={mobileLayout || undefined}
-            enterKeyHint={mobileLayout ? 'send' : 'enter'}
+            enterKeyHint={mobileLayout && shortcuts.sendMessage === 'Enter' ? 'send' : 'enter'}
             placeholder={composerPlaceholder}
           />
           <div className="focus-composer-footer flex min-w-0 items-center gap-1">
@@ -560,20 +583,32 @@ export const FocusSession = memo(function FocusSession({
               />
             </div>
             {supportsVoiceInput() && (
-              <VoiceInputControl
-                sessionId={session.id}
-                onInsert={(transcript) => {
-                  const prefix = value.trimEnd()
-                  updateValue(prefix ? `${prefix}\n${transcript}` : transcript)
-                  requestAnimationFrame(() => {
-                    const element = promptRef.current
-                    if (!element) return
-                    element.focus()
-                    element.style.height = 'auto'
-                    element.style.height = `${Math.min(element.scrollHeight, 220)}px`
-                  })
-                }}
-              />
+              <>
+                <button
+                  type="button"
+                  className="grid !size-11 !min-w-11 place-items-center rounded-[var(--r-sm)] border border-transparent bg-[var(--surface-subtle)] text-[var(--text-muted)] transition-[background-color,color,border-color,box-shadow,transform] duration-200 hover:scale-105 hover:border-[var(--brand-blue)] hover:bg-[var(--brand-blue-soft)] hover:text-[var(--brand-blue-strong)]"
+                  title={t('chat:voiceMode.open')}
+                  aria-label={t('chat:voiceMode.open')}
+                  onClick={() => setVoiceModeOpen(true)}
+                >
+                  <AudioLines size={17} />
+                </button>
+                <VoiceInputControl
+                  sessionId={session.id}
+                  shortcutEnabled={shortcutEnabled}
+                  onInsert={(transcript) => {
+                    const prefix = value.trimEnd()
+                    updateValue(prefix ? `${prefix}\n${transcript}` : transcript)
+                    requestAnimationFrame(() => {
+                      const element = promptRef.current
+                      if (!element) return
+                      element.focus()
+                      element.style.height = 'auto'
+                      element.style.height = `${Math.min(element.scrollHeight, 220)}px`
+                    })
+                  }}
+                />
+              </>
             )}
             <ComposerSendButton
               streaming={streaming}
@@ -617,6 +652,16 @@ export const FocusSession = memo(function FocusSession({
         onCommandSelect={(commandInvocation) =>
           applyWelcomeChip(commandDraft(commandInvocation, value))
         }
+      />
+      <VoiceModeOverlay
+        open={voiceModeOpen}
+        sessionId={session.id}
+        sessionName={session.name || session.id}
+        messages={messages}
+        streaming={streaming}
+        sendPrompt={onSend}
+        onAbort={onAbort}
+        onClose={() => setVoiceModeOpen(false)}
       />
     </Panel>
   )

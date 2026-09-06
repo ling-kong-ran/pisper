@@ -2,6 +2,7 @@
 // 手动压缩按钮与发送/停止按钮。从 FocusSession.tsx 拆出，样式逐字保留。
 import { Braces, Minimize2, RefreshCw, Send, Square, Wrench, X } from 'lucide-react'
 import { useI18n } from '@/app/use-i18n'
+import { useShortcutLabel } from '@/lib/shortcuts'
 import { QueueSection } from '@/components/ai-elements/queue'
 import type { EntityRecord, ResourceInvocation } from '@/types/chat'
 
@@ -131,11 +132,19 @@ export function ComposerSendButton({
   onAbort: () => void
 }) {
   const { t } = useI18n()
+  const sendShortcut = useShortcutLabel('sendMessage')
+  const sendLabel = t('chat:focusSession.sendMessage')
   return (
     <button
       type={streaming ? 'button' : 'submit'}
       className={`send-button grid !size-11 flex-none place-items-center rounded-[var(--r-sm)] border-0 bg-[var(--star)] text-[var(--on-accent)] transition-[var(--d1)] cursor-pointer hover:not(:disabled):bg-[var(--star-hover)] hover:not(:disabled):shadow-[var(--sh-star)] active:not(:disabled):scale-[.96] disabled:cursor-not-allowed disabled:border disabled:border-[var(--stroke)] disabled:bg-[var(--surface-muted)] disabled:text-[var(--text-muted)] ${streaming ? 'stop !bg-[var(--danger)] hover:not(:disabled):shadow-[0_0_0_3px_var(--danger-soft)]' : ''}`}
-      title={streaming ? t('chat:focusSession.stop') : t('chat:focusSession.sendMessage')}
+      title={
+        streaming
+          ? t('chat:focusSession.stop')
+          : sendShortcut
+            ? `${sendLabel} (${sendShortcut})`
+            : sendLabel
+      }
       aria-label={streaming ? t('chat:focusSession.stop') : t('chat:focusSession.sendMessage')}
       onClick={streaming ? onAbort : undefined}
       disabled={disabled}

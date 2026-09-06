@@ -133,8 +133,13 @@ const mobileRuntimeRecovery = createMobileRuntimeRecoveryCoordinator({
 let installed = false
 
 export function installMobileRuntimeForegroundRecovery() {
-  if (installed || typeof document === 'undefined' || typeof window === 'undefined') return
-  installed = true
+  if (
+    installed ||
+    typeof document === 'undefined' ||
+    typeof window === 'undefined' ||
+    !isLoopbackPage()
+  )
+    return
   if (document.visibilityState === 'hidden') mobileRuntimeRecovery.markBackgrounded()
 
   document.addEventListener('visibilitychange', () => {
@@ -149,6 +154,9 @@ export function installMobileRuntimeForegroundRecovery() {
     if (!event.persisted) return
     void mobileRuntimeRecovery.recoverAfterForeground().catch(() => undefined)
   })
+  // 监听器全部就绪后才接管，避免原生兜底在模块尚未安装完成时提前失效。
+  installed = true
+  window.__PISPER_MOBILE_FOREGROUND_RECOVERY_INSTALLED__ = true
 }
 
 export function waitForMobileRuntimeReady() {

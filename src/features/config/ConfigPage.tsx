@@ -5,6 +5,7 @@ import { AboutSettings } from './AboutSettings'
 import { CONFIG_SECTION_ANCHOR, useConfigCardHighlight } from './config-search'
 import { DesktopPetSettings } from './DesktopPetSettings'
 import { InterfaceSettings } from './InterfaceSettings'
+import { ShortcutSettings } from './ShortcutSettings'
 import { ModelsSettings } from './ModelsSettings'
 import { MobileServerSettings } from './MobileServerSettings'
 import { NotificationSettings } from './NotificationSettings'
@@ -44,6 +45,8 @@ export function ConfigPage({
     )
   } else if (section === 'interface') {
     content = <InterfaceSettings notify={notify} />
+  } else if (section === 'shortcuts') {
+    content = <ShortcutSettings requestConfirm={requestConfirm} />
   } else if (section === 'desktop-pet') {
     content = <DesktopPetSettings notify={notify} requestConfirm={requestConfirm} />
   } else if (section === 'mobile-server') {

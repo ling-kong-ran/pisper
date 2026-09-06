@@ -1,6 +1,9 @@
 import { ArrowUpLeft, LoaderCircle, Mic, MicOff, RotateCcw, X } from 'lucide-react'
 import { useI18n } from '@/app/use-i18n'
 import { useEffect, useRef, useState } from 'react'
+import { formatShortcut } from '@/lib/shortcuts'
+import { useShortcutStore } from '@/stores/shortcut-store'
+import { useVoiceShortcut } from './use-voice-shortcut'
 import { AnchoredPopupMenu } from './AnchoredPopupMenu'
 import {
   createSpeechRecognizer,
@@ -37,13 +40,21 @@ export function VoiceInputControl({
   onInsert,
   sessionId,
   disabled = false,
+  shortcutEnabled = false,
 }: {
   onInsert: (text: string) => void
   sessionId?: string
   disabled?: boolean
+  shortcutEnabled?: boolean
 }) {
   const { t } = useI18n()
+  const voiceShortcut = useShortcutStore((state) => state.bindings.voiceInput)
   const [stage, setStage] = useState<VoiceStage>('idle')
+  const stageRef = useRef<VoiceStage>('idle')
+  const updateStage = (next: VoiceStage) => {
+    stageRef.current = next
+    setStage(next)
+  }
   const [elapsed, setElapsed] = useState(0)
   const [transcript, setTranscript] = useState('')
   const [error, setError] = useState('')
@@ -51,11 +62,15 @@ export function VoiceInputControl({
   const [windowsDesktop, setWindowsDesktop] = useState(false)
   const recognizerRef = useRef<SpeechRecognizer | null>(null)
   const captureRef = useRef<MicrophoneCapture | null>(null)
+  const captureControllerRef = useRef<AbortController | null>(null)
   const unsubscribeRef = useRef<(() => void) | null>(null)
   const operationRef = useRef(0)
   const recordingLimitTimerRef = useRef(0)
   const stopRecordingRef = useRef<() => void>(() => {})
   const stoppingRef = useRef(false)
+  const keyboardOperationRef = useRef<number | null>(null)
+  const permissionOperationRef = useRef<number | null>(null)
+  const closeRef = useRef<() => void>(() => {})
   const anchorRef = useRef<HTMLDivElement>(null)
   const menuRef = useRef<HTMLDivElement>(null)
 
@@ -90,6 +105,9 @@ export function VoiceInputControl({
 
   const releaseResources = async () => {
     clearRecordingLimitTimer()
+    const captureController = captureControllerRef.current
+    captureControllerRef.current = null
+    captureController?.abort()
     unsubscribeRef.current?.()
     unsubscribeRef.current = null
     const capture = captureRef.current
@@ -100,18 +118,32 @@ export function VoiceInputControl({
     await Promise.allSettled([capture?.stop(), recognizer?.dispose()])
   }
 
-  useEffect(
-    () => () => {
-      operationRef.current += 1
-      void releaseResources()
-    },
-    [],
-  )
+  useEffect(() => {
+    const cancel = () => {
+      // Android 授权弹窗也会暂时隐藏页面；仅触控授权阶段等待结果，按住快捷键仍须立即取消。
+      if (
+        permissionOperationRef.current === operationRef.current &&
+        keyboardOperationRef.current !== operationRef.current
+      )
+        return
+      closeRef.current()
+    }
+    const visibility = () => {
+      if (document.visibilityState === 'hidden') cancel()
+    }
+    window.addEventListener('blur', cancel)
+    document.addEventListener('visibilitychange', visibility)
+    return () => {
+      window.removeEventListener('blur', cancel)
+      document.removeEventListener('visibilitychange', visibility)
+      closeRef.current()
+    }
+  }, [sessionId, shortcutEnabled, disabled])
 
   const reset = () => {
     clearRecordingLimitTimer()
     stoppingRef.current = false
-    setStage('idle')
+    updateStage('idle')
     setInitializing(false)
     setElapsed(0)
     setTranscript('')
@@ -119,24 +151,34 @@ export function VoiceInputControl({
   }
 
   const close = () => {
+    keyboardOperationRef.current = null
+    permissionOperationRef.current = null
     operationRef.current += 1
     void releaseResources()
     reset()
   }
 
+  closeRef.current = close
+
+  const canStartRecording = () =>
+    !disabled && (stageRef.current === 'idle' || stageRef.current === 'error')
+
   const startRecording = async () => {
-    if (disabled || stage === 'requesting' || stage === 'recording' || stage === 'transcribing')
-      return
+    if (!canStartRecording()) return
     const operation = ++operationRef.current
+    const captureController = new AbortController()
+    captureControllerRef.current = captureController
     stoppingRef.current = false
-    setStage('requesting')
+    updateStage('requesting')
     setElapsed(0)
     setTranscript('')
     setError('')
 
     const recognizer = createSpeechRecognizer({ chatSessionId: sessionId })
     recognizerRef.current = recognizer
-    unsubscribeRef.current = recognizer.onPartial(setTranscript)
+    unsubscribeRef.current = recognizer.onPartial((text) => {
+      if (recognizerRef.current === recognizer) setTranscript(text)
+    })
     const failStart = async (caught: unknown) => {
       if (operation !== operationRef.current) return
       const failureOperation = ++operationRef.current
@@ -145,25 +187,38 @@ export function VoiceInputControl({
       const message = errorMessage(caught, t('chat:voiceInput.failed'))
       setError(message === 'permission' ? t('chat:voiceInput.permissionDenied') : message)
       setInitializing(false)
-      setStage('error')
+      updateStage('error')
     }
     try {
-      await requestMicrophonePermission()
+      const androidPermission =
+        window.__PISPER_MOBILE_APP__ && window.__PISPER_MOBILE_PLATFORM__ === 'android'
+      if (androidPermission) permissionOperationRef.current = operation
+      try {
+        await requestMicrophonePermission()
+      } finally {
+        if (permissionOperationRef.current === operation) permissionOperationRef.current = null
+      }
       if (operation !== operationRef.current) return
+      // 用户可能在授权期间离开应用；权限结果不能让后台页面开始采集，也不能在下次返回时复活。
+      if (androidPermission && document.visibilityState === 'hidden') {
+        close()
+        return
+      }
       setInitializing(true)
       // 麦克风授权后立即采集，模型在后台加载；识别器负责缓存开头和等待最终转写。
       void recognizer.start().then(() => {
         if (operation === operationRef.current) setInitializing(false)
       }, failStart)
       const capture = await startMicrophoneCapture((samples) => {
-        if (recognizer.acceptPcm(samples)) stopRecordingRef.current()
-      })
+        if (operation === operationRef.current && recognizer.acceptPcm(samples))
+          stopRecordingRef.current()
+      }, captureController.signal)
       if (operation !== operationRef.current) {
         await capture.stop()
         return
       }
       captureRef.current = capture
-      setStage('recording')
+      updateStage('recording')
       if (window.__PISPER_MOBILE_APP__) {
         // 样本计数是主边界，墙钟定时器用于音频回调停滞时仍能按时结束录音。
         recordingLimitTimerRef.current = window.setTimeout(
@@ -177,35 +232,65 @@ export function VoiceInputControl({
   }
 
   const stopRecording = async () => {
-    if (stage !== 'recording' || stoppingRef.current) return
+    if (stageRef.current !== 'recording' || stoppingRef.current) return
+    keyboardOperationRef.current = null
     stoppingRef.current = true
     clearRecordingLimitTimer()
     const operation = ++operationRef.current
-    setStage('transcribing')
+    updateStage('transcribing')
+    const captureController = captureControllerRef.current
+    captureControllerRef.current = null
+    captureController?.abort()
     const capture = captureRef.current
     captureRef.current = null
     const recognizer = recognizerRef.current
     try {
       await capture?.stop()
+      if (operation !== operationRef.current) return
       const finalTranscript = await recognizer?.finish()
       if (operation !== operationRef.current) return
       if (!finalTranscript) throw new Error(t('chat:voiceInput.empty'))
       onInsert(finalTranscript)
       await releaseResources()
+      if (operation !== operationRef.current) return
       reset()
     } catch (caught) {
       if (operation !== operationRef.current) return
       await releaseResources()
+      if (operation !== operationRef.current) return
       const message = errorMessage(caught, t('chat:voiceInput.failed'))
       setError(message === 'permission' ? t('chat:voiceInput.permissionDenied') : message)
       stoppingRef.current = false
-      setStage('error')
+      updateStage('error')
     }
   }
 
-  useEffect(() => {
-    stopRecordingRef.current = () => void stopRecording()
+  stopRecordingRef.current = () => void stopRecording()
+
+  useVoiceShortcut({
+    enabled: shortcutEnabled && !disabled,
+    binding: voiceShortcut,
+    onStart: () => {
+      if (!canStartRecording()) return false
+      void startRecording()
+      keyboardOperationRef.current = operationRef.current
+      return true
+    },
+    onRelease: () => {
+      if (keyboardOperationRef.current !== operationRef.current) return
+      // 授权或采集尚未就绪时松开即作废本轮，并中止仍在初始化中的麦克风。
+      if (!captureRef.current) close()
+      else void stopRecording()
+    },
+    onCancel: () => {
+      if (keyboardOperationRef.current === operationRef.current) close()
+    },
   })
+
+  const buttonLabel = stage === 'recording' ? t('chat:voiceInput.stop') : t('chat:voiceInput.open')
+  const buttonTitle = voiceShortcut
+    ? `${buttonLabel} (${formatShortcut(voiceShortcut)})`
+    : buttonLabel
 
   const stageLabel =
     stage === 'requesting'
@@ -226,6 +311,7 @@ export function VoiceInputControl({
         open={stage !== 'idle'}
         anchorRef={anchorRef}
         menuRef={menuRef}
+        onClose={close}
         placement="top"
         align="end"
         className="voice-input-popup w-[min(370px,calc(100vw-24px))] overflow-hidden rounded-[var(--r-md)] border border-[var(--stroke)] bg-[var(--solid)] text-[var(--text)] shadow-[0_22px_55px_-24px_var(--shadow-strong)]"
@@ -340,8 +426,8 @@ export function VoiceInputControl({
       <button
         type="button"
         className={`grid !size-11 !min-w-11 place-items-center rounded-[var(--r-sm)] border border-transparent transition-[background-color,color,border-color,box-shadow,transform] duration-200 hover:scale-105 disabled:cursor-not-allowed disabled:opacity-45 ${stage === 'recording' ? 'border-[var(--danger)] bg-[var(--danger-soft)] text-[var(--danger-strong)] shadow-[0_0_0_3px_var(--danger-soft)]' : stage === 'transcribing' || stage === 'requesting' ? 'bg-[var(--brand-blue-soft)] text-[var(--brand-blue-strong)]' : stage === 'error' ? 'bg-[var(--danger-soft)] text-[var(--danger-strong)]' : 'bg-[var(--surface-subtle)] text-[var(--text-muted)] hover:border-[var(--brand-blue)] hover:bg-[var(--brand-blue-soft)] hover:text-[var(--brand-blue-strong)]'}`}
-        title={stage === 'recording' ? t('chat:voiceInput.stop') : t('chat:voiceInput.open')}
-        aria-label={stage === 'recording' ? t('chat:voiceInput.stop') : t('chat:voiceInput.open')}
+        title={buttonTitle}
+        aria-label={buttonLabel}
         aria-expanded={stage !== 'idle'}
         disabled={disabled || stage === 'requesting' || stage === 'transcribing'}
         onClick={stage === 'recording' ? () => void stopRecording() : () => void startRecording()}
