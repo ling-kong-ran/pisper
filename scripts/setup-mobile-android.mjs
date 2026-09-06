@@ -19,6 +19,7 @@ import { spawnSync } from 'node:child_process'
 import { assertAndroidEnv, resolveAndroidEnv } from './android-env.mjs'
 import { patchWryAndroidWebChromeClient } from './patch-wry-android.mjs'
 import { stageAndroidSpeechRuntime } from './stage-android-speech-runtime.mjs'
+import { enableAndroidSpeechDesugaring } from './android-speech-desugaring.mjs'
 
 const env = resolveAndroidEnv()
 
@@ -413,6 +414,12 @@ if (nodeLibrary && existsSync(nodeLibrary) && existsSync(nodeHeaders)) {
 } else if (requireEmbeddedNode) {
   throw new Error('缺少已校验的 Android embedded Node staging。')
 }
+
+const speechGradlePath = join(androidDir, 'app', 'build.gradle.kts')
+const speechGradle = readFileSync(speechGradlePath, 'utf8')
+const compatibleSpeechGradle = enableAndroidSpeechDesugaring(speechGradle)
+if (speechGradle !== compatibleSpeechGradle)
+  writeFileSync(speechGradlePath, compatibleSpeechGradle, 'utf8')
 
 // gen/ 不入库，重复构建时也要同步宿主入口，避免 Rust 调用到旧的 Kotlin ABI。
 const hostSourcePath = join(

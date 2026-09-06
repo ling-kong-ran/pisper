@@ -68,7 +68,7 @@ test('一次性转写保持可用并在空闲后卸载识别器', async (t) => {
   const { native, stats } = createFakeNative()
   const service = new SpeechRecognitionService({ modelDir, nativeModule: native, idleUnloadMs: 5 })
   const text = await service.transcribe(new Float32Array(320))
-  assert.equal(text, '共320样本')
+  assert.equal(text, '共16320样本', '保留原始输入并补一秒尾静音')
   assert.equal(stats.created, 1)
   assert.ok(service.recognizer, '转写期间识别器应存活')
   await settle()
@@ -91,7 +91,7 @@ test('流式会话增量返回部分文本，finish 汇总并卸载', async (t) 
   assert.ok(service.recognizer, '存在活跃会话时识别器不应被卸载')
 
   const final = await service.finishSession(id)
-  assert.equal(final.text, '共320样本')
+  assert.equal(final.text, '共16320样本', '只在结束时补尾静音，不污染增量样本计数')
   assert.equal(stats.decodes, 3)
   await settle()
   assert.equal(service.recognizer, null, '会话结束后空闲超时应卸载')
@@ -136,5 +136,5 @@ test('过期会话被清扫，未知会话与空数据被拒绝', async (t) => {
 
 test('模型缺失时给出明确错误', async () => {
   const service = new SpeechRecognitionService({ modelDir: '/nonexistent', nativeModule: null })
-  await assert.rejects(() => service.transcribe(new Float32Array(1)), /语音模型尚未随 Runtime 提供/)
+  await assert.rejects(() => service.transcribe(new Float32Array(1)), /语音模型尚未安装/)
 })

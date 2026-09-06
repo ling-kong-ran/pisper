@@ -1,4 +1,5 @@
 import { waitForMobileRuntimeReady } from '@/lib/http'
+import { createAbortScope, throwIfAborted } from '@/lib/abort-signal'
 import { apiJson } from '@/lib/api'
 import { formatSpeechTerms, speechHotwords } from '@shared/speech-terms.mjs'
 
@@ -63,6 +64,7 @@ class RuntimeSpeechRecognizer implements SpeechRecognizer {
   private listeners = new Set<PartialListener>()
   private controller: AbortController | null = null
   private sessionId = ''
+  private nativeRequestId = ''
   private legacy = false
   private flushTimer = 0
   private sendChain: Promise<void> = Promise.resolve()
@@ -86,7 +88,7 @@ class RuntimeSpeechRecognizer implements SpeechRecognizer {
     const controller = new AbortController()
     this.controller = controller
     await waitForMobileRuntimeReady()
-    controller.signal.throwIfAborted()
+    throwIfAborted(controller.signal)
     if (window.__PISPER_MOBILE_APP__) {
       this.terms = []
       const payload = await apiJson<{ terms: string[] }>(
@@ -99,34 +101,39 @@ class RuntimeSpeechRecognizer implements SpeechRecognizer {
       this.terms = payload.terms
       return
     }
-    const response = await fetch('/api/speech/stream/start', {
-      method: 'POST',
-      headers: { 'X-Pisper-Chat-Session': this.chatSessionId },
-      signal: AbortSignal.any([controller.signal, AbortSignal.timeout(30_000)]),
-    })
-    if (!response.ok) {
-      // 旧版 Runtime 没有流式接口，降级为停止后一次性转写。
-      if (response.status === 404) {
-        this.legacy = true
-        return
-      }
-      throw new Error(await responseError(response))
-    }
-    const payload = (await response.json()) as { id?: string }
-    if (!payload.id) throw new Error('语音识别会话创建失败。')
-    if (controller.signal.aborted) {
-      // 取消可能发生在解析响应期间，已创建的服务端会话不能重新挂回录音控件。
-      await fetch('/api/speech/stream/cancel', {
+    const request = createAbortScope(controller.signal, 30_000)
+    try {
+      const response = await fetch('/api/speech/stream/start', {
         method: 'POST',
-        headers: { 'X-Pisper-Speech-Session': payload.id },
-      }).catch(() => {})
-      controller.signal.throwIfAborted()
+        headers: { 'X-Pisper-Chat-Session': this.chatSessionId },
+        signal: request.signal,
+      })
+      if (!response.ok) {
+        // 旧版 Runtime 没有流式接口，降级为停止后一次性转写。
+        if (response.status === 404) {
+          this.legacy = true
+          return
+        }
+        throw new Error(await responseError(response))
+      }
+      const payload = (await response.json()) as { id?: string }
+      if (!payload.id) throw new Error('语音识别会话创建失败。')
+      if (controller.signal.aborted) {
+        // 取消可能发生在解析响应期间，已创建的服务端会话不能重新挂回录音控件。
+        await fetch('/api/speech/stream/cancel', {
+          method: 'POST',
+          headers: { 'X-Pisper-Speech-Session': payload.id },
+        }).catch(() => {})
+        throwIfAborted(controller.signal)
+      }
+      this.sessionId = payload.id
+      // 模型冷启动期间已经可以录音；创建会话后按原顺序补发缓存，不能丢掉开头。
+      this.pending.push(...this.chunks.splice(0))
+      this.retainedSamples = 0
+      this.flushTimer = window.setInterval(() => void this.flushPending(), 1_000)
+    } finally {
+      request.dispose()
     }
-    this.sessionId = payload.id
-    // 模型冷启动期间已经可以录音；创建会话后按原顺序补发缓存，不能丢掉开头。
-    this.pending.push(...this.chunks.splice(0))
-    this.retainedSamples = 0
-    this.flushTimer = window.setInterval(() => void this.flushPending(), 1_000)
   }
 
   acceptPcm(samples: Float32Array) {
@@ -209,10 +216,20 @@ class RuntimeSpeechRecognizer implements SpeechRecognizer {
       for (let offset = 0; offset < bytes.length; offset += blockSize) {
         binary += String.fromCharCode(...bytes.subarray(offset, offset + blockSize))
       }
+      const controller = this.controller
+      if (!controller) throw new DOMException('Speech recognition cancelled.', 'AbortError')
+      throwIfAborted(controller.signal)
+      const requestId = crypto.randomUUID()
+      this.nativeRequestId = requestId
       const payload = await mobileInvoke<{ text?: string }>('mobile_transcribe_pcm', {
         pcmBase64: btoa(binary),
         hotwords: speechHotwords(this.terms),
+        requestId,
       })
+      // JNI 不能并发强制释放；即使原生推理迟到返回，也不能传播已取消的文字。
+      throwIfAborted(controller.signal)
+      if (this.controller !== controller)
+        throw new DOMException('Speech recognition cancelled.', 'AbortError')
       const text = formatSpeechTerms(
         typeof payload.text === 'string' ? payload.text.trim() : '',
         this.terms,
@@ -259,6 +276,11 @@ class RuntimeSpeechRecognizer implements SpeechRecognizer {
     this.chunks = []
     this.pending = []
     this.retainedSamples = 0
+    if (this.nativeRequestId) {
+      const requestId = this.nativeRequestId
+      this.nativeRequestId = ''
+      await mobileInvoke('mobile_cancel_speech', { requestId }).catch(() => {})
+    }
     if (this.sessionId && !this.legacy) {
       const sessionId = this.sessionId
       this.sessionId = ''
@@ -306,7 +328,7 @@ class PisperVoiceInputProcessor extends AudioWorkletProcessor {
         this.outputBuffer.push(current + (next - current) * fraction)
         this.readPosition += this.ratio
       }
-      const consumed = Math.floor(this.readPosition)
+      const consumed = Math.min(Math.floor(this.readPosition), this.inputBuffer.length)
       if (consumed > 0) {
         this.inputBuffer = this.inputBuffer.slice(consumed)
         this.readPosition -= consumed
@@ -338,7 +360,7 @@ export async function startMicrophoneCapture(
   onPcm: (samples: Float32Array) => void,
   signal?: AbortSignal,
 ) {
-  signal?.throwIfAborted()
+  throwIfAborted(signal)
   if (!navigator.mediaDevices?.getUserMedia) throw new Error('当前环境不支持麦克风采集。')
   if (!window.AudioContext && !window.webkitAudioContext)
     throw new Error('当前环境不支持音频处理。')
@@ -363,7 +385,11 @@ export async function startMicrophoneCapture(
     stopped = true
     signal?.removeEventListener('abort', abort)
     // 先关闭隐私敏感资源，不等待 worklet 加载或 resume 完成。
-    for (const track of stream.getTracks()) track.stop()
+    for (const track of stream.getTracks()) {
+      track.removeEventListener?.('ended', interrupted)
+      track.removeEventListener?.('mute', interrupted)
+      track.stop()
+    }
     closing = context?.close().catch(() => {}) ?? Promise.resolve()
     if (processor) {
       processor.port.onmessage = null
@@ -377,15 +403,30 @@ export async function startMicrophoneCapture(
   const abort = () => {
     void stop()
   }
+  const interrupted = () => {
+    if (stopped) return
+    void stop()
+    window.dispatchEvent(new Event('pisper:speech-interrupted'))
+  }
+  const checkActive = () => {
+    throwIfAborted(signal)
+    if (stopped) throw new DOMException('Microphone capture was interrupted.', 'AbortError')
+  }
   signal?.addEventListener('abort', abort, { once: true })
+  for (const track of stream.getTracks()) {
+    if (stopped) break
+    track.addEventListener?.('ended', interrupted)
+    track.addEventListener?.('mute', interrupted)
+    if (track.readyState === 'ended') interrupted()
+  }
 
   try {
     // getUserMedia 不能取消系统授权弹窗；迟到的流必须在创建音频上下文前立即释放。
-    signal?.throwIfAborted()
+    checkActive()
     const AudioContextConstructor = window.AudioContext || window.webkitAudioContext
     context = new AudioContextConstructor({ latencyHint: 'interactive' })
     await loadVoiceWorklet(context)
-    signal?.throwIfAborted()
+    checkActive()
     source = context.createMediaStreamSource(stream)
     processor = new AudioWorkletNode(context, 'pisper-voice-input', {
       numberOfInputs: 1,
@@ -402,7 +443,7 @@ export async function startMicrophoneCapture(
     processor.connect(gain)
     gain.connect(context.destination)
     await context.resume()
-    signal?.throwIfAborted()
+    checkActive()
   } catch (error) {
     await stop()
     throw error

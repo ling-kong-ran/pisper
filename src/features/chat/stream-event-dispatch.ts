@@ -23,6 +23,7 @@ import {
   handleMobileOperationRequest,
 } from './mobile-operations'
 import { planChanges, pushCurrentActivity, settleToolCalls } from './run-activity'
+import { publishVoiceResponse, type VoiceResponseUpdate } from './voice-response-stream'
 
 const MAX_LIVE_THINKING_CHARS = 6_000
 
@@ -59,6 +60,9 @@ export type StreamDispatchState = {
   thinkingText: string
   thinkingPrefix: string
   queuedDuringRun: boolean
+  runId?: string
+  startedAt?: string
+  terminal?: boolean
 }
 
 type TerminalStateOptions = {
@@ -148,9 +152,35 @@ export function createStreamEventDispatcher({
     )
   }
 
+  const publishResponse = (status: VoiceResponseUpdate['status'], error?: string) => {
+    const messages = sessionStatesRef.current[sessionId]?.messages ?? []
+    const agentIndex = messages.findIndex((message) => message.id === agentId)
+    const prompt = messages
+      .slice(0, Math.max(0, agentIndex))
+      .filter((message) => message.role === 'user')
+      .at(-1)?.text
+    publishVoiceResponse({
+      sessionId,
+      messageId: agentId,
+      prompt,
+      text: state.responseText,
+      runId: state.runId,
+      startedAt: state.startedAt,
+      status,
+      error,
+    })
+  }
+
   const dispatch = (event: string, data: ApiRecord) => {
     const eventAt = new Date().toISOString()
-    if (event === 'meta') {
+    if (event === 'run') {
+      state.runId = typeof data.runId === 'string' ? data.runId : undefined
+      publishResponse('started')
+    } else if (event === 'resync_required') {
+      publishResponse('recovering')
+    } else if (event === 'meta') {
+      state.startedAt = typeof data.startedAt === 'string' ? data.startedAt : undefined
+      publishResponse('started')
       updateSessionState(sessionId, (current) => ({
         ...current,
         model: data.model || current.model,
@@ -305,14 +335,17 @@ export function createStreamEventDispatcher({
     } else if (event === 'text_patch') {
       state.responseRenderingStreaming = true
       state.responseText = applyTextPatch(state.responseText, data)
+      publishResponse('streaming')
       typewriter.setTarget(state.responseText, eventAt)
     } else if (event === 'text_delta') {
       state.responseRenderingStreaming = true
       state.responseText += data.delta || ''
+      publishResponse('streaming')
       typewriter.setTarget(state.responseText, eventAt)
     } else if (event === 'text_end') {
       if (typeof data.text === 'string') state.responseText = data.text
       state.responseRenderingStreaming = false
+      publishResponse('streaming')
       typewriter.setTarget(state.responseText, data.updatedAt || eventAt)
       typewriter.flush()
     } else if (event === 'thinking_reset') {
@@ -525,6 +558,11 @@ export function createStreamEventDispatcher({
       const finishedAt = data.finishedAt || eventAt
       if (typeof data.text === 'string') state.responseText = data.text
       state.responseRenderingStreaming = false
+      state.terminal = true
+      publishResponse(
+        event === 'done' ? 'completed' : 'failed',
+        event === 'error' ? data.message || 'Speech response failed.' : undefined,
+      )
       typewriter.setTarget(state.responseText, finishedAt)
       typewriter.flush()
       thinkingScheduler.flush()

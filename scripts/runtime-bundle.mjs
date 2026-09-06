@@ -20,7 +20,13 @@ const BUILD_EXTERNAL_PACKAGES = [...RUNTIME_EXTERNAL_PACKAGES, 'vite']
 const ENTRY_POINTS = Object.freeze({
   sidecar: 'runtime/sidecar.mjs',
   'mobile-embedded': 'runtime/mobile-embedded.mjs',
+  'workers/speech-inference-worker': 'runtime/workers/speech-inference-worker.mjs',
 })
+const SHARED_RESOURCES = Object.freeze([
+  'speech-model-catalog.json',
+  'speech-resource-notices.json',
+  'speech-resources/xasr-bpe.vocab',
+])
 
 function posixPath(path) {
   return path.replaceAll('\\', '/')
@@ -108,6 +114,7 @@ export async function bundleRuntime({ runtimeDir }) {
   const sourceShared = join(runtimeDir, 'shared')
   const outputRoot = join(runtimeDir, '.pisper-runtime-bundle')
   const outputRuntime = join(outputRoot, 'runtime')
+  const outputShared = join(outputRoot, 'shared')
   const packagePath = join(runtimeDir, 'package.json')
   const packageJson = JSON.parse(await readFile(packagePath, 'utf8'))
   const dependencies = retainedDependencies(packageJson)
@@ -125,7 +132,8 @@ export async function bundleRuntime({ runtimeDir }) {
     target: 'node20',
     conditions: ['node', 'import'],
     outExtension: { '.js': '.mjs' },
-    entryNames: '[name]',
+    // 显式入口名包含 workers 子目录，不能被 [name] 压平成根目录文件。
+    entryNames: '[dir]/[name]',
     chunkNames: 'chunks/[name]-[hash]',
     external: BUILD_EXTERNAL_PACKAGES,
     // ESM chunk 需要真实 Node require，供已打包 CommonJS 依赖动态加载内建模块。
@@ -155,16 +163,33 @@ export async function bundleRuntime({ runtimeDir }) {
     ),
   ])
 
+  // 无前端的 Runtime/TUI 也需要离线来源说明；仅保留可信小资源，不复制模型权重。
+  for (const resource of SHARED_RESOURCES) {
+    const target = join(outputShared, resource)
+    await mkdir(dirname(target), { recursive: true })
+    await cp(join(sourceShared, resource), target)
+  }
+
   await rm(sourceRuntime, { recursive: true, force: true })
   await rename(outputRuntime, sourceRuntime)
-  await rm(outputRoot, { recursive: true, force: true })
   await rm(sourceShared, { recursive: true, force: true })
+  await rename(outputShared, sourceShared)
+  await rm(outputRoot, { recursive: true, force: true })
 
   packageJson.dependencies = dependencies
   await writeFile(packagePath, `${JSON.stringify(packageJson, null, 2)}\n`, 'utf8')
   await writeBundledLicenses(runtimeDir, Object.keys(result.metafile.inputs))
 
-  const files = await collectFiles(sourceRuntime)
+  const files = [
+    ...(await collectFiles(sourceRuntime)).map((file) => ({
+      ...file,
+      path: `runtime/${file.path}`,
+    })),
+    ...(await collectFiles(sourceShared)).map((file) => ({
+      ...file,
+      path: `shared/${file.path}`,
+    })),
+  ]
   const manifest = {
     schema: RUNTIME_BUNDLE_SCHEMA,
     version: RUNTIME_BUNDLE_VERSION,
@@ -175,7 +200,7 @@ export async function bundleRuntime({ runtimeDir }) {
     outputFileCount: files.length,
     outputBytes: files.reduce((sum, file) => sum + file.bytes, 0),
     licenseFile: 'THIRD_PARTY_LICENSES.txt',
-    files: files.map((file) => ({ path: `runtime/${file.path}`, bytes: file.bytes })),
+    files,
   }
   await writeFile(
     join(runtimeDir, 'runtime-bundle-manifest.json'),

@@ -4,6 +4,7 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { spawnSync } from 'node:child_process'
 import { dirname, join, resolve } from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
+import { stageIosSpeechResources } from './stage-ios-speech-resources.mjs'
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..')
 const defaultProjectSpec = join(root, 'src-tauri', 'gen', 'apple', 'project.yml')
@@ -69,7 +70,7 @@ export function injectIosSystemConfigurationFramework(projectSpec) {
   )
 }
 
-function main() {
+async function main() {
   const projectSpecPath = resolve(process.argv[2] || defaultProjectSpec)
   if (!existsSync(projectSpecPath)) {
     throw new Error(`iOS project.yml 不存在：${projectSpecPath}`)
@@ -78,6 +79,7 @@ function main() {
     throw new Error(`iOS 隐私清单不存在：${privacyManifest}`)
   }
 
+  await stageIosSpeechResources({ root })
   ensureGeneratedTauriApiTests()
 
   const current = readFileSync(projectSpecPath, 'utf8')
@@ -94,5 +96,5 @@ function main() {
 }
 
 if (process.argv[1] && import.meta.url === pathToFileURL(resolve(process.argv[1])).href) {
-  main()
+  await main()
 }

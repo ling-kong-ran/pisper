@@ -834,26 +834,221 @@ fn validate_mobile_speech_hotwords(hotwords: &str) -> Result<(), String> {
     Ok(())
 }
 
+fn validate_mobile_speech_id(value: &str) -> Result<(), String> {
+    if value.is_empty()
+        || value.len() > 120
+        || !value.as_bytes()[0].is_ascii_alphanumeric()
+        || !value
+            .bytes()
+            .all(|byte| byte.is_ascii_alphanumeric() || matches!(byte, b'.' | b'_' | b'-'))
+    {
+        return Err("speech_invalid_model_id".into());
+    }
+    Ok(())
+}
+
+fn validate_mobile_speech_request_id(value: &str) -> Result<(), String> {
+    if value.len() != 36
+        || !value.bytes().enumerate().all(|(index, byte)| {
+            if matches!(index, 8 | 13 | 18 | 23) {
+                byte == b'-'
+            } else {
+                byte.is_ascii_hexdigit()
+            }
+        })
+    {
+        return Err("speech_invalid_request_id".into());
+    }
+    Ok(())
+}
+
+fn validate_mobile_speech_text(value: &str) -> Result<(), String> {
+    if value.trim().is_empty() || value.encode_utf16().count() > 400 || value.contains('\0') {
+        return Err("speech_invalid_text".into());
+    }
+    Ok(())
+}
+
+async fn run_mobile_speech<F>(operation: F) -> Result<serde_json::Value, String>
+where
+    F: FnOnce() -> Result<serde_json::Value, String> + Send + 'static,
+{
+    // run_mobile_plugin 会等待原生 resolve；阻塞桥不能占用 WebView 或异步调度线程。
+    tauri::async_runtime::spawn_blocking(operation)
+        .await
+        .map_err(|_| "speech_native_task_failed".to_string())?
+}
+
 #[tauri::command]
-fn mobile_transcribe_pcm(
+async fn mobile_transcribe_pcm(
     app: tauri::AppHandle,
     pcm_base64: String,
     hotwords: Option<String>,
+    model_id: Option<String>,
+    request_id: Option<String>,
 ) -> Result<serde_json::Value, String> {
-    #[cfg(target_os = "android")]
+    #[cfg(any(target_os = "android", target_os = "ios"))]
     {
-        let hotwords = hotwords.unwrap_or_default();
-        validate_mobile_speech_hotwords(&hotwords)?;
-        validate_mobile_pcm_base64(&pcm_base64)?;
-        return app
-            .mobile_device()
-            .transcribe_pcm(pcm_base64, hotwords)
-            .map_err(|error| error.to_string());
+        return run_mobile_speech(move || {
+            let hotwords = hotwords.unwrap_or_default();
+            validate_mobile_speech_hotwords(&hotwords)?;
+            validate_mobile_pcm_base64(&pcm_base64)?;
+            if let Some(id) = model_id.as_deref() {
+                validate_mobile_speech_id(id)?;
+            }
+            if let Some(id) = request_id.as_deref() {
+                validate_mobile_speech_request_id(id)?;
+            }
+            if model_id.is_none() && request_id.is_none() {
+                return app
+                    .mobile_device()
+                    .transcribe_pcm(pcm_base64, hotwords)
+                    .map_err(|error| error.to_string());
+            }
+            app.mobile_device()
+                .transcribe_pcm_with_options(pcm_base64, hotwords, model_id, request_id)
+                .map_err(|error| error.to_string())
+        })
+        .await;
     }
-    #[cfg(not(target_os = "android"))]
+    #[cfg(not(any(target_os = "android", target_os = "ios")))]
     {
-        let _ = (app, pcm_base64, hotwords);
+        let _ = (app, pcm_base64, hotwords, model_id, request_id);
         Err("当前平台不支持本地语音识别。".into())
+    }
+}
+
+#[tauri::command]
+async fn mobile_speech_models(app: tauri::AppHandle) -> Result<serde_json::Value, String> {
+    #[cfg(any(target_os = "android", target_os = "ios"))]
+    {
+        return run_mobile_speech(move || {
+            app.mobile_device()
+                .speech_models()
+                .map_err(|error| error.to_string())
+        })
+        .await;
+    }
+    #[cfg(not(any(target_os = "android", target_os = "ios")))]
+    {
+        let _ = app;
+        Err("speech_platform_unsupported".into())
+    }
+}
+
+#[tauri::command]
+async fn mobile_download_speech_model(
+    app: tauri::AppHandle,
+    model_id: String,
+) -> Result<serde_json::Value, String> {
+    validate_mobile_speech_id(&model_id)?;
+    #[cfg(any(target_os = "android", target_os = "ios"))]
+    {
+        return run_mobile_speech(move || {
+            app.mobile_device()
+                .download_speech_model(model_id)
+                .map_err(|error| error.to_string())
+        })
+        .await;
+    }
+    #[cfg(not(any(target_os = "android", target_os = "ios")))]
+    {
+        let _ = (app, model_id);
+        Err("speech_platform_unsupported".into())
+    }
+}
+
+#[tauri::command]
+async fn mobile_cancel_speech_model_download(
+    app: tauri::AppHandle,
+    model_id: String,
+) -> Result<serde_json::Value, String> {
+    validate_mobile_speech_id(&model_id)?;
+    #[cfg(any(target_os = "android", target_os = "ios"))]
+    {
+        return run_mobile_speech(move || {
+            app.mobile_device()
+                .cancel_speech_model_download(model_id)
+                .map_err(|error| error.to_string())
+        })
+        .await;
+    }
+    #[cfg(not(any(target_os = "android", target_os = "ios")))]
+    {
+        let _ = (app, model_id);
+        Err("speech_platform_unsupported".into())
+    }
+}
+
+#[tauri::command]
+async fn mobile_synthesize_speech(
+    app: tauri::AppHandle,
+    text: String,
+    voice_id: String,
+    request_id: String,
+) -> Result<serde_json::Value, String> {
+    validate_mobile_speech_text(&text)?;
+    validate_mobile_speech_id(&voice_id)?;
+    validate_mobile_speech_request_id(&request_id)?;
+    #[cfg(any(target_os = "android", target_os = "ios"))]
+    {
+        return run_mobile_speech(move || {
+            app.mobile_device()
+                .synthesize_speech(text, voice_id, request_id)
+                .map_err(|error| error.to_string())
+        })
+        .await;
+    }
+    #[cfg(not(any(target_os = "android", target_os = "ios")))]
+    {
+        let _ = (app, text, voice_id, request_id);
+        Err("speech_platform_unsupported".into())
+    }
+}
+
+#[tauri::command]
+async fn mobile_play_speech(
+    app: tauri::AppHandle,
+    audio_id: String,
+    request_id: String,
+) -> Result<serde_json::Value, String> {
+    validate_mobile_speech_request_id(&audio_id)?;
+    validate_mobile_speech_request_id(&request_id)?;
+    #[cfg(any(target_os = "android", target_os = "ios"))]
+    {
+        return run_mobile_speech(move || {
+            app.mobile_device()
+                .play_speech(audio_id, request_id)
+                .map_err(|error| error.to_string())
+        })
+        .await;
+    }
+    #[cfg(not(any(target_os = "android", target_os = "ios")))]
+    {
+        let _ = (app, audio_id, request_id);
+        Err("speech_platform_unsupported".into())
+    }
+}
+
+#[tauri::command]
+async fn mobile_cancel_speech(
+    app: tauri::AppHandle,
+    request_id: String,
+) -> Result<serde_json::Value, String> {
+    validate_mobile_speech_request_id(&request_id)?;
+    #[cfg(any(target_os = "android", target_os = "ios"))]
+    {
+        return run_mobile_speech(move || {
+            app.mobile_device()
+                .cancel_speech(request_id)
+                .map_err(|error| error.to_string())
+        })
+        .await;
+    }
+    #[cfg(not(any(target_os = "android", target_os = "ios")))]
+    {
+        let _ = (app, request_id);
+        Err("speech_platform_unsupported".into())
     }
 }
 
@@ -1195,6 +1390,12 @@ pub fn run_mobile() {
             mobile_pair,
             mobile_request_microphone_permission,
             mobile_transcribe_pcm,
+            mobile_speech_models,
+            mobile_download_speech_model,
+            mobile_cancel_speech_model_download,
+            mobile_synthesize_speech,
+            mobile_play_speech,
+            mobile_cancel_speech,
             mobile_ensure_local_network_permission,
             mobile_pair_lan,
             mobile_sync_model_config,
@@ -1253,9 +1454,47 @@ mod tests {
     use super::{
         recovery_navigation_url, startup_api_context, startup_cookie,
         startup_location_replace_script, validate_mobile_pcm_base64,
-        validate_mobile_speech_hotwords, validate_startup_contract_values, BASE64_STANDARD,
-        MOBILE_VOICE_MAX_BASE64_BYTES,
+        validate_mobile_speech_hotwords, validate_mobile_speech_id,
+        validate_mobile_speech_request_id, validate_mobile_speech_text,
+        validate_startup_contract_values, BASE64_STANDARD, MOBILE_VOICE_MAX_BASE64_BYTES,
     };
+
+    #[test]
+    fn mobile_speech_requests_reject_paths_malformed_ids_and_unbounded_text() {
+        for value in ["x-asr-480ms-int8", "melo-zh-en-female", "v1.1"] {
+            assert!(validate_mobile_speech_id(value).is_ok());
+        }
+        for value in [
+            "",
+            "../model",
+            "/model",
+            "https://model",
+            " model",
+            ".model",
+        ] {
+            assert!(validate_mobile_speech_id(value).is_err());
+        }
+        assert!(validate_mobile_speech_id(&"a".repeat(121)).is_err());
+        for value in [
+            "00000000-0000-4000-8000-000000000001",
+            "AAAAAAAA-AAAA-4AAA-8AAA-AAAAAAAAAAAA",
+        ] {
+            assert!(validate_mobile_speech_request_id(value).is_ok());
+        }
+        for value in [
+            "1-1-1-1-1",
+            "0000000000000400008000000000000000001",
+            "00000000-0000-4000-8000-00000000000g",
+            "",
+        ] {
+            assert!(validate_mobile_speech_request_id(value).is_err());
+        }
+        assert!(validate_mobile_speech_text(&"a".repeat(400)).is_ok());
+        assert!(validate_mobile_speech_text(&"a".repeat(401)).is_err());
+        assert!(validate_mobile_speech_text(&"\u{1f600}".repeat(201)).is_err());
+        assert!(validate_mobile_speech_text(" \n ").is_err());
+        assert!(validate_mobile_speech_text("text\0").is_err());
+    }
 
     #[test]
     fn mobile_pcm_validation_rejects_malformed_and_oversized_payloads() {

@@ -92,8 +92,8 @@ function fixture(t, options = {}) {
   let component
   const window = {
     ...eventHost(),
-    __PISPER_MOBILE_APP__: Boolean(options.android),
-    __PISPER_MOBILE_PLATFORM__: options.android ? 'android' : undefined,
+    __PISPER_MOBILE_APP__: Boolean(options.platform || options.android),
+    __PISPER_MOBILE_PLATFORM__: options.platform ?? (options.android ? 'android' : undefined),
     setInterval: () => 1,
     clearInterval() {},
     setTimeout: () => 1,
@@ -223,8 +223,30 @@ function fixture(t, options = {}) {
       formatShortcut: (binding) => formatShortcut(binding, Boolean(options.mac)),
       matchesShortcut: (event, binding) => matchesShortcut(event, binding, Boolean(options.mac)),
     },
+    'react-dom': { createPortal: (node) => node },
     './voice-input': microphone,
+    './voice-mode-state': {
+      createLevelSmoother: () => ({ push: (value) => value, reset() {} }),
+      pcmLevel: () => 0,
+    },
+    // 端点检测替身：永不停顿自动结束，保留人声标记以免走静音丢弃分支。
+    './voice-endpoint': {
+      createVoiceEndpoint: async () => ({
+        acceptPcm: () => false,
+        hasSpeech: true,
+        reset() {},
+        dispose() {},
+      }),
+    },
     './AnchoredPopupMenu': { AnchoredPopupMenu: 'popup' },
+    './SpeechModelsDialog': { SpeechModelsDialog: 'speech-model-dialog' },
+    './use-speech-models': {
+      useSpeechModels: () => ({
+        models: [{ id: 'asr', status: 'installed' }],
+        ensureReady: async () => {},
+        show() {},
+      }),
+    },
   }
   const load = (name) => {
     const module = { exports: {} }
@@ -239,6 +261,7 @@ function fixture(t, options = {}) {
       document,
       Element: FakeElement,
       DOMException,
+      performance,
       AbortController,
       Error,
     })
@@ -286,26 +309,34 @@ function fixture(t, options = {}) {
       store.bindings.voiceInput = next
       render()
     },
+    // 错误胶囊（无 aria-label 的 button）会渲染在麦克风按钮前面，两者都用 aria-label 区分。
     click() {
-      tree.props.children[1].props.onClick()
+      tree.props.children
+        .find((child) => child && child.type === 'button' && child.props['aria-label'])
+        .props.onClick()
     },
+    // 面板已移除：取消入口收敛为窗口 blur（与原 popup onClose 同一取消路径）。
     close() {
-      tree.props.children[0].props.onClose()
+      window.emit('blur')
     },
     visibility(state) {
       document.visibilityState = state
       document.emit('visibilitychange')
     },
+    // 错误态不再渲染面板文本，错误信息挂在麦克风按钮 title 上。
     get errorText() {
-      const content = tree.props.children[0].props.children.props.children[1]
-      const error = content.props.children[2]
-      return error ? error.props.children[0].props.children : null
+      if (slots[0].value !== 'error') return null
+      return tree.props.children.find(
+        (child) => child && child.type === 'button' && child.props['aria-label'],
+      )?.props.title
     },
     get stage() {
       return slots[0].value
     },
     get buttonTitle() {
-      return tree.props.children[1].props.title
+      return tree.props.children.find(
+        (child) => child && child.type === 'button' && child.props['aria-label'],
+      ).props.title
     },
   }
 }
@@ -433,12 +464,22 @@ for (const modifier of [
   })
 }
 
-for (const reason of ['blur', 'hidden', 'inactive', 'session', 'disabled', 'unmount', 'binding']) {
+for (const reason of [
+  'blur',
+  'interruption',
+  'hidden',
+  'inactive',
+  'session',
+  'disabled',
+  'unmount',
+  'binding',
+]) {
   test(`${reason} cancels capture and ignores late recognition`, async (t) => {
     const f = fixture(t)
     f.window.emit('keydown')
     await f.flush()
     if (reason === 'blur') f.window.emit('blur')
+    if (reason === 'interruption') f.window.emit('pisper:speech-interrupted')
     if (reason === 'hidden') {
       f.document.visibilityState = 'hidden'
       f.document.emit('visibilitychange')
@@ -494,124 +535,148 @@ test('initializer failure after release reports an error without resuming captur
   assert.deepEqual(f.inserted, [])
 })
 
-test('Android touch permission survives hidden and blur, then starts once only after a visible grant', async (t) => {
-  const f = fixture(t, { android: true, permissionPending: true })
-  f.click()
-  await f.flush()
-  assert.equal(f.stage, 'requesting')
-  assert.equal(f.recognizers[0].starts, 0)
-  assert.equal(f.captures.length, 0)
+for (const platform of ['android', 'ios']) {
+  test(
+    platform +
+      ' mobile touch permission survives hidden and blur, then starts once only after a visible grant',
+    async (t) => {
+      const f = fixture(t, { platform, permissionPending: true })
+      f.click()
+      await f.flush()
+      assert.equal(f.stage, 'requesting')
+      assert.equal(f.recognizers[0].starts, 0)
+      assert.equal(f.captures.length, 0)
 
-  f.visibility('hidden')
-  f.window.emit('blur')
-  await f.flush()
-  assert.equal(f.stage, 'requesting')
-  assert.equal(f.recognizers[0].disposes, 0)
-  assert.equal(f.recognizers[0].starts, 0)
-  assert.equal(f.captures.length, 0)
+      f.visibility('hidden')
+      f.window.emit('blur')
+      await f.flush()
+      assert.equal(f.stage, 'requesting')
+      assert.equal(f.recognizers[0].disposes, 0)
+      assert.equal(f.recognizers[0].starts, 0)
+      assert.equal(f.captures.length, 0)
 
-  f.visibility('visible')
-  f.window.emit('focus')
-  await f.flush()
-  assert.equal(f.stage, 'requesting')
-  assert.equal(f.recognizers[0].starts, 0)
-  assert.equal(f.captures.length, 0)
+      f.visibility('visible')
+      f.window.emit('focus')
+      await f.flush()
+      assert.equal(f.stage, 'requesting')
+      assert.equal(f.recognizers[0].starts, 0)
+      assert.equal(f.captures.length, 0)
 
-  f.permission.resolve()
-  await f.flush()
-  f.visibility('visible')
-  f.window.emit('focus')
-  f.recognizers[0].initialize.resolve()
-  await f.flush()
-  assert.equal(f.stage, 'recording')
-  assert.equal(f.recognizers.length, 1)
-  assert.equal(f.recognizers[0].starts, 1)
-  assert.equal(f.captures.length, 1)
-  assert.equal(f.captures[0].signal.aborted, false)
-  assert.equal(f.captures[0].stops, 0)
-  assert.deepEqual(f.inserted, [])
-})
+      f.permission.resolve()
+      await f.flush()
+      f.visibility('visible')
+      f.window.emit('focus')
+      f.recognizers[0].initialize.resolve()
+      await f.flush()
+      assert.equal(f.stage, 'recording')
+      assert.equal(f.recognizers.length, 1)
+      assert.equal(f.recognizers[0].starts, 1)
+      assert.equal(f.captures.length, 1)
+      assert.equal(f.captures[0].signal.aborted, false)
+      assert.equal(f.captures[0].stops, 0)
+      assert.deepEqual(f.inserted, [])
+    },
+  )
 
-test('Android touch grant while still hidden closes without capture and visibility cannot revive it', async (t) => {
-  const f = fixture(t, { android: true, permissionPending: true })
-  f.click()
-  f.visibility('hidden')
-  await f.flush()
-  assert.equal(f.stage, 'requesting')
-  f.permission.resolve()
-  await f.flush()
-  assert.equal(f.stage, 'idle')
-  assert.equal(f.recognizers[0].starts, 0)
-  assert.equal(f.recognizers[0].disposes, 1)
-  assert.equal(f.captures.length, 0)
+  test(
+    platform +
+      ' mobile touch grant while still hidden closes without capture and visibility cannot revive it',
+    async (t) => {
+      const f = fixture(t, { platform, permissionPending: true })
+      f.click()
+      f.visibility('hidden')
+      await f.flush()
+      assert.equal(f.stage, 'requesting')
+      f.permission.resolve()
+      await f.flush()
+      assert.equal(f.stage, 'idle')
+      assert.equal(f.recognizers[0].starts, 0)
+      assert.equal(f.recognizers[0].disposes, 1)
+      assert.equal(f.captures.length, 0)
 
-  f.visibility('visible')
-  f.window.emit('focus')
-  await f.flush()
-  assert.equal(f.stage, 'idle')
-  assert.equal(f.recognizers.length, 1)
-  assert.equal(f.recognizers[0].starts, 0)
-  assert.equal(f.captures.length, 0)
-  assert.deepEqual(f.inserted, [])
-})
+      f.visibility('visible')
+      f.window.emit('focus')
+      await f.flush()
+      assert.equal(f.stage, 'idle')
+      assert.equal(f.recognizers.length, 1)
+      assert.equal(f.recognizers[0].starts, 0)
+      assert.equal(f.captures.length, 0)
+      assert.deepEqual(f.inserted, [])
+    },
+  )
 
-test('Android touch permission denial after visibility returns displays an error without capture', async (t) => {
-  const f = fixture(t, { android: true, permissionPending: true })
-  f.click()
-  f.visibility('hidden')
-  f.visibility('visible')
-  f.permission.reject(new Error('microphone_permission_denied'))
-  await f.flush()
-  assert.equal(f.stage, 'error')
-  assert.equal(f.errorText, 'chat:voiceInput.permissionDenied')
-  assert.equal(f.recognizers[0].starts, 0)
-  assert.equal(f.recognizers[0].disposes, 1)
-  assert.equal(f.captures.length, 0)
-  assert.deepEqual(f.inserted, [])
-})
+  test(
+    platform +
+      ' mobile touch permission denial after visibility returns displays an error without capture',
+    async (t) => {
+      const f = fixture(t, { platform, permissionPending: true })
+      f.click()
+      f.visibility('hidden')
+      f.visibility('visible')
+      f.permission.reject(new Error('microphone_permission_denied'))
+      await f.flush()
+      assert.equal(f.stage, 'error')
+      assert.equal(f.errorText, 'chat:voiceInput.permissionDenied')
+      assert.equal(f.recognizers[0].starts, 0)
+      assert.equal(f.recognizers[0].disposes, 1)
+      assert.equal(f.captures.length, 0)
+      assert.deepEqual(f.inserted, [])
+    },
+  )
 
-test('explicit close during Android touch permission invalidates a late grant', async (t) => {
-  const f = fixture(t, { android: true, permissionPending: true })
-  f.click()
-  f.visibility('hidden')
-  f.close()
-  await f.flush()
-  assert.equal(f.stage, 'idle')
-  f.visibility('visible')
-  f.permission.resolve()
-  await f.flush()
-  assert.equal(f.stage, 'idle')
-  assert.equal(f.recognizers[0].starts, 0)
-  assert.equal(f.recognizers[0].disposes, 1)
-  assert.equal(f.captures.length, 0)
-  assert.deepEqual(f.inserted, [])
-})
+  test(
+    platform + ' explicit close during mobile touch permission invalidates a late grant',
+    async (t) => {
+      const f = fixture(t, { platform, permissionPending: true })
+      f.click()
+      f.visibility('hidden')
+      // 面板已移除：授权等待中的显式取消 = 再次点击按钮（按钮在 requesting 态可点）。
+      // 先重渲拿到 requesting 态的 onClick 分支（无面板后按钮闭包随 stage 切换）。
+      f.render()
+      f.click()
+      await f.flush()
+      assert.equal(f.stage, 'idle')
+      f.visibility('visible')
+      f.permission.resolve()
+      await f.flush()
+      assert.equal(f.stage, 'idle')
+      assert.equal(f.recognizers[0].starts, 0)
+      assert.equal(f.recognizers[0].disposes, 1)
+      assert.equal(f.captures.length, 0)
+      assert.deepEqual(f.inserted, [])
+    },
+  )
 
-test('Android touch hidden after native permission cancels pending capture and stops its late result', async (t) => {
-  const f = fixture(t, { android: true, permissionPending: true, capturePending: true })
-  f.click()
-  f.permission.resolve()
-  await f.flush()
-  assert.equal(f.stage, 'requesting')
-  assert.equal(f.recognizers[0].starts, 1)
-  assert.equal(f.captures.length, 1)
-  assert.equal(f.captures[0].signal.aborted, false)
+  test(
+    platform +
+      ' mobile touch hidden after native permission cancels pending capture and stops its late result',
+    async (t) => {
+      const f = fixture(t, { platform, permissionPending: true, capturePending: true })
+      f.click()
+      f.permission.resolve()
+      await f.flush()
+      assert.equal(f.stage, 'requesting')
+      assert.equal(f.recognizers[0].starts, 1)
+      assert.equal(f.captures.length, 1)
+      assert.equal(f.captures[0].signal.aborted, false)
 
-  f.visibility('hidden')
-  assert.equal(f.captures[0].signal.aborted, true)
-  assert.equal(f.recognizers[0].disposes, 1)
-  f.captures[0].onPcm(new Float32Array([1]))
-  assert.equal(f.recognizers[0].samples, 0)
-  f.visibility('visible')
-  f.captures[0].ready.resolve(f.captures[0])
-  f.recognizers[0].initialize.resolve()
-  await f.flush()
-  assert.equal(f.stage, 'idle')
-  assert.equal(f.captures[0].stops, 1)
-  assert.equal(f.captures.length, 1)
-  assert.equal(f.recognizers[0].starts, 1)
-  assert.deepEqual(f.inserted, [])
-})
+      f.visibility('hidden')
+      assert.equal(f.captures[0].signal.aborted, true)
+      assert.equal(f.recognizers[0].disposes, 1)
+      f.captures[0].onPcm(new Float32Array([1]))
+      assert.equal(f.recognizers[0].samples, 0)
+      f.visibility('visible')
+      f.captures[0].ready.resolve(f.captures[0])
+      f.recognizers[0].initialize.resolve()
+      await f.flush()
+      assert.equal(f.stage, 'idle')
+      assert.equal(f.captures[0].stops, 1)
+      assert.equal(f.captures.length, 1)
+      assert.equal(f.recognizers[0].starts, 1)
+      assert.deepEqual(f.inserted, [])
+    },
+  )
+}
 
 test('desktop touch blur while permission is pending still cancels a late grant', async (t) => {
   const f = fixture(t, { permissionPending: true })
@@ -655,7 +720,7 @@ test('click remains a toggle and keyboard release cannot stop a click-owned reco
   assert.deepEqual(f.inserted, ['dictated text'])
 })
 
-test('popup close cancels a hold, and its later keyup cannot cancel a new click recording', async (t) => {
+test('blur close cancels a hold, and its later keyup cannot cancel a new click recording', async (t) => {
   const f = fixture(t)
   f.window.emit('keydown')
   await f.flush()

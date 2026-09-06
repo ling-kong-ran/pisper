@@ -84,7 +84,7 @@ let manifest = await stageRuntimeClosure({
   manifestPath,
   target,
   appVersion: packageJson.version,
-  includeSpeechModel: true,
+  includeSpeechModel: false,
 })
 const tauriBinaries = await injectSea()
 const executableBytes = (await stat(executablePath)).size

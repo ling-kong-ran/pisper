@@ -1,5 +1,6 @@
 import AVFoundation
 import Contacts
+import CoreFoundation
 import CoreLocation
 import Darwin
 import Foundation
@@ -12,6 +13,60 @@ import WebKit
 
 struct PermissionArgs: Decodable {
   let capability: String
+}
+
+struct SpeechModelArgs: Decodable {
+  let modelId: String
+}
+
+struct SpeechTranscribeArgs: Decodable {
+  let pcmBase64: String
+  let hotwords: String?
+  let modelId: String?
+  let requestId: String?
+}
+
+struct SpeechSynthesisArgs: Decodable {
+  let text: String
+  let voiceId: String
+  let requestId: String
+}
+
+struct SpeechPlaybackArgs: Decodable {
+  let audioId: String
+  let requestId: String
+}
+
+struct SpeechCancelArgs: Decodable {
+  let requestId: String
+}
+
+private struct SpeechBridgeReply: Encodable {
+  let value: Any
+
+  func encode(to encoder: Encoder) throws {
+    var container = encoder.singleValueContainer()
+    switch value {
+    case is NSNull: try container.encodeNil()
+    case let text as String: try container.encode(text)
+    case let number as NSNumber:
+      if CFGetTypeID(number) == CFBooleanGetTypeID() {
+        try container.encode(number.boolValue)
+      } else {
+        let scalar = number.doubleValue
+        guard scalar.isFinite, abs(scalar) <= 9_007_199_254_740_991 else {
+          throw SpeechAudioError("speech_invalid_response")
+        }
+        if scalar.rounded(.towardZero) == scalar { try container.encode(Int64(scalar)) }
+        else { try container.encode(scalar) }
+      }
+    case let values as [Any]:
+      try container.encode(values.map { SpeechBridgeReply(value: $0) })
+    case let values as [String: Any]:
+      try container.encode(values.mapValues { SpeechBridgeReply(value: $0) })
+    default: throw SpeechAudioError("speech_invalid_response")
+    }
+  }
 }
 
 struct OperationParameters: Decodable {
@@ -196,7 +251,7 @@ struct PhotoListResult: Encodable {
 }
 
 final class MobileDevicePlugin: Plugin, UIImagePickerControllerDelegate,
-  UINavigationControllerDelegate, CLLocationManagerDelegate
+  UINavigationControllerDelegate, CLLocationManagerDelegate, SpeechAudioMicrophoneOwner
 {
   private let contactStore = CNContactStore()
   private let locationManager = CLLocationManager()
@@ -205,6 +260,13 @@ final class MobileDevicePlugin: Plugin, UIImagePickerControllerDelegate,
   private var cameraInvoke: Invoke?
   private weak var webView: WKWebView?
   private var keyboardObservers: [NSObjectProtocol] = []
+  private var speechObserver: NSObjectProtocol?
+  private var microphonePermissionRequests = 0
+
+  var speechMicrophoneInUse: Bool {
+    guard let webView else { return false }
+    return webView.microphoneCaptureState != .none
+  }
 
   override init() {
     super.init()
@@ -215,6 +277,23 @@ final class MobileDevicePlugin: Plugin, UIImagePickerControllerDelegate,
   override func load(webview: WKWebView) {
     self.webView = webview
     let center = NotificationCenter.default
+    for observer in keyboardObservers { center.removeObserver(observer) }
+    if let speechObserver { center.removeObserver(speechObserver) }
+    let speech = SpeechAudioService.shared
+    speech.registerMicrophoneOwner(self)
+    speechObserver = center.addObserver(forName: SpeechAudioInterruption.notification,
+      object: speech, queue: .main) { [weak self] note in
+        guard let self, let webView = self.webView, SpeechAudioWebOrigin.trusted(webView.url),
+          SpeechAudioInterruption.shouldForward(source: note.userInfo?["source"] as? String,
+            microphonePermissionPending: self.microphonePermissionRequests > 0) else { return }
+        // 固定脚本再次校验执行时 origin，避免排队期间导航到外站；不拼接用户数据或替换媒体代理。
+        webView.evaluateJavaScript("""
+          if ((location.protocol === 'http:' && location.hostname === '127.0.0.1') ||
+              (location.protocol === 'tauri:' && location.host === 'localhost')) {
+            window.dispatchEvent(new Event('pisper:speech-interrupted'));
+          }
+          """)
+      }
     let names: [(Notification.Name, Bool)] = [
       (UIResponder.keyboardDidShowNotification, true),
       (UIResponder.keyboardDidChangeFrameNotification, true),
@@ -232,6 +311,7 @@ final class MobileDevicePlugin: Plugin, UIImagePickerControllerDelegate,
   }
 
   deinit {
+    if let speechObserver { NotificationCenter.default.removeObserver(speechObserver) }
     for observer in keyboardObservers {
       NotificationCenter.default.removeObserver(observer)
     }
@@ -335,11 +415,19 @@ final class MobileDevicePlugin: Plugin, UIImagePickerControllerDelegate,
         ])
       }
     case "microphone":
-      AVAudioSession.sharedInstance().requestRecordPermission { _ in
-        invoke.resolve([
-          "capability": "microphone",
-          "state": self.authorizationState("microphone"),
-        ])
+      DispatchQueue.main.async {
+        let session = AVAudioSession.sharedInstance()
+        let pending = session.recordPermission == .undetermined
+        if pending { self.microphonePermissionRequests += 1 }
+        session.requestRecordPermission { _ in
+          DispatchQueue.main.async {
+            if pending { self.microphonePermissionRequests -= 1 }
+            invoke.resolve([
+              "capability": "microphone",
+              "state": self.authorizationState("microphone"),
+            ])
+          }
+        }
       }
     case "location":
       if authorizationState("location") == "prompt" {
@@ -389,6 +477,55 @@ final class MobileDevicePlugin: Plugin, UIImagePickerControllerDelegate,
     default:
       invoke.reject("Unsupported mobile capability: \(args.capability)")
     }
+  }
+
+  private func speechCompletion(_ invoke: Invoke) -> SpeechAudioService.Completion {
+    { result in
+      switch result {
+      case .success(let value): invoke.resolve(SpeechBridgeReply(value: value))
+      case .failure(let error): invoke.reject(SpeechAudioError.code(error))
+      }
+    }
+  }
+
+  @objc public func speechModels(_ invoke: Invoke) {
+    SpeechAudioService.shared.modelOperation("list", completion: speechCompletion(invoke))
+  }
+
+  @objc public func downloadSpeechModel(_ invoke: Invoke) throws {
+    let args = try invoke.parseArgs(SpeechModelArgs.self)
+    SpeechAudioService.shared.modelOperation("download", modelId: args.modelId,
+      completion: speechCompletion(invoke))
+  }
+
+  @objc public func cancelSpeechModelDownload(_ invoke: Invoke) throws {
+    let args = try invoke.parseArgs(SpeechModelArgs.self)
+    SpeechAudioService.shared.modelOperation("cancel", modelId: args.modelId,
+      completion: speechCompletion(invoke))
+  }
+
+  @objc public func transcribePcm(_ invoke: Invoke) throws {
+    let args = try invoke.parseArgs(SpeechTranscribeArgs.self)
+    SpeechAudioService.shared.transcribe(pcmBase64: args.pcmBase64,
+      hotwords: args.hotwords ?? "", modelId: args.modelId, requestId: args.requestId,
+      completion: speechCompletion(invoke))
+  }
+
+  @objc public func synthesizeSpeech(_ invoke: Invoke) throws {
+    let args = try invoke.parseArgs(SpeechSynthesisArgs.self)
+    SpeechAudioService.shared.synthesize(text: args.text, voiceId: args.voiceId,
+      requestId: args.requestId, completion: speechCompletion(invoke))
+  }
+
+  @objc public func playSpeech(_ invoke: Invoke) throws {
+    let args = try invoke.parseArgs(SpeechPlaybackArgs.self)
+    SpeechAudioService.shared.play(audioId: args.audioId, requestId: args.requestId,
+      completion: speechCompletion(invoke))
+  }
+
+  @objc public func cancelSpeech(_ invoke: Invoke) throws {
+    let args = try invoke.parseArgs(SpeechCancelArgs.self)
+    SpeechAudioService.shared.cancel(requestId: args.requestId, completion: speechCompletion(invoke))
   }
 
   @objc public func openAppSettings(_ invoke: Invoke) {

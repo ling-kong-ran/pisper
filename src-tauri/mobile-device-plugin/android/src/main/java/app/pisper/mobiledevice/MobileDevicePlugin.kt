@@ -35,11 +35,6 @@ import android.provider.ContactsContract
 import android.provider.MediaStore
 import android.provider.Settings
 import android.util.Base64
-import com.k2fsa.sherpa.onnx.FeatureConfig
-import com.k2fsa.sherpa.onnx.OnlineModelConfig
-import com.k2fsa.sherpa.onnx.OnlineRecognizer
-import com.k2fsa.sherpa.onnx.OnlineRecognizerConfig
-import com.k2fsa.sherpa.onnx.OnlineTransducerModelConfig
 import androidx.activity.result.ActivityResult
 import androidx.core.content.ContextCompat
 import androidx.core.content.FileProvider
@@ -83,6 +78,7 @@ private const val SPEECH_FLOAT_BYTES = 4
 private const val SPEECH_MAX_PCM_BYTES =
     SPEECH_SAMPLE_RATE * SPEECH_MAX_DURATION_SECONDS * SPEECH_FLOAT_BYTES
 private const val SPEECH_MAX_BASE64_CHARS = ((SPEECH_MAX_PCM_BYTES + 2) / 3) * 4
+private val SPEECH_CONTROL = Executors.newFixedThreadPool(2)
 private val PHOTO_ID = Regex("^[0-9]+$")
 private val ALBUM_NAME = Regex("^[^/\\\\]{1,120}$")
 private val PHONE_NUMBER = Regex("^[+*#0-9(). \\-]{1,64}$")
@@ -143,6 +139,31 @@ class ImportWorkspaceArgs {
 class TranscribeArgs {
     var pcmBase64: String = ""
     var hotwords: String = ""
+    var modelId: String? = null
+    var requestId: String? = null
+}
+
+@InvokeArg
+class SpeechModelArgs {
+    var modelId: String = ""
+}
+
+@InvokeArg
+class SpeechSynthesisArgs {
+    var text: String = ""
+    var voiceId: String = ""
+    var requestId: String = ""
+}
+
+@InvokeArg
+class SpeechPlaybackArgs {
+    var audioId: String = ""
+    var requestId: String = ""
+}
+
+@InvokeArg
+class SpeechCancelArgs {
+    var requestId: String = ""
 }
 
 class PisperAssetFileProvider : FileProvider()
@@ -170,8 +191,10 @@ class PisperAssetFileProvider : FileProvider()
 )
 class MobileDevicePlugin(private val activity: Activity) : Plugin(activity) {
     private val worker = Executors.newSingleThreadExecutor()
-    // 共享执行器会排队任务，因此必须在入队前占位，避免多个昂贵识别任务连续占用内存与 CPU。
+    // 在入队前占位，避免多个录音 PCM 排队；ASR/TTS 另由全局串行语音执行器互斥。
     private val speechInFlight = AtomicBoolean(false)
+    private val speechModels = SpeechModelStore.get(activity.applicationContext)
+    private val speechAudio = SpeechAudioService(activity, speechModels)
     private val workspaceImportInFlight = AtomicBoolean(false)
 
     private fun state(alias: String): String = getPermissionState(alias).toString().lowercase()
@@ -327,44 +350,49 @@ class MobileDevicePlugin(private val activity: Activity) : Plugin(activity) {
         }
     }
 
-    private fun recognizeSpeech(samples: FloatArray, hotwords: String): String {
-        val recognizer = OnlineRecognizer(
-            activity.assets,
-            OnlineRecognizerConfig(
-                featConfig = FeatureConfig(sampleRate = SPEECH_SAMPLE_RATE, featureDim = 80),
-                modelConfig = OnlineModelConfig(
-                    // X-ASR 480ms 使用中英标点 transducer，BPE 词表需与三个网络文件配套。
-                    transducer = OnlineTransducerModelConfig(
-                        encoder = "speech-model/encoder.int8.onnx",
-                        decoder = "speech-model/decoder.onnx",
-                        joiner = "speech-model/joiner.int8.onnx",
-                    ),
-                    tokens = "speech-model/tokens.txt",
-                    modelingUnit = "bpe",
-                    bpeVocab = "speech-model/bpe.vocab",
-                    numThreads = 1,
-                    provider = "cpu",
-                ),
-                decodingMethod = if (hotwords.isEmpty()) "greedy_search" else "modified_beam_search",
-                maxActivePaths = 2,
-                hotwordsScore = 1.5f,
-            ),
-        )
-        try {
-            // 当前 Kotlin AAR 没有 hotwordsBuf；流级热词使用斜线分隔，无需写入设备文件。
-            val stream = recognizer.createStream(hotwords.replace('\n', '/'))
+    private fun speechModelOperation(invoke: Invoke, operation: () -> JSObject) {
+        SPEECH_CONTROL.execute {
             try {
-                stream.acceptWaveform(samples, SPEECH_SAMPLE_RATE)
-                while (recognizer.isReady(stream)) recognizer.decode(stream)
-                stream.inputFinished()
-                while (recognizer.isReady(stream)) recognizer.decode(stream)
-                return recognizer.getResult(stream).text.trim()
-            } finally {
-                stream.release()
+                invoke.resolve(operation())
+            } catch (error: Throwable) {
+                invoke.reject(error.message?.takeIf { it.matches(Regex("speech_[a-z0-9_]+")) }
+                    ?: "speech_model_operation_failed")
             }
-        } finally {
-            recognizer.release()
         }
+    }
+
+    @Command
+    fun speechModels(invoke: Invoke) = speechModelOperation(invoke) { speechModels.listModels() }
+
+    @Command
+    fun downloadSpeechModel(invoke: Invoke) {
+        val args = invoke.parseArgs(SpeechModelArgs::class.java)
+        speechModelOperation(invoke) { speechModels.download(args.modelId) }
+    }
+
+    @Command
+    fun cancelSpeechModelDownload(invoke: Invoke) {
+        val args = invoke.parseArgs(SpeechModelArgs::class.java)
+        speechModelOperation(invoke) { speechModels.cancelDownload(args.modelId) }
+    }
+
+    @Command
+    fun synthesizeSpeech(invoke: Invoke) {
+        val args = invoke.parseArgs(SpeechSynthesisArgs::class.java)
+        speechAudio.synthesize(args.text, args.voiceId, args.requestId,
+            { invoke.resolve(it) }, { invoke.reject(it) })
+    }
+
+    @Command
+    fun playSpeech(invoke: Invoke) {
+        val args = invoke.parseArgs(SpeechPlaybackArgs::class.java)
+        speechAudio.play(args.audioId, args.requestId, { invoke.resolve(it) }, { invoke.reject(it) })
+    }
+
+    @Command
+    fun cancelSpeech(invoke: Invoke) {
+        val args = invoke.parseArgs(SpeechCancelArgs::class.java)
+        speechAudio.cancel(args.requestId, { invoke.resolve(it) }, { invoke.reject(it) })
     }
 
     @Command
@@ -393,16 +421,11 @@ class MobileDevicePlugin(private val activity: Activity) : Plugin(activity) {
         }
 
         try {
-            worker.execute {
-                try {
-                    val text = recognizeSpeech(decodeSpeechSamples(pcmBase64), hotwords)
-                    invoke.resolve(JSObject().apply { put("text", text) })
-                } catch (error: Throwable) {
-                    invoke.reject(error.message ?: "Speech recognition failed")
-                } finally {
-                    speechInFlight.set(false)
-                }
-            }
+            speechAudio.transcribe(
+                args.modelId, args.requestId, { decodeSpeechSamples(pcmBase64) }, hotwords,
+                { result -> speechInFlight.set(false); invoke.resolve(result) },
+                { error -> speechInFlight.set(false); invoke.reject(error) },
+            )
         } catch (error: Throwable) {
             speechInFlight.set(false)
             invoke.reject(error.message ?: "Speech recognition failed")

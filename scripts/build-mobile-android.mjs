@@ -7,8 +7,9 @@ import { join, dirname } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { spawnSync } from 'node:child_process'
 import { assertAndroidEnv, resolveAndroidEnv } from './android-env.mjs'
-import { stageAndroidSpeechModel } from './stage-android-speech-model.mjs'
+import { stageAndroidSpeechResources } from './stage-android-speech-model.mjs'
 import { stageAndroidSpeechRuntime } from './stage-android-speech-runtime.mjs'
+import { enableAndroidSpeechDesugaring } from './android-speech-desugaring.mjs'
 
 const env = resolveAndroidEnv()
 
@@ -31,6 +32,10 @@ const run = (command, args, { shell = process.platform === 'win32' } = {}) => {
 }
 
 assertAndroidEnv(env)
+const appGradlePath = join(root, 'src-tauri', 'gen', 'android', 'app', 'build.gradle.kts')
+const appGradle = readFileSync(appGradlePath, 'utf8')
+const compatibleGradle = enableAndroidSpeechDesugaring(appGradle)
+if (compatibleGradle !== appGradle) writeFileSync(appGradlePath, compatibleGradle, 'utf8')
 
 if (process.platform === 'win32') {
   // Cargo registry 与工程跨盘符时，Kotlin 增量缓存无法计算相对路径。
@@ -57,23 +62,13 @@ run('npm', ['run', 'build'])
 
 console.log('==> staging Android sherpa 原生 Runtime')
 await stageAndroidSpeechRuntime({ root })
-console.log('==> 重新 staging 当前移动嵌入 Runtime 与 Android 语音模型')
+console.log('==> 重新 staging 当前移动嵌入 Runtime 与 Android 语音 catalog/BPE')
 run(process.execPath, [join(root, 'scripts', 'build-mobile-runtime.mjs')], { shell: false })
-await stageAndroidSpeechModel({
-  sourceDir: join(root, 'release', 'mobile-speech-model'),
-  targetDir: join(
-    root,
-    'src-tauri',
-    'gen',
-    'android',
-    'app',
-    'src',
-    'main',
-    'assets',
-    'speech-model',
-  ),
-})
 const androidAssetsDir = join(root, 'src-tauri', 'gen', 'android', 'app', 'src', 'main', 'assets')
+await stageAndroidSpeechResources({
+  sourceDir: join(root, 'shared'),
+  targetDir: androidAssetsDir,
+})
 mkdirSync(androidAssetsDir, { recursive: true })
 copyFileSync(
   join(root, 'release', 'pisper-embedded-runtime.tar.gz'),

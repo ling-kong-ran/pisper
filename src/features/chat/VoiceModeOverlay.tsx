@@ -1,7 +1,13 @@
 // 语音对话模式全屏页：1:1 复刻 AsLive 的极简布局——纯黑底、左上角品牌字标、
 // 中央巨型点云球、底部单个胶囊主按钮、右下角通话计时。没有多余控件：
 // 空格/主按钮开始或结束对话，Esc 退出。
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
+import { AudioLines, Mic, MicOff, Square, X } from 'lucide-react'
+import { Button } from '@/components/ui/button'
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
+import { SpeechModelsDialog } from './SpeechModelsDialog'
+import { useSpeechModels } from './use-speech-models'
+import { playLocalSpeech } from './speech-output'
 import { createPortal } from 'react-dom'
 import { useI18n } from '@/app/use-i18n'
 import { DigitalOrb } from './DigitalOrb'
@@ -66,11 +72,12 @@ function useResponsiveOrbSize(open: boolean) {
   const [size, setSize] = useState(() =>
     typeof window === 'undefined'
       ? 380
-      : Math.min(window.innerWidth * 0.52, window.innerHeight * 0.52, 460),
+      : Math.max(48, Math.min(window.innerWidth * 0.52, window.innerHeight - 304, 460)),
   )
   useEffect(() => {
     if (!open) return undefined
-    const update = () => setSize(Math.min(window.innerWidth * 0.52, window.innerHeight * 0.52, 460))
+    const update = () =>
+      setSize(Math.max(48, Math.min(window.innerWidth * 0.52, window.innerHeight - 304, 460)))
     update()
     window.addEventListener('resize', update)
     return () => window.removeEventListener('resize', update)
@@ -82,15 +89,37 @@ export function VoiceModeOverlay({
   open,
   sessionId,
   messages,
+  streaming,
   sendPrompt,
   onAbort,
   onClose,
 }: VoiceModeOverlayProps) {
   const { t } = useI18n()
   const dark = useIsDarkTheme()
-  const voice = useVoiceSession({ open, sessionId, messages, sendPrompt, onAbort })
+  const models = useSpeechModels(['asr', 'tts'])
+  const voice = useVoiceSession({
+    open,
+    sessionId,
+    messages,
+    streaming,
+    sendPrompt,
+    onAbort,
+    ensureReady: models.ensureReady,
+    speakText: (text, signal, onSpeaking) =>
+      playLocalSpeech(text, models.selectedVoice, signal, onSpeaking),
+  })
   const { stage, level, partial, turns, error, elapsed } = voice
   const orbSize = useResponsiveOrbSize(open)
+  const dialogRef = useRef<HTMLDivElement>(null)
+  useEffect(() => {
+    if (!open) return
+    const previous = document.activeElement
+    dialogRef.current?.focus({ preventScroll: true })
+    return () => {
+      if (previous instanceof HTMLElement && previous.isConnected)
+        previous.focus({ preventScroll: true })
+    }
+  }, [open])
 
   const active =
     stage === 'listening' ||
@@ -102,10 +131,36 @@ export function VoiceModeOverlay({
   useEffect(() => {
     if (!open) return undefined
     const onKey = (event: KeyboardEvent) => {
+      if (models.open || event.defaultPrevented || event.isComposing) return
       if (event.key === 'Escape') {
+        event.preventDefault()
         voice.hangUp()
         onClose()
+        return
       }
+      if (event.key === 'Tab') {
+        const buttons = [
+          ...(dialogRef.current?.querySelectorAll<HTMLButtonElement>('button:not(:disabled)') ||
+            []),
+        ]
+        const first = buttons[0]
+        const last = buttons[buttons.length - 1]
+        if (
+          event.shiftKey &&
+          (document.activeElement === first || document.activeElement === dialogRef.current)
+        ) {
+          event.preventDefault()
+          last?.focus()
+        } else if (!event.shiftKey && document.activeElement === last) {
+          event.preventDefault()
+          first?.focus()
+        }
+      }
+      if (
+        event.target instanceof Element &&
+        event.target.closest('input, textarea, select, button, [contenteditable="true"]')
+      )
+        return
       if (event.key === ' ' && !event.repeat) {
         event.preventDefault()
         if (active) voice.hangUp()
@@ -116,7 +171,7 @@ export function VoiceModeOverlay({
     return () => window.removeEventListener('keydown', onKey)
     // 键盘行为跟随最新回调，但只在开关时绑定一次。
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open, onClose, active])
+  }, [open, onClose, active, models.open])
 
   if (!open) return null
 
@@ -133,7 +188,9 @@ export function VoiceModeOverlay({
 
   return createPortal(
     <div
-      className={`fixed inset-0 z-[90] flex flex-col overflow-hidden select-none ${dark ? 'bg-[#030304] text-[#cfe8ff]' : 'bg-[#f2f5fa] text-[#1e2c42]'}`}
+      className={`fixed inset-0 z-[90] grid grid-rows-[minmax(0,1fr)_100px_108px] overflow-hidden select-none ${dark ? 'bg-[#030304] text-[#cfe8ff]' : 'bg-[#f2f5fa] text-[#1e2c42]'}`}
+      ref={dialogRef}
+      tabIndex={-1}
       role="dialog"
       aria-modal="true"
       aria-label={t('chat:voiceMode.title')}
@@ -151,29 +208,65 @@ export function VoiceModeOverlay({
         </span>
       </header>
 
+      <div className="absolute top-4 right-4 flex items-center gap-1">
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Button
+              variant="ghost"
+              size="icon-sm"
+              aria-label={t('chat:speechModels.title')}
+              onClick={() => {
+                voice.hangUp()
+                models.show()
+              }}
+            >
+              <AudioLines />
+            </Button>
+          </TooltipTrigger>
+          <TooltipContent>{t('chat:speechModels.title')}</TooltipContent>
+        </Tooltip>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Button
+              variant="ghost"
+              size="icon-sm"
+              aria-label={t('chat:speechModels.close')}
+              onClick={() => {
+                voice.hangUp()
+                onClose()
+              }}
+            >
+              <X />
+            </Button>
+          </TooltipTrigger>
+          <TooltipContent>{t('chat:speechModels.close')}</TooltipContent>
+        </Tooltip>
+      </div>
+      <SpeechModelsDialog manager={models} onClose={() => voice.hangUp()} />
+
       {/* 中央点云球 */}
-      <div className="flex min-h-0 flex-1 items-center justify-center">
+      <div className="flex min-h-0 items-center justify-center pt-16 pb-6">
         <DigitalOrb stage={stage} level={level} size={orbSize} dark={dark} />
       </div>
 
       {/* 状态行 + 字幕 */}
-      <div className="pointer-events-none absolute inset-x-0 bottom-[120px] flex flex-col items-center gap-3 px-6 text-center">
+      <div className="pointer-events-none flex min-h-0 flex-col items-center justify-center gap-2 px-6 text-center">
         <div
-          className={`text-[11px] font-semibold uppercase tracking-[0.34em] ${stage === 'error' ? 'text-[#f87171]' : dark ? 'text-[#5f7a94]' : 'text-[#7488a0]'}`}
+          className={`line-clamp-2 text-[11px] font-semibold uppercase tracking-normal ${stage === 'error' ? 'text-[#f87171]' : dark ? 'text-[#5f7a94]' : 'text-[#7488a0]'}`}
           role="status"
           aria-live="polite"
         >
           {statusLabel}
         </div>
         <p
-          className={`m-0 min-h-[22px] max-w-[640px] text-[15px] leading-[1.6] ${dark ? 'text-[#d7e6f7]' : 'text-[#24344d]'}`}
+          className={`m-0 line-clamp-2 min-h-[22px] max-w-[640px] text-[15px] leading-[1.6] ${dark ? 'text-[#d7e6f7]' : 'text-[#24344d]'}`}
         >
           {caption}
         </p>
       </div>
 
       {/* 底部中央：唯一的胶囊主按钮 */}
-      <div className="absolute inset-x-0 bottom-9 flex justify-center">
+      <div className="relative flex justify-center pt-3 sm:items-center sm:pt-0">
         <button
           type="button"
           className={`h-11 cursor-pointer rounded-full border bg-transparent px-9 text-[11px] font-semibold uppercase tracking-[0.3em] transition-[box-shadow,background-color,border-color] duration-300 ${
@@ -188,9 +281,9 @@ export function VoiceModeOverlay({
       </div>
 
       {/* 右下：通话计时 */}
-      <div className="pointer-events-none absolute bottom-9 right-7 flex items-center gap-2.5">
+      <div className="pointer-events-none absolute bottom-3 right-5 flex items-center gap-2.5 sm:bottom-9 sm:right-7">
         <span
-          className="grid size-9 place-items-center rounded-full bg-[linear-gradient(135deg,#2563eb,#38bdf8)] text-[10px] font-bold text-white shadow-[0_0_18px_rgba(56,189,248,.4)]"
+          className="hidden size-9 place-items-center rounded-full sm:grid bg-[linear-gradient(135deg,#2563eb,#38bdf8)] text-[10px] font-bold text-white shadow-[0_0_18px_rgba(56,189,248,.4)]"
           aria-hidden="true"
         >
           {active ? '●' : '○'}
@@ -202,11 +295,43 @@ export function VoiceModeOverlay({
         </span>
       </div>
 
-      {/* 左下：退出提示 */}
-      <div
-        className={`pointer-events-none absolute bottom-11 left-7 text-[10px] uppercase tracking-[0.24em] ${dark ? 'text-[#3d4c5f]' : 'text-[#9aa9bc]'}`}
-      >
-        {t('chat:voiceMode.escHint')}
+      <div className="absolute bottom-[60px] left-5 sm:bottom-9 sm:left-7">
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Button
+              variant="ghost"
+              size="icon"
+              disabled={!active && !voice.muted}
+              aria-label={
+                stage === 'speaking' || stage === 'thinking'
+                  ? t('chat:voiceMode.interrupt')
+                  : voice.muted
+                    ? t('chat:voiceMode.unmute')
+                    : t('chat:voiceMode.mute')
+              }
+              onClick={() =>
+                stage === 'speaking' || stage === 'thinking'
+                  ? voice.interrupt()
+                  : voice.toggleMute()
+              }
+            >
+              {stage === 'speaking' || stage === 'thinking' ? (
+                <Square />
+              ) : voice.muted ? (
+                <MicOff />
+              ) : (
+                <Mic />
+              )}
+            </Button>
+          </TooltipTrigger>
+          <TooltipContent>
+            {stage === 'speaking' || stage === 'thinking'
+              ? t('chat:voiceMode.interrupt')
+              : voice.muted
+                ? t('chat:voiceMode.unmute')
+                : t('chat:voiceMode.mute')}
+          </TooltipContent>
+        </Tooltip>
       </div>
     </div>,
     document.body,

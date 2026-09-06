@@ -204,6 +204,7 @@ export function usePromptCommands({
         // 重挂时服务端缓冲已溢出（缺口）：增量不再可信。立即释放本地流所有权，
         // 移交实时快照轮询补齐后续状态——run 在服务端继续推进，不中断。
         if (event === 'resync_required') {
+          dispatcher.dispatch(event, data)
           streamGenerationRef.current.delete(sessionId)
           localStreamSessionsRef.current.delete(sessionId)
           void syncLiveSession(sessionId)
@@ -301,7 +302,12 @@ export function usePromptCommands({
           })
         }
         // Reconcile every optimistic SSE bubble with the durable transcript after the run settles.
-        await loadSessionMessages(sessionId, { force: true })
+        try {
+          await loadSessionMessages(sessionId, { force: true })
+        } catch (error) {
+          // 回复已完成，消息页加载失败仅影响元数据，不应把成功回复改成运行错误。
+          updateSessionState(sessionId, { loading: false, error: chatErrorMessage(error) })
+        }
         if (
           goalMode ||
           teamMode ||
@@ -330,6 +336,14 @@ export function usePromptCommands({
         })
       } catch (error) {
         if (!ownsStream()) return
+        if ((streamState.runId || streamState.startedAt) && !streamState.terminal) {
+          // 传输耗尽重试不代表 run 失败；保留语音轮所有权并移交快照确认终态。
+          dispatcher.dispatch('resync_required', {})
+          streamGenerationRef.current.delete(sessionId)
+          localStreamSessionsRef.current.delete(sessionId)
+          void syncLiveSession(sessionId)
+          return
+        }
         streamFailed = true
         typewriter.cancel()
         thinkingScheduler.flush()

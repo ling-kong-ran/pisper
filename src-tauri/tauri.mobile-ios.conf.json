@@ -4,6 +4,7 @@
     "externalBin": [],
     "resources": ["pisper-embedded-runtime.tar.gz"],
     "iOS": {
+      "minimumSystemVersion": "15.1",
       "frameworks": ["../release/mobile-node-ios/NodeMobile.xcframework"]
     }
   }

@@ -28,13 +28,17 @@ function fixture(t, options = {}) {
   const contexts = []
   const processors = []
   const samples = []
+  const interruptions = []
   let requests = 0
-  const tracks = Array.from({ length: 2 }, () => ({
-    stops: 0,
-    stop() {
-      this.stops += 1
-    },
-  }))
+  const tracks = Array.from({ length: 2 }, (_, index) =>
+    Object.assign(new EventTarget(), {
+      stops: 0,
+      readyState: options.endedInitially && index === 0 ? 'ended' : 'live',
+      stop() {
+        this.stops += 1
+      },
+    }),
+  )
   const stream = { getTracks: () => tracks }
   const node = () => ({
     connections: 0,
@@ -97,7 +101,16 @@ function fixture(t, options = {}) {
     }
   }
   Object.defineProperties(globalThis, {
-    window: { configurable: true, value: { AudioContext: FakeAudioContext } },
+    window: {
+      configurable: true,
+      value: {
+        AudioContext: FakeAudioContext,
+        dispatchEvent: (event) => {
+          interruptions.push(event.type)
+          return true
+        },
+      },
+    },
     navigator: {
       configurable: true,
       value: {
@@ -133,6 +146,7 @@ function fixture(t, options = {}) {
     tracks,
     stream,
     samples,
+    interruptions,
     onPcm: (pcm) => samples.push(Array.from(pcm)),
     requests: () => requests,
   }
@@ -152,6 +166,47 @@ function assertStopped(f) {
     assert.equal(processor.port.onmessage, null)
   }
 }
+
+for (const reason of ['ended', 'mute']) {
+  for (const phase of ['worklet', 'resume', 'ready']) {
+    test(`${reason} during ${phase} stops hardware and invalidates the shared round even without an external signal`, async (t) => {
+      const f = fixture(t, { [`${phase}Pending`]: phase !== 'ready' })
+      const starting = startMicrophoneCapture(f.onPcm)
+      await setImmediate()
+      const rejection = phase === 'ready' ? null : assert.rejects(starting, { name: 'AbortError' })
+      f.tracks[0].dispatchEvent(new Event(reason))
+      assertStopped(f)
+      assert.deepEqual(f.interruptions, ['pisper:speech-interrupted'])
+      f.tracks[1].dispatchEvent(new Event(reason))
+      assert.equal(f.interruptions.length, 1)
+      if (phase === 'ready') await (await starting).stop()
+      else {
+        f[phase].resolve()
+        await rejection
+      }
+      assertStopped(f)
+      assert.deepEqual(f.samples, [])
+    })
+  }
+}
+
+test('an already ended stream cannot initialize an audio context or leak listeners on remaining tracks', async (t) => {
+  const f = fixture(t, { endedInitially: true })
+  await assert.rejects(startMicrophoneCapture(f.onPcm), { name: 'AbortError' })
+  assertStopped(f)
+  assert.equal(f.contexts.length, 0)
+  f.tracks[1].dispatchEvent(new Event('mute'))
+  assert.deepEqual(f.interruptions, ['pisper:speech-interrupted'])
+})
+
+test('normal capture cleanup does not publish a hardware interruption', async (t) => {
+  const f = fixture(t)
+  const capture = await startMicrophoneCapture(f.onPcm)
+  await capture.stop()
+  for (const track of f.tracks) track.dispatchEvent(new Event('ended'))
+  assert.deepEqual(f.interruptions, [])
+  assertStopped(f)
+})
 
 test('pre-aborted capture never requests microphone access', async (t) => {
   const f = fixture(t)

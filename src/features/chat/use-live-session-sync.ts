@@ -10,6 +10,7 @@ import { chatErrorMessage } from './chat-errors'
 import { shouldPollLiveSession } from './live-session-sync'
 import { settleToolCalls } from './run-activity'
 import { FOCUS_MESSAGE_PAGE_SIZE } from './use-session-catalog'
+import { publishVoiceSnapshot } from './voice-response-stream'
 
 // Team 快照中的 null 是清除信号；只有缺少 team 属性时才沿用内存状态。
 function teamFromSnapshot(
@@ -145,6 +146,7 @@ export function useLiveSessionSync({
           streamGenerationRef.current.set(id, generation + 1)
           localStreamSessionsRef.current.delete(id)
         }
+        publishVoiceSnapshot(id, data)
         updateSessionState(id, (current) => reconcileLiveSnapshot(current, data))
         updateSessions((current) =>
           current.map((session) =>

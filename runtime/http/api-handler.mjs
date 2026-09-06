@@ -17,11 +17,13 @@ import { memoryAssetRoutes } from './routes/memory-assets.mjs'
 import { remoteRoutes } from './routes/remote.mjs'
 import { runRoutes } from './routes/runs.mjs'
 import { sessionRuntimeRoutes } from './routes/sessions-runtime.mjs'
+import { speechRoutes } from './routes/speech.mjs'
 import { workflowScheduleRoutes } from './routes/workflows-schedules.mjs'
 import { RunRegistry } from '../services/run-registry.mjs'
 
 const registry = createRouteRegistry([
   ...sessionRuntimeRoutes,
+  ...speechRoutes,
   ...configSettingsRoutes,
   ...workflowScheduleRoutes,
   ...memoryAssetRoutes,
@@ -134,6 +136,8 @@ export function createApiHandler(
     remoteAccess,
     remoteControl,
     speech,
+    speechModels,
+    speechCatalog,
     speechTerms,
     runs,
   } = {},
@@ -146,6 +150,8 @@ export function createApiHandler(
     remoteAccess,
     remoteControl,
     speech,
+    speechModels,
+    speechCatalog,
     speechTerms,
     runs: runs || new RunRegistry(),
   }

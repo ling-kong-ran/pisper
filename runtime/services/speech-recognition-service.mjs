@@ -36,6 +36,7 @@ export class SpeechRecognitionService {
     packagedModelDir = '',
     modelDir = process.env.PISPER_SPEECH_MODEL_DIR,
     hotwordsDir = '',
+    bpeVocabPath = '',
     // 测试注入假原生模块，避免依赖真实 sherpa-onnx。
     nativeModule = null,
     idleUnloadMs = RECOGNIZER_IDLE_UNLOAD_MS,
@@ -43,6 +44,7 @@ export class SpeechRecognitionService {
     this.packagedModelDir = packagedModelDir ? resolve(packagedModelDir) : ''
     this.configuredModelDir = modelDir ? resolve(modelDir) : ''
     this.hotwordsDir = hotwordsDir ? resolve(hotwordsDir) : ''
+    this.bpeVocabPath = bpeVocabPath ? resolve(bpeVocabPath) : ''
     this.hotwordsKey = ''
     this.injectedNativeModule = nativeModule
     this.nativeModule = null
@@ -58,9 +60,7 @@ export class SpeechRecognitionService {
     for (const candidate of candidates) {
       if (await hasModelFiles(candidate)) return candidate
     }
-    throw new Error(
-      '语音模型尚未随 Runtime 提供，需要 model.int8.onnx 和 tokens.txt；请检查发布包或 PISPER_SPEECH_MODEL_DIR。',
-    )
+    throw new Error('语音模型尚未安装，请先下载语音识别模型。')
   }
 
   async loadRecognizer(terms = []) {
@@ -74,7 +74,7 @@ export class SpeechRecognitionService {
       this.unloadRecognizer()
     }
     const modelDir = await this.resolveModelDir()
-    const bpeVocab = join(modelDir, 'bpe.vocab')
+    const bpeVocab = this.bpeVocabPath || join(modelDir, 'bpe.vocab')
     const supportsHotwords =
       hotwords &&
       this.hotwordsDir &&
@@ -163,6 +163,8 @@ export class SpeechRecognitionService {
         const recognizer = await this.loadRecognizer(terms)
         const stream = recognizer.createStream()
         stream.acceptWaveform({ samples, sampleRate: SAMPLE_RATE })
+        // X-ASR 需要尾部上下文；补齐静音可避免按键松开时丢掉最后一个词。
+        stream.acceptWaveform({ samples: new Float32Array(SAMPLE_RATE), sampleRate: SAMPLE_RATE })
         stream.inputFinished()
         return formatSpeechTerms(this.decodeReady(recognizer, stream), terms)
       } finally {
@@ -216,6 +218,12 @@ export class SpeechRecognitionService {
       this.markActive()
       try {
         if (!this.recognizer) throw new Error('语音识别器已卸载，请重新开始录音。')
+        if (session.totalSamples > 0) {
+          session.stream.acceptWaveform({
+            samples: new Float32Array(SAMPLE_RATE),
+            sampleRate: SAMPLE_RATE,
+          })
+        }
         session.stream.inputFinished()
         const text = formatSpeechTerms(
           this.decodeReady(this.recognizer, session.stream),

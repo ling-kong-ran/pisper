@@ -148,6 +148,16 @@ When a detected component is **Runtime** or **TUI**, `npm run release` automatic
 - TUI user-facing docs: `src-tui/README.md` / `README.en.md`. TUI versions advance only through the scoped release script; do not synchronize them to desktop or runtime versions.
 - When adding or changing a TUI top-level command, subcommand, option, or Slash command, update the corresponding `--help`/command help text and its coverage in the same change.
 
+### 跨平台一致性（桌面 / Android / iOS）
+
+- 默认功能范围覆盖桌面、Android、iOS。除非用户明确排除某个平台，不得仅完成 Android 就交付“App 已支持”；共享 React 页面或 Rust 命令注册也不代表 iOS 原生实现已完成。
+- 三端必须共用业务规则和行为合同。语音功能共用 `shared/speech-model-catalog.json`：模型、版本、精度、文件摘要、默认值、音色及派生映射必须一致，不得擅自新增平台专属 catalog、降级模型或改变功能语义。平台条件编译只用于必要的系统接口、库链接、文件位置、权限和音频生命周期适配。
+- 模型选择、文本清洗与分句、VAD、自动提交、回复选择、取消和错误处理优先复用已有共享实现。原生适配不得自行复制另一套对话业务逻辑；无法直接共享的原生接口必须通过相同输入、输出和边界条件的合同测试。
+- 开始跨平台改动前，列出桌面、Android、iOS 的前端入口、原生命令、依赖与资源打包、权限、生命周期和验收路径。审查 `cfg(target_os)`、平台判断、`unsupported` 返回和隐藏入口，不能把遗漏的平台实现隐藏起来充当完成。
+- 验收须逐平台区分源码检查、单元测试、实际构建和设备运行。Android 使用真实 R8 release 变体；iOS 必须检查 Xcode 构建、链接、资源和原生运行。Windows 上的 Rust/Node 测试、Android 测试或共享前端测试不能替代 iOS 验收。缺少 macOS/Xcode、设备或签名条件时明确报告未验证项与阻塞，不得声称三端完成。
+- 用户明确承接某个平台的构建或真机验收时，仍须补齐该平台实现和可执行测试入口，并交接命令、环境要求及未验证项；不能继续以当前环境不支持为由只实现另一平台，也不能把交由用户执行的测试写成已通过。
+- 性能预算以用户最新要求为准；参考值不能擅自变成硬限制，更不能据此引入未经用户同意的平台差异。报告内存时区分推理进程与全应用、RSS/工作集与私有提交，并注明测试平台与场景。
+
 ## Team mode（agents）
 
 Team sessions with subagents follow `docs/team-mode-playbook.md`. Three non-negotiable rules:

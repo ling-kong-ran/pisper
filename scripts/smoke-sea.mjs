@@ -1,9 +1,10 @@
 import { spawn } from 'node:child_process'
+import { createHash } from 'node:crypto'
 import { mkdtemp, readFile, rm, stat } from 'node:fs/promises'
 import { homedir, tmpdir } from 'node:os'
 import { dirname, join, resolve } from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
-import { collectNativeState } from './sea-runtime.mjs'
+import { collectNativeState, criticalRuntimeEntries } from './sea-runtime.mjs'
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..')
 const seaRoot = join(root, 'release', 'sea')
@@ -39,6 +40,11 @@ async function smokeStagedModules() {
       `SEA executable size manifest mismatch: ${manifest.sidecarExecutableBytes} !== ${executableBytes}.`,
     )
   }
+  for (const entry of criticalRuntimeEntries()) {
+    if (!manifest.criticalFiles.some((audited) => audited.path === entry.path)) {
+      throw new Error(`SEA runtime audit is missing a required entry: ${entry.path}`)
+    }
+  }
   for (const entry of manifest.criticalFiles) {
     let actual
     try {
@@ -50,6 +56,16 @@ async function smokeStagedModules() {
       throw new Error(`Critical staged runtime file changed after audit: ${entry.path}`)
     }
   }
+
+  const bpe = await readFile(join(runtimeRoot, 'shared', 'speech-resources', 'xasr-bpe.vocab'))
+  if (
+    bpe.length !== 61562 ||
+    createHash('sha256').update(bpe).digest('hex') !==
+      '01381aa0c3065832cb8d7462d529e3079a99be56c955ce93b4cb9b78e8aa34e5'
+  ) {
+    throw new Error('Staged speech BPE resource failed integrity verification.')
+  }
+  await smokeSpeechWorker()
 
   const native = await collectNativeState(runtimeRoot, manifest.native.selection)
   if (!native.pass) throw new Error('Staged native package selection failed smoke verification.')
@@ -108,6 +124,64 @@ async function smokeStagedModules() {
   }
 
   return manifest
+}
+
+function smokeSpeechWorker() {
+  return new Promise((resolveWorker, rejectWorker) => {
+    // 未初始化的请求只验证 SEA 路由、静态依赖和 IPC，不加载模型或访问个人配置。
+    const worker = spawn(executable, ['--pisper-speech-worker'], {
+      cwd: runtimeRoot,
+      env: { PISPER_APP_ROOT: runtimeRoot },
+      windowsHide: true,
+      serialization: 'advanced',
+      stdio: ['ignore', 'pipe', 'pipe', 'ipc'],
+    })
+    let stderr = ''
+    let replied = false
+    let failure = null
+    const fail = (error) => {
+      failure ||= error
+      worker.kill('SIGKILL')
+    }
+    const timeout = setTimeout(() => fail(new Error('SEA speech worker timed out.')), 15_000)
+    worker.stderr.on('data', (chunk) => {
+      stderr = (stderr + String(chunk)).slice(-8192)
+    })
+    worker.stdout.on('data', () => fail(new Error('SEA speech worker emitted unexpected stdout.')))
+    worker.once('error', (error) => {
+      failure ||= error
+    })
+    worker.on('message', (message) => {
+      if (
+        replied ||
+        message?.id !== 'speech-smoke' ||
+        message.ok !== false ||
+        message.error?.code !== 'config'
+      ) {
+        fail(new Error('SEA speech worker returned an invalid handshake.'))
+        return
+      }
+      replied = true
+      worker.send({ method: 'shutdown' }, (error) => {
+        if (error) fail(error)
+      })
+    })
+    worker.once('close', (code) => {
+      clearTimeout(timeout)
+      if (failure || !replied || code !== 0) {
+        rejectWorker(
+          new Error(`SEA speech worker smoke failed (exit ${code}).\n${stderr}`, {
+            cause: failure,
+          }),
+        )
+      } else resolveWorker()
+    })
+    worker.once('spawn', () => {
+      worker.send({ id: 'speech-smoke', method: 'smoke' }, (error) => {
+        if (error) fail(error)
+      })
+    })
+  })
 }
 
 const manifest = await smokeStagedModules()

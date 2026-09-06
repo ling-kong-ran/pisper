@@ -1,12 +1,12 @@
 import assert from 'node:assert/strict'
 import { createHash } from 'node:crypto'
-import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
+import { mkdir, mkdtemp, readFile, readdir, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
 import test from 'node:test'
 import protobuf from 'protobufjs'
 import { exportSpeechBpeVocab, sentencePieceModelToVocab } from '../../scripts/speech-bpe.mjs'
-import { stageAndroidSpeechModel } from '../../scripts/stage-android-speech-model.mjs'
+import { stageAndroidSpeechResources } from '../../scripts/stage-android-speech-model.mjs'
 import { stageSpeechModel } from '../../scripts/stage-speech-model.mjs'
 
 function encodePieces(pieces) {
@@ -136,39 +136,58 @@ test('Runtime staging 对环境来源与缓存来源都从五个上游文件重�
   await assert.rejects(stageSpeechModel({ root, runtimeDir }), /Invalid SentencePiece/)
 })
 
-test('Android staging 不接受只有文件名匹配的未验证模型', async (t) => {
+test('Android staging 不接受文件名匹配但摘要错误的 BPE 资源', async (t) => {
   const root = await temporaryDirectory(t)
   const sourceDir = join(root, 'source')
-  const targetDir = join(root, 'target')
-  await writeModelFixture(sourceDir)
-  await assert.rejects(stageAndroidSpeechModel({ sourceDir, targetDir }), /SHA256/)
-  await assert.rejects(readFile(join(targetDir, 'bpe.vocab')), /ENOENT/)
+  const targetDir = join(root, 'assets')
+  await mkdir(join(sourceDir, 'speech-resources'), { recursive: true })
+  for (const name of ['speech-model-catalog.json', 'speech-resource-notices.json']) {
+    await writeFile(join(sourceDir, name), await readFile(join('shared', name)))
+  }
+  await writeFile(join(sourceDir, 'speech-resources/xasr-bpe.vocab'), 'untrusted vocab')
+  await assert.rejects(stageAndroidSpeechResources({ sourceDir, targetDir }), /SHA256/)
+  await assert.rejects(readFile(join(targetDir, 'speech-resources/xasr-bpe.vocab')), /ENOENT/)
 })
 
-test('可用的本地 x-asr 缓存通过 Android SHA 校验并导出一致词表（不联网）', async (t) => {
+test('Android 仅复制固定小资源，并与可用的上游 BPE 缓存对照（不联网）', async (t) => {
+  const root = await temporaryDirectory(t)
+  const targetDir = join(root, 'assets')
+  assert.equal(
+    await stageAndroidSpeechResources({ sourceDir: resolve('shared'), targetDir }),
+    targetDir,
+  )
+  const first = await readFile(join(targetDir, 'speech-resources/xasr-bpe.vocab'))
+  assert.equal(first.length, 61562)
+  assert.equal(
+    createHash('sha256').update(first).digest('hex'),
+    '01381aa0c3065832cb8d7462d529e3079a99be56c955ce93b4cb9b78e8aa34e5',
+  )
+  assert.deepEqual((await readdir(targetDir)).sort(), [
+    'speech-model-catalog.json',
+    'speech-resource-notices.json',
+    'speech-resources',
+  ])
+  assert.deepEqual(await readdir(join(targetDir, 'speech-resources')), ['xasr-bpe.vocab'])
   const sourceDir = resolve('release/cache/speech-model')
   let model
   try {
     model = await readFile(join(sourceDir, 'bpe.model'))
   } catch (error) {
     if (error.code !== 'ENOENT') throw error
-    t.skip('No local speech model cache.')
+    t.diagnostic('固定小资源已验证；没有可选上游模型缓存。')
     return
   }
   if (
     createHash('sha256').update(model).digest('hex') !==
     'f87a38025a5fdd1e4e9591f6a44bb81295097ce0b80df6f4ab9f44e52c64ca5f'
   ) {
-    t.skip('Local cache is not the pinned x-asr model.')
+    t.diagnostic('固定小资源已验证；可选缓存不是当前锁定的 X-ASR。')
     return
   }
-  const root = await temporaryDirectory(t)
-  const targetDir = join(root, 'android-model')
-  assert.equal(await stageAndroidSpeechModel({ sourceDir, targetDir }), targetDir)
-  const first = await readFile(join(targetDir, 'bpe.vocab'))
   assert.deepEqual(first, Buffer.from(sentencePieceModelToVocab(model), 'utf8'))
-  await exportSpeechBpeVocab(join(targetDir, 'bpe.model'), join(targetDir, 'bpe.vocab'))
-  assert.deepEqual(await readFile(join(targetDir, 'bpe.vocab')), first)
+  const generated = join(root, 'generated.vocab')
+  await exportSpeechBpeVocab(join(sourceDir, 'bpe.model'), generated)
+  assert.deepEqual(await readFile(generated), first)
   t.diagnostic(
     `Cached x-asr vocab: ${first.toString('utf8').split('\n').length - 1} pieces, ${first.length} bytes.`,
   )

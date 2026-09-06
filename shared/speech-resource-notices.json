@@ -1,0 +1,431 @@
+{
+  "schemaVersion": 1,
+  "scope": "Offline license texts and provenance notices for the catalogued speech resources and local derivatives. This document is not legal advice, commercial-use clearance, a complete training-data rights audit, or approval for redistribution or formal release. Packaging this small notice file does not package the large models or resolve pending obligations. Native sherpa binaries and their compiled or embedded dependencies require a separate license/linkage and source-delivery audit; switching TTS models does not prove the binaries contain no GPL components or satisfy their obligations.",
+  "licenseIdsMeaning": "References identify retained license documents applicable to the described components or their stated source projects. Multiple references are not alternative dual-license choices and are not a complete SPDX expression. A repository declaration does not relicense unrelated bundled data.",
+  "statusDefinitions": {
+    "confirmed": "The specific content or source match described in summary was verified; this is not a whole-chain rights guarantee.",
+    "declared": "An upstream license declaration supports the classification, without a complete reproducible provenance proof.",
+    "pending": "The listed provenance, rights, or distribution obligations remain unresolved even where a license declaration exists."
+  },
+  "pathScopes": {
+    "model": "Paths are relative to the original downloaded model root. A terminal /** matches every descendant; all other paths are exact.",
+    "shared": "Paths are relative to the application's shared resource root."
+  },
+  "licenses": [
+    {
+      "id": "apache-2.0",
+      "name": "Apache License 2.0 (X-ASR source text)",
+      "text": "                                 Apache License\n                           Version 2.0, January 2004\n                        http://www.apache.org/licenses/\n\n   TERMS AND CONDITIONS FOR USE, REPRODUCTION, AND DISTRIBUTION\n\n   1. Definitions.\n\n      \"License\" shall mean the terms and conditions for use, reproduction,\n      and distribution as defined by Sections 1 through 9 of this document.\n\n      \"Licensor\" shall mean the copyright owner or entity authorized by\n      the copyright owner that is granting the License.\n\n      \"Legal Entity\" shall mean the union of the acting entity and all\n      other entities that control, are controlled by, or are under common\n      control with that entity. For the purposes of this definition,\n      \"control\" means (i) the power, direct or indirect, to cause the\n      direction or management of such entity, whether by contract or\n      otherwise, or (ii) ownership of fifty percent (50%) or more of the\n      outstanding shares, or (iii) beneficial ownership of such entity.\n\n      \"You\" (or \"Your\") shall mean an individual or Legal Entity\n      exercising permissions granted by this License.\n\n      \"Source\" form shall mean the preferred form for making modifications,\n      including but not limited to software source code, documentation\n      source, and configuration files.\n\n      \"Object\" form shall mean any form resulting from mechanical\n      transformation or translation of a Source form, including but\n      not limited to compiled object code, generated documentation,\n      and conversions to other media types.\n\n      \"Work\" shall mean the work of authorship, whether in Source or\n      Object form, made available under the License, as indicated by a\n      copyright notice that is included in or attached to the work\n      (an example is provided in the Appendix below).\n\n      \"Derivative Works\" shall mean any work, whether in Source or Object\n      form, that is based on (or derived from) the Work and for which the\n      editorial revisions, annotations, elaborations, or other modifications\n      represent, as a whole, an original work of authorship. For the purposes\n      of this License, Derivative Works shall not include works that remain\n      separable from, or merely link (or bind by name) to the interfaces of,\n      the Work and Derivative Works thereof.\n\n      \"Contribution\" shall mean any work of authorship, including\n      the original version of the Work and any modifications or additions\n      to that Work or Derivative Works thereof, that is intentionally\n      submitted to Licensor for inclusion in the Work by the copyright owner\n      or by an individual or Legal Entity authorized to submit on behalf of\n      the copyright owner. For the purposes of this definition, \"submitted\"\n      means any form of electronic, verbal, or written communication sent\n      to the Licensor or its representatives, including but not limited to\n      communication on electronic mailing lists, source code control systems,\n      and issue tracking systems that are managed by, or on behalf of, the\n      Licensor for the purpose of discussing and improving the Work, but\n      excluding communication that is conspicuously marked or otherwise\n      designated in writing by the copyright owner as \"Not a Contribution.\"\n\n      \"Contributor\" shall mean Licensor and any individual or Legal Entity\n      on behalf of whom a Contribution has been received by Licensor and\n      subsequently incorporated within the Work.\n\n   2. Grant of Copyright License. Subject to the terms and conditions of\n      this License, each Contributor hereby grants to You a perpetual,\n      worldwide, non-exclusive, no-charge, royalty-free, irrevocable\n      copyright license to reproduce, prepare Derivative Works of,\n      publicly display, publicly perform, sublicense, and distribute the\n      Work and such Derivative Works in Source or Object form.\n\n   3. Grant of Patent License. Subject to the terms and conditions of\n      this License, each Contributor hereby grants to You a perpetual,\n      worldwide, non-exclusive, no-charge, royalty-free, irrevocable\n      (except as stated in this section) patent license to make, have made,\n      use, offer to sell, sell, import, and otherwise transfer the Work,\n      where such license applies only to those patent claims licensable\n      by such Contributor that are necessarily infringed by their\n      Contribution(s) alone or by combination of their Contribution(s)\n      with the Work to which such Contribution(s) was submitted. If You\n      institute patent litigation against any entity (including a\n      cross-claim or counterclaim in a lawsuit) alleging that the Work\n      or a Contribution incorporated within the Work constitutes direct\n      or contributory patent infringement, then any patent licenses\n      granted to You under this License for that Work shall terminate\n      as of the date such litigation is filed.\n\n   4. Redistribution. You may reproduce and distribute copies of the\n      Work or Derivative Works thereof in any medium, with or without\n      modifications, and in Source or Object form, provided that You\n      meet the following conditions:\n\n      (a) You must give any other recipients of the Work or\n          Derivative Works a copy of this License; and\n\n      (b) You must cause any modified files to carry prominent notices\n          stating that You changed the files; and\n\n      (c) You must retain, in the Source form of any Derivative Works\n          that You distribute, all copyright, patent, trademark, and\n          attribution notices from the Source form of the Work,\n          excluding those notices that do not pertain to any part of\n          the Derivative Works; and\n\n      (d) If the Work includes a \"NOTICE\" text file as part of its\n          distribution, then any Derivative Works that You distribute must\n          include a readable copy of the attribution notices contained\n          within such NOTICE file, excluding those notices that do not\n          pertain to any part of the Derivative Works, in at least one\n          of the following places: within a NOTICE text file distributed\n          as part of the Derivative Works; within the Source form or\n          documentation, if provided along with the Derivative Works; or,\n          within a display generated by the Derivative Works, if and\n          wherever such third-party notices normally appear. The contents\n          of the NOTICE file are for informational purposes only and\n          do not modify the License. You may add Your own attribution\n          notices within Derivative Works that You distribute, alongside\n          or as an addendum to the NOTICE text from the Work, provided\n          that such additional attribution notices cannot be construed\n          as modifying the License.\n\n      You may add Your own copyright statement to Your modifications and\n      may provide additional or different license terms and conditions\n      for use, reproduction, or distribution of Your modifications, or\n      for any such Derivative Works as a whole, provided Your use,\n      reproduction, and distribution of the Work otherwise complies with\n      the conditions stated in this License.\n\n   5. Submission of Contributions. Unless You explicitly state otherwise,\n      any Contribution intentionally submitted for inclusion in the Work\n      by You to the Licensor shall be under the terms and conditions of\n      this License, without any additional terms or conditions.\n      Notwithstanding the above, nothing herein shall supersede or modify\n      the terms of any separate license agreement you may have executed\n      with Licensor regarding such Contributions.\n\n   6. Trademarks. This License does not grant permission to use the trade\n      names, trademarks, service marks, or product names of the Licensor,\n      except as required for reasonable and customary use in describing the\n      origin of the Work and reproducing the content of the NOTICE file.\n\n   7. Disclaimer of Warranty. Unless required by applicable law or\n      agreed to in writing, Licensor provides the Work (and each\n      Contributor provides its Contributions) on an \"AS IS\" BASIS,\n      WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or\n      implied, including, without limitation, any warranties or conditions\n      of TITLE, NON-INFRINGEMENT, MERCHANTABILITY, or FITNESS FOR A\n      PARTICULAR PURPOSE. You are solely responsible for determining the\n      appropriateness of using or redistributing the Work and assume any\n      risks associated with Your exercise of permissions under this License.\n\n   8. Limitation of Liability. In no event and under no legal theory,\n      whether in tort (including negligence), contract, or otherwise,\n      unless required by applicable law (such as deliberate and grossly\n      negligent acts) or agreed to in writing, shall any Contributor be\n      liable to You for damages, including any direct, indirect, special,\n      incidental, or consequential damages of any character arising as a\n      result of this License or out of the use or inability to use the\n      Work (including but not limited to damages for loss of goodwill,\n      work stoppage, computer failure or malfunction, or any and all\n      other commercial damages or losses), even if such Contributor\n      has been advised of the possibility of such damages.\n\n   9. Accepting Warranty or Additional Liability. While redistributing\n      the Work or Derivative Works thereof, You may choose to offer,\n      and charge a fee for, acceptance of support, warranty, indemnity,\n      or other liability obligations and/or rights consistent with this\n      License. However, in accepting such obligations, You may act only\n      on Your own behalf and on Your sole responsibility, not on behalf\n      of any other Contributor, and only if You agree to indemnify,\n      defend, and hold each Contributor harmless for any liability\n      incurred by, or claims asserted against, such Contributor by reason\n      of your accepting any such warranty or additional liability.\n\n   END OF TERMS AND CONDITIONS\n\n   APPENDIX: How to apply the Apache License to your work.\n\n      To apply the Apache License to your work, attach the following\n      boilerplate notice, with the fields enclosed by brackets \"[]\"\n      replaced with your own identifying information. (Don't include\n      the brackets!)  The text should be enclosed in the appropriate\n      comment syntax for the file format. We also recommend that a\n      file or class name and description of purpose be included on the\n      same \"printed page\" as the copyright notice for easier\n      identification within third-party archives.\n\n   Copyright [yyyy] [name of copyright owner]\n\n   Licensed under the Apache License, Version 2.0 (the \"License\");\n   you may not use this file except in compliance with the License.\n   You may obtain a copy of the License at\n\n       http://www.apache.org/licenses/LICENSE-2.0\n\n   Unless required by applicable law or agreed to in writing, software\n   distributed under the License is distributed on an \"AS IS\" BASIS,\n   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.\n   See the License for the specific language governing permissions and\n   limitations under the License.\n",
+      "sourceUrl": "https://raw.githubusercontent.com/Gilgamesh-J/X-ASR/838297cd47fed858e6cf72eaf5a52f948a3edd73/LICENSE",
+      "sha256": "c71d239df91726fc519c6eb72d318ec65820627232b2f796219e87dcf35d0ab4"
+    },
+    {
+      "id": "mit-melo",
+      "name": "MIT License (MeloTTS source and conversion package)",
+      "text": "Copyright (c) 2024 MyShell.ai\n\nPermission is hereby granted, free of charge, to any person obtaining a copy\nof this software and associated documentation files (the \"Software\"), to deal\nin the Software without restriction, including without limitation the rights\nto use, copy, modify, merge, publish, distribute, sublicense, and/or sell\ncopies of the Software, and to permit persons to whom the Software is\nfurnished to do so, subject to the following conditions:\n\nThe above copyright notice and this permission notice shall be included in all\ncopies or substantial portions of the Software.\n\nTHE SOFTWARE IS PROVIDED \"AS IS\", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR\nIMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,\nFITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE\nAUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER\nLIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,\nOUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE\nSOFTWARE.",
+      "sourceUrl": "https://raw.githubusercontent.com/myshell-ai/MeloTTS/209145371cff8fc3bd60d7be902ea69cbdb7965a/LICENSE",
+      "sha256": "88a50e5a02bbc2a5c2f084dc19da751aa97b1690f5fda76cd8005c8634d1ca70"
+    },
+    {
+      "id": "apache-2.0-sherpa",
+      "name": "Apache License 2.0 (sherpa conversion code; FST source declaration)",
+      "text": "\n                                 Apache License\n                           Version 2.0, January 2004\n                        http://www.apache.org/licenses/\n\n   TERMS AND CONDITIONS FOR USE, REPRODUCTION, AND DISTRIBUTION\n\n   1. Definitions.\n\n      \"License\" shall mean the terms and conditions for use, reproduction,\n      and distribution as defined by Sections 1 through 9 of this document.\n\n      \"Licensor\" shall mean the copyright owner or entity authorized by\n      the copyright owner that is granting the License.\n\n      \"Legal Entity\" shall mean the union of the acting entity and all\n      other entities that control, are controlled by, or are under common\n      control with that entity. For the purposes of this definition,\n      \"control\" means (i) the power, direct or indirect, to cause the\n      direction or management of such entity, whether by contract or\n      otherwise, or (ii) ownership of fifty percent (50%) or more of the\n      outstanding shares, or (iii) beneficial ownership of such entity.\n\n      \"You\" (or \"Your\") shall mean an individual or Legal Entity\n      exercising permissions granted by this License.\n\n      \"Source\" form shall mean the preferred form for making modifications,\n      including but not limited to software source code, documentation\n      source, and configuration files.\n\n      \"Object\" form shall mean any form resulting from mechanical\n      transformation or translation of a Source form, including but\n      not limited to compiled object code, generated documentation,\n      and conversions to other media types.\n\n      \"Work\" shall mean the work of authorship, whether in Source or\n      Object form, made available under the License, as indicated by a\n      copyright notice that is included in or attached to the work\n      (an example is provided in the Appendix below).\n\n      \"Derivative Works\" shall mean any work, whether in Source or Object\n      form, that is based on (or derived from) the Work and for which the\n      editorial revisions, annotations, elaborations, or other modifications\n      represent, as a whole, an original work of authorship. For the purposes\n      of this License, Derivative Works shall not include works that remain\n      separable from, or merely link (or bind by name) to the interfaces of,\n      the Work and Derivative Works thereof.\n\n      \"Contribution\" shall mean any work of authorship, including\n      the original version of the Work and any modifications or additions\n      to that Work or Derivative Works thereof, that is intentionally\n      submitted to Licensor for inclusion in the Work by the copyright owner\n      or by an individual or Legal Entity authorized to submit on behalf of\n      the copyright owner. For the purposes of this definition, \"submitted\"\n      means any form of electronic, verbal, or written communication sent\n      to the Licensor or its representatives, including but not limited to\n      communication on electronic mailing lists, source code control systems,\n      and issue tracking systems that are managed by, or on behalf of, the\n      Licensor for the purpose of discussing and improving the Work, but\n      excluding communication that is conspicuously marked or otherwise\n      designated in writing by the copyright owner as \"Not a Contribution.\"\n\n      \"Contributor\" shall mean Licensor and any individual or Legal Entity\n      on behalf of whom a Contribution has been received by Licensor and\n      subsequently incorporated within the Work.\n\n   2. Grant of Copyright License. Subject to the terms and conditions of\n      this License, each Contributor hereby grants to You a perpetual,\n      worldwide, non-exclusive, no-charge, royalty-free, irrevocable\n      copyright license to reproduce, prepare Derivative Works of,\n      publicly display, publicly perform, sublicense, and distribute the\n      Work and such Derivative Works in Source or Object form.\n\n   3. Grant of Patent License. Subject to the terms and conditions of\n      this License, each Contributor hereby grants to You a perpetual,\n      worldwide, non-exclusive, no-charge, royalty-free, irrevocable\n      (except as stated in this section) patent license to make, have made,\n      use, offer to sell, sell, import, and otherwise transfer the Work,\n      where such license applies only to those patent claims licensable\n      by such Contributor that are necessarily infringed by their\n      Contribution(s) alone or by combination of their Contribution(s)\n      with the Work to which such Contribution(s) was submitted. If You\n      institute patent litigation against any entity (including a\n      cross-claim or counterclaim in a lawsuit) alleging that the Work\n      or a Contribution incorporated within the Work constitutes direct\n      or contributory patent infringement, then any patent licenses\n      granted to You under this License for that Work shall terminate\n      as of the date such litigation is filed.\n\n   4. Redistribution. You may reproduce and distribute copies of the\n      Work or Derivative Works thereof in any medium, with or without\n      modifications, and in Source or Object form, provided that You\n      meet the following conditions:\n\n      (a) You must give any other recipients of the Work or\n          Derivative Works a copy of this License; and\n\n      (b) You must cause any modified files to carry prominent notices\n          stating that You changed the files; and\n\n      (c) You must retain, in the Source form of any Derivative Works\n          that You distribute, all copyright, patent, trademark, and\n          attribution notices from the Source form of the Work,\n          excluding those notices that do not pertain to any part of\n          the Derivative Works; and\n\n      (d) If the Work includes a \"NOTICE\" text file as part of its\n          distribution, then any Derivative Works that You distribute must\n          include a readable copy of the attribution notices contained\n          within such NOTICE file, excluding those notices that do not\n          pertain to any part of the Derivative Works, in at least one\n          of the following places: within a NOTICE text file distributed\n          as part of the Derivative Works; within the Source form or\n          documentation, if provided along with the Derivative Works; or,\n          within a display generated by the Derivative Works, if and\n          wherever such third-party notices normally appear. The contents\n          of the NOTICE file are for informational purposes only and\n          do not modify the License. You may add Your own attribution\n          notices within Derivative Works that You distribute, alongside\n          or as an addendum to the NOTICE text from the Work, provided\n          that such additional attribution notices cannot be construed\n          as modifying the License.\n\n      You may add Your own copyright statement to Your modifications and\n      may provide additional or different license terms and conditions\n      for use, reproduction, or distribution of Your modifications, or\n      for any such Derivative Works as a whole, provided Your use,\n      reproduction, and distribution of the Work otherwise complies with\n      the conditions stated in this License.\n\n   5. Submission of Contributions. Unless You explicitly state otherwise,\n      any Contribution intentionally submitted for inclusion in the Work\n      by You to the Licensor shall be under the terms and conditions of\n      this License, without any additional terms or conditions.\n      Notwithstanding the above, nothing herein shall supersede or modify\n      the terms of any separate license agreement you may have executed\n      with Licensor regarding such Contributions.\n\n   6. Trademarks. This License does not grant permission to use the trade\n      names, trademarks, service marks, or product names of the Licensor,\n      except as required for reasonable and customary use in describing the\n      origin of the Work and reproducing the content of the NOTICE file.\n\n   7. Disclaimer of Warranty. Unless required by applicable law or\n      agreed to in writing, Licensor provides the Work (and each\n      Contributor provides its Contributions) on an \"AS IS\" BASIS,\n      WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or\n      implied, including, without limitation, any warranties or conditions\n      of TITLE, NON-INFRINGEMENT, MERCHANTABILITY, or FITNESS FOR A\n      PARTICULAR PURPOSE. You are solely responsible for determining the\n      appropriateness of using or redistributing the Work and assume any\n      risks associated with Your exercise of permissions under this License.\n\n   8. Limitation of Liability. In no event and under no legal theory,\n      whether in tort (including negligence), contract, or otherwise,\n      unless required by applicable law (such as deliberate and grossly\n      negligent acts) or agreed to in writing, shall any Contributor be\n      liable to You for damages, including any direct, indirect, special,\n      incidental, or consequential damages of any character arising as a\n      result of this License or out of the use or inability to use the\n      Work (including but not limited to damages for loss of goodwill,\n      work stoppage, computer failure or malfunction, or any and all\n      other commercial damages or losses), even if such Contributor\n      has been advised of the possibility of such damages.\n\n   9. Accepting Warranty or Additional Liability. While redistributing\n      the Work or Derivative Works thereof, You may choose to offer,\n      and charge a fee for, acceptance of support, warranty, indemnity,\n      or other liability obligations and/or rights consistent with this\n      License. However, in accepting such obligations, You may act only\n      on Your own behalf and on Your sole responsibility, not on behalf\n      of any other Contributor, and only if You agree to indemnify,\n      defend, and hold each Contributor harmless for any liability\n      incurred by, or claims asserted against, such Contributor by reason\n      of your accepting any such warranty or additional liability.\n\n   END OF TERMS AND CONDITIONS\n\n   APPENDIX: How to apply the Apache License to your work.\n\n      To apply the Apache License to your work, attach the following\n      boilerplate notice, with the fields enclosed by brackets \"[]\"\n      replaced with your own identifying information. (Don't include\n      the brackets!)  The text should be enclosed in the appropriate\n      comment syntax for the file format. We also recommend that a\n      file or class name and description of purpose be included on the\n      same \"printed page\" as the copyright notice for easier\n      identification within third-party archives.\n\n   Copyright [yyyy] [name of copyright owner]\n\n   Licensed under the Apache License, Version 2.0 (the \"License\");\n   you may not use this file except in compliance with the License.\n   You may obtain a copy of the License at\n\n       http://www.apache.org/licenses/LICENSE-2.0\n\n   Unless required by applicable law or agreed to in writing, software\n   distributed under the License is distributed on an \"AS IS\" BASIS,\n   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.\n   See the License for the specific language governing permissions and\n   limitations under the License.\n",
+      "sourceUrl": "https://raw.githubusercontent.com/k2-fsa/sherpa-onnx/917bed95c8e5c7c18aa4d69fea42e9ef8ef0a60e/LICENSE",
+      "sha256": "cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30"
+    },
+    {
+      "id": "mit-cppjieba",
+      "name": "MIT License (CppJieba release source)",
+      "text": "The MIT License (MIT)\n\nCopyright (c) 2013\n\nPermission is hereby granted, free of charge, to any person obtaining a copy of\nthis software and associated documentation files (the \"Software\"), to deal in\nthe Software without restriction, including without limitation the rights to\nuse, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of\nthe Software, and to permit persons to whom the Software is furnished to do so,\nsubject to the following conditions:\n\nThe above copyright notice and this permission notice shall be included in all\ncopies or substantial portions of the Software.\n\nTHE SOFTWARE IS PROVIDED \"AS IS\", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR\nIMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS\nFOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR\nCOPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER\nIN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN\nCONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.\n",
+      "sourceUrl": "https://raw.githubusercontent.com/csukuangfj/cppjieba/f03dd931a00330c279c8590275850fd1f6749a18/LICENSE",
+      "sha256": "ba898a14f729ba5e9965da34e3eecd5edd3795f2cc5d7c923b815ba79bb851b0"
+    },
+    {
+      "id": "mit-pypinyin",
+      "name": "MIT License (pypinyin project; historical data provenance pending)",
+      "text": "The MIT License (MIT)\n\nCopyright (c) 2016 mozillazg, 闲耘 <hotoo.cn@gmail.com>\n\nPermission is hereby granted, free of charge, to any person obtaining a copy of\nthis software and associated documentation files (the \"Software\"), to deal in\nthe Software without restriction, including without limitation the rights to\nuse, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of\nthe Software, and to permit persons to whom the Software is furnished to do so,\nsubject to the following conditions:\n\nThe above copyright notice and this permission notice shall be included in all\ncopies or substantial portions of the Software.\n\nTHE SOFTWARE IS PROVIDED \"AS IS\", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR\nIMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS\nFOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR\nCOPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER\nIN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN\nCONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.\n",
+      "sourceUrl": "https://raw.githubusercontent.com/mozillazg/python-pinyin/8595294b1a97845e30f11ecfdb3caa4e61ac3988/LICENSE.txt",
+      "sha256": "1e6c90014b4912815c296ee64bb6f6280af47e6d4c5d80e86232dfc5defe764c"
+    },
+    {
+      "id": "cmudict-0.6-1998",
+      "name": "CMU Pronouncing Dictionary 0.6 historical permission and attribution notice (1998)",
+      "text": "## Date:  August 8, 1998\n##\n## The Carnegie Mellon Pronouncing Dictionary [cmudict.0.6] is Copyright 1998\n## by Carnegie Mellon University. Use of this dictionary, for any research or\n## commercial purpose, is completely unrestricted.  If you make use of or\n## redistribute this material, we would appreciate acknowlegement of its\n## origin.\n##\n## cmudict.0.6 is the fifth release of cmudict, first released as cmudict.0.1\n## in September of 1993.  There was no generally available public release\n## of version 0.5.\n##\n## See the README in this directory before you use this dictionary.\n##\n## Thanks to Bill Huggins at BBN; Bill Fisher at NIST; Alex Hauptman,\n## Alex Rudnicky, Jack Mostow, Roni Rosenfeld, Richard Stern,\n## Matthew Siegler, Kevin Lenzo, Maxine Eskenazi, Mosur Ravishankar,\n## Eric Thayer, Kristie Seymore, and Raj Reddy at CMU; Lin Chase at\n## LIMSI; Doug Paul at MIT Lincoln Labs; Ben Serridge at MIT SLS; Murray\n## Spiegel at Bellcore; Tony Robinson at Cambridge UK; David Bowness of\n## CAE Electronics Ltd. and CRIM; Stephen Hocking; Jerry Quinn at BNR\n## Canada, and Marshal Midden for bringing to our attention problems and\n## inadequacies with the first releases. Most special thanks to Bob Weide\n## for all his work on prior versions of the dictionary.\n##\n## We welcome input from users and will continue to acknowledge such input\n## in subsequent releases. If I failed to acknowledge your input in this\n## release, please remind me and I will update these comments. If I failed to\n## fix things that you brought to my attention, please remind me and have\n## patience. If I actually fixed things that you brought to my attention and\n## you appreciate it, I wouldn't mind a pat on the back.\n##\n## This version differs from previous releases of cmudict most significantly\n## in the addition of new words from the common ARPA tasks for 1996 and 1997.\n##\n## There are undoubtedly still errors and inconsistencies in this dictionary\n## so keep your eyes open for problems and mail them to me.\n##\n## We hope this dictionary is an improvement over cmudict.0.4.\n##\n## email: cmudict@cs.cmu.edu\n## web:   http://www.speech.cs.cmu.edu/cgi-bin/cmudict\n## ftp:   ftp://ftp.cs.cmu.edu/project/speech/dict/\n##\n## Thank you for your continued interest in the CMU Pronouncing\n## Dictionary.  Further addictions and improvements are planned\n## for forthcoming releases.\n##\n",
+      "sourceUrl": "https://raw.githubusercontent.com/myshell-ai/MeloTTS/209145371cff8fc3bd60d7be902ea69cbdb7965a/melo/text/cmudict.rep",
+      "sha256": "08ee91f3c05c55160bdc599247ba53e5de8cc2597766fdb22b54a81cb24dd954"
+    }
+  ],
+  "models": [
+    {
+      "id": "x-asr-480ms-int8",
+      "revision": "2026-06-05",
+      "attribution": "X-ASR by Gilgamesh-J / GilgameshWind; trained using icefall and deployed with sherpa-onnx. The locked HF model card expressly covers model artifacts and declares Apache-2.0. The separately discovered GitHub license commit is not the locked HF revision. No root LICENSE or NOTICE was listed in the inspected HF tree; this is not proof that every historical distribution lacks NOTICE. Retain applicable upstream notices when found.",
+      "archive": {
+        "url": "https://github.com/k2-fsa/sherpa-onnx/releases/download/asr-models/sherpa-onnx-x-asr-480ms-streaming-zipformer-transducer-zh-en-punct-int8-2026-06-05.tar.bz2",
+        "sha256": "fa5f63d618e5a01526e275a358bb7772e403f84808a4769fba52cffd8160bf74"
+      },
+      "groups": [
+        {
+          "id": "xasr-weights",
+          "pathScope": "model",
+          "paths": ["encoder.int8.onnx", "decoder.onnx", "joiner.int8.onnx"],
+          "licenseIds": ["apache-2.0"],
+          "status": "pending",
+          "summary": "Apache-2.0 is explicitly declared for X-ASR model artifacts. The sherpa export script describes icefall streaming ONNX export and INT8 quantization; installed file hashes match the catalog, but the 2026-06-05 archive-to-checkpoint/build identity is not established.",
+          "pendingReasons": [
+            "Exact checkpoint and source commits used to build the 2026-06-05 INT8 archive remain unverified; the export script downloads moving main URLs. Training-data rights are not fully audited."
+          ],
+          "evidence": [
+            {
+              "url": "https://hf-mirror.com/GilgameshWind/X-ASR-zh-en/resolve/689ff18c584d29910da37b6fe904db0c1489c9d1/README.md",
+              "sha256": "7acc6f439d3e39e46de4298ccf8a8f6a483fdc5f9f5d08e61422b63760ec37b1"
+            },
+            {
+              "url": "https://raw.githubusercontent.com/k2-fsa/sherpa-onnx/v1.13.7/scripts/zipformer-transducer/x-asr/export-streaming.sh",
+              "sha256": "63b018fe72a29e9a41c6d4e358085b5ad1614e021c0d9f3c05a2d11f1dff0d81"
+            }
+          ]
+        },
+        {
+          "id": "xasr-tokens",
+          "pathScope": "model",
+          "paths": ["tokens.txt"],
+          "licenseIds": ["apache-2.0"],
+          "status": "pending",
+          "summary": "X-ASR token resource, not the SentencePiece or sherpa software. The punctuation export block downloads X-ASR-zh-en/zipformer/data/lang_5000_with_punctuation/tokens.txt. Catalog content SHA256: b818a60878b9aae978cbb8ad594acbd403d76d1af2e31ef4197c84e2dbdba27c.",
+          "pendingReasons": [
+            "The historical source revision for the token file in the 2026-06-05 archive is not pinned by the export script."
+          ],
+          "evidence": [
+            {
+              "url": "https://hf-mirror.com/GilgameshWind/X-ASR-zh-en/resolve/689ff18c584d29910da37b6fe904db0c1489c9d1/README.md",
+              "sha256": "7acc6f439d3e39e46de4298ccf8a8f6a483fdc5f9f5d08e61422b63760ec37b1"
+            },
+            {
+              "url": "https://raw.githubusercontent.com/k2-fsa/sherpa-onnx/v1.13.7/scripts/zipformer-transducer/x-asr/export-streaming.sh",
+              "sha256": "63b018fe72a29e9a41c6d4e358085b5ad1614e021c0d9f3c05a2d11f1dff0d81"
+            }
+          ]
+        },
+        {
+          "id": "xasr-bpe",
+          "pathScope": "model",
+          "paths": ["bpe.model"],
+          "licenseIds": ["apache-2.0"],
+          "status": "pending",
+          "summary": "X-ASR BPE resource. The export script renames X-ASR-zh-en/zipformer/data/lang_5000_with_punctuation/bpe_punc.model to bpe.model. Its license classification comes from X-ASR, not from the software that reads the SentencePiece format.",
+          "pendingReasons": [
+            "The historical BPE source commit and exact archive build provenance remain unverified."
+          ],
+          "evidence": [
+            {
+              "url": "https://hf-mirror.com/GilgameshWind/X-ASR-zh-en/resolve/689ff18c584d29910da37b6fe904db0c1489c9d1/README.md",
+              "sha256": "7acc6f439d3e39e46de4298ccf8a8f6a483fdc5f9f5d08e61422b63760ec37b1"
+            },
+            {
+              "url": "https://raw.githubusercontent.com/k2-fsa/sherpa-onnx/v1.13.7/scripts/zipformer-transducer/x-asr/export-streaming.sh",
+              "sha256": "63b018fe72a29e9a41c6d4e358085b5ad1614e021c0d9f3c05a2d11f1dff0d81"
+            }
+          ]
+        },
+        {
+          "id": "xasr-bpe-vocab",
+          "pathScope": "shared",
+          "paths": ["speech-resources/xasr-bpe.vocab"],
+          "licenseIds": ["apache-2.0"],
+          "status": "pending",
+          "summary": "Modified by Pisper: extracted the ordered SentencePiece pieces and scores as UTF-8 piece<TAB>score<LF> lines. This local text derivative retains the source resource license classification; it is not newly licensed as Pisper-owned model data. Original and derived hashes and generator are bound by xasr-bpe-extraction below.",
+          "pendingReasons": [
+            "The source BPE historical provenance remains pending as described in xasr-bpe. A text extraction does not resolve upstream rights."
+          ],
+          "evidence": [
+            {
+              "url": "https://hf-mirror.com/GilgameshWind/X-ASR-zh-en/resolve/689ff18c584d29910da37b6fe904db0c1489c9d1/README.md",
+              "sha256": "7acc6f439d3e39e46de4298ccf8a8f6a483fdc5f9f5d08e61422b63760ec37b1"
+            }
+          ]
+        }
+      ],
+      "modifications": [
+        {
+          "id": "xasr-bpe-extraction",
+          "groupIds": ["xasr-bpe-vocab"],
+          "modifiedBy": "Pisper",
+          "summary": "Local BPE text extraction, not retraining. The generator identity records the inspected repository implementation, not a claim about a historical upstream build date.",
+          "source": {
+            "path": "bpe.model",
+            "bytes": 119265,
+            "sha256": "f87a38025a5fdd1e4e9591f6a44bb81295097ce0b80df6f4ab9f44e52c64ca5f"
+          },
+          "derived": {
+            "path": "speech-resources/xasr-bpe.vocab",
+            "bytes": 61562,
+            "sha256": "01381aa0c3065832cb8d7462d529e3079a99be56c955ce93b4cb9b78e8aa34e5"
+          },
+          "generator": {
+            "path": "scripts/speech-bpe.mjs",
+            "sha256": "a1c85731aa3e0be89f04acc79830db784a9d43edb8af9f4fb723bb45bd725786",
+            "method": "sentencePieceModelToVocab decodes ordered protobuf ModelProto.pieces and emits each piece, a tab, its finite score, and a newline without changing the BPE model."
+          }
+        }
+      ]
+    },
+    {
+      "id": "vits-melo-tts-zh_en",
+      "revision": "a0d5c6a264c0ef92d70d8661d8cc502d79627cd6",
+      "archive": {
+        "url": "https://github.com/k2-fsa/sherpa-onnx/releases/download/tts-models/vits-melo-tts-zh_en.tar.bz2",
+        "bytes": 167006755,
+        "sha256": "e58351ed7149f290a54534538badd4077cdbe6fddc964b24d0bee870415d1514"
+      },
+      "attribution": "MeloTTS by MyShell.ai; sherpa-onnx ONNX conversion. The retained software license is Copyright (c) 2024 MyShell.ai, MIT. The neural-weight repository separately declares MIT; dictionary and FST resources have separate declarations and pending provenance. Pisper selects the original single female voice via public sid 0 and uses the same original FP32 ONNX, tokens, mixed-language lexicon, dictionary and normalization files on Desktop, Android and iOS. No retraining, quantization, graph/metadata patch or voice-subset derivative is made. The unused new_heteronym.fst and 133-byte model.int8.onnx Git LFS pointer in the transport archive are drained but not installed; retained model files are unchanged. These choices do not imply upstream/speaker endorsement, redistribution approval or completed native-platform acceptance.",
+      "groups": [
+        {
+          "id": "melo-weights",
+          "pathScope": "model",
+          "paths": ["model.onnx"],
+          "licenseIds": ["mit-melo"],
+          "status": "pending",
+          "summary": "The myshell-ai/MeloTTS-Chinese model card at af5d207a364ea4208c6f589c89f57f88414bdd16 declares license: mit for the model repository; this is separate evidence from the MeloTTS software MIT license. The sherpa conversion package carries the exact MyShell.ai MIT text, and original ONNX metadata declares MIT license, melo-vits version 2, Chinese + English, n_speakers=1 and speaker_id=1. The conversion README explicitly describes a single female Chinese+English speaker. sherpa maps public sid 0 to the internal metadata speaker_id; Pisper does not change the graph, metadata or speaker embedding.",
+          "pendingReasons": [
+            "Exact historical checkpoint, training/conversion commits and reproducible archive build identity have not been established; the inspected conversion workflow uses moving upstream references. Training-data permissions, individual speaker consent and applicable personality/publicity rights are not fully audited. The discovered model card revision is evidence of a declaration, not proof of the historical conversion input."
+          ],
+          "evidence": [
+            {
+              "url": "https://hf-mirror.com/myshell-ai/MeloTTS-Chinese/resolve/af5d207a364ea4208c6f589c89f57f88414bdd16/README.md",
+              "sha256": "40b5b860bacbb3947cbef838719e660d2fe4961eba5b484290b4bedc0253e208"
+            },
+            {
+              "url": "https://raw.githubusercontent.com/myshell-ai/MeloTTS/209145371cff8fc3bd60d7be902ea69cbdb7965a/LICENSE",
+              "sha256": "88a50e5a02bbc2a5c2f084dc19da751aa97b1690f5fda76cd8005c8634d1ca70"
+            },
+            {
+              "url": "https://hf-mirror.com/csukuangfj/vits-melo-tts-zh_en/resolve/a0d5c6a264c0ef92d70d8661d8cc502d79627cd6/README.md",
+              "sha256": "ae6e44dead53dfdbd5b4a77106226f3118eb910222b46cb5533a3860773fc6c7"
+            },
+            {
+              "url": "https://raw.githubusercontent.com/k2-fsa/sherpa-onnx/917bed95c8e5c7c18aa4d69fea42e9ef8ef0a60e/scripts/melo-tts/export-onnx.py",
+              "sha256": "c0be7727d59ad6ceaf39e909b4560b57e704091c69ac3fab6f2f2abfd931c916"
+            },
+            {
+              "url": "https://raw.githubusercontent.com/k2-fsa/sherpa-onnx/917bed95c8e5c7c18aa4d69fea42e9ef8ef0a60e/scripts/melo-tts/run.sh",
+              "sha256": "e2afb98d9028eded2983f780468337fc019a8306db926f89e3bdeed18af867bb"
+            },
+            {
+              "url": "https://raw.githubusercontent.com/k2-fsa/sherpa-onnx/917bed95c8e5c7c18aa4d69fea42e9ef8ef0a60e/sherpa-onnx/csrc/offline-tts-vits-model.cc",
+              "sha256": "060907349036d63b60d035843defe7078b83c8099e0d4de323446c7db0d653d0"
+            }
+          ]
+        },
+        {
+          "id": "melo-tokens",
+          "pathScope": "model",
+          "paths": ["tokens.txt"],
+          "licenseIds": ["mit-melo", "apache-2.0-sherpa"],
+          "status": "declared",
+          "summary": "The sherpa Melo export writes enumerated model.hps symbols to tokens.txt. The original 655-byte token file is retained unchanged. Melo software is MIT; sherpa conversion code is Apache-2.0. These code declarations do not independently establish all underlying training-data rights.",
+          "pendingReasons": [],
+          "evidence": [
+            {
+              "url": "https://raw.githubusercontent.com/k2-fsa/sherpa-onnx/917bed95c8e5c7c18aa4d69fea42e9ef8ef0a60e/scripts/melo-tts/export-onnx.py",
+              "sha256": "c0be7727d59ad6ceaf39e909b4560b57e704091c69ac3fab6f2f2abfd931c916"
+            },
+            {
+              "url": "https://raw.githubusercontent.com/myshell-ai/MeloTTS/209145371cff8fc3bd60d7be902ea69cbdb7965a/LICENSE",
+              "sha256": "88a50e5a02bbc2a5c2f084dc19da751aa97b1690f5fda76cd8005c8634d1ca70"
+            },
+            {
+              "url": "https://raw.githubusercontent.com/k2-fsa/sherpa-onnx/917bed95c8e5c7c18aa4d69fea42e9ef8ef0a60e/LICENSE",
+              "sha256": "cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30"
+            }
+          ]
+        },
+        {
+          "id": "melo-cppjieba-dictionary",
+          "pathScope": "model",
+          "paths": [
+            "dict/hmm_model.utf8",
+            "dict/idf.utf8",
+            "dict/jieba.dict.utf8",
+            "dict/pos_dict/char_state_tab.utf8",
+            "dict/pos_dict/prob_emit.utf8",
+            "dict/pos_dict/prob_start.utf8",
+            "dict/pos_dict/prob_trans.utf8",
+            "dict/README.md",
+            "dict/stop_words.utf8"
+          ],
+          "licenseIds": ["mit-cppjieba"],
+          "status": "confirmed",
+          "summary": "Nine ordinary dictionary/README files are byte-identical to the separately HTTPS-downloaded CppJieba sherpa-onnx-2024-04-19 dict archive. The exact release source MIT license retains Copyright (c) 2013. This confirms the documented source-content match, not a whole-chain data-rights guarantee. The small Melo user.dict.utf8 is separately classified and is NOT the 829194-byte pypinyin-derived user dictionary from that source archive.",
+          "pendingReasons": [],
+          "evidence": [
+            {
+              "url": "https://ghfast.top/https://github.com/csukuangfj/cppjieba/releases/download/sherpa-onnx-2024-04-19/dict.tar.bz2",
+              "sha256": "35c3877c9b9221a5b2d69bbf57d5dbf1ccbe5b7684c60eb42f93db6b2d494f26"
+            },
+            {
+              "url": "https://raw.githubusercontent.com/csukuangfj/cppjieba/f03dd931a00330c279c8590275850fd1f6749a18/LICENSE",
+              "sha256": "ba898a14f729ba5e9965da34e3eecd5edd3795f2cc5d7c923b815ba79bb851b0"
+            },
+            {
+              "url": "https://raw.githubusercontent.com/k2-fsa/sherpa-onnx/917bed95c8e5c7c18aa4d69fea42e9ef8ef0a60e/.github/workflows/export-melo-tts-to-onnx.yaml",
+              "sha256": "fc90fc412fd6f3c8a7d593743372a077dd63b2c8ce0780ed9c3a7e05cc8b659e"
+            }
+          ]
+        },
+        {
+          "id": "melo-user-dictionary",
+          "pathScope": "model",
+          "paths": ["dict/user.dict.utf8"],
+          "licenseIds": ["mit-cppjieba", "mit-melo"],
+          "status": "pending",
+          "summary": "Melo ships an unchanged 49-byte user dictionary containing four entries. It matches the locked Melo HF file but differs from the separately downloaded CppJieba release user dictionary. The package MIT text and CppJieba project MIT declaration are retained as source declarations, not proof that either automatically licenses every edit. This file is not attributed to the unrelated historical pypinyin-derived dictionary.",
+          "pendingReasons": [
+            "The exact historical source commit, modifier and license coverage for this 49-byte replacement have not been identified. Retain applicable modifier notices when established."
+          ],
+          "evidence": [
+            {
+              "url": "https://raw.githubusercontent.com/k2-fsa/sherpa-onnx/917bed95c8e5c7c18aa4d69fea42e9ef8ef0a60e/.github/workflows/export-melo-tts-to-onnx.yaml",
+              "sha256": "fc90fc412fd6f3c8a7d593743372a077dd63b2c8ce0780ed9c3a7e05cc8b659e"
+            },
+            {
+              "url": "https://raw.githubusercontent.com/csukuangfj/cppjieba/f03dd931a00330c279c8590275850fd1f6749a18/LICENSE",
+              "sha256": "ba898a14f729ba5e9965da34e3eecd5edd3795f2cc5d7c923b815ba79bb851b0"
+            },
+            {
+              "url": "https://raw.githubusercontent.com/myshell-ai/MeloTTS/209145371cff8fc3bd60d7be902ea69cbdb7965a/LICENSE",
+              "sha256": "88a50e5a02bbc2a5c2f084dc19da751aa97b1690f5fda76cd8005c8634d1ca70"
+            },
+            {
+              "url": "https://huggingface.co/csukuangfj/vits-melo-tts-zh_en/resolve/a0d5c6a264c0ef92d70d8661d8cc502d79627cd6/dict/user.dict.utf8",
+              "sha256": "495bbf49270408a1234690e1e6a97328f30a482a7a72aa769e8a12e8714b0c62"
+            }
+          ]
+        },
+        {
+          "id": "melo-english-lexicon",
+          "pathScope": "model",
+          "paths": ["lexicon.txt"],
+          "licenseIds": ["cmudict-0.6-1998", "mit-melo", "apache-2.0-sherpa"],
+          "status": "pending",
+          "summary": "The English portion is generated by the sherpa Melo export from melo.text.english.eng_dict and refine_syllables, lowercasing words and adding language tone offsets plus kaldi/SF entries. The inspected Melo source reads cmudict.rep or a cached pickle. cmudict.rep contains its own Copyright 1998 Carnegie Mellon University unrestricted research/commercial permission and attribution notice, retained verbatim in cmudict-0.6-1998. This is NOT a substitution of a modern CMUdict BSD license. The retained notice hash covers the complete original comment header; the evidence hash covers the complete 3969309-byte source file. No package script or pickle was executed.",
+          "pendingReasons": [
+            "The precise historical dictionary/cache inputs and all intervening modifications used for this lexicon have not been pinned or reproduced. Trace cached-data equivalence and retain applicable original and modifier notices."
+          ],
+          "evidence": [
+            {
+              "url": "https://raw.githubusercontent.com/k2-fsa/sherpa-onnx/917bed95c8e5c7c18aa4d69fea42e9ef8ef0a60e/scripts/melo-tts/export-onnx.py",
+              "sha256": "c0be7727d59ad6ceaf39e909b4560b57e704091c69ac3fab6f2f2abfd931c916"
+            },
+            {
+              "url": "https://raw.githubusercontent.com/myshell-ai/MeloTTS/209145371cff8fc3bd60d7be902ea69cbdb7965a/melo/text/english.py",
+              "sha256": "28527f574511bfc13fe1f2f6bbb5bfe4072c06e1c7e9b69598138aef81b9905b"
+            },
+            {
+              "url": "https://raw.githubusercontent.com/myshell-ai/MeloTTS/209145371cff8fc3bd60d7be902ea69cbdb7965a/melo/text/cmudict.rep",
+              "sha256": "d127b5ce8b8e695732701e8efde04b9b0fa11991218b1fb9d21bd0c9264636aa"
+            },
+            {
+              "url": "https://raw.githubusercontent.com/myshell-ai/MeloTTS/209145371cff8fc3bd60d7be902ea69cbdb7965a/LICENSE",
+              "sha256": "88a50e5a02bbc2a5c2f084dc19da751aa97b1690f5fda76cd8005c8634d1ca70"
+            },
+            {
+              "url": "https://raw.githubusercontent.com/k2-fsa/sherpa-onnx/917bed95c8e5c7c18aa4d69fea42e9ef8ef0a60e/LICENSE",
+              "sha256": "cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30"
+            }
+          ]
+        },
+        {
+          "id": "melo-chinese-lexicon",
+          "pathScope": "model",
+          "paths": ["lexicon.txt"],
+          "licenseIds": ["mit-pypinyin", "mit-melo", "apache-2.0-sherpa"],
+          "status": "pending",
+          "summary": "The Chinese portion is generated by the sherpa Melo export from pypinyin character/phrase dictionaries, lazy_pinyin and the Melo pinyin-to-symbol map. Melo code is MIT, sherpa conversion code Apache-2.0, and pypinyin declares MIT. Those software declarations do not relicense external dictionary inputs. The same 6837671-byte mixed-language lexicon is used unchanged on every platform.",
+          "pendingReasons": [
+            "Pin historical pypinyin versions, character/phrase JSON data and Melo phoneme mapping, reproduce the output and trace the actual underlying source-data terms. No particular Zdic, CC-CEDICT or Unihan license is asserted without proof of the actual input chain."
+          ],
+          "evidence": [
+            {
+              "url": "https://raw.githubusercontent.com/k2-fsa/sherpa-onnx/917bed95c8e5c7c18aa4d69fea42e9ef8ef0a60e/scripts/melo-tts/export-onnx.py",
+              "sha256": "c0be7727d59ad6ceaf39e909b4560b57e704091c69ac3fab6f2f2abfd931c916"
+            },
+            {
+              "url": "https://raw.githubusercontent.com/mozillazg/python-pinyin/8595294b1a97845e30f11ecfdb3caa4e61ac3988/pypinyin/pinyin_dict.py",
+              "sha256": "245c1f70509432b289cde1f938157cd5ff1372d1d083b577d5fab72b4dfcda08"
+            },
+            {
+              "url": "https://raw.githubusercontent.com/mozillazg/python-pinyin/8595294b1a97845e30f11ecfdb3caa4e61ac3988/pypinyin/phrases_dict.py",
+              "sha256": "3f6f39bbca68d8d1676ea463cd4620b934b03160cc5042fb9d9007b8f3a80b9e"
+            },
+            {
+              "url": "https://raw.githubusercontent.com/mozillazg/python-pinyin/8595294b1a97845e30f11ecfdb3caa4e61ac3988/LICENSE.txt",
+              "sha256": "1e6c90014b4912815c296ee64bb6f6280af47e6d4c5d80e86232dfc5defe764c"
+            },
+            {
+              "url": "https://raw.githubusercontent.com/myshell-ai/MeloTTS/209145371cff8fc3bd60d7be902ea69cbdb7965a/LICENSE",
+              "sha256": "88a50e5a02bbc2a5c2f084dc19da751aa97b1690f5fda76cd8005c8634d1ca70"
+            }
+          ]
+        },
+        {
+          "id": "melo-normalization-fsts",
+          "pathScope": "model",
+          "paths": ["date.fst", "number.fst", "phone.fst"],
+          "licenseIds": ["apache-2.0-sherpa"],
+          "status": "pending",
+          "summary": "All three FSTs are byte-identical to the separately downloaded data/date.fst, data/number.fst and data/phone.fst at csukuangfj/icefall-tts-aishell3-vits-low-2024-04-06 revision 57345c004e13ed640e408c4c29ab56187b18f065, the source repository named by the Melo packaging workflow. That source model card declares Apache-2.0; the full Apache text is retained from sherpa. Neither the OpenFst software license nor the Melo neural-weight MIT declaration independently grants rights to these FST data.",
+          "pendingReasons": [
+            "Exact editable generation rules, compiler/source revisions, underlying data provenance and applicable author/modifier notices remain unverified. No standalone FST LICENSE/NOTICE or complete reproducible source chain was found in the inspected source tree."
+          ],
+          "evidence": [
+            {
+              "url": "https://raw.githubusercontent.com/k2-fsa/sherpa-onnx/917bed95c8e5c7c18aa4d69fea42e9ef8ef0a60e/.github/workflows/export-melo-tts-to-onnx.yaml",
+              "sha256": "fc90fc412fd6f3c8a7d593743372a077dd63b2c8ce0780ed9c3a7e05cc8b659e"
+            },
+            {
+              "url": "https://hf-mirror.com/csukuangfj/icefall-tts-aishell3-vits-low-2024-04-06/resolve/57345c004e13ed640e408c4c29ab56187b18f065/README.md",
+              "sha256": "98b45ea81164d1e1a1dd82255207053b15cd6c69d922a1c5cf3387ce604d4b74"
+            },
+            {
+              "url": "https://hf-mirror.com/csukuangfj/icefall-tts-aishell3-vits-low-2024-04-06/resolve/57345c004e13ed640e408c4c29ab56187b18f065/data/date.fst",
+              "sha256": "eb8aa079ae3cb81d8f4404992f39d61a0cb990947512b5b8d1e54d1f6980e718"
+            },
+            {
+              "url": "https://hf-mirror.com/csukuangfj/icefall-tts-aishell3-vits-low-2024-04-06/resolve/57345c004e13ed640e408c4c29ab56187b18f065/data/number.fst",
+              "sha256": "743f402181fcfebf76cc2f0546b71fa26476e626fbe4e460fb7b4c3a7a8bd5bd"
+            },
+            {
+              "url": "https://hf-mirror.com/csukuangfj/icefall-tts-aishell3-vits-low-2024-04-06/resolve/57345c004e13ed640e408c4c29ab56187b18f065/data/phone.fst",
+              "sha256": "1ac2b6fa56b1442320c4de7db08353bab8963a2b57f365eebcdd3a2d3562f8d7"
+            },
+            {
+              "url": "https://raw.githubusercontent.com/k2-fsa/sherpa-onnx/917bed95c8e5c7c18aa4d69fea42e9ef8ef0a60e/LICENSE",
+              "sha256": "cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30"
+            }
+          ]
+        },
+        {
+          "id": "melo-package-notices",
+          "pathScope": "model",
+          "paths": ["LICENSE", "README.md"],
+          "licenseIds": ["mit-melo"],
+          "status": "confirmed",
+          "summary": "LICENSE is byte-identical to the original MyShell.ai MIT text (Copyright (c) 2024 MyShell.ai), including its exact final newline behavior. README explicitly identifies the single female Chinese+English speaker. The package-level MIT file is not a blanket grant for every bundled dictionary or FST. No upstream NOTICE was listed in the inspected conversion and weight repository trees; this is not proof that none ever existed.",
+          "pendingReasons": [],
+          "evidence": [
+            {
+              "url": "https://raw.githubusercontent.com/myshell-ai/MeloTTS/209145371cff8fc3bd60d7be902ea69cbdb7965a/LICENSE",
+              "sha256": "88a50e5a02bbc2a5c2f084dc19da751aa97b1690f5fda76cd8005c8634d1ca70"
+            },
+            {
+              "url": "https://hf-mirror.com/csukuangfj/vits-melo-tts-zh_en/resolve/a0d5c6a264c0ef92d70d8661d8cc502d79627cd6/README.md",
+              "sha256": "ae6e44dead53dfdbd5b4a77106226f3118eb910222b46cb5533a3860773fc6c7"
+            }
+          ]
+        }
+      ],
+      "modifications": []
+    }
+  ]
+}

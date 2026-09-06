@@ -77,11 +77,23 @@ impl<R: Runtime> MobileDevice<R> {
     }
 
     pub fn transcribe_pcm(&self, pcm_base64: impl Into<String>, hotwords: String) -> Result<Value> {
+        self.transcribe_pcm_with_options(pcm_base64, hotwords, None, None)
+    }
+
+    pub fn transcribe_pcm_with_options(
+        &self,
+        pcm_base64: impl Into<String>,
+        hotwords: String,
+        model_id: Option<String>,
+        request_id: Option<String>,
+    ) -> Result<Value> {
         #[derive(Serialize)]
         #[serde(rename_all = "camelCase")]
         struct TranscribeRequest {
             pcm_base64: String,
             hotwords: String,
+            model_id: Option<String>,
+            request_id: Option<String>,
         }
         self.0
             .run_mobile_plugin(
@@ -89,8 +101,89 @@ impl<R: Runtime> MobileDevice<R> {
                 TranscribeRequest {
                     pcm_base64: pcm_base64.into(),
                     hotwords,
+                    model_id,
+                    request_id,
                 },
             )
+            .map_err(Into::into)
+    }
+
+    pub fn speech_models(&self) -> Result<Value> {
+        self.0
+            .run_mobile_plugin("speechModels", ())
+            .map_err(Into::into)
+    }
+
+    fn speech_model_operation(&self, command: &str, model_id: String) -> Result<Value> {
+        #[derive(Serialize)]
+        #[serde(rename_all = "camelCase")]
+        struct ModelRequest {
+            model_id: String,
+        }
+        self.0
+            .run_mobile_plugin(command, ModelRequest { model_id })
+            .map_err(Into::into)
+    }
+
+    pub fn download_speech_model(&self, model_id: String) -> Result<Value> {
+        self.speech_model_operation("downloadSpeechModel", model_id)
+    }
+
+    pub fn cancel_speech_model_download(&self, model_id: String) -> Result<Value> {
+        self.speech_model_operation("cancelSpeechModelDownload", model_id)
+    }
+
+    pub fn synthesize_speech(
+        &self,
+        text: String,
+        voice_id: String,
+        request_id: String,
+    ) -> Result<Value> {
+        #[derive(Serialize)]
+        #[serde(rename_all = "camelCase")]
+        struct SynthesisRequest {
+            text: String,
+            voice_id: String,
+            request_id: String,
+        }
+        self.0
+            .run_mobile_plugin(
+                "synthesizeSpeech",
+                SynthesisRequest {
+                    text,
+                    voice_id,
+                    request_id,
+                },
+            )
+            .map_err(Into::into)
+    }
+
+    pub fn play_speech(&self, audio_id: String, request_id: String) -> Result<Value> {
+        #[derive(Serialize)]
+        #[serde(rename_all = "camelCase")]
+        struct PlaybackRequest {
+            audio_id: String,
+            request_id: String,
+        }
+        self.0
+            .run_mobile_plugin(
+                "playSpeech",
+                PlaybackRequest {
+                    audio_id,
+                    request_id,
+                },
+            )
+            .map_err(Into::into)
+    }
+
+    pub fn cancel_speech(&self, request_id: String) -> Result<Value> {
+        #[derive(Serialize)]
+        #[serde(rename_all = "camelCase")]
+        struct CancelRequest {
+            request_id: String,
+        }
+        self.0
+            .run_mobile_plugin("cancelSpeech", CancelRequest { request_id })
             .map_err(Into::into)
     }
 

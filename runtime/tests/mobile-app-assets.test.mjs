@@ -371,7 +371,7 @@ test('移动语音输入具有受控原生链路、平台边界与可复现打�
   ] = await Promise.all([
     readFile('scripts/setup-mobile-android.mjs', 'utf8'),
     readFile('scripts/patch-wry-android.mjs', 'utf8'),
-    readFile('scripts/stage-android-speech-model.mjs', 'utf8'),
+    readFile('scripts/stage-speech-resources.mjs', 'utf8'),
     readFile('scripts/build-mobile-runtime.mjs', 'utf8'),
     readFile('scripts/build-mobile-android.mjs', 'utf8'),
     readFile('.github/workflows/release-app.yml', 'utf8'),
@@ -392,6 +392,17 @@ test('移动语音输入具有受控原生链路、平台边界与可复现打�
     readFile('src-tauri/permissions/mobile.toml', 'utf8'),
   ])
 
+  const [speechAudio, speechStore, speechCatalog] = await Promise.all([
+    readFile(
+      'src-tauri/mobile-device-plugin/android/src/main/java/app/pisper/mobiledevice/SpeechAudioService.kt',
+      'utf8',
+    ),
+    readFile(
+      'src-tauri/mobile-device-plugin/android/src/main/java/app/pisper/mobiledevice/SpeechModelStore.kt',
+      'utf8',
+    ),
+    readFile('shared/speech-model-catalog.json', 'utf8').then(JSON.parse),
+  ])
   const permissionIndex = voiceControl.indexOf('await requestMicrophonePermission()')
   const captureIndex = voiceControl.indexOf('await startMicrophoneCapture')
   assert.notEqual(permissionIndex, -1)
@@ -403,8 +414,11 @@ test('移动语音输入具有受控原生链路、平台边界与可复现打�
   assert.match(mobileBridge, /\.transcribe_pcm\(pcm_base64, hotwords\)/)
   assert.match(mobileBridge, /hotwords: Option<String>/)
   assert.match(mobileBridge, /validate_mobile_speech_hotwords/)
-  assert.match(androidPlugin, /speech-model\/bpe\.vocab/)
-  assert.match(androidPlugin, /modified_beam_search/)
+  assert.match(androidPlugin, /speechAudio\.transcribe\(/)
+  assert.match(speechStore, /speech-resources\//)
+  assert.match(speechAudio, /val vocab = models\.bpeVocab\(model\)/)
+  assert.match(speechAudio, /modified_beam_search/)
+  assert.match(speechAudio, /assetManager = null/)
   assert.match(mobileBridge, /generate_handler!\[[\s\S]*mobile_transcribe_pcm/)
   assert.match(androidPlugin, /fun transcribePcm\(invoke: Invoke\)/)
   assert.match(mobilePermissions, /"mobile_request_microphone_permission"/)
@@ -446,28 +460,35 @@ test('移动语音输入具有受控原生链路、平台边界与可复现打�
   assert.match(androidPluginBuild, /consumerProguardFiles\("consumer-rules\.pro"\)/)
   assert.match(sherpaConsumerRules, /-keep class com\.k2fsa\.sherpa\.onnx\.\*\* \{ \*; \}/)
 
-  assert.match(focusSession, /function supportsVoiceInput\(\)/)
-  assert.match(focusSession, /window\.__PISPER_MOBILE_PLATFORM__ !== 'ios'/)
+  assert.doesNotMatch(focusSession, /supportsVoiceInput|__PISPER_MOBILE_PLATFORM__/)
   assert.match(mobileBridge, /value: 'android'[\s\S]*value: 'ios'/)
-  assert.match(focusSession, /\{supportsVoiceInput\(\) && \([\s\S]*<VoiceInputControl/)
+  assert.match(focusSession, /<VoiceInputControl/)
 
   for (const source of [releaseWorkflow, storeWorkflow]) {
     assert.match(source, /stage-android-speech-model\.mjs/)
-    assert.match(source, /speech-model\/encoder\.int8\.onnx/)
-    assert.match(source, /speech-model\/decoder\.onnx/)
-    assert.match(source, /speech-model\/joiner\.int8\.onnx/)
-    assert.match(source, /speech-model\/tokens\.txt/)
-    assert.match(source, /speech-model\/bpe\.model/)
+    assert.match(source, /speech-model-catalog\.json/)
+    assert.match(source, /speech-resources\/xasr-bpe\.vocab/)
+    assert.match(source, /must not contain bundled speech models or any ONNX weights/)
+    assert.match(source, /sha256sum "shared\/\$RESOURCE"/)
+    assert.match(source, /01381aa0c3065832cb8d7462d529e3079a99be56c955ce93b4cb9b78e8aa34e5/)
+    assert.doesNotMatch(
+      source,
+      /name: (?:store-)?android-speech-model|path: release\/mobile-speech-model/,
+    )
     assert.match(source, /MainActivity\.isTrustedProxyOrigin\(request\.origin\)/)
     assert.match(source, /override fun onShowFileChooser/)
     assert.match(source, /request\.grant\(request\.resources\)/)
     assert.match(source, /non-arm64 native library/)
-    assert.match(source, /908596dcc137a73b95be908ca55e88caa1b3dbbe8027c171615f4b0609c5eb1e/)
-    assert.match(source, /a1cbc9eac2d5e3fb6617a218c67ad6daaa7f4e0fd225f08b2c22ab0413c8c257/)
-    assert.match(source, /aedb7fa697b2ab43f20499826fff7c997eea7d67db77be97769aeeeb726e63b3/)
-    assert.match(source, /b818a60878b9aae978cbb8ad594acbd403d76d1af2e31ef4197c84e2dbdba27c/)
-    assert.match(source, /f87a38025a5fdd1e4e9591f6a44bb81295097ce0b80df6f4ab9f44e52c64ca5f/)
   }
+  const asr = speechCatalog.models.find((model) => model.id === speechCatalog.defaults.asr)
+  for (const [path, sha256] of [
+    ['encoder.int8.onnx', '908596dcc137a73b95be908ca55e88caa1b3dbbe8027c171615f4b0609c5eb1e'],
+    ['decoder.onnx', 'a1cbc9eac2d5e3fb6617a218c67ad6daaa7f4e0fd225f08b2c22ab0413c8c257'],
+    ['joiner.int8.onnx', 'aedb7fa697b2ab43f20499826fff7c997eea7d67db77be97769aeeeb726e63b3'],
+    ['tokens.txt', 'b818a60878b9aae978cbb8ad594acbd403d76d1af2e31ef4197c84e2dbdba27c'],
+    ['bpe.model', 'f87a38025a5fdd1e4e9591f6a44bb81295097ce0b80df6f4ab9f44e52c64ca5f'],
+  ])
+    assert.equal(asr.files.find((file) => file.path === path)?.sha256, sha256)
   assert.match(releaseWorkflow, /apkanalyzer manifest permissions/)
   assert.match(releaseWorkflow, /OnlineRecognizerConfig java\.lang\.String decodingMethod/)
   assert.match(releaseWorkflow, /android\.permission\.RECORD_AUDIO/)
@@ -481,11 +502,13 @@ test('移动语音输入具有受控原生链路、平台边界与可复现打�
     storeWorkflow,
     /require_dex_member 'Lcom\/lingkongran\/pisper\/RustWebChromeClient;'/,
   )
-  assert.match(modelStager, /verifyModelDirectory\(resolvedSource\)/)
-  assert.match(modelStager, /verifyModelDirectory\(resolvedTarget\)/)
+  assert.match(modelStager, /const catalog = JSON\.parse\(catalogBytes\.toString\('utf8'\)\)/)
+  assert.match(modelStager, /verifyCatalog\(catalog\)/)
+  assert.match(modelStager, /createHash\('sha256'\)\.update\(bpeBytes\)/)
+  assert.match(modelStager, /rejectSymlinkAncestors/)
   assert.match(mobileRuntimeBuild, /includeSpeechModel: false/)
-  assert.match(mobileRuntimeBuild, /speechOutputDir/)
-  assert.match(androidBuild, /sourceDir: join\(root, 'release', 'mobile-speech-model'\)/)
+  assert.doesNotMatch(mobileRuntimeBuild, /speechOutputDir|stageSpeechModel\(/)
+  assert.match(androidBuild, /sourceDir: join\(root, 'shared'\)/)
   assert.match(appPaths, /scripts\/stage-android-speech-model\.mjs/)
   assert.match(appPaths, /scripts\/patch-wry-android\.mjs/)
 })
@@ -939,14 +962,17 @@ test('iOS 移动配置整体替换桌面资源且由两个发布通道共用', a
   }
 })
 
-test('iOS 插件兼容 Xcode 14 的 SwiftPM 与旧 SDK', async () => {
+test('iOS 插件声明语音 SDK 所需的 SwiftPM 与最低系统版本，保留旧权限状态兼容', async () => {
   const [packageManifest, plugin, setup] = await Promise.all([
     readFile('src-tauri/mobile-device-plugin/ios/Package.swift', 'utf8'),
     readFile('src-tauri/mobile-device-plugin/ios/Sources/MobileDevicePlugin.swift', 'utf8'),
     readFile('scripts/setup-mobile-ios.mjs', 'utf8'),
   ])
 
-  assert.match(packageManifest, /^\/\/ swift-tools-version:5\.3/m)
+  assert.match(packageManifest, /^\/\/ swift-tools-version:5\.9/m)
+  assert.match(packageManifest, /platforms: \[\.iOS\("15\.1"\)\]/)
+  const mobileConfig = JSON.parse(await readFile('src-tauri/tauri.mobile-ios.conf.json', 'utf8'))
+  assert.equal(mobileConfig.bundle.iOS.minimumSystemVersion, '15.1')
   assert.match(plugin, /status\.rawValue ===? 4/)
   assert.doesNotMatch(plugin, /status == \.limited/)
   assert.match(setup, /Tests['"], ['"]TauriTests['"], ['"]TauriTests\.swift/)

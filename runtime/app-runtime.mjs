@@ -18,7 +18,9 @@ import { ensureRemoteCertificate } from './remote-tls.mjs'
 import { collectRemoteEndpoints, remoteDeviceName } from './remote-endpoints.mjs'
 import { readIrohTunnelStatus } from './iroh-endpoint.mjs'
 import { resolveRuntimeCapabilities } from './runtime-capabilities.mjs'
-import { SpeechRecognitionService } from './services/speech-recognition-service.mjs'
+import { SpeechEngineService } from './services/speech-engine-service.mjs'
+import { SpeechModelDownloadService } from './services/speech-model-download-service.mjs'
+import speechCatalog from '../shared/speech-model-catalog.json' with { type: 'json' }
 import { SpeechTermsService } from './services/speech-terms-service.mjs'
 
 // 启动诊断回调必须无副作用：即使观察者抛错也不能影响运行时可用性。
@@ -89,6 +91,8 @@ export async function createPisperRuntime({
   let runtime = null
   let handleApi = null
   let vite = null
+  let speech = null
+  let speechModels = null
   let startInitialization
 
   // ── 远程访问（移动端互联）────────────────────────────────────────────
@@ -255,8 +259,19 @@ export async function createPisperRuntime({
       appVersion: packageJson.version,
     })
     const speechTerms = new SpeechTermsService({ dataDir: agentDir })
-    const speech = new SpeechRecognitionService({
-      packagedModelDir: join(appRoot, 'runtime', 'speech-model'),
+    speechModels = new SpeechModelDownloadService({
+      dataDir: agentDir,
+      catalog: speechCatalog.models,
+      trustedRedirectHosts: [
+        'hf-mirror.com',
+        'cas-bridge.xethub.hf.co',
+        'release-assets.githubusercontent.com',
+      ],
+    })
+    speech = new SpeechEngineService({
+      catalog: speechCatalog,
+      modelDownloads: speechModels,
+      resourceDir: join(appRoot, 'shared'),
       hotwordsDir: join(agentDir, 'speech'),
     })
     await sponsors.init()
@@ -274,6 +289,8 @@ export async function createPisperRuntime({
       sponsors,
       desktopPet,
       speech,
+      speechModels,
+      speechCatalog,
       speechTerms,
       engineVersion,
       remoteAccess,
@@ -366,6 +383,8 @@ export async function createPisperRuntime({
         desktopPet.dispose()
         await stopRemote()
         await initialized.catch(() => null)
+        await speech?.dispose()
+        await speechModels?.dispose()
         await runtime?.dispose()
         await vite?.close()
         await new Promise((resolveClose) => server.close(() => resolveClose()))

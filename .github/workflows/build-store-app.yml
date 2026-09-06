@@ -64,20 +64,21 @@ jobs:
           tar -tzf release/pisper-embedded-runtime.tar.gz > "$RUNTIME_CONTENTS"
           grep -Fx './dist/index.html' "$RUNTIME_CONTENTS"
           grep -Fx './runtime/mobile-embedded.mjs' "$RUNTIME_CONTENTS"
-          if grep -Fq './runtime/speech-model/' "$RUNTIME_CONTENTS"; then
-            echo 'Store Runtime must not duplicate the Android AssetManager speech model.' >&2
+          grep -Fx './shared/speech-model-catalog.json' "$RUNTIME_CONTENTS"
+          grep -Fx './shared/speech-resources/xasr-bpe.vocab' "$RUNTIME_CONTENTS"
+          if grep -Eiq '^\./runtime/speech-model(/|$)|\.onnx($|/)' "$RUNTIME_CONTENTS"; then
+            echo 'Store Runtime must not contain bundled speech weights.' >&2
             exit 1
           fi
+          for RESOURCE in speech-model-catalog.json speech-resource-notices.json speech-resources/xasr-bpe.vocab; do
+            test "$(tar -xOzf release/pisper-embedded-runtime.tar.gz "./shared/$RESOURCE" | sha256sum | awk '{print $1}')" = \
+              "$(sha256sum "shared/$RESOURCE" | awk '{print $1}')"
+          done
       - uses: actions/upload-artifact@v4
         with:
           name: store-embedded-runtime
           if-no-files-found: error
           path: release/pisper-embedded-runtime.tar.gz
-      - uses: actions/upload-artifact@v4
-        with:
-          name: store-android-speech-model
-          if-no-files-found: error
-          path: release/mobile-speech-model
 
   android:
     name: Build signed Google Play AAB
@@ -121,10 +122,6 @@ jobs:
         with:
           name: store-embedded-runtime
           path: embedded-runtime
-      - uses: actions/download-artifact@v5
-        with:
-          name: store-android-speech-model
-          path: speech-model
       - name: Stage store Runtime asset
         run: |
           set -Eeuo pipefail
@@ -133,8 +130,8 @@ jobs:
           cp embedded-runtime/pisper-embedded-runtime.tar.gz \
             src-tauri/gen/android/app/src/main/assets/pisper-embedded-runtime.tgz
           node scripts/stage-android-speech-model.mjs \
-            --source speech-model \
-            src-tauri/gen/android/app/src/main/assets/speech-model
+            --source shared \
+            src-tauri/gen/android/app/src/main/assets
       - name: Build store AAB
         env:
           NDK_HOME: ${{ env.ANDROID_HOME }}/ndk/27.3.13750724
@@ -165,24 +162,20 @@ jobs:
           test -n "$AAB" || { echo "AAB output was not found." >&2; exit 1; }
           unzip -Z1 "$AAB" > /tmp/pisper-aab-contents.txt
           grep -F 'base/assets/pisper-embedded-runtime.tgz' /tmp/pisper-aab-contents.txt
-          grep -F 'base/assets/speech-model/encoder.int8.onnx' /tmp/pisper-aab-contents.txt
-          grep -F 'base/assets/speech-model/decoder.onnx' /tmp/pisper-aab-contents.txt
-          grep -F 'base/assets/speech-model/joiner.int8.onnx' /tmp/pisper-aab-contents.txt
-          grep -F 'base/assets/speech-model/tokens.txt' /tmp/pisper-aab-contents.txt
-          grep -F 'base/assets/speech-model/bpe.model' /tmp/pisper-aab-contents.txt
-          grep -F 'base/assets/speech-model/bpe.vocab' /tmp/pisper-aab-contents.txt
-          test "$(unzip -p "$AAB" base/assets/speech-model/encoder.int8.onnx | sha256sum | awk '{print $1}')" = \
-            '908596dcc137a73b95be908ca55e88caa1b3dbbe8027c171615f4b0609c5eb1e'
-          test "$(unzip -p "$AAB" base/assets/speech-model/decoder.onnx | sha256sum | awk '{print $1}')" = \
-            'a1cbc9eac2d5e3fb6617a218c67ad6daaa7f4e0fd225f08b2c22ab0413c8c257'
-          test "$(unzip -p "$AAB" base/assets/speech-model/joiner.int8.onnx | sha256sum | awk '{print $1}')" = \
-            'aedb7fa697b2ab43f20499826fff7c997eea7d67db77be97769aeeeb726e63b3'
-          test "$(unzip -p "$AAB" base/assets/speech-model/tokens.txt | sha256sum | awk '{print $1}')" = \
-            'b818a60878b9aae978cbb8ad594acbd403d76d1af2e31ef4197c84e2dbdba27c'
-          test "$(unzip -p "$AAB" base/assets/speech-model/bpe.model | sha256sum | awk '{print $1}')" = \
-            'f87a38025a5fdd1e4e9591f6a44bb81295097ce0b80df6f4ab9f44e52c64ca5f'
-          test "$(unzip -p "$AAB" base/assets/speech-model/bpe.vocab | sha256sum | awk '{print $1}')" = \
+          grep -Fx 'base/assets/speech-model-catalog.json' /tmp/pisper-aab-contents.txt
+          grep -Fx 'base/assets/speech-resources/xasr-bpe.vocab' /tmp/pisper-aab-contents.txt
+          if grep -Eiq '^base/assets/speech-model(/|$)|\.onnx($|/)' /tmp/pisper-aab-contents.txt; then
+            echo 'Store AAB must not contain bundled speech models or any ONNX weights.' >&2
+            exit 1
+          fi
+          for RESOURCE in speech-model-catalog.json speech-resource-notices.json speech-resources/xasr-bpe.vocab; do
+            test "$(unzip -p "$AAB" "base/assets/$RESOURCE" | sha256sum | awk '{print $1}')" = \
+              "$(sha256sum "shared/$RESOURCE" | awk '{print $1}')"
+          done
+          test "$(unzip -p "$AAB" base/assets/speech-resources/xasr-bpe.vocab | sha256sum | awk '{print $1}')" = \
             '01381aa0c3065832cb8d7462d529e3079a99be56c955ce93b4cb9b78e8aa34e5'
+          test "$(unzip -p "$AAB" base/assets/pisper-embedded-runtime.tgz | sha256sum | awk '{print $1}')" = \
+            "$(sha256sum embedded-runtime/pisper-embedded-runtime.tar.gz | awk '{print $1}')"
           grep -F 'base/lib/arm64-v8a/libnode.so' /tmp/pisper-aab-contents.txt
           grep -F 'base/lib/arm64-v8a/libpisper_webview_lib.so' /tmp/pisper-aab-contents.txt
           if grep -E '^base/lib/' /tmp/pisper-aab-contents.txt | grep -Ev '^base/lib/arm64-v8a/'; then
@@ -298,10 +291,13 @@ jobs:
           set -Eeuo pipefail
           test -n "$IOS_CERTIFICATE" || { echo "IOS_DISTRIBUTION_CERTIFICATE is required." >&2; exit 1; }
           test -n "$IOS_MOBILE_PROVISION" || { echo "IOS_APP_STORE_PROVISIONING_PROFILE is required." >&2; exit 1; }
+          node scripts/stage-ios-speech-resources.mjs
           npx tauri ios init --config src-tauri/tauri.mobile-ios.conf.json
           node scripts/setup-mobile-ios.mjs
       - name: Test iOS DNS-SD permission handling
         run: bash scripts/test-ios-dns-sd.sh
+      - name: Test iOS speech native contracts
+        run: npm run test:ios
       - name: Build Apple Distribution IPA
         env:
           IOS_CERTIFICATE: ${{ secrets.IOS_DISTRIBUTION_CERTIFICATE }}
@@ -321,6 +317,12 @@ jobs:
           IPA=$(find src-tauri/gen/apple -name '*.ipa' -type f | head -1)
           test -n "$IPA" || { echo "Signed IPA output was not found." >&2; exit 1; }
           unzip -Z1 "$IPA" > /tmp/pisper-ios-contents.txt
+          SPEECH_CHECK_DIR=$(mktemp -d)
+          trap 'rm -rf "$SPEECH_CHECK_DIR"' EXIT
+          unzip -q "$IPA" -d "$SPEECH_CHECK_DIR"
+          SPEECH_APP=$(find "$SPEECH_CHECK_DIR/Payload" -maxdepth 1 -name '*.app' -type d | head -1)
+          test -n "$SPEECH_APP"
+          node scripts/verify-ios-speech-bundle.mjs "$SPEECH_APP"
           require_ipa_entry() {
             local pattern="$1"
             local label="$2"

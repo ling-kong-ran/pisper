@@ -57,11 +57,6 @@ import { matchesShortcut, shortcutEventBlocked, useShortcutLabel } from '@/lib/s
 
 export type { FocusSessionProps }
 
-function supportsVoiceInput() {
-  // iOS 仍缺少本地转写后端，在原生命令可用前不展示一个停止后必然失败的入口。
-  return window.__PISPER_MOBILE_PLATFORM__ !== 'ios'
-}
-
 // 托盘外部点击关闭的排除区域：触发按钮、托盘壳、锚定弹层，以及 portal 到 body 的
 // 对话框与浮层（Git diff 对话框、Radix Dialog/AlertDialog/Popover/DropdownMenu/Select/Sheet）。
 // 缺了它们时，点击浮层会被当成外部点击而收起托盘，托盘卸载又连带销毁面板状态
@@ -177,6 +172,8 @@ export const FocusSession = memo(function FocusSession({
   const [scrollRequest, setScrollRequest] = useState(0)
   const addSelectedAttachments = selection.addAttachments
   const promptRef = useRef<HTMLTextAreaElement>(null)
+  // 语音实时转写与草稿的合并基准：录音开始时记住原文本，部分转写反复覆盖增量段。
+  const voiceDraftBaseRef = useRef<string | null>(null)
   useEffect(() => {
     if (!shortcutEnabled) return
     const focusComposer = (event: KeyboardEvent) => {
@@ -209,6 +206,17 @@ export const FocusSession = memo(function FocusSession({
       : t('chat:focusSession.composerHint')
 
   const requestTranscriptBottom = () => setScrollRequest((current) => current + 1)
+
+  // 语音文本写入草稿并自适应高度：value 可能是闭包旧值，以 textarea 实际值为准。
+  const applyVoiceDraft = (text: string) => {
+    updateValue(text)
+    requestAnimationFrame(() => {
+      const element = promptRef.current
+      if (!element) return
+      element.style.height = 'auto'
+      element.style.height = `${Math.min(element.scrollHeight, 220)}px`
+    })
+  }
 
   const {
     composerExecutionMode,
@@ -582,34 +590,44 @@ export const FocusSession = memo(function FocusSession({
                 compact
               />
             </div>
-            {supportsVoiceInput() && (
-              <>
-                <button
-                  type="button"
-                  className="grid !size-11 !min-w-11 place-items-center rounded-[var(--r-sm)] border border-transparent bg-[var(--surface-subtle)] text-[var(--text-muted)] transition-[background-color,color,border-color,box-shadow,transform] duration-200 hover:scale-105 hover:border-[var(--brand-blue)] hover:bg-[var(--brand-blue-soft)] hover:text-[var(--brand-blue-strong)]"
-                  title={t('chat:voiceMode.open')}
-                  aria-label={t('chat:voiceMode.open')}
-                  onClick={() => setVoiceModeOpen(true)}
-                >
-                  <AudioLines size={17} />
-                </button>
-                <VoiceInputControl
-                  sessionId={session.id}
-                  shortcutEnabled={shortcutEnabled}
-                  onInsert={(transcript) => {
-                    const prefix = value.trimEnd()
-                    updateValue(prefix ? `${prefix}\n${transcript}` : transcript)
-                    requestAnimationFrame(() => {
-                      const element = promptRef.current
-                      if (!element) return
-                      element.focus()
-                      element.style.height = 'auto'
-                      element.style.height = `${Math.min(element.scrollHeight, 220)}px`
-                    })
-                  }}
-                />
-              </>
-            )}
+            <>
+              <button
+                type="button"
+                className="grid !size-11 !min-w-11 place-items-center rounded-[var(--r-sm)] border border-transparent bg-[var(--surface-subtle)] text-[var(--text-muted)] transition-[background-color,color,border-color,box-shadow,transform] duration-200 hover:scale-105 hover:border-[var(--brand-blue)] hover:bg-[var(--brand-blue-soft)] hover:text-[var(--brand-blue-strong)]"
+                title={t('chat:voiceMode.open')}
+                aria-label={t('chat:voiceMode.open')}
+                onClick={() => setVoiceModeOpen(true)}
+              >
+                <AudioLines size={17} />
+              </button>
+              <VoiceInputControl
+                sessionId={session.id}
+                shortcutEnabled={shortcutEnabled}
+                onLiveText={(text) => {
+                  if (text === null) {
+                    // 录音取消/失败：回滚到录音前的草稿。
+                    if (voiceDraftBaseRef.current !== null) {
+                      applyVoiceDraft(voiceDraftBaseRef.current)
+                      voiceDraftBaseRef.current = null
+                    }
+                    return
+                  }
+                  if (voiceDraftBaseRef.current === null) {
+                    voiceDraftBaseRef.current = (promptRef.current?.value ?? value).trimEnd()
+                  }
+                  const base = voiceDraftBaseRef.current
+                  applyVoiceDraft(base && text ? `${base}\n${text}` : base || text)
+                }}
+                onInsert={(transcript) => {
+                  // 最终转写替换实时部分文本（基准段 + 终稿）。
+                  const base =
+                    voiceDraftBaseRef.current ?? (promptRef.current?.value ?? value).trimEnd()
+                  voiceDraftBaseRef.current = null
+                  applyVoiceDraft(base ? `${base}\n${transcript}` : transcript)
+                  requestAnimationFrame(() => promptRef.current?.focus())
+                }}
+              />
+            </>
             <ComposerSendButton
               streaming={streaming}
               queueing={queueing}
