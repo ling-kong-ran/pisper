@@ -60,6 +60,8 @@
 | **⚡ 自动化与通知** | **🖥️ 终端与桌面一体** |
 | 可视化工作流 · 定时任务 · 飞书 / 个人微信双向渠道 · 星忆项目记忆 · Git 与 SVN 工作区 | Ratatui TUI 与桌面共用 Runtime · Android / iOS 同源本机 Runtime 或桌面连接 · 桌面宠物（Petdex）· Desktop / TUI / Runtime / App 独立更新 |
 
+[语音输入 对话模式](https://ling-kong-ran.github.io/pisper/guide.html#voice)
+
 <a id="pi-runtime"></a>
 
 ## 🧠 基于 Pi Coding Agent 深度构建

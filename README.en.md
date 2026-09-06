@@ -60,6 +60,8 @@
 | **⚡ Automation & notifications** | **🖥️ Desktop & terminal, one core** |
 | Visual workflows · Scheduled tasks · Feishu / WeChat channels · Project memory · Git & SVN changes | Ratatui TUI sharing the Desktop Runtime · Android / iOS on-device Runtime or Desktop connection · Desktop pets (Petdex) · Independent Desktop / TUI / Runtime / App updates |
 
+[Voice Input · Conversation Mode](https://ling-kong-ran.github.io/pisper/guide.html#voice)
+
 <a id="pi-runtime"></a>
 
 ## 🧠 Built on Pi Coding Agent

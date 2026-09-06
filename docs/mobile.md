@@ -53,6 +53,8 @@ Android/iOS embedded Node 没有 `child_process` 等宿主能力时，终端、V
 当前 Provider 凭据保存在 App 私有数据目录，依赖系统沙箱和文件权限保护，尚未接入 Android
 Keystore / iOS Keychain。不要导出或分享 App 私有数据。
 
+[语音输入 对话模式](https://ling-kong-ran.github.io/pisper/guide.html#voice)
+
 ## 三步配对
 
 开始前，请把桌面 Pisper 与移动 App 更新到兼容版本。建议首次配对时让手机与电脑连接同一个可信局域网；电脑需要在使用手机期间保持开机并运行 Pisper。

@@ -65,15 +65,24 @@ test('homepage and showcase use bounded WebP previews while preserving original 
   for (const path of new Set(references)) await access(path)
 })
 
-test('homepage capability matrix includes voice recognition and a matching guide section', async () => {
+test('homepage capability matrix includes voice input and conversation mode with a matching guide', async () => {
   const [homepage, guide] = await Promise.all([
     readFile('docs/index.html', 'utf8'),
     readFile('docs/guide.html', 'utf8'),
   ])
 
-  assert.match(homepage, /href="guide\.html#voice"[\s\S]*?<h3>语音识别<\/h3>/)
-  assert.match(guide, /<section class="guide-section" id="voice">[\s\S]*?<h2>语音识别<\/h2>/)
-  assert.match(guide, /href="#voice">语音识别<\/a>/)
+  const voiceCards = [
+    ...homepage.matchAll(/<a\b[^>]*href="guide\.html#voice"[^>]*>([\s\S]*?)<\/a>/g),
+  ].map((match) => match[1])
+  assert.equal(voiceCards.length, 2)
+  assert.match(voiceCards[0], /<h3>语音输入<\/h3>/)
+  assert.match(voiceCards[1], /<h3>对话模式<\/h3>/)
+  for (const card of voiceCards) assert.match(card, /<p>[^<]+<\/p>/)
+  assert.match(
+    guide,
+    /<section class="guide-section" id="voice">\s*<h2>语音输入 对话模式<\/h2>\s*<\/section>/,
+  )
+  assert.match(guide, /href="#voice">语音输入 对话模式<\/a>/)
 })
 
 test('homepage keeps direct download calls at compact widths', async () => {
