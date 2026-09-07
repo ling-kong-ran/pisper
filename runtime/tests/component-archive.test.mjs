@@ -3,6 +3,7 @@ import { execFile } from 'node:child_process'
 import {
   chmod,
   copyFile,
+  cp,
   lstat,
   mkdir,
   mkdtemp,
@@ -16,6 +17,8 @@ import {
 import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
 import { promisify } from 'node:util'
+import { runInNewContext } from 'node:vm'
+import { parse } from '@babel/parser'
 import test from 'node:test'
 import { t as listTar, x as extractTar } from 'tar'
 
@@ -107,6 +110,55 @@ test(
       assert.equal(
         await readFile(join(payload, 'node_modules', 'example', 'lib.dylib'), 'utf8'),
         'library',
+      )
+    }
+  },
+)
+
+test(
+  'TUI staging preserves relative npm links before secure component archiving',
+  { skip: process.platform === 'win32' && 'Windows npm does not stage file symlinks' },
+  async (t) => {
+    const { root, runtime } = await fixture(t)
+    await mkdir(join(runtime, 'node_modules', '.bin'), { recursive: true })
+    await mkdir(join(runtime, 'node_modules', 'example'), { recursive: true })
+    await writeFile(join(runtime, 'node_modules', 'example', 'cli.cjs'), 'console.log("ok")\n')
+    await symlink('../example/cli.cjs', join(runtime, 'node_modules', '.bin', 'example'))
+    const source = await readFile('scripts/package-tui.mjs', 'utf8')
+    let copyCall
+    const visit = (node) => {
+      if (!node || typeof node !== 'object') return
+      if (
+        node.type === 'CallExpression' &&
+        node.callee?.name === 'cp' &&
+        node.arguments[0]?.name === 'runtimeSource'
+      )
+        copyCall = node
+      for (const value of Object.values(node)) {
+        if (Array.isArray(value)) value.forEach(visit)
+        else if (value && typeof value === 'object') visit(value)
+      }
+    }
+    visit(parse(source, { sourceType: 'module' }))
+    assert.ok(copyCall)
+    const stage = join(root, 'tui-stage')
+    // 执行生产 cp 表达式，避免 fixture 自己使用正确选项而掩盖打包回归。
+    await runInNewContext(source.slice(copyCall.start, copyCall.end), {
+      cp,
+      join,
+      stage,
+      runtimeSource: runtime,
+    })
+    await writeFile(join(stage, `pisper${suffix}`), 'tui')
+    await run(process.execPath, [join(root, 'scripts', 'archive-component-release.mjs'), 'tui'], {
+      cwd: root,
+      env: { ...process.env, PISPER_TUI_STAGE_DIR: stage },
+    })
+    const output = join(root, 'release', 'component-artifacts')
+    for (const name of (await readdir(output)).filter((name) => name.endsWith('.tar.gz'))) {
+      assert.deepEqual(
+        (await entries(join(output, name))).filter((entry) => !supportedTypes.has(entry.type)),
+        [],
       )
     }
   },

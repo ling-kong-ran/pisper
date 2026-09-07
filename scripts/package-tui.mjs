@@ -67,7 +67,12 @@ await mkdir(stage, { recursive: true })
 await Promise.all([
   copyFile(cliSource, join(stage, `pisper${executableSuffix}`)),
   copyFile(sidecarSource, join(stage, `pisper-sidecar${executableSuffix}`)),
-  cp(runtimeSource, join(stage, 'sidecar-runtime'), { recursive: true, force: true }),
+  // 保留 npm 相对链接，否则 fs.cp 会将其改写到原 staging，随后被归档安全检查拒绝。
+  cp(runtimeSource, join(stage, 'sidecar-runtime'), {
+    recursive: true,
+    force: true,
+    verbatimSymlinks: true,
+  }),
 ])
 if (process.platform !== 'win32') {
   await Promise.all([
