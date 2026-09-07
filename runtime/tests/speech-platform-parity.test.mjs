@@ -91,57 +91,64 @@ test('iOS bundle validation rejects changed resources, duplicate catalogs and bu
   await assert.rejects(verifyIosSpeechBundle({ appRoot }), /exactly one/)
 })
 
-test('the Mac XCTest package copies production Swift and the same resources while isolating only Tauri', async (t) => {
-  const root = await realpath(await mkdtemp(join(tmpdir(), 'pisper-ios-xctest-')))
-  t.after(() => rm(root, { recursive: true, force: true }))
-  const plugin = 'src-tauri/mobile-device-plugin/ios'
-  const sources = [
-    'SpeechTrustedRoots.swift',
-    'SpeechModelStore.swift',
-    'SpeechModelArchive.swift',
-    'SpeechNativeEngine.swift',
-    'SpeechAudioService.swift',
-  ]
-  const paths = [
-    ...resources.map((name) => join('shared', name)),
-    join(plugin, 'Package.swift'),
-    ...sources.map((name) => join(plugin, 'Sources', name)),
-    ...[
-      'SpeechModelStoreTests.swift',
-      'SpeechModelArchiveTests.swift',
-      'SpeechAudioStateTests.swift',
-      'SpeechAudioServiceTests.swift',
-    ].map((name) => join(plugin, 'Tests', name)),
-  ]
-  for (const path of paths) {
-    await mkdir(dirname(join(root, path)), { recursive: true })
-    await copyFile(path, join(root, path))
-  }
-  const target = join(root, 'test-package')
-  await prepareIosSpeechTests({ root, target })
-  const manifest = await readFile(join(target, 'Package.swift'), 'utf8')
-  assert.doesNotMatch(manifest, /Tauri/)
-  assert.match(manifest, /exact: "1\.13\.7"/)
-  assert.match(manifest, /exact: "0\.1\.1"/)
-  for (const name of sources) {
-    assert.deepEqual(
-      await readFile(join(target, 'Sources', name)),
-      await readFile(join(plugin, 'Sources', name)),
+for (const newline of ['\n', '\r\n']) {
+  test(`the Mac XCTest package copies production Swift and the same resources while isolating only Tauri (${newline === '\n' ? 'LF' : 'CRLF'})`, async (t) => {
+    const root = await realpath(await mkdtemp(join(tmpdir(), 'pisper-ios-xctest-')))
+    t.after(() => rm(root, { recursive: true, force: true }))
+    const plugin = 'src-tauri/mobile-device-plugin/ios'
+    const sources = [
+      'SpeechTrustedRoots.swift',
+      'SpeechModelStore.swift',
+      'SpeechModelArchive.swift',
+      'SpeechNativeEngine.swift',
+      'SpeechAudioService.swift',
+    ]
+    const paths = [
+      ...resources.map((name) => join('shared', name)),
+      join(plugin, 'Package.swift'),
+      ...sources.map((name) => join(plugin, 'Sources', name)),
+      ...[
+        'SpeechModelStoreTests.swift',
+        'SpeechModelArchiveTests.swift',
+        'SpeechAudioStateTests.swift',
+        'SpeechAudioServiceTests.swift',
+      ].map((name) => join(plugin, 'Tests', name)),
+    ]
+    for (const path of paths) {
+      await mkdir(dirname(join(root, path)), { recursive: true })
+      await copyFile(path, join(root, path))
+    }
+    const sourceManifest = join(root, plugin, 'Package.swift')
+    await writeFile(
+      sourceManifest,
+      (await readFile(sourceManifest, 'utf8')).replace(/\r?\n/g, newline),
     )
-  }
-  for (const name of resources) {
-    assert.deepEqual(
-      await readFile(join(target, 'Sources/SpeechResources', name)),
-      await readFile(join('shared', name)),
-    )
-  }
-  for (const name of await readdir(join(target, 'Tests'))) {
-    assert.match(
-      await readFile(join(target, 'Tests', name), 'utf8'),
-      /@testable import pisper_mobile_device_plugin/,
-    )
-  }
-})
+    const target = join(root, 'test-package')
+    await prepareIosSpeechTests({ root, target })
+    const manifest = await readFile(join(target, 'Package.swift'), 'utf8')
+    assert.doesNotMatch(manifest, /Tauri/)
+    assert.match(manifest, /exact: "1\.13\.7"/)
+    assert.match(manifest, /exact: "0\.1\.1"/)
+    for (const name of sources) {
+      assert.deepEqual(
+        await readFile(join(target, 'Sources', name)),
+        await readFile(join(plugin, 'Sources', name)),
+      )
+    }
+    for (const name of resources) {
+      assert.deepEqual(
+        await readFile(join(target, 'Sources/SpeechResources', name)),
+        await readFile(join('shared', name)),
+      )
+    }
+    for (const name of await readdir(join(target, 'Tests'))) {
+      assert.match(
+        await readFile(join(target, 'Tests', name), 'utf8'),
+        /@testable import pisper_mobile_device_plugin/,
+      )
+    }
+  })
+}
 
 test('all mobile speech commands dispatch to both native platforms through the same validated bridge', async () => {
   const source = await readFile('src-tauri/src/mobile/mod.rs', 'utf8')

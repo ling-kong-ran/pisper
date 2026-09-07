@@ -23,7 +23,8 @@ export async function prepareIosSpeechTests({ root = projectRoot, target }) {
   await mkdir(join(target, 'Sources'), { recursive: true })
   await mkdir(join(target, 'Tests'), { recursive: true })
   // 测试使用原生实现和同一 SDK 依赖，仅隔离需要 App 宿主 Rust 符号的 Tauri 入口。
-  let manifest = await readFile(join(plugin, 'Package.swift'), 'utf8')
+  // Windows 检出可能使用 CRLF，边界匹配前统一换行，避免误报依赖结构变化。
+  let manifest = (await readFile(join(plugin, 'Package.swift'), 'utf8')).replace(/\r\n/g, '\n')
   manifest = removeOnce(manifest, '    .package(name: "Tauri", path: "../.tauri/tauri-api"),\n')
   manifest = removeOnce(manifest, '        .byName(name: "Tauri"),\n')
   await writeFile(join(target, 'Package.swift'), manifest)
