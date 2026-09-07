@@ -120,12 +120,12 @@ export function ModelsSettings({
           >
             <ChevronDown
               size={15}
-              className="text-[var(--text-muted)] transition-transform group-data-[state=closed]:-rotate-90"
+              className="shrink-0 text-[var(--text-muted)] transition-transform group-data-[state=closed]:-rotate-90"
             />
-            <span className="text-[13px] font-[700] text-[var(--text-secondary)]">
+            <span className="shrink-0 text-[13px] font-[700] text-[var(--text-secondary)]">
               {t('config:configPage.manageConnections')}
             </span>
-            <span className="text-[12px] text-[var(--text-tertiary)]">
+            <span className="min-w-0 text-[12px] text-[var(--text-tertiary)]">
               {t('config:configPage.manageConnectionsHint')}
             </span>
           </button>

@@ -9,7 +9,7 @@ import {
 type RuntimeCapabilitiesState = {
   capabilities: RuntimeCapabilities
   loaded: boolean
-  load: () => Promise<void>
+  load: (options?: { refresh?: boolean }) => Promise<void>
 }
 
 function normalizeCapabilities(value: Partial<RuntimeCapabilities>): RuntimeCapabilities {
@@ -18,7 +18,7 @@ function normalizeCapabilities(value: Partial<RuntimeCapabilities>): RuntimeCapa
     const available = value.features?.[feature]
     if (typeof available === 'boolean') features[feature] = available
   }
-  const profile = ['desktop', 'mobile-root', 'mobile-embedded'].includes(String(value.profile))
+  const profile = ['desktop', 'mobile-embedded', 'mobile-store'].includes(String(value.profile))
     ? (value.profile as RuntimeCapabilities['profile'])
     : 'desktop'
   return {
@@ -39,16 +39,28 @@ function normalizeCapabilities(value: Partial<RuntimeCapabilities>): RuntimeCapa
   }
 }
 
-export const useRuntimeCapabilitiesStore = create<RuntimeCapabilitiesState>()((set) => ({
+let capabilitiesLoadPromise: Promise<void> | null = null
+
+export const useRuntimeCapabilitiesStore = create<RuntimeCapabilitiesState>()((set, get) => ({
   capabilities: LEGACY_RUNTIME_CAPABILITIES,
   loaded: false,
-  load: async () => {
-    try {
-      const capabilities = await apiJson<Partial<RuntimeCapabilities>>('/api/runtime/capabilities')
-      set({ capabilities: normalizeCapabilities(capabilities), loaded: true })
-    } catch {
-      // 旧 Runtime 没有能力接口，按升级前的全功能合同继续渲染。
-      set({ capabilities: LEGACY_RUNTIME_CAPABILITIES, loaded: true })
-    }
+  load: ({ refresh = true } = {}) => {
+    // 启动重挂复用快照，但显式 load() 必须能刷新本地与远程 Runtime 的能力。
+    if (capabilitiesLoadPromise) return capabilitiesLoadPromise
+    if (!refresh && get().loaded) return Promise.resolve()
+    capabilitiesLoadPromise = (async () => {
+      try {
+        const capabilities = await apiJson<Partial<RuntimeCapabilities>>(
+          '/api/runtime/capabilities',
+        )
+        set({ capabilities: normalizeCapabilities(capabilities), loaded: true })
+      } catch {
+        // 旧 Runtime 没有能力接口，按升级前的全功能合同继续渲染。
+        set({ capabilities: LEGACY_RUNTIME_CAPABILITIES, loaded: true })
+      }
+    })().finally(() => {
+      capabilitiesLoadPromise = null
+    })
+    return capabilitiesLoadPromise
   },
 }))

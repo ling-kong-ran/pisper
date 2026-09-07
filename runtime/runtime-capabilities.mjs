@@ -1,6 +1,6 @@
 // 同一套 Pisper Runtime 在不同宿主上使用这份能力清单做降级。能力只能由实际
 // 内建模块探测开启；环境变量只选择宿主档案，不能把不存在的能力伪装成可用。
-const PROFILES = new Set(['desktop', 'mobile-root', 'mobile-embedded', 'mobile-store'])
+const PROFILES = new Set(['desktop', 'mobile-embedded', 'mobile-store'])
 
 function requestedProfile(environment) {
   const value = String(environment.PISPER_RUNTIME_PROFILE || '').trim()
@@ -95,6 +95,15 @@ function buildCapabilities({
     features: Object.freeze(features),
     tools: Object.freeze(supportedTools(features)),
   })
+}
+
+// 分阶段启动必须显式启用，不能让桌面因环境探测意外改变就绪语义。
+export function mobileBaseInitialization(mode, profile) {
+  if (mode === 'full') return false
+  if (mode !== 'mobile-base') throw new Error(`Unknown initialization mode: ${mode}`)
+  if (!PROFILES.has(profile) || !profile.startsWith('mobile-'))
+    throw new Error('mobile-base initialization requires a mobile runtime profile')
+  return true
 }
 
 export function desktopRuntimeCapabilities() {

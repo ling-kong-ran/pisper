@@ -4,6 +4,7 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { spawnSync } from 'node:child_process'
 import { dirname, join, resolve } from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
+import { load, dump } from 'js-yaml'
 import { stageIosSpeechResources } from './stage-ios-speech-resources.mjs'
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..')
@@ -70,6 +71,37 @@ export function injectIosSystemConfigurationFramework(projectSpec) {
   )
 }
 
+export function injectIosNativeBuildSettings(projectSpec, minimumSystemVersion) {
+  const project = load(projectSpec)
+  const targets = Object.values(project.targets ?? {}).filter((target) => target.platform === 'iOS')
+  if (targets.length === 0) throw new Error('无法在 iOS project.yml 中定位 iOS target')
+  if (!/^\d+\.\d+(?:\.\d+)?$/.test(minimumSystemVersion)) {
+    throw new Error('iOS minimumSystemVersion 无效')
+  }
+  project.options ??= {}
+  project.options.deploymentTarget ??= {}
+  project.options.deploymentTarget.iOS = minimumSystemVersion
+  for (const target of targets) {
+    // 重生成工程时 Externals 已有多架构静态库，不能再被推断为同名 App 资源。
+    for (const source of target.sources ?? []) {
+      if (source.path === 'Externals') source.buildPhase = 'none'
+    }
+    target.settings ??= {}
+    target.settings.base ??= {}
+    const settings = target.settings.base
+    const current = settings.OTHER_LDFLAGS ?? '$(inherited)'
+    const flags = Array.isArray(current) ? [...current] : [String(current)]
+    // Cargo staticlib 不传递系统动态库依赖，必须在最终 Xcode 链接阶段显式补齐。
+    for (const library of ['c++', 'z', 'bz2', 'iconv', 'xml2']) {
+      const flag = `-l${library}`
+      if (!flags.some((value) => String(value).split(/\s+/).includes(flag))) flags.push(flag)
+    }
+    settings.OTHER_LDFLAGS = flags.join(' ')
+    settings.IPHONEOS_DEPLOYMENT_TARGET = minimumSystemVersion
+  }
+  return dump(project, { lineWidth: -1, noRefs: true })
+}
+
 async function main() {
   const projectSpecPath = resolve(process.argv[2] || defaultProjectSpec)
   if (!existsSync(projectSpecPath)) {
@@ -83,7 +115,13 @@ async function main() {
   ensureGeneratedTauriApiTests()
 
   const current = readFileSync(projectSpecPath, 'utf8')
-  const updated = injectIosSystemConfigurationFramework(injectIosPrivacyManifest(current))
+  const config = JSON.parse(
+    readFileSync(join(root, 'src-tauri', 'tauri.mobile-ios.conf.json'), 'utf8'),
+  )
+  const updated = injectIosNativeBuildSettings(
+    injectIosSystemConfigurationFramework(injectIosPrivacyManifest(current)),
+    config.bundle.iOS.minimumSystemVersion,
+  )
   writeFileSync(projectSpecPath, updated, 'utf8')
 
   const result = spawnSync('xcodegen', ['generate', '--spec', projectSpecPath], {

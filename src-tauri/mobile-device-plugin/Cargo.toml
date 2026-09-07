@@ -6,6 +6,7 @@ links = "pisper-mobile-device-plugin"
 publish = false
 
 [build-dependencies]
+serde_json = "1"
 tauri-plugin = { version = "2", features = ["build"] }
 
 [dependencies]

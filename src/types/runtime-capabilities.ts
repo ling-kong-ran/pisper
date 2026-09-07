@@ -28,7 +28,7 @@ export type RuntimeFeature =
 
 export type RuntimeCapabilities = {
   version: number
-  profile: 'desktop' | 'mobile-root' | 'mobile-embedded'
+  profile: 'desktop' | 'mobile-embedded' | 'mobile-store'
   engine: 'node'
   degraded: boolean
   modules: {

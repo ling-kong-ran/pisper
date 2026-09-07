@@ -168,7 +168,6 @@ jobs:
           NDK_HOME: ${{ env.ANDROID_HOME }}/ndk/27.3.13750724
         run: |
           node node_modules/@tauri-apps/cli/tauri.js android build --apk --ci --target aarch64 \
-            --features mobile-embedded-only \
             --config '{"version":"${{ inputs.version }}","bundle":{"externalBin":[],"resources":[]}}'
       - name: Sign APK
         env:

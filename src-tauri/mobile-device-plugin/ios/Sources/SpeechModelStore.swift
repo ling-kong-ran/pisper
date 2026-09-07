@@ -126,7 +126,8 @@ enum SpeechFiles {
             && url.query == nil && url.fragment == nil && url.path.hasPrefix("/")
             && !url.path.hasPrefix("//"), .path)
         for part in url.path.split(separator: "/") { _ = try relative(String(part)) }
-        return url.standardizedFileURL
+        // 逐段验证已拒绝点路径；Foundation 标准化反而会将 /private/var 改成符号链接 /var。
+        return url
     }
 
     static func child(_ root: URL, _ path: String) throws -> URL {
@@ -135,15 +136,23 @@ enum SpeechFiles {
 
     static func directory(_ url: URL, create: Bool = false) throws -> Int32 {
         let root = try self.root(url)
-        var fd = Darwin.open("/", O_RDONLY | O_DIRECTORY | O_CLOEXEC)
+        let parts = root.path.split(separator: "/")
+        // 沙盒祖先只需搜索权限；最终目录仍以只读打开，供枚举和所有权校验使用。
+        var fd = Darwin.open("/", (parts.isEmpty ? O_RDONLY : O_SEARCH) | O_DIRECTORY | O_NOFOLLOW | O_CLOEXEC)
         try speechRequire(fd >= 0, .storage)
         do {
-            for part in root.path.split(separator: "/") {
+            for (index, part) in parts.enumerated() {
                 let name = String(part)
-                if create && mkdirat(fd, name, 0o700) != 0 && errno != EEXIST {
-                    throw SpeechStorageError.storage
+                let access = index == parts.count - 1 ? O_RDONLY : O_SEARCH
+                let flags = access | O_DIRECTORY | O_NOFOLLOW | O_CLOEXEC
+                var next = openat(fd, name, flags)
+                // 已存在的系统祖先不尝试写入；权限拒绝不能当成缺失目录而重试。
+                if next < 0 && errno == ENOENT && create {
+                    if mkdirat(fd, name, 0o700) != 0 && errno != EEXIST {
+                        throw SpeechStorageError.storage
+                    }
+                    next = openat(fd, name, flags)
                 }
-                let next = openat(fd, name, O_RDONLY | O_DIRECTORY | O_NOFOLLOW | O_CLOEXEC)
                 try speechRequire(next >= 0, .path)
                 Darwin.close(fd)
                 fd = next

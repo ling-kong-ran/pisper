@@ -13,7 +13,10 @@ final class SpeechModelStoreTests: XCTestCase {
     private var stores: [SpeechModelStore] = []
 
     override func setUpWithError() throws {
-        temporary = FileManager.default.temporaryDirectory.resolvingSymlinksInPath()
+        // 测试根必须保留真实祖先，避免 Foundation 将 /private/var 改回符号链接 /var。
+        let physical = try XCTUnwrap(realpath(FileManager.default.temporaryDirectory.path, nil))
+        defer { free(physical) }
+        temporary = URL(fileURLWithPath: String(cString: physical), isDirectory: true)
             .appendingPathComponent("pisper-speech-tests-" + UUID().uuidString)
         try FileManager.default.createDirectory(at: temporary, withIntermediateDirectories: true)
     }
@@ -137,6 +140,66 @@ final class SpeechModelStoreTests: XCTestCase {
             var config = model["config"] as! [String: Any]
             body(&config)
             model["config"] = config
+        }
+    }
+
+    func testSearchOnlyAncestorsPermitReadableLeafAndCreation() throws {
+        try XCTSkipIf(geteuid() == 0, "Root bypasses directory permission checks")
+        let ancestor = temporary.appendingPathComponent("traverse-only")
+        let leaf = ancestor.appendingPathComponent("leaf")
+        try FileManager.default.createDirectory(at: leaf, withIntermediateDirectories: true)
+        XCTAssertEqual(chmod(ancestor.path, 0o111), 0)
+        defer { chmod(ancestor.path, 0o700) }
+        errno = 0
+        let denied = Darwin.open(ancestor.path, O_RDONLY | O_DIRECTORY | O_NOFOLLOW | O_CLOEXEC)
+        let failure = errno
+        if denied >= 0 { Darwin.close(denied) }
+        XCTAssertEqual(denied, -1, "stage=open-ancestor-read")
+        XCTAssertEqual(failure, EACCES, "stage=open-ancestor-read errno=\(failure)")
+        let descriptor = try SpeechFiles.directory(leaf)
+        defer { Darwin.close(descriptor) }
+        XCTAssertEqual(try SpeechFiles.attributes(descriptor).st_mode & S_IFMT, S_IFDIR)
+        let created = try SpeechFiles.directory(leaf.appendingPathComponent("new/nested"), create: true)
+        defer { Darwin.close(created) }
+        XCTAssertEqual(try SpeechFiles.attributes(created).st_mode & 0o777, 0o700)
+        let catalog = leaf.appendingPathComponent("catalog.json")
+        try JSONSerialization.data(withJSONObject: fixture().catalog).write(to: catalog)
+        let store = try SpeechModelStore(catalogURL: catalog, storageDirectory: leaf.appendingPathComponent("models"),
+                                        archiveExtractor: { _, _, _, _, _ in XCTFail("Unexpected extraction") })
+        XCTAssertEqual(try snapshot(store, id: "asr")["status"] as? String, "not-installed")
+    }
+
+    func testSearchTraversalStillRejectsUnreadableLeafAndUnsearchableAncestor() throws {
+        try XCTSkipIf(geteuid() == 0, "Root bypasses directory permission checks")
+        let ancestor = temporary.appendingPathComponent("permissions")
+        let leaf = ancestor.appendingPathComponent("leaf")
+        try FileManager.default.createDirectory(at: leaf, withIntermediateDirectories: true)
+        defer { chmod(ancestor.path, 0o700); chmod(leaf.path, 0o700) }
+        XCTAssertEqual(chmod(leaf.path, 0o111), 0)
+        XCTAssertThrowsError(try SpeechFiles.directory(leaf)) {
+            XCTAssertEqual($0 as? SpeechStorageError, .path)
+        }
+        XCTAssertEqual(chmod(leaf.path, 0o700), 0)
+        XCTAssertEqual(chmod(ancestor.path, 0o000), 0)
+        XCTAssertThrowsError(try SpeechFiles.directory(leaf)) {
+            XCTAssertEqual($0 as? SpeechStorageError, .path)
+        }
+    }
+
+    func testSearchTraversalRejectsIntermediateLinksAndRegularFiles() throws {
+        let real = temporary.appendingPathComponent("real")
+        let leaf = real.appendingPathComponent("leaf")
+        try FileManager.default.createDirectory(at: leaf, withIntermediateDirectories: true)
+        let linked = temporary.appendingPathComponent("linked")
+        try FileManager.default.createSymbolicLink(at: linked, withDestinationURL: real)
+        let file = temporary.appendingPathComponent("file")
+        try Data().write(to: file)
+        for invalid in [linked, file] {
+            for create in [false, true] {
+                XCTAssertThrowsError(try SpeechFiles.directory(invalid.appendingPathComponent("leaf"), create: create)) {
+                    XCTAssertEqual($0 as? SpeechStorageError, .path)
+                }
+            }
         }
     }
 
@@ -382,6 +445,18 @@ final class SpeechModelStoreTests: XCTestCase {
         XCTAssertThrowsError(try store.modelDirectory(modelId: "asr"))
     }
 
+    func testValidatedRootPreservesPhysicalPathWithoutStandardization() throws {
+        let physical = URL(fileURLWithPath: "/private/var", isDirectory: true)
+        XCTAssertEqual(physical.standardizedFileURL.path, "/var")
+        XCTAssertEqual(try SpeechFiles.root(physical).path, "/private/var")
+        let descriptor = try SpeechFiles.directory(physical)
+        Darwin.close(descriptor)
+        XCTAssertThrowsError(try SpeechFiles.directory(URL(fileURLWithPath: "/var")))
+        for path in ["/private/var/../var", "/private/./var"] {
+            XCTAssertThrowsError(try SpeechFiles.root(URL(fileURLWithPath: path)))
+        }
+    }
+
     func testLinksAreRejectedIncludingLinksInsideRootAndHardLinks() throws {
         let source = temporary.appendingPathComponent("source")
         try write(source, Data("abc".utf8))
@@ -478,7 +553,7 @@ final class SpeechModelStoreTests: XCTestCase {
             "files": model.files.map { ["path": $0.path, "bytes": $0.bytes, "sha256": $0.sha256] as [String: Any] },
         ]
         try write(backup.appendingPathComponent(SpeechFiles.marker), JSONSerialization.data(withJSONObject: marker))
-        XCTAssertEqual(try store.modelDirectory(modelId: "asr"), root.appendingPathComponent("asr"))
+        XCTAssertEqual(try store.modelDirectory(modelId: "asr").path, root.appendingPathComponent("asr").path)
         XCTAssertFalse(try SpeechFiles.exists(backup))
     }
 

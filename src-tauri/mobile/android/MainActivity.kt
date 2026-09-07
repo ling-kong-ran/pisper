@@ -29,15 +29,6 @@ class MainActivity : TauriActivity() {
     trustedProxyPort = port
   }
 
-  override fun onWebViewCreate(webView: WebView) {
-    super.onWebViewCreate(webView)
-    val recoveryUrl = intent.getStringExtra(RENDERER_RECOVERY_URL) ?: return
-    intent.removeExtra(RENDERER_RECOVERY_URL)
-
-    // Wry 会在这个回调返回后加载初始 URL，因此把恢复导航排到下一轮主线程消息。
-    webView.post { webView.loadUrl(recoveryUrl) }
-  }
-
   private fun recoverRenderer(webView: WebView, lastKnownUrl: String, didCrash: Boolean): Boolean {
     if (rendererRecoveryScheduled) return true
     rendererRecoveryScheduled = true
@@ -69,6 +60,23 @@ class MainActivity : TauriActivity() {
         origin.userInfo.isNullOrEmpty() &&
         origin.port == trustedProxyPort &&
         trustedProxyPort in 1..65535
+    }
+
+    @JvmStatic
+    fun restoreRendererRoute(webView: WebView) {
+      val activity = findActivity(webView.context) ?: return
+      if (activity.isFinishing || activity.isDestroyed) return
+      val recoveryUrl = activity.intent.getStringExtra(RENDERER_RECOVERY_URL) ?: return
+      activity.intent.removeExtra(RENDERER_RECOVERY_URL)
+      val uri = runCatching { Uri.parse(recoveryUrl) }.getOrNull()
+      if (!isTrustedProxyOrigin(uri)) return
+
+      // 等 Wry 初始页面完成后再恢复，避免初始导航覆盖 onWebViewCreate 排队的导航。
+      webView.post {
+        if (!activity.isFinishing && !activity.isDestroyed && webView.url != recoveryUrl) {
+          webView.loadUrl(recoveryUrl)
+        }
+      }
     }
 
     @JvmStatic

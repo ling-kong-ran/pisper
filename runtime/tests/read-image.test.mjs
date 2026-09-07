@@ -52,7 +52,7 @@ test('mobile read omits an oversized image when in-process decoding fails', asyn
   image.set([0xff, 0xd8, 0xff, 0xe0])
   await writeFile(imagePath, image)
   const tool = await createCompressedReadTool(directory, {
-    runtimeProfile: 'mobile-root',
+    runtimeProfile: 'mobile-embedded',
     resizeImageForMobile: async () => null,
   })
 

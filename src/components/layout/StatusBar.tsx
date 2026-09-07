@@ -5,10 +5,12 @@
 // 收到 HTTP 状态码（含错误码）说明链路仍可达。断开时连接点变琥珀色并
 // 显示「重连中」，恢复后回到正常态；断开/恢复各提示一次（10s 内同状态节流）。
 import { useCallback, useEffect, useRef, useState } from 'react'
+import { useQuery } from '@tanstack/react-query'
 import { Bot } from 'lucide-react'
 import { STORAGE_KEYS } from '@/app/storage'
 import { useI18n } from '@/app/use-i18n'
-import { ACTIVE_SESSION_CHANGED_EVENT, SESSIONS_UPDATED_EVENT } from '@/features/chat/events'
+import { ACTIVE_SESSION_CHANGED_EVENT } from '@/features/chat/events'
+import { startupQueryOptions } from '@/lib/startup-queries'
 import { apiJson } from '@/lib/api'
 import { ApiError } from '@/lib/http'
 import { formatTokenCount, normalizeTokenUsage, type TokenUsage } from '@/lib/format'
@@ -47,17 +49,29 @@ export function StatusBar({ page, pluginStats }: StatusBarProps) {
   const runtimeOnlineRef = useRef(true)
   const lastConnectionToast = useRef<{ online: boolean; at: number } | null>(null)
   const connectionToastSequence = useRef(0)
-  const modelRequest = useRef(0)
+  const usageRequest = useRef<Promise<boolean> | null>(null)
+  const { data: configData } = useQuery(
+    startupQueryOptions<{ provider?: string; model?: string }>('config'),
+  )
+  const { data: sessionData } = useQuery(
+    startupQueryOptions<{ sessions?: Array<{ id: string; model?: string }> }>('sessions'),
+  )
 
   // 健康探针：拉取今日用量。成功或收到 HTTP 响应（含错误码）视为在线，
   // 仅网络层失败/超时（ApiError 无 status）判定为连接断开。
-  const probeRuntime = useCallback(async (): Promise<boolean> => {
-    try {
-      setUsage(normalizeTokenUsage(await apiJson<unknown>('/api/usage/today')))
-      return true
-    } catch (error) {
-      return error instanceof ApiError && error.status != null
-    }
+  const probeRuntime = useCallback((): Promise<boolean> => {
+    if (usageRequest.current) return usageRequest.current
+    usageRequest.current = (async () => {
+      try {
+        setUsage(normalizeTokenUsage(await apiJson<unknown>('/api/usage/today')))
+        return true
+      } catch (error) {
+        return error instanceof ApiError && error.status != null
+      }
+    })().finally(() => {
+      usageRequest.current = null
+    })
+    return usageRequest.current
   }, [])
 
   // 连接态切换：更新状态并触发一次 toast（同状态 10s 内节流）。
@@ -86,8 +100,12 @@ export function StatusBar({ page, pluginStats }: StatusBarProps) {
   useEffect(() => {
     let active = true
     let timer = 0
+    let running = false
     const run = async () => {
+      if (running) return
+      running = true
       const online = await probeRuntime()
+      running = false
       if (!active) return
       applyRuntimeOnline(online)
       timer = window.setTimeout(
@@ -111,36 +129,24 @@ export function StatusBar({ page, pluginStats }: StatusBarProps) {
   }, [applyRuntimeOnline, probeRuntime])
 
   // 用量事件推送：只刷新展示数据，不参与连接态判定（失败静默）。
-  const refreshUsageSilently = useCallback(async () => {
-    try {
-      setUsage(normalizeTokenUsage(await apiJson<unknown>('/api/usage/today')))
-    } catch {}
-  }, [])
+  const refreshUsageSilently = useCallback(() => {
+    void probeRuntime()
+  }, [probeRuntime])
 
   useEffect(() => {
     window.addEventListener(USAGE_UPDATED_EVENT, refreshUsageSilently)
     return () => window.removeEventListener(USAGE_UPDATED_EVENT, refreshUsageSilently)
   }, [refreshUsageSilently])
 
-  // 刷新模型标签：并发保护（请求序号），会话模型未解析为 unknown 时按未配置处理。
+  // 模型标签只消费共享快照；查询未完成时不再另发一次请求。
   const refreshModel = useCallback(
-    async (sessionId = localStorage.getItem(STORAGE_KEYS.activeSession) || '') => {
-      const request = ++modelRequest.current
-      try {
-        const [config, sessionData] = await Promise.all([
-          apiJson<{ provider?: string; model?: string }>('/api/config'),
-          apiJson<{
-            sessions?: Array<{ id: string; model?: string }>
-          }>('/api/sessions'),
-        ])
-        if (request !== modelRequest.current) return
-        const session = sessionData.sessions?.find((item: { id: string }) => item.id === sessionId)
-        const label = session?.model || (config.model ? `${config.provider}/${config.model}` : '')
-        // 会话尚未解析出真实模型时可能是 "unknown/unknown"，按未配置处理
-        setModelLabel(/(^|\/)unknown$/i.test(label) ? '' : label)
-      } catch {}
+    (sessionId = localStorage.getItem(STORAGE_KEYS.activeSession) || '') => {
+      const session = sessionData?.sessions?.find((item) => item.id === sessionId)
+      const label =
+        session?.model || (configData?.model ? `${configData.provider}/${configData.model}` : '')
+      setModelLabel(/(^|\/)unknown$/i.test(label) ? '' : label)
     },
-    [],
+    [configData, sessionData],
   )
 
   useEffect(() => {
@@ -148,21 +154,15 @@ export function StatusBar({ page, pluginStats }: StatusBarProps) {
       const detail = (event as CustomEvent<{ id?: string; model?: string }>).detail
       const sessionId = detail?.id || localStorage.getItem(STORAGE_KEYS.activeSession) || ''
       if (detail?.model) {
-        modelRequest.current += 1
         setModelLabel(/(^|\/)unknown$/i.test(detail.model) ? '' : detail.model)
       } else {
         void refreshModel(sessionId)
       }
     }
-    const refreshFromSessions = () => {
-      void refreshModel()
-    }
-    void refreshModel()
+    refreshModel()
     window.addEventListener(ACTIVE_SESSION_CHANGED_EVENT, syncModel)
-    window.addEventListener(SESSIONS_UPDATED_EVENT, refreshFromSessions)
     return () => {
       window.removeEventListener(ACTIVE_SESSION_CHANGED_EVENT, syncModel)
-      window.removeEventListener(SESSIONS_UPDATED_EVENT, refreshFromSessions)
     }
   }, [refreshModel])
 

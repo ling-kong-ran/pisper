@@ -17,20 +17,13 @@ import { authorizeRemoteRequest } from './remote-auth.mjs'
 import { ensureRemoteCertificate } from './remote-tls.mjs'
 import { collectRemoteEndpoints, remoteDeviceName } from './remote-endpoints.mjs'
 import { readIrohTunnelStatus } from './iroh-endpoint.mjs'
-import { resolveRuntimeCapabilities } from './runtime-capabilities.mjs'
+import { resolveRuntimeCapabilities, mobileBaseInitialization } from './runtime-capabilities.mjs'
+import { createStartupObserver } from './startup-observer.mjs'
+import { json as sendJson } from './http/response.mjs'
 import { SpeechEngineService } from './services/speech-engine-service.mjs'
 import { SpeechModelDownloadService } from './services/speech-model-download-service.mjs'
 import speechCatalog from '../shared/speech-model-catalog.json' with { type: 'json' }
 import { SpeechTermsService } from './services/speech-terms-service.mjs'
-
-// 启动诊断回调必须无副作用：即使观察者抛错也不能影响运行时可用性。
-function notifyStartup(observer, stage) {
-  try {
-    observer?.(stage)
-  } catch {
-    // Startup diagnostics must never make the runtime unavailable.
-  }
-}
 
 // 运行时尚未初始化完成时的 503 响应：避免把半初始化状态当成正常服务暴露。
 function serviceUnavailable(res) {
@@ -73,6 +66,7 @@ export async function createPisperRuntime({
   frontendRoot = null,
   deferRuntimeInitialization = false,
   startupObserver = null,
+  initializationMode = 'full',
   runtimeCapabilities = null,
   // 远程访问（移动端互联）：enabled 为 null 时跟随持久化状态，显式 true/false 覆盖之。
   remote = {},
@@ -82,7 +76,18 @@ export async function createPisperRuntime({
   const appRoot = resolve(root || process.cwd())
   const cwd = resolve(runtimeCwd || homedir())
   const agentDir = resolve(dataDir)
+  const stage = createStartupObserver(startupObserver)
   const capabilities = runtimeCapabilities || (await resolveRuntimeCapabilities())
+  const mobileBase = mobileBaseInitialization(initializationMode, capabilities.profile)
+  const initialization = { base: 'pending', background: 'pending' }
+  let resolveBase
+  let rejectBase
+  const baseReady = new Promise((resolveReady, rejectReady) => {
+    resolveBase = resolveReady
+    rejectBase = rejectReady
+  })
+  // 基础阶段与完整阶段有独立消费者，任一失败都不应产生未处理拒绝。
+  baseReady.catch(() => {})
   // Pi 引擎通过该环境变量定位自己的数据目录，必须在实例化前设置。
   process.env.PI_CODING_AGENT_DIR = agentDir
 
@@ -93,6 +98,8 @@ export async function createPisperRuntime({
   let vite = null
   let speech = null
   let speechModels = null
+  let sponsorsInitialized = null
+  let runtimeInitialized = null
   let startInitialization
 
   // ── 远程访问（移动端互联）────────────────────────────────────────────
@@ -205,7 +212,7 @@ export async function createPisperRuntime({
   // 运行时初始化：并行加载包元数据与核心模块，构造 AgentRuntimeService 及外围服务。
   // 使用模块加载器注入（runtimeModuleLoader/apiHandlerModuleLoader）便于测试替换。
   const initialize = async () => {
-    notifyStartup(startupObserver, 'runtime-modules-loading')
+    stage('runtime-modules-loading')
     const [packageText, runtimeModule, apiHandlerModule, engineVersion, currentCommit] =
       await Promise.all([
         readFile(join(appRoot, 'package.json'), 'utf8'),
@@ -219,7 +226,7 @@ export async function createPisperRuntime({
           .catch(() => 'unknown'),
         resolveGitCommit(appRoot),
       ])
-    notifyStartup(startupObserver, 'runtime-modules-loaded')
+    stage('runtime-modules-loaded')
 
     const packageJson = JSON.parse(packageText)
     const { AgentRuntimeService } = runtimeModule
@@ -243,10 +250,22 @@ export async function createPisperRuntime({
         }
       },
     })
-    notifyStartup(startupObserver, 'runtime-created')
-    await runtime.init({
-      startupObserver: (stage) => notifyStartup(startupObserver, `runtime-${stage}`),
+    stage('runtime-created')
+    let resolveRuntimeBase
+    let rejectRuntimeBase
+    const runtimeBase = new Promise((resolveReady, rejectReady) => {
+      resolveRuntimeBase = resolveReady
+      rejectRuntimeBase = rejectReady
     })
+    runtimeBase.catch(() => {})
+    runtimeInitialized = runtime.init({
+      initializationMode,
+      startupObserver: startupObserver ? (name) => stage(`runtime-${name}`) : null,
+      onBaseReady: resolveRuntimeBase,
+    })
+    runtimeInitialized.then(resolveRuntimeBase, rejectRuntimeBase)
+    if (mobileBase) await runtimeBase
+    else await runtimeInitialized
 
     // 更新检查与赞助内容都依赖 app 版本/提交信息，放在运行时初始化之后构建。
     const updates = new UpdateCheckService({
@@ -274,7 +293,9 @@ export async function createPisperRuntime({
       resourceDir: join(appRoot, 'shared'),
       hotwordsDir: join(agentDir, 'speech'),
     })
-    await sponsors.init()
+    sponsorsInitialized = sponsors.init()
+    sponsorsInitialized.catch(() => {})
+    if (!mobileBase) await sponsorsInitialized
     // 仅开发模式注入 Vite 中间件；生产环境直接托管 dist 静态资源。
     if (!production) {
       const { createServer: createViteServer } = await import('vite')
@@ -296,15 +317,33 @@ export async function createPisperRuntime({
       remoteAccess,
       remoteControl,
     })
-    notifyStartup(startupObserver, 'runtime-initialized')
+    initialization.base = 'ready'
+    resolveBase(runtime)
+    stage('runtime-base-ready')
+    // 等待所有后台任务落定再结束 initialized，关闭时也不会遗漏仍在运行的服务。
+    const background = await Promise.allSettled([runtimeInitialized, sponsorsInitialized])
+    const failure = background.find((result) => result.status === 'rejected')
+    if (failure) throw failure.reason
+    initialization.background = 'ready'
+    stage('runtime-initialized')
     return runtime
   }
 
   // initialized 把异步初始化包装成 Promise：请求可在初始化完成前到达（await 排队），
   // 而 deferRuntimeInitialization 模式下 HTTP 先监听、初始化延后触发。
   const initialized = new Promise((resolveInitialized, rejectInitialized) => {
-    startInitialization = () => initialize().then(resolveInitialized, rejectInitialized)
+    startInitialization = () =>
+      initialize().then(resolveInitialized, (error) => {
+        if (initialization.base !== 'ready') {
+          initialization.base = 'failed'
+          rejectBase(error)
+        }
+        initialization.background = 'failed'
+        stage('runtime-initialization-failed')
+        rejectInitialized(error)
+      })
   })
+  initialized.catch(() => {})
 
   const handleRequest = async (req, res, { remote: isRemoteListener = false } = {}) => {
     const address = server.address()
@@ -318,10 +357,28 @@ export async function createPisperRuntime({
     } else if (authorizeDesktopRequest(req, res, url, { token: desktopAuthToken, origin })) {
       return
     }
+    if (req.method === 'GET' && url.pathname === '/api/ready') {
+      // 必须经过上面的正常鉴权；轮询不排队，未就绪直接返回 503。
+      const ready = initialization.base === 'ready'
+      const mobileClient =
+        capabilities.profile.startsWith('mobile-') ||
+        Boolean(req.pisperDevice && req.headers['x-pisper-client'] === 'mobile-app')
+      sendJson(res, ready ? 200 : 503, {
+        version: 1,
+        ready,
+        client: mobileClient ? 'mobile-app' : 'web',
+        profile: capabilities.profile,
+        initialization: { ...initialization, services: { ...runtime?.initialization } },
+      })
+      return
+    }
     if (url.pathname.startsWith('/api/')) {
-      // API 请求必须等运行时就绪；初始化失败统一返回 503。
+      // 移动基础 API 不等后台任务；只有实际依赖的路由等待相应服务。
       try {
-        await initialized
+        await (mobileBase ? baseReady : initialized)
+        if (mobileBase && /^\/api\/memory(?:\/|$)|^\/api\/settings\/memory$/.test(url.pathname))
+          await runtime.waitForInitialization?.('memory')
+        if (mobileBase && /^\/api\/sponsors(?:\/|$)/.test(url.pathname)) await sponsorsInitialized
       } catch {
         serviceUnavailable(res)
         return
@@ -352,7 +409,7 @@ export async function createPisperRuntime({
       resolveListen()
     })
   })
-  notifyStartup(startupObserver, 'http-listening')
+  stage('http-listening')
   // 延迟模式下先返回实例（端口已监听），初始化放到下一个事件循环轮次执行。
   if (deferRuntimeInitialization) setImmediate(startInitialization)
 
@@ -376,6 +433,7 @@ export async function createPisperRuntime({
       return runtime
     },
     initialized,
+    baseReady,
     desktopPetRunning: desktopPet.status().running,
     async close() {
       // closing 缓存 Promise，保证多次 close 只执行一次完整清理。
@@ -383,6 +441,7 @@ export async function createPisperRuntime({
         desktopPet.dispose()
         await stopRemote()
         await initialized.catch(() => null)
+        await Promise.allSettled([runtimeInitialized, sponsorsInitialized])
         await speech?.dispose()
         await speechModels?.dispose()
         await runtime?.dispose()

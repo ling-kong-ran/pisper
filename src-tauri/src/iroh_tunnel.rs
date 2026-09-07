@@ -167,9 +167,16 @@ impl TunnelClient {
         relay_mode: RelayMode,
         enable_ip_transports: bool,
     ) -> Result<Self, String> {
+        let use_address_lookup = !matches!(&relay_mode, RelayMode::Disabled);
         let mut builder = Endpoint::builder(iroh::endpoint::presets::Minimal)
             .secret_key(secret_key)
             .relay_mode(relay_mode);
+        if use_address_lookup {
+            // 二维码仅保存地址快照；桌面换 relay 后必须按经过身份校验的 NodeId 查找新地址。
+            builder = builder
+                .address_lookup(iroh::address_lookup::PkarrResolver::n0_dns())
+                .address_lookup(iroh::address_lookup::DnsAddressLookup::n0_dns());
+        }
         if !enable_ip_transports {
             builder = builder.clear_ip_transports();
         }
@@ -288,10 +295,18 @@ async fn start_server_with_ip_transports(
     relay_mode: RelayMode,
     enable_ip_transports: bool,
 ) -> Result<TunnelServer, String> {
+    let publish_address = !matches!(&relay_mode, RelayMode::Disabled);
     let mut builder = Endpoint::builder(iroh::endpoint::presets::Minimal)
         .secret_key(secret_key)
         .alpns(vec![PISPER_TUNNEL_ALPN.to_vec()])
         .relay_mode(relay_mode);
+    if publish_address {
+        // 只发布签名 relay 记录，不公开局域网 IP；网络变化时由 Iroh 更新 NodeId 对应地址。
+        builder = builder.address_lookup(
+            iroh::address_lookup::PkarrPublisher::n0_dns()
+                .addr_filter(iroh::address_lookup::AddrFilter::relay_only()),
+        );
+    }
     if !enable_ip_transports {
         builder = builder.clear_ip_transports();
     }
@@ -546,6 +561,104 @@ mod tests {
         assert_eq!(response.status(), reqwest::StatusCode::OK);
         drop(bridge);
         client.close().await;
+        server.close().await;
+    }
+
+    #[tokio::test]
+    #[ignore = "需要公网签名地址发现与 relay；验证陈旧配对地址恢复"]
+    async fn discovers_current_relay_when_paired_address_is_stale() {
+        let (target, fingerprint, gate) = spawn_tls_sse_server().await;
+        let server =
+            start_server_relay_only(target, SecretKey::generate(), production_relay_mode())
+                .await
+                .unwrap();
+        let published = server.endpoint(Duration::from_secs(30)).await;
+        let current_relay = published.relay_url.as_ref().expect("必须连接公网 relay");
+        let current_host = RelayUrl::from_str(current_relay).unwrap();
+        let stale_relay = PRODUCTION_RELAY_HOSTS
+            .iter()
+            .map(|host| format!("https://{host}/"))
+            .find(|url| RelayUrl::from_str(url).unwrap() != current_host)
+            .unwrap();
+        let client = TunnelClient::start_relay_only(SecretKey::generate(), production_relay_mode())
+            .await
+            .unwrap();
+        // 等待新的签名记录真正可查询，排除首次发布传播延迟对恢复断言的干扰。
+        tokio::time::timeout(Duration::from_secs(40), async {
+            loop {
+                let mut lookup = Box::pin(
+                    client
+                        .endpoint
+                        .address_lookup()
+                        .unwrap()
+                        .resolve(server.endpoint.id()),
+                );
+                while let Some(result) = lookup.next().await {
+                    if matches!(result, Ok(Ok(_))) {
+                        return;
+                    }
+                }
+                tokio::time::sleep(Duration::from_millis(250)).await;
+            }
+        })
+        .await
+        .expect("桌面必须发布可按 NodeId 验证的当前 relay 记录");
+        let bridge = client
+            .open_bridge(TunnelEndpoint {
+                node_id: published.node_id,
+                relay_url: Some(stale_relay),
+                direct_addresses: Vec::new(),
+            })
+            .await
+            .unwrap();
+        let http = crate::mobile::pinning::pinned_client(&fingerprint).unwrap();
+        let response = tokio::time::timeout(Duration::from_secs(25), http.get(bridge.url()).send())
+            .await
+            .expect("陈旧地址不能阻止发现当前 relay")
+            .unwrap();
+        assert_eq!(response.status(), reqwest::StatusCode::OK);
+        gate.add_permits(1);
+        let body = tokio::time::timeout(Duration::from_secs(10), response.text())
+            .await
+            .unwrap()
+            .unwrap();
+        assert!(body.contains("event: run") && body.contains("event: done"));
+        drop(bridge);
+        client.close().await;
+        server.close().await;
+    }
+
+    #[tokio::test]
+    #[ignore = "由移动端 UI 验收脚本显式启动，停止文件控制生命周期"]
+    async fn serves_relay_only_mobile_ui_fixture() {
+        let target: SocketAddr = std::env::var("PISPER_TEST_TUNNEL_TARGET")
+            .expect("必须提供隔离测试 Runtime 的回环地址")
+            .parse()
+            .unwrap();
+        assert!(target.ip().is_loopback(), "测试隧道不能转发到外部服务");
+        let output = std::path::PathBuf::from(
+            std::env::var("PISPER_TEST_TUNNEL_OUTPUT").expect("必须提供测试元数据路径"),
+        );
+        let stop = output.with_extension("stop");
+        assert!(!stop.exists(), "旧停止文件必须由验收脚本先处理");
+        ensure_crypto_provider();
+        let server =
+            start_server_relay_only(target, SecretKey::generate(), production_relay_mode())
+                .await
+                .unwrap();
+        let published = server.endpoint(Duration::from_secs(30)).await;
+        assert!(published.relay_url.is_some(), "未连接到公网 relay");
+        assert!(
+            published.direct_addresses.is_empty(),
+            "必须禁用所有 IP 传输"
+        );
+        fs::write(&output, serde_json::to_vec(&published).unwrap()).unwrap();
+        println!("PISPER_RELAY_FIXTURE_READY");
+        // 常驻时间有上限，避免验收中断后遗留公网测试入口。
+        let deadline = tokio::time::Instant::now() + Duration::from_secs(1800);
+        while !stop.exists() && tokio::time::Instant::now() < deadline {
+            tokio::time::sleep(Duration::from_millis(250)).await;
+        }
         server.close().await;
     }
 

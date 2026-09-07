@@ -108,11 +108,13 @@ enum SpeechModelArchive {
                     format == ARCHIVE_FORMAT_TAR_GNUTAR else {
                 throw SpeechModelArchiveError.format
             }
+            // Swift 无法导入 libarchive 的组合宏，展开全部 NFS4 位以保留 ACL 拒绝语义。
             guard archive_entry_symlink(entry) == nil, archive_entry_hardlink(entry) == nil,
                   archive_entry_sparse_count(entry) == 0,
                   archive_entry_xattr_count(entry) == 0,
                   archive_entry_acl_count(entry, ARCHIVE_ENTRY_ACL_TYPE_ACCESS | ARCHIVE_ENTRY_ACL_TYPE_DEFAULT |
-                    ARCHIVE_ENTRY_ACL_TYPE_NFS4) == 0 else {
+                    ARCHIVE_ENTRY_ACL_TYPE_ALLOW | ARCHIVE_ENTRY_ACL_TYPE_DENY |
+                    ARCHIVE_ENTRY_ACL_TYPE_AUDIT | ARCHIVE_ENTRY_ACL_TYPE_ALARM) == 0 else {
                 throw SpeechModelArchiveError.path
             }
             let type = archive_entry_filetype(entry)
@@ -201,7 +203,7 @@ enum SpeechModelArchive {
         _ input: Int32, _ directory: Int32, _ maximum: Int64, _ maximumEntry: Int64,
         _ check: () throws -> Void
     ) throws -> Descriptor {
-        let name = ".speech-preflight-" + UUID().uuidString() + ".tar"
+        let name = ".speech-preflight-" + UUID().uuidString + ".tar"
         let output = try Descriptor(openat(directory, name, O_WRONLY | O_CREAT | O_EXCL | O_NOFOLLOW | O_CLOEXEC, 0o600))
         var linked = true
         defer { if linked { _ = unlinkat(directory, name, 0) } }
@@ -222,8 +224,7 @@ enum SpeechModelArchive {
             if !readerFreed { _ = archive_read_free(reader) }
         }
         // RAW 不解析 TAR/PAX，只提供成熟 bzip2 解压；任何 TAR reader 创建前完成全部预检。
-        try archiveOK(archive_read_support_filter_bzip2(reader))
-        try archiveOK(archive_read_support_format_raw(reader))
+        // 强制格式和 filter 的 API 自行注册实现，预先 support 会重复注册并返回 WARN。
         try archiveOK(archive_read_set_format(reader, ARCHIVE_FORMAT_RAW))
         try archiveOK(archive_read_append_filter(reader, ARCHIVE_FILTER_BZIP2))
         try archiveOK(archive_read_open_fd(reader, input, blockSize))
@@ -607,8 +608,13 @@ enum SpeechModelArchive {
     }
 
     private static func openDirectory(_ parts: [String]) throws -> Descriptor {
-        var directory = try Descriptor(Darwin.open("/", O_RDONLY | O_DIRECTORY | O_NOFOLLOW | O_CLOEXEC))
-        for part in parts { directory = try openChildDirectory(directory.raw, part) }
+        // 与 Store 共用只搜索祖先、只读最终目录及逐级拒绝链接的合同，不解析不可信子路径。
+        let url = URL(fileURLWithPath: "/" + parts.joined(separator: "/"), isDirectory: true)
+        let descriptor: Int32
+        do { descriptor = try SpeechFiles.directory(url) }
+        catch { throw SpeechModelArchiveError.storage }
+        let directory = try Descriptor(descriptor)
+        _ = try directoryStat(directory.raw)
         return directory
     }
 

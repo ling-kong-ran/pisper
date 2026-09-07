@@ -43,6 +43,21 @@ export function sanitizeEnabledTools(enabledTools) {
   ]
 }
 
-export function createAppTools({ enabledTools, ...context }) {
-  return createAppToolDefinitions({ ...context, enabledTools: sanitizeEnabledTools(enabledTools) })
+export function createAppTools({ enabledTools, waitForInitialization, ...context }) {
+  const tools = createAppToolDefinitions({
+    ...context,
+    enabledTools: sanitizeEnabledTools(enabledTools),
+  })
+  if (!waitForInitialization) return tools
+  return tools.map((tool) =>
+    ['memory_search', 'memory_remember'].includes(tool.name)
+      ? {
+          ...tool,
+          execute: async (...args) => {
+            await waitForInitialization('memory')
+            return tool.execute(...args)
+          },
+        }
+      : tool,
+  )
 }

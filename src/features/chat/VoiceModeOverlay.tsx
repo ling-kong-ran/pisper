@@ -1,6 +1,4 @@
-// 语音对话模式全屏页：1:1 复刻 AsLive 的极简布局——纯黑底、左上角品牌字标、
-// 中央巨型点云球、底部单个胶囊主按钮、右下角通话计时。没有多余控件：
-// 空格/主按钮开始或结束对话，Esc 退出。
+// 语音页通过 Portal 脱离 App 外壳，需要自行保护安全区和始终可用的退出入口。
 import { useEffect, useRef, useState } from 'react'
 import { AudioLines, Mic, MicOff, Square, X } from 'lucide-react'
 import { Button } from '@/components/ui/button'
@@ -121,6 +119,16 @@ export function VoiceModeOverlay({
     }
   }, [open])
 
+  const closeOverlay = () => {
+    try {
+      voice.hangUp()
+    } finally {
+      // 退出不等待原生音频和远程请求清理，清理异常也不能困住用户。
+      models.close()
+      onClose()
+    }
+  }
+
   const active =
     stage === 'listening' ||
     stage === 'transcribing' ||
@@ -134,8 +142,7 @@ export function VoiceModeOverlay({
       if (models.open || event.defaultPrevented || event.isComposing) return
       if (event.key === 'Escape') {
         event.preventDefault()
-        voice.hangUp()
-        onClose()
+        closeOverlay()
         return
       }
       if (event.key === 'Tab') {
@@ -188,7 +195,7 @@ export function VoiceModeOverlay({
 
   return createPortal(
     <div
-      className={`fixed inset-0 z-[90] grid grid-rows-[minmax(0,1fr)_100px_108px] overflow-hidden select-none ${dark ? 'bg-[#030304] text-[#cfe8ff]' : 'bg-[#f2f5fa] text-[#1e2c42]'}`}
+      className={`fixed inset-0 z-[90] grid grid-cols-[minmax(0,1fr)] grid-rows-[minmax(0,1fr)_100px_108px] overflow-hidden select-none pt-[env(safe-area-inset-top)] pr-[env(safe-area-inset-right)] pb-[env(safe-area-inset-bottom)] pl-[env(safe-area-inset-left)] ${dark ? 'bg-[#030304] text-[#cfe8ff]' : 'bg-[#f2f5fa] text-[#1e2c42]'}`}
       ref={dialogRef}
       tabIndex={-1}
       role="dialog"
@@ -196,7 +203,7 @@ export function VoiceModeOverlay({
       aria-label={t('chat:voiceMode.title')}
     >
       {/* 左上品牌字标 + 状态呼吸点 */}
-      <header className="pointer-events-none absolute left-7 top-6 flex items-center gap-3">
+      <header className="pointer-events-none absolute left-[calc(env(safe-area-inset-left)_+_28px)] top-[calc(env(safe-area-inset-top)_+_24px)] flex items-center gap-3">
         <span
           className={`inline-block size-2 rounded-full ${active ? 'animate-pulse bg-[#59e6ff]' : dark ? 'bg-[#3b4a5c]' : 'bg-[#b6c3d4]'}`}
           aria-hidden="true"
@@ -208,7 +215,7 @@ export function VoiceModeOverlay({
         </span>
       </header>
 
-      <div className="absolute top-4 right-4 flex items-center gap-1">
+      <div className="absolute top-[calc(env(safe-area-inset-top)_+_16px)] right-[calc(env(safe-area-inset-right)_+_16px)] z-10 flex items-center gap-1">
         <Tooltip>
           <TooltipTrigger asChild>
             <Button
@@ -230,11 +237,9 @@ export function VoiceModeOverlay({
             <Button
               variant="ghost"
               size="icon-sm"
+              className="size-11 flex-none"
               aria-label={t('chat:speechModels.close')}
-              onClick={() => {
-                voice.hangUp()
-                onClose()
-              }}
+              onClick={closeOverlay}
             >
               <X />
             </Button>
@@ -250,9 +255,9 @@ export function VoiceModeOverlay({
       </div>
 
       {/* 状态行 + 字幕 */}
-      <div className="pointer-events-none flex min-h-0 flex-col items-center justify-center gap-2 px-6 text-center">
+      <div className="flex min-h-0 min-w-0 flex-col items-center justify-center gap-2 px-6 text-center">
         <div
-          className={`line-clamp-2 text-[11px] font-semibold uppercase tracking-normal ${stage === 'error' ? 'text-[#f87171]' : dark ? 'text-[#5f7a94]' : 'text-[#7488a0]'}`}
+          className={`max-w-full text-[11px] font-semibold uppercase tracking-normal ${stage === 'error' ? 'max-h-full overflow-y-auto break-words text-[#f87171]' : `line-clamp-2 ${dark ? 'text-[#5f7a94]' : 'text-[#7488a0]'}`}`}
           role="status"
           aria-live="polite"
         >
@@ -281,7 +286,7 @@ export function VoiceModeOverlay({
       </div>
 
       {/* 右下：通话计时 */}
-      <div className="pointer-events-none absolute bottom-3 right-5 flex items-center gap-2.5 sm:bottom-9 sm:right-7">
+      <div className="pointer-events-none absolute bottom-[calc(env(safe-area-inset-bottom)_+_12px)] right-[calc(env(safe-area-inset-right)_+_20px)] flex items-center gap-2.5 sm:bottom-[calc(env(safe-area-inset-bottom)_+_36px)] sm:right-[calc(env(safe-area-inset-right)_+_28px)]">
         <span
           className="hidden size-9 place-items-center rounded-full sm:grid bg-[linear-gradient(135deg,#2563eb,#38bdf8)] text-[10px] font-bold text-white shadow-[0_0_18px_rgba(56,189,248,.4)]"
           aria-hidden="true"
@@ -295,12 +300,13 @@ export function VoiceModeOverlay({
         </span>
       </div>
 
-      <div className="absolute bottom-[60px] left-5 sm:bottom-9 sm:left-7">
+      <div className="absolute bottom-[env(safe-area-inset-bottom)] left-[calc(env(safe-area-inset-left)_+_20px)] sm:bottom-[calc(env(safe-area-inset-bottom)_+_36px)] sm:left-[calc(env(safe-area-inset-left)_+_28px)]">
         <Tooltip>
           <TooltipTrigger asChild>
             <Button
               variant="ghost"
               size="icon"
+              className="size-11 flex-none"
               disabled={!active && !voice.muted}
               aria-label={
                 stage === 'speaking' || stage === 'thinking'

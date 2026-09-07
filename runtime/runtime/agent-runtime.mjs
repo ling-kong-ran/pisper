@@ -129,6 +129,7 @@ import {
 } from './agent-runtime-facade.mjs'
 import { ToolActivation } from './tool-activation.mjs'
 import { desktopRuntimeCapabilities } from '../runtime-capabilities.mjs'
+import { prepareRuntimeInitialization } from './mobile-initialization.mjs'
 import {
   bridgeAgentSessionEvent,
   createLiveRunState,
@@ -672,15 +673,9 @@ export class AgentRuntimeService extends AgentRuntimeFacade {
     })
   }
 
-  async init({ startupObserver = null } = {}) {
-    // 初始化按阶段推进：阶段回调仅用于诊断打点，绝不能改变初始化行为。
-    const stage = (name) => {
-      try {
-        startupObserver?.(name)
-      } catch {
-        // Diagnostics are best-effort and cannot change initialization behavior.
-      }
-    }
+  async init(options = {}) {
+    const startup = prepareRuntimeInitialization(this, options)
+    const { stage } = startup
 
     stage('filesystem')
     // 先建目录与清理旧数据，保证后续文件读写路径都存在。
@@ -727,11 +722,7 @@ export class AgentRuntimeService extends AgentRuntimeFacade {
     // 模型运行时就绪后对齐默认模型，再初始化记忆（记忆的语义摘要依赖模型）。
     await this.reloadModelRuntime()
     await this.reconcileDefaultModel()
-    stage('memory')
-    if (this.capabilities.features.memory) {
-      await this.memory.init()
-      this.memory.setSemanticSummarizer(this.memorySummarizer)
-    }
+    await startup.initializeRequiredMemory()
 
     stage('automation-services')
     // 移动嵌入宿主仍使用这些同源服务对象，但只初始化能力清单允许的模块。
@@ -744,8 +735,11 @@ export class AgentRuntimeService extends AgentRuntimeFacade {
     if (this.capabilities.features.workflows) await this.workflows.init()
     if (this.capabilities.features.schedules) await this.schedules.init()
     this.startSessionRuntimeSweeper()
-    void this.refreshProviderModels().catch(() => {})
-    stage('complete')
+    await startup.complete()
+  }
+
+  async waitForInitialization(service) {
+    if (service === 'memory') await this.memoryReady
   }
 
   async reloadModelRuntime() {
@@ -1558,6 +1552,9 @@ export class AgentRuntimeService extends AgentRuntimeFacade {
           mobileOperationService: this.mobileOperations,
           mobileSessionId: runtimeSessionId,
           mobileCaptureDir: join(this.dataDir, 'mobile-captures'),
+          waitForInitialization: this.memoryReady
+            ? (service) => this.waitForInitialization(service)
+            : null,
           skillsRuntime: this.skills,
           onSkillsChanged: () => this.invalidateSessionRuntimes(),
           pluginRuntime: this.toolPlugins,
@@ -2376,7 +2373,9 @@ export class AgentRuntimeService extends AgentRuntimeFacade {
       }
       const sharedContextEnabled = !value.isolatedContext
       const memoryContext =
-        sharedContextEnabled && value.enabledTools?.includes('memory_search')
+        sharedContextEnabled &&
+        value.enabledTools?.includes('memory_search') &&
+        (!this.memoryReady || this.initialization.memory === 'ready')
           ? await this.memory.relevantContext(message, value.cwd)
           : { text: '', memories: [] }
       if (memoryContext.text) contexts.push(memoryContext.text)
@@ -2492,6 +2491,7 @@ export class AgentRuntimeService extends AgentRuntimeFacade {
     }
   }
   async captureConversationMemory(input) {
+    await this.waitForInitialization('memory')
     return captureConversationMemory(this, input)
   }
 }

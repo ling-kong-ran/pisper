@@ -210,8 +210,19 @@ export function useVoiceSession(options: VoiceSessionOptions) {
 
   function fail(round: Round, caught: unknown) {
     if (!isCurrent(round)) return
+    // Tauri 命令可能 reject 字符串或带 message 的对象，不能丢掉真实原生错误。
+    const detail =
+      caught instanceof Error
+        ? caught.message
+        : typeof caught === 'string'
+          ? caught
+          : caught && typeof caught === 'object' && 'message' in caught
+            ? caught.message
+            : undefined
     const message =
-      caught instanceof Error ? caught.message : latest.current.t('chat:voiceMode.failed')
+      typeof detail === 'string' && detail.trim()
+        ? detail
+        : latest.current.t('chat:voiceMode.failed')
     const denied =
       (caught instanceof DOMException && caught.name === 'NotAllowedError') ||
       message.includes('microphone_permission_denied')

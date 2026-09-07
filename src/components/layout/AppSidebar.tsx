@@ -23,11 +23,10 @@ import { useI18n } from '@/app/use-i18n'
 import {
   ACTIVE_SESSION_CHANGED_EVENT,
   SESSION_SELECTED_EVENT,
-  SESSIONS_UPDATED_EVENT,
   requestSessionCreation,
   requestSessionSelection,
 } from '@/features/chat/events'
-import { apiJson } from '@/lib/api'
+import { fetchStartupQuery, startupQueryOptions } from '@/lib/startup-queries'
 import { relativeTime, workspaceName } from '@/lib/format'
 import {
   getSettingsNavigation,
@@ -108,11 +107,8 @@ export function AppSidebar({
   )
   const activeSettingsKey = settingsNavigationKey(page, configSection)
 
-  const { data: sidebarSessionData, refetch: refreshSessions } = useQuery<{
-    sessions: SessionSummary[]
-  }>({
-    queryKey: ['sessions', 'sidebar'],
-    queryFn: () => apiJson<{ sessions: SessionSummary[] }>('/api/sessions'),
+  const { data: sidebarSessionData } = useQuery({
+    ...startupQueryOptions<{ sessions: SessionSummary[] }>('sessions'),
     refetchInterval: 20_000,
   })
   const sessions = useMemo(
@@ -142,7 +138,7 @@ export function AppSidebar({
 
   useEffect(() => {
     const refresh = () => {
-      void refreshSessions()
+      void fetchStartupQuery('sessions', true).catch(() => {})
     }
     const refreshWhenVisible = () => {
       if (document.visibilityState === 'visible') refresh()
@@ -152,16 +148,14 @@ export function AppSidebar({
       setActiveSessionId(detail?.id || localStorage.getItem(STORAGE_KEYS.activeSession) || '')
     }
     document.addEventListener('visibilitychange', refreshWhenVisible)
-    window.addEventListener(SESSIONS_UPDATED_EVENT, refresh)
     window.addEventListener(SESSION_SELECTED_EVENT, syncActive)
     window.addEventListener(ACTIVE_SESSION_CHANGED_EVENT, syncActive)
     return () => {
       document.removeEventListener('visibilitychange', refreshWhenVisible)
-      window.removeEventListener(SESSIONS_UPDATED_EVENT, refresh)
       window.removeEventListener(SESSION_SELECTED_EVENT, syncActive)
       window.removeEventListener(ACTIVE_SESSION_CHANGED_EVENT, syncActive)
     }
-  }, [refreshSessions])
+  }, [])
 
   const openRecentSession = (id: string) => {
     setActiveSessionId(id)

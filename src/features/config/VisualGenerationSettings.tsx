@@ -130,7 +130,7 @@ export function VisualGenerationSettings({
     <section className="[margin-top:12px]">
       {/* 当前视觉模型摘要卡：与「当前对话模型」卡片同构 */}
       <SettingsCard className="[margin-bottom:12px]" data-config-card="models-visual">
-        <div className="flex flex-wrap items-center gap-[12px]">
+        <div className="flex flex-wrap items-center gap-[12px] max-[650px]:grid max-[650px]:grid-cols-[40px_minmax(0,1fr)]">
           <span className="grid w-[40px] h-[40px] flex-none place-items-center rounded-[11px] bg-[var(--accent-soft)] text-[var(--star-strong)]">
             <Sparkles size={19} />
           </span>
@@ -155,7 +155,7 @@ export function VisualGenerationSettings({
                   </SettingsBadge>
                 </span>
                 {status.video && (
-                  <small className="text-[12px] text-[var(--text-muted)]">
+                  <small className="text-[12px] text-[var(--text-muted)] [overflow-wrap:anywhere]">
                     {t('config:configPage.visualVideoModel')}：{status.video.providerName} /{' '}
                     {status.video.name}
                   </small>
@@ -173,7 +173,7 @@ export function VisualGenerationSettings({
               </span>
             )}
           </div>
-          <div className="flex flex-none items-center gap-[7px]">
+          <div className="flex min-w-0 max-w-full flex-none flex-wrap items-center gap-[7px] max-[650px]:col-span-full">
             {status?.image && (
               <Button
                 variant="outline"
@@ -231,10 +231,10 @@ export function VisualGenerationSettings({
               size={15}
               className="flex-none text-[var(--text-muted)] transition-transform group-data-[state=closed]:-rotate-90"
             />
-            <span className="text-[13px] font-[700] text-[var(--text-secondary)]">
+            <span className="shrink-0 text-[13px] font-[700] text-[var(--text-secondary)]">
               {t('config:configPage.visualConnections')}
             </span>
-            <span className="truncate text-[12px] text-[var(--text-tertiary)]">
+            <span className="min-w-0 text-[12px] text-[var(--text-tertiary)]">
               {t('config:configPage.visualConnectionsHint')}
             </span>
           </button>
@@ -255,7 +255,7 @@ export function VisualGenerationSettings({
                     role="button"
                     tabIndex={0}
                     title={t('config:configPage.configure')}
-                    className="flex cursor-pointer items-center gap-[8px] [border:1px_solid_var(--stroke-soft)] rounded-[var(--r-sm)] bg-[var(--surface-subtle)] p-[9px_11px] hover:border-[var(--accent-border)] hover:bg-[var(--accent-soft)] focus-visible:outline-2 focus-visible:outline-[var(--focus)]"
+                    className="flex min-w-0 cursor-pointer items-center gap-[8px] [border:1px_solid_var(--stroke-soft)] rounded-[var(--r-sm)] bg-[var(--surface-subtle)] p-[9px_11px] hover:border-[var(--accent-border)] hover:bg-[var(--accent-soft)] focus-visible:outline-2 focus-visible:outline-[var(--focus)] max-[650px]:grid max-[650px]:grid-cols-[30px_minmax(0,1fr)_auto]"
                     onClick={() => onEditVisualProvider(provider.id)}
                     onKeyDown={(event) => {
                       if (event.key === 'Enter' || event.key === ' ') {
@@ -270,12 +270,12 @@ export function VisualGenerationSettings({
                     <strong className="min-w-0 flex-1 overflow-hidden text-ellipsis whitespace-nowrap text-[13px]">
                       {provider.name}
                     </strong>
-                    <small className="flex-none text-[12px] text-[var(--text-muted)]">
+                    <small className="min-w-0 flex-none text-[12px] text-[var(--text-muted)] max-[650px]:col-start-2 max-[650px]:row-start-2">
                       {statusText}
                     </small>
                     {/* 开关/删除是行内独立控件，不触发行点击编辑 */}
                     <div
-                      className="flex flex-none items-center gap-[6px]"
+                      className="flex flex-none items-center gap-[6px] max-[650px]:col-start-3 max-[650px]:row-span-2 max-[650px]:row-start-1"
                       onClick={(event) => event.stopPropagation()}
                       onKeyDown={(event) => event.stopPropagation()}
                     >

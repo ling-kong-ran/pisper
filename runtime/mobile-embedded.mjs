@@ -6,6 +6,8 @@ import { dirname, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { createPisperRuntime } from './app-runtime.mjs'
 import { resolveAgentDataDir } from './data-dir-migration.mjs'
+import { resolveRuntimeCapabilities } from './runtime-capabilities.mjs'
+import { createStartupLogObserver, createStartupObserver } from './startup-observer.mjs'
 
 const serverDir = dirname(fileURLToPath(import.meta.url))
 
@@ -17,7 +19,12 @@ async function report(readyFile, value) {
   await rename(temporary, readyFile)
 }
 
-export async function startEmbeddedRuntime() {
+export async function startEmbeddedRuntime({
+  initializationMode = process.env.PISPER_MOBILE_STARTUP_MODE || 'mobile-base',
+  startupObserver = createStartupLogObserver(),
+} = {}) {
+  const stage = createStartupObserver(startupObserver)
+  stage('embedded-entry')
   const root = resolve(process.env.PISPER_APP_ROOT || resolve(serverDir, '..'))
   const readyFile = String(process.env.PISPER_MOBILE_READY_FILE || '').trim()
   const token = String(process.env.PISPER_DESKTOP_TOKEN || randomBytes(32).toString('base64url'))
@@ -25,6 +32,12 @@ export async function startEmbeddedRuntime() {
   process.env.PI_SKIP_VERSION_CHECK ||= '1'
   process.env.PI_TELEMETRY ||= '0'
 
+  const runtimeProfile =
+    process.env.PISPER_RUNTIME_PROFILE === 'mobile-store' ? 'mobile-store' : 'mobile-embedded'
+  const runtimeCapabilities = await resolveRuntimeCapabilities({
+    environment: { ...process.env, PISPER_RUNTIME_PROFILE: runtimeProfile },
+  })
+  stage('capabilities-ready')
   let pisper
   try {
     pisper = await createPisperRuntime({
@@ -37,15 +50,20 @@ export async function startEmbeddedRuntime() {
       desktopAuthToken: token,
       frontendRoot: process.env.PISPER_FRONTEND_ROOT || resolve(root, 'dist'),
       deferRuntimeInitialization: true,
+      initializationMode,
+      runtimeCapabilities,
+      startupObserver: startupObserver ? stage : null,
     })
-    await pisper.initialized
+    // 完整启动开关保留回退路径；移动默认只等待真实可服务的聊天基础依赖。
+    if (initializationMode === 'full') await pisper.initialized
+    else await pisper.baseReady
     await report(readyFile, {
       url: pisper.url,
       bootstrapUrl: `${pisper.url}/_pisper/desktop/bootstrap?token=${encodeURIComponent(token)}`,
       pid: process.pid,
-      runtimeProfile:
-        process.env.PISPER_RUNTIME_PROFILE === 'mobile-store' ? 'mobile-store' : 'mobile-embedded',
+      runtimeProfile,
     })
+    stage('ready-file-written')
     return pisper
   } catch (error) {
     await pisper?.close()

@@ -50,7 +50,7 @@ export function ConfigPage({
   } else if (section === 'desktop-pet') {
     content = <DesktopPetSettings notify={notify} requestConfirm={requestConfirm} />
   } else if (section === 'mobile-server') {
-    content = <MobileServerSettings />
+    content = <MobileServerSettings requestConfirm={requestConfirm} />
   } else if (section === 'remote-access') {
     content = <RemoteAccessSettings notify={notify} />
   } else if (section === 'updates') {

@@ -6,6 +6,7 @@ import { stageIosSpeechResources } from './stage-ios-speech-resources.mjs'
 
 const projectRoot = join(dirname(fileURLToPath(import.meta.url)), '..')
 const coreSources = [
+  'SpeechTrustedRoots.swift',
   'SpeechModelStore.swift',
   'SpeechModelArchive.swift',
   'SpeechNativeEngine.swift',

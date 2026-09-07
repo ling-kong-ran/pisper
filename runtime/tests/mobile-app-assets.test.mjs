@@ -2,9 +2,16 @@
 import assert from 'node:assert/strict'
 import { readFile } from 'node:fs/promises'
 import test from 'node:test'
+import { load as loadYaml } from 'js-yaml'
 import { isAppExclusivePath, isAppOwnedPath } from '../../scripts/app-paths.mjs'
-import { transformWryAndroidWebChromeClient } from '../../scripts/patch-wry-android.mjs'
-import { injectIosPrivacyManifest } from '../../scripts/setup-mobile-ios.mjs'
+import {
+  transformWryAndroidWebChromeClient,
+  transformWryAndroidWebViewClient,
+} from '../../scripts/patch-wry-android.mjs'
+import {
+  injectIosNativeBuildSettings,
+  injectIosPrivacyManifest,
+} from '../../scripts/setup-mobile-ios.mjs'
 import { releaseComponentsForPath } from '../../scripts/release-changes.mjs'
 
 function pngSize(buffer) {
@@ -78,6 +85,8 @@ test('平台初始化流程不会保留 Tauri 模板图标', async () => {
   const androidInit = androidSetup.indexOf("'android', 'init'")
   const androidIcons = androidSetup.indexOf("'sync-mobile-icons.mjs'")
   assert.ok(androidInit >= 0 && androidIcons > androidInit)
+  const replaySetup = androidBuild.indexOf("'setup-mobile-android.mjs'")
+  assert.ok(replaySetup >= 0 && replaySetup < androidBuild.indexOf('const appGradlePath'))
   assert.match(androidBuild, /process\.platform === 'win32'/)
   assert.match(androidBuild, /kotlin\.incremental/)
   assert.match(androidBuild, /kotlin\.incremental\.useClasspathSnapshot/)
@@ -94,6 +103,48 @@ test('平台初始化流程不会保留 Tauri 模板图标', async () => {
   const iosIcons = workflow.indexOf('node scripts/sync-mobile-icons.mjs')
   const iosInit = workflow.indexOf('npx tauri ios init')
   assert.ok(iosIcons >= 0 && iosInit > iosIcons)
+})
+
+test('iOS 工程重生成保留现有链接参数并幂等补齐原生依赖', () => {
+  const desktop = { platform: 'macOS', settings: { base: { OTHER_LDFLAGS: '-lz' } } }
+  const source = JSON.stringify({
+    targets: {
+      App: {
+        platform: 'iOS',
+        sources: [{ path: 'Externals' }, { path: 'Sources' }],
+        settings: { base: { OTHER_LDFLAGS: ['$(inherited)', '-lz -framework Foundation'] } },
+      },
+      Desktop: desktop,
+    },
+  })
+  const transformed = injectIosNativeBuildSettings(source, '15.1')
+  assert.equal(injectIosNativeBuildSettings(transformed, '15.1'), transformed)
+  const project = loadYaml(transformed)
+  assert.deepEqual(project.targets.Desktop, desktop)
+  assert.equal(project.options.deploymentTarget.iOS, '15.1')
+  const app = project.targets.App
+  assert.equal(app.settings.base.IPHONEOS_DEPLOYMENT_TARGET, '15.1')
+  assert.deepEqual(app.sources, [{ path: 'Externals', buildPhase: 'none' }, { path: 'Sources' }])
+  const flags = app.settings.base.OTHER_LDFLAGS.split(/\s+/)
+  for (const flag of ['$(inherited)', '-lc++', '-lz', '-lbz2', '-liconv', '-lxml2', 'Foundation']) {
+    assert.equal(flags.filter((value) => value === flag).length, 1)
+  }
+  assert.throws(() => injectIosNativeBuildSettings(source, '15.1; invalid'), /minimumSystemVersion/)
+  assert.throws(() => injectIosNativeBuildSettings('targets: {}', '15.1'), /iOS target/)
+})
+
+test('移动端删除配对使用应用确认框且运行按钮不能被窄屏压缩', async () => {
+  const [page, settings] = await Promise.all([
+    readFile('src/features/config/ConfigPage.tsx', 'utf8'),
+    readFile('src/features/config/MobileServerSettings.tsx', 'utf8'),
+  ])
+  assert.match(page, /<MobileServerSettings requestConfirm=\{requestConfirm\}/)
+  assert.doesNotMatch(settings, /window\.confirm/)
+  assert.match(settings, /const approved = await requestConfirm\(/)
+  assert.match(settings, /if \(!approved\) return/)
+  assert.match(settings, /await run\('mobile_forget_server', \{ id: server\.id \}, server\.id\)/)
+  assert.match(settings, /disabled=\{Boolean\(busyId\)\}/)
+  assert.match(settings, /className="flex-none max-\[650px\]:h-10/)
 })
 
 test('Android arm64 native 产物强制兼容 16 KB 内存页', async () => {
@@ -141,15 +192,9 @@ test('移动壳仅在核心 Runtime API 合同通过后挂载业务界面', asyn
     readFile('scripts/build-mobile-ios.mjs', 'utf8'),
   ])
 
-  for (const path of [
-    '/api/client-info',
-    '/api/runtime/capabilities',
-    '/api/config',
-    '/api/sessions',
-  ]) {
-    assert.match(shell, new RegExp(path.replaceAll('/', '\\/')))
-  }
-  assert.match(shell, /validate_startup_contract_values/)
+  assert.match(shell, /fetch_startup_json\(&client, &origin, &cookie, "\/api\/ready"\)/)
+  assert.match(shell, /validate_startup_ready\(&ready\)/)
+  assert.doesNotMatch(shell, /validate_startup_contract_values/)
   assert.match(shell, /redirect\(reqwest::redirect::Policy::none\(\)\)/)
   assert.match(shell, /fetch_startup_cookie/)
   assert.match(shell, /header\(reqwest::header::COOKIE, cookie\)/)
@@ -198,7 +243,7 @@ test('移动壳仅在核心 Runtime API 合同通过后挂载业务界面', asyn
   assert.match(buildScript, /rerun-if-changed=capabilities\/mobile-bridge\.json/)
   assert.match(iosBuild, /tauri ios xcode-script/)
   assert.match(iosBuild, /rmSync\(generatedRustLibrary, \{ force: true \}\)/)
-  assert.match(iosBuild, /'--features',[\s\S]*'mobile-embedded-only'/)
+  assert.doesNotMatch(iosBuild, /mobile-embedded-only/)
   assert.match(iosBuild, /mobile_resume_local_runtime/)
   assert.match(iosBuild, /assertResumeCommandAcl\(\)/)
   assert.doesNotMatch(startupPage, /mobile_enter_local/)
@@ -233,8 +278,34 @@ test('Android WebView renderer 退出后重建宿主并恢复当前路由', asyn
   assert.match(activity, /webView\.destroy\(\)/)
   assert.match(activity, /recreate\(\)/)
   assert.match(activity, /RENDERER_RECOVERY_URL/)
-  assert.match(activity, /webView\.post \{ webView\.loadUrl\(recoveryUrl\) \}/)
+  assert.match(activity, /fun restoreRendererRoute\(webView: WebView\)/)
+  assert.match(activity, /if \(!isTrustedProxyOrigin\(uri\)\) return/)
+  assert.match(setup, /patchWryAndroidWebViewClient\(rustWebViewClientPath\)/)
+  assert.doesNotMatch(activity, /override fun onWebViewCreate/)
   assert.match(activity, /return true/)
+})
+
+test('Android renderer 恢复等待初始页面完成，补丁可重放且拒绝结构漂移', () => {
+  for (const eol of ['\n', '\r\n']) {
+    const stock = [
+      '    override fun onPageFinished(view: WebView, url: String) {',
+      '        Rust.onPageLoaded((view as RustWebView).id, url)',
+      '    }',
+    ].join(eol)
+    const patched = transformWryAndroidWebViewClient(stock)
+    assert.ok(
+      patched.indexOf('MainActivity.restoreRendererRoute(view)') >
+        patched.indexOf('Rust.onPageLoaded'),
+    )
+    assert.equal(transformWryAndroidWebViewClient(patched), patched)
+    assert.throws(() => transformWryAndroidWebViewClient(stock + eol + stock), /结构已变化/)
+    assert.throws(
+      () => transformWryAndroidWebViewClient(patched.replace('Rust.onPageLoaded', 'Rust.changed')),
+      /结构不完整/,
+    )
+    assert.throws(() => transformWryAndroidWebViewClient(patched + eol + patched), /结构不完整/)
+  }
+  assert.throws(() => transformWryAndroidWebViewClient('class RustWebViewClient'), /结构已变化/)
 })
 
 test('Android 与 iOS 软键盘都使用可视视口保持会话输入框可见', async () => {
@@ -409,6 +480,11 @@ test('移动语音输入具有受控原生链路、平台边界与可复现打�
   assert.notEqual(captureIndex, -1)
   assert.ok(permissionIndex < captureIndex)
   assert.match(voiceInput, /'mobile_request_microphone_permission'/)
+  assert.match(
+    mobileBridge,
+    /async fn mobile_request_microphone_permission\([\s\S]*?return run_mobile_speech\(move \|\| \{[\s\S]*?\.request_permission\("microphone"\)[\s\S]*?\}\)\s*\.await;/,
+  )
+  assert.match(mobileBridge, /spawn_blocking\(operation\)\s*\.await/)
   assert.match(voiceInput, /'mobile_transcribe_pcm'/)
   assert.match(mobileBridge, /fn mobile_transcribe_pcm/)
   assert.match(mobileBridge, /\.transcribe_pcm\(pcm_base64, hotwords\)/)
@@ -727,7 +803,8 @@ test('移动 Node 供应链固定来源并在两个平台执行完整性门禁',
     /Prepare Android project with embedded Node[\s\S]*NDK_HOME:.*27\.3\.13750724/,
   )
   assert.match(workflow, /lib\/arm64-v8a\/libc\+\+_shared\.so/)
-  assert.match(workflow, /android build --apk[\s\S]*--features mobile-embedded-only/)
+  assert.match(workflow, /android build --apk/)
+  assert.doesNotMatch(workflow, /--features mobile-embedded-only/)
   assert.match(
     workflow,
     /apkanalyzer dex packages --defined-only[\s\S]*EmbeddedNodeHost java\.lang\.String start/,
@@ -891,18 +968,18 @@ test('局域网发现需桌面审批且保留二维码备用路径', async () =>
   assert.match(pairing, /mobileServer\.localNetworkDenied/)
 })
 
-test('root Android Runtime 构建仅在系统包安装期间绑定构建机设备', async () => {
-  const script = await readFile('scripts/build-android-root-runtime.sh', 'utf8')
-  const bind = script.indexOf('sudo mount --bind /dev "$ROOTFS/dev"')
-  const update = script.indexOf('apt-get update')
-  const install = script.indexOf('apt-get install')
-  const unmount = script.indexOf('sudo umount "$ROOTFS/dev"', install)
-  const archive = script.indexOf('sudo tar --numeric-owner --xattrs --acls')
-
-  assert.match(script, /trap cleanup EXIT/)
-  assert.ok(bind >= 0 && bind < update)
-  assert.ok(update < install && install < unmount)
-  assert.ok(unmount < archive)
+test('所有移动构建移除 root Runtime 源码与构建入口', async () => {
+  for (const path of [
+    'scripts/build-android-root-runtime.sh',
+    'src-tauri/src/mobile/root_runtime.rs',
+  ]) {
+    await assert.rejects(readFile(path), { code: 'ENOENT' })
+  }
+  const pkg = JSON.parse(await readFile('package.json', 'utf8'))
+  assert.equal(pkg.scripts['android:root-runtime'], undefined)
+  const carrier = await readFile('src-tauri/src/mobile/on_device_runtime.rs', 'utf8')
+  assert.doesNotMatch(carrier, /RootRuntime|Carrier::Root|root_runtime|mobile-embedded-only/)
+  assert.match(carrier, /self\.embedded\.ensure_started\(\)/)
 })
 
 test('移动 Runtime 本地 staging 使用 App 版本并兼容 Windows Node 24', async () => {
@@ -990,13 +1067,12 @@ test('iOS 隐私清单显式进入 App target 的资源构建阶段', () => {
 })
 
 test('embedded Node 使用后台线程、真实初始化 READY 与 App 生命周期', async () => {
-  const [entry, kotlin, cpp, rustHost, carrier, rootHost] = await Promise.all([
+  const [entry, kotlin, cpp, rustHost, carrier] = await Promise.all([
     readFile('runtime/mobile-embedded.mjs', 'utf8'),
     readFile('src-tauri/mobile/node-host/android/EmbeddedNodeHost.kt', 'utf8'),
     readFile('src-tauri/mobile/node-host/android/node_host.cpp', 'utf8'),
     readFile('src-tauri/src/mobile/embedded_runtime.rs', 'utf8'),
     readFile('src-tauri/src/mobile/on_device_runtime.rs', 'utf8'),
-    readFile('src-tauri/src/mobile/root_runtime.rs', 'utf8'),
   ])
   assert.match(entry, /export async function startEmbeddedRuntime/)
   assert.match(entry, /PISPER_MOBILE_AUTOSTART === '1'/)
@@ -1025,25 +1101,21 @@ test('embedded Node 使用后台线程、真实初始化 READY 与 App 生命周
   assert.match(rustHost, /getClassLoader/)
   assert.match(rustHost, /"loadClass"/)
   assert.doesNotMatch(rustHost, /call_static_method\(\s*"com\/lingkongran\/pisper/)
-  assert.match(carrier, /Carrier::Root[\s\S]*Carrier::Embedded/)
-  assert.match(carrier, /data_root\.clone\(\)/)
+  assert.match(carrier, /embedded: EmbeddedRuntime/)
   assert.match(carrier, /lifecycle: Mutex/)
-  assert.match(carrier, /远程模式不终止同进程 embedded Node/)
-  assert.match(rootHost, /mount --bind \{shared_data\} \{data\}/)
-  assert.match(rootHost, /mount --bind \{shared_workspace\} \{workspace\}/)
-  assert.match(rootHost, /避免 Runtime 后续日志写入触发 EPIPE/)
+  assert.doesNotMatch(carrier, /\.stop\(|\.shutdown\(|\.deactivate\(/)
 })
 
-test('商店构建在编译期排除 root Runtime 与外部安装更新', async () => {
+test('所有构建仅使用 embedded Runtime 且商店构建排除外部安装更新', async () => {
   const [cargo, mobile, storeUpdate, workflow] = await Promise.all([
     readFile('src-tauri/Cargo.toml', 'utf8'),
     readFile('src-tauri/src/mobile/mod.rs', 'utf8'),
     readFile('src-tauri/src/mobile/store_update.rs', 'utf8'),
     readFile('.github/workflows/build-store-app.yml', 'utf8'),
   ])
-  assert.match(cargo, /mobile-embedded-only = \[\]/)
-  assert.match(cargo, /mobile-store = \["mobile-embedded-only"\]/)
-  assert.match(mobile, /#\[cfg\(not\(feature = "mobile-embedded-only"\)\)\]\s*pub mod root_runtime/)
+  assert.doesNotMatch(cargo, /mobile-embedded-only/)
+  assert.match(cargo, /mobile-store = \[\]/)
+  assert.doesNotMatch(mobile, /pub mod root_runtime/)
   assert.match(mobile, /#\[path = "store_update\.rs"\]/)
   assert.doesNotMatch(storeUpdate, /github\.com|latest-app\.json|open_url/)
   assert.match(workflow, /android build[\s\S]*--aab[\s\S]*--features mobile-store/)

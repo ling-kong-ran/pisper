@@ -27,7 +27,7 @@ export function CurrentModelSummary({
 
   return (
     <SettingsCard className="[margin-bottom:12px]" data-config-card="models-current-model">
-      <div className="flex flex-wrap items-center gap-[12px]">
+      <div className="flex flex-wrap items-center gap-[12px] max-[650px]:grid max-[650px]:grid-cols-[40px_minmax(0,1fr)]">
         <span className="grid w-[40px] h-[40px] flex-none place-items-center rounded-[11px] bg-[var(--accent-soft)] text-[var(--star-strong)]">
           <Bot size={19} />
         </span>
@@ -57,7 +57,7 @@ export function CurrentModelSummary({
             </span>
           )}
         </div>
-        <div className="flex flex-none items-center gap-[7px]">
+        <div className="flex min-w-0 max-w-full flex-none flex-wrap items-center gap-[7px] max-[650px]:col-span-full">
           {ready && provider && (
             <Button variant="outline" className="bg-surface-subtle" onClick={onChangeModel}>
               <PencilLine size={13} />

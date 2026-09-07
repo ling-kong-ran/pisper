@@ -102,9 +102,9 @@ test('unknown profile cannot claim unavailable capabilities', async () => {
   assert.equal(capabilities.features.workers, false)
 })
 
-test('root mobile profile keeps Node services without claiming desktop-only bridges', async () => {
+test('embedded mobile profile keeps supported Node services without automation or desktop bridges', async () => {
   const capabilities = await resolveRuntimeCapabilities({
-    environment: { PISPER_RUNTIME_PROFILE: 'mobile-root' },
+    environment: { PISPER_RUNTIME_PROFILE: 'mobile-embedded' },
     moduleSupport: {
       childProcess: true,
       workerThreads: true,
@@ -116,7 +116,7 @@ test('root mobile profile keeps Node services without claiming desktop-only brid
   assert.equal(capabilities.features.shell, true)
   assert.equal(capabilities.features.vcs, true)
   assert.equal(capabilities.features.memory, true)
-  assert.equal(capabilities.features.workflows, true)
+  assert.equal(capabilities.features.workflows, false)
   assert.equal(capabilities.features.terminal, false)
   assert.equal(capabilities.features.browserAutomation, false)
   assert.equal(capabilities.features.remoteAccess, false)

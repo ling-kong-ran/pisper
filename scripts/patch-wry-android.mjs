@@ -1,5 +1,5 @@
 import { existsSync, readFileSync, writeFileSync } from 'node:fs'
-import { resolve } from 'node:path'
+import { dirname, join, resolve } from 'node:path'
 import { pathToFileURL } from 'node:url'
 
 const ORIGIN_GUARD_MARKER = 'Pisper：只允许当前回环应用代理请求纯音频 WebView 权限。'
@@ -106,6 +106,36 @@ export function transformWryAndroidWebChromeClient(source) {
   return normalized.replace(stock, patched)
 }
 
+export function transformWryAndroidWebViewClient(source) {
+  const eol = source.includes('\r\n') ? '\r\n' : '\n'
+  const stock = [
+    '    override fun onPageFinished(view: WebView, url: String) {',
+    '        Rust.onPageLoaded((view as RustWebView).id, url)',
+    '    }',
+  ].join(eol)
+  const hook = '        MainActivity.restoreRendererRoute(view)'
+  const patched = stock.replace(`${eol}    }`, `${eol}${hook}${eol}    }`)
+  if (source.includes('MainActivity.restoreRendererRoute')) {
+    if (source.split(patched).length !== 2 || source.split(hook).length !== 2) {
+      throw new Error('Wry WebViewClient 已有恢复回调但补丁结构不完整。')
+    }
+    return source
+  }
+  if (source.split(stock).length !== 2) {
+    throw new Error('Wry WebViewClient 页面完成回调结构已变化，拒绝生成无法恢复路由的 Android 包。')
+  }
+  return source.replace(stock, patched)
+}
+
+export function patchWryAndroidWebViewClient(path) {
+  const target = resolve(path)
+  const source = readFileSync(target, 'utf8')
+  const patched = transformWryAndroidWebViewClient(source)
+  if (patched === source) return false
+  writeFileSync(target, patched, 'utf8')
+  return true
+}
+
 export function patchWryAndroidWebChromeClient(path) {
   const target = resolve(path)
   if (!existsSync(target)) throw new Error(`Wry WebChromeClient 不存在：${target}`)
@@ -120,6 +150,10 @@ if (process.argv[1] && import.meta.url === pathToFileURL(resolve(process.argv[1]
   const target = process.argv[2]
   if (!target) throw new Error('用法：node scripts/patch-wry-android.mjs <RustWebChromeClient.kt>')
   const changed = patchWryAndroidWebChromeClient(target)
+  const recoveryChanged = patchWryAndroidWebViewClient(
+    join(dirname(resolve(target)), 'RustWebViewClient.kt'),
+  )
+  console.log(`Wry Android renderer recovery ${recoveryChanged ? 'applied' : 'already present'}`)
   console.log(
     `Wry Android media origin guard ${changed ? 'applied' : 'already present'}: ${resolve(target)}`,
   )

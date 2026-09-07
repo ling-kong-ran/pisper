@@ -32,6 +32,8 @@ const run = (command, args, { shell = process.platform === 'win32' } = {}) => {
 }
 
 assertAndroidEnv(env)
+// 已有生成工程也必须重放原生入口和安全补丁，避免新 Rust 调用旧 Kotlin ABI。
+run(process.execPath, [join(root, 'scripts', 'setup-mobile-android.mjs')], { shell: false })
 const appGradlePath = join(root, 'src-tauri', 'gen', 'android', 'app', 'build.gradle.kts')
 const appGradle = readFileSync(appGradlePath, 'utf8')
 const compatibleGradle = enableAndroidSpeechDesugaring(appGradle)

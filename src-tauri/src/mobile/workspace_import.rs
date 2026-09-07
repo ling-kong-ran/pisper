@@ -13,7 +13,6 @@ pub(crate) fn ensure_local_import(mode: Option<&str>, running: bool) -> Result<(
 pub(crate) fn resolve_imported_workspace(
     host_root: &Path,
     imported: &Path,
-    runtime_root: Option<&Path>,
 ) -> Result<PathBuf, String> {
     // 先拒绝原始路径中的上跳，再用规范路径阻止符号链接逃出应用工作区。
     if !imported.is_absolute()
@@ -38,16 +37,13 @@ pub(crate) fn resolve_imported_workspace(
     if relative.as_os_str().is_empty() {
         return Err("不能把工作区根目录作为导入结果。".into());
     }
-    Ok(match runtime_root {
-        Some(runtime_root) => runtime_root.join(relative),
-        None => path,
-    })
+    Ok(path)
 }
 
 #[cfg(test)]
 mod tests {
     use super::{ensure_local_import, resolve_imported_workspace};
-    use std::path::{Path, PathBuf};
+    use std::path::PathBuf;
     use std::sync::atomic::{AtomicU64, Ordering};
 
     static NEXT_ID: AtomicU64 = AtomicU64::new(0);
@@ -92,22 +88,8 @@ mod tests {
         let fixture = Fixture::new();
         let imported = fixture.root().join("project/nested");
         assert_eq!(
-            resolve_imported_workspace(&fixture.root(), &imported, None).unwrap(),
+            resolve_imported_workspace(&fixture.root(), &imported).unwrap(),
             imported.canonicalize().unwrap()
-        );
-    }
-
-    #[test]
-    fn root_import_maps_only_the_validated_relative_directory() {
-        let fixture = Fixture::new();
-        assert_eq!(
-            resolve_imported_workspace(
-                &fixture.root(),
-                &fixture.root().join("project/nested"),
-                Some(Path::new("/workspace")),
-            )
-            .unwrap(),
-            Path::new("/workspace").join("project/nested")
         );
     }
 
@@ -125,7 +107,7 @@ mod tests {
             PathBuf::from("content://provider/tree/project"),
         ] {
             assert!(
-                resolve_imported_workspace(&fixture.root(), &imported, None).is_err(),
+                resolve_imported_workspace(&fixture.root(), &imported).is_err(),
                 "accepted invalid path: {imported:?}"
             );
         }
@@ -141,7 +123,7 @@ mod tests {
         ] {
             let link = fixture.root().join(name);
             std::os::unix::fs::symlink(target, &link).unwrap();
-            assert!(resolve_imported_workspace(&fixture.root(), &link, None).is_err());
+            assert!(resolve_imported_workspace(&fixture.root(), &link).is_err());
         }
     }
 }

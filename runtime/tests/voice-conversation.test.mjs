@@ -371,6 +371,27 @@ async function reply(f, text = '**complete** reply', role = 'agent') {
   await f.tick(50)
 }
 
+for (const [name, rejection, expected] of [
+  ['native string', 'speech_resources_missing', 'speech_resources_missing'],
+  ['native object', { message: 'speech_catalog_invalid' }, 'speech_catalog_invalid'],
+  ['permission string', 'microphone_permission_denied', 'chat:voiceInput.permissionDenied'],
+  ['empty string', '', 'chat:voiceMode.failed'],
+  ['unknown object', { code: 42 }, 'chat:voiceMode.failed'],
+]) {
+  test(`initialization preserves ${name} errors and remains cancellable`, async (t) => {
+    const f = fixture(t, { setupPending: true })
+    await f.flush()
+    f.setup.reject(rejection)
+    await f.flush()
+    assert.equal(f.state.stage, 'error')
+    assert.equal(f.state.error, expected)
+    assert.equal(f.captures.length, 0)
+    f.state.hangUp()
+    await f.flush()
+    assert.equal(f.state.stage, 'idle')
+  })
+}
+
 test('automatic VAD submits once, preserves tail PCM, awaits stream completion and playback before re-listening', async (t) => {
   const f = fixture(t)
   await submit(f)

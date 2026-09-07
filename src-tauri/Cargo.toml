@@ -14,14 +14,16 @@ crate-type = ["staticlib", "cdylib", "rlib"]
 
 [features]
 default = []
-# GitHub APK 与商店包都只携带 embedded Runtime，不编译 rooted carrier。
-mobile-embedded-only = []
-# 商店包在 embedded-only 基础上进一步移除外部更新并限制动态执行能力。
-mobile-store = ["mobile-embedded-only"]
+# 所有移动构建仅使用 embedded Runtime；商店包额外移除外部更新并限制动态执行能力。
+mobile-store = []
 
 [[bin]]
 name = "Pisper"
 path = "src/main.rs"
+
+[[test]]
+name = "ios-build"
+path = "mobile-device-plugin/ios_build.rs"
 
 [build-dependencies]
 serde_json = "1"

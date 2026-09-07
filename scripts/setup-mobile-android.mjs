@@ -17,7 +17,10 @@ import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { spawnSync } from 'node:child_process'
 import { assertAndroidEnv, resolveAndroidEnv } from './android-env.mjs'
-import { patchWryAndroidWebChromeClient } from './patch-wry-android.mjs'
+import {
+  patchWryAndroidWebChromeClient,
+  patchWryAndroidWebViewClient,
+} from './patch-wry-android.mjs'
 import { stageAndroidSpeechRuntime } from './stage-android-speech-runtime.mjs'
 import { enableAndroidSpeechDesugaring } from './android-speech-desugaring.mjs'
 
@@ -346,6 +349,10 @@ if (!updatedRustBuildTask.includes('scripts/patch-wry-android.mjs')) {
 writeFileSync(rustBuildTaskPath, updatedRustBuildTask, 'utf8')
 if (existsSync(rustWebChromeClientPath)) {
   patchWryAndroidWebChromeClient(rustWebChromeClientPath)
+}
+const rustWebViewClientPath = join(dirname(rustWebChromeClientPath), 'RustWebViewClient.kt')
+if (existsSync(rustWebViewClientPath)) {
+  patchWryAndroidWebViewClient(rustWebViewClientPath)
 }
 mkdirSync(dirname(mainActivityTargetPath), { recursive: true })
 copyFileSync(mainActivitySourcePath, mainActivityTargetPath)

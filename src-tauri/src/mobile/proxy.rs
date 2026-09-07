@@ -24,7 +24,9 @@ use super::store::{ServerEndpoint, ServerProfile, SharedStore};
 
 /// 上游地址缓存有效期：避免每个请求都探测；网络切换后最多 20 秒内自愈。
 const UPSTREAM_CACHE_TTL: Duration = Duration::from_secs(5);
-/// 远程 HTTP 只限制收到响应头的时间；响应体可能是长期 SSE 流，不能设置整体超时。
+/// 在前端默认 30 秒超时前返回明确错误；SSE 和下载响应交付后不受此预算约束。
+const REMOTE_REQUEST_TIMEOUT: Duration = Duration::from_secs(25);
+/// 单次首部等待仍需留出重选端点的机会，所有尝试共用上述总预算。
 const RESPONSE_HEADERS_TIMEOUT: Duration = Duration::from_secs(15);
 /// 端点健康探测超时：局域网内健康检查应在毫秒级返回。
 const PROBE_TIMEOUT: Duration = Duration::from_millis(2500);
@@ -275,9 +277,122 @@ fn text_response(status: StatusCode, message: &str) -> Response<ProxyBody> {
         .expect("static response")
 }
 
+struct RemoteTrace {
+    enabled: bool,
+    started: Instant,
+    request_id: u64,
+    stage: &'static str,
+    attempt: usize,
+}
+
+impl RemoteTrace {
+    fn new() -> Self {
+        static NEXT_REQUEST_ID: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(1);
+        let enabled = std::env::var("PISPER_MOBILE_NETWORK_TRACE").is_ok_and(|value| value == "1");
+        Self {
+            enabled,
+            started: Instant::now(),
+            request_id: if enabled {
+                NEXT_REQUEST_ID.fetch_add(1, std::sync::atomic::Ordering::Relaxed)
+            } else {
+                0
+            },
+            stage: "request_start",
+            attempt: 0,
+        }
+    }
+
+    fn record(&mut self, stage: &'static str, attempt: usize, proxy: &ProxyHandle, status: u16) {
+        self.stage = stage;
+        self.attempt = attempt;
+        if !self.enabled {
+            return;
+        }
+        // 仅允许固定传输类别，不能把配对档案或错误文本中的地址、令牌带入设备日志。
+        let transport = match proxy.active_transport().as_deref() {
+            Some("lan") => "lan",
+            Some("iroh") => "iroh",
+            _ => "none",
+        };
+        eprintln!(
+            "[pisper-mobile-proxy] request_id={} stage={} elapsed_ms={} attempt={} transport={} status={}",
+            self.request_id, stage, self.started.elapsed().as_millis(), attempt, transport, status
+        );
+    }
+}
+
 async fn forward_remote(
     proxy: &Arc<ProxyHandle>,
     request: Request<Incoming>,
+) -> Result<Response<ProxyBody>, Infallible> {
+    forward_remote_with_timeouts(
+        proxy,
+        request,
+        REMOTE_REQUEST_TIMEOUT,
+        RESPONSE_HEADERS_TIMEOUT,
+    )
+    .await
+}
+
+async fn forward_remote_with_timeouts(
+    proxy: &Arc<ProxyHandle>,
+    request: Request<Incoming>,
+    budget: Duration,
+    headers_timeout: Duration,
+) -> Result<Response<ProxyBody>, Infallible> {
+    // 只包住响应构造阶段：探测、重试和 JSON 读取不能各自重新获得完整预算。
+    // SSE 与下载返回的是惰性流，后续逐帧传输不在这个超时作用域内。
+    let mut trace = RemoteTrace::new();
+    trace.record("request_start", 0, proxy, 0);
+    let response = match tokio::time::timeout(
+        budget,
+        forward_remote_response(proxy, request, headers_timeout, &mut trace),
+    )
+    .await
+    {
+        Ok(response) => response,
+        Err(_) => {
+            let stage = match trace.stage {
+                "resolve_start" => "resolve_timeout",
+                "headers_start" => "headers_timeout",
+                "json_body_start" => "json_body_timeout",
+                _ => "request_timeout",
+            };
+            trace.record(stage, trace.attempt, proxy, 504);
+            proxy.invalidate_remote_upstream();
+            Ok(text_response(
+                StatusCode::GATEWAY_TIMEOUT,
+                "等待桌面端响应超时。",
+            ))
+        }
+    };
+    let status = match &response {
+        Ok(response) => response.status().as_u16(),
+        Err(never) => match *never {},
+    };
+    // 流式响应这里只表示响应头交付完成，不表示 SSE 或下载已经结束。
+    trace.record("request_end", trace.attempt, proxy, status);
+    response
+}
+
+fn is_json_response(headers: &reqwest::header::HeaderMap) -> bool {
+    headers
+        .get(reqwest::header::CONTENT_TYPE)
+        .and_then(|value| value.to_str().ok())
+        .and_then(|value| value.split(';').next())
+        .and_then(|value| value.trim().split_once('/'))
+        .is_some_and(|(kind, subtype)| {
+            kind.eq_ignore_ascii_case("application")
+                && (subtype.eq_ignore_ascii_case("json")
+                    || subtype.to_ascii_lowercase().ends_with("+json"))
+        })
+}
+
+async fn forward_remote_response(
+    proxy: &Arc<ProxyHandle>,
+    request: Request<Incoming>,
+    headers_timeout: Duration,
+    trace: &mut RemoteTrace,
 ) -> Result<Response<ProxyBody>, Infallible> {
     let Some(profile) = proxy.active_profile() else {
         return Ok(text_response(
@@ -291,7 +406,7 @@ async fn forward_remote(
         .path_and_query()
         .map(|value| value.as_str())
         .unwrap_or("/");
-    // 请求体整体读入（runtime 本身限制附件 ≤32MB），响应体则流式透传。
+    // 请求体整体读入（runtime 本身限制附件 ≤32MB）；JSON 响应完整读取，其余仍流式透传。
     let body_bytes = match body.collect().await {
         Ok(collected) => collected.to_bytes(),
         Err(_) => {
@@ -299,13 +414,26 @@ async fn forward_remote(
         }
     };
 
-    // 真实请求也允许一次重选端点：探测成功后网络可能立即切换，不能把备用端点留给下一个请求。
+    // 仅安全方法允许重选端点后重试；首部丢失并不代表 POST 尚未执行，不能重复提交聊天。
+    let attempts = if matches!(
+        parts.method,
+        hyper::Method::GET | hyper::Method::HEAD | hyper::Method::OPTIONS
+    ) {
+        2
+    } else {
+        1
+    };
     let mut response = None;
     let mut last_error = None;
-    for attempt in 0..2 {
+    for attempt in 1..=attempts {
+        trace.record("resolve_start", attempt, proxy, 0);
         let upstream = match proxy.resolve_upstream(&profile).await {
-            Ok(upstream) => upstream,
+            Ok(upstream) => {
+                trace.record("resolve_ok", attempt, proxy, 0);
+                upstream
+            }
             Err(error) => {
+                trace.record("resolve_failed", attempt, proxy, 502);
                 last_error = Some(error);
                 break;
             }
@@ -327,28 +455,25 @@ async fn forward_remote(
         }
         // 标记流量来源：runtime/前端据此把设置页换成移动端形态（服务器切换而非发码管理）。
         outgoing = outgoing.header("X-Pisper-Client", "mobile-app");
-        match tokio::time::timeout(
-            RESPONSE_HEADERS_TIMEOUT,
-            outgoing.body(body_bytes.clone()).send(),
-        )
-        .await
+        trace.record("headers_start", attempt, proxy, 0);
+        match tokio::time::timeout(headers_timeout, outgoing.body(body_bytes.clone()).send()).await
         {
             Ok(Ok(value)) => {
+                trace.record("headers_ok", attempt, proxy, value.status().as_u16());
                 response = Some(value);
                 break;
             }
             Ok(Err(error)) => {
+                trace.record("headers_failed", attempt, proxy, 502);
                 last_error = Some(format!("连接桌面端失败：{error}"));
             }
             Err(_) => {
+                trace.record("headers_timeout", attempt, proxy, 504);
                 last_error = Some("等待桌面端响应超时。".to_string());
             }
         }
         if let Ok(mut cache) = proxy.upstream.lock() {
             *cache = None;
-        }
-        if attempt == 0 {
-            continue;
         }
     }
     let response = match response {
@@ -378,6 +503,37 @@ async fn forward_remote(
         }
         builder = builder.header(name, value);
     }
+    if is_json_response(response.headers()) {
+        // ProxyBody 无法在发出响应头后报告读取错误，必须先确认 JSON 传输完整。
+        let upstream_status = response.status().as_u16();
+        trace.record("json_body_start", trace.attempt, proxy, upstream_status);
+        let body = match response.bytes().await {
+            Ok(body) => {
+                trace.record("json_body_ok", trace.attempt, proxy, upstream_status);
+                body
+            }
+            Err(error) => {
+                let status = if error.is_timeout() {
+                    StatusCode::GATEWAY_TIMEOUT
+                } else {
+                    StatusCode::BAD_GATEWAY
+                };
+                trace.record("json_body_failed", trace.attempt, proxy, status.as_u16());
+                proxy.invalidate_remote_upstream();
+                return Ok(text_response(
+                    status,
+                    &format!("读取桌面端 JSON 响应失败：{error}"),
+                ));
+            }
+        };
+        return Ok(builder
+            .header("Content-Length", body.len())
+            .body(BodyExt::boxed_unsync(http_body_util::Full::new(body)))
+            .unwrap_or_else(|_| {
+                text_response(StatusCode::INTERNAL_SERVER_ERROR, "构造响应失败。")
+            }));
+    }
+
     // SSE 字节流逐帧透传：reqwest 的 bytes_stream 到达即写，不做任何缓冲。
     // 上游流出错时提前终止流（等效于连接中断，客户端会按游标重连）。
     let stream_proxy = Arc::clone(proxy);
@@ -628,6 +784,21 @@ mod tests {
     /// 启动一个最小 TLS 上游：读请求头后按行为脚本响应。
     /// 返回 (地址, 证书指纹)。behavior 决定响应体写法。
     async fn spawn_upstream(behavior: &'static str) -> (String, String) {
+        spawn_scripted_upstream(
+            behavior,
+            Duration::ZERO,
+            Duration::ZERO,
+            Arc::new(AtomicU64::new(0)),
+        )
+        .await
+    }
+
+    async fn spawn_scripted_upstream(
+        behavior: &'static str,
+        probe_delay: Duration,
+        headers_delay: Duration,
+        requests: Arc<AtomicU64>,
+    ) -> (String, String) {
         ensure_crypto_provider();
         let certified = generate_simple_self_signed(vec!["localhost".to_string()]).unwrap();
         let cert_der = certified.cert.der().clone();
@@ -653,9 +824,10 @@ mod tests {
                     continue;
                 };
                 let acceptor = acceptor.clone();
+                let requests = requests.clone();
                 tokio::spawn(async move {
                     let mut stream = acceptor.accept(stream).await.unwrap();
-                    // 读请求头（本测试不涉及请求体）。
+                    // 仅解析请求头；POST 测试统计提交次数，不检查业务负载。
                     let mut head = Vec::new();
                     let mut buf = [0u8; 1024];
                     while !head.windows(4).any(|w| w == b"\r\n\r\n") {
@@ -673,19 +845,28 @@ mod tests {
                         request_text.contains("authorization: Bearer pst_test"),
                         "代理必须注入 Bearer 头，实际请求：{request_text}"
                     );
-                    // 按路径分流：/api/health 是代理的探测请求，其余走 SSE 脚本。
+                    // 按路径区分探测与真实请求，计数只记录可能产生业务副作用的真实请求。
                     let behavior = if request_text.starts_with("GET /api/health ") {
+                        tokio::time::sleep(probe_delay).await;
                         "health"
                     } else {
+                        requests.fetch_add(1, Ordering::SeqCst);
+                        assert!(request_text.contains("x-pisper-client: mobile-app"));
+                        tokio::time::sleep(headers_delay).await;
                         behavior
                     };
                     match behavior {
-                        "health" => {
+                        "health" | "json_suffix" => {
+                            let content_type = if behavior == "json_suffix" {
+                                "Application/Problem+JSON; charset=utf-8"
+                            } else {
+                                "application/json"
+                            };
                             let body = b"{\"ok\":true}";
                             stream
                                 .write_all(
                                     format!(
-                                        "HTTP/1.1 200 OK\r\ncontent-type: application/json\r\ncontent-length: {}\r\nconnection: close\r\n\r\n",
+                                        "HTTP/1.1 200 OK\r\ncontent-type: {content_type}\r\nx-upstream: preserved\r\ncontent-length: {}\r\nconnection: close\r\n\r\n",
                                         body.len()
                                     )
                                     .as_bytes(),
@@ -694,6 +875,36 @@ mod tests {
                                 .unwrap();
                             stream.write_all(body).await.unwrap();
                             stream.flush().await.unwrap();
+                            stream.shutdown().await.unwrap();
+                        }
+                        "stalled_json" | "truncated_json" | "truncated_chunked_json" => {
+                            let framing = if behavior == "truncated_chunked_json" {
+                                "transfer-encoding: chunked"
+                            } else {
+                                "content-length: 128"
+                            };
+                            let partial = if behavior == "truncated_chunked_json" {
+                                "6\r\n{\"ok\":\r\n"
+                            } else {
+                                "{\"ok\":"
+                            };
+                            stream.write_all(format!(
+                                "HTTP/1.1 200 OK\r\ncontent-type: application/problem+json; charset=utf-8\r\n{framing}\r\nconnection: close\r\n\r\n{partial}"
+                            ).as_bytes()).await.unwrap();
+                            stream.flush().await.unwrap();
+                            if behavior == "stalled_json" {
+                                std::future::pending::<()>().await;
+                            }
+                            stream.shutdown().await.unwrap();
+                        }
+                        "disconnect" => {
+                            stream.shutdown().await.unwrap();
+                        }
+                        "download" => {
+                            stream.write_all(b"HTTP/1.1 200 OK\r\ncontent-type: application/octet-stream\r\ncontent-length: 6\r\nconnection: close\r\n\r\none").await.unwrap();
+                            stream.flush().await.unwrap();
+                            tokio::time::sleep(Duration::from_millis(350)).await;
+                            stream.write_all(b"two").await.unwrap();
                             stream.shutdown().await.unwrap();
                         }
                         "sse" => {
@@ -772,6 +983,46 @@ mod tests {
             .await
             .unwrap();
         proxy.port
+    }
+
+    async fn spawn_proxy_with_timeouts(
+        profile: ServerProfile,
+        budget: Duration,
+        headers_timeout: Duration,
+    ) -> Arc<ProxyHandle> {
+        let path = std::env::temp_dir().join(format!("pisper-proxy-test-{}.json", fast_id()));
+        let mut store = crate::mobile::store::ProfileStore::load(&path);
+        store.upsert(profile).unwrap();
+        store.set_last_mode("remote").unwrap();
+        let listener = TcpListener::bind(("127.0.0.1", 0)).await.unwrap();
+        let proxy = Arc::new(ProxyHandle {
+            port: listener.local_addr().unwrap().port(),
+            store: Arc::new(Mutex::new(store)),
+            upstream: Mutex::new(None),
+            client_cache: Mutex::new(None),
+            tunnels: None,
+            local_runtime: Mutex::new(None),
+        });
+        let server = proxy.clone();
+        tokio::spawn(async move {
+            loop {
+                let (stream, _) = listener.accept().await.unwrap();
+                let proxy = server.clone();
+                tokio::spawn(async move {
+                    let service = service_fn(move |request| {
+                        let proxy = proxy.clone();
+                        async move {
+                            forward_remote_with_timeouts(&proxy, request, budget, headers_timeout)
+                                .await
+                        }
+                    });
+                    let _ = hyper::server::conn::http1::Builder::new()
+                        .serve_connection(TokioIo::new(stream), service)
+                        .await;
+                });
+            }
+        });
+        proxy
     }
 
     fn fast_id() -> u128 {
@@ -903,10 +1154,187 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn remote_json_is_complete_and_preserves_headers() {
+        for behavior in ["health", "json_suffix"] {
+            let (url, fingerprint) = spawn_upstream(behavior).await;
+            let port = spawn_proxy(Some(profile_for(&url, &fingerprint))).await;
+            let response = reqwest::Client::new()
+                .get(format!("http://127.0.0.1:{port}/api/test"))
+                .timeout(Duration::from_secs(2))
+                .send()
+                .await
+                .unwrap();
+            assert_eq!(response.status(), StatusCode::OK);
+            assert_eq!(response.headers()["x-upstream"], "preserved");
+            assert_eq!(response.content_length(), Some(11));
+            assert!(!response.headers().contains_key("transfer-encoding"));
+            assert_eq!(response.bytes().await.unwrap(), b"{\"ok\":true}"[..]);
+        }
+    }
+
+    #[tokio::test]
+    async fn remote_json_truncation_returns_502_without_partial_json() {
+        for behavior in ["truncated_json", "truncated_chunked_json"] {
+            let (url, fingerprint) = spawn_upstream(behavior).await;
+            let proxy = spawn_proxy_with_timeouts(
+                profile_for(&url, &fingerprint),
+                Duration::from_secs(1),
+                Duration::from_millis(500),
+            )
+            .await;
+            let (status, raw) =
+                tokio::time::timeout(Duration::from_secs(2), raw_get(proxy.port, "/api/test"))
+                    .await
+                    .unwrap();
+            assert!(status.contains("502"), "{status}");
+            let text = String::from_utf8_lossy(&raw);
+            assert!(text.contains("读取桌面端 JSON 响应失败"));
+            assert!(!text.contains("{\"ok\":"));
+            assert!(proxy.active_transport().is_none());
+        }
+    }
+
+    #[tokio::test]
+    async fn stalled_remote_json_returns_504_within_shared_budget() {
+        let (url, fingerprint) = spawn_upstream("stalled_json").await;
+        let proxy = spawn_proxy_with_timeouts(
+            profile_for(&url, &fingerprint),
+            Duration::from_millis(200),
+            Duration::from_millis(150),
+        )
+        .await;
+        let (status, raw) =
+            tokio::time::timeout(Duration::from_secs(1), raw_get(proxy.port, "/api/test"))
+                .await
+                .expect("停滞 JSON 必须在前端超时前返回");
+        assert!(status.contains("504"), "{status}");
+        assert!(!String::from_utf8_lossy(&raw).contains("{\"ok\":"));
+        assert!(proxy.active_transport().is_none());
+    }
+
+    #[tokio::test]
+    async fn endpoint_resolution_uses_the_request_budget() {
+        let requests = Arc::new(AtomicU64::new(0));
+        let (url, fingerprint) = spawn_scripted_upstream(
+            "health",
+            Duration::from_secs(2),
+            Duration::ZERO,
+            requests.clone(),
+        )
+        .await;
+        let proxy = spawn_proxy_with_timeouts(
+            profile_for(&url, &fingerprint),
+            Duration::from_millis(150),
+            Duration::from_millis(100),
+        )
+        .await;
+        let (status, _) =
+            tokio::time::timeout(Duration::from_secs(1), raw_get(proxy.port, "/api/test"))
+                .await
+                .expect("探测不能绕过统一预算");
+        assert!(status.contains("504"), "{status}");
+        assert_eq!(requests.load(Ordering::SeqCst), 0);
+    }
+
+    #[tokio::test]
+    async fn safe_retries_and_probes_share_one_deadline() {
+        let requests = Arc::new(AtomicU64::new(0));
+        let (url, fingerprint) = spawn_scripted_upstream(
+            "health",
+            Duration::from_millis(100),
+            Duration::from_secs(2),
+            requests.clone(),
+        )
+        .await;
+        let proxy = spawn_proxy_with_timeouts(
+            profile_for(&url, &fingerprint),
+            Duration::from_millis(700),
+            Duration::from_millis(400),
+        )
+        .await;
+        // 独立预算将耗时至少 1000ms；统一预算应在第二次首部等待中结束。
+        let (status, _) =
+            tokio::time::timeout(Duration::from_millis(900), raw_get(proxy.port, "/api/test"))
+                .await
+                .expect("重试不能重新获得完整预算");
+        assert!(status.contains("504"), "{status}");
+        assert_eq!(requests.load(Ordering::SeqCst), 2);
+        assert!(proxy.active_transport().is_none());
+    }
+
+    #[tokio::test]
+    async fn post_is_not_replayed_after_headers_timeout_or_disconnect() {
+        for behavior in ["health", "disconnect"] {
+            let requests = Arc::new(AtomicU64::new(0));
+            let delay = if behavior == "health" {
+                Duration::from_secs(2)
+            } else {
+                Duration::ZERO
+            };
+            let (url, fingerprint) =
+                spawn_scripted_upstream(behavior, Duration::ZERO, delay, requests.clone()).await;
+            let proxy = spawn_proxy_with_timeouts(
+                profile_for(&url, &fingerprint),
+                Duration::from_millis(600),
+                Duration::from_millis(150),
+            )
+            .await;
+            let response = reqwest::Client::new()
+                .post(format!("http://127.0.0.1:{}/api/chat", proxy.port))
+                .body("{\"message\":\"test\"}")
+                .timeout(Duration::from_secs(1))
+                .send()
+                .await
+                .unwrap();
+            assert_eq!(
+                response.status(),
+                if behavior == "health" {
+                    StatusCode::GATEWAY_TIMEOUT
+                } else {
+                    StatusCode::BAD_GATEWAY
+                }
+            );
+            assert_eq!(requests.load(Ordering::SeqCst), 1);
+            assert!(proxy.active_transport().is_none());
+        }
+    }
+
+    #[tokio::test]
+    async fn downloads_stream_past_the_response_budget() {
+        let (url, fingerprint) = spawn_upstream("download").await;
+        let proxy = spawn_proxy_with_timeouts(
+            profile_for(&url, &fingerprint),
+            Duration::from_millis(200),
+            Duration::from_millis(150),
+        )
+        .await;
+        let mut response = reqwest::Client::new()
+            .get(format!("http://127.0.0.1:{}/api/file", proxy.port))
+            .timeout(Duration::from_secs(2))
+            .send()
+            .await
+            .unwrap();
+        assert_eq!(response.status(), StatusCode::OK);
+        let first = tokio::time::timeout(Duration::from_millis(200), response.chunk())
+            .await
+            .unwrap()
+            .unwrap()
+            .unwrap();
+        assert_eq!(first, b"one"[..]);
+        assert_eq!(response.bytes().await.unwrap(), b"two"[..]);
+    }
+
+    #[tokio::test]
     async fn sse_streams_incrementally() {
         SSE_GATE.set(tokio::sync::Semaphore::new(0)).ok();
         let (url, fingerprint) = spawn_upstream("sse").await;
-        let port = spawn_proxy(Some(profile_for(&url, &fingerprint))).await;
+        let proxy = spawn_proxy_with_timeouts(
+            profile_for(&url, &fingerprint),
+            Duration::from_millis(200),
+            Duration::from_millis(150),
+        )
+        .await;
+        let port = proxy.port;
 
         let mut stream = tokio::net::TcpStream::connect(("127.0.0.1", port))
             .await
@@ -941,7 +1369,8 @@ mod tests {
         let text = String::from_utf8_lossy(&received);
         assert!(text.contains("event: run"), "应先收到第一帧");
         assert!(!text.contains("event: done"), "第二帧此刻不应到达");
-        // 放行上游发第二帧，随后应能读到 done。
+        // 超过响应构造预算后才放行第二帧，证明长连接不会被总预算切断。
+        tokio::time::sleep(Duration::from_millis(250)).await;
         SSE_GATE.get().unwrap().add_permits(1);
         let mut rest = Vec::new();
         let read_rest = async { stream.read_to_end(&mut rest).await.unwrap() };

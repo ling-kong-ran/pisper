@@ -1,9 +1,10 @@
 // 全站浮层：命令面板（Cmd+K，导航/搜索/直达）与快捷创建（新会话/资源）。
 // 两个都懒加载并按需挂载，避免常驻开销；搜索会话走 React Query 缓存。
 import { useEffect, useMemo, useState, type FormEvent, type KeyboardEvent } from 'react'
+import { useQuery } from '@tanstack/react-query'
 import { LoaderCircle, MessageSquare, Plus, Search, Tag, X, type LucideIcon } from 'lucide-react'
 import { useI18n } from '@/app/use-i18n'
-import { apiJson } from '@/lib/api'
+import { startupQueryOptions } from '@/lib/startup-queries'
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
@@ -53,23 +54,14 @@ export function CommandPalette({
 }: CommandPaletteProps) {
   const { t, language } = useI18n()
   const [query, setQuery] = useState('')
-  const [sessions, setSessions] = useState<SessionSummary[]>([])
+  const { data: sessionData } = useQuery(
+    startupQueryOptions<{ sessions?: SessionSummary[] }>('sessions'),
+  )
+  const sessions = useMemo(() => sessionData?.sessions || [], [sessionData])
   const [labelMatches, setLabelMatches] = useState<SessionTreeLabelMatch[]>([])
   const [labelsSearching, setLabelsSearching] = useState(false)
   const [activeIndex, setActiveIndex] = useState(0)
   const [pendingEntryId, setPendingEntryId] = useState('')
-
-  useEffect(() => {
-    let active = true
-    apiJson<{ sessions?: SessionSummary[] }>('/api/sessions')
-      .then((data) => {
-        if (active) setSessions(data.sessions || [])
-      })
-      .catch(() => {})
-    return () => {
-      active = false
-    }
-  }, [])
 
   useEffect(() => {
     const keyword = query.trim()

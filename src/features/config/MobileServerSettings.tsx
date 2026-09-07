@@ -14,6 +14,7 @@ import { useI18n } from '@/app/use-i18n'
 import { SettingsCard as Panel } from './settings-primitives'
 import { MobilePairingDialog } from './MobilePairingDialog'
 import { Button } from '@/components/ui/button'
+import type { ConfirmDialogOptions } from '@/hooks/useAppDialog'
 
 type ServerEndpoint = {
   t: string
@@ -53,7 +54,11 @@ function invokeMobile<T>(command: string, args?: unknown): Promise<T> {
   return invoke<T>(command, args)
 }
 
-export function MobileServerSettings() {
+export function MobileServerSettings({
+  requestConfirm,
+}: {
+  requestConfirm: (options?: ConfirmDialogOptions) => Promise<boolean>
+}) {
   const { t } = useI18n()
   const [state, setState] = useState<MobileState | null>(null)
   const [error, setError] = useState('')
@@ -83,6 +88,19 @@ export function MobileServerSettings() {
     } finally {
       setBusyId('')
     }
+  }
+
+  const forgetServer = async (server: ServerItem) => {
+    if (busyId) return
+    // WKWebView 不保证提供浏览器 confirm，使用 App 对话框确保取消和确认都可操作。
+    const approved = await requestConfirm({
+      title: t('config:mobileServer.forget'),
+      message: t('config:mobileServer.forgetConfirm'),
+      confirmLabel: t('config:mobileServer.forget'),
+      tone: 'danger',
+    })
+    if (!approved) return
+    await run('mobile_forget_server', { id: server.id }, server.id)
   }
 
   const selectServer = async (id: string) => {
@@ -154,13 +172,13 @@ export function MobileServerSettings() {
       </Panel>
 
       <Panel className="flex flex-col gap-3 p-4" data-config-card="mobile-server-local">
-        <div className="flex items-center justify-between gap-3">
-          <div className="flex items-start gap-[11px]">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div className="flex min-w-0 flex-1 basis-48 items-start gap-[11px]">
             <span className="grid size-[38px] flex-none place-items-center rounded-[var(--r-sm)] bg-[var(--star-soft)] text-[var(--star-strong)]">
               <Smartphone size={19} />
             </span>
             <div>
-              <h2 className="flex items-center gap-2 text-[16px]">
+              <h2 className="flex flex-wrap items-center gap-2 text-[16px]">
                 {t('config:mobileServer.localTitle')}
                 {localActive ? (
                   <span className="text-[11px] text-[var(--star-strong)]">
@@ -176,8 +194,8 @@ export function MobileServerSettings() {
           <Button
             size="sm"
             variant="outline"
-            className="max-[650px]:h-10 max-[650px]:px-3"
-            disabled={localActive || busyId === 'mobile_enter_local'}
+            className="flex-none max-[650px]:h-10 max-[650px]:px-3"
+            disabled={localActive || Boolean(busyId)}
             onClick={() =>
               void (async () => {
                 setBusyId('mobile_enter_local')
@@ -265,11 +283,9 @@ export function MobileServerSettings() {
                       variant="ghost"
                       className="max-[650px]:size-10"
                       aria-label={t('config:mobileServer.forget')}
-                      onClick={() => {
-                        if (window.confirm(t('config:mobileServer.forgetConfirm'))) {
-                          void run('mobile_forget_server', { id: server.id }, server.id)
-                        }
-                      }}
+                      title={t('config:mobileServer.forget')}
+                      disabled={Boolean(busyId)}
+                      onClick={() => void forgetServer(server)}
                     >
                       <Trash2 size={14} />
                     </Button>

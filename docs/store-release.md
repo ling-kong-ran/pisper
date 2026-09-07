@@ -35,7 +35,7 @@ Run **Build store apps** with:
 - `upload_google_play`: upload the verified AAB to the Play internal track;
 - `upload_testflight`: upload the verified IPA to TestFlight.
 
-The Android job fails if the bundle contains a rooted Runtime asset or if an arm64 native library has an ELF LOAD alignment below 16 KB. The store Cargo feature also excludes `root_runtime.rs` and the GitHub update implementation from compilation.
+The Android job fails if the bundle contains a rooted Runtime asset or if an arm64 native library has an ELF LOAD alignment below 16 KB. All mobile builds use only embedded Node; the rooted Runtime implementation has been removed. The store Cargo feature additionally excludes the GitHub update implementation from compilation.
 
 ## Submission URLs
 

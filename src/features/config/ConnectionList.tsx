@@ -36,7 +36,7 @@ export function ConnectionList({
   const visibleProviders = providers.filter((provider) => provider.configured || provider.custom)
   return (
     <SettingsCard>
-      <div className="flex items-center justify-between gap-[8px] [margin-bottom:8px]">
+      <div className="flex flex-wrap items-center justify-between gap-[8px] [margin-bottom:8px]">
         <SettingsSectionTitle title={t('config:configPage.connections')} />
         <Button
           variant="ghost"
@@ -48,7 +48,7 @@ export function ConnectionList({
           {t('config:configPage.addCustomConnection')}
         </Button>
       </div>
-      <div className="grid [grid-template-columns:repeat(auto-fill,minmax(230px,1fr))] gap-[8px]">
+      <div className="grid [grid-template-columns:repeat(auto-fill,minmax(min(230px,100%),1fr))] gap-[8px]">
         {visibleProviders.map((provider) => {
           const Icon = PROVIDER_ICONS[provider.id] || Server
           const isDefault = provider.id === defaultProviderId

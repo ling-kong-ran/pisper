@@ -207,7 +207,8 @@ export function useSessionCatalog({ notify }: SessionCatalogOptions) {
 
   useEffect(() => {
     let active = true
-    Promise.all([chatApi.listSessions(), chatApi.getConfig()])
+    // 懒加载聊天页可能晚于壳层请求完成，首次读取也须复用尚未失效的共享快照。
+    Promise.all([chatApi.listSessions({ refresh: false }), chatApi.getConfig()])
       .then(async ([sessionData, configData]) => {
         if (!active) return
         setDefaultModel(
@@ -245,7 +246,6 @@ export function useSessionCatalog({ notify }: SessionCatalogOptions) {
         }
         if (!active) return
         updateSessions((current) => mergeSessionLists(current, list))
-        announceSessionsUpdated()
         for (const session of list) {
           updateSessionState(session.id, {
             team: session.team || null,

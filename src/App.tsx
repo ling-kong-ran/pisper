@@ -3,7 +3,17 @@
 // 并通过 Outlet 上下文向各页面注入公共能力。启动时探测是否已配置可用
 // Provider，未配置则引导用户进设置页；同时提供全局快捷键（Cmd+K 命令面板、
 // Cmd+N 主操作、` 终端、/ 搜索、Esc 逐层关闭）与浏览器通知轮询。
-import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import {
+  lazy,
+  Suspense,
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+} from 'react'
+import { useQuery } from '@tanstack/react-query'
 import { Outlet, useLocation, useNavigate, type NavigateOptions } from 'react-router-dom'
 import { createPrimaryActionRegistry } from '@/app/primary-action'
 import type { AppRouteContext } from '@/app/route-context'
@@ -35,6 +45,13 @@ import {
 } from '@/features/chat/events'
 import { WebDesktopPet } from '@/features/desktop-pet/WebDesktopPet'
 import { apiJson } from '@/lib/api'
+import {
+  fetchStartupQuery,
+  invalidateStartupQuery,
+  queryClient,
+  startupQueryOptions,
+} from '@/lib/startup-queries'
+import { markStartupPhase } from '@/lib/startup-diagnostics'
 import { showBrowserSystemNotification } from '@/lib/browser-notifications'
 import { useAppDialog } from '@/hooks/useAppDialog'
 import { useIsMobile, useIsPhoneViewport } from '@/hooks/use-mobile'
@@ -144,6 +161,7 @@ function invokeMobile<T>(command: string, args?: unknown): Promise<T> {
 
 function App() {
   const { t } = useI18n()
+  useEffect(() => markStartupPhase('react-app-mounted'), [])
   const location = useLocation()
   const routerNavigate = useNavigate()
   const capabilities = useRuntimeCapabilitiesStore((state) => state.capabilities)
@@ -186,6 +204,14 @@ function App() {
       : 'models'
   const [pendingAsset, setPendingAsset] = useState<PendingAsset | null>(null)
   const [pluginStats, setPluginStats] = useState<PluginStats | null>(null)
+  const {
+    data: configData,
+    isPending: configPending,
+    isSuccess: configSucceeded,
+  } = useQuery(startupQueryOptions<AppConfig>('config'))
+  const { data: notificationData } = useQuery(
+    startupQueryOptions<NotificationSettingsData>('notification-settings'),
+  )
   const [startupReady, setStartupReady] = useState(false)
   const [notificationSettings, setNotificationSettings] = useState<NotificationSettingsData>({
     browser: { enabled: false },
@@ -262,15 +288,15 @@ function App() {
   // 目录不可用时静默失败，不影响其余功能。
   const refreshPluginStats = useCallback(async () => {
     try {
-      const data = await apiJson<{
+      const data = await fetchStartupQuery<{
         tools: Array<{ enabled: boolean }>
-      }>('/api/plugins')
+      }>('plugins')
       setPluginStats({
         enabled: data.tools.filter((tool) => tool.enabled).length,
         total: data.tools.length,
       })
     } catch {
-      // Keep the rest of the application usable if the plugin catalog is unavailable.
+      // 插件目录不可用时不阻断应用其余功能。
     }
   }, [])
 
@@ -287,8 +313,13 @@ function App() {
     }
     window.addEventListener(ACTIVE_SESSION_CHANGED_EVENT, syncActiveSession)
     // 识别客户端形态与 Runtime 能力后，壳层统一裁剪不可用入口。
-    void useClientStore.getState().load()
-    void loadRuntimeCapabilities()
+    void useClientStore
+      .getState()
+      .load({ refresh: false })
+      .then(() => markStartupPhase('client-info-loaded'))
+    void loadRuntimeCapabilities({ refresh: false }).then(() =>
+      markStartupPhase('capabilities-loaded'),
+    )
     return () => window.removeEventListener(ACTIVE_SESSION_CHANGED_EVENT, syncActiveSession)
   }, [loadRuntimeCapabilities])
 
@@ -464,7 +495,9 @@ function App() {
   // 解析会话工作目录：从会话列表查 cwd（供终端绑定工作区）。
   const resolveSessionCwd = useCallback(async (sessionId: string) => {
     if (!sessionId) return ''
-    const data = await apiJson<{ sessions?: Array<{ id: string; cwd?: string }> }>('/api/sessions')
+    const data = await fetchStartupQuery<{ sessions?: Array<{ id: string; cwd?: string }> }>(
+      'sessions',
+    )
     return data.sessions?.find((session) => session.id === sessionId)?.cwd || ''
   }, [])
 
@@ -527,44 +560,60 @@ function App() {
     }
   }, [appDialog.dialog, mobileNav, modal, paletteOpen])
 
+  const startupConfigHandled = useRef(false)
   useEffect(() => {
-    let active = true
-    apiJson<AppConfig>('/api/config')
-      .then((config) => {
-        if (!active) return
-        if (!hasUsableProvider(config)) {
-          primaryActions.clear()
-          primaryActions.invoke()
-          if (!SETTINGS_PAGES.has(startupPageRef.current)) navigate('config', { replace: true })
-        }
-      })
-      .catch(() => {})
-      .finally(() => active && setStartupReady(true))
-    return () => {
-      active = false
+    if (configPending || startupConfigHandled.current) return
+    startupConfigHandled.current = true
+    setStartupReady(true)
+    // 配置失败只结束等待，不把网络故障当作未配置，也不因后续刷新再次重定向。
+    if (!configSucceeded || !configData) return
+    markStartupPhase('config-loaded')
+    if (!hasUsableProvider(configData)) {
+      primaryActions.clear()
+      primaryActions.invoke()
+      if (!SETTINGS_PAGES.has(startupPageRef.current)) navigate('config', { replace: true })
     }
-  }, [navigate, primaryActions])
+  }, [configData, configPending, configSucceeded, navigate, primaryActions])
+
+  useEffect(() => {
+    if (startupReady && capabilitiesLoaded && page === 'chat') {
+      markStartupPhase('chat-shell-ready')
+    }
+  }, [capabilitiesLoaded, page, startupReady])
+
+  const previousPage = useRef(page)
+  useLayoutEffect(() => {
+    // 设置页仍由各表单保存；离开时失效共享快照，避免聊天页继续使用旧模型配置。
+    if (previousPage.current === 'config' && page !== 'config') {
+      void invalidateStartupQuery('config')
+      void invalidateStartupQuery('notification-settings')
+    }
+    previousPage.current = page
+  }, [page])
 
   useEffect(() => {
     refreshPluginStats()
   }, [refreshPluginStats])
 
   useEffect(() => {
-    apiJson<NotificationSettingsData>('/api/settings/notifications')
-      .then(setNotificationSettings)
-      .catch(() => {})
-  }, [])
+    if (notificationData) setNotificationSettings(notificationData)
+  }, [notificationData])
 
   useEffect(() => {
     let active = true
     const poll = async () => {
       try {
-        const result = await apiJson<{
-          events?: Array<{ title: string; body: string }>
-          latestId?: string
-        }>(
-          `/api/settings/notifications/browser/events?after=${encodeURIComponent(browserEventCursor.current)}`,
-        )
+        const cursor = browserEventCursor.current
+        const result = await queryClient.fetchQuery({
+          queryKey: ['browser-notification-events', cursor],
+          queryFn: () =>
+            apiJson<{
+              events?: Array<{ title: string; body: string }>
+              latestId?: string
+            }>(`/api/settings/notifications/browser/events?after=${encodeURIComponent(cursor)}`),
+          staleTime: 0,
+          retry: false,
+        })
         if (!active) return
         for (const event of result.events || [])
           showSystemNotification(event.title, event.body, { force: true })
@@ -587,6 +636,13 @@ function App() {
         ]
       : pageMeta[page] || [t('common:app.sessions'), '']
 
+  const updateNotificationSettings = useCallback((settings: NotificationSettingsData) => {
+    // 回调须稳定，否则通知表单会因依赖变化重复加载；保存值不能被较早的请求覆盖。
+    void queryClient.cancelQueries({ queryKey: ['notification-settings'], exact: true })
+    queryClient.setQueryData(['notification-settings'], settings)
+    setNotificationSettings(settings)
+  }, [])
+
   const routeContext: AppRouteContext = {
     query,
     activeSessionId,
@@ -602,7 +658,7 @@ function App() {
     openNotificationSettings,
     configSection,
     setConfigSection,
-    setNotificationSettings,
+    setNotificationSettings: updateNotificationSettings,
     appUpdate,
     setPluginStats,
     registerWorkflowActions,

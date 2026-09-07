@@ -13,25 +13,37 @@ function isNativeMobileApp() {
 type ClientState = {
   client: ClientKind
   loaded: boolean
-  load: () => Promise<void>
+  load: (options?: { refresh?: boolean }) => Promise<void>
 }
+
+let clientLoadPromise: Promise<void> | null = null
+let clientLoadCompleted = false
 
 export const useClientStore = create<ClientState>()((set) => ({
   client: isNativeMobileApp() ? 'mobile-app' : 'web',
   loaded: isNativeMobileApp(),
-  load: async () => {
-    const nativeMobileApp = isNativeMobileApp()
-    if (nativeMobileApp) set({ client: 'mobile-app', loaded: true })
-    try {
-      const info = await apiJson<{ client?: string }>('/api/client-info')
-      set({
-        client: nativeMobileApp || info.client === 'mobile-app' ? 'mobile-app' : 'web',
-        loaded: true,
-      })
-    } catch {
-      // 移动壳标记比 API 握手更早且更可靠；桌面 Web 才在旧 Runtime 时降级为 Web。
-      set({ client: nativeMobileApp ? 'mobile-app' : 'web', loaded: true })
-    }
+  load: ({ refresh = true } = {}) => {
+    // 显式加载仍刷新；启动入口才复用已完成探测，不能把壳注入的 loaded 当作握手完成。
+    if (clientLoadPromise) return clientLoadPromise
+    if (!refresh && clientLoadCompleted) return Promise.resolve()
+    clientLoadPromise = (async () => {
+      const nativeMobileApp = isNativeMobileApp()
+      if (nativeMobileApp) set({ client: 'mobile-app', loaded: true })
+      try {
+        const info = await apiJson<{ client?: string }>('/api/client-info')
+        set({
+          client: nativeMobileApp || info.client === 'mobile-app' ? 'mobile-app' : 'web',
+          loaded: true,
+        })
+      } catch {
+        // 移动壳标记比 API 握手更早且更可靠；桌面 Web 才在旧 Runtime 时降级为 Web。
+        set({ client: nativeMobileApp ? 'mobile-app' : 'web', loaded: true })
+      }
+    })().finally(() => {
+      clientLoadCompleted = true
+      clientLoadPromise = null
+    })
+    return clientLoadPromise
   },
 }))
 

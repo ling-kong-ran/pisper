@@ -97,16 +97,7 @@ copyFileSync(runtimeArchive, generatedRuntimeArchive)
 
 // 缺失库会迫使 Xcode 运行 Rust 阶段，避免把旧 ACL 静态库链接进新 IPA。
 rmSync(generatedRustLibrary, { force: true })
-run([
-  'scripts/mobile-ios.mjs',
-  'build',
-  '--target',
-  'aarch64',
-  '--features',
-  'mobile-embedded-only',
-  '--export-method',
-  'debugging',
-])
+run(['scripts/mobile-ios.mjs', 'build', '--target', 'aarch64', '--export-method', 'debugging'])
 assertResumeCommandAcl()
 if (!existsSync(generatedIpa)) throw new Error(`未找到构建出的 IPA：${generatedIpa}`)
 mkdirSync(dirname(localIpa), { recursive: true })

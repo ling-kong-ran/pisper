@@ -11,8 +11,6 @@ pub mod on_device_runtime;
 pub mod pairing;
 pub mod pinning;
 pub mod proxy;
-#[cfg(not(feature = "mobile-embedded-only"))]
-pub mod root_runtime;
 pub mod runtime_status;
 pub mod store;
 #[cfg(feature = "mobile-store")]
@@ -24,8 +22,8 @@ mod workspace_import;
 
 use std::collections::HashMap;
 use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::{Arc, Mutex};
-use std::time::{Duration, SystemTime, UNIX_EPOCH};
+use std::sync::{Arc, Mutex, OnceLock};
+use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
 use base64::{engine::general_purpose::STANDARD as BASE64_STANDARD, Engine as _};
 use serde::{Deserialize, Serialize};
@@ -130,7 +128,7 @@ struct MobileStateDto {
     /// 当前产品路由；active_id 仅表示远程模式要使用的服务器档案。
     mode: Option<String>,
     /// 壳根据设备环境选择同源 Node Runtime 的可用承载方式。
-    on_device: runtime_status::RootRuntimeStatus,
+    on_device: runtime_status::OnDeviceRuntimeStatus,
     active_id: Option<String>,
     active_transport: Option<String>,
     servers: Vec<ServerDto>,
@@ -189,6 +187,16 @@ const STARTUP_PROBE_TIMEOUT: Duration = Duration::from_secs(3);
 const STARTUP_PROBE_ATTEMPTS: usize = 3;
 const STARTUP_PROBE_RETRY_DELAY: Duration = Duration::from_millis(250);
 const MAX_STARTUP_RESPONSE_BYTES: u64 = 256 * 1024;
+
+fn startup_trace(stage: &str) {
+    // 仅在显式诊断开关打开时记录相对耗时，避免正常用户日志增长并杜绝输出认证信息。
+    if std::env::var("PISPER_STARTUP_DIAGNOSTICS").as_deref() != Ok("1") {
+        return;
+    }
+    static START: OnceLock<Instant> = OnceLock::new();
+    let elapsed = START.get_or_init(Instant::now).elapsed().as_millis();
+    eprintln!("[mobile-startup] {stage} +{elapsed}ms");
+}
 
 fn startup_api_context(bootstrap_url: &str) -> Result<(tauri::Url, tauri::Url, String), String> {
     let bootstrap = tauri::Url::parse(bootstrap_url)
@@ -271,15 +279,31 @@ async fn fetch_startup_json(
     cookie: &str,
     path: &str,
 ) -> Result<serde_json::Value, String> {
+    let response = fetch_startup_response(client, origin, cookie, path).await?;
+    parse_startup_json(response, path).await
+}
+
+async fn fetch_startup_response(
+    client: &reqwest::Client,
+    origin: &tauri::Url,
+    cookie: &str,
+    path: &str,
+) -> Result<reqwest::Response, String> {
     let mut url = origin.clone();
     url.set_path(path);
-    let response = client
+    client
         .get(url)
         .header(reqwest::header::COOKIE, cookie)
         .header("x-pisper-client", "mobile-app")
         .send()
         .await
-        .map_err(|error| format!("本机 Runtime {path} 请求失败：{error}"))?;
+        .map_err(|error| format!("本机 Runtime {path} 请求失败：{error}"))
+}
+
+async fn parse_startup_json(
+    mut response: reqwest::Response,
+    path: &str,
+) -> Result<serde_json::Value, String> {
     if !response.status().is_success() {
         return Err(format!(
             "本机 Runtime {path} 返回 HTTP {}。",
@@ -292,53 +316,37 @@ async fn fetch_startup_json(
     {
         return Err(format!("本机 Runtime {path} 响应过大。"));
     }
-    let body = response
-        .bytes()
+    let mut body = Vec::new();
+    while let Some(chunk) = response
+        .chunk()
         .await
-        .map_err(|error| format!("无法读取本机 Runtime {path} 响应：{error}"))?;
-    if body.len() as u64 > MAX_STARTUP_RESPONSE_BYTES {
-        return Err(format!("本机 Runtime {path} 响应过大。"));
+        .map_err(|error| format!("无法读取本机 Runtime {path} 响应：{error}"))?
+    {
+        if body.len() as u64 + chunk.len() as u64 > MAX_STARTUP_RESPONSE_BYTES {
+            return Err(format!("本机 Runtime {path} 响应过大。"));
+        }
+        body.extend_from_slice(&chunk);
     }
     serde_json::from_slice(&body)
         .map_err(|error| format!("本机 Runtime {path} 未返回有效 JSON：{error}"))
 }
 
-fn validate_startup_contract_values(
-    client_info: &serde_json::Value,
-    capabilities: &serde_json::Value,
-    config: &serde_json::Value,
-    sessions: &serde_json::Value,
-) -> Result<(), String> {
-    if client_info.get("client").and_then(|value| value.as_str()) != Some("mobile-app") {
-        return Err("本机 Runtime 未识别移动 App 客户端。".into());
-    }
-    let profile = capabilities
-        .get("profile")
-        .and_then(|value| value.as_str())
-        .unwrap_or_default();
-    if !matches!(profile, "mobile-root" | "mobile-embedded" | "mobile-store")
-        || !capabilities
-            .get("features")
-            .is_some_and(serde_json::Value::is_object)
+fn validate_startup_ready(value: &serde_json::Value) -> Result<(), String> {
+    if value.get("version").and_then(|value| value.as_u64()) != Some(1)
+        || value.get("ready").and_then(|value| value.as_bool()) != Some(true)
+        || value.get("client").and_then(|value| value.as_str()) != Some("mobile-app")
+        || !matches!(
+            value.get("profile").and_then(|value| value.as_str()),
+            Some("mobile-embedded" | "mobile-store")
+        )
     {
-        return Err("本机 Runtime 能力合同无效。".into());
-    }
-    if !config
-        .get("providers")
-        .is_some_and(serde_json::Value::is_array)
-    {
-        return Err("本机 Runtime Provider 配置合同无效。".into());
-    }
-    if !sessions
-        .get("sessions")
-        .is_some_and(serde_json::Value::is_array)
-    {
-        return Err("本机 Runtime 会话合同无效。".into());
+        return Err("本机 Runtime 基础就绪合同无效。".into());
     }
     Ok(())
 }
 
 async fn validate_local_runtime_startup(bootstrap_url: &str) -> Result<String, String> {
+    startup_trace("bootstrap-probe-begin");
     let (origin, bootstrap, token) = startup_api_context(bootstrap_url)?;
     let client = reqwest::Client::builder()
         .timeout(STARTUP_PROBE_TIMEOUT)
@@ -347,13 +355,10 @@ async fn validate_local_runtime_startup(bootstrap_url: &str) -> Result<String, S
         .build()
         .map_err(|error| format!("无法创建本机 Runtime 启动探针：{error}"))?;
     let cookie = fetch_startup_cookie(&client, &bootstrap, &token).await?;
-    let (client_info, capabilities, config, sessions) = tokio::try_join!(
-        fetch_startup_json(&client, &origin, &cookie, "/api/client-info"),
-        fetch_startup_json(&client, &origin, &cookie, "/api/runtime/capabilities"),
-        fetch_startup_json(&client, &origin, &cookie, "/api/config"),
-        fetch_startup_json(&client, &origin, &cookie, "/api/sessions"),
-    )?;
-    validate_startup_contract_values(&client_info, &capabilities, &config, &sessions)?;
+    // 发布包只承载 embedded Runtime，基础合同随 App 更新，不需要旧 root 探针回退。
+    let ready = fetch_startup_json(&client, &origin, &cookie, "/api/ready").await?;
+    validate_startup_ready(&ready)?;
+    startup_trace("bootstrap-probe-end");
     Ok(cookie)
 }
 
@@ -366,11 +371,15 @@ fn record_startup_error(target: &Mutex<Option<String>>, error: Option<String>) {
 async fn ensure_local_runtime_ready(
     on_device: Arc<on_device_runtime::OnDeviceRuntime>,
     startup_error: Arc<Mutex<Option<String>>>,
-) -> Result<(runtime_status::RootRuntimeStatus, String), String> {
+) -> Result<(runtime_status::OnDeviceRuntimeStatus, String), String> {
+    startup_trace("ensure-started-begin");
     let runtime = on_device.clone();
     let status = match tauri::async_runtime::spawn_blocking(move || runtime.ensure_started()).await
     {
-        Ok(Ok(status)) => status,
+        Ok(Ok(status)) => {
+            startup_trace("ensure-started-end");
+            status
+        }
         Ok(Err(error)) => {
             record_startup_error(&startup_error, Some(error.clone()));
             return Err(error);
@@ -434,6 +443,7 @@ fn start_initial_local_runtime(
             record_startup_error(&startup_error, Some("移动端主窗口不可用。".into()));
             return;
         };
+        startup_trace("proxy-configure-begin");
         let navigation = proxy.configure_local_runtime(&status.url).and_then(|_| {
             let url = tauri::Url::parse(&format!("http://127.0.0.1:{}", proxy.port))
                 .map_err(|error| error.to_string())?;
@@ -443,6 +453,8 @@ fn start_initial_local_runtime(
         });
         if let Err(error) = navigation {
             record_startup_error(&startup_error, Some(error));
+        } else {
+            startup_trace("proxy-configured-navigation-started");
         }
     });
 }
@@ -534,7 +546,7 @@ fn activate_remote_profile(
         store.upsert(profile)?;
         store.set_last_mode("remote")?;
     }
-    state.on_device.deactivate();
+    // 远程模式仍由本机 Node 提供前端资源，不能停止同进程 Runtime。
     Ok(state_dto(state))
 }
 
@@ -654,7 +666,6 @@ async fn mobile_select_server(
         // 显式选择远程服务器，同时把模式记忆切回远程。
         store.set_last_mode("remote")?;
     }
-    state.on_device.deactivate();
     sync_model_config_with_startup(&state).await;
     Ok(state_dto(&state))
 }
@@ -676,7 +687,6 @@ async fn mobile_enter_local(state: State<'_, MobileShared>) -> Result<MobileStat
 /// 离开本机模式：回到远程优先的路由语义（冷启动不再直进本机页）。
 #[tauri::command]
 fn mobile_leave_local(state: State<'_, MobileShared>) -> Result<MobileStateDto, String> {
-    state.on_device.deactivate();
     state
         .store
         .lock()
@@ -748,22 +758,25 @@ fn operation_capability(operation: &str) -> Result<Option<&'static str>, String>
 }
 
 #[tauri::command]
-fn mobile_request_microphone_permission(
+async fn mobile_request_microphone_permission(
     app: tauri::AppHandle,
 ) -> Result<serde_json::Value, String> {
     #[cfg(any(target_os = "android", target_os = "ios"))]
     {
-        return app
-            .mobile_device()
-            .request_permission("microphone")
-            .map_err(|error| error.to_string())
-            .and_then(|result| {
-                if result.get("state").and_then(|value| value.as_str()) == Some("granted") {
-                    Ok(result)
-                } else {
-                    Err("microphone_permission_denied".into())
-                }
-            });
+        // 原生授权需要主线程显示弹窗，等待桥接回调不能反过来占住主线程。
+        return run_mobile_speech(move || {
+            app.mobile_device()
+                .request_permission("microphone")
+                .map_err(|error| error.to_string())
+                .and_then(|result| {
+                    if result.get("state").and_then(|value| value.as_str()) == Some("granted") {
+                        Ok(result)
+                    } else {
+                        Err("microphone_permission_denied".into())
+                    }
+                })
+        })
+        .await;
     }
     #[cfg(not(any(target_os = "android", target_os = "ios")))]
     {
@@ -1379,7 +1392,7 @@ pub fn run_mobile() {
             ))?;
             #[cfg(target_os = "android")]
             android_bridge::android_set_trusted_proxy_port(proxy.port)?;
-            // root chroot 与 embedded Node 仅是内部承载，产品状态始终只有一个本机 Runtime。
+            // 本机和远程模式共用 embedded Node 的前端资源服务。
             let embedded_resource = app
                 .path()
                 .resource_dir()
@@ -1500,12 +1513,6 @@ pub fn run_mobile() {
                     }
                 });
             }
-            if matches!(
-                event,
-                tauri::RunEvent::Exit | tauri::RunEvent::ExitRequested { .. }
-            ) {
-                app.state::<MobileShared>().on_device.shutdown();
-            }
         });
 
     #[cfg(not(any(target_os = "android", target_os = "ios")))]
@@ -1521,8 +1528,8 @@ mod tests {
         recovery_navigation_url, startup_api_context, startup_cookie,
         startup_location_replace_script, validate_mobile_pcm_base64,
         validate_mobile_speech_hotwords, validate_mobile_speech_id,
-        validate_mobile_speech_request_id, validate_mobile_speech_text,
-        validate_startup_contract_values, BASE64_STANDARD, MOBILE_VOICE_MAX_BASE64_BYTES,
+        validate_mobile_speech_request_id, validate_mobile_speech_text, validate_startup_ready,
+        BASE64_STANDARD, MOBILE_VOICE_MAX_BASE64_BYTES,
     };
 
     #[test]
@@ -1702,30 +1709,56 @@ mod tests {
     }
 
     #[test]
-    fn startup_contract_rejects_incomplete_business_api_shapes() {
-        let client = json!({ "client": "mobile-app" });
-        let capabilities = json!({
-            "profile": "mobile-embedded",
-            "features": { "sessions": true }
-        });
-        let config = json!({ "providers": [] });
-        let sessions = json!({ "sessions": [] });
-        validate_startup_contract_values(&client, &capabilities, &config, &sessions)
-            .expect("complete startup contract");
+    fn startup_ready_requires_the_authenticated_mobile_contract() {
+        let ready = json!({ "version": 1, "ready": true, "profile": "mobile-embedded", "client": "mobile-app" });
+        validate_startup_ready(&ready).expect("complete ready contract");
+        for (key, value) in [
+            ("version", json!(2)),
+            ("ready", json!(false)),
+            ("profile", json!("desktop")),
+            ("profile", json!("mobile-root")),
+            ("client", json!("web")),
+            ("client", json!(null)),
+        ] {
+            let mut invalid = ready.clone();
+            invalid[key] = value;
+            assert!(validate_startup_ready(&invalid).is_err());
+        }
+    }
 
-        assert!(
-            validate_startup_contract_values(&client, &capabilities, &json!({}), &sessions)
-                .is_err()
-        );
-        assert!(validate_startup_contract_values(
-            &client,
-            &json!({ "profile": "desktop", "features": {} }),
-            &config,
-            &sessions
-        )
-        .is_err());
-        assert!(
-            validate_startup_contract_values(&client, &capabilities, &config, &json!({})).is_err()
-        );
+    #[tokio::test]
+    async fn startup_handshake_uses_cookie_and_ready_without_business_probes_or_fallback() {
+        use tokio::io::{AsyncReadExt, AsyncWriteExt};
+        for status in [200, 401, 404, 503] {
+            let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+            let address = listener.local_addr().unwrap();
+            let server = tokio::spawn(async move {
+                for expected in ["/_pisper/desktop/bootstrap?token=test-token", "/api/ready"] {
+                    let (mut stream, _) = listener.accept().await.unwrap();
+                    let mut request = Vec::new();
+                    while !request.ends_with(b"\r\n\r\n") {
+                        assert!(request.len() < 8192);
+                        request.push(stream.read_u8().await.unwrap());
+                    }
+                    let request = String::from_utf8(request).unwrap().to_ascii_lowercase();
+                    assert!(request.starts_with(&format!("get {expected} http/1.1")));
+                    let response = if expected.starts_with("/_pisper") {
+                        "HTTP/1.1 302 Found\r\nSet-Cookie: __pisper_desktop=test-token; HttpOnly; SameSite=Strict; Path=/\r\nContent-Length: 0\r\nConnection: close\r\n\r\n".to_string()
+                    } else {
+                        assert!(request.contains("cookie: __pisper_desktop=test-token\r\n"));
+                        assert!(!request.contains("authorization:"));
+                        let body = json!({ "version": 1, "ready": true, "profile": "mobile-embedded", "client": "mobile-app" }).to_string();
+                        format!("HTTP/1.1 {status} Test\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{body}", body.len())
+                    };
+                    stream.write_all(response.as_bytes()).await.unwrap();
+                }
+            });
+            let result = super::validate_local_runtime_startup(&format!(
+                "http://{address}/_pisper/desktop/bootstrap?token=test-token"
+            ))
+            .await;
+            assert_eq!(result.is_ok(), status == 200);
+            server.await.unwrap();
+        }
     }
 }

@@ -3,6 +3,7 @@ mod component_updates;
 mod desktop_bridge;
 mod desktop_pet;
 mod desktop_terminal;
+mod tunnel_lifecycle;
 
 #[cfg(all(test, target_os = "windows"))]
 #[link(name = "pisper_test_resource", kind = "static")]
@@ -59,10 +60,10 @@ struct ManagedSidecar {
 }
 
 struct SidecarState(Mutex<Option<ManagedSidecar>>);
-struct DesktopTunnelState {
-    server: Mutex<Option<Arc<crate::iroh_tunnel::TunnelServer>>>,
-    enabled: AtomicBool,
-}
+#[derive(Default)]
+struct DesktopTunnelState(
+    Mutex<tunnel_lifecycle::TunnelLifecycle<Arc<crate::iroh_tunnel::TunnelServer>>>,
+);
 
 #[derive(serde::Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -297,11 +298,13 @@ fn start_desktop_tunnel(app: &AppHandle) {
     let Some(state) = app.try_state::<DesktopTunnelState>() else {
         return;
     };
-    if state.enabled.swap(true, Ordering::SeqCst) {
+    // 密钥准备和启动登记也与 stop 串行，避免快速重启时并发创建不同密钥。
+    let mut lifecycle = state.0.lock().expect("desktop tunnel state poisoned");
+    let Some(generation) = lifecycle.start() else {
         return;
-    }
+    };
     let Ok(data_dir) = app.path().app_local_data_dir() else {
-        state.enabled.store(false, Ordering::SeqCst);
+        lifecycle.fail(generation, || {});
         return;
     };
     let status_path = data_dir.join("iroh-tunnel-status.json");
@@ -309,12 +312,14 @@ fn start_desktop_tunnel(app: &AppHandle) {
     {
         Ok(secret) => secret,
         Err(error) => {
-            state.enabled.store(false, Ordering::SeqCst);
-            let _ = write_tunnel_status(&status_path, None, Some(error));
+            lifecycle.fail(generation, || {
+                let _ = write_tunnel_status(&status_path, None, Some(error));
+            });
             return;
         }
     };
     let app = app.clone();
+    // 绑定任务完成后负责回收过期 server；只取消已登记 server 的发布任务。
     tauri::async_runtime::spawn(async move {
         let server = match crate::iroh_tunnel::start_server(
             "127.0.0.1:5174".parse().expect("固定回环地址必须有效"),
@@ -326,60 +331,94 @@ fn start_desktop_tunnel(app: &AppHandle) {
             Ok(server) => Arc::new(server),
             Err(error) => {
                 if let Some(state) = app.try_state::<DesktopTunnelState>() {
-                    state.enabled.store(false, Ordering::SeqCst);
+                    state
+                        .0
+                        .lock()
+                        .expect("desktop tunnel state poisoned")
+                        .fail(generation, || {
+                            let _ = write_tunnel_status(&status_path, None, Some(error));
+                        });
                 }
-                let _ = write_tunnel_status(&status_path, None, Some(error));
                 return;
             }
         };
-        let Some(state) = app.try_state::<DesktopTunnelState>() else {
-            return;
+        let installed = if let Some(state) = app.try_state::<DesktopTunnelState>() {
+            let publisher_app = app.clone();
+            let publisher_server = server.clone();
+            let installed = state
+                .0
+                .lock()
+                .expect("desktop tunnel state poisoned")
+                .install(generation, server.clone(), || {
+                    tokio::spawn(publish_desktop_tunnel(
+                        publisher_app,
+                        publisher_server,
+                        status_path,
+                        generation,
+                    ))
+                })
+                .is_ok();
+            installed
+        } else {
+            false
         };
-        if !state.enabled.load(Ordering::SeqCst) {
-            return;
-        }
-        *state.server.lock().expect("desktop tunnel state poisoned") = Some(server.clone());
-
-        // 先公布直连信息；relay 就绪后再次覆盖，移动端即可跨公网连接。
-        let initial = server.endpoint(Duration::from_millis(300)).await;
-        if !state.enabled.load(Ordering::SeqCst) {
-            return;
-        }
-        let _ = write_tunnel_status(&status_path, Some(initial.clone()), None);
-        if initial.relay_url.is_none() {
-            let complete = server.endpoint(Duration::from_secs(20)).await;
-            if state.enabled.load(Ordering::SeqCst) {
-                let _ = write_tunnel_status(&status_path, Some(complete), None);
-            }
-        }
-        // 网络切换会改变直连候选地址；周期性刷新状态文件，下一次配对即可拿到新地址。
-        while state.enabled.load(Ordering::SeqCst) {
-            tokio::time::sleep(Duration::from_secs(15)).await;
-            if !state.enabled.load(Ordering::SeqCst) {
-                break;
-            }
-            let endpoint = server.endpoint(Duration::from_secs(3)).await;
-            let _ = write_tunnel_status(&status_path, Some(endpoint), None);
+        if !installed {
+            server.shutdown().await;
         }
     });
 }
 
+async fn publish_desktop_tunnel(
+    app: AppHandle,
+    server: Arc<crate::iroh_tunnel::TunnelServer>,
+    status_path: PathBuf,
+    generation: tunnel_lifecycle::Generation,
+) {
+    let publish = |endpoint| {
+        let Some(state) = app.try_state::<DesktopTunnelState>() else {
+            return false;
+        };
+        let lifecycle = state.0.lock().expect("desktop tunnel state poisoned");
+        // 检查世代与临时文件写入、rename 在同一锁内，旧代无法覆盖或争用新代文件。
+        lifecycle.publish(generation, || {
+            let _ = write_tunnel_status(&status_path, Some(endpoint), None);
+        })
+    };
+    // 先公布直连信息；relay 就绪后再次覆盖，移动端即可跨公网连接。
+    let initial = server.endpoint(Duration::from_millis(300)).await;
+    let needs_relay = initial.relay_url.is_none();
+    if !publish(initial) {
+        return;
+    }
+    if needs_relay && !publish(server.endpoint(Duration::from_secs(20)).await) {
+        return;
+    }
+    // 网络切换会改变直连候选地址；周期性刷新状态文件，下一次配对即可拿到新地址。
+    loop {
+        tokio::time::sleep(Duration::from_secs(15)).await;
+        if !publish(server.endpoint(Duration::from_secs(3)).await) {
+            return;
+        }
+    }
+}
+
 fn stop_desktop_tunnel(app: &AppHandle) {
     if let Some(state) = app.try_state::<DesktopTunnelState>() {
-        state.enabled.store(false, Ordering::SeqCst);
         let server = state
-            .server
+            .0
             .lock()
             .expect("desktop tunnel state poisoned")
-            .take();
+            .stop(|| {
+                if let Ok(path) = tunnel_status_path(app) {
+                    let _ = std::fs::remove_file(&path);
+                    let _ = std::fs::remove_file(path.with_extension("json.tmp"));
+                }
+            });
         if let Some(server) = server {
             tauri::async_runtime::spawn(async move {
                 server.shutdown().await;
             });
         }
-    }
-    if let Ok(path) = tunnel_status_path(app) {
-        let _ = std::fs::remove_file(path);
     }
 }
 
@@ -795,13 +834,8 @@ pub fn run() {
                 eprintln!("Failed to refresh the managed Pisper CLI: {error}");
             }
 
-            app.manage(DesktopTunnelState {
-                server: Mutex::new(None),
-                enabled: AtomicBool::new(false),
-            });
-            if let Ok(path) = tunnel_status_path(app.handle()) {
-                let _ = std::fs::remove_file(path);
-            }
+            app.manage(DesktopTunnelState::default());
+            stop_desktop_tunnel(app.handle());
             let (child, ready) = start_sidecar(app)?;
             app.manage(SidecarState(Mutex::new(Some(ManagedSidecar {
                 child,

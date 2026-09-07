@@ -16,8 +16,11 @@ final class SpeechModelArchiveTests: XCTestCase {
     private let payload = Data("verified model bytes".utf8)
 
     override func setUpWithError() throws {
-        root = FileManager.default.temporaryDirectory.resolvingSymlinksInPath()
-            .appendingPathComponent("pisper-archive-tests-" + UUID().uuidString(), isDirectory: true)
+        // Foundation 会将 /private/var 美化回符号链接 /var；安全提取器需要真实无链接的测试祖先。
+        let temporary = try XCTUnwrap(realpath(FileManager.default.temporaryDirectory.path, nil))
+        defer { free(temporary) }
+        root = URL(fileURLWithPath: String(cString: temporary), isDirectory: true)
+            .appendingPathComponent("pisper-archive-tests-" + UUID().uuidString, isDirectory: true)
         try FileManager.default.createDirectory(at: root, withIntermediateDirectories: false,
                                                attributes: [.posixPermissions: 0o700])
     }
@@ -50,6 +53,98 @@ final class SpeechModelArchiveTests: XCTestCase {
         try extract(archive, output, files: [spec("sub/model.onnx")])
         XCTAssertEqual(try Data(contentsOf: output.appendingPathComponent("sub/model.onnx")), payload)
         XCTAssertFalse(FileManager.default.fileExists(atPath: output.appendingPathComponent("unused").path))
+    }
+
+    func testExtractsThroughSearchOnlyInputAndDestinationAncestors() throws {
+        try XCTSkipIf(geteuid() == 0, "Root bypasses directory permission checks")
+        let paths = try traverseFixture()
+        let ordinary = try fixture([Fixture("model/sub/model.onnx", body: payload)])
+        XCTAssertEqual(chmod(paths.ancestor.path, 0o111), 0)
+        defer { chmod(paths.ancestor.path, 0o700) }
+        errno = 0
+        let denied = Darwin.open(paths.ancestor.path, O_RDONLY | O_DIRECTORY | O_NOFOLLOW | O_CLOEXEC)
+        let failure = errno
+        if denied >= 0 { Darwin.close(denied) }
+        XCTAssertEqual(denied, -1, "stage=archive-ancestor-open-read")
+        XCTAssertEqual(failure, EACCES, "stage=archive-ancestor-open-read errno=\(failure)")
+        // 分别覆盖输入、输出及两者同时经过只可穿越祖先，避免先失败的输入掩盖输出问题。
+        for (input, output) in [
+            (paths.archive, destination()),
+            (ordinary, paths.container.appendingPathComponent("output-only")),
+            (paths.archive, paths.container.appendingPathComponent("both")),
+        ] {
+            try extract(input, output, files: [spec("sub/model.onnx")])
+            XCTAssertEqual(try Data(contentsOf: output.appendingPathComponent("sub/model.onnx")), payload)
+            XCTAssertEqual(try FileManager.default.contentsOfDirectory(atPath: output.path), ["sub"])
+        }
+    }
+
+    func testArchiveTraversalRejectsUnsearchableInputAndDestinationAncestors() throws {
+        try XCTSkipIf(geteuid() == 0, "Root bypasses directory permission checks")
+        let paths = try traverseFixture()
+        let ordinary = try fixture([Fixture("model/sub/model.onnx", body: payload)])
+        let inputOutput = destination()
+        let nestedOutput = paths.container.appendingPathComponent("blocked-output")
+        XCTAssertEqual(chmod(paths.ancestor.path, 0o000), 0)
+        defer { chmod(paths.ancestor.path, 0o700) }
+        for (input, output) in [(paths.archive, inputOutput), (ordinary, nestedOutput)] {
+            XCTAssertThrowsError(try extract(input, output, files: [spec("sub/model.onnx")])) {
+                XCTAssertEqual($0 as? SpeechModelArchiveError, .storage)
+            }
+        }
+        XCTAssertEqual(chmod(paths.ancestor.path, 0o700), 0)
+        XCTAssertFalse(FileManager.default.fileExists(atPath: inputOutput.path))
+        XCTAssertFalse(FileManager.default.fileExists(atPath: nestedOutput.path))
+    }
+
+    func testArchiveTraversalStillRequiresReadableFinalDirectory() throws {
+        try XCTSkipIf(geteuid() == 0, "Root bypasses directory permission checks")
+        let paths = try traverseFixture()
+        let ordinary = try fixture([Fixture("model/sub/model.onnx", body: payload)])
+        XCTAssertEqual(chmod(paths.container.path, 0o111), 0)
+        defer { chmod(paths.container.path, 0o700) }
+        for (input, output) in [
+            (paths.archive, destination()),
+            (ordinary, paths.container.appendingPathComponent("unreadable-output")),
+        ] {
+            XCTAssertThrowsError(try extract(input, output, files: [spec("sub/model.onnx")])) {
+                XCTAssertEqual($0 as? SpeechModelArchiveError, .storage)
+            }
+        }
+    }
+
+    func testArchiveSearchTraversalRejectsLinkedAndImpersonatedAncestors() throws {
+        try XCTSkipIf(geteuid() == 0, "Root bypasses directory permission checks")
+        let paths = try traverseFixture()
+        let link = paths.ancestor.appendingPathComponent("linked")
+        try FileManager.default.createSymbolicLink(at: link, withDestinationURL: paths.container)
+        let file = paths.ancestor.appendingPathComponent("file")
+        try Data().write(to: file)
+        let ordinary = try fixture([Fixture("model/sub/model.onnx", body: payload)])
+        XCTAssertEqual(chmod(paths.ancestor.path, 0o111), 0)
+        defer { chmod(paths.ancestor.path, 0o700) }
+        for invalid in [link, file] {
+            XCTAssertThrowsError(try extract(invalid.appendingPathComponent("archive.tar.bz2"), destination(),
+                                             files: [spec("sub/model.onnx")])) {
+                XCTAssertEqual($0 as? SpeechModelArchiveError, .storage)
+            }
+            XCTAssertThrowsError(try extract(ordinary, invalid.appendingPathComponent("staging"),
+                                             files: [spec("sub/model.onnx")])) {
+                XCTAssertEqual($0 as? SpeechModelArchiveError, .storage)
+            }
+        }
+        XCTAssertFalse(FileManager.default.fileExists(atPath: paths.container.appendingPathComponent("staging").path))
+    }
+
+    private func traverseFixture() throws -> (ancestor: URL, container: URL, archive: URL) {
+        let ancestor = root.appendingPathComponent("traverse-" + UUID().uuidString)
+        let container = ancestor.appendingPathComponent("private-container")
+        try FileManager.default.createDirectory(at: container, withIntermediateDirectories: true,
+                                               attributes: [.posixPermissions: 0o700])
+        let original = try fixture([Fixture("model/sub/model.onnx", body: payload), Fixture("model/extra")])
+        let archive = container.appendingPathComponent("archive.tar.bz2")
+        try FileManager.default.moveItem(at: original, to: archive)
+        return (ancestor, container, archive)
     }
 
     func testGNUAndUSTARHaveTheSameFileContract() throws {
@@ -158,7 +253,7 @@ final class SpeechModelArchiveTests: XCTestCase {
         let archive = try fixture([Fixture("model/model.onnx", body: payload)])
         let compressed = try Data(contentsOf: archive)
         for removed in [1, 5, 12, compressed.count / 2] {
-            let damaged = root.appendingPathComponent(UUID().uuidString() + ".bz2")
+            let damaged = root.appendingPathComponent(UUID().uuidString + ".bz2")
             try Data(compressed.dropLast(removed)).write(to: damaged)
             XCTAssertThrowsError(try extract(damaged, destination()))
         }
@@ -466,7 +561,7 @@ final class SpeechModelArchiveTests: XCTestCase {
         (0..<getdtablesize()).reduce(0) { $0 + (fcntl($1, F_GETFD) >= 0 ? 1 : 0) }
     }
 
-    private func destination() -> URL { root.appendingPathComponent("staging-" + UUID().uuidString()) }
+    private func destination() -> URL { root.appendingPathComponent("staging-" + UUID().uuidString) }
 
     private func spec(_ path: String = "model.onnx") -> SpeechDownloadFile {
         SpeechDownloadFile(path: path, bytes: Int64(payload.count),
@@ -506,7 +601,7 @@ final class SpeechModelArchiveTests: XCTestCase {
     private func fixture(_ entries: [Fixture], endBlocks: Bool = true, gnu: Bool = false,
                          compressed: Bool = true, damageHeader: Bool = false,
                          headerMutation: ((inout Data) -> Void)? = nil) throws -> URL {
-        let url = root.appendingPathComponent(UUID().uuidString() + ".tar.bz2")
+        let url = root.appendingPathComponent(UUID().uuidString + ".tar.bz2")
         let writer = try XCTUnwrap(archive_write_new())
         defer { archive_write_free(writer) }
         try ok(archive_write_set_format_raw(writer))
@@ -517,7 +612,7 @@ final class SpeechModelArchiveTests: XCTestCase {
         let entry = try XCTUnwrap(archive_entry_new())
         defer { archive_entry_free(entry) }
         archive_entry_set_pathname(entry, "fixture.tar")
-        archive_entry_set_filetype(entry, mode_t(S_IFREG))
+        archive_entry_set_filetype(entry, UInt32(S_IFREG))
         try ok(archive_write_header(writer, entry))
         let zeros = Data(repeating: 0, count: 64 * 1024)
         for item in entries {

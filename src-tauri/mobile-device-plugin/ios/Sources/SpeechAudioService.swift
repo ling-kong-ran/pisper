@@ -44,7 +44,7 @@ protocol SpeechAudioModelProviding: AnyObject {
   func ttsConfiguration(voiceId: String, check: () throws -> Void) throws -> SpeechTTSConfiguration
 }
 
-private final class SpeechAudioModelAdapter: SpeechAudioModelProviding {
+final class SpeechAudioModelAdapter: SpeechAudioModelProviding {
   private let store: SpeechModelStore
   private let resources: URL
   private let notices: [String: Any]
@@ -53,11 +53,17 @@ private final class SpeechAudioModelAdapter: SpeechAudioModelProviding {
     self.store = store; self.resources = resources; self.notices = notices
   }
 
-  static func bundled() throws -> SpeechAudioModelProviding {
+  static func bundled(supportDirectory: URL? = nil) throws -> SpeechAudioModelProviding {
     guard let bundleRoot = Bundle.module.resourceURL else { throw SpeechAudioError("speech_resources_missing") }
-    let resources = bundleRoot.appendingPathComponent("SpeechResources", isDirectory: true).resolvingSymlinksInPath()
-    let support = try FileManager.default.url(for: .applicationSupportDirectory, in: .userDomainMask,
-      appropriateFor: nil, create: true).resolvingSymlinksInPath()
+    let support = try supportDirectory ?? FileManager.default.url(for: .applicationSupportDirectory, in: .userDomainMask,
+      appropriateFor: nil, create: true)
+    return try bundled(bundleRoot: bundleRoot, supportDirectory: support)
+  }
+
+  static func bundled(bundleRoot: URL, supportDirectory: URL) throws -> SpeechAudioModelProviding {
+    let resources = try SpeechTrustedRoots.directory(bundleRoot)
+      .appendingPathComponent("SpeechResources", isDirectory: true)
+    let support = try SpeechTrustedRoots.directory(supportDirectory)
     let store = try SpeechModelStore(catalogURL: resources.appendingPathComponent("speech-model-catalog.json"),
       storageDirectory: support.appendingPathComponent("pisper-speech-models", isDirectory: true),
       archiveExtractor: SpeechModelArchive.extract)

@@ -96,6 +96,7 @@ test('the Mac XCTest package copies production Swift and the same resources whil
   t.after(() => rm(root, { recursive: true, force: true }))
   const plugin = 'src-tauri/mobile-device-plugin/ios'
   const sources = [
+    'SpeechTrustedRoots.swift',
     'SpeechModelStore.swift',
     'SpeechModelArchive.swift',
     'SpeechNativeEngine.swift',
@@ -109,6 +110,7 @@ test('the Mac XCTest package copies production Swift and the same resources whil
       'SpeechModelStoreTests.swift',
       'SpeechModelArchiveTests.swift',
       'SpeechAudioStateTests.swift',
+      'SpeechAudioServiceTests.swift',
     ].map((name) => join(plugin, 'Tests', name)),
   ]
   for (const path of paths) {

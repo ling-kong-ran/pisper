@@ -186,7 +186,7 @@
         <p class="brand">Pisper</p>
       </div>
       <h1 id="title">正在启动 Pisper</h1>
-      <p class="summary" id="summary">正在准备本机 Runtime 和工作区…</p>
+      <p class="summary" id="summary">正在启动本机 Runtime…</p>
       <div class="progress" id="progress" role="progressbar" aria-label="正在启动"></div>
       <pre class="status" id="status" role="status" hidden></pre>
       <div class="actions" id="actions" hidden>
@@ -196,11 +196,17 @@
     </main>
     <script>
       (() => {
+        try {
+          if (localStorage.getItem('pisper:startup-diagnostics') === '1') {
+            performance.mark('pisper-startup-html-ready')
+            console.debug('[startup]', 'startup-html-ready', Math.round(performance.now()))
+          }
+        } catch {}
         const english = !navigator.language.toLowerCase().startsWith('zh')
         const text = english
           ? {
               startingTitle: 'Starting Pisper',
-              startingSummary: 'Preparing the local Runtime and workspace...',
+              startingSummary: 'Starting the local Runtime...',
               errorTitle: 'Local Runtime is not ready',
               errorSummary:
                 'The application UI has not been loaded. Retry startup or use a paired desktop server.',
@@ -213,7 +219,7 @@
             }
           : {
               startingTitle: '正在启动 Pisper',
-              startingSummary: '正在准备本机 Runtime 和工作区…',
+              startingSummary: '正在启动本机 Runtime…',
               errorTitle: '本机 Runtime 未能就绪',
               errorSummary: '业务界面尚未加载。请重试启动，或改用已配对的桌面服务器。',
               retry: '重试',

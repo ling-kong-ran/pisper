@@ -1,7 +1,12 @@
 // 聊天 API 客户端：封装会话列表/详情/发送/流式事件等请求。
 // consumeEventStream 逐行解析 SSE，事件按类型分发到各调度器。
 import { streamEventsWithResume } from '@/lib/api'
-import { requestJson, waitForMobileRuntimeReady } from '@/lib/http'
+import {
+  requestJson as requestHttpJson,
+  waitForMobileRuntimeReady,
+  type HttpRequestOptions,
+} from '@/lib/http'
+import { fetchStartupQuery, invalidateStartupQuery } from '@/lib/startup-queries'
 import type {
   ChatAttachment,
   ChatMessage,
@@ -132,12 +137,29 @@ export type GitChangesResponse = EntityRecord & {
 
 const sessionPath = (sessionId: string) => `/api/sessions/${encodeURIComponent(sessionId)}`
 
+async function requestJson<T>(path: string, options: HttpRequestOptions = {}): Promise<T> {
+  const result = await requestHttpJson<T>(path, options)
+  // 会话摘要发生变更后立即失效；调用方随后显式刷新也会复用这次在途查询。
+  if (options.method && options.method !== 'GET') {
+    if (
+      /^\/api\/sessions(?:$|\/[^/]+(?:\/(?:derive|model|cwd|execution-mode|run-mode|thinking-level|goal|tree\/navigate))?$)/.test(
+        path,
+      )
+    ) {
+      void invalidateStartupQuery('sessions')
+    }
+    if (path === '/api/settings/compaction') void invalidateStartupQuery('config')
+  }
+  return result
+}
+
 // 聊天 API 客户端：按领域分组封装所有会话/树/审批/目标模式/Git/工作流运行
 // 等 HTTP 调用。全部走 requestJson（自动超时与错误归一化），
 // 流式接口 openStream 单独用 fetch + streamEventsWithResume 消费 SSE（含断流重挂）。
 export const chatApi = {
   // —— 会话目录与消息 ——
-  listSessions: () => requestJson<SessionListResponse>('/api/sessions'),
+  listSessions: ({ refresh = true } = {}) =>
+    fetchStartupQuery<SessionListResponse>('sessions', refresh),
 
   // 搜索会话树标签（供命令面板/跳转）。
   searchSessionTreeLabels: (query: string, limit = 20) => {
@@ -187,7 +209,7 @@ export const chatApi = {
   getSessionCommands: (sessionId: string) =>
     requestJson<SessionCommandsResponse>(`${sessionPath(sessionId)}/commands`),
 
-  getConfig: () => requestJson<ChatConfigResponse>('/api/config'),
+  getConfig: ({ refresh = false } = {}) => fetchStartupQuery<ChatConfigResponse>('config', refresh),
 
   updateCompactionPreference: (thresholdPercent: number) =>
     requestJson<CompactionPreferenceResponse>('/api/settings/compaction', {

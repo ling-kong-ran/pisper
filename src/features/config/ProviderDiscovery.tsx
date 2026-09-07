@@ -85,10 +85,10 @@ export function ProviderDiscovery({
 
   return (
     <SettingsCard className="[margin-bottom:12px] [padding:12px_14px]">
-      <div className="provider-discovery-head [&_strong]:text-[13px] [&_small]:text-[var(--text-muted)] [&_small]:text-[12px] [&_small]:leading-[1.45] max-[650px]:flex-wrap flex items-center gap-[10px]">
+      <div className="[&_strong]:text-[13px] [&_small]:text-[var(--text-muted)] [&_small]:text-[12px] [&_small]:leading-[1.45] max-[650px]:flex-wrap flex items-center gap-[10px]">
         <button
           type="button"
-          className="provider-discovery-toggle [&_>_span:nth-child(2)]:flex [&_>_span:nth-child(2)]:min-w-0 [&_>_span:nth-child(2)]:flex-1 [&_>_span:nth-child(2)]:flex-col [&_>_span:nth-child(2)]:gap-[3px] flex min-w-0 flex-1 items-center gap-[10px] border-0 bg-transparent p-0 text-inherit text-left cursor-pointer"
+          className="max-[650px]:basis-full [&_>_span:nth-child(2)]:flex [&_>_span:nth-child(2)]:min-w-0 [&_>_span:nth-child(2)]:flex-1 [&_>_span:nth-child(2)]:flex-col [&_>_span:nth-child(2)]:gap-[3px] flex min-w-0 flex-1 items-center gap-[10px] border-0 bg-transparent p-0 text-inherit text-left cursor-pointer"
           aria-expanded={!isCollapsed}
           onClick={() => setCollapsed(!isCollapsed)}
         >
@@ -140,7 +140,7 @@ export function ProviderDiscovery({
                       : t('config:configPage.noModelSpecified')
                 return (
                   <div
-                    className={`provider-discovery-card grid min-w-0 min-h-[68px] grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-[9px] [border:1px_solid_var(--stroke)] rounded-[var(--r-sm)] bg-[var(--surface-subtle)] [padding:8px_9px] ${provider.imported ? 'configured [.provider-discovery-card&]:border-[var(--success-border)] [.provider-discovery-card&]:bg-[var(--success-soft)]' : ''}`}
+                    className={`provider-discovery-card grid min-w-0 min-h-[68px] grid-cols-[auto_minmax(0,1fr)_auto] max-[650px]:grid-cols-[auto_minmax(0,1fr)] items-center gap-[9px] [border:1px_solid_var(--stroke)] rounded-[var(--r-sm)] bg-[var(--surface-subtle)] [padding:8px_9px] ${provider.imported ? 'configured [.provider-discovery-card&]:border-[var(--success-border)] [.provider-discovery-card&]:bg-[var(--success-soft)]' : ''}`}
                     key={provider.id}
                   >
                     <span
@@ -162,7 +162,7 @@ export function ProviderDiscovery({
                         · {discoveryAuthLabel(provider, t)} · {provider.location}
                       </small>
                     </span>
-                    <span className="flex flex-none items-center">
+                    <span className="flex min-w-0 flex-none items-center max-[650px]:col-start-2">
                       {provider.imported ? (
                         <SettingsBadge tone="green">{t('config:configPage.loaded')}</SettingsBadge>
                       ) : provider.conflict ? (

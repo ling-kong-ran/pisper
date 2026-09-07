@@ -2,22 +2,10 @@ use std::path::{Path, PathBuf};
 use std::sync::Mutex;
 
 use super::embedded_runtime::EmbeddedRuntime;
-#[cfg(not(feature = "mobile-embedded-only"))]
-use super::root_runtime::RootRuntime;
-use super::runtime_status::RootRuntimeStatus;
-
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-enum Carrier {
-    #[cfg(not(feature = "mobile-embedded-only"))]
-    Root,
-    Embedded,
-}
+use super::runtime_status::OnDeviceRuntimeStatus;
 
 pub struct OnDeviceRuntime {
-    #[cfg(not(feature = "mobile-embedded-only"))]
-    root: RootRuntime,
     embedded: EmbeddedRuntime,
-    active: Mutex<Option<Carrier>>,
     lifecycle: Mutex<()>,
 }
 
@@ -29,75 +17,18 @@ impl OnDeviceRuntime {
         embedded_resource: Option<PathBuf>,
     ) -> Self {
         Self {
-            #[cfg(not(feature = "mobile-embedded-only"))]
-            root: RootRuntime::new(
-                runtime_root.join("root"),
-                data_root.clone(),
-                app_version.clone(),
-            ),
             embedded: EmbeddedRuntime::new(
                 runtime_root.join("embedded"),
                 data_root,
                 app_version,
                 embedded_resource,
             ),
-            active: Mutex::new(None),
             lifecycle: Mutex::new(()),
         }
     }
 
-    pub fn status(&self) -> RootRuntimeStatus {
-        let active = *self
-            .active
-            .lock()
-            .expect("on-device Runtime carrier mutex poisoned");
-        #[cfg(not(feature = "mobile-embedded-only"))]
-        if active == Some(Carrier::Root) {
-            let status = self.root.status();
-            if status.running {
-                return public_status(status);
-            }
-        }
-        if active == Some(Carrier::Embedded) {
-            let status = self.embedded.status();
-            if status.running || status.state == "starting" || status.state == "error" {
-                return public_status(status);
-            }
-        }
-
-        let embedded = self.embedded.status();
-        #[cfg(feature = "mobile-embedded-only")]
-        return public_status(embedded);
-
-        #[cfg(not(feature = "mobile-embedded-only"))]
-        {
-            let root = self.root.status();
-            let supported = root.supported || embedded.supported;
-            let packaged = root.packaged || embedded.packaged;
-            let installed = root.installed || embedded.installed;
-            RootRuntimeStatus {
-                supported,
-                packaged,
-                installed,
-                running: false,
-                state: if !supported {
-                    "unsupported".into()
-                } else if installed {
-                    "installed".into()
-                } else if packaged {
-                    "available".into()
-                } else {
-                    "unavailable".into()
-                },
-                message: if supported && (packaged || installed) {
-                    String::new()
-                } else {
-                    "安装包未包含当前设备可用的本机 Runtime。".into()
-                },
-                url: String::new(),
-                runtime_kind: "node".into(),
-            }
-        }
+    pub fn status(&self) -> OnDeviceRuntimeStatus {
+        public_status(self.embedded.status())
     }
 
     pub(super) fn import_workspace_path(
@@ -105,143 +36,27 @@ impl OnDeviceRuntime {
         host_root: &Path,
         imported: &Path,
     ) -> Result<PathBuf, String> {
-        // 路径映射必须与实际承载保持一致，不能依赖对外统一为 node 的状态字段。
         let _lifecycle = self
             .lifecycle
             .lock()
             .map_err(|_| "本机 Runtime 生命周期锁已损坏。".to_string())?;
-        let active = *self
-            .active
-            .lock()
-            .map_err(|_| "本机 Runtime 承载锁已损坏。".to_string())?;
-        let runtime_root = match active {
-            #[cfg(not(feature = "mobile-embedded-only"))]
-            Some(Carrier::Root) if self.root.status().running => Some(Path::new("/workspace")),
-            Some(Carrier::Embedded) if self.embedded.status().running => None,
-            _ => return Err("本机 Runtime 尚未运行。".into()),
-        };
-        super::workspace_import::resolve_imported_workspace(host_root, imported, runtime_root)
+        if !self.embedded.status().running {
+            return Err("本机 Runtime 尚未运行。".into());
+        }
+        super::workspace_import::resolve_imported_workspace(host_root, imported)
     }
 
-    pub fn ensure_started(&self) -> Result<RootRuntimeStatus, String> {
-        // Bridge 命令可能并发到达；安装、启动和 carrier 选择必须作为一个事务串行化。
+    pub fn ensure_started(&self) -> Result<OnDeviceRuntimeStatus, String> {
+        // Bridge 命令可能并发到达，安装和启动必须串行，避免重复启动同进程 Node。
         let _lifecycle = self
             .lifecycle
             .lock()
             .expect("on-device Runtime lifecycle mutex poisoned");
-        if let Some(active) = *self
-            .active
-            .lock()
-            .expect("on-device Runtime carrier mutex poisoned")
-        {
-            let result = match active {
-                #[cfg(not(feature = "mobile-embedded-only"))]
-                Carrier::Root => self.root.ensure_started(),
-                Carrier::Embedded => self.embedded.ensure_started(),
-            };
-            return result.map(public_status);
-        }
-
-        #[cfg(not(feature = "mobile-embedded-only"))]
-        let candidates = {
-            let root = self.root.status();
-            let embedded = self.embedded.status();
-            carrier_candidates(
-                root.supported && (root.packaged || root.installed),
-                embedded.supported && (embedded.packaged || embedded.installed),
-            )
-        };
-        #[cfg(feature = "mobile-embedded-only")]
-        let candidates = vec![Carrier::Embedded];
-
-        let mut errors = Vec::new();
-        for carrier in candidates {
-            let result = match carrier {
-                #[cfg(not(feature = "mobile-embedded-only"))]
-                Carrier::Root => self.root.ensure_started(),
-                Carrier::Embedded => self.embedded.ensure_started(),
-            };
-            match result {
-                Ok(status) => {
-                    *self
-                        .active
-                        .lock()
-                        .expect("on-device Runtime carrier mutex poisoned") = Some(carrier);
-                    return Ok(public_status(status));
-                }
-                Err(error) => errors.push(error),
-            }
-        }
-        if errors.is_empty() {
-            Err("安装包未包含当前设备可用的本机 Runtime。".into())
-        } else {
-            Err(format!("本机 Runtime 启动失败：{}", errors.join("；")))
-        }
-    }
-
-    /// 远程模式不终止同进程 embedded Node；它不能在同一 App 进程中安全重启。
-    pub fn deactivate(&self) {
-        #[cfg(feature = "mobile-embedded-only")]
-        return;
-
-        #[cfg(not(feature = "mobile-embedded-only"))]
-        {
-            let _lifecycle = self
-                .lifecycle
-                .lock()
-                .expect("on-device Runtime lifecycle mutex poisoned");
-            let mut active = self
-                .active
-                .lock()
-                .expect("on-device Runtime carrier mutex poisoned");
-            if *active == Some(Carrier::Root) {
-                self.root.stop();
-                *active = None;
-            }
-        }
-    }
-
-    pub fn shutdown(&self) {
-        #[cfg(not(feature = "mobile-embedded-only"))]
-        {
-            let _lifecycle = self
-                .lifecycle
-                .lock()
-                .expect("on-device Runtime lifecycle mutex poisoned");
-            self.root.stop();
-        }
+        self.embedded.ensure_started().map(public_status)
     }
 }
 
-fn public_status(mut status: RootRuntimeStatus) -> RootRuntimeStatus {
+fn public_status(mut status: OnDeviceRuntimeStatus) -> OnDeviceRuntimeStatus {
     status.runtime_kind = "node".into();
     status
-}
-
-#[cfg(not(feature = "mobile-embedded-only"))]
-fn carrier_candidates(root: bool, embedded: bool) -> Vec<Carrier> {
-    let mut carriers = Vec::with_capacity(2);
-    if root {
-        carriers.push(Carrier::Root);
-    }
-    if embedded {
-        carriers.push(Carrier::Embedded);
-    }
-    carriers
-}
-
-#[cfg(all(test, not(feature = "mobile-embedded-only")))]
-mod tests {
-    use super::{carrier_candidates, Carrier};
-
-    #[test]
-    fn rooted_carrier_is_preferred_and_embedded_is_the_fallback() {
-        assert_eq!(
-            carrier_candidates(true, true),
-            vec![Carrier::Root, Carrier::Embedded]
-        );
-        assert_eq!(carrier_candidates(false, true), vec![Carrier::Embedded]);
-        assert_eq!(carrier_candidates(true, false), vec![Carrier::Root]);
-        assert!(carrier_candidates(false, false).is_empty());
-    }
 }
