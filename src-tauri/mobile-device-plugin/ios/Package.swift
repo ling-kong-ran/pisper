@@ -21,7 +21,10 @@ let package = Package(
       dependencies: [
         .byName(name: "Tauri"),
         .product(name: "sherpa-onnx", package: "sherpa-onnx"),
-        .product(name: "LibArchive", package: "libarchive.xcframework")
+        // 避免 Xcode 将 Swift 包装层与小写 libarchive C 模块混淆。
+        .product(
+          name: "LibArchive", package: "libarchive.xcframework",
+          moduleAliases: ["LibArchive": "PisperArchiveSupport"])
       ],
       path: "Sources",
       resources: [.copy("SpeechResources")],
@@ -34,7 +37,12 @@ let package = Package(
       ]),
     .testTarget(
       name: "SpeechTests",
-      dependencies: [.byName(name: "pisper-mobile-device-plugin")],
+      dependencies: [
+        .byName(name: "pisper-mobile-device-plugin"),
+        .product(
+          name: "LibArchive", package: "libarchive.xcframework",
+          moduleAliases: ["LibArchive": "PisperArchiveSupport"])
+      ],
       path: "Tests")
   ]
 )

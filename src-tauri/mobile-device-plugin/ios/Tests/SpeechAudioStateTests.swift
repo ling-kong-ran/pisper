@@ -155,7 +155,7 @@ final class SpeechAudioStateTests: XCTestCase {
       SpeechEngineTask(queue: asr) { try asrCache.prepare("model", check: {}) },
       SpeechEngineTask(queue: tts) { try ttsCache.prepare("model", check: {}) },
     ], completionQueue: joined, check: {}) { result in
-      XCTAssertNoThrow(try result.get())
+      if case .failure(let error) = result { XCTFail("准备失败：\(error)") }
       ready.fulfill()
     }
     // 两个 constructor 都必须进入才能放行，不用睡眠推测执行是否重叠。
@@ -167,14 +167,16 @@ final class SpeechAudioStateTests: XCTestCase {
         finished.enter()
         queue.async {
           defer { finished.leave() }
-          XCTAssertNoThrow(try engine.use("model") { _ in
-            events.append("\(name):infer\(index):start")
-            if index == 1 {
-              inferenceEntered.signal()
-              XCTAssertEqual(allowInference.wait(timeout: .now() + 5), .success)
+          do {
+            try engine.use("model") { _ in
+              events.append("\(name):infer\(index):start")
+              if index == 1 {
+                inferenceEntered.signal()
+                XCTAssertEqual(allowInference.wait(timeout: .now() + 5), .success)
+              }
+              events.append("\(name):infer\(index):end")
             }
-            events.append("\(name):infer\(index):end")
-          })
+          } catch { XCTFail("推理失败：\(error)") }
         }
       }
     }
@@ -580,8 +582,8 @@ final class SpeechAudioStateTests: XCTestCase {
       created += 1
       if created == 1 {
         now = 10
-        try sessions.release(first)
-        _ = try sessions.begin(second, kinds: ["asr"], hotwords: "")
+        try sessions.release(self.first)
+        _ = try sessions.begin(self.second, kinds: ["asr"], hotwords: "")
       }
       return created
     }, release: { released.append($0) }, sessionState: { sessions.state }, schedule: { _, _ in {} }, now: { now })

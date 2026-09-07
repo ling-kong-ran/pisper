@@ -1,7 +1,7 @@
 import CryptoKit
 import Darwin
 import Foundation
-import libarchive
+import PisperArchiveSupport
 import XCTest
 
 // 测试 target 的模块导入由主线 Package 合同决定；独立 harness 直接编译生产源文件。

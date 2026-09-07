@@ -1,7 +1,7 @@
 import CryptoKit
 import Darwin
 import Foundation
-import libarchive
+import LibArchive
 
 enum SpeechModelArchiveError: String, Error, LocalizedError {
     case catalog = "speech_archive_invalid_catalog"
