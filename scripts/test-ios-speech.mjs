@@ -65,7 +65,9 @@ function simctlJson(args) {
 async function main() {
   if (process.platform !== 'darwin') throw new Error('iOS speech XCTest requires macOS and Xcode.')
   const output = join(projectRoot, 'release', `ios-speech-tests-${Date.now()}`)
-  await prepareIosSpeechTests({ target: output })
+  // 构建输出放在包目录外，避免 XCTest 运行时的文件写入反复触发 Xcode 重新解析包。
+  const packageDirectory = join(output, 'Package')
+  await prepareIosSpeechTests({ target: packageDirectory })
   const runtimes = simctlJson(['list', 'runtimes'])
     .runtimes.filter((runtime) => runtime.isAvailable && runtime.identifier.includes('.iOS-'))
     .sort((a, b) => b.version.localeCompare(a.version, undefined, { numeric: true }))
@@ -86,7 +88,7 @@ async function main() {
   if (!/^[0-9a-f-]{36}$/i.test(simulator)) throw new Error('Invalid simulator creation result.')
   try {
     // Xcode 首次解析带模块别名的 Swift 包时需要先落盘自动 scheme，测试阶段禁止补写。
-    run('xcodebuild', ['-list'], { cwd: output })
+    run('xcodebuild', ['-list'], { cwd: packageDirectory })
     run(
       'xcodebuild',
       [
@@ -101,7 +103,7 @@ async function main() {
         'CODE_SIGNING_ALLOWED=NO',
         'test',
       ],
-      { cwd: output },
+      { cwd: packageDirectory },
     )
   } finally {
     // 只清理本次新建的模拟器，不关闭或删除用户已有设备。

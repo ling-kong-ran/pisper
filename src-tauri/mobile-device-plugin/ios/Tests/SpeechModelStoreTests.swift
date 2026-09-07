@@ -113,18 +113,21 @@ final class SpeechModelStoreTests: XCTestCase {
     }
 
     private func waitFor(_ store: SpeechModelStore, id: String, status: String = "installed") throws {
-        let deadline = Date().addingTimeInterval(5)
-        while Date() < deadline {
+        // 这是异步任务同步预算，不是推理性能断言；CI 调度暂停后先检查终态再判超时。
+        let deadline = ProcessInfo.processInfo.systemUptime + 30
+        while true {
             let current = try snapshot(store, id: id)
             if current["status"] as? String == status { return }
             if current["status"] as? String == "error" {
                 XCTFail("Unexpected status: \(current["error"] ?? "error")")
                 throw SpeechStorageError.storage
             }
+            if ProcessInfo.processInfo.systemUptime >= deadline {
+                XCTFail("Model \(id) did not reach \(status); last status=\(current["status"] ?? "unknown"), error=\(current["error"] ?? "none")")
+                throw SpeechStorageError.busy
+            }
             Thread.sleep(forTimeInterval: 0.01)
         }
-        XCTFail("Model task did not finish")
-        throw SpeechStorageError.busy
     }
 
     private func changingTTS(_ body: (inout [String: Any]) -> Void) throws -> Fixture {
