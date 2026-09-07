@@ -9,7 +9,7 @@ import {
   planFromPayload,
   planFromPayloadOr,
 } from '@/lib/plan-protocol'
-import { resolveQueuedInputs } from '@/lib/session-state'
+import { reconcileQueuedInputSnapshot } from '@/lib/session-state'
 import type { SessionStateUpdate } from '@/lib/session-state'
 import type {
   createStreamingTextScheduler,
@@ -82,8 +82,9 @@ export function reconcileTerminalStreamState(
 ): SessionState {
   const failed = Boolean(error)
   const lifecycle = data.lifecycle || current.lifecycle || {}
+  const queueState = reconcileQueuedInputSnapshot(current, data)
   return {
-    ...current,
+    ...queueState,
     streaming: false,
     runFinishedAt: finishedAt,
     lastActivityAt: finishedAt,
@@ -111,7 +112,7 @@ export function reconcileTerminalStreamState(
       finishedAt,
       ...(error ? { error } : {}),
     }),
-    messages: current.messages.map((item) =>
+    messages: queueState.messages.map((item) =>
       item.id === agentId
         ? {
             ...item,
@@ -186,7 +187,7 @@ export function createStreamEventDispatcher({
       state.startedAt = typeof data.startedAt === 'string' ? data.startedAt : undefined
       publishResponse('started')
       updateSessionState(sessionId, (current) => ({
-        ...current,
+        ...reconcileQueuedInputSnapshot(current, data),
         model: data.model || current.model,
         thinkingLevel: data.thinkingLevel || current.thinkingLevel,
         cwd: data.cwd,
@@ -202,8 +203,6 @@ export function createStreamEventDispatcher({
         lifecycle: data.lifecycle ?? current.lifecycle ?? null,
         sessionTreeRevision: Number(data.sessionTreeRevision ?? current.sessionTreeRevision ?? 0),
         thinkingText: data.thinkingText ?? current.thinkingText ?? '',
-        queuedInputs: resolveQueuedInputs(current.queuedInputs, data.queuedInputs),
-        hadQueuedInput: Boolean(current.hadQueuedInput || data.queuedInputs?.length),
         contextUsage: data.contextUsage ?? current.contextUsage ?? null,
         sessionUsage: data.sessionUsage ?? current.sessionUsage ?? null,
         runStartedAt: data.startedAt || current.runStartedAt,
@@ -234,11 +233,9 @@ export function createStreamEventDispatcher({
       }
     } else if (event === 'queue_update') {
       if (data.queuedInputs?.length) state.queuedDuringRun = true
-      updateSessionState(sessionId, (current) => ({
-        ...current,
-        queuedInputs: data.queuedInputs || [],
-        hadQueuedInput: Boolean(current.hadQueuedInput || data.queuedInputs?.length),
-      }))
+      updateSessionState(sessionId, (current) =>
+        reconcileQueuedInputSnapshot(current, { ...data, queuedInputs: data.queuedInputs || [] }),
+      )
     } else if (event === 'agent_update') {
       updateSessionState(sessionId, (current) => {
         const activity =

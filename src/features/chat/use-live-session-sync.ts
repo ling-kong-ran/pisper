@@ -2,7 +2,7 @@
 // 通过 stream-event-dispatch 更新会话；会话树修订号用于重拉摘要。
 import { useCallback, useEffect, useRef } from 'react'
 import { planFromPayloadOr } from '@/lib/plan-protocol'
-import { resolveQueuedInputs } from '@/lib/session-state'
+import { reconcileQueuedInputSnapshot } from '@/lib/session-state'
 import type { SessionStateUpdate } from '@/lib/session-state'
 import type { EntityRecord, SessionState, SessionSummary } from '@/types/chat'
 import { chatApi, type ApiRecord } from './chat-api'
@@ -67,8 +67,7 @@ export function reconcileLiveSnapshot(
 ): SessionState {
   const finishedAt = data.finishedAt || current.runFinishedAt || fallbackFinishedAt
   return {
-    ...current,
-    ...reconcileMessagePage(current, data),
+    ...reconcileQueuedInputSnapshot({ ...current, ...reconcileMessagePage(current, data) }, data),
     tools: data.streaming
       ? data.tools || []
       : settleToolCalls(data.tools || [], { finishedAt, error: data.error || '' }),
@@ -105,10 +104,7 @@ export function reconcileLiveSnapshot(
       ? data.activityFeed || current.activityFeed || []
       : (data.activityFeed || []).filter((activity: EntityRecord) => activity.type === 'agent'),
     thinkingText: data.streaming ? (data.thinkingText ?? current.thinkingText ?? '') : '',
-    queuedInputs: resolveQueuedInputs(current.queuedInputs, data.queuedInputs),
-    hadQueuedInput: data.streaming
-      ? Boolean(current.hadQueuedInput || data.queuedInputs?.length)
-      : false,
+    ...(!data.streaming ? { hadQueuedInput: false } : {}),
   }
 }
 

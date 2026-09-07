@@ -465,6 +465,13 @@ export const sessionRuntimeRoutes = [
     },
   },
   {
+    method: 'DELETE',
+    path: '/api/sessions/:sessionId/input/:inputId',
+    async handler({ runtime, params, json }) {
+      json(200, await runtime.withdrawSessionMessage(params.sessionId, params.inputId))
+    },
+  },
+  {
     method: 'POST',
     path: '/api/sessions/:sessionId/mobile-operations/:operationId',
     async handler({ runtime, req, params, body, json }) {

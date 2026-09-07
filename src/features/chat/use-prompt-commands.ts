@@ -4,7 +4,7 @@ import { useCallback, useRef } from 'react'
 import { APP_NAME } from '@/app/brand'
 import { useI18n } from '@/app/use-i18n'
 import type { Notify } from '@/app/route-context'
-import { insertInteractiveUserMessage, resolveQueuedInputs } from '@/lib/session-state'
+import { insertInteractiveUserMessage, reconcileQueuedInputSnapshot } from '@/lib/session-state'
 import type { SessionStateUpdate } from '@/lib/session-state'
 import {
   createStreamingTextScheduler,
@@ -12,7 +12,7 @@ import {
   createTypewriterDisplay,
 } from '@/lib/streaming-ui'
 import type { ChatAttachment, ResourceInvocation, SessionState, SessionSummary } from '@/types/chat'
-import { chatApi } from './chat-api'
+import { chatApi, type WithdrawnInput } from './chat-api'
 import { chatErrorMessage, isEndedSessionQueueError } from './chat-errors'
 import { pushCurrentActivity, settleToolCalls } from './run-activity'
 import { createStreamEventDispatcher, type StreamDispatchState } from './stream-event-dispatch'
@@ -58,6 +58,7 @@ export function usePromptCommands({
   const localStreamSettlersRef = useRef(
     new Map<string, { promise: Promise<void>; resolve: () => void }>(),
   )
+  const withdrawingInputsRef = useRef(new Set<string>())
 
   // 发送提示词：无会话先建会话，流式中拒绝；乐观插入用户消息并
   // 注册本地流结算 Promise（供后续 wait），随后发起 SSE 流并分发事件，
@@ -273,6 +274,8 @@ export function usePromptCommands({
           },
           thinkingText: '',
           hadQueuedInput: false,
+          withdrawnInputIds: [],
+          queuedInputRunId: agentId,
           compaction: null,
           plan: keepPlan ? current.plan : null,
         }
@@ -484,6 +487,7 @@ export function usePromptCommands({
         String(text || '').trim() ||
         (attachments.length ? t('chat:chatPage.pleaseAnalyzeTheseAttachments') : '')
       if (!sessionId || !message) return false
+      const queuedInputRunId = sessionStatesRef.current[sessionId]?.queuedInputRunId
       try {
         const result = await chatApi.queueInput(sessionId, message, attachments, behavior)
         const queuedAt = new Date().toISOString()
@@ -492,6 +496,7 @@ export function usePromptCommands({
           role: 'user',
           text: message,
           queuedAt,
+          queuedInputId: result.inputId || undefined,
           streamingBehavior: result.behavior || behavior,
           attachments: attachments.map(({ id, kind, name, mimeType, size, data }) => ({
             id,
@@ -502,13 +507,21 @@ export function usePromptCommands({
             data: kind === 'image' ? data : undefined,
           })),
         }
-        updateSessionState(sessionId, (current) => ({
-          ...current,
-          messages: insertInteractiveUserMessage(current.messages, queuedMessage),
-          queuedInputs: resolveQueuedInputs(current.queuedInputs, result.queuedInputs),
-          hadQueuedInput: true,
-          lastActivityAt: queuedAt,
-        }))
+        updateSessionState(sessionId, (current) => {
+          const next = reconcileQueuedInputSnapshot(current, result)
+          // 正常消费仍显示用户气泡；真正撤回或已切换到新一轮时才抑制迟到 POST。
+          const insertMessage =
+            !next.withdrawnInputIds?.includes(result.inputId) &&
+            current.queuedInputRunId === queuedInputRunId
+          return {
+            ...next,
+            messages: insertMessage
+              ? insertInteractiveUserMessage(next.messages, queuedMessage)
+              : next.messages,
+            hadQueuedInput: true,
+            lastActivityAt: queuedAt,
+          }
+        })
         return true
       } catch (error) {
         if (isEndedSessionQueueError(error)) {
@@ -529,7 +542,15 @@ export function usePromptCommands({
         return false
       }
     },
-    [loadSessionMessages, notify, sendPrompt, syncLiveSession, t, updateSessionState],
+    [
+      loadSessionMessages,
+      notify,
+      sendPrompt,
+      sessionStatesRef,
+      syncLiveSession,
+      t,
+      updateSessionState,
+    ],
   )
 
   // 中止会话运行：调运行时 abort 并本地结算状态（清队列、停流、
@@ -587,5 +608,44 @@ export function usePromptCommands({
     [notify, syncLiveSession, t, updateSessionState, updateSessions],
   )
 
-  return { sendPrompt, queuePrompt, abort }
+  const withdrawQueuedInput = useCallback(
+    async (sessionId: string, inputId: string): Promise<WithdrawnInput | null> => {
+      const key = `${sessionId}/${inputId}`
+      if (!sessionId || !inputId || withdrawingInputsRef.current.has(key)) return null
+      withdrawingInputsRef.current.add(key)
+      updateSessionState(sessionId, (current) => ({
+        ...current,
+        withdrawingInputIds: [...(current.withdrawingInputIds || []), inputId],
+      }))
+      try {
+        const result = await chatApi.withdrawQueuedInput(sessionId, inputId)
+        updateSessionState(sessionId, (current) =>
+          reconcileQueuedInputSnapshot(current, {
+            ...result,
+            removedInputId: result.removed ? inputId : undefined,
+          }),
+        )
+        if (!result.removed) {
+          notify(t('chat:focusSession.queuedInputAlreadyConsumed'), 'info')
+          return null
+        }
+        // 草稿仅由发起操作的 composer 恢复；SSE 先到也不影响 HTTP 返回的恢复内容。
+        return result.withdrawnInput || null
+      } catch (error) {
+        notify(chatErrorMessage(error), 'error')
+        return null
+      } finally {
+        withdrawingInputsRef.current.delete(key)
+        updateSessionState(sessionId, (current) => ({
+          ...current,
+          withdrawingInputIds: (current.withdrawingInputIds || []).filter(
+            (id: string) => id !== inputId,
+          ),
+        }))
+      }
+    },
+    [notify, t, updateSessionState],
+  )
+
+  return { sendPrompt, queuePrompt, withdrawQueuedInput, abort }
 }

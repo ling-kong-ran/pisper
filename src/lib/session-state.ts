@@ -70,6 +70,49 @@ export function resolveQueuedInputs(
   return Array.isArray(incoming) ? incoming : []
 }
 
+type QueuedInputSnapshot = {
+  queuedInputs?: EntityRecord[] | null
+  queueRevision?: number
+  removedInputId?: string
+}
+
+export function isQueuedInputSnapshotStale(current: SessionState, snapshot: QueuedInputSnapshot) {
+  return (
+    Number.isSafeInteger(current.queueRevision) &&
+    Number.isSafeInteger(snapshot.queueRevision) &&
+    snapshot.queueRevision! < current.queueRevision
+  )
+}
+
+// HTTP 与 SSE 共用修订号；撤回身份不依赖文本，迟到的撤回事件仍能清除对应临时气泡。
+export function reconcileQueuedInputSnapshot(
+  current: SessionState,
+  snapshot: QueuedInputSnapshot,
+): SessionState {
+  const withdrawnInputIds: string[] = snapshot.removedInputId
+    ? [...new Set([...(current.withdrawnInputIds || []), snapshot.removedInputId])]
+    : current.withdrawnInputIds || []
+  const withdrawn = new Set(withdrawnInputIds)
+  const messages = withdrawn.size
+    ? current.messages.filter((message) => !withdrawn.has(message.queuedInputId))
+    : current.messages
+  if (isQueuedInputSnapshotStale(current, snapshot))
+    return { ...current, messages, withdrawnInputIds }
+  const queuedInputs = resolveQueuedInputs(current.queuedInputs, snapshot.queuedInputs)
+  return {
+    ...current,
+    messages,
+    withdrawnInputIds,
+    queuedInputs: withdrawn.size
+      ? queuedInputs.filter((item) => !withdrawn.has(item.id))
+      : queuedInputs,
+    ...(Number.isSafeInteger(snapshot.queueRevision)
+      ? { queueRevision: snapshot.queueRevision }
+      : {}),
+    hadQueuedInput: Boolean(current.hadQueuedInput || queuedInputs.length),
+  }
+}
+
 // 把交互式用户消息插入消息列表：插到“最近一条 agent 消息”之前。
 // 这样用户追问出现在旧回复与后续流式输出之间，时间线顺序正确；
 // 没有活跃 agent 消息时直接追加到末尾。

@@ -11,6 +11,7 @@ import type {
   SessionSummary,
 } from '@/types/chat'
 import type { TranscriptLoadState } from '@/features/chat/FocusTranscript'
+import type { WithdrawnInput } from '@/features/chat/chat-api'
 
 export type FocusSessionProps = {
   session: SessionSummary
@@ -36,6 +37,7 @@ export type FocusSessionProps = {
   tools: EntityRecord[]
   thinkingText?: string
   queuedInputs: EntityRecord[]
+  withdrawingInputIds?: string[]
   compaction?: EntityRecord | null
   contextUsage?: EntityRecord | null
   sessionUsage?: EntityRecord | null
@@ -95,5 +97,6 @@ export type FocusSessionProps = {
     attachments: ChatAttachment[],
     behavior: string,
   ) => Promise<boolean> | boolean
+  onWithdrawQueuedInput?: (inputId: string) => Promise<WithdrawnInput | null>
   onAbort: () => Promise<void> | void
 }

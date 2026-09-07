@@ -47,7 +47,40 @@ export function clearComposerDraft(sessionId: string) {
   drafts.delete(sessionId)
 }
 
+// 撤回不能覆盖正在编辑的草稿，也不能截断此前已经成功入队的附件。
+export function mergeComposerDraft(current: ComposerDraft, restored: ComposerDraft): ComposerDraft {
+  const attachments = [...current.attachments]
+  const ids = new Set(attachments.map((item) => item.id))
+  for (const attachment of restored.attachments) {
+    let id = attachment.id
+    if (!id || ids.has(id)) {
+      let suffix = 1
+      do {
+        id = `${attachment.id || 'attachment'}-restored-${suffix++}`
+      } while (ids.has(id))
+    }
+    ids.add(id)
+    attachments.push({ ...attachment, id })
+  }
+  return {
+    text:
+      current.text && restored.text
+        ? `${current.text}\n${restored.text}`
+        : current.text || restored.text,
+    attachments,
+  }
+}
+
 export function useComposerDraft(sessionId: string) {
+  const activeSessionIdRef = useRef(sessionId)
+  activeSessionIdRef.current = sessionId
+  const mountedRef = useRef(true)
+  useEffect(() => {
+    mountedRef.current = true
+    return () => {
+      mountedRef.current = false
+    }
+  }, [])
   const initialDraft = useRef(readComposerDraft(sessionId))
   const [value, setValueState] = useState(initialDraft.current.text)
   const saveAttachments = useCallback(
@@ -72,10 +105,32 @@ export function useComposerDraft(sessionId: string) {
     [sessionId],
   )
   const clear = useCallback(() => {
+    const current = readComposerDraft(sessionId)
+    // 排队请求等待期间可能已输入新内容或撤回另一条消息，只能清空原提交快照。
+    if (
+      current.text !== value ||
+      current.attachments.length !== selection.attachments.length ||
+      current.attachments.some((attachment, index) => attachment !== selection.attachments[index])
+    )
+      return
+    clearComposerDraft(sessionId)
+    if (!mountedRef.current || activeSessionIdRef.current !== sessionId) return
     setValueState('')
     clearAttachments()
-    clearComposerDraft(sessionId)
-  }, [clearAttachments, sessionId])
+  }, [clearAttachments, selection.attachments, sessionId, value])
 
-  return { value, updateValue: setValue, selection, clearDraft: clear }
+  const restoreDraft = useCallback(
+    (restored: ComposerDraft) => {
+      const next = mergeComposerDraft(readComposerDraft(sessionId), restored)
+      updateComposerDraft(sessionId, next)
+      // 切换或关闭面板期间仍保存原会话草稿，但不修改当前另一会话的输入区。
+      if (!mountedRef.current || activeSessionIdRef.current !== sessionId) return false
+      setValueState(next.text)
+      replaceAttachments(next.attachments)
+      return true
+    },
+    [replaceAttachments, sessionId],
+  )
+
+  return { value, updateValue: setValue, selection, clearDraft: clear, restoreDraft }
 }

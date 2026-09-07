@@ -138,6 +138,7 @@ import {
 import { SessionLifecycle } from './session-lifecycle.mjs'
 import { ProviderPreferences } from './provider-preferences.mjs'
 import {
+  ATTACHMENT_MARKER,
   MAX_LIVE_ACTIVITY_ITEMS,
   StreamProjection,
   addSessionUsage,
@@ -152,8 +153,7 @@ import {
   startedCompaction,
   textFromContent,
 } from './stream-projection.mjs'
-// 注入到消息末尾的附件上下文标记，供模型区分“用户原文”与“系统注入的上下文”。
-const ATTACHMENT_MARKER = '\n\n---\nAttachment context (injected by Pisper):\n'
+import { releaseConsumedSessionInput, sessionInputQueueRevision } from './session-input-queue.mjs'
 // 附件文本/文档提取后的最大字符数，防止超大文件撑爆上下文。
 const MAX_EXTRACTED_CHARS = 400_000
 // 资产（上传文件）存储上限；聊天中直接注入的资产另有更严格的限制。
@@ -1735,37 +1735,6 @@ export class AgentRuntimeService extends AgentRuntimeFacade {
     return { images, contexts }
   }
 
-  // 向运行中的会话追加消息（steer/followUp）：会话必须正在流式运行，
-  // 否则走新的 runSessionPrompt 路径。
-  async queueSessionMessage(id, { message, attachments = [], behavior = 'steer' } = {}) {
-    const value = this.sessions.get(id)
-    if (!value) throw new Error('会话不存在或尚未加载。')
-    const text = String(message || '').trim()
-    if (!text && !attachments.length) throw new Error('消息不能为空。')
-    if (text.length > 12_000) throw new Error('运行中追加消息不能超过 12000 个字符。')
-    if (!value.session.isStreaming) throw new Error('当前会话已经结束运行，请作为新消息发送。')
-    const streamingBehavior = behavior === 'followUp' ? 'followUp' : 'steer'
-    const displayText = text || '请分析这些附件。'
-    const prepared = await this.preparePromptAttachments(value, attachments)
-    const prompt = prepared.contexts.length
-      ? `${displayText}${ATTACHMENT_MARKER}${prepared.contexts.join('\n\n')}`
-      : displayText
-    await this.selectToolsForMessage(value, displayText, { preserveRequested: true })
-    value.pendingUserMessage = displayText
-    await value.session.prompt(prompt, {
-      images: prepared.images,
-      streamingBehavior,
-      source: 'interactive',
-    })
-    value.modified = new Date().toISOString()
-    return {
-      queued: true,
-      behavior: streamingBehavior,
-      pendingMessageCount: value.session.pendingMessageCount || 0,
-      queuedInputs: queuedSessionInputs(value.session),
-    }
-  }
-
   /**
    * 向父会话注入 Agent 完成通知（对用户隐藏）
    * 如果父会话正在运行，直接 steer；否则作为 pending 消息，下次用户消息时注入
@@ -1945,6 +1914,7 @@ export class AgentRuntimeService extends AgentRuntimeFacade {
       promptCache: value.promptCache,
     })
     live.attachTeam = attachTeam
+    live.queueRevision = sessionInputQueueRevision(session)
     this.liveSessions.set(session.sessionId, live)
     this.streamProjection.invalidate(session.sessionId)
     this.goalEmitters.set(session.sessionId, emit)
@@ -1986,6 +1956,7 @@ export class AgentRuntimeService extends AgentRuntimeFacade {
       sessionTreeRevision: live.sessionTreeRevision || 0,
       thinkingText: live.thinkingText,
       queuedInputs: live.queuedInputs,
+      queueRevision: live.queueRevision,
       contextUsage: live.contextUsage,
       sessionUsage: live.sessionUsage,
       startedAt: live.startedAt,
@@ -2062,8 +2033,15 @@ export class AgentRuntimeService extends AgentRuntimeFacade {
             this.getTeamProjection(session.sessionId, { compact: true }),
           )}`
         : goalContinuationPrompt(currentGoal)
+    let queueUpdateScheduled = false
     const unsubscribe = session.subscribe((event) => {
       live.lastActivityAt = new Date().toISOString()
+      if (event.type === 'message_start' && event.message?.role === 'user') {
+        releaseConsumedSessionInput(event.message)
+        const userText = textFromContent(event.message.content)
+        if (!isInternalParentMessage(userText))
+          value.pendingUserMessage = userText.split(ATTACHMENT_MARKER)[0]
+      }
       bridgeAgentSessionEvent(event, live, emit)
       // 文本/思考流事件：维护分块状态并把增量转发给前端。
       if (event.type === 'message_update') {
@@ -2136,15 +2114,15 @@ export class AgentRuntimeService extends AgentRuntimeFacade {
         live.contextUsage = this.compactionAwareContextUsage(session, live.compaction)
         emit('context_usage', live.contextUsage)
       } else if (event.type === 'queue_update') {
-        live.queuedInputs = [
-          ...(event.steering || [])
-            .filter((text) => !isInternalParentMessage(text))
-            .map((text) => ({ behavior: 'steer', text })),
-          ...(event.followUp || [])
-            .filter((text) => !isInternalParentMessage(text))
-            .map((text) => ({ behavior: 'followUp', text })),
-        ]
-        emit('queue_update', { queuedInputs: live.queuedInputs })
+        // Pi 先广播展示队列再写执行队列；等本次同步入队结束后投影稳定 ID。
+        if (!queueUpdateScheduled) {
+          queueUpdateScheduled = true
+          queueMicrotask(() => {
+            queueUpdateScheduled = false
+            if (this.liveSessions.get(session.sessionId) === live && live.streaming)
+              this.publishSessionInputQueue(session.sessionId)
+          })
+        }
       } else if (event.type === 'tool_execution_start') {
         // 工具执行开始：记录工具状态与活动项；bash 工具附带输出缓冲。
         activeTextBlocks.clear()
@@ -2401,6 +2379,7 @@ export class AgentRuntimeService extends AgentRuntimeFacade {
       const finishedAt = finishLiveRun()
       live.contextUsage = this.compactionAwareContextUsage(session, live.compaction)
       emit('done', {
+        queueRevision: sessionInputQueueRevision(session),
         sessionId: session.sessionId,
         text: live.text,
         tools: live.tools,
@@ -2442,6 +2421,7 @@ export class AgentRuntimeService extends AgentRuntimeFacade {
       if (this.goals.get(session.sessionId)?.status === 'active')
         await this.pauseSessionGoal(session.sessionId)
       emit('error', {
+        queueRevision: sessionInputQueueRevision(session),
         sessionId: session.sessionId,
         message: live.error,
         text: live.text,

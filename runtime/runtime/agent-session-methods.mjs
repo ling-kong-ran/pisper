@@ -1,7 +1,17 @@
 import { normalizeExecutionMode } from '../security/execution-mode.mjs'
 import { PERMISSION_MODES } from '../services/session-permission-service.mjs'
 import { modelThinkingState } from './provider-preferences.mjs'
-import { finishedCompaction, queuedSessionInputs, startedCompaction } from './stream-projection.mjs'
+import {
+  ATTACHMENT_MARKER,
+  finishedCompaction,
+  queuedSessionInputs,
+  startedCompaction,
+} from './stream-projection.mjs'
+import {
+  captureQueuedSessionInput,
+  sessionInputQueueRevision,
+  withdrawQueuedSessionInput,
+} from './session-input-queue.mjs'
 import { listWorkspaceDirectories, listWorkspaceEntries } from './workspace-directories.mjs'
 
 function configuredSessionModel(manager, metadata = {}, settings = {}) {
@@ -100,6 +110,76 @@ export const agentSessionMethods = {
 
   async getSessionLive(id) {
     return this.streamProjection.getSessionLive(id)
+  },
+
+  // 准备附件可能等待磁盘或文档解析，实际入队前必须再次确认本轮仍在运行。
+  async queueSessionMessage(id, { message, attachments = [], behavior = 'steer' } = {}) {
+    const value = this.sessions.get(id)
+    if (!value) throw new Error('会话不存在或尚未加载。')
+    const text = String(message || '').trim()
+    if (!text && !attachments.length) throw new Error('消息不能为空。')
+    if (text.length > 12_000) throw new Error('运行中追加消息不能超过 12000 个字符。')
+    if (!value.session.isStreaming) throw new Error('当前会话已经结束运行，请作为新消息发送。')
+    const streamingBehavior = behavior === 'followUp' ? 'followUp' : 'steer'
+    const displayText = text || '请分析这些附件。'
+    const prepared = await this.preparePromptAttachments(value, attachments)
+    const prompt = prepared.contexts.length
+      ? `${displayText}${ATTACHMENT_MARKER}${prepared.contexts.join('\n\n')}`
+      : displayText
+    await this.selectToolsForMessage(value, displayText, { preserveRequested: true })
+    if (!value.session.isStreaming) throw new Error('当前会话已经结束运行，请作为新消息发送。')
+    const inputId = await captureQueuedSessionInput(
+      value.session,
+      streamingBehavior,
+      { text: displayText, attachments },
+      () =>
+        value.session.prompt(prompt, {
+          images: prepared.images,
+          streamingBehavior,
+          source: 'interactive',
+        }),
+    )
+    value.modified = new Date().toISOString()
+    return {
+      queued: true,
+      behavior: streamingBehavior,
+      inputId,
+      pendingMessageCount: value.session.pendingMessageCount || 0,
+      ...this.publishSessionInputQueue(id),
+    }
+  },
+
+  publishSessionInputQueue(id, extra = {}) {
+    const value = this.sessions.get(id)
+    const snapshot = {
+      queuedInputs: queuedSessionInputs(value?.session),
+      queueRevision: sessionInputQueueRevision(value?.session),
+      ...extra,
+    }
+    const live = this.liveSessions.get(id)
+    if (live) {
+      live.queuedInputs = snapshot.queuedInputs
+      live.queueRevision = snapshot.queueRevision
+    }
+    this.streamProjection.invalidate(id, { transcript: false, usage: false })
+    this.agentEmitters.get(id)?.('queue_update', snapshot)
+    return snapshot
+  },
+
+  withdrawSessionMessage(id, inputId) {
+    const value = this.sessions.get(id)
+    if (!value) throw new Error('会话不存在或尚未加载。')
+    if (typeof inputId !== 'string' || !inputId.trim()) throw new Error('待发送消息标识不能为空。')
+    const pending = queuedSessionInputs(value.session).some((item) => item.id === inputId)
+    const withdrawnInput = pending ? withdrawQueuedSessionInput(value.session, inputId) : null
+    if (withdrawnInput) value.modified = new Date().toISOString()
+    return {
+      removed: Boolean(withdrawnInput),
+      inputId,
+      pendingMessageCount: value.session.pendingMessageCount || 0,
+      ...this.publishSessionInputQueue(id, withdrawnInput ? { removedInputId: inputId } : {}),
+      ...(withdrawnInput ? { withdrawnInput } : {}),
+    }
   },
 
   // 手动触发上下文压缩：压缩期间以 live.compaction 状态对外可见，

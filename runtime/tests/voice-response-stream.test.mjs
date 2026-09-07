@@ -4,6 +4,7 @@ import { setImmediate } from 'node:timers/promises'
 import test from 'node:test'
 import { runInNewContext } from 'node:vm'
 import { transformSync } from 'esbuild'
+import * as sessionState from '../../src/lib/session-state.ts'
 import { applyTextPatch, consumeEventStream } from '../../src/lib/api.ts'
 import * as responseStream from '../../src/features/chat/voice-response-stream.ts'
 
@@ -22,7 +23,7 @@ test('actual SSE byte frames publish reconstructed text and prompt ownership bef
       isPlanUpdateEvent: () => false,
       planFromPayloadOr: (data, fallback) => data.plan ?? fallback,
     },
-    '@/lib/session-state': {},
+    '@/lib/session-state': sessionState,
     './mobile-operations': {},
     './run-activity': { settleToolCalls: (tools) => tools || [] },
   }
@@ -134,7 +135,7 @@ function transportFixture(t, { openStream, live, loadError } = {}) {
       planFromPayload: (data) => data.plan,
       planFromPayloadOr: (data, fallback) => data.plan ?? fallback,
     },
-    '@/lib/session-state': { resolveQueuedInputs: (_old, next) => next || [] },
+    '@/lib/session-state': sessionState,
     '@/lib/streaming-ui': {
       createStreamingTextScheduler: scheduler,
       createToolUpdateScheduler: scheduler,

@@ -16,6 +16,7 @@ import { assetHasSource, generatedAssetsForSession } from '../services/asset-sto
 import { permissionModeForExecutionMode } from '../security/execution-mode.mjs'
 import { effectiveCompactionSettings } from './compaction-policy.mjs'
 import { isCompletedTurnBoundaryMessage } from './session-derivation.mjs'
+import { sessionInputQueueSnapshot, sessionInputQueueRevision } from './session-input-queue.mjs'
 
 // 活动流长度/思考文本上限：限制实时视图的内存与传输量。
 export const MAX_LIVE_ACTIVITY_ITEMS = 6
@@ -33,7 +34,7 @@ const MAX_PROJECTION_CACHE_BYTES = 24 * 1024 * 1024
 // 冷会话上下文用量缓存上限：条目很小且纯派生，驱逐不参与会话存在性判断
 // （findSessionInfo 已在查缓存前执行）。
 const MAX_SESSION_CONTEXT_USAGE_CACHE_ENTRIES = 64
-const ATTACHMENT_MARKER = '\n\n---\nAttachment context (injected by Pisper):\n'
+export const ATTACHMENT_MARKER = '\n\n---\nAttachment context (injected by Pisper):\n'
 
 // 内部注入消息（目标延续/Agent 完成）不展示给用户，也不进入排队列表。
 export function isInternalParentMessage(content) {
@@ -139,18 +140,9 @@ export function livePlanChanges(previous, next) {
 
 // 排队中的会话输入（steer/followUp），过滤内部消息并去掉附件注入标记。
 export function queuedSessionInputs(session) {
-  const steering =
-    typeof session?.getSteeringMessages === 'function' ? session.getSteeringMessages() : []
-  const followUp =
-    typeof session?.getFollowUpMessages === 'function' ? session.getFollowUpMessages() : []
-  return [
-    ...steering
-      .filter((text) => !isInternalParentMessage(text))
-      .map((text) => ({ behavior: 'steer', text: text.split(ATTACHMENT_MARKER)[0] })),
-    ...followUp
-      .filter((text) => !isInternalParentMessage(text))
-      .map((text) => ({ behavior: 'followUp', text: text.split(ATTACHMENT_MARKER)[0] })),
-  ]
+  return sessionInputQueueSnapshot(session)
+    .inputs.filter((item) => !isInternalParentMessage(item.text))
+    .map((item) => ({ ...item, text: item.text.split(ATTACHMENT_MARKER)[0] }))
 }
 
 // 单条消息 → 前端消息结构；用户消息剥离注入的附件上下文，助手消息带错误信息。
@@ -1158,6 +1150,7 @@ export class StreamProjection {
     return [
       active,
       active?.session?.model,
+      sessionInputQueueRevision(active?.session),
       ...messageToken(messages),
       live,
       this.sessionMeta()[id],
@@ -1174,6 +1167,9 @@ export class StreamProjection {
     if (active) this.touchSessionRuntime(active)
     const live = this.liveSessions().get(id)
     const approvals = this.permissions.getPending(id)
+    // 历史读取期间可能继续入队；队列内容与修订号必须来自同一次同步快照。
+    const queuedInputs = queuedSessionInputs(active?.session)
+    const queueRevision = sessionInputQueueRevision(active?.session)
     const token = this.liveToken(id, active, live, approvals)
     if (active || live) {
       const cached = this.cache.liveSnapshot(id, token)
@@ -1246,7 +1242,8 @@ export class StreamProjection {
       lifecycle: live?.lifecycle || null,
       sessionTreeRevision: Number(live?.sessionTreeRevision || 0),
       thinkingText: live?.thinkingText || '',
-      queuedInputs: live?.queuedInputs ?? queuedSessionInputs(active?.session),
+      queuedInputs,
+      queueRevision,
       contextUsage:
         this.compactionAwareContextUsage(active?.session, live?.compaction) || page.contextUsage,
       sessionUsage: live?.sessionUsage || page.sessionUsage,

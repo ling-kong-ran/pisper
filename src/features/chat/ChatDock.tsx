@@ -336,6 +336,8 @@ function SessionPanel({
         ),
       onQueue: (value: string, attachments: ChatAttachment[], behavior: string) =>
         context?.queuePrompt(value, sessionId, attachments, behavior) ?? false,
+      onWithdrawQueuedInput: (inputId: string) =>
+        context?.withdrawQueuedInput(sessionId, inputId) ?? Promise.resolve(null),
       onAbort: () => context?.abort(sessionId),
     }),
     [context, sessionId, session, panelId],
@@ -385,6 +387,7 @@ function SessionPanel({
         tools={state.tools || EMPTY_LIST}
         thinkingText={state.thinkingText || ''}
         queuedInputs={state.queuedInputs || EMPTY_LIST}
+        withdrawingInputIds={state.withdrawingInputIds || EMPTY_LIST}
         compaction={state.compaction}
         contextUsage={state.contextUsage}
         sessionUsage={state.sessionUsage}

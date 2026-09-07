@@ -102,6 +102,7 @@ export const FocusSession = memo(function FocusSession({
   tools,
   thinkingText,
   queuedInputs,
+  withdrawingInputIds,
   compaction,
   contextUsage,
   sessionUsage,
@@ -149,6 +150,7 @@ export const FocusSession = memo(function FocusSession({
   onClosePanel,
   onSend,
   onQueue,
+  onWithdrawQueuedInput,
   onAbort,
 }: FocusSessionProps) {
   const { t, language } = useI18n()
@@ -164,7 +166,7 @@ export const FocusSession = memo(function FocusSession({
   const vcsAvailable = runtimeFeatureAvailable(capabilities, 'vcs')
   const workflowsAvailable = runtimeFeatureAvailable(capabilities, 'workflows')
   const visualAvailable = runtimeFeatureAvailable(capabilities, 'visualGeneration')
-  const { value, updateValue, selection, clearDraft } = useComposerDraft(session.id)
+  const { value, updateValue, selection, clearDraft, restoreDraft } = useComposerDraft(session.id)
   const [resourcePickerOpen, setResourcePickerOpen] = useState(false)
   const [sessionTreeOpen, setSessionTreeOpen] = useState(false)
   const [voiceModeOpen, setVoiceModeOpen] = useState(false)
@@ -280,6 +282,18 @@ export const FocusSession = memo(function FocusSession({
       document.removeEventListener('pointerdown', closeOnPointerDown)
     }
   }, [toolsOpen])
+
+  const withdrawQueuedInput = async (inputId: string) => {
+    const restored = await onWithdrawQueuedInput?.(inputId)
+    if (!restored || !restoreDraft(restored)) return
+    const element = promptRef.current
+    requestAnimationFrame(() => {
+      if (!element || promptRef.current !== element || !element.isConnected) return
+      element.focus()
+      element.style.height = 'auto'
+      element.style.height = `${Math.min(element.scrollHeight, 220)}px`
+    })
+  }
 
   const applyWelcomeChip = (prompt: string) => {
     updateValue(prompt)
@@ -505,7 +519,13 @@ export const FocusSession = memo(function FocusSession({
         onSubmit={submit}
       >
         <ToolApproval approvals={approvals} onResolve={onApproval} />
-        {streaming && queuedInputs.length > 0 && <QueuedInputsTray queuedInputs={queuedInputs} />}
+        {queuedInputs.length > 0 && (
+          <QueuedInputsTray
+            queuedInputs={queuedInputs}
+            withdrawingInputIds={withdrawingInputIds}
+            onWithdraw={onWithdrawQueuedInput ? withdrawQueuedInput : undefined}
+          />
+        )}
         {workflowsAvailable && <SessionWorkflowRuns sessionId={session.id} />}
         {invocation && (
           <ComposerResourceChip invocation={invocation} onRemove={() => setInvocation(null)} />

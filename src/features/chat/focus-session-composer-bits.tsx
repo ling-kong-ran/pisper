@@ -1,28 +1,75 @@
 // 聚焦会话输入区的小型展示组件：排队托盘、资源调用芯片、状态指示灯、
 // 手动压缩按钮与发送/停止按钮。从 FocusSession.tsx 拆出，样式逐字保留。
-import { Braces, Minimize2, RefreshCw, Send, Square, Wrench, X } from 'lucide-react'
+import { Braces, Minimize2, RefreshCw, Send, Square, Undo2, Wrench, X } from 'lucide-react'
 import { useI18n } from '@/app/use-i18n'
 import { useShortcutLabel } from '@/lib/shortcuts'
 import { QueueSection } from '@/components/ai-elements/queue'
+import { Button } from '@/components/ui/button'
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import type { EntityRecord, ResourceInvocation } from '@/types/chat'
 
-export function QueuedInputsTray({ queuedInputs }: { queuedInputs: EntityRecord[] }) {
+export function QueuedInputsTray({
+  queuedInputs,
+  withdrawingInputIds = [],
+  onWithdraw,
+}: {
+  queuedInputs: EntityRecord[]
+  withdrawingInputIds?: string[]
+  onWithdraw?: (inputId: string) => Promise<void> | void
+}) {
   const { t } = useI18n()
+  const label = t('chat:focusSession.sentToTheRunningAgent')
+  const withdrawLabel = t('chat:focusSession.withdrawQueuedInput')
   return (
     <QueueSection asChild defaultOpen>
       <div
-        className="queued-input-tray [&_>_span]:flex-none [&_>_span]:text-[var(--star-strong)] [&_>_span]:font-[600] [&_>_small]:max-w-[240px] [&_>_small]:overflow-hidden [&_>_small]:rounded-[var(--r-pill)] [&_>_small]:bg-[var(--surface-muted)] [&_>_small]:p-[4px_8px] [&_>_small]:text-[var(--text-secondary)] [&_>_small]:text-ellipsis [&_>_small]:whitespace-nowrap [&_>_em]:flex-none [&_>_em]:[font-style:normal] flex min-w-0 items-center gap-[6px] overflow-hidden text-[var(--text-muted)] text-[11px]"
+        className="flex min-w-0 flex-col gap-1 text-xs text-[var(--text-secondary)]"
         data-pisper-queue-size={queuedInputs.length}
       >
-        <span>{t('chat:focusSession.sentToTheRunningAgent')}</span>
-        {queuedInputs.slice(-3).map((item, index) => (
-          <small key={item.id || `${item.behavior}-${index}`} title={item.text}>
-            {item.text}
-          </small>
-        ))}
-        {queuedInputs.length > 3 && (
-          <em>{t('chat:focusSession.countMore', { count: queuedInputs.length - 3 })}</em>
-        )}
+        <div className="flex min-w-0 items-center gap-2 text-[11px] font-semibold text-[var(--star-strong)]">
+          <span className="min-w-0 [overflow-wrap:anywhere]">{label}</span>
+          <span className="shrink-0 tabular-nums">{queuedInputs.length}</span>
+        </div>
+        <ul
+          className="m-0 max-h-36 min-w-0 list-none overflow-x-hidden overflow-y-auto overscroll-contain p-0"
+          aria-label={label}
+          tabIndex={queuedInputs.length > 3 ? 0 : undefined}
+        >
+          {queuedInputs.map((item, index) => {
+            const inputId = typeof item.id === 'string' ? item.id : ''
+            const pending = withdrawingInputIds.includes(inputId)
+            return (
+              <li
+                key={inputId || `${item.behavior}-${index}`}
+                className="grid min-w-0 grid-cols-[minmax(0,1fr)_auto] items-center gap-2 border-b border-[var(--stroke-soft)] py-0.5 last:border-0"
+              >
+                <span
+                  className="line-clamp-2 min-w-0 whitespace-pre-wrap [overflow-wrap:anywhere]"
+                  title={item.text}
+                >
+                  {item.text}
+                </span>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon-lg"
+                      className="rounded-md text-[var(--text-muted)] hover:text-[var(--text)]"
+                      aria-label={withdrawLabel}
+                      aria-busy={pending || undefined}
+                      disabled={!inputId || !onWithdraw || pending}
+                      onClick={() => void onWithdraw?.(inputId)}
+                    >
+                      <Undo2 size={16} aria-hidden="true" />
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent>{withdrawLabel}</TooltipContent>
+                </Tooltip>
+              </li>
+            )
+          })}
+        </ul>
       </div>
     </QueueSection>
   )

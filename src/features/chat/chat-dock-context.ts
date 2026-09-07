@@ -10,6 +10,7 @@ import type {
   SessionSummary,
 } from '@/types/chat'
 import type { SessionOpenDisposition } from './dock-layout'
+import type { WithdrawnInput } from './chat-api'
 
 export type ChatDockContextValue = {
   sessions: SessionSummary[]
@@ -46,6 +47,7 @@ export type ChatDockContextValue = {
     attachments?: ChatAttachment[],
     behavior?: string,
   ) => Promise<boolean>
+  withdrawQueuedInput: (sessionId: string, inputId: string) => Promise<WithdrawnInput | null>
   abort: (sessionId: string) => Promise<void>
   pauseGoal: (sessionId: string) => Promise<void>
   setGoalBudget: (sessionId: string, tokenBudget: number | null) => Promise<void>

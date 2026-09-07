@@ -16,6 +16,18 @@ import type {
 } from '@/types/chat'
 
 export type ApiRecord = EntityRecord
+export type QueuedInputResponse = ApiRecord & {
+  inputId?: string | null
+  queueRevision?: number
+  queuedInputs?: EntityRecord[]
+}
+export type WithdrawnInput = { text: string; attachments: ChatAttachment[] }
+export type WithdrawQueuedInputResponse = QueuedInputResponse & {
+  removed: boolean
+  inputId: string
+  pendingMessageCount: number
+  withdrawnInput?: WithdrawnInput
+}
 type StreamEventHandler = (event: string, data: ApiRecord) => boolean | void
 
 type SessionListResponse = { sessions: SessionSummary[] }
@@ -264,10 +276,16 @@ export const chatApi = {
     attachments: ChatAttachment[],
     behavior: string,
   ) =>
-    requestJson<ApiRecord>(`${sessionPath(sessionId)}/input`, {
+    requestJson<QueuedInputResponse>(`${sessionPath(sessionId)}/input`, {
       method: 'POST',
       data: { message, attachments, behavior },
     }),
+
+  withdrawQueuedInput: (sessionId: string, inputId: string) =>
+    requestJson<WithdrawQueuedInputResponse>(
+      `${sessionPath(sessionId)}/input/${encodeURIComponent(inputId)}`,
+      { method: 'DELETE' },
+    ),
 
   compactSession: (sessionId: string) =>
     requestJson<ApiRecord>(`${sessionPath(sessionId)}/compact`, {
