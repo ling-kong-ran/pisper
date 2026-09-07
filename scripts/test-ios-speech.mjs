@@ -85,6 +85,8 @@ async function main() {
   ).trim()
   if (!/^[0-9a-f-]{36}$/i.test(simulator)) throw new Error('Invalid simulator creation result.')
   try {
+    // Xcode 首次解析带模块别名的 Swift 包时需要先落盘自动 scheme，测试阶段禁止补写。
+    run('xcodebuild', ['-list'], { cwd: output })
     run(
       'xcodebuild',
       [
