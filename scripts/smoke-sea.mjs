@@ -1,8 +1,8 @@
 import { spawn } from 'node:child_process'
 import { createHash } from 'node:crypto'
-import { mkdtemp, readFile, rm, stat } from 'node:fs/promises'
+import { mkdir, mkdtemp, readFile, readdir, realpath, rm, stat, writeFile } from 'node:fs/promises'
 import { homedir, tmpdir } from 'node:os'
-import { dirname, join, resolve } from 'node:path'
+import { dirname, extname, isAbsolute, join, relative, resolve, sep } from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
 import { collectNativeState, criticalRuntimeEntries } from './sea-runtime.mjs'
 
@@ -65,6 +65,7 @@ async function smokeStagedModules() {
   ) {
     throw new Error('Staged speech BPE resource failed integrity verification.')
   }
+  await smokeSpeechNative()
   await smokeSpeechWorker()
 
   const native = await collectNativeState(runtimeRoot, manifest.native.selection)
@@ -126,6 +127,138 @@ async function smokeStagedModules() {
   return manifest
 }
 
+async function speechNativeProbe(runtimeDir) {
+  const { isSea } = await import('node:sea')
+  const { createRequire } = await import('node:module')
+  const { realpathSync } = await import('node:fs')
+  const { dirname, isAbsolute, join, relative } = await import('node:path')
+  if (!isSea()) throw new Error('Speech native smoke must run inside the SEA executable.')
+  const stagedModules = realpathSync(join(runtimeDir, 'node_modules'))
+  const require = createRequire(join(runtimeDir, 'package.json'))
+  const withinStage = (path) => {
+    const resolved = realpathSync(path)
+    const local = relative(stagedModules, resolved)
+    if (
+      local === '..' ||
+      local.startsWith(`..${process.platform === 'win32' ? '\\' : '/'}`) ||
+      isAbsolute(local)
+    ) {
+      throw new Error(`Speech dependency resolved outside staged runtime: ${resolved}`)
+    }
+    return resolved
+  }
+  const wrapperPath = withinStage(require.resolve('sherpa-onnx-node'))
+  const platform = process.platform === 'win32' ? 'win' : process.platform
+  const addonPath = withinStage(
+    require.resolve(`sherpa-onnx-${platform}-${process.arch}/sherpa-onnx.node`, {
+      paths: [dirname(wrapperPath)],
+    }),
+  )
+  // 先直接加载目标 addon，保留动态链接器的原始错误，不能让 JS 包的回退逻辑掩盖缺包。
+  const addon = require(addonPath)
+  const sherpa = require(wrapperPath)
+  for (const [name, value] of [
+    ['createOnlineRecognizer', addon.createOnlineRecognizer],
+    ['createOfflineTts', addon.createOfflineTts],
+    ['OnlineRecognizer', sherpa.OnlineRecognizer],
+    ['OfflineTts', sherpa.OfflineTts],
+  ]) {
+    if (typeof value !== 'function')
+      throw new Error(`Staged speech export is not a function: ${name}`)
+  }
+  process.stdout.write('PISPER_SEA_SPEECH_NATIVE_OK\n')
+}
+
+async function assertNoStagedModels(runtimeDir) {
+  const stage = await realpath(runtimeDir)
+  const modelExtensions = new Set(['.onnx', '.ort', '.gguf', '.safetensors', '.tflite'])
+  const visited = new Set()
+  const checkName = (path) => {
+    if (modelExtensions.has(extname(path).toLowerCase())) {
+      throw new Error(
+        `Model weights must not be packaged in staged runtime: ${relative(stage, path)}`,
+      )
+    }
+  }
+  // 只遍历目录和文件元数据，不读取权重；目录链接也须检查，且不能越出 stage 访问个人文件。
+  async function walk(directory) {
+    if (visited.has(directory)) return
+    visited.add(directory)
+    for (const entry of await readdir(directory, { withFileTypes: true })) {
+      const path = join(directory, entry.name)
+      if (entry.isSymbolicLink()) {
+        checkName(path)
+        const target = await realpath(path)
+        const local = relative(stage, target)
+        if (local === '..' || local.startsWith(`..${sep}`) || isAbsolute(local)) {
+          throw new Error(`Staged runtime symlink resolves outside staged runtime: ${path}`)
+        }
+        const info = await stat(target)
+        if (info.isDirectory()) await walk(target)
+        else checkName(target)
+      } else if (entry.isDirectory()) await walk(path)
+      else checkName(path)
+    }
+  }
+  await walk(stage)
+}
+
+export async function smokeSpeechNative({
+  executablePath = executable,
+  runtimeDir = runtimeRoot,
+  spawnProcess = spawn,
+  timeoutMs = 15_000,
+} = {}) {
+  runtimeDir = resolve(runtimeDir)
+  await assertNoStagedModels(runtimeDir)
+  const probeRoot = await mkdtemp(join(tmpdir(), 'pisper-sea-speech-native-'))
+  try {
+    await mkdir(join(probeRoot, 'runtime'))
+    // 只替换临时启动入口；所有被测依赖仍从真实 stage 解析，不初始化模型或个人配置。
+    await writeFile(
+      join(probeRoot, 'runtime', 'sidecar.mjs'),
+      `await (${speechNativeProbe.toString()})(${JSON.stringify(runtimeDir)})\n`,
+    )
+    await new Promise((resolveProbe, rejectProbe) => {
+      const child = spawnProcess(executablePath, [], {
+        cwd: runtimeDir,
+        env: { PISPER_APP_ROOT: probeRoot },
+        windowsHide: true,
+        stdio: ['ignore', 'pipe', 'pipe'],
+      })
+      let stdout = ''
+      let stderr = ''
+      let failure = null
+      const timeout = setTimeout(() => {
+        failure = new Error('SEA speech native smoke timed out.')
+        child.kill('SIGKILL')
+      }, timeoutMs)
+      child.stdout.on('data', (chunk) => {
+        stdout = (stdout + String(chunk)).slice(-8192)
+      })
+      child.stderr.on('data', (chunk) => {
+        stderr = (stderr + String(chunk)).slice(-8192)
+      })
+      child.once('error', (error) => {
+        failure ||= error
+      })
+      child.once('close', (code, signal) => {
+        clearTimeout(timeout)
+        if (failure || code !== 0 || stdout !== 'PISPER_SEA_SPEECH_NATIVE_OK\n') {
+          rejectProbe(
+            new Error(
+              `SEA speech native smoke failed (exit ${code}, signal ${signal}).\nstdout: ${stdout}\nstderr: ${stderr}`,
+              { cause: failure },
+            ),
+          )
+        } else resolveProbe()
+      })
+    })
+  } finally {
+    await rm(probeRoot, { recursive: true, force: true })
+  }
+}
+
 function smokeSpeechWorker() {
   return new Promise((resolveWorker, rejectWorker) => {
     // 未初始化的请求只验证 SEA 路由、静态依赖和 IPC，不加载模型或访问个人配置。
@@ -184,114 +317,120 @@ function smokeSpeechWorker() {
   })
 }
 
-const manifest = await smokeStagedModules()
-const dataDir = await mkdtemp(join(tmpdir(), 'pisper-sea-smoke-'))
-const child = spawn(executable, [], {
-  cwd: root,
-  env: {
-    ...process.env,
-    PISPER_AGENT_DIR: dataDir,
-    PISPER_APP_ROOT: runtimeRoot,
-    PISPER_DESKTOP_TOKEN: token,
-    PISPER_EXIT_ON_STDIN_CLOSE: '1',
-  },
-  stdio: ['pipe', 'pipe', 'pipe'],
-})
-let stderr = ''
-child.stderr.on('data', (chunk) => {
-  stderr += String(chunk)
-})
-
-function readyPayload() {
-  return new Promise((resolveReady, rejectReady) => {
-    const timeout = setTimeout(
-      () => rejectReady(new Error(`SEA readiness timed out.\n${stderr}`)),
-      30_000,
-    )
-    let buffered = ''
-    child.stdout.on('data', (chunk) => {
-      buffered += String(chunk)
-      const lines = buffered.split(/\r?\n/)
-      buffered = lines.pop() || ''
-      for (const line of lines) {
-        if (!line.startsWith(prefix)) continue
-        clearTimeout(timeout)
-        resolveReady(JSON.parse(line.slice(prefix.length)))
-      }
-    })
-    child.once('exit', (code) => {
-      clearTimeout(timeout)
-      rejectReady(new Error(`SEA exited before readiness (${code}).\n${stderr}`))
-    })
-  })
-}
-
-function waitForExit() {
-  return new Promise((resolveExit, rejectExit) => {
-    if (child.exitCode !== null) {
-      resolveExit(child.exitCode)
-      return
-    }
-    const timeout = setTimeout(() => rejectExit(new Error('SEA shutdown timed out.')), 15_000)
-    child.once('exit', (code) => {
-      clearTimeout(timeout)
-      resolveExit(code)
-    })
-  })
-}
-
-function api(url, cookie, path, init = {}) {
-  return fetch(`${url}${path}`, {
-    ...init,
-    headers: {
-      Cookie: cookie,
-      Origin: url,
-      ...(init.body ? { 'Content-Type': 'application/json' } : {}),
-      ...init.headers,
+async function main() {
+  const manifest = await smokeStagedModules()
+  const dataDir = await mkdtemp(join(tmpdir(), 'pisper-sea-smoke-'))
+  const child = spawn(executable, [], {
+    cwd: root,
+    env: {
+      ...process.env,
+      PISPER_AGENT_DIR: dataDir,
+      PISPER_APP_ROOT: runtimeRoot,
+      PISPER_DESKTOP_TOKEN: token,
+      PISPER_EXIT_ON_STDIN_CLOSE: '1',
     },
+    stdio: ['pipe', 'pipe', 'pipe'],
   })
+  let stderr = ''
+  child.stderr.on('data', (chunk) => {
+    stderr += String(chunk)
+  })
+
+  function readyPayload() {
+    return new Promise((resolveReady, rejectReady) => {
+      const timeout = setTimeout(
+        () => rejectReady(new Error(`SEA readiness timed out.\n${stderr}`)),
+        30_000,
+      )
+      let buffered = ''
+      child.stdout.on('data', (chunk) => {
+        buffered += String(chunk)
+        const lines = buffered.split(/\r?\n/)
+        buffered = lines.pop() || ''
+        for (const line of lines) {
+          if (!line.startsWith(prefix)) continue
+          clearTimeout(timeout)
+          resolveReady(JSON.parse(line.slice(prefix.length)))
+        }
+      })
+      child.once('exit', (code) => {
+        clearTimeout(timeout)
+        rejectReady(new Error(`SEA exited before readiness (${code}).\n${stderr}`))
+      })
+    })
+  }
+
+  function waitForExit() {
+    return new Promise((resolveExit, rejectExit) => {
+      if (child.exitCode !== null) {
+        resolveExit(child.exitCode)
+        return
+      }
+      const timeout = setTimeout(() => rejectExit(new Error('SEA shutdown timed out.')), 15_000)
+      child.once('exit', (code) => {
+        clearTimeout(timeout)
+        resolveExit(code)
+      })
+    })
+  }
+
+  function api(url, cookie, path, init = {}) {
+    return fetch(`${url}${path}`, {
+      ...init,
+      headers: {
+        Cookie: cookie,
+        Origin: url,
+        ...(init.body ? { 'Content-Type': 'application/json' } : {}),
+        ...init.headers,
+      },
+    })
+  }
+
+  try {
+    const ready = await readyPayload()
+    const unauthorized = await fetch(`${ready.url}/api/config`)
+    if (unauthorized.status !== 401) {
+      throw new Error(`Expected unauthenticated 401, received ${unauthorized.status}.`)
+    }
+
+    const bootstrap = await fetch(ready.bootstrapUrl, { redirect: 'manual' })
+    if (bootstrap.status !== 302)
+      throw new Error(`Expected bootstrap 302, received ${bootstrap.status}.`)
+    const cookie = `__pisper_desktop=${encodeURIComponent(token)}`
+
+    const config = await api(ready.url, cookie, '/api/config')
+    if (!config.ok) throw new Error(`Config API failed with ${config.status}.`)
+
+    const created = await api(ready.url, cookie, '/api/sessions', {
+      method: 'POST',
+      body: JSON.stringify({ name: 'SEA smoke test' }),
+    })
+    if (created.status !== 201) throw new Error(`Session creation failed with ${created.status}.`)
+    const session = await created.json()
+    if (resolve(session.cwd) !== resolve(homedir())) {
+      throw new Error(`Expected default workspace ${homedir()}, received ${session.cwd}.`)
+    }
+
+    const prompt = await api(ready.url, cookie, '/api/chat', {
+      method: 'POST',
+      body: JSON.stringify({ sessionId: session.id, message: 'SEA runtime smoke test' }),
+    })
+    const events = await prompt.text()
+    if (!prompt.ok || !events.trim())
+      throw new Error(`Agent activation failed with ${prompt.status}.`)
+
+    child.stdin.end('shutdown\n')
+    const exitCode = await waitForExit()
+    if (exitCode !== 0) throw new Error(`SEA exited with code ${exitCode}.\n${stderr}`)
+    console.log(
+      `SEA smoke passed: ${ready.url}, staged closure verified, ${(manifest.runtime.afterPrune.bytes / 1024 / 1024).toFixed(1)} MiB runtime, agent activated, exit ${exitCode}.`,
+    )
+  } finally {
+    if (child.exitCode === null) child.kill()
+    await rm(dataDir, { recursive: true, force: true })
+  }
 }
 
-try {
-  const ready = await readyPayload()
-  const unauthorized = await fetch(`${ready.url}/api/config`)
-  if (unauthorized.status !== 401) {
-    throw new Error(`Expected unauthenticated 401, received ${unauthorized.status}.`)
-  }
-
-  const bootstrap = await fetch(ready.bootstrapUrl, { redirect: 'manual' })
-  if (bootstrap.status !== 302)
-    throw new Error(`Expected bootstrap 302, received ${bootstrap.status}.`)
-  const cookie = `__pisper_desktop=${encodeURIComponent(token)}`
-
-  const config = await api(ready.url, cookie, '/api/config')
-  if (!config.ok) throw new Error(`Config API failed with ${config.status}.`)
-
-  const created = await api(ready.url, cookie, '/api/sessions', {
-    method: 'POST',
-    body: JSON.stringify({ name: 'SEA smoke test' }),
-  })
-  if (created.status !== 201) throw new Error(`Session creation failed with ${created.status}.`)
-  const session = await created.json()
-  if (resolve(session.cwd) !== resolve(homedir())) {
-    throw new Error(`Expected default workspace ${homedir()}, received ${session.cwd}.`)
-  }
-
-  const prompt = await api(ready.url, cookie, '/api/chat', {
-    method: 'POST',
-    body: JSON.stringify({ sessionId: session.id, message: 'SEA runtime smoke test' }),
-  })
-  const events = await prompt.text()
-  if (!prompt.ok || !events.trim())
-    throw new Error(`Agent activation failed with ${prompt.status}.`)
-
-  child.stdin.end('shutdown\n')
-  const exitCode = await waitForExit()
-  if (exitCode !== 0) throw new Error(`SEA exited with code ${exitCode}.\n${stderr}`)
-  console.log(
-    `SEA smoke passed: ${ready.url}, staged closure verified, ${(manifest.runtime.afterPrune.bytes / 1024 / 1024).toFixed(1)} MiB runtime, agent activated, exit ${exitCode}.`,
-  )
-} finally {
-  if (child.exitCode === null) child.kill()
-  await rm(dataDir, { recursive: true, force: true })
+if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
+  await main()
 }

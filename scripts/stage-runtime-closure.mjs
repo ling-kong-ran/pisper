@@ -13,6 +13,7 @@ import {
   pruneRuntime,
   SEA_RUNTIME_BUDGET_BYTES,
   SEA_SPEECH_RUNTIME_BUDGET_BYTES,
+  speechNativeEntries,
   writeSizeManifest,
 } from './sea-runtime.mjs'
 import { bundleRuntime } from './runtime-bundle.mjs'
@@ -85,9 +86,16 @@ export async function stageRuntimeClosure({
   if (includeSpeechModel) await stageSpeechModel({ root, runtimeDir })
   const afterPrune = await collectRuntimeSnapshot(runtimeDir)
   const [criticalFiles, native] = await Promise.all([
-    inspectCriticalFiles(runtimeDir, criticalRuntimeEntries(nativeSelection)),
+    inspectCriticalFiles(runtimeDir, [
+      ...criticalRuntimeEntries(nativeSelection),
+      ...speechNativeEntries(target),
+    ]),
     collectNativeState(runtimeDir, nativeSelection),
   ])
+  // 语音动态库与基础闭包分账，不能用语音余量掩盖基础 Runtime 的体积回归。
+  const speechNativeBytes = afterPrune.packages
+    .filter(({ path }) => path.startsWith('sherpa-onnx-') && path !== 'sherpa-onnx-node')
+    .reduce((bytes, entry) => bytes + entry.bytes, 0)
   const manifest = createSizeManifest({
     appVersion,
     target,
@@ -98,6 +106,7 @@ export async function stageRuntimeClosure({
     pruning: audit,
     criticalFiles,
     native,
+    speechNativeBytes,
     // 离线语音部署的模型与平台原生库拥有独立预算，避免挤占既有 Runtime 体积守卫。
     budgetBytes:
       SEA_RUNTIME_BUDGET_BYTES + (includeSpeechModel ? SEA_SPEECH_RUNTIME_BUDGET_BYTES : 0),

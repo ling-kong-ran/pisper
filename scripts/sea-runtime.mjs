@@ -338,6 +338,28 @@ async function listRelativeFiles(directory, suffix = '') {
   return files.sort()
 }
 
+async function pruneEsbuildPackages(runtimeDir, target, audit) {
+  const platform = target.platform === 'mobile' ? 'android' : target.platform
+  const selected = `${platform}-${target.arch}`
+  for (const prefix of ['node_modules', PI_NESTED_NODE_MODULES]) {
+    const scope = runtimePath(runtimeDir, `${prefix}/@esbuild`)
+    let entries
+    try {
+      entries = await readdir(scope, { withFileTypes: true })
+    } catch (error) {
+      if (error?.code === 'ENOENT') continue
+      throw error
+    }
+    // npm 11 会保留 shrinkwrap 中所有平台二进制；未知目标保持原样，避免误删。
+    if (!entries.some((entry) => entry.isDirectory() && entry.name === selected)) continue
+    for (const entry of entries) {
+      if (entry.isDirectory() && entry.name !== selected) {
+        await removePath(join(scope, entry.name), 'foreignEsbuildNative', audit)
+      }
+    }
+  }
+}
+
 async function prunePiTuiNative(runtimeDir, target, audit) {
   const selectedFiles = selectPiTuiNativeFiles(target)
   if (selectedFiles === null) return null
@@ -411,6 +433,7 @@ export async function pruneRuntime(runtimeDir, target = runtimeTarget()) {
     }
   }
 
+  await pruneEsbuildPackages(runtimeDir, target, audit)
   await pruneOfficeBrowserBundles(nodeModules, audit)
   await pruneYargsLocales(nodeModules, audit)
   const clipboardPackage = await pruneClipboardPackages(runtimeDir, target, audit)
@@ -421,6 +444,28 @@ export async function pruneRuntime(runtimeDir, target = runtimeTarget()) {
     audit,
     nativeSelection: { clipboardPackage, piTuiNativeFiles },
   }
+}
+
+export function speechNativeEntries(target) {
+  if (target.platform === 'mobile') return []
+  const platform = target.platform === 'win32' ? 'win' : target.platform
+  if (!['win', 'linux', 'darwin'].includes(platform)) return []
+  const root = `node_modules/sherpa-onnx-${platform}-${target.arch}`
+  const libraries =
+    platform === 'win'
+      ? [
+          'onnxruntime.dll',
+          'onnxruntime_providers_shared.dll',
+          'sherpa-onnx-c-api.dll',
+          'sherpa-onnx-cxx-api.dll',
+        ]
+      : ['onnxruntime', 'sherpa-onnx-c-api', 'sherpa-onnx-cxx-api'].map(
+          (name) => `lib${name}.${platform === 'darwin' ? 'dylib' : 'so'}`,
+        )
+  return ['package.json', 'index.js', 'sherpa-onnx.node', ...libraries].map((path) => ({
+    kind: 'speech-native',
+    path: `${root}/${path}`,
+  }))
 }
 
 export function criticalRuntimeEntries(nativeSelection = {}) {
@@ -551,9 +596,16 @@ export function createSizeManifest({
   native,
   executableBytes = null,
   budgetBytes = SEA_RUNTIME_BUDGET_BYTES,
+  speechNativeBytes = 0,
   generatedAt = new Date().toISOString(),
 }) {
-  const budgetPass = afterPrune.bytes <= budgetBytes
+  const baseBytes = afterPrune.bytes - speechNativeBytes
+  const speechNativePass =
+    Number.isSafeInteger(speechNativeBytes) &&
+    speechNativeBytes >= 0 &&
+    speechNativeBytes <= afterPrune.bytes &&
+    speechNativeBytes <= SEA_SPEECH_RUNTIME_BUDGET_BYTES
+  const budgetPass = baseBytes <= budgetBytes && speechNativePass
   const criticalFilesPass = criticalFiles.every((entry) => entry.exists)
   const pass = budgetPass && criticalFilesPass && native.pass
   return {
@@ -580,6 +632,10 @@ export function createSizeManifest({
       runtimeBytes: budgetBytes,
       runtimeMiB: budgetBytes / 1024 / 1024,
       actualBytes: afterPrune.bytes,
+      baseBytes,
+      speechNativeBytes,
+      speechNativeBudgetBytes: SEA_SPEECH_RUNTIME_BUDGET_BYTES,
+      speechNativePass,
       pass: budgetPass,
     },
     sidecarExecutableBytes: executableBytes,
@@ -599,7 +655,7 @@ export function assertSizeManifest(manifest, { requireExecutable = false } = {})
   const failures = []
   if (!manifest.budget.pass) {
     failures.push(
-      `runtime ${manifest.budget.actualBytes} bytes exceeds ${manifest.budget.runtimeBytes} byte budget`,
+      `runtime exceeds allocation: base ${manifest.budget.baseBytes ?? manifest.budget.actualBytes} bytes / ${manifest.budget.runtimeBytes} byte budget; speech native ${manifest.budget.speechNativeBytes ?? 0} bytes / ${manifest.budget.speechNativeBudgetBytes ?? 0} byte budget`,
     )
   }
   const missing = manifest.criticalFiles.filter((entry) => !entry.exists).map((entry) => entry.path)

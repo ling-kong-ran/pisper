@@ -5,6 +5,8 @@ import { dirname, join } from 'node:path'
 import test from 'node:test'
 import {
   SEA_RUNTIME_BUDGET_BYTES,
+  SEA_SPEECH_RUNTIME_BUDGET_BYTES,
+  speechNativeEntries,
   assertSizeManifest,
   collectNativeState,
   createSizeManifest,
@@ -32,6 +34,38 @@ async function exists(path) {
     if (error?.code === 'ENOENT') return false
     throw error
   }
+}
+
+for (const [platform, arch, selected] of [
+  ['win32', 'x64', 'win32-x64'],
+  ['linux', 'x64', 'linux-x64'],
+  ['darwin', 'arm64', 'darwin-arm64'],
+  ['darwin', 'x64', 'darwin-x64'],
+  ['mobile', 'arm64', 'android-arm64'],
+  ['unknown', 'x64', null],
+]) {
+  test(`SEA prunes npm 11 cross-platform esbuild binaries for ${platform}/${arch}`, async (t) => {
+    const runtime = await mkdtemp(join(tmpdir(), 'pisper-sea-esbuild-'))
+    t.after(() => rm(runtime, { recursive: true, force: true }))
+    const names = ['win32-x64', 'linux-x64', 'darwin-arm64', 'darwin-x64', 'android-arm64']
+    const scopes = [
+      'node_modules/@esbuild',
+      'node_modules/@earendil-works/pi-coding-agent/node_modules/@esbuild',
+    ]
+    for (const scope of scopes) {
+      for (const name of names) await createFile(runtime, `${scope}/${name}/bin/esbuild`)
+    }
+    const result = await pruneRuntime(runtime, { platform, arch, libc: null })
+    for (const scope of scopes) {
+      for (const name of names) {
+        assert.equal(
+          await exists(join(runtime, scope, name, 'bin/esbuild')),
+          !selected || name === selected,
+        )
+      }
+    }
+    assert.equal(Boolean(result.audit.rules.foreignEsbuildNative), Boolean(selected))
+  })
 }
 
 test('SEA runtime native selection is conservative and platform-specific', () => {
@@ -258,6 +292,39 @@ test('SEA size manifest enforces its runtime budget and executable audit', () =>
   })
   assert.equal(overBudget.pass, false)
   assert.throws(() => assertSizeManifest(overBudget), /exceeds/)
+
+  const nativeBytes = 36 * 1024 * 1024
+  const speech = createSizeManifest({
+    ...base,
+    afterPrune: snapshot(SEA_RUNTIME_BUDGET_BYTES + nativeBytes),
+    speechNativeBytes: nativeBytes,
+  })
+  assert.equal(speech.pass, true)
+  assert.equal(speech.budget.baseBytes, SEA_RUNTIME_BUDGET_BYTES)
+  for (const [baseBytes, speechNativeBytes] of [
+    [SEA_RUNTIME_BUDGET_BYTES + 1, nativeBytes],
+    [1, SEA_SPEECH_RUNTIME_BUDGET_BYTES + 1],
+    [SEA_RUNTIME_BUDGET_BYTES, -1],
+  ]) {
+    assert.equal(
+      createSizeManifest({
+        ...base,
+        afterPrune: snapshot(baseBytes + speechNativeBytes),
+        speechNativeBytes,
+      }).pass,
+      false,
+    )
+  }
+})
+
+test('SEA speech closure requires target addon and shared libraries without bundling models', () => {
+  for (const platform of ['win32', 'darwin', 'linux']) {
+    const entries = speechNativeEntries({ platform, arch: 'x64' })
+    assert.ok(entries.some(({ path }) => path.endsWith('/sherpa-onnx.node')))
+    assert.ok(entries.some(({ path }) => /onnxruntime\.(dll|dylib|so)$/.test(path)))
+    assert.ok(entries.every(({ path }) => !path.endsWith('.onnx')))
+  }
+  assert.deepEqual(speechNativeEntries({ platform: 'mobile', arch: 'arm64' }), [])
 })
 
 test('SEA critical closure audits dynamic packages and reports missing files', async () => {
