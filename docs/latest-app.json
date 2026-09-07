@@ -1,9 +1,9 @@
 {
-  "version": "0.1.32",
-  "tag": "app-v0.1.32",
-  "url": "https://github.com/ling-kong-ran/pisper/releases/tag/app-v0.1.32",
+  "version": "0.1.33",
+  "tag": "app-v0.1.33",
+  "url": "https://github.com/ling-kong-ran/pisper/releases/tag/app-v0.1.33",
   "apk": "app-universal-release-signed.apk",
   "ipa": "pisper-ios-unsigned.ipa",
-  "notes": "- fix(assets): restore video filter\n- feat(chat): customize composer shortcuts\n- fix(chat): reveal local Markdown paths",
-  "releaseDate": "2026-09-04"
+  "notes": "- fix(ios): isolate XCTest outputs and bound asynchronous store waits\n- fix(ios): resolve Swift package schemes before speech XCTest\n- fix(ios): disambiguate archive modules and compile speech contracts\n- chore(release-runtime): runtime-v0.5.37\n- chore(deps): update pi coding agent\n- fix(packaging): prune foreign compilers and verify model-free speech runtime\n- fix: preserve release status columns and support current Pi text helpers\n- fix(mobile): stabilize startup, remote tunnels and speech downloads\n- feat(speech): prewarm voice sessions and parallelize ASR and TTS\n- feat: smooth streaming responses and transcript scrolling\n- feat: unify local speech models and stream voice responses across platforms\n- feat: add voice conversation mode and customizable shortcuts\n- feat: improve local voice input and mobile workspace selection\n- chore(release-runtime): runtime-v0.5.36\n- fix: add latest reasoning model metadata\n- chore(release-runtime): runtime-v0.5.35\n- style: format mobile proxy\n- fix: improve runtime and remote session reliability",
+  "releaseDate": "2026-09-07"
 }
