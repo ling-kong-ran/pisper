@@ -17,7 +17,11 @@ function parseReleaseSource(source) {
     (node) => node.type === 'FunctionDeclaration' && node.id?.name === 'updateUpstreamPiDependency',
   )
   assert.ok(updater, 'release dependency updater must remain identifiable')
-  return { sourceFile, updater }
+  const runner = sourceFile.program.body.find(
+    (node) => node.type === 'FunctionDeclaration' && node.id?.name === 'run',
+  )
+  assert.ok(runner, 'release command runner must remain identifiable')
+  return { sourceFile, updater, runner }
 }
 
 async function dependencyUpdateFixture({
@@ -26,27 +30,34 @@ async function dependencyUpdateFixture({
   failOn = '',
 } = {}) {
   const source = await readFile('scripts/release.mjs', 'utf8')
-  const { updater } = parseReleaseSource(source)
+  const { updater, runner } = parseReleaseSource(source)
   const calls = []
-  // 只执行 AST 定位的更新函数，并替换全部进程调用，避免测试触及真实 npm、Git 或发布入口。
-  const update = runInNewContext(`(${source.slice(updater.start, updater.end)})`, {
-    PI_CODING_AGENT_PACKAGE: '@earendil-works/pi-coding-agent',
-    releaseBranch: 'release',
-    console: { log() {} },
-    runNpm(args) {
-      calls.push(['npm', ...args])
-      if (failOn === 'npm') throw new Error('simulated npm failure')
+  // 保留真实输出处理，仅替换进程边界，避免 mock 掩盖 porcelain 首列被裁剪的问题。
+  const update = runInNewContext(
+    `(() => {
+    ${source.slice(runner.start, runner.end)}
+    return ${source.slice(updater.start, updater.end)}
+  })()`,
+    {
+      PI_CODING_AGENT_PACKAGE: '@earendil-works/pi-coding-agent',
+      releaseBranch: 'release',
+      root: '/unused-release-fixture',
+      console: { log() {} },
+      runNpm(args) {
+        calls.push(['npm', ...args])
+        if (failOn === 'npm') throw new Error('simulated npm failure')
+      },
+      execFileSync(command, args) {
+        calls.push([command, ...args])
+        assert.equal(command, 'git')
+        if (args[0] === failOn) throw new Error(`simulated ${failOn} failure`)
+        if (args[0] === 'diff') return changed
+        if (args[0] === 'status') return status
+        assert.ok(['add', 'commit', 'push'].includes(args[0]))
+        return ''
+      },
     },
-    run(command, args) {
-      calls.push([command, ...args])
-      assert.equal(command, 'git')
-      if (args[0] === failOn) throw new Error(`simulated ${failOn} failure`)
-      if (args[0] === 'diff') return changed
-      if (args[0] === 'status') return status
-      assert.ok(['add', 'commit', 'push'].includes(args[0]))
-      return ''
-    },
-  })
+  )
   return { update, calls }
 }
 
@@ -84,6 +95,15 @@ test('release dependency update commits only manifests and pushes only the relea
     ['git', 'commit', '-m', 'chore(deps): update pi coding agent'],
     ['git', 'push', 'origin', 'release'],
   ])
+})
+
+test('release dependency update preserves the leading status column for a single lockfile change', async () => {
+  const { update, calls } = await dependencyUpdateFixture({
+    changed: 'package-lock.json\n',
+    status: ' M package-lock.json\n',
+  })
+  assert.equal(update(), true)
+  assert.deepEqual(calls.at(-1), ['git', 'push', 'origin', 'release'])
 })
 
 test('release dependency update rejects unexpected tracked changes before staging or pushing', async () => {

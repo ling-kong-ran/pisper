@@ -36,7 +36,8 @@ function run(command, commandArgs, { capture = false } = {}) {
     encoding: 'utf8',
     stdio: capture ? 'pipe' : 'inherit',
   })
-  return typeof result === 'string' ? result.trim() : ''
+  // Git porcelain 的行首空格属于状态列，不能随命令输出一起裁掉。
+  return typeof result === 'string' ? result.trimEnd() : ''
 }
 
 function runNpm(commandArgs, options) {

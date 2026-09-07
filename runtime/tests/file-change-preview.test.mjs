@@ -5,6 +5,13 @@ import { join } from 'node:path'
 import test from 'node:test'
 import { parseUnifiedDiff } from '../../src/features/chat/git-diff.ts'
 import { createFileChangePreview, sameFileChangeSource } from '../services/file-change-preview.mjs'
+import { stripBom } from '../runtime/pi-coding-agent.mjs'
+
+test('Pi BOM adapter preserves the edit preview object contract', () => {
+  assert.deepEqual(stripBom('\uFEFFbefore\r\n'), { bom: '\uFEFF', text: 'before\r\n' })
+  assert.deepEqual(stripBom('before\n'), { bom: '', text: 'before\n' })
+  assert.deepEqual(stripBom(''), { bom: '', text: '' })
+})
 
 test('file change previews use an in-memory unified diff for edit operations', async (t) => {
   const directory = await mkdtemp(join(tmpdir(), 'pisper-file-change-preview-'))

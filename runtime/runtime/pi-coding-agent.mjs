@@ -20,6 +20,7 @@ const [
   truncate,
   editDiff,
   pathUtils,
+  textUtils,
 ] = await Promise.all([
   packageModule('./core/compaction/index.js'),
   packageModule('./core/model-runtime.js'),
@@ -29,6 +30,7 @@ const [
   packageModule('./core/tools/truncate.js'),
   packageModule('./core/tools/edit-diff.js'),
   packageModule('./core/tools/path-utils.js'),
+  packageModule('./utils/text.js'),
 ])
 
 export const calculateContextTokens = compaction.calculateContextTokens
@@ -45,7 +47,8 @@ export const truncateHead = truncate.truncateHead
 export const applyEditsToNormalizedContent = editDiff.applyEditsToNormalizedContent
 export const generateUnifiedPatch = editDiff.generateUnifiedPatch
 export const normalizeToLF = editDiff.normalizeToLF
-export const stripBom = editDiff.stripBom
+// 保留预览调用方的 { bom, text } 合同；新版 Pi 将该能力命名为 splitBom。
+export const stripBom = textUtils.splitBom
 export const resolveReadPathAsync = pathUtils.resolveReadPathAsync
 export const resolveToCwd = pathUtils.resolveToCwd
 
