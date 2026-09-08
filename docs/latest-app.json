@@ -1,9 +1,9 @@
 {
-  "version": "0.1.34",
-  "tag": "app-v0.1.34",
-  "url": "https://github.com/ling-kong-ran/pisper/releases/tag/app-v0.1.34",
+  "version": "0.1.35",
+  "tag": "app-v0.1.35",
+  "url": "https://github.com/ling-kong-ran/pisper/releases/tag/app-v0.1.35",
   "apk": "app-universal-release-signed.apk",
   "ipa": "pisper-ios-unsigned.ipa",
-  "notes": "- chore(deps): update pi coding agent\n- fix(mobile): harden resume and desktop remote connectivity\n- fix(ios): accept CRLF when preparing speech test package\n- feat(chat): allow withdrawing queued messages",
+  "notes": "- chore(release-runtime): runtime-v0.5.39\n- chore(deps): update pi coding agent\n- fix(desktop): 修复嵌入版 Explorer 下本地文件定位静默失败\n- fix(config): allow renaming saved providers",
   "releaseDate": "2026-09-08"
 }
