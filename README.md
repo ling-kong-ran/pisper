@@ -72,6 +72,14 @@ Pisper 以 [Pi Coding Agent](https://github.com/earendil-works/pi/tree/main/pack
 - **上下文与性能**：通过工具冷热分层、discover/call 按需加载、稳定工具定义与提示词形态诊断，减少上下文占用并提高 Provider prompt cache 命中率。
 - **完整产品层**：提供 Desktop、Ratatui TUI 与移动端体验；手机本机模式运行同一套 Node/Pisper Agent、Provider、会话、HTTP/SSE 与 React，并按 embedded Node 的实际能力清单关闭当前设备无法承载的入口。
 
+## 🎬 宣传视频
+
+[![Pisper：一次灵感，多路推进](docs/promo/pisper-promo-cover.webp)](https://ling-kong-ran.github.io/pisper/#promo)
+
+**60 秒体验 Pisper：** 对话模式、语音输入、流式回复与平滑滚动，以及并行会话、分支探索和工作流。
+
+[在线观看](https://ling-kong-ran.github.io/pisper/#promo) · [下载 MP4](docs/promo/pisper-promo-zh-CN.mp4) · [素材说明](docs/promo/README.md)
+
 ## 📸 界面预览
 
 <table>
@@ -93,7 +101,7 @@ Pisper 以 [Pi Coding Agent](https://github.com/earendil-works/pi/tree/main/pack
   </tr>
 </table>
 
-> 更多界面与交互演示见 **[项目主页](https://ling-kong-ran.github.io/pisper/)**。
+> 更多界面与交互演示见 **[项目主页](https://ling-kong-ran.github.io/pisper/)**。新增预览：[对话模式](docs/shots/conversation-mode.png) · [语音输入](docs/shots/voice-input.png) · [流式渲染](docs/shots/smooth-streaming.png)。
 
 <a id="quickstart"></a>
 

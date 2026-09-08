@@ -72,6 +72,14 @@ Pisper uses [Pi Coding Agent](https://github.com/earendil-works/pi/tree/main/pac
 - **Context and performance**: hot/cold tool tiers, discover/call loading, stable tool definitions, and prompt-shape diagnostics reduce context pressure and improve provider prompt-cache hit rates.
 - **A complete product layer**: Desktop, the Ratatui TUI, and mobile experiences; on-device mode runs the same Node/Pisper Agent, Providers, sessions, HTTP/SSE, and React interface, hiding capabilities that the embedded Node host cannot provide on that device.
 
+## 🎬 Product film
+
+[![Pisper: One idea, many possibilities](docs/promo/pisper-promo-cover.webp)](https://ling-kong-ran.github.io/pisper/#promo)
+
+**Experience Pisper in 60 seconds:** conversation mode, voice input, streamed replies and smooth scrolling, parallel sessions, branching, and workflows. Chinese titles; English captions are available in the website player.
+
+[Watch online](https://ling-kong-ran.github.io/pisper/#promo) · [Download MP4](docs/promo/pisper-promo-zh-CN.mp4) · [Production notes](docs/promo/README.md)
+
 ## 📸 Screenshots
 
 <table>
@@ -93,7 +101,7 @@ Pisper uses [Pi Coding Agent](https://github.com/earendil-works/pi/tree/main/pac
   </tr>
 </table>
 
-> See the **[website](https://ling-kong-ran.github.io/pisper/)** for more screens and interaction demos.
+> See the **[website](https://ling-kong-ran.github.io/pisper/)** for more screens and interaction demos. New previews: [conversation mode](docs/shots/conversation-mode.png) · [voice input](docs/shots/voice-input.png) · [streaming replies](docs/shots/smooth-streaming.png).
 
 <a id="quickstart"></a>
 

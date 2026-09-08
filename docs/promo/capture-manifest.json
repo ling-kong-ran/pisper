@@ -1,0 +1,410 @@
+{
+  "sourceCommit": "167a53c05444ea7239bbf0146584faf67ed854bd",
+  "versions": {
+    "runtimeWeb": "0.5.37",
+    "tui": "0.5.23",
+    "desktopManifest": "0.5.55"
+  },
+  "existingPngUpdated": 27,
+  "newShotNames": [
+    "conversation-mode",
+    "voice-input",
+    "smooth-streaming"
+  ],
+  "shotPairs": [
+    {
+      "png": "docs/shots/assets-preview.png",
+      "webp": "docs/shots/web/assets-preview.webp",
+      "width": 1600,
+      "height": 1000,
+      "captureMethod": "current-react-ui-with-isolated-demo-data",
+      "pngSha256": "863256b17846bd67c940f01a40c1c6b0daf818f62f1b9db64957c3cefe1fd78e",
+      "webpSha256": "0cd91654bc0656340ab32848b8c540811189a243ff8a62009c90562121ccb506",
+      "webpMeanAbsolutePixelError": 0.686
+    },
+    {
+      "png": "docs/shots/assets.png",
+      "webp": "docs/shots/web/assets.webp",
+      "width": 1600,
+      "height": 1000,
+      "captureMethod": "current-react-ui-with-isolated-demo-data",
+      "pngSha256": "c78738754c6a87712e7ee0849cb699a36b4f54aa170c95c48bf9d618efe44a03",
+      "webpSha256": "3a9dd426ca8cdaa8ca7e641ea6230eaaa939d55703acdb59a158c6e9ecff419a",
+      "webpMeanAbsolutePixelError": 0.7877
+    },
+    {
+      "png": "docs/shots/channels.png",
+      "webp": "docs/shots/web/channels.webp",
+      "width": 1600,
+      "height": 1000,
+      "captureMethod": "current-react-ui-with-isolated-demo-data",
+      "pngSha256": "8f27040f65378ce8fc9847406dcfde2aabaec2720289cca108d3a149a25236fc",
+      "webpSha256": "4b0d8dce2e016fce67009a1c0859588e9fd6a51c8ce8e834fb2d23a55dcc0cc9",
+      "webpMeanAbsolutePixelError": 0.9584
+    },
+    {
+      "png": "docs/shots/chat-grid.png",
+      "webp": "docs/shots/web/chat-grid.webp",
+      "width": 1600,
+      "height": 1000,
+      "captureMethod": "current-react-ui-with-isolated-demo-data",
+      "pngSha256": "1b73a6a66c38975ea84b2913df8050d03e5eccbc91d6fbb6ba4578d52f5d6b98",
+      "webpSha256": "34bb861c9857f7605debf99cda009eae5e33f3c43943143a68cbc9dd537fc8eb",
+      "webpMeanAbsolutePixelError": 0.8772
+    },
+    {
+      "png": "docs/shots/chat.png",
+      "webp": "docs/shots/web/chat.webp",
+      "width": 1600,
+      "height": 1000,
+      "captureMethod": "current-react-ui-with-isolated-demo-data",
+      "pngSha256": "daf6d950978f0b1ea0d26e4c793aab054c2836c27b9c173e0a7a82742576f745",
+      "webpSha256": "47b6194019e578285dec268649409910ba6425f6e1a0f8d9dddcfabba66761fb",
+      "webpMeanAbsolutePixelError": 0.7079
+    },
+    {
+      "png": "docs/shots/cli-chat.png",
+      "webp": "docs/shots/web/cli-chat.webp",
+      "width": 1587,
+      "height": 830,
+      "captureMethod": "current-tui-0.5.23-conpty-ansi-xterm-edge",
+      "pngSha256": "de70b94336a27062dc1bbb335b57143d071eee7b3a7b23d11195f3950589db2a",
+      "webpSha256": "aa55b7cf33a0ef295c8ab07e1c1c6b198fec1fc0d7471f919ded98cfcefdebf7",
+      "webpMeanAbsolutePixelError": 0.0
+    },
+    {
+      "png": "docs/shots/cli.png",
+      "webp": "docs/shots/web/cli.webp",
+      "width": 1587,
+      "height": 830,
+      "captureMethod": "current-tui-0.5.23-conpty-ansi-xterm-edge",
+      "pngSha256": "a50548ab60d8ed7c6feb501b9a4227534cf2a42232fe0465e91e5e2c5735f691",
+      "webpSha256": "d32c09956e619e28c9097da69314adab80c76cf93b24f50932526bf8d8e62056",
+      "webpMeanAbsolutePixelError": 0.0
+    },
+    {
+      "png": "docs/shots/config-about.png",
+      "webp": "docs/shots/web/config-about.webp",
+      "width": 1600,
+      "height": 1000,
+      "captureMethod": "current-react-ui-with-isolated-demo-data",
+      "pngSha256": "ac1edf78682cfc4eba21c1a6c5e5e955e8b6046d0136907c87811ca44a56d718",
+      "webpSha256": "4ce729ad26f401a9be14b1fa9eb79bad0211bc693b1e1b45d692447263611fe9",
+      "webpMeanAbsolutePixelError": 0.7607
+    },
+    {
+      "png": "docs/shots/config-interface.png",
+      "webp": "docs/shots/web/config-interface.webp",
+      "width": 1600,
+      "height": 1000,
+      "captureMethod": "current-react-ui-with-isolated-demo-data",
+      "pngSha256": "aa34f7868cdfc37291955820f7ed67a2d395a2fbdbd643275de603bfd8b49584",
+      "webpSha256": "77fc2bf87ab78e6b0a6cc6afc2c45e7acd5fd45cf0377921efe333f2107d2800",
+      "webpMeanAbsolutePixelError": 0.9262
+    },
+    {
+      "png": "docs/shots/config-notifications.png",
+      "webp": "docs/shots/web/config-notifications.webp",
+      "width": 1600,
+      "height": 1000,
+      "captureMethod": "current-react-ui-with-isolated-demo-data",
+      "pngSha256": "1669dc1c910b26c5a085fe0446a46984a9cc7da7324173ae933839f52345d69a",
+      "webpSha256": "3708e150fc32a55c14af28f755aebe8feaab00b2a9f6f27181d689bfd968a7a7",
+      "webpMeanAbsolutePixelError": 0.9479
+    },
+    {
+      "png": "docs/shots/config-remote-access.png",
+      "webp": "docs/shots/web/config-remote-access.webp",
+      "width": 1600,
+      "height": 1000,
+      "captureMethod": "current-react-ui-with-isolated-demo-data",
+      "pngSha256": "dc171e3550500f652723a65505763b44703c543c1fa3b861f74ec87bdcc01714",
+      "webpSha256": "7fc772b36d45e99f610194e0451485da04d6e488f0a9b95bdf5bb728f079be3c",
+      "webpMeanAbsolutePixelError": 0.6172
+    },
+    {
+      "png": "docs/shots/config-updates.png",
+      "webp": "docs/shots/web/config-updates.webp",
+      "width": 1576,
+      "height": 908,
+      "captureMethod": "react-update-page-with-unchecked-desktop-info-fixture",
+      "pngSha256": "7ce78b74e8a71f6b31483d7a6964f3ba24fa21d197887cb91c0a6fd1edb9a54f",
+      "webpSha256": "bca4f0b99fa314c26d7948c8ab79d2bc8aa32b49506d78255c43b6ddb18656e9",
+      "webpMeanAbsolutePixelError": 0.8822
+    },
+    {
+      "png": "docs/shots/config.png",
+      "webp": "docs/shots/web/config.webp",
+      "width": 1600,
+      "height": 1000,
+      "captureMethod": "current-react-ui-with-isolated-demo-data",
+      "pngSha256": "e947e5ae1747f1b754f600f686a60789104a9d95d80494e113b531e4001dd1d9",
+      "webpSha256": "413ec43cbc654f788f4b182adcd7e2fb9a903b83aeb555230e7301612c983ef2",
+      "webpMeanAbsolutePixelError": 0.718
+    },
+    {
+      "png": "docs/shots/conversation-mode.png",
+      "webp": "docs/shots/web/conversation-mode.webp",
+      "width": 1600,
+      "height": 1000,
+      "captureMethod": "real-voice-overlay-listening-animation",
+      "pngSha256": "91cb5396adc7e11fe208d79fdbb5bc04bdf70e75b2584b1c08589be1a13d9887",
+      "webpSha256": "e3b9fb6d4e370cf1b1d3c127fcc2cbccc9d854e3bd6d59eabcf2625732711723",
+      "webpMeanAbsolutePixelError": 0.6021
+    },
+    {
+      "png": "docs/shots/history.png",
+      "webp": "docs/shots/web/history.webp",
+      "width": 1600,
+      "height": 1000,
+      "captureMethod": "current-react-ui-with-isolated-demo-data",
+      "pngSha256": "e37136a04be7582e173f0781e2deaf9b735448f104b6f249cf1073647411c144",
+      "webpSha256": "117f37c8ddc0f5b409b6d7c7577bae6b19516f45d5876c21f0c361e341574b05",
+      "webpMeanAbsolutePixelError": 0.7491
+    },
+    {
+      "png": "docs/shots/mcp.png",
+      "webp": "docs/shots/web/mcp.webp",
+      "width": 1600,
+      "height": 1000,
+      "captureMethod": "current-react-ui-with-isolated-demo-data",
+      "pngSha256": "b1318024aa1773c9379fef0efc095d1d2277790319465d1fb417834f03b6b7c1",
+      "webpSha256": "54a343db0654185cf4f492ffaa1ed4c6ec2edbb52c82b55675bd7ffe23aeeef7",
+      "webpMeanAbsolutePixelError": 1.0763
+    },
+    {
+      "png": "docs/shots/memory.png",
+      "webp": "docs/shots/web/memory.webp",
+      "width": 1600,
+      "height": 1000,
+      "captureMethod": "current-react-ui-with-isolated-demo-data",
+      "pngSha256": "75ae6a7d11b45dbd7745d5b9fc0848f6c7bb91dbe17db6fadf42efc440b1892d",
+      "webpSha256": "624addf1c231f9034f0f23082ac677fdb60da31871876fa0fac96e45ef6b2968",
+      "webpMeanAbsolutePixelError": 0.988
+    },
+    {
+      "png": "docs/shots/mobile-chat3.png",
+      "webp": "docs/shots/web/mobile-chat3.webp",
+      "width": 860,
+      "height": 1864,
+      "captureMethod": "responsive-react-ui-with-mobile-shell-fixture",
+      "pngSha256": "8de34d0f2b63a8aa7598866d7016ff7e4d7cfda4aeb8cb18f827123802da0fe6",
+      "webpSha256": "961881ca53ce85397688f0bba57f5c109250e325599175852a3387e52e91db51",
+      "webpMeanAbsolutePixelError": 0.943
+    },
+    {
+      "png": "docs/shots/mobile-servers.png",
+      "webp": "docs/shots/web/mobile-servers.webp",
+      "width": 860,
+      "height": 1864,
+      "captureMethod": "responsive-react-ui-with-mobile-shell-fixture",
+      "pngSha256": "ce48d9cbc3295616c2411a664715c3a70079c4a4019dc6055a10b879327f84f0",
+      "webpSha256": "1f4f17f37d57e9e148eafabe33e6693732d93797da91e4d78ad1f56f4bf969da",
+      "webpMeanAbsolutePixelError": 0.9457
+    },
+    {
+      "png": "docs/shots/plugins.png",
+      "webp": "docs/shots/web/plugins.webp",
+      "width": 1600,
+      "height": 1000,
+      "captureMethod": "current-react-ui-with-isolated-demo-data",
+      "pngSha256": "209a7906c6702ba5970f8564c04b5c9e97d0528b4cd339295342fb7074864628",
+      "webpSha256": "e1590198aef2803ef6b66543afacf34c5c78f22cf0ab470eb59d23591e2da297",
+      "webpMeanAbsolutePixelError": 0.7896
+    },
+    {
+      "png": "docs/shots/schedules.png",
+      "webp": "docs/shots/web/schedules.webp",
+      "width": 1600,
+      "height": 1000,
+      "captureMethod": "current-react-ui-with-isolated-demo-data",
+      "pngSha256": "772d1e0b29b90bc728575accfae6c6b71887cd167a8f1c5c60ec7275883c9187",
+      "webpSha256": "c5ba96e46d695d4486ab16833ff8f024016f6878540590a9923be0593ada3cf6",
+      "webpMeanAbsolutePixelError": 0.9052
+    },
+    {
+      "png": "docs/shots/session-labels.png",
+      "webp": "docs/shots/web/session-labels.webp",
+      "width": 1576,
+      "height": 908,
+      "captureMethod": "current-react-ui-with-isolated-demo-data",
+      "pngSha256": "e9379cdbe31c9f7dee2d2d461cf3515e0493e7b897abbd64b092b0fc90f2fc30",
+      "webpSha256": "93092eb780534d5652af7d0e21f3048e5439d5b0898587e50c88fc74b02fa0d1",
+      "webpMeanAbsolutePixelError": 0.6827
+    },
+    {
+      "png": "docs/shots/session-tree.png",
+      "webp": "docs/shots/web/session-tree.webp",
+      "width": 1600,
+      "height": 1000,
+      "captureMethod": "current-react-ui-with-isolated-demo-data",
+      "pngSha256": "eba3583439a968879ec82253d1d40407c37d11e4745d3c15c3c3e40e2132ea84",
+      "webpSha256": "41d22ba1aa9c20cfcc8f00cf714cc33430920054c517793e55b1ff4b0914d828",
+      "webpMeanAbsolutePixelError": 0.7778
+    },
+    {
+      "png": "docs/shots/skills.png",
+      "webp": "docs/shots/web/skills.webp",
+      "width": 1600,
+      "height": 1000,
+      "captureMethod": "current-react-ui-with-isolated-demo-data",
+      "pngSha256": "988bccd5a19f91763ba753c56102ec28c227ec8f06025acbd0ea7d31ecd391de",
+      "webpSha256": "fd33bfef570f0cf55965efbb60ef7177ab927dc4654ef9e75d09326c40c58ee8",
+      "webpMeanAbsolutePixelError": 0.8835
+    },
+    {
+      "png": "docs/shots/smooth-streaming.png",
+      "webp": "docs/shots/web/smooth-streaming.webp",
+      "width": 1600,
+      "height": 1000,
+      "captureMethod": "real-runtime-sse-rendering-with-scripted-local-provider",
+      "pngSha256": "c12038c9e32a748d9695bdbe557eb7feb80a9188053783aa8e957af3d38eb59c",
+      "webpSha256": "977592cf14554bd4a5a7df9fcdbf5f97a7c989adf32d9ea74e95d7e800be5549",
+      "webpMeanAbsolutePixelError": 0.7754
+    },
+    {
+      "png": "docs/shots/terminal.png",
+      "webp": "docs/shots/web/terminal.webp",
+      "width": 1576,
+      "height": 908,
+      "captureMethod": "react-terminal-with-captured-powershell-output-and-bridge-adapter",
+      "pngSha256": "b91f5848cae744543923cc3fcf6e837b58999452a81a70a9921428df7513bac1",
+      "webpSha256": "c731cfdaa66d1dccedb91675cd5e8c44f821c3fc9c14083fb56c8a58e65ba8cd",
+      "webpMeanAbsolutePixelError": 0.7718
+    },
+    {
+      "png": "docs/shots/turn-label.png",
+      "webp": "docs/shots/web/turn-label.webp",
+      "width": 1576,
+      "height": 908,
+      "captureMethod": "current-react-ui-with-isolated-demo-data",
+      "pngSha256": "8fcfd43e2cae2577ceceb3e154b8d02b3f859c8fe24543632654d33a1a818d7f",
+      "webpSha256": "c831bd389ad29922871783ec4f1d48d0bc70db4eda6ec5a543b198aec98c3f69",
+      "webpMeanAbsolutePixelError": 0.7834
+    },
+    {
+      "png": "docs/shots/voice-input.png",
+      "webp": "docs/shots/web/voice-input.webp",
+      "width": 1600,
+      "height": 1000,
+      "captureMethod": "real-local-asr-from-tts-audio-injected-as-microphone",
+      "pngSha256": "11c560eabcd7b23b6fd4d77a15885be315ae1b4cffe933cb5fe49f9ea1a9de9e",
+      "webpSha256": "115e5072658674b6a82847a44548a362689cca2346d86292f93d76c7e109bec9",
+      "webpMeanAbsolutePixelError": 0.9267
+    },
+    {
+      "png": "docs/shots/workflow-builder.png",
+      "webp": "docs/shots/web/workflow-builder.webp",
+      "width": 1576,
+      "height": 908,
+      "captureMethod": "current-react-ui-with-isolated-demo-data",
+      "pngSha256": "21059b62106ef7ccc89d4216ea496b6723076fb9bfb36add0a1e30769da0fb4c",
+      "webpSha256": "587105956150bcf7a8dc7c4b4e5b5d26fa0a6e0d88415518267846536977d903",
+      "webpMeanAbsolutePixelError": 1.3942
+    },
+    {
+      "png": "docs/shots/workflows.png",
+      "webp": "docs/shots/web/workflows.webp",
+      "width": 1576,
+      "height": 908,
+      "captureMethod": "current-react-ui-with-isolated-demo-data",
+      "pngSha256": "d451c0735c86720e8204c082a3655f804927147c4bdc035ea9bbc51c852a3e9c",
+      "webpSha256": "9c82b501da7924fc655cd6d9fcb37e4897b44b1ce12d0dce336da4bc93688ad2",
+      "webpMeanAbsolutePixelError": 0.617
+    }
+  ],
+  "video": {
+    "file": "docs/promo/pisper-promo-zh-CN.mp4",
+    "sha256": "d397bf7e2fc68c3b7685e94a07ac856f9f917043940d67d6b6ec2b6531a8fba9",
+    "ffprobe": {
+      "programs": [],
+      "stream_groups": [],
+      "streams": [
+        {
+          "codec_name": "h264",
+          "width": 1920,
+          "height": 1080,
+          "r_frame_rate": "30/1",
+          "duration": "60.000000",
+          "nb_frames": "1800",
+          "side_data_list": [
+            {}
+          ]
+        },
+        {
+          "codec_name": "aac",
+          "sample_rate": "48000",
+          "channels": 2,
+          "r_frame_rate": "0/0",
+          "duration": "60.053333",
+          "nb_frames": "2815"
+        }
+      ],
+      "format": {
+        "duration": "60.053333",
+        "size": "19518993"
+      }
+    },
+    "fullDecode": "ffmpeg -v error -i <video> -f null -: exit 0",
+    "integratedLoudnessLufs": -23.8,
+    "truePeakDbfs": -9.7
+  },
+  "browserPlayback": {
+    "playback": {
+      "time": 1.090699,
+      "paused": false,
+      "width": 1920,
+      "height": 1080,
+      "duration": 60.053333,
+      "error": null,
+      "tracks": [
+        {
+          "language": "zh-CN",
+          "label": "简体中文"
+        },
+        {
+          "language": "en-US",
+          "label": "English"
+        }
+      ]
+    },
+    "englishCaptionCues": 10,
+    "mobileVideoBounds": {
+      "x": 24,
+      "y": 295.3125,
+      "width": 342,
+      "height": 192.375
+    },
+    "links": [
+      {
+        "path": "promo/pisper-promo-cover.webp",
+        "status": 200
+      },
+      {
+        "path": "promo/pisper-promo-zh-CN.mp4",
+        "status": 200
+      },
+      {
+        "path": "promo/pisper-promo-zh-CN.vtt",
+        "status": 200
+      },
+      {
+        "path": "promo/pisper-promo-en-US.vtt",
+        "status": 200
+      },
+      {
+        "path": "promo/README.md",
+        "status": 200
+      }
+    ],
+    "pageErrors": []
+  },
+  "localMediaReferencesChecked": 68,
+  "productionDirectory": "E:/pisper-media-tools",
+  "limitations": [
+    "Mobile screenshots use browser responsive layout and shell fixtures; no Android/iOS device validation.",
+    "Desktop terminal and update info use capture bridge adapters; no native Tauri transport/update validation.",
+    "Streamed model content is scripted demo data sent through the actual runtime SSE/rendering path.",
+    "Conversation-mode clip shows the actual listening interface; it is not an end-to-end speech quality benchmark."
+  ]
+}
